@@ -307,6 +307,7 @@ set(X64_SOURCE_FILES
     codegen/x64/transform_address.cpp
     codegen/x64/transform_loop.cpp
     codegen/x64/transform_expand.cpp
+    codegen/x64/transform_block.cpp
     codegen/x64/transform_reduce.cpp
     codegen/x64/transform_constant.cpp
     codegen/x64/place.cpp

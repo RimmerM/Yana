@@ -4,6 +4,192 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
+copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
+  b_0 {
+    %v_1 = cmp_ige %count, 32: Int
+    %v_2 = imm 16: Long
+    %v_3 = imm 16: Long
+    %v_4 = imm 64: Long
+    %v_5 = imm 16: Long
+    je %v_1, b_6, b_7
+  }
+
+  b_7 {
+    %v_8 = cmp_ige %count, 8: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    %v_11 = cmp_ige %count, 2: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    %v_14 = cmp_ige %count, 1: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_15 {
+    %v_17 = load %from, 1: Int
+    store %to, %v_17, 1
+    jmp b_16
+  }
+
+  b_12 {
+    %v_18 = cmp_ige %count, 4: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    %low = load %from, 2: Int
+    %v_21 = sub %count, 2: Long
+    %v_22 = add %from, %v_21: Ptr
+    %high = load %v_22, 2: Int
+    store %to, %low, 2
+    %v_23 = add %to, %v_21: Ptr
+    store %v_23, %high, 2
+    jmp b_16
+  }
+
+  b_19 {
+    %low = load %from, 4: Int
+    %v_24 = sub %count, 4: Long
+    %v_25 = add %from, %v_24: Ptr
+    %high = load %v_25, 4: Int
+    store %to, %low, 4
+    %v_26 = add %to, %v_24: Ptr
+    store %v_26, %high, 4
+    jmp b_16
+  }
+
+  b_9 {
+    %v_27 = cmp_ige %count, %v_2: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_29 {
+    %low = load %from, 8: Long
+    %v_30 = sub %count, 8: Long
+    %v_31 = add %from, %v_30: Ptr
+    %high = load %v_31, 8: Long
+    store %to, %low, 8
+    %v_32 = add %to, %v_30: Ptr
+    store %v_32, %high, 8
+    jmp b_16
+  }
+
+  b_28 {
+    %low = load %from, 16: i8x16
+    %v_33 = sub %count, %v_2: Long
+    %v_34 = add %from, %v_33: Ptr
+    %high = load %v_34, 16: i8x16
+    store %to, %low, 16
+    %v_35 = add %to, %v_33: Ptr
+    store %v_35, %high, 16
+    jmp b_16
+  }
+
+  b_16 {
+    ret 
+  }
+
+  b_6 {
+    %v_36 = cmp_ilt %count, 64: Int
+    je %v_36, b_37, b_38
+  }
+
+  b_38 {
+    %v_39 = cmp_ige %count, 768: Int
+    je %v_39, b_40, b_41
+  }
+
+  b_41 {
+    %v_42 = sub %count, %v_3: Long
+    %v_43 = add %from, %v_42: Ptr
+    %tail = load %v_43, 16: i8x16
+    jmp b_44
+  }
+
+  b_44 {
+    %v_45 = phi [b_41, 0], [b_46, %v_47]: Long
+    %v_48 = add %v_45, %v_4: Long
+    %v_49 = cmp_ile %v_48, %count: Int
+    je %v_49, b_46, b_50
+  }
+
+  b_50 {
+    jmp b_51
+  }
+
+  b_51 {
+    %v_52 = phi [b_50, %v_45], [b_53, %v_54]: Long
+    %v_55 = add %v_52, %v_3: Long
+    %v_56 = cmp_ile %v_55, %count: Int
+    je %v_56, b_53, b_57
+  }
+
+  b_57 {
+    %v_58 = add %to, %v_42: Ptr
+    store %v_58, %tail, 16
+    ret 
+  }
+
+  b_53 {
+    %v_59 = add %to, %v_52: Ptr
+    %v_60 = add %from, %v_52: Ptr
+    %v_61 = load %v_60, 16: i8x16
+    store %v_59, %v_61, 16
+    %v_54 = add %v_52, %v_3: Long
+    jmp b_51
+  }
+
+  b_46 {
+    %v_62 = add %from, %v_45: Ptr
+    %a = load %v_62, 16: i8x16
+    %v_63 = add %v_62, 16: Ptr
+    %b = load %v_63, 16: i8x16
+    %v_64 = add %v_62, 32: Ptr
+    %c = load %v_64, 16: i8x16
+    %v_65 = add %v_62, 48: Ptr
+    %d = load %v_65, 16: i8x16
+    %v_66 = add %to, %v_45: Ptr
+    store %v_66, %a, 16
+    %v_67 = add %v_66, 16: Ptr
+    store %v_67, %b, 16
+    %v_68 = add %v_66, 32: Ptr
+    store %v_68, %c, 16
+    %v_69 = add %v_66, 48: Ptr
+    store %v_69, %d, 16
+    %v_47 = add %v_45, %v_4: Long
+    jmp b_44
+  }
+
+  b_40 {
+    copy %to, %from, %count
+    ret 
+  }
+
+  b_37 {
+    %a = load %from, 16: i8x16
+    %v_70 = add %from, 16: Ptr
+    %b = load %v_70, 16: i8x16
+    %v_71 = sub %count, %v_5: Long
+    %v_72 = sub %v_71, %v_5: Long
+    %v_73 = add %from, %v_72: Ptr
+    %c = load %v_73, 16: i8x16
+    %v_74 = add %from, %v_71: Ptr
+    %d = load %v_74, 16: i8x16
+    store %to, %a, 16
+    %v_75 = add %to, 16: Ptr
+    store %v_75, %b, 16
+    %v_76 = add %to, %v_72: Ptr
+    store %v_76, %c, 16
+    %v_77 = add %to, %v_71: Ptr
+    store %v_77, %d, 16
+    ret 
+  }
+}
+
 growHeap<complex>(%needed: Long): Int {
   b_0 {
     %v_1 = loads @heapRegionNext, 8: Long
@@ -296,7 +482,7 @@ resize(Cell)<complex>(%self: Ptr, %wanted: Long): Int {
     %v_32 = imul %room, 24: Long
     %v_33 = add %v_31, %v_32: Ptr
     %v_34 = sub %v_33, %v_31: Long
-    copy %v_23, %v_31, %v_34
+    call_complex copyMemory, %v_23, %v_31, %v_34
     jmp b_35
   }
 

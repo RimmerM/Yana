@@ -1,45 +1,5 @@
 @image$base = []
 
-loops<complex>(): Int {
-  b_0 {
-    jmp b_1
-  }
-
-  b_2 {
-    %v_3 = cmp_ilt %v_4, 4: Int
-    je %v_3, b_1, b_5
-  }
-
-  b_1 {
-    %v_6 = phi [b_2, %v_7], [b_0, 0]: Int
-    %v_8 = phi [b_2, %v_4], [b_0, 0]: Int
-    %v_7 = add %v_6, %v_8: Int
-    %v_4 = add %v_8, 1: Int
-    jmp b_2
-  }
-
-  b_5 {
-    jmp b_9
-  }
-
-  b_10 {
-    %v_11 = cmp_ilt %v_12, 13: Int
-    je %v_11, b_9, b_13
-  }
-
-  b_9 {
-    %v_14 = phi [b_10, %v_15], [b_5, %v_7]: Int
-    %v_16 = phi [b_10, %v_12], [b_5, 10]: Int
-    %v_15 = add %v_14, %v_16: Int
-    %v_12 = add %v_16, 1: Int
-    jmp b_10
-  }
-
-  b_13 {
-    ret %v_15
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = bitcast 0: Ptr
@@ -48,14 +8,47 @@ main<complex>(): Int {
     %v_4 = bitcast 0: Ptr
     %v_5 = call_complex ResolveTest.continuation$16, %v_4, 201: Int
     %v_6 = add %v_3, %v_5: Int
-    %v_7 = call_complex loops: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = add %v_8, 13: Int
-    %v_10 = bitcast 0: Ptr
-    %v_11 = call_complex ResolveTest.lambda$19, %v_10, 30, 4: Int
-    %v_12 = add %v_9, %v_11: Int
-    %v_13 = add %v_12, 24: Int
-    ret %v_13
+    jmp b_7
+  }
+
+  b_8 {
+    %v_9 = cmp_ilt %v_10, 4: Int
+    je %v_9, b_7, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_13 {
+    %v_14 = cmp_ilt %v_15, 13: Int
+    je %v_14, b_12, b_16
+  }
+
+  b_16 {
+    %v_17 = add %v_6, %v_18: Int
+    %v_19 = add %v_17, 13: Int
+    %v_20 = bitcast 0: Ptr
+    %v_21 = call_complex ResolveTest.lambda$19, %v_20, 30, 4: Int
+    %v_22 = add %v_19, %v_21: Int
+    %v_23 = add %v_22, 24: Int
+    ret %v_23
+  }
+
+  b_12 {
+    %v_24 = phi [b_13, %v_18], [b_11, %v_25]: Int
+    %v_26 = phi [b_13, %v_15], [b_11, 10]: Int
+    %v_18 = add %v_24, %v_26: Int
+    %v_15 = add %v_26, 1: Int
+    jmp b_13
+  }
+
+  b_7 {
+    %v_27 = phi [b_8, %v_25], [b_0, 0]: Int
+    %v_28 = phi [b_8, %v_10], [b_0, 0]: Int
+    %v_25 = add %v_27, %v_28: Int
+    %v_10 = add %v_28, 1: Int
+    jmp b_8
   }
 }
 

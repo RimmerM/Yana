@@ -418,10 +418,11 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
     /*
      * Block operations.
      *
-     * Two encodings with very different register requirements: `rep movsb`/`rep stosb` demand fixed
-     * registers and consume them as they run, while the unrolled form works out of whatever
-     * registers the operands already occupy. Which one applies is chosen once by the transform
-     * pipeline and recorded on the instruction.
+     * One encoding each, and the only one either of them has. A block operation short enough to be
+     * worth straight-lining was written out as ordinary loads and stores long above here - see
+     * `expandBlockOperations` - so what reaches selection is a count that is not a constant, or one
+     * past the ceiling. Both are the string instruction, which demands fixed registers and consumes
+     * them as it runs.
      */
 
     {
@@ -441,36 +442,6 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
         };
     }
 
-    /*
-     * The unrolled form needs one general register to carry each word through, and states it as a
-     * clobber of a fixed register rather than as a declared temporary (MachineForm::temporaries).
-     * The two would reserve it at different scopes: a clobber keeps a live value out of r11 at this
-     * one instruction, where a declared temporary is held back from the whole function.
-     *
-     * It comes in two, and the pair is what the count operand costs. The unrolling reads the byte
-     * count out of the IR and writes that many `mov`s: the operand appears in none of them, so it
-     * needs no location and the ordinary form says so with `folded()`. But being folded is a
-     * property of the *value* - `Implicit` is set on the constant, not on this use of it - so a
-     * count that some other instruction still needs in a register cannot be folded here either. The
-     * second form is that case, and it differs in the one operand.
-     *
-     * Two forms rather than a fallback to `rep movsb`, which is the other way to be correct: a rep
-     * copy of twelve bytes is thirty cycles of startup to avoid materializing a constant.
-     */
-    auto blockCopyUnrolled = [&](MachineFormId id, bool countInRegister) {
-        auto& form = add(id, OpBlockCopy, "mov (unrolled)"_v);
-        form.uses.push(anyReg());
-        form.uses.push(anyReg());
-        form.uses.push(countInRegister ? anyReg() : folded());
-        form.clobbers.add(gpr(IntRegister::r11));
-        form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::BlockCopyUnrolled,
-        };
-    };
-
-    blockCopyUnrolled(FormBlockCopyUnrolled, false);
-    blockCopyUnrolled(FormBlockCopyUnrolledCount, true);
-
     {
         // Positional, matching the instruction's own operand order (to, count, pattern) rather than
         // the rdi/rax/rcx order `rep stosb` reads them in.
@@ -486,21 +457,6 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::BlockSetRep,
         };
     }
-
-    // The same pair, for the same reason - see the copy above. The pattern stays in a register in
-    // both: it is what every store the unrolling writes reads from.
-    auto blockSetUnrolled = [&](MachineFormId id, bool countInRegister) {
-        auto& form = add(id, OpBlockSet, "mov (unrolled)"_v);
-        form.uses.push(anyReg());
-        form.uses.push(countInRegister ? anyReg() : folded());
-        form.uses.push(anyReg());
-        form.encoding = EncodingDescriptor {
-            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::BlockSetUnrolled,
-        };
-    };
-
-    blockSetUnrolled(FormBlockSetUnrolled, false);
-    blockSetUnrolled(FormBlockSetUnrolledCount, true);
 
     /*
      * Calls.

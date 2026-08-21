@@ -1,0 +1,190 @@
+{-
+   `copyMemory` - the non-overlapping block copy, now that it is a ladder in the language rather
+   than one instruction.
+
+   It used to be `rep movsb` and nothing else, so there was nothing here to test: the instruction
+   either copies `n` bytes or the machine is broken. What it is now is `moveMemory`'s ladder with the
+   direction question taken out - the same rungs, the same overlapping ragged end, the same
+   `blockCopy` above `width * 48` - and every one of those has an edge a length can sit on.
+
+   So this is `MoveMemory.yana`'s sweep with the argument that file cannot make. There, what had to
+   be proved was that a byte is read before the write that could reach it; here the regions never
+   meet, and what has to be proved is the other half:
+
+   - **every byte of the destination is written**, which the run check says;
+   - **and nothing else is**, which is what the two guard bands either side of the destination are
+     for. A store that ran wide - a ragged transfer placed at `n - W` is only correct because it
+     *stops* at `n` - shows up nowhere in the copied region itself.
+
+   The lengths are chosen against the rungs rather than by hand: the dense sweep walks every length
+   to 200, which crosses 8, 16, 32, 64 and 128 several times over, and the coarse one walks 200 to
+   1800 in steps of thirty-seven so that it lands either side of `width * 48` - 768 bytes at v2 and
+   1536 at v3, which is the one boundary where the answer stops being this ladder's and becomes the
+   machine's.
+
+   **Both offsets are varied and not just the length.** The wide steps are unaligned transfers, and
+   which bytes a step straddles is a function of the *address* and not only of the count - so a
+   sweep at offset zero on both sides would run every rung with the source and the destination
+   congruent, which is the one case where a bug in the ragged end can cancel out.
+-}
+
+import Native
+import Native.Linux
+
+-- The buffer, in two halves: the source below `apart` and the destination above it, far enough
+-- apart that no length here can bring them within a register of each other. `copyMemory` promises
+-- nothing about overlapping regions, so a test that let them touch would be testing a contract that
+-- does not exist.
+let apart = 4096 :: I64
+let guard = 64 :: I64
+
+-- `0, 1, 2, ...` from `first`, so that any byte's correct value is its own index and a clobber shows
+-- up as a repeat. It wraps at 256, which is why every comparison below truncates too.
+fn fill(buffer: %U8, at: I64, first: I64, count: I64) -> {}:
+    let &i = 0 :: I64
+    while i < count:
+        store(buffer + at + i, truncate(first + i) :: U8)
+        i = i + 1
+
+-- One value everywhere, which is what the destination and its guard bands are painted with before
+-- each copy: a byte the copy leaves behind still reads as this one.
+fn paint(buffer: %U8, at: I64, value: I64, count: I64) -> {}:
+    let &i = 0 :: I64
+    while i < count:
+        store(buffer + at + i, truncate(value) :: U8)
+        i = i + 1
+
+fn runs(buffer: %U8, at: I64, first: I64, count: I64) -> Bool:
+    let &i = 0 :: I64
+    while i < count:
+        if (*(buffer + at + i)) != (truncate(first + i) :: U8) then return False
+        i = i + 1
+
+    return True
+
+fn same(buffer: %U8, at: I64, value: I64, count: I64) -> Bool:
+    let &i = 0 :: I64
+    while i < count:
+        if (*(buffer + at + i)) != (truncate(value) :: U8) then return False
+        i = i + 1
+
+    return True
+
+{-
+   One copy, checked at all three edges.
+
+   The source starts at `from` and holds the ascending run; the destination starts at
+   `apart + to` with `guard` painted bytes in front of it and `guard` behind. What has to hold
+   afterwards is that the run arrived, and that both bands are exactly as they were.
+-}
+fn check(buffer: %U8, from: I64, to: I64, count: I64) -> Int:
+    let source = from
+    let target = apart + to
+
+    fill(buffer, source, 7, count)
+    paint(buffer, target - guard, 219, guard + count + guard)
+
+    copyMemory(buffer + target, buffer + source, count)
+
+    let &bad = 0 :: Int
+    if !runs(buffer, target, 7, count) then bad = bad + 1
+    if !same(buffer, target - guard, 219, guard) then bad = bad + 1
+    if !same(buffer, target + count, 219, guard) then bad = bad + 1
+
+    return bad
+
+{-
+   The named cases, one at a time so that a failure says which shape broke.
+
+   Zero and one are the two ends of the ladder that are not rungs: a count at or below zero falls off
+   the bottom of it and has to leave the destination alone, and a count of one is the single store.
+-}
+fn edges() -> {}:
+    let buffer = allocateHeap(8192)
+
+    assert(check(buffer, 0, 0, 0) == 0)
+    assert(check(buffer, 0, 0, 1) == 0)
+    assert(check(buffer, 0, 0, 2) == 0)
+    assert(check(buffer, 0, 0, 7) == 0)
+    assert(check(buffer, 0, 0, 8) == 0)
+    assert(check(buffer, 0, 0, 15) == 0)
+    assert(check(buffer, 0, 0, 16) == 0)
+    assert(check(buffer, 0, 0, 17) == 0)
+    assert(check(buffer, 0, 0, 31) == 0)
+    assert(check(buffer, 0, 0, 32) == 0)
+    assert(check(buffer, 0, 0, 33) == 0)
+    assert(check(buffer, 0, 0, 63) == 0)
+    assert(check(buffer, 0, 0, 64) == 0)
+    assert(check(buffer, 0, 0, 65) == 0)
+    assert(check(buffer, 0, 0, 128) == 0)
+    assert(check(buffer, 0, 0, 129) == 0)
+
+    -- A negative count, which `Array` and `String` can both arrive at from a subtraction and which
+    -- the ladder answers by doing nothing at all rather than by testing for it.
+    assert(check(buffer, 0, 0, 0 - 8) == 0)
+
+    freeHeap(buffer)
+    return
+
+{-
+   And the sweep: every length to 200 against nine pairs of offsets, which is where the rungs and
+   the ragged end live.
+
+   The offsets are not multiples of each other. Nine pairs from three values apiece, so the source
+   and destination are congruent in three of them and skewed in six - and the skew is what makes an
+   unaligned wide step straddle a line the aligned one does not.
+-}
+fn sweep() -> {}:
+    let buffer = allocateHeap(8192)
+    let &bad = 0 :: Int
+    let &count = 0 :: I64
+
+    while count <= 200:
+        let &i = 0 :: I64
+        while i < 3:
+            let &j = 0 :: I64
+            while j < 3:
+                -- 0, 1 and 5: aligned, one byte off, and off by an odd amount larger than a word.
+                let from = if i == 0 then 0 else if i == 1 then 1 else 5
+                let to = if j == 0 then 0 else if j == 1 then 1 else 5
+
+                bad = bad + check(buffer, from, to, count)
+                j = j + 1
+
+            i = i + 1
+
+        count = count + 1
+
+    freeHeap(buffer)
+    assert(bad == 0)
+    return
+
+{-
+   And past the sweep, to the length where the ladder stops being the answer.
+
+   `width * 48` is 768 bytes at v2 and 1536 at v3, and the step of thirty-seven is what lands either
+   side of both without walking sixteen hundred lengths one at a time. Below it this is the vector
+   loop with its four-register group; above it the copy is handed to `blockCopy`, which is the
+   machine's own block operation and has to answer exactly the same thing.
+-}
+fn long() -> {}:
+    let buffer = allocateHeap(8192)
+    let &bad = 0 :: Int
+    let &count = 200 :: I64
+
+    while count <= 1800:
+        bad = bad + check(buffer, 0, 0, count)
+        bad = bad + check(buffer, 1, 0, count)
+        bad = bad + check(buffer, 0, 3, count)
+        bad = bad + check(buffer, 5, 11, count)
+        count = count + 37
+
+    freeHeap(buffer)
+    assert(bad == 0)
+    return
+
+fn main() -> Int:
+    edges()
+    sweep()
+    long()
+    return 0

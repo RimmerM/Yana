@@ -2,22 +2,6 @@
 var log = 0;
 
 // ResolveTest
-function inLoop(n) {
-  var i = 0;
-  var total = 0;
-  L0: for (;;) {
-    if (i < n) {
-      i = i + 1 | 0;
-      var v28 = log;
-      total = total + (v28 + 1 | 0) | 0;
-      log = v28 + 11 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return total;
-}
-
 function main() {
   log = 1;
   var v42 = ResolveTest_continuation$14(null, 1) + (log + 10 | 0) | 0;
@@ -33,7 +17,19 @@ function main() {
   log = 1;
   var v111 = ResolveTest_continuation$22(null, 1);
   log = 0;
-  return (((((((v42 + v51 | 0) + v62 | 0) + v70 | 0) + v79 | 0) + v99 | 0) + v111 | 0) + inLoop(3) | 0) + v91 | 0;
+  var i = 0;
+  var total = 0;
+  L0: for (;;) {
+    if (i < 3) {
+      i = i + 1 | 0;
+      var v132 = log;
+      total = total + (v132 + 1 | 0) | 0;
+      log = v132 + 11 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return (((((((v42 + v51 | 0) + v62 | 0) + v70 | 0) + v79 | 0) + v99 | 0) + v111 | 0) + total | 0) + v91 | 0;
 }
 
 function ResolveTest_continuation$14(env, value$) {

@@ -35,71 +35,6 @@ Try(Maybe(a), a, ()).toOutcome(())<complex>(%v_0: Ptr, %value: Ptr) {
   }
 }
 
-loopingOut<complex>(%n: Int): Int {
-  b_0 {
-    %seen = alloca 4, 4: Ptr
-    store %seen, 0, 4
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = cmp_ilt %v_2, 5: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    %v_4 = add %v_2, 1: Int
-    %v_8 = sub %n, %v_4: Int
-    %v_9 = alloca 8, 8: Ptr
-    store %v_9, %seen, 8
-    %v_10 = alloca 1, 1: Ptr
-    %v_11 = loads @log, 4: Int
-    %v_12 = add %v_11, 1: Int
-    store @log, %v_12, 4
-    %v_13 = cmp_igt %v_8, 0: Int
-    je %v_13, b_14, b_15
-  }
-
-  b_15 {
-    store %v_10, 0, 1
-    jmp b_16
-  }
-
-  b_14 {
-    %v_17 = shl %v_8, 1: Int
-    call_complex ResolveTest.continuation$14, %v_9, %v_17
-    %v_18 = loads @log, 4: Int
-    %v_19 = add %v_18, 100: Int
-    store @log, %v_19, 4
-    store %v_10, 1, 1
-    jmp b_16
-  }
-
-  b_16 {
-    %v_20 = alloca 1, 1: Ptr
-    copy %v_20, %v_10, 1
-    %v_21 = alloca 1, 1: Ptr
-    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_21, %v_20
-    %v_22 = loads %v_21, 1: Int
-    %v_23 = cmp_eq %v_22, 1: Int
-    je %v_23, b_24, b_3
-  }
-
-  b_3 {
-    jmp b_1
-  }
-
-  b_24 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_25 = loads %seen, 4: Int
-    ret %v_25
-  }
-}
-
 statementTail<complex>(%n: Int): Int {
   b_0 {
     %seen = alloca 4, 4: Ptr
@@ -241,20 +176,78 @@ main<complex>(): Int {
   b_0 {
     store @log, 0, 4
     store @sideEffect, 0, 4
-    %a = call_complex loopingOut, 3: Int
+    %seen = alloca 4, 4: Ptr
+    store %seen, 0, 4
+    jmp b_1
+  }
+
+  b_1 {
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
+    %v_5 = cmp_ilt %v_2, 5: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_4 = add %v_2, 1: Int
+    %v_8 = sub 3, %v_4: Int
+    %v_9 = alloca 8, 8: Ptr
+    store %v_9, %seen, 8
+    %v_10 = alloca 1, 1: Ptr
+    %v_11 = loads @log, 4: Int
+    %v_12 = add %v_11, 1: Int
+    store @log, %v_12, 4
+    %v_13 = cmp_igt %v_8, 0: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    store %v_10, 0, 1
+    jmp b_16
+  }
+
+  b_14 {
+    %v_17 = shl %v_8, 1: Int
+    call_complex ResolveTest.continuation$14, %v_9, %v_17
+    %v_18 = loads @log, 4: Int
+    %v_19 = add %v_18, 100: Int
+    store @log, %v_19, 4
+    store %v_10, 1, 1
+    jmp b_16
+  }
+
+  b_16 {
+    %v_20 = alloca 1, 1: Ptr
+    copy %v_20, %v_10, 1
+    %v_21 = alloca 1, 1: Ptr
+    call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_21, %v_20
+    %v_22 = loads %v_21, 1: Int
+    %v_23 = cmp_eq %v_22, 1: Int
+    je %v_23, b_24, b_3
+  }
+
+  b_3 {
+    jmp b_1
+  }
+
+  b_24 {
+    jmp b_7
+  }
+
+  b_7 {
+    %v_25 = loads %seen, 4: Int
     %b = call_complex statementTail, 5: Int
     %c = call_complex statementTail, 18446744073709551615: Int
     call_complex returningNothing, 7
     call_complex returningNothing, 18446744073709551615
     call_complex leavingWithNothing, 2
     call_complex leavingWithNothing, 18446744073709551615
-    %v_1 = add %a, %b: Int
-    %v_2 = add %v_1, %c: Int
-    %v_3 = loads @sideEffect, 4: Int
-    %v_4 = add %v_2, %v_3: Int
-    %v_5 = loads @log, 4: Int
-    %v_6 = add %v_4, %v_5: Int
-    ret %v_6
+    %v_26 = add %v_25, %b: Int
+    %v_27 = add %v_26, %c: Int
+    %v_28 = loads @sideEffect, 4: Int
+    %v_29 = add %v_27, %v_28: Int
+    %v_30 = loads @log, 4: Int
+    %v_31 = add %v_29, %v_30: Int
+    ret %v_31
   }
 }
 

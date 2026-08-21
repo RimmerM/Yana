@@ -39,11 +39,6 @@ function middle(xs$items, xs$length, xs$offset) {
   return total(xs$items, end - start | 0, xs$offset + start | 0);
 }
 
-function padRead() {
-  var v12 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
-  return BigInt.asIntN(64, BigInt.asIntN(64, v12[0].wide + v12[1].wide) + v12[2].wide);
-}
-
 function main() {
   var v24 = [1, 2, 3, 4];
   if (total(v24, 4, 0) !== 10) {
@@ -69,7 +64,8 @@ function main() {
         if (total(new Int32Array([7, 8]), 2, 0) !== 15) {
           return -6;
         } else {
-          if (padRead() !== 60n) {
+          var v230 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
+          if (BigInt.asIntN(64, BigInt.asIntN(64, v230[0].wide + v230[1].wide) + v230[2].wide) !== 60n) {
             return -8;
           } else {
             return total(v24, 4, 0);

@@ -57,18 +57,6 @@ function okW(x, d, q, r) {
   return (v6 ? r < d : v6) ? 1 : 0;
 }
 
-function signedLong(x) {
-  return (((((((((((okL(x, 2n, BigInt.asIntN(64, $div(x, 2n)), BigInt.asIntN(64, $rem(x, 2n))) + okL(x, 8n, BigInt.asIntN(64, $div(x, 8n)), BigInt.asIntN(64, $rem(x, 8n))) | 0) + okL(x, 4096n, BigInt.asIntN(64, $div(x, 4096n)), BigInt.asIntN(64, $rem(x, 4096n))) | 0) + okL(x, -2n, BigInt.asIntN(64, $div(x, -2n)), BigInt.asIntN(64, $rem(x, -2n))) | 0) + okL(x, -8n, BigInt.asIntN(64, $div(x, -8n)), BigInt.asIntN(64, $rem(x, -8n))) | 0) + okL(x, 3n, BigInt.asIntN(64, $div(x, 3n)), BigInt.asIntN(64, $rem(x, 3n))) | 0) + okL(x, 7n, BigInt.asIntN(64, $div(x, 7n)), BigInt.asIntN(64, $rem(x, 7n))) | 0) + okL(x, 10n, BigInt.asIntN(64, $div(x, 10n)), BigInt.asIntN(64, $rem(x, 10n))) | 0) + okL(x, 100n, BigInt.asIntN(64, $div(x, 100n)), BigInt.asIntN(64, $rem(x, 100n))) | 0) + okL(x, 1000000007n, BigInt.asIntN(64, $div(x, 1000000007n)), BigInt.asIntN(64, $rem(x, 1000000007n))) | 0) + okL(x, -3n, BigInt.asIntN(64, $div(x, -3n)), BigInt.asIntN(64, $rem(x, -3n))) | 0) + okL(x, -10n, BigInt.asIntN(64, $div(x, -10n)), BigInt.asIntN(64, $rem(x, -10n))) | 0) + okL(x, -1n, BigInt.asIntN(64, $div(x, -1n)), BigInt.asIntN(64, $rem(x, -1n))) | 0;
-}
-
-function signedInt(x) {
-  return ((((((okI(x, 2, x / 2 | 0, $rem(x, 2) | 0) + okI(x, 16, x / 16 | 0, $rem(x, 16) | 0) | 0) + okI(x, -4, x / -4 | 0, $rem(x, -4) | 0) | 0) + okI(x, 3, x / 3 | 0, $rem(x, 3) | 0) | 0) + okI(x, 10, x / 10 | 0, $rem(x, 10) | 0) | 0) + okI(x, 65521, x / 65521 | 0, $rem(x, 65521) | 0) | 0) + okI(x, -7, x / -7 | 0, $rem(x, -7) | 0) | 0) + okI(x, -1, x / -1 | 0, $rem(x, -1) | 0) | 0;
-}
-
-function unsignedLong(x) {
-  return ((((okU(x, 2n, BigInt.asUintN(64, $div(x, 2n)), BigInt.asUintN(64, $rem(x, 2n))) + okU(x, 64n, BigInt.asUintN(64, $div(x, 64n)), BigInt.asUintN(64, $rem(x, 64n))) | 0) + okU(x, 3n, BigInt.asUintN(64, $div(x, 3n)), BigInt.asUintN(64, $rem(x, 3n))) | 0) + okU(x, 10n, BigInt.asUintN(64, $div(x, 10n)), BigInt.asUintN(64, $rem(x, 10n))) | 0) + okU(x, 7n, BigInt.asUintN(64, $div(x, 7n)), BigInt.asUintN(64, $rem(x, 7n))) | 0) + okU(x, 641n, BigInt.asUintN(64, $div(x, 641n)), BigInt.asUintN(64, $rem(x, 641n))) | 0;
-}
-
 function main() {
   var longs = [0n, 1n, -1n, 7n, -7n, 100n, -100n, 1000000007n, -1000000007n, 4611686018427387904n, -4611686018427387904n, 9223372036854775807n];
   var ints = [0, 1, -1, 5, -5, 65521, -65521, 2147483647, -2147483647];
@@ -79,10 +67,11 @@ function main() {
   L0: for (;;) {
     if (i < 12) {
       checkCondition(i >>> 0 >= 12);
-      var v131 = total + signedLong(longs[i]) | 0;
+      var v129 = longs[i];
+      var v131 = total + ((((((((((((okL(v129, 2n, BigInt.asIntN(64, $div(v129, 2n)), BigInt.asIntN(64, $rem(v129, 2n))) + okL(v129, 8n, BigInt.asIntN(64, $div(v129, 8n)), BigInt.asIntN(64, $rem(v129, 8n))) | 0) + okL(v129, 4096n, BigInt.asIntN(64, $div(v129, 4096n)), BigInt.asIntN(64, $rem(v129, 4096n))) | 0) + okL(v129, -2n, BigInt.asIntN(64, $div(v129, -2n)), BigInt.asIntN(64, $rem(v129, -2n))) | 0) + okL(v129, -8n, BigInt.asIntN(64, $div(v129, -8n)), BigInt.asIntN(64, $rem(v129, -8n))) | 0) + okL(v129, 3n, BigInt.asIntN(64, $div(v129, 3n)), BigInt.asIntN(64, $rem(v129, 3n))) | 0) + okL(v129, 7n, BigInt.asIntN(64, $div(v129, 7n)), BigInt.asIntN(64, $rem(v129, 7n))) | 0) + okL(v129, 10n, BigInt.asIntN(64, $div(v129, 10n)), BigInt.asIntN(64, $rem(v129, 10n))) | 0) + okL(v129, 100n, BigInt.asIntN(64, $div(v129, 100n)), BigInt.asIntN(64, $rem(v129, 100n))) | 0) + okL(v129, 1000000007n, BigInt.asIntN(64, $div(v129, 1000000007n)), BigInt.asIntN(64, $rem(v129, 1000000007n))) | 0) + okL(v129, -3n, BigInt.asIntN(64, $div(v129, -3n)), BigInt.asIntN(64, $rem(v129, -3n))) | 0) + okL(v129, -10n, BigInt.asIntN(64, $div(v129, -10n)), BigInt.asIntN(64, $rem(v129, -10n))) | 0) + okL(v129, -1n, BigInt.asIntN(64, $div(v129, -1n)), BigInt.asIntN(64, $rem(v129, -1n))) | 0) | 0;
       var v152 = longs[i];
-      var v285 = BigInt.asIntN(64, v152 * 8n) === BigInt.asIntN(64, v152 << 3n);
-      total = v131 + ((v285 ? BigInt.asIntN(64, v152 * 1024n) === BigInt.asIntN(64, v152 << 10n) : v285) ? 1 : 0) | 0;
+      var v375 = BigInt.asIntN(64, v152 * 8n) === BigInt.asIntN(64, v152 << 3n);
+      total = v131 + ((v375 ? BigInt.asIntN(64, v152 * 1024n) === BigInt.asIntN(64, v152 << 10n) : v375) ? 1 : 0) | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -92,7 +81,8 @@ function main() {
   L1: for (;;) {
     if (i < 9) {
       checkCondition(i >>> 0 >= 9);
-      total = total + signedInt(ints[i]) | 0;
+      var v191 = ints[i];
+      total = total + (((((((okI(v191, 2, v191 / 2 | 0, $rem(v191, 2) | 0) + okI(v191, 16, v191 / 16 | 0, $rem(v191, 16) | 0) | 0) + okI(v191, -4, v191 / -4 | 0, $rem(v191, -4) | 0) | 0) + okI(v191, 3, v191 / 3 | 0, $rem(v191, 3) | 0) | 0) + okI(v191, 10, v191 / 10 | 0, $rem(v191, 10) | 0) | 0) + okI(v191, 65521, v191 / 65521 | 0, $rem(v191, 65521) | 0) | 0) + okI(v191, -7, v191 / -7 | 0, $rem(v191, -7) | 0) | 0) + okI(v191, -1, v191 / -1 | 0, $rem(v191, -1) | 0) | 0) | 0;
       i = i + 1 | 0;
       continue L1;
     }
@@ -102,7 +92,8 @@ function main() {
   L2: for (;;) {
     if (i < 8) {
       checkCondition(i >>> 0 >= 8);
-      total = total + unsignedLong(ulongs[i]) | 0;
+      var v230 = ulongs[i];
+      total = total + (((((okU(v230, 2n, BigInt.asUintN(64, $div(v230, 2n)), BigInt.asUintN(64, $rem(v230, 2n))) + okU(v230, 64n, BigInt.asUintN(64, $div(v230, 64n)), BigInt.asUintN(64, $rem(v230, 64n))) | 0) + okU(v230, 3n, BigInt.asUintN(64, $div(v230, 3n)), BigInt.asUintN(64, $rem(v230, 3n))) | 0) + okU(v230, 10n, BigInt.asUintN(64, $div(v230, 10n)), BigInt.asUintN(64, $rem(v230, 10n))) | 0) + okU(v230, 7n, BigInt.asUintN(64, $div(v230, 7n)), BigInt.asUintN(64, $rem(v230, 7n))) | 0) + okU(v230, 641n, BigInt.asUintN(64, $div(v230, 641n)), BigInt.asUintN(64, $rem(v230, 641n))) | 0) | 0;
       i = i + 1 | 0;
       continue L2;
     }

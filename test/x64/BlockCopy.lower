@@ -1,0 +1,56 @@
+# The block copy written out as loads and stores - see expandBlockOperations in transform_block.cpp,
+# and BlockExpansion in target.h for the ceiling.
+#
+# No directive, so this is the **v2** machine and the **balanced** level: a 16-byte step and a
+# ceiling of 64 bytes. `BlockCopyWide.lower` is the same functions at v3 and `BlockCopySize.lower`
+# is them at `-inline size`, which is how the two knobs are compared - two files with the same
+# bodies and different directives, and every golden an ordinary one.
+#
+# Every transfer here is an ordinary value: the offsets fold into addressing modes rather than being
+# written by the encoder, and the register each pair travels through is the allocator's choice rather
+# than one a form reserved. That the allocator gives every pair the *same* register is the point
+# rather than a shortcoming - each value dies at its store, so none of them interfere, and a load
+# that only writes the register the store before it read is a write-after-read the renamer breaks.
+#
+# What each size is for:
+#
+#   4, 8    below the vector step, so the bytes travel in a general register.
+#   12      not a whole number of steps at any width: one 8-byte pair and one more at `n - 8`,
+#           which rewrites four bytes the first pair already wrote.
+#   16      exactly one `movdqu` pair, and the smallest copy that reaches the vector bank at all.
+#   20      the ragged end at the vector width: two pairs, the second at offset 4.
+#   64      the ceiling, and four whole pairs with no ragged end.
+#   65      one byte past it, which is where `rep movsb` starts.
+
+copySmall(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 4
+        copy %dst, %src, 8
+        copy %dst, %src, 12
+        ret
+    }
+}
+
+copyVector(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 16
+        copy %dst, %src, 20
+        ret
+    }
+}
+
+# The ceiling and the first size above it. Two functions rather than one, so that the fixed registers
+# the `rep` form demands cannot be confused with the ones the expansion happened to be given.
+copyCeiling(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 64
+        ret
+    }
+}
+
+copyAboveCeiling(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 65
+        ret
+    }
+}

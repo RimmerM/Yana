@@ -106,6 +106,21 @@ function indexFind_Int_Int(self, key, h) {
   }
 }
 
+function hashKey_String(key) {
+  var v31 = key.length;
+  var h = Math.imul((v31 ^ 2166136261) >>> 0, 16777619) >>> 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v31) {
+      h = Math.imul((h ^ key.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return mix32(h);
+}
+
 function findEntry_String_Int(self, key, h) {
   if (self.mask === 0) {
     return scanEntries_String_Int(self, key);
@@ -158,26 +173,6 @@ function indexFind_String_Int(self, key, h) {
       return -1;
     }
     break L0;
-  }
-}
-
-function appendEntry_Int_Int(self, key, value, h) {
-  var v65 = self.keys.length;
-  push_Int(self.keys, key);
-  push_Int(self.values, value);
-  var v11 = self.mask;
-  if (v11 === 0) {
-    var v17 = v65 + 1;
-    if (v17 > 8) {
-      indexRebuild_Int_Int(self, indexSlotsFor(v17));
-    }
-  } else {
-    var v74 = v11 + 1;
-    if (self.live + 1 > v74 - (v74 >>> 3)) {
-      indexRebuild_Int_Int(self, Math.imul(v65 + 1, 2) > v74 ? v74 + v74 | 0 : v74);
-    } else {
-      indexPlace_Int_Int(self, v65, h);
-    }
   }
 }
 
@@ -264,15 +259,15 @@ function indexPlace_Int_Int(self, at, h) {
 }
 
 function insert_String_Int(self, key, value) {
-  var v30 = mix32(Hash_String_hash(key, 2166136261));
-  var at = findEntry_String_Int(self, key, v30);
+  var h = hashKey_String(key);
+  var at = findEntry_String_Int(self, key, h);
   if (at >= 0) {
-    var v31 = self.values.items;
-    var v15 = v31[at];
-    v31[at] = value;
+    var v28 = self.values.items;
+    var v15 = v28[at];
+    v28[at] = value;
     return v15;
   } else {
-    appendEntry_String_Int(self, key, value, v30);
+    appendEntry_String_Int(self, key, value, h);
     return null;
   }
 }
@@ -327,11 +322,11 @@ function indexRebuild_String_Int(self, slots) {
     break L0;
   }
   self.live = 0;
-  var v78 = self.keys.length;
+  var v75 = self.keys.length;
   var at = 0;
   L1: for (;;) {
-    if (at < v78) {
-      indexPlace_String_Int(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
+    if (at < v75) {
+      indexPlace_String_Int(self, at, hashKey_String(self.keys[at]));
       at = at + 1 | 0;
       continue L1;
     }
@@ -368,22 +363,6 @@ function indexPlace_String_Int(self, at, h) {
   }
 }
 
-// Text
-function Hash_String_hash(value, state) {
-  var v31 = value.length;
-  var h = Math.imul((state ^ v31) >>> 0, 16777619) >>> 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i < v31) {
-      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return h;
-}
-
 // ResolveTest
 function touchInt(m) {
   var n = 0;
@@ -411,7 +390,17 @@ function touchString(m) {
   var v24$o = null;
   var v24$k;
   var v24$s;
-  var at = findEntry_String_Int(m, "a", mix32(Hash_String_hash("a", 2166136261)));
+  var h = 67918732;
+  var i = 0;
+  L0: for (;;) {
+    if (i < 1) {
+      h = Math.imul((h ^ "a".charCodeAt(i)) >>> 0, 16777619) >>> 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var at = findEntry_String_Int(m, "a", mix32(h));
   if (at < 0) {
     v24$o = null;
   } else {
@@ -434,7 +423,23 @@ function main() {
   if (at >= 0) {
     a.values.items[at] = 5;
   } else {
-    appendEntry_Int_Int(a, 1, 5, v53);
+    var v107 = a.keys.length;
+    push_Int(a.keys, 1);
+    push_Int(a.values, 5);
+    var v112 = a.mask;
+    if (v112 === 0) {
+      var v143 = v107 + 1;
+      if (v143 > 8) {
+        indexRebuild_Int_Int(a, indexSlotsFor(v143));
+      }
+    } else {
+      var v119 = v112 + 1;
+      if (a.live + 1 > v119 - (v119 >>> 3)) {
+        indexRebuild_Int_Int(a, Math.imul(v107 + 1, 2) > v119 ? v119 + v119 | 0 : v119);
+      } else {
+        indexPlace_Int_Int(a, v107, v53);
+      }
+    }
   }
   var v76 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
   var v77 = [];

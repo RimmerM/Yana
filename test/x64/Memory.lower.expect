@@ -118,13 +118,25 @@ block #1:
 
 --- codegen: blockOps ---
 block #0:
-  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+  jmp uses=[] creates=[]  => 
 block #1:
   imm uses=[] creates=[-]  => 
-  copy uses=[rax, rsi, -] creates=[]  => 4c8b1e4c8918448b5e0844895808
+  load uses=[rsi] creates=[rax]  => 488b06
+  store uses=[rdi, rax] creates=[]  => 488907
   imm uses=[] creates=[-]  => 
-  imm uses=[] creates=[remat:0]  => 
-  setpattern uses=[rax, -, rdi] creates=[] pre=[remat:0->rdi]  => bf00000000893866897804
+  x86_addr scale=1 disp=8 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[rax]  => 8b4608
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=8 uses=[rdi] creates=[-]  => 
+  store uses=[-, rax] creates=[]  => 894708
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  store uses=[rdi, -] creates=[]  => c70700000000
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=4 uses=[rdi] creates=[-]  => 
+  store uses=[-, -] creates=[]  => 66c747040000
   ret uses=[] creates=[]  => c3
 
 --- codegen: blockOpsDynamic ---

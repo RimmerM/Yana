@@ -255,25 +255,6 @@ function push_Int(self, item) {
   self.length = v7 & 1073741823;
 }
 
-function reserveMap_String_Int(self, wanted) {
-  reserve_String(self.keys, wanted);
-  reserve_Int(self.values, wanted);
-  if (wanted > 32) {
-    B0: {
-      B1: {
-        var slots = indexSlotsFor(wanted);
-        var v37 = self.mask;
-        if (!(slots > v37 + 1)) {
-          if (v37) {
-            break B0;
-          }
-        }
-      }
-      indexRebuild_String_Int(self, slots);
-    }
-  }
-}
-
 function reserve_String(self, wanted) {
 }
 
@@ -293,16 +274,43 @@ function indexRebuild_String_Int(self, slots) {
     break L0;
   }
   self.live = 0;
-  var v78 = self.keys.length;
+  var v108 = self.keys.length;
   var at = 0;
   L1: for (;;) {
-    if (at < v78) {
-      indexPlace_String_Int(self, at, mix32(Hash_String_hash(self.keys[at], 2166136261)));
+    if (at < v108) {
+      var v70 = self.keys[at];
+      var v103 = v70.length;
+      var h = Math.imul((v103 ^ 2166136261) >>> 0, 16777619) >>> 0;
+      var i = 0;
+      L2: for (;;) {
+        if (i < v103) {
+          h = Math.imul((h ^ v70.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+          i = i + 1 | 0;
+          continue L2;
+        }
+        break L2;
+      }
+      indexPlace_String_Int(self, at, mix32(h));
       at = at + 1 | 0;
       continue L1;
     }
     break L1;
   }
+}
+
+function hashKey_String(key) {
+  var v31 = key.length;
+  var h = Math.imul((v31 ^ 2166136261) >>> 0, 16777619) >>> 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v31) {
+      h = Math.imul((h ^ key.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return mix32(h);
 }
 
 function indexPlace_String_Int(self, at, h) {
@@ -339,15 +347,15 @@ function IndexInsert_Map_k_v_k_v_insertAt_String_Int(self, index, value) {
 }
 
 function insert_String_Int(self, key, value) {
-  var v32 = mix32(Hash_String_hash(key, 2166136261));
-  var at = findEntry_String_Int(self, key, v32);
+  var h = hashKey_String(key);
+  var at = findEntry_String_Int(self, key, h);
   if (at >= 0) {
-    var v33 = self.values.items;
-    var v15 = v33[at];
-    v33[at] = value;
+    var v30 = self.values.items;
+    var v15 = v30[at];
+    v30[at] = value;
     return v15;
   } else {
-    appendEntry_String_Int(self, key, value, v32);
+    appendEntry_String_Int(self, key, value, h);
     return null;
   }
 }
@@ -438,25 +446,6 @@ function push_String(self, item) {
   var v18 = v7 & 1073741823;
   if (self.length !== v18) {
     self.length = v18;
-  }
-}
-
-function reserveMap_Int_Array_Int(self, wanted) {
-  reserve_Int(self.keys, wanted);
-  reserve_Array_Int(self.values, wanted);
-  if (wanted > 8) {
-    B0: {
-      B1: {
-        var slots = indexSlotsFor(wanted);
-        var v37 = self.mask;
-        if (!(slots > v37 + 1)) {
-          if (v37) {
-            break B0;
-          }
-        }
-      }
-      indexRebuild_Int_Array_Int(self, slots);
-    }
   }
 }
 
@@ -622,25 +611,6 @@ function push_Array_Int(self, item) {
   var v18 = v7 & 1073741823;
   if (self.length !== v18) {
     self.length = v18;
-  }
-}
-
-function reserveMap_Int_Map_Int_Int(self, wanted) {
-  reserve_Int(self.keys, wanted);
-  reserve_Map_Int_Int(self.values, wanted);
-  if (wanted > 8) {
-    B0: {
-      B1: {
-        var slots = indexSlotsFor(wanted);
-        var v37 = self.mask;
-        if (!(slots > v37 + 1)) {
-          if (v37) {
-            break B0;
-          }
-        }
-      }
-      indexRebuild_Int_Map_Int_Int(self, slots);
-    }
   }
 }
 
@@ -813,22 +783,6 @@ function push_Map_Int_Int(self, item) {
   if (self.length !== v18) {
     self.length = v18;
   }
-}
-
-// Text
-function Hash_String_hash(value, state) {
-  var v31 = value.length;
-  var h = Math.imul((state ^ v31) >>> 0, 16777619) >>> 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i < v31) {
-      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return h;
 }
 
 // ResolveTest
@@ -1006,38 +960,39 @@ function main() {
                                         var at$14 = findEntry_Int_Int(v946, 1, mix32(67918732));
                                         checkCondition(at$14 < 0);
                                         var v579 = v946.values.items[at$14];
-                                        var at$15 = findEntry_String_Int(two, "x", mix32(Hash_String_hash("x", 2166136261)));
+                                        var at$15 = findEntry_String_Int(two, "x", hashKey_String("x"));
                                         checkCondition(at$15 < 0);
                                         var v584 = v579 + two.values.items[at$15] | 0;
-                                        var at$16 = findEntry_String_Int(two, "y", mix32(Hash_String_hash("y", 2166136261)));
+                                        var at$16 = findEntry_String_Int(two, "y", hashKey_String("y"));
                                         checkCondition(at$16 < 0);
                                         if (((v584 + two.values.items[at$16] | 0) + v952.keys.length | 0) !== 13) {
                                           return -20;
                                         } else {
                                           var v607 = { items: new Int32Array([10, 11]), length: 2 };
                                           var v617 = { items: new Int32Array([20]), length: 1 };
-                                          var v990 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
-                                          var v991 = { items: new Int32Array([]), length: 0 };
-                                          var v995 = [];
-                                          if (v995.length !== 0) {
-                                            v995.length = 0;
+                                          var v986 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
+                                          var v987 = { items: new Int32Array([]), length: 0 };
+                                          var v991 = [];
+                                          if (v991.length !== 0) {
+                                            v991.length = 0;
                                           }
-                                          var v999 = { items: new Int32Array([]), length: 0 };
-                                          v990.keys = v991;
-                                          v990.values = v995;
-                                          v990.index = v999;
-                                          v990.live = 0;
-                                          v990.mask = 0;
-                                          reserveMap_Int_Array_Int(v990, 2);
-                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v990, 1, v607);
-                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v990, 2, v617);
+                                          var v995 = { items: new Int32Array([]), length: 0 };
+                                          v986.keys = v987;
+                                          v986.values = v991;
+                                          v986.index = v995;
+                                          v986.live = 0;
+                                          v986.mask = 0;
+                                          reserve_Int(v986.keys, 2);
+                                          reserve_Array_Int(v986.values, 2);
+                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v986, 1, v607);
+                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v986, 2, v617);
                                           var elements = 0;
-                                          var v1017 = v990.keys.length;
+                                          var v1100 = v986.keys.length;
                                           var at$17 = 0;
-                                          var v1033 = v990.values;
+                                          var v1116 = v986.values;
                                           L2: for (;;) {
-                                            if (at$17 < v1017) {
-                                              elements = elements + v1033[at$17].length | 0;
+                                            if (at$17 < v1100) {
+                                              elements = elements + v1116[at$17].length | 0;
                                               at$17 = at$17 + 1 | 0;
                                               continue L2;
                                             }
@@ -1048,26 +1003,27 @@ function main() {
                                           } else {
                                             var v665 = newMap_Int_Int(1);
                                             IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v665, 2, 3);
-                                            var v1049 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
-                                            var v1050 = { items: new Int32Array([]), length: 0 };
-                                            var v1054 = [];
-                                            if (v1054.length !== 0) {
-                                              v1054.length = 0;
+                                            var v1036 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
+                                            var v1037 = { items: new Int32Array([]), length: 0 };
+                                            var v1041 = [];
+                                            if (v1041.length !== 0) {
+                                              v1041.length = 0;
                                             }
-                                            var v1058 = { items: new Int32Array([]), length: 0 };
-                                            v1049.keys = v1050;
-                                            v1049.values = v1054;
-                                            v1049.index = v1058;
-                                            v1049.live = 0;
-                                            v1049.mask = 0;
-                                            reserveMap_Int_Map_Int_Int(v1049, 1);
-                                            IndexInsert_Map_k_v_k_v_insertAt_Int_Map_Int_Int(v1049, 1, v665);
-                                            var at$18 = findEntry_Int_Map_Int_Int(v1049, 1, mix32(67918732));
+                                            var v1045 = { items: new Int32Array([]), length: 0 };
+                                            v1036.keys = v1037;
+                                            v1036.values = v1041;
+                                            v1036.index = v1045;
+                                            v1036.live = 0;
+                                            v1036.mask = 0;
+                                            reserve_Int(v1036.keys, 1);
+                                            reserve_Map_Int_Int(v1036.values, 1);
+                                            IndexInsert_Map_k_v_k_v_insertAt_Int_Map_Int_Int(v1036, 1, v665);
+                                            var at$18 = findEntry_Int_Map_Int_Int(v1036, 1, mix32(67918732));
                                             checkCondition(at$18 < 0);
-                                            var v1079 = v1049.values;
-                                            var at$19 = findEntry_Int_Int(v1079[at$18], 2, mix32(118251589));
+                                            var v1137 = v1036.values;
+                                            var at$19 = findEntry_Int_Int(v1137[at$18], 2, mix32(118251589));
                                             checkCondition(at$19 < 0);
-                                            return v1079[at$18].values.items[at$19] !== 3 ? -22 : 1;
+                                            return v1137[at$18].values.items[at$19] !== 3 ? -22 : 1;
                                           }
                                         }
                                       }
@@ -1111,7 +1067,8 @@ function pair_String_Int(k1, v1, k2, v2) {
   v19.index = v28;
   v19.live = 0;
   v19.mask = 0;
-  reserveMap_String_Int(v19, 1);
+  reserve_String(v19.keys, 1);
+  reserve_Int(v19.values, 1);
   IndexInsert_Map_k_v_k_v_insertAt_String_Int(v19, k1, v1);
   IndexInsert_Map_k_v_k_v_insertAt_String_Int(v19, k2, v2);
   return v19;

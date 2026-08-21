@@ -424,6 +424,28 @@ InlinePolicy policyFor(InlineLevel level, TargetFamily family) {
             policy.ceiling = managed ? 40 : 48;
             break;
 
+        /*
+         * Speed, and the base budget is the one number here that has been asked about and answered
+         * with a measurement - see §61 of test/bench/findings.md.
+         *
+         * LLVM at `-O3` allows fifty instructions where this allows twenty (`OptAggressiveThreshold`
+         * is 250 against an `InstrCost` of 5), applies no per-block charge, and caps neither the
+         * block count nor the size. Every one of those looks like this table being timid, and three
+         * of the four were tried: raising the budget to fifty is **+10.7% over the scalar ten and
+         * 2.23x on Matrix**, taking `blockCost` to zero is 1.46x on the same program, and raising
+         * `maxBlocks` and `ceiling` together changes nothing at all - at this level what refuses a
+         * body is the limit rather than either cap.
+         *
+         * **What Matrix shows is not an inliner result.** At twenty its kernel stays in `multiply`
+         * and the loops there are register-resident; at fifty the kernel is grafted into `main` and
+         * two thirds of an inner loop becomes frame traffic. LLVM performs the same graft - its
+         * `main` is the whole program, larger than our aggressive build by both instructions and
+         * spills - and every innermost loop it emits touches the frame not at all. So the budget is
+         * calibrated against this backend's *allocation under pressure* rather than against what a
+         * copy costs, and the item that would let it be raised is live-range splitting around a loop
+         * nest a graft has enlarged. There is no size argument for holding it down: at this level we
+         * are already 0.90x of `llvm -O3` on bytes while being 1.02x on time.
+         */
         case InlineLevel::Speed:
             policy.budget = 20;
             policy.soleCallSite = 32;
@@ -1333,7 +1355,15 @@ struct Inliner {
         candidate.callee = callee;
         orderBlocks(*callee, candidate.blocks);
 
-        if(candidate.blocks.size() > policy.maxBlocks) return Nothing();
+        /*
+         * How many blocks the graft brings, which is a cap on what it costs the passes downstream
+         * rather than on what the body contains - see `worthInlining`, where the size terms are.
+         *
+         * Lifted for a body that *moves*, which is the one case where the cap is asking the wrong
+         * question: those blocks exist either way, in this function or in the one next to it, and
+         * what the program holds afterwards is one copy of them and one fewer call.
+         */
+        if(candidate.blocks.size() > policy.maxBlocks && !movesIntoSite(candidate)) return Nothing();
 
         /*
          * The entry block has to be one the caller's own block can *become*, since that is what the
@@ -1864,11 +1894,51 @@ struct Inliner {
         // Spent where `soleCallSite` is, since it is that term's argument: zero only at
         // `InlineLevel::None`, where nothing is inlined at all and a bisection expects it.
         if(!policy.soleCallSite) return false;
-        if(!candidate.dynamic || !candidate.callee->takesEnv) return false;
-        if(candidate.dynamicCalls != 0) return false;
 
+        // Nothing else may reach the body. A `symbol` naming it is a function value some `calldyn`
+        // will go through, and the dynamic case below is the one where that reference *is* this
+        // site; for a direct call it is a second way in, so the body would stay.
         auto words = codeWords.getValue(U32(candidate.pointer));
-        return words && words.unwrap() == 1;
+
+        if(candidate.dynamic) {
+            if(!candidate.callee->takesEnv) return false;
+            if(candidate.dynamicCalls != 0) return false;
+
+            return words && words.unwrap() == 1;
+        }
+
+        if(words) return false;
+
+        /*
+         * And a direct call that is the only one in the program, which is the same argument made
+         * about a body reached by name.
+         *
+         * `soleCallSite` has always priced this into the *limit* and the header has always said so -
+         * "what the program holds afterwards is the same body in one place instead of two". What it
+         * did not do was lift the two caps, so a sole-call-site callee larger than `ceiling` or with
+         * more blocks than `maxBlocks` was refused on the strength of what a *copy* would cost, and
+         * there is no copy: `markProgramReachable` runs again at the end of this stage and drops a
+         * body nothing can reach. `blockShort` in `Native.yana` is the case that found it - a
+         * twenty-two-block ladder that `copyMemory` and `moveMemory` share, which in a program that
+         * only ever copies has exactly one caller and stayed a call to it.
+         *
+         * **Except where the body is a root**, which is what a library compile makes of every named
+         * function of the module being compiled: something outside this compilation is going to call
+         * it, so the body stays and the graft is an ordinary copy. See `markProgramReachable`, whose
+         * rule this is the other half of.
+         *
+         * The count can be stale *within* a round - a caller inlined into two places takes the
+         * callee's own calls with it - which `countCallSites` describes and which every reader of
+         * this table already lives with. It is refreshed each round, and what it costs when it is
+         * wrong is a body copied twice rather than moved once.
+         */
+        auto sites = callSites.getValue(U32(candidate.pointer));
+        if(!sites || sites.unwrap() != 1) return false;
+
+        auto callee = candidate.callee;
+        auto root = callee->module && callee->module->root && !callee->anonymous;
+
+        return !root || isExecutableMode(opt.program.context.settings.mode);
     }
 
     /*
@@ -1893,9 +1963,11 @@ struct Inliner {
      * the only way into, so what the program holds afterwards is the same body in one place instead
      * of two. `soleCallSite` makes the same argument about the limit and has made it all along.
      *
-     * `maxBlocks` is deliberately *not* lifted with any of them. That cap prices what a graft costs
-     * the passes downstream rather than what the body contains, and it is the same cost whichever
-     * term paid for the copy. See §34.6 and §35 of test/bench/findings.md.
+     * `maxBlocks` is deliberately *not* lifted with either closure term. That cap prices what a
+     * graft costs the passes downstream rather than what the body contains, and it is the same cost
+     * whichever bonus paid for the copy. A body that *moves* is the exception and is lifted past it
+     * in `describe`, on the grounds that the blocks exist either way - in this function or in the
+     * one beside it. See §34.6 and §35 of test/bench/findings.md.
      */
     bool worthInlining(Candidate& candidate) {
         auto closure = closureBonus(candidate) + chainBonus(candidate);
@@ -1906,8 +1978,24 @@ struct Inliner {
         auto sites = callSites.getValue(U32(candidate.pointer));
         auto count = sites ? sites.unwrap() : U32(0);
 
+        /*
+         * A body that moves pays for itself, and never for less than `soleCallSite` would have.
+         *
+         * The size term is what makes "moves" mean *inline it*: a limit that already covers the body
+         * cannot be undercut by the block charge below, which is the one term still subtracted after
+         * this point. But the size of a small callee is a smaller number than the bonus the same
+         * callee would have drawn as an ordinary sole call site, and every case `movesIntoSite`
+         * admits is one - a direct call it counted one site of, or a lifted lambda `callSites` says
+         * zero about. Taking the larger of the two is what keeps this a strictly better answer than
+         * the term it stands in for rather than a trade against it.
+         *
+         * `saturatedAtRuntime` in test/resolve/FoldFloat.yana is what the plain `size` cost: four
+         * blocks at size 8, so on a managed target the budget of 8 plus a size of 8 less three
+         * blocks at 3 is a limit of 7 - and the same body under `soleCallSite` had a limit of 11 and
+         * had been inlined all along. `matching` in Unit.yana is the same shape at size 5.
+         */
         auto limit = I64(policy.budget);
-        if(moves) limit += I64(candidate.size);
+        if(moves) limit += max(I64(candidate.size), I64(policy.soleCallSite));
         else if(count <= 1) limit += policy.soleCallSite;
         else if(count >= policy.manyCallSites) limit -= policy.manyPenalty;
         else limit -= policy.repeatedPenalty;

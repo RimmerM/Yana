@@ -361,109 +361,6 @@ total<complex>(%t: Ptr): Int {
   }
 }
 
-leftOf<complex>(%t: Ptr): Int {
-  b_0 {
-    %absent = alloca 32, 8: Ptr
-    store %absent, 0, 4
-    %v_1 = add %absent, 8: Ptr
-    store %v_1, 0, 4
-    %v_2 = loads %t, 4: Int
-    %v_3 = cmp_eq %v_2, 0: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_5 {
-    %v_6 = add %t, 8: Ptr
-    %v_7 = load %v_6, 8: Long
-    %v_8 = cmp_neq %v_7, 0: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_9 {
-    %v_11 = bitcast %v_7: Ptr
-    jmp b_12
-  }
-
-  b_10 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_13 = phi [b_10, %absent], [b_9, %v_11]: Ptr
-    %v_14 = call_complex total, %v_13: Int
-    call_complex reclaim$Tree, %absent
-    jmp b_15
-  }
-
-  b_4 {
-    call_complex reclaim$Tree, %absent
-    %v_16 = add %t, 8: Ptr
-    %v = loads %v_16, 4: Int
-    jmp b_15
-  }
-
-  b_15 {
-    %v_17 = phi [b_4, %v], [b_12, %v_14]: Int
-    ret %v_17
-  }
-}
-
-buildList<complex>(): Int {
-  b_0 {
-    %xs = alloca 12, 8: Ptr
-    %v_1 = call_complex allocateHeap, 12: Ptr
-    store %v_1, 0, 8
-    %v_2 = call_complex allocateHeap, 12: Ptr
-    store %v_2, %v_1, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, 39, 4
-    %v_4 = add %xs, 8: Ptr
-    store %v_4, 1, 4
-    %v_5 = call_complex allocateHeap, 12: Ptr
-    store %xs, %v_5, 8
-    store %v_5, %v_2, 8
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 2, 4
-    %v_7 = call_complex sum, %xs: Int
-    call_complex reclaim$List, %xs
-    ret %v_7
-  }
-}
-
-buildTree<complex>(): Int {
-  b_0 {
-    %v_1 = call_complex allocateHeap, 32: Ptr
-    store %v_1, 0, 4
-    %v_2 = add %v_1, 8: Ptr
-    store %v_2, 20, 4
-    %t = alloca 32, 8: Ptr
-    %v_3 = call_complex allocateHeap, 32: Ptr
-    store %v_3, 0, 4
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, 10, 4
-    %v_5 = call_complex allocateHeap, 32: Ptr
-    store %v_5, 1, 4
-    %v_6 = add %v_5, 8: Ptr
-    store %v_6, 0, 8
-    %v_7 = add %v_5, 16: Ptr
-    store %v_7, %v_1, 8
-    %v_8 = add %v_5, 24: Ptr
-    store %v_8, 5, 4
-    store %t, 1, 4
-    %v_9 = add %t, 8: Ptr
-    store %v_9, %v_3, 8
-    %v_10 = add %t, 16: Ptr
-    store %v_10, %v_5, 8
-    %v_11 = add %t, 24: Ptr
-    store %v_11, 7, 4
-    %v_12 = call_complex total, %t: Int
-    %v_13 = call_complex leftOf, %t: Int
-    call_complex reclaim$Tree, %t
-    %v_14 = add %v_12, %v_13: Int
-    ret %v_14
-  }
-}
-
 idsOf<complex>(%c: Ptr): Int {
   b_0 {
     %v_1 = phi [b_2, %c], [b_3, %v_4]: Ptr
@@ -494,49 +391,113 @@ idsOf<complex>(%c: Ptr): Int {
   }
 }
 
-buildChain<complex>(): Int {
+main<complex>(): Int {
   b_0 {
+    %xs = alloca 12, 8: Ptr
+    %v_1 = call_complex allocateHeap, 12: Ptr
+    store %v_1, 0, 8
+    %v_2 = call_complex allocateHeap, 12: Ptr
+    store %v_2, %v_1, 8
+    %v_3 = add %v_2, 8: Ptr
+    store %v_3, 39, 4
+    %v_4 = add %xs, 8: Ptr
+    store %v_4, 1, 4
+    %v_5 = call_complex allocateHeap, 12: Ptr
+    store %xs, %v_5, 8
+    store %v_5, %v_2, 8
+    %v_6 = add %v_5, 8: Ptr
+    store %v_6, 2, 4
+    %v_7 = call_complex sum, %xs: Int
+    call_complex reclaim$List, %xs
+    %v_8 = call_complex allocateHeap, 32: Ptr
+    store %v_8, 0, 4
+    %v_9 = add %v_8, 8: Ptr
+    store %v_9, 20, 4
+    %t = alloca 32, 8: Ptr
+    %v_10 = call_complex allocateHeap, 32: Ptr
+    store %v_10, 0, 4
+    %v_11 = add %v_10, 8: Ptr
+    store %v_11, 10, 4
+    %v_12 = call_complex allocateHeap, 32: Ptr
+    store %v_12, 1, 4
+    %v_13 = add %v_12, 8: Ptr
+    store %v_13, 0, 8
+    %v_14 = add %v_12, 16: Ptr
+    store %v_14, %v_8, 8
+    %v_15 = add %v_12, 24: Ptr
+    store %v_15, 5, 4
+    store %t, 1, 4
+    %v_16 = add %t, 8: Ptr
+    store %v_16, %v_10, 8
+    %v_17 = add %t, 16: Ptr
+    store %v_17, %v_12, 8
+    %v_18 = add %t, 24: Ptr
+    store %v_18, 7, 4
+    %v_19 = call_complex total, %t: Int
+    %absent = alloca 32, 8: Ptr
+    store %absent, 0, 4
+    %v_20 = add %absent, 8: Ptr
+    store %v_20, 0, 4
+    %v_21 = loads %t, 4: Int
+    %v_22 = cmp_eq %v_21, 0: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    %v_25 = add %t, 8: Ptr
+    %v_26 = load %v_25, 8: Long
+    %v_27 = cmp_neq %v_26, 0: Int
+    je %v_27, b_28, b_29
+  }
+
+  b_28 {
+    %v_30 = bitcast %v_26: Ptr
+    jmp b_31
+  }
+
+  b_29 {
+    jmp b_31
+  }
+
+  b_31 {
+    %v_32 = phi [b_29, %absent], [b_28, %v_30]: Ptr
+    %v_33 = call_complex total, %v_32: Int
+    call_complex reclaim$Tree, %absent
+    jmp b_34
+  }
+
+  b_23 {
+    call_complex reclaim$Tree, %absent
+    %v_35 = add %t, 8: Ptr
+    %v = loads %v_35, 4: Int
+    jmp b_34
+  }
+
+  b_34 {
+    %v_36 = phi [b_23, %v], [b_31, %v_33]: Int
+    call_complex reclaim$Tree, %t
+    %v_37 = add %v_19, %v_36: Int
+    %values = add %v_7, %v_37: Int
     %c = alloca 12, 8: Ptr
     call_complex +=(Int), @liveNodes, 1
     call_complex +=(Int), @liveNodes, 1
-    %v_1 = call_complex allocateHeap, 12: Ptr
-    store %v_1, 0, 8
-    %v_2 = add %c, 8: Ptr
-    store %v_2, 4, 4
-    %v_3 = call_complex allocateHeap, 12: Ptr
-    store %c, %v_3, 8
-    store %v_3, %v_1, 8
-    %v_4 = add %v_3, 8: Ptr
-    store %v_4, 5, 4
-    %v_5 = call_complex idsOf, %c: Int
+    %v_38 = call_complex allocateHeap, 12: Ptr
+    store %v_38, 0, 8
+    %v_39 = add %c, 8: Ptr
+    store %v_39, 4, 4
+    %v_40 = call_complex allocateHeap, 12: Ptr
+    store %c, %v_40, 8
+    store %v_40, %v_38, 8
+    %v_41 = add %v_40, 8: Ptr
+    store %v_41, 5, 4
+    %v_42 = call_complex idsOf, %c: Int
     call_complex drop$Chain, %c
     call_complex reclaim$Chain, %c
-    ret %v_5
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %v_1 = call_complex buildList: Int
-    %v_2 = call_complex buildTree: Int
-    %values = add %v_1, %v_2: Int
-    %chained = call_complex buildChain: Int
-    %v_3 = loads @liveNodes, 4: Int
-    %v_4 = cmp_neq %v_3, 0: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    ret 18446744073709551615
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = add %values, %chained: Int
-    ret %v_8
+    %v_43 = loads @liveNodes, 4: Int
+    %v_44 = cmp_neq %v_43, 0: Int
+    %v_45 = add %values, %v_42: Int
+    %v_46 = select %v_44, 18446744073709551615, %v_45: Int
+    ret %v_46
   }
 }
 

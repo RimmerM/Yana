@@ -62,21 +62,6 @@ function leftOf(t) {
   return v19;
 }
 
-function buildList() {
-  var v6 = { head: 39, tail: { $v: { head: 0, tail: null } } };
-  v6.tail.$v = null;
-  var v3 = { head: 2, tail: { $v: { head: 0, tail: null } } };
-  v3.tail.$v = v6;
-  var xs = { head: 1, tail: { $v: { head: 0, tail: null } } };
-  xs.tail.$v = v3;
-  return sum(xs);
-}
-
-function buildTree() {
-  var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: { $tag: 1, left: null, right: { $tag: 0, left: null, right: null, label: 0, $p: 20 }, label: 5, $p: 0 }, label: 7, $p: 0 };
-  return total(t) + leftOf(t) | 0;
-}
-
 function idsOf(c) {
   var v14;
   if (c === null) {
@@ -87,25 +72,28 @@ function idsOf(c) {
   return v14;
 }
 
-function buildChain() {
-  add_eq_Int(liveNodes, "$v", 1, 1);
-  add_eq_Int(liveNodes, "$v", 1, 1);
-  var v4 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
-  v4.rest.$v = null;
-  var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
-  c.rest.$v = v4;
-  var v23 = idsOf(c);
-  drop$Chain(c);
-  return v23;
-}
-
 function main() {
-  var values = buildList() + buildTree() | 0;
-  var chained = buildChain();
+  var v18 = { head: 39, tail: { $v: { head: 0, tail: null } } };
+  v18.tail.$v = null;
+  var v17 = { head: 2, tail: { $v: { head: 0, tail: null } } };
+  v17.tail.$v = v18;
+  var xs = { head: 1, tail: { $v: { head: 0, tail: null } } };
+  xs.tail.$v = v17;
+  var v46 = sum(xs);
+  var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: { $tag: 1, left: null, right: { $tag: 0, left: null, right: null, label: 0, $p: 20 }, label: 5, $p: 0 }, label: 7, $p: 0 };
+  var values = v46 + (total(t) + leftOf(t) | 0) | 0;
+  add_eq_Int(liveNodes, "$v", 1, 1);
+  add_eq_Int(liveNodes, "$v", 1, 1);
+  var v99 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
+  v99.rest.$v = null;
+  var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
+  c.rest.$v = v99;
+  var v123 = idsOf(c);
+  drop$Chain(c);
   if (liveNodes.$v) {
     return -1;
   } else {
-    return values + chained | 0;
+    return values + v123 | 0;
   }
 }
 

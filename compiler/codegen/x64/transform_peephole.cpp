@@ -44,35 +44,6 @@ static bool isEmbeddableImm(LowerImm* imm) {
     return fitsImmediate(ImmediateWidth::Imm32, imm->i) && imm->result.uses.size() <= 2;
 }
 
-// Whether a block operation with this byte count takes the unrolled encoding rather than the
-// rep-prefixed string instruction. The unrolled form is only viable for a compile-time count small
-// enough to be worth straight-lining; everything else takes `rep movsb`/`rep stosb`, which needs its
-// operands in fixed registers - the count in rcx among them.
-//
-// Stated here rather than beside selectBlockOpEncoding because two things ask it and the order they
-// are asked in must not matter: the peephole below, which reaches the count's `Imm` *before* the
-// operation that reads it, and the encoding choice itself. Both derive the answer from the constant
-// rather than from the flag, so neither can be told something the other will contradict.
-//
-// It says nothing about whether the count ends up in a register, which is a different question with
-// a different answer - the constant may be shared with an instruction that needs one. That is what
-// the pair of unrolled forms in machine_forms_memory.cpp is for.
-static bool isUnrolledCount(LowerBase base, LowerPtr<LowerValue> count) {
-    auto value = base[count];
-    if(value->inst()->kind != LowerInst::Imm) return false;
-
-    return ((LowerImm*)value->inst())->i <= kMaxUnrolledMemOp;
-}
-
-// Which operand of an instruction is a block operation's byte count, or -1 where it is not one. The
-// two kinds declare their operands in different orders - `copy to, from, count` against
-// `setpattern to, count, pattern` - and both encoders read the count out of the IR.
-static Size blockOpCountOperand(LowerInst* inst) {
-    if(inst->kind == LowerInst::Copy) return 2;
-    if(inst->kind == LowerInst::SetPattern) return 1;
-    return Size(-1);
-}
-
 // Checks if this specific instruction can embed the provided embeddable immediate operand.
 //
 // Which operands can swallow which constant is the form table's answer - every operand position the
@@ -103,31 +74,10 @@ static bool canEmbedImm(LowerBase base, LowerInst* inst, LowerValue* op) {
     auto used = inst->used();
     bool found = false;
 
-    auto countOperand = blockOpCountOperand(inst);
 
     for(Size i = 0; i < used.size(); i++) {
         if(base[used[i]] != op) continue;
 
-        /*
-         * The byte count of a block operation that will be unrolled, which is the one operand no
-         * form table entry can answer for. It is not carried in the encoding's bytes - there is no
-         * immediate field, since the count is what decides how many `mov`s are written rather than
-         * what any one of them says - so it is `folded()` rather than an `Immediate`, and
-         * opcodeCanEmbedImmediate looks only at immediates.
-         *
-         * Asked of the count rather than of the opcode because the forms of one opcode disagree
-         * about it and the disagreement is the point: `rep movsb` reads the same operand out of rcx.
-         *
-         * Answering "yes" here is a request rather than a decision - what settles it is whether
-         * every *other* use of the constant agrees, since Implicit is set on the value. selectForm
-         * reads the flag back and picks the unrolled form that matches, so a count this could not
-         * take out of allocation is one that stays in a register at an encoding that ignores it.
-         */
-        if(Size(i) == countOperand) {
-            if(!isUnrolledCount(base, used[i])) return false;
-            found = true;
-            continue;
-        }
 
         if(!opcodeCanEmbedImmediate(opcode, i, value)) return false;
         found = true;
@@ -1077,20 +1027,6 @@ Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index) {
     }
 
     return hoisted;
-}
-
-// Records, once, which of the two encodings a Copy/SetPattern will take, so that the register
-// constraints (the selected form) and the encoder (genCopy/genSetPattern) read one field instead of
-// each re-deriving the choice and risking disagreement. See isUnrolledCount above for the choice
-// itself, which the immediate peephole has to agree with.
-void selectBlockOpEncoding(LowerBase base, LowerInst* inst) {
-    if(inst->kind == LowerInst::Copy) {
-        auto copy = (LowerInstCopy*)inst;
-        copy->setUnrolled(isUnrolledCount(base, copy->count));
-    } else if(inst->kind == LowerInst::SetPattern) {
-        auto set = (LowerInstSetPattern*)inst;
-        set->setUnrolled(isUnrolledCount(base, set->count));
-    }
 }
 
 /*

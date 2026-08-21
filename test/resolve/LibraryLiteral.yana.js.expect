@@ -316,20 +316,6 @@ function writeSpecial(value, to$o, to$k, to$s) {
   }
 }
 
-function Show_Double_show(value, to$o, to$k, to$s) {
-  if (!writeSpecial(value, to$o, to$k, to$s)) {
-    var v30 = value < 0 ? 0 - value : value;
-    if (v30 === 0) {
-      var v33 = to$o[to$k] + String.fromCharCode(48);
-      to$o[to$k] = v33;
-    } else {
-      var v36 = shortestOfText(v30.toExponential());
-      var v39 = evenAtTie(v30, v36.digits, v36.exponent);
-      writeShortest(v39.digits, v39.exponent, to$o, to$k, to$s);
-    }
-  }
-}
-
 function Show_Maybe_a_show_Int(value, to$o, to$k, to$s) {
   if (!(value === null)) {
     to$o[to$k] = to$o[to$k] + "Just(";
@@ -371,19 +357,29 @@ function markers() {
   return total;
 }
 
+function shown(value) {
+  var sink = { $v: "" };
+  if (!writeSpecial(value, sink, "$v", 1)) {
+    var v20 = value < 0 ? 0 - value : value;
+    if (v20 === 0) {
+      var v37 = sink.$v + String.fromCharCode(48);
+      sink.$v = v37;
+    } else {
+      var v25 = shortestOfText(v20.toExponential());
+      var v28 = evenAtTie(v20, v25.digits, v25.exponent);
+      writeShortest(v28.digits, v28.exponent, sink, "$v", 1);
+    }
+  }
+  return sink.$v;
+}
+
 function library() {
   var total = 0;
   var sink = { $v: "" };
-  var v12 = 0 / 0;
-  var sink$1 = { $v: "" };
-  Show_Double_show(v12, sink$1, "$v", 1);
-  if (sink$1.$v === "NaN") {
+  if (shown(0 / 0) === "NaN") {
     total = total + 1 | 0;
   }
-  var v27 = 1 / 0;
-  var sink$2 = { $v: "" };
-  Show_Double_show(v27, sink$2, "$v", 1);
-  if (sink$2.$v === "Inf") {
+  if (shown(1 / 0) === "Inf") {
     total = total + 1 | 0;
   }
   sink.$v = sink.$v + "True";

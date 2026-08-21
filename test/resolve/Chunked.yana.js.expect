@@ -12,70 +12,184 @@ function checkCondition(failed) {
 
 // ResolveTest
 function sumContiguous(xs) {
-  var total$1 = 0;
+  var total = 0;
   var v32 = xs.length;
   var v34 = xs.items;
   var i = 0;
   L0: for (;;) {
     if (i < v32) {
       checkCondition(i >>> 0 >= v32);
-      total$1 = total$1 + v34[i] | 0;
+      total = total + v34[i] | 0;
       i = i + 1 | 0;
       continue L0;
     }
     break L0;
   }
-  return total$1;
+  return total;
 }
 
 function sumArray(xs) {
-  var total$1 = 0;
+  var total = 0;
   var v16 = xs.length;
   var v18 = xs.items;
   var i = 0;
   L0: for (;;) {
     if (i < v16) {
       checkCondition(i >>> 0 >= v16);
-      total$1 = total$1 + v18[i] | 0;
+      total = total + v18[i] | 0;
       i = i + 1 | 0;
       continue L0;
     }
     break L0;
   }
-  return total$1;
+  return total;
 }
 
-function total(xs$items, xs$length, xs$offset) {
-  var sum = 0;
+function firstOver(xs, bound) {
+  var v20 = null;
+  var v21 = xs.a.items;
+  var v22 = xs.a.length;
+  var v83 = null;
+  var v112 = null;
   var i = 0;
-  var v29 = xs$length >>> 0;
   L0: for (;;) {
-    if (i < xs$length) {
-      var v39 = xs$offset + i | 0;
-      checkCondition(i >>> 0 >= v29);
-      sum = sum + xs$items[v39] | 0;
-      i = i + 1 | 0;
-      continue L0;
+    if (i < v22) {
+      checkCondition(i >>> 0 >= v22);
+      var v130 = v21[i];
+      var v266 = null;
+      if (v130 > bound) {
+        v266 = v130;
+      } else {
+        v266 = null;
+      }
+      if (!(v266 === null)) {
+        v112 = v266;
+      } else {
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      v112 = null;
     }
     break L0;
   }
-  return sum;
+  if (!(v112 === null)) {
+    v83 = v112;
+  } else {
+    v83 = null;
+  }
+  B1: {
+    if (!(v83 === null)) {
+      v20 = v83;
+    } else {
+      B2: {
+        if (xs.used > 1) {
+          var v39 = xs.b.items;
+          var v40 = xs.b.length;
+          var v144 = null;
+          var v173 = null;
+          var i$1 = 0;
+          L3: for (;;) {
+            if (i$1 < v40) {
+              checkCondition(i$1 >>> 0 >= v40);
+              var v191 = v39[i$1];
+              var v282 = null;
+              if (v191 > bound) {
+                v282 = v191;
+              } else {
+                v282 = null;
+              }
+              if (!(v282 === null)) {
+                v173 = v282;
+              } else {
+                i$1 = i$1 + 1 | 0;
+                continue L3;
+              }
+            } else {
+              v173 = null;
+            }
+            break L3;
+          }
+          if (!(v173 === null)) {
+            v144 = v173;
+          } else {
+            v144 = null;
+          }
+          if (!(v144 === null)) {
+            v20 = v144;
+            break B1;
+          }
+        }
+      }
+      B4: {
+        if (xs.used > 2) {
+          var v58 = xs.c.items;
+          var v59 = xs.c.length;
+          var v205 = null;
+          var v234 = null;
+          var i$2 = 0;
+          L5: for (;;) {
+            if (i$2 < v59) {
+              checkCondition(i$2 >>> 0 >= v59);
+              var v252 = v58[i$2];
+              var v298 = null;
+              if (v252 > bound) {
+                v298 = v252;
+              } else {
+                v298 = null;
+              }
+              if (!(v298 === null)) {
+                v234 = v298;
+              } else {
+                i$2 = i$2 + 1 | 0;
+                continue L5;
+              }
+            } else {
+              v234 = null;
+            }
+            break L5;
+          }
+          if (!(v234 === null)) {
+            v205 = v234;
+          } else {
+            v205 = null;
+          }
+          if (!(v205 === null)) {
+            v20 = v205;
+            break B1;
+          }
+        }
+      }
+      v20 = null;
+    }
+  }
+  return !(v20 === null) ? v20 : -1;
 }
 
 function main() {
   var v57 = { a: { items: new Int32Array([1, 2]), length: 2 }, b: { items: new Int32Array([3, 4]), length: 2 }, c: { items: new Int32Array([5, 6]), length: 2 }, used: 3 };
   var ring = { items: new Int32Array([10, 20, 30]), length: 3 };
   var arr = { items: new Int32Array([4, 5, 6]), length: 3 };
+  var total = { $v: 0 };
+  var v105 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$14, { $v: { $o: total, $k: "$v", $s: 1 } });
+  var v33 = (total.$v + sumContiguous(ring) | 0) + sumArray(arr) | 0;
+  var v109 = ring.length;
+  var v111 = ring.items;
+  var sum = 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v109) {
+      checkCondition(i >>> 0 >= v109);
+      sum = sum + v111[i] | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var v44 = ((v33 + sum | 0) + ring.length | 0) + firstOver(v57, 3) | 0;
   var total$1 = { $v: 0 };
-  var v105 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$14, { $v: { $o: total$1, $k: "$v", $s: 1 } });
-  var v33 = (total$1.$v + sumContiguous(ring) | 0) + sumArray(arr) | 0;
-  var v110 = ring.length;
-  var v41 = (v33 + total(ring.items, v110, 0) | 0) + v110 | 0;
-  var v131 = Chunked_Chunks_Int_chunks_Int(v57, ResolveTest_continuation$21, { $v: 3 });
-  var v44 = v41 + (!(v131 === null) ? v131 : -1) | 0;
-  var total$2 = { $v: 0 };
-  var v149 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$23, { $v: { $o: total$2, $k: "$v", $s: 1 } });
-  return v44 + total$2.$v | 0;
+  var v135 = Chunked_Chunks_Int_chunks(v57, ResolveTest_continuation$23, { $v: { $o: total$1, $k: "$v", $s: 1 } });
+  return v44 + total$1.$v | 0;
 }
 
 function ResolveTest_continuation$14(env, value$) {
@@ -120,68 +234,6 @@ function Chunked_Chunks_Int_chunks(self, body$c, body$e) {
       }
     }
     return 0;
-  }
-}
-
-function ResolveTest_continuation$21(env, value$) {
-  var v3 = env.$v;
-  var xs$items = value$.items;
-  var xs$length = value$.length;
-  var xs$offset = value$.offset;
-  var v28 = null;
-  var i = 0;
-  var v32 = xs$length >>> 0;
-  L0: for (;;) {
-    if (i < xs$length) {
-      var v42 = xs$offset + i | 0;
-      checkCondition(i >>> 0 >= v32);
-      var v46 = xs$items[v42];
-      var v60 = null;
-      if (v46 > v3) {
-        v60 = v46;
-      } else {
-        v60 = null;
-      }
-      if (!(v60 === null)) {
-        v28 = v60;
-      } else {
-        i = i + 1 | 0;
-        continue L0;
-      }
-    } else {
-      v28 = null;
-    }
-    break L0;
-  }
-  if (!(v28 === null)) {
-    return v28;
-  } else {
-    return null;
-  }
-}
-
-function Chunked_Chunks_Int_chunks_Int(self, body$c, body$e) {
-  var v12 = body$c(body$e, { items: self.a.items, length: self.a.length, offset: 0 });
-  if (!(v12 === null)) {
-    return v12;
-  } else {
-    B0: {
-      if (self.used > 1) {
-        var v32 = body$c(body$e, { items: self.b.items, length: self.b.length, offset: 0 });
-        if (!(v32 === null)) {
-          return v32;
-        }
-      }
-    }
-    B1: {
-      if (self.used > 2) {
-        var v54 = body$c(body$e, { items: self.c.items, length: self.c.length, offset: 0 });
-        if (!(v54 === null)) {
-          return v54;
-        }
-      }
-    }
-    return null;
   }
 }
 

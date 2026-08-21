@@ -1127,8 +1127,11 @@ struct InstTableSlot: Inst {
  * operation in five switches to say the same thing five times.
  */
 enum class NativeOp: U8 {
-    // copyMemory(to, from, count) and setMemory(to, value, count) - the two block operations the
-    // lower IR already has, reached by name instead of derived from an aggregate assignment.
+    // The two block operations the lower IR already has, reached by name instead of derived from
+    // an aggregate assignment. `CopyMemory` is `Native.blockCopy(to, from, count)` on a native build
+    // and `Native.copyMemory` on JS - two names for one instruction, because the native library's
+    // `copyMemory` is a *body* over this and the JS one has no ladder to be (see attachIntrinsic).
+    // `SetMemory` is `setMemory(to, value, count)` on both.
     CopyMemory,
     SetMemory,
 

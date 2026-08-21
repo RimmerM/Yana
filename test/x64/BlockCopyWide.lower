@@ -1,0 +1,45 @@
+# extensions: v3
+#
+# `BlockCopy.lower`'s copies on the machine that has a `ymm`: the step is 32 bytes and the ceiling
+# is 128, so every size below reaches a different rung than it does one level down. 20 bytes is
+# still a 16-byte pair - the step halves to what the count can use - and 64 is two `vmovups` pairs
+# where v2 spends four.
+#
+# VEX-encoded throughout, which is not a size decision: a legacy SSE instruction executed while any
+# upper half is dirty costs a large, silent penalty on every part this targets, so a build with AVX
+# owes the prefix on every vector instruction it emits. It comes from the ordinary vector load and
+# store forms here, since the transfers are ordinary loads and stores - see the VEX tier in
+# machine_forms_tiers.cpp, and emitVectorZeroUpper for what it buys.
+
+copySmall(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 4
+        copy %dst, %src, 8
+        copy %dst, %src, 12
+        ret
+    }
+}
+
+copyVector(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 16
+        copy %dst, %src, 20
+        copy %dst, %src, 32
+        copy %dst, %src, 40
+        ret
+    }
+}
+
+copyCeiling(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 128
+        ret
+    }
+}
+
+copyAboveCeiling(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 129
+        ret
+    }
+}

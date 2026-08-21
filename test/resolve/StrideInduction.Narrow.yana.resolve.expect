@@ -8,6 +8,498 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: I64 = 0
 
+fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
+  b0:
+    %v4 = vsplat 0 : Vec(U8)
+    %width = cast 16 : I64
+    %v9 = cmp_ge %count, 8 : Bool
+    je %v9, b1, b2
+
+  b1:
+    %v11 = cmp_ge %count, %width : Bool
+    je %v11, b3, b4
+
+  b2:
+    %v183 = cmp_ge %count, 2 : Bool
+    je %v183, b21, b22
+
+  b3:
+    %v13 = bitcast %from : %Vec(U8)
+    %low = load [%v13] : Vec(U8)
+    %v15 = sub %count, %width : I64
+    %v16 = strideof U8 : I64
+    %v17 = mul %v15, %v16 : I64
+    %v18 = add %from, %v17 : %U8
+    %v19 = bitcast %v18 : %Vec(U8)
+    %high = load [%v19] : Vec(U8)
+    %v21 = bitcast %to : %Vec(U8)
+    assign [%v21], %low
+    %v23 = sub %count, %width : I64
+    %v24 = strideof U8 : I64
+    %v25 = mul %v23, %v24 : I64
+    %v26 = add %to, %v25 : %U8
+    %v27 = bitcast %v26 : %Vec(U8)
+    assign [%v27], %high
+    jmp b20
+
+  b4:
+    %v31 = cmp_gt %width, 32 : Bool
+    je %v31, b5, b6
+
+  b5:
+    %v35 = cmp_ge %count, 32 : Bool
+    je %v35, b7, b8
+
+  b6:
+    %v107 = cmp_gt %width, 16 : Bool
+    je %v107, b13, b14
+
+  b7:
+    %v37 = bitcast %from : %Vec(U8, 32)
+    %low = load [%v37] : Vec(U8, 32)
+    %v41 = sub %count, 32 : I64
+    %v42 = strideof U8 : I64
+    %v43 = mul %v41, %v42 : I64
+    %v44 = add %from, %v43 : %U8
+    %v45 = bitcast %v44 : %Vec(U8, 32)
+    %high = load [%v45] : Vec(U8, 32)
+    %v47 = bitcast %to : %Vec(U8, 32)
+    assign [%v47], %low
+    %v51 = sub %count, 32 : I64
+    %v52 = strideof U8 : I64
+    %v53 = mul %v51, %v52 : I64
+    %v54 = add %to, %v53 : %U8
+    %v55 = bitcast %v54 : %Vec(U8, 32)
+    assign [%v55], %high
+    jmp b12
+
+  b8:
+    %v59 = cmp_ge %count, 16 : Bool
+    je %v59, b9, b10
+
+  b9:
+    %v61 = bitcast %from : %Vec(U8)
+    %low = load [%v61] : Vec(U8)
+    %v65 = sub %count, 16 : I64
+    %v66 = strideof U8 : I64
+    %v67 = mul %v65, %v66 : I64
+    %v68 = add %from, %v67 : %U8
+    %v69 = bitcast %v68 : %Vec(U8)
+    %high = load [%v69] : Vec(U8)
+    %v71 = bitcast %to : %Vec(U8)
+    assign [%v71], %low
+    %v75 = sub %count, 16 : I64
+    %v76 = strideof U8 : I64
+    %v77 = mul %v75, %v76 : I64
+    %v78 = add %to, %v77 : %U8
+    %v79 = bitcast %v78 : %Vec(U8)
+    assign [%v79], %high
+    jmp b11
+
+  b10:
+    %v81 = bitcast %from : %U64
+    %low = load [%v81] : U64
+    %v85 = sub %count, 8 : I64
+    %v86 = strideof U8 : I64
+    %v87 = mul %v85, %v86 : I64
+    %v88 = add %from, %v87 : %U8
+    %v89 = bitcast %v88 : %U64
+    %high = load [%v89] : U64
+    %v91 = bitcast %to : %U64
+    assign [%v91], %low
+    %v95 = sub %count, 8 : I64
+    %v96 = strideof U8 : I64
+    %v97 = mul %v95, %v96 : I64
+    %v98 = add %to, %v97 : %U8
+    %v99 = bitcast %v98 : %U64
+    assign [%v99], %high
+    jmp b11
+
+  b11:
+    jmp b12
+
+  b12:
+    jmp b19
+
+  b13:
+    %v111 = cmp_ge %count, 16 : Bool
+    je %v111, b15, b16
+
+  b14:
+    %v155 = bitcast %from : %U64
+    %low = load [%v155] : U64
+    %v159 = sub %count, 8 : I64
+    %v160 = strideof U8 : I64
+    %v161 = mul %v159, %v160 : I64
+    %v162 = add %from, %v161 : %U8
+    %v163 = bitcast %v162 : %U64
+    %high = load [%v163] : U64
+    %v165 = bitcast %to : %U64
+    assign [%v165], %low
+    %v169 = sub %count, 8 : I64
+    %v170 = strideof U8 : I64
+    %v171 = mul %v169, %v170 : I64
+    %v172 = add %to, %v171 : %U8
+    %v173 = bitcast %v172 : %U64
+    assign [%v173], %high
+    jmp b18
+
+  b15:
+    %v113 = bitcast %from : %Vec(U8)
+    %low = load [%v113] : Vec(U8)
+    %v117 = sub %count, 16 : I64
+    %v118 = strideof U8 : I64
+    %v119 = mul %v117, %v118 : I64
+    %v120 = add %from, %v119 : %U8
+    %v121 = bitcast %v120 : %Vec(U8)
+    %high = load [%v121] : Vec(U8)
+    %v123 = bitcast %to : %Vec(U8)
+    assign [%v123], %low
+    %v127 = sub %count, 16 : I64
+    %v128 = strideof U8 : I64
+    %v129 = mul %v127, %v128 : I64
+    %v130 = add %to, %v129 : %U8
+    %v131 = bitcast %v130 : %Vec(U8)
+    assign [%v131], %high
+    jmp b17
+
+  b16:
+    %v133 = bitcast %from : %U64
+    %low = load [%v133] : U64
+    %v137 = sub %count, 8 : I64
+    %v138 = strideof U8 : I64
+    %v139 = mul %v137, %v138 : I64
+    %v140 = add %from, %v139 : %U8
+    %v141 = bitcast %v140 : %U64
+    %high = load [%v141] : U64
+    %v143 = bitcast %to : %U64
+    assign [%v143], %low
+    %v147 = sub %count, 8 : I64
+    %v148 = strideof U8 : I64
+    %v149 = mul %v147, %v148 : I64
+    %v150 = add %to, %v149 : %U8
+    %v151 = bitcast %v150 : %U64
+    assign [%v151], %high
+    jmp b17
+
+  b17:
+    jmp b18
+
+  b18:
+    jmp b19
+
+  b19:
+    jmp b20
+
+  b20:
+    jmp b30
+
+  b21:
+    %v187 = cmp_ge %count, 4 : Bool
+    je %v187, b23, b24
+
+  b22:
+    %v233 = cmp_ge %count, 1 : Bool
+    je %v233, b26, b27
+
+  b23:
+    %v189 = bitcast %from : %U32
+    %low = load [%v189] : U32
+    %v193 = sub %count, 4 : I64
+    %v194 = strideof U8 : I64
+    %v195 = mul %v193, %v194 : I64
+    %v196 = add %from, %v195 : %U8
+    %v197 = bitcast %v196 : %U32
+    %high = load [%v197] : U32
+    %v199 = bitcast %to : %U32
+    assign [%v199], %low
+    %v203 = sub %count, 4 : I64
+    %v204 = strideof U8 : I64
+    %v205 = mul %v203, %v204 : I64
+    %v206 = add %to, %v205 : %U8
+    %v207 = bitcast %v206 : %U32
+    assign [%v207], %high
+    jmp b25
+
+  b24:
+    %v209 = bitcast %from : %U16
+    %low = load [%v209] : U16
+    %v213 = sub %count, 2 : I64
+    %v214 = strideof U8 : I64
+    %v215 = mul %v213, %v214 : I64
+    %v216 = add %from, %v215 : %U8
+    %v217 = bitcast %v216 : %U16
+    %high = load [%v217] : U16
+    %v219 = bitcast %to : %U16
+    assign [%v219], %low
+    %v223 = sub %count, 2 : I64
+    %v224 = strideof U8 : I64
+    %v225 = mul %v223, %v224 : I64
+    %v226 = add %to, %v225 : %U8
+    %v227 = bitcast %v226 : %U16
+    assign [%v227], %high
+    jmp b25
+
+  b25:
+    jmp b29
+
+  b26:
+    %v235 = load [%from] : U8
+    assign [%to], %v235
+    jmp b28
+
+  b27:
+    jmp b28
+
+  b28:
+    jmp b29
+
+  b29:
+    jmp b30
+
+  b30:
+    ret
+}
+
+fn blockPair(%to: %U8, %from: %U8, %count: I64) -> () {
+  b0:
+    %v4 = vsplat 0 : Vec(U8)
+    %width = cast 16 : I64
+    %v7 = bitcast %from : %Vec(U8)
+    %a = load [%v7] : Vec(U8)
+    %v9 = strideof U8 : I64
+    %v10 = mul %width, %v9 : I64
+    %v11 = add %from, %v10 : %U8
+    %v12 = bitcast %v11 : %Vec(U8)
+    %b = load [%v12] : Vec(U8)
+    %v14 = sub %count, %width : I64
+    %v15 = sub %v14, %width : I64
+    %v16 = strideof U8 : I64
+    %v17 = mul %v15, %v16 : I64
+    %v18 = add %from, %v17 : %U8
+    %v19 = bitcast %v18 : %Vec(U8)
+    %c = load [%v19] : Vec(U8)
+    %v21 = sub %count, %width : I64
+    %v22 = strideof U8 : I64
+    %v23 = mul %v21, %v22 : I64
+    %v24 = add %from, %v23 : %U8
+    %v25 = bitcast %v24 : %Vec(U8)
+    %d = load [%v25] : Vec(U8)
+    %v27 = bitcast %to : %Vec(U8)
+    assign [%v27], %a
+    %v29 = strideof U8 : I64
+    %v30 = mul %width, %v29 : I64
+    %v31 = add %to, %v30 : %U8
+    %v32 = bitcast %v31 : %Vec(U8)
+    assign [%v32], %b
+    %v34 = sub %count, %width : I64
+    %v35 = sub %v34, %width : I64
+    %v36 = strideof U8 : I64
+    %v37 = mul %v35, %v36 : I64
+    %v38 = add %to, %v37 : %U8
+    %v39 = bitcast %v38 : %Vec(U8)
+    assign [%v39], %c
+    %v41 = sub %count, %width : I64
+    %v42 = strideof U8 : I64
+    %v43 = mul %v41, %v42 : I64
+    %v44 = add %to, %v43 : %U8
+    %v45 = bitcast %v44 : %Vec(U8)
+    assign [%v45], %d
+    ret
+}
+
+fn blockAscending(%to: %U8, %from: %U8, %count: I64) -> () {
+  b0:
+    %v4 = vsplat 0 : Vec(U8)
+    %width = cast 16 : I64
+    %stride = mul %width, 4 : I64
+    %v10 = sub %count, %width : I64
+    %v11 = strideof U8 : I64
+    %v12 = mul %v10, %v11 : I64
+    %v13 = add %from, %v12 : %U8
+    %v14 = bitcast %v13 : %Vec(U8)
+    %tail = load [%v14] : Vec(U8)
+    %at = alloc : I64
+    init %at, 0
+    jmp b1
+
+  b1:
+    %v20 = load %at : I64
+    %v21 = add %v20, %stride : I64
+    %v22 = cmp_le %v21, %count : Bool
+    je %v22, b3, b2
+
+  b2:
+    jmp b4
+
+  b3:
+    %v24 = load %at : I64
+    %v25 = strideof U8 : I64
+    %v26 = mul %v24, %v25 : I64
+    %v27 = add %from, %v26 : %U8
+    %v28 = bitcast %v27 : %Vec(U8)
+    %a = load [%v28] : Vec(U8)
+    %v30 = load %at : I64
+    %v31 = strideof U8 : I64
+    %v32 = mul %v30, %v31 : I64
+    %v33 = add %from, %v32 : %U8
+    %v34 = strideof U8 : I64
+    %v35 = mul %width, %v34 : I64
+    %v36 = add %v33, %v35 : %U8
+    %v37 = bitcast %v36 : %Vec(U8)
+    %b = load [%v37] : Vec(U8)
+    %v39 = load %at : I64
+    %v40 = strideof U8 : I64
+    %v41 = mul %v39, %v40 : I64
+    %v42 = add %from, %v41 : %U8
+    %v43 = strideof U8 : I64
+    %v44 = mul %width, %v43 : I64
+    %v45 = add %v42, %v44 : %U8
+    %v46 = strideof U8 : I64
+    %v47 = mul %width, %v46 : I64
+    %v48 = add %v45, %v47 : %U8
+    %v49 = bitcast %v48 : %Vec(U8)
+    %c = load [%v49] : Vec(U8)
+    %v51 = load %at : I64
+    %v52 = strideof U8 : I64
+    %v53 = mul %v51, %v52 : I64
+    %v54 = add %from, %v53 : %U8
+    %v55 = strideof U8 : I64
+    %v56 = mul %width, %v55 : I64
+    %v57 = add %v54, %v56 : %U8
+    %v58 = strideof U8 : I64
+    %v59 = mul %width, %v58 : I64
+    %v60 = add %v57, %v59 : %U8
+    %v61 = strideof U8 : I64
+    %v62 = mul %width, %v61 : I64
+    %v63 = add %v60, %v62 : %U8
+    %v64 = bitcast %v63 : %Vec(U8)
+    %d = load [%v64] : Vec(U8)
+    %v66 = load %at : I64
+    %v67 = strideof U8 : I64
+    %v68 = mul %v66, %v67 : I64
+    %v69 = add %to, %v68 : %U8
+    %v70 = bitcast %v69 : %Vec(U8)
+    assign [%v70], %a
+    %v72 = load %at : I64
+    %v73 = strideof U8 : I64
+    %v74 = mul %v72, %v73 : I64
+    %v75 = add %to, %v74 : %U8
+    %v76 = strideof U8 : I64
+    %v77 = mul %width, %v76 : I64
+    %v78 = add %v75, %v77 : %U8
+    %v79 = bitcast %v78 : %Vec(U8)
+    assign [%v79], %b
+    %v81 = load %at : I64
+    %v82 = strideof U8 : I64
+    %v83 = mul %v81, %v82 : I64
+    %v84 = add %to, %v83 : %U8
+    %v85 = strideof U8 : I64
+    %v86 = mul %width, %v85 : I64
+    %v87 = add %v84, %v86 : %U8
+    %v88 = strideof U8 : I64
+    %v89 = mul %width, %v88 : I64
+    %v90 = add %v87, %v89 : %U8
+    %v91 = bitcast %v90 : %Vec(U8)
+    assign [%v91], %c
+    %v93 = load %at : I64
+    %v94 = strideof U8 : I64
+    %v95 = mul %v93, %v94 : I64
+    %v96 = add %to, %v95 : %U8
+    %v97 = strideof U8 : I64
+    %v98 = mul %width, %v97 : I64
+    %v99 = add %v96, %v98 : %U8
+    %v100 = strideof U8 : I64
+    %v101 = mul %width, %v100 : I64
+    %v102 = add %v99, %v101 : %U8
+    %v103 = strideof U8 : I64
+    %v104 = mul %width, %v103 : I64
+    %v105 = add %v102, %v104 : %U8
+    %v106 = bitcast %v105 : %Vec(U8)
+    assign [%v106], %d
+    %v108 = load %at : I64
+    %v109 = add %v108, %stride : I64
+    assign %at, %v109
+    jmp b1
+
+  b4:
+    %v113 = load %at : I64
+    %v114 = add %v113, %width : I64
+    %v115 = cmp_le %v114, %count : Bool
+    je %v115, b6, b5
+
+  b5:
+    %v133 = sub %count, %width : I64
+    %v134 = strideof U8 : I64
+    %v135 = mul %v133, %v134 : I64
+    %v136 = add %to, %v135 : %U8
+    %v137 = bitcast %v136 : %Vec(U8)
+    assign [%v137], %tail
+    ret
+
+  b6:
+    %v117 = load %at : I64
+    %v118 = strideof U8 : I64
+    %v119 = mul %v117, %v118 : I64
+    %v120 = add %to, %v119 : %U8
+    %v121 = load %at : I64
+    %v122 = strideof U8 : I64
+    %v123 = mul %v121, %v122 : I64
+    %v124 = add %from, %v123 : %U8
+    %v125 = bitcast %v124 : %Vec(U8)
+    %v126 = load [%v125] : Vec(U8)
+    %v127 = bitcast %v120 : %Vec(U8)
+    assign [%v127], %v126
+    %v129 = load %at : I64
+    %v130 = add %v129, %width : I64
+    assign %at, %v130
+    jmp b4
+}
+
+fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
+  b0:
+    %v4 = vsplat 0 : Vec(U8)
+    %width = cast 16 : I64
+    %v7 = add %width, %width : I64
+    %v8 = cmp_ge %count, %v7 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v12 = mul %width, 4 : I64
+    %v13 = cmp_lt %count, %v12 : Bool
+    je %v13, b3, b4
+
+  b2:
+    jmp b9
+
+  b3:
+    call blockPair, %to, %from, %count
+    ret
+
+  b4:
+    jmp b5
+
+  b5:
+    %v20 = mul %width, 48 : I64
+    %v21 = cmp_ge %count, %v20 : Bool
+    je %v21, b6, b7
+
+  b6:
+    copymemory %to, %from, %count
+    ret
+
+  b7:
+    jmp b8
+
+  b8:
+    call blockAscending, %to, %from, %count
+    ret
+
+  b9:
+    call blockShort, %to, %from, %count
+    ret
+}
+
 fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : I64
@@ -377,7 +869,7 @@ fn resize(Cell)(%self: Run(Cell), %wanted: I64) -> Bool {
     %v45 = load %self : Run(Cell)
     %v46 = load %self@Run.items : %Cell
     %v47 = call byteSpan(Cell), %v46, %room : I64
-    copymemory %v41, %v44, %v47
+    call copyMemory, %v41, %v44, %v47
     jmp b15
 
   b14:

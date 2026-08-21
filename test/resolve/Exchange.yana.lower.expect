@@ -270,231 +270,99 @@ mapMemory<complex>(%size: Long): Ptr {
   }
 }
 
-sinkSwap<complex>(): Long {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, 1, 8
-    %v_2 = alloca 8, 8: Ptr
-    store %v_2, 2, 8
-    store @sinkCalls, 0, 8
-    %v_3 = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %v_3, %v_1
-    call_complex Sink(Handle).sink, %v_1, %v_2
-    call_complex Sink(Handle).sink, %v_2, %v_3
-    %v_4 = loads @sinkCalls, 8: Long
-    %v_5 = imul %v_4, 100: Long
-    %v_6 = loads %v_1, 8: Long
-    %v_7 = imul %v_6, 10: Long
-    %v_8 = add %v_5, %v_7: Long
-    %v_9 = loads %v_2, 8: Long
-    %v_10 = add %v_8, %v_9: Long
-    ret %v_10
-  }
-}
-
-swapDroppable<complex>(): Long {
-  b_0 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_1 = imm 16: Long
-    %v_2 = call_complex allocateHeap, %v_1: Ptr
-    setpattern %v_2, %v_1, 0
-    call_complex +=(I64), @liveBuffers, 1
-    %v_3 = imm 32: Long
-    %v_4 = call_complex allocateHeap, %v_3: Ptr
-    setpattern %v_4, %v_3, 0
-    %v_5 = alloca 8, 8: Ptr
-    store %v_5, %v_2, 8
-    %v_6 = loads @liveBuffers, 8: Long
-    %v_7 = load %v_4, 1: Int
-    %v_8 = cast %v_7: Long
-    call_complex freeHeap, %v_4
-    call_complex -=(I64), @liveBuffers, 1
-    %v_9 = add %v_6, %v_8: Long
-    %v_10 = load %v_2, 1: Int
-    %v_11 = cast %v_10: Long
-    call_complex freeHeap, %v_2
-    call_complex -=(I64), @liveBuffers, 1
-    %v_12 = add %v_9, %v_11: Long
-    ret %v_12
-  }
-}
-
-exchangeDroppable<complex>(): Long {
-  b_0 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_1 = imm 16: Long
-    %v_2 = call_complex allocateHeap, %v_1: Ptr
-    setpattern %v_2, %v_1, 0
-    call_complex +=(I64), @liveBuffers, 1
-    %v_3 = imm 32: Long
-    %v_4 = call_complex allocateHeap, %v_3: Ptr
-    setpattern %v_4, %v_3, 0
-    %counted = loads @liveBuffers, 8: Long
-    %v_5 = load %v_2, 1: Int
-    %v_6 = cast %v_5: Long
-    call_complex freeHeap, %v_2
-    call_complex -=(I64), @liveBuffers, 1
-    %v_7 = add %counted, %v_6: Long
-    %v_8 = load %v_4, 1: Int
-    %v_9 = cast %v_8: Long
-    call_complex freeHeap, %v_4
-    call_complex -=(I64), @liveBuffers, 1
-    %v_10 = add %v_7, %v_9: Long
-    ret %v_10
-  }
-}
-
-borrowed<complex>(): Long {
-  b_0 {
-    call_complex +=(I64), @liveBuffers, 1
-    %v_1 = imm 16: Long
-    %v_2 = call_complex allocateHeap, %v_1: Ptr
-    setpattern %v_2, %v_1, 0
-    %x = call_complex allocateHeap, 8: Ptr
-    store %x, %v_2, 8
-    call_complex +=(I64), @liveBuffers, 1
-    %v_3 = imm 32: Long
-    %v_4 = call_complex allocateHeap, %v_3: Ptr
-    setpattern %v_4, %v_3, 0
-    %y = call_complex allocateHeap, 8: Ptr
-    store %y, %v_4, 8
-    %v_5 = alloca 8, 8: Ptr
-    copy %v_5, %x, 8
-    copy %x, %y, 8
-    copy %y, %v_5, 8
-    %v_6 = loads @liveBuffers, 8: Long
-    %v_7 = load %x, 8: Ptr
-    %v_8 = load %v_7, 1: Int
-    %v_9 = cast %v_8: Long
-    call_complex freeHeap, %v_7
-    call_complex -=(I64), @liveBuffers, 1
-    call_complex freeHeap, %x
-    %v_10 = add %v_6, %v_9: Long
-    %v_11 = load %y, 8: Ptr
-    %v_12 = load %v_11, 1: Int
-    %v_13 = cast %v_12: Long
-    call_complex freeHeap, %v_11
-    call_complex -=(I64), @liveBuffers, 1
-    call_complex freeHeap, %y
-    %v_14 = add %v_10, %v_13: Long
-    ret %v_14
-  }
-}
-
 main<complex>(): Long {
   b_0 {
-    jmp b_1
+    %v_1 = imm 16: Long
+    %v_2 = imm 32: Long
+    %v_3 = imm 16: Long
+    %v_4 = imm 32: Long
+    %v_5 = imm 16: Long
+    %v_6 = imm 32: Long
+    jmp b_7
   }
 
-  b_1 {
-    jmp b_2
+  b_7 {
+    jmp b_8
   }
 
-  b_2 {
-    jmp b_3
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %counter = global @counter: Ptr
-    %old = loads %counter, 8: Long
-    store %counter, 7, 8
-    %v_5 = imul %old, 10: Long
-    %v_6 = loads @counter, 8: Long
-    %v_7 = add %v_5, %v_6: Long
-    %v_8 = cmp_neq %v_7, 57: Int
-    je %v_8, b_9, b_10
+  b_8 {
+    jmp b_9
   }
 
   b_9 {
-    ret 18446744073709551613
+    jmp b_10
   }
 
   b_10 {
-    jmp b_11
-  }
-
-  b_11 {
-    %v_12 = call_complex sinkSwap: Long
-    %v_13 = cmp_neq %v_12, 321: Int
-    je %v_13, b_14, b_15
-  }
-
-  b_14 {
-    ret 18446744073709551612
+    %counter = global @counter: Ptr
+    %old = loads %counter, 8: Long
+    store %counter, 7, 8
+    %v_11 = imul %old, 10: Long
+    %v_12 = loads @counter, 8: Long
+    %v_13 = add %v_11, %v_12: Long
+    %v_14 = cmp_neq %v_13, 57: Int
+    je %v_14, b_15, b_16
   }
 
   b_15 {
-    jmp b_16
+    ret 18446744073709551613
   }
 
   b_16 {
-    %v_17 = alloca 8, 8: Ptr
-    store %v_17, 1, 8
-    store @sinkCalls, 0, 8
+    jmp b_17
+  }
+
+  b_17 {
     %v_18 = alloca 8, 8: Ptr
-    store %v_18, 2, 8
-    %old = alloca 8, 8: Ptr
-    call_complex Sink(Handle).sink, %old, %v_17
-    call_complex Sink(Handle).sink, %v_17, %v_18
-    %v_19 = loads @sinkCalls, 8: Long
-    %v_20 = imul %v_19, 100: Long
-    %v_21 = loads %old, 8: Long
-    %v_22 = imul %v_21, 10: Long
-    %v_23 = add %v_20, %v_22: Long
-    %v_24 = loads %v_17, 8: Long
-    %v_25 = add %v_23, %v_24: Long
-    %v_26 = cmp_neq %v_25, 212: Int
-    je %v_26, b_27, b_28
-  }
-
-  b_27 {
-    ret 18446744073709551611
-  }
-
-  b_28 {
-    jmp b_29
+    store %v_18, 1, 8
+    %v_19 = alloca 8, 8: Ptr
+    store %v_19, 2, 8
+    store @sinkCalls, 0, 8
+    %v_20 = alloca 8, 8: Ptr
+    call_complex Sink(Handle).sink, %v_20, %v_18
+    call_complex Sink(Handle).sink, %v_18, %v_19
+    call_complex Sink(Handle).sink, %v_19, %v_20
+    %v_21 = loads @sinkCalls, 8: Long
+    %v_22 = imul %v_21, 100: Long
+    %v_23 = loads %v_18, 8: Long
+    %v_24 = imul %v_23, 10: Long
+    %v_25 = add %v_22, %v_24: Long
+    %v_26 = loads %v_19, 8: Long
+    %v_27 = add %v_25, %v_26: Long
+    %v_28 = cmp_neq %v_27, 321: Int
+    je %v_28, b_29, b_30
   }
 
   b_29 {
-    %v_30 = call_complex swapDroppable: Long
-    %v_31 = cmp_neq %v_30, 2: Int
-    je %v_31, b_32, b_33
+    ret 18446744073709551612
   }
 
-  b_32 {
-    ret 18446744073709551610
+  b_30 {
+    jmp b_31
   }
 
-  b_33 {
-    jmp b_34
-  }
-
-  b_34 {
-    %v_35 = loads @liveBuffers, 8: Long
-    %v_36 = cmp_neq %v_35, 0: Int
-    je %v_36, b_37, b_38
-  }
-
-  b_37 {
-    ret 18446744073709551609
-  }
-
-  b_38 {
-    jmp b_39
-  }
-
-  b_39 {
-    %v_40 = call_complex exchangeDroppable: Long
-    %v_41 = cmp_neq %v_40, 2: Int
+  b_31 {
+    %v_32 = alloca 8, 8: Ptr
+    store %v_32, 1, 8
+    store @sinkCalls, 0, 8
+    %v_33 = alloca 8, 8: Ptr
+    store %v_33, 2, 8
+    %old = alloca 8, 8: Ptr
+    call_complex Sink(Handle).sink, %old, %v_32
+    call_complex Sink(Handle).sink, %v_32, %v_33
+    %v_34 = loads @sinkCalls, 8: Long
+    %v_35 = imul %v_34, 100: Long
+    %v_36 = loads %old, 8: Long
+    %v_37 = imul %v_36, 10: Long
+    %v_38 = add %v_35, %v_37: Long
+    %v_39 = loads %v_32, 8: Long
+    %v_40 = add %v_38, %v_39: Long
+    %v_41 = cmp_neq %v_40, 212: Int
     je %v_41, b_42, b_43
   }
 
   b_42 {
-    ret 18446744073709551608
+    ret 18446744073709551611
   }
 
   b_43 {
@@ -502,48 +370,142 @@ main<complex>(): Long {
   }
 
   b_44 {
-    %v_45 = loads @liveBuffers, 8: Long
-    %v_46 = cmp_neq %v_45, 0: Int
-    je %v_46, b_47, b_48
+    call_complex +=(I64), @liveBuffers, 1
+    %v_45 = call_complex allocateHeap, %v_1: Ptr
+    setpattern %v_45, %v_1, 0
+    call_complex +=(I64), @liveBuffers, 1
+    %v_46 = call_complex allocateHeap, %v_2: Ptr
+    setpattern %v_46, %v_2, 0
+    %v_47 = alloca 8, 8: Ptr
+    store %v_47, %v_45, 8
+    %v_48 = loads @liveBuffers, 8: Long
+    %v_49 = load %v_46, 1: Int
+    %v_50 = cast %v_49: Long
+    call_complex freeHeap, %v_46
+    call_complex -=(I64), @liveBuffers, 1
+    %v_51 = add %v_48, %v_50: Long
+    %v_52 = load %v_45, 1: Int
+    %v_53 = cast %v_52: Long
+    call_complex freeHeap, %v_45
+    call_complex -=(I64), @liveBuffers, 1
+    %v_54 = add %v_51, %v_53: Long
+    %v_55 = cmp_neq %v_54, 2: Int
+    je %v_55, b_56, b_57
   }
 
-  b_47 {
-    ret 18446744073709551607
-  }
-
-  b_48 {
-    jmp b_49
-  }
-
-  b_49 {
-    %v_50 = call_complex borrowed: Long
-    %v_51 = cmp_neq %v_50, 2: Int
-    je %v_51, b_52, b_53
-  }
-
-  b_52 {
-    ret 18446744073709551606
-  }
-
-  b_53 {
-    jmp b_54
-  }
-
-  b_54 {
-    %v_55 = loads @liveBuffers, 8: Long
-    %v_56 = cmp_neq %v_55, 0: Int
-    je %v_56, b_57, b_58
+  b_56 {
+    ret 18446744073709551610
   }
 
   b_57 {
-    ret 18446744073709551605
+    jmp b_58
   }
 
   b_58 {
-    jmp b_59
+    %v_59 = loads @liveBuffers, 8: Long
+    %v_60 = cmp_neq %v_59, 0: Int
+    je %v_60, b_61, b_62
   }
 
-  b_59 {
+  b_61 {
+    ret 18446744073709551609
+  }
+
+  b_62 {
+    jmp b_63
+  }
+
+  b_63 {
+    call_complex +=(I64), @liveBuffers, 1
+    %v_64 = call_complex allocateHeap, %v_3: Ptr
+    setpattern %v_64, %v_3, 0
+    call_complex +=(I64), @liveBuffers, 1
+    %v_65 = call_complex allocateHeap, %v_4: Ptr
+    setpattern %v_65, %v_4, 0
+    %counted = loads @liveBuffers, 8: Long
+    %v_66 = load %v_64, 1: Int
+    %v_67 = cast %v_66: Long
+    call_complex freeHeap, %v_64
+    call_complex -=(I64), @liveBuffers, 1
+    %v_68 = add %counted, %v_67: Long
+    %v_69 = load %v_65, 1: Int
+    %v_70 = cast %v_69: Long
+    call_complex freeHeap, %v_65
+    call_complex -=(I64), @liveBuffers, 1
+    %v_71 = add %v_68, %v_70: Long
+    %v_72 = cmp_neq %v_71, 2: Int
+    je %v_72, b_73, b_74
+  }
+
+  b_73 {
+    ret 18446744073709551608
+  }
+
+  b_74 {
+    jmp b_75
+  }
+
+  b_75 {
+    %v_76 = loads @liveBuffers, 8: Long
+    %v_77 = cmp_neq %v_76, 0: Int
+    je %v_77, b_78, b_79
+  }
+
+  b_78 {
+    ret 18446744073709551607
+  }
+
+  b_79 {
+    jmp b_80
+  }
+
+  b_80 {
+    call_complex +=(I64), @liveBuffers, 1
+    %v_81 = call_complex allocateHeap, %v_5: Ptr
+    setpattern %v_81, %v_5, 0
+    call_complex +=(I64), @liveBuffers, 1
+    %v_82 = call_complex allocateHeap, %v_6: Ptr
+    setpattern %v_82, %v_6, 0
+    %v_83 = alloca 8, 8: Ptr
+    store %v_83, %v_81, 8
+    %v_84 = loads @liveBuffers, 8: Long
+    %v_85 = load %v_82, 1: Int
+    %v_86 = cast %v_85: Long
+    call_complex freeHeap, %v_82
+    call_complex -=(I64), @liveBuffers, 1
+    %v_87 = add %v_84, %v_86: Long
+    %v_88 = load %v_81, 1: Int
+    %v_89 = cast %v_88: Long
+    call_complex freeHeap, %v_81
+    call_complex -=(I64), @liveBuffers, 1
+    %v_90 = add %v_87, %v_89: Long
+    %v_91 = cmp_neq %v_90, 2: Int
+    je %v_91, b_92, b_93
+  }
+
+  b_92 {
+    ret 18446744073709551606
+  }
+
+  b_93 {
+    jmp b_94
+  }
+
+  b_94 {
+    %v_95 = loads @liveBuffers, 8: Long
+    %v_96 = cmp_neq %v_95, 0: Int
+    je %v_96, b_97, b_98
+  }
+
+  b_97 {
+    ret 18446744073709551605
+  }
+
+  b_98 {
+    jmp b_99
+  }
+
+  b_99 {
     ret 1
   }
 }

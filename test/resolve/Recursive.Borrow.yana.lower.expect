@@ -108,94 +108,83 @@ swapAt<complex>(%xs: Ptr, %a: Int, %b: Int) {
   }
 }
 
-partition<complex>(%xs: Ptr, %lo: Int, %hi: Int): Int {
-  b_0 {
-    %v_1 = sext %hi: Long
-    %v_2 = add %xs, 8: Ptr
-    %v_3 = loads %v_2, 8: Long
-    %v_4 = cmp_ge %v_1, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    %v_7 = load %xs, 8: Ptr
-    %v_8 = shl %v_1, 2: Long
-    %v_9 = add %v_7, %v_8: Ptr
-    %pivot = loads %v_9, 4: Int
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_6, %lo], [b_12, %v_13]: Int
-    %v_14 = phi [b_6, %lo], [b_12, %v_15]: Int
-    %v_16 = cmp_ilt %v_14, %hi: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_18 {
-    call_complex swapAt, %xs, %v_11, %hi
-    ret %v_11
-  }
-
-  b_17 {
-    %v_19 = sext %v_14: Long
-    %v_20 = add %xs, 8: Ptr
-    %v_21 = loads %v_20, 8: Long
-    %v_22 = cmp_ge %v_19, %v_21: Int
-    je %v_22, b_5, b_23
-  }
-
-  b_23 {
-    %v_24 = load %xs, 8: Ptr
-    %v_25 = shl %v_19, 2: Long
-    %v_26 = add %v_24, %v_25: Ptr
-    %v_27 = loads %v_26, 4: Int
-    %v_28 = cmp_ile %v_27, %pivot: Int
-    je %v_28, b_29, b_30
-  }
-
-  b_30 {
-    jmp b_12
-  }
-
-  b_29 {
-    call_complex swapAt, %xs, %v_14, %v_11
-    %v_31 = add %v_11, 1: Int
-    jmp b_12
-  }
-
-  b_12 {
-    %v_13 = phi [b_30, %v_11], [b_29, %v_31]: Int
-    %v_15 = add %v_14, 1: Int
-    jmp b_10
-  }
-
-  b_5 {
-    %v_32 = syscall 60, 134: Long
-    unreachable 
-  }
-}
-
 quicksort<complex>(%xs: Ptr, %lo: Int, %hi: Int) {
   b_0 {
     %v_1 = cmp_ige %lo, %hi: Int
     je %v_1, b_2, b_3
   }
 
-  b_2 {
+  b_3 {
+    %v_4 = sext %hi: Long
+    %v_5 = add %xs, 8: Ptr
+    %v_6 = loads %v_5, 8: Long
+    %v_7 = cmp_ge %v_4, %v_6: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    %v_10 = load %xs, 8: Ptr
+    %v_11 = shl %v_4, 2: Long
+    %v_12 = add %v_10, %v_11: Ptr
+    %pivot = loads %v_12, 4: Int
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_9, %lo], [b_15, %v_16]: Int
+    %v_17 = phi [b_9, %lo], [b_15, %v_18]: Int
+    %v_19 = cmp_ilt %v_17, %hi: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    call_complex swapAt, %xs, %v_14, %hi
+    %v_22 = sub %v_14, 1: Int
+    call_complex quicksort, %xs, %lo, %v_22
+    %v_23 = add %v_14, 1: Int
+    call_complex quicksort, %xs, %v_23, %hi
     ret 
   }
 
-  b_3 {
-    jmp b_4
+  b_20 {
+    %v_24 = sext %v_17: Long
+    %v_25 = add %xs, 8: Ptr
+    %v_26 = loads %v_25, 8: Long
+    %v_27 = cmp_ge %v_24, %v_26: Int
+    je %v_27, b_8, b_28
   }
 
-  b_4 {
-    %cut = call_complex partition, %xs, %lo, %hi: Int
-    %v_5 = sub %cut, 1: Int
-    call_complex quicksort, %xs, %lo, %v_5
-    %v_6 = add %cut, 1: Int
-    call_complex quicksort, %xs, %v_6, %hi
+  b_28 {
+    %v_29 = load %xs, 8: Ptr
+    %v_30 = shl %v_24, 2: Long
+    %v_31 = add %v_29, %v_30: Ptr
+    %v_32 = loads %v_31, 4: Int
+    %v_33 = cmp_ile %v_32, %pivot: Int
+    je %v_33, b_34, b_35
+  }
+
+  b_35 {
+    jmp b_15
+  }
+
+  b_34 {
+    call_complex swapAt, %xs, %v_17, %v_14
+    %v_36 = add %v_14, 1: Int
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = phi [b_35, %v_14], [b_34, %v_36]: Int
+    %v_18 = add %v_17, 1: Int
+    jmp b_13
+  }
+
+  b_8 {
+    %v_37 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_2 {
     ret 
   }
 }

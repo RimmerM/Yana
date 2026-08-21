@@ -34,6 +34,49 @@ void setTargetFeatures(FeatureSet features) {
 }
 
 /*
+ * The block-expansion policy - see BlockExpansion.
+ *
+ * **The ceiling is two bounds met, and neither of them alone is the one that matters.** A count of
+ * transfer *pairs* is what bounds the instructions a call site grows by, and it is the number worth
+ * holding steady across the two step widths; a count of *bytes* is what bounds how far past
+ * `rep movsb`'s flat rate a straight line is worth going, and that number does not scale with the
+ * register. So a level names both and the smaller applies - which is what keeps a v2 build at
+ * `Speed` from spending sixteen `movdqu` pairs to do what eight `vmovdqu` pairs do one level up.
+ *
+ * `Size` comes to thirty-two bytes at every level, which is exactly what this backend straight-lined
+ * before the policy existed. That is deliberate: a build asking for smaller code should not get
+ * larger code out of this change, and the *width* of the transfers is a size win by itself - thirty-
+ * two bytes is one `vmovdqu` pair where it used to be four `mov` pairs.
+ *
+ * The step is `targetVectorBytes`' answer and not a reading of the feature set, which is what keeps
+ * this a pure function of the settings: the two agree by construction, since both are the level.
+ */
+BlockExpansion x64BlockExpansionFor(const CompileSettings& settings) {
+    // The widest register a transfer can go through. Capped at thirty-two because this backend holds
+    // a vector in at most a `ymm` - see targetVectorBytes, which says the same thing about a value.
+    auto step = min(U32(32), targetVectorBytes(settings));
+
+    U64 pairs = 4, bytes = 128;
+
+    if(settings.inlining == InlineLevel::None || settings.inlining == InlineLevel::Size) {
+        pairs = 2;
+        bytes = 32;
+    } else if(settings.inlining == InlineLevel::Speed) {
+        pairs = 8;
+        bytes = 256;
+    }
+
+    auto limit = min(bytes, U64(step) * pairs);
+
+    return BlockExpansion {
+        .copyLimit = limit,
+        .copyStep = step,
+        .setLimit = limit,
+        .setStep = step,
+    };
+}
+
+/*
  * The level, as the bits the form table is written in terms of.
  *
  * One switch and no implications drawn on the way: what used to be four separate claims - SSE4.1

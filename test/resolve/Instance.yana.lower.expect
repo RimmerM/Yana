@@ -1,6 +1,6 @@
 @image$base = []
 
-maybes<complex>(): Long {
+main<complex>(): Int {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 1, 4
@@ -56,54 +56,40 @@ maybes<complex>(): Long {
   b_23 {
     %v_25 = phi [b_16, %v_18], [b_22, %v_24]: Long
     %v_26 = add %v_25, 8: Long
-    ret %v_26
-  }
-}
-
-pointers<complex>(): Long {
-  b_0 {
-    %v_1 = alloca 8, 8: Ptr
-    store %v_1, 0, 8
-    %v_2 = alloca 8, 8: Ptr
-    store %v_2, 0, 8
-    %v_3 = cmp_lt %v_1, %v_2: Int
-    %v_4 = select %v_3, %v_1, %v_2: Ptr
-    %v_5 = cmp_lt %v_2, %v_1: Int
-    %v_6 = select %v_5, %v_2, %v_1: Ptr
-    %v_7 = cmp_le %v_4, %v_6: Int
-    je %v_7, b_8, b_9
+    %v_27 = alloca 8, 8: Ptr
+    store %v_27, 0, 8
+    %v_28 = alloca 8, 8: Ptr
+    store %v_28, 0, 8
+    %v_29 = cmp_lt %v_27, %v_28: Int
+    %v_30 = select %v_29, %v_27, %v_28: Ptr
+    %v_31 = cmp_lt %v_28, %v_27: Int
+    %v_32 = select %v_31, %v_28, %v_27: Ptr
+    %v_33 = cmp_le %v_30, %v_32: Int
+    je %v_33, b_34, b_35
   }
 
-  b_8 {
-    jmp b_9
+  b_34 {
+    jmp b_35
   }
 
-  b_9 {
-    %v_10 = phi [b_0, 0], [b_8, 1]: Long
-    %v_11 = cmp_eq %v_4, %v_4: Int
-    je %v_11, b_12, b_13
+  b_35 {
+    %v_36 = phi [b_23, 0], [b_34, 1]: Long
+    %v_37 = cmp_eq %v_30, %v_30: Int
+    je %v_37, b_38, b_39
   }
 
-  b_12 {
-    %v_14 = add %v_10, 2: Long
-    jmp b_13
+  b_38 {
+    %v_40 = add %v_36, 2: Long
+    jmp b_39
   }
 
-  b_13 {
-    %v_15 = phi [b_9, %v_10], [b_12, %v_14]: Long
-    %v_16 = add %v_15, 4: Long
-    ret %v_16
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %v_1 = call_complex maybes: Long
-    %v_2 = call_complex pointers: Long
-    %v_3 = add %v_1, %v_2: Long
-    %v_4 = add %v_3, 16: Long
-    %v_5 = cast %v_4: Int
-    ret %v_5
+  b_39 {
+    %v_41 = phi [b_35, %v_36], [b_38, %v_40]: Long
+    %v_42 = add %v_41, 4: Long
+    %v_43 = add %v_26, %v_42: Long
+    %v_44 = add %v_43, 16: Long
+    %v_45 = cast %v_44: Int
+    ret %v_45
   }
 }
 

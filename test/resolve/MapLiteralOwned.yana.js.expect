@@ -8,18 +8,6 @@ function checkCondition(failed) {
   }
 }
 
-function indexSlotsFor(wanted) {
-  var slots = 16;
-  L0: for (;;) {
-    if ((slots - (slots >>> 3) | 0) < wanted) {
-      slots = slots + slots | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return slots;
-}
-
 function reserve_I32(self, wanted) {
   if (!(wanted <= self.items.length)) {
     growJsArray_I32(self, wanted);
@@ -39,25 +27,6 @@ function growJsArray_I32(self, wanted) {
   }
   var v25 = $grow(v3, wide);
   self.items = v25;
-}
-
-function reserveMap_String_Held(self, wanted) {
-  reserve_String(self.keys, wanted);
-  reserve_Held(self.values, wanted);
-  if (wanted > 32) {
-    B0: {
-      B1: {
-        var slots = indexSlotsFor(wanted);
-        var v37 = self.mask;
-        if (!(slots > v37 + 1)) {
-          if (v37) {
-            break B0;
-          }
-        }
-      }
-      indexRebuild_String_Held(self, slots);
-    }
-  }
 }
 
 function reserve_String(self, wanted) {
@@ -82,14 +51,25 @@ function indexRebuild_String_Held(self, slots) {
     break L0;
   }
   self.live = 0;
-  var v91 = self.keys.length;
+  var v108 = self.keys.length;
   var at = 0;
   L1: for (;;) {
-    if (at < v91) {
-      var v74 = Hash_String_hash(self.keys[at], 2166136261);
-      var v81 = Math.imul((v74 ^ v74 >>> 16) >>> 0, 2246822507) >>> 0;
-      var v86 = Math.imul((v81 ^ v81 >>> 13) >>> 0, 3266489909) >>> 0;
-      indexPlace_String_Held(self, at, (v86 ^ v86 >>> 16) >>> 0);
+    if (at < v108) {
+      var v70 = self.keys[at];
+      var v103 = v70.length;
+      var h = Math.imul((v103 ^ 2166136261) >>> 0, 16777619) >>> 0;
+      var i = 0;
+      L2: for (;;) {
+        if (i < v103) {
+          h = Math.imul((h ^ v70.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+          i = i + 1 | 0;
+          continue L2;
+        }
+        break L2;
+      }
+      var v113 = Math.imul((h ^ h >>> 16) >>> 0, 2246822507) >>> 0;
+      var v118 = Math.imul((v113 ^ v113 >>> 13) >>> 0, 3266489909) >>> 0;
+      indexPlace_String_Held(self, at, (v118 ^ v118 >>> 16) >>> 0);
       at = at + 1 | 0;
       continue L1;
     }
@@ -98,10 +78,20 @@ function indexRebuild_String_Held(self, slots) {
 }
 
 function hashKey_String(key) {
-  var v2 = Hash_String_hash(key, 2166136261);
-  var v9 = Math.imul((v2 ^ v2 >>> 16) >>> 0, 2246822507) >>> 0;
-  var v14 = Math.imul((v9 ^ v9 >>> 13) >>> 0, 3266489909) >>> 0;
-  return (v14 ^ v14 >>> 16) >>> 0;
+  var v31 = key.length;
+  var h = Math.imul((v31 ^ 2166136261) >>> 0, 16777619) >>> 0;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v31) {
+      h = Math.imul((h ^ key.charCodeAt(i)) >>> 0, 16777619) >>> 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var v39 = Math.imul((h ^ h >>> 16) >>> 0, 2246822507) >>> 0;
+  var v44 = Math.imul((v39 ^ v39 >>> 13) >>> 0, 3266489909) >>> 0;
+  return (v44 ^ v44 >>> 16) >>> 0;
 }
 
 function indexPlace_String_Held(self, at, h) {
@@ -214,7 +204,15 @@ function appendEntry_String_Held(self, key, value, h) {
   if (v13 === 0) {
     var v19 = v67 + 1;
     if (v19 > 32) {
-      indexRebuild_String_Held(self, indexSlotsFor(v19));
+      var slots = 16;
+      L0: for (;;) {
+        if ((slots - (slots >>> 3) | 0) < v19) {
+          slots = slots + slots | 0;
+          continue L0;
+        }
+        break L0;
+      }
+      indexRebuild_String_Held(self, slots);
     }
   } else {
     var v72 = v13 + 1;
@@ -308,21 +306,6 @@ function showSigned(value, to$o, to$k, to$s) {
   }
 }
 
-function Hash_String_hash(value, state) {
-  var v31 = value.length;
-  var h = Math.imul((state ^ v31) >>> 0, 16777619) >>> 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i < v31) {
-      h = Math.imul((h ^ value.charCodeAt(i)) >>> 0, 16777619) >>> 0;
-      i = i + 1 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  return h;
-}
-
 // ResolveTest
 function main() {
   var s = { $v: "" };
@@ -358,7 +341,8 @@ function main() {
   v412.index = v421;
   v412.live = 0;
   v412.mask = 0;
-  reserveMap_String_Held(v412, 3);
+  reserve_String(v412.keys, 3);
+  reserve_Held(v412.values, 3);
   IndexInsert_Map_k_v_k_v_insertAt_String_Held(v412, v371, v376);
   IndexInsert_Map_k_v_k_v_insertAt_String_Held(v412, v388, v393);
   IndexInsert_Map_k_v_k_v_insertAt_String_Held(v412, v405, v410);
@@ -373,25 +357,25 @@ function main() {
       var s$3 = { $v: "" };
       s$3.$v = s$3.$v + "k-";
       showSigned(2n, s$3, "$v", 1);
-      var v449 = s$3.$v;
-      var v450 = null;
-      var at = findEntry_String_Held(v412, v449, hashKey_String(v449));
+      var v472 = s$3.$v;
+      var v473 = null;
+      var at = findEntry_String_Held(v412, v472, hashKey_String(v472));
       if (at < 0) {
-        v450 = null;
+        v473 = null;
       } else {
-        v450 = v412.values[at];
+        v473 = v412.values[at];
       }
-      if (!(v450 === null)) {
-        if (v450.n !== 2) {
+      if (!(v473 === null)) {
+        if (v473.n !== 2) {
           Reclaim_Array_a_reclaim_Held(v412.values);
           return -3;
         } else {
           var s$4 = { $v: "" };
           s$4.$v = s$4.$v + "k-";
           showSigned(4n, s$4, "$v", 1);
-          var v479 = s$4.$v;
+          var v502 = s$4.$v;
           live = live + 1 | 0;
-          IndexInsert_Map_k_v_k_v_insertAt_String_Held(v412, v479, { n: 4 });
+          IndexInsert_Map_k_v_k_v_insertAt_String_Held(v412, v502, { n: 4 });
           if (v412.keys.length !== 4) {
             Reclaim_Array_a_reclaim_Held(v412.values);
             return -5;
@@ -403,9 +387,9 @@ function main() {
               var s$5 = { $v: "" };
               s$5.$v = s$5.$v + "k-";
               showSigned(4n, s$5, "$v", 1);
-              var v498 = s$5.$v;
+              var v521 = s$5.$v;
               live = live + 1 | 0;
-              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v412, v498, { n: 40 });
+              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v412, v521, { n: 40 });
               if (v412.keys.length !== 4) {
                 Reclaim_Array_a_reclaim_Held(v412.values);
                 return -7;
@@ -424,102 +408,104 @@ function main() {
                     var s$7 = { $v: "" };
                     s$7.$v = s$7.$v + "k-";
                     showSigned(9n, s$7, "$v", 1);
-                    var v528 = s$7.$v;
+                    var v551 = s$7.$v;
                     live = live + 1 | 0;
-                    var v533 = { n: 9 };
+                    var v556 = { n: 9 };
                     var s$8 = { $v: "" };
                     s$8.$v = s$8.$v + "k-";
                     showSigned(8n, s$8, "$v", 1);
-                    var v545 = s$8.$v;
+                    var v568 = s$8.$v;
                     live = live + 1 | 0;
-                    var v550 = { n: 8 };
+                    var v573 = { n: 8 };
                     var s$9 = { $v: "" };
                     s$9.$v = s$9.$v + "k-";
                     showSigned(9n, s$9, "$v", 1);
-                    var v562 = s$9.$v;
+                    var v585 = s$9.$v;
                     live = live + 1 | 0;
-                    var v567 = { n: 90 };
-                    var v569 = { keys: null, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
-                    var v570 = [];
-                    if (v570.length !== 0) {
-                      v570.length = 0;
+                    var v590 = { n: 90 };
+                    var v592 = { keys: null, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
+                    var v593 = [];
+                    if (v593.length !== 0) {
+                      v593.length = 0;
                     }
-                    var v574 = [];
-                    if (v574.length !== 0) {
-                      v574.length = 0;
+                    var v597 = [];
+                    if (v597.length !== 0) {
+                      v597.length = 0;
                     }
-                    var v578 = { items: new Int32Array([]), length: 0 };
-                    v569.keys = v570;
-                    v569.values = v574;
-                    v569.index = v578;
-                    v569.live = 0;
-                    v569.mask = 0;
-                    reserveMap_String_Held(v569, 3);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v569, v528, v533);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v569, v545, v550);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v569, v562, v567);
-                    if (v569.keys.length !== 2) {
+                    var v601 = { items: new Int32Array([]), length: 0 };
+                    v592.keys = v593;
+                    v592.values = v597;
+                    v592.index = v601;
+                    v592.live = 0;
+                    v592.mask = 0;
+                    reserve_String(v592.keys, 3);
+                    reserve_Held(v592.values, 3);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v592, v551, v556);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v592, v568, v573);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v592, v585, v590);
+                    if (v592.keys.length !== 2) {
                       Reclaim_Array_a_reclaim_Held(v412.values);
-                      Reclaim_Array_a_reclaim_Held(v569.values);
+                      Reclaim_Array_a_reclaim_Held(v592.values);
                       return -10;
                     } else {
                       if (live !== 6) {
                         Reclaim_Array_a_reclaim_Held(v412.values);
-                        Reclaim_Array_a_reclaim_Held(v569.values);
+                        Reclaim_Array_a_reclaim_Held(v592.values);
                         return -11;
                       } else {
                         var s$10 = { $v: "" };
                         s$10.$v = s$10.$v + "k-";
                         showSigned(9n, s$10, "$v", 1);
-                        if (Index_Map_k_v_k_v_get_String_Held(v569, s$10.$v).n !== 90) {
+                        if (Index_Map_k_v_k_v_get_String_Held(v592, s$10.$v).n !== 90) {
                           Reclaim_Array_a_reclaim_Held(v412.values);
-                          Reclaim_Array_a_reclaim_Held(v569.values);
+                          Reclaim_Array_a_reclaim_Held(v592.values);
                           return -12;
                         } else {
-                          var v607 = { keys: null, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
-                          var v608 = [];
-                          if (v608.length !== 0) {
-                            v608.length = 0;
+                          var v653 = { keys: null, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
+                          var v654 = [];
+                          if (v654.length !== 0) {
+                            v654.length = 0;
                           }
-                          var v612 = [];
-                          if (v612.length !== 0) {
-                            v612.length = 0;
+                          var v658 = [];
+                          if (v658.length !== 0) {
+                            v658.length = 0;
                           }
-                          var v616 = { items: new Int32Array([]), length: 0 };
-                          v607.keys = v608;
-                          v607.values = v612;
-                          v607.index = v616;
-                          v607.live = 0;
-                          v607.mask = 0;
-                          reserveMap_String_Held(v607, 0);
-                          if (v607.keys.length) {
+                          var v662 = { items: new Int32Array([]), length: 0 };
+                          v653.keys = v654;
+                          v653.values = v658;
+                          v653.index = v662;
+                          v653.live = 0;
+                          v653.mask = 0;
+                          reserve_String(v653.keys, 0);
+                          reserve_Held(v653.values, 0);
+                          if (v653.keys.length) {
                             Reclaim_Array_a_reclaim_Held(v412.values);
-                            Reclaim_Array_a_reclaim_Held(v569.values);
-                            Reclaim_Array_a_reclaim_Held(v607.values);
+                            Reclaim_Array_a_reclaim_Held(v592.values);
+                            Reclaim_Array_a_reclaim_Held(v653.values);
                             return -13;
                           } else {
                             if (live !== 6) {
                               Reclaim_Array_a_reclaim_Held(v412.values);
-                              Reclaim_Array_a_reclaim_Held(v569.values);
-                              Reclaim_Array_a_reclaim_Held(v607.values);
+                              Reclaim_Array_a_reclaim_Held(v592.values);
+                              Reclaim_Array_a_reclaim_Held(v653.values);
                               return -14;
                             } else {
                               var s$11 = { $v: "" };
                               s$11.$v = s$11.$v + "k-";
                               showSigned(0n, s$11, "$v", 1);
-                              var v644 = s$11.$v;
+                              var v713 = s$11.$v;
                               live = live + 1 | 0;
-                              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v607, v644, { n: 0 });
+                              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v653, v713, { n: 0 });
                               var v288 = live;
                               if (v288 !== 7) {
                                 Reclaim_Array_a_reclaim_Held(v412.values);
-                                Reclaim_Array_a_reclaim_Held(v569.values);
-                                Reclaim_Array_a_reclaim_Held(v607.values);
+                                Reclaim_Array_a_reclaim_Held(v592.values);
+                                Reclaim_Array_a_reclaim_Held(v653.values);
                                 return -15;
                               } else {
                                 Reclaim_Array_a_reclaim_Held(v412.values);
-                                Reclaim_Array_a_reclaim_Held(v569.values);
-                                Reclaim_Array_a_reclaim_Held(v607.values);
+                                Reclaim_Array_a_reclaim_Held(v592.values);
+                                Reclaim_Array_a_reclaim_Held(v653.values);
                                 return (Math.imul(v288, 10) + live | 0) + 1 | 0;
                               }
                             }

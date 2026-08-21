@@ -36,31 +36,6 @@ opaqueLong<complex>(%x: Long): Long {
   }
 }
 
-throughMemory<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 4, 8: Ptr
-    %v_2 = alloca 8, 4: Ptr
-    %v_3 = load %v_1, 4: Int
-    store %v_1, 2, 4
-    store %v_2, 0, 4
-    %v_4 = add %v_2, 4: Ptr
-    store %v_4, 0, 4
-    %v_5 = call_complex opaqueU32, 305419896: Int
-    store %v_2, %v_5, 4
-    %v_6 = bswap %v_5: Int
-    %v_7 = cmp_eq %v_6, 2018915346: Int
-    %v_8 = select %v_7, 512, 0: Int
-    %v_9 = add %v_2, 4: Ptr
-    %v_10 = call_complex opaqueU32, 305419896: Int
-    %v_11 = bswap %v_10: Int
-    store %v_9, %v_11, 4
-    %v_12 = cmp_eq %v_11, 2018915346: Int
-    %v_13 = select %v_12, 1024, 0: Int
-    %v_14 = add %v_8, %v_13: Int
-    ret %v_14
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = call_complex opaqueU32, 305419896: Int
@@ -116,20 +91,38 @@ main<complex>(): Int {
     %v_50 = add %v_40, %v_49: Int
     %value = call_complex opaqueU64, 1311768467463790320: Long
     %v_51 = add %v_50, 256: Int
-    %v_52 = call_complex throughMemory: Int
-    %v_53 = add %v_51, %v_52: Int
-    %v_54 = add %v_53, 2048: Int
-    %v_55 = call_complex opaqueU32, 305419896: Int
-    %v_56 = call_complex swapVia(U32), %v_55: Int
-    %v_57 = cmp_eq %v_56, 2018915346: Int
-    %v_58 = select %v_57, 4096, 0: Int
-    %v_59 = call_complex opaqueU64, 1: Long
-    %v_60 = call_complex swapVia(U64), %v_59: Long
-    %v_61 = cmp_eq %v_60, 72057594037927936: Int
-    %v_62 = select %v_61, 8192, 0: Int
-    %v_63 = add %v_58, %v_62: Int
-    %v_64 = add %v_54, %v_63: Int
-    ret %v_64
+    %v_52 = alloca 4, 8: Ptr
+    %v_53 = alloca 8, 4: Ptr
+    %v_54 = load %v_52, 4: Int
+    store %v_52, 2, 4
+    store %v_53, 0, 4
+    %v_55 = add %v_53, 4: Ptr
+    store %v_55, 0, 4
+    %v_56 = call_complex opaqueU32, 305419896: Int
+    store %v_53, %v_56, 4
+    %v_57 = bswap %v_56: Int
+    %v_58 = cmp_eq %v_57, 2018915346: Int
+    %v_59 = select %v_58, 512, 0: Int
+    %v_60 = add %v_53, 4: Ptr
+    %v_61 = call_complex opaqueU32, 305419896: Int
+    %v_62 = bswap %v_61: Int
+    store %v_60, %v_62, 4
+    %v_63 = cmp_eq %v_62, 2018915346: Int
+    %v_64 = select %v_63, 1024, 0: Int
+    %v_65 = add %v_59, %v_64: Int
+    %v_66 = add %v_51, %v_65: Int
+    %v_67 = add %v_66, 2048: Int
+    %v_68 = call_complex opaqueU32, 305419896: Int
+    %v_69 = call_complex swapVia(U32), %v_68: Int
+    %v_70 = cmp_eq %v_69, 2018915346: Int
+    %v_71 = select %v_70, 4096, 0: Int
+    %v_72 = call_complex opaqueU64, 1: Long
+    %v_73 = call_complex swapVia(U64), %v_72: Long
+    %v_74 = cmp_eq %v_73, 72057594037927936: Int
+    %v_75 = select %v_74, 8192, 0: Int
+    %v_76 = add %v_71, %v_75: Int
+    %v_77 = add %v_67, %v_76: Int
+    ret %v_77
   }
 }
 

@@ -1089,12 +1089,6 @@ struct LowerInstX86StoreOp: LowerInst {
     Kind op;
 };
 
-// Set on Copy/SetPattern by a target-specific transform to record which of the two available
-// encodings the backend will use, so that the register constraints and the encoder cannot disagree
-// about it. See selectBlockOpEncoding in codegen/x64/transform_peephole.cpp: the unrolled form works out of
-// whatever registers the operands already occupy, while the rep-prefixed form demands fixed ones.
-static constexpr U8 kBlockOpUnrolled = 1;
-
 // Copies memory from the source pointer to the target pointer.
 struct LowerInstCopy: LowerInst {
     LowerInstCopy(LowerPtr<LowerValue> to, LowerPtr<LowerValue> from, LowerPtr<LowerValue> count):
@@ -1102,9 +1096,6 @@ struct LowerInstCopy: LowerInst {
     {
         usedCount = 3;
     }
-
-    bool isUnrolled() const { return (flags & kBlockOpUnrolled) != 0; }
-    void setUnrolled(bool unrolled) { flags = unrolled ? kBlockOpUnrolled : U8(0); }
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> to, from, count;
@@ -1117,9 +1108,6 @@ struct LowerInstSetPattern: LowerInst {
     {
         usedCount = 3;
     }
-
-    bool isUnrolled() const { return (flags & kBlockOpUnrolled) != 0; }
-    void setUnrolled(bool unrolled) { flags = unrolled ? kBlockOpUnrolled : U8(0); }
 
     // Used values must be first after embedded values.
     // The declaration order is what used() reports, and the printer emits used() positionally, so

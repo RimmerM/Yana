@@ -353,8 +353,9 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
 
     ExprResolver resolver(module.context, module, *function);
 
-    // The bytes. copyMemory rather than a load and a store because the size is a constant here and
-    // the type may be an aggregate with no register form at all.
+    // The bytes. The block copy rather than a load and a store because the size is a constant here
+    // and the type may be an aggregate with no register form at all - and the instruction rather than
+    // the library's `copyMemory`, which is a ladder written for a count nobody knows.
     {
         auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), module.scalar.long_,
                                                                 type, TypeMetricKind::Size));
@@ -511,10 +512,11 @@ ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source)
     }
 
     /*
-     * The bytes, through copyMemory for the reason moveInitFor gives: the size is a constant here
-     * and the type may be an aggregate with no register form at all. What each backend makes of it
-     * is its own business, and on JS that is genBlockCopy's structural duplicate rather than
-     * anything that would alias.
+     * The bytes, through the block copy for the reason moveInitFor gives: the size is a constant
+     * here and the type may be an aggregate with no register form at all. What each backend makes of
+     * it is its own business - on JS that is genBlockCopy's structural duplicate rather than
+     * anything that would alias, and on amd64 it is the unrolled expansion, which for a constant
+     * this size is a handful of vector transfers rather than a `rep movsb`.
      */
     auto bytes = resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), module.scalar.long_,
                                                             type, TypeMetricKind::Size));

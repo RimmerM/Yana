@@ -51,49 +51,6 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
   }
 }
 
-Reclaim(Array(a)).reclaim(Cell)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 12: Ptr
-    %v_2 = load %v_1, 4: Int
-    %count = cast %v_2: Int
-    %v_3 = load %value, 8: Ptr
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_0, 0], [b_6, %v_7]: Int
-    %v_8 = cmp_ilt %v_5, %count: Int
-    je %v_8, b_6, b_9
-  }
-
-  b_9 {
-    %v_10 = add %value, 8: Ptr
-    %v_11 = load %v_10, 4: Int
-    %v_12 = shr %v_11, 30: Int
-    %v_13 = cmp_eq %v_12, 1: Int
-    je %v_13, b_14, b_15
-  }
-
-  b_15 {
-    jmp b_16
-  }
-
-  b_14 {
-    %v_17 = load %value, 8: Ptr
-    call_complex freeHeap, %v_17
-    jmp b_16
-  }
-
-  b_16 {
-    ret 
-  }
-
-  b_6 {
-    %v_7 = add %v_5, 1: Int
-    jmp b_4
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -113,68 +70,79 @@ main<complex>(): Int {
     store %v_8, 1, 4
     %v_9 = add %v_8, 4: Ptr
     store %v_9, 2, 4
-    %v_10 = alloca 16, 8: Ptr
-    store %v_10, %v_8, 8
-    %v_11 = add %v_10, 8: Ptr
-    %v_12 = load %v_11, 4: Int
-    store %v_11, 2, 4
-    %v_13 = add %v_8, 8: Ptr
-    store %v_13, 3, 4
-    %v_14 = add %v_8, 12: Ptr
-    store %v_14, 4, 4
-    %v_15 = add %v_10, 12: Ptr
-    store %v_15, 2, 4
+    %v_10 = alloca 4, 8: Ptr
+    %v_11 = load %v_10, 4: Int
+    store %v_10, 2, 4
+    %v_12 = add %v_8, 8: Ptr
+    store %v_12, 3, 4
+    %v_13 = add %v_8, 12: Ptr
+    store %v_13, 4, 4
     store %v_8, 7, 4
     store %v_9, 8, 4
-    store %v_13, 9, 4
-    %v_16 = alloca 16, 8: Ptr
-    %v_17 = alloca 12, 4: Ptr
-    store %v_16, %v_17, 8
-    %v_18 = add %v_16, 8: Ptr
-    %v_19 = load %v_18, 4: Int
-    store %v_18, 3, 4
-    store %v_17, 0, 4
-    %v_20 = add %v_17, 4: Ptr
-    store %v_20, 0, 4
-    %v_21 = add %v_17, 8: Ptr
-    store %v_21, 0, 4
-    %v_22 = add %v_16, 12: Ptr
-    store %v_22, 3, 4
-    %v_23 = loads %v_2, 4: Int
-    %v_24 = loads %v_6, 4: Int
-    %v_25 = add %v_23, %v_24: Int
-    %v_26 = loads %v_5, 4: Int
-    %v_27 = add %v_23, %v_26: Int
-    %v_28 = add %v_25, %v_27: Int
-    %v_29 = loads %v_8, 4: Int
-    %v_30 = loads %v_14, 4: Int
-    %v_31 = add %v_29, %v_30: Int
-    call_complex Reclaim(Array(a)).reclaim(Cell), %v_10
-    %v_32 = add %v_28, %v_31: Int
-    %v_33 = add %v_17, 8: Ptr
-    %v_34 = imm 5: Int
-    store %v_33, %v_34, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_16
-    %v_35 = add %v_32, %v_34: Int
-    %v_36 = add %v_35, 2: Int
-    %v_37 = load %v_1, 8: Ptr
-    %v_38 = add %v_1, 12: Ptr
-    %v_39 = load %v_38, 4: Int
-    %v_40 = cast %v_39: Long
-    %v_41 = cmp_eq %v_40, 0: Int
-    je %v_41, b_42, b_43
+    store %v_12, 9, 4
+    %v_14 = alloca 16, 8: Ptr
+    %v_15 = alloca 12, 4: Ptr
+    store %v_14, %v_15, 8
+    %v_16 = add %v_14, 8: Ptr
+    %v_17 = load %v_16, 4: Int
+    store %v_16, 3, 4
+    store %v_15, 0, 4
+    %v_18 = add %v_15, 4: Ptr
+    store %v_18, 0, 4
+    %v_19 = add %v_15, 8: Ptr
+    store %v_19, 0, 4
+    %v_20 = add %v_14, 12: Ptr
+    store %v_20, 3, 4
+    %v_21 = loads %v_2, 4: Int
+    %v_22 = loads %v_6, 4: Int
+    %v_23 = add %v_21, %v_22: Int
+    %v_24 = loads %v_5, 4: Int
+    %v_25 = add %v_21, %v_24: Int
+    %v_26 = add %v_23, %v_25: Int
+    %v_27 = loads %v_8, 4: Int
+    %v_28 = loads %v_13, 4: Int
+    %v_29 = add %v_27, %v_28: Int
+    %v_30 = imm 5: Int
+    jmp b_31
   }
 
-  b_43 {
-    %v_44 = loads %v_37, 4: Int
+  b_32 {
+    %v_33 = cmp_ilt %v_34, 2: Int
+    je %v_33, b_31, b_35
+  }
+
+  b_35 {
+    %v_36 = add %v_26, %v_29: Int
+    %v_37 = load %v_14, 8: Ptr
+    %v_38 = add %v_37, 8: Ptr
+    store %v_38, %v_30, 4
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_14
+    %v_39 = add %v_36, %v_30: Int
+    %v_40 = add %v_39, 2: Int
+    %v_41 = load %v_1, 8: Ptr
+    %v_42 = add %v_1, 12: Ptr
+    %v_43 = load %v_42, 4: Int
+    %v_44 = cast %v_43: Long
+    %v_45 = cmp_eq %v_44, 0: Int
+    je %v_45, b_46, b_47
+  }
+
+  b_47 {
+    %v_48 = loads %v_41, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_45 = add %v_36, %v_44: Int
-    ret %v_45
+    %v_49 = add %v_40, %v_48: Int
+    ret %v_49
   }
 
-  b_42 {
-    %v_46 = syscall 60, 134: Long
+  b_46 {
+    %v_50 = syscall 60, 134: Long
     unreachable 
+  }
+
+  b_31 {
+    %v_51 = phi [b_32, %v_34], [b_0, 0]: Int
+    %v_34 = add %v_51, 1: Int
+    jmp b_32
   }
 }
 

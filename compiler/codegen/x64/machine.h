@@ -672,9 +672,7 @@ enum class PseudoKind: U8 {
     AllocaFixed,
     AllocaDynamic,
     BlockCopyRep,
-    BlockCopyUnrolled,
     BlockSetRep,
-    BlockSetUnrolled,
 
     // The three floating-point operations AMD64 has no single scalar instruction for. Each expands
     // into two or three, and each is here rather than in the form table's regular families because

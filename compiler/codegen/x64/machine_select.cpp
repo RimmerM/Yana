@@ -853,22 +853,13 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         }
 
         /*
-         * Which of the two unrolled forms is the one question left to the value rather than to the
-         * instruction: the count is folded into the unrolling wherever it is implicit, and implicit
-         * is something a constant is or is not - a count some other instruction still reads out of a
-         * register is neither. See the pair in the table above.
+         * A block operation that reached form selection is one the expansion left alone - a count
+         * that is not a constant, or one past the ceiling that makes straight-lining it worth doing
+         * (`expandBlockOperations`). Both take the string instruction, whose operands are ordinary
+         * fixed registers, so there is nothing left to choose here.
          */
-        case LowerInst::Copy: {
-            auto copy = (LowerInstCopy*)inst;
-            if(!copy->isUnrolled()) return FormBlockCopyRep;
-            return isImplicit(base[copy->count]) ? FormBlockCopyUnrolled : FormBlockCopyUnrolledCount;
-        }
-
-        case LowerInst::SetPattern: {
-            auto set = (LowerInstSetPattern*)inst;
-            if(!set->isUnrolled()) return FormBlockSetRep;
-            return isImplicit(base[set->count]) ? FormBlockSetUnrolled : FormBlockSetUnrolledCount;
-        }
+        case LowerInst::Copy: return FormBlockCopyRep;
+        case LowerInst::SetPattern: return FormBlockSetRep;
 
         case LowerInst::Call: {
             auto call = (LowerInstCall*)inst;

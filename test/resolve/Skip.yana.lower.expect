@@ -381,38 +381,6 @@ nested<complex>(%n: Int): Int {
   }
 }
 
-written<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = bitcast 0: Ptr
-    %v_2 = loads @log, 4: Int
-    %v_3 = add %v_2, 1: Int
-    store @log, %v_3, 4
-    %v_4 = cmp_igt %n, 0: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    %v_8 = shl %n, 1: Int
-    %carried = call_complex ResolveTest.lambda$21, %v_1, %v_8: Int
-    %v_9 = loads @log, 4: Int
-    %v_10 = add %v_9, 100: Int
-    store @log, %v_10, 4
-    jmp b_7
-  }
-
-  b_7 {
-    %v_11 = phi [b_6, 0], [b_5, 1]: Int
-    %v_12 = phi [b_6, 0], [b_5, %carried]: Int
-    %v_13 = cmp_eq %v_11, 1: Int
-    %v_14 = select %v_13, %v_12, 0: Int
-    ret %v_14
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     store @log, 0, 4
@@ -427,25 +395,32 @@ main<complex>(): Int {
     %i = call_complex reasoned, 18446744073709551615: Int
     %j = call_complex guarded, 1: Int
     %k = call_complex guarded, 0: Int
-    %l = call_complex written, 6: Int
+    %v_1 = bitcast 0: Ptr
+    %v_2 = loads @log, 4: Int
+    %v_3 = add %v_2, 1: Int
+    store @log, %v_3, 4
+    %carried = call_complex ResolveTest.lambda$21, %v_1, 12: Int
+    %v_4 = loads @log, 4: Int
+    %v_5 = add %v_4, 100: Int
+    store @log, %v_5, 4
     %m = call_complex nested, 3: Int
     %n = call_complex nested, 18446744073709551615: Int
-    %v_1 = add %a, %b: Int
-    %v_2 = add %v_1, %c: Int
-    %v_3 = add %v_2, %d: Int
-    %v_4 = add %v_3, %e: Int
-    %v_5 = add %v_4, %f: Int
-    %v_6 = add %v_5, %g: Int
-    %v_7 = add %v_6, %h: Int
-    %v_8 = add %v_7, %i: Int
-    %v_9 = add %v_8, %j: Int
-    %v_10 = add %v_9, %k: Int
-    %v_11 = add %v_10, %l: Int
-    %v_12 = add %v_11, %m: Int
-    %v_13 = add %v_12, %n: Int
-    %v_14 = loads @log, 4: Int
-    %v_15 = add %v_13, %v_14: Int
-    ret %v_15
+    %v_6 = add %a, %b: Int
+    %v_7 = add %v_6, %c: Int
+    %v_8 = add %v_7, %d: Int
+    %v_9 = add %v_8, %e: Int
+    %v_10 = add %v_9, %f: Int
+    %v_11 = add %v_10, %g: Int
+    %v_12 = add %v_11, %h: Int
+    %v_13 = add %v_12, %i: Int
+    %v_14 = add %v_13, %j: Int
+    %v_15 = add %v_14, %k: Int
+    %v_16 = add %v_15, %carried: Int
+    %v_17 = add %v_16, %m: Int
+    %v_18 = add %v_17, %n: Int
+    %v_19 = loads @log, 4: Int
+    %v_20 = add %v_18, %v_19: Int
+    ret %v_20
   }
 }
 

@@ -40,39 +40,36 @@ function nine(a, b, c, d, e, f, g, h, i) {
   i.$o[i.$k] = $b1u$set(i.$o[i.$k], i.$s, 1);
 }
 
-function wide() {
-  var v0 = { $v: 0 };
-  nine({ $o: v0, $k: "$v", $s: 1 }, { $o: v0, $k: "$v", $s: 2 }, { $o: v0, $k: "$v", $s: 4 }, { $o: v0, $k: "$v", $s: 8 }, { $o: v0, $k: "$v", $s: 16 }, { $o: v0, $k: "$v", $s: 32 }, { $o: v0, $k: "$v", $s: 64 }, { $o: v0, $k: "$v", $s: 128 }, { $o: v0, $k: "$v", $s: 256 });
-  var v174 = v0.$v;
-  return (v174 & 1) + (v174 >>> 4 & 1 ? 20 : 0) + (v174 >>> 8 & 1 ? 300 : 0);
-}
-
 function main() {
   var v29 = { $v: 0 };
   flip(v29, "$v", 1);
   flip(v29, "$v", 2);
-  var v153 = v29.$v;
-  var v8 = (v153 & 1) + (v153 >>> 1 & 1 ? 2 : 0) + 926589;
+  var v196 = v29.$v;
+  var v8 = (v196 & 1) + (v196 >>> 1 & 1 ? 2 : 0) + 926589;
   var v48 = { $v: 3 };
   var v55 = pick(1, v48, "$v", 1, v48, "$v", 2);
   v55.$o[v55.$k] = $b1u$set(v55.$o[v55.$k], v55.$s, 0);
-  var v181 = v48.$v;
-  var v12 = v8 + ((v181 & 1) + (v181 >>> 1 & 1 ? 2 : 0)) + 3;
+  var v224 = v48.$v;
+  var v12 = v8 + ((v224 & 1) + (v224 >>> 1 & 1 ? 2 : 0)) + 3;
   var v69 = { $v: 1 };
   swapBools(v69, "$v", 1, v69, "$v", 2);
-  var v209 = v69.$v;
-  var v14 = v12 + ((v209 & 1) + (v209 >>> 1 & 1 ? 2 : 0));
+  var v252 = v69.$v;
+  var v14 = v12 + ((v252 & 1) + (v252 >>> 1 & 1 ? 2 : 0));
   var v86 = { $v: 2162788 };
   nudgeTwice(v86, "$v", 1);
-  var v247 = v86.$v;
-  var v18 = (v14 + (Math.imul(v247 & 8191, 10) + (v247 >>> 16 & 15) | 0) | 0) + wide() | 0;
-  var v102 = { $p4: 2, count: 7 };
-  flip(v102, "$p4", 8);
-  tick(v102, "$p4", 1);
-  var v115 = v102.count + 1 | 0;
-  v102.count = v115;
-  var v273 = v102.$p4;
-  return (v18 + (((v273 >>> 3 & 1) + Math.imul(v273 & 7, 10) | 0) + Math.imul(v115, 100) | 0) | 0) + 291 | 0;
+  var v290 = v86.$v;
+  var v16 = v14 + (Math.imul(v290 & 8191, 10) + (v290 >>> 16 & 15) | 0) | 0;
+  var v102 = { $v: 0 };
+  nine({ $o: v102, $k: "$v", $s: 1 }, { $o: v102, $k: "$v", $s: 2 }, { $o: v102, $k: "$v", $s: 4 }, { $o: v102, $k: "$v", $s: 8 }, { $o: v102, $k: "$v", $s: 16 }, { $o: v102, $k: "$v", $s: 32 }, { $o: v102, $k: "$v", $s: 64 }, { $o: v102, $k: "$v", $s: 128 }, { $o: v102, $k: "$v", $s: 256 });
+  var v386 = v102.$v;
+  var v18 = v16 + ((v386 & 1) + (v386 >>> 4 & 1 ? 20 : 0) + (v386 >>> 8 & 1 ? 300 : 0)) | 0;
+  var v145 = { $p4: 2, count: 7 };
+  flip(v145, "$p4", 8);
+  tick(v145, "$p4", 1);
+  var v158 = v145.count + 1 | 0;
+  v145.count = v158;
+  var v420 = v145.$p4;
+  return (v18 + (((v420 >>> 3 & 1) + Math.imul(v420 & 7, 10) | 0) + Math.imul(v158, 100) | 0) | 0) + 291 | 0;
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp

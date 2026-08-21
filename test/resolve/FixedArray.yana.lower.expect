@@ -38,99 +38,6 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   }
 }
 
-double<complex>(%xs: Ptr) {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = add %xs, 8: Ptr
-    %v_6 = loads %v_5, 8: Long
-    %v_7 = sext %v_2: Long
-    %v_8 = cmp_ilt %v_7, %v_6: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    ret 
-  }
-
-  b_9 {
-    %v_11 = sext %v_2: Long
-    %v_12 = cmp_ge %v_11, %v_6: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    %v_15 = load %xs, 8: Ptr
-    %v_16 = shl %v_11, 2: Long
-    %v_17 = add %v_15, %v_16: Ptr
-    %value = loads %v_17, 4: Int
-    jmp b_3
-  }
-
-  b_3 {
-    %v_18 = add %value, %value: Int
-    store %v_17, %v_18, 4
-    %v_4 = add %v_2, 1: Int
-    jmp b_1
-  }
-
-  b_13 {
-    %v_19 = syscall 60, 134: Long
-    unreachable 
-  }
-}
-
-middle<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %v_1 = imm 1: Long
-    %v_2 = cmp_igt %v_1, %xs$length: Int
-    %v_3 = imm 3: Long
-    je %v_2, b_4, b_5
-  }
-
-  b_4 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = phi [b_0, %v_1], [b_4, %xs$length]: Long
-    %v_7 = cmp_ilt %v_3, %v_6: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = phi [b_5, %v_3], [b_8, %v_6]: Long
-    %v_11 = cmp_igt %v_10, %xs$length: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    jmp b_13
-  }
-
-  b_13 {
-    %v_14 = phi [b_9, %v_10], [b_12, %xs$length]: Long
-    %v_15 = shl %v_6, 2: Long
-    %v_16 = add %xs$items, %v_15: Ptr
-    %v_17 = sub %v_14, %v_6: Long
-    %v_18 = call_complex total, %v_16, %v_17: Int
-    ret %v_18
-  }
-}
-
-padRead<complex>(): Long {
-  b_0 {
-    ret 60
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 4: Ptr
@@ -147,60 +54,86 @@ main<complex>(): Int {
   }
 
   b_8 {
-    %v_9 = call_complex middle, %v_1, 4: Int
-    %v_10 = cmp_neq %v_9, 5: Int
-    je %v_10, b_11, b_12
+    %v_9 = add %v_1, 4: Ptr
+    %v_10 = call_complex total, %v_9, 2: Int
+    %v_11 = cmp_neq %v_10, 5: Int
+    je %v_11, b_12, b_13
   }
 
-  b_12 {
-    %v_13 = alloca 16, 8: Ptr
-    store %v_13, %v_1, 8
-    %v_14 = add %v_13, 8: Ptr
-    store %v_14, 4, 8
-    call_complex double, %v_13
-    %v_15 = call_complex total, %v_1, 4: Int
-    %v_16 = cmp_neq %v_15, 20: Int
-    je %v_16, b_17, b_18
+  b_13 {
+    jmp b_14
   }
 
-  b_18 {
-    %v_19 = alloca 4, 8: Ptr
-    %v_20 = alloca 8, 4: Ptr
-    %v_21 = load %v_19, 4: Int
-    store %v_19, 2, 4
-    store %v_20, 7, 4
-    %v_22 = add %v_20, 4: Ptr
-    store %v_22, 8, 4
-    %v_23 = call_complex total, %v_20, 2: Int
-    %v_24 = cmp_neq %v_23, 15: Int
-    je %v_24, b_25, b_26
+  b_14 {
+    %v_15 = phi [b_13, 0], [b_16, %v_17]: Int
+    %v_18 = sext %v_15: Long
+    %v_19 = cmp_ilt %v_18, 4: Int
+    je %v_19, b_20, b_21
   }
 
-  b_26 {
-    %v_27 = call_complex padRead: Long
-    %v_28 = cmp_neq %v_27, 60: Int
-    je %v_28, b_29, b_30
-  }
-
-  b_30 {
-    %none = alloca 1, 1: Ptr
-    %v_31 = call_complex total, %v_1, 4: Int
-    ret %v_31
-  }
-
-  b_29 {
-    ret 18446744073709551608
+  b_21 {
+    %v_22 = call_complex total, %v_1, 4: Int
+    %v_23 = cmp_neq %v_22, 20: Int
+    je %v_23, b_24, b_25
   }
 
   b_25 {
+    %v_26 = alloca 4, 8: Ptr
+    %v_27 = alloca 8, 4: Ptr
+    %v_28 = load %v_26, 4: Int
+    store %v_26, 2, 4
+    store %v_27, 7, 4
+    %v_29 = add %v_27, 4: Ptr
+    store %v_29, 8, 4
+    %v_30 = call_complex total, %v_27, 2: Int
+    %v_31 = cmp_neq %v_30, 15: Int
+    je %v_31, b_32, b_33
+  }
+
+  b_33 {
+    jmp b_34
+  }
+
+  b_34 {
+    %none = alloca 1, 1: Ptr
+    %v_35 = call_complex total, %v_1, 4: Int
+    ret %v_35
+  }
+
+  b_32 {
     ret 18446744073709551610
   }
 
-  b_17 {
+  b_24 {
     ret 18446744073709551611
   }
 
-  b_11 {
+  b_20 {
+    %v_36 = sext %v_15: Long
+    %v_37 = cmp_ge %v_36, 4: Int
+    je %v_37, b_38, b_39
+  }
+
+  b_39 {
+    %v_40 = shl %v_36, 2: Long
+    %v_41 = add %v_1, %v_40: Ptr
+    %value = loads %v_41, 4: Int
+    jmp b_16
+  }
+
+  b_16 {
+    %v_42 = add %value, %value: Int
+    store %v_41, %v_42, 4
+    %v_17 = add %v_15, 1: Int
+    jmp b_14
+  }
+
+  b_38 {
+    %v_43 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_12 {
     ret 18446744073709551612
   }
 

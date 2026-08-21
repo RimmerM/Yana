@@ -265,7 +265,7 @@ raise<complex>(%d: Ptr) {
   }
 }
 
-mutated<complex>(): Int {
+main<complex>(): Int {
   b_0 {
     %v_1 = call_complex allocateHeap, 8: Ptr
     store %v_1, 1, 4
@@ -281,60 +281,53 @@ mutated<complex>(): Int {
     %v_8 = add 3000, %v_7: Int
     call_complex freeHeap, %v_1
     %v_9 = add %v_8, %v_5: Int
-    ret %v_9
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %m = call_complex mutated: Int
-    %v_1 = cmp_neq %m, 3221: Int
-    %v_2 = imm 40: Int
-    %v_3 = imm 3: Int
-    je %v_1, b_4, b_5
-  }
-
-  b_4 {
-    ret 18446744073709551614
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = call_complex allocateHeap, 8: Ptr
-    store %v_7, 6, 4
-    %v_8 = add %v_7, 4: Ptr
-    store %v_8, %v_2, 4
-    %v_9 = loads %v_7, 4: Int
-    %v_10 = add %v_2, %v_9: Int
-    call_complex freeHeap, %v_7
-    %v_11 = cmp_neq %v_10, 46: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_12 {
-    ret 18446744073709551613
+    %v_10 = cmp_neq %v_9, 3221: Int
+    %v_11 = imm 40: Int
+    %v_12 = imm 3: Int
+    je %v_10, b_13, b_14
   }
 
   b_13 {
-    jmp b_14
+    ret 18446744073709551614
   }
 
   b_14 {
-    %v_15 = add %m, %v_10: Int
+    jmp b_15
+  }
+
+  b_15 {
     %v_16 = call_complex allocateHeap, 8: Ptr
-    store %v_16, 2, 4
+    store %v_16, 6, 4
     %v_17 = add %v_16, 4: Ptr
-    store %v_17, %v_3, 4
+    store %v_17, %v_11, 4
     %v_18 = loads %v_16, 4: Int
-    %v_19 = imul %v_18, 10: Int
-    %v_20 = add 500, %v_19: Int
+    %v_19 = add %v_11, %v_18: Int
     call_complex freeHeap, %v_16
-    %v_21 = add %v_20, %v_3: Int
-    %v_22 = add %v_15, %v_21: Int
-    ret %v_22
+    %v_20 = cmp_neq %v_19, 46: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    ret 18446744073709551613
+  }
+
+  b_22 {
+    jmp b_23
+  }
+
+  b_23 {
+    %v_24 = add %v_9, %v_19: Int
+    %v_25 = call_complex allocateHeap, 8: Ptr
+    store %v_25, 2, 4
+    %v_26 = add %v_25, 4: Ptr
+    store %v_26, %v_12, 4
+    %v_27 = loads %v_25, 4: Int
+    %v_28 = imul %v_27, 10: Int
+    %v_29 = add 500, %v_28: Int
+    call_complex freeHeap, %v_25
+    %v_30 = add %v_29, %v_12: Int
+    %v_31 = add %v_24, %v_30: Int
+    ret %v_31
   }
 }
 

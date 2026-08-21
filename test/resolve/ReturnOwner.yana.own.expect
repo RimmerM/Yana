@@ -2,6 +2,31 @@ fn teardown$none {
   arg value readonly
 }
 
+fn blockShort {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockPair {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockAscending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [9, 109) [116, 132)
+}
+
+fn copyMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
 fn initHeap {
 }
 
@@ -48,9 +73,9 @@ fn emptyRun(Int) {
 }
 
 fn resize(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+  %self: Run(Int) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
 fn byteSpan(Int) {
@@ -85,22 +110,22 @@ fn emptyArray(Int) {
 }
 
 fn push(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 25)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 25)
   %item: Int readonly live [0, 20)
 }
 
 fn reserve(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 11)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 6) [7, 11)
 }
 
 fn growArray(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 24)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 24)
   %wide: I64 writable live [5, 22)
 }
 
@@ -120,7 +145,7 @@ fn collect {
   arg xs readonly
   %xs: Flat(Int) borrowed readonly live [0, 11) [14, 35)
   %local1: Array(Int) droppable readonly live [0, 3)
-  %out: Array(Int) droppable writable addressed resizable live [1, 13) [14, 35)
+  %out: Array(Int) droppable writable resizable live [1, 13) [14, 35)
   %i: Int writable live [3, 11) [14, 35)
 }
 

@@ -2,163 +2,6 @@
 mut @log = [0, 0, 0, 0]
 mut @visited = [0, 0, 0, 0]
 
-odds<complex>(%n: Int): Int {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = cmp_ilt %v_5, %n: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_8 {
-    %v_11 = sar %v_5, 31: Int
-    %v_12 = shr %v_11, 31: Int
-    %v_13 = add %v_5, %v_12: Int
-    %v_14 = and %v_13, 4294967294: Int
-    %v_15 = sub %v_5, %v_14: Int
-    %v_16 = cmp_eq %v_15, 0: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_18 {
-    %v_19 = add %v_2, %v_5: Int
-    jmp b_20
-  }
-
-  b_17 {
-    jmp b_20
-  }
-
-  b_20 {
-    %v_4 = phi [b_18, %v_19], [b_17, %v_2]: Int
-    %v_21 = cmp_eq 0, 1: Int
-    je %v_21, b_22, b_3
-  }
-
-  b_3 {
-    %v_6 = add %v_5, 1: Int
-    jmp b_1
-  }
-
-  b_22 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_23 = phi [b_9, %v_2], [b_22, %v_4]: Int
-    ret %v_23
-  }
-}
-
-upToFive<complex>(%n: Int): Int {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = cmp_ilt %v_5, %n: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_9 {
-    jmp b_10
-  }
-
-  b_8 {
-    %v_11 = cmp_igt %v_5, 5: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_13 {
-    %v_14 = add %v_2, %v_5: Int
-    jmp b_15
-  }
-
-  b_12 {
-    jmp b_15
-  }
-
-  b_15 {
-    %v_4 = phi [b_13, %v_14], [b_12, %v_2]: Int
-    %v_16 = phi [b_13, 0], [b_12, 1]: Int
-    %v_17 = imm 24: Int
-    %v_18 = shl %v_16, %v_17: Int
-    %v_19 = sar %v_18, %v_17: Int
-    %v_20 = cmp_eq %v_19, 1: Int
-    je %v_20, b_21, b_3
-  }
-
-  b_3 {
-    %v_6 = add %v_5, 1: Int
-    jmp b_1
-  }
-
-  b_21 {
-    jmp b_10
-  }
-
-  b_10 {
-    %v_22 = phi [b_9, %v_2], [b_21, %v_4]: Int
-    ret %v_22
-  }
-}
-
-firstOver<complex>(%n: Int, %bound: Int): Int {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = cmp_ilt %v_2, %n: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    jmp b_8
-  }
-
-  b_6 {
-    %v_9 = cmp_igt %v_2, %bound: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_11 {
-    jmp b_3
-  }
-
-  b_10 {
-    jmp b_12
-  }
-
-  b_3 {
-    %v_4 = add %v_2, 1: Int
-    jmp b_1
-  }
-
-  b_12 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_13 = phi [b_7, 0], [b_12, 1]: Int
-    %v_14 = phi [b_7, 0], [b_12, %v_2]: Int
-    %v_15 = cmp_eq %v_13, 1: Int
-    %v_16 = select %v_15, %v_14, 18446744073709551615: Int
-    ret %v_16
-  }
-}
-
 firstOverOrCount<complex>(%n: Int, %bound: Int): Int {
   b_0 {
     jmp b_1
@@ -230,214 +73,6 @@ firstOverOrCount<complex>(%n: Int, %bound: Int): Int {
   }
 }
 
-grid<complex>(%rows: Int, %columns: Int): Int {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = cmp_ilt %v_5, %rows: Int
-    je %v_7, b_8, b_9
-  }
-
-  b_8 {
-    %v_10 = imul %v_5, 10: Int
-    jmp b_11
-  }
-
-  b_11 {
-    %v_4 = phi [b_8, %v_2], [b_12, %v_13]: Int
-    %v_14 = phi [b_8, 0], [b_12, %v_15]: Int
-    %v_16 = cmp_ilt %v_14, %columns: Int
-    je %v_16, b_12, b_3
-  }
-
-  b_12 {
-    %v_17 = add %v_4, %v_10: Int
-    %v_13 = add %v_17, %v_14: Int
-    %v_15 = add %v_14, 1: Int
-    jmp b_11
-  }
-
-  b_3 {
-    %v_6 = add %v_5, 1: Int
-    jmp b_1
-  }
-
-  b_9 {
-    ret %v_2
-  }
-}
-
-firstOddOver<complex>(%n: Int, %bound: Int): Int {
-  b_0 {
-    jmp b_1
-  }
-
-  b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = cmp_ilt %v_2, %n: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    jmp b_8
-  }
-
-  b_6 {
-    %v_9 = sar %v_2, 31: Int
-    %v_10 = shr %v_9, 31: Int
-    %v_11 = add %v_2, %v_10: Int
-    %v_12 = and %v_11, 4294967294: Int
-    %v_13 = sub %v_2, %v_12: Int
-    %v_14 = cmp_eq %v_13, 0: Int
-    je %v_14, b_15, b_16
-  }
-
-  b_16 {
-    %v_17 = cmp_igt %v_2, %bound: Int
-    je %v_17, b_18, b_19
-  }
-
-  b_19 {
-    jmp b_3
-  }
-
-  b_18 {
-    jmp b_20
-  }
-
-  b_15 {
-    jmp b_3
-  }
-
-  b_3 {
-    %v_4 = add %v_2, 1: Int
-    jmp b_1
-  }
-
-  b_20 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_21 = phi [b_7, 0], [b_20, 1]: Int
-    %v_22 = phi [b_7, 0], [b_20, %v_2]: Int
-    %v_23 = cmp_eq %v_21, 1: Int
-    %v_24 = select %v_23, %v_22, 18446744073709551615: Int
-    ret %v_24
-  }
-}
-
-firstPairOver<complex>(%v_0: Ptr, %n: Int, %bound: Int) {
-  b_1 {
-    jmp b_2
-  }
-
-  b_2 {
-    %v_3 = phi [b_1, 0], [b_4, %v_5]: Int
-    %v_6 = cmp_ilt %v_3, %n: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_8 {
-    jmp b_9
-  }
-
-  b_7 {
-    %v_10 = cmp_igt %v_3, %bound: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    jmp b_4
-  }
-
-  b_11 {
-    %v_13 = shl %v_3, 1: Int
-    jmp b_14
-  }
-
-  b_4 {
-    %v_5 = add %v_3, 1: Int
-    jmp b_2
-  }
-
-  b_14 {
-    jmp b_15
-  }
-
-  b_9 {
-    store %v_0, 18446744073709551615, 4
-    %v_16 = add %v_0, 4: Ptr
-    store %v_16, 18446744073709551615, 4
-    ret 
-  }
-
-  b_15 {
-    store %v_0, %v_3, 4
-    %v_17 = add %v_0, 4: Ptr
-    store %v_17, %v_13, 4
-    ret 
-  }
-}
-
-loopInLens<complex>(%n: Int): Int {
-  b_0 {
-    %v_1 = loads @log, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @log, %v_2, 4
-    %v_3 = imul %v_2, 1000: Int
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = phi [b_0, 0], [b_6, %v_7]: Int
-    %v_8 = cmp_ilt %v_5, %n: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    jmp b_11
-  }
-
-  b_9 {
-    %v_12 = cmp_eq %v_5, 2: Int
-    je %v_12, b_13, b_14
-  }
-
-  b_14 {
-    jmp b_6
-  }
-
-  b_13 {
-    %v_15 = add %v_3, %v_5: Int
-    jmp b_16
-  }
-
-  b_6 {
-    %v_7 = add %v_5, 1: Int
-    jmp b_4
-  }
-
-  b_16 {
-    jmp b_11
-  }
-
-  b_11 {
-    %v_17 = phi [b_10, 0], [b_16, 1]: Int
-    %v_18 = phi [b_10, 0], [b_16, %v_15]: Int
-    %v_19 = cmp_eq %v_17, 1: Int
-    %v_20 = select %v_19, %v_18, %v_2: Int
-    %v_21 = loads @log, 4: Int
-    %v_22 = add %v_21, 10: Int
-    store @log, %v_22, 4
-    ret %v_20
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     jmp b_1
@@ -449,112 +84,422 @@ main<complex>(): Int {
   }
 
   b_5 {
-    %v_6 = call_complex odds, 6: Int
-    %v_7 = add %v_8, %v_6: Int
-    %v_9 = call_complex upToFive, 20: Int
-    %v_10 = add %v_7, %v_9: Int
-    %v_11 = call_complex firstOver, 10, 6: Int
-    %v_12 = add %v_10, %v_11: Int
-    %v_13 = call_complex firstOverOrCount, 10, 20: Int
-    %v_14 = add %v_12, %v_13: Int
-    %v_15 = call_complex grid, 3, 2: Int
-    %v_16 = add %v_14, %v_15: Int
-    jmp b_17
+    jmp b_6
   }
 
-  b_18 {
-    %v_19 = cmp_ilt %v_20, 3: Int
-    je %v_19, b_17, b_21
+  b_7 {
+    %v_8 = cmp_ilt %v_9, 6: Int
+    je %v_8, b_6, b_10
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_6 {
+    %v_12 = phi [b_7, %v_13], [b_5, 0]: Int
+    %v_14 = phi [b_7, %v_9], [b_5, 0]: Int
+    %v_15 = sar %v_14, 31: Int
+    %v_16 = shr %v_15, 31: Int
+    %v_17 = add %v_14, %v_16: Int
+    %v_18 = and %v_17, 4294967294: Int
+    %v_19 = sub %v_14, %v_18: Int
+    %v_20 = cmp_eq %v_19, 0: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    %v_23 = add %v_12, %v_14: Int
+    jmp b_24
   }
 
   b_21 {
-    %v_22 = add %v_16, %v_23: Int
-    %v_24 = add %v_22, 16: Int
-    %v_25 = call_complex firstOddOver, 10, 4: Int
-    %v_26 = add %v_24, %v_25: Int
-    %v_27 = alloca 8, 4: Ptr
-    call_complex firstPairOver, %v_27, 10, 6
-    %v_28 = add %v_27, 4: Ptr
-    %v_29 = loads %v_28, 4: Int
-    %v_30 = add %v_26, %v_29: Int
-    jmp b_31
+    jmp b_24
   }
 
-  b_32 {
-    %v_33 = cmp_ilt %v_34, 3: Int
-    je %v_33, b_31, b_35
+  b_24 {
+    %v_13 = phi [b_22, %v_23], [b_21, %v_12]: Int
+    %v_25 = cmp_eq 0, 1: Int
+    je %v_25, b_26, b_27
   }
 
-  b_35 {
-    %v_36 = add %v_30, %v_37: Int
-    %v_38 = call_complex loopInLens, 5: Int
-    %v_39 = add %v_36, %v_38: Int
-    store @visited, 0, 4
-    %v_40 = bitcast 0: Ptr
-    jmp b_41
+  b_27 {
+    %v_9 = add %v_14, 1: Int
+    jmp b_7
   }
 
-  b_42 {
-    %v_43 = cmp_ilt %v_44, 10: Int
-    je %v_43, b_41, b_45
+  b_26 {
+    jmp b_11
   }
 
-  b_45 {
-    jmp b_46
-  }
-
-  b_41 {
-    %v_47 = phi [b_42, %v_44], [b_35, 0]: Int
-    %v_48 = alloca 1, 1: Ptr
-    call_complex ResolveTest.continuation$30, %v_48, %v_40, %v_47
-    %v_49 = loads %v_48, 1: Int
-    %v_50 = cmp_eq %v_49, 1: Int
-    je %v_50, b_51, b_52
-  }
-
-  b_52 {
-    %v_44 = add %v_47, 1: Int
-    jmp b_42
-  }
-
-  b_51 {
-    jmp b_46
-  }
-
-  b_46 {
-    %v_53 = loads @visited, 4: Int
-    %v_54 = add %v_39, %v_53: Int
-    ret %v_54
+  b_11 {
+    %v_28 = add %v_29, %v_13: Int
+    jmp b_30
   }
 
   b_31 {
-    %v_55 = phi [b_32, %v_37], [b_21, 0]: Int
-    %v_56 = phi [b_32, %v_34], [b_21, 0]: Int
-    %v_57 = loads @log, 4: Int
-    %v_58 = add %v_57, 1: Int
-    %v_59 = add %v_55, %v_58: Int
-    %v_37 = add %v_59, %v_56: Int
-    %v_60 = add %v_57, 11: Int
-    store @log, %v_60, 4
-    %v_34 = add %v_56, 1: Int
-    jmp b_32
+    %v_32 = cmp_ilt %v_33, 20: Int
+    je %v_32, b_30, b_34
   }
 
-  b_17 {
-    %v_61 = phi [b_18, %v_23], [b_5, 0]: Int
-    %v_62 = phi [b_18, %v_20], [b_5, 0]: Int
-    %v_63 = shl %v_62, 1: Int
-    %v_64 = add %v_61, %v_62: Int
-    %v_23 = add %v_64, %v_63: Int
-    %v_20 = add %v_62, 1: Int
-    jmp b_18
+  b_34 {
+    jmp b_35
+  }
+
+  b_30 {
+    %v_36 = phi [b_31, %v_37], [b_11, 0]: Int
+    %v_38 = phi [b_31, %v_33], [b_11, 0]: Int
+    %v_39 = cmp_igt %v_38, 5: Int
+    je %v_39, b_40, b_41
+  }
+
+  b_41 {
+    %v_42 = add %v_36, %v_38: Int
+    jmp b_43
+  }
+
+  b_40 {
+    jmp b_43
+  }
+
+  b_43 {
+    %v_37 = phi [b_41, %v_42], [b_40, %v_36]: Int
+    %v_44 = phi [b_41, 0], [b_40, 1]: Int
+    %v_45 = imm 24: Int
+    %v_46 = shl %v_44, %v_45: Int
+    %v_47 = sar %v_46, %v_45: Int
+    %v_48 = cmp_eq %v_47, 1: Int
+    je %v_48, b_49, b_50
+  }
+
+  b_50 {
+    %v_33 = add %v_38, 1: Int
+    jmp b_31
+  }
+
+  b_49 {
+    jmp b_35
+  }
+
+  b_35 {
+    %v_51 = add %v_28, %v_37: Int
+    jmp b_52
+  }
+
+  b_53 {
+    %v_54 = cmp_ilt %v_55, 10: Int
+    je %v_54, b_52, b_56
+  }
+
+  b_56 {
+    jmp b_57
+  }
+
+  b_52 {
+    %v_58 = phi [b_53, %v_55], [b_35, 0]: Int
+    %v_59 = cmp_igt %v_58, 6: Int
+    je %v_59, b_60, b_61
+  }
+
+  b_61 {
+    jmp b_62
+  }
+
+  b_60 {
+    jmp b_63
+  }
+
+  b_62 {
+    %v_55 = add %v_58, 1: Int
+    jmp b_53
+  }
+
+  b_63 {
+    jmp b_57
+  }
+
+  b_57 {
+    %v_64 = phi [b_56, 0], [b_63, 1]: Int
+    %v_65 = phi [b_56, 0], [b_63, %v_58]: Int
+    %v_66 = cmp_eq %v_64, 1: Int
+    %v_67 = select %v_66, %v_65, 18446744073709551615: Int
+    %v_68 = add %v_51, %v_67: Int
+    %v_69 = call_complex firstOverOrCount, 10, 20: Int
+    %v_70 = add %v_68, %v_69: Int
+    jmp b_71
+  }
+
+  b_72 {
+    %v_73 = cmp_ilt %v_74, 3: Int
+    je %v_73, b_71, b_75
+  }
+
+  b_75 {
+    %v_76 = add %v_70, %v_77: Int
+    jmp b_78
+  }
+
+  b_79 {
+    %v_80 = cmp_ilt %v_81, 3: Int
+    je %v_80, b_78, b_82
+  }
+
+  b_82 {
+    %v_83 = add %v_76, %v_84: Int
+    %v_85 = add %v_83, 16: Int
+    jmp b_86
+  }
+
+  b_87 {
+    %v_88 = cmp_ilt %v_89, 10: Int
+    je %v_88, b_86, b_90
+  }
+
+  b_90 {
+    jmp b_91
+  }
+
+  b_86 {
+    %v_92 = phi [b_87, %v_89], [b_82, 0]: Int
+    %v_93 = sar %v_92, 31: Int
+    %v_94 = shr %v_93, 31: Int
+    %v_95 = add %v_92, %v_94: Int
+    %v_96 = and %v_95, 4294967294: Int
+    %v_97 = sub %v_92, %v_96: Int
+    %v_98 = cmp_eq %v_97, 0: Int
+    je %v_98, b_99, b_100
+  }
+
+  b_100 {
+    %v_101 = cmp_igt %v_92, 4: Int
+    je %v_101, b_102, b_103
+  }
+
+  b_103 {
+    jmp b_104
+  }
+
+  b_102 {
+    jmp b_105
+  }
+
+  b_99 {
+    jmp b_104
+  }
+
+  b_104 {
+    %v_89 = add %v_92, 1: Int
+    jmp b_87
+  }
+
+  b_105 {
+    jmp b_91
+  }
+
+  b_91 {
+    %v_106 = phi [b_90, 0], [b_105, 1]: Int
+    %v_107 = phi [b_90, 0], [b_105, %v_92]: Int
+    %v_108 = cmp_eq %v_106, 1: Int
+    %v_109 = select %v_108, %v_107, 18446744073709551615: Int
+    %v_110 = add %v_85, %v_109: Int
+    jmp b_111
+  }
+
+  b_112 {
+    %v_113 = cmp_ilt %v_114, 10: Int
+    je %v_113, b_111, b_115
+  }
+
+  b_115 {
+    jmp b_116
+  }
+
+  b_111 {
+    %v_117 = phi [b_112, %v_114], [b_91, 0]: Int
+    %v_118 = cmp_igt %v_117, 6: Int
+    je %v_118, b_119, b_120
+  }
+
+  b_120 {
+    jmp b_121
+  }
+
+  b_119 {
+    %v_122 = shl %v_117, 1: Int
+    jmp b_123
+  }
+
+  b_121 {
+    %v_114 = add %v_117, 1: Int
+    jmp b_112
+  }
+
+  b_123 {
+    jmp b_124
+  }
+
+  b_116 {
+    jmp b_125
+  }
+
+  b_124 {
+    jmp b_125
+  }
+
+  b_125 {
+    %v_126 = phi [b_116, 18446744073709551615], [b_124, %v_122]: Int
+    %v_127 = add %v_110, %v_126: Int
+    jmp b_128
+  }
+
+  b_129 {
+    %v_130 = cmp_ilt %v_131, 3: Int
+    je %v_130, b_128, b_132
+  }
+
+  b_132 {
+    %v_133 = add %v_127, %v_134: Int
+    %v_135 = loads @log, 4: Int
+    %v_136 = add %v_135, 1: Int
+    store @log, %v_136, 4
+    %v_137 = imul %v_136, 1000: Int
+    jmp b_138
+  }
+
+  b_139 {
+    %v_140 = cmp_ilt %v_141, 5: Int
+    je %v_140, b_138, b_142
+  }
+
+  b_142 {
+    jmp b_143
+  }
+
+  b_138 {
+    %v_144 = phi [b_139, %v_141], [b_132, 0]: Int
+    %v_145 = cmp_eq %v_144, 2: Int
+    je %v_145, b_146, b_147
+  }
+
+  b_147 {
+    jmp b_148
+  }
+
+  b_146 {
+    %v_149 = add %v_137, %v_144: Int
+    jmp b_150
+  }
+
+  b_148 {
+    %v_141 = add %v_144, 1: Int
+    jmp b_139
+  }
+
+  b_150 {
+    jmp b_143
+  }
+
+  b_143 {
+    %v_151 = phi [b_142, 0], [b_150, 1]: Int
+    %v_152 = phi [b_142, 0], [b_150, %v_149]: Int
+    %v_153 = cmp_eq %v_151, 1: Int
+    %v_154 = select %v_153, %v_152, %v_136: Int
+    %v_155 = loads @log, 4: Int
+    %v_156 = add %v_155, 10: Int
+    store @log, %v_156, 4
+    %v_157 = add %v_133, %v_154: Int
+    store @visited, 0, 4
+    %v_158 = bitcast 0: Ptr
+    jmp b_159
+  }
+
+  b_160 {
+    %v_161 = cmp_ilt %v_162, 10: Int
+    je %v_161, b_159, b_163
+  }
+
+  b_163 {
+    jmp b_164
+  }
+
+  b_159 {
+    %v_165 = phi [b_160, %v_162], [b_143, 0]: Int
+    %v_166 = alloca 1, 1: Ptr
+    call_complex ResolveTest.continuation$30, %v_166, %v_158, %v_165
+    %v_167 = loads %v_166, 1: Int
+    %v_168 = cmp_eq %v_167, 1: Int
+    je %v_168, b_169, b_170
+  }
+
+  b_170 {
+    %v_162 = add %v_165, 1: Int
+    jmp b_160
+  }
+
+  b_169 {
+    jmp b_164
+  }
+
+  b_164 {
+    %v_171 = loads @visited, 4: Int
+    %v_172 = add %v_157, %v_171: Int
+    ret %v_172
+  }
+
+  b_128 {
+    %v_173 = phi [b_129, %v_134], [b_125, 0]: Int
+    %v_174 = phi [b_129, %v_131], [b_125, 0]: Int
+    %v_175 = loads @log, 4: Int
+    %v_176 = add %v_175, 1: Int
+    %v_177 = add %v_173, %v_176: Int
+    %v_134 = add %v_177, %v_174: Int
+    %v_178 = add %v_175, 11: Int
+    store @log, %v_178, 4
+    %v_131 = add %v_174, 1: Int
+    jmp b_129
+  }
+
+  b_78 {
+    %v_179 = phi [b_79, %v_84], [b_75, 0]: Int
+    %v_180 = phi [b_79, %v_81], [b_75, 0]: Int
+    %v_181 = shl %v_180, 1: Int
+    %v_182 = add %v_179, %v_180: Int
+    %v_84 = add %v_182, %v_181: Int
+    %v_81 = add %v_180, 1: Int
+    jmp b_79
+  }
+
+  b_71 {
+    %v_183 = phi [b_72, %v_77], [b_57, 0]: Int
+    %v_184 = phi [b_72, %v_74], [b_57, 0]: Int
+    %v_185 = imul %v_184, 10: Int
+    jmp b_186
+  }
+
+  b_187 {
+    %v_188 = cmp_ilt %v_189, 2: Int
+    je %v_188, b_186, b_190
+  }
+
+  b_190 {
+    %v_74 = add %v_184, 1: Int
+    jmp b_72
+  }
+
+  b_186 {
+    %v_191 = phi [b_187, %v_77], [b_71, %v_183]: Int
+    %v_192 = phi [b_187, %v_189], [b_71, 0]: Int
+    %v_193 = add %v_191, %v_185: Int
+    %v_77 = add %v_193, %v_192: Int
+    %v_189 = add %v_192, 1: Int
+    jmp b_187
   }
 
   b_1 {
-    %v_65 = phi [b_2, %v_8], [b_0, 0]: Int
-    %v_66 = phi [b_2, %v_4], [b_0, 0]: Int
-    %v_8 = add %v_65, %v_66: Int
-    %v_4 = add %v_66, 1: Int
+    %v_194 = phi [b_2, %v_29], [b_0, 0]: Int
+    %v_195 = phi [b_2, %v_4], [b_0, 0]: Int
+    %v_29 = add %v_194, %v_195: Int
+    %v_4 = add %v_195, 1: Int
     jmp b_2
   }
 }

@@ -1695,28 +1695,6 @@ struct Emitter {
      * the same resolved operands as everything else.
      */
 
-    // One step of an unrolled block operation: a MOV of `width` bytes between `regField` and the
-    // address `[base + offset]`. Both directions and every width go through the shared address
-    // encoder, so the block operations get the rsp/r12 SIB byte, the rbp/r13 displacement and the
-    // byte-register REX rule from the same place every other memory access does.
-    void emitBlockStep(U8 baseReg, U64 offset, U8 width, U8 regField, bool store) {
-        static const U8 loadOps[2] = { 0x8a, 0x8b };  // MOV r8, r/m8 and MOV r16/32/64, r/m
-        static const U8 storeOps[2] = { 0x88, 0x89 }; // MOV r/m8, r8 and MOV r/m, r16/32/64
-
-        genMemory(to, MachineAddress::atOffset(baseReg, I32(offset)), regField, MemForm {
-            .opCode = (store ? storeOps : loadOps)[width == 1 ? 0 : 1],
-            .prefix = U8(width == 2 ? 0x66 : 0),
-            .is64 = width == 8,
-            .byteRegField = width == 1,
-        });
-    }
-
-    // The widest move that still fits in what is left to copy. Descending powers of two, so a size
-    // that is not one is finished off by progressively narrower moves rather than by a byte loop.
-    static U8 blockStepWidth(U64 remaining) {
-        return remaining >= 8 ? 8 : remaining >= 4 ? 4 : remaining >= 2 ? 2 : 1;
-    }
-
     // A stack allocation is one of two quite different things depending on whether its size is known.
     //
     // A compile-time size was turned into a frame object by placement, so the frame is already the
@@ -2853,46 +2831,6 @@ struct Emitter {
                 to.buffer.writeByte(0xf3);
                 to.buffer.writeByte(0xaa);
                 break;
-
-            case PseudoKind::BlockCopyUnrolled: {
-                auto copy = (LowerInstCopy*)inst;
-                auto n = ((LowerImm*)base[copy->count]->inst())->i;
-
-                auto toReg = reg(regs.uses[0]);
-                auto fromReg = reg(regs.uses[1]);
-
-                // r11 is reserved as a scratch register for this encoding - the unrolled form
-                // declares it as both a temporary and a clobber (machine_forms_memory.cpp), which is what
-                // guarantees no live value occupies it at this instruction.
-                U8 scratch = (U8)IntRegister::r11;
-                U64 offset = 0;
-
-                while(offset < n) {
-                    auto width = blockStepWidth(n - offset);
-
-                    emitBlockStep(fromReg, offset, width, scratch, false);
-                    emitBlockStep(toReg, offset, width, scratch, true);
-
-                    offset += width;
-                }
-                break;
-            }
-
-            case PseudoKind::BlockSetUnrolled: {
-                auto set = (LowerInstSetPattern*)inst;
-                auto n = ((LowerImm*)base[set->count]->inst())->i;
-
-                auto toReg = reg(regs.uses[0]);
-                auto patReg = reg(regs.uses[2]);
-                U64 offset = 0;
-
-                while(offset < n) {
-                    auto width = blockStepWidth(n - offset);
-                    emitBlockStep(toReg, offset, width, patReg, true);
-                    offset += width;
-                }
-                break;
-            }
 
             case PseudoKind::FloatImm:
                 emitFloatImm(inst, regs, pseudoIs64());

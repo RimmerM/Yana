@@ -160,241 +160,135 @@ pub fn difference(from: %a, to: %a) -> I64
    Memory and the operating system.
 -}
 
--- The two block operations. Neither checks that the regions are distinct or that either is large
--- enough; `copyMemory` is the non-overlapping form.
-pub fn copyMemory(to: %U8, from: %U8, count: I64) -> {}
+{-
+   The fill, and the block copy the machine has an instruction for.
+
+   Neither checks that the regions are distinct or that either is large enough. `blockCopy` is the
+   *non-overlapping* form and says nothing about the order it touches bytes in, which is what lets a
+   target lower it to whatever it has - `rep movsb` on x86-64, `llvm.memcpy` under the other backend,
+   whose contract makes an overlap undefined outright.
+
+   **It is not what a program calls, and that is the change this note is about.** `copyMemory` below
+   is written in the language and reaches this only for the lengths where the instruction's flat
+   startup has been paid back - `width * 48`, which is 768 bytes at v2 and 1536 at v3. Every shorter
+   copy is a ladder of transfers, for exactly the reason `moveMemory`'s own ruling gives: a
+   `rep movsb` of one byte and of a hundred and twenty-eight cost the same seven cycles, and the
+   ladder costs one and a half. Measured against glibc's `memcpy` at v3, the instruction was 0.39x
+   of it at every length up to 128 bytes and 0.27x at 256; the ladder is 0.9x to 1.2x there.
+
+   `@platform(native)` because the lengths below the threshold are the vector ladder's, and a JS
+   build has no bytes to move - see `copyMemory`'s own JS declaration, which is this intrinsic under
+   the name that target's block copy has always had.
+-}
+@platform(native) pub fn blockCopy(to: %U8, from: %U8, count: I64) -> {}
 pub fn setMemory(to: %U8, value: U8, count: I64) -> {}
 
 {-
-   The overlapping form, which `copyMemory` deliberately is not.
+   The block copy, on the target that has no bytes.
 
-   The two exist separately because they are two different promises, not two speeds. `copyMemory`
-   says nothing about the order it touches bytes in, which is what lets a target lower it to whatever
-   its machine has - `rep movsb`, a widening unrolled sequence, or `llvm.memcpy`, whose contract makes
-   an overlap undefined outright. A caller whose regions can overlap therefore has no primitive to
-   reach for, and until this existed the only thing it could do was call `copyMemory` anyway and rely
-   on the *current* lowering happening to ascend. That is a bug waiting for a backend change, and
-   `Array.remove` was it.
+   A declaration and not a body, where the native build's `copyMemory` is a body: `blockCopyShape`
+   in codegen/js/type.cpp recovers a *shape* from this operation - two same-typed references cast to
+   `%()` and one value's worth of bytes - which is what the compiler-generated relocation glue opens
+   with. Anything else, which is every call a program could write, is excluded from that target
+   rather than approximated. So this is the same declaration it always was, and the split below is
+   about the machine that has bytes.
+-}
+@platform(js) pub fn copyMemory(to: %U8, from: %U8, count: I64) -> {}
 
-   So this is written in the language rather than declared, and every block it hands to `copyMemory`
-   is one whose regions provably never met.
+{-
+   =========================================================================================
+   The block move and the block copy, and the rungs both are built out of.
+   =========================================================================================
 
-   **The overlapping paths are the target's own vector, and the direction is the whole of the
-   argument.** With the destination below the source, a register written at offset `i` ends below the
-   source of offset `i + W`, so ascending never overwrites a byte that has not been read; with the
-   destination above, the same holds descending. `vectorAt` and `setVectorAt` need no alignment
-   claim - both lower to the unaligned transfer (`movdqu`/`vmovdqu`, `llvm` at align 1) - so the
-   wide step needs no test and no prologue to reach it.
+   Two promises rather than two speeds, and that is why they are two functions. `copyMemory` says
+   nothing about the order it touches bytes in - a caller whose regions can overlap has no claim on
+   it, and until `moveMemory` existed the only thing such a caller could do was call it anyway and
+   rely on the *current* lowering happening to ascend. That is a bug waiting for a backend change,
+   and `Array.remove` was it.
 
-   **The ragged end is an overlapping transfer, not a loop.** A move of `n` bytes with `n` not a
+   **Both are written in the language, and what separates them is one branch.** `copyMemory` used to
+   be the raw block operation and nothing else, which cost it every short length: measured against
+   glibc's `memcpy` at v3, `rep movsb` was 0.39x of it at every length from one byte to a hundred and
+   twenty-eight and 0.27x at two hundred and fifty-six, because the instruction's startup is flat and
+   `memcpy`'s is not. So the two now share the whole ladder below and differ only in the part that is
+   about *direction* - which is the part a copy has no question to ask about, since its regions
+   provably never met. `blockCopy` is what is left of the intrinsic, and both reach it only above
+   `width * 48`.
+
+   **The rungs are the target's own vector, and every one of them reads both ends before it writes
+   either.** That is what makes a rung correct for any two addresses at all - including overlapping
+   ones and including the same address - so a rung needs no direction argument, no test of the two
+   pointers, and no loop. `vectorAt` and `setVectorAt` need no alignment claim either: both lower to
+   the unaligned transfer (`movdqu`/`vmovdqu`, `llvm` at align 1), so the wide step needs no test and
+   no prologue to reach it.
+
+   **The ragged end is an overlapping transfer, not a loop.** A block of `n` bytes with `n` not a
    multiple of the width ends with one more whole-vector store, placed at `n - W` so that it stops
    exactly at the end: it rewrites bytes the loop already wrote and finishes the ones it could not
    reach. That is one instruction where a byte tail is up to sixty-three iterations, and it stays
    inside the object at both ends.
 
-   **The loop moves four registers a turn, and the group is what makes that a move rather than a
-   shape.** All four loads are issued ahead of all four stores, so nothing inside a group can clobber
-   a byte the group has still to read; and between groups the argument is the one the direction
-   already carries - an ascending group's stores all land below the first byte the next group loads.
-   One register a turn measured 0.86x of glibc's `memmove` at four kilobytes and four registers is
-   0.98x, the difference being neither the tail nor the call: `test/bench/memmove/findings.md` §5
-   prices all three apart inside one process.
-
    **What it cannot do is spend the tail-read guarantee, and the reason is worth stating.** §8's
    padding says a load may run up to a vector's width past storage the language allocated; *no store
-   ever may*, and a move is bound by its stores. `vectorPast` would also be wrong here for a second
-   reason: it is sound only where the caller carries the guarantee, which is why `loadVectorTail`
-   takes a `Flat(a)` and this takes two addresses that promise nothing. The overlapping load at
-   `n - W` is an ordinary load of a place wholly inside the object and needs no guarantee at all -
-   which is the technique the flag's own documentation points at.
+   ever may*, and both of these are bound by their stores. `vectorPast` would also be wrong here for
+   a second reason: it is sound only where the caller carries the guarantee, which is why
+   `loadVectorTail` takes a `Flat(a)` and these take two addresses that promise nothing. The
+   overlapping load at `n - W` is an ordinary load of a place wholly inside the object and needs no
+   guarantee at all - which is the technique the flag's own documentation points at.
 
-   **The loop starts at two registers, and below that there is no loop at all.** A count between one
-   byte and twice the width is two transfers at the widest power of two that fits - one at each end,
-   both loads ahead of both stores - which covers every byte, needs no direction argument, and is
-   where the eight-at-a-time loop and its byte tail used to be. So `moveMemory` branches at most
-   four times for any short move and never iterates for one.
+   **The four rungs below are functions and not one body**, which is what lets the copy have three
+   of the four - they were `moveMemory`'s own arms until it did. `blockPair` is small enough that the
+   inliner takes it at both call sites, and `@inline` is what buys that: two call sites is a penalty
+   rather than a bonus, so the hint's raised budget is the whole of the margin.
 
-   {-
-      **The ladder is tested before the regions are, and the block operation has a length as well as
-      a disjointness test. Both are corrections, and both are about what `copyMemory` actually costs.**
+   **Whether the other three are calls depends on how many of the two a program uses**, and that is
+   the whole of it. `blockShort` is 63 IR instructions over 13 blocks and `blockAscending` is 51 over
+   7, against a `Balanced` ceiling of 48 - so a program that copies *and* moves has two callers for
+   each and the inliner declines, rightly: copying either into both is +114 instructions of library
+   code to save two calls. `@inline` does not change that, since the hint raises the *budget* a size
+   is weighed against and not the cap that refuses one outright.
 
-      This used to ask "do the regions overlap" first and hand every disjoint move to `copyMemory`,
-      on the reading that a block operation is what a target has for exactly that. Measured, on
-      x86-64 where `copyMemory` is `rep movsb`, that was wrong twice over:
+   A program that only copies is the common case and gets all of it: one caller means the body
+   *moves* rather than being copied, which `worthInlining` now takes whatever its size, so
+   `copyMemory` is one function with no calls in it.
 
-      - **The instruction has a floor.** A `rep movsb` of one byte and of a hundred and twenty-eight
-        cost the same seven cycles, where the ladder below costs one and a half. Every short disjoint
-        move was paying startup for a copy two instructions would have done.
-      - **And it collapses when the destination is one to sixty-three bytes *above* the source** -
-        sixteen to a hundred and thirty nanoseconds against 1.8, about a byte a cycle at a distance
-        of one, because the fast-string engine refuses that window outright. A short move whose
-        regions merely *neighbour* each other is exactly the shape `distance >= count` used to send
-        there, and it was twenty times slower than glibc and fourteen times slower than the ladder
-        two branches further down.
+   Measured at v3 against the single-body `moveMemory` this replaced: `copyMemory` is **2.0x to 3.5x
+   faster** from one byte to a kilobyte, and `moveMemory` pays **11-14% on one to sixty-four bytes**
+   and nothing above them - one dispatch on an operation that costs about a nanosecond. See
+   `test/bench/memmove/findings.md` §9.
 
-      Testing the length first fixes both, because the ladder is correct for *any* two addresses -
-      both loads precede both stores, so there is no later read for a store to move under. And the
-      length test on the block operation keeps the rest: `width * 48` is where `rep movsb`'s flat
-      rate overtakes a loop whose rate scales with the register, so the threshold is stated in
-      widths rather than in bytes - 768 at v2, 1536 at v3, 3072 at v4. Measured, the loop is ahead
-      at 512 bytes on both sides of it and `rep movsb` is ahead at 2048, and the crossover moves
-      with the register because only one of the two rates does. Above the threshold `distance >=
-      count` can only be a distance far outside the pathological window, so the collapse of §2 is
-      unreachable from here.
+   **`width` is written out in every one of the six and is not a function**, which is the one thing
+   the split could not share. It is the byte vector's lane count - sixteen at v2, thirty-two at v3,
+   sixty-four at v4 - and it has to be a *constant* where it is read, because `width > 32` and
+   `count < width * 4` are what fold the rungs a given target cannot use out of existence before
+   anything asks whether that target has a 32-byte register. Behind a call it is a constant on an
+   optimized build and an opaque `I64` on `-no-opt`, and what the fold removes at v2 is a
+   `Vec(U8, 32)` load the backend refuses outright. That was not a hypothetical: it is what the
+   shared `blockWidth()` this replaced did to every fixture in the corpus.
 
-      `test/bench/memmove/findings.md` is the standing measurement and `test/bench/memmove/run.py`
-      reproduces it.
-   -}
-
-   `@platform(native)` for the first time here, and the vector is what forced it: `vectorAt` and
-   `setVectorAt` are native-only, and a JS build has no bytes to move in the first place - `Array`'s
-   own `remove` closes its gap with a `copyWithin` on that target and nothing else ever asked.
+   `@platform(native)` throughout, and the vector is what forced it: `vectorAt` and `setVectorAt`
+   are native-only, and a JS build has no bytes to move in the first place - `Array`'s own `remove`
+   closes its gap with a `copyWithin` on that target and nothing else ever asked.
 -}
-@platform(native) pub fn moveMemory(to: %U8, from: %U8, count: I64) -> {}:
-    -- The natural vector of a byte - sixteen lanes at `x86-64-v2`, thirty-two at v3, sixty-four at
-    -- v4 - and a constant on every target, so every comparison below folds against a number.
+
+{-
+   The rung below one register, where the transfers stop being registers and start being words: the
+   same two-transfer construction at eight bytes, four, two, and a single byte at the bottom.
+
+   **Written as a tree rather than as a chain**, which is what keeps the shortest counts cheap: four
+   comparisons reach any rung, where the chain this replaced took six to reach the byte.
+
+   **And the count of zero is a rung that is not there rather than a test.** The ladder ends at
+   `count >= 1`; anything at or below zero falls off the bottom of it and returns having done
+   nothing, which is what a separate `count <= 0` in front would have said one branch earlier and one
+   branch more expensively. Measured at v3, taking that test and the two pointer tests off the short
+   path is worth about 0.25ns on every call, which on a copy that costs one is most of the distance
+   to glibc.
+-}
+@platform(native) fn blockShort(to: %U8, from: %U8, count: I64) -> {}:
+    -- The register, as a constant - see the note on `width` above.
     let width = lanes(zero() :: Vec(U8)) :: I64
 
-    {-
-       **The length is the first thing asked and the only thing asked on the short path.**
-
-       Nothing above the ladder depends on where the two addresses are: every rung reads both ends
-       before it writes either, so a rung is correct whatever the relationship between `to` and
-       `from` - including the same address. The distance between them is therefore computed inside
-       the long path rather than in front of everything, and a short move never subtracts two
-       pointers, never tests them for equality and never branches on either.
-
-       **And the count of zero is a rung that is not there rather than a test.** The ladder ends at
-       `count >= 1`; anything at or below zero falls off the bottom of it and returns having done
-       nothing, which is what a separate `count <= 0` in front would have said one branch earlier
-       and one branch more expensively. Above the ladder the question cannot arise, since a count
-       that reached the long path is at least four registers.
-
-       Measured at v3, taking those three tests off the short path is worth about 0.25ns on every
-       call, which on a copy that costs one is most of the distance to glibc.
-    -}
-    {-
-       The ladder, and it doubles.
-
-       Every rung is the same construction: `n` transfers of one register at the low end and `n` at
-       the high end, **all of the loads ahead of all of the stores**, which covers every byte of any
-       count from `2nW/2` up to `2nW` - they overlap in the middle wherever the count is short of
-       twice what the rung moves. Because every load precedes every store there is no later read for
-       a store to land on, so a rung needs no direction argument, no test of the two addresses, and
-       no loop.
-
-       One transfer at each end reaches `2W` and two at each end reach `4W`, and **that is where it
-       stops, which is a measurement rather than a principle.** Four at each end - reaching `8W`,
-        which is 256 bytes at v3 - was written and taken out again: eight live vector registers and
-       two address bases is past the point where straight-line beats iterating, and it costs a
-       branch on the long path as well.
-    -}
-    if count >= width + width:
-        if count < width * 4:
-            let a = vectorAt(from)
-            let b = vectorAt(from + width)
-            let c = vectorAt(from + (count - width - width))
-            let d = vectorAt(from + (count - width))
-            setVectorAt(to, a)
-            setVectorAt(to + width, b)
-            setVectorAt(to + (count - width - width), c)
-            setVectorAt(to + (count - width), d)
-            return {}
-
-        -- `difference` is `to - from` in elements, and an element is a byte here. Signed, and exact
-        -- for any two addresses close enough to overlap - the only pair this function is about.
-        let gap = difference(from, to)
-        if gap == 0 then return {}
-
-        -- Disjoint by arithmetic rather than by the caller's word, and long enough that a block
-        -- operation's startup is paid back - see the ruling above for why both halves are needed.
-        -- This is the only path that is a block operation.
-        let distance = if gap < 0 then 0 - gap else gap
-        if distance >= count:
-            if count >= width * 48:
-                copyMemory(to, from, count)
-                return {}
-
-        -- Four registers a turn, then one, then the ragged end.
-        let stride = width * 4
-
-        if gap < 0:
-            -- The destination is below the source, so a byte is always read before the write that
-            -- could reach it: ascending. The last vector's worth is read *first*, because a store
-            -- lands `gap` bytes below its load and reaches back over the source of the final one
-            -- for every gap narrower than the register.
-            let tail = vectorAt(from + (count - width))
-            let &at = 0 :: I64
-
-            while at + stride <= count:
-                let a = vectorAt(from + at)
-                let b = vectorAt(from + at + width)
-                let c = vectorAt(from + at + width + width)
-                let d = vectorAt(from + at + width + width + width)
-                setVectorAt(to + at, a)
-                setVectorAt(to + at + width, b)
-                setVectorAt(to + at + width + width, c)
-                setVectorAt(to + at + width + width + width, d)
-                at = at + stride
-
-            while at + width <= count:
-                setVectorAt(to + at, vectorAt(from + at))
-                at = at + width
-
-            setVectorAt(to + (count - width), tail)
-        else:
-            {-
-               And above it, so the same statement holds the other way round - and it is the front
-               that has to be saved before anything moves.
-
-               **Both ends are preloaded here where ascending preloads one, and the reason is
-               alignment.** A descending loop is the one that has a choice about where its offsets
-               land: started at `count` it steps down in whole widths from the *end*, so a length
-               that is not a whole number of registers skews every access in the loop by the
-               remainder - where the ascending loop starts at zero and is aligned whenever its
-               source is. Measured at v3 on a disjoint kilobyte, that skew was the difference
-               between 5.19ns and 9.55ns: the same instructions, every one of them crossing a line.
-
-               So the loop runs over `count` rounded *down* to a width, and the ragged end above it
-               is one overlapping transfer exactly as the ascending tail is. It is stored after the
-               loop rather than before it, which is what makes it free of the direction argument:
-               the value was read before any store, so nothing the loop wrote can have moved it,
-               and no read follows it.
-            -}
-            let head = vectorAt(from)
-            let top = vectorAt(from + (count - width))
-
-            -- `count` rounded down to a whole number of registers. The width is a power of two and
-            -- a constant, so this is one `and` against a literal rather than a division.
-            let &at = count `and` (0 - width)
-
-            while at >= stride:
-                at = at - stride
-                let a = vectorAt(from + at)
-                let b = vectorAt(from + at + width)
-                let c = vectorAt(from + at + width + width)
-                let d = vectorAt(from + at + width + width + width)
-                setVectorAt(to + at, a)
-                setVectorAt(to + at + width, b)
-                setVectorAt(to + at + width + width, c)
-                setVectorAt(to + at + width + width + width, d)
-
-            while at >= width:
-                at = at - width
-                setVectorAt(to + at, vectorAt(from + at))
-
-            setVectorAt(to + (count - width), top)
-            setVectorAt(to, head)
-
-        return {}
-
-    {-
-       And below one register the rungs stop being registers and start being words: the same two-
-       transfer construction at eight bytes, four, two, and a single byte at the bottom.
-
-       **Written as a tree rather than as a chain**, which is what keeps the shortest counts cheap:
-       four comparisons reach any rung, where the chain this replaced took six to reach the byte.
-    -}
     if count >= 8:
         if count >= width:
             let low = vectorAt(from)
@@ -466,6 +360,240 @@ pub fn setMemory(to: %U8, value: U8, count: I64) -> {}
     else if count >= 1:
         store(to, *from)
 
+    return {}
+
+{-
+   The rung above it: two registers at the low end and two at the high end, all four loads ahead of
+   all four stores, which covers every count from `2W` up to `4W` - they overlap in the middle
+   wherever the count is short of four registers' worth.
+
+   **Two at each end and not four, which is a measurement rather than a principle.** Four at each end
+   - reaching `8W`, which is 256 bytes at v3 - was written and taken out again: eight live vector
+   registers and two address bases is past the point where straight-line beats iterating, and it
+   costs a branch on the long path as well.
+-}
+@platform(native) @inline fn blockPair(to: %U8, from: %U8, count: I64) -> {}:
+    -- The register, as a constant - see the note on `width` above.
+    let width = lanes(zero() :: Vec(U8)) :: I64
+
+    let a = vectorAt(from)
+    let b = vectorAt(from + width)
+    let c = vectorAt(from + (count - width - width))
+    let d = vectorAt(from + (count - width))
+    setVectorAt(to, a)
+    setVectorAt(to + width, b)
+    setVectorAt(to + (count - width - width), c)
+    setVectorAt(to + (count - width), d)
+
+    return {}
+
+{-
+   And the loop, ascending: four registers a turn, then one, then the ragged end.
+
+   **The group is what makes this a move rather than a shape.** All four loads are issued ahead of
+   all four stores, so nothing inside a group can clobber a byte the group has still to read; and
+   between groups the argument is the one the direction already carries - an ascending group's stores
+   all land below the first byte the next group loads. One register a turn measured 0.86x of glibc's
+   `memmove` at four kilobytes and four registers is 0.98x, the difference being neither the tail nor
+   the call: `test/bench/memmove/findings.md` §5 prices all three apart inside one process.
+
+   **The last vector's worth is read before the loop rather than after it**, which is the one line
+   here that is about the *move* and not about the copy: with the destination below the source, a
+   store lands `gap` bytes below its load and reaches back over the source of the final transfer for
+   every gap narrower than a register. `copyMemory` does not need it read early and pays nothing for
+   it - the load happens either way, and holding one more vector register across a loop whose body
+   uses four of sixteen costs nothing on any target this compiles for.
+-}
+@platform(native) fn blockAscending(to: %U8, from: %U8, count: I64) -> {}:
+    -- The register, as a constant - see the note on `width` above.
+    let width = lanes(zero() :: Vec(U8)) :: I64
+    let stride = width * 4
+
+    let tail = vectorAt(from + (count - width))
+    let &at = 0 :: I64
+
+    while at + stride <= count:
+        let a = vectorAt(from + at)
+        let b = vectorAt(from + at + width)
+        let c = vectorAt(from + at + width + width)
+        let d = vectorAt(from + at + width + width + width)
+        setVectorAt(to + at, a)
+        setVectorAt(to + at + width, b)
+        setVectorAt(to + at + width + width, c)
+        setVectorAt(to + at + width + width + width, d)
+        at = at + stride
+
+    while at + width <= count:
+        setVectorAt(to + at, vectorAt(from + at))
+        at = at + width
+
+    setVectorAt(to + (count - width), tail)
+    return {}
+
+{-
+   And descending, where the same statement holds the other way round - and it is the front that has
+   to be saved before anything moves.
+
+   **Both ends are preloaded here where ascending preloads one, and the reason is alignment.** A
+   descending loop is the one that has a choice about where its offsets land: started at `count` it
+   steps down in whole widths from the *end*, so a length that is not a whole number of registers
+   skews every access in the loop by the remainder - where the ascending loop starts at zero and is
+   aligned whenever its source is. Measured at v3 on a disjoint kilobyte, that skew was the
+   difference between 5.19ns and 9.55ns: the same instructions, every one of them crossing a line.
+
+   So the loop runs over `count` rounded *down* to a width, and the ragged end above it is one
+   overlapping transfer exactly as the ascending tail is. It is stored after the loop rather than
+   before it, which is what makes it free of the direction argument: the value was read before any
+   store, so nothing the loop wrote can have moved it, and no read follows it.
+
+   The one rung `copyMemory` never calls, since a copy has no direction to choose.
+-}
+@platform(native) fn blockDescending(to: %U8, from: %U8, count: I64) -> {}:
+    -- The register, as a constant - see the note on `width` above.
+    let width = lanes(zero() :: Vec(U8)) :: I64
+    let stride = width * 4
+
+    let head = vectorAt(from)
+    let top = vectorAt(from + (count - width))
+
+    -- `count` rounded down to a whole number of registers. The width is a power of two and a
+    -- constant, so this is one `and` against a literal rather than a division.
+    let &at = count `and` (0 - width)
+
+    while at >= stride:
+        at = at - stride
+        let a = vectorAt(from + at)
+        let b = vectorAt(from + at + width)
+        let c = vectorAt(from + at + width + width)
+        let d = vectorAt(from + at + width + width + width)
+        setVectorAt(to + at, a)
+        setVectorAt(to + at + width, b)
+        setVectorAt(to + at + width + width, c)
+        setVectorAt(to + at + width + width + width, d)
+
+    while at >= width:
+        at = at - width
+        setVectorAt(to + at, vectorAt(from + at))
+
+    setVectorAt(to + (count - width), top)
+    setVectorAt(to, head)
+
+    return {}
+
+{-
+   The non-overlapping block copy, which is the ladder above with the direction question taken out.
+
+   **The length is the first thing asked and the only thing asked on the short path.** Nothing in the
+   ladder depends on where the two addresses are, so a short copy never subtracts two pointers, never
+   tests them for equality and never branches on either - and neither does a long one here, because
+   the caller's promise is what the disjointness test in `moveMemory` has to establish for itself.
+
+   **What is left is three branches and a rung.** Below two registers it is `blockShort`; below four
+   it is `blockPair`; at or above `width * 48` it is the machine's own block operation, which is
+   where `rep movsb`'s flat rate finally overtakes a loop whose rate scales with the register - 768
+   bytes at v2, 1536 at v3, 3072 at v4, and measured on both sides in
+   `test/bench/memmove/findings.md`. Everything between is the ascending loop.
+
+   **The ascending loop and not a direction test**, which is the whole of what makes this the copy
+   rather than the move: disjoint regions have no order to get wrong, so `blockAscending` is correct
+   for any pair this may legally be called with. `moveMemory` is the function that has to prove the
+   same thing before it may say it.
+-}
+@platform(native) pub fn copyMemory(to: %U8, from: %U8, count: I64) -> {}:
+    -- The register, as a constant - see the note on `width` above.
+    let width = lanes(zero() :: Vec(U8)) :: I64
+
+    if count >= width + width:
+        if count < width * 4:
+            blockPair(to, from, count)
+            return {}
+
+        if count >= width * 48:
+            blockCopy(to, from, count)
+            return {}
+
+        blockAscending(to, from, count)
+        return {}
+
+    blockShort(to, from, count)
+    return {}
+
+{-
+   The overlapping form, which `copyMemory` deliberately is not.
+
+   **The direction is the whole of the argument.** With the destination below the source, a register
+   written at offset `i` ends below the source of offset `i + W`, so ascending never overwrites a
+   byte that has not been read; with the destination above, the same holds descending. The rungs
+   below four registers need neither, since each reads both ends before it writes either - so
+   `moveMemory` branches at most four times for any short move and never iterates for one.
+
+   {-
+      **The ladder is tested before the regions are, and the block operation has a length as well as
+      a disjointness test. Both are corrections, and both are about what the block operation costs.**
+
+      This used to ask "do the regions overlap" first and hand every disjoint move to `copyMemory`,
+      on the reading that a block operation is what a target has for exactly that. Measured, on
+      x86-64 where that was `rep movsb`, it was wrong twice over:
+
+      - **The instruction has a floor.** A `rep movsb` of one byte and of a hundred and twenty-eight
+        cost the same seven cycles, where the ladder below costs one and a half. Every short disjoint
+        move was paying startup for a copy two instructions would have done.
+      - **And it collapses when the destination is one to sixty-three bytes *above* the source** -
+        sixteen to a hundred and thirty nanoseconds against 1.8, about a byte a cycle at a distance
+        of one, because the fast-string engine refuses that window outright. A short move whose
+        regions merely *neighbour* each other is exactly the shape `distance >= count` used to send
+        there, and it was twenty times slower than glibc and fourteen times slower than the ladder
+        two branches further down.
+
+      Testing the length first fixes both, because the ladder is correct for *any* two addresses -
+      both loads precede both stores, so there is no later read for a store to move under. And the
+      length test on the block operation keeps the rest: `width * 48` is where `rep movsb`'s flat
+      rate overtakes a loop whose rate scales with the register, so the threshold is stated in
+      widths rather than in bytes - 768 at v2, 1536 at v3, 3072 at v4. Measured, the loop is ahead
+      at 512 bytes on both sides of it and `rep movsb` is ahead at 2048, and the crossover moves
+      with the register because only one of the two rates does. Above the threshold `distance >=
+      count` can only be a distance far outside the pathological window, so the collapse of §2 is
+      unreachable from here.
+
+      **`copyMemory` is no longer what the disjoint path calls, and that is the one change here.**
+      It is the same ladder now, so calling it would be one dispatch to reach a second identical
+      one. What is called is `blockCopy`, which is what `copyMemory` used to be.
+
+      `test/bench/memmove/findings.md` is the standing measurement and `test/bench/memmove/run.py`
+      reproduces it.
+   -}
+-}
+@platform(native) pub fn moveMemory(to: %U8, from: %U8, count: I64) -> {}:
+    -- The register, as a constant - see the note on `width` above.
+    let width = lanes(zero() :: Vec(U8)) :: I64
+
+    if count >= width + width:
+        if count < width * 4:
+            blockPair(to, from, count)
+            return {}
+
+        -- `difference` is `to - from` in elements, and an element is a byte here. Signed, and exact
+        -- for any two addresses close enough to overlap - the only pair this function is about.
+        let gap = difference(from, to)
+        if gap == 0 then return {}
+
+        -- Disjoint by arithmetic rather than by the caller's word, and long enough that a block
+        -- operation's startup is paid back - see the ruling above for why both halves are needed.
+        -- This is the only path that is a block operation.
+        let distance = if gap < 0 then 0 - gap else gap
+        if distance >= count:
+            if count >= width * 48:
+                blockCopy(to, from, count)
+                return {}
+
+        -- The destination is below the source, so a byte is always read before the write that could
+        -- reach it: ascending. Above it, the same statement holds the other way round.
+        if gap < 0 then blockAscending(to, from, count)
+        else blockDescending(to, from, count)
+
+        return {}
+
+    blockShort(to, from, count)
     return {}
 
 -- The system call intrinsic, at each arity a call needs. Design.md's "Interfacing the OS" builds

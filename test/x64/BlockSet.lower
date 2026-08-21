@@ -1,0 +1,39 @@
+# The unrolled block fill - see expandBlockOperations in transform_block.cpp.
+#
+# No directive, so this is the **v2** machine and the **balanced** level: a 16-byte step and a
+# ceiling of 64 bytes, the same pair the copy gets. It shares them because the pattern is replicated
+# into a *value* above the stores; while the expansion was an encoding it could not be, and a fill's
+# step was eight bytes at every level.
+#
+# **`setpattern` names a byte**, which is the whole of what `patternRuntime` is here to pin. The
+# encoding this replaced stored eight bytes of whatever register the pattern was in, so a non-zero
+# pattern wrote it once and then seven zero bytes - see test/lib/SetMemory.yana, which is the fixture
+# that catches it. A constant pattern is replicated here; a runtime one is masked to its byte and
+# then broadcast.
+
+setConstant(%dst: Ptr) {
+    {
+        setpattern %dst, 6, 0
+        setpattern %dst, 16, 0
+        setpattern %dst, 20, 171
+        ret
+    }
+}
+
+patternRuntime(%dst: Ptr, %pat: Int) {
+    {
+        setpattern %dst, 4, %pat
+        setpattern %dst, 12, %pat
+        setpattern %dst, 48, %pat
+        ret
+    }
+}
+
+# One byte past the ceiling, which is where `rep stosb` starts and where the pattern goes back to
+# being the byte the instruction reads out of al.
+setAboveCeiling(%dst: Ptr, %pat: Int) {
+    {
+        setpattern %dst, 65, %pat
+        ret
+    }
+}

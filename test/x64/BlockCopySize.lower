@@ -1,0 +1,26 @@
+# inline: size
+#
+# The same copies as `BlockCopy.lower` with the other half of the knob turned: `-inline size` caps
+# the expansion at thirty-two bytes, which is exactly what this backend straight-lined before the
+# ceiling was a policy at all. A build that asked for smaller code does not get larger code out of
+# the wider steps - what it gets is the *same* thirty-two bytes moved by two `movdqu` pairs instead
+# of four `mov` pairs.
+#
+# So 64 is `rep movsb` here where `BlockCopy.lower` has four pairs, and everything at or below 32 is
+# unchanged between the two files.
+
+copyVector(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 16
+        copy %dst, %src, 32
+        ret
+    }
+}
+
+copyAboveCeiling(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 33
+        copy %dst, %src, 64
+        ret
+    }
+}

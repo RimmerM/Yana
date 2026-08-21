@@ -14,12 +14,42 @@ fn -=(I64) {
   %local2: I64 readonly live [1, 3)
 }
 
+fn blockShort {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockPair {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockAscending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [9, 109) [116, 132)
+}
+
+fn blockDescending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [13, 111) [120, 136)
+}
+
+fn copyMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
 fn moveMemory {
   arg to readonly
   arg from readonly
   arg count readonly
-  %at: I64 writable live [83, 86) [99, 196) [203, 219)
-  %at: I64 writable live [96, 99) [219, 314) [323, 339)
 }
 
 fn initHeap {
@@ -68,9 +98,9 @@ fn emptyRun(Buffer) {
 }
 
 fn resize(Buffer) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Run(Buffer) borrowed droppable writable addressed resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+  %self: Run(Buffer) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
 fn byteSpan(Buffer) {
@@ -105,22 +135,22 @@ fn emptyArray(Buffer) {
 }
 
 fn push(Buffer) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg item writable retained
-  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 25)
+  %self: Array(Buffer) borrowed droppable writable resizable live [0, 25)
   %item: Buffer droppable writable escapes live [0, 20)
 }
 
 fn reserve(Buffer) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 6) [7, 11)
+  %self: Array(Buffer) borrowed droppable writable resizable live [0, 6) [7, 11)
 }
 
 fn growArray(Buffer) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Buffer) borrowed droppable writable addressed resizable live [0, 24)
+  %self: Array(Buffer) borrowed droppable writable resizable live [0, 24)
   %wide: I64 writable live [5, 22)
 }
 
@@ -155,7 +185,7 @@ fn marker {
 
 fn main {
   %local0: Array(Buffer) droppable readonly live [0, 3)
-  %xs: Array(Buffer) droppable writable addressed resizable live [1, 21) [23, 29) [31, 40) [42, 59) [61, 78) [80, 84) [86, 99) [101, 110) [112, 129) [131, 140) [142, 146) [148, 162) [164, 186) [188, 192) [194, 200) [202, 210) [216, 219) [221, 225)
+  %xs: Array(Buffer) droppable writable resizable live [1, 21) [23, 29) [31, 40) [42, 59) [61, 78) [80, 84) [86, 99) [101, 110) [112, 129) [131, 140) [142, 146) [148, 162) [164, 186) [188, 192) [194, 200) [202, 210) [216, 219) [221, 225)
   %local2: Buffer droppable writable live [4, 7)
   %local3: Buffer droppable writable live [9, 12)
   %local4: Buffer droppable writable live [14, 17)

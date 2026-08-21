@@ -1,0 +1,1823 @@
+@image$base = []
+
+nearDouble<complex>(%got: Double, %want: Double): Int {
+  b_0 {
+    %difference = sub %got, %want: Double
+    %v_1 = cmp_lt %difference, 0: Int
+    %v_2 = sub 0, %difference: Double
+    %size = select %v_1, %v_2, %difference: Double
+    %v_3 = cmp_lt %want, 0: Int
+    %v_4 = sub 0, %want: Double
+    %scale = select %v_3, %v_4, %want: Double
+    %v_5 = cmp_gt %scale, 1: Int
+    %v_6 = select %v_5, %scale, 1: Double
+    %v_7 = mul 1E-12, %v_6: Double
+    %v_8 = cmp_le %size, %v_7: Int
+    ret %v_8
+  }
+}
+
+nearFloat<complex>(%got: Float, %want: Float): Int {
+  b_0 {
+    %difference = sub %got, %want: Float
+    %v_1 = cmp_lt %difference, 0: Int
+    %v_2 = sub 0, %difference: Float
+    %size = select %v_1, %v_2, %difference: Float
+    %v_3 = cmp_lt %want, 0: Int
+    %v_4 = sub 0, %want: Float
+    %scale = select %v_3, %v_4, %want: Float
+    %v_5 = cmp_gt %scale, 1: Int
+    %v_6 = select %v_5, %scale, 1: Float
+    %v_7 = mul 0.000003000000106112566, %v_6: Float
+    %v_8 = cmp_le %size, %v_7: Int
+    ret %v_8
+  }
+}
+
+exponentials<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex expSeries(Double, Bool), 0: Double
+    %core = call_complex Real(Double, Bool).scaleByExponent, %v_1, 0: Double
+    %v_2 = call_complex nearDouble, %core, 1: Int
+    %v_3 = call_complex expSeries(Double, Bool), 0.3068528194400547: Double
+    %core = call_complex Real(Double, Bool).scaleByExponent, %v_3, 1: Double
+    %v_4 = call_complex nearDouble, %core, 2.718281828459045: Int
+    %v_5 = add %v_2, %v_4: Int
+    %v_6 = call_complex expSeries(Double, Bool), -0.10126823623841397: Double
+    %core = call_complex Real(Double, Bool).scaleByExponent, %v_6, 29: Double
+    %v_7 = call_complex nearDouble, %core, 4.851651954097903E8: Int
+    %v_8 = add %v_5, %v_7: Int
+    %v_9 = call_complex expSeries(Double, Bool), -0.14796973608038283: Double
+    %core = call_complex Real(Double, Bool).scaleByExponent, %v_9, -7: Double
+    %v_10 = call_complex nearDouble, %core, 0.006737946999085467: Int
+    %v_11 = add %v_8, %v_10: Int
+    %v_12 = call_complex exp2Of(Double, Bool), 10: Double
+    %v_13 = call_complex nearDouble, %v_12, 1024: Int
+    %v_14 = add %v_11, %v_13: Int
+    %v_15 = call_complex exp2Of(Double, Bool), 0.5: Double
+    %v_16 = call_complex nearDouble, %v_15, 1.4142135623730951: Int
+    %v_17 = add %v_14, %v_16: Int
+    %v_18 = call_complex expSeries(Double, Bool), -0.2113815480010815: Double
+    %core = call_complex Real(Double, Bool).scaleByExponent, %v_18, 1443: Double
+    %v_19 = bitcast 9218868437227405312: Double
+    %v_20 = cmp_gt %v_19, 1E308: Int
+    %v_21 = add %v_17, %v_20: Int
+    %v_22 = call_complex expSeries(Double, Bool), 0.2113815480010815: Double
+    %core = call_complex Real(Double, Bool).scaleByExponent, %v_22, -1443: Double
+    %v_23 = add %v_21, 1: Int
+    ret %v_23
+  }
+}
+
+logarithms<complex>(): Int {
+  b_0 {
+    %series = call_complex logSeries(Double, Bool), 1.3591409142295225: Double
+    %v_1 = add %series, 0.693115234375: Double
+    %answer = add %v_1, 0.000031946184945309415: Double
+    %v_2 = call_complex nearDouble, %answer, 1: Int
+    %series = call_complex logSeries(Double, Bool), 0.9765625: Double
+    %v_3 = add %series, 6.93115234375: Double
+    %answer = add %v_3, 0.0003194618494530942: Double
+    %v_4 = call_complex nearDouble, %answer, 6.907755278982137: Int
+    %v_5 = add %v_2, %v_4: Int
+    %v_6 = call_complex logSeries(Double, Bool), 1: Double
+    %v_7 = mul %v_6, 1.4426950408889634: Double
+    %answer = add %v_7, 3: Double
+    %v_8 = cmp_eq %answer, 3: Int
+    %v_9 = add %v_5, %v_8: Int
+    %v_10 = call_complex logSeries(Double, Bool), 1: Double
+    %v_11 = mul %v_10, 1.4426950408889634: Double
+    %answer = add %v_11, 10: Double
+    %v_12 = cmp_eq %answer, 10: Int
+    %v_13 = add %v_9, %v_12: Int
+    %series = call_complex logSeries(Double, Bool), 0.9765625: Double
+    %v_14 = add %series, 6.93115234375: Double
+    %answer = add %v_14, 0.0003194618494530942: Double
+    %v_15 = mul %answer, 0.4342944819032518: Double
+    %v_16 = call_complex nearDouble, %v_15, 3: Int
+    %v_17 = add %v_13, %v_16: Int
+    %series = call_complex logSeries(Double, Bool), 1: Double
+    %v_18 = bitcast 9218868437227405312: Double
+    %atZero = sub 0, %v_18: Double
+    %v_19 = cmp_lt %atZero, 0: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_20 {
+    %v_22 = div 1, %atZero: Double
+    %v_23 = cmp_eq %v_22, 0: Int
+    jmp b_24
+  }
+
+  b_21 {
+    jmp b_24
+  }
+
+  b_24 {
+    %v_25 = phi [b_20, %v_23], [b_21, %v_19]: Int
+    %v_26 = select %v_25, 1, 0: Int
+    %v_27 = add %v_17, %v_26: Int
+    ret %v_27
+  }
+}
+
+powers<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex logSeries(Double, Bool), 1: Double
+    %v_2 = mul %v_1, 1.4426950408889634: Double
+    %answer = add %v_2, 1: Double
+    %v_3 = call_complex logGuard(Double, Bool), 2, %answer: Double
+    %v_4 = mul 10, %v_3: Double
+    %size = call_complex exp2Of(Double, Bool), %v_4: Double
+    %v_5 = call_complex nearDouble, %size, 1024: Int
+    %v_6 = call_complex logSeries(Double, Bool), 1: Double
+    %v_7 = mul %v_6, 1.4426950408889634: Double
+    %answer = add %v_7, 1: Double
+    %v_8 = call_complex logGuard(Double, Bool), 2, %answer: Double
+    %v_9 = mul 0.5, %v_8: Double
+    %size = call_complex exp2Of(Double, Bool), %v_9: Double
+    %v_10 = call_complex nearDouble, %size, 1.4142135623730951: Int
+    %v_11 = add %v_5, %v_10: Int
+    %v_12 = call_complex logSeries(Double, Bool), 1: Double
+    %v_13 = mul %v_12, 1.4426950408889634: Double
+    %answer = add %v_13, 1: Double
+    %v_14 = call_complex logGuard(Double, Bool), 2, %answer: Double
+    %v_15 = mul 3, %v_14: Double
+    %size = call_complex exp2Of(Double, Bool), %v_15: Double
+    %v_16 = sub 0, %size: Double
+    %v_17 = call_complex nearDouble, %v_16, -8: Int
+    %v_18 = add %v_11, %v_17: Int
+    %v_19 = call_complex logSeries(Double, Bool), 1: Double
+    %v_20 = mul %v_19, 1.4426950408889634: Double
+    %answer = add %v_20, 1: Double
+    %v_21 = call_complex logGuard(Double, Bool), 2, %answer: Double
+    %v_22 = add %v_21, %v_21: Double
+    %size = call_complex exp2Of(Double, Bool), %v_22: Double
+    %v_23 = call_complex nearDouble, %size, 4: Int
+    %v_24 = add %v_18, %v_23: Int
+    %v_25 = call_complex logSeries(Double, Bool), 1: Double
+    %v_26 = mul %v_25, 1.4426950408889634: Double
+    %answer = add %v_26, 1: Double
+    %v_27 = call_complex logGuard(Double, Bool), 2, %answer: Double
+    %v_28 = mul 0.5, %v_27: Double
+    %size = call_complex exp2Of(Double, Bool), %v_28: Double
+    %v_29 = bitcast 9218868437227405312: Double
+    %v_30 = mul 0, %v_29: Double
+    %v_31 = call_complex logSeries(Double, Bool), 1: Double
+    %v_32 = mul %v_31, 1.4426950408889634: Double
+    %answer = add %v_32, 1: Double
+    %v_33 = call_complex logGuard(Double, Bool), 2, %answer: Double
+    %v_34 = mul 0.5, %v_33: Double
+    %size = call_complex exp2Of(Double, Bool), %v_34: Double
+    %v_35 = bitcast 9218868437227405312: Double
+    %v_36 = mul 0, %v_35: Double
+    %v_37 = cmp_neq %v_30, %v_36: Int
+    %v_38 = add %v_24, %v_37: Int
+    %v_39 = call_complex logSeries(Double, Bool), 1: Double
+    %v_40 = mul %v_39, 1.4426950408889634: Double
+    %answer = add %v_40, -1023: Double
+    %v_41 = call_complex logGuard(Double, Bool), 0, %answer: Double
+    %v_42 = mul 0, %v_41: Double
+    %size = call_complex exp2Of(Double, Bool), %v_42: Double
+    %v_43 = call_complex nearDouble, 1, 1: Int
+    %v_44 = add %v_38, %v_43: Int
+    %v_45 = call_complex logSeries(Double, Bool), 0.84375: Double
+    %v_46 = mul %v_45, 1.4426950408889634: Double
+    %answer = add %v_46, 5: Double
+    %v_47 = imm 27: Double
+    %v_48 = call_complex logGuard(Double, Bool), %v_47, %answer: Double
+    %v_49 = mul %v_48, 0.3333333333333333: Double
+    %guess = call_complex exp2Of(Double, Bool), %v_49: Double
+    %v_50 = mul %guess, %guess: Double
+    %v_51 = div %v_47, %v_50: Double
+    %v_52 = sub %guess, %v_51: Double
+    %v_53 = mul %v_52, 0.3333333333333333: Double
+    %once = sub %guess, %v_53: Double
+    %v_54 = mul %once, %once: Double
+    %v_55 = div %v_47, %v_54: Double
+    %v_56 = sub %once, %v_55: Double
+    %v_57 = mul %v_56, 0.3333333333333333: Double
+    %twice = sub %once, %v_57: Double
+    %v_58 = cmp_le %twice, 0: Int
+    %v_59 = sub 0, %twice: Double
+    %v_60 = select %v_58, %v_59, %twice: Double
+    %v_61 = call_complex nearDouble, %v_60, 3: Int
+    %v_62 = add %v_44, %v_61: Int
+    %v_63 = call_complex logSeries(Double, Bool), 0.84375: Double
+    %v_64 = mul %v_63, 1.4426950408889634: Double
+    %answer = add %v_64, 5: Double
+    %v_65 = imm 27: Double
+    %v_66 = call_complex logGuard(Double, Bool), %v_65, %answer: Double
+    %v_67 = mul %v_66, 0.3333333333333333: Double
+    %guess = call_complex exp2Of(Double, Bool), %v_67: Double
+    %v_68 = mul %guess, %guess: Double
+    %v_69 = div %v_65, %v_68: Double
+    %v_70 = sub %guess, %v_69: Double
+    %v_71 = mul %v_70, 0.3333333333333333: Double
+    %once = sub %guess, %v_71: Double
+    %v_72 = mul %once, %once: Double
+    %v_73 = div %v_65, %v_72: Double
+    %v_74 = sub %once, %v_73: Double
+    %v_75 = mul %v_74, 0.3333333333333333: Double
+    %twice = sub %once, %v_75: Double
+    %v_76 = cmp_le %twice, 0: Int
+    %v_77 = sub 0, %twice: Double
+    %v_78 = select %v_76, %v_77, %twice: Double
+    %v_79 = sub 0, %v_78: Double
+    %v_80 = call_complex nearDouble, %v_79, -3: Int
+    %v_81 = add %v_62, %v_80: Int
+    %v_82 = sqrt 1.5625: Double
+    %v_83 = mul 4, %v_82: Double
+    %v_84 = call_complex nearDouble, %v_83, 5: Int
+    %v_85 = add %v_81, %v_84: Int
+    ret %v_85
+  }
+}
+
+angles<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex quadrantOf(Double, Bool), 1, -0.5707963267948966: Double
+    %v_2 = call_complex nearDouble, %v_1, 0.8414709848078965: Int
+    %v_3 = call_complex quadrantOf(Double, Bool), 2, -0.5707963267948966: Double
+    %v_4 = call_complex nearDouble, %v_3, 0.5403023058681398: Int
+    %v_5 = add %v_2, %v_4: Int
+    %v_6 = call_complex quadrantOf(Double, Bool), 2, -0.14159265358979323: Double
+    %v_7 = call_complex nearDouble, %v_6, 0.1411200080598672: Int
+    %v_8 = add %v_5, %v_7: Int
+    %v_9 = call_complex quadrantOf(Double, Bool), 3, -0.14159265358979323: Double
+    %v_10 = call_complex nearDouble, %v_9, -0.9899924966004454: Int
+    %v_11 = add %v_8, %v_10: Int
+    %v_12 = imm -0.5707963267948966: Double
+    %v_13 = call_complex quadrantOf(Double, Bool), 1, %v_12: Double
+    %v_14 = call_complex quadrantOf(Double, Bool), 2, %v_12: Double
+    %v_15 = div %v_13, %v_14: Double
+    %v_16 = call_complex nearDouble, %v_15, 1.5574077246549023: Int
+    %v_17 = add %v_11, %v_16: Int
+    %v_18 = call_complex quadrantOf(Double, Bool), 0, -0.5309649148733836: Double
+    %v_19 = call_complex nearDouble, %v_18, -0.5063656411097588: Int
+    %v_20 = add %v_17, %v_19: Int
+    %v_21 = call_complex arcTangentOf(Double, Bool), 1: Double
+    %v_22 = call_complex nearDouble, %v_21, 0.7853981633974483: Int
+    %v_23 = add %v_20, %v_22: Int
+    %v_24 = call_complex arcTangent2Of(Double, Bool), 1, -1: Double
+    %v_25 = call_complex nearDouble, %v_24, 2.356194490192345: Int
+    %v_26 = add %v_23, %v_25: Int
+    %v_27 = call_complex arcTangent2Of(Double, Bool), -1, 0: Double
+    %v_28 = call_complex nearDouble, %v_27, -1.5707963267948966: Int
+    %v_29 = add %v_26, %v_28: Int
+    %v_30 = sqrt 0.75: Double
+    %v_31 = call_complex arcTangent2Of(Double, Bool), 0.5, %v_30: Double
+    %v_32 = call_complex nearDouble, %v_31, 0.5235987755982988: Int
+    %v_33 = add %v_29, %v_32: Int
+    %v_34 = sqrt 0.75: Double
+    %v_35 = call_complex arcTangent2Of(Double, Bool), %v_34, 0.5: Double
+    %v_36 = call_complex nearDouble, %v_35, 1.0471975511965976: Int
+    %v_37 = add %v_33, %v_36: Int
+    %v_38 = sqrt 0: Double
+    %v_39 = call_complex arcTangent2Of(Double, Bool), 1, %v_38: Double
+    %v_40 = call_complex nearDouble, %v_39, 1.5707963267948966: Int
+    %v_41 = add %v_37, %v_40: Int
+    %v_42 = sqrt 0: Double
+    %v_43 = call_complex arcTangent2Of(Double, Bool), %v_42, -1: Double
+    %v_44 = call_complex nearDouble, %v_43, 3.141592653589793: Int
+    %v_45 = add %v_41, %v_44: Int
+    %v_46 = call_complex nearDouble, 3.141592653589793, 3.141592653589793: Int
+    %v_47 = add %v_45, %v_46: Int
+    %v_48 = call_complex nearDouble, 3.141592653589793, 3.141592653589793: Int
+    %v_49 = add %v_47, %v_48: Int
+    %v_50 = call_complex nearDouble, 180, 180: Int
+    %v_51 = add %v_49, %v_50: Int
+    ret %v_51
+  }
+}
+
+atFloat<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex expSeries(Float, Bool), 0.3068528175354004: Float
+    %core = call_complex Real(Float, Bool).scaleByExponent, %v_1, 1: Float
+    %v_2 = call_complex nearFloat, %core, 2.7182817459106445: Int
+    %series = call_complex logSeries(Float, Bool), 1.25: Float
+    %v_3 = add %series, 2.079345703125: Float
+    %answer = add %v_3, 0.00009583854989614338: Float
+    %v_4 = call_complex nearFloat, %answer, 2.3025851249694824: Int
+    %v_5 = add %v_2, %v_4: Int
+    %v_6 = call_complex logSeries(Float, Bool), 1: Float
+    %v_7 = mul %v_6, 1.4426950216293335: Float
+    %answer = add %v_7, 3: Float
+    %v_8 = call_complex nearFloat, %answer, 3: Int
+    %v_9 = add %v_5, %v_8: Int
+    %v_10 = call_complex quadrantOf(Float, Bool), 1, -0.5707963109016418: Float
+    %v_11 = call_complex nearFloat, %v_10, 0.8414709568023682: Int
+    %v_12 = add %v_9, %v_11: Int
+    %v_13 = call_complex quadrantOf(Float, Bool), 2, -0.5707963109016418: Float
+    %v_14 = call_complex nearFloat, %v_13, 0.5403023362159729: Int
+    %v_15 = add %v_12, %v_14: Int
+    %v_16 = imm 0.5: Float
+    %v_17 = call_complex quadrantOf(Float, Bool), 0, %v_16: Float
+    %v_18 = call_complex quadrantOf(Float, Bool), 1, %v_16: Float
+    %v_19 = div %v_17, %v_18: Float
+    %v_20 = call_complex nearFloat, %v_19, 0.5463024973869324: Int
+    %v_21 = add %v_15, %v_20: Int
+    %v_22 = call_complex arcTangentOf(Float, Bool), 1: Float
+    %v_23 = call_complex nearFloat, %v_22, 0.7853981852531433: Int
+    %v_24 = add %v_21, %v_23: Int
+    %v_25 = sqrt 0.75: Float
+    %v_26 = div 0.5, %v_25: Float
+    %base = call_complex arcTangentOf(Float, Bool), %v_26: Float
+    %v_27 = add %base, 3.1415927410125732: Float
+    %v_28 = cmp_lt %v_25, 0: Int
+    %general = select %v_28, %v_27, %base: Float
+    %v_29 = cmp_eq %v_25, 0: Int
+    %v_30 = select %v_29, 1.5707963705062866, %general: Float
+    %v_31 = call_complex nearFloat, %v_30, 0.5235987901687622: Int
+    %v_32 = add %v_24, %v_31: Int
+    %v_33 = call_complex logSeries(Float, Bool), 1: Float
+    %v_34 = mul %v_33, 1.4426950216293335: Float
+    %answer = add %v_34, 1: Float
+    %v_35 = call_complex logGuard(Float, Bool), 2, %answer: Float
+    %v_36 = mul 10, %v_35: Float
+    %size = call_complex exp2Of(Float, Bool), %v_36: Float
+    %v_37 = call_complex nearFloat, %size, 1024: Int
+    %v_38 = add %v_32, %v_37: Int
+    %v_39 = call_complex logSeries(Float, Bool), 0.84375: Float
+    %v_40 = mul %v_39, 1.4426950216293335: Float
+    %answer = add %v_40, 5: Float
+    %v_41 = imm 27: Float
+    %v_42 = call_complex logGuard(Float, Bool), %v_41, %answer: Float
+    %v_43 = mul %v_42, 0.3333333432674408: Float
+    %guess = call_complex exp2Of(Float, Bool), %v_43: Float
+    %v_44 = mul %guess, %guess: Float
+    %v_45 = div %v_41, %v_44: Float
+    %v_46 = sub %guess, %v_45: Float
+    %v_47 = mul %v_46, 0.3333333432674408: Float
+    %once = sub %guess, %v_47: Float
+    %v_48 = mul %once, %once: Float
+    %v_49 = div %v_41, %v_48: Float
+    %v_50 = sub %once, %v_49: Float
+    %v_51 = mul %v_50, 0.3333333432674408: Float
+    %twice = sub %once, %v_51: Float
+    %v_52 = cmp_le %twice, 0: Int
+    %v_53 = sub 0, %twice: Float
+    %v_54 = select %v_52, %v_53, %twice: Float
+    %v_55 = call_complex nearFloat, %v_54, 3: Int
+    %v_56 = add %v_38, %v_55: Int
+    %v_57 = sqrt 1.5625: Float
+    %v_58 = mul 4, %v_57: Float
+    %v_59 = call_complex nearFloat, %v_58, 5: Int
+    %v_60 = add %v_56, %v_59: Int
+    %v_61 = call_complex nearFloat, -3, -3: Int
+    %v_62 = add %v_60, %v_61: Int
+    ret %v_62
+  }
+}
+
+atVector<complex>(): Int {
+  b_0 {
+    %one = vsplat 1: f32x4
+    %ten = vsplat 10: f32x4
+    %v_1 = call_complex expOf(Vec(Float), Mask(Float)), %one: f32x4
+    %v_2 = vlane %v_1, 0: Float
+    %v_3 = call_complex nearFloat, %v_2, 2.7182817459106445: Int
+    %e = call_complex logExponent(Vec(Float), Mask(Float)), %ten: f32x4
+    %v_4 = bitcast %ten: i32x4
+    %v_5 = vsplat 8388607: i32x4
+    %v_6 = and %v_4, %v_5: i32x4
+    %v_7 = vsplat 1065353216: i32x4
+    %v_8 = or %v_6, %v_7: i32x4
+    %v_9 = bitcast %v_8: f32x4
+    %v_10 = vsplat 1.4142135381698608: f32x4
+    %v_11 = cmp_gt %v_9, %v_10: m32x4
+    %v_12 = vsplat 0.5: f32x4
+    %v_13 = mul %v_9, %v_12: f32x4
+    %v_14 = select %v_11, %v_13, %v_9: f32x4
+    %series = call_complex logSeries(Vec(Float), Mask(Float)), %v_14: f32x4
+    %v_15 = vsplat 0.693115234375: f32x4
+    %v_16 = mul %e, %v_15: f32x4
+    %v_17 = add %series, %v_16: f32x4
+    %v_18 = vsplat 0.00003194618329871446: f32x4
+    %v_19 = mul %e, %v_18: f32x4
+    %answer = add %v_17, %v_19: f32x4
+    %v_20 = call_complex logGuard(Vec(Float), Mask(Float)), %ten, %answer: f32x4
+    %v_21 = vlane %v_20, 0: Float
+    %v_22 = call_complex nearFloat, %v_21, 2.3025851249694824: Int
+    %v_23 = add %v_3, %v_22: Int
+    %v_24 = vsplat 0.6366197466850281: f32x4
+    %v_25 = mul %one, %v_24: f32x4
+    %v_26 = vsplat 0.5: f32x4
+    %v_27 = call_complex signOfOther(Vec(Float), Mask(Float)), %v_26, %v_25: f32x4
+    %v_28 = add %v_25, %v_27: f32x4
+    %v_29 = cast %v_28: i32x4
+    %whole = cast %v_29: f32x4
+    %v_30 = abs %v_28: f32x4
+    %v_31 = vsplat 8388608: f32x4
+    %v_32 = cmp_lt %v_30, %v_31: m32x4
+    %v_33 = select %v_32, %whole, %v_28: f32x4
+    %v_34 = vsplat 0: f32x4
+    %v_35 = call_complex quadrantIndex(Vec(Float), Mask(Float)), %v_33, %v_34: f32x4
+    %v_36 = call_complex reducedAngle(Vec(Float), Mask(Float)), %one, %v_33: f32x4
+    %v_37 = call_complex quadrantOf(Vec(Float), Mask(Float)), %v_35, %v_36: f32x4
+    %v_38 = vlane %v_37, 0: Float
+    %v_39 = call_complex nearFloat, %v_38, 0.8414709568023682: Int
+    %v_40 = add %v_23, %v_39: Int
+    %v_41 = vsplat 0.6366197466850281: f32x4
+    %v_42 = mul %one, %v_41: f32x4
+    %v_43 = vsplat 0.5: f32x4
+    %v_44 = call_complex signOfOther(Vec(Float), Mask(Float)), %v_43, %v_42: f32x4
+    %v_45 = add %v_42, %v_44: f32x4
+    %v_46 = cast %v_45: i32x4
+    %whole = cast %v_46: f32x4
+    %v_47 = abs %v_45: f32x4
+    %v_48 = vsplat 8388608: f32x4
+    %v_49 = cmp_lt %v_47, %v_48: m32x4
+    %v_50 = select %v_49, %whole, %v_45: f32x4
+    %v_51 = vsplat 1: f32x4
+    %v_52 = call_complex quadrantIndex(Vec(Float), Mask(Float)), %v_50, %v_51: f32x4
+    %v_53 = call_complex reducedAngle(Vec(Float), Mask(Float)), %one, %v_50: f32x4
+    %v_54 = call_complex quadrantOf(Vec(Float), Mask(Float)), %v_52, %v_53: f32x4
+    %v_55 = vlane %v_54, 0: Float
+    %v_56 = call_complex nearFloat, %v_55, 0.5403023362159729: Int
+    %v_57 = add %v_40, %v_56: Int
+    %v_58 = call_complex arcTangentOf(Vec(Float), Mask(Float)), %one: f32x4
+    %v_59 = vlane %v_58, 0: Float
+    %v_60 = call_complex nearFloat, %v_59, 0.7853981852531433: Int
+    %v_61 = add %v_57, %v_60: Int
+    %v_62 = vsplat 0.5: f32x4
+    %v_63 = mul %v_62, %v_62: f32x4
+    %v_64 = vsplat 1: f32x4
+    %square = sub %v_64, %v_63: f32x4
+    %v_65 = vsplat 0: f32x4
+    %v_66 = cmp_lt %square, %v_65: m32x4
+    %v_67 = mul %square, %v_65: f32x4
+    %v_68 = call_complex magnitudeOf(Vec(Float), Mask(Float)), %v_67: f32x4
+    %v_69 = select %v_66, %v_68, %square: f32x4
+    %v_70 = sqrt %v_69: f32x4
+    %v_71 = call_complex arcTangent2Of(Vec(Float), Mask(Float)), %v_62, %v_70: f32x4
+    %v_72 = vlane %v_71, 0: Float
+    %v_73 = call_complex nearFloat, %v_72, 0.5235987901687622: Int
+    %v_74 = add %v_61, %v_73: Int
+    %v_75 = vsplat 2: f32x4
+    %v_76 = call_complex powerOf(Vec(Float), Mask(Float)), %v_75, %ten: f32x4
+    %v_77 = vlane %v_76, 0: Float
+    %v_78 = call_complex nearFloat, %v_77, 1024: Int
+    %v_79 = add %v_74, %v_78: Int
+    %v_80 = vsplat 27: f32x4
+    %v_81 = call_complex cubeRootOf(Vec(Float), Mask(Float)), %v_80: f32x4
+    %v_82 = vlane %v_81, 0: Float
+    %v_83 = call_complex nearFloat, %v_82, 3: Int
+    %v_84 = add %v_79, %v_83: Int
+    %v_85 = vsplat 0.5: f32x4
+    %v_86 = call_complex exp2Of(Vec(Float), Mask(Float)), %v_85: f32x4
+    %v_87 = vlane %v_86, 0: Float
+    %v_88 = call_complex nearFloat, %v_87, 1.4142136573791504: Int
+    %v_89 = add %v_84, %v_88: Int
+    %v_90 = vsplat -2.5: f32x4
+    %v_91 = cast %v_90: i32x4
+    %whole = cast %v_91: f32x4
+    %v_92 = abs %v_90: f32x4
+    %v_93 = vsplat 8388608: f32x4
+    %v_94 = cmp_lt %v_92, %v_93: m32x4
+    %v_95 = select %v_94, %whole, %v_90: f32x4
+    %v_96 = cmp_gt %v_95, %v_90: m32x4
+    %v_97 = vsplat 1: f32x4
+    %v_98 = sub %v_95, %v_97: f32x4
+    %v_99 = select %v_96, %v_98, %v_95: f32x4
+    %v_100 = vlane %v_99, 0: Float
+    %v_101 = call_complex nearFloat, %v_100, -3: Int
+    %v_102 = add %v_89, %v_101: Int
+    %v_103 = vsplat 2.700000047683716: f32x4
+    %v_104 = cast %v_103: i32x4
+    %whole = cast %v_104: f32x4
+    %v_105 = abs %v_103: f32x4
+    %v_106 = vsplat 8388608: f32x4
+    %v_107 = cmp_lt %v_105, %v_106: m32x4
+    %v_108 = select %v_107, %whole, %v_103: f32x4
+    %v_109 = vlane %v_108, 0: Float
+    %v_110 = call_complex nearFloat, %v_109, 2: Int
+    %v_111 = add %v_102, %v_110: Int
+    %v_112 = vsplat 0.6366197466850281: f32x4
+    %v_113 = mul %one, %v_112: f32x4
+    %v_114 = vsplat 0.5: f32x4
+    %v_115 = call_complex signOfOther(Vec(Float), Mask(Float)), %v_114, %v_113: f32x4
+    %v_116 = add %v_113, %v_115: f32x4
+    %v_117 = cast %v_116: i32x4
+    %whole = cast %v_117: f32x4
+    %v_118 = abs %v_116: f32x4
+    %v_119 = vsplat 8388608: f32x4
+    %v_120 = cmp_lt %v_118, %v_119: m32x4
+    %v_121 = select %v_120, %whole, %v_116: f32x4
+    %v_122 = vsplat 0: f32x4
+    %v_123 = call_complex quadrantIndex(Vec(Float), Mask(Float)), %v_121, %v_122: f32x4
+    %v_124 = call_complex reducedAngle(Vec(Float), Mask(Float)), %one, %v_121: f32x4
+    %v_125 = call_complex quadrantOf(Vec(Float), Mask(Float)), %v_123, %v_124: f32x4
+    %v_126 = vreduce_add %v_125: Float
+    %v_127 = div %v_126, 4: Float
+    %v_128 = cmp_gt %v_127, 0.8414000272750854: Int
+    %v_129 = add %v_111, %v_128: Int
+    ret %v_129
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex nearDouble, 2, 2: Int
+    %v_2 = call_complex nearDouble, -2, -2: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex nearDouble, 3, 3: Int
+    %v_5 = add %v_3, %v_4: Int
+    %v_6 = call_complex nearDouble, 1, 1: Int
+    %v_7 = add %v_5, %v_6: Int
+    %v_8 = call_complex nearDouble, 1024, 1024: Int
+    %v_9 = add %v_7, %v_8: Int
+    %v_10 = call_complex nearDouble, 0.75, 0.75: Int
+    %v_11 = add %v_9, %v_10: Int
+    %v_12 = mul 8.98846567431158E307, 8.98846567431158E307: Double
+    %v_13 = cmp_gt %v_12, 1E308: Int
+    %v_14 = add %v_11, %v_13: Int
+    %v_15 = cmp_eq %v_14, 7: Int
+    %v_16 = call_complex nearDouble, 2, 2: Int
+    %v_17 = call_complex nearDouble, -3, -3: Int
+    %v_18 = add %v_16, %v_17: Int
+    %v_19 = call_complex nearDouble, 3, 3: Int
+    %v_20 = add %v_18, %v_19: Int
+    %v_21 = call_complex nearDouble, -2, -2: Int
+    %v_22 = add %v_20, %v_21: Int
+    %v_23 = call_complex nearDouble, 3, 3: Int
+    %v_24 = add %v_22, %v_23: Int
+    %v_25 = call_complex nearDouble, -3, -3: Int
+    %v_26 = add %v_24, %v_25: Int
+    %v_27 = call_complex nearDouble, 1, 1: Int
+    %v_28 = add %v_26, %v_27: Int
+    %v_29 = call_complex nearDouble, -1, -1: Int
+    %v_30 = add %v_28, %v_29: Int
+    %v_31 = cmp_eq %v_30, 8: Int
+    %v_32 = select %v_31, 2, 0: Int
+    %v_33 = add %v_15, %v_32: Int
+    %v_34 = call_complex exponentials: Int
+    %v_35 = cmp_eq %v_34, 8: Int
+    %v_36 = select %v_35, 4, 0: Int
+    %v_37 = add %v_33, %v_36: Int
+    %v_38 = call_complex logarithms: Int
+    %v_39 = cmp_eq %v_38, 6: Int
+    %v_40 = select %v_39, 8, 0: Int
+    %v_41 = add %v_37, %v_40: Int
+    %v_42 = call_complex powers: Int
+    %v_43 = cmp_eq %v_42, 9: Int
+    %v_44 = select %v_43, 16, 0: Int
+    %v_45 = add %v_41, %v_44: Int
+    %v_46 = call_complex angles: Int
+    %v_47 = cmp_eq %v_46, 16: Int
+    %v_48 = select %v_47, 32, 0: Int
+    %v_49 = add %v_45, %v_48: Int
+    %v_50 = call_complex atFloat: Int
+    %v_51 = cmp_eq %v_50, 12: Int
+    %v_52 = select %v_51, 64, 0: Int
+    %v_53 = add %v_49, %v_52: Int
+    %v_54 = call_complex atVector: Int
+    %v_55 = cmp_eq %v_54, 12: Int
+    %v_56 = select %v_55, 128, 0: Int
+    %v_57 = add %v_53, %v_56: Int
+    ret %v_57
+  }
+}
+
+Real(Float, Bool).scaleByExponent<complex>(%value: Float, %exponent: Float): Float {
+  b_0 {
+    %v_1 = imm -126: Float
+    %v_2 = cmp_ge %v_1, %exponent: Int
+    %v_3 = select %v_2, %v_1, %exponent: Float
+    %v_4 = imm 127: Float
+    %v_5 = cmp_le %v_3, %v_4: Int
+    %v_6 = select %v_5, %v_3, %v_4: Float
+    %v_7 = sub %exponent, %v_6: Float
+    %v_8 = imm -126: Float
+    %v_9 = cmp_ge %v_8, %v_7: Int
+    %v_10 = select %v_9, %v_8, %v_7: Float
+    %v_11 = imm 127: Float
+    %v_12 = cmp_le %v_10, %v_11: Int
+    %v_13 = select %v_12, %v_10, %v_11: Float
+    %v_14 = ftoi %v_6: Int
+    %v_15 = cast %v_14: Int
+    %v_16 = add %v_15, 127: Int
+    %v_17 = shl %v_16, 23: Int
+    %v_18 = bitcast %v_17: Float
+    %v_19 = mul %value, %v_18: Float
+    %v_20 = ftoi %v_13: Int
+    %v_21 = cast %v_20: Int
+    %v_22 = add %v_21, 127: Int
+    %v_23 = shl %v_22, 23: Int
+    %v_24 = bitcast %v_23: Float
+    %v_25 = mul %v_19, %v_24: Float
+    ret %v_25
+  }
+}
+
+Real(Double, Bool).scaleByExponent<complex>(%value: Double, %exponent: Double): Double {
+  b_0 {
+    %v_1 = imm -1022: Double
+    %v_2 = cmp_ge %v_1, %exponent: Int
+    %v_3 = select %v_2, %v_1, %exponent: Double
+    %v_4 = imm 1023: Double
+    %v_5 = cmp_le %v_3, %v_4: Int
+    %v_6 = select %v_5, %v_3, %v_4: Double
+    %v_7 = sub %exponent, %v_6: Double
+    %v_8 = imm -1022: Double
+    %v_9 = cmp_ge %v_8, %v_7: Int
+    %v_10 = select %v_9, %v_8, %v_7: Double
+    %v_11 = imm 1023: Double
+    %v_12 = cmp_le %v_10, %v_11: Int
+    %v_13 = select %v_12, %v_10, %v_11: Double
+    %v_14 = ftoi %v_6: Long
+    %v_15 = cast %v_14: Long
+    %v_16 = add %v_15, 1023: Long
+    %v_17 = shl %v_16, 52: Long
+    %v_18 = bitcast %v_17: Double
+    %v_19 = mul %value, %v_18: Double
+    %v_20 = ftoi %v_13: Long
+    %v_21 = cast %v_20: Long
+    %v_22 = add %v_21, 1023: Long
+    %v_23 = shl %v_22, 52: Long
+    %v_24 = bitcast %v_23: Double
+    %v_25 = mul %v_19, %v_24: Double
+    ret %v_25
+  }
+}
+
+Real(Vec(Float), Mask(Float)).scaleByExponent<complex>(%value: f32x4, %exponent: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat -126: f32x4
+    %v_2 = cmp_gt %exponent, %v_1: m32x4
+    %v_3 = select %v_2, %exponent, %v_1: f32x4
+    %v_4 = vsplat 127: f32x4
+    %v_5 = cmp_lt %v_3, %v_4: m32x4
+    %v_6 = select %v_5, %v_3, %v_4: f32x4
+    %v_7 = sub %exponent, %v_6: f32x4
+    %v_8 = cmp_gt %v_7, %v_1: m32x4
+    %v_9 = select %v_8, %v_7, %v_1: f32x4
+    %v_10 = cmp_lt %v_9, %v_4: m32x4
+    %v_11 = select %v_10, %v_9, %v_4: f32x4
+    %v_12 = cast %v_6: i32x4
+    %v_13 = vsplat 127: i32x4
+    %v_14 = add %v_12, %v_13: i32x4
+    %v_15 = vsplat 23: i32x4
+    %v_16 = shl %v_14, %v_15: i32x4
+    %v_17 = bitcast %v_16: f32x4
+    %v_18 = mul %value, %v_17: f32x4
+    %v_19 = cast %v_11: i32x4
+    %v_20 = add %v_19, %v_13: i32x4
+    %v_21 = shl %v_20, %v_15: i32x4
+    %v_22 = bitcast %v_21: f32x4
+    %v_23 = mul %v_18, %v_22: f32x4
+    ret %v_23
+  }
+}
+
+expSeries(Double, Bool)<complex>(%r: Double): Double {
+  b_0 {
+    %v_1 = mul %r, 4.779477332387385E-14: Double
+    %v_2 = add 7.647163731819816E-13, %v_1: Double
+    %v_3 = mul %r, %v_2: Double
+    %v_4 = add 1.1470745597729725E-11, %v_3: Double
+    %v_5 = mul %r, %v_4: Double
+    %v_6 = add 1.6059043836821616E-10, %v_5: Double
+    %v_7 = mul %r, %v_6: Double
+    %v_8 = add 2.08767569878681E-9, %v_7: Double
+    %v_9 = mul %r, %v_8: Double
+    %v_10 = add 2.505210838544172E-8, %v_9: Double
+    %v_11 = mul %r, %v_10: Double
+    %v_12 = add 0.00000027557319223985894, %v_11: Double
+    %v_13 = mul %r, %v_12: Double
+    %v_14 = add 0.0000027557319223985893, %v_13: Double
+    %v_15 = mul %r, %v_14: Double
+    %v_16 = add 0.0000248015873015873, %v_15: Double
+    %v_17 = mul %r, %v_16: Double
+    %v_18 = add 0.0001984126984126984, %v_17: Double
+    %v_19 = mul %r, %v_18: Double
+    %v_20 = add 0.001388888888888889, %v_19: Double
+    %v_21 = mul %r, %v_20: Double
+    %v_22 = add 0.008333333333333333, %v_21: Double
+    %v_23 = mul %r, %v_22: Double
+    %v_24 = add 0.041666666666666664, %v_23: Double
+    %v_25 = mul %r, %v_24: Double
+    %v_26 = add 0.16666666666666666, %v_25: Double
+    %v_27 = mul %r, %v_26: Double
+    %tail = add 0.5, %v_27: Double
+    %v_28 = add 1, %r: Double
+    %v_29 = mul %r, %r: Double
+    %v_30 = mul %v_29, %tail: Double
+    %v_31 = add %v_28, %v_30: Double
+    ret %v_31
+  }
+}
+
+exp2Of(Double, Bool)<complex>(%value: Double): Double {
+  b_0 {
+    %v_1 = cmp_lt %value, 0: Int
+    %v_2 = select %v_1, -0.5, 0.5: Double
+    %v_3 = add %value, %v_2: Double
+    %v_4 = ftoi %v_3: Long
+    %whole = itof %v_4: Double
+    %v_5 = cmp_le %v_3, 0: Int
+    %v_6 = sub 0, %v_3: Double
+    %v_7 = select %v_5, %v_6, %v_3: Double
+    %v_8 = cmp_lt %v_7, 4.503599627370496E15: Int
+    %v_9 = select %v_8, %whole, %v_3: Double
+    %f = sub %value, %v_9: Double
+    %v_10 = mul %f, 0.693115234375: Double
+    %v_11 = mul %f, 0.000031946184945309415: Double
+    %r = add %v_10, %v_11: Double
+    %v_12 = call_complex expSeries(Double, Bool), %r: Double
+    %core = call_complex Real(Double, Bool).scaleByExponent, %v_12, %v_9: Double
+    %v_13 = cmp_le %value, 0: Int
+    %v_14 = sub 0, %value: Double
+    %v_15 = select %v_13, %v_14, %value: Double
+    %v_16 = cmp_gt %v_15, 1200: Int
+    %v_17 = cmp_gt %value, 0: Int
+    %v_18 = bitcast 9218868437227405312: Double
+    %v_19 = mul %value, 0: Double
+    %v_20 = cmp_le %v_19, 0: Int
+    %v_21 = sub 0, %v_19: Double
+    %v_22 = select %v_20, %v_21, %v_19: Double
+    %v_23 = select %v_17, %v_18, %v_22: Double
+    %v_24 = select %v_16, %v_23, %core: Double
+    ret %v_24
+  }
+}
+
+logSeries(Double, Bool)<complex>(%significand: Double): Double {
+  b_0 {
+    %v_1 = sub %significand, 1: Double
+    %v_2 = add %significand, 1: Double
+    %s = div %v_1, %v_2: Double
+    %z = mul %s, %s: Double
+    %v_3 = mul %z, 0.04: Double
+    %v_4 = add 0.043478260869565216, %v_3: Double
+    %v_5 = mul %z, %v_4: Double
+    %v_6 = add 0.047619047619047616, %v_5: Double
+    %v_7 = mul %z, %v_6: Double
+    %v_8 = add 0.05263157894736842, %v_7: Double
+    %v_9 = mul %z, %v_8: Double
+    %v_10 = add 0.058823529411764705, %v_9: Double
+    %v_11 = mul %z, %v_10: Double
+    %v_12 = add 0.06666666666666667, %v_11: Double
+    %v_13 = mul %z, %v_12: Double
+    %v_14 = add 0.07692307692307693, %v_13: Double
+    %v_15 = mul %z, %v_14: Double
+    %v_16 = add 0.09090909090909091, %v_15: Double
+    %v_17 = mul %z, %v_16: Double
+    %v_18 = add 0.1111111111111111, %v_17: Double
+    %v_19 = mul %z, %v_18: Double
+    %v_20 = add 0.14285714285714285, %v_19: Double
+    %v_21 = mul %z, %v_20: Double
+    %v_22 = add 0.2, %v_21: Double
+    %v_23 = mul %z, %v_22: Double
+    %tail = add 0.3333333333333333, %v_23: Double
+    %v_24 = add %s, %s: Double
+    %v_25 = mul %v_24, %z: Double
+    %v_26 = mul %v_25, %tail: Double
+    %v_27 = add %v_24, %v_26: Double
+    ret %v_27
+  }
+}
+
+logGuard(Double, Bool)<complex>(%value: Double, %answer: Double): Double {
+  b_0 {
+    %v_1 = bitcast 9218868437227405312: Double
+    %atZero = sub %value, %v_1: Double
+    %v_2 = cmp_gt %value, 0: Int
+    %v_3 = cmp_eq %value, 0: Int
+    %v_4 = mul %value, 0: Double
+    %v_5 = cmp_le %v_4, 0: Int
+    %v_6 = sub 0, %v_4: Double
+    %v_7 = select %v_5, %v_6, %v_4: Double
+    %v_8 = mul %v_7, %v_1: Double
+    %v_9 = select %v_3, %atZero, %v_8: Double
+    %v_10 = select %v_2, %answer, %v_9: Double
+    ret %v_10
+  }
+}
+
+quadrantOf(Double, Bool)<complex>(%quadrant: Double, %r: Double): Double {
+  b_0 {
+    %z = mul %r, %r: Double
+    %v_1 = mul %r, %z: Double
+    %v_2 = mul %z, 1.957294106339126E-20: Double
+    %v_3 = sub 8.22063524662433E-18, %v_2: Double
+    %v_4 = mul %z, %v_3: Double
+    %v_5 = sub 2.811457254345521E-15, %v_4: Double
+    %v_6 = mul %z, %v_5: Double
+    %v_7 = sub 7.647163731819816E-13, %v_6: Double
+    %v_8 = mul %z, %v_7: Double
+    %v_9 = sub 1.6059043836821616E-10, %v_8: Double
+    %v_10 = mul %z, %v_9: Double
+    %v_11 = sub 2.505210838544172E-8, %v_10: Double
+    %v_12 = mul %z, %v_11: Double
+    %v_13 = sub 0.0000027557319223985893, %v_12: Double
+    %v_14 = mul %z, %v_13: Double
+    %v_15 = sub 0.0001984126984126984, %v_14: Double
+    %v_16 = mul %z, %v_15: Double
+    %v_17 = sub 0.008333333333333333, %v_16: Double
+    %v_18 = mul %z, %v_17: Double
+    %v_19 = sub 0.16666666666666666, %v_18: Double
+    %v_20 = mul %v_1, %v_19: Double
+    %sine = sub %r, %v_20: Double
+    %v_21 = mul 0.5, %z: Double
+    %v_22 = sub 1, %v_21: Double
+    %v_23 = mul %z, %z: Double
+    %v_24 = mul %z, 4.110317623312165E-19: Double
+    %v_25 = sub 1.5619206968586225E-16, %v_24: Double
+    %v_26 = mul %z, %v_25: Double
+    %v_27 = sub 4.779477332387385E-14, %v_26: Double
+    %v_28 = mul %z, %v_27: Double
+    %v_29 = sub 1.1470745597729725E-11, %v_28: Double
+    %v_30 = mul %z, %v_29: Double
+    %v_31 = sub 2.08767569878681E-9, %v_30: Double
+    %v_32 = mul %z, %v_31: Double
+    %v_33 = sub 0.00000027557319223985894, %v_32: Double
+    %v_34 = mul %z, %v_33: Double
+    %v_35 = sub 0.0000248015873015873, %v_34: Double
+    %v_36 = mul %z, %v_35: Double
+    %v_37 = sub 0.001388888888888889, %v_36: Double
+    %v_38 = mul %z, %v_37: Double
+    %v_39 = sub 0.041666666666666664, %v_38: Double
+    %v_40 = mul %v_23, %v_39: Double
+    %cosine = add %v_22, %v_40: Double
+    %v_41 = cmp_eq %quadrant, 2: Int
+    %v_42 = sub 0, %sine: Double
+    %v_43 = sub 0, %cosine: Double
+    %upper = select %v_41, %v_42, %v_43: Double
+    %v_44 = cmp_eq %quadrant, 0: Int
+    %v_45 = cmp_eq %quadrant, 1: Int
+    %v_46 = select %v_45, %cosine, %upper: Double
+    %v_47 = select %v_44, %sine, %v_46: Double
+    ret %v_47
+  }
+}
+
+arcTangentOf(Double, Bool)<complex>(%value: Double): Double {
+  b_0 {
+    %v_1 = cmp_le %value, 0: Int
+    %v_2 = sub 0, %value: Double
+    %v_3 = select %v_1, %v_2, %value: Double
+    %v_4 = cmp_gt %v_3, 1: Int
+    %v_5 = div 1, %v_3: Double
+    %folded = select %v_4, %v_5, %v_3: Double
+    %steep = cmp_gt %folded, 0.2679491924311227: Int
+    %v_6 = mul %folded, 1.7320508075688772: Double
+    %v_7 = sub %v_6, 1: Double
+    %v_8 = add %folded, 1.7320508075688772: Double
+    %reduced = div %v_7, %v_8: Double
+    %v_9 = mul %value, 0: Double
+    %v_10 = cmp_le %v_9, 0: Int
+    %v_11 = sub 0, %v_9: Double
+    %v_12 = select %v_10, %v_11, %v_9: Double
+    %base = select %steep, 0.5235987755982988, %v_12: Double
+    %v_13 = select %steep, %reduced, %folded: Double
+    %z = mul %v_13, %v_13: Double
+    %v_14 = mul %v_13, %z: Double
+    %v_15 = call_complex arcTangentSeries(Double, Bool), %z: Double
+    %v_16 = mul %v_14, %v_15: Double
+    %v_17 = sub %v_13, %v_16: Double
+    %core = add %base, %v_17: Double
+    %v_18 = sub 1.5707963267948966, %core: Double
+    %whole = select %v_4, %v_18, %core: Double
+    %v_19 = cmp_lt %value, 0: Int
+    %v_20 = sub 0, %whole: Double
+    %v_21 = select %v_19, %v_20, %whole: Double
+    ret %v_21
+  }
+}
+
+arcTangentSeries(Double, Bool)<complex>(%z: Double): Double {
+  b_0 {
+    %v_1 = mul %z, 0.02857142857142857: Double
+    %v_2 = sub 0.030303030303030304, %v_1: Double
+    %v_3 = mul %z, %v_2: Double
+    %v_4 = sub 0.03225806451612903, %v_3: Double
+    %v_5 = mul %z, %v_4: Double
+    %v_6 = sub 0.034482758620689655, %v_5: Double
+    %v_7 = mul %z, %v_6: Double
+    %v_8 = sub 0.037037037037037035, %v_7: Double
+    %v_9 = mul %z, %v_8: Double
+    %v_10 = sub 0.04, %v_9: Double
+    %v_11 = mul %z, %v_10: Double
+    %v_12 = sub 0.043478260869565216, %v_11: Double
+    %v_13 = mul %z, %v_12: Double
+    %v_14 = sub 0.047619047619047616, %v_13: Double
+    %v_15 = mul %z, %v_14: Double
+    %v_16 = sub 0.05263157894736842, %v_15: Double
+    %v_17 = mul %z, %v_16: Double
+    %v_18 = sub 0.058823529411764705, %v_17: Double
+    %v_19 = mul %z, %v_18: Double
+    %v_20 = sub 0.06666666666666667, %v_19: Double
+    %v_21 = mul %z, %v_20: Double
+    %v_22 = sub 0.07692307692307693, %v_21: Double
+    %v_23 = mul %z, %v_22: Double
+    %v_24 = sub 0.09090909090909091, %v_23: Double
+    %v_25 = mul %z, %v_24: Double
+    %v_26 = sub 0.1111111111111111, %v_25: Double
+    %v_27 = mul %z, %v_26: Double
+    %v_28 = sub 0.14285714285714285, %v_27: Double
+    %v_29 = mul %z, %v_28: Double
+    %v_30 = sub 0.2, %v_29: Double
+    %v_31 = mul %z, %v_30: Double
+    %v_32 = sub 0.3333333333333333, %v_31: Double
+    ret %v_32
+  }
+}
+
+arcTangent2Of(Double, Bool)<complex>(%y: Double, %x: Double): Double {
+  b_0 {
+    %v_1 = div %y, %x: Double
+    %base = call_complex arcTangentOf(Double, Bool), %v_1: Double
+    %v_2 = cmp_lt %y, 0: Int
+    %v_3 = sub %base, 3.141592653589793: Double
+    %v_4 = add %base, 3.141592653589793: Double
+    %shifted = select %v_2, %v_3, %v_4: Double
+    %v_5 = cmp_lt %x, 0: Int
+    %general = select %v_5, %shifted, %base: Double
+    %v_6 = cmp_eq %y, 0: Int
+    %v_7 = mul %y, 0: Double
+    %v_8 = cmp_le %v_7, 0: Int
+    %v_9 = sub 0, %v_7: Double
+    %v_10 = select %v_8, %v_9, %v_7: Double
+    %v_11 = select %v_2, -1.5707963267948966, 1.5707963267948966: Double
+    %vertical = select %v_6, %v_10, %v_11: Double
+    %v_12 = cmp_eq %x, 0: Int
+    %v_13 = select %v_12, %vertical, %general: Double
+    ret %v_13
+  }
+}
+
+expSeries(Float, Bool)<complex>(%r: Float): Float {
+  b_0 {
+    %v_1 = mul %r, 4.7794772561329454E-14: Float
+    %v_2 = add 7.647163609812713E-13, %v_1: Float
+    %v_3 = mul %r, %v_2: Float
+    %v_4 = add 1.147074536050896E-11, %v_3: Float
+    %v_5 = mul %r, %v_4: Float
+    %v_6 = add 1.6059044372074283E-10, %v_5: Float
+    %v_7 = mul %r, %v_6: Float
+    %v_8 = add 2.0876755879584152E-9, %v_7: Float
+    %v_9 = mul %r, %v_8: Float
+    %v_10 = add 2.5052107943679403E-8, %v_9: Float
+    %v_11 = mul %r, %v_10: Float
+    %v_12 = add 0.0000002755731998149713, %v_11: Float
+    %v_13 = mul %r, %v_12: Float
+    %v_14 = add 0.0000027557318844628753, %v_13: Float
+    %v_15 = mul %r, %v_14: Float
+    %v_16 = add 0.000024801587642286904, %v_15: Float
+    %v_17 = mul %r, %v_16: Float
+    %v_18 = add 0.00019841270113829523, %v_17: Float
+    %v_19 = mul %r, %v_18: Float
+    %v_20 = add 0.0013888889225199819, %v_19: Float
+    %v_21 = mul %r, %v_20: Float
+    %v_22 = add 0.008333333767950535, %v_21: Float
+    %v_23 = mul %r, %v_22: Float
+    %v_24 = add 0.0416666679084301, %v_23: Float
+    %v_25 = mul %r, %v_24: Float
+    %v_26 = add 0.1666666716337204, %v_25: Float
+    %v_27 = mul %r, %v_26: Float
+    %tail = add 0.5, %v_27: Float
+    %v_28 = add 1, %r: Float
+    %v_29 = mul %r, %r: Float
+    %v_30 = mul %v_29, %tail: Float
+    %v_31 = add %v_28, %v_30: Float
+    ret %v_31
+  }
+}
+
+logSeries(Float, Bool)<complex>(%significand: Float): Float {
+  b_0 {
+    %v_1 = sub %significand, 1: Float
+    %v_2 = add %significand, 1: Float
+    %s = div %v_1, %v_2: Float
+    %z = mul %s, %s: Float
+    %v_3 = mul %z, 0.03999999910593033: Float
+    %v_4 = add 0.043478261679410934, %v_3: Float
+    %v_5 = mul %z, %v_4: Float
+    %v_6 = add 0.0476190485060215, %v_5: Float
+    %v_7 = mul %z, %v_6: Float
+    %v_8 = add 0.05263157933950424, %v_7: Float
+    %v_9 = mul %z, %v_8: Float
+    %v_10 = add 0.05882352963089943, %v_9: Float
+    %v_11 = mul %z, %v_10: Float
+    %v_12 = add 0.06666667014360428, %v_11: Float
+    %v_13 = mul %z, %v_12: Float
+    %v_14 = add 0.07692307978868484, %v_13: Float
+    %v_15 = mul %z, %v_14: Float
+    %v_16 = add 0.09090909361839294, %v_15: Float
+    %v_17 = mul %z, %v_16: Float
+    %v_18 = add 0.1111111119389534, %v_17: Float
+    %v_19 = mul %z, %v_18: Float
+    %v_20 = add 0.1428571492433548, %v_19: Float
+    %v_21 = mul %z, %v_20: Float
+    %v_22 = add 0.20000000298023224, %v_21: Float
+    %v_23 = mul %z, %v_22: Float
+    %tail = add 0.3333333432674408, %v_23: Float
+    %v_24 = add %s, %s: Float
+    %v_25 = mul %v_24, %z: Float
+    %v_26 = mul %v_25, %tail: Float
+    %v_27 = add %v_24, %v_26: Float
+    ret %v_27
+  }
+}
+
+logGuard(Float, Bool)<complex>(%value: Float, %answer: Float): Float {
+  b_0 {
+    %v_1 = bitcast 2139095040: Float
+    %atZero = sub %value, %v_1: Float
+    %v_2 = cmp_gt %value, 0: Int
+    %v_3 = cmp_eq %value, 0: Int
+    %v_4 = mul %value, 0: Float
+    %v_5 = cmp_le %v_4, 0: Int
+    %v_6 = sub 0, %v_4: Float
+    %v_7 = select %v_5, %v_6, %v_4: Float
+    %v_8 = mul %v_7, %v_1: Float
+    %v_9 = select %v_3, %atZero, %v_8: Float
+    %v_10 = select %v_2, %answer, %v_9: Float
+    ret %v_10
+  }
+}
+
+quadrantOf(Float, Bool)<complex>(%quadrant: Float, %r: Float): Float {
+  b_0 {
+    %z = mul %r, %r: Float
+    %v_1 = mul %r, %z: Float
+    %v_2 = mul %z, 1.9572941524685808E-20: Float
+    %v_3 = sub 8.220635078476521E-18, %v_2: Float
+    %v_4 = mul %z, %v_3: Float
+    %v_5 = sub 2.8114573589663704E-15, %v_4: Float
+    %v_6 = mul %z, %v_5: Float
+    %v_7 = sub 7.647163609812713E-13, %v_6: Float
+    %v_8 = mul %z, %v_7: Float
+    %v_9 = sub 1.6059044372074283E-10, %v_8: Float
+    %v_10 = mul %z, %v_9: Float
+    %v_11 = sub 2.5052107943679403E-8, %v_10: Float
+    %v_12 = mul %z, %v_11: Float
+    %v_13 = sub 0.0000027557318844628753, %v_12: Float
+    %v_14 = mul %z, %v_13: Float
+    %v_15 = sub 0.00019841270113829523, %v_14: Float
+    %v_16 = mul %z, %v_15: Float
+    %v_17 = sub 0.008333333767950535, %v_16: Float
+    %v_18 = mul %z, %v_17: Float
+    %v_19 = sub 0.1666666716337204, %v_18: Float
+    %v_20 = mul %v_1, %v_19: Float
+    %sine = sub %r, %v_20: Float
+    %v_21 = mul 0.5, %z: Float
+    %v_22 = sub 1, %v_21: Float
+    %v_23 = mul %z, %z: Float
+    %v_24 = mul %z, 4.110317590937049E-19: Float
+    %v_25 = sub 1.5619206814541513E-16, %v_24: Float
+    %v_26 = mul %z, %v_25: Float
+    %v_27 = sub 4.7794772561329454E-14, %v_26: Float
+    %v_28 = mul %z, %v_27: Float
+    %v_29 = sub 1.147074536050896E-11, %v_28: Float
+    %v_30 = mul %z, %v_29: Float
+    %v_31 = sub 2.0876755879584152E-9, %v_30: Float
+    %v_32 = mul %z, %v_31: Float
+    %v_33 = sub 0.0000002755731998149713, %v_32: Float
+    %v_34 = mul %z, %v_33: Float
+    %v_35 = sub 0.000024801587642286904, %v_34: Float
+    %v_36 = mul %z, %v_35: Float
+    %v_37 = sub 0.0013888889225199819, %v_36: Float
+    %v_38 = mul %z, %v_37: Float
+    %v_39 = sub 0.0416666679084301, %v_38: Float
+    %v_40 = mul %v_23, %v_39: Float
+    %cosine = add %v_22, %v_40: Float
+    %v_41 = cmp_eq %quadrant, 2: Int
+    %v_42 = sub 0, %sine: Float
+    %v_43 = sub 0, %cosine: Float
+    %upper = select %v_41, %v_42, %v_43: Float
+    %v_44 = cmp_eq %quadrant, 0: Int
+    %v_45 = cmp_eq %quadrant, 1: Int
+    %v_46 = select %v_45, %cosine, %upper: Float
+    %v_47 = select %v_44, %sine, %v_46: Float
+    ret %v_47
+  }
+}
+
+arcTangentOf(Float, Bool)<complex>(%value: Float): Float {
+  b_0 {
+    %v_1 = cmp_le %value, 0: Int
+    %v_2 = sub 0, %value: Float
+    %v_3 = select %v_1, %v_2, %value: Float
+    %v_4 = cmp_gt %v_3, 1: Int
+    %v_5 = div 1, %v_3: Float
+    %folded = select %v_4, %v_5, %v_3: Float
+    %steep = cmp_gt %folded, 0.2679491937160492: Int
+    %v_6 = mul %folded, 1.7320507764816284: Float
+    %v_7 = sub %v_6, 1: Float
+    %v_8 = add %folded, 1.7320507764816284: Float
+    %reduced = div %v_7, %v_8: Float
+    %v_9 = mul %value, 0: Float
+    %v_10 = cmp_le %v_9, 0: Int
+    %v_11 = sub 0, %v_9: Float
+    %v_12 = select %v_10, %v_11, %v_9: Float
+    %base = select %steep, 0.5235987901687622, %v_12: Float
+    %v_13 = select %steep, %reduced, %folded: Float
+    %z = mul %v_13, %v_13: Float
+    %v_14 = mul %v_13, %z: Float
+    %v_15 = call_complex arcTangentSeries(Float, Bool), %z: Float
+    %v_16 = mul %v_14, %v_15: Float
+    %v_17 = sub %v_13, %v_16: Float
+    %core = add %base, %v_17: Float
+    %v_18 = sub 1.5707963705062866, %core: Float
+    %whole = select %v_4, %v_18, %core: Float
+    %v_19 = cmp_lt %value, 0: Int
+    %v_20 = sub 0, %whole: Float
+    %v_21 = select %v_19, %v_20, %whole: Float
+    ret %v_21
+  }
+}
+
+arcTangentSeries(Float, Bool)<complex>(%z: Float): Float {
+  b_0 {
+    %v_1 = mul %z, 0.02857142873108387: Float
+    %v_2 = sub 0.03030303120613098, %v_1: Float
+    %v_3 = mul %z, %v_2: Float
+    %v_4 = sub 0.032258063554763794, %v_3: Float
+    %v_5 = mul %z, %v_4: Float
+    %v_6 = sub 0.03448275849223137, %v_5: Float
+    %v_7 = mul %z, %v_6: Float
+    %v_8 = sub 0.03703703731298447, %v_7: Float
+    %v_9 = mul %z, %v_8: Float
+    %v_10 = sub 0.03999999910593033, %v_9: Float
+    %v_11 = mul %z, %v_10: Float
+    %v_12 = sub 0.043478261679410934, %v_11: Float
+    %v_13 = mul %z, %v_12: Float
+    %v_14 = sub 0.0476190485060215, %v_13: Float
+    %v_15 = mul %z, %v_14: Float
+    %v_16 = sub 0.05263157933950424, %v_15: Float
+    %v_17 = mul %z, %v_16: Float
+    %v_18 = sub 0.05882352963089943, %v_17: Float
+    %v_19 = mul %z, %v_18: Float
+    %v_20 = sub 0.06666667014360428, %v_19: Float
+    %v_21 = mul %z, %v_20: Float
+    %v_22 = sub 0.07692307978868484, %v_21: Float
+    %v_23 = mul %z, %v_22: Float
+    %v_24 = sub 0.09090909361839294, %v_23: Float
+    %v_25 = mul %z, %v_24: Float
+    %v_26 = sub 0.1111111119389534, %v_25: Float
+    %v_27 = mul %z, %v_26: Float
+    %v_28 = sub 0.1428571492433548, %v_27: Float
+    %v_29 = mul %z, %v_28: Float
+    %v_30 = sub 0.20000000298023224, %v_29: Float
+    %v_31 = mul %z, %v_30: Float
+    %v_32 = sub 0.3333333432674408, %v_31: Float
+    ret %v_32
+  }
+}
+
+exp2Of(Float, Bool)<complex>(%value: Float): Float {
+  b_0 {
+    %v_1 = cmp_lt %value, 0: Int
+    %v_2 = select %v_1, -0.5, 0.5: Float
+    %v_3 = add %value, %v_2: Float
+    %v_4 = ftoi %v_3: Int
+    %whole = itof %v_4: Float
+    %v_5 = cmp_le %v_3, 0: Int
+    %v_6 = sub 0, %v_3: Float
+    %v_7 = select %v_5, %v_6, %v_3: Float
+    %v_8 = cmp_lt %v_7, 8388608: Int
+    %v_9 = select %v_8, %whole, %v_3: Float
+    %f = sub %value, %v_9: Float
+    %v_10 = mul %f, 0.693115234375: Float
+    %v_11 = mul %f, 0.00003194618329871446: Float
+    %r = add %v_10, %v_11: Float
+    %v_12 = call_complex expSeries(Float, Bool), %r: Float
+    %core = call_complex Real(Float, Bool).scaleByExponent, %v_12, %v_9: Float
+    %v_13 = cmp_le %value, 0: Int
+    %v_14 = sub 0, %value: Float
+    %v_15 = select %v_13, %v_14, %value: Float
+    %v_16 = cmp_gt %v_15, 1200: Int
+    %v_17 = cmp_gt %value, 0: Int
+    %v_18 = bitcast 2139095040: Float
+    %v_19 = mul %value, 0: Float
+    %v_20 = cmp_le %v_19, 0: Int
+    %v_21 = sub 0, %v_19: Float
+    %v_22 = select %v_20, %v_21, %v_19: Float
+    %v_23 = select %v_17, %v_18, %v_22: Float
+    %v_24 = select %v_16, %v_23, %core: Float
+    ret %v_24
+  }
+}
+
+expOf(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 1.4426950216293335: f32x4
+    %v_2 = mul %value, %v_1: f32x4
+    %v_3 = vsplat 0.5: f32x4
+    %v_4 = call_complex signOfOther(Vec(Float), Mask(Float)), %v_3, %v_2: f32x4
+    %v_5 = add %v_2, %v_4: f32x4
+    %v_6 = cast %v_5: i32x4
+    %whole = cast %v_6: f32x4
+    %v_7 = abs %v_5: f32x4
+    %v_8 = vsplat 8388608: f32x4
+    %v_9 = cmp_lt %v_7, %v_8: m32x4
+    %v_10 = select %v_9, %whole, %v_5: f32x4
+    %v_11 = vsplat 0.693115234375: f32x4
+    %v_12 = mul %v_10, %v_11: f32x4
+    %v_13 = sub %value, %v_12: f32x4
+    %v_14 = vsplat 0.000031948089599609375: f32x4
+    %v_15 = mul %v_10, %v_14: f32x4
+    %v_16 = sub %v_13, %v_15: f32x4
+    %v_17 = vsplat 1.9044819055125117E-9: f32x4
+    %v_18 = mul %v_10, %v_17: f32x4
+    %v_19 = add %v_16, %v_18: f32x4
+    %v_20 = vsplat 1.724176357242868E-13: f32x4
+    %v_21 = mul %v_10, %v_20: f32x4
+    %v_22 = add %v_19, %v_21: f32x4
+    %v_23 = vsplat 2.3188373964033726E-17: f32x4
+    %v_24 = mul %v_10, %v_23: f32x4
+    %v_25 = sub %v_22, %v_24: f32x4
+    %v_26 = vsplat 2.094421310984266E-21: f32x4
+    %v_27 = mul %v_10, %v_26: f32x4
+    %r = sub %v_25, %v_27: f32x4
+    %v_28 = call_complex expSeries(Vec(Float), Mask(Float)), %r: f32x4
+    %core = call_complex Real(Vec(Float), Mask(Float)).scaleByExponent, %v_28, %v_10: f32x4
+    %v_29 = call_complex magnitudeOf(Vec(Float), Mask(Float)), %value: f32x4
+    %v_30 = vsplat 800: f32x4
+    %v_31 = cmp_gt %v_29, %v_30: m32x4
+    %v_32 = vsplat 0: f32x4
+    %v_33 = cmp_gt %value, %v_32: m32x4
+    %v_34 = vsplat 2139095040: i32x4
+    %v_35 = bitcast %v_34: f32x4
+    %v_36 = mul %value, %v_32: f32x4
+    %v_37 = call_complex magnitudeOf(Vec(Float), Mask(Float)), %v_36: f32x4
+    %v_38 = select %v_33, %v_35, %v_37: f32x4
+    %v_39 = select %v_31, %v_38, %core: f32x4
+    ret %v_39
+  }
+}
+
+signOfOther(Vec(Float), Mask(Float))<complex>(%size: f32x4, %like: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 0: f32x4
+    %v_2 = cmp_lt %like, %v_1: m32x4
+    %v_3 = call_complex magnitudeOf(Vec(Float), Mask(Float)), %size: f32x4
+    %v_4 = vsplat 0: f32x4
+    %v_5 = sub %v_4, %v_3: f32x4
+    %v_6 = call_complex magnitudeOf(Vec(Float), Mask(Float)), %size: f32x4
+    %v_7 = select %v_2, %v_5, %v_6: f32x4
+    ret %v_7
+  }
+}
+
+magnitudeOf(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 0: f32x4
+    %v_2 = cmp_le %value, %v_1: m32x4
+    %v_3 = sub %v_1, %value: f32x4
+    %v_4 = select %v_2, %v_3, %value: f32x4
+    ret %v_4
+  }
+}
+
+expSeries(Vec(Float), Mask(Float))<complex>(%r: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 4.7794772561329454E-14: f32x4
+    %v_2 = mul %r, %v_1: f32x4
+    %v_3 = vsplat 7.647163609812713E-13: f32x4
+    %v_4 = add %v_3, %v_2: f32x4
+    %v_5 = mul %r, %v_4: f32x4
+    %v_6 = vsplat 1.147074536050896E-11: f32x4
+    %v_7 = add %v_6, %v_5: f32x4
+    %v_8 = mul %r, %v_7: f32x4
+    %v_9 = vsplat 1.6059044372074283E-10: f32x4
+    %v_10 = add %v_9, %v_8: f32x4
+    %v_11 = mul %r, %v_10: f32x4
+    %v_12 = vsplat 2.0876755879584152E-9: f32x4
+    %v_13 = add %v_12, %v_11: f32x4
+    %v_14 = mul %r, %v_13: f32x4
+    %v_15 = vsplat 2.5052107943679403E-8: f32x4
+    %v_16 = add %v_15, %v_14: f32x4
+    %v_17 = mul %r, %v_16: f32x4
+    %v_18 = vsplat 0.0000002755731998149713: f32x4
+    %v_19 = add %v_18, %v_17: f32x4
+    %v_20 = mul %r, %v_19: f32x4
+    %v_21 = vsplat 0.0000027557318844628753: f32x4
+    %v_22 = add %v_21, %v_20: f32x4
+    %v_23 = mul %r, %v_22: f32x4
+    %v_24 = vsplat 0.000024801587642286904: f32x4
+    %v_25 = add %v_24, %v_23: f32x4
+    %v_26 = mul %r, %v_25: f32x4
+    %v_27 = vsplat 0.00019841270113829523: f32x4
+    %v_28 = add %v_27, %v_26: f32x4
+    %v_29 = mul %r, %v_28: f32x4
+    %v_30 = vsplat 0.0013888889225199819: f32x4
+    %v_31 = add %v_30, %v_29: f32x4
+    %v_32 = mul %r, %v_31: f32x4
+    %v_33 = vsplat 0.008333333767950535: f32x4
+    %v_34 = add %v_33, %v_32: f32x4
+    %v_35 = mul %r, %v_34: f32x4
+    %v_36 = vsplat 0.0416666679084301: f32x4
+    %v_37 = add %v_36, %v_35: f32x4
+    %v_38 = mul %r, %v_37: f32x4
+    %v_39 = vsplat 0.1666666716337204: f32x4
+    %v_40 = add %v_39, %v_38: f32x4
+    %v_41 = mul %r, %v_40: f32x4
+    %v_42 = vsplat 0.5: f32x4
+    %tail = add %v_42, %v_41: f32x4
+    %v_43 = vsplat 1: f32x4
+    %v_44 = add %v_43, %r: f32x4
+    %v_45 = mul %r, %r: f32x4
+    %v_46 = mul %v_45, %tail: f32x4
+    %v_47 = add %v_44, %v_46: f32x4
+    ret %v_47
+  }
+}
+
+zeroLike(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 0: f32x4
+    %v_2 = mul %value, %v_1: f32x4
+    %v_3 = cmp_le %v_2, %v_1: m32x4
+    %v_4 = sub %v_1, %v_2: f32x4
+    %v_5 = select %v_3, %v_4, %v_2: f32x4
+    ret %v_5
+  }
+}
+
+logExponent(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %bits = bitcast %value: i32x4
+    %v_1 = vsplat 23: i32x4
+    %v_2 = shr %bits, %v_1: i32x4
+    %v_3 = vsplat 255: i32x4
+    %v_4 = and %v_2, %v_3: i32x4
+    %v_5 = cast %v_4: f32x4
+    %v_6 = vsplat 127: f32x4
+    %v_7 = sub %v_5, %v_6: f32x4
+    %v_8 = vsplat 8388607: i32x4
+    %v_9 = and %bits, %v_8: i32x4
+    %v_10 = vsplat 1065353216: i32x4
+    %v_11 = or %v_9, %v_10: i32x4
+    %v_12 = bitcast %v_11: f32x4
+    %v_13 = vsplat 1.4142135381698608: f32x4
+    %v_14 = cmp_gt %v_12, %v_13: m32x4
+    %v_15 = vsplat 1: f32x4
+    %v_16 = add %v_7, %v_15: f32x4
+    %v_17 = select %v_14, %v_16, %v_7: f32x4
+    ret %v_17
+  }
+}
+
+logSeries(Vec(Float), Mask(Float))<complex>(%significand: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 1: f32x4
+    %v_2 = sub %significand, %v_1: f32x4
+    %v_3 = add %significand, %v_1: f32x4
+    %s = div %v_2, %v_3: f32x4
+    %z = mul %s, %s: f32x4
+    %v_4 = vsplat 0.03999999910593033: f32x4
+    %v_5 = mul %z, %v_4: f32x4
+    %v_6 = vsplat 0.043478261679410934: f32x4
+    %v_7 = add %v_6, %v_5: f32x4
+    %v_8 = mul %z, %v_7: f32x4
+    %v_9 = vsplat 0.0476190485060215: f32x4
+    %v_10 = add %v_9, %v_8: f32x4
+    %v_11 = mul %z, %v_10: f32x4
+    %v_12 = vsplat 0.05263157933950424: f32x4
+    %v_13 = add %v_12, %v_11: f32x4
+    %v_14 = mul %z, %v_13: f32x4
+    %v_15 = vsplat 0.05882352963089943: f32x4
+    %v_16 = add %v_15, %v_14: f32x4
+    %v_17 = mul %z, %v_16: f32x4
+    %v_18 = vsplat 0.06666667014360428: f32x4
+    %v_19 = add %v_18, %v_17: f32x4
+    %v_20 = mul %z, %v_19: f32x4
+    %v_21 = vsplat 0.07692307978868484: f32x4
+    %v_22 = add %v_21, %v_20: f32x4
+    %v_23 = mul %z, %v_22: f32x4
+    %v_24 = vsplat 0.09090909361839294: f32x4
+    %v_25 = add %v_24, %v_23: f32x4
+    %v_26 = mul %z, %v_25: f32x4
+    %v_27 = vsplat 0.1111111119389534: f32x4
+    %v_28 = add %v_27, %v_26: f32x4
+    %v_29 = mul %z, %v_28: f32x4
+    %v_30 = vsplat 0.1428571492433548: f32x4
+    %v_31 = add %v_30, %v_29: f32x4
+    %v_32 = mul %z, %v_31: f32x4
+    %v_33 = vsplat 0.20000000298023224: f32x4
+    %v_34 = add %v_33, %v_32: f32x4
+    %v_35 = mul %z, %v_34: f32x4
+    %v_36 = vsplat 0.3333333432674408: f32x4
+    %tail = add %v_36, %v_35: f32x4
+    %v_37 = vsplat 2: f32x4
+    %v_38 = mul %v_37, %s: f32x4
+    %v_39 = mul %v_38, %z: f32x4
+    %v_40 = mul %v_39, %tail: f32x4
+    %v_41 = add %v_38, %v_40: f32x4
+    ret %v_41
+  }
+}
+
+logGuard(Vec(Float), Mask(Float))<complex>(%value: f32x4, %answer: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 2139095040: i32x4
+    %v_2 = bitcast %v_1: f32x4
+    %atZero = sub %value, %v_2: f32x4
+    %v_3 = vsplat 0: f32x4
+    %v_4 = cmp_gt %value, %v_3: m32x4
+    %v_5 = cmp_eq %value, %v_3: m32x4
+    %v_6 = mul %value, %v_3: f32x4
+    %v_7 = cmp_le %v_6, %v_3: m32x4
+    %v_8 = sub %v_3, %v_6: f32x4
+    %v_9 = select %v_7, %v_8, %v_6: f32x4
+    %v_10 = mul %v_9, %v_2: f32x4
+    %v_11 = select %v_5, %atZero, %v_10: f32x4
+    %v_12 = select %v_4, %answer, %v_11: f32x4
+    ret %v_12
+  }
+}
+
+quadrantIndex(Vec(Float), Mask(Float))<complex>(%n: f32x4, %offset: f32x4): f32x4 {
+  b_0 {
+    %shifted = add %n, %offset: f32x4
+    %v_1 = vsplat 0.25: f32x4
+    %v_2 = mul %shifted, %v_1: f32x4
+    %v_3 = cast %v_2: i32x4
+    %whole = cast %v_3: f32x4
+    %v_4 = abs %v_2: f32x4
+    %v_5 = vsplat 8388608: f32x4
+    %v_6 = cmp_lt %v_4, %v_5: m32x4
+    %v_7 = select %v_6, %whole, %v_2: f32x4
+    %v_8 = cmp_gt %v_7, %v_2: m32x4
+    %v_9 = vsplat 1: f32x4
+    %v_10 = sub %v_7, %v_9: f32x4
+    %v_11 = select %v_8, %v_10, %v_7: f32x4
+    %v_12 = vsplat 4: f32x4
+    %v_13 = mul %v_12, %v_11: f32x4
+    %v_14 = sub %shifted, %v_13: f32x4
+    ret %v_14
+  }
+}
+
+reducedAngle(Vec(Float), Mask(Float))<complex>(%value: f32x4, %n: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 1.57080078125: f32x4
+    %v_2 = mul %n, %v_1: f32x4
+    %v_3 = sub %value, %v_2: f32x4
+    %v_4 = vsplat 0.000004453584551811218: f32x4
+    %v_5 = mul %n, %v_4: f32x4
+    %v_6 = add %v_3, %v_5: f32x4
+    %v_7 = vsplat 8.706138032721356E-10: f32x4
+    %v_8 = mul %n, %v_7: f32x4
+    %v_9 = add %v_6, %v_8: f32x4
+    %v_10 = vsplat 6.222800053024002E-14: f32x4
+    %v_11 = mul %n, %v_10: f32x4
+    %v_12 = sub %v_9, %v_11: f32x4
+    %v_13 = vsplat 5.7208605257555445E-18: f32x4
+    %v_14 = mul %n, %v_13: f32x4
+    %v_15 = sub %v_12, %v_14: f32x4
+    %v_16 = vsplat 3.2818390803041373E-22: f32x4
+    %v_17 = mul %n, %v_16: f32x4
+    %v_18 = sub %v_15, %v_17: f32x4
+    ret %v_18
+  }
+}
+
+quadrantOf(Vec(Float), Mask(Float))<complex>(%quadrant: f32x4, %r: f32x4): f32x4 {
+  b_0 {
+    %z = mul %r, %r: f32x4
+    %v_1 = mul %r, %z: f32x4
+    %v_2 = call_complex sineSeries(Vec(Float), Mask(Float)), %z: f32x4
+    %v_3 = mul %v_1, %v_2: f32x4
+    %sine = sub %r, %v_3: f32x4
+    %v_4 = vsplat 0.5: f32x4
+    %v_5 = mul %v_4, %z: f32x4
+    %v_6 = vsplat 1: f32x4
+    %v_7 = sub %v_6, %v_5: f32x4
+    %v_8 = mul %z, %z: f32x4
+    %v_9 = call_complex cosineSeries(Vec(Float), Mask(Float)), %z: f32x4
+    %v_10 = mul %v_8, %v_9: f32x4
+    %cosine = add %v_7, %v_10: f32x4
+    %v_11 = vsplat 2: f32x4
+    %v_12 = cmp_eq %quadrant, %v_11: m32x4
+    %v_13 = vsplat 0: f32x4
+    %v_14 = sub %v_13, %sine: f32x4
+    %v_15 = sub %v_13, %cosine: f32x4
+    %upper = select %v_12, %v_14, %v_15: f32x4
+    %v_16 = cmp_eq %quadrant, %v_13: m32x4
+    %v_17 = vsplat 1: f32x4
+    %v_18 = cmp_eq %quadrant, %v_17: m32x4
+    %v_19 = select %v_18, %cosine, %upper: f32x4
+    %v_20 = select %v_16, %sine, %v_19: f32x4
+    ret %v_20
+  }
+}
+
+sineSeries(Vec(Float), Mask(Float))<complex>(%z: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 1.9572941524685808E-20: f32x4
+    %v_2 = mul %z, %v_1: f32x4
+    %v_3 = vsplat 8.220635078476521E-18: f32x4
+    %v_4 = sub %v_3, %v_2: f32x4
+    %v_5 = mul %z, %v_4: f32x4
+    %v_6 = vsplat 2.8114573589663704E-15: f32x4
+    %v_7 = sub %v_6, %v_5: f32x4
+    %v_8 = mul %z, %v_7: f32x4
+    %v_9 = vsplat 7.647163609812713E-13: f32x4
+    %v_10 = sub %v_9, %v_8: f32x4
+    %v_11 = mul %z, %v_10: f32x4
+    %v_12 = vsplat 1.6059044372074283E-10: f32x4
+    %v_13 = sub %v_12, %v_11: f32x4
+    %v_14 = mul %z, %v_13: f32x4
+    %v_15 = vsplat 2.5052107943679403E-8: f32x4
+    %v_16 = sub %v_15, %v_14: f32x4
+    %v_17 = mul %z, %v_16: f32x4
+    %v_18 = vsplat 0.0000027557318844628753: f32x4
+    %v_19 = sub %v_18, %v_17: f32x4
+    %v_20 = mul %z, %v_19: f32x4
+    %v_21 = vsplat 0.00019841270113829523: f32x4
+    %v_22 = sub %v_21, %v_20: f32x4
+    %v_23 = mul %z, %v_22: f32x4
+    %v_24 = vsplat 0.008333333767950535: f32x4
+    %v_25 = sub %v_24, %v_23: f32x4
+    %v_26 = mul %z, %v_25: f32x4
+    %v_27 = vsplat 0.1666666716337204: f32x4
+    %v_28 = sub %v_27, %v_26: f32x4
+    ret %v_28
+  }
+}
+
+cosineSeries(Vec(Float), Mask(Float))<complex>(%z: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 4.110317590937049E-19: f32x4
+    %v_2 = mul %z, %v_1: f32x4
+    %v_3 = vsplat 1.5619206814541513E-16: f32x4
+    %v_4 = sub %v_3, %v_2: f32x4
+    %v_5 = mul %z, %v_4: f32x4
+    %v_6 = vsplat 4.7794772561329454E-14: f32x4
+    %v_7 = sub %v_6, %v_5: f32x4
+    %v_8 = mul %z, %v_7: f32x4
+    %v_9 = vsplat 1.147074536050896E-11: f32x4
+    %v_10 = sub %v_9, %v_8: f32x4
+    %v_11 = mul %z, %v_10: f32x4
+    %v_12 = vsplat 2.0876755879584152E-9: f32x4
+    %v_13 = sub %v_12, %v_11: f32x4
+    %v_14 = mul %z, %v_13: f32x4
+    %v_15 = vsplat 0.0000002755731998149713: f32x4
+    %v_16 = sub %v_15, %v_14: f32x4
+    %v_17 = mul %z, %v_16: f32x4
+    %v_18 = vsplat 0.000024801587642286904: f32x4
+    %v_19 = sub %v_18, %v_17: f32x4
+    %v_20 = mul %z, %v_19: f32x4
+    %v_21 = vsplat 0.0013888889225199819: f32x4
+    %v_22 = sub %v_21, %v_20: f32x4
+    %v_23 = mul %z, %v_22: f32x4
+    %v_24 = vsplat 0.0416666679084301: f32x4
+    %v_25 = sub %v_24, %v_23: f32x4
+    ret %v_25
+  }
+}
+
+arcTangentOf(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %size = call_complex magnitudeOf(Vec(Float), Mask(Float)), %value: f32x4
+    %v_1 = vsplat 1: f32x4
+    %v_2 = cmp_gt %size, %v_1: m32x4
+    %v_3 = div %v_1, %size: f32x4
+    %folded = select %v_2, %v_3, %size: f32x4
+    %v_4 = vsplat 0.2679491937160492: f32x4
+    %steep = cmp_gt %folded, %v_4: m32x4
+    %v_5 = vsplat 1.7320507764816284: f32x4
+    %v_6 = mul %folded, %v_5: f32x4
+    %v_7 = sub %v_6, %v_1: f32x4
+    %v_8 = add %folded, %v_5: f32x4
+    %reduced = div %v_7, %v_8: f32x4
+    %v_9 = call_complex zeroLike(Vec(Float), Mask(Float)), %value: f32x4
+    %v_10 = vsplat 0.5235987901687622: f32x4
+    %base = select %steep, %v_10, %v_9: f32x4
+    %v_11 = select %steep, %reduced, %folded: f32x4
+    %z = mul %v_11, %v_11: f32x4
+    %v_12 = mul %v_11, %z: f32x4
+    %v_13 = call_complex arcTangentSeries(Vec(Float), Mask(Float)), %z: f32x4
+    %v_14 = mul %v_12, %v_13: f32x4
+    %v_15 = sub %v_11, %v_14: f32x4
+    %core = add %base, %v_15: f32x4
+    %v_16 = vsplat 1: f32x4
+    %v_17 = cmp_gt %size, %v_16: m32x4
+    %v_18 = vsplat 1.5707963705062866: f32x4
+    %v_19 = sub %v_18, %core: f32x4
+    %whole = select %v_17, %v_19, %core: f32x4
+    %v_20 = vsplat 0: f32x4
+    %v_21 = cmp_lt %value, %v_20: m32x4
+    %v_22 = sub %v_20, %whole: f32x4
+    %v_23 = select %v_21, %v_22, %whole: f32x4
+    ret %v_23
+  }
+}
+
+arcTangentSeries(Vec(Float), Mask(Float))<complex>(%z: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 0.02857142873108387: f32x4
+    %v_2 = mul %z, %v_1: f32x4
+    %v_3 = vsplat 0.03030303120613098: f32x4
+    %v_4 = sub %v_3, %v_2: f32x4
+    %v_5 = mul %z, %v_4: f32x4
+    %v_6 = vsplat 0.032258063554763794: f32x4
+    %v_7 = sub %v_6, %v_5: f32x4
+    %v_8 = mul %z, %v_7: f32x4
+    %v_9 = vsplat 0.03448275849223137: f32x4
+    %v_10 = sub %v_9, %v_8: f32x4
+    %v_11 = mul %z, %v_10: f32x4
+    %v_12 = vsplat 0.03703703731298447: f32x4
+    %v_13 = sub %v_12, %v_11: f32x4
+    %v_14 = mul %z, %v_13: f32x4
+    %v_15 = vsplat 0.03999999910593033: f32x4
+    %v_16 = sub %v_15, %v_14: f32x4
+    %v_17 = mul %z, %v_16: f32x4
+    %v_18 = vsplat 0.043478261679410934: f32x4
+    %v_19 = sub %v_18, %v_17: f32x4
+    %v_20 = mul %z, %v_19: f32x4
+    %v_21 = vsplat 0.0476190485060215: f32x4
+    %v_22 = sub %v_21, %v_20: f32x4
+    %v_23 = mul %z, %v_22: f32x4
+    %v_24 = vsplat 0.05263157933950424: f32x4
+    %v_25 = sub %v_24, %v_23: f32x4
+    %v_26 = mul %z, %v_25: f32x4
+    %v_27 = vsplat 0.05882352963089943: f32x4
+    %v_28 = sub %v_27, %v_26: f32x4
+    %v_29 = mul %z, %v_28: f32x4
+    %v_30 = vsplat 0.06666667014360428: f32x4
+    %v_31 = sub %v_30, %v_29: f32x4
+    %v_32 = mul %z, %v_31: f32x4
+    %v_33 = vsplat 0.07692307978868484: f32x4
+    %v_34 = sub %v_33, %v_32: f32x4
+    %v_35 = mul %z, %v_34: f32x4
+    %v_36 = vsplat 0.09090909361839294: f32x4
+    %v_37 = sub %v_36, %v_35: f32x4
+    %v_38 = mul %z, %v_37: f32x4
+    %v_39 = vsplat 0.1111111119389534: f32x4
+    %v_40 = sub %v_39, %v_38: f32x4
+    %v_41 = mul %z, %v_40: f32x4
+    %v_42 = vsplat 0.1428571492433548: f32x4
+    %v_43 = sub %v_42, %v_41: f32x4
+    %v_44 = mul %z, %v_43: f32x4
+    %v_45 = vsplat 0.20000000298023224: f32x4
+    %v_46 = sub %v_45, %v_44: f32x4
+    %v_47 = mul %z, %v_46: f32x4
+    %v_48 = vsplat 0.3333333432674408: f32x4
+    %v_49 = sub %v_48, %v_47: f32x4
+    ret %v_49
+  }
+}
+
+arcTangent2Of(Vec(Float), Mask(Float))<complex>(%y: f32x4, %x: f32x4): f32x4 {
+  b_0 {
+    %v_1 = div %y, %x: f32x4
+    %base = call_complex arcTangentOf(Vec(Float), Mask(Float)), %v_1: f32x4
+    %v_2 = vsplat 0: f32x4
+    %v_3 = cmp_lt %y, %v_2: m32x4
+    %v_4 = vsplat 3.1415927410125732: f32x4
+    %v_5 = sub %base, %v_4: f32x4
+    %v_6 = add %base, %v_4: f32x4
+    %shifted = select %v_3, %v_5, %v_6: f32x4
+    %v_7 = cmp_lt %x, %v_2: m32x4
+    %general = select %v_7, %shifted, %base: f32x4
+    %v_8 = cmp_eq %y, %v_2: m32x4
+    %v_9 = call_complex zeroLike(Vec(Float), Mask(Float)), %y: f32x4
+    %v_10 = vsplat 1.5707963705062866: f32x4
+    %v_11 = call_complex signOfOther(Vec(Float), Mask(Float)), %v_10, %y: f32x4
+    %vertical = select %v_8, %v_9, %v_11: f32x4
+    %v_12 = vsplat 0: f32x4
+    %v_13 = cmp_eq %x, %v_12: m32x4
+    %v_14 = select %v_13, %vertical, %general: f32x4
+    ret %v_14
+  }
+}
+
+powerOf(Vec(Float), Mask(Float))<complex>(%base: f32x4, %exponent: f32x4): f32x4 {
+  b_0 {
+    %v_1 = call_complex magnitudeOf(Vec(Float), Mask(Float)), %base: f32x4
+    %v_2 = call_complex log2Of(Vec(Float), Mask(Float)), %v_1: f32x4
+    %v_3 = mul %exponent, %v_2: f32x4
+    %size = call_complex exp2Of(Vec(Float), Mask(Float)), %v_3: f32x4
+    %v_4 = cast %exponent: i32x4
+    %whole = cast %v_4: f32x4
+    %v_5 = abs %exponent: f32x4
+    %v_6 = vsplat 8388608: f32x4
+    %v_7 = cmp_lt %v_5, %v_6: m32x4
+    %v_8 = select %v_7, %whole, %exponent: f32x4
+    %whole = cmp_eq %v_8, %exponent: m32x4
+    %v_9 = vsplat 2: f32x4
+    %v_10 = div %exponent, %v_9: f32x4
+    %v_11 = cast %v_10: i32x4
+    %whole = cast %v_11: f32x4
+    %v_12 = abs %v_10: f32x4
+    %v_13 = cmp_lt %v_12, %v_6: m32x4
+    %v_14 = select %v_13, %whole, %v_10: f32x4
+    %v_15 = mul %v_14, %v_9: f32x4
+    %v_16 = sub %exponent, %v_15: f32x4
+    %v_17 = vsplat 0: f32x4
+    %odd = cmp_neq %v_16, %v_17: m32x4
+    %v_18 = sub %v_17, %size: f32x4
+    %signed = select %odd, %v_18, %size: f32x4
+    %v_19 = cmp_lt %base, %v_17: m32x4
+    %v_20 = call_complex zeroLike(Vec(Float), Mask(Float)), %base: f32x4
+    %v_21 = vsplat 2139095040: i32x4
+    %v_22 = bitcast %v_21: f32x4
+    %v_23 = mul %v_20, %v_22: f32x4
+    %v_24 = select %whole, %signed, %v_23: f32x4
+    %answer = select %v_19, %v_24, %size: f32x4
+    %v_25 = vsplat 0: f32x4
+    %v_26 = cmp_lt %exponent, %v_25: m32x4
+    %v_27 = call_complex zeroLike(Vec(Float), Mask(Float)), %base: f32x4
+    %atZero = select %v_26, %v_22, %v_27: f32x4
+    %v_28 = vsplat 0: f32x4
+    %v_29 = cmp_eq %exponent, %v_28: m32x4
+    %v_30 = cmp_eq %base, %v_28: m32x4
+    %v_31 = select %v_30, %atZero, %answer: f32x4
+    %v_32 = vsplat 1: f32x4
+    %v_33 = select %v_29, %v_32, %v_31: f32x4
+    ret %v_33
+  }
+}
+
+log2Of(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %e = call_complex logExponent(Vec(Float), Mask(Float)), %value: f32x4
+    %v_1 = bitcast %value: i32x4
+    %v_2 = vsplat 8388607: i32x4
+    %v_3 = and %v_1, %v_2: i32x4
+    %v_4 = vsplat 1065353216: i32x4
+    %v_5 = or %v_3, %v_4: i32x4
+    %v_6 = bitcast %v_5: f32x4
+    %v_7 = vsplat 1.4142135381698608: f32x4
+    %v_8 = cmp_gt %v_6, %v_7: m32x4
+    %v_9 = vsplat 0.5: f32x4
+    %v_10 = mul %v_6, %v_9: f32x4
+    %v_11 = select %v_8, %v_10, %v_6: f32x4
+    %v_12 = call_complex logSeries(Vec(Float), Mask(Float)), %v_11: f32x4
+    %v_13 = vsplat 1.4426950216293335: f32x4
+    %v_14 = mul %v_12, %v_13: f32x4
+    %answer = add %v_14, %e: f32x4
+    %v_15 = call_complex logGuard(Vec(Float), Mask(Float)), %value, %answer: f32x4
+    ret %v_15
+  }
+}
+
+exp2Of(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %v_1 = vsplat 0.5: f32x4
+    %v_2 = call_complex signOfOther(Vec(Float), Mask(Float)), %v_1, %value: f32x4
+    %v_3 = add %value, %v_2: f32x4
+    %v_4 = cast %v_3: i32x4
+    %whole = cast %v_4: f32x4
+    %v_5 = abs %v_3: f32x4
+    %v_6 = vsplat 8388608: f32x4
+    %v_7 = cmp_lt %v_5, %v_6: m32x4
+    %v_8 = select %v_7, %whole, %v_3: f32x4
+    %f = sub %value, %v_8: f32x4
+    %v_9 = vsplat 0.693115234375: f32x4
+    %v_10 = mul %f, %v_9: f32x4
+    %v_11 = vsplat 0.00003194618329871446: f32x4
+    %v_12 = mul %f, %v_11: f32x4
+    %r = add %v_10, %v_12: f32x4
+    %v_13 = call_complex expSeries(Vec(Float), Mask(Float)), %r: f32x4
+    %core = call_complex Real(Vec(Float), Mask(Float)).scaleByExponent, %v_13, %v_8: f32x4
+    %v_14 = call_complex magnitudeOf(Vec(Float), Mask(Float)), %value: f32x4
+    %v_15 = vsplat 1200: f32x4
+    %v_16 = cmp_gt %v_14, %v_15: m32x4
+    %v_17 = vsplat 0: f32x4
+    %v_18 = cmp_gt %value, %v_17: m32x4
+    %v_19 = vsplat 2139095040: i32x4
+    %v_20 = bitcast %v_19: f32x4
+    %v_21 = mul %value, %v_17: f32x4
+    %v_22 = cmp_le %v_21, %v_17: m32x4
+    %v_23 = sub %v_17, %v_21: f32x4
+    %v_24 = select %v_22, %v_23, %v_21: f32x4
+    %v_25 = select %v_18, %v_20, %v_24: f32x4
+    %v_26 = select %v_16, %v_25, %core: f32x4
+    ret %v_26
+  }
+}
+
+cubeRootOf(Vec(Float), Mask(Float))<complex>(%value: f32x4): f32x4 {
+  b_0 {
+    %size = call_complex magnitudeOf(Vec(Float), Mask(Float)), %value: f32x4
+    %v_1 = call_complex log2Of(Vec(Float), Mask(Float)), %size: f32x4
+    %v_2 = vsplat 0.3333333432674408: f32x4
+    %v_3 = mul %v_1, %v_2: f32x4
+    %guess = call_complex exp2Of(Vec(Float), Mask(Float)), %v_3: f32x4
+    %v_4 = mul %guess, %guess: f32x4
+    %v_5 = div %size, %v_4: f32x4
+    %v_6 = sub %guess, %v_5: f32x4
+    %v_7 = vsplat 0.3333333432674408: f32x4
+    %v_8 = mul %v_6, %v_7: f32x4
+    %once = sub %guess, %v_8: f32x4
+    %v_9 = mul %once, %once: f32x4
+    %v_10 = div %size, %v_9: f32x4
+    %v_11 = sub %once, %v_10: f32x4
+    %v_12 = mul %v_11, %v_7: f32x4
+    %twice = sub %once, %v_12: f32x4
+    %v_13 = vsplat 0: f32x4
+    %v_14 = cmp_eq %value, %v_13: m32x4
+    %v_15 = call_complex zeroLike(Vec(Float), Mask(Float)), %value: f32x4
+    %v_16 = call_complex signOfOther(Vec(Float), Mask(Float)), %twice, %value: f32x4
+    %v_17 = select %v_14, %v_15, %v_16: f32x4
+    ret %v_17
+  }
+}
+

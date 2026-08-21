@@ -283,8 +283,6 @@ static void selectMachineInstructions(Context&, LowerBase base, LowerFunction& f
         if(inst->kind == LowerInst::Cast) {
             trySkipCastExtend(base, (LowerInstCast*)inst);
         }
-
-        selectBlockOpEncoding(base, inst);
     });
 
     // Walked by index rather than through forEachInst, because a fold that lifts an instruction out
@@ -448,10 +446,28 @@ struct TransformPass {
      * That is checked rather than asserted in prose - see the debug check at the end of the pipeline.
      */
     bool vectorsOnly = false;
+
+    // The one exception to that claim, and the reason it stays a claim rather than becoming a
+    // caveat: `expandBlockOperations` turns a sixteen-byte block transfer into an `i8x16`, so the
+    // question is re-asked after it. Nothing else in the table sets this.
+    bool addsVectors = false;
 };
 
 static const TransformPass kTransformPipeline[] = {
     { "rotateLoops"_v,                 rotateLoops,                 0 },
+
+    /*
+     * Directly behind it, and above everything: what it produces is ordinary loads and stores, so
+     * every pass below gets to treat them as such - `selectAddressesAndLeas` folds the offsets it
+     * emits into addressing modes, `poolVectorConstants` turns a fill's constant splat into a
+     * `.rodata` entry, and the allocator hands out the registers rather than a form reserving one.
+     * That is the whole argument for it being a pass; see transform_block.cpp.
+     *
+     * It is also the one pass here that can put a packed value into a function that had none, which
+     * is why `transformFunction` asks `functionHasVectors` again after it - see `vectorsOnly`.
+     */
+    { "expandBlockOperations"_v,       expandBlockOperations,       0, false, true },
+
     { "expandBankConversions"_v,   expandBankConversions,   0 },
     // After nothing, since what it reads is only the multiply-add itself. It used to have to run
     // before the two lane passes as well, the tree it builds ending in a lane extract each of them
@@ -840,6 +856,17 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
 
         pass.run(ctx, base, fun);
         established |= pass.establishes;
+
+        /*
+         * And asked again after the one pass that can answer differently.
+         *
+         * `expandBlockOperations` is the only entry in the table that *creates* a packed value in a
+         * function that had none - a sixteen-byte transfer is an `i8x16` - which is the claim the
+         * skip above rests on and the debug check below states. Re-asking here rather than making
+         * the pass report is what keeps the two agreeing: the check reads `functionHasVectors` and
+         * so does this.
+         */
+        if(pass.addsVectors) vectors = functionHasVectors(base, fun);
 
         // Debug builds only - assertTrue compiles away entirely in a release build, taking the call
         // with it. Running between passes rather than once at the end is the point: it names the

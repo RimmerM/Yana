@@ -133,38 +133,6 @@ sumItems<complex>(%xs: Ptr): Int {
   }
 }
 
-sumArray<complex>(%xs$items: Ptr, %xs$length: Long): Int {
-  b_0 {
-    %n = cast %xs$length: Int
-    %v_1 = sext %n: Long
-    jmp b_2
-  }
-
-  b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Int
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Long
-    %v_8 = cmp_ilt %v_6, %v_1: Int
-    je %v_8, b_9, b_10
-  }
-
-  b_10 {
-    ret %v_3
-  }
-
-  b_9 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_11 = shl %v_6, 2: Long
-    %v_12 = add %xs$items, %v_11: Ptr
-    %v_13 = loads %v_12, 4: Int
-    %v_5 = add %v_3, %v_13: Int
-    %v_7 = add %v_6, 1: Long
-    jmp b_2
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 36, 8: Ptr
@@ -209,10 +177,40 @@ main<complex>(): Int {
     store %v_22, 20, 4
     %v_23 = add %v_18, 12: Ptr
     store %v_23, 2, 4
-    %v_24 = call_complex sumArray, %v_19, 2: Int
+    jmp b_24
+  }
+
+  b_25 {
+    %v_26 = cmp_ilt %v_27, 2: Int
+    je %v_26, b_24, b_28
+  }
+
+  b_28 {
     call_complex Reclaim(Array(a)).reclaim(Int), %v_18
-    %v_25 = add %v_16, %v_24: Int
-    ret %v_25
+    %v_29 = add %v_16, %v_30: Int
+    ret %v_29
+  }
+
+  b_24 {
+    %v_31 = phi [b_25, %v_30], [b_0, 0]: Int
+    %v_32 = phi [b_25, %v_27], [b_0, 0]: Int
+    %v_33 = sext %v_32: Long
+    %v_34 = cmp_ge %v_33, 2: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_36 {
+    %v_37 = shl %v_33, 2: Long
+    %v_38 = add %v_19, %v_37: Ptr
+    %v_39 = loads %v_38, 4: Int
+    %v_30 = add %v_31, %v_39: Int
+    %v_27 = add %v_32, 1: Int
+    jmp b_25
+  }
+
+  b_35 {
+    %v_40 = syscall 60, 134: Long
+    unreachable 
   }
 }
 

@@ -1,3 +1,28 @@
+fn blockShort {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockPair {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockAscending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [9, 109) [116, 132)
+}
+
+fn copyMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
 fn initHeap {
 }
 
@@ -40,9 +65,9 @@ fn abortProcess {
 }
 
 fn resize(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+  %self: Run(Int) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
 fn byteSpan(Int) {
@@ -82,22 +107,22 @@ fn slice(Int) {
 }
 
 fn push(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 25)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 25)
   %item: Int readonly live [0, 20)
 }
 
 fn reserve(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 11)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 6) [7, 11)
 }
 
 fn growArray(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 24)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 24)
   %wide: I64 writable live [5, 22)
 }
 
@@ -142,7 +167,7 @@ fn sumFrom {
 }
 
 fn main {
-  %xs: Array(Int) droppable writable addressed resizable live [0, 19) [21, 33) [35, 57) [59, 68) [70, 82) [84, 94)
+  %xs: Array(Int) droppable writable resizable live [0, 19) [21, 33) [35, 57) [59, 68) [70, 82) [84, 94)
   %local1: Int writable addressed live [1, 7)
   %local2: Flat(Int) readonly live [10, 17)
   %local3: Flat(Int) readonly live [24, 31)

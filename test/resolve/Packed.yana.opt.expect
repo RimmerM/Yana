@@ -202,7 +202,15 @@ fn nine(%a: Bool, %b: Bool, %c: Bool, %d: Bool, %e: Bool, %f: Bool, %g: Bool, %h
 fn wide() -> Int {
   b0:
     %v0 = alloc : Nine
-    init %s@Nine.a:unit16, 0
+    init %s@Nine.a, False
+    init %s@Nine.b, False
+    init %s@Nine.c, False
+    init %s@Nine.d, False
+    init %s@Nine.e, False
+    init %s@Nine.f, False
+    init %s@Nine.g, False
+    init %s@Nine.h, False
+    init %s@Nine.i, False
     %v37 = borrow_mut %s@Nine.a : &mut Bool
     %v38 = borrow_mut %s@Nine.b : &mut Bool
     %v39 = borrow_mut %s@Nine.c : &mut Bool
@@ -213,19 +221,13 @@ fn wide() -> Int {
     %v44 = borrow_mut %s@Nine.h : &mut Bool
     %v45 = borrow_mut %s@Nine.i : &mut Bool
     call nine, %v37, %v38, %v39, %v40, %v41, %v42, %v43, %v44, %v45
-    %v174 = load %s@Nine.a:unit16 : U32
-    %v176 = and %v174, 1 : U32
-    %v177 = cast %v176 : Bool
-    %v80 = select %v177 ? 1 : 0 : Int
-    %v180 = shr %v174, 4 : U32
-    %v182 = and %v180, 1 : U32
-    %v183 = cast %v182 : Bool
-    %v82 = select %v183 ? 20 : 0 : Int
+    %v48 = load %s@Nine.a : Bool
+    %v80 = select %v48 ? 1 : 0 : Int
+    %v58 = load %s@Nine.e : Bool
+    %v82 = select %v58 ? 20 : 0 : Int
     %v67 = add %v80, %v82 : Int
-    %v186 = shr %v174, 8 : U32
-    %v188 = and %v186, 1 : U32
-    %v189 = cast %v188 : Bool
-    %v84 = select %v189 ? 300 : 0 : Int
+    %v69 = load %s@Nine.i : Bool
+    %v84 = select %v69 ? 300 : 0 : Int
     %v78 = add %v67, %v84 : Int
     ret %v78
 }
@@ -278,14 +280,14 @@ fn main() -> Int {
     call flip, %v34
     %v36 = borrow_mut %f@Flags.optionB : &mut Bool
     call flip, %v36
-    %v153 = load %f@Flags.optionA:unit8 : U32
-    %v155 = and %v153, 1 : U32
-    %v156 = cast %v155 : Bool
-    %v41 = select %v156 ? 1 : 0 : Int
-    %v159 = shr %v153, 1 : U32
-    %v161 = and %v159, 1 : U32
-    %v162 = cast %v161 : Bool
-    %v45 = select %v162 ? 2 : 0 : Int
+    %v196 = load %f@Flags.optionA:unit8 : U32
+    %v198 = and %v196, 1 : U32
+    %v199 = cast %v198 : Bool
+    %v41 = select %v199 ? 1 : 0 : Int
+    %v202 = shr %v196, 1 : U32
+    %v204 = and %v202, 1 : U32
+    %v205 = cast %v204 : Bool
+    %v45 = select %v205 ? 2 : 0 : Int
     %v46 = add %v41, %v45 : Int
     %v8 = add %v46, 926589 : Int
     %v48 = alloc : Flags
@@ -294,14 +296,14 @@ fn main() -> Int {
     %v54 = borrow_mut %f@Flags.optionB : &mut Bool
     %v55 = call pick, True, %v53, %v54 : &mut Bool
     assign [%v55], False
-    %v181 = load %f@Flags.optionA:unit8 : U32
-    %v183 = and %v181, 1 : U32
-    %v184 = cast %v183 : Bool
-    %v62 = select %v184 ? 1 : 0 : Int
-    %v187 = shr %v181, 1 : U32
-    %v189 = and %v187, 1 : U32
-    %v190 = cast %v189 : Bool
-    %v66 = select %v190 ? 2 : 0 : Int
+    %v224 = load %f@Flags.optionA:unit8 : U32
+    %v226 = and %v224, 1 : U32
+    %v227 = cast %v226 : Bool
+    %v62 = select %v227 ? 1 : 0 : Int
+    %v230 = shr %v224, 1 : U32
+    %v232 = and %v230, 1 : U32
+    %v233 = cast %v232 : Bool
+    %v66 = select %v233 ? 2 : 0 : Int
     %v67 = add %v62, %v66 : Int
     %v10 = add %v8, %v67 : Int
     %v12 = add %v10, 3 : Int
@@ -310,53 +312,78 @@ fn main() -> Int {
     %v74 = borrow_mut %g@Flags.optionA : &mut Bool
     %v75 = borrow_mut %g@Flags.optionB : &mut Bool
     call swapBools, %v74, %v75
-    %v209 = load %g@Flags.optionA:unit8 : U32
-    %v211 = and %v209, 1 : U32
-    %v212 = cast %v211 : Bool
-    %v80 = select %v212 ? 1 : 0 : Int
-    %v215 = shr %v209, 1 : U32
-    %v217 = and %v215, 1 : U32
-    %v218 = cast %v217 : Bool
-    %v84 = select %v218 ? 2 : 0 : Int
+    %v252 = load %g@Flags.optionA:unit8 : U32
+    %v254 = and %v252, 1 : U32
+    %v255 = cast %v254 : Bool
+    %v80 = select %v255 ? 1 : 0 : Int
+    %v258 = shr %v252, 1 : U32
+    %v260 = and %v258, 1 : U32
+    %v261 = cast %v260 : Bool
+    %v84 = select %v261 ? 2 : 0 : Int
     %v85 = add %v80, %v84 : Int
     %v14 = add %v12, %v85 : Int
     %v86 = alloc : Header
     init %h@Header.version:unit32, 2162788
     %v93 = borrow_mut %h@Header.length : &mut @bits(13) U32
     call nudgeTwice, %v93
-    %v247 = load %h@Header.version:unit32 : U32
-    %v249 = and %v247, 8191 : U32
-    %v96 = cast %v249 : Int
+    %v290 = load %h@Header.version:unit32 : U32
+    %v292 = and %v290, 8191 : U32
+    %v96 = cast %v292 : Int
     %v98 = mul %v96, 10 : Int
-    %v252 = shr %v247, 16 : U32
-    %v254 = and %v252, 15 : U32
-    %v100 = cast %v254 : Int
+    %v295 = shr %v290, 16 : U32
+    %v297 = and %v295, 15 : U32
+    %v100 = cast %v297 : Int
     %v101 = add %v98, %v100 : Int
     %v16 = add %v14, %v101 : Int
-    %v17 = call wide : Int
-    %v18 = add %v16, %v17 : Int
-    %v102 = alloc : Entry
+    %v102 = alloc : Nine
+    init %s@Nine.a:unit16, 0
+    %v121 = borrow_mut %s@Nine.a : &mut Bool
+    %v122 = borrow_mut %s@Nine.b : &mut Bool
+    %v123 = borrow_mut %s@Nine.c : &mut Bool
+    %v124 = borrow_mut %s@Nine.d : &mut Bool
+    %v125 = borrow_mut %s@Nine.e : &mut Bool
+    %v126 = borrow_mut %s@Nine.f : &mut Bool
+    %v127 = borrow_mut %s@Nine.g : &mut Bool
+    %v128 = borrow_mut %s@Nine.h : &mut Bool
+    %v129 = borrow_mut %s@Nine.i : &mut Bool
+    call nine, %v121, %v122, %v123, %v124, %v125, %v126, %v127, %v128, %v129
+    %v386 = load %s@Nine.a:unit16 : U32
+    %v388 = and %v386, 1 : U32
+    %v389 = cast %v388 : Bool
+    %v134 = select %v389 ? 1 : 0 : Int
+    %v392 = shr %v386, 4 : U32
+    %v394 = and %v392, 1 : U32
+    %v395 = cast %v394 : Bool
+    %v138 = select %v395 ? 20 : 0 : Int
+    %v139 = add %v134, %v138 : Int
+    %v398 = shr %v386, 8 : U32
+    %v400 = and %v398, 1 : U32
+    %v401 = cast %v400 : Bool
+    %v143 = select %v401 ? 300 : 0 : Int
+    %v144 = add %v139, %v143 : Int
+    %v18 = add %v16, %v144 : Int
+    %v145 = alloc : Entry
     init %e@Entry.live:unit8, 2
     init %e@Entry.count, 7
-    %v109 = borrow_mut %e@Entry.live : &mut Bool
-    call flip, %v109
-    %v111 = borrow_mut %e@Entry.kind : &mut @bits(3) U32
-    call tick, %v111
-    %v113 = load %e@Entry.count : Int
-    %v115 = add %v113, 1 : Int
-    assign %e@Entry.count, %v115
-    %v273 = load %e@Entry.live:unit8 : U32
-    %v275 = shr %v273, 3 : U32
-    %v277 = and %v275, 1 : U32
-    %v278 = cast %v277 : Bool
-    %v120 = select %v278 ? 1 : 0 : Int
-    %v281 = and %v273, 7 : U32
-    %v122 = cast %v281 : Int
-    %v124 = mul %v122, 10 : Int
-    %v125 = add %v120, %v124 : Int
-    %v127 = mul %v115, 100 : Int
-    %v128 = add %v125, %v127 : Int
-    %v20 = add %v18, %v128 : Int
+    %v152 = borrow_mut %e@Entry.live : &mut Bool
+    call flip, %v152
+    %v154 = borrow_mut %e@Entry.kind : &mut @bits(3) U32
+    call tick, %v154
+    %v156 = load %e@Entry.count : Int
+    %v158 = add %v156, 1 : Int
+    assign %e@Entry.count, %v158
+    %v420 = load %e@Entry.live:unit8 : U32
+    %v422 = shr %v420, 3 : U32
+    %v424 = and %v422, 1 : U32
+    %v425 = cast %v424 : Bool
+    %v163 = select %v425 ? 1 : 0 : Int
+    %v428 = and %v420, 7 : U32
+    %v165 = cast %v428 : Int
+    %v167 = mul %v165, 10 : Int
+    %v168 = add %v163, %v167 : Int
+    %v170 = mul %v158, 100 : Int
+    %v171 = add %v168, %v170 : Int
+    %v20 = add %v18, %v171 : Int
     %v24 = add %v20, 291 : Int
     ret %v24
 }

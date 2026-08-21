@@ -545,11 +545,7 @@ enum: MachineFormId {
     FormStoreXor32Imm, FormStoreXor64Imm,
 
     FormBlockCopyRep,
-    FormBlockCopyUnrolled,
-    FormBlockCopyUnrolledCount,
     FormBlockSetRep,
-    FormBlockSetUnrolled,
-    FormBlockSetUnrolledCount,
 
     FormCallDirect,
     FormCallIndirect,

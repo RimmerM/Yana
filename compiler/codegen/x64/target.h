@@ -210,6 +210,50 @@ void setTargetFeatures(FeatureSet features);
 FeatureSet x64FeaturesFor(const CompileSettings& settings);
 
 /*
+ * How far a block operation with a compile-time size is straight-lined.
+ *
+ * `rep movsb` has a flat startup of about thirty cycles: a copy of one byte and a copy of a hundred
+ * and twenty-eight cost the same. So every block operation short enough to be written out as
+ * transfers is cheaper written out, and the only question is where "short enough" stops - which is
+ * the one decision in this backend that trades size for speed rather than being a straight win, and
+ * therefore the one that reads a setting.
+ *
+ * **The setting it reads is `-inline`**, and not `-opt`. `optimization` is a level handed to LLVM
+ * and says nothing about this path at all; `InlineLevel` is the knob whose whole axis is the one
+ * `-Os` and `-Ofast` name, and a build that asked for smaller code by that flag means it here too.
+ * The alternative was a flag of its own, which would be a second spelling of one intent.
+ *
+ * **A value derived from the settings, and deliberately not a process-wide one.** `targetFeatures`
+ * is process-wide because form selection is asked its question from a dozen places that have an
+ * instruction in front of them and no settings; this has exactly one reader - `expandBlockOperations`
+ * - and that pass is handed the `Context` like every other. A second global would be a second thing
+ * standing between this compiler and compiling two modules at once, bought for nothing.
+ */
+struct BlockExpansion {
+    /*
+     * The ceiling on a `Copy`, in bytes, and the widest single transfer one may use.
+     *
+     * Two numbers rather than one, because they answer different questions: the ceiling is the
+     * size/speed trade, and the step is a fact about the machine - a `ymm` where the target has one
+     * and an `xmm` where it does not. A copy at the ceiling costs `copyLimit / copyStep` transfer
+     * pairs, so the two together are what decides how many instructions a site can grow to.
+     */
+    U64 copyLimit = 32;
+    U32 copyStep = 8;
+
+    // And the same for a `SetPattern`, which shares them: the pattern is replicated into a value
+    // once above the stores, so a fill's step is as wide as a copy's. It was eight bytes and its own
+    // much smaller ceiling while the expansion was an encoding, because a pattern in a general
+    // register had no way to become a vector without a register to build one in.
+    U64 setLimit = 32;
+    U32 setStep = 8;
+};
+
+// What a given set of settings comes to. A pure function of them: no target state is read, so the
+// answer for a module does not depend on which module was compiled before it.
+BlockExpansion x64BlockExpansionFor(const CompileSettings& settings);
+
+/*
  * Banks.
  */
 

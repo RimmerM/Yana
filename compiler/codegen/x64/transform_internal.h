@@ -138,6 +138,18 @@ struct Expansion {
         return emit(new (fun.arena) LowerInstVecSplat(name, type, scalar - base));
     }
 
+    // A read of `width` bytes from an address, at whatever type the caller wants those bytes as.
+    // Unsigned, since nothing here loads a narrow value in order to widen it - a block transfer's
+    // bytes are moved rather than interpreted.
+    LowerValue* load(LowerType type, LowerValue* from, U32 width, StringId name = StringId()) {
+        return emit(new (fun.arena) LowerInstLoad(from - base, name, type, width, false));
+    }
+
+    // And a write of them, which produces nothing and so cannot go through `emit`.
+    void store(LowerValue* to, LowerValue* value, U32 width) {
+        insertInstAt(base, block, at++, new (fun.arena) LowerInstStore(to - base, value - base, width));
+    }
+
     /*
      * A one-in-one-out intrinsic, which is the only shape anything here needs.
      *
@@ -204,6 +216,15 @@ struct Expansion {
 };
 
 /*
+ * transform_block.cpp - block operations with a compile-time size, written out as loads and stores.
+ *
+ * Above `selectAddressesAndLeas`, which is what turns the offsets it emits into addressing modes,
+ * and above `poolVectorConstants`, which is what turns a fill's constant splat into a `.rodata`
+ * entry. See the header of that file for why this is a pass rather than an encoding.
+ */
+void expandBlockOperations(Context& ctx, LowerBase base, LowerFunction& fun);
+
+/*
  * transform_peephole.cpp - the shape of one instruction.
  *
  * Each `try` answers whether it applied, which is what lets the selection walk in transform.cpp
@@ -216,7 +237,6 @@ bool trySkipCastExtend(LowerBase base, LowerInstCast* cast);
 bool trySwapOperands(LowerBase base, LowerInst* inst);
 bool orderFloatCompare(LowerBase base, LowerInst* inst);
 bool orderPackedCompare(LowerBase base, LowerInst* inst);
-void selectBlockOpEncoding(LowerBase base, LowerInst* inst);
 
 // The compare folding's two entry points - see §3.5.2 beside them.
 Size tryMergeCompare(LowerBase base, LowerInstCmp* cmp, Size index);

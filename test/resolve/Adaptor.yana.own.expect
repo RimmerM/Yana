@@ -2,12 +2,42 @@ fn teardown$none {
   arg value readonly
 }
 
+fn blockShort {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockPair {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockAscending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [9, 109) [116, 132)
+}
+
+fn blockDescending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [13, 111) [120, 136)
+}
+
+fn copyMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
 fn moveMemory {
   arg to readonly
   arg from readonly
   arg count readonly
-  %at: I64 writable live [83, 86) [99, 196) [203, 219)
-  %at: I64 writable live [96, 99) [219, 314) [323, 339)
 }
 
 fn initHeap {
@@ -57,9 +87,9 @@ fn byteSpan(Int) {
 }
 
 fn resize(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable addressed resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+  %self: Run(Int) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
 fn releaseRun(Int) {
@@ -93,22 +123,22 @@ fn remove(Int) {
 }
 
 fn push(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 25)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 25)
   %item: Int readonly live [0, 20)
 }
 
 fn reserve(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 6) [7, 11)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 6) [7, 11)
 }
 
 fn growArray(Int) {
-  arg self writable addressed resizable
+  arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable addressed resizable live [0, 24)
+  %self: Array(Int) borrowed droppable writable resizable live [0, 24)
   %wide: I64 writable live [5, 22)
 }
 

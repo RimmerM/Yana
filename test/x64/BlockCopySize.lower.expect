@@ -1,0 +1,45 @@
+
+copyVector<complex>(%dst: Ptr, %src: Ptr) {
+  b_0 {
+    copy %dst, %src, 16
+    copy %dst, %src, 32
+    ret 
+  }
+}
+
+copyAboveCeiling<complex>(%dst: Ptr, %src: Ptr) {
+  b_0 {
+    copy %dst, %src, 33
+    copy %dst, %src, 64
+    ret 
+  }
+}
+
+
+--- codegen: copyVector ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  load uses=[rsi] creates=[xmm0]  => f30f6f06
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  imm uses=[] creates=[-]  => 
+  load uses=[rsi] creates=[xmm0]  => f30f6f06
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4610
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4710
+  ret uses=[] creates=[]  => c3
+
+--- codegen: copyAboveCeiling ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax, rsi->rdx]  => 488bc7488bd6
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  copy uses=[rdi, rsi, rcx] creates=[] pre=[rax->rdi, rdx->rsi, remat:0->rcx]  => 488bf8488bf2b921000000f3a4
+  imm uses=[] creates=[remat:1]  => 
+  copy uses=[rdi, rsi, rcx] creates=[] pre=[rax->rdi, rdx->rsi, remat:1->rcx]  => 488bf8488bf2b940000000f3a4
+  ret uses=[] creates=[]  => c3

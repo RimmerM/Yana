@@ -158,10 +158,6 @@ void classifyResults(const CallConvention& convention, Size count, F&& typeOf, A
 // the area cannot knock rsp off the boundary the callee is entitled to expect.
 U32 argAreaBytes(const CallConvention& convention, const ArgLocationList& args);
 
-// Byte count above which a Copy/SetPattern with a compile-time size stops being straight-lined into
-// plain moves and takes the rep-prefixed string instruction instead. Chosen once, in
-// transformFunction (see selectBlockOpEncoding), and recorded on the instruction.
-static constexpr U64 kMaxUnrolledMemOp = 32;
 
 // The calling conventions, which are the one part of an instruction's register behaviour that a
 // machine form cannot state for itself: where a call's arguments go depends on how many of each bank

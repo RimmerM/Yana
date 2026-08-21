@@ -77,10 +77,47 @@ inline void applyChecksDirective(CompileSettings& settings, StringView content) 
     }
 }
 
-// Every directive at once. The drivers call this rather than either half, which is what keeps the
-// three of them reading the same fixture the same way - see the note above about why that is not
+/*
+ * `# inline: none|size|balanced|speed` - CompileSettings::inlining.
+ *
+ * The size-against-speed knob, and the only one this compiler has. Two things read it and a fixture
+ * may be about either: how far `compiler/opt` inlines, and how far the amd64 backend straight-lines
+ * a block operation with a compile-time size (see BlockExpansion in codegen/x64/target.h). The
+ * second is what makes it worth a directive, because the ceiling it sets is a *number* rather than
+ * a heuristic - a fixture naming a level pins exactly how many transfers a copy of a given size
+ * comes to, which is not a thing a golden compiled at the default can state.
+ */
+inline void applyInliningDirective(CompileSettings& settings, StringView content) {
+    static const struct { StringView name; InlineLevel level; } levels[] = {
+        { "balanced"_v, InlineLevel::Balanced },
+        { "speed"_v, InlineLevel::Speed },
+        { "none"_v, InlineLevel::None },
+        { "size"_v, InlineLevel::Size },
+    };
+
+    auto directive = "# inline: "_v;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        auto rest = content.ptr + i + directive.length;
+        auto left = content.length - i - directive.length;
+
+        for(auto& level: levels) {
+            if(level.name.length > left) continue;
+            if(compareMem(rest, level.name.ptr, level.name.length) != 0) continue;
+
+            settings.inlining = level.level;
+            return;
+        }
+    }
+}
+
+// Every directive at once. The drivers call this rather than any one of them, which is what keeps
+// the three of them reading the same fixture the same way - see the note above about why that is not
 // merely tidiness.
 inline void applyFixtureDirectives(CompileSettings& settings, StringView content) {
     applyExtensionDirective(settings, content);
     applyChecksDirective(settings, content);
+    applyInliningDirective(settings, content);
 }

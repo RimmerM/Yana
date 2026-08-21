@@ -1,0 +1,96 @@
+
+setConstant<complex>(%dst: Ptr) {
+  b_0 {
+    setpattern %dst, 6, 0
+    setpattern %dst, 16, 0
+    setpattern %dst, 20, 171
+    ret 
+  }
+}
+
+patternRuntime<complex>(%dst: Ptr, %pat: Int) {
+  b_0 {
+    setpattern %dst, 4, %pat
+    setpattern %dst, 12, %pat
+    setpattern %dst, 48, %pat
+    ret 
+  }
+}
+
+setAboveCeiling<complex>(%dst: Ptr, %pat: Int) {
+  b_0 {
+    setpattern %dst, 65, %pat
+    ret 
+  }
+}
+
+
+--- codegen: setConstant ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  store uses=[rax, -] creates=[]  => c70000000000
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=4 uses=[rax] creates=[-]  => 
+  store uses=[-, -] creates=[]  => 66c740040000
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rax, xmm0] creates=[]  => f30f7f00
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  global uses=[] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f0581000000
+  store uses=[rax, xmm0] creates=[]  => f30f7f00
+  imm uses=[] creates=[remat:0]  => 
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rax] creates=[-]  => 
+  store uses=[-, rdi] creates=[] pre=[remat:0->rdi]  => bfabababab897810
+  ret uses=[] creates=[]  => c3
+
+--- codegen: patternRuntime ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 488bc7
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 8bce81e1ff000000
+  imm uses=[] creates=[-]  => 
+  imul uses=[rcx, -] creates=[rcx]  => 69c901010101
+  store uses=[rax, rcx] creates=[]  => 8908
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  and uses=[rcx, -] creates=[rcx] pre=[rsi->rcx]  => 8bce81e1ff000000
+  imm uses=[] creates=[remat:0]  => 
+  imul uses=[rdx, rdi] creates=[rdx] pre=[rcx->rdx, remat:0->rdi]  => 8bd148bf0101010101010101480fafd7
+  store uses=[rax, rdx] creates=[]  => 488910
+  imm uses=[] creates=[-]  => 
+  imul uses=[rcx, -] creates=[rcx]  => 69c901010101
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=8 uses=[rax] creates=[-]  => 
+  store uses=[-, rcx] creates=[]  => 894808
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  and uses=[rsi, -] creates=[rsi]  => 81e6ff000000
+  vsplat uses=[rsi] creates=[xmm0]  => 660f6ec666450fefff66410f3800c7
+  store uses=[rax, xmm0] creates=[]  => f30f7f00
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rax] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4010
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rax] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4020
+  ret uses=[] creates=[]  => c3
+
+--- codegen: setAboveCeiling ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
+block #1:
+  imm uses=[] creates=[remat:0]  => 
+  setpattern uses=[rdi, rcx, rax] creates=[] pre=[remat:0->rcx]  => b941000000f3aa
+  ret uses=[] creates=[]  => c3

@@ -438,7 +438,23 @@ static void attachPointerIntrinsics(Module& module) {
 
     attachIntrinsic(module, "newRun"_v, emitNewRun);
 
-    attachIntrinsic(module, "copyMemory"_v, emitNativeOp<NativeOp::CopyMemory>);
+    /*
+     * The block copy, under the name the target it is reachable by has for it.
+     *
+     * One instruction and two declarations, because the two targets reach it from opposite ends. On
+     * a native build `copyMemory` is a *body* - the vector ladder in Native.yana, which calls this
+     * only for the lengths that pay a `rep movsb`'s startup back - so the intrinsic is the thing the
+     * ladder bottoms out in and is named `blockCopy`. On a JS build there is no ladder and no bytes
+     * to move: what the operation is for there is the shape `blockCopyShape` recovers from the
+     * compiler-generated relocation glue, so it keeps the name it has always had.
+     *
+     * Attaching by mode rather than attaching both, because `attachIntrinsic` reports a name it
+     * cannot find as an internal error and rightly - each of the two declarations is `@platform`ed
+     * to one target and does not exist on the other.
+     */
+    attachIntrinsic(module, isJsMode(module.context.settings.mode) ? "copyMemory"_v : "blockCopy"_v,
+                    emitNativeOp<NativeOp::CopyMemory>);
+
     attachIntrinsic(module, "setMemory"_v, emitNativeOp<NativeOp::SetMemory>);
 
     static const StringView syscalls[] = {

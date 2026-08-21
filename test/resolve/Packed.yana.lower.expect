@@ -228,45 +228,6 @@ nine<complex>(%a: Ptr, %b: Ptr, %c: Ptr, %d: Ptr, %e: Ptr, %f: Ptr, %g: Ptr, %h:
   }
 }
 
-wide<complex>(): Int {
-  b_0 {
-    %v_1 = alloca 2, 2: Ptr
-    store %v_1, 0, 2
-    %v_2 = bitcast %v_1: Long
-    %v_3 = or %v_2, 281474976710656: Long
-    %v_4 = bitcast %v_3: Ptr
-    %v_5 = or %v_2, 562949953421312: Long
-    %v_6 = bitcast %v_5: Ptr
-    %v_7 = or %v_2, 844424930131968: Long
-    %v_8 = bitcast %v_7: Ptr
-    %v_9 = or %v_2, 1125899906842624: Long
-    %v_10 = bitcast %v_9: Ptr
-    %v_11 = or %v_2, 1407374883553280: Long
-    %v_12 = bitcast %v_11: Ptr
-    %v_13 = or %v_2, 1688849860263936: Long
-    %v_14 = bitcast %v_13: Ptr
-    %v_15 = or %v_2, 1970324836974592: Long
-    %v_16 = bitcast %v_15: Ptr
-    %v_17 = add %v_1, 1: Ptr
-    call_complex nine, %v_1, %v_4, %v_6, %v_8, %v_10, %v_12, %v_14, %v_16, %v_17
-    %v_18 = load %v_1, 2: Int
-    %v_19 = and %v_18, 1: Int
-    %v_20 = cast %v_19: Int
-    %v_21 = select %v_20, 1, 0: Int
-    %v_22 = shr %v_18, 4: Int
-    %v_23 = and %v_22, 1: Int
-    %v_24 = cast %v_23: Int
-    %v_25 = select %v_24, 20, 0: Int
-    %v_26 = add %v_21, %v_25: Int
-    %v_27 = shr %v_18, 8: Int
-    %v_28 = and %v_27, 1: Int
-    %v_29 = cast %v_28: Int
-    %v_30 = select %v_29, 300, 0: Int
-    %v_31 = add %v_26, %v_30: Int
-    ret %v_31
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
@@ -340,37 +301,69 @@ main<complex>(): Int {
     %v_60 = cast %v_59: Int
     %v_61 = add %v_57, %v_60: Int
     %v_62 = add %v_52, %v_61: Int
-    %v_63 = call_complex wide: Int
-    %v_64 = add %v_62, %v_63: Int
-    %v_65 = alloca 5, 4: Ptr
-    store %v_65, 0, 4
-    %v_66 = add %v_65, 4: Ptr
-    store %v_66, 2, 1
-    store %v_65, 7, 4
-    %v_67 = bitcast %v_66: Long
-    %v_68 = or %v_67, 844424930131968: Long
-    %v_69 = bitcast %v_68: Ptr
-    call_complex flip, %v_69
-    %v_70 = add %v_65, 4: Ptr
-    call_complex tick, %v_70
-    %v_71 = loads %v_65, 4: Int
-    %v_72 = add %v_71, 1: Int
-    store %v_65, %v_72, 4
-    %v_73 = add %v_65, 4: Ptr
-    %v_74 = load %v_73, 1: Int
-    %v_75 = shr %v_74, 3: Int
-    %v_76 = and %v_75, 1: Int
-    %v_77 = cast %v_76: Int
-    %v_78 = select %v_77, 1, 0: Int
-    %v_79 = and %v_74, 7: Int
-    %v_80 = cast %v_79: Int
-    %v_81 = imul %v_80, 10: Int
-    %v_82 = add %v_78, %v_81: Int
-    %v_83 = imul %v_72, 100: Int
-    %v_84 = add %v_82, %v_83: Int
-    %v_85 = add %v_64, %v_84: Int
-    %v_86 = add %v_85, 291: Int
-    ret %v_86
+    %v_63 = alloca 2, 2: Ptr
+    store %v_63, 0, 2
+    %v_64 = bitcast %v_63: Long
+    %v_65 = or %v_64, 281474976710656: Long
+    %v_66 = bitcast %v_65: Ptr
+    %v_67 = or %v_64, 562949953421312: Long
+    %v_68 = bitcast %v_67: Ptr
+    %v_69 = or %v_64, 844424930131968: Long
+    %v_70 = bitcast %v_69: Ptr
+    %v_71 = or %v_64, 1125899906842624: Long
+    %v_72 = bitcast %v_71: Ptr
+    %v_73 = or %v_64, 1407374883553280: Long
+    %v_74 = bitcast %v_73: Ptr
+    %v_75 = or %v_64, 1688849860263936: Long
+    %v_76 = bitcast %v_75: Ptr
+    %v_77 = or %v_64, 1970324836974592: Long
+    %v_78 = bitcast %v_77: Ptr
+    %v_79 = add %v_63, 1: Ptr
+    call_complex nine, %v_63, %v_66, %v_68, %v_70, %v_72, %v_74, %v_76, %v_78, %v_79
+    %v_80 = load %v_63, 2: Int
+    %v_81 = and %v_80, 1: Int
+    %v_82 = cast %v_81: Int
+    %v_83 = select %v_82, 1, 0: Int
+    %v_84 = shr %v_80, 4: Int
+    %v_85 = and %v_84, 1: Int
+    %v_86 = cast %v_85: Int
+    %v_87 = select %v_86, 20, 0: Int
+    %v_88 = add %v_83, %v_87: Int
+    %v_89 = shr %v_80, 8: Int
+    %v_90 = and %v_89, 1: Int
+    %v_91 = cast %v_90: Int
+    %v_92 = select %v_91, 300, 0: Int
+    %v_93 = add %v_88, %v_92: Int
+    %v_94 = add %v_62, %v_93: Int
+    %v_95 = alloca 5, 4: Ptr
+    store %v_95, 0, 4
+    %v_96 = add %v_95, 4: Ptr
+    store %v_96, 2, 1
+    store %v_95, 7, 4
+    %v_97 = bitcast %v_96: Long
+    %v_98 = or %v_97, 844424930131968: Long
+    %v_99 = bitcast %v_98: Ptr
+    call_complex flip, %v_99
+    %v_100 = add %v_95, 4: Ptr
+    call_complex tick, %v_100
+    %v_101 = loads %v_95, 4: Int
+    %v_102 = add %v_101, 1: Int
+    store %v_95, %v_102, 4
+    %v_103 = add %v_95, 4: Ptr
+    %v_104 = load %v_103, 1: Int
+    %v_105 = shr %v_104, 3: Int
+    %v_106 = and %v_105, 1: Int
+    %v_107 = cast %v_106: Int
+    %v_108 = select %v_107, 1, 0: Int
+    %v_109 = and %v_104, 7: Int
+    %v_110 = cast %v_109: Int
+    %v_111 = imul %v_110, 10: Int
+    %v_112 = add %v_108, %v_111: Int
+    %v_113 = imul %v_102, 100: Int
+    %v_114 = add %v_112, %v_113: Int
+    %v_115 = add %v_94, %v_114: Int
+    %v_116 = add %v_115, 291: Int
+    ret %v_116
   }
 }
 

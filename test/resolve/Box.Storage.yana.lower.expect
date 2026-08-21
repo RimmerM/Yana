@@ -249,7 +249,7 @@ mapMemory<complex>(%size: Long): Ptr {
   }
 }
 
-outOfLine<complex>(): Int {
+main<complex>(): Int {
   b_0 {
     %c = alloca 12, 8: Ptr
     %v_1 = add %c, 8: Ptr
@@ -264,95 +264,70 @@ outOfLine<complex>(): Int {
     je %v_5, b_6, b_7
   }
 
-  b_7 {
-    %v_8 = add %c, 12: Ptr
-    %v_9 = cmp_lt %v_4, %v_8: Int
-    je %v_9, b_10, b_11
-  }
-
   b_6 {
-    jmp b_12
+    jmp b_8
   }
 
-  b_13 {
-    ret 18446744073709551615
-  }
-
-  b_11 {
-    jmp b_14
-  }
-
-  b_14 {
-    jmp b_12
+  b_7 {
+    %v_9 = add %c, 12: Ptr
+    %v_10 = cmp_lt %v_4, %v_9: Int
+    je %v_10, b_11, b_12
   }
 
   b_12 {
-    %v_15 = add %v_4, 4: Ptr
-    %d$level = loads %v_15, 4: Int
+    jmp b_8
+  }
+
+  b_8 {
+    %v_13 = add %v_4, 4: Ptr
+    %d$level = loads %v_13, 4: Int
     call_complex freeHeap, %v_4
-    ret %d$level
+    jmp b_14
   }
 
-  b_10 {
+  b_11 {
     call_complex freeHeap, %v_4
-    jmp b_13
-  }
-}
-
-writesThrough<complex>(): Int {
-  b_0 {
-    %v_1 = call_complex allocateHeap, 8: Ptr
-    store %v_1, 1, 4
-    %v_2 = add %v_1, 4: Ptr
-    store %v_2, 20, 4
-    store %v_1, 9, 4
-    store %v_2, 30, 4
-    %v_3 = cmp_eq %v_1, %v_1: Int
-    je %v_3, b_4, b_5
+    jmp b_15
   }
 
-  b_6 {
-    ret 18446744073709551615
+  b_14 {
+    %v_16 = cmp_neq %d$level, 8: Int
+    je %v_16, b_15, b_17
   }
 
-  b_4 {
-    jmp b_7
+  b_17 {
+    %v_18 = call_complex allocateHeap, 8: Ptr
+    store %v_18, 1, 4
+    %v_19 = add %v_18, 4: Ptr
+    store %v_19, 20, 4
+    store %v_18, 9, 4
+    store %v_19, 30, 4
+    %v_20 = cmp_eq %v_18, %v_18: Int
+    je %v_20, b_21, b_22
   }
 
-  b_7 {
-    %v_8 = loads %v_1, 4: Int
-    %v_9 = imul %v_8, 10: Int
-    %v_10 = loads %v_2, 4: Int
-    call_complex freeHeap, %v_1
-    %v_11 = add %v_9, %v_10: Int
-    ret %v_11
+  b_21 {
+    %v_23 = loads %v_18, 4: Int
+    %v_24 = imul %v_23, 10: Int
+    %v_25 = loads %v_19, 4: Int
+    call_complex freeHeap, %v_18
+    %v_26 = add %v_24, %v_25: Int
+    jmp b_27
   }
 
-  b_5 {
-    call_complex freeHeap, %v_1
-    jmp b_6
-  }
-}
-
-main<complex>(): Int {
-  b_0 {
-    %o = call_complex outOfLine: Int
-    %v_1 = cmp_neq %o, 8: Int
-    je %v_1, b_2, b_3
+  b_22 {
+    call_complex freeHeap, %v_18
+    jmp b_27
   }
 
-  b_2 {
+  b_27 {
+    %v_28 = phi [b_21, %v_26], [b_22, 18446744073709551615]: Int
+    %v_29 = add %d$level, %v_28: Int
+    ret %v_29
+  }
+
+  b_15 {
     ret 18446744073709551614
-  }
-
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %v_5 = call_complex writesThrough: Int
-    %v_6 = add %o, %v_5: Int
-    ret %v_6
   }
 }
 
