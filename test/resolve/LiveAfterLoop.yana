@@ -1,0 +1,102 @@
+{-
+   The accepting side of `Reject.BorrowFlow.yana` - the borrows that span blocks and conflict with
+   nothing.
+
+   A check that reports every write near a borrow passes the rejection file on its own, so this is
+   the half that says the extent is a live range and not a bracket. Everything below writes storage
+   that some borrow in the same function names, at a point where that borrow is *not* live, and every
+   one of them was reported as a conflict before the extent was computed over the control-flow graph
+   (see BorrowExtent in analyze_borrow.cpp).
+
+   The shape that *found* it is a container lookup after the loop that filled the container, and it
+   is in `test/lib/Map.yana` rather than here: written out, it is a page of Collections in two golden
+   files that `MapLiteral.yana` already pins, and what it has to say about the borrow checker is what
+   the four bodies below say without dragging the library in.
+
+   The whole fixture runs, so this asserts twice: that the four bodies resolve at all, and that they
+   still compute what they say they do afterwards. A number in `.run.expect` rather than `assert`,
+   because that is this corpus' convention and its driver calls `main` in its own process - a failed
+   assertion here would take the driver down rather than be reported. See test/README.md.
+-}
+
+fn pick(return &a: I64, return &b: I64, first: Bool) -> &I64 = if first then a else b
+
+{-
+   A borrow taken *after* a loop that wrote the same storage - the library-free form of the shape
+   that found the defect.
+
+   Reverse postorder numbers this function's loop *body* after its exit, so the write inside the loop
+   sits between the borrow below it and that borrow's last use in every linear reading of the
+   instruction list. It is not between them in the graph: control cannot reach the loop body from the
+   block that took the borrow. This is the case that was rejected.
+-}
+fn borrowAfterLoop(&x: I64, &y: I64, flag: Bool) -> I64:
+    let &i = 0 :: I64
+
+    while i < 4:
+        x = x + 1
+        i = i + 1
+
+    let &chosen = pick(x, y, True)
+    if flag then return chosen
+
+    return chosen + 1
+
+-- A borrow whose last use is before the write. Nothing about the two is simultaneous, and the write
+-- is free the moment the loan ends.
+fn endsBeforeWrite(&x: I64, &y: I64) -> I64:
+    let &chosen = pick(x, y, True)
+    let held = chosen
+    x = x + 1
+
+    return held + x
+
+{-
+   A borrow taken on one arm and a write on the other.
+
+   The two are never both live, because control took one of them - but both arms lie between the
+   borrow and its use in any linear reading of the function, which is what a numbering-based extent
+   cannot see. The write is in the block the borrow does not reach.
+-}
+fn otherArm(&x: I64, &y: I64, flag: Bool) -> I64:
+    if flag:
+        let &chosen = pick(x, y, True)
+        return chosen
+
+    x = x + 1
+    return x
+
+-- A borrow taken and finished inside a loop body, with the write in the iteration after it. Each
+-- turn takes its own loan and lets it go, so nothing is live across the back edge.
+fn insideOneIteration(&x: I64, &y: I64) -> I64:
+    let &i = 0 :: I64
+    let &total = 0 :: I64
+
+    while i < 3:
+        let &chosen = pick(x, y, True)
+        total = total + chosen
+        x = x + 1
+        i = i + 1
+
+    return total
+
+fn main() -> Int:
+    let &a = 10 :: I64
+    let &b = 20 :: I64
+
+    let &total = 0 :: I64
+    total = total + borrowAfterLoop(a, b, True)         -- 14: four writes, then the borrow
+
+    a = 10
+    total = total + endsBeforeWrite(a, b)               -- 21: the borrow, then the write
+
+    a = 10
+    total = total + otherArm(a, b, True)                -- 10: the arm that borrows
+
+    a = 10
+    total = total + otherArm(a, b, False)               -- 11: the arm that writes
+
+    a = 10
+    total = total + insideOneIteration(a, b)            -- 33: 10 + 11 + 12
+
+    return truncate(total) :: Int

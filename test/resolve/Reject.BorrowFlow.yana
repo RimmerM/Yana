@@ -1,0 +1,66 @@
+{-
+   Exclusivity across control flow - the half of `Reject.Ownership.yana` that a single block cannot
+   state.
+
+   That file's `swap(value, value)` is two mutable borrows in one expression, and it was the whole of
+   what this rule was tested against. Everything below is instead a borrow whose extent *spans*
+   blocks, which is where the question stops being "are these two lines next to each other" and
+   becomes "is the borrow live at this write" - and those are different questions in both directions:
+
+    - a write inside a loop the borrow is held across is a conflict, though the loop body may be
+      numbered anywhere at all relative to the borrow;
+    - a write in a loop the borrow was taken *after* is not, though the numbering puts the loop body
+      later - see BorrowExtent in analyze_borrow.cpp, and `LiveAfterLoop.yana` for the accepting side;
+    - a write on the arm a borrow was not taken on is not, though both arms lie between the borrow
+      and its use in any linear reading of the function.
+
+   Every case here is a *rejection*, and the accepting cases are `LiveAfterLoop.yana` beside it. The
+   two files are one property seen from its two sides, and a check that answered "conflict" to
+   everything would pass this one alone.
+
+   `pick` is what makes a borrow outlive the statement that took it: it hands one of its arguments
+   back, so the loan on both survives to the last use of the result. That is Design.md's "the caller
+   conservatively keeps every member borrowed until the last use of all result borrows", and it is
+   the only way to write a long-lived borrow in the language today.
+-}
+
+fn pick(return &a: I64, return &b: I64, first: Bool) -> &I64 = if first then a else b
+
+{-
+   A borrow taken before a loop and used after it, so it is live across every iteration.
+
+   The write is in the loop body, which reverse postorder numbers *after* the block holding the
+   borrow - the same shape that used to be reported when the borrow was not live there at all. Here
+   it genuinely is, and this is the case that says so.
+-}
+fn acrossLoop(&x: I64, &y: I64) -> I64:
+    let &chosen = pick(x, y, True)
+    let &i = 0 :: I64
+
+    while i < 4:
+        x = x + 1
+        i = i + 1
+
+    return chosen
+
+-- The same across one arm of a branch: the borrow is live on both paths out of the `if`, so the arm
+-- that writes is a conflict whichever way control went.
+fn acrossBranch(&x: I64, &y: I64, flag: Bool) -> I64:
+    let &chosen = pick(x, y, True)
+    if flag then x = 7
+
+    return chosen
+
+{-
+   And through a merge, which is the case the extent used to stop dead at.
+
+   `chosen` is a phi of two borrows and may name either, so a use of it keeps *both* alive - and the
+   write after the merge conflicts with both, which is why this reports twice. Following the loan
+   through the phi is what finds it; without that, nothing after the merge was reachable from either
+   borrow and the write was accepted in silence.
+-}
+fn throughMerge(&x: I64, &y: I64, flag: Bool) -> I64:
+    let &chosen = if flag then pick(x, y, True) else pick(y, x, True)
+    x = x + 1
+
+    return chosen

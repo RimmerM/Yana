@@ -35,19 +35,6 @@ instance Eq(Point):
 instance Hash(Point):
     fn hash(value: Point, state: U32) -> U32 = hash(value.y, hash(value.x, state))
 
-{-
-   The lookup, in a function of its own rather than a `match` in `main`.
-
-   Not a style choice. A `match find(m, k)` written directly in a body that also *writes* `m` is
-   reported today as a conflict between the write and the borrow the lookup takes, wherever in the
-   body the two sit: the borrow's live range is computed over the linear instruction order and
-   reaches back past the loop that filled the map. Containing it in a callee ends the range at the
-   call, which is what makes this compile.
--}
-fn valueAt(m: Map(Point, Int), key: Point) -> Int = match find(m, key):
-    Just(v) -> v
-    Nothing -> 0 - 1
-
 fn main() -> Int:
     -- `mix32` is portable, so it is the one hash number a fixture may name. 12345 through murmur3's
     -- finalizer is 3596688052, and the low sixteen bits of that are 51676.
@@ -73,7 +60,9 @@ fn main() -> Int:
 
     assert((truncate(length(m)) :: Int) == 40)
 
-    assert(valueAt(m, Point {x: 7, y: 14}) == 7)
+    match find(m, Point {x: 7, y: 14}):
+        Just(v) -> assert(v == 7)
+        Nothing -> assert(False)
 
     assert(!containsKey(m, Point {x: 7, y: 15}))
 

@@ -16,7 +16,37 @@
    answer below is a property of the map rather than of either.
 -}
 
+{-
+   A lookup after the loop that filled the map, in a body of its own - which is not a second copy of
+   what `main` does below, but the exact shape that found a borrow-checker defect.
+
+   `main` fills, then looks up *inside a second loop*, and that compiled throughout. This looks up at
+   the top level of the body, and until the borrow extent was computed over the control-flow graph
+   it did not compile at all: reverse postorder numbers a loop's exit before its body, so a scan of
+   the instruction numbers between the borrow `find` takes and its last use walked back through the
+   loop and reported the `insert` as a conflict. See BorrowExtent in analyze_borrow.cpp, and
+   `test/resolve/LiveAfterLoop.yana` for the same property with no library in the way.
+
+   It is here rather than there because written out in that corpus it is a page of Collections in two
+   golden files, and none of that is what it has to say.
+-}
+fn lookupAfterFill() -> Int:
+    let &filled = emptyMap() :: Map(Int, Int)
+    let &at = 0 :: Int
+
+    while at < 4:
+        insert(filled, at, at * 5)
+        at = at + 1
+
+    match find(filled, 2):
+        Just(v) -> assert(v == 10)
+        Nothing -> assert(False)
+
+    return 0
+
 fn main() -> Int:
+    assert(lookupAfterFill() == 0)
+
     let &m = emptyMap() :: Map(Int, Int)
     let &i = 0 :: Int
 

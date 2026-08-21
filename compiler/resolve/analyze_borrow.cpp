@@ -11,14 +11,88 @@
  * What is deliberately *not* checked is recorded at the end of analyze.cpp.
  */
 
-// One borrow, with the extent over which it holds. Exclusivity is a question about two of these
-// overlapping in both extent and place.
-struct LiveBorrow {
-    ModulePtr<Inst> instruction;
-    U32 from = 0;
-    U32 to = 0;
-    bool mut = false;
+/*
+ * Where one borrow is live, one row per block.
+ *
+ * **A borrow's extent is a region of the control-flow graph and not an interval of the instruction
+ * numbering**, and the difference is the whole reason this struct exists. `numberFunction` lays the
+ * blocks out in reverse postorder, which puts a loop's *exit* in front of its *body* whenever the
+ * exit edge was the one explored first - so
+ *
+ *     while i < 4:            -- block 3, numbered [15, 24)
+ *         insert(m, i, i)
+ *
+ *     match find(m, 1):       -- block 2, numbered [9, 15)
+ *
+ * numbers the lookup *before* the loop that filled the map. Scanning `[borrow, lastUse]` as a range
+ * of indices then walks straight through the loop body and reports the `insert` as conflicting with
+ * a borrow that is not live anywhere near it - which it did, for every `find` after a fill, until
+ * this replaced it.
+ *
+ * So the extent is computed the way a live range is: backwards from each use to the definition,
+ * through predecessors, marking the blocks the value is actually live in. What that costs is a
+ * walk per borrow; what it buys is that the answer no longer depends on which arm of a branch the
+ * block numbering happened to visit first.
+ */
+struct BlockExtent {
+    // Live across the block's first instruction, and live across its terminator.
+    bool liveIn = false;
+    bool liveOut = false;
+
+    // The last instruction in this block that uses the borrow, where one does. A flag rather than a
+    // sentinel index, because index zero is a real position.
+    bool used = false;
+    U32 lastUse = 0;
 };
+
+struct BorrowExtent {
+    // One row per block, indexed by `Block::index` - which is the block's position in
+    // `Function::blocks` and therefore also its position in `Analysis::blockRanges`.
+    SmallArray<BlockExtent, 16> blocks;
+
+    U32 defBlock = 0;
+    U32 defIndex = 0;
+};
+
+/*
+ * The value is live out of `from`, and so live in to every block on the way back to its definition.
+ *
+ * The walk stops at the defining block in both senses: it marks that block live-*out* (control did
+ * leave it carrying the value) and does not mark it live-in, because above the definition the value
+ * does not exist. That is also what makes a definition inside a loop right - a borrow taken each
+ * time round is not live across the back edge into its own block.
+ *
+ * **`stop` is the block defining the value being walked, which is not always the borrow.** A loan is
+ * followed through the values that carry it - a call result, a phi - and each of those is defined
+ * somewhere of its own; walking back from a use of the *phi* has to stop at the merge, because above
+ * it the phi does not exist and the arm that did not run never held the loan. Stopping at the
+ * borrow's block instead reports each arm of `if flag then pick(x, y) else pick(y, x)` as
+ * conflicting with the other.
+ *
+ * `visited` is per walk rather than per borrow for the same reason: a block one carrier stopped at
+ * is one the next may have to walk through.
+ *
+ * Iterative rather than recursive, because the depth is the block graph's and this runs once per use
+ * of every borrow in every function.
+ */
+static void markLiveOut(Analysis& analysis, BorrowExtent& extent, U32 stop,
+                        SmallArray<U8, 16>& visited, ModulePtr<Block> from) {
+    SmallArray<ModulePtr<Block>, 16> pending;
+    pending.push(from);
+
+    while(pending.size()) {
+        auto block = analysis.local[pending.pop().unwrap()];
+        if(block->index >= extent.blocks.size()) continue;
+        if(visited[block->index]) continue;
+        visited[block->index] = 1;
+
+        extent.blocks[block->index].liveOut = true;
+        if(block->index == stop) continue;
+
+        extent.blocks[block->index].liveIn = true;
+        for(auto predecessor: block->incoming(analysis.local)) pending.push(predecessor);
+    }
+}
 
 /*
  * Do two places name storage that can overlap?
@@ -78,10 +152,21 @@ static bool placesOverlap(ModuleBase base, Place lhs, Place rhs) {
  * Transitive, because a caller may hand the result on again: a chain of selectors keeps the
  * original root borrowed for the whole chain. The `seen` list is what makes a value used by two
  * calls, or a loop, terminate instead of walking the graph forever.
+ *
+ * Which of those uses are reached is one question and *where the value is live on the way to them*
+ * is another, and this answers both: every use found below is marked into `extent`, from which the
+ * blocks the borrow is live in follow by walking predecessors. See BorrowExtent for why an interval
+ * of instruction indices is not an answer to the second.
  */
-static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
+static void computeExtent(Analysis& analysis, ModulePtr<Inst> pointer, BorrowExtent& extent) {
+    extent.blocks.clear();
+    for(Size b = 0; b < analysis.blockCount(); b++) extent.blocks.push(BlockExtent());
+
+    auto& borrow = *analysis.local[pointer];
+    extent.defBlock = analysis.local[borrow.block]->index;
+
     auto found = analysis.indexOf.get(U32(pointer));
-    auto last = found ? found.unwrap() : 0;
+    extent.defIndex = found ? found.unwrap() : 0;
 
     ValueList pending;
     ValueList seen;
@@ -90,16 +175,72 @@ static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
     while(pending.size()) {
         auto value = pending.pop().unwrap();
 
-        auto visited = false;
-        for(auto& entry: seen) visited = visited || entry == value;
-        if(visited) continue;
+        auto walked = false;
+        for(auto& entry: seen) walked = walked || entry == value;
+        if(walked) continue;
         seen.push(value);
 
-        for(auto user: analysis.local[value]->uses(analysis.local)) {
-            auto index = analysis.indexOf.get(U32(user));
-            if(index && index.unwrap() > last) last = index.unwrap();
+        /*
+         * The block this carrier is defined in, which is what its own uses are walked back to - see
+         * markLiveOut. The borrow is one carrier among several and has no special standing here.
+         */
+        auto carrierBlock = analysis.local[analysis.local[value]->block]->index;
 
+        SmallArray<U8, 16> visited;
+        for(Size b = 0; b < extent.blocks.size(); b++) visited.push(0);
+
+        for(auto user: analysis.local[value]->uses(analysis.local)) {
             auto& instruction = *analysis.local[user];
+
+            /*
+             * Where this use puts the value.
+             *
+             * A phi is the one user that does not make the value live in its own block: an operand
+             * arrives along one edge, so what it says is that the value is live *out of that
+             * predecessor* and nothing about the other arms. Marking the phi's block live-in
+             * instead would keep a borrow alive down every path into a merge, which is how a value
+             * that a branch discarded ends up conflicting with the branch that discarded it.
+             *
+             * Every other user makes the value live at its own position, and live in to its block
+             * unless that block is where the borrow was taken - in which case it is live from the
+             * borrow onwards and no further back.
+             */
+            if(instruction.kind == Value::Phi) {
+                auto& phi = (InstPhi&)instruction;
+                for(Size input = 0; input < phi.inputs.size(); input++) {
+                    auto arm = phi.inputs.get(analysis.local, input);
+                    if(arm.value == value && arm.block) {
+                        markLiveOut(analysis, extent, carrierBlock, visited, arm.block);
+                    }
+                }
+
+                /*
+                 * And the phi carries the loan on, which is the other half of the same fact: a merge
+                 * of two borrows may name either, so a use of the merged value keeps *both* alive.
+                 * Without this the extent stopped dead at the phi - `let &chosen = if flag then
+                 * pick(x, y) else pick(y, x)` followed by a write to `x` was accepted in silence,
+                 * because nothing after the merge was reachable from either borrow.
+                 */
+                pending.push((ModulePtr<Value>)user);
+            } else if(auto index = analysis.indexOf.get(U32(user))) {
+                auto block = analysis.local[instruction.block];
+
+                if(block->index < extent.blocks.size()) {
+                    auto& row = extent.blocks[block->index];
+
+                    if(!row.used || index.unwrap() > row.lastUse) {
+                        row.used = true;
+                        row.lastUse = index.unwrap();
+                    }
+
+                    if(block->index != carrierBlock) {
+                        row.liveIn = true;
+                        for(auto predecessor: block->incoming(analysis.local)) {
+                            markLiveOut(analysis, extent, carrierBlock, visited, predecessor);
+                        }
+                    }
+                }
+            }
 
             /*
              * A borrow written into a closure's environment is live for as long as the closure is.
@@ -185,72 +326,90 @@ static U32 lastUseOf(Analysis& analysis, ModulePtr<Inst> pointer) {
             }
         }
     }
-
-    return last;
 }
 
 void checkBorrows(Analysis& analysis) {
-    SmallArray<LiveBorrow, 8> borrows;
+    // One extent, refilled per borrow. It is a walk of the block graph, so what it holds is
+    // proportional to the function rather than to the borrow, and there is nothing in it worth
+    // building twice.
+    BorrowExtent extent;
 
-    for(Size i = 0; i < analysis.instructionCount; i++) {
-        auto pointer = analysis.order[i];
-        auto& instruction = *analysis.local[pointer];
-        if(instruction.kind != Value::Borrow) continue;
+    for(Size at = 0; at < analysis.instructionCount; at++) {
+        auto pointer = analysis.order[at];
+        auto& borrowed = (InstBorrow&)*analysis.local[pointer];
+        if(borrowed.kind != Value::Borrow) continue;
 
-        borrows.push(LiveBorrow {
-            pointer, U32(i), lastUseOf(analysis, pointer), ((InstBorrow&)instruction).mut,
-        });
-    }
+        computeExtent(analysis, pointer, extent);
 
-    for(auto& borrow: borrows) {
-        auto& borrowed = (InstBorrow&)*analysis.local[borrow.instruction];
+        /*
+         * Block by block rather than straight down the numbering, which is the fix - see
+         * BorrowExtent. What is scanned inside each block is the part of it the borrow is actually
+         * live across:
+         *
+         *  - from the top where the borrow reaches the block along an edge, and from the borrow
+         *    itself in the block that took it;
+         *  - to the bottom where it leaves along an edge, and to its last use in the block where
+         *    it dies.
+         *
+         * A block it is live neither in nor out of and uses in nowhere is not scanned at all, which
+         * is every block of a loop the borrow was taken after.
+         */
+        for(Size b = 0; b < analysis.blockCount() && b < extent.blocks.size(); b++) {
+            auto& row = extent.blocks[b];
+            auto defines = b == extent.defBlock;
+            if(!row.liveIn && !row.liveOut && !row.used && !defines) continue;
 
-        for(Size i = borrow.from + 1; i <= borrow.to; i++) {
-            auto other = analysis.order[i];
-            auto& instruction = *analysis.local[other];
+            auto& range = analysis.blockRanges[b];
+            auto first = row.liveIn || !defines ? range.first : extent.defIndex + 1;
+            auto end = row.liveOut ? range.end : (row.used ? row.lastUse + 1 : first);
 
-            Place places[kMaxPlaces];
-            auto touched = instructionPlaces(instruction, places);
-            if(!touched) continue;
+            for(Size i = first; i < end; i++) {
+                auto other = analysis.order[i];
+                auto& instruction = *analysis.local[other];
 
-            auto overlaps = false;
-            for(Size p = 0; p < touched; p++) {
-                overlaps = overlaps || placesOverlap(analysis.local, borrowed.place, places[p]);
+                Place places[kMaxPlaces];
+                auto touched = instructionPlaces(instruction, places);
+                if(!touched) continue;
+
+                auto overlaps = false;
+                for(Size p = 0; p < touched; p++) {
+                    overlaps = overlaps || placesOverlap(analysis.local, borrowed.place, places[p]);
+                }
+
+                if(!overlaps) continue;
+
+                // The instructions that consume the borrow reach the storage *through* it, which is
+                // the whole point of handing one out rather than a conflict with it.
+                auto consumed = false;
+                for(auto user: analysis.local[pointer]->uses(analysis.local)) {
+                    if(user == other) consumed = true;
+                }
+
+                if(consumed) continue;
+
+                auto otherBorrow = instruction.kind == Value::Borrow;
+                auto otherMutable = otherBorrow && ((InstBorrow&)instruction).mut;
+
+                // Two immutable borrows of one place are exactly what borrows are for.
+                if(!borrowed.mut && otherBorrow && !otherMutable) continue;
+
+                // Reading through a live immutable borrow is fine; it is the mutable one that is
+                // exclusive. A write is a conflict with either.
+                auto writes = instruction.kind == Value::Assign || instruction.kind == Value::Init ||
+                              instruction.kind == Value::Move || otherMutable ||
+                              instruction.kind == Value::Address ||
+                              instruction.kind == Value::Swap || instruction.kind == Value::Exchange;
+
+                if(!borrowed.mut && !writes) continue;
+
+                report(analysis,
+                       borrowed.mut
+                           ? "this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live"_v
+                           : "this write conflicts with an immutable borrow of the same storage that is still live"_v,
+                       instruction.source);
+
+                note(analysis, "the borrow it conflicts with is here"_v, borrowed.source);
             }
-
-            if(!overlaps) continue;
-
-            // The instructions that consume the borrow reach the storage *through* it, which is
-            // the whole point of handing one out rather than a conflict with it.
-            auto consumed = false;
-            for(auto user: analysis.local[borrow.instruction]->uses(analysis.local)) {
-                if(user == other) consumed = true;
-            }
-
-            if(consumed) continue;
-
-            auto otherBorrow = instruction.kind == Value::Borrow;
-            auto otherMutable = otherBorrow && ((InstBorrow&)instruction).mut;
-
-            // Two immutable borrows of one place are exactly what borrows are for.
-            if(!borrow.mut && otherBorrow && !otherMutable) continue;
-
-            // Reading through a live immutable borrow is fine; it is the mutable one that is
-            // exclusive. A write is a conflict with either.
-            auto writes = instruction.kind == Value::Assign || instruction.kind == Value::Init ||
-                          instruction.kind == Value::Move || otherMutable ||
-                          instruction.kind == Value::Address ||
-                          instruction.kind == Value::Swap || instruction.kind == Value::Exchange;
-
-            if(!borrow.mut && !writes) continue;
-
-            report(analysis,
-                   borrow.mut
-                       ? "this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live"_v
-                       : "this write conflicts with an immutable borrow of the same storage that is still live"_v,
-                   instruction.source);
-
-            note(analysis, "the borrow it conflicts with is here"_v, borrowed.source);
         }
     }
 }

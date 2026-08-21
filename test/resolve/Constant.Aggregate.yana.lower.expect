@@ -8,14 +8,14 @@ mut @cursor = [10, 0, 0, 0, 20, 0, 0, 0]
 @roundShape = [0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0]
 @table = [12, 0, 0, 0, 13, 0, 0, 0, 14, 0, 0, 0]
 @corners = [1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 4, 0, 0, 0]
-@string$0 = [104, 101, 108, 108, 111]
+@ResolveTest.string$0 = [104, 101, 108, 108, 111]
 @greeting = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
-@string$1 = [119, 111, 114, 108, 100, 33]
+@ResolveTest.string$1 = [119, 111, 114, 108, 100, 33]
 @labelled = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0, 15, 0, 0, 0]
 @flags = [149, 1]
 @packed = [0, 0, 0, 0, 99, 0, 0, 0]
 @wrapped = [1, 0, 0, 0, 40, 0, 0, 0]
-@string$2 = [111, 107]
+@ResolveTest.string$2 = [111, 107]
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
@@ -220,9 +220,10 @@ main<complex>(): Int {
 
   b_53 {
     %v_55 = phi [b_44, %v_46], [b_52, %v_54]: Int
-    %v_56 = add @corners, 8: Ptr
+    %corners = global @corners: Ptr
+    %v_56 = add %corners, 8: Ptr
     %p$x = loads %v_56, 4: Int
-    %v_57 = add %v_56, 4: Ptr
+    %v_57 = add %corners, 12: Ptr
     %p$y = loads %v_57, 4: Int
     %v_58 = add %p$x, %p$y: Int
     %v_59 = cmp_eq %v_58, 6: Int
@@ -314,9 +315,9 @@ main<complex>(): Int {
     store %v_107, 5, 4
     %v_108 = add %s, 28: Ptr
     store %v_108, 2, 4
-    %v_109 = add %v_108, 4: Ptr
+    %v_109 = add %s, 32: Ptr
     store %v_109, 3, 4
-    store %s, @string$2, 8
+    store %s, @ResolveTest.string$2, 8
     %v_110 = add %s, 8: Ptr
     %v_111 = load %v_103, 4: Int
     store %v_110, %v_111, 4
@@ -326,53 +327,52 @@ main<complex>(): Int {
     copy %v_113, %v_105, 12
     %v_114 = add %s, 36: Ptr
     store %v_114, 1, 4
-    %v_115 = add %v_114, 4: Ptr
+    %v_115 = add %s, 40: Ptr
     store %v_115, 4, 4
     %p$x = loads %v_108, 4: Int
-    %v_116 = add %s, 32: Ptr
-    %p$y = loads %v_116, 4: Int
-    %v_117 = add %p$x, %p$y: Int
-    %v_118 = load %v_112, 4: Int
-    %units = cast %v_118: Int
-    %v_119 = add %v_117, %units: Int
-    %v_120 = call_complex area, %v_105: Int
-    %v_121 = add %v_119, %v_120: Int
-    %v_122 = add %s, 36: Ptr
-    %v_123 = loads %v_122, 4: Int
-    %v_124 = cmp_eq %v_123, 1: Int
-    %v_125 = add %s, 40: Ptr
-    %v = loads %v_125, 4: Int
-    %v_126 = select %v_124, %v, 0: Int
-    %v_127 = add %s, 8: Ptr
-    %v_128 = load %v_127, 4: Long
-    %v_129 = shr %v_128, 30: Long
+    %p$y = loads %v_109, 4: Int
+    %v_116 = add %p$x, %p$y: Int
+    %v_117 = load %v_112, 4: Int
+    %units = cast %v_117: Int
+    %v_118 = add %v_116, %units: Int
+    %v_119 = call_complex area, %v_105: Int
+    %v_120 = add %v_118, %v_119: Int
+    %v_121 = add %s, 36: Ptr
+    %v_122 = loads %v_121, 4: Int
+    %v_123 = cmp_eq %v_122, 1: Int
+    %v_124 = add %s, 40: Ptr
+    %v = loads %v_124, 4: Int
+    %v_125 = select %v_123, %v, 0: Int
+    %v_126 = add %s, 8: Ptr
+    %v_127 = load %v_126, 4: Long
+    %v_128 = shr %v_127, 30: Long
+    %v_129 = cast %v_128: Int
     %v_130 = cast %v_129: Int
-    %v_131 = cast %v_130: Int
-    %v_132 = cmp_eq %v_131, 1: Int
-    je %v_132, b_133, b_134
+    %v_131 = cmp_eq %v_130, 1: Int
+    je %v_131, b_132, b_133
+  }
+
+  b_132 {
+    %v_134 = load %s, 8: Ptr
+    call_complex freeHeap, %v_134
+    jmp b_133
   }
 
   b_133 {
-    %v_135 = load %s, 8: Ptr
-    call_complex freeHeap, %v_135
-    jmp b_134
+    %defaults = add %v_120, %v_125: Int
+    %v_135 = cmp_eq %defaults, 21: Int
+    je %v_135, b_136, b_137
   }
 
-  b_134 {
-    %defaults = add %v_121, %v_126: Int
-    %v_136 = cmp_eq %defaults, 21: Int
-    je %v_136, b_137, b_138
+  b_136 {
+    %v_138 = add %v_102, 16384: Int
+    jmp b_137
   }
 
   b_137 {
-    %v_139 = add %v_102, 16384: Int
-    jmp b_138
-  }
-
-  b_138 {
-    %v_140 = phi [b_134, %v_102], [b_137, %v_139]: Int
-    %v_141 = add %v_140, 32768: Int
-    ret %v_141
+    %v_139 = phi [b_133, %v_102], [b_136, %v_138]: Int
+    %v_140 = add %v_139, 32768: Int
+    ret %v_140
   }
 }
 
