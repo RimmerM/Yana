@@ -776,7 +776,6 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
     switch(inst.kind) {
         case Value::Alloc: {
             auto& source = (InstAlloc&)inst;
-            auto allocation = resolver.emit<InstAlloc>(inst.source, inst.name, type, source.local);
 
             /*
              * The count and the storage tag come across; the storage *class* does not.
@@ -787,8 +786,24 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
              * constant reading `Inline` while the allocation went to the heap, and the `Reclaim`
              * switch would then hand nothing back. The constant itself is cloned fresh, so the two
              * bodies patch two different values.
+             *
+             * **The count is cloned before the allocation is emitted, and handed to it**, because it
+             * is an *operand* - see InstAlloc::extent - and `emit` is what records an instruction's
+             * uses. Assigning it afterwards left the count with a use list of zero: nothing read it,
+             * so `eliminateDeadValues` removed the instruction computing it, and the allocation was
+             * left naming a value no block defined. Lowering then read a null and `scaleBy`
+             * dereferenced it, which is a segfault in the compiler rather than a diagnostic - the
+             * exact failure `createInst`'s note in builder.h exists to prevent. It needed a run whose
+             * length is *computed* inside a body that gets specialized, which is why no fixture had
+             * one until an `iter fn` allocated a buffer of its argument.
+             *
+             * `storageFlag` stays below it and stays safe: it is a constant, which belongs to no
+             * block, is never a use, and cannot be removed.
              */
-            if(source.extent) allocation->extent = cloneValue(clone, source.extent);
+            auto extent = source.extent ? cloneValue(clone, source.extent) : nullptr;
+            auto allocation = resolver.emit<InstAlloc>(inst.source, inst.name, type, source.local,
+                                                       extent);
+
             if(source.storageFlag) allocation->storageFlag = cloneValue(clone, source.storageFlag);
 
             // A closure environment names the body it belongs to, so that the teardown reaches that

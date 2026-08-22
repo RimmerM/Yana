@@ -1,0 +1,32 @@
+-- The return-root rule applied to a raw pointer result - Analysis-Language.md §1.
+--
+-- A `%T` carries provenance exactly as a `&T` does: `refersToStorage` tests `isPointer`, so the
+-- analysis has always known which argument an address came out of. What it did not do was hold the
+-- signature to it, and the cost was a temporary released before the pointer into it was read.
+
+import Native
+
+-- The address of a run's slots, with nothing declared to root it in. This is the shape that made
+-- `bytesOf(terminated(p))` read a path out of freed storage.
+fn unrootedSlots(r: Run(U8)) -> %U8 = slots(r)
+
+-- The same address through a projection rather than through a call.
+fn unrootedField(r: Run(U8)) -> %U8 = r.items
+
+-- Rooted in an argument the signature did not mark, where another one is marked.
+fn wrongRoot(return a: Run(U8), b: Run(U8)) -> %U8 = slots(b)
+
+-- What is *not* reported, and must not be: an address with no argument root at all. A pointer out
+-- of an allocator, out of a bitcast of an integer, and the null pointer are all outside any
+-- argument's storage, so none of them has a group to declare.
+fn fromAllocator(size: I64) -> %U8 = allocateHeap(size)
+fn fromInteger(address: I64) -> %U8 = bitcast(address) :: %U8
+fn nothing() -> %U8 = null()
+
+-- Nor is a container-returning function made to declare one. A raw pointer is where provenance
+-- stops by construction, so `Run(U8)` does not *contain* a reference even though it holds a `%U8`.
+fn passThrough(->r: Run(U8)) -> Run(U8) = r
+
+-- And the accepted shape, which is the whole point of the rule: the marker makes the caller's
+-- storage the root, so the drop of what `r` names is placed after the last read through the result.
+fn rootedSlots(return r: Run(U8)) -> %U8 = slots(r)

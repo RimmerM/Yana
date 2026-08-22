@@ -1,0 +1,58 @@
+-- The two axes a `let` sigil answers on - Analysis-Language.md §2.
+--
+-- `->` says *where the value came from*: a destructive read of a place somebody else owns. `&` says
+-- *how this binding may be used*: writable. They are different questions, and while there was one
+-- slot to write them in, a value that had to be taken out of somewhere and then written through was
+-- a program with no spelling - the two diagnostics it drew pointed at each other.
+
+import Native
+
+data Held {value: Run(U8)}
+data Box = Filled(Held) | Empty
+
+fn make(ok: Bool, n: Size) -> Result(I64, Held):
+    if !ok then return Err(7)
+    return Ok(Held {value: newRun(n)})
+
+fn setName(&self: Held, n: Size) -> {}:
+    self.value = newRun(n)
+    return
+
+fn slotCount(self: Held) -> Size = self.value.capacity :: Size
+
+{-
+   §2a: `let &` takes the value out where the source is a whole-value projection out of a temporary
+   nothing else names.
+
+   `&` already meant "own and mutable" for a temporary - `let &copy = newStringOfCapacity(n)` borrows
+   nothing, because a call result is an rvalue with no other owner. The only initializer it refused
+   was a *projection* out of one, which is what `?` and every `match` payload is. Nothing new is
+   written here: the move is what `&` on any other temporary already does.
+-}
+fn viaTry(ok: Bool, n: Size) -> Result(I64, Size):
+    let &opened = make(ok, n)?
+    setName(opened, n + 1)
+    return Ok(slotCount(opened))
+
+{-
+   §2b: `let &->` is the same move out of a place that keeps a name of its own.
+
+   With 2a in place this is rarely what anyone writes, and without it the two axes still could not
+   be spanned: the source is `b`, which goes on existing, so the destruction is observable through
+   the other name and `->` is required rather than inferred.
+-}
+fn viaNamedPlace(->b: Box, n: Size) -> Size = match b:
+    Filled(->held):
+        let &taken = held
+        setName(taken, n)
+        return slotCount(taken)
+    Empty: return 0
+
+-- The same in a pattern. `&` alone is refused there because matching establishes no exclusive access
+-- to the pivot; `&->` claims nothing about the pivot, since what it names is the storage the move
+-- landed in and this frame owns that outright.
+fn viaPattern(->b: Box, n: Size) -> Size = match b:
+    Filled(&->held):
+        setName(held, n)
+        return slotCount(held)
+    Empty: return 0

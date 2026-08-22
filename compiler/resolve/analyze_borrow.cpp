@@ -605,10 +605,19 @@ static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId
         return;
     }
 
-    // A payload the pivot is the only owner of: the move is representable, it just was not written.
-    // Pointing at the spelling is the whole value of separating this case out.
+    /*
+     * A payload the pivot is the only owner of: the move is representable, it just was not written.
+     * Pointing at the spelling is the whole value of separating this case out.
+     *
+     * Both spellings, which is the other half of Analysis-Language.md §2c. `->` alone gives an
+     * immutable binding, so a reader who needs to write through the name afterwards would be sent
+     * straight back here by the next diagnostic; `&->` is the same move into storage this binding
+     * may write. The projection out of an unnamed temporary no longer reaches this at all - see
+     * movableTemporary - so what is left here is a place that keeps a name of its own, which is
+     * exactly the case where the reader has to choose.
+     */
     if(wholeMove(analysis, place)) {
-        report(analysis, "this hands ownership on out of a value that still owns it - write `->` on the name that binds it, as in `Just(->v)`, to take it out"_v,
+        report(analysis, "this hands ownership on out of a value that still owns it - write `->` on the name that binds it, as in `Just(->v)`, to take it out, or `let &->` where the name must also be writable"_v,
                source);
         return;
     }
@@ -727,11 +736,25 @@ void checkMoves(Analysis& analysis) {
  * path actually found. Nothing here looks at a callee's body - a call's result arrived with the
  * callee's declared group already mapped through the operands, which is what makes provenance
  * compose transitively through a helper without inspecting one.
+ *
+ * A raw pointer result is held to the same contract, which is Analysis-Language.md §1. The instinct
+ * that a `%T` is outside the ownership model is right about the pointer's *target* - that is
+ * checkTransfer's `outsideModel`, and it stays - and wrong about where the address came from, which
+ * this model computes for a pointer exactly as it computes it for a borrow: refersToStorage tests
+ * isPointer, so `slots(r)` already arrives here carrying `r`. Leaving it unchecked was the one place
+ * the compiler knew the answer and did not say it, and what it cost was `bytesOf(terminated(p))`
+ * reading a path out of storage the allocator had already taken back.
+ *
+ * Asked of a result that *is* a pointer and not of one that merely contains one, which is the same
+ * line containsBorrowLike draws and for the same reason: a raw pointer is where this analysis stops
+ * by construction, so `Array(T)` holds a `Run(T)` holds a `%T` and descending would make every
+ * container-returning function in the library declare a group. A pointer stored into something
+ * longer-lived than its root is the separate hole §1 names at its end, and it is not this one.
  */
 void checkReturnRoots(Analysis& analysis) {
     auto& function = analysis.function;
     auto& summary = function.summary;
-    if(!summary.returnsBorrow) return;
+    if(!summary.returnsBorrow && !isPointer(analysis.global, function.returnType)) return;
 
     auto source = function.source;
 
@@ -758,13 +781,20 @@ void checkReturnRoots(Analysis& analysis) {
     auto undeclared = summary.actualRoots & ~summary.declaredRoots;
     if(!undeclared) return;
 
+    // One rule, and the noun is the only thing that differs. A reader told a *pointer* is unrooted
+    // has been told what to look at; told a "borrow" about a `-> %U8` they would look for a `&`
+    // that is not there.
+    auto pointerResult = isPointer(analysis.global, function.returnType);
+
     U16 index = 0;
     for(auto argPointer: function.args.contents(analysis.local)) {
         auto arg = analysis.local[argPointer];
 
         if(undeclared & rootBit(index)) {
             report(analysis,
-                   "a borrow returned from this function is rooted in %@, which the signature did not mark `return`"_v,
+                   pointerResult
+                       ? "a pointer returned from this function is rooted in %@, which the signature did not mark `return`"_v
+                       : "a borrow returned from this function is rooted in %@, which the signature did not mark `return`"_v,
                    arg->source, analysis.context.findName(arg->name));
         }
 

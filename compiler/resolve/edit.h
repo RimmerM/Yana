@@ -194,8 +194,34 @@ struct IrEditor {
      *
      * Lowest last, so that the `Value::slot` back edge names the lowest slot of the several that may
      * hold one value. That is the answer `findPlace` and `backingLocal` give.
+     *
+     * **Except where `to` already fills a slot of its own**, which is the case a collapsing phi
+     * produces and the one this may not answer by writing a second slot. See `mergeIntoLocal`.
      */
     void repointLocalValue(ModulePtr<Value> from, ModulePtr<Value> to);
+
+    /*
+     * Two locals that turned out to name one piece of storage, made one.
+     *
+     * Every place rooted in `from` is re-rooted in `to` and `from`'s slot is emptied, so that what
+     * is left is one local for one allocation. That is an invariant most of `compiler/opt` reasons
+     * from without saying so: opt_promote.cpp's proof is "the only places that can overlap one of
+     * this local's fields are other places rooted in the same local", opt_scalar.cpp removes a
+     * local whose own place is written and never read, and both are false the moment two locals
+     * name one `Alloc`.
+     *
+     * A collapsing phi is what makes that happen. `let m = if c then Just(x) else Nothing` gives
+     * the binding a slot whose value is a phi of the two arms' allocations; folding the condition
+     * leaves one arm, and repointing `m`'s slot at that arm's `Alloc` - which already has a slot -
+     * is a second name for it. `promotePlaces` then read `m`'s discriminant, found nothing writing
+     * *that* local, and answered with the zero an unwritten local holds: every such `if` came out
+     * as the wrong constructor.
+     *
+     * The use lists need no repair. A place rooted in a local is recorded as a use of that local's
+     * storage value - see `addPlaceUse` - and both slots hold the same value here, so re-rooting
+     * moves a use from one name of it to another.
+     */
+    void mergeIntoLocal(U32 from, U32 to);
 
     /*
      * One slot pointed at the value that fills it - the pairing's two fields, `Local::value` and

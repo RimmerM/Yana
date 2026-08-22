@@ -119,6 +119,25 @@ static void placeDrops(Analysis& analysis, DropList& blockDrops, EdgeDropList& e
 
             auto liveBefore = analysis.liveIn[b][l];
 
+            /*
+             * A `->` parameter the body never mentions, which is owned before the first instruction
+             * runs and so is dead everywhere.
+             *
+             * Every other owned slot becomes owned at an `init` this walk can see, and the rule
+             * below - live before, dead after - places its teardown at the last thing that read it.
+             * A sunk parameter has no such point: the handover happened at the call site, so a body
+             * that never names it leaves nothing for "dead after" to be after, and what the callee
+             * was given was quietly leaked. `fn f(->h: Held) -> Int = 0` is the whole of it.
+             *
+             * At the top of the entry block rather than at the end of it. There may be no other
+             * instruction to sit before - a body that is one `ret` is exactly the shape this misses -
+             * and a drop placed after a terminator is a drop that never runs.
+             */
+            if(b == 0 && !liveBefore && analysis.ownedOnEntry(U32(l))) {
+                blockDrops[b].push(PendingDrop { U32(l), U32(range.first), nullptr, false });
+                continue;
+            }
+
             for(Size i = range.first; i < range.end; i++) {
                 auto& effects = analysis.effects[i];
                 auto liveAfter = after[range.end - 1 - i][l];

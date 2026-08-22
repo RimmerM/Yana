@@ -855,7 +855,8 @@ TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut) {
  * later one shares it. That is deliberate: `(a: Int) -> Int` and `(Int) -> Int` accept exactly the
  * same calls, and making them two types would make a name in a signature an API commitment.
  */
-TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast::FunKind kind) {
+TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast::FunKind kind,
+                       ast::BindType resultBind) {
     auto base = *module.types;
     if(!result) return module.scalar.error;
 
@@ -866,6 +867,7 @@ TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast:
     for(auto pointer: module.program.funTypes.contents(base)) {
         auto candidate = base[pointer];
         if(candidate->result != result || candidate->kind != kind) continue;
+        if(candidate->resultBind != resultBind) continue;
         if(candidate->args.size() != args.length) continue;
 
         auto equal = true;
@@ -884,6 +886,7 @@ TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast:
     auto type = new (module.types) FunType;
     type->result = result;
     type->kind = kind;
+    type->resultBind = resultBind;
     type->generic = isGeneric(base, result);
 
     for(Size i = 0; i < args.length; i++) {

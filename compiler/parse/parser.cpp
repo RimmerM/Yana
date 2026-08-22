@@ -314,7 +314,10 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
     });
 
     ast::ParsePtr<ast::Type> ret = nullptr;
+    auto retBind = ast::BindType::Borrow;
+
     if(maybe(Token::opArrowR)) {
+        retBind = parseResultBind();
         ret = heap(parseType());
     }
 
@@ -386,6 +389,7 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
             .constraints = constraints,
             .args = args,
             .ret = ret,
+            .retBind = retBind,
             .body = body,
             .implicitReturn = implicitReturn,
             .kind = funKind,
@@ -1271,12 +1275,19 @@ ast::VarDecl Parser::parseDeclExpr() {
     parseAttributes(attributes, true);
 
     // A `let` takes the same binding conventions as a parameter, written the same way and in
-    // the same place.
+    // the same place - and one a parameter has no use for. `&->` is the two axes at once:
+    // move out of a place that has another name, into storage this binding may write through.
+    // The order is fixed, because two spellings of one thing is one spelling too many.
     auto bind = ast::BindType::Borrow;
+    auto sink = false;
+
     if(maybe(Token::opArrowR)) {
         bind = ast::BindType::Sink;
     } else if(maybe(Token::opAmp)) {
         bind = ast::BindType::Ref;
+    } else if(maybe(Token::opAmpArrowR)) {
+        bind = ast::BindType::Ref;
+        sink = true;
     }
 
     auto pat = parsePattern();
@@ -1330,9 +1341,9 @@ ast::VarDecl Parser::parseDeclExpr() {
             in = heap(parseExpr());
         }
 
-        return { pat, heap(expr), in, alts, bind, ::move(attributes) };
+        return { pat, heap(expr), in, alts, bind, sink, ::move(attributes) };
     } else {
-        return { pat, nullptr, nullptr, {}, bind, ::move(attributes) };
+        return { pat, nullptr, nullptr, {}, bind, sink, ::move(attributes) };
     }
 }
 
@@ -1539,9 +1550,31 @@ void Parser::parseTupUpdateArg(ast::ParseList<ast::TupUpdateArg>& list) {
 // `->` and `&` cannot start an identifier. Out-parameters - writing into storage the caller
 // owns and has not initialized - are spelled `@uninit &` and belong to the ownership
 // milestone alongside `&` parameters themselves; they are not a fourth convention.
+/*
+ * The convention written on a *result*, which today is only a `lens`/`iter`'s hand-over -
+ * Analysis-Language.md §3a.
+ *
+ * `-> ->T`, and the second arrow is a token of its own rather than part of the first. That is the
+ * lexer's rule rather than a choice made here: a symbol run is classified whole, so `->->` is one
+ * lexeme and not two, and the space between them is what makes this two arrows. Written into the
+ * grammar as two tokens for the same reason.
+ *
+ * Accepted wherever a result type is, and refused in resolve for a kind that has no hand-over to
+ * have a convention about. Reading it here and reporting there is what keeps `fn f() -> ->Int` from
+ * being a *parse* error, which would point at the arrow rather than at the missing `iter`.
+ */
+ast::BindType Parser::parseResultBind() {
+    if(maybe(Token::opArrowR)) return ast::BindType::Sink;
+    return ast::BindType::Borrow;
+}
+
 ast::BindType Parser::parseBindType() {
     if(maybe(Token::opArrowR)) return ast::BindType::Sink;
     if(maybe(Token::opAmp)) return ast::BindType::Ref;
+
+    // The two axes at once. `Ref` here is the use axis alone; the source axis is the caller's to
+    // record, because `BindType` has one slot and this is the combination that needs two.
+    if(maybe(Token::opAmpArrowR)) return ast::BindType::Ref;
 
     return ast::BindType::Borrow;
 }
@@ -1614,11 +1647,18 @@ void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
  * else a leading `->` could be.
  */
 ast::Pat Parser::parseBoundPattern() {
-    if(token.type != Token::opArrowR && token.type != Token::opAmp) return parsePattern();
+    if(token.type != Token::opArrowR && token.type != Token::opAmp &&
+       token.type != Token::opAmpArrowR) {
+        return parsePattern();
+    }
 
+    // `&->` is one lexeme and sets both axes - see ast::Pat::bind. A bare `&` is read here as well
+    // and refused in the resolver, where the reason for refusing it can be said.
+    auto sink = token.type == Token::opAmpArrowR;
     auto bind = parseBindType();
     auto pat = parsePattern();
     pat.bind = bind;
+    pat.sink = sink;
     return pat;
 }
 
@@ -1946,9 +1986,10 @@ ast::Constraint Parser::parseConstraint() {
         expectClose(Token::ParenR, "expected ')'"_v);
         expect(Token::opArrowR, "expected function return type"_v);
 
+        auto retBind = parseResultBind();
         WithLocation retLocation(*this);
         auto ret = parseAType(retLocation, nullptr);
-        auto type = makeType(Fun, fun, heap(ast::FunType { args, ret, funKind }), funLocation, nullptr);
+        auto type = makeType(Fun, fun, heap(ast::FunType { args, ret, funKind, retBind }), funLocation, nullptr);
 
         return { .fun = { name, heap(type) }, .source = context.addLocation(location), .kind = ast::Constraint::Function };
     }
@@ -2105,7 +2146,8 @@ ast::Type Parser::parseType() {
         }
     } else if(maybe(Token::opArrowR)) {
         WithLocation retLocation(*this);
-        return makeType(Fun, fun, heap(ast::FunType { .args = args, .ret = parseAType(retLocation, nullptr), .kind = funKind }), location, attributes);
+        auto retBind = parseResultBind();
+        return makeType(Fun, fun, heap(ast::FunType { .args = args, .ret = parseAType(retLocation, nullptr), .kind = funKind, .retBind = retBind }), location, attributes);
     } else {
         Maybe<ast::ArgDecl> arg = args.isNotEmpty() ? Just(args.get(*arena, 0)) : Nothing();
         if(arg && !arg.unwrap().name) {

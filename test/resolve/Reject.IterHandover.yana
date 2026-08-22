@@ -1,0 +1,9 @@
+-- What a result convention refuses - Analysis-Language.md §3a.
+
+-- An ordinary function has no receiver to say a convention about: what a `return` produces is
+-- already the caller's, and there is no second binding site for a marker to describe.
+fn plain() -> ->Int = 0
+
+-- A `lens`/`iter` that hands over nothing has no value for the marker to be about either.
+iter fn nothing(n: I64) -> ->{}:
+    yield {}

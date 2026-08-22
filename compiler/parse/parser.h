@@ -61,6 +61,9 @@ struct Parser: BasicParser<Lexer, Token> {
     ast::FunKind parseFunKind();
 
     ast::BindType parseBindType();
+
+    // `-> ->T` on a result - see the definition, and Analysis-Language.md §3a.
+    ast::BindType parseResultBind();
     bool parseReturnRoot();
     bool parseLazy();
 

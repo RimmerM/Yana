@@ -627,8 +627,21 @@ ModulePtr<Value> ExprResolver::patternBound(const ast::Pat& pattern, TypePtr tar
  * still fail, and it costs nothing a program wants: bind the payload and take it apart afterwards.
  */
 ModulePtr<Value> ExprResolver::bindPatternConvention(const ast::Pat& pattern, ModulePtr<Value> pivot) {
-    if(pattern.bind == ast::BindType::Ref) {
-        context.diagnostics.error("a pattern cannot bind with `&` - matching does not establish the exclusive access that would need. Match on the value and write through the name that owns it"_v,
+    /*
+     * `&` alone, and why `&->` is not the same refusal - Analysis-Language.md §2.
+     *
+     * What matching cannot establish is exclusive access to the *pivot's* storage: the pattern found
+     * a value where it lay and said nothing about who else can reach it, so a name claiming to be
+     * the only writer of it would be claiming something nobody granted. That is `&` meaning borrow,
+     * and it stays refused.
+     *
+     * `&->` claims nothing about the pivot. It takes the payload out - which the pivot then reads as
+     * moved from, on every rule `->` already answers to - and the storage the move lands in is this
+     * frame's own, so being the only writer of it is true by construction rather than by assumption.
+     * The two sigils were one refusal only while there was one slot to write them in.
+     */
+    if(pattern.bind == ast::BindType::Ref && !pattern.sink) {
+        context.diagnostics.error("a pattern cannot bind with `&` - matching does not establish the exclusive access that would need. Match on the value and write through the name that owns it, or write `&->` to take it out into storage this binding owns"_v,
                                   pattern.source);
         return pivot;
     }
@@ -644,7 +657,29 @@ ModulePtr<Value> ExprResolver::bindPatternConvention(const ast::Pat& pattern, Mo
     // drop pass would have no slot to owe the drop to. `Held(->_)` is the case that makes the second
     // half visible, since there the taken value is never named at all and dropping it *there* is the
     // whole of what was asked for.
-    return rootSink(sinkValue(pivot, pattern.source), pattern.source);
+    auto taken = rootSink(sinkValue(pivot, pattern.source), pattern.source);
+
+    /*
+     * And for `&->`, the slot the move landed in is declared writable.
+     *
+     * The convention is what `isWritablePlace` reads, so this is the whole of the second axis: the
+     * storage already exists and already belongs to this frame, and the sigil only says whether the
+     * name reaching it may write. Read-modify-write on the slot for bindMutable's reason - a Local
+     * carries more than the field this changes.
+     */
+    if(pattern.sink && taken) {
+        if(auto place = findPlace(taken)) {
+            auto found = place.unwrap();
+
+            if(found.root == PlaceRoot::Local && found.projections.isEmpty()) {
+                auto slot = function.localAt(local, found.local);
+                slot.convention = ast::BindType::Ref;
+                function.locals.set(local, found.local, slot);
+            }
+        }
+    }
+
+    return taken;
 }
 
 PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Value> pivot, ModulePtr<Block> onFail,

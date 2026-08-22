@@ -175,6 +175,11 @@ struct FunType {
     ParseList<ArgDecl> args;
     Type ret;
     FunKind kind = FunKind::Plain;
+
+    // `iter () -> ->T` - see Decl::fun::retBind, which is the same fact on a declaration. Here so
+    // that the convention composes into a function type and through a generic parameter with no
+    // further rule, which is what makes it a fact about the signature rather than about the body.
+    BindType retBind = BindType::Borrow;
 };
 
 struct AppType {
@@ -243,8 +248,18 @@ struct Pat {
      * the pivot occupies, and the pivot keeps owning it. `Sink` is `Just(->v)`, which takes the
      * payload out and leaves the pivot moved from - the only way to get an owned value out of a
      * container of them, and the reason this field exists.
+     *
+     * `Ref` is refused on its own, and Analysis-Language.md §2 is why the refusal is narrower than
+     * it looks: matching does not establish exclusive access, so `&` *meaning borrow* has nothing to
+     * be true of. It is not the whole of what `&` means. `Just(&->v)` is `&` on the other axis -
+     * this binding now owns writable storage - and that is a statement a move can make good on,
+     * which is what `sink` beside `Ref` says.
      */
     BindType bind = BindType::Borrow;
+
+    // `Just(&->v)`: the payload taken out of the pivot, into storage the name may write through.
+    // Only ever set beside `Ref`; a bare `->` is `Sink` and says the same about the source alone.
+    bool sink = false;
 
     /*
      * Set on a literal pattern written with a leading `-`.
@@ -442,12 +457,30 @@ struct MapArg {
     Expr value;
 };
 
+/*
+ * A `let`, and the two questions its sigils answer - Analysis-Language.md §2.
+ *
+ * They are different questions and they had one slot. `->` says *where the value came from*: this is
+ * a destructive read of a place somebody else owns. `&` says *how this binding may be used*:
+ * writable. A binding can want either, both or neither, and while there was one `BindType` to say it
+ * in, `let &f = openFile(p, a)?` was a program with no spelling - the two diagnostics it drew
+ * pointed at each other.
+ *
+ * So `bind` is the use axis and carries `Borrow` or `Ref`, and `sink` is the source axis. The bare
+ * `->` keeps `BindType::Sink` rather than becoming `Borrow` plus the flag, because a `->` binding is
+ * still immutable and `Sink` is the name the rest of the compiler already reads that as.
+ */
 struct VarDecl {
     Pat pat;
     ParsePtr<Expr> content;    // nullable
     ParsePtr<Expr> in;         // nullable; if this is set, content must also be set.
     ParseList<Alt> alts; // if this is set, content must also be set.
     BindType bind;
+
+    // `let &->x`: the initializer is a destructive read of a place that has another name, and the
+    // storage it lands in is writable through this one. Only ever set beside `BindType::Ref` - a
+    // bare `->` is `BindType::Sink`, which says the same thing about the source on its own.
+    bool sink = false;
 
     // Attributes written before the binding - `@heap let big = ...`. Parsed but not interpreted
     // here; which ones mean anything is a resolve-stage question.
@@ -686,6 +719,19 @@ struct Decl {
             ConstraintList constraints;
             ParseList<Arg> args;
             ParsePtr<Type> ret;  // nullable.
+
+            /*
+             * `-> ->T` - the convention what this hands over is received under, and only for a
+             * `lens`/`iter` (Analysis-Language.md §3a).
+             *
+             * A yielded value has a binding convention exactly as an argument does, and there was no
+             * way to declare it anything but a borrow - so `?` could not reach an owned payload out
+             * of a `for` body, and every consumer of a fallible iterator wrote a `match` instead.
+             * It lives on the *type* rather than on the body, because a function summary is part of
+             * its published interface: inferring it from `yield ->x` would make a signature depend
+             * on whether the body is visible.
+             */
+            BindType retBind;
             ParsePtr<Expr> body; // nullable.
             bool implicitReturn;
             FunKind kind;

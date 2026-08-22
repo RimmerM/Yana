@@ -261,6 +261,17 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
     // return edge - Implementation-Lens.md part 2's "a lens callback is exempt".
     if(function->funKind != ast::FunKind::Plain && !classSignature) {
         resolveLensSignature(module, *function, env, decl);
+    } else if(decl.fun.retBind != ast::BindType::Borrow) {
+        /*
+         * `-> ->T` on a function that hands nothing over - Analysis-Language.md §3a.
+         *
+         * A result convention says how the *receiver* of a value binds it, and an ordinary function
+         * has no receiver to say it about: what a `return` produces is already the caller's, and
+         * there is no second binding site for a marker to describe. Only a `lens` and an `iter`
+         * have one, which is their continuation.
+         */
+        module.context.diagnostics.error("`-> ->` says how what this hands over is received, and only a `lens fn` or an `iter fn` hands anything over - an ordinary function's result is the caller's already"_v,
+                                         decl.source);
     }
 
     function->returnRoots = roots > 0;

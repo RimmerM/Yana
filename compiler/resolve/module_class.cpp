@@ -169,7 +169,7 @@ StringId instanceFunctionName(Module& module, TypeClass& typeClass, Buffer<TypeP
 
 // Whether one variable of a generic context is reachable inside a type. Instance selection binds
 // by variable index, so occurrence is asked by index too rather than by identity.
-static bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
+bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
     if(!isGeneric(global, type)) return false;
 
     switch(global[type]->kind) {

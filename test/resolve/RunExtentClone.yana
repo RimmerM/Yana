@@ -1,0 +1,53 @@
+{-
+   A run whose length is computed, in a body that gets specialized - InstAlloc::extent.
+
+   `extent` is an *operand*, and `ExprResolver::emit` is what records an instruction's uses. The
+   specializer's clone emitted the allocation first and assigned the cloned count to it afterwards,
+   so the count arrived with a use list of zero: `eliminateDeadValues` removed the instruction
+   computing it, and the allocation was left naming a value no block defined. Lowering read a null
+   and `scaleBy` dereferenced it - a segfault in the compiler rather than a diagnostic.
+
+   Nothing had one because every run until now got its length from an array literal, where the count
+   is a `ConstInt` - a constant belongs to no block, is never a use, and cannot be removed. What it
+   takes is a *computed* length inside a body a call specializes, which is what the `iter fn` below
+   is: its continuation is lifted, specialized at the caller's types, and lowered without ever being
+   inlined.
+
+   Asserted by the numbers rather than by the IR text. A lost extent has two failure modes and only
+   one of them crashes: the other is an allocation of a single slot where `n` were asked for, which
+   is the same instruction count and the wrong byte count - so what is checked is the capacity the
+   run reports and a write to its last slot.
+-}
+
+import Native
+
+iter fn buffers(count: Size, unit: Size) -> ->Size:
+    let &i = 0 :: Size
+    while i < count:
+        let run = newRun(unit * (i + 1)) :: Run(U8)
+
+        -- The last slot of the run, written and read back: a run allocated one slot wide answers
+        -- the capacity question correctly and this one with a fault or with someone else's byte.
+        let base = slots(run)
+        let last = run.capacity - 1
+        writeByte(base, last, 42)
+
+        yield run.capacity * 1000 + readByte(base, last)
+        i = i + 1
+
+fn writeByte(base: %U8, at: Size, value: U8) -> {}:
+    let target = base + at
+    *target = value
+    return
+
+fn readByte(base: %U8, at: Size) -> Size:
+    let target = base + at
+    return (*target :: Size)
+
+fn main() -> Int:
+    let &total = 0 :: Size
+    for got in buffers(3, 4):
+        total = total + got
+
+    -- capacities 4, 8 and 12, each with 42 in its last slot: 24000 + 126.
+    return truncate(total)

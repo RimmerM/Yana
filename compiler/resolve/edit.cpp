@@ -251,10 +251,93 @@ void IrEditor::setLocalValue(U32 index, ModulePtr<Value> value) {
     function.setLocalValue(base, index, value);
 }
 
+// The slot `value` already fills, or none - the half of the `Local::value`/`Value::slot` pairing
+// that answers "does this storage already have a name".
+static U32 owningSlot(Function& function, ModuleBase base, ModulePtr<Value> value) {
+    if(!value) return maxLimit<U32>;
+
+    auto slot = base[value]->slot;
+    if(slot >= function.localCount()) return maxLimit<U32>;
+    if(function.localAt(base, slot).value != value) return maxLimit<U32>;
+
+    return slot;
+}
+
+/*
+ * Whether the two slots say the same things about the storage, so that the one that goes away takes
+ * nothing with it.
+ *
+ * The type first, because a place is a path into storage of a stated type and re-rooting one at a
+ * differently-shaped local would be a projection into the wrong bytes. Then the four properties a
+ * slot carries that are *about this name for the storage* rather than about the storage: a `&`
+ * parameter's caller-owned slot, a closure's environment, the temporary a packed-field borrow was
+ * materialized into, and a slice's view. None of them can be true of a slot a phi filled, so this
+ * declines nothing that arises today - it is here so that a slot which grows one later stops being
+ * merged rather than losing it silently.
+ */
+static bool mergeableInto(Function& function, ModuleBase base, U32 from, U32 to) {
+    auto a = function.localAt(base, from);
+    auto b = function.localAt(base, to);
+
+    if(a.type != b.type) return false;
+    if(a.borrowed || a.closureEnv || a.materialized) return false;
+
+    return a.viewOf == maxLimit<U32>;
+}
+
+void IrEditor::mergeIntoLocal(U32 from, U32 to) {
+    markValues();
+
+    for(auto blockPointer: function.blocks.contents(base)) {
+        auto block = base[blockPointer];
+
+        auto reroot = [&](Value& instruction) {
+            Place* slots[kMaxPlaces];
+            auto count = instructionPlaceSlots(instruction, slots);
+
+            for(Size i = 0; i < count; i++) {
+                if(slots[i]->root == PlaceRoot::Local && slots[i]->local == from) slots[i]->local = to;
+            }
+        };
+
+        for(auto pointer: block->instructions(base)) reroot(*base[pointer]);
+        if(auto terminator = block->terminator()) reroot(*base[terminator]);
+    }
+
+    // A slice's `viewOf` is a local index like a place's root is, and for the same reason - it is
+    // how a use of the view becomes a use of the viewed. See Local::viewOf.
+    for(U32 local = 0; local < function.localCount(); local++) {
+        auto slot = function.locals.get(base, local);
+        if(slot.viewOf != from) continue;
+
+        slot.viewOf = to;
+        function.locals.set(base, local, slot);
+    }
+
+    function.setLocalValue(base, from, nullptr);
+}
+
 void IrEditor::repointLocalValue(ModulePtr<Value> from, ModulePtr<Value> to) {
     markValues();
+
+    /*
+     * The slot `to` is already the whole contents of, which is what makes this a merge rather than
+     * a repoint. A phi of two constructions collapsing onto one of them is the shape that produces
+     * it - see mergeIntoLocal, which is what a second name for one allocation costs.
+     *
+     * Only where the two slots agree about the storage - see `mergeableInto`, which is where the
+     * refusals are and why each of them is one.
+     */
+    auto canonical = owningSlot(function, base, to);
+
     for(U32 local = U32(function.localCount()); local-- > 0;) {
         if(function.localAt(base, local).value != from) continue;
+
+        if(canonical != maxLimit<U32> && canonical != local &&
+           mergeableInto(function, base, local, canonical)) {
+            mergeIntoLocal(local, canonical);
+            continue;
+        }
 
         function.setLocalValue(base, local, to);
     }

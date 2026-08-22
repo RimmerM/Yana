@@ -43,10 +43,19 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         auto value = settle(resolve(*parse[decl.content]), decl.pat.source);
         if(!value) continue;
 
-        // `let ->z = x` takes ownership out of whatever `x` named, so the name that follows binds
-        // the moved value rather than the source. The binding itself is an ordinary immutable one:
-        // what `->` decides is where the value came from, not what may be done with it after.
-        if(decl.bind == ast::BindType::Sink) {
+        /*
+         * `let ->z = x` takes ownership out of whatever `x` named, so the name that follows binds
+         * the moved value rather than the source. What `->` decides is where the value came from,
+         * not what may be done with it after - which is why `let &->z = x` is the same move with the
+         * other axis set, and why both reach this one line.
+         *
+         * `let &z = e` joins them where `e` is a whole-value projection out of a temporary nothing
+         * else names - Analysis-Language.md §2a. There the move is not a second thing the reader
+         * asked for: the source is a value this statement built and is about to stop referring to,
+         * so taking it out is what `&` on any other temporary already means.
+         */
+        if(decl.bind == ast::BindType::Sink || decl.sink ||
+           (mutable_ && movableTemporary(value, fresh))) {
             value = rootSink(sinkValue(value, decl.pat.source), decl.pat.source);
             if(!value) continue;
         }
@@ -203,6 +212,51 @@ Maybe<U32> ExprResolver::adoptableLocal(ModulePtr<Value> value, U32 fresh) {
     }
 
     return Just(place.local);
+}
+
+bool ExprResolver::movableTemporary(ModulePtr<Value> value, U32 fresh) {
+    if(!value) return false;
+
+    /*
+     * Only where there is something to take. Asked of the context on the same terms checkTransfer
+     * asks it, so that the answer here and the answer that would have rejected the program are the
+     * same question: without a teardown nothing is handed over by reading the bytes, and turning
+     * `let &n = maybeInt?` into a move would pay for a relocation of an Int.
+     */
+    auto ownership = ownershipIn(module, functionGen(global, function), valueType(value));
+    if(!ownership.needsTeardown()) return false;
+
+    auto found = findPlace(value);
+    if(!found) return false;
+
+    auto place = found.unwrap();
+    if(place.root != PlaceRoot::Local) return false;
+
+    // The whole value, and the one projection that names it. `wholeMove` in analyze_borrow is the
+    // same test from the other end - what it would have accepted with a `->` written on it.
+    if(place.projections.size() != 1) return false;
+    if(place.projections.get(local, 0).kind != ProjectionKind::Downcast) return false;
+
+    /*
+     * A temporary this initializer built. The mark is adoptableLocal's and so is the reasoning: a
+     * local below it existed before the initializer ran, so it is something the program already had
+     * a name for.
+     *
+     * Unlike adoptableLocal this does not also demand an `Alloc`, because it is not taking the slot
+     * over - the move reads the payload out and leaves the source to its own teardown. The slot a
+     * `?` projects out of is a *call* result: `x?` is `toOutcome(x)` landing in a frame slot, and
+     * demanding an allocation there would have refused the one case §2a exists for.
+     */
+    if(place.local < fresh || place.local >= function.localCount()) return false;
+
+    auto slot = function.localAt(local, place.local);
+    if(slot.borrowed || slot.closureEnv || slot.materialized) return false;
+
+    for(auto& binding: bindings) {
+        if(binding.local == place.local) return false;
+    }
+
+    return true;
 }
 
 void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value, U32 fresh) {

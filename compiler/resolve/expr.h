@@ -901,6 +901,24 @@ struct ExprResolver {
      */
     Maybe<U32> adoptableLocal(ModulePtr<Value> value, U32 fresh);
 
+    /*
+     * Whether `let &x = e` may take the value out rather than refer to it - Analysis-Language.md §2a.
+     *
+     * `&` already means "own and mutable" for a temporary: `let &copy = newStringOfCapacity(n)`
+     * borrows nothing, because a call result is an rvalue with no other owner. The only initializer
+     * `&` refused was a *projection* out of a temporary, which is what `?` and every `match` payload
+     * is - and refusing it left `let &f = openFile(p, a)?` with no spelling at all, since `->` gives
+     * a binding that cannot then be written through.
+     *
+     * Three conditions, and the boundary they draw is the whole of what the `->` requirement was
+     * protecting. The projection must be the *whole* value, because a slot half given away needs a
+     * drop flag per field. Its root must be storage this frame owns, because taking a value out of a
+     * borrow is the caller's business. And the root must be a temporary this initializer built and
+     * nothing else answers to - a named local or a field is a place whose destruction is observable
+     * through the other name, so `let &x = rec.field` stays a mutable borrow and `->` stays required.
+     */
+    bool movableTemporary(ModulePtr<Value> value, U32 fresh);
+
     // A name for a borrow someone else's storage backs, rather than for a slot of this frame.
     void bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> value, bool mutable_);
 

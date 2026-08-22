@@ -341,6 +341,11 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
         if(*p == '.' && p[1] == '.' && p[2] == '=') {
             // This is the reserved DotDotEq operator - `..` including its upper bound.
             token.type = Token::opDotDotEq;
+        } else if(*p == '&' && p[1] == '-' && p[2] == '>') {
+            // `let &->x`, the two binding axes at once. One lexeme rather than `&` followed by
+            // `->`, because a symbol run is classified whole: `&->` written as two tokens is not
+            // something the run rule can produce, so the combination has to be an entry of its own.
+            token.type = Token::opAmpArrowR;
         }
     }
 

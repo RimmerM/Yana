@@ -734,7 +734,7 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
             continue;
         }
 
-        if(declaration.bind != ast::BindType::Borrow && declaration.bind != ast::BindType::Ref) {
+        if(declaration.bind == ast::BindType::Sink || declaration.sink) {
             context.diagnostics.error("a global is either plain or `&` mutable"_v, declaration.pat.source);
             declared(nullptr);
             continue;

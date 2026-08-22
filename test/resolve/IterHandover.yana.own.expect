@@ -1,0 +1,209 @@
+fn teardown$none {
+  arg value readonly
+}
+
+fn initHeap {
+}
+
+fn growHeap {
+  arg needed readonly
+  %size: I64 writable live [1, 27) [28, 38) [39, 51)
+  %region: %U8 writable live [12, 27) [28, 38) [39, 48)
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: I64 writable live [0, 8) [10, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn releaseRun(U8) {
+  arg self readonly
+  %self: Run(U8) borrowed droppable readonly live [0, 7)
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn Reclaim(Array(a)).reclaim(U8) {
+  arg value readonly
+  %value: Array(U8) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: Int writable live [2, 8) [11, 25)
+  %local2: U8 readonly live [18, 21)
+  %local3: U8 readonly live [19, 21)
+}
+
+fn make {
+  result escapes
+  %local0: Held droppable readonly live [0, 11)
+  %local1: Array(U8) droppable readonly live [1, 10)
+  %local2: U8 writable addressed escapes heap live [2, 8)
+}
+
+fn consume {
+  arg h readonly
+  %h: Held droppable readonly live [0, 2)
+}
+
+fn borrows {
+  arg times readonly
+  %total: I64 writable live [0, 12)
+  %local1: {total: &mut I64} closure writable addressed live [2, 10)
+  %local2: (value$: Held) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn owns {
+  arg times readonly
+  %total: I64 writable live [0, 12)
+  %local1: {total: &mut I64} closure writable addressed live [2, 10)
+  %local2: (->value$: Held) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn viaTry {
+  arg times readonly
+  %total: I64 writable live [0, 14) [16, 18)
+  %local1: {total: &mut I64} closure writable addressed live [2, 10)
+  %local2: (->value$: Result(I64, Held)) -> Outcome((), Result(I64, I64)) droppable readonly live [6, 11)
+  %local3: Outcome((), Result(I64, I64)) readonly live [10, 16)
+  %local4: Result(I64, I64) readonly live [16, 17) [18, 20)
+}
+
+fn ignores {
+  arg times readonly
+  %count: I64 writable live [0, 12)
+  %local1: {count: &mut I64} closure writable addressed live [2, 10)
+  %local2: (->value$: Result(I64, Held)) -> Outcome((), ()) droppable readonly live [6, 11)
+  %local3: Outcome((), ()) readonly live [10, 11)
+}
+
+fn main {
+}
+
+fn ResolveTest.continuation$14 {
+  arg env readonly
+  arg value$ readonly
+  %value$: Held borrowed droppable readonly live [0, 5)
+  %local1: Outcome((), ()) readonly live [8, 11)
+}
+
+fn lent(()) {
+  arg times readonly
+  arg body readonly
+  %body: (value$: Held) -> Outcome((), ()) borrowed droppable readonly live [0, 6) [9, 14) [15, 19)
+  %left: I64 writable live [0, 6) [9, 14) [15, 19)
+  %local2: Held droppable unknown live [9, 11)
+  %local3: Outcome((), ()) readonly live [10, 15)
+  %local4: Outcome((), ()) readonly live [6, 9)
+  %local5: Held droppable readonly live never
+  %local6: Outcome((), ()) readonly live never
+}
+
+fn ResolveTest.continuation$15 {
+  arg env readonly
+  arg value$ readonly
+  %value$: Held droppable readonly live [0, 4)
+  %local1: Outcome((), ()) readonly live [7, 10)
+}
+
+fn handed(()) {
+  arg times readonly
+  arg body readonly
+  %body: (->value$: Held) -> Outcome((), ()) borrowed droppable readonly live [0, 6) [9, 15) [16, 20)
+  %left: I64 writable live [0, 6) [9, 15) [16, 20)
+  %local2: Held droppable unknown live [9, 11)
+  %local3: Outcome((), ()) readonly live [11, 16)
+  %local4: Outcome((), ()) readonly live [6, 9)
+  %local5: Held droppable readonly live never
+  %local6: Outcome((), ()) readonly live never
+}
+
+fn ResolveTest.continuation$16 {
+  arg env readonly
+  arg value$ readonly
+  %value$: Result(I64, Held) droppable readonly live [0, 1)
+  %local1: Outcome(Held, I64) droppable readonly live [1, 6) [10, 12)
+  %local2: Result(I64, I64) readonly live [6, 9)
+  %opened: Held droppable readonly live [12, 19)
+  %local4: Outcome((), Result(I64, I64)) readonly live [22, 25)
+  %local5: Outcome((), Result(I64, I64)) readonly live [7, 10)
+}
+
+fn results(Result(I64, I64)) {
+  arg times readonly
+  arg body readonly
+  %body: (->value$: Result(I64, Held)) -> Outcome((), Result(I64, I64)) borrowed droppable readonly live [0, 10) [13, 21) [22, 26)
+  %left: I64 writable live [0, 6) [13, 21) [22, 26)
+  %local2: Result(I64, Held) droppable unknown live [13, 14) [15, 17)
+  %local3: Held droppable readonly live [14, 16)
+  %local4: Outcome((), Result(I64, I64)) readonly live [17, 22)
+  %local5: Result(I64, Held) droppable unknown live [6, 9)
+  %local6: Outcome((), Result(I64, I64)) readonly live [9, 13) [26, 27)
+  %local7: Outcome((), Result(I64, I64)) readonly live [27, 30)
+  %local8: Outcome((), Result(I64, I64)) readonly live never
+  %local9: Held droppable readonly live never
+  %local10: Outcome((), Result(I64, I64)) readonly live never
+}
+
+fn ResolveTest.continuation$17 {
+  arg env readonly
+  arg value$ readonly
+  %value$: Result(I64, Held) droppable readonly live never
+  %local1: Outcome((), ()) readonly live [5, 8)
+}
+
+fn results(()) {
+  arg times readonly
+  arg body readonly
+  %body: (->value$: Result(I64, Held)) -> Outcome((), ()) borrowed droppable readonly live [0, 10) [13, 21) [22, 26)
+  %left: I64 writable live [0, 6) [13, 21) [22, 26)
+  %local2: Result(I64, Held) droppable unknown live [13, 14) [15, 17)
+  %local3: Held droppable readonly live [14, 16)
+  %local4: Outcome((), ()) readonly live [17, 22)
+  %local5: Result(I64, Held) droppable unknown live [6, 9)
+  %local6: Outcome((), ()) readonly live [9, 13) [26, 27)
+  %local7: Outcome((), ()) readonly live [27, 30)
+  %local8: Outcome((), ()) readonly live never
+  %local9: Held droppable readonly live never
+  %local10: Outcome((), ()) readonly live never
+}
+
+fn reclaim$Held {
+  arg value readonly
+  %value: Held borrowed droppable readonly live [0, 1)
+}
+
+fn reclaim$Outcome(Held, I64) {
+  arg value readonly
+  %value: Outcome(Held, I64) borrowed droppable readonly live [0, 3) [4, 5)
+}
+
+fn reclaim$Result(I64, Held) {
+  arg value readonly
+  %value: Result(I64, Held) borrowed droppable readonly live [0, 3) [4, 5)
+}

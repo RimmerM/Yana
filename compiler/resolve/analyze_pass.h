@@ -414,6 +414,26 @@ struct Analysis {
 
     Block* blockAt(Size index) { return local[function.blocks.get(local, index)]; }
     Size blockCount() { return function.blocks.size(); }
+
+    /*
+     * Whether a slot holds something this frame already owns before its first instruction runs.
+     *
+     * Exactly one thing does: a `->` parameter. The handover happened at the call site - the caller
+     * recorded it as an `InstMove` - so what this frame received is its own to release, and it is
+     * its own from the top rather than from an `init` somewhere in the body. Every other owned slot
+     * is an allocation or a construction that this walk can see being initialized.
+     *
+     * A parameter is recognized the way every pass recognizes one: its slot is named by an `Arg`,
+     * exactly as an allocation's is named by its `Alloc`.
+     */
+    bool ownedOnEntry(U32 index) {
+        if(index >= function.localCount()) return false;
+
+        auto slot = function.localAt(local, index);
+        if(!slot.value || local[slot.value]->kind != Value::Arg) return false;
+
+        return slot.convention == ast::BindType::Sink && !slot.borrowed;
+    }
 };
 
 /*

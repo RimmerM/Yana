@@ -299,7 +299,7 @@ private:
                 stream.writeString(" <borrow> "_v);
                 break;
             case BindType::Ref:
-                stream.writeString(" <ref> "_v);
+                stream.writeString(e.sink ? " <ref sink> "_v : " <ref> "_v);
                 break;
             case BindType::Sink:
                 stream.writeString(" <sink> "_v);

@@ -1,0 +1,139 @@
+let image$base: () = <none>
+
+fn tagOf(%m: Maybe(Colour)) -> Int {
+  b0:
+    %v1 = load %m.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v11 = load %m.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b5, b4
+
+  b2:
+    %v5 = load %m@Just : Colour
+    %v6 = cast %v5 : Int
+    %v8 = cmp_eq %v6, 0 : Bool
+    je %v8, b3, b1
+
+  b3:
+    jmp b10
+
+  b4:
+    %v21 = load %m.discriminant : Int
+    %v23 = cmp_eq %v21, 1 : Bool
+    je %v23, b8, b7
+
+  b5:
+    %v15 = load %m@Just : Colour
+    %v16 = cast %v15 : Int
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b6, b4
+
+  b6:
+    jmp b10
+
+  b7:
+    jmp b10
+
+  b8:
+    %v25 = load %m@Just : Colour
+    %v26 = cast %v25 : Int
+    %v28 = cmp_eq %v26, 2 : Bool
+    je %v28, b9, b7
+
+  b9:
+    jmp b10
+
+  b10:
+    %v36 = phi [b3, 1], [b6, 2], [b9, 3], [b7, 0] : Int
+    ret %v36
+}
+
+fn taken() -> Int {
+  b0:
+    %v4 = cmp_eq 1, 1 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v7 = alloc : Maybe(Colour)
+    aggregate %local0.discriminant = 1, %local0@Just = Green
+    jmp b3
+
+  b2:
+    %v10 = alloc : Maybe(Colour)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b3:
+    %m = phi [b1, %v7], [b2, %v10] : Maybe(Colour)
+    %v16 = call tagOf, %m : Int
+    ret %v16
+}
+
+fn skipped() -> Int {
+  b0:
+    %v4 = cmp_eq 1, 2 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v7 = alloc : Maybe(Colour)
+    aggregate %local0.discriminant = 1, %local0@Just = Blue
+    jmp b3
+
+  b2:
+    %v10 = alloc : Maybe(Colour)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b3:
+    %m = phi [b1, %v7], [b2, %v10] : Maybe(Colour)
+    %v16 = call tagOf, %m : Int
+    ret %v16
+}
+
+fn payload() -> Int {
+  b0:
+    %v4 = cmp_gt 2, 1 : Bool
+    je %v4, b1, b2
+
+  b1:
+    %v8 = alloc : Maybe(Int)
+    aggregate %local0.discriminant = 1, %local0@Just = 7
+    jmp b3
+
+  b2:
+    %v11 = alloc : Maybe(Int)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b3:
+    %n = phi [b1, %v8], [b2, %v11] : Maybe(Int)
+    %v17 = load %local2.discriminant : Int
+    %v19 = cmp_eq %v17, 1 : Bool
+    je %v19, b5, b4
+
+  b4:
+    jmp b6
+
+  b5:
+    %v = load %local2@Just : Int
+    jmp b6
+
+  b6:
+    %v25 = phi [b5, %v], [b4, 0] : Int
+    ret %v25
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call taken : Int
+    %v3 = mul %v0, 100 : Int
+    %v4 = call skipped : Int
+    %v7 = mul %v4, 10 : Int
+    %v8 = add %v3, %v7 : Int
+    %v9 = call payload : Int
+    %v10 = add %v8, %v9 : Int
+    ret %v10
+}

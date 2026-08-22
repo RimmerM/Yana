@@ -1,0 +1,131 @@
+fn Try(Result(e, a), a, e).toOutcome(I64, Held) {
+  arg value readonly
+  %value: Result(I64, Held) droppable readonly live [0, 5) [11, 13)
+  %local1: Held droppable readonly live [13, 17)
+  %local2: Outcome(Held, I64) droppable readonly live [15, 18)
+  %local3: I64 readonly live [5, 9)
+  %local4: Outcome(Held, I64) droppable readonly live [7, 8) [9, 11)
+  %local5: Outcome(Held, I64) droppable readonly live [18, 20)
+}
+
+fn Try(Result(e, a), a, e).fromExit(I64, I64) {
+  arg reason readonly
+  %reason: I64 readonly live [0, 2)
+  %local1: Result(I64, I64) readonly live [0, 3)
+}
+
+fn initHeap {
+}
+
+fn growHeap {
+  arg needed readonly
+  %size: I64 writable live [1, 27) [28, 38) [39, 51)
+  %region: %U8 writable live [12, 27) [28, 38) [39, 48)
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: I64 writable live [0, 8) [10, 18)
+  %sizeClass: I64 writable live [2, 9) [10, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn releaseRun(U8) {
+  arg self readonly
+  %self: Run(U8) borrowed droppable readonly live [0, 7)
+}
+
+fn Reclaim(Run(a)).reclaim(U8) {
+  arg value readonly
+  %value: Run(U8) borrowed droppable readonly live [0, 1)
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn make {
+  arg ok readonly
+  arg n readonly
+  result escapes
+  %local0: Result(I64, Held) droppable readonly live [2, 5)
+  %local1: Result(I64, Held) droppable readonly live [6, 7) [19, 21)
+  %local2: Held droppable readonly live [7, 20)
+  %local3: Run(U8) droppable readonly live [8, 19)
+  %local4: U8 writable addressed escapes heap live [10, 16)
+}
+
+fn setName {
+  arg self writable
+  arg n readonly
+  %self: Held borrowed droppable writable live [0, 11)
+  %local1: Run(U8) droppable readonly live [0, 11)
+  %local2: U8 writable addressed escapes heap live [2, 8)
+}
+
+fn slotCount {
+  arg self readonly
+  %self: Held borrowed droppable readonly live [0, 2)
+}
+
+fn viaTry {
+  arg ok readonly
+  arg n readonly
+  %local0: Result(I64, Held) droppable readonly live [0, 2)
+  %local1: Outcome(Held, I64) droppable readonly live [2, 7) [9, 11)
+  %local2: Result(I64, I64) readonly live [7, 9)
+  %opened: Held droppable writable live [11, 20)
+  %local4: Result(I64, I64) readonly live [17, 18) [20, 22)
+}
+
+fn viaNamedPlace {
+  arg b readonly
+  arg n readonly
+  %b: Box droppable readonly live [0, 3) [4, 6)
+  %local1: Held droppable readonly live [6, 10)
+  %taken: Held droppable writable live [8, 15)
+}
+
+fn viaPattern {
+  arg b readonly
+  arg n readonly
+  %b: Box droppable readonly live [0, 3) [4, 6)
+  %local1: Held droppable writable live [6, 11)
+}
+
+fn reclaim$Outcome(Held, I64) {
+  arg value readonly
+  %value: Outcome(Held, I64) borrowed droppable readonly live [0, 3) [4, 5)
+}
+
+fn reclaim$Held {
+  arg value readonly
+  %value: Held borrowed droppable readonly live [0, 1)
+}
+
+fn reclaim$Box {
+  arg value readonly
+  %value: Box borrowed droppable readonly live [0, 3) [4, 5)
+}

@@ -693,6 +693,21 @@ struct FunType: Type {
     TypePtr result = nullptr;
     ast::FunKind kind = ast::FunKind::Plain;
 
+    /*
+     * The convention what a `lens`/`iter` hands over is received under - `iter (a) -> ->b`, which is
+     * Analysis-Language.md §3a's spelling.
+     *
+     * Part of the interning key, because it is part of what calls a type accepts: an iterator that
+     * hands its values *out* and one that lends them are two different contracts, and a `for` body
+     * written against one of them will not do for the other.
+     *
+     * Where a declaration is desugared into its continuation this ends up on that continuation's own
+     * `FunArg::convention`, which is where every pass that has an opinion about a binding already
+     * looks - see resolveLensSignature. It is kept here as well so that the written spelling
+     * survives being read back and composed into another type.
+     */
+    ast::BindType resultBind = ast::BindType::Borrow;
+
     // The argument indices whose `returnRoot` bit is set, as a mask - the single return-root group
     // Implementation-IR.md part 3 gives one function type. Kept alongside the args so that a caller
     // composing provenance through a call reads one word rather than walking the list.
@@ -2154,6 +2169,17 @@ StringId derivedName(Module& module, StringView prefix, TypePtr type);
 // The interned name of a symbol built up in a StringBuilder. Every generated function and table
 // ends the same way, and writing it out spells the same three arguments each time.
 StringId builtName(Context& context, StringBuilder& text);
+
+/*
+ * Whether one variable of a generic context occurs anywhere inside a type, by index rather than by
+ * identity - which is how selection binds, so it is how occurrence is asked.
+ *
+ * Three passes need it and none of them owns it: instance selection, to reject a head over a
+ * variable nothing can bind; the derive pass, because what makes a class forwardable is *where* its
+ * own variable occurs; and the call path, to tell a variable a call cannot decide from one it need
+ * not decide.
+ */
+bool mentionsVariable(GlobalBase global, TypePtr type, U16 index);
 
 /*
  * A floating-point value as the bits its storage holds, and back.

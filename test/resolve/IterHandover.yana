@@ -1,0 +1,69 @@
+-- A result convention on an `iter fn` - Analysis-Language.md §3a.
+--
+-- What a `for` body receives has a binding convention exactly as an argument does, and until this
+-- there was no way to declare it anything but a borrow. `?` moves a payload out; a borrowed value
+-- has nothing to move; so every consumer of a fallible iterator wrote a `match` in its success path.
+--
+-- `-> ->T` is the spelling, and where it lands is the point: on the synthesized continuation's own
+-- parameter, which is where every pass that has an opinion about a binding already looks. `yield x`
+-- is a call of that parameter, so the move happens at the argument; a `for` body *is* that
+-- parameter's body, so the loop's name owns what it received and drops it.
+
+import Native
+
+data Held {value: [U8]}
+
+fn make() -> Held = Held {value: [1 :: U8, 2, 3, 4]}
+fn consume(->h: Held) -> Size = length(h.value)
+
+-- The default, unchanged: the body borrows what it is shown and the iterator goes on owning it.
+iter fn lent(times: I64) -> Held:
+    let &left = times
+    while left > 0:
+        yield make()
+        left = left - 1
+
+-- And the hand-over, which is one arrow more.
+iter fn handed(times: I64) -> ->Held:
+    let &left = times
+    while left > 0:
+        yield make()
+        left = left - 1
+
+iter fn results(times: I64) -> ->Result(I64, Held):
+    let &left = times
+    while left > 0:
+        yield Ok(make())
+        left = left - 1
+
+    yield Err(7)
+
+fn borrows(times: I64) -> Size:
+    let &total = 0 :: Size
+    for h in lent(times):
+        total = total + length(h.value)
+    return total
+
+fn owns(times: I64) -> Size:
+    let &total = 0 :: Size
+    for h in handed(times):
+        total = total + consume(h)
+    return total
+
+-- The case the whole section is about: `?` reaching an owned payload out of a `for` body.
+fn viaTry(times: I64) -> Result(I64, Size):
+    let &total = 0 :: Size
+    for entry in results(times):
+        let &opened = entry?
+        total = total + consume(opened)
+    return Ok(total)
+
+-- A body that does not consume what it received. The loop owns it, so the loop drops it.
+fn ignores(times: I64) -> Size:
+    let &count = 0 :: Size
+    for entry in results(times):
+        count = count + 1
+    return count
+
+fn main() -> Int:
+    return truncate(borrows(2) + owns(3) + ignores(2)) :: Int

@@ -1,0 +1,48 @@
+{-
+   A phi of two constructions, and what happens to the binding's slot when it collapses.
+
+   `let m = if c then Just(x) else Nothing` gives `m` a local whose value is a *phi* of the two
+   arms' allocations - the storage is one arm's or the other's and neither is `m`'s own. Folding a
+   constant condition strands one arm, `collapseSinglePhis` replaces the phi with the survivor, and
+   the slot `m` names then has to say where its storage went.
+
+   Repointing it at the surviving `Alloc` is a second name for storage that already had one, and
+   that is the thing most of `compiler/opt` reasons from without saying so: opt_promote.cpp's proof
+   is "the only places that can overlap one of this local's fields are other places rooted in the
+   same local", and opt_scalar.cpp removes a local whose own place is written and never read. With
+   two locals over one allocation the write goes through one name and the read through the other, so
+   `fillUnwritten` found nothing writing `m` and answered the load with the zero an unwritten local
+   holds - every such `if` came out as constructor zero, whatever it was built as. See
+   IrEditor::mergeIntoLocal, which makes the two locals one instead.
+
+   Behavioural rather than a golden dump, because a wrong constructor and a right one are the same
+   number of instructions: what has to be asserted is the number that comes out.
+-}
+
+data Colour = Red | Green | Blue
+
+fn tagOf(m: Maybe(Colour)) -> Int = match m:
+    Just(Red) -> 1
+    Just(Green) -> 2
+    Just(Blue) -> 3
+    Nothing -> 0
+
+-- The constant condition is the whole point: an opaque one leaves the diamond standing and the phi
+-- with two alternatives, which was never the broken case.
+fn taken() -> Int:
+    let m = if 1 == 1 then Just(Green) else (Nothing :: Maybe(Colour))
+    return tagOf(m)
+
+fn skipped() -> Int:
+    let m = if 1 == 2 then Just(Blue) else (Nothing :: Maybe(Colour))
+    return tagOf(m)
+
+-- The same shape one level down, where the arms differ in a payload rather than in a constructor -
+-- so a merge that re-rooted the places at the wrong local reads the other arm's field.
+fn payload() -> Int:
+    let n = if 2 > 1 then Just(7) else (Nothing :: Maybe(Int))
+    return match n:
+        Just(v) -> v
+        Nothing -> 0
+
+fn main() -> Int = taken() * 100 + skipped() * 10 + payload()

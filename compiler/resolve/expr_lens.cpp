@@ -276,11 +276,31 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
         }
     }
 
-    // The `$` is what keeps this out of the loop body's namespace - see classContinuationSignature,
-    // where the same name is invented for a class member and the same shadowing was silent.
+    /*
+     * The convention what is handed over is received under - Analysis-Language.md §3a.
+     *
+     * A yielded value has a binding convention exactly as an argument does, and until this there was
+     * no way to declare it anything but a borrow: `?` moves a payload out, a borrowed value has
+     * nothing to move, and so every consumer of a fallible iterator wrote a `match` in its success
+     * path. What the declaration writes as `-> ->T` lands *here*, on the synthesized continuation's
+     * own parameter, and from there every pass that has an opinion about a binding reads it where it
+     * already looks. Nothing else has to learn a new rule: `yield x` is a call of this parameter, so
+     * the move happens at the argument, and a `for` body is this parameter's body, so the loop's
+     * name owns what it received and drops it - on `break` as much as on falling out.
+     *
+     * The `$` is what keeps this out of the loop body's namespace - see classContinuationSignature,
+     * where the same name is invented for a class member and the same shadowing was silent.
+     */
     Array<FunArg> callbackArgs;
     if(!isUnit(global, handed)) {
-        callbackArgs.push(FunArg { handed, context.addUnqualifiedName("value$", 6) });
+        FunArg value { handed, context.addUnqualifiedName("value$", 6) };
+        value.convention = decl.fun.retBind;
+        callbackArgs.push(value);
+    } else if(decl.fun.retBind != ast::BindType::Borrow) {
+        // Nothing is handed over, so there is no binding for a convention to be about. Said here
+        // rather than ignored, because `-> ->{}` is a sentence somebody meant something by.
+        context.diagnostics.error("%@ that hands over nothing has no value for `->` to be about"_v,
+                                  source, kindName);
     }
 
     auto callbackType = resolveFunType(module, toBuffer(callbackArgs), result, ast::FunKind::Plain);

@@ -1,0 +1,30 @@
+-- The boundary §2a draws, and what stays refused on either side of it.
+--
+-- What `let &` may take out is a *whole* value out of a temporary nothing else names. Both halves
+-- of that are load-bearing, and each is a different rule with a different reason.
+
+import Native
+
+data Held {value: Run(U8)}
+data Pair {first: Held, second: Held}
+data Box = Filled(Held) | Empty
+
+-- Part of a value, out of a place that keeps its own name. A slot half given away needs a drop flag
+-- per field, which the state lattice does not have - so this is not a missing sigil, it is a move
+-- that cannot be represented at all.
+fn fromNamedLocal(n: Size) -> Size:
+    let p = Pair {first: Held {value: newRun(n)}, second: Held {value: newRun(n)}}
+    let &taken = p.first
+    return taken.value.capacity :: Size
+
+-- The same out of storage this frame only borrows. No sigil helps here - what is missing is on the
+-- signature, since the caller goes on owning what it lent.
+fn fromBorrowedArgument(p: Pair) -> Size:
+    let &taken = p.first
+    return taken.value.capacity :: Size
+
+-- `&` alone in a pattern, which establishes nothing about the pivot to be exclusive about. `&->`
+-- is the spelling that does, and the message says so.
+fn mutablePattern(->b: Box) -> Size = match b:
+    Filled(&run): run.value.capacity :: Size
+    Empty: 0
