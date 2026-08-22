@@ -312,6 +312,41 @@ U32 naturalStorageBits(U32 bits) {
     return 64;
 }
 
+EnumRange enumRange(GlobalBase base, RecordType& record) {
+    EnumRange range;
+    auto constructors = record.constructors.contents(base);
+    if(!constructors.size()) return range;
+
+    range.lowest = constructors[0].value;
+    range.highest = constructors[0].value;
+
+    for(auto constructor: constructors) {
+        range.lowest = min(range.lowest, constructor.value);
+        range.highest = max(range.highest, constructor.value);
+    }
+
+    if(range.lowest < 0) {
+        // A whole signed word, and nothing narrower - see EnumRange. Sized off whichever end is
+        // further from zero, since two's complement needs the magnitude plus the sign.
+        auto magnitude = U64(max(range.highest, -(range.lowest + 1)));
+        U32 bits = 1;
+        while(bits < 63 && (U64(1) << bits) <= magnitude) bits++;
+
+        range.signedValues = true;
+        range.bits = naturalStorageBits(bits + 1);
+        return range;
+    }
+
+    // The smallest width whose patterns reach `highest`. Where nothing was pinned this is the
+    // constructor count's own answer: values run 0 to count-1, so `2^bits > highest` and
+    // `2^bits >= count` are the same inequality.
+    U32 bits = 1;
+    while(bits < 64 && (U64(1) << bits) <= U64(range.highest)) bits++;
+    range.bits = bits;
+
+    return range;
+}
+
 static U32 alignBitsTo(U32 value, U32 unit) {
     return unit ? (value + unit - 1) & ~(unit - 1) : value;
 }
@@ -421,15 +456,17 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
         case Type::Record: {
             auto record = (RecordType*)value;
 
-            // A payload-free sum *is* its discriminant, so what it needs is the bits its constructor
-            // count needs against the storage those bits are held in - one byte for a `Bool`, the
-            // same rule an integer of that width answers by, and the same one Repr sizes an enum at.
+            // A payload-free sum *is* its discriminant, so what it needs is the bits its values need
+            // against the storage those bits are held in - one byte for a `Bool`, the same rule an
+            // integer of that width answers by, and the same one Repr sizes an enum at.
             if(record->layout == RecordType::Enum) {
-                auto count = record->constructors.size();
-                U32 bits = 1;
-                while((Size(1) << bits) < count) bits++;
+                auto range = enumRange(base, *record);
 
-                return ValueWidth { bits, naturalStorageBits(bits) };
+                // A pinned negative takes a whole word and co-packs with nothing, which is what
+                // reporting the logical width *as* the natural one says - see EnumRange.
+                if(range.signedValues) return ValueWidth { range.bits, range.bits };
+
+                return ValueWidth { range.bits, naturalStorageBits(range.bits) };
             }
 
             /*

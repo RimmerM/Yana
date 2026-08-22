@@ -1,0 +1,94 @@
+"use strict";
+// Core
+function Enum_Colour_fromName(name) {
+  var v54;
+  var v56 = name.length;
+  if (v56 === 3) {
+    if (name === "Red") {
+      v54 = 0;
+    } else {
+      v54 = 3;
+    }
+  } else {
+    if (v56 === 5) {
+      if (name === "Green") {
+        v54 = 1;
+      } else {
+        v54 = 3;
+      }
+    } else {
+      if (v56 === 4) {
+        if (name === "Blue") {
+          v54 = 2;
+        } else {
+          v54 = 3;
+        }
+      } else {
+        v54 = 3;
+      }
+    }
+  }
+  return v54;
+}
+
+function Enum_Pair_Int_fromName(name) {
+  var v38;
+  var v40 = name.length;
+  if (v40 === 3) {
+    if (name === "Low") {
+      v38 = 0;
+    } else {
+      v38 = 2;
+    }
+  } else {
+    if (v40 === 4) {
+      if (name === "High") {
+        v38 = 1;
+      } else {
+        v38 = 2;
+      }
+    } else {
+      v38 = 2;
+    }
+  }
+  return v38;
+}
+
+// ResolveTest
+function main() {
+  if ("Green" === "Green" ^ 1) {
+    return 1;
+  } else {
+    if ("FromEnd" === "FromEnd" ^ 1) {
+      return 2;
+    } else {
+      if (!(Enum_Colour_fromName("Blue") <= 2)) {
+        return 3;
+      } else {
+        if (Enum_Colour_fromName("Purple") <= 2) {
+          return 4;
+        } else {
+          if (Enum_Colour_fromName("Bleu") <= 2) {
+            return 5;
+          } else {
+            if ("Low" === "Low" ^ 1) {
+              return 6;
+            } else {
+              if (!(Enum_Pair_Int_fromName("High") <= 1)) {
+                return 7;
+              } else {
+                if (Enum_Pair_Int_fromName("Red") <= 1) {
+                  return 8;
+                } else {
+                  var v140 = Enum_Colour_fromName("Red");
+                  return v140 <= 2 ? (Number(BigInt.asIntN(64, BigInt(v140))) | 0) + 10 | 0 : 9;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+main();

@@ -61,8 +61,8 @@ fn andSkips() -> Bool {
     jmp b3
 
   b3:
-    %v5 = phi [b1, %v2], [b2, False] : Bool
-    ret %v5
+    %v6 = phi [b1, %v2], [b2, False] : Bool
+    ret %v6
 }
 
 fn andRuns() -> Bool {
@@ -77,8 +77,8 @@ fn andRuns() -> Bool {
     jmp b3
 
   b3:
-    %v5 = phi [b1, %v2], [b2, True] : Bool
-    ret %v5
+    %v6 = phi [b1, %v2], [b2, False] : Bool
+    ret %v6
 }
 
 fn orSkips() -> Bool {
@@ -93,8 +93,8 @@ fn orSkips() -> Bool {
     jmp b3
 
   b3:
-    %v5 = phi [b1, %v2], [b2, True] : Bool
-    ret %v5
+    %v6 = phi [b1, %v2], [b2, True] : Bool
+    ret %v6
 }
 
 fn orRuns() -> Bool {
@@ -109,8 +109,8 @@ fn orRuns() -> Bool {
     jmp b3
 
   b3:
-    %v5 = phi [b1, %v2], [b2, False] : Bool
-    ret %v5
+    %v6 = phi [b1, %v2], [b2, True] : Bool
+    ret %v6
 }
 
 fn chained() -> Bool {
@@ -125,19 +125,19 @@ fn chained() -> Bool {
     jmp b3
 
   b3:
-    %v5 = phi [b1, %v2], [b2, False] : Bool
-    je %v5, b4, b5
+    %v6 = phi [b1, %v2], [b2, False] : Bool
+    je %v6, b4, b5
 
   b4:
-    %v7 = call bumpFalse : Bool
+    %v8 = call bumpFalse : Bool
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v10 = phi [b4, %v7], [b5, %v5] : Bool
-    ret %v10
+    %v12 = phi [b4, %v8], [b5, False] : Bool
+    ret %v12
 }
 
 fn bound(%m: Maybe(Int)) -> Bool {
@@ -168,8 +168,8 @@ fn bound(%m: Maybe(Int)) -> Bool {
     jmp b7
 
   b7:
-    %v18 = phi [b5, True], [b6, %v13] : Bool
-    ret %v18
+    %v19 = phi [b5, True], [b6, False] : Bool
+    ret %v19
 }
 
 fn fallbackSkipped(%m: Maybe(Int)) -> Int {
@@ -182,6 +182,25 @@ fn fallbackSkipped(%m: Maybe(Int)) -> Int {
     init %local2.env, %v6
     %v8 = call ??(Int), %m, %v2 : Int
     ret %v8
+}
+
+fn bothSet(%lhs: Mask, %rhs: () -> Mask) -> Mask {
+  b0:
+    %v2 = load %lhs@Mask.bits : Int
+    %v5 = cmp_eq %v2, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    %v7 = calldyn %rhs : Mask
+    %v8 = call Bitwise(Mask).and, %lhs, %v7 : Mask
+    jmp b3
+
+  b3:
+    %v11 = phi [b1, %lhs], [b2, %v8] : Mask
+    ret %v11
 }
 
 fn bumpMask() -> Mask {
@@ -203,7 +222,7 @@ fn maskSkips() -> Int {
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
-    %v9 = call Logic(Mask).&&, %v0, %v3 : Mask
+    %v9 = call bothSet, %v0, %v3 : Mask
     %v10 = load %local2@Mask.bits : Int
     ret %v10
 }
@@ -217,7 +236,7 @@ fn maskRuns() -> Int {
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
-    %v9 = call Logic(Mask).&&, %v0, %v3 : Mask
+    %v9 = call bothSet, %v0, %v3 : Mask
     %v10 = load %local2@Mask.bits : Int
     ret %v10
 }
@@ -445,26 +464,7 @@ fn main() -> Int {
     ret %v179
 }
 
-fn Logic(Mask).&&(%lhs: Mask, %rhs: () -> Mask) -> Mask {
-  b0:
-    %v2 = load %lhs@Mask.bits : Int
-    %v5 = cmp_eq %v2, 0 : Bool
-    je %v5, b1, b2
-
-  b1:
-    jmp b3
-
-  b2:
-    %v7 = calldyn %rhs : Mask
-    %v8 = call Logic(Mask).and, %lhs, %v7 : Mask
-    jmp b3
-
-  b3:
-    %v11 = phi [b1, %lhs], [b2, %v8] : Mask
-    ret %v11
-}
-
-fn Logic(Mask).and(%lhs: Mask, %rhs: Mask) -> Mask {
+fn Bitwise(Mask).and(%lhs: Mask, %rhs: Mask) -> Mask {
   b0:
     %v2 = alloc : Mask
     %v3 = load %lhs@Mask.bits : Int
@@ -474,7 +474,7 @@ fn Logic(Mask).and(%lhs: Mask, %rhs: Mask) -> Mask {
     ret %v2
 }
 
-fn Logic(Mask).or(%lhs: Mask, %rhs: Mask) -> Mask {
+fn Bitwise(Mask).or(%lhs: Mask, %rhs: Mask) -> Mask {
   b0:
     %v2 = alloc : Mask
     %v3 = load %lhs@Mask.bits : Int
@@ -484,7 +484,7 @@ fn Logic(Mask).or(%lhs: Mask, %rhs: Mask) -> Mask {
     ret %v2
 }
 
-fn Logic(Mask).xor(%lhs: Mask, %rhs: Mask) -> Mask {
+fn Bitwise(Mask).xor(%lhs: Mask, %rhs: Mask) -> Mask {
   b0:
     %v2 = alloc : Mask
     %v3 = load %lhs@Mask.bits : Int
@@ -494,7 +494,7 @@ fn Logic(Mask).xor(%lhs: Mask, %rhs: Mask) -> Mask {
     ret %v2
 }
 
-fn Logic(Mask).not(%value: Mask) -> Mask {
+fn Bitwise(Mask).not(%value: Mask) -> Mask {
   b0:
     %v1 = alloc : Mask
     %v2 = load %value@Mask.bits : Int

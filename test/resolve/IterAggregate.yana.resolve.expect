@@ -565,8 +565,7 @@ fn main() -> Int {
 
   b3:
     %v19 = alloc : Outcome((), Outcome((), $r))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v8
+    aggregate %local3.discriminant = 1, %local3@Exit = %v8
     ret %v19
 
   b4:
@@ -605,8 +604,7 @@ fn main() -> Int {
 
   b1:
     %v16 = alloc : Outcome((), Outcome((), $r))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v7
+    aggregate %local4.discriminant = 1, %local4@Exit = %v7
     ret %v16
 
   b2:
@@ -742,17 +740,16 @@ fn ResolveTest.continuation$14(Point, ())(%env: %{keep: &(v: Point) -> Bool, bod
 
   b3:
     %v14 = alloc : Outcome((), Outcome((), ()))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v8
+    aggregate %local3.discriminant = 1, %local3@Exit = %v8
     ret %v14
 
   b4:
     jmp b5
 
   b5:
-    %v20 = alloc : Outcome((), Outcome((), ()))
+    %v19 = alloc : Outcome((), Outcome((), ()))
     init %local2.discriminant, 0
-    ret %v20
+    ret %v19
 }
 
 fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
@@ -862,14 +859,13 @@ fn ResolveTest.continuation$15(Point, Int, ())(%env: %{body: &(value$: Int) -> O
 
   b1:
     %v12 = alloc : Outcome((), Outcome((), ()))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v7
+    aggregate %local4.discriminant = 1, %local4@Exit = %v7
     ret %v12
 
   b2:
-    %v17 = alloc : Outcome((), Outcome((), ()))
+    %v16 = alloc : Outcome((), Outcome((), ()))
     init %local3.discriminant, 0
-    ret %v17
+    ret %v16
 }
 
 fn filtered(Point, Outcome((), ()))(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
@@ -919,17 +915,16 @@ fn ResolveTest.continuation$14(Point, Outcome((), ()))(%env: %{keep: &(v: Point)
 
   b3:
     %v14 = alloc : Outcome((), Outcome((), Outcome((), ())))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v8
+    aggregate %local3.discriminant = 1, %local3@Exit = %v8
     ret %v14
 
   b4:
     jmp b5
 
   b5:
-    %v20 = alloc : Outcome((), Outcome((), Outcome((), ())))
+    %v19 = alloc : Outcome((), Outcome((), Outcome((), ())))
     init %local2.discriminant, 0
-    ret %v20
+    ret %v19
 }
 
 fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), Outcome((), Outcome((), ())))) -> Outcome((), Outcome((), Outcome((), ()))) {

@@ -1,0 +1,38 @@
+-- `@value(n)` on a constructor, and the `Enum` class it makes reachable - Analysis-Language.md §5.1.
+--
+-- A payload-free sum already lowered to an integer carrying the declaration order. What it could not
+-- do was *say* which integer, and the cost showed the moment the number had to cross to an ABI
+-- somebody else designed: `asInt` over a three-constructor enum was two compares and two selects
+-- computing the identity function, because the mapping lived in a `match` nothing had reason to
+-- recognise. The golden IR below is what this fixture is for.
+
+-- Pinned to the numbers `lseek` takes. Consecutive, so the membership test `fromValue` needs is a
+-- range: two comparisons however many constructors there are.
+data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
+
+-- A set with holes in it, which is what an `errno` list is. One comparison per constructor, or-ed:
+-- no branches, and an expression an optimizer is free to make a table of.
+data Errno = @value(2) NotFound | @value(13) Access | @value(122) Quota
+
+-- An unpinned constructor continues from the one before it, which is C's rule and what makes a
+-- declaration that pins nothing exactly the declaration order it always had.
+data Continued = @value(10) First | Second | Third
+data Unpinned = Zero | One | Two
+
+-- `valueOf` is the whole of what §5.1 asked for: the value *is* the number, so this is a cast.
+fn seekBase(w: Whence) -> I64 = valueOf(w)
+fn errorNumber(e: Errno) -> I64 = valueOf(e)
+fn continuedNumber(c: Continued) -> I64 = valueOf(c)
+
+-- And `fromValue` is the partial direction, which says so in its result.
+fn whenceOf(n: I64) -> Maybe(Whence) = fromValue(n)
+fn errnoOf(n: I64) -> Maybe(Errno) = fromValue(n)
+fn unpinnedOf(n: I64) -> Maybe(Unpinned) = fromValue(n)
+
+-- Matching tests the pinned number rather than the constructor's position.
+fn isQuota(e: Errno) -> Bool = match e:
+    Quota -> True
+    _ -> False
+
+fn main() -> Int:
+    return truncate(seekBase(FromEnd) + errorNumber(Quota) + continuedNumber(Third)) :: Int

@@ -53,28 +53,35 @@ fn bound(m: Maybe(Int)) -> Bool = m is Just(3) && True
 -- callee runs only when there was nothing to return.
 fn fallbackSkipped(m: Maybe(Int)) -> Int = m ?? bumpValue()
 
--- A user type's own `&&`. The marker is the class's, so the implementation repeats it rather than
--- choosing it, and the call site defers on the strength of the class signature alone - which is
--- what makes strictness readable off `Logic`'s declaration for every type that will ever join it.
---
--- This one is not an intrinsic, so the argument really does become a nullary closure the body
--- calls. It is still skipped when the left operand decided the answer, which is the whole property.
+{-
+   A short-circuit over a user type, written as an ordinary function.
+
+   `&&` itself is not this: it asks `Truth` and answers `Bool`, so it is one plain function over
+   every type rather than something an instance supplies - which is what stops `x && y` and `if x`
+   reading the same value two different ways. What a type wanting a short circuit over its *own*
+   domain writes is this, and the marker is what makes it one.
+
+   The property the fixture is for is unchanged and is the interesting half: this is not an
+   intrinsic, so the argument really does become a nullary closure the body calls, and it is still
+   skipped when the left operand decided the answer.
+-}
 data Mask {bits: Int}
 
-instance Logic(Mask):
-    fn &&(lhs: Mask, @lazy rhs: Mask) -> Mask = if lhs.bits == 0 then lhs else and(lhs, rhs)
+instance Bitwise(Mask):
     fn and(lhs: Mask, rhs: Mask) -> Mask = Mask {bits: lhs.bits `and` rhs.bits}
     fn or(lhs: Mask, rhs: Mask) -> Mask = Mask {bits: lhs.bits `or` rhs.bits}
     fn xor(lhs: Mask, rhs: Mask) -> Mask = Mask {bits: lhs.bits `xor` rhs.bits}
     fn not(value: Mask) -> Mask = Mask {bits: value.bits `xor` 15}
 
+fn bothSet(lhs: Mask, @lazy rhs: Mask) -> Mask = if lhs.bits == 0 then lhs else and(lhs, rhs)
+
 fn bumpMask() -> Mask:
     effects = effects + 1
     return Mask {bits: 3}
 
-fn maskSkips() -> Int = (Mask {bits: 0} && bumpMask()).bits
+fn maskSkips() -> Int = bothSet(Mask {bits: 0}, bumpMask()).bits
 
-fn maskRuns() -> Int = (Mask {bits: 7} && bumpMask()).bits
+fn maskRuns() -> Int = bothSet(Mask {bits: 7}, bumpMask()).bits
 
 -- A user function may declare one. `once` reads its parameter on one arm and not on the other,
 -- which is the at-most-once rule holding on both paths rather than on the syntax.

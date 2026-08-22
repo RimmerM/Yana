@@ -466,8 +466,24 @@ void Parser::parseTypeDecl(ast::DeclList& decls, ast::AttrList attributes, bool 
     expect(Token::opEquals, "expected '='"_v);
     auto type = parseType();
 
+    ast::ParseList<ast::Derive> derives;
+    if(token.type == Token::kwDeriving) {
+        WithLocation clauseLocation(*this);
+        parseDeriving(derives);
+        auto clause = context.addLocation(clauseLocation);
+
+        // A plain alias *is* its target, so there is no second type for an instance to be about and
+        // a derivation would either duplicate the target's own instance or contradict it. Reported
+        // here rather than in the resolver because it is a statement about the two spellings of
+        // `alias` and not about any class in the list.
+        if(!qualified && derives.isNotEmpty()) {
+            error("a plain alias cannot derive - it names the same type as its target, which already has whatever instances it has; write `alias qualified` for a type of its own"_v, clause);
+            derives = {};
+        }
+    }
+
     decls.push(arena, ast::Decl {
-        .alias = { name, type },
+        .alias = { name, type, derives },
         .attributes = ::move(attributes),
         .source = context.addLocation(location),
         .kind = ast::Decl::Alias,
@@ -2003,6 +2019,39 @@ void Parser::parseConstraints(ast::ConstraintList& list) {
             list.push(arena, parseConstraint());
         }, Token::Comma, Token::ParenR);
     });
+}
+
+/*
+ * `deriving (Eq, Ord, Logic)`, and `deriving Logic` for a list of one.
+ *
+ * The classes are named unapplied, since the type is the declaration this clause hangs off -
+ * Analysis-Extensibility.md's primary spelling, chosen there for the reason field-level defaults
+ * beat a `Default` class: what a type does is written where the type is.
+ *
+ * Both bracketings are read because the parenthesized list is the general form and a list of one is
+ * most of what anybody writes. There is nothing to disambiguate - a `ConID` after `deriving` can
+ * only be a class name - so admitting the bare form costs one branch and no grammar.
+ *
+ * Layout needs nothing said about it: `parseType` above has already stopped at the first token that
+ * cannot continue a type, and a clause on a continuation line is still inside this declaration's
+ * statement.
+ */
+void Parser::parseDeriving(ast::ParseList<ast::Derive>& list) {
+    expect(Token::kwDeriving, "expected 'deriving'"_v);
+
+    auto one = [&] {
+        WithLocation location(*this);
+        auto name = expect(Token::ConID, "expected a class name"_v).from({ .id = StringId() }).id;
+        list.push(arena, ast::Derive { name, context.addLocation(location) });
+    };
+
+    if(token.type == Token::ParenL) {
+        parens([&] {
+            sepBy(one, Token::Comma, Token::ParenR);
+        });
+    } else {
+        one();
+    }
 }
 
 void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {

@@ -458,8 +458,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   b1:
     %v16 = move %local3@Exit : Outcome((), $r)
     %v21 = alloc : Outcome((), Outcome((), $r))
-    init %local5.discriminant, 1
-    init %local5@Exit, %v16
+    aggregate %local5.discriminant = 1, %local5@Exit = %v16
     ret %v21
 
   b2:
@@ -494,8 +493,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
 
   b1:
     %v13 = alloc : Outcome((), Outcome((), $r))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v4
+    aggregate %local3.discriminant = 1, %local3@Exit = %v4
     ret %v13
 
   b2:
@@ -560,14 +558,13 @@ fn ResolveTest.continuation$14(Chunks, Int, ())(%env: %{body: &(value$: Int) -> 
   b1:
     %v16 = move %local3@Exit : Outcome((), ())
     %v17 = alloc : Outcome((), Outcome((), ()))
-    init %local5.discriminant, 1
-    init %local5@Exit, %v16
+    aggregate %local5.discriminant = 1, %local5@Exit = %v16
     ret %v17
 
   b2:
-    %v22 = alloc : Outcome((), Outcome((), ()))
+    %v21 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v22
+    ret %v21
 }
 
 fn ResolveTest.continuation$15(Chunks, Int, ())(%env: %{body: &(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
@@ -581,14 +578,13 @@ fn ResolveTest.continuation$15(Chunks, Int, ())(%env: %{body: &(value$: Int) -> 
 
   b1:
     %v9 = alloc : Outcome((), Outcome((), ()))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v4
+    aggregate %local3.discriminant = 1, %local3@Exit = %v4
     ret %v9
 
   b2:
-    %v14 = alloc : Outcome((), Outcome((), ()))
+    %v13 = alloc : Outcome((), Outcome((), ()))
     init %local2.discriminant, 0
-    ret %v14
+    ret %v13
 }
 
 fn each(Int, Outcome((), ()))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
@@ -747,14 +743,13 @@ fn ResolveTest.continuation$14(Flat(Int), Int, ())(%env: %{body: &(value$: Int) 
   b1:
     %v16 = move %local3@Exit : Outcome((), ())
     %v17 = alloc : Outcome((), Outcome((), ()))
-    init %local5.discriminant, 1
-    init %local5@Exit, %v16
+    aggregate %local5.discriminant = 1, %local5@Exit = %v16
     ret %v17
 
   b2:
-    %v22 = alloc : Outcome((), Outcome((), ()))
+    %v21 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v22
+    ret %v21
 }
 
 fn ResolveTest.continuation$15(Flat(Int), Int, ())(%env: %{body: &(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
@@ -768,14 +763,13 @@ fn ResolveTest.continuation$15(Flat(Int), Int, ())(%env: %{body: &(value$: Int) 
 
   b1:
     %v9 = alloc : Outcome((), Outcome((), ()))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v4
+    aggregate %local3.discriminant = 1, %local3@Exit = %v4
     ret %v9
 
   b2:
-    %v14 = alloc : Outcome((), Outcome((), ()))
+    %v13 = alloc : Outcome((), Outcome((), ()))
     init %local2.discriminant, 0
-    ret %v14
+    ret %v13
 }
 
 fn reclaim$Chunks(%value: Chunks) -> () {

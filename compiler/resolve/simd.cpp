@@ -829,7 +829,8 @@ static ModulePtr<ClassInstance> numericInstance(Module& core, GlobalPtr<TypeClas
     auto vector = vectorOf(base, type);
 
     // A mask has no arithmetic. Its lanes are all-ones or all-zeros and every operation `Num` names
-    // would produce something that is neither, so the class that describes it is `Logic`.
+    // would produce something that is neither, so the class that describes it is `Bitwise`, which
+    // maskBitwiseInstance answers below.
     if(!vector || vector->isMask) return nullptr;
 
     if(typeClass == classes.fromInt) {
@@ -857,36 +858,37 @@ static ModulePtr<ClassInstance> numericInstance(Module& core, GlobalPtr<TypeClas
 
     // The bitwise half is an integer question, so a float vector reaches `Num` and stops - exactly
     // as `Float` itself does.
-    if(typeClass == classes.integral && base[vector->content]->kind == Type::Int) {
-        return defineIntegral(core, type);
-    }
+    //
+    // Two classes rather than one since `Bitwise` was split out of `Integral`, and both are asked
+    // here for the same reason either is: `Integral` declares `Bitwise` as a superclass, so a lookup
+    // that reaches `Integral(Vec(Int, 4))` has to be able to reach `Bitwise(Vec(Int, 4))` too, and
+    // there is no declaration of either anywhere for the superclass check to find.
+    if(base[vector->content]->kind != Type::Int) return nullptr;
+
+    if(typeClass == classes.bitwise) return defineBitwise(core, type, emitUnary<Value::Not>);
+    if(typeClass == classes.integral) return defineIntegral(core, type);
 
     return nullptr;
 }
 
 /*
- * `Logic` over a mask - Design-Vector §3.2's "masks themselves get `and`/`or`/`not` through Logic".
+ * `Bitwise` over a mask - Design-Vector §3.2's "masks themselves get `and`/`or`/`not`".
  *
- * Four methods rather than seven: `&&`, `||` and `!` are class defaults written in terms of the
- * other three, and a mask wants exactly those defaults. There is no short-circuit to be had over
- * lanes - both operands of `m1 && m2` are needed whatever either holds - so the `@lazy` right
- * operand being forced is the honest cost and not a missed optimization.
+ * The four and nothing else, which is the whole class now. `&&`, `||` and `!` used to arrive with
+ * them as `Logic` defaults and were never what a mask wanted: they are `Truth` questions answering a
+ * single `Bool`, where combining two masks is a lanewise answer, and `&&`'s right operand is `@lazy`
+ * so a mask that reached the default paid for a thunk in the innermost loop of a kernel. A mask has
+ * no `Truth` instance and needs none - `count`, `bits` and `select` are how a lane answer becomes a
+ * scalar one.
  *
  * `not` is the bitwise complement and not `Bool`'s `xor 1`. A mask lane is all-ones or all-zeros, so
  * complementing it lands back inside the type; a single bit flipped would not.
  */
-static ModulePtr<ClassInstance> maskLogicInstance(Module& core, GlobalPtr<TypeClass> typeClass, TypePtr type) {
+static ModulePtr<ClassInstance> maskBitwiseInstance(Module& core, TypePtr type) {
     auto mask = vectorOf(*core.types, type);
     if(!mask || !mask->isMask) return nullptr;
 
-    IntrinsicMethod methods[] = {
-        { "and"_v, 2, emitBinary<Value::And> },
-        { "or"_v,  2, emitBinary<Value::Or> },
-        { "xor"_v, 2, emitBinary<Value::Xor> },
-        { "not"_v, 1, emitUnary<Value::Not> },
-    };
-
-    return generateInstance(core, typeClass, { &type, 1 }, { methods, 4 });
+    return defineBitwise(core, type, emitUnary<Value::Not>);
 }
 
 /*
@@ -1067,7 +1069,14 @@ ModulePtr<ClassInstance> vectorInstance(Module& module, GlobalPtr<TypeClass> typ
     if(args.length == 1) {
         if(!args[0]) return nullptr;
 
-        if(typeClass == classes.logic) return maskLogicInstance(core, typeClass, args[0]);
+        // `Bitwise` is the one class a mask and an integer vector both join - which is the point of
+        // its being separate from `Integral`, since a mask has the four operations and none of the
+        // arithmetic. So the mask answer is tried and *fallen through*, not returned: a
+        // `Bitwise(Vec(Int, 4))` is not a mask and is still an instance this has to supply.
+        if(typeClass == classes.bitwise) {
+            if(auto masked = maskBitwiseInstance(core, args[0])) return masked;
+        }
+
         return numericInstance(core, typeClass, classes, args[0]);
     }
 

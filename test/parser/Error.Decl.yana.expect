@@ -10,6 +10,9 @@ error 29:0 [789..789]: expected identifier
 error 32:0 [858..858]: expected attribute type
 error 32:0 [858..866]: terminating statements cannot be used in a global scope
 error 35:18 [946..947]: expected declaration end
+error 43:24 [1299..1312]: a plain alias cannot derive - it names the same type as its target, which already has whatever instances it has; write `alias qualified` for a type of its own
+error 46:44 [1434..1435]: expected a class name
+error 46:44 [1434..1435]: expected ')'
 
 Module 
 |-FunDecl noBody
@@ -41,8 +44,12 @@ Module
 |-FunDecl trailing <implicit return> 
 | `-Body
 |   `-LitExpr 0
-`-FunDecl after <implicit return> 
-  |-Arg a
-  | `-ConType Int
-  `-Body
-    `-VarExpr a
+|-FunDecl after <implicit return> 
+| |-Arg a
+| | `-ConType Int
+| `-Body
+|   `-VarExpr a
+|-AliasDecl Transparent 
+| `-ConType Int
+`-AliasDecl <qualified> Wrapped  <deriving Eq >
+  `-ConType Int

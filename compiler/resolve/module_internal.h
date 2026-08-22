@@ -67,6 +67,7 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
 void declareClass(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer);
 void resolveClassSignatures(Module& module, TypeClass& typeClass);
 void resolveInstance(Module& module, ast::Decl& decl);
+
 void resolveClassDefault(Module& module, GlobalPtr<TypeClass> classPointer);
 void checkSuperclasses(Module& module, ClassInstance& instance);
 
@@ -75,6 +76,13 @@ void checkSuperclasses(Module& module, ClassInstance& instance);
 ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, ast::Decl& member,
                                         ast::ParsePtr<ast::Decl> pointer, Function& signature);
 void checkDefaultRanks(Module& module, TypeClass& typeClass);
+
+// -- module_derive.cpp -------------------------------------------------------------------------
+
+// The `deriving (...)` clause of a qualified alias, expanded into ordinary instance declarations -
+// Analysis-Derive.md §3's `newtype` shape. Takes the `ast::Module` and not only the resolve one
+// because the expansion is allocated into the parse region a `ParsePtr` is an offset from.
+void deriveNewtypeInstances(Module& module, ast::Module& ast, ast::Decl& decl);
 
 // -- module_export.cpp -------------------------------------------------------------------------
 

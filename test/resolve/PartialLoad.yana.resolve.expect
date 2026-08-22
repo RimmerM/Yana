@@ -21,25 +21,25 @@ fn recovered(%box: &Box, %grow: Bool) -> Int {
     jmp b3
 
   b3:
-    %v12 = phi [b1, %grow], [b2, %v8] : Bool
-    je %v12, b4, b5
+    %v13 = phi [b1, %grow], [b2, False] : Bool
+    je %v13, b4, b5
 
   b4:
-    %v14 = load [%box]@Box.value : Int
-    %v17 = add %v14, 1000 : Int
-    call opaque, %box, %v17
+    %v15 = load [%box]@Box.value : Int
+    %v18 = add %v15, 1000 : Int
+    call opaque, %box, %v18
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v21 = load %total : Int
-    %v22 = load [%box]@Box.value : Int
-    %v23 = add %v21, %v22 : Int
-    assign %total, %v23
-    %v25 = load %total : Int
-    ret %v25
+    %v22 = load %total : Int
+    %v23 = load [%box]@Box.value : Int
+    %v24 = add %v22, %v23 : Int
+    assign %total, %v24
+    %v26 = load %total : Int
+    ret %v26
 }
 
 fn bothArmsWrite(%box: &Box, %which: Bool) -> Int {
@@ -55,24 +55,24 @@ fn bothArmsWrite(%box: &Box, %which: Bool) -> Int {
     jmp b3
 
   b3:
-    %v9 = phi [b1, %which], [b2, %v5] : Bool
-    je %v9, b4, b5
+    %v10 = phi [b1, %which], [b2, False] : Bool
+    je %v10, b4, b5
 
   b4:
-    %v11 = load [%box]@Box.value : Int
-    %v14 = add %v11, 1 : Int
-    call opaque, %box, %v14
+    %v12 = load [%box]@Box.value : Int
+    %v15 = add %v12, 1 : Int
+    call opaque, %box, %v15
     jmp b6
 
   b5:
-    %v16 = load [%box]@Box.value : Int
-    %v19 = add %v16, 2 : Int
-    call opaque, %box, %v19
+    %v17 = load [%box]@Box.value : Int
+    %v20 = add %v17, 2 : Int
+    call opaque, %box, %v20
     jmp b6
 
   b6:
-    %v23 = load [%box]@Box.value : Int
-    ret %v23
+    %v24 = load [%box]@Box.value : Int
+    ret %v24
 }
 
 fn neitherArmWrites(%box: &Box, %which: Bool) -> Int {
@@ -90,8 +90,8 @@ fn neitherArmWrites(%box: &Box, %which: Bool) -> Int {
     jmp b3
 
   b3:
-    %v12 = phi [b1, %which], [b2, %v8] : Bool
-    je %v12, b4, b5
+    %v13 = phi [b1, %which], [b2, False] : Bool
+    je %v13, b4, b5
 
   b4:
     assign %side, 1
@@ -102,10 +102,10 @@ fn neitherArmWrites(%box: &Box, %which: Bool) -> Int {
     jmp b6
 
   b6:
-    %v20 = load [%box]@Box.value : Int
-    %v21 = load %side : Int
-    %v22 = add %v20, %v21 : Int
-    ret %v22
+    %v21 = load [%box]@Box.value : Int
+    %v22 = load %side : Int
+    %v23 = add %v21, %v22 : Int
+    ret %v23
 }
 
 fn chained(%box: &Box, %grow: Bool) -> Int {
@@ -123,8 +123,8 @@ fn chained(%box: &Box, %grow: Bool) -> Int {
     jmp b3
 
   b3:
-    %v15 = phi [b1, %grow], [b2, %v11] : Bool
-    je %v15, b4, b5
+    %v16 = phi [b1, %grow], [b2, False] : Bool
+    je %v16, b4, b5
 
   b4:
     call opaque, %box, 7
@@ -134,10 +134,10 @@ fn chained(%box: &Box, %grow: Bool) -> Int {
     jmp b6
 
   b6:
-    %v21 = load [%box]@Box.value : Int
-    %v24 = and %v21, 1023 : Int
-    %v27 = mul %v24, 3 : Int
-    ret %v27
+    %v22 = load [%box]@Box.value : Int
+    %v25 = and %v22, 1023 : Int
+    %v28 = mul %v25, 3 : Int
+    ret %v28
 }
 
 fn main() -> Int {

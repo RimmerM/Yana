@@ -89,6 +89,7 @@ struct Parser: BasicParser<Lexer, Token> {
 
     ast::Constraint parseConstraint();
     void parseConstraints(ast::ConstraintList& list);
+    void parseDeriving(ast::ParseList<ast::Derive>& list);
 
     ast::Expr toLiteral(const Token::Payload& payload, Token::Type type, const WithLocation& source);
     ast::Expr toLiteral(const WithLocation& source);

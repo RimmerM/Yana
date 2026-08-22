@@ -15,9 +15,11 @@
  * bodies of their class instances.
  *
  * Operators are declared with the fixities they have everywhere else, and the classes are the
- * ones Design.md names. Note that `and`/`or`/`not` appear in both Integral and Logic: an
- * integer's are bitwise and a Bool's are logical, and which is meant is decided by which class
- * has an instance for the operand type rather than by a special case anywhere in the resolver.
+ * ones Design.md names. `and`, `or`, `xor` and `not` belong to exactly one class - `Bitwise`, which
+ * `Integral` has as a superclass - so a `Bool`'s and an integer's are the same name reaching the
+ * same declaration, and the two differ only in the instruction the instance emits. `!`, `&&` and
+ * `||` are not there at all: they ask `Truth` and answer `Bool`, and are plain functions whose
+ * whole definition is the hook attached below.
  *
  * The same is true of the two things the resolver used to do by itself. A literal is a call to
  * `FromInt`/`FromDecimal` and an implicit conversion is a call to `Widen`, so "what does `1`
@@ -307,6 +309,7 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
         defineEq(module, type);
         defineOrd(module, type);
         defineNum(module, type);
+        defineBitwise(module, type, emitUnary<Value::Not>);
         defineIntegral(module, type);
         defineTruth(module, type, emitTruthy);
 
@@ -493,6 +496,24 @@ void defineCore(Program& program) {
     attachIntrinsic(*module, "swap"_v, emitSwap);
     attachIntrinsic(*module, "exchange"_v, emitExchange);
 
+    /*
+     * `!`, `&&` and `||` - declared in Core as bodiless plain functions over `Truth`, and defined
+     * here.
+     *
+     * Plain functions rather than class members because what they answer is a `Bool` and what they
+     * ask is `Truth`, which is the same question `if x` asks - so `if x` and `if !x` cannot disagree
+     * about a value the way they did while these were `Logic` defaults over `not`. The two operands
+     * of the pair need not share a type, which a class could not have said.
+     *
+     * Intrinsics rather than bodies for the reason every operator here is one: reaching them has to
+     * cost nothing *without an optimizer having run*, and a source body would be a generic call at
+     * every `if` in the program until specialization and inlining had both happened. The deferred
+     * form is what lets `&&` emit its right operand under the branch instead of calling a thunk.
+     */
+    attachIntrinsic(*module, "!"_v, emitTruthNot);
+    attachDeferredIntrinsic(*module, "&&"_v, emitTruthAnd);
+    attachDeferredIntrinsic(*module, "||"_v, emitTruthOr);
+
     // The portable vector set, whose declarations are in the source above and whose expansions are
     // simd.cpp's - Design-Vector §3.3.
     defineVectorIntrinsics(*module);
@@ -520,6 +541,11 @@ void defineCore(Program& program) {
         defineNum(*module, type);
     }
 
+    // `Bitwise` before `Integral`, which declares it as a superclass - the same ordering `FromInt`
+    // before `Num` has above, and for the same reason: the obligation is checked where the instance
+    // is generated.
+    defineBitwise(*module, program.scalar.int_, emitUnary<Value::Not>);
+    defineBitwise(*module, program.scalar.long_, emitUnary<Value::Not>);
     defineIntegral(*module, program.scalar.int_);
     defineIntegral(*module, program.scalar.long_);
 
@@ -548,7 +574,11 @@ void defineCore(Program& program) {
      */
 
     defineEq(*module, program.scalar.bool_);
-    defineLogic(*module, program.scalar.bool_);
+
+    // A `Bool`'s complement is an `xor` against 1 and not a `Not` instruction: complementing the
+    // storage of a one-bit value gives something that is not a Bool, and complementing its value is
+    // exactly that xor. Every wider width uses the instruction - see defineNumeric.
+    defineBitwise(*module, program.scalar.bool_, emitLogicalNot);
     defineEq(*module, program.scalar.ordering);
 
     // A Bool is already the answer; every number is asked whether it is non-zero. NaN is therefore
@@ -609,6 +639,7 @@ void defineCore(Program& program) {
     program.coreClasses.widen = classNamed(*module, "Widen"_v);
     program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
     program.coreClasses.truth = classNamed(*module, "Truth"_v);
+    program.coreClasses.enum_ = classNamed(*module, "Enum"_v);
     program.coreClasses.try_ = classNamed(*module, "Try"_v);
     program.coreClasses.rewrap = classNamed(*module, "Rewrap"_v);
     program.coreClasses.index = classNamed(*module, "Index"_v);
@@ -625,7 +656,7 @@ void defineCore(Program& program) {
     // instance lookup that finds nothing and must not be a string lookup.
     program.coreClasses.num = classNamed(*module, "Num"_v);
     program.coreClasses.integral = classNamed(*module, "Integral"_v);
-    program.coreClasses.logic = classNamed(*module, "Logic"_v);
+    program.coreClasses.bitwise = classNamed(*module, "Bitwise"_v);
     program.coreClasses.bitcast = classNamed(*module, "Bitcast"_v);
     program.coreClasses.lanewise = classNamed(*module, "Lanewise"_v);
 

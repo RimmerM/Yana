@@ -22,9 +22,9 @@ fn either(%a: Int, %b: Int) -> Int {
   b0:
     %v4 = cmp_gt %a, 0 : Bool
     %v8 = cmp_gt %b, 0 : Bool
-    %v19 = select %v4 ? %v4 : %v8 : Bool
-    %v21 = select %v19 ? 1 : 0 : Int
-    ret %v21
+    %v20 = select %v4 ? True : %v8 : Bool
+    %v22 = select %v20 ? 1 : 0 : Int
+    ret %v22
 }
 
 fn count() -> Bool {
@@ -41,18 +41,18 @@ fn skipped(%a: Int) -> Int {
     je %v3, b1, b2
 
   b1:
-    %v16 = load calls : Int
-    %v18 = add %v16, 1 : Int
-    assign calls, %v18
+    %v17 = load calls : Int
+    %v19 = add %v17, 1 : Int
+    assign calls, %v19
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v8 = phi [b1, True], [b2, %v3] : Bool
-    %v21 = select %v8 ? 1 : 0 : Int
-    ret %v21
+    %v9 = phi [b1, True], [b2, False] : Bool
+    %v22 = select %v9 ? 1 : 0 : Int
+    ret %v22
 }
 
 fn effects() -> Int {
@@ -168,13 +168,13 @@ fn guarded(%value: Int) -> Int {
 fn main() -> Int {
   b0:
     assign calls, 1
-    %v137 = call lowered : Float
-    %v139 = cmp_gt %v137, 0 : Bool
-    %v141 = sub 0, %v137 : Float
-    %v142 = select %v139 ? %v137 : %v141 : Float
-    %v144 = cmp_gt %v142, 2.5 : Bool
-    %v147 = select %v144 ? 5 : 0 : Int
-    %v51 = mul %v147, 256 : Int
+    %v139 = call lowered : Float
+    %v141 = cmp_gt %v139, 0 : Bool
+    %v143 = sub 0, %v139 : Float
+    %v144 = select %v141 ? %v139 : %v143 : Float
+    %v146 = cmp_gt %v144, 2.5 : Bool
+    %v149 = select %v146 ? 5 : 0 : Int
+    %v51 = mul %v149, 256 : Int
     %v52 = add %v51, 1310 : Int
     %best = alloc : Int
     init %best, 100
@@ -183,44 +183,44 @@ fn main() -> Int {
     jmp b1
 
   b1:
-    %v155 = load %i : Int
-    %v156 = cmp_lt %v155, 5 : Bool
-    je %v156, b6, b2
+    %v157 = load %i : Int
+    %v158 = cmp_lt %v157, 5 : Bool
+    je %v158, b6, b2
 
   b2:
-    %v158 = load %best : Int
-    %v57 = mul %v158, 512 : Int
+    %v160 = load %best : Int
+    %v57 = mul %v160, 512 : Int
     %v58 = add %v52, %v57 : Int
     %v60 = call zero : Int
-    %v175 = cmp_ne %v60, 0 : Bool
-    je %v175, b4, b3
+    %v177 = cmp_ne %v60, 0 : Bool
+    je %v177, b4, b3
 
   b3:
     jmp b5
 
   b4:
-    %v178 = div 10, %v60 : Int
+    %v180 = div 10, %v60 : Int
     jmp b5
 
   b5:
-    %v173 = phi [b4, %v178], [b3, 0] : Int
-    %v64 = mul %v173, 1024 : Int
+    %v175 = phi [b4, %v180], [b3, 0] : Int
+    %v64 = mul %v175, 1024 : Int
     %v65 = add %v58, %v64 : Int
     %v72 = add %v65, 10240 : Int
-    %v196 = call doubled, 3 : Int
-    %v77 = mul %v196, 4096 : Int
+    %v198 = call doubled, 3 : Int
+    %v77 = mul %v198, 4096 : Int
     %v78 = add %v72, %v77 : Int
     ret %v78
 
   b6:
-    %v160 = load %i : Int
-    %v162 = mul %v160, 3 : Int
-    %candidate = sub 40, %v162 : Int
-    %v165 = load %best : Int
-    %v166 = cmp_lt %candidate, %v165 : Bool
-    %v167 = select %v166 ? %candidate : %v165 : Int
-    assign %best, %v167
-    %v170 = add %v160, 1 : Int
-    assign %i, %v170
+    %v162 = load %i : Int
+    %v164 = mul %v162, 3 : Int
+    %candidate = sub 40, %v164 : Int
+    %v167 = load %best : Int
+    %v168 = cmp_lt %candidate, %v167 : Bool
+    %v169 = select %v168 ? %candidate : %v167 : Int
+    assign %best, %v169
+    %v172 = add %v162, 1 : Int
+    assign %i, %v172
     jmp b1
 }

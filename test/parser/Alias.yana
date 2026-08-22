@@ -15,3 +15,11 @@ alias qualified X = [Y]
 alias qualified X = {a: Y, b: Z}
 alias qualified X(a) = %a
 alias qualified X(a, bits) = Y(a)
+
+-- The `deriving (...)` clause - Analysis-Derive.md §3's `newtype` shape, and the primary spelling
+-- Analysis-Extensibility.md picks. The classes are named unapplied, since the type is this
+-- declaration; a list of one may drop the parentheses.
+alias qualified OpenFlags = I64 deriving (Bitwise, Truth)
+alias qualified FileMode = I64 deriving Bitwise
+alias qualified Id = Int
+    deriving (Eq, Ord)

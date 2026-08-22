@@ -58,7 +58,13 @@ Module
 |-AliasDecl <qualified> X (a)
 | `-PtrType 
 |   `-GenType a
-`-AliasDecl <qualified> X (a, bits)
-  `-AppType 
-    |-ConType Y
-    `-GenType a
+|-AliasDecl <qualified> X (a, bits)
+| `-AppType 
+|   |-ConType Y
+|   `-GenType a
+|-AliasDecl <qualified> OpenFlags  <deriving Bitwise Truth>
+| `-ConType I64
+|-AliasDecl <qualified> FileMode  <deriving Bitwise>
+| `-ConType I64
+`-AliasDecl <qualified> Id  <deriving Eq Ord>
+  `-ConType Int

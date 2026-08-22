@@ -1,0 +1,36 @@
+-- `nameOf` and `fromName` - the constructor's own word, beside the number `@value(n)` pins.
+data Colour = Red | Green | Blue
+data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
+
+-- A generic payload-free sum. Its instance is per instantiation, since `Pair(Int)` and `Pair(Bool)`
+-- are different types with the same constructor names - which is the same thing that is true of the
+-- number `valueOf` answers.
+data Pair(a) = Low | High
+
+fn nameOfColour(c: Colour) -> String = nameOf(c)
+fn colourOfName(s: String) -> Maybe(Colour) = fromName(s)
+fn whenceName(w: Whence) -> String = nameOf(w)
+fn instantiatedName(p: Pair(Int)) -> String = nameOf(p)
+fn instantiatedOfName(s: String) -> Maybe(Pair(Int)) = fromName(s)
+
+fn main() -> Int:
+    if nameOfColour(Green) != "Green" then return 1
+    if whenceName(FromEnd) != "FromEnd" then return 2
+
+    let found = colourOfName("Blue")
+    if found is Nothing then return 3
+
+    let missing = colourOfName("Purple")
+    if missing is Just(_) then return 4
+
+    -- A name of the right length that is not one of these, which is what the length gate lets
+    -- through and the content comparison has to refuse.
+    if colourOfName("Bleu") is Just(_) then return 5
+
+    if instantiatedName(Low) != "Low" then return 6
+    if instantiatedOfName("High") is Nothing then return 7
+    if instantiatedOfName("Red") is Just(_) then return 8
+
+    return match colourOfName("Red"):
+        Just(c) -> 10 + (truncate(valueOf(c)) :: Int)
+        Nothing -> 9

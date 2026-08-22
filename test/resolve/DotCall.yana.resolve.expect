@@ -236,8 +236,7 @@ fn ResolveTest.continuation$14(%env: %{body: &(value$: Int) -> Outcome((), $r)},
 
   b3:
     %v22 = alloc : Outcome((), Outcome((), $r))
-    init %local2.discriminant, 1
-    init %local2@Exit, %v11
+    aggregate %local2.discriminant = 1, %local2@Exit = %v11
     ret %v22
 
   b4:
@@ -324,17 +323,16 @@ fn ResolveTest.continuation$14(())(%env: %{body: &(value$: Int) -> Outcome((), (
 
   b3:
     %v15 = alloc : Outcome((), Outcome((), ()))
-    init %local2.discriminant, 1
-    init %local2@Exit, %v9
+    aggregate %local2.discriminant = 1, %local2@Exit = %v9
     ret %v15
 
   b4:
     jmp b5
 
   b5:
-    %v21 = alloc : Outcome((), Outcome((), ()))
+    %v20 = alloc : Outcome((), Outcome((), ()))
     init %local1.discriminant, 0
-    ret %v21
+    ret %v20
 }
 
 fn upTo(Outcome((), ()))(%limit: Int, %body: (value$: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {

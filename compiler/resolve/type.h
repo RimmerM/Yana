@@ -891,6 +891,29 @@ struct Constructor {
     TypePtr content = nullptr;
     U32 index = 0;
 
+    /*
+     * The number this constructor is, as opposed to which one it is - Analysis-Language.md §5.1.
+     *
+     * A payload-free sum already lowered to an integer carrying the declaration order, and what it
+     * could not do was *say* so. The cost of that showed up the moment the number had to cross to a
+     * syscall: `asInt` over a three-constructor enum was two compares and two selects computing the
+     * identity function, because the mapping lived in a `match` nothing had a reason to recognise.
+     *
+     * `@value(n)` pins it, and an unpinned constructor continues from the one before it - so a
+     * declaration that pins nothing is exactly the declaration order this always had, and one that
+     * pins its first constructor renumbers the rest from there. That is C's rule, and it is what
+     * makes partial pinning mean something predictable rather than something to check for
+     * collisions against.
+     *
+     * Held on the *declaration*; an instantiation reads it through base(), like `source`.
+     */
+    I64 value = 0;
+
+    // Whether `@value` was written on this constructor, as opposed to the number being carried over
+    // from the one before. Only for diagnostics - what it changes is which of two constructors a
+    // collision is reported at.
+    bool pinnedValue = false;
+
     // Where the constructor was written, for the editor to jump to - resolve/index.h. Null for
     // every constructor Core and Native generate rather than parse, which is what makes it a
     // declaration nothing can navigate to rather than a missing one.
@@ -1393,6 +1416,12 @@ struct CoreClasses {
     GlobalPtr<TypeClass> narrow = nullptr;
     GlobalPtr<TypeClass> truth = nullptr;
 
+    // What a payload-free sum's number is reached through - Analysis-Language.md §5.1. Known by name
+    // for the reason the vector classes below are: no instance of it is declared anywhere, so
+    // "could this type join it" is asked at every lookup that found nothing and must not be a
+    // string comparison.
+    GlobalPtr<TypeClass> enum_ = nullptr;
+
     // Which of a carrier type's two paths a value is on - Implementation-Semantics.md part 5. Known
     // by name because a skipping lens's call site asks it about a type the *program* named, so there
     // is no argument position for ordinary overload selection to find it from.
@@ -1461,7 +1490,7 @@ struct CoreClasses {
      */
     GlobalPtr<TypeClass> num = nullptr;
     GlobalPtr<TypeClass> integral = nullptr;
-    GlobalPtr<TypeClass> logic = nullptr;
+    GlobalPtr<TypeClass> bitwise = nullptr;
     GlobalPtr<TypeClass> bitcast = nullptr;
     GlobalPtr<TypeClass> lanewise = nullptr;
 };
@@ -1545,7 +1574,8 @@ TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut);
 
 // The function type these arguments, result and kind name, interned on all three. Every argument's
 // convention and `return` marker is part of the key - see FunArg.
-TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast::FunKind kind);
+TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast::FunKind kind,
+                       ast::BindType resultBind = ast::BindType::Borrow);
 
 // The type a `@lazy` argument travels as: the nullary thunk that produces the declared type. Not a
 // type source can write in that position - the signature says `T` - so it exists only between the
@@ -2009,6 +2039,41 @@ struct ValueWidth {
 };
 
 ValueWidth valueWidth(GlobalBase base, TypePtr type);
+
+/*
+ * The numbers a payload-free sum's constructors occupy - Analysis-Language.md §5.1.
+ *
+ * A sum with nothing in it *is* a number, and until `@value` there was one number it could be: the
+ * declaration order. Everything that sizes one, packs one, or takes a niche out of one used to read
+ * the constructor *count* and derive the range from it. That derivation stops holding the moment a
+ * value is pinned - nineteen errno constructors reaching 122 need seven bits and not five - so the
+ * range is asked for directly and the count is no longer anybody's proxy for it.
+ *
+ * Where nothing is pinned the answer is bit-for-bit what the count gave: values run 0 to count-1, so
+ * `highest + 1` is the count and every rule below reproduces itself.
+ */
+struct EnumRange {
+    I64 lowest = 0;
+    I64 highest = 0;
+
+    // What holds every value. A logical width for the ordinary case, so that a three-constructor
+    // enum is still two bits and still co-packs with its neighbours.
+    U32 bits = 1;
+
+    /*
+     * A value below zero, which takes the type out of two decisions rather than changing them.
+     *
+     * Packing and niching both describe a value as a range of *patterns* counted from zero: a niche
+     * is what is left above `validEnd`, and a co-packed field is a bit range read back by masking.
+     * Neither statement is true of a number whose top bit is its sign, and making them true is a
+     * representation change rather than an attribute. So a sum with a negative value takes a whole
+     * signed word of its natural width, packs with nothing and offers no niche - which is what the
+     * ABI that asked for `-1` was going to insist on anyway.
+     */
+    bool signedValues = false;
+};
+
+EnumRange enumRange(GlobalBase base, RecordType& record);
 
 // The storage a machine gives an integer of `bits` logical width: the smallest power-of-two byte
 // count that holds it, in bits. Repr's own `naturalBytes` is this divided by eight, and reads it

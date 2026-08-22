@@ -660,6 +660,19 @@ private:
     void printAliasDecl(Decl& e) {
         stream.writeString(e.qualified ? "AliasDecl <qualified> "_v : "AliasDecl "_v);
         toString(e.alias.type);
+
+        auto derives = e.alias.derives;
+        if(derives.isNotEmpty()) {
+            stream.writeString(" <deriving"_v);
+
+            for(auto derive: derives.contents(base)) {
+                stream.writeByte(' ');
+                write(stream, context.findName(derive.name));
+            }
+
+            stream.writeByte('>');
+        }
+
         makeLevel();
         toString(e.alias.target, true);
         removeLevel();

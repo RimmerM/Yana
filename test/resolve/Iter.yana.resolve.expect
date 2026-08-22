@@ -630,8 +630,7 @@ fn ResolveTest.continuation$17(%env: %{bound: Int}, %value$: Int) -> Outcome((),
 
   b1:
     %v10 = alloc : Outcome((), Int)
-    init %local1.discriminant, 1
-    init %local1@Exit, %value$
+    aggregate %local1.discriminant = 1, %local1@Exit = %value$
     ret %v10
 
   b2:
@@ -684,13 +683,11 @@ fn ResolveTest.continuation$18(%env: %{bound: Int, seen: &mut Int}, %value$: Int
 
   b1:
     %v7 = mul %value$, 100 : Int
-    %v33 = alloc : Outcome((), Int)
-    init %local3.discriminant, 1
-    init %local3@Exit, %v7
-    %v37 = alloc : Outcome((), Outcome((), Int))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v33
-    ret %v37
+    %v32 = alloc : Outcome((), Int)
+    aggregate %local3.discriminant = 1, %local3@Exit = %v7
+    %v35 = alloc : Outcome((), Outcome((), Int))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v32
+    ret %v35
 
   b2:
     jmp b3
@@ -703,8 +700,7 @@ fn ResolveTest.continuation$18(%env: %{bound: Int, seen: &mut Int}, %value$: Int
     %v25 = alloc : Outcome((), Int)
     init %local1.discriminant, 0
     %v28 = alloc : Outcome((), Outcome((), Int))
-    init %local2.discriminant, 1
-    init %local2@Exit, %v25
+    aggregate %local2.discriminant = 1, %local2@Exit = %v25
     ret %v28
 
   b5:
@@ -944,8 +940,7 @@ fn ResolveTest.continuation$24(%env: %{bound: Int}, %value$: Int) -> Outcome((),
 
   b4:
     %v22 = alloc : Outcome((), Int)
-    init %local2.discriminant, 1
-    init %local2@Exit, %value$
+    aggregate %local2.discriminant = 1, %local2@Exit = %value$
     ret %v22
 
   b5:
@@ -968,8 +963,7 @@ fn ResolveTest.continuation$25(%env: %{bound: Int}, %value$: Int) -> Outcome((),
     %v8 = mul %value$, 2 : Int
     aggregate %local0@Pair.a = %value$, %local0@Pair.b = %v8
     %v15 = alloc : Outcome((), Pair)
-    init %local2.discriminant, 1
-    init %local2@Exit, %v5
+    aggregate %local2.discriminant = 1, %local2@Exit = %v5
     ret %v15
 
   b2:
@@ -1090,8 +1084,7 @@ fn ResolveTest.continuation$29(%env: %{base: Int}, %value$: Int) -> Outcome((), 
     %v9 = mul %v6, 1000 : Int
     %v10 = add %v9, %value$ : Int
     %v16 = alloc : Outcome((), Int)
-    init %local1.discriminant, 1
-    init %local1@Exit, %v10
+    aggregate %local1.discriminant = 1, %local1@Exit = %v10
     ret %v16
 
   b2:

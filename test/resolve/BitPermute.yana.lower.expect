@@ -47,215 +47,196 @@ main<complex>(): Int {
     je %v_24, b_25, b_26
   }
 
-  b_26 {
-    jmp b_27
-  }
-
   b_25 {
-    %v_28 = call_complex opaqueU32, 3735928559: Int
-    %v_29 = cmp_eq %v_28, 3735928559: Int
-    jmp b_27
+    %v_27 = call_complex opaqueU32, 3735928559: Int
+    %v_28 = cmp_eq %v_27, 3735928559: Int
+    je %v_28, b_29, b_26
   }
 
-  b_27 {
-    %v_30 = phi [b_25, %v_29], [b_26, %v_24]: Int
-    je %v_30, b_31, b_32
+  b_26 {
+    jmp b_30
   }
 
-  b_32 {
-    jmp b_33
+  b_29 {
+    %v_31 = call_complex opaqueU32, 3735928559: Int
+    %v_32 = cmp_eq %v_31, 3735928559: Int
+    jmp b_30
   }
 
-  b_31 {
-    %v_34 = call_complex opaqueU32, 3735928559: Int
-    %v_35 = cmp_eq %v_34, 3735928559: Int
-    jmp b_33
-  }
-
-  b_33 {
-    %v_36 = phi [b_31, %v_35], [b_32, %v_30]: Int
-    %v_37 = select %v_36, 64, 0: Int
-    %v_38 = add %v_22, %v_37: Int
-    %v_39 = add %v_13, %v_38: Int
-    %v_40 = call_complex opaqueU64, 81985529216486895: Long
-    %v_41 = and %v_40, 16777215: Long
-    %v_42 = cmp_eq %v_41, 11259375: Int
-    %v_43 = select %v_42, 128, 0: Int
-    %v_44 = call_complex opaqueU64, 81985529216486895: Long
-    %v_45 = cmp_eq %v_44, 81985529216486895: Int
-    %v_46 = select %v_45, 256, 0: Int
-    %v_47 = add %v_43, %v_46: Int
-    %v_48 = call_complex opaqueU64, 81985529216486895: Long
-    %v_49 = call_complex opaqueU64, 81985529216486895: Long
-    %v_50 = cmp_eq %v_49, 81985529216486895: Int
-    %v_51 = select %v_50, 512, 0: Int
-    %v_52 = add %v_47, %v_51: Int
-    %v_53 = add %v_39, %v_52: Int
-    %v_54 = call_complex opaqueU32, 3735928559: Int
-    %v_55 = shr %v_54, 16: Int
-    %v_56 = and %v_55, 255: Int
-    %v_57 = cmp_eq %v_56, 173: Int
-    %v_58 = select %v_57, 1024, 0: Int
-    %v_59 = call_complex opaqueU32, 3735928559: Int
-    %v_60 = and %v_59, 65535: Int
-    %v_61 = cmp_eq %v_60, 48879: Int
-    %v_62 = select %v_61, 2048, 0: Int
-    %v_63 = add %v_58, %v_62: Int
-    %v_64 = call_complex opaqueU32, 3735928559: Int
-    %v_65 = shr %v_64, 28: Int
-    %v_66 = cmp_eq %v_65, 13: Int
-    %v_67 = select %v_66, 4096, 0: Int
-    %v_68 = add %v_63, %v_67: Int
-    %v_69 = add %v_53, %v_68: Int
-    %v_70 = call_complex opaqueU32, 305419896: Int
-    %v_71 = call_complex opaqueU32, 4278255360: Int
-    %v_72 = gatherbits %v_70, %v_71: Int
-    %v_73 = cmp_eq %v_72, 4694: Int
-    %v_74 = select %v_73, 8192, 0: Int
-    %v_75 = call_complex opaqueU32, 4694: Int
-    %v_76 = call_complex opaqueU32, 4278255360: Int
-    %v_77 = scatterbits %v_75, %v_76: Int
-    %v_78 = cmp_eq %v_77, 302011904: Int
-    %v_79 = select %v_78, 16384, 0: Int
-    %v_80 = add %v_74, %v_79: Int
-    %v_81 = call_complex opaqueU32, 3735928559: Int
-    %v_82 = call_complex opaqueU32, 65535: Int
-    %v_83 = gatherbits %v_81, %v_82: Int
-    %v_84 = cmp_eq %v_83, 48879: Int
-    %v_85 = select %v_84, 32768, 0: Int
-    %v_86 = add %v_80, %v_85: Int
-    %v_87 = call_complex opaqueU32, 15: Int
-    %v_88 = call_complex opaqueU32, 252645135: Int
-    %v_89 = scatterbits %v_87, %v_88: Int
-    %v_90 = cmp_eq %v_89, 15: Int
-    %v_91 = select %v_90, 65536, 0: Int
-    %v_92 = add %v_86, %v_91: Int
-    %v_93 = add %v_69, %v_92: Int
+  b_30 {
+    %v_33 = phi [b_29, %v_32], [b_26, 0]: Int
+    %v_34 = select %v_33, 64, 0: Int
+    %v_35 = add %v_22, %v_34: Int
+    %v_36 = add %v_13, %v_35: Int
+    %v_37 = call_complex opaqueU64, 81985529216486895: Long
+    %v_38 = and %v_37, 16777215: Long
+    %v_39 = cmp_eq %v_38, 11259375: Int
+    %v_40 = select %v_39, 128, 0: Int
+    %v_41 = call_complex opaqueU64, 81985529216486895: Long
+    %v_42 = cmp_eq %v_41, 81985529216486895: Int
+    %v_43 = select %v_42, 256, 0: Int
+    %v_44 = add %v_40, %v_43: Int
+    %v_45 = call_complex opaqueU64, 81985529216486895: Long
+    %v_46 = call_complex opaqueU64, 81985529216486895: Long
+    %v_47 = cmp_eq %v_46, 81985529216486895: Int
+    %v_48 = select %v_47, 512, 0: Int
+    %v_49 = add %v_44, %v_48: Int
+    %v_50 = add %v_36, %v_49: Int
+    %v_51 = call_complex opaqueU32, 3735928559: Int
+    %v_52 = shr %v_51, 16: Int
+    %v_53 = and %v_52, 255: Int
+    %v_54 = cmp_eq %v_53, 173: Int
+    %v_55 = select %v_54, 1024, 0: Int
+    %v_56 = call_complex opaqueU32, 3735928559: Int
+    %v_57 = and %v_56, 65535: Int
+    %v_58 = cmp_eq %v_57, 48879: Int
+    %v_59 = select %v_58, 2048, 0: Int
+    %v_60 = add %v_55, %v_59: Int
+    %v_61 = call_complex opaqueU32, 3735928559: Int
+    %v_62 = shr %v_61, 28: Int
+    %v_63 = cmp_eq %v_62, 13: Int
+    %v_64 = select %v_63, 4096, 0: Int
+    %v_65 = add %v_60, %v_64: Int
+    %v_66 = add %v_50, %v_65: Int
+    %v_67 = call_complex opaqueU32, 305419896: Int
+    %v_68 = call_complex opaqueU32, 4278255360: Int
+    %v_69 = gatherbits %v_67, %v_68: Int
+    %v_70 = cmp_eq %v_69, 4694: Int
+    %v_71 = select %v_70, 8192, 0: Int
+    %v_72 = call_complex opaqueU32, 4694: Int
+    %v_73 = call_complex opaqueU32, 4278255360: Int
+    %v_74 = scatterbits %v_72, %v_73: Int
+    %v_75 = cmp_eq %v_74, 302011904: Int
+    %v_76 = select %v_75, 16384, 0: Int
+    %v_77 = add %v_71, %v_76: Int
+    %v_78 = call_complex opaqueU32, 3735928559: Int
+    %v_79 = call_complex opaqueU32, 65535: Int
+    %v_80 = gatherbits %v_78, %v_79: Int
+    %v_81 = cmp_eq %v_80, 48879: Int
+    %v_82 = select %v_81, 32768, 0: Int
+    %v_83 = add %v_77, %v_82: Int
+    %v_84 = call_complex opaqueU32, 15: Int
+    %v_85 = call_complex opaqueU32, 252645135: Int
+    %v_86 = scatterbits %v_84, %v_85: Int
+    %v_87 = cmp_eq %v_86, 15: Int
+    %v_88 = select %v_87, 65536, 0: Int
+    %v_89 = add %v_83, %v_88: Int
+    %v_90 = add %v_66, %v_89: Int
     %value = call_complex opaqueU32, 305419896: Int
     %mask = call_complex opaqueU32, 4278255360: Int
     %wideValue = call_complex opaqueU64, 81985529216486895: Long
     %wideMask = call_complex opaqueU64, 71776123356119040: Long
-    %v_94 = gatherbits %value, %mask: Int
-    %v_95 = scatterbits %v_94, %mask: Int
-    %v_96 = and %value, %mask: Int
-    %v_97 = cmp_eq %v_95, %v_96: Int
-    %v_98 = select %v_97, 131072, 0: Int
-    %v_99 = gatherbits %wideValue, %wideMask: Long
-    %v_100 = scatterbits %v_99, %wideMask: Long
-    %v_101 = and %wideValue, %wideMask: Long
-    %v_102 = cmp_eq %v_100, %v_101: Int
-    %v_103 = select %v_102, 262144, 0: Int
-    %v_104 = add %v_98, %v_103: Int
-    %v_105 = add %v_93, %v_104: Int
-    %v_106 = call_complex opaqueU32, 3735928559: Int
-    %v_107 = call_complex opaqueU32, 0: Int
-    %v_108 = gatherbits %v_106, %v_107: Int
-    %v_109 = cmp_eq %v_108, 0: Int
-    %v_110 = select %v_109, 524288, 0: Int
-    %v_111 = call_complex opaqueU32, 3735928559: Int
-    %v_112 = call_complex opaqueU32, 0: Int
-    %v_113 = scatterbits %v_111, %v_112: Int
-    %v_114 = cmp_eq %v_113, 0: Int
-    %v_115 = select %v_114, 1048576, 0: Int
-    %v_116 = add %v_110, %v_115: Int
-    %v_117 = call_complex opaqueU32, 3735928559: Int
-    %v_118 = call_complex opaqueU32, 4294967295: Int
-    %v_119 = gatherbits %v_117, %v_118: Int
-    %v_120 = cmp_eq %v_119, 3735928559: Int
-    %v_121 = select %v_120, 2097152, 0: Int
-    %v_122 = add %v_116, %v_121: Int
-    %v_123 = call_complex opaqueU32, 3735928559: Int
-    %v_124 = call_complex opaqueU32, 4294967295: Int
-    %v_125 = scatterbits %v_123, %v_124: Int
-    %v_126 = cmp_eq %v_125, 3735928559: Int
-    %v_127 = select %v_126, 4194304, 0: Int
-    %v_128 = add %v_122, %v_127: Int
-    %v_129 = add %v_105, %v_128: Int
+    %v_91 = gatherbits %value, %mask: Int
+    %v_92 = scatterbits %v_91, %mask: Int
+    %v_93 = and %value, %mask: Int
+    %v_94 = cmp_eq %v_92, %v_93: Int
+    %v_95 = select %v_94, 131072, 0: Int
+    %v_96 = gatherbits %wideValue, %wideMask: Long
+    %v_97 = scatterbits %v_96, %wideMask: Long
+    %v_98 = and %wideValue, %wideMask: Long
+    %v_99 = cmp_eq %v_97, %v_98: Int
+    %v_100 = select %v_99, 262144, 0: Int
+    %v_101 = add %v_95, %v_100: Int
+    %v_102 = add %v_90, %v_101: Int
+    %v_103 = call_complex opaqueU32, 3735928559: Int
+    %v_104 = call_complex opaqueU32, 0: Int
+    %v_105 = gatherbits %v_103, %v_104: Int
+    %v_106 = cmp_eq %v_105, 0: Int
+    %v_107 = select %v_106, 524288, 0: Int
+    %v_108 = call_complex opaqueU32, 3735928559: Int
+    %v_109 = call_complex opaqueU32, 0: Int
+    %v_110 = scatterbits %v_108, %v_109: Int
+    %v_111 = cmp_eq %v_110, 0: Int
+    %v_112 = select %v_111, 1048576, 0: Int
+    %v_113 = add %v_107, %v_112: Int
+    %v_114 = call_complex opaqueU32, 3735928559: Int
+    %v_115 = call_complex opaqueU32, 4294967295: Int
+    %v_116 = gatherbits %v_114, %v_115: Int
+    %v_117 = cmp_eq %v_116, 3735928559: Int
+    %v_118 = select %v_117, 2097152, 0: Int
+    %v_119 = add %v_113, %v_118: Int
+    %v_120 = call_complex opaqueU32, 3735928559: Int
+    %v_121 = call_complex opaqueU32, 4294967295: Int
+    %v_122 = scatterbits %v_120, %v_121: Int
+    %v_123 = cmp_eq %v_122, 3735928559: Int
+    %v_124 = select %v_123, 4194304, 0: Int
+    %v_125 = add %v_119, %v_124: Int
+    %v_126 = add %v_102, %v_125: Int
     %byteMask = call_complex opaqueI32, 18446744073692774400: Int
-    %v_130 = call_complex opaqueI32, 305419896: Int
-    %v_131 = gatherbits %v_130, %byteMask: Int
-    %v_132 = cmp_eq %v_131, 18: Int
-    %v_133 = select %v_132, 1, %v_132: Int
-    je %v_133, b_134, b_135
+    %v_127 = call_complex opaqueI32, 305419896: Int
+    %v_128 = gatherbits %v_127, %byteMask: Int
+    %v_129 = cmp_eq %v_128, 18: Int
+    je %v_129, b_130, b_131
   }
 
-  b_135 {
+  b_130 {
+    %v_132 = call_complex opaqueI32, 18: Int
+    %v_133 = scatterbits %v_132, %byteMask: Int
+    %v_134 = cmp_eq %v_133, 301989888: Int
+    je %v_134, b_135, b_131
+  }
+
+  b_131 {
     jmp b_136
   }
 
-  b_134 {
-    %v_137 = call_complex opaqueI32, 18: Int
-    %v_138 = scatterbits %v_137, %byteMask: Int
-    %v_139 = cmp_eq %v_138, 301989888: Int
+  b_135 {
+    %v_137 = call_complex opaqueI32, 18446744073709551615: Int
+    %v_138 = call_complex opaqueI32, 18446744073709551615: Int
+    %v_139 = gatherbits %v_137, %v_138: Int
+    %v_140 = cast %v_139: Int
+    %v_141 = cmp_eq %v_140, 18446744073709551615: Int
     jmp b_136
   }
 
   b_136 {
-    %v_140 = phi [b_134, %v_139], [b_135, %v_133]: Int
-    je %v_140, b_141, b_142
+    %v_142 = phi [b_135, %v_141], [b_131, 0]: Int
+    %v_143 = select %v_142, 8388608, 0: Int
+    %v_144 = add %v_126, %v_143: Int
+    %v_145 = call_complex opaqueU64, 81985529216486895: Long
+    %v_146 = call_complex opaqueU64, 71776123356119040: Long
+    %v_147 = gatherbits %v_145, %v_146: Long
+    %v_148 = cmp_eq %v_147, 2329003: Int
+    je %v_148, b_149, b_150
   }
 
-  b_142 {
-    jmp b_143
+  b_150 {
+    jmp b_151
   }
 
-  b_141 {
-    %v_144 = call_complex opaqueI32, 18446744073709551615: Int
-    %v_145 = call_complex opaqueI32, 18446744073709551615: Int
-    %v_146 = gatherbits %v_144, %v_145: Int
-    %v_147 = cast %v_146: Int
-    %v_148 = cmp_eq %v_147, 18446744073709551615: Int
-    jmp b_143
-  }
-
-  b_143 {
-    %v_149 = phi [b_141, %v_148], [b_142, %v_140]: Int
-    %v_150 = select %v_149, 8388608, 0: Int
-    %v_151 = add %v_129, %v_150: Int
-    %v_152 = call_complex opaqueU64, 81985529216486895: Long
+  b_149 {
+    %v_152 = call_complex opaqueU64, 291: Long
     %v_153 = call_complex opaqueU64, 71776123356119040: Long
-    %v_154 = gatherbits %v_152, %v_153: Long
-    %v_155 = cmp_eq %v_154, 2329003: Int
-    je %v_155, b_156, b_157
+    %v_154 = scatterbits %v_152, %v_153: Long
+    %v_155 = cmp_eq %v_154, 19070976: Int
+    jmp b_151
   }
 
-  b_157 {
-    jmp b_158
-  }
-
-  b_156 {
-    %v_159 = call_complex opaqueU64, 291: Long
-    %v_160 = call_complex opaqueU64, 71776123356119040: Long
-    %v_161 = scatterbits %v_159, %v_160: Long
-    %v_162 = cmp_eq %v_161, 19070976: Int
-    jmp b_158
-  }
-
-  b_158 {
-    %v_163 = phi [b_156, %v_162], [b_157, %v_155]: Int
-    %v_164 = select %v_163, 16777216, 0: Int
-    %v_165 = add %v_151, %v_164: Int
-    %v_166 = call_complex opaqueU32, 43981: Int
-    %v_167 = call_complex opaqueU32, 4660: Int
-    %v_168 = scatterbits %v_166, 1431655765: Int
-    %v_169 = scatterbits %v_167, 2863311530: Int
-    %v_170 = or %v_168, %v_169: Int
-    %v_171 = cmp_eq %v_170, 1179474545: Int
-    %v_172 = select %v_171, 33554432, 0: Int
-    %v_173 = add %v_165, %v_172: Int
-    %v_174 = add %v_173, 201326592: Int
-    %v_175 = call_complex opaqueU32, 3735928559: Int
-    %v_176 = call_complex lowVia(U32), %v_175, 16: Int
-    %v_177 = cmp_eq %v_176, 48879: Int
-    %v_178 = select %v_177, 268435456, 0: Int
-    %v_179 = call_complex opaqueU32, 305419896: Int
-    %v_180 = call_complex opaqueU32, 4278255360: Int
-    %v_181 = call_complex gatherVia(U32), %v_179, %v_180: Int
-    %v_182 = cmp_eq %v_181, 4694: Int
-    %v_183 = select %v_182, 536870912, 0: Int
-    %v_184 = add %v_178, %v_183: Int
-    %v_185 = add %v_174, %v_184: Int
-    ret %v_185
+  b_151 {
+    %v_156 = phi [b_149, %v_155], [b_150, 0]: Int
+    %v_157 = select %v_156, 16777216, 0: Int
+    %v_158 = add %v_144, %v_157: Int
+    %v_159 = call_complex opaqueU32, 43981: Int
+    %v_160 = call_complex opaqueU32, 4660: Int
+    %v_161 = scatterbits %v_159, 1431655765: Int
+    %v_162 = scatterbits %v_160, 2863311530: Int
+    %v_163 = or %v_161, %v_162: Int
+    %v_164 = cmp_eq %v_163, 1179474545: Int
+    %v_165 = select %v_164, 33554432, 0: Int
+    %v_166 = add %v_158, %v_165: Int
+    %v_167 = add %v_166, 201326592: Int
+    %v_168 = call_complex opaqueU32, 3735928559: Int
+    %v_169 = call_complex lowVia(U32), %v_168, 16: Int
+    %v_170 = cmp_eq %v_169, 48879: Int
+    %v_171 = select %v_170, 268435456, 0: Int
+    %v_172 = call_complex opaqueU32, 305419896: Int
+    %v_173 = call_complex opaqueU32, 4278255360: Int
+    %v_174 = call_complex gatherVia(U32), %v_172, %v_173: Int
+    %v_175 = cmp_eq %v_174, 4694: Int
+    %v_176 = select %v_175, 536870912, 0: Int
+    %v_177 = add %v_171, %v_176: Int
+    %v_178 = add %v_167, %v_177: Int
+    ret %v_178
   }
 }
 

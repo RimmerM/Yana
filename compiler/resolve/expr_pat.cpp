@@ -839,9 +839,19 @@ PatternResult ExprResolver::resolvePattern(const ast::Pat& pattern, ModulePtr<Va
                     discriminant = load(project(placeFor(pivot, pattern.source), ProjectionKind::Discriminant, 0), pattern.source);
                 }
 
+                /*
+                 * The number tested for, which is the constructor's *value* on a payload-free sum
+                 * and its index on any other - Analysis-Language.md §5.1.
+                 *
+                 * They differ only where `@value` pinned one, and only for an enum: a sum with a
+                 * payload carries a discriminant beside it, and that discriminant numbers the
+                 * constructors rather than standing for them.
+                 */
                 ResolvedArg args[] = {
                     discriminant,
-                    makeInt(pattern.source, module.scalar.int_, reference.index),
+                    makeInt(pattern.source, module.scalar.int_,
+                            record->layout == RecordType::Enum ? U64(constructor.value)
+                                                               : U64(reference.index)),
                 };
 
                 branchPattern(emitCall(Context::nameHash("==", 2), { args, 2 }, pattern.source, module.scalar.bool_), onFail, pattern.source);

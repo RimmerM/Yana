@@ -145,11 +145,26 @@ bool resolveFunctionBody(Module& module, Function& function) {
     auto& context = module.context;
     if(!function.ast || function.resolving) return true;
 
-    // A declaration whose implementation the compiler generates has no body to resolve and never
-    // will: what it means is one instruction at each call site rather than anything writable.
-    if(function.intrinsic) return true;
-
     auto& decl = *module.parse[function.ast];
+
+    /*
+     * A declaration the compiler implements, whose body is therefore optional rather than absent.
+     *
+     * Most intrinsics have none: what they mean is one instruction at each call site and there is
+     * nothing writable to resolve. `!`, `&&` and `||` are the exception and the reason the test is
+     * on the *body* rather than on the hook. Their expansion needs the operand's `Truth` instance,
+     * which a generic body has not got - `fn (Truth(a)) f(x: a) = !x` knows only that one exists -
+     * so a call there is an ordinary `gencall` that specialization resolves later. Without a body to
+     * reach, that gencall named a function with no blocks in it.
+     *
+     * So the two coexist, on the terms generateInstanceFunction already sets for a generated
+     * instance: the hook is what a call site expands to and the body is what a call that cannot be
+     * expanded reaches, and they are written to be the same operation.
+     *
+     * Both hooks, because one that wants its `@lazy` arguments unevaluated sits in the other field.
+     */
+    if((function.intrinsic || function.deferredIntrinsic) && !decl.fun.body) return true;
+
     if(!decl.fun.body) {
         context.diagnostics.error("function %@ requires a body"_v, decl.source, context.findName(function.name));
         return false;

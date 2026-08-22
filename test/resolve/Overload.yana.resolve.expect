@@ -52,19 +52,53 @@ fn bothQualified(%a: Bool, %b: Bool) -> Bool {
   }
 
   b0:
-    %v2 = gencall Integral(a).and, %x, %y : a
+    %v2 = gencall Bitwise(a).and, %x, %y : a
     ret %v2
 }
 
-(Logic(a)) fn bothGeneric(%x: a, %y: a) -> a {
+(Bitwise(a)) fn bothGeneric(%x: a, %y: a) -> a {
   schema {
     #0 type a
-    #1 class Logic(a)
+    #1 class Bitwise(a)
   }
 
   b0:
-    %v2 = gencall Logic(a).and, %x, %y : a
+    %v2 = gencall Bitwise(a).and, %x, %y : a
     ret %v2
+}
+
+fn areaQualified(%s: Square) -> Int {
+  b0:
+    %v1 = call Area(Square).size, %s : Int
+    ret %v1
+}
+
+fn volumeQualified(%c: Cube) -> Int {
+  b0:
+    %v1 = call Volume(Cube).size, %c : Int
+    ret %v1
+}
+
+(Area(a)) fn areaGeneric(%x: a) -> Int {
+  schema {
+    #0 type a
+    #1 class Area(a)
+  }
+
+  b0:
+    %v1 = gencall Area(a).size, %x : Int
+    ret %v1
+}
+
+(Volume(a)) fn volumeGeneric(%x: a) -> Int {
+  schema {
+    #0 type a
+    #1 class Volume(a)
+  }
+
+  b0:
+    %v1 = gencall Volume(a).size, %x : Int
+    ret %v1
 }
 
 fn negated(%a: Int) -> Int {
@@ -128,7 +162,41 @@ fn main() -> Int {
   b9:
     %v59 = phi [b7, 10000], [b8, 0] : Int
     %v60 = add %v48, %v59 : Int
-    ret %v60
+    %v61 = alloc : Square
+    aggregate %local0@Square.side = 3
+    %v64 = call areaQualified, %v61 : Int
+    %v65 = add %v60, %v64 : Int
+    %v66 = alloc : Cube
+    aggregate %local1@Cube.side = 2
+    %v69 = call volumeQualified, %v66 : Int
+    %v70 = add %v65, %v69 : Int
+    %v71 = alloc : Square
+    aggregate %local2@Square.side = 4
+    %v74 = call areaGeneric(Square), %v71 : Int
+    %v75 = add %v70, %v74 : Int
+    %v76 = alloc : Cube
+    aggregate %local3@Cube.side = 3
+    %v79 = call volumeGeneric(Cube), %v76 : Int
+    %v80 = add %v75, %v79 : Int
+    ret %v80
+}
+
+fn Area(Square).size(%value: Square) -> Int {
+  b0:
+    %v1 = load %value@Square.side : Int
+    %v2 = load %value@Square.side : Int
+    %v3 = mul %v1, %v2 : Int
+    ret %v3
+}
+
+fn Volume(Cube).size(%value: Cube) -> Int {
+  b0:
+    %v1 = load %value@Cube.side : Int
+    %v2 = load %value@Cube.side : Int
+    %v3 = mul %v1, %v2 : Int
+    %v4 = load %value@Cube.side : Int
+    %v5 = mul %v3, %v4 : Int
+    ret %v5
 }
 
 fn maskGeneric(Int)(%x: Int, %y: Int) -> Int {
@@ -141,4 +209,16 @@ fn bothGeneric(Bool)(%x: Bool, %y: Bool) -> Bool {
   b0:
     %v2 = and %x, %y : Bool
     ret %v2
+}
+
+fn areaGeneric(Square)(%x: Square) -> Int {
+  b0:
+    %v1 = call Area(Square).size, %x : Int
+    ret %v1
+}
+
+fn volumeGeneric(Cube)(%x: Cube) -> Int {
+  b0:
+    %v1 = call Volume(Cube).size, %x : Int
+    ret %v1
 }

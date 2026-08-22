@@ -1144,8 +1144,7 @@ fn ResolveTest.continuation$21(%env: %{bound: Int}, %value$: Flat(Int)) -> Outco
   b1:
     %v15 = load %local3@Exit : Int
     %v20 = alloc : Outcome((), Int)
-    init %local5.discriminant, 1
-    init %local5@Exit, %v15
+    aggregate %local5.discriminant = 1, %local5@Exit = %v15
     ret %v20
 
   b2:
@@ -1162,8 +1161,7 @@ fn ResolveTest.continuation$22(%env: %{bound: Int}, %value$: Int) -> Outcome((),
 
   b1:
     %v10 = alloc : Outcome((), Int)
-    init %local1.discriminant, 1
-    init %local1@Exit, %value$
+    aggregate %local1.discriminant = 1, %local1@Exit = %value$
     ret %v10
 
   b2:

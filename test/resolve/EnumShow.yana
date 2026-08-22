@@ -1,0 +1,37 @@
+{-
+   The derived `Show` for a payload-free sum.
+
+   Generated where it is asked for rather than declared, on the terms `Enum` itself is - so a type
+   that writes its own instance keeps it, and one that does not gets the constructor's name. This
+   fixture asserts both halves: `Colour` has none and shows as its constructor, `Mood` has one and
+   shows as what it wrote.
+-}
+data Colour = Red | Green | Blue
+data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
+
+-- A declared instance over a payload-free sum. Nothing generated may shadow it, which is the whole
+-- of what makes an automatic instance safe - `Show(Bool)` in the library is this case.
+data Mood = Happy | Sad
+
+instance Show(Mood):
+    fn show(value: Mood, &to: String) -> {}:
+        pushString(to, match value:
+            Happy -> ":)"
+            Sad -> ":(")
+
+    fn showBound(value: Mood) -> Maybe(Size) = Just(2)
+
+fn describe(c: Colour) -> String = "{c}"
+
+fn main() -> Int:
+    if describe(Green) != "Green" then return 1
+    if "{FromCurrent}" != "FromCurrent" then return 2
+    if "{Happy}" != ":)" then return 3
+
+    -- The bound is the longest constructor name, which is what a format's buffer is sized from.
+    -- `Green` is five, and it is the longest of the three.
+    let bound = showBound(Blue)
+
+    return match bound:
+        Just(n) -> truncate(n + length(describe(Red))) :: Int
+        Nothing -> 4

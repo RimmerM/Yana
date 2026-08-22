@@ -1583,8 +1583,20 @@ struct ExprResolver {
                                       ContinuationShape& shape, bool skipping = false,
                                       const ast::ForExpr* loop = nullptr);
 
-    // `Proceed(value)` or `Exit(value)` of a concrete `Outcome`, built directly rather than through
-    // a written constructor: this is emitted code, and there is no source for it to come from.
+    /*
+     * One constructor of a concrete record, built directly rather than through a written one.
+     *
+     * For emitted code, which has no source for a construction to come from: the exit signal's
+     * `Proceed`/`Exit` and `Enum(a).fromValue`'s `Just`/`Nothing` are the two, and both want the same
+     * three cases - a payload-free sum is its own number, a sum with payloads gets a discriminant
+     * written beside one, and a single-constructor record gets neither.
+     *
+     * `value` is null for a constructor that carries nothing.
+     */
+    ModulePtr<Value> makeConstructed(TypePtr type, U32 index, ModulePtr<Value> value, LocationId source);
+
+    // `Proceed(value)` or `Exit(value)` of a concrete `Outcome`, which is the above at whichever of
+    // its constructors the program named.
     ModulePtr<Value> makeOutcome(TypePtr type, bool proceed, ModulePtr<Value> value, LocationId source);
 
     // Whether an `Outcome` holds its leaving case, as a `Bool`. The one test the exit and step

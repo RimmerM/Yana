@@ -73,12 +73,12 @@
 
    The four superclasses are the whole of what a kernel needs, which is why every function below is
    written `fn (Num(a), Real(a, m)) ...` and asks for nothing else: `Num` for the arithmetic,
-   `FromDecimal` for a written coefficient, `Lanewise` for the comparison and the choice, and `Logic`
+   `FromDecimal` for a written coefficient, `Lanewise` for the comparison and the choice, and `Bitwise`
    for combining two of those choices. `Num` is repeated at each kernel because `+` is declared by
    two classes - `Num` and `Append` - and a requirement reached through a superclass does not settle
    which of the two a call means.
 -}
-pub class (Num(a), FromDecimal(a), Lanewise(a, m), Logic(m)) Real(a -> m):
+pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
   -- The four an instance answers. Each is one line of bit arithmetic at the type's own width.
   --
   -- `exponentOf` and `significandOf` are the two halves of `x = significand * 2 ^ exponent` with the

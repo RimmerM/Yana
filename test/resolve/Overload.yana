@@ -13,20 +13,57 @@ fn mask(a: Int, b: Int) -> Int = a `and` b                    -- Integral.and, s
 fn combined(a: Int, b: Int) -> Int =
     and(Permissions {bits: a}, Permissions {bits: b}).bits    -- the plain function
 
-fn bothTrue(a: Bool, b: Bool) -> Bool = a `and` b             -- Logic.and, by argument type
+fn bothTrue(a: Bool, b: Bool) -> Bool = a `and` b             -- Bitwise.and, and so is `mask` above
 
--- R4: the same name in two classes is disambiguated by writing the class, on either side of the
--- call. Both of these are unambiguous by argument type as well - the point is that the qualified
--- form names one class and gets that one.
-fn maskQualified(a: Int, b: Int) -> Int = Integral.and(a, b)
+-- Qualifying a class function names the class, whether or not anything was ambiguous.
+fn maskQualified(a: Int, b: Int) -> Int = Bitwise.and(a, b)
 
-fn bothQualified(a: Bool, b: Bool) -> Bool = Logic.and(a, b)
+fn bothQualified(a: Bool, b: Bool) -> Bool = Bitwise.and(a, b)
 
--- R3: in generic code no instance exists yet to break the tie, so the constraint in scope decides
--- which class `and` belongs to. Each of these is the same call text resolving to a different class.
+-- A constraint reaching a *superclass*'s function. `and` is `Bitwise`'s and this body only promises
+-- `Integral`, which declares `Bitwise` as a superclass - so the call is available for the same
+-- reason `x + 1` is available under `Num`, which promises `FromInt`.
 fn (Integral(a)) maskGeneric(x: a, y: a) -> a = x `and` y
 
-fn (Logic(a)) bothGeneric(x: a, y: a) -> a = x `and` y
+fn (Bitwise(a)) bothGeneric(x: a, y: a) -> a = x `and` y
+
+{-
+   R3 and R4, over two classes that genuinely share a name.
+
+   Declared here rather than reached for in Core, and the reason is worth writing down: these rules
+   used to be demonstrated with `and`, which was declared by both `Integral` and `Logic`. That was an
+   accident of Core's layout rather than a design - the two declarations were identical and no type
+   was ever in both - and splitting `Bitwise` out left exactly one `and` in the language. Core's real
+   two-class name is `+`, in `Num` and `Append`, and an operator cannot be written `Num.+`, so a
+   fixture for the qualified form has to bring its own pair.
+-}
+class Area(a):
+    fn size(value: a) -> Int
+
+class Volume(a):
+    fn size(value: a) -> Int
+
+data Square {side: Int}
+data Cube {side: Int}
+
+instance Area(Square):
+    fn size(value: Square) -> Int = value.side * value.side
+
+instance Volume(Cube):
+    fn size(value: Cube) -> Int = value.side * value.side * value.side
+
+-- R4: the same name in two classes is disambiguated by writing the class. Both of these are
+-- unambiguous by argument type as well - the point is that the qualified form names one class and
+-- gets that one.
+fn areaQualified(s: Square) -> Int = Area.size(s)
+
+fn volumeQualified(c: Cube) -> Int = Volume.size(c)
+
+-- R3: in generic code no instance exists yet to break the tie, so the constraint in scope decides
+-- which class `size` belongs to. Each of these is the same call text resolving to a different class.
+fn (Area(a)) areaGeneric(x: a) -> Int = size(x)
+
+fn (Volume(a)) volumeGeneric(x: a) -> Int = size(x)
 
 -- R1: one class declares `-` at two arities, and which is meant is the arity of the call.
 fn negated(a: Int) -> Int = -a
@@ -38,4 +75,6 @@ fn main() -> Int =
     difference(negated(1) + 10, 2) +
     (if bothTrue(True, False) then 100 else 0) +
     (if bothQualified(True, True) then 1000 else 0) +
-    (if bothGeneric(True, False) then 10000 else 0)
+    (if bothGeneric(True, False) then 10000 else 0) +
+    areaQualified(Square {side: 3}) + volumeQualified(Cube {side: 2}) +
+    areaGeneric(Square {side: 4}) + volumeGeneric(Cube {side: 3})

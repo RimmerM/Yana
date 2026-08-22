@@ -1,0 +1,155 @@
+-- What `@value(n)` and `Enum(a)` compute - Analysis-Language.md §5.1.
+--
+-- The IR is pinned in `resolve/EnumValue.yana`; what is asserted here is that the numbers are the
+-- ones the declaration wrote, in both directions, for a consecutive set and a set with holes in it -
+-- and that a number nothing names comes back as `Nothing` rather than as a constructor nobody
+-- declared.
+
+data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
+data Errno = @value(2) NotFound | @value(13) Access | @value(36) NameTooLong | @value(122) Quota
+data Continued = @value(10) First | Second | Third
+data Unpinned = Zero | One | Two
+
+fn valueIs(got: I64, want: I64) -> Bool = got == want
+
+fn isJustWith(m: Maybe(Errno), want: I64) -> Bool = match m:
+    Just(e) -> valueOf(e) == want
+    Nothing -> False
+
+fn isNothing(m: Maybe(Errno)) -> Bool = match m:
+    Just(_) -> False
+    Nothing -> True
+
+fn pinned() -> {}:
+    assert(valueIs(valueOf(FromStart), 0))
+    assert(valueIs(valueOf(FromCurrent), 1))
+    assert(valueIs(valueOf(FromEnd), 2))
+
+    assert(valueIs(valueOf(NotFound), 2))
+    assert(valueIs(valueOf(Access), 13))
+    assert(valueIs(valueOf(NameTooLong), 36))
+    assert(valueIs(valueOf(Quota), 122))
+    return
+
+-- An unpinned constructor takes one more than the one before it, so a declaration that pins its
+-- first renumbers the rest from there and one that pins nothing is the declaration order it was.
+fn continued() -> {}:
+    assert(valueIs(valueOf(First), 10))
+    assert(valueIs(valueOf(Second), 11))
+    assert(valueIs(valueOf(Third), 12))
+
+    assert(valueIs(valueOf(Zero), 0))
+    assert(valueIs(valueOf(One), 1))
+    assert(valueIs(valueOf(Two), 2))
+    return
+
+-- The sparse set: every declared number comes back, and the gaps between them do not.
+fn backFromASparseSet() -> {}:
+    assert(isJustWith(fromValue(2), 2))
+    assert(isJustWith(fromValue(13), 13))
+    assert(isJustWith(fromValue(36), 36))
+    assert(isJustWith(fromValue(122), 122))
+
+    assert(isNothing(fromValue(0)))
+    assert(isNothing(fromValue(1)))
+    assert(isNothing(fromValue(3)))
+    assert(isNothing(fromValue(12)))
+    assert(isNothing(fromValue(121)))
+    assert(isNothing(fromValue(123)))
+    assert(isNothing(fromValue(0 - 1)))
+    return
+
+-- And the consecutive one, where the membership test is a range rather than a chain.
+fn backFromARange() -> {}:
+    assert(match fromValue(0) :: Maybe(Whence): Just(w) -> valueOf(w) == 0; Nothing -> False)
+    assert(match fromValue(2) :: Maybe(Whence): Just(w) -> valueOf(w) == 2; Nothing -> False)
+    assert(match fromValue(3) :: Maybe(Whence): Just(_) -> False; Nothing -> True)
+    assert(match fromValue(10) :: Maybe(Continued): Just(c) -> valueOf(c) == 10; Nothing -> False)
+    assert(match fromValue(9) :: Maybe(Continued): Just(_) -> False; Nothing -> True)
+    assert(match fromValue(13) :: Maybe(Continued): Just(_) -> False; Nothing -> True)
+    return
+
+-- Matching tests the pinned number rather than the constructor's position, which is the half a
+-- round trip cannot see.
+fn matching() -> {}:
+    assert(match Quota: Quota -> True; _ -> False)
+    assert(match NotFound: Quota -> False; NotFound -> True; _ -> False)
+    assert(match Third: First -> False; Second -> False; Third -> True)
+    return
+
+-- The other pair, over the constructor's word rather than its number. The name is what the
+-- declaration spells and has nothing to do with `@value`, which is why `Quota` at 122 and `Zero` at
+-- 0 answer the same way.
+fn names() -> {}:
+    assert(nameOf(FromStart) == "FromStart")
+    assert(nameOf(FromEnd) == "FromEnd")
+    assert(nameOf(Quota) == "Quota")
+    assert(nameOf(NameTooLong) == "NameTooLong")
+    assert(nameOf(Second) == "Second")
+    assert(nameOf(Zero) == "Zero")
+    return
+
+{-
+   Back from a name, including the cases the length gate decides.
+
+   `"NotFoun"` and `"NotFoundX"` are the wrong length and never reach a content comparison;
+   `"Quotb"` is the *right* length and is not one of these words, which is the case a gate on length
+   alone would get wrong. `"notfound"` is the same word in the wrong case, and this is a comparison
+   of names rather than a lookup - what the declaration wrote is what it answers to.
+-}
+fn backFromAName() -> {}:
+    assert(match fromName("NotFound") :: Maybe(Errno): Just(e) -> valueOf(e) == 2; Nothing -> False)
+    assert(match fromName("Quota") :: Maybe(Errno): Just(e) -> valueOf(e) == 122; Nothing -> False)
+    assert(match fromName("Access") :: Maybe(Errno): Just(e) -> valueOf(e) == 13; Nothing -> False)
+
+    assert(match fromName("NotFoun") :: Maybe(Errno): Just(_) -> False; Nothing -> True)
+    assert(match fromName("NotFoundX") :: Maybe(Errno): Just(_) -> False; Nothing -> True)
+    assert(match fromName("Quotb") :: Maybe(Errno): Just(_) -> False; Nothing -> True)
+    assert(match fromName("notfound") :: Maybe(Errno): Just(_) -> False; Nothing -> True)
+    assert(match fromName("") :: Maybe(Errno): Just(_) -> False; Nothing -> True)
+
+    -- A word that names a constructor of a *different* enum, which is not one of these.
+    assert(match fromName("FromEnd") :: Maybe(Errno): Just(_) -> False; Nothing -> True)
+    return
+
+-- The round trip, which is the property the two functions owe each other: every constructor's name
+-- reads back as that constructor.
+fn roundTrip() -> {}:
+    assert(match fromName(nameOf(FromStart)) :: Maybe(Whence): Just(w) -> valueOf(w) == 0; Nothing -> False)
+    assert(match fromName(nameOf(FromCurrent)) :: Maybe(Whence): Just(w) -> valueOf(w) == 1; Nothing -> False)
+    assert(match fromName(nameOf(FromEnd)) :: Maybe(Whence): Just(w) -> valueOf(w) == 2; Nothing -> False)
+
+    assert(match fromName(nameOf(First)) :: Maybe(Continued): Just(c) -> valueOf(c) == 10; Nothing -> False)
+    assert(match fromName(nameOf(Second)) :: Maybe(Continued): Just(c) -> valueOf(c) == 11; Nothing -> False)
+    assert(match fromName(nameOf(Third)) :: Maybe(Continued): Just(c) -> valueOf(c) == 12; Nothing -> False)
+    return
+
+{-
+   And the `Show` generated from the same declaration, which is `nameOf` with the buffer the class
+   takes rather than the string it returns.
+
+   `showBound` is the longest name and has to be exact: the buffer a format sizes is that number, so
+   one larger wastes the difference and one smaller is the single thing an instance may not do.
+   `NameTooLong` is eleven units and is the longest of `Errno`'s four.
+-}
+fn showing() -> {}:
+    assert("{Quota}" == "Quota")
+    assert("{FromCurrent}" == "FromCurrent")
+    assert("{Zero}{One}{Two}" == "ZeroOneTwo")
+
+    assert(match showBound(Quota): Just(n) -> n == 11; Nothing -> False)
+    assert(match showBound(FromStart): Just(n) -> n == 11; Nothing -> False)
+    assert(match showBound(Zero): Just(n) -> n == 4; Nothing -> False)
+    return
+
+fn main() -> Int:
+    pinned()
+    continued()
+    backFromASparseSet()
+    backFromARange()
+    matching()
+    names()
+    backFromAName()
+    roundTrip()
+    showing()
+    return 0

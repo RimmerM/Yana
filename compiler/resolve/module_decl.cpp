@@ -374,9 +374,11 @@ static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast:
 // record's constructors are addressed only as `Record.Constructor`, so they are not added to the
 // module's flat constructor table.
 static void declareConstructor(Module& module, RecordType& record, StringId name, U32 index,
-                               bool qualified, LocationId source) {
+                               bool qualified, LocationId source, I64 value = 0, bool pinned = false) {
     Constructor constructor { name, nullptr, index };
     constructor.source = source;
+    constructor.value = value;
+    constructor.pinnedValue = pinned;
     record.constructors.push(module.types, constructor);
 
     recordDefinition(module.context, constructorSymbol(module, ConstructorRef { &record - *module.types, U16(index) }));
@@ -390,6 +392,65 @@ static void declareConstructor(Module& module, RecordType& record, StringId name
     }
 }
 
+/*
+ * `@value(n)` on a constructor - Analysis-Language.md §5.1.
+ *
+ * The number a constructor *is*. What it is for is the boundary an enum has to cross: a `Whence`
+ * handed to `lseek` is 0, 1 or 2 whatever the declaration order happens to be, and until this
+ * existed the only way to say so was a `match` producing the identity function one compare at a
+ * time.
+ *
+ * A literal and only a literal, negative or not. It is a number the ABI on the other side of the
+ * boundary already fixed, so there is nothing here for an expression to compute - and an attribute
+ * argument is read before anything in the module can be evaluated, which is the same restriction a
+ * field default lives under.
+ */
+static Maybe<I64> readValueAttribute(Module& module, ast::Con& con) {
+    auto& context = module.context;
+    auto value = context.addUnqualifiedName("value", 5);
+    Maybe<I64> result;
+
+    for(auto attribute: con.attributes.contents(module.parse)) {
+        if(attribute.name != value) continue;
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@value` takes one number - `@value(2)`"_v, attribute.source);
+            continue;
+        }
+
+        auto written = attribute.args.get(module.parse, 0).value;
+        auto argument = &written;
+        auto negative = false;
+
+        // A negated literal arrives as a prefix applied to one rather than as a signed literal,
+        // because what a written number *is* is a question about the type it lands in - the same
+        // reason `ast::Pat` carries the sign beside the magnitude.
+        if(argument->kind == ast::Expr::Prefix) {
+            auto& prefix = *module.parse[argument->prefix];
+            if(prefix.op.kind != ast::Expr::Var || prefix.op.var != Context::nameHash("-"_v)) {
+                context.diagnostics.error("`@value` takes a whole number written as a literal"_v,
+                                          argument->source);
+                continue;
+            }
+
+            argument = &prefix.on;
+            negative = true;
+        }
+
+        if(!ast::isLiteral(*argument) ||
+           ast::Literal::Kind(argument->kind - ast::Expr::Lit) != ast::Literal::Int) {
+            context.diagnostics.error("`@value` takes a whole number written as a literal"_v,
+                                      argument->source);
+            continue;
+        }
+
+        auto number = I64(argument->lit.i());
+        result = Just(negative ? -number : number);
+    }
+
+    return result;
+}
+
 void declareRecord(Module& module, ast::Decl& decl) {
     auto record = declareRecordType(module, decl.data.type, decl.data.constraints, decl.qualified, decl.exported, decl.source);
     if(!record) return;
@@ -397,8 +458,40 @@ void declareRecord(Module& module, ast::Decl& decl) {
     recordDefinition(module.context, typeSymbol(module, (Type*)record - *module.types));
 
     U32 index = 0;
+
+    // The number the next unpinned constructor takes. Declaration order is what this counts when
+    // nothing pins anything, which is what makes an enum that writes no attribute the enum it was.
+    I64 next = 0;
+
     for(auto con: decl.data.cons.contents(module.parse)) {
-        declareConstructor(module, *record, con.name, index++, decl.qualified, con.source);
+        auto written = readValueAttribute(module, con);
+        auto value = written ? written.unwrap() : next;
+
+        declareConstructor(module, *record, con.name, index++, decl.qualified, con.source,
+                           value, written.isJust());
+
+        next = value + 1;
+    }
+
+    /*
+     * Distinct, which is the one rule pinning can break.
+     *
+     * Quadratic over the constructor list, and deliberately: what it compares is a declaration's own
+     * constructors, so the list is the length somebody typed. Reported at the *later* of the two,
+     * because that is the one whose number can be changed without renumbering everything after it.
+     */
+    auto constructors = record->constructors.contents(*module.types);
+    for(Size i = 1; i < constructors.size(); i++) {
+        for(Size j = 0; j < i; j++) {
+            if(constructors[i].value != constructors[j].value) continue;
+
+            module.context.diagnostics.error("%@ and %@ are both %@ - a constructor's value has to be its own"_v,
+                                             constructors[i].source,
+                                             module.context.findName(constructors[j].name),
+                                             module.context.findName(constructors[i].name),
+                                             constructors[i].value);
+            break;
+        }
     }
 }
 
@@ -579,6 +672,25 @@ static void defineRecordContent(Module& module, RecordType& record, LocationId s
     }
 
     computeRecordLayout(*module.types, record);
+
+    /*
+     * `@value` on a constructor that carries something - Analysis-Language.md §5.1.
+     *
+     * Reported here rather than where the attribute is read, because what makes it wrong is the
+     * *content*, and a constructor's content is resolved a phase later than its name. What it would
+     * have meant is nothing: a sum with a payload carries a discriminant beside that payload, and a
+     * discriminant numbers the constructors rather than standing for them, so a pinned value would
+     * have been written down and never read.
+     */
+    if(record.layout != RecordType::Enum) {
+        for(auto constructor: record.constructors.contents(*module.types)) {
+            if(!constructor.pinnedValue) continue;
+
+            module.context.diagnostics.error("`@value` needs a constructor that carries nothing - %@ has a payload, so what the value would name is its tag rather than the value itself"_v,
+                                             constructor.source, module.context.findName(constructor.name));
+        }
+    }
+
     record.definitionReady = true;
     (void)source;
 }

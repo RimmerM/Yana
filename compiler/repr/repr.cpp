@@ -1121,9 +1121,8 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
          * so declines a `Multi` record whatever its arguments substituted to. The two agree wherever
          * both have an answer, and where they do not this is the one that has seen the arguments.
          */
-        U32 bits = 1;
-        while((Size(1) << bits) < constructors.size()) bits++;
-        into.scalarBits = bits;
+        auto range = enumRange(global, record);
+        into.scalarBits = range.bits;
 
         /*
          * No payload at all: the value is its discriminant, and it costs what that discriminant
@@ -1152,11 +1151,25 @@ void ReprTable::computeRecord(RecordType& record, Repr& into) {
         // address it started from.
         into.payloadOffset = 0;
 
-        Niche niche;
-        niche.bytes = U8(bytes);
-        niche.validStart = 0;
-        niche.validEnd = constructors.size() ? constructors.size() - 1 : 0;
-        into.niche = niche;
+        /*
+         * The patterns above the last *value*, which is what the count used to stand in for.
+         *
+         * Where nothing is pinned the two are the same number, since values run 0 to count-1. Where
+         * something is pinned they are not, and the count is the wrong one in the dangerous
+         * direction: it would offer a pattern a constructor is already using as somebody else's
+         * `Nothing`. A pinned set with holes in it leaves those holes claimed as valid, which costs
+         * a niche nobody was going to find and cannot cost correctness.
+         *
+         * A negative value has no such range at all - see EnumRange - so it offers no niche.
+         */
+        if(!range.signedValues) {
+            Niche niche;
+            niche.bytes = U8(bytes);
+            niche.validStart = 0;
+            niche.validEnd = U64(range.highest);
+            into.niche = niche;
+        }
+
         return;
     }
 

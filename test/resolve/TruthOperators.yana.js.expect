@@ -1,0 +1,89 @@
+"use strict";
+var empty = 0n;
+var read = 1n;
+var write = 2n;
+var effects = 0;
+
+// ResolveTest
+function main() {
+  var v245;
+  var v259;
+  var score = 0;
+  if (empty !== 0n) {
+    return 1;
+  } else {
+    if (empty !== 0n) {
+      return 2;
+    } else {
+      if (read !== 0n ^ 1) {
+        return 3;
+      } else {
+        if (BigInt.asIntN(64, ~empty) !== 0n ^ 1) {
+          return 4;
+        } else {
+          if (BigInt.asIntN(64, ~read) === read) {
+            return 5;
+          } else {
+            B0: {
+              if (empty !== 0n) {
+                effects = effects + 1 | 0;
+                if (read !== 0n) {
+                  return 9;
+                }
+              }
+            }
+            if (read !== 0n) {
+              effects = effects + 1 | 0;
+              v245 = 1;
+            } else {
+              v245 = 0;
+            }
+            if (v245 ^ 1) {
+              return 10;
+            } else {
+              if (read !== 0n) {
+                v259 = 1;
+              } else {
+                effects = effects + 1 | 0;
+                v259 = read !== 0n;
+              }
+              if (v259 ^ 1) {
+                return 11;
+              } else {
+                if (effects !== 1) {
+                  return 12;
+                } else {
+                  if (empty !== 0n) {
+                    return 21;
+                  } else {
+                    if ((read !== 0n ? 1 : 0) ^ 1) {
+                      return 22;
+                    } else {
+                      if (empty !== 0n) {
+                        return 25;
+                      } else {
+                        if ((read !== 0n ? 1 : 0) ^ 1) {
+                          return 26;
+                        } else {
+                          var v342 = BigInt.asIntN(64, read | write);
+                          if (BigInt.asIntN(64, v342 & read) === read ^ 1) {
+                            return 13;
+                          } else {
+                            var v181 = score + (Number(v342) | 0) | 0;
+                            score = v181;
+                            return v181;
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+main();

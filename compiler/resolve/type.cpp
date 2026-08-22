@@ -122,7 +122,14 @@ TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> pointer, Buffer<
     // type - `data List(a) = Nil | Cons({a, List(a)})` - terminate.
     for(Size i = 0; i < declaration->constructors.size(); i++) {
         auto constructor = declaration->constructors.get(global, i);
-        instance->constructors.push(module.types, Constructor { constructor.name, nullptr, constructor.index });
+        auto copy = Constructor { constructor.name, nullptr, constructor.index };
+
+        // The pinned number travels with the constructor, unlike the content: `@value` is a fact
+        // about the declaration and substitution has nothing to do to it.
+        copy.value = constructor.value;
+        copy.pinnedValue = constructor.pinnedValue;
+
+        instance->constructors.push(module.types, copy);
     }
 
     declaration->instances.push(module.types, instance - global);

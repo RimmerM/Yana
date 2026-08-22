@@ -336,7 +336,32 @@ pub fn (Num(a)) *=(&target: a, amount: a) -> {}:
 pub fn (Num(a)) /=(&target: a, amount: a) -> {}:
     target = target / amount
 
-pub class (Num(a)) Integral(a):
+{-
+   Bit operations, over anything whose values have bits.
+
+   The four are `&`, `|`, `^` and `~` under names that read: a type in this class can combine and
+   complement its values, and says nothing about whether they are numbers. That distinction is the
+   whole reason the class exists apart from `Integral`, whose superclass chain is `Num` and then
+   `FromInt` - so an `OpenFlags` joining `Integral` to get four bitwise names would also have to say
+   what `flags * flags` and the literal `3` mean, which is exactly what a newtype over a machine word
+   is defending against. `Integral` has this as a *superclass* rather than repeating the four, so
+   there is one declaration of `and` in the language and no call anywhere has to say which class it
+   meant.
+
+   The members are `Bool`, every integer width, a vector, a `Mask`, and any flags newtype that
+   derives it. What is deliberately **not** here is `&&`, `||` and `!`: those are questions about
+   truth rather than about bits, they answer `Bool` rather than the operand's type, and they are
+   plain functions over `Truth` further down. See the note there for why that split is not a matter
+   of taste - a `Logic` class holding both made `!flags` the complement of a flags value while
+   `if flags` asked whether any bit was set, so the two disagreed about the same value.
+-}
+pub class Bitwise(a):
+  fn and(lhs: a, rhs: a) -> a
+  fn or(lhs: a, rhs: a) -> a
+  fn xor(lhs: a, rhs: a) -> a
+  fn not(value: a) -> a
+
+pub class (Num(a), Bitwise(a)) Integral(a):
   fn rem(lhs: a, rhs: a) -> a
   fn %(lhs: a, rhs: a) -> a
   fn shl(lhs: a, rhs: a) -> a
@@ -359,10 +384,6 @@ pub class (Num(a)) Integral(a):
   fn rol(value: a, count: a) -> a
   fn ror(value: a, count: a) -> a
 
-  fn and(lhs: a, rhs: a) -> a
-  fn or(lhs: a, rhs: a) -> a
-  fn xor(lhs: a, rhs: a) -> a
-  fn not(value: a) -> a
 
 {-
    The two ends of a type's range - `Base.h`'s `maxLimit` / `minLimit` variable templates, said as a
@@ -705,33 +726,6 @@ instance Signed(Double):
 -- The set is 16, 32 and 64 bits, which is what these instances covered: `U8` has nothing to reverse
 -- and `WideInt` has 53 bits, which are not a whole number of bytes of anything.
 
--- For a type that is not Bool the short-circuiting pair and the bitwise pair are the same
--- operation, so `&&`, `||` and `!` default to `and`, `or` and `not` and an instance writes four
--- functions instead of seven. Bool's own instance supplies all seven, which is where
--- short-circuiting lands.
---
--- `@lazy` on the right operand is what makes short-circuiting a property of this declaration rather
--- than of the compiler: the argument is not evaluated at the call site, and reading `rhs` inside an
--- instance is what runs it. The defaults below force it exactly once, which is what the rule
--- requires; `xor` takes both strictly and says so, because it genuinely needs both.
---
--- What it costs differs by how the call reaches it. Bool's instance is an intrinsic the resolver
--- can see through, so `a && b` is a branch with the right operand emitted under it and no closure
--- anywhere; a call that cannot be seen through - a user instance inheriting these defaults - is
--- handed the nullary closure instead, and the default calls it exactly once.
---
--- What neither of them gives yet is a flow-sensitive binding: `if p is Just(v) && v > 0` does not
--- see `v`, because `is` outside condition position discards what it bound before `&&` is even
--- selected. Making that work is a change to the condition path rather than to `@lazy`.
-pub class Logic(a):
-  fn &&(lhs: a, @lazy rhs: a) -> a = and(lhs, rhs)
-  fn ||(lhs: a, @lazy rhs: a) -> a = or(lhs, rhs)
-  fn and(lhs: a, rhs: a) -> a
-  fn or(lhs: a, rhs: a) -> a
-  fn xor(lhs: a, rhs: a) -> a
-  fn not(value: a) -> a
-  fn !(value: a) -> a = not(value)
-
 -- What a condition means. `if x`, `if:` cases and `while x` ask this class rather than requiring
 -- a Bool, so `if items:` and `if i - 1: continue` say what they look like they say. The rule that
 -- keeps it from being JavaScript's truthiness is that it never applies through a conversion: the
@@ -746,6 +740,104 @@ pub class Logic(a):
 -- truthiness needs to consume or write what it is asked about.
 pub class Truth(a):
   fn truthy(value: a) -> Bool
+
+{-
+   `!`, `&&` and `||` - the three operators that ask about truth rather than about bits.
+
+   **Plain functions over `Truth`, not members of a class, and they answer `Bool`.** That is the one
+   arrangement under which `if x` and `if !x` cannot disagree, and the arrangement exists because the
+   alternative was tried: they used to be defaults on a `Logic` class beside `and`/`or`/`not`, so
+   `!x` was the *complement* of `x` at `x`'s own type. For a `Bool` that is the same answer and
+   nothing showed; for a flags newtype whose `Truth` is "any bit set", `if empty` was False and
+   `if !empty` was True, because the complement of zero is every bit and every bit is non-zero. The
+   operator and the condition were reading the same value two different ways.
+
+   So the split is C's, under names that read: `and`, `or`, `xor` and `not` are the bit operations
+   and return the operand's type; these three are the truth operations and return `Bool`. Anything
+   with a `Truth` instance gets all three, which is what makes `if !count` and `if !flags` mean what
+   a reader of any other language expects. `not(flags)` is still the complement, and is still spelled
+   differently from `!flags`, which is the point.
+
+   **The two operands need not have the same type.** `if p != nil && count` is the shape that wants
+   it, and nothing here relates them: each side is asked its own `Truth` and neither is converted to
+   anything. A class could not have said that, since a class has one variable per position it binds.
+
+   `b` is the one variable in Core that no call ever decides, and it is sound because nothing reads
+   it. Selection skips a `@lazy` position - the argument is not resolved, and resolving it to find
+   out would evaluate it - so a variable occurring only there is never bound. What would have read it
+   is the *thunk* built for that argument, and these three never build one: the operand is emitted
+   under the branch that runs it. See `deferredOnlyVariable` in expr_call.cpp, which is where that is
+   checked rather than assumed, and which reports for any callee that would need the thunk after all.
+
+   `@lazy` on the right operand is what makes short-circuiting a property of these declarations
+   rather than of the compiler: the argument is not evaluated at the call site, and reading `rhs` is
+   what runs it. Each of them reads it at most once, on one path.
+
+   All three carry an intrinsic, so `a && b` is a branch with the right operand emitted under it -
+   no closure, no call and no allocation - and `!x` is the truth test and one `xor`. For a `Bool`,
+   whose `Truth` is the identity, that is the single instruction it has always been.
+
+   The bodies below are what a call that *cannot* be expanded reaches, which is a call from generic
+   code: `fn (Truth(a)) f(x: a) = !x` knows only that an instance exists, so its `!` is an ordinary
+   call that specialization resolves once `a` is known. They are written to be the same operation the
+   hook emits, and each reads its right operand on one arm and not the other, which is the
+   at-most-once rule holding by construction rather than by a check passing.
+
+   Only `!` reaches its body that way today. `x && y` over a generic `x` needs a thunk built inside a
+   generic body, which is refused outright - it would have to be specialized alongside its caller -
+   and that rule is older than these three and applies to a class function with a `@lazy` parameter
+   in the same way. The two bodies are the answer for the day it is lifted.
+
+   What none of them gives yet is a flow-sensitive binding: `if p is Just(v) && v > 0` does not see
+   `v`, because `is` outside condition position discards what it bound before `&&` is even selected.
+   Making that work is a change to the condition path rather than to `@lazy`.
+-}
+pub fn (Truth(a)) !(value: a) -> Bool = if truthy(value) then False else True
+pub fn (Truth(a), Truth(b)) &&(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+pub fn (Truth(a), Truth(b)) ||(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then True else truthy(rhs)
+
+{-
+   The number a payload-free sum is - Analysis-Language.md §5.1.
+
+   A `data` whose constructors all carry nothing already lowers to an integer, and `@value(n)` is how
+   a declaration says *which* integer: `data Whence = @value(0) FromStart | @value(1) FromCurrent |
+   @value(2) FromEnd` is the three numbers `lseek` takes, said once, where the alternative was a
+   nineteen-line `match` per boundary crossing.
+
+   **Nobody writes an instance of this.** It is generated for every payload-free sum, pinned or not,
+   because what all four functions do is decided by the declaration and there is nothing an author
+   could add. Writing one is refused for the same reason writing `instance Num(Int)` is.
+
+   `valueOf` is total and free - the value *is* the number, so it compiles to a reinterpretation and
+   the optimizer sees straight through it. `fromValue` is partial and says so: a number the
+   declaration does not name is a number that is not one of these, and `Maybe` is where that goes.
+   Its cost is a membership test - two comparisons where the values run consecutively, and one per
+   constructor where they do not, which is what a set like `errno`'s is.
+-}
+pub class Enum(a):
+  fn valueOf(item: a) -> I64
+  fn fromValue(number: I64) -> Maybe(a)
+
+  -- The same pair over the constructor's *name*, which is the other thing a declaration decides and
+  -- the compiler is the only thing that knows.
+  --
+  -- Here rather than in a class of its own because it is the same statement in a second currency: a
+  -- payload-free sum is a closed set of alternatives, and `@value(n)` says which number each one is
+  -- while the declaration itself says which word each one is. There is nothing an author could
+  -- contribute to either, so both are generated and neither may be written.
+  --
+  -- `nameOf` is total and its result is a literal: a chain of comparisons picking one constant
+  -- string, which folds to that string outright wherever the constructor is known. `fromName` is
+  -- partial for the reason `fromValue` is - a word the declaration does not name is not one of these
+  -- - and it is the one function here that is not free, being a string comparison per candidate. Its
+  -- generated form compares lengths first and only then contents, so a name of the wrong length
+  -- costs one integer compare however many constructors the type has.
+  --
+  -- These are the derived `Show` for an enum, made available to a program rather than only to the
+  -- formatter: `describeError` and `nameOf` answer different questions about one value, and a type
+  -- that wants prose keeps writing the first while getting the second for nothing.
+  fn nameOf(item: a) -> String
+  fn fromName(name: String) -> Maybe(a)
 
 -- The other operator `@lazy` exists for: a fallback that is only computed when there is nothing to
 -- fall back from. An ordinary generic function rather than anything the compiler knows about, which
@@ -1057,7 +1149,7 @@ pub class Lanewise(v -> m):
    and a bit scan on one target and something else everywhere else. It answers the lane count when
    nothing is set, so `firstSet(m)` indexes a chunk without a preceding `any`.
 
-   Masks get `and`, `or`, `xor` and `not` from `Logic`, whose instance simd.cpp generates - so the
+   Masks get `and`, `or`, `xor` and `not` from `Bitwise`, whose instance simd.cpp generates - so the
    combining of two masks is written the way the combining of two conditions is.
 -}
 pub fn any(mask: Mask(a)) -> Bool

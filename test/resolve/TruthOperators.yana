@@ -1,0 +1,120 @@
+{-
+   `!`, `&&` and `||` ask `Truth` - the split this fixture exists to pin.
+
+   They used to be members of a `Logic` class beside `and`, `or` and `not`, defaulting to them, so
+   `!x` was the *complement* of `x` at `x`'s own type. For a `Bool` that is the same answer and
+   nothing ever showed; for anything else it was a different question from the one `if x` asks, and
+   the two disagreed about the same value. The `flags` case below is that bug, written as an
+   assertion: `if empty` is False and `if !empty` has to be True of nothing.
+
+   So the arrangement now is C's, under names that read. `and`/`or`/`xor`/`not` are `Bitwise` and
+   answer the operand's type; `!`/`&&`/`||` are plain functions over `Truth` and answer `Bool`.
+-}
+
+alias qualified Flags = I64 deriving (Bitwise, Truth, Eq)
+
+let empty = Flags(0)
+let read = Flags(1)
+let write = Flags(2)
+
+-- `!` on a type whose `Truth` is "any bit set" asks exactly that, and answers a `Bool`. The
+-- complement is `not`, which is a different question with a different name and a different type.
+fn isEmpty(f: Flags) -> Bool = !f
+fn complement(f: Flags) -> Flags = not(f)
+
+-- The same operator on an integer, which had no `Logic` instance and so did not compile at all
+-- while `if count` did. `!count` is `count == 0`.
+fn noneLeft(count: Int) -> Bool = !count
+
+-- And on a `Bool`, where `Truth` is the identity, so this is the one `xor` it has always been.
+fn negate(b: Bool) -> Bool = !b
+
+-- `&&` and `||` answer `Bool` whatever their operands are, and short-circuit. `effects` counts how
+-- often the right operand actually ran.
+let &effects = 0
+
+fn bump() -> Flags:
+    effects = effects + 1
+    return read
+
+fn shortCircuits() -> Bool = empty && bump()
+
+{-
+   Operands of different types, which is what `&&` answering `Bool` rather than the operand's type
+   makes possible - neither side is converted to anything, so nothing relates them.
+
+   `b` is the one variable in Core no call decides: selection skips a `@lazy` position, so a variable
+   occurring only there is bound by nothing. It is sound because nothing reads it - the thunk that
+   would have is never built, since the operand is emitted under the branch that runs it.
+-}
+fn flagsAndCount(f: Flags, n: Int) -> Bool = f && n
+fn flagsOrCount(f: Flags, n: Int) -> Bool = f || n
+fn againstLiteral(f: Flags) -> Bool = f && 1
+
+fn runsRight() -> Bool = read && bump()
+
+fn orSkips() -> Bool = read || bump()
+
+{-
+   `!` from generic code, which is the one place it is *not* expanded.
+
+   A body that knows only `Truth(a)` has no instance to build the test out of, so its `!` is an
+   ordinary call that specialization resolves once `a` is known - and what that call reaches is the
+   written body beside the declaration in Core rather than the hook. The two are the same operation,
+   and this asserts it by running both over the same values.
+
+   `&&` and `||` have no such case, and the reason is not about them: building a thunk inside a
+   generic body is refused outright, because it would have to be specialized alongside its caller -
+   see `Reject.Lazy.yana`, and `makeThunk`. That rule is older than these three and applies to a
+   class function with a `@lazy` parameter in exactly the same way, so `x && y` over a generic `x`
+   did not compile before either. Their bodies below the declarations are the answer for the day it
+   is lifted, and are unreachable until then.
+-}
+fn (Truth(a)) genericNot(x: a) -> Bool = !x
+
+fn main() -> Int:
+    let &score = 0
+
+    -- The bug, as an assertion. Both readings of `empty` have to agree that there is nothing in it.
+    if empty then return 1
+    if !isEmpty(empty) then return 2
+    if isEmpty(read) then return 3
+
+    -- And the complement is still available, still means what it always meant, and is emphatically
+    -- not what `!` means: every bit of an empty flags value is set, so it is truthy.
+    if !complement(empty) then return 4
+    if complement(read) == read then return 5
+
+    if !noneLeft(0) then return 6
+    if noneLeft(7) then return 7
+    if !negate(False) then return 8
+
+    -- The right operand of `&&` runs only when the left decided nothing, and `||`'s only when the
+    -- left was empty. Three calls above, one of which should have run.
+    if shortCircuits() then return 9
+    if !runsRight() then return 10
+    if !orSkips() then return 11
+    if effects != 1 then return 12
+
+    -- Mixed operands, and the short circuit still deciding which side runs.
+    if flagsAndCount(empty, 7) then return 21
+    if !flagsAndCount(read, 7) then return 22
+    if flagsAndCount(read, 0) then return 23
+    if !flagsOrCount(empty, 7) then return 24
+    if flagsOrCount(empty, 0) then return 25
+    if !againstLiteral(read) then return 26
+
+    -- The generic path, over both a newtype and an integer, agreeing with the expanded one.
+    if genericNot(empty) != isEmpty(empty) then return 14
+    if genericNot(read) != isEmpty(read) then return 15
+    if genericNot(0) != noneLeft(0) then return 16
+
+    -- `and` and `or` remain the bit operations, over the same type, answering the same type.
+    let both = read `or` write
+    if !(and(both, read) == read) then return 13
+    score = score + (truncate(bitsOf(both)) :: Int)
+
+    return score
+
+-- The flags newtype's content, which `Bitwise` reaches by unwrapping and this reads out by hand.
+fn bitsOf(f: Flags) -> I64 = match f: Flags(bits) -> bits

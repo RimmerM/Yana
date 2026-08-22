@@ -341,8 +341,8 @@ fn distinctBlocks() -> I64 {
     jmp b3
 
   b3:
-    %v13 = phi [b1, %v10], [b2, %v6] : Bool
-    je %v13, b4, b5
+    %v14 = phi [b1, %v10], [b2, True] : Bool
+    je %v14, b4, b5
 
   b4:
     ret 0
@@ -351,11 +351,11 @@ fn distinctBlocks() -> I64 {
     jmp b6
 
   b6:
-    %v18 = sub %second, %first : I64
-    %v19 = strideof U8 : I64
-    %v20 = div %v18, %v19 : I64
-    %v23 = cmp_lt %v20, 32 : Bool
-    je %v23, b7, b8
+    %v19 = sub %second, %first : I64
+    %v20 = strideof U8 : I64
+    %v21 = div %v19, %v20 : I64
+    %v24 = cmp_lt %v21, 32 : Bool
+    je %v24, b7, b8
 
   b7:
     ret 0
@@ -386,8 +386,8 @@ fn writeAndRead() -> I64 {
     jmp b3
 
   b3:
-    %v15 = phi [b1, %v12], [b2, %v8] : Bool
-    je %v15, b4, b5
+    %v16 = phi [b1, %v12], [b2, True] : Bool
+    je %v16, b4, b5
 
   b4:
     ret 0
@@ -398,10 +398,10 @@ fn writeAndRead() -> I64 {
   b6:
     assign [%a], 40
     assign [%b], 2
-    %v24 = load [%a] : I64
-    %v25 = load [%b] : I64
-    %v26 = add %v24, %v25 : I64
-    ret %v26
+    %v25 = load [%a] : I64
+    %v26 = load [%b] : I64
+    %v27 = add %v25, %v26 : I64
+    ret %v27
 }
 
 fn reuseAfterFree() -> I64 {

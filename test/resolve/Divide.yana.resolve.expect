@@ -20,8 +20,8 @@ fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b3, %v12], [b4, %v10] : Bool
-    je %v15, b6, b7
+    %v16 = phi [b3, %v12], [b4, False] : Bool
+    je %v16, b6, b7
 
   b6:
     jmp b8
@@ -30,33 +30,33 @@ fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
     jmp b8
 
   b8:
-    %v21 = phi [b6, 1], [b7, 0] : Int
-    ret %v21
+    %v22 = phi [b6, 1], [b7, 0] : Int
+    ret %v22
 
   b9:
-    %v26 = neg 1 : Int
-    %v27 = cast %v26 : Long
-    %v28 = cmp_eq %d, %v27 : Bool
-    je %v28, b10, b11
+    %v27 = neg 1 : Int
+    %v28 = cast %v27 : Long
+    %v29 = cmp_eq %d, %v28 : Bool
+    je %v29, b10, b11
 
   b10:
-    %v32 = sub 0, %x : Long
-    %v33 = cmp_eq %q, %v32 : Bool
-    je %v33, b12, b13
+    %v33 = sub 0, %x : Long
+    %v34 = cmp_eq %q, %v33 : Bool
+    je %v34, b12, b13
 
   b11:
     jmp b18
 
   b12:
-    %v37 = cmp_eq %r, 0 : Bool
+    %v38 = cmp_eq %r, 0 : Bool
     jmp b14
 
   b13:
     jmp b14
 
   b14:
-    %v40 = phi [b12, %v37], [b13, %v33] : Bool
-    je %v40, b15, b16
+    %v42 = phi [b12, %v38], [b13, False] : Bool
+    je %v42, b15, b16
 
   b15:
     jmp b17
@@ -65,14 +65,14 @@ fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
     jmp b17
 
   b17:
-    %v46 = phi [b15, 1], [b16, 0] : Int
-    ret %v46
+    %v48 = phi [b15, 1], [b16, 0] : Int
+    ret %v48
 
   b18:
-    %v49 = mul %q, %d : Long
-    %v50 = add %v49, %r : Long
-    %v51 = cmp_eq %v50, %x : Bool
-    je %v51, b19, b20
+    %v51 = mul %q, %d : Long
+    %v52 = add %v51, %r : Long
+    %v53 = cmp_eq %v52, %x : Bool
+    je %v53, b19, b20
 
   b19:
     jmp b21
@@ -81,8 +81,8 @@ fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
     jmp b21
 
   b21:
-    %v57 = phi [b19, 1], [b20, 0] : Int
-    ret %v57
+    %v59 = phi [b19, 1], [b20, 0] : Int
+    ret %v59
 }
 
 fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
@@ -105,8 +105,8 @@ fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b3, %v12], [b4, %v10] : Bool
-    je %v15, b6, b7
+    %v16 = phi [b3, %v12], [b4, False] : Bool
+    je %v16, b6, b7
 
   b6:
     jmp b8
@@ -115,32 +115,32 @@ fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
     jmp b8
 
   b8:
-    %v21 = phi [b6, 1], [b7, 0] : Int
-    ret %v21
+    %v22 = phi [b6, 1], [b7, 0] : Int
+    ret %v22
 
   b9:
-    %v26 = neg 1 : Int
-    %v27 = cmp_eq %d, %v26 : Bool
-    je %v27, b10, b11
+    %v27 = neg 1 : Int
+    %v28 = cmp_eq %d, %v27 : Bool
+    je %v28, b10, b11
 
   b10:
-    %v31 = sub 0, %x : Int
-    %v32 = cmp_eq %q, %v31 : Bool
-    je %v32, b12, b13
+    %v32 = sub 0, %x : Int
+    %v33 = cmp_eq %q, %v32 : Bool
+    je %v33, b12, b13
 
   b11:
     jmp b18
 
   b12:
-    %v36 = cmp_eq %r, 0 : Bool
+    %v37 = cmp_eq %r, 0 : Bool
     jmp b14
 
   b13:
     jmp b14
 
   b14:
-    %v39 = phi [b12, %v36], [b13, %v32] : Bool
-    je %v39, b15, b16
+    %v41 = phi [b12, %v37], [b13, False] : Bool
+    je %v41, b15, b16
 
   b15:
     jmp b17
@@ -149,14 +149,14 @@ fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
     jmp b17
 
   b17:
-    %v45 = phi [b15, 1], [b16, 0] : Int
-    ret %v45
+    %v47 = phi [b15, 1], [b16, 0] : Int
+    ret %v47
 
   b18:
-    %v48 = mul %q, %d : Int
-    %v49 = add %v48, %r : Int
-    %v50 = cmp_eq %v49, %x : Bool
-    je %v50, b19, b20
+    %v50 = mul %q, %d : Int
+    %v51 = add %v50, %r : Int
+    %v52 = cmp_eq %v51, %x : Bool
+    je %v52, b19, b20
 
   b19:
     jmp b21
@@ -165,8 +165,8 @@ fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
     jmp b21
 
   b21:
-    %v56 = phi [b19, 1], [b20, 0] : Int
-    ret %v56
+    %v58 = phi [b19, 1], [b20, 0] : Int
+    ret %v58
 }
 
 fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
@@ -189,8 +189,8 @@ fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b3, %v12], [b4, %v10] : Bool
-    je %v15, b6, b7
+    %v16 = phi [b3, %v12], [b4, False] : Bool
+    je %v16, b6, b7
 
   b6:
     jmp b8
@@ -199,25 +199,25 @@ fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
     jmp b8
 
   b8:
-    %v21 = phi [b6, 1], [b7, 0] : Int
-    ret %v21
+    %v22 = phi [b6, 1], [b7, 0] : Int
+    ret %v22
 
   b9:
-    %v24 = mul %q, %d : U64
-    %v25 = add %v24, %r : U64
-    %v26 = cmp_eq %v25, %x : Bool
-    je %v26, b10, b11
+    %v25 = mul %q, %d : U64
+    %v26 = add %v25, %r : U64
+    %v27 = cmp_eq %v26, %x : Bool
+    je %v27, b10, b11
 
   b10:
-    %v28 = cmp_lt %r, %d : Bool
+    %v29 = cmp_lt %r, %d : Bool
     jmp b12
 
   b11:
     jmp b12
 
   b12:
-    %v31 = phi [b10, %v28], [b11, %v26] : Bool
-    je %v31, b13, b14
+    %v33 = phi [b10, %v29], [b11, False] : Bool
+    je %v33, b13, b14
 
   b13:
     jmp b15
@@ -226,8 +226,8 @@ fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
     jmp b15
 
   b15:
-    %v37 = phi [b13, 1], [b14, 0] : Int
-    ret %v37
+    %v39 = phi [b13, 1], [b14, 0] : Int
+    ret %v39
 }
 
 fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
@@ -250,8 +250,8 @@ fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b3, %v12], [b4, %v10] : Bool
-    je %v15, b6, b7
+    %v16 = phi [b3, %v12], [b4, False] : Bool
+    je %v16, b6, b7
 
   b6:
     jmp b8
@@ -260,25 +260,25 @@ fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
     jmp b8
 
   b8:
-    %v21 = phi [b6, 1], [b7, 0] : Int
-    ret %v21
+    %v22 = phi [b6, 1], [b7, 0] : Int
+    ret %v22
 
   b9:
-    %v24 = mul %q, %d : U32
-    %v25 = add %v24, %r : U32
-    %v26 = cmp_eq %v25, %x : Bool
-    je %v26, b10, b11
+    %v25 = mul %q, %d : U32
+    %v26 = add %v25, %r : U32
+    %v27 = cmp_eq %v26, %x : Bool
+    je %v27, b10, b11
 
   b10:
-    %v28 = cmp_lt %r, %d : Bool
+    %v29 = cmp_lt %r, %d : Bool
     jmp b12
 
   b11:
     jmp b12
 
   b12:
-    %v31 = phi [b10, %v28], [b11, %v26] : Bool
-    je %v31, b13, b14
+    %v33 = phi [b10, %v29], [b11, False] : Bool
+    je %v33, b13, b14
 
   b13:
     jmp b15
@@ -287,8 +287,8 @@ fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
     jmp b15
 
   b15:
-    %v37 = phi [b13, 1], [b14, 0] : Int
-    ret %v37
+    %v39 = phi [b13, 1], [b14, 0] : Int
+    ret %v39
 }
 
 fn runtimeL(%x: Long, %d: Long) -> Int {
@@ -343,8 +343,8 @@ fn literalMinusOneL(%x: Long) -> Int {
     jmp b3
 
   b3:
-    %v21 = phi [b1, %v18], [b2, %v9] : Bool
-    je %v21, b4, b5
+    %v22 = phi [b1, %v18], [b2, False] : Bool
+    je %v22, b4, b5
 
   b4:
     jmp b6
@@ -353,8 +353,8 @@ fn literalMinusOneL(%x: Long) -> Int {
     jmp b6
 
   b6:
-    %v27 = phi [b4, 1], [b5, 0] : Int
-    ret %v27
+    %v28 = phi [b4, 1], [b5, 0] : Int
+    ret %v28
 }
 
 fn literalMinusOneI(%x: Int) -> Int {
@@ -375,8 +375,8 @@ fn literalMinusOneI(%x: Int) -> Int {
     jmp b3
 
   b3:
-    %v19 = phi [b1, %v16], [b2, %v8] : Bool
-    je %v19, b4, b5
+    %v20 = phi [b1, %v16], [b2, False] : Bool
+    je %v20, b4, b5
 
   b4:
     jmp b6
@@ -385,8 +385,8 @@ fn literalMinusOneI(%x: Int) -> Int {
     jmp b6
 
   b6:
-    %v25 = phi [b4, 1], [b5, 0] : Int
-    ret %v25
+    %v26 = phi [b4, 1], [b5, 0] : Int
+    ret %v26
 }
 
 fn byLiteral() -> Int {
@@ -516,8 +516,8 @@ fn byLiteral() -> Int {
     jmp b24
 
   b24:
-    %v160 = phi [b22, %v157], [b23, %v148] : Bool
-    je %v160, b25, b26
+    %v161 = phi [b22, %v157], [b23, False] : Bool
+    je %v161, b25, b26
 
   b25:
     jmp b27
@@ -526,11 +526,11 @@ fn byLiteral() -> Int {
     jmp b27
 
   b27:
-    %v168 = phi [b25, 1], [b26, 0] : Int
-    %v169 = add %v140, %v168 : Int
-    assign %n, %v169
-    %v171 = load %n : Int
-    ret %v171
+    %v169 = phi [b25, 1], [b26, 0] : Int
+    %v170 = add %v140, %v169 : Int
+    assign %n, %v170
+    %v172 = load %n : Int
+    ret %v172
 }
 
 fn main() -> Int {

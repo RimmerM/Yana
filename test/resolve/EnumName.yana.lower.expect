@@ -1,0 +1,440 @@
+@Core.string$51 = [71, 114, 101, 101, 110]
+@Core.string$53 = [82, 101, 100]
+@Core.string$54 = [71, 114, 101, 101, 110]
+@Core.string$55 = [66, 108, 117, 101]
+@Core.string$58 = [70, 114, 111, 109, 69, 110, 100]
+@Core.string$62 = [76, 111, 119]
+@Core.string$64 = [76, 111, 119]
+@Core.string$65 = [72, 105, 103, 104]
+@image$base = []
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+@ResolveTest.string$0 = [71, 114, 101, 101, 110]
+@ResolveTest.string$1 = [70, 114, 111, 109, 69, 110, 100]
+@ResolveTest.string$2 = [66, 108, 117, 101]
+@ResolveTest.string$3 = [80, 117, 114, 112, 108, 101]
+@ResolveTest.string$4 = [66, 108, 101, 117]
+@ResolveTest.string$5 = [76, 111, 119]
+@ResolveTest.string$6 = [72, 105, 103, 104]
+@ResolveTest.string$7 = [82, 101, 100]
+@ResolveTest.string$8 = [82, 101, 100]
+
+Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
+  b_1 {
+    %v_2 = add %name, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %units = cast %v_3: Int
+    %v_4 = sext %units: Long
+    %v_5 = cmp_eq %v_4, 3: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_6 {
+    %v_8 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_8, @Core.string$53, 3
+    %v_9 = call_complex Eq(String).==, %name, %v_8: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_7 {
+    %v_12 = cmp_eq %v_4, 5: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_10 {
+    %v_15 = alloca 1, 1: Ptr
+    store %v_15, 0, 1
+    jmp b_16
+  }
+
+  b_11 {
+    %v_17 = alloca 1, 1: Ptr
+    store %v_17, 3, 1
+    jmp b_16
+  }
+
+  b_13 {
+    %v_18 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_18, @Core.string$54, 5
+    %v_19 = call_complex Eq(String).==, %name, %v_18: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_14 {
+    %v_22 = cmp_eq %v_4, 4: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_20 {
+    %v_25 = alloca 1, 1: Ptr
+    store %v_25, 1, 1
+    jmp b_16
+  }
+
+  b_21 {
+    %v_26 = alloca 1, 1: Ptr
+    store %v_26, 3, 1
+    jmp b_16
+  }
+
+  b_23 {
+    %v_27 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_27, @Core.string$55, 4
+    %v_28 = call_complex Eq(String).==, %name, %v_27: Int
+    je %v_28, b_29, b_30
+  }
+
+  b_24 {
+    %v_31 = alloca 1, 1: Ptr
+    store %v_31, 3, 1
+    jmp b_16
+  }
+
+  b_29 {
+    %v_32 = alloca 1, 1: Ptr
+    store %v_32, 2, 1
+    jmp b_16
+  }
+
+  b_30 {
+    %v_33 = alloca 1, 1: Ptr
+    store %v_33, 3, 1
+    jmp b_16
+  }
+
+  b_16 {
+    %v_34 = phi [b_10, %v_15], [b_11, %v_17], [b_20, %v_25], [b_21, %v_26], [b_29, %v_32], [b_30, %v_33], [b_24, %v_31]: Ptr
+    copy %v_0, %v_34, 1
+    ret 
+  }
+}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_6, 8: Long
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = shl %sizeClass, 3: Long
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    store %allocation, %v_10, 8
+    %v_11 = load @heapFree, 8: Ptr
+    %v_12 = add %v_11, %v_8: Ptr
+    store %v_12, %allocation, 8
+    ret 
+  }
+}
+
+stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
+  b_1 {
+    %v_2 = and %length, 1073741823: Int
+    %v_3 = cast %v_2: Int
+    store %v_0, %bytes, 8
+    %v_4 = add %v_0, 8: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = cast %v_3: Int
+    store %v_4, %v_6, 4
+    %v_7 = add %v_0, 12: Ptr
+    store %v_7, %v_3, 4
+    ret 
+  }
+}
+
+Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
+  b_0 {
+    %v_1 = add %self, 12: Ptr
+    %v_2 = load %v_1, 4: Int
+    %units = cast %v_2: Int
+    %v_3 = sext %units: Long
+    %v_4 = add %other, 12: Ptr
+    %v_5 = load %v_4, 4: Int
+    %units = cast %v_5: Int
+    %v_6 = sext %units: Long
+    %v_7 = cmp_neq %v_3, %v_6: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 0
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = load %self, 8: Ptr
+    %v_12 = load %other, 8: Ptr
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_10, 0], [b_15, %v_16]: Long
+    %v_17 = cmp_ilt %v_14, %v_3: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_19 {
+    ret 1
+  }
+
+  b_18 {
+    %v_20 = add %v_11, %v_14: Ptr
+    %v_21 = load %v_20, 1: Int
+    %v_22 = cast %v_21: Int
+    %v_23 = add %v_12, %v_14: Ptr
+    %v_24 = load %v_23, 1: Int
+    %v_25 = cast %v_24: Int
+    %v_26 = cmp_neq %v_22, %v_25: Int
+    je %v_26, b_8, b_27
+  }
+
+  b_27 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = add %v_14, 1: Long
+    jmp b_13
+  }
+}
+
+Reclaim(String).reclaim<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Long
+    %v_3 = shr %v_2, 30: Long
+    %v_4 = cast %v_3: Int
+    %v_5 = cast %v_4: Int
+    %v_6 = cmp_eq %v_5, 1: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_7 {
+    %v_10 = load %value, 8: Ptr
+    call_complex freeHeap, %v_10
+    jmp b_9
+  }
+
+  b_9 {
+    ret 
+  }
+}
+
+instantiatedOfName<complex>(%v_0: Ptr, %s: Ptr) {
+  b_1 {
+    %v_2 = alloca 1, 1: Ptr
+    %v_3 = add %s, 12: Ptr
+    %v_4 = load %v_3, 4: Int
+    %units = cast %v_4: Int
+    %v_5 = sext %units: Long
+    %v_6 = cmp_eq %v_5, 3: Int
+    je %v_6, b_7, b_8
+  }
+
+  b_8 {
+    %v_9 = cmp_eq %v_5, 4: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_11 {
+    %v_12 = alloca 1, 1: Ptr
+    store %v_12, 2, 1
+    jmp b_13
+  }
+
+  b_10 {
+    %v_14 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_14, @Core.string$65, 4
+    %v_15 = call_complex Eq(String).==, %s, %v_14: Int
+    je %v_15, b_16, b_17
+  }
+
+  b_17 {
+    %v_18 = alloca 1, 1: Ptr
+    store %v_18, 2, 1
+    jmp b_13
+  }
+
+  b_16 {
+    %v_19 = alloca 1, 1: Ptr
+    store %v_19, 1, 1
+    jmp b_13
+  }
+
+  b_7 {
+    %v_20 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_20, @Core.string$64, 3
+    %v_21 = call_complex Eq(String).==, %s, %v_20: Int
+    je %v_21, b_22, b_23
+  }
+
+  b_23 {
+    %v_24 = alloca 1, 1: Ptr
+    store %v_24, 2, 1
+    jmp b_13
+  }
+
+  b_22 {
+    %v_25 = alloca 1, 1: Ptr
+    store %v_25, 0, 1
+    jmp b_13
+  }
+
+  b_13 {
+    %v_26 = phi [b_22, %v_25], [b_23, %v_24], [b_16, %v_19], [b_17, %v_18], [b_11, %v_12]: Ptr
+    copy %v_2, %v_26, 1
+    copy %v_0, %v_2, 1
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_1, @Core.string$51, 5
+    %v_2 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_2, @ResolveTest.string$0, 5
+    %v_3 = call_complex Eq(String).==, %v_1, %v_2: Int
+    %v_4 = xor %v_3, 1: Int
+    call_complex Reclaim(String).reclaim, %v_1
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    %v_7 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_7, @Core.string$58, 7
+    %v_8 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_8, @ResolveTest.string$1, 7
+    %v_9 = call_complex Eq(String).==, %v_7, %v_8: Int
+    %v_10 = xor %v_9, 1: Int
+    call_complex Reclaim(String).reclaim, %v_7
+    je %v_10, b_11, b_12
+  }
+
+  b_12 {
+    %v_13 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_13, @ResolveTest.string$2, 4
+    %v_14 = alloca 1, 1: Ptr
+    call_complex Enum(Colour).fromName, %v_14, %v_13
+    %v_15 = load %v_14, 1: Long
+    %v_16 = cmp_le %v_15, 2: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    %v_19 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_19, @ResolveTest.string$3, 6
+    %v_20 = alloca 1, 1: Ptr
+    call_complex Enum(Colour).fromName, %v_20, %v_19
+    %v_21 = load %v_20, 1: Long
+    %v_22 = cmp_le %v_21, 2: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    %v_25 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_25, @ResolveTest.string$4, 4
+    %v_26 = alloca 1, 1: Ptr
+    call_complex Enum(Colour).fromName, %v_26, %v_25
+    %v_27 = load %v_26, 1: Long
+    %v_28 = cmp_le %v_27, 2: Int
+    je %v_28, b_29, b_30
+  }
+
+  b_30 {
+    %v_31 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_31, @Core.string$62, 3
+    %v_32 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_32, @ResolveTest.string$5, 3
+    %v_33 = call_complex Eq(String).==, %v_31, %v_32: Int
+    %v_34 = xor %v_33, 1: Int
+    call_complex Reclaim(String).reclaim, %v_31
+    je %v_34, b_35, b_36
+  }
+
+  b_36 {
+    %v_37 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_37, @ResolveTest.string$6, 4
+    %v_38 = alloca 1, 1: Ptr
+    call_complex instantiatedOfName, %v_38, %v_37
+    %v_39 = load %v_38, 1: Long
+    %v_40 = cmp_le %v_39, 1: Int
+    je %v_40, b_41, b_42
+  }
+
+  b_41 {
+    %v_43 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_43, @ResolveTest.string$7, 3
+    %v_44 = alloca 1, 1: Ptr
+    call_complex instantiatedOfName, %v_44, %v_43
+    %v_45 = load %v_44, 1: Long
+    %v_46 = cmp_le %v_45, 1: Int
+    je %v_46, b_47, b_48
+  }
+
+  b_48 {
+    %v_49 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_49, @ResolveTest.string$8, 3
+    %v_50 = alloca 1, 1: Ptr
+    call_complex Enum(Colour).fromName, %v_50, %v_49
+    %v_51 = load %v_50, 1: Long
+    %v_52 = cmp_le %v_51, 2: Int
+    %c = load %v_50, 1: Int
+    %v_53 = cast %c: Long
+    %v_54 = cast %v_53: Int
+    %v_55 = add %v_54, 10: Int
+    %v_56 = select %v_52, %v_55, 9: Int
+    ret %v_56
+  }
+
+  b_47 {
+    ret 8
+  }
+
+  b_42 {
+    ret 7
+  }
+
+  b_35 {
+    ret 6
+  }
+
+  b_29 {
+    ret 5
+  }
+
+  b_23 {
+    ret 4
+  }
+
+  b_18 {
+    ret 3
+  }
+
+  b_11 {
+    ret 2
+  }
+
+  b_5 {
+    ret 1
+  }
+}
+

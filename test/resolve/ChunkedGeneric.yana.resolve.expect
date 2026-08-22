@@ -651,8 +651,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   b1:
     %v18 = load %local3@Exit : Int
     %v23 = alloc : Outcome((), Int)
-    init %local5.discriminant, 1
-    init %local5@Exit, %v18
+    aggregate %local5.discriminant = 1, %local5@Exit = %v18
     ret %v23
 
   b2:
@@ -686,8 +685,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v22 = alloc : Outcome((), Int)
-    init %local2.discriminant, 1
-    init %local2@Exit, %v9
+    aggregate %local2.discriminant = 1, %local2@Exit = %v9
     ret %v22
 
   b2:
@@ -746,8 +744,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   b3:
     %v23 = load %local3@Exit@Exit : Int
     %v30 = alloc : Outcome((), Int)
-    init %local5.discriminant, 1
-    init %local5@Exit, %v23
+    aggregate %local5.discriminant = 1, %local5@Exit = %v23
     ret %v30
 
   b4:
@@ -783,13 +780,11 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     %v7 = load [%env].n : &mut Int
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
-    %v26 = alloc : Outcome((), Int)
-    init %local3.discriminant, 1
-    init %local3@Exit, %v9
-    %v30 = alloc : Outcome((), Outcome((), Int))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v26
-    ret %v30
+    %v25 = alloc : Outcome((), Int)
+    aggregate %local3.discriminant = 1, %local3@Exit = %v9
+    %v28 = alloc : Outcome((), Outcome((), Int))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v25
+    ret %v28
 
   b2:
     jmp b3
@@ -803,8 +798,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     %v18 = alloc : Outcome((), Int)
     init %local1.discriminant, 0
     %v21 = alloc : Outcome((), Outcome((), Int))
-    init %local2.discriminant, 1
-    init %local2@Exit, %v18
+    aggregate %local2.discriminant = 1, %local2@Exit = %v18
     ret %v21
 }
 
@@ -1002,14 +996,13 @@ fn ResolveTest.continuation$16(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
   b1:
     %v18 = load %local3@Exit : Int
     %v19 = alloc : Outcome((), Int)
-    init %local5.discriminant, 1
-    init %local5@Exit, %v18
+    aggregate %local5.discriminant = 1, %local5@Exit = %v18
     ret %v19
 
   b2:
-    %v24 = alloc : Outcome((), Int)
+    %v23 = alloc : Outcome((), Int)
     init %local4.discriminant, 0
-    ret %v24
+    ret %v23
 }
 
 fn ResolveTest.continuation$17(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Int) {
@@ -1025,22 +1018,21 @@ fn ResolveTest.continuation$17(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
-    init %local2.discriminant, 1
-    init %local2@Exit, %v9
+    aggregate %local2.discriminant = 1, %local2@Exit = %v9
     ret %v10
 
   b2:
     jmp b3
 
   b3:
+    %v15 = load [%env].n : &mut Int
     %v16 = load [%env].n : &mut Int
-    %v17 = load [%env].n : &mut Int
-    %v18 = load [%v17] : Int
-    %v20 = add %v18, 1 : Int
-    assign [%v16], %v20
-    %v22 = alloc : Outcome((), Int)
+    %v17 = load [%v16] : Int
+    %v19 = add %v17, 1 : Int
+    assign [%v15], %v19
+    %v21 = alloc : Outcome((), Int)
     init %local1.discriminant, 0
-    ret %v22
+    ret %v21
 }
 
 fn each(Int, Int)(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Int)) -> Outcome((), Int) {
@@ -1200,17 +1192,16 @@ fn ResolveTest.continuation$18(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
   b3:
     %v24 = load %local3@Exit@Exit : Int
     %v25 = alloc : Outcome((), Int)
-    init %local5.discriminant, 1
-    init %local5@Exit, %v24
+    aggregate %local5.discriminant = 1, %local5@Exit = %v24
     ret %v25
 
   b4:
     jmp b5
 
   b5:
-    %v31 = alloc : Outcome((), Int)
+    %v30 = alloc : Outcome((), Int)
     init %local4.discriminant, 0
-    ret %v31
+    ret %v30
 }
 
 fn ResolveTest.continuation$19(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
@@ -1226,28 +1217,25 @@ fn ResolveTest.continuation$19(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
-    init %local3.discriminant, 1
-    init %local3@Exit, %v9
-    %v14 = alloc : Outcome((), Outcome((), Int))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v10
-    ret %v14
+    aggregate %local3.discriminant = 1, %local3@Exit = %v9
+    %v13 = alloc : Outcome((), Outcome((), Int))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v10
+    ret %v13
 
   b2:
     jmp b3
 
   b3:
-    %v20 = load [%env].n : &mut Int
-    %v21 = load [%env].n : &mut Int
-    %v22 = load [%v21] : Int
-    %v24 = add %v22, 1 : Int
-    assign [%v20], %v24
-    %v26 = alloc : Outcome((), Int)
+    %v18 = load [%env].n : &mut Int
+    %v19 = load [%env].n : &mut Int
+    %v20 = load [%v19] : Int
+    %v22 = add %v20, 1 : Int
+    assign [%v18], %v22
+    %v24 = alloc : Outcome((), Int)
     init %local1.discriminant, 0
-    %v29 = alloc : Outcome((), Outcome((), Int))
-    init %local2.discriminant, 1
-    init %local2@Exit, %v26
-    ret %v29
+    %v27 = alloc : Outcome((), Outcome((), Int))
+    aggregate %local2.discriminant = 1, %local2@Exit = %v24
+    ret %v27
 }
 
 fn each(Int, Outcome((), Int))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Outcome((), Int))) -> Outcome((), Outcome((), Int)) {
@@ -1392,14 +1380,13 @@ fn ResolveTest.continuation$16(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
   b1:
     %v18 = load %local3@Exit : Int
     %v19 = alloc : Outcome((), Int)
-    init %local5.discriminant, 1
-    init %local5@Exit, %v18
+    aggregate %local5.discriminant = 1, %local5@Exit = %v18
     ret %v19
 
   b2:
-    %v24 = alloc : Outcome((), Int)
+    %v23 = alloc : Outcome((), Int)
     init %local4.discriminant, 0
-    ret %v24
+    ret %v23
 }
 
 fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Int) {
@@ -1415,22 +1402,21 @@ fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
-    init %local2.discriminant, 1
-    init %local2@Exit, %v9
+    aggregate %local2.discriminant = 1, %local2@Exit = %v9
     ret %v10
 
   b2:
     jmp b3
 
   b3:
+    %v15 = load [%env].n : &mut Int
     %v16 = load [%env].n : &mut Int
-    %v17 = load [%env].n : &mut Int
-    %v18 = load [%v17] : Int
-    %v20 = add %v18, 1 : Int
-    assign [%v16], %v20
-    %v22 = alloc : Outcome((), Int)
+    %v17 = load [%v16] : Int
+    %v19 = add %v17, 1 : Int
+    assign [%v15], %v19
+    %v21 = alloc : Outcome((), Int)
     init %local1.discriminant, 0
-    ret %v22
+    ret %v21
 }
 
 fn countChunks(Array(Int), Int)(%xs: Array(Int), %bound: Int) -> Int {
@@ -1490,17 +1476,16 @@ fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
   b3:
     %v24 = load %local3@Exit@Exit : Int
     %v25 = alloc : Outcome((), Int)
-    init %local5.discriminant, 1
-    init %local5@Exit, %v24
+    aggregate %local5.discriminant = 1, %local5@Exit = %v24
     ret %v25
 
   b4:
     jmp b5
 
   b5:
-    %v31 = alloc : Outcome((), Int)
+    %v30 = alloc : Outcome((), Int)
     init %local4.discriminant, 0
-    ret %v31
+    ret %v30
 }
 
 fn ResolveTest.continuation$19(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
@@ -1516,28 +1501,25 @@ fn ResolveTest.continuation$19(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
-    init %local3.discriminant, 1
-    init %local3@Exit, %v9
-    %v14 = alloc : Outcome((), Outcome((), Int))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v10
-    ret %v14
+    aggregate %local3.discriminant = 1, %local3@Exit = %v9
+    %v13 = alloc : Outcome((), Outcome((), Int))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v10
+    ret %v13
 
   b2:
     jmp b3
 
   b3:
-    %v20 = load [%env].n : &mut Int
-    %v21 = load [%env].n : &mut Int
-    %v22 = load [%v21] : Int
-    %v24 = add %v22, 1 : Int
-    assign [%v20], %v24
-    %v26 = alloc : Outcome((), Int)
+    %v18 = load [%env].n : &mut Int
+    %v19 = load [%env].n : &mut Int
+    %v20 = load [%v19] : Int
+    %v22 = add %v20, 1 : Int
+    assign [%v18], %v22
+    %v24 = alloc : Outcome((), Int)
     init %local1.discriminant, 0
-    %v29 = alloc : Outcome((), Outcome((), Int))
-    init %local2.discriminant, 1
-    init %local2@Exit, %v26
-    ret %v29
+    %v27 = alloc : Outcome((), Outcome((), Int))
+    aggregate %local2.discriminant = 1, %local2@Exit = %v24
+    ret %v27
 }
 
 fn reclaim$Chunks(%value: Chunks) -> () {

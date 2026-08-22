@@ -89,14 +89,35 @@ fn once(flag: Bool, @lazy value: Int) -> Int = if flag then value else 0
 -- evaluate from the class signature, before it knows which instance it reached, so an
 -- implementation that dropped the marker would be handed an argument nobody ran - and one that
 -- added a marker the class did not declare would be handed a value where it expected a thunk.
+--
+-- Over a class declared here rather than over one of Core's, and that is not incidental: `&&` and
+-- `||` used to be the language's only `@lazy` class members, and they are plain functions now. The
+-- rule is about classes rather than about those two, so the fixture says so.
 data Mask {bits: Int}
 
-instance Logic(Mask):
-    fn &&(lhs: Mask, rhs: Mask) -> Mask = and(lhs, rhs)
-    fn xor(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
-    fn and(lhs: Mask, rhs: Mask) -> Mask = lhs
-    fn or(lhs: Mask, rhs: Mask) -> Mask = lhs
-    fn not(value: Mask) -> Mask = value
+class Combine(a):
+    fn both(lhs: a, @lazy rhs: a) -> a
+    fn either(lhs: a, @lazy rhs: a) -> a
+    fn merge(lhs: a, rhs: a) -> a
+
+instance Combine(Mask):
+    fn both(lhs: Mask, rhs: Mask) -> Mask = merge(lhs, rhs)
+    fn merge(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
+    fn either(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
+
+{-
+   A type variable declared only in `@lazy` positions, which no call can decide.
+
+   Selection skips a deferred position - the argument is not resolved when the callee is chosen, and
+   resolving it to find out would evaluate it - so nothing ever binds `b`, however concrete the
+   arguments are. `&&` and `||` have exactly this shape and are accepted, because a deferred
+   intrinsic emits its operand under the branch and never builds the thunk whose return type this
+   would have been. Anything that *is* called needs it, and is told which declaration to change
+   rather than asked for an expected type it has no way to use.
+-}
+fn (Truth(a), Truth(b)) undecidable(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+
+fn callsUndecidable(x: Bool, y: Bool) -> Bool = undecidable(x, y)
 
 -- A thunk inside a generic body would have to be specialized alongside its caller, for the reason
 -- a lambda there would. Only where the callee can be seen through - `&&` on a Bool - does no thunk

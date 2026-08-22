@@ -141,6 +141,94 @@ ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ResolvedArg> args,
 }
 
 /*
+ * `!`, `&&` and `||`, which are `Truth` and not `Bitwise` - see the note on their declarations in
+ * Core, and Analysis-Ergonomics on why the arrangement they replace was wrong rather than merely
+ * inconsistent.
+ *
+ * Each of these is a *plain generic function* carrying an intrinsic, which is the shape
+ * `scanLimitFor` already uses: the declaration in Core has no body, the hook here is the whole
+ * definition, and it sees the concrete argument type at every call site. That is what keeps the
+ * language's most common operators expanding to a branch and an `xor` rather than becoming generic
+ * calls waiting for an inliner - the property `Emit` exists for.
+ *
+ * `resolver.truthy` is what turns an operand into a `Bool`, and it is the same selection `if x`
+ * makes. So there is exactly one answer to "is this value true" in the language, reached the same
+ * way by the condition and by the operator, which is the whole of what was broken before.
+ */
+ModulePtr<Value> emitTruthNot(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                              LocationId source, StringId resultName) {
+    auto value = resolver.truthy(args[0], source);
+    if(!value) return nullptr;
+
+    // At a `Bool` the truth test is the identity, so what is left is one `xor` - the same single
+    // instruction `!` has always been.
+    auto one = resolver.makeInt(source, type, 1);
+    return resolver.ref(resolver.emit<InstBinary>(source, resultName, type, Value::Xor, value, one));
+}
+
+/*
+ * The short circuit, answering `Bool` rather than the operand type.
+ *
+ * `emitShortCircuit` above answers the *left operand* on the path that skipped, because `False && x`
+ * is that `False`. That is right when both sides and the result are one type, and wrong here: these
+ * answer `Bool` while the left operand may be an `OpenFlags`. So the skipped path is the constant the
+ * operator settles on - `False` for `&&`, `True` for `||` - and the taken path is the right operand's
+ * own truth.
+ */
+static ModulePtr<Value> emitTruthCircuit(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                                         LocationId source, bool runWhenTrue) {
+    if(args.length < 2 || !args[1].isDeferred()) return nullptr;
+
+    auto lhs = resolver.truthy(args[0].value, source);
+    if(!lhs) return nullptr;
+
+    auto unit = resolver.module.scalar.unit;
+    auto rest = resolver.addBlock();
+    auto skipped = resolver.addBlock();
+
+    resolver.terminate(resolver.emit<InstJe>(source, StringId(), unit, lhs,
+                                             runWhenTrue ? rest : skipped,
+                                             runWhenTrue ? skipped : rest));
+
+    BranchArmList arms;
+
+    resolver.current = rest;
+
+    /*
+     * The right operand, resolved with no expected type.
+     *
+     * `&&` converts neither side: what it does with an operand is ask its own `Truth`, so there is
+     * nothing for the parameter's declared type to convert to and pushing it down would be a
+     * conversion the operator does not perform. That is also what lets the two sides have unrelated
+     * types - see deferredOnlyVariable in expr_call.cpp, where the variable this position was
+     * declared at is left unbound precisely because nothing reads it.
+     *
+     * Settled before the truth test, because an operand with no pushdown may still be a literal -
+     * `flags && 1` - and a literal variable has no instance of anything until it is one type.
+     */
+    auto forced = resolver.settle(resolver.force(args[1].promise, nullptr, source), source);
+    auto value = forced ? resolver.truthy(forced, source) : nullptr;
+
+    // The right operand is the caller's code spliced in here, with whatever control flow the caller
+    // put in it - so it may have branched, and may not complete at all.
+    if(resolver.current && value) arms.push(BranchArm { resolver.current, value, source });
+
+    arms.push(BranchArm { skipped, resolver.makeInt(source, type, runWhenTrue ? 0 : 1), source });
+
+    return resolver.finishBranches(arms, source, true);
+}
+
+ModulePtr<Value> emitTruthAnd(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                              LocationId source, StringId) {
+    return emitTruthCircuit(resolver, args, type, source, true);
+}
+
+ModulePtr<Value> emitTruthOr(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                             LocationId source, StringId) {
+    return emitTruthCircuit(resolver, args, type, source, false);
+}
+
+/*
  * Generating an instance function.
  */
 
@@ -230,7 +318,7 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
         function->deferredIntrinsic = method.deferred;
     } else {
         result = method.emit(resolver, toBuffer(values), function->returnType, kNullLocation, StringId());
-        function->intrinsic = method.emit;
+        if(method.expand) function->intrinsic = method.emit;
     }
 
     resolver.terminate(resolver.emit<InstRet>(kNullLocation, StringId(), module.scalar.unit, result));
@@ -450,13 +538,12 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
         { "sar"_v, 2, emitBinary<Value::Sar> },
         { "rol"_v, 2, emitBinary<Value::Rol> },
         { "ror"_v, 2, emitBinary<Value::Ror> },
-        { "and"_v, 2, emitBinary<Value::And> },
-        { "or"_v, 2, emitBinary<Value::Or> },
-        { "xor"_v, 2, emitBinary<Value::Xor> },
-        { "not"_v, 1, emitUnary<Value::Not> },
     };
 
-    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 11 });
+    // The four bitwise names are not here: they are `Bitwise`'s, which this class has as a
+    // superclass, so there is one declaration of `and` in the language and no call has to say which
+    // class it meant. defineNumeric supplies both instances for every width.
+    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 7 });
 }
 
 /*
@@ -556,18 +643,27 @@ bool hasBitCounts(GlobalBase global, TypePtr type) {
     return integer.bits == 32 || integer.bits == 64;
 }
 
-void defineLogic(Module& module, TypePtr type) {
+/*
+ * `Bitwise` for a type whose values are bits - `Bool` and every integer width.
+ *
+ * Four methods and not seven. `&&`, `||` and `!` used to be here, defaulting to `and`, `or` and
+ * `not`, and moving them out is what stopped `!x` and `if x` disagreeing about the same value: they
+ * are questions about truth, they answer `Bool`, and they live beside `Truth` as plain functions.
+ * See emitTruthNot below and the note on the three declarations in Core.
+ *
+ * `not` is `emitLogicalNot` - an `xor` against 1 - rather than a `Not` instruction, because at a
+ * `Bool` the two differ: complementing the storage of a one-bit value gives something that is not a
+ * `Bool`, and complementing its *value* is exactly this xor. A wider integer overrides it below.
+ */
+ModulePtr<ClassInstance> defineBitwise(Module& module, TypePtr type, Emit complement) {
     IntrinsicMethod methods[] = {
-        { "&&"_v, 2, nullptr, emitLogicalAnd },
-        { "||"_v, 2, nullptr, emitLogicalOr },
         { "and"_v, 2, emitBinary<Value::And> },
         { "or"_v, 2, emitBinary<Value::Or> },
         { "xor"_v, 2, emitBinary<Value::Xor> },
-        { "not"_v, 1, emitLogicalNot },
-        { "!"_v, 1, emitLogicalNot },
+        { "not"_v, 1, complement },
     };
 
-    generateInstance(module, classNamed(module, "Logic"_v), { &type, 1 }, { methods, 7 });
+    return generateInstance(module, classNamed(module, "Bitwise"_v), { &type, 1 }, { methods, 4 });
 }
 
 void defineTruth(Module& module, TypePtr type, Emit emit) {
@@ -581,6 +677,484 @@ ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, 
     IntrinsicMethod methods[] = { { method, 1, emitCast } };
 
     return generateInstance(module, classNamed(module, className), { args, 2 }, { methods, 1 });
+}
+
+/*
+ * `Enum(a)`, for every payload-free sum - Analysis-Language.md §5.1.
+ *
+ * Generated rather than declared, and generated for every such type rather than for the ones that
+ * pinned a value, because both functions are decided entirely by the declaration: what `valueOf`
+ * answers is what the type already *is*, and what `fromValue` accepts is the set of numbers written
+ * in it. There is nothing an author could contribute, which is the same reason `Num(Int)` is
+ * generated.
+ *
+ * Reached through the on-demand hook rather than emitted at every `data` declaration, on the terms
+ * `vectorInstance` set: it runs only where an instance lookup found nothing, so it cannot shadow a
+ * declared head, and a program that never asks for one never pays for it.
+ */
+namespace {
+
+// The payload-free sum an `Enum` head names, or nothing. Asked of the *layout* rather than of the
+// constructor list, because that is the property both emitters depend on: an enum is its number.
+static RecordType* enumHead(GlobalBase global, TypePtr type) {
+    if(!type) return nullptr;
+
+    auto value = global[type];
+    if(value->kind != Type::Record) return nullptr;
+
+    auto record = (RecordType*)value;
+    return record->layout == RecordType::Enum && record->constructors.size() ? record : nullptr;
+}
+
+// `valueOf`: the number, which the value already is. A `Cast` and nothing else, which is the whole
+// of what §5.1 was asking for - the two compares and two selects it replaces were a `match`
+// computing the identity function.
+ModulePtr<Value> emitEnumValue(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                               LocationId source, StringId resultName) {
+    return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, Value::Cast, args[0]));
+}
+
+/*
+ * Whether `number` is one of the values this declaration names.
+ *
+ * Two shapes, and which one applies is a property of the declaration rather than a choice. Values
+ * that run consecutively are a range, and a range is two comparisons however many constructors there
+ * are - which is every enum that pins nothing, so the common case does not pay for the feature. A set
+ * with holes in it is one comparison per constructor, or-ed together: no branches, no blocks, and an
+ * expression the optimizer is free to make a table of.
+ */
+static ModulePtr<Value> enumMembership(ExprResolver& resolver, RecordType& record, ModulePtr<Value> number,
+                                       LocationId source) {
+    auto global = resolver.global;
+    auto& module = resolver.module;
+    auto bool_ = module.scalar.bool_;
+    auto long_ = module.scalar.long_;
+
+    auto range = enumRange(global, record);
+    auto constructors = record.constructors.contents(global);
+    auto consecutive = U64(range.highest - range.lowest) + 1 == U64(constructors.size());
+
+    if(consecutive) {
+        auto low = resolver.makeInt(source, long_, U64(range.lowest));
+        auto high = resolver.makeInt(source, long_, U64(range.highest));
+
+        auto atLeast = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, number, low, CompareOp::Ge));
+        auto atMost = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, number, high, CompareOp::Le));
+
+        return resolver.ref(resolver.emit<InstBinary>(source, StringId(), bool_, Value::And, atLeast, atMost));
+    }
+
+    ModulePtr<Value> held = nullptr;
+
+    for(auto constructor: constructors) {
+        auto pinned = resolver.makeInt(source, long_, U64(constructor.value));
+        auto matches = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, number, pinned, CompareOp::Eq));
+
+        held = held ? resolver.ref(resolver.emit<InstBinary>(source, StringId(), bool_, Value::Or, held, matches))
+                    : matches;
+    }
+
+    return held;
+}
+
+// Which constructor of `Maybe(a)` is which, found by name rather than by position - the same rule
+// `defineCore` reads `Outcome`'s by, and for the same reason: this is emitted code with no
+// declaration in front of it to fix an order.
+static U32 constructorNamed(GlobalBase global, RecordType& record, StringView name) {
+    auto wanted = Context::nameHash(name);
+
+    for(auto constructor: record.constructors.contents(global)) {
+        if(constructor.name == wanted) return constructor.index;
+    }
+
+    return maxLimit<U32>;
+}
+
+/*
+ * `fromValue`: the constructor a number names, or nothing.
+ *
+ * The partial half, and the reason the class has two functions rather than one conversion in each
+ * direction. A number the declaration does not name is not one of these values, and there is no
+ * answer to give for it - so the result carries the question, which is what `Maybe` is.
+ *
+ * The `Just` payload is a `Cast` of the number, not a lookup: past the membership test the number
+ * *is* the constructor, because that is what pinning a value means.
+ */
+ModulePtr<Value> emitEnumFromValue(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                   LocationId source, StringId resultName) {
+    auto global = resolver.global;
+    auto maybe = (RecordType*)global[type];
+    if(global[type]->kind != Type::Record) return nullptr;
+
+    auto just = constructorNamed(global, *maybe, "Just"_v);
+    auto nothing = constructorNamed(global, *maybe, "Nothing"_v);
+    if(just == maxLimit<U32> || nothing == maxLimit<U32>) return nullptr;
+
+    auto payload = maybe->constructors.get(global, just).content;
+    auto record = enumHead(global, payload);
+    if(!record) return nullptr;
+
+    auto condition = enumMembership(resolver, *record, args[0], source);
+    if(!condition) return nullptr;
+
+    auto present = resolver.addBlock();
+    auto absent = resolver.addBlock();
+    resolver.terminate(resolver.emit<InstJe>(source, StringId(), resolver.module.scalar.unit,
+                                             condition, present, absent));
+
+    BranchArmList arms;
+
+    /*
+     * The number read as the constructor, in two steps rather than one.
+     *
+     * `Cast` answers "how does the value change on the way", and between an `I64` and a payload-free
+     * sum there are two different answers stacked on top of each other: the number narrows to the
+     * width the sum is held in, and then the bits are read as that sum. Asking one instruction for
+     * both left the folder with a numeric conversion whose target has no width to convert *to* - a
+     * record is not an integer type, so every rule that reads one declines - and a constant input
+     * came out of the branch as the wrong constructor.
+     *
+     * Split, each half is a shape that already existed: a narrowing between two integers, and a
+     * reinterpretation between two things of one width. Which is also what the operation *is*.
+     */
+    resolver.current = present;
+    auto narrowed = resolver.ref(resolver.emit<InstUnary>(source, StringId(), resolver.module.scalar.int_,
+                                                         Value::Cast, args[0]));
+    auto constructed = resolver.ref(resolver.emit<InstUnary>(source, StringId(), payload, Value::Bitcast, narrowed));
+    arms.push(BranchArm { resolver.current, resolver.makeConstructed(type, just, constructed, source), source });
+
+    resolver.current = absent;
+    arms.push(BranchArm { resolver.current, resolver.makeConstructed(type, nothing, nullptr, source), source });
+
+    return resolver.finishBranches(arms, source, true);
+}
+
+/*
+ * `nameOf`: the constructor's own word.
+ *
+ * A chain of comparisons against the numbers the declaration pinned, each arm producing one string
+ * constant, joined by a phi - which is what the `match` in `Show(FileError)` was, written out by the
+ * compiler from the declaration instead of by hand from a list that could drift from it.
+ *
+ * The last constructor is the fall-through rather than a comparison of its own, so an N-constructor
+ * type costs N-1 compares and not N. That is sound because the input is one of these values: an
+ * `Enum` head is a payload-free sum, and every bit pattern one of those can hold is a constructor
+ * the declaration named. It is also what a hand-written `match` with a final `_` produces.
+ *
+ * Constant-folds away entirely at a site where the constructor is known, which is most of them: the
+ * comparisons are against a constant and the arms are constants.
+ */
+static ModulePtr<Value> emitEnumNameOf(ExprResolver& resolver, ModulePtr<Value> value, RecordType& record,
+                                       LocationId source) {
+    auto global = resolver.global;
+    auto& module = resolver.module;
+    auto bool_ = module.scalar.bool_;
+    auto long_ = module.scalar.long_;
+    auto unit = module.scalar.unit;
+
+    auto constructors = record.constructors.contents(global);
+    auto number = resolver.ref(resolver.emit<InstUnary>(source, StringId(), long_, Value::Cast, value));
+
+    BranchArmList arms;
+
+    for(Size i = 0; i + 1 < constructors.size(); i++) {
+        auto pinned = resolver.makeInt(source, long_, U64(constructors[i].value));
+        auto matches = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, number, pinned, CompareOp::Eq));
+
+        auto hit = resolver.addBlock();
+        auto next = resolver.addBlock();
+        resolver.terminate(resolver.emit<InstJe>(source, StringId(), unit, matches, hit, next));
+
+        resolver.current = hit;
+        auto text = resolver.resolveString(source, constructors[i].name);
+        if(!text) return nullptr;
+        arms.push(BranchArm { resolver.current, text, source });
+
+        resolver.current = next;
+    }
+
+    auto last = resolver.resolveString(source, constructors[constructors.size() - 1].name);
+    if(!last) return nullptr;
+    arms.push(BranchArm { resolver.current, last, source });
+
+    return resolver.finishBranches(arms, source, true);
+}
+
+ModulePtr<Value> emitEnumName(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
+                              LocationId source, StringId) {
+    auto record = enumHead(resolver.global, resolver.valueType(args[0]));
+    if(!record) return nullptr;
+
+    return emitEnumNameOf(resolver, args[0], *record, source);
+}
+
+/*
+ * A class function of a *known* class, applied to values whose types select the instance.
+ *
+ * The route `ExprResolver::truthy` takes, for the same reason it takes it: selecting against the
+ * class rather than by name means a module that happens to define a plain `length` cannot take over
+ * what this emits, and it means the call goes through whatever stands in the slot - a parametric
+ * head's generic body, or the class's own default - rather than assuming an implementation.
+ *
+ * This is where `fromName` reaches out of Core. `Eq(String)` and `Length(String)` are `Text`'s and
+ * `Collections`' respectively, and both are `@platform`-split; nothing here knows that, which is the
+ * point of asking the class. Instance lookup is program-wide (see findInstances), so what a module
+ * imported does not decide which of the two answers.
+ */
+static ModulePtr<Value> callClassFun(ExprResolver& resolver, GlobalPtr<TypeClass> typeClass, StringView name,
+                                     Buffer<ResolvedArg> args, TypePtr result, LocationId source) {
+    if(!typeClass) return nullptr;
+
+    auto global = resolver.global;
+    auto wanted = Context::nameHash(name);
+    auto functions = global[typeClass]->functions;
+
+    for(Size i = 0; i < functions.size(); i++) {
+        auto entry = functions.get(global, i);
+        if(entry.name != wanted || entry.arity != args.length) continue;
+
+        ClassFunRef reference { typeClass, entry.name, U16(i) };
+        ClassMatch match;
+
+        if(!resolver.matchClassFun(reference, args, {}, result, match)) return nullptr;
+        if(!match.instance) return nullptr;
+
+        return resolver.emitInstanceCall(resolver.module, match.instance, toBuffer(match.instanceArgs),
+                                         match.index, args, source);
+    }
+
+    return nullptr;
+}
+
+/*
+ * `fromName`: the constructor a word names, or nothing.
+ *
+ * Two levels, and the outer one is why: the names are grouped by length, a single `length` of the
+ * input picks the group, and only the names that could possibly match are compared. An enum whose
+ * constructors are mostly of different lengths therefore pays one integer compare per *distinct
+ * length* plus one string compare, rather than one string compare per constructor.
+ *
+ * What that saves is the calls and not the comparisons. `Eq(String).==` opens by comparing lengths
+ * itself - it has to, since that is what makes its loop's bound safe - so the second gate would be
+ * redundant if the call were free. It is not free: nineteen `errno` constructors are nineteen calls
+ * to `length` and nineteen to `==` before any optimizer runs, and this is one and one.
+ *
+ * The comparison inside a group is a chain and is honest about being one. A later pass may turn it
+ * into something with a hash in it; as written it is what a hand-written parser would have contained,
+ * which is the standard this file holds generated code to.
+ */
+ModulePtr<Value> emitEnumFromName(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                  LocationId source, StringId) {
+    auto global = resolver.global;
+    auto& module = resolver.module;
+    auto& program = module.program;
+
+    auto maybe = (RecordType*)global[type];
+    if(global[type]->kind != Type::Record) return nullptr;
+
+    auto just = constructorNamed(global, *maybe, "Just"_v);
+    auto nothing = constructorNamed(global, *maybe, "Nothing"_v);
+    if(just == maxLimit<U32> || nothing == maxLimit<U32>) return nullptr;
+
+    auto payload = maybe->constructors.get(global, just).content;
+    auto record = enumHead(global, payload);
+    if(!record) return nullptr;
+
+    auto bool_ = module.scalar.bool_;
+    auto size = module.scalar.size;
+    auto unit = module.scalar.unit;
+    auto string_ = module.scalar.string_;
+
+    auto eq = program.core ? classNamed(*program.core, "Eq"_v) : nullptr;
+    auto length = program.collections ? classNamed(*program.collections, "Length"_v) : nullptr;
+    if(!eq || !length) return nullptr;
+
+    // The distinct lengths, in declaration order, with the constructors at each. A `SmallArray`
+    // per group would be a list of lists; the two parallel walks below cost nothing on the sizes
+    // an enum actually has and allocate nothing at all.
+    auto constructors = record->constructors.contents(global);
+    auto nameLength = [&](Size index) {
+        return module.context.findName(constructors[index].name).size();
+    };
+
+    ResolvedArg lengthArgs[] = { args[0] };
+    auto given = callClassFun(resolver, length, "length"_v, { lengthArgs, 1 }, size, source);
+    if(!given) return nullptr;
+
+    BranchArmList arms;
+
+    for(Size i = 0; i < constructors.size(); i++) {
+        // Only at the first constructor of each length; a later one of the same length is compared
+        // inside that length's group rather than opening a second one.
+        auto first = true;
+        for(Size j = 0; j < i; j++) {
+            if(nameLength(j) == nameLength(i)) { first = false; break; }
+        }
+
+        if(!first) continue;
+
+        auto wanted = resolver.makeInt(source, size, U64(nameLength(i)));
+        auto matches = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, given, wanted, CompareOp::Eq));
+
+        auto group = resolver.addBlock();
+        auto next = resolver.addBlock();
+        resolver.terminate(resolver.emit<InstJe>(source, StringId(), unit, matches, group, next));
+
+        resolver.current = group;
+
+        for(Size j = i; j < constructors.size(); j++) {
+            if(nameLength(j) != nameLength(i)) continue;
+
+            auto text = resolver.resolveString(source, constructors[j].name);
+            if(!text) return nullptr;
+
+            ResolvedArg equalArgs[] = { args[0], text };
+            auto equal = callClassFun(resolver, eq, "=="_v, { equalArgs, 2 }, bool_, source);
+            if(!equal) return nullptr;
+
+            auto hit = resolver.addBlock();
+            auto miss = resolver.addBlock();
+            resolver.terminate(resolver.emit<InstJe>(source, StringId(), unit, equal, hit, miss));
+
+            resolver.current = hit;
+
+            // The constructor as a value, in the two steps `fromValue` takes and for the same reason:
+            // the number narrows to the width the sum is held in, and then the bits are read as that
+            // sum. One `Cast` asked for both left the folder with a conversion whose target has no
+            // width to convert to.
+            auto pinned = resolver.makeInt(source, module.scalar.int_, U64(constructors[j].value));
+            auto constructed = resolver.ref(resolver.emit<InstUnary>(source, StringId(), payload,
+                                                                     Value::Bitcast, pinned));
+            arms.push(BranchArm { resolver.current, resolver.makeConstructed(type, just, constructed, source), source });
+
+            resolver.current = miss;
+        }
+
+        // Out of this length's group with nothing matched: the input is the right length and none of
+        // these words, which is as final an answer as the outer chain running out.
+        arms.push(BranchArm { resolver.current, resolver.makeConstructed(type, nothing, nullptr, source), source });
+        resolver.current = next;
+    }
+
+    arms.push(BranchArm { resolver.current, resolver.makeConstructed(type, nothing, nullptr, source), source });
+    return resolver.finishBranches(arms, source, true);
+}
+
+/*
+ * `Show` over a payload-free sum, which is the derived instance and not a fourth `Enum` function.
+ *
+ * What it writes is the constructor's name, which is what a derived `Show` prints in every language
+ * that has one and what `Show(FileError)` was already doing by hand. The prose form of an error - 
+ * `describeError` - stays a function beside the type, because it is a second answer about the value
+ * rather than the same one written out.
+ */
+static ModulePtr<Value> emitEnumShow(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
+                                     LocationId source, StringId) {
+    auto& module = resolver.module;
+    auto pushString = module.program.pushString;
+
+    auto record = enumHead(resolver.global, resolver.valueType(args[0]));
+    if(!record || !pushString) return nullptr;
+
+    auto text = emitEnumNameOf(resolver, args[0], *record, source);
+    if(!text) return nullptr;
+
+    // Through `borrowArgument` rather than by handing the parameter on, for the reason
+    // `resolveFormat` does the same: `&to` arrives as an address and `pushString`'s `&self` wants a
+    // borrow of the storage it names, and the two are only the same thing by accident of the level.
+    // What this emits is exactly what the hand-written `Show(String).show` emits.
+    auto borrowed = resolver.borrowArgument(args[1], module.scalar.string_, source);
+    if(!borrowed) return nullptr;
+
+    (*module.arena)[pushString]->used = true;
+    auto call = resolver.create<InstCall>(source, StringId(), module.scalar.unit, pushString);
+    call->args.push(module.arena, borrowed);
+    call->args.push(module.arena, text);
+    resolver.append(call);
+
+    return nullptr;
+}
+
+/*
+ * `showBound`: the longest name, which is a compile-time constant here in the way the class says it
+ * should be - an ordinary expression the folder sees through, not a second type-level channel.
+ *
+ * It is exact rather than generous, which is the contract `Show` states: the buffer is sized from
+ * this, so a bound larger than the truth wastes the difference and a bound smaller than the truth is
+ * the one thing an instance may not do. The longest constructor name is both.
+ */
+static ModulePtr<Value> emitEnumShowBound(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                          LocationId source, StringId) {
+    auto global = resolver.global;
+    auto& module = resolver.module;
+
+    auto maybe = (RecordType*)global[type];
+    if(global[type]->kind != Type::Record) return nullptr;
+
+    auto just = constructorNamed(global, *maybe, "Just"_v);
+    if(just == maxLimit<U32>) return nullptr;
+
+    auto record = enumHead(global, resolver.valueType(args[0]));
+    if(!record) return nullptr;
+
+    Size longest = 0;
+    for(auto constructor: record->constructors.contents(global)) {
+        auto text = module.context.findName(constructor.name).size();
+        if(text > longest) longest = text;
+    }
+
+    auto payload = maybe->constructors.get(global, just).content;
+    auto bound = resolver.makeInt(source, payload, U64(longest));
+    return resolver.makeConstructed(type, just, bound, source);
+}
+
+}
+
+ModulePtr<ClassInstance> enumInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    auto& program = module.program;
+    if(!typeClass || !program.core || typeClass != program.coreClasses.enum_) return nullptr;
+    if(args.length != 1 || !enumHead(*program.types, args[0])) return nullptr;
+
+    IntrinsicMethod methods[] = {
+        { "valueOf"_v, 1, emitEnumValue },
+        { "fromValue"_v, 1, emitEnumFromValue, nullptr, false },
+        { "nameOf"_v, 1, emitEnumName, nullptr, false },
+        { "fromName"_v, 1, emitEnumFromName, nullptr, false },
+    };
+
+    return generateInstance(*program.core, typeClass, args, { methods, 4 });
+}
+
+/*
+ * `Show` for a payload-free sum, generated where it is asked for - Analysis-Derive.md's `variant`
+ * template, for the one shape whose expansion needs no repetition form.
+ *
+ * On the terms `vectorInstance` and `enumInstance` set, which is what makes an automatic instance
+ * safe here: it is consulted only where an instance lookup found nothing, so a declared `Show` for an
+ * enum still wins - `Show(Bool)` in `Text` is the case that proves it, since `Bool` is a payload-free
+ * sum with an instance somebody wrote. What this answers is the enums nobody wrote one for.
+ *
+ * Automatic rather than a `deriving (Show)` clause, and the trade is worth stating because it cuts
+ * against the principle the clause exists for. What a type does is normally written where the type
+ * is; here it is not. The reason it is defensible for this one class and this one shape is that the
+ * answer is not a choice: a constructor with no payload has exactly one text form, which is its name,
+ * and every enum in this tree that wrote a `Show` wrote that. When the clause reaches `data`, this
+ * stays as the default a type may still override by declaring its own.
+ */
+ModulePtr<ClassInstance> enumShowInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    auto& program = module.program;
+    // `pushString` rather than `program.text`, because that is what the body actually needs and it is
+    // recorded a few statements later than the module is. A `Show` generated without it would be an
+    // instance whose `show` writes nothing, which is worse than no instance.
+    if(!typeClass || !program.core || !program.pushString || typeClass != program.coreClasses.show) return nullptr;
+    if(args.length != 1 || !enumHead(*program.types, args[0])) return nullptr;
+
+    IntrinsicMethod methods[] = {
+        { "show"_v, 2, emitEnumShow, nullptr, false },
+        { "showBound"_v, 1, emitEnumShowBound, nullptr, false },
+    };
+
+    return generateInstance(*program.core, typeClass, args, { methods, 2 });
 }
 
 ModulePtr<ClassInstance> defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen) {
@@ -599,6 +1173,20 @@ void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic) {
     }
 
     (*module.arena)[found.unwrap()]->intrinsic = intrinsic;
+}
+
+// The same, for a hook that wants its `@lazy` arguments unevaluated. `&&` and `||` are the only two,
+// and they need it for the reason the marker exists: what arrives is a thunk over the caller's
+// frame, and the whole point of the expansion is to emit it under a branch rather than call it.
+void attachDeferredIntrinsic(Module& module, StringView name, DeferredIntrinsic intrinsic) {
+    auto found = module.functions.get(Context::nameHash(name));
+
+    if(!found) {
+        module.context.diagnostics.error("internal: no declaration of the intrinsic %@"_v, kNullLocation, name);
+        return;
+    }
+
+    (*module.arena)[found.unwrap()]->deferredIntrinsic = intrinsic;
 }
 
 /*

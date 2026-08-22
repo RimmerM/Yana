@@ -1,6 +1,7 @@
 #include "name.h"
 #include "index.h"
 #include "simd.h"
+#include "intrinsic.h"
 
 /*
  * The typed wrappers over search().
@@ -367,6 +368,16 @@ static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeCl
      */
     if(!best) {
         if(auto generated = vectorInstance(module, typeClass, args)) return InstanceMatch { generated, {} };
+
+        // And a payload-free sum's `Enum`, which is generated on the same terms and for the same
+        // reason - Analysis-Language.md §5.1. Nothing here can shadow a declared head either.
+        if(auto generated = enumInstance(module, typeClass, args)) return InstanceMatch { generated, {} };
+
+        // And its `Show`, which is the derived instance the constructor names already decide. Same
+        // terms again, and they are what makes it safe to supply automatically: `Show(Bool)` is
+        // declared in `Text` over a payload-free sum, and reaches this point only if nothing matched
+        // - which it never does.
+        if(auto generated = enumShowInstance(module, typeClass, args)) return InstanceMatch { generated, {} };
     }
 
     return best;

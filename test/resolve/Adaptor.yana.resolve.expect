@@ -2040,8 +2040,7 @@ fn main() -> Int {
 
   b1:
     %v16 = alloc : Outcome((), Outcome((), $r))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v7
+    aggregate %local4.discriminant = 1, %local4@Exit = %v7
     ret %v16
 
   b2:
@@ -2081,8 +2080,7 @@ fn main() -> Int {
 
   b3:
     %v19 = alloc : Outcome((), Outcome((), $r))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v8
+    aggregate %local3.discriminant = 1, %local3@Exit = %v8
     ret %v19
 
   b4:
@@ -2119,8 +2117,7 @@ fn main() -> Int {
 
   b1:
     %v16 = alloc : Outcome((), Outcome((), $r))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v7
+    aggregate %local4.discriminant = 1, %local4@Exit = %v7
     ret %v16
 
   b2:
@@ -2247,8 +2244,7 @@ fn ResolveTest.continuation$19(%env: %{bound: Int}, %value$: Int) -> Outcome((),
 
   b1:
     %v10 = alloc : Outcome((), Int)
-    init %local1.discriminant, 1
-    init %local1@Exit, %value$
+    aggregate %local1.discriminant = 1, %local1@Exit = %value$
     ret %v10
 
   b2:
@@ -2301,14 +2297,13 @@ fn ResolveTest.continuation$14(Int, Int, Int)(%env: %{body: &(value$: Int) -> Ou
 
   b1:
     %v12 = alloc : Outcome((), Outcome((), Int))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v7
+    aggregate %local4.discriminant = 1, %local4@Exit = %v7
     ret %v12
 
   b2:
-    %v17 = alloc : Outcome((), Outcome((), Int))
+    %v16 = alloc : Outcome((), Outcome((), Int))
     init %local3.discriminant, 0
-    ret %v17
+    ret %v16
 }
 
 fn each(Int, Outcome((), Int))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Outcome((), Int))) -> Outcome((), Outcome((), Int)) {
@@ -2491,14 +2486,13 @@ fn ResolveTest.continuation$14(Int, Int, ())(%env: %{body: &(value$: Int) -> Out
 
   b1:
     %v12 = alloc : Outcome((), Outcome((), ()))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v7
+    aggregate %local4.discriminant = 1, %local4@Exit = %v7
     ret %v12
 
   b2:
-    %v17 = alloc : Outcome((), Outcome((), ()))
+    %v16 = alloc : Outcome((), Outcome((), ()))
     init %local3.discriminant, 0
-    ret %v17
+    ret %v16
 }
 
 fn each(Int, Outcome((), ()))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
@@ -2614,17 +2608,16 @@ fn ResolveTest.continuation$15(Int, ())(%env: %{keep: &(v: Int) -> Bool, body: &
 
   b3:
     %v14 = alloc : Outcome((), Outcome((), ()))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v8
+    aggregate %local3.discriminant = 1, %local3@Exit = %v8
     ret %v14
 
   b4:
     jmp b5
 
   b5:
-    %v20 = alloc : Outcome((), Outcome((), ()))
+    %v19 = alloc : Outcome((), Outcome((), ()))
     init %local2.discriminant, 0
-    ret %v20
+    ret %v19
 }
 
 fn ResolveTest.continuation$23(%env: %{big: &mut Int}, %value$: Int) -> Outcome((), ()) {
@@ -2680,14 +2673,13 @@ fn ResolveTest.continuation$16(Int, ())(%env: %{body: &(value$: Int) -> Outcome(
 
   b1:
     %v12 = alloc : Outcome((), Outcome((), ()))
-    init %local4.discriminant, 1
-    init %local4@Exit, %v7
+    aggregate %local4.discriminant = 1, %local4@Exit = %v7
     ret %v12
 
   b2:
-    %v17 = alloc : Outcome((), Outcome((), ()))
+    %v16 = alloc : Outcome((), Outcome((), ()))
     init %local3.discriminant, 0
-    ret %v17
+    ret %v16
 }
 
 fn filtered(Int, Outcome((), ()))(%xs: Flat(Int), %keep: (v: Int) -> Bool, %body: (value$: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
@@ -2737,17 +2729,16 @@ fn ResolveTest.continuation$15(Int, Outcome((), ()))(%env: %{keep: &(v: Int) -> 
 
   b3:
     %v14 = alloc : Outcome((), Outcome((), Outcome((), ())))
-    init %local3.discriminant, 1
-    init %local3@Exit, %v8
+    aggregate %local3.discriminant = 1, %local3@Exit = %v8
     ret %v14
 
   b4:
     jmp b5
 
   b5:
-    %v20 = alloc : Outcome((), Outcome((), Outcome((), ())))
+    %v19 = alloc : Outcome((), Outcome((), Outcome((), ())))
     init %local2.discriminant, 0
-    ret %v20
+    ret %v19
 }
 
 fn each(Int, Outcome((), Outcome((), ())))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Outcome((), Outcome((), ())))) -> Outcome((), Outcome((), Outcome((), ()))) {
@@ -2803,7 +2794,7 @@ fn countUp(Bool)(%limit: Int, %marker: Bool) -> Int {
     %total = alloc : Int
     init %total, 0
     %v5 = alloc : Array(Int)
-    %v6 = alloc *4 : Int
+    %v7 = alloc *4 : Int
     %v9 = addressof %local3 : %Int
     init %local2@Array.run@Run.items, %v9
     init %local2@Array.run@Run.capacity, 4
@@ -2892,17 +2883,16 @@ fn ResolveTest.continuation$19(Bool)(%env: %{bound: Int}, %value$: Int) -> Outco
 
   b1:
     %v5 = alloc : Outcome((), Int)
-    init %local1.discriminant, 1
-    init %local1@Exit, %value$
+    aggregate %local1.discriminant = 1, %local1@Exit = %value$
     ret %v5
 
   b2:
     jmp b3
 
   b3:
-    %v11 = alloc : Outcome((), Int)
+    %v10 = alloc : Outcome((), Int)
     init %local0.discriminant, 0
-    ret %v11
+    ret %v10
 }
 
 fn throughLens(Bool)(%value: Bool, %n: Int) -> Int {
@@ -2923,7 +2913,7 @@ fn ResolveTest.continuation$20(Bool)(%env: %{n: Int}) -> Int {
     %total = alloc : Int
     init %total, 0
     %v4 = alloc : Array(Int)
-    %v5 = alloc *3 : Int
+    %v6 = alloc *3 : Int
     %v8 = addressof %local2 : %Int
     init %local1@Array.run@Run.items, %v8
     init %local1@Array.run@Run.capacity, 3

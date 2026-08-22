@@ -1,0 +1,36 @@
+{-
+   What `deriving` refuses on a qualified alias - Analysis-Derive.md §3.
+
+   Every case here is a condition the forwarding rewrite is well-defined under, reported at the class
+   name in the clause rather than from inside an expansion - which is the whole of what §3's "where
+   errors land" section asks for.
+-}
+
+-- The content has no instance to forward to. This is the common failure, and it names both halves of
+-- the head the derivation would have needed.
+alias qualified Named = String deriving (Bitwise)
+
+-- The class variable does not occur bare. `fromValue(number: I64) -> Maybe(a)` puts it inside
+-- another type, and there is no coercion from `Maybe(Ticket)` to `Maybe(I64)` for a forwarding body
+-- to emit - Analysis-Derive.md §2's sixth point, which is Haskell's `GeneralizedNewtypeDeriving`
+-- restriction written down as a condition.
+alias qualified Ticket = I64 deriving (Enum)
+
+-- A class with more than one type variable. There is no single "the content" to forward to.
+alias qualified Bits = I64 deriving (Bitcast)
+
+-- The class is not one.
+alias qualified Score = Int deriving (Nonexistent)
+
+-- Structurally decided, so there is nothing an instance could say - the same refusal a written
+-- `instance TrivialCopy(T)` gets.
+alias qualified Token = Int deriving (TrivialCopy)
+
+-- A generic newtype, whose head would need the context worked out from its content.
+alias qualified Wrapped(a) = a deriving (Eq)
+
+-- Derived and written for one class and one type. Reported at the second of the two, which is the
+-- clause here because the sweep takes declarations in order.
+alias qualified Flags = I64 deriving (Truth)
+instance Truth(Flags):
+    fn truthy(value: Flags) -> Bool = True

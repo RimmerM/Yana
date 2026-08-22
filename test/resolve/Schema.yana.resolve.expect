@@ -84,8 +84,8 @@ fn identity(%value: a) -> a {
     jmp b3
 
   b3:
-    %v9 = phi [b1, %v6], [b2, %v4] : Bool
-    ret %v9
+    %v10 = phi [b1, %v6], [b2, False] : Bool
+    ret %v10
 }
 
 fn pairUp(%x: a, %y: b) -> Pair(a, b) {
@@ -223,7 +223,7 @@ fn bothEqual(Int, Bool)(%p: Int, %q: Int, %r: Bool, %s: Bool) -> Bool {
     jmp b3
 
   b3:
-    %v4 = phi [b1, %v7], [b2, %v5] : Bool
+    %v4 = phi [b1, %v7], [b2, False] : Bool
     ret %v4
 }
 

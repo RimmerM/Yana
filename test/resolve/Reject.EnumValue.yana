@@ -1,0 +1,19 @@
+-- What `@value(n)` refuses - Analysis-Language.md §5.1.
+
+-- Two constructors naming one number. Reported at the later of the two, which is the one whose
+-- number can change without renumbering everything after it.
+data Collides = @value(2) A | @value(13) B | @value(2) C
+
+-- The same collision without a second attribute, because an unpinned constructor continues from the
+-- one before it: `Next` is 3, which `Also` was pinned to.
+data Continued = @value(2) First | Next | @value(3) Also
+
+-- A constructor that carries something. What the value would name is the tag beside the payload
+-- rather than the value itself, so there is nothing for it to pin.
+data WithPayload = @value(2) Held(Int) | Empty
+
+-- An argument that is not a whole number written down. The number is one an ABI on the other side
+-- of a boundary already fixed, so there is nothing here for an expression to compute.
+data NotALiteral = @value(1 + 1) A2 | B2
+data NotANumber = @value("two") A3 | B3
+data TooMany = @value(1, 2) A4 | B4

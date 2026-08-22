@@ -2,12 +2,10 @@
 // ResolveTest
 function okL(x, d, q, r) {
   if (d === 0n) {
-    var v10 = q === 0n;
-    return (v10 ? r === x : v10) ? 1 : 0;
+    return (q === 0n ? r === x : 0) ? 1 : 0;
   } else {
     if (d === -1n) {
-      var v33 = q === BigInt.asIntN(64, 0n - x);
-      return (v33 ? r === 0n : v33) ? 1 : 0;
+      return (q === BigInt.asIntN(64, 0n - x) ? r === 0n : 0) ? 1 : 0;
     } else {
       return BigInt.asIntN(64, BigInt.asIntN(64, q * d) + r) === x ? 1 : 0;
     }
@@ -16,12 +14,10 @@ function okL(x, d, q, r) {
 
 function okI(x, d, q, r) {
   if (d === 0) {
-    var v10 = q === 0;
-    return (v10 ? r === x : v10) ? 1 : 0;
+    return (q === 0 ? r === x : 0) ? 1 : 0;
   } else {
     if (d === -1) {
-      var v32 = q === (0 - x | 0);
-      return (v32 ? r === 0 : v32) ? 1 : 0;
+      return (q === (0 - x | 0) ? r === 0 : 0) ? 1 : 0;
     } else {
       return (Math.imul(q, d) + r | 0) === x ? 1 : 0;
     }
@@ -29,36 +25,32 @@ function okI(x, d, q, r) {
 }
 
 function runtimeU(x, d) {
-  var v26;
+  var v28;
   var v2 = BigInt.asUintN(64, $div(x, d));
   var v3 = BigInt.asUintN(64, $rem(x, d));
   if (d === 0n) {
-    var v19 = v2 === 0n;
-    v26 = (v19 ? v3 === x : v19) ? 1 : 0;
+    v28 = (v2 === 0n ? v3 === x : 0) ? 1 : 0;
   } else {
-    var v11 = BigInt.asUintN(64, BigInt.asUintN(64, v2 * d) + v3) === x;
-    v26 = (v11 ? v3 < d : v11) ? 1 : 0;
+    v28 = (BigInt.asUintN(64, BigInt.asUintN(64, v2 * d) + v3) === x ? v3 < d : 0) ? 1 : 0;
   }
-  return v26;
+  return v28;
 }
 
 function runtimeW(x, d) {
-  var v26;
+  var v28;
   var v2 = x / d >>> 0;
   var v3 = $rem(x, d) >>> 0;
   if (d === 0) {
-    var v19 = v2 === 0;
-    v26 = (v19 ? v3 === x : v19) ? 1 : 0;
+    v28 = (v2 === 0 ? v3 === x : 0) ? 1 : 0;
   } else {
-    var v11 = (Math.imul(v2, d) >>> 0) + v3 >>> 0 === x;
-    v26 = (v11 ? v3 < d : v11) ? 1 : 0;
+    v28 = ((Math.imul(v2, d) >>> 0) + v3 >>> 0 === x ? v3 < d : 0) ? 1 : 0;
   }
-  return v26;
+  return v28;
 }
 
 function main() {
   var v379;
-  var v403;
+  var v404;
   var longs = [0n, 1n, 7n, -7n, -9223372036854775808n, -9223372036854775807n, 9223372036854775807n];
   var dLongs = [0n, -1n, 1n, 2n, -2n, 3n, 10n];
   var ints = [0, 1, 7, -7, -2147483648, -2147483647, 2147483647];
@@ -87,21 +79,19 @@ function main() {
         break L1;
       }
       var v249 = longs[i];
-      var v384 = BigInt.asIntN(64, $div(v249, -1n)) === BigInt.asIntN(64, 0n - v249);
-      if (v384) {
+      if (BigInt.asIntN(64, $div(v249, -1n)) === BigInt.asIntN(64, 0n - v249)) {
         v379 = BigInt.asIntN(64, $rem(v249, -1n)) === 0n;
       } else {
-        v379 = v384;
+        v379 = 0;
       }
       var v251 = total + (v379 ? 1 : 0) | 0;
       var v267 = ints[i];
-      var v408 = (v267 / -1 | 0) === (0 - v267 | 0);
-      if (v408) {
-        v403 = ($rem(v267, -1) | 0) === 0;
+      if ((v267 / -1 | 0) === (0 - v267 | 0)) {
+        v404 = ($rem(v267, -1) | 0) === 0;
       } else {
-        v403 = v408;
+        v404 = 0;
       }
-      total = v251 + (v403 ? 1 : 0) | 0;
+      total = v251 + (v404 ? 1 : 0) | 0;
       i = i + 1 | 0;
       continue L0;
     }

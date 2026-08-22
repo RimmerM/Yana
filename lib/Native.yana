@@ -912,7 +912,7 @@ pub fn capacity(self: Run(a)) -> Size = self.capacity :: Size
 
 -- Where the slots start. A container indexes off this; nothing here says how many of them hold
 -- anything, because a run does not know.
-pub fn slots(self: Run(a)) -> %a = self.items
+pub fn slots(return self: Run(a)) -> %a = self.items
 
 {-
    Room for `wanted` slots, relocating if there is not.
@@ -1037,7 +1037,7 @@ instance Reclaim(Run(a)):
 -- narrow element has no address, and the partiality is what keeps `sizeOf` and pointer arithmetic
 -- off the fractional-stride path. Absent on JS for a stronger reason: `items` there is the whole
 -- host array rather than the window, so a caller given it would read past both ends.
-@platform(native) pub fn values(self: Flat(a)) -> %a = self.items
+@platform(native) pub fn values(return self: Flat(a)) -> %a = self.items
 
 {-
    Subscripting a slice and a raw pointer - Core's `Index`, and where `xs[i]` on an array ends up.

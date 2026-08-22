@@ -2606,6 +2606,63 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
     return result;
 }
 
+/*
+ * A type variable a call cannot decide and does not have to.
+ *
+ * Selection skips a `@lazy` position - the argument is not resolved, and resolving it to find out
+ * would evaluate it, which is the whole of what the marker says not to do. So a variable occurring
+ * *only* in `@lazy` positions is never bound by any call, however concrete the arguments are:
+ * `fn (Truth(a), Truth(b)) &&(lhs: a, @lazy rhs: b)` cannot even be called with two `Bool`s.
+ *
+ * What this asks is whether that is survivable rather than fatal, and the answer is a property of
+ * where the variable occurs. It has to be absent from the result, because a caller reads that type;
+ * absent from every strict parameter, or the ordinary binding would have decided it; and present in
+ * at least one deferred one, or there is nothing lazy about the situation at all.
+ *
+ * When all three hold, the only thing that ever reads the variable is the *thunk* built for that
+ * argument - it is the closure's return type - and a callee that expands rather than being called
+ * builds no thunk: the operand is emitted where it is used, and its own type is whatever it turns
+ * out to be. So an expansion needs nothing here, and this is what lets it proceed.
+ *
+ * A callee that is *not* expanded still needs the type, and still reports. Learning it by resolving
+ * the argument into the thunk and reading the result back is possible and is the obvious next step;
+ * it is not done here because the type would then be decided after the arguments it might have
+ * converted, which is an ordering change rather than a hole to fill.
+ */
+static bool deferredOnlyVariable(GlobalBase global, ModuleBase local, Function& signature, Size index) {
+    if(mentionsVariable(global, signature.returnType, U16(index))) return false;
+
+    auto deferred = false;
+
+    for(Size i = 0; i < signature.args.size(); i++) {
+        auto arg = local[signature.args.get(local, i)];
+        if(!mentionsVariable(global, arg->declaredType(), U16(index))) continue;
+        if(!arg->isLazy()) return false;
+
+        deferred = true;
+    }
+
+    return deferred;
+}
+
+// Every slot the solve left empty that the rule above forgives, filled with the callee's own
+// variable so that substitution has something to walk. Answers whether the solve may proceed.
+static bool fillDeferredHoles(GlobalBase global, ModuleBase local, Function& signature,
+                              GenEnv& calleeEnv, Solution& solution) {
+    auto filled = false;
+
+    for(Size i = 0; i < solution.types.size(); i++) {
+        if(solution.types[i]) continue;
+        if(!deferredOnlyVariable(global, local, signature, i)) return false;
+
+        solution.types[i] = (Type*)global[calleeEnv.types.get(global, i)] - global;
+        filled = true;
+    }
+
+    if(filled) solution.state = Solution::State::Solved;
+    return filled;
+}
+
 ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
                                                LocationId source, TypePtr target, StringId resultName,
                                                Buffer<TypePtr> solved) {
@@ -2688,13 +2745,37 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         return nullptr;
     }
 
+    /*
+     * A hole an expansion does not need - see deferredOnlyVariable.
+     *
+     * Only for a callee that will actually expand, which is what makes the omission safe rather than
+     * deferred: a deferred intrinsic emits its `@lazy` operand where it runs it, so the thunk whose
+     * return type this variable would have been is never built.
+     */
+    auto expandingWithHoles = solution.state == Solution::State::Undecided && generic->deferredIntrinsic &&
+                              fillDeferredHoles(global, local, *generic, *calleeEnv, solution);
+
     // A specialization is made for concrete types, so a literal variable the call left open settles
     // to its default before it becomes one of them - and a variable nothing decided at all is one
     // this call site has to say out loud.
     if(solution.state == Solution::State::Undecided) {
+        auto variable = context.findName(global[calleeEnv->types.get(global, solution.position)]->name);
+
+        /*
+         * The same hole, at a callee that does not expand - see deferredOnlyVariable.
+         *
+         * Said separately because the general advice is wrong here: the expected type cannot fix it.
+         * The variable occurs only where an argument is not evaluated, so no call can decide it and
+         * no result can either; what has to change is the declaration.
+         */
+        if(deferredOnlyVariable(global, local, *generic, solution.position)) {
+            context.diagnostics.error("%@ declares %@ only in `@lazy` positions, so no call can decide it - a deferred argument is not resolved when the callee is chosen, and resolving it to find out would evaluate it. Give that parameter a type the other arguments bind, or the same variable as one of them"_v,
+                                      source, context.findName(generic->name), variable);
+            return nullptr;
+        }
+
         context.diagnostics.error("cannot infer type argument %@ of %@ here - give the expected type"_v, source,
-                                  context.findName(global[calleeEnv->types.get(global, solution.position)]->name),
-                                  context.findName(generic->name));
+                                  variable, context.findName(generic->name));
         return nullptr;
     }
 
@@ -2704,6 +2785,12 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     substituteArguments(callee, args, toBuffer(bindings), source, converted);
 
     auto undecided = bindings.contains([&](TypePtr binding) { return isGeneric(global, binding); });
+
+    // The holes above are generic on purpose, so this is decided before `undecided` is consulted:
+    // what is left open is a type nothing reads, not a call waiting for a caller to make concrete.
+    if(expandingWithHoles) {
+        return expandIntrinsic(callee, toBuffer(bindings), toBuffer(converted), source, resultName);
+    }
 
     if(!undecided) {
         // A generic intrinsic has nothing to specialize: what it means is generated here from the
@@ -2758,7 +2845,36 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
     auto call = create<InstGenCall>(source, resultName, resultType, callee, nullptr, 0);
 
     for(auto binding: bindings) call->typeArgs.push(module.arena, binding);
-    for(auto& argument: converted) call->args.push(module.arena, argument.value);
+
+    /*
+     * A `@lazy` position becomes the closure the callee will run, exactly as it does for a class
+     * dispatch - see emitGenericDispatch, whose loop this is.
+     *
+     * A deferred `ResolvedArg` carries nothing in `value`; what it has is a promise, and
+     * `substituteArguments` leaves it alone because there is no parameter type in the caller's terms
+     * to convert it against. Pushing `.value` straight through therefore handed the call a null
+     * operand, which printed as `%v0` and lowered to garbage - a bug this path had for as long as it
+     * existed and that nothing reached, because until `&&` and `||` became plain functions there was
+     * no generic plain function with a `@lazy` parameter for a generic body to forward one into.
+     */
+    for(Size i = 0; i < converted.size(); i++) {
+        auto declared = i < generic->args.size() ? local[generic->args.get(local, i)] : nullptr;
+
+        if(declared && declared->isLazy()) {
+            auto type = substituted(declared->lazyType, toBuffer(bindings), source);
+            auto entry = converted[i].promise;
+
+            // Not deferred by the call site - a forwarded value, or a synthesized call - which is
+            // the same completion fillDeferred makes for every other route to a `@lazy` parameter.
+            if(!entry.isSet()) entry = deferredValue(converted[i].value, type);
+            entry.type = type;
+
+            call->args.push(module.arena, makeThunk(entry, type, source));
+            continue;
+        }
+
+        call->args.push(module.arena, converted[i].value);
+    }
 
     append(call);
     auto result = ref(call);

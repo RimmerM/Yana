@@ -39,24 +39,20 @@ function showSigned(value, to$o, to$k, to$s) {
 
 function terminatesAt(value, count) {
   var text = value.toExponential(100);
-  var v77 = text.length;
+  var v81 = text.length;
   var seen = 0;
   var i = 0;
   L0: for (;;) {
-    if (i < v77) {
-      var v78 = text.charCodeAt(i);
-      var v19 = v78 === 101;
-      if (v19 ? v19 : v78 === 69) {
+    if (i < v81) {
+      var v82 = text.charCodeAt(i);
+      if (v82 === 101 ? 1 : v82 === 69) {
         return 1;
       } else {
         B1: {
-          var v33 = v78 !== 46;
-          var v81 = v33 ? v78 !== 45 : v33;
-          if (v81 ? v78 !== 43 : v81) {
-            var v52 = seen + 1 | 0;
-            seen = v52;
-            var v55 = v52 > count;
-            if (v55 ? v78 !== 48 : v55) {
+          if ((v82 !== 46 ? v82 !== 45 : 0) ? v82 !== 43 : 0) {
+            var v55 = seen + 1 | 0;
+            seen = v55;
+            if (v55 > count ? v82 !== 48 : 0) {
               return 0;
             }
           }
@@ -95,20 +91,19 @@ function evenAtTie(value, shortest$digits, shortest$exponent) {
 }
 
 function shortestOfText(text) {
-  var v178 = text.length;
+  var v182 = text.length;
   var digits = 0n;
   var fractional = 0;
   var afterPoint = 0;
   var i = 0;
   L0: for (;;) {
-    if (i < v178) {
-      var v179 = text.charCodeAt(i);
-      var v22 = v179 === 101;
-      if (!(v22 ? v22 : v179 === 69)) {
-        if (v179 === 46) {
+    if (i < v182) {
+      var v183 = text.charCodeAt(i);
+      if (!(v183 === 101 ? 1 : v183 === 69)) {
+        if (v183 === 46) {
           afterPoint = 1;
         } else {
-          digits = BigInt.asUintN(64, BigInt.asUintN(64, digits * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v179 - 48 | 0))));
+          digits = BigInt.asUintN(64, BigInt.asUintN(64, digits * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v183 - 48 | 0))));
           if (afterPoint) {
             fractional = fractional + 1 | 0;
           }
@@ -121,21 +116,21 @@ function shortestOfText(text) {
   }
   var exponent = 0;
   var negative = 0;
-  var v75 = i + 1 | 0;
-  i = v75;
-  if (v75 < v178) {
-    var v182 = text.charCodeAt(i);
-    if (v182 === 45) {
+  var v76 = i + 1 | 0;
+  i = v76;
+  if (v76 < v182) {
+    var v186 = text.charCodeAt(i);
+    if (v186 === 45) {
       negative = 1;
       i = i + 1 | 0;
     } else {
-      if (v182 === 43) {
+      if (v186 === 43) {
         i = i + 1 | 0;
       }
     }
   }
   L1: for (;;) {
-    if (i < v178) {
+    if (i < v182) {
       exponent = Math.imul(exponent, 10) + (text.charCodeAt(i) - 48 | 0) | 0;
       i = i + 1 | 0;
       continue L1;
@@ -237,16 +232,16 @@ function writeShortest(value$digits, value$exponent, to$o, to$k, to$s) {
   var exp = v5 - 1 | 0;
   var v11 = exp < 0;
   var v15 = 0 - exp | 0;
-  if (v11 ? v15 <= 7 : v11) {
-    var v144 = to$o[to$k] + String.fromCharCode(48);
-    to$o[to$k] = v144;
-    var v148 = to$o[to$k] + String.fromCharCode(46);
-    to$o[to$k] = v148;
+  if (v11 ? v15 <= 7 : 0) {
+    var v146 = to$o[to$k] + String.fromCharCode(48);
+    to$o[to$k] = v146;
+    var v150 = to$o[to$k] + String.fromCharCode(46);
+    to$o[to$k] = v150;
     var zeros = v15 - 1 | 0;
     L0: for (;;) {
       if (zeros > 0) {
-        var v152 = to$o[to$k] + String.fromCharCode(48);
-        to$o[to$k] = v152;
+        var v154 = to$o[to$k] + String.fromCharCode(48);
+        to$o[to$k] = v154;
         zeros = zeros - 1 | 0;
         continue L0;
       }
@@ -254,15 +249,14 @@ function writeShortest(value$digits, value$exponent, to$o, to$k, to$s) {
     }
     pushDecimalDigits(value$digits, count, count, to$o, to$k, to$s);
   } else {
-    var v62 = exp >= 0;
-    if (v62 ? exp <= 7 : v62) {
+    if (exp >= 0 ? exp <= 7 : 0) {
       if (value$exponent >= 0) {
         pushDecimalDigits(value$digits, count, count, to$o, to$k, to$s);
         var zeros$1 = value$exponent;
         L1: for (;;) {
           if (zeros$1 > 0) {
-            var v156 = to$o[to$k] + String.fromCharCode(48);
-            to$o[to$k] = v156;
+            var v158 = to$o[to$k] + String.fromCharCode(48);
+            to$o[to$k] = v158;
             zeros$1 = zeros$1 - 1 | 0;
             continue L1;
           }
@@ -273,11 +267,11 @@ function writeShortest(value$digits, value$exponent, to$o, to$k, to$s) {
       }
     } else {
       pushDecimalDigits(value$digits, count, 1, to$o, to$k, to$s);
-      var v160 = to$o[to$k] + String.fromCharCode(69);
-      to$o[to$k] = v160;
+      var v162 = to$o[to$k] + String.fromCharCode(69);
+      to$o[to$k] = v162;
       if (exp < 0) {
-        var v164 = to$o[to$k] + String.fromCharCode(45);
-        to$o[to$k] = v164;
+        var v166 = to$o[to$k] + String.fromCharCode(45);
+        to$o[to$k] = v166;
         pushExponent(v15, to$o, to$k, to$s);
       } else {
         pushExponent(exp, to$o, to$k, to$s);
@@ -294,18 +288,17 @@ function writeSpecial(value, to$o, to$k, to$s) {
     B0: {
       B1: {
         if (!(value < 0)) {
-          B2: {
-            if (value === 0) {
-              if (1 / value < 0) {
-                break B1;
-              }
+          if (value === 0) {
+            if (!(1 / value < 0)) {
+              break B0;
             }
+          } else {
+            break B0;
           }
-          break B0;
         }
       }
-      var v57 = to$o[to$k] + String.fromCharCode(45);
-      to$o[to$k] = v57;
+      var v59 = to$o[to$k] + String.fromCharCode(45);
+      to$o[to$k] = v59;
     }
     if (value - value !== 0) {
       to$o[to$k] = to$o[to$k] + "Inf";

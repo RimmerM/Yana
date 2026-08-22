@@ -1,0 +1,544 @@
+let image$base: () = <none>
+
+let empty: Flags = Flags(0)
+
+let read: Flags = Flags(1)
+
+let write: Flags = Flags(2)
+
+let &effects: Int = 0
+
+fn isEmpty(%f: Flags) -> Bool {
+  b0:
+    %v1 = call Truth(Flags).truthy, %f : Bool
+    %v3 = xor %v1, True : Bool
+    ret %v3
+}
+
+fn complement(%f: Flags) -> Flags {
+  b0:
+    %v1 = call Bitwise(Flags).not, %f : Flags
+    ret %v1
+}
+
+fn noneLeft(%count: Int) -> Bool {
+  b0:
+    %v2 = cmp_ne %count, 0 : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn negate(%b: Bool) -> Bool {
+  b0:
+    %v2 = xor %b, True : Bool
+    ret %v2
+}
+
+fn bump() -> Flags {
+  b0:
+    %v0 = load effects : Int
+    %v3 = add %v0, 1 : Int
+    assign effects, %v3
+    %v5 = load read : Flags
+    ret %v5
+}
+
+fn shortCircuits() -> Bool {
+  b0:
+    %v0 = load empty : Flags
+    %v1 = call Truth(Flags).truthy, %v0 : Bool
+    je %v1, b1, b2
+
+  b1:
+    %v3 = call bump : Flags
+    %v4 = call Truth(Flags).truthy, %v3 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %v4], [b2, False] : Bool
+    ret %v8
+}
+
+fn flagsAndCount(%f: Flags, %n: Int) -> Bool {
+  b0:
+    %v2 = call Truth(Flags).truthy, %f : Bool
+    je %v2, b1, b2
+
+  b1:
+    %v5 = cmp_ne %n, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, %v5], [b2, False] : Bool
+    ret %v9
+}
+
+fn flagsOrCount(%f: Flags, %n: Int) -> Bool {
+  b0:
+    %v2 = call Truth(Flags).truthy, %f : Bool
+    je %v2, b2, b1
+
+  b1:
+    %v5 = cmp_ne %n, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, %v5], [b2, True] : Bool
+    ret %v9
+}
+
+fn againstLiteral(%f: Flags) -> Bool {
+  b0:
+    %v1 = call Truth(Flags).truthy, %f : Bool
+    je %v1, b1, b2
+
+  b1:
+    %v6 = cmp_ne 1, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %v6], [b2, False] : Bool
+    ret %v10
+}
+
+fn runsRight() -> Bool {
+  b0:
+    %v0 = load read : Flags
+    %v1 = call Truth(Flags).truthy, %v0 : Bool
+    je %v1, b1, b2
+
+  b1:
+    %v3 = call bump : Flags
+    %v4 = call Truth(Flags).truthy, %v3 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %v4], [b2, False] : Bool
+    ret %v8
+}
+
+fn orSkips() -> Bool {
+  b0:
+    %v0 = load read : Flags
+    %v1 = call Truth(Flags).truthy, %v0 : Bool
+    je %v1, b2, b1
+
+  b1:
+    %v3 = call bump : Flags
+    %v4 = call Truth(Flags).truthy, %v3 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = phi [b1, %v4], [b2, True] : Bool
+    ret %v8
+}
+
+(Truth(a)) fn genericNot(%x: a) -> Bool {
+  schema {
+    #0 type a
+    #1 class Truth(a)
+  }
+
+  b0:
+    %v1 = gencall !(a), %x : Bool
+    ret %v1
+}
+
+fn main() -> Int {
+  b0:
+    %score = alloc : Int
+    init %score, 0
+    %v4 = load empty : Flags
+    %v5 = call Truth(Flags).truthy, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load empty : Flags
+    %v11 = call isEmpty, %v10 : Bool
+    %v13 = xor %v11, True : Bool
+    je %v13, b4, b5
+
+  b4:
+    ret 2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v18 = load read : Flags
+    %v19 = call isEmpty, %v18 : Bool
+    je %v19, b7, b8
+
+  b7:
+    ret 3
+
+  b8:
+    jmp b9
+
+  b9:
+    %v24 = load empty : Flags
+    %v25 = call complement, %v24 : Flags
+    %v26 = call Truth(Flags).truthy, %v25 : Bool
+    %v28 = xor %v26, True : Bool
+    je %v28, b10, b11
+
+  b10:
+    ret 4
+
+  b11:
+    jmp b12
+
+  b12:
+    %v33 = load read : Flags
+    %v34 = call complement, %v33 : Flags
+    %v35 = load read : Flags
+    %v36 = call Eq(Flags).==, %v34, %v35 : Bool
+    je %v36, b13, b14
+
+  b13:
+    ret 5
+
+  b14:
+    jmp b15
+
+  b15:
+    %v42 = call noneLeft, 0 : Bool
+    %v44 = xor %v42, True : Bool
+    je %v44, b16, b17
+
+  b16:
+    ret 6
+
+  b17:
+    jmp b18
+
+  b18:
+    %v50 = call noneLeft, 7 : Bool
+    je %v50, b19, b20
+
+  b19:
+    ret 7
+
+  b20:
+    jmp b21
+
+  b21:
+    %v56 = call negate, False : Bool
+    %v58 = xor %v56, True : Bool
+    je %v58, b22, b23
+
+  b22:
+    ret 8
+
+  b23:
+    jmp b24
+
+  b24:
+    %v63 = call shortCircuits : Bool
+    je %v63, b25, b26
+
+  b25:
+    ret 9
+
+  b26:
+    jmp b27
+
+  b27:
+    %v68 = call runsRight : Bool
+    %v70 = xor %v68, True : Bool
+    je %v70, b28, b29
+
+  b28:
+    ret 10
+
+  b29:
+    jmp b30
+
+  b30:
+    %v75 = call orSkips : Bool
+    %v77 = xor %v75, True : Bool
+    je %v77, b31, b32
+
+  b31:
+    ret 11
+
+  b32:
+    jmp b33
+
+  b33:
+    %v82 = load effects : Int
+    %v85 = cmp_ne %v82, 1 : Bool
+    je %v85, b34, b35
+
+  b34:
+    ret 12
+
+  b35:
+    jmp b36
+
+  b36:
+    %v90 = load empty : Flags
+    %v92 = call flagsAndCount, %v90, 7 : Bool
+    je %v92, b37, b38
+
+  b37:
+    ret 21
+
+  b38:
+    jmp b39
+
+  b39:
+    %v97 = load read : Flags
+    %v99 = call flagsAndCount, %v97, 7 : Bool
+    %v101 = xor %v99, True : Bool
+    je %v101, b40, b41
+
+  b40:
+    ret 22
+
+  b41:
+    jmp b42
+
+  b42:
+    %v106 = load read : Flags
+    %v108 = call flagsAndCount, %v106, 0 : Bool
+    je %v108, b43, b44
+
+  b43:
+    ret 23
+
+  b44:
+    jmp b45
+
+  b45:
+    %v113 = load empty : Flags
+    %v115 = call flagsOrCount, %v113, 7 : Bool
+    %v117 = xor %v115, True : Bool
+    je %v117, b46, b47
+
+  b46:
+    ret 24
+
+  b47:
+    jmp b48
+
+  b48:
+    %v122 = load empty : Flags
+    %v124 = call flagsOrCount, %v122, 0 : Bool
+    je %v124, b49, b50
+
+  b49:
+    ret 25
+
+  b50:
+    jmp b51
+
+  b51:
+    %v129 = load read : Flags
+    %v130 = call againstLiteral, %v129 : Bool
+    %v132 = xor %v130, True : Bool
+    je %v132, b52, b53
+
+  b52:
+    ret 26
+
+  b53:
+    jmp b54
+
+  b54:
+    %v137 = load empty : Flags
+    %v138 = call genericNot(Flags), %v137 : Bool
+    %v139 = load empty : Flags
+    %v140 = call isEmpty, %v139 : Bool
+    %v141 = cmp_ne %v138, %v140 : Bool
+    je %v141, b55, b56
+
+  b55:
+    ret 14
+
+  b56:
+    jmp b57
+
+  b57:
+    %v146 = load read : Flags
+    %v147 = call genericNot(Flags), %v146 : Bool
+    %v148 = load read : Flags
+    %v149 = call isEmpty, %v148 : Bool
+    %v150 = cmp_ne %v147, %v149 : Bool
+    je %v150, b58, b59
+
+  b58:
+    ret 15
+
+  b59:
+    jmp b60
+
+  b60:
+    %v157 = call genericNot(Int), 0 : Bool
+    %v159 = call noneLeft, 0 : Bool
+    %v160 = cmp_ne %v157, %v159 : Bool
+    je %v160, b61, b62
+
+  b61:
+    ret 16
+
+  b62:
+    jmp b63
+
+  b63:
+    %v165 = load read : Flags
+    %v166 = load write : Flags
+    %both = call Bitwise(Flags).or, %v165, %v166 : Flags
+    %v168 = load read : Flags
+    %v169 = call Bitwise(Flags).and, %both, %v168 : Flags
+    %v170 = load read : Flags
+    %v171 = call Eq(Flags).==, %v169, %v170 : Bool
+    %v173 = xor %v171, True : Bool
+    je %v173, b64, b65
+
+  b64:
+    ret 13
+
+  b65:
+    jmp b66
+
+  b66:
+    %v178 = load %score : Int
+    %v179 = call bitsOf, %both : I64
+    %v180 = cast %v179 : Int
+    %v181 = add %v178, %v180 : Int
+    assign %score, %v181
+    %v183 = load %score : Int
+    ret %v183
+}
+
+fn bitsOf(%f: Flags) -> I64 {
+  b0:
+    %bits = load %f@Flags : I64
+    jmp b1
+
+  b1:
+    ret %bits
+}
+
+fn Bitwise(Flags).and(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %lhs$ = load %lhs@Flags : I64
+    %rhs$ = load %rhs@Flags : I64
+    %v4 = alloc : Flags
+    %v5 = and %lhs$, %rhs$ : I64
+    init %local2@Flags, %v5
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Bitwise(Flags).or(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %lhs$ = load %lhs@Flags : I64
+    %rhs$ = load %rhs@Flags : I64
+    %v4 = alloc : Flags
+    %v5 = or %lhs$, %rhs$ : I64
+    init %local2@Flags, %v5
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Bitwise(Flags).xor(%lhs: Flags, %rhs: Flags) -> Flags {
+  b0:
+    %lhs$ = load %lhs@Flags : I64
+    %rhs$ = load %rhs@Flags : I64
+    %v4 = alloc : Flags
+    %v5 = xor %lhs$, %rhs$ : I64
+    init %local2@Flags, %v5
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Bitwise(Flags).not(%value: Flags) -> Flags {
+  b0:
+    %value$ = load %value@Flags : I64
+    %v2 = alloc : Flags
+    %v3 = not %value$ : I64
+    init %local1@Flags, %v3
+    jmp b1
+
+  b1:
+    ret %v2
+}
+
+fn Truth(Flags).truthy(%value: Flags) -> Bool {
+  b0:
+    %value$ = load %value@Flags : I64
+    %v3 = cmp_ne %value$, 0 : Bool
+    jmp b1
+
+  b1:
+    ret %v3
+}
+
+fn Eq(Flags).==(%lhs: Flags, %rhs: Flags) -> Bool {
+  b0:
+    %lhs$ = load %lhs@Flags : I64
+    %rhs$ = load %rhs@Flags : I64
+    %v4 = cmp_eq %lhs$, %rhs$ : Bool
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn genericNot(Flags)(%x: Flags) -> Bool {
+  b0:
+    %v1 = call Truth(Flags).truthy, %x : Bool
+    %v3 = xor %v1, True : Bool
+    ret %v3
+}
+
+fn genericNot(Int)(%x: Int) -> Bool {
+  b0:
+    %v2 = cmp_ne %x, 0 : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}

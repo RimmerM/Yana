@@ -36,3 +36,11 @@ fn trailing() = 0 )
 
 -- The declaration after all of the above still parses.
 fn after(a: Int) = a
+
+-- A plain alias with a `deriving` clause. It names the same type as its target, so a derivation
+-- would either duplicate that type's instances or contradict them; `alias qualified` is the form
+-- that makes a type of its own for one to be about.
+alias Transparent = Int deriving (Eq)
+
+-- A `deriving` clause whose list holds something that is not a class name.
+alias qualified Wrapped = Int deriving (Eq, 3)

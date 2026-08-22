@@ -92,23 +92,23 @@ fn ends() -> Int {
     jmp b3
 
   b3:
-    %v51 = phi [b1, %v48], [b2, %v39] : Bool
-    je %v51, b4, b5
+    %v52 = phi [b1, %v48], [b2, False] : Bool
+    je %v52, b4, b5
 
   b4:
-    %v54 = call opaqueU32, 3735928559 : U32
-    %v57 = bitsupto %v54, 260 : U32
-    %v60 = cmp_eq %v57, 3735928559 : Bool
+    %v55 = call opaqueU32, 3735928559 : U32
+    %v58 = bitsupto %v55, 260 : U32
+    %v61 = cmp_eq %v58, 3735928559 : Bool
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v63 = phi [b4, %v60], [b5, %v51] : Bool
-    %v65 = call check, %v63, 64 : Int
-    %v66 = add %v31, %v65 : Int
-    ret %v66
+    %v65 = phi [b4, %v61], [b5, False] : Bool
+    %v67 = call check, %v65, 64 : Int
+    %v68 = add %v31, %v67 : Int
+    ret %v68
 }
 
 fn wide() -> Int {
@@ -137,10 +137,10 @@ fn wide() -> Int {
     jmp b3
 
   b3:
-    %v40 = phi [b1, %v37], [b2, %v28] : Bool
-    %v42 = call check, %v40, 512 : Int
-    %v43 = add %v20, %v42 : Int
-    ret %v43
+    %v41 = phi [b1, %v37], [b2, False] : Bool
+    %v43 = call check, %v41, 512 : Int
+    %v44 = add %v20, %v43 : Int
+    ret %v44
 }
 
 fn field() -> Int {
@@ -257,40 +257,40 @@ fn signed() -> Int {
     jmp b3
 
   b3:
-    %v25 = phi [b1, %v22], [b2, %v11] : Bool
-    je %v25, b4, b5
+    %v26 = phi [b1, %v22], [b2, False] : Bool
+    je %v26, b4, b5
 
   b4:
-    %v28 = call opaqueI32, 18 : I32
-    %v29 = scatterbits %v28, %byteMask : I32
-    %v32 = cmp_eq %v29, 301989888 : Bool
+    %v29 = call opaqueI32, 18 : I32
+    %v30 = scatterbits %v29, %byteMask : I32
+    %v33 = cmp_eq %v30, 301989888 : Bool
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v35 = phi [b4, %v32], [b5, %v25] : Bool
-    je %v35, b7, b8
+    %v37 = phi [b4, %v33], [b5, False] : Bool
+    je %v37, b7, b8
 
   b7:
-    %v41 = sub 0, 1 : I32
-    %v42 = call opaqueI32, %v41 : I32
-    %v47 = sub 0, 1 : I32
-    %v48 = call opaqueI32, %v47 : I32
-    %v49 = gatherbits %v42, %v48 : I32
-    %v54 = sub 0, 1 : Int
-    %v55 = cast %v49 : Int
-    %v56 = cmp_eq %v55, %v54 : Bool
+    %v43 = sub 0, 1 : I32
+    %v44 = call opaqueI32, %v43 : I32
+    %v49 = sub 0, 1 : I32
+    %v50 = call opaqueI32, %v49 : I32
+    %v51 = gatherbits %v44, %v50 : I32
+    %v56 = sub 0, 1 : Int
+    %v57 = cast %v51 : Int
+    %v58 = cmp_eq %v57, %v56 : Bool
     jmp b9
 
   b8:
     jmp b9
 
   b9:
-    %v59 = phi [b7, %v56], [b8, %v35] : Bool
-    %v61 = call check, %v59, 8388608 : Int
-    ret %v61
+    %v62 = phi [b7, %v58], [b8, False] : Bool
+    %v64 = call check, %v62, 8388608 : Int
+    ret %v64
 }
 
 fn widePermute() -> Int {
@@ -312,9 +312,9 @@ fn widePermute() -> Int {
     jmp b3
 
   b3:
-    %v19 = phi [b1, %v16], [b2, %v7] : Bool
-    %v21 = call check, %v19, 16777216 : Int
-    ret %v21
+    %v20 = phi [b1, %v16], [b2, False] : Bool
+    %v22 = call check, %v20, 16777216 : Int
+    ret %v22
 }
 
 fn morton(%x: U32, %y: U32) -> U32 {

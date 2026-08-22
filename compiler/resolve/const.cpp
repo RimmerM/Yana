@@ -426,7 +426,9 @@ static ConstantPtr constructorConstant(Module& module, const ast::Expr& expr, Ty
             return nullptr;
         }
 
-        return scalarConstant(module, type, reference.index);
+        // The pinned number where there is one, exactly as `resolveConstruct` produces it - the two
+        // have to agree, since a global's initializer and an expression are the same construction.
+        return scalarConstant(module, type, U64(record->constructors.get(global, reference.index).value));
     }
 
     auto value = makeConst(module, type, ConstKind::Construct);

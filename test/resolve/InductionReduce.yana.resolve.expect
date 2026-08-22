@@ -379,8 +379,8 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     je %v11, b3, b4
 
   b2:
-    %v58 = load %acc : I64
-    ret %v58
+    %v59 = load %acc : I64
+    ret %v59
 
   b3:
     %v13 = load %i : I64
@@ -392,45 +392,45 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     jmp b5
 
   b5:
-    %v18 = phi [b3, %v15], [b4, %v11] : Bool
-    je %v18, b6, b2
+    %v19 = phi [b3, %v15], [b4, False] : Bool
+    je %v19, b6, b2
 
   b6:
-    %v20 = load %acc : I64
-    %v21 = load %i : I64
-    %v22 = borrow %xs : &Flat(Cell)
-    %v23 = load [%v22]@Flat.length : I64
-    %v24 = cast %v21 : U64
-    %v25 = cast %v23 : U64
-    %v26 = cmp_ge %v24, %v25 : Bool
-    call checkCondition, %v26
-    %v28 = load [%v22]@Flat.items : %Cell
-    %v29 = strideof Cell : Long
-    %v30 = mul %v21, %v29 : Long
-    %v31 = add %v28, %v30 : %Cell
-    %v32 = borrow [%v31] : &Cell
-    %v33 = load [%v32] : Cell
-    %v34 = load [%v32]@Cell.a : I64
-    %v35 = load %i : I64
-    %v36 = borrow %ys : &Flat(Cell)
-    %v37 = load [%v36]@Flat.length : I64
-    %v38 = cast %v35 : U64
-    %v39 = cast %v37 : U64
-    %v40 = cmp_ge %v38, %v39 : Bool
-    call checkCondition, %v40
-    %v42 = load [%v36]@Flat.items : %Cell
-    %v43 = strideof Cell : Long
-    %v44 = mul %v35, %v43 : Long
-    %v45 = add %v42, %v44 : %Cell
-    %v46 = borrow [%v45] : &Cell
-    %v47 = load [%v46] : Cell
-    %v48 = load [%v46]@Cell.b : I64
-    %v49 = mul %v34, %v48 : I64
-    %v50 = add %v20, %v49 : I64
-    assign %acc, %v50
-    %v52 = load %i : I64
-    %v55 = add %v52, 1 : I64
-    assign %i, %v55
+    %v21 = load %acc : I64
+    %v22 = load %i : I64
+    %v23 = borrow %xs : &Flat(Cell)
+    %v24 = load [%v23]@Flat.length : I64
+    %v25 = cast %v22 : U64
+    %v26 = cast %v24 : U64
+    %v27 = cmp_ge %v25, %v26 : Bool
+    call checkCondition, %v27
+    %v29 = load [%v23]@Flat.items : %Cell
+    %v30 = strideof Cell : Long
+    %v31 = mul %v22, %v30 : Long
+    %v32 = add %v29, %v31 : %Cell
+    %v33 = borrow [%v32] : &Cell
+    %v34 = load [%v33] : Cell
+    %v35 = load [%v33]@Cell.a : I64
+    %v36 = load %i : I64
+    %v37 = borrow %ys : &Flat(Cell)
+    %v38 = load [%v37]@Flat.length : I64
+    %v39 = cast %v36 : U64
+    %v40 = cast %v38 : U64
+    %v41 = cmp_ge %v39, %v40 : Bool
+    call checkCondition, %v41
+    %v43 = load [%v37]@Flat.items : %Cell
+    %v44 = strideof Cell : Long
+    %v45 = mul %v36, %v44 : Long
+    %v46 = add %v43, %v45 : %Cell
+    %v47 = borrow [%v46] : &Cell
+    %v48 = load [%v47] : Cell
+    %v49 = load [%v47]@Cell.b : I64
+    %v50 = mul %v35, %v49 : I64
+    %v51 = add %v21, %v50 : I64
+    assign %acc, %v51
+    %v53 = load %i : I64
+    %v56 = add %v53, 1 : I64
+    assign %i, %v56
     jmp b1
 }
 

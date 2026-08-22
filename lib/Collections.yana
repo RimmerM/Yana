@@ -610,7 +610,7 @@ fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumElements(xs: c, ifEmpty: a) ->
    whatever `wanted` is not. That is not something this can rely on, so the masked form is what it
    takes and the live mask is what it counts against.
 -}
-fn (Chunked(c, a), Eq(a), Logic(Mask(a))) occurrencesVectors(xs: c, wanted: a) -> Int:
+fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) occurrencesVectors(xs: c, wanted: a) -> Int:
     let sought = splat(wanted)
     let &total = 0
 
@@ -640,7 +640,7 @@ fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
    is also the one that says where in it - and the running count of live lanes is the position of the
    vector, which is exactly what `vectorsMasked` hands over beside it.
 -}
-fn (Chunked(c, a), Eq(a), Logic(Mask(a))) indexOfVectors(xs: c, wanted: a) -> Maybe(Size):
+fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) indexOfVectors(xs: c, wanted: a) -> Maybe(Size):
     let sought = splat(wanted)
     let &at = 0
 
@@ -1407,7 +1407,7 @@ pub fn (Hash(k)) hashKey(key: k) -> U32 = mix32(hash(key, hashSeed))
    `slots` is a power of two and at least sixteen, so `slots + 16` is a multiple of sixteen and the
    entry numbers need no padding to be four-byte aligned.
 -}
-@platform(native) fn entryNumbers(self: Map(k, v)) -> %Count =
+@platform(native) fn entryNumbers(return self: Map(k, v)) -> %Count =
     bitcast(self.index.items + (indexSlots(self) + 16)) :: %Count
 
 @platform(native) fn entryNumber(self: Map(k, v), slot: Size) -> Size =

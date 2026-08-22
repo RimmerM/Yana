@@ -393,6 +393,12 @@ void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provid
     for(auto decl: decls.contents(parse)) {
         if(!platformEnabled(module, decl)) continue;
         if(decl.kind == ast::Decl::Instance) resolveInstance(module, decl);
+
+        // A `deriving` clause expands into instance declarations and is resolved in the same sweep,
+        // in declaration order with the written ones. That is what makes the duplicate check see
+        // both: an `instance Logic(OpenFlags)` beside `deriving (Logic)` is one class and one type
+        // twice, and it is reported at whichever of the two the reader wrote second.
+        else if(decl.kind == ast::Decl::Alias && decl.qualified) deriveNewtypeInstances(module, ast, decl);
     }
 
     // Core's instances are generated after its source has been read, so it runs this pass itself

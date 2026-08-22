@@ -16,37 +16,28 @@ okL<complex>(%x: Long, %d: Long, %q: Long, %r: Long): Int {
     %v_10 = sub 0, %d: Long
     %v_11 = select %v_9, %v_10, %d: Long
     %v_12 = cmp_ilt %v_8, %v_11: Int
-    jmp b_13
+    je %v_12, b_13, b_5
   }
 
   b_5 {
-    jmp b_13
+    jmp b_14
   }
 
   b_13 {
-    %v_14 = phi [b_4, %v_12], [b_5, %v_3]: Int
-    je %v_14, b_15, b_16
+    %v_15 = cmp_ile %r, 0: Int
+    %v_16 = cmp_ile %x, 0: Int
+    %v_17 = select %v_15, %v_16, 0: Int
+    %v_18 = cmp_ige %r, 0: Int
+    %v_19 = cmp_ige %x, 0: Int
+    %v_20 = select %v_18, %v_19, 0: Int
+    %v_21 = select %v_17, 1, %v_20: Int
+    jmp b_14
   }
 
-  b_15 {
-    %v_17 = cmp_ile %r, 0: Int
-    %v_18 = cmp_ile %x, 0: Int
-    %v_19 = select %v_17, %v_18, %v_17: Int
-    %v_20 = cmp_ige %r, 0: Int
-    %v_21 = cmp_ige %x, 0: Int
-    %v_22 = select %v_20, %v_21, %v_20: Int
-    %v_23 = select %v_19, %v_19, %v_22: Int
-    jmp b_24
-  }
-
-  b_16 {
-    jmp b_24
-  }
-
-  b_24 {
-    %v_25 = phi [b_15, %v_23], [b_16, %v_14]: Int
-    %v_26 = select %v_25, 1, 0: Int
-    ret %v_26
+  b_14 {
+    %v_22 = phi [b_13, %v_21], [b_5, 0]: Int
+    %v_23 = select %v_22, 1, 0: Int
+    ret %v_23
   }
 }
 
@@ -66,37 +57,28 @@ okI<complex>(%x: Int, %d: Int, %q: Int, %r: Int): Int {
     %v_10 = sub 0, %d: Int
     %v_11 = select %v_9, %v_10, %d: Int
     %v_12 = cmp_ilt %v_8, %v_11: Int
-    jmp b_13
+    je %v_12, b_13, b_5
   }
 
   b_5 {
-    jmp b_13
+    jmp b_14
   }
 
   b_13 {
-    %v_14 = phi [b_4, %v_12], [b_5, %v_3]: Int
-    je %v_14, b_15, b_16
+    %v_15 = cmp_ile %r, 0: Int
+    %v_16 = cmp_ile %x, 0: Int
+    %v_17 = select %v_15, %v_16, 0: Int
+    %v_18 = cmp_ige %r, 0: Int
+    %v_19 = cmp_ige %x, 0: Int
+    %v_20 = select %v_18, %v_19, 0: Int
+    %v_21 = select %v_17, 1, %v_20: Int
+    jmp b_14
   }
 
-  b_15 {
-    %v_17 = cmp_ile %r, 0: Int
-    %v_18 = cmp_ile %x, 0: Int
-    %v_19 = select %v_17, %v_18, %v_17: Int
-    %v_20 = cmp_ige %r, 0: Int
-    %v_21 = cmp_ige %x, 0: Int
-    %v_22 = select %v_20, %v_21, %v_20: Int
-    %v_23 = select %v_19, %v_19, %v_22: Int
-    jmp b_24
-  }
-
-  b_16 {
-    jmp b_24
-  }
-
-  b_24 {
-    %v_25 = phi [b_15, %v_23], [b_16, %v_14]: Int
-    %v_26 = select %v_25, 1, 0: Int
-    ret %v_26
+  b_14 {
+    %v_22 = phi [b_13, %v_21], [b_5, 0]: Int
+    %v_23 = select %v_22, 1, 0: Int
+    ret %v_23
   }
 }
 
@@ -229,7 +211,7 @@ main<complex>(): Int {
     %v_66 = add %v_65, %v_64: Int
     %v_67 = cmp_eq %v_66, %v_62: Int
     %v_68 = cmp_lt %v_64, 4: Int
-    %v_69 = select %v_67, %v_68, %v_67: Int
+    %v_69 = select %v_67, %v_68, 0: Int
     %v_70 = select %v_69, 1, 0: Int
     %v_71 = mulhi %v_62, 3435973837: Int
     %v_72 = shr %v_71, 2: Int
@@ -238,7 +220,7 @@ main<complex>(): Int {
     %v_75 = add %v_73, %v_74: Int
     %v_76 = cmp_eq %v_75, %v_62: Int
     %v_77 = cmp_lt %v_74, 5: Int
-    %v_78 = select %v_76, %v_77, %v_76: Int
+    %v_78 = select %v_76, %v_77, 0: Int
     %v_79 = select %v_78, 1, 0: Int
     %v_80 = add %v_70, %v_79: Int
     %v_81 = mulhi %v_62, 613566757: Int
@@ -251,7 +233,7 @@ main<complex>(): Int {
     %v_88 = add %v_86, %v_87: Int
     %v_89 = cmp_eq %v_88, %v_62: Int
     %v_90 = cmp_lt %v_87, 7: Int
-    %v_91 = select %v_89, %v_90, %v_89: Int
+    %v_91 = select %v_89, %v_90, 0: Int
     %v_92 = select %v_91, 1, 0: Int
     %v_93 = add %v_80, %v_92: Int
     %v_94 = mulhi %v_62, 274877907: Int
@@ -261,7 +243,7 @@ main<complex>(): Int {
     %v_98 = add %v_96, %v_97: Int
     %v_99 = cmp_eq %v_98, %v_62: Int
     %v_100 = cmp_lt %v_97, 1000: Int
-    %v_101 = select %v_99, %v_100, %v_99: Int
+    %v_101 = select %v_99, %v_100, 0: Int
     %v_102 = select %v_101, 1, 0: Int
     %v_103 = add %v_93, %v_102: Int
     %v_52 = add %v_53, %v_103: Int
@@ -292,7 +274,7 @@ main<complex>(): Int {
     %v_117 = add %v_116, %v_115: Long
     %v_118 = cmp_eq %v_117, %v_113: Int
     %v_119 = cmp_lt %v_115, 2: Int
-    %v_120 = select %v_118, %v_119, %v_118: Int
+    %v_120 = select %v_118, %v_119, 0: Int
     %v_121 = select %v_120, 1, 0: Int
     %v_122 = shr %v_113, 6: Long
     %v_123 = and %v_113, 63: Long
@@ -300,7 +282,7 @@ main<complex>(): Int {
     %v_125 = add %v_124, %v_123: Long
     %v_126 = cmp_eq %v_125, %v_113: Int
     %v_127 = cmp_lt %v_123, 64: Int
-    %v_128 = select %v_126, %v_127, %v_126: Int
+    %v_128 = select %v_126, %v_127, 0: Int
     %v_129 = select %v_128, 1, 0: Int
     %v_130 = add %v_121, %v_129: Int
     %v_131 = mulhi %v_113, 12297829382473034411: Long
@@ -310,7 +292,7 @@ main<complex>(): Int {
     %v_135 = add %v_133, %v_134: Long
     %v_136 = cmp_eq %v_135, %v_113: Int
     %v_137 = cmp_lt %v_134, 3: Int
-    %v_138 = select %v_136, %v_137, %v_136: Int
+    %v_138 = select %v_136, %v_137, 0: Int
     %v_139 = select %v_138, 1, 0: Int
     %v_140 = add %v_130, %v_139: Int
     %v_141 = mulhi %v_113, 14757395258967641293: Long
@@ -320,7 +302,7 @@ main<complex>(): Int {
     %v_145 = add %v_143, %v_144: Long
     %v_146 = cmp_eq %v_145, %v_113: Int
     %v_147 = cmp_lt %v_144, 10: Int
-    %v_148 = select %v_146, %v_147, %v_146: Int
+    %v_148 = select %v_146, %v_147, 0: Int
     %v_149 = select %v_148, 1, 0: Int
     %v_150 = add %v_140, %v_149: Int
     %v_151 = mulhi %v_113, 2635249153387078803: Long
@@ -333,7 +315,7 @@ main<complex>(): Int {
     %v_158 = add %v_156, %v_157: Long
     %v_159 = cmp_eq %v_158, %v_113: Int
     %v_160 = cmp_lt %v_157, 7: Int
-    %v_161 = select %v_159, %v_160, %v_159: Int
+    %v_161 = select %v_159, %v_160, 0: Int
     %v_162 = select %v_161, 1, 0: Int
     %v_163 = add %v_150, %v_162: Int
     %v_164 = mulhi %v_113, 14734372801465351681: Long
@@ -343,7 +325,7 @@ main<complex>(): Int {
     %v_168 = add %v_166, %v_167: Long
     %v_169 = cmp_eq %v_168, %v_113: Int
     %v_170 = cmp_lt %v_167, 641: Int
-    %v_171 = select %v_169, %v_170, %v_169: Int
+    %v_171 = select %v_169, %v_170, 0: Int
     %v_172 = select %v_171, 1, 0: Int
     %v_173 = add %v_163, %v_172: Int
     %v_54 = add %v_105, %v_173: Int
@@ -555,7 +537,7 @@ main<complex>(): Int {
     %v_360 = cmp_eq %v_359, %v_359: Int
     %v_361 = shl %v_358, 10: Long
     %v_362 = cmp_eq %v_361, %v_361: Int
-    %v_363 = select %v_360, %v_362, %v_360: Int
+    %v_363 = select %v_360, %v_362, 0: Int
     %v_364 = select %v_363, 1, 0: Int
     %v_175 = add %v_353, %v_364: Int
     %v_35 = add %v_244, 1: Int

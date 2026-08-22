@@ -1,0 +1,257 @@
+let image$base: () = <none>
+
+fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
+  b0:
+    %v2 = cmp_eq %lhs, %rhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret EQ
+
+  b2:
+    %v6 = cmp_gt %lhs, %rhs : Bool
+    je %v6, b3, b4
+
+  b3:
+    ret GT
+
+  b4:
+    ret LT
+}
+
+fn Eq.!=(Handle)(%lhs: Handle, %rhs: Handle) -> Bool {
+  b0:
+    %v2 = call Eq(Handle).==, %lhs, %rhs : Bool
+    %v4 = xor %v2, True : Bool
+    ret %v4
+}
+
+fn Ord.>(Priority)(%lhs: Priority, %rhs: Priority) -> Bool {
+  b0:
+    %v2 = call Ord(Priority).compare, %lhs, %rhs : Ordering
+    %v4 = cmp_eq %v2, GT : Bool
+    ret %v4
+}
+
+fn combined() -> OpenFlags {
+  b0:
+    %v0 = alloc : OpenFlags
+    init %local0@OpenFlags, 64
+    %v3 = alloc : OpenFlags
+    init %local1@OpenFlags, 512
+    %v6 = call Bitwise(OpenFlags).or, %v0, %v3 : OpenFlags
+    ret %v6
+}
+
+fn anySet(%flags: OpenFlags) -> Bool {
+  b0:
+    %v1 = call Truth(OpenFlags).truthy, %flags : Bool
+    je %v1, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v7 = phi [b1, True], [b2, False] : Bool
+    ret %v7
+}
+
+fn sameHandle(%a: Handle, %b: Handle) -> Bool {
+  b0:
+    %v2 = call Eq(Handle).==, %a, %b : Bool
+    ret %v2
+}
+
+fn differentHandle(%a: Handle, %b: Handle) -> Bool {
+  b0:
+    %v2 = call Eq.!=(Handle), %a, %b : Bool
+    ret %v2
+}
+
+fn higher(%a: Priority, %b: Priority) -> Bool {
+  b0:
+    %v2 = call Ord.>(Priority), %a, %b : Bool
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %flags = call combined : OpenFlags
+    %v1 = call anySet, %flags : Bool
+    %v3 = xor %v1, True : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret 1
+
+  b2:
+    jmp b3
+
+  b3:
+    %v8 = alloc : Handle
+    init %local1@Handle, 3
+    %v11 = alloc : Handle
+    init %local2@Handle, 3
+    %v14 = call sameHandle, %v8, %v11 : Bool
+    %v16 = xor %v14, True : Bool
+    je %v16, b4, b5
+
+  b4:
+    ret 2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v21 = alloc : Handle
+    init %local3@Handle, 3
+    %v24 = alloc : Handle
+    init %local4@Handle, 4
+    %v27 = call differentHandle, %v21, %v24 : Bool
+    %v29 = xor %v27, True : Bool
+    je %v29, b7, b8
+
+  b7:
+    ret 3
+
+  b8:
+    jmp b9
+
+  b9:
+    %v34 = alloc : Priority
+    init %local5@Priority, 9
+    %v37 = alloc : Priority
+    init %local6@Priority, 2
+    %v40 = call higher, %v34, %v37 : Bool
+    %v42 = xor %v40, True : Bool
+    je %v42, b10, b11
+
+  b10:
+    ret 4
+
+  b11:
+    jmp b12
+
+  b12:
+    %bits = load %local0@OpenFlags : I64
+    %v48 = cast %bits : Int
+    jmp b13
+
+  b13:
+    ret %v48
+}
+
+fn Bitwise(OpenFlags).and(%lhs: OpenFlags, %rhs: OpenFlags) -> OpenFlags {
+  b0:
+    %lhs$ = load %lhs@OpenFlags : I64
+    %rhs$ = load %rhs@OpenFlags : I64
+    %v4 = alloc : OpenFlags
+    %v5 = and %lhs$, %rhs$ : I64
+    init %local2@OpenFlags, %v5
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Bitwise(OpenFlags).or(%lhs: OpenFlags, %rhs: OpenFlags) -> OpenFlags {
+  b0:
+    %lhs$ = load %lhs@OpenFlags : I64
+    %rhs$ = load %rhs@OpenFlags : I64
+    %v4 = alloc : OpenFlags
+    %v5 = or %lhs$, %rhs$ : I64
+    init %local2@OpenFlags, %v5
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Bitwise(OpenFlags).xor(%lhs: OpenFlags, %rhs: OpenFlags) -> OpenFlags {
+  b0:
+    %lhs$ = load %lhs@OpenFlags : I64
+    %rhs$ = load %rhs@OpenFlags : I64
+    %v4 = alloc : OpenFlags
+    %v5 = xor %lhs$, %rhs$ : I64
+    init %local2@OpenFlags, %v5
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Bitwise(OpenFlags).not(%value: OpenFlags) -> OpenFlags {
+  b0:
+    %value$ = load %value@OpenFlags : I64
+    %v2 = alloc : OpenFlags
+    %v3 = not %value$ : I64
+    init %local1@OpenFlags, %v3
+    jmp b1
+
+  b1:
+    ret %v2
+}
+
+fn Truth(OpenFlags).truthy(%value: OpenFlags) -> Bool {
+  b0:
+    %value$ = load %value@OpenFlags : I64
+    %v3 = cmp_ne %value$, 0 : Bool
+    jmp b1
+
+  b1:
+    ret %v3
+}
+
+fn Eq(Handle).==(%lhs: Handle, %rhs: Handle) -> Bool {
+  b0:
+    %lhs$ = load %lhs@Handle : Int
+    %rhs$ = load %rhs@Handle : Int
+    %v4 = cmp_eq %lhs$, %rhs$ : Bool
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Eq(Priority).==(%lhs: Priority, %rhs: Priority) -> Bool {
+  b0:
+    %lhs$ = load %lhs@Priority : Int
+    %rhs$ = load %rhs@Priority : Int
+    %v4 = cmp_eq %lhs$, %rhs$ : Bool
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}
+
+fn Ord(Priority).compare(%lhs: Priority, %rhs: Priority) -> Ordering {
+  b0:
+    %lhs$ = load %lhs@Priority : Int
+    %rhs$ = load %rhs@Priority : Int
+    %v4 = call Ord(Int).compare, %lhs$, %rhs$ : Ordering
+    jmp b1
+
+  b1:
+    jmp b2
+
+  b2:
+    ret %v4
+}

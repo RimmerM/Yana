@@ -18,19 +18,19 @@ fn guarded(%p: %Int) -> Int {
     jmp b3
 
   b3:
-    %v13 = phi [b1, %v10], [b2, %v5] : Bool
-    je %v13, b4, b5
+    %v14 = phi [b1, %v10], [b2, False] : Bool
+    je %v14, b4, b5
 
   b4:
-    %v15 = load [%p] : Int
+    %v16 = load [%p] : Int
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v19 = phi [b4, %v15], [b5, 0] : Int
-    ret %v19
+    %v20 = phi [b4, %v16], [b5, 0] : Int
+    ret %v20
 }
 
 fn defaulted(%p: %Int) -> Int {
@@ -48,20 +48,20 @@ fn defaulted(%p: %Int) -> Int {
     jmp b3
 
   b3:
-    %v11 = phi [b1, %v8], [b2, %v3] : Bool
-    je %v11, b4, b5
+    %v12 = phi [b1, %v8], [b2, True] : Bool
+    je %v12, b4, b5
 
   b4:
-    %v15 = neg 1 : Int
+    %v16 = neg 1 : Int
     jmp b6
 
   b5:
-    %v16 = load [%p] : Int
+    %v17 = load [%p] : Int
     jmp b6
 
   b6:
-    %v19 = phi [b4, %v15], [b5, %v16] : Int
-    ret %v19
+    %v20 = phi [b4, %v16], [b5, %v17] : Int
+    ret %v20
 }
 
 fn main() -> Int {

@@ -658,6 +658,24 @@ struct Con {
     LocationId source;
 };
 
+/*
+ * One class named in a `deriving (...)` clause - Analysis-Derive.md §3's `newtype` shape.
+ *
+ * The class alone, unapplied, because the type is the declaration the clause is attached to. That is
+ * the same shape `default FromInt = Int` uses, and it is what makes the standalone form
+ * `deriving Logic(OpenFlags)` a different production rather than this one with the argument written
+ * out - see Analysis-Extensibility.md, which defines the clause as sugar for the declaration.
+ *
+ * The location is the class name's own, not the clause's: every diagnostic a derivation produces is
+ * about one of the classes in the list, and pointing at the whole clause would make a list of four
+ * report four times at the same caret.
+ */
+struct Derive {
+    StringId name;
+    LocationId source;
+};
+
+
 struct Decl {
     enum Kind: U8 {
         Error, // Placeholder for parse errors.
@@ -682,6 +700,11 @@ struct Decl {
         struct {
             SimpleType type;
             Type target;
+
+            // The `deriving (...)` clause, empty where none was written. Only a *qualified* alias
+            // can carry one - a plain alias is its target, so there is no second type for an
+            // instance to be about - and that is reported in the parser rather than here.
+            ParseList<Derive> derives;
         } alias;
 
         struct {

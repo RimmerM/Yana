@@ -40,30 +40,58 @@ TypePtr resolveOutcomeType(Module& module, TypePtr value, TypePtr exit, Location
     return instantiateRecord(module, outcome, { args, 2 }, source);
 }
 
-ModulePtr<Value> ExprResolver::makeOutcome(TypePtr type, bool proceed, ModulePtr<Value> value,
-                                           LocationId source) {
+ModulePtr<Value> ExprResolver::makeConstructed(TypePtr type, U32 index, ModulePtr<Value> value,
+                                               LocationId source) {
     auto record = (RecordType*)global[type];
-    auto index = proceed ? module.program.outcomeProceed : module.program.outcomeExit;
+    auto constructor = record->constructors.get(global, index);
 
     // Both payloads unit is an ordinary enum, which is its discriminant and nothing else. It is the
     // shape a unit-returning function's exit signal has, so it is a real case rather than a corner.
-    if(record->layout == RecordType::Enum) return makeInt(source, type, index);
+    // The number is the constructor's own - see Constructor::value - and not its position.
+    if(record->layout == RecordType::Enum) return makeInt(source, type, U64(constructor.value));
 
-    auto content = record->constructors.get(global, index).content;
+    auto content = constructor.content;
     auto storage = allocate(type, source);
     auto root = placeFor(storage, source);
 
-    if(record->layout == RecordType::Multi) {
-        initialize(project(root, ProjectionKind::Discriminant, 0),
-                   makeInt(source, module.scalar.int_, index), source);
+    /*
+     * The tag and the payload as one construction, which is what resolveConstruct does and what this
+     * used to do differently.
+     *
+     * The difference was not a missed optimization. A record narrow enough to carry its tag in a
+     * *niche* has no separate discriminant to store, and the store that says so is the aggregate:
+     * writing the two halves as two `Init`s left the erased path building a `Nothing` where the
+     * program had asked for a `Just`. So the shape is the shape a written `Just(x)` produces, with
+     * the same two exceptions - a bit tag and a boxed payload each keep their own store, because
+     * neither has an aggregate for the tag to be a component of.
+     */
+    ModulePtr<Value> tag = record->layout == RecordType::Multi
+        ? makeInt(source, module.scalar.int_, index)
+        : nullptr;
+
+    if(tag && (isNarrowValue(global, type) || constructor.boxed)) {
+        initialize(project(root, ProjectionKind::Discriminant, 0), tag, source);
+        tag = nullptr;
     }
 
     if(content && !isUnit(global, content)) {
         auto converted = isMemoryType(global, content) ? value : convert(value, content, source);
-        initialize(project(root, ProjectionKind::Downcast, index), converted, source);
+
+        if(!buildSumAggregate(root, type, U16(index), tag, converted, source)) {
+            if(tag) initialize(project(root, ProjectionKind::Discriminant, 0), tag, source);
+            initialize(project(root, ProjectionKind::Downcast, index), converted, source);
+        }
+    } else if(tag) {
+        initialize(project(root, ProjectionKind::Discriminant, 0), tag, source);
     }
 
     return storage;
+}
+
+ModulePtr<Value> ExprResolver::makeOutcome(TypePtr type, bool proceed, ModulePtr<Value> value,
+                                           LocationId source) {
+    return makeConstructed(type, proceed ? module.program.outcomeProceed : module.program.outcomeExit,
+                           value, source);
 }
 
 /*

@@ -74,10 +74,11 @@ data Flags {read: Bool, write: Bool}
 instance Eq(Flags):
     fn ==(lhs: Flags, rhs: Flags) -> Bool = lhs.read == rhs.read && lhs.write == rhs.write
 
--- Four functions written, seven available. For a type that is not Bool the short-circuiting pair
--- and the bitwise pair are the same operation, and Logic says so once instead of every instance
--- saying it again.
-instance Logic(Flags):
+-- The four bit operations, which is the whole of `Bitwise`. `&&`, `||` and `!` are deliberately not
+-- reachable through it: they ask `Truth` and answer `Bool`, so a type that combines its values
+-- bitwise says so with `and`/`or`/`not`, and a type that has a notion of being empty says *that*
+-- with `Truth`. This one has the first and not the second, and the body below writes what it means.
+instance Bitwise(Flags):
     fn and(lhs: Flags, rhs: Flags) -> Flags = Flags {read: lhs.read && rhs.read, write: lhs.write && rhs.write}
     fn or(lhs: Flags, rhs: Flags) -> Flags = Flags {read: lhs.read || rhs.read, write: lhs.write || rhs.write}
     fn xor(lhs: Flags, rhs: Flags) -> Flags = Flags {read: lhs.read `xor` rhs.read, write: lhs.write `xor` rhs.write}
@@ -86,11 +87,11 @@ instance Logic(Flags):
 fn flags() -> Int:
     let rw = Flags {read: True, write: True}
     let r = Flags {read: True, write: False}
-    let inverted = !r
+    let inverted = not(r)
     let &score = 0
 
-    if (rw && r) == r then score = score + 256
-    if (r || rw) == rw then score = score + 512
+    if and(rw, r) == r then score = score + 256
+    if or(r, rw) == rw then score = score + 512
     if inverted == Flags {read: False, write: True} then score = score + 1024
 
     return score

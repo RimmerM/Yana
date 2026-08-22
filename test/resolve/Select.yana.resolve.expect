@@ -88,8 +88,8 @@ fn either(%a: Int, %b: Int) -> Int {
     jmp b3
 
   b3:
-    %v11 = phi [b1, %v8], [b2, %v4] : Bool
-    je %v11, b4, b5
+    %v12 = phi [b1, %v8], [b2, True] : Bool
+    je %v12, b4, b5
 
   b4:
     jmp b6
@@ -98,8 +98,8 @@ fn either(%a: Int, %b: Int) -> Int {
     jmp b6
 
   b6:
-    %v17 = phi [b4, 1], [b5, 0] : Int
-    ret %v17
+    %v18 = phi [b4, 1], [b5, 0] : Int
+    ret %v18
 }
 
 fn count() -> Bool {
@@ -123,8 +123,8 @@ fn skipped(%a: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, %v5], [b2, %v3] : Bool
-    je %v8, b4, b5
+    %v9 = phi [b1, %v5], [b2, False] : Bool
+    je %v9, b4, b5
 
   b4:
     jmp b6
@@ -133,8 +133,8 @@ fn skipped(%a: Int) -> Int {
     jmp b6
 
   b6:
-    %v14 = phi [b4, 1], [b5, 0] : Int
-    ret %v14
+    %v15 = phi [b4, 1], [b5, 0] : Int
+    ret %v15
 }
 
 fn effects() -> Int {

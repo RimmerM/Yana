@@ -852,8 +852,18 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
         return nullptr;
     }
 
+    /*
+     * The half of Analysis-Language.md §2c this end owns.
+     *
+     * `let &` is the answer whenever the initializer is something this frame may own outright. It is
+     * not the answer when the value had to be taken out of somewhere else, which is what a `->`
+     * binding is for - and a reader sent from here to `let &` and from there to `->` was being sent
+     * round a circle, because until §2b there was no spelling that was both. Naming `&->` is what
+     * ends it, so the message says which of the two axes each spelling sets.
+     */
     if(!isWritablePlace(place.unwrap())) {
-        context.diagnostics.error("a `&` argument must name mutable storage - declare it with `let &`"_v, source);
+        context.diagnostics.error("a `&` argument must name mutable storage - declare it with `let &`, or with `let &->` where the binding also has to take its value out of a place that keeps a name for it"_v,
+                                  source);
         return nullptr;
     }
 
@@ -1445,7 +1455,9 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
     // one produces the index as a value rather than storage holding it.
     if(record->layout == RecordType::Enum) {
         if(args.size()) context.diagnostics.error("nullary constructor does not take arguments"_v, expr.source);
-        return makeInt(expr.source, recordType, reference.index);
+        // The number the constructor *is*, which `@value` may have pinned to something other than
+        // the declaration order - Analysis-Language.md §5.1.
+        return makeInt(expr.source, recordType, U64(constructor.value));
     }
 
     auto result = allocate(recordType, expr.source);

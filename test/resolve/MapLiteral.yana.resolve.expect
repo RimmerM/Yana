@@ -1795,7 +1795,7 @@ fn reserveMap(Int, Int)(%self: Map(Int, Int), %wanted: I64) -> () {
     jmp b5
 
   b5:
-    %v2 = phi [b3, %v20], [b4, %v13] : Bool
+    %v2 = phi [b3, %v20], [b4, True] : Bool
     je %v2, b6, b7
 
   b6:
@@ -2018,26 +2018,27 @@ fn indexPlace(Int, Int)(%self: Map(Int, Int), %at: I64, %h: U32) -> () {
     %v17 = borrow_mut %self : &mut Map(Int, Int)
     call setControl(Int, Int), %v17, %slot, %v16
     %v19 = load %self : Map(Int, Int)
-    %v20 = call entryNumbers(Int, Int), %v19 : %@bits(30) U32
-    %v21 = strideof @bits(30) U32 : I64
-    %v22 = mul %slot, %v21 : I64
-    %v23 = add %v20, %v22 : %@bits(30) U32
-    %v24 = cast %at : U32
-    %v26 = and %v24, 1073741823 : U32
-    %v27 = cast %v26 : @bits(30) U32
-    assign [%v23], %v27
-    %v30 = cmp_eq %taken, 128 : Bool
-    je %v30, b1, b2
+    %v20 = borrow %self : &Map(Int, Int)
+    %v21 = call entryNumbers(Int, Int), %v20 : %@bits(30) U32
+    %v22 = strideof @bits(30) U32 : I64
+    %v23 = mul %slot, %v22 : I64
+    %v24 = add %v21, %v23 : %@bits(30) U32
+    %v25 = cast %at : U32
+    %v27 = and %v25, 1073741823 : U32
+    %v28 = cast %v27 : @bits(30) U32
+    assign [%v24], %v28
+    %v31 = cmp_eq %taken, 128 : Bool
+    je %v31, b1, b2
 
   b1:
-    %v32 = load %self : Map(Int, Int)
-    %v33 = load %self@Map.live : @bits(30) U32
-    %v34 = cast %v33 : I64
-    %v36 = add %v34, 1 : I64
-    %v37 = cast %v36 : U32
-    %v39 = and %v37, 1073741823 : U32
-    %v40 = cast %v39 : @bits(30) U32
-    assign %self@Map.live, %v40
+    %v33 = load %self : Map(Int, Int)
+    %v34 = load %self@Map.live : @bits(30) U32
+    %v35 = cast %v34 : I64
+    %v37 = add %v35, 1 : I64
+    %v38 = cast %v37 : U32
+    %v40 = and %v38, 1073741823 : U32
+    %v41 = cast %v40 : @bits(30) U32
+    assign %self@Map.live, %v41
     jmp b3
 
   b2:
@@ -2359,13 +2360,14 @@ fn indexFind(Int, Int)(%self: Map(Int, Int), %key: Int, %h: U32) -> I64 {
 
 fn entryNumber(Int, Int)(%self: Map(Int, Int), %slot: I64) -> I64 {
   b0:
-    %v2 = call entryNumbers(Int, Int), %self : %@bits(30) U32
-    %v3 = strideof @bits(30) U32 : I64
-    %v4 = mul %slot, %v3 : I64
-    %v5 = add %v2, %v4 : %@bits(30) U32
-    %v6 = load [%v5] : @bits(30) U32
-    %v7 = cast %v6 : I64
-    ret %v7
+    %v2 = borrow %self : &Map(Int, Int)
+    %v3 = call entryNumbers(Int, Int), %v2 : %@bits(30) U32
+    %v4 = strideof @bits(30) U32 : I64
+    %v5 = mul %slot, %v4 : I64
+    %v6 = add %v3, %v5 : %@bits(30) U32
+    %v7 = load [%v6] : @bits(30) U32
+    %v8 = cast %v7 : I64
+    ret %v8
 }
 
 fn valueAtMut(Int, Int)(%self: Map(Int, Int), %at: I64) -> &mut Int {
@@ -2640,7 +2642,7 @@ fn reserveMap(String, Int)(%self: Map(String, Int), %wanted: I64) -> () {
     jmp b5
 
   b5:
-    %v2 = phi [b3, %v20], [b4, %v13] : Bool
+    %v2 = phi [b3, %v20], [b4, True] : Bool
     je %v2, b6, b7
 
   b6:
@@ -2863,26 +2865,27 @@ fn indexPlace(String, Int)(%self: Map(String, Int), %at: I64, %h: U32) -> () {
     %v17 = borrow_mut %self : &mut Map(String, Int)
     call setControl(String, Int), %v17, %slot, %v16
     %v19 = load %self : Map(String, Int)
-    %v20 = call entryNumbers(String, Int), %v19 : %@bits(30) U32
-    %v21 = strideof @bits(30) U32 : I64
-    %v22 = mul %slot, %v21 : I64
-    %v23 = add %v20, %v22 : %@bits(30) U32
-    %v24 = cast %at : U32
-    %v26 = and %v24, 1073741823 : U32
-    %v27 = cast %v26 : @bits(30) U32
-    assign [%v23], %v27
-    %v30 = cmp_eq %taken, 128 : Bool
-    je %v30, b1, b2
+    %v20 = borrow %self : &Map(String, Int)
+    %v21 = call entryNumbers(String, Int), %v20 : %@bits(30) U32
+    %v22 = strideof @bits(30) U32 : I64
+    %v23 = mul %slot, %v22 : I64
+    %v24 = add %v21, %v23 : %@bits(30) U32
+    %v25 = cast %at : U32
+    %v27 = and %v25, 1073741823 : U32
+    %v28 = cast %v27 : @bits(30) U32
+    assign [%v24], %v28
+    %v31 = cmp_eq %taken, 128 : Bool
+    je %v31, b1, b2
 
   b1:
-    %v32 = load %self : Map(String, Int)
-    %v33 = load %self@Map.live : @bits(30) U32
-    %v34 = cast %v33 : I64
-    %v36 = add %v34, 1 : I64
-    %v37 = cast %v36 : U32
-    %v39 = and %v37, 1073741823 : U32
-    %v40 = cast %v39 : @bits(30) U32
-    assign %self@Map.live, %v40
+    %v33 = load %self : Map(String, Int)
+    %v34 = load %self@Map.live : @bits(30) U32
+    %v35 = cast %v34 : I64
+    %v37 = add %v35, 1 : I64
+    %v38 = cast %v37 : U32
+    %v40 = and %v38, 1073741823 : U32
+    %v41 = cast %v40 : @bits(30) U32
+    assign %self@Map.live, %v41
     jmp b3
 
   b2:
@@ -3210,13 +3213,14 @@ fn indexFind(String, Int)(%self: Map(String, Int), %key: String, %h: U32) -> I64
 
 fn entryNumber(String, Int)(%self: Map(String, Int), %slot: I64) -> I64 {
   b0:
-    %v2 = call entryNumbers(String, Int), %self : %@bits(30) U32
-    %v3 = strideof @bits(30) U32 : I64
-    %v4 = mul %slot, %v3 : I64
-    %v5 = add %v2, %v4 : %@bits(30) U32
-    %v6 = load [%v5] : @bits(30) U32
-    %v7 = cast %v6 : I64
-    ret %v7
+    %v2 = borrow %self : &Map(String, Int)
+    %v3 = call entryNumbers(String, Int), %v2 : %@bits(30) U32
+    %v4 = strideof @bits(30) U32 : I64
+    %v5 = mul %slot, %v4 : I64
+    %v6 = add %v3, %v5 : %@bits(30) U32
+    %v7 = load [%v6] : @bits(30) U32
+    %v8 = cast %v7 : I64
+    ret %v8
 }
 
 fn valueAtMut(Int, String)(%self: Map(String, Int), %at: I64) -> &mut Int {
@@ -3445,7 +3449,7 @@ fn reserveMap(Int, Array(Int))(%self: Map(Int, Array(Int)), %wanted: I64) -> () 
     jmp b5
 
   b5:
-    %v2 = phi [b3, %v20], [b4, %v13] : Bool
+    %v2 = phi [b3, %v20], [b4, True] : Bool
     je %v2, b6, b7
 
   b6:
@@ -3661,26 +3665,27 @@ fn indexPlace(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: I64, %h: U32) -
     %v17 = borrow_mut %self : &mut Map(Int, Array(Int))
     call setControl(Int, Array(Int)), %v17, %slot, %v16
     %v19 = load %self : Map(Int, Array(Int))
-    %v20 = call entryNumbers(Int, Array(Int)), %v19 : %@bits(30) U32
-    %v21 = strideof @bits(30) U32 : I64
-    %v22 = mul %slot, %v21 : I64
-    %v23 = add %v20, %v22 : %@bits(30) U32
-    %v24 = cast %at : U32
-    %v26 = and %v24, 1073741823 : U32
-    %v27 = cast %v26 : @bits(30) U32
-    assign [%v23], %v27
-    %v30 = cmp_eq %taken, 128 : Bool
-    je %v30, b1, b2
+    %v20 = borrow %self : &Map(Int, Array(Int))
+    %v21 = call entryNumbers(Int, Array(Int)), %v20 : %@bits(30) U32
+    %v22 = strideof @bits(30) U32 : I64
+    %v23 = mul %slot, %v22 : I64
+    %v24 = add %v21, %v23 : %@bits(30) U32
+    %v25 = cast %at : U32
+    %v27 = and %v25, 1073741823 : U32
+    %v28 = cast %v27 : @bits(30) U32
+    assign [%v24], %v28
+    %v31 = cmp_eq %taken, 128 : Bool
+    je %v31, b1, b2
 
   b1:
-    %v32 = load %self : Map(Int, Array(Int))
-    %v33 = load %self@Map.live : @bits(30) U32
-    %v34 = cast %v33 : I64
-    %v36 = add %v34, 1 : I64
-    %v37 = cast %v36 : U32
-    %v39 = and %v37, 1073741823 : U32
-    %v40 = cast %v39 : @bits(30) U32
-    assign %self@Map.live, %v40
+    %v33 = load %self : Map(Int, Array(Int))
+    %v34 = load %self@Map.live : @bits(30) U32
+    %v35 = cast %v34 : I64
+    %v37 = add %v35, 1 : I64
+    %v38 = cast %v37 : U32
+    %v40 = and %v38, 1073741823 : U32
+    %v41 = cast %v40 : @bits(30) U32
+    assign %self@Map.live, %v41
     jmp b3
 
   b2:
@@ -4006,13 +4011,14 @@ fn indexFind(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %h: U32) -
 
 fn entryNumber(Int, Array(Int))(%self: Map(Int, Array(Int)), %slot: I64) -> I64 {
   b0:
-    %v2 = call entryNumbers(Int, Array(Int)), %self : %@bits(30) U32
-    %v3 = strideof @bits(30) U32 : I64
-    %v4 = mul %slot, %v3 : I64
-    %v5 = add %v2, %v4 : %@bits(30) U32
-    %v6 = load [%v5] : @bits(30) U32
-    %v7 = cast %v6 : I64
-    ret %v7
+    %v2 = borrow %self : &Map(Int, Array(Int))
+    %v3 = call entryNumbers(Int, Array(Int)), %v2 : %@bits(30) U32
+    %v4 = strideof @bits(30) U32 : I64
+    %v5 = mul %slot, %v4 : I64
+    %v6 = add %v3, %v5 : %@bits(30) U32
+    %v7 = load [%v6] : @bits(30) U32
+    %v8 = cast %v7 : I64
+    ret %v8
 }
 
 fn valueAtMut(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: I64) -> &mut Array(Int) {
@@ -4271,7 +4277,7 @@ fn reserveMap(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %wanted: I64) 
     jmp b5
 
   b5:
-    %v2 = phi [b3, %v20], [b4, %v13] : Bool
+    %v2 = phi [b3, %v20], [b4, True] : Bool
     je %v2, b6, b7
 
   b6:
@@ -4487,26 +4493,27 @@ fn indexPlace(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: I64, %h: 
     %v17 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
     call setControl(Int, Map(Int, Int)), %v17, %slot, %v16
     %v19 = load %self : Map(Int, Map(Int, Int))
-    %v20 = call entryNumbers(Int, Map(Int, Int)), %v19 : %@bits(30) U32
-    %v21 = strideof @bits(30) U32 : I64
-    %v22 = mul %slot, %v21 : I64
-    %v23 = add %v20, %v22 : %@bits(30) U32
-    %v24 = cast %at : U32
-    %v26 = and %v24, 1073741823 : U32
-    %v27 = cast %v26 : @bits(30) U32
-    assign [%v23], %v27
-    %v30 = cmp_eq %taken, 128 : Bool
-    je %v30, b1, b2
+    %v20 = borrow %self : &Map(Int, Map(Int, Int))
+    %v21 = call entryNumbers(Int, Map(Int, Int)), %v20 : %@bits(30) U32
+    %v22 = strideof @bits(30) U32 : I64
+    %v23 = mul %slot, %v22 : I64
+    %v24 = add %v21, %v23 : %@bits(30) U32
+    %v25 = cast %at : U32
+    %v27 = and %v25, 1073741823 : U32
+    %v28 = cast %v27 : @bits(30) U32
+    assign [%v24], %v28
+    %v31 = cmp_eq %taken, 128 : Bool
+    je %v31, b1, b2
 
   b1:
-    %v32 = load %self : Map(Int, Map(Int, Int))
-    %v33 = load %self@Map.live : @bits(30) U32
-    %v34 = cast %v33 : I64
-    %v36 = add %v34, 1 : I64
-    %v37 = cast %v36 : U32
-    %v39 = and %v37, 1073741823 : U32
-    %v40 = cast %v39 : @bits(30) U32
-    assign %self@Map.live, %v40
+    %v33 = load %self : Map(Int, Map(Int, Int))
+    %v34 = load %self@Map.live : @bits(30) U32
+    %v35 = cast %v34 : I64
+    %v37 = add %v35, 1 : I64
+    %v38 = cast %v37 : U32
+    %v40 = and %v38, 1073741823 : U32
+    %v41 = cast %v40 : @bits(30) U32
+    assign %self@Map.live, %v41
     jmp b3
 
   b2:
@@ -4832,13 +4839,14 @@ fn indexFind(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %h: 
 
 fn entryNumber(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %slot: I64) -> I64 {
   b0:
-    %v2 = call entryNumbers(Int, Map(Int, Int)), %self : %@bits(30) U32
-    %v3 = strideof @bits(30) U32 : I64
-    %v4 = mul %slot, %v3 : I64
-    %v5 = add %v2, %v4 : %@bits(30) U32
-    %v6 = load [%v5] : @bits(30) U32
-    %v7 = cast %v6 : I64
-    ret %v7
+    %v2 = borrow %self : &Map(Int, Map(Int, Int))
+    %v3 = call entryNumbers(Int, Map(Int, Int)), %v2 : %@bits(30) U32
+    %v4 = strideof @bits(30) U32 : I64
+    %v5 = mul %slot, %v4 : I64
+    %v6 = add %v3, %v5 : %@bits(30) U32
+    %v7 = load [%v6] : @bits(30) U32
+    %v8 = cast %v7 : I64
+    ret %v8
 }
 
 fn valueAtMut(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: I64) -> &mut Map(Int, Int) {

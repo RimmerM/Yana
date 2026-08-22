@@ -91,8 +91,8 @@ fn saturatedConstants() -> Int {
     jmp b3
 
   b3:
-    %v14 = phi [b1, %v11], [b2, %v3] : Bool
-    je %v14, b4, b5
+    %v15 = phi [b1, %v11], [b2, False] : Bool
+    je %v15, b4, b5
 
   b4:
     jmp b6
@@ -101,8 +101,8 @@ fn saturatedConstants() -> Int {
     jmp b6
 
   b6:
-    %v20 = phi [b4, 40], [b5, 0] : Int
-    ret %v20
+    %v21 = phi [b4, 40], [b5, 0] : Int
+    ret %v21
 }
 
 fn notANumber() -> Double {
@@ -134,8 +134,8 @@ fn saturatedAtRuntime() -> Int {
     jmp b3
 
   b3:
-    %v13 = phi [b1, %v10], [b2, %v4] : Bool
-    je %v13, b4, b5
+    %v14 = phi [b1, %v10], [b2, False] : Bool
+    je %v14, b4, b5
 
   b4:
     jmp b6
@@ -144,8 +144,8 @@ fn saturatedAtRuntime() -> Int {
     jmp b6
 
   b6:
-    %v19 = phi [b4, 50], [b5, 0] : Int
-    ret %v19
+    %v20 = phi [b4, 50], [b5, 0] : Int
+    ret %v20
 }
 
 fn nonFinite() -> Int {

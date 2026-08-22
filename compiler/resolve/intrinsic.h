@@ -38,6 +38,29 @@ struct IntrinsicMethod {
     U16 arity;
     Emit emit = nullptr;
     DeferredIntrinsic deferred = nullptr;
+
+    /*
+     * Whether a call site expands this rather than calling it.
+     *
+     * True for everything that is *one instruction*, which is what makes reaching one cost nothing
+     * without an optimizer having run. An emitter that branches is not one of those: what it splices
+     * into a call site is a control-flow graph, and the value it hands back is a phi of storage from
+     * two arms rather than anything a call's argument handling has a place for. `generateCompare`
+     * is the same statement made by having no emitter at all - "the one primitive operation that is
+     * not a single instruction, so it has a real body and no intrinsic".
+     *
+     * This started as a workaround and is no longer one. Splicing a branching emitter used to
+     * *miscompile*: the phi of two frame allocations collapsed onto one arm's storage when the
+     * condition was constant, and the binding's slot became a second name for it - see
+     * IrEditor::mergeIntoLocal, which is where that was fixed, and resolve/PhiStorage.yana. So what
+     * is left is the cost judgement above, which stands on its own: a call the inliner can take on
+     * the ordinary terms is a better shape for a branch than a graph spliced into every call site.
+     *
+     * The body is generated either way, so what this decides is only whether calls go through it.
+     * Nothing is lost by a call: `opt_inline` sees an ordinary function and inlines it on the
+     * ordinary terms, which is where a branch belongs anyway.
+     */
+    bool expand = true;
 };
 
 /*
@@ -117,6 +140,14 @@ ModulePtr<Value> emitLogicalNot(ExprResolver& resolver, Buffer<ModulePtr<Value>>
 // the argument and emit it under the test.
 ModulePtr<Value> emitLogicalAnd(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
                                 LocationId source, StringId resultName);
+// `!`, `&&` and `||` - plain generic functions over `Truth`, answering `Bool`. See the definitions.
+ModulePtr<Value> emitTruthNot(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                              LocationId source, StringId resultName);
+ModulePtr<Value> emitTruthAnd(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                              LocationId source, StringId resultName);
+ModulePtr<Value> emitTruthOr(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
+                             LocationId source, StringId resultName);
+
 ModulePtr<Value> emitLogicalOr(ExprResolver& resolver, Buffer<ResolvedArg> args, TypePtr type,
                                LocationId source, StringId resultName);
 
@@ -164,7 +195,8 @@ bool hasBitCounts(GlobalBase global, TypePtr type);
 // `BitPermute`, over the same set - `hasBitCounts` guards both, and defineBitPermute's comment says
 // why one predicate is right for the two.
 ModulePtr<ClassInstance> defineBitPermute(Module& module, TypePtr type);
-void defineLogic(Module& module, TypePtr type);
+// `Bitwise`, whose `not` differs between a `Bool` and a wider integer - see the definition.
+ModulePtr<ClassInstance> defineBitwise(Module& module, TypePtr type, Emit complement);
 void defineTruth(Module& module, TypePtr type, Emit emit);
 
 // One rung of the conversion ladder: `Widen(from, to)` or `Narrow(from, to)`, whose single method
@@ -177,10 +209,19 @@ ModulePtr<ClassInstance> defineConversion(Module& module, StringView className, 
 // which are written over a type variable rather than over a type.
 ModulePtr<ClassInstance> defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen = nullptr);
 
+// `Enum(a)` over a payload-free sum, generated where an instance lookup found nothing - see the
+// definition, and Analysis-Language.md §5.1.
+ModulePtr<ClassInstance> enumInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+
+// And `Show` for the same types, on the same terms - consulted only where nothing declared answered,
+// so a type that writes its own keeps it. What it produces is the constructor's name.
+ModulePtr<ClassInstance> enumShowInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+
 // Attaches a hook to a signature the module declared in source but gave no body. This is how a
 // generic intrinsic is written: the declaration says what it means to the type checker, and the
 // hook says what it generates. Reports if no such function was declared.
 void attachIntrinsic(Module& module, StringView name, Intrinsic intrinsic);
+void attachDeferredIntrinsic(Module& module, StringView name, DeferredIntrinsic intrinsic);
 
 /*
  * The built-in containers' accessors - Implementation-Simplification.md §2.

@@ -1,0 +1,40 @@
+{-
+   `deriving` on a qualified alias - Analysis-Derive.md §3's `newtype` shape.
+
+   The forwarding derivation, which is that document's rule 1 demoted from a compiler rule to the
+   front of the template mechanism. What it produces is an ordinary instance: the golden IR below is
+   the same IR the hand-written `instance Bitwise(OpenFlags)` in `Native/Linux.yana` used to produce,
+   which is the property that makes this a rewrite rather than a second dispatch path.
+-}
+
+-- The flags newtype, which is what the feature was built for: a distinct type over a machine word,
+-- whose bit operations are the word's and whose truthiness is "any bit set".
+alias qualified OpenFlags = I64 deriving (Bitwise, Truth)
+
+-- A list of one may drop the parentheses. `Eq` derives `==` alone, because `!=` is a class default -
+-- the expansion writes only what an instance is obliged to write.
+alias qualified Handle = Int deriving Eq
+
+-- Two classes where one is a superclass of the other. `Ord`'s obligation is `compare`; its four
+-- comparisons and `min`/`max` are defaults over it.
+alias qualified Priority = Int deriving (Eq, Ord)
+
+fn combined() -> OpenFlags = OpenFlags(64) `or` OpenFlags(512)
+
+fn anySet(flags: OpenFlags) -> Bool = if flags then True else False
+
+fn sameHandle(a: Handle, b: Handle) -> Bool = a == b
+
+-- Through the default rather than through the derived function, which is the interaction worth
+-- asserting: `!=` is `!(lhs == rhs)` specialized for `Handle`, over the `==` this file derived.
+fn differentHandle(a: Handle, b: Handle) -> Bool = a != b
+
+fn higher(a: Priority, b: Priority) -> Bool = a > b
+
+fn main() -> Int:
+    let flags = combined()
+    if !anySet(flags) then return 1
+    if !sameHandle(Handle(3), Handle(3)) then return 2
+    if !differentHandle(Handle(3), Handle(4)) then return 3
+    if !higher(Priority(9), Priority(2)) then return 4
+    return match flags: OpenFlags(bits) -> truncate(bits) :: Int

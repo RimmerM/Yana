@@ -1223,9 +1223,9 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     je %v41, b9, b10
 
   b8:
-    %v63 = load %at : Int
-    %v66 = cmp_eq %v63, 0 : Bool
-    je %v66, b22, b14
+    %v64 = load %at : Int
+    %v67 = cmp_eq %v64, 0 : Bool
+    je %v67, b22, b14
 
   b9:
     %v43 = load %kept : String
@@ -1240,19 +1240,19 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     jmp b11
 
   b11:
-    %v55 = phi [b9, %v52], [b10, %v41] : Bool
-    je %v55, b12, b8
+    %v56 = phi [b9, %v52], [b10, False] : Bool
+    je %v56, b12, b8
 
   b12:
-    %v57 = load %at : Int
-    %v60 = sub %v57, 1 : Int
-    assign %at, %v60
+    %v58 = load %at : Int
+    %v61 = sub %v58, 1 : Int
+    assign %at, %v61
     jmp b7
 
   b13:
-    %v68 = load %out : String
-    %v70 = borrow_mut %out : &mut String
-    call pushUnit, %v70, 49
+    %v69 = load %out : String
+    %v71 = borrow_mut %out : &mut String
+    call pushUnit, %v71, 49
     %zeros = alloc : Int
     init %zeros, 0
     jmp b15
@@ -1261,21 +1261,21 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     jmp b18
 
   b15:
-    %v76 = load %zeros : Int
-    %v77 = cmp_lt %v76, %keep : Bool
-    je %v77, b17, b16
+    %v77 = load %zeros : Int
+    %v78 = cmp_lt %v77, %keep : Bool
+    je %v78, b17, b16
 
   b16:
-    %v91 = add %keep, 1 : Int
-    ret %v91
+    %v92 = add %keep, 1 : Int
+    ret %v92
 
   b17:
-    %v79 = load %out : String
-    %v81 = borrow_mut %out : &mut String
-    call pushUnit, %v81, 48
-    %v83 = load %zeros : Int
-    %v86 = add %v83, 1 : Int
-    assign %zeros, %v86
+    %v80 = load %out : String
+    %v82 = borrow_mut %out : &mut String
+    call pushUnit, %v82, 48
+    %v84 = load %zeros : Int
+    %v87 = add %v84, 1 : Int
+    assign %zeros, %v87
     jmp b15
 
   b18:
@@ -1283,25 +1283,25 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     jmp b19
 
   b19:
-    %v97 = load %i : Int
-    %v98 = cmp_lt %v97, %keep : Bool
-    je %v98, b21, b23
+    %v98 = load %i : Int
+    %v99 = cmp_lt %v98, %keep : Bool
+    je %v99, b21, b23
 
   b20:
-    %v113 = load %at : Int
-    ret %v113
+    %v114 = load %at : Int
+    ret %v114
 
   b21:
-    %v100 = load %out : String
-    %v101 = load %kept : String
-    %v102 = load %i : Int
-    %v103 = cast %v102 : I64
-    %v104 = call stringUnit, %v101, %v103 : Int
-    %v105 = borrow_mut %out : &mut String
-    call pushUnit, %v105, %v104
-    %v107 = load %i : Int
-    %v110 = add %v107, 1 : Int
-    assign %i, %v110
+    %v101 = load %out : String
+    %v102 = load %kept : String
+    %v103 = load %i : Int
+    %v104 = cast %v103 : I64
+    %v105 = call stringUnit, %v102, %v104 : Int
+    %v106 = borrow_mut %out : &mut String
+    call pushUnit, %v106, %v105
+    %v108 = load %i : Int
+    %v111 = add %v108, 1 : Int
+    assign %i, %v111
     jmp b19
 
   b22:
@@ -1325,8 +1325,8 @@ fn countUp(%start: Int) -> Int {
     je %v7, b3, b4
 
   b2:
-    %v23 = load %value : Int
-    ret %v23
+    %v24 = load %value : Int
+    ret %v24
 
   b3:
     %v9 = load %value : Int
@@ -1337,13 +1337,13 @@ fn countUp(%start: Int) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b3, %v12], [b4, %v7] : Bool
-    je %v15, b6, b2
+    %v16 = phi [b3, %v12], [b4, False] : Bool
+    je %v16, b6, b2
 
   b6:
-    %v17 = load %value : Int
-    %v20 = add %v17, 1 : Int
-    assign %value, %v20
+    %v18 = load %value : Int
+    %v21 = add %v18, 1 : Int
+    assign %value, %v21
     jmp b1
 }
 
@@ -1359,8 +1359,8 @@ fn countDown(%start: Int) -> Int {
     je %v7, b4, b3
 
   b2:
-    %v23 = load %value : Int
-    ret %v23
+    %v24 = load %value : Int
+    ret %v24
 
   b3:
     %v9 = load %value : Int
@@ -1371,13 +1371,13 @@ fn countDown(%start: Int) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b3, %v12], [b4, %v7] : Bool
-    je %v15, b6, b2
+    %v16 = phi [b3, %v12], [b4, True] : Bool
+    je %v16, b6, b2
 
   b6:
-    %v17 = load %value : Int
-    %v20 = sub %v17, 1 : Int
-    assign %value, %v20
+    %v18 = load %value : Int
+    %v21 = sub %v18, 1 : Int
+    assign %value, %v21
     jmp b1
 }
 

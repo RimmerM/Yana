@@ -84,9 +84,9 @@ fn saturatedAtRuntime() -> Int {
     jmp b3
 
   b3:
-    %v13 = phi [b1, %v10], [b2, %v4] : Bool
-    %v21 = select %v13 ? 50 : 0 : Int
-    ret %v21
+    %v14 = phi [b1, %v10], [b2, False] : Bool
+    %v22 = select %v14 ? 50 : 0 : Int
+    ret %v22
 }
 
 fn nonFinite() -> Int {
@@ -114,12 +114,12 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v34 = phi [b2, %v44], [b1, %v38] : Bool
+    %v34 = phi [b2, %v44], [b1, False] : Bool
     %v48 = select %v34 ? 50 : 0 : Int
     %v21 = add %v48, 100 : Int
-    %v52 = div 1, 0 : Double
-    %v54 = cmp_gt %v52, 1000000 : Bool
-    %v57 = select %v54 ? 20 : 0 : Int
-    %v23 = add %v21, %v57 : Int
+    %v53 = div 1, 0 : Double
+    %v55 = cmp_gt %v53, 1000000 : Bool
+    %v58 = select %v55 ? 20 : 0 : Int
+    %v23 = add %v21, %v58 : Int
     ret %v23
 }

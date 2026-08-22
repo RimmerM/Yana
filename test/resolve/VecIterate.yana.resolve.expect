@@ -224,55 +224,53 @@ fn Collections.continuation$1(Flat(Int), Int, ())(%env: %{width: I64, body: &(va
 
   b4:
     %v24 = alloc : Outcome((), Outcome((), ()))
-    init %local5.discriminant, 1
-    init %local5@Exit, %v19
+    aggregate %local5.discriminant = 1, %local5@Exit = %v19
     ret %v24
 
   b5:
-    %v29 = load %i : I64
-    %v30 = load [%env].width : I64
-    %v31 = add %v29, %v30 : I64
-    assign %i, %v31
+    %v28 = load %i : I64
+    %v29 = load [%env].width : I64
+    %v30 = add %v28, %v29 : I64
+    assign %i, %v30
     jmp b1
 
   b6:
-    %v34 = load %i : I64
-    %v35 = sub %v2, %v34 : I64
-    %v36 = cast %v35 : Int
-    %v38 = vsplat 0 : Vec(Int)
-    %v40 = vwithlane %v38, 1, 1 : Vec(Int)
-    %v42 = vwithlane %v40, 2, 2 : Vec(Int)
-    %v44 = vwithlane %v42, 3, 3 : Vec(Int)
-    %v45 = cast %v36 : Int
-    %v46 = vsplat %v45 : Vec(Int)
-    %live = cmp_lt %v44, %v46 : Mask(Int)
-    %v48 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
-    %v49 = load [%v48] : (value$: Vec(Int)) -> Outcome((), ())
-    %v50 = load %i : I64
-    %v51 = call loadVectorTail(Int), %value$, %v50 : Vec(Int)
-    %v52 = load [%env].empty : Vec(Int)
-    %v53 = select %live ? %v51 : %v52 : Vec(Int)
-    %v54 = calldyn %v49, %v53 : Outcome((), ())
-    %v55 = load %local3.discriminant : Int
-    %v57 = cmp_eq %v55, 1 : Bool
-    je %v57, b8, b9
+    %v33 = load %i : I64
+    %v34 = sub %v2, %v33 : I64
+    %v35 = cast %v34 : Int
+    %v37 = vsplat 0 : Vec(Int)
+    %v39 = vwithlane %v37, 1, 1 : Vec(Int)
+    %v41 = vwithlane %v39, 2, 2 : Vec(Int)
+    %v43 = vwithlane %v41, 3, 3 : Vec(Int)
+    %v44 = cast %v35 : Int
+    %v45 = vsplat %v44 : Vec(Int)
+    %live = cmp_lt %v43, %v45 : Mask(Int)
+    %v47 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v48 = load [%v47] : (value$: Vec(Int)) -> Outcome((), ())
+    %v49 = load %i : I64
+    %v50 = call loadVectorTail(Int), %value$, %v49 : Vec(Int)
+    %v51 = load [%env].empty : Vec(Int)
+    %v52 = select %live ? %v50 : %v51 : Vec(Int)
+    %v53 = calldyn %v48, %v52 : Outcome((), ())
+    %v54 = load %local3.discriminant : Int
+    %v56 = cmp_eq %v54, 1 : Bool
+    je %v56, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v60 = alloc : Outcome((), Outcome((), ()))
-    init %local6.discriminant, 1
-    init %local6@Exit, %v54
-    ret %v60
+    %v59 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local6.discriminant = 1, %local6@Exit = %v53
+    ret %v59
 
   b9:
     jmp b10
 
   b10:
-    %v66 = alloc : Outcome((), Outcome((), ()))
+    %v64 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v66
+    ret %v64
 }
 
 fn loadVector(Int)(%from: Flat(Int), %at: I64) -> Vec(Int) {
@@ -383,48 +381,46 @@ fn Collections.continuation$0(Flat(Int), Int, ())(%env: %{width: I64, body: &(va
 
   b4:
     %v28 = alloc : Outcome((), Outcome((), ()))
-    init %local7.discriminant, 1
-    init %local7@Exit, %v23
+    aggregate %local7.discriminant = 1, %local7@Exit = %v23
     ret %v28
 
   b5:
-    %v33 = load %i : I64
-    %v34 = load [%env].width : I64
-    %v35 = add %v33, %v34 : I64
-    assign %i, %v35
+    %v32 = load %i : I64
+    %v33 = load [%env].width : I64
+    %v34 = add %v32, %v33 : I64
+    assign %i, %v34
     jmp b1
 
   b6:
-    %v38 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
-    %v39 = load [%v38] : (value$: {Vec(Int), Int}) -> Outcome((), ())
-    %v40 = alloc : {Vec(Int), Int}
-    %v41 = load %i : I64
-    %v42 = call loadVectorTail(Int), %value$, %v41 : Vec(Int)
-    %v43 = load %i : I64
-    %v44 = sub %v2, %v43 : I64
-    %v45 = cast %v44 : Int
-    aggregate %local4.0 = %v42, %local4.1 = %v45
-    %v47 = calldyn %v39, %v40 : Outcome((), ())
-    %v48 = load %local5.discriminant : Int
-    %v50 = cmp_eq %v48, 1 : Bool
-    je %v50, b8, b9
+    %v37 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v38 = load [%v37] : (value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v39 = alloc : {Vec(Int), Int}
+    %v40 = load %i : I64
+    %v41 = call loadVectorTail(Int), %value$, %v40 : Vec(Int)
+    %v42 = load %i : I64
+    %v43 = sub %v2, %v42 : I64
+    %v44 = cast %v43 : Int
+    aggregate %local4.0 = %v41, %local4.1 = %v44
+    %v46 = calldyn %v38, %v39 : Outcome((), ())
+    %v47 = load %local5.discriminant : Int
+    %v49 = cmp_eq %v47, 1 : Bool
+    je %v49, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v53 = alloc : Outcome((), Outcome((), ()))
-    init %local8.discriminant, 1
-    init %local8@Exit, %v47
-    ret %v53
+    %v52 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local8.discriminant = 1, %local8@Exit = %v46
+    ret %v52
 
   b9:
     jmp b10
 
   b10:
-    %v59 = alloc : Outcome((), Outcome((), ()))
+    %v57 = alloc : Outcome((), Outcome((), ()))
     init %local6.discriminant, 0
-    ret %v59
+    ret %v57
 }
 
 fn vectors(Array(Int), Int, ())(%self: Array(Int), %body: (value$: Vec(Int)) -> Outcome((), ())) -> Outcome((), ()) {
@@ -487,55 +483,53 @@ fn Collections.continuation$1(Array(Int), Int, ())(%env: %{width: I64, body: &(v
 
   b4:
     %v24 = alloc : Outcome((), Outcome((), ()))
-    init %local5.discriminant, 1
-    init %local5@Exit, %v19
+    aggregate %local5.discriminant = 1, %local5@Exit = %v19
     ret %v24
 
   b5:
-    %v29 = load %i : I64
-    %v30 = load [%env].width : I64
-    %v31 = add %v29, %v30 : I64
-    assign %i, %v31
+    %v28 = load %i : I64
+    %v29 = load [%env].width : I64
+    %v30 = add %v28, %v29 : I64
+    assign %i, %v30
     jmp b1
 
   b6:
-    %v34 = load %i : I64
-    %v35 = sub %v2, %v34 : I64
-    %v36 = cast %v35 : Int
-    %v38 = vsplat 0 : Vec(Int)
-    %v40 = vwithlane %v38, 1, 1 : Vec(Int)
-    %v42 = vwithlane %v40, 2, 2 : Vec(Int)
-    %v44 = vwithlane %v42, 3, 3 : Vec(Int)
-    %v45 = cast %v36 : Int
-    %v46 = vsplat %v45 : Vec(Int)
-    %live = cmp_lt %v44, %v46 : Mask(Int)
-    %v48 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
-    %v49 = load [%v48] : (value$: Vec(Int)) -> Outcome((), ())
-    %v50 = load %i : I64
-    %v51 = call loadVectorTail(Int), %value$, %v50 : Vec(Int)
-    %v52 = load [%env].empty : Vec(Int)
-    %v53 = select %live ? %v51 : %v52 : Vec(Int)
-    %v54 = calldyn %v49, %v53 : Outcome((), ())
-    %v55 = load %local3.discriminant : Int
-    %v57 = cmp_eq %v55, 1 : Bool
-    je %v57, b8, b9
+    %v33 = load %i : I64
+    %v34 = sub %v2, %v33 : I64
+    %v35 = cast %v34 : Int
+    %v37 = vsplat 0 : Vec(Int)
+    %v39 = vwithlane %v37, 1, 1 : Vec(Int)
+    %v41 = vwithlane %v39, 2, 2 : Vec(Int)
+    %v43 = vwithlane %v41, 3, 3 : Vec(Int)
+    %v44 = cast %v35 : Int
+    %v45 = vsplat %v44 : Vec(Int)
+    %live = cmp_lt %v43, %v45 : Mask(Int)
+    %v47 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v48 = load [%v47] : (value$: Vec(Int)) -> Outcome((), ())
+    %v49 = load %i : I64
+    %v50 = call loadVectorTail(Int), %value$, %v49 : Vec(Int)
+    %v51 = load [%env].empty : Vec(Int)
+    %v52 = select %live ? %v50 : %v51 : Vec(Int)
+    %v53 = calldyn %v48, %v52 : Outcome((), ())
+    %v54 = load %local3.discriminant : Int
+    %v56 = cmp_eq %v54, 1 : Bool
+    je %v56, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v60 = alloc : Outcome((), Outcome((), ()))
-    init %local6.discriminant, 1
-    init %local6@Exit, %v54
-    ret %v60
+    %v59 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local6.discriminant = 1, %local6@Exit = %v53
+    ret %v59
 
   b9:
     jmp b10
 
   b10:
-    %v66 = alloc : Outcome((), Outcome((), ()))
+    %v64 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v66
+    ret %v64
 }
 
 fn Chunked(Array(a), a).chunks(Int, Outcome((), ()))(%self: Array(Int), %body: (value$: Flat(Int)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
@@ -645,48 +639,46 @@ fn Collections.continuation$0(Array(Int), Int, ())(%env: %{width: I64, body: &(v
 
   b4:
     %v28 = alloc : Outcome((), Outcome((), ()))
-    init %local7.discriminant, 1
-    init %local7@Exit, %v23
+    aggregate %local7.discriminant = 1, %local7@Exit = %v23
     ret %v28
 
   b5:
-    %v33 = load %i : I64
-    %v34 = load [%env].width : I64
-    %v35 = add %v33, %v34 : I64
-    assign %i, %v35
+    %v32 = load %i : I64
+    %v33 = load [%env].width : I64
+    %v34 = add %v32, %v33 : I64
+    assign %i, %v34
     jmp b1
 
   b6:
-    %v38 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
-    %v39 = load [%v38] : (value$: {Vec(Int), Int}) -> Outcome((), ())
-    %v40 = alloc : {Vec(Int), Int}
-    %v41 = load %i : I64
-    %v42 = call loadVectorTail(Int), %value$, %v41 : Vec(Int)
-    %v43 = load %i : I64
-    %v44 = sub %v2, %v43 : I64
-    %v45 = cast %v44 : Int
-    aggregate %local4.0 = %v42, %local4.1 = %v45
-    %v47 = calldyn %v39, %v40 : Outcome((), ())
-    %v48 = load %local5.discriminant : Int
-    %v50 = cmp_eq %v48, 1 : Bool
-    je %v50, b8, b9
+    %v37 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v38 = load [%v37] : (value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v39 = alloc : {Vec(Int), Int}
+    %v40 = load %i : I64
+    %v41 = call loadVectorTail(Int), %value$, %v40 : Vec(Int)
+    %v42 = load %i : I64
+    %v43 = sub %v2, %v42 : I64
+    %v44 = cast %v43 : Int
+    aggregate %local4.0 = %v41, %local4.1 = %v44
+    %v46 = calldyn %v38, %v39 : Outcome((), ())
+    %v47 = load %local5.discriminant : Int
+    %v49 = cmp_eq %v47, 1 : Bool
+    je %v49, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v53 = alloc : Outcome((), Outcome((), ()))
-    init %local8.discriminant, 1
-    init %local8@Exit, %v47
-    ret %v53
+    %v52 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local8.discriminant = 1, %local8@Exit = %v46
+    ret %v52
 
   b9:
     jmp b10
 
   b10:
-    %v59 = alloc : Outcome((), Outcome((), ()))
+    %v57 = alloc : Outcome((), Outcome((), ()))
     init %local6.discriminant, 0
-    ret %v59
+    ret %v57
 }
 
 fn vectors(Array(Float), Float, ())(%self: Array(Float), %body: (value$: Vec(Float)) -> Outcome((), ())) -> Outcome((), ()) {
@@ -749,56 +741,54 @@ fn Collections.continuation$1(Array(Float), Float, ())(%env: %{width: I64, body:
 
   b4:
     %v24 = alloc : Outcome((), Outcome((), ()))
-    init %local5.discriminant, 1
-    init %local5@Exit, %v19
+    aggregate %local5.discriminant = 1, %local5@Exit = %v19
     ret %v24
 
   b5:
-    %v29 = load %i : I64
-    %v30 = load [%env].width : I64
-    %v31 = add %v29, %v30 : I64
-    assign %i, %v31
+    %v28 = load %i : I64
+    %v29 = load [%env].width : I64
+    %v30 = add %v28, %v29 : I64
+    assign %i, %v30
     jmp b1
 
   b6:
-    %v34 = load %i : I64
-    %v35 = sub %v2, %v34 : I64
-    %v36 = cast %v35 : Int
-    %v38 = vsplat 0 : Vec(I32)
-    %v40 = vwithlane %v38, 1, 1 : Vec(I32)
-    %v42 = vwithlane %v40, 2, 2 : Vec(I32)
-    %v44 = vwithlane %v42, 3, 3 : Vec(I32)
-    %v45 = cast %v36 : I32
-    %v46 = vsplat %v45 : Vec(I32)
-    %v47 = cmp_lt %v44, %v46 : Mask(I32)
-    %live = bitcast %v47 : Mask(Float)
-    %v49 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
-    %v50 = load [%v49] : (value$: Vec(Float)) -> Outcome((), ())
-    %v51 = load %i : I64
-    %v52 = call loadVectorTail(Float), %value$, %v51 : Vec(Float)
-    %v53 = load [%env].empty : Vec(Float)
-    %v54 = select %live ? %v52 : %v53 : Vec(Float)
-    %v55 = calldyn %v50, %v54 : Outcome((), ())
-    %v56 = load %local3.discriminant : Int
-    %v58 = cmp_eq %v56, 1 : Bool
-    je %v58, b8, b9
+    %v33 = load %i : I64
+    %v34 = sub %v2, %v33 : I64
+    %v35 = cast %v34 : Int
+    %v37 = vsplat 0 : Vec(I32)
+    %v39 = vwithlane %v37, 1, 1 : Vec(I32)
+    %v41 = vwithlane %v39, 2, 2 : Vec(I32)
+    %v43 = vwithlane %v41, 3, 3 : Vec(I32)
+    %v44 = cast %v35 : I32
+    %v45 = vsplat %v44 : Vec(I32)
+    %v46 = cmp_lt %v43, %v45 : Mask(I32)
+    %live = bitcast %v46 : Mask(Float)
+    %v48 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
+    %v49 = load [%v48] : (value$: Vec(Float)) -> Outcome((), ())
+    %v50 = load %i : I64
+    %v51 = call loadVectorTail(Float), %value$, %v50 : Vec(Float)
+    %v52 = load [%env].empty : Vec(Float)
+    %v53 = select %live ? %v51 : %v52 : Vec(Float)
+    %v54 = calldyn %v49, %v53 : Outcome((), ())
+    %v55 = load %local3.discriminant : Int
+    %v57 = cmp_eq %v55, 1 : Bool
+    je %v57, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v61 = alloc : Outcome((), Outcome((), ()))
-    init %local6.discriminant, 1
-    init %local6@Exit, %v55
-    ret %v61
+    %v60 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local6.discriminant = 1, %local6@Exit = %v54
+    ret %v60
 
   b9:
     jmp b10
 
   b10:
-    %v67 = alloc : Outcome((), Outcome((), ()))
+    %v65 = alloc : Outcome((), Outcome((), ()))
     init %local4.discriminant, 0
-    ret %v67
+    ret %v65
 }
 
 fn loadVector(Float)(%from: Flat(Float), %at: I64) -> Vec(Float) {
@@ -930,48 +920,46 @@ fn Collections.continuation$0(Array(Float), Float, ())(%env: %{width: I64, body:
 
   b4:
     %v28 = alloc : Outcome((), Outcome((), ()))
-    init %local7.discriminant, 1
-    init %local7@Exit, %v23
+    aggregate %local7.discriminant = 1, %local7@Exit = %v23
     ret %v28
 
   b5:
-    %v33 = load %i : I64
-    %v34 = load [%env].width : I64
-    %v35 = add %v33, %v34 : I64
-    assign %i, %v35
+    %v32 = load %i : I64
+    %v33 = load [%env].width : I64
+    %v34 = add %v32, %v33 : I64
+    assign %i, %v34
     jmp b1
 
   b6:
-    %v38 = load [%env].body : &(value$: {Vec(Float), Int}) -> Outcome((), ())
-    %v39 = load [%v38] : (value$: {Vec(Float), Int}) -> Outcome((), ())
-    %v40 = alloc : {Vec(Float), Int}
-    %v41 = load %i : I64
-    %v42 = call loadVectorTail(Float), %value$, %v41 : Vec(Float)
-    %v43 = load %i : I64
-    %v44 = sub %v2, %v43 : I64
-    %v45 = cast %v44 : Int
-    aggregate %local4.0 = %v42, %local4.1 = %v45
-    %v47 = calldyn %v39, %v40 : Outcome((), ())
-    %v48 = load %local5.discriminant : Int
-    %v50 = cmp_eq %v48, 1 : Bool
-    je %v50, b8, b9
+    %v37 = load [%env].body : &(value$: {Vec(Float), Int}) -> Outcome((), ())
+    %v38 = load [%v37] : (value$: {Vec(Float), Int}) -> Outcome((), ())
+    %v39 = alloc : {Vec(Float), Int}
+    %v40 = load %i : I64
+    %v41 = call loadVectorTail(Float), %value$, %v40 : Vec(Float)
+    %v42 = load %i : I64
+    %v43 = sub %v2, %v42 : I64
+    %v44 = cast %v43 : Int
+    aggregate %local4.0 = %v41, %local4.1 = %v44
+    %v46 = calldyn %v38, %v39 : Outcome((), ())
+    %v47 = load %local5.discriminant : Int
+    %v49 = cmp_eq %v47, 1 : Bool
+    je %v49, b8, b9
 
   b7:
     jmp b10
 
   b8:
-    %v53 = alloc : Outcome((), Outcome((), ()))
-    init %local8.discriminant, 1
-    init %local8@Exit, %v47
-    ret %v53
+    %v52 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local8.discriminant = 1, %local8@Exit = %v46
+    ret %v52
 
   b9:
     jmp b10
 
   b10:
-    %v59 = alloc : Outcome((), Outcome((), ()))
+    %v57 = alloc : Outcome((), Outcome((), ()))
     init %local6.discriminant, 0
-    ret %v59
+    ret %v57
 }
 
 fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {

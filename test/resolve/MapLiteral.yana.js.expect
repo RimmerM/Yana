@@ -53,21 +53,16 @@ function growJsArray_I32(self, wanted) {
 }
 
 function newMap_Int_Int(capacity) {
-  var self = { keys: { items: new Int32Array([]), length: 0 }, values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
-  reserveMap_Int_Int(self, capacity);
-  return self;
-}
-
-function reserveMap_Int_Int(self, wanted) {
-  reserve_Int(self.keys, wanted);
-  reserve_Int(self.values, wanted);
-  if (wanted > 8) {
-    B0: {
+  B0: {
+    var self = { keys: { items: new Int32Array([]), length: 0 }, values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
+    reserve_Int(self.keys, capacity);
+    reserve_Int(self.values, capacity);
+    if (capacity > 8) {
       B1: {
-        var slots = indexSlotsFor(wanted);
-        var v37 = self.mask;
-        if (!(slots > v37 + 1)) {
-          if (v37) {
+        var slots = indexSlotsFor(capacity);
+        var v54 = self.mask;
+        if (!(slots > v54 + 1)) {
+          if (v54) {
             break B0;
           }
         }
@@ -75,6 +70,7 @@ function reserveMap_Int_Int(self, wanted) {
       indexRebuild_Int_Int(self, slots);
     }
   }
+  return self;
 }
 
 function reserve_Int(self, wanted) {
@@ -970,29 +966,29 @@ function main() {
                                         } else {
                                           var v607 = { items: new Int32Array([10, 11]), length: 2 };
                                           var v617 = { items: new Int32Array([20]), length: 1 };
-                                          var v986 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
-                                          var v987 = { items: new Int32Array([]), length: 0 };
-                                          var v991 = [];
-                                          if (v991.length !== 0) {
-                                            v991.length = 0;
+                                          var v987 = { keys: { items: null, length: 0 }, values: null, index: { items: null, length: 0 }, live: 0, mask: 0 };
+                                          var v988 = { items: new Int32Array([]), length: 0 };
+                                          var v992 = [];
+                                          if (v992.length !== 0) {
+                                            v992.length = 0;
                                           }
-                                          var v995 = { items: new Int32Array([]), length: 0 };
-                                          v986.keys = v987;
-                                          v986.values = v991;
-                                          v986.index = v995;
-                                          v986.live = 0;
-                                          v986.mask = 0;
-                                          reserve_Int(v986.keys, 2);
-                                          reserve_Array_Int(v986.values, 2);
-                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v986, 1, v607);
-                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v986, 2, v617);
+                                          var v996 = { items: new Int32Array([]), length: 0 };
+                                          v987.keys = v988;
+                                          v987.values = v992;
+                                          v987.index = v996;
+                                          v987.live = 0;
+                                          v987.mask = 0;
+                                          reserve_Int(v987.keys, 2);
+                                          reserve_Array_Int(v987.values, 2);
+                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v987, 1, v607);
+                                          IndexInsert_Map_k_v_k_v_insertAt_Int_Array_Int(v987, 2, v617);
                                           var elements = 0;
-                                          var v1100 = v986.keys.length;
+                                          var v1098 = v987.keys.length;
                                           var at$17 = 0;
-                                          var v1116 = v986.values;
+                                          var v1114 = v987.values;
                                           L2: for (;;) {
-                                            if (at$17 < v1100) {
-                                              elements = elements + v1116[at$17].length | 0;
+                                            if (at$17 < v1098) {
+                                              elements = elements + v1114[at$17].length | 0;
                                               at$17 = at$17 + 1 | 0;
                                               continue L2;
                                             }
@@ -1020,10 +1016,10 @@ function main() {
                                             IndexInsert_Map_k_v_k_v_insertAt_Int_Map_Int_Int(v1036, 1, v665);
                                             var at$18 = findEntry_Int_Map_Int_Int(v1036, 1, mix32(67918732));
                                             checkCondition(at$18 < 0);
-                                            var v1137 = v1036.values;
-                                            var at$19 = findEntry_Int_Int(v1137[at$18], 2, mix32(118251589));
+                                            var v1135 = v1036.values;
+                                            var at$19 = findEntry_Int_Int(v1135[at$18], 2, mix32(118251589));
                                             checkCondition(at$19 < 0);
-                                            return v1137[at$18].values.items[at$19] !== 3 ? -22 : 1;
+                                            return v1135[at$18].values.items[at$19] !== 3 ? -22 : 1;
                                           }
                                         }
                                       }
@@ -1055,23 +1051,23 @@ function main$() {
 }
 
 function pair_String_Int(k1, v1, k2, v2) {
-  var v19 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
-  var v20 = [];
-  if (v20.length !== 0) {
-    v20.length = 0;
+  var v20 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
+  var v21 = [];
+  if (v21.length !== 0) {
+    v21.length = 0;
   }
-  var v24 = { items: new Int32Array([]), length: 0 };
-  var v28 = { items: new Int32Array([]), length: 0 };
-  v19.keys = v20;
-  v19.values = v24;
-  v19.index = v28;
-  v19.live = 0;
-  v19.mask = 0;
-  reserve_String(v19.keys, 1);
-  reserve_Int(v19.values, 1);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Int(v19, k1, v1);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Int(v19, k2, v2);
-  return v19;
+  var v25 = { items: new Int32Array([]), length: 0 };
+  var v29 = { items: new Int32Array([]), length: 0 };
+  v20.keys = v21;
+  v20.values = v25;
+  v20.index = v29;
+  v20.live = 0;
+  v20.mask = 0;
+  reserve_String(v20.keys, 1);
+  reserve_Int(v20.values, 1);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Int(v20, k1, v1);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Int(v20, k2, v2);
+  return v20;
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14
