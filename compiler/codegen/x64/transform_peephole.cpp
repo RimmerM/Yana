@@ -1210,10 +1210,32 @@ static U64 allOnesFor(LowerType type) {
     return type.byteWidth() >= 8 ? maxLimit<U64> : (U64(1) << (type.byteWidth() * 8)) - 1;
 }
 
-// The value an instruction complements, or nothing if it complements none. `not x` is what the
-// language's `not` lowers to; `x ^ -1` is the same function and is what a fold that met an all-ones
-// mask can leave behind, so both are read.
-static LowerValue* complementedOperand(LowerBase base, LowerValue* value) {
+/*
+ * The value an instruction complements, or nothing if it complements none.
+ *
+ * `not x` is what the language's `not` lowers to; `x ^ -1` is the same function and is what a fold
+ * that met an all-ones mask can leave behind, so both are read.
+ *
+ * ## And `x ^ 1`, which is a complement only in a context
+ *
+ * A `Bool`'s complement is **not** a complement of its word. `Bitwise(Bool).not` is `emitLogicalNot`
+ * and emits `xor c, 1`, because complementing the storage of a one-bit value gives something that is
+ * not a `Bool` - see the ruling in resolve/core.cpp. So `!a && b` arrives here as
+ * `and (xor a, 1), b`, and the `andn` this file exists to reach was never offered it: `x ^ 1` is not
+ * `~x`, and the two differ in every bit above the lowest.
+ *
+ * They differ in bits the `and` may already be discarding, which is what makes the rewrite available
+ * and is why `under` is a parameter. `andn a, u` is `~a & u`; the instruction being replaced computes
+ * `(a ^ 1) & u`. Bit 0 agrees whatever `a` is - both spellings flip it - and every bit above it is
+ * zero in `a ^ 1` and one in `~a`, so the two are equal exactly where `u` has those bits clear.
+ * **That is `isBooleanValued(u)` and nothing about `a` at all**, which is stronger than it looks:
+ * the value being complemented may be any word, and it is the operand it is read against that
+ * licenses the rewrite.
+ *
+ * `under` is null for a caller that is not `and`ing the result with anything, which declines the
+ * `x ^ 1` spelling rather than guessing at a context.
+ */
+static LowerValue* complementedOperand(LowerBase base, LowerValue* value, LowerValue* under = nullptr) {
     auto inst = value->inst();
 
     if(inst->kind == LowerInst::Not) return base[((LowerInstUnary*)inst)->from];
@@ -1222,12 +1244,15 @@ static LowerValue* complementedOperand(LowerBase base, LowerValue* value) {
         auto binary = (LowerInstBinary*)inst;
         auto rhs = base[binary->rhs];
 
+        if(rhs->inst()->kind != LowerInst::Imm) return nullptr;
+
         // At the operation's own width: `x ^ 0xffffffff` complements an `i32` and does something
         // else to an `i64`.
-        if(rhs->inst()->kind != LowerInst::Imm) return nullptr;
-        if(immValue(rhs) != allOnesFor(binary->result.type)) return nullptr;
+        auto constant = immValue(rhs);
+        if(constant == allOnesFor(binary->result.type)) return base[binary->lhs];
+        if(constant == 1 && under && isBooleanValued(base, under)) return base[binary->lhs];
 
-        return base[binary->lhs];
+        return nullptr;
     }
 
     return nullptr;
@@ -1398,7 +1423,7 @@ void selectBitOps(Context&, LowerBase base, LowerFunction& fun) {
                 auto other = attempt == 0 ? rhs : lhs;
                 if(negated->uses.size() != 1) continue;
 
-                auto source = complementedOperand(base, negated);
+                auto source = complementedOperand(base, negated, other);
                 if(!source) continue;
 
                 replaceBinaryWith(base, block, i, binary, new (fun.arena) LowerInstX86AndNot(

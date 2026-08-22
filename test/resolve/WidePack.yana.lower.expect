@@ -10,17 +10,15 @@ nudge<complex>(%x: Ptr) {
     %v_6 = shr %v_5, %v_4: Long
     %v_7 = and %v_6, 1048575: Long
     %v_8 = cast %v_7: Int
-    %v_9 = cast %v_8: Int
-    %v_10 = add %v_9, 1: Int
-    %v_11 = and %v_10, 1048575: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = shl %v_13, %v_4: Long
-    %v_15 = shl 1048575, %v_4: Long
-    %v_16 = not %v_15: Long
-    %v_17 = and %v_5, %v_16: Long
-    %v_18 = or %v_17, %v_14: Long
-    store %v_3, %v_18, 4
+    %v_9 = add %v_8, 1: Int
+    %v_10 = and %v_9, 1048575: Int
+    %v_11 = cast %v_10: Long
+    %v_12 = shl %v_11, %v_4: Long
+    %v_13 = shl 1048575, %v_4: Long
+    %v_14 = not %v_13: Long
+    %v_15 = and %v_5, %v_14: Long
+    %v_16 = or %v_15, %v_12: Long
+    store %v_3, %v_16, 4
     ret 
   }
 }
@@ -35,91 +33,66 @@ nudge12<complex>(%x: Ptr) {
     %v_6 = shr %v_5, %v_4: Long
     %v_7 = and %v_6, 4095: Long
     %v_8 = cast %v_7: Int
-    %v_9 = cast %v_8: Int
-    %v_10 = add %v_9, 1: Int
-    %v_11 = and %v_10, 4095: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = shl %v_13, %v_4: Long
-    %v_15 = shl 4095, %v_4: Long
-    %v_16 = not %v_15: Long
-    %v_17 = and %v_5, %v_16: Long
-    %v_18 = or %v_17, %v_14: Long
-    store %v_3, %v_18, 2
+    %v_9 = add %v_8, 1: Int
+    %v_10 = and %v_9, 4095: Int
+    %v_11 = cast %v_10: Long
+    %v_12 = shl %v_11, %v_4: Long
+    %v_13 = shl 4095, %v_4: Long
+    %v_14 = not %v_13: Long
+    %v_15 = and %v_5, %v_14: Long
+    %v_16 = or %v_15, %v_12: Long
+    store %v_3, %v_16, 2
     ret 
   }
 }
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = cmp_eq 1048575, 1048575: Int
-    %v_2 = select %v_1, 2, 0: Int
-    %v_3 = add %v_2, 1: Int
-    %v_4 = cmp_eq 1000, 1000: Int
-    %v_5 = select %v_4, 4, 0: Int
-    %v_6 = add %v_3, %v_5: Int
-    %v_7 = cmp_eq 999999, 999999: Int
-    %v_8 = select %v_7, 8, 0: Int
-    %v_9 = add %v_6, %v_8: Int
+    %v_1 = alloca 8, 8: Ptr
+    store %v_1, 4294963001033704, 8
+    %v_2 = add %v_1, 4: Ptr
+    call_complex nudge, %v_2
+    %v_3 = load %v_1, 8: Long
+    %v_4 = shr %v_3, 32: Long
+    %v_5 = and %v_4, 1048575: Long
+    %v_6 = cast %v_5: Int
+    %v_7 = cmp_eq %v_6, 1000000: Int
+    %v_8 = select %v_7, 16, 0: Int
+    %v_9 = add 15, %v_8: Int
     %v_10 = alloca 8, 8: Ptr
     store %v_10, 4294963001033704, 8
     %v_11 = add %v_10, 4: Ptr
     call_complex nudge, %v_11
     %v_12 = load %v_10, 8: Long
-    %v_13 = shr %v_12, 32: Long
-    %v_14 = and %v_13, 1048575: Long
-    %v_15 = cast %v_14: Int
-    %v_16 = cast %v_15: Int
-    %v_17 = cmp_eq %v_16, 1000000: Int
-    %v_18 = select %v_17, 16, 0: Int
-    %v_19 = add %v_9, %v_18: Int
-    %v_20 = alloca 8, 8: Ptr
-    store %v_20, 4294963001033704, 8
-    %v_21 = add %v_20, 4: Ptr
-    call_complex nudge, %v_21
-    %v_22 = load %v_20, 8: Long
-    %v_23 = and %v_22, 1048575: Long
-    %v_24 = cast %v_23: Int
-    %v_25 = cast %v_24: Int
-    %v_26 = cmp_eq %v_25, 1000: Int
-    %v_27 = select %v_26, 32, 0: Int
-    %v_28 = add %v_19, %v_27: Int
-    %v_29 = cmp_eq 4294967293, 18446744073709551613: Int
-    %v_30 = select %v_29, 64, 0: Int
-    %v_31 = add %v_28, %v_30: Int
-    %v_32 = cmp_eq 5, 5: Int
-    %v_33 = select %v_32, 128, 0: Int
-    %v_34 = add %v_31, %v_33: Int
-    %v_35 = add %v_34, 768: Int
-    %v_36 = cmp_eq 18446744073709551614, 18446744073709551614: Int
-    %v_37 = select %v_36, 1024, 0: Int
-    %v_38 = add %v_35, %v_37: Int
-    %v_39 = cmp_eq 9, 9: Int
-    %v_40 = select %v_39, 2048, 0: Int
-    %v_41 = add %v_38, %v_40: Int
-    %v_42 = alloca 8, 4: Ptr
-    store %v_42, 7, 4
-    %v_43 = add %v_42, 4: Ptr
-    %v_44 = load %v_43, 4: Int
-    store %v_43, 4293918721, 4
-    %v_45 = add %v_42, 6: Ptr
-    %v_46 = bitcast %v_45: Long
-    %v_47 = or %v_46, 1125899906842624: Long
-    %v_48 = bitcast %v_47: Ptr
-    call_complex nudge12, %v_48
-    %v_49 = add %v_42, 4: Ptr
-    %v_50 = load %v_49, 4: Int
-    %v_51 = shr %v_50, 20: Int
-    %v_52 = cmp_eq %v_51, 0: Int
-    %v_53 = select %v_52, 4096, 0: Int
-    %v_54 = add %v_41, %v_53: Int
-    %v_55 = cmp_eq 549755813887, 549755813887: Int
-    %v_56 = select %v_55, 8192, 0: Int
-    %v_57 = add %v_54, %v_56: Int
-    %v_58 = cmp_eq 18446743523953737728, 18446743523953737728: Int
-    %v_59 = select %v_58, 16384, 0: Int
-    %v_60 = add %v_57, %v_59: Int
-    ret %v_60
+    %v_13 = and %v_12, 1048575: Long
+    %v_14 = cast %v_13: Int
+    %v_15 = cmp_eq %v_14, 1000: Int
+    %v_16 = select %v_15, 32, 0: Int
+    %v_17 = add %v_9, %v_16: Int
+    %v_18 = add %v_17, 64: Int
+    %v_19 = add %v_18, 128: Int
+    %v_20 = add %v_19, 768: Int
+    %v_21 = add %v_20, 1024: Int
+    %v_22 = add %v_21, 2048: Int
+    %v_23 = alloca 8, 4: Ptr
+    store %v_23, 7, 4
+    %v_24 = add %v_23, 4: Ptr
+    %v_25 = load %v_24, 4: Int
+    store %v_24, 4293918721, 4
+    %v_26 = add %v_23, 6: Ptr
+    %v_27 = bitcast %v_26: Long
+    %v_28 = or %v_27, 1125899906842624: Long
+    %v_29 = bitcast %v_28: Ptr
+    call_complex nudge12, %v_29
+    %v_30 = add %v_23, 4: Ptr
+    %v_31 = load %v_30, 4: Int
+    %v_32 = shr %v_31, 20: Int
+    %v_33 = cmp_eq %v_32, 0: Int
+    %v_34 = select %v_33, 4096, 0: Int
+    %v_35 = add %v_22, %v_34: Int
+    %v_36 = add %v_35, 8192: Int
+    %v_37 = add %v_36, 16384: Int
+    ret %v_37
   }
 }
 

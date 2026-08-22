@@ -17,32 +17,31 @@ main<complex>(): Int {
     %v_9 = cmp_ilt %v_8, %others: m32x4
     %kept = select %v_9, %v_8, %v_5: i32x4
     %v_10 = vreduce_or %v_9: Int
-    %v_11 = xor %v_10, 1: Int
-    je %v_11, b_12, b_13
+    je %v_10, b_11, b_12
   }
 
-  b_13 {
-    %v_14 = vreduce_add %kept: Int
-    %v_15 = imul %v_14, 10: Int
-    %v_16 = vreduce_add %v_9: Int
-    %v_17 = add %v_15, %v_16: Int
-    jmp b_18
+  b_11 {
+    %v_13 = vreduce_add %kept: Int
+    %v_14 = imul %v_13, 10: Int
+    %v_15 = vreduce_add %v_9: Int
+    %v_16 = add %v_14, %v_15: Int
+    jmp b_17
   }
 
   b_12 {
-    jmp b_18
+    jmp b_17
   }
 
-  b_18 {
-    %counted = phi [b_13, %v_17], [b_12, 18446744073709551615]: Int
-    %v_19 = vlane %v_2, 0: Int
-    %v_20 = imul %v_19, 100000: Int
-    %v_21 = vlane %v_4, 0: Float
-    %v_22 = cmp_eq %v_21, 1: Int
-    %v_23 = imul %v_22, 10000: Int
-    %v_24 = add %v_20, %v_23: Int
-    %v_25 = add %v_24, %counted: Int
-    ret %v_25
+  b_17 {
+    %counted = phi [b_11, %v_16], [b_12, 18446744073709551615]: Int
+    %v_18 = vlane %v_2, 0: Int
+    %v_19 = imul %v_18, 100000: Int
+    %v_20 = vlane %v_4, 0: Float
+    %v_21 = cmp_eq %v_20, 1: Int
+    %v_22 = imul %v_21, 10000: Int
+    %v_23 = add %v_19, %v_22: Int
+    %v_24 = add %v_23, %counted: Int
+    ret %v_24
   }
 }
 

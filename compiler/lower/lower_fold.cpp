@@ -265,6 +265,29 @@ Folded foldUnaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* arg, Low
 // way, which is `CreateIntCast` and what the x64 selector's constant move does. Float conversions
 // are left alone: `lowerConstantOf` declines a float immediate, so both directions fall through.
 Folded foldCastValue(LowerBase base, LowerValue* arg, LowerType type, bool signedSource) {
+    /*
+     * A conversion between two types that are one type, which converts nothing.
+     *
+     * This IR has two scalar integers and the tier above it has a dozen, so most of what the front
+     * end writes as a conversion is a change of *name*: `U8` to `Int`, a `@bits(20)` refinement to
+     * the type it refines, an enum's discriminant to the integer it is stored as. All of them arrive
+     * here as `cast %x : Int` where `%x` is already an `Int`, and there is nothing for a widening or
+     * a truncation to do between two ends of the same width - which `foldCastValue` below already
+     * agrees with for a constant source, since sign-extending from `n` bits and masking to `n` bits
+     * is the value it started with.
+     *
+     * They were not free. Each is a value with a live range, so the register allocator has one more
+     * interval to colour and one more copy to try to coalesce, and `FormCastCopy` emits nothing only
+     * where that coalescing succeeded. Over the 233 `test/resolve` programs **589 of 1827 casts are
+     * this**, which is a third of them, and removing them takes 673 instructions out of the corpus -
+     * the extra 84 being what the folds behind this one could then answer.
+     *
+     * Asked before the integer guard rather than inside it, because the statement is about the two
+     * types being one type and nothing else: a vector converted to its own shape converts no lane, a
+     * `f64` to `f64` rounds nothing. `VecPortable.yana` is where the vector pair lives.
+     */
+    if(arg->type == type) return Folded::forward(arg);
+
     if(!isInt(type) || !isInt(arg->type)) return Folded::nothing();
 
     U64 value;
@@ -421,51 +444,184 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
     return Folded::nothing();
 }
 
+
 /*
- * Whether this value is already one of the two integers a `Bool` is.
+ * A value read as a truth value, and whether reading it that way gives the value or its complement.
  *
- * A `Cmp` is the only instruction in this IR whose result is *defined* to be 0 or 1 - every other
- * producer of a truth value is one of these wrapped in something, which is exactly what the two
- * folds below unwrap. A `Select` between the literals 1 and 0 is admitted as well, so that the two
- * rules compose in one round rather than needing a second: `cmp_eq (select 1, 0, c), 1` is the shape
- * lowering actually emits, and answering it needs both halves at once.
+ * Three spellings, one decomposition. Lowering an `if` over a materialized `Bool` produces a
+ * comparison against a literal, and the language's `!` over one produces an `xor` against 1:
  *
- * The literals and the three bitwise operations are the other closed set. `and`, `or` and `xor` of
- * two values in {0, 1} are in {0, 1} whichever pair they were, and this is not a hypothetical shape:
- * `reduceBooleanSelects` in opt/opt_bool.cpp rewrites every short circuit into one, so `a && b && c`
- * arrives here as a chain of `and`. Without this the fold below sees a chain it cannot answer for,
- * and the `if` that reads it keeps a materialization of a value that already *is* the number.
+ *   `cmp_eq %b, 1`   and  `cmp_neq %b, 0`    are  `%b`
+ *   `cmp_eq %b, 0`   and  `cmp_neq %b, 1`    are  `!%b`
+ *   `xor %b, 1`                              is   `!%b`
  *
- * The depth is a recursion bound and not a judgement: nothing here costs anything per level, but a
- * chain is written by a program and this is asked once per candidate instruction.
+ * All five want the same three things established - which side is the literal, whether the literal
+ * is one of the two a truth value can be compared against, and whether `%b` is a truth value at all
+ * - and the two readers below used to establish them separately, in three copies of the same twenty
+ * lines. The copies are what this is instead.
+ *
+ * `%b` has to *already* be one of 0 and 1, because that is what makes the reading correct: with an
+ * arbitrary `%x`, `cmp_neq %x, 0` is a narrowing rather than an identity and `xor %x, 1` flips a bit
+ * rather than a truth value.
+ *
+ * Both sides constant is refused rather than answered. That is the ordinary folder's shape, and
+ * answering it here would make this pass's loop something other than a fixpoint.
  */
-static constexpr Size kMaxBooleanDepth = 8;
+struct BooleanTest {
+    LowerValue* value = nullptr;
+    bool inverted = false;
+};
 
-bool isBooleanValued(LowerBase base, LowerValue* value, Size depth = 0) {
-    auto inst = value->inst();
-    if(inst->kind == LowerInst::Cmp) return true;
+bool booleanTest(LowerBase base, LowerInst* inst, BooleanTest& into) {
+    if(inst->kind != LowerInst::Cmp && inst->kind != LowerInst::Xor) return false;
 
-    U64 literal;
-    if(lowerConstantOf(base, value, literal)) return literal == 0 || literal == 1;
-
-    if(inst->kind == LowerInst::And || inst->kind == LowerInst::Or || inst->kind == LowerInst::Xor) {
-        if(depth >= kMaxBooleanDepth) return false;
-
-        auto binary = (LowerInstBinary*)inst;
-        return isBooleanValued(base, base[binary->lhs], depth + 1)
-            && isBooleanValued(base, base[binary->rhs], depth + 1);
+    auto relation = LowerCmp::eq;
+    if(inst->kind == LowerInst::Cmp) {
+        relation = ((LowerInstCmp*)inst)->getCmp();
+        if(relation != LowerCmp::eq && relation != LowerCmp::neq) return false;
     }
 
-    if(inst->kind != LowerInst::Select) return false;
+    // The literal and the value it is set against, either way round.
+    auto binary = (LowerInstBinary*)inst;
+    auto lhs = base[binary->lhs];
+    auto rhs = base[binary->rhs];
+
+    U64 constant, other;
+    LowerValue* boolean;
+
+    if(lowerConstantOf(base, rhs, constant)) {
+        if(lowerConstantOf(base, lhs, other)) return false;
+        boolean = lhs;
+    } else if(lowerConstantOf(base, lhs, constant)) {
+        boolean = rhs;
+    } else {
+        return false;
+    }
+
+    bool inverted;
+    if(inst->kind == LowerInst::Xor) {
+        if(constant != 1) return false;
+        inverted = true;
+    } else if(constant == 1) {
+        inverted = relation == LowerCmp::eq ? false : true;
+    } else if(constant == 0) {
+        inverted = relation == LowerCmp::eq ? true : false;
+    } else {
+        return false;
+    }
+
+    // At the instruction's own width, since a truth value read at a wider one is a different value:
+    // the upper half of the register is what the two types disagree about.
+    if(boolean->type != binary->result.type) return false;
+    if(!isBooleanValued(base, boolean)) return false;
+
+    into = BooleanTest { boolean, inverted };
+    return true;
+}
+
+/*
+ * Two literals compared, which is a number.
+ *
+ * Written down deliberately here because it used to happen by accident. `foldInstruction` sends
+ * every binary but a `Cmp` to `foldBinaryValue` - a comparison answers a different type than it
+ * reads, so the identities that pass is built on do not apply to one - and the only thing that ever
+ * folded a comparison of two constants was `foldBooleanValue` failing to check that just one of its
+ * operands was a literal. It got the right answer for four of the ten relations and left the rest,
+ * which is the signature of a rule nobody wrote.
+ *
+ * The relations divide the way the machine divides them: six read their operands as unsigned and
+ * four as signed, and `lowerConstantOf` hands back the low bits of the operand's own type - so the
+ * unsigned six compare those bits directly and the signed four have to sign-extend from that width
+ * first. `uno` and `ord` are float-only and answer nothing here.
+ */
+Folded foldConstantCompare(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Cmp) return Folded::nothing();
+
+    auto compare = (LowerInstCmp*)inst;
+    auto lhs = base[compare->lhs];
+    auto rhs = base[compare->rhs];
+
+    // Scalar integers of one type. A float's bits do not order the way the relation asks, and
+    // `isInt` answers false for a vector, whose comparison produces a mask rather than a number.
+    if(!isInt(lhs->type) || lhs->type != rhs->type) return Folded::nothing();
+
+    U64 a, b;
+    if(!lowerConstantOf(base, lhs, a)) return Folded::nothing();
+    if(!lowerConstantOf(base, rhs, b)) return Folded::nothing();
+
+    auto bits = widthOf(lhs->type);
+    auto signedOf = [&](U64 value) -> I64 {
+        return bits >= 64 ? I64(value) : (I64(value << (64 - bits)) >> (64 - bits));
+    };
+
+    bool answer;
+    switch(compare->getCmp()) {
+        case LowerCmp::eq:  answer = a == b; break;
+        case LowerCmp::neq: answer = a != b; break;
+        case LowerCmp::gt:  answer = a > b; break;
+        case LowerCmp::ge:  answer = a >= b; break;
+        case LowerCmp::lt:  answer = a < b; break;
+        case LowerCmp::le:  answer = a <= b; break;
+        case LowerCmp::igt: answer = signedOf(a) > signedOf(b); break;
+        case LowerCmp::ige: answer = signedOf(a) >= signedOf(b); break;
+        case LowerCmp::ilt: answer = signedOf(a) < signedOf(b); break;
+        case LowerCmp::ile: answer = signedOf(a) <= signedOf(b); break;
+        default: return Folded::nothing();
+    }
+
+    return Folded::value(answer ? 1 : 0);
+}
+
+/*
+ * A select that decides nothing, which is the other half of the pair above.
+ *
+ * The same gap and the same reason: `foldInstruction` sends a `Select` to `foldBooleanValue` and
+ * nowhere else, so the one thing it could be asked about was whether it materializes a truth value.
+ * A *decided* one - a constant condition, or two arms that are the same answer - had no rule at all,
+ * and the fold above is what makes those arrive: `cmp_eq 1048575, 1048575` was three constants in
+ * `WidePack.yana` and each of them left a `select 1, k, 0` standing behind it.
+ *
+ * `foldSelect` in opt/opt_fold.cpp is the same three rules one tier up, and both are wanted: this
+ * tier is where a constant condition is *produced*, by the strength reduction, the division
+ * expansion and the fold above, all of which run below the resolve optimizer entirely.
+ *
+ * The lane-wise select is declined by asking `isInt` of the condition. A vector select's condition
+ * is a mask, one lane of which decides one lane of the result, and "the condition is the constant 1"
+ * is not a statement about it.
+ */
+Folded foldConstantSelect(LowerBase base, LowerInst* inst) {
+    if(inst->kind != LowerInst::Select) return Folded::nothing();
 
     auto select = (LowerInstSelect*)inst;
-    if(select->getEmbeddedCmp()) return false;
+    if(select->getEmbeddedCmp()) return Folded::nothing();
 
-    U64 whenTrue, whenFalse;
-    if(!lowerConstantOf(base, base[select->lhs], whenTrue)) return false;
-    if(!lowerConstantOf(base, base[select->rhs], whenFalse)) return false;
+    auto whenTrue = base[select->lhs];
+    auto whenFalse = base[select->rhs];
+    auto type = select->result.type;
 
-    return whenTrue == 1 && whenFalse == 0;
+    // Answering with an arm is only right where that arm is already the result's own type - the same
+    // rule `foldBinaryValue`'s `forward` states, and for the same reason.
+    auto forward = [&](LowerValue* value) {
+        return value->type == type ? Folded::forward(value) : Folded::nothing();
+    };
+
+    if(whenTrue == whenFalse) return forward(whenTrue);
+
+    U64 a, b;
+    auto knownTrue = lowerConstantOf(base, whenTrue, a);
+    auto knownFalse = lowerConstantOf(base, whenFalse, b);
+
+    // Two arms that are one number, which two arms producing the same literal leave: an immediate
+    // belongs to no block and is materialized per use, so the two were never the same value.
+    if(knownTrue && knownFalse && a == b) return Folded::value(a);
+
+    auto condition = base[select->cmp];
+    if(!isInt(condition->type)) return Folded::nothing();
+
+    U64 decided;
+    if(!lowerConstantOf(base, condition, decided)) return Folded::nothing();
+
+    return forward(decided ? whenTrue : whenFalse);
 }
 
 /*
@@ -483,10 +639,12 @@ bool isBooleanValued(LowerBase base, LowerValue* value, Size depth = 0) {
  * niche range test, and the four instructions above become `cmp; jbe` - seven instructions per node
  * down to three, twice in every walk of the tree.
  *
- * The inverses (`cmp_eq %b, 0`, `cmp_neq %b, 1`) are deliberately not folded. They are the *negation*
- * of `%b`, which is a new instruction rather than one of the operands, and `Folded` says either a
- * constant or an operand already there - inverting the comparison inside `%c` instead would rewrite
- * an instruction this pass does not own, and `%c` may have other readers that wanted it the first way.
+ * The inverses are deliberately not folded, which is the whole of what `inverted` decides here. They
+ * are the *negation* of `%b`, which is a new instruction rather than one of the operands, and
+ * `Folded` says either a constant or an operand already there - inverting the comparison inside `%c`
+ * instead would rewrite an instruction this pass does not own, and `%c` may have other readers that
+ * wanted it the first way. `negatedBranchCondition` below is where they are answered, because at a
+ * *branch* the negation costs nothing at all.
  */
 Folded foldBooleanValue(LowerBase base, LowerInst* inst) {
     if(inst->kind == LowerInst::Select) {
@@ -505,30 +663,14 @@ Folded foldBooleanValue(LowerBase base, LowerInst* inst) {
         return Folded::forward(condition);
     }
 
+    // The `xor` spelling is one `booleanTest` recognises and this one may not answer: it is always
+    // the inverse, and an inverse has no operand to forward to.
     if(inst->kind != LowerInst::Cmp) return Folded::nothing();
 
-    auto compare = (LowerInstCmp*)inst;
-    auto kind = compare->getCmp();
-    if(kind != LowerCmp::eq && kind != LowerCmp::neq) return Folded::nothing();
+    BooleanTest test;
+    if(!booleanTest(base, inst, test) || test.inverted) return Folded::nothing();
 
-    // Either way round: the constant is the one side and the truth value the other.
-    auto lhs = base[compare->lhs];
-    auto rhs = base[compare->rhs];
-
-    U64 constant;
-    LowerValue* boolean = nullptr;
-
-    if(lowerConstantOf(base, rhs, constant)) boolean = lhs;
-    else if(lowerConstantOf(base, lhs, constant)) boolean = rhs;
-    else return Folded::nothing();
-
-    if(!isBooleanValued(base, boolean)) return Folded::nothing();
-    if(boolean->type != compare->result.type) return Folded::nothing();
-
-    auto identity = (kind == LowerCmp::eq && constant == 1) ||
-                    (kind == LowerCmp::neq && constant == 0);
-
-    return identity ? Folded::forward(boolean) : Folded::nothing();
+    return Folded::forward(test.value);
 }
 
 // The same relation with its operands the other way round, for a comparison written with its
@@ -846,9 +988,9 @@ bool reassociateOffset(LowerBase base, LowerInst* inst, Offset& into) {
  * of `xor r, r; test; sete; xor $1; test; jne` becomes `test; je`. `allocateHeap`'s free-list probe
  * is that shape, in eight of the ten programs in the corpus.
  *
- * Three spellings of the negation, all of which the lowering emits: the explicit `xor %b, 1`, and
- * the two comparisons against a literal that `foldBooleanValue` recognises as identities the other
- * way up. Each needs `%b` to be *already* a truth value, since the rewrite reads it as one.
+ * So this is the other half of `booleanTest` and nothing more: the three spellings, the literal side
+ * and the requirement that `%b` is already a truth value are all established there, and what is left
+ * here is which of the two answers this reader wants.
  */
 bool negatedBranchCondition(LowerBase base, LowerInst* terminator, LowerValue*& into) {
     if(terminator->kind != LowerInst::Je) return false;
@@ -856,42 +998,10 @@ bool negatedBranchCondition(LowerBase base, LowerInst* terminator, LowerValue*& 
     auto je = (LowerInstJe*)terminator;
     if(je->getEmbeddedCmp()) return false; // already carried in the flags: not this pass's shape
 
-    auto condition = base[je->cond];
-    auto inst = condition->inst();
-    if(inst->kind != LowerInst::Xor && inst->kind != LowerInst::Cmp) return false;
+    BooleanTest test;
+    if(!booleanTest(base, base[je->cond]->inst(), test) || !test.inverted) return false;
 
-    // The truth value and the literal it is set against, either way round. Both spellings read one
-    // of each; neither says anything when both sides or neither side is a constant.
-    auto binary = (LowerInstBinary*)inst;
-    auto lhs = base[binary->lhs];
-    auto rhs = base[binary->rhs];
-
-    U64 constant, other;
-    LowerValue* boolean;
-
-    if(lowerConstantOf(base, rhs, constant)) {
-        if(lowerConstantOf(base, lhs, other)) return false;
-        boolean = lhs;
-    } else if(lowerConstantOf(base, lhs, constant)) {
-        boolean = rhs;
-    } else {
-        return false;
-    }
-
-    // Whether this is the negation of `%b` rather than `%b` itself. `%b == 0` and `%b != 1` are the
-    // inverses foldBooleanValue declines; `%b == 1` and `%b != 0` are the identities it has already
-    // had its turn at.
-    auto inverted = [&] {
-        if(inst->kind == LowerInst::Xor) return constant == 1;
-
-        auto kind = ((LowerInstCmp*)inst)->getCmp();
-        return (kind == LowerCmp::eq && constant == 0) || (kind == LowerCmp::neq && constant == 1);
-    };
-
-    if(!inverted()) return false;
-    if(boolean->type != condition->type || !isBooleanValued(base, boolean)) return false;
-
-    into = boolean;
+    into = test.value;
     return true;
 }
 
@@ -899,6 +1009,8 @@ bool negatedBranchCondition(LowerBase base, LowerInst* terminator, LowerValue*& 
 // three shapes the folds above cover; everything else answers nothing.
 Folded foldInstruction(LowerBase base, LowerInst* inst) {
     if(auto boolean = foldBooleanValue(base, inst); boolean.kind != Folded::None) return boolean;
+    if(auto compared = foldConstantCompare(base, inst); compared.kind != Folded::None) return compared;
+    if(auto selected = foldConstantSelect(base, inst); selected.kind != Folded::None) return selected;
 
     if(isCast(inst)) {
         // A `Bitcast` is a unary rather than a `LowerInstCast`, and the only thing asked of one here
@@ -961,6 +1073,91 @@ LowerInst* materialize(LowerBase base, LowerModule& module, LowerBlock& block, F
 // The bound is what keeps a query on a long arithmetic chain from walking the whole of it at every
 // instruction a pass visits.
 static constexpr U32 kMaxKnownBitsDepth = 6;
+
+/*
+ * And two of its own for a phi, because a phi is the only case that *branches* and the only one that
+ * can reach itself.
+ *
+ * The depth bound keeps a whole merge cluster from being expanded out of the middle of some other
+ * query; the cluster bound is what the walk below spends instead of depth. Two levels answer the
+ * shapes that motivated the case and bound the fan-out at the square of the widest phi.
+ */
+static constexpr U32 kMaxKnownBitsPhiDepth = 2;
+static constexpr Size kMaxKnownBitsPhiCluster = 16;
+
+/*
+ * What a cluster of phis carries, which is a question about the values that *enter* it.
+ *
+ * A phi cycle is the one shape a recursive query cannot answer by recursing. `promoteStackSlots`
+ * turns a flag assigned in a loop into two phis that name each other -
+ *
+ *     %a = phi [entry, 0], [latch, %b]
+ *     %b = phi [head, %a], [set, 1]
+ *
+ * - and a walk that follows operands runs out of depth on the way round and answers "nothing known",
+ * which is what left the last `xor $1` in `scanDecimal` standing.
+ *
+ * ## Why this is not the optimistic fixpoint it looks like
+ *
+ * The textbook answer is to assume every bit zero for a value already on the stack and iterate to a
+ * fixed point. Assuming it and *not* iterating is unsound, and the counter-example is two lines:
+ *
+ *     %a = phi [entry, 1], [latch, %b]
+ *     %b = shl %a, 1
+ *
+ * One pass with `%a` assumed clear answers "every bit above the lowest is zero", and `%a` is every
+ * power of two in turn. So the assumption has to be paid for with iteration - unless the cycle
+ * cannot transform what goes round it, which is exactly the restriction here.
+ *
+ * **Every step of the cycle is a phi**, so nothing on it computes: a phi selects between values that
+ * already exist, so the set of values a cluster of them can carry is precisely the set entering it
+ * from outside. The answer is therefore the meet over the cluster's *non-phi* inputs, computed once,
+ * with no assumption to discharge and no iteration to converge. The `shl` above is not a phi and so
+ * is not on any cycle this walks; it is an ordinary input, asked the ordinary way.
+ *
+ * Bounded by the cluster size rather than by depth, since the walk visits each phi once. A cluster
+ * with no input from outside is unreachable code, and answers nothing rather than everything.
+ */
+static U64 phiClusterZeros(LowerBase base, LowerValue* root, U32 depth) {
+    SmallArray<LowerValue*, kMaxKnownBitsPhiCluster> cluster;
+    cluster.push(root);
+
+    auto known = maxLimit<U64>;
+    auto entered = false;
+
+    for(Size i = 0; i < cluster.size(); i++) {
+        auto used = ((LowerInstPhi*)cluster[i]->inst())->used();
+        if(!used.length) return 0;
+
+        for(Size j = 0; j < used.length; j++) {
+            // An alternative that is not there yet, which is a phi under construction: promotion
+            // names its phis before it knows what they merge, and the values it builds in the
+            // meantime read one. See `makePhi` in lower_promote.cpp.
+            if(used.ptr[j] == nullptr) return 0;
+
+            auto from = base[used.ptr[j]];
+
+            // One type across the whole cluster, on `zerosOf`'s terms: a narrower operand of a wider
+            // merge is a value whose upper half is whatever the register held.
+            if(from->type != root->type) return 0;
+
+            if(from->inst()->kind == LowerInst::Phi) {
+                auto seen = false;
+                for(auto other: cluster) if(other == from) { seen = true; break; }
+                if(seen) continue;
+
+                if(cluster.size() >= kMaxKnownBitsPhiCluster) return 0;
+                cluster.push(from);
+                continue;
+            }
+
+            entered = true;
+            known &= knownZeroBits(base, from, depth + 1);
+        }
+    }
+
+    return entered ? known : 0;
+}
 
 U64 knownZeroBits(LowerBase base, LowerValue* value, U32 depth) {
     if(!isInt(value->type)) return 0;
@@ -1085,9 +1282,112 @@ U64 knownZeroBits(LowerBase base, LowerValue* value, U32 depth) {
             return outside | knownZeroBits(base, from, depth + 1);
         }
 
+        /*
+         * A value merged from several, which is the meet: a bit is zero here only where it is zero
+         * on every edge that arrives. `zerosOf` is what states that per operand, and the fold over
+         * it starts from "every bit" so that the first edge decides and the rest can only weaken.
+         *
+         * This is the one case a value can have without any instruction *computing* it, and the
+         * reason it is worth having is that the tier below builds them: `promoteStackSlots` turns a
+         * local written on two paths into a phi, so a flag assigned `True` on one arm and `False` on
+         * the other has no definition to read the fact off after promotion. `Real.yana`'s
+         * `select %p, 1, 0` over such a phi was the site that named this.
+         */
+        case LowerInst::Phi: {
+            if(depth >= kMaxKnownBitsPhiDepth) return outside;
+
+            return outside | phiClusterZeros(base, value, depth);
+        }
+
+        /*
+         * A mask read as an integer, which is the one reduction that bounds its own answer:
+         * `LowerReduce::Bits` puts lane `i` in bit `i` and nothing above the lane count, so a
+         * four-lane mask answers a number below 16 whatever the lanes held.
+         *
+         * The other reductions are arithmetic over the lanes and say nothing here. The two that do
+         * answer a truth value - `And` and `Or` over a mask, which are `all` and `any` - need no
+         * case: their resolve type is `Bool`, so `normalFormBits` has already stated the one bit on
+         * the value itself, which is both cheaper and reaches further than reading it back off the
+         * instruction would.
+         */
+        case LowerInst::VecReduce: {
+            auto reduce = (LowerInstVecReduce*)inst;
+            if(reduce->getReduce() != LowerReduce::Bits) return outside;
+
+            auto from = base[reduce->from];
+            if(!from->type.isMask()) return outside;
+
+            return outside | ~maskOf(from->type.lanes());
+        }
+
+        /*
+         * The three counting operations, whose answer is bounded by the width of what they counted:
+         * a population count, a trailing-zero count and a leading-zero count are all in [0, w], so
+         * everything above the bits it takes to write `w` is zero. A 64-bit operand answers at most
+         * 64, which is seven bits, so bits 7 and above are clear - and that is what makes a count
+         * co-pack, compare and mask like the small number it is.
+         *
+         * `Cttz` and `Bsr` are deliberately absent. Both are **undefined at a zero operand**, and
+         * what a machine leaves in the register there is not a number this may make claims about -
+         * see the note on the pair in lower_inst.h. The three here are the total ones.
+         */
+        case LowerInst::Intrinsic: {
+            auto intrinsic = (LowerInstIntrinsic*)inst;
+            auto kind = intrinsic->getIntrinsic();
+
+            if(kind != LowerIntrinsic::Popcnt && kind != LowerIntrinsic::CttzWidth &&
+               kind != LowerIntrinsic::ClzWidth)
+            {
+                return outside;
+            }
+
+            auto used = intrinsic->used();
+            if(used.length != 1) return outside;
+
+            auto from = base[used.ptr[0]];
+            if(!isInt(from->type)) return outside;
+
+            // The bits it takes to write the operand's width, which is the count's own ceiling.
+            auto counted = widthOf(from->type);
+            U32 answerBits = 1;
+            while(answerBits < 64 && (U64(1) << answerBits) <= U64(counted)) answerBits++;
+
+            return answerBits >= bits ? outside : outside | ~maskOf(answerBits);
+        }
+
         default:
             return outside;
     }
+}
+
+/*
+ * Whether this value is already one of the two integers a `Bool` is.
+ *
+ * Which is one question about known bits and not a second analysis: a truth value is a value every
+ * bit of which above the lowest is zero, and `knownZeroBits` is the function that answers that for
+ * any value at all. This used to be its own walk - a `Cmp`, the two literals, the three bitwise
+ * operations over those, and a `Select` between 1 and 0 - and every one of those five is a case
+ * that function already had, stated there in terms of which bits survive rather than in terms of
+ * which instructions are truth values.
+ *
+ * **What the restatement buys is everything the walk could not reach**, and the two halves of that
+ * are worth naming because they are why the duplication was costing something:
+ *
+ *  - The instructions `knownZeroBits` knows about and the walk did not. A cast, a narrow unsigned
+ *    load, a shift by a literal, a `Set`, and an `and` against a mask of one bit - which is how a
+ *    `@bits(1)` field arrives. `Packed.yana`, `Record.yana` and `ScalarSum.yana` between them held
+ *    18 sites of `and %f, 1; cast; select 1, 0` where the walk stopped at the cast and the
+ *    materialization survived; all 18 fold now.
+ *  - The hint, which is not an instruction at all. `normalFormBits` in resolve/lower.cpp states a
+ *    `Bool`'s one bit on the value itself, so a truth value that came out of a call, a parameter,
+ *    a phi or a mask reduction is one this answers for - and none of those has a definition any
+ *    walk over the instruction graph could read the fact off.
+ *
+ * The bound and the recursion go with the walk. `knownZeroBits` has its own six-level bound and its
+ * own argument for it, which is the one that governs now.
+ */
+bool isBooleanValued(LowerBase base, LowerValue* value) {
+    return (knownZeroBits(base, value) | 1) == maxLimit<U64>;
 }
 
 LowerInst* foldUnaryArith(LowerBase base, LowerModule& module, LowerBlock& block,

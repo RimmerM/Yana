@@ -59,86 +59,78 @@ main<complex>(): Int {
     %v_27 = loads @effects, 4: Int
     %v_28 = add %v_27, 1: Int
     store @effects, %v_28, 4
-    jmp b_26
+    jmp b_29
   }
 
-  b_26 {
-    %v_29 = phi [b_24, 1], [b_25, 0]: Int
-    %v_30 = xor %v_29, 1: Int
+  b_29 {
+    %v_30 = cmp_neq %value$, 0: Int
     je %v_30, b_31, b_32
   }
 
   b_32 {
-    %v_33 = cmp_neq %value$, 0: Int
-    je %v_33, b_34, b_35
-  }
-
-  b_35 {
-    %v_36 = loads @effects, 4: Int
-    %v_37 = add %v_36, 1: Int
-    store @effects, %v_37, 4
-    %v_38 = cmp_neq %value$, 0: Int
-    jmp b_39
-  }
-
-  b_34 {
-    jmp b_39
-  }
-
-  b_39 {
-    %v_40 = phi [b_35, %v_38], [b_34, 1]: Int
-    %v_41 = xor %v_40, 1: Int
-    je %v_41, b_42, b_43
-  }
-
-  b_43 {
-    %v_44 = loads @effects, 4: Int
-    %v_45 = cmp_neq %v_44, 1: Int
-    je %v_45, b_46, b_47
-  }
-
-  b_47 {
-    jmp b_48
-  }
-
-  b_48 {
-    jmp b_49
-  }
-
-  b_49 {
-    jmp b_50
-  }
-
-  b_50 {
-    jmp b_51
-  }
-
-  b_51 {
-    %rhs$ = loads @write, 8: Long
-    %v_52 = or %value$, %rhs$: Long
-    %v_53 = and %v_52, %value$: Long
-    %v_54 = cmp_eq %v_53, %value$: Int
-    je %v_54, b_55, b_56
-  }
-
-  b_55 {
-    %v_57 = cast %v_52: Int
-    ret %v_57
-  }
-
-  b_56 {
-    ret 13
-  }
-
-  b_46 {
-    ret 12
-  }
-
-  b_42 {
-    ret 11
+    %v_33 = loads @effects, 4: Int
+    %v_34 = add %v_33, 1: Int
+    store @effects, %v_34, 4
+    %v_35 = cmp_neq %value$, 0: Int
+    jmp b_36
   }
 
   b_31 {
+    jmp b_37
+  }
+
+  b_36 {
+    je %v_35, b_37, b_38
+  }
+
+  b_37 {
+    %v_39 = loads @effects, 4: Int
+    %v_40 = cmp_neq %v_39, 1: Int
+    je %v_40, b_41, b_42
+  }
+
+  b_42 {
+    jmp b_43
+  }
+
+  b_43 {
+    jmp b_44
+  }
+
+  b_44 {
+    jmp b_45
+  }
+
+  b_45 {
+    jmp b_46
+  }
+
+  b_46 {
+    %rhs$ = loads @write, 8: Long
+    %v_47 = or %value$, %rhs$: Long
+    %v_48 = and %v_47, %value$: Long
+    %v_49 = cmp_eq %v_48, %value$: Int
+    je %v_49, b_50, b_51
+  }
+
+  b_50 {
+    %v_52 = cast %v_47: Int
+    ret %v_52
+  }
+
+  b_51 {
+    ret 13
+  }
+
+  b_41 {
+    ret 12
+  }
+
+  b_38 {
+    ret 11
+  }
+
+  b_26 {
     ret 10
   }
 

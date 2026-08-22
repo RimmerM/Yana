@@ -198,6 +198,25 @@ rotateSpilled<complex>(%x: Int, %a: Int, %b: Int, %c: Int, %d: Int, %e: Int): In
   }
 }
 
+andNotBoolean<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %a = cmp_igt %x, 0: Int
+    %b = cmp_igt %y, 0: Int
+    %n = xor %a, 1: Int
+    %r = and %n, %b: Int
+    ret %r
+  }
+}
+
+andNotBooleanWidened<complex>(%x: Int, %y: Int): Int {
+  b_0 {
+    %a = cmp_igt %x, 0: Int
+    %n = xor %a, 1: Int
+    %r = and %n, %y: Int
+    ret %r
+  }
+}
+
 
 --- codegen: andNot ---
 block #0:
@@ -408,3 +427,26 @@ block #1:
   add uses=[r15, rax] creates=[r15]  => 4101c7
   add uses=[rax, r15] creates=[rax] pre=[rcx->rax]  => 428d0439
   ret uses=[rax] creates=[]  => 4883c408415f415e415d415c5d5bc3
+
+--- codegen: andNotBoolean ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  cmp_igt uses=[rdi, -] creates=[rdi]  => 85ff400f9fc7400fb6ff
+  imm uses=[] creates=[-]  => 
+  cmp_igt uses=[rsi, -] creates=[rsi]  => 85f6400f9fc6400fb6f6
+  imm uses=[] creates=[-]  => 
+  x86_andnot uses=[rdi, rsi] creates=[rax]  => c4e240f2c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: andNotBooleanWidened ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  cmp_igt uses=[rdi, -] creates=[rdi]  => 85ff400f9fc7400fb6ff
+  imm uses=[] creates=[-]  => 
+  xor uses=[rdi, -] creates=[rdi]  => 83f701
+  and uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc721f0
+  ret uses=[rax] creates=[]  => c3

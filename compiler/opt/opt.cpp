@@ -93,7 +93,7 @@ void optimizeRounds(OptContext& opt) {
          * the folder, CSE and the inliner's cost model all see - a `cmov` that survived to the last
          * pass would be judged, unified and inlined as one.
          */
-        runPass(reduceBooleanSelects);
+        runPass(reduceBooleanOperations);
 
         /*
          * A short-circuit condition left after if-conversion is a boolean phi followed by a branch.

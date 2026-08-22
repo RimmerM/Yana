@@ -158,31 +158,30 @@ allocateHeap<complex>(%size: Long): Ptr {
 
   b_47 {
     %v_50 = call_complex growHeap, %v_42: Int
-    %v_51 = xor %v_50, 1: Int
-    je %v_51, b_32, b_52
+    je %v_50, b_51, b_32
   }
 
-  b_52 {
+  b_51 {
     jmp b_49
   }
 
   b_49 {
     %block = load @heapNext, 8: Ptr
-    %v_53 = add %block, %v_42: Ptr
-    store @heapNext, %v_53, 8
+    %v_52 = add %block, %v_42: Ptr
+    store @heapNext, %v_52, 8
     store %block, %v_27, 8
-    %v_54 = add %block, 8: Ptr
-    ret %v_54
+    %v_53 = add %block, 8: Ptr
+    ret %v_53
   }
 
   b_32 {
-    %v_55 = bitcast 0: Ptr
-    ret %v_55
+    %v_54 = bitcast 0: Ptr
+    ret %v_54
   }
 
   b_41 {
-    %v_56 = load %v_37, 8: Ptr
-    store %v_36, %v_56, 8
+    %v_55 = load %v_37, 8: Ptr
+    store %v_36, %v_55, 8
     ret %v_37
   }
 
@@ -265,30 +264,27 @@ main<complex>(): Int {
     %v_4 = add %v_8, 1: Long
     %v_9 = shl %v_4, 2: Long
     %v_10 = alloca 4, 8: Ptr
-    %v_11 = cast %v_9: Long
-    %v_12 = call_complex allocateHeap, %v_11: Ptr
-    %v_13 = cast %v_9: Int
-    %v_14 = and %v_13, 1073741820: Int
-    %v_15 = cast %v_14: Int
-    %v_16 = load %v_10, 4: Int
-    %v_17 = cast %v_15: Int
-    %v_18 = or %v_17, 1073741824: Int
-    store %v_10, %v_18, 4
-    %last = sub %v_17, 1: Int
-    %v_19 = cast %last: Long
-    %target = add %v_12, %v_19: Ptr
+    %v_11 = call_complex allocateHeap, %v_9: Ptr
+    %v_12 = cast %v_9: Int
+    %v_13 = and %v_12, 1073741820: Int
+    %v_14 = load %v_10, 4: Int
+    %v_15 = or %v_13, 1073741824: Int
+    store %v_10, %v_15, 4
+    %last = sub %v_13, 1: Int
+    %v_16 = cast %last: Long
+    %target = add %v_11, %v_16: Ptr
     store %target, 42, 1
-    %v_20 = mul %v_17, 1000: Int
-    call_complex freeHeap, %v_12
-    %v_21 = cast %v_20: Long
-    %v_22 = add %v_21, 42: Long
-    %v_7 = add %v_6, %v_22: Long
+    %v_17 = mul %v_13, 1000: Int
+    call_complex freeHeap, %v_11
+    %v_18 = cast %v_17: Long
+    %v_19 = add %v_18, 42: Long
+    %v_7 = add %v_6, %v_19: Long
     jmp b_2
   }
 
   b_5 {
-    %v_23 = cast %v_7: Int
-    ret %v_23
+    %v_20 = cast %v_7: Int
+    ret %v_20
   }
 }
 

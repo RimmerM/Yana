@@ -33,72 +33,71 @@ main<complex>(): Int {
   b_5 {
     %v_6 = phi [b_0, 63], [b_4, 127]: Int
     %v_7 = call_complex opaqueInt, 1065353216: Int
-    %v_8 = cast %v_7: Int
-    %v_9 = bitcast %v_8: Float
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
+    %v_8 = bitcast %v_7: Float
+    %v_9 = cmp_eq %v_8, 1: Int
+    je %v_9, b_10, b_11
+  }
+
+  b_10 {
+    %v_12 = add %v_6, 128: Int
+    jmp b_11
   }
 
   b_11 {
-    %v_13 = add %v_6, 128: Int
-    jmp b_12
+    %v_13 = phi [b_5, %v_6], [b_10, %v_12]: Int
+    %v_14 = call_complex opaqueFloat, -2.5: Float
+    %v_15 = bitcast %v_14: Int
+    %v_16 = bitcast %v_15: Float
+    %v_17 = cmp_eq %v_16, -2.5: Int
+    je %v_17, b_18, b_19
   }
 
-  b_12 {
-    %v_14 = phi [b_5, %v_6], [b_11, %v_13]: Int
-    %v_15 = call_complex opaqueFloat, -2.5: Float
-    %v_16 = bitcast %v_15: Int
-    %v_17 = bitcast %v_16: Float
-    %v_18 = cmp_eq %v_17, -2.5: Int
-    je %v_18, b_19, b_20
+  b_18 {
+    %v_20 = add %v_13, 256: Int
+    jmp b_19
   }
 
   b_19 {
-    %v_21 = add %v_14, 256: Int
-    jmp b_20
+    %v_21 = phi [b_11, %v_13], [b_18, %v_20]: Int
+    %v_22 = call_complex opaqueInt, 18446744073709551615: Int
+    %v_23 = call_complex opaqueInt, 2147483647: Int
+    %v_24 = cmp_gt %v_22, %v_23: Int
+    je %v_24, b_25, b_26
   }
 
-  b_20 {
-    %v_22 = phi [b_12, %v_14], [b_19, %v_21]: Int
-    %v_23 = call_complex opaqueInt, 18446744073709551615: Int
-    %v_24 = call_complex opaqueInt, 2147483647: Int
-    %v_25 = cmp_gt %v_23, %v_24: Int
-    je %v_25, b_26, b_27
+  b_25 {
+    %v_27 = add %v_21, 512: Int
+    jmp b_26
   }
 
   b_26 {
-    %v_28 = add %v_22, 512: Int
-    jmp b_27
+    %v_28 = phi [b_19, %v_21], [b_25, %v_27]: Int
+    %v_29 = call_complex opaqueInt, 1: Int
+    %v_30 = cmp_eq %v_29, 1: Int
+    je %v_30, b_31, b_32
   }
 
-  b_27 {
-    %v_29 = phi [b_20, %v_22], [b_26, %v_28]: Int
-    %v_30 = call_complex opaqueInt, 1: Int
-    %v_31 = cmp_eq %v_30, 1: Int
-    je %v_31, b_32, b_33
+  b_31 {
+    %v_33 = add %v_28, 1024: Int
+    jmp b_32
   }
 
   b_32 {
-    %v_34 = add %v_29, 1024: Int
-    jmp b_33
+    %v_34 = phi [b_26, %v_28], [b_31, %v_33]: Int
+    %v_35 = call_complex opaqueDouble, 1: Double
+    %v_36 = bitcast %v_35: Long
+    %v_37 = cmp_eq %v_36, 4607182418800017408: Int
+    je %v_37, b_38, b_39
   }
 
-  b_33 {
-    %v_35 = phi [b_27, %v_29], [b_32, %v_34]: Int
-    %v_36 = call_complex opaqueDouble, 1: Double
-    %v_37 = bitcast %v_36: Long
-    %v_38 = cmp_eq %v_37, 4607182418800017408: Int
-    je %v_38, b_39, b_40
+  b_38 {
+    %v_40 = add %v_34, 2048: Int
+    jmp b_39
   }
 
   b_39 {
-    %v_41 = add %v_35, 2048: Int
-    jmp b_40
-  }
-
-  b_40 {
-    %v_42 = phi [b_33, %v_35], [b_39, %v_41]: Int
-    ret %v_42
+    %v_41 = phi [b_32, %v_34], [b_38, %v_40]: Int
+    ret %v_41
   }
 }
 

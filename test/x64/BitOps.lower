@@ -248,3 +248,33 @@ rotateSpilled(%x: Int, %a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
         ret %t
     }
 }
+
+# `!a && b` over two truth values, which is the spelling the *language* emits rather than the one
+# `andNot` above is written in. `Bitwise(Bool).not` is `xor c, 1` and not a `not` - complementing the
+# storage of a one-bit value gives something that is not a `Bool`, which is the ruling in
+# resolve/core.cpp - so `!a && b` reaches this backend as `(a xor 1) and b`.
+#
+# `x ^ 1` is not `~x`: they agree in bit 0 and differ in every bit above it. What licenses the `andn`
+# is therefore not the complement at all but the operand it is read against - `b` is a comparison, so
+# the bits the two spellings disagree about are zero in it and discarded either way.
+andNotBoolean(%x: Int, %y: Int): Int {
+    {
+        %a = cmp_igt %x, 0: Int
+        %b = cmp_igt %y, 0: Int
+        %n = xor %a, 1: Int
+        %r = and %n, %b: Int
+        ret %r
+    }
+}
+
+# The same complement read against a value that is *not* a truth value, which is **not** `andn` - the
+# bits `x ^ 1` and `~x` disagree about survive here, so the two are different numbers. This is the
+# control for the pair above, and the reason `complementedOperand` takes the other operand at all.
+andNotBooleanWidened(%x: Int, %y: Int): Int {
+    {
+        %a = cmp_igt %x, 0: Int
+        %n = xor %a, 1: Int
+        %r = and %n, %y: Int
+        ret %r
+    }
+}

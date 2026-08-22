@@ -132,3 +132,14 @@ void removeDeadConstants(LowerBase base, Region<LowerRegion>& arena, LowerFuncti
  * whether a value is already narrow enough for a load of it to be the value itself.
  */
 U64 knownZeroBits(LowerBase base, LowerValue* value, U32 depth = 0);
+
+/*
+ * Whether a value is already one of the two integers a `Bool` is - that is, whether every bit of it
+ * above the lowest is known zero.
+ *
+ * One line over `knownZeroBits` rather than an analysis of its own, and exported because the x64
+ * selector needs the same question: the language's `!` over a `Bool` is `xor c, 1` rather than a
+ * complement of the whole word, so whether that spelling *is* a complement depends on what the
+ * result is read against. See `complementedOperand` in codegen/x64/transform_peephole.cpp.
+ */
+bool isBooleanValued(LowerBase base, LowerValue* value);

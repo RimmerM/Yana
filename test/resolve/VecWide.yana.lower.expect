@@ -160,116 +160,115 @@ main<complex>(): Int {
 
   b_62 {
     %v_63 = vreduce_or %above: Int
-    %v_64 = xor %v_63, 1: Int
-    je %v_64, b_65, b_66
+    je %v_63, b_64, b_65
   }
 
   b_65 {
     ret 18446744073709551606
   }
 
+  b_64 {
+    jmp b_66
+  }
+
   b_66 {
-    jmp b_67
+    %v_67 = vreduce_and %above: Int
+    je %v_67, b_68, b_69
   }
 
-  b_67 {
-    %v_68 = vreduce_and %above: Int
-    je %v_68, b_69, b_70
-  }
-
-  b_69 {
+  b_68 {
     ret 18446744073709551605
   }
 
+  b_69 {
+    jmp b_70
+  }
+
   b_70 {
-    jmp b_71
+    %v_71 = vsplat 7: i32x8
+    %v_72 = vsplat 2: i32x8
+    %picked = select %above, %v_71, %v_72: i32x8
+    %v_73 = vlane %picked, 0: Int
+    %v_74 = cmp_neq %v_73, 7: Int
+    je %v_74, b_75, b_76
   }
 
-  b_71 {
-    %v_72 = vsplat 7: i32x8
-    %v_73 = vsplat 2: i32x8
-    %picked = select %above, %v_72, %v_73: i32x8
-    %v_74 = vlane %picked, 0: Int
-    %v_75 = cmp_neq %v_74, 7: Int
-    je %v_75, b_76, b_77
-  }
-
-  b_76 {
+  b_75 {
     ret 18446744073709551604
   }
 
+  b_76 {
+    jmp b_77
+  }
+
   b_77 {
-    jmp b_78
+    %v_78 = vlane %picked, 1: Int
+    %v_79 = cmp_neq %v_78, 2: Int
+    je %v_79, b_80, b_81
   }
 
-  b_78 {
-    %v_79 = vlane %picked, 1: Int
-    %v_80 = cmp_neq %v_79, 2: Int
-    je %v_80, b_81, b_82
-  }
-
-  b_81 {
+  b_80 {
     ret 18446744073709551603
   }
 
+  b_81 {
+    jmp b_82
+  }
+
   b_82 {
-    jmp b_83
+    %v_83 = vwithlane %base, 10, 1: i32x8
+    %v_84 = cmp_igt %v_83, %base: m32x8
+    %v_85 = vreduce_first %v_84: Int
+    %v_86 = cmp_neq %v_85, 1: Int
+    je %v_86, b_87, b_88
   }
 
-  b_83 {
-    %v_84 = vwithlane %base, 10, 1: i32x8
-    %v_85 = cmp_igt %v_84, %base: m32x8
-    %v_86 = vreduce_first %v_85: Int
-    %v_87 = cmp_neq %v_86, 1: Int
-    je %v_87, b_88, b_89
-  }
-
-  b_88 {
+  b_87 {
     ret 18446744073709551602
   }
 
+  b_88 {
+    jmp b_89
+  }
+
   b_89 {
-    jmp b_90
+    %v_90 = cmp_ilt %mixed, %base: m32x8
+    %v_91 = vreduce_first %v_90: Int
+    %v_92 = cmp_neq %v_91, %lanes: Int
+    je %v_92, b_93, b_94
   }
 
-  b_90 {
-    %v_91 = cmp_ilt %mixed, %base: m32x8
-    %v_92 = vreduce_first %v_91: Int
-    %v_93 = cmp_neq %v_92, %lanes: Int
-    je %v_93, b_94, b_95
-  }
-
-  b_94 {
+  b_93 {
     ret 18446744073709551601
   }
 
+  b_94 {
+    jmp b_95
+  }
+
   b_95 {
-    jmp b_96
+    %v_96 = cmp_ige %mixed, %base: m32x8
+    %v_97 = vreduce_first %v_96: Int
+    %v_98 = cmp_neq %v_97, 0: Int
+    je %v_98, b_99, b_100
   }
 
-  b_96 {
-    %v_97 = cmp_ige %mixed, %base: m32x8
-    %v_98 = vreduce_first %v_97: Int
-    %v_99 = cmp_neq %v_98, 0: Int
-    je %v_99, b_100, b_101
-  }
-
-  b_100 {
+  b_99 {
     ret 18446744073709551600
   }
 
-  b_101 {
-    jmp b_102
+  b_100 {
+    jmp b_101
   }
 
-  b_102 {
-    %v_103 = vlane %v_2, 1: Int
-    %v_104 = imul %v_103, 100: Int
-    %v_105 = vlane %v_4, 0: Int
-    %v_106 = add %v_104, %v_105: Int
-    %v_107 = vlane %mixed, 0: Int
-    %v_108 = add %v_106, %v_107: Int
-    ret %v_108
+  b_101 {
+    %v_102 = vlane %v_2, 1: Int
+    %v_103 = imul %v_102, 100: Int
+    %v_104 = vlane %v_4, 0: Int
+    %v_105 = add %v_103, %v_104: Int
+    %v_106 = vlane %mixed, 0: Int
+    %v_107 = add %v_105, %v_106: Int
+    ret %v_107
   }
 }
 

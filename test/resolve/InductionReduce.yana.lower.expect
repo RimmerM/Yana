@@ -35,14 +35,13 @@ Reclaim(Array(a)).reclaim(Cell)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 12: Ptr
     %v_2 = load %v_1, 4: Int
-    %count = cast %v_2: Int
     %v_3 = load %value, 8: Ptr
     jmp b_4
   }
 
   b_4 {
     %v_5 = phi [b_0, 0], [b_6, %v_7]: Int
-    %v_8 = cmp_ilt %v_5, %count: Int
+    %v_8 = cmp_ilt %v_5, %v_2: Int
     je %v_8, b_6, b_9
   }
 

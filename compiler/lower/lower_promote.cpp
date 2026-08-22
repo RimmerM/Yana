@@ -320,6 +320,22 @@ LowerInstPhi* makePhi(LowerModule& module, LowerBlock& block, LowerType type) {
 
     auto phi = new (storage) LowerInstPhi(StringId(), type);
     phi->usedCount = U8(count);
+
+    /*
+     * Zeroed rather than left as the arena found it, which is not tidiness.
+     *
+     * "Detached" above means it is not in a block and holds no uses. It does *not* mean nothing can
+     * reach it: `Slot::entry` names this phi as what a block holds on entry from the moment it is
+     * made, so the rewrite below builds instructions that read it, and an analysis walking those
+     * operands arrives here while the alternatives are still whatever the arena last had.
+     *
+     * `knownZeroBits` is the one that walks them, and a null alternative is what tells it this phi
+     * is not answerable yet - which is the honest answer, since the alternatives are what would
+     * decide it. Reading uninitialized handles instead is a wild pointer, and it was one.
+     */
+    auto used = phi->used();
+    for(Size i = 0; i < used.length; i++) used.ptr[i] = nullptr;
+
     return phi;
 }
 

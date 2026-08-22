@@ -391,7 +391,7 @@ struct Folder {
 
                 // The dual of the `and` above, and the one of the four that pays at a width other
                 // than a word: `~0` at a `Bool` is `True`, so `x || True` reaching here as `or x,
-                // True` is the constant it always was. `reduceBooleanSelects` is what makes that a
+                // True` is the constant it always was. `reduceBooleanOperations` is what makes that a
                 // shape rather than something nobody writes.
                 if(isConstantValue(instruction.rhs, narrowToWidth(~U64(0), facts))) {
                     return wrap(~U64(0));
@@ -1143,6 +1143,27 @@ struct Folder {
         if(whenTrue) {
             auto whenFalse = constantValueOf(opt, select.whenFalse);
             if(whenFalse && whenTrue.unwrap() == whenFalse.unwrap()) return select.whenTrue;
+        }
+
+        /*
+         * And the boolean identity, which is the one shape `reduceBooleanOperations` answers with a
+         * value that already exists rather than with an instruction it has to build.
+         *
+         * `c ? True : False` is `c`. It belongs here rather than there for the reason that pass's
+         * own comment gives for being separate: it exists because its rules need an instruction that
+         * does not exist yet and this walk deliberately inserts none. This one needs nothing, so it
+         * is this function's - and answering it here answers it a pass earlier as well, since the
+         * folder is the first thing each round runs.
+         *
+         * Both the result and the condition are checked against `Bool`, because `Select` is also the
+         * lane-wise one: a vector select's condition is a `Mask` and its arms are vectors, and
+         * neither the arms being 0 and 1 nor the condition being the answer is true of it.
+         */
+        if(whenTrue && select.type == opt.program.scalar.bool_ &&
+           opt.local[select.cond]->type == opt.program.scalar.bool_)
+        {
+            auto whenFalse = constantValueOf(opt, select.whenFalse);
+            if(whenFalse && whenTrue.unwrap() == 1 && whenFalse.unwrap() == 0) return select.cond;
         }
 
         auto condition = constantValueOf(opt, select.cond);

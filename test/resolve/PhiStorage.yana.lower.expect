@@ -14,49 +14,46 @@ tagOf<complex>(%m: Ptr): Int {
 
   b_3 {
     %v_8 = load %m, 1: Int
-    %v_9 = cast %v_8: Int
-    %v_10 = cmp_eq %v_9, 0: Int
-    je %v_10, b_11, b_4
+    %v_9 = cmp_eq %v_8, 0: Int
+    je %v_9, b_10, b_4
   }
 
-  b_11 {
-    jmp b_12
+  b_10 {
+    jmp b_11
   }
 
   b_7 {
-    %v_13 = cmp_le %v_1, 2: Int
-    je %v_13, b_14, b_15
+    %v_12 = cmp_le %v_1, 2: Int
+    je %v_12, b_13, b_14
   }
 
   b_6 {
-    %v_16 = load %m, 1: Int
-    %v_17 = cast %v_16: Int
-    %v_18 = cmp_eq %v_17, 1: Int
-    je %v_18, b_19, b_7
+    %v_15 = load %m, 1: Int
+    %v_16 = cmp_eq %v_15, 1: Int
+    je %v_16, b_17, b_7
   }
 
-  b_19 {
-    jmp b_12
-  }
-
-  b_15 {
-    jmp b_12
+  b_17 {
+    jmp b_11
   }
 
   b_14 {
-    %v_20 = load %m, 1: Int
-    %v_21 = cast %v_20: Int
-    %v_22 = cmp_eq %v_21, 2: Int
-    je %v_22, b_23, b_15
+    jmp b_11
   }
 
-  b_23 {
-    jmp b_12
+  b_13 {
+    %v_18 = load %m, 1: Int
+    %v_19 = cmp_eq %v_18, 2: Int
+    je %v_19, b_20, b_14
   }
 
-  b_12 {
-    %v_24 = phi [b_11, 1], [b_19, 2], [b_23, 3], [b_15, 0]: Int
-    ret %v_24
+  b_20 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_21 = phi [b_10, 1], [b_17, 2], [b_20, 3], [b_14, 0]: Int
+    ret %v_21
   }
 }
 

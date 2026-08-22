@@ -147,109 +147,107 @@ define fastcc i32 @main() {
 73:                                               ; preds = %72
   %74 = call i1 @llvm.vector.reduce.or.v8i1(<8 x i1> %above)
   %75 = zext i1 %74 to i32
-  %76 = xor i32 %75, 1
-  %77 = icmp ne i32 %76, 0
-  br i1 %77, label %78, label %79
+  br i1 %74, label %77, label %76
 
-78:                                               ; preds = %73
+76:                                               ; preds = %73
   ret i32 -10
 
-79:                                               ; preds = %73
-  br label %80
+77:                                               ; preds = %73
+  br label %78
 
-80:                                               ; preds = %79
-  %81 = call i1 @llvm.vector.reduce.and.v8i1(<8 x i1> %above)
-  %82 = zext i1 %81 to i32
-  br i1 %81, label %83, label %84
+78:                                               ; preds = %77
+  %79 = call i1 @llvm.vector.reduce.and.v8i1(<8 x i1> %above)
+  %80 = zext i1 %79 to i32
+  br i1 %79, label %81, label %82
 
-83:                                               ; preds = %80
+81:                                               ; preds = %78
   ret i32 -11
 
-84:                                               ; preds = %80
-  br label %85
+82:                                               ; preds = %78
+  br label %83
 
-85:                                               ; preds = %84
+83:                                               ; preds = %82
   %picked = select <8 x i1> %above, <8 x i32> <i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7, i32 7>, <8 x i32> <i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2, i32 2>
-  %86 = extractelement <8 x i32> %picked, i32 0
-  %87 = icmp ne i32 %86, 7
-  %88 = zext i1 %87 to i32
-  br i1 %87, label %89, label %90
+  %84 = extractelement <8 x i32> %picked, i32 0
+  %85 = icmp ne i32 %84, 7
+  %86 = zext i1 %85 to i32
+  br i1 %85, label %87, label %88
 
-89:                                               ; preds = %85
+87:                                               ; preds = %83
   ret i32 -12
 
-90:                                               ; preds = %85
-  br label %91
+88:                                               ; preds = %83
+  br label %89
 
-91:                                               ; preds = %90
-  %92 = extractelement <8 x i32> %picked, i32 1
-  %93 = icmp ne i32 %92, 2
-  %94 = zext i1 %93 to i32
-  br i1 %93, label %95, label %96
+89:                                               ; preds = %88
+  %90 = extractelement <8 x i32> %picked, i32 1
+  %91 = icmp ne i32 %90, 2
+  %92 = zext i1 %91 to i32
+  br i1 %91, label %93, label %94
 
-95:                                               ; preds = %91
+93:                                               ; preds = %89
   ret i32 -13
 
-96:                                               ; preds = %91
-  br label %97
+94:                                               ; preds = %89
+  br label %95
 
-97:                                               ; preds = %96
-  %98 = insertelement <8 x i32> %base, i32 10, i32 1
-  %99 = icmp sgt <8 x i32> %98, %base
-  %100 = bitcast <8 x i1> %99 to i8
-  %101 = zext i8 %100 to i32
-  %102 = or i32 %101, 256
-  %103 = call i32 @llvm.cttz.i32(i32 %102, i1 true)
-  %104 = icmp ne i32 %103, 1
-  %105 = zext i1 %104 to i32
-  br i1 %104, label %106, label %107
+95:                                               ; preds = %94
+  %96 = insertelement <8 x i32> %base, i32 10, i32 1
+  %97 = icmp sgt <8 x i32> %96, %base
+  %98 = bitcast <8 x i1> %97 to i8
+  %99 = zext i8 %98 to i32
+  %100 = or i32 %99, 256
+  %101 = call i32 @llvm.cttz.i32(i32 %100, i1 true)
+  %102 = icmp ne i32 %101, 1
+  %103 = zext i1 %102 to i32
+  br i1 %102, label %104, label %105
 
-106:                                              ; preds = %97
+104:                                              ; preds = %95
   ret i32 -14
 
-107:                                              ; preds = %97
-  br label %108
+105:                                              ; preds = %95
+  br label %106
 
-108:                                              ; preds = %107
-  %109 = icmp slt <8 x i32> %mixed, %base
-  %110 = bitcast <8 x i1> %109 to i8
-  %111 = zext i8 %110 to i32
-  %112 = or i32 %111, 256
-  %113 = call i32 @llvm.cttz.i32(i32 %112, i1 true)
-  %114 = icmp ne i32 %113, %lanes
-  %115 = zext i1 %114 to i32
-  br i1 %114, label %116, label %117
+106:                                              ; preds = %105
+  %107 = icmp slt <8 x i32> %mixed, %base
+  %108 = bitcast <8 x i1> %107 to i8
+  %109 = zext i8 %108 to i32
+  %110 = or i32 %109, 256
+  %111 = call i32 @llvm.cttz.i32(i32 %110, i1 true)
+  %112 = icmp ne i32 %111, %lanes
+  %113 = zext i1 %112 to i32
+  br i1 %112, label %114, label %115
 
-116:                                              ; preds = %108
+114:                                              ; preds = %106
   ret i32 -15
 
-117:                                              ; preds = %108
-  br label %118
+115:                                              ; preds = %106
+  br label %116
 
-118:                                              ; preds = %117
-  %119 = icmp sge <8 x i32> %mixed, %base
-  %120 = bitcast <8 x i1> %119 to i8
-  %121 = zext i8 %120 to i32
-  %122 = or i32 %121, 256
-  %123 = call i32 @llvm.cttz.i32(i32 %122, i1 true)
-  %124 = icmp ne i32 %123, 0
-  %125 = zext i1 %124 to i32
-  br i1 %124, label %126, label %127
+116:                                              ; preds = %115
+  %117 = icmp sge <8 x i32> %mixed, %base
+  %118 = bitcast <8 x i1> %117 to i8
+  %119 = zext i8 %118 to i32
+  %120 = or i32 %119, 256
+  %121 = call i32 @llvm.cttz.i32(i32 %120, i1 true)
+  %122 = icmp ne i32 %121, 0
+  %123 = zext i1 %122 to i32
+  br i1 %122, label %124, label %125
 
-126:                                              ; preds = %118
+124:                                              ; preds = %116
   ret i32 -16
 
-127:                                              ; preds = %118
-  br label %128
+125:                                              ; preds = %116
+  br label %126
 
-128:                                              ; preds = %127
-  %129 = extractelement <8 x i32> %3, i32 1
-  %130 = mul i32 %129, 100
-  %131 = extractelement <8 x i32> %4, i32 0
+126:                                              ; preds = %125
+  %127 = extractelement <8 x i32> %3, i32 1
+  %128 = mul i32 %127, 100
+  %129 = extractelement <8 x i32> %4, i32 0
+  %130 = add i32 %128, %129
+  %131 = extractelement <8 x i32> %mixed, i32 0
   %132 = add i32 %130, %131
-  %133 = extractelement <8 x i32> %mixed, i32 0
-  %134 = add i32 %132, %133
-  ret i32 %134
+  ret i32 %132
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind readnone willreturn

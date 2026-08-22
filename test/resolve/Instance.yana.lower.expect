@@ -29,67 +29,66 @@ main<complex>(): Int {
     %v_12 = add %v_11, 4: Ptr
     store %v_12, 2, 4
     %v_13 = call_complex Eq(Maybe(a)).==(Int), %v_9, %v_11: Int
-    %v_14 = xor %v_13, 1: Int
-    je %v_14, b_15, b_16
+    je %v_13, b_14, b_15
   }
 
   b_15 {
-    %v_17 = add %v_8, 2: Long
-    jmp b_16
+    %v_16 = add %v_8, 2: Long
+    jmp b_14
   }
 
-  b_16 {
-    %v_18 = phi [b_7, %v_8], [b_15, %v_17]: Long
+  b_14 {
+    %v_17 = phi [b_7, %v_8], [b_15, %v_16]: Long
+    %v_18 = alloca 8, 4: Ptr
+    store %v_18, 0, 4
     %v_19 = alloca 8, 4: Ptr
     store %v_19, 0, 4
-    %v_20 = alloca 8, 4: Ptr
-    store %v_20, 0, 4
-    %v_21 = call_complex Eq(Maybe(a)).==(Int), %v_19, %v_20: Int
-    je %v_21, b_22, b_23
+    %v_20 = call_complex Eq(Maybe(a)).==(Int), %v_18, %v_19: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_21 {
+    %v_23 = add %v_17, 4: Long
+    jmp b_22
   }
 
   b_22 {
-    %v_24 = add %v_18, 4: Long
-    jmp b_23
-  }
-
-  b_23 {
-    %v_25 = phi [b_16, %v_18], [b_22, %v_24]: Long
-    %v_26 = add %v_25, 8: Long
+    %v_24 = phi [b_14, %v_17], [b_21, %v_23]: Long
+    %v_25 = add %v_24, 8: Long
+    %v_26 = alloca 8, 8: Ptr
+    store %v_26, 0, 8
     %v_27 = alloca 8, 8: Ptr
     store %v_27, 0, 8
-    %v_28 = alloca 8, 8: Ptr
-    store %v_28, 0, 8
-    %v_29 = cmp_lt %v_27, %v_28: Int
-    %v_30 = select %v_29, %v_27, %v_28: Ptr
-    %v_31 = cmp_lt %v_28, %v_27: Int
-    %v_32 = select %v_31, %v_28, %v_27: Ptr
-    %v_33 = cmp_le %v_30, %v_32: Int
-    je %v_33, b_34, b_35
+    %v_28 = cmp_lt %v_26, %v_27: Int
+    %v_29 = select %v_28, %v_26, %v_27: Ptr
+    %v_30 = cmp_lt %v_27, %v_26: Int
+    %v_31 = select %v_30, %v_27, %v_26: Ptr
+    %v_32 = cmp_le %v_29, %v_31: Int
+    je %v_32, b_33, b_34
+  }
+
+  b_33 {
+    jmp b_34
   }
 
   b_34 {
-    jmp b_35
+    %v_35 = phi [b_22, 0], [b_33, 1]: Long
+    %v_36 = cmp_eq %v_29, %v_29: Int
+    je %v_36, b_37, b_38
   }
 
-  b_35 {
-    %v_36 = phi [b_23, 0], [b_34, 1]: Long
-    %v_37 = cmp_eq %v_30, %v_30: Int
-    je %v_37, b_38, b_39
+  b_37 {
+    %v_39 = add %v_35, 2: Long
+    jmp b_38
   }
 
   b_38 {
-    %v_40 = add %v_36, 2: Long
-    jmp b_39
-  }
-
-  b_39 {
-    %v_41 = phi [b_35, %v_36], [b_38, %v_40]: Long
-    %v_42 = add %v_41, 4: Long
-    %v_43 = add %v_26, %v_42: Long
-    %v_44 = add %v_43, 16: Long
-    %v_45 = cast %v_44: Int
-    ret %v_45
+    %v_40 = phi [b_34, %v_35], [b_37, %v_39]: Long
+    %v_41 = add %v_40, 4: Long
+    %v_42 = add %v_25, %v_41: Long
+    %v_43 = add %v_42, 16: Long
+    %v_44 = cast %v_43: Int
+    ret %v_44
   }
 }
 

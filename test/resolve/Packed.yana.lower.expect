@@ -10,17 +10,15 @@ tick<complex>(%x: Ptr) {
     %v_6 = shr %v_5, %v_4: Long
     %v_7 = and %v_6, 7: Long
     %v_8 = cast %v_7: Int
-    %v_9 = cast %v_8: Int
-    %v_10 = add %v_9, 1: Int
-    %v_11 = and %v_10, 7: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Long
-    %v_14 = shl %v_13, %v_4: Long
-    %v_15 = shl 7, %v_4: Long
-    %v_16 = not %v_15: Long
-    %v_17 = and %v_5, %v_16: Long
-    %v_18 = or %v_17, %v_14: Long
-    store %v_3, %v_18, 1
+    %v_9 = add %v_8, 1: Int
+    %v_10 = and %v_9, 7: Int
+    %v_11 = cast %v_10: Long
+    %v_12 = shl %v_11, %v_4: Long
+    %v_13 = shl 7, %v_4: Long
+    %v_14 = not %v_13: Long
+    %v_15 = and %v_5, %v_14: Long
+    %v_16 = or %v_15, %v_12: Long
+    store %v_3, %v_16, 1
     ret 
   }
 }
@@ -113,21 +111,17 @@ nudgeTwice<complex>(%x: Ptr) {
     %v_6 = shr %v_5, %v_4: Long
     %v_7 = and %v_6, 8191: Long
     %v_8 = cast %v_7: Int
-    %v_9 = cast %v_8: Int
-    %v_10 = add %v_9, 1: Int
-    %v_11 = and %v_10, 8191: Int
-    %v_12 = cast %v_11: Int
-    %v_13 = cast %v_12: Int
-    %v_14 = add %v_13, 1: Int
-    %v_15 = and %v_14, 8191: Int
-    %v_16 = cast %v_15: Int
-    %v_17 = cast %v_16: Long
-    %v_18 = shl %v_17, %v_4: Long
-    %v_19 = shl 8191, %v_4: Long
-    %v_20 = not %v_19: Long
-    %v_21 = and %v_5, %v_20: Long
-    %v_22 = or %v_21, %v_18: Long
-    store %v_3, %v_22, 2
+    %v_9 = add %v_8, 1: Int
+    %v_10 = and %v_9, 8191: Int
+    %v_11 = add %v_10, 1: Int
+    %v_12 = and %v_11, 8191: Int
+    %v_13 = cast %v_12: Long
+    %v_14 = shl %v_13, %v_4: Long
+    %v_15 = shl 8191, %v_4: Long
+    %v_16 = not %v_15: Long
+    %v_17 = and %v_5, %v_16: Long
+    %v_18 = or %v_17, %v_14: Long
+    store %v_3, %v_18, 2
     ret 
   }
 }
@@ -239,131 +233,113 @@ main<complex>(): Int {
     call_complex flip, %v_4
     %v_5 = load %v_1, 1: Int
     %v_6 = and %v_5, 1: Int
-    %v_7 = cast %v_6: Int
-    %v_8 = select %v_7, 1, 0: Int
-    %v_9 = shr %v_5, 1: Int
-    %v_10 = and %v_9, 1: Int
-    %v_11 = cast %v_10: Int
-    %v_12 = select %v_11, 2, 0: Int
-    %v_13 = add %v_8, %v_12: Int
-    %v_14 = add %v_13, 926589: Int
-    %v_15 = alloca 1, 1: Ptr
-    store %v_15, 3, 1
-    %v_16 = bitcast %v_15: Long
-    %v_17 = or %v_16, 281474976710656: Long
-    %v_18 = bitcast %v_17: Ptr
-    %v_19 = call_complex pick, 1, %v_15, %v_18: Ptr
-    %v_20 = bitcast %v_19: Long
-    %v_21 = and %v_20, 281474976710655: Long
-    %v_22 = bitcast %v_21: Ptr
-    %v_23 = shr %v_20, 48: Long
-    %v_24 = load %v_22, 1: Long
-    %v_25 = shl 1, %v_23: Long
-    %v_26 = not %v_25: Long
-    %v_27 = and %v_24, %v_26: Long
-    store %v_22, %v_27, 1
-    %v_28 = load %v_15, 1: Int
-    %v_29 = and %v_28, 1: Int
-    %v_30 = cast %v_29: Int
-    %v_31 = select %v_30, 1, 0: Int
-    %v_32 = shr %v_28, 1: Int
-    %v_33 = and %v_32, 1: Int
-    %v_34 = cast %v_33: Int
-    %v_35 = select %v_34, 2, 0: Int
-    %v_36 = add %v_31, %v_35: Int
-    %v_37 = add %v_14, %v_36: Int
-    %v_38 = add %v_37, 3: Int
-    %v_39 = alloca 1, 1: Ptr
-    store %v_39, 1, 1
-    %v_40 = bitcast %v_39: Long
-    %v_41 = or %v_40, 281474976710656: Long
-    %v_42 = bitcast %v_41: Ptr
-    call_complex swapBools, %v_39, %v_42
-    %v_43 = load %v_39, 1: Int
-    %v_44 = and %v_43, 1: Int
-    %v_45 = cast %v_44: Int
-    %v_46 = select %v_45, 1, 0: Int
-    %v_47 = shr %v_43, 1: Int
-    %v_48 = and %v_47, 1: Int
-    %v_49 = cast %v_48: Int
-    %v_50 = select %v_49, 2, 0: Int
-    %v_51 = add %v_46, %v_50: Int
-    %v_52 = add %v_38, %v_51: Int
-    %v_53 = alloca 4, 4: Ptr
-    store %v_53, 2162788, 4
-    call_complex nudgeTwice, %v_53
-    %v_54 = load %v_53, 4: Int
-    %v_55 = and %v_54, 8191: Int
-    %v_56 = cast %v_55: Int
-    %v_57 = imul %v_56, 10: Int
-    %v_58 = shr %v_54, 16: Int
-    %v_59 = and %v_58, 15: Int
-    %v_60 = cast %v_59: Int
-    %v_61 = add %v_57, %v_60: Int
-    %v_62 = add %v_52, %v_61: Int
-    %v_63 = alloca 2, 2: Ptr
-    store %v_63, 0, 2
-    %v_64 = bitcast %v_63: Long
-    %v_65 = or %v_64, 281474976710656: Long
-    %v_66 = bitcast %v_65: Ptr
-    %v_67 = or %v_64, 562949953421312: Long
-    %v_68 = bitcast %v_67: Ptr
-    %v_69 = or %v_64, 844424930131968: Long
-    %v_70 = bitcast %v_69: Ptr
-    %v_71 = or %v_64, 1125899906842624: Long
-    %v_72 = bitcast %v_71: Ptr
-    %v_73 = or %v_64, 1407374883553280: Long
-    %v_74 = bitcast %v_73: Ptr
-    %v_75 = or %v_64, 1688849860263936: Long
-    %v_76 = bitcast %v_75: Ptr
-    %v_77 = or %v_64, 1970324836974592: Long
-    %v_78 = bitcast %v_77: Ptr
-    %v_79 = add %v_63, 1: Ptr
-    call_complex nine, %v_63, %v_66, %v_68, %v_70, %v_72, %v_74, %v_76, %v_78, %v_79
-    %v_80 = load %v_63, 2: Int
-    %v_81 = and %v_80, 1: Int
-    %v_82 = cast %v_81: Int
-    %v_83 = select %v_82, 1, 0: Int
-    %v_84 = shr %v_80, 4: Int
-    %v_85 = and %v_84, 1: Int
-    %v_86 = cast %v_85: Int
-    %v_87 = select %v_86, 20, 0: Int
-    %v_88 = add %v_83, %v_87: Int
-    %v_89 = shr %v_80, 8: Int
-    %v_90 = and %v_89, 1: Int
-    %v_91 = cast %v_90: Int
-    %v_92 = select %v_91, 300, 0: Int
-    %v_93 = add %v_88, %v_92: Int
-    %v_94 = add %v_62, %v_93: Int
-    %v_95 = alloca 5, 4: Ptr
-    store %v_95, 0, 4
-    %v_96 = add %v_95, 4: Ptr
-    store %v_96, 2, 1
-    store %v_95, 7, 4
-    %v_97 = bitcast %v_96: Long
-    %v_98 = or %v_97, 844424930131968: Long
-    %v_99 = bitcast %v_98: Ptr
-    call_complex flip, %v_99
-    %v_100 = add %v_95, 4: Ptr
-    call_complex tick, %v_100
-    %v_101 = loads %v_95, 4: Int
-    %v_102 = add %v_101, 1: Int
-    store %v_95, %v_102, 4
-    %v_103 = add %v_95, 4: Ptr
-    %v_104 = load %v_103, 1: Int
-    %v_105 = shr %v_104, 3: Int
-    %v_106 = and %v_105, 1: Int
-    %v_107 = cast %v_106: Int
-    %v_108 = select %v_107, 1, 0: Int
-    %v_109 = and %v_104, 7: Int
-    %v_110 = cast %v_109: Int
-    %v_111 = imul %v_110, 10: Int
-    %v_112 = add %v_108, %v_111: Int
-    %v_113 = imul %v_102, 100: Int
-    %v_114 = add %v_112, %v_113: Int
-    %v_115 = add %v_94, %v_114: Int
-    %v_116 = add %v_115, 291: Int
-    ret %v_116
+    %v_7 = shr %v_5, 1: Int
+    %v_8 = and %v_7, 1: Int
+    %v_9 = select %v_8, 2, 0: Int
+    %v_10 = add %v_6, %v_9: Int
+    %v_11 = add %v_10, 926589: Int
+    %v_12 = alloca 1, 1: Ptr
+    store %v_12, 3, 1
+    %v_13 = bitcast %v_12: Long
+    %v_14 = or %v_13, 281474976710656: Long
+    %v_15 = bitcast %v_14: Ptr
+    %v_16 = call_complex pick, 1, %v_12, %v_15: Ptr
+    %v_17 = bitcast %v_16: Long
+    %v_18 = and %v_17, 281474976710655: Long
+    %v_19 = bitcast %v_18: Ptr
+    %v_20 = shr %v_17, 48: Long
+    %v_21 = load %v_19, 1: Long
+    %v_22 = shl 1, %v_20: Long
+    %v_23 = not %v_22: Long
+    %v_24 = and %v_21, %v_23: Long
+    store %v_19, %v_24, 1
+    %v_25 = load %v_12, 1: Int
+    %v_26 = and %v_25, 1: Int
+    %v_27 = shr %v_25, 1: Int
+    %v_28 = and %v_27, 1: Int
+    %v_29 = select %v_28, 2, 0: Int
+    %v_30 = add %v_26, %v_29: Int
+    %v_31 = add %v_11, %v_30: Int
+    %v_32 = add %v_31, 3: Int
+    %v_33 = alloca 1, 1: Ptr
+    store %v_33, 1, 1
+    %v_34 = bitcast %v_33: Long
+    %v_35 = or %v_34, 281474976710656: Long
+    %v_36 = bitcast %v_35: Ptr
+    call_complex swapBools, %v_33, %v_36
+    %v_37 = load %v_33, 1: Int
+    %v_38 = and %v_37, 1: Int
+    %v_39 = shr %v_37, 1: Int
+    %v_40 = and %v_39, 1: Int
+    %v_41 = select %v_40, 2, 0: Int
+    %v_42 = add %v_38, %v_41: Int
+    %v_43 = add %v_32, %v_42: Int
+    %v_44 = alloca 4, 4: Ptr
+    store %v_44, 2162788, 4
+    call_complex nudgeTwice, %v_44
+    %v_45 = load %v_44, 4: Int
+    %v_46 = and %v_45, 8191: Int
+    %v_47 = imul %v_46, 10: Int
+    %v_48 = shr %v_45, 16: Int
+    %v_49 = and %v_48, 15: Int
+    %v_50 = add %v_47, %v_49: Int
+    %v_51 = add %v_43, %v_50: Int
+    %v_52 = alloca 2, 2: Ptr
+    store %v_52, 0, 2
+    %v_53 = bitcast %v_52: Long
+    %v_54 = or %v_53, 281474976710656: Long
+    %v_55 = bitcast %v_54: Ptr
+    %v_56 = or %v_53, 562949953421312: Long
+    %v_57 = bitcast %v_56: Ptr
+    %v_58 = or %v_53, 844424930131968: Long
+    %v_59 = bitcast %v_58: Ptr
+    %v_60 = or %v_53, 1125899906842624: Long
+    %v_61 = bitcast %v_60: Ptr
+    %v_62 = or %v_53, 1407374883553280: Long
+    %v_63 = bitcast %v_62: Ptr
+    %v_64 = or %v_53, 1688849860263936: Long
+    %v_65 = bitcast %v_64: Ptr
+    %v_66 = or %v_53, 1970324836974592: Long
+    %v_67 = bitcast %v_66: Ptr
+    %v_68 = add %v_52, 1: Ptr
+    call_complex nine, %v_52, %v_55, %v_57, %v_59, %v_61, %v_63, %v_65, %v_67, %v_68
+    %v_69 = load %v_52, 2: Int
+    %v_70 = and %v_69, 1: Int
+    %v_71 = shr %v_69, 4: Int
+    %v_72 = and %v_71, 1: Int
+    %v_73 = select %v_72, 20, 0: Int
+    %v_74 = add %v_70, %v_73: Int
+    %v_75 = shr %v_69, 8: Int
+    %v_76 = and %v_75, 1: Int
+    %v_77 = select %v_76, 300, 0: Int
+    %v_78 = add %v_74, %v_77: Int
+    %v_79 = add %v_51, %v_78: Int
+    %v_80 = alloca 5, 4: Ptr
+    store %v_80, 0, 4
+    %v_81 = add %v_80, 4: Ptr
+    store %v_81, 2, 1
+    store %v_80, 7, 4
+    %v_82 = bitcast %v_81: Long
+    %v_83 = or %v_82, 844424930131968: Long
+    %v_84 = bitcast %v_83: Ptr
+    call_complex flip, %v_84
+    %v_85 = add %v_80, 4: Ptr
+    call_complex tick, %v_85
+    %v_86 = loads %v_80, 4: Int
+    %v_87 = add %v_86, 1: Int
+    store %v_80, %v_87, 4
+    %v_88 = add %v_80, 4: Ptr
+    %v_89 = load %v_88, 1: Int
+    %v_90 = shr %v_89, 3: Int
+    %v_91 = and %v_90, 1: Int
+    %v_92 = and %v_89, 7: Int
+    %v_93 = imul %v_92, 10: Int
+    %v_94 = add %v_91, %v_93: Int
+    %v_95 = imul %v_87, 100: Int
+    %v_96 = add %v_94, %v_95: Int
+    %v_97 = add %v_79, %v_96: Int
+    %v_98 = add %v_97, 291: Int
+    ret %v_98
   }
 }
 

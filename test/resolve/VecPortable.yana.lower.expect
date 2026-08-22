@@ -462,26 +462,24 @@ main<complex>(): Int {
   b_28 {
     %v_29 = loads @seed, 4: Int
     %v_30 = vsplat %v_29: i32x4
-    %v_31 = cast %v_30: i32x4
-    %v_32 = call_complex regrouping, %v_31: Int
-    %v_33 = cmp_neq %v_32, 0: Int
-    je %v_33, b_34, b_35
+    %v_31 = call_complex regrouping, %v_30: Int
+    %v_32 = cmp_neq %v_31, 0: Int
+    je %v_32, b_33, b_34
+  }
+
+  b_33 {
+    %v_35 = loads @seed, 4: Int
+    %v_36 = vsplat %v_35: i32x4
+    %v_37 = call_complex regrouping, %v_36: Int
+    %v_38 = imul %v_37, 10000: Int
+    ret %v_38
   }
 
   b_34 {
-    %v_36 = loads @seed, 4: Int
-    %v_37 = vsplat %v_36: i32x4
-    %v_38 = cast %v_37: i32x4
-    %v_39 = call_complex regrouping, %v_38: Int
-    %v_40 = imul %v_39, 10000: Int
-    ret %v_40
+    jmp b_39
   }
 
-  b_35 {
-    jmp b_41
-  }
-
-  b_41 {
+  b_39 {
     ret 271
   }
 }

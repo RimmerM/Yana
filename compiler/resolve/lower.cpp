@@ -210,6 +210,55 @@ static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) 
 }
 
 /*
+ * How many low bits of a value of this type are the value, or nothing where that is the whole
+ * register.
+ *
+ * The question `hintUnsignedRanges` below is built on, split out because two kinds of type answer
+ * it and only one of them is an integer. An unsigned integer answers its own `bits`, refinements
+ * included.
+ *
+ * **A payload-free sum answers the width its constructors need**, which `enumRange` already
+ * computes for the packer and which nothing on this path was reading. `lowerType` gives every such
+ * record `Int32` and no other fact, so a `Bool` - which is `data Bool = False | True`, an Enum
+ * layout of two constructors and therefore one bit - arrived below this boundary as an `Int` that
+ * nothing could tell from a counter.
+ *
+ * That is the fact `isBooleanValued` in lower/lower_fold.cpp used to reconstruct by walking the
+ * instruction graph, and the walk can only answer for a value some instruction *computed* as a
+ * truth value: a comparison, a literal, the bitwise operations over those. Measured over the 233
+ * `test/resolve` programs, every one of the 79 `xor %b, 1` complements that survived to a branch
+ * read a `Bool` that came from somewhere the walk cannot follow - 63 from a call, 11 from a mask
+ * reduction, 3 from a parameter and 2 from a phi. A width stated here answers for all of them,
+ * because a hint travels with the value rather than being re-derived from its definition.
+ *
+ * A negative constructor value is declined, and `EnumRange::signedValues` is the flag for it: such
+ * a sum takes a whole signed word, so its top bit is a sign rather than a bit that is clear. That
+ * is the same refusal the packer makes for the same reason.
+ */
+static Maybe<U32> normalFormBits(GlobalBase global, TypePtr type) {
+    if(!type) return Nothing();
+
+    auto value = global[type];
+
+    if(value->kind == Type::Int) {
+        auto integer = (IntType*)value;
+        if(integer->isSigned || integer->bits == 0) return Nothing();
+
+        return Just(U32(integer->bits));
+    }
+
+    if(value->kind != Type::Record) return Nothing();
+
+    auto record = (RecordType*)value;
+    if(record->layout != RecordType::Enum || !record->constructors.size()) return Nothing();
+
+    auto range = enumRange(global, *record);
+    if(range.signedValues || range.bits == 0) return Nothing();
+
+    return Just(range.bits);
+}
+
+/*
  * Facts a resolve type knew and LowerType deliberately does not.
  *
  * `@bits(30) U64`, `U8` and `U64` are three different resolve types, but the first and the last are
@@ -228,10 +277,8 @@ static void hintUnsignedRanges(LowerContext& lower, Function& function) {
         if(!pointer) return;
 
         auto source = lower.local[pointer];
-        if(!source->type || lower.global[source->type]->kind != Type::Int) return;
-
-        auto integer = (IntType*)lower.global[source->type];
-        if(integer->isSigned || integer->bits == 0) return;
+        auto bits = normalFormBits(lower.global, source->type);
+        if(!bits) return;
 
         auto found = lower.values.get(pointer);
         if(!found) return;
@@ -239,9 +286,9 @@ static void hintUnsignedRanges(LowerContext& lower, Function& function) {
         auto value = lower.lower[found.unwrap()];
         auto registerBits = value->type == LowerType::Int32 ? 32u
                           : value->type == LowerType::Int64 ? 64u : 0u;
-        if(!registerBits || integer->bits >= registerBits) return;
+        if(!registerBits || bits.unwrap() >= registerBits) return;
 
-        value->hintUnsignedWidth(U8(integer->bits));
+        value->hintUnsignedWidth(U8(bits.unwrap()));
     };
 
     for(auto argument: function.args.contents(lower.local)) hint((ModulePtr<Value>)argument);
