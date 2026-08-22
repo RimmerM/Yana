@@ -424,15 +424,37 @@ Folded foldBinaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* lhs, Lo
 /*
  * Whether this value is already one of the two integers a `Bool` is.
  *
- * A `Cmp` is the only instruction in this IR whose result is defined to be 0 or 1 - every other
+ * A `Cmp` is the only instruction in this IR whose result is *defined* to be 0 or 1 - every other
  * producer of a truth value is one of these wrapped in something, which is exactly what the two
  * folds below unwrap. A `Select` between the literals 1 and 0 is admitted as well, so that the two
  * rules compose in one round rather than needing a second: `cmp_eq (select 1, 0, c), 1` is the shape
  * lowering actually emits, and answering it needs both halves at once.
+ *
+ * The literals and the three bitwise operations are the other closed set. `and`, `or` and `xor` of
+ * two values in {0, 1} are in {0, 1} whichever pair they were, and this is not a hypothetical shape:
+ * `reduceBooleanSelects` in opt/opt_bool.cpp rewrites every short circuit into one, so `a && b && c`
+ * arrives here as a chain of `and`. Without this the fold below sees a chain it cannot answer for,
+ * and the `if` that reads it keeps a materialization of a value that already *is* the number.
+ *
+ * The depth is a recursion bound and not a judgement: nothing here costs anything per level, but a
+ * chain is written by a program and this is asked once per candidate instruction.
  */
-bool isBooleanValued(LowerBase base, LowerValue* value) {
+static constexpr Size kMaxBooleanDepth = 8;
+
+bool isBooleanValued(LowerBase base, LowerValue* value, Size depth = 0) {
     auto inst = value->inst();
     if(inst->kind == LowerInst::Cmp) return true;
+
+    U64 literal;
+    if(lowerConstantOf(base, value, literal)) return literal == 0 || literal == 1;
+
+    if(inst->kind == LowerInst::And || inst->kind == LowerInst::Or || inst->kind == LowerInst::Xor) {
+        if(depth >= kMaxBooleanDepth) return false;
+
+        auto binary = (LowerInstBinary*)inst;
+        return isBooleanValued(base, base[binary->lhs], depth + 1)
+            && isBooleanValued(base, base[binary->rhs], depth + 1);
+    }
 
     if(inst->kind != LowerInst::Select) return false;
 

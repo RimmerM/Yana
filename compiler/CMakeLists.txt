@@ -165,6 +165,7 @@ set(RESOLVE_SOURCE_FILES
     opt/opt_pass.h
     opt/opt.cpp
     opt/opt_arg.cpp
+    opt/opt_bool.cpp
     opt/opt_borrow.cpp
     opt/opt_branch.cpp
     opt/opt_closure.cpp

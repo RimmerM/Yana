@@ -388,6 +388,15 @@ struct Folder {
                 if(known) return wrap(lhs | rhs);
                 if(isConstantValue(instruction.rhs, 0)) return instruction.lhs;
                 if(sameOperand(instruction.lhs, instruction.rhs)) return instruction.lhs;
+
+                // The dual of the `and` above, and the one of the four that pays at a width other
+                // than a word: `~0` at a `Bool` is `True`, so `x || True` reaching here as `or x,
+                // True` is the constant it always was. `reduceBooleanSelects` is what makes that a
+                // shape rather than something nobody writes.
+                if(isConstantValue(instruction.rhs, narrowToWidth(~U64(0), facts))) {
+                    return wrap(~U64(0));
+                }
+
                 break;
             case Value::Xor:
                 if(known) return wrap(lhs ^ rhs);

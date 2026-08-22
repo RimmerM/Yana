@@ -803,6 +803,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // the block set, and so is what ends the analysis above.
         eliminateBoundedChecks(lower.lower, lower.to, *target, analysis);
 
+        // And the branches one of the passes since `threadDecidedBranches` decided - a phi the CSE
+        // unified, a counter the widening made a literal, a truth value the fold reduced to the
+        // number it always was. See lower_thread.h. Here rather than up there because that is where
+        // the deciding happened, and here rather than one line higher because this changes the block
+        // set: the loop analysis above has already been ended by the check elimination.
+        foldDecidedBranches(lower.lower, lower.to, *target);
+
         // And the exits inlining brought several copies of, along with the teardown every early
         // return of one function writes out again - see lower_merge.h, and §32 of
         // test/bench/findings.md. Last, because two copies of one arm only agree once everything

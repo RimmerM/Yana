@@ -889,3 +889,46 @@ void threadDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& f
         removeUnreachableBlocks(base, module.arena, fun);
     }
 }
+
+/*
+ * The same fold on its own, for the branches nothing above this pass had decided yet.
+ *
+ * `threadDecidedBranches` runs where it does because it needs the phis promotion built and because
+ * everything below it indexes by block - and that is *above* the CSE, the two induction passes and
+ * the folds behind them. Those decide conditions too: a phi the CSE unified, a counter the widening
+ * made a literal, a truth value the fold reduced to the number it always was. None of them looks at
+ * the branch afterwards, so the graph keeps an arm nothing can enter and both backends emit it.
+ *
+ * `Iter.yana` and `Adaptor.yana` are the two in the corpus: an adaptor whose early exit no chain in
+ * the program takes leaves `je 0` at the bottom of the loop, and it survived to the machine code as
+ * a test and a jump over a block that was already unreachable.
+ *
+ * Iterated for the reason the threading loop is, and with the same two halves: an arm that goes
+ * leaves a phi with one alternative, which is that alternative, which is what decides the next
+ * branch out. Answers whether the block set changed, since a caller below the loop analysis has to
+ * know.
+ */
+bool foldDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& fun) {
+    auto changed = false;
+
+    // The bound is the block count for the same reason the threading loop's is: every round that
+    // does anything removes an edge, so this terminates on its own and the cap is what turns a
+    // future rewrite that oscillates into a slow compile rather than a hang.
+    auto limit = fun.blocks.size() + 4;
+
+    for(Size round = 0; round < limit; round++) {
+        auto folded = foldConstantBranches(base, module, fun);
+
+        // Before the collapse rather than after it, on the rule the threading loop states: the walk
+        // below assumes every predecessor of a reachable block has a position, and a phi naming a
+        // block nothing enters is what `validateLowerFunction` reports.
+        if(folded) removeUnreachableBlocks(base, module.arena, fun);
+
+        auto collapsed = collapseTrivialPhis(base, module, fun);
+        if(!folded && !collapsed) break;
+
+        changed = changed || folded;
+    }
+
+    return changed;
+}

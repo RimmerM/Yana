@@ -26,6 +26,10 @@ fn sign(value: Int) -> Int = if:
 
 -- `||` is a diamond whose second arm is the right operand, so a pure one converts - and short
 -- circuiting is not a promise about it: nothing observes whether `b > 0` was computed.
+--
+-- What it converts *to* is not a select, which is the second half of this line and is the whole of
+-- opt_bool.cpp: the diamond joins at `Bool`, both arms of the select are therefore 0 or 1, and a
+-- select between those is `or`. The golden says `or %v4, %v8` and no conditional move survives.
 fn either(a: Int, b: Int) -> Int = if a > 0 || b > 0 then 1 else 0
 
 let &calls = 0 :: Int

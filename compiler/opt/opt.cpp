@@ -87,6 +87,15 @@ void optimizeRounds(OptContext& opt) {
         runPass(convertSelects);
 
         /*
+         * Immediately behind it, because what it rewrites is exactly what that pass produces: a
+         * short-circuit diamond becomes a `Bool` select, and a `Bool` select is an `and` or an `or`.
+         * Above the rest of the round rather than at the end of it so that the bitwise form is what
+         * the folder, CSE and the inliner's cost model all see - a `cmov` that survived to the last
+         * pass would be judged, unified and inlined as one.
+         */
+        runPass(reduceBooleanSelects);
+
+        /*
          * A short-circuit condition left after if-conversion is a boolean phi followed by a branch.
          * Put that branch back on the incoming edges so a comparison which already decided an edge
          * can stay in its flags. This is deliberately *behind* convertSelects: a diamond that can be

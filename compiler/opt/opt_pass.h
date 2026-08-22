@@ -503,6 +503,12 @@ void foldBranches(OptContext& opt);
  * condition already deleted is not one to convert.
  */
 void convertSelects(OptContext& opt);
+
+/*
+ * The selects the conversion above leaves at `Bool`, rewritten as the bitwise operations they are -
+ * see opt_bool.cpp. A short circuit is `and` or `or`, and neither needs a conditional move.
+ */
+void reduceBooleanSelects(OptContext& opt);
 void collapseBorrows(OptContext& opt);
 void forwardPlaces(OptContext& opt);
 void promotePlaces(OptContext& opt);

@@ -1140,7 +1140,7 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
     %v_72 = phi [b_26, %v_4], [b_28, %v_32], [b_34, %v_6], [b_33, %v_6], [b_8, %v_4], [b_61, %v_4], [b_63, %v_4], [b_60, %v_4], [b_58, %v_66]: Int
     %v_73 = and %v_71, 255: Int
     %v_74 = and %v_72, 255: Int
-    %v_75 = select %v_73, 1, %v_74: Int
+    %v_75 = or %v_73, %v_74: Int
     je %v_75, b_76, b_77
   }
 
@@ -1198,7 +1198,7 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
   b_107 {
     %v_111 = cmp_eq %v_96, %v_99: Int
     %v_112 = and %v_102, 255: Int
-    %v_113 = select %v_111, 1, %v_112: Int
+    %v_113 = or %v_111, %v_112: Int
     %v_114 = select %v_113, 1, 0: Long
     %v_115 = add %v_96, %v_114: Long
     jmp b_116
@@ -1227,10 +1227,10 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
     %v_135 = mul %vmNext, 10: Long
     %v_136 = sub %v_120, %v_135: Long
     %v_137 = cmp_eq %v_136, 0: Int
-    %v_122 = select %v_134, %v_137, 0: Int
+    %v_122 = and %v_134, %v_137: Int
     %v_138 = and %v_123, 255: Int
     %v_139 = cmp_eq %v_127, 0: Int
-    %v_124 = select %v_138, %v_139, 0: Int
+    %v_124 = and %v_138, %v_139: Int
     %v_140 = mul %vrNext, 10: Long
     %v_141 = sub %v_117, %v_140: Long
     %v_128 = cast %v_141: Int
@@ -1265,7 +1265,7 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
     %vrNext = shr %v_160, 3: Long
     %v_161 = and %v_149, 255: Int
     %v_162 = cmp_eq %v_153, 0: Int
-    %v_150 = select %v_161, %v_162, 0: Int
+    %v_150 = and %v_161, %v_162: Int
     %v_163 = mul %vrNext, 10: Long
     %v_164 = sub %v_145, %v_163: Long
     %v_154 = cast %v_164: Int
@@ -1281,7 +1281,7 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
     %v_169 = phi [b_132, %v_127], [b_143, %v_153]: Int
     %v_170 = and %v_167, 255: Int
     %v_171 = cmp_eq %v_169, 5: Int
-    %v_172 = select %v_170, %v_171, 0: Int
+    %v_172 = and %v_170, %v_171: Int
     je %v_172, b_173, b_174
   }
 
@@ -1300,10 +1300,10 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
     %v_179 = cmp_eq %v_165, %v_166: Int
     %v_180 = xor %acceptBounds, 1: Int
     %v_181 = xor %v_142, 1: Int
-    %v_182 = select %v_180, 1, %v_181: Int
-    %outside = select %v_179, %v_182, 0: Int
+    %v_182 = or %v_180, %v_181: Int
+    %outside = and %v_179, %v_182: Int
     %v_183 = cmp_ige %v_178, 5: Int
-    %v_184 = select %outside, 1, %v_183: Int
+    %v_184 = or %outside, %v_183: Int
     %v_185 = select %v_184, 1, 0: Long
     %v_186 = add %v_165, %v_185: Long
     jmp b_116
@@ -1520,14 +1520,14 @@ writeShortest<complex>(%value$digits: Long, %value$exponent: Int, %to: Ptr) {
     %v_14 = cmp_ilt %exp, 0: Int
     %v_15 = sub 0, %exp: Int
     %v_16 = cmp_ile %v_15, 7: Int
-    %v_17 = select %v_14, %v_16, 0: Int
+    %v_17 = and %v_14, %v_16: Int
     je %v_17, b_18, b_19
   }
 
   b_19 {
     %v_20 = cmp_ige %exp, 0: Int
     %v_21 = cmp_ile %exp, 7: Int
-    %v_22 = select %v_20, %v_21, 0: Int
+    %v_22 = and %v_20, %v_21: Int
     je %v_22, b_23, b_24
   }
 
@@ -1766,7 +1766,7 @@ Show(Double).show<complex>(%value: Double, %to: Ptr) {
     %v_33 = sub %v_32, 2: Int
     %v_34 = cmp_neq %mantissa, 0: Int
     %v_35 = cmp_ile %exponent, 1: Int
-    %v_36 = select %v_34, 1, %v_35: Int
+    %v_36 = or %v_34, %v_35: Int
     %v_37 = select %v_36, 1, 0: Long
     %v_38 = alloca 12, 8: Ptr
     call_complex shortestOf, %v_38, %v_30, %v_33, %v_37

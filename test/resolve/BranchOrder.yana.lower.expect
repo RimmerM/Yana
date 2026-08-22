@@ -831,7 +831,7 @@ countUp<complex>(%start: Int): Int {
     %v_2 = phi [b_0, %start], [b_3, %v_4]: Int
     %v_5 = cmp_neq %v_2, 0: Int
     %v_6 = cmp_ilt %v_2, 100: Int
-    %v_7 = select %v_5, %v_6, 0: Int
+    %v_7 = and %v_5, %v_6: Int
     je %v_7, b_3, b_8
   }
 
@@ -872,7 +872,7 @@ main<complex>(): Int {
     %v_14 = phi [b_0, 15], [b_15, %v_16]: Int
     %v_17 = cmp_igt %v_14, 10: Int
     %v_18 = cmp_ilt %v_14, 0: Int
-    %v_19 = select %v_17, 1, %v_18: Int
+    %v_19 = or %v_17, %v_18: Int
     je %v_19, b_15, b_20
   }
 

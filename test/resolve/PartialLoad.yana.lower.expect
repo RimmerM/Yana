@@ -4,7 +4,7 @@ recovered<complex>(%box: Ptr, %grow: Int): Int {
   b_0 {
     %v_1 = loads %box, 4: Int
     %v_2 = cmp_ilt %v_1, 100: Int
-    %v_3 = select %v_2, %grow, 0: Int
+    %v_3 = and %v_2, %grow: Int
     je %v_3, b_4, b_5
   }
 
@@ -28,7 +28,7 @@ bothArmsWrite<complex>(%box: Ptr, %which: Int): Int {
   b_0 {
     %v_1 = loads %box, 4: Int
     %v_2 = cmp_ilt %v_1, 100: Int
-    %v_3 = select %v_2, %which, 0: Int
+    %v_3 = and %v_2, %which: Int
     je %v_3, b_4, b_5
   }
 
@@ -54,7 +54,7 @@ neitherArmWrites<complex>(%box: Ptr, %which: Int): Int {
   b_0 {
     %v_1 = loads %box, 4: Int
     %v_2 = cmp_ilt %v_1, 100: Int
-    %v_3 = select %v_2, %which, 0: Int
+    %v_3 = and %v_2, %which: Int
     je %v_3, b_4, b_5
   }
 
@@ -79,7 +79,7 @@ chained<complex>(%box: Ptr, %grow: Int): Int {
     %v_2 = and %v_1, 1023: Int
     %v_3 = imul %v_2, 3: Int
     %v_4 = cmp_igt %v_3, 100: Int
-    %v_5 = select %v_4, %grow, 0: Int
+    %v_5 = and %v_4, %grow: Int
     je %v_5, b_6, b_7
   }
 

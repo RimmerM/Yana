@@ -2,10 +2,10 @@
 // ResolveTest
 function okL(x, d, q, r) {
   if (d === 0n) {
-    return (q === 0n ? r === x : 0) ? 1 : 0;
+    return q === 0n & r === x ? 1 : 0;
   } else {
     if (d === -1n) {
-      return (q === BigInt.asIntN(64, 0n - x) ? r === 0n : 0) ? 1 : 0;
+      return q === BigInt.asIntN(64, 0n - x) & r === 0n ? 1 : 0;
     } else {
       return BigInt.asIntN(64, BigInt.asIntN(64, q * d) + r) === x ? 1 : 0;
     }
@@ -14,10 +14,10 @@ function okL(x, d, q, r) {
 
 function okI(x, d, q, r) {
   if (d === 0) {
-    return (q === 0 ? r === x : 0) ? 1 : 0;
+    return q === 0 & r === x ? 1 : 0;
   } else {
     if (d === -1) {
-      return (q === (0 - x | 0) ? r === 0 : 0) ? 1 : 0;
+      return q === (0 - x | 0) & r === 0 ? 1 : 0;
     } else {
       return (Math.imul(q, d) + r | 0) === x ? 1 : 0;
     }
@@ -25,27 +25,27 @@ function okI(x, d, q, r) {
 }
 
 function runtimeU(x, d) {
-  var v28;
+  var v26;
   var v2 = BigInt.asUintN(64, $div(x, d));
   var v3 = BigInt.asUintN(64, $rem(x, d));
   if (d === 0n) {
-    v28 = (v2 === 0n ? v3 === x : 0) ? 1 : 0;
+    v26 = v2 === 0n & v3 === x ? 1 : 0;
   } else {
-    v28 = (BigInt.asUintN(64, BigInt.asUintN(64, v2 * d) + v3) === x ? v3 < d : 0) ? 1 : 0;
+    v26 = BigInt.asUintN(64, BigInt.asUintN(64, v2 * d) + v3) === x & v3 < d ? 1 : 0;
   }
-  return v28;
+  return v26;
 }
 
 function runtimeW(x, d) {
-  var v28;
+  var v26;
   var v2 = x / d >>> 0;
   var v3 = $rem(x, d) >>> 0;
   if (d === 0) {
-    v28 = (v2 === 0 ? v3 === x : 0) ? 1 : 0;
+    v26 = v2 === 0 & v3 === x ? 1 : 0;
   } else {
-    v28 = ((Math.imul(v2, d) >>> 0) + v3 >>> 0 === x ? v3 < d : 0) ? 1 : 0;
+    v26 = (Math.imul(v2, d) >>> 0) + v3 >>> 0 === x & v3 < d ? 1 : 0;
   }
-  return v28;
+  return v26;
 }
 
 function main() {

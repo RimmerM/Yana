@@ -68,3 +68,12 @@
  * next level branches on folds against it.
  */
 void threadDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& fun);
+
+/*
+ * The constant-condition half of the pass above, on its own, for a caller that runs below it.
+ *
+ * The fold inside `threadDecidedBranches` only sees the branches that were decided by the time it
+ * ran, and the passes behind it decide more - see the note on the definition. Answers whether the
+ * block set changed.
+ */
+bool foldDecidedBranches(LowerBase base, LowerModule& module, LowerFunction& fun);

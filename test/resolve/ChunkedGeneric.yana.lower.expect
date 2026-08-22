@@ -564,12 +564,15 @@ main<complex>(): Int {
   }
 
   b_228 {
-    %v_229 = cmp_ge 0, 3: Int
-    je %v_229, b_28, b_230
+    jmp b_229
   }
 
-  b_230 {
-    %v_231 = loads %v_221, 4: Int
+  b_229 {
+    %v_230 = loads %v_221, 4: Int
+    jmp b_231
+  }
+
+  b_231 {
     jmp b_232
   }
 
@@ -602,15 +605,10 @@ main<complex>(): Int {
   }
 
   b_239 {
-    jmp b_240
-  }
-
-  b_240 {
-    %v_241 = cmp_eq 0, 1: Int
-    %v_242 = select %v_241, 0, 1: Int
+    %v_240 = select 0, 0, 1: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_220
-    %v_243 = add %v_219, %v_242: Int
-    ret %v_243
+    %v_241 = add %v_219, %v_240: Int
+    ret %v_241
   }
 }
 
