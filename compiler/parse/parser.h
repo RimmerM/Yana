@@ -258,7 +258,13 @@ struct Parser: BasicParser<Lexer, Token> {
         // ones. Asking the production inside for them reports a second thing missing on top of
         // the closing token, which is one mistake described twice - `fn f(` is not also a
         // parameter whose name is missing.
-        if(atBlockEnd()) {
+        //
+        // `suppressedLayout` is that same end of statement seen through the bracket this delimiter
+        // just opened: the token is where the column says a new statement begins, and the only
+        // reason it did not arrive as one is the `(` in front of it. Without it the guard would
+        // never fire again, since a delimiter's contents are by definition inside a bracket.
+        if(atBlockEnd() || token.suppressedLayout) {
+            lexer.abandonBrackets(token);
             error(endError);
             return false;
         }

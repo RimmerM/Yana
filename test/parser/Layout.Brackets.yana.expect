@@ -1,0 +1,161 @@
+Module 
+|-FunDecl closingAtStatementColumn
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl x <borrow> 
+|     |   |-VarPat x
+|     |   `-AppExpr 
+|     |     |-VarExpr g
+|     |     |-Field <anonymous>
+|     |     | `-LitExpr 1
+|     |     `-Field <anonymous>
+|     |       `-LitExpr 2
+|     |-DeclExpr 
+|     | `-VarDecl r <borrow> 
+|     |   |-VarPat r
+|     |   `-ConExpr 
+|     |     |-ConType Rec
+|     |     |-Field a
+|     |     | `-LitExpr 1
+|     |     `-Field b
+|     |       `-LitExpr 2
+|     |-DeclExpr 
+|     | `-VarDecl l <borrow> 
+|     |   |-VarPat l
+|     |   `-ArrayExpr 
+|     |     |-LitExpr 1
+|     |     `-LitExpr 2
+|     `-RetExpr 
+|       `-VarExpr x
+|-FunDecl alreadyWorked
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl x <borrow> 
+|     |   |-VarPat x
+|     |   `-AppExpr 
+|     |     |-VarExpr g
+|     |     |-Field <anonymous>
+|     |     | `-LitExpr 1
+|     |     `-Field <anonymous>
+|     |       `-LitExpr 2
+|     |-DeclExpr 
+|     | `-VarDecl r <borrow> 
+|     |   |-VarPat r
+|     |   `-ConExpr 
+|     |     |-ConType Rec
+|     |     |-Field a
+|     |     | `-LitExpr 1
+|     |     `-Field b
+|     |       `-LitExpr 2
+|     |-DeclExpr 
+|     | `-VarDecl z <borrow> 
+|     |   |-VarPat z
+|     |   `-InfixExpr 
+|     |     |-VarExpr +
+|     |     |-LitExpr 1
+|     |     `-LitExpr 2
+|     |-DeclExpr 
+|     | `-VarDecl w <borrow> 
+|     |   |-VarPat w
+|     |   `-InfixExpr 
+|     |     |-VarExpr +
+|     |     |-LitExpr 1
+|     |     `-LitExpr 2
+|     `-RetExpr 
+|       `-InfixExpr 
+|         |-VarExpr +
+|         |-VarExpr x
+|         `-InfixExpr 
+|           |-VarExpr +
+|           |-VarExpr z
+|           `-VarExpr w
+|-FunDecl blockInsideBracket
+| |-Arg v
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-RetExpr 
+|     `-AppExpr 
+|       |-VarExpr h
+|       |-Field <anonymous>
+|       | `-MatchExpr 
+|       |   |-VarExpr v
+|       |   |-Alt
+|       |   | |-ConPat Just
+|       |   | | `-VarPat a
+|       |   | `-VarExpr a
+|       |   `-Alt
+|       |     |-ConPat Nothing
+|       |     `-LitExpr 0
+|       `-Field <anonymous>
+|         `-FunExpr (x)
+|           `-MultiExpr 
+|             |-DeclExpr 
+|             | `-VarDecl doubled <borrow> 
+|             |   |-VarPat doubled
+|             |   `-InfixExpr 
+|             |     |-VarExpr +
+|             |     |-VarExpr x
+|             |     `-VarExpr x
+|             `-VarExpr doubled
+|-FunDecl blockOpeningOnABracket <implicit return> 
+| |-Arg x
+| | `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr x
+|     |-Alt
+|     | |-TupPat
+|     | | `-Field 
+|     | |   `-VarPat a
+|     | `-VarExpr a
+|     `-Alt
+|       |-AnyPat
+|       `-LitExpr 0
+`-FunDecl balancedWithinALine
+  |-Result
+  | `-ConType Int
+  `-Body
+    `-MultiExpr 
+      |-DeclExpr 
+      | `-VarDecl a <borrow> 
+      |   |-VarPat a
+      |   `-AppExpr 
+      |     |-VarExpr f
+      |     |-Field <anonymous>
+      |     | `-LitExpr 1
+      |     `-Field <anonymous>
+      |       `-AppExpr 
+      |         |-VarExpr g
+      |         |-Field <anonymous>
+      |         | `-LitExpr 2
+      |         `-Field <anonymous>
+      |           `-LitExpr 3
+      |-DeclExpr 
+      | `-VarDecl b <borrow> 
+      |   |-VarPat b
+      |   `-ArrayExpr 
+      |     |-AppExpr 
+      |     | |-VarExpr f
+      |     | `-Field <anonymous>
+      |     |   `-LitExpr 1
+      |     `-AppExpr 
+      |       |-VarExpr f
+      |       `-Field <anonymous>
+      |         `-LitExpr 2
+      `-RetExpr 
+        `-InfixExpr 
+          |-VarExpr +
+          |-VarExpr a
+          `-VarExpr b

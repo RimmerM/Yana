@@ -1,0 +1,69 @@
+-- Layout inside a delimited construct - Analysis-Language.md §6.
+--
+-- Layout is column-only, and until brackets were counted the one shape that failed was the
+-- conventional one: a delimiter closed back at the enclosing statement's own column sits at the
+-- indentation, so an EndOfStmt was inserted in the middle of an argument list. What a bracket
+-- suspends is that column rule, and nothing else.
+
+fn closingAtStatementColumn() -> Int:
+    -- The shape that used to report `expected ')'`. The closing token is at the same column as the
+    -- `let` that opened the statement, which is where it is conventionally written.
+    let x = g(
+        1,
+        2
+    )
+
+    let r = Rec {
+        a: 1,
+        b: 2
+    }
+
+    let l = [
+        1,
+        2
+    ]
+
+    return x
+
+-- The shapes that already worked, which the suppression must not change: contents indented past
+-- the statement, a closing token trailing the last element, and an operator carrying a line.
+fn alreadyWorked() -> Int:
+    let x = g(
+        1,
+        2)
+
+    let r = Rec {a: 1,
+                 b: 2}
+
+    let z = 1 +
+        2
+
+    let w = 1
+        + 2
+
+    return x + z + w
+
+-- Layout still works *inside* a bracket, which is why the depth is per block rather than a flag:
+-- a block opened within a delimited construct separates its own statements at its own column while
+-- the argument list around it does not.
+fn blockInsideBracket(v: Maybe(Int)) -> Int:
+    return h(
+        match v:
+            Just(a): a
+            Nothing: 0,
+        (x):
+            let doubled = x + x
+            doubled
+    )
+
+-- A block whose first token is itself an opening bracket. The block records the depth outside that
+-- bracket, so the matching close two tokens later is not read as a dedent out of the block.
+fn blockOpeningOnABracket(x: Int) -> Int = match x:
+    { a } -> a
+    _ -> 0
+
+-- A bracket opened and closed inside one line of a block leaves the block's own layout alone.
+fn balancedWithinALine() -> Int:
+    let a = f(1, g(2, 3))
+    let b = [f(1), f(2)]
+    return a + b

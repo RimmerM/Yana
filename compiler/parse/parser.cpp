@@ -192,7 +192,22 @@ bool Parser::expectClose(Token::Type end, StringView errorText) {
         return true;
     }
 
+    /*
+     * The construct is being given up on, so the layout suppression it opened is given up on too.
+     *
+     * A bracket suppresses layout tokens for as long as it is open (Analysis-Language.md §6), and a
+     * bracket that is never closed would suppress them to the end of the file - which is where a
+     * declaration that failed to parse would take every declaration after it. That is exactly what
+     * skipToClose's rule refuses to do: "a delimiter that was never closed should cost the
+     * declaration it is in and not the ones after it". It cannot hold that line without a statement
+     * boundary to stop at, and this is what puts one back.
+     *
+     * Before the error rather than after it, so that what the reader is pointed at is the end of the
+     * statement the delimiter ran past rather than the first token of the next one.
+     */
+    lexer.abandonBrackets(token);
     error(errorText);
+
     return skipToClose(end);
 }
 
@@ -1076,7 +1091,13 @@ ast::Expr Parser::parseBaseExpr() {
         // this is is a parenthesis that was never closed. Reporting that and keeping the
         // expression is both the better diagnostic and the cheaper recovery: reading on as an
         // argument list would take the following declarations for this lambda's body.
-        if(token.type == Token::EndOfStmt || token.type == Token::EndOfBlock || token.type == Token::EndOfFile) {
+        //
+        // `suppressedLayout` is the same end of statement with the `(` this branch is inside still
+        // counted against it - see delimited(), which has the same pair for the same reason. This
+        // one is written out rather than delegated because the recovery differs: the expression
+        // already read is worth keeping, and there is no closing token to skip to.
+        if(atBlockEnd() || token.suppressedLayout) {
+            lexer.abandonBrackets(token);
             error("expected ')'"_v);
             return makeExpr(Nested, nested, heap(expr), location);
         }

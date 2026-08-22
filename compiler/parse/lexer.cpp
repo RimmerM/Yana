@@ -384,7 +384,34 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
     }
 }
 
+/*
+ * The three brackets, and the depth layout suppression reads - Analysis-Language.md §6.
+ *
+ * `{` is unambiguously a bracket here. A layout block is opened by `:` and indentation, `{-` is
+ * consumed by skipWhitespace before this is reached, and an interpolation's own braces never arrive:
+ * parseStringLiteral consumes the `{` that starts one and the `}` that ends one is read off the
+ * `formatting` state above, so neither is a token this sees.
+ *
+ * A close saturates at zero rather than wrapping. Source with an unbalanced `)` is already being
+ * reported, and a depth that went below the enclosing block's would suppress nothing while a wrapped
+ * one would suppress everything to the end of the file.
+ */
 void Lexer::parseSpecial(Token& token) {
+    switch(*p) {
+        case Token::ParenL:
+        case Token::BracketL:
+        case Token::BraceL:
+            brackets++;
+            break;
+        case Token::ParenR:
+        case Token::BracketR:
+        case Token::BraceR:
+            if(brackets) brackets--;
+            break;
+        default:
+            break;
+    }
+
     token.type = (Token::Type)*p++;
 }
 
@@ -593,6 +620,12 @@ void Lexer::next(Token& token) {
         startLocation(token);
     }
 
+    // What the column would have said, for the one reader that still needs it once a bracket has
+    // stopped it being said: a construct giving up on a delimiter it will never see closed. Recorded
+    // rather than acted on, because acting on it is precisely what a bracket suspends.
+    token.suppressedLayout = brackets != blockBrackets &&
+        (token.startColumn < indentation || (token.startColumn == indentation && !newItem));
+
     // Check for the end of the file.
     if(p >= m) {
         // Tokens past the file end never have indentation.
@@ -604,15 +637,17 @@ void Lexer::next(Token& token) {
         }
     }
 
-    // Check if we need to insert a layout token.
-    else if(token.startColumn == indentation && !newItem) {
+    // Check if we need to insert a layout token. A bracket opened since this block began is a
+    // construct that spans lines by delimiter rather than by column, so the columns inside it say
+    // nothing - see `brackets` in the header.
+    else if(brackets == blockBrackets && token.startColumn == indentation && !newItem) {
         token.type = Token::EndOfStmt;
         newItem = true;
         goto newItem;
     }
 
     // Check if we need to end a layout block.
-    else if(token.startColumn < indentation) {
+    else if(brackets == blockBrackets && token.startColumn < indentation) {
         token.type = Token::EndOfBlock;
     }
 
@@ -759,9 +794,16 @@ void Lexer::next(Token& token) {
 }
 
 void Lexer::startLocation(Token& token) {
+    // The depth this token was read at - see `brackets` in the header. Recorded before the token
+    // itself can change it, so that a layout block opened *on* an opening bracket records the depth
+    // outside it: `match x:` whose first alternative begins `{` opens its block at the depth the
+    // `match` was written at, and the `}` two tokens later does not then look like a dedent.
+    token.startBrackets = brackets;
     token.startLine = line;
     token.startColumn = (p - l) + tabs * (kTabWidth - 1);
     token.startOffset = p - text;
+
+    rewind = { .p = p, .l = l, .line = line, .tabs = tabs, .formatting = formatting };
 }
 
 void Lexer::startWhitespace(Token& token) {
