@@ -163,6 +163,36 @@ bool mergeInto(OptContext& opt, Block& into, ModulePtr<Block> pointer) {
     return true;
 }
 
+/*
+ * Whether a phi in `target` would lose something by this block's two edges into it becoming one.
+ *
+ * With `je %c, X, X` a phi in `X` holds two alternatives whose `block` is this one, and *nothing
+ * distinguishes them*: an alternative names the block it arrives from, not the arm, so which of the
+ * two the condition selects is a question the IR has no way to ask. Two alternatives that agree are
+ * therefore the only well-formed case, and collapsing them is exact. Two that disagree are a shape
+ * no pass may build - what it means is a `Select` - so this declines rather than picking one, and
+ * what is left is a `je` the lower IR refuses by name.
+ */
+bool armsAgree(OptContext& opt, Block& block, ModulePtr<Block> target) {
+    auto pointer = (ModulePtr<Block>)(&block - opt.local);
+
+    for(auto phiPointer: opt.local[target]->phis(opt.local)) {
+        auto phi = opt.local[phiPointer];
+        ModulePtr<Value> first = nullptr;
+        auto found = false;
+
+        for(auto input: phi->inputs.contents(opt.local)) {
+            if(input.block != pointer) continue;
+            if(found && input.value != first) return false;
+
+            first = input.value;
+            found = true;
+        }
+    }
+
+    return true;
+}
+
 bool foldBranch(OptContext& opt, Block& block) {
     if(!block.terminator()) return false;
 
@@ -170,6 +200,31 @@ bool foldBranch(OptContext& opt, Block& block) {
     if(terminator->kind != Value::Je) return false;
 
     auto& branch = (InstJe&)*terminator;
+
+    /*
+     * A branch whose two arms are one block, which decides nothing and is a jump.
+     *
+     * Ahead of the constant test rather than inside it, because the condition is exactly what this
+     * case does not have: `spliceEmptyBlock` below redirects each predecessor edge of an empty block
+     * on its own, so a `je` whose arms were two empty blocks in front of one join comes out of it
+     * naming that join twice. Nothing downstream folds a doubled arm - the resolve IR admits one on
+     * purpose, since an arm is an edge and two arms at one block are two edges - and lowering then
+     * refuses it: `LowerBlock::addInst` asserts the two are distinct and `validateLowerModule` says
+     * "same target block for all branches". `-inline speed` over `File.entries` is where that came
+     * out, as a build that produced no executable and named a `yield` as the reason.
+     */
+    if(branch.thenBlock == branch.elseBlock) {
+        if(!armsAgree(opt, block, branch.thenBlock)) return false;
+
+        auto jump = createInst<InstJmp>(*opt.module, *opt.function, block, terminator->source,
+                                        StringId(), opt.program.scalar.unit, branch.thenBlock);
+
+        // One of the two edge records goes and the other stays, phi alternative included - the same
+        // multiset difference the fold below relies on, with the sets one deep instead of two.
+        opt.ir().setTerminator(block, jump);
+        return true;
+    }
+
     auto condition = constantValueOf(opt, branch.cond);
     if(!condition) return false;
 
@@ -596,6 +651,13 @@ void foldBranches(OptContext& opt) {
     // both backends already deal with.
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         spliceEmptyBlock(opt, blockPointer);
+    }
+
+    // And the branches the splice above left naming one block twice, before the merge rather than on
+    // the next round: a doubled arm is two ways into the target, so `mergeInto` declines it and a
+    // join that could have been absorbed here would wait for a round that may not come.
+    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
+        foldBranch(opt, *opt.local[blockPointer]);
     }
 
     removeUnreachableBlocks(opt);
