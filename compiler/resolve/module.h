@@ -273,7 +273,7 @@ struct Function {
      * A *declaration* rather than an inference, and it has to be: `checkFailed` is `exitProcess(134)`
      * followed by a `return`, so nothing about its body says it does not come back - what says so is
      * the kernel, and the only place that can be written down is beside the function that names the
-     * system call. `Collections.checkFailed` is the one that carries it today; see `defineCollections`
+     * system call. `Core.checkFailed` is the one that carries it today; see `definePreludeContainers`
      * in core.cpp, where it is set for the same reason `checkCondition` is recorded there.
      *
      * One thing reads it - `endNonReturningBlocks` in opt/opt_branch.cpp, which ends the block such a
@@ -839,11 +839,26 @@ struct Import {
     StringId localName {};
     Array<StringId> include;
     Array<StringId> exclude;
+
+    /*
+     * The file of the importing module that wrote this, as an index into `Module::files` -
+     * Analysis-Modules.md §2.1.2. An import is written in a file and is in scope for that file, so
+     * a name one file imported is not visible to its siblings.
+     *
+     * `kEveryFile` for the implicit import of Core, which no file wrote and every file has.
+     */
+    U16 file = 0;
+
     bool qualified = false;
+
+    static constexpr U16 kEveryFile = maxLimit<U16>;
+
+    // Whether this import is in scope in `from` - see Module::activeFile.
+    bool inScope(U16 from) const { return file == kEveryFile || file == from; }
 };
 
 struct Module {
-    Module(Program& program, StringId name, ast::ParseBase parse);
+    Module(Program& program, StringId name);
 
     Function* addFunction(StringId name, LocationId source);
     Global* addGlobal(StringId name, LocationId source);
@@ -866,8 +881,66 @@ struct Module {
     CoreClasses& coreClasses;
 
     StringId name;
+
+    /*
+     * Every AST in the compilation shares one region - Context::parseRegion - so this is the same
+     * base for every module, and a declaration of any file of this module is addressable through it.
+     * That is what makes a module of several files cost nothing at the eighty-odd sites that
+     * dereference a `ParsePtr` through here.
+     */
     ast::ParseBase parse;
+
+    /*
+     * The files this module is made of, in path order - Analysis-Modules.md §2.1.
+     *
+     * Usually one. A grouped module has several, and the only thing that changes for the passes is
+     * that each of them runs over every file before the next one starts: within a module there are
+     * no imports and no exports, so two files of it are two halves of one declaration list.
+     *
+     * `SmallArray` for the reason `ast::ModuleGroup::files` is one, and with the same bound: this is
+     * that list copied onto the resolved module, so the two should not disagree about what an
+     * ordinary module holds. A `Module` is heap-allocated and never moved, so the address rule costs
+     * nothing here; `fileOf` answers an index and every other reader iterates.
+     */
+    SmallArray<ast::Module*, 8> files;
+
+    /*
+     * What this module can see, with each entry tagged by the file that wrote it - see Import::file.
+     * One array rather than one per file because the traversal in search() is over all of them at
+     * once: two candidates found through two imports are ambiguous whichever files they came from,
+     * and the implicit import of Core belongs to every file.
+     */
     Array<Import> imports;
+
+    /*
+     * Which file of this module is being read - Analysis-Modules.md §2.1.2.
+     *
+     * An import is scoped to the file that wrote it, so every name lookup has to know which file it
+     * is a lookup *from*. The alternative is threading that through `resolveType` and the forty-odd
+     * `find*` call sites and everything that reaches them, for a fact that is in practice a
+     * well-nested dynamic extent: a declaration pass reads one file at a time, and a body belongs to
+     * the file its declaration was written in.
+     *
+     * So it is set at the few points that begin such an extent and never anywhere else. Every one of
+     * them goes through `FileScope`, which restores the previous value - resolution nests, because
+     * instantiating a generic resolves a body in the middle of another one.
+     *
+     * A module of one file never changes it, which is every module the compiler builds itself.
+     */
+    U16 activeFile = 0;
+
+    /*
+     * Which file a location is in, as an index into `files`.
+     *
+     * The declaration's own record of where it was written is the ground truth for which file it
+     * belongs to, so nothing here carries a second copy of that fact to fall out of step with it.
+     * Linear, and called once per declaration or body rather than once per name.
+     *
+     * File 0 for a location in no file of this module, which is what a generated declaration has -
+     * Core's own instances carry no source at all. Those are in modules of one file, where 0 is the
+     * only answer there is.
+     */
+    U16 fileOf(LocationId source);
 
     HashMap<StringId, TypePtr> namedTypes;
     HashMap<StringId, TypeAlias> aliases;
@@ -913,14 +986,14 @@ struct Module {
     /*
      * How far this module's declarations have got.
      *
-     * A module is interned before its declarations are resolved, so an import that reaches one
-     * already on the stack finds a Module that exists and is empty - and the signatures resolved
-     * against it would see whichever of its declarations happened to come first. That is not a
-     * partial answer, it is an order-dependent one: the same two files compile to different
-     * programs depending on which was named to the compiler.
+     * What it used to be for was rejecting a cycle: a module was interned before its declarations
+     * were resolved, so an import reaching one already on the stack found a Module that existed and
+     * was empty. `Resolving` was how that was told apart from a finished one.
      *
-     * So the state is recorded rather than inferred from whether the module is present, and
-     * resolveImports rejects an import of a module in Resolving.
+     * It now separates the prelude from the program - Analysis-Modules.md §2.2. Core and Native are
+     * Resolved before the program-wide passes start, so this is what makes them drop out of the
+     * walk; everything else moves from Unresolved to Resolving to Resolved together, because that is
+     * what "each pass over every module" means.
      */
     enum class DeclState : U8 {
         Unresolved, /// Interned, with nothing resolved into it yet.
@@ -931,18 +1004,44 @@ struct Module {
     DeclState declState = DeclState::Unresolved;
 };
 
+/*
+ * The extent over which one file of a module is the file being read - see Module::activeFile.
+ *
+ * Restores rather than clears, because these nest: resolving a body may instantiate a generic whose
+ * body is in another file, or another module.
+ */
+struct FileScope {
+    FileScope(Module& module, U16 file): module(module), previous(module.activeFile) {
+        module.activeFile = file;
+    }
+
+    FileScope(Module& module, LocationId source): FileScope(module, module.fileOf(source)) {}
+    FileScope(const FileScope&) = delete;
+
+    ~FileScope() { module.activeFile = previous; }
+
+    Module& module;
+    U16 previous;
+};
+
 // Supplies the parsed source of an imported module. The resolver asks for a module the first
 // time an `import` names it and never twice.
+//
+// A group of files rather than a file - Analysis-Modules.md §2.1. Whoever answers this is what knows
+// where the files are, so it is also what decides which of them the module is made of.
 struct ModuleProvider {
     virtual ~ModuleProvider() = default;
-    virtual ast::Module* getModule(StringId name) = 0;
+    virtual ast::ModuleGroup* getModule(StringId name) = 0;
 };
 
 struct Program {
     explicit Program(Context& context, Size typeMemory = 4 * 1024 * 1024, Size irMemory = 16 * 1024 * 1024);
     ~Program();
 
-    Module* addModule(StringId name, ast::ParseBase parse);
+    // The module's files. There is no base to pass: every AST in the compilation is in
+    // Context::parseRegion, so a module's `parse` is that and could not be anything else.
+    Module* addModule(ast::ModuleGroup& group);
+
     Module* findModule(StringId name);
 
     Context& context;
@@ -993,7 +1092,7 @@ struct Program {
      * name programs already use - two fixtures in this tree declare `data Mask {bits: Int}` - and a
      * builtin that won the lookup would be a reserved word the language never announced.
      *
-     * Both are interned by `defineCore` and are null until it has run.
+     * Both are interned by `definePreludeTypes` and are null until it has run.
      */
     StringId vecTypeName {};
     StringId maskTypeName {};
@@ -1141,12 +1240,15 @@ struct Program {
      * further instance can appear, and until then the classification is recomputed rather than
      * remembered.
      *
-     * The window is real rather than hypothetical. Collections, NativeText and Text resolve their
-     * own bodies inside their define step - each needs the module below it finished before the next
-     * is built - so those bodies are resolved before the modules above them have declared anything.
-     * `instance Reclaim(String)` is declared in Text and the first thing to ask a `String` for its
-     * ownership is NativeText's `stringLiteral`, two steps earlier: the answer "nothing to release"
-     * was cached there and every string temporary in every program leaked for it.
+     * The window was real rather than hypothetical, and it is worth keeping the case that made it
+     * so: the prelude used to be six modules, each resolving its own bodies inside its define step
+     * because the next one needed it finished, so a body was resolved before the modules above it
+     * had declared anything. `instance Reclaim(String)` was in `Text` and the first thing to ask a
+     * `String` for its ownership was `NativeText`'s `stringLiteral`, two steps earlier: the answer
+     * "nothing to release" was cached there and every string temporary in every program leaked for
+     * it. The prelude is two modules resolved together now (Analysis-Modules.md §2.4), which closes
+     * that particular window and does not change the rule - a program's own modules still declare
+     * instances after the prelude's bodies exist.
      */
     bool declarationsComplete = false;
 
@@ -1277,17 +1379,15 @@ struct Program {
     U16 outcomeProceed = 0;
     U16 outcomeExit = 1;
 
-    // Where the array lives, and the generic declaration `[a]` resolves to. Both are null until
-    // defineCollections has run, which is what keeps Core and Native - built before it - from
-    // being handed an implicit import of a module that does not exist yet.
-    Module* collections = nullptr;
+    // What the generic declaration `[a]` resolves to. Null until the prelude's container hook has
+    // run, which is once every file of Core has been through the declaration passes.
     GlobalPtr<RecordType> arrayType = nullptr;
 
     // And the map, which `[k: v]` and `[K: V]` resolve to - Implementation-Map.md §7. Recorded on
     // the same terms as `arrayType` and for the same reason: the spelling is grammar and what it
     // means is a library record, so the literal needs a pointer to the declaration rather than a
-    // name to look up. Null in a build whose Collections declared no `Map`, which is what the
-    // literal's diagnostic reports.
+    // name to look up. Null in a build whose Core declared no `Map`, which is what the literal's
+    // diagnostic reports.
     GlobalPtr<RecordType> mapType = nullptr;
 
     // Native itself. Its *names* are private to whoever imports it, and its *instances* are not -
@@ -1295,30 +1395,6 @@ struct Program {
     // the moment it writes an array literal, and what reclaiming one means cannot depend on whether
     // the module that has to do it happened to name the module the type came from.
     Module* native = nullptr;
-
-    // `Host` - the JS half's intrinsics (Implementation-Containers.md §14.1). Empty on a native
-    // build, since every declaration in it is `@platform(js)`. Recorded so that Collections can be
-    // handed an import of it without naming a module that may have read nothing.
-    Module* host = nullptr;
-
-    /*
-     * The two halves `String` was split into - Implementation-Simplification.md §17.
-     *
-     * `nativeText` holds the reinterpretations that say what a native string is *made of* and is
-     * **not** implicitly imported, on the same terms as Native and for the same reason: forging a
-     * `String` out of unvalidated bytes should take an import that says so. Empty on JS, where a
-     * string is the host string and has no run to hand out.
-     *
-     * `text` holds the algorithms over them, and *is* implicitly imported, because a string literal
-     * is grammar and what `print` and `Show` mean has to be reachable without being asked for.
-     *
-     * Two modules rather than one because the reinterpretation names `Array(U8)`, so it has to sit
-     * above Collections - and the algorithms use it, so they have to sit above that. Null until
-     * their define functions have run, which is what keeps everything built before them from being
-     * handed an implicit import of a module that does not exist yet.
-     */
-    Module* nativeText = nullptr;
-    Module* text = nullptr;
 
     // Native's `Run(a)` - the allocation primitive every container is built on
     // (Implementation-Containers.md §2). Recorded for the same reason the array is: `newRun` is an
@@ -1348,8 +1424,10 @@ struct Program {
     ModulePtr<Function> entry = nullptr;
 
     // Core and Native are parsed from `lib/`, not from the module map, so the program owns those
-    // ASTs for as long as anything can still resolve against them.
+    // ASTs for as long as anything can still resolve against them - and the groups laid over them,
+    // since `lib/` has no module map to hold those either.
     Array<ast::Module*> embeddedAsts;
+    Array<ast::ModuleGroup*> embeddedGroups;
 };
 
 // Resolves `root` and everything it imports, with Core built and implicitly imported first.
@@ -1367,16 +1445,56 @@ struct Program {
  * starts, so this answers the same question about whatever the program is now rather than adding to
  * what it answered before.
  */
-void markProgramReachable(Program& program);
+/*
+ * Which functions and globals a finished program can arrive at, recomputed from its roots.
+ *
+ * `excluded`, where it is given, is the set of functions a backend has decided it cannot emit -
+ * every one of them by `ModulePtr<Function>` as a `U32`. An edge into one is not an edge: its body
+ * is not walked, so a function or a global that only it could reach stops being reachable.
+ *
+ * That is what lets a target drop the other target's runtime without naming any of it. The JS
+ * backend cannot express a syscall, so it cannot have the heap allocator; the size-class arithmetic
+ * beside the allocator is perfectly expressible and is reached from nowhere else, and asking this
+ * again with the allocator removed is the whole of how it goes away.
+ */
+void markProgramReachable(Program& program, const HashSet<U32>* excluded = nullptr);
 
+Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ModuleProvider* provider = nullptr,
+                            Program::Specialization specialization = Program::Specialization::Always);
+
+// A root of one file, which is what every driver that resolves a source string rather than a source
+// tree has. The group is built here so that nothing else has to.
 Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider* provider = nullptr,
                             Program::Specialization specialization = Program::Specialization::Always);
 
-// Resolves the declarations of one already-registered module. Exposed because Core and Native are
-// assembled from both parsed source and directly generated definitions. `importsResolved` is for
-// a module that had to import something before its own declarations could be built - Native
-// generates class instances, and the classes are Core's.
-void resolveModuleDecls(Module& module, ast::Module& ast, ModuleProvider* provider, bool importsResolved = false);
+/*
+ * The prelude: Core and Native, resolved together - Analysis-Modules.md §2.4.
+ *
+ * The two are a cycle - Core is written over raw pointers and the heap, Native is written over
+ * `Int` and the classes - so they go through the same phase-ordered passes the program-wide walk
+ * uses, over both modules at once. What is different is that they are also *assembled*: the
+ * primitives before the passes and the generated instances after them come from the compiler
+ * rather than from a file, so this is that pass sequence with a hook at each end.
+ *
+ * Both are Resolved when it returns, which is what makes them drop out of the program-wide walk.
+ */
+void definePrelude(Program& program);
+
+/*
+ * Declaration resolution for the whole program at once - Analysis-Modules.md §2.2 and §1.4.
+ *
+ * Ten passes, each run over every module before the next one starts, which is what makes a cycle in
+ * the import graph mean something: no pass asks "has this other module finished", they ask "does
+ * this name exist yet", and after pass 3 the answer is yes for every declaration in the program.
+ * Declaration resolution used to be triggered by an import and run depth-first, which is the only
+ * reason the graph had to be acyclic.
+ */
+void resolveProgramDecls(Program& program, ModuleProvider* provider);
+
+// One of the two modules the compiler builds itself, laid over files of `lib/` the program already
+// owns - see the definition.
+Module* addEmbeddedModule(Program& program, ast::ModuleGroup& group);
+
 bool resolveModuleBodies(Module& module);
 
 /*
@@ -1406,14 +1524,14 @@ void applyReturnRoots(Module& module, Function& function, LocationId source);
  */
 TypePtr requireReturnType(Module& module, Function& function, LocationId source);
 
-// Makes every module one `import` names visible in this one, resolving each the first time it is
-// named. Exposed for the same reason resolveModuleDecls is.
-void resolveImports(Module& module, ast::Module& ast, ModuleProvider* provider);
+// Makes every module one `import` names visible in this one. Only links: every module of the
+// program has been discovered and interned before it runs.
+void resolveImports(Module& module);
 
 // Checks each instance against its class's superclasses and resolves the module's `default`
 // declarations. Both need every instance of the module to exist, so this runs after them - which
 // for Core means after the generated instances, not after its source.
-void checkModuleClasses(Module& module, ast::Module& ast);
+void checkModuleClasses(Module& module);
 
 // Resolves one function's body if it has not been resolved yet. Exposed because instantiating a
 // generic function needs its body, which may belong to a module whose bodies have not been

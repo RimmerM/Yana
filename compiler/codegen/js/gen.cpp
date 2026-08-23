@@ -44,11 +44,6 @@ namespace {
  * Selection - what this target can have at all.
  */
 
-bool nativeModule(Gen& g, Module* module) {
-    auto text = stringView(g.context.findName(module->name));
-    return text == "Native"_v || text.startsWith("Native."_v);
-}
-
 /*
  * Functions this target has no way to emit.
  *
@@ -186,8 +181,9 @@ bool closureNeedsTeardown(Gen& g, Function& function) {
 /*
  * A global this target emits.
  *
- * `Native`'s own storage is the heap allocator's bookkeeping, and the functions that read it are not
- * emitted either.
+ * Nothing about which module it came from: the allocator's bookkeeping is dropped because the
+ * allocator is, and `markProgramReachable` run against the excluded set is what says so - see
+ * genProgram.
  *
  * A closure header is emitted like any other table. On native it is `prefixOf` - bytes placed
  * immediately in front of a lifted function, reached by subtracting from the code address - and here
@@ -211,20 +207,17 @@ bool emitGlobal(Gen& g, Module* module, ModulePtr<Global> pointer) {
     // the root check additionally exempted was every compiler-built table generated into it. A
     // header is the exception that keeps `prefixOf` here - it belongs to a function rather than to
     // the module, and the line above is what decides it. See markProgramReachable.
-    if(!global_->used && !global_->prefixOf) return false;
-    return !nativeModule(g, module);
+    return global_->used || global_->prefixOf;
 }
 
 void excludeFunctions(Gen& g) {
     Array<ModulePtr<Function>> candidates;
 
     for(auto module: g.program.modules) {
-        auto native = nativeModule(g, module);
-
         for(auto pointer: module->functionOrder.contents(g.local)) {
             if(!hasBody(g, module, pointer)) continue;
 
-            if(native || !expressibleInJs(g, *g.local[pointer])) {
+            if(!expressibleInJs(g, *g.local[pointer])) {
                 g.excluded.add(U32(pointer));
                 continue;
             }
@@ -1638,7 +1631,27 @@ Ptr<File> genProgram(Context& context, Program& program) {
     g.headerField = literalName(g, "$h"_v);
     if(program.root) g.headerType = closureHeaderPlaceType(*program.root);
 
+    /*
+     * What this target cannot have, and then what it can still arrive at without it.
+     *
+     * Two questions, and they are not the same one. `expressibleInJs` answers the first from what a
+     * body *contains* - a syscall, a block memory operation, arithmetic on an address - closed under
+     * calls, so a function reaching one it cannot have is one it cannot have either. What that
+     * leaves behind is the other target's runtime minus the parts that named an address: the heap
+     * allocator is gone and `heapClassOf`, which is a loop over an integer, is not.
+     *
+     * The second question is reachability, and it is already written - see markProgramReachable,
+     * which is handed the exclusion so that a call into an excluded function stops being an edge.
+     * `heapClassOf` is then reached from nothing, and so is the allocator's bookkeeping.
+     *
+     * This used to be a test on the module's *name* - anything called `Native` or `Native.*` - which
+     * answered the second question by assuming it lined up with the first. It stopped lining up the
+     * moment the host's own declarations became a file of `Native` (Analysis-Modules.md §2.4), and
+     * it was never the property that was wanted: what a target emits is decided by what it can
+     * express and what it still needs, and a module name spells neither.
+     */
     excludeFunctions(g);
+    markProgramReachable(program, &g.excluded);
 
     // Ahead of `boxedGlobals`, which asks `isJsObject` - and what a type's shape is has to be
     // settled before anything reads it, or two answers to one question is exactly the split

@@ -1,0 +1,20 @@
+-- The orphan rule - doc/spec/classes.md, and Analysis-Modules.md §2.1.3.
+--
+-- `Eq` is Core's and `Point` is Shapes', so an instance of one for the other written here belongs
+-- to neither of the two modules that could be surprised by it. That is what the rule refuses: a
+-- third module declaring the same instance would make which one a call site sees depend on what
+-- happened to be compiled, and neither `Eq`'s author nor `Point`'s could see it coming.
+--
+-- The unit is the module rather than the file, which is what makes the rule livable now that a
+-- module is a directory: an instance may sit in a file beside the one declaring its type.
+--
+-- The escape is the one Rust has and Yana already had: a qualified alias is a newtype, and
+-- `deriving` makes wrapping cheap.
+
+import Shapes
+
+instance Eq(Point):
+    fn ==(lhs: Point, rhs: Point) -> Bool = lhs.x == rhs.x
+    fn !=(lhs: Point, rhs: Point) -> Bool = !(lhs == rhs)
+
+fn main() -> Int = if Point {x: 1, y: 2} == Point {x: 1, y: 3} then 1 else 0

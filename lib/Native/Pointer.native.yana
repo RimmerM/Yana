@@ -1,0 +1,101 @@
+{-
+   The pointer operations only a machine has - Analysis-Modules.md §2.5.
+
+   Three vector transfers, a mask's bits and the top half of a widening multiply. They were five
+   `@platform(native)` attributes in `Pointer.yana`, which is the same sentence written five times
+   about one property of the declarations that carry it; the file's name says it once.
+
+   What they have in common with each other, and not with the rest of that file, is that each names
+   something the target's *instruction set* has: a whole-register load at an address, a movemask, a
+   `mulx`. A pointer itself is not that - `%a`, `*`, `+` and `sizeOf` are what the language says
+   about storage and are portable statements that JS answers differently - which is why the split
+   falls here rather than around the word "pointer".
+-}
+
+{-
+   Reading and writing a whole vector at an element address - Implementation-Vector.md §12's "a way
+   to read a vector out of a `Flat(a)`", the half of it that has an address to read from.
+
+   The portable set in Core deliberately has no load in it: `splat`, `lane` and the rearrangements
+   are operations on a value, and where the value *comes from* is a question about storage, which is
+   this module's. So these are the three that cross the line, and they are here for the reason every
+   other pointer operation is - what they name is memory nothing has promised anything about, and
+   the promise is made by whoever hands out the pointer.
+
+   `vectorPast` is the same load with §3.3's overread flag on it: it reads a whole vector starting at
+   an address that may be within a vector's width of the end of the object, and the tail-read
+   guarantee (§8) is what says the bytes past the end are readable. It is the *only* thing in the
+   language that sets that flag, so the reasoning about when one is allowed is in one place - and it
+   is why `vectors` is written over `Flat(a)` in Core rather than over a `%a` here: a slice
+   carries the guarantee and a bare address does not, which is what the verifier's rule says from the
+   other end.
+
+   No store overreads, ever. A write past the end of an object is not a read of unspecified bytes,
+   it is the destruction of whatever follows.
+-}
+pub fn (n: Int = 0) vectorAt(from: %a) -> Vec(a, n)
+pub fn (n: Int = 0) vectorPast(from: %a) -> Vec(a, n)
+pub fn (n: Int) setVectorAt(to: %a, value: Vec(a, n)) -> {}
+
+{-
+   The three operations a Swiss probe is written in, at a width the target did not choose -
+   Implementation-Map.md §4.1 and §4.2.
+
+   **Sixteen lanes, written out, and that is the whole point of them.** `Vec(U8)` is thirty-two
+   lanes at `x86-64-v3` and sixty-four at v4, and native findings §9.2 measured a thirty-two-lane
+   control group against a sixteen-lane one over the whole map corpus: lookup does not move, misses
+   get 8-10% worse and build 7-8%. The cause is the control byte rather than the vector unit - it
+   holds seven hash bits, so a group test false-positives at 1/128 per full lane and each one costs a
+   key compare, which doubling the width doubles. **So the vector library's "widest tier available"
+   rule is a pessimization for a probe**, and these are how a probe says so.
+
+   **There is no declaration for this any more, and that is the change worth recording.** A probe
+   writes `vectorAt(p) :: Vec(U8, 16)` and `splat(b) :: Vec(U8, 16)`, because the count is a const
+   parameter with a default and a result position is one of the two things that supplies a const
+   argument (Implementation-Const-Generics.md §1.7). `loadGroup` and `splatGroup` were the two
+   declarations that existed only because it was not - one pinned width each, one intrinsic each,
+   and a copy of four lines in native.cpp for the splat.
+
+   The load never overreads: §1's index run ends in a cloned copy of its first sixteen control bytes,
+   so a sixteen-byte load at any slot reads sixteen bytes that are inside the allocation. That is
+   what the clone is *for*, and it is why the probe writes `vectorAt` and not `vectorPast`.
+-}
+
+{-
+   A mask read as an integer - the movemask, and Implementation-Map.md §4.1's step 4.
+
+   `bits(m)` has lane `i` of the mask in bit `i` and nothing above the lane count, which is what
+   makes the loop over *several* matching lanes two integer instructions: `hits & (hits - 1)` clears
+   the lane just tested. Written over a `Mask` instead, the same loop is a `firstSet` and a
+   lane-clearing mask operation per iteration.
+
+   **In `Native` and not in `Core`, and the reason is the same one `firstSet` exists for.**
+   test/bench/findings.md §37 made `firstSet` a reduction kind because "which lane matched" is a
+   `pmovmskb` and a bit scan on x86 and something else everywhere else - and it names the other half
+   of that argument: on the JavaScript backend, where a lane is a variable and there is no mask to
+   scan, `firstSet` emits the chain of conditionals that is the same answer. A movemask has no such
+   answer. It is a machine fact, so it sits beside the pointer operations, reachable only from code
+   that has already said it is writing for a machine.
+
+   Const-generic in the lane count, because a mask's width is the width of whatever produced it and
+   a probe's is not the target's natural one.
+-}
+pub fn (n: Int) bits(mask: Mask(a, n)) -> Int
+
+{-
+   The top half of a 64x64 product - Implementation-Map.md §3.1.
+
+   `a * b` is the low half and this is the high one, so the two together are the whole 128-bit
+   product. What wants it is the map's hash: `lo ^ hi` of a widening multiply is wyhash's and xxh3's
+   core, it is nonlinear where a CRC is not (§3.1 measures what that costs), and it is one
+   instruction on every 64-bit machine - `mul`/`mulx` on x86-64, `umulh` beside `mul` on AArch64.
+
+   `@platform(native)`, and that is the whole of the portability story rather than a gap in it. A
+   target that has no widening multiply is in JS's position and takes JS's answer, which is an int32
+   mixer written in `Math.imul`; nothing anywhere expands this out of thirty-two-bit pieces, because
+   a hash that had to would not be worth having.
+
+   Here rather than in `Core` because `Core` is where the language's own arithmetic is and this is a
+   machine fact - the same line `bitcast` and the pointer operations sit on the far side of.
+-}
+pub fn mulHigh(lhs: U64, rhs: U64) -> U64

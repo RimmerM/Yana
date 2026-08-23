@@ -24,6 +24,21 @@ fn shared(%x: Int) -> Int {
     ret %v3
 }
 
+fn placement() -> Int {
+  b0:
+    ret 10
+}
+
+fn word() -> Int {
+  b0:
+    ret 8
+}
+
+fn onlyAmd64() -> Int {
+  b0:
+    ret 3
+}
+
 fn main() -> Int {
   b0:
     %s = call emptyStorage : Storage
@@ -32,5 +47,11 @@ fn main() -> Int {
     %v3 = add %v1, %v2 : Int
     %v5 = call shared, 4 : Int
     %v6 = add %v3, %v5 : Int
-    ret %v6
+    %v7 = call placement : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call word : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call onlyAmd64 : Int
+    %v12 = add %v10, %v11 : Int
+    ret %v12
 }

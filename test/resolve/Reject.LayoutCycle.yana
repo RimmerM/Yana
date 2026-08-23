@@ -1,0 +1,15 @@
+-- A containment cycle whose edges cross a file - Analysis-Modules.md §2.3.
+--
+-- Which edge of a mutually recursive type pair becomes the indirection is decided by declaration
+-- order. Within one file that is defensible: the order is written down, the reader can see it, and
+-- `@box` overrides it. Across files it is not - the order is a path sort, so adding a file to a
+-- directory could change the representation of an existing type.
+--
+-- So the implicit cut is refused here and the diagnostic names both ends, either of which is a
+-- place the programmer can answer it. This could not be written before §2.2 permitted import
+-- cycles: two types containing each other had to be in two modules, and two modules importing each
+-- other were refused.
+
+import Cell
+
+fn main(c: Cell) -> Int = 0

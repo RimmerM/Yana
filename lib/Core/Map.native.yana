@@ -1,0 +1,364 @@
+import Native
+
+{-
+   The map, natively - Implementation-Map.md §2 and §4.1.
+
+   A dense run of `Entry(k, v)` in insertion order, the index over it, and the eight accessors
+   `Map.yana` names as the contract. `Map.yana` beside this is what is true of a map on either
+   target; `Map.js.yana` answers the same names out of two host arrays and an `Int32Array`.
+
+   **A `.native.yana` file, and the two share no line at all** - Analysis-Modules.md §2.5. The index
+   is a control byte per slot compared sixteen at a time against a tag, which is not a variation on
+   a linear probe of an `Int32Array` - and the storage under it is one run of pairs, which is not a
+   variation on two arrays. What the two have in common is the contract, which is where it is
+   written.
+-}
+
+{-
+   The map - Implementation-Map.md §1.
+
+   Two allocations. The entries run is what a program sees: `length` live entries in insertion order
+   with no holes, so iteration is a walk with no occupancy test at all. `Array(Entry(k, v))` is
+   exactly §1's `entries: Run(Entry(k, v))` and `count: Count` - the same two words, with growth,
+   bounds and teardown already written - which is why it is spelled as the container rather than as
+   the run plus a count of this type's own.
+
+   The index run is private and holds no value with a lifetime.
+
+   **Natively it is one allocation with three parts:**
+
+       byte 0                     slots        slots+16                       slots+16+4*slots
+             | control bytes       | cloned group | entry numbers, one Count each |
+
+   The **cloned group** is what makes an unaligned sixteen-byte load at any slot read sixteen bytes
+   that are inside the allocation, so the probe never overreads and never wraps by hand. Every
+   control write mirrors into it when the slot is below sixteen, which is one comparison against a
+   constant.
+
+   The **entry numbers** are `Count`, four bytes each. Native findings §9.1 measured the CPython
+   trick - `u8`/`u16`/`i32` by table size - applied to exactly this run: it saves 3.3 B/entry and
+   costs 7-14% of a lookup on machine-word keys, which is the key type where the saving is largest.
+   **Do not narrow this run.**
+
+   `mask` is the slot count less one, or **zero when there is no index at all** - which is §4.4's
+   branch and the whole of the small-map path. `live` counts the index slots that are not empty,
+   full and deleted together, since that is what the load factor is measured against.
+
+   The two capacities are independent. The entries run doubles when it is full; the index doubles
+   when `live + 1` would pass 7/8 of the slot count. Tying them would force one of the two into a
+   shape it does not want - native findings §9.3 measured both fusions and neither is worth it.
+-}
+pub data Map(k, v)
+    {entries: Array(Entry(k, v)), index: Run(U8), live: Count, mask: Count}
+
+-- A map with room for nothing, which allocates nothing. Neither run is touched until the first
+-- insert, and the index not until the scan threshold is crossed.
+pub fn emptyMap() -> Map(k, v) =
+    Map {entries: emptyArray(), index: emptyRun(), live: 0, mask: 0}
+
+{-
+   The threshold, asked of the map rather than of a run - and this is the shape every accessor below
+   takes, for the reason the JS declaration gives: the two targets store an entry in different
+   places, so what they share is the *question* and not the field it is answered from.
+-}
+fn scanLimitOf(self: Map(k, v)) -> Size = scanLimitFor(self.entries.run.items)
+
+-- How many entries there are, which is the length of whichever run holds them. The two JS runs are
+-- the same length by construction: every write below appends to or removes from both.
+fn entryCount(self: Map(k, v)) -> Size = length(self.entries)
+
+-- Room for `wanted` entries in the run or runs that hold them.
+fn reserveEntries(&self: Map(k, v), wanted: Size) -> {} =
+    reserve(self.entries, wanted)
+
+-- One pair appended. Native writes one entry; JS writes each half into its own run, in that order,
+-- so the two runs are never observed at different lengths by anything between them.
+fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {} =
+    push(self.entries, Entry {key: key, value: value})
+
+{-
+   One key and one value, borrowed - and the reason these are functions rather than a subscript.
+
+   Three of them rather than two, because which one a place produces is the caller's question and a
+   subscript answers only the first: an argument is resolved as an ordinary expression before any
+   callee is known, so `xs[i]` in a `&` position reaches `Index.get` and hands over a borrow that may
+   not be written - see Reject.Exchange.yana, which is that ordering stated as a rejection. The value
+   replacement in `insert` needs the mutable one.
+
+   They also take the bounds check off the probe, which is the smaller of the two reasons and still a
+   real one: every index reaching these came out of the index run or out of a walk below the count,
+   so the test would be one this map has already made.
+
+   `return self` is what roots the borrow in the map, and the pointer arithmetic underneath is
+   unchecked by construction on the terms every other container in this file is written on.
+
+   Written as the field of an entry borrow natively rather than as `borrow(addressOf(entry.key))`,
+   and the difference is a target: taking an *address* of storage that is not a whole local is the
+   gap codegen/js/inst.cpp reports, because the box it would have to make is a copy and a write
+   through it would reach nobody. A *borrow* of the same place is not - it is the narrow reference
+   that backend already builds, which names the slot rather than copying it.
+-}
+fn keyAt(return self: Map(k, v), at: Size) -> &k =
+    borrow(self.entries.run.items + at).key
+
+{-
+   And the value inside one, borrowed - which is what `find` and the subscript hand back.
+
+   Written as the field of the entry borrow rather than as `borrow(addressOf(entry.value))`, and the
+   difference is a target: taking an *address* of storage that is not a whole local is the gap
+   codegen/js/inst.cpp reports, because the box it would have to make is a copy and a write through
+   it would reach nobody. A *borrow* of the same place is not - it is the narrow reference that
+   backend already builds, which names the slot rather than copying it. So this is one body for both
+   targets and the other spelling is one for neither.
+-}
+fn valueAt(return self: Map(k, v), at: Size) -> &v =
+    borrow(self.entries.run.items + at).value
+
+fn valueAtMut(return &self: Map(k, v), at: Size) -> &v =
+    borrowMut(self.entries.run.items + at).value
+
+{-
+   Taking one entry out and closing the hole with the last one.
+
+   Two bodies, and they are the one place a map reads and writes its entries run without going
+   through a bounds check - which is what a swap-remove is: two moves at indices the caller has
+   already established are live. `Array.remove` cannot serve, because it closes the gap by *shifting*
+   and that is the 155x this design exists to avoid.
+
+   The length is assigned last, and on JS that is also what releases the duplicate: a plain host
+   array's `length` is its occupancy and assigning it truncates, so recording the new count and
+   freeing the slot are the same statement. It is the same line `Array.remove` relies on.
+-}
+fn takeEntry(&self: Map(k, v), at: Size) -> Entry(k, v):
+    let last = entryCount(self) - 1
+    let items = self.entries.run.items
+    let ->doomed = *(items + at)
+
+    if at != last:
+        let ->moved = *(items + last)
+        store(items + at, moved)
+
+    self.entries.length = truncate(last) :: Count
+    return doomed
+
+-- The last entry released and the run or runs shortened by one, which is what `clear` walks
+-- backwards over. `Array.remove` at the last index is a swap-remove with nothing to swap.
+fn removeLast(&self: Map(k, v)) -> {}:
+    let dropped = remove(self.entries, truncate(entryCount(self) - 1) :: Int)
+
+{-
+   The probe, natively - Implementation-Map.md §4.1, and the whole of lookup.
+
+   Three things in it are load-bearing:
+
+   - **`step` grows by sixteen each time**, so the groups visited are `pos`, `pos+16`, `pos+48`, ... -
+     triangular numbers times the group width. Over a power-of-two slot count that visits every group
+     exactly once, which is what makes the loop terminate.
+   - **The empty test is what ends a miss**, not the probe count: a group with any empty lane cannot
+     be followed by a slot holding this key, because an insert would have taken that lane.
+   - **`bits` turns the match into an integer**, so the walk over *several* matching lanes is
+     `hits and (hits - 1)` - two instructions, against a `firstSet` and a lane-clearing mask
+     operation per iteration.
+
+   The bound on the outer loop is the slot count and is never reached: an empty lane exists at every
+   load factor this map allows, so the `return` after it is unreachable in a map whose invariants
+   hold. It is written rather than assumed because a loop with no exit condition is not something a
+   reader should have to prove terminating.
+
+   `indexSlotOf` below is this same walk answering the slot instead of the entry, which removal
+   needs and every other caller would be discarding.
+-}
+fn (Hash(k)) indexFind(self: Map(k, v), key: k, h: U32) -> Size:
+    let mask = self.mask :: Size
+    let tag = splat(tagOf(h)) :: Vec(U8, 16)
+    let empty = splat(ctrlEmpty) :: Vec(U8, 16)
+
+    let &pos = slotFor(h, self.mask)
+    let &step = 0 :: Size
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
+        let &hits = bits(group .== tag)
+
+        while hits != 0:
+            let slot = (pos + (trailingZeros(hits) :: Size)) `and` mask
+            let at = entryNumber(self, slot)
+            if keyEquals(self, at, key) then return at
+
+            hits = hits `and` (hits - 1)
+
+        if bits(group .== empty) != 0 then return 0 - 1
+
+        step = step + 16
+        pos = (pos + step) `and` mask
+        visited = visited + 16
+
+    return 0 - 1
+
+fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
+    let mask = self.mask :: Size
+    let tag = splat(tagOf(h)) :: Vec(U8, 16)
+    let empty = splat(ctrlEmpty) :: Vec(U8, 16)
+
+    let &pos = slotFor(h, self.mask)
+    let &step = 0 :: Size
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
+        let &hits = bits(group .== tag)
+
+        while hits != 0:
+            let slot = (pos + (trailingZeros(hits) :: Size)) `and` mask
+            if keyEquals(self, entryNumber(self, slot), key) then return slot
+
+            hits = hits `and` (hits - 1)
+
+        if bits(group .== empty) != 0 then return 0 - 1
+
+        step = step + 16
+        pos = (pos + step) `and` mask
+        visited = visited + 16
+
+    return 0 - 1
+
+{-
+   The first non-full slot of a key's probe sequence - the other half of §4.1.
+
+   A **Deleted** slot counts as free and may be earlier than the Empty one that ends a search, which
+   is what keeps a delete-heavy map from growing its probe lengths without bound. The test is one
+   unsigned comparison for the reason the control encoding was chosen: full is 0..127 and both of the
+   others are at or above `ctrlEmpty`.
+-}
+fn indexFreeSlot(self: Map(k, v), h: U32) -> Size:
+    let mask = self.mask :: Size
+    let empty = splat(ctrlEmpty) :: Vec(U8, 16)
+
+    let &pos = slotFor(h, self.mask)
+    let &step = 0 :: Size
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
+        let free = bits(group .>= empty)
+        if free != 0 then return (pos + (trailingZeros(free) :: Size)) `and` mask
+
+        step = step + 16
+        pos = (pos + step) `and` mask
+        visited = visited + 16
+
+    return 0 - 1
+
+{-
+   The two accessors that know §1's byte layout, and the only things in this file that read the index
+   run directly.
+
+   `slots` is a power of two and at least sixteen, so `slots + 16` is a multiple of sixteen and the
+   entry numbers need no padding to be four-byte aligned.
+-}
+fn entryNumbers(return self: Map(k, v)) -> %Count =
+    bitcast(self.index.items + (indexSlots(self) + 16)) :: %Count
+
+fn entryNumber(self: Map(k, v), slot: Size) -> Size =
+    (*(entryNumbers(self) + slot)) :: Size
+
+{-
+   The control byte for a slot, written into both copies.
+
+   The branch is a comparison against a constant and it is the whole cost of the cloned group. It is
+   here rather than at each of the three call sites so that "the clone and the original never
+   disagree" is one line rather than an invariant three bodies have to keep.
+-}
+fn setControl(&self: Map(k, v), slot: Size, value: U8) -> {}:
+    store(self.index.items + slot, value)
+    if slot < 16 then store(self.index.items + (indexSlots(self) + slot), value)
+
+{-
+   Pointing one index slot at one entry.
+
+   `live` counts up only where the slot taken was Empty - a Deleted one was already counted and
+   giving it away does not change how full the table is.
+-}
+fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
+    let slot = indexFreeSlot(self, h)
+    checkCondition(slot < 0)
+
+    let taken = *(self.index.items + slot)
+    setControl(self, slot, tagOf(h))
+    store(entryNumbers(self) + slot, truncate(at) :: Count)
+
+    if taken == ctrlEmpty then self.live = truncate((self.live :: Size) + 1) :: Count
+
+fn (Hash(k)) indexForget(&self: Map(k, v), key: k, h: U32) -> {}:
+    let slot = indexSlotOf(self, key, h)
+    if slot >= 0 then setControl(self, slot, ctrlDeleted)
+
+{-
+   The slot holding entry number `from`, made to hold `to` instead - what a swap-remove needs.
+
+   Found by **entry number and not by key**, which is what lets a removal re-point the moved entry's
+   slot *before* the move rather than after it. After it the entry is no longer where the index says,
+   so a key comparison would read past the end of the run - undefined on JS and stale memory
+   natively, which is the same bug with only one of the two targets willing to say so.
+
+   Entry numbers are unique, so the comparison is exact and no key is touched at all. `h` is the
+   moved entry's own hash, so the walk is its own probe sequence and the slot is on it.
+-}
+fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
+    let mask = self.mask :: Size
+    let tag = splat(tagOf(h)) :: Vec(U8, 16)
+
+    let &pos = slotFor(h, self.mask)
+    let &step = 0 :: Size
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        let group = vectorAt(self.index.items + pos) :: Vec(U8, 16)
+        let &hits = bits(group .== tag)
+
+        while hits != 0:
+            let slot = (pos + (trailingZeros(hits) :: Size)) `and` mask
+
+            if entryNumber(self, slot) == from:
+                store(entryNumbers(self) + slot, truncate(to) :: Count)
+                return
+
+            hits = hits `and` (hits - 1)
+
+        step = step + 16
+        pos = (pos + step) `and` mask
+        visited = visited + 16
+
+fn indexReset(&self: Map(k, v)) -> {}:
+    setMemory(self.index.items, ctrlEmpty, indexSlots(self) + 16)
+    self.live = 0
+
+{-
+   The rebuild - Implementation-Map.md §4.3.
+
+   A sequential read of the entries run and a random write of the index, which is where the cached
+   hash of §2 would pay: with one, this would touch no key at all. Without it every key is hashed
+   again, which is the cost step 5 of §8 is what removes.
+
+   `resize` rather than a fresh run and a release, so the growth path is `Run(a)`'s own and the
+   shrink case - a rebuild at the same slot count, which is how tombstones are dropped - reuses the
+   allocation it already has. Only the control bytes and their clone are initialized: an entry number
+   in a slot whose control byte says Empty is never read.
+-}
+fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size) -> {}:
+    -- Held in a local rather than written inside the check, because an argument in `&` position is
+    -- resolved as an ordinary expression when the call it is in is itself an argument - see the note
+    -- in Reject.Exchange.yana, which is the same ordering seen from the other end.
+    let grown = resize(self.index, slots + 16 + slots * 4)
+    checkCondition(!grown)
+
+    self.mask = truncate(slots - 1) :: Count
+    indexReset(self)
+
+    let count = entryCount(self)
+    let &at = 0 :: Size
+
+    while at < count:
+        indexPlace(self, at, hashAt(self, at))
+        at = at + 1

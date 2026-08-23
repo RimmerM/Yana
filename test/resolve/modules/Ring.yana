@@ -1,9 +1,14 @@
 -- Half of an import cycle. Ring imports Loop, and Loop imports Ring back.
 --
--- The declaration below the import is what makes the cycle worth rejecting rather than tolerating:
--- whichever of the two modules is resolved first sees the other with nothing in it, so `ringSize`
--- and `loopSize` cannot both be resolved against a module that has them.
+-- Permitted since Analysis-Modules.md §2.2: declaration resolution is no longer triggered by an
+-- import, so neither half is read "first" and neither sees the other with nothing in it. The cycle
+-- is closed at both levels deliberately - `ringSize` calls a function of Loop and `ringOf` names a
+-- *type* of Loop - because the two are answered by different passes, and a pass structure that
+-- tolerates one and not the other would pass a weaker fixture.
 
 import Loop
 
+pub data Ring {span: Int}
+
 pub fn ringSize() -> Int = loopSize() + 1
+pub fn ringOf(l: Loop) -> Ring = Ring {span: l.width}

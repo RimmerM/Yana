@@ -1,0 +1,13 @@
+-- The other file of `Ledger`, and both halves of §2.1.2.
+--
+-- **No exports within a module**: `Entry` and `doubled` are declared in the file beside this one,
+-- and neither an import nor a `pub` stands between them - so both answers point out of this file
+-- and stay inside this module.
+--
+-- **But imports are the file's.** `Shapes` is imported by Entry.yana and not by this one, so the
+-- last line is reported. That is the whole difference between an import and a declaration.
+
+pub fn total(e: Entry) -> Int = doubled(e) + e.amount
+--              ^siblingType      ^sibling
+
+pub fn borrowed(s: Shape) -> Int = 0

@@ -237,4 +237,4 @@ void attachDeferredIntrinsic(Module& module, StringView name, DeferredIntrinsic 
  * may subscript, and an instance that does not exist yet is one the resolver reports.
  */
 void defineNativeIndexInstances(Module& native);
-void defineContainerInstances(Module& collections);
+void defineContainerInstances(Module& core);

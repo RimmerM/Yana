@@ -6,6 +6,28 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @effects = [0, 0, 0, 0]
 mut @released = [0, 0, 0, 0]
 
+mapMemory<complex>(%size: Long): Ptr {
+  b_0 {
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
+    %v_1 = cmp_ilt %result, 0: Int
+    je %v_1, b_2, b_3
+  }
+
+  b_2 {
+    %v_4 = bitcast 0: Ptr
+    ret %v_4
+  }
+
+  b_3 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = bitcast %result: Ptr
+    ret %v_6
+  }
+}
+
 growHeap<complex>(%needed: Long): Int {
   b_0 {
     %v_1 = loads @heapRegionNext, 8: Long
@@ -225,28 +247,6 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_12 = add %v_11, %v_8: Ptr
     store %v_12, %allocation, 8
     ret 
-  }
-}
-
-mapMemory<complex>(%size: Long): Ptr {
-  b_0 {
-    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
-    %v_1 = cmp_ilt %result, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_2 {
-    %v_4 = bitcast 0: Ptr
-    ret %v_4
-  }
-
-  b_3 {
-    jmp b_5
-  }
-
-  b_5 {
-    %v_6 = bitcast %result: Ptr
-    ret %v_6
   }
 }
 

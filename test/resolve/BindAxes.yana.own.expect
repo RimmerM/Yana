@@ -14,6 +14,10 @@ fn Try(Result(e, a), a, e).fromExit(I64, I64) {
   %local1: Result(I64, I64) readonly live [0, 3)
 }
 
+fn mapMemory {
+  arg size readonly
+}
+
 fn initHeap {
 }
 
@@ -60,10 +64,6 @@ fn releaseRun(U8) {
 fn Reclaim(Run(a)).reclaim(U8) {
   arg value readonly
   %value: Run(U8) borrowed droppable readonly live [0, 1)
-}
-
-fn mapMemory {
-  arg size readonly
 }
 
 fn make {

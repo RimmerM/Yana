@@ -4,35 +4,6 @@ target triple = "x86_64-unknown-linux-gnu"
 @"image$base" = constant [0 x i8] zeroinitializer, align 8
 @heapFree = global [8 x i8] zeroinitializer, align 8
 
-define fastcc void @freeHeap(ptr %allocation) {
-  br label %1
-
-1:                                                ; preds = %0
-  %2 = ptrtoint ptr %allocation to i64
-  %3 = icmp eq i64 %2, 0
-  %4 = zext i1 %3 to i32
-  br i1 %3, label %5, label %6
-
-5:                                                ; preds = %1
-  ret void
-
-6:                                                ; preds = %1
-  br label %7
-
-7:                                                ; preds = %6
-  %8 = getelementptr i8, ptr %allocation, i64 -8
-  %9 = load i64, ptr %8, align 1
-  %10 = load ptr, ptr @heapFree, align 1
-  %11 = shl i64 %9, 3
-  %12 = getelementptr i8, ptr %10, i64 %11
-  %13 = load ptr, ptr %12, align 1
-  store ptr %13, ptr %allocation, align 1
-  %14 = load ptr, ptr @heapFree, align 1
-  %15 = getelementptr i8, ptr %14, i64 %11
-  store ptr %allocation, ptr %15, align 1
-  ret void
-}
-
 define fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %value) {
   br label %1
 
@@ -70,6 +41,35 @@ define fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %value) {
   br label %9
 
 9:                                                ; preds = %7, %1
+  ret void
+}
+
+define fastcc void @freeHeap(ptr %allocation) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = ptrtoint ptr %allocation to i64
+  %3 = icmp eq i64 %2, 0
+  %4 = zext i1 %3 to i32
+  br i1 %3, label %5, label %6
+
+5:                                                ; preds = %1
+  ret void
+
+6:                                                ; preds = %1
+  br label %7
+
+7:                                                ; preds = %6
+  %8 = getelementptr i8, ptr %allocation, i64 -8
+  %9 = load i64, ptr %8, align 1
+  %10 = load ptr, ptr @heapFree, align 1
+  %11 = shl i64 %9, 3
+  %12 = getelementptr i8, ptr %10, i64 %11
+  %13 = load ptr, ptr %12, align 1
+  store ptr %13, ptr %allocation, align 1
+  %14 = load ptr, ptr @heapFree, align 1
+  %15 = getelementptr i8, ptr %14, i64 %11
+  store ptr %allocation, ptr %15, align 1
   ret void
 }
 

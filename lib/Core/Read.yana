@@ -1,0 +1,230 @@
+import Native
+
+{-
+   Text, as values - the integer half.
+
+   The dual of `Show`, and a file of `Core` on the same terms as `Show.yana` beside it: it is named
+   from anywhere in the module with no import and no `pub`, because a module is a directory.
+
+   The class, the error and the integer instances are here; the float instances are
+   `Float/Read.yana`, with the algorithm they need. What is *not* here any more is the ASCII tier,
+   which was reading nothing and is `Ascii.yana`.
+-}
+
+{-
+   ==========================================================================================
+   `Read` - the dual of `Show`, Analysis-Library.md §2.1.
+   ==========================================================================================
+
+   Tritium spells parsing as sixteen template specializations of
+
+       template<class T> T read(const char*& text, Size length);
+
+   with failure signalled by *not advancing the cursor* - which a caller cannot observe unless it
+   saved the pointer first, and which every one of the sixteen has to be trusted to get right. The
+   dual of `Show` is a class with one member, and the failure is in the type:
+
+       pub class Read(a):
+         fn read(from: String, &at: Size) -> Result(ReadError, a)
+
+   **The cursor is a `&` parameter and the text is not.** A successful read advances it past what it
+   consumed and a failed one leaves it exactly where it was, so a caller may try one instance and
+   then another without saving anything - and a caller who wants the position back after a success
+   still has it, because it is their own variable. The C++ convention is the same promise made where
+   nobody can check it.
+
+   **Text and cursor rather than a slice**, which is where this parts company with the analysis's
+   sketch of `read(from: &Flat(CodeUnit))`. A slice of code units is a native-only thing: a JS string
+   has no addressable units at all, which is the same reason `Chunked(String, CodeUnit)` above is
+   `@platform(native)`. A `String` and an index into it is the portable spelling of the same idea and
+   costs the same, since `stringUnit` is a load on one target and a `charCodeAt` on the other.
+
+   **It composes with `?` immediately** - `let n = read(text, at)?` inside a function returning a
+   `Result(ReadError, _)` - which makes this the first substantial user of the `Try` machinery in
+   Core. Which instance is selected comes from the expected type, exactly as it does for `bitcast`.
+
+   `readRadix` below is the sixteen `readHex`es collapsed into an argument.
+-}
+
+{-
+   Why a read did not produce a value.
+
+   Two reasons and not one, because a caller does different things about them: `NoDigits` is "this
+   is not a number and you should try something else", which is what a parser reaching an unexpected
+   token has, and `OutOfRange` is "this is a number and it is not one of these", which is a value
+   error the input has to be blamed for. Neither carries a position - the caller's cursor is the
+   position, and it did not move.
+-}
+pub data ReadError = NoDigits | OutOfRange
+
+pub class Read(a):
+  fn read(from: String, &at: Size) -> Result(ReadError, a)
+
+{-
+   One digit's value in a radix, or `-1` for a unit that is not one.
+
+   Letters count from ten in either case, which is what makes `readRadix(text, at, 16)` accept
+   `ff` and `FF` and what makes every radix up to 36 spelled the same way. A unit at or above the
+   radix is not a digit *here*, which is why the test is against the radix rather than against `9`.
+-}
+fn digitValue(unit: Int, radix: Int) -> Int:
+    let &value = 0 - 1
+
+    if unit >= 48 && unit <= 57 then value = unit - 48
+    else if unit >= 97 && unit <= 122 then value = unit - 97 + 10
+    else if unit >= 65 && unit <= 90 then value = unit - 65 + 10
+
+    if value >= radix then return 0 - 1
+    return value
+
+{-
+   The digits at `at`, as an unsigned magnitude, with `limit` the largest one the caller will take.
+
+   The cursor is advanced only on the way out, and only through the copy: a caller of this one is
+   about to decide whether the magnitude fits its own type, and a read that is rejected there has to
+   leave the cursor where an unread one would.
+
+   **Overflow is detected before it happens rather than after.** `seen > (limit - digit) / radix` is
+   exactly the test that the next step stays at or below the limit, and it is the only formulation
+   that works for a `limit` at the top of the type - where computing the product and comparing it
+   would already have wrapped.
+-}
+fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
+                 &stop: Size, &value: U64) -> Maybe(ReadError):
+    let units = length(text)
+    let base = wideCount(radix)
+
+    let &at = from
+    let &seen = 0 :: U64
+    let &any = False
+    let &over = False
+
+    while at < units:
+        let digit = digitValue(stringUnit(text, at), radix)
+        if digit < 0 then break
+
+        let wide = wideCount(digit)
+        if wide > limit || seen > (limit - wide) / base then over = True
+        else seen = seen * base + wide
+
+        any = True
+        at = at + 1
+
+    if !any then return Just(NoDigits)
+    if over then return Just(OutOfRange)
+
+    stop = at
+    value = seen
+    return Nothing
+
+{-
+   A signed value in a radix, refused where it does not fit between `low` and `high`.
+
+   The magnitude is read unsigned and the sign applied afterwards, which is what makes the most
+   negative value of every width an ordinary input rather than the one case that overflows: `-128`
+   at `I8` is a magnitude of 128, which no positive `I8` holds and which the low bound admits.
+-}
+fn readBounded(text: String, &at: Size, radix: Int, low: Long, high: Long) -> Result(ReadError, Long):
+    let units = length(text)
+    let &start = at
+    let &negative = False
+
+    if start < units:
+        let unit = stringUnit(text, start)
+        if unit == 45:
+            negative = True
+            start = start + 1
+        else if unit == 43:
+            start = start + 1
+
+    -- The largest magnitude either sign admits, which is one larger on the negative side.
+    let limit = if negative then bitcast(0 - low) :: U64 else bitcast(high) :: U64
+
+    let &stop = start
+    let &magnitude = 0 :: U64
+    let failure = readMagnitude(text, start, radix, limit, stop, magnitude)
+
+    match failure:
+        Just(reason) -> return Err(reason)
+        Nothing -> {}
+
+    at = stop
+    let signed = bitcast(magnitude) :: Long
+    return Ok(if negative then 0 - signed else signed)
+
+-- An unsigned value in a radix, which takes no sign at all: a `-1` at a `U32` is not a number this
+-- type has and reading it as one is how a wrapped maximum gets into a program.
+fn readUnsigned(text: String, &at: Size, radix: Int, limit: U64) -> Result(ReadError, U64):
+    let &stop = at
+    let &magnitude = 0 :: U64
+    let failure = readMagnitude(text, at, radix, limit, stop, magnitude)
+
+    match failure:
+        Just(reason) -> return Err(reason)
+        Nothing -> {}
+
+    at = stop
+    return Ok(magnitude)
+
+{-
+   The radix form, which is the whole family `readHex`, `readOctal` and `readBinary` would have been.
+
+   Answers a `Long` because that is the widest thing every integer instance below reads through;
+   a caller who wants a narrower type asks `read` for it and gets the range check with it.
+-}
+pub fn readRadix(from: String, &at: Size, radix: Int) -> Result(ReadError, Long) =
+    readBounded(from, at, radix, minValue() :: Long, maxValue() :: Long)
+
+instance Read(Long):
+    fn read(from: String, &at: Size) -> Result(ReadError, Long) = readRadix(from, at, 10)
+
+instance Read(I64):
+    fn read(from: String, &at: Size) -> Result(ReadError, I64) =
+        match readBounded(from, at, 10, widen(minValue() :: I64) :: Long, widen(maxValue() :: I64) :: Long):
+            Ok(value) -> Ok(bitcast(value) :: I64)
+            Err(reason) -> Err(reason)
+
+instance Read(Int):
+    fn read(from: String, &at: Size) -> Result(ReadError, Int) =
+        match readBounded(from, at, 10, widen(minValue() :: Int) :: Long, widen(maxValue() :: Int) :: Long):
+            Ok(value) -> Ok(truncate(value) :: Int)
+            Err(reason) -> Err(reason)
+
+instance Read(I32):
+    fn read(from: String, &at: Size) -> Result(ReadError, I32) =
+        match readBounded(from, at, 10, widen(minValue() :: I32) :: Long, widen(maxValue() :: I32) :: Long):
+            Ok(value) -> Ok(truncate(value) :: I32)
+            Err(reason) -> Err(reason)
+
+instance Read(I16):
+    fn read(from: String, &at: Size) -> Result(ReadError, I16) =
+        match readBounded(from, at, 10, widen(minValue() :: I16) :: Long, widen(maxValue() :: I16) :: Long):
+            Ok(value) -> Ok(truncate(value) :: I16)
+            Err(reason) -> Err(reason)
+
+instance Read(I8):
+    fn read(from: String, &at: Size) -> Result(ReadError, I8) =
+        match readBounded(from, at, 10, widen(minValue() :: I8) :: Long, widen(maxValue() :: I8) :: Long):
+            Ok(value) -> Ok(truncate(value) :: I8)
+            Err(reason) -> Err(reason)
+
+instance Read(U64):
+    fn read(from: String, &at: Size) -> Result(ReadError, U64) = readUnsigned(from, at, 10, maxValue() :: U64)
+
+instance Read(U32):
+    fn read(from: String, &at: Size) -> Result(ReadError, U32) =
+        match readUnsigned(from, at, 10, widen(maxValue() :: U32) :: U64):
+            Ok(value) -> Ok(truncate(value) :: U32)
+            Err(reason) -> Err(reason)
+
+instance Read(U16):
+    fn read(from: String, &at: Size) -> Result(ReadError, U16) =
+        match readUnsigned(from, at, 10, widen(maxValue() :: U16) :: U64):
+            Ok(value) -> Ok(truncate(value) :: U16)
+            Err(reason) -> Err(reason)
+
+instance Read(U8):
+    fn read(from: String, &at: Size) -> Result(ReadError, U8) =
+        match readUnsigned(from, at, 10, widen(maxValue() :: U8) :: U64):
+            Ok(value) -> Ok(truncate(value) :: U8)
+            Err(reason) -> Err(reason)

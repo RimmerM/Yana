@@ -1,0 +1,159 @@
+import Native
+
+{-
+   The array on JS - the host's own, and how many of its slots are live.
+   Implementation-Containers.md §14.
+
+   There is no run because there is no allocation to place, and no capacity because the host reports
+   its own - which is §1 working exactly as stated: what varies between implementations is the
+   *owner*, and the borrow every reader was compiled against is `Flat(a)` on both targets.
+
+   `Array.yana` beside this is what both targets share; `Array.native.yana` is the same operations
+   over a run of slots. Analysis-Modules.md §2.5 is why they are three files.
+-}
+
+{-
+   And the same array on JS - Implementation-Containers.md §14.
+
+   The host array, and how many of its slots are live. There is no run because there is no allocation
+   to place and no capacity because the host reports its own - which is §1 working exactly as stated:
+   what varies between implementations is the *owner*, and the borrow every reader was compiled
+   against is `Flat(a)` on both targets.
+
+   `@host` is what keeps the count from costing anything on the row that does not need it. §14 has
+   two rows and the element chooses: a plain host array's `length` *is* its occupancy and assigning
+   it truncates, so the count is a number the host already keeps and the record is the bare array;
+   a `TypedArray`'s is its fixed capacity, so there the field is stored and the record is an object
+   holding both. One declaration, one set of bodies, and the layout follows the element - see
+   `Field::host` and `hostPropertiesElided`.
+
+   So every function below has two bodies and one signature, and nothing outside this file and the
+   two compiler paths that *build* a container (`resolveArray` and `convertSlice`) knows which target
+   it is on. A teardown is still the authored traversal over the live elements, because whether an
+   element has a teardown is a question about the element rather than about where the container keeps
+   it.
+-}
+pub data Array(a) {items: %a, length: @host Count}
+
+-- An array with room for nothing. `[]` is already the allocation, so there is nothing to defer.
+pub fn emptyArray() -> Array(a) = Array {items: hostArray(), length: 0}
+
+-- What the container can hold before it has to grow. A host array has no such number to report and
+-- answers what it holds, which is the honest answer for a container that never has to grow.
+pub fn capacity(self: Array(a)) -> Size = hostLength(self.items) :: Size
+
+{-
+   Room for `wanted` elements on JS, which is two answers chosen by the *element* -
+   Implementation-Containers.md §14's two rows.
+
+   A host array grows on its own: writing at its length appends, so the engine's own policy applies
+   and reserving in front of it would be asking for a second policy on top of one that is not this
+   module's to see. A `TypedArray` has a fixed length and cannot, so it doubles exactly as the native
+   run does.
+
+   The row is chosen by `hostFixedCapacity`, which is a constant per element type - so one of the two
+   bodies below is folded away before any call site sees it, and this is one function rather than a
+   `@platform` split that could not have been written: `@platform` chooses by *target*, and both rows
+   are this target.
+-}
+pub fn reserve(&self: Array(a), wanted: Size) -> {}:
+    if hostFixedCapacity(self.items) == False then return
+    if wanted <= hostLength(self.items) then return
+    growJsArray(self, wanted)
+
+-- The doubling, which is the native `growArray` with `hostGrow` where `resize` is. `@noinline` and
+-- not `pub` for the two reasons that one gives.
+@noinline fn growJsArray(&self: Array(a), wanted: Size) -> {}:
+    let room = hostLength(self.items)
+    let &wide = room + room :: Size
+    if wide < wanted then wide = wanted
+    if wide < 4 then wide = 4
+
+    self.items = hostGrow(self.items, wide)
+
+
+{-
+   The same transfer, and the same *kind* of transfer - which is the whole reason this is a write
+   rather than `.push`.
+
+   `arr[arr.length] = item` is an assignment through a place, so the ownership pass reads the
+   hand-over out of it exactly as it reads the one out of `store(self.run.items + count, item)`
+   above, and nothing is released at the end of this body. `.push(item)` appends just as well and
+   passes the element as an *operand*, which is a use - so the frame went on owning a value the array
+   was holding and released it. Host's own note says the same thing from the other side.
+-}
+pub fn push(&self: Array(a), ->item: a) -> {}:
+    let count = self.length :: Size
+    reserve(self, count + 1)
+
+    hostWrite(self.items, count, item)
+    self.length = truncate(count + 1) :: Count
+
+-- The window `slice` makes, with the clamping taken out - `Array.yana` is where the reason is. The
+-- base does not move on this target: `items` is the whole host array in every slice of it, so what
+-- a caller may read is the `offset` this advances, up to `offset + length`.
+fn unclampedSlice(return self: Flat(a), from: Size, count: Size) -> Flat(a) =
+    Flat {items: self.items, length: count, offset: self.offset + from}
+
+-- The same clamping, and the window moves rather than the base. `items` is the whole host array in
+-- every slice of it, which is why `values` has no JS body: what a caller may read is `offset` up to
+-- `offset + length` and nothing outside it.
+pub fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
+    let &start = from :: Size
+    if start < 0 then start = 0
+    if start > self.length then start = self.length
+
+    let &end = to :: Size
+    if end < start then end = start
+    if end > self.length then end = self.length
+
+    return Flat {items: self.items, length: end - start, offset: self.offset + start}
+
+{-
+   And on JS, where closing the gap is a `copyWithin` rather than a block move.
+
+   The element still comes out *before* the gap closes, and for the same reason the native body gives:
+   a move over a live value is bytes moving over one, which owes its own bookkeeping. So `doomed`
+   is where it goes and a `->` binding owns what it holds, exactly as above - and the answer is a
+   `Maybe(a)` on both targets because §13.3 is about who gets the element rather than about how the
+   container is stored.
+
+   **One body for both of §14's rows**, which is what `@host` on the count bought. `copyWithin` moves
+   and does not shorten, so it leaves the last slot holding a duplicate of an element past the count;
+   on the row whose elements are host objects that is a reference nothing would ever release. What
+   releases it is the line after it. `self.length` on that row *is* `arr.length`, assigning it
+   truncates, and truncating is what drops the duplicate - so recording the new count and freeing the
+   slot are the same statement rather than two operations that have to agree.
+
+   It was written as a `hostFixedCapacity` branch with `.splice` on one side, which is what that row
+   needs when the count is stored somewhere else. Nothing needs it now: `.splice` shortens *and*
+   renumbers, and the only thing this body wanted from it was the shortening.
+-}
+pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
+    let count = self.length :: Size
+    if (bitcast(index) :: U32) >= (bitcast(count) :: U32) then return Nothing
+
+    let ->doomed = hostRead(self.items, index :: Size)
+
+    hostCopyWithin(self.items, index :: Size, (index :: Size) + 1, count)
+    self.length = truncate(count - 1) :: Count
+
+    return Just(doomed)
+
+{-
+   The same traversal, and no release - Implementation-Containers.md §14's "release: nothing".
+
+   Which is the whole of what a collector target changes, and it is worth saying that it changes
+   *only* that: the elements still have to be walked, because whether an element's lifetime ends in
+   something is a question about the element type and not about who owns the bytes. An
+   `Array(Connection)` closes its connections here on both targets; an `Array(Int)` has nothing to run
+   at each element, so the same body folds to nothing on both.
+-}
+instance Reclaim(Array(a)):
+    fn reclaim(->value: Array(a)) -> {}:
+        let count = value.length :: Int
+        let &i = 0 :: Int
+
+        while i < count:
+            let ->doomed = hostRead(value.items, i :: Size)
+            i = i + 1

@@ -20,9 +20,30 @@
  * against the requirement, rather than as a pile of errors inside a body the user did not write
  * in that form.
  *
- * This milestone specializes every generic call: there is no erased ABI, no runtime GenEnv and no
- * witness passing, so a call whose type arguments are not concrete at some point in the call
- * chain is rejected rather than lowered.
+ * A concrete call has two lowerings and both are first-class outputs. `Program::specialization`
+ * chooses: `Always` clones the body per argument list, `Generic` emits an erased call
+ * (emitErasedCall) against a runtime environment the *caller* builds - genEnvFor interns one
+ * `genEnv$f(Int)` global per (callee, argument list), one pointer per slot of the callee's
+ * GenSchema, holding a type descriptor or a witness. So which form a call site takes is a choice
+ * rather than a property of the callee, and the erased body is emitted once instead of per
+ * instantiation.
+ *
+ * The erased path is not universal yet: genericBodyLowerable declines a body that calls another
+ * generic or defers a class dispatch, because both would need an environment built from *this*
+ * function's slots rather than from concrete types (Implementation-Generics.md part 9's forwarded
+ * and mixed environments). A declined call site specializes instead, which is always available for
+ * a concrete argument list - so the erased path is a staged optimization rather than a cliff.
+ *
+ * A call whose type arguments are *not* concrete is neither: it becomes an InstGenCall inside the
+ * enclosing generic, and the callee's requirements are forwarded onto the enclosing function's
+ * context for whoever instantiates that one to prove.
+ *
+ * That the caller builds the environment out of concrete types and witnesses it already holds is
+ * what makes an erased generic exportable across a compilation boundary - nothing in a GenEnv comes
+ * from the callee's compilation. See Analysis-Modules.md §5.3.1, which also states the two rules
+ * that would make it an ABI: the schema is derived from the *declared* context (which is why a
+ * `pub` generic must write its constraints rather than infer them), and the lowerability check has
+ * to be reported at the export rather than silently falling back to specialization.
  */
 
 /*

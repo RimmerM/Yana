@@ -1,0 +1,21 @@
+-- An import cycle, reached indirectly, and accepted - Analysis-Modules.md §2.2.
+--
+-- Ring imports Loop and Loop imports Ring, so the cycle is closed one module below this one. It
+-- used to be rejected, and the reason was real while it lasted: a module was interned before its
+-- declarations were resolved, so a module reached a second time while it was still being resolved
+-- held only what came before the import that led back to it - and what the program meant depended
+-- on which file was named first.
+--
+-- What removes the reason is that an import no longer triggers the resolution of what it names.
+-- The passes run over the whole program, each one finishing for every module before the next
+-- starts, so after the declare pass every declaration in the program exists and no pass has to ask
+-- whether another module is finished.
+--
+-- Both directions are exercised, because they are answered by different passes: `ringSize` calls
+-- across the cycle, which the signature pass resolves, and `ringOf`/`loopOf` name types across it,
+-- which the declare and define passes do.
+
+import Ring
+import Loop
+
+fn main() -> Int = ringSize() * 10 + loopOf(Ring {span: 3}).width

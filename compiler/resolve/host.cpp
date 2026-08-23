@@ -25,7 +25,8 @@
  *   one shape rather than two and `Array(a)`'s teardown is one rule rather than two.
  */
 
-// Host's source is `lib/Host.yana`.
+// Host's source is `lib/Native/Host.js.yana` - a file selected by its name, so a native build
+// never reads it at all. See TargetSelector in settings.h.
 
 // Declared in host.h, which is where the rule and its two readers are argued. At file scope
 // rather than in the anonymous namespace below because the JS emitter is the other reader.
@@ -295,26 +296,15 @@ namespace {
 
 } // namespace
 
-void defineHost(Program& program) {
+void definePreludeHost(Program& program, Module& native) {
     auto& context = program.context;
-
-    // Every declaration here is a signature with no body - `attachIntrinsic` below is what gives
-    // each one a meaning - so this module is parsed on the same terms as Core and Native.
-    auto ast = parseLibraryModule(context, "Host"_v, true);
-    if(!ast) return;
-
-    auto module = program.addModule(ast->name, *ast->region);
-    program.embeddedAsts.push(ast);
-    program.host = module;
-
-    resolveImports(*module, *ast, nullptr);
-    resolveModuleDecls(*module, *ast, nullptr, true);
+    auto module = &native;
 
     /*
      * Only where the declarations exist.
      *
-     * Every one of them is `@platform(js)`, so on a native build this module read no declarations
-     * and there is nothing to attach a hook to - which `attachIntrinsic` would report as an internal
+     * Every one of them is `@platform(js)`, so on a native build the host file declared nothing and
+     * there is nothing to attach a hook to - which `attachIntrinsic` would report as an internal
      * error rather than skip, and rightly: a missing declaration is normally a typo.
      */
     if(!isJsMode(context.settings.mode)) return;

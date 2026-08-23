@@ -129,7 +129,7 @@ struct Expansion {
      * One arm, which is exhaustive because a newtype has exactly one constructor, and a match rather
      * than a field access because a newtype's content is not a named field: positional content is
      * reachable only by pattern matching, which is Analysis-Derive.md §1's fourth probe and is still
-     * true. This is `openBits` in `Native/Linux.yana`, written once per argument instead of once per
+     * true. This is `openBits` in `Native/Linux.x64.yana`, written once per argument instead of once per
      * newtype.
      *
      * `bind` is the convention the class declared for the argument being unwrapped, carried onto the
@@ -165,7 +165,7 @@ struct Expansion {
  * implements some of a class's obligations is worse than none, because the missing ones are then
  * reported at whichever call site reaches them rather than here.
  */
-static void deriveNewtypeInstance(Module& module, ast::Module& ast, ast::Decl& decl,
+static void deriveNewtypeInstance(Module& module, ast::Decl& decl,
                                   RecordType& record, ast::Derive derive) {
     auto& context = module.context;
     auto global = *module.types;
@@ -363,7 +363,10 @@ static void deriveNewtypeInstance(Module& module, ast::Module& ast, ast::Decl& d
      * here would be repeating what the class already fixed - and would be a second place for the two
      * to disagree.
      */
-    Expansion expansion { ast.region, derive.source };
+    // The compilation's one AST region - Context::parseRegion. A derived instance is an AST
+    // written here rather than in a file, and it has to be addressable through the same base every
+    // declaration of this module is.
+    Expansion expansion { module.context.parseRegion, derive.source };
     ast::DeclList members;
 
     for(Size i = 0; i < functions.size(); i++) {
@@ -447,7 +450,7 @@ static void deriveNewtypeInstance(Module& module, ast::Module& ast, ast::Decl& d
         .kind = ast::Type::App,
     };
 
-    auto instance = new (ast.region) ast::Decl {
+    auto instance = new (module.context.parseRegion) ast::Decl {
         .instance = { head, {}, members },
         .attributes = {},
         .source = derive.source,
@@ -458,7 +461,7 @@ static void deriveNewtypeInstance(Module& module, ast::Module& ast, ast::Decl& d
     resolveInstance(module, *instance);
 }
 
-void deriveNewtypeInstances(Module& module, ast::Module& ast, ast::Decl& decl) {
+void deriveNewtypeInstances(Module& module, ast::Decl& decl) {
     auto derives = decl.alias.derives;
     if(derives.isEmpty()) return;
 
@@ -485,6 +488,6 @@ void deriveNewtypeInstances(Module& module, ast::Module& ast, ast::Decl& decl) {
     }
 
     for(auto derive: derives.contents(module.parse)) {
-        deriveNewtypeInstance(module, ast, decl, *record, derive);
+        deriveNewtypeInstance(module, decl, *record, derive);
     }
 }

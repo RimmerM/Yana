@@ -1,0 +1,52 @@
+{-
+   The number and the name a payload-free sum is - Analysis-Language.md §5.1.
+
+   One class, and a file of its own because it is the one class in this module that nothing in this
+   module can join. Every instance of it is generated: `deriving` is not written, an author cannot
+   write one, and what it answers is decided by the `data` declaration and by nothing else. The
+   classes in `Core.yana` beside it are all the other kind - the ones a user type joins by writing
+   an instance - so keeping this one with them said that it was the same sort of thing.
+-}
+
+{-
+   The number a payload-free sum is - Analysis-Language.md §5.1.
+
+   A `data` whose constructors all carry nothing already lowers to an integer, and `@value(n)` is how
+   a declaration says *which* integer: `data Whence = @value(0) FromStart | @value(1) FromCurrent |
+   @value(2) FromEnd` is the three numbers `lseek` takes, said once, where the alternative was a
+   nineteen-line `match` per boundary crossing.
+
+   **Nobody writes an instance of this.** It is generated for every payload-free sum, pinned or not,
+   because what all four functions do is decided by the declaration and there is nothing an author
+   could add. Writing one is refused for the same reason writing `instance Num(Int)` is.
+
+   `valueOf` is total and free - the value *is* the number, so it compiles to a reinterpretation and
+   the optimizer sees straight through it. `fromValue` is partial and says so: a number the
+   declaration does not name is a number that is not one of these, and `Maybe` is where that goes.
+   Its cost is a membership test - two comparisons where the values run consecutively, and one per
+   constructor where they do not, which is what a set like `errno`'s is.
+-}
+pub class Enum(a):
+  fn valueOf(item: a) -> I64
+  fn fromValue(number: I64) -> Maybe(a)
+
+  -- The same pair over the constructor's *name*, which is the other thing a declaration decides and
+  -- the compiler is the only thing that knows.
+  --
+  -- Here rather than in a class of its own because it is the same statement in a second currency: a
+  -- payload-free sum is a closed set of alternatives, and `@value(n)` says which number each one is
+  -- while the declaration itself says which word each one is. There is nothing an author could
+  -- contribute to either, so both are generated and neither may be written.
+  --
+  -- `nameOf` is total and its result is a literal: a chain of comparisons picking one constant
+  -- string, which folds to that string outright wherever the constructor is known. `fromName` is
+  -- partial for the reason `fromValue` is - a word the declaration does not name is not one of these
+  -- - and it is the one function here that is not free, being a string comparison per candidate. Its
+  -- generated form compares lengths first and only then contents, so a name of the wrong length
+  -- costs one integer compare however many constructors the type has.
+  --
+  -- These are the derived `Show` for an enum, made available to a program rather than only to the
+  -- formatter: `describeError` and `nameOf` answer different questions about one value, and a type
+  -- that wants prose keeps writing the first while getting the second for nothing.
+  fn nameOf(item: a) -> String
+  fn fromName(name: String) -> Maybe(a)

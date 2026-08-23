@@ -221,6 +221,103 @@ bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
  * selected by matching instead of by equality (see matchInstance), and each of its implementations
  * becomes a generic function over that context, specialized for what a selection bound.
  */
+/*
+ * The orphan rule - doc/spec/classes.md, and Analysis-Modules.md §2.1.3.
+ *
+ * "An instance must be declared either in the module declaring the class or in a module declaring
+ * one of the types in its head." It is a *modularity* guarantee rather than a soundness one:
+ * coherence is enforced program-wide by duplicate detection over `Program::instancesByClass`, at any
+ * module size, and was enforced that way before this existed. What this promises is that adding a
+ * module cannot introduce an instance for a class and a type that both belong to someone else, so no
+ * third party can change how your call sites resolve.
+ *
+ * The unit is the module, which is now a directory. That is what makes "put the display logic in a
+ * display file" legal - `MyApp/Model.yana` declaring `MyType` and `MyApp/Display.yana` writing
+ * `instance Show(MyType)` are one module - and it is why grouping is not optional: under
+ * file-modules a class's instances cannot leave the file declaring the class, so `Text.yana` could
+ * not be split at all.
+ */
+
+// Whether this module is the one that declared `type`. By identity against the module's own type
+// table rather than by reading the declaration's location, because that table is what "a module
+// declares this type" means everywhere else - and it holds the primitives, which have no location.
+static bool declaresType(Module& module, TypePtr type) {
+    if(!type) return false;
+
+    for(auto& entry: module.namedTypes) {
+        if(entry == type) return true;
+    }
+
+    return false;
+}
+
+/*
+ * Whether any nominal type reachable from this head argument is one this module declared.
+ *
+ * Reachable rather than just the argument itself: `instance Show(Maybe(MyType))` is written in
+ * MyType's module and `MyType` is a type in its head, which is the reading that makes the rule
+ * usable. An instantiation is asked about as its declaration - `Maybe(Int)` is `Maybe` - since that
+ * is what a module declared.
+ *
+ * The structural types are descended into and are never themselves an answer: nobody declares
+ * `[a]`, `%a` or `{x: Int}`, so an instance for one of those is placed by what is inside it.
+ */
+static bool headMentionsLocalType(Module& module, TypePtr type, U32 depth = 0) {
+    if(!type || depth > 8) return false;
+
+    auto global = *module.types;
+    auto value = global[type];
+
+    if(declaresType(module, type)) return true;
+
+    switch(value->kind) {
+        case Type::Record: {
+            auto record = (RecordType*)value;
+            if(record->instanceOf && declaresType(module, (TypePtr)record->instanceOf)) return true;
+
+            for(auto arg: record->instanceArgs.contents(global)) {
+                if(headMentionsLocalType(module, arg, depth + 1)) return true;
+            }
+
+            return false;
+        }
+        case Type::Ptr:
+        case Type::Ref:
+        case Type::Borrow:
+            return headMentionsLocalType(module, ((PtrType*)value)->to, depth + 1);
+        case Type::Array:
+            return headMentionsLocalType(module, ((ArrayType*)value)->content, depth + 1);
+        case Type::Tup: {
+            for(auto field: ((TupType*)value)->fields.contents(global)) {
+                if(headMentionsLocalType(module, field.type, depth + 1)) return true;
+            }
+
+            return false;
+        }
+        default:
+            return false;
+    }
+}
+
+static void checkOrphanRule(Module& module, TypeClass& typeClass, Buffer<TypePtr> args, StringId className,
+                            LocationId source) {
+    // The class is ours, which is the first of the two ways to be placed.
+    if(typeClass.module == &module) return;
+
+    for(auto arg: args) {
+        if(headMentionsLocalType(module, arg)) return;
+    }
+
+    // A generated instance has no source and no module to be an orphan in - Core builds its
+    // primitives' instances itself, and they are Core's on both counts anyway.
+    if(source == kNullLocation) return;
+
+    module.context.diagnostics.error("this instance of %@ is an orphan - it is in %@, which declares neither %@ nor any type in the instance head, so a third module could declare the same instance and which one a call site sees would depend on what happened to be compiled. Put it in the module declaring the class or in the one declaring the type, or wrap the type in a qualified alias"_v,
+                                     source, module.context.findName(className),
+                                     module.context.findName(module.name),
+                                     module.context.findName(className));
+}
+
 void resolveInstance(Module& module, ast::Decl& decl) {
     auto& type = decl.instance.type;
     StringId className {};
@@ -290,6 +387,8 @@ void resolveInstance(Module& module, ast::Decl& decl) {
     gen->open = false;
     resolveConstraintClasses(module, *gen);
     auto parametric = gen->types.isNotEmpty();
+
+    checkOrphanRule(module, *typeClass, toBuffer(args), className, decl.source);
 
     auto instance = new (module.arena) ClassInstance(classPointer);
     instance->module = &module;

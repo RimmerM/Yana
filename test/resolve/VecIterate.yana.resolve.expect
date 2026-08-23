@@ -1,36 +1,36 @@
+table closure$Core.continuation$1(Flat(Int), Int, ()) before Core.continuation$1(Flat(Int), Int, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Core.continuation$4(Flat(Int), Int, ()) before Core.continuation$4(Flat(Int), Int, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Core.continuation$1(Array(Int), Int, ()) before Core.continuation$1(Array(Int), Int, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Core.continuation$4(Array(Int), Int, ()) before Core.continuation$4(Array(Int), Int, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Core.continuation$1(Array(Float), Float, ()) before Core.continuation$1(Array(Float), Float, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$Core.continuation$4(Array(Float), Float, ()) before Core.continuation$4(Array(Float), Float, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
 let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
-
-table closure$Collections.continuation$1(Flat(Int), Int, ()) before Collections.continuation$1(Flat(Int), Int, ()) {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$Collections.continuation$0(Flat(Int), Int, ()) before Collections.continuation$0(Flat(Int), Int, ()) {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$Collections.continuation$1(Array(Int), Int, ()) before Collections.continuation$1(Array(Int), Int, ()) {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$Collections.continuation$0(Array(Int), Int, ()) before Collections.continuation$0(Array(Int), Int, ()) {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$Collections.continuation$1(Array(Float), Float, ()) before Collections.continuation$1(Array(Float), Float, ()) {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$Collections.continuation$0(Array(Float), Float, ()) before Collections.continuation$0(Array(Float), Float, ()) {
-  .0 teardown$none
-  .1 teardown$none
-}
 
 table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
   .0 teardown$none
@@ -77,93 +77,6 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
-  b0:
-    %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
-    %v4 = add %v1, %v3 : %%U8
-    %v5 = load [%v4] : %U8
-    ret %v5
-}
-
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
-  b0:
-    %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
-    %v5 = add %v2, %v4 : %%U8
-    assign [%v5], %block
-    ret
-}
-
-fn freeHeap(%allocation: %U8) -> () {
-  b0:
-    %v1 = bitcast %allocation : Long
-    %v3 = cmp_eq %v1, 0 : Bool
-    je %v3, b1, b2
-
-  b1:
-    ret
-
-  b2:
-    jmp b3
-
-  b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
-    %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
-    %v14 = bitcast %allocation : %%U8
-    %v15 = call freeListHead, %sizeClass : %U8
-    assign [%v14], %v15
-    call setFreeListHead, %sizeClass, %allocation
-    ret
-}
-
-fn releaseRun(Int)(%self: Run(Int)) -> () {
-  b0:
-    %v1 = load %self@Run.ownsHeap : @bits(2) U32
-    %v2 = cast %v1 : U32
-    %v4 = cast 1 : U32
-    %v5 = cmp_eq %v2, %v4 : Bool
-    je %v5, b1, b2
-
-  b1:
-    %v7 = load %self@Run.items : %Int
-    %v8 = bitcast %v7 : %U8
-    call freeHeap, %v8
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    ret
-}
-
-fn releaseRun(Float)(%self: Run(Float)) -> () {
-  b0:
-    %v1 = load %self@Run.ownsHeap : @bits(2) U32
-    %v2 = cast %v1 : U32
-    %v4 = cast 1 : U32
-    %v5 = cmp_eq %v2, %v4 : Bool
-    je %v5, b1, b2
-
-  b1:
-    %v7 = load %self@Run.items : %Float
-    %v8 = bitcast %v7 : %U8
-    call freeHeap, %v8
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    ret
-}
-
 fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %empty = vsplat 0 : Vec(Int)
@@ -175,7 +88,7 @@ fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Ou
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Collections.continuation$1(Flat(Int), Int, ()) : %()
+    %v13 = symbol Core.continuation$1(Flat(Int), Int, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Flat(a), a).chunks(Int, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -193,7 +106,7 @@ fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Ou
     ret %v23
 }
 
-fn Collections.continuation$1(Flat(Int), Int, ())(%env: %{width: I64, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$1(Flat(Int), Int, ())(%env: %{width: I64, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : I64
     %v3 = load [%env].width : I64
@@ -328,7 +241,7 @@ fn vectorsMasked(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: {Vec(Int)
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Collections.continuation$0(Flat(Int), Int, ()) : %()
+    %v12 = symbol Core.continuation$4(Flat(Int), Int, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Flat(a), a).chunks(Int, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -346,7 +259,7 @@ fn vectorsMasked(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: {Vec(Int)
     ret %v22
 }
 
-fn Collections.continuation$0(Flat(Int), Int, ())(%env: %{width: I64, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$4(Flat(Int), Int, ())(%env: %{width: I64, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : I64
     %v3 = load [%env].width : I64
@@ -434,7 +347,7 @@ fn vectors(Array(Int), Int, ())(%self: Array(Int), %body: (value$: Vec(Int)) -> 
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Collections.continuation$1(Array(Int), Int, ()) : %()
+    %v13 = symbol Core.continuation$1(Array(Int), Int, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Array(a), a).chunks(Int, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -452,7 +365,7 @@ fn vectors(Array(Int), Int, ())(%self: Array(Int), %body: (value$: Vec(Int)) -> 
     ret %v23
 }
 
-fn Collections.continuation$1(Array(Int), Int, ())(%env: %{width: I64, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$1(Array(Int), Int, ())(%env: %{width: I64, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : I64
     %v3 = load [%env].width : I64
@@ -586,7 +499,7 @@ fn vectorsMasked(Array(Int), Int, ())(%self: Array(Int), %body: (value$: {Vec(In
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Collections.continuation$0(Array(Int), Int, ()) : %()
+    %v12 = symbol Core.continuation$4(Array(Int), Int, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Array(a), a).chunks(Int, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -604,7 +517,7 @@ fn vectorsMasked(Array(Int), Int, ())(%self: Array(Int), %body: (value$: {Vec(In
     ret %v22
 }
 
-fn Collections.continuation$0(Array(Int), Int, ())(%env: %{width: I64, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$4(Array(Int), Int, ())(%env: %{width: I64, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : I64
     %v3 = load [%env].width : I64
@@ -692,7 +605,7 @@ fn vectors(Array(Float), Float, ())(%self: Array(Float), %body: (value$: Vec(Flo
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: Flat(Float)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Collections.continuation$1(Array(Float), Float, ()) : %()
+    %v13 = symbol Core.continuation$1(Array(Float), Float, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Array(a), a).chunks(Float, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -710,7 +623,7 @@ fn vectors(Array(Float), Float, ())(%self: Array(Float), %body: (value$: Vec(Flo
     ret %v23
 }
 
-fn Collections.continuation$1(Array(Float), Float, ())(%env: %{width: I64, body: &(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$1(Array(Float), Float, ())(%env: %{width: I64, body: &(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : I64
     %v3 = load [%env].width : I64
@@ -867,7 +780,7 @@ fn vectorsMasked(Array(Float), Float, ())(%self: Array(Float), %body: (value$: {
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Float)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Collections.continuation$0(Array(Float), Float, ()) : %()
+    %v12 = symbol Core.continuation$4(Array(Float), Float, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Array(a), a).chunks(Float, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -885,7 +798,7 @@ fn vectorsMasked(Array(Float), Float, ())(%self: Array(Float), %body: (value$: {
     ret %v22
 }
 
-fn Collections.continuation$0(Array(Float), Float, ())(%env: %{width: I64, body: &(value$: {Vec(Float), Int}) -> Outcome((), ())}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$4(Array(Float), Float, ())(%env: %{width: I64, body: &(value$: {Vec(Float), Int}) -> Outcome((), ())}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : I64
     %v3 = load [%env].width : I64
@@ -1030,6 +943,93 @@ fn Reclaim(Array(a)).reclaim(Float)(%value: Array(Float)) -> () {
     %v25 = add %v23, 1 : Int
     assign %i, %v25
     jmp b1
+}
+
+fn freeListHead(%sizeClass: I64) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : I64
+    %v3 = mul %sizeClass, %v2 : I64
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : I64
+    %v4 = mul %sizeClass, %v3 : I64
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : I64
+    %v10 = mul 8, %v9 : I64
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %I64
+    %sizeClass = load [%v12] : I64
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(Int)(%self: Run(Int)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Int
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn releaseRun(Float)(%self: Run(Float)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Float
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
 }
 
 fn sumInts(%xs: Flat(Int)) -> Int {

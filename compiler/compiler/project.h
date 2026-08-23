@@ -58,7 +58,7 @@ void applyProjectFile(CompileSettings& settings, const ProjectFile& project);
 ///
 /// Shared with the language server for the same reason the module map is: an editor that resolved
 /// from a different root than the build would report a different program's errors.
-SourceEntry* findRootModule(ModuleMap& map, const CompileSettings& settings, Tritium::String& error);
+ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, Tritium::String& error);
 
 /// Joins two path segments with a separator, unless `relative` is already absolute - in which case
 /// it is returned as it stands, because a project file naming `/opt/yana/lib` means that directory.

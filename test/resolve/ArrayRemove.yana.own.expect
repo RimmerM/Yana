@@ -1,9 +1,52 @@
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
+}
+
 fn +=(I64) {
   arg target writable
   arg amount readonly
   %target: I64 borrowed writable live [0, 3)
   %amount: I64 borrowed readonly live [0, 2)
   %local2: I64 readonly live [1, 3)
+}
+
+fn emptyArray(Buffer) {
+  %local0: Array(Buffer) droppable readonly live [0, 4)
+  %local1: Run(Buffer) droppable readonly live [1, 3)
+  %local2: Run(Buffer) droppable readonly live never
+}
+
+fn push(Buffer) {
+  arg self writable resizable
+  arg item writable retained
+  %self: Array(Buffer) borrowed droppable writable resizable live [0, 25)
+  %item: Buffer droppable writable escapes live [0, 20)
+}
+
+fn reserve(Buffer) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Array(Buffer) borrowed droppable writable resizable live [0, 6) [7, 11)
+}
+
+fn growArray(Buffer) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Array(Buffer) borrowed droppable writable resizable live [0, 24)
+  %wide: I64 writable live [5, 22)
+}
+
+fn remove(Buffer) {
+  arg self writable
+  arg index readonly
+  %self: Array(Buffer) borrowed droppable writable live [0, 6) [9, 63)
+  %local1: Maybe(Buffer) droppable readonly live [6, 9)
+  %local2: Buffer droppable readonly live [17, 19)
+  %local3: Buffer droppable readonly live [19, 65)
+  %local4: Maybe(Buffer) droppable readonly live [63, 66)
 }
 
 fn -=(I64) {
@@ -14,42 +57,20 @@ fn -=(I64) {
   %local2: I64 readonly live [1, 3)
 }
 
-fn blockShort {
-  arg to readonly
-  arg from readonly
-  arg count readonly
+fn Reclaim(Array(a)).reclaim(Buffer) {
+  arg value readonly
+  %value: Array(Buffer) borrowed droppable readonly live [0, 10) [11, 26)
+  %i: Int writable live [2, 8) [11, 26)
+  %local2: Buffer droppable readonly live [18, 20)
+  %local3: Buffer droppable readonly live [20, 22)
 }
 
-fn blockPair {
-  arg to readonly
-  arg from readonly
-  arg count readonly
+fn mapMemory {
+  arg size readonly
 }
 
-fn blockAscending {
-  arg to readonly
-  arg from readonly
-  arg count readonly
-  %at: I64 writable live [9, 109) [116, 132)
-}
-
-fn blockDescending {
-  arg to readonly
-  arg from readonly
-  arg count readonly
-  %at: I64 writable live [13, 111) [120, 136)
-}
-
-fn copyMemory {
-  arg to readonly
-  arg from readonly
-  arg count readonly
-}
-
-fn moveMemory {
-  arg to readonly
-  arg from readonly
-  arg count readonly
+fn exitProcess {
+  arg status readonly
 }
 
 fn initHeap {
@@ -90,6 +111,44 @@ fn freeHeap {
   arg allocation readonly
 }
 
+fn blockShort {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockPair {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockAscending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [9, 109) [116, 132)
+}
+
+fn blockDescending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: I64 writable live [13, 111) [120, 136)
+}
+
+fn copyMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn moveMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
 fn abortProcess {
 }
 
@@ -111,65 +170,6 @@ fn byteSpan(Buffer) {
 fn releaseRun(Buffer) {
   arg self readonly
   %self: Run(Buffer) borrowed droppable readonly live [0, 7)
-}
-
-fn mapMemory {
-  arg size readonly
-}
-
-fn exitProcess {
-  arg status readonly
-}
-
-fn checkFailed {
-}
-
-fn checkCondition {
-  arg failed readonly
-}
-
-fn emptyArray(Buffer) {
-  %local0: Array(Buffer) droppable readonly live [0, 4)
-  %local1: Run(Buffer) droppable readonly live [1, 3)
-  %local2: Run(Buffer) droppable readonly live never
-}
-
-fn push(Buffer) {
-  arg self writable resizable
-  arg item writable retained
-  %self: Array(Buffer) borrowed droppable writable resizable live [0, 25)
-  %item: Buffer droppable writable escapes live [0, 20)
-}
-
-fn reserve(Buffer) {
-  arg self writable resizable
-  arg wanted readonly
-  %self: Array(Buffer) borrowed droppable writable resizable live [0, 6) [7, 11)
-}
-
-fn growArray(Buffer) {
-  arg self writable resizable
-  arg wanted readonly
-  %self: Array(Buffer) borrowed droppable writable resizable live [0, 24)
-  %wide: I64 writable live [5, 22)
-}
-
-fn remove(Buffer) {
-  arg self writable
-  arg index readonly
-  %self: Array(Buffer) borrowed droppable writable live [0, 6) [9, 63)
-  %local1: Maybe(Buffer) droppable readonly live [6, 9)
-  %local2: Buffer droppable readonly live [17, 19)
-  %local3: Buffer droppable readonly live [19, 65)
-  %local4: Maybe(Buffer) droppable readonly live [63, 66)
-}
-
-fn Reclaim(Array(a)).reclaim(Buffer) {
-  arg value readonly
-  %value: Array(Buffer) borrowed droppable readonly live [0, 10) [11, 26)
-  %i: Int writable live [2, 8) [11, 26)
-  %local2: Buffer droppable readonly live [18, 20)
-  %local3: Buffer droppable readonly live [20, 22)
 }
 
 fn makeBuffer {

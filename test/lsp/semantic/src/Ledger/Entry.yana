@@ -1,0 +1,13 @@
+-- One file of the module `Ledger`, which is the directory this sits in - Analysis-Modules.md §2.1.
+-- Nothing here says so: a file belongs to its directory's module and writes a declaration only when
+-- it does not want to.
+
+import Shapes
+
+pub data Entry {amount: Int}
+
+-- Private to the module, and reached by the file beside this one with no `pub` and no import.
+fn doubled(e: Entry) -> Int = e.amount * 2
+
+-- The import above is this file's, which is the half of §2.1.2 Total.yana asserts the other side of.
+pub fn sized(s: Shapes.Shape) -> Int = 1

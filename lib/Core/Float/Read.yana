@@ -1,0 +1,293 @@
+module Core
+
+import Native
+
+{-
+   Reading a float - the inverse of `Show.yana` beside this, and the third file of the subject.
+
+   `Ryu.yana` says why the three are here and why none of them is a module of its own. The scan is
+   shared and the conversion is not: finding where a number ends and pulling its digits apart is text
+   work with one answer on both targets, and turning those digits into the nearest float is Ryu's
+   inverse natively and the host's `Number` on JS.
+
+   The `Read` class, the error type and the integer instances are `Core/Read.yana`'s. This joins them
+   by declaring instances, which needs no import and no `pub` - a module is a directory.
+-}
+
+{-
+   ------------------------------------------------------------------------------------------
+   Reading a float.
+   ------------------------------------------------------------------------------------------
+
+   The scan is shared and the conversion is not. Finding where a number ends and pulling its digits
+   apart is text work with one answer on both targets; turning those digits into the nearest float
+   is Ryu's inverse natively and the host's `Number` on JS, for the reason Host gives.
+-}
+
+-- What a decimal number in the text turned out to be. `special` is 0 for an ordinary one, 1 for an
+-- infinity and 2 for a NaN, which are the two `show` writes and which therefore have to read back.
+data Scanned {stop: Size, mantissa: U64, exponent: Int, digits: Int, negative: Bool, special: Int}
+
+fn lowerAscii(unit: Int) -> Int = if unit >= 65 && unit <= 90 then unit + 32 else unit
+
+{-
+   The extent and the pieces of a decimal number at `from`, or nothing where there is not one.
+
+   **Seventeen digits are kept and the rest are counted.** Seventeen is what a double distinguishes,
+   so an eighteenth changes nothing about the answer - but its *place value* does, and dropping a
+   digit divides the mantissa by ten. Without the matching increment of the exponent the whole
+   number reads as a tenth of itself, which is a bug this library has had before and which is why
+   the sentence is here rather than in a commit message.
+
+   The kept digits are rounded on the first one dropped rather than truncated, which keeps the
+   error below half a unit in the seventeenth digit - well inside one unit in the last place of the
+   result. It is not the exact rounding a big-integer fallback would give; it is what keeps a literal
+   written with more digits than a double holds from landing on the wrong side of its neighbour.
+-}
+fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
+    let units = length(text)
+    let &at = from
+    let &negative = False
+
+    if at < units:
+        let unit = stringUnit(text, at)
+        if unit == 45:
+            negative = True
+            at = at + 1
+        else if unit == 43:
+            at = at + 1
+
+    -- `Inf` and `NaN`, which are what `show` writes and are matched in either case. Three units and
+    -- no more: `Infinity` reads as `Inf` with the cursor left on the `i`, which is the same answer
+    -- a caller gets for any trailing text it did not ask about.
+    if at + 3 <= units:
+        let first = lowerAscii(stringUnit(text, at))
+        let second = lowerAscii(stringUnit(text, at + 1))
+        let third = lowerAscii(stringUnit(text, at + 2))
+
+        if first == 105 && second == 110 && third == 102:
+            return Just(Scanned {stop: at + 3, mantissa: 0, exponent: 0, digits: 0,
+                                 negative: negative, special: 1})
+
+        if first == 110 && second == 97 && third == 110:
+            return Just(Scanned {stop: at + 3, mantissa: 0, exponent: 0, digits: 0,
+                                 negative: negative, special: 2})
+
+    let &mantissa = 0 :: U64
+    let &digits = 0 :: Int
+    let &dropped = 0 :: Int
+    let &fractional = 0 :: Int
+    let &roundUp = False
+    let &afterPoint = False
+    let &any = False
+
+    while at < units:
+        let unit = stringUnit(text, at)
+
+        if unit == 46:
+            if afterPoint then break
+            afterPoint = True
+        else:
+            let digit = digitValue(unit, 10)
+            if digit < 0 then break
+
+            any = True
+
+            if digits < 17:
+                mantissa = mantissa * 10 + wideCount(digit)
+
+                -- Leading zeros are not significant digits, which is what makes `0.00012` five
+                -- digits' worth of room rather than one.
+                if mantissa != 0 then digits = digits + 1
+            else:
+                if dropped == 0 && digit >= 5 then roundUp = True
+                dropped = dropped + 1
+
+            if afterPoint then fractional = fractional + 1
+
+        at = at + 1
+
+    if !any then return Nothing
+
+    let &exponent = 0 :: Int
+
+    if at < units:
+        let unit = stringUnit(text, at)
+
+        if unit == 101 || unit == 69:
+            let &probe = at + 1
+            let &negativeExponent = False
+
+            if probe < units:
+                let sign = stringUnit(text, probe)
+                if sign == 45:
+                    negativeExponent = True
+                    probe = probe + 1
+                else if sign == 43:
+                    probe = probe + 1
+
+            let &value = 0 :: Int
+            let &length = 0 :: Int
+            let &sawDigit = False
+
+            while probe < units:
+                let digit = digitValue(stringUnit(text, probe), 10)
+                if digit < 0 then break
+
+                sawDigit = True
+
+                -- Four digits is past every exponent either width has, and the cap is what keeps a
+                -- written one from wrapping the `Int` it is accumulated in.
+                if length < 4:
+                    value = value * 10 + digit
+                    if value != 0 then length = length + 1
+
+                probe = probe + 1
+
+            -- An `e` with no digits after it is not part of the number, so the cursor stays in front
+            -- of it and `1e` reads as `1`.
+            if sawDigit:
+                exponent = if negativeExponent then 0 - value else value
+                at = probe
+
+    if roundUp then mantissa = mantissa + 1
+
+    return Just(Scanned {stop: at, mantissa: mantissa, exponent: exponent - fractional + dropped,
+                         digits: digits, negative: negative, special: 0})
+
+@platform(native) let infinityBits = 9218868437227405312 :: U64
+@platform(native) fn signBitOf(negative: Bool) -> U64 =
+    if negative then (1 :: U64) `shl` wideCount(63) else 0
+
+{-
+   Ryu's inverse - `FloatRead.cpp`, and the same tables run the other way.
+
+   `mantissa * 10^exponent` is turned into `m2 * 2^e2` by one multiply against the table, with
+   `exact` recording whether that multiply lost anything; the rounding at the end needs to know,
+   because a value exactly halfway between two floats rounds to even and a value merely *near* the
+   half rounds to whichever side it is on.
+-}
+@platform(native) fn convertDouble(mantissa: U64, exponent: Int, digits: Int, negative: Bool) -> Double:
+    let sign = signBitOf(negative)
+
+    -- Below 1e-324 there is no float to round to but zero, and above 1e309 none but an infinity.
+    -- Both keep the sign, which is what makes `-1e-400` a negative zero.
+    if mantissa == 0 || digits + exponent <= 0 - 324 then return bitcast(sign) :: Double
+    if digits + exponent >= 310 then return bitcast(sign `or` infinityBits) :: Double
+
+    let highest = (truncate(bitWidth(mantissa)) :: Int) - 1
+    let &e2 = 0 :: Int
+    let &m2 = 0 :: U64
+    let &exact = False
+
+    if exponent >= 0:
+        let power = log2Pow5(exponent)
+        e2 = highest + exponent + power - 53
+        m2 = mulShiftPow5(mantissa, exponent, e2 - exponent - (power + 1) + 125)
+
+        -- The multiply is exact when 2^e2 divides the product, which it does whenever `e2` is below
+        -- `exponent` and otherwise exactly when the mantissa has that many trailing zero bits.
+        exact = e2 < exponent || (e2 - exponent < 64 && multipleOfPowerOf2(mantissa, e2 - exponent))
+    else:
+        let power = log2Pow5(0 - exponent)
+        e2 = highest + exponent - (power + 1) - 53
+        m2 = mulShiftInv(mantissa, 0 - exponent, e2 - exponent + (power + 1) - 1 + 125)
+        exact = multipleOfPowerOf5(mantissa, 0 - exponent)
+
+    let &ieeeExponent = e2 + 1023 + ((truncate(bitWidth(m2)) :: Int) - 1)
+    if ieeeExponent < 0 then ieeeExponent = 0
+    if ieeeExponent > 2046 then return bitcast(sign `or` infinityBits) :: Double
+
+    -- How far `m2` has to come down to be a 52-bit field. A subnormal is the case the `1` covers:
+    -- its exponent field is zero and its value is scaled as though the field were one.
+    let shift = (if ieeeExponent == 0 then 1 else ieeeExponent) - e2 - 1023 - 52
+
+    -- Past the width of the value there is nothing left to keep, which is a number below the
+    -- smallest subnormal - the bound above admits a few of those, and this is their answer.
+    if shift >= 64 then return bitcast(sign) :: Double
+
+    let &field = m2
+    let &roundUp = False
+
+    if shift > 0:
+        let stillExact = exact && bitsUpTo(m2, wideCount(shift - 1)) == 0
+        let lastRemoved = (m2 `shr` wideCount(shift - 1)) `and` 1
+
+        -- Up when the bit below the field is set *and* either something survives under it or the
+        -- field would otherwise be odd, which is round-half-to-even said in bits.
+        roundUp = lastRemoved != 0 && (!stillExact || ((m2 `shr` wideCount(shift)) `and` 1) != 0)
+        field = (m2 `shr` wideCount(shift)) + carryOf(roundUp)
+
+    field = bitsUpTo(field, 52)
+
+    -- A field that carried out of its top is the next exponent's zero field, and the exponent has
+    -- room: the largest one this can reach is the infinity, whose field is zero as well.
+    if field == 0 && roundUp then ieeeExponent = ieeeExponent + 1
+
+    return bitcast(sign `or` (wideCount(ieeeExponent) `shl` wideCount(52)) `or` field) :: Double
+
+@platform(native) fn scannedDouble(text: String, from: Size, scanned: Scanned) -> Double:
+    if scanned.special == 2 then return 0.0 / 0.0
+    if scanned.special == 1:
+        let infinite = bitcast(infinityBits) :: Double
+        return if scanned.negative then 0.0 - infinite else infinite
+
+    return convertDouble(scanned.mantissa, scanned.exponent, scanned.digits, scanned.negative)
+
+{-
+   And the host's own, which is `Number` handed the number the *scan* produced.
+
+   **Rebuilt from the mantissa and the exponent rather than sliced out of the source**, which is the
+   one decision here and is about the two targets agreeing rather than about this one. `Number` is
+   correctly rounded over the whole decimal; `convertDouble` is correctly rounded over the seventeen
+   digits it was given, and the scan is where the eighteenth was dropped. Handing the host the
+   original text would make it read digits the other target never saw, and the two would answer one
+   unit in the last place apart for every input written with more digits than a double holds - which
+   is exactly the input a program is most likely to be surprised by.
+
+   So the approximation lives in one place, in the scan, and both targets convert the same number.
+-}
+@platform(js) fn scannedDouble(text: String, from: Size, scanned: Scanned) -> Double:
+    if scanned.special == 2 then return 0.0 / 0.0
+    if scanned.special == 1:
+        let infinite = 1.0 / 0.0
+        return if scanned.negative then 0.0 - infinite else infinite
+
+    let &digits = newStringOfCapacity(32 :: Size)
+    pushUnsigned(scanned.mantissa, digits)
+    pushUnit(digits, 101)
+
+    if scanned.exponent < 0:
+        pushUnit(digits, 45)
+        pushUnsigned(wideCount(0 - scanned.exponent), digits)
+    else:
+        pushUnsigned(wideCount(scanned.exponent), digits)
+
+    let magnitude = hostToNumber(digits)
+    return if scanned.negative then 0.0 - magnitude else magnitude
+
+{-
+   `Read(Double)` and `Read(Float)` - the inverse of the two instances above.
+
+   `Read(Float)` reads a double and narrows it, which is *exactly* rounded rather than nearly so:
+   double rounding is safe when the intermediate carries at least `2p + 2` bits of the target's
+   precision, and 53 is comfortably above the 50 a `Float`'s 24 bits ask for. That is a theorem
+   rather than a measurement, and it is why there is no second table here.
+-}
+instance Read(Double):
+    fn read(from: String, &at: Size) -> Result(ReadError, Double) = match scanDecimal(from, at):
+        Just(scanned):
+            let value = scannedDouble(from, at, scanned)
+            at = scanned.stop
+            Ok(value)
+
+        Nothing -> Err(NoDigits)
+
+instance Read(Float):
+    fn read(from: String, &at: Size) -> Result(ReadError, Float) = match scanDecimal(from, at):
+        Just(scanned):
+            let value = scannedDouble(from, at, scanned)
+            at = scanned.stop
+            Ok(truncate(value) :: Float)
+
+        Nothing -> Err(NoDigits)

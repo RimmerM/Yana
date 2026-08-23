@@ -2,7 +2,10 @@
 -- character above it, and the driver answers definition, hover and references for every one of
 -- them - see LspTester.cpp.
 
+module
+
 import Shapes
+import Ledger
 
 fn pick(a: Int, b: Int) -> Int = if a > b then a else b
 -- ^decl                            ^use
@@ -21,6 +24,8 @@ fn main() -> Int:
     total = total + p.x + sum(p)
 --                    ^field
     let s = Square {side: 3}
+    total = total + Ledger.total(Ledger.Entry {amount: 5})
+--                         ^grouped
     return pick(total, area(s))
 --         ^pick       ^classfun2
 --              ^sigFirst

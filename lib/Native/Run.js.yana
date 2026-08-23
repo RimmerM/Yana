@@ -1,0 +1,13 @@
+{-
+   The slice on JS - Implementation-Containers.md §4.3's three-component descriptor.
+
+   `items` is the whole host array in every slice of it, so a window needs a base of its own and
+   that base is `offset`. `Run.yana` beside this is what a slice *is* and why the third field is
+   last rather than second; `Run.native.yana` is the two-field form, where the pointer already is
+   the window.
+
+   There is no `values` here, and that is the stronger half of the same fact: handing a caller
+   `items` would hand them the whole array, which is a read past both ends of what they asked for.
+-}
+
+pub data Flat(a) {items: %a, length: Size, offset: Size}

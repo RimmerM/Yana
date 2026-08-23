@@ -178,13 +178,15 @@ static void checkExportMarker(Module& module, ast::Decl& decl) {
                                      decl.source);
 }
 
-void checkModuleExports(Module& module, ast::Module& ast) {
+void checkModuleExports(Module& module) {
     auto global = *module.types;
     auto local = *module.arena;
     auto parse = module.parse;
 
-    for(auto decl: ast.decls.contents(parse)) {
-        checkExportMarker(module, decl);
+    for(auto file: module.files) {
+        for(auto decl: file->decls.contents(parse)) {
+            checkExportMarker(module, decl);
+        }
     }
 
     /*

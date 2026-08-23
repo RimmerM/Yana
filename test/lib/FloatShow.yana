@@ -1,0 +1,241 @@
+{-
+   `Show(Double)` and `Show(Float)` - Analysis-Library.md §2.1.
+
+   Three claims, and they fail independently:
+
+    - the text is the **shortest decimal that reads back as the same float**, checked against a
+      corpus whose expected strings were produced by an independent implementation;
+    - `showBound` is an upper bound on what `show` writes, which is what the sizing scheme rests on;
+    - `read` inverts `show` for every float, which is the property the shortest form exists for and
+      is checked over a generated corpus rather than a written one.
+
+   Run on both targets, and that is half the point of the file: natively this is Ryu over a table of
+   128-bit powers of five, and on JS it is the host's `toExponential`, so the two are different
+   programs that have to produce the same characters. The one place they had a rule of their own -
+   an exact tie, which the specification rounds up and Ryu rounds to even - is `2 :: Float` divided
+   into the odd cases below.
+-}
+
+fn shown(value: Double) -> String:
+    let &sink = newStringOfCapacity(32 :: Size)
+    show(value, sink)
+    return sink
+
+fn shownNarrow(value: Float) -> String:
+    let &sink = newStringOfCapacity(32 :: Size)
+    show(value, sink)
+    return sink
+
+fn fixed(value: Double, decimals: Size) -> String:
+    let &sink = newStringOfCapacity(64 :: Size)
+    showFixed(value, decimals, sink)
+    return sink
+
+fn matches(value: Double, expected: String) -> Bool = shown(value) == expected
+fn matchesNarrow(value: Float, expected: String) -> Bool = shownNarrow(value) == expected
+fn matchesFixed(value: Double, decimals: Size, expected: String) -> Bool =
+    fixed(value, decimals) == expected
+
+{-
+   The three values that are not a number times a power of ten, and the two zeros.
+
+   `-0.0` is a *multiplication* rather than a negation, because `0.0 - 0.0` is `+0.0` under IEEE -
+   a subtraction of equal values answers positive zero under round-to-nearest, whatever the signs -
+   and the sign is the whole point of the case. `1.0 / value < 0.0` is what `show` tests, so a
+   fixture that could not produce a negative zero would assert nothing about it.
+-}
+fn special() -> {}:
+    let &zero = 0.0 :: Double
+
+    assert(matches(zero / zero, "NaN"))
+    assert(matches(1.0 / zero, "Inf"))
+    assert(matches(0.0 - 1.0 / zero, "-Inf"))
+    assert(matches(zero, "0"))
+    assert(matches(zero * (0.0 - 1.0), "-0"))
+
+    return
+
+{-
+   Where the plain form stops and the scientific one starts - seven, which makes `0.0000001` the
+   smallest value written out in full and eight digits the largest.
+-}
+fn thresholds() -> {}:
+
+    assert(matches(1.0e-7, "0.0000001"))
+    assert(matches(1.0e-8, "1E-8"))
+    assert(matches(12345678.0, "12345678"))
+    assert(matches(123456789.0, "1.23456789E8"))
+    assert(matches(0.0001, "0.0001"))
+    assert(matches(1.0e20, "1E20"))
+
+    return
+
+-- The ordinary values, including the two every implementation is asked about first.
+fn ordinary() -> {}:
+
+    assert(matches(0.1, "0.1"))
+    assert(matches(0.3, "0.3"))
+    assert(matches(1.0, "1"))
+    assert(matches(1.5, "1.5"))
+    assert(matches(123.456, "123.456"))
+    assert(matches(0.0 - 3.14159265358979, "-3.14159265358979"))
+    assert(matches(2.0 / 3.0, "0.6666666666666666"))
+
+    return
+
+-- The far ends of the range, where the exponent is three digits and the mantissa is at its widest.
+fn extremes() -> {}:
+
+    assert(matches(1.7976931348623157e308, "1.7976931348623157E308"))
+    assert(matches(5.0e-324, "5E-324"))
+    assert(matches(2.2250738585072014e-308, "2.2250738585072014E-308"))
+    assert(matches(9.007199254740993e15, "9.007199254740992E15"))
+
+    return
+
+{-
+   `Float`, whose shortest form is its own rather than the double's.
+
+   `0.1` at single precision is a different number from `0.1`, and its digits are different: reading
+   the wider one's would give `0.10000000149011612`. That is the whole of what the second decoder
+   is for, and it is why widening and reusing `Show(Double)` is not an implementation of this.
+-}
+fn narrow() -> {}:
+
+    assert(matchesNarrow(0.1 :: Float, "0.1"))
+    assert(matchesNarrow(1.0 :: Float, "1"))
+    assert(matchesNarrow(3.4028235e38 :: Float, "3.4028235E38"))
+    assert(matchesNarrow(1.4e-45 :: Float, "1E-45"))
+    assert(matchesNarrow(0.0 - 1.5 :: Float, "-1.5"))
+
+    -- An exact tie: 3014283.25 sits halfway between the two eight-digit decimals either side of it,
+    -- and the host would round it up where Ryu rounds it to even.
+    assert(matchesNarrow(3014283.25 :: Float, "3014283.2"))
+    assert(matchesNarrow(380557.125 :: Float, "380557.12"))
+
+    return
+
+{-
+   `showFixed`, which is a different operation from `show` and is a function rather than an argument
+   to it - Analysis-Library.md §2.1.
+
+   Half up rather than half to even, and what it rounds is the shortest decimal rather than the
+   float's exact expansion: `0.1` at twenty places is twenty zeros and not the value's own tail.
+-}
+fn fixedPoint() -> {}:
+
+    assert(matchesFixed(1.0, 2, "1.00"))
+    assert(matchesFixed(9.99, 1, "10.0"))
+    assert(matchesFixed(0.06, 1, "0.1"))
+    assert(matchesFixed(0.006, 1, "0.0"))
+    assert(matchesFixed(123.456, 1, "123.5"))
+    assert(matchesFixed(0.0, 2, "0.00"))
+    assert(matchesFixed(1.5, 0, "2"))
+    assert(matchesFixed(0.5, 0, "1"))
+    assert(matchesFixed(0.0 - 2.5, 3, "-2.500"))
+    assert(matchesFixed(0.1, 20, "0.10000000000000000000"))
+    assert(matchesFixed(1.0e20, 2, "100000000000000000000.00"))
+    assert(matchesFixed(99.999, 2, "100.00"))
+
+    return
+
+{-
+   The bound, which is the contract the sizing scheme rests on: an instance that understates it is a
+   buffer overrun rather than a wrong string.
+
+   26 for a `Double` and 18 for a `Float`, and both are reached by the *plain* form below one rather
+   than by the scientific one - `0.` and six zeros in front of seventeen digits is 26 with the sign.
+-}
+fn bound(value: Double) -> Size = match showBound(value):
+    Just(units) -> units
+    Nothing -> 0 - 1
+
+fn narrowBound(value: Float) -> Size = match showBound(value):
+    Just(units) -> units
+    Nothing -> 0 - 1
+
+fn bounds() -> {}:
+
+    assert(bound(1.0) == 26)
+    assert(narrowBound(1.0 :: Float) == 18)
+    assert(length(shown(0.0 - 1.2345678901234567e-7)) <= bound(1.0))
+    assert(length(shown(0.0 - 1.7976931348623157e308)) <= bound(1.0))
+    assert(length(shownNarrow(0.0 - 1.2345678e-7 :: Float)) <= narrowBound(1.0 :: Float))
+
+    return
+
+{-
+   `read(show(x)) == x`, over a corpus the program generates rather than one written down.
+
+   The generator is a xorshift over the bits so that both targets walk the same values, and the bits
+   are turned into a float by arithmetic rather than by a bitcast - this target has no 64-bit one
+   (see `defineBitcastLadder`), and what the corpus needs is a wide spread rather than every pattern.
+
+   This is the property the shortest form exists for, and it is the one assertion here that no
+   expected string could have been written for.
+-}
+fn roundTrips(value: Double) -> Bool:
+    let &text = newStringOfCapacity(32 :: Size)
+    show(value, text)
+
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Double):
+        Ok(back) -> return back == value
+        Err(_) -> return False
+
+fn roundTripsNarrow(value: Float) -> Bool:
+    let &text = newStringOfCapacity(32 :: Size)
+    show(value, text)
+
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Float):
+        Ok(back) -> return back == value
+        Err(_) -> return False
+
+fn generated() -> {}:
+    let &state = 88172645463325252 :: U64
+    let &value = 1.0 :: Double
+    let &failures = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < 2000:
+        state = state `xor` (state `shl` 13)
+        state = state `xor` (state `shr` 7)
+        state = state `xor` (state `shl` 17)
+
+        -- A value with a wide exponent range and a full mantissa, built out of the state by
+        -- arithmetic: the low bits become a fraction and the next few choose a scale.
+        let fraction = ((truncate(state `and` 2147483647) :: Int) :: Double) / 2147483648.0
+        let scale = truncate((state `shr` 32) `rem` 60) :: Int
+        value = (1.0 + fraction) * powerOfTen(scale - 30)
+
+        if !roundTrips(value) then failures = failures + 1
+        if !roundTripsNarrow(truncate(value) :: Float) then failures = failures + 1
+
+        i = i + 1
+
+    assert(failures == 0)
+    return
+
+-- Ten to the `n`, by repeated multiplication rather than out of a table: what the corpus needs is a
+-- spread of scales, and every one of these is exact enough to be one.
+fn powerOfTen(n: Int) -> Double:
+    let &result = 1.0 :: Double
+    let &left = if n < 0 then 0 - n else n
+
+    while left > 0:
+        result = result * 10.0
+        left = left - 1
+
+    return if n < 0 then 1.0 / result else result
+
+fn main() -> Int:
+    special()
+    thresholds()
+    ordinary()
+    extremes()
+    narrow()
+    fixedPoint()
+    bounds()
+    generated()
+    return 0

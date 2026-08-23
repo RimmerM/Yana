@@ -41,59 +41,125 @@ Arena::~Arena() {
     max = nullptr;
 }
 
-LinearArena::LinearArena(Size maxSize) {
-    reset(maxSize);
+LinearArena::LinearArena(Size initialCommit) {
+    reset(initialCommit);
 }
 
-LinearArena::LinearArena(LinearArena&& l) noexcept: base(l.base), p(l.p), max(l.max) {
+LinearArena::LinearArena(LinearArena&& l) noexcept: base(l.base), p(l.p), committed(l.committed), max(l.max) {
     l.base = nullptr;
     l.max = nullptr;
     l.p = nullptr;
+    l.committed = nullptr;
 }
 
 void* LinearArena::alloc(Size size) {
     auto it = p;
-    if(it + size > max) [[unlikely]] {
-        // Every caller dereferences what this returns, so a null here is a segfault somewhere else -
-        // in a batch compile, on an enormous program; in a language server, on the user's next
-        // keystroke, where it is reported as a plugin bug. A message naming the region and the size
-        // is a bug report; a segfault is a shrug. See Implementation-Tooling.md §4.2.
-        fatalError("Arena exhausted: %@ more bytes requested with %@ of %@ used. "
-                   "Raise the region size this arena was constructed with.",
-                   size, Size(p - base), Size(max - base));
-    }
+    if(it + size > committed) [[unlikely]] commitTo(it + size, size);
 
-    p += size;
+    p = it + size;
     return it;
 }
 
-void LinearArena::reset(Size maxSize) {
-    p = base;
+/*
+ * Committing forward, and where the ceiling actually is.
+ *
+ * Geometric rather than by a fixed chunk, so that a region which grows to hundreds of megabytes
+ * does not pay a system call per chunk on the way there, and one that stays small never leaves its
+ * initial commit. The half-again step is bounded on both sides: at least the request, so a single
+ * enormous allocation is satisfied in one call, and never past the reservation.
+ */
+void LinearArena::commitTo(Byte* end, Size request) {
+    if(end > max) [[unlikely]] {
+        // Every caller dereferences what alloc returns, so a null here is a segfault somewhere else -
+        // in a batch compile, on an enormous program; in a language server, on the user's next
+        // keystroke, where it is reported as a plugin bug. A message naming the region and the size
+        // is a bug report; a segfault is a shrug. See Implementation-Tooling.md §4.2.
+        //
+        // This is now the format's ceiling and not a configured one, which is why it no longer asks
+        // for a larger region: a RegionPtr is a U32 offset, so there is no larger region to ask for.
+        fatalError("Arena exhausted: %@ more bytes requested with %@ used, and a region addresses at "
+                   "most %@ bytes - a RegionPtr is a 32-bit offset. This program is too large to "
+                   "resolve as one unit.",
+                   request, Size(p - base), Size(max - base));
+    }
 
-    if(max - base < maxSize) {
-        if(max > base) {
-            releaseMem(base, max - base);
+    auto target = Size(committed - base);
+    target += target / 2;
+
+    auto needed = Size(end - base);
+    if(target < needed) target = needed;
+
+    // Once per process. `getPageSize` is a system call on some platforms and this is on the growth
+    // path of every region.
+    static const Size pageSize = getPageSize();
+    target = (target + pageSize - 1) & ~(pageSize - 1);
+    if(target > Size(max - base)) target = Size(max - base);
+
+    auto result = commitMem(committed, base + target - committed);
+    if(result != MemResult::Ok) {
+        // Distinct from the exhaustion above and worth saying so: the address range was reserved, so
+        // what failed is the machine having the memory to back it rather than this format running
+        // out of offsets. Fatal for the same reason - the caller is about to write here.
+        fatalError("Cannot commit %@ bytes for an arena that has %@ of %@ reserved bytes committed.",
+                   Size(base + target - committed), Size(committed - base), Size(max - base));
+    }
+
+    committed = base + target;
+}
+
+void LinearArena::reset(Size initialCommit) {
+    /*
+     * The reservation is made once and kept. `reset` on a live arena rewinds and re-commits rather
+     * than remapping, because the base is what every outstanding RegionPtr is an offset from - and
+     * because a reservation is the one thing here that costs nothing to hold.
+     */
+    if(!base) {
+        /*
+         * The full range first, and smaller ranges after it.
+         *
+         * A reservation costs address space and nothing else, so the ceiling is normally the
+         * format's. It is not always available: a process under an address-space limit - `ulimit
+         * -v`, a container, a 32-bit host - has less of it than this asks for, and refusing to
+         * compile at all there would be a worse answer than compiling with a lower ceiling. So the
+         * request halves until something succeeds, and what a program then hits is the exhaustion
+         * message in `commitTo`, which names the number it actually had.
+         */
+        Size reserve = kReserve;
+
+        while(true) {
+            auto result = reserveMem(reserve);
+            if(result) {
+                base = (Byte*)result.unwrapOk();
+                committed = base;
+                max = base + reserve;
+                break;
+            }
+
+            // The floor is what the caller asked to commit, since below that this arena cannot do
+            // its job at all and the failure should be reported rather than deferred.
+            if(reserve <= initialCommit + 16 || reserve <= 1024 * 1024) {
+                // Fatal for the reason the old allocation failure was: a null base is not a state
+                // anything downstream can notice. `Region::operator*` would hand out a `RegionBase`
+                // of `nullptr - 16` and every handle resolved through it would address low memory,
+                // so the failure would be reported as a segfault in whatever happened to
+                // dereference first - which is a shrug, several stages away from the thing that
+                // actually went wrong. See Implementation-Tooling.md §4.2 and the note in
+                // `commitTo`.
+                fatalError("Cannot reserve %@ bytes of address space for an arena.", reserve);
+            }
+
+            reserve /= 2;
         }
+    }
 
-        auto pageSize = getPageSize();
-        if(maxSize < pageSize) maxSize = pageSize;
+    // Start at a small offset to make it easier to represent null pointers into the arena.
+    p = base + 16;
 
-        auto result = allocMem(maxSize);
-        if(!result) {
-            // Fatal for the same reason `alloc` is: a null base is not a state anything downstream
-            // can notice. `Region::operator*` would hand out a `RegionBase` of `nullptr - 16` and
-            // every handle resolved through it would address low memory, so the failure would be
-            // reported as a segfault in whatever happened to dereference first - which is a shrug,
-            // several stages away from the thing that actually went wrong. See
-            // Implementation-Tooling.md §4.2 and the note in `alloc`.
-            fatalError("Cannot allocate %@ bytes for an arena.", maxSize);
-        } else {
-            base = (Byte*)result.unwrapOk();
-
-            // Start at a small offset to make it easier to represent null pointers into the arena.
-            p = base + 16;
-            max = base + maxSize;
-        }
+    // The argument is a hint and not a limit, so it is honoured only upwards: an arena being reset
+    // has already committed whatever the last use of it needed, and handing that back would trade a
+    // page fault per megabyte on the next compile for memory this process is about to want again.
+    if(initialCommit && base + 16 + initialCommit > committed) {
+        commitTo(base + 16 + initialCommit, initialCommit);
     }
 }
 

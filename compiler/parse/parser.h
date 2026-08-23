@@ -15,6 +15,12 @@ struct Parser: BasicParser<Lexer, Token> {
     bool allowSignatures = false;
 
     ast::Module parseModule();
+
+    // `module` / `module M` - Analysis-Modules.md §2.1. Consumed here and checked against the
+    // file's path by whoever built the module map, which is the only thing that knows where the
+    // file is; what this reports is placement, which is the half the parser can see.
+    void parseMembership(ast::Module& module, bool first);
+
     ast::Import parseImport();
     ast::Fixity parseFixity();
     void parseDecl(ast::DeclList& decls, ast::AttrList attributes, bool exported);
@@ -323,7 +329,11 @@ struct Parser: BasicParser<Lexer, Token> {
     }
 
     Context& context;
-    Region<ast::ParseRegion> arena;
+
+    // The compilation's one AST region, not this parse's own - Context::parseRegion. A module of
+    // several files is several parses whose declarations have to be addressable through one
+    // `ParseBase`, which is only true if they were allocated against one region.
+    Region<ast::ParseRegion>& arena;
 
     StringId qualifiedId;
     StringId hidingId;

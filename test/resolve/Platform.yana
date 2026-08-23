@@ -51,6 +51,31 @@ fn capacityOf(s: Storage) -> Int = 0
 @platform(js, native)
 fn shared(x: Int) -> Int = x * 10
 
+-- The other two axes, which are the file selector's vocabulary asked of one declaration -
+-- Analysis-Modules.md §2.5. An operating system and an architecture both exclude a JS build, since a
+-- target with no syscalls and no registers has neither, so these two are the native pair over again
+-- said in the terms a second machine would need.
+@platform(linux)
+fn placement() -> Int = 10
+
+@platform(js)
+fn placement() -> Int = 20
+
+@platform(x64)
+fn word() -> Int = 8
+
+@platform(js)
+fn word() -> Int = 4
+
+-- Two attributes read as "and" where a list reads as "or", so this is the one declaration in the
+-- file that names a single machine rather than a family.
+@platform(native)
+@platform(x64)
+fn onlyAmd64() -> Int = 3
+
+@platform(js)
+fn onlyAmd64() -> Int = 0
+
 fn main() -> Int:
     let s = emptyStorage()
-    return backend() + capacityOf(s) + shared(4)
+    return backend() + capacityOf(s) + shared(4) + placement() + word() + onlyAmd64()

@@ -11,4 +11,10 @@ fn noTarget() -> Int = 2
 @platform("js")
 fn quoted() -> Int = 3
 
+-- An architecture is a target name and a *level* within one is not: `-extensions` says which
+-- machine inside x86-64 to generate for, and a declaration that exists only above one is a question
+-- about instruction selection rather than about which target compiled it.
+@platform(avx2)
+fn wideOnly() -> Int = 4
+
 fn main() -> Int = 0

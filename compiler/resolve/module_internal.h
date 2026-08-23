@@ -82,11 +82,11 @@ void checkDefaultRanks(Module& module, TypeClass& typeClass);
 // The `deriving (...)` clause of a qualified alias, expanded into ordinary instance declarations -
 // Analysis-Derive.md §3's `newtype` shape. Takes the `ast::Module` and not only the resolve one
 // because the expansion is allocated into the parse region a `ParsePtr` is an offset from.
-void deriveNewtypeInstances(Module& module, ast::Module& ast, ast::Decl& decl);
+void deriveNewtypeInstances(Module& module, ast::Decl& decl);
 
 // -- module_export.cpp -------------------------------------------------------------------------
 
 // The `pub` rules a lookup cannot state: a marker on a declaration that has no visibility to widen,
 // and an exported declaration whose interface names a private type. Runs once the module's
 // signatures exist, since what it checks is what they resolved to.
-void checkModuleExports(Module& module, ast::Module& ast);
+void checkModuleExports(Module& module);

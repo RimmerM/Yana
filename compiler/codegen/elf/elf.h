@@ -19,7 +19,7 @@
  *
  * **What it does not do.** There is no dynamic linking, no interpreter, no relocation section and
  * no import table. That is not a simplification - it is what this target *is*: the runtime is
- * written in Yana over raw system calls (see Native and Native.Linux in resolve/native.cpp), so a
+ * written in Yana over raw system calls (see Native and its platform file in resolve/native.cpp), so a
  * finished program references nothing outside its own image and there is nothing left for a loader
  * to resolve. Every address a program needed to know was already written into it, which is the
  * whole reason a static non-PIE executable is enough here and not merely convenient.

@@ -74,7 +74,7 @@ static void writeModule(Net::Writer& writer, Context& context, TestDiagnostics& 
         writer.writeString("\n"_v);
     }
 
-    printModule(writer, context, *ast.region, ast);
+    printModule(writer, context, *context.parseRegion, ast);
 }
 
 // Whether the fixture's dump is the one beside it. The answer is returned rather than only printed

@@ -1,0 +1,67 @@
+{-
+   `entries` walked with a body that ignores what it is handed, compiled for speed.
+
+   # inline: speed
+
+   The directive is the fixture. `spliceEmptyBlock` in opt_branch.cpp redirects each predecessor
+   edge of an empty block one at a time, so a `je` whose two arms were two empty blocks in front of
+   one join comes out of it naming that join twice. The resolve IR admits a doubled arm on purpose -
+   an arm is an edge, and two arms at one block are two edges - but the lower IR does not:
+   `LowerBlock::addInst` asserts the two targets differ and `validateLowerModule` says "same target
+   block for all branches". Nothing folded it, so the build produced no executable and blamed a
+   `yield` inside `File.entries` for it.
+
+   It takes `-inline speed` because that is what splices the whole of `entries` into its caller, and
+   a body that *ignores* the `Result` rather than `?`-ing it: with the `?` the two arms are an exit
+   and a continue and are not both empty, so `lib/File.yana` next door - which walks the same tree
+   with `let it = entry?` - compiles at every level and says nothing about this.
+
+   Beside that, an ordinary traversal: two files and a directory, and the count is what says the
+   loop ran at all rather than the assertion having been reached with nothing behind it. The
+   scratch directory is per process for the reason `lib/File.yana` gives at length - this corpus runs
+   beside itself and each build runs in a forked child.
+-}
+
+import Native
+import File
+
+fn scratchRoot() -> String:
+    let &name = newStringOfCapacity(40)
+    pushString(name, "/tmp/yana-walk-")
+    show(truncate(processId()) :: Int, name)
+    return name
+
+fn setUp(root: String) -> Result(FileError, {}):
+    createDirectory(root)?
+    writeWholeFile(joinPath(root, "one.txt"), "1")?
+    writeWholeFile(joinPath(root, "two.txt"), "22")?
+    createDirectory(joinPath(root, "sub"))?
+    return Ok({})
+
+fn tearDown(root: String) -> Result(FileError, {}):
+    removeFile(joinPath(root, "one.txt"))?
+    removeFile(joinPath(root, "two.txt"))?
+    removeDirectory(joinPath(root, "sub"))?
+    removeDirectory(root)?
+    return Ok({})
+
+fn run() -> Result(FileError, Int):
+    let root = scratchRoot()
+    setUp(root)?
+
+    -- No `?` in the body, which is the shape: what the loop receives is a `Result` nobody looks at,
+    -- so both arms of the test on the continuation's answer are empty and both lead to the exit.
+    let &seen = 0 :: Int
+    for entry in entries(root):
+        seen = seen + 1
+
+    tearDown(root)?
+    return Ok(seen)
+
+fn main() -> Int:
+    match run():
+        -- Three, not five: `entries` drops `.` and `..` - see `isSelfOrParent`.
+        Ok(->v) -> assert(v == 3)
+        Err(->e) -> assert(False)
+
+    return 0

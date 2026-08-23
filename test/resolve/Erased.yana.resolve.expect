@@ -101,6 +101,27 @@ table genEnv$nothingForwarded(Int) {
   .0 typeDesc$Int
 }
 
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
 fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
   b0:
     %v2 = cmp_eq %lhs, %rhs : Bool
@@ -157,36 +178,15 @@ fn Ord.max(Int)(%lhs: Int, %rhs: Int) -> Int {
     ret %v2
 }
 
-fn abortProcess() -> () {
-  b0:
-    call exitProcess, 134
-    ret
-}
-
 fn exitProcess(%status: I64) -> () {
   b0:
     %v2 = syscall 60, %status : I64
     ret
 }
 
-fn checkFailed() -> () {
+fn abortProcess() -> () {
   b0:
-    call abortProcess
-    ret
-}
-
-fn checkCondition(%failed: Bool) -> () {
-  b0:
-    je %failed, b1, b2
-
-  b1:
-    call checkFailed
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
+    call exitProcess, 134
     ret
 }
 

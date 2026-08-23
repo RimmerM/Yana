@@ -1,0 +1,246 @@
+import Native
+
+{-
+   What a container is, as classes - Implementation-Containers.md §5 and §17.
+
+   `Length`, `Chunked` and `Contiguous`, the vector a chunk is read through, and the iteration
+   protocol built on it. Separate from `Array.yana` because these are what a *user* type joins: the
+   array is one container, and this is the interface every container has. The bulk operations
+   written over the same protocol are `Reduce.yana`, and are not part of it - a container author
+   writes none of them.
+-}
+
+{-
+   The slice - Implementation-Containers.md §4.
+
+   What a `[a]` parameter receives. `length` is declared over the *slice* and not over the owner,
+   which is not an omission: reading is structural, so the operation that reads should ask for the
+   borrow, and an owner reaches it by the ordinary conversion at the call - see convertSlice. §5's
+   `Chunked` is this rule generalized to containers that are not contiguous.
+
+   Reading an element lives one layer down, in `Native`'s `instance Index(Flat(a), Size, a)`, for
+   the same reason and by the same conversion. Growth is not here at all - it is nominal, and `push`
+   says `Array(a)`.
+-}
+{-
+   How many elements a container holds, as a class - Implementation-Containers.md §17's reasoning
+   applied to the other universal operation.
+
+   `length` was a plain function over `Flat(a)`, which served every container by the ordinary
+   owner-to-slice conversion at the call. `String` cannot reach it that way: it is not a container of
+   elements with a buffer address, so there is no slice for it to convert to, and its length lives in
+   a different place on each target. A second plain `fn length` is a duplicate declaration rather
+   than an overload, so the name has to become a class for the two to coexist - which is exactly what
+   happened to `xs[i]` when `Index` landed, and for the same reason.
+
+   The container instances are the same set `Index` has and are there for the same reason: instance
+   selection does not convert, so an `Array(a)` binds `Array(a)` and needs an instance of its own
+   rather than reaching the slice's through the conversion a *call* would have performed.
+
+   **Generated rather than written, on the same terms `Index`'s are - see the note in `Native`.**
+   Written out they would read:
+
+       instance Length(Flat(a)):
+           fn length(self: Flat(a)) -> Size = self.length
+
+       @platform(native) instance Length(Array(a)):
+           fn length(self: Array(a)) -> Size = self.length :: Size
+
+       @platform(js) instance Length(Array(a)):
+           fn length(self: Array(a)) -> Size = hostLength(self.items)
+
+   One field load each, and the JS one had a second reason beyond the shared one: `hostLength` is an
+   `InstNative`, and `Value::Native` was not in `clonableKind`, so no call site could ever have seen
+   through `Length(Array(a)).length` however willing the inliner was made. That half has since been
+   closed - a host node is clonable now - and what is left is the shared argument, which is enough on
+   its own. `String`'s instances below are ordinary functions and stay in source, because neither of
+   those arguments is about them.
+-}
+pub class Length(c):
+  fn length(self: c) -> Size
+
+{-
+   `Chunked` and `Contiguous` - Implementation-Containers.md §5.
+
+   Contiguity is the one-chunk case of a more general property, and both are wanted. `Chunked` is
+   what a function that only *reads elements* should ask for: it accepts every container, and after
+   specialization there is no dispatch, because the push-style iterator lowering means a contiguous
+   container yields one slice and fuses into the loop it compiles to today while a chunked one
+   becomes a nested loop whose inner loop runs at full contiguous speed. `Contiguous` is a promise
+   about a buffer address - one load to index, passable to a syscall, `memcpy`-able - which is what
+   `[a]` means, and the conversion that lets a container of your own be passed as one lives in
+   `convert`.
+
+   The dependency is what makes either usable: the container decides the element type, so `for x in
+   chunks(xs)` and `fn (Chunked(c, a)) count(xs: c)` both bind `c` from what the caller wrote and
+   read `a` back off the instance. `Widen`'s entry in classes.md says why that is declared rather
+   than inferred.
+
+   `chunks` hands over a *view* - `&[a]` in any module that can write it, spelled `Flat(a)` here
+   because `Array` is this file's own declaration and `[a]` does not exist until it has been read.
+   What a chunk is is a window into the container's storage, so a mutable one writes through and
+   neither ever copies. The superclass is what stops a
+   container from supplying half of this - a `Contiguous` instance with no `Chunked` one is rejected
+   where it is declared, and its `Chunked` instance is the one line below.
+
+   There is deliberately no implicit flattening: satisfying `Contiguous` from chunks costs an O(n)
+   allocation, and hiding one behind an argument convention is the performance surprise Design.md
+   rules out. A `flatten` returning an owner is fine; a coercion is not, which is why a container
+   that is `Chunked` and not `Contiguous` is rejected where `[a]` is expected with a diagnostic that
+   names `Chunked` as what to ask for instead.
+-}
+pub class Chunked(c -> a):
+  iter fn chunks(self: c) -> Flat(a)
+
+pub class (Chunked(c, a)) Contiguous(c -> a):
+  fn elements(return self: c) -> Flat(a)
+
+{-
+   The two instances the library itself supplies, which is §5's "the standard library adopts it in
+   the same change": every container that exists is one of these, so a signature written against
+   `Chunked` accepts everything a `[a]` one does.
+
+   `elements` on the owner goes through a *call* rather than building the descriptor by hand, and the
+   reason is ownership rather than brevity: the conversion at that call is what records the result as
+   a view of `self` (Local::viewOf), which is what makes the returned borrow rooted in the argument
+   the signature marked `return`. A hand-built `Flat` would be rooted in nothing and would type-check
+   for the wrong reason.
+
+   Which call it is is `unclampedSlice` rather than `slice`, and that is a size decision - see the
+   note there. The two are the same conversion at the same argument position, so the rooting is
+   unchanged; what goes is three clamps that a whole container can never trip.
+
+   On the slice itself `elements` is the identity, because a `Flat(a)` already is the descriptor.
+-}
+@platform(native) instance Contiguous(Array(a), a):
+    fn elements(return self: Array(a)) -> Flat(a) = unclampedSlice(self, 0, self.length :: Size)
+
+@platform(js) instance Contiguous(Array(a), a):
+    fn elements(return self: Array(a)) -> Flat(a) = unclampedSlice(self, 0, self.length :: Size)
+
+instance Chunked(Array(a), a):
+    iter fn chunks(self: Array(a)) -> Flat(a) = yield elements(self)
+
+instance Contiguous(Flat(a), a):
+    fn elements(return self: Flat(a)) -> Flat(a) = self
+
+instance Chunked(Flat(a), a):
+    iter fn chunks(self: Flat(a)) -> Flat(a) = yield elements(self)
+
+{-
+   Reading a whole vector out of a chunk, and writing one back - Implementation-Vector.md §12's "a
+   way to read a vector out of a `Flat(a)`", which is what the iteration protocol below is built on.
+
+   Core's portable set deliberately has no load in it: `splat`, `lane` and the rearrangements are
+   operations on a value, and where a value comes *from* is a question about storage. So these three
+   are the crossing, and they are here rather than in `Native` because the type they take is what
+   makes them safe: a `Flat(a)` is a window into storage the language allocated, and §5.2 of
+   Design-Vector is what says such storage is padded. A raw address promises nothing, which is why
+   `Native.vectorPast` takes one and this does not.
+
+   Two implementations and one signature, which is the split every container operation here already
+   has. Natively a vector transfer is one instruction at an address; on JS it is `lanes` element
+   accesses, because a vector on that target *is* `lanes` values (Design-Vector §7.2).
+
+   `loadVectorTail` is the one place the two targets differ in what they *mean* rather than in how
+   they spell it. Natively it overreads - it loads a whole vector from `at`, reading up to a vector's
+   width past the end of the object, which §8's guarantee says is safe and which is the whole reason
+   that guarantee exists. On JS there is no such guarantee to have and a read past the end of a host
+   array is `undefined` rather than an unspecified byte, so the lanes past the end repeat the last
+   element instead. Both are values the caller is about to mask off; neither is a number that could
+   poison an accumulator before it does.
+-}
+@platform(native) pub fn loadVector(from: Flat(a), at: Size) -> Vec(a) = vectorAt(from.items + at)
+@platform(js) pub fn loadVector(from: Flat(a), at: Size) -> Vec(a) = hostVector(from.items, from.offset + at)
+
+@platform(native) pub fn loadVectorTail(from: Flat(a), at: Size) -> Vec(a) = vectorPast(from.items + at)
+@platform(js) pub fn loadVectorTail(from: Flat(a), at: Size) -> Vec(a) =
+    hostVectorUpTo(from.items, from.offset + at, from.offset + from.length - 1)
+
+@platform(native) pub fn storeVector(to: Flat(a), at: Size, value: Vec(a)) -> {} = setVectorAt(to.items + at, value)
+@platform(js) pub fn storeVector(to: Flat(a), at: Size, value: Vec(a)) -> {} =
+    hostSetVector(to.items, to.offset + at, value)
+
+{-
+   The iteration protocol - Design-Vector §4.1, Implementation-Vector.md §9 item 5.
+
+   This is what the whole vector design is for: a loop written over `vectors(xs)` is one loop, it
+   reads every element of the container exactly once, and the last iteration over each chunk is the
+   same body as the others rather than a scalar epilogue somebody had to remember to write.
+
+   Over `Chunked` and not `Contiguous`, per Design-Vector §4.1: a contiguous container yields one
+   chunk and the outer loop folds away, so the general formulation costs the common case nothing,
+   while a deque or a rope reaches full speed inside each of its runs.
+
+   **`vectors` forces the identity into the lanes past the end.** It is not `vectorsMasked` with the
+   mask thrown away, and this is a ruling rather than a convenience - §4.4 of the design says a body
+   handles the padding lanes "by selecting the identity into the masked-off lanes before
+   accumulating", which the *body* cannot do, because it is the mask that says which lanes those are
+   and this is the iterator that does not hand one over. Zero is the identity for `+`, `-`, `|` and
+   `^`; a body accumulating with `*`, `min` or `max` writes `vectorsMasked` and forces its own. The
+   cost is one `select` per chunk tail and nothing in the full-width iterations, where the mask is
+   all-set and the select folds to its own operand.
+
+   The live count travels as an `Int` rather than as the `Mask(a)` it stands for, which is a choice
+   and not a limitation - a mask may be held in memory since §9.9. One integer against sixteen to
+   sixty-four bytes, `maskUpTo(live)` folds to all-set on every full-width iteration, and §4.4 wants
+   the tail mask read out of a table indexed by exactly this number.
+
+   **The chunk index is a `Size` and the test is against `n - width`, and those two lines are worth
+   more than everything else in this iterator put together** - §58.5 of test/bench/findings.md.
+   Written the obvious way, `let &i = 0 :: Int` with `while i + width <= n`, this loop costs two
+   instructions that have nothing to do with the work:
+
+     - `i` is an `Int`, so every `loadVector(chunk, i :: Size)` sign-extends it into the address and
+       the loop carries a `movslq` it did not ask for. `widenInductionVariables` exists for exactly
+       this and cannot take it: its no-wrap proofs want a strict test with a step of one, and a chunk
+       walk has an inclusive test with a step of four, eight or sixteen.
+     - `i + width <= n` recomputes the *next* index to test it, so the loop carries a second `add`
+       (emitted as a `lea`) beside the one that steps. Hoisting `n - width` out makes the test read
+       the index the step already produced.
+
+   Measured on `maximum` over `[Int]` at v2, with each loop transcribed out of the linked binaries
+   into `test/bench/chunkloop.s`: 1.66x against `llc -Os` as emitted, 1.39x with the `lea` gone,
+   1.34x with the index widened, and **0.96x with both**. Neither alone is worth much and together
+   they are worth all of it - which is the reason this reads the way it does rather than the way it
+   would be written.
+
+   `Size` is `I64` natively and `Int` on JS, so `n - width` is a signed subtraction on both and goes
+   negative rather than wrapping when a chunk is shorter than one vector - which is the case the test
+   has to reject, and does. It is the same guard `i + width <= n` made at `i = 0`.
+
+   Native only for now, and the reason is not vectors: an `iter fn` that yields from inside a `for`
+   captures the continuation it was handed, and a reference to a function value the JS backend
+   flattened into two variables has no object to name. Every adaptor in the language has that gap.
+-}
+pub iter fn (Chunked(c, a)) vectorsMasked(self: c) -> {Vec(a), Int}:
+    let width = lanes(zero() :: Vec(a)) :: Size
+
+    for chunk in chunks(self):
+        let n = length(chunk)
+        let last = n - width
+        let &i = 0 :: Size
+
+        while i <= last:
+            yield {loadVector(chunk, i), truncate(width) :: Int}
+            i = i + width
+
+        if i < n:
+            yield {loadVectorTail(chunk, i), truncate(n - i) :: Int}
+
+pub iter fn (Chunked(c, a)) vectors(self: c) -> Vec(a):
+    let empty = zero() :: Vec(a)
+    let width = lanes(empty) :: Size
+
+    for chunk in chunks(self):
+        let n = length(chunk)
+        let last = n - width
+        let &i = 0 :: Size
+
+        while i <= last:
+            yield loadVector(chunk, i)
+            i = i + width
+
+        if i < n:
+            let live = maskUpTo(truncate(n - i) :: Int) :: Mask(a)
+            yield select(live, loadVectorTail(chunk, i), empty)

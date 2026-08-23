@@ -203,6 +203,9 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
     collect(module, NameRef { &module.context.find(name), 0 }, false);
 
     for(auto& import: module.imports) {
+        // The same filter search() applies, and for the same reason - see Import::inScope.
+        if(!import.inScope(module.activeFile)) continue;
+
         NameRef reference { &module.context.find(name), 0 };
         auto alias = &module.context.find(import.localName);
         auto matchedAlias = reference.identifier->segmentCount > alias->segmentCount;

@@ -3,19 +3,18 @@ var live = { $v: 0 };
 var closed = 0;
 
 // Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
 function add_eq_Int(target$o, target$k, target$s, amount) {
   target$o[target$k] = target$o[target$k] + amount | 0;
 }
 
 function sub_eq_Int(target$o, target$k, target$s, amount) {
   target$o[target$k] = target$o[target$k] - amount | 0;
-}
-
-// Collections
-function checkCondition(failed) {
-  if (failed) {
-    throw "yana: a runtime check failed";
-  }
 }
 
 function Reclaim_Array_a_reclaim_Handle(value) {

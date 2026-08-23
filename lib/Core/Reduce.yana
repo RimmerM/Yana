@@ -1,0 +1,192 @@
+import Native
+
+{-
+   The bulk operations over any container - Implementation-Vector.md §9 items 6 and 7,
+   Design-Vector §4.3.
+
+   Apart from `Container.yana`, which declares what a container *is*: nothing here is part of that
+   interface, and a container author writes none of it. Six operations, each one declaration and two
+   implementations, and the same shape six times over - which is what makes it worth reading on its
+   own and worth not reading at all while looking at the classes.
+
+   This is where "idiomatic code is fast code" is delivered. `sum(xs)` over a container of a lane
+   type is a vector loop; over a container of anything else it is the loop it always was; and the
+   program that wrote it said neither. Every one of them is over `Chunked`, so every container in the
+   language has them, and none of them mentions a vector in its signature.
+
+   **Each is one declaration with no body and two implementations.** The declaration is the
+   intrinsic: `expandBulk` in the compiler picks the pair by asking whether the element has a vector
+   *on this target*, which is a question about the lane's stride and the target's register width and
+   so is not a question a constraint could carry. The two implementations below are ordinary source
+   and are the whole of what runs.
+
+   The vector halves are written over `vectors` and `vectorsMasked` rather than over `loadVector`,
+   which is what makes them four lines each: the protocol already walks the chunks, reads the tail
+   under a mask and folds to one loop for a contiguous container. Which of the two an operation takes
+   is decided by its identity - `+` and the counting ones take `vectors`, because the lanes past the
+   end contribute zero; `*`, `min` and `max` take `vectorsMasked` and force their own, because zero
+   is not the identity of any of them.
+
+   `maximum` and `minimum` take the answer for an empty container as an argument rather than
+   answering a `Maybe`. It is what a fold over a container of borrows can promise without copying an
+   element out of one, and it is what the vector half wants anyway: the seed is what the accumulator
+   is splatted from and what the masked-off lanes hold.
+-}
+pub fn (Chunked(c, a), Num(a)) sum(xs: c) -> a
+pub fn (Chunked(c, a), Num(a)) product(xs: c) -> a
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximum(xs: c, ifEmpty: a) -> a
+pub fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimum(xs: c, ifEmpty: a) -> a
+pub fn (Chunked(c, a), Eq(a)) occurrences(xs: c, wanted: a) -> Int
+pub fn (Chunked(c, a), Eq(a)) indexOf(xs: c, wanted: a) -> Maybe(Size)
+
+-- Reached through `indexOf`, so it is one function rather than a seventh pair. A search that stops
+-- at the first hit is what both halves of that one already are.
+pub fn (Chunked(c, a), Eq(a)) contains(xs: c, wanted: a) -> Bool = indexOf(xs, wanted) is Just(_)
+
+fn (Chunked(c, a), Num(a), Num(Vec(a))) sumVectors(xs: c) -> a:
+    let &acc = zero() :: Vec(a)
+
+    for v in vectors(xs):
+        acc = acc + v
+
+    return horizontalSum(acc)
+
+fn (Chunked(c, a), Num(a)) sumElements(xs: c) -> a:
+    let &acc = 0 :: a
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            acc = acc + chunk[i]
+            i = i + 1
+
+    return acc
+
+fn (Chunked(c, a), Num(a), Num(Vec(a))) productVectors(xs: c) -> a:
+    let ones = splat(1 :: a)
+    let &acc = ones
+
+    for {v, live} in vectorsMasked(xs):
+        acc = acc * select(maskUpTo(live) :: Mask(a), v, ones)
+
+    return horizontalProduct(acc)
+
+fn (Chunked(c, a), Num(a)) productElements(xs: c) -> a:
+    let &acc = 1 :: a
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            acc = acc * chunk[i]
+            i = i + 1
+
+    return acc
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumVectors(xs: c, ifEmpty: a) -> a:
+    let &acc = splat(ifEmpty)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = max(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+
+    return horizontalMax(acc)
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumElements(xs: c, ifEmpty: a) -> a:
+    let &acc = ifEmpty
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] > acc then acc = chunk[i]
+            i = i + 1
+
+    return acc
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumVectors(xs: c, ifEmpty: a) -> a:
+    let &acc = splat(ifEmpty)
+
+    for {v, live} in vectorsMasked(xs):
+        acc = min(acc, select(maskUpTo(live) :: Mask(a), v, acc))
+
+    return horizontalMin(acc)
+
+fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumElements(xs: c, ifEmpty: a) -> a:
+    let &acc = ifEmpty
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] < acc then acc = chunk[i]
+            i = i + 1
+
+    return acc
+
+{-
+   Counting, where the mask is the answer rather than something applied to one: `count` on a mask is
+   how many lanes hold, and the lanes past the end of a chunk hold nothing because `vectors` has
+   already selected the identity into them - and the identity of a comparison against `wanted` is
+   whatever `wanted` is not. That is not something this can rely on, so the masked form is what it
+   takes and the live mask is what it counts against.
+-}
+fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) occurrencesVectors(xs: c, wanted: a) -> Int:
+    let sought = splat(wanted)
+    let &total = 0
+
+    for {v, live} in vectorsMasked(xs):
+        total = total + count(and(v .== sought, maskUpTo(live) :: Mask(a)))
+
+    return total
+
+fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
+    let &total = 0
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] == wanted then total = total + 1
+            i = i + 1
+
+    return total
+
+{-
+   The search, and the one operation here that leaves its loop early.
+
+   `firstSet` is what makes the vector half a search rather than a scan: it answers the lowest set
+   lane of a mask in three instructions and with no branch, so the iteration that found the element
+   is also the one that says where in it - and the running count of live lanes is the position of the
+   vector, which is exactly what `vectorsMasked` hands over beside it.
+-}
+fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) indexOfVectors(xs: c, wanted: a) -> Maybe(Size):
+    let sought = splat(wanted)
+    let &at = 0
+
+    for {v, live} in vectorsMasked(xs):
+        let hits = and(v .== sought, maskUpTo(live) :: Mask(a))
+        if any(hits) then return Just((at + firstSet(hits)) :: Size)
+        at = at + live
+
+    return Nothing
+
+fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
+    let &at = 0 :: Size
+
+    for chunk in chunks(xs):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            if chunk[i] == wanted then return Just(at + i)
+            i = i + 1
+
+        at = at + n
+
+    return Nothing

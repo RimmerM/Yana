@@ -1,0 +1,464 @@
+{-
+   The classes the language's own syntax is written in terms of, and the operator fixities.
+
+   The file the module is named after, and what is left in it once the subjects that grew their own
+   files moved out: the carriers `Try` and `Rewrap` answer, `Index`, `Append`, `Show`, `Truth`,
+   `Enum`, the two halves of teardown, `Bitcast`, and `swap`. Everything here is either something a
+   *construct* of the language resolves to or something every type is asked about; a subject that is
+   neither is a file beside this one - `Bits.yana`, `Hash.yana`, `Vector.yana`, `Check.yana`, the
+   three container files, and the three text ones.
+
+   No import. Nothing here is written in terms of an address, a run or a system call, which is what
+   makes it the one file of the prelude that names nothing outside itself.
+-}
+
+infixl 0 +=
+infixl 0 -=
+infixl 0 *=
+infixl 0 /=
+infixl 1 ||
+infixl 2 &&
+infixl 3 ==
+infixl 3 !=
+infixl 3 >
+infixl 3 >=
+infixl 3 <
+infixl 3 <=
+infixl 4 ??
+infixl 5 `xor`
+infixl 5 `or`
+infixl 6 `and`
+infixl 6 `shl`
+infixl 6 `shr`
+infixl 6 `sar`
+infixl 6 `rol`
+infixl 6 `ror`
+infixl 7 +
+infixl 7 -
+infixl 8 *
+infixl 8 /
+infixl 8 `rem`
+infixl 8 %
+
+pub data Bool = False | True
+pub data Ordering = LT | EQ | GT
+
+pub data Maybe(a) = Nothing | Just(a)
+pub data Result(e, a) = Err(e) | Ok(a)
+
+-- What a continuation reports back to the lens that called it - Analysis-Lens.md §5.1's exit
+-- signal. `Proceed` is "the rest of the block finished normally, and here is its value"; `Exit`
+-- carries the enclosing function's return value past a frame that has cleanup still to run, so a
+-- `withLock` releases its lock on an early `return` from the block below it.
+--
+-- One type rather than three: `Step(r) = Next | Done(r)` is `Outcome({}, r)`, so the loop signal,
+-- the exit signal and a skipping lens's own result are all this. Only the exit signal uses it so
+-- far; the constructors are not named `Continue`/`Break` for that reason.
+pub data Outcome(a, e) = Proceed(a) | Exit(e)
+
+{-
+   What a carrier type says about its two paths - Implementation-Semantics.md part 5.
+
+   One class with two readers. `?` will use both halves: `toOutcome` to ask which path a value is on,
+   and `fromExit` to rebuild the carrier at the enclosing function's own return type. A *skipping*
+   lens's call site uses only the first, because where its skip goes is written at the call site
+   rather than derived from a signature - which is the one difference between the two, and the whole
+   of Analysis-Lens.md §3.3's argument for reading B.
+
+   `m` decides the other two parameters. An instance head is keyed on it alone and `a` and `e` are
+   read off whichever instance matched, because nothing at a use site constrains them: a lens
+   returning `Maybe(r)` says what its continuation produced and says nothing at all about what a skip
+   carries. That keying is what makes the check "is there an instance, and is its `a` the
+   continuation's result" rather than an inference problem.
+
+   Both operands are `->`. Asking which path a value is on is the last thing anyone does with it, so
+   consuming it costs nothing and is what keeps the class usable for a carrier whose payload is
+   owned - the alternative would borrow a wrapper in order to hand out what is inside it.
+-}
+pub class Try(m -> a, e):
+  fn toOutcome(->value: m) -> Outcome(a, e)
+  fn fromExit(->reason: e) -> m
+
+-- `Nothing` carries no reason, so a skip through a `Maybe` reaches `| else -> ...` with nothing to
+-- bind. That is the common case and the one Design.md's `findChar` is written in.
+instance Try(Maybe(a), a, {}):
+  fn toOutcome(->value: Maybe(a)) -> Outcome(a, {}) = match value:
+      Just(->inner) -> Proceed(inner)
+      Nothing -> Exit({})
+
+  fn fromExit(->reason: {}) -> Maybe(a) = Nothing
+
+instance Try(Result(e, a), a, e):
+  fn toOutcome(->value: Result(e, a)) -> Outcome(a, e) = match value:
+      Ok(->inner) -> Proceed(inner)
+      Err(->reason) -> Exit(reason)
+
+  fn fromExit(->reason: e) -> Result(e, a) = Err(reason)
+
+-- The identity instance, which is what makes `Outcome` itself a usable lens result: a lens that
+-- wants to report *why* it skipped and has no better type to say it in returns this one.
+instance Try(Outcome(a, e), a, e):
+  fn toOutcome(->value: Outcome(a, e)) -> Outcome(a, e) = value
+  fn fromExit(->reason: e) -> Outcome(a, e) = Exit(reason)
+
+{-
+   The same carrier, around a different payload - what `?.` needs and `Try` cannot say.
+
+   `Try` relates a carrier to what is inside it, which is the direction `?` reads. `?.` reads the
+   other way: it has a carrier `m` that came in and a value `b` that the rest of the chain produced,
+   and it needs the type that is `m`'s wrapper around `b`. `Maybe(Row)` and `String` give
+   `Maybe(String)`.
+
+   Three parameters keyed on the first two, rather than a type constructor applied to a variable.
+   That is deliberate and is the same trade `Try` makes: `m` applied to `b` would need the
+   higher-kinded machinery Implementation-Generics.md part 7 fences off, while an instance head
+   naming `Maybe(a)` and `Maybe(b)` in two positions is an ordinary one, and the dependency is what
+   turns "which type is that" into a lookup.
+
+   `rewrap` does not mention `m`, exactly as `Try.fromExit` does not mention `a`. Neither is callable
+   from source for that reason: what selects them is the shape the compiler already worked out, not
+   an argument list.
+-}
+pub class Rewrap(m, b -> n):
+  fn rewrap(->value: b) -> n
+
+instance Rewrap(Maybe(a), b, Maybe(b)):
+  fn rewrap(->value: b) -> Maybe(b) = Just(value)
+
+instance Rewrap(Result(e, a), b, Result(e, b)):
+  fn rewrap(->value: b) -> Result(e, b) = Ok(value)
+
+instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
+  fn rewrap(->value: b) -> Outcome(b, e) = Proceed(value)
+
+{-
+   `xs[i]` - Implementation-Containers.md §17, Analysis-Extensibility.md §3.
+
+   The container decides what a key is and what an element is, and one container decides both: `c`
+   determines `k` and `v`. That dependency is the whole reason this can be a class at all. Nothing
+   at `xs[i]` binds `v`, and an index literal binds `k` to a literal rather than to a type - so
+   without the arrow the instance could never be selected, which is what
+   Implementation-Containers.md §17 recorded as the blocker and what functional dependencies
+   removed.
+
+   Two functions and not three. `get`/`getMut` rather than `get`/`set`/`modify`, because an
+   assignment *through* a returned mutable borrow already is `modify` - `resolvePlace` roots the
+   write at the borrow `getMut` handed back - and a container, unlike a property, always has a
+   borrow to hand out. The `return` markers are what make that checked: the result points into
+   whatever `self` points into, so the container stays borrowed for as long as the element is, and
+   writing to the container while an element borrow is live is rejected by the ordinary rule
+   rather than by anything written here.
+
+   `get` takes `self` and `getMut` takes `&self`, which is Implementation-Containers.md §4.1's
+   split: reading needs no exclusivity and writing does, and `xs[i] = v` on an immutable binding is
+   rejected for that reason rather than by a second class.
+
+   What this class deliberately does *not* cover is a container whose elements are computed rather
+   than stored - there is nothing to point at, so there is no borrow to return. That is the case a
+   weaker parent class would serve, and it is not written yet: an `iter fn` already hands over
+   computed values without claiming they have a location, and until there are two containers that
+   want it, the right members of such a parent are guesswork. See Implementation-Containers.md §17.
+-}
+pub class Index(c -> k, v):
+  fn get(return self: c, index: k) -> &v
+  fn getMut(return &self: c, index: k) -> &v
+
+-- The default in each head is what an integer or decimal literal settles to when nothing in the
+-- program says otherwise: `1 + 1` writes neither class, so there is no argument position for a
+-- default to fill and what it answers is "nothing decided this, so what is it".
+pub class FromInt(a = Int):
+  fn fromInt(value: Long) -> a
+
+pub class FromDecimal(a = Float):
+  fn fromDecimal(value: Double) -> a
+
+-- The bodies below are class defaults: an instance that writes `==` has `!=` already, and one
+-- that writes `compare` has all four comparisons. What each class still asks of an instance is the
+-- one primitive operation everything else is derived from, which is why there is no choice of
+-- which function to implement and no `MINIMAL` pragma to read. A default may only call class
+-- functions of strictly lower rank than its own, so a pair defining each other in terms of the
+-- other is a rejected declaration rather than a program that compiles and hangs.
+--
+-- Every primitive instance below still supplies all of these itself, so a Bool's `!=` is the one
+-- comparison instruction it always was rather than a specialization of `!(lhs == rhs)`.
+pub class Eq(a):
+  fn ==(lhs: a, rhs: a) -> Bool
+  fn !=(lhs: a, rhs: a) -> Bool = !(lhs == rhs)
+
+-- The four comparisons are `compare` read four ways, and `compare` is the fold a derived instance
+-- would have to produce. Lexicographic order over a record is therefore one function rather than
+-- five, which is what makes Ord worth deriving at all.
+--
+-- `min` and `max` are members rather than functions beside the class, and the reason is the pair of
+-- the same names over `Vec(a, n)` further down this file. Design.md's R1 admits one plain function
+-- per (name, arity) *beside* any number of class functions, so a second plain `min` would be a
+-- redeclaration where a class member is an ordinary second candidate - and the vector pair has to
+-- stay a plain function, because it answers a vector from a lanewise comparison and this class's
+-- comparison answers a `Bool`.
+--
+-- Both operands are `->`, for the reason `??`'s is: what this hands back *is* one of them, so a
+-- borrowed operand would be handing out something the frame does not own. For every type that
+-- reaches these in practice - a number, a code unit, a length - the sink is a copy and no call site
+-- can tell; for a `String` it is the difference between working and freeing it twice.
+--
+-- `min` prefers the left operand on a tie and `max` prefers the right, which is what makes
+-- `max(min(x, hi), lo)` and `clamp` agree about a value that is equal to both bounds. It is stated
+-- because it is observable: two values that compare `EQ` need not be interchangeable.
+pub class (Eq(a)) Ord(a):
+  fn <(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == LT
+  fn <=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != GT
+  fn >(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) == GT
+  fn >=(lhs: a, rhs: a) -> Bool = compare(lhs, rhs) != LT
+  fn compare(lhs: a, rhs: a) -> Ordering
+  fn min(->lhs: a, ->rhs: a) -> a = if lhs <= rhs then lhs else rhs
+  fn max(->lhs: a, ->rhs: a) -> a = if rhs >= lhs then rhs else lhs
+
+-- Anything that can be added can be counted from, so `fn (Num(a)) inc(x: a) = x + 1` compiles as
+-- written rather than making the author declare FromInt as well. FromInt stays its own class so
+-- that a Duration or a units newtype can be integer-literal-constructible without also claiming
+-- to support multiplication.
+--
+-- Negation is the one place the superclass earns its keep as a default: `0` is `FromInt(a)` and
+-- the subtraction is this class's own, so unary `-` needs nothing an instance has not already
+-- promised. An instance for which that is not the negation it wants overrides it.
+pub class (FromInt(a)) Num(a):
+  fn +(lhs: a, rhs: a) -> a
+  fn -(lhs: a, rhs: a) -> a
+  fn *(lhs: a, rhs: a) -> a
+  fn /(lhs: a, rhs: a) -> a
+  fn -(value: a) -> a = 0 - value
+
+{-
+   Joining two of something - what `"a" + "b"` is, and what `Num` must not be made to mean.
+
+   `+` on strings is Implementation-String.md part 8's, and the shape of the problem is that `Num`'s
+   `+` cannot serve it: `Num` has `FromInt` as a superclass, so an instance of it would have to say
+   what the string `3` is, and it would also bring `-`, `*` and `/`, none of which joining has an
+   answer for. Widening the class to fit would make every numeric type promise something about
+   concatenation. So this is a second class, and `+` is overloaded on it exactly as a name may be
+   overloaded on any two classes - selection is by the operand type, and a type in only one of them
+   reaches only that one.
+
+   Declared here rather than beside `String` for the reason `Index` is: it is a class a *user* type
+   may join - a rope, a builder, a list - and a class only a container file could name would not be
+   one.
+   It is deliberately not called `Monoid`: there is no identity element in it, because a type that
+   can join two values need not have an empty one and requiring it would rule out the non-empty
+   containers that are the obvious second instance.
+-}
+pub class Append(a):
+  fn +(lhs: a, rhs: a) -> a
+
+{-
+   Turning a value into text - Implementation-Storage.md part 7, whose `Storage(StringUnit)` sink is
+   `String` itself under Implementation-Containers.md §0.
+
+   Two methods, and the second is what makes the whole scheme cheap.
+
+   **The sink is a `String` and not a `Writer` interface.** Growable `String` *is* the sink, so
+   formatting builds the result in place and finishing it is a reinterpretation rather than a copy.
+   An abstraction over sinks - formatting straight to a file descriptor - is a later addition and
+   deliberately not something every type in the standard library has to implement against.
+
+   **`showBound` is a `Maybe(Size)`, and its constant-ness is not in the type.** `Just(11)` for `Int`
+   is an ordinary expression that folds to `11` once the instance method is inlined at a concrete
+   call site; `Just(length(s))` for `String` is an ordinary expression that does not. The compiler
+   learns "this is a compile-time constant" from the folder rather than from a second type-level
+   channel, so there is exactly one thing for an instance author to write and no way for two channels
+   to disagree. `Nothing` is the honest answer for a container, where measuring costs what formatting
+   costs and there is no reason to pay twice.
+
+   **The contract is that `show` writes at most `showBound` units when it is `Just`**, and an
+   instance that lies about it is unsafe in the same trust tier as `@reclaimOnly`. What makes the
+   sizing sound without a purity rule is the borrow checker: the formatter holds the value across
+   both the measure and the write, so nothing can change it in between. A `showBound` with side
+   effects is still a bad instance; it cannot make the buffer wrong.
+-}
+pub class Show(a):
+  fn show(value: a, &to: String) -> {}
+  fn showBound(value: a) -> Maybe(Size) = Nothing
+
+-- The compound assignments are ordinary functions, not syntax. `=` is the one reserved token, so
+-- `+=` lexes as an operator like `==` does and needs only a fixity and a declaration - which is
+-- why there is no desugaring of `x += e` to `x = x + e` anywhere in the parser.
+--
+-- That is worth the four lines rather than the one-line rewrite, and the reason is the mutable
+-- borrow. On a `@bits`-packed field, a JS host property, or anything else whose Property is not a
+-- plain load and store, the rewritten form reads and then writes independently while this one
+-- passes one borrow and walks the property path once - the distinction Design.md's Properties and
+-- field access draws between `set` and `modify`, inherited here for free.
+--
+-- Precedence 0 is below every other operator, which is what makes `x += a + b` group as it reads.
+-- It is declared `infixl` rather than `infixr` because `a += b += c` is nonsense under either
+-- reading, the result being unit, and the left one at least reports it at the outer operator.
+pub fn (Num(a)) +=(&target: a, amount: a) -> {}:
+    target = target + amount
+
+pub fn (Num(a)) -=(&target: a, amount: a) -> {}:
+    target = target - amount
+
+pub fn (Num(a)) *=(&target: a, amount: a) -> {}:
+    target = target * amount
+
+pub fn (Num(a)) /=(&target: a, amount: a) -> {}:
+    target = target / amount
+
+{-
+   `!`, `&&` and `||` - the three operators that ask about truth rather than about bits.
+
+   **Plain functions over `Truth`, not members of a class, and they answer `Bool`.** That is the one
+   arrangement under which `if x` and `if !x` cannot disagree, and the arrangement exists because the
+   alternative was tried: they used to be defaults on a `Logic` class beside `and`/`or`/`not`, so
+   `!x` was the *complement* of `x` at `x`'s own type. For a `Bool` that is the same answer and
+   nothing showed; for a flags newtype whose `Truth` is "any bit set", `if empty` was False and
+   `if !empty` was True, because the complement of zero is every bit and every bit is non-zero. The
+   operator and the condition were reading the same value two different ways.
+
+   So the split is C's, under names that read: `and`, `or`, `xor` and `not` are the bit operations
+   and return the operand's type; these three are the truth operations and return `Bool`. Anything
+   with a `Truth` instance gets all three, which is what makes `if !count` and `if !flags` mean what
+   a reader of any other language expects. `not(flags)` is still the complement, and is still spelled
+   differently from `!flags`, which is the point.
+
+   **The two operands need not have the same type.** `if p != nil && count` is the shape that wants
+   it, and nothing here relates them: each side is asked its own `Truth` and neither is converted to
+   anything. A class could not have said that, since a class has one variable per position it binds.
+
+   `b` is the one variable in Core that no *call* decides, and it is sound because nothing reads it.
+   Selection skips a `@lazy` position - the argument is not resolved, and resolving it to find out
+   would evaluate it - so a variable occurring only there is never bound by the call. What would have
+   read it is the *thunk* built for that argument, and these three never build one: the operand is
+   emitted under the branch that runs it. See `deferredOnlyVariable` in expr_call.cpp, which is where
+   that is checked rather than assumed.
+
+   A callee that *is* called answers the same question from the other end: the argument is resolved
+   into the closure it becomes and the closure's result type is what the variable is, which is
+   `inferDeferredArguments` beside it. So this shape is available to anyone, and these three are only
+   the case where it costs nothing.
+
+   `@lazy` on the right operand is what makes short-circuiting a property of these declarations
+   rather than of the compiler: the argument is not evaluated at the call site, and reading `rhs` is
+   what runs it. Each of them reads it at most once, on one path.
+
+   All three carry an intrinsic, so `a && b` is a branch with the right operand emitted under it -
+   no closure, no call and no allocation - and `!x` is the truth test and one `xor`. For a `Bool`,
+   whose `Truth` is the identity, that is the single instruction it has always been.
+
+   The bodies below are what a call that *cannot* be expanded reaches, which is a call from generic
+   code: `fn (Truth(a)) f(x: a) = !x` knows only that an instance exists, so its `!` is an ordinary
+   call that specialization resolves once `a` is known. They are written to be the same operation the
+   hook emits, and each reads its right operand on one arm and not the other, which is the
+   at-most-once rule holding by construction rather than by a check passing.
+
+   Only `!` reaches its body that way today. `x && y` over a generic `x` needs a thunk built inside a
+   generic body, which is refused outright - it would have to be specialized alongside its caller -
+   and that rule is older than these three and applies to a class function with a `@lazy` parameter
+   in the same way. The two bodies are the answer for the day it is lifted.
+
+   What none of them gives yet is a flow-sensitive binding: `if p is Just(v) && v > 0` does not see
+   `v`, because `is` outside condition position discards what it bound before `&&` is even selected.
+   Making that work is a change to the condition path rather than to `@lazy`.
+-}
+pub fn (Truth(a)) !(value: a) -> Bool = if truthy(value) then False else True
+pub fn (Truth(a), Truth(b)) &&(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+pub fn (Truth(a), Truth(b)) ||(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then True else truthy(rhs)
+
+-- The other operator `@lazy` exists for: a fallback that is only computed when there is nothing to
+-- fall back from. An ordinary generic function rather than anything the compiler knows about, which
+-- is the point - `??` is short-circuiting for the same reason `&&` is, and for no other.
+--
+-- Deliberately not a class function. There is one Maybe and one meaning, and a class would invite
+-- instances for Result and for pointers, where "is there a value here" and "did this succeed" stop
+-- being the same question - the same reason Truth is not instanced for Maybe.
+--
+-- `->` on the operand, for the reason `Try`'s two functions take one: what this answers *is* what
+-- was inside, so a borrowed operand would be handing out something it does not own. For a
+-- `Maybe(Int)` the sink is a copy and nothing changes at any call site; for a `Maybe(Buffer)` it is
+-- the difference between working and freeing the buffer twice.
+pub fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
+    Just(->inner) -> inner
+    Nothing -> fallback
+
+-- The ownership classes a type can join by writing an instance.
+--
+-- What they are for is the cases the structural answer gets wrong, and each of them is a statement
+-- that it does: `Copy` for a type that can be duplicated but not by copying its bytes, `Sink` for
+-- one that cannot be relocated by copying its bytes because it refers to its own address,
+-- `Reclaim` for one whose storage is released by something other than handing an allocation back,
+-- and `Drop` for one whose lifetime ends in an effect.
+--
+-- A type that writes none of them still gets all of the behaviours - a bitwise copy, a bitwise
+-- move, and the derived teardown that recurses into each member and then releases this owner's own
+-- storage.
+pub class Copy(a):
+  fn copy(from: a) -> a
+
+-- `to` arrives uninitialized and must be fully initialized before returning. That obligation is
+-- Design.md's `@uninit &`, which is not implementable yet - nothing in the language produces
+-- uninitialized storage for a caller to pass - so it is documented here and unchecked. When the
+-- attribute lands this signature gains it and nothing else about the class changes.
+pub class Sink(a):
+  fn sink(&to: a, ->from: a) -> {}
+
+{-
+   The two halves of teardown - Design-Memory §4.
+
+   Splitting them is what makes three otherwise separate rules one sentence each: `Reclaim` compiles
+   to nothing on the JS target while `Drop` runs; `Reclaim` is elided for region-placed storage
+   while `Drop` still runs at last use; and closing a region discharges every `Reclaim` inside it in
+   bulk. Region eligibility therefore becomes structural - a type is implicitly region-placeable
+   when it has no `Drop` - which is what lets a map of connections be arena-placed with its
+   connection teardowns still running where they should.
+
+   `Reclaim` releases this value's own storage and nothing else. An authored one is constrained by
+   shape rather than trusted for purity: its body may contain control flow, arithmetic over its own
+   metadata, reads of storage it owns, calls to the compiler's per-member teardown, and storage
+   release, and no other call. The author is trusted about "I call nothing else", never about "my
+   members are effect-free" - whether a container's teardown has effects is computed from whether
+   its element types have a `Drop`.
+-}
+pub class Reclaim(a):
+  fn reclaim(->value: a) -> {}
+
+-- Run once when a live instance dies, at its last use rather than at the end of its scope. Never
+-- run on a location a value has been moved out of, which is what the drop flags exist to know.
+pub class Drop(a):
+  fn drop(->value: a) -> {}
+
+{-
+   The two implicit ownership classes.
+
+   No instance of either is ever written: they hold for a type exactly when they hold for every one
+   of its members, and the compiler answers them structurally before typeclass dispatch is available
+   at all. They are declared as classes anyway so that a *signature* can constrain a type variable
+   by one - `fn (TrivialCopy(a)) dup(x: a) -> {a, a}` - and the body may then act on the fact.
+
+   Design-Memory §2.1's rule is what makes that distinction load-bearing: an unconstrained parameter
+   is treated as non-TrivialCopy inside the body regardless of what a caller later substitutes, so
+   discovering the fact at one concrete call site may never upgrade a borrow to a copy. The
+   constraint is the only thing that can.
+-}
+pub class TrivialCopy(a)
+pub class TrivialSink(a)
+
+{-
+   Exchanging the contents of storage.
+
+   `->` takes a value out of a place and leaves it empty, which is why it needs the place to be one
+   the compiler can prove things about: something has to know the hole is there, and something has
+   to refill it or account for it at the end. That proof is a per-local lattice, and there are three
+   kinds of storage it cannot cover - a global, a borrow, and an element a collection handed back.
+   None of them has a slot in this frame to carry a state.
+
+   These two are how a value comes out of those. Neither ever leaves a hole: both places hold a live
+   value before and after, so there is no state to track and nothing to prove. `let ->old = theGlobal`
+   is rejected; `let old = exchange(theGlobal, ->replacement)` is the same intent said in a way that
+   is true.
+
+   Two rather than one because they cost different amounts. `swap` cannot write either place until it
+   has read both, so it relocates three times through a temporary. `exchange` is handed a value
+   rather than a place, so it relocates twice and needs no temporary. A caller with a replacement in
+   hand should not pay for the one that has none.
+-}
+pub fn swap(&left: a, &right: a) -> {}
+pub fn exchange(&slot: a, ->value: a) -> a

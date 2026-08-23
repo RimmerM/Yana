@@ -1,5 +1,26 @@
 let image$base: () = <none>
 
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
 fn Bounded(I8).minValue() -> I8 {
   b0:
     %v4 = sub 0, 127 : I8
@@ -150,36 +171,15 @@ fn roundUpTo(Int)(%value: Int, %multiple: Int) -> Int {
     ret %v10
 }
 
-fn abortProcess() -> () {
-  b0:
-    call exitProcess, 134
-    ret
-}
-
 fn exitProcess(%status: I64) -> () {
   b0:
     %v2 = syscall 60, %status : I64
     ret
 }
 
-fn checkFailed() -> () {
+fn abortProcess() -> () {
   b0:
-    call abortProcess
-    ret
-}
-
-fn checkCondition(%failed: Bool) -> () {
-  b0:
-    je %failed, b1, b2
-
-  b1:
-    call checkFailed
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
+    call exitProcess, 134
     ret
 }
 

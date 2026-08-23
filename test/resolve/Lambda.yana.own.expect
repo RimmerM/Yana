@@ -1,3 +1,15 @@
+fn Reclaim(Array(a)).reclaim(Int) {
+  arg value readonly
+  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: Int writable live [2, 8) [11, 25)
+  %local2: Int readonly live [18, 21)
+  %local3: Int readonly live [19, 21)
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
 fn initHeap {
 }
 
@@ -39,18 +51,6 @@ fn freeHeap {
 fn releaseRun(Int) {
   arg self readonly
   %self: Run(Int) borrowed droppable readonly live [0, 7)
-}
-
-fn mapMemory {
-  arg size readonly
-}
-
-fn Reclaim(Array(a)).reclaim(Int) {
-  arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
-  %i: Int writable live [2, 8) [11, 25)
-  %local2: Int readonly live [18, 21)
-  %local3: Int readonly live [19, 21)
 }
 
 fn double {

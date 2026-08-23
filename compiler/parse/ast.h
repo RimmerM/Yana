@@ -854,16 +854,76 @@ struct Fixity {
     Kind kind: 2;
 };
 
+/*
+ * How a file says which module it is part of - Analysis-Modules.md §2.1.
+ *
+ * `Directory` is the absent declaration and the common case: a file belongs to the module formed by
+ * the directory it sits in, and says nothing. The two opt-outs are the only forms with syntax, and
+ * the bare one is the one that reads as what the word means - "this file is a module".
+ */
+enum class Membership: U8 {
+    Directory, /// Nothing written. The file is part of its directory's module.
+    Own,       /// `module`. The file is a module of its own, named by its path.
+    Named,     /// `module M`. The file joins M, which must be a proper prefix of its path name.
+};
+
+/*
+ * One parsed file.
+ *
+ * `name` is the file's own path-derived name and not the module it ends up in - the two stopped
+ * being the same thing when a module became a directory. It is what a `LocationId` is quoted
+ * through and what a language server turns back into a URI, and both of those are questions about a
+ * file; which module the file joined is `ModuleGroup::name`.
+ *
+ * There is no region here. Every AST in a compilation is allocated in `Context::parseRegion`, so
+ * that the files of one module can be addressed through one `ParseBase` - see the comment there.
+ */
 struct Module {
-    Region<ParseRegion> region;
     StringId name;
 
     ParseList<Import> imports;
     ParseList<Decl> decls;
     ParseList<Fixity> ops;
 
+    Membership membership = Membership::Directory;
+
+    // The name written in `module M`, or none. Checked against the file's path by whoever built the
+    // module map, since it is the only thing that knows where the file is.
+    StringId joins {};
+
+    // Where the declaration was written, for the diagnostics the check above reports. Null when
+    // nothing was written.
+    LocationId membershipSource {};
+
     U32 errorCount = 0;
     U32 warningCount = 0;
+};
+
+/*
+ * The files of one module, in the order the resolver reads them.
+ *
+ * Non-owning: the files belong to whoever parsed them - a `SourceEntry` for a project file and
+ * `Program::embeddedAsts` for a library one - and this is the grouping laid over them. The order is
+ * path order, which is what makes every pass over a module deterministic and what §2.3's
+ * declaration order is built on.
+ */
+struct ModuleGroup {
+    StringId name;
+
+    /*
+     * `SmallArray` rather than `Array`, and eight is the ordinary module - see util/README.md.
+     *
+     * There is one of these per module in the program, and most modules are one file, so an ordinary
+     * `Array` was a heap allocation apiece to hold a single pointer. Past eight it behaves exactly
+     * like one, which the two the library ships - `Core` and `Native` - are the only things in a
+     * compilation that reach.
+     *
+     * Safe as an element of `ModuleMap::groups`, which grows while it is being filled: the inline
+     * buffer is not pointed at from inside the object, so relocating one relocates it correctly.
+     * Nothing may hold the address of an entry across a move of the group itself, and nothing does -
+     * every reader indexes or iterates.
+     */
+    SmallArray<Module*, 8> files;
 };
 
 } // namespace ast

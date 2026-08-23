@@ -2,7 +2,19 @@ Bool: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, 
 
 Ordering: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 2 bits, niche at 0 width 1, valid 0..2, free 0 below / 253 above
 
-Maybe(I64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
+ReadError: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+
+Shortest: size 12, align 8, stride 16, niche none
+  .0 at 0: U64
+  .1 at 8: Int
+
+Scanned: size 29, align 8, stride 32, niche at 28 width 1, valid 0..1, free 0 below / 254 above
+  .0 at 0: I64
+  .1 at 8: U64
+  .2 at 16: Int
+  .3 at 20: Int
+  .4 at 28: Bool
+  .5 at 24: Int
 
 OpenFlags: size 8, align 8, stride 8, niche none
 
@@ -44,39 +56,19 @@ Whence: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 2 bits
 
 Errno: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 7 bits, niche at 0 width 1, valid 0..122, free 0 below / 133 above
 
-Maybe(FileKind): size 2, align 2, stride 2, tag folded into constructor 1's niche from 40961 up, niche at 0 width 2, valid 0..40961, free 0 below / 24574 above
-
-Maybe(Errno): size 1, align 1, stride 1, tag folded into constructor 1's niche from 123 up, niche at 0 width 1, valid 0..123, free 0 below / 132 above
+StringData: size 16, align 8, stride 16, niche at 12 width 4, valid 0..1073741823, free 0 below / 3221225472 above
+  .0 at 0: Array(U8)
 
 Run(U8): size 12, align 8, stride 16, niche none
   .0 at 0: %U8
   .1 at 8 bits 0..29 of 4 bytes: @bits(30) U32
   .2 at 8 bits 30..31 of 4 bytes: @bits(2) U32
 
-Outcome((), ()): size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
-
-Outcome((), Maybe(I64)): size 24, align 8, stride 24, tag word at 0, payload at 8, niche none
-
-StringData: size 16, align 8, stride 16, niche at 12 width 4, valid 0..1073741823, free 0 below / 3221225472 above
-  .0 at 0: Array(U8)
-
 Array(U8): size 16, align 8, stride 16, niche at 12 width 4, valid 0..1073741823, free 0 below / 3221225472 above
   .0 at 0: Run(U8)
   .1 at 12: @bits(30) U32
 
-Shortest: size 12, align 8, stride 16, niche none
-  .0 at 0: U64
-  .1 at 8: Int
-
-ReadError: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
-
-Scanned: size 29, align 8, stride 32, niche at 28 width 1, valid 0..1, free 0 below / 254 above
-  .0 at 0: I64
-  .1 at 8: U64
-  .2 at 16: Int
-  .3 at 20: Int
-  .4 at 28: Bool
-  .5 at 24: Int
+Maybe(I64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
 
 Maybe(ReadError): size 1, align 1, stride 1, tag folded into constructor 1's niche from 2 up, niche at 0 width 1, valid 0..2, free 0 below / 253 above
 
@@ -91,6 +83,10 @@ Maybe(Scanned): size 29, align 8, stride 32, tag folded into constructor 1's nic
   .3 at 20: Int
   .4 at 28: Bool
   .5 at 24: Int
+
+Maybe(FileKind): size 2, align 2, stride 2, tag folded into constructor 1's niche from 40961 up, niche at 0 width 2, valid 0..40961, free 0 below / 24574 above
+
+Maybe(Errno): size 1, align 1, stride 1, tag folded into constructor 1's niche from 123 up, niche at 0 width 1, valid 0..123, free 0 below / 132 above
 
 Result(ReadError, I64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
 
@@ -116,14 +112,6 @@ Flat(U8): size 16, align 8, stride 16, niche none
   .0 at 0: %U8
   .1 at 8: I64
 
-Flat(I64): size 16, align 8, stride 16, niche none
-  .0 at 0: %I64
-  .1 at 8: I64
-
-Outcome((), Outcome((), Maybe(I64))): size 32, align 8, stride 32, tag word at 0, payload at 8, niche none
-
-Outcome((), Outcome((), ())): size 1, align 1, stride 1, tag folded into constructor 1's niche from 2 up, niche at 0 width 1, valid 0..2, free 0 below / 253 above
-
 Sum: size 2, align 2, stride 2, tag at bits 8..8 of 2 bytes, payload at 0, niche at 0 width 2, valid 0..511, free 0 below / 65024 above
 
 Colour: size 4, align 4, stride 4, tag at bits 24..24 of 4 bytes, payload at 0, niche at 0 width 4, valid 0..33554431, free 0 below / 4261412864 above
@@ -139,5 +127,17 @@ Tagged: size 2, align 2, stride 2, tag at bits 8..8 of 2 bytes, payload at 0, ni
 Wide: size 8, align 4, stride 8, tag word at 0, payload at 4, niche none
 
 Maybe(Sum): size 2, align 2, stride 2, tag folded into constructor 1's niche from 512 up, niche at 0 width 2, valid 0..512, free 0 below / 65023 above
+
+Outcome((), ()): size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
+
+Outcome((), Maybe(I64)): size 24, align 8, stride 24, tag word at 0, payload at 8, niche none
+
+Outcome((), Outcome((), Maybe(I64))): size 32, align 8, stride 32, tag word at 0, payload at 8, niche none
+
+Outcome((), Outcome((), ())): size 1, align 1, stride 1, tag folded into constructor 1's niche from 2 up, niche at 0 width 1, valid 0..2, free 0 below / 253 above
+
+Flat(I64): size 16, align 8, stride 16, niche none
+  .0 at 0: %I64
+  .1 at 8: I64
 
 Maybe(Whence): size 1, align 1, stride 1, tag folded into constructor 1's niche from 3 up, niche at 0 width 1, valid 0..3, free 0 below / 252 above

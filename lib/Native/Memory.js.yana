@@ -1,0 +1,14 @@
+{-
+   The block copy, on the target that has no bytes.
+
+   A declaration and not a body, where the native build's `copyMemory` is a body: `blockCopyShape`
+   in codegen/js/type.cpp recovers a *shape* from this operation - two same-typed references cast to
+   `%()` and one value's worth of bytes - which is what the compiler-generated relocation glue opens
+   with. Anything else, which is every call a program could write, is excluded from that target
+   rather than approximated.
+
+   One declaration, and a file for it, because that is what the name of the file is now for: what a
+   host block copy is has nothing in common with the ladder `Memory.native.yana` holds beyond the
+   name they answer to.
+-}
+pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}

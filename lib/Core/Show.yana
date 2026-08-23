@@ -1,0 +1,127 @@
+import Native
+
+{-
+   ==========================================================================================
+   `Show` - Implementation-Storage.md part 7's instances.
+   ==========================================================================================
+
+   The bounds below are the table that document gives, and each is exact rather than generous: the
+   buffer is sized from them, so a bound larger than the truth wastes the difference and a bound
+   smaller than the truth is the one thing an instance may not do.
+-}
+
+-- `"False"` is five units, which is the longer of the two.
+instance Show(Bool):
+    fn show(value: Bool, &to: String) -> {}:
+        if value then pushString(to, "True")
+        else pushString(to, "False")
+
+    fn showBound(value: Bool) -> Maybe(Size) = Just(5)
+
+{-
+   The integers, written once over the widest signed type they all widen into.
+
+   `showSigned` is the whole implementation and the instances below only say how wide the value can
+   be. One body for both targets, because this is arithmetic and nothing else - `Long` is a machine
+   word natively and a `bigint` on JS, and division and remainder mean the same thing on both.
+
+   **The digits are produced in the negative domain**, which looks backwards and is the point. The
+   most negative value of any width has no positive counterpart, so negating it first gives that same
+   number back and a loop dividing it would emit wrong digits forever. Working downwards from zero
+   makes `-9223372036854775808` an ordinary input rather than a case anyone has to remember. It needs
+   truncating division and a remainder that follows the dividend's sign, which is what both targets
+   do.
+
+   The reversal buffer is a real cost - one temporary string per integer formatted - and it is the
+   obvious thing to remove later: the digits are produced least-significant first and the sink can
+   only be appended to. Writing them into a `[U8 *20]` instead would need no allocation at all, and
+   is left until fixed arrays are reachable from a body this generic.
+
+   Not `pub`: it is how the `Show` instances below are written and not something to call directly,
+   since what a program wants of an integer is `show` and the instance decides the rest.
+-}
+fn showSigned(value: Long, &to: String) -> {}:
+    if value == 0:
+        pushUnit(to, 48)
+        return {}
+
+    -- Downwards from zero, so that every width's most negative value is representable throughout.
+    let &remaining = value
+    if remaining > 0 then remaining = 0 - remaining
+
+    let &digits = newStringOfCapacity(20 :: Size)
+    while remaining < 0:
+        let digit = truncate(0 - (remaining `rem` 10)) :: Int
+        pushUnit(digits, 48 + digit)
+        remaining = remaining / 10
+
+    if value < 0 then pushUnit(to, 45)
+
+    -- Reversed, because the loop above produced them backwards.
+    let &i = length(digits)
+    while i > 0:
+        i = i - 1
+        pushUnit(to, stringUnit(digits, i :: Size))
+
+-- `-2147483648` is eleven units, which is the widest an `Int` gets.
+instance Show(Int):
+    fn show(value: Int, &to: String) -> {} = showSigned(value :: Long, to)
+    fn showBound(value: Int) -> Maybe(Size) = Just(11)
+
+-- `-9223372036854775808` is twenty.
+instance Show(Long):
+    fn show(value: Long, &to: String) -> {} = showSigned(value, to)
+    fn showBound(value: Long) -> Maybe(Size) = Just(20)
+
+{-
+   A string shows as itself, and its bound is a *runtime* value - which is the row that makes the
+   point about `showBound`'s constant-ness not being in the type.
+
+   `Just(11)` for `Int` folds to a literal at a concrete call site and this does not, and neither
+   instance had to say which it was. That is the whole of what the `Maybe(Int)` shape buys, and it is
+   why a format containing one string and three integers still sizes its buffer in one addition.
+-}
+instance Show(String):
+    fn show(value: String, &to: String) -> {} = pushString(to, value)
+    fn showBound(value: String) -> Maybe(Size) = Just(length(value))
+
+{-
+   `Maybe(a)` - Implementation-Storage.md part 7's row that shows the bound *composing*.
+
+   The first instance here that is generic and constrained on its own element's, which is the shape
+   every *container's* `Show` has: the body dispatches `show` at `a` without knowing what `a` is, and
+   the bound below it dispatches `showBound` the same way. Nothing about the two is specific to an
+   option, which is why this one is worth having beyond the type it is for.
+
+   **The bound is where the composition is visible.** `Nothing` is seven units. `Just(x)` is six -
+   `Just(` and `)` - plus whatever `x` costs, and `x`'s cost is an answer of the same shape: a
+   `Just` around a bounded type stays exactly bounded, and one around an unbounded type stays
+   unbounded, because `Nothing` propagates through the `match` rather than being replaced by a guess.
+   That is the whole of what the `Maybe(Size)` return type buys, and it is why a format holding an
+   `Maybe(Int)` and three integers still sizes its buffer in one addition.
+
+   This did not compile until recently, and the note that stood here said so: a `&` parameter of a
+   constrained generic instance method used not to arrive as a place, so every write to the sink -
+   `pushString(to, "Nothing")` included - was rejected with `a & argument must have exactly type
+   String, but this is &mut String`. Both halves of that are gone. The instance below is the proof
+   for the callee's side; a `fn (Show(a)) shown(value: a) -> Int` formatting into a local sink is the
+   proof for the caller's, and `Show.yana` in the test corpus is where it is written.
+-}
+instance (Show(a)) Show(Maybe(a)):
+    fn show(value: Maybe(a), &to: String) -> {} = match value:
+        Just(inner):
+            pushString(to, "Just(")
+            show(inner, to)
+            pushUnit(to, 41)
+
+        Nothing -> pushString(to, "Nothing")
+
+    -- `Nothing` in, `Nothing` out: an element that cannot say what it costs makes the option that
+    -- holds it unable to either, and answering a number here would be the one thing an instance may
+    -- not do. The six is `Just(` and `)`, which is the only text this adds.
+    fn showBound(value: Maybe(a)) -> Maybe(Size) = match value:
+        Just(inner) -> match showBound(inner):
+            Just(units) -> Just(units + 6)
+            Nothing -> Nothing
+
+        Nothing -> Just(7)

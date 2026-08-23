@@ -1,0 +1,111 @@
+{-
+   The native half of a run and of the slice over it - Analysis-Modules.md §2.5.
+
+   Growing a run and handing its storage back, which is the part that needs an allocator, and the
+   `Flat(a)` descriptor, which is two fields here and three on JS. `Run.yana` beside this is what a
+   run and a slice *are*; `Run.js.yana` is the other descriptor.
+
+   **A native file, and that is what it is saying** - Analysis-Modules.md §2.5. `resize` asks
+   `allocateHeap` for slots and `releaseRun` hands them back to `freeHeap`, and both of those are
+   `Heap.native.yana`'s: a target with no addresses has no heap of this kind and no run to grow. On
+   JS a container is the host's own array, which grows itself.
+
+   The `Reclaim` instance is here rather than beside the type for the same reason and not for a
+   weaker one: what it does *is* release the allocation, so an instance on a target with no
+   allocation would be an instance with nothing to say. `Run(a)` still exists on JS - it is the
+   descriptor a compiler-placed run is - and it simply has no `Reclaim`, which is the correct answer
+   rather than an empty one.
+-}
+
+{-
+   Room for `wanted` slots, relocating if there is not.
+
+   `&self` is what makes relocation safe with no new rule: a mutable borrow of the run conflicts with
+   any live borrow into it, so the checker already rejects holding an element borrow across one of
+   these. False means the allocator refused and the run is exactly as it was.
+
+   The whole of the old capacity is copied rather than the live prefix, because a run does not know
+   which of its slots are live - that is what §2 means by having no notion of occupancy. It costs a
+   constant factor on a growth that is amortized anyway, and it is what keeps the primitive from
+   needing a count it would then have to be told about.
+
+   A `wanted` past what `Count` can hold is refused rather than truncated, which is the same answer
+   an allocator that said no gets and for a better reason: storing it would leave a run whose
+   capacity field disagreed with the storage behind it, and every later `resize` would read the
+   masked number back and believe it.
+-}
+pub fn resize(&self: Run(a), wanted: Size) -> Bool:
+    let room = self.capacity :: Size
+    if wanted <= room then return True
+
+    -- Refused one line before the allocator is asked, and for a different reason than a refusal from
+    -- it: there is nowhere to write the new base. A `runFixed` run's slots are its owner's own bytes
+    -- and the two words this body reads are a descriptor built for the call
+    -- (Implementation-Containers.md §7.2's tier-1 borrow), so relocating would leave the elements the
+    -- caller can still reach exactly where they were and this descriptor pointing at a block nothing
+    -- frees. That is what makes `@capacity(n)` a bound rather than a hint. The comparison folds
+    -- wherever the flag is a constant, which is everywhere the run was not built in a generic body.
+    if self.ownsHeap == runFixed then return False
+
+    if wanted > maxCount then return False
+
+    let fresh = bitcast(allocateHeap(byteSpan(self.items, wanted))) :: %a
+    if isNull(fresh) then return False
+
+    if room > 0:
+        copyMemory(bitcast(fresh) :: %U8, bitcast(self.items) :: %U8, byteSpan(self.items, room))
+
+    if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
+
+    self.items = fresh
+    self.capacity = truncate(wanted) :: Count
+    self.ownsHeap = runFromHeap
+
+    return True
+
+{-
+   The placement test - Implementation-Storage.md §5.
+
+   Written as a plain function taking the run by borrow as well as as the instance below, because a
+   container built on runs has to be able to release its own without owning it out of itself: moving
+   a field out of the value an authored `Reclaim` was handed is a partial move, and duplicating this
+   comparison in every such container is the thing worth avoiding. It is storage release and nothing
+   else, which is what makes it a permitted call inside an authored `Reclaim` - see
+   checkReclaimShape.
+
+   Inline, frame and region storage release nothing: the owner's own bytes, the frame returning, and
+   the region closing are what hand those back. Only the allocator's is this function's to give
+   back, which is why the three are one value here. When the bit is a constant the escape analysis
+   patched - which it is everywhere the run was not built inside a generic body - the comparison
+   folds and this whole function with it.
+
+   A `Reclaim` and not a `Drop`, which is what keeps a container built on runs region-placeable: a
+   region discharges every `Reclaim` inside it in bulk, and handing storage back is exactly the kind
+   of thing that may happen in bulk at a point the author did not choose.
+
+   **This is one comparison and it is no longer a call**, which is Implementation-Containers.md
+   §13.2's first step: a callee taking an aggregate by the default convention is a memory-typed value
+   parameter, and the inliner used to decline every one of those. It re-roots them at the caller's
+   own place now (`Binding::Memory` in opt_inline.cpp), so this test is spliced into whatever reads
+   it, and the teardown holding it is spliced into the `drop` that runs it.
+
+   And it *folds*, which §2 has claimed all along and which was not true until §13.2 landed: the tag
+   is a constant in the literal's own `Run` allocation and reaches the array through whole-aggregate
+   copies, so opt_place.cpp carries what is known across them rather than rewriting either side. A
+   frame-placed array's teardown is no instructions at all. What still tests at run time is an array
+   something wrote through a borrow, and a grown one - where the question is real.
+-}
+pub fn releaseRun(self: Run(a)) -> {}:
+    if self.ownsHeap == runFromHeap then freeHeap(bitcast(self.items) :: %U8)
+
+instance Reclaim(Run(a)):
+    fn reclaim(->value: Run(a)) -> {} = releaseRun(value)
+
+-- The slice, natively - two fields, because the base is the window. `Run.yana` says why `offset` is
+-- last on the target that has one.
+pub data Flat(a) {items: %a, length: Size}
+
+-- The element address a `Flat` is defined by. Absent on `Bits` when that lands, deliberately: a
+-- narrow element has no address, and the partiality is what keeps `sizeOf` and pointer arithmetic
+-- off the fractional-stride path.
+pub fn values(return self: Flat(a)) -> %a = self.items

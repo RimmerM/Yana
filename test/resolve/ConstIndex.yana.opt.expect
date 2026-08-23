@@ -2,6 +2,23 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
+  b0:
+    %v42 = load %value@Array.run@Run.capacity:unit32 : U32
+    %v44 = shr %v42, 30 : U32
+    %v31 = cmp_eq %v44, 1 : Bool
+    je %v31, b1, b2
+
+  b1:
+    %v34 = load %value@Array.run@Run.items : %Int
+    %v35 = bitcast %v34 : %U8
+    call freeHeap, %v35
+    jmp b2
+
+  b2:
+    ret
+}
+
 fn freeHeap(%allocation: %U8) -> () {
   b0:
     %v1 = bitcast %allocation : Long
@@ -27,23 +44,6 @@ fn freeHeap(%allocation: %U8) -> () {
     %v24 = load heapFree : %%U8
     %v27 = add %v24, %v21 : %%U8
     assign [%v27], %allocation
-    ret
-}
-
-fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
-  b0:
-    %v42 = load %value@Array.run@Run.capacity:unit32 : U32
-    %v44 = shr %v42, 30 : U32
-    %v31 = cmp_eq %v44, 1 : Bool
-    je %v31, b1, b2
-
-  b1:
-    %v34 = load %value@Array.run@Run.items : %Int
-    %v35 = bitcast %v34 : %U8
-    call freeHeap, %v35
-    jmp b2
-
-  b2:
     ret
 }
 

@@ -821,7 +821,7 @@ struct ExprResolver {
     ModulePtr<Block> addBlock() { return function.addBlock(module) - local; }
 
     /*
-     * A check the compiler inserted, as a call to `Collections.checkCondition`.
+     * A check the compiler inserted, as a call to `Core.checkCondition`.
      *
      * `failed` is the condition under which the program is wrong, so it reads as the *mistake*
      * rather than as the invariant - `index >= length`, not `index < length`.

@@ -71,11 +71,16 @@ static bool isDeadClosureHeader(ModuleBase local, ModulePtr<Global> table) {
 }
 
 static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
-                          Array<ModulePtr<Global>>& tables) {
+                          Array<ModulePtr<Global>>& tables, const HashSet<U32>* excluded) {
     ModuleBase local = *program.arena;
 
     auto reachFunction = [&](ModulePtr<Function> callee) {
         if(!callee || local[callee]->used) return;
+
+        // A function the backend has decided it cannot emit is not an edge - see the header on
+        // `excluded`. Its body is never walked, so whatever only it could reach stops being
+        // reachable, which is how a target-specific runtime drops out without being named.
+        if(excluded && excluded->contains(U32(callee))) return;
 
         local[callee]->used = true;
         pending.push(callee);
@@ -196,7 +201,7 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
     }
 }
 
-void markProgramReachable(Program& program) {
+void markProgramReachable(Program& program, const HashSet<U32>* excluded) {
     ModuleBase local = *program.arena;
     Array<ModulePtr<Function>> pending;
 
@@ -249,7 +254,7 @@ void markProgramReachable(Program& program) {
         pending.push(program.entry);
         rootAnchor();
 
-        markReachable(program, pending, tables);
+        markReachable(program, pending, tables, excluded);
         return;
     }
 
@@ -285,5 +290,5 @@ void markProgramReachable(Program& program) {
         }
     }
 
-    markReachable(program, pending, tables);
+    markReachable(program, pending, tables, excluded);
 }

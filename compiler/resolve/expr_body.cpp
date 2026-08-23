@@ -145,6 +145,15 @@ bool resolveFunctionBody(Module& module, Function& function) {
     auto& context = module.context;
     if(!function.ast || function.resolving) return true;
 
+    /*
+     * The file this function was written in is the file its body's names are looked up from -
+     * Analysis-Modules.md §2.1.2. This is the one place bodies are resolved from, including the ones
+     * reached out of order: a call reads its callee's inferred result type, and instantiating a
+     * generic resolves a body in the middle of another one. `FileScope` restores, which is what
+     * makes that nesting safe.
+     */
+    FileScope scope(module, function.source);
+
     auto& decl = *module.parse[function.ast];
 
     /*
@@ -499,6 +508,10 @@ void resolveProgramEntry(Program& program) {
     auto first = module->topLevel.get(*module->arena, 0).decl;
     auto source = first ? module->parse[first]->source : kNullLocation;
     auto function = addAnonymousFunction(*module, context.addUnqualifiedName("main$", 5), source);
+
+    // The top-level statements are one file's - checkModuleTopLevel refuses a second - so the entry
+    // body reads that file's imports.
+    FileScope scope(*module, source);
 
     function->returnType = module->scalar.unit;
     program.entry = function - *module->arena;

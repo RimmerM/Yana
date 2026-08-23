@@ -28,9 +28,9 @@
  * them for itself by writing an instance. `default` names the type a literal takes when nothing
  * else decided one.
  */
-// Core's source is `lib/Core.yana`. It used to be a raw string literal in this position, which is
-// the only thing about it that has changed: the same parser reads the same declarations, and what
-// this file still supplies is the five primitive types and the bodies of their instances.
+// Core's source is the files of `lib/Core/`. It used to be one raw string literal in this position,
+// which is the only thing about it that has changed: the same parser reads the same declarations,
+// and what this file still supplies is the five primitive types and the bodies of their instances.
 
 static ast::Module* parseLibrarySource(Context& context, StringId id, bool allowSignatures) {
     auto source = context.library.source(context, id);
@@ -43,26 +43,91 @@ static ast::Module* parseLibrarySource(Context& context, StringId id, bool allow
     return new ast::Module(parser.parseModule());
 }
 
-// A library module an `import` named. `allowSignatures` is off: a declaration with no body means
-// something only where the compiler attaches a hook to it, and it attaches them by name to the
-// seven modules it builds itself.
-ast::Module* findLibraryModule(Context& context, StringId name) {
-    return parseLibrarySource(context, name, false);
+/*
+ * Every file of a library module, parsed, and the group laid over them.
+ *
+ * `lib/` is walked rather than looked up by name: a module there is a directory of files exactly as
+ * a module in a program's own tree is, so `Core` is three files and `Math` is one and neither is a
+ * special case. The order is the library's own - `LibrarySource::files` sorts, and says why.
+ *
+ * The ASTs and the group both belong to the program, for as long as anything can still resolve
+ * against them. Null where the library has no such module at all; a module whose files are all
+ * unreadable is the same answer, since a group with nothing in it is nothing to import.
+ */
+/*
+ * Whether a file the library walk turned up is a file of this module.
+ *
+ * The same three cases `groupFile` decides for a project file, and it has to be decided after the
+ * parse because it is written in the file. A file directly in the module's directory that said
+ * nothing is a file of it; a file in a subdirectory that said nothing belongs to that subdirectory's
+ * module, and is left for whoever imports it; `module` alone names the file's own path, which is a
+ * module of one file where `Math.yana` and `File.yana` sit and is standing apart from its siblings
+ * where `Core/Sort.yana` would; and `module M` joins M, which is what `Core/Float/*.yana` write.
+ *
+ * The prefix restriction the project side reports on is not checked here. The library's files are
+ * this repository's own, so a name that does not fit is a mistake in the library rather than in the
+ * program being compiled, and it shows up as the module missing declarations rather than as a report
+ * against source the author did not write.
+ */
+static bool joinsModule(StringId module, LibraryFile file, const ast::Module& ast) {
+    switch(ast.membership) {
+        // `module` names the file's own path, so it is this module exactly when the two are the same
+        // name - which is what `Math.yana` and `File.yana` are, and what `Core/Sort.yana` would not be.
+        case ast::Membership::Own: return file.name == module;
+        case ast::Membership::Named: return ast.joins == module;
+        case ast::Membership::Directory: return file.inDirectory;
+    }
+
+    return false;
 }
 
-ast::Module* parseLibraryModule(Context& context, StringView name, bool allowSignatures) {
-    auto id = context.addQualifiedName(name.ptr, name.length);
-    auto ast = parseLibrarySource(context, id, allowSignatures);
+ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name, bool allowSignatures) {
+    auto& context = program.context;
 
-    if(!ast) {
-        // Named once per missing module rather than once for the library, because the two failures a
-        // caller can act on are different: every module missing is a library that was not found, and
-        // one module missing is a library that is incomplete, and only the second identifies itself.
-        context.diagnostics.error("cannot read the standard library module %@ - looked in %@. Pass -lib with the directory holding Core.yana, or set YANA_LIB."_v,
+    auto files = context.library.files(context, name);
+    if(files.isEmpty()) return nullptr;
+
+    auto group = new ast::ModuleGroup { .name = name };
+    program.embeddedGroups.push(group);
+
+    for(auto file: files) {
+        auto ast = parseLibrarySource(context, file.name, allowSignatures);
+        if(!ast) continue;
+
+        program.embeddedAsts.push(ast);
+        if(joinsModule(name, file, *ast)) group->files.push(ast);
+    }
+
+    return group->files.isEmpty() ? nullptr : group;
+}
+
+/*
+ * A library module an `import` named. `allowSignatures` is off: a declaration with no body means
+ * something only where the compiler attaches a hook to it, and it attaches them by name to the two
+ * modules it builds itself.
+ */
+ast::ModuleGroup* findLibraryModule(Program& program, StringId name) {
+    return parseLibraryGroup(program, name, false);
+}
+
+/*
+ * One of the two modules the compiler builds itself, with the missing-library report attached.
+ *
+ * Named rather than reported once for the library, because the two failures a caller can act on are
+ * different: both missing is a library that was not found, and one missing is a library that is
+ * incomplete, and only the second identifies itself.
+ */
+ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name) {
+    auto& context = program.context;
+    auto id = context.addQualifiedName(name.ptr, name.length);
+    auto group = parseLibraryGroup(program, id, true);
+
+    if(!group) {
+        context.diagnostics.error("cannot read the standard library module %@ - looked in %@. Pass -lib with the directory holding Core/Core.yana, or set YANA_LIB."_v,
                                   nullptr, toString(name), context.library.directory(context));
     }
 
-    return ast;
+    return group;
 }
 
 /*
@@ -345,20 +410,12 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
     }
 }
 
-void defineCore(Program& program) {
+void definePreludeTypes(Program& program, Module& core, TypeList& widthTypes) {
     auto& context = program.context;
+    auto module = &core;
 
     program.scalar.error = (Type*)new (program.types) Type(Type::Error) - *program.types;
     program.scalar.unit = (Type*)new (program.types) Type(Type::Unit) - *program.types;
-
-    // `swap` and `exchange` are declared with no body, like Native's generic intrinsics: there is one
-    // operation per type being exchanged, so there is nothing to generate until a call says which.
-    auto ast = parseLibraryModule(context, "Core"_v, true);
-    if(!ast) return;
-
-    auto module = program.addModule(ast->name, *ast->region);
-    program.core = module;
-    program.embeddedAsts.push(ast);
 
     addPrimitive(program, *module, "Unit"_v, (Type*)(*program.types)[program.scalar.unit]);
     program.scalar.int_ = addPrimitive(program, *module, "Int"_v, new (program.types) IntType(32, IntType::Int, true));
@@ -367,17 +424,17 @@ void defineCore(Program& program) {
     program.scalar.double_ = addPrimitive(program, *module, "Double"_v, new (program.types) FloatType(FloatType::Double));
 
     /*
-     * `String` - a primitive here rather than a `data` declaration in Collections, for the reason
+     * `String` - a primitive here rather than a `data` declaration in `Core/Array.yana`, for the reason
      * Type::String gives: the two targets disagree about what a string *is*, and on JS it has to be
      * the bare host value rather than a record wrapping one.
      *
-     * Its content type is filled in by `defineNative`, since the record naming it is declared there
-     * and this runs first. Nothing asks for a string's layout until lowering.
+     * Its content type is filled in by `definePreludeNativeTypes`, since the record naming it is
+     * declared in Native and no file has been read yet. Nothing asks for a string's layout until
+     * lowering.
      */
     program.scalar.string_ = addPrimitive(program, *module, "String"_v, new (program.types) StringType());
 
     // Before the source is read, so that Core's own declarations may name a width.
-    TypeList widthTypes;
     defineIntegerTypes(*module, widthTypes);
 
     /*
@@ -490,9 +547,109 @@ void defineCore(Program& program) {
     program.scalar.signedLanes[1] = coreType(*module, "I16"_v);
     program.scalar.signedLanes[2] = coreType(*module, "I32"_v);
     program.scalar.signedLanes[3] = coreType(*module, "I64"_v);
+}
 
-    resolveModuleDecls(*module, *ast, nullptr);
+/*
+ * The declarations the compiler itself names, looked up once their files have been read.
+ *
+ * The middle of the prelude's three hooks, and it is a hook rather than part of the one after it
+ * because the *declaration* passes need what it records: an `iter fn` signature is rewritten around
+ * `Outcome`, so a signature pass that ran before this found a Core with no exit signal in it. Every
+ * line here is a lookup - nothing is generated, nothing is attached - so all it needs is that the
+ * records and classes exist, which is true after `passDefine`.
+ */
+void definePreludeLookups(Program& program, Module& core) {
+    auto& context = program.context;
+    auto module = &core;
 
+    program.scalar.bool_ = coreType(*module, "Bool"_v);
+    program.scalar.ordering = coreType(*module, "Ordering"_v);
+
+    // The classes the language's own syntax is written in terms of - a literal, an implicit
+    // conversion, a condition, and the three points a binding convention compiles to. Looked up by
+    // name once, here, so that nothing downstream has to search for them by string.
+    program.coreClasses.fromInt = classNamed(*module, "FromInt"_v);
+    program.coreClasses.fromDecimal = classNamed(*module, "FromDecimal"_v);
+    program.coreClasses.widen = classNamed(*module, "Widen"_v);
+    program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
+    program.coreClasses.truth = classNamed(*module, "Truth"_v);
+    program.coreClasses.enum_ = classNamed(*module, "Enum"_v);
+    program.coreClasses.try_ = classNamed(*module, "Try"_v);
+    program.coreClasses.rewrap = classNamed(*module, "Rewrap"_v);
+    program.coreClasses.index = classNamed(*module, "Index"_v);
+    program.coreClasses.show = classNamed(*module, "Show"_v);
+    program.coreClasses.copy = classNamed(*module, "Copy"_v);
+    program.coreClasses.sink = classNamed(*module, "Sink"_v);
+    program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);
+    program.coreClasses.drop = classNamed(*module, "Drop"_v);
+    program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);
+    program.coreClasses.trivialSink = classNamed(*module, "TrivialSink"_v);
+
+    // The five a vector joins on demand, for the reason CoreClasses gives: no instance of any of
+    // them over a vector is declared anywhere, so "could a vector join this" is asked at every
+    // instance lookup that finds nothing and must not be a string lookup.
+    program.coreClasses.num = classNamed(*module, "Num"_v);
+    program.coreClasses.integral = classNamed(*module, "Integral"_v);
+    program.coreClasses.bitwise = classNamed(*module, "Bitwise"_v);
+    program.coreClasses.bitcast = classNamed(*module, "Bitcast"_v);
+    program.coreClasses.lanewise = classNamed(*module, "Lanewise"_v);
+
+    // The exit signal's carrier. Its constructors are found by name rather than assumed to be
+    // declared in this order, since the order is a detail of the source above and this is emitted
+    // code that has no declaration to read.
+    /*
+     * Before the bodies, not after them.
+     *
+     * `Program::arrayType` is what makes `Array(a)` recognizable *as* the growable array - it is
+     * what `sliceOf` asks, so it is what decides whether the ordinary conversion to a slice exists.
+     * Setting it afterwards meant `Core/Array.yana` alone could not use its own container:
+     * `elements`, whose whole body is `slice(self, 0, self.length)`, saw `Array(a)` as an unrelated
+     * record and reported that it does not fit `Flat(a)`.
+     */
+    auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
+    if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
+
+    // The map, on the same terms - Implementation-Map.md §7. One name for both platform rows: the
+    // `@platform` selection has already run over the declarations, so whichever of the two `Map`
+    // declarations this target kept is the one the literal instantiates.
+    auto map = module->namedTypes.get(context.addQualifiedName("Map", 3, 1));
+    if(map) program.mapType = (RecordType*)(*program.types)[map.unwrap()] - *program.types;
+
+    // §5's two, looked up here for the reason Core's are looked up where they are declared: what
+    // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
+    program.coreClasses.contiguous = classNamed(*module, "Contiguous"_v);
+    program.coreClasses.chunked = classNamed(*module, "Chunked"_v);
+    program.coreClasses.indexInsert = classNamed(*module, "IndexInsert"_v);
+
+    if(auto outcome = findType(*module, Context::nameHash("Outcome"_v), kNullLocation)) {
+        program.outcomeType = (RecordType*)(*program.types)[outcome] - *program.types;
+
+        if(auto proceed = findConstructor(*module, Context::nameHash("Proceed"_v), kNullLocation)) {
+            program.outcomeProceed = proceed.unwrap().index;
+        }
+
+        if(auto exit = findConstructor(*module, Context::nameHash("Exit"_v), kNullLocation)) {
+            program.outcomeExit = exit.unwrap().index;
+        }
+    }
+}
+
+/*
+ * Core's own instances, generated once every file of the prelude has been read.
+ *
+ * The last of the three hooks. Everything here needs a class the source declares, a member
+ * signature `passClassSignatures` resolved, or a function `passFunctionSignatures` did - and one
+ * pass still to come needs *it*: `deriving (Bitwise)` on a newtype over `I64` forwards to `and` on
+ * `I64`, so the integer instances below have to exist before `passInstances` runs. That is the whole
+ * of why the prelude is three hooks around one pass sequence rather than six modules in dependency
+ * order - Analysis-Modules.md §2.4.
+ */
+void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
+    auto& context = program.context;
+    auto module = &core;
+
+    // `swap` and `exchange` are declared with no body, like Native's generic intrinsics: there is one
+    // operation per type being exchanged, so there is nothing to generate until a call says which.
     attachIntrinsic(*module, "swap"_v, emitSwap);
     attachIntrinsic(*module, "exchange"_v, emitExchange);
 
@@ -517,9 +674,6 @@ void defineCore(Program& program) {
     // The portable vector set, whose declarations are in the source above and whose expansions are
     // simd.cpp's - Design-Vector §3.3.
     defineVectorIntrinsics(*module);
-
-    program.scalar.bool_ = coreType(*module, "Bool"_v);
-    program.scalar.ordering = coreType(*module, "Ordering"_v);
 
     TypePtr numeric[] = {
         program.scalar.int_,
@@ -631,65 +785,17 @@ void defineCore(Program& program) {
     // have just joined it, so this is the whole of what `Bitcast` is generated over.
     defineBitcastLadder(*module, widthTypes);
 
-    // The classes the language's own syntax is written in terms of - a literal, an implicit
-    // conversion, a condition, and the three points a binding convention compiles to. Looked up by
-    // name once, here, so that nothing downstream has to search for them by string.
-    program.coreClasses.fromInt = classNamed(*module, "FromInt"_v);
-    program.coreClasses.fromDecimal = classNamed(*module, "FromDecimal"_v);
-    program.coreClasses.widen = classNamed(*module, "Widen"_v);
-    program.coreClasses.narrow = classNamed(*module, "Narrow"_v);
-    program.coreClasses.truth = classNamed(*module, "Truth"_v);
-    program.coreClasses.enum_ = classNamed(*module, "Enum"_v);
-    program.coreClasses.try_ = classNamed(*module, "Try"_v);
-    program.coreClasses.rewrap = classNamed(*module, "Rewrap"_v);
-    program.coreClasses.index = classNamed(*module, "Index"_v);
-    program.coreClasses.show = classNamed(*module, "Show"_v);
-    program.coreClasses.copy = classNamed(*module, "Copy"_v);
-    program.coreClasses.sink = classNamed(*module, "Sink"_v);
-    program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);
-    program.coreClasses.drop = classNamed(*module, "Drop"_v);
-    program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);
-    program.coreClasses.trivialSink = classNamed(*module, "TrivialSink"_v);
 
-    // The five a vector joins on demand, for the reason CoreClasses gives: no instance of any of
-    // them over a vector is declared anywhere, so "could a vector join this" is asked at every
-    // instance lookup that finds nothing and must not be a string lookup.
-    program.coreClasses.num = classNamed(*module, "Num"_v);
-    program.coreClasses.integral = classNamed(*module, "Integral"_v);
-    program.coreClasses.bitwise = classNamed(*module, "Bitwise"_v);
-    program.coreClasses.bitcast = classNamed(*module, "Bitcast"_v);
-    program.coreClasses.lanewise = classNamed(*module, "Lanewise"_v);
-
-    // The exit signal's carrier. Its constructors are found by name rather than assumed to be
-    // declared in this order, since the order is a detail of the source above and this is emitted
-    // code that has no declaration to read.
-    if(auto outcome = findType(*module, Context::nameHash("Outcome"_v), kNullLocation)) {
-        program.outcomeType = (RecordType*)(*program.types)[outcome] - *program.types;
-
-        if(auto proceed = findConstructor(*module, Context::nameHash("Proceed"_v), kNullLocation)) {
-            program.outcomeProceed = proceed.unwrap().index;
-        }
-
-        if(auto exit = findConstructor(*module, Context::nameHash("Exit"_v), kNullLocation)) {
-            program.outcomeExit = exit.unwrap().index;
-        }
-    }
-
-    // Core's own instances exist only now, so its superclass checks and its `default`
-    // declarations run here rather than as part of reading its source.
-    checkModuleClasses(*module, *ast);
 }
 
 /*
- * Collections.
+ * The containers - `lib/Core/Array.yana`, `Container.yana` and `Map.yana`.
  *
  * The growable array of Design.md's "Collection types", written in the language over Native rather
- * than generated by the compiler. It is a separate module from Core for one reason: an array is
- * built out of raw pointers and the heap, and Core is imported by Native rather than the other way
- * round, so nothing in Core can name either.
- *
- * It is nonetheless implicitly imported, because `[a]` is a type the grammar produces and a type
- * whose operations a program cannot reach would be a strange thing to be able to write.
+ * than generated by the compiler. It used to be a module of its own, and the reason was an ordering
+ * one: an array is built out of raw pointers and the heap, and a module could not both import Native
+ * and be imported by it. Core imports Native now and Native imports Core, which is a cycle the
+ * passes give one meaning to - Analysis-Modules.md §2.2 - so what is left is a file.
  *
  * What this is not, yet, is Implementation-Regions.md part 5's shared `Storage(a)` primitive with a
  * derived Drop - the thing collections are supposed to be written on so that region placement
@@ -697,7 +803,6 @@ void defineCore(Program& program) {
  * smaller thing that makes the storage decisions of Milestone 6 testable; the primitive belongs
  * with the standard library that does not exist yet.
  */
-// Collections' source is `lib/Collections.yana`.
 
 /*
  * How many entries a map scans before it allocates an index - Implementation-Map.md §2's third row,
@@ -752,48 +857,9 @@ static ModulePtr<Value> emitScanLimit(ExprResolver& resolver, Buffer<ModulePtr<V
     return resolver.makeInt(source, type, limit);
 }
 
-void defineCollections(Program& program) {
+void definePreludeContainers(Program& program, Module& core) {
     auto& context = program.context;
-
-    // A declaration with no body, which this module has since the bulk operations landed: what a
-    // call to one expands to is chosen by the compiler from the two implementations beside it. Core
-    // and Native have said this since they were written, and for the same reason.
-    auto ast = parseLibraryModule(context, "Collections"_v, true);
-    if(!ast) return;
-
-    auto module = program.addModule(ast->name, *ast->region);
-    program.embeddedAsts.push(ast);
-
-    resolveModuleDecls(*module, *ast, nullptr);
-
-    /*
-     * Before the bodies, not after them.
-     *
-     * `Program::arrayType` is what makes `Array(a)` recognizable *as* the growable array - it is
-     * what `sliceOf` asks, so it is what decides whether the ordinary conversion to a slice exists.
-     * Setting it afterwards meant this module alone could not use its own container: `elements`,
-     * whose whole body is `slice(self, 0, self.length)`, saw `Array(a)` as an unrelated record and
-     * reported that it does not fit `Flat(a)`.
-     *
-     * The declaration is what the pointer names, so it is available as soon as the declarations have
-     * been read; nothing in this module's signatures writes `[a]`, which is the only thing that
-     * would have needed it earlier still.
-     */
-    program.collections = module;
-    auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
-    if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
-
-    // The map, on the same terms - Implementation-Map.md §7. One name for both platform rows: the
-    // `@platform` selection has already run over the declarations, so whichever of the two `Map`
-    // declarations this target kept is the one the literal instantiates.
-    auto map = module->namedTypes.get(context.addQualifiedName("Map", 3, 1));
-    if(map) program.mapType = (RecordType*)(*program.types)[map.unwrap()] - *program.types;
-
-    // §5's two, looked up here for the reason Core's are looked up where they are declared: what
-    // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
-    program.coreClasses.contiguous = classNamed(*module, "Contiguous"_v);
-    program.coreClasses.chunked = classNamed(*module, "Chunked"_v);
-    program.coreClasses.indexInsert = classNamed(*module, "IndexInsert"_v);
+    auto module = &core;
 
     // The map's one per-key-type constant - Implementation-Map.md §2 and §4.4. A rule in resolve
     // with every reader folded against it, which is the shape Containers §14 settled for and the
@@ -835,42 +901,27 @@ void defineCollections(Program& program) {
     // The bulk operations, whose declarations above have no body: which of the two implementations
     // beside each one a call takes is decided where the call is - see simd.cpp.
     defineBulkOperations(*module);
-
-    resolveModuleBodies(*module);
 }
 
 /*
- * Text.
+ * The text half - `lib/Core/String.yana`, with `Show.yana`, `Format.yana`, `Read.yana` and
+ * `Float/` beside it.
  *
- * `String`'s operations, split out of Collections - Implementation-Simplification.md §17.
+ * `String`'s operations, over what Native's reinterpretations hand out -
+ * Implementation-Simplification.md §17.
  *
- * It is a module of its own for one reason, and the reason is a *cycle* rather than a division of
- * subject matter. What a native string is made of is Native's - a `Run(U8)` and a count - so the
- * reinterpretation that hands those two words out has to live behind an import that already means
- * "this is unsafe". But the run those words describe is a container, and the container's declaration
- * has to be implicitly visible because `[a]` is grammar. So the unsafe half sits *above* the
- * container it names and *below* the algorithms that use it, and one module cannot be on both sides
- * of that. See NativeText, which is the half in between.
- *
- * Implicitly imported, like Collections and for the same reason: a string literal is grammar, and
- * what `print` and `Show` mean has to be reachable without being asked for. That costs nothing in
- * safety, because an import is not transitive - see findInstances in name.cpp, and Program::native.
+ * Three modules once, and the middle one existed only for the cycle they sat in: what a native
+ * string is *made of* is Native's, so handing those two words out belongs behind an import that
+ * already means "this is unsafe", while the run those words describe is a container whose
+ * declaration has to be implicitly visible because `[a]` is grammar. A module could not be on both
+ * sides of that, so there were three. With a cycle permitted there are two, and the unsafe half is
+ * where it always belonged - see definePreludeNativeText, and Program::native for why an import of
+ * Native is still the one visible unsafe act.
  */
-// Text's source is `lib/Text.yana`.
 
-void defineText(Program& program) {
+void definePreludeText(Program& program, Module& core) {
     auto& context = program.context;
-
-    // The one library module with a body for every declaration, so the only one that does not have
-    // to allow a bare signature.
-    auto ast = parseLibraryModule(context, "Text"_v, false);
-    if(!ast) return;
-
-    auto module = program.addModule(ast->name, *ast->region);
-    program.embeddedAsts.push(ast);
-
-    resolveModuleDecls(*module, *ast, nullptr);
-    program.text = module;
+    auto module = &core;
 
     /*
      * The three functions a format expression is built out of - Implementation-Storage.md part 8.
@@ -887,7 +938,5 @@ void defineText(Program& program) {
     program.newString = findText("newStringOfCapacity", 19);
     program.pushString = findText("pushString", 10);
     program.formatBound = findText("formatBound", 11);
-
-    resolveModuleBodies(*module);
 }
 

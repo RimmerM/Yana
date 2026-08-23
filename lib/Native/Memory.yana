@@ -1,0 +1,13 @@
+{-
+   Memory, as the machine has it.
+
+   What is left in the portable file is the one operation both targets have under one name. The
+   block copy and move, the ladder they are built out of and the system-call intrinsic are
+   `Memory.native.yana`; the host's own block copy is `Memory.js.yana`. Analysis-Modules.md §2.5 is
+   why those are files rather than attributes: eight of the nine declarations here carried the same
+   `@platform(native)`, which is a property of the *file* being read out loud nine times.
+-}
+
+-- The fill. One name on both targets: natively it is the machine's store-a-byte-n-times, and on JS
+-- it is what the relocation glue opens a fresh host array with.
+pub fn setMemory(to: %U8, value: U8, count: Size) -> {}

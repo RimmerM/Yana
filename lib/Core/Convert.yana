@@ -1,0 +1,46 @@
+{-
+   The three conversions - doc/spec/conversions.md.
+
+   `::` is one operator over three classes, and which class relates a pair of types is the whole of
+   the rule for what it does. `Widen` is the lossless direction and the only one that also happens
+   without being written; `Narrow` is the lossy one, which must be; `Bitcast` is neither, being the
+   same bits read as another type.
+
+   Together in a file because the rule is the three of them: reading one of these without the other
+   two tells you what a conversion does and not when it happens. The instances are generated - the
+   integer and float ladders in `definePreludeCore`, the pointer rungs in `Native` - so what is here
+   is the whole of what the language says about conversion and none of what a machine does with it.
+-}
+
+-- A Widen instance is required to be lossless and total; that is a contract on whoever writes
+-- one, checked no more than Copy's is. Which of the two classes relates a pair of types is the
+-- whole of the rule for whether a conversion happens on its own or has to be written.
+pub class Widen(a, b):
+  fn widen(from: a) -> b
+
+-- The lossy direction, and the only way to spell it: `::` widens and selects, it does not remove
+-- data. The method is `truncate` rather than `narrow` because "narrow" says the type got smaller
+-- and "truncate" says what happened to the value, which is the part a reader needs. The class keeps
+-- its name so that the pair reads as one rule.
+pub class Narrow(a, b):
+  fn truncate(from: a) -> b
+
+{-
+   The third thing a conversion can be: the same bits, read as another type.
+
+   Two parameters and no functional dependency, which is `Widen`/`Narrow`'s shape exactly - so
+   selection from context and `bitcast(x) :: Float` both work with no machinery of their own.
+
+   **Instances only where the widths match**, which is what makes this a class rather than a second
+   `cast`: every rung is generated over a same-width pair, so there are about thirty of them against
+   the ladder's ninety and none of them can lose or invent a bit. It replaces four unrelated
+   spellings - `Native.cast` between pointers, `asInt` and `asPtr` between a pointer and an integer,
+   and nothing at all between `Float` and `I32`.
+
+   The pointer rungs are declared in `Native` and are the one deliberate weakening this took:
+   instance visibility is program-wide, so `bitcast` reaches a pointer from any module in a program
+   where any module imported Native, where `Native.cast` had to be named through the module. Taken
+   knowingly - one spelling for reinterpretation was judged worth more than the qualifier.
+-}
+pub class Bitcast(a, b):
+  fn bitcast(from: a) -> b

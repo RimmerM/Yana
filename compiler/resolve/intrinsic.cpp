@@ -548,7 +548,7 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
 
 /*
  * `Endian`, whose one method is one instruction - and which is generated here rather than written in
- * `lib/Core.yana` for the reason every other integer instance is.
+ * `lib/Core/` for the reason every other integer instance is.
  *
  * The class stays source, and that is the half worth keeping: a user's own type may be an instance
  * of it, and R1 admits one plain function per (name, arity) so a `swapEndian` per width could never
@@ -758,7 +758,7 @@ static ModulePtr<Value> enumMembership(ExprResolver& resolver, RecordType& recor
 }
 
 // Which constructor of `Maybe(a)` is which, found by name rather than by position - the same rule
-// `defineCore` reads `Outcome`'s by, and for the same reason: this is emitted code with no
+// `definePreludeLookups` reads `Outcome`'s by, and for the same reason: this is emitted code with no
 // declaration in front of it to fix an order.
 static U32 constructorNamed(GlobalBase global, RecordType& record, StringView name) {
     auto wanted = Context::nameHash(name);
@@ -966,7 +966,7 @@ ModulePtr<Value> emitEnumFromName(ExprResolver& resolver, Buffer<ModulePtr<Value
     auto string_ = module.scalar.string_;
 
     auto eq = program.core ? classNamed(*program.core, "Eq"_v) : nullptr;
-    auto length = program.collections ? classNamed(*program.collections, "Length"_v) : nullptr;
+    auto length = program.core ? classNamed(*program.core, "Length"_v) : nullptr;
     if(!eq || !length) return nullptr;
 
     // The distinct lengths, in declaration order, with the constructors at each. A `SmallArray`
@@ -1143,9 +1143,9 @@ ModulePtr<ClassInstance> enumInstance(Module& module, GlobalPtr<TypeClass> typeC
  */
 ModulePtr<ClassInstance> enumShowInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
     auto& program = module.program;
-    // `pushString` rather than `program.text`, because that is what the body actually needs and it is
-    // recorded a few statements later than the module is. A `Show` generated without it would be an
-    // instance whose `show` writes nothing, which is worse than no instance.
+    // `pushString` rather than the module holding it, because that is what the body actually needs
+    // and it is recorded a hook later. A `Show` generated without it would be an instance whose
+    // `show` writes nothing, which is worse than no instance.
     if(!typeClass || !program.core || !program.pushString || typeClass != program.coreClasses.show) return nullptr;
     if(args.length != 1 || !enumHead(*program.types, args[0])) return nullptr;
 

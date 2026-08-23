@@ -1,0 +1,200 @@
+import Native
+
+{-
+   The map on JS - map-js §5.
+
+   Two host arrays with a key in one and a value in the other, an `Int32Array` of entry numbers
+   probed linearly, and the eight accessors `Map.yana` names as the contract. `Map.yana` beside this
+   is what is true of a map on either target; `Map.native.yana` answers the same names out of one
+   run of pairs and a control-byte index.
+
+   **A `.js.yana` file, and the two share no line at all** - Analysis-Modules.md §2.5. The split of
+   the entries into parallel arrays is the reason a key borrow is `hostAt` here and an address
+   natively, and the reason there is no tag: with no `movemask` a seven-bit filter would cost more
+   than the key compare it saves.
+-}
+
+-- The two JS index sentinels, which are the same two facts written as negative entry numbers: an
+-- `Int32Array` has no spare bit pattern the way a control byte has a spare bit.
+pub let slotEmpty = -1 :: I32
+
+pub let slotDeleted = -2 :: I32
+
+{-
+   And the same map on JS, where the index is an `Int32Array` of entry numbers - map-js §5's layout,
+   with §6's control-byte index deliberately left native-only: there is no `movemask` on that target
+   and a sixteen-lane compare is sixteen loads, so the JS row keeps the plain index and this
+   document does not guess.
+
+   **The keys and the values are parallel runs here and one run of entries there**, which is §6's
+   layout and the one departure from "every operation but the index is one body". `Array(a)` on this
+   target is already a `TypedArray` wherever the element kind allows one
+   (Implementation-Containers.md §14), so `Array(k)` and `Array(v)` *are* map-js §5's typed runs with
+   nothing further to arrange - where a single `Array(Entry(k, v))` is a host array of one object per
+   entry, which is the shape §4.2 and §4.4 between them rule out twice over.
+
+   Measured against the parallel runs at `[U32: U32]` and a hundred thousand entries: iteration
+   3.53 ns/entry against 0.37 and **70.40 bytes per entry against 13.25**, both flat in the entry
+   count because they are per-object costs. Those are the two margins §6.2 has the ported table
+   beating the host `Map` by, so the object row gave both of them back.
+
+   What it costs is the six accessors below, which is where `entries` stops being a field two bodies
+   share. Nothing above them changes: the probe, the rebuild, the insert and the removal are still
+   one body each.
+
+   One departure from §6 remains and it is step 5's absence rather than a disagreement with it. There
+   is **no host-`Map` row**, so a `Map(Int, v)` is this table rather than `new Map()`; and there is
+   **no stored hash**, so a rebuild re-hashes every key where §6's row would have read one out of a
+   `Uint32Array`. Both need a predicate over a type argument to select between two field sets, which
+   is the one thing Containers §14 records that nothing in the language does.
+-}
+pub data Map(k, v)
+    {keys: Array(k), values: Array(v), index: Array(I32), live: Count, mask: Count}
+
+pub fn emptyMap() -> Map(k, v) =
+    Map {keys: emptyArray(), values: emptyArray(), index: emptyArray(), live: 0, mask: 0}
+
+fn scanLimitOf(self: Map(k, v)) -> Size = scanLimitForKeys(self.keys.items)
+
+fn entryCount(self: Map(k, v)) -> Size = length(self.keys)
+
+fn reserveEntries(&self: Map(k, v), wanted: Size) -> {}:
+    reserve(self.keys, wanted)
+    reserve(self.values, wanted)
+
+fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {}:
+    push(self.keys, key)
+    push(self.values, value)
+
+fn keyAt(return self: Map(k, v), at: Size) -> &k = hostAt(self.keys.items, at)
+
+fn valueAt(return self: Map(k, v), at: Size) -> &v = hostAt(self.values.items, at)
+
+fn valueAtMut(return &self: Map(k, v), at: Size) -> &v = hostAtMut(self.values.items, at)
+
+fn takeEntry(&self: Map(k, v), at: Size) -> Entry(k, v):
+    let last = entryCount(self) - 1
+    let ->doomedKey = hostRead(self.keys.items, at)
+    let ->doomedValue = hostRead(self.values.items, at)
+
+    if at != last:
+        let ->movedKey = hostRead(self.keys.items, last)
+        let ->movedValue = hostRead(self.values.items, last)
+        hostWrite(self.keys.items, at, movedKey)
+        hostWrite(self.values.items, at, movedValue)
+
+    self.keys.length = truncate(last) :: Count
+    self.values.length = truncate(last) :: Count
+
+    return Entry {key: doomedKey, value: doomedValue}
+
+fn removeLast(&self: Map(k, v)) -> {}:
+    let at = truncate(entryCount(self) - 1) :: Int
+    let droppedKey = remove(self.keys, at)
+    let droppedValue = remove(self.values, at)
+
+{-
+   And the same six on JS - map-js §5's layout.
+
+   An `Int32Array` of entry numbers with two negative sentinels, probed linearly. There is no group
+   here and no tag: a control byte's seven hash bits are what a sixteen-lane compare filters on, and
+   with no `movemask` the filter would cost more than the key compare it saves. What ends a miss is
+   the same fact it is natively - an empty slot cannot be followed by one holding this key.
+
+   The bound is the slot count for the reason the native probe's is, and is reached for the same
+   never: the load factor keeps an empty slot in every table.
+-}
+fn (Hash(k)) indexFind(self: Map(k, v), key: k, h: U32) -> Size:
+    let mask = self.mask :: Size
+    let &slot = slotFor(h, self.mask)
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        let at = self.index[slot] :: Size
+        if at == (slotEmpty :: Size) then return 0 - 1
+        if at >= 0 && keyEquals(self, at, key) then return at
+
+        slot = (slot + 1) `and` mask
+        visited = visited + 1
+
+    return 0 - 1
+
+fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
+    let mask = self.mask :: Size
+    let &slot = slotFor(h, self.mask)
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        let at = self.index[slot] :: Size
+        if at == (slotEmpty :: Size) then return 0 - 1
+        if at >= 0 && keyEquals(self, at, key) then return slot
+
+        slot = (slot + 1) `and` mask
+        visited = visited + 1
+
+    return 0 - 1
+
+fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
+    let mask = self.mask :: Size
+    let &slot = slotFor(h, self.mask)
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        let taken = self.index[slot] :: Size
+        if taken < 0:
+            self.index[slot] = at :: I32
+            if taken == (slotEmpty :: Size) then self.live = truncate((self.live :: Size) + 1) :: Count
+            return
+
+        slot = (slot + 1) `and` mask
+        visited = visited + 1
+
+    checkCondition(True)
+
+fn (Hash(k)) indexForget(&self: Map(k, v), key: k, h: U32) -> {}:
+    let slot = indexSlotOf(self, key, h)
+    if slot >= 0 then self.index[slot] = slotDeleted
+
+fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
+    let mask = self.mask :: Size
+    let &slot = slotFor(h, self.mask)
+    let &visited = 0 :: Size
+
+    while visited <= mask:
+        if (self.index[slot] :: Size) == from:
+            self.index[slot] = to :: I32
+            return
+
+        slot = (slot + 1) `and` mask
+        visited = visited + 1
+
+fn indexReset(&self: Map(k, v)) -> {}:
+    let slots = length(self.index)
+    let &slot = 0 :: Size
+
+    while slot < slots:
+        self.index[slot] = slotEmpty
+        slot = slot + 1
+
+    self.live = 0
+
+{-
+   The JS rebuild, which grows the typed array to exactly `slots` and then fills it.
+
+   The length is assigned rather than pushed to, which is what `Array(a)`'s two rows on this target
+   make possible: an `Int32Array` has a stored count, so `reserve` sets the capacity and the count is
+   this map's to say. Nothing is read out of the old contents, so no copy of them is wanted.
+-}
+fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size) -> {}:
+    reserve(self.index, slots)
+    self.index.length = truncate(slots) :: Count
+
+    self.mask = truncate(slots - 1) :: Count
+    indexReset(self)
+
+    let count = entryCount(self)
+    let &at = 0 :: Size
+
+    while at < count:
+        indexPlace(self, at, hashAt(self, at))
+        at = at + 1

@@ -47,8 +47,106 @@ table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .1 teardown$none
 }
 
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
 fn teardown$none(%value: %()) -> () {
   b0:
+    ret
+}
+
+fn Reclaim(Array(a)).reclaim(Point)(%value: Array(Point)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(Point)
+    call releaseRun(Point), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(Point)
+    %v14 = load %value@Array.run@Run.items : %Point
+    %v15 = load %i : Int
+    %v16 = cast %v15 : I64
+    %v17 = strideof Point : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v14, %v18 : %Point
+    %v20 = load [%v19] : Point
+    %v21 = move %local2 : Point
+    %doomed = alloc : Point
+    init %local3, %v21
+    %v24 = load %i : Int
+    %v26 = add %v24, 1 : Int
+    assign %i, %v26
+    jmp b1
+}
+
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(Int)
+    %v14 = load %value@Array.run@Run.items : %Int
+    %v15 = load %i : Int
+    %v16 = cast %v15 : I64
+    %v17 = strideof Int : I64
+    %v18 = mul %v16, %v17 : I64
+    %v19 = add %v14, %v18 : %Int
+    %v20 = load [%v19] : Int
+    %doomed = alloc : Int
+    init %local3, %v20
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
+    jmp b1
+}
+
+fn exitProcess(%status: I64) -> () {
+  b0:
+    %v2 = syscall 60, %status : I64
     ret
 }
 
@@ -143,104 +241,6 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
 
   b3:
     ret
-}
-
-fn exitProcess(%status: I64) -> () {
-  b0:
-    %v2 = syscall 60, %status : I64
-    ret
-}
-
-fn checkFailed() -> () {
-  b0:
-    call abortProcess
-    ret
-}
-
-fn checkCondition(%failed: Bool) -> () {
-  b0:
-    je %failed, b1, b2
-
-  b1:
-    call checkFailed
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    ret
-}
-
-fn Reclaim(Array(a)).reclaim(Point)(%value: Array(Point)) -> () {
-  b0:
-    %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
-    init %i, 0
-    jmp b1
-
-  b1:
-    %v7 = load %i : Int
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
-
-  b2:
-    %v10 = load %value@Array.run : Run(Point)
-    call releaseRun(Point), %v10
-    ret
-
-  b3:
-    %v13 = load %value@Array.run : Run(Point)
-    %v14 = load %value@Array.run@Run.items : %Point
-    %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Point : I64
-    %v18 = mul %v16, %v17 : I64
-    %v19 = add %v14, %v18 : %Point
-    %v20 = load [%v19] : Point
-    %v21 = move %local2 : Point
-    %doomed = alloc : Point
-    init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
-    assign %i, %v26
-    jmp b1
-}
-
-fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
-  b0:
-    %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
-    init %i, 0
-    jmp b1
-
-  b1:
-    %v7 = load %i : Int
-    %v8 = cmp_lt %v7, %count : Bool
-    je %v8, b3, b2
-
-  b2:
-    %v10 = load %value@Array.run : Run(Int)
-    call releaseRun(Int), %v10
-    ret
-
-  b3:
-    %v13 = load %value@Array.run : Run(Int)
-    %v14 = load %value@Array.run@Run.items : %Int
-    %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Int : I64
-    %v18 = mul %v16, %v17 : I64
-    %v19 = add %v14, %v18 : %Int
-    %v20 = load [%v19] : Int
-    %doomed = alloc : Int
-    init %local3, %v20
-    %v23 = load %i : Int
-    %v25 = add %v23, 1 : Int
-    assign %i, %v25
-    jmp b1
 }
 
 (TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {

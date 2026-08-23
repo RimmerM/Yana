@@ -1,0 +1,86 @@
+module Core
+
+import Native
+
+{-
+   The shortest decimal that reads back as the same float, and what both targets agree on about it.
+
+   Two directories deep and still a file of `Core`, which is what `module Core` above says
+   (Analysis-Modules.md §2.1). `Core/Float/` holds this subject and none of its files is a module:
+   there is no interface between them and nothing outside `Core` may name any of it, which is
+   exactly the arrangement a subdirectory of one module is for.
+
+   Five files, on two axes. `Ryu`, `Show` and `Read` are the three parts of the subject - which
+   decimal, writing it, and reading one back. `Ryu.native.yana` and `Ryu.js.yana` are the two answers
+   to the first, and they are files rather than twenty-one `@platform` attributes because the split
+   is total: **not one line of Ryu's arithmetic runs on JS and not one line of the host's runs
+   natively**, and eleven kilobytes of power-of-five tables sat in the same file as the four
+   functions that call `toExponential`. Analysis-Modules.md §2.5.
+
+   What is left here is what a `Shortest` *is*, which is the one thing both answers produce and the
+   only thing `Show.yana` needs to know about either.
+-}
+
+{-
+   Floats, as text.
+
+   A file of `Core` beside `Text.yana` rather than a section of it - Analysis-Modules.md §2.4. There
+   is no interface between them: `showSigned` and the sink are `Text.yana`'s and are named here with
+   no import and no `pub`, because a module is a directory and a file of one sees all of it. What the
+   split buys is that the Ryu tables and the digit machinery are not in the way of the string API,
+   and it costs nothing to state.
+-}
+
+{-
+   ==========================================================================================
+   Floats, as text - Analysis-Library.md §2.1.
+   ==========================================================================================
+
+   Two operations and one shape between them. `show` writes the **shortest decimal that reads back
+   as the same float**, which is the property that makes `read(show(x)) == x` hold with no digits
+   spent proving it; `read` is its inverse and is correctly rounded. Neither is a rounding of the
+   other's output, and that is why they can be each other's inverse at all.
+
+   Natively this is Ryu - Ulf Adams' algorithm, ported from Tritium's `FloatShow.cpp` and
+   `FloatRead.cpp`, which are themselves ports of the reference implementation. It is integer
+   arithmetic over a table of 128-bit powers of five and nothing else: no division by a float, no
+   big-integer fallback, and a bounded number of steps for every input.
+
+   **On JS both are the host's own**, and that is a ruling rather than a shortcut - see Host, where
+   the two declarations are and where the argument for them is written out. The short version is
+   that `Number.prototype.toExponential()` with no argument is *specified* to produce the shortest
+   decimal that reads back as the number, which is the same sentence as the paragraph above, and
+   that reading a float's bits at all on that target would mean the 64-bit `Double`/`I64` bitcast it
+   deliberately does not have.
+
+   **One algorithm for both widths.** `shortestOf` takes a mantissa and an exponent and knows
+   nothing about which format they came out of; `Show(Float)` and `Show(Double)` differ only in the
+   three constants their decoders use. The tables are the double's, which are wider than a float
+   needs and therefore correct for one - the reference implementation ships a second, smaller pair
+   for `Float` and what those buy is size rather than answers. `test/lib/FloatShow.yana` is
+   where both widths are checked against a corpus that was generated from an independent
+   implementation.
+-}
+
+{-
+   ------------------------------------------------------------------------------------------
+   From the digits to the text.
+   ------------------------------------------------------------------------------------------
+
+   Everything below this line is shared by both targets and by both widths: what reaches it is a
+   `Shortest`, and a `Shortest` says nothing about where it came from.
+-}
+
+-- A shift distance at the width the shift happens at. `shl` and `shr` take both operands at one
+-- type, and every distance here was computed as an ordinary `Int`. Portable, and used by all four of
+-- the files beside this one.
+fn wideCount(n: Int) -> U64 = bitcast(widen(n) :: I64) :: U64
+fn carryOf(condition: Bool) -> U64 = if condition then 1 else 0
+
+-- The shortest decimal that reads back as some float: the value is `digits` times ten to the
+-- `exponent`. Trailing zeros are in the exponent rather than in the digits, which is what makes
+-- `decimalLength` below the count of digits actually written.
+data Shortest {digits: U64, exponent: Int}
+
+let implicitBit52 = 4503599627370496 :: U64
+let implicitBit23 = 8388608 :: U64

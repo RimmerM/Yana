@@ -1,0 +1,82 @@
+import Native
+
+{-
+   Stopping, when something a program promised turns out not to hold.
+
+   A file of its own, and it is worth saying why it was not one: while the prelude was six modules
+   these three sat in the container module, because that was the lowest of the six that both targets
+   could reach and that every program could see without an import. Being lowest is not what they are
+   about, and with the prelude collapsed (Analysis-Modules.md §2.4) nothing is.
+-}
+
+{-
+   Where a check the compiler inserted goes when it does not hold - Implementation-Containers.md §15.
+
+   In `Core` rather than in `Native` because a check the compiler inserted has to have somewhere to
+   land on *both* targets, and half of Native reaches only one of them. Core is implicitly visible
+   everywhere, so a check emitted anywhere in the program finds it with no import.
+
+   **No message, and that is deliberate now rather than forced.** This is what every bounds check in
+   every program branches to, and printing needs a string, a run and therefore a bounds check of its
+   own; a `checkFailed` that formatted would put the formatting machinery in the binary of a program
+   that never printed, and would recurse. What each target says is the most its own conventions allow
+   with no code behind it - status 134 natively, which is what a process killed by SIGABRT reports,
+   and a thrown string on JS, where the emitter supplies the sentence (see NativeOp::HostThrow).
+   `assert` below is the form that *does* say something, and it is the one a program writes.
+
+   The compiler calls this rather than a program doing so; `Program::checkFailed` is how it is found.
+   Not `pub`, and that is the difference between it and `checkCondition` below: what a check *is* is
+   the library's to decide, and a program that reached in and called it would be aborting for a
+   reason no check found.
+-}
+@platform(native) fn checkFailed() -> {} = abortProcess()
+@platform(js) fn checkFailed() -> {} = hostFail()
+
+{-
+   One check, with its branch inside it.
+
+   The compiler emits a *call* to this rather than the `if` itself, and that is the whole reason it
+   exists: a subscript is expanded inside whatever expression contains it, so a branch emitted there
+   splits a block underneath a construct that had already decided which blocks it owns. Here the
+   branch is in a function of its own, where nothing is looking. Ordinary inlining removes the call
+   in an optimized build; an unoptimized one pays for it, which is the right way round for a check.
+
+   Written as the *mistake* rather than as the invariant - the caller passes `index >= length` - so
+   that the branch this contains is predicted the way it will actually go.
+-}
+pub fn checkCondition(failed: Bool) -> {}:
+    if failed then checkFailed()
+    return
+
+{-
+   The same stop, written the way a program states an invariant rather than the way a compiler emits
+   a check - `assert(i < length(xs))` instead of `checkCondition(i >= length(xs))`.
+
+   In the library rather than beside the tests that use it, because an assertion should cost no
+   import: Core is implicitly visible everywhere, and what a program is stating here is about its own
+   invariants rather than about testing. It is `checkCondition` with the condition the other way
+   round and nothing else - the same call, the same inlining, the same status 134 natively and
+   the same thrown string on JS.
+
+   **It says what it expected now.** `Show` and the format primitive are files of this module -
+   Analysis-Modules.md §2.4 - so an assertion can print, which is the thing the split into
+   `Collections` and `Text` made impossible: printing needed `Text`, and `Text` imported the module
+   `assert` was in. The message is a defaulted argument rather than a second function, because a
+   plain function is one per name per module; an `assert(x)` with no message is the empty string, and
+   the branch on its length is what keeps a bare assertion from putting a format in the binary.
+
+   What is still missing is the *source location* and the two values, which no library function can
+   reach - `assert(a == b)` sees one `Bool`. That is a compiler-supplied form and belongs with the
+   unit-testing framework this is standing in for; the library suite (`test/lib`) is written on the
+   bare form, and this becomes the bottom of that rather than the whole of it.
+
+   A caller that stops the process is a caller that has decided the program is wrong, so this is not
+   for reporting a failure a program could act on: that is `Result`, and it is what `File` answers.
+-}
+pub fn assert(held: Bool, message: String = "") -> {}:
+    if !held:
+        if length(message) > 0 then print("assertion failed: {message}\n")
+        checkFailed()
+
+    return
+

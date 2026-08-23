@@ -1,0 +1,469 @@
+import Native
+
+{-
+   `Map(k, v)` - Implementation-Map.md.
+-}
+
+{-
+   ============================================================================
+   `Map(k, v)` - Implementation-Map.md.
+
+   A dense run of entries in insertion order, plus a private index over it. The two corpora in
+   `benchmark/map-native` and `benchmark/map-js` are what chose this shape and are the regression
+   suites for it; §7 of the native findings is why there is **one** map type rather than a probing
+   one for lookup and a dense one for iteration.
+
+   The build order is that document's §8, and what is here is steps 1 to 4 and 6: the scan, `Hash`,
+   the control-byte index with its probe, `bits`, and the subscript. **Step 5 - a predicate over a
+   type argument on `@platform`, which is the one language extension the design asks for - is not
+   built**, so the cached hash beside a structural entry is not here and JS gets a ported table for
+   every key type rather than the host `Map` for the ones it could hold. Both are named where they
+   would go.
+
+   **The entries run is the same declaration on both targets and every operation over it is one
+   body.** What differs is the index and nothing else: `Run(U8)` of control bytes natively, an
+   `Array(I32)` of entry numbers on JS, behind six functions named `index...` below. That is a
+   departure from §6, which splits the JS entries into parallel typed runs - and it is taken for a
+   stated reason: iteration hands over `&Entry(k, v)`, so parallel runs would give `pairs` a
+   different signature per target, and a `{&k, &v}` pair is a shape nothing else in the language
+   builds. What it costs is §6.2's typed-array representation on JS, which is real and is written
+   down in that section rather than argued with here.
+   ============================================================================
+-}
+
+{-
+   One entry: the key and the value, adjacent.
+
+   One run rather than two - splitting it into a key run and a value run wins only where the two
+   alignments differ, and costs an allocation (native findings §4). `pub` because it is what
+   iteration hands over: a borrow of an entry is how a program reads a pair without either half
+   being copied.
+-}
+pub data Entry(k, v) {key: k, value: v}
+
+{-
+   The three control-byte values - Implementation-Map.md §1.
+
+   The encoding is chosen so that **the sign bit alone separates full from not-full**: a slot's tag
+   is seven bits, so a full slot is 0..127 and both of the others are at or above 128. A group's
+   free lanes are therefore one unsigned comparison against `ctrlEmpty` and no table, which is what
+   `indexFreeSlot` below is written in terms of.
+-}
+pub let ctrlEmpty = 128 :: U8
+
+pub let ctrlDeleted = 254 :: U8
+
+{-
+   How many entries a map scans before an index is worth allocating - Implementation-Map.md §2 and
+   §4.4, and the third of that section's three per-key-type rules.
+
+   **A constant that folds**, which is the shape §2 says this rule can already have: 8 for a machine
+   word, 32 for a `String`, 64 for anything structural, decided from the key's Repr at the call site
+   and folded there. The other two rules in that table - `hostKeyFor` and `cachedHashFor` - select
+   between *declarations* and are what needs the language extension; this one does not.
+
+   Measured, not guessed: over the whole life of a one-entry map, scanning is 3.3x cheaper than an
+   indexed map for `[U32: U32]` and 4.7x for `[Record: Record]`, and it stays ahead to about eight
+   entries for a machine-word key, thirty-two for a string, and past a hundred for a record key,
+   whose hash is a string walk plus three mixes.
+
+   Takes the entries run rather than a key, for the reason `hostFixedCapacity` takes the array it
+   asks about: what it needs is the *type*, a map with nothing in it has no key to hand over, and a
+   pointer's pointee is exactly the question. The key is the entry's first field. Nothing reads the
+   operand, and the same spelling works on both targets because both entries runs are `%Entry(k, v)`.
+-}
+pub fn scanLimitFor(entries: %Entry(k, v)) -> Size
+
+{-
+   And the same question asked of a run of *keys*, which is the shape the JS row has.
+
+   Two names rather than one signature, because the two targets no longer store a key in the same
+   place: native reaches it through the entry it is a field of, and JS has a run of nothing else. It
+   is one intrinsic underneath - `emitScanLimit` unwraps an `Entry` where it finds one - and the two
+   names are what keeps the unwrap unambiguous, since a *record key* is a record the way an entry is
+   and asking one function to tell them apart would answer 8 for `Map(Point, Int)`.
+
+   Both are private to `scanLimitOf` below, which is the one signature either target's callers see.
+-}
+pub fn scanLimitForKeys(keys: %k) -> Size
+
+{-
+   How many entries the map holds, as the class rather than as a plain `count` - and the reason is
+   the one `Length`'s own note gives about `String`: this language has no ad-hoc overloading for
+   plain functions, so a second `fn count` beside `Core`'s `count(mask)` is a duplicate declaration
+   rather than an overload. `Length` is exactly the class that exists for that, and a map is exactly
+   the kind of container it was declared over.
+-}
+instance Length(Map(k, v)):
+    fn length(self: Map(k, v)) -> Size = entryCount(self)
+
+-- How many slots the index has, which is one more than the mask. Never asked of a map with no
+-- index, where the answer would be a slot count of one that does not exist.
+fn indexSlots(self: Map(k, v)) -> Size = (self.mask :: Size) + 1
+
+{-
+   Which slot a hash starts its probe at - the low bits, masked.
+
+   Written through `bitcast` and a widening rather than as `(h and mask) :: Size`, because `Size` is
+   `I64` natively and `Int` on JS: the direct ascription widens on one target and narrows on the
+   other, and there is no third spelling that is both. The mask is at most thirty bits (`Count`), so
+   the value always fits the signed type it lands in and the reinterpretation loses nothing - which
+   is exactly the case `bitcast` is for.
+-}
+fn slotFor(h: U32, mask: Count) -> Size = (bitcast(h `and` (mask :: U32)) :: I32) :: Size
+
+-- The seven-bit tag, taken from the *top* of the finalized word - Implementation-Map.md §3. The slot
+-- comes from the bottom, which is the opposite of abseil's split and is measured: a byte-at-a-time
+-- hash mixes its low bits best, and `h >> 7` throws them away (findings §12.6).
+fn tagOf(h: U32) -> U8 = truncate(bitfield(h, start: 25, count: 7)) :: U8
+
+-- The finalized hash of a key. `mix32` is what makes a cheap instance merely slow instead of
+-- quadratic: without it a weak `hash` would put every key of a table into one tag.
+pub fn (Hash(k)) hashKey(key: k) -> U32 = mix32(hash(key, hashSeed))
+
+{-
+   ---------------------------------------------------------------------------
+   The index, which is the only part of this map that differs between the targets.
+
+   Six functions and one rule each, and everything below this block is written in terms of them:
+
+     `indexFind`     which entry holds this key, or -1
+     `indexSlotOf`   which *slot* holds this key, or -1 - what removal needs
+     `indexPlace`    point a free slot at an entry
+     `indexRebuild`  a fresh index of `slots` slots, with every live entry placed in it
+     `indexReset`    every slot empty, the entries left alone - what `clear` needs
+     `indexForget`   mark the slot a key occupies as deleted
+   ---------------------------------------------------------------------------
+
+   **The six are a file each** - `Map.native.yana` and `Map.js.yana`, Analysis-Modules.md §2.5.
+   Nineteen `@platform` attributes stated one property of two contiguous blocks nineteen times, and
+   the blocks share not one line: the native index is a group of sixteen control bytes probed with a
+   vector compare, and the JS one is an `Int32Array` probed linearly. The contract above is what both
+   answer and is the only thing the rest of this file knows about either.
+-}
+
+{-
+   ---------------------------------------------------------------------------
+   Everything below here is one body for both targets.
+   ---------------------------------------------------------------------------
+-}
+
+{-
+   The scan - Implementation-Map.md §4.4, and step 1 of §8 on its own.
+
+   What a map below the threshold *is*: the dense entries run, walked. No index is allocated, no
+   hash is computed, and the branch that chooses this costs one comparison on the lookup path -
+   which predicts perfectly for the life of a map that never grows past it, and is the cheapest
+   thing in the design.
+-}
+fn (Hash(k)) scanEntries(self: Map(k, v), key: k) -> Size:
+    let count = entryCount(self)
+    let &at = 0 :: Size
+
+    while at < count:
+        if keyEquals(self, at, key) then return at
+        at = at + 1
+
+    return 0 - 1
+
+-- Which entry holds this key, or -1. The one branch §4.4 puts on the lookup path, and everything
+-- else in this file is a variation on what is below it.
+fn (Hash(k)) findEntry(self: Map(k, v), key: k, h: U32) -> Size:
+    if self.mask == 0 then return scanEntries(self, key)
+    return indexFind(self, key, h)
+
+-- Room for `wanted` slots, rounded up to a power of two and never below sixteen. The load factor is
+-- 7/8, so a map that will hold `n` entries wants `n * 8 / 7` slots before it stops growing.
+fn indexSlotsFor(wanted: Size) -> Size:
+    let &slots = 16 :: Size
+    while slots - (slots `shr` 3) < wanted:
+        slots = slots + slots
+
+    return slots
+
+{-
+   Room for `wanted` entries, in both runs - Implementation-Map.md §4.5.
+
+   Worth **1.8-2.2x** over the whole life of a hundred-entry map (native findings §5), which is the
+   largest single small-map effect measured, and it is why a map literal and a sized construction
+   reach this rather than the growth path.
+
+   Not called `reserve`, for the reason `containsKey` is not called `contains`: `Array(a)`'s is
+   already declared at this arity and this language has no ad-hoc overloading for plain functions.
+-}
+pub fn (Hash(k)) reserveMap(&self: Map(k, v), wanted: Size) -> {}:
+    reserveEntries(self, wanted)
+
+    if wanted > scanLimitOf(self):
+        let slots = indexSlotsFor(wanted)
+        if slots > indexSlots(self) || self.mask == 0 then indexRebuild(self, slots)
+
+-- A map sized at construction, which is the one construction site where the count is known.
+pub fn (Hash(k)) newMap(capacity: Size) -> Map(k, v):
+    let &self = emptyMap() :: Map(k, v)
+    reserveMap(self, capacity)
+
+    return self
+
+{-
+   ---------------------------------------------------------------------------
+   The eight the two implementations answer, and the type they are over.
+
+   `Map.native.yana` and `Map.js.yana` hold the record, `emptyMap`, and these - so the file that
+   holds the index for a target holds everything about that target's storage, and this file is what
+   is true of a map whichever one is compiled (Analysis-Modules.md §2.5).
+
+     `scanLimitOf`    below how many entries the map is a linear scan
+     `entryCount`     how many entries there are
+     `reserveEntries` room for `wanted` of them
+     `appendPair`     one more at the end, taking both by hand-over
+     `keyAt`          a borrow of the key at a position
+     `valueAt`        the same for the value, and `valueAtMut` for a mutable one
+     `takeEntry`      the entry at a position, out of the map
+     `removeLast`     the last one, dropped
+
+   The split is the *dense entries*: natively one run of `Entry(k, v)`, on JS two host arrays with a
+   key in one and a value in the other, which is what makes a key borrow `hostAt` there and an
+   address here. Everything below this line is written over these eight and never over either.
+   ---------------------------------------------------------------------------
+-}
+
+{-
+   The key at one entry, hashed and compared - one body each, over the `keyAt` above.
+
+   **`:: k` is what makes the hash resolve, and it is not decoration.** `keyAt` hands back a `&k`,
+   and a borrow handed to a parameter declared `k` is inferred as an argument of *that* type rather
+   than read through - so the generic body asked for `Hash(&k)` and was told there is no such
+   instance. An ascription supplies the expected type and the read is then the ordinary one. `==`
+   needs none, because an operator already reads both of its sides.
+
+   Written as functions over `keyAt` rather than as two bodies each, so that where a key lives is
+   the one thing either target has to answer, and so the unchecked read is the one `keyAt` already
+   does: `self.keys[at]` here would be the subscript, and a subscript carries the bounds check this
+   probe has already made.
+-}
+fn (Hash(k)) hashAt(self: Map(k, v), at: Size) -> U32 = hashKey(keyAt(self, at) :: k)
+
+fn (Hash(k)) keyEquals(self: Map(k, v), at: Size, key: k) -> Bool = keyAt(self, at) == key
+
+{-
+   Appending an entry to the dense run, and pointing the index at it.
+
+   Three things happen in order and the order matters: the entries run grows first, so the entry
+   number this writes into the index is one the run can hold; the index is grown *before* the slot
+   is chosen, since a rebuild moves every slot; and the threshold is crossed here rather than at the
+   lookup, because it is a question about how many entries there are.
+-}
+fn (Hash(k)) appendEntry(&self: Map(k, v), ->key: k, ->value: v, h: U32) -> {}:
+    let at = entryCount(self)
+    appendPair(self, key, value)
+
+    if self.mask == 0:
+        -- Below the threshold there is no index, and crossing it is what builds the first one.
+        if at + 1 > scanLimitOf(self):
+            indexRebuild(self, indexSlotsFor(at + 1))
+
+        return
+
+    -- 7/8 is the load factor. A rebuild at *twice* the slot count where the entries genuinely fill
+    -- it, and at the same count where they do not - which is how a table full of tombstones is
+    -- cleaned without doubling the memory it never needed.
+    let slots = indexSlots(self)
+    if (self.live :: Size) + 1 > slots - (slots `shr` 3):
+        indexRebuild(self, if (at + 1) * 2 > slots then slots + slots else slots)
+        return
+
+    indexPlace(self, at, h)
+
+{-
+   Insert - Implementation-Map.md §4.3.
+
+   On a hit the value is replaced and the old one handed back, which is what makes the answer a
+   `Maybe(v)`: a caller who wants the displaced value takes it, and one who does not writes
+   `insert(m, k, v)` and lets the drop run at the call.
+
+   The key is *not* replaced on a hit. Two keys that `==` calls equal are one key, so keeping the one
+   already in the map is the answer that costs nothing; the one handed over is released at the end of
+   this body by the ordinary rule for a `->` parameter nothing stored.
+-}
+pub fn (Hash(k)) insert(&self: Map(k, v), ->key: k, ->value: v) -> Maybe(v):
+    let h = hashKey(key)
+    let at = findEntry(self, key, h)
+
+    if at >= 0:
+        return Just(exchange(valueAtMut(self, at), value))
+
+    appendEntry(self, key, value, h)
+    return Nothing
+
+{-
+   Remove, which is a **swap-remove** - Implementation-Map.md §4.3 and §5.
+
+   The whole reason the entries run has no holes: the last entry is moved into the gap and its own
+   index slot is re-pointed, which is one extra probe per removal. The alternative - closing the gap
+   and renumbering - is what native findings §6 prices at **155x** on churn at a thousand entries,
+   and it is why the promise in §5 is insertion order *until something is removed* rather than
+   insertion order unconditionally.
+
+   The removed slot becomes **Deleted**, and `live` does not count down: a slot that was part of a
+   full group has to keep saying "keep looking" or every probe that ran through it would stop one
+   slot early. Abseil's test for when it may go back to Empty instead is not implemented here - what
+   it costs is that a delete-heavy map rebuilds sooner, which the rebuild at the *same* slot count in
+   `appendEntry` is what makes affordable.
+
+   **The whole entry is handed back and not just the value**, which is a departure from §4's
+   `Maybe(v)`. It is forced rather than chosen: `entry.value` alone is a move of *part* of a value,
+   which the ownership pass refuses because the other part would be left with no owner, and the
+   language has no record-destructuring pattern to take the two apart with. Handing over both costs
+   nothing and loses nothing - a caller who wanted the value reads `.value` off it and lets the
+   entry's own drop release the key.
+-}
+pub fn (Hash(k)) removeKey(&self: Map(k, v), key: k) -> Maybe(Entry(k, v)):
+    let h = hashKey(key)
+    let at = findEntry(self, key, h)
+    if at < 0 then return Nothing
+
+    if self.mask != 0 then indexForget(self, key, h)
+
+    {-
+       The moved entry's slot is re-pointed *before* the move, which is the ordering this has to keep:
+       after it the entry is no longer at `last`, so anything that went looking for it by key would
+       read past the end of the run. `indexRepoint` therefore looks for the entry *number*, and the
+       hash it walks from is computed here, where the borrow of the key ends at the call rather than
+       being held across a mutable one of the map.
+    -}
+    let last = entryCount(self) - 1
+
+    if at != last && self.mask != 0:
+        let moved = hashAt(self, last)
+        indexRepoint(self, last, at, moved)
+
+    return Just(takeEntry(self, at))
+
+-- Whether a key is in the map, which is the probe with its answer thrown away. Not `contains`, for
+-- the reason `reserveMap` is not `reserve`.
+pub fn (Hash(k)) containsKey(self: Map(k, v), key: k) -> Bool =
+    findEntry(self, key, hashKey(key)) >= 0
+
+{-
+   Lookup - Implementation-Map.md §4.
+
+   `Maybe(&v)` is a nullable borrow, and §10 leaves open whether it is one pointer: it is one exactly
+   when Repr's niche computation folds `Nothing` into the null address, which is the same fold
+   `Maybe(%a)` already gets. `MapRepr.yana` is where that is asserted as a number rather than assumed
+   here.
+
+   What a result of this shape needed from the compiler was liveness rather than layout: a borrow
+   *inside* a returned value roots the map exactly as a bare `&v` would, and until analyze_effects
+   learned to walk out of a direct aggregate into the call that produced it, the map was dropped at
+   the call and the borrow read storage that had been handed back.
+-}
+pub fn (Hash(k)) find(return self: Map(k, v), key: k) -> Maybe(&v):
+    let at = findEntry(self, key, hashKey(key))
+    if at < 0 then return Nothing
+
+    return Just(valueAt(self, at))
+
+pub fn (Hash(k)) findMut(return &self: Map(k, v), key: k) -> Maybe(&v):
+    let at = findEntry(self, key, hashKey(key))
+    if at < 0 then return Nothing
+
+    return Just(valueAtMut(self, at))
+
+{-
+   Emptying a map without giving its storage back.
+
+   Every entry is released and both runs are kept, which is what a caller who is about to fill it
+   again wants. The index is not rebuilt - it is filled with the empty sentinel, which is the same
+   work a rebuild would start with and none of the work it would go on to do.
+-}
+pub fn clear(&self: Map(k, v)) -> {}:
+    let &at = entryCount(self)
+
+    while at > 0:
+        at = at - 1
+        removeLast(self)
+
+    if self.mask != 0 then indexReset(self)
+
+{-
+   Iteration - Implementation-Map.md §5.
+
+   **Every entry exactly once, in insertion order as long as nothing has been removed.** After a
+   removal the order is unspecified: it is deterministic for a given target and sequence of
+   operations and does not change between two iterations of an unmodified map, but it is not
+   insertion order and it is not the same on both targets. That is the promise the layout can keep on
+   both, and the stronger one costs 155x on churn.
+
+   A walk over the dense prefix and nothing else - **iteration never touches the index**, which is
+   what makes it 2.6-6.5x a Swiss table's and is the half of the two-type question this design wins
+   outright.
+
+   **`Entry(&k, &v)` - the entry record applied at two borrows**, which is what a target with the key
+   and the value in separate runs can produce and a borrow of a whole entry is not. Reading is
+   unchanged from the borrow this used to yield: `entry.key` and `entry.value` are both places, and
+   neither half is copied. §4's `{k, &v}` is still not it, since a key read out by value would be a
+   move out of storage the map owns.
+
+   **`keys` and `values` are not declared, and `drain` is not either.** The first two are one line
+   each over this iterator - `for entry in pairs(m)` and the field - and the name `values` is already
+   `Contiguous`'s, which this language has no ad-hoc overloading to sit beside; the same rule that
+   made `contains` into `containsKey`. `drain` needs an `iter fn` that consumes its source, which
+   nothing in the language does yet.
+-}
+pub iter fn pairs(self: Map(k, v)) -> Entry(&k, &v):
+    let count = entryCount(self)
+    let &at = 0 :: Size
+
+    while at < count:
+        yield Entry {key: keyAt(self, at), value: valueAt(self, at)}
+        at = at + 1
+
+{-
+   Subscripting a map - Implementation-Map.md §7.
+
+   `m[key]` is a lookup and **traps on an absent key, in every build**. Unlike a bounds check this
+   one cannot be release-unchecked: a missing key has no address to hand back, so "unchecked" would
+   mean returning a borrow of whatever entry number happened to be there. The total forms are `find`
+   and `containsKey`, and they are what a program that does not know should call.
+
+   `m[key] = value` is `IndexInsert` below rather than this class's `getMut`, for the reason §7
+   gives: there is nothing to borrow for an absent key and no zero value to invent for an arbitrary
+   `v`.
+-}
+instance (Hash(k)) Index(Map(k, v), k, v):
+    fn get(return self: Map(k, v), key: k) -> &v:
+        let at = findEntry(self, key, hashKey(key))
+        checkCondition(at < 0)
+
+        return valueAt(self, at)
+
+    fn getMut(return &self: Map(k, v), key: k) -> &v:
+        let at = findEntry(self, key, hashKey(key))
+        checkCondition(at < 0)
+
+        return valueAtMut(self, at)
+
+{-
+   And the assignment form - Implementation-Map.md §7's second decision.
+
+   `m[key] = value` **inserts**, which `getMut` cannot express: it has to answer a borrow, and an
+   absent key has none. So the assignment form gets a class member of its own, which
+   `resolveSubscript` prefers for `c[k] = v` wherever the container has an instance and falls back to
+   `getMut` where it does not - so `Array`'s assignment is unchanged.
+
+   It is the smaller of the two available answers. The other is making every container's `getMut`
+   fallible, which changes `Array` too.
+
+   **The key is a `->` and not a read**, which is the one place this member differs from `get` and
+   `getMut` beside it. A lookup only *reads* the key it probes with, so those two take one by the
+   borrow convention; an insert that misses **stores** it, and storage that outlives the call cannot
+   be borrowed. Written as a read this was a diagnostic inside the library rather than at the
+   assignment - `insert` declares `->key: k`, so the body handed borrowed storage to a sink - and it
+   was invisible for every key a copy answers for: `m[1] = 2` compiled and `m["a"] = 2` did not.
+-}
+pub class IndexInsert(c -> k, v):
+  fn insertAt(&self: c, ->index: k, ->value: v) -> {}
+
+instance (Hash(k)) IndexInsert(Map(k, v), k, v):
+    fn insertAt(&self: Map(k, v), ->index: k, ->value: v) -> {} = insert(self, index, value)

@@ -139,6 +139,37 @@ StringView archName(TargetArch arch) {
 }
 
 /*
+ * One dotted segment of a file name, answered against this compilation.
+ *
+ * The three tables are the ones the command line already reads, so a selector is spelled the way
+ * `-target`, `-arch` and `@platform` spell the same thing and there is no second vocabulary to keep
+ * in step. `js` and `native` are the platform axis and are not in a table because `mode` holds more
+ * than a platform.
+ *
+ * **An operating system or an architecture excludes a JS build**, rather than being ignored on one:
+ * `Linux.x64.yana` is a syscall table, and a target with no syscalls has no business compiling it.
+ * That is the same answer `@platform(native)` would give, which is what makes the file form a
+ * replacement for the attribute rather than a second mechanism beside it.
+ */
+TargetSelector targetSelector(const CompileSettings& settings, StringView name) {
+    auto isJs = isJsMode(settings.mode);
+    auto answer = [](bool matched) { return matched ? TargetSelector::Matched : TargetSelector::Excluded; };
+
+    if(name == "js"_v) return answer(isJs);
+    if(name == "native"_v) return answer(!isJs);
+
+    for(U32 i = 0; i < sizeof(targetTable) / sizeof(StringView); i++) {
+        if(name == targetTable[i]) return answer(!isJs && settings.target == TargetType(i));
+    }
+
+    for(U32 i = 0; i < sizeof(archTable) / sizeof(StringView); i++) {
+        if(name == archTable[i]) return answer(!isJs && settings.arch == TargetArch(i));
+    }
+
+    return TargetSelector::Unknown;
+}
+
+/*
  * The three levels, and the three older spellings that name the same machines.
  *
  * The aliases are kept because they read better at a call site that is about one instruction set -

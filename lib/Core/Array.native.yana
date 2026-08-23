@@ -1,0 +1,235 @@
+import Native
+
+{-
+   The array, natively - a run of slots and how many of them are live.
+
+   That split is the whole of Implementation-Containers.md §1: what a run *is* - where it came from,
+   how much room it has, what releasing it means - belongs to `Run(a)`, and what this type adds is
+   the one thing a run deliberately does not have, which is a notion of which slots are live.
+
+   So there is no storage decision in this file at all. An array literal's run starts as storage the
+   compiler placed, on the frame when it proved the array does not outlive it; growing past it moves
+   the slots to the heap; and which of those happened is recorded in the run's own tag and read by
+   the run's own `Reclaim`.
+
+   `Array.yana` beside this is what both targets share; `Array.js.yana` is the same operations over
+   the host's array. Analysis-Modules.md §2.5 is why they are three files.
+-}
+
+{-
+   A growable array.
+
+   A run of slots and how many of them hold values. That split is the whole of
+   Implementation-Containers.md §1: what a run *is* - where it came from, how much room it has, what
+   releasing it means - belongs to `Run(a)`, and what this type adds is the one thing a run
+   deliberately does not have, which is a notion of which slots are live.
+
+   So there is no storage decision in this file at all. An array literal's run starts as storage
+   the compiler placed, on the frame when it proved the array does not outlive it; growing past it
+   moves the slots to the heap; and which of those happened is recorded in the run's own tag and
+   read by the run's own `Reclaim`. This array's teardown is therefore *derived* - recurse into the
+   members - and nothing here is written about it.
+
+   `length` is a `Count` and not an `Int` for the two reasons `Native` gives at that alias: an
+   unsigned bound turns every `index < 0 || index >= length` into one comparison, and thirty bits is
+   what leaves the capacity and the placement room in the same word once the layout can put them
+   there. The *interface* stays signed - `length()` answers an `Int`, `get` takes one - because the
+   language's literals and its arithmetic are signed and a container is not the place to start
+   arguing with that.
+-}
+pub data Array(a) {run: Run(a), length: Count}
+
+-- An array with room for nothing: an empty run, and the first push allocates.
+pub fn emptyArray() -> Array(a) = Array {run: emptyRun(), length: 0}
+
+-- What the container can hold before it has to grow, which is the run's own number.
+pub fn capacity(self: Array(a)) -> Size = self.run.capacity :: Size
+
+{-
+   Room for `wanted` elements.
+
+   The capacity test and nothing else, with the growth behind `growArray`. Split that way on purpose,
+   and the split is what makes this function *disappear* at its call sites: written as one body it is
+   twenty instructions in ten blocks, which is over any budget the inliner has, so `push` was a call
+   per element and the caller's own bounds check reloaded the capacity one instruction after that call
+   returned - a load nothing may forward across a call, a check nothing may discharge, and an address
+   nothing may hoist out of the loop the push sits in.
+
+   Written as a test and a tail call it is four instructions in two blocks, the inliner takes it under
+   the ordinary budget with no rule of its own, and what lands in the caller is exactly the test. See
+   §14.2 of `test/bench/findings.md` for what that is worth and for why the same shape recognised in
+   the *compiler* is not: inlining the whole body carries the growth into the caller's hot loop, and
+   the two cancel.
+-}
+pub fn reserve(&self: Array(a), wanted: Size) -> {}:
+    if wanted <= (self.run.capacity :: Size) then return
+    growArray(self, wanted)
+
+{-
+   The growth, which runs once per doubling.
+
+   Doubling with a floor, and nothing else - relocation is the run's. The `&` on `resize`'s own `self`
+   is what makes that safe with no rule of this file's own: a mutable borrow of the run conflicts
+   with any live borrow into it, so a caller holding an element borrow across a push is rejected by
+   the ordinary check rather than by anything written here.
+
+   Not `pub`: it is `reserve`'s cold half and re-tests nothing, so calling it directly would grow an
+   array that already had the room.
+
+   `@noinline` because the whole point of the split is that this body stays where it is, and the one
+   term that would otherwise take it back is `soleCallSite`: a program with a single `push` leaves
+   this with one caller, and a body with one caller is one the inliner moves rather than copies. That
+   is a size win and a speed loss - what it moves is a doubling and a `resize` call, into the loop the
+   push sits in - so the attribute says which of the two this function is for.
+-}
+@noinline fn growArray(&self: Array(a), wanted: Size) -> {}:
+    let room = self.run.capacity :: Size
+    let &wide = room + room :: Size
+    if wide < wanted then wide = wanted
+    if wide < 4 then wide = 4
+
+    resize(self.run, wide)
+
+{-
+   Appends an element.
+
+   `->item` and not `item`, because the array *takes* it: what the store writes into the run is a
+   live value the caller no longer owns, and a borrowed parameter would leave the caller's own drop
+   to release something the array is still holding. The write is what transfers it - a store through
+   a raw pointer is an assignment the ownership pass reads as a hand-over - so nothing is released
+   at the end of this body on the path that stored.
+
+   A reserve that could not get the room is a check that failed, and it is spelled as one.
+
+   It used to `return` instead: the array was left as it was, the element died here rather than being
+   leaked, and the caller was told nothing. That is a silent wrong answer - the array simply stops
+   growing and every push after it discards its argument - and it was reachable, because the heap was
+   a single 4 MiB region and an `[Int]` hit the end of it at 131072 elements (see `growHeap` in
+   Native, which is the reason that particular failure no longer happens). What is left is a genuine
+   refusal from the kernel or a `resize` past what `Count` can hold, and neither is something a
+   program can be allowed to walk past.
+
+   `checkCondition` and not a diagnostic with a message, on the same terms as every bounds check:
+   what it says is 134 natively and a throw on JS, because a growth failure is reached from inside
+   every container operation there is and a sentence built here would be built in all of them.
+   Reporting it *as a value* is still `Result`'s job, which still needs the array first - the difference is that until then the program stops instead of continuing on a
+   container that quietly lost an element.
+
+   The store is now on the only path out, which is why nothing is released at the end of this body:
+   `item` is handed over on the path that continues and `checkFailed` does not return.
+-}
+pub fn push(&self: Array(a), ->item: a) -> {}:
+    let count = self.length :: Size
+    reserve(self, count + 1)
+    checkCondition(count >= (self.run.capacity :: Size))
+
+    store(self.run.items + count, item)
+    self.length = truncate(count + 1) :: Count
+
+
+-- The window `slice` makes, with the clamping taken out - `Array.yana` is where the reason is.
+fn unclampedSlice(return self: Flat(a), from: Size, count: Size) -> Flat(a) =
+    Flat {items: self.items + from, length: count}
+
+{-
+   `xs[from..to]`, as an ordinary function.
+
+   Half-open, clamped rather than checked: an out-of-range bound produces a shorter slice instead of
+   a trap, which is the same tier as the missing bounds check on `get` and goes the same way when
+   `checkBounds` (§15) lands.
+
+   `return self` for the same reason `get` has one: the result points into whatever `self` points
+   into, so the loan taken where that descriptor was built has to cover the subslice as well. A slice
+   is a borrow whose representation is a record, and the marker is what makes the checker treat it as
+   one - without it this function is rejected for handing back a view of its own argument.
+-}
+pub fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
+    let &start = from :: Size
+    if start < 0 then start = 0
+    if start > self.length then start = self.length
+
+    let &end = to :: Size
+    if end < start then end = start
+    if end > self.length then end = self.length
+
+    return Flat {items: self.items + start, length: end - start}
+
+{-
+   Removes element `index`, moving whatever followed it down over the gap, and answers what it took.
+
+   The element is taken out before the gap is closed, rather than being left to the block move that
+   writes over it. An assignment releases what it replaces, which is the rule that would have covered
+   this - but a block copy is not an assignment the compiler can see. It is Native moving bytes, and
+   bytes moving over a live value is exactly the operation that owes its own bookkeeping.
+
+   So `doomed` is where the element goes, and a `->` binding owns what it holds.
+
+   **`moveMemory` and not `copyMemory`**, which is the one line here that is about a contract rather
+   than about ownership. The source of this move is one element above its destination, so the two
+   regions overlap for every array holding more than one element past the gap - and `copyMemory` is
+   the *non-overlapping* form, which says nothing about the order it touches bytes in. It happens to
+   ascend on both of today's backends and would still be within its rights not to, so what was
+   holding this up was the lowering rather than the promise. `moveMemory` is the promise.
+
+   Handing it *back* rather than dropping it here is what makes this usable for an element type the
+   caller has somewhere else to put - Implementation-Containers.md §13.3. A caller who does not want
+   it writes `remove(xs, i)` and discards the answer, which is the same program it always was: a
+   `Maybe` with no name and no use has its last use at the call, and the drop runs there. A caller who
+   does writes `Just(->item)` and decides for itself. Nothing in the container has to know which, and
+   that is the whole reason this is a return value rather than a second function.
+
+   The move is out of a raw pointer, which is unchecked by construction and correct here for the
+   reason the bounds test above it establishes: `index` is inside the initialized prefix, so there is
+   a live value at that address to take. Design-Memory's checked world cannot state that, which is
+   why the collection is the thing written against Native rather than the caller.
+-}
+pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
+    -- One comparison and not two. `index` is *reinterpreted* unsigned rather than converted, so a
+    -- negative one arrives as a number above every length there is and fails the same test the
+    -- too-large case fails - which is the whole reason `Count` is unsigned, and the shape
+    -- `checkBounds` (§15) will have. `bitcast` and not `truncate`: the two are the same bits at this
+    -- width, and only one of them says that reading them differently is the point.
+    --
+    -- The length needs no ascription of its own: a `@bits` refinement dispatches as the type it
+    -- refines, so this is the ordinary `U32` comparison.
+    if (bitcast(index) :: U32) >= self.length then return Nothing
+
+    let ->doomed = *(self.run.items + index)
+
+    let rest = (self.length :: Size) - index - 1
+    if rest > 0:
+        moveMemory(bitcast(self.run.items + index) :: %U8, bitcast(self.run.items + index + 1) :: %U8,
+                   byteSpan(self.run.items, rest))
+
+    self.length = truncate((self.length :: Int) - 1) :: Count
+    return Just(doomed)
+
+{-
+   The teardown - Implementation-Containers.md §13.
+
+   One traversal over the live elements, and the release of the run. That is the whole of what a
+   container has to write, and it is deliberately written once rather than twice: which *halves* of
+   Design-Memory §4's split this supplies is computed from the element type, not declared here. An
+   `Array(Int)` has nothing to run at each element, so this is a reclaim and folds to the release; an
+   `Array(Connection)` has, so the same body is also the array's `Drop` and the array stops being
+   region-eligible - which is the answer that keeps a connection's teardown from being discharged in
+   bulk at a point the program never chose.
+
+   `let ->doomed` is how a body says "hand me this element, owned": the binding owes its release and
+   never reads it, which is exactly what should happen to a value with nowhere to go. It is the same
+   line `remove` uses for the one element it takes out.
+
+   The move is out of a raw pointer, which is unchecked by construction and correct here for the
+   reason the loop bound establishes: every index below `length` names a live element. That is what
+   `Run(a)` having no notion of occupancy buys - the count is this type's, and so is this walk.
+-}
+instance Reclaim(Array(a)):
+    fn reclaim(->value: Array(a)) -> {}:
+        let count = value.length :: Int
+        let &i = 0 :: Int
+
+        while i < count:
+            let ->doomed = *(value.run.items + i)
+            i = i + 1
+
+        releaseRun(value.run)

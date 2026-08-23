@@ -1,0 +1,249 @@
+import Native
+
+{-
+   Hashing - Implementation-Map.md §3 and §3.1.
+
+   The class, the finalizer, the folds each instance is written in terms of, and the instances for
+   the compiler's own types. One file, which is the thing the module split made impossible: the class
+   is what a user type joins so it had to be in `Core`, and the instances fold through `mulHigh` so
+   they had to be above `Native` - and the finalizer ended up beside the class because that was the
+   only place both halves could see it.
+-}
+
+{-
+   Folding a value into a hash state - Implementation-Map.md §3.
+
+   **One member, and it is a fold rather than a function to a number.** That is what makes a
+   structural hash compose without an ad-hoc combining function: a record's instance folds field by
+   field, a string's folds its units, and a sum's folds its tag and then its payload, each of them
+   `hash(part, state)` threaded through. It is the shape Analysis-Derive.md's "for each field"
+   template already generates, so `deriving (Hash)` will be one template rather than a special case.
+
+   **`Eq(a)` is a superclass and the obligation is real**: two values that `==` says are equal must
+   fold to the same state. Nothing checks it - nothing can - and every instance in this tree is
+   written beside the `Eq` it has to agree with for that reason.
+
+   **The state is a `U32` because JS decides it.** A 64-bit state is one multiply natively and three
+   operations plus a `bigint` hazard on JS, where `Math.imul` is the only cheap multiply there is.
+   That binds the *class*; it does not bind what a map does between the instance and the slot, which
+   is why the native fold below is free to do its arithmetic at sixty-four bits and hand
+   back thirty-two.
+
+   An instance may be as cheap as its type allows - `fn hash(value, state) = state `xor` value` is
+   legal and is one instruction - because a map finalizes with `mix32` before it splits the word.
+   That is what makes a weak instance merely slow instead of quadratic.
+-}
+pub class (Eq(a)) Hash(a):
+  fn hash(value: a, state: U32) -> U32
+
+{-
+   The finalizer - murmur3's `fmix32`, and the one piece of the hash that is the same on both
+   targets.
+
+   Five operations, no table and no branch, and every one of them is something a 32-bit machine and
+   `Math.imul` both do in one step. What it buys is stated in Implementation-Map.md §3: a map takes
+   the slot from the *low* bits of the finalized word and the seven-bit tag from the *top*, so a
+   hash whose entropy sits at one end would otherwise put every key of a table into one tag. This is
+   what makes both ends of the word carry the whole of it.
+
+   `pub`, because an instance author writing a hash for their own type has the same use for it that
+   the map does.
+-}
+pub fn mix32(value: U32) -> U32:
+    let &h = value
+    h = h `xor` (h `shr` 16)
+    h = h * 2246822507
+    h = h `xor` (h `shr` 13)
+    h = h * 3266489909
+    return h `xor` (h `shr` 16)
+
+{-
+   ============================================================================
+   Hashing - Implementation-Map.md §3 and §3.1.
+
+   `Core` declares the class and the finalizer; what lives here is the *fold*, which is the half
+   that has a target in it. Two folds and one seed, and every instance below is one line of one of
+   them.
+   ============================================================================
+-}
+
+{-
+   The seed - Implementation-Map.md §3's last paragraph.
+
+   The initial state of every fold, and most of what stops a map keyed by attacker-chosen strings
+   from being a denial of service. It costs nothing: it is the initial state of a fold that is
+   already happening.
+
+   *Most*, not all. A seed only helps a hash whose output *difference* depends on it, which is
+   exactly the property `crc32` lacks and §3.1 rejects it for - against a nonlinear fold the seed
+   forces an attacker to search, against a linear one it cancels out of a collision set entirely.
+   The fold below is the nonlinear one, which is what makes this worth having.
+
+   **Per process and not per map.** Two maps of one type have to agree about a key's hash, or a
+   rebuild could not move an entry without re-hashing it.
+
+   A constant today, and the open question Implementation-Map.md §10 leaves is *not* whether it
+   should be one - it should not - but what a debug build should do: fix it so a failure reproduces,
+   or deliberately vary it to shake out programs that came to depend on an iteration order they were
+   never promised. Randomizing it wants an entropy source at startup, which is the platform file's to
+   supply and is not wired up here. What the language already guarantees is that nothing observable
+   moves when it changes: iteration is insertion order, never hash order.
+-}
+pub let hashSeed = 2166136261 :: U32
+
+{-
+   Folding thirty-two bits of key into the state - the operation every instance below is written in
+   terms of, and the one that differs between the targets.
+
+   **Native: the 64x64->128 multiply-fold**, which is wyhash's and xxh3's core. The state and the
+   word go into the two halves of one sixty-four-bit input, each half is xor'd with a constant, and
+   the product's two halves are folded together - `lo ^ hi`, which is what makes it nonlinear and
+   what a CRC is not. Implementation-Map.md §3.1 measures both: `crc32` is twice as fast and is
+   disqualified, because the difference of two CRCs does not depend on the seed and a colliding key
+   set can therefore be *solved for* once and reused against every process.
+
+   One `mul`, one `mulhi`, and the folds around them. `mulHigh` is the only primitive the whole map
+   asked the language for.
+-}
+@platform(native) pub fn hashWord(state: U32, word: U32) -> U32 =
+    foldWide(((word :: U64) `shl` 32) `or` (state :: U64))
+
+{-
+   And the same fold on JS - Implementation-Map.md §3.1's second row, which is FNV-1a's step.
+
+   Not the multiply-fold, and the reason is measured rather than assumed: its intermediates leave
+   the Smi range, and `../../benchmark/map-js` §9 has the same cell measuring either 1.10 ns or 7.9
+   ns depending on which way V8's type feedback fell. **A hash written for JS stays inside
+   `Math.imul` and int32**, which this does - a 32-bit multiply is emitted as `Math.imul` and
+   nothing here ever holds a value the engine cannot keep in a small integer.
+
+   **The two targets are allowed to compute different functions**, and nothing had to be added to
+   let them: no observable depends on a hash value, because the iteration order is insertion order
+   and the seed is per process. Making JS compute the native function would cost 1.19x on a `U32`
+   key, 1.50x on a string and 1.88x on a record, and buy nothing.
+-}
+@platform(js) pub fn hashWord(state: U32, word: U32) -> U32 = (state `xor` word) * 16777619
+
+{-
+   The multiply-fold itself, and the only thing in this file that needs a machine.
+
+   `mum(a, b) = lo(a*b) ^ hi(a*b)` folded over one sixty-four-bit input and finished into
+   thirty-two, which is what the class's `U32` state means (§3). The two constants are odd and
+   well-mixed and nothing else about them matters; they are below 2^63 so that each is a literal
+   this language reads.
+-}
+@platform(native) fn foldWide(value: U64) -> U32:
+    let lhs = value `xor` 2685821657736338717
+    let rhs = 6364136223846793005 :: U64
+    let mixed = (lhs * rhs) `xor` mulHigh(lhs, rhs)
+
+    return truncate(mixed `xor` (mixed `shr` 32)) :: U32
+
+{-
+   Folding a whole sixty-four-bit key.
+
+   Natively this is one multiply-fold and the reason `foldWide` takes the width it does: a `Long`
+   key costs exactly what a `U32` key costs. On JS a sixty-four-bit value is a `bigint`, which is
+   off the arithmetic path entirely, so the two halves are folded separately at thirty-two bits -
+   two `Math.imul`s and no `bigint` arithmetic beyond the shift that splits it.
+-}
+@platform(native) pub fn hashWide(state: U32, word: U64) -> U32 =
+    foldWide(word `xor` ((state :: U64) `shl` 27))
+
+@platform(js) pub fn hashWide(state: U32, word: U64) -> U32 =
+    hashWord(hashWord(state, truncate(word) :: U32), truncate(word `shr` 32) :: U32)
+
+{-
+   The primitive instances - Implementation-Map.md §3's "a record's instance folds field by field".
+
+   These are the leaves that fold ends at. Each is one call to one of the two folds above, and the
+   conversion in front of it is what makes the key a machine word: a signed type reaches `U32` by
+   `truncate`, which is the ordinary narrowing rung and not a reinterpretation of anything, and is
+   injective over the source type's own range - which is the whole of what a hash needs from it.
+
+   `Eq` is the superclass and the obligation these have to keep: two values `==` calls equal fold to
+   the same state. Every one of them does so by construction, since the conversion in front of the
+   fold is injective.
+-}
+instance Hash(U8):
+    fn hash(value: U8, state: U32) -> U32 = hashWord(state, value :: U32)
+
+instance Hash(U16):
+    fn hash(value: U16, state: U32) -> U32 = hashWord(state, value :: U32)
+
+instance Hash(U32):
+    fn hash(value: U32, state: U32) -> U32 = hashWord(state, value)
+
+instance Hash(I8):
+    fn hash(value: I8, state: U32) -> U32 = hashWord(state, truncate(value) :: U32)
+
+instance Hash(I16):
+    fn hash(value: I16, state: U32) -> U32 = hashWord(state, truncate(value) :: U32)
+
+instance Hash(I32):
+    fn hash(value: I32, state: U32) -> U32 = hashWord(state, truncate(value) :: U32)
+
+instance Hash(Int):
+    fn hash(value: Int, state: U32) -> U32 = hashWord(state, truncate(value) :: U32)
+
+instance Hash(U64):
+    fn hash(value: U64, state: U32) -> U32 = hashWide(state, value)
+
+instance Hash(I64):
+    fn hash(value: I64, state: U32) -> U32 = hashWide(state, truncate(value) :: U64)
+
+instance Hash(Long):
+    fn hash(value: Long, state: U32) -> U32 = hashWide(state, truncate(value) :: U64)
+
+{-
+   `WideInt` is the one type whose instance is split by target, and it is split for the reason §3.1
+   gives about JS arithmetic rather than for anything about the type: it is a plain `number` there,
+   so converting it to a `U64` to reach `hashWide` would build the `bigint` that type exists to
+   avoid. Fifty-three bits, folded as two words that are each an ordinary small integer.
+-}
+@platform(native) instance Hash(WideInt):
+    fn hash(value: WideInt, state: U32) -> U32 = hashWide(state, truncate(value) :: U64)
+
+@platform(js) instance Hash(WideInt):
+    fn hash(value: WideInt, state: U32) -> U32 =
+        hashWord(hashWord(state, truncate(value) :: U32), truncate(value `shr` 32) :: U32)
+
+{-
+   `Bool` folds as the number it is. One instruction on both targets, and it exists so that a record
+   with a flag in it can derive a hash without the flag being a special case.
+-}
+instance Hash(Bool):
+    fn hash(value: Bool, state: U32) -> U32 = hashWord(state, if value then 1 else 0)
+
+{-
+   The floats, and the one thing that is not a bit pattern.
+
+   `0.0` and `-0.0` are two patterns that `==` calls equal, so hashing the pattern would break the
+   superclass obligation for exactly one pair of values - and it is the pair a program is most
+   likely to have. So a zero of either sign folds as the same word and everything else folds as its
+   bits. `NaN` needs no such care in the other direction: `==` says a NaN is equal to nothing at all,
+   including itself, so a map can never find one and what it hashed to was never asked.
+-}
+instance Hash(Float):
+    fn hash(value: Float, state: U32) -> U32 =
+        if value == 0.0 then hashWord(state, 0) else hashWord(state, bitcast(value) :: U32)
+
+{-
+   And `Double` natively only, which is a gap rather than a decision of this section's.
+
+   `defineBitcastLadder` declines every 64-bit rung that crosses a float on JS, deliberately and for
+   a stated reason: the integer on the far side is a `bigint` there, so the trip is a heap value and
+   a `DataView` rather than a reinterpretation. A double's bits are therefore not reachable from
+   source on that target at all, and a hash that folded something *other* than the bits - a
+   truncation, a scaled residue - would be a quality loss nobody asked for and nothing would report.
+
+   So `Map(Double, v)` compiles natively and does not on JS, which is a diagnostic at the call rather
+   than a wrong answer anywhere. What closes it is a `Host` primitive handing back the two halves of
+   a double as `U32`s, which is the scratch typed-array pair codegen/js/inst.cpp already emits for
+   the 32-bit rungs, read twice instead of once. `Float` needs none of this and has its instance on
+   both targets above.
+-}
+@platform(native) instance Hash(Double):
+    fn hash(value: Double, state: U32) -> U32 =
+        if value == 0.0 then hashWide(state, 0) else hashWide(state, bitcast(value) :: U64)
+

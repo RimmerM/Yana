@@ -135,6 +135,7 @@ inline void* operator new (Size count, Arena& arena) {
 }
 
 struct LinearArena;
+namespace ast { struct ParseRegion; }
 
 template<class Region, class T>
 struct RegionPtr {
@@ -200,20 +201,48 @@ inline RegionPtr<Region, T> operator - (T* v, RegionBase<Region> base) {
     return RegionPtr<Region, T>(U32((Byte*)v - base.base));
 }
 
+/*
+ * A bump allocator over a reserved address range that commits as it grows - Analysis-Modules.md §3.4.
+ *
+ * The reservation is the format's own ceiling rather than a guess. A `RegionPtr` is a `U32` offset
+ * from a base biased by 16, so an offset addresses at most 4 GB and nothing below can hold a region
+ * larger than that whatever this reserves; `kReserve` is that number, rounded down to a page. The
+ * base never moves, so every `RegionPtr` and every part of the image format is untouched by this.
+ *
+ * What changed is which of the two numbers is the ceiling. The constructor's argument used to be
+ * both the reservation and the limit, and `allocMem` commits - so a `Program` was 20 MB resident
+ * from its first declaration and `fatalError` fired three orders of magnitude below where the
+ * format stops. It is now the *initial commit* only: the size a compilation of ordinary size never
+ * grows past, so the common case costs one `mprotect` exactly as it used to cost one `mmap`, and
+ * the ones that do grow keep going to 4 GB instead of aborting.
+ */
 struct LinearArena {
-    explicit LinearArena(Size maxSize);
+    // 4 GB less one page. The last 16 bytes are unaddressable through a RegionPtr - offset 0 is the
+    // null handle and the base is biased by 16 - so the tail page is dropped rather than reasoned
+    // about, and the reservation stays page-aligned.
+    static constexpr Size kReserve = 4ull * 1024 * 1024 * 1024 - 4096;
+
+    explicit LinearArena(Size initialCommit);
     LinearArena(LinearArena&&) noexcept;
     LinearArena(const LinearArena&) = delete;
 
     void* alloc(Size size);
-    void reset(Size maxSize);
+    void reset(Size initialCommit);
     Size used() { return p - base; }
 
     ~LinearArena();
 
 protected:
+    // Commits forward far enough to hold everything below `end`, or reports why it cannot. Out of
+    // line and cold: `alloc` is a compare and a bump on every path that does not cross the edge.
+    void commitTo(Byte* end, Size request);
+
     Byte* base = nullptr;
     Byte* p = nullptr;
+
+    // The end of the readable and writable prefix. Between here and `max` the range is reserved and
+    // untouched, which is what makes a 4 GB reservation cost no memory.
+    Byte* committed = nullptr;
     Byte* max = nullptr;
 };
 
@@ -253,6 +282,24 @@ struct Context {
      * makes every test driver in test/ work unchanged.
      */
     LibrarySource library;
+
+    /*
+     * Every AST in the compilation, in one region - Analysis-Modules.md §2.1.
+     *
+     * On the Context rather than on each parsed file, and that is what makes a module of several
+     * files possible at all. A `ParsePtr` is a `U32` offset from a region base, so an AST node is
+     * addressable only through the base it was allocated against; while each file owned its own
+     * region, `Module::parse` could only be one file's, and eighty-odd sites in the resolver that
+     * dereference a declaration through it would each have had to be told which file they were
+     * looking at. One region for the whole compilation makes every one of them correct unchanged.
+     *
+     * It is per-Context and not per-program because an AST also holds `LocationId`s, which index
+     * this context's location array in the order this context created them - so the two already had
+     * the same lifetime, and a language server that drops the context on every keystroke drops this
+     * with it. §3.4's reserve-and-commit is what makes holding them all in one region cost the
+     * memory they actually use rather than the ceiling.
+     */
+    Region<ast::ParseRegion> parseRegion { 2 * 1024 * 1024 };
 
     /*
      * Where name resolution's answers are kept, or null - Implementation-Tooling.md §1.1.

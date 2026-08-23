@@ -658,7 +658,7 @@ static bool hasNaturalVector(Module& module, TypePtr element) {
 // name for the same reason the intrinsic hooks are attached by name: the source is the declaration,
 // and a table of pointers beside it would be a second place to keep the two in step.
 static ModulePtr<Function> collectionsFunction(Module& module, StringView name) {
-    auto collections = module.program.collections;
+    auto collections = module.program.core;
     if(!collections) return nullptr;
 
     auto found = collections->functions.get(Context::nameHash(name));

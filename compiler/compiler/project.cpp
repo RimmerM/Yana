@@ -349,25 +349,37 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
     return Ok(::move(project));
 }
 
-SourceEntry* findRootModule(ModuleMap& map, const CompileSettings& settings, String& error) {
+/*
+ * Which module the program starts from.
+ *
+ * A module rather than a file - Analysis-Modules.md §2.1. The usual answer needs no naming and is
+ * new: the files sitting directly in the compile root form one module, and that is the program.
+ * `-root` is what names another, and is needed only where the compilation was pointed at several
+ * roots and so has several candidates.
+ */
+ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, String& error) {
     if(settings.rootObjects.size() > 1) {
         error = String("a program has one root module. Provide one with -root <module>.");
         return nullptr;
     }
 
     if(settings.rootObjects.size() == 1) {
-        auto root = map.find(settings.rootObjects[0]);
+        auto root = map.findGroup(settings.rootObjects[0]);
         if(!root) error = formatError("cannot find root module %@"_v, settings.rootObjects[0]);
         return root;
     }
 
-    // A single module needs no naming: it is the program. Every other module in the tree is
-    // compiled because something imported it, which is why an unreferenced file is not an error.
-    if(map.entries.size() == 1) return &map.entries[0];
+    // The compile root's own module, where there is exactly one of them. Every other module in the
+    // tree is compiled because something imported it, which is why an unreferenced file is not an
+    // error.
+    if(auto root = map.rootGroup()) return root;
+
+    // A single module needs no naming either: it is the program, whatever it is called.
+    if(map.groups.size() == 1) return &map.groups[0];
 
     error = formatError("%@ modules were found and none was named as the root. "
                         "Provide one with -root <module>, or as `root` in a yana.toml."_v,
-                        map.entries.size());
+                        map.groups.size());
     return nullptr;
 }
 

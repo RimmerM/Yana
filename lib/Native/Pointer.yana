@@ -1,0 +1,83 @@
+{-
+   The unsafe layer, and where the rest of it is.
+
+   `Pointer.yana` is the pointer itself and the machine operations written over one. Beside it:
+   `Memory.yana` (the block fill, copy and move ladders), `Heap.yana` (the region chain and the free
+   lists), `Run.yana` (the allocation primitive every container is built on, and the slice), and
+   `Text.yana` (what a native `String` is made of).
+
+   And **two platform files, of which a build compiles one**: `Linux.yana` on the native target and
+   `Host.yana` on JS. They sit here rather than in modules of their own because each is written in
+   terms of the rest of this module and the rest of this module is written in terms of it - which is
+   what a module is for, and what an import cannot do.
+-}
+
+-- The generic spelling of the pointer sigil, for ordinary generic and constraint positions.
+pub alias Ptr(a) = %a
+
+{-
+   Raw pointers.
+  
+   Every operation below is unsafe by construction: a raw pointer carries no lifetime, no
+   exclusivity, and no promise that what it points at is initialized or still exists. Taking one
+   of a value gives its owner writable, stable-address representation requirements, since the
+   memory a pointer names is always mutable.
+-}
+
+-- Reads what a pointer points at. Written `*p`.
+pub fn *(it: %a) -> a
+
+-- Writes through a pointer. There is no assignment form for this because `*p = v` is already one:
+-- a dereference in assignment position names storage rather than producing a value.
+pub fn store(to: %a, value: a) -> {}
+
+-- The address of a value. A value this is applied to cannot stay in a register, so it is what
+-- forces storage to exist for something that would otherwise have had none.
+pub fn addressOf(it: a) -> %a
+
+{-
+   Reinterpreting a pointer - which is `Core.bitcast` and no longer three functions of this
+   module's own.
+
+   `cast(p)`, `asInt(p)` and `asPtr(n)` were three spellings of one operation, and none of them was
+   the spelling anything else in the language used. What replaces them is the instances below:
+   `bitcast(p) :: %b` between two pointer types, and `bitcast(p) :: I64` and `bitcast(n) :: %a`
+   between an address and the integer holding it.
+
+   The one thing this loses is the qualifier. Instance visibility is program-wide, so these three
+   rungs make `bitcast` reach a pointer from every module of a program in which *any* module
+   imported Native, where `Native.cast` had to be named through the module and so said "unsafe" at
+   the call site. That weakening was taken deliberately: reinterpretation is one idea, and having
+   one name for it was judged worth more than a qualifier that only some of the reinterpretations
+   ever carried.
+
+   Declared here as generated instances rather than in source, because each is one instruction and
+   `%a` is a type variable - `definePointerInstances` is where they are, alongside `Eq` and `Ord`.
+-}
+
+-- The null pointer, and the test for it. `null` needs its type from context - an assignment, a
+-- return, or an ascription - which is why the test exists separately: `isNull(p)` needs nothing.
+pub fn null() -> %a
+pub fn isNull(it: %a) -> Bool
+
+{-
+   A borrow of what a pointer names.
+
+   The one operation that re-enters the checked world from the unchecked one. Nothing here verified
+   that the pointer is valid, that what it names is initialized, or that nothing else writes through
+   it while the borrow is live - which is exactly what makes it Native's and not the language's. A
+   collection written over raw storage needs it, and having written it, owes its callers a signature
+   whose `return` marker says what the result is rooted in.
+-}
+pub fn borrow(return it: %a) -> &a
+pub fn borrowMut(return it: %a) -> &a
+
+-- The size and alignment of a value's type, in bytes.
+pub fn sizeOf(it: a) -> Size
+pub fn alignOf(it: a) -> Size
+
+-- Pointer arithmetic, in elements rather than in bytes: `p + 1` advances by one `a`, whatever an
+-- `a` is. Byte-granular work casts to `%U8` first, where the two coincide.
+pub fn +(it: %a, count: Size) -> %a
+pub fn -(it: %a, count: Size) -> %a
+pub fn difference(from: %a, to: %a) -> Size

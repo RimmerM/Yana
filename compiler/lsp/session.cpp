@@ -94,10 +94,7 @@ void Session::compile(CompletionRequest* completion, Cursor cursor) {
         return;
     }
 
-    auto ast = provider.parse(*root);
-    if(!ast) return;
-
-    program = resolveProgram(*context, *ast, &provider);
+    program = resolveProgram(*context, root->parsed, &provider);
 }
 
 void Session::complete(StringId module, U32 offset, CompletionRequest& request, U32& prefixStart) {
@@ -181,6 +178,11 @@ CallSiteIndex* Session::callSites() {
     }
 
     return calls.get();
+}
+
+StringId Session::moduleOf(StringId file) {
+    auto entry = moduleMap.find(file);
+    return entry && entry->module ? entry->module : file;
 }
 
 StringView Session::pathOf(StringId module) {

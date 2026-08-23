@@ -469,7 +469,9 @@ void describeAt(Session& session, StringId module, U32 offset, StringBuilder& in
 
     describeSymbol(context, *symbol, reference ? reference->type : nullptr, into);
 
-    if(symbol->module && symbol->module->name != module) {
+    // Against the module the file belongs to, not against the file - see Session::moduleOf. A
+    // grouped module's files would otherwise each read as "from" their own module.
+    if(symbol->module && symbol->module->name != session.moduleOf(module)) {
         into << "\n-- from ";
         into << context.findName(symbol->module->name);
     }
@@ -1367,7 +1369,7 @@ static StringId writtenArgumentName(Context& context, StringView text, U32 from,
 void writeSignatureHelp(Net::JsonWriter& json, Session& session, StringId module, U32 offset,
                         StringView text) {
     auto program = session.program.get();
-    Module* owner = program ? program->findModule(module) : nullptr;
+    Module* owner = program ? program->findModule(session.moduleOf(module)) : nullptr;
 
     if(!owner || !session.context) {
         json.null();

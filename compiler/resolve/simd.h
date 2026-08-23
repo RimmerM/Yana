@@ -35,7 +35,7 @@
  */
 
 // The portable set's hooks, attached to the signatures Core's source declares with no body. Called
-// from defineCore once those declarations are read.
+// from definePreludeCore once those declarations are read.
 void defineVectorIntrinsics(Module& core);
 
 /*

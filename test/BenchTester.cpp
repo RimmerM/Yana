@@ -191,6 +191,7 @@ struct BenchProvider: SourceProvider, ModuleProvider {
         Ptr<char, HeapDeleter> text;
         Size length;
         ast::Module* ast;
+        ast::ModuleGroup* group;
     };
 
     StringView source;
@@ -203,7 +204,10 @@ struct BenchProvider: SourceProvider, ModuleProvider {
     String moduleRoot = String("resolve/modules/");
 
     ~BenchProvider() override {
-        for(auto& entry: loaded) delete entry.ast;
+        for(auto& entry: loaded) {
+            delete entry.group;
+            delete entry.ast;
+        }
     }
 
     StringView getSource(StringId id) override {
@@ -218,9 +222,9 @@ struct BenchProvider: SourceProvider, ModuleProvider {
         return context ? context->getLocation(id) : nullptr;
     }
 
-    ast::Module* getModule(StringId name) override {
+    ast::ModuleGroup* getModule(StringId name) override {
         for(auto& entry: loaded) {
-            if(entry.name == name) return entry.ast;
+            if(entry.name == name) return entry.group;
         }
 
         // `OpenExisting`, for the reason ResolveTester gives: the default mode *creates* the file,
@@ -239,8 +243,13 @@ struct BenchProvider: SourceProvider, ModuleProvider {
         Parser parser(*context, lexer, name);
         auto ast = new ast::Module(parser.parseModule());
 
-        loaded.push(Loaded { name, ::move(text), size, ast });
-        return ast;
+        // A group of one file. These fixtures name a module per file, which is what a file that
+        // wrote `module` would be under the directory rule too - Analysis-Modules.md §2.1.
+        auto group = new ast::ModuleGroup { .name = name };
+        group->files.push(ast);
+
+        loaded.push(Loaded { name, ::move(text), size, ast, group });
+        return group;
     }
 };
 

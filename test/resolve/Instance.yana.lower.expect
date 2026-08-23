@@ -10,7 +10,7 @@ main<complex>(): Int {
     store %v_3, 1, 4
     %v_4 = add %v_3, 4: Ptr
     store %v_4, 1, 4
-    %v_5 = call_complex Eq(Maybe(a)).==(Int), %v_1, %v_3: Int
+    %v_5 = call_complex Eq(Opt(a)).==(Int), %v_1, %v_3: Int
     je %v_5, b_6, b_7
   }
 
@@ -28,7 +28,7 @@ main<complex>(): Int {
     store %v_11, 1, 4
     %v_12 = add %v_11, 4: Ptr
     store %v_12, 2, 4
-    %v_13 = call_complex Eq(Maybe(a)).==(Int), %v_9, %v_11: Int
+    %v_13 = call_complex Eq(Opt(a)).==(Int), %v_9, %v_11: Int
     je %v_13, b_14, b_15
   }
 
@@ -43,7 +43,7 @@ main<complex>(): Int {
     store %v_18, 0, 4
     %v_19 = alloca 8, 4: Ptr
     store %v_19, 0, 4
-    %v_20 = call_complex Eq(Maybe(a)).==(Int), %v_18, %v_19: Int
+    %v_20 = call_complex Eq(Opt(a)).==(Int), %v_18, %v_19: Int
     je %v_20, b_21, b_22
   }
 
@@ -92,7 +92,7 @@ main<complex>(): Int {
   }
 }
 
-Eq(Maybe(a)).==(Int)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+Eq(Opt(a)).==(Int)<complex>(%lhs: Ptr, %rhs: Ptr): Int {
   b_0 {
     %v_1 = loads %lhs, 4: Int
     %v_2 = cmp_eq %v_1, 1: Int

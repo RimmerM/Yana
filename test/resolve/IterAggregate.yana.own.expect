@@ -1,5 +1,32 @@
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
+}
+
 fn teardown$none {
   arg value readonly
+}
+
+fn Reclaim(Array(a)).reclaim(Point) {
+  arg value readonly
+  %value: Array(Point) borrowed droppable readonly live [0, 10) [11, 26)
+  %i: Int writable live [2, 8) [11, 26)
+  %local2: Point readonly live [18, 20)
+  %local3: Point readonly live [20, 22)
+}
+
+fn Reclaim(Array(a)).reclaim(Int) {
+  arg value readonly
+  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: Int writable live [2, 8) [11, 25)
+  %local2: Int readonly live [18, 21)
+  %local3: Int readonly live [19, 21)
+}
+
+fn exitProcess {
+  arg status readonly
 }
 
 fn freeListHead {
@@ -27,33 +54,6 @@ fn releaseRun(Point) {
 fn releaseRun(Int) {
   arg self readonly
   %self: Run(Int) borrowed droppable readonly live [0, 7)
-}
-
-fn exitProcess {
-  arg status readonly
-}
-
-fn checkFailed {
-}
-
-fn checkCondition {
-  arg failed readonly
-}
-
-fn Reclaim(Array(a)).reclaim(Point) {
-  arg value readonly
-  %value: Array(Point) borrowed droppable readonly live [0, 10) [11, 26)
-  %i: Int writable live [2, 8) [11, 26)
-  %local2: Point readonly live [18, 20)
-  %local3: Point readonly live [20, 22)
-}
-
-fn Reclaim(Array(a)).reclaim(Int) {
-  arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
-  %i: Int writable live [2, 8) [11, 25)
-  %local2: Int readonly live [18, 21)
-  %local3: Int readonly live [19, 21)
 }
 
 fn positiveX {

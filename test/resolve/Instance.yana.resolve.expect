@@ -19,9 +19,9 @@ fn Ord(%a).compare(I64)(%lhs: %I64, %rhs: %I64) -> Ordering {
     ret LT
 }
 
-fn none() -> Maybe(Int) {
+fn none() -> Opt(Int) {
   b0:
-    %v0 = alloc : Maybe(Int)
+    %v0 = alloc : Opt(Int)
     init %local0.discriminant, 0
     ret %v0
 }
@@ -30,11 +30,11 @@ fn maybes() -> I64 {
   b0:
     %score = alloc : I64
     init %score, 0
-    %v5 = alloc : Maybe(Int)
-    aggregate %local1.discriminant = 1, %local1@Just = 1
-    %v10 = alloc : Maybe(Int)
-    aggregate %local2.discriminant = 1, %local2@Just = 1
-    %v13 = call Eq(Maybe(a)).==(Int), %v5, %v10 : Bool
+    %v5 = alloc : Opt(Int)
+    aggregate %local1.discriminant = 1, %local1@Some = 1
+    %v10 = alloc : Opt(Int)
+    aggregate %local2.discriminant = 1, %local2@Some = 1
+    %v13 = call Eq(Opt(a)).==(Int), %v5, %v10 : Bool
     je %v13, b1, b2
 
   b1:
@@ -47,11 +47,11 @@ fn maybes() -> I64 {
     jmp b3
 
   b3:
-    %v24 = alloc : Maybe(Int)
-    aggregate %local3.discriminant = 1, %local3@Just = 1
-    %v29 = alloc : Maybe(Int)
-    aggregate %local4.discriminant = 1, %local4@Just = 2
-    %v32 = call Eq(Maybe(a)).!=(Int), %v24, %v29 : Bool
+    %v24 = alloc : Opt(Int)
+    aggregate %local3.discriminant = 1, %local3@Some = 1
+    %v29 = alloc : Opt(Int)
+    aggregate %local4.discriminant = 1, %local4@Some = 2
+    %v32 = call Eq(Opt(a)).!=(Int), %v24, %v29 : Bool
     je %v32, b4, b5
 
   b4:
@@ -64,9 +64,9 @@ fn maybes() -> I64 {
     jmp b6
 
   b6:
-    %v41 = call none : Maybe(Int)
-    %v42 = call none : Maybe(Int)
-    %v43 = call Eq(Maybe(a)).==(Int), %v41, %v42 : Bool
+    %v41 = call none : Opt(Int)
+    %v42 = call none : Opt(Int)
+    %v43 = call Eq(Opt(a)).==(Int), %v41, %v42 : Bool
     je %v43, b7, b8
 
   b7:
@@ -79,11 +79,11 @@ fn maybes() -> I64 {
     jmp b9
 
   b9:
-    %v53 = alloc : Maybe(Bool)
-    aggregate %local7.discriminant = 1, %local7@Just = True
-    %v57 = alloc : Maybe(Bool)
-    aggregate %local8.discriminant = 1, %local8@Just = False
-    %v60 = call Eq(Maybe(a)).!=(Bool), %v53, %v57 : Bool
+    %v53 = alloc : Opt(Bool)
+    aggregate %local7.discriminant = 1, %local7@Some = True
+    %v57 = alloc : Opt(Bool)
+    aggregate %local8.discriminant = 1, %local8@Some = False
+    %v60 = call Eq(Opt(a)).!=(Bool), %v53, %v57 : Bool
     je %v60, b10, b11
 
   b10:
@@ -184,11 +184,11 @@ fn nested() -> I64 {
     %v1 = alloc : I64
     init %local0, %value
     %p = addressof %local0 : %I64
-    %v4 = alloc : Maybe(%I64)
-    aggregate %local1.discriminant = 1, %local1@Just = %p
-    %v7 = alloc : Maybe(%I64)
-    aggregate %local2.discriminant = 1, %local2@Just = %p
-    %v10 = call Eq(Maybe(a)).==(%I64), %v4, %v7 : Bool
+    %v4 = alloc : Opt(%I64)
+    aggregate %local1.discriminant = 1, %local1@Some = %p
+    %v7 = alloc : Opt(%I64)
+    aggregate %local2.discriminant = 1, %local2@Some = %p
+    %v10 = call Eq(Opt(a)).==(%I64), %v4, %v7 : Bool
     je %v10, b1, b2
 
   b1:
@@ -212,11 +212,11 @@ fn main() -> Int {
     ret %v5
 }
 
-(Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).==(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
+(Eq(a), Eq(Opt(a))) fn Eq(Opt(a)).==(%lhs: Opt(a), %rhs: Opt(a)) -> Bool {
   schema {
     #0 type a
     #1 class Eq(a)
-    #2 class Eq(Maybe(a))
+    #2 class Eq(Opt(a))
   }
 
   b0:
@@ -230,13 +230,13 @@ fn main() -> Int {
     je %v15, b5, b4
 
   b2:
-    %x = load %lhs@Just : a
+    %x = load %lhs@Some : a
     %v7 = load %rhs.discriminant : Int
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b3, b1
 
   b3:
-    %y = load %rhs@Just : a
+    %y = load %rhs@Some : a
     %v12 = gencall Eq(a).==, %x, %y : Bool
     jmp b7
 
@@ -256,20 +256,20 @@ fn main() -> Int {
     ret %v26
 }
 
-(Eq(a), Eq(Maybe(a))) fn Eq(Maybe(a)).!=(%lhs: Maybe(a), %rhs: Maybe(a)) -> Bool {
+(Eq(a), Eq(Opt(a))) fn Eq(Opt(a)).!=(%lhs: Opt(a), %rhs: Opt(a)) -> Bool {
   schema {
     #0 type a
     #1 class Eq(a)
-    #2 class Eq(Maybe(a))
+    #2 class Eq(Opt(a))
   }
 
   b0:
-    %v2 = gencall Eq(Maybe(a)).==, %lhs, %rhs : Bool
+    %v2 = gencall Eq(Opt(a)).==, %lhs, %rhs : Bool
     %v4 = xor %v2, True : Bool
     ret %v4
 }
 
-fn Eq(Maybe(a)).==(Int)(%lhs: Maybe(Int), %rhs: Maybe(Int)) -> Bool {
+fn Eq(Opt(a)).==(Int)(%lhs: Opt(Int), %rhs: Opt(Int)) -> Bool {
   b0:
     %v3 = load %lhs.discriminant : Int
     %v5 = cmp_eq %v3, 1 : Bool
@@ -281,13 +281,13 @@ fn Eq(Maybe(a)).==(Int)(%lhs: Maybe(Int), %rhs: Maybe(Int)) -> Bool {
     je %v9, b5, b4
 
   b2:
-    %x = load %lhs@Just : Int
+    %x = load %lhs@Some : Int
     %v12 = load %rhs.discriminant : Int
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b1
 
   b3:
-    %y = load %rhs@Just : Int
+    %y = load %rhs@Some : Int
     %v17 = cmp_eq %x, %y : Bool
     jmp b7
 
@@ -307,21 +307,21 @@ fn Eq(Maybe(a)).==(Int)(%lhs: Maybe(Int), %rhs: Maybe(Int)) -> Bool {
     ret %v2
 }
 
-fn Eq(Maybe(a)).!=(Int)(%lhs: Maybe(Int), %rhs: Maybe(Int)) -> Bool {
+fn Eq(Opt(a)).!=(Int)(%lhs: Opt(Int), %rhs: Opt(Int)) -> Bool {
   b0:
-    %v2 = call Eq(Maybe(a)).==(Int), %lhs, %rhs : Bool
+    %v2 = call Eq(Opt(a)).==(Int), %lhs, %rhs : Bool
     %v4 = xor %v2, True : Bool
     ret %v4
 }
 
-fn Eq(Maybe(a)).!=(Bool)(%lhs: Maybe(Bool), %rhs: Maybe(Bool)) -> Bool {
+fn Eq(Opt(a)).!=(Bool)(%lhs: Opt(Bool), %rhs: Opt(Bool)) -> Bool {
   b0:
-    %v2 = call Eq(Maybe(a)).==(Bool), %lhs, %rhs : Bool
+    %v2 = call Eq(Opt(a)).==(Bool), %lhs, %rhs : Bool
     %v4 = xor %v2, True : Bool
     ret %v4
 }
 
-fn Eq(Maybe(a)).==(Bool)(%lhs: Maybe(Bool), %rhs: Maybe(Bool)) -> Bool {
+fn Eq(Opt(a)).==(Bool)(%lhs: Opt(Bool), %rhs: Opt(Bool)) -> Bool {
   b0:
     %v3 = load %lhs.discriminant : Int
     %v5 = cmp_eq %v3, 1 : Bool
@@ -333,13 +333,13 @@ fn Eq(Maybe(a)).==(Bool)(%lhs: Maybe(Bool), %rhs: Maybe(Bool)) -> Bool {
     je %v9, b5, b4
 
   b2:
-    %x = load %lhs@Just : Bool
+    %x = load %lhs@Some : Bool
     %v12 = load %rhs.discriminant : Int
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b1
 
   b3:
-    %y = load %rhs@Just : Bool
+    %y = load %rhs@Some : Bool
     %v17 = cmp_eq %x, %y : Bool
     jmp b7
 
@@ -375,7 +375,7 @@ fn smaller(%I64)(%x: %I64, %y: %I64) -> %I64 {
     ret %v2
 }
 
-fn Eq(Maybe(a)).==(%I64)(%lhs: Maybe(%I64), %rhs: Maybe(%I64)) -> Bool {
+fn Eq(Opt(a)).==(%I64)(%lhs: Opt(%I64), %rhs: Opt(%I64)) -> Bool {
   b0:
     %v3 = load %lhs.discriminant : Int
     %v5 = cmp_eq %v3, 1 : Bool
@@ -387,13 +387,13 @@ fn Eq(Maybe(a)).==(%I64)(%lhs: Maybe(%I64), %rhs: Maybe(%I64)) -> Bool {
     je %v9, b5, b4
 
   b2:
-    %x = load %lhs@Just : %I64
+    %x = load %lhs@Some : %I64
     %v12 = load %rhs.discriminant : Int
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b1
 
   b3:
-    %y = load %rhs@Just : %I64
+    %y = load %rhs@Some : %I64
     %v17 = cmp_eq %x, %y : Bool
     jmp b7
 

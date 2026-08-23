@@ -1,0 +1,157 @@
+module Core
+
+import Native
+
+{-
+   The host's own answer, which is what a JS build decides a float's digits with.
+
+   **A ruling rather than a shortcut**, and the argument is that `Number.prototype.toExponential()`
+   with no argument is *specified* to produce the shortest decimal that reads back as the number -
+   which is the same sentence Ryu's correctness theorem is. Reading a float's bits at all on this
+   target would mean the 64-bit `Double`/`I64` bitcast the language deliberately does not have, so
+   the alternative is not a slower Ryu but no Ryu.
+
+   A `.js.yana` file, so a native build never reads it - Analysis-Modules.md §2.5. It answers the
+   same two names `Ryu.native.yana` does, and `Ryu.yana` holds the `Shortest` both produce.
+-}
+
+{-
+   The JS half of the same two, which is the host's own answer read back out of a string.
+
+   `toExponential()` with no argument is *specified* to be the shortest decimal that reads back as
+   the number, so the double's digits arrive in one call. A `Float` is a `number` here as well, so
+   the host's shortest is the shortest for the wrong type - `0.1` at single precision is a different
+   number from `0.1` and has different digits - and what finds the right one is the round trip: the
+   fewest digits whose value, narrowed back to `Float`, is the value that was asked about.
+
+   Nine is where the walk stops because nine digits round-trip every `Float` there is, so the last
+   step needs no test.
+-}
+fn doubleShortest(value: Double) -> Shortest =
+    evenAtTie(value, shortestOfText(hostToExponential(value)))
+
+fn floatShortest(value: Float) -> Shortest:
+    let wide = value :: Double
+    let &places = 0 :: Int
+
+    while places < 8:
+        let text = hostToExponentialAt(wide, places)
+        if (truncate(hostToNumber(text)) :: Float) == value then return evenAtTie(wide, shortestOfText(text))
+        places = places + 1
+
+    return evenAtTie(wide, shortestOfText(hostToExponentialAt(wide, 8)))
+
+{-
+   Whether the value's decimal expansion stops after `count` significant digits.
+
+   Every finite binary float has a *terminating* decimal expansion, so this is a real question with a
+   yes or no answer rather than an approximation - and a hundred and one digits is where the host is
+   asked for it, which is the widest `toExponential` takes. That width is exact for every value this
+   is asked about: a tie needs the expansion to stop within nineteen digits, and where it does the
+   remaining eighty-two are the value's own zeros rather than a rounding that produced some.
+
+   Read off the text rather than through `shortestOfText`, because a hundred and one digits is four
+   times what a `U64` holds and the question is only about which of them are zero.
+-}
+fn terminatesAt(value: Double, count: Int) -> Bool:
+    let text = hostToExponentialAt(value, 100)
+    let units = length(text)
+    let &seen = 0 :: Int
+    let &i = 0 :: Size
+
+    while i < units:
+        let unit = stringUnit(text, i)
+        if unit == 101 || unit == 69 then return True
+
+        -- The sign and the point are not digits; everything else in a `toExponential` result is.
+        if unit != 46 && unit != 45 && unit != 43:
+            seen = seen + 1
+            if seen > count && unit != 48 then return False
+
+        i = i + 1
+
+    return True
+
+{-
+   The one case the host and Ryu disagree about, corrected so that the two targets never do.
+
+   Both pick the digits closest to the value. Where two are *equally* close - where the exact value
+   sits exactly on the midpoint between them - the specification says to take the larger and Ryu
+   takes the even one, which is the same rule IEEE rounding itself uses and is the one worth keeping:
+   ties-to-larger biases a whole column of a table upwards, and at single precision the two rules
+   disagree often enough to show up in a few thousand random values.
+
+   A tie is recognizable exactly, and it needs two things: the expansion one digit past the shortest
+   form has to end in a five, and it has to *stop* there. The first is one call and rejects almost
+   everything; the second is the expensive one and is only reached by a value that already looks like
+   a tie. Both are needed - `2.0515849165496095e186` passes the first and fails the second, because
+   what the host wrote at eighteen digits was a rounding that happened to land on a five.
+
+   `digits - 1` cannot lose a digit or gain a trailing zero. It is only reached for an odd number, so
+   it is never a power of ten; and a shortest form whose last digit is zero would have been one digit
+   shorter, which is what `decimalLength` reading the *value* rather than a written width means.
+-}
+fn evenAtTie(value: Double, shortest: Shortest) -> Shortest:
+    if shortest.digits % 2 == 0 then return shortest
+
+    let count = decimalLength(shortest.digits)
+    let probe = shortestOfText(hostToExponentialAt(value, count))
+
+    if probe.exponent != shortest.exponent - 1 then return shortest
+    if probe.digits != (shortest.digits - 1) * 10 + 5 then return shortest
+    if !terminatesAt(value, count + 1) then return shortest
+
+    return Shortest {digits: shortest.digits - 1, exponent: shortest.exponent}
+
+{-
+   `d.ddde±x`, read back into the pair the renderer wants.
+
+   The host writes the point after the first digit and this wants the digits as one integer, so the
+   exponent it reports is the written one less however many digits followed the point. Trailing
+   zeros are removed afterwards, which the no-argument form never produces and the `n`-digit form
+   always can: `decimalLength` counts what the number is written with, so a `1500` that means `15`
+   would be rendered two digits too wide.
+-}
+fn shortestOfText(text: String) -> Shortest:
+    let units = length(text)
+    let &digits = 0 :: U64
+    let &fractional = 0 :: Int
+    let &afterPoint = False
+    let &i = 0 :: Size
+
+    while i < units:
+        let unit = stringUnit(text, i)
+        if unit == 101 || unit == 69 then break
+
+        if unit == 46:
+            afterPoint = True
+        else:
+            digits = digits * 10 + wideCount(unit - 48)
+            if afterPoint then fractional = fractional + 1
+
+        i = i + 1
+
+    let &exponent = 0 :: Int
+    let &negative = False
+    i = i + 1
+
+    if i < units:
+        let unit = stringUnit(text, i)
+        if unit == 45:
+            negative = True
+            i = i + 1
+        else if unit == 43:
+            i = i + 1
+
+    while i < units:
+        exponent = exponent * 10 + (stringUnit(text, i) - 48)
+        i = i + 1
+
+    if negative then exponent = 0 - exponent
+    exponent = exponent - fractional
+
+    while digits != 0 && digits % 10 == 0:
+        digits = digits / 10
+        exponent = exponent + 1
+
+    return Shortest {digits: digits, exponent: exponent}

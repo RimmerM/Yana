@@ -1761,6 +1761,26 @@ ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationI
     if(auto found = program.closureRelease.get(U32(envType))) return found.unwrap();
 
     auto local = *module.arena;
+
+    /*
+     * Nothing to release, so no function to name - and the caller's `setClosureRelease` leaves the
+     * slot holding the shared empty teardown, which is the answer `opt_closure` recognizes.
+     *
+     * A wrapper with an empty body would be the same behaviour and not the same *fact*: the reach
+     * analysis compares the slot against `program.emptyTeardown` by identity, so a second empty
+     * function is a header whose drop cannot be proved to find nothing. On JS that is both halves of
+     * the cost - an empty function emitted and a test in front of every drop that reads it.
+     *
+     * It says `!program.freeHeap` rather than asking the target, because that is the same question:
+     * `freeHeap` is a declaration of the native heap file, so a target with no heap of this kind has
+     * no allocation under an environment to hand back.
+     */
+    auto reclaim = teardownImplementation(module, envType, Teardown::Reclaim, source);
+    if(!reclaim && !program.freeHeap) {
+        *program.closureRelease.add(U32(envType)).value = ModulePtr<Function>();
+        return {};
+    }
+
     auto function = addAnonymousFunction(module, derivedName(module, "closureRelease$"_v, envType), source);
     auto pointer = function - local;
     *program.closureRelease.add(U32(envType)).value = pointer;
@@ -1774,7 +1794,7 @@ ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationI
 
     ExprResolver resolver(module.context, module, *function);
 
-    if(auto reclaim = teardownImplementation(module, envType, Teardown::Reclaim, source)) {
+    if(reclaim) {
         local[reclaim]->used = true;
 
         // The implementation takes its subject by `->`, and this wrapper was handed the address -

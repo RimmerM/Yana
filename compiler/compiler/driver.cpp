@@ -79,7 +79,7 @@ static void printAsts(Context& context, ModuleMap& map) {
         if(!entry.ast) continue;
 
         writeText(context, replaceExtension(entry.path, "ast"), [&](Net::Writer& writer) {
-            printModule(writer, context, *entry.ast->region, *entry.ast);
+            printModule(writer, context, *context.parseRegion, *entry.ast);
         });
     }
 }
@@ -342,13 +342,14 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    auto rootAst = provider.parse(*root);
-    if(!rootAst || diagnostics.errorCount() > 0) return 1;
+    // Every file is parsed by `prepare`, which is what grouping them into modules needed - see
+    // FileProvider::prepare. So a parse error anywhere in the tree stops the compile here.
+    if(diagnostics.errorCount() > 0) return 1;
 
     // Everything the root imports is parsed and resolved from here, through the provider. The
     // compilation mode is already in the settings, which matters: `@platform` selects which
     // declarations exist at all, so a JS build and a native build do not share a resolved program.
-    auto program = resolveProgram(context, *rootAst, &provider);
+    auto program = resolveProgram(context, root->parsed, &provider);
 
     if(context.settings.printAst) printAsts(context, moduleMap);
 
@@ -371,7 +372,7 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    auto name = StringView { root->id.text, root->id.textLength };
+    auto name = StringView { root->text.text(), root->text.size() };
     auto built = false;
 
     switch(context.settings.mode) {

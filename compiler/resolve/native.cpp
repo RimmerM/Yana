@@ -35,16 +35,16 @@
  * also cover an iterator plus a count - and until a second type wants it the plain functions below
  * are correct and cost nothing.
  */
-// Native's source is `lib/Native.yana`.
+// Native's source is `lib/Native/`.
 
 /*
- * Native.Linux.
+ * The platform file - `lib/Native/Linux.x64.yana`.
  *
- * The platform half: the system call numbers of one kernel and ABI, and nothing else. Everything
- * it is written in terms of comes from Native, and the one thing Native needs from it is
- * mapMemory - which is why the two import each other rather than layering one over the other.
- */
-// The platform half's source is `lib/Native/Linux.yana`.
+ * The system call numbers of one kernel and ABI, and nothing else. Everything it is written in terms
+ * of comes from Native, and the one thing Native needs from it is `mapMemory` - which used to make
+ * the two a pair of modules importing each other, with the edge from Native pushed in by hand
+ * because an import statement there could only name a platform that had not been chosen yet. It is a
+ * file of Native now, so the mutual visibility is simply what a module is.
 
 /*
  * The pointer intrinsics.
@@ -442,7 +442,7 @@ static void attachPointerIntrinsics(Module& module) {
      * The block copy, under the name the target it is reachable by has for it.
      *
      * One instruction and two declarations, because the two targets reach it from opposite ends. On
-     * a native build `copyMemory` is a *body* - the vector ladder in Native.yana, which calls this
+     * a native build `copyMemory` is a *body* - the vector ladder in `Native/Memory.native.yana`, which calls this
      * only for the lengths that pay a `rep movsb`'s startup back - so the intrinsic is the thing the
      * ladder bottoms out in and is named `blockCopy`. On a JS build there is no ladder and no bytes
      * to move: what the operation is for there is the shape `blockCopyShape` recovers from the
@@ -457,48 +457,70 @@ static void attachPointerIntrinsics(Module& module) {
 
     attachIntrinsic(module, "setMemory"_v, emitNativeOp<NativeOp::SetMemory>);
 
-    static const StringView syscalls[] = {
-        "syscall0"_v, "syscall1"_v, "syscall2"_v, "syscall3"_v,
-        "syscall4"_v, "syscall5"_v, "syscall6"_v,
-    };
+    /*
+     * The system call, at each arity a call needs - and only where there is a kernel to call.
+     *
+     * By mode for the reason the block copy above is: the declarations are `Native/Memory.native.yana`'s
+     * and a JS build never read that file, so attaching here would be `attachIntrinsic` reporting
+     * seven names it cannot find. That the file is selected by its *name* now rather than by seven
+     * `@platform` attributes changes nothing about this - what a target has is still what decides.
+     */
+    if(!isJsMode(module.context.settings.mode)) {
+        static const StringView syscalls[] = {
+            "syscall0"_v, "syscall1"_v, "syscall2"_v, "syscall3"_v,
+            "syscall4"_v, "syscall5"_v, "syscall6"_v,
+        };
 
-    for(auto& name: syscalls) attachIntrinsic(module, name, emitNativeOp<NativeOp::Syscall>);
+        for(auto& name: syscalls) attachIntrinsic(module, name, emitNativeOp<NativeOp::Syscall>);
+    }
 }
 
-void defineNative(Program& program) {
+/*
+ * Native's records and what a native `String` is made of - the middle hook, beside Core's.
+ *
+ * Types rather than functions, which is what puts them here: a signature that writes `[T]` in a
+ * binding position becomes a `Flat(T)`, so `passFunctionSignatures` needs the slice before it runs.
+ */
+void definePreludeNativeTypes(Program& program, Module& module) {
     auto& context = program.context;
+    auto native = &module;
 
-    auto nativeAst = parseLibraryModule(context, "Native"_v, true);
-    if(!nativeAst) return;
+    // See Program::runType and Program::sliceType: the resolver produces both without a name to look
+    // them up through, so they are recorded rather than searched for at each use.
+    auto named = [&](const char* text, Size length) -> GlobalPtr<RecordType> {
+        auto found = native->namedTypes.get(context.addQualifiedName(text, length, 1));
+        if(!found) return nullptr;
 
-    auto native = program.addModule(nativeAst->name, *nativeAst->region);
-    program.embeddedAsts.push(nativeAst);
-    program.native = native;
+        return (RecordType*)(*program.types)[found.unwrap()] - *program.types;
+    };
 
-    // The types have to exist before the signatures that name them are read, and the instances
-    // before any body that uses one - which is the same order Core is built in. Core has to be
-    // imported first of all, since the classes these instances join are its.
-    resolveImports(*native, *nativeAst, nullptr);
+    program.runType = named("Run", 3);
+    program.sliceType = named("Flat", 4);
+
+    /*
+     * What a native `String` occupies - see Type::String and `computeString`.
+     *
+     * The wrapper rather than `Array(U8)` itself, and the two are the same bytes: a single-field
+     * record is its field. What the wrapper buys is that a borrow of it is a *borrow* - see the
+     * declaration, and `resolveType`'s Borrow case, which makes a borrow of a container a slice.
+     *
+     * On JS the declaration is `@platform`-excluded, so this answers null and the string stays what
+     * it is there: one host value with nothing to lay out.
+     */
+    auto stringData = named("StringData", 10);
+    auto content = stringData ? (Type*)(*program.types)[(TypePtr)stringData] - *program.types : nullptr;
+    ((StringType*)(*program.types)[program.scalar.string_])->content = content;
+    program.scalar.stringContent = content;
+}
+
+void definePreludeNative(Program& program, Module& module) {
+    auto& context = program.context;
+    auto native = &module;
+
+    // The instances before any body that uses one, and after Core's classes, since the classes they
+    // join are its.
     definePointerInstances(*native);
-
-    resolveModuleDecls(*native, *nativeAst, nullptr, true);
     attachPointerIntrinsics(*native);
-
-    // Native.Linux is resolved second, so its `import Native` finds a module that already exists
-    // rather than asking the provider for one. Native's own use of mapMemory is then made visible
-    // by hand: the two halves refer to each other, and an import statement in Native could only
-    // name a platform that has not been chosen yet.
-    auto linuxAst = parseLibraryModule(context, "Native.Linux"_v, true);
-    if(!linuxAst) return;
-
-    auto platformModule = program.addModule(linuxAst->name, *linuxAst->region);
-    program.embeddedAsts.push(linuxAst);
-
-    auto& platform = *native->imports.push();
-    platform.module = platformModule;
-    platform.localName = platformModule->name;
-
-    resolveModuleDecls(*platformModule, *linuxAst, nullptr);
 
     // Recorded so that storage-class selection and drop insertion can emit calls to them without
     // going through name resolution in whichever module happened to need one - see Program.
@@ -511,78 +533,31 @@ void defineNative(Program& program) {
     program.freeHeap = findNative("freeHeap", 8);
     program.releaseRun = findNative("releaseRun", 10);
 
-    // And the run and the slice, for the same reason - see Program::runType and Program::sliceType.
-    auto named = [&](const char* text, Size length) -> GlobalPtr<RecordType> {
-        auto found = native->namedTypes.get(context.addQualifiedName(text, length, 1));
-        if(!found) return nullptr;
-
-        return (RecordType*)(*program.types)[found.unwrap()] - *program.types;
-    };
-
-    program.runType = named("Run", 3);
-    program.sliceType = named("Flat", 4);
-
     // After `sliceType`, which is what the head names, and before any body of this module is
     // resolved - which happens once every module's declarations have been read.
     defineNativeIndexInstances(*native);
-
 }
 
 /*
- * NativeText - the half in between.
+ * What a native string is made of - `lib/Native/Text.native.yana`.
  *
- * Four declarations, and the module exists for the cycle they sit in rather than for what they do.
- * A native `String` is a run of bytes and a count; a run is Native's, so handing those two words
- * out has to be behind an import that already means "this is unsafe". But the two words *are* an
- * `Array(U8)`, and `Array`'s declaration has to be implicitly visible because `[a]` is grammar - so
- * the reinterpretation is above the container it names and below the algorithms that use it, and
- * Collections cannot be on both sides of itself.
+ * Four declarations. A native `String` is a run of bytes and a count; a run is Native's, and the two
+ * words *are* an `Array(U8)`, whose declaration has to be implicitly visible because `[a]` is
+ * grammar. So the reinterpretation names a type of Core and hands out a type of Native, and while
+ * the import graph had to be acyclic that made it a module of its own sitting between them -
+ * Implementation-Simplification.md §17. Analysis-Modules.md §2.4 is what dissolved the middle: Core
+ * and Native are one cycle, and this is a file of the unsafe one.
  *
- * So this is the middle layer: it imports Collections, and `Text` imports it. It is **not**
- * implicitly imported, which is the whole of what keeps `stringFromData` - a `String` forged out of
- * bytes with no UTF-8 validation anywhere - from being reachable by writing nothing.
- *
- * See Implementation-Simplification.md §17. What this replaces is a plan to move `Array` down into
- * Native, which cannot work: only Core and Collections are implicitly imported, so the type would
- * leave the scope of every program that writes it out.
+ * Which is the property that matters and is unchanged: it is **not** implicitly imported, so
+ * `stringFromData` - a `String` forged out of bytes with no UTF-8 validation anywhere - is not
+ * reachable by writing nothing.
  */
-// NativeText's source is `lib/NativeText.yana`.
 
-void defineNativeText(Program& program) {
+void definePreludeNativeText(Program& program, Module& native) {
     auto& context = program.context;
+    auto module = &native;
 
-    // The three reinterpretations are declarations without bodies - `attachIntrinsic` below is what
-    // gives them one - so this module is parsed on the same terms as Core, Native and Host.
-    auto ast = parseLibraryModule(context, "NativeText"_v, true);
-    if(!ast) return;
-
-    auto module = program.addModule(ast->name, *ast->region);
-    program.embeddedAsts.push(ast);
-    program.nativeText = module;
-
-    resolveModuleDecls(*module, *ast, nullptr);
-
-    auto named = [&](const char* text, Size length) -> TypePtr {
-        auto found = module->namedTypes.get(context.addQualifiedName(text, length, 1));
-        return found ? found.unwrap() : nullptr;
-    };
-
-    /*
-     * What a native `String` occupies - see Type::String and `computeString`.
-     *
-     * The wrapper rather than `Array(U8)` itself, and the two are the same bytes: a single-field
-     * record is its field. What the wrapper buys is that a borrow of it is a *borrow* - see the
-     * declaration, and `resolveType`'s Borrow case, which makes a borrow of a container a slice.
-     *
-     * Set here rather than in `defineCore` or `defineNative` because the record is declared in this
-     * module and both of those are built first. Nothing asks a string for its layout until lowering,
-     * which is long after. On JS the declaration is `@platform`-excluded, so `named` answers null and
-     * the string stays what it is there: one host value with nothing to lay out.
-     */
-    auto stringData = named("StringData", 10);
-    ((StringType*)(*program.types)[program.scalar.string_])->content =
-        stringData ? (Type*)(*program.types)[stringData] - *program.types : nullptr;
-    program.scalar.stringContent = ((StringType*)(*program.types)[program.scalar.string_])->content;
+    auto stringData = program.scalar.stringContent;
 
     /*
      * The two reinterpretations, which are the only compiler-supplied String operations: everything
@@ -604,6 +579,4 @@ void defineNativeText(Program& program) {
         auto literal = module->functions.get(context.addUnqualifiedName("stringLiteral", 13));
         program.stringLiteral = literal ? literal.unwrap() : nullptr;
     }
-
-    resolveModuleBodies(*module);
 }

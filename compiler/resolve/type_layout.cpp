@@ -62,11 +62,61 @@
  */
 
 // One walk's state. `incomplete` is what decides whether the answer may be remembered - see
-// RecordType::layoutBroken.
+// RecordType::layoutBroken; `record` is the innermost record declaration the walk is inside, which
+// is the near end of whatever back edge it cuts - see checkCrossFileCut.
 struct LayoutWalk {
     TypeList stack;
+    TypePtr record = nullptr;
     bool incomplete = false;
 };
+
+/*
+ * The file a record *declaration* was written in, or none.
+ *
+ * None for anything that is not a plain declaration, and that is the point rather than a shortcut.
+ * The order this checks is the order `passLayoutCycles` walks its roots in, and its roots are the
+ * non-generic declared records - so an instantiation is never the *other* declaration whose position
+ * competes with this one. `Just(Tree)` inside `Tree` cuts at `Maybe(Tree)`, which exists only
+ * because `Tree` named it, and there is exactly one order for that.
+ */
+static StringId declaringFile(Module& module, TypePtr type) {
+    if(!type) return StringId();
+
+    auto value = (*module.types)[type];
+    if(value->kind != Type::Record) return StringId();
+
+    auto record = (RecordType*)value;
+    if(record->instanceOf || record->gen) return StringId();
+    if(record->source == kNullLocation) return StringId();
+
+    auto location = module.context.getLocation(record->source);
+    return location ? location->sourceModule : StringId();
+}
+
+/*
+ * An inline containment cycle may be broken implicitly only within one file - Analysis-Modules.md §2.3.
+ *
+ * Which edge of a mutually recursive pair becomes the indirection is decided by declaration order,
+ * so laying `A` out first makes `B`'s reference to `A` the back edge. Within one file that is
+ * defensible: the order is written down, the reader can see it, and `@box` overrides it. Across
+ * files it is not - the order would be a path sort, and adding a file to a directory could change
+ * the representation of an existing type.
+ *
+ * So this is a diagnostic rather than a cut, and it names both ends because either of them is a
+ * place the programmer can answer it. It could not be reached before a module was more than a file:
+ * two types containing each other had to be in two modules, and two modules containing each other
+ * were a cycle in the import graph, which was refused.
+ */
+static void checkCrossFileCut(Module& module, TypePtr owner, TypePtr target, LocationId source) {
+    auto near = declaringFile(module, owner);
+    auto far = declaringFile(module, target);
+    if(!near || !far || near == far) return;
+
+    auto base = *module.types;
+    module.context.diagnostics.error(
+        "%@ and %@ contain each other and are declared in different files, so which of them holds the pointer would be decided by the order their file names sort in - write `@box` on the field that should be the indirection"_v,
+        source, describeType(module.context, base, owner), describeType(module.context, base, target));
+}
 
 static TypePtr breakCycles(Module& module, TypePtr type, LayoutWalk& walk, LocationId source);
 
@@ -102,6 +152,7 @@ static TypePtr breakTupleCycles(Module& module, TupType& tuple, LayoutWalk& walk
             // Already an indirection, whether the programmer wrote `@box` or a previous walk did.
             // Either way this edge is not part of any cycle.
         } else if(onLayoutStack(walk, field.type)) {
+            checkCrossFileCut(module, walk.record, field.type, source);
             updated.boxed = true;
             changed = true;
         } else {
@@ -133,6 +184,10 @@ static void breakRecordCycles(Module& module, RecordType& record, LayoutWalk& wa
 
     walk.stack.push(self);
 
+    // The near end of any edge cut below this point, restored on the way out - see checkCrossFileCut.
+    auto enclosing = walk.record;
+    walk.record = self;
+
     for(Size i = 0; i < record.constructors.size(); i++) {
         auto constructor = record.constructors.get(base, i);
         if(!constructor.content || constructor.boxed) continue;
@@ -140,6 +195,7 @@ static void breakRecordCycles(Module& module, RecordType& record, LayoutWalk& wa
         if(onLayoutStack(walk, constructor.content)) {
             // The payload *is* the back edge - `Just(Tree)` inside `Tree`. There is no field to
             // mark, so the constructor carries it.
+            checkCrossFileCut(module, self, constructor.content, source);
             constructor.boxed = true;
             record.constructors.set(base, i, constructor);
             continue;
@@ -153,6 +209,7 @@ static void breakRecordCycles(Module& module, RecordType& record, LayoutWalk& wa
     }
 
     walk.stack.pop();
+    walk.record = enclosing;
 
     // Only where the walk saw the whole graph. A record reached while another declaration was still
     // being defined has not been checked against that declaration, and remembering it would make the

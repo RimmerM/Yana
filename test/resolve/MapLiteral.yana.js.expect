@@ -2,19 +2,6 @@
 var shared = { keys: { items: null, length: 0 }, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
 
 // Core
-function mix32(value) {
-  var v13 = Math.imul((value ^ value >>> 16) >>> 0, 2246822507) >>> 0;
-  var v25 = Math.imul((v13 ^ v13 >>> 13) >>> 0, 3266489909) >>> 0;
-  return (v25 ^ v25 >>> 16) >>> 0;
-}
-
-// Collections
-function checkCondition(failed) {
-  if (failed) {
-    throw "yana: a runtime check failed";
-  }
-}
-
 function slotFor(h, mask) {
   return h & mask;
 }
@@ -29,6 +16,18 @@ function indexSlotsFor(wanted) {
     break L0;
   }
   return slots;
+}
+
+function mix32(value) {
+  var v13 = Math.imul((value ^ value >>> 16) >>> 0, 2246822507) >>> 0;
+  var v25 = Math.imul((v13 ^ v13 >>> 13) >>> 0, 3266489909) >>> 0;
+  return (v25 ^ v25 >>> 16) >>> 0;
+}
+
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
 }
 
 function reserve_I32(self, wanted) {
@@ -270,16 +269,16 @@ function indexRebuild_String_Int(self, slots) {
     break L0;
   }
   self.live = 0;
-  var v108 = self.keys.length;
+  var v106 = self.keys.length;
   var at = 0;
   L1: for (;;) {
-    if (at < v108) {
+    if (at < v106) {
       var v70 = self.keys[at];
-      var v103 = v70.length;
-      var h = Math.imul((v103 ^ 2166136261) >>> 0, 16777619) >>> 0;
+      var v77 = v70.length;
+      var h = Math.imul((v77 ^ 2166136261) >>> 0, 16777619) >>> 0;
       var i = 0;
       L2: for (;;) {
-        if (i < v103) {
+        if (i < v77) {
           h = Math.imul((h ^ v70.charCodeAt(i)) >>> 0, 16777619) >>> 0;
           i = i + 1 | 0;
           continue L2;
@@ -295,11 +294,11 @@ function indexRebuild_String_Int(self, slots) {
 }
 
 function hashKey_String(key) {
-  var v31 = key.length;
-  var h = Math.imul((v31 ^ 2166136261) >>> 0, 16777619) >>> 0;
+  var v5 = key.length;
+  var h = Math.imul((v5 ^ 2166136261) >>> 0, 16777619) >>> 0;
   var i = 0;
   L0: for (;;) {
-    if (i < v31) {
+    if (i < v5) {
       h = Math.imul((h ^ key.charCodeAt(i)) >>> 0, 16777619) >>> 0;
       i = i + 1 | 0;
       continue L0;

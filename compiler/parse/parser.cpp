@@ -7,7 +7,8 @@
     ast::Type { .field = contents, .attributes = attr, .source = context.addLocation(location), .kind = ast::Type::k }
 
 Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
-    BasicParser<Lexer, Token>(context.diagnostics, lexer, moduleName), context(context), arena(2 * 1024 * 1024)
+    BasicParser<Lexer, Token>(context.diagnostics, lexer, moduleName), context(context),
+    arena(context.parseRegion)
 {
     qualifiedId = Context::nameHash("qualified", 9);
     hidingId = Context::nameHash("hiding", 6);
@@ -69,17 +70,28 @@ ast::Module Parser::parseModule() {
     auto errorCount = context.diagnostics.errorCount();
     auto warningCount = context.diagnostics.warningCount();
 
+    ast::Module module { .name = moduleName };
     ast::ParseList<ast::Import> imports;
     ast::ParseList<ast::Fixity> ops;
     ast::DeclList decls;
+
+    // Whether nothing has been read yet, which is the whole of what `module` is allowed to care
+    // about: it says which module the file's declarations are in, so anything above it would be in
+    // a module the file has not named yet.
+    auto first = true;
 
     withLevel([&] {
         sepBy([&] {
             // Skip empty declarations.
             if(token.type == Token::EndOfStmt) return;
 
+            auto wasFirst = first;
+            first = false;
+
             // Parse top-level declarations.
-            if(token.type == Token::kwImport) {
+            if(token.type == Token::kwModule) {
+                parseMembership(module, wasFirst);
+            } else if(token.type == Token::kwImport) {
                 imports.push(arena, parseImport());
             } else if(token.type == Token::kwInfixL || token.type == Token::kwInfixR) {
                 ops.push(arena, parseFixity());
@@ -123,15 +135,52 @@ ast::Module Parser::parseModule() {
 
     expect(Token::EndOfFile, "expected file end"_v);
 
-    return ast::Module {
-        .region = ::move(arena),
-        .name = moduleName,
-        .imports = imports,
-        .decls = decls,
-        .ops = ops,
-        .errorCount = context.diagnostics.errorCount() - errorCount,
-        .warningCount = context.diagnostics.warningCount() - warningCount,
-    };
+    module.imports = imports;
+    module.decls = decls;
+    module.ops = ops;
+    module.errorCount = context.diagnostics.errorCount() - errorCount;
+    module.warningCount = context.diagnostics.warningCount() - warningCount;
+    return module;
+}
+
+/*
+ * `module`, `module M` - Analysis-Modules.md §2.1.
+ *
+ * The bare form means what the word means: this file is a module of its own, named by its path. The
+ * named form joins the module `M`, and is the rare one - a module large enough to want subfolders.
+ * A file that writes neither is part of its directory's module, which is every file of every grouped
+ * module and is why the absent declaration is the default rather than a shorthand.
+ *
+ * Two things are checked here and one is not. That it comes first, and that there is only one of
+ * them, are questions about this file and are answered here. That `M` is a proper prefix of the
+ * file's own path-derived name is not: this parse knows the module name it was handed and nothing
+ * about where the file sits, so the check belongs to whoever mapped the paths.
+ */
+void Parser::parseMembership(ast::Module& module, bool first) {
+    WithLocation location(*this);
+    eat();
+
+    auto source = context.addLocation(location);
+
+    if(module.membership != ast::Membership::Directory) {
+        error("a file has one `module` declaration"_v, source);
+    } else if(!first) {
+        // Reported rather than tolerated, because the alternative is a file whose first declarations
+        // are in one module and whose rest are in another - which is not a reading of anything.
+        error("`module` is the first thing in a file - everything above it would be in a module the file has not named yet"_v, source);
+    }
+
+    module.membershipSource = source;
+
+    // A qualified ConID, or nothing. `module` alone is the common opt-out and needs no name: the
+    // path already says what the module is called.
+    if(auto named = maybe(Token::ConID)) {
+        module.membership = ast::Membership::Named;
+        module.joins = named.unwrap().id;
+    } else {
+        module.membership = ast::Membership::Own;
+        module.joins = StringId();
+    }
 }
 
 ast::Import Parser::parseImport() {

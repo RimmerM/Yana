@@ -1,0 +1,57 @@
+import Native
+
+{-
+   ==========================================================================================
+   The format primitive, and where a formatted string goes - Implementation-Storage.md parts 8 and 9.
+   ==========================================================================================
+
+   `Show.yana` beside this is what a *value* contributes to a format. This is the other half: what a
+   *hole* contributes to the size, which is the one line that makes part 8's three strategies one
+   shape, and the write that the whole scheme exists to make free.
+
+   Two functions, and that is the honest measure of the design: everything else about `"x = {x}"` is
+   the compiler expanding the literal into measure-size-format-write over the `Show` instances, so
+   there is nothing here for it to call into but these.
+-}
+
+{-
+   What one hole contributes to a format's size - Implementation-Storage.md part 8, step 2.
+
+   A plain function rather than something the compiler emits inline, because it is the same three
+   lines at every hole and because this is where `Nothing` becomes a *number*. Strategy (c) - the
+   unbounded case - is not a third code path in the formatter: it is this answering zero, so the
+   buffer is seeded with the bounds that are known and the appends grow past it. That the three
+   strategies are one shape is the whole of part 8's argument, and this is the line that makes it
+   true.
+
+   Zero and not one, and not a guess at a typical size. A seed is a promise about nothing: too small
+   costs one growth, and inventing a number here would cost every bounded format the difference.
+-}
+fn formatBound(bound: Maybe(Size)) -> Size = match bound:
+    Just(units) -> units
+    Nothing -> 0
+
+{-
+   `print` - Implementation-Storage.md part 9.
+
+   The point of the whole scheme, stated as one function: `print("x = {x}\n")` measures, sizes a
+   buffer, formats into it and writes it once. Under strategy (a) the buffer never existed anywhere
+   but the frame, so the first-day program's output path is one `write` and no allocation at all.
+
+   Natively this is `writeFile` on the standard output descriptor, handed the run's base and the
+   count - which is exactly what part 9 says, and is possible only because a growable string *is* a
+   run of units rather than something that has to be flattened first. The result is discarded: what a
+   short write or a closed pipe should do is a question about a `Result` type this does not have yet,
+   and inventing an answer here would be the wrong place to make that decision.
+
+   On JS it is `console.log`, which is not the same operation and is the honest mapping rather than a
+   compromise: the host has no file descriptors, and its line-oriented console is what a program's
+   output goes to. The trailing newline a caller writes is therefore doubled there - `console.log`
+   adds its own - which is a real behavioural difference between the targets and is the reason this
+   is `print` rather than `write`.
+-}
+@platform(native) pub fn print(text: String) -> {}:
+    let bytes = stringData(text)
+    let _ = writeStandardOutput(bytes.bytes.run.items, length(text))
+
+@platform(js) pub fn print(text: String) -> {} = hostLog(text)

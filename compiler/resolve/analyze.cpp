@@ -12,7 +12,7 @@
  * The program's buffers, made on first use and kept until it is destroyed.
  *
  * On the program rather than on the analysis because the analysis is the thing there are a thousand
- * of: a compilation runs these passes twice over every function of Core, Native and Collections
+ * of: a compilation runs these passes twice over every function of Core and Native
  * before it reaches one the source wrote, and what they need is the same shape every time. Sized to
  * the largest function seen so far and never shrunk - see AnalysisScratch.
  */
@@ -341,8 +341,13 @@ static void collectCallees(ModuleBase base, Function& function, SmallArray<Modul
     }
 }
 
-// Runs the silent phase to a fixpoint.
-static void settleSummaries(Program& program) {
+/*
+ * Runs the silent phase to a fixpoint.
+ *
+ * `only`, where it is given, is the set the worklist starts from rather than the whole program: a
+ * later round has nothing to recompute except what it just seeded, and whatever that wakes.
+ */
+static void settleSummaries(Program& program, const Array<ModulePtr<Function>>* only = nullptr) {
     auto base = *program.arena;
 
     Array<SummaryWork> work;
@@ -389,9 +394,20 @@ static void settleSummaries(Program& program) {
     Array<Size> pending;
     IndexSet queued;
     queued.reset(work.size());
-    queued.fill();
 
-    for(Size i = work.size(); i > 0; i--) pending.push(i - 1);
+    if(only) {
+        for(Size i = 0; i < work.size(); i++) {
+            auto wanted = false;
+            for(auto function: *only) wanted = wanted || function == work[i].function;
+            if(!wanted) continue;
+
+            queued.set(i, true);
+            pending.push(i);
+        }
+    } else {
+        queued.fill();
+        for(Size i = work.size(); i > 0; i--) pending.push(i - 1);
+    }
 
     /*
      * The bound, which is a guard rather than the reason this terminates.
@@ -429,55 +445,59 @@ static void settleSummaries(Program& program) {
     }
 }
 
-bool runProgramOwnership(Program& program) {
+/*
+ * The two states a summary starts in, which are not the same state.
+ *
+ * A signature has no body to summarize, so it says nothing rather than saying the optimistic
+ * thing: a class method's implementation is chosen per instance, and a caller that assumed one
+ * did not mutate its argument would be assuming it of every instance there will ever be. That is
+ * `opaque`, and every reader answers it conservatively.
+ *
+ * A function that *has* a body the silent phase has simply not reached yet is the opposite, and
+ * this is where the difference is made real. FunctionSummary::ready describes it as "a callee
+ * that has not been visited contributes nothing, which is what makes the fixpoint start
+ * optimistic and climb" - but the only way to read a summary is summaryOf(), which answers null
+ * for `!ready` exactly as it does for `opaque`, so an unvisited callee contributed *everything*
+ * instead. The system started at the top of the lattice rather than at the bottom.
+ *
+ * For a body called only from elsewhere that cost precision and nothing else: the callee is
+ * visited, its summary moves, and its callers are woken and settle on the real answer. For a
+ * **recursive** one it was a wrong answer that could never be taken back. The first visit of
+ * `fn quick(&xs: [Int], ...)` read its own not-yet-ready summary, assumed the recursive call kept
+ * `xs`, and derived `retained` from that assumption; the second visit read that derived summary
+ * and re-derived the same thing from it. It is a fixpoint - just not the least one - so the
+ * worklist stopped there, and every caller was told the borrow escaped. `quick(a, 0, 2)` on a
+ * local array was then rejected for outliving the frame that owns it, while the same borrow
+ * passed two levels deep into non-recursive callees was fine.
+ *
+ * So an analyzable function is seeded at the bottom instead of being left unready: nothing
+ * retained, no roots, result bounded by the frame. Every fact the fixpoint computes is a "may"
+ * fact and every rule deriving one is monotone, so climbing from here reaches the least fixpoint,
+ * which is the precise answer and still a sound one - the assumption a recursive call makes about
+ * itself is discharged by the same iteration that made it.
+ *
+ * `args` is sized here as well as in deriveSummary, because the readers treat an index past the
+ * end as conservative and a summary that is ready but empty would be the old answer wearing the
+ * new flag.
+ *
+ * Functions the resolver *generates* while drops are being inserted - a teardown's glue, a
+ * specialization of an instance method - do not exist the first time this runs, which is the
+ * whole reason it is a function: the reporting walk calls it again at the start of every round,
+ * so what the previous round generated is seeded and settled before anything reads it. Without
+ * that, whether a generated caller saw a generated callee's real summary came down to which
+ * module each landed in and which of the two the walk reached first - and one is Core and the
+ * other Native, which no order puts in the right sequence.
+ *
+ * Answers whether it seeded anything, and appends what it seeded: the fixpoint below needs
+ * somewhere to start, and on a later round that is the new functions rather than the program.
+ */
+static bool seedSummaries(Program& program, Array<ModulePtr<Function>>& newly) {
     auto base = *program.arena;
-    auto success = true;
 
-    if(!program.ownership) program.ownership = Ptr<OwnershipResults>(new OwnershipResults());
-
-    /*
-     * The two states a summary starts in, which are not the same state.
-     *
-     * A signature has no body to summarize, so it says nothing rather than saying the optimistic
-     * thing: a class method's implementation is chosen per instance, and a caller that assumed one
-     * did not mutate its argument would be assuming it of every instance there will ever be. That is
-     * `opaque`, and every reader answers it conservatively.
-     *
-     * A function that *has* a body the silent phase has simply not reached yet is the opposite, and
-     * this is where the difference is made real. FunctionSummary::ready describes it as "a callee
-     * that has not been visited contributes nothing, which is what makes the fixpoint start
-     * optimistic and climb" - but the only way to read a summary is summaryOf(), which answers null
-     * for `!ready` exactly as it does for `opaque`, so an unvisited callee contributed *everything*
-     * instead. The system started at the top of the lattice rather than at the bottom.
-     *
-     * For a body called only from elsewhere that cost precision and nothing else: the callee is
-     * visited, its summary moves, and its callers are woken and settle on the real answer. For a
-     * **recursive** one it was a wrong answer that could never be taken back. The first visit of
-     * `fn quick(&xs: [Int], ...)` read its own not-yet-ready summary, assumed the recursive call kept
-     * `xs`, and derived `retained` from that assumption; the second visit read that derived summary
-     * and re-derived the same thing from it. It is a fixpoint - just not the least one - so the
-     * worklist stopped there, and every caller was told the borrow escaped. `quick(a, 0, 2)` on a
-     * local array was then rejected for outliving the frame that owns it, while the same borrow
-     * passed two levels deep into non-recursive callees was fine.
-     *
-     * So an analyzable function is seeded at the bottom instead of being left unready: nothing
-     * retained, no roots, result bounded by the frame. Every fact the fixpoint computes is a "may"
-     * fact and every rule deriving one is monotone, so climbing from here reaches the least fixpoint,
-     * which is the precise answer and still a sound one - the assumption a recursive call makes about
-     * itself is discharged by the same iteration that made it.
-     *
-     * `args` is sized here as well as in deriveSummary, because the readers treat an index past the
-     * end as conservative and a summary that is ready but empty would be the old answer wearing the
-     * new flag.
-     *
-     * Functions the resolver *generates* while drops are being inserted - a teardown's glue, a
-     * specialization of an instance method - are not seeded, because they do not exist yet. They stay
-     * unready, and a caller that reaches one before it has been analyzed still reads the conservative
-     * answer, which is what that phase has always done.
-     */
     for(auto module: program.modules) {
         for(auto pointer: module->functionOrder.contents(base)) {
             auto function = base[pointer];
+            if(function->summary.ready) continue;
 
             if(!ownershipApplies(*function)) {
                 function->summary.opaque = true;
@@ -507,9 +527,22 @@ bool runProgramOwnership(Program& program) {
             }
 
             summary.ready = true;
+            newly.push(pointer);
         }
     }
 
+    return newly.isNotEmpty();
+}
+
+
+bool runProgramOwnership(Program& program) {
+    auto base = *program.arena;
+    auto success = true;
+
+    if(!program.ownership) program.ownership = Ptr<OwnershipResults>(new OwnershipResults());
+
+    Array<ModulePtr<Function>> seeded;
+    seedSummaries(program, seeded);
     settleSummaries(program);
 
     /*
@@ -518,10 +551,10 @@ bool runProgramOwnership(Program& program) {
      *
      * Analyzing a body *generates* functions - a teardown's glue, and the specialization of an
      * authored instance method it calls - and they land in the module the instance came from, which
-     * is usually not the module being walked. Collections' `Reclaim(Array(a))` specialized at the
-     * root module's element type is the case that matters: appended to Collections, which this walk
-     * had already finished, so it went out with no drops in it and an array of elements with a
-     * teardown released the run and leaked the elements.
+     * is usually not the module being walked. Core's `Reclaim(Array(a))` specialized at the root
+     * module's element type is the case that matters: appended to Core, which this walk had already
+     * finished, so it went out with no drops in it and an array of elements with a teardown released
+     * the run and leaked the elements.
      *
      * So the sweep repeats until no module grew. Each round is over what the previous one added, and
      * the number of rounds is the depth of the teardown graph rather than anything about the program
@@ -532,6 +565,23 @@ bool runProgramOwnership(Program& program) {
 
     for(auto growing = true; growing;) {
         growing = false;
+
+        /*
+         * What the previous round generated, seeded and settled before this one reads any of it.
+         *
+         * The pair that needs it is `Reclaim(Array(a)).reclaim(Int)` and the `releaseRun(Int)` it
+         * calls: both are generated by the round before, and whether the first saw the second's real
+         * summary used to come down to which module each landed in - Core's instance analyzed before
+         * Native's function meant the call was read as opaque, and the array borrow it is handed
+         * came out `retained` and `escapes` for no reason in the program. Settling here is what
+         * makes the answer the same whichever order the modules are in, which is the property that
+         * was wanted rather than the accident that supplied it.
+         *
+         * The fixpoint starts from what was just seeded rather than from the program: everything
+         * else settled in an earlier round, and the worklist wakes whatever the new summaries move.
+         */
+        seeded.clear();
+        if(seedSummaries(program, seeded)) settleSummaries(program, &seeded);
 
         for(Size m = 0; m < program.modules.size(); m++) {
             auto module = program.modules[m];

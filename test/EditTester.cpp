@@ -411,10 +411,13 @@ int main() {
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
     Program program(context);
-    defineCore(program);
+    definePrelude(program);
 
+    // A module with no source at all - every case below builds its IR through the editor. The group
+    // is empty for the same reason: there are no files, and the declaration passes never run.
     auto name = context.addQualifiedName("Edit", 4, 1);
-    auto module = program.addModule(name, program.core->parse);
+    ast::ModuleGroup group { .name = name };
+    auto module = program.addModule(group);
 
     testBuild(*module);
     testSplitBothArms(*module);

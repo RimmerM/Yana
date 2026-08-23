@@ -1,0 +1,33 @@
+let image$base: () = <none>
+
+fn main() -> Int {
+  b0:
+    %v0 = call ringSize : Int
+    %v3 = mul %v0, 10 : Int
+    %v4 = alloc : Ring
+    aggregate %local0@Ring.span = 3
+    %v7 = call loopOf, %v4 : Loop
+    %v8 = load %local1@Loop.width : Int
+    %v9 = add %v3, %v8 : Int
+    ret %v9
+}
+
+fn ringSize() -> Int {
+  b0:
+    %v0 = call loopSize : Int
+    %v3 = add %v0, 1 : Int
+    ret %v3
+}
+
+fn loopSize() -> Int {
+  b0:
+    ret 4
+}
+
+fn loopOf(%r: Ring) -> Loop {
+  b0:
+    %v1 = alloc : Loop
+    %v2 = load %r@Ring.span : Int
+    aggregate %local1@Loop.width = %v2
+    ret %v1
+}

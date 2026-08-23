@@ -15,16 +15,18 @@
  * that emits one `InstNative` where it is called. The resolver checks every one of them like any
  * other call, which is what makes the boundary typed rather than unchecked.
  *
- * **Every declaration here is `@platform(js)`**, so on a native build this module is empty and the
+ * **Every declaration here is `@platform(js)`**, so on a native build the file is empty and the
  * hooks are not attached. That is what makes the native lowering's arm for a host operation an
  * internal error rather than a translation - `platformEnabled` runs during resolution, so a native
  * build contains no name, no type and no instance that could reach one.
  *
- * It is a module of its own rather than part of Collections for one reason: Collections is
- * implicitly imported everywhere, and `hostPush` is not a name a program should find by writing it.
- * It is not part of `Native` for the opposite reason - `nativeModule` excludes everything called
- * `Native` or `Native.*` from this target by name, before expressibility is even asked, so the one
- * module whose contents are *only* expressible here is the one module that may not live there.
+ * It is a file of `Native` rather than of `Core` for one reason: Core is implicitly imported
+ * everywhere, and `hostPush` is not a name a program should find by writing it. It was a module of
+ * its own until Analysis-Modules.md §2.4, and the argument for that was the JS emitter's own
+ * `nativeModule`, which excludes everything called `Native` or `Native.*` by name before
+ * expressibility is asked - so the one module whose contents are *only* expressible here could not
+ * live there. That is answered where it is decided rather than by the layout: see `hostFile` in
+ * codegen/js/gen.cpp, which is the exception the name test now carries.
  *
  * **What a `%a` is on this target.** These signatures are written over raw pointers, and on JS a
  * pointer is not an address: the Repr gives it `null` for a zero and the emitter passes it about as
@@ -36,7 +38,7 @@
  * the ownership graph, which is what makes `Array(a)`'s teardown the authored traversal on both
  * targets rather than two different rules.
  */
-void defineHost(Program& program);
+void definePreludeHost(Program& program, Module& native);
 
 /*
  * Whether `Array(element)` is a `TypedArray` on this target rather than the plain host array -

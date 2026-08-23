@@ -28,6 +28,25 @@ fn +=(I64)(%target: I64, %amount: I64) -> () {
     ret
 }
 
+fn mapMemory(%size: I64) -> %U8 {
+  b0:
+    %v7 = neg 1 : I64
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v12 = cmp_lt %result, 0 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v15 = bitcast 0 : %U8
+    ret %v15
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = bitcast %result : %U8
+    ret %v18
+}
+
 fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : I64
@@ -323,25 +342,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn mapMemory(%size: I64) -> %U8 {
-  b0:
-    %v7 = neg 1 : I64
-    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
-    %v12 = cmp_lt %result, 0 : Bool
-    je %v12, b1, b2
-
-  b1:
-    %v15 = bitcast 0 : %U8
-    ret %v15
-
-  b2:
-    jmp b3
-
-  b3:
-    %v18 = bitcast %result : %U8
-    ret %v18
 }
 
 fn direct() -> I64 {

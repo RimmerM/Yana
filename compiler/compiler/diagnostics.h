@@ -147,7 +147,7 @@ struct Diagnostics {
      *
      * A `SourceProvider` answers for the files the *project* is made of, and since the library moved
      * out of the compiler's own source into `lib/` there is a second set of files a report can point
-     * into. Without this, a type error in `Collections.yana` printed its message and quoted nothing,
+     * into. Without this, a type error in a library file printed its message and quoted nothing,
      * which is what a report from an embedded string literal did too - the difference is that there
      * is now a real file and a real line to show.
      */

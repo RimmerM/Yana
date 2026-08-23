@@ -192,7 +192,7 @@ struct CompileSettings {
      * program's own modules are found through, and this is the one set of modules that is part of
      * the compiler rather than part of the program.
      *
-     * Named explicitly it is taken as-is, without the "does it hold a Core.yana" test the searched
+     * Named explicitly it is taken as-is, without the "does it hold a Core/Core.yana" test the searched
      * candidates get. A directory that was pointed at and is wrong should be reported as the
      * directory that was pointed at, rather than silently becoming whichever one came next.
      */
@@ -426,3 +426,29 @@ Result<void, Tritium::String> checkSettings(const CompileSettings& settings);
 /// The name `-arch` uses for an architecture. Exposed so that a diagnostic about a target names it
 /// the way the author would have written it.
 StringView archName(TargetArch arch);
+
+/*
+ * A file-name selector - Analysis-Modules.md §2.5.
+ *
+ * A file may name the targets it is for in its own name: `Array.native.yana` is compiled on a
+ * native build and absent from a JS one, and `Linux.x64.yana` is compiled only for x86-64. Every
+ * dotted segment after the first is one selector, and a file is part of its module when this
+ * compilation satisfies all of them - so `Foo.native.linux.yana` reads as "and", the way two
+ * `@platform` attributes on one declaration do.
+ *
+ * **Three axes and not one**, which §4.2.1 is the argument for: `lib/Native/Linux.yana` is the
+ * x86-64 syscall table and has no way to say so today, because architecture is expressed only by
+ * being imported or not. Platform, operating system and architecture are all selectors here, drawn
+ * from the spellings `-target`, `-arch` and `@platform` already use, so nothing has a second name.
+ *
+ * `Unknown` is a name that is not a selector at all, and it is reported rather than ignored: a file
+ * name is not otherwise dotted, so `Array.helpers.yana` is a typo that would silently be compiled
+ * into every target under a name nothing can import.
+ */
+enum class TargetSelector: U8 {
+    Unknown,  /// Not the name of any target this compiler knows.
+    Matched,  /// A selector this compilation satisfies.
+    Excluded, /// A selector naming some other target.
+};
+
+TargetSelector targetSelector(const CompileSettings& settings, StringView name);

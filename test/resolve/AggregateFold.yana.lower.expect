@@ -2,6 +2,26 @@
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @log = [0, 0, 0, 0]
 
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    call_complex freeHeap, %v_7
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
     %v_1 = bitcast %allocation: Long
@@ -28,26 +48,6 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_11 = load @heapFree, 8: Ptr
     %v_12 = add %v_11, %v_8: Ptr
     store %v_12, %allocation, 8
-    ret 
-  }
-}
-
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %value, 8: Ptr
-    call_complex freeHeap, %v_7
-    jmp b_6
-  }
-
-  b_6 {
     ret 
   }
 }

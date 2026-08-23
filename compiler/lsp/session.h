@@ -86,6 +86,19 @@ struct Session {
     StringView pathOf(StringId module);
 
     /*
+     * The module a file belongs to - Analysis-Modules.md §2.1.
+     *
+     * Every request names a file, because a URI is a file. The resolver's modules are named by the
+     * module, and the two stopped being the same thing when a directory became one: `src/Main.yana`
+     * is the file `Main` in the module `Src`. So anything reaching from a request into the resolved
+     * program goes through here.
+     *
+     * Answers the file's own name for a file the map does not know, which is what a single-file
+     * session and every fixture that resolves a source string have.
+     */
+    StringId moduleOf(StringId file);
+
+    /*
      * Who calls what, built the first time something asks - Implementation-Tooling.md §7.
      *
      * `explain` needs it and it is a walk of every body in the program, so an editor asking for a

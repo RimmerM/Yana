@@ -1,0 +1,174 @@
+{-
+   The heap.
+  
+   Mapped regions, carved from the front: a table of free-list heads at the base of the first, then
+   a bump area. An allocation is a header word holding its size class followed by the payload the
+   caller is given, so every payload is 8-byte aligned and every block is a power of two at least
+   16 bytes.
+
+   Freeing threads the block onto the free list for its class, using the first 8 bytes of the
+   payload as the next pointer - which is why a block is never smaller than 16 bytes, and why the
+   header is not written again when the block is reused: it still says what it said.
+
+   Bump, free lists per class, and no unmapping is the whole of the policy. The regions are not a
+   list and are never walked: nothing asks which one a block came from, because `freeHeap` reads the
+   class out of the block's own header and the free lists are shared across all of them. Design.md's
+   runtime memory reclamation is about *when* a value is released, which the compiler decides; this
+   is only where the bytes come from.
+-}
+
+{-
+   32 size classes from 16 bytes up, and as many regions of address space as a program turns out to
+   need. The first is 4 MiB; the table of free-list heads is 256 bytes at its base, so the bump area
+   starts there. An immutable `let` is a name for a constant and occupies nothing, so the first two
+   are the numbers themselves wherever they are read; the `let &` are the static storage the policy
+   actually needs.
+
+   All of them are `pub` and everything below them until `allocateHeap` is not, which is the line this
+   module draws between its *state* and its *mechanism*. A program that wrote `import Native` may
+   read where the bump pointer is - observing the allocator is a large part of what the unsafe module
+   is for, and `Recursive.Reclaim.yana` is a test that does exactly that - while calling
+   `setFreeListHead` by hand does not observe anything, it corrupts the free list. The first is a
+   fact about the program and the second is an invariant nobody outside these forty lines can hold.
+
+   **One region used to be all there was**, and that made 4 MiB the whole heap a program could ever
+   have. It bit long before the number suggests, because a doubling container does not spend those
+   bytes once: growing to 2^k slots allocates every size class below it on the way, each freed to a
+   list that only ever hands blocks back at that same class, so the live array is the *last* block
+   and roughly as much again is dead behind it. `push` on an `[Int]` therefore stopped at 131072 -
+   the 1 MiB block that capacity fits in, plus ~1 MiB of abandoned smaller ones, leaving no room for
+   the 2 MiB the next doubling asked for.
+-}
+pub let heapRegionSize = 4194304 :: Size
+pub let heapClassCount = 32 :: Size
+
+{-
+   The tail-read guarantee, from the heap's side - Design-Vector §5.4 and Implementation-Vector.md §8.
+
+   A vector loop's last iteration reads a whole register where only part of it is wanted, and what
+   makes that safe is that storage the language allocated has room after it. Inside a region that is
+   free by construction: a block's tail is the next block's header, and the last block before the
+   bump pointer is followed by the rest of the region. What is *not* free is the last block before
+   the limit, so every region is mapped one page longer than it says it is and the limit is set to
+   the size without it.
+
+   A page rather than `kVectorBytes`, because the kernel would round the mapping up to one anyway
+   and because a page is more than any vector width there will ever be. Regions double, so the
+   amortized cost of this over a program's whole heap is zero.
+-}
+pub let heapGuardSize = 4096 :: Size
+
+pub let &heapNext = 0 :: %U8
+pub let &heapLimit = 0 :: %U8
+pub let &heapFree = 0 :: Ptr(Ptr(U8))
+
+-- How large the *next* region will be. Doubles as regions are taken, so a program that keeps growing
+-- pays a syscall per doubling rather than one per allocation, and a program that allocates a little
+-- never maps more than the first 4 MiB.
+pub let &heapRegionNext = 0 :: Size
+
+fn initHeap() -> {}:
+    let region = mapMemory(heapRegionSize + heapGuardSize)
+    if isNull(region) then return
+
+    let table = heapClassCount * 8
+    setMemory(region, 0, table)
+
+    heapFree = bitcast(region) :: Ptr(Ptr(U8))
+    heapNext = region + table
+    heapLimit = region + heapRegionSize
+    heapRegionNext = heapRegionSize + heapRegionSize
+
+{-
+   A fresh region, at least large enough for `needed` bytes.
+
+   The bump area moves to it and the tail of the old one is abandoned, which is what a bump allocator
+   is: there is no list of regions to walk, because nothing ever asks which region a block came from
+   - `freeHeap` reads the size class out of the block's own header, and the free lists are keyed by
+   class and shared across every region. The abandoned tail is smaller than the block that did not
+   fit, and the next region is twice the size, so what is given up is bounded by what was asked for.
+
+   A request larger than the standing region size gets a region of its own size rather than being
+   refused, which is what keeps the cap on a single allocation the size *class* table's - 32 classes
+   from 16 bytes - rather than a number this policy happened to pick.
+
+   And a refusal of the *doubled* size is retried at what was actually asked for, which is the one
+   place the growth policy could otherwise turn into a failure of its own making: a program that has
+   already taken a gigabyte asks the kernel for two before it asks for the sixteen bytes it wanted,
+   and being told no to the first is not being told no to the second. The retry is skipped when the
+   two sizes are the same request, so an ordinary refusal still costs one syscall.
+-}
+fn growHeap(needed: Size) -> Bool:
+    let &size = heapRegionNext :: Size
+    if size < needed then size = needed
+
+    let &region = mapMemory(size + heapGuardSize) :: %U8
+
+    if isNull(region):
+        let least = if needed > heapRegionSize then needed else heapRegionSize
+        if least >= size then return False
+
+        size = least
+        region = mapMemory(size + heapGuardSize)
+        if isNull(region) then return False
+
+    heapNext = region
+    heapLimit = region + size
+    heapRegionNext = size + size
+
+    return True
+
+-- The size class of a request: the number of doublings from 16 bytes needed to hold it.
+fn heapClassOf(total: Size) -> Size:
+    let &size = 16 :: Size
+    let &sizeClass = 0 :: Size
+
+    while size < total:
+        size = size + size
+        sizeClass = sizeClass + 1
+
+    return sizeClass
+
+fn heapBlockSize(sizeClass: Size) -> Size = (16 :: Size) `shl` sizeClass
+
+fn freeListHead(sizeClass: Size) -> %U8 = *(heapFree + sizeClass)
+fn setFreeListHead(sizeClass: Size, block: %U8) -> {} = store(heapFree + sizeClass, block)
+
+-- Allocates `size` bytes, 8-byte aligned, or null when the kernel refused more address space or the
+-- request is larger than the largest size class.
+pub fn allocateHeap(size: Size) -> %U8:
+    if isNull(heapFree):
+        initHeap()
+        if isNull(heapFree) then return null()
+
+    let sizeClass = heapClassOf(size + 8)
+    if sizeClass >= heapClassCount then return null()
+
+    -- A reused block already has its header; only the free list changes.
+    let reused = freeListHead(sizeClass)
+    if !isNull(reused):
+        setFreeListHead(sizeClass, *(bitcast(reused) :: Ptr(%U8)))
+        return reused
+
+    let blockSize = heapBlockSize(sizeClass)
+
+    -- Out of bump area rather than out of memory: another region is asked for, and only the kernel
+    -- saying no is a refusal. `heapNext` is re-read afterwards because growHeap moved it.
+    if heapNext + blockSize > heapLimit:
+        if !growHeap(blockSize) then return null()
+
+    let block = heapNext
+    heapNext = block + blockSize
+    store(bitcast(block) :: Ptr(Size), sizeClass)
+
+    return block + 8
+
+-- Returns an allocation to the free list of its own size class. The pointer must be one
+-- allocateHeap returned and must not be freed twice; nothing here checks either.
+pub fn freeHeap(allocation: %U8) -> {}:
+    if isNull(allocation) then return
+
+    let sizeClass = *(bitcast(allocation - 8) :: Ptr(Size))
+
+    store(bitcast(allocation) :: Ptr(%U8), freeListHead(sizeClass))
+    setFreeListHead(sizeClass, allocation)

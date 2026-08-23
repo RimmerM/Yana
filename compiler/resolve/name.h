@@ -106,6 +106,10 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
     }
 
     for(auto& import: module.imports) {
+        // Only the imports the file being read wrote, plus the implicit ones every file has -
+        // Analysis-Modules.md §2.1.2, and Module::activeFile for how the file is known here.
+        if(!import.inScope(module.activeFile)) continue;
+
         NameRef reference { identifier, 0 };
 
         // A qualified name may address an import through its local name. The local name is
@@ -196,6 +200,10 @@ void forEachVisible(Context& context, Module& module, Visit&& visit) {
 
     for(auto& import: module.imports) {
         if(!import.module) continue;
+
+        // The same filter search() applies - completion offers what a name lookup from here would
+        // find, and this file's whole point is that those two answers are one traversal.
+        if(!import.inScope(module.activeFile)) continue;
 
         visit(VisibleModule { import.module, &import, import.qualified ? import.localName : StringId(0) });
     }

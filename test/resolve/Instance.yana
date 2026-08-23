@@ -1,18 +1,23 @@
 import Native
 
--- An instance head written over a type variable. `Eq(Maybe(a))` is selected by matching rather
+-- The type the instance below is placed by. `Eq` is Core's, so writing `instance Eq(Maybe(a))` here
+-- would be an orphan - a module implementing someone else's class for someone else's type, which
+-- doc/spec/classes.md refuses. Declaring the type is what makes the instance this module's business.
+data Opt(a) = None | Some(a)
+
+-- An instance head written over a type variable. `Eq(Opt(a))` is selected by matching rather
 -- than by equality, and the `Eq(a)` it declares is what selecting it has to prove for whatever the
--- match bound: `Maybe(Int)` has an instance because `Int` does, and a `Maybe` of a record that
+-- match bound: `Opt(Int)` has an instance because `Int` does, and an `Opt` of a record that
 -- implements nothing has none.
-instance (Eq(a)) Eq(Maybe(a)):
-    fn ==(lhs: Maybe(a), rhs: Maybe(a)) -> Bool = match {lhs, rhs}:
-        {Just(x), Just(y)} -> x == y
-        {Nothing, Nothing} -> True
+instance (Eq(a)) Eq(Opt(a)):
+    fn ==(lhs: Opt(a), rhs: Opt(a)) -> Bool = match {lhs, rhs}:
+        {Some(x), Some(y)} -> x == y
+        {None, None} -> True
         _ -> False
 
-    fn !=(lhs: Maybe(a), rhs: Maybe(a)) -> Bool = !(lhs == rhs)
+    fn !=(lhs: Opt(a), rhs: Opt(a)) -> Bool = !(lhs == rhs)
 
-fn none() -> Maybe(Int) = Nothing
+fn none() -> Opt(Int) = None
 
 -- One body, one specialization per element type: the implementations of a parametric instance are
 -- generic functions over the head's own variable, and `!=` reaching for `==` is the instance using
@@ -20,10 +25,10 @@ fn none() -> Maybe(Int) = Nothing
 fn maybes() -> I64:
     let &score = 0 :: I64
 
-    if Just(1) == Just(1) then score = score + 1
-    if Just(1) != Just(2) then score = score + 2
+    if Some(1) == Some(1) then score = score + 1
+    if Some(1) != Some(2) then score = score + 2
     if none() == none() then score = score + 4
-    if Just(True) != Just(False) then score = score + 8
+    if Some(True) != Some(False) then score = score + 8
 
     return score
 
@@ -48,12 +53,12 @@ fn pointers() -> I64:
     return score
 
 -- A pointer as the element of a generic type, so the requirement is proved through two heads at
--- once: `Eq(Maybe(%I64))` needs `Eq(%I64)`, which is the pointer instance.
+-- once: `Eq(Opt(%I64))` needs `Eq(%I64)`, which is the pointer instance.
 fn nested() -> I64:
     let value = 0 :: I64
     let p = addressOf(value)
 
-    if Just(p) == Just(p) then return 16
+    if Some(p) == Some(p) then return 16
     return 0
 
 fn main() -> Int = truncate((maybes() + pointers() + nested())) :: Int

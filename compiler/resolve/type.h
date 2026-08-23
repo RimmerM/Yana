@@ -474,7 +474,7 @@ inline bool integerHolds(const IntType& integer, U64 magnitude, bool negative) {
  * `String`, and the type whose bytes it occupies on this target.
  *
  * There is exactly one of these in a program - `String` takes no arguments and is interned once by
- * `defineCore` - so the content is a field on the type rather than a lookup through the Program.
+ * `definePreludeTypes` - so the content is a field on the type rather than a lookup through the Program.
  * That is not just convenience: `ReprTable` holds a `GlobalBase` and a target and deliberately not a
  * `Program`, because a layout must be a function of the type graph alone. A type that needs one more
  * fact to be laid out has to carry it.
@@ -482,7 +482,8 @@ inline bool integerHolds(const IntType& integer, U64 magnitude, bool negative) {
  * `content` is `Native.StringData` - `{run: Run(U8), length: Count}` - on a native target, and null
  * on JS, where a string is one host value and there is nothing to lay out. It is filled in after
  * `Native` has been resolved rather than at construction, because the record it names is declared
- * there and `defineCore` runs first. Nothing reads it until lowering, which is long after.
+ * there and the primitive is made before any file is read. Nothing reads it until lowering, which is
+ * long after.
  */
 struct StringType: Type {
     StringType(): Type(Type::String) {}

@@ -1,0 +1,37 @@
+{-
+   The two lines that reach the platform file.
+
+   Both exist because an import is not transitive: what supplies `writeFile` and `exitProcess` is
+   whichever platform file this target compiled, and nothing above `Native` can name one. So the two
+   things every program needs from a kernel - a byte of output and a way to stop - are wrapped here,
+   where the rest of the module can be named through `import Native` alone.
+
+   A native file of its own rather than two attributes at the bottom of `Pointer.yana`, because
+   neither is about a pointer and both are about a *process*. `Linux.x64.yana` is what they reach and
+   an arm64 file beside it would supply the same two names, so this is the seam a second platform
+   arrives at.
+-}
+
+{-
+   The standard output descriptor, as a function rather than as a number the text file would have
+   to know - Implementation-Storage.md part 9.
+
+   `writeFile` is the platform file's, and nothing above `Native` can name it, because an import is
+   not transitive - a fact about the import graph rather than about `pub`, and one that holds however
+   the declaration over there is marked. This is the one line that lets `print` be written where the
+   rest of the string API is, and it is here rather than there for the same reason `mapMemory` is
+   reached this way: which platform supplies the call is a fact about this module.
+-}
+pub fn writeStandardOutput(from: %U8, count: Size) -> Size = writeFile(1, from, count)
+
+{-
+   Stopping, for the same reason `writeStandardOutput` is here: `exitProcess` is the platform
+   file's and nothing above `Native` can name it, so this is the one line that lets a check inserted anywhere in
+   the program end it.
+
+   134 is what a process killed by SIGABRT reports, which is the status a failed assertion has on
+   this platform and therefore the one a shell and a test runner already know how to read.
+-}
+pub fn abortProcess() -> {}:
+    exitProcess(134)
+    return

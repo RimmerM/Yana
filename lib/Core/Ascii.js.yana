@@ -1,0 +1,32 @@
+import Native
+
+{-
+   The ASCII tier on JS - the host's own search.
+
+   `Ascii.yana` beside this is the tier's documentation and the one function both targets share;
+   `Ascii.native.yana` is the vector answer to the same two names. There is no `Chunked(String)`
+   instance here and there cannot be one: a host string has no addressable units, so what a native
+   build reaches through a container this build reaches through `String.prototype.indexOf` - which is
+   engine C++ and is the right answer for a search with one fixed unit in it.
+-}
+
+pub fn findAscii(self: String, unit: CodeUnit) -> Maybe(Size):
+    let at = hostIndexOf(self, hostFromCharCode(unit :: Int), 0)
+    if at < 0 then return Nothing
+    return Just(at)
+
+-- The host search stepped along, which is the same C++ scan restarted at each hit. It is a worse
+-- shape than the native mask count and it is still the fastest thing this target has.
+pub fn countAscii(self: String, unit: CodeUnit) -> Int:
+    let needle = hostFromCharCode(unit :: Int)
+    let &total = 0
+    let &from = 0 :: Size
+
+    while from >= 0:
+        let at = hostIndexOf(self, needle, from)
+        if at < 0 then return total
+
+        total = total + 1
+        from = at + 1
+
+    return total

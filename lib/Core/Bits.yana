@@ -1,0 +1,412 @@
+{-
+   The bit families - `Bitwise`, `Bounded`, `Signed`, the population counts, the field extractions
+   and the permutations, with the fixed-width instances of `Bounded` beside them.
+
+   No import: everything here is arithmetic on values the compiler already knows, and the machine
+   instructions each one lowers to are attached by the compiler rather than named from source.
+-}
+
+{-
+   Bit operations, over anything whose values have bits.
+
+   The four are `&`, `|`, `^` and `~` under names that read: a type in this class can combine and
+   complement its values, and says nothing about whether they are numbers. That distinction is the
+   whole reason the class exists apart from `Integral`, whose superclass chain is `Num` and then
+   `FromInt` - so an `OpenFlags` joining `Integral` to get four bitwise names would also have to say
+   what `flags * flags` and the literal `3` mean, which is exactly what a newtype over a machine word
+   is defending against. `Integral` has this as a *superclass* rather than repeating the four, so
+   there is one declaration of `and` in the language and no call anywhere has to say which class it
+   meant.
+
+   The members are `Bool`, every integer width, a vector, a `Mask`, and any flags newtype that
+   derives it. What is deliberately **not** here is `&&`, `||` and `!`: those are questions about
+   truth rather than about bits, they answer `Bool` rather than the operand's type, and they are
+   plain functions over `Truth` further down. See the note there for why that split is not a matter
+   of taste - a `Logic` class holding both made `!flags` the complement of a flags value while
+   `if flags` asked whether any bit was set, so the two disagreed about the same value.
+-}
+pub class Bitwise(a):
+  fn and(lhs: a, rhs: a) -> a
+  fn or(lhs: a, rhs: a) -> a
+  fn xor(lhs: a, rhs: a) -> a
+  fn not(value: a) -> a
+
+pub class (Num(a), Bitwise(a)) Integral(a):
+  fn rem(lhs: a, rhs: a) -> a
+  fn %(lhs: a, rhs: a) -> a
+  fn shl(lhs: a, rhs: a) -> a
+  fn shr(lhs: a, rhs: a) -> a
+  fn sar(lhs: a, rhs: a) -> a
+
+  -- The two rotations, beside the three shifts and differing from them in the one way the name says:
+  -- what leaves one end comes back at the other, so no bit of the value is lost at any distance.
+  --
+  -- **The count is taken modulo the type's width**, which is where they part company with the shifts
+  -- above. `x \`shl\` 32` at a `U32` is whatever the target's shift does with a count its register
+  -- cannot hold; `x \`rol\` 32` is `x`, on every target, because that is what the instruction does
+  -- and what resolve/inst.def rules the operation to be.
+  --
+  -- Members of this class rather than of `Bits`, and at every width rather than at the two the
+  -- machine has counting instructions for: a rotation *within* a `U8`'s eight bits is a pair of
+  -- shifts the compiler can write out exactly, where a count *of* them is a question about a value
+  -- whose register is four times as wide. `lowerCalc` writes that pair; at 32 and 64 bits, and over
+  -- a vector, this is one instruction.
+  fn rol(value: a, count: a) -> a
+  fn ror(value: a, count: a) -> a
+
+
+{-
+   The two ends of a type's range - `Base.h`'s `maxLimit` / `minLimit` variable templates, said as a
+   class.
+
+   Two nullary members, selected by the type the *result* is asked to be, which is the same
+   selection `zero() :: Vec(Int)` and `truncate(x) :: U8` already use. That is the whole reason this
+   is a class and not a pair of `@platform`-selected constants: a generic body constrained on
+   `Bounded(a)` can name the end of a range it has no way to write a literal for, which is what a
+   parser wants at every overflow test and what `maximum`'s empty-container argument wants.
+
+   **The floating instances answer the largest *finite* value**, not an infinity. Two reasons and
+   both are about what a caller does with it: an accumulator seeded with `minValue()` is compared
+   against, and a comparison against an infinity is fine but an *arithmetic* one is not - a caller
+   that adds to the seed gets a NaN out of an infinity and a number out of `-FLT_MAX`. And there is
+   no portable spelling of an infinity in this language yet, so a class member answering one would
+   have to be an intrinsic where every other member here is a literal.
+
+   Not instanced for `Bool` or `Ordering`. Both have ends, and neither has an `Ord` or an arithmetic
+   for the ends to be useful *to* - the sole caller shape this class exists for is "seed an
+   accumulator at the end of the range", and a two-valued type has `False` for that.
+-}
+pub class Bounded(a):
+  fn minValue() -> a
+  fn maxValue() -> a
+
+{-
+   A type whose values have a sign - `Base.h`'s `hasSign`, and the operation that fact is *for*.
+
+   §2.5 of Analysis-Library.md asks for this as a marker class with `abs` beside it. It carries `abs`
+   instead, for a reason that is not stylistic: an instance with no members has no source spelling -
+   `instance Signed(Int)` wants a body it has nothing to put in - so a marker class is declarable and
+   not instantiable. Carrying the one operation that needs a sign closes that and says the same
+   thing, since a constraint `Signed(a)` is exactly as good a way to spell "this type has a sign".
+
+   `abs` is a member rather than a function for `min`'s reason: `abs` over `Vec(a, n)` is already a
+   plain function of Core, and R1 admits one of those per (name, arity).
+
+   **The body is `<=` and not `<`**, which is the one trap in this class. `-0.0 < 0` is false, so a
+   `<` would hand back the negative zero it was given; `0 - (-0.0)` is `+0.0` and `0 - (+0.0)` is
+   also `+0.0`, so testing `<= 0` and negating is correct for both zeros. simd.cpp's vector `abs`
+   makes the same choice for the same reason, and `1.0 / abs(0.0)` is the only portable way to see
+   which zero came back.
+-}
+pub class (Num(a), Ord(a)) Signed(a):
+  fn abs(value: a) -> a
+
+-- Which way round the bytes of a value go, exchanged - `Mem/Memory.h`'s byte swaps, needed the
+-- moment any binary format is read or written.
+--
+-- A class rather than one function per width, again because R1 admits one plain function per
+-- (name, arity) and there are eight widths. A member of `Integral` would have been the other answer,
+-- and the reason it is a class of its own is that a type can be `Integral` and have no byte order:
+-- `WideInt` is 53 bits in a 64-bit register, so which eight bytes its are is a question with no
+-- answer, and it is `Integral` all the same. A separate class is how a width says it has one.
+--
+-- The instances for the integer types are generated - one `ByteSwap` instruction each - which is
+-- what the eight bodies below the numeric instances used to be. See the note there, and `Endian` in
+-- resolve/intrinsic.cpp.
+pub class (Integral(a)) Endian(a):
+  fn swapEndian(value: a) -> a
+
+{-
+   Counting the bits of an integer - Tritium's `countBits`, `findFirstBit` and `findLastBit`, said
+   once over a type variable and answered by an instruction on every target.
+
+   A class rather than three plain functions for `Endian`'s reason and one more of its own. R1
+   admits one plain function per (name, arity) and there are six integer types with an answer here,
+   so a `countBits` per width could never have been six functions; and a user's own newtype over a
+   word is a plausible instance, which a class admits and a fixed set of overloads does not.
+
+   **All three are total, and the answer at zero is stated rather than left to the machine.**
+   `countBits(0)` is 0, and both zero counts answer the type's own width - 32 for a `U32`, 64 for a
+   `U64`. That is the same ruling `/` and `%` take for a zero divisor: x86's bare `bsf` and `bsr`
+   leave their destination *unwritten* at zero, which is not a value this language can name, so the
+   alternative to a defined answer is undefined behaviour reachable from safe source. Every target
+   has an instruction with the defined semantics at some level, and where one does not the compiler
+   spends a conditional move rather than passing the gap on - see `expandBitScans` in
+   codegen/x64/transform_expand.cpp.
+
+   **Instanced at 32 and 64 bits and at no other width**, which is exactly the set Tritium declares
+   these over and exactly the set the machine has. `U8` and `U16` widen first, and the widening is
+   written where the caller can see it: a narrow value is held in a wider register here, so a count
+   of its *storage* and a count of its value are different numbers and the conversion is the place
+   that difference is settled. `WideInt` is 53 bits in a 64-bit register and is excluded for the
+   reason `Endian` excludes it - a leading-zero count is a question about a width it does not have.
+
+   `trailingZeros` is Tritium's `findFirstBit` under the name the answer has rather than the one the
+   search has, and `bitWidth(v) - 1` below is its `findLastBit`. Both of those are undefined at zero
+   there and neither is here, which is the whole of the difference.
+-}
+pub class (Integral(a)) Bits(a):
+  fn countBits(value: a) -> a
+  fn leadingZeros(value: a) -> a
+  fn trailingZeros(value: a) -> a
+
+  -- The low `count` bits of a value, with everything above them cleared - x86's `bzhi`, and the
+  -- scalar twin of `maskUpTo` below. What a tail wants: `n` elements are left, so `bitsUpTo(all, n)`
+  -- is the mask over them, and nothing has to say what a bit index means twice.
+  --
+  -- **The count is read as an unsigned number and saturates at the type's width.** `bitsUpTo(x, 0)`
+  -- is 0, `bitsUpTo(x, 32)` at a `U32` is `x`, and so is any larger count - so a caller that
+  -- computed a count and did not bound it gets the answer the bound would have given rather than a
+  -- number with a different meaning. That is the same choice `countBits`' zero case is: an operation
+  -- reachable from safe source answers for every input it has.
+  --
+  -- **A member rather than a plain function**, for `bitWidth`'s reason at a different operation: the
+  -- saturation is against the type's own width, and a body generic in `a` has no way to name it.
+  -- An instance knows the width and the generated body is one instruction, which folds to an `and`
+  -- against a literal wherever the count is a constant.
+  fn bitsUpTo(value: a, count: a) -> a
+
+  -- How many bits it takes to write the value - 0 for zero, 1 for one, 32 for a `U32` with its top
+  -- bit set. Tritium's `findLastBit` is this minus one, and this is the form that has an answer at
+  -- zero.
+  --
+  -- **A member rather than a function beside the class, because it is the one of the four that has
+  -- to name the type's own width.** It is `width - leadingZeros(value)`, and a body generic in `a`
+  -- has no way to write that width down: `leadingZeros(0)` would say it, except that a subexpression
+  -- made only of literals resolves on its own and takes `default FromInt`, so the `0` is an `Int`
+  -- and the subtraction has nothing that fits. An instance knows the width, so the instance is where
+  -- it is written - and the generated one writes it as a constant, which folds the whole expression
+  -- to nothing at a constant argument and to one subtraction at any other.
+  fn bitWidth(value: a) -> a
+
+{-
+   `count` bits starting at `start`, moved down to bit 0 - the field extraction every packed binary
+   format is read with, and x86's `bextr` said in the two numbers a caller has rather than in the one
+   control word the encoding packs them into.
+
+   **A plain function and not a member**, which is the difference from `bitsUpTo` above: this names no
+   width of its own, so a body generic in `a` can write it, and R1 admits it because no other function
+   of this name takes three arguments. A member would have been six generated bodies saying what one
+   line says.
+
+   **And not a `bextr` either, deliberately.** That instruction packs the start and the length into
+   one register's two low bytes, so a caller with either of them in a variable pays an `or` and a
+   shift to build the control word - and on Intel the instruction is two uops, against one each for
+   the shift and the mask below. What this compiles to at v3 is `shrx` and `bzhi`, which is the
+   sequence `bextr` is usually slower than; at a constant `start` and `count` it is one `shr` and one
+   `and` against a literal.
+
+   The two counts are named `start` and `count` because a call site can then say which is which:
+   `bitfield(x, 8, 4)` reads ambiguously in either order and `bitfield(x, start: 8, count: 4)` does
+   not. Nothing forces a caller to; the names are there so that the ones who want to, can.
+
+   `start` at or above the width answers 0 for `bitsUpTo`'s reason read through the shift, and a
+   `count` past the end of the value answers the value's own zeros - so there is no pair of arguments
+   this refuses.
+-}
+pub fn (Bits(a), Integral(a)) bitfield(value: a, start: a, count: a) -> a = bitsUpTo(value `shr` start, count)
+
+{-
+   An arbitrary bit permutation, said as the two directions it has - x86's `pext` and `pdep`.
+
+   `mask` selects positions. `gatherBits` takes the bits of `value` at those positions and packs them
+   into a contiguous low field; `scatterBits` is its exact inverse, spreading a low field back out
+   into them. So `scatterBits(gatherBits(v, m), m)` is `v and m`, which is the identity worth knowing
+   about the pair.
+
+   What they are for is the operations that are otherwise a loop: interleaving two numbers into a
+   Morton code, reading a run of scattered flags as a small integer and writing it back, `select` and
+   `rank` over a bitmap, and the packed formats a `bitfield` above cannot reach because their pieces
+   are not adjacent.
+
+   **A class of its own and not two members of `Bits`**, and the reason is what an instance is
+   allowed to say. `Bits` is four counting operations that every target has an instruction for at
+   some level; these are a *permutation*, which x86 has only at v3 and which most targets have never
+   had. Keeping them apart is what lets a reader of a constraint know which of the two they are
+   asking for, and it is `Endian`'s argument at a different operation - a type can be `Integral` and
+   have neither.
+
+   **Both are total, and neither has a degenerate case to state**, which is the difference from every
+   other class in this section: a zero mask gathers and scatters nothing, and a value with more bits
+   than the mask has room for is answered by its own zeros. There is no count here for a width to
+   saturate against.
+
+   Instanced at 32 and 64 bits, which is `Bits`' set and for its reason. The instances are generated;
+   see `defineBitPermute` in resolve/intrinsic.cpp, and the note in inst.def for what a target
+   without the instruction spends instead - which is a loop on JS and a parallel-suffix network on an
+   x86 below v3, and is the one operation in this file whose cost differs by more than a constant
+   across the feature levels.
+-}
+pub class (Integral(a)) BitPermute(a):
+  fn gatherBits(value: a, mask: a) -> a
+  fn scatterBits(value: a, mask: a) -> a
+
+-- Whether exactly one bit is set - `Math.h`'s `isPowerOf2`, and the test an allocator's size class
+-- and `alignUp`'s undocumented precondition are both about. Zero has no bits set and is not one.
+pub fn (Num(a), Integral(a), Eq(a)) isPowerOf2(value: a) -> Bool = value != 0 && (value `and` (value - 1)) == 0
+
+-- The smallest power of two at or above the value, which is what a table doubling its capacity
+-- wants. 1 for 0 and for 1, since there is no power of two below one, and **a value above the
+-- largest power of two the type holds wraps to 0** rather than saturating - the shift is the
+-- language's shift, and a saturating answer would be a comparison in the hot path of every growth.
+pub fn (Bits(a), Num(a), Ord(a)) nextPowerOf2(value: a) -> a = if value <= 1 then 1 else 1 `shl` bitWidth(value - 1)
+
+-- The value brought inside a pair of bounds. Written in terms of `min` and `max` rather than two
+-- comparisons so that a type overriding either gets the behaviour it defined, and ordered so that a
+-- `low` above `high` answers `high` - which is a documented answer rather than a checked error,
+-- since the alternative is a bounds test in the hot path of every clamp.
+pub fn (Ord(a)) clamp(->value: a, ->low: a, ->high: a) -> a = min(max(value, low), high)
+
+-- Which side of zero a value is on, as a value of its own type. `0` for a zero of either sign and
+-- for a NaN, which is the answer a caller multiplying by it wants: it is the only one that keeps
+-- `signum(x) * abs(x)` from inventing a sign the input did not have.
+pub fn (Signed(a)) signum(value: a) -> a = if value > 0 then 1 else if value < 0 then 0 - 1 else 0
+
+-- Rounding up to a **power of two**, which is the form an allocator and a layout want: one add and
+-- one mask, no division anywhere. `alignment` is required to be a power of two and nothing checks
+-- it - a caller that passes 6 gets an answer that is not a multiple of 6 rather than a diagnostic,
+-- on exactly the terms `@reclaimOnly` is trusted.
+pub fn (Num(a), Integral(a)) alignUp(value: a, alignment: a) -> a = (value + alignment - 1) `and` not(alignment - 1)
+
+-- The same intent for an arbitrary multiple, under a name that does not claim to be about
+-- alignment. Two divisions' worth of work against the one above, which is why the two are separate
+-- names rather than one function that tests its argument.
+pub fn (Num(a), Integral(a)) roundUpTo(value: a, multiple: a) -> a = ((value + multiple - 1) / multiple) * multiple
+
+{-
+   The instances, one block per class, written here because the types are the compiler's own: an
+   integer width is created before this source is read (`defineIntegerTypes`) and joins `Num`,
+   `Ord` and `Integral` after it, so a body below may name any of them and a declaration may not.
+
+   Every number in the `Bounded` block is a literal at the type's own width, except `U64`'s maximum:
+   18446744073709551615 does not fit the signed `Long` a literal is read at, so it is written as the
+   complement of zero - which is the same bits and is what every other unsigned maximum could have
+   been written as.
+-}
+instance Bounded(I8):
+    fn minValue() -> I8 = 0 - 127 - 1
+    fn maxValue() -> I8 = 127
+
+instance Bounded(I16):
+    fn minValue() -> I16 = 0 - 32767 - 1
+    fn maxValue() -> I16 = 32767
+
+instance Bounded(I32):
+    fn minValue() -> I32 = 0 - 2147483647 - 1
+    fn maxValue() -> I32 = 2147483647
+
+instance Bounded(I64):
+    fn minValue() -> I64 = 0 - 9223372036854775807 - 1
+    fn maxValue() -> I64 = 9223372036854775807
+
+instance Bounded(Int):
+    fn minValue() -> Int = 0 - 2147483647 - 1
+    fn maxValue() -> Int = 2147483647
+
+instance Bounded(Long):
+    fn minValue() -> Long = 0 - 9223372036854775807 - 1
+    fn maxValue() -> Long = 9223372036854775807
+
+instance Bounded(WideInt):
+    fn minValue() -> WideInt = 0 - 4503599627370495 - 1
+    fn maxValue() -> WideInt = 4503599627370495
+
+instance Bounded(U8):
+    fn minValue() -> U8 = 0
+    fn maxValue() -> U8 = 255
+
+instance Bounded(U16):
+    fn minValue() -> U16 = 0
+    fn maxValue() -> U16 = 65535
+
+instance Bounded(U32):
+    fn minValue() -> U32 = 0
+    fn maxValue() -> U32 = 4294967295
+
+instance Bounded(U64):
+    fn minValue() -> U64 = 0
+    fn maxValue() -> U64 = not(0)
+
+instance Bounded(Float):
+    fn minValue() -> Float = 0.0 - 3.4028234663852886e38
+    fn maxValue() -> Float = 3.4028234663852886e38
+
+instance Bounded(Double):
+    fn minValue() -> Double = 0.0 - 1.7976931348623157e308
+    fn maxValue() -> Double = 1.7976931348623157e308
+
+-- `abs` at every signed width. The unsigned types are deliberately absent: the absolute value of a
+-- `U32` is the value, and an instance saying so would let a generic body constrained on `Signed(a)`
+-- accept a type that has no negative to take the absolute value *of*.
+
+instance Signed(I8):
+    fn abs(value: I8) -> I8 = if value <= 0 then 0 - value else value
+
+instance Signed(I16):
+    fn abs(value: I16) -> I16 = if value <= 0 then 0 - value else value
+
+instance Signed(I32):
+    fn abs(value: I32) -> I32 = if value <= 0 then 0 - value else value
+
+instance Signed(I64):
+    fn abs(value: I64) -> I64 = if value <= 0 then 0 - value else value
+
+instance Signed(Int):
+    fn abs(value: Int) -> Int = if value <= 0 then 0 - value else value
+
+instance Signed(Long):
+    fn abs(value: Long) -> Long = if value <= 0 then 0 - value else value
+
+instance Signed(WideInt):
+    fn abs(value: WideInt) -> WideInt = if value <= 0 then 0 - value else value
+
+instance Signed(Float):
+    fn abs(value: Float) -> Float = if value <= 0.0 then 0.0 - value else value
+
+instance Signed(Double):
+    fn abs(value: Double) -> Double = if value <= 0.0 then 0.0 - value else value
+
+
+-- The byte swaps are **generated**, one instruction each - `defineEndian` in resolve/intrinsic.cpp,
+-- beside the `Num` and `Integral` instances of the same types and for the same reason. What they
+-- would read like is what they read like until the compiler had an instruction for this:
+--
+--     instance Endian(U16):
+--         fn swapEndian(value: U16) -> U16 = ((value `shl` 8) `and` 65280) `or` ((value `shr` 8) `and` 255)
+--
+--     instance Endian(U32):
+--         fn swapEndian(value: U32) -> U32 =
+--             (value `shl` 24) `or` ((value `and` 65280) `shl` 8) `or` ((value `shr` 8) `and` 65280) `or` (value `shr` 24)
+--
+--     instance Endian(U64):
+--         fn swapEndian(value: U64) -> U64:
+--             let low = swapEndian(truncate(value) :: U32)
+--             let high = swapEndian(truncate(value `shr` 32) :: U32)
+--             return ((widen(low) :: U64) `shl` 32) `or` (widen(high) :: U64)
+--
+-- with each signed rung reading its unsigned partner through a `bitcast`, since `shr` on a value
+-- whose top bit is set is the one place the two shifts disagree.
+--
+-- Eleven instructions at 64 bits, and one `bswap` on every machine this compiles for. The tree is
+-- also what a backend would have had to *recognize* to reach that instruction, and a peephole
+-- looking for a shape the optimizer may reassociate first is a peephole that stops finding it. So
+-- the operation is a `ByteSwap` in the IR (resolve/inst.def rules on it), and these bodies are the
+-- thing it replaced rather than the thing it is built out of.
+--
+-- The set is 16, 32 and 64 bits, which is what these instances covered: `U8` has nothing to reverse
+-- and `WideInt` has 53 bits, which are not a whole number of bytes of anything.
+
+-- What a condition means. `if x`, `if:` cases and `while x` ask this class rather than requiring
+-- a Bool, so `if items:` and `if i - 1: continue` say what they look like they say. The rule that
+-- keeps it from being JavaScript's truthiness is that it never applies through a conversion: the
+-- instance is selected for the condition's own type, so what `if x` means depends on x's type
+-- alone and not on which Widen instances happen to be in scope. Bool's instance is the identity.
+--
+-- Deliberately not instanced for Maybe or Result: they carry a payload, and `if maybeThing:`
+-- invites unwrapping it on the next line. Truth answers "is this empty/zero/null", not "did this
+-- succeed" - the `is` operator is what payload-carrying types use.
+--
+-- `value` is the default convention, which is already an immutable borrow: nothing about
+-- truthiness needs to consume or write what it is asked about.
+pub class Truth(a):
+  fn truthy(value: a) -> Bool

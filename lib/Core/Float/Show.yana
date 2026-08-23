@@ -1,0 +1,343 @@
+module Core
+
+import Native
+
+{-
+   Writing a float - the digits `Ryu.yana` decided, turned into characters.
+
+   Everything below `Shortest`: how many digits it has, where the point goes, the two `Show`
+   instances and the fixed-decimals form. `showSigned` and the sink are `Core/String.yana`'s and are
+   named here with no import and no `pub`, because a module is a directory and a file of one sees
+   all of it.
+
+   The split from `Ryu.yana` is where the target stops mattering. Deciding the shortest decimal is
+   the host's job on JS and Ryu's natively; writing it out is the same code on both, and this file
+   has one `@platform` in it.
+-}
+
+-- How many digits a value below 10^17 is written with. Seventeen is the most a shortest-round-trip
+-- `Double` ever needs and nine the most a `Float` does, so the loop's bound is not a truncation.
+fn decimalLength(value: U64) -> Int:
+    let &limit = 10 :: U64
+    let &digits = 1 :: Int
+
+    while digits < 17:
+        if value < limit then return digits
+        limit = limit * 10
+        digits = digits + 1
+
+    return 17
+
+{-
+   The digits, most significant first, with a decimal point after `pointAt` of them.
+
+   A `pointAt` equal to `count` writes no point at all, which is what an integral value and the
+   one-digit scientific form both want. The digits come out of the division least-significant first,
+   so they go into a buffer and come back out of it backwards - the same temporary `showSigned`
+   spends above, and the same one to remove when a body this generic can hold a `[U8 *20]`.
+-}
+fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String) -> {}:
+    let &buffer = newStringOfCapacity(20 :: Size)
+    let &rest = value
+    let &left = count
+
+    while left > 0:
+        let digit = truncate(rest % 10) :: Int
+        pushUnit(buffer, 48 + digit)
+        rest = rest / 10
+        left = left - 1
+
+    let &written = 0 :: Int
+    let &k = count
+
+    while k > 0:
+        k = k - 1
+        if written == pointAt then pushUnit(to, 46)
+        pushUnit(to, stringUnit(buffer, k :: Size))
+        written = written + 1
+
+{-
+   A `U64` in decimal, at whatever width it needs.
+
+   `pushDecimalDigits` takes a count because every caller of it has one in hand; this is for the two
+   that do not, and it is the same loop with the count discovered rather than given.
+-}
+fn pushUnsigned(value: U64, &to: String) -> {}:
+    if value == 0:
+        pushUnit(to, 48)
+        return {}
+
+    let &buffer = newStringOfCapacity(24 :: Size)
+    let &rest = value
+
+    while rest > 0:
+        let digit = truncate(rest % 10) :: Int
+        pushUnit(buffer, 48 + digit)
+        rest = rest / 10
+
+    let &i = length(buffer)
+    while i > 0:
+        i = i - 1
+        pushUnit(to, stringUnit(buffer, i))
+
+-- A decimal exponent, which is at most three digits at either width.
+fn pushExponent(value: Int, &to: String) -> {}:
+    if value >= 100:
+        pushUnit(to, 48 + value / 100)
+        pushUnit(to, 48 + (value / 10) % 10)
+        pushUnit(to, 48 + value % 10)
+    else if value >= 10:
+        pushUnit(to, 48 + value / 10)
+        pushUnit(to, 48 + value % 10)
+    else:
+        pushUnit(to, 48 + value)
+
+{-
+   Where the plain form stops and the scientific one starts.
+
+   Seven is Tritium's number and is kept, which makes `0.0000001` the smallest value written out in
+   full and `12345678` - eight digits - the largest. It is a *display* threshold and not a property
+   of any float: every value has both forms, both read back as the same number, and this only says
+   which one a reader is more likely to want.
+-}
+let fixedPointLimit = 7 :: Int
+
+fn writeShortest(value: Shortest, &to: String) -> {}:
+    let count = decimalLength(value.digits)
+
+    -- Where the point would go in the scientific form, which is the number the choice below is made
+    -- on: `exp` is the power of ten the leading digit stands for.
+    let exp = value.exponent + count - 1
+
+    -- Below one, and close enough to write the zeros out.
+    if exp < 0 && (0 - exp) <= fixedPointLimit:
+        pushUnit(to, 48)
+        pushUnit(to, 46)
+
+        let &zeros = 0 - exp - 1
+        while zeros > 0:
+            pushUnit(to, 48)
+            zeros = zeros - 1
+
+        pushDecimalDigits(value.digits, count, count, to)
+        return {}
+
+    -- At or above one, and short enough. The point falls inside the digits when there are more of
+    -- them than the exponent accounts for, and past the last one otherwise - where what follows it
+    -- is zeros and no point is written at all.
+    if exp >= 0 && exp <= fixedPointLimit:
+        if value.exponent >= 0:
+            pushDecimalDigits(value.digits, count, count, to)
+
+            let &zeros = value.exponent
+            while zeros > 0:
+                pushUnit(to, 48)
+                zeros = zeros - 1
+        else:
+            pushDecimalDigits(value.digits, count, count + value.exponent, to)
+
+        return {}
+
+    pushDecimalDigits(value.digits, count, 1, to)
+    pushUnit(to, 69)
+
+    if exp < 0:
+        pushUnit(to, 45)
+        pushExponent(0 - exp, to)
+    else:
+        pushExponent(exp, to)
+
+{-
+   The two values that are not a number times a power of ten, and the sign.
+
+   Answers whether the caller is done. `NaN` carries no sign - there is nothing for one to mean -
+   and a negative zero keeps its, which is the one place `value < 0.0` is not the test: `-0.0 < 0.0`
+   is false and `1.0 / -0.0` is negative infinity, so the reciprocal is what distinguishes the two
+   zeros on both targets and without reading a bit.
+
+   Zero is deliberately *not* one of them, and is left to each caller. It is the one value the two
+   spellings disagree about - `show` writes `0` and `showFixed(x, 2)` writes `0.00` - so a shared
+   answer here would have to be undone by one of them.
+-}
+fn writeSpecial(value: Double, &to: String) -> Bool:
+    if value != value:
+        pushString(to, "NaN")
+        return True
+
+    if value < 0.0 || (value == 0.0 && 1.0 / value < 0.0) then pushUnit(to, 45)
+
+    -- A finite number minus itself is zero and an infinity minus itself is a NaN, which is the only
+    -- test that does not need a bound written down - and the largest finite double is above 1e308,
+    -- so a written one would be wrong as well as awkward.
+    if value - value != 0.0:
+        pushString(to, "Inf")
+        return True
+
+    return False
+
+-- The magnitude, which every body below reads after `writeSpecial` has written the sign.
+fn magnitudeOf(value: Double) -> Double = if value < 0.0 then 0.0 - value else value
+
+{-
+   `Show(Double)` and `Show(Float)` - Implementation-Storage.md part 7's missing rows.
+
+   **The bound is 26 and not 24.** Twenty-four is the scientific form's - a sign, seventeen digits,
+   a point, an `E`, a sign and three exponent digits - and it is the number Analysis-Library.md §2.1
+   gives. The plain form below one is longer: `exp` may be as low as -7, which writes `0.` and six
+   more zeros before seventeen digits arrive, and 1 + 2 + 6 + 17 is 26. A bound that is merely
+   generous is legal and one that is too small is a buffer overrun, so this is the one place the
+   analysis's number had to be recomputed rather than copied.
+
+   `Float`'s 18 is the same count at nine digits: a sign, `0.`, six zeros and nine digits.
+
+   Both are constants, which is the property part 7 wants: a format holding a float sizes its buffer
+   with an addition and no measuring pass.
+-}
+instance Show(Double):
+    fn show(value: Double, &to: String) -> {}:
+        if writeSpecial(value, to) then return {}
+
+        let magnitude = magnitudeOf(value)
+        if magnitude == 0.0 then pushUnit(to, 48)
+        else writeShortest(doubleShortest(magnitude), to)
+
+    fn showBound(value: Double) -> Maybe(Size) = Just(26)
+
+instance Show(Float):
+    fn show(value: Float, &to: String) -> {}:
+        if writeSpecial(value :: Double, to) then return {}
+
+        -- The magnitude at the value's own width, since the decoder reads its bits and the sign is
+        -- already written. Widening for the tests above cannot change any of their answers.
+        let magnitude = if value < 0.0 then 0.0 - value else value
+        if magnitude == 0.0 then pushUnit(to, 48)
+        else writeShortest(floatShortest(magnitude), to)
+
+    fn showBound(value: Float) -> Maybe(Size) = Just(18)
+
+{-
+   `showFixed` - the same value written with a fixed number of decimal places.
+
+   **A function beside the class rather than a default argument on `show`**, which Analysis-Library
+   §2.1 argues and is worth restating: `Show` is the contract for the shortest round-trip form, and
+   a class method that carries a formatting policy is a class method two callers disagree about. A
+   caller who wants two decimal places asks for two decimal places.
+
+   **What it rounds is the shortest decimal, not the exact value of the float.** `showFixed(0.1, 20)`
+   is `0.10000000000000000000` and not `0.10000000000000000555`, which is what the number actually
+   is. That is a deliberate limit and the reason is that the two are different operations: writing a
+   double's exact decimal expansion needs a table two orders of magnitude larger than the one above
+   - the reference implementation's `d2fixed` - and what it buys is digits below the last one the
+   float distinguishes. Every digit this writes is one the value stands behind; past that it writes
+   zeros rather than the arithmetic's own noise.
+
+   **Half up, not half to even.** `showFixed(0.5, 0)` is `1` and `showFixed(1.5, 0)` is `2`. The
+   digits being rounded here have already been rounded once - they are the shortest that name this
+   float - so a tie at this level is a tie in the *text* rather than one in the number, and the rule
+   a reader expects of a text is the one they were taught at school.
+-}
+
+{-
+   The scaled integer `value * 10^decimals`, rounded, as digits - and how many of them there are.
+
+   Written as digit text rather than as a number because the count can exceed what any integer here
+   holds: `showFixed(1e20, 2)` is twenty-three digits.
+-}
+fn scaleDigits(digits: String, pointAt: Int, decimals: Int, &scaled: String) -> Int:
+    let count = truncate(length(digits)) :: Int
+    let keep = pointAt + decimals
+
+    -- Every digit is past the rounding position, and not by one - so there is not even a carry,
+    -- which would need the first dropped digit to be the one right after the last kept one.
+    if keep < 0 then return 0
+
+    let carry = keep < count && stringUnit(digits, keep :: Size) >= 53
+
+    -- The kept digits, and then the zeros that a `decimals` reaching past the end asks for.
+    let &kept = newStringOfCapacity(48 :: Size)
+    let &i = 0 :: Int
+
+    while i < keep:
+        pushUnit(kept, if i < count then stringUnit(digits, i :: Size) else 48)
+        i = i + 1
+
+    if !carry:
+        pushString(scaled, kept)
+        return keep
+
+    -- The carry stops at the first digit below nine and turns every nine after it into a zero. All
+    -- nines - or nothing kept at all - is where it escapes and the answer is one digit longer.
+    let &at = keep
+    while at > 0 && stringUnit(kept, (at - 1) :: Size) == 57:
+        at = at - 1
+
+    if at == 0:
+        pushUnit(scaled, 49)
+
+        let &zeros = 0 :: Int
+        while zeros < keep:
+            pushUnit(scaled, 48)
+            zeros = zeros + 1
+
+        return keep + 1
+
+    i = 0
+    while i < keep:
+        if i < at - 1 then pushUnit(scaled, stringUnit(kept, i :: Size))
+        else if i == at - 1 then pushUnit(scaled, stringUnit(kept, i :: Size) + 1)
+        else pushUnit(scaled, 48)
+        i = i + 1
+
+    return keep
+
+-- The scaled integer written out with a point `decimals` from its right end. Fewer digits than that
+-- is a value below one, which is written with a leading zero and however many zeros the shortfall
+-- asks for.
+fn writeScaled(scaled: String, width: Int, decimals: Int, &to: String) -> {}:
+    let whole = width - decimals
+
+    if whole <= 0:
+        pushUnit(to, 48)
+
+        if decimals > 0:
+            pushUnit(to, 46)
+
+            let &zeros = 0 - whole
+            while zeros > 0:
+                pushUnit(to, 48)
+                zeros = zeros - 1
+    else:
+        let &i = 0 :: Int
+        while i < whole:
+            pushUnit(to, stringUnit(scaled, i :: Size))
+            i = i + 1
+
+        if decimals > 0 then pushUnit(to, 46)
+
+    let &at = if whole > 0 then whole else 0
+    while at < width:
+        pushUnit(to, stringUnit(scaled, at :: Size))
+        at = at + 1
+
+pub fn showFixed(value: Double, decimals: Size, &to: String) -> {}:
+    if writeSpecial(value, to) then return {}
+
+    let magnitude = magnitudeOf(value)
+    let &digits = newStringOfCapacity(24 :: Size)
+    let &pointAt = 1 :: Int
+
+    -- Zero has no shortest decimal to ask for - Ryu is defined on a non-zero value - so it is the
+    -- one digit it is, with the point after it. Everything downstream is the same for it.
+    if magnitude == 0.0:
+        pushUnit(digits, 48)
+    else:
+        let shortest = doubleShortest(magnitude)
+        let count = decimalLength(shortest.digits)
+        pushDecimalDigits(shortest.digits, count, count, digits)
+        pointAt = count + shortest.exponent
+
+    let places = truncate(if decimals < 0 then 0 else decimals) :: Int
+    let &scaled = newStringOfCapacity(48 :: Size)
+    let width = scaleDigits(digits, pointAt, places, scaled)
+
+    writeScaled(scaled, width, places, to)

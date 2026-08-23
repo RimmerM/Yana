@@ -1,0 +1,325 @@
+{-
+   The Linux system-call layer, for x86-64.
+
+   **`.x64.yana`, and that is the point of the name** - Analysis-Modules.md §2.5 and §4.2.1. The call
+   numbers below are the x86-64 table and nothing else: on arm64 `read` is 63 rather than 0, and
+   every other number here differs too. Until a file could say which machine it was for, this said
+   it in a comment and was compiled for every one of them - including JS, where a syscall is not a
+   thing that exists. An architecture selector excludes a JS build for the same reason it excludes
+   arm64, so the one word replaces both facts.
+
+   An arm64 port is `Linux.arm64.yana` beside this, and nothing else has to change to accept it.
+-}
+
+-- amd64 Linux call numbers.
+let sysRead = 0 :: Size
+let sysWrite = 1 :: Size
+let sysOpen = 2 :: Size
+let sysClose = 3 :: Size
+let sysStat = 4 :: Size
+let sysFileStat = 5 :: Size
+let sysLinkStat = 6 :: Size
+let sysSeek = 8 :: Size
+let sysMmap = 9 :: Size
+let sysMunmap = 11 :: Size
+let sysReadAt = 17 :: Size
+let sysWriteAt = 18 :: Size
+let sysExit = 60 :: Size
+let sysProcessId = 39 :: Size
+let sysSync = 74 :: Size
+let sysTruncate = 77 :: Size
+let sysRename = 82 :: Size
+let sysMakeDirectory = 83 :: Size
+let sysRemoveDirectory = 84 :: Size
+let sysUnlink = 87 :: Size
+let sysDirectoryEntries = 217 :: Size
+
+-- PROT_READ | PROT_WRITE, and MAP_PRIVATE | MAP_ANONYMOUS.
+let protReadWrite = 3 :: Size
+let mapPrivateAnonymous = 34 :: Size
+
+-- Maps `size` bytes of zeroed, readable and writable address space, or null if the kernel
+-- refused. mmap reports failure as a small negative value rather than as an error flag, which is
+-- why the result is checked as a number before it becomes a pointer.
+pub fn mapMemory(size: Size) -> %U8:
+    let result = syscall6(sysMmap, 0, size, protReadWrite, mapPrivateAnonymous, -1, 0)
+    if result < 0 then return null()
+
+    return bitcast(result) :: %U8
+
+pub fn unmapMemory(from: %U8, size: Size) -> Size = syscall2(sysMunmap, bitcast(from) :: Size, size)
+
+{-
+   The file calls, and what they all have in common - Analysis-Library.md §2.9.
+
+   **Every one of them answers the kernel's own number**, which is a count or a descriptor when it
+   worked and the negated errno when it did not. Nothing here turns that into a `Result`, and that
+   is the line this file has always drawn: it knows one kernel's call numbers and flag values and
+   nothing about what a program wants them to mean. `File` is where a negative answer becomes a
+   `FileError`, and it is the only reader of the `err*` numbers below.
+
+   **A path is an address here rather than a `String`**, for the same reason. What the kernel takes
+   is a NUL-terminated byte sequence, which is not what a `String` is - a run and a live prefix, with
+   nothing after it - so somebody has to make the terminated copy, and that somebody has to be the
+   layer that has a string type to copy *into*. See `terminated` in `File`.
+-}
+{-
+   `open`'s flag bits, as a type rather than as nineteen bare integers - Analysis-Language.md §5.2.
+
+   **This is deliberately not a record of `Bool` fields with pinned bit positions**, which is the
+   feature the complaint about bare `I64`s reads as asking for and which could not say what `open`
+   takes. `readOnly`/`writeOnly`/`readWrite` at 0, 1 and 2 are a two-bit *enumeration* in the low
+   bits rather than three independent flags, and `openTemporary` is 4259840, which is
+   `__O_TMPFILE | O_DIRECTORY` - a multi-bit combination no bit position names. A bit-position
+   feature would have produced a type that quietly cannot hold what the syscall wants.
+
+   A newtype over the integer says everything that was missing and nothing that is false: the
+   constants are distinct from every other number in the program, `or` and `and` compose them
+   through `Bitwise`, `if flags:` asks `Truth`, and Repr unwraps the whole thing so it costs nothing.
+
+   `Bitwise` and not `Integral`, which is the distinction the two classes exist to draw: `Integral`'s
+   superclass chain is `Num` and then `FromInt`, so joining it to get four bitwise names would also
+   mean saying what `flags * flags` and the literal `3` are - and there is no answer, which is the
+   whole reason this is a newtype rather than an `I64`.
+
+   The two instances are *derived* - Analysis-Derive.md §3's `newtype` shape. What the clause expands
+   to is the four unwrap-apply-rewrap bodies and the one truthiness test that used to be written out
+   below it, and the reason it can be a clause rather than a compiler rule is that whether a wrapper
+   is transparent to a class is the class's decision: `Bitwise` over a newtype is the content's
+   `Bitwise` with the name put back on, and that sentence is true of `Bitwise` rather than of
+   `OpenFlags`.
+
+   `!flags` is deliberately not a thing this type has. `!` asks `Truth` and answers `Bool`, so it
+   means "no bits set" wherever it appears; the complement is `not(flags)`, which is a different
+   question with a different name. Those used to be one operator, and `if empty` was False while
+   `if !empty` was True.
+-}
+pub alias qualified OpenFlags = Size deriving (Bitwise, Truth)
+
+-- The low two bits are the access mode and are a small enumeration rather than a set - `readOnly`
+-- is zero, so an open that asks for nothing asks for reading - and everything above them is a flag
+-- that ors in. `File`'s `FileAccess` and `CreateMode` are what a program writes instead; these are
+-- what those become.
+pub let openReadOnly = OpenFlags(0)
+pub let openWriteOnly = OpenFlags(1)
+pub let openReadWrite = OpenFlags(2)
+pub let openCreate = OpenFlags(64)
+pub let openExclusive = OpenFlags(128)
+pub let openTruncate = OpenFlags(512)
+pub let openAppend = OpenFlags(1024)
+pub let openSync = OpenFlags(4096)
+pub let openDirect = OpenFlags(16384)
+pub let openDirectory = OpenFlags(65536)
+pub let openTemporary = OpenFlags(4259840)
+
+-- The permission bits a created file gets, which the same call takes in its third position and
+-- which mean nothing at all unless the open creates something. A second newtype rather than a
+-- second use of the first: handing `open` its flags where it wanted its mode is exactly the mistake
+-- two bare `I64`s in a row invite.
+pub alias qualified FileMode = Size deriving (Bitwise, Truth)
+
+pub fn fileMode(bits: Size) -> FileMode = FileMode(bits)
+pub fn modeShifted(mode: FileMode, by: Size) -> FileMode = FileMode(mode.0 `shl` by)
+
+pub fn openPath(path: %U8, flags: OpenFlags, mode: FileMode) -> Size =
+    syscall3(sysOpen, bitcast(path) :: Size, flags.0, mode.0)
+
+pub fn closeFile(handle: Size) -> Size = syscall1(sysClose, handle)
+
+pub fn readFile(handle: Size, to: %U8, count: Size) -> Size =
+    syscall3(sysRead, handle, bitcast(to) :: Size, count)
+
+pub fn writeFile(handle: Size, from: %U8, count: Size) -> Size =
+    syscall3(sysWrite, handle, bitcast(from) :: Size, count)
+
+-- The positional pair, which is `pread64`/`pwrite64` and not a seek and a read. The file position
+-- is untouched by both, which is the whole of what makes them a second pair rather than a
+-- convenience over the first.
+pub fn readFileAt(handle: Size, to: %U8, count: Size, at: I64) -> Size =
+    syscall4(sysReadAt, handle, bitcast(to) :: Size, count, at)
+
+pub fn writeFileAt(handle: Size, from: %U8, count: Size, at: I64) -> Size =
+    syscall4(sysWriteAt, handle, bitcast(from) :: Size, count, at)
+
+
+pub fn syncFile(handle: Size) -> Size = syscall1(sysSync, handle)
+
+pub fn truncateFile(handle: Size, size: I64) -> Size = syscall2(sysTruncate, handle, size)
+
+{-
+   `struct stat`, as the record the kernel fills - Analysis-Language.md §5.2.
+
+   What this replaces is six offsets and a `Run(U8)` read with `wordAt`: a C structure layout
+   described as arithmetic, in the one place in the library where the layout is an ABI fact rather
+   than a call number. `@layout(c)` is what makes the record *be* that layout - declaration order,
+   one group, C's own padding - so the sizes and the offsets are the compiler's answer rather than
+   six constants somebody has to keep in step with a kernel header.
+
+   A hundred and forty-four bytes on amd64, which is exactly the `statBytes` the arithmetic used.
+   Every field defaults to zero, so `FileStatus {}` is the buffer to hand the kernel; the three
+   reserved words at the end are the kernel's own `__unused`, named rather than left as a hole
+   because a field somebody can see is a field nobody re-derives.
+
+   The three times are a pair of words each - seconds and nanoseconds - and the mode is a `U32`
+   holding the type bits above the permission ones.
+-}
+@layout(c)
+pub data FileStatus {
+    device: U64 = 0,
+    inode: U64 = 0,
+    links: U64 = 0,
+    mode: U32 = 0,
+    userId: U32 = 0,
+    groupId: U32 = 0,
+    padding: U32 = 0,
+    representedDevice: U64 = 0,
+    size: I64 = 0,
+    blockSize: I64 = 0,
+    blocks: I64 = 0,
+    accessedSeconds: I64 = 0,
+    accessedNanos: I64 = 0,
+    modifiedSeconds: I64 = 0,
+    modifiedNanos: I64 = 0,
+    changedSeconds: I64 = 0,
+    changedNanos: I64 = 0,
+    reserved0: I64 = 0,
+    reserved1: I64 = 0,
+    reserved2: I64 = 0
+}
+
+{-
+   The three `stat` calls, into a record the caller supplies.
+
+   Three and not one, because which of them a program wants is a question about symbolic links and
+   the answer differs per call site: `statPath` follows them, `statLink` reports the link itself, and
+   `statFile` asks about an open descriptor and so has no link to have an opinion about. The C++ this
+   is ported from has only the first and the third, which is why its `Info::isLink` could never be
+   true - see `linkInfo` in `File`.
+
+   `&into` rather than an address, which is what moves the last piece of layout arithmetic out of
+   `File`: the caller writes `let &status = FileStatus {}` and reads named fields off it afterwards,
+   and the one place that still knows the buffer is bytes is the line below that takes its address.
+-}
+fn statusAddress(&into: FileStatus) -> Size = bitcast(addressOf(into)) :: Size
+
+pub fn statPath(path: %U8, &into: FileStatus) -> Size =
+    syscall2(sysStat, bitcast(path) :: Size, statusAddress(into))
+
+pub fn statLink(path: %U8, &into: FileStatus) -> Size =
+    syscall2(sysLinkStat, bitcast(path) :: Size, statusAddress(into))
+
+pub fn statFile(handle: Size, &into: FileStatus) -> Size =
+    syscall2(sysFileStat, handle, statusAddress(into))
+
+{-
+   What the mode's type bits say a directory entry is - Analysis-Language.md §5.1.
+
+   `S_IFMT` is the mask and these are the three kinds anything here asks about. A pinned value each,
+   because these are the kernel's numbers and not a declaration order that happens to agree with
+   them, and `fromValue` is how the masked mode becomes one - a mode naming a socket or a device is
+   a kind this set does not have, which is what `Maybe` says.
+-}
+pub data FileKind = @value(16384) DirectoryKind | @value(32768) RegularKind | @value(40960) LinkKind
+
+pub let modeTypeMask = FileMode(61440)
+
+pub fn kindOf(mode: U32) -> Maybe(FileKind) = fromValue((FileMode(mode :: Size) `and` modeTypeMask).0)
+
+pub fn removePath(path: %U8) -> Size = syscall1(sysUnlink, bitcast(path) :: Size)
+
+pub fn renamePath(from: %U8, to: %U8) -> Size =
+    syscall2(sysRename, bitcast(from) :: Size, bitcast(to) :: Size)
+
+pub fn makeDirectory(path: %U8, mode: FileMode) -> Size =
+    syscall2(sysMakeDirectory, bitcast(path) :: Size, mode.0)
+
+pub fn removeDirectoryPath(path: %U8) -> Size = syscall1(sysRemoveDirectory, bitcast(path) :: Size)
+
+-- `getdents64`, which is the only reading call here that answers a *block* of variable-length
+-- records rather than bytes: zero means the directory ended, and a positive answer is how many
+-- bytes of `into` the kernel filled. The record layout is `DirectoryRecord` below.
+pub fn readDirectoryEntries(handle: Size, into: %U8, count: Size) -> Size =
+    syscall3(sysDirectoryEntries, handle, bitcast(into) :: Size, count)
+
+{-
+   `dirent64`'s fixed head, by the same rule `FileStatus` is a record: the inode number, the offset
+   of the next record, this record's length, and one byte of type.
+
+   The NUL-terminated name follows immediately and is *not* a field, because its length is not one:
+   `length` covers the padding after the name, so the name is read by scanning from the end of this
+   head. That one piece of arithmetic is what a variable-length record costs and it is all that is
+   left of the six offsets this replaced.
+-}
+@layout(c)
+pub data DirectoryRecord {inode: U64, nextOffset: I64, length: U16, kind: U8}
+
+-- Where the name starts, in bytes from the start of the record. One past the head, which is what
+-- `dirent64` says and what `@layout(c)` makes the compiler agree with.
+pub let entryNameOffset = 19 :: Size
+
+-- `DT_DIR` and the two other kinds `getdents64` reports that anything here asks about. `DT_UNKNOWN`
+-- is 0 and is what a file system that does not fill the byte answers, which is why this is partial.
+pub data EntryKind = @value(4) EntryDirectory | @value(8) EntryRegular | @value(10) EntryLink
+
+{-
+   `lseek`'s three bases, as the enumeration they are - Analysis-Language.md §5.1.
+
+   `data Whence = FromStart | FromCurrent | FromEnd` already lowered to 0, 1 and 2 in declaration
+   order; what it could not do was *say* so, and the cost of that showed at exactly this boundary.
+   Turning one into the number the syscall takes was two compares and two selects computing the
+   identity function, because the mapping lived in a `match` nothing had reason to recognise.
+   `@value` pins it, `valueOf` is a cast, and `seekFile` can no longer be handed the wrong integer.
+-}
+pub data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
+
+pub fn seekFile(handle: Size, offset: I64, whence: Whence) -> I64 =
+    syscall3(sysSeek, handle, offset, valueOf(whence))
+
+{-
+   The errno numbers `File` maps, as one type - Analysis-Language.md §5.1.
+
+   They are one kernel's, exactly as the call numbers above are: `ENOENT` is 2 on Linux and 2 on
+   every other Unix by accident of history rather than by agreement, and the numbers that matter
+   most here - `EDQUOT` at 122, `ENAMETOOLONG` at 36 - differ between them. So the whole of what a
+   second platform has to restate lives in this file, and `File` names these rather than integers.
+
+   Nineteen `let`s became one type, and what that bought is not brevity: a `File` that maps errno to
+   its own closed set used to do it with nineteen `if code == err...` comparisons, because a bare
+   name in a pattern *binds* and `match code: errNotFound -> ...` would have matched everything.
+   With a type there is a `match` to write, and the compiler checks it covers what it says it does.
+
+   The set is open in practice - the kernel has two hundred numbers and this names nineteen - which
+   is what makes `fromValue` the reading direction and `Maybe` its answer.
+-}
+pub data Errno
+  = @value(1)   NotPermitted
+  | @value(2)   NoEntry
+  | @value(9)   BadHandle
+  | @value(12)  OutOfMemory
+  | @value(13)  PermissionDenied
+  | @value(14)  BadAddress
+  | @value(16)  DeviceBusy
+  | @value(17)  AlreadyExists
+  | @value(20)  NotADirectory
+  | @value(21)  IsADirectory
+  | @value(22)  InvalidArgument
+  | @value(23)  TableFull
+  | @value(24)  TooManyOpen
+  | @value(27)  FileTooLarge
+  | @value(28)  NoSpace
+  | @value(30)  ReadOnlyFileSystem
+  | @value(36)  NameTooLong
+  | @value(39)  NotEmpty
+  | @value(122) QuotaExceeded
+
+-- The kernel's own number as one of these, or nothing where it is a case this set does not name.
+pub fn errnoOf(code: I64) -> Maybe(Errno) = fromValue(code)
+
+-- This process's own identifier, which cannot fail and so is the one call here that answers no
+-- error. What wants it is a program that has to name something no other process will name at the
+-- same time - a lock file, a scratch directory - and `test/lib/File.yana` is the first.
+pub fn processId() -> Size = syscall0(sysProcessId)
+
+pub fn exitProcess(status: Size) -> {}:
+    syscall1(sysExit, status)
+    return
