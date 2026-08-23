@@ -91,7 +91,7 @@ function indexRebuild_String_Held(self, slots) {
   var slot = 0;
   L0: for (;;) {
     if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
       slot = slot + 1 | 0;
       continue L0;
@@ -149,11 +149,11 @@ function indexPlace_String_Held(self, at, h) {
   L0: for (;;) {
     if (visited <= v4) {
       var v25 = self.index.length;
-      checkCondition(slot >>> 0 >= v25);
+      checkCondition(slot >>> 0 >= v25 ? 1 : 0);
       var v30 = self.index.items;
       var taken = v30[slot];
       if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25);
+        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
         v30[slot] = at | 0;
         if (taken === -1) {
           self.live = self.live + 1 & 1073741823;
@@ -222,7 +222,7 @@ function indexFind_String_Held(self, key, h) {
   var visited = 0;
   L0: for (;;) {
     if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       var at = self.index.items[slot];
       if (at === -1) {
         return -1;
@@ -291,7 +291,7 @@ function push_Held(self, item) {
 
 function Index_Map_k_v_k_v_get_String_Held(self, key) {
   var at = findEntry_String_Held(self, key, hashKey_String(key));
-  checkCondition(at < 0);
+  checkCondition(at < 0 ? 1 : 0);
   return self.values[at];
 }
 

@@ -72,6 +72,23 @@ fn orSkips() -> Bool = read || bump()
 -}
 fn (Truth(a)) genericNot(x: a) -> Bool = !x
 
+{-
+   A `Bool` compared with a `Bool`, which is the one position that can tell two representations of one
+   apart.
+
+   `if x`, `!x` and `x and y` read only truthiness, so a backend whose comparison answers one thing
+   and whose `True` is another agrees with itself everywhere except `==`. The JavaScript backend was
+   exactly that: a comparison is a host `boolean` there and a `Bool` is the number 0 or 1, so
+   `truthy(x) == True` came out as `(x !== 0) === 1` - which is `true === 1`, which is false. Every
+   fixture stayed green, because none of them had ever compared two of them.
+
+   Written over parameters rather than over the constants above so that there is something left to
+   emit: folded at the call site it is a literal, and a literal cannot be the wrong representation.
+-}
+fn truthEquals(f: Flags, expected: Bool) -> Bool = truthy(f) == expected
+
+fn truthDiffers(f: Flags, other: Flags) -> Bool = truthy(f) != truthy(other)
+
 fn main() -> Int:
     let &score = 0
 
@@ -108,6 +125,14 @@ fn main() -> Int:
     if genericNot(empty) != isEmpty(empty) then return 14
     if genericNot(read) != isEmpty(read) then return 15
     if genericNot(0) != noneLeft(0) then return 16
+
+    -- A `Bool` against a `Bool`, in both directions and at both values - see truthEquals.
+    if !truthEquals(read, True) then return 31
+    if truthEquals(read, False) then return 32
+    if !truthEquals(empty, False) then return 33
+    if truthEquals(empty, True) then return 34
+    if !truthDiffers(read, empty) then return 35
+    if truthDiffers(read, write) then return 36
 
     -- `and` and `or` remain the bit operations, over the same type, answering the same type.
     let both = read `or` write

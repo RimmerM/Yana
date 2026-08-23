@@ -106,20 +106,58 @@ main<complex>(): Int {
   }
 
   b_46 {
-    %rhs$ = loads @write, 8: Long
-    %v_47 = or %value$, %rhs$: Long
-    %v_48 = and %v_47, %value$: Long
-    %v_49 = cmp_eq %v_48, %value$: Int
-    je %v_49, b_50, b_51
+    jmp b_47
+  }
+
+  b_47 {
+    jmp b_48
+  }
+
+  b_48 {
+    jmp b_49
+  }
+
+  b_49 {
+    jmp b_50
   }
 
   b_50 {
-    %v_52 = cast %v_47: Int
-    ret %v_52
+    %v_51 = cmp_neq %value$, 0: Int
+    %v_52 = cmp_neq %value$, 0: Int
+    %v_53 = cmp_neq %v_51, %v_52: Int
+    je %v_53, b_54, b_55
   }
 
-  b_51 {
+  b_54 {
+    %v_56 = cmp_neq %value$, 0: Int
+    %value$ = loads @write, 8: Long
+    %v_57 = cmp_neq %value$, 0: Int
+    %v_58 = cmp_neq %v_56, %v_57: Int
+    je %v_58, b_59, b_60
+  }
+
+  b_60 {
+    %v_61 = or %value$, %value$: Long
+    %v_62 = and %v_61, %value$: Long
+    %v_63 = cmp_eq %v_62, %value$: Int
+    je %v_63, b_64, b_65
+  }
+
+  b_64 {
+    %v_66 = cast %v_61: Int
+    ret %v_66
+  }
+
+  b_65 {
     ret 13
+  }
+
+  b_59 {
+    ret 36
+  }
+
+  b_55 {
+    ret 35
   }
 
   b_41 {

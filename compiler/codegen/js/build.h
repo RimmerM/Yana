@@ -1029,6 +1029,11 @@ IntType* intType(Gen& g, TypePtr type);
 RecordType* recordType(Gen& g, TypePtr type);
 bool isBool(Gen& g, TypePtr type);
 
+// A comparison's host boolean, as the number a `Bool` is on this target - see boolNumber in
+// type.cpp. Only the two instructions that produce a `Bool` from a test need it; everything else
+// already holds the number.
+JsPtr<Expr> boolNumber(Gen& g, JsPtr<Expr> test);
+
 // Whether this type is a host `bigint` - an integer wider than a `number` holds exactly. Every
 // caller means "is this the other representation", which is why the test moved from the width class
 // to the bit count when the 33-to-53 band stopped being one.

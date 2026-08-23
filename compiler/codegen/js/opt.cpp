@@ -1787,7 +1787,39 @@ bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
  *
  * The shift *count* is folded on the same terms and for a smaller reason: only its low five bits are
  * read, so anything preserving the low thirty-two preserves those.
+ *
+ * A `Bool`'s `c ? 1 : 0` is stripped here too and for the same reason - see the note inside `strip`.
  */
+/*
+ * Whether this expression's value is a host `boolean` rather than a number.
+ *
+ * Asked of the *shape* rather than of a range, because a boolean has none: `rangeOf` answers
+ * `unknown` for every comparison, which is the honest answer - what it describes is a mathematical
+ * integer and `true` is not one. The set is closed and small - the eight comparison operators and
+ * `!` - because those are the only nodes this backend builds whose value is not a number, and a
+ * `Bool` that reaches a value position has already been widened past them (see boolNumber).
+ */
+bool producesBoolean(Gen& g, JsPtr<Expr> pointer) {
+    auto expr = g.base[pointer];
+
+    if(expr->kind == Expr::Unary) return ((UnaryExpr*)expr)->op == UnaryOp::Not;
+    if(expr->kind != Expr::Binary) return false;
+
+    switch(((BinaryExpr*)expr)->op) {
+        case BinaryOp::Eq:
+        case BinaryOp::Ne:
+        case BinaryOp::LooseEq:
+        case BinaryOp::LooseNe:
+        case BinaryOp::Lt:
+        case BinaryOp::Le:
+        case BinaryOp::Gt:
+        case BinaryOp::Ge:
+            return true;
+        default:
+            return false;
+    }
+}
+
 bool foldBitwiseOperand(Gen& g, JsPtr<Expr>& slot) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Binary) return false;
@@ -1807,6 +1839,33 @@ bool foldBitwiseOperand(Gen& g, JsPtr<Expr>& slot) {
 
     auto strip = [&](JsPtr<Expr>& operand) {
         auto inner = g.base[operand];
+
+        /*
+         * `c ? 1 : 0` on a comparison - the widening a `Bool` is given where it is produced, see
+         * boolNumber in type.cpp.
+         *
+         * The same question this file's other operand rules ask, with the same answer: a bitwise
+         * operator reads its operands through ToInt32, `ToInt32(true)` is 1 and `ToInt32(false)` is
+         * 0, so the ternary cannot change what this reader sees. That is total rather than
+         * range-dependent, exactly as the coercion below is, because a comparison has only those two
+         * values - which is why it is `producesBoolean` and not a range that guards it.
+         *
+         * It is what keeps `!x` on a `Bool` one `^ 1` and `a and b` one `&`: both read their operands
+         * as integers, and the widening is only there for the readers that do not.
+         */
+        if(inner->kind == Expr::Ternary) {
+            auto& choice = *(TernaryExpr*)inner;
+
+            F64 then;
+            F64 otherwise;
+            if(!constantNumber(g, choice.then, then) || then != 1) return false;
+            if(!constantNumber(g, choice.otherwise, otherwise) || otherwise != 0) return false;
+            if(!producesBoolean(g, choice.cond)) return false;
+
+            operand = choice.cond;
+            return true;
+        }
+
         if(inner->kind != Expr::Binary) return false;
 
         auto& coercion = *(BinaryExpr*)inner;
@@ -1959,9 +2018,19 @@ Maybe<Inversion> invertedComparison(BinaryOp op) {
     }
 }
 
-// The condition that holds exactly where `slot` does not. A comparison is inverted in place wherever
-// it may be - see `invertedComparison` - a `!` is taken back off, and anything else is wrapped in one.
+/*
+ * The condition that holds exactly where `slot` does not. A comparison is inverted in place wherever
+ * it may be - see `invertedComparison` - a `!` is taken back off, and anything else is wrapped in one.
+ *
+ * The condition rules are applied first, because what is being negated is a *condition* and they are
+ * what that position is allowed. It is not a tidiness: the `c ? 1 : 0` a `Bool` is widened with (see
+ * boolNumber) is not a comparison, so without this every negated `Bool` came out as a `!` around the
+ * widening - `!(v7 <= n)` where `v7 > n` was there before, and `!(v54 === 0)` where the two rules
+ * together answer `v54`. The rewrite that reaches the shape has to run before the one that reads it.
+ */
 JsPtr<Expr> negatedCondition(Gen& g, JsPtr<Expr> slot, Ranges& ranges) {
+    while(simplifyCondition(g, slot, ranges)) {}
+
     auto expr = g.base[slot];
 
     // A decided condition answers itself. `foldDecidedIf` removes the `if` wherever one is a

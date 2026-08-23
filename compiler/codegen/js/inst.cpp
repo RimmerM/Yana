@@ -966,8 +966,11 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
         return;
     }
 
+    // Through `boolNumber`, because a comparison is a host boolean and a `Bool` is the number 0 or 1
+    // - see type.cpp, which is where that costs something and where it does not.
     if(toBool) {
-        define(g, pointer, binary(g, BinaryOp::Ne, value, fromLong ? bigInt(g, 0, true) : number(g, 0)));
+        auto zero = fromLong ? bigInt(g, 0, true) : number(g, 0);
+        define(g, pointer, boolNumber(g, binary(g, BinaryOp::Ne, value, zero)));
         return;
     }
 
@@ -3806,7 +3809,9 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                 default: op = BinaryOp::Le; break;
             }
 
-            define(g, value, binary(g, op, lhs, rhs));
+            // The same widening genCast's `toBool` does, for the same reason: what `===` answers is
+            // a host boolean and what a `Bool` is here is 0 or 1 - see boolNumber.
+            define(g, value, boolNumber(g, binary(g, op, lhs, rhs)));
             break;
         }
         case Value::Select: {

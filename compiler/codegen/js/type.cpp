@@ -46,6 +46,32 @@ bool isBool(Gen& g, TypePtr type) {
 }
 
 /*
+ * A test, as the value a `Bool` is here.
+ *
+ * The comment above says a `Bool` is the number 0 or 1 and gives the measurements for it, and every
+ * consumer of one is written to that: a `Bool` reaching arithmetic is widened by `genCast`'s ternary,
+ * a `[Bool]` is a `Uint8Array`, and a bit of a packed word is stored as a number. A *comparison*,
+ * though, is a host boolean - JS has no other answer for `===` - so an instruction that produces a
+ * `Bool` from one has to say which of the two representations it means.
+ *
+ * It matters in exactly one place, and it is not a place anything is free to avoid: `===`. Every
+ * other consumer reads only truthiness, where `true` and `1` agree, so the two forms coexisted for
+ * as long as no program compared two `Bool`s - and `if truthy(x) == True` then answered *false*,
+ * because `(x !== 0) === 1` is `true === 1`. Widening here rather than at the comparison is what
+ * keeps that from being a rule every future consumer has to know: there is one representation, and
+ * the two instructions that could produce the other one do not.
+ *
+ * Free in the emitted text wherever it is redundant, and the two rules that make it so are rules
+ * about *positions*: `simplifyCondition` takes it off a condition, which is the shape it names and
+ * the reason it names it, and `foldBitwiseOperand` takes it off an operand of a bitwise operator,
+ * where `ToInt32` reads the boolean as the same two numbers. What is left is a `Bool` that is
+ * genuinely a value - returned, stored, passed, or compared - and there it is the representation.
+ */
+JsPtr<Expr> boolNumber(Gen& g, JsPtr<Expr> test) {
+    return ternary(g, test, number(g, 1), number(g, 0));
+}
+
+/*
  * Which of the two integer representations a type wider than 32 bits has, and why the question is
  * asked of its *canonical* form rather than of itself.
  *

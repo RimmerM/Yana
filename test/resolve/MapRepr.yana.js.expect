@@ -83,7 +83,7 @@ function indexFind_Int_Int(self, key, h) {
   var visited = 0;
   L0: for (;;) {
     if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       var at = self.index.items[slot];
       if (at === -1) {
         return -1;
@@ -153,7 +153,7 @@ function indexFind_String_Int(self, key, h) {
   var visited = 0;
   L0: for (;;) {
     if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       var at = self.index.items[slot];
       if (at === -1) {
         return -1;
@@ -209,7 +209,7 @@ function indexRebuild_Int_Int(self, slots) {
   var slot = 0;
   L0: for (;;) {
     if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
       slot = slot + 1 | 0;
       continue L0;
@@ -236,11 +236,11 @@ function indexPlace_Int_Int(self, at, h) {
   L0: for (;;) {
     if (visited <= v4) {
       var v25 = self.index.length;
-      checkCondition(slot >>> 0 >= v25);
+      checkCondition(slot >>> 0 >= v25 ? 1 : 0);
       var v30 = self.index.items;
       var taken = v30[slot];
       if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25);
+        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
         v30[slot] = at | 0;
         if (taken === -1) {
           self.live = self.live + 1 & 1073741823;
@@ -314,7 +314,7 @@ function indexRebuild_String_Int(self, slots) {
   var slot = 0;
   L0: for (;;) {
     if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
       slot = slot + 1 | 0;
       continue L0;
@@ -341,11 +341,11 @@ function indexPlace_String_Int(self, at, h) {
   L0: for (;;) {
     if (visited <= v4) {
       var v25 = self.index.length;
-      checkCondition(slot >>> 0 >= v25);
+      checkCondition(slot >>> 0 >= v25 ? 1 : 0);
       var v30 = self.index.items;
       var taken = v30[slot];
       if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25);
+        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
         v30[slot] = at | 0;
         if (taken === -1) {
           self.live = self.live + 1 & 1073741823;

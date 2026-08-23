@@ -162,6 +162,21 @@ fn orSkips() -> Bool {
     ret %v1
 }
 
+fn truthEquals(%f: Flags, %expected: Bool) -> Bool {
+  b0:
+    %v2 = call Truth(Flags).truthy, %f : Bool
+    %v3 = cmp_eq %v2, %expected : Bool
+    ret %v3
+}
+
+fn truthDiffers(%f: Flags, %other: Flags) -> Bool {
+  b0:
+    %v2 = call Truth(Flags).truthy, %f : Bool
+    %v3 = call Truth(Flags).truthy, %other : Bool
+    %v4 = cmp_ne %v2, %v3 : Bool
+    ret %v4
+}
+
 fn main() -> Int {
   b0:
     %score = alloc : Int
@@ -411,29 +426,100 @@ fn main() -> Int {
 
   b63:
     %v165 = load read : Flags
-    %v166 = load write : Flags
-    %both = call Bitwise(Flags).or, %v165, %v166 : Flags
-    %v168 = load read : Flags
-    %v169 = call Bitwise(Flags).and, %both, %v168 : Flags
-    %v170 = load read : Flags
-    %v171 = call Eq(Flags).==, %v169, %v170 : Bool
-    %v173 = xor %v171, True : Bool
-    je %v173, b64, b65
+    %v167 = call truthEquals, %v165, True : Bool
+    %v169 = xor %v167, True : Bool
+    je %v169, b64, b65
 
   b64:
-    ret 13
+    ret 31
 
   b65:
     jmp b66
 
   b66:
-    %v178 = load %score : Int
-    %v179 = call bitsOf, %both : I64
-    %v180 = cast %v179 : Int
-    %v181 = add %v178, %v180 : Int
-    assign %score, %v181
-    %v183 = load %score : Int
-    ret %v183
+    %v174 = load read : Flags
+    %v176 = call truthEquals, %v174, False : Bool
+    je %v176, b67, b68
+
+  b67:
+    ret 32
+
+  b68:
+    jmp b69
+
+  b69:
+    %v181 = load empty : Flags
+    %v183 = call truthEquals, %v181, False : Bool
+    %v185 = xor %v183, True : Bool
+    je %v185, b70, b71
+
+  b70:
+    ret 33
+
+  b71:
+    jmp b72
+
+  b72:
+    %v190 = load empty : Flags
+    %v192 = call truthEquals, %v190, True : Bool
+    je %v192, b73, b74
+
+  b73:
+    ret 34
+
+  b74:
+    jmp b75
+
+  b75:
+    %v197 = load read : Flags
+    %v198 = load empty : Flags
+    %v199 = call truthDiffers, %v197, %v198 : Bool
+    %v201 = xor %v199, True : Bool
+    je %v201, b76, b77
+
+  b76:
+    ret 35
+
+  b77:
+    jmp b78
+
+  b78:
+    %v206 = load read : Flags
+    %v207 = load write : Flags
+    %v208 = call truthDiffers, %v206, %v207 : Bool
+    je %v208, b79, b80
+
+  b79:
+    ret 36
+
+  b80:
+    jmp b81
+
+  b81:
+    %v213 = load read : Flags
+    %v214 = load write : Flags
+    %both = call Bitwise(Flags).or, %v213, %v214 : Flags
+    %v216 = load read : Flags
+    %v217 = call Bitwise(Flags).and, %both, %v216 : Flags
+    %v218 = load read : Flags
+    %v219 = call Eq(Flags).==, %v217, %v218 : Bool
+    %v221 = xor %v219, True : Bool
+    je %v221, b82, b83
+
+  b82:
+    ret 13
+
+  b83:
+    jmp b84
+
+  b84:
+    %v226 = load %score : Int
+    %v227 = call bitsOf, %both : I64
+    %v228 = cast %v227 : Int
+    %v229 = add %v226, %v228 : Int
+    assign %score, %v229
+    %v231 = load %score : Int
+    ret %v231
 }
 
 fn bitsOf(%f: Flags) -> I64 {

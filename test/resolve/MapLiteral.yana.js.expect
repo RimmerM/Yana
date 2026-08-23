@@ -102,7 +102,7 @@ function indexRebuild_Int_Int(self, slots) {
   var slot = 0;
   L0: for (;;) {
     if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
       slot = slot + 1 | 0;
       continue L0;
@@ -133,11 +133,11 @@ function indexPlace_Int_Int(self, at, h) {
   L0: for (;;) {
     if (visited <= v4) {
       var v25 = self.index.length;
-      checkCondition(slot >>> 0 >= v25);
+      checkCondition(slot >>> 0 >= v25 ? 1 : 0);
       var v30 = self.index.items;
       var taken = v30[slot];
       if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25);
+        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
         v30[slot] = at | 0;
         if (taken === -1) {
           self.live = self.live + 1 & 1073741823;
@@ -198,7 +198,7 @@ function indexFind_Int_Int(self, key, h) {
   var visited = 0;
   L0: for (;;) {
     if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       var at = self.index.items[slot];
       if (at === -1) {
         return -1;
@@ -262,7 +262,7 @@ function indexRebuild_String_Int(self, slots) {
   var slot = 0;
   L0: for (;;) {
     if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
       slot = slot + 1 | 0;
       continue L0;
@@ -316,11 +316,11 @@ function indexPlace_String_Int(self, at, h) {
   L0: for (;;) {
     if (visited <= v4) {
       var v25 = self.index.length;
-      checkCondition(slot >>> 0 >= v25);
+      checkCondition(slot >>> 0 >= v25 ? 1 : 0);
       var v30 = self.index.items;
       var taken = v30[slot];
       if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25);
+        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
         v30[slot] = at | 0;
         if (taken === -1) {
           self.live = self.live + 1 & 1073741823;
@@ -388,7 +388,7 @@ function indexFind_String_Int(self, key, h) {
   var visited = 0;
   L0: for (;;) {
     if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       var at = self.index.items[slot];
       if (at === -1) {
         return -1;
@@ -456,7 +456,7 @@ function indexRebuild_Int_Array_Int(self, slots) {
   var slot = 0;
   L0: for (;;) {
     if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
       slot = slot + 1 | 0;
       continue L0;
@@ -483,11 +483,11 @@ function indexPlace_Int_Array_Int(self, at, h) {
   L0: for (;;) {
     if (visited <= v4) {
       var v25 = self.index.length;
-      checkCondition(slot >>> 0 >= v25);
+      checkCondition(slot >>> 0 >= v25 ? 1 : 0);
       var v30 = self.index.items;
       var taken = v30[slot];
       if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25);
+        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
         v30[slot] = at | 0;
         if (taken === -1) {
           self.live = self.live + 1 & 1073741823;
@@ -553,7 +553,7 @@ function indexFind_Int_Array_Int(self, key, h) {
   var visited = 0;
   L0: for (;;) {
     if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       var at = self.index.items[slot];
       if (at === -1) {
         return -1;
@@ -621,7 +621,7 @@ function indexRebuild_Int_Map_Int_Int(self, slots) {
   var slot = 0;
   L0: for (;;) {
     if (slot < v9) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       self.index.items[slot] = -1;
       slot = slot + 1 | 0;
       continue L0;
@@ -648,11 +648,11 @@ function indexPlace_Int_Map_Int_Int(self, at, h) {
   L0: for (;;) {
     if (visited <= v4) {
       var v25 = self.index.length;
-      checkCondition(slot >>> 0 >= v25);
+      checkCondition(slot >>> 0 >= v25 ? 1 : 0);
       var v30 = self.index.items;
       var taken = v30[slot];
       if (taken < 0) {
-        checkCondition(slot >>> 0 >= v25);
+        checkCondition(slot >>> 0 >= v25 ? 1 : 0);
         v30[slot] = at | 0;
         if (taken === -1) {
           self.live = self.live + 1 & 1073741823;
@@ -724,7 +724,7 @@ function indexFind_Int_Map_Int_Int(self, key, h) {
   var visited = 0;
   L0: for (;;) {
     if (visited <= v4) {
-      checkCondition(slot >>> 0 >= self.index.length);
+      checkCondition(slot >>> 0 >= self.index.length ? 1 : 0);
       var at = self.index.items[slot];
       if (at === -1) {
         return -1;
@@ -806,13 +806,13 @@ function main() {
     return -1;
   } else {
     var at = findEntry_Int_Int(v8, 1, mix32(67918732));
-    checkCondition(at < 0);
+    checkCondition(at < 0 ? 1 : 0);
     var v38 = v8.values.items[at];
     var at$1 = findEntry_Int_Int(v8, 2, mix32(118251589));
-    checkCondition(at$1 < 0);
+    checkCondition(at$1 < 0 ? 1 : 0);
     var v45 = v38 + v8.values.items[at$1] | 0;
     var at$2 = findEntry_Int_Int(v8, 3, mix32(101473970));
-    checkCondition(at$2 < 0);
+    checkCondition(at$2 < 0 ? 1 : 0);
     if ((v45 + v8.values.items[at$2] | 0) !== 60) {
       return -2;
     } else {
@@ -822,12 +822,12 @@ function main() {
         return -3;
       } else {
         var at$3 = findEntry_Int_Int(v8, 1, mix32(67918732));
-        checkCondition(at$3 < 0);
+        checkCondition(at$3 < 0 ? 1 : 0);
         if (v8.values.items[at$3] !== 100) {
           return -4;
         } else {
           var at$4 = findEntry_Int_Int(v8, 4, mix32(17585875));
-          checkCondition(at$4 < 0);
+          checkCondition(at$4 < 0 ? 1 : 0);
           if (v8.values.items[at$4] !== 40) {
             return -5;
           } else {
@@ -842,7 +842,7 @@ function main() {
               } else {
                 IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v149, 1, 5);
                 var at$5 = findEntry_Int_Int(v149, 1, mix32(67918732));
-                checkCondition(at$5 < 0);
+                checkCondition(at$5 < 0 ? 1 : 0);
                 if (v149.values.items[at$5] !== 5) {
                   return -8;
                 } else {
@@ -864,10 +864,10 @@ function main() {
                         IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v254, 9, 90);
                         IndexInsert_Map_k_v_k_v_insertAt_Int_Int(v254, 8, 80);
                         var at$6 = findEntry_Int_Int(v254, 9, mix32(202139684));
-                        checkCondition(at$6 < 0);
+                        checkCondition(at$6 < 0 ? 1 : 0);
                         var v273 = v254.values.items[at$6];
                         var at$7 = findEntry_Int_Int(v254, 8, mix32(218917303));
-                        checkCondition(at$7 < 0);
+                        checkCondition(at$7 < 0 ? 1 : 0);
                         if ((v273 + v254.values.items[at$7] | 0) !== 170) {
                           return -12;
                         } else {
@@ -879,12 +879,12 @@ function main() {
                             return -13;
                           } else {
                             var at$8 = findEntry_Int_Int(dup, 1, mix32(67918732));
-                            checkCondition(at$8 < 0);
+                            checkCondition(at$8 < 0 ? 1 : 0);
                             if (dup.values.items[at$8] !== 30) {
                               return -14;
                             } else {
                               var at$9 = findEntry_Int_Int(dup, 2, mix32(118251589));
-                              checkCondition(at$9 < 0);
+                              checkCondition(at$9 < 0 ? 1 : 0);
                               if (dup.values.items[at$9] !== 20) {
                                 return -15;
                               } else {
@@ -909,7 +909,7 @@ function main() {
                                   L0: for (;;) {
                                     if (i < 12) {
                                       var at$10 = findEntry_Int_Int(v385, i, hashKey_Int(i));
-                                      checkCondition(at$10 < 0);
+                                      checkCondition(at$10 < 0 ? 1 : 0);
                                       if (v385.values.items[at$10] === Math.imul(i, 10)) {
                                         found = found + 1 | 0;
                                       }
@@ -942,10 +942,10 @@ function main() {
                                     } else {
                                       IndexInsert_Map_k_v_k_v_insertAt_Int_Int(shared, 6, 60);
                                       var at$12 = findEntry_Int_Int(shared, 5, mix32(808256));
-                                      checkCondition(at$12 < 0);
+                                      checkCondition(at$12 < 0 ? 1 : 0);
                                       var v543 = shared.values.items[at$12];
                                       var at$13 = findEntry_Int_Int(shared, 6, mix32(51141113));
-                                      checkCondition(at$13 < 0);
+                                      checkCondition(at$13 < 0 ? 1 : 0);
                                       if ((v543 + shared.values.items[at$13] | 0) !== 110) {
                                         return -19;
                                       } else {
@@ -954,13 +954,13 @@ function main() {
                                         var two = pair_String_Int("x", 1, "y", 2);
                                         var v952 = newMap_Int_Int(0);
                                         var at$14 = findEntry_Int_Int(v946, 1, mix32(67918732));
-                                        checkCondition(at$14 < 0);
+                                        checkCondition(at$14 < 0 ? 1 : 0);
                                         var v579 = v946.values.items[at$14];
                                         var at$15 = findEntry_String_Int(two, "x", hashKey_String("x"));
-                                        checkCondition(at$15 < 0);
+                                        checkCondition(at$15 < 0 ? 1 : 0);
                                         var v584 = v579 + two.values.items[at$15] | 0;
                                         var at$16 = findEntry_String_Int(two, "y", hashKey_String("y"));
-                                        checkCondition(at$16 < 0);
+                                        checkCondition(at$16 < 0 ? 1 : 0);
                                         if (((v584 + two.values.items[at$16] | 0) + v952.keys.length | 0) !== 13) {
                                           return -20;
                                         } else {
@@ -1015,10 +1015,10 @@ function main() {
                                             reserve_Map_Int_Int(v1036.values, 1);
                                             IndexInsert_Map_k_v_k_v_insertAt_Int_Map_Int_Int(v1036, 1, v665);
                                             var at$18 = findEntry_Int_Map_Int_Int(v1036, 1, mix32(67918732));
-                                            checkCondition(at$18 < 0);
+                                            checkCondition(at$18 < 0 ? 1 : 0);
                                             var v1135 = v1036.values;
                                             var at$19 = findEntry_Int_Int(v1135[at$18], 2, mix32(118251589));
-                                            checkCondition(at$19 < 0);
+                                            checkCondition(at$19 < 0 ? 1 : 0);
                                             return v1135[at$18].values.items[at$19] !== 3 ? -22 : 1;
                                           }
                                         }

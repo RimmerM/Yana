@@ -6,8 +6,8 @@ var effects = 0;
 
 // ResolveTest
 function main() {
-  var v245;
-  var v259;
+  var v293;
+  var v307;
   var score = 0;
   if (empty !== 0n) {
     return 1;
@@ -34,20 +34,20 @@ function main() {
             }
             if (read !== 0n) {
               effects = effects + 1 | 0;
-              v245 = 1;
+              v293 = 1;
             } else {
-              v245 = 0;
+              v293 = 0;
             }
-            if (v245 ^ 1) {
+            if (v293 ^ 1) {
               return 10;
             } else {
               if (read !== 0n) {
-                v259 = 1;
+                v307 = 1;
               } else {
                 effects = effects + 1 | 0;
-                v259 = read !== 0n;
+                v307 = read !== 0n ? 1 : 0;
               }
-              if (v259 ^ 1) {
+              if (v307 ^ 1) {
                 return 11;
               } else {
                 if (effects !== 1) {
@@ -65,13 +65,37 @@ function main() {
                         if (read !== 0n ^ 1) {
                           return 26;
                         } else {
-                          var v334 = BigInt.asIntN(64, read | write);
-                          if (BigInt.asIntN(64, v334 & read) === read ^ 1) {
-                            return 13;
+                          if (read !== 0n ^ 1) {
+                            return 31;
                           } else {
-                            var v181 = score + (Number(v334) | 0) | 0;
-                            score = v181;
-                            return v181;
+                            if (!(read !== 0n)) {
+                              return 32;
+                            } else {
+                              if (!(empty !== 0n) ^ 1) {
+                                return 33;
+                              } else {
+                                if (empty !== 0n) {
+                                  return 34;
+                                } else {
+                                  if ((read !== 0n ? 1 : 0) !== (empty !== 0n ? 1 : 0) ^ 1) {
+                                    return 35;
+                                  } else {
+                                    if ((read !== 0n ? 1 : 0) !== (write !== 0n ? 1 : 0)) {
+                                      return 36;
+                                    } else {
+                                      var v412 = BigInt.asIntN(64, read | write);
+                                      if (BigInt.asIntN(64, v412 & read) === read ^ 1) {
+                                        return 13;
+                                      } else {
+                                        var v229 = score + (Number(v412) | 0) | 0;
+                                        score = v229;
+                                        return v229;
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       }
