@@ -1,0 +1,84 @@
+let image$base: () = <none>
+
+fn newtypeContent(%f: Flags) -> I64 {
+  b0:
+    %v1 = load %f@Flags : I64
+    ret %v1
+}
+
+fn wrappedContent(%w: Wrapped) -> I64 {
+  b0:
+    %v1 = load %w@Wrapped : I64
+    ret %v1
+}
+
+fn tupleFirst(%t: {I64, Bool}) -> I64 {
+  b0:
+    %v1 = load %t.0 : I64
+    ret %v1
+}
+
+fn tupleSecond(%t: {I64, Bool}) -> Bool {
+  b0:
+    %v1 = load %t.1 : Bool
+    ret %v1
+}
+
+fn recordSecond(%t: Two) -> I64 {
+  b0:
+    %v1 = load %t@Two.1 : I64
+    ret %v1
+}
+
+fn throughPointer(%p: %Two) -> I64 {
+  b0:
+    %v1 = load [%p]@Two.1 : I64
+    ret %v1
+}
+
+fn callsIndexedField(%t: {(I64) -> I64, Bool}) -> I64 {
+  b0:
+    %v1 = load %t.0 : (I64) -> I64
+    %v3 = calldyn %v1, 3 : I64
+    ret %v3
+}
+
+fn writesIndex() -> I64 {
+  b0:
+    %v2 = alloc : {I64, I64}
+    init %t.0, 1
+    init %t.1, 2
+    assign %t.0, 7
+    %v7 = load %t : {I64, I64}
+    %v8 = load %t.0 : I64
+    %v9 = load %t : {I64, I64}
+    %v10 = load %t.1 : I64
+    %v11 = add %v8, %v10 : I64
+    ret %v11
+}
+
+fn writesContent() -> I64 {
+  b0:
+    %v0 = alloc : Flags
+    init %f@Flags, 3
+    assign %f@Flags, 9
+    %v5 = load %f : Flags
+    %v6 = load %f@Flags : I64
+    ret %v6
+}
+
+fn main() -> I64 {
+  b0:
+    %v0 = call writesIndex : I64
+    %v1 = call writesContent : I64
+    %v2 = add %v0, %v1 : I64
+    %v3 = alloc : {I64, Bool}
+    aggregate %local0.0 = 4, %local0.1 = True
+    %v7 = call tupleFirst, %v3 : I64
+    %v8 = add %v2, %v7 : I64
+    %v9 = alloc : Flags
+    init %local1@Flags, 20
+    %v12 = call newtypeContent, %v9 : I64
+    %v13 = add %v8, %v12 : I64
+    ret %v13
+}

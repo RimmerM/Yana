@@ -1770,16 +1770,28 @@ Maybe<Place> ExprResolver::projectField(Place place, const ast::Expr& field, Loc
         return Nothing();
     }
 
+    /*
+     * `e.0` - a positional selection, which the grammar has always had in the field position and
+     * which nothing below it implemented. A field written without a name is reachable by the only
+     * thing that names it, and an integer literal is that.
+     */
+    if(ast::isLiteral(field) && ast::Literal::Kind(field.kind - ast::Expr::Lit) == ast::Literal::Int) {
+        return projectFieldAt(place, field.lit.i(), field.source, source);
+    }
+
     if(field.kind != ast::Expr::Var) {
-        context.diagnostics.error("field selection requires a field name"_v, field.source);
+        context.diagnostics.error("field selection requires a field name or a field index"_v, field.source);
         return Nothing();
     }
 
     return projectField(place, field.var, field.source, source);
 }
 
-Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId fieldSource, LocationId source) {
-    auto type = placeType(place);
+ExprResolver::FieldWalk ExprResolver::stepToFields(Place& place, TypePtr& type, TypePtr& owner,
+                                                   LocationId& ownerSource, bool& carried,
+                                                   LocationId source) {
+    type = placeType(place);
+    carried = false;
 
     // Field selection reads through a reference, one step per `.`, so a chain reaches through as
     // many links as it has - see reportUnfollowedReference above for why this is one rule over
@@ -1788,28 +1800,17 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
         place = project(place, ProjectionKind::Deref, 0);
         type = placeType(place);
     } else if(reportUnfollowedReference(type, source)) {
-        return Nothing();
+        return FieldWalk::Failed;
     }
 
-    /*
-     * A field of a type this body cannot see.
-     *
-     * Not an error and not a guess: the access becomes a *requirement* that the context has such a
-     * field, and the projection names the slot that records it. Where the field actually is depends
-     * on the owner's Repr, which is not decided until the owner is - so this is the one projection
-     * that is resolved later, when specialization turns `a` into a type with a layout.
-     */
-    if(global[type]->kind == Type::Gen) {
-        auto slot = requireProperty(module, function, type, field, source);
-        if(slot == maxLimit<U16>) return Nothing();
-
-        return Just(project(place, ProjectionKind::Property, slot));
-    }
+    // A field of a type this body cannot see - the caller's question, because a *name* becomes a
+    // property requirement the context records and an index has nothing to record.
+    if(global[type]->kind == Type::Gen) return FieldWalk::Generic;
 
     // The declaration the field belongs to, kept across the downcast so that jumping to a field
     // lands on the `data` line that declares it. A tuple has no declaration of its own.
-    auto owner = type;
-    auto ownerSource = kNullLocation;
+    owner = type;
+    ownerSource = kNullLocation;
 
     // A single-constructor record has no discriminant to test, so selecting a field out of one
     // is a downcast to its only constructor followed by an ordinary field projection.
@@ -1817,12 +1818,40 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
         auto record = (RecordType*)global[type];
         if(record->layout != RecordType::Single) {
             context.diagnostics.error("direct field selection requires a single-constructor record"_v, source);
-            return Nothing();
+            return FieldWalk::Failed;
         }
 
         ownerSource = global[record->base(global)]->source;
         place = project(place, ProjectionKind::Downcast, 0);
         type = record->constructors.get(global, 0).content;
+        carried = true;
+    }
+
+    return FieldWalk::Content;
+}
+
+Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId fieldSource, LocationId source) {
+    TypePtr type = nullptr;
+    TypePtr owner = nullptr;
+    LocationId ownerSource = kNullLocation;
+    bool carried = false;
+
+    switch(stepToFields(place, type, owner, ownerSource, carried, source)) {
+        case FieldWalk::Failed: return Nothing();
+        case FieldWalk::Generic: {
+            /*
+             * Not an error and not a guess: the access becomes a *requirement* that the context has
+             * such a field, and the projection names the slot that records it. Where the field
+             * actually is depends on the owner's Repr, which is not decided until the owner is - so
+             * this is the one projection that is resolved later, when specialization turns `a` into
+             * a type with a layout.
+             */
+            auto slot = requireProperty(module, function, type, field, source);
+            if(slot == maxLimit<U16>) return Nothing();
+
+            return Just(project(place, ProjectionKind::Property, slot));
+        }
+        case FieldWalk::Content: break;
     }
 
     if(!type || global[type]->kind != Type::Tup) {
@@ -1852,6 +1881,75 @@ Maybe<Place> ExprResolver::projectField(Place place, StringId field, LocationId 
 
     context.diagnostics.error("unknown field %@"_v, fieldSource, context.findName(field));
     return Nothing();
+}
+
+/*
+ * `e.0` - selection by position.
+ *
+ * **Anonymous fields only.** A named field has a name, and an index beside it would be a second
+ * spelling of the same slot that stops naming the same slot the moment a field is inserted or
+ * moved - so `{x: Int, y: Int}` is reached by `x` and `y` and by nothing else. What is left is
+ * exactly the set of fields with no other spelling: a positional tuple's, and the single unnamed
+ * field a constructor written `Con(T)` carries.
+ *
+ * That second case is what makes this reach a newtype's content. `alias qualified Id = Int`
+ * declares one constructor carrying one unnamed field, so `id.0` is that field - which is the whole
+ * of what a wrapper had to be destructured to get at. The content is not a tuple there, since a
+ * parenthesised constructor takes one type and not a comma list, so the downcast `stepToFields`
+ * already took *is* the field and there is nothing further to project.
+ *
+ * `carried` is what keeps that from reaching a bare scalar. A newtype over `I64` and an `I64` have
+ * one representation and the walk lands on the same bytes for both; only the first was written with
+ * a field to select, and only the first stepped through a constructor to get here.
+ */
+Maybe<Place> ExprResolver::projectFieldAt(Place place, U64 index, LocationId fieldSource, LocationId source) {
+    TypePtr type = nullptr;
+    TypePtr owner = nullptr;
+    LocationId ownerSource = kNullLocation;
+    bool carried = false;
+
+    switch(stepToFields(place, type, owner, ownerSource, carried, source)) {
+        case FieldWalk::Failed: return Nothing();
+        case FieldWalk::Generic:
+            // A field constraint names a field, so a generic receiver has names and no positions:
+            // nothing could have promised `a.0`, and a requirement numbered rather than named would
+            // be a promise no constraint can be written to keep.
+            context.diagnostics.error("a value of a type parameter has no positional fields - a field constraint names the field it promises, so select it by that name"_v, source);
+            return Nothing();
+        case FieldWalk::Content: break;
+    }
+
+    // The one unnamed field a `Con(T)` constructor carries, which the downcast has already reached.
+    if(type && global[type]->kind != Type::Tup && carried) {
+        if(index != 0) {
+            context.diagnostics.error("%@ carries one field, so `.0` is the only index it has"_v,
+                                      fieldSource, describeType(context, global, owner));
+            return Nothing();
+        }
+
+        return Just(place);
+    }
+
+    if(!type || global[type]->kind != Type::Tup) {
+        context.diagnostics.error("value does not contain positional fields"_v, source);
+        return Nothing();
+    }
+
+    auto tuple = (TupType*)global[type];
+    if(index >= tuple->fields.size()) {
+        context.diagnostics.error("field index %@ is out of range - this value has %@ fields"_v,
+                                  fieldSource, index, U64(tuple->fields.size()));
+        return Nothing();
+    }
+
+    auto selected = tuple->fields.get(global, Size(index));
+    if(selected.name) {
+        context.diagnostics.error("field %@ is named `%@`, so it is selected by that name - an index reaches an anonymous field only, since a named field moves when the declaration changes and its position does not say so"_v,
+                                  fieldSource, index, context.findName(selected.name));
+        return Nothing();
+    }
+
+    return Just(project(place, ProjectionKind::Field, U16(index)));
 }
 
 /*

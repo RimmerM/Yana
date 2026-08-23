@@ -1,0 +1,53 @@
+{-
+   `e.0` - field selection by position.
+
+   The grammar has always had a literal in the field position and nothing below it implemented one,
+   so this is the spelling being made to exist rather than a new one being invented.
+
+   **Anonymous fields only.** A named field is reached by its name and by nothing else: an index
+   beside a name would be a second spelling of the same slot that stops naming the same slot the
+   moment a field is inserted or moved, and the declaration that moved it says nothing about the
+   call sites that counted. What is left is exactly the fields with no other spelling - a positional
+   tuple's, and the one unnamed field a constructor written `Con(T)` carries.
+
+   That second case is why this exists: a newtype's content is that field, so `id.0` reads it and
+   the wrapper no longer has to be destructured to get at what it wraps.
+-}
+
+alias qualified Flags = I64
+data Wrapped = Wrapped(I64)
+data Two = Two {I64, I64}
+
+-- A newtype's content, which is not a tuple: the downcast to the one constructor *is* the field.
+fn newtypeContent(f: Flags) -> I64 = f.0
+
+-- The same shape written as a `data`, which is the same projection.
+fn wrappedContent(w: Wrapped) -> I64 = w.0
+
+-- A positional tuple, where the index is an ordinary field projection.
+fn tupleFirst(t: {I64, Bool}) -> I64 = t.0
+fn tupleSecond(t: {I64, Bool}) -> Bool = t.1
+
+-- A single-constructor record whose content is a positional tuple: downcast, then the index.
+fn recordSecond(t: Two) -> I64 = t.1
+
+-- Through a reference, one step per `.` exactly as a name takes.
+fn throughPointer(p: %Two) -> I64 = p.1
+
+-- The field position is a field position and never a function name, so an index holding a callable
+-- is called indirectly - which is what resolveDotCall's `t.0(x)` note is about.
+fn callsIndexedField(t: {(I64) -> I64, Bool}) -> I64 = t.0(3)
+
+-- A write reaches the same place a read does, since both go through projectField.
+fn writesIndex() -> I64:
+    let &t = {1 :: I64, 2 :: I64}
+    t.0 = 7
+    return t.0 + t.1
+
+-- And a newtype's content is writable in exactly the same way.
+fn writesContent() -> I64:
+    let &f = Flags(3)
+    f.0 = 9
+    return f.0
+
+fn main() -> I64 = writesIndex() + writesContent() + tupleFirst({4 :: I64, True}) + newtypeContent(Flags(20))

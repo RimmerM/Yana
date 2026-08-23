@@ -82,6 +82,12 @@ enum class HostMember: U8 {
     CharCodeAt,
     IndexOf,
 
+    // `n.toExponential()` - the shortest decimal that reads back as this number, which is what the
+    // specification requires of the no-argument form and is exactly what Ryu computes on the other
+    // target. With an argument it is that many digits after the point instead, which is what the
+    // `Float` instance walks upwards to find the shortest representation at its own width.
+    ToExponential,
+
     // The operators, whose "member name" is the operator's own spelling - see NativeOp::HostBinary.
     // They are in the same enum because they are read the same way: `method` carries the text and
     // the emitter prints it, and which arm prints it as a member and which as an operator is the
@@ -95,6 +101,10 @@ enum class HostMember: U8 {
     FromCharCode,
     Log,
 
+    // `Number(text)` - the host's own decimal-to-double conversion, correctly rounded by
+    // specification. It is the other target's `readDouble` and its whole table.
+    ToNumber,
+
     // The one that is a statement rather than a call or an operator - see NativeOp::HostThrow. Its
     // "member name" is never printed; the emitter writes `throw` itself.
     Fail,
@@ -106,11 +116,13 @@ StringView hostMemberName(HostMember member) {
         case HostMember::CopyWithin: return "copyWithin"_v;
         case HostMember::CharCodeAt: return "charCodeAt"_v;
         case HostMember::IndexOf: return "indexOf"_v;
+        case HostMember::ToExponential: return "toExponential"_v;
         case HostMember::Concat: return "+"_v;
         case HostMember::Equal: return "==="_v;
         case HostMember::Less: return "<"_v;
         case HostMember::FromCharCode: return "String.fromCharCode"_v;
         case HostMember::Log: return "console.log"_v;
+        case HostMember::ToNumber: return "Number"_v;
         case HostMember::Fail: return "throw"_v;
     }
 
@@ -332,6 +344,16 @@ void defineHost(Program& program) {
     attachIntrinsic(*module, "hostFromCharCode"_v, emitHostMember<NativeOp::HostGlobalCall, HostMember::FromCharCode>);
     attachIntrinsic(*module, "hostLog"_v, emitHostMember<NativeOp::HostGlobalCall, HostMember::Log>);
     attachIntrinsic(*module, "hostFail"_v, emitHostMember<NativeOp::HostThrow, HostMember::Fail>);
+
+    // The float text tier - Analysis-Library.md §2.1's JS column. Both are the host's own, which is
+    // the same ruling `indexOf` above takes: what these compute is specified exactly, so there is no
+    // room for the cross-engine disagreement that keeps the decoding tier out of the host.
+    attachIntrinsic(*module, "hostToExponential"_v,
+                    emitHostMember<NativeOp::HostCall, HostMember::ToExponential>);
+    attachIntrinsic(*module, "hostToExponentialAt"_v,
+                    emitHostMember<NativeOp::HostCall, HostMember::ToExponential>);
+    attachIntrinsic(*module, "hostToNumber"_v,
+                    emitHostMember<NativeOp::HostGlobalCall, HostMember::ToNumber>);
 
     /*
      * `hostAtMut` answers a *mutable* borrow, and the grammar has one spelling for a borrow type -

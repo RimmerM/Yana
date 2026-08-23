@@ -1,0 +1,29 @@
+{-
+   What `e.0` refuses - see FieldIndex.yana for what it accepts.
+
+   Each of these is a value that *has* the slot the index would reach. The refusals are about the
+   index being the wrong way to name it, not about the slot being absent.
+-}
+
+alias qualified Flags = I64
+data Named = Named {bits: I64}
+data Sum = A(I64) | B(I64)
+
+-- A named field is named, and an index beside a name is a spelling that stops naming this slot the
+-- moment the declaration changes. The same rule over a declared record and an anonymous tuple.
+fn namedRecord(n: Named) -> I64 = n.0
+fn namedTuple(t: {x: I64, y: I64}) -> I64 = t.0
+
+-- Past the end, which the tuple's own arity answers.
+fn pastEnd(t: {I64, Bool}) -> I64 = t.2
+
+-- A constructor carries one field, so the only index it has is zero. Reported against the arity
+-- rather than as "out of range", since "this has two fields and you asked for the third" would be
+-- a count nothing wrote.
+fn pastContent(f: Flags) -> I64 = f.1
+
+-- A sum has to be matched on before any of it is a field, index or name.
+fn sum(s: Sum) -> I64 = s.0
+
+-- A field constraint names the field it promises, so a generic receiver has names and no positions.
+fn generic(v: a) -> I64 = v.0

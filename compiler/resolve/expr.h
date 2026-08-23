@@ -1836,6 +1836,28 @@ struct ExprResolver {
     Maybe<Place> projectField(Place place, const ast::Expr& field, LocationId source);
     Maybe<Place> projectField(Place place, StringId field, LocationId fieldSource, LocationId source);
 
+    // The same, selecting by position rather than by name - `e.0`. Only an *anonymous* field is
+    // reachable this way; see the definition for why a named one is not.
+    Maybe<Place> projectFieldAt(Place place, U64 index, LocationId fieldSource, LocationId source);
+
+    // What `stepToFields` found. `Generic` is a receiver whose fields this body cannot see, which
+    // the two selections answer differently; `Failed` has already been reported.
+    enum class FieldWalk { Failed, Generic, Content };
+
+    /*
+     * The walk both field selections take: one step through a reference, then the downcast a
+     * single-constructor record needs, leaving `place` at the content its fields live in.
+     *
+     * Shared rather than repeated because the two selections ask the same question of the receiver
+     * and differ only in how they name the answer - which is the opposite of `hasFieldNamed`, whose
+     * copy of this walk exists because it has no place and nothing to report.
+     *
+     * `carried` says whether a constructor was stepped through, which is what separates a bare
+     * `I64` from a newtype over one: only the latter has a field at position zero.
+     */
+    FieldWalk stepToFields(Place& place, TypePtr& type, TypePtr& owner, LocationId& ownerSource,
+                           bool& carried, LocationId source);
+
     // Reports a reference kind `.` cannot follow yet - a region pointer or a checked reference,
     // whose dereferences need more than an address. False for anything else, including a raw
     // pointer, which is followed. See expr_construct.cpp.
