@@ -142,7 +142,14 @@ bool isScalarPlace(LowerContext& lower, const Place& place);
 
 // -- lower_type.cpp ----------------------------------------------------------------------------
 
-LowerType lowerType(GlobalBase base, TypePtr type);
+/*
+ * The register class a resolve type is held in, which is a question only a target can answer.
+ *
+ * `LowerContext` rather than a `GlobalBase`, and that is Move 2: `Size` is the target's word, so
+ * `lowerType` needs the table's `IntWidths` to say whether it is `Int32` or `Int64`. Everything in
+ * this family that compares a width against its register takes the context for the same reason.
+ */
+LowerType lowerType(LowerContext& lower, TypePtr type);
 bool signedType(GlobalBase base, TypePtr type);
 
 // Whether arithmetic on this type is the signed instruction, which reads a vector's lane where
@@ -164,10 +171,10 @@ LowerPtr<LowerValue> descAlign(LowerContext& lower, LowerBlock& block, LowerPtr<
 LowerPtr<LowerValue> tableSlotAddress(LowerContext& lower, LowerBlock& block,
                                       LowerPtr<LowerValue> table, U16 slot);
 U64 lowMask(U32 bits);
-bool narrowerThanRegister(GlobalBase global, TypePtr type);
-bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind);
-bool zeroExtendsShiftOperand(GlobalBase global, TypePtr type, Value::Kind kind);
-U32 signShift(GlobalBase global, TypePtr type);
+bool narrowerThanRegister(LowerContext& lower, TypePtr type);
+bool wrapsAtDeclaredWidth(LowerContext& lower, TypePtr type, Value::Kind kind);
+bool zeroExtendsShiftOperand(LowerContext& lower, TypePtr type, Value::Kind kind);
+U32 signShift(LowerContext& lower, TypePtr type);
 LowerPtr<LowerValue> maskToWidth(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> value,
                                  TypePtr type, LowerType lowered);
 LowerInst* truncateToWidth(LowerContext& lower, LowerBlock& block, LowerInst* result, TypePtr type,

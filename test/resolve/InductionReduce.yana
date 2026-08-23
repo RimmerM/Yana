@@ -40,7 +40,7 @@ data Quad {w: I64, x: I64, y: I64, z: I64}
 -}
 fn sumCells(xs: [Cell]) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < length(xs):
         acc = acc + xs[i].a + xs[i].c
@@ -51,7 +51,7 @@ fn sumCells(xs: [Cell]) -> I64:
 -- The same at a stride that is a shift rather than a multiply.
 fn sumQuads(xs: [Quad]) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < length(xs):
         acc = acc + xs[i].w + xs[i].z
@@ -66,7 +66,7 @@ fn sumQuads(xs: [Quad]) -> I64:
 -}
 fn dotCells(xs: [Cell], ys: [Cell]) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < length(xs) && i < length(ys):
         acc = acc + xs[i].a * ys[i].b
@@ -81,7 +81,7 @@ fn dotCells(xs: [Cell], ys: [Cell]) -> I64:
 -}
 fn sumDown(xs: [Cell]) -> I64:
     let &acc = 0 :: I64
-    let &i = length(xs) - 1 :: I64
+    let &i = length(xs) - 1 :: Size
 
     while i >= 0:
         acc = acc + xs[i].b
@@ -93,7 +93,7 @@ fn sumDown(xs: [Cell]) -> I64:
 -- trade an address that costs nothing for a live pointer and an add per iteration.
 fn sumWords(xs: [I64]) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < length(xs):
         acc = acc + xs[i]

@@ -255,9 +255,16 @@ static TypePtr coreType(Module& module, StringView name) {
 
 // `bits` is the type's size in memory and the width is the primitive it occupies once loaded, so
 // everything below 64 bits arrives in a 32-bit register and only the widest family needs a wider one.
-static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSigned) {
+//
+// `target` is set for the three whose width the machine picks rather than the language - see
+// TargetInt. `bits` is then the largest it may be, and the width class is the target's word for the
+// two that are one and `Int` for `CodeUnit`, whose eight or sixteen bits arrive in a 32-bit register
+// either way.
+static TypePtr addInteger(Module& module, StringView name, U16 bits, bool isSigned,
+                          TargetInt target = TargetInt::None) {
     auto id = module.context.addQualifiedName(name.ptr, name.length, 1);
-    auto type = new (module.types) IntType(bits, IntType::widthFor(bits), isSigned, id);
+    auto width = target == TargetInt::Word ? IntType::Word : IntType::widthFor(bits);
+    auto type = new (module.types) IntType(bits, width, isSigned, id, nullptr, target);
     type->exported = true;
 
     auto pointer = (Type*)type - *module.types;
@@ -273,7 +280,7 @@ static bool widens(GlobalBase global, TypePtr from, TypePtr to) {
 }
 
 static void defineIntegerTypes(Module& module, TypeList& types) {
-    struct Width { StringView name; U16 bits; bool isSigned; };
+    struct Width { StringView name; U16 bits; bool isSigned; TargetInt target = TargetInt::None; };
     static const Width widths[] = {
         { "I8"_v, 8, true },   { "U8"_v, 8, false },
         { "I16"_v, 16, true }, { "U16"_v, 16, false },
@@ -301,9 +308,62 @@ static void defineIntegerTypes(Module& module, TypeList& types) {
          * codegen/js/type.cpp.
          */
         { "WideInt"_v, 53, true },
+
+        /*
+         * `Size` - what an index and a length are carried at, which is the target's word rather than
+         * the language's. C's `size_t`, and it exists for the reason C's does.
+         *
+         * **A primitive of its own, whose width no part of the resolver knows** - Analysis-Modules.md
+         * Move 2. It was a *name* for `I64` natively and for `Int` on JS until then, and that was
+         * wrong in a way an optimization note does not cover: the ternary asked `isJsMode` and
+         * nothing else, so a thirty-two-bit native target got a sixty-four-bit index type - an index
+         * wider than the addresses it indexes, in the one type whose whole reason for existing is
+         * that an index is added to an address.
+         *
+         * The cost the old comment here argued against - "a distinct type would need its own `Eq`,
+         * `Ord`, `Num`, `Integral` and both conversion ladders" - is this table. Every one of those
+         * is generated per entry, so a row costs nothing that the eight fixed widths above did not
+         * already cost, and what it buys is that `Size` stops being a second spelling of a width.
+         *
+         * **Signed**, unlike the counts an owner stores (see `Count` in native.cpp). Those are
+         * unsigned because it makes a bounds test one comparison; this one is signed because it is
+         * the type an `Int` index widens *into*, and a signed-to-unsigned ladder does not widen. The
+         * choice is between one free conversion at every subscript and one extra comparison in
+         * `checkBounds`, and the subscript is the hotter of the two by a long way.
+         *
+         * The bound is 32 to 64 bits and both ends are load-bearing. The low end is what makes
+         * `let n: Size = 3000000000` a diagnostic rather than a program that works on one machine;
+         * the high end is what stops a `Size` being packed into a narrow field. See IntType::minBits.
+         */
+        { "Size"_v, IntType::kWordMaxBits, true, TargetInt::Word },
+
+        // `Size` read the other way, which is not a second index type: it is what a bounds test
+        // compares at, so that one comparison rejects a negative index as well as one past the end.
+        // See the note above on why the index itself is signed, and Implementation-Containers.md
+        // §10.2 for the unsigned counts this meets.
+        { "USize"_v, IntType::kWordMaxBits, false, TargetInt::Word },
+
+        /*
+         * `CodeUnit` - one unit of a string's native encoding - Implementation-Vector.md §9 item 8,
+         * Design-Vector §4.6.
+         *
+         * A UTF-8 byte natively and a UTF-16 unit on JS, which is the same split
+         * Implementation-String.md part 3 already makes for `length`: what is uniform across targets
+         * is the *complexity class* of an operation over units, not the number of them. A program
+         * that names this type is saying "the encoding's own unit", which is what the ASCII scanning
+         * family takes and what a `Chunked(String, CodeUnit)` yields - and an ASCII value means the
+         * same thing in both, which is the self-synchronizing property that whole family rests on.
+         *
+         * Abstract for the same reason `Size` is, and unlike `Size` its answer is a genuine platform
+         * fact rather than a width: nothing about a machine's registers says a string is UTF-8. What
+         * the two share is that resolve has no business knowing which, so both are one mechanism.
+         */
+        { "CodeUnit"_v, IntType::kCodeUnitMaxBits, false, TargetInt::CodeUnit },
     };
 
-    for(auto& width: widths) types.push(addInteger(module, width.name, width.bits, width.isSigned));
+    for(auto& width: widths) {
+        types.push(addInteger(module, width.name, width.bits, width.isSigned, width.target));
+    }
 }
 
 /*
@@ -315,6 +375,9 @@ static void defineIntegerTypes(Module& module, TypeList& types) {
  * gets no rung. `Bool` is excluded by the same rule for a better reason - it is one bit, and a
  * reinterpretation of one bit is a question about the other seven that nothing here can answer.
  */
+// Above every width a type can actually have, so an abstract kind's key is its own - see below.
+static constexpr U16 kTargetWidthKey = 1024;
+
 static U16 reinterpretWidth(GlobalBase global, TypePtr type) {
     if(global[type]->kind == Type::Float) {
         return ((FloatType*)global[type])->width == FloatType::Float ? 32 : 64;
@@ -323,6 +386,26 @@ static U16 reinterpretWidth(GlobalBase global, TypePtr type) {
     if(global[type]->kind != Type::Int) return 0;
 
     auto& integer = *(IntType*)global[type];
+
+    /*
+     * An abstract width pairs with the *same* abstract width and with nothing else.
+     *
+     * The rule is unchanged - two types hold the same value only when they are the same number of
+     * bits - and `Size` is not a number here, so it cannot be compared against one. What it can be
+     * compared against is `USize`, which is the same target quantity read the other way and is
+     * therefore the same width on every target by construction. That pair is the one a bounds test
+     * is written with (`bitcast(index) :: USize`), and it is the reason this returns a key per kind
+     * rather than simply declining.
+     *
+     * The key is above every real width, so it collides with no concrete type. A `CodeUnit` has no
+     * partner and gets no rung, which costs nothing: nothing reinterprets an encoding unit.
+     *
+     * An address is the other pair a program wants, and it is declared where the address is - see
+     * definePointerInstances, which relates a `%a` to `Size` and is sound on every target by
+     * construction rather than by both sides happening to be sixty-four bits.
+     */
+    if(integer.isTargetWidth()) return U16(kTargetWidthKey + U16(integer.target));
+
     return integer.canonical || integer.bits <= 1 ? 0 : integer.bits;
 }
 
@@ -438,60 +521,16 @@ void definePreludeTypes(Program& program, Module& core, TypeList& widthTypes) {
     defineIntegerTypes(*module, widthTypes);
 
     /*
-     * `Size` - what an index and a length are carried at, which is the target's width rather than
-     * the language's. C's `size_t`, and it exists for the reason C's does.
+     * `Size` and `USize`, which `defineIntegerTypes` above has already declared - the argument for
+     * each of them is beside its row there.
      *
-     * A **name for an existing primitive** and not a primitive of its own. A distinct type would
-     * need its own `Eq`, `Ord`, `Num`, `Integral` and both conversion ladders, and would then need
-     * converting to and from the very type it *is* on each target. What is wanted is the opposite -
-     * that `Size` be whichever primitive the target already computes indices in - so this binds a
-     * name and stops.
-     *
-     * Keyed on the target's word width and deliberately not on which backend is running. Those
-     * coincide today, and they are not the same question: a thirty-two-bit native target wants a
-     * thirty-two-bit `Size` for the same reason JS does, and writing the rule as "js or not" would
-     * have to be found and rewritten the day one exists rather than simply being true.
-     *
-     * **Signed**, unlike the counts an owner stores (see `Count` in native.cpp). Those are unsigned
-     * because it makes a bounds test one comparison; this one is signed because it is the type an
-     * `Int` index widens *into*, and a signed-to-unsigned ladder does not widen. The choice is
-     * between one free conversion at every subscript and one extra comparison in `checkBounds`, and
-     * the subscript is the hotter of the two by a long way.
-     *
-     * Sixty-four bits natively rather than `WideInt`'s fifty-three, which is the point of asking the
-     * target rather than picking the portable answer: `WideInt` is a *masked* 64-bit integer here,
-     * so every operation on one pays for a width that only JS needs. JS gets `Int`, where a host
-     * array's length is a `uint32` by specification and nothing wider can be described anyway.
-     *
-     * `I64` and not `Long`, which are two distinct primitives of one width here: `I64` is what
-     * `Native`'s pointer arithmetic takes, and an index exists to be added to an address. `Int` and
-     * not `I32` on the other side, for the mirror reason - `Int` is what a literal defaults to, and
-     * a same-width pair does not widen, so an `I32` `Size` would reject `xs[i]` for the ordinary `i`.
+     * Recorded here because the compiler emits code at them without any name in any program to
+     * resolve from: an index widens into `Size` at every subscript, and `checkIndexInBounds`
+     * compares at `USize` so that one comparison rejects a negative index as well as one past the
+     * end. Nothing in this function asks how wide either of them is, which is the whole of Move 2.
      */
-    auto sizeType = isJsMode(context.settings.mode) ? program.scalar.int_ : coreType(*module, "I64"_v);
-    module->namedTypes.add(context.addQualifiedName("Size", 4, 1), sizeType);
-    program.scalar.size = sizeType;
-
-    // `Size` read the other way, which is not a second index type: it is what a bounds test compares
-    // at, so that one comparison rejects a negative index as well as one past the end. See the note
-    // above on why the index itself is signed, and Implementation-Containers.md §10.2 for the
-    // unsigned counts this meets.
-    program.scalar.unsignedSize = isJsMode(context.settings.mode) ? coreType(*module, "U32"_v)
-                                                                  : coreType(*module, "U64"_v);
-
-    /*
-     * `CodeUnit` - one unit of a string's native encoding, target-selected exactly as `Size` is -
-     * Implementation-Vector.md §9 item 8, Design-Vector §4.6.
-     *
-     * A UTF-8 byte natively and a UTF-16 unit on JS, which is the same split
-     * Implementation-String.md part 3 already makes for `length`: what is uniform across targets is
-     * the *complexity class* of an operation over units, not the number of them. A program that
-     * names this type is saying "the encoding's own unit", which is what the ASCII scanning family
-     * takes and what a `Chunked(String, CodeUnit)` yields - and an ASCII value means the same thing
-     * in both, which is the self-synchronizing property that whole family rests on.
-     */
-    auto unitType = isJsMode(context.settings.mode) ? coreType(*module, "U16"_v) : coreType(*module, "U8"_v);
-    module->namedTypes.add(context.addQualifiedName("CodeUnit", 8, 1), unitType);
+    program.scalar.size = coreType(*module, "Size"_v);
+    program.scalar.unsignedSize = coreType(*module, "USize"_v);
 
     /*
      * `F32` and `F64` - Implementation-Vector.md §9 item 1.
@@ -873,26 +912,31 @@ void definePreludeContainers(Program& program, Module& core) {
      *
      * Before defineContainerInstances, because that is what makes a subscript check reachable: the
      * generated `get` bodies below are resolved against whatever this holds at the time.
+     *
+     * **Unconditionally, whatever `-no-checks` said** - Analysis-Modules.md Move 4. This used to sit
+     * inside `if(settings.checks)`, so a build with the checks off resolved a *different program*:
+     * `emitCheck` had nothing to call and every bounds test was absent from the IR rather than
+     * removed from it. The setting is now a lowering decision - `dischargeChecks` in compiler/opt
+     * takes the calls out for a target that does not want them - and what that buys is better than
+     * one fewer key field: a library built with the checks on links into a program built without
+     * them, which is the configuration a shipped library actually wants.
      */
-    if(context.settings.checks) {
-        auto found = module->functions.get(context.addUnqualifiedName("checkCondition", 14));
-        program.checkCondition = found ? found.unwrap() : nullptr;
+    auto found = module->functions.get(context.addUnqualifiedName("checkCondition", 14));
+    program.checkCondition = found ? found.unwrap() : nullptr;
 
-        /*
-         * And the arm it branches to, marked as one control does not come back out of.
-         *
-         * Here rather than in an attribute on the declaration because there is nothing in the source
-         * to attach one to that would mean anything: `checkFailed` is `exitProcess(134)` and a
-         * `return`, and what makes it final is the kernel rather than the shape of the body. Both
-         * targets' spellings are equally final - a status on native, a thrown value on JS - so the
-         * fact is about this function rather than about either platform's implementation of it.
-         *
-         * See `Function::noReturn` for what reads it. It is set whether or not `checkCondition` was
-         * found, since a build with the checks off has no call to either.
-         */
-        auto failed = module->functions.get(context.addUnqualifiedName("checkFailed", 11));
-        if(failed) (*module->arena)[failed.unwrap()]->noReturn = true;
-    }
+    /*
+     * And the arm it branches to, marked as one control does not come back out of.
+     *
+     * Here rather than in an attribute on the declaration because there is nothing in the source
+     * to attach one to that would mean anything: `checkFailed` is `exitProcess(134)` and a
+     * `return`, and what makes it final is the kernel rather than the shape of the body. Both
+     * targets' spellings are equally final - a status on native, a thrown value on JS - so the
+     * fact is about this function rather than about either platform's implementation of it.
+     *
+     * See `Function::noReturn` for what reads it.
+     */
+    auto failed = module->functions.get(context.addUnqualifiedName("checkFailed", 11));
+    if(failed) (*module->arena)[failed.unwrap()]->noReturn = true;
 
     // After `arrayType` above, and before this module's own bodies below - several of which
     // subscript, and would reach an instance that does not exist yet.

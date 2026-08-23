@@ -1,4 +1,4 @@
-fn mapMemory(size: I64) -> %U8
+fn mapMemory(size: Size) -> %U8
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    everything is frame-placed
@@ -14,7 +14,7 @@ fn initHeap() -> ()
   retains:    none
   calls:      called at 1 site
 
-fn growHeap(needed: I64) -> Bool
+fn growHeap(needed: Size) -> Bool
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    everything is frame-placed
@@ -22,7 +22,7 @@ fn growHeap(needed: I64) -> Bool
   retains:    none
   calls:      called at 1 site
 
-fn heapClassOf(total: I64) -> I64
+fn heapClassOf(total: Size) -> Size
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    everything is frame-placed
@@ -30,7 +30,7 @@ fn heapClassOf(total: I64) -> I64
   retains:    none
   calls:      called at 1 site
 
-fn heapBlockSize(sizeClass: I64) -> I64
+fn heapBlockSize(sizeClass: Size) -> Size
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    everything is frame-placed
@@ -38,7 +38,7 @@ fn heapBlockSize(sizeClass: I64) -> I64
   retains:    none
   calls:      called at 1 site
 
-fn freeListHead(sizeClass: I64) -> %U8
+fn freeListHead(sizeClass: Size) -> %U8
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    the result escapes the frame -> heap
@@ -52,7 +52,7 @@ fn freeListHead(sizeClass: I64) -> %U8
 - **storage**: the result escapes the frame -> heap
 - **returns**: a borrow rooted in storage no caller can name
 
-fn setFreeListHead(sizeClass: I64, block: %U8) -> ()
+fn setFreeListHead(sizeClass: Size, block: %U8) -> ()
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    everything is frame-placed
@@ -60,14 +60,14 @@ fn setFreeListHead(sizeClass: I64, block: %U8) -> ()
   retains:    none
   calls:      called at 2 sites
 
-fn allocateHeap(size: I64) -> %U8
+fn allocateHeap(size: Size) -> %U8
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    the result escapes the frame -> heap
   mutates:    none
   retains:    none
   returns:    a borrow rooted in storage no caller can name
-  calls:      called at 2 sites
+  calls:      called at 3 sites
   hint:       storage the result escapes the frame -> heap; returns a borrow rooted in storage no caller can name
   hover:
 ---
@@ -80,7 +80,7 @@ fn freeHeap(allocation: %U8) -> ()
   storage:    everything is frame-placed
   mutates:    none
   retains:    none
-  calls:      called at 4 sites
+  calls:      called at 5 sites
 
 fn replace(&slot: Pair, ->with: Pair) -> ()
   suspends:   unknown (not inferred yet)

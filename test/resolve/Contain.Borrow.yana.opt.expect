@@ -6,14 +6,14 @@ let &heapLimit: %U8 = 0
 
 let &heapFree: %%U8 = 0
 
-let &heapRegionNext: I64 = 0
+let &heapRegionNext: Size = 0
 
-fn growArray(Int)(%self: Array(Int), %wanted: I64) -> () {
+fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
   b0:
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
-    %room = cast %v4 : I64
-    %v6 = add %room, %room : I64
-    %wide = alloc : I64
+    %room = cast %v4 : Size
+    %v6 = add %room, %room : Size
+    %wide = alloc : Size
     init %wide, %v6
     %v10 = cmp_lt %v6, %wanted : Bool
     je %v10, b1, b2
@@ -26,7 +26,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: I64) -> () {
     jmp b3
 
   b3:
-    %v15 = load %wide : I64
+    %v15 = load %wide : Size
     %v17 = cmp_lt %v15, 4 : Bool
     je %v17, b4, b5
 
@@ -38,15 +38,15 @@ fn growArray(Int)(%self: Array(Int), %wanted: I64) -> () {
     jmp b6
 
   b6:
-    %v25 = load %wide : I64
+    %v25 = load %wide : Size
     %v26 = borrow_mut %self@Array.run : &mut Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
 
-fn mapMemory(%size: I64) -> %U8 {
+fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %result = syscall 9, 0, %size, 3, 34, -1, 0 : I64
+    %result = syscall 9, 0, %size, 3, 34, -1, 0 : Size
     %v12 = cmp_lt %result, 0 : Bool
     je %v12, b1, b2
 
@@ -62,10 +62,10 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn growHeap(%needed: I64) -> Bool {
+fn growHeap(%needed: Size) -> Bool {
   b0:
-    %v1 = load heapRegionNext : I64
-    %size = alloc : I64
+    %v1 = load heapRegionNext : Size
+    %size = alloc : Size
     init %size, %v1
     %v5 = cmp_lt %v1, %needed : Bool
     je %v5, b1, b2
@@ -78,8 +78,8 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b3
 
   b3:
-    %v10 = load %size : I64
-    %v12 = add %v10, 4096 : I64
+    %v10 = load %size : Size
+    %v12 = add %v10, 4096 : Size
     %v13 = call mapMemory, %v12 : %U8
     %region = alloc : %U8
     init %region, %v13
@@ -89,8 +89,8 @@ fn growHeap(%needed: I64) -> Bool {
 
   b4:
     %v22 = cmp_gt %needed, 4194304 : Bool
-    %least = select %v22 ? %needed : 4194304 : I64
-    %v28 = load %size : I64
+    %least = select %v22 ? %needed : 4194304 : Size
+    %v28 = load %size : Size
     %v29 = cmp_ge %least, %v28 : Bool
     je %v29, b6, b7
 
@@ -102,7 +102,7 @@ fn growHeap(%needed: I64) -> Bool {
 
   b7:
     assign %size, %least
-    %v37 = add %least, 4096 : I64
+    %v37 = add %least, 4096 : Size
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v41 = bitcast %v38 : Long
@@ -118,15 +118,15 @@ fn growHeap(%needed: I64) -> Bool {
   b10:
     %v50 = load %region : %U8
     assign heapNext, %v50
-    %v53 = load %size : I64
+    %v53 = load %size : Size
     %v56 = add %v50, %v53 : %U8
     assign heapLimit, %v56
-    %v60 = add %v53, %v53 : I64
+    %v60 = add %v53, %v53 : Size
     assign heapRegionNext, %v60
     ret True
 }
 
-fn allocateHeap(%size: I64) -> %U8 {
+fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
     %v2 = bitcast %v1 : Long
@@ -137,7 +137,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b7
 
   b2:
-    %result = syscall 9, 0, 4198400, 3, 34, -1, 0 : I64
+    %result = syscall 9, 0, 4198400, 3, 34, -1, 0 : Size
     %v81 = cmp_lt %result, 0 : Bool
     %v83 = bitcast 0 : %U8
     %v84 = bitcast %result : %U8
@@ -170,26 +170,26 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b7
 
   b7:
-    %v20 = add %size, 8 : I64
-    %size = alloc : I64
+    %v20 = add %size, 8 : Size
+    %size = alloc : Size
     init %size, 16
-    %sizeClass = alloc : I64
+    %sizeClass = alloc : Size
     init %sizeClass, 0
     jmp b8
 
   b8:
-    %v112 = load %size : I64
+    %v112 = load %size : Size
     %v113 = cmp_lt %v112, %v20 : Bool
     je %v113, b19, b9
 
   b9:
-    %v115 = load %sizeClass : I64
+    %v115 = load %sizeClass : Size
     %v23 = cmp_ge %v115, 32 : Bool
     je %v23, b18, b10
 
   b10:
     %v125 = load heapFree : %%U8
-    %v127 = mul %v115, 8 : I64
+    %v127 = mul %v115, 8 : Size
     %v128 = add %v125, %v127 : %%U8
     %v129 = load [%v128] : %U8
     %v30 = bitcast %v129 : Long
@@ -198,7 +198,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     je %v34, b17, b11
 
   b11:
-    %v136 = shl 16, %v115 : I64
+    %v136 = shl 16, %v115 : Size
     %v42 = load heapNext : %U8
     %v45 = add %v42, %v136 : %U8
     %v46 = load heapLimit : %U8
@@ -220,7 +220,7 @@ fn allocateHeap(%size: I64) -> %U8 {
     %block = load heapNext : %U8
     %v62 = add %block, %v136 : %U8
     assign heapNext, %v62
-    %v64 = bitcast %block : %I64
+    %v64 = bitcast %block : %Size
     assign [%v64], %v115
     %v70 = add %block, 8 : %U8
     ret %v70
@@ -240,11 +240,11 @@ fn allocateHeap(%size: I64) -> %U8 {
     ret %v26
 
   b19:
-    %v117 = load %size : I64
-    %v118 = add %v117, %v117 : I64
+    %v117 = load %size : Size
+    %v118 = add %v117, %v117 : Size
     assign %size, %v118
-    %v120 = load %sizeClass : I64
-    %v122 = add %v120, 1 : I64
+    %v120 = load %sizeClass : Size
+    %v122 = add %v120, 1 : Size
     assign %sizeClass, %v122
     jmp b8
 
@@ -267,11 +267,11 @@ fn freeHeap(%allocation: %U8) -> () {
 
   b3:
     %v11 = sub %allocation, 8 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v19 = load heapFree : %%U8
-    %v21 = mul %sizeClass, 8 : I64
+    %v21 = mul %sizeClass, 8 : Size
     %v22 = add %v19, %v21 : %%U8
     %v23 = load [%v22] : %U8
     assign [%v14], %v23
@@ -281,7 +281,7 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
+fn copyMemory(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v8 = cmp_ge %count, 32 : Bool
     je %v8, b12, b1
@@ -310,7 +310,7 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
   b6:
     %v140 = bitcast %from : %U16
     %low = load [%v140] : U16
-    %v143 = sub %count, 2 : I64
+    %v143 = sub %count, 2 : Size
     %v144 = add %from, %v143 : %U8
     %v145 = bitcast %v144 : %U16
     %high = load [%v145] : U16
@@ -324,7 +324,7 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
   b7:
     %v153 = bitcast %from : %U32
     %low = load [%v153] : U32
-    %v156 = sub %count, 4 : I64
+    %v156 = sub %count, 4 : Size
     %v157 = add %from, %v156 : %U8
     %v158 = bitcast %v157 : %U32
     %high = load [%v158] : U32
@@ -342,7 +342,7 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
   b9:
     %v169 = bitcast %from : %U64
     %low = load [%v169] : U64
-    %v172 = sub %count, 8 : I64
+    %v172 = sub %count, 8 : Size
     %v173 = add %from, %v172 : %U8
     %v174 = bitcast %v173 : %U64
     %high = load [%v174] : U64
@@ -356,7 +356,7 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
   b10:
     %v182 = bitcast %from : %Vec(U8)
     %low = load [%v182] : Vec(U8)
-    %v184 = sub %count, 16 : I64
+    %v184 = sub %count, 16 : Size
     %v185 = add %from, %v184 : %U8
     %v186 = bitcast %v185 : %Vec(U8)
     %high = load [%v186] : Vec(U8)
@@ -379,17 +379,17 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
     je %v21, b21, b14
 
   b14:
-    %v59 = sub %count, 16 : I64
+    %v59 = sub %count, 16 : Size
     %v60 = add %from, %v59 : %U8
     %v61 = bitcast %v60 : %Vec(U8)
     %tail = load [%v61] : Vec(U8)
-    %at = alloc : I64
+    %at = alloc : Size
     init %at, 0
     jmp b15
 
   b15:
-    %v67 = load %at : I64
-    %v69 = add %v67, 64 : I64
+    %v67 = load %at : Size
+    %v69 = add %v67, 64 : Size
     %v70 = cmp_le %v69, %count : Bool
     je %v70, b20, b16
 
@@ -397,8 +397,8 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
     jmp b17
 
   b17:
-    %v73 = load %at : I64
-    %v74 = add %v73, 16 : I64
+    %v73 = load %at : Size
+    %v74 = add %v73, 16 : Size
     %v75 = cmp_le %v74, %count : Bool
     je %v75, b19, b18
 
@@ -409,19 +409,19 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
     ret
 
   b19:
-    %v81 = load %at : I64
+    %v81 = load %at : Size
     %v82 = add %to, %v81 : %U8
     %v83 = add %from, %v81 : %U8
     %v84 = bitcast %v83 : %Vec(U8)
     %v85 = load [%v84] : Vec(U8)
     %v86 = bitcast %v82 : %Vec(U8)
     assign [%v86], %v85
-    %v88 = add %v81, 16 : I64
+    %v88 = add %v81, 16 : Size
     assign %at, %v88
     jmp b17
 
   b20:
-    %v91 = load %at : I64
+    %v91 = load %at : Size
     %v92 = add %from, %v91 : %U8
     %v93 = bitcast %v92 : %Vec(U8)
     %a = load [%v93] : Vec(U8)
@@ -446,7 +446,7 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
     %v119 = add %v115, 16 : %U8
     %v120 = bitcast %v119 : %Vec(U8)
     assign [%v120], %d
-    %v122 = add %v91, 64 : I64
+    %v122 = add %v91, 64 : Size
     assign %at, %v122
     jmp b15
 
@@ -460,8 +460,8 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
     %v34 = add %from, 16 : %U8
     %v35 = bitcast %v34 : %Vec(U8)
     %b = load [%v35] : Vec(U8)
-    %v38 = sub %count, 16 : I64
-    %v39 = sub %v38, 16 : I64
+    %v38 = sub %count, 16 : Size
+    %v39 = sub %v38, 16 : Size
     %v40 = add %from, %v39 : %U8
     %v41 = bitcast %v40 : %Vec(U8)
     %c = load [%v41] : Vec(U8)
@@ -482,10 +482,10 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
     ret
 }
 
-fn resize(Int)(%self: Run(Int), %wanted: I64) -> Bool {
+fn resize(Int)(%self: Run(Int), %wanted: Size) -> Bool {
   b0:
     %v3 = load %self@Run.capacity : @bits(30) U32
-    %room = cast %v3 : I64
+    %room = cast %v3 : Size
     %v5 = cmp_le %wanted, %room : Bool
     je %v5, b1, b2
 
@@ -520,10 +520,10 @@ fn resize(Int)(%self: Run(Int), %wanted: I64) -> Bool {
   b9:
     %v27 = load %self@Run.items : %Int
     %v76 = bitcast %v27 : %U8
-    %v78 = mul %wanted, 4 : I64
+    %v78 = mul %wanted, 4 : Size
     %v79 = add %v27, %v78 : %Int
     %v80 = bitcast %v79 : %U8
-    %v81 = sub %v80, %v76 : I64
+    %v81 = sub %v80, %v76 : Size
     %v29 = call allocateHeap, %v81 : %U8
     %fresh = bitcast %v29 : %Int
     %v31 = bitcast %fresh : Long
@@ -544,10 +544,10 @@ fn resize(Int)(%self: Run(Int), %wanted: I64) -> Bool {
     %v41 = bitcast %fresh : %U8
     %v43 = load %self@Run.items : %Int
     %v44 = bitcast %v43 : %U8
-    %v84 = mul %room, 4 : I64
+    %v84 = mul %room, 4 : Size
     %v85 = add %v43, %v84 : %Int
     %v86 = bitcast %v85 : %U8
-    %v87 = sub %v86, %v44 : I64
+    %v87 = sub %v86, %v44 : Size
     call copyMemory, %v41, %v44, %v87
     jmp b15
 
@@ -622,7 +622,7 @@ fn fill(%n: Int) -> Int {
     %k = alloc : Int
     init %k, 0
     %v42 = load %xs@Array.length : @bits(30) U32
-    %v44 = cast %v42 : U64
+    %v44 = cast %v42 : USize
     %v47 = load %xs@Array.run@Run.items : %Int
     jmp b3
 
@@ -649,8 +649,8 @@ fn fill(%n: Int) -> Int {
 
   b7:
     %v39 = load %k : Int
-    %v40 = cast %v39 : I64
-    %v43 = cast %v40 : U64
+    %v40 = cast %v39 : Size
+    %v43 = cast %v40 : USize
     %v45 = cmp_ge %v43, %v44 : Bool
     je %v45, b13, b8
 
@@ -658,8 +658,8 @@ fn fill(%n: Int) -> Int {
     %v49 = mul %v40, 4 : Long
     %v50 = add %v47, %v49 : %Int
     %v53 = load %k : Int
-    %v54 = cast %v53 : I64
-    %v57 = cast %v54 : U64
+    %v54 = cast %v53 : Size
+    %v57 = cast %v54 : USize
     %v59 = cmp_ge %v57, %v44 : Bool
     je %v59, b12, b9
 
@@ -671,8 +671,8 @@ fn fill(%n: Int) -> Int {
     assign [%v50], %v69
     %v71 = load %sum : Int
     %v73 = load %k : Int
-    %v74 = cast %v73 : I64
-    %v77 = cast %v74 : U64
+    %v74 = cast %v73 : Size
+    %v77 = cast %v74 : USize
     %v79 = cmp_ge %v77, %v44 : Bool
     je %v79, b11, b10
 
@@ -688,25 +688,25 @@ fn fill(%n: Int) -> Int {
     jmp b3
 
   b11:
-    %v154 = syscall 60, 134 : I64
+    %v154 = syscall 60, 134 : Size
     unreachable
 
   b12:
-    %v148 = syscall 60, 134 : I64
+    %v148 = syscall 60, 134 : Size
     unreachable
 
   b13:
-    %v132 = syscall 60, 134 : I64
+    %v132 = syscall 60, 134 : Size
     unreachable
 
   b14:
     %v19 = load %i : Int
     %v99 = load %xs@Array.length : @bits(30) U32
-    %count = cast %v99 : I64
-    %v102 = add %count, 1 : I64
+    %count = cast %v99 : Size
+    %v102 = add %count, 1 : Size
     %v182 = load %xs@Array.run@Run.capacity:unit32 : U32
     %v184 = and %v182, 1073741823 : U32
-    %v104 = cast %v184 : I64
+    %v104 = cast %v184 : Size
     %v105 = cmp_le %v102, %v104 : Bool
     je %v105, b16, b15
 
@@ -721,13 +721,13 @@ fn fill(%n: Int) -> Int {
   b17:
     %v185 = load %xs@Array.run@Run.capacity:unit32 : U32
     %v187 = and %v185, 1073741823 : U32
-    %v112 = cast %v187 : I64
+    %v112 = cast %v187 : Size
     %v113 = cmp_ge %count, %v112 : Bool
     je %v113, b19, b18
 
   b18:
     %v115 = load %xs@Array.run@Run.items : %Int
-    %v117 = mul %count, 4 : I64
+    %v117 = mul %count, 4 : Size
     %v118 = add %v115, %v117 : %Int
     assign [%v118], %v19
     %v120 = cast %v102 : U32
@@ -740,7 +740,7 @@ fn fill(%n: Int) -> Int {
     jmp b1
 
   b19:
-    %v126 = syscall 60, 134 : I64
+    %v126 = syscall 60, 134 : Size
     unreachable
 }
 

@@ -33,8 +33,8 @@ import Native
 
 -- The buffer, filled with `0, 1, 2, ...` so that any byte's correct value is its own index and a
 -- clobber shows up as a repeat.
-fn fill(buffer: %U8, count: I64) -> {}:
-    let &i = 0 :: I64
+fn fill(buffer: %U8, count: Size) -> {}:
+    let &i = 0 :: Size
     while i < count:
         store(buffer + i, truncate(i) :: U8)
         i = i + 1
@@ -43,8 +43,8 @@ fn fill(buffer: %U8, count: I64) -> {}:
 -- move below leaves behind. The comparison truncates because `fill` does: the sweep reaches past
 -- index 255 and the run wraps there, so an `I64` on the right would fail on the buffer rather than
 -- on the move.
-fn runs(buffer: %U8, at: I64, first: I64, count: I64) -> Bool:
-    let &i = 0 :: I64
+fn runs(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
+    let &i = 0 :: Size
     while i < count:
         if (*(buffer + at + i)) != (truncate(first + i) :: U8) then return False
         i = i + 1
@@ -131,10 +131,10 @@ fn degenerate() -> {}:
 fn sweep() -> {}:
     let buffer = allocateHeap(512)
     let &bad = 0 :: Int
-    let &count = 0 :: I64
+    let &count = 0 :: Size
 
     while count <= 200:
-        let &gap = 1 :: I64
+        let &gap = 1 :: Size
 
         while gap <= 96:
             -- The destination below the source. `[0, count)` becomes the run starting at `gap`, and
@@ -179,10 +179,10 @@ fn sweep() -> {}:
 fn sweepWide() -> {}:
     let buffer = allocateHeap(1024)
     let &bad = 0 :: Int
-    let &count = 128 :: I64
+    let &count = 128 :: Size
 
     while count <= 640:
-        let &gap = 1 :: I64
+        let &gap = 1 :: Size
 
         while gap <= 200:
             fill(buffer, gap + count + 8)

@@ -418,7 +418,7 @@ static U32 alignBitsTo(U32 value, U32 unit) {
  * real declaration reaches is what keeps that a reported error rather than a hang - the same reason
  * ReprTable::of carries an in-progress set.
  */
-static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth);
+static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth, IntWidths widths);
 
 /*
  * Whether a value of this type may be co-packed at all, before asking whether it is narrow enough.
@@ -446,7 +446,8 @@ static bool packableValue(GlobalBase base, TypePtr type) {
 
 // The bit offsets of every field of an aggregate that has a scalar form, or nothing where it has
 // none. Shared by `valueWidth`, which needs only the span, and by repr, which needs the offsets.
-static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& run, PackOffsets* offsets) {
+static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& run,
+                       PackOffsets* offsets, IntWidths widths) {
     // A pinned layout has no scalar form. Its whole purpose is that its fields sit where a C
     // compiler put them, and a scalar is the compiler choosing.
     if(tuple.layout != TypeLayout::Auto) return false;
@@ -468,15 +469,15 @@ static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& ru
         // other side of a box has no bearing on the width of the thing holding it.
         if(field.boxed) return false;
         if(!packableValue(base, field.type)) return false;
-        if(!valueWidthAt(base, field.type, depth + 1).isNarrow()) return false;
+        if(!valueWidthAt(base, field.type, depth + 1, widths).isNarrow()) return false;
 
         order.push(i);
     }
 
-    packOrder(base, tuple, order);
+    packOrder(base, tuple, order, widths);
 
     PackOffsets placed;
-    run = packBits(base, tuple, toBuffer(order), kMaxPackBits, offsets ? &placed : nullptr);
+    run = packBits(base, tuple, toBuffer(order), kMaxPackBits, offsets ? &placed : nullptr, widths);
 
     // A run too long for one word is not a scalar, and one that exactly fills its storage is not a
     // *narrow* one - it has no bits left to be packed into a neighbour with, so calling it narrow
@@ -494,19 +495,19 @@ static bool scalarBits(GlobalBase base, TupType& tuple, U32 depth, PackedRun& ru
     return true;
 }
 
-static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
+static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth, IntWidths widths) {
     if(!type || depth > 8) return {};
 
     auto value = base[type];
     switch(value->kind) {
         case Type::Int: {
-            auto bits = U32(((IntType*)value)->bits);
+            auto bits = U32(((IntType*)value)->bitsOn(widths));
             return ValueWidth { bits, naturalStorageBits(bits) };
         }
         case Type::Tup: {
             PackedRun run;
             auto tuple = (TupType*)value;
-            if(!scalarBits(base, *tuple, depth, run, nullptr)) return {};
+            if(!scalarBits(base, *tuple, depth, run, nullptr, widths)) return {};
 
             return ValueWidth { run.span, naturalStorageBits(run.span) };
         }
@@ -544,7 +545,7 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
             // its target would walk a recursive declaration forever.
             if(constructors[0].boxed) return {};
 
-            return valueWidthAt(base, constructors[0].content, depth + 1);
+            return valueWidthAt(base, constructors[0].content, depth + 1, widths);
         }
         case Type::Vector: {
             /*
@@ -558,7 +559,7 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
              * with a wider pack budget raises kMaxPackBits.
              */
             auto vector = (VectorType*)value;
-            auto bits = U32(laneStride(base, vector->content) * 8 * constValue(base, vector->count));
+            auto bits = U32(laneStride(base, vector->content, widths) * 8 * constValue(base, vector->count));
             return ValueWidth { bits, bits };
         }
         default:
@@ -566,8 +567,8 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth) {
     }
 }
 
-ValueWidth valueWidth(GlobalBase base, TypePtr type) {
-    return valueWidthAt(base, type, 0);
+ValueWidth valueWidth(GlobalBase base, TypePtr type, IntWidths widths) {
+    return valueWidthAt(base, type, 0, widths);
 }
 
 /*
@@ -601,12 +602,12 @@ static U32 packUnitBits(GlobalBase base, TupType& tuple, TypePtr type, U32 bits)
 }
 
 PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32 maxBits,
-                   PackOffsets* offsets) {
+                   PackOffsets* offsets, IntWidths widths) {
     PackedRun run;
 
     for(auto index: order) {
         auto type = tuple.fields.get(base, index).type;
-        auto width = valueWidth(base, type);
+        auto width = valueWidth(base, type, widths);
         if(!width.logical) break;
 
         auto unit = packUnitBits(base, tuple, type, width.logical);
@@ -625,7 +626,7 @@ PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32
     return run;
 }
 
-void packOrder(GlobalBase base, TupType& tuple, PackOrder& into) {
+void packOrder(GlobalBase base, TupType& tuple, PackOrder& into, IntWidths widths) {
     if(tuple.layout != TypeLayout::Auto) return;
 
     // Insertion sort, descending by width and stable within one - the lists are a handful of fields
@@ -633,10 +634,10 @@ void packOrder(GlobalBase base, TupType& tuple, PackOrder& into) {
     // business rather than the sort's.
     for(Size i = 1; i < into.size(); i++) {
         auto index = into[i];
-        auto width = valueWidth(base, tuple.fields.get(base, index).type).logical;
+        auto width = valueWidth(base, tuple.fields.get(base, index).type, widths).logical;
         auto at = i;
 
-        while(at > 0 && valueWidth(base, tuple.fields.get(base, into[at - 1]).type).logical < width) {
+        while(at > 0 && valueWidth(base, tuple.fields.get(base, into[at - 1]).type, widths).logical < width) {
             into[at] = into[at - 1];
             at--;
         }
@@ -646,6 +647,15 @@ void packOrder(GlobalBase base, TupType& tuple, PackOrder& into) {
 }
 
 bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
+    /*
+     * Asked with no target, and that is sound rather than a shortcut: every question below is
+     * `isNarrow`, and an abstract width is never narrow on any target - `Size` and `CodeUnit` fill
+     * their own storage at 32, 64, 8 and 16 alike, which are exactly the four values they can take.
+     * So the reading is the same whichever target asks, and this stays callable from resolve, where
+     * `expr_construct` needs it and where there is deliberately no target to ask.
+     */
+    IntWidths widths;
+
     auto count = tuple.fields.size();
     if(index >= count) return false;
 
@@ -656,7 +666,7 @@ bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
         // for. Co-packing it would take that address away, and there is nothing narrow about it to
         // pack in the first place.
         if(field.boxed) return false;
-        return packableValue(base, field.type) && valueWidth(base, field.type).isNarrow();
+        return packableValue(base, field.type) && valueWidth(base, field.type, widths).isNarrow();
     };
 
     if(!narrowAt(index)) return false;
@@ -669,7 +679,7 @@ bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
     if(tuple.layout == TypeLayout::C) {
         auto fieldAt = [&](Size at) {
             auto type = tuple.fields.get(base, at).type;
-            return isBitField(base, type) && valueWidth(base, type).isNarrow();
+            return isBitField(base, type) && valueWidth(base, type, widths).isNarrow();
         };
 
         if(!fieldAt(index)) return false;
@@ -693,8 +703,9 @@ bool packCandidate(GlobalBase base, TupType& tuple, U16 index) {
 // The scalar form of an aggregate, for whoever is laying it out. The span and the offsets come from
 // the same placement `valueWidth` reported, which is what makes the mask a callee applies to a
 // reference to the whole aggregate the same width the fields were placed within.
-bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, PackOffsets* offsets) {
-    return scalarBits(base, tuple, 0, run, offsets);
+bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, PackOffsets* offsets,
+                  IntWidths widths) {
+    return scalarBits(base, tuple, 0, run, offsets, widths);
 }
 
 U64 floatBits(GlobalBase base, TypePtr type, F64 value) {

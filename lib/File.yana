@@ -88,6 +88,13 @@ fn checked(answer: Size) -> Result(FileError, Size):
     if answer < 0 then return Err(errorOf(0 - answer))
     return Ok(answer)
 
+-- The same for a call whose answer is a *file offset* rather than a word - `lseek`, and nothing
+-- else. An offset is sixty-four bits on every Linux ABI, so it is the one result here that does not
+-- narrow with the machine; see the note beside `offsetWord` in `Native/Linux.x64.yana`.
+fn checkedOffset(answer: I64) -> Result(FileError, I64):
+    if answer < 0 then return Err(errorOf(truncate(0 - answer) :: Size))
+    return Ok(answer)
+
 -- The same for a call whose only answer is whether it worked.
 fn checkedUnit(answer: Size) -> Result(FileError, {}):
     if answer < 0 then return Err(errorOf(0 - answer))
@@ -220,7 +227,11 @@ fn openFlagsOf(access: FileAccess, mode: CreateMode, flags: Size) -> OpenFlags:
    wrapper whose only job was to make the copy somebody's parameter - along with the rule that no
    public function here may write `bytesOf` itself.
 -}
-fn bytesOf(return text: String) -> %U8 = stringData(text).bytes.run.items
+-- The units as bytes, which is what every path and buffer argument below hands the kernel. A
+-- string's own element type is `CodeUnit` now (see `StringData`), and the reinterpretation is what
+-- says "the encoding's bytes" rather than "eight-bit numbers" - free on this target, and the one
+-- place the whole module crosses between the two readings.
+fn bytesOf(return text: String) -> %U8 = bitcast(stringData(text).bytes.run.items) :: %U8
 
 fn terminated(path: String) -> String:
     let &copy = newStringOfCapacity(length(path) + 1)
@@ -429,10 +440,10 @@ fn whenceOf(base: SeekBase) -> Whence = match base:
     FileEnd -> FromEnd
 
 pub fn position(&self: File) -> Result(FileError, I64) =
-    checked(seekFile(self.handle, 0, FromCurrent))
+    checkedOffset(seekFile(self.handle, 0, FromCurrent))
 
 pub fn seek(&self: File, delta: I64, base: SeekBase = FileStart) -> Result(FileError, I64) =
-    checked(seekFile(self.handle, delta, whenceOf(base)))
+    checkedOffset(seekFile(self.handle, delta, whenceOf(base)))
 
 {-
    Shortening the file, without deleting it.
@@ -739,7 +750,7 @@ fn nameLength(record: %DirectoryRecord) -> Size:
 fn nameOf(record: %DirectoryRecord) -> String:
     let count = nameLength(record)
     let &name = newStringOfCapacity(count)
-    appendUnits(name, nameStart(record), count)
+    appendUnits(name, bitcast(nameStart(record)) :: %CodeUnit, count)
 
     return name
 
@@ -777,7 +788,10 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
     let ->file = openFile(path, readAccess(), OpenExisting)?
     let info = fileInfo(file)?
 
-    let &text = newStringOfCapacity(if info.size > 0 then info.size else readBlock)
+    -- The size as a capacity, which is a narrowing on a target whose word is smaller than an
+    -- `off_t`. It costs nothing to be wrong: the loop below grows the string whenever it runs out
+    -- and refuses a file past `maxCount` either way, so this is a first guess rather than a bound.
+    let &text = newStringOfCapacity(if info.size > 0 then truncate(info.size) :: Size else readBlock)
     let &total = 0 :: Size
     let &running = True
 
@@ -790,7 +804,7 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
         if room <= 0:
             reserveString(text, readBlock)
         else:
-            let got = readFile(file.handle, target.bytes.run.items + total, room)
+            let got = readFile(file.handle, bitcast(target.bytes.run.items + total) :: %U8, room)
             if got < 0 then return Err(errorOf(0 - got))
 
             total = total + got

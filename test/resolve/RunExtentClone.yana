@@ -29,10 +29,10 @@ iter fn buffers(count: Size, unit: Size) -> ->Size:
         -- The last slot of the run, written and read back: a run allocated one slot wide answers
         -- the capacity question correctly and this one with a fault or with someone else's byte.
         let base = slots(run)
-        let last = run.capacity - 1
+        let last = (run.capacity :: Size) - 1
         writeByte(base, last, 42)
 
-        yield run.capacity * 1000 + readByte(base, last)
+        yield (run.capacity :: Size) * 1000 + readByte(base, last)
         i = i + 1
 
 fn writeByte(base: %U8, at: Size, value: U8) -> {}:

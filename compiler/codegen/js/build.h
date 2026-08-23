@@ -1034,6 +1034,28 @@ bool isBool(Gen& g, TypePtr type);
 // already holds the number.
 JsPtr<Expr> boolNumber(Gen& g, JsPtr<Expr> test);
 
+/*
+ * How wide this target holds an integer, and which register class it holds it in.
+ *
+ * Both asked of the target rather than read off the type, because three primitives do not state
+ * their own width - `Size`, `USize` and `CodeUnit` are whatever the machine says, and here that is
+ * a signed 32-bit index and a UTF-16 unit. See TargetInt and IntWidths in resolve/type.h.
+ *
+ * The class test is a bit count rather than `width == IntType::Int`, and that is the whole of what
+ * changed in this backend: a `Size` is `Width::Word`, which is neither of the two names the old test
+ * compared against, so every arm keyed on the class silently fell through to the wrong spelling -
+ * `a * b` instead of `Math.imul`, and a `bigint` divide for a value that is a `number`.
+ */
+inline U16 heldBits(Gen& g, const IntType& integer) { return integer.bitsOn(g.repr.target.integers); }
+
+inline bool isInt32Class(Gen& g, const IntType* integer) {
+    return integer && integer->registerBitsOn(g.repr.target.integers) == 32;
+}
+
+inline bool isInt64Class(Gen& g, const IntType* integer) {
+    return integer && integer->registerBitsOn(g.repr.target.integers) == 64;
+}
+
 // Whether this type is a host `bigint` - an integer wider than a `number` holds exactly. Every
 // caller means "is this the other representation", which is why the test moved from the width class
 // to the bit count when the 33-to-53 band stopped being one.
@@ -1213,7 +1235,7 @@ inline bool isNarrowJsValue(Gen& g, TypePtr type) {
  * rides along in the reference.
  */
 inline U32 narrowWidth(Gen& g, TypePtr type) {
-    return valueWidth(g.global, type).logical;
+    return valueWidth(g.global, type, g.repr.target.integers).logical;
 }
 
 /*

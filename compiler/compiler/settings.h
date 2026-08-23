@@ -364,6 +364,30 @@ struct CompileSettings {
  * heap region, a stack frame or a data segment is the widest read *any* build of this program could
  * make, not the one this build makes.
  */
+/*
+ * The widths a target chooses for the three integers the language leaves abstract - `Size`, `USize`
+ * and `CodeUnit`. See TargetInt in resolve/type.h, which is what states the bound they answer.
+ *
+ * Here beside `targetVectorBytes` rather than with the types, because it is the same kind of fact
+ * and has the same two readers: `ReprTarget::integers` carries it to everything downstream of
+ * resolve, and the vector lane stride reads it directly - a lane width is target-dependent already
+ * (Design-Vector §2.1), and that is the one fork Move 2 deliberately does not close.
+ *
+ * The defaults are the 64-bit native answers, so a target that forgets to state them behaves as the
+ * only native machine there is.
+ */
+struct IntWidths {
+    U16 word = 64;
+    U16 codeUnit = 8;
+};
+
+inline IntWidths targetIntWidths(const CompileSettings& settings) {
+    // A signed 32-bit index, because a host array's length is a `uint32` by specification and
+    // nothing wider can be described anyway; and a UTF-16 unit, because that is what a host string
+    // is made of. Natively the word is the address width and a unit is a UTF-8 byte.
+    return isJsMode(settings.mode) ? IntWidths { 32, 16 } : IntWidths { 64, 8 };
+}
+
 constexpr U32 kMaxVectorBytes = 64;
 constexpr U32 kMaxVectorLanes = kMaxVectorBytes;
 

@@ -9,7 +9,7 @@ Shortest: size 12, align 8, stride 16, niche none
   .1 at 8: Int
 
 Scanned: size 29, align 8, stride 32, niche at 28 width 1, valid 0..1, free 0 below / 254 above
-  .0 at 0: I64
+  .0 at 0: Size
   .1 at 8: U64
   .2 at 16: Int
   .3 at 20: Int
@@ -57,18 +57,23 @@ Whence: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 2 bits
 Errno: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 7 bits, niche at 0 width 1, valid 0..122, free 0 below / 133 above
 
 StringData: size 16, align 8, stride 16, niche at 12 width 4, valid 0..1073741823, free 0 below / 3221225472 above
-  .0 at 0: Array(U8)
+  .0 at 0: Array(CodeUnit)
 
 Run(U8): size 12, align 8, stride 16, niche none
   .0 at 0: %U8
   .1 at 8 bits 0..29 of 4 bytes: @bits(30) U32
   .2 at 8 bits 30..31 of 4 bytes: @bits(2) U32
 
-Array(U8): size 16, align 8, stride 16, niche at 12 width 4, valid 0..1073741823, free 0 below / 3221225472 above
-  .0 at 0: Run(U8)
+Array(CodeUnit): size 16, align 8, stride 16, niche at 12 width 4, valid 0..1073741823, free 0 below / 3221225472 above
+  .0 at 0: Run(CodeUnit)
   .1 at 12: @bits(30) U32
 
-Maybe(I64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
+Run(CodeUnit): size 12, align 8, stride 16, niche none
+  .0 at 0: %CodeUnit
+  .1 at 8 bits 0..29 of 4 bytes: @bits(30) U32
+  .2 at 8 bits 30..31 of 4 bytes: @bits(2) U32
+
+Maybe(Size): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
 
 Maybe(ReadError): size 1, align 1, stride 1, tag folded into constructor 1's niche from 2 up, niche at 0 width 1, valid 0..2, free 0 below / 253 above
 
@@ -77,7 +82,7 @@ Result(ReadError, Long): size 16, align 8, stride 16, tag word at 0, payload at 
 Result(ReadError, U64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche none
 
 Maybe(Scanned): size 29, align 8, stride 32, tag folded into constructor 1's niche from 2 up, niche at 28 width 1, valid 0..2, free 0 below / 253 above
-  .0 at 0: I64
+  .0 at 0: Size
   .1 at 8: U64
   .2 at 16: Int
   .3 at 20: Int
@@ -108,9 +113,9 @@ Result(ReadError, Double): size 16, align 8, stride 16, tag word at 0, payload a
 
 Result(ReadError, Float): size 8, align 4, stride 8, tag word at 0, payload at 4, niche none
 
-Flat(U8): size 16, align 8, stride 16, niche none
-  .0 at 0: %U8
-  .1 at 8: I64
+Flat(CodeUnit): size 16, align 8, stride 16, niche none
+  .0 at 0: %CodeUnit
+  .1 at 8: Size
 
 Flags: size 1, align 1, stride 1, scalar of 2 bits, niche at 0 width 1, valid 0..3, free 0 below / 252 above
   .0 at 0 bits 0..0 of 1 bytes: Bool
@@ -127,14 +132,14 @@ Wrapped: size 8, align 8, stride 8, scalar of 53 bits, niche at 0 width 8, valid
 
 Outcome((), ()): size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
 
-Outcome((), Maybe(I64)): size 24, align 8, stride 24, tag word at 0, payload at 8, niche none
+Outcome((), Maybe(Size)): size 24, align 8, stride 24, tag word at 0, payload at 8, niche none
 
-Outcome((), Outcome((), Maybe(I64))): size 32, align 8, stride 32, tag word at 0, payload at 8, niche none
+Outcome((), Outcome((), Maybe(Size))): size 32, align 8, stride 32, tag word at 0, payload at 8, niche none
 
 Outcome((), Outcome((), ())): size 1, align 1, stride 1, tag folded into constructor 1's niche from 2 up, niche at 0 width 1, valid 0..2, free 0 below / 253 above
 
 Flat(I64): size 16, align 8, stride 16, niche none
   .0 at 0: %I64
-  .1 at 8: I64
+  .1 at 8: Size
 
 Maybe(Whence): size 1, align 1, stride 1, tag folded into constructor 1's niche from 3 up, niche at 0 width 1, valid 0..3, free 0 below / 252 above

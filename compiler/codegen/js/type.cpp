@@ -97,6 +97,10 @@ JsPtr<Expr> boolNumber(Gen& g, JsPtr<Expr> test) {
  */
 static IntType* canonicalInt(Gen& g, TypePtr type) {
     auto integer = intType(g, type);
+
+    // `Width::Word` is deliberately not admitted here. A `Size` is a signed 32-bit index on this
+    // target - that is what `IntWidths` says - so it is an ordinary `number` and neither of the two
+    // wide representations, and the class test is the honest way to say so.
     if(!integer || integer->width != IntType::Long) return nullptr;
 
     return (IntType*)g.global[canonicalType(g.global, type)];
@@ -954,7 +958,7 @@ JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value) {
          */
         if(isWideNumber(g, type)) return wideCall(g, WideOp::Wrap, integer, value, nullptr);
 
-        auto bits = integer->bits;
+        auto bits = heldBits(g, *integer);
         if(bits >= 32) {
             return binary(g, integer->isSigned ? BinaryOp::Or : BinaryOp::Shr, value, number(g, 0));
         }

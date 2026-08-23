@@ -12,4 +12,10 @@ fn onFloat(it: @bits(8) Float) -> Int = 0
 fn tooWide(it: @bits(40) U32) -> Int = 0
 fn zero(it: @bits(0) U32) -> Int = 0
 
+-- And a type whose width is the target's is not refinable at all, however small the count. `bits` on
+-- a `Size` is a bound rather than a width, so there is nothing here for a refinement to leave free -
+-- see the target-width family in doc/spec/types.md.
+fn onSize(it: @bits(20) Size) -> Int = 0
+fn onCodeUnit(it: @bits(4) CodeUnit) -> Int = 0
+
 fn main() -> Int = 0

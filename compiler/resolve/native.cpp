@@ -376,9 +376,11 @@ static void definePointerInstances(Module& module) {
      * cannot express its head. The other two reuse that context, since one side is a concrete
      * address-width integer.
      *
-     * `I64` and not `Size`, which is the same choice the three functions made: an address is
-     * sixty-four bits on the targets this module compiles for, and `Size` is `Int` on one that it
-     * does not.
+     * `Size` and not `I64`, which is the change Move 2 made possible and the reason a rung at an
+     * address is sound at all: the pair holds the same value because both sides *are* the target's
+     * word, rather than because both happen to be sixty-four bits on the one machine this module
+     * compiles for today. The general ladder declines every abstract width for the same reason - see
+     * `reinterpretWidth` - so this is where the one honest address rung lives.
      */
     auto pairEnv = new (module.types) GenEnv(GenEnv::Instance);
     auto pairPointer = pairEnv - global;
@@ -391,7 +393,7 @@ static void definePointerInstances(Module& module) {
     defineBitcast(module, resolvePointerType(module, (Type*)fromVariable - global),
                   resolvePointerType(module, (Type*)toVariable - global), pairPointer);
 
-    auto address = findType(module, Context::nameHash("I64"_v), kNullLocation);
+    auto address = module.program.scalar.size;
     defineBitcast(module, pointer, address, envPointer);
     defineBitcast(module, address, pointer, envPointer);
 }

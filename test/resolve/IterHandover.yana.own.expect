@@ -19,14 +19,14 @@ fn initHeap {
 
 fn growHeap {
   arg needed readonly
-  %size: I64 writable live [1, 27) [28, 38) [39, 51)
+  %size: Size writable live [1, 27) [28, 38) [39, 51)
   %region: %U8 writable live [12, 27) [28, 38) [39, 48)
 }
 
 fn heapClassOf {
   arg total readonly
-  %size: I64 writable live [0, 8) [10, 18)
-  %sizeClass: I64 writable live [2, 9) [10, 18)
+  %size: Size writable live [0, 8) [10, 18)
+  %sizeClass: Size writable live [2, 9) [10, 18)
 }
 
 fn heapBlockSize {
@@ -71,33 +71,33 @@ fn consume {
 
 fn borrows {
   arg times readonly
-  %total: I64 writable live [0, 12)
-  %local1: {total: &mut I64} closure writable addressed live [2, 10)
+  %total: Size writable live [0, 12)
+  %local1: {total: &mut Size} closure writable addressed live [2, 10)
   %local2: (value$: Held) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
 
 fn owns {
   arg times readonly
-  %total: I64 writable live [0, 12)
-  %local1: {total: &mut I64} closure writable addressed live [2, 10)
+  %total: Size writable live [0, 12)
+  %local1: {total: &mut Size} closure writable addressed live [2, 10)
   %local2: (->value$: Held) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
 
 fn viaTry {
   arg times readonly
-  %total: I64 writable live [0, 14) [16, 18)
-  %local1: {total: &mut I64} closure writable addressed live [2, 10)
-  %local2: (->value$: Result(I64, Held)) -> Outcome((), Result(I64, I64)) droppable readonly live [6, 11)
-  %local3: Outcome((), Result(I64, I64)) readonly live [10, 16)
-  %local4: Result(I64, I64) readonly live [16, 17) [18, 20)
+  %total: Size writable live [0, 14) [16, 18)
+  %local1: {total: &mut Size} closure writable addressed live [2, 10)
+  %local2: (->value$: Result(I64, Held)) -> Outcome((), Result(I64, Size)) droppable readonly live [6, 11)
+  %local3: Outcome((), Result(I64, Size)) readonly live [10, 16)
+  %local4: Result(I64, Size) readonly live [16, 17) [18, 20)
 }
 
 fn ignores {
   arg times readonly
-  %count: I64 writable live [0, 12)
-  %local1: {count: &mut I64} closure writable addressed live [2, 10)
+  %count: Size writable live [0, 12)
+  %local1: {count: &mut Size} closure writable addressed live [2, 10)
   %local2: (->value$: Result(I64, Held)) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
@@ -148,26 +148,26 @@ fn ResolveTest.continuation$16 {
   arg value$ readonly
   %value$: Result(I64, Held) droppable readonly live [0, 1)
   %local1: Outcome(Held, I64) droppable readonly live [1, 6) [10, 12)
-  %local2: Result(I64, I64) readonly live [6, 9)
+  %local2: Result(I64, Size) readonly live [6, 9)
   %opened: Held droppable readonly live [12, 19)
-  %local4: Outcome((), Result(I64, I64)) readonly live [22, 25)
-  %local5: Outcome((), Result(I64, I64)) readonly live [7, 10)
+  %local4: Outcome((), Result(I64, Size)) readonly live [22, 25)
+  %local5: Outcome((), Result(I64, Size)) readonly live [7, 10)
 }
 
-fn results(Result(I64, I64)) {
+fn results(Result(I64, Size)) {
   arg times readonly
   arg body readonly
-  %body: (->value$: Result(I64, Held)) -> Outcome((), Result(I64, I64)) borrowed droppable readonly live [0, 10) [13, 21) [22, 26)
+  %body: (->value$: Result(I64, Held)) -> Outcome((), Result(I64, Size)) borrowed droppable readonly live [0, 10) [13, 21) [22, 26)
   %left: I64 writable live [0, 6) [13, 21) [22, 26)
   %local2: Result(I64, Held) droppable unknown live [13, 14) [15, 17)
   %local3: Held droppable readonly live [14, 16)
-  %local4: Outcome((), Result(I64, I64)) readonly live [17, 22)
+  %local4: Outcome((), Result(I64, Size)) readonly live [17, 22)
   %local5: Result(I64, Held) droppable unknown live [6, 9)
-  %local6: Outcome((), Result(I64, I64)) readonly live [9, 13) [26, 27)
-  %local7: Outcome((), Result(I64, I64)) readonly live [27, 30)
-  %local8: Outcome((), Result(I64, I64)) readonly live never
+  %local6: Outcome((), Result(I64, Size)) readonly live [9, 13) [26, 27)
+  %local7: Outcome((), Result(I64, Size)) readonly live [27, 30)
+  %local8: Outcome((), Result(I64, Size)) readonly live never
   %local9: Held droppable readonly live never
-  %local10: Outcome((), Result(I64, I64)) readonly live never
+  %local10: Outcome((), Result(I64, Size)) readonly live never
 }
 
 fn ResolveTest.continuation$17 {

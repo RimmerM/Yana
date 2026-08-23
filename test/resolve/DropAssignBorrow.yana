@@ -20,7 +20,7 @@ data Buffer {bytes: %U8}
 -- Zeroed, for the reason Drop.yana gives: a block the allocator handed back a second time still has
 -- the free list's own bookkeeping in it, and a sum over `firstByte` would then be about the
 -- allocator rather than about this file.
-fn makeBuffer(size: I64) -> Buffer:
+fn makeBuffer(size: Size) -> Buffer:
     liveBuffers += 1
     let buffer = Buffer {bytes: allocateHeap(size)}
     setMemory(buffer.bytes, 0, size)

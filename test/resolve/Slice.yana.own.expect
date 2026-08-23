@@ -11,8 +11,8 @@ fn slice(Int) {
   arg to readonly
   result arguments
   %self: Flat(Int) borrowed readonly live [0, 40)
-  %start: I64 writable live [0, 42)
-  %end: I64 writable live [16, 41)
+  %start: Size writable live [0, 42)
+  %end: Size writable live [16, 41)
   %local3: Flat(Int) readonly live [34, 45)
 }
 
@@ -33,7 +33,7 @@ fn growArray(Int) {
   arg self writable resizable
   arg wanted readonly
   %self: Array(Int) borrowed droppable writable resizable live [0, 24)
-  %wide: I64 writable live [5, 22)
+  %wide: Size writable live [5, 22)
 }
 
 fn Reclaim(Array(a)).reclaim(Int) {
@@ -57,14 +57,14 @@ fn initHeap {
 
 fn growHeap {
   arg needed readonly
-  %size: I64 writable live [1, 27) [28, 38) [39, 51)
+  %size: Size writable live [1, 27) [28, 38) [39, 51)
   %region: %U8 writable live [12, 27) [28, 38) [39, 48)
 }
 
 fn heapClassOf {
   arg total readonly
-  %size: I64 writable live [0, 8) [10, 18)
-  %sizeClass: I64 writable live [2, 9) [10, 18)
+  %size: Size writable live [0, 8) [10, 18)
+  %sizeClass: Size writable live [2, 9) [10, 18)
 }
 
 fn heapBlockSize {
@@ -106,7 +106,7 @@ fn blockAscending {
   arg to readonly
   arg from readonly
   arg count readonly
-  %at: I64 writable live [9, 109) [116, 132)
+  %at: Size writable live [9, 109) [116, 132)
 }
 
 fn copyMemory {

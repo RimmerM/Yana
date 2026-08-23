@@ -10,7 +10,8 @@
 
 #include "lower_internal.h"
 
-LowerType lowerType(GlobalBase base, TypePtr type) {
+LowerType lowerType(LowerContext& lower, TypePtr type) {
+    auto base = lower.global;
     auto value = base[type];
     if(value->kind == Type::Record && ((RecordType*)value)->layout == RecordType::Enum) {
         return LowerType::Int32;
@@ -21,7 +22,11 @@ LowerType lowerType(GlobalBase base, TypePtr type) {
     }
 
     if(value->kind == Type::Int) {
-        return ((IntType*)value)->width == IntType::Long ? LowerType::Int64 : LowerType::Int32;
+        // The target's word for a `Size`, and the declared class for everything else - see IntWidths.
+        // A thirty-two-bit word makes `Size` an `Int32` here, which is exactly what the JS target has
+        // always emitted and is now said once rather than by `Size` being a name for `Int` there.
+        auto registerBits = ((IntType*)value)->registerBitsOn(lower.repr.target.integers);
+        return registerBits > 32 ? LowerType::Int64 : LowerType::Int32;
     }
 
     if(value->kind == Type::Float) {
@@ -38,7 +43,7 @@ LowerType lowerType(GlobalBase base, TypePtr type) {
      */
     if(value->kind == Type::Vector) {
         auto vector = (VectorType*)value;
-        auto stride = laneStride(base, vector->content);
+        auto stride = laneStride(base, vector->content, lower.repr.target.integers);
         auto lane = LowerLane::Int8;
 
         if(vector->content && base[vector->content]->kind == Type::Float) {
@@ -201,13 +206,17 @@ U64 lowMask(U32 bits) {
  * its own width. Widening one to an `Int` afterwards is a `cast` that trusts a register the
  * arithmetic never actually narrowed, so the dirt propagated silently.
  */
-bool narrowerThanRegister(GlobalBase global, TypePtr type) {
-    if(!type || global[type]->kind != Type::Int) return false;
+bool narrowerThanRegister(LowerContext& lower, TypePtr type) {
+    if(!type || lower.global[type]->kind != Type::Int) return false;
 
-    auto integer = (IntType*)global[type];
+    auto integer = (IntType*)lower.global[type];
     if(integer->canonical || integer->width == IntType::Bool) return false;
 
-    return integer->bits < IntType::registerBits(integer->width);
+    // Both sides against this target. A `Size` fills its own register by construction - that is what
+    // makes it the word - so this answers false for one on every target, and it says so by asking
+    // rather than by an arm that knows the answer.
+    auto widths = lower.repr.target.integers;
+    return integer->bitsOn(widths) < integer->registerBitsOn(widths);
 }
 
 /*
@@ -221,7 +230,7 @@ bool narrowerThanRegister(GlobalBase global, TypePtr type) {
  * below as well - see its comment. On its own the wrap would be pointless, since a logical shift of
  * an already-masked operand is in range for every distance but zero.
  */
-bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind) {
+bool wrapsAtDeclaredWidth(LowerContext& lower, TypePtr type, Value::Kind kind) {
     switch(kind) {
         case Value::Add: case Value::Sub: case Value::Mul: case Value::Shl: case Value::Neg:
         case Value::Shr:
@@ -230,7 +239,7 @@ bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind) {
             return false;
     }
 
-    return narrowerThanRegister(global, type);
+    return narrowerThanRegister(lower, type);
 }
 
 /*
@@ -247,20 +256,22 @@ bool wrapsAtDeclaredWidth(GlobalBase global, TypePtr type, Value::Kind kind) {
  * other - which does something only at a shift distance of zero, where the masked value can still
  * have its own sign bit set.
  */
-bool zeroExtendsShiftOperand(GlobalBase global, TypePtr type, Value::Kind kind) {
-    return kind == Value::Shr && signedType(global, type) && narrowerThanRegister(global, type);
+bool zeroExtendsShiftOperand(LowerContext& lower, TypePtr type, Value::Kind kind) {
+    return kind == Value::Shr && signedType(lower.global, type) && narrowerThanRegister(lower, type);
 }
 
 // The register-relative distance that puts a narrow type's sign bit in the register's, which is what
 // makes shifting up and arithmetically back down a truncate and a sign-extend in two instructions.
-U32 signShift(GlobalBase global, TypePtr type) {
-    auto integer = (IntType*)global[type];
-    return IntType::registerBits(integer->width) - integer->bits;
+U32 signShift(LowerContext& lower, TypePtr type) {
+    auto integer = (IntType*)lower.global[type];
+    auto widths = lower.repr.target.integers;
+    return integer->registerBitsOn(widths) - integer->bitsOn(widths);
 }
 
 LowerPtr<LowerValue> maskToWidth(LowerContext& lower, LowerBlock& block,
                                         LowerPtr<LowerValue> value, TypePtr type, LowerType lowered) {
-    auto mask = immediate(lower, lowMask(U32(((IntType*)lower.global[type])->bits)), lowered);
+    auto integer = (IntType*)lower.global[type];
+    auto mask = immediate(lower, lowMask(U32(integer->bitsOn(lower.repr.target.integers))), lowered);
     return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
                                   lower.lower[mask], lowered, StringId())->created().ptr - lower.lower;
 }
@@ -270,12 +281,13 @@ LowerInst* truncateToWidth(LowerContext& lower, LowerBlock& block, LowerInst* re
     auto value = result->created().ptr - lower.lower;
 
     if(!signedType(lower.global, type)) {
-        auto mask = immediate(lower, lowMask(U32(((IntType*)lower.global[type])->bits)), lowered);
+        auto integer = (IntType*)lower.global[type];
+        auto mask = immediate(lower, lowMask(U32(integer->bitsOn(lower.repr.target.integers))), lowered);
         return binary<LowerInst::And>(lower.lower, lower.to, block, lower.lower[value],
                                       lower.lower[mask], lowered, name);
     }
 
-    auto distance = immediate(lower, signShift(lower.global, type), lowered);
+    auto distance = immediate(lower, signShift(lower, type), lowered);
     auto up = binary<LowerInst::Shl>(lower.lower, lower.to, block, lower.lower[value],
                                      lower.lower[distance], lowered, StringId())->created().ptr - lower.lower;
 

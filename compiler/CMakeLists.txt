@@ -168,6 +168,7 @@ set(RESOLVE_SOURCE_FILES
     opt/opt_bool.cpp
     opt/opt_borrow.cpp
     opt/opt_branch.cpp
+    opt/opt_check.cpp
     opt/opt_closure.cpp
     opt/opt_discharge.cpp
     opt/opt_flow.cpp

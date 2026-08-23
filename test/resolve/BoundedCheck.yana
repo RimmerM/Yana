@@ -27,7 +27,7 @@ import Native
 -- The shape the item is about. The bound *is* the length, so the subscript's check cannot fail.
 fn sumWords(xs: [I64]) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < length(xs):
         acc = acc + xs[i]
@@ -60,7 +60,7 @@ fn sumNarrow(xs: [I64]) -> I64:
 -}
 fn dot(xs: [I64], ys: [I64]) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < length(xs):
         acc = acc + xs[i] * ys[i]
@@ -72,7 +72,7 @@ fn dot(xs: [I64], ys: [I64]) -> I64:
 -- this pass will read. The check stays.
 fn sumEven(xs: [I64]) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < length(xs):
         acc = acc + xs[i]
@@ -84,7 +84,7 @@ fn sumEven(xs: [I64]) -> I64:
 -- constant, so this one goes: what the proof needs is `0 <= i`, not `i == 0`.
 fn sumTail(xs: [I64]) -> I64:
     let &acc = 0 :: I64
-    let &i = 1 :: I64
+    let &i = 1 :: Size
 
     while i < length(xs):
         acc = acc + xs[i]
@@ -99,7 +99,7 @@ fn sumTail(xs: [I64]) -> I64:
 -}
 fn sumDown(xs: [I64]) -> I64:
     let &acc = 0 :: I64
-    let &i = length(xs) - 1 :: I64
+    let &i = length(xs) - 1 :: Size
 
     while i >= 0:
         acc = acc + xs[i]
@@ -111,7 +111,7 @@ fn sumDown(xs: [I64]) -> I64:
 -- it is inside the array, and the check stays.
 fn sumStrided(xs: [I64], n: I64) -> I64:
     let &acc = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < n:
         acc = acc + xs[i * 2]

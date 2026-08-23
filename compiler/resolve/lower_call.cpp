@@ -96,7 +96,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
 
             result = call(lower.lower, lower.to, block, created, used, kDefaultCallType, [&](LowerInstCall* dynamic) {
                 if(created) {
-                    new (dynamic->created().ptr) LowerValue(dynamic, lowerType(lower.global, instruction.type), instruction.name);
+                    new (dynamic->created().ptr) LowerValue(dynamic, lowerType(lower, instruction.type), instruction.name);
                 }
 
                 dynamic->used()[0] = address;
@@ -161,7 +161,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
 
             result = call(lower.lower, lower.to, block, created, used, lower.lower[target]->callType, [&](LowerInstCall* call) {
                 if(created) {
-                    new (call->created().ptr) LowerValue(call, lowerType(lower.global, instruction.type), instruction.name);
+                    new (call->created().ptr) LowerValue(call, lowerType(lower, instruction.type), instruction.name);
                 }
 
                 call->used()[0] = fun->created().ptr - lower.lower;
@@ -322,7 +322,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
 
             result = call(lower.lower, lower.to, block, created, used, kDefaultCallType, [&](LowerInstCall* call) {
                 if(created) {
-                    new (call->created().ptr) LowerValue(call, lowerType(lower.global, instruction.type), instruction.name);
+                    new (call->created().ptr) LowerValue(call, lowerType(lower, instruction.type), instruction.name);
                 }
 
                 call->used()[0] = address;
@@ -345,7 +345,7 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
                     auto loaded = load(lower.lower, lower.to, block, lower.lower[returnPlace],
                                        memoryWidth(lower, instruction.type),
                                        signedType(lower.global, instruction.type),
-                                       lowerType(lower.global, instruction.type), instruction.name);
+                                       lowerType(lower, instruction.type), instruction.name);
 
                     lower.values.add(instValue, loaded->created().ptr - lower.lower);
                 }

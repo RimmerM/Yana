@@ -52,7 +52,7 @@ import Native
 
    No decode, no validation that what comes back is a whole code point. Reading one unit is always
    safe *as a read*; it just might be one byte of a multi-byte sequence, exactly as indexing one byte
-   out of a `[U8]` promises nothing about the larger structure it belongs to. Bounds are unchecked,
+   out of a `[CodeUnit]` promises nothing about the larger structure it belongs to. Bounds are unchecked,
    which is the same tier `get` on an array is on and goes the same way when `checkBounds`
    (Implementation-Containers.md §15) lands.
 -}
@@ -207,9 +207,9 @@ instance Hash(String):
    which is the one thing §14 says does *not* fold away for a container. That asymmetry is the whole
    of the difference, and it is why this is `@platform`-split rather than a body with a branch in it.
 
-   Implementation-Simplification.md §17 left open whether this should become `Array(U8)`'s derived
+   Implementation-Simplification.md §17 left open whether this should become `Array(CodeUnit)`'s derived
    glue now that the bytes *are* an array. It should not, and the reason is what that glue contains:
-   a walk of every element, and then `releaseRun(value.run)`. At `U8` the walk provably does nothing
+   a walk of every element, and then `releaseRun(value.run)`. At `CodeUnit` the walk provably does nothing
    - a byte's move is a copy and its teardown is empty - so the optimized build would fold it back to
    the line below, and the unoptimized build would run a loop over every byte of every string. The
    line below is what the glue reduces to, written directly, and `String.yana.lower.expect` shows it
@@ -269,8 +269,8 @@ instance Hash(String):
 -}
 @platform(native) pub fn pushUnit(&self: String, unit: Int) -> {}:
     -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
-    -- them written twice until the bytes became an `Array(U8)`.
-    push(stringDataMut(self).bytes, truncate(unit) :: U8)
+    -- them written twice until the bytes became an `Array(CodeUnit)`.
+    push(stringDataMut(self).bytes, truncate(unit) :: CodeUnit)
 
 @platform(js) pub fn pushUnit(&self: String, unit: Int) -> {}:
     self = hostConcat(self, hostFromCharCode(unit))
@@ -297,7 +297,7 @@ instance Hash(String):
    before the copy is that the room is *there*, and that is one comparison against the field the copy
    is about to run past.
 -}
-@platform(native) pub fn appendUnits(&self: String, from: %U8, count: Size) -> {}:
+@platform(native) pub fn appendUnits(&self: String, from: %CodeUnit, count: Size) -> {}:
     if count <= 0 then return {}
     reserveString(self, count)
 
@@ -305,5 +305,8 @@ instance Hash(String):
     let wanted = (target.bytes.length :: Size) + count
     checkCondition((target.bytes.run.capacity :: Size) < wanted)
 
-    copyMemory(target.bytes.run.items + (target.bytes.length :: I64), from, byteSpan(from, count))
+    -- The units as bytes, for `copyMemory`, which counts in bytes and takes them - see the note in
+    -- `Core/Format.yana`'s `print`. `byteSpan` is generic over the pointee and needs no such thing.
+    copyMemory(bitcast(target.bytes.run.items + (target.bytes.length :: Size)) :: %U8,
+               bitcast(from) :: %U8, byteSpan(from, count))
     target.bytes.length = truncate(wanted) :: Count

@@ -270,21 +270,20 @@ main<complex>(): Int {
     %v_14 = load %v_10, 4: Int
     %v_15 = or %v_13, 1073741824: Int
     store %v_10, %v_15, 4
-    %last = sub %v_13, 1: Int
-    %v_16 = cast %last: Long
-    %target = add %v_11, %v_16: Ptr
+    %v_16 = cast %v_13: Long
+    %last = sub %v_16, 1: Long
+    %target = add %v_11, %last: Ptr
     store %target, 42, 1
-    %v_17 = mul %v_13, 1000: Int
+    %v_17 = imul %v_16, 1000: Long
     call_complex freeHeap, %v_11
-    %v_18 = cast %v_17: Long
-    %v_19 = add %v_18, 42: Long
-    %v_7 = add %v_6, %v_19: Long
+    %v_18 = add %v_17, 42: Long
+    %v_7 = add %v_6, %v_18: Long
     jmp b_2
   }
 
   b_5 {
-    %v_20 = cast %v_7: Int
-    ret %v_20
+    %v_19 = cast %v_7: Int
+    ret %v_19
   }
 }
 

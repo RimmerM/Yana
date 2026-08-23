@@ -27,7 +27,7 @@
 static LowerInst* signExtendNarrow(LowerContext& lower, LowerBlock& block, LowerInst* result,
                                    TypePtr type, LowerType lowered, StringId name) {
     if(lower.global[type]->kind != Type::Int) return result;
-    if(!signedType(lower.global, type) || signShift(lower.global, type) == 0) return result;
+    if(!signedType(lower.global, type) || signShift(lower, type) == 0) return result;
 
     return truncateToWidth(lower, block, result, type, lowered, name);
 }
@@ -53,7 +53,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             // A count this body does not know is one cell of the environment - see genConstValue.
             if(metric.metric == TypeMetricKind::Count) {
                 if(auto count = genConstValue(lower, block, metric.of,
-                                              lowerType(lower.global, instruction.type))) {
+                                              lowerType(lower, instruction.type))) {
                     lower.values.add(instValue, count);
                     return nullptr;
                 }
@@ -112,7 +112,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     result = call(lower.lower, lower.to, block, created, args.size(), LowerCallType::Syscall,
                                   [&](LowerInstCall* syscall) {
                         if(created) {
-                            new (syscall->created().ptr) LowerValue(syscall, lowerType(lower.global, instruction.type),
+                            new (syscall->created().ptr) LowerValue(syscall, lowerType(lower, instruction.type),
                                                                     instruction.name);
                         }
 
@@ -157,7 +157,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto& bitcastInst = (InstUnary&)instruction;
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
-                LowerInst::Bitcast, instruction.name, lowerType(lower.global, instruction.type),
+                LowerInst::Bitcast, instruction.name, lowerType(lower, instruction.type),
                 mappedValue(lower, bitcastInst.from)));
             break;
         }
@@ -166,8 +166,8 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto from = mappedValue(lower, castInst.from);
             auto sourceType = lower.local[castInst.from]->type;
 
-            auto sourceLower = lowerType(lower.global, sourceType);
-            auto targetLower = lowerType(lower.global, instruction.type);
+            auto sourceLower = lowerType(lower, sourceType);
+            auto targetLower = lowerType(lower, instruction.type);
 
             /*
              * A conversion between two addresses moves no bits: both sides are one machine word, and
@@ -206,8 +206,8 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
              * IR and avoids turning every Int/I32 alias conversion into a bitcast.
              */
             if(integerCast && sourceLower == targetLower && sourceSigned && !targetSigned &&
-               !narrowerThanRegister(lower.global, sourceType) &&
-               !narrowerThanRegister(lower.global, instruction.type)) {
+               !narrowerThanRegister(lower, sourceType) &&
+               !narrowerThanRegister(lower, instruction.type)) {
                 result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
                     LowerInst::Bitcast, instruction.name, targetLower, from));
             }
@@ -236,7 +236,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
              * The known-bits fold removes this mask when the source already fits, so truthful type
              * semantics do not charge conversions that are already known to be in range.
              */
-            if(result && narrowerThanRegister(lower.global, instruction.type)) {
+            if(result && narrowerThanRegister(lower, instruction.type)) {
                 result = truncateToWidth(lower, block, result, instruction.type, targetLower,
                                          instruction.name);
             }
@@ -249,13 +249,13 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             if(instruction.kind == Value::Neg) {
                 result = unary<LowerInst::Neg>(
                     lower.lower, lower.to, block, lower.lower[from],
-                    lowerType(lower.global, instruction.type),
+                    lowerType(lower, instruction.type),
                     instruction.name
                 );
             } else {
                 result = unary<LowerInst::Not>(
                     lower.lower, lower.to, block, lower.lower[from],
-                    lowerType(lower.global, instruction.type),
+                    lowerType(lower, instruction.type),
                     instruction.name
                 );
             }
@@ -280,9 +280,10 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::ByteSwap: {
             auto& unaryInst = (InstUnary&)instruction;
             auto from = mappedValue(lower, unaryInst.from);
-            auto type = lowerType(lower.global, instruction.type);
+            auto type = lowerType(lower, instruction.type);
 
-            if(((IntType*)lower.global[instruction.type])->bits > 16) {
+            auto swapBits = ((IntType*)lower.global[instruction.type])->bitsOn(lower.repr.target.integers);
+            if(swapBits > 16) {
                 result = unary<LowerInst::Bswap>(
                     lower.lower, lower.to, block, lower.lower[from], type, instruction.name
                 );
@@ -332,7 +333,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::TrailingZeros: {
             auto& unaryInst = (InstUnary&)instruction;
             auto from = mappedValue(lower, unaryInst.from);
-            auto type = lowerType(lower.global, instruction.type);
+            auto type = lowerType(lower, instruction.type);
 
             auto which = instruction.kind == Value::CountBits    ? LowerIntrinsic::Popcnt
                        : instruction.kind == Value::LeadingZeros ? LowerIntrinsic::ClzWidth
@@ -364,7 +365,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto& binaryInst = (InstBinary&)instruction;
             auto lhs = lower.lower[mappedValue(lower, binaryInst.lhs)];
             auto rhs = lower.lower[mappedValue(lower, binaryInst.rhs)];
-            auto type = lowerType(lower.global, instruction.type);
+            auto type = lowerType(lower, instruction.type);
 
             result = instruction.kind == Value::BitsUpTo
                 ? binary<LowerInst::BitsUpTo>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name)
@@ -380,7 +381,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto& unaryInst = (InstUnary&)instruction;
             result = unary<LowerInst::Sqrt>(
                 lower.lower, lower.to, block, lower.lower[mappedValue(lower, unaryInst.from)],
-                lowerType(lower.global, instruction.type), instruction.name
+                lowerType(lower, instruction.type), instruction.name
             );
             break;
         }
@@ -390,7 +391,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto& unaryInst = (InstUnary&)instruction;
             result = unary<LowerInst::Abs>(
                 lower.lower, lower.to, block, lower.lower[mappedValue(lower, unaryInst.from)],
-                lowerType(lower.global, instruction.type), instruction.name
+                lowerType(lower, instruction.type), instruction.name
             );
             break;
         }
@@ -409,7 +410,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::Round: {
             auto& unaryInst = (InstUnary&)instruction;
             auto from = lower.lower[mappedValue(lower, unaryInst.from)];
-            auto type = lowerType(lower.global, instruction.type);
+            auto type = lowerType(lower, instruction.type);
             auto& to = lower.to;
 
             switch(instruction.kind) {
@@ -432,7 +433,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::Fma: {
             auto& fma = (InstFma&)instruction;
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFma(
-                instruction.name, lowerType(lower.global, instruction.type),
+                instruction.name, lowerType(lower, instruction.type),
                 mappedValue(lower, fma.a), mappedValue(lower, fma.b), mappedValue(lower, fma.c)));
             break;
         }
@@ -468,12 +469,12 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::Rol:
         case Value::Ror: {
             auto& rotate = (InstBinary&)instruction;
-            auto type = lowerType(lower.global, instruction.type);
+            auto type = lowerType(lower, instruction.type);
             auto lhs = mappedValue(lower, rotate.lhs);
             auto rhs = mappedValue(lower, rotate.rhs);
             auto left = instruction.kind == Value::Rol;
 
-            if(!narrowerThanRegister(lower.global, instruction.type)) {
+            if(!narrowerThanRegister(lower, instruction.type)) {
                 result = left
                     ? binary<LowerInst::Rol>(lower.lower, lower.to, block, lower.lower[lhs],
                                              lower.lower[rhs], type, instruction.name)
@@ -482,7 +483,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 break;
             }
 
-            auto bits = ((IntType*)lower.global[instruction.type])->bits;
+            auto bits = ((IntType*)lower.global[instruction.type])->bitsOn(lower.repr.target.integers);
             auto value = maskToWidth(lower, block, lhs, instruction.type, type);
             auto width = immediate(lower, bits, type);
 
@@ -581,9 +582,9 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
             auto lhs = mappedValue(lower, binaryInst.lhs);
             auto rhs = mappedValue(lower, binaryInst.rhs);
-            auto type = lowerType(lower.global, instruction.type);
+            auto type = lowerType(lower, instruction.type);
 
-            if(zeroExtendsShiftOperand(lower.global, instruction.type, instruction.kind)) {
+            if(zeroExtendsShiftOperand(lower, instruction.type, instruction.kind)) {
                 lhs = maskToWidth(lower, block, lhs, instruction.type, type);
             }
 
@@ -640,7 +641,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     break;
             }
 
-            if(result && wrapsAtDeclaredWidth(lower.global, instruction.type, instruction.kind)) {
+            if(result && wrapsAtDeclaredWidth(lower, instruction.type, instruction.kind)) {
                 result = truncateToWidth(lower, block, result, instruction.type, type, instruction.name);
             }
 
@@ -658,7 +659,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             // unchallenged and every `.<` lowered into an `i32` the validator then rejected.
             result = cmp(lower.lower, lower.to, block, lower.lower[lhs], lower.lower[rhs],
                          lowerCmp(lower, compare), instruction.name,
-                         lowerType(lower.global, instruction.type));
+                         lowerType(lower, instruction.type));
             break;
         }
         case Value::Select: {
@@ -678,7 +679,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSelect(
                 instruction.name, whenTrue, whenFalse, condition,
-                lowerType(lower.global, instruction.type)));
+                lowerType(lower, instruction.type)));
 
             break;
         }
@@ -693,14 +694,14 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::VecSplat: {
             auto& splat = (InstVecSplat&)instruction;
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecSplat(
-                instruction.name, lowerType(lower.global, instruction.type),
+                instruction.name, lowerType(lower, instruction.type),
                 mappedValue(lower, splat.from)));
 
             break;
         }
         case Value::VecLane: {
             auto& lane = (InstVecLane&)instruction;
-            auto lowered = lowerType(lower.global, instruction.type);
+            auto lowered = lowerType(lower, instruction.type);
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecLane(
                 instruction.name, lowered, mappedValue(lower, lane.from), U8(lane.lane)));
@@ -729,7 +730,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto value = mappedValue(lower, lane.value);
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecLane(
-                instruction.name, lowerType(lower.global, instruction.type), from, U8(lane.lane), value));
+                instruction.name, lowerType(lower, instruction.type), from, U8(lane.lane), value));
 
             break;
         }
@@ -740,7 +741,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
              * instruction is built rather than pushed into it afterwards.
              */
             auto& shuffle = (InstVecShuffle&)instruction;
-            auto type = lowerType(lower.global, instruction.type);
+            auto type = lowerType(lower, instruction.type);
             auto left = mappedValue(lower, shuffle.left);
             auto right = mappedValue(lower, shuffle.right);
 
@@ -785,7 +786,7 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 case ReduceOp::Bits: op = LowerReduce::Bits; break;
             }
 
-            auto lowered = lowerType(lower.global, instruction.type);
+            auto lowered = lowerType(lower, instruction.type);
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVecReduce(
                 instruction.name, lowered, mappedValue(lower, reduce.from), op));

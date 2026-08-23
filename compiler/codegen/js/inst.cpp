@@ -483,7 +483,7 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
              * once the product passes 2^53. §2.1 calls this out as the one coercion that is
              * unconditional.
              */
-            if(integer && integer->width == IntType::Int) {
+            if(isInt32Class(g, integer)) {
                 define(g, pointer, coerce(g, type, hostCall(g, "Math"_v, "imul"_v, lhs, rhs)));
                 return;
             }
@@ -500,7 +500,7 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
             // on rather than answering, so that width alone goes through `$div`. Every narrower
             // integer already produces the defined answer for nothing, the coercion above turning
             // the infinity `a / 0` yields into the 0 the language asks for.
-            if(integer && integer->width == IntType::Long) {
+            if(isInt64Class(g, integer)) {
                 define(g, pointer, coerce(g, type, divideCall(g, lhs, rhs)));
                 return;
             }
@@ -522,7 +522,7 @@ void genBinary(Gen& g, ModulePtr<Value> pointer, InstBinary& instruction) {
         case Value::Shr:
             // A logical right shift of a `Long` has to go through the unsigned reading first:
             // `>>>` is not defined on BigInt at all.
-            if(integer && integer->width == IntType::Long) {
+            if(isInt64Class(g, integer)) {
                 auto unsignedValue = hostCall(g, "BigInt"_v, "asUintN"_v, number(g, 64), lhs);
                 define(g, pointer, coerce(g, type, binary(g, BinaryOp::Sar, unsignedValue, rhs)));
                 return;
@@ -675,7 +675,7 @@ static JsPtr<Expr> roundingLane(Gen& g, Value::Kind kind, JsPtr<Expr> value) {
  * normal form, and applying it is the same statement every other arithmetic instruction here makes.
  */
 static JsPtr<Expr> byteSwapCall(Gen& g, TypePtr type, JsPtr<Expr> value) {
-    auto bits = ((IntType*)g.global[type])->bits;
+    auto bits = heldBits(g, *(IntType*)g.global[type]);
     auto slot = bits == 16 ? 0 : bits == 32 ? 1 : 2;
 
     if(!g.byteSwapHelpers[slot].text) {
@@ -704,7 +704,7 @@ static JsPtr<Expr> byteSwapCall(Gen& g, TypePtr type, JsPtr<Expr> value) {
  * counts. That is the whole of the 32-bit case and is why it has no helper.
  */
 static JsPtr<Expr> bitCountCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> value) {
-    auto wide = ((IntType*)g.global[type])->bits == 64;
+    auto wide = heldBits(g, *(IntType*)g.global[type]) == 64;
 
     if(kind == Value::LeadingZeros && !wide) return hostCall(g, "Math"_v, "clz32"_v, value);
 
@@ -748,7 +748,7 @@ static JsPtr<Expr> bitCountCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Ex
  */
 static JsPtr<Expr> rotateCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> value, JsPtr<Expr> count) {
     auto integer = intType(g, type);
-    auto bits = integer ? U32(((IntType*)g.global[canonicalType(g.global, type)])->bits) : 0;
+    auto bits = integer ? U32(heldBits(g, *(IntType*)g.global[canonicalType(g.global, type)])) : 0;
     auto slot = rotateHelperSlot(kind, bits);
 
     if(slot == kNoRotateHelper) {
@@ -785,7 +785,7 @@ static JsPtr<Expr> rotateCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
  */
 static JsPtr<Expr> bitOpCall(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
     auto integer = intType(g, type);
-    auto bits = integer ? U32(((IntType*)g.global[canonicalType(g.global, type)])->bits) : 32;
+    auto bits = integer ? U32(heldBits(g, *(IntType*)g.global[canonicalType(g.global, type)])) : 32;
     auto wide = bits == 64;
     auto slot = bitOpHelperSlot(kind, wide);
 
@@ -892,7 +892,8 @@ static JsPtr<Expr> saturatingToNumber(Gen& g, TypePtr to, JsPtr<Expr> value) {
  * type, in a function - which is also what keeps `v` read once.
  */
 static Name saturatingLongHelper(Gen& g, IntType& integer) {
-    auto key = (U32(integer.bits) << 1) | U32(integer.isSigned);
+    auto held = heldBits(g, integer);
+    auto key = (U32(held) << 1) | U32(integer.isSigned);
     if(auto found = g.satHelpers.get(key)) return found.unwrap();
 
     char buffer[32];
@@ -901,12 +902,12 @@ static Name saturatingLongHelper(Gen& g, IntType& integer) {
     buffer[length++] = 's';
     buffer[length++] = 'a';
     buffer[length++] = 't';
-    length += show(U64(integer.bits), buffer + length, sizeof(buffer) - length);
+    length += show(U64(held), buffer + length, sizeof(buffer) - length);
     buffer[length++] = integer.isSigned ? 'i' : 'u';
 
     auto name = uniqueName(g, StringView { buffer, length }, false);
     g.satHelpers.add(key, name);
-    g.satHelperOrder.push(SatHelper { name, U16(integer.bits), integer.isSigned });
+    g.satHelperOrder.push(SatHelper { name, held, integer.isSigned });
     return name;
 }
 
@@ -931,6 +932,29 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     auto toLong = isLong(g, to);
     auto fromBool = isBool(g, from);
     auto toBool = isBool(g, to);
+
+    /*
+     * Two integers this target holds identically, which is a conversion that converts nothing.
+     *
+     * `Int` to `Size` is the case that made this worth writing: a `Size` here is a signed 32-bit
+     * index, so every subscript with an ordinary `Int` index widens into a type that is the same
+     * `number` - and emitting the widening as `i | 0` put a coercion in front of every one of them.
+     * Natively the same conversion is a real sign-extension, which is why this is the backend's
+     * answer rather than a fold in `opt`: the two targets disagree about whether the instruction
+     * does anything, and only one of them is entitled to remove it.
+     *
+     * Both `bits` and the sign have to match. Same width and different signedness is a
+     * reinterpretation the program asked for, and `@bits` refinements differ in `bits`, so a
+     * conversion to or from one never reaches here.
+     */
+    auto fromInt = intType(g, from);
+    auto toInt = intType(g, to);
+
+    if(fromInt && toInt && !fromBool && !toBool && !fromLong && !toLong &&
+       fromInt->isSigned == toInt->isSigned && heldBits(g, *fromInt) == heldBits(g, *toInt)) {
+        define(g, pointer, value);
+        return;
+    }
 
     // A conversion between two references moves nothing: both are the same object, and what changed
     // is only what the program says is behind it.
@@ -2953,7 +2977,7 @@ static JsPtr<Expr> laneBinary(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
         case Value::Mul:
             // `Math.imul` for the one width where a double multiply answers different low bits -
             // §2.1's one unconditional coercion, and the same call the scalar path makes.
-            if(integer && integer->width == IntType::Int) {
+            if(isInt32Class(g, integer)) {
                 return coerce(g, type, hostCall(g, "Math"_v, "imul"_v, lhs, rhs));
             }
 
@@ -2973,7 +2997,7 @@ static JsPtr<Expr> laneBinary(Gen& g, Value::Kind kind, TypePtr type, JsPtr<Expr
          * ordinary variables.
          */
         case Value::Div:
-            if(integer && integer->width == IntType::Long) {
+            if(isInt64Class(g, integer)) {
                 return coerce(g, type, divideCall(g, lhs, rhs));
             }
 
@@ -3315,7 +3339,8 @@ static void genVecConvert(Gen& g, ModulePtr<Value> pointer, InstUnary& instructi
     auto sourceElement = laneType(g, source);
     auto reinterprets = instruction.kind == Value::Bitcast;
 
-    if(reinterprets && laneStride(g.global, sourceElement) != laneStride(g.global, element)) {
+    if(reinterprets && laneStride(g.global, sourceElement, g.repr.target.integers) !=
+                       laneStride(g.global, element, g.repr.target.integers)) {
         g.context.diagnostics.error("a bitcast between vectors of different lane widths has no JavaScript form - a lane is a number here rather than a run of bits"_v,
                                     instruction.source);
         return;

@@ -21,9 +21,9 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
@@ -631,170 +631,165 @@ fn main() -> Int {
     %longs = alloc : Flat(Long)
     %v112 = addressof [%v110] : %Long
     init %longs@Flat.items, %v112
-    %v114 = countof 12 : Long
-    %v115 = cast %v114 : I64
-    init %longs@Flat.length, %v115
-    %v117 = cast %v109 : I64
-    %v118 = borrow %longs : &Flat(Long)
-    %v119 = load [%v118]@Flat.length : I64
-    %v120 = cast %v117 : U64
-    %v121 = cast %v119 : U64
-    %v122 = cmp_ge %v120, %v121 : Bool
-    call checkCondition, %v122
-    %v124 = load [%v118]@Flat.items : %Long
-    %v125 = strideof Long : Long
-    %v126 = mul %v117, %v125 : Long
-    %v127 = add %v124, %v126 : %Long
-    %v128 = borrow [%v127] : &Long
-    %v129 = load [%v128] : Long
-    %v130 = call signedLong, %v129 : Int
-    %v131 = add %v108, %v130 : Int
-    %v132 = load %i : Int
-    %v133 = borrow %local0 : &[Long *12]
+    %v114 = countof 12 : Size
+    init %longs@Flat.length, %v114
+    %v116 = cast %v109 : Size
+    %v117 = borrow %longs : &Flat(Long)
+    %v118 = load [%v117]@Flat.length : Size
+    %v119 = cast %v116 : USize
+    %v120 = cast %v118 : USize
+    %v121 = cmp_ge %v119, %v120 : Bool
+    call checkCondition, %v121
+    %v123 = load [%v117]@Flat.items : %Long
+    %v124 = strideof Long : Long
+    %v125 = mul %v116, %v124 : Long
+    %v126 = add %v123, %v125 : %Long
+    %v127 = borrow [%v126] : &Long
+    %v128 = load [%v127] : Long
+    %v129 = call signedLong, %v128 : Int
+    %v130 = add %v108, %v129 : Int
+    %v131 = load %i : Int
+    %v132 = borrow %local0 : &[Long *12]
     %longs = alloc : Flat(Long)
-    %v135 = addressof [%v133] : %Long
-    init %longs@Flat.items, %v135
-    %v137 = countof 12 : Long
-    %v138 = cast %v137 : I64
-    init %longs@Flat.length, %v138
-    %v140 = cast %v132 : I64
-    %v141 = borrow %longs : &Flat(Long)
-    %v142 = load [%v141]@Flat.length : I64
-    %v143 = cast %v140 : U64
-    %v144 = cast %v142 : U64
-    %v145 = cmp_ge %v143, %v144 : Bool
-    call checkCondition, %v145
-    %v147 = load [%v141]@Flat.items : %Long
-    %v148 = strideof Long : Long
-    %v149 = mul %v140, %v148 : Long
-    %v150 = add %v147, %v149 : %Long
-    %v151 = borrow [%v150] : &Long
-    %v152 = load [%v151] : Long
-    %v153 = call scaled, %v152 : Int
-    %v154 = add %v131, %v153 : Int
-    assign %total, %v154
-    %v156 = load %i : Int
-    %v159 = add %v156, 1 : Int
-    assign %i, %v159
+    %v134 = addressof [%v132] : %Long
+    init %longs@Flat.items, %v134
+    %v136 = countof 12 : Size
+    init %longs@Flat.length, %v136
+    %v138 = cast %v131 : Size
+    %v139 = borrow %longs : &Flat(Long)
+    %v140 = load [%v139]@Flat.length : Size
+    %v141 = cast %v138 : USize
+    %v142 = cast %v140 : USize
+    %v143 = cmp_ge %v141, %v142 : Bool
+    call checkCondition, %v143
+    %v145 = load [%v139]@Flat.items : %Long
+    %v146 = strideof Long : Long
+    %v147 = mul %v138, %v146 : Long
+    %v148 = add %v145, %v147 : %Long
+    %v149 = borrow [%v148] : &Long
+    %v150 = load [%v149] : Long
+    %v151 = call scaled, %v150 : Int
+    %v152 = add %v130, %v151 : Int
+    assign %total, %v152
+    %v154 = load %i : Int
+    %v157 = add %v154, 1 : Int
+    assign %i, %v157
     jmp b1
 
   b4:
-    %v165 = load %i : Int
-    %v168 = cmp_lt %v165, 9 : Bool
-    je %v168, b6, b5
+    %v163 = load %i : Int
+    %v166 = cmp_lt %v163, 9 : Bool
+    je %v166, b6, b5
 
   b5:
     assign %i, 0
     jmp b7
 
   b6:
-    %v170 = load %total : Int
-    %v171 = load %i : Int
-    %v172 = borrow %local1 : &[Int *9]
+    %v168 = load %total : Int
+    %v169 = load %i : Int
+    %v170 = borrow %local1 : &[Int *9]
     %ints = alloc : Flat(Int)
-    %v174 = addressof [%v172] : %Int
-    init %ints@Flat.items, %v174
-    %v176 = countof 9 : Long
-    %v177 = cast %v176 : I64
-    init %ints@Flat.length, %v177
-    %v179 = cast %v171 : I64
-    %v180 = borrow %ints : &Flat(Int)
-    %v181 = load [%v180]@Flat.length : I64
-    %v182 = cast %v179 : U64
-    %v183 = cast %v181 : U64
-    %v184 = cmp_ge %v182, %v183 : Bool
-    call checkCondition, %v184
-    %v186 = load [%v180]@Flat.items : %Int
-    %v187 = strideof Int : Long
-    %v188 = mul %v179, %v187 : Long
-    %v189 = add %v186, %v188 : %Int
-    %v190 = borrow [%v189] : &Int
-    %v191 = load [%v190] : Int
-    %v192 = call signedInt, %v191 : Int
-    %v193 = add %v170, %v192 : Int
-    assign %total, %v193
-    %v195 = load %i : Int
-    %v198 = add %v195, 1 : Int
-    assign %i, %v198
+    %v172 = addressof [%v170] : %Int
+    init %ints@Flat.items, %v172
+    %v174 = countof 9 : Size
+    init %ints@Flat.length, %v174
+    %v176 = cast %v169 : Size
+    %v177 = borrow %ints : &Flat(Int)
+    %v178 = load [%v177]@Flat.length : Size
+    %v179 = cast %v176 : USize
+    %v180 = cast %v178 : USize
+    %v181 = cmp_ge %v179, %v180 : Bool
+    call checkCondition, %v181
+    %v183 = load [%v177]@Flat.items : %Int
+    %v184 = strideof Int : Long
+    %v185 = mul %v176, %v184 : Long
+    %v186 = add %v183, %v185 : %Int
+    %v187 = borrow [%v186] : &Int
+    %v188 = load [%v187] : Int
+    %v189 = call signedInt, %v188 : Int
+    %v190 = add %v168, %v189 : Int
+    assign %total, %v190
+    %v192 = load %i : Int
+    %v195 = add %v192, 1 : Int
+    assign %i, %v195
     jmp b4
 
   b7:
-    %v204 = load %i : Int
-    %v207 = cmp_lt %v204, 8 : Bool
-    je %v207, b9, b8
+    %v201 = load %i : Int
+    %v204 = cmp_lt %v201, 8 : Bool
+    je %v204, b9, b8
 
   b8:
     assign %i, 0
     jmp b10
 
   b9:
-    %v209 = load %total : Int
-    %v210 = load %i : Int
-    %v211 = borrow %local2 : &[U64 *8]
+    %v206 = load %total : Int
+    %v207 = load %i : Int
+    %v208 = borrow %local2 : &[U64 *8]
     %ulongs = alloc : Flat(U64)
-    %v213 = addressof [%v211] : %U64
-    init %ulongs@Flat.items, %v213
-    %v215 = countof 8 : Long
-    %v216 = cast %v215 : I64
-    init %ulongs@Flat.length, %v216
-    %v218 = cast %v210 : I64
-    %v219 = borrow %ulongs : &Flat(U64)
-    %v220 = load [%v219]@Flat.length : I64
-    %v221 = cast %v218 : U64
-    %v222 = cast %v220 : U64
-    %v223 = cmp_ge %v221, %v222 : Bool
-    call checkCondition, %v223
-    %v225 = load [%v219]@Flat.items : %U64
-    %v226 = strideof U64 : Long
-    %v227 = mul %v218, %v226 : Long
-    %v228 = add %v225, %v227 : %U64
-    %v229 = borrow [%v228] : &U64
-    %v230 = load [%v229] : U64
-    %v231 = call unsignedLong, %v230 : Int
-    %v232 = add %v209, %v231 : Int
-    assign %total, %v232
-    %v234 = load %i : Int
-    %v237 = add %v234, 1 : Int
-    assign %i, %v237
+    %v210 = addressof [%v208] : %U64
+    init %ulongs@Flat.items, %v210
+    %v212 = countof 8 : Size
+    init %ulongs@Flat.length, %v212
+    %v214 = cast %v207 : Size
+    %v215 = borrow %ulongs : &Flat(U64)
+    %v216 = load [%v215]@Flat.length : Size
+    %v217 = cast %v214 : USize
+    %v218 = cast %v216 : USize
+    %v219 = cmp_ge %v217, %v218 : Bool
+    call checkCondition, %v219
+    %v221 = load [%v215]@Flat.items : %U64
+    %v222 = strideof U64 : Long
+    %v223 = mul %v214, %v222 : Long
+    %v224 = add %v221, %v223 : %U64
+    %v225 = borrow [%v224] : &U64
+    %v226 = load [%v225] : U64
+    %v227 = call unsignedLong, %v226 : Int
+    %v228 = add %v206, %v227 : Int
+    assign %total, %v228
+    %v230 = load %i : Int
+    %v233 = add %v230, 1 : Int
+    assign %i, %v233
     jmp b7
 
   b10:
-    %v243 = load %i : Int
-    %v246 = cmp_lt %v243, 6 : Bool
-    je %v246, b12, b11
+    %v239 = load %i : Int
+    %v242 = cmp_lt %v239, 6 : Bool
+    je %v242, b12, b11
 
   b11:
-    %v279 = load %total : Int
-    ret %v279
+    %v274 = load %total : Int
+    ret %v274
 
   b12:
-    %v248 = load %total : Int
-    %v249 = load %i : Int
-    %v250 = borrow %local3 : &[U32 *6]
+    %v244 = load %total : Int
+    %v245 = load %i : Int
+    %v246 = borrow %local3 : &[U32 *6]
     %uints = alloc : Flat(U32)
-    %v252 = addressof [%v250] : %U32
-    init %uints@Flat.items, %v252
-    %v254 = countof 6 : Long
-    %v255 = cast %v254 : I64
-    init %uints@Flat.length, %v255
-    %v257 = cast %v249 : I64
-    %v258 = borrow %uints : &Flat(U32)
-    %v259 = load [%v258]@Flat.length : I64
-    %v260 = cast %v257 : U64
-    %v261 = cast %v259 : U64
-    %v262 = cmp_ge %v260, %v261 : Bool
-    call checkCondition, %v262
-    %v264 = load [%v258]@Flat.items : %U32
-    %v265 = strideof U32 : Long
-    %v266 = mul %v257, %v265 : Long
-    %v267 = add %v264, %v266 : %U32
-    %v268 = borrow [%v267] : &U32
-    %v269 = load [%v268] : U32
-    %v270 = call unsignedInt, %v269 : Int
-    %v271 = add %v248, %v270 : Int
-    assign %total, %v271
-    %v273 = load %i : Int
-    %v276 = add %v273, 1 : Int
-    assign %i, %v276
+    %v248 = addressof [%v246] : %U32
+    init %uints@Flat.items, %v248
+    %v250 = countof 6 : Size
+    init %uints@Flat.length, %v250
+    %v252 = cast %v245 : Size
+    %v253 = borrow %uints : &Flat(U32)
+    %v254 = load [%v253]@Flat.length : Size
+    %v255 = cast %v252 : USize
+    %v256 = cast %v254 : USize
+    %v257 = cmp_ge %v255, %v256 : Bool
+    call checkCondition, %v257
+    %v259 = load [%v253]@Flat.items : %U32
+    %v260 = strideof U32 : Long
+    %v261 = mul %v252, %v260 : Long
+    %v262 = add %v259, %v261 : %U32
+    %v263 = borrow [%v262] : &U32
+    %v264 = load [%v263] : U32
+    %v265 = call unsignedInt, %v264 : Int
+    %v266 = add %v244, %v265 : Int
+    assign %total, %v266
+    %v268 = load %i : Int
+    %v271 = add %v268, 1 : Int
+    assign %i, %v271
     jmp b10
 }

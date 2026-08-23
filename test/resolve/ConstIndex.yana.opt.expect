@@ -33,11 +33,11 @@ fn freeHeap(%allocation: %U8) -> () {
 
   b3:
     %v11 = sub %allocation, 8 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v19 = load heapFree : %%U8
-    %v21 = mul %sizeClass, 8 : I64
+    %v21 = mul %sizeClass, 8 : Size
     %v22 = add %v19, %v21 : %%U8
     %v23 = load [%v22] : %U8
     assign [%v14], %v23
@@ -95,7 +95,7 @@ fn overwritten() -> Int {
     %v30 = add %v27, 8 : %Int
     assign [%v30], 7
     %v38 = load %xs@Array.length : @bits(30) U32
-    %v40 = cast %v38 : U64
+    %v40 = cast %v38 : USize
     %v41 = cmp_ge 2, %v40 : Bool
     je %v41, b4, b1
 
@@ -104,7 +104,7 @@ fn overwritten() -> Int {
     %v46 = add %v43, 8 : %Int
     assign [%v46], 30
     %v54 = load %xs@Array.length : @bits(30) U32
-    %v56 = cast %v54 : U64
+    %v56 = cast %v54 : USize
     %v57 = cmp_ge 2, %v56 : Bool
     je %v57, b3, b2
 
@@ -117,11 +117,11 @@ fn overwritten() -> Int {
     ret %v64
 
   b3:
-    %v81 = syscall 60, 134 : I64
+    %v81 = syscall 60, 134 : Size
     unreachable
 
   b4:
-    %v75 = syscall 60, 134 : I64
+    %v75 = syscall 60, 134 : Size
     unreachable
 }
 
@@ -139,7 +139,7 @@ fn computed() -> Int {
     %v33 = add %v30, 8 : %Int
     assign [%v33], 60
     %v43 = load %xs@Array.length : @bits(30) U32
-    %v45 = cast %v43 : U64
+    %v45 = cast %v43 : USize
     %v46 = cmp_ge 2, %v45 : Bool
     je %v46, b4, b1
 
@@ -159,11 +159,11 @@ fn computed() -> Int {
     ret %v68
 
   b3:
-    %v85 = syscall 60, 134 : I64
+    %v85 = syscall 60, 134 : Size
     unreachable
 
   b4:
-    %v79 = syscall 60, 134 : I64
+    %v79 = syscall 60, 134 : Size
     unreachable
 }
 
@@ -181,7 +181,7 @@ fn aliased(%n: Int) -> Int {
     %v31 = add %v28, 0 : %Int
     assign [%v31], 100
     %v39 = load %xs@Array.length : @bits(30) U32
-    %v41 = cast %v39 : U64
+    %v41 = cast %v39 : USize
     %v42 = cmp_ge 0, %v41 : Bool
     je %v42, b4, b1
 
@@ -189,8 +189,8 @@ fn aliased(%n: Int) -> Int {
     %v44 = load %xs@Array.run@Run.items : %Int
     %v47 = add %v44, 0 : %Int
     %v49 = load [%v47] : Int
-    %v51 = cast %n : I64
-    %v54 = cast %v51 : U64
+    %v51 = cast %n : Size
+    %v54 = cast %v51 : USize
     %v56 = cmp_ge %v54, %v41 : Bool
     je %v56, b3, b2
 
@@ -204,11 +204,11 @@ fn aliased(%n: Int) -> Int {
     ret %v64
 
   b3:
-    %v81 = syscall 60, 134 : I64
+    %v81 = syscall 60, 134 : Size
     unreachable
 
   b4:
-    %v75 = syscall 60, 134 : I64
+    %v75 = syscall 60, 134 : Size
     unreachable
 }
 

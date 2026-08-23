@@ -41,7 +41,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
   }
 
   b_2 {
-    call_complex push(U8), %to, 48
+    call_complex push(CodeUnit), %to, 48
     ret 
   }
 
@@ -92,7 +92,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
     %digit = cast %v_26: Int
     %v_27 = add %digit, 48: Int
     %v_28 = and %v_27, 255: Int
-    call_complex push(U8), %digits, %v_28
+    call_complex push(CodeUnit), %digits, %v_28
     %v_29 = imulhi %v_12, 7378697629483820647: Long
     %v_30 = sar %v_29, 2: Long
     %v_31 = shr %v_30, 63: Long
@@ -101,7 +101,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
   }
 
   b_18 {
-    call_complex push(U8), %to, 45
+    call_complex push(CodeUnit), %to, 45
     jmp b_32
   }
 
@@ -131,7 +131,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
     %v_43 = load %digits, 8: Ptr
     %v_44 = add %v_43, %v_39: Ptr
     %v_45 = load %v_44, 1: Int
-    call_complex push(U8), %to, %v_45
+    call_complex push(CodeUnit), %to, %v_45
     jmp b_36
   }
 
@@ -172,7 +172,7 @@ pushString<complex>(%self: Ptr, %other: Ptr) {
     %v_9 = load %v_8, 4: Int
     %v_10 = cast %v_9: Long
     %v_11 = add %v_10, %v_4: Long
-    call_complex reserve(U8), %self, %v_11
+    call_complex reserve(CodeUnit), %self, %v_11
     %v_12 = add %self, 12: Ptr
     %v_13 = load %v_12, 4: Int
     %v_14 = cast %v_13: Long
@@ -239,7 +239,7 @@ pushDecimalDigits<complex>(%value: Long, %count: Int, %pointAt: Int, %to: Ptr) {
     %digit = cast %v_13: Int
     %v_14 = add %digit, 48: Int
     %v_15 = and %v_14, 255: Int
-    call_complex push(U8), %buffer, %v_15
+    call_complex push(CodeUnit), %buffer, %v_15
     %v_16 = mulhi %v_2, 14757395258967641293: Long
     %v_4 = shr %v_16, 3: Long
     %v_6 = sub %v_5, 1: Int
@@ -264,7 +264,7 @@ pushDecimalDigits<complex>(%value: Long, %count: Int, %pointAt: Int, %to: Ptr) {
   }
 
   b_27 {
-    call_complex push(U8), %to, 46
+    call_complex push(CodeUnit), %to, 46
     jmp b_18
   }
 
@@ -277,7 +277,7 @@ pushDecimalDigits<complex>(%value: Long, %count: Int, %pointAt: Int, %to: Ptr) {
     %v_30 = load %buffer, 8: Ptr
     %v_31 = add %v_30, %v_29: Ptr
     %v_32 = load %v_31, 1: Int
-    call_complex push(U8), %to, %v_32
+    call_complex push(CodeUnit), %to, %v_32
     %v_19 = add %v_17, 1: Int
     jmp b_9
   }
@@ -301,7 +301,7 @@ pushExponent<complex>(%value: Int, %to: Ptr) {
     %v_7 = add %v_5, %v_6: Int
     %v_8 = add %v_7, 48: Int
     %v_9 = and %v_8, 255: Int
-    call_complex push(U8), %to, %v_9
+    call_complex push(CodeUnit), %to, %v_9
     %v_10 = imulhi %value, 1717986919: Int
     %v_11 = sar %v_10, 2: Int
     %v_12 = shr %v_11, 31: Int
@@ -314,7 +314,7 @@ pushExponent<complex>(%value: Int, %to: Ptr) {
     %v_19 = sub %v_13, %v_18: Int
     %v_20 = add %v_19, 48: Int
     %v_21 = and %v_20, 255: Int
-    call_complex push(U8), %to, %v_21
+    call_complex push(CodeUnit), %to, %v_21
     %v_22 = imulhi %value, 1717986919: Int
     %v_23 = sar %v_22, 2: Int
     %v_24 = shr %v_23, 31: Int
@@ -323,7 +323,7 @@ pushExponent<complex>(%value: Int, %to: Ptr) {
     %v_27 = sub %value, %v_26: Int
     %v_28 = add %v_27, 48: Int
     %v_29 = and %v_28, 255: Int
-    call_complex push(U8), %to, %v_29
+    call_complex push(CodeUnit), %to, %v_29
     jmp b_30
   }
 
@@ -339,7 +339,7 @@ pushExponent<complex>(%value: Int, %to: Ptr) {
     %v_37 = add %v_35, %v_36: Int
     %v_38 = add %v_37, 48: Int
     %v_39 = and %v_38, 255: Int
-    call_complex push(U8), %to, %v_39
+    call_complex push(CodeUnit), %to, %v_39
     %v_40 = imulhi %value, 1717986919: Int
     %v_41 = sar %v_40, 2: Int
     %v_42 = shr %v_41, 31: Int
@@ -348,14 +348,14 @@ pushExponent<complex>(%value: Int, %to: Ptr) {
     %v_45 = sub %value, %v_44: Int
     %v_46 = add %v_45, 48: Int
     %v_47 = and %v_46, 255: Int
-    call_complex push(U8), %to, %v_47
+    call_complex push(CodeUnit), %to, %v_47
     jmp b_48
   }
 
   b_33 {
     %v_49 = add %value, 48: Int
     %v_50 = and %v_49, 255: Int
-    call_complex push(U8), %to, %v_50
+    call_complex push(CodeUnit), %to, %v_50
     jmp b_48
   }
 
@@ -419,7 +419,7 @@ writeShortest<complex>(%value$digits: Long, %value$exponent: Int, %to: Ptr) {
 
   b_24 {
     call_complex pushDecimalDigits, %value$digits, %count, 1, %to
-    call_complex push(U8), %to, 69
+    call_complex push(CodeUnit), %to, 69
     %v_25 = cmp_ilt %exp, 0: Int
     je %v_25, b_26, b_27
   }
@@ -430,7 +430,7 @@ writeShortest<complex>(%value$digits: Long, %value$exponent: Int, %to: Ptr) {
   }
 
   b_26 {
-    call_complex push(U8), %to, 45
+    call_complex push(CodeUnit), %to, 45
     call_complex pushExponent, %v_15, %to
     jmp b_28
   }
@@ -465,14 +465,14 @@ writeShortest<complex>(%value$digits: Long, %value$exponent: Int, %to: Ptr) {
   }
 
   b_34 {
-    call_complex push(U8), %to, 48
+    call_complex push(CodeUnit), %to, 48
     %v_35 = sub %v_33, 1: Int
     jmp b_32
   }
 
   b_18 {
-    call_complex push(U8), %to, 48
-    call_complex push(U8), %to, 46
+    call_complex push(CodeUnit), %to, 48
+    call_complex push(CodeUnit), %to, 46
     %v_38 = sub %v_15, 1: Int
     jmp b_39
   }
@@ -489,7 +489,7 @@ writeShortest<complex>(%value$digits: Long, %value$exponent: Int, %to: Ptr) {
   }
 
   b_41 {
-    call_complex push(U8), %to, 48
+    call_complex push(CodeUnit), %to, 48
     %v_42 = sub %v_40, 1: Int
     jmp b_39
   }
@@ -1016,7 +1016,7 @@ Show(Double).show<complex>(%value: Double, %to: Ptr) {
   }
 
   b_5 {
-    call_complex push(U8), %to, 45
+    call_complex push(CodeUnit), %to, 45
     jmp b_9
   }
 
@@ -1094,7 +1094,7 @@ Show(Double).show<complex>(%value: Double, %to: Ptr) {
   }
 
   b_23 {
-    call_complex push(U8), %to, 48
+    call_complex push(CodeUnit), %to, 48
     jmp b_17
   }
 
@@ -1103,7 +1103,7 @@ Show(Double).show<complex>(%value: Double, %to: Ptr) {
   }
 }
 
-reserve(U8)<complex>(%self: Ptr, %wanted: Long) {
+reserve(CodeUnit)<complex>(%self: Ptr, %wanted: Long) {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long
@@ -1123,12 +1123,12 @@ reserve(U8)<complex>(%self: Ptr, %wanted: Long) {
   }
 
   b_9 {
-    call_complex growArray(U8), %self, %wanted
+    call_complex growArray(CodeUnit), %self, %wanted
     ret 
   }
 }
 
-growArray(U8)<complex>(%self: Ptr, %wanted: Long) {
+growArray(CodeUnit)<complex>(%self: Ptr, %wanted: Long) {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long
@@ -1164,12 +1164,12 @@ growArray(U8)<complex>(%self: Ptr, %wanted: Long) {
 
   b_14 {
     %v_15 = phi [b_12, 4], [b_13, %v_10]: Long
-    %v_16 = call_complex resize(U8), %self, %v_15: Int
+    %v_16 = call_complex resize(CodeUnit), %self, %v_15: Int
     ret 
   }
 }
 
-push(U8)<complex>(%self: Ptr, %item: Int) {
+push(CodeUnit)<complex>(%self: Ptr, %item: Int) {
   b_0 {
     %v_1 = add %self, 12: Ptr
     %v_2 = load %v_1, 4: Int
@@ -1185,7 +1185,7 @@ push(U8)<complex>(%self: Ptr, %item: Int) {
   }
 
   b_11 {
-    call_complex growArray(U8), %self, %v_3
+    call_complex growArray(CodeUnit), %self, %v_3
     %v_12 = load %v_4, 4: Long
     %v_13 = and %v_12, 1073741823: Long
     %v_14 = cast %v_13: Int
@@ -1244,7 +1244,7 @@ Show(Maybe(a)).show(Int)<complex>(%value: Ptr, %to: Ptr) {
     call_complex Reclaim(String).reclaim, %v_8
     %v_9 = sext %inner: Long
     call_complex showSigned, %v_9, %to
-    call_complex push(U8), %to, 41
+    call_complex push(CodeUnit), %to, 41
     jmp b_6
   }
 
@@ -1696,7 +1696,7 @@ copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   }
 }
 
-resize(U8)<complex>(%self: Ptr, %wanted: Long): Int {
+resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long

@@ -45,9 +45,9 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     %v13 = load %value@Array.run : Run(Int)
     %v14 = load %value@Array.run@Run.items : %Int
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Int : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Int : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Int
     %v20 = load [%v19] : Int
     %doomed = alloc : Int
@@ -80,9 +80,9 @@ fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
     %v13 = load %value@Array.run : Run(Cell)
     %v14 = load %value@Array.run@Run.items : %Cell
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Cell : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Cell : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Cell
     %v20 = load [%v19] : Cell
     %v21 = move %local2 : Cell
@@ -94,27 +94,27 @@ fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
     jmp b1
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
@@ -133,11 +133,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -203,8 +203,8 @@ fn fromOwner(%xs: Array(Int)) -> Int {
   b0:
     %v3 = borrow %xs : &Array(Int)
     %v4 = load [%v3]@Array.length : @bits(30) U32
-    %v5 = cast 0 : U64
-    %v6 = cast %v4 : U64
+    %v5 = cast 0 : USize
+    %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
     %v9 = load [%v3]@Array.run@Run.items : %Int
@@ -219,9 +219,9 @@ fn fromOwner(%xs: Array(Int)) -> Int {
 fn fromSlice(%xs: Flat(Int)) -> Int {
   b0:
     %v3 = borrow %xs : &Flat(Int)
-    %v4 = load [%v3]@Flat.length : I64
-    %v5 = cast 0 : U64
-    %v6 = cast %v4 : U64
+    %v4 = load [%v3]@Flat.length : Size
+    %v5 = cast 0 : USize
+    %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
     %v9 = load [%v3]@Flat.items : %Int
@@ -236,9 +236,9 @@ fn fromSlice(%xs: Flat(Int)) -> Int {
 fn fromFixed(%xs: Flat(Int)) -> Int {
   b0:
     %v3 = borrow %xs : &Flat(Int)
-    %v4 = load [%v3]@Flat.length : I64
-    %v5 = cast 1 : U64
-    %v6 = cast %v4 : U64
+    %v4 = load [%v3]@Flat.length : Size
+    %v5 = cast 1 : USize
+    %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
     %v9 = load [%v3]@Flat.items : %Int
@@ -253,9 +253,9 @@ fn fromFixed(%xs: Flat(Int)) -> Int {
 fn fieldOfElement(%xs: Flat(Cell)) -> Int {
   b0:
     %v3 = borrow %xs : &Flat(Cell)
-    %v4 = load [%v3]@Flat.length : I64
-    %v5 = cast 0 : U64
-    %v6 = cast %v4 : U64
+    %v4 = load [%v3]@Flat.length : Size
+    %v5 = cast 0 : USize
+    %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
     %v9 = load [%v3]@Flat.items : %Cell
@@ -266,9 +266,9 @@ fn fieldOfElement(%xs: Flat(Cell)) -> Int {
     %v14 = load [%v13] : Cell
     %v15 = load [%v13]@Cell.value : Int
     %v18 = borrow %xs : &Flat(Cell)
-    %v19 = load [%v18]@Flat.length : I64
-    %v20 = cast 1 : U64
-    %v21 = cast %v19 : U64
+    %v19 = load [%v18]@Flat.length : Size
+    %v20 = cast 1 : USize
+    %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
     %v24 = load [%v18]@Flat.items : %Cell
@@ -286,9 +286,9 @@ fn writeElement(%xs: Flat(Cell)) -> () {
   b0:
     %v1 = load %xs : Flat(Cell)
     %v4 = borrow_mut %xs : &mut Flat(Cell)
-    %v5 = load [%v4]@Flat.length : I64
-    %v6 = cast 0 : U64
-    %v7 = cast %v5 : U64
+    %v5 = load [%v4]@Flat.length : Size
+    %v6 = cast 0 : USize
+    %v7 = cast %v5 : USize
     %v8 = cmp_ge %v6, %v7 : Bool
     call checkCondition, %v8
     %v10 = load [%v4]@Flat.items : %Cell
@@ -301,9 +301,9 @@ fn writeElement(%xs: Flat(Cell)) -> () {
     assign [%v14], %v15
     %v20 = load %xs : Flat(Cell)
     %v23 = borrow_mut %xs : &mut Flat(Cell)
-    %v24 = load [%v23]@Flat.length : I64
-    %v25 = cast 1 : U64
-    %v26 = cast %v24 : U64
+    %v24 = load [%v23]@Flat.length : Size
+    %v25 = cast 1 : USize
+    %v26 = cast %v24 : USize
     %v27 = cmp_ge %v25, %v26 : Bool
     call checkCondition, %v27
     %v29 = load [%v23]@Flat.items : %Cell
@@ -335,7 +335,7 @@ fn writeElement(%xs: Flat(Cell)) -> () {
 
 fn viaConstraint(%xs: Array(Int)) -> Int {
   b0:
-    %v5 = call sumOfTwo(Array(Int), I64, Int), %xs, 0, 1 : Int
+    %v5 = call sumOfTwo(Array(Int), Size, Int), %xs, 0, 1 : Int
     ret %v5
 }
 
@@ -376,8 +376,8 @@ fn main() -> Int {
     %v18 = load %xs : Array(Int)
     %v21 = borrow_mut %xs : &mut Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
-    %v23 = cast 2 : U64
-    %v24 = cast %v22 : U64
+    %v23 = cast 2 : USize
+    %v24 = cast %v22 : USize
     %v25 = cmp_ge %v23, %v24 : Bool
     call checkCondition, %v25
     %v27 = load [%v21]@Array.run@Run.items : %Int
@@ -404,7 +404,7 @@ fn main() -> Int {
     %v58 = load [%v56]@Array.run@Run.items : %Cell
     init %local6@Flat.items, %v58
     %v60 = load [%v56]@Array.length : @bits(30) U32
-    %v61 = cast %v60 : I64
+    %v61 = cast %v60 : Size
     init %local6@Flat.length, %v61
     %v63 = borrow_mut %local6 : &mut Flat(Cell)
     call writeElement, %v63
@@ -421,8 +421,8 @@ fn main() -> Int {
     %v85 = load %xs : Array(Int)
     %v88 = borrow %xs : &Array(Int)
     %v89 = load [%v88]@Array.length : @bits(30) U32
-    %v90 = cast 2 : U64
-    %v91 = cast %v89 : U64
+    %v90 = cast 2 : USize
+    %v91 = cast %v89 : USize
     %v92 = cmp_ge %v90, %v91 : Bool
     call checkCondition, %v92
     %v94 = load [%v88]@Array.run@Run.items : %Int
@@ -433,7 +433,7 @@ fn main() -> Int {
     %v99 = load [%v98] : Int
     %v100 = add %v84, %v99 : Int
     %v101 = load %xs : Array(Int)
-    %v106 = call sumOfTwo(Array(Int), I64, Int), %v101, 0, 1 : Int
+    %v106 = call sumOfTwo(Array(Int), Size, Int), %v101, 0, 1 : Int
     %v107 = add %v100, %v106 : Int
     %v108 = load %cells : Array(Cell)
     %v109 = borrow %cells : &Array(Cell)
@@ -441,7 +441,7 @@ fn main() -> Int {
     %v111 = load [%v109]@Array.run@Run.items : %Cell
     init %local9@Flat.items, %v111
     %v113 = load [%v109]@Array.length : @bits(30) U32
-    %v114 = cast %v113 : I64
+    %v114 = cast %v113 : Size
     init %local9@Flat.length, %v114
     %v116 = call fieldOfElement, %v110 : Int
     drop %cells reclaim Reclaim(Array(a)).reclaim(Cell)
@@ -452,7 +452,7 @@ fn main() -> Int {
     %v121 = load [%v119]@Array.run@Run.items : %Int
     init %local10@Flat.items, %v121
     %v123 = load [%v119]@Array.length : @bits(30) U32
-    %v124 = cast %v123 : I64
+    %v124 = cast %v123 : Size
     init %local10@Flat.length, %v124
     %v126 = borrow_mut %local10 : &mut Flat(Int)
     %v127 = call throughPointer, %v126 : Int
@@ -464,31 +464,30 @@ fn main() -> Int {
     %v138 = alloc : Flat(Int)
     %v139 = addressof [%v137] : %Int
     init %local12@Flat.items, %v139
-    %v141 = countof 3 : Long
-    %v142 = cast %v141 : I64
-    init %local12@Flat.length, %v142
-    %v144 = call fromFixed, %v138 : Int
-    %v145 = add %v128, %v144 : Int
-    %v146 = load %xs : Array(Int)
-    %v147 = borrow %xs : &Array(Int)
-    %v148 = alloc : Flat(Int)
-    %v149 = load [%v147]@Array.run@Run.items : %Int
-    init %local13@Flat.items, %v149
-    %v151 = load [%v147]@Array.length : @bits(30) U32
-    %v152 = cast %v151 : I64
-    init %local13@Flat.length, %v152
-    %v154 = call fromSlice, %v148 : Int
+    %v141 = countof 3 : Size
+    init %local12@Flat.length, %v141
+    %v143 = call fromFixed, %v138 : Int
+    %v144 = add %v128, %v143 : Int
+    %v145 = load %xs : Array(Int)
+    %v146 = borrow %xs : &Array(Int)
+    %v147 = alloc : Flat(Int)
+    %v148 = load [%v146]@Array.run@Run.items : %Int
+    init %local13@Flat.items, %v148
+    %v150 = load [%v146]@Array.length : @bits(30) U32
+    %v151 = cast %v150 : Size
+    init %local13@Flat.length, %v151
+    %v153 = call fromSlice, %v147 : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    %v155 = add %v145, %v154 : Int
-    ret %v155
+    %v154 = add %v144, %v153 : Int
+    ret %v154
 }
 
-fn sumOfTwo(Array(Int), I64, Int)(%xs: Array(Int), %a: I64, %b: I64) -> Int {
+fn sumOfTwo(Array(Int), Size, Int)(%xs: Array(Int), %a: Size, %b: Size) -> Int {
   b0:
     %v3 = borrow %xs : &Array(Int)
     %v4 = load [%v3]@Array.length : @bits(30) U32
-    %v5 = cast %a : U64
-    %v6 = cast %v4 : U64
+    %v5 = cast %a : USize
+    %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
     %v9 = load [%v3]@Array.run@Run.items : %Int
@@ -499,8 +498,8 @@ fn sumOfTwo(Array(Int), I64, Int)(%xs: Array(Int), %a: I64, %b: I64) -> Int {
     %v14 = load [%v13] : Int
     %v15 = borrow %xs : &Array(Int)
     %v16 = load [%v15]@Array.length : @bits(30) U32
-    %v17 = cast %b : U64
-    %v18 = cast %v16 : U64
+    %v17 = cast %b : USize
+    %v18 = cast %v16 : USize
     %v19 = cmp_ge %v17, %v18 : Bool
     call checkCondition, %v19
     %v21 = load [%v15]@Array.run@Run.items : %Int

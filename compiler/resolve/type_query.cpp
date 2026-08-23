@@ -179,7 +179,7 @@ TypePtr fixedElement(Module& module, TypePtr type) {
  * vector answers is a `Mask` rather than a vector of booleans - see Design-Vector §2.4, which is the
  * whole argument for the two being different types.
  */
-U32 laneStride(GlobalBase base, TypePtr type) {
+U32 laneStride(GlobalBase base, TypePtr type, IntWidths widths) {
     if(!type) return 0;
 
     auto value = base[type];
@@ -190,7 +190,12 @@ U32 laneStride(GlobalBase base, TypePtr type) {
 
     if(value->kind != Type::Int) return 0;
 
-    auto bits = U32(((IntType*)value)->bits);
+    // The target's answer, which is the one place a lane width has to ask. `Vec(CodeUnit)` is what
+    // the ASCII tier scans a string with (`Core/Ascii.native.yana`), so an abstract element type
+    // must produce a lane rather than refuse one - and eight bits natively against sixteen on JS is
+    // a different vector, not a wider one. A lane count is target-dependent already, which is why
+    // this parameter is not the thing Move 2 was trying to remove.
+    auto bits = U32(((IntType*)value)->bitsOn(widths));
     if(bits < 8) return 0;
 
     auto storage = naturalStorageBits(bits) / 8;

@@ -47,9 +47,9 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     %v13 = load %value@Array.run : Run(Int)
     %v14 = load %value@Array.run@Run.items : %Int
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Int : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Int : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Int
     %v20 = load [%v19] : Int
     %doomed = alloc : Int
@@ -60,27 +60,27 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
@@ -99,11 +99,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -171,8 +171,8 @@ fn later(%seed: Int) -> Int {
     %v20 = load %xs : Array(Int)
     %v23 = borrow_mut %xs : &mut Array(Int)
     %v24 = load [%v23]@Array.length : @bits(30) U32
-    %v25 = cast 1 : U64
-    %v26 = cast %v24 : U64
+    %v25 = cast 1 : USize
+    %v26 = cast %v24 : USize
     %v27 = cmp_ge %v25, %v26 : Bool
     call checkCondition, %v27
     %v29 = load [%v23]@Array.run@Run.items : %Int
@@ -184,8 +184,8 @@ fn later(%seed: Int) -> Int {
     %v35 = load %xs : Array(Int)
     %v38 = borrow %xs : &Array(Int)
     %v39 = load [%v38]@Array.length : @bits(30) U32
-    %v40 = cast 0 : U64
-    %v41 = cast %v39 : U64
+    %v40 = cast 0 : USize
+    %v41 = cast %v39 : USize
     %v42 = cmp_ge %v40, %v41 : Bool
     call checkCondition, %v42
     %v44 = load [%v38]@Array.run@Run.items : %Int
@@ -197,8 +197,8 @@ fn later(%seed: Int) -> Int {
     %v50 = load %xs : Array(Int)
     %v53 = borrow %xs : &Array(Int)
     %v54 = load [%v53]@Array.length : @bits(30) U32
-    %v55 = cast 1 : U64
-    %v56 = cast %v54 : U64
+    %v55 = cast 1 : USize
+    %v56 = cast %v54 : USize
     %v57 = cmp_ge %v55, %v56 : Bool
     call checkCondition, %v57
     %v59 = load [%v53]@Array.run@Run.items : %Int
@@ -211,8 +211,8 @@ fn later(%seed: Int) -> Int {
     %v66 = load %xs : Array(Int)
     %v69 = borrow %xs : &Array(Int)
     %v70 = load [%v69]@Array.length : @bits(30) U32
-    %v71 = cast 2 : U64
-    %v72 = cast %v70 : U64
+    %v71 = cast 2 : USize
+    %v72 = cast %v70 : USize
     %v73 = cmp_ge %v71, %v72 : Bool
     call checkCondition, %v73
     %v75 = load [%v69]@Array.run@Run.items : %Int
@@ -239,8 +239,8 @@ fn readBetween() -> Int {
     %v18 = load %xs : Array(Int)
     %v21 = borrow %xs : &Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
-    %v23 = cast 1 : U64
-    %v24 = cast %v22 : U64
+    %v23 = cast 1 : USize
+    %v24 = cast %v22 : USize
     %v25 = cmp_ge %v23, %v24 : Bool
     call checkCondition, %v25
     %v27 = load [%v21]@Array.run@Run.items : %Int
@@ -252,8 +252,8 @@ fn readBetween() -> Int {
     %v33 = load %xs : Array(Int)
     %v36 = borrow_mut %xs : &mut Array(Int)
     %v37 = load [%v36]@Array.length : @bits(30) U32
-    %v38 = cast 1 : U64
-    %v39 = cast %v37 : U64
+    %v38 = cast 1 : USize
+    %v39 = cast %v37 : USize
     %v40 = cmp_ge %v38, %v39 : Bool
     call checkCondition, %v40
     %v42 = load [%v36]@Array.run@Run.items : %Int
@@ -265,8 +265,8 @@ fn readBetween() -> Int {
     %v49 = load %xs : Array(Int)
     %v52 = borrow %xs : &Array(Int)
     %v53 = load [%v52]@Array.length : @bits(30) U32
-    %v54 = cast 1 : U64
-    %v55 = cast %v53 : U64
+    %v54 = cast 1 : USize
+    %v55 = cast %v53 : USize
     %v56 = cmp_ge %v54, %v55 : Bool
     call checkCondition, %v56
     %v58 = load [%v52]@Array.run@Run.items : %Int
@@ -293,8 +293,8 @@ fn folds() -> Int {
     %v18 = load %xs : Array(Int)
     %v21 = borrow_mut %xs : &mut Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
-    %v23 = cast 1 : U64
-    %v24 = cast %v22 : U64
+    %v23 = cast 1 : USize
+    %v24 = cast %v22 : USize
     %v25 = cmp_ge %v23, %v24 : Bool
     call checkCondition, %v25
     %v27 = load [%v21]@Array.run@Run.items : %Int
@@ -306,8 +306,8 @@ fn folds() -> Int {
     %v34 = load %xs : Array(Int)
     %v37 = borrow %xs : &Array(Int)
     %v38 = load [%v37]@Array.length : @bits(30) U32
-    %v39 = cast 0 : U64
-    %v40 = cast %v38 : U64
+    %v39 = cast 0 : USize
+    %v40 = cast %v38 : USize
     %v41 = cmp_ge %v39, %v40 : Bool
     call checkCondition, %v41
     %v43 = load [%v37]@Array.run@Run.items : %Int
@@ -319,8 +319,8 @@ fn folds() -> Int {
     %v49 = load %xs : Array(Int)
     %v52 = borrow %xs : &Array(Int)
     %v53 = load [%v52]@Array.length : @bits(30) U32
-    %v54 = cast 1 : U64
-    %v55 = cast %v53 : U64
+    %v54 = cast 1 : USize
+    %v55 = cast %v53 : USize
     %v56 = cmp_ge %v54, %v55 : Bool
     call checkCondition, %v56
     %v58 = load [%v52]@Array.run@Run.items : %Int
@@ -333,8 +333,8 @@ fn folds() -> Int {
     %v65 = load %xs : Array(Int)
     %v68 = borrow %xs : &Array(Int)
     %v69 = load [%v68]@Array.length : @bits(30) U32
-    %v70 = cast 2 : U64
-    %v71 = cast %v69 : U64
+    %v70 = cast 2 : USize
+    %v71 = cast %v69 : USize
     %v72 = cmp_ge %v70, %v71 : Bool
     call checkCondition, %v72
     %v74 = load [%v68]@Array.run@Run.items : %Int

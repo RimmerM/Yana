@@ -329,12 +329,48 @@ struct Type {
  * So the split the type already had - `bits` is storage, `width` is what a load produces - is the
  * whole mechanism, and the only new thing is that `bits` may now be set independently of `width`.
  */
+/*
+ * Which target quantity answers an integer's width, or `None` where the type answers for itself.
+ *
+ * Analysis-Modules.md Move 2. Three primitives are not a number of bits the language picked - they
+ * are a number the *machine* picks, and resolve's business is to state the bound rather than the
+ * answer. `Size` and `USize` are the target's index word; `CodeUnit` is one unit of its string
+ * encoding.
+ *
+ * The bound is what everything above `repr` reasons with, and it is two numbers rather than one
+ * because the two directions of a conversion need opposite ends of it - see `integerRangeFits`.
+ */
+enum class TargetInt: U8 {
+    None,
+    Word,
+    CodeUnit,
+};
+
 struct IntType: Type {
     enum Width: U8 {
         Bool,
         Int,
         Long,
+
+        /*
+         * The target's own word, which is the one width class resolve cannot name.
+         *
+         * A separate class rather than `Long` with an abstract `bits`, because the register an
+         * operation on one uses is the thing that differs: `Size` is a 64-bit register natively and
+         * a 32-bit one on JS, and `lowerType` has to answer that question with the target in hand.
+         * `CodeUnit` needs no such class - eight bits and sixteen both arrive in a 32-bit register,
+         * so only its *storage* width is abstract and its class is `Int`.
+         */
+        Word,
     };
+
+    // The bound resolve states for each abstract width - see TargetInt. The word is at least 32 bits
+    // because the smallest target this compiler admits is JS, whose index type is a signed `Int`; it
+    // is at most 64 because there is no wider machine to compile for.
+    static constexpr U16 kWordMinBits = 32;
+    static constexpr U16 kWordMaxBits = 64;
+    static constexpr U16 kCodeUnitMinBits = 8;
+    static constexpr U16 kCodeUnitMaxBits = 16;
 
     /*
      * The width class a given number of bits falls into - the smallest one that holds it.
@@ -357,12 +393,43 @@ struct IntType: Type {
      * which is why nothing has to be emitted for them.
      */
     static U16 registerBits(Width width) {
+        assertTrue("a Word's register is the target's - ask registerBitsOn" && width != Word);
         return width == Bool ? 1 : width == Int ? 32 : 64;
     }
 
-    IntType(U16 bits, Width width, bool isSigned, StringId name = StringId(), TypePtr canonical = nullptr):
+    IntType(U16 bits, Width width, bool isSigned, StringId name = StringId(), TypePtr canonical = nullptr,
+            TargetInt target = TargetInt::None):
         Type(Type::Int), name(name), canonical(canonical), bits(bits), width(width),
-        isSigned(isSigned) {}
+        isSigned(isSigned), target(target) {}
+
+    /*
+     * The bound, from either end.
+     *
+     * Every reader of `bits` that is not asking the target has to pick one of these, and which one
+     * it picks is the whole of the correctness argument: a question about what a value of this type
+     * may *hold* takes `maxBits`, and a question about what this type is guaranteed to *fit* takes
+     * `minBits`. A concrete type answers both with its own width, which is why the rest of the
+     * compiler reads exactly as it did.
+     */
+    U16 minBits() const {
+        return target == TargetInt::Word ? kWordMinBits
+             : target == TargetInt::CodeUnit ? kCodeUnitMinBits : bits;
+    }
+
+    U16 maxBits() const { return bits; }
+
+    bool isTargetWidth() const { return target != TargetInt::None; }
+
+    // The answer, once there is a target to ask. The two below are the only way a width reaches a
+    // number for an abstract type, and everything downstream of resolve goes through them.
+    U16 bitsOn(IntWidths widths) const {
+        return target == TargetInt::Word ? widths.word
+             : target == TargetInt::CodeUnit ? widths.codeUnit : bits;
+    }
+
+    U16 registerBitsOn(IntWidths widths) const {
+        return width == Word ? widths.word : registerBits(width);
+    }
 
     StringId name;
 
@@ -370,9 +437,21 @@ struct IntType: Type {
     // Followed by everything that dispatches, and by nothing that lays out.
     TypePtr canonical;
 
+    /*
+     * The type's storage width, which for an abstract type is the *largest* it may be on any target.
+     *
+     * Holding the maximum rather than a sentinel is deliberate. A reader that has not been taught
+     * about `target` then treats a `Size` as the 64-bit integer it actually is on the only native
+     * target there is, so an unaudited site is wrong on JS - where the fixture corpus runs every
+     * day - rather than silently wrong everywhere. See minBits/maxBits for the readers that were
+     * taught.
+     */
     U16 bits;
     Width width;
     bool isSigned;
+
+    // Which target quantity `bits` is a bound on, or None where it is the answer.
+    TargetInt target;
 };
 
 /*
@@ -392,8 +471,15 @@ struct IntType: Type {
  * - see convertRefinement, which is the only other caller and the reason this is not in core.cpp.
  */
 inline bool integerRangeFits(const IntType& from, const IntType& to) {
-    if(from.isSigned) return to.isSigned && to.bits >= from.bits;
-    return U32(to.bits) - (to.isSigned ? 1u : 0u) >= from.bits;
+    // The two ends of the bound, and they are not the same end - see IntType::minBits. What has to
+    // fit is every value the source *may* hold, and what it has to fit into is the capacity the
+    // destination is *guaranteed* to have, so an abstract type on either side answers conservatively
+    // and the pair is decided once for every target rather than for the one being built.
+    auto fromBits = from.maxBits();
+    auto toBits = to.minBits();
+
+    if(from.isSigned) return to.isSigned && toBits >= fromBits;
+    return U32(toBits) - (to.isSigned ? 1u : 0u) >= fromBits;
 }
 
 /*
@@ -416,8 +502,13 @@ struct SaturationRange {
     bool highIsExact;
 };
 
-inline SaturationRange saturationRange(const IntType& integer) {
-    auto bits = integer.bits >= 64 ? 64u : U32(integer.bits);
+inline SaturationRange saturationRange(const IntType& integer, IntWidths widths = {}) {
+    // The target's answer and not the bound: a clamp has to produce the number the machine's own
+    // range ends at, and there is no conservative version of that. Every caller is downstream of
+    // resolve and has a target; the default is the native one, for the callers that build a
+    // concrete IntType on the spot to ask about a width they already have.
+    auto held = integer.bitsOn(widths);
+    auto bits = held >= 64 ? 64u : U32(held);
 
     if(!integer.isSigned) {
         auto high = bits >= 64 ? 18446744073709551616.0 : F64((U64(1) << bits) - 1);
@@ -430,15 +521,18 @@ inline SaturationRange saturationRange(const IntType& integer) {
 
 // A value in the normal form of its type: the type's own bits, sign-extended if it is signed. The
 // same form `convertRefinement` puts a runtime value in, and `truncateToWidth` an arithmetic result.
-inline U64 reduceToWidth(const IntType& integer, U64 value) {
-    if(integer.bits >= 64) return value;
+inline U64 reduceToWidth(const IntType& integer, U64 value, IntWidths widths = {}) {
+    // The target's answer, for the reason `saturationRange` takes one: a normal form is the bits a
+    // value actually occupies, and a bound has no normal form.
+    auto bits = integer.bitsOn(widths);
+    if(bits >= 64) return value;
 
-    auto mask = (U64(1) << integer.bits) - 1;
+    auto mask = (U64(1) << bits) - 1;
     value &= mask;
 
     // A signed type's high bit is its sign, so a value that has it set is the negative number it
     // stands for and not the small positive one the mask left behind.
-    if(integer.isSigned && (value & (U64(1) << (integer.bits - 1)))) value |= ~mask;
+    if(integer.isSigned && (value & (U64(1) << (bits - 1)))) value |= ~mask;
 
     return value;
 }
@@ -460,10 +554,15 @@ inline U64 reduceToWidth(const IntType& integer, U64 value) {
  * conversion a declaration could run.
  */
 inline bool integerHolds(const IntType& integer, U64 magnitude, bool negative) {
-    if(integer.bits == 0) return magnitude == 0;
+    // The guaranteed capacity, because a written literal has to be a value of the type on *every*
+    // target - `let n: Size = 3000000000` is not a program, however wide the machine being built for
+    // happens to be.
+    auto bits = integer.minBits();
+
+    if(bits == 0) return magnitude == 0;
     if(negative && !integer.isSigned) return magnitude == 0;
 
-    auto width = U32(integer.bits) - (integer.isSigned ? 1 : 0);
+    auto width = U32(bits) - (integer.isSigned ? 1 : 0);
     if(width >= 64) return true;
 
     auto limit = (U64(1) << width) - 1;
@@ -1737,7 +1836,7 @@ bool isNaturalCount(GlobalBase base, TypePtr count);
 // which is what the rule above is written in terms of. An integer answers its natural storage and
 // so a `@bits` refinement answers the storage it is held in, exactly as a standalone value of it
 // does; Design-Vector §2.2 accepts the refinement precisely so that the lanes keep its range.
-U32 laneStride(GlobalBase base, TypePtr type);
+U32 laneStride(GlobalBase base, TypePtr type, IntWidths widths);
 
 // The lane type of a vector or a mask, or null for anything else - the shape `fixedElement` has, and
 // usable as a test for the same reason.
@@ -2039,7 +2138,7 @@ struct ValueWidth {
     bool isNarrow() const { return logical != 0 && logical < natural; }
 };
 
-ValueWidth valueWidth(GlobalBase base, TypePtr type);
+ValueWidth valueWidth(GlobalBase base, TypePtr type, IntWidths widths);
 
 /*
  * The numbers a payload-free sum's constructors occupy - Analysis-Language.md §5.1.
@@ -2163,7 +2262,7 @@ using PackOrder = SmallArray<U16, 16>;
 using PackOffsets = SmallArray<U32, 16>;
 
 PackedRun packBits(GlobalBase base, TupType& tuple, Buffer<const U16> order, U32 maxBits,
-                   PackOffsets* offsets);
+                   PackOffsets* offsets, IntWidths widths);
 
 /*
  * The storage unit a bit-field is allocated in under a pinned layout, or zero for anything that is not
@@ -2186,7 +2285,7 @@ U32 declaredUnitBits(GlobalBase base, TypePtr type);
  *
  * Declaration order under `C`, which is what pinning the layout means.
  */
-void packOrder(GlobalBase base, TupType& tuple, PackOrder& into);
+void packOrder(GlobalBase base, TupType& tuple, PackOrder& into, IntWidths widths);
 
 /*
  * Whether the whole of an aggregate is one narrow scalar, and where its fields sit inside it.
@@ -2199,7 +2298,8 @@ void packOrder(GlobalBase base, TupType& tuple, PackOrder& into);
  * rather than in the order the fields were placed, so that a caller needs to know nothing about the
  * ordering to use it.
  */
-bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, PackOffsets* offsets);
+bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, PackOffsets* offsets,
+                  IntWidths widths);
 
 /*
  * Whether a value of this type is narrow enough that a `&` of it carries a shift - Design.md's
@@ -2215,7 +2315,10 @@ bool scalarLayout(GlobalBase base, TupType& tuple, PackedRun& run, PackOffsets* 
  * elided at run time because there was nothing there.
  */
 inline bool isNarrowValue(GlobalBase base, TypePtr type) {
-    return valueWidth(base, type).isNarrow();
+    // No target, for the reason `packCandidate` needs none: narrowness is the one width question an
+    // abstract type answers the same way everywhere, since `Size` and `CodeUnit` fill their storage
+    // at every width they can take. The proof is written out there.
+    return valueWidth(base, type, IntWidths {}).isNarrow();
 }
 
 // How a type is written in a diagnostic or in printed IR. The builder form is the one that

@@ -58,35 +58,35 @@ import Native
 -- apart that no length here can bring them within a register of each other. `copyMemory` promises
 -- nothing about overlapping regions, so a test that let them touch would be testing a contract that
 -- does not exist.
-let apart = 4096 :: I64
-let guard = 64 :: I64
+let apart = 4096 :: Size
+let guard = 64 :: Size
 
 -- `0, 1, 2, ...` from `first`, so that any byte's correct value is its own index and a clobber shows
 -- up as a repeat. It wraps at 256, which is why every comparison below truncates too.
-fn fill(buffer: %U8, at: I64, first: I64, count: I64) -> {}:
-    let &i = 0 :: I64
+fn fill(buffer: %U8, at: Size, first: Size, count: Size) -> {}:
+    let &i = 0 :: Size
     while i < count:
         store(buffer + at + i, truncate(first + i) :: U8)
         i = i + 1
 
 -- One value everywhere, which is what the destination and its guard bands are painted with before
 -- each copy: a byte the copy leaves behind still reads as this one.
-fn paint(buffer: %U8, at: I64, value: I64, count: I64) -> {}:
-    let &i = 0 :: I64
+fn paint(buffer: %U8, at: Size, value: Size, count: Size) -> {}:
+    let &i = 0 :: Size
     while i < count:
         store(buffer + at + i, truncate(value) :: U8)
         i = i + 1
 
-fn runs(buffer: %U8, at: I64, first: I64, count: I64) -> Bool:
-    let &i = 0 :: I64
+fn runs(buffer: %U8, at: Size, first: Size, count: Size) -> Bool:
+    let &i = 0 :: Size
     while i < count:
         if (*(buffer + at + i)) != (truncate(first + i) :: U8) then return False
         i = i + 1
 
     return True
 
-fn same(buffer: %U8, at: I64, value: I64, count: I64) -> Bool:
-    let &i = 0 :: I64
+fn same(buffer: %U8, at: Size, value: Size, count: Size) -> Bool:
+    let &i = 0 :: Size
     while i < count:
         if (*(buffer + at + i)) != (truncate(value) :: U8) then return False
         i = i + 1
@@ -100,7 +100,7 @@ fn same(buffer: %U8, at: I64, value: I64, count: I64) -> Bool:
    `apart + to` with `guard` painted bytes in front of it and `guard` behind. What has to hold
    afterwards is that the run arrived, and that both bands are exactly as they were.
 -}
-fn check(buffer: %U8, from: I64, to: I64, count: I64) -> Int:
+fn check(buffer: %U8, from: Size, to: Size, count: Size) -> Int:
     let source = from
     let target = apart + to
 
@@ -160,12 +160,12 @@ fn edges() -> {}:
 fn sweep() -> {}:
     let buffer = allocateHeap(8192)
     let &bad = 0 :: Int
-    let &count = 0 :: I64
+    let &count = 0 :: Size
 
     while count <= 200:
-        let &i = 0 :: I64
+        let &i = 0 :: Size
         while i < 3:
-            let &j = 0 :: I64
+            let &j = 0 :: Size
             while j < 3:
                 -- 0, 1 and 5: aligned, one byte off, and off by an odd amount larger than a word.
                 let from = if i == 0 then 0 else if i == 1 then 1 else 5
@@ -193,7 +193,7 @@ fn sweep() -> {}:
 fn long() -> {}:
     let buffer = allocateHeap(8192)
     let &bad = 0 :: Int
-    let &count = 200 :: I64
+    let &count = 200 :: Size
 
     while count <= 1800:
         bad = bad + check(buffer, 0, 0, count)

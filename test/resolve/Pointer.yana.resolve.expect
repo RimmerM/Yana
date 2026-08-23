@@ -1,9 +1,9 @@
 let image$base: () = <none>
 
-fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
+fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
-    %width = cast 16 : I64
+    %width = cast 16 : Size
     %v9 = cmp_ge %count, 8 : Bool
     je %v9, b1, b2
 
@@ -18,17 +18,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b3:
     %v13 = bitcast %from : %Vec(U8)
     %low = load [%v13] : Vec(U8)
-    %v15 = sub %count, %width : I64
-    %v16 = strideof U8 : I64
-    %v17 = mul %v15, %v16 : I64
+    %v15 = sub %count, %width : Size
+    %v16 = strideof U8 : Size
+    %v17 = mul %v15, %v16 : Size
     %v18 = add %from, %v17 : %U8
     %v19 = bitcast %v18 : %Vec(U8)
     %high = load [%v19] : Vec(U8)
     %v21 = bitcast %to : %Vec(U8)
     assign [%v21], %low
-    %v23 = sub %count, %width : I64
-    %v24 = strideof U8 : I64
-    %v25 = mul %v23, %v24 : I64
+    %v23 = sub %count, %width : Size
+    %v24 = strideof U8 : Size
+    %v25 = mul %v23, %v24 : Size
     %v26 = add %to, %v25 : %U8
     %v27 = bitcast %v26 : %Vec(U8)
     assign [%v27], %high
@@ -49,17 +49,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b7:
     %v37 = bitcast %from : %Vec(U8, 32)
     %low = load [%v37] : Vec(U8, 32)
-    %v41 = sub %count, 32 : I64
-    %v42 = strideof U8 : I64
-    %v43 = mul %v41, %v42 : I64
+    %v41 = sub %count, 32 : Size
+    %v42 = strideof U8 : Size
+    %v43 = mul %v41, %v42 : Size
     %v44 = add %from, %v43 : %U8
     %v45 = bitcast %v44 : %Vec(U8, 32)
     %high = load [%v45] : Vec(U8, 32)
     %v47 = bitcast %to : %Vec(U8, 32)
     assign [%v47], %low
-    %v51 = sub %count, 32 : I64
-    %v52 = strideof U8 : I64
-    %v53 = mul %v51, %v52 : I64
+    %v51 = sub %count, 32 : Size
+    %v52 = strideof U8 : Size
+    %v53 = mul %v51, %v52 : Size
     %v54 = add %to, %v53 : %U8
     %v55 = bitcast %v54 : %Vec(U8, 32)
     assign [%v55], %high
@@ -72,17 +72,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b9:
     %v61 = bitcast %from : %Vec(U8)
     %low = load [%v61] : Vec(U8)
-    %v65 = sub %count, 16 : I64
-    %v66 = strideof U8 : I64
-    %v67 = mul %v65, %v66 : I64
+    %v65 = sub %count, 16 : Size
+    %v66 = strideof U8 : Size
+    %v67 = mul %v65, %v66 : Size
     %v68 = add %from, %v67 : %U8
     %v69 = bitcast %v68 : %Vec(U8)
     %high = load [%v69] : Vec(U8)
     %v71 = bitcast %to : %Vec(U8)
     assign [%v71], %low
-    %v75 = sub %count, 16 : I64
-    %v76 = strideof U8 : I64
-    %v77 = mul %v75, %v76 : I64
+    %v75 = sub %count, 16 : Size
+    %v76 = strideof U8 : Size
+    %v77 = mul %v75, %v76 : Size
     %v78 = add %to, %v77 : %U8
     %v79 = bitcast %v78 : %Vec(U8)
     assign [%v79], %high
@@ -91,17 +91,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b10:
     %v81 = bitcast %from : %U64
     %low = load [%v81] : U64
-    %v85 = sub %count, 8 : I64
-    %v86 = strideof U8 : I64
-    %v87 = mul %v85, %v86 : I64
+    %v85 = sub %count, 8 : Size
+    %v86 = strideof U8 : Size
+    %v87 = mul %v85, %v86 : Size
     %v88 = add %from, %v87 : %U8
     %v89 = bitcast %v88 : %U64
     %high = load [%v89] : U64
     %v91 = bitcast %to : %U64
     assign [%v91], %low
-    %v95 = sub %count, 8 : I64
-    %v96 = strideof U8 : I64
-    %v97 = mul %v95, %v96 : I64
+    %v95 = sub %count, 8 : Size
+    %v96 = strideof U8 : Size
+    %v97 = mul %v95, %v96 : Size
     %v98 = add %to, %v97 : %U8
     %v99 = bitcast %v98 : %U64
     assign [%v99], %high
@@ -120,17 +120,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b14:
     %v155 = bitcast %from : %U64
     %low = load [%v155] : U64
-    %v159 = sub %count, 8 : I64
-    %v160 = strideof U8 : I64
-    %v161 = mul %v159, %v160 : I64
+    %v159 = sub %count, 8 : Size
+    %v160 = strideof U8 : Size
+    %v161 = mul %v159, %v160 : Size
     %v162 = add %from, %v161 : %U8
     %v163 = bitcast %v162 : %U64
     %high = load [%v163] : U64
     %v165 = bitcast %to : %U64
     assign [%v165], %low
-    %v169 = sub %count, 8 : I64
-    %v170 = strideof U8 : I64
-    %v171 = mul %v169, %v170 : I64
+    %v169 = sub %count, 8 : Size
+    %v170 = strideof U8 : Size
+    %v171 = mul %v169, %v170 : Size
     %v172 = add %to, %v171 : %U8
     %v173 = bitcast %v172 : %U64
     assign [%v173], %high
@@ -139,17 +139,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b15:
     %v113 = bitcast %from : %Vec(U8)
     %low = load [%v113] : Vec(U8)
-    %v117 = sub %count, 16 : I64
-    %v118 = strideof U8 : I64
-    %v119 = mul %v117, %v118 : I64
+    %v117 = sub %count, 16 : Size
+    %v118 = strideof U8 : Size
+    %v119 = mul %v117, %v118 : Size
     %v120 = add %from, %v119 : %U8
     %v121 = bitcast %v120 : %Vec(U8)
     %high = load [%v121] : Vec(U8)
     %v123 = bitcast %to : %Vec(U8)
     assign [%v123], %low
-    %v127 = sub %count, 16 : I64
-    %v128 = strideof U8 : I64
-    %v129 = mul %v127, %v128 : I64
+    %v127 = sub %count, 16 : Size
+    %v128 = strideof U8 : Size
+    %v129 = mul %v127, %v128 : Size
     %v130 = add %to, %v129 : %U8
     %v131 = bitcast %v130 : %Vec(U8)
     assign [%v131], %high
@@ -158,17 +158,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b16:
     %v133 = bitcast %from : %U64
     %low = load [%v133] : U64
-    %v137 = sub %count, 8 : I64
-    %v138 = strideof U8 : I64
-    %v139 = mul %v137, %v138 : I64
+    %v137 = sub %count, 8 : Size
+    %v138 = strideof U8 : Size
+    %v139 = mul %v137, %v138 : Size
     %v140 = add %from, %v139 : %U8
     %v141 = bitcast %v140 : %U64
     %high = load [%v141] : U64
     %v143 = bitcast %to : %U64
     assign [%v143], %low
-    %v147 = sub %count, 8 : I64
-    %v148 = strideof U8 : I64
-    %v149 = mul %v147, %v148 : I64
+    %v147 = sub %count, 8 : Size
+    %v148 = strideof U8 : Size
+    %v149 = mul %v147, %v148 : Size
     %v150 = add %to, %v149 : %U8
     %v151 = bitcast %v150 : %U64
     assign [%v151], %high
@@ -197,17 +197,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b23:
     %v189 = bitcast %from : %U32
     %low = load [%v189] : U32
-    %v193 = sub %count, 4 : I64
-    %v194 = strideof U8 : I64
-    %v195 = mul %v193, %v194 : I64
+    %v193 = sub %count, 4 : Size
+    %v194 = strideof U8 : Size
+    %v195 = mul %v193, %v194 : Size
     %v196 = add %from, %v195 : %U8
     %v197 = bitcast %v196 : %U32
     %high = load [%v197] : U32
     %v199 = bitcast %to : %U32
     assign [%v199], %low
-    %v203 = sub %count, 4 : I64
-    %v204 = strideof U8 : I64
-    %v205 = mul %v203, %v204 : I64
+    %v203 = sub %count, 4 : Size
+    %v204 = strideof U8 : Size
+    %v205 = mul %v203, %v204 : Size
     %v206 = add %to, %v205 : %U8
     %v207 = bitcast %v206 : %U32
     assign [%v207], %high
@@ -216,17 +216,17 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
   b24:
     %v209 = bitcast %from : %U16
     %low = load [%v209] : U16
-    %v213 = sub %count, 2 : I64
-    %v214 = strideof U8 : I64
-    %v215 = mul %v213, %v214 : I64
+    %v213 = sub %count, 2 : Size
+    %v214 = strideof U8 : Size
+    %v215 = mul %v213, %v214 : Size
     %v216 = add %from, %v215 : %U8
     %v217 = bitcast %v216 : %U16
     %high = load [%v217] : U16
     %v219 = bitcast %to : %U16
     assign [%v219], %low
-    %v223 = sub %count, 2 : I64
-    %v224 = strideof U8 : I64
-    %v225 = mul %v223, %v224 : I64
+    %v223 = sub %count, 2 : Size
+    %v224 = strideof U8 : Size
+    %v225 = mul %v223, %v224 : Size
     %v226 = add %to, %v225 : %U8
     %v227 = bitcast %v226 : %U16
     assign [%v227], %high
@@ -253,71 +253,71 @@ fn blockShort(%to: %U8, %from: %U8, %count: I64) -> () {
     ret
 }
 
-fn blockPair(%to: %U8, %from: %U8, %count: I64) -> () {
+fn blockPair(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
-    %width = cast 16 : I64
+    %width = cast 16 : Size
     %v7 = bitcast %from : %Vec(U8)
     %a = load [%v7] : Vec(U8)
-    %v9 = strideof U8 : I64
-    %v10 = mul %width, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul %width, %v9 : Size
     %v11 = add %from, %v10 : %U8
     %v12 = bitcast %v11 : %Vec(U8)
     %b = load [%v12] : Vec(U8)
-    %v14 = sub %count, %width : I64
-    %v15 = sub %v14, %width : I64
-    %v16 = strideof U8 : I64
-    %v17 = mul %v15, %v16 : I64
+    %v14 = sub %count, %width : Size
+    %v15 = sub %v14, %width : Size
+    %v16 = strideof U8 : Size
+    %v17 = mul %v15, %v16 : Size
     %v18 = add %from, %v17 : %U8
     %v19 = bitcast %v18 : %Vec(U8)
     %c = load [%v19] : Vec(U8)
-    %v21 = sub %count, %width : I64
-    %v22 = strideof U8 : I64
-    %v23 = mul %v21, %v22 : I64
+    %v21 = sub %count, %width : Size
+    %v22 = strideof U8 : Size
+    %v23 = mul %v21, %v22 : Size
     %v24 = add %from, %v23 : %U8
     %v25 = bitcast %v24 : %Vec(U8)
     %d = load [%v25] : Vec(U8)
     %v27 = bitcast %to : %Vec(U8)
     assign [%v27], %a
-    %v29 = strideof U8 : I64
-    %v30 = mul %width, %v29 : I64
+    %v29 = strideof U8 : Size
+    %v30 = mul %width, %v29 : Size
     %v31 = add %to, %v30 : %U8
     %v32 = bitcast %v31 : %Vec(U8)
     assign [%v32], %b
-    %v34 = sub %count, %width : I64
-    %v35 = sub %v34, %width : I64
-    %v36 = strideof U8 : I64
-    %v37 = mul %v35, %v36 : I64
+    %v34 = sub %count, %width : Size
+    %v35 = sub %v34, %width : Size
+    %v36 = strideof U8 : Size
+    %v37 = mul %v35, %v36 : Size
     %v38 = add %to, %v37 : %U8
     %v39 = bitcast %v38 : %Vec(U8)
     assign [%v39], %c
-    %v41 = sub %count, %width : I64
-    %v42 = strideof U8 : I64
-    %v43 = mul %v41, %v42 : I64
+    %v41 = sub %count, %width : Size
+    %v42 = strideof U8 : Size
+    %v43 = mul %v41, %v42 : Size
     %v44 = add %to, %v43 : %U8
     %v45 = bitcast %v44 : %Vec(U8)
     assign [%v45], %d
     ret
 }
 
-fn blockAscending(%to: %U8, %from: %U8, %count: I64) -> () {
+fn blockAscending(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
-    %width = cast 16 : I64
-    %stride = mul %width, 4 : I64
-    %v10 = sub %count, %width : I64
-    %v11 = strideof U8 : I64
-    %v12 = mul %v10, %v11 : I64
+    %width = cast 16 : Size
+    %stride = mul %width, 4 : Size
+    %v10 = sub %count, %width : Size
+    %v11 = strideof U8 : Size
+    %v12 = mul %v10, %v11 : Size
     %v13 = add %from, %v12 : %U8
     %v14 = bitcast %v13 : %Vec(U8)
     %tail = load [%v14] : Vec(U8)
-    %at = alloc : I64
+    %at = alloc : Size
     init %at, 0
     jmp b1
 
   b1:
-    %v20 = load %at : I64
-    %v21 = add %v20, %stride : I64
+    %v20 = load %at : Size
+    %v21 = add %v20, %stride : Size
     %v22 = cmp_le %v21, %count : Bool
     je %v22, b3, b2
 
@@ -325,139 +325,139 @@ fn blockAscending(%to: %U8, %from: %U8, %count: I64) -> () {
     jmp b4
 
   b3:
-    %v24 = load %at : I64
-    %v25 = strideof U8 : I64
-    %v26 = mul %v24, %v25 : I64
+    %v24 = load %at : Size
+    %v25 = strideof U8 : Size
+    %v26 = mul %v24, %v25 : Size
     %v27 = add %from, %v26 : %U8
     %v28 = bitcast %v27 : %Vec(U8)
     %a = load [%v28] : Vec(U8)
-    %v30 = load %at : I64
-    %v31 = strideof U8 : I64
-    %v32 = mul %v30, %v31 : I64
+    %v30 = load %at : Size
+    %v31 = strideof U8 : Size
+    %v32 = mul %v30, %v31 : Size
     %v33 = add %from, %v32 : %U8
-    %v34 = strideof U8 : I64
-    %v35 = mul %width, %v34 : I64
+    %v34 = strideof U8 : Size
+    %v35 = mul %width, %v34 : Size
     %v36 = add %v33, %v35 : %U8
     %v37 = bitcast %v36 : %Vec(U8)
     %b = load [%v37] : Vec(U8)
-    %v39 = load %at : I64
-    %v40 = strideof U8 : I64
-    %v41 = mul %v39, %v40 : I64
+    %v39 = load %at : Size
+    %v40 = strideof U8 : Size
+    %v41 = mul %v39, %v40 : Size
     %v42 = add %from, %v41 : %U8
-    %v43 = strideof U8 : I64
-    %v44 = mul %width, %v43 : I64
+    %v43 = strideof U8 : Size
+    %v44 = mul %width, %v43 : Size
     %v45 = add %v42, %v44 : %U8
-    %v46 = strideof U8 : I64
-    %v47 = mul %width, %v46 : I64
+    %v46 = strideof U8 : Size
+    %v47 = mul %width, %v46 : Size
     %v48 = add %v45, %v47 : %U8
     %v49 = bitcast %v48 : %Vec(U8)
     %c = load [%v49] : Vec(U8)
-    %v51 = load %at : I64
-    %v52 = strideof U8 : I64
-    %v53 = mul %v51, %v52 : I64
+    %v51 = load %at : Size
+    %v52 = strideof U8 : Size
+    %v53 = mul %v51, %v52 : Size
     %v54 = add %from, %v53 : %U8
-    %v55 = strideof U8 : I64
-    %v56 = mul %width, %v55 : I64
+    %v55 = strideof U8 : Size
+    %v56 = mul %width, %v55 : Size
     %v57 = add %v54, %v56 : %U8
-    %v58 = strideof U8 : I64
-    %v59 = mul %width, %v58 : I64
+    %v58 = strideof U8 : Size
+    %v59 = mul %width, %v58 : Size
     %v60 = add %v57, %v59 : %U8
-    %v61 = strideof U8 : I64
-    %v62 = mul %width, %v61 : I64
+    %v61 = strideof U8 : Size
+    %v62 = mul %width, %v61 : Size
     %v63 = add %v60, %v62 : %U8
     %v64 = bitcast %v63 : %Vec(U8)
     %d = load [%v64] : Vec(U8)
-    %v66 = load %at : I64
-    %v67 = strideof U8 : I64
-    %v68 = mul %v66, %v67 : I64
+    %v66 = load %at : Size
+    %v67 = strideof U8 : Size
+    %v68 = mul %v66, %v67 : Size
     %v69 = add %to, %v68 : %U8
     %v70 = bitcast %v69 : %Vec(U8)
     assign [%v70], %a
-    %v72 = load %at : I64
-    %v73 = strideof U8 : I64
-    %v74 = mul %v72, %v73 : I64
+    %v72 = load %at : Size
+    %v73 = strideof U8 : Size
+    %v74 = mul %v72, %v73 : Size
     %v75 = add %to, %v74 : %U8
-    %v76 = strideof U8 : I64
-    %v77 = mul %width, %v76 : I64
+    %v76 = strideof U8 : Size
+    %v77 = mul %width, %v76 : Size
     %v78 = add %v75, %v77 : %U8
     %v79 = bitcast %v78 : %Vec(U8)
     assign [%v79], %b
-    %v81 = load %at : I64
-    %v82 = strideof U8 : I64
-    %v83 = mul %v81, %v82 : I64
+    %v81 = load %at : Size
+    %v82 = strideof U8 : Size
+    %v83 = mul %v81, %v82 : Size
     %v84 = add %to, %v83 : %U8
-    %v85 = strideof U8 : I64
-    %v86 = mul %width, %v85 : I64
+    %v85 = strideof U8 : Size
+    %v86 = mul %width, %v85 : Size
     %v87 = add %v84, %v86 : %U8
-    %v88 = strideof U8 : I64
-    %v89 = mul %width, %v88 : I64
+    %v88 = strideof U8 : Size
+    %v89 = mul %width, %v88 : Size
     %v90 = add %v87, %v89 : %U8
     %v91 = bitcast %v90 : %Vec(U8)
     assign [%v91], %c
-    %v93 = load %at : I64
-    %v94 = strideof U8 : I64
-    %v95 = mul %v93, %v94 : I64
+    %v93 = load %at : Size
+    %v94 = strideof U8 : Size
+    %v95 = mul %v93, %v94 : Size
     %v96 = add %to, %v95 : %U8
-    %v97 = strideof U8 : I64
-    %v98 = mul %width, %v97 : I64
+    %v97 = strideof U8 : Size
+    %v98 = mul %width, %v97 : Size
     %v99 = add %v96, %v98 : %U8
-    %v100 = strideof U8 : I64
-    %v101 = mul %width, %v100 : I64
+    %v100 = strideof U8 : Size
+    %v101 = mul %width, %v100 : Size
     %v102 = add %v99, %v101 : %U8
-    %v103 = strideof U8 : I64
-    %v104 = mul %width, %v103 : I64
+    %v103 = strideof U8 : Size
+    %v104 = mul %width, %v103 : Size
     %v105 = add %v102, %v104 : %U8
     %v106 = bitcast %v105 : %Vec(U8)
     assign [%v106], %d
-    %v108 = load %at : I64
-    %v109 = add %v108, %stride : I64
+    %v108 = load %at : Size
+    %v109 = add %v108, %stride : Size
     assign %at, %v109
     jmp b1
 
   b4:
-    %v113 = load %at : I64
-    %v114 = add %v113, %width : I64
+    %v113 = load %at : Size
+    %v114 = add %v113, %width : Size
     %v115 = cmp_le %v114, %count : Bool
     je %v115, b6, b5
 
   b5:
-    %v133 = sub %count, %width : I64
-    %v134 = strideof U8 : I64
-    %v135 = mul %v133, %v134 : I64
+    %v133 = sub %count, %width : Size
+    %v134 = strideof U8 : Size
+    %v135 = mul %v133, %v134 : Size
     %v136 = add %to, %v135 : %U8
     %v137 = bitcast %v136 : %Vec(U8)
     assign [%v137], %tail
     ret
 
   b6:
-    %v117 = load %at : I64
-    %v118 = strideof U8 : I64
-    %v119 = mul %v117, %v118 : I64
+    %v117 = load %at : Size
+    %v118 = strideof U8 : Size
+    %v119 = mul %v117, %v118 : Size
     %v120 = add %to, %v119 : %U8
-    %v121 = load %at : I64
-    %v122 = strideof U8 : I64
-    %v123 = mul %v121, %v122 : I64
+    %v121 = load %at : Size
+    %v122 = strideof U8 : Size
+    %v123 = mul %v121, %v122 : Size
     %v124 = add %from, %v123 : %U8
     %v125 = bitcast %v124 : %Vec(U8)
     %v126 = load [%v125] : Vec(U8)
     %v127 = bitcast %v120 : %Vec(U8)
     assign [%v127], %v126
-    %v129 = load %at : I64
-    %v130 = add %v129, %width : I64
+    %v129 = load %at : Size
+    %v130 = add %v129, %width : Size
     assign %at, %v130
     jmp b4
 }
 
-fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
+fn copyMemory(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
-    %width = cast 16 : I64
-    %v7 = add %width, %width : I64
+    %width = cast 16 : Size
+    %v7 = add %width, %width : Size
     %v8 = cmp_ge %count, %v7 : Bool
     je %v8, b1, b2
 
   b1:
-    %v12 = mul %width, 4 : I64
+    %v12 = mul %width, 4 : Size
     %v13 = cmp_lt %count, %v12 : Bool
     je %v13, b3, b4
 
@@ -472,7 +472,7 @@ fn copyMemory(%to: %U8, %from: %U8, %count: I64) -> () {
     jmp b5
 
   b5:
-    %v20 = mul %width, 48 : I64
+    %v20 = mul %width, 48 : Size
     %v21 = cmp_ge %count, %v20 : Bool
     je %v21, b6, b7
 
@@ -583,20 +583,21 @@ fn elementStride() -> I64 {
     %v3 = bitcast 0 : %Node
     aggregate %local0@Node.value = 0, %local0@Node.next = %v3
     %base = addressof %local0 : %Node
-    %v8 = strideof Node : I64
-    %v9 = mul 1, %v8 : I64
+    %v8 = strideof Node : Size
+    %v9 = mul 1, %v8 : Size
     %next = add %base, %v9 : %Node
-    %v11 = sub %next, %base : I64
-    %v12 = strideof Node : I64
-    %v13 = div %v11, %v12 : I64
-    %v16 = mul %v13, 100 : I64
+    %v11 = sub %next, %base : Size
+    %v12 = strideof Node : Size
+    %v13 = div %v11, %v12 : Size
+    %v16 = mul %v13, 100 : Size
     %v17 = bitcast %base : %U8
     %v18 = bitcast %next : %U8
-    %v19 = sub %v18, %v17 : I64
-    %v20 = strideof U8 : I64
-    %v21 = div %v19, %v20 : I64
-    %v22 = add %v16, %v21 : I64
-    ret %v22
+    %v19 = sub %v18, %v17 : Size
+    %v20 = strideof U8 : Size
+    %v21 = div %v19, %v20 : Size
+    %v22 = add %v16, %v21 : Size
+    %v23 = cast %v22 : I64
+    ret %v23
 }
 
 fn compareAddresses() -> I64 {
@@ -607,8 +608,8 @@ fn compareAddresses() -> I64 {
     %base = addressof %local0 : %Node
     %score = alloc : I64
     init %score, 0
-    %v11 = strideof Node : I64
-    %v12 = mul 1, %v11 : I64
+    %v11 = strideof Node : Size
+    %v12 = mul 1, %v11 : Size
     %v13 = add %base, %v12 : %Node
     %v14 = cmp_lt %base, %v13 : Bool
     je %v14, b1, b2
@@ -682,12 +683,12 @@ fn blockOperations() -> I64 {
     %v11 = bitcast %v10 : %U8
     %v12 = addressof %local0 : %Node
     %v13 = bitcast %v12 : %U8
-    %v14 = sizeof Node : I64
+    %v14 = sizeof Node : Size
     call copyMemory, %v11, %v13, %v14
     %copied = load %local1@Node.value : I64
     %v17 = addressof %local1 : %Node
     %v18 = bitcast %v17 : %U8
-    %v20 = sizeof Node : I64
+    %v20 = sizeof Node : Size
     setmemory %v18, 0, %v20
     %v24 = mul %copied, 10 : I64
     %v25 = load %local1@Node.value : I64
@@ -697,14 +698,15 @@ fn blockOperations() -> I64 {
 
 fn sizes() -> I64 {
   b0:
-    %v1 = sizeof I64 : I64
-    %v4 = mul %v1, 100 : I64
-    %v6 = alignof U8 : I64
-    %v9 = mul %v6, 10 : I64
-    %v10 = add %v4, %v9 : I64
-    %v12 = sizeof U16 : I64
-    %v13 = add %v10, %v12 : I64
-    ret %v13
+    %v1 = sizeof I64 : Size
+    %v4 = mul %v1, 100 : Size
+    %v6 = alignof U8 : Size
+    %v9 = mul %v6, 10 : Size
+    %v10 = add %v4, %v9 : Size
+    %v12 = sizeof U16 : Size
+    %v13 = add %v10, %v12 : Size
+    %v14 = cast %v13 : I64
+    ret %v14
 }
 
 fn maybePointer() -> I64 {

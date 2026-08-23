@@ -49,9 +49,9 @@ fn Reclaim(Array(a)).reclaim(Vec(Int))(%value: Array(Vec(Int))) -> () {
     %v13 = load %value@Array.run : Run(Vec(Int))
     %v14 = load %value@Array.run@Run.items : %Vec(Int)
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Vec(Int) : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Vec(Int) : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Vec(Int)
     %v20 = load [%v19] : Vec(Int)
     %doomed = alloc : Vec(Int)
@@ -62,27 +62,27 @@ fn Reclaim(Array(a)).reclaim(Vec(Int))(%value: Array(Vec(Int))) -> () {
     jmp b1
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
@@ -101,11 +101,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -143,9 +143,9 @@ fn releaseRun(Vec(Int))(%self: Run(Vec(Int))) -> () {
 fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
   b0:
     %v3 = borrow %xs : &Flat(Vec(Int))
-    %v4 = load [%v3]@Flat.length : I64
-    %v5 = cast 0 : U64
-    %v6 = cast %v4 : U64
+    %v4 = load [%v3]@Flat.length : Size
+    %v5 = cast 0 : USize
+    %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
     %v9 = load [%v3]@Flat.items : %Vec(Int)
@@ -155,9 +155,9 @@ fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
     %v13 = borrow [%v12] : &Vec(Int)
     %v14 = load [%v13] : Vec(Int)
     %v17 = borrow %xs : &Flat(Vec(Int))
-    %v18 = load [%v17]@Flat.length : I64
-    %v19 = cast 1 : U64
-    %v20 = cast %v18 : U64
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast 1 : USize
+    %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
     %v23 = load [%v17]@Flat.items : %Vec(Int)
@@ -173,9 +173,9 @@ fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
 fn masked(%xs: Flat(Vec(Int))) -> Vec(Int) {
   b0:
     %v3 = borrow %xs : &Flat(Vec(Int))
-    %v4 = load [%v3]@Flat.length : I64
-    %v5 = cast 0 : U64
-    %v6 = cast %v4 : U64
+    %v4 = load [%v3]@Flat.length : Size
+    %v5 = cast 0 : USize
+    %v6 = cast %v4 : USize
     %v7 = cmp_ge %v5, %v6 : Bool
     call checkCondition, %v7
     %v9 = load [%v3]@Flat.items : %Vec(Int)
@@ -185,9 +185,9 @@ fn masked(%xs: Flat(Vec(Int))) -> Vec(Int) {
     %v13 = borrow [%v12] : &Vec(Int)
     %v14 = load [%v13] : Vec(Int)
     %v17 = borrow %xs : &Flat(Vec(Int))
-    %v18 = load [%v17]@Flat.length : I64
-    %v19 = cast 1 : U64
-    %v20 = cast %v18 : U64
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast 1 : USize
+    %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
     %v23 = load [%v17]@Flat.items : %Vec(Int)
@@ -217,7 +217,7 @@ fn main() -> Int {
     %v17 = load [%v15]@Array.run@Run.items : %Vec(Int)
     init %xs@Flat.items, %v17
     %v19 = load [%v15]@Array.length : @bits(30) U32
-    %v20 = cast %v19 : I64
+    %v20 = cast %v19 : Size
     init %xs@Flat.length, %v20
     %s = call sum, %xs : Vec(Int)
     %v23 = borrow %local0 : &Array(Vec(Int))
@@ -225,7 +225,7 @@ fn main() -> Int {
     %v25 = load [%v23]@Array.run@Run.items : %Vec(Int)
     init %xs@Flat.items, %v25
     %v27 = load [%v23]@Array.length : @bits(30) U32
-    %v28 = cast %v27 : I64
+    %v28 = cast %v27 : Size
     init %xs@Flat.length, %v28
     %m = call masked, %xs : Vec(Int)
     drop %local0 reclaim Reclaim(Array(a)).reclaim(Vec(Int))

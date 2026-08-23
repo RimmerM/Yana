@@ -19,8 +19,8 @@ fn wrongRoot(return a: Run(U8), b: Run(U8)) -> %U8 = slots(b)
 -- What is *not* reported, and must not be: an address with no argument root at all. A pointer out
 -- of an allocator, out of a bitcast of an integer, and the null pointer are all outside any
 -- argument's storage, so none of them has a group to declare.
-fn fromAllocator(size: I64) -> %U8 = allocateHeap(size)
-fn fromInteger(address: I64) -> %U8 = bitcast(address) :: %U8
+fn fromAllocator(size: Size) -> %U8 = allocateHeap(size)
+fn fromInteger(address: Size) -> %U8 = bitcast(address) :: %U8
 fn nothing() -> %U8 = null()
 
 -- Nor is a container-returning function made to declare one. A raw pointer is where provenance

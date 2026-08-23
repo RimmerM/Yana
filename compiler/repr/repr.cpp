@@ -49,6 +49,7 @@ ReprTarget nativeReprTarget() {
     target.pointerSize = 8;
     target.pointerAlign = 8;
     target.integerBits = 64;
+    target.integers = targetIntWidths(CompileSettings {});
     target.maxPackBits = 64;
     target.nullableRawPointers = true;
     target.packFields = true;
@@ -76,6 +77,12 @@ ReprTarget jsReprTarget() {
     target.pointerSize = 8;
     target.pointerAlign = 8;
     target.integerBits = 53;
+
+    // A signed 32-bit index and a UTF-16 code unit - see IntWidths, whose one definition of each is
+    // what keeps this and `targetIntWidths` from being two answers to one question.
+    CompileSettings js;
+    js.mode = CompileMode::JsExecutable;
+    target.integers = targetIntWidths(js);
 
     /*
      * The same 53, but it was 32 first and the two are different questions.
@@ -319,10 +326,15 @@ void ReprTable::compute(TypePtr type, Repr& into) {
             // once loaded. A standalone value of a narrowed type still occupies its natural width -
             // packing is something a *container* does to a field - so the size here is the width's,
             // and the narrowing shows up as the niche the leftover patterns expose.
-            auto storage = naturalBytes(integer->bits);
+            //
+            // Asked of this target, which is where the three abstract widths become numbers: resolve
+            // states that a `Size` is between 32 and 64 bits, and this is the stage entitled to say
+            // which - see TargetInt, and ReprTarget::integers.
+            auto held = integer->bitsOn(target.integers);
+            auto storage = naturalBytes(held);
             into.size = storage;
             into.align = storage;
-            into.scalarBits = integer->bits;
+            into.scalarBits = held;
             into.niche = intNiche(*integer, 0);
             break;
         }
@@ -537,8 +549,9 @@ U32 ReprTable::naturalBytes(U32 bits) const {
  * free for a discriminant. A type whose bits exactly fill its storage exposes nothing.
  */
 Niche ReprTable::intNiche(const IntType& integer, U32 offset) const {
-    auto bytes = naturalBytes(integer.bits);
-    if(integer.bits >= bytes * 8) return {};
+    auto bits = integer.bitsOn(target.integers);
+    auto bytes = naturalBytes(bits);
+    if(bits >= bytes * 8) return {};
 
     // A signed narrow value occupies both ends of the range once sign-extended, so the patterns it
     // cannot produce are not one contiguous run. Declining is the honest answer rather than folding
@@ -549,7 +562,7 @@ Niche ReprTable::intNiche(const IntType& integer, U32 offset) const {
     niche.offset = offset;
     niche.bytes = U8(bytes);
     niche.validStart = 0;
-    niche.validEnd = integer.bits >= 64 ? maxLimit<U64> : (U64(1) << integer.bits) - 1;
+    niche.validEnd = bits >= 64 ? maxLimit<U64> : (U64(1) << bits) - 1;
     return niche;
 }
 
@@ -715,7 +728,7 @@ void ReprTable::computeFixedArray(ArrayType& array, Repr& into) {
  * `@align(n)` is the way a declaration asks for more (stage 8.4).
  */
 void ReprTable::computeVector(VectorType& vector, Repr& into) {
-    auto stride = laneStride(global, vector.content);
+    auto stride = laneStride(global, vector.content, target.integers);
 
     into.size = U32(stride * constValue(global, vector.count));
     into.align = min(into.size, 16u);
@@ -820,7 +833,7 @@ bool ReprTable::packableHere(TypePtr type, U32 depth) {
 bool ReprTable::scalarizeTuple(TupType& tuple, Repr& into) {
     PackedRun run;
     PackOffsets offsets;
-    if(!scalarLayout(global, tuple, run, &offsets)) return false;
+    if(!scalarLayout(global, tuple, run, &offsets, target.integers)) return false;
 
     auto budget = min(target.maxPackBits, kMaxPackBits);
     if(run.span > budget) return false;
@@ -846,7 +859,7 @@ bool ReprTable::scalarizeTuple(TupType& tuple, Repr& into) {
 
         if(packCandidate(global, tuple, U16(index))) {
             placed.bitOffset = U8(offsets[index]);
-            placed.bitWidth = U8(valueWidth(global, field.type).logical);
+            placed.bitWidth = U8(valueWidth(global, field.type, target.integers).logical);
         }
 
         into.fields[index] = placed;
@@ -913,7 +926,7 @@ void ReprTable::placementOrder(TupType& tuple, Array<U16>& into) {
         into[at] = index;
     }
 
-    packOrder(global, tuple, packed);
+    packOrder(global, tuple, packed, target.integers);
     for(auto index: packed) into.push(index);
 }
 
@@ -953,7 +966,7 @@ Size ReprTable::packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Si
 
     auto budget = min(target.maxPackBits, kMaxPackBits);
     PackOffsets offsets;
-    auto placed = packBits(global, tuple, toBuffer(run), budget, &offsets);
+    auto placed = packBits(global, tuple, toBuffer(run), budget, &offsets, target.integers);
 
     auto used = placed.span;
     auto last = first + placed.count;
@@ -993,7 +1006,7 @@ Size ReprTable::packWord(TupType& tuple, Repr& into, Buffer<const U16> order, Si
         entry.offset = offset;
         entry.wordBytes = U8(wordBytes);
         entry.bitOffset = U8(offsets[at]);
-        entry.bitWidth = U8(valueWidth(global, field.type).logical);
+        entry.bitWidth = U8(valueWidth(global, field.type, target.integers).logical);
         into.fields[index] = entry;
     }
 

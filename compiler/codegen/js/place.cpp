@@ -33,7 +33,7 @@ JsPtr<Expr> constantValue(Gen& g, Value& value) {
                  * unsigned one. `I32`/`U32` did both at once for the 32-bit tower and are exactly
                  * wrong for the 33-to-53-bit one, where the value does not fit a 32-bit integer.
                  */
-                auto width = integer->bits;
+                auto width = heldBits(g, *integer);
                 auto mask = width >= 64 ? ~U64(0) : (U64(1) << width) - 1;
                 auto masked = bits & mask;
 
@@ -1380,10 +1380,11 @@ void noteValueType(Gen& g, JsPtr<Expr> value, TypePtr type) {
     if(expr->kind != Expr::Field && expr->kind != Expr::Index) return;
 
     auto integer = intType(g, type);
-    if(!integer || integer->width == IntType::Bool || integer->bits > 32) return;
+    auto bits = integer ? heldBits(g, *integer) : U16(0);
+    if(!integer || integer->width == IntType::Bool || bits > 32) return;
     if(isLong(g, type) || isWideNumber(g, type)) return;
 
-    expr->valueBits = U8(integer->bits);
+    expr->valueBits = U8(bits);
     expr->valueSigned = integer->isSigned;
 }
 

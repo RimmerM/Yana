@@ -191,11 +191,22 @@ Maybe<IntFacts> foldableInt(OptContext& opt, TypePtr type) {
      * side of a question the IR does not currently ask.
      */
     if(integer->canonical) return Nothing();
-    if(integer->bits == 0 || integer->bits > 64) return Nothing();
 
-    return Just(IntFacts {
-        integer->bits, IntType::registerBits(integer->width), integer->isSigned
-    });
+    /*
+     * The target's answer for an abstract width, which is why this stage takes a `ReprTarget`.
+     *
+     * Analysis-Modules.md §4.3 expects `Size` arithmetic to stop folding here and be recovered in
+     * `lower`. It does not have to: `optimizeProgram` is called once per backend with that backend's
+     * target (see its two call sites), so the width is in hand at the one place the fold needs it,
+     * and nothing declines. What resolve gives up is knowing the width in the *IR it produces* -
+     * which is the whole of what makes an image portable - and not knowing it by the time anything
+     * reads that IR.
+     */
+    auto widths = opt.repr.target.integers;
+    auto bits = integer->bitsOn(widths);
+    if(bits == 0 || bits > 64) return Nothing();
+
+    return Just(IntFacts { bits, integer->registerBitsOn(widths), integer->isSigned });
 }
 
 U64 narrowToWidth(U64 value, const IntFacts& facts) {
@@ -405,13 +416,26 @@ void optimizeProgram(Context& context, Program& program, const ReprTarget& targe
     // Still verified on the way out, at the stage the IR is actually at: the check below stands
     // between the IR and a backend, and switching this stage off does not make what a backend
     // assumes any weaker.
+    ReprTable repr(*program.types, target);
+    OptContext opt { context, program, *program.types, *program.arena, repr };
+
+    /*
+     * The compiler-inserted checks, for a build that asked for none - Analysis-Modules.md Move 4.
+     *
+     * Above the `-no-opt` return rather than below it, and that placement is the whole of what keeps
+     * `-no-checks` *free* rather than cheap: the resolver emits every check unconditionally now, so
+     * a build that switched both off would otherwise keep a length load, a comparison and a call at
+     * every subscript. The two settings are independent and this is where that is arranged.
+     *
+     * Reachability is recomputed when anything went, because `checkCondition` and `checkFailed` are
+     * reached only from the calls this removes and a program that has none should emit neither.
+     */
+    if(dischargeChecks(opt)) markProgramReachable(program);
+
     if(!context.settings.optimizeIr) {
         verifyIrProgram(program, VerifyStage::Ownership, "before lowering"_v);
         return;
     }
-
-    ReprTable repr(*program.types, target);
-    OptContext opt { context, program, *program.types, *program.arena, repr };
 
     // What the resolver and the ownership passes left, before this stage touches it. There is no
     // longer anything special about this checkpoint - every pass below maintains the use lists, so

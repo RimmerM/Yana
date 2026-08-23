@@ -36,7 +36,7 @@ fn growArray(Handle) {
   arg self writable resizable
   arg wanted readonly
   %self: Array(Handle) borrowed droppable writable resizable live [0, 24)
-  %wide: I64 writable live [5, 22)
+  %wide: Size writable live [5, 22)
 }
 
 fn remove(Handle) {
@@ -72,7 +72,7 @@ fn growArray(Int) {
   arg self writable resizable
   arg wanted readonly
   %self: Array(Int) borrowed droppable writable resizable live [0, 24)
-  %wide: I64 writable live [5, 22)
+  %wide: Size writable live [5, 22)
 }
 
 fn -=(I64) {
@@ -112,14 +112,14 @@ fn initHeap {
 
 fn growHeap {
   arg needed readonly
-  %size: I64 writable live [1, 27) [28, 38) [39, 51)
+  %size: Size writable live [1, 27) [28, 38) [39, 51)
   %region: %U8 writable live [12, 27) [28, 38) [39, 48)
 }
 
 fn heapClassOf {
   arg total readonly
-  %size: I64 writable live [0, 8) [10, 18)
-  %sizeClass: I64 writable live [2, 9) [10, 18)
+  %size: Size writable live [0, 8) [10, 18)
+  %sizeClass: Size writable live [2, 9) [10, 18)
 }
 
 fn heapBlockSize {
@@ -161,14 +161,14 @@ fn blockAscending {
   arg to readonly
   arg from readonly
   arg count readonly
-  %at: I64 writable live [9, 109) [116, 132)
+  %at: Size writable live [9, 109) [116, 132)
 }
 
 fn blockDescending {
   arg to readonly
   arg from readonly
   arg count readonly
-  %at: I64 writable live [13, 111) [120, 136)
+  %at: Size writable live [13, 111) [120, 136)
 }
 
 fn copyMemory {

@@ -101,7 +101,7 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             auto vector = (VectorType*)base[type];
             auto natural = 0u;
 
-            if(auto stride = laneStride(base, vector->content)) {
+            if(auto stride = laneStride(base, vector->content, targetIntWidths(context.settings))) {
                 natural = targetVectorBytes(context.settings) / stride;
             }
 

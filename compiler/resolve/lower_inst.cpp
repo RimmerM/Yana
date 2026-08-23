@@ -15,7 +15,7 @@ LowerPtr<LowerValue> mappedValue(LowerContext& lower, ModulePtr<Value> pointer);
 static LowerPtr<LowerValue> mapConstant(LowerContext& lower, ModulePtr<Value> pointer) {
     auto& value = *lower.local[pointer];
     LowerInst* instruction;
-    auto type = lowerType(lower.global, value.type);
+    auto type = lowerType(lower, value.type);
 
     switch(value.kind) {
         case Value::ConstInt:
@@ -60,7 +60,7 @@ LowerPtr<LowerValue> mappedValue(LowerContext& lower, ModulePtr<Value> pointer) 
         auto& metric = (InstTypeMetric&)value;
         auto number = lower.repr.metric(metric.of, metric.metric);
 
-        auto result = immediate(lower, number, lowerType(lower.global, value.type));
+        auto result = immediate(lower, number, lowerType(lower, value.type));
         lower.values.add(pointer, result);
         return result;
     }

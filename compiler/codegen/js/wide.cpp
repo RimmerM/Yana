@@ -103,7 +103,7 @@ Name wideHelper(Gen& g, WideOp op, U32 bits, bool isSigned) {
 }
 
 JsPtr<Expr> wideCall(Gen& g, WideOp op, IntType* type, JsPtr<Expr> a, JsPtr<Expr> b) {
-    return wideCallAt(g, op, type->bits, type->isSigned, a, b);
+    return wideCallAt(g, op, heldBits(g, *type), type->isSigned, a, b);
 }
 
 JsPtr<Expr> wideCallAt(Gen& g, WideOp op, U32 bits, bool isSigned, JsPtr<Expr> a, JsPtr<Expr> b) {
@@ -565,7 +565,7 @@ void emitWideHelpers(Gen& g) {
  * pattern the wider type would have held is a different number and `Wrap` is what produces it.
  */
 JsPtr<Expr> wideFromNarrow(Gen& g, IntType* to, IntType* from, JsPtr<Expr> value) {
-    if(from->bits >= to->bits) return wideCall(g, WideOp::Wrap, to, value, nullptr);
+    if(heldBits(g, *from) >= heldBits(g, *to)) return wideCall(g, WideOp::Wrap, to, value, nullptr);
     if(to->isSigned || !from->isSigned) return value;
 
     return wideCall(g, WideOp::Wrap, to, value, nullptr);

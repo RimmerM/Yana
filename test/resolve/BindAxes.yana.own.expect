@@ -8,10 +8,10 @@ fn Try(Result(e, a), a, e).toOutcome(I64, Held) {
   %local5: Outcome(Held, I64) droppable readonly live [18, 20)
 }
 
-fn Try(Result(e, a), a, e).fromExit(I64, I64) {
+fn Try(Result(e, a), a, e).fromExit(I64, Size) {
   arg reason readonly
   %reason: I64 readonly live [0, 2)
-  %local1: Result(I64, I64) readonly live [0, 3)
+  %local1: Result(I64, Size) readonly live [0, 3)
 }
 
 fn mapMemory {
@@ -23,14 +23,14 @@ fn initHeap {
 
 fn growHeap {
   arg needed readonly
-  %size: I64 writable live [1, 27) [28, 38) [39, 51)
+  %size: Size writable live [1, 27) [28, 38) [39, 51)
   %region: %U8 writable live [12, 27) [28, 38) [39, 48)
 }
 
 fn heapClassOf {
   arg total readonly
-  %size: I64 writable live [0, 8) [10, 18)
-  %sizeClass: I64 writable live [2, 9) [10, 18)
+  %size: Size writable live [0, 8) [10, 18)
+  %sizeClass: Size writable live [2, 9) [10, 18)
 }
 
 fn heapBlockSize {
@@ -56,14 +56,14 @@ fn freeHeap {
   arg allocation readonly
 }
 
-fn releaseRun(U8) {
-  arg self readonly
-  %self: Run(U8) borrowed droppable readonly live [0, 7)
-}
-
 fn Reclaim(Run(a)).reclaim(U8) {
   arg value readonly
   %value: Run(U8) borrowed droppable readonly live [0, 1)
+}
+
+fn releaseRun(U8) {
+  arg self readonly
+  %self: Run(U8) borrowed droppable readonly live [0, 7)
 }
 
 fn make {
@@ -95,9 +95,9 @@ fn viaTry {
   arg n readonly
   %local0: Result(I64, Held) droppable readonly live [0, 2)
   %local1: Outcome(Held, I64) droppable readonly live [2, 7) [9, 11)
-  %local2: Result(I64, I64) readonly live [7, 9)
+  %local2: Result(I64, Size) readonly live [7, 9)
   %opened: Held droppable writable live [11, 20)
-  %local4: Result(I64, I64) readonly live [17, 18) [20, 22)
+  %local4: Result(I64, Size) readonly live [17, 18) [20, 22)
 }
 
 fn viaNamedPlace {

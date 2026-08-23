@@ -201,7 +201,7 @@ static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) 
         sizeof(LowerPtr<LowerValue>) * count +
         sizeof(LowerPtr<LowerBlock>) * count);
 
-    auto result = new (storage) LowerInstPhi(phi.name, lowerType(lower.global, phi.type));
+    auto result = new (storage) LowerInstPhi(phi.name, lowerType(lower, phi.type));
     result->source = phi.source;
     result->usedCount = count;
 
@@ -235,16 +235,18 @@ static LowerInstPhi* createPhi(LowerContext& lower, ModulePtr<InstPhi> pointer) 
  * a sum takes a whole signed word, so its top bit is a sign rather than a bit that is clear. That
  * is the same refusal the packer makes for the same reason.
  */
-static Maybe<U32> normalFormBits(GlobalBase global, TypePtr type) {
+static Maybe<U32> normalFormBits(LowerContext& lower, TypePtr type) {
     if(!type) return Nothing();
 
+    auto global = lower.global;
     auto value = global[type];
 
     if(value->kind == Type::Int) {
         auto integer = (IntType*)value;
-        if(integer->isSigned || integer->bits == 0) return Nothing();
+        auto bits = integer->bitsOn(lower.repr.target.integers);
+        if(integer->isSigned || bits == 0) return Nothing();
 
-        return Just(U32(integer->bits));
+        return Just(U32(bits));
     }
 
     if(value->kind != Type::Record) return Nothing();
@@ -277,7 +279,7 @@ static void hintUnsignedRanges(LowerContext& lower, Function& function) {
         if(!pointer) return;
 
         auto source = lower.local[pointer];
-        auto bits = normalFormBits(lower.global, source->type);
+        auto bits = normalFormBits(lower, source->type);
         if(!bits) return;
 
         auto found = lower.values.get(pointer);
@@ -542,7 +544,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         if(functionPointer == program.allocateHeap) result->allocator = target - lower.lower;
 
         if(!isUnit(lower.global, function->returnType) && !isMemoryType(lower.global, function->returnType)) {
-            target->returnTypes.push(result->arena, lowerType(lower.global, function->returnType));
+            target->returnTypes.push(result->arena, lowerType(lower, function->returnType));
         }
 
         // A lifted lambda's closure header travels with it, because where those bytes go is stated
@@ -649,7 +651,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             // A `&` parameter arrives as the address of the caller's storage whatever it holds, so
             // its lower type is a pointer even where the borrowed type is a register-sized scalar.
             // For a memory type the two answers already coincide.
-            auto argType = arg->isMutableBorrow() ? LowerType::Pointer : lowerType(lower.global, arg->type);
+            auto argType = arg->isMutableBorrow() ? LowerType::Pointer : lowerType(lower, arg->type);
             auto targetArg = target->addArg(lower.lower, arg->name, argType);
             targetArg->source = arg->source;
             lower.values.add((ModulePtr<Value>)argPointer, &targetArg->result - lower.lower);

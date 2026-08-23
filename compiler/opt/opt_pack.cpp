@@ -140,7 +140,7 @@ PackedAccess packedAccessOf(OptContext& opt, const Place& place) {
                     access.bitOffset += field->bitOffset;
                     access.bitWidth = field->isPacked()
                         ? field->bitWidth
-                        : valueWidth(opt.global, field->type).logical;
+                        : valueWidth(opt.global, field->type, opt.repr.target.integers).logical;
 
                     if(!access.bitWidth) return decline();
                 } else if(field->isPacked()) {
@@ -216,7 +216,7 @@ struct Expander {
 
         if(opt.global[type]->kind == Type::Int) {
             auto integer = (IntType*)opt.global[type];
-            return IntType::registerBits(integer->width) <= kMaxUnitBits;
+            return integer->registerBitsOn(opt.repr.target.integers) <= kMaxUnitBits;
         }
 
         auto record = opt.global[type]->kind == Type::Record ? (RecordType*)opt.global[type] : nullptr;

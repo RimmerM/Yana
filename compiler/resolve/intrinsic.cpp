@@ -570,7 +570,14 @@ bool isByteSwappable(GlobalBase global, TypePtr type) {
     if(global[type]->kind != Type::Int) return false;
 
     auto& integer = *(IntType*)global[type];
-    return !integer.canonical && (integer.bits == 16 || integer.bits == 32 || integer.bits == 64);
+    if(integer.canonical) return false;
+
+    // The target's word is byte-swappable whichever end of its bound it lands on - 32 and 64 both
+    // have the instruction - so this answers for `Size` without knowing which. `CodeUnit` is
+    // declined by the same reading: eight of its two widths has nothing to reverse.
+    if(integer.width == IntType::Word) return true;
+
+    return integer.bits == 16 || integer.bits == 32 || integer.bits == 64;
 }
 
 /*
@@ -586,8 +593,21 @@ bool isByteSwappable(GlobalBase global, TypePtr type) {
  */
 static ModulePtr<Value> emitBitWidth(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId resultName) {
-    auto bits = ((IntType*)resolver.global[type])->bits;
-    auto width = resolver.makeInt(source, type, bits);
+    auto& integer = *(IntType*)resolver.global[type];
+
+    /*
+     * The width, which for `Size` is not a number this stage has - Analysis-Modules.md Move 2.
+     *
+     * `sizeOf` in bytes, shifted up by three. That is the same device `InstTypeMetric` exists for
+     * and it costs nothing here for the same reason: the metric folds to an immediate wherever the
+     * target is known, which is every path that reaches a machine, so the shift is one constant
+     * folded against another and `bitWidth(x: Size)` is still one subtraction.
+     */
+    auto width = integer.isTargetWidth()
+        ? resolver.ref(resolver.emit<InstBinary>(source, StringId(), type, Value::Shl,
+              resolver.ref(resolver.emit<InstTypeMetric>(source, StringId(), type, type, TypeMetricKind::Size)),
+              resolver.makeInt(source, type, 3)))
+        : resolver.makeInt(source, type, integer.bits);
     auto zeros = resolver.ref(resolver.emit<InstUnary>(source, StringId(), type,
                                                        Value::LeadingZeros, args[0]));
 
@@ -640,6 +660,11 @@ bool hasBitCounts(GlobalBase global, TypePtr type) {
     if(global[type]->kind != Type::Int) return false;
 
     auto& integer = *(IntType*)global[type];
+
+    // Both ends of the word's bound are in the set, so `Size` joins without the set having to be
+    // decided per target - see isByteSwappable, which answers the same shape of question.
+    if(integer.width == IntType::Word) return true;
+
     return integer.bits == 32 || integer.bits == 64;
 }
 

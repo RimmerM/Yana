@@ -319,7 +319,7 @@ PackedAccess packedAccess(LowerContext& lower, Function& function, const Place& 
                     access.bitOffset += field->bitOffset;
                     access.bitWidth = field->isPacked()
                         ? field->bitWidth
-                        : valueWidth(lower.global, field->type).logical;
+                        : valueWidth(lower.global, field->type, lower.repr.target.integers).logical;
 
                     if(!access.bitWidth) return decline();
                 } else if(field->isPacked()) {
@@ -449,7 +449,7 @@ NarrowRefAccess narrowRefAccess(LowerContext& lower, Function& function, const P
                 access.bitOffset += field->bitOffset;
                 access.bitWidth = field->isPacked()
                     ? field->bitWidth
-                    : valueWidth(lower.global, field->type).logical;
+                    : valueWidth(lower.global, field->type, lower.repr.target.integers).logical;
 
                 if(!access.bitWidth) return decline();
                 break;

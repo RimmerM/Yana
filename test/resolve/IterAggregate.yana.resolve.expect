@@ -95,9 +95,9 @@ fn Reclaim(Array(a)).reclaim(Point)(%value: Array(Point)) -> () {
     %v13 = load %value@Array.run : Run(Point)
     %v14 = load %value@Array.run@Run.items : %Point
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Point : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Point : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Point
     %v20 = load [%v19] : Point
     %v21 = move %local2 : Point
@@ -131,9 +131,9 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     %v13 = load %value@Array.run : Run(Int)
     %v14 = load %value@Array.run@Run.items : %Int
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Int : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Int : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Int
     %v20 = load [%v19] : Int
     %doomed = alloc : Int
@@ -144,27 +144,27 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
@@ -183,11 +183,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -243,20 +243,20 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     ret
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn each(%xs: Flat(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn each(%xs: Flat(a), %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), $r)
     #3 class TrivialCopy(a)
     #4 class Length(Flat(a))
-    #5 class Index(Flat(a), I64, a)
+    #5 class Index(Flat(a), Size, a)
   }
 
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = gencall Length(Flat(a)).length, %xs : I64
+    %v5 = gencall Length(Flat(a)).length, %xs : Size
     %n = cast %v5 : Int
     jmp b1
 
@@ -272,8 +272,8 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
 
   b3:
     %v11 = load %i : Int
-    %v13 = cast %v11 : I64
-    %v12 = gencall Index(Flat(a), I64, a).get, %xs, %v13 : &a
+    %v13 = cast %v11 : Size
+    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : &a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : Int
@@ -290,7 +290,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     jmp b1
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn filtered(%xs: Flat(a), %keep: (a) -> Bool, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn filtered(%xs: Flat(a), %keep: (a) -> Bool, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type $r
@@ -300,7 +300,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
     #7 class Length(Flat(a))
-    #8 class Index(Flat(a), I64, a)
+    #8 class Index(Flat(a), Size, a)
   }
 
   b0:
@@ -329,7 +329,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     ret %v20
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn mapFiltered(%xs: Flat(a), %keep: (a) -> Bool, %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn mapFiltered(%xs: Flat(a), %keep: (a) -> Bool, %f: (a) -> b, %body: (value$: b) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type a
     #1 type b
@@ -340,7 +340,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
     #8 class Length(Flat(a))
-    #9 class Index(Flat(a), I64, a)
+    #9 class Index(Flat(a), Size, a)
   }
 
   b0:
@@ -495,7 +495,7 @@ fn main() -> Int {
     %v49 = load [%v47]@Array.run@Run.items : %Point
     init %local7@Flat.items, %v49
     %v51 = load [%v47]@Array.length : @bits(30) U32
-    %v52 = cast %v51 : I64
+    %v52 = cast %v51 : Size
     init %local7@Flat.length, %v52
     %v54 = call direct, %v48 : Int
     %v55 = load %ps : Array(Point)
@@ -504,7 +504,7 @@ fn main() -> Int {
     %v58 = load [%v56]@Array.run@Run.items : %Point
     init %local8@Flat.items, %v58
     %v60 = load [%v56]@Array.length : @bits(30) U32
-    %v61 = cast %v60 : I64
+    %v61 = cast %v60 : Size
     init %local8@Flat.length, %v61
     %v63 = call oneLift, %v57 : Int
     %v64 = add %v54, %v63 : Int
@@ -514,7 +514,7 @@ fn main() -> Int {
     %v68 = load [%v66]@Array.run@Run.items : %Point
     init %local9@Flat.items, %v68
     %v70 = load [%v66]@Array.length : @bits(30) U32
-    %v71 = cast %v70 : I64
+    %v71 = cast %v70 : Size
     init %local9@Flat.length, %v71
     %v73 = call twoLifts, %v67 : Int
     drop %ps reclaim Reclaim(Array(a)).reclaim(Point)
@@ -525,7 +525,7 @@ fn main() -> Int {
     %v78 = load [%v76]@Array.run@Run.items : %Int
     init %local10@Flat.items, %v78
     %v80 = load [%v76]@Array.length : @bits(30) U32
-    %v81 = cast %v80 : I64
+    %v81 = cast %v80 : Size
     init %local10@Flat.length, %v81
     %v83 = call scalar, %v77 : Int
     drop %ns reclaim Reclaim(Array(a)).reclaim(Int)
@@ -533,7 +533,7 @@ fn main() -> Int {
     ret %v84
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$14(%env: %{keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$14(%env: %{keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
@@ -543,7 +543,7 @@ fn main() -> Int {
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
     #7 class Length(Flat(a))
-    #8 class Index(Flat(a), I64, a)
+    #8 class Index(Flat(a), Size, a)
   }
 
   b0:
@@ -577,7 +577,7 @@ fn main() -> Int {
     ret %v15
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), I64, a)) fn ResolveTest.continuation$15(%env: %{body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
@@ -588,7 +588,7 @@ fn main() -> Int {
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
     #8 class Length(Flat(a))
-    #9 class Index(Flat(a), I64, a)
+    #9 class Index(Flat(a), Size, a)
   }
 
   b0:
@@ -630,7 +630,7 @@ fn each(Point, ())(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), ())) 
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = load %xs@Flat.length : I64
+    %v5 = load %xs@Flat.length : Size
     %n = cast %v5 : Int
     jmp b1
 
@@ -646,11 +646,11 @@ fn each(Point, ())(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), ())) 
 
   b3:
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
+    %v16 = cast %v15 : Size
     %v17 = borrow %xs : &Flat(Point)
-    %v18 = load [%v17]@Flat.length : I64
-    %v19 = cast %v16 : U64
-    %v20 = cast %v18 : U64
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast %v16 : USize
+    %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
     %v23 = load [%v17]@Flat.items : %Point
@@ -756,7 +756,7 @@ fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outc
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = load %xs@Flat.length : I64
+    %v5 = load %xs@Flat.length : Size
     %n = cast %v5 : Int
     jmp b1
 
@@ -772,11 +772,11 @@ fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outc
 
   b3:
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
+    %v16 = cast %v15 : Size
     %v17 = borrow %xs : &Flat(Point)
-    %v18 = load [%v17]@Flat.length : I64
-    %v19 = cast %v16 : U64
-    %v20 = cast %v18 : U64
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast %v16 : USize
+    %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
     %v23 = load [%v17]@Flat.items : %Point
@@ -931,7 +931,7 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: P
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = load %xs@Flat.length : I64
+    %v5 = load %xs@Flat.length : Size
     %n = cast %v5 : Int
     jmp b1
 
@@ -947,11 +947,11 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: P
 
   b3:
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
+    %v16 = cast %v15 : Size
     %v17 = borrow %xs : &Flat(Point)
-    %v18 = load [%v17]@Flat.length : I64
-    %v19 = cast %v16 : U64
-    %v20 = cast %v18 : U64
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast %v16 : USize
+    %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
     %v23 = load [%v17]@Flat.items : %Point
@@ -991,7 +991,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
   b0:
     %i = alloc : Int
     init %i, 0
-    %v5 = load %xs@Flat.length : I64
+    %v5 = load %xs@Flat.length : Size
     %n = cast %v5 : Int
     jmp b1
 
@@ -1007,11 +1007,11 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
 
   b3:
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
+    %v16 = cast %v15 : Size
     %v17 = borrow %xs : &Flat(Int)
-    %v18 = load [%v17]@Flat.length : I64
-    %v19 = cast %v16 : U64
-    %v20 = cast %v18 : U64
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast %v16 : USize
+    %v20 = cast %v18 : USize
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
     %v23 = load [%v17]@Flat.items : %Int

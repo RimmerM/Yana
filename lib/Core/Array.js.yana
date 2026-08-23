@@ -131,7 +131,11 @@ pub fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
 -}
 pub fn remove(&self: Array(a), index: Int) -> Maybe(a):
     let count = self.length :: Size
-    if (bitcast(index) :: U32) >= (bitcast(count) :: U32) then return Nothing
+    -- Widened into the word before it is read unsigned, which is one step rather than the same step:
+    -- `Size` and `USize` are the same width on every target and an `Int` is not, so the widening is
+    -- what makes the reinterpretation a reinterpretation. One comparison still rejects a negative
+    -- index and one past the end together - see checkIndexInBounds, which is this idiom said once.
+    if (bitcast(index :: Size) :: USize) >= (bitcast(count) :: USize) then return Nothing
 
     let ->doomed = hostRead(self.items, index :: Size)
 

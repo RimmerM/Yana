@@ -54,7 +54,7 @@ LowerPtr<LowerValue> decodeNicheTag(LowerContext& lower, LowerBlock& block,
     auto inRange = cmp(lower.lower, lower.to, block, lower.lower[relative], lower.lower[span],
                        LowerCmp::le, StringId())->created().ptr - lower.lower;
 
-    auto tagLower = lowerType(lower.global, tagType);
+    auto tagLower = lowerType(lower, tagType);
     auto pick = [&](LowerPtr<LowerValue> whenInRange, LowerPtr<LowerValue> otherwise) {
         auto select = new (lower.to.arena) LowerInstSelect(name, whenInRange, otherwise, inRange, tagLower);
         block.addInst(lower.lower, select);
@@ -155,7 +155,7 @@ LowerPtr<LowerValue> decodePackedField(LowerContext& lower, LowerBlock& block,
                                               LowerPtr<LowerValue> word, const PackedAccess& field,
                                               TypePtr type, StringId name) {
     auto bits = decodePackedBits(lower, block, word, field, signedType(lower.global, type));
-    auto result = lowerType(lower.global, type);
+    auto result = lowerType(lower, type);
 
     if(signedType(lower.global, type)) {
         return cast<true, true>(lower.lower, lower.to, block, lower.lower[bits], result, name)
@@ -346,7 +346,7 @@ LowerPtr<LowerValue> decodeNarrowBits(LowerContext& lower, LowerBlock& block, co
 LowerPtr<LowerValue> decodeNarrowRef(LowerContext& lower, LowerBlock& block, const NarrowRef& ref,
                                             TypePtr type, StringId name) {
     auto bits = decodeNarrowBits(lower, block, ref);
-    auto result = lowerType(lower.global, type);
+    auto result = lowerType(lower, type);
 
     if(ref.isSigned) {
         return cast<true, true>(lower.lower, lower.to, block, lower.lower[bits], result, name)
@@ -474,7 +474,7 @@ LowerPtr<LowerValue> decodeBitTag(LowerContext& lower, LowerBlock& block,
     auto bits = decodePackedBits(lower, block, word, access, false);
 
     return cast<false, false>(lower.lower, lower.to, block, lower.lower[bits],
-                              lowerType(lower.global, tagType), name)->created().ptr - lower.lower;
+                              lowerType(lower, tagType), name)->created().ptr - lower.lower;
 }
 
 // Writing one, which is a read-modify-write of the word and therefore preserves the payload sharing

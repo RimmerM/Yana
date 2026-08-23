@@ -142,7 +142,7 @@ fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
     while visited <= mask:
         let taken = self.index[slot] :: Size
         if taken < 0:
-            self.index[slot] = at :: I32
+            self.index[slot] = truncate(at) :: I32
             if taken == (slotEmpty :: Size) then self.live = truncate((self.live :: Size) + 1) :: Count
             return
 
@@ -162,7 +162,7 @@ fn indexRepoint(&self: Map(k, v), from: Size, to: Size, h: U32) -> {}:
 
     while visited <= mask:
         if (self.index[slot] :: Size) == from:
-            self.index[slot] = to :: I32
+            self.index[slot] = truncate(to) :: I32
             return
 
         slot = (slot + 1) `and` mask

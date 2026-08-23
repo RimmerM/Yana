@@ -59,9 +59,9 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
@@ -91,22 +91,21 @@ fn firstOf(%xs: [Int *n]) -> Int {
     %xs = alloc : Flat(Int)
     %v4 = addressof [%v2] : %Int
     init %xs@Flat.items, %v4
-    %v6 = countof n : Long
-    %v7 = cast %v6 : I64
-    init %xs@Flat.length, %v7
-    %v10 = borrow %xs : &Flat(Int)
-    %v11 = load [%v10]@Flat.length : I64
-    %v12 = cast 0 : U64
-    %v13 = cast %v11 : U64
-    %v14 = cmp_ge %v12, %v13 : Bool
-    call checkCondition, %v14
-    %v16 = load [%v10]@Flat.items : %Int
-    %v17 = strideof Int : Long
-    %v18 = mul 0, %v17 : Long
-    %v19 = add %v16, %v18 : %Int
-    %v20 = borrow [%v19] : &Int
-    %v21 = load [%v20] : Int
-    ret %v21
+    %v6 = countof n : Size
+    init %xs@Flat.length, %v6
+    %v9 = borrow %xs : &Flat(Int)
+    %v10 = load [%v9]@Flat.length : Size
+    %v11 = cast 0 : USize
+    %v12 = cast %v10 : USize
+    %v13 = cmp_ge %v11, %v12 : Bool
+    call checkCondition, %v13
+    %v15 = load [%v9]@Flat.items : %Int
+    %v16 = strideof Int : Long
+    %v17 = mul 0, %v16 : Long
+    %v18 = add %v15, %v17 : %Int
+    %v19 = borrow [%v18] : &Int
+    %v20 = load [%v19] : Int
+    ret %v20
 }
 
 fn sumOf(%xs: [Int *n]) -> Int {
@@ -128,8 +127,8 @@ fn sumOf(%xs: [Int *n]) -> Int {
     je %v10, b3, b2
 
   b2:
-    %v42 = load %total : Int
-    ret %v42
+    %v41 = load %total : Int
+    ret %v41
 
   b3:
     %v12 = load %total : Int
@@ -138,27 +137,26 @@ fn sumOf(%xs: [Int *n]) -> Int {
     %xs = alloc : Flat(Int)
     %v16 = addressof [%v14] : %Int
     init %xs@Flat.items, %v16
-    %v18 = countof n : Long
-    %v19 = cast %v18 : I64
-    init %xs@Flat.length, %v19
-    %v21 = cast %v13 : I64
-    %v22 = borrow %xs : &Flat(Int)
-    %v23 = load [%v22]@Flat.length : I64
-    %v24 = cast %v21 : U64
-    %v25 = cast %v23 : U64
-    %v26 = cmp_ge %v24, %v25 : Bool
-    call checkCondition, %v26
-    %v28 = load [%v22]@Flat.items : %Int
-    %v29 = strideof Int : Long
-    %v30 = mul %v21, %v29 : Long
-    %v31 = add %v28, %v30 : %Int
-    %v32 = borrow [%v31] : &Int
-    %v33 = load [%v32] : Int
-    %v34 = add %v12, %v33 : Int
-    assign %total, %v34
-    %v36 = load %i : Int
-    %v39 = add %v36, 1 : Int
-    assign %i, %v39
+    %v18 = countof n : Size
+    init %xs@Flat.length, %v18
+    %v20 = cast %v13 : Size
+    %v21 = borrow %xs : &Flat(Int)
+    %v22 = load [%v21]@Flat.length : Size
+    %v23 = cast %v20 : USize
+    %v24 = cast %v22 : USize
+    %v25 = cmp_ge %v23, %v24 : Bool
+    call checkCondition, %v25
+    %v27 = load [%v21]@Flat.items : %Int
+    %v28 = strideof Int : Long
+    %v29 = mul %v20, %v28 : Long
+    %v30 = add %v27, %v29 : %Int
+    %v31 = borrow [%v30] : &Int
+    %v32 = load [%v31] : Int
+    %v33 = add %v12, %v32 : Int
+    assign %total, %v33
+    %v35 = load %i : Int
+    %v38 = add %v35, 1 : Int
+    assign %i, %v38
     jmp b1
 }
 
@@ -258,22 +256,21 @@ fn Sized([Int *n], Int).firstItem(%xs: [Int *n]) -> Int {
     %xs = alloc : Flat(Int)
     %v4 = addressof [%v2] : %Int
     init %xs@Flat.items, %v4
-    %v6 = countof n : Long
-    %v7 = cast %v6 : I64
-    init %xs@Flat.length, %v7
-    %v10 = borrow %xs : &Flat(Int)
-    %v11 = load [%v10]@Flat.length : I64
-    %v12 = cast 0 : U64
-    %v13 = cast %v11 : U64
-    %v14 = cmp_ge %v12, %v13 : Bool
-    call checkCondition, %v14
-    %v16 = load [%v10]@Flat.items : %Int
-    %v17 = strideof Int : Long
-    %v18 = mul 0, %v17 : Long
-    %v19 = add %v16, %v18 : %Int
-    %v20 = borrow [%v19] : &Int
-    %v21 = load [%v20] : Int
-    ret %v21
+    %v6 = countof n : Size
+    init %xs@Flat.length, %v6
+    %v9 = borrow %xs : &Flat(Int)
+    %v10 = load [%v9]@Flat.length : Size
+    %v11 = cast 0 : USize
+    %v12 = cast %v10 : USize
+    %v13 = cmp_ge %v11, %v12 : Bool
+    call checkCondition, %v13
+    %v15 = load [%v9]@Flat.items : %Int
+    %v16 = strideof Int : Long
+    %v17 = mul 0, %v16 : Long
+    %v18 = add %v15, %v17 : %Int
+    %v19 = borrow [%v18] : &Int
+    %v20 = load [%v19] : Int
+    ret %v20
 }
 
 fn Sized([Int *2], Int).firstItem(%xs: [Int *2]) -> Int {
@@ -294,22 +291,21 @@ fn firstOf(3)(%xs: [Int *3]) -> Int {
     %xs = alloc : Flat(Int)
     %v3 = addressof [%v1] : %Int
     init %xs@Flat.items, %v3
-    %v5 = countof 3 : Long
-    %v6 = cast %v5 : I64
-    init %xs@Flat.length, %v6
-    %v8 = borrow %xs : &Flat(Int)
-    %v9 = load [%v8]@Flat.length : I64
-    %v11 = cast 0 : U64
-    %v12 = cast %v9 : U64
-    %v13 = cmp_ge %v11, %v12 : Bool
-    call checkCondition, %v13
-    %v15 = load [%v8]@Flat.items : %Int
-    %v16 = strideof Int : Long
-    %v17 = mul 0, %v16 : Long
-    %v18 = add %v15, %v17 : %Int
-    %v19 = borrow [%v18] : &Int
-    %v20 = load [%v19] : Int
-    ret %v20
+    %v5 = countof 3 : Size
+    init %xs@Flat.length, %v5
+    %v7 = borrow %xs : &Flat(Int)
+    %v8 = load [%v7]@Flat.length : Size
+    %v10 = cast 0 : USize
+    %v11 = cast %v8 : USize
+    %v12 = cmp_ge %v10, %v11 : Bool
+    call checkCondition, %v12
+    %v14 = load [%v7]@Flat.items : %Int
+    %v15 = strideof Int : Long
+    %v16 = mul 0, %v15 : Long
+    %v17 = add %v14, %v16 : %Int
+    %v18 = borrow [%v17] : &Int
+    %v19 = load [%v18] : Int
+    ret %v19
 }
 
 fn Sized([Int *n], Int).firstItem(4)(%xs: [Int *4]) -> Int {
@@ -318,22 +314,21 @@ fn Sized([Int *n], Int).firstItem(4)(%xs: [Int *4]) -> Int {
     %xs = alloc : Flat(Int)
     %v3 = addressof [%v1] : %Int
     init %xs@Flat.items, %v3
-    %v5 = countof 4 : Long
-    %v6 = cast %v5 : I64
-    init %xs@Flat.length, %v6
-    %v8 = borrow %xs : &Flat(Int)
-    %v9 = load [%v8]@Flat.length : I64
-    %v11 = cast 0 : U64
-    %v12 = cast %v9 : U64
-    %v13 = cmp_ge %v11, %v12 : Bool
-    call checkCondition, %v13
-    %v15 = load [%v8]@Flat.items : %Int
-    %v16 = strideof Int : Long
-    %v17 = mul 0, %v16 : Long
-    %v18 = add %v15, %v17 : %Int
-    %v19 = borrow [%v18] : &Int
-    %v20 = load [%v19] : Int
-    ret %v20
+    %v5 = countof 4 : Size
+    init %xs@Flat.length, %v5
+    %v7 = borrow %xs : &Flat(Int)
+    %v8 = load [%v7]@Flat.length : Size
+    %v10 = cast 0 : USize
+    %v11 = cast %v8 : USize
+    %v12 = cmp_ge %v10, %v11 : Bool
+    call checkCondition, %v12
+    %v14 = load [%v7]@Flat.items : %Int
+    %v15 = strideof Int : Long
+    %v16 = mul 0, %v15 : Long
+    %v17 = add %v14, %v16 : %Int
+    %v18 = borrow [%v17] : &Int
+    %v19 = load [%v18] : Int
+    ret %v19
 }
 
 fn thunk$Sized([Int *2], Int).firstItem#0(%result: %Int, %xs: %[Int *2]) -> () {

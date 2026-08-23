@@ -83,9 +83,10 @@ Maybe<U16> unsignedBitsOf(OptContext& opt, TypePtr type) {
     if(!type || opt.global[type]->kind != Type::Int) return Nothing();
 
     auto integer = (IntType*)opt.global[type];
-    if(integer->isSigned || integer->bits == 0 || integer->bits > 64) return Nothing();
+    auto bits = integer->bitsOn(opt.repr.target.integers);
+    if(integer->isSigned || bits == 0 || bits > 64) return Nothing();
 
-    return Just(integer->bits);
+    return Just(bits);
 }
 
 /*

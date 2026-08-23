@@ -6,14 +6,14 @@ let &heapLimit: %U8 = 0
 
 let &heapFree: %%U8 = 0
 
-let &heapRegionNext: I64 = 0
+let &heapRegionNext: Size = 0
 
 let &live: Int = 0
 
-fn mapMemory(%size: I64) -> %U8 {
+fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %v7 = neg 1 : I64
-    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v7 = neg 1 : Size
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : Size
     %v12 = cmp_lt %result, 0 : Bool
     je %v12, b1, b2
 
@@ -31,7 +31,7 @@ fn mapMemory(%size: I64) -> %U8 {
 
 fn initHeap() -> () {
   b0:
-    %v2 = add 4194304, 4096 : I64
+    %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
     %v4 = bitcast %region : Long
     %v6 = cmp_eq %v4, 0 : Bool
@@ -44,29 +44,29 @@ fn initHeap() -> () {
     jmp b3
 
   b3:
-    %table = mul 32, 8 : I64
+    %table = mul 32, 8 : Size
     setmemory %region, 0, %table
     %v16 = bitcast %region : %%U8
     assign heapFree, %v16
-    %v18 = strideof U8 : I64
-    %v19 = mul %table, %v18 : I64
+    %v18 = strideof U8 : Size
+    %v19 = mul %table, %v18 : Size
     %v20 = add %region, %v19 : %U8
     assign heapNext, %v20
-    %v23 = strideof U8 : I64
-    %v24 = mul 4194304, %v23 : I64
+    %v23 = strideof U8 : Size
+    %v24 = mul 4194304, %v23 : Size
     %v25 = add %region, %v24 : %U8
     assign heapLimit, %v25
-    %v29 = add 4194304, 4194304 : I64
+    %v29 = add 4194304, 4194304 : Size
     assign heapRegionNext, %v29
     ret
 }
 
-fn growHeap(%needed: I64) -> Bool {
+fn growHeap(%needed: Size) -> Bool {
   b0:
-    %v1 = load heapRegionNext : I64
-    %size = alloc : I64
+    %v1 = load heapRegionNext : Size
+    %size = alloc : Size
     init %size, %v1
-    %v4 = load %size : I64
+    %v4 = load %size : Size
     %v5 = cmp_lt %v4, %needed : Bool
     je %v5, b1, b2
 
@@ -78,8 +78,8 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b3
 
   b3:
-    %v10 = load %size : I64
-    %v12 = add %v10, 4096 : I64
+    %v10 = load %size : Size
+    %v12 = add %v10, 4096 : Size
     %v13 = call mapMemory, %v12 : %U8
     %region = alloc : %U8
     init %region, %v13
@@ -102,8 +102,8 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b8
 
   b8:
-    %least = phi [b6, %needed], [b7, 4194304] : I64
-    %v28 = load %size : I64
+    %least = phi [b6, %needed], [b7, 4194304] : Size
+    %v28 = load %size : Size
     %v29 = cmp_ge %least, %v28 : Bool
     je %v29, b9, b10
 
@@ -115,8 +115,8 @@ fn growHeap(%needed: I64) -> Bool {
 
   b11:
     assign %size, %least
-    %v35 = load %size : I64
-    %v37 = add %v35, 4096 : I64
+    %v35 = load %size : Size
+    %v37 = add %v35, 4096 : Size
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
@@ -137,73 +137,73 @@ fn growHeap(%needed: I64) -> Bool {
     %v50 = load %region : %U8
     assign heapNext, %v50
     %v52 = load %region : %U8
-    %v53 = load %size : I64
-    %v54 = strideof U8 : I64
-    %v55 = mul %v53, %v54 : I64
+    %v53 = load %size : Size
+    %v54 = strideof U8 : Size
+    %v55 = mul %v53, %v54 : Size
     %v56 = add %v52, %v55 : %U8
     assign heapLimit, %v56
-    %v58 = load %size : I64
-    %v59 = load %size : I64
-    %v60 = add %v58, %v59 : I64
+    %v58 = load %size : Size
+    %v59 = load %size : Size
+    %v60 = add %v58, %v59 : Size
     assign heapRegionNext, %v60
     ret True
 }
 
-fn heapClassOf(%total: I64) -> I64 {
+fn heapClassOf(%total: Size) -> Size {
   b0:
-    %size = alloc : I64
+    %size = alloc : Size
     init %size, 16
-    %sizeClass = alloc : I64
+    %sizeClass = alloc : Size
     init %sizeClass, 0
     jmp b1
 
   b1:
-    %v8 = load %size : I64
+    %v8 = load %size : Size
     %v9 = cmp_lt %v8, %total : Bool
     je %v9, b3, b2
 
   b2:
-    %v21 = load %sizeClass : I64
+    %v21 = load %sizeClass : Size
     ret %v21
 
   b3:
-    %v11 = load %size : I64
-    %v12 = load %size : I64
-    %v13 = add %v11, %v12 : I64
+    %v11 = load %size : Size
+    %v12 = load %size : Size
+    %v13 = add %v11, %v12 : Size
     assign %size, %v13
-    %v15 = load %sizeClass : I64
-    %v18 = add %v15, 1 : I64
+    %v15 = load %sizeClass : Size
+    %v18 = add %v15, 1 : Size
     assign %sizeClass, %v18
     jmp b1
 }
 
-fn heapBlockSize(%sizeClass: I64) -> I64 {
+fn heapBlockSize(%sizeClass: Size) -> Size {
   b0:
-    %v2 = shl 16, %sizeClass : I64
+    %v2 = shl 16, %sizeClass : Size
     ret %v2
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
 }
 
-fn allocateHeap(%size: I64) -> %U8 {
+fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
     %v2 = bitcast %v1 : Long
@@ -231,8 +231,8 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b6
 
   b6:
-    %v20 = add %size, 8 : I64
-    %sizeClass = call heapClassOf, %v20 : I64
+    %v20 = add %size, 8 : Size
+    %sizeClass = call heapClassOf, %v20 : Size
     %v23 = cmp_ge %sizeClass, 32 : Bool
     je %v23, b7, b8
 
@@ -260,10 +260,10 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b12
 
   b12:
-    %blockSize = call heapBlockSize, %sizeClass : I64
+    %blockSize = call heapBlockSize, %sizeClass : Size
     %v42 = load heapNext : %U8
-    %v43 = strideof U8 : I64
-    %v44 = mul %blockSize, %v43 : I64
+    %v43 = strideof U8 : Size
+    %v44 = mul %blockSize, %v43 : Size
     %v45 = add %v42, %v44 : %U8
     %v46 = load heapLimit : %U8
     %v47 = cmp_gt %v45, %v46 : Bool
@@ -289,14 +289,14 @@ fn allocateHeap(%size: I64) -> %U8 {
 
   b18:
     %block = load heapNext : %U8
-    %v60 = strideof U8 : I64
-    %v61 = mul %blockSize, %v60 : I64
+    %v60 = strideof U8 : Size
+    %v61 = mul %blockSize, %v60 : Size
     %v62 = add %block, %v61 : %U8
     assign heapNext, %v62
-    %v64 = bitcast %block : %I64
+    %v64 = bitcast %block : %Size
     assign [%v64], %sizeClass
-    %v68 = strideof U8 : I64
-    %v69 = mul 8, %v68 : I64
+    %v68 = strideof U8 : Size
+    %v69 = mul 8, %v68 : Size
     %v70 = add %block, %v69 : %U8
     ret %v70
 }
@@ -314,11 +314,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -418,7 +418,7 @@ fn main() -> Int {
 
   b3:
     %v13 = load heapNext : %U8
-    %mark = bitcast %v13 : I64
+    %mark = bitcast %v13 : Size
     %i = alloc : Int
     init %i, 0
     jmp b4
@@ -449,7 +449,7 @@ fn main() -> Int {
 
   b9:
     %v43 = load heapNext : %U8
-    %v44 = bitcast %v43 : I64
+    %v44 = bitcast %v43 : Size
     %v45 = cmp_ne %v44, %mark : Bool
     je %v45, b10, b11
 
@@ -477,7 +477,7 @@ fn main() -> Int {
 
   b15:
     %v71 = load heapNext : %U8
-    %v72 = bitcast %v71 : I64
+    %v72 = bitcast %v71 : Size
     %v73 = cmp_ne %v72, %mark : Bool
     je %v73, b16, b17
 

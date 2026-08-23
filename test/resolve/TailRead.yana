@@ -23,14 +23,14 @@ import Native
 
 -- One byte past the end, read as a byte at a time so that nothing here depends on a vector type
 -- existing yet. 63 is `kMaxVectorBytes - 1`, which is the widest overread the language permits.
-let guardWidth = 63 :: I64
+let guardWidth = 63 :: Size
 
 -- Reads the guard bytes after `size` bytes of `block` and folds them together, so that no optimizer
 -- can decide the loads are dead. The value is meaningless by construction - the bytes are
 -- unspecified - and only the fact that they were readable is being asserted.
-fn readPast(block: %U8, size: I64) -> I64:
+fn readPast(block: %U8, size: Size) -> I64:
     let &sum = 0 :: I64
-    let &i = 0 :: I64
+    let &i = 0 :: Size
 
     while i < guardWidth:
         sum = sum + (*(block + (size + i)) :: I64)
@@ -44,7 +44,7 @@ fn main() -> Int:
        which inside a region is free - the next block's header follows it - and is what this half
        establishes rather than tests.
     -}
-    let &request = 8 :: I64
+    let &request = 8 :: Size
     let &seen = 0 :: I64
 
     while request < 1048576:

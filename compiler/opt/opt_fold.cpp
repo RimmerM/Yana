@@ -720,7 +720,7 @@ struct Folder {
         if(type == opt.program.scalar.bool_) return Just(U16(1));
         if(opt.global[type]->kind != Type::Int) return Nothing();
 
-        auto bits = ((IntType*)opt.global[type])->bits;
+        auto bits = ((IntType*)opt.global[type])->bitsOn(opt.repr.target.integers);
         return bits == 0 || bits > 64 ? Nothing() : Just(bits);
     }
 
@@ -745,11 +745,14 @@ struct Folder {
         // holding two opinions about the same type.
         auto integer = (IntType*)opt.global[type];
         if(!integer->canonical) return Nothing();
-        if(integer->bits == 0 || integer->bits > 64) return Nothing();
 
-        return Just(IntFacts {
-            integer->bits, IntType::registerBits(integer->width), integer->isSigned
-        });
+        // A refinement is never a target width - `@bits(n)` states `n` - so this reads the same
+        // number either way, and it asks through the same accessor so that the rule stays one rule.
+        auto widths = opt.repr.target.integers;
+        auto bits = integer->bitsOn(widths);
+        if(bits == 0 || bits > 64) return Nothing();
+
+        return Just(IntFacts { bits, integer->registerBitsOn(widths), integer->isSigned });
     }
 
     /*

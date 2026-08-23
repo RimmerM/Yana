@@ -132,19 +132,36 @@ pub fn readFile(handle: Size, to: %U8, count: Size) -> Size =
 pub fn writeFile(handle: Size, from: %U8, count: Size) -> Size =
     syscall3(sysWrite, handle, bitcast(from) :: Size, count)
 
+{-
+   A 64-bit file offset, in a syscall argument register.
+
+   `pread64`, `pwrite64`, `ftruncate` and `lseek` all take an `off_t`, which is sixty-four bits on
+   thirty-two-bit Linux too - Analysis-Modules.md §4.2.1's file-offset row, which is the counterexample
+   that makes the `Size` audit a per-parameter job rather than a rewrite. So the offset stays `I64` in
+   every signature here and is narrowed at the one place it becomes a machine word.
+
+   **The narrowing is the identity, because this file is x86-64.** A word is sixty-four bits on this
+   architecture and an offset fits one; the compiler cannot know that, because `Size` is deliberately
+   a width no stage above `repr` has - so what would otherwise be an unstated assumption is written
+   out, once, with its reason. A thirty-two-bit port does not copy this line: that ABI splits an
+   offset across *two* argument registers, which is a different call rather than a narrower one, and
+   the file that makes it is `Linux.x86.yana` beside this one.
+-}
+fn offsetWord(at: I64) -> Size = truncate(at) :: Size
+
 -- The positional pair, which is `pread64`/`pwrite64` and not a seek and a read. The file position
 -- is untouched by both, which is the whole of what makes them a second pair rather than a
 -- convenience over the first.
 pub fn readFileAt(handle: Size, to: %U8, count: Size, at: I64) -> Size =
-    syscall4(sysReadAt, handle, bitcast(to) :: Size, count, at)
+    syscall4(sysReadAt, handle, bitcast(to) :: Size, count, offsetWord(at))
 
 pub fn writeFileAt(handle: Size, from: %U8, count: Size, at: I64) -> Size =
-    syscall4(sysWriteAt, handle, bitcast(from) :: Size, count, at)
+    syscall4(sysWriteAt, handle, bitcast(from) :: Size, count, offsetWord(at))
 
 
 pub fn syncFile(handle: Size) -> Size = syscall1(sysSync, handle)
 
-pub fn truncateFile(handle: Size, size: I64) -> Size = syscall2(sysTruncate, handle, size)
+pub fn truncateFile(handle: Size, size: I64) -> Size = syscall2(sysTruncate, handle, offsetWord(size))
 
 {-
    `struct stat`, as the record the kernel fills - Analysis-Language.md §5.2.
@@ -223,7 +240,12 @@ pub data FileKind = @value(16384) DirectoryKind | @value(32768) RegularKind | @v
 
 pub let modeTypeMask = FileMode(61440)
 
-pub fn kindOf(mode: U32) -> Maybe(FileKind) = fromValue((FileMode(mode :: Size) `and` modeTypeMask).0)
+-- Through `I32` rather than straight to `Size`, which is the idiom `slotFor` in `Core/Map.yana`
+-- writes and for the same reason: a `U32` does not widen into a signed word, because on a target
+-- whose word is thirty-two bits its top half would not fit. Reinterpreting first says that these
+-- are mode bits and never a large unsigned number.
+pub fn kindOf(mode: U32) -> Maybe(FileKind) =
+    fromValue((FileMode((bitcast(mode) :: I32) :: Size) `and` modeTypeMask).0)
 
 pub fn removePath(path: %U8) -> Size = syscall1(sysUnlink, bitcast(path) :: Size)
 
@@ -273,7 +295,7 @@ pub data EntryKind = @value(4) EntryDirectory | @value(8) EntryRegular | @value(
 pub data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
 
 pub fn seekFile(handle: Size, offset: I64, whence: Whence) -> I64 =
-    syscall3(sysSeek, handle, offset, valueOf(whence))
+    syscall3(sysSeek, handle, offsetWord(offset), truncate(valueOf(whence)) :: Size) :: I64
 
 {-
    The errno numbers `File` maps, as one type - Analysis-Language.md §5.1.

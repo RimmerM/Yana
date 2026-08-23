@@ -517,6 +517,24 @@ TypePtr resolveBitsType(Module& module, TypePtr base_, U32 bits, LocationId sour
 
     auto original = (IntType*)base[canonicalType(base, base_)];
 
+    /*
+     * A target-width type cannot be refined, and the reason is that there is nothing to refine it
+     * *against* - Analysis-Modules.md Move 2. `bits` on a `Size` is a bound rather than a width, so
+     * `@bits(40) Size` would be accepted here and be wider than the word on a target whose word is
+     * thirty-two bits, which is the one thing a refinement must never be.
+     *
+     * Refusing rather than checking against `minBits`: `@bits(20) Size` is well-formed under that
+     * reading and still means nothing useful, since what a refinement buys is a *niche*, and the
+     * patterns a narrow value leaves free are a property of the storage it sits in - which is
+     * exactly the number this type does not have.
+     */
+    if(original->isTargetWidth()) {
+        module.context.diagnostics.error(
+            "@bits cannot refine %@, whose width is the target's rather than the language's - refine a type that states one"_v,
+            source, describeType(module.context, base, (Type*)original - base));
+        return (Type*)original - base;
+    }
+
     // The upper bound is the unrefined type's own width rather than the target's, which is the
     // stricter and more useful of the two: `@bits(40) U32` is a mistake on every target, and saying
     // so here means the diagnostic names the type the programmer wrote.
@@ -710,7 +728,7 @@ TypePtr resolveVectorType(Module& module, TypePtr content, TypePtr count, bool i
     }
 
     auto lanes = count ? U32(constValue(base, count)) : 0;
-    auto stride = laneStride(base, content);
+    auto stride = laneStride(base, content, targetIntWidths(context.settings));
     if(!stride) {
         context.diagnostics.error("%@ is not a lane type - a vector holds machine lanes, which are the integer types of 8, 16, 32 and 64 bits and the two floats"_v,
                                   source, describeType(context, base, content));

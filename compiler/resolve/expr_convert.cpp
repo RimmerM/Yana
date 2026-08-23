@@ -656,6 +656,12 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
      * the widening direction is a conversion the ladder performs on its own. This is the same `::`
      * that `capacity` writes by hand in `Native`, at the one boundary the compiler builds rather than
      * the program.
+     *
+     * **A fixed array's count is built at the descriptor's own type rather than converted into it**,
+     * which is a conversion removed rather than a special case added. It used to be made at `Long`
+     * and narrowed here, and that only worked while `Size` was `I64`: once the width became the
+     * target's (Move 2) a `Long` no longer fits a `Size`, and the count of a `[T *n]` is a number
+     * this compiler chose - it is not a 64-bit value that has to be got down to a word, it is `n`.
      */
     auto items = fixed
         ? fixedArrayBase(array, element, source)
@@ -663,11 +669,13 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
 
     initialize(project(slice, ProjectionKind::Field, 0), items, source);
 
+    auto declared = sliceLengthType(module, target);
+
     auto count = fixed
-        ? countOf(((ArrayType*)global[from])->count, module.scalar.long_, source)
+        ? countOf(((ArrayType*)global[from])->count, declared ? declared : module.scalar.long_, source)
         : load(length.unwrap(), source);
 
-    if(auto declared = sliceLengthType(module, target)) count = convert(count, declared, source, false);
+    if(declared && !fixed) count = convert(count, declared, source, false);
 
     initialize(project(slice, ProjectionKind::Field, 1), count, source);
 

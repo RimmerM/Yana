@@ -10,14 +10,14 @@ let ResolveTest.string$0: String = "ab"
 
 let greeting: String = "ab" {StringData(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
 
-fn Length(String).length(%self: String) -> I64 {
+fn Length(String).length(%self: String) -> Size {
   b0:
     %v1 = borrow %self : &String
     %v2 = cast %v1 : &StringData
-    %v3 = load [%v2]@StringData.bytes : Array(U8)
+    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int
-    %v6 = cast %units : I64
+    %v6 = cast %units : Size
     ret %v6
 }
 
@@ -100,7 +100,7 @@ fn main() -> Int {
 
   b9:
     %v42 = load greeting : String
-    %v43 = call Length(String).length, %v42 : I64
+    %v43 = call Length(String).length, %v42 : Size
     %v44 = cast %v43 : Int
     %v47 = cmp_eq %v44, 2 : Bool
     je %v47, b10, b11

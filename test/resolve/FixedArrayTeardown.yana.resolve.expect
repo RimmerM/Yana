@@ -6,7 +6,7 @@ let &heapLimit: %U8 = 0
 
 let &heapFree: %%U8 = 0
 
-let &heapRegionNext: I64 = 0
+let &heapRegionNext: Size = 0
 
 let &liveHandles: I64 = 0
 
@@ -49,10 +49,10 @@ fn -=(I64)(%target: I64, %amount: I64) -> () {
     ret
 }
 
-fn mapMemory(%size: I64) -> %U8 {
+fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %v7 = neg 1 : I64
-    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : I64
+    %v7 = neg 1 : Size
+    %result = syscall 9, 0, %size, 3, 34, %v7, 0 : Size
     %v12 = cmp_lt %result, 0 : Bool
     je %v12, b1, b2
 
@@ -68,15 +68,15 @@ fn mapMemory(%size: I64) -> %U8 {
     ret %v18
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
 fn initHeap() -> () {
   b0:
-    %v2 = add 4194304, 4096 : I64
+    %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
     %v4 = bitcast %region : Long
     %v6 = cmp_eq %v4, 0 : Bool
@@ -89,29 +89,29 @@ fn initHeap() -> () {
     jmp b3
 
   b3:
-    %table = mul 32, 8 : I64
+    %table = mul 32, 8 : Size
     setmemory %region, 0, %table
     %v16 = bitcast %region : %%U8
     assign heapFree, %v16
-    %v18 = strideof U8 : I64
-    %v19 = mul %table, %v18 : I64
+    %v18 = strideof U8 : Size
+    %v19 = mul %table, %v18 : Size
     %v20 = add %region, %v19 : %U8
     assign heapNext, %v20
-    %v23 = strideof U8 : I64
-    %v24 = mul 4194304, %v23 : I64
+    %v23 = strideof U8 : Size
+    %v24 = mul 4194304, %v23 : Size
     %v25 = add %region, %v24 : %U8
     assign heapLimit, %v25
-    %v29 = add 4194304, 4194304 : I64
+    %v29 = add 4194304, 4194304 : Size
     assign heapRegionNext, %v29
     ret
 }
 
-fn growHeap(%needed: I64) -> Bool {
+fn growHeap(%needed: Size) -> Bool {
   b0:
-    %v1 = load heapRegionNext : I64
-    %size = alloc : I64
+    %v1 = load heapRegionNext : Size
+    %size = alloc : Size
     init %size, %v1
-    %v4 = load %size : I64
+    %v4 = load %size : Size
     %v5 = cmp_lt %v4, %needed : Bool
     je %v5, b1, b2
 
@@ -123,8 +123,8 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b3
 
   b3:
-    %v10 = load %size : I64
-    %v12 = add %v10, 4096 : I64
+    %v10 = load %size : Size
+    %v12 = add %v10, 4096 : Size
     %v13 = call mapMemory, %v12 : %U8
     %region = alloc : %U8
     init %region, %v13
@@ -147,8 +147,8 @@ fn growHeap(%needed: I64) -> Bool {
     jmp b8
 
   b8:
-    %least = phi [b6, %needed], [b7, 4194304] : I64
-    %v28 = load %size : I64
+    %least = phi [b6, %needed], [b7, 4194304] : Size
+    %v28 = load %size : Size
     %v29 = cmp_ge %least, %v28 : Bool
     je %v29, b9, b10
 
@@ -160,8 +160,8 @@ fn growHeap(%needed: I64) -> Bool {
 
   b11:
     assign %size, %least
-    %v35 = load %size : I64
-    %v37 = add %v35, 4096 : I64
+    %v35 = load %size : Size
+    %v37 = add %v35, 4096 : Size
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
@@ -182,73 +182,73 @@ fn growHeap(%needed: I64) -> Bool {
     %v50 = load %region : %U8
     assign heapNext, %v50
     %v52 = load %region : %U8
-    %v53 = load %size : I64
-    %v54 = strideof U8 : I64
-    %v55 = mul %v53, %v54 : I64
+    %v53 = load %size : Size
+    %v54 = strideof U8 : Size
+    %v55 = mul %v53, %v54 : Size
     %v56 = add %v52, %v55 : %U8
     assign heapLimit, %v56
-    %v58 = load %size : I64
-    %v59 = load %size : I64
-    %v60 = add %v58, %v59 : I64
+    %v58 = load %size : Size
+    %v59 = load %size : Size
+    %v60 = add %v58, %v59 : Size
     assign heapRegionNext, %v60
     ret True
 }
 
-fn heapClassOf(%total: I64) -> I64 {
+fn heapClassOf(%total: Size) -> Size {
   b0:
-    %size = alloc : I64
+    %size = alloc : Size
     init %size, 16
-    %sizeClass = alloc : I64
+    %sizeClass = alloc : Size
     init %sizeClass, 0
     jmp b1
 
   b1:
-    %v8 = load %size : I64
+    %v8 = load %size : Size
     %v9 = cmp_lt %v8, %total : Bool
     je %v9, b3, b2
 
   b2:
-    %v21 = load %sizeClass : I64
+    %v21 = load %sizeClass : Size
     ret %v21
 
   b3:
-    %v11 = load %size : I64
-    %v12 = load %size : I64
-    %v13 = add %v11, %v12 : I64
+    %v11 = load %size : Size
+    %v12 = load %size : Size
+    %v13 = add %v11, %v12 : Size
     assign %size, %v13
-    %v15 = load %sizeClass : I64
-    %v18 = add %v15, 1 : I64
+    %v15 = load %sizeClass : Size
+    %v18 = add %v15, 1 : Size
     assign %sizeClass, %v18
     jmp b1
 }
 
-fn heapBlockSize(%sizeClass: I64) -> I64 {
+fn heapBlockSize(%sizeClass: Size) -> Size {
   b0:
-    %v2 = shl 16, %sizeClass : I64
+    %v2 = shl 16, %sizeClass : Size
     ret %v2
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
 }
 
-fn allocateHeap(%size: I64) -> %U8 {
+fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
     %v2 = bitcast %v1 : Long
@@ -276,8 +276,8 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b6
 
   b6:
-    %v20 = add %size, 8 : I64
-    %sizeClass = call heapClassOf, %v20 : I64
+    %v20 = add %size, 8 : Size
+    %sizeClass = call heapClassOf, %v20 : Size
     %v23 = cmp_ge %sizeClass, 32 : Bool
     je %v23, b7, b8
 
@@ -305,10 +305,10 @@ fn allocateHeap(%size: I64) -> %U8 {
     jmp b12
 
   b12:
-    %blockSize = call heapBlockSize, %sizeClass : I64
+    %blockSize = call heapBlockSize, %sizeClass : Size
     %v42 = load heapNext : %U8
-    %v43 = strideof U8 : I64
-    %v44 = mul %blockSize, %v43 : I64
+    %v43 = strideof U8 : Size
+    %v44 = mul %blockSize, %v43 : Size
     %v45 = add %v42, %v44 : %U8
     %v46 = load heapLimit : %U8
     %v47 = cmp_gt %v45, %v46 : Bool
@@ -334,14 +334,14 @@ fn allocateHeap(%size: I64) -> %U8 {
 
   b18:
     %block = load heapNext : %U8
-    %v60 = strideof U8 : I64
-    %v61 = mul %blockSize, %v60 : I64
+    %v60 = strideof U8 : Size
+    %v61 = mul %blockSize, %v60 : Size
     %v62 = add %block, %v61 : %U8
     assign heapNext, %v62
-    %v64 = bitcast %block : %I64
+    %v64 = bitcast %block : %Size
     assign [%v64], %sizeClass
-    %v68 = strideof U8 : I64
-    %v69 = mul 8, %v68 : I64
+    %v68 = strideof U8 : Size
+    %v69 = mul 8, %v68 : Size
     %v70 = add %block, %v69 : %U8
     ret %v70
 }
@@ -359,11 +359,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -409,45 +409,43 @@ fn small() -> I64 {
     %hs = alloc : Flat(Handle)
     %v11 = addressof [%v9] : %Handle
     init %hs@Flat.items, %v11
-    %v13 = countof 2 : Long
-    %v14 = cast %v13 : I64
-    init %hs@Flat.length, %v14
-    %v17 = borrow %hs : &Flat(Handle)
-    %v18 = load [%v17]@Flat.length : I64
-    %v19 = cast 0 : U64
-    %v20 = cast %v18 : U64
-    %v21 = cmp_ge %v19, %v20 : Bool
-    call checkCondition, %v21
-    %v23 = load [%v17]@Flat.items : %Handle
-    %v24 = strideof Handle : Long
-    %v25 = mul 0, %v24 : Long
-    %v26 = add %v23, %v25 : %Handle
-    %v27 = borrow [%v26] : &Handle
-    %v28 = load [%v27] : Handle
-    %v29 = call marker, %v28 : I64
-    %v31 = borrow %local2 : &[Handle *2]
+    %v13 = countof 2 : Size
+    init %hs@Flat.length, %v13
+    %v16 = borrow %hs : &Flat(Handle)
+    %v17 = load [%v16]@Flat.length : Size
+    %v18 = cast 0 : USize
+    %v19 = cast %v17 : USize
+    %v20 = cmp_ge %v18, %v19 : Bool
+    call checkCondition, %v20
+    %v22 = load [%v16]@Flat.items : %Handle
+    %v23 = strideof Handle : Long
+    %v24 = mul 0, %v23 : Long
+    %v25 = add %v22, %v24 : %Handle
+    %v26 = borrow [%v25] : &Handle
+    %v27 = load [%v26] : Handle
+    %v28 = call marker, %v27 : I64
+    %v30 = borrow %local2 : &[Handle *2]
     %hs = alloc : Flat(Handle)
-    %v33 = addressof [%v31] : %Handle
-    init %hs@Flat.items, %v33
-    %v35 = countof 2 : Long
-    %v36 = cast %v35 : I64
-    init %hs@Flat.length, %v36
-    %v39 = borrow %hs : &Flat(Handle)
-    %v40 = load [%v39]@Flat.length : I64
-    %v41 = cast 1 : U64
-    %v42 = cast %v40 : U64
-    %v43 = cmp_ge %v41, %v42 : Bool
-    call checkCondition, %v43
-    %v45 = load [%v39]@Flat.items : %Handle
-    %v46 = strideof Handle : Long
-    %v47 = mul 1, %v46 : Long
-    %v48 = add %v45, %v47 : %Handle
-    %v49 = borrow [%v48] : &Handle
-    %v50 = load [%v49] : Handle
-    %v51 = call marker, %v50 : I64
+    %v32 = addressof [%v30] : %Handle
+    init %hs@Flat.items, %v32
+    %v34 = countof 2 : Size
+    init %hs@Flat.length, %v34
+    %v37 = borrow %hs : &Flat(Handle)
+    %v38 = load [%v37]@Flat.length : Size
+    %v39 = cast 1 : USize
+    %v40 = cast %v38 : USize
+    %v41 = cmp_ge %v39, %v40 : Bool
+    call checkCondition, %v41
+    %v43 = load [%v37]@Flat.items : %Handle
+    %v44 = strideof Handle : Long
+    %v45 = mul 1, %v44 : Long
+    %v46 = add %v43, %v45 : %Handle
+    %v47 = borrow [%v46] : &Handle
+    %v48 = load [%v47] : Handle
+    %v49 = call marker, %v48 : I64
     drop_derived %local2 via drop$[Handle *2]
-    %v52 = add %v29, %v51 : I64
-    ret %v52
+    %v50 = add %v28, %v49 : I64
+    ret %v50
 }
 
 fn large() -> I64 {
@@ -464,45 +462,43 @@ fn large() -> I64 {
     %hs = alloc : Flat(Handle)
     %v23 = addressof [%v21] : %Handle
     init %hs@Flat.items, %v23
-    %v25 = countof 6 : Long
-    %v26 = cast %v25 : I64
-    init %hs@Flat.length, %v26
-    %v29 = borrow %hs : &Flat(Handle)
-    %v30 = load [%v29]@Flat.length : I64
-    %v31 = cast 0 : U64
-    %v32 = cast %v30 : U64
-    %v33 = cmp_ge %v31, %v32 : Bool
-    call checkCondition, %v33
-    %v35 = load [%v29]@Flat.items : %Handle
-    %v36 = strideof Handle : Long
-    %v37 = mul 0, %v36 : Long
-    %v38 = add %v35, %v37 : %Handle
-    %v39 = borrow [%v38] : &Handle
-    %v40 = load [%v39] : Handle
-    %v41 = call marker, %v40 : I64
-    %v43 = borrow %local6 : &[Handle *6]
+    %v25 = countof 6 : Size
+    init %hs@Flat.length, %v25
+    %v28 = borrow %hs : &Flat(Handle)
+    %v29 = load [%v28]@Flat.length : Size
+    %v30 = cast 0 : USize
+    %v31 = cast %v29 : USize
+    %v32 = cmp_ge %v30, %v31 : Bool
+    call checkCondition, %v32
+    %v34 = load [%v28]@Flat.items : %Handle
+    %v35 = strideof Handle : Long
+    %v36 = mul 0, %v35 : Long
+    %v37 = add %v34, %v36 : %Handle
+    %v38 = borrow [%v37] : &Handle
+    %v39 = load [%v38] : Handle
+    %v40 = call marker, %v39 : I64
+    %v42 = borrow %local6 : &[Handle *6]
     %hs = alloc : Flat(Handle)
-    %v45 = addressof [%v43] : %Handle
-    init %hs@Flat.items, %v45
-    %v47 = countof 6 : Long
-    %v48 = cast %v47 : I64
-    init %hs@Flat.length, %v48
-    %v51 = borrow %hs : &Flat(Handle)
-    %v52 = load [%v51]@Flat.length : I64
-    %v53 = cast 5 : U64
-    %v54 = cast %v52 : U64
-    %v55 = cmp_ge %v53, %v54 : Bool
-    call checkCondition, %v55
-    %v57 = load [%v51]@Flat.items : %Handle
-    %v58 = strideof Handle : Long
-    %v59 = mul 5, %v58 : Long
-    %v60 = add %v57, %v59 : %Handle
-    %v61 = borrow [%v60] : &Handle
-    %v62 = load [%v61] : Handle
-    %v63 = call marker, %v62 : I64
+    %v44 = addressof [%v42] : %Handle
+    init %hs@Flat.items, %v44
+    %v46 = countof 6 : Size
+    init %hs@Flat.length, %v46
+    %v49 = borrow %hs : &Flat(Handle)
+    %v50 = load [%v49]@Flat.length : Size
+    %v51 = cast 5 : USize
+    %v52 = cast %v50 : USize
+    %v53 = cmp_ge %v51, %v52 : Bool
+    call checkCondition, %v53
+    %v55 = load [%v49]@Flat.items : %Handle
+    %v56 = strideof Handle : Long
+    %v57 = mul 5, %v56 : Long
+    %v58 = add %v55, %v57 : %Handle
+    %v59 = borrow [%v58] : &Handle
+    %v60 = load [%v59] : Handle
+    %v61 = call marker, %v60 : I64
     drop_derived %local6 via drop$[Handle *6]
-    %v64 = add %v41, %v63 : I64
-    ret %v64
+    %v62 = add %v40, %v61 : I64
+    ret %v62
 }
 
 fn nested() -> I64 {
@@ -519,25 +515,24 @@ fn nested() -> I64 {
     %v15 = alloc : Flat(Handle)
     %v16 = addressof [%v14] : %Handle
     init %local4@Flat.items, %v16
-    %v18 = countof 2 : Long
-    %v19 = cast %v18 : I64
-    init %local4@Flat.length, %v19
-    %v22 = borrow %local4 : &Flat(Handle)
-    %v23 = load [%v22]@Flat.length : I64
-    %v24 = cast 1 : U64
-    %v25 = cast %v23 : U64
-    %v26 = cmp_ge %v24, %v25 : Bool
-    call checkCondition, %v26
-    %v28 = load [%v22]@Flat.items : %Handle
-    %v29 = strideof Handle : Long
-    %v30 = mul 1, %v29 : Long
-    %v31 = add %v28, %v30 : %Handle
-    %v32 = borrow [%v31] : &Handle
-    %v33 = load [%v32] : Handle
-    %v34 = call marker, %v33 : I64
+    %v18 = countof 2 : Size
+    init %local4@Flat.length, %v18
+    %v21 = borrow %local4 : &Flat(Handle)
+    %v22 = load [%v21]@Flat.length : Size
+    %v23 = cast 1 : USize
+    %v24 = cast %v22 : USize
+    %v25 = cmp_ge %v23, %v24 : Bool
+    call checkCondition, %v25
+    %v27 = load [%v21]@Flat.items : %Handle
+    %v28 = strideof Handle : Long
+    %v29 = mul 1, %v28 : Long
+    %v30 = add %v27, %v29 : %Handle
+    %v31 = borrow [%v30] : &Handle
+    %v32 = load [%v31] : Handle
+    %v33 = call marker, %v32 : I64
     drop_derived %local0 via drop$Pair
-    %v35 = add %v11, %v34 : I64
-    ret %v35
+    %v34 = add %v11, %v33 : I64
+    ret %v34
 }
 
 fn main() -> I64 {
@@ -644,19 +639,19 @@ fn drop$[Handle *2](%value: [Handle *2]) -> () {
 
 fn drop$[Handle *6](%value: [Handle *6]) -> () {
   b0:
-    %v1 = alloc : I64
+    %v1 = alloc : Size
     init %local1, 0
     jmp b1
 
   b1:
-    %v5 = load %local1 : I64
-    %v6 = countof 6 : I64
+    %v5 = load %local1 : Size
+    %v6 = countof 6 : Size
     %v7 = cmp_lt %v5, %v6 : Bool
     je %v7, b2, b3
 
   b2:
     drop %value[%v5] via Drop(Handle).drop
-    %v11 = add %v5, 1 : I64
+    %v11 = add %v5, 1 : Size
     assign %local1, %v11
     jmp b1
 

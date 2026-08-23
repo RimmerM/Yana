@@ -836,16 +836,21 @@ struct ExprResolver {
      * `checkCondition` where nothing is looking. Implementation-Containers.md §15 asks for this
      * shape for its own reason: a library container calls the same function.
      *
-     * Emits nothing at all when the checks are off, which is what makes `-no-checks` free rather
-     * than cheap - see CompileSettings::checks and Program::checkCondition.
+     * Emitted whether or not this build wants the checks - Analysis-Modules.md Move 4, and see
+     * `dischargeChecks` in compiler/opt, which is what takes them out again for a target that does
+     * not. `-no-checks` is still free rather than cheap: that pass removes the call and the
+     * condition behind it, and it runs before the `-no-opt` return so the two settings are
+     * independent.
      */
     void emitCheck(ModulePtr<Value> failed, LocationId source);
 
-    // Whether a check would be emitted at all, for a caller that has to decide whether to compute
-    // the condition. Answered before the operands are built rather than after, since a length load
-    // that nothing reads is still a load until an optimizer removes it.
+    // Whether a check can be emitted at all, for a caller that has to decide whether to compute the
+    // condition. Answered before the operands are built rather than after, since a length load that
+    // nothing reads is still a load until an optimizer removes it - and the answer is now about the
+    // *library* rather than about the build: a program with no `checkCondition` to call is one whose
+    // prelude failed to resolve.
     bool checksEnabled() const {
-        return context.settings.checks && module.program.checkCondition != nullptr;
+        return module.program.checkCondition != nullptr;
     }
 
     /*

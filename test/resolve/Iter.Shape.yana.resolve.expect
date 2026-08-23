@@ -63,13 +63,13 @@ fn main() -> Int {
     %v27 = symbol ResolveTest.continuation$15 : %()
     init %local7.code, %v27
     init %local7.env, %v25
-    %v30 = cast 5 : I64
+    %v30 = cast 5 : Size
     %v31 = call Streamed(Bag).stream(()), %v17, %v30, %v26 : Outcome((), ())
     %v32 = load %total : Int
     ret %v32
 }
 
-fn Streamed(Bag).stream(%self: Bag, %times: I64, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn Streamed(Bag).stream(%self: Bag, %times: Size, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
@@ -133,7 +133,7 @@ fn ResolveTest.continuation$15(%env: %{total: &mut Int}, %value$: Int) -> Outcom
     ret %v7
 }
 
-fn Streamed(Bag).stream(())(%self: Bag, %times: I64, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn Streamed(Bag).stream(())(%self: Bag, %times: Size, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v3 = load %self@Bag.w : Int
     %v4 = calldyn %body, %v3 : Outcome((), ())

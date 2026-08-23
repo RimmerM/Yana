@@ -44,7 +44,7 @@ fn main() -> Int:
     let first = heaped(True, False)
     if live != 0 then return -1
 
-    let mark = bitcast(heapNext) :: I64
+    let mark = bitcast(heapNext) :: Size
 
     let &i = 0 :: Int
     while i < 100:
@@ -55,13 +55,13 @@ fn main() -> Int:
 
     -- The whole assertion: the bump pointer did not move, so every one of those hundred allocations
     -- came back to the free list. It moves by one block per call if the release is inside the guard.
-    if (bitcast(heapNext) :: I64) != mark then return -3
+    if (bitcast(heapNext) :: Size) != mark then return -3
 
     -- And the other three paths, each of which allocates and releases once for its own reasons.
     let a = heaped(False, False)
     let b = heaped(False, True)
     let c = heaped(True, True)
     if live != 0 then return -4
-    if (bitcast(heapNext) :: I64) != mark then return -5
+    if (bitcast(heapNext) :: Size) != mark then return -5
 
     return 1

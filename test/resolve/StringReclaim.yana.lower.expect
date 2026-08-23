@@ -58,7 +58,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
   }
 
   b_17 {
-    call_complex push(U8), %to, 45
+    call_complex push(CodeUnit), %to, 45
     jmp b_19
   }
 
@@ -103,7 +103,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
     %v_38 = load %digits, 8: Ptr
     %v_39 = add %v_38, %v_26: Ptr
     %v_40 = load %v_39, 1: Int
-    call_complex push(U8), %to, %v_40
+    call_complex push(CodeUnit), %to, %v_40
     jmp b_23
   }
 
@@ -118,7 +118,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
     %digit = cast %v_47: Int
     %v_48 = add %digit, 48: Int
     %v_49 = and %v_48, 255: Int
-    call_complex push(U8), %digits, %v_49
+    call_complex push(CodeUnit), %digits, %v_49
     %v_50 = imulhi %v_11, 7378697629483820647: Long
     %v_51 = sar %v_50, 2: Long
     %v_52 = shr %v_51, 63: Long
@@ -127,7 +127,7 @@ showSigned<complex>(%value: Long, %to: Ptr) {
   }
 
   b_2 {
-    call_complex push(U8), %to, 48
+    call_complex push(CodeUnit), %to, 48
     ret 
   }
 }
@@ -170,7 +170,7 @@ appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
     %v_5 = load %v_4, 4: Int
     %v_6 = cast %v_5: Long
     %v_7 = add %v_6, %count: Long
-    call_complex reserve(U8), %self, %v_7
+    call_complex reserve(CodeUnit), %self, %v_7
     %v_8 = add %self, 12: Ptr
     %v_9 = load %v_8, 4: Int
     %v_10 = cast %v_9: Long
@@ -252,7 +252,7 @@ Reclaim(String).reclaim<complex>(%value: Ptr) {
   }
 }
 
-reserve(U8)<complex>(%self: Ptr, %wanted: Long) {
+reserve(CodeUnit)<complex>(%self: Ptr, %wanted: Long) {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long
@@ -272,12 +272,12 @@ reserve(U8)<complex>(%self: Ptr, %wanted: Long) {
   }
 
   b_9 {
-    call_complex growArray(U8), %self, %wanted
+    call_complex growArray(CodeUnit), %self, %wanted
     ret 
   }
 }
 
-growArray(U8)<complex>(%self: Ptr, %wanted: Long) {
+growArray(CodeUnit)<complex>(%self: Ptr, %wanted: Long) {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long
@@ -313,12 +313,12 @@ growArray(U8)<complex>(%self: Ptr, %wanted: Long) {
 
   b_14 {
     %v_15 = phi [b_12, 4], [b_13, %v_10]: Long
-    %v_16 = call_complex resize(U8), %self, %v_15: Int
+    %v_16 = call_complex resize(CodeUnit), %self, %v_15: Int
     ret 
   }
 }
 
-push(U8)<complex>(%self: Ptr, %item: Int) {
+push(CodeUnit)<complex>(%self: Ptr, %item: Int) {
   b_0 {
     %v_1 = add %self, 12: Ptr
     %v_2 = load %v_1, 4: Int
@@ -334,7 +334,7 @@ push(U8)<complex>(%self: Ptr, %item: Int) {
   }
 
   b_11 {
-    call_complex growArray(U8), %self, %v_3
+    call_complex growArray(CodeUnit), %self, %v_3
     %v_12 = load %v_4, 4: Long
     %v_13 = and %v_12, 1073741823: Long
     %v_14 = cast %v_13: Int
@@ -812,7 +812,7 @@ copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   }
 }
 
-resize(U8)<complex>(%self: Ptr, %wanted: Long): Int {
+resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long

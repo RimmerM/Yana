@@ -1,0 +1,69 @@
+import Native
+
+{-
+   `Size`, `USize` and `CodeUnit` - the three integers whose width the *target* chooses rather than
+   the language. Analysis-Modules.md Move 2, and doc/spec/types.md's target-width family.
+
+   The point of this fixture is that **the same source compiles and answers the same number on both
+   targets while the widths differ**: a `Size` is sixty-four bits natively and thirty-two on
+   JavaScript, and a `CodeUnit` is eight bits against sixteen. Nothing below names a width, and
+   nothing below is `@platform`-split.
+
+   What it holds the conversion ladder to is the rule that makes the bound two-ended - see
+   `integerRangeFits`. A conversion *into* a target-width type is judged against the smallest it may
+   be, and a conversion *out of* one against the largest, so:
+
+     - `Int` widens into `Size` and `U32` does not, because a `U32` does not fit a signed word of
+       thirty-two bits;
+     - `Size` widens into `I64` and not into `Int`;
+     - `Size` and `USize` are the same word, so `bitcast` relates them - and relates neither to any
+       fixed width, because a reinterpretation needs two widths to compare and these have none.
+
+   The *address* rung - `Bitcast(%a, Size)`, which is the other pair and the reason the integer side
+   moved off `I64` - is not exercised here, because there is nothing portable to assert about the
+   number it produces. `Native/Pointer.yana` is where it is used and `resolve/Heap.yana` is where a
+   fixture already reads one.
+
+   The negative half of that lives in Reject.Bits.yana and in the ladder itself; what is here is
+   every direction that must keep working.
+-}
+
+@noinline fn opaque(x: Size) -> Size = x
+
+-- The widening every subscript depends on: an ordinary `Int` index reaches a `Size` position with
+-- no conversion written. This is the one that decides whether `xs[i]` compiles at all.
+fn indexed(xs: [Int], i: Int) -> Int = xs[i]
+
+-- And out the other side, which is the direction the bound's high end decides.
+fn asLong(n: Size) -> I64 = n
+fn asWord(n: Int) -> Size = n
+
+-- The unsigned reading, which is what a bounds test compares at: read as an unsigned number of the
+-- same width, a negative index is above every length there is.
+fn unsignedAbove(a: Size, b: Size) -> Bool = (bitcast(a) :: USize) > (bitcast(b) :: USize)
+
+-- A code unit is an unsigned integer of the target's encoding width, and widens into `Int` on both
+-- targets because eight bits and sixteen both fit one.
+fn unitValue(u: CodeUnit) -> Int = u
+
+fn main() -> Int:
+    let &score = 0
+
+    let xs = [10, 20, 30]
+    if indexed(xs, 2) == 30 then score = score + 1
+
+    if asLong(opaque(7)) == 7 then score = score + 2
+    if asWord(7) == 7 then score = score + 4
+
+    -- Negative read unsigned is above every non-negative value, at whatever width the target picked.
+    if unsignedAbove(opaque(0 - 1), opaque(1000000)) then score = score + 8
+    if !unsignedAbove(opaque(1), opaque(2)) then score = score + 16
+
+    -- `truncate` back down, which is the only spelling that compiles on both targets: the conversion
+    -- is a real narrowing natively and the identity on JS, and the ladder has a rung for each.
+    if (truncate(opaque(300)) :: Int) == 300 then score = score + 32
+
+    -- A code unit, through the one operation that is the same on both encodings: an ASCII value.
+    if unitValue(65) == 65 then score = score + 64
+
+    return score

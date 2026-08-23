@@ -29,17 +29,17 @@
 import Native
 
 let painted = 0xAB :: U8
-let span = 256 :: I64
+let span = 256 :: Size
 
-fn fill(buffer: %U8, count: I64, value: U8) -> {}:
-    let &i = 0 :: I64
+fn fill(buffer: %U8, count: Size, value: U8) -> {}:
+    let &i = 0 :: Size
     while i < count:
         store(buffer + i, value)
         i = i + 1
 
-fn holds(buffer: %U8, at: I64, count: I64, value: U8) -> Int:
+fn holds(buffer: %U8, at: Size, count: Size, value: U8) -> Int:
     let &bad = 0 :: Int
-    let &i = 0 :: I64
+    let &i = 0 :: Size
     while i < count:
         if (*(buffer + at + i)) != value then bad = bad + 1
         i = i + 1
@@ -49,7 +49,7 @@ fn holds(buffer: %U8, at: I64, count: I64, value: U8) -> Int:
 fn main() -> Int:
     let buffer = allocateHeap(512)
     let &bad = 0 :: Int
-    let &count = 0 :: I64
+    let &count = 0 :: Size
 
     while count <= 200:
         fill(buffer, span, 0 :: U8)

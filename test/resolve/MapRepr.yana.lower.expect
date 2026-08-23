@@ -112,6 +112,31 @@ Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
   }
 }
 
+Reclaim(String).reclaim<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Long
+    %v_3 = shr %v_2, 30: Long
+    %v_4 = cast %v_3: Int
+    %v_5 = cmp_eq %v_4, 1: Int
+    je %v_5, b_6, b_7
+  }
+
+  b_7 {
+    jmp b_8
+  }
+
+  b_6 {
+    %v_9 = load %value, 8: Ptr
+    call_complex freeHeap, %v_9
+    jmp b_8
+  }
+
+  b_8 {
+    ret 
+  }
+}
+
 findEntry(Int, Int)<complex>(%self: Ptr, %key: Int, %h: Int): Long {
   b_0 {
     %v_1 = add %self, 32: Ptr
@@ -835,7 +860,7 @@ insert(String, Int)<complex>(%v_0: Ptr, %self: Ptr, %key: Ptr, %value: Int) {
   }
 
   b_3 {
-    call_complex releaseRun(U8), %key
+    call_complex Reclaim(String).reclaim, %key
     jmp b_5
   }
 }
@@ -1741,30 +1766,6 @@ resize(U8)<complex>(%self: Ptr, %wanted: Long): Int {
   }
 }
 
-releaseRun(U8)<complex>(%self: Ptr) {
-  b_0 {
-    %v_1 = add %self, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %self, 8: Ptr
-    call_complex freeHeap, %v_7
-    jmp b_8
-  }
-
-  b_6 {
-    jmp b_8
-  }
-
-  b_8 {
-    ret 
-  }
-}
-
 resize(Entry(Int, Int))<complex>(%self: Ptr, %wanted: Long): Int {
   b_0 {
     %v_1 = add %self, 8: Ptr
@@ -1978,6 +1979,30 @@ resize(Entry(String, Int))<complex>(%self: Ptr, %wanted: Long): Int {
     %v_49 = or %v_48, 1073741824: Long
     store %v_46, %v_49, 4
     ret 1
+  }
+}
+
+Reclaim(Run(a)).reclaim(U8)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_6 {
+    jmp b_7
+  }
+
+  b_5 {
+    %v_8 = load %value, 8: Ptr
+    call_complex freeHeap, %v_8
+    jmp b_7
+  }
+
+  b_7 {
+    ret 
   }
 }
 
@@ -2215,7 +2240,7 @@ main<complex>(): Int {
 
   b_113 {
     %v_114 = add %a, 16: Ptr
-    call_complex releaseRun(U8), %v_114
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_114
     %v_115 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_115, @ResolveTest.string$0, 1
     %v_116 = alloca 8, 8: Ptr
@@ -2269,7 +2294,7 @@ main<complex>(): Int {
 
   b_138 {
     %v_140 = add %b, 16: Ptr
-    call_complex releaseRun(U8), %v_140
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_140
     %v_141 = add %v_97, %v_122: Int
     ret %v_141
   }
@@ -2280,7 +2305,7 @@ main<complex>(): Int {
     %v_144 = add %v_142, %v_143: Ptr
     %doomed = alloca 20, 8: Ptr
     copy %doomed, %v_144, 20
-    call_complex releaseRun(U8), %doomed
+    call_complex Reclaim(String).reclaim, %doomed
     %v_129 = add %v_127, 1: Long
     jmp b_126
   }

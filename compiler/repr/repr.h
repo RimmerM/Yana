@@ -359,6 +359,19 @@ struct ReprTarget {
     U32 integerBits = 64;
 
     /*
+     * The widths this target chooses for the three primitives resolve leaves abstract - see
+     * TargetInt in resolve/type.h.
+     *
+     * A different question from `integerBits` and from `pointerSize`, which is why it is a field of
+     * its own rather than derived from either. `integerBits` is what a *value* here can hold and is
+     * 53 on JS; `pointerSize` is what an address costs and is 8 on JS, where there are no addresses
+     * and the number exists only so a record containing a reference has a field order. `Size` on JS
+     * is neither: it is a signed 32-bit `Int`, because a host array's length is a `uint32` by
+     * specification and nothing wider can be described anyway.
+     */
+    IntWidths integers;
+
+    /*
      * How many low bits of a machine word an address actually uses, leaving the rest free to carry
      * something alongside it.
      *

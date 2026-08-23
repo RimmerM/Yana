@@ -261,10 +261,10 @@ fn nullHandle() -> Handle {
     ret %v0
 }
 
-fn handleAddress(%h: Handle) -> I64 {
+fn handleAddress(%h: Handle) -> Size {
   b0:
     %p = load %h@Handle : %U8
-    %v2 = bitcast %p : I64
+    %v2 = bitcast %p : Size
     jmp b1
 
   b1:
@@ -418,14 +418,15 @@ fn main() -> Int {
     %v129 = call heldTag, %v128 : Int
     %scalars = add %v127, %v129 : Int
     %v131 = call nullHandle : Handle
-    %v132 = call handleAddress, %v131 : I64
+    %v132 = call handleAddress, %v131 : Size
     %v133 = alloc : I64
     init %local43, %slot
     %v135 = addressof %local43 : %I64
     %v136 = call boxed, %v135 : Boxed(I64)
     %v137 = call boxedValue, %v136 : I64
-    %v138 = add %v132, %v137 : I64
-    %v139 = cast %v138 : Int
-    %v140 = add %scalars, %v139 : Int
-    ret %v140
+    %v138 = cast %v132 : I64
+    %v139 = add %v138, %v137 : I64
+    %v140 = cast %v139 : Int
+    %v141 = add %scalars, %v140 : Int
+    ret %v141
 }

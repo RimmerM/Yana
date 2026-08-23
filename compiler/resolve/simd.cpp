@@ -317,8 +317,9 @@ static bool halfWidthShapes(ExprResolver& resolver, TypePtr wide, TypePtr narrow
     wideLanes = vectorLanes(global, wide);
     narrowLanes = vectorLanes(global, narrow);
 
-    auto wideStride = laneStride(global, vectorLane(global, wide));
-    auto narrowStride = laneStride(global, vectorLane(global, narrow));
+    auto widths = targetIntWidths(resolver.context.settings);
+    auto wideStride = laneStride(global, vectorLane(global, wide), widths);
+    auto narrowStride = laneStride(global, vectorLane(global, narrow), widths);
 
     if(wideLanes && narrowLanes == wideLanes * 2 && wideStride == narrowStride * 2) return true;
 
@@ -477,7 +478,8 @@ static TypePtr laneIndexType(ExprResolver& resolver, TypePtr lane) {
 
     // A float is four bytes or eight, so the two rungs below are the whole of the mapping. A missing
     // one is Core not having been built yet, which answers the lane itself and changes nothing.
-    auto index = resolver.module.scalar.signedLanes[laneStride(resolver.global, lane) == 8 ? 3 : 2];
+    auto stride = laneStride(resolver.global, lane, targetIntWidths(resolver.context.settings));
+    auto index = resolver.module.scalar.signedLanes[stride == 8 ? 3 : 2];
 
     return index ? index : lane;
 }
@@ -635,7 +637,7 @@ static bool hasNaturalVector(Module& module, TypePtr element) {
     auto& settings = module.context.settings;
     if(!element || isGeneric(base, element)) return false;
 
-    auto stride = laneStride(base, element);
+    auto stride = laneStride(base, element, targetIntWidths(settings));
     if(!stride) return false;
 
     // A `Long` on JS is a `bigint`, which is not a lane - Design-Vector §7.3.
@@ -914,6 +916,7 @@ static ModulePtr<ClassInstance> maskBitwiseInstance(Module& core, TypePtr type) 
 static ModulePtr<ClassInstance> conversionInstance(Module& core, GlobalPtr<TypeClass> typeClass,
                                                    CoreClasses& classes, TypePtr from, TypePtr to) {
     auto base = *core.types;
+    auto widths = targetIntWidths(core.context.settings);
     auto source = vectorOf(base, from);
     auto result = vectorOf(base, to);
 
@@ -943,14 +946,14 @@ static ModulePtr<ClassInstance> conversionInstance(Module& core, GlobalPtr<TypeC
         if(typeClass != classes.bitcast) return nullptr;
         if(!source->isMask || !result->isMask) return nullptr;
         if(source->count != result->count) return nullptr;
-        if(laneStride(base, source->content) != laneStride(base, result->content)) return nullptr;
+        if(laneStride(base, source->content, widths) != laneStride(base, result->content, widths)) return nullptr;
 
         return defineBitcast(core, from, to);
     }
 
     if(typeClass == classes.bitcast) {
-        auto sourceBytes = laneStride(base, source->content) * constValue(base, source->count);
-        auto resultBytes = laneStride(base, result->content) * constValue(base, result->count);
+        auto sourceBytes = laneStride(base, source->content, widths) * constValue(base, source->count);
+        auto resultBytes = laneStride(base, result->content, widths) * constValue(base, result->count);
         if(sourceBytes != resultBytes) return nullptr;
 
         return defineBitcast(core, from, to);

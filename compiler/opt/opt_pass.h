@@ -537,6 +537,15 @@ void scalarizeLocals(OptContext& opt);
 void eliminateCommonValues(OptContext& opt);
 void eliminateDeadValues(OptContext& opt);
 
+/*
+ * The compiler-inserted checks, removed for a build that asked for none - see opt_check.cpp.
+ *
+ * Program-wide and not per function, and run *before* the `-no-opt` return in `optimizeProgram`
+ * rather than among the rounds: `-no-checks` has to stay free rather than cheap, and the two
+ * settings are independent.
+ */
+bool dischargeChecks(OptContext& opt);
+
 // The repr-lower step: packed field access becomes arithmetic over a storage unit. Answers whether
 // it rewrote anything, which is what decides whether the passes above are worth running again.
 bool expandPacking(OptContext& opt);

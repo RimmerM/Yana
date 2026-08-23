@@ -328,7 +328,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 auto address = lowerPlace(lower, block, *function, loadInst.place);
                 lower.values.add(instValue, load(
                     lower.lower, lower.to, block, lower.lower[address], bits / 8, false,
-                    lowerType(lower.global, instruction.type), instruction.name
+                    lowerType(lower, instruction.type), instruction.name
                 )->created().ptr - lower.lower);
                 return nullptr;
             }
@@ -376,7 +376,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     lower.lower, lower.to, block, lower.lower[out],
                     memoryWidth(lower, instruction.type),
                     signedType(lower.global, instruction.type),
-                    lowerType(lower.global, instruction.type),
+                    lowerType(lower, instruction.type),
                     instruction.name
                 )->created().ptr - lower.lower);
                 return nullptr;
@@ -438,7 +438,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 lower.lower, lower.to, block, lower.lower[address],
                 tagWidth ? tagWidth : memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
-                lowerType(lower.global, instruction.type),
+                lowerType(lower, instruction.type),
                 instruction.name
             );
 
@@ -566,7 +566,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 lower.lower, lower.to, block, lower.lower[address],
                 memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
-                lowerType(lower.global, instruction.type),
+                lowerType(lower, instruction.type),
                 instruction.name
             );
             break;
@@ -612,7 +612,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
             if(!isMemoryType(lower.global, swap.content)) {
                 auto width = memoryWidth(lower, swap.content);
                 auto isSigned = signedType(lower.global, swap.content);
-                auto kind = lowerType(lower.global, swap.content);
+                auto kind = lowerType(lower, swap.content);
 
                 auto oldA = load(lower.lower, lower.to, block, lower.lower[a], width, isSigned, kind, StringId());
                 auto oldB = load(lower.lower, lower.to, block, lower.lower[b], width, isSigned, kind, StringId());
@@ -663,9 +663,9 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
                 result = ref.isSigned
                     ? cast<true, true>(lower.lower, lower.to, block, lower.lower[old],
-                                       lowerType(lower.global, content), instruction.name)
+                                       lowerType(lower, content), instruction.name)
                     : cast<false, false>(lower.lower, lower.to, block, lower.lower[old],
-                                         lowerType(lower.global, content), instruction.name);
+                                         lowerType(lower, content), instruction.name);
                 break;
             }
 
@@ -674,7 +674,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
             if(!isMemoryType(lower.global, content)) {
                 auto width = memoryWidth(lower, content);
                 auto old = load(lower.lower, lower.to, block, lower.lower[address], width,
-                                signedType(lower.global, content), lowerType(lower.global, content),
+                                signedType(lower.global, content), lowerType(lower, content),
                                 instruction.name);
 
                 block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(address, incoming, width));
@@ -728,7 +728,7 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 lower.lower, lower.to, block, lower.lower[address],
                 memoryWidth(lower, instruction.type),
                 signedType(lower.global, instruction.type),
-                lowerType(lower.global, instruction.type),
+                lowerType(lower, instruction.type),
                 instruction.name
             );
             break;

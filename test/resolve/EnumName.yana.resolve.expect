@@ -46,36 +46,36 @@ let ResolveTest.string$7: String = "Red"
 
 let ResolveTest.string$8: String = "Red"
 
-fn stringUnit(%self: String, %index: I64) -> Int {
+fn stringUnit(%self: String, %index: Size) -> Int {
   b0:
     %v2 = borrow %self : &String
     %v3 = cast %v2 : &StringData
-    %v4 = load [%v3]@StringData.bytes : Array(U8)
-    %v5 = load [%v3]@StringData.bytes@Array.run : Run(U8)
-    %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %U8
-    %v7 = strideof U8 : I64
-    %v8 = mul %index, %v7 : I64
-    %v9 = add %v6, %v8 : %U8
-    %v10 = load [%v9] : U8
+    %v4 = load [%v3]@StringData.bytes : Array(CodeUnit)
+    %v5 = load [%v3]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v7 = strideof CodeUnit : Size
+    %v8 = mul %index, %v7 : Size
+    %v9 = add %v6, %v8 : %CodeUnit
+    %v10 = load [%v9] : CodeUnit
     %v11 = cast %v10 : Int
     ret %v11
 }
 
-fn Length(String).length(%self: String) -> I64 {
+fn Length(String).length(%self: String) -> Size {
   b0:
     %v1 = borrow %self : &String
     %v2 = cast %v1 : &StringData
-    %v3 = load [%v2]@StringData.bytes : Array(U8)
+    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int
-    %v6 = cast %units : I64
+    %v6 = cast %units : Size
     ret %v6
 }
 
 fn Eq(String).==(%self: String, %other: String) -> Bool {
   b0:
-    %count = call Length(String).length, %self : I64
-    %v3 = call Length(String).length, %other : I64
+    %count = call Length(String).length, %self : Size
+    %v3 = call Length(String).length, %other : Size
     %v4 = cmp_ne %count, %v3 : Bool
     je %v4, b1, b2
 
@@ -86,12 +86,12 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
     jmp b3
 
   b3:
-    %i = alloc : I64
+    %i = alloc : Size
     init %i, 0
     jmp b4
 
   b4:
-    %v13 = load %i : I64
+    %v13 = load %i : Size
     %v14 = cmp_lt %v13, %count : Bool
     je %v14, b6, b5
 
@@ -99,9 +99,9 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
     ret True
 
   b6:
-    %v16 = load %i : I64
+    %v16 = load %i : Size
     %v17 = call stringUnit, %self, %v16 : Int
-    %v18 = load %i : I64
+    %v18 = load %i : Size
     %v19 = call stringUnit, %other, %v18 : Int
     %v20 = cmp_ne %v17, %v19 : Bool
     je %v20, b7, b8
@@ -113,8 +113,8 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
     jmp b9
 
   b9:
-    %v25 = load %i : I64
-    %v28 = add %v25, 1 : I64
+    %v25 = load %i : Size
+    %v28 = add %v25, 1 : Size
     assign %i, %v28
     jmp b4
 }
@@ -130,9 +130,9 @@ fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
     %v1 = borrow %value : &String
     %v2 = cast %v1 : &StringData
-    %v3 = load [%v2]@StringData.bytes : Array(U8)
-    %v4 = load [%v2]@StringData.bytes@Array.run : Run(U8)
-    call releaseRun(U8), %v4
+    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
+    %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
+    call releaseRun(CodeUnit), %v4
     ret
 }
 
@@ -143,7 +143,7 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$58 : %U8
+    %v5 = symbol Core.string$58 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     jmp b5
 
@@ -152,12 +152,12 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
     je %v9, b3, b4
 
   b3:
-    %v11 = symbol Core.string$59 : %U8
+    %v11 = symbol Core.string$59 : %CodeUnit
     %v13 = call stringLiteral, %v11, 5 : String
     jmp b5
 
   b4:
-    %v14 = symbol Core.string$60 : %U8
+    %v14 = symbol Core.string$60 : %CodeUnit
     %v16 = call stringLiteral, %v14, 4 : String
     jmp b5
 
@@ -168,12 +168,12 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
 
 fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
   b0:
-    %v1 = call Length(String).length, %name : I64
+    %v1 = call Length(String).length, %name : Size
     %v3 = cmp_eq %v1, 3 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$61 : %U8
+    %v5 = symbol Core.string$61 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     %v8 = call Eq(String).==, %name, %v7 : Bool
     je %v8, b3, b4
@@ -194,7 +194,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     jmp b13
 
   b5:
-    %v21 = symbol Core.string$62 : %U8
+    %v21 = symbol Core.string$62 : %CodeUnit
     %v23 = call stringLiteral, %v21, 5 : String
     %v24 = call Eq(String).==, %name, %v23 : Bool
     je %v24, b7, b8
@@ -215,7 +215,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     jmp b13
 
   b9:
-    %v37 = symbol Core.string$63 : %U8
+    %v37 = symbol Core.string$63 : %CodeUnit
     %v39 = call stringLiteral, %v37, 4 : String
     %v40 = call Eq(String).==, %name, %v39 : Bool
     je %v40, b11, b12
@@ -248,7 +248,7 @@ fn Enum(Whence).nameOf(%item: Whence) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$64 : %U8
+    %v5 = symbol Core.string$64 : %CodeUnit
     %v7 = call stringLiteral, %v5, 9 : String
     jmp b5
 
@@ -257,12 +257,12 @@ fn Enum(Whence).nameOf(%item: Whence) -> String {
     je %v9, b3, b4
 
   b3:
-    %v11 = symbol Core.string$65 : %U8
+    %v11 = symbol Core.string$65 : %CodeUnit
     %v13 = call stringLiteral, %v11, 11 : String
     jmp b5
 
   b4:
-    %v14 = symbol Core.string$66 : %U8
+    %v14 = symbol Core.string$66 : %CodeUnit
     %v16 = call stringLiteral, %v14, 7 : String
     jmp b5
 
@@ -278,12 +278,12 @@ fn Enum(Pair(Int)).nameOf(%item: Pair(Int)) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$70 : %U8
+    %v5 = symbol Core.string$70 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     jmp b3
 
   b2:
-    %v8 = symbol Core.string$71 : %U8
+    %v8 = symbol Core.string$71 : %CodeUnit
     %v10 = call stringLiteral, %v8, 4 : String
     jmp b3
 
@@ -294,12 +294,12 @@ fn Enum(Pair(Int)).nameOf(%item: Pair(Int)) -> String {
 
 fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
   b0:
-    %v1 = call Length(String).length, %name : I64
+    %v1 = call Length(String).length, %name : Size
     %v3 = cmp_eq %v1, 3 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$72 : %U8
+    %v5 = symbol Core.string$72 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     %v8 = call Eq(String).==, %name, %v7 : Bool
     je %v8, b3, b4
@@ -320,7 +320,7 @@ fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
     jmp b9
 
   b5:
-    %v21 = symbol Core.string$73 : %U8
+    %v21 = symbol Core.string$73 : %CodeUnit
     %v23 = call stringLiteral, %v21, 4 : String
     %v24 = call Eq(String).==, %name, %v23 : Bool
     je %v24, b7, b8
@@ -346,21 +346,21 @@ fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
     ret %v42
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
@@ -379,11 +379,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -391,11 +391,11 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn stringLiteral(%bytes: %U8, %length: Int) -> String {
+fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
   b0:
     %v2 = alloc : StringData
-    %v3 = alloc : Array(U8)
-    %v4 = alloc : Run(U8)
+    %v3 = alloc : Array(CodeUnit)
+    %v4 = alloc : Run(CodeUnit)
     %v5 = cast %length : U32
     %v7 = and %v5, 1073741823 : U32
     %v8 = cast %v7 : @bits(30) U32
@@ -413,7 +413,7 @@ fn stringLiteral(%bytes: %U8, %length: Int) -> String {
     ret %v20
 }
 
-fn releaseRun(U8)(%self: Run(U8)) -> () {
+fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
@@ -422,7 +422,7 @@ fn releaseRun(U8)(%self: Run(U8)) -> () {
     je %v5, b1, b2
 
   b1:
-    %v7 = load %self@Run.items : %U8
+    %v7 = load %self@Run.items : %CodeUnit
     %v8 = bitcast %v7 : %U8
     call freeHeap, %v8
     jmp b3
@@ -467,7 +467,7 @@ fn instantiatedOfName(%s: String) -> Maybe(Pair(Int)) {
 fn main() -> Int {
   b0:
     %v1 = call nameOfColour, Green : String
-    %v2 = symbol ResolveTest.string$0 : %U8
+    %v2 = symbol ResolveTest.string$0 : %CodeUnit
     %v4 = call stringLiteral, %v2, 5 : String
     %v5 = call Eq(String).!=, %v1, %v4 : Bool
     drop %local0 reclaim Reclaim(String).reclaim
@@ -481,7 +481,7 @@ fn main() -> Int {
 
   b3:
     %v11 = call whenceName, FromEnd : String
-    %v12 = symbol ResolveTest.string$1 : %U8
+    %v12 = symbol ResolveTest.string$1 : %CodeUnit
     %v14 = call stringLiteral, %v12, 7 : String
     %v15 = call Eq(String).!=, %v11, %v14 : Bool
     drop %local1 reclaim Reclaim(String).reclaim
@@ -494,7 +494,7 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v20 = symbol ResolveTest.string$2 : %U8
+    %v20 = symbol ResolveTest.string$2 : %CodeUnit
     %v22 = call stringLiteral, %v20, 4 : String
     %found = call colourOfName, %v22 : Maybe(Colour)
     %v24 = load %local2.discriminant : Int
@@ -508,7 +508,7 @@ fn main() -> Int {
     ret 3
 
   b9:
-    %v31 = symbol ResolveTest.string$3 : %U8
+    %v31 = symbol ResolveTest.string$3 : %CodeUnit
     %v33 = call stringLiteral, %v31, 6 : String
     %missing = call colourOfName, %v33 : Maybe(Colour)
     %v35 = load %local3.discriminant : Int
@@ -523,7 +523,7 @@ fn main() -> Int {
     ret 4
 
   b12:
-    %v43 = symbol ResolveTest.string$4 : %U8
+    %v43 = symbol ResolveTest.string$4 : %CodeUnit
     %v45 = call stringLiteral, %v43, 4 : String
     %v46 = call colourOfName, %v45 : Maybe(Colour)
     %v47 = load %local4.discriminant : Int
@@ -539,7 +539,7 @@ fn main() -> Int {
 
   b15:
     %v56 = call instantiatedName, Low : String
-    %v57 = symbol ResolveTest.string$5 : %U8
+    %v57 = symbol ResolveTest.string$5 : %CodeUnit
     %v59 = call stringLiteral, %v57, 3 : String
     %v60 = call Eq(String).!=, %v56, %v59 : Bool
     drop %local5 reclaim Reclaim(String).reclaim
@@ -552,7 +552,7 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v65 = symbol ResolveTest.string$6 : %U8
+    %v65 = symbol ResolveTest.string$6 : %CodeUnit
     %v67 = call stringLiteral, %v65, 4 : String
     %v68 = call instantiatedOfName, %v67 : Maybe(Pair(Int))
     %v69 = load %local6.discriminant : Int
@@ -566,7 +566,7 @@ fn main() -> Int {
     ret 7
 
   b21:
-    %v76 = symbol ResolveTest.string$7 : %U8
+    %v76 = symbol ResolveTest.string$7 : %CodeUnit
     %v78 = call stringLiteral, %v76, 3 : String
     %v79 = call instantiatedOfName, %v78 : Maybe(Pair(Int))
     %v80 = load %local7.discriminant : Int
@@ -581,7 +581,7 @@ fn main() -> Int {
     ret 8
 
   b24:
-    %v88 = symbol ResolveTest.string$8 : %U8
+    %v88 = symbol ResolveTest.string$8 : %CodeUnit
     %v90 = call stringLiteral, %v88, 3 : String
     %v91 = call colourOfName, %v90 : Maybe(Colour)
     %v92 = load %local8.discriminant : Int

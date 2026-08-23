@@ -1,0 +1,26 @@
+"use strict";
+// ResolveTest
+function opaque(x) {
+  return x;
+}
+
+function main() {
+  var score = 1;
+  if (BigInt.asIntN(64, BigInt(opaque(7))) === 7n) {
+    score = score + 2 | 0;
+  }
+  score = score + 4 | 0;
+  if (opaque(-1) >>> 0 > opaque(1000000) >>> 0) {
+    score = score + 8 | 0;
+  }
+  if (opaque(1) >>> 0 > opaque(2) >>> 0 ^ 1) {
+    score = score + 16 | 0;
+  }
+  if (opaque(300) === 300) {
+    score = score + 32 | 0;
+  }
+  var v121 = score + 64 | 0;
+  score = v121;
+  return v121;
+}
+main();

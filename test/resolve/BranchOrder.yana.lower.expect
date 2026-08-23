@@ -47,7 +47,7 @@ Reclaim(String).reclaim<complex>(%value: Ptr) {
   }
 }
 
-growArray(U8)<complex>(%self: Ptr, %wanted: Long) {
+growArray(CodeUnit)<complex>(%self: Ptr, %wanted: Long) {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long
@@ -83,12 +83,12 @@ growArray(U8)<complex>(%self: Ptr, %wanted: Long) {
 
   b_14 {
     %v_15 = phi [b_12, 4], [b_13, %v_10]: Long
-    %v_16 = call_complex resize(U8), %self, %v_15: Int
+    %v_16 = call_complex resize(CodeUnit), %self, %v_15: Int
     ret 
   }
 }
 
-push(U8)<complex>(%self: Ptr, %item: Int) {
+push(CodeUnit)<complex>(%self: Ptr, %item: Int) {
   b_0 {
     %v_1 = add %self, 12: Ptr
     %v_2 = load %v_1, 4: Int
@@ -104,7 +104,7 @@ push(U8)<complex>(%self: Ptr, %item: Int) {
   }
 
   b_11 {
-    call_complex growArray(U8), %self, %v_3
+    call_complex growArray(CodeUnit), %self, %v_3
     %v_12 = load %v_4, 4: Long
     %v_13 = and %v_12, 1073741823: Long
     %v_14 = cast %v_13: Int
@@ -582,7 +582,7 @@ copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   }
 }
 
-resize(U8)<complex>(%self: Ptr, %wanted: Long): Int {
+resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
   b_0 {
     %v_1 = add %self, 8: Ptr
     %v_2 = load %v_1, 4: Long
@@ -750,14 +750,14 @@ withAnd<complex>(%text: Ptr, %keep: Int, %out: Ptr): Int {
     %v_34 = load %kept, 8: Ptr
     %v_35 = add %v_34, %v_29: Ptr
     %v_36 = load %v_35, 1: Int
-    call_complex push(U8), %out, %v_36
+    call_complex push(CodeUnit), %out, %v_36
     %v_31 = add %v_29, 1: Long
     jmp b_28
   }
 
   b_25 {
     call_complex Reclaim(String).reclaim, %kept
-    call_complex push(U8), %out, 49
+    call_complex push(CodeUnit), %out, 49
     jmp b_37
   }
 
@@ -773,7 +773,7 @@ withAnd<complex>(%text: Ptr, %keep: Int, %out: Ptr): Int {
   }
 
   b_39 {
-    call_complex push(U8), %out, 48
+    call_complex push(CodeUnit), %out, 48
     %v_40 = add %v_38, 1: Int
     jmp b_37
   }
@@ -800,7 +800,7 @@ withAnd<complex>(%text: Ptr, %keep: Int, %out: Ptr): Int {
 
   b_7 {
     %v_50 = phi [b_45, %v_49], [b_46, 57]: Int
-    call_complex push(U8), %kept, %v_50
+    call_complex push(CodeUnit), %kept, %v_50
     %v_8 = add %v_6, 1: Long
     jmp b_5
   }

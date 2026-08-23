@@ -45,9 +45,9 @@ fn Reclaim(Array(a)).reclaim(Quad)(%value: Array(Quad)) -> () {
     %v13 = load %value@Array.run : Run(Quad)
     %v14 = load %value@Array.run@Run.items : %Quad
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Quad : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Quad : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Quad
     %v20 = load [%v19] : Quad
     %v21 = move %local2 : Quad
@@ -81,9 +81,9 @@ fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
     %v13 = load %value@Array.run : Run(Cell)
     %v14 = load %value@Array.run@Run.items : %Cell
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof Cell : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof Cell : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %Cell
     %v20 = load [%v19] : Cell
     %v21 = move %local2 : Cell
@@ -117,9 +117,9 @@ fn Reclaim(Array(a)).reclaim(I64)(%value: Array(I64)) -> () {
     %v13 = load %value@Array.run : Run(I64)
     %v14 = load %value@Array.run@Run.items : %I64
     %v15 = load %i : Int
-    %v16 = cast %v15 : I64
-    %v17 = strideof I64 : I64
-    %v18 = mul %v16, %v17 : I64
+    %v16 = cast %v15 : Size
+    %v17 = strideof I64 : Size
+    %v18 = mul %v16, %v17 : Size
     %v19 = add %v14, %v18 : %I64
     %v20 = load [%v19] : I64
     %doomed = alloc : I64
@@ -130,27 +130,27 @@ fn Reclaim(Array(a)).reclaim(I64)(%value: Array(I64)) -> () {
     jmp b1
 }
 
-fn exitProcess(%status: I64) -> () {
+fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : I64
+    %v2 = syscall 60, %status : Size
     ret
 }
 
-fn freeListHead(%sizeClass: I64) -> %U8 {
+fn freeListHead(%sizeClass: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = strideof %U8 : I64
-    %v3 = mul %sizeClass, %v2 : I64
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
     %v4 = add %v1, %v3 : %%U8
     %v5 = load [%v4] : %U8
     ret %v5
 }
 
-fn setFreeListHead(%sizeClass: I64, %block: %U8) -> () {
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
   b0:
     %v2 = load heapFree : %%U8
-    %v3 = strideof %U8 : I64
-    %v4 = mul %sizeClass, %v3 : I64
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
     %v5 = add %v2, %v4 : %%U8
     assign [%v5], %block
     ret
@@ -169,11 +169,11 @@ fn freeHeap(%allocation: %U8) -> () {
     jmp b3
 
   b3:
-    %v9 = strideof U8 : I64
-    %v10 = mul 8, %v9 : I64
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
     %v11 = sub %allocation, %v10 : %U8
-    %v12 = bitcast %v11 : %I64
-    %sizeClass = load [%v12] : I64
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
     %v14 = bitcast %allocation : %%U8
     %v15 = call freeListHead, %sizeClass : %U8
     assign [%v14], %v15
@@ -254,13 +254,13 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %i = alloc : I64
+    %i = alloc : Size
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : I64
-    %v9 = load %xs@Flat.length : I64
+    %v8 = load %i : Size
+    %v9 = load %xs@Flat.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -270,11 +270,11 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
 
   b3:
     %v12 = load %acc : I64
-    %v13 = load %i : I64
+    %v13 = load %i : Size
     %v14 = borrow %xs : &Flat(Cell)
-    %v15 = load [%v14]@Flat.length : I64
-    %v16 = cast %v13 : U64
-    %v17 = cast %v15 : U64
+    %v15 = load [%v14]@Flat.length : Size
+    %v16 = cast %v13 : USize
+    %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %Cell
@@ -285,11 +285,11 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
     %v25 = load [%v24] : Cell
     %v26 = load [%v24]@Cell.a : I64
     %v27 = add %v12, %v26 : I64
-    %v28 = load %i : I64
+    %v28 = load %i : Size
     %v29 = borrow %xs : &Flat(Cell)
-    %v30 = load [%v29]@Flat.length : I64
-    %v31 = cast %v28 : U64
-    %v32 = cast %v30 : U64
+    %v30 = load [%v29]@Flat.length : Size
+    %v31 = cast %v28 : USize
+    %v32 = cast %v30 : USize
     %v33 = cmp_ge %v31, %v32 : Bool
     call checkCondition, %v33
     %v35 = load [%v29]@Flat.items : %Cell
@@ -301,8 +301,8 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
     %v41 = load [%v39]@Cell.c : I64
     %v42 = add %v27, %v41 : I64
     assign %acc, %v42
-    %v44 = load %i : I64
-    %v47 = add %v44, 1 : I64
+    %v44 = load %i : Size
+    %v47 = add %v44, 1 : Size
     assign %i, %v47
     jmp b1
 }
@@ -311,13 +311,13 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %i = alloc : I64
+    %i = alloc : Size
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : I64
-    %v9 = load %xs@Flat.length : I64
+    %v8 = load %i : Size
+    %v9 = load %xs@Flat.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -327,11 +327,11 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
 
   b3:
     %v12 = load %acc : I64
-    %v13 = load %i : I64
+    %v13 = load %i : Size
     %v14 = borrow %xs : &Flat(Quad)
-    %v15 = load [%v14]@Flat.length : I64
-    %v16 = cast %v13 : U64
-    %v17 = cast %v15 : U64
+    %v15 = load [%v14]@Flat.length : Size
+    %v16 = cast %v13 : USize
+    %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %Quad
@@ -342,11 +342,11 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
     %v25 = load [%v24] : Quad
     %v26 = load [%v24]@Quad.w : I64
     %v27 = add %v12, %v26 : I64
-    %v28 = load %i : I64
+    %v28 = load %i : Size
     %v29 = borrow %xs : &Flat(Quad)
-    %v30 = load [%v29]@Flat.length : I64
-    %v31 = cast %v28 : U64
-    %v32 = cast %v30 : U64
+    %v30 = load [%v29]@Flat.length : Size
+    %v31 = cast %v28 : USize
+    %v32 = cast %v30 : USize
     %v33 = cmp_ge %v31, %v32 : Bool
     call checkCondition, %v33
     %v35 = load [%v29]@Flat.items : %Quad
@@ -358,8 +358,8 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
     %v41 = load [%v39]@Quad.z : I64
     %v42 = add %v27, %v41 : I64
     assign %acc, %v42
-    %v44 = load %i : I64
-    %v47 = add %v44, 1 : I64
+    %v44 = load %i : Size
+    %v47 = add %v44, 1 : Size
     assign %i, %v47
     jmp b1
 }
@@ -368,13 +368,13 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %i = alloc : I64
+    %i = alloc : Size
     init %i, 0
     jmp b1
 
   b1:
-    %v9 = load %i : I64
-    %v10 = load %xs@Flat.length : I64
+    %v9 = load %i : Size
+    %v10 = load %xs@Flat.length : Size
     %v11 = cmp_lt %v9, %v10 : Bool
     je %v11, b3, b4
 
@@ -383,8 +383,8 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     ret %v59
 
   b3:
-    %v13 = load %i : I64
-    %v14 = load %ys@Flat.length : I64
+    %v13 = load %i : Size
+    %v14 = load %ys@Flat.length : Size
     %v15 = cmp_lt %v13, %v14 : Bool
     jmp b5
 
@@ -397,11 +397,11 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
 
   b6:
     %v21 = load %acc : I64
-    %v22 = load %i : I64
+    %v22 = load %i : Size
     %v23 = borrow %xs : &Flat(Cell)
-    %v24 = load [%v23]@Flat.length : I64
-    %v25 = cast %v22 : U64
-    %v26 = cast %v24 : U64
+    %v24 = load [%v23]@Flat.length : Size
+    %v25 = cast %v22 : USize
+    %v26 = cast %v24 : USize
     %v27 = cmp_ge %v25, %v26 : Bool
     call checkCondition, %v27
     %v29 = load [%v23]@Flat.items : %Cell
@@ -411,11 +411,11 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     %v33 = borrow [%v32] : &Cell
     %v34 = load [%v33] : Cell
     %v35 = load [%v33]@Cell.a : I64
-    %v36 = load %i : I64
+    %v36 = load %i : Size
     %v37 = borrow %ys : &Flat(Cell)
-    %v38 = load [%v37]@Flat.length : I64
-    %v39 = cast %v36 : U64
-    %v40 = cast %v38 : U64
+    %v38 = load [%v37]@Flat.length : Size
+    %v39 = cast %v36 : USize
+    %v40 = cast %v38 : USize
     %v41 = cmp_ge %v39, %v40 : Bool
     call checkCondition, %v41
     %v43 = load [%v37]@Flat.items : %Cell
@@ -428,8 +428,8 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     %v50 = mul %v35, %v49 : I64
     %v51 = add %v21, %v50 : I64
     assign %acc, %v51
-    %v53 = load %i : I64
-    %v56 = add %v53, 1 : I64
+    %v53 = load %i : Size
+    %v56 = add %v53, 1 : Size
     assign %i, %v56
     jmp b1
 }
@@ -438,14 +438,14 @@ fn sumDown(%xs: Flat(Cell)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %v4 = load %xs@Flat.length : I64
-    %v7 = sub %v4, 1 : I64
-    %i = alloc : I64
+    %v4 = load %xs@Flat.length : Size
+    %v7 = sub %v4, 1 : Size
+    %i = alloc : Size
     init %i, %v7
     jmp b1
 
   b1:
-    %v11 = load %i : I64
+    %v11 = load %i : Size
     %v14 = cmp_ge %v11, 0 : Bool
     je %v14, b3, b2
 
@@ -455,11 +455,11 @@ fn sumDown(%xs: Flat(Cell)) -> I64 {
 
   b3:
     %v16 = load %acc : I64
-    %v17 = load %i : I64
+    %v17 = load %i : Size
     %v18 = borrow %xs : &Flat(Cell)
-    %v19 = load [%v18]@Flat.length : I64
-    %v20 = cast %v17 : U64
-    %v21 = cast %v19 : U64
+    %v19 = load [%v18]@Flat.length : Size
+    %v20 = cast %v17 : USize
+    %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
     %v24 = load [%v18]@Flat.items : %Cell
@@ -471,8 +471,8 @@ fn sumDown(%xs: Flat(Cell)) -> I64 {
     %v30 = load [%v28]@Cell.b : I64
     %v31 = add %v16, %v30 : I64
     assign %acc, %v31
-    %v33 = load %i : I64
-    %v36 = sub %v33, 1 : I64
+    %v33 = load %i : Size
+    %v36 = sub %v33, 1 : Size
     assign %i, %v36
     jmp b1
 }
@@ -481,13 +481,13 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %i = alloc : I64
+    %i = alloc : Size
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : I64
-    %v9 = load %xs@Flat.length : I64
+    %v8 = load %i : Size
+    %v9 = load %xs@Flat.length : Size
     %v10 = cmp_lt %v8, %v9 : Bool
     je %v10, b3, b2
 
@@ -497,11 +497,11 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
 
   b3:
     %v12 = load %acc : I64
-    %v13 = load %i : I64
+    %v13 = load %i : Size
     %v14 = borrow %xs : &Flat(I64)
-    %v15 = load [%v14]@Flat.length : I64
-    %v16 = cast %v13 : U64
-    %v17 = cast %v15 : U64
+    %v15 = load [%v14]@Flat.length : Size
+    %v16 = cast %v13 : USize
+    %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %I64
@@ -512,8 +512,8 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
-    %v28 = load %i : I64
-    %v31 = add %v28, 1 : I64
+    %v28 = load %i : Size
+    %v31 = add %v28, 1 : Size
     assign %i, %v31
     jmp b1
 }
@@ -528,8 +528,8 @@ fn sumInt(%xs: Flat(Cell)) -> I64 {
 
   b1:
     %v8 = load %i : Int
-    %v9 = load %xs@Flat.length : I64
-    %v10 = cast %v8 : I64
+    %v9 = load %xs@Flat.length : Size
+    %v10 = cast %v8 : Size
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
 
@@ -540,11 +540,11 @@ fn sumInt(%xs: Flat(Cell)) -> I64 {
   b3:
     %v13 = load %acc : I64
     %v14 = load %i : Int
-    %v15 = cast %v14 : I64
+    %v15 = cast %v14 : Size
     %v16 = borrow %xs : &Flat(Cell)
-    %v17 = load [%v16]@Flat.length : I64
-    %v18 = cast %v15 : U64
-    %v19 = cast %v17 : U64
+    %v17 = load [%v16]@Flat.length : Size
+    %v18 = cast %v15 : USize
+    %v19 = cast %v17 : USize
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
     %v22 = load [%v16]@Flat.items : %Cell
@@ -577,11 +577,11 @@ fn forInt(%xs: Flat(Cell), %n: Int) -> I64 {
 
   b2:
     %v13 = load %acc : I64
-    %v14 = cast %i : I64
+    %v14 = cast %i : Size
     %v15 = borrow %xs : &Flat(Cell)
-    %v16 = load [%v15]@Flat.length : I64
-    %v17 = cast %v14 : U64
-    %v18 = cast %v16 : U64
+    %v16 = load [%v15]@Flat.length : Size
+    %v17 = cast %v14 : USize
+    %v18 = cast %v16 : USize
     %v19 = cmp_ge %v17, %v18 : Bool
     call checkCondition, %v19
     %v21 = load [%v15]@Flat.items : %Cell
@@ -637,11 +637,11 @@ fn forDownInt(%xs: Flat(Cell), %n: Int) -> I64 {
   b4:
     %v17 = load %acc : I64
     %v20 = mul %v17, 10 : I64
-    %v21 = cast %i : I64
+    %v21 = cast %i : Size
     %v22 = borrow %xs : &Flat(Cell)
-    %v23 = load [%v22]@Flat.length : I64
-    %v24 = cast %v21 : U64
-    %v25 = cast %v23 : U64
+    %v23 = load [%v22]@Flat.length : Size
+    %v24 = cast %v21 : USize
+    %v25 = cast %v23 : USize
     %v26 = cmp_ge %v24, %v25 : Bool
     call checkCondition, %v26
     %v28 = load [%v22]@Flat.items : %Cell
@@ -687,11 +687,11 @@ fn forStepInt(%xs: Flat(Cell), %n: Int) -> I64 {
   b2:
     %v13 = load %acc : I64
     %v16 = mul %v13, 10 : I64
-    %v17 = cast %i : I64
+    %v17 = cast %i : Size
     %v18 = borrow %xs : &Flat(Cell)
-    %v19 = load [%v18]@Flat.length : I64
-    %v20 = cast %v17 : U64
-    %v21 = cast %v19 : U64
+    %v19 = load [%v18]@Flat.length : Size
+    %v20 = cast %v17 : USize
+    %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
     %v24 = load [%v18]@Flat.items : %Cell
@@ -737,11 +737,11 @@ fn forInclusiveInt(%xs: Flat(Cell), %n: Int) -> I64 {
   b2:
     %v13 = load %acc : I64
     %v16 = mul %v13, 10 : I64
-    %v17 = cast %i : I64
+    %v17 = cast %i : Size
     %v18 = borrow %xs : &Flat(Cell)
-    %v19 = load [%v18]@Flat.length : I64
-    %v20 = cast %v17 : U64
-    %v21 = cast %v19 : U64
+    %v19 = load [%v18]@Flat.length : Size
+    %v20 = cast %v17 : USize
+    %v21 = cast %v19 : USize
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
     %v24 = load [%v18]@Flat.items : %Cell
@@ -829,7 +829,7 @@ fn main() -> Int {
     %v110 = load [%v108]@Array.run@Run.items : %Cell
     init %local17@Flat.items, %v110
     %v112 = load [%v108]@Array.length : @bits(30) U32
-    %v113 = cast %v112 : I64
+    %v113 = cast %v112 : Size
     init %local17@Flat.length, %v113
     %v115 = call sumCells, %v109 : I64
     %v118 = cmp_eq %v115, 444 : Bool
@@ -851,7 +851,7 @@ fn main() -> Int {
     %v130 = load [%v128]@Array.run@Run.items : %Quad
     init %local18@Flat.items, %v130
     %v132 = load [%v128]@Array.length : @bits(30) U32
-    %v133 = cast %v132 : I64
+    %v133 = cast %v132 : Size
     init %local18@Flat.length, %v133
     %v135 = call sumQuads, %v129 : I64
     drop %quads reclaim Reclaim(Array(a)).reclaim(Quad)
@@ -874,7 +874,7 @@ fn main() -> Int {
     %v150 = load [%v148]@Array.run@Run.items : %Cell
     init %local19@Flat.items, %v150
     %v152 = load [%v148]@Array.length : @bits(30) U32
-    %v153 = cast %v152 : I64
+    %v153 = cast %v152 : Size
     init %local19@Flat.length, %v153
     %v155 = load %others : Array(Cell)
     %v156 = borrow %others : &Array(Cell)
@@ -882,7 +882,7 @@ fn main() -> Int {
     %v158 = load [%v156]@Array.run@Run.items : %Cell
     init %local20@Flat.items, %v158
     %v160 = load [%v156]@Array.length : @bits(30) U32
-    %v161 = cast %v160 : I64
+    %v161 = cast %v160 : Size
     init %local20@Flat.length, %v161
     %v163 = call dotCells, %v149, %v157 : I64
     drop %others reclaim Reclaim(Array(a)).reclaim(Cell)
@@ -905,7 +905,7 @@ fn main() -> Int {
     %v178 = load [%v176]@Array.run@Run.items : %Cell
     init %local21@Flat.items, %v178
     %v180 = load [%v176]@Array.length : @bits(30) U32
-    %v181 = cast %v180 : I64
+    %v181 = cast %v180 : Size
     init %local21@Flat.length, %v181
     %v183 = call sumDown, %v177 : I64
     %v186 = cmp_eq %v183, 222 : Bool
@@ -927,7 +927,7 @@ fn main() -> Int {
     %v198 = load [%v196]@Array.run@Run.items : %I64
     init %local22@Flat.items, %v198
     %v200 = load [%v196]@Array.length : @bits(30) U32
-    %v201 = cast %v200 : I64
+    %v201 = cast %v200 : Size
     init %local22@Flat.length, %v201
     %v203 = call sumWords, %v197 : I64
     drop %words reclaim Reclaim(Array(a)).reclaim(I64)
@@ -950,7 +950,7 @@ fn main() -> Int {
     %v218 = load [%v216]@Array.run@Run.items : %Cell
     init %local23@Flat.items, %v218
     %v220 = load [%v216]@Array.length : @bits(30) U32
-    %v221 = cast %v220 : I64
+    %v221 = cast %v220 : Size
     init %local23@Flat.length, %v221
     %v223 = call sumInt, %v217 : I64
     %v226 = cmp_eq %v223, 333 : Bool
@@ -972,7 +972,7 @@ fn main() -> Int {
     %v238 = load [%v236]@Array.run@Run.items : %Cell
     init %local24@Flat.items, %v238
     %v240 = load [%v236]@Array.length : @bits(30) U32
-    %v241 = cast %v240 : I64
+    %v241 = cast %v240 : Size
     init %local24@Flat.length, %v241
     %v244 = call forInt, %v237, 3 : I64
     %v247 = cmp_eq %v244, 333 : Bool
@@ -994,7 +994,7 @@ fn main() -> Int {
     %v259 = load [%v257]@Array.run@Run.items : %Cell
     init %local25@Flat.items, %v259
     %v261 = load [%v257]@Array.length : @bits(30) U32
-    %v262 = cast %v261 : I64
+    %v262 = cast %v261 : Size
     init %local25@Flat.length, %v262
     %v265 = call forDownInt, %v258, 3 : I64
     %v268 = cmp_eq %v265, 10101 : Bool
@@ -1016,7 +1016,7 @@ fn main() -> Int {
     %v280 = load [%v278]@Array.run@Run.items : %Cell
     init %local26@Flat.items, %v280
     %v282 = load [%v278]@Array.length : @bits(30) U32
-    %v283 = cast %v282 : I64
+    %v283 = cast %v282 : Size
     init %local26@Flat.length, %v283
     %v286 = call forStepInt, %v279, 3 : I64
     %v289 = cmp_eq %v286, 110 : Bool
@@ -1038,7 +1038,7 @@ fn main() -> Int {
     %v301 = load [%v299]@Array.run@Run.items : %Cell
     init %local27@Flat.items, %v301
     %v303 = load [%v299]@Array.length : @bits(30) U32
-    %v304 = cast %v303 : I64
+    %v304 = cast %v303 : Size
     init %local27@Flat.length, %v304
     %v307 = call forInclusiveInt, %v300, 2 : I64
     %v312 = mul 1, 100 : Int
@@ -1072,7 +1072,7 @@ fn main() -> Int {
     %v345 = load [%v343]@Array.run@Run.items : %Cell
     init %local30@Flat.items, %v345
     %v347 = load [%v343]@Array.length : @bits(30) U32
-    %v348 = cast %v347 : I64
+    %v348 = cast %v347 : Size
     init %local30@Flat.length, %v348
     %v350 = call sumCells, %v344 : I64
     drop %empty reclaim Reclaim(Array(a)).reclaim(Cell)
@@ -1095,7 +1095,7 @@ fn main() -> Int {
     %v365 = load [%v363]@Array.run@Run.items : %Cell
     init %local31@Flat.items, %v365
     %v367 = load [%v363]@Array.length : @bits(30) U32
-    %v368 = cast %v367 : I64
+    %v368 = cast %v367 : Size
     init %local31@Flat.length, %v368
     %v371 = call forInt, %v364, 0 : I64
     %v374 = cmp_eq %v371, 0 : Bool
@@ -1117,7 +1117,7 @@ fn main() -> Int {
     %v386 = load [%v384]@Array.run@Run.items : %Cell
     init %local32@Flat.items, %v386
     %v388 = load [%v384]@Array.length : @bits(30) U32
-    %v389 = cast %v388 : I64
+    %v389 = cast %v388 : Size
     init %local32@Flat.length, %v389
     %v392 = call forDownInt, %v385, 0 : I64
     %v395 = cmp_eq %v392, 0 : Bool
@@ -1139,7 +1139,7 @@ fn main() -> Int {
     %v407 = load [%v405]@Array.run@Run.items : %Cell
     init %local33@Flat.items, %v407
     %v409 = load [%v405]@Array.length : @bits(30) U32
-    %v410 = cast %v409 : I64
+    %v410 = cast %v409 : Size
     init %local33@Flat.length, %v410
     %v413 = call forStepInt, %v406, 0 : I64
     drop %cells reclaim Reclaim(Array(a)).reclaim(Cell)
