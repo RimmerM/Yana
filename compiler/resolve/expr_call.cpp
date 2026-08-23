@@ -2624,14 +2624,12 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
  * builds no thunk: the operand is emitted where it is used, and its own type is whatever it turns
  * out to be. So an expansion needs nothing here, and this is what lets it proceed.
  *
- * A callee that is *not* expanded still needs the type, and still reports. Learning it by resolving
- * the argument into the thunk and reading the result back is possible and is the obvious next step;
- * it is not done here because the type would then be decided after the arguments it might have
- * converted, which is an ordering change rather than a hole to fill.
+ * A callee that is *not* expanded needs the type, and gets it from the thunk it is about to be
+ * handed - see inferDeferredArguments, which is where the third condition is dropped: a variable the
+ * result mentions is one an expansion cannot leave open and a call can perfectly well read off the
+ * argument.
  */
-static bool deferredOnlyVariable(GlobalBase global, ModuleBase local, Function& signature, Size index) {
-    if(mentionsVariable(global, signature.returnType, U16(index))) return false;
-
+static bool onlyDeferredPositions(GlobalBase global, ModuleBase local, Function& signature, Size index) {
     auto deferred = false;
 
     for(Size i = 0; i < signature.args.size(); i++) {
@@ -2643,6 +2641,11 @@ static bool deferredOnlyVariable(GlobalBase global, ModuleBase local, Function& 
     }
 
     return deferred;
+}
+
+static bool deferredOnlyVariable(GlobalBase global, ModuleBase local, Function& signature, Size index) {
+    if(mentionsVariable(global, signature.returnType, U16(index))) return false;
+    return onlyDeferredPositions(global, local, signature, index);
 }
 
 // Every slot the solve left empty that the rule above forgives, filled with the callee's own
@@ -2661,6 +2664,106 @@ static bool fillDeferredHoles(GlobalBase global, ModuleBase local, Function& sig
 
     if(filled) solution.state = Solution::State::Solved;
     return filled;
+}
+
+/*
+ * What asking the argument answered - see inferDeferredArguments.
+ */
+enum class DeferredInference: U8 {
+    // No open variable is one only a deferred position mentions, so there is nothing here to ask.
+    None,
+
+    // The thunk could not be built, and building it said why.
+    Reported,
+
+    // `out` holds the arguments with their thunks, and `solution` is the solve re-run over them.
+    Inferred,
+};
+
+/*
+ * The hole the argument itself fills - the other half of deferredOnlyVariable.
+ *
+ * A variable that occurs only in `@lazy` positions is decided by nothing the *call* says, and that
+ * is the end of it for a callee that expands. A callee that is called is handed a closure, and the
+ * closure has a return type: build it, read the type off it, and the variable is answered by the
+ * only thing that was ever going to answer it. `fn (Truth(a), Truth(b)) myAnd(lhs: a, @lazy rhs: b)`
+ * is the case, and this is what makes it callable.
+ *
+ * Nothing about the ordering rule changes, which is what kept this out of the first version. A
+ * `@lazy` argument is still resolved *against* the parameter type wherever there is one to resolve
+ * it against - `m ?? 0` still takes its `0` at the type the left operand decided - because a
+ * position that reaches this one has, by construction, no other position to have taken a type from.
+ * The variable is absent from every strict parameter, so nothing was pushed down that this now
+ * overrides; the argument is resolved on its own terms because its own terms are all there are.
+ *
+ * The thunk is built *here* rather than at prepareArguments, where every other one is, and is
+ * carried on the promise so that the later build finds it and hands on what already exists. That is
+ * the same forwarding rule a `@lazy` parameter passed straight on already uses - see makeThunk - so
+ * the argument is resolved once, in the closure, and the call site emits one closure for it.
+ *
+ * The solve is then re-run rather than patched. What has changed is that a position which bound
+ * nothing now binds something, which is the input to a solve and not a correction to its output: a
+ * nested occurrence - `@lazy rhs: [b]` - is matched structurally, two deferred positions naming one
+ * variable are reconciled by the rules every position gets, and an argument whose type does not fit
+ * the pattern its parameter wrote comes back as the ordinary `Argument` failure with a position on
+ * it.
+ */
+static DeferredInference inferDeferredArguments(ExprResolver& resolver, ModulePtr<Function> callee,
+                                                Buffer<ResolvedArg> args, TypePtr target,
+                                                LocationId source, Solution& solution, ArgList& out) {
+    auto global = resolver.global;
+    auto local = resolver.local;
+    auto& signature = *local[callee];
+
+    /*
+     * Which variables the arguments would have to answer, and whether they are all of that kind.
+     * An open variable of any other sort is not this rule's to forgive - resolving an argument
+     * cannot answer it, and the general diagnostic is the true thing to say about it.
+     */
+    U64 wanted = 0;
+
+    for(Size i = 0; i < solution.types.size(); i++) {
+        if(solution.types[i]) continue;
+        if(i >= 64 || !onlyDeferredPositions(global, local, signature, i)) return DeferredInference::None;
+
+        wanted |= U64(1) << i;
+    }
+
+    if(!wanted) return DeferredInference::None;
+
+    out.clear();
+    for(Size i = 0; i < args.length; i++) out.push(args[i]);
+
+    auto errors = resolver.context.diagnostics.errorCount();
+    auto built = false;
+
+    for(Size i = 0; i < out.size() && i < signature.args.size(); i++) {
+        if(!out[i].isDeferred() || out[i].promise.thunk) continue;
+
+        auto declared = local[signature.args.get(local, i)]->declaredType();
+
+        U64 mentioned = 0;
+        genVariablesIn(global, declared, mentioned);
+        if(!(mentioned & wanted)) continue;
+
+        TypePtr inferred = nullptr;
+        auto thunk = resolver.inferThunk(out[i].promise, source, inferred);
+
+        // Reported by the build - a capture it may not take, a generic body it may not sit in.
+        // Silent only where there was nothing to build from, which the caller says its own thing
+        // about.
+        if(!thunk) return errors == resolver.context.diagnostics.errorCount()
+            ? DeferredInference::None : DeferredInference::Reported;
+
+        out[i].promise.thunk = thunk;
+        out[i].promise.type = inferred;
+        built = true;
+    }
+
+    if(!built) return DeferredInference::None;
+
+    solveSignature(resolver, callee, toBuffer(out), target, source, Unresolved::Binds, solution);
+    return DeferredInference::Inferred;
 }
 
 ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffer<ResolvedArg> args,
@@ -2701,8 +2804,33 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         solveSignature(*this, callee, args, target, source, Unresolved::Binds, solution);
     }
 
+    /*
+     * A variable only a `@lazy` position mentions, answered by the argument that mentions it - see
+     * inferDeferredArguments.
+     *
+     * Before the failure states are read back, because it re-runs the solve and what comes out of
+     * that is what this call is. A deferred intrinsic is deliberately not offered it: it emits its
+     * operand where it runs it rather than being handed a closure, so building the closure to learn
+     * the type would build the one thing that callee exists to avoid. fillDeferredHoles is what
+     * answers for it, just below.
+     */
+    ArgList inferred;
+
+    if(solution.state == Solution::State::Undecided && !generic->deferredIntrinsic) {
+        switch(inferDeferredArguments(*this, callee, args, target, source, solution, inferred)) {
+            case DeferredInference::Inferred: args = toBuffer(inferred); break;
+            case DeferredInference::Reported: return nullptr;
+            case DeferredInference::None: break;
+        }
+    }
+
     if(solution.state == Solution::State::Argument) {
-        auto given = valueType(args[solution.position].value);
+        // A deferred position that failed is one the inference above resolved, so what it produced
+        // is on the promise rather than in a value - naming `{}` for it would report the null a
+        // deferred position always carries instead of the type the argument turned out to have.
+        auto produced = args[solution.position].isDeferred() ? args[solution.position].promise.type
+                                                             : TypePtr(nullptr);
+        auto given = produced ? produced : valueType(args[solution.position].value);
         auto declared = local[generic->args.get(local, solution.position)]->declaredType();
 
         /*
@@ -2762,14 +2890,17 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
         auto variable = context.findName(global[calleeEnv->types.get(global, solution.position)]->name);
 
         /*
-         * The same hole, at a callee that does not expand - see deferredOnlyVariable.
+         * The same hole, where nothing filled it - see deferredOnlyVariable.
          *
-         * Said separately because the general advice is wrong here: the expected type cannot fix it.
-         * The variable occurs only where an argument is not evaluated, so no call can decide it and
-         * no result can either; what has to change is the declaration.
+         * A callee that is *called* answers this for itself now: the argument is resolved into the
+         * thunk it becomes and the type is read back off it, which is what inferDeferredArguments
+         * does. What is left here is the callee that expands - it is handed the argument rather
+         * than a closure over it, so there is no thunk for the variable to have been the return
+         * type of, and the general advice is wrong for it: no expected type can reach a variable
+         * the result does not mention.
          */
         if(deferredOnlyVariable(global, local, *generic, solution.position)) {
-            context.diagnostics.error("%@ declares %@ only in `@lazy` positions, so no call can decide it - a deferred argument is not resolved when the callee is chosen, and resolving it to find out would evaluate it. Give that parameter a type the other arguments bind, or the same variable as one of them"_v,
+            context.diagnostics.error("%@ declares %@ only in `@lazy` positions and expands them where it runs them, so nothing here decides it - a deferred parameter's type is read off the thunk the argument becomes, and a callee that emits the argument in place builds no thunk. Give that parameter a type the other arguments bind, or the same variable as one of them"_v,
                                       source, context.findName(generic->name), variable);
             return nullptr;
         }

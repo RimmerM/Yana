@@ -763,15 +763,21 @@ ModulePtr<Value> ExprResolver::force(const Deferred& deferred, TypePtr expected,
  *
  * Neither restricts the case this version exists for. `&&`, `||` and `??` on a concrete type reach
  * an intrinsic that sees through the call, so no thunk is built at all.
+ *
+ * `type` is what the parameter promised, and is null for the one caller that does not know yet: a
+ * parameter whose type *this argument* is what decides - see inferThunk below and
+ * deferredOnlyVariable in expr_call.cpp. Nothing else changes for it; the type is read off the
+ * argument after it has been resolved rather than pushed into it beforehand.
  */
 ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type, LocationId source) {
-    if(!deferred.isSet() || !type) return nullptr;
+    if(!deferred.isSet()) return nullptr;
 
-    auto wanted = resolveThunkType(module, type);
+    auto wanted = type ? resolveThunkType(module, type) : TypePtr(nullptr);
 
     // Already a thunk: a `@lazy` parameter passed straight on to another `@lazy` parameter, which
-    // is one closure rather than one wrapped in another.
-    if(deferred.thunk && valueType(deferred.thunk) == wanted) return deferred.thunk;
+    // is one closure rather than one wrapped in another. An inferring caller takes it whatever it
+    // returns, since what it returns is the answer it came for.
+    if(deferred.thunk && (!wanted || valueType(deferred.thunk) == wanted)) return deferred.thunk;
 
     /*
      * The same, before the argument has been resolved: `f(@lazy v)` where `v` is this function's own
@@ -788,7 +794,9 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
 
         if(named.kind == ast::Expr::Var) {
             auto binding = findBinding(named.var);
-            if(binding && binding->lazy && valueType(binding->value) == wanted) return binding->value;
+            if(binding && binding->lazy && (!wanted || valueType(binding->value) == wanted)) {
+                return binding->value;
+            }
         }
     }
 
@@ -801,6 +809,10 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
     auto lambda = addAnonymousFunction(module, deferredName(module), source);
     lambda->used = true;
     lambda->takesEnv = true;
+
+    // Null while the argument is what decides it, and filled in below from what the argument turned
+    // out to be. Anything in the body that reads the enclosing result type - a `?`, a `return` - is
+    // already refused inside a thunk, so there is nothing here that reads it before it is there.
     lambda->returnType = type;
 
     auto envTuple = new (module.types) TupType;
@@ -816,6 +828,19 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
     body.inThunk = true;
 
     auto result = body.force(deferred, type, source);
+
+    /*
+     * The type read back off the argument, for the caller that had none to push in.
+     *
+     * Settled here, so that the thunk returns a type and not a literal's promise of one. Nothing is
+     * lost by it: the variable this answers is one no other position mentions - that is what let the
+     * question be asked at all - so there is no second opinion for a literal to be reconciled with,
+     * and leaving it open would only mean building the closure again at whatever the settle decided
+     * afterwards.
+     */
+    if(!type) type = settleType(valueType(result));
+
+    lambda->returnType = type;
 
     if(body.current) {
         result = isUnit(global, type) ? nullptr : body.convert(result, type, source);
@@ -847,4 +872,33 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
 
     auto address = ref(emit<InstAddress>(source, StringId(), funValueFieldType(module, FunValueLayout::kEnv), place));
     return makeFunValue(funType, lambda - local, address, source, StringId());
+}
+
+/*
+ * The thunk built without being told what it returns, for a parameter whose type this argument is
+ * what decides - see deferredOnlyVariable in expr_call.cpp.
+ *
+ * The whole of the difference is where the argument is resolved. An ordinary `@lazy` position is
+ * resolved *against* the parameter type, which is what lets `m ?? 0` take its `0` at the type the
+ * left operand decided; a position whose parameter is a variable no other position mentions has no
+ * such type to be resolved against, so it is resolved on its own terms and the type is read back off
+ * what it produced. That reading is only available here, because it is the thunk's body the argument
+ * has to be resolved into: resolving it in the caller's block to find out would evaluate it, which
+ * is the one thing `@lazy` says does not happen.
+ *
+ * Null where the thunk could not be built. Whether that was said is the caller's to check - the
+ * reasons makeThunk declines are reported, and the two forms it answers without resolving anything
+ * are not.
+ */
+ModulePtr<Value> ExprResolver::inferThunk(const Deferred& deferred, LocationId source, TypePtr& inferred) {
+    inferred = nullptr;
+
+    auto thunk = makeThunk(deferred, nullptr, source);
+    if(!thunk) return nullptr;
+
+    auto type = valueType(thunk);
+    if(global[type]->kind != Type::Fun) return nullptr;
+
+    inferred = ((FunType*)global[type])->result;
+    return inferred ? thunk : nullptr;
 }

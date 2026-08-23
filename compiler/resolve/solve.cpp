@@ -17,6 +17,22 @@ Solver::Solver(ExprResolver& resolver, Solution& solution, GenEnv* declared):
     declared(declared ? declared - resolver.global : GlobalPtr<GenEnv>(nullptr)) {
     auto variables = declared ? declared->types.size() : 0;
 
+    /*
+     * The whole answer, and not only the bindings.
+     *
+     * A `Solution` is an output, so a solve starts from nothing whatever was in it - which used to
+     * be true by construction, because every caller built one and handed it over once. It stopped
+     * being true when a call site re-ran the solve over arguments it had learned more about (see
+     * inferDeferredArguments): the bindings were cleared and filled correctly, and the stale
+     * `Undecided` verdict from the first run stayed, because a settle only *sets* a verdict on a
+     * solve that is still `Solved`.
+     */
+    solution.state = Solution::State::Solved;
+    solution.position = 0;
+    solution.undeclaredDependency = false;
+    solution.instance = nullptr;
+    solution.instanceArgs.clear();
+
     solution.types.clear();
     for(Size i = 0; i < variables; i++) solution.types.push(nullptr);
 }
@@ -180,6 +196,24 @@ bool Solver::bind(TypePtr pattern, TypePtr actual, bool widen) {
     return bindInto(resolver, pattern, actual, solution.types, widen);
 }
 
+/*
+ * What a deferred position produces, where that is already known - the result type of the thunk it
+ * holds, and null for a promise that is still an unresolved expression.
+ *
+ * A `value` promise is deliberately not read: it is a position that was evaluated before anything
+ * knew it was lazy, and by the time one exists the callee has been chosen and there is no solve
+ * left to inform.
+ */
+static TypePtr deferredResult(ExprResolver& resolver, const Deferred& promise) {
+    if(!promise.thunk) return nullptr;
+
+    auto global = resolver.global;
+    auto type = resolver.valueType(promise.thunk);
+    if(global[type]->kind != Type::Fun) return nullptr;
+
+    return ((FunType*)global[type])->result;
+}
+
 void Solver::bindArguments(ModulePtr<Function> signature, Buffer<ResolvedArg> args, Unresolved unresolved) {
     auto local = resolver.local;
     auto declaration = local[signature];
@@ -191,8 +225,30 @@ void Solver::bindArguments(ModulePtr<Function> signature, Buffer<ResolvedArg> ar
          * type the other positions decided is what it is later resolved *against* - which is the
          * same one-directional rule the rest of selection follows, applied to an argument that
          * binds nothing rather than to one that binds a literal.
+         *
+         * Unless the thunk already exists, which is the one way a deferred position has a type
+         * without anything having been evaluated: the closure was built, so what the argument
+         * produces is written on it, and it is the parameter's *promised* type - `declaredType()`,
+         * not the thunk the parameter actually receives - that the closure's result answers. Only
+         * `emitGenericCall` ever arrives here that way, and only for a variable no strict position
+         * mentions, so no overload match sees this and nothing about selection changes. See
+         * deferredOnlyVariable.
          */
-        if(args[i].isDeferred()) continue;
+        if(args[i].isDeferred()) {
+            auto promised = deferredResult(resolver, args[i].promise);
+            if(!promised) continue;
+
+            auto declared = local[declaration->args.get(local, i)]->declaredType();
+            if(bind(declared, promised, true)) continue;
+
+            if(solution.state == Solution::State::Solved) {
+                solution.state = Solution::State::Argument;
+                solution.position = i;
+            }
+
+            if(unresolved != Unresolved::Skips) return;
+            continue;
+        }
 
         /*
          * A defaulted position binds nothing, for a reason of its own: what fills it is a constant

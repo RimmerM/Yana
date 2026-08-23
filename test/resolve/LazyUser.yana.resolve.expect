@@ -156,6 +156,89 @@ fn pointOr(%flag: Bool, %p: () -> Point) -> Int {
     ret %v8
 }
 
+(Truth(a), Truth(b)) fn myAnd(%lhs: a, %rhs: () -> b) -> Bool {
+  schema {
+    #0 type a
+    #1 type b
+    #2 class Truth(a)
+    #3 class Truth(b)
+  }
+
+  b0:
+    %v2 = gencall Truth(a).truthy, %lhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    %v4 = calldyn %rhs : b
+    %v5 = gencall Truth(b).truthy, %v4 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b1, %v5], [b2, False] : Bool
+    ret %v9
+}
+
+fn hasValue(%flag: Bool, %m: () -> Maybe(b)) -> Bool {
+  schema {
+    #0 type b
+  }
+
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    jmp b6
+
+  b2:
+    %v4 = calldyn %m : Maybe(b)
+    %v5 = load %local0.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b4, b3
+
+  b3:
+    jmp b5
+
+  b4:
+    %v9 = load %local0@Just : b
+    jmp b5
+
+  b5:
+    %v14 = phi [b4, True], [b3, False] : Bool
+    jmp b6
+
+  b6:
+    %v17 = phi [b1, False], [b5, %v14] : Bool
+    ret %v17
+}
+
+fn orRun(%flag: Bool, %v: () -> b) -> Maybe(b) {
+  schema {
+    #0 type b
+    #1 type Maybe(b)
+  }
+
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v3 = alloc : Maybe(b)
+    init %local0.discriminant, 0
+    jmp b3
+
+  b2:
+    %v6 = alloc : Maybe(b)
+    %v8 = calldyn %v : b
+    aggregate %local1.discriminant = 1, %local1@Just = %v8
+    jmp b3
+
+  b3:
+    %v12 = phi [b1, %v3], [b2, %v6] : Maybe(b)
+    ret %v12
+}
+
 fn |?(%lhs: Int, %rhs: () -> Int) -> Int {
   b0:
     %v4 = cmp_ne %lhs, 0 : Bool
@@ -525,22 +608,165 @@ fn main() -> Int {
     jmp b45
 
   b45:
-    %v292 = load effects : Int
-    %v295 = cmp_eq %v292, 51622 : Bool
-    je %v295, b46, b47
+    %v293 = alloc : () -> Int
+    %v294 = symbol ResolveTest.deferred$31 : %()
+    init %local21.code, %v294
+    %v297 = cast 0 : %()
+    init %local21.env, %v297
+    %v299 = call myAnd(Bool, Int), False, %v293 : Bool
+    %v301 = xor %v299, True : Bool
+    je %v301, b46, b47
 
   b46:
-    %v297 = load %score : Int
-    %v300 = add %v297, 32768 : Int
-    assign %score, %v300
+    %v303 = load %score : Int
+    %v306 = add %v303, 32768 : Int
+    assign %score, %v306
     jmp b48
 
   b47:
     jmp b48
 
   b48:
-    %v304 = load %score : Int
-    ret %v304
+    %v311 = alloc : () -> Bool
+    %v312 = symbol ResolveTest.deferred$32 : %()
+    init %local22.code, %v312
+    %v315 = cast 0 : %()
+    init %local22.env, %v315
+    %v317 = call myAnd(Bool, Bool), True, %v311 : Bool
+    je %v317, b49, b50
+
+  b49:
+    %v319 = load %score : Int
+    %v322 = add %v319, 65536 : Int
+    assign %score, %v322
+    jmp b51
+
+  b50:
+    jmp b51
+
+  b51:
+    %v327 = alloc : () -> Int
+    %v328 = symbol ResolveTest.deferred$33 : %()
+    init %local23.code, %v328
+    %v331 = cast 0 : %()
+    init %local23.env, %v331
+    %v333 = call myAnd(Bool, Int), True, %v327 : Bool
+    je %v333, b52, b53
+
+  b52:
+    %v335 = load %score : Int
+    %v338 = add %v335, 131072 : Int
+    assign %score, %v338
+    jmp b54
+
+  b53:
+    jmp b54
+
+  b54:
+    %v343 = alloc : () -> Maybe(Int)
+    %v344 = symbol ResolveTest.deferred$34 : %()
+    init %local24.code, %v344
+    %v347 = cast 0 : %()
+    init %local24.env, %v347
+    %v349 = call hasValue(Int), True, %v343 : Bool
+    %v351 = xor %v349, True : Bool
+    je %v351, b55, b56
+
+  b55:
+    %v353 = load %score : Int
+    %v356 = add %v353, 262144 : Int
+    assign %score, %v356
+    jmp b57
+
+  b56:
+    jmp b57
+
+  b57:
+    %v361 = alloc : () -> Maybe(Int)
+    %v362 = symbol ResolveTest.deferred$35 : %()
+    init %local25.code, %v362
+    %v365 = cast 0 : %()
+    init %local25.env, %v365
+    %v367 = call hasValue(Int), False, %v361 : Bool
+    je %v367, b58, b59
+
+  b58:
+    %v369 = load %score : Int
+    %v372 = add %v369, 524288 : Int
+    assign %score, %v372
+    jmp b60
+
+  b59:
+    jmp b60
+
+  b60:
+    %v377 = alloc : () -> Int
+    %v378 = symbol ResolveTest.deferred$36 : %()
+    init %local26.code, %v378
+    %v381 = cast 0 : %()
+    init %local26.env, %v381
+    %v383 = call orRun(Int), True, %v377 : Maybe(Int)
+    %v384 = load %local27.discriminant : Int
+    %v386 = cmp_eq %v384, 0 : Bool
+    je %v386, b62, b61
+
+  b61:
+    jmp b63
+
+  b62:
+    %v388 = load %score : Int
+    %v391 = add %v388, 1048576 : Int
+    assign %score, %v391
+    jmp b63
+
+  b63:
+    %v396 = alloc : () -> Int
+    %v397 = symbol ResolveTest.deferred$37 : %()
+    init %local28.code, %v397
+    %v400 = cast 0 : %()
+    init %local28.env, %v400
+    %ran = call orRun(Int), False, %v396 : Maybe(Int)
+    %v403 = load %local29.discriminant : Int
+    %v405 = cmp_eq %v403, 1 : Bool
+    je %v405, b65, b64
+
+  b64:
+    jmp b69
+
+  b65:
+    %taken = load %local29@Just : Int
+    %v410 = cmp_eq %taken, 8388608 : Bool
+    je %v410, b66, b67
+
+  b66:
+    %v412 = load %score : Int
+    %v415 = add %v412, 2097152 : Int
+    assign %score, %v415
+    jmp b68
+
+  b67:
+    jmp b68
+
+  b68:
+    jmp b69
+
+  b69:
+    %v421 = load effects : Int
+    %v424 = cmp_eq %v421, 11323814 : Bool
+    je %v424, b70, b71
+
+  b70:
+    %v426 = load %score : Int
+    %v429 = add %v426, 4194304 : Int
+    assign %score, %v429
+    jmp b72
+
+  b71:
+    jmp b72
+
+  b72:
+    %v433 = load %score : Int
+    ret %v433
 }
 
 fn ResolveTest.deferred$14(%env: %{n: Int}) -> Int {
@@ -714,5 +940,133 @@ fn ResolveTest.deferred$29(%env: %{}) -> Int {
 fn ResolveTest.deferred$30(%env: %{}) -> Int {
   b0:
     %v2 = call bump, 16384 : Int
+    ret %v2
+}
+
+fn ResolveTest.deferred$31(%env: %{}) -> Int {
+  b0:
+    %v2 = call bump, 131072 : Int
+    ret %v2
+}
+
+fn myAnd(Bool, Int)(%lhs: Bool, %rhs: () -> Int) -> Bool {
+  b0:
+    je %lhs, b1, b2
+
+  b1:
+    %v4 = calldyn %rhs : Int
+    %v6 = cmp_ne %v4, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %v6], [b2, False] : Bool
+    ret %v2
+}
+
+fn ResolveTest.deferred$32(%env: %{}) -> Bool {
+  b0:
+    %v2 = call bumpTrue, 262144 : Bool
+    ret %v2
+}
+
+fn myAnd(Bool, Bool)(%lhs: Bool, %rhs: () -> Bool) -> Bool {
+  b0:
+    je %lhs, b1, b2
+
+  b1:
+    %v4 = calldyn %rhs : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %v4], [b2, False] : Bool
+    ret %v2
+}
+
+fn ResolveTest.deferred$33(%env: %{}) -> Int {
+  b0:
+    %v2 = call bump, 524288 : Int
+    ret %v2
+}
+
+fn ResolveTest.deferred$34(%env: %{}) -> Maybe(Int) {
+  b0:
+    %v2 = call bump, 1048576 : Int
+    %v3 = alloc : Maybe(Int)
+    aggregate %local0.discriminant = 1, %local0@Just = %v2
+    ret %v3
+}
+
+fn hasValue(Int)(%flag: Bool, %m: () -> Maybe(Int)) -> Bool {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    jmp b6
+
+  b2:
+    %v6 = calldyn %m : Maybe(Int)
+    %v7 = load %local0.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b4, b3
+
+  b3:
+    jmp b5
+
+  b4:
+    %v12 = load %local0@Just : Int
+    jmp b5
+
+  b5:
+    %v2 = phi [b4, True], [b3, False] : Bool
+    jmp b6
+
+  b6:
+    %v3 = phi [b1, False], [b5, %v2] : Bool
+    ret %v3
+}
+
+fn ResolveTest.deferred$35(%env: %{}) -> Maybe(Int) {
+  b0:
+    %v2 = call bump, 2097152 : Int
+    %v3 = alloc : Maybe(Int)
+    aggregate %local0.discriminant = 1, %local0@Just = %v2
+    ret %v3
+}
+
+fn ResolveTest.deferred$36(%env: %{}) -> Int {
+  b0:
+    %v2 = call bump, 4194304 : Int
+    ret %v2
+}
+
+fn orRun(Int)(%flag: Bool, %v: () -> Int) -> Maybe(Int) {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v4 = alloc : Maybe(Int)
+    init %local0.discriminant, 0
+    jmp b3
+
+  b2:
+    %v8 = alloc : Maybe(Int)
+    %v9 = calldyn %v : Int
+    aggregate %local1.discriminant = 1, %local1@Just = %v9
+    jmp b3
+
+  b3:
+    %v2 = phi [b1, %v4], [b2, %v8] : Maybe(Int)
+    ret %v2
+}
+
+fn ResolveTest.deferred$37(%env: %{}) -> Int {
+  b0:
+    %v2 = call bump, 8388608 : Int
     ret %v2
 }

@@ -180,7 +180,9 @@ struct Deferred {
     ModulePtr<Value> thunk = nullptr;
     ModulePtr<Value> value = nullptr;
 
-    // The type the parameter declared, filled in once the callee is known.
+    // The type the parameter declared, filled in once the callee is known - or, for a parameter
+    // whose type this argument is what decides, what the argument turned out to produce. The two
+    // are the same answer: see inferDeferredArguments in expr_call.cpp.
     TypePtr type = nullptr;
 
     bool isSet() const { return expr || chain || thunk || value; }
@@ -1239,8 +1241,15 @@ struct ExprResolver {
     ModulePtr<Value> force(const Deferred& deferred, TypePtr expected, LocationId source);
 
     // The nullary closure a callee that cannot see the argument is handed. Null, after reporting,
-    // where the thunk would have to capture something this version cannot - see expr_fun.cpp.
+    // where the thunk would have to capture something this version cannot - see expr_fun.cpp. A
+    // null `type` is the inferring form below; every other caller knows what the parameter promised.
     ModulePtr<Value> makeThunk(const Deferred& deferred, TypePtr type, LocationId source);
+
+    // The same closure, for a parameter whose type this argument is what decides: the argument is
+    // resolved inside the thunk with nothing pushed into it and `inferred` comes back holding what
+    // it produced. See expr_fun.cpp, and deferredOnlyVariable in expr_call.cpp for when that is the
+    // only thing that can answer.
+    ModulePtr<Value> inferThunk(const Deferred& deferred, LocationId source, TypePtr& inferred);
 
     // What a `@lazy` position holding an already-resolved value stands for. A value of the thunk
     // type is one being *forwarded* - a witness entry passing its own parameter on, or one `@lazy`

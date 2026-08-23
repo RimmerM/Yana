@@ -3,7 +3,9 @@
 -- Lazy.yana covers the operators Core builds on the mechanism. This covers the mechanism itself as
 -- something a user writes: several deferred parameters on one signature, one handed on to another,
 -- one that captures, one over a record, one on a generic function, one on an operator whose right
--- operand is a whole sub-chain, and one forced before a loop that then runs.
+-- operand is a whole sub-chain, one forced before a loop that then runs, and three whose type
+-- *only the deferred argument decides* - the shape `&&` has, at a callee that is called rather than
+-- expanded, so the type is read back off the thunk the argument becomes.
 --
 -- `effects` is a bit set rather than a count, and each argument that could run owns a distinct bit.
 -- That makes the number at the end say *which* arguments ran rather than how many, which is the
@@ -48,6 +50,23 @@ fn orDefault(->m: Maybe(a), @lazy fallback: a) -> a = if m is Just(->v) then v e
 
 -- A record rather than a scalar, so the thunk returns through storage.
 fn pointOr(flag: Bool, @lazy p: Point) -> Int = if flag then p.x else 0
+
+-- A type variable declared *only* in `@lazy` positions, which no argument the call evaluates can
+-- bind. What decides it is the thunk: the argument is resolved into the closure the callee is
+-- handed, and the closure's result type is what `b` is. `&&` and `||` in Core have exactly this
+-- shape and never build one - a deferred intrinsic emits its operand under the branch that runs it
+-- - so this is the half of the rule a callee that is genuinely *called* needs.
+fn (Truth(a), Truth(b)) myAnd(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+
+-- The same variable a constructor deep, which is why the type is fed back through the solve rather
+-- than assigned: `Maybe(b)` is matched against what the argument turned out to produce, and `b` is
+-- what falls out of it.
+fn hasValue(flag: Bool, @lazy m: Maybe(b)) -> Bool = if flag then False else m is Just(_)
+
+-- And one the *result* mentions too. An expected type cannot reach it either - nothing a caller
+-- writes about the result decides a variable no strict argument mentions - so this is answered the
+-- same way, and the result type follows from the argument rather than the other way round.
+fn orRun(flag: Bool, @lazy v: b) -> Maybe(b) = if flag then Nothing else Just(v)
 
 -- A user-declared short-circuiting operator. Its right operand is a *span* of the flattened infix
 -- chain rather than one node - `bump(128) + bump(256) * 2` is what `|?` defers here - which is the
@@ -113,8 +132,28 @@ fn main() -> Int:
 
     if beforeLoop(3, bump(16384)) == 16387: score = score + 16384
 
+    -- A deferred parameter whose type only the argument decides: skipped once, then run at two
+    -- different types, which is three call sites and two specializations of one declaration.
+    -- Read as conditions rather than compared against True, because what these answer is a `Truth`
+    -- and `truthy(x) == True` is wrong on the unoptimized JavaScript build - a bug of its own, older
+    -- than this fixture and reproducible with no `@lazy` anywhere in sight.
+    if !myAnd(False, bump(131072)): score = score + 32768
+    if myAnd(True, bumpTrue(262144)): score = score + 65536
+    if myAnd(True, bump(524288)): score = score + 131072
+
+    -- The variable a constructor deep, skipped and then run.
+    if !hasValue(True, Just(bump(1048576))): score = score + 262144
+    if hasValue(False, Just(bump(2097152))): score = score + 524288
+
+    -- And with the variable in the result as well.
+    if orRun(True, bump(4194304)) is Nothing: score = score + 1048576
+
+    let ran = orRun(False, bump(8388608))
+    if ran is Just(->taken):
+        if taken == 8388608: score = score + 2097152
+
     -- Which arguments ran, as a bit set. Every bit that is clear here is an argument this file
     -- claims was skipped, and every bit that is set is one it claims was evaluated exactly once.
-    if effects == 51622: score = score + 32768
+    if effects == 11323814: score = score + 4194304
 
     return score

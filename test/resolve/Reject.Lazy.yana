@@ -105,21 +105,16 @@ instance Combine(Mask):
     fn merge(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
     fn either(lhs: Mask, @lazy rhs: Mask) -> Mask = lhs
 
-{-
-   A type variable declared only in `@lazy` positions, which no call can decide.
-
-   Selection skips a deferred position - the argument is not resolved when the callee is chosen, and
-   resolving it to find out would evaluate it - so nothing ever binds `b`, however concrete the
-   arguments are. `&&` and `||` have exactly this shape and are accepted, because a deferred
-   intrinsic emits its operand under the branch and never builds the thunk whose return type this
-   would have been. Anything that *is* called needs it, and is told which declaration to change
-   rather than asked for an expected type it has no way to use.
--}
-fn (Truth(a), Truth(b)) undecidable(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
-
-fn callsUndecidable(x: Bool, y: Bool) -> Bool = undecidable(x, y)
-
 -- A thunk inside a generic body would have to be specialized alongside its caller, for the reason
 -- a lambda there would. Only where the callee can be seen through - `&&` on a Bool - does no thunk
 -- exist to specialize.
 fn (Eq(a)) inGeneric(x: a, y: a) -> Int = once(x == y, 1)
+
+-- The same rule reached through inference rather than through a written thunk. `b` occurs only in
+-- the deferred position, so what decides it is the closure the argument is resolved into - and a
+-- closure inside a generic body is exactly what the rule above refuses. So this says that, once,
+-- rather than saying nothing decided `b`: the thing that would have decided it is the thing that
+-- cannot be built here.
+fn (Truth(a), Truth(b)) userAnd(lhs: a, @lazy rhs: b) -> Bool = if truthy(lhs) then truthy(rhs) else False
+
+fn (Truth(a)) callsUserAnd(x: a, y: Bool) -> Bool = userAnd(x, y)

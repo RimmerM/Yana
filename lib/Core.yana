@@ -762,12 +762,17 @@ pub class Truth(a):
    it, and nothing here relates them: each side is asked its own `Truth` and neither is converted to
    anything. A class could not have said that, since a class has one variable per position it binds.
 
-   `b` is the one variable in Core that no call ever decides, and it is sound because nothing reads
-   it. Selection skips a `@lazy` position - the argument is not resolved, and resolving it to find
-   out would evaluate it - so a variable occurring only there is never bound. What would have read it
-   is the *thunk* built for that argument, and these three never build one: the operand is emitted
-   under the branch that runs it. See `deferredOnlyVariable` in expr_call.cpp, which is where that is
-   checked rather than assumed, and which reports for any callee that would need the thunk after all.
+   `b` is the one variable in Core that no *call* decides, and it is sound because nothing reads it.
+   Selection skips a `@lazy` position - the argument is not resolved, and resolving it to find out
+   would evaluate it - so a variable occurring only there is never bound by the call. What would have
+   read it is the *thunk* built for that argument, and these three never build one: the operand is
+   emitted under the branch that runs it. See `deferredOnlyVariable` in expr_call.cpp, which is where
+   that is checked rather than assumed.
+
+   A callee that *is* called answers the same question from the other end: the argument is resolved
+   into the closure it becomes and the closure's result type is what the variable is, which is
+   `inferDeferredArguments` beside it. So this shape is available to anyone, and these three are only
+   the case where it costs nothing.
 
    `@lazy` on the right operand is what makes short-circuiting a property of these declarations
    rather than of the compiler: the argument is not evaluated at the call site, and reading `rhs` is
