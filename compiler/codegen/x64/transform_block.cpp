@@ -247,7 +247,10 @@ void expandSet(Expansion& e, LowerInstSetPattern* set, U64 bytes, U32 widest, Pa
  * end - and since a function holding one usually holds the other.
  */
 void expandBlockOperations(Context& ctx, LowerBase base, LowerFunction& fun) {
-    auto policy = x64BlockExpansionFor(ctx.settings);
+    // `fun.legacyVectors` rather than `legacyVectorEncodings()`, which says the same thing: the flag
+    // is a property of this function and the pass already has it, so the policy stays a function of
+    // its arguments. See x64BlockExpansionFor for what the step is capped to and why.
+    auto policy = x64BlockExpansionFor(ctx.settings, fun.legacyVectors);
 
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];

@@ -672,7 +672,7 @@ void readLegacySseAttribute(Module& module, const ast::Decl& decl, Function& fun
     if(attributes.isEmpty()) return;
 
     auto& context = module.context;
-    auto legacyName = context.addUnqualifiedName("x86_legacy_sse", 14);
+    auto legacyName = Context::nameHash(nameForLegacySse());
 
     for(auto attribute: attributes.contents(module.parse)) {
         if(attribute.name != legacyName) continue;

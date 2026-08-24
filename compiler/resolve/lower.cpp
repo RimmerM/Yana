@@ -543,6 +543,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         if(function->convention) target->callType = function->convention.unwrap();
         target->legacyVectors = function->legacySse;
 
+        // And whether anything outside this compilation can reach it, which is *not* read off the
+        // convention - see LowerFunction::foreignBoundary. A whole program has one entry and no
+        // other way in; a library's declarations are roots precisely because whoever will call them
+        // is not here, and there the convention is still the best answer available.
+        target->foreignBoundary = !isExecutableMode(context.settings.mode)
+                               && conventionIsForeignAbi(target->callType);
+
         // Which of them the program starts at, recorded under the name it ended up with rather than
         // the one it was resolved under - see LowerModule::entry.
         if(functionPointer == program.entry) result->entry = target->name;

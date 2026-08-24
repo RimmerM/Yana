@@ -292,9 +292,11 @@ struct BlockExpansion {
     U32 setStep = 8;
 };
 
-// What a given set of settings comes to. A pure function of them: no target state is read, so the
-// answer for a module does not depend on which module was compiled before it.
-BlockExpansion x64BlockExpansionFor(const CompileSettings& settings);
+// What a given set of settings comes to, in a function whose body is or is not encoded without a
+// vector prefix. A pure function of the two: no target state is read, so the answer for a module
+// does not depend on which module was compiled before it, and the per-function half arrives as an
+// argument rather than through `legacyVectorEncodings`.
+BlockExpansion x64BlockExpansionFor(const CompileSettings& settings, bool legacyVectors);
 
 /*
  * Banks.

@@ -1009,10 +1009,37 @@ static void genPrologue(AsmModule& to, const FrameLayout& frame) {
     genVectorSaves(to, frame, false);
 }
 
-// Whether a convention is one this compiler is not on both sides of - see
-// Emitter::emitVectorZeroUpper, which is the only reader and where the reasoning is.
-static bool isForeignConvention(LowerCallType type) {
-    return type == LowerCallType::Sysv || type == LowerCallType::Win64;
+/*
+ * Whether a call hands control across a boundary with code this compiler did not generate.
+ *
+ * **Read off the callee rather than off the convention**, which is the change this replaced and the
+ * reason `LowerFunction::foreignBoundary` exists. `isForeignConvention` used to answer this by
+ * asking whether the call named System V or Win64, on the reading that a Yana function would only
+ * name a foreign ABI in order to be reachable from outside. `@convention(sysv)` ended that:
+ * `sha256CompressBlocks` names System V because the psABI makes the vector file caller-saved, which
+ * is what makes its entry `X86.vzeroupper()` legal, and nothing outside the program calls it - so
+ * every call to it paid a `vzeroupper` at both ends for a boundary that was not there.
+ *
+ * And none of it was ever an ABI requirement. System V classifies the vector file as caller-saved
+ * and says nothing about what the upper halves *contain* at a boundary. `vzeroupper` there is a
+ * performance hedge against the AVX/legacy-SSE transition, which is microarchitectural - Intel's
+ * optimization guidance recommends it, GCC and Clang emit it from an optimization pass, and getting
+ * it wrong is slow rather than wrong. Which is what makes the conservative direction cheap.
+ *
+ * An **indirect** call is the one case with no answer here: the target is a register and where the
+ * pointer came from is not visible at this stage. Every function pointer in a program today is a
+ * `LowerInstFun` naming a function of this module - a closure's code pointer, a witness table slot -
+ * so it is internal in fact; but "in fact" is exactly what the convention proxy was. It keeps the
+ * conservative answer, and what that costs where it is wrong is three bytes at a site already paying
+ * for a call.
+ */
+static bool callLeavesThisCompiler(LowerBase base, const LowerInst* callee, LowerCallType type) {
+    if(callee && callee->kind == LowerInst::Fun) {
+        auto target = base[((const LowerInstFun*)callee)->target];
+        return target->foreignBoundary;
+    }
+
+    return conventionIsForeignAbi(type);
 }
 
 /*
@@ -1256,9 +1283,11 @@ struct Emitter {
      */
     bool dirtiesUpperHalves = false;
 
-    // The convention this function is entered under, which is what decides whether its *return* owes
-    // a `vzeroupper` - see emitVectorZeroUpper.
-    LowerCallType convention = LowerCallType::Complex;
+    // Whether this function can be entered by code this compiler did not generate, which is what
+    // decides whether its *return* owes a `vzeroupper` - see functionEnteredFromOutside. Computed
+    // once in genFunction, because it is a property of the function and of the compilation rather
+    // than of any one return.
+    bool foreignEntered = false;
 
     /*
      * `vzeroupper`, where it is owed.
@@ -1329,8 +1358,10 @@ struct Emitter {
         return false;
     }
 
-    void zeroUpperBeforeCall(LowerCallType callee, const InstRegs& regs) {
-        if(!dirtiesUpperHalves || !isForeignConvention(callee)) return;
+    // `callee` is the `Fun` a direct call names, or null where the target is a register - see
+    // callLeavesThisCompiler, which is what decides whether this boundary is one at all.
+    void zeroUpperBeforeCall(const LowerInst* callee, LowerCallType type, const InstRegs& regs) {
+        if(!dirtiesUpperHalves || !callLeavesThisCompiler(base, callee, type)) return;
         if(carriesWideValue(regs)) return;
 
         emitVectorZeroUpper();
@@ -1342,7 +1373,7 @@ struct Emitter {
     bool returnsWideValue = false;
 
     void zeroUpperBeforeReturn() {
-        if(!dirtiesUpperHalves || !isForeignConvention(convention)) return;
+        if(!dirtiesUpperHalves || !foreignEntered) return;
         if(returnsWideValue) return;
 
         emitVectorZeroUpper();
@@ -2755,7 +2786,7 @@ struct Emitter {
                 // The callee's address is a rel32 in the instruction rather than a value in a
                 // register, which is why the Fun that produced it was elided.
                 auto callee = base[inst->used()[0]];
-                zeroUpperBeforeCall(((LowerInstCall*)inst)->getCallType(), regs);
+                zeroUpperBeforeCall(callee->inst(), ((LowerInstCall*)inst)->getCallType(), regs);
                 to.buffer.writeByte(0xe8);
                 to.addRelocation(base[((LowerInstFun*)callee->inst())->target]);
                 break;
@@ -2764,7 +2795,7 @@ struct Emitter {
             case PseudoKind::CallIndirect: {
                 // CALL r/m64 (0xff /2). Always 64-bit in long mode, so REX only extends the number.
                 auto r = reg(regs.uses[0]);
-                zeroUpperBeforeCall(((LowerInstCall*)inst)->getCallType(), regs);
+                zeroUpperBeforeCall(nullptr, ((LowerInstCall*)inst)->getCallType(), regs);
                 if(needsRex(r)) to.buffer.writeByte(makeRex(false, r, 0, 0));
                 to.buffer.writeByte(0xff);
                 to.buffer.writeByte(makeMod(3, r, 2));
@@ -3884,6 +3915,12 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         if(isWideVector(LowerType(type))) returnsWideValue = true;
     }
 
+    // And whether there is anyone on the other side of that return this compiler did not generate,
+    // which is the other half of the same question - see functionEnteredFromOutside. Asked once here
+    // rather than at each return, and read by the shared epilogue's size below as well, which has to
+    // answer exactly what zeroUpperBeforeReturn answers.
+    auto foreignEntered = fun.foreignBoundary;
+
     FunctionExtent extent {
         .codeStart = U32(to.buffer.offset()),
         .firstBlock = to.blocks.size(),
@@ -3926,7 +3963,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
         // shared epilogue would share - costing it short would make §7.2.2's trade against the
         // wrong number. The third reader of the rule, and the one that is easiest to leave behind:
         // it has to answer exactly what zeroUpperBeforeReturn answers.
-        auto owesZeroUpper = dirtiesUpperHalves && isForeignConvention(fun.callType) && !returnsWideValue;
+        auto owesZeroUpper = dirtiesUpperHalves && foreignEntered && !returnsWideValue;
         return owesZeroUpper ? size + 3 : size;
     }();
 
@@ -3996,7 +4033,7 @@ void genFunction(Context& context, LowerBase base, AsmModule& to, LowerFunction&
     emitter.sharedEpilogue = sharedEpilogue;
     emitter.dirtiesUpperHalves = dirtiesUpperHalves;
     emitter.returnsWideValue = returnsWideValue;
-    emitter.convention = fun.callType;
+    emitter.foreignEntered = foreignEntered;
     emitter.frequency = &regs.frequency;
 
     // Held rather than reported as they are emitted: relaxation below rewrites the function, so an

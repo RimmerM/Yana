@@ -848,6 +848,18 @@ struct Inliner {
      * the whole of it - and `length(xs)`, one `.length` read behind a permanent call, is what that
      * makes reachable.
      *
+     * `VZeroUpper` stays out, and it is the one exclusion here that has to be argued rather than
+     * noticed: it has no operands, no result and no state to copy, so it reads as the most obviously
+     * clonable kind in the IR and is the one a later hand is most likely to add. What makes it
+     * un-clonable is not the instruction but *where* it may stand. See `Value::VZeroUpper` in
+     * inst.def: nothing above the backend orders anything against it, and that is correct only
+     * because the sole place it may be written is the top of a function, where there is nothing yet
+     * to order. A graft is exactly what falsifies that - the reset would land mid-body in a caller
+     * that has been computing, where a wide vector may be live across it and would be silently
+     * truncated. Reported by `checkLegacyVectorEncoding` in codegen/x64/machine_vector.cpp if it
+     * came from a type, and not reported at all if it came from a block copy, which is a second
+     * reason for the decision to be made here.
+     *
      * `GenCall` stays out, and for a reason that is not "not exercised yet": `fill.forwarded`,
      * `classSlot` and `classPath` are slot numbers in the *enclosing function's* generic
      * environment, and the enclosing function is exactly what a graft changes. A copy of one into

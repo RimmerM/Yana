@@ -56,13 +56,13 @@ lanes<complex>(%a: i32x8, %n: Int): Int {
   }
 }
 
-foreignSink<sysv>(%x: Int): Int {
+foreignSink<sysv, foreign>(%x: Int): Int {
   b_0 {
     ret %x
   }
 }
 
-crossing<sysv>(%a: i32x8, %n: Int): Int {
+crossing<sysv, foreign>(%a: i32x8, %n: Int): Int {
   b_0 {
     %v = add %a, %a: i32x8
     %r = call_sysv foreignSink, %n: Int
@@ -88,7 +88,7 @@ internal<complex>(%a: i32x8, %n: Int): Int {
   }
 }
 
-narrow<sysv>(%a: i32x4, %n: Int): Int {
+narrow<sysv, foreign>(%a: i32x4, %n: Int): Int {
   b_0 {
     %v = add %a, %a: i32x4
     %r = call_sysv foreignSink, %n: Int
@@ -98,14 +98,14 @@ narrow<sysv>(%a: i32x4, %n: Int): Int {
   }
 }
 
-wideResult<sysv>(%a: i32x8): i32x8 {
+wideResult<sysv, foreign>(%a: i32x8): i32x8 {
   b_0 {
     %v = add %a, %a: i32x8
     ret %v
   }
 }
 
-wideArgument<sysv>(%a: i32x8, %n: Int): Int {
+wideArgument<sysv, foreign>(%a: i32x8, %n: Int): Int {
   b_0 {
     %v = add %a, %a: i32x8
     %r = call_sysv wideSink, %v: Int
@@ -113,7 +113,7 @@ wideArgument<sysv>(%a: i32x8, %n: Int): Int {
   }
 }
 
-wideSink<sysv>(%a: i32x8): Int {
+wideSink<sysv, foreign>(%a: i32x8): Int {
   b_0 {
     %l = vlane %a, 0: Int
     ret %l

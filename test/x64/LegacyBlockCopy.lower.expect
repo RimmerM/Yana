@@ -1,0 +1,89 @@
+
+legacyCopy<complex, x86_legacy_sse>(%dst: Ptr, %src: Ptr) {
+  b_0 {
+    copy %dst, %src, 16
+    copy %dst, %src, 32
+    copy %dst, %src, 64
+    copy %dst, %src, 65
+    ret 
+  }
+}
+
+legacySet<complex, x86_legacy_sse>(%dst: Ptr) {
+  b_0 {
+    setpattern %dst, 32, 0
+    ret 
+  }
+}
+
+plainCopy<complex>(%dst: Ptr, %src: Ptr) {
+  b_0 {
+    copy %dst, %src, 32
+    ret 
+  }
+}
+
+
+--- codegen: legacyCopy ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  load uses=[rsi] creates=[xmm0]  => f30f6f06
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  imm uses=[] creates=[-]  => 
+  load uses=[rsi] creates=[xmm0]  => f30f6f06
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4610
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4710
+  imm uses=[] creates=[-]  => 
+  load uses=[rsi] creates=[xmm0]  => f30f6f06
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4610
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4710
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4620
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=32 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4720
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=48 uses=[rsi] creates=[-]  => 
+  load uses=[-] creates=[xmm0]  => f30f6f4630
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=48 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4730
+  imm uses=[] creates=[remat:0]  => 
+  copy uses=[rdi, rsi, rcx] creates=[] pre=[remat:0->rcx]  => b941000000f3a4
+  ret uses=[] creates=[]  => c3
+
+--- codegen: legacySet ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  imm uses=[] creates=[-]  => 
+  vsplat uses=[-] creates=[xmm0]  => 660fefc0
+  store uses=[rdi, xmm0] creates=[]  => f30f7f07
+  imm uses=[] creates=[-]  => 
+  x86_addr scale=1 disp=16 uses=[rdi] creates=[-]  => 
+  store uses=[-, xmm0] creates=[]  => f30f7f4710
+  ret uses=[] creates=[]  => c3
+
+--- codegen: plainCopy ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  load uses=[rsi] creates=[xmm0]  => c5fe6f06
+  store uses=[rdi, xmm0] creates=[]  => c5fe7f07
+  ret uses=[] creates=[]  => c3

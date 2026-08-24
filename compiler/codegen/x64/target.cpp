@@ -61,11 +61,38 @@ void setTargetFeatures(FeatureSet features) {
  *
  * The step is `targetVectorBytes`' answer and not a reading of the feature set, which is what keeps
  * this a pure function of the settings: the two agree by construction, since both are the level.
+ *
+ * `legacyVectors` is the one thing a *function* has a say in, and it is a parameter rather than a
+ * reading of `legacyVectorEncodings()` for the reason the struct's own note gives - see
+ * `expandBlockOperations`, which passes `LowerFunction::legacyVectors` and so reads no target state
+ * to get it.
  */
-BlockExpansion x64BlockExpansionFor(const CompileSettings& settings) {
+BlockExpansion x64BlockExpansionFor(const CompileSettings& settings, bool legacyVectors) {
     // The widest register a transfer can go through. Capped at thirty-two because this backend holds
     // a vector in at most a `ymm` - see targetVectorBytes, which says the same thing about a value.
     auto step = min(U32(32), targetVectorBytes(settings));
+
+    /*
+     * And capped again at sixteen inside a function encoded without a vector prefix.
+     *
+     * A wide step is a wide *value* - `typeForStep` makes anything from sixteen bytes up a packed
+     * type - and a wide vector has no legacy spelling to be chosen against, so a thirty-two byte
+     * transfer is a `vmovdqu` whatever `packedNeedsVex` answers. Two of them beside the unprefixed
+     * arithmetic they were expanded next to is exactly the crossing `@x86_legacy_sse` exists to
+     * stop, in the same register and a few instructions apart, which is the 140x case rather than
+     * the entry one - see `legacyVectorEncodings` above.
+     *
+     * **Capped here rather than reported by `checkLegacyVectorEncoding`**, which cannot see it: that
+     * check runs before `kTransformPipeline` and this value does not exist yet, and moving it after
+     * would only buy a diagnostic that names the wrong thing. The author wrote a struct assignment
+     * and there is no wide type in their source to narrow. At sixteen the expansion is the
+     * `movdqu` pair it should always have been in such a body, and there is nothing left to report.
+     *
+     * The ceiling follows, because `limit` is computed from the step below: a level that spends four
+     * pairs spends them on half as many bytes here, and a copy past the smaller ceiling is
+     * `rep movsb` - general registers, and no encoding question to answer.
+     */
+    if(legacyVectors) step = min(step, U32(16));
 
     U64 pairs = 4, bytes = 128;
 

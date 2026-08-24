@@ -170,6 +170,22 @@ void LowerParser::parseDecl() {
             error("unknown calling convention"_v);
         }
 
+        // And the markers, which the convention list carries rather than a second bracket: they are
+        // all facts about how this one function is entered or emitted, and none is an instruction.
+        // The convention stays mandatory when the brackets are written at all, so a marked function
+        // with the default one is `f<complex, x86_legacy_sse>`.
+        while(maybe(LowerToken::Comma)) {
+            auto marker = tryMaybe(expect(LowerToken::LabelID, "expected a function marker"_v), return).id;
+
+            if(marker == Context::nameHash(nameForLegacySse())) {
+                f->legacyVectors = true;
+            } else if(marker == Context::nameHash(nameForForeignBoundary())) {
+                f->foreignBoundary = true;
+            } else {
+                error("unknown function marker - they are `x86_legacy_sse` and `foreign`"_v);
+            }
+        }
+
         tryMaybe(expect(LowerToken::Greater, "expected '>'"_v), return);
     }
 

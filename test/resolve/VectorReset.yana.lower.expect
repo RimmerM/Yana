@@ -1,6 +1,6 @@
 @image$base = []
 
-compressLike<clobber>(%state: i32x4, %message: i32x4): Int {
+compressLike<clobber, x86_legacy_sse>(%state: i32x4, %message: i32x4): Int {
   b_0 {
     vzeroupper 
     %mixed = sha256msg1 %state, %message: i32x4
@@ -10,7 +10,7 @@ compressLike<clobber>(%state: i32x4, %message: i32x4): Int {
   }
 }
 
-throughHelper<clobber>(%state: i32x4): Int {
+throughHelper<clobber, x86_legacy_sse>(%state: i32x4): Int {
   b_0 {
     vzeroupper 
     %v_1 = sha256msg2 %state, %state: i32x4

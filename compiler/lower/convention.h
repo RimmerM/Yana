@@ -68,6 +68,39 @@ inline Maybe<LowerCallType> callTypeForName(StringId name) {
 }
 
 /*
+ * `@x86_legacy_sse`, and the one place its name is written.
+ *
+ * Beside the convention table for the reason that table exists rather than because it is one. It is
+ * not a convention and has nothing to do with the enum above; what it shares is the problem, and
+ * exactly: the same string is read by three readers that have to agree - the attribute a program
+ * writes, the marker a lower-IR function is *parsed* with, and the marker one is *printed* with -
+ * and a fixture round-trips through all three, so a spelling per reader is a spelling that can
+ * drift into a golden that stops matching itself.
+ *
+ * The lower IR spells it the same as the source rather than shortening it. It sits inside the same
+ * angle brackets as the convention - `f<sysv, x86_legacy_sse>` - and one fact with one name across
+ * every level it appears at is worth more there than four saved characters.
+ */
+inline StringView nameForLegacySse() { return "x86_legacy_sse"_v; }
+
+// And `LowerFunction::foreignBoundary`, whose lower-IR spelling shares the same list - see the note
+// on the field. Not an attribute a program writes: nothing in Yana source declares a boundary yet,
+// so the only writers are `lowerProgram` and a fixture.
+inline StringView nameForForeignBoundary() { return "foreign"_v; }
+
+/*
+ * Whether this convention names an ABI defined outside this compiler.
+ *
+ * True of the two real ABIs and of nothing else, which is a question about the *table* and is all
+ * this answers. It is emphatically not "the other side of this boundary is a stranger" - see
+ * `LowerFunction::foreignBoundary`, which is that question and is a separate fact, because a Yana
+ * function may name System V for reasons that have nothing to do with being reachable from outside.
+ */
+inline bool conventionIsForeignAbi(LowerCallType type) {
+    return type == LowerCallType::Sysv || type == LowerCallType::Win64;
+}
+
+/*
  * Whether a *program* may name this convention, which is a smaller set than the six.
  *
  * `system` is never a function's own convention - the kernel is the callee, and the convention

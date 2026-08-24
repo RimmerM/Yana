@@ -500,6 +500,20 @@ void printFunction(Net::Writer& writer, Context& context, LowerBase base, LowerF
     writer.writeString(context.findName(decl.name));
     writer.writeByte('<');
     writer.writeString(nameForCallType(decl.callType));
+
+    // The per-function markers beside the convention, and printed rather than merely honoured:
+    // without them a marked function and an unmarked one are the same text, so no golden could tell
+    // them apart and no fixture could ask for one. See nameForLegacySse and nameForForeignBoundary.
+    if(decl.legacyVectors) {
+        writer.writeString(", "_v);
+        writer.writeString(nameForLegacySse());
+    }
+
+    if(decl.foreignBoundary) {
+        writer.writeString(", "_v);
+        writer.writeString(nameForForeignBoundary());
+    }
+
     writer.writeByte('>');
     writer.writeByte('(');
     auto argIndex = 0;

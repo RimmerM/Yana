@@ -1,0 +1,55 @@
+# A block copy inside a function encoded without a vector prefix - see x64BlockExpansionFor in
+# target.h for the cap, and BlockCopyWide.lower for the same sizes unmarked.
+#
+# extensions: v3
+#
+# **This is a miscompile that was silent, pinned so that it stays fixed.** `@x86_legacy_sse` promises
+# that no instruction in the body carries a vector prefix, and `expandBlockOperations` used to take
+# its step from the target alone: at v3 that is thirty-two bytes, `typeForStep` makes anything from
+# sixteen up a packed type, and a wide vector has no legacy spelling to be chosen against. So a
+# thirty-two byte copy became a `vmovdqu` pair a few instructions from the unprefixed arithmetic it
+# was expanded beside - in the same register, which is the 140x alternating case rather than the
+# ~160 ns entry one. See `legacyVectorEncodings` in target.h for the first number.
+#
+# `checkLegacyVectorEncoding` could not have reported it and still cannot: it runs before
+# `kTransformPipeline` and the wide value does not exist yet. Moving it after would buy a diagnostic
+# that names the wrong thing - the author wrote a struct assignment, and there is no wide type in
+# their source to narrow - so the step is capped instead and there is nothing left to report.
+#
+# The marker is written in the function's own angle brackets beside the convention, which is the only
+# way a fixture can ask for one: `legacyVectors` is a `LowerFunction` field with no source here.
+#
+#   16      one `movdqu` pair, which was already correct - `packedNeedsVex` does read the flag, so
+#           only the *width* was ever wrong.
+#   32      the case. Two `movdqu` pairs where an unmarked function takes one `vmovdqu` pair.
+#   64      the ceiling follows the step: four pairs at sixteen bytes, and this is the largest copy
+#           still expanded at all, since `limit` is `step * pairs`.
+#   65      one byte past it, which is `rep movsb` - general registers, and no encoding to answer for.
+
+legacyCopy<complex, x86_legacy_sse>(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 16
+        copy %dst, %src, 32
+        copy %dst, %src, 64
+        copy %dst, %src, 65
+        ret
+    }
+}
+
+# The same fill, which shares the step for the reason BlockExpansion gives: the pattern is replicated
+# into a value once above the stores, so it is as wide as a transfer and capped with it.
+legacySet<complex, x86_legacy_sse>(%dst: Ptr) {
+    {
+        setpattern %dst, 32, 0
+        ret
+    }
+}
+
+# And the control, at the one size that distinguishes them. Unmarked and otherwise identical, so the
+# difference between the two blocks is the marker and nothing else.
+plainCopy(%dst: Ptr, %src: Ptr) {
+    {
+        copy %dst, %src, 32
+        ret
+    }
+}

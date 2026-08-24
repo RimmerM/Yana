@@ -110,19 +110,28 @@ lanes(%a: i32x8, %n: Int): Int {
 # preserves xmm3-15, so a return under it has just handed the caller its registers back and zeroing
 # their upper halves would destroy a value this function never named.
 #
-# So it stands at the two boundaries where the upper halves belong to nobody: before a call under a
-# foreign convention, whose callee may be legacy SSE compiled by something else entirely, and before
-# returning from a function that is itself foreign-entered. Both foreign conventions this backend
-# describes treat the upper halves as volatile - System V makes the whole file caller-saved, Win64
-# preserves the low 128 bits of xmm6-15 and nothing above them - so what it clears is free of meaning
-# to the other side either way.
+# So it stands at the two boundaries where the upper halves belong to nobody: before a call whose
+# callee may be legacy SSE compiled by something else entirely, and before returning from a function
+# something outside may have entered. Both foreign conventions this backend describes treat the upper
+# halves as volatile - System V makes the whole file caller-saved, Win64 preserves the low 128 bits of
+# xmm6-15 and nothing above them - so what it clears is free of meaning to the other side either way.
+#
+# **`foreign` in the marker list is what makes these boundaries, and the convention is not.** That is
+# the correction this section carries: the backend used to read `sysv` as meaning "the other side is
+# not mine", which held only while the sole reason to name a foreign ABI was to be reachable from
+# outside. `@convention(sysv)` ended it - `sha256CompressBlocks` names System V because the psABI
+# makes the vector file caller-saved, which is what makes its entry `X86.vzeroupper()` legal, and
+# nothing outside the program calls it. Nor is any of this an ABI requirement: System V says the
+# vector file is caller-saved and says nothing about what the upper halves contain at a boundary.
+# `vzeroupper` is a hedge against a microarchitectural penalty, so being wrong here is slow and never
+# wrong. See LowerFunction::foreignBoundary.
 #
 # `c5 f8 77` twice below: once in front of the call, once in front of the `ret`.
-foreignSink<sysv>(%x: Int): Int {
+foreignSink<sysv, foreign>(%x: Int): Int {
     { ret %x }
 }
 
-crossing<sysv>(%a: i32x8, %n: Int): Int {
+crossing<sysv, foreign>(%a: i32x8, %n: Int): Int {
     {
         %v = add %a, %a: i32x8
         %r = call_sysv foreignSink, %n: Int
@@ -132,11 +141,12 @@ crossing<sysv>(%a: i32x8, %n: Int): Int {
     }
 }
 
-# And the same shape under the compiler's own convention, which owes none: no instruction inside a
-# program built with AVX is a legacy SSE encoding, so nothing this compiler generates can pay for a
-# dirty upper half. `VectorVex.lower` is where that claim is asserted; here it is what the absence
-# below rests on. Nothing between these two functions differs but the convention, which is what makes
-# the pair the assertion rather than either one alone.
+# And the same shape with no boundary, which owes none: no instruction inside a program built with
+# AVX is a legacy SSE encoding, so nothing this compiler generates can pay for a dirty upper half.
+# `VectorVex.lower` is where that claim is asserted; here it is what the absence below rests on.
+# Nothing between these two functions differs but the marker, which is what makes the pair the
+# assertion rather than either one alone - and it is the marker rather than the convention, since a
+# `<sysv>` with no `foreign` beside it now owes nothing either.
 internalSink<complex>(%x: Int): Int {
     { ret %x }
 }
@@ -163,7 +173,7 @@ internal<complex>(%a: i32x8, %n: Int): Int {
 #
 # What it costs when the answer is conservative is three bytes at a boundary that already costs a
 # call. What it cost when it was wrong was silent.
-narrow<sysv>(%a: i32x4, %n: Int): Int {
+narrow<sysv, foreign>(%a: i32x4, %n: Int): Int {
     {
         %v = add %a, %a: i32x4
         %r = call_sysv foreignSink, %n: Int
@@ -180,11 +190,12 @@ narrow<sysv>(%a: i32x4, %n: Int): Int {
 # it run before the call and before the return, so a `vzeroupper` at either site would clear the top
 # half of the value being handed over rather than state nobody owns.
 #
-# Nothing in the IR reaches this from Yana source yet, no foreign convention being produced from one.
-# It is written down because the first `foreign` declaration naming a vector type is otherwise a
-# miscompile rather than a missing feature, and because the absence is only an assertion beside the
-# presence above it.
-wideResult<sysv>(%a: i32x8): i32x8 {
+# Nothing in the IR reaches this from Yana source yet: no declaration marks a boundary, and in a whole
+# program there is none to mark - `lowerProgram` sets the flag only where the compilation is not a
+# whole program. It is written down because the first `foreign` declaration naming a vector type is
+# otherwise a miscompile rather than a missing feature, and because the absence is only an assertion
+# beside the presence above it.
+wideResult<sysv, foreign>(%a: i32x8): i32x8 {
     {
         %v = add %a, %a: i32x8
         ret %v
@@ -193,7 +204,7 @@ wideResult<sysv>(%a: i32x8): i32x8 {
 
 # The argument side of the same rule, and the half of it that is *not* symmetric: the wide value is
 # dead by the time this function returns, so its own `ret` owes one where the call did not.
-wideArgument<sysv>(%a: i32x8, %n: Int): Int {
+wideArgument<sysv, foreign>(%a: i32x8, %n: Int): Int {
     {
         %v = add %a, %a: i32x8
         %r = call_sysv wideSink, %v: Int
@@ -201,7 +212,7 @@ wideArgument<sysv>(%a: i32x8, %n: Int): Int {
     }
 }
 
-wideSink<sysv>(%a: i32x8): Int {
+wideSink<sysv, foreign>(%a: i32x8): Int {
     {
         %l = vlane %a, 0: Int
         ret %l

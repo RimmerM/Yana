@@ -807,6 +807,31 @@ struct LowerFunction {
     bool legacyVectors = false;
 
     /*
+     * This function sits on a boundary with code this compiler did not generate: something outside
+     * may enter it, or - when there is a way to declare one - its body is outside and this is only
+     * the declaration.
+     *
+     * **A separate fact from the convention, and that separation is the point.** A convention is a
+     * table saying which registers carry what, and naming System V is a perfectly ordinary thing for
+     * an entirely internal function to do: `sha256CompressBlocks` does it because the psABI makes the
+     * vector file caller-saved, which is what makes its entry `X86.vzeroupper()` legal, and nothing
+     * outside the program calls it. The x64 backend used to read `callType` as though it answered
+     * this, and paid a `vzeroupper` at both ends of every call to that function for it.
+     *
+     * One flag for both directions rather than two, and conservative where they differ: a function
+     * marked here is treated as a boundary by its callers as well as by its own return, so an
+     * exported function this program also calls internally pays three bytes at those calls. That is
+     * the same direction the convention proxy was wrong in and a great deal narrower.
+     *
+     * Set by `lowerProgram` and false for every function of a whole program, which has exactly one
+     * entry the loader jumps to and no other way in - see `isExecutableMode`. What is missing is the
+     * **callback**: a Yana function whose address is handed to a foreign callee is entered from
+     * outside whatever mode built it, and there is no mechanism to produce one yet. See
+     * doc/spec/targets.md, where the foreign ABI is recorded as an open question.
+     */
+    bool foreignBoundary = false;
+
+    /*
      * Constant data emitted immediately in front of this function's entry point, or null.
      *
      * "Immediately" is the whole content of the field: a code generator may pad before the data but
