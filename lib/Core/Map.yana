@@ -77,7 +77,7 @@ pub fn scanLimitFor(entries: %Entry(k, v)) -> Size
 {-
    And the same question asked of a run of *keys*, which is the shape the JS row has.
 
-   Two names rather than one signature, because the two targets no longer store a key in the same
+   Two names rather than one signature, because the two targets do not store a key in the same
    place: native reaches it through the entry it is a field of, and JS has a run of nothing else. It
    is one intrinsic underneath - `emitScanLimit` unwraps an `Entry` where it finds one - and the two
    names are what keeps the unwrap unambiguous, since a *record key* is a record the way an entry is
@@ -400,10 +400,10 @@ pub fn clear(&self: Map(k, v)) -> {}:
    outright.
 
    **`Entry(&k, &v)` - the entry record applied at two borrows**, which is what a target with the key
-   and the value in separate runs can produce and a borrow of a whole entry is not. Reading is
-   unchanged from the borrow this used to yield: `entry.key` and `entry.value` are both places, and
-   neither half is copied. §4's `{k, &v}` is still not it, since a key read out by value would be a
-   move out of storage the map owns.
+   and the value in separate runs can produce and a borrow of a whole entry is not. It reads exactly
+   as a borrow of a whole entry does: `entry.key` and `entry.value` are both places, and neither
+   half is copied. §4's `{k, &v}` is not it, since a key read out by value would be a move out of
+   storage the map owns.
 
    **`keys` and `values` are not declared, and `drain` is not either.** The first two are one line
    each over this iterator - `for entry in pairs(m)` and the field - and the name `values` is already
@@ -458,9 +458,9 @@ instance (Hash(k)) Index(Map(k, v), k, v):
    **The key is a `->` and not a read**, which is the one place this member differs from `get` and
    `getMut` beside it. A lookup only *reads* the key it probes with, so those two take one by the
    borrow convention; an insert that misses **stores** it, and storage that outlives the call cannot
-   be borrowed. Written as a read this was a diagnostic inside the library rather than at the
-   assignment - `insert` declares `->key: k`, so the body handed borrowed storage to a sink - and it
-   was invisible for every key a copy answers for: `m[1] = 2` compiled and `m["a"] = 2` did not.
+   be borrowed. Written as a read it is a diagnostic inside the library rather than at the assignment
+   - `insert` declares `->key: k`, so the body hands borrowed storage to a sink - and it is invisible
+   for every key a copy answers for: `m[1] = 2` compiles and `m["a"] = 2` does not.
 -}
 pub class IndexInsert(c -> k, v):
   fn insertAt(&self: c, ->index: k, ->value: v) -> {}

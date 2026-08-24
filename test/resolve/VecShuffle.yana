@@ -1,0 +1,155 @@
+{-
+   `shuffle` and `shuffle2` - Design-Vector §3.3's general rearrangement, Design-Swizzle §13.
+
+   The rearrangements beside them - `reverse`, `rotate`, `alignLanes`, the interleaves - are each one
+   pattern built from the lane count, so none of them can be written wrong at a call site and none is
+   checked at one. These are the other kind: the pattern is *written*, its length is the result's lane
+   count, and both of those are what this file asserts.
+
+   **The pattern's length decides the result's width**, which is what makes one declaration serve
+   every one of them. `arrayShapeFor` is what lets a literal fill a parameter whose count is a
+   variable - the count is syntax, so the literal answers it - and without that the argument would
+   build an `Array(Int)` and fit nothing.
+
+   **Every pattern here is one this backend can emit**, which is not every pattern: a two-source
+   32-bit-lane shuffle is `shufps`, and `shufps` takes result lanes 0 and 1 from its *first* operand,
+   so a pattern stating the halves the other way round is the same permutation and no instruction.
+   The byte patterns are `pshufb` and have no such restriction - any permutation of one register.
+   Results narrower than a register are Design-Swizzle §14 and are deliberately absent.
+-}
+
+let &seed = 2 :: Int
+
+{-
+   One source, at a 32-bit lane - `pshufd`, whose control byte is the pattern itself.
+
+   The first assertion is the one worth having: a written pattern and the derived one that means the
+   same thing have to produce the same vector, so `reverse` is what `[3, 2, 1, 0]` is checked against
+   rather than a lane-by-lane reading of both.
+-}
+fn oneSource() -> Int:
+    let v = iota() :: Vec(U32, 4)
+
+    let backwards = shuffle(v, [3, 2, 1, 0])
+    let derived = reverse(v)
+
+    if lane(backwards, 0) != lane(derived, 0) then return -1
+    if lane(backwards, 3) != lane(derived, 3) then return -2
+    if lane(backwards, 0) != 3 then return -3
+
+    -- A repeat, which no named pattern spells: one lane broadcast, and a pair swapped into both
+    -- halves. Neither is a rotation, a reversal or an interleave.
+    let broadcast = shuffle(v, [2, 2, 2, 2])
+    if lane(broadcast, 0) != 2 then return -4
+    if lane(broadcast, 3) != 2 then return -5
+
+    let doubled = shuffle(v, [2, 3, 2, 3])
+    if lane(doubled, 0) != 2 then return -6
+    if lane(doubled, 2) != 2 then return -7
+    if lane(doubled, 3) != 3 then return -8
+
+    return 0
+
+{-
+   Two sources, whose lanes are numbered as one sequence - `lhs` supplying `0` through `n - 1` and
+   `rhs` the rest, which is `alignLanes`' order and `InstVecShuffle`'s own.
+
+   The window is the assertion that the numbering is the one the IR states: a run of four starting one
+   lane in is exactly what `alignLanes(above, below, 1)` answers, and the two are written against each
+   other rather than against a reading of the lanes.
+-}
+fn twoSources() -> Int:
+    let low = iota() :: Vec(U32, 4)
+    let high = (splat(10 :: U32) :: Vec(U32, 4)) + low
+
+    -- Two lanes of each, which is the shape `shufps` has.
+    let mixed = shuffle2(low, high, [1, 0, 7, 6])
+    if lane(mixed, 0) != 1 then return -1
+    if lane(mixed, 1) != 0 then return -2
+    if lane(mixed, 2) != 13 then return -3
+    if lane(mixed, 3) != 12 then return -4
+
+    {-
+       A window out of the pair, against the named pattern that means the same thing.
+
+       `alignLanes` takes the *later* vector first - `above` is operand zero and `below` is operand
+       one - so the semantic sequence is `low` followed by `high` while the pattern numbers `high`
+       first. Lanes 1 through 4 of that sequence are therefore indices 5, 6, 7 and 0, which is what
+       makes this one `palignr`. Written against `{low, high}` instead it is the same permutation and
+       a *wrapping* window, which is no instruction here - and which the matcher used to accept and
+       emit an out-of-range immediate for.
+    -}
+    let window = shuffle2(high, low, [5, 6, 7, 0])
+    let derived = alignLanes(high, low, 1)
+
+    if lane(window, 0) != lane(derived, 0) then return -5
+    if lane(window, 3) != lane(derived, 3) then return -6
+    if lane(window, 3) != 10 then return -7
+
+    return 0
+
+{-
+   A byte lane, which is the width the whole family was unreachable at - Design-Swizzle §13.3.
+
+   `narrowShuffleChoice` has the interleaves, `palignr`, `shufps` and `pshufd`, and every 8-bit-lane
+   pattern that is none of those was refused. `pshufb` expresses all of them, its control read out of
+   a pooled `.rodata` vector rather than an immediate, and `lowerByteLaneShuffles` is what materializes
+   one - so a byte permutation is an instruction here now and `reverse` at sixteen lanes compiles.
+-}
+fn byteLane() -> Int:
+    let v = iota() :: Vec(U8, 16)
+
+    -- The pattern the whole thing was wanted for: each four-byte group reversed, which is what
+    -- reading a big-endian word is and what `lib/Digest/Hardware.sha.yana` writes.
+    let swapped = shuffle(v, [3,2,1,0, 7,6,5,4, 11,10,9,8, 15,14,13,12])
+
+    if lane(swapped, 0) != 3 then return -1
+    if lane(swapped, 3) != 0 then return -2
+    if lane(swapped, 4) != 7 then return -3
+    if lane(swapped, 15) != 12 then return -4
+
+    -- All sixteen reversed, which is a byte pattern the named one now reaches too.
+    let backwards = reverse(v)
+    if lane(backwards, 0) != 15 then return -5
+    if lane(backwards, 15) != 0 then return -6
+
+    return 0
+
+-- A float lane, which shares every row with the integer one at this width and is asserted because
+-- the *domain* is what picks between `shufps` and `pshufd` rather than the pattern.
+fn floatLane() -> Int:
+    let v = shuffle(iota() :: Vec(Float, 4), [3, 2, 1, 0])
+
+    if lane(v, 0) != 3.0 then return -1
+    if lane(v, 3) != 0.0 then return -2
+
+    return 0
+
+{-
+   A pattern over a value the folder cannot see through, so that what runs is the instruction rather
+   than a constant the resolver answered.
+
+   Every vector above is built out of `iota` and `splat` of literals, which the folder settles whole -
+   the same reason `VecValue.yana` exists beside `VecOps.yana`. This one reads a mutable global.
+-}
+fn runtime(v: Vec(U32, 4)) -> Int:
+    let backwards = shuffle(v, [3, 2, 1, 0])
+    let mixed = shuffle2(v, backwards, [0, 1, 6, 7])
+
+    if lane(backwards, 0) != lane(v, 3) then return -1
+    if lane(mixed, 0) != lane(v, 0) then return -2
+    if lane(mixed, 2) != lane(v, 1) then return -3
+    if lane(mixed, 3) != lane(v, 0) then return -4
+
+    return 0
+
+fn main() -> Int:
+    let v = (iota() :: Vec(U32, 4)) + (splat(truncate(seed) :: U32) :: Vec(U32, 4))
+
+    if oneSource() != 0 then return oneSource()
+    if twoSources() != 0 then return twoSources() * 10
+    if byteLane() != 0 then return byteLane() * 100
+    if floatLane() != 0 then return floatLane() * 1000
+    if runtime(v) != 0 then return runtime(v) * 10000
+
+    return 314

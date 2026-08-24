@@ -89,17 +89,17 @@ pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
   -- **required to saturate**: an exponent past the type's range answers an infinity or a zero rather
   -- than wrapping back into the middle of it, which is what lets `exp` overflow correctly.
   --
-  -- `trunc` used to be a fifth, and is now a Core intrinsic beside `floor`, `ceil` and `round`:
-  -- every target has an instruction for it at every float width, so the question an instance was
-  -- answering is one the machine had already settled. See resolve/inst.def.
+  -- `trunc` is not a fifth: it is a Core intrinsic beside `floor`, `ceil` and `round`, because
+  -- every target has an instruction for it at every float width and an instance would be answering
+  -- a question the machine has already settled. See resolve/inst.def.
   fn scaleByExponent(value: a, exponent: a) -> a
   fn exponentOf(value: a) -> a
   fn significandOf(value: a) -> a
   fn infinity() -> a
 
   -- And the sixteen that are the same code for every instance, so they are defaults over the
-  -- kernels below rather than sixteen more bodies per instance. `floor`, `ceil` and `round` were
-  -- three more of them and are Core intrinsics now, for `trunc`'s reason.
+  -- kernels below rather than sixteen more bodies per instance. `floor`, `ceil` and `round` are not
+  -- among them: they are Core intrinsics, for `trunc`'s reason.
   fn mod(lhs: a, rhs: a) -> a = modulusOf(lhs, rhs)
   fn exp(value: a) -> a = expOf(value)
   fn exp2(value: a) -> a = exp2Of(value)
@@ -480,15 +480,13 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
    any useful sense. That takes away `bitcast` for exactly the type a JS number *is*, so the JS
    bodies are written in arithmetic instead.
 
-   **The *vector* instance is no longer split this way and this family still is**, which is worth
-   stating because the two now look inconsistent and are not. A vector `Bitcast` is decided by byte
-   width and is generated independently of that ladder, so `Vec(F64)` reaches `Vec(Long)` on both
-   targets and `Real(Vec(F64))` is written on it. The scalar rungs stay declined because these
-   bodies exist: arithmetic that costs a few `number` operations beats a `bigint` round trip, and
-   nothing here has to change to keep that.
+   **The *vector* instance is not split this way and this family is**, which looks inconsistent and
+   is not. A vector `Bitcast` is decided by byte width and is generated independently of that
+   ladder, so `Vec(F64)` reaches `Vec(Long)` on both targets and `Real(Vec(F64))` is written on it.
+   The scalar rungs stay declined because these bodies exist: arithmetic that costs a few `number`
+   operations beats a `bigint` round trip.
 
-   Two techniques, neither of them an approximation. `trunc` used to be a third - an add and a
-   subtract of 2^52 - and is a Core intrinsic now, `Math.trunc` being exactly what it always meant:
+   Two techniques, neither of them an approximation:
 
     - **The exponent** comes off by a ladder of five strides - 2^256, 2^64, 2^16, 2^4, 2 - each
       dividing until the value is under it. Twenty iterations at worst against the 1074 a stride of
@@ -535,7 +533,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
 
 @platform(native) fn infinityDouble() -> Double = bitcast(9218868437227405312 :: I64) :: Double
 
--- Overflow, which is the only spelling of an infinity left once the bitcast is gone. The product is
+-- Overflow, which is the only spelling of an infinity available without a bitcast. The product is
 -- folded at compile time and IEEE 754 says what it folds to.
 @platform(js) fn infinityDouble() -> Double = 1.0e308 * 10.0
 
@@ -602,13 +600,12 @@ fn powerOfTwoVecFloat(exponent: Vec(F32)) -> Vec(F32) =
    Only the double vector needs this. The float vector's conversions are `cvtdq2ps` and `cvttps2dq`
    and are one instruction each, so it keeps them.
 
-   **The whole `Vec(F64)` instance used to be `@platform(native)`, and is not any more.** `Vec(Long)`
-   had no JS form - a 64-bit integer is a `bigint` there - which took the reinterpretation every one
-   of these bodies is built on, so `Real(Vec(F64))` was a missing instance rather than a slow one.
-   That trade has been reversed: the lane is allowed (Design-Vector §7.3), the vector bitcast goes
-   through a `Float64Array`/`BigInt64Array` pair, and all four `Real` instances now exist on both
-   targets. What a JS program pays for this one is `bigint` arithmetic in the three bodies below
-   that reinterpret - which is what the scalar code it replaces would have cost anyway.
+   **The `Vec(F64)` instance is not `@platform(native)`**, though every body below is built on a
+   reinterpretation and a 64-bit lane on JS is a `bigint`. The lane is allowed there
+   (Design-Vector §7.3) and the vector bitcast goes through a `Float64Array`/`BigInt64Array` pair,
+   so all four `Real` instances exist on both targets. What a JS program pays for this one is
+   `bigint` arithmetic in the three bodies below that reinterpret - which is what the scalar code it
+   replaces would cost anyway.
 -}
 fn wholeVecDoubleBits(value: Vec(F64)) -> Vec(Long) =
     (bitcast(value + 4503599627370496.0) :: Vec(Long)) `and` 4503599627370495

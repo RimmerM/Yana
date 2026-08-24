@@ -293,6 +293,48 @@ static Maybe<PackedShuffleChoice> narrowShuffleChoice(LowerType type, Buffer<U8>
         if(isInterleave(pattern, lanes, true)) return Just(PackedShuffleChoice { kHigh[laneColumn(type)] });
     }
 
+    /*
+     * A window out of the two sources placed end to end - `palignr`, and `Core.alignLanes`.
+     *
+     * Recognized here rather than below the lane-width test because the instruction shifts *bytes*:
+     * it serves an `i8x16` and an `i64x2` alike, and the lane width appears only in the immediate.
+     * That is also why it sits after the interleaves and before `shufps` - an interleave is not a
+     * window, and a window is one of the two-source patterns `shufps` cannot express.
+     *
+     * The pattern this matches is `k, k+1, ...` read against the concatenation, which in this
+     * numbering is: the second operand supplies the low half, so entry `i` is `lanes + k + i` while
+     * that is below `2 * lanes` and `k + i - lanes` after it. `k = 0` never reaches here - it names
+     * one source and the branch above has already answered - so the immediate is never zero.
+     */
+    if(readsFirst && readsSecond) {
+        U32 start = pattern[0] >= lanes ? pattern[0] - lanes : pattern[0] + lanes;
+
+        /*
+         * The window has to *fit*, which is a bound on `start + lanes` and not on `start`.
+         *
+         * `start` is a lane of the concatenation and the window is `lanes` long, so the last lane it
+         * names is `start + lanes - 1` and the whole of it fits exactly when `start <= lanes`. That
+         * is also the range `alignLanes` admits - it refuses a `from` past the count for the same
+         * reason - and `start * width` is then at most sixteen bytes, which is what `palignr`'s
+         * immediate can mean.
+         *
+         * ~~`start < lanes * 2`~~ let a *wrapping* pattern through: the loop below reduces `k` modulo
+         * the concatenation, so `[1, 2, 3, 4]` at four lanes was read as the window at `start = 5`
+         * and emitted `palignr $20` - an immediate past the pair, which shifts zeros in. No named
+         * pattern can produce one (`reverse`, `rotate` and the interleaves are not windows, and
+         * `alignLanes` bounds its own start), so nothing reached it until `Core.shuffle2` let a
+         * pattern be written out.
+         */
+        auto window = start <= lanes;
+
+        for(U32 i = 0; i < lanes && window; i++) {
+            auto k = start + i;
+            window = pattern[i] == U8(k < lanes ? k + lanes : k - lanes);
+        }
+
+        if(window) return Just(PackedShuffleChoice { FormVAlign, U8(start * width), true });
+    }
+
     // An 8- or 16-bit lane has nothing else. `pshuflw` and `pshufhw` reach half a register each and
     // `pshufb` is SSSE3 and takes its pattern from a *vector*, which needs the constant pool this
     // tier has not opened to vectors yet.
@@ -835,6 +877,17 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
          */
         case LowerInst::X86Permute: {
             auto type = ((LowerInstX86Permute*)inst)->result.type;
+
+            /*
+             * The byte row, which is the *narrow* tier's and is `pshufb`. A byte lane's index and a
+             * byte offset are the same number, so "one index per lane" reads the same here as it
+             * does above - which is why `lowerByteLaneShuffles` emits this kind at a byte lane and
+             * at no other, rather than this row growing a second meaning for its indices.
+             */
+            if(laneBytes(type.lane) == 1) {
+                assertTrue(isWholePackedRegister(type) && !isWideVector(type));
+                return FormVByteShuffle;
+            }
 
             assertTrue(isWideVector(type) && laneBytes(type.lane) == 4);
             return isFloatVector(type) ? FormVPermuteF32 : FormVPermute32;
@@ -1380,7 +1433,21 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
                     return Just("no single instruction here expresses this lane pattern at 256 bits - every shuffle at this width works inside each 128-bit half, the only crossing is an exchange of whole halves, and the general permute reads one source where this pattern names two"_v);
                 }
 
-                return Just("no single instruction here expresses this lane pattern - `shufps` takes a run of lanes from each source and the interleaves take one of each, and an 8- or 16-bit lane has nothing beyond those"_v);
+                /*
+                 * ~~An 8- or 16-bit lane has nothing beyond those.~~ A **byte** lane has `pshufb`,
+                 * which expresses any permutation of one register and reads its control out of a
+                 * vector - so it is `lowerByteLaneShuffles` and a pooled constant rather than a
+                 * form, on exactly the terms `lowerWideLanePermutes` is let through above. Both of
+                 * the reasons the old text gave have expired: SSSE3 is inside the x86-64-v2 floor,
+                 * and `poolVectorConstants` opened `.rodata` to vectors.
+                 *
+                 * What is still refused: the two-source case, which is two `pshufb` and a `por`; and
+                 * a 16-bit lane, whose pattern is a byte pattern with the pairs written out and
+                 * which a program reaches today by bitcasting to `Vec(U8, 16)`.
+                 */
+                if(laneBytes(type.lane) == 1 && !type.isMask() && shuffleReadsOneSource(inst)) return {};
+
+                return Just("no single instruction here expresses this lane pattern - `shufps` takes a run of lanes from each source and the interleaves take one of each, a 16-bit lane has nothing beyond those, and the general byte permute reads one source where this pattern names two"_v);
             }
 
             return {};

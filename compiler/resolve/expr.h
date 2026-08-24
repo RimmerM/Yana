@@ -1241,6 +1241,9 @@ struct ExprResolver {
     // runs. Both call sites ask it - see expr_call.cpp.
     ModulePtr<Function> pushdownSignature(const OverloadSet& set);
 
+    // The one thing a generic signature may tell an array-literal argument - see the definition.
+    TypePtr arrayShapeFor(const Arg& parameter, const ast::Expr& argument);
+
     // Runs a deferred argument, here, in the block that is current now. This is the whole of what
     // `@lazy` means; everything else is about getting the argument to the point that calls this.
     ModulePtr<Value> force(const Deferred& deferred, TypePtr expected, LocationId source);

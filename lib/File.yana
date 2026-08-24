@@ -4,30 +4,27 @@ import Native
 
 {-
    ==========================================================================================
-   Files - Analysis-Library.md §2.9, ported from `File.h` and `File_Posix.cpp`.
+   Files - Analysis-Library.md §2.9.
    ==========================================================================================
 
-   **The whole of a program's I/O used to be `writeStandardOutput`**, and this is what stands
-   between that and a program that reads its input. Every operation here is `Result`-shaped, which
-   is what the C++ this comes from already was, so `?` reads the way §2.9 says it does:
+   Every operation here is `Result`-shaped, so `?` reads the way §2.9 says it does:
 
        let f = openFile(path, readAccess())?
        let n = readInto(f, buffer)?
 
-   Four things are deliberately not the shape the C++ has, each recorded where it is:
+   Four decisions about the surface, each recorded where it is:
 
-    1. **The handle has a `Drop` instance.** `File::close()` is explicit over there and an unclosed
-       descriptor is the standard leak; here the leak is unrepresentable. `close` still exists, for
-       the two things a drop cannot do - report the error, and close early.
-    2. **The positional and sequential reads are separate functions**, where C++ merges them behind
-       `Maybe<U64> offset = Nothing()`. They differ in whether the cursor moves, which is
-       observable, and the split is what lets `readAtInto` take `self` rather than `&self`.
-    3. **One iterator replaces `DirectoryWalker`, `walkDirectory` and `listDirectory`.** All three
-       are the same traversal in the C++ - a pull loop, a callback with a `void*` context, and a
-       cheaper callback with a `void*` context - and an `iter fn` is what a callback with a context
-       pointer *is*. It yields a `Result`, which the consumer reads with a `match` rather than with
-       `?`; see `entries` for why that is the honest shape and not the intended one.
-    4. **The 26 `const char*` / `const String&` overload pairs are 13 functions**, because there is
+    1. **The handle has a `Drop` instance**, so an unclosed descriptor - the standard leak of an
+       explicit-close API - is unrepresentable here. `close` still exists, for the two things a drop
+       cannot do: report the error, and close early.
+    2. **The positional and sequential reads are separate functions** rather than one pair behind an
+       optional offset. They differ in whether the cursor moves, which is observable, and the split
+       is what lets `readAtInto` take `self` rather than `&self`.
+    3. **One iterator serves the pull loop and both callback forms.** All three are the same
+       traversal, and an `iter fn` is what a callback with a context pointer *is*. It yields a
+       `Result`, which the consumer reads with a `match` rather than with `?`; see `entries` for why
+       that is the honest shape and not the intended one.
+    4. **One function per operation and not a `const char*` overload beside each**, because there is
        one string type.
 
    **`@platform(native)` is not written on any of these and the module is native-only anyway**: what
@@ -35,16 +32,16 @@ import Native
    A second platform is therefore one file of Native rather than sixty attributes here, which is what
    Analysis-Modules.md §2.5 makes a general rule.
 
-   `DynamicLibrary` from the same header is not ported. It is `dlopen` rather than a system call, so
-   there is nothing under it to write it in terms of.
+   `DynamicLibrary` is not here: it is `dlopen` rather than a system call, so there is nothing under
+   it to write it in terms of.
 -}
 
 {-
    What went wrong, as the closed set the kernel's numbers map onto.
 
-   Thirteen cases and not `errno`, which is the port's own decision and worth keeping: a program
-   branches on "was it there" and "may I have it", never on `EDQUOT` against `ENOSPC`. The numbers
-   are the platform file's and the mapping below is the only thing that reads them.
+   Thirteen cases and not `errno`: a program branches on "was it there" and "may I have it", never
+   on `EDQUOT` against `ENOSPC`. The numbers are the platform file's and the mapping below is the
+   only thing that reads them.
 -}
 pub data FileError = Unknown | NotFound | Corrupt | AccessDenied | NoMemory | NoResources
                    | NoBufferSpace | NoDiskSpace | InvalidInput | Unsupported | Exists | InUse | Ended
@@ -52,11 +49,11 @@ pub data FileError = Unknown | NotFound | Corrupt | AccessDenied | NoMemory | No
 {-
    The mapping, as a `match` - Analysis-Language.md §5.1.
 
-   It was nineteen `if code == err...` comparisons, and not because anyone preferred them: a bare
-   name in a pattern *binds*, so `match code: errNotFound -> NotFound` against nineteen `let`s would
-   have matched everything and bound the number, which is the one shape in this file that would have
-   compiled and been wrong. A type is what makes the alternatives constructors instead, and a
-   constructor in a pattern is a test.
+   Nineteen `if code == err...` comparisons is what this is without the type, and not because anyone
+   would prefer them: a bare name in a pattern *binds*, so `match code: errNotFound -> NotFound`
+   against nineteen `let`s would match everything and bind the number - the one shape in this file
+   that would compile and be wrong. A type is what makes the alternatives constructors instead, and
+   a constructor in a pattern is a test.
 
    The wildcard is the honest half of the answer either way: the kernel has two hundred numbers and
    `Errno` names nineteen, so `errnoOf` is partial and anything it declines is `Unknown`.
@@ -120,9 +117,9 @@ pub fn describeError(error: FileError) -> String = match error:
 
    A payload-free sum's `Show` is generated from the declaration - the constructor's name, and a
    bound that is the longest of them, which for these thirteen is `NoBufferSpace` at thirteen units.
-   What used to be here was that, written out: a thirteen-arm `match` mapping each constructor to a
-   string spelled the same way, which is a list that can drift from the declaration above it and had
-   no way to be checked against it.
+   Writing it out instead is a thirteen-arm `match` mapping each constructor to a string spelled the
+   same way, which is a list that can drift from the declaration above it with no way to be checked
+   against it.
 
    `describeError` stays, and the two are not the same function. This type has a *text* form and a
    *constructor* form, they are different answers, and only one of them is decided by the declaration.
@@ -131,7 +128,7 @@ pub fn describeError(error: FileError) -> String = match error:
 -}
 
 {-
-   How a file is opened, as the three questions `open` asks and the C++ asks in the same order.
+   How a file is opened, as the three questions `open` asks, in that order.
 
    `FileAccess` is a pair of flags rather than an enumeration because both may be set and neither
    need be; `CreateMode` is an enumeration because its four cases are exclusive. The three
@@ -148,10 +145,10 @@ pub data CreateMode = CreateAlways | CreateNew | OpenAlways | OpenExisting
 {-
    The extra flags, as a set of bits.
 
-   A record of eight booleans was written first and removed: seven of them are false at every call
-   site in the C++ corpus, and a defaulted `flags: Size = 0` says that in one character where a
-   record says it in eight fields. They are ored together - `fileAppend `or` fileUserPrivate` - and
-   the three permission ones are what `createAccess` reads.
+   Bits and not a record of eight booleans: seven of them are false at almost every call site, and a
+   defaulted `flags: Size = 0` says that in one character where a record says it in eight fields.
+   They are ored together - `fileAppend `or` fileUserPrivate` - and the three permission ones are
+   what `createAccess` reads.
 -}
 pub let fileUnbuffered = 1 :: Size
 pub let fileAppend = 2 :: Size
@@ -211,21 +208,19 @@ fn openFlagsOf(access: FileAccess, mode: CreateMode, flags: Size) -> OpenFlags:
    A kernel path is a NUL-terminated byte sequence and a `String` is a run and a live prefix, so
    every call that takes one takes a *copy* with the terminator appended. `terminated` is that copy.
 
-   **The address the copy hands out is rooted in the copy, and the signature says so.** That is the
-   whole of what this section used to be about, and Analysis-Language.md §1 is where it changed. A
-   raw pointer carries provenance exactly as a borrow does - the analysis had always computed which
-   argument an address came out of - and what was missing was that nothing *required* the signature
-   to declare it. `fn bytesOf(text: String) -> %U8` was accepted in silence, so
-   `openPath(bytesOf(terminated(p)), ...)` released the copy at the `bytesOf` call, `freeHeap` wrote
-   the free list's next pointer over the first eight bytes, and the open asked for a path beginning
+   **The address the copy hands out is rooted in the copy, and the signature has to say so.** A raw
+   pointer carries provenance exactly as a borrow does, but nothing *requires* an undeclared
+   signature to state it: `fn bytesOf(text: String) -> %U8` is accepted in silence, and then
+   `openPath(bytesOf(terminated(p)), ...)` releases the copy at the `bytesOf` call, `freeHeap` writes
+   the free list's next pointer over the first eight bytes, and the open asks for a path beginning
    with eight zero bytes - failing as `NotFound` rather than as a crash.
 
-   `return text` is the declaration, and it makes the nested form correct by construction: the drop
-   of what `terminated` built is placed after the call that reads through the pointer. What it
-   deleted is the layer of one-line helpers that used to stand in for it - `openAt`, `removeAt`,
-   `renameAt`, `makeDirectoryAt`, `removeDirectoryAt`, `pathInfoIn` and `linkInfoIn`, each a syscall
-   wrapper whose only job was to make the copy somebody's parameter - along with the rule that no
-   public function here may write `bytesOf` itself.
+   `return text` is that declaration (Analysis-Language.md §1), and it makes the nested form correct
+   by construction: the drop of what `terminated` built is placed after the call that reads through
+   the pointer. It is also why there is no layer of one-line syscall wrappers here - `openAt`,
+   `removeAt`, `renameAt`, `makeDirectoryAt`, `removeDirectoryAt`, `pathInfoIn`, `linkInfoIn` -
+   whose only job would be to make the copy somebody's parameter, and why no public function here
+   may write `bytesOf` itself.
 -}
 -- The units as bytes, which is what every path and buffer argument below hands the kernel. A
 -- string's own element type is `CodeUnit` now (see `StringData`), and the reinterpretation is what
@@ -240,8 +235,8 @@ fn terminated(path: String) -> String:
 
     return copy
 
--- `dir` and `name` joined by a separator, which is what a directory traversal needs and what the
--- C++ builds by hand into a 1024-byte buffer at three call sites.
+-- `dir` and `name` joined by a separator, which is what a directory traversal needs and what a
+-- caller without it builds by hand into a fixed buffer at every site that walks a tree.
 pub fn joinPath(dir: String, name: String) -> String:
     let &joined = newStringOfCapacity(length(dir) + length(name) + 1)
 
@@ -258,18 +253,19 @@ pub fn joinPath(dir: String, name: String) -> String:
    What `stat` answered.
    ==========================================================================================
 
-   **Three times and not four.** The C++ record has a `createdTime` which on Linux is filled in with
-   the *accessed* time, because `stat` has no creation time to report - only `statx` does, and only
-   on file systems that keep one. Reporting a time that is not the one the field names is worse than
-   not having the field, so what is here is the three `stat` really answers: when the contents were
-   last read, when they were last written, and when the inode itself last changed.
+   **Three times and not four.** There is no `createdTime`, because `stat` has no creation time to
+   report - only `statx` does, and only on file systems that keep one. The usual way to have the
+   field anyway is to fill it with the *accessed* time, and reporting a time that is not the one the
+   field names is worse than not having the field. So what is here is the three `stat` really
+   answers: when the contents were last read, when they were last written, and when the inode itself
+   last changed.
 
    Times are microseconds since the epoch in an `I64`, which is what Analysis-Library.md §3.1 says
    `Timestamp` will be - so a `Date` port has nothing to convert.
 
-   `isLink` can only be true through `linkInfo`, since every other path here follows links. That is
-   a real improvement on the C++, where the field exists, is computed, and is dead: `stat` follows,
-   so `S_ISLNK` of what it answers never holds.
+   `isLink` can only be true through `linkInfo`, since every other path here follows links. Computing
+   it from an ordinary `stat` would make it dead: `stat` follows, so `S_ISLNK` of what it answers
+   never holds.
 -}
 pub data FileInfo {size: I64, modifiedTime: I64, accessedTime: I64, changedTime: I64,
                    isLink: Bool, isDirectory: Bool}
@@ -282,10 +278,9 @@ fn microseconds(seconds: I64, nanos: I64) -> I64 = seconds * 1000000 + nanos / 1
 {-
    What `stat` answered, off the record it filled - Analysis-Language.md §5.2.
 
-   This was `wordAt(base, statSize)` and five more of the same: six offsets and a `%U8` walked with
-   arithmetic, which is a C structure layout described one addition at a time. `@layout(c)` on
-   Native's `FileStatus` is what makes the compiler hold the layout instead, so the six
-   constants and the three helpers that read through them are gone and the fields have names.
+   `@layout(c)` on Native's `FileStatus` is what makes the compiler hold the layout, so this reads
+   named fields rather than walking a `%U8` with six offset constants - a C structure layout
+   described one addition at a time.
 -}
 fn infoOf(status: FileStatus) -> FileInfo:
     let kind = kindOf(status.mode)
@@ -308,12 +303,12 @@ fn infoOf(status: FileStatus) -> FileInfo:
 
    **The bit says whether this value is the descriptor's owner**, and it is not ceremony - it was
    added after `standardOutput()` closed a test driver's own standard output. A `File` around fd 1
-   is an ordinary value: it is dropped at its last use like every other one, and the drop closed the
-   descriptor the *process* was given. Everything printed afterwards went nowhere, the exit status
-   stayed zero, and the failure looked like a truncated log. So a file this value did not open is
-   one it does not close, which is the same flag `DynamicLibrary::closeOnDestruct` carries in the
-   C++ for the same reason - and the reason it is worth having *here* is that the C++'s `File` has
-   no such distinction and its destructor would do exactly what this one did.
+   is an ordinary value: it is dropped at its last use like every other one, and the drop would
+   close the descriptor the *process* was given. Everything printed afterwards goes nowhere, the
+   exit status stays zero, and the failure looks like a truncated log. So a file this value did not
+   open is one it does not close - the same distinction a `closeOnDestruct` flag draws anywhere else
+   a handle can be inherited, and the reason it is worth having *here* is that a `File` without it
+   has a drop that runs on every one.
 
    `close` is not governed by the bit. Asking for it in so many words is a decision, and a program
    that closes its own standard output meant to; the flag is about the drop the program did not
@@ -327,13 +322,13 @@ instance Drop(File):
             closeFile(value.handle)
             return
 
--- A file that is not open, which is what the C++'s default constructor makes and what `openInto`
--- is normally called on. It owes a drop like any other `File`, and the drop does nothing.
+-- A file that is not open - the default a `File` field or a not-yet-opened local holds. It owes a
+-- drop like any other `File`, and the drop does nothing.
 pub fn closedFile() -> File = File {handle: -1, owned: True}
 
 {-
-   The two ways a descriptor from somewhere else becomes a file - the C++'s `explicit File(Size)`,
-   split by the question that constructor could not ask.
+   The two ways a descriptor from somewhere else becomes a file, split by the question a single
+   `File(handle)` constructor cannot ask.
 
    `adoptFile` is the one that takes responsibility: whatever produced the descriptor is done with
    it and this value's drop is what closes it. `borrowFile` is the one that does not, which is what
@@ -349,10 +344,10 @@ pub fn standardError() -> File = borrowFile(2)
 pub fn isOpen(self: File) -> Bool = self.handle >= 0
 
 {-
-   Opening one - the whole of `openFile`, `open` and their four `const char*` twins.
+   Opening one, and the only way to.
 
-   `mode` and `flags` are defaulted to what four of every five call sites in the C++ corpus wrote,
-   so `openFile(path, readAccess())` is the common case in full.
+   `mode` and `flags` are defaulted to what four of every five call sites want, so
+   `openFile(path, readAccess())` is the common case in full.
 -}
 pub fn openFile(path: String, access: FileAccess, mode: CreateMode = OpenAlways,
                 flags: Size = 0) -> Result(FileError, File):
@@ -360,20 +355,6 @@ pub fn openFile(path: String, access: FileAccess, mode: CreateMode = OpenAlways,
     if handle < 0 then return Err(errorOf(0 - handle))
 
     return Ok(adoptFile(handle))
-
-{-
-   `openInto` used to stand here, and Analysis-Language.md §2a is why it does not.
-
-   It was `File::open`, the member form the C++ has beside the static one, and it carried weight
-   this port never wanted it to: a `let` had one binding convention slot and two questions to answer
-   with it. `&` said the binding is writable and `->` said the value was taken out of a place
-   somebody else owns, and what `?` hands back is exactly such a place - so `let &file =
-   openFile(path, access)?` had no spelling, and every `&self` operation below was unreachable from
-   a file opened that way. This function existed to reach them.
-
-   `let &` now takes the value out where the source is a whole-value projection out of a temporary
-   nothing else names, which is what a `?` result is, so there is one way to open a file again.
--}
 
 {-
    Closing one early, and reporting what it said.
@@ -428,9 +409,9 @@ pub fn writeTextAt(self: File, at: I64, text: String) -> Result(FileError, Size)
 {-
    The cursor.
 
-   Both answer where it ended up, and both are a `Result` where the C++ silently reports a failed
-   seek as position zero - which is a real answer for a file that is at position zero, so the two
-   cases were indistinguishable.
+   Both answer where it ended up, and both are a `Result`. Reporting a failed seek as position zero
+   is the usual alternative, and it is a real answer for a file that is at position zero - so the
+   two cases would be indistinguishable.
 -}
 pub data SeekBase = FileStart | CurrentPosition | FileEnd
 
@@ -462,23 +443,16 @@ pub fn flush(&self: File) -> Result(FileError, {}) = checkedUnit(syncFile(self.h
 {-
    What the descriptor says about itself.
 
-   A `Result` rather than the C++'s zero-and-a-comment: `File::size()` answers 0 when the `fstat`
-   fails and `File::info()` answers a zeroed record with "this shouldn't fail unless something is
-   really wrong with the system" above it. An empty file and a bad descriptor are different answers
-   and a program that cares can now tell them apart.
+   A `Result` rather than a zero and a comment saying the `fstat` shouldn't fail. An empty file and a
+   bad descriptor are different answers, and a program that cares can tell them apart.
 -}
 {-
-   The three `stat` readers, and the buffer that is a local again.
+   The three `stat` readers, each one line and each owning its own buffer.
 
-   It used to be a `Run(U8)` *parameter*, and the note that stood here explained why: `slots(buffer)`
-   is a raw address and a run is an owner, so a body writing `let buffer = byteRun(statBytes)` and
-   then handing `slots(buffer)` to a syscall told the drop pass the run's last use was the `slots`
-   call - and whether that was a bug depended on where escape analysis had put the run.
-
-   Both halves of that are gone. `slots` declares `return self` (Analysis-Language.md §1), so the
-   address is rooted in the run whatever the body does with it; and the buffer is not a run at all
-   any more but a `FileStatus` the kernel fills, which is §5.2. What is left is three functions of
-   one line each, each of which owns its own buffer.
+   The buffer is a `FileStatus` the kernel fills (§5.2) rather than a `Run(U8)` the caller passes in,
+   and either way the address is safe to hand a syscall: `slots` declares `return self`
+   (Analysis-Language.md §1), so a raw address stays rooted in the run whatever the body does with
+   it.
 -}
 pub fn fileInfo(self: File) -> Result(FileError, FileInfo):
     let &status = FileStatus {}
@@ -538,14 +512,14 @@ pub fn moveFile(from: String, to: String) -> Result(FileError, {}) =
 {-
    Copying, as an open, a loop and two closes.
 
-   The C++ has `sendfile` here, which moves the bytes without them entering the process at all. That
-   is a syscall this layer does not have yet and it is worth having - the loop below is two copies
-   per block where `sendfile` is none - but it is a fast path for one platform rather than the
+   `sendfile` belongs here and moves the bytes without them entering the process at all. It is a
+   syscall this layer does not have yet and it is worth having - the loop below is two copies per
+   block where `sendfile` is none - but it is a fast path for one platform rather than the
    operation, so what is written is the portable form. The buffer is 64 KiB, which is where the
    syscall count stops mattering.
 
-   The target is created with the source's own permission bits in the C++; here it is created with
-   the ordinary ones, because reading them means a second `stat` field this record does not carry.
+   The target is created with the ordinary permission bits rather than the source's own, because
+   reading those means a second `stat` field this record does not carry.
 -}
 let copyBlock = 65536 :: Size
 
@@ -586,10 +560,10 @@ let directoryAccess = FileMode(511)
 {-
    Creating one, and every directory above it that does not exist yet.
 
-   The C++ recurses by writing a NUL over the last separator and calling itself, which needs a
-   mutable copy of the path and restores the byte afterwards. Here the recursion is on a *prefix
-   length*, so nothing is written over: `parentOf` is where the last separator is, and the substring
-   is built by the ordinary string operations.
+   The recursion is on a *prefix length*, so nothing is written over: `parentOf` is where the last
+   separator is, and the substring is built by the ordinary string operations. Recursing by writing
+   a NUL over the last separator is the other way, and it needs a mutable copy of the path and has
+   to restore the byte afterwards.
 -}
 fn parentOf(path: String) -> Size:
     let &at = length(path) - 1
@@ -623,7 +597,7 @@ pub fn createDirectory(path: String) -> Result(FileError, {}):
     let error = errorOf(0 - answer)
 
     -- Already there is not a failure, which is what makes this the "make sure it exists" operation
-    -- the C++ one is. Anything but a missing parent is.
+    -- rather than a bare `mkdir`. Anything but a missing parent is.
     if error is Exists:
         if directoryExists(path) then return Ok({})
         return Err(Exists)
@@ -643,13 +617,12 @@ pub fn removeDirectory(path: String) -> Result(FileError, {}) =
     checkedUnit(removeDirectoryPath(bytesOf(terminated(path))))
 
 {-
-   What a directory holds - `DirectoryWalker::Entry`, and the one shape the three C++ traversals
-   collapse into.
+   What a directory holds - the one shape all three traversals collapse into.
 
-   **The name is owned rather than borrowed.** Over there it is a `StringView` into the walker's
-   4 KiB buffer, invalidated when the callback returns and documented as such at every one of the
-   six declarations that hand one out; here it is a `String` the consumer may keep. That costs an
-   allocation per entry and removes the only rule those six comments had to state.
+   **The name is owned rather than borrowed.** The cheap form is a view into the walker's 4 KiB
+   buffer, invalidated when the callback returns and documented as such at every declaration that
+   hands one out; here it is a `String` the consumer may keep. That costs an allocation per entry
+   and removes the only rule those declarations would have to state.
 -}
 pub data DirectoryEntry {name: String, isDirectory: Bool}
 
@@ -660,19 +633,17 @@ let entryBlock = 4096 :: Size
 {-
    The traversal - §2.9's third design change, and the answer to "which of the three is this".
 
-   `DirectoryWalker::nextEntry`, `walkDirectory` and `listDirectory` are one function here. The pull
-   loop and the two callbacks-with-a-context are the same traversal written three ways because C++
-   cannot quantify over what the caller wants to do with an entry, and an `iter fn` is exactly a
-   callback with a context pointer - so all three are this, and `break` works in the loop body where
-   no callback could support it.
+   A pull loop, a callback with a context and a cheaper callback with a context are the same
+   traversal written three ways, and they are written three ways only where nothing can quantify
+   over what the caller wants to do with an entry. An `iter fn` is exactly a callback with a context
+   pointer - so all three are this, and `break` works in the loop body where no callback could
+   support it.
 
-   **It yields a `Result`, and §2.9's open question about that is now settled the other way.** An
-   `iter fn` has no way to end *with* an error - the last thing it can do is yield - so a failure
-   mid-traversal is a yielded `Err`, which is honest. What §2.9 expected to follow from that is that
-   `?` would unwrap it in the loop body, and it will not: a yielded value is *borrowed* for the
-   extent of the body, which is what makes a yield free, and `?` moves the payload out of it. An
-   entry owns its name, so `let it = entry?` is rejected as taking ownership of borrowed storage and
-   the consumer writes
+   **It yields a `Result`, and `?` will not unwrap it.** An `iter fn` has no way to end *with* an
+   error - the last thing it can do is yield - so a failure mid-traversal is a yielded `Err`, which
+   is honest. But a yielded value is *borrowed* for the extent of the body, which is what makes a
+   yield free, and `?` moves the payload out of it. An entry owns its name, so `let it = entry?` is
+   rejected as taking ownership of borrowed storage and the consumer writes
 
        for entry in entries(path):
            match entry:
@@ -680,14 +651,15 @@ let entryBlock = 4096 :: Size
                Err(e): ...
 
    That holds for any yielded payload with a teardown and is not specific to this iterator. It is
-   the cost the ordinary case pays for the failing one, and it is larger than the sketch assumed.
+   the cost the ordinary case pays for the failing one.
 
-   `.` and `..` are not yielded. The C++ hands them to its callback and every caller in that corpus
-   filters them; they name the directory itself and its parent rather than anything in it.
+   `.` and `..` are not yielded: they name the directory itself and its parent rather than anything
+   in it, and every caller would filter them.
 
    The descriptor is a `File` rather than a raw handle, so a consumer that stops early still closes
    it: the `break` returns out of this frame, and the drop runs where every other drop does. That is
-   the `Drop` instance paying for itself in the one place a C++ walker needed a destructor.
+   the `Drop` instance paying for itself in the one place a walker would otherwise need a
+   destructor.
 -}
 pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
     let handle = openPath(bytesOf(terminated(path)), openReadOnly `or` openDirectory, fileMode(0))
@@ -700,11 +672,9 @@ pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
         let dir = adoptFile(handle)
         let buffer = byteRun(entryBlock)
 
-        -- Read out of the run once, above the loop. It used to be inside it, because `slots` did not
-        -- declare where its result came from and the drop pass therefore placed the run's release at
-        -- the `slots` call - so a body that read the address once and then looped handed the block
-        -- back before the kernel wrote into it. `slots(return self)` is what fixed that
-        -- (Analysis-Language.md §1), and this is the hoist it paid for.
+        -- Read out of the run once, above the loop. `slots` declares `return self`
+        -- (Analysis-Language.md §1), so the address stays rooted in the run across the loop rather
+        -- than letting the drop pass release the block before the kernel writes into it.
         let base = slots(buffer)
         let &running = True
 
@@ -771,11 +741,9 @@ fn isSelfOrParent(record: %DirectoryRecord) -> Bool:
    Whole files.
    ==========================================================================================
 
-   Beyond the port - `File.h` has no such function - and the reason to write them here is
-   Analysis-Library.md's part 6, which names item 7 as "the point at which Yana can write a program
-   that reads its input". Without these that program is an open, a stat, an allocation, a read loop
-   and a close at every call site, and the compiler this library is measured against would write it
-   once and then copy it.
+   The reason to write them here is Analysis-Library.md's part 6, which names item 7 as "the point
+   at which Yana can write a program that reads its input". Without these that program is an open, a
+   stat, an allocation, a read loop and a close at every call site.
 
    **The read is one allocation and one `read` for a file whose size the `stat` knew**, which is
    every ordinary file. What makes that exact rather than optimistic is the loop: a file that grew

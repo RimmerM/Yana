@@ -31,13 +31,13 @@
    `setFreeListHead` by hand does not observe anything, it corrupts the free list. The first is a
    fact about the program and the second is an invariant nobody outside these forty lines can hold.
 
-   **One region used to be all there was**, and that made 4 MiB the whole heap a program could ever
-   have. It bit long before the number suggests, because a doubling container does not spend those
-   bytes once: growing to 2^k slots allocates every size class below it on the way, each freed to a
-   list that only ever hands blocks back at that same class, so the live array is the *last* block
-   and roughly as much again is dead behind it. `push` on an `[Int]` therefore stopped at 131072 -
-   the 1 MiB block that capacity fits in, plus ~1 MiB of abandoned smaller ones, leaving no room for
-   the 2 MiB the next doubling asked for.
+   **Regions chain**, and the reason is that one of them would make 4 MiB the whole heap a program
+   could ever have. That bites long before the number suggests, because a doubling container does
+   not spend those bytes once: growing to 2^k slots allocates every size class below it on the way,
+   each freed to a list that only ever hands blocks back at that same class, so the live array is
+   the *last* block and roughly as much again is dead behind it. `push` on an `[Int]` would stop at
+   131072 - the 1 MiB block that capacity fits in, plus ~1 MiB of abandoned smaller ones, leaving no
+   room for the 2 MiB the next doubling asks for.
 -}
 pub let heapRegionSize = 4194304 :: Size
 pub let heapClassCount = 32 :: Size

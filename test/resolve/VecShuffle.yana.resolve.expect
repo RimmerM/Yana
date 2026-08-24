@@ -1,0 +1,479 @@
+let image$base: () = <none>
+
+let &seed: Int = 2
+
+fn oneSource() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(U32)
+    %v3 = vwithlane %v1, 1, 1 : Vec(U32)
+    %v5 = vwithlane %v3, 2, 2 : Vec(U32)
+    %v = vwithlane %v5, 3, 3 : Vec(U32)
+    %backwards = vshuffle %v, %v, 3, 2, 1, 0 : Vec(U32)
+    %derived = vshuffle %v, %v, 3, 2, 1, 0 : Vec(U32)
+    %v22 = vlane %backwards, 0 : U32
+    %v25 = vlane %derived, 0 : U32
+    %v26 = cmp_ne %v22, %v25 : Bool
+    je %v26, b1, b2
+
+  b1:
+    %v30 = neg 1 : Int
+    ret %v30
+
+  b2:
+    jmp b3
+
+  b3:
+    %v35 = vlane %backwards, 3 : U32
+    %v38 = vlane %derived, 3 : U32
+    %v39 = cmp_ne %v35, %v38 : Bool
+    je %v39, b4, b5
+
+  b4:
+    %v43 = neg 2 : Int
+    ret %v43
+
+  b5:
+    jmp b6
+
+  b6:
+    %v48 = vlane %backwards, 0 : U32
+    %v51 = cmp_ne %v48, 3 : Bool
+    je %v51, b7, b8
+
+  b7:
+    %v55 = neg 3 : Int
+    ret %v55
+
+  b8:
+    jmp b9
+
+  b9:
+    %broadcast = vshuffle %v, %v, 2, 2, 2, 2 : Vec(U32)
+    %v71 = vlane %broadcast, 0 : U32
+    %v74 = cmp_ne %v71, 2 : Bool
+    je %v74, b10, b11
+
+  b10:
+    %v78 = neg 4 : Int
+    ret %v78
+
+  b11:
+    jmp b12
+
+  b12:
+    %v83 = vlane %broadcast, 3 : U32
+    %v86 = cmp_ne %v83, 2 : Bool
+    je %v86, b13, b14
+
+  b13:
+    %v90 = neg 5 : Int
+    ret %v90
+
+  b14:
+    jmp b15
+
+  b15:
+    %doubled = vshuffle %v, %v, 2, 3, 2, 3 : Vec(U32)
+    %v106 = vlane %doubled, 0 : U32
+    %v109 = cmp_ne %v106, 2 : Bool
+    je %v109, b16, b17
+
+  b16:
+    %v113 = neg 6 : Int
+    ret %v113
+
+  b17:
+    jmp b18
+
+  b18:
+    %v118 = vlane %doubled, 2 : U32
+    %v121 = cmp_ne %v118, 2 : Bool
+    je %v121, b19, b20
+
+  b19:
+    %v125 = neg 7 : Int
+    ret %v125
+
+  b20:
+    jmp b21
+
+  b21:
+    %v130 = vlane %doubled, 3 : U32
+    %v133 = cmp_ne %v130, 3 : Bool
+    je %v133, b22, b23
+
+  b22:
+    %v137 = neg 8 : Int
+    ret %v137
+
+  b23:
+    jmp b24
+
+  b24:
+    ret 0
+}
+
+fn twoSources() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(U32)
+    %v3 = vwithlane %v1, 1, 1 : Vec(U32)
+    %v5 = vwithlane %v3, 2, 2 : Vec(U32)
+    %low = vwithlane %v5, 3, 3 : Vec(U32)
+    %v9 = vsplat 10 : Vec(U32)
+    %high = add %v9, %low : Vec(U32)
+    %mixed = vshuffle %low, %high, 1, 0, 7, 6 : Vec(U32)
+    %v24 = vlane %mixed, 0 : U32
+    %v27 = cmp_ne %v24, 1 : Bool
+    je %v27, b1, b2
+
+  b1:
+    %v31 = neg 1 : Int
+    ret %v31
+
+  b2:
+    jmp b3
+
+  b3:
+    %v36 = vlane %mixed, 1 : U32
+    %v39 = cmp_ne %v36, 0 : Bool
+    je %v39, b4, b5
+
+  b4:
+    %v43 = neg 2 : Int
+    ret %v43
+
+  b5:
+    jmp b6
+
+  b6:
+    %v48 = vlane %mixed, 2 : U32
+    %v51 = cmp_ne %v48, 13 : Bool
+    je %v51, b7, b8
+
+  b7:
+    %v55 = neg 3 : Int
+    ret %v55
+
+  b8:
+    jmp b9
+
+  b9:
+    %v60 = vlane %mixed, 3 : U32
+    %v63 = cmp_ne %v60, 12 : Bool
+    je %v63, b10, b11
+
+  b10:
+    %v67 = neg 4 : Int
+    ret %v67
+
+  b11:
+    jmp b12
+
+  b12:
+    %window = vshuffle %high, %low, 5, 6, 7, 0 : Vec(U32)
+    %derived = vshuffle %high, %low, 5, 6, 7, 0 : Vec(U32)
+    %v86 = vlane %window, 0 : U32
+    %v89 = vlane %derived, 0 : U32
+    %v90 = cmp_ne %v86, %v89 : Bool
+    je %v90, b13, b14
+
+  b13:
+    %v94 = neg 5 : Int
+    ret %v94
+
+  b14:
+    jmp b15
+
+  b15:
+    %v99 = vlane %window, 3 : U32
+    %v102 = vlane %derived, 3 : U32
+    %v103 = cmp_ne %v99, %v102 : Bool
+    je %v103, b16, b17
+
+  b16:
+    %v107 = neg 6 : Int
+    ret %v107
+
+  b17:
+    jmp b18
+
+  b18:
+    %v112 = vlane %window, 3 : U32
+    %v115 = cmp_ne %v112, 10 : Bool
+    je %v115, b19, b20
+
+  b19:
+    %v119 = neg 7 : Int
+    ret %v119
+
+  b20:
+    jmp b21
+
+  b21:
+    ret 0
+}
+
+fn byteLane() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(U8)
+    %v3 = vwithlane %v1, 1, 1 : Vec(U8)
+    %v5 = vwithlane %v3, 2, 2 : Vec(U8)
+    %v7 = vwithlane %v5, 3, 3 : Vec(U8)
+    %v9 = vwithlane %v7, 4, 4 : Vec(U8)
+    %v11 = vwithlane %v9, 5, 5 : Vec(U8)
+    %v13 = vwithlane %v11, 6, 6 : Vec(U8)
+    %v15 = vwithlane %v13, 7, 7 : Vec(U8)
+    %v17 = vwithlane %v15, 8, 8 : Vec(U8)
+    %v19 = vwithlane %v17, 9, 9 : Vec(U8)
+    %v21 = vwithlane %v19, 10, 10 : Vec(U8)
+    %v23 = vwithlane %v21, 11, 11 : Vec(U8)
+    %v25 = vwithlane %v23, 12, 12 : Vec(U8)
+    %v27 = vwithlane %v25, 13, 13 : Vec(U8)
+    %v29 = vwithlane %v27, 14, 14 : Vec(U8)
+    %v = vwithlane %v29, 15, 15 : Vec(U8)
+    %swapped = vshuffle %v, %v, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12 : Vec(U8)
+    %v69 = vlane %swapped, 0 : U8
+    %v72 = cmp_ne %v69, 3 : Bool
+    je %v72, b1, b2
+
+  b1:
+    %v76 = neg 1 : Int
+    ret %v76
+
+  b2:
+    jmp b3
+
+  b3:
+    %v81 = vlane %swapped, 3 : U8
+    %v84 = cmp_ne %v81, 0 : Bool
+    je %v84, b4, b5
+
+  b4:
+    %v88 = neg 2 : Int
+    ret %v88
+
+  b5:
+    jmp b6
+
+  b6:
+    %v93 = vlane %swapped, 4 : U8
+    %v96 = cmp_ne %v93, 7 : Bool
+    je %v96, b7, b8
+
+  b7:
+    %v100 = neg 3 : Int
+    ret %v100
+
+  b8:
+    jmp b9
+
+  b9:
+    %v105 = vlane %swapped, 15 : U8
+    %v108 = cmp_ne %v105, 12 : Bool
+    je %v108, b10, b11
+
+  b10:
+    %v112 = neg 4 : Int
+    ret %v112
+
+  b11:
+    jmp b12
+
+  b12:
+    %backwards = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 : Vec(U8)
+    %v118 = vlane %backwards, 0 : U8
+    %v121 = cmp_ne %v118, 15 : Bool
+    je %v121, b13, b14
+
+  b13:
+    %v125 = neg 5 : Int
+    ret %v125
+
+  b14:
+    jmp b15
+
+  b15:
+    %v130 = vlane %backwards, 15 : U8
+    %v133 = cmp_ne %v130, 0 : Bool
+    je %v133, b16, b17
+
+  b16:
+    %v137 = neg 6 : Int
+    ret %v137
+
+  b17:
+    jmp b18
+
+  b18:
+    ret 0
+}
+
+fn floatLane() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(Float)
+    %v3 = vwithlane %v1, 1, 1 : Vec(Float)
+    %v5 = vwithlane %v3, 2, 2 : Vec(Float)
+    %v7 = vwithlane %v5, 3, 3 : Vec(Float)
+    %v = vshuffle %v7, %v7, 3, 2, 1, 0 : Vec(Float)
+    %v21 = vlane %v, 0 : Float
+    %v24 = cmp_ne %v21, 3 : Bool
+    je %v24, b1, b2
+
+  b1:
+    %v28 = neg 1 : Int
+    ret %v28
+
+  b2:
+    jmp b3
+
+  b3:
+    %v33 = vlane %v, 3 : Float
+    %v36 = cmp_ne %v33, 0 : Bool
+    je %v36, b4, b5
+
+  b4:
+    %v40 = neg 2 : Int
+    ret %v40
+
+  b5:
+    jmp b6
+
+  b6:
+    ret 0
+}
+
+fn runtime(%v: Vec(U32)) -> Int {
+  b0:
+    %backwards = vshuffle %v, %v, 3, 2, 1, 0 : Vec(U32)
+    %mixed = vshuffle %v, %backwards, 0, 1, 6, 7 : Vec(U32)
+    %v25 = vlane %backwards, 0 : U32
+    %v28 = vlane %v, 3 : U32
+    %v29 = cmp_ne %v25, %v28 : Bool
+    je %v29, b1, b2
+
+  b1:
+    %v33 = neg 1 : Int
+    ret %v33
+
+  b2:
+    jmp b3
+
+  b3:
+    %v38 = vlane %mixed, 0 : U32
+    %v41 = vlane %v, 0 : U32
+    %v42 = cmp_ne %v38, %v41 : Bool
+    je %v42, b4, b5
+
+  b4:
+    %v46 = neg 2 : Int
+    ret %v46
+
+  b5:
+    jmp b6
+
+  b6:
+    %v51 = vlane %mixed, 2 : U32
+    %v54 = vlane %v, 1 : U32
+    %v55 = cmp_ne %v51, %v54 : Bool
+    je %v55, b7, b8
+
+  b7:
+    %v59 = neg 3 : Int
+    ret %v59
+
+  b8:
+    jmp b9
+
+  b9:
+    %v64 = vlane %mixed, 3 : U32
+    %v67 = vlane %v, 0 : U32
+    %v68 = cmp_ne %v64, %v67 : Bool
+    je %v68, b10, b11
+
+  b10:
+    %v72 = neg 4 : Int
+    ret %v72
+
+  b11:
+    jmp b12
+
+  b12:
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = vsplat 0 : Vec(U32)
+    %v3 = vwithlane %v1, 1, 1 : Vec(U32)
+    %v5 = vwithlane %v3, 2, 2 : Vec(U32)
+    %v7 = vwithlane %v5, 3, 3 : Vec(U32)
+    %v8 = load seed : Int
+    %v9 = cast %v8 : U32
+    %v10 = vsplat %v9 : Vec(U32)
+    %v = add %v7, %v10 : Vec(U32)
+    %v12 = call oneSource : Int
+    %v15 = cmp_ne %v12, 0 : Bool
+    je %v15, b1, b2
+
+  b1:
+    %v17 = call oneSource : Int
+    ret %v17
+
+  b2:
+    jmp b3
+
+  b3:
+    %v20 = call twoSources : Int
+    %v23 = cmp_ne %v20, 0 : Bool
+    je %v23, b4, b5
+
+  b4:
+    %v25 = call twoSources : Int
+    %v28 = mul %v25, 10 : Int
+    ret %v28
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = call byteLane : Int
+    %v34 = cmp_ne %v31, 0 : Bool
+    je %v34, b7, b8
+
+  b7:
+    %v36 = call byteLane : Int
+    %v39 = mul %v36, 100 : Int
+    ret %v39
+
+  b8:
+    jmp b9
+
+  b9:
+    %v42 = call floatLane : Int
+    %v45 = cmp_ne %v42, 0 : Bool
+    je %v45, b10, b11
+
+  b10:
+    %v47 = call floatLane : Int
+    %v50 = mul %v47, 1000 : Int
+    ret %v50
+
+  b11:
+    jmp b12
+
+  b12:
+    %v53 = call runtime, %v : Int
+    %v56 = cmp_ne %v53, 0 : Bool
+    je %v56, b13, b14
+
+  b13:
+    %v58 = call runtime, %v : Int
+    %v61 = mul %v58, 10000 : Int
+    ret %v61
+
+  b14:
+    jmp b15
+
+  b15:
+    ret 314
+}

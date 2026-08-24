@@ -101,13 +101,10 @@ pub fn reserve(&self: Array(a), wanted: Size) -> {}:
 
    A reserve that could not get the room is a check that failed, and it is spelled as one.
 
-   It used to `return` instead: the array was left as it was, the element died here rather than being
-   leaked, and the caller was told nothing. That is a silent wrong answer - the array simply stops
-   growing and every push after it discards its argument - and it was reachable, because the heap was
-   a single 4 MiB region and an `[Int]` hit the end of it at 131072 elements (see `growHeap` in
-   Native, which is the reason that particular failure no longer happens). What is left is a genuine
-   refusal from the kernel or a `resize` past what `Count` can hold, and neither is something a
-   program can be allowed to walk past.
+   Returning instead would be a silent wrong answer: the array is left as it was, the element dies
+   here rather than being leaked, the caller is told nothing, and every push after it discards its
+   argument. What reaches this check is a genuine refusal from the kernel or a `resize` past what
+   `Count` can hold, and neither is something a program can be allowed to walk past.
 
    `checkCondition` and not a diagnostic with a message, on the same terms as every bounds check:
    what it says is 134 natively and a throw on JS, because a growth failure is reached from inside

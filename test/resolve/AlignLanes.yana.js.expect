@@ -1,0 +1,36 @@
+"use strict";
+// ResolveTest
+function digits(v) {
+  return (((Math.imul(v[0], 1000) >>> 0) + (Math.imul(v[1], 100) >>> 0) >>> 0) + (Math.imul(v[2], 10) >>> 0) >>> 0) + v[3] | 0;
+}
+
+function main() {
+  var above$0 = 0;
+  var above$1 = 1;
+  var above$2 = 2;
+  var below$1 = 11;
+  var below$2 = 12;
+  var below$3 = 13;
+  if (digits([10, 11, 12, 13]) !== 11233) {
+    return -1;
+  } else {
+    if (digits([above$0, above$1, above$2, 3]) !== 123) {
+      return -2;
+    } else {
+      if (digits([below$1, below$2, below$3, above$0]) !== 12330) {
+        return -3;
+      } else {
+        if (digits([below$2, below$3, above$0, above$1]) !== 13301) {
+          return -4;
+        } else {
+          if (digits([below$3, above$0, above$1, above$2]) !== 13012) {
+            return -5;
+          } else {
+            return digits([below$1, below$2, below$3, above$0]);
+          }
+        }
+      }
+    }
+  }
+}
+main();

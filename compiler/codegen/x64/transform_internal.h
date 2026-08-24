@@ -311,6 +311,7 @@ void foldConstantMasks(Context&, LowerBase base, LowerFunction& fun);
 void selectMaskedVectors(Context&, LowerBase base, LowerFunction& fun);
 void poolVectorConstants(Context& ctx, LowerBase base, LowerFunction& fun);
 void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun);
+void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun);
 void sinkVectorConstants(Context&, LowerBase base, LowerFunction& fun);
 void poolFloatConstants(Context& ctx, LowerBase base, LowerFunction& fun);
 

@@ -12,11 +12,11 @@
    portable number. It is the run's *live prefix*; `run.capacity` is what was allocated, and the two
    differ for exactly the reason they differ in an array.
 
-   **The bytes are an `Array(CodeUnit)`, and this is a one-field wrapper over it.** They used to be a
-   second record declared field for field identically - a run and a live prefix - which meant
-   `reserveString` and `reserve` were the same geometric growth written twice and `pushUnit` and
-   `push` the same store-and-bump. Now there is one of each, and copy-on-write is a `Run(a)` property
-   the string inherits rather than a rule anyone writes.
+   **The bytes are an `Array(CodeUnit)`, and this is a one-field wrapper over it** rather than a
+   second record declared field for field identically. A separate record means `reserveString` and
+   `reserve` are the same geometric growth written twice and `pushUnit` and `push` the same
+   store-and-bump; this way there is one of each, and copy-on-write is a `Run(a)` property the
+   string inherits rather than a rule anyone writes.
 
    `CodeUnit` and not `U8`, which is what makes `instance Chunked(String, CodeUnit)` in
    `Core/Ascii.native.yana` the true statement it reads as: a string *is* a container of this

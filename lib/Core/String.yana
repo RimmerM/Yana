@@ -251,9 +251,9 @@ instance Hash(String):
    being appended to - relocates by copying and freeing nothing, which is where copy-on-write happens.
 -}
 @platform(native) pub fn reserveString(&self: String, wanted: Size) -> {}:
-    -- The container's own growth, which is what this used to be a second copy of. `reserve` takes
-    -- the capacity to reach and this takes the amount to add, which is the only difference between
-    -- the two and the only thing left here.
+    -- The container's own growth, rather than a second copy of it here. `reserve` takes the
+    -- capacity to reach and this takes the amount to add, which is the whole difference between the
+    -- two.
     let target = stringDataMut(self)
     reserve(target.bytes, (target.bytes.length :: Size) + wanted)
 

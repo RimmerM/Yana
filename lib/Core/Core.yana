@@ -307,12 +307,12 @@ pub fn (Num(a)) /=(&target: a, amount: a) -> {}:
    `!`, `&&` and `||` - the three operators that ask about truth rather than about bits.
 
    **Plain functions over `Truth`, not members of a class, and they answer `Bool`.** That is the one
-   arrangement under which `if x` and `if !x` cannot disagree, and the arrangement exists because the
-   alternative was tried: they used to be defaults on a `Logic` class beside `and`/`or`/`not`, so
-   `!x` was the *complement* of `x` at `x`'s own type. For a `Bool` that is the same answer and
-   nothing showed; for a flags newtype whose `Truth` is "any bit set", `if empty` was False and
-   `if !empty` was True, because the complement of zero is every bit and every bit is non-zero. The
-   operator and the condition were reading the same value two different ways.
+   arrangement under which `if x` and `if !x` cannot disagree. The alternative - defaults on a
+   `Logic` class beside `and`/`or`/`not` - makes `!x` the *complement* of `x` at `x`'s own type. For
+   a `Bool` that is the same answer and nothing shows; for a flags newtype whose `Truth` is "any bit
+   set", `if empty` is False and `if !empty` is True, because the complement of zero is every bit
+   and every bit is non-zero. The operator and the condition read the same value two different
+   ways.
 
    So the split is C's, under names that read: `and`, `or`, `xor` and `not` are the bit operations
    and return the operand's type; these three are the truth operations and return `Bool`. Anything

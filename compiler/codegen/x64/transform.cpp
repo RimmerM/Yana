@@ -604,6 +604,10 @@ static const TransformPass kTransformPipeline[] = {
     // pass that builds a load does.
     { "lowerWideLanePermutes"_v,       lowerWideLanePermutes,       0, true },
 
+    // The narrow twin, in the same slot and for the same two reasons: it builds a `.rodata` load, so
+    // it stands below the pool and above `selectMemorySources`.
+    { "lowerByteLaneShuffles"_v,       lowerByteLaneShuffles,       0, true },
+
     // Directly behind it, so that what is left standing as an instruction is the set this can move:
     // everything with more than one distinct lane became a `.rodata` load one line up, and a load
     // has an address that would have to travel with it.

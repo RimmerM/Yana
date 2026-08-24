@@ -1,0 +1,21 @@
+{-
+   What `alignLanes` refuses - the two things about a window that are checked where it is written,
+   because below that point the pattern is a field of an instruction and there is nothing to point at.
+
+   Both are `rotate`'s rules at a different operation, and the second is where the two part company:
+   a rotation's distance wraps, so every number names a rotation, and a window's does not - a window
+   starting past the end of the pair names lanes that are not there.
+-}
+
+import Native
+
+fn computed(above: Vec(U32, 4), below: Vec(U32, 4), from: Int) -> Vec(U32, 4) =
+    alignLanes(above, below, from)
+
+fn pastTheEnd(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) =
+    alignLanes(above, below, 5)
+
+fn negative(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) =
+    alignLanes(above, below, -1)
+
+fn main() -> Int = 0

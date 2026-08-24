@@ -1,0 +1,45 @@
+
+swapWords<complex>(%v: i8x16): i8x16 {
+  b_0 {
+    %r = vshuffle %v, %v, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12: i8x16
+    ret %r
+  }
+}
+
+reversed<complex>(%v: i8x16): i8x16 {
+  b_0 {
+    %r = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0: i8x16
+    ret %r
+  }
+}
+
+window<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r = vshuffle %a, %b, 5, 6, 7, 0: i32x4
+    ret %r
+  }
+}
+
+
+--- codegen: swapWords ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v128$03020100070605040b0a09080f0e0d0c] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e279000527000000
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: reversed ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr [rip + $v128$0f0e0d0c0b0a09080706050403020100] uses=[] creates=[-]  => 
+  x86_permute uses=[-, xmm0] creates=[xmm0]  => c4e279000527000000
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: window ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => c4e3790fc104
+  ret uses=[xmm0] creates=[]  => c3

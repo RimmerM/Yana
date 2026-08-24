@@ -1252,6 +1252,114 @@ void lowerWideLanePermutes(Context& ctx, LowerBase base, LowerFunction& fun) {
 }
 
 /*
+ * A byte permutation nothing else expresses - `pshufb`, and the narrow twin of the pass above.
+ *
+ * `narrowShuffleChoice` recognizes the interleaves, `palignr`, `shufps` and `pshufd`, and then
+ * refuses every 8-bit-lane pattern that is none of them: "an 8- or 16-bit lane has nothing beyond
+ * those". `pshufb` is what it has beyond those, and the comment that said otherwise gave two reasons
+ * that have both since expired - SSSE3 is inside the x86-64-v2 floor this backend now names, and
+ * `poolVectorConstants` opened `.rodata` to vectors.
+ *
+ * What is left is the reason `lowerWideLanePermutes` above exists, said at the other width: the
+ * pattern is not part of the instruction. `pshufb` reads a *control vector*, one byte per result
+ * byte, so the pattern has to become a value before a form can name it - and a form cannot create
+ * operands. So this pass does, and what reaches selection is an `X86Permute` whose indices are
+ * already materialized.
+ *
+ * **A byte lane only.** At a byte lane a lane index and a byte offset are the same number, which is
+ * what lets this share `X86Permute` rather than restate what its indices mean. A 16-bit-lane pattern
+ * is the same instruction over a pattern with the pairs written out, and it is deliberately left:
+ * `bitcast(v) :: Vec(U8, 16)` is how a program reaches it today and is one instruction on neither
+ * side, so the gap costs a spelling rather than a facility.
+ *
+ * **One source, on the terms `lowerWideLanePermutes` states.** Two sources are two `pshufb` and a
+ * `por` - the out-of-range half of each control written as `0x80`, which is the byte `pshufb`
+ * defines as "write zero" - and whether that is worth three instructions and two pooled constants is
+ * the same question this pass declines to answer at the wide tier.
+ *
+ * **128 bits only.** `vpshufb ymm` permutes inside each 128-bit half independently, so a 32-lane
+ * pattern that crosses halves is not this instruction at all, and one that does not is served by the
+ * narrow row after the halves are split. Restricting here is what keeps that distinction out of the
+ * form table.
+ */
+void lowerByteLaneShuffles(Context& ctx, LowerBase base, LowerFunction& fun) {
+    auto& module = *fun.module;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::VecShuffle) continue;
+
+            auto shuffle = (LowerInstVecShuffle*)inst;
+            auto type = shuffle->result.type;
+
+            if(laneBytes(type.lane) != 1 || type.isMask()) continue;
+            if(!isWholePackedRegister(type) || isWideVector(type)) continue;
+
+            // An instruction already expresses it, which is cheaper by a pooled constant and a
+            // register - so this asks the same function the form selection will ask, rather than a
+            // restatement of it that could drift.
+            if(packedShuffleChoice(inst)) continue;
+
+            auto lanes = type.lanes();
+            auto pattern = shuffle->pattern();
+
+            // A shuffle whose result is a different width than its sources names lanes this cannot
+            // read against one register - see packedShuffleChoice, which refuses the same shape.
+            if(pattern.size() != lanes) continue;
+
+            /*
+             * Which of the two sources every entry names, and nothing if they name both. The IR
+             * numbers the second source's lanes from `lanes` upward, so this is one comparison per
+             * entry, and the answer is the operand `pshufb` will read.
+             */
+            auto second = pattern[0] >= lanes;
+            auto oneSource = true;
+
+            for(U32 k = 0; k < lanes && oneSource; k++) {
+                if((pattern[k] >= lanes) != second) oneSource = false;
+            }
+
+            if(!oneSource) continue;
+
+            // The control, one byte per result byte, holding the source byte it takes. At a byte
+            // lane that is the pattern entry itself, relative to the source it belongs to.
+            U8 bytes[kMaxVectorBytes] = {};
+            auto size = Size(type.byteWidth());
+
+            for(U32 k = 0; k < lanes; k++) {
+                bytes[k] = U8(second ? pattern[k] - lanes : pattern[k]);
+            }
+
+            auto global = pooledBytes(ctx, module, bytes, size);
+            auto address = new (fun.arena) LowerInstGlobal(StringId(), global - *module.arena);
+            auto load = new (fun.arena) LowerInstLoad(
+                &address->result - base, StringId(), type, U32(size), false
+            );
+
+            // Indices first, which is `LowerInstX86Permute`'s stated order and the one the wide pass
+            // above writes. `pshufb` names its operands the other way round and FormVByteShuffle is
+            // where that is reconciled - see the note on the row.
+            auto source = second ? shuffle->right : shuffle->left;
+            auto permute = new (fun.arena) LowerInstX86Permute(
+                shuffle->result.name, type, &load->result - base, source
+            );
+
+            insertInstAt(base, block, i, address);
+            insertInstAt(base, block, i + 1, load);
+            insertInstAt(base, block, i + 2, permute);
+
+            replaceAllUses(base, &shuffle->result, &permute->result);
+            removeInst(base, inst);
+
+            i += 2;
+        }
+    }
+}
+
+/*
  * §41.6 A vector constant defined above a call it is live across.
  *
  * `sumVectors` builds its zero accumulator at the top of the function and then calls `elements` to

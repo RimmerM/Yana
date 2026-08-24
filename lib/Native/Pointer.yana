@@ -29,18 +29,21 @@ pub fn *(it: %a) -> a
 
 -- Writes through a pointer. There is no assignment form for this because `*p = v` is already one:
 -- a dereference in assignment position names storage rather than producing a value.
-pub fn store(to: %a, value: a) -> {}
+--
+-- `->value`, because the value is what the pointee holds afterwards: the frame that owned it stops
+-- owing it a drop here, and this declaration is the only thing that says so - an intrinsic has no
+-- body for the ownership pass to read, so a hand-over it does not write down is one nothing sees.
+pub fn store(to: %a, ->value: a) -> {}
 
 -- The address of a value. A value this is applied to cannot stay in a register, so it is what
 -- forces storage to exist for something that would otherwise have had none.
 pub fn addressOf(it: a) -> %a
 
 {-
-   Reinterpreting a pointer - which is `Core.bitcast` and no longer three functions of this
-   module's own.
+   Reinterpreting a pointer - which is `Core.bitcast`, and not three functions of this module's own.
 
-   `cast(p)`, `asInt(p)` and `asPtr(n)` were three spellings of one operation, and none of them was
-   the spelling anything else in the language used. What replaces them is the instances below:
+   `cast(p)`, `asInt(p)` and `asPtr(n)` would be three spellings of one operation, and none of them
+   the spelling anything else in the language uses. The instances below are the whole surface:
    `bitcast(p) :: %b` between two pointer types, and `bitcast(p) :: I64` and `bitcast(n) :: %a`
    between an address and the integer holding it.
 

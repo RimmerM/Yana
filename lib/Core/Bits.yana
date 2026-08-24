@@ -110,8 +110,8 @@ pub class (Num(a), Ord(a)) Signed(a):
 -- `WideInt` is 53 bits in a 64-bit register, so which eight bytes its are is a question with no
 -- answer, and it is `Integral` all the same. A separate class is how a width says it has one.
 --
--- The instances for the integer types are generated - one `ByteSwap` instruction each - which is
--- what the eight bodies below the numeric instances used to be. See the note there, and `Endian` in
+-- The instances for the integer types are generated - one `ByteSwap` instruction each - rather than
+-- eight bodies written out below the numeric instances. See the note there, and `Endian` in
 -- resolve/intrinsic.cpp.
 pub class (Integral(a)) Endian(a):
   fn swapEndian(value: a) -> a

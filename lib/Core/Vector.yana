@@ -139,6 +139,54 @@ pub fn unpackLow(vector: Vec(a)) -> Vec(b)
 pub fn unpackHigh(vector: Vec(a)) -> Vec(b)
 pub fn packLanes(lhs: Vec(a), rhs: Vec(a)) -> Vec(b)
 
+{-
+   A window of `n` lanes out of the two vectors placed end to end - x86's `palignr`, ARM's `vext`.
+
+   `alignLanes(above, below, from)` is lane `from + i` of the sequence `below` followed by `above`,
+   so `from = 0` answers `below` unchanged and `from = n` answers `above`. What it is *for* is a
+   sliding window over a stream of vectors: a message schedule that needs `w[i-7]` where it has
+   `w[i-8..i-5]` and `w[i-4..i-1]` in two registers is exactly this, and it is one instruction on
+   both architectures that have one.
+
+   **The second operand is the *earlier* one**, which reads backwards until it is said out loud:
+   `below` supplies the low-numbered lanes of the concatenation, so it is the vector whose lanes come
+   first. That is the order x86's instruction has - `palignr xmm1, xmm2` shifts `xmm1:xmm2` right,
+   with `xmm2` at the bottom - and reversing it here would only put the difference somewhere less
+   visible.
+
+   `from` is a constant for `rotate`'s reason and states it the same way: the distance is the
+   instruction's own immediate, and a computed one is not an instruction on any target this compiles
+   to. A value at or past `2n` is refused rather than taken modulo anything, since unlike a rotation
+   there is nothing for it to wrap around to.
+-}
+pub fn (n: Int) alignLanes(above: Vec(a, n), below: Vec(a, n), from: Int) -> Vec(a, n)
+
+{-
+   The general rearrangement - Design-Vector §3.3, Design-Swizzle §13.
+
+   `shuffle(v, pattern)` answers lane `pattern[i]` of `v` in lane `i`, and `shuffle2(lhs, rhs,
+   pattern)` reads the same index against the two vectors placed end to end - `lhs` supplying lanes
+   `0` through `n - 1` and `rhs` the rest, which is `palignr`'s order and `alignLanes`' above.
+
+   **The pattern's length is the result's lane count**, which is what makes one declaration serve
+   every width: `shuffle(v, [1, 0])` on a four-lane vector answers a two-lane one with no ascription,
+   `shuffle(v, [0,1,2,3,0,1,2,3])` answers eight, and a sixty-four-lane permutation is a
+   sixty-four-entry literal. The count comes out of the literal because the literal's length is
+   syntax - see `arrayShapeFor` in resolve/expr_call.cpp, which is what lets a fixed-array literal
+   fill a parameter whose count is a variable.
+
+   `reverse`, `rotate` and the interleaves are the named patterns of this, kept as their own names
+   for the reason `rotate` gives: a pattern built from the lane count cannot be written wrong at a
+   call site, and one written out can. What this adds is the patterns that have no name.
+
+   **The pattern is a constant**, on exactly `rotate`'s terms and for its reason: it is a field of
+   the instruction on every target that has one, and a computed pattern is `pshufb` on x86 and
+   nothing at all elsewhere - a platform module's business. An entry naming a lane that is not there
+   is refused where it is written.
+-}
+pub fn (n: Int, m: Int) shuffle(vector: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
+pub fn (n: Int, m: Int) shuffle2(lhs: Vec(a, n), rhs: Vec(a, n), pattern: [Int *m]) -> Vec(a, m)
+
 pub fn (n: Int) reverse(vector: Vec(a, n)) -> Vec(a, n)
 pub fn (n: Int) rotate(vector: Vec(a, n), by: Int) -> Vec(a, n)
 pub fn (n: Int) interleaveLow(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)

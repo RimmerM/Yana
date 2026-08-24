@@ -113,13 +113,6 @@ import Native
    The argument's type has to be written at the call - `newArray(4, (i: Size) -> ...)` - because
    `a` is still open where the lambda is resolved and the parameter's function type has nothing
    concrete to hand down. A named function passed directly needs no annotation.
-
-   **`let ->next` is working around a defect and not expressing anything.** Written the obvious way,
-   `push(out, item(i))` reports *"this value has been moved out of and cannot be used again"* - but
-   only where `a` is still open. The identical loop over a concrete element type is accepted, so a
-   temporary a call produces inside a loop is being treated as one value across iterations on the
-   erased path alone, and naming it is what gives each iteration a local of its own. Remove the
-   binding once that is fixed; nothing else here depends on it.
 -}
 pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
     let &out = [] :: [a]
@@ -127,8 +120,7 @@ pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
 
     let &i = 0 :: Size
     while i < count:
-        let ->next = item(i)
-        push(out, next)
+        push(out, item(i))
         i = i + 1
 
     return out

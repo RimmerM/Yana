@@ -595,6 +595,41 @@ ModulePtr<Function> ExprResolver::pushdownSignature(const OverloadSet& set) {
     return count == 1 ? sole : nullptr;
 }
 
+/*
+ * A fixed-array parameter's *shape*, pushed into an array literal where a generic signature could
+ * otherwise tell it nothing.
+ *
+ * The refusal above is exact and stands: a generic function's parameter types are what the arguments
+ * are being resolved to decide, so pushing one down would answer a question the argument was asked.
+ * A `[T *n]` parameter has one part that is not such a question. Whether `[1, 2, 3]` builds a
+ * growable `Array(T)` or a fixed `[T *3]` is "chosen by the expected type and by nothing else" - see
+ * resolveArray - and the *count* is not chosen by it at all. That is resolveFixedArray's own
+ * doctrine said one step further: where the type states a count the two are compared, and where it
+ * states a variable the literal's length is the only opinion there is.
+ *
+ * So what goes down is the parameter's element type at the literal's own length, and only where the
+ * element decides nothing either: an element mentioning a variable would be exactly the pushdown
+ * this declines. `fn (n: Int) firstOf(xs: [Int *n])` accepts `firstOf([7, 8, 9])` because of this,
+ * and `Core.shuffle`'s lane pattern is what asked for it.
+ */
+TypePtr ExprResolver::arrayShapeFor(const Arg& parameter, const ast::Expr& argument) {
+    if(argument.kind != ast::Expr::Array || parameter.isMutableBorrow()) return nullptr;
+
+    auto declared = parameter.declaredType();
+    if(!declared || global[declared]->kind != Type::Array) return nullptr;
+
+    auto& array = *(ArrayType*)global[declared];
+    if(isGeneric(global, array.content)) return nullptr;
+
+    // A count the parameter states is the ordinary check and the declared type carries it; a count
+    // it leaves to a variable is the one the literal answers.
+    if(writtenCount(global, array.count)) return declared;
+
+    // By value, because `size` is not a const member - the list is a handle into the parse arena.
+    auto items = argument.arr;
+    return resolveFixedArrayType(module, array.content, U32(items.size()), argument.source);
+}
+
 // The instance of `typeClass` that serves `args`, and what selecting it bound its own type
 // variables to.
 ModulePtr<ClassInstance> ExprResolver::selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
@@ -1403,14 +1438,20 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
     // candidate's types may be pushed down and nobody else's. The extra clause is this site's alone
     // - a generic function's parameter types are exactly what the arguments are being resolved to
     // decide, so there is nothing there to push even when it is the only candidate.
-    auto declared = direct && !local[direct]->gen && pushdownSignature(set) == direct;
+    auto sole = direct && pushdownSignature(set) == direct;
+    auto declared = sole && !local[direct]->gen;
 
+    /*
+     * A *generic* sole candidate, whose parameter types may not be pushed down and whose fixed-array
+     * shapes may - see arrayShapeFor. The mapping is what both readings are indexed through, so it
+     * is built for either.
+     */
     // Which parameter of that sole candidate each written argument fills, which is the identity for
     // a call with no names in it and is what pushdown reads through where there are - `f(b: x)`
     // expects `b`'s type of its one argument. Only built where there is a signature to push down
     // from; `gatherOverloads` already established that it maps.
     ArgMapping pushdown;
-    if(declared) {
+    if(sole) {
         mapArguments(direct, toBuffer(names), callArgs.size() + leading, 0, set.name, expr.source,
                      false, pushdown);
     }
@@ -1503,17 +1544,20 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
             continue;
         }
 
-        auto filled = declared && position < pushdown.parameters.size() ? pushdown.parameters[position]
-                                                                        : ArgMapping::kDefaulted;
-        auto parameter = declared && filled < local[direct]->args.size()
+        auto filled = sole && position < pushdown.parameters.size() ? pushdown.parameters[position]
+                                                                     : ArgMapping::kDefaulted;
+        auto parameter = sole && filled < local[direct]->args.size()
             ? local[local[direct]->args.get(local, filled)] : nullptr;
 
         // A `&` parameter's type is deliberately not pushed down. What the argument has to produce
         // is storage to borrow, not a value of the parameter's type - so converting here would build
         // a temporary and then borrowArgument would be asked for a mutable borrow of something this
         // expression owns rather than of what was written.
-        auto expected = parameter && !parameter->isMutableBorrow() ? parameter->declaredType()
-                                                                   : TypePtr(nullptr);
+        auto expected = declared && parameter && !parameter->isMutableBorrow()
+            ? parameter->declaredType() : TypePtr(nullptr);
+
+        // The one thing a *generic* signature can tell an argument - see arrayShapeFor.
+        if(!expected && parameter) expected = arrayShapeFor(*parameter, arg->value);
 
         args[position] = resolveArgument(arg->value, expected);
     }

@@ -362,12 +362,11 @@ pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}:
    `moveMemory` branches at most four times for any short move and never iterates for one.
 
    {-
-      **The ladder is tested before the regions are, and the block operation has a length as well as
-      a disjointness test. Both are corrections, and both are about what the block operation costs.**
+      **The ladder is tested before the regions are, and the block operation has a length test as
+      well as a disjointness test.** Both are about what the block operation costs.
 
-      This used to ask "do the regions overlap" first and hand every disjoint move to `copyMemory`,
-      on the reading that a block operation is what a target has for exactly that. Measured, on
-      x86-64 where that was `rep movsb`, it was wrong twice over:
+      Asking "do the regions overlap" first and handing every disjoint move to the block operation
+      is the obvious arrangement, and on x86-64 where that is `rep movsb` it is wrong twice over:
 
       - **The instruction has a floor.** A `rep movsb` of one byte and of a hundred and twenty-eight
         cost the same seven cycles, where the ladder below costs one and a half. Every short disjoint
@@ -375,9 +374,9 @@ pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}:
       - **And it collapses when the destination is one to sixty-three bytes *above* the source** -
         sixteen to a hundred and thirty nanoseconds against 1.8, about a byte a cycle at a distance
         of one, because the fast-string engine refuses that window outright. A short move whose
-        regions merely *neighbour* each other is exactly the shape `distance >= count` used to send
-        there, and it was twenty times slower than glibc and fourteen times slower than the ladder
-        two branches further down.
+        regions merely *neighbour* each other is exactly the shape `distance >= count` admits, and
+        there it is twenty times slower than glibc and fourteen times slower than the ladder two
+        branches further down.
 
       Testing the length first fixes both, because the ladder is correct for *any* two addresses -
       both loads precede both stores, so there is no later read for a store to move under. And the
@@ -389,9 +388,9 @@ pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}:
       count` can only be a distance far outside the pathological window, so the collapse of §2 is
       unreachable from here.
 
-      **`copyMemory` is no longer what the disjoint path calls, and that is the one change here.**
-      It is the same ladder now, so calling it would be one dispatch to reach a second identical
-      one. What is called is `blockCopy`, which is what `copyMemory` used to be.
+      **The disjoint path calls `blockCopy` and not `copyMemory`.** `copyMemory` is the same ladder,
+      so calling it would be one dispatch to reach a second identical one; `blockCopy` is the block
+      operation underneath it.
 
       `test/bench/memmove/findings.md` is the standing measurement and `test/bench/memmove/run.py`
       reproduces it.

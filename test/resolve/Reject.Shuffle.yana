@@ -1,0 +1,37 @@
+{-
+   What `shuffle` and `shuffle2` refuse - Design-Vector §3.3, Design-Swizzle §13.1.
+
+   Three rules, and each is the vector family's existing one restated over a pattern that is now
+   *written* rather than derived. `reverse` and `rotate` build their patterns from the lane count, so
+   none of them can be written wrong at a call site; these can, and this is the file that says what
+   happens when they are.
+-}
+
+let &pattern = [3, 2, 1, 0] :: [Int *4]
+
+-- A pattern that is not a literal at the call. The lane pattern is a field of the instruction on
+-- every target that has one, so there is no value for a binding to hold - see `constantPattern`,
+-- which reads the entries out of the literal that carried them.
+fn computed() -> U32:
+    let v = iota() :: Vec(U32, 4)
+    return lane(shuffle(v, pattern), 0)
+
+-- A lane past the end of the one vector a `shuffle` reads. Four lanes are numbered 0 to 3, and a
+-- one-vector shuffle names its own source twice rather than reaching a second one.
+fn pastOneSource() -> U32:
+    let v = iota() :: Vec(U32, 4)
+    return lane(shuffle(v, [0, 1, 2, 4]), 0)
+
+-- A lane past the end of the two placed end to end, which is numbered 0 to 7 at four lanes each.
+fn pastTwoSources() -> U32:
+    let v = iota() :: Vec(U32, 4)
+    return lane(shuffle2(v, v, [0, 1, 2, 8]), 0)
+
+-- A negative entry, which is not a lane of anything. Written as a literal `-1`, which is a negation
+-- of a literal rather than a literal - `constantInteger` says why that distinction is worth having.
+fn negative() -> U32:
+    let v = iota() :: Vec(U32, 4)
+    return lane(shuffle(v, [0, 1, 2, -1]), 0)
+
+fn main() -> Int:
+    return truncate(computed() + pastOneSource() + pastTwoSources() + negative()) :: Int

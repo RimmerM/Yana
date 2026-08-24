@@ -83,16 +83,16 @@ pub fn unmapMemory(from: %U8, size: Size) -> Size = syscall2(sysMunmap, bitcast(
    whole reason this is a newtype rather than an `I64`.
 
    The two instances are *derived* - Analysis-Derive.md §3's `newtype` shape. What the clause expands
-   to is the four unwrap-apply-rewrap bodies and the one truthiness test that used to be written out
-   below it, and the reason it can be a clause rather than a compiler rule is that whether a wrapper
+   to is four unwrap-apply-rewrap bodies and one truthiness test, and the reason it can be a clause
+   rather than a compiler rule is that whether a wrapper
    is transparent to a class is the class's decision: `Bitwise` over a newtype is the content's
    `Bitwise` with the name put back on, and that sentence is true of `Bitwise` rather than of
    `OpenFlags`.
 
    `!flags` is deliberately not a thing this type has. `!` asks `Truth` and answers `Bool`, so it
    means "no bits set" wherever it appears; the complement is `not(flags)`, which is a different
-   question with a different name. Those used to be one operator, and `if empty` was False while
-   `if !empty` was True.
+   question with a different name. One operator for both is what makes `if empty` False while
+   `if !empty` is True.
 -}
 pub alias qualified OpenFlags = Size deriving (Bitwise, Truth)
 
@@ -209,9 +209,8 @@ pub data FileStatus {
 
    Three and not one, because which of them a program wants is a question about symbolic links and
    the answer differs per call site: `statPath` follows them, `statLink` reports the link itself, and
-   `statFile` asks about an open descriptor and so has no link to have an opinion about. The C++ this
-   is ported from has only the first and the third, which is why its `Info::isLink` could never be
-   true - see `linkInfo` in `File`.
+   `statFile` asks about an open descriptor and so has no link to have an opinion about. Without
+   `statLink` there is no way to answer `isLink` at all - see `linkInfo` in `File`.
 
    `&into` rather than an address, which is what moves the last piece of layout arithmetic out of
    `File`: the caller writes `let &status = FileStatus {}` and reads named fields off it afterwards,
@@ -286,11 +285,12 @@ pub data EntryKind = @value(4) EntryDirectory | @value(8) EntryRegular | @value(
 {-
    `lseek`'s three bases, as the enumeration they are - Analysis-Language.md §5.1.
 
-   `data Whence = FromStart | FromCurrent | FromEnd` already lowered to 0, 1 and 2 in declaration
-   order; what it could not do was *say* so, and the cost of that showed at exactly this boundary.
-   Turning one into the number the syscall takes was two compares and two selects computing the
-   identity function, because the mapping lived in a `match` nothing had reason to recognise.
-   `@value` pins it, `valueOf` is a cast, and `seekFile` can no longer be handed the wrong integer.
+   `data Whence = FromStart | FromCurrent | FromEnd` lowers to 0, 1 and 2 in declaration order on
+   its own; what it cannot do without `@value` is *say* so, and the cost of that shows at exactly
+   this boundary. Turning one into the number the syscall takes is then two compares and two selects
+   computing the identity function, because the mapping lives in a `match` nothing has reason to
+   recognise. `@value` pins it, `valueOf` is a cast, and `seekFile` cannot be handed the wrong
+   integer.
 -}
 pub data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
 
@@ -305,9 +305,9 @@ pub fn seekFile(handle: Size, offset: I64, whence: Whence) -> I64 =
    most here - `EDQUOT` at 122, `ENAMETOOLONG` at 36 - differ between them. So the whole of what a
    second platform has to restate lives in this file, and `File` names these rather than integers.
 
-   Nineteen `let`s became one type, and what that bought is not brevity: a `File` that maps errno to
-   its own closed set used to do it with nineteen `if code == err...` comparisons, because a bare
-   name in a pattern *binds* and `match code: errNotFound -> ...` would have matched everything.
+   One type rather than nineteen `let`s, and what that buys is not brevity: mapping errno onto
+   `File`'s own closed set from bare numbers takes nineteen `if code == err...` comparisons, because
+   a bare name in a pattern *binds* and `match code: errNotFound -> ...` would match everything.
    With a type there is a `match` to write, and the compiler checks it covers what it says it does.
 
    The set is open in practice - the kernel has two hundred numbers and this names nineteen - which

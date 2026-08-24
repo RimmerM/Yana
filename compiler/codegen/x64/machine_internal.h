@@ -189,6 +189,20 @@ enum: MachineFormId {
      * instruction have no form, and `selectFormForTarget` refuses one rather than reaching for a
      * neighbouring width.
      */
+    // The SHA extension, before the packed arithmetic rather than among it: these are seven distinct
+    // *instructions* where every row below is one operation at one lane width, so nothing about them
+    // is derived and nothing indexes them by a lane. `sha1rnds4`'s four round functions are one form
+    // whose trailing byte comes off the instruction - see packedTrailingByte.
+    // `palignr` - the window out of two vectors placed end to end. One form: it shifts *bytes*, so
+    // the lane width is in the immediate rather than in the opcode.
+    FormVAlign,
+
+    // `pshufb` - any byte permutation of one register, its pattern read out of a second *vector*
+    // rather than out of an immediate. Beside `palignr` because the two are the SSSE3 pair and
+    // neither has a lane width: both address bytes. See lowerByteLaneShuffles, which is what
+    // materializes the pattern, and OpVPermute, whose third row this is.
+    FormVByteShuffle,
+
     FormVAdd8, FormVAdd16, FormVAdd32, FormVAdd64, FormVAddF32, FormVAddF64,
     FormVSub8, FormVSub16, FormVSub32, FormVSub64, FormVSubF32, FormVSubF64,
     // The 32-bit lane is two rows because the machine changed its mind about it: `pmulld` is one

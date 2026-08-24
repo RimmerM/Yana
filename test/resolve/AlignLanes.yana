@@ -1,0 +1,57 @@
+{-
+   `alignLanes` - a window of `n` lanes out of two vectors placed end to end.
+
+   `palignr` on x86 and `vext` on ARM, and the one two-source rearrangement the portable set was
+   missing: `reverse` and `rotate` read one vector, the interleaves take one lane from each, and a
+   *window* - the shape a sliding schedule wants - was expressible as neither. `lib/Digest`'s SHA-256
+   message extension is what asked for it: `w[i-7]` where the caller holds `w[i-8..i-5]` and
+   `w[i-4..i-1]` in two registers is exactly this.
+
+   **The second operand supplies the low-numbered lanes**, which reads backwards until it is said
+   out loud and is the machine's own order: `palignr xmm1, xmm2` shifts `xmm1:xmm2` right with
+   `xmm2` at the bottom. Every case below is written so that the answer says which way round it is.
+
+   The distance is a constant, on `rotate`'s terms, and does not wrap: a window starting past the end
+   of the pair names lanes that are not there, which `Reject.AlignLanes.yana` asserts is refused.
+-}
+
+import Native
+
+-- `below` unchanged, which is the degenerate case at either end: a window at zero is the second
+-- operand and a window at the lane count is the first. Neither reads both, so neither is a
+-- `palignr` at all - `selectPackedForm` answers the one-source shuffle for both.
+fn atZero(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) = alignLanes(above, below, 0)
+fn atCount(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) = alignLanes(above, below, 4)
+
+-- And the three that read both, which are the rows the instruction exists for.
+fn byOne(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) = alignLanes(above, below, 1)
+fn byTwo(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) = alignLanes(above, below, 2)
+fn byThree(above: Vec(U32, 4), below: Vec(U32, 4)) -> Vec(U32, 4) = alignLanes(above, below, 3)
+
+-- A byte lane, which the instruction serves for nothing extra: it shifts *bytes*, so the lane width
+-- appears only in the immediate. Every other two-source shuffle in this backend is a 32- or 64-bit
+-- lane alone.
+fn bytesByFive(above: Vec(U8, 16), below: Vec(U8, 16)) -> Vec(U8, 16) = alignLanes(above, below, 5)
+
+fn digits(v: Vec(U32, 4)) -> Int =
+    truncate(lane(v, 0) * 1000 + lane(v, 1) * 100 + lane(v, 2) * 10 + lane(v, 3)) :: Int
+
+fn main() -> Int:
+    let above = iota() :: Vec(U32, 4)
+    let below = (iota() :: Vec(U32, 4)) + (splat(10 :: U32) :: Vec(U32, 4))
+
+    -- `above` is 0,1,2,3 and `below` is 10,11,12,13, so the concatenation is
+    -- 10,11,12,13,0,1,2,3 and a window at `k` is four lanes starting there.
+    if digits(atZero(above, below)) != 11233 then return -1      -- 10, 11, 12, 13
+    if digits(atCount(above, below)) != 123 then return -2       --  0,  1,  2,  3
+    if digits(byOne(above, below)) != 12330 then return -3       -- 11, 12, 13,  0
+    if digits(byTwo(above, below)) != 13301 then return -4       -- 12, 13,  0,  1
+    if digits(byThree(above, below)) != 13012 then return -5     -- 13,  0,  1,  2
+
+    -- The byte lane, read back one lane at a time: lane 5 of the concatenation is `below`'s lane 5.
+    let wide = bytesByFive(splat(7 :: U8) :: Vec(U8, 16), iota() :: Vec(U8, 16))
+    if (lane(wide, 0) :: Int) != 5 then return -6
+    if (lane(wide, 10) :: Int) != 15 then return -7
+    if (lane(wide, 11) :: Int) != 7 then return -8
+
+    return digits(byOne(above, below))

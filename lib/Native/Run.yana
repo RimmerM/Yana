@@ -42,10 +42,9 @@ pub alias Count = @bits(30) U32
 {-
    What releasing and growing this run mean, as the two questions that are actually asked.
 
-   `InstAlloc::storageFlag` chooses between four storage classes and this used to record all four,
-   which cost two bits and told nobody anything: nothing ever asks *which* class - `releaseRun` asks
-   "is this mine to hand back", and inline, frame and region storage answer no for three different
-   reasons that are none of a run's business.
+   `InstAlloc::storageFlag` chooses between four storage classes and this records none of them:
+   nothing ever asks *which* class - `releaseRun` asks "is this mine to hand back", and inline,
+   frame and region storage answer no for three different reasons that are none of a run's business.
 
    What is asked, and what one bit could not say, is the *second* question. `resize` relocates by
    replacing `items`, and a run whose slots are its owner's own bytes has no `items` to replace -
@@ -73,11 +72,11 @@ pub let maxCount = 1073741823 :: Size
    a *type* and pointer arithmetic already scales by exactly that - `from` is never read, only
    measured against.
 
-   **`Size` on both sides**, and the note that stood here said `I64` on the result and called the
-   two "a count and a byte quantity". They are the same kind of number: a byte count is bounded by
-   the address space, so it is the width of a pointer by definition rather than sixty-four bits by
-   habit - Analysis-Modules.md §4.2.1's second row. Writing the difference into the type is what
-   makes a thirty-two-bit target compute this in one register instead of two.
+   **`Size` on both sides**, and not `I64` on the result: a count and a byte quantity are the same
+   kind of number here, because a byte count is bounded by the address space and so is the width of
+   a pointer by definition rather than sixty-four bits by habit - Analysis-Modules.md §4.2.1's
+   second row. Writing that into the type is what makes a thirty-two-bit target compute this in one
+   register instead of two.
 -}
 pub fn byteSpan(from: %a, count: Size) -> Size =
     difference(bitcast(from) :: %U8, bitcast(from + count) :: %U8)

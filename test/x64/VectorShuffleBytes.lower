@@ -1,0 +1,48 @@
+# The general byte permutation - `pshufb`, and Design-Swizzle §13.3.
+#
+# `narrowShuffleChoice` has four families - the interleaves, `palignr`, `shufps` and `pshufd` - and
+# refused every 8-bit-lane pattern that is none of them. `pshufb` expresses all of them, and the two
+# reasons the refusal gave have both expired: SSSE3 is inside the x86-64-v2 floor this backend names,
+# and `poolVectorConstants` opened `.rodata` to vectors.
+#
+# So the pattern stops being part of the instruction and becomes a *value* - a pooled control vector,
+# one byte per result byte, loaded into a register of its own. `lowerByteLaneShuffles` is what does
+# that, on exactly the terms `lowerWideLanePermutes` does it at the wide tier: a form cannot create
+# an operand.
+#
+# What to read out of the bytes: each of the first two functions is a `global`, a `load` of the
+# control and one `x86_permute`, and the legacy encoding of that last one is `660f3800`.
+
+# Each four-byte group reversed, which is what reading a big-endian word is and what
+# `lib/Digest/Hardware.sha.yana` writes. Six lane operations before this existed, and one now.
+swapWords(%v: i8x16): i8x16 {
+    {
+        %r = vshuffle %v, %v, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12: i8x16
+        ret %r
+    }
+}
+
+# All sixteen reversed - `reverse` at a byte lane, which had no instruction here at all and so was
+# refused outright. It is the same one row as the pattern above; nothing about `pshufb` indexes a
+# named pattern.
+reversed(%v: i8x16): i8x16 {
+    {
+        %r = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0: i8x16
+        ret %r
+    }
+}
+
+# The window that is still `palignr`, and the reason it is in this file: the bound on it was wrong.
+#
+# `start` is a lane of the concatenation and the window is `lanes` long, so it fits exactly when
+# `start <= lanes`. The old test was `start < lanes * 2`, which let a *wrapping* pattern through and
+# emitted an immediate past the pair - `[1, 2, 3, 4]` here was read as the window at `start = 5` and
+# became `palignr $20`, which shifts in zeros. No named pattern can produce one, so nothing reached
+# it until a pattern could be written out. This is the one that is genuinely a window: pattern[0] is
+# 5, so `start` is 1 and the immediate is four bytes.
+window(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = vshuffle %a, %b, 5, 6, 7, 0: i32x4
+        ret %r
+    }
+}

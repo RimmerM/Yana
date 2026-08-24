@@ -1,0 +1,37 @@
+# The same byte permutations with AVX present - Design-Swizzle §13.3, Implementation-Vector §5.4.1.
+#
+# extensions: v3
+#
+# What this file exists to assert is that there is no *legacy* `pshufb` in a VEX build. Mixing the
+# two encodings costs a processor a dirty-upper-half penalty - `test/bench/hash/findings.md` measured
+# 140x for exactly that in the SHA loop - so the tier's rule is that every legacy vector form has a
+# prefixed alternative to select instead, and `machine_validate` fails a form that has none.
+#
+# `FormVByteShuffle` declares no twin of its own and needs none: the sweep in the form table's
+# constructor builds one out of every legacy vector form that is not `legacyOnly`, and `vpshufb` is
+# three-operand, so the twin also drops the tie the legacy row carries.
+#
+# The control still comes out of the pool. Under VEX it can fold into the addressing mode, a
+# VEX-encoded operand having no alignment requirement - which is the difference this file shows
+# against its baseline partner.
+
+swapWords(%v: i8x16): i8x16 {
+    {
+        %r = vshuffle %v, %v, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12: i8x16
+        ret %r
+    }
+}
+
+reversed(%v: i8x16): i8x16 {
+    {
+        %r = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0: i8x16
+        ret %r
+    }
+}
+
+window(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = vshuffle %a, %b, 5, 6, 7, 0: i32x4
+        ret %r
+    }
+}

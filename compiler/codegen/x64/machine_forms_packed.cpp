@@ -64,6 +64,63 @@ void MachineFormBuilder::registerPackedForms() {
         form.encoding.opcodeMap = map;
     };
 
+    /*
+     * `palignr xmm1, xmm2/m128, imm8` - SSSE3, and therefore inside the v2 floor.
+     *
+     * One row for every lane width, which is what makes it worth having: the instruction shifts the
+     * *concatenation of the two registers* right by a number of bytes, so what a lane is is entirely
+     * the immediate's business. `packedShuffleChoice` is what recognizes a window pattern and turns
+     * the lane offset into that byte.
+     *
+     * Destructive two-address like every other row here, and the operand order is the machine's:
+     * ModRM.reg is the *high* half of the concatenation and is also the destination.
+     */
+    {
+        auto& form = add(FormVAlign, OpVShuffle, "palignr xmm, xmm/m, imm8"_v);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+        form.defs.push(tiedDef(0, ClassXmm128));
+        form.encoding = sseRegRm(0x66, 0x0f, useRef(0), useRef(1), OperationWidth::FromResult);
+        form.encoding.opcodeMap = kOpcodeMap0F3A;
+        form.encoding.patternImmediate = true;
+    }
+
+    /*
+     * `pshufb xmm1, xmm2/m128` - `66 0F 38 00 /r`, SSSE3 - the general byte permutation.
+     *
+     * The one shuffle on this machine whose pattern is not part of the instruction. Result byte `i`
+     * is source byte `ctrl[i] & 15`, or zero where `ctrl[i]`'s top bit is set - so the pattern is a
+     * *value*, with a `.rodata` entry, a live range and a register of its own. `lowerByteLaneShuffles`
+     * is what turns a `VecShuffle` into one, for the reason `lowerWideLanePermutes` exists at the
+     * wide tier: a form cannot create an operand.
+     *
+     * **No feature bit.** SSSE3 is inside x86-64-v2 and this backend's floor is v2 - see the note on
+     * kFeatureBaseline, which is why a row here asks only which of the levels *above* the floor a
+     * target is. The comment in `narrowShuffleChoice` that called this SSSE3-and-unpooled predates
+     * both the floor being named and `poolVectorConstants` opening the pool to vectors.
+     *
+     * **The operand order is `LowerInstX86Permute`'s and not the machine's**, which is the one place
+     * this family departs from the rule the wide rows follow. That kind states indices first, and
+     * `vpermd` happens to agree because its indices are `vvvv`; `pshufb` does not, because its
+     * control is the r/m operand and the vector it permutes is both ModRM.reg and the destination.
+     * Reordering the *instruction* for one row would make its two producers disagree about what
+     * `indices` means, so the row is what bends: use 0 is the control and use 1 is the vector, the
+     * destination is tied to use 1, and the encoding names them the machine's way round.
+     *
+     * The control stays `regOrMem` so that the pooled load folds into the addressing mode where the
+     * encoding allows it - one instruction under VEX, and at the baseline the load stands, a legacy
+     * packed operand having to be aligned.
+     */
+    {
+        auto& form = add(FormVByteShuffle, OpVPermute, "pshufb xmm, xmm/m"_v);
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+        form.uses.push(anyReg(ClassXmm128));
+        form.defs.push(tiedDef(1, ClassXmm128));
+        form.encoding = sseRegRm(0x66, 0x00, useRef(1), useRef(0), OperationWidth::FromResult);
+        form.encoding.opcodeMap = kOpcodeMap0F38;
+    }
+
+
     // The integer widths of one operation, in lane order, and the two float ones. `0` for a lane
     // type the machine has no instruction for, which is a form this table does not build.
     packed(FormVAdd8,   OpVAdd, "paddb xmm, xmm/m"_v, 0x66, 0xfc);

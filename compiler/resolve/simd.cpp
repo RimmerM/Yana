@@ -2,6 +2,7 @@
 #include "builder.h"
 #include "intrinsic.h"
 #include "name.h"
+#include "edit.h"
 
 /*
  * The portable set - Design-Vector §3.3.
@@ -233,6 +234,115 @@ static ModulePtr<Value> emitAbs(ExprResolver& resolver, Buffer<ModulePtr<Value>>
  */
 using LanePattern = SmallArray<U8, 16>;
 
+/*
+ * The lane pattern a `shuffle` was written with - Design-Swizzle §13.1.
+ *
+ * Read back out of the literal that carried it, which is the one thing in this file that walks the
+ * IR rather than building it, and is worth saying why. A pattern is not a *value*: it is a field of
+ * the instruction on every target that has one, and there is no signature that can carry it except
+ * as an argument. So it arrives as a `[Int *m]` - `arrayShapeFor` is what makes the literal fill a
+ * parameter whose count is a variable - which resolves to a frame slot and one `InstAggregate`
+ * writing the entries into it, and this reads the entries and erases both.
+ *
+ * Erasing them is not tidiness. Every intrinsic here is one instruction "because reaching one must
+ * cost nothing *without an optimizer having run*", and a shuffle that left a stack slot and `m`
+ * stores behind would be the only one that did not keep that promise.
+ *
+ * The aggregate is found by the slot it writes rather than by position, because the only structural
+ * fact this may rely on is `resolveFixedArray`'s: the literal allocates and then fills, in the block
+ * that is current when the argument is resolved. A pattern argument written any other way - a
+ * binding, a global, a slice - has no aggregate to find and is refused by name.
+ */
+static bool constantPattern(ExprResolver& resolver, ModulePtr<Value> argument, U32 sources, U32 lanes,
+                            U32 results, LocationId source, LanePattern& pattern) {
+    auto& local = resolver.local;
+    auto reject = [&]() {
+        resolver.context.diagnostics.error("a lane pattern must be written as a literal at the call - it is the instruction's own field on every target that has one, and a computed pattern is a runtime shuffle, which is a platform module's business"_v,
+                                           source);
+        return false;
+    };
+
+    auto allocation = local[argument];
+    if(!allocation || allocation->kind != Value::Alloc || !resolver.current) return reject();
+
+    auto slot = ((InstAlloc*)allocation)->local;
+    auto block = local[resolver.current];
+    ModulePtr<InstAggregate> written = nullptr;
+
+    for(Size i = block->instructionCount(); i-- > 0;) {
+        auto instruction = block->instructionAt(local, i);
+        if((ModulePtr<Value>)instruction == argument) break;
+        if(local[instruction]->kind != Value::Aggregate) continue;
+
+        auto& aggregate = (InstAggregate&)*local[instruction];
+        if(aggregate.place.root != PlaceRoot::Local || aggregate.place.local != slot) continue;
+
+        written = (ModulePtr<InstAggregate>)instruction;
+        break;
+    }
+
+    if(!written) return reject();
+
+    auto& components = local[written]->components;
+    if(components.size() != results) return reject();
+
+    /*
+     * The entries in the order they were pushed, which is element order - see buildAggregate, whose
+     * components are one per element with the index as the step.
+     *
+     * `constantInteger` and not a bare `ConstInt` test, for the reason it exists: `-1` is a negation
+     * of a literal rather than a literal, and nothing folds it until long after this has had to
+     * decide. Read as one, a negative entry gets the range message it deserves instead of being
+     * reported as a pattern nobody wrote out.
+     */
+    for(Size i = 0; i < components.size(); i++) {
+        I64 index = 0;
+        if(!constantInteger(resolver, components.get(local, i).value, index)) return reject();
+
+        if(index < 0 || U64(index) >= U64(lanes) * sources) {
+            resolver.context.diagnostics.error("lane %@ is past the end of what this shuffle reads - %@"_v,
+                                               source, I32(index),
+                                               sources == 1
+                                                   ? "a one-vector shuffle names the lanes of its own source"_v
+                                                   : "a two-vector shuffle names the lanes of the two placed end to end"_v);
+            return false;
+        }
+
+        pattern.push(U8(index));
+    }
+
+    IrEditor editor(resolver.module, resolver.function);
+    editor.eraseInstruction((ModulePtr<Inst>)written);
+    editor.eraseInstruction((ModulePtr<Inst>)argument);
+
+    return true;
+}
+
+/*
+ * `shuffle` and `shuffle2` - the general rearrangement the named patterns below are cases of.
+ *
+ * The result's lane count is the pattern's length and comes out of the *type*, which the solve
+ * already bound from the literal - so this reads it rather than counting anything. What decides
+ * whether the count may differ from the source's is nothing here: `InstVecShuffle` states one entry
+ * per result lane and `verifyFunction` checks the entries against the source's, which is the form
+ * `unpackLow` already emits.
+ *
+ * A one-vector shuffle names its source twice, which is `shuffleBy`'s convention for every pattern
+ * in this file and is what keeps the numbering independent of how many sources were meant.
+ */
+template<U32 sources>
+static ModulePtr<Value> emitShuffle(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                    LocationId source, StringId name) {
+    auto lanes = vectorLanes(resolver.global, resolver.valueType(args[0]));
+    auto results = vectorLanes(resolver.global, type);
+    if(!lanes || !results) return nullptr;
+
+    LanePattern pattern;
+    if(!constantPattern(resolver, args[sources], sources, lanes, results, source, pattern)) return nullptr;
+
+    return shuffleBy(resolver, type, args[0], args[sources - 1], toBuffer(pattern), source, name);
+}
+
 static ModulePtr<Value> emitReverse(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                     LocationId source, StringId name) {
     auto lanes = vectorLanes(resolver.global, type);
@@ -273,6 +383,49 @@ static ModulePtr<Value> emitRotate(ExprResolver& resolver, Buffer<ModulePtr<Valu
     for(U32 i = 0; i < lanes; i++) pattern.push(U8((I64(i) + by) % I64(lanes)));
 
     return shuffleBy(resolver, type, args[0], args[0], toBuffer(pattern), source, name);
+}
+
+/*
+ * A window out of two vectors placed end to end - `palignr` on x86, `vext` on ARM.
+ *
+ * `below` supplies lanes `0` through `n - 1` of the concatenation and `above` supplies the rest,
+ * which is the operand order the x86 instruction has and is stated in the declaration for that
+ * reason. The pattern is therefore `from + i` read against a source numbering where `below` is the
+ * *second* operand - so the two arguments are handed to `shuffleBy` the way the machine names them
+ * and the pattern is what puts them the right way round.
+ *
+ * The distance is a constant on `rotate`'s terms, and unlike a rotation it does not wrap: a window
+ * starting past the end of the pair names lanes that are not there, so it is refused where it is
+ * written rather than taken modulo `2n`.
+ */
+static ModulePtr<Value> emitAlignLanes(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    auto lanes = vectorLanes(resolver.global, type);
+    if(!lanes) return nullptr;
+
+    I64 from = 0;
+
+    if(!constantInteger(resolver, args[2], from)) {
+        resolver.context.diagnostics.error("the start of an aligned window must be a constant - it is the instruction's own immediate, and a computed one is not an operation any target has"_v,
+                                           source);
+        return nullptr;
+    }
+
+    if(from < 0 || from > I64(lanes)) {
+        resolver.context.diagnostics.error("a window of %@ lanes starting at %@ runs past the end of the pair - the start is between 0 and %@"_v,
+                                           source, lanes, I32(from), lanes);
+        return nullptr;
+    }
+
+    // `above` is operand zero and `below` is operand one, so the concatenation's lane `k` is pattern
+    // entry `k + lanes` for `k` below the count and `k - lanes` above it.
+    LanePattern pattern;
+    for(U32 i = 0; i < lanes; i++) {
+        auto k = I64(i) + from;
+        pattern.push(U8(k < I64(lanes) ? k + I64(lanes) : k - I64(lanes)));
+    }
+
+    return shuffleBy(resolver, type, args[0], args[1], toBuffer(pattern), source, name);
 }
 
 // The two halves of a merge: the low halves of both sources interleaved, and the high halves. `high`
@@ -588,6 +741,9 @@ void defineVectorIntrinsics(Module& core) {
     attachIntrinsic(core, "round"_v, emitRounding<Value::Round>);
     attachIntrinsic(core, "fma"_v, emitFma);
 
+    attachIntrinsic(core, "shuffle"_v, emitShuffle<1>);
+    attachIntrinsic(core, "shuffle2"_v, emitShuffle<2>);
+    attachIntrinsic(core, "alignLanes"_v, emitAlignLanes);
     attachIntrinsic(core, "reverse"_v, emitReverse);
     attachIntrinsic(core, "rotate"_v, emitRotate);
     attachIntrinsic(core, "interleaveLow"_v, emitInterleave<false>);

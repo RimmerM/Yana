@@ -49,12 +49,8 @@ import Native
        @platform(js) instance Length(Array(a)):
            fn length(self: Array(a)) -> Size = hostLength(self.items)
 
-   One field load each, and the JS one had a second reason beyond the shared one: `hostLength` is an
-   `InstNative`, and `Value::Native` was not in `clonableKind`, so no call site could ever have seen
-   through `Length(Array(a)).length` however willing the inliner was made. That half has since been
-   closed - a host node is clonable now - and what is left is the shared argument, which is enough on
-   its own. `String`'s instances below are ordinary functions and stay in source, because neither of
-   those arguments is about them.
+   One field load each. `String`'s instances below are ordinary functions and stay in source,
+   because that argument is not about them.
 -}
 pub class Length(c):
   fn length(self: c) -> Size
@@ -140,11 +136,11 @@ instance Chunked(Flat(a), a):
    limitation rather than a decision about containers. `Chunked`'s member is an `iter fn`, and a
    *parametric* instance of one - which this would be, the count being a variable - cannot have its
    continuation result inferred when the body that selects it is compiled with specialization
-   declined: "cannot infer type argument $r of Chunked([a *n], a).chunks". So the two were written,
-   found to compile in a specialized build and fail in the erased one, and withdrawn. What wanted
-   them was `Digest`'s result type in `lib/Digest/`, and what it does instead is take a `Flat(U8)` -
-   which the conversion at the call already supplies - and ask the class for the one thing a generic
-   body cannot reach by conversion. See `Digest.finishInto`.
+   declined: "cannot infer type argument $r of Chunked([a *n], a).chunks". So the two compile in a
+   specialized build and fail in the erased one. What wants them is `Digest`'s result type in
+   `lib/Digest/`, and what it does instead is take a `Flat(U8)` - which the conversion at the call
+   already supplies - and ask the class for the one thing a generic body cannot reach by conversion.
+   See `Digest.finishInto`.
 
    `(n: Int)` is the context and `a` is introduced by the head, which is the instance form const
    generics landed with - see `Sized` in test/resolve/ConstGeneric.yana.
