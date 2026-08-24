@@ -93,34 +93,32 @@ main<complex>(): Int {
     %v_51 = alloca 8, 4: Ptr
     %v_52 = load %v_50, 4: Int
     store %v_50, 2, 4
-    store %v_51, 0, 4
-    %v_53 = add %v_51, 4: Ptr
-    store %v_53, 0, 4
-    %v_54 = call_complex opaqueU32, 305419896: Int
-    store %v_51, %v_54, 4
-    %v_55 = bswap %v_54: Int
-    %v_56 = cmp_eq %v_55, 2018915346: Int
-    %v_57 = select %v_56, 512, 0: Int
-    %v_58 = add %v_51, 4: Ptr
-    %v_59 = call_complex opaqueU32, 305419896: Int
-    %v_60 = bswap %v_59: Int
-    store %v_58, %v_60, 4
-    %v_61 = cmp_eq %v_60, 2018915346: Int
-    %v_62 = select %v_61, 1024, 0: Int
-    %v_63 = add %v_57, %v_62: Int
-    %v_64 = add %v_49, %v_63: Int
-    %v_65 = add %v_64, 2048: Int
-    %v_66 = call_complex opaqueU32, 305419896: Int
-    %v_67 = call_complex swapVia(U32), %v_66: Int
-    %v_68 = cmp_eq %v_67, 2018915346: Int
-    %v_69 = select %v_68, 4096, 0: Int
-    %v_70 = call_complex opaqueU64, 1: Long
-    %v_71 = call_complex swapVia(U64), %v_70: Long
-    %v_72 = cmp_eq %v_71, 72057594037927936: Int
-    %v_73 = select %v_72, 8192, 0: Int
-    %v_74 = add %v_69, %v_73: Int
-    %v_75 = add %v_65, %v_74: Int
-    ret %v_75
+    setpattern %v_51, 8, 0
+    %v_53 = call_complex opaqueU32, 305419896: Int
+    store %v_51, %v_53, 4
+    %v_54 = bswap %v_53: Int
+    %v_55 = cmp_eq %v_54, 2018915346: Int
+    %v_56 = select %v_55, 512, 0: Int
+    %v_57 = add %v_51, 4: Ptr
+    %v_58 = call_complex opaqueU32, 305419896: Int
+    %v_59 = bswap %v_58: Int
+    store %v_57, %v_59, 4
+    %v_60 = cmp_eq %v_59, 2018915346: Int
+    %v_61 = select %v_60, 1024, 0: Int
+    %v_62 = add %v_56, %v_61: Int
+    %v_63 = add %v_49, %v_62: Int
+    %v_64 = add %v_63, 2048: Int
+    %v_65 = call_complex opaqueU32, 305419896: Int
+    %v_66 = call_complex swapVia(U32), %v_65: Int
+    %v_67 = cmp_eq %v_66, 2018915346: Int
+    %v_68 = select %v_67, 4096, 0: Int
+    %v_69 = call_complex opaqueU64, 1: Long
+    %v_70 = call_complex swapVia(U64), %v_69: Long
+    %v_71 = cmp_eq %v_70, 72057594037927936: Int
+    %v_72 = select %v_71, 8192, 0: Int
+    %v_73 = add %v_68, %v_72: Int
+    %v_74 = add %v_64, %v_73: Int
+    ret %v_74
   }
 }
 

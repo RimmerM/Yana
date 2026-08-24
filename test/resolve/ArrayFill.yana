@@ -22,6 +22,10 @@
    reaches lowering with no array in it at all and the `.lower.expect` says nothing about the
    decision this fixture is about. `at(i)` is one `@noinline` call that hands back what it was
    given, and it is the whole reason the arrays survive to be lowered.
+
+   What is left as stores in the golden is therefore exactly what *cannot* collapse - a pattern that
+   is not one byte repeated, and a run of elements that are not all the same - rather than anything
+   about how big a fill has to be before it is worth collapsing.
 -}
 
 import Native
@@ -41,12 +45,17 @@ fn ones() -> Int:
     return lanes[at(7)] + (truncate(length(lanes)) :: Int)
 
 {-
-   A fill below `kFillPatternBytes`, which stays the stores it was written as.
+   A small fill, which collapses on the same terms a large one does.
 
-   Eight bytes is half the threshold, and the point is that the *answer* does not depend on which
-   side of it a fill lands on - only the instruction count does. `expandBlockOperations` would give
-   a fill this small the same stores anyway, so nothing is lost by leaving them where the forwarding
-   pass can still read them.
+   **How many bytes is not this pass's question**, and that is the whole of what this pins: the size
+   decision belongs to the target, exactly as it does for a whole-value copy, so `relocateWith` emits
+   a `LowerInstCopy` at every size and this emits a `SetPattern` at every size. `setLimit` and
+   `copyLimit` are one number and `expandBlockOperations` walks both kinds against it, so eight bytes
+   of `3` become one `setpattern` here and one eight-byte store on the machine - which is fewer
+   instructions than the eight one-byte stores the literal was written as, not more.
+
+   It is also the pattern that is not zero, which is worth having somewhere: `patternOfWidth`
+   replicates the byte, and the encoding this replaced stored the byte once and then seven zeroes.
 -}
 fn small() -> Int:
     let &pair = [3] :: [U8 *8]

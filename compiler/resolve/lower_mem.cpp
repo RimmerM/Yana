@@ -218,15 +218,6 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
 }
 
 /*
- * The bytes below which a fill stays the stores it was written as.
- *
- * `expandBlockOperations` gives a fill this small the same stores anyway - `stepWidth` caps the step
- * at the whole operation - so the exchange buys no instructions and costs `lower_forward` the fact
- * that it knows what is in each slot.
- */
-static constexpr U32 kFillPatternBytes = 16;
-
-/*
  * A run whose every element is the same byte, as one `SetPattern` - the block fill.
  *
  * `[0] :: [U8 *64]` is a fill written as one element, and the resolver expands it into the same
@@ -256,6 +247,17 @@ static constexpr U32 kFillPatternBytes = 16;
  *    `7 :: U32` does not, because `07 07 07 07` is not seven. Read off the constant rather than off
  *    the target's byte order, which does not enter: a value whose bytes are all equal reads the same
  *    either way, and one whose bytes are not is refused here.
+ *
+ * **How many bytes is not one of them**, which is the same answer `relocateWith` gives one line up:
+ * a whole-value copy becomes a `LowerInstCopy` at every size, and what it turns into is the target's
+ * business. `expandBlockOperations` walks both kinds in one pass against one policy - `setLimit` and
+ * `copyLimit` are the same number, and `setStep` and `copyStep` are - so a fill below the ceiling is
+ * unrolled to the widest transfer the machine has and one above it keeps the string instruction.
+ * There is nothing left here for a size to decide, and a second threshold in front of that one would
+ * be this file holding an opinion about a machine it cannot see.
+ *
+ * A run of one is still refused, and that is not a size rule: one element is already one store, so
+ * there is no run to collapse and `expandSet` would produce the very same instruction.
  */
 static bool lowerUniformFill(LowerContext& lower, LowerBlock& block, Function& function,
                              InstAggregate& aggregate) {
@@ -272,9 +274,6 @@ static bool lowerUniformFill(LowerContext& lower, LowerBlock& block, Function& f
 
     auto repr = lower.repr.of(value->type);
     if(!repr.scalarBits || isNarrowRepr(repr) || !repr.size || repr.stride != repr.size) return false;
-
-    auto bytes = U64(repr.size) * count;
-    if(bytes < kFillPatternBytes) return false;
 
     auto written = ((ConstInt*)value)->value;
     auto byte = written & 0xff;
@@ -304,7 +303,7 @@ static bool lowerUniformFill(LowerContext& lower, LowerBlock& block, Function& f
     if(!to) return false;
 
     block.addInst(lower.lower, new (lower.to.arena) LowerInstSetPattern(
-        to, immediate(lower, bytes), immediate(lower, byte, LowerType::Int32)));
+        to, immediate(lower, U64(repr.size) * count), immediate(lower, byte, LowerType::Int32)));
 
     return true;
 }
