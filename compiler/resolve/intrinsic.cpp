@@ -547,11 +547,11 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
 }
 
 /*
- * `Endian`, whose one method is one instruction - and which is generated here rather than written in
+ * `ByteSwap`, whose one method is one instruction - and which is generated here rather than written in
  * `lib/Core/` for the reason every other integer instance is.
  *
  * The class stays source, and that is the half worth keeping: a user's own type may be an instance
- * of it, and R1 admits one plain function per (name, arity) so a `swapEndian` per width could never
+ * of it, and R1 admits one plain function per (name, arity) so a `byteSwap` per width could never
  * have been eight functions. What was source and is not any more are the *bodies* - eight shift and
  * mask trees that every target then had to recognize again to reach the instruction it has.
  *
@@ -559,13 +559,13 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
  * `I8` have nothing to swap, and `WideInt` is 53 bits in a 64-bit register - which eight bytes a
  * 53-bit value's are is a question this operation has no answer to, so it keeps not having one.
  */
-ModulePtr<ClassInstance> defineEndian(Module& module, TypePtr type) {
-    IntrinsicMethod methods[] = { { "swapEndian"_v, 1, emitUnary<Value::ByteSwap> } };
-    return generateInstance(module, classNamed(module, "Endian"_v), { &type, 1 }, { methods, 1 });
+ModulePtr<ClassInstance> defineByteSwap(Module& module, TypePtr type) {
+    IntrinsicMethod methods[] = { { "byteSwap"_v, 1, emitUnary<Value::ByteSwap> } };
+    return generateInstance(module, classNamed(module, "ByteSwap"_v), { &type, 1 }, { methods, 1 });
 }
 
 // Whether a type is one this operation has an answer for - a whole number of bytes, and the whole of
-// the value. See defineEndian, and the `ByteSwap` row in inst.def.
+// the value. See defineByteSwap, and the `ByteSwap` row in inst.def.
 bool isByteSwappable(GlobalBase global, TypePtr type) {
     if(global[type]->kind != Type::Int) return false;
 
@@ -616,7 +616,7 @@ static ModulePtr<Value> emitBitWidth(ExprResolver& resolver, Buffer<ModulePtr<Va
 
 /*
  * `Bits`, whose four methods are three instructions and a subtraction - generated here beside
- * `Endian`, and for every one of its reasons.
+ * `ByteSwap`, and for every one of its reasons.
  *
  * The class stays source, which is the half worth keeping: a newtype over a word is a plausible
  * instance of it and R1 admits one plain function per (name, arity), so a `countBits` per width

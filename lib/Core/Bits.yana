@@ -111,16 +111,73 @@ pub class (Num(a), Ord(a)) Signed(a):
 -- answer, and it is `Integral` all the same. A separate class is how a width says it has one.
 --
 -- The instances for the integer types are generated - one `ByteSwap` instruction each - rather than
--- eight bodies written out below the numeric instances. See the note there, and `Endian` in
+-- eight bodies written out below the numeric instances. See the note there, and `defineByteSwap` in
 -- resolve/intrinsic.cpp.
-pub class (Integral(a)) Endian(a):
-  fn swapEndian(value: a) -> a
+pub class (Integral(a)) ByteSwap(a):
+  fn byteSwap(value: a) -> a
+
+{-
+   Which end of a word the low byte goes at, as a value.
+
+   Two names and nothing else, which is what the two answers are. The numbering is pinned because
+   the compiler agrees with it from the other side - `ReprTable::metric` answers `Target.byteOrder`
+   with these numbers - so it is a fact this declaration is depended on for rather than one it
+   happens to have, which is `Weekday`'s reason at a different scale.
+
+   `Endian` and `ByteSwap` above are deliberately different words for what a reader might take to be
+   one subject, and the split is the same one the class comment argues: a *width* either has bytes to
+   reverse or does not, which is what joining `ByteSwap` says, while a *target* has an order, which
+   is what this names. `WideInt` is the value of the distinction - it is `Integral`, it has no byte
+   order of its own, and it runs on a machine that does.
+-}
+pub data Endian = @value(0) Little | @value(1) Big
+
+{-
+   **`Target.byteOrder` is a constant of this type**, and it is not declared here because it cannot
+   be: its value is not one the resolver has. One resolution of this library serves every target, so
+   a byte order is no more answerable at this stage than how wide a `Size` is - the read becomes a
+   `byteorder` metric in the IR and whichever target is about to emit folds it to `Little` or `Big`.
+
+   So it is supplied by the compiler, exactly as `Int` and `Size` are, and `addTargetConstant` in
+   resolve/core.cpp is where it and its documentation live. What that buys a program is that
+   `Target.byteOrder == Big` costs nothing at all and the arm it guards is gone before any machine
+   sees it - which is the whole reason `bigEndian` below is written over it rather than as a
+   `@platform` body per order.
+
+   **On the JS target the answer is `Little`**, which is the order a `Uint32Array` overlaid on a
+   `Uint8Array` reads on every machine a host runs on. A host array of bytes has no word order of its
+   own, so what it reports there is the machine underneath rather than the language on top - and the
+   word readers in `Container.yana` never ask, since `DataView` takes the order it wants as an
+   argument.
+-}
+
+{-
+   A value's bytes in a stated order, and the same function back again.
+
+   **Each is its own inverse**, which is why there is no `toBig` beside `fromBig`: reversing bytes
+   twice is the identity, so one name serves the read and the write, and two names for one function
+   would only invite a caller to wonder which direction it is in. `bigEndian(v)` is "`v` with its
+   bytes big-endian", read as a statement about the result whichever side of a transfer it is on.
+
+   **On a target that already agrees, this is nothing at all** - not one instruction, and not a
+   branch either. `Target.byteOrder` is the metric above, so the comparison folds where the target is
+   known and the arm the answer does not take is gone before any machine sees it. That is the whole
+   reason the constant exists: the alternative is a `@platform` body per order, which says the same
+   thing in a place that cannot be checked against the target it names.
+-}
+pub fn (ByteSwap(a)) bigEndian(->value: a) -> a = match Target.byteOrder:
+    Big -> value
+    Little -> byteSwap(value)
+
+pub fn (ByteSwap(a)) littleEndian(->value: a) -> a = match Target.byteOrder:
+    Little -> value
+    Big -> byteSwap(value)
 
 {-
    Counting the bits of an integer - Tritium's `countBits`, `findFirstBit` and `findLastBit`, said
    once over a type variable and answered by an instruction on every target.
 
-   A class rather than three plain functions for `Endian`'s reason and one more of its own. R1
+   A class rather than three plain functions for `ByteSwap`'s reason and one more of its own. R1
    admits one plain function per (name, arity) and there are six integer types with an answer here,
    so a `countBits` per width could never have been six functions; and a user's own newtype over a
    word is a plausible instance, which a class admits and a fixed set of overloads does not.
@@ -139,7 +196,7 @@ pub class (Integral(a)) Endian(a):
    written where the caller can see it: a narrow value is held in a wider register here, so a count
    of its *storage* and a count of its value are different numbers and the conversion is the place
    that difference is settled. `WideInt` is 53 bits in a 64-bit register and is excluded for the
-   reason `Endian` excludes it - a leading-zero count is a question about a width it does not have.
+   reason `ByteSwap` excludes it - a leading-zero count is a question about a width it does not have.
 
    `trailingZeros` is Tritium's `findFirstBit` under the name the answer has rather than the one the
    search has, and `bitWidth(v) - 1` below is its `findLastBit`. Both of those are undefined at zero
@@ -223,7 +280,7 @@ pub fn (Bits(a), Integral(a)) bitfield(value: a, start: a, count: a) -> a = bits
    allowed to say. `Bits` is four counting operations that every target has an instruction for at
    some level; these are a *permutation*, which x86 has only at v3 and which most targets have never
    had. Keeping them apart is what lets a reader of a constraint know which of the two they are
-   asking for, and it is `Endian`'s argument at a different operation - a type can be `Integral` and
+   asking for, and it is `ByteSwap`'s argument at a different operation - a type can be `Integral` and
    have neither.
 
    **Both are total, and neither has a degenerate case to state**, which is the difference from every
@@ -240,6 +297,43 @@ pub fn (Bits(a), Integral(a)) bitfield(value: a, start: a, count: a) -> a = bits
 pub class (Integral(a)) BitPermute(a):
   fn gatherBits(value: a, mask: a) -> a
   fn scatterBits(value: a, mask: a) -> a
+
+{-
+   The CRC-32C step - x86's `crc32`, and the one thing in this file that computes a named function
+   rather than an operation on bits.
+
+   `crc32(remainder, chunk)` folds `chunk` into the running remainder under the **Castagnoli**
+   polynomial, reflected. That is the polynomial in the silicon and the class is not parameterized by
+   one, because there is nothing a parameter could select: the IEEE polynomial that zip, gzip and PNG
+   mean is a different function that this instruction cannot compute, and a caller who wants it wants
+   the table in `Digest/Crc.yana`. The two live side by side there, and the note above them is where
+   the difference is written down rather than here.
+
+   **A class of its own and `@platform(x64)`, which is the only such attribute in this file.** Every
+   other class here is something a target either has an instruction for or can spend a few operations
+   on; a CRC is neither - a target without the instruction pays a two-kilobyte table and a dependent
+   load per byte, which is not an expansion of anything and is not a thing the compiler should be
+   writing on a caller's behalf. So on a target that has no `crc32` the class does not exist, a body
+   naming it does not compile, and the library's own file selector is what routes such a build to the
+   table. `defineCrc` in resolve/intrinsic.cpp asks the settings the same question this attribute
+   asks, and the two must agree.
+
+   **No feature level guards it.** SSE4.2 is inside x86-64-v2 and v2 is the backend's floor, so
+   there is no x86-64 target here without the instruction - unlike `BitPermute` above, which is v3
+   and has a network behind it below that level.
+
+   Instanced at 32 and 64 bits, which is `Bits`' set and for its reason. The machine also has a form
+   taking a single byte; the lower IR has no scalar below `Int32` for it to be told apart from the
+   32-bit one, so a tail of fewer than four bytes reaches the table instead - which costs a handful
+   of lookups once per message and nothing per block.
+
+   The remainder is at the chunk's width rather than always thirty-two, which is what the machine
+   does: the 64-bit form reads the remainder from the low half of its destination and writes a
+   zero-extended answer, so the widen and the truncate a caller writes around it are what the
+   instruction already performs and both fold away.
+-}
+@platform(x64) pub class (Integral(a)) Crc(a):
+  fn crc32(remainder: a, chunk: a) -> a
 
 -- Whether exactly one bit is set - `Math.h`'s `isPowerOf2`, and the test an allocator's size class
 -- and `alignUp`'s undocumented precondition are both about. Zero has no bits set and is not one.
@@ -367,21 +461,21 @@ instance Signed(Double):
     fn abs(value: Double) -> Double = if value <= 0.0 then 0.0 - value else value
 
 
--- The byte swaps are **generated**, one instruction each - `defineEndian` in resolve/intrinsic.cpp,
+-- The byte swaps are **generated**, one instruction each - `defineByteSwap` in resolve/intrinsic.cpp,
 -- beside the `Num` and `Integral` instances of the same types and for the same reason. What they
 -- would read like is what they read like until the compiler had an instruction for this:
 --
---     instance Endian(U16):
---         fn swapEndian(value: U16) -> U16 = ((value `shl` 8) `and` 65280) `or` ((value `shr` 8) `and` 255)
+--     instance ByteSwap(U16):
+--         fn byteSwap(value: U16) -> U16 = ((value `shl` 8) `and` 65280) `or` ((value `shr` 8) `and` 255)
 --
---     instance Endian(U32):
---         fn swapEndian(value: U32) -> U32 =
+--     instance ByteSwap(U32):
+--         fn byteSwap(value: U32) -> U32 =
 --             (value `shl` 24) `or` ((value `and` 65280) `shl` 8) `or` ((value `shr` 8) `and` 65280) `or` (value `shr` 24)
 --
---     instance Endian(U64):
---         fn swapEndian(value: U64) -> U64:
---             let low = swapEndian(truncate(value) :: U32)
---             let high = swapEndian(truncate(value `shr` 32) :: U32)
+--     instance ByteSwap(U64):
+--         fn byteSwap(value: U64) -> U64:
+--             let low = byteSwap(truncate(value) :: U32)
+--             let high = byteSwap(truncate(value `shr` 32) :: U32)
 --             return ((widen(low) :: U64) `shl` 32) `or` (widen(high) :: U64)
 --
 -- with each signed rung reading its unsigned partner through a `bitcast`, since `shr` on a value

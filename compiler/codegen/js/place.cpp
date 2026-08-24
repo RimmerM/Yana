@@ -50,6 +50,42 @@ JsPtr<Expr> constantValue(Gen& g, Value& value) {
                 return bits ? number(g, F64(bits)) : nullValue(g);
             }
 
+            /*
+             * A payload-free sum's constructor, which is a number here as much as an integer is -
+             * and had to be read back at its own width for the same reason, which it was not.
+             *
+             * `@value(-1)` is stored as the bit pattern of -1 in sixty-four bits, so the fall-through
+             * below turned `Failed` into 1.8446744073709552e19: every comparison against it was
+             * wrong, `valueOf` reported that number instead of -1, and the native target had none of
+             * it because a raw pattern is what a register holds there anyway.
+             *
+             * The signedness is read off the *declaration* rather than off a layout field, and that
+             * is the honest place for it: what makes a discriminant signed is a constructor pinning
+             * a negative number, which is the same question `enumCompareType` asks in
+             * resolve/intrinsic.cpp. A sum whose values are all non-negative masks instead, so a
+             * `@value(200)` in one byte stays 200.
+             */
+            auto declared = value.type ? g.global[canonicalType(g.global, value.type)] : nullptr;
+
+            if(declared && declared->kind == Type::Record &&
+               ((RecordType*)declared)->layout == RecordType::Enum) {
+                auto& repr = g.repr.of(value.type);
+                auto width = repr.size && repr.size <= 8 ? U32(repr.size) * 8 : 64;
+                auto mask = width >= 64 ? ~U64(0) : (U64(1) << width) - 1;
+                auto masked = bits & mask;
+
+                auto signedTag = false;
+                for(auto constructor: ((RecordType*)declared)->constructors.contents(g.global)) {
+                    if(constructor.value < 0) signedTag = true;
+                }
+
+                if(signedTag && width < 64 && (masked & (U64(1) << (width - 1)))) {
+                    return number(g, -F64((mask - masked) + 1));
+                }
+
+                return number(g, F64(masked));
+            }
+
             return number(g, F64(bits));
         }
         case Value::ConstFloat:
@@ -1538,6 +1574,48 @@ Maybe<RefParts> destinationRefParts(Gen& g, const Place& place) {
  *  - a wide `number` of 33 to 53 bits, whose reductions are wide.cpp's rather than `coerce`'s;
  *  - anything past 32 bits, which no fold below asks about.
  */
+/*
+ * The same statement about a value that is *not* a place read - see noteValueType below, whose
+ * restriction to the two shapes with no recoverable range this deliberately does not share.
+ *
+ * Asked at one site: the operand of a cast into the `bigint` domain (see genCast). Nothing about the
+ * shape matters there, because the range is not being recovered from the tree at all - it is read
+ * off the resolve type the emitter has in hand, which is a statement about the value however that
+ * value arrived. What arrives at that site is usually a parameter or a call result, which is exactly
+ * what a shape-based recovery cannot see and why the peephole could not fold the round trip.
+ *
+ * A payload-free sum is admitted as well as an integer, and it is the case this exists for: a
+ * three-constructor enum is one byte, so `Number(BigInt.asIntN(64, BigInt(k)))` is `k` - which is
+ * what `Core.Enum`'s `valueOf` costs on this target until something says so.
+ */
+void noteScalarRange(Gen& g, JsPtr<Expr> value, TypePtr type) {
+    if(!value || !type) return;
+
+    auto expr = g.base[value];
+    if(expr->valueBits) return;
+
+    if(auto integer = intType(g, type)) {
+        auto bits = heldBits(g, *integer);
+        if(integer->width == IntType::Bool || bits > 32) return;
+        if(isLong(g, type) || isWideNumber(g, type)) return;
+
+        expr->valueBits = U8(bits);
+        expr->valueSigned = integer->isSigned;
+        return;
+    }
+
+    auto declared = g.global[canonicalType(g.global, type)];
+    if(declared->kind != Type::Record || ((RecordType*)declared)->layout != RecordType::Enum) return;
+
+    // The width the layout gave the discriminant. A sum whose values needed more than four bytes is
+    // a `bigint` here in its own right and has nothing to say about a 32-bit range.
+    auto& repr = g.repr.of(type);
+    if(repr.opaque || repr.size == 0 || repr.size > 4) return;
+
+    expr->valueBits = U8(repr.size * 8);
+    expr->valueSigned = true;
+}
+
 void noteValueType(Gen& g, JsPtr<Expr> value, TypePtr type) {
     if(!value) return;
 

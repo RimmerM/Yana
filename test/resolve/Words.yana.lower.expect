@@ -1,0 +1,185 @@
+@image$base = []
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+
+Reclaim(Array(a)).reclaim(U8)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    call_complex freeHeap, %v_7
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_6, 8: Long
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = shl %sizeClass, 3: Long
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    store %allocation, %v_10, 8
+    %v_11 = load @heapFree, 8: Ptr
+    %v_12 = add %v_11, %v_8: Ptr
+    store %v_12, %allocation, 8
+    ret 
+  }
+}
+
+opaqueU32<complex>(%value: Int): Int {
+  b_0 {
+    ret %value
+  }
+}
+
+opaqueU16<complex>(%value: Int): Int {
+  b_0 {
+    ret %value
+  }
+}
+
+opaqueU64<complex>(%value: Long): Long {
+  b_0 {
+    ret %value
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex opaqueU32, 305419896: Int
+    %v_2 = bswap %v_1: Int
+    %v_3 = cmp_eq %v_2, 2018915346: Int
+    %v_4 = select %v_3, 4, 0: Int
+    %v_5 = call_complex opaqueU32, 305419896: Int
+    %v_6 = cmp_eq %v_5, 305419896: Int
+    %v_7 = select %v_6, 8, 0: Int
+    %v_8 = add %v_4, %v_7: Int
+    %v_9 = call_complex opaqueU32, 305419896: Int
+    %v_10 = cmp_eq %v_9, 305419896: Int
+    %v_11 = select %v_10, 16, 0: Int
+    %v_12 = add %v_8, %v_11: Int
+    %v_13 = call_complex opaqueU16, 4660: Int
+    %v_14 = imm 8: Int
+    %v_15 = shl %v_13, %v_14: Int
+    %v_16 = shr %v_13, %v_14: Int
+    %v_17 = or %v_15, %v_16: Int
+    %v_18 = and %v_17, 65535: Int
+    %v_19 = cmp_eq %v_18, 13330: Int
+    %v_20 = select %v_19, 32, 0: Int
+    %v_21 = add %v_12, %v_20: Int
+    %v_22 = call_complex opaqueU64, 1: Long
+    %v_23 = bswap %v_22: Long
+    %v_24 = cmp_eq %v_23, 72057594037927936: Int
+    %v_25 = select %v_24, 64, 0: Int
+    %v_26 = add %v_21, %v_25: Int
+    %v_27 = add 3, %v_26: Int
+    %v_28 = alloca 16, 8: Ptr
+    %v_29 = alloca 8, 1: Ptr
+    store %v_28, %v_29, 8
+    %v_30 = add %v_28, 8: Ptr
+    %v_31 = load %v_30, 4: Int
+    store %v_30, 8, 4
+    setpattern %v_29, 8, 0
+    %v_32 = add %v_28, 12: Ptr
+    store %v_32, 8, 4
+    store %v_29, 13330, 2
+    %v_33 = add %v_29, 2: Ptr
+    store %v_33, 4660, 2
+    %v_34 = load %v_29, 2: Int
+    %v_35 = imm 8: Int
+    %v_36 = shl %v_34, %v_35: Int
+    %v_37 = shr %v_34, %v_35: Int
+    %v_38 = or %v_36, %v_37: Int
+    %v_39 = and %v_38, 65535: Int
+    %v_40 = cmp_eq %v_39, 4660: Int
+    %v_41 = select %v_40, 128, 0: Int
+    %v_42 = add %v_41, 256: Int
+    %v_43 = cmp_eq %v_34, 13330: Int
+    %v_44 = select %v_43, 512, 0: Int
+    %shorts = add %v_42, %v_44: Int
+    store %v_29, 17356517385562371090, 8
+    call_complex Reclaim(Array(a)).reclaim(U8), %v_28
+    %v_45 = add %shorts, 1024: Int
+    %v_46 = add %v_27, %v_45: Int
+    %v_47 = alloca 16, 8: Ptr
+    %v_48 = alloca 8, 1: Ptr
+    store %v_47, %v_48, 8
+    %v_49 = add %v_47, 8: Ptr
+    %v_50 = load %v_49, 4: Int
+    store %v_49, 8, 4
+    setpattern %v_48, 8, 0
+    %v_51 = add %v_47, 12: Ptr
+    store %v_51, 8, 4
+    store %v_48, 2018915346, 4
+    %v_52 = add %v_48, 4: Ptr
+    store %v_52, 305419896, 4
+    %v_53 = load %v_48, 1: Int
+    %v_54 = cmp_eq %v_53, 18: Int
+    %v_55 = select %v_54, 2048, 0: Int
+    %v_56 = add %v_48, 3: Ptr
+    %v_57 = load %v_56, 1: Int
+    %v_58 = cmp_eq %v_57, 120: Int
+    %v_59 = select %v_58, 4096, 0: Int
+    %v_60 = add %v_55, %v_59: Int
+    %v_61 = load %v_52, 1: Int
+    %v_62 = cmp_eq %v_61, 120: Int
+    %v_63 = select %v_62, 8192, 0: Int
+    %v_64 = add %v_60, %v_63: Int
+    %v_65 = add %v_48, 7: Ptr
+    %v_66 = load %v_65, 1: Int
+    %v_67 = cmp_eq %v_66, 18: Int
+    %v_68 = select %v_67, 16384, 0: Int
+    %ends = add %v_64, %v_68: Int
+    %v_69 = load %v_48, 4: Int
+    call_complex Reclaim(Array(a)).reclaim(U8), %v_47
+    %v_70 = cmp_eq %v_69, 2018915346: Int
+    %v_71 = select %v_70, 32768, 0: Int
+    %v_72 = add %ends, %v_71: Int
+    %v_73 = add %v_46, %v_72: Int
+    %v_74 = alloca 16, 8: Ptr
+    %v_75 = alloca 8, 1: Ptr
+    store %v_74, %v_75, 8
+    %v_76 = add %v_74, 8: Ptr
+    %v_77 = load %v_76, 4: Int
+    store %v_76, 8, 4
+    setpattern %v_75, 8, 0
+    %v_78 = add %v_74, 12: Ptr
+    store %v_78, 8, 4
+    %v_79 = add %v_75, 1: Ptr
+    %v_80 = load %v_79, 4: Int
+    store %v_79, 2035692562, 4
+    %v_81 = load %v_75, 1: Int
+    call_complex Reclaim(Array(a)).reclaim(U8), %v_74
+    %v_82 = cmp_eq %v_81, 0: Int
+    %v_83 = select %v_82, 131072, 0: Int
+    %v_84 = add 65536, %v_83: Int
+    %v_85 = add %v_73, %v_84: Int
+    ret %v_85
+  }
+}
+

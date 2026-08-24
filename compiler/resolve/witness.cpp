@@ -565,6 +565,38 @@ ModulePtr<Function> sinkFor(Module& module, TypePtr type, LocationId source) {
  * Until that exists, a body that projects into a generic type specializes instead. Depending on the
  * declaration's own offsets happening to be right - which they are whenever every field before the
  * projected one has a size independent of the arguments - would be an accident rather than a rule.
+ *
+ * ## What building part 4 turned up, when it was tried
+ *
+ * Counted over both suites, the declining steps are 2028 Downcasts into a generic record, 51
+ * discriminant reads of one, and 19 fields of a generic tuple - which reads as "the Downcast is the
+ * whole problem" and is wrong twice over. A walk stops at its first declining step, so every field
+ * behind an already-declining Downcast went uncounted: a payload offset carried in the descriptor
+ * moved the corpus from 112 declining functions to 111, and re-measuring behind it reported 2401
+ * field steps where the first pass had seen 19.
+ *
+ * It is inert for a second reason too. A `match` reads the discriminant before it projects, so an
+ * accepted Downcast into a *sum* still declines one step later; and a Downcast into a record whose
+ * declaration is `Single` adds zero on every target, which is a constant this body already knows.
+ * There is no case in between for a descriptor slot to serve.
+ *
+ * So the field offset is the half that pays, and three things block it:
+ *
+ *  - a field declared `@bits(n)` has no byte offset at all - it is a bit range in a word shared with
+ *    its neighbours, which is `Run`'s `capacity`/`ownsHeap` pair and `Array`'s `length`. Visible in
+ *    the *type*, so this walk can decline it without knowing any layout;
+ *  - a parameter that roots a returned borrow - `values(return self: Flat(a)) -> %a = self.items` -
+ *    miscompiles when erased, and did so before any of this: the projection decline is what has been
+ *    keeping such a body out of the erased path. Six library fixtures;
+ *  - and one more in `Digest`'s `padFinal`, not yet characterized. It survives with the optimizer
+ *    off, so it is in lowering rather than in `compiler/opt`, and it reproduces from none of the
+ *    record shape, the fixed-array field taken as a slice, or the class dispatch on a borrow of a
+ *    generic field, each tried on its own.
+ *
+ * Implicit co-packing needs a layout guarantee rather than a decline, because whether a `Bool` field
+ * shares a word is the *target's* answer and this stage has none: the shape that works is to mark
+ * the substituted type where the environment is built and have `computeTuple` decline to pack it,
+ * which is what TypeDescFlags::CanonicalRepr is reserved for.
  */
 static bool lowerablePlace(Module& module, Function& owner, const Place& place) {
     auto global = *module.types;

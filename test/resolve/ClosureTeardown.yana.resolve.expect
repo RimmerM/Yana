@@ -8,11 +8,6 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.lambda$14 before ResolveTest.lambda$14 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
 table closure$ResolveTest.lambda$15 before ResolveTest.lambda$15 {
   .0 teardown$none
   .1 teardown$none
@@ -24,6 +19,11 @@ table closure$ResolveTest.lambda$16 before ResolveTest.lambda$16 {
 }
 
 table closure$ResolveTest.lambda$17 before ResolveTest.lambda$17 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
   .0 teardown$none
   .1 closureRelease${amount: Int}
 }
@@ -361,7 +361,7 @@ fn direct(%base: Int) -> Int {
     init %local0.base, %base
     %v3 = addressof %local0 : %()
     %v4 = alloc : (Int) -> Int
-    %v5 = symbol ResolveTest.lambda$14 : %()
+    %v5 = symbol ResolveTest.lambda$15 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v9 = call apply, %v4, 1 : Int
@@ -378,7 +378,7 @@ fn either(%pick: Int, %a: Int, %b: Int) -> Int {
     init %local0.a, %a
     %v9 = addressof %local0 : %()
     %v10 = alloc : (Int) -> Int
-    %v11 = symbol ResolveTest.lambda$15 : %()
+    %v11 = symbol ResolveTest.lambda$16 : %()
     init %local1.code, %v11
     init %local1.env, %v9
     jmp b3
@@ -388,7 +388,7 @@ fn either(%pick: Int, %a: Int, %b: Int) -> Int {
     init %local2.b, %b
     %v16 = addressof %local2 : %()
     %v17 = alloc : (Int) -> Int
-    %v18 = symbol ResolveTest.lambda$16 : %()
+    %v18 = symbol ResolveTest.lambda$17 : %()
     init %local3.code, %v18
     init %local3.env, %v16
     jmp b3
@@ -406,7 +406,7 @@ fn escaping(%amount: Int) -> (Int) -> Int {
     init %local0.amount, %amount
     %v3 = addressof %local0 : %()
     %v4 = alloc : (Int) -> Int
-    %v5 = symbol ResolveTest.lambda$17 : %()
+    %v5 = symbol ResolveTest.lambda$18 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     ret %v4
@@ -426,28 +426,28 @@ fn main() -> Int {
     ret %v16
 }
 
-fn ResolveTest.lambda$14(%env: %{base: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$15(%env: %{base: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].base : Int
     %v3 = add %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$15(%env: %{a: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$16(%env: %{a: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].a : Int
     %v3 = add %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$16(%env: %{b: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$17(%env: %{b: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].b : Int
     %v3 = mul %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$17(%env: %{amount: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$18(%env: %{amount: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].amount : Int
     %v3 = add %x, %v2 : Int

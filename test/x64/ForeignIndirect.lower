@@ -1,0 +1,23 @@
+# An indirect call under System V - Analysis-Function-Pointers.md §2, the one thing that has to work
+# before a raw function pointer is worth designing.
+#
+# The callee is a *value* rather than a name, which is what a function pointer is: form selection
+# answers FormCallIndirect for any callee that is not a `fun`, and `shapeOf` places the arguments by
+# the convention on the instruction rather than by anything about the callee. So the question this
+# asks is whether those two are already independent, and the answer is what §5.1's "amd64 - nothing"
+# rests on.
+#
+# What to look for:
+#
+#   - the two arguments in `rdi` and `rsi`, which is System V and not the internal convention;
+#   - `call r/m64` (ff /2) on the register holding the pointer, not a rel32;
+#   - the result read out of `rax`;
+#   - `%keep` alive across the call in a register the psABI says the callee preserves.
+
+indirect(%p: Ptr, %a: Int, %b: Int, %keep: Int): Int {
+    {
+        %r = call_sysv %p, %a, %b: Int
+        %s = add %r, %keep
+        ret %s
+    }
+}

@@ -681,13 +681,19 @@ U64 ReprTable::metric(TypePtr type, TypeMetricKind kind) {
     // the assertion Implementation-Const-Generics.md §8 wants firing rather than a multiply.
     if(kind == TypeMetricKind::Count) return constValue(global, type);
 
+    // Ahead of `of` for the same reason, and for one more: this is the one metric whose answer is
+    // not about the type it names. `Endian`'s constructors are pinned at 0 and 1 - see the enum in
+    // lib/Core/Bits.yana, where the numbering is the thing this line agrees with.
+    if(kind == TypeMetricKind::ByteOrder) return target.byteOrder == BigEndian ? 1 : 0;
+
     auto& repr = of(type);
 
     switch(kind) {
         case TypeMetricKind::Align: return repr.align;
         case TypeMetricKind::Stride: return repr.stride;
         case TypeMetricKind::Size: return repr.size;
-        case TypeMetricKind::Count: break;
+        case TypeMetricKind::Count:
+        case TypeMetricKind::ByteOrder: break;
     }
 
     return repr.size;

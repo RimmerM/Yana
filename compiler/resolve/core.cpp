@@ -229,6 +229,36 @@ static TypePtr addPrimitive(Program& program, Module& module, StringView name, T
     return pointer;
 }
 
+/*
+ * A constant whose value the target answers - `Target.byteOrder`, and so far only that.
+ *
+ * Supplied by the compiler rather than declared in Core's source, on `addPrimitive`'s terms and for
+ * its reason: everything about it is the compiler's. The type it answers in, the metric that carries
+ * the answer, and the fact that there *is* no initializer are all decided here, so a source
+ * declaration would be a line carrying no information this function does not already have - and
+ * would need an attribute, a table of legal names and a set of refusals to say it with. `Size` is
+ * the precedent and it is exact: a name every module can see, documented where it is built.
+ *
+ * `globalValue` is the other half - it answers a read of one with an `InstTypeMetric` rather than a
+ * load, so nothing marks the global used and no storage is ever emitted for it.
+ *
+ * The name is qualified, and `Target` is a namespace rather than a type: nothing declares one, which
+ * is what a plain namespace is (see registerNamespace). Adding the next target question - address
+ * width, the vector width a target reaches for - is one more call here.
+ */
+static void addTargetConstant(Module& module, StringView name, TypePtr type, TypeMetricKind metric) {
+    if(!type) return;
+
+    auto global_ = module.addGlobal(module.context.addQualifiedName(name.ptr, name.length), kNullLocation);
+    global_->type = type;
+    global_->targetMetric = true;
+    global_->metric = metric;
+
+    // As public as `Int` is, and for the same reason: nothing wrote `pub` on it because no source
+    // wrote it at all, and a program in any module has to be able to name it.
+    global_->exported = true;
+}
+
 static TypePtr coreType(Module& module, StringView name) {
     auto found = module.namedTypes.get(Context::nameHash(name));
     assertTrue(found.isJust());
@@ -462,8 +492,8 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
         defineTruth(module, type, emitTruthy);
 
         // Every width but the two that have nothing to reverse and the one whose bytes are not all
-        // its own - see defineEndian, which is where the set is argued.
-        if(isByteSwappable(global, type)) defineEndian(module, type);
+        // its own - see defineByteSwap, which is where the set is argued.
+        if(isByteSwappable(global, type)) defineByteSwap(module, type);
 
         // And the bit counts at the two widths the machine has them at - see defineBits. The
         // permutations are at the same two and take the same test; see defineBitPermute.
@@ -713,6 +743,12 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
      * every `if` in the program until specialization and inlining had both happened. The deferred
      * form is what lets `&&` emit its right operand under the branch instead of calling a thunk.
      */
+    // The byte order, as a constant. Here rather than beside the primitive types because the type it
+    // answers in is `Endian`, which is Core's *source* - so it exists only once the declarations have
+    // been read, which is what this hook runs after.
+    addTargetConstant(*module, "Target.byteOrder"_v, coreType(*module, "Endian"_v),
+                      TypeMetricKind::ByteOrder);
+
     attachIntrinsic(*module, "!"_v, emitTruthNot);
     attachDeferredIntrinsic(*module, "&&"_v, emitTruthAnd);
     attachDeferredIntrinsic(*module, "||"_v, emitTruthOr);
@@ -754,8 +790,8 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
 
     // And the byte reversal at the two canonical widths, which the loop above cannot reach: `Int`
     // and `Long` are the scalar module's types rather than the fixed-width family's.
-    defineEndian(*module, program.scalar.int_);
-    defineEndian(*module, program.scalar.long_);
+    defineByteSwap(*module, program.scalar.int_);
+    defineByteSwap(*module, program.scalar.long_);
 
     // The bit counts beside them, at exactly the two widths they are declared over, and the
     // permutations at the same two.

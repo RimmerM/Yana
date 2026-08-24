@@ -161,3 +161,20 @@ instance Reclaim(Array(a)):
         while i < count:
             let ->doomed = hostRead(value.items, i :: Size)
             i = i + 1
+
+{-
+   The same exchange on JS, and the one place it is not `swap`.
+
+   `hostAtMut` hands back a borrow of a host array's slot, and a borrow a *call* produced does not
+   name storage a `&` argument may be written back to - so the two-place form the native body has
+   is not writable here. What stands in for it is the pair `remove` already uses for the one element
+   it takes out: `hostRead` under a `->` binding is a move out of the slot, and `hostWrite` is the
+   assignment that hands one back. Both slots are read before either is written, which is what
+   `swap` promises and what makes the temporary unavoidable rather than merely convenient.
+-}
+pub fn swapElements(&self: Flat(a), left: Size, right: Size) -> {}:
+    let ->first = hostRead(self.items, self.offset + left)
+    let ->second = hostRead(self.items, self.offset + right)
+
+    hostWrite(self.items, self.offset + left, second)
+    hostWrite(self.items, self.offset + right, first)

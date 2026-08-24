@@ -346,14 +346,14 @@ fn folded() -> Int {
     ret %v8
 }
 
-(Endian(a)) fn swapVia(%value: a) -> a {
+(ByteSwap(a)) fn swapVia(%value: a) -> a {
   schema {
     #0 type a
-    #1 class Endian(a)
+    #1 class ByteSwap(a)
   }
 
   b0:
-    %v1 = gencall Endian(a).swapEndian, %value : a
+    %v1 = gencall ByteSwap(a).byteSwap, %value : a
     ret %v1
 }
 

@@ -183,6 +183,158 @@ instance (n: Int) Length([a *n]):
     hostSetVector(to.items, to.offset + at, value)
 
 {-
+   ------------------------------------------------------------------------------------------
+   The machine words of a binary format.
+   ------------------------------------------------------------------------------------------
+
+   Reading and writing a 16-, 32- or 64-bit word at a stated byte order, `at` bytes into a byte
+   slice.
+   Every format that is not text is made of these - a digest, a decoder, a wire protocol, a file
+   header - and doing it a word at a time rather than a byte at a time is most of what makes any of
+   them fast.
+
+   Here rather than beside the one library that first needed them, and as compiler intrinsics rather
+   than as source: what the operation costs is a target question at both ends, and neither target's
+   answer is expressible in portable source.
+
+   **Natively it is one load and one `bswap`**, or one `movbe` at v3 - see `selectByteSwapMemory`.
+   The load is unaligned, which x86 has always done and which is why these take a `[U8]` rather than
+   demanding an aligned buffer. The order costs nothing where the target already agrees, because the
+   comparison in `bigEndian` folds against `Target.byteOrder`.
+
+   **On JS it is one `DataView` accessor**, through a view built once per array - see
+   `NativeOp::HostWordRead`, where the measurements are. At 16 and 32 bits that matches the shift
+   chain it replaces; at 64 bits it is 2x on a read and 7x on a write, which is the difference between
+   a `U64` being assembled out of bytes in the `bigint` domain and being read in one call.
+
+   **16 bits is included because nothing excludes it**, which is worth saying because the operation
+   underneath is the one width where the two targets differ in shape: `bswap r16` is undefined on x86
+   and `movbe` has no 16-bit producer, so `lowerCalc` spends a 16-bit reversal as the shift pair
+   rather than as an instruction. That is still one load and two ALU operations against two loads, a
+   shift and an or - and every wire format with a length prefix or a port number in it wants this.
+
+   The writers are worth as much as the readers and for a plainer reason: written as four subscript
+   assignments a writer is a 46-instruction function that the inliner *declines*, and a `finish`
+   calls one eight times per digest. One store is one instruction and there is nothing left to
+   decline.
+-}
+{-
+   The one bounds test all twelve share - `at` names a *window* of `width` bytes rather than one
+   element, so `checkIndexInBounds`' single compare is not the question being asked here.
+
+   Written as the mistake, which is what `checkCondition` takes, and read in the unsigned domain for
+   `checkIndexInBounds`' reason: a negative `at` is above every length there is when the bits are
+   read that way, so one compare covers both ends. The `length < width` test in front of it is what
+   keeps `length - width` from underflowing into a bound that admits everything - `||` is lazy, so
+   the subtraction happens only where it has an answer.
+
+   It costs nothing where the caller's index is provable: `opt_check` removes a check whose condition
+   is known, which is every read at a literal offset into a block whose length the loop above already
+   established. Where it is not provable it is one compare and a predicted-not-taken branch, which is
+   what a subscript costs, and these exist to be used where a subscript would otherwise be.
+-}
+fn checkWordInBounds(from: Flat(U8), at: Size, width: Size) -> {}:
+    let count = length(from)
+    checkCondition(count < width || (bitcast(at) :: USize) > (bitcast(count - width) :: USize))
+    return
+
+@platform(native) pub fn readBigU16(from: Flat(U8), at: Size) -> U16:
+    checkWordInBounds(from, at, 2)
+    return bigEndian(*(bitcast(from.items + at) :: %U16))
+
+@platform(js) pub fn readBigU16(from: Flat(U8), at: Size) -> U16:
+    checkWordInBounds(from, at, 2)
+    return hostReadU16(from.items, from.offset + at, False)
+
+@platform(native) pub fn readLittleU16(from: Flat(U8), at: Size) -> U16:
+    checkWordInBounds(from, at, 2)
+    return littleEndian(*(bitcast(from.items + at) :: %U16))
+
+@platform(js) pub fn readLittleU16(from: Flat(U8), at: Size) -> U16:
+    checkWordInBounds(from, at, 2)
+    return hostReadU16(from.items, from.offset + at, True)
+
+@platform(native) pub fn readBigU32(from: Flat(U8), at: Size) -> U32:
+    checkWordInBounds(from, at, 4)
+    return bigEndian(*(bitcast(from.items + at) :: %U32))
+
+@platform(js) pub fn readBigU32(from: Flat(U8), at: Size) -> U32:
+    checkWordInBounds(from, at, 4)
+    return hostReadU32(from.items, from.offset + at, False)
+
+@platform(native) pub fn readLittleU32(from: Flat(U8), at: Size) -> U32:
+    checkWordInBounds(from, at, 4)
+    return littleEndian(*(bitcast(from.items + at) :: %U32))
+
+@platform(js) pub fn readLittleU32(from: Flat(U8), at: Size) -> U32:
+    checkWordInBounds(from, at, 4)
+    return hostReadU32(from.items, from.offset + at, True)
+
+@platform(native) pub fn readBigU64(from: Flat(U8), at: Size) -> U64:
+    checkWordInBounds(from, at, 8)
+    return bigEndian(*(bitcast(from.items + at) :: %U64))
+
+@platform(js) pub fn readBigU64(from: Flat(U8), at: Size) -> U64:
+    checkWordInBounds(from, at, 8)
+    return hostReadU64(from.items, from.offset + at, False)
+
+@platform(native) pub fn readLittleU64(from: Flat(U8), at: Size) -> U64:
+    checkWordInBounds(from, at, 8)
+    return littleEndian(*(bitcast(from.items + at) :: %U64))
+
+@platform(js) pub fn readLittleU64(from: Flat(U8), at: Size) -> U64:
+    checkWordInBounds(from, at, 8)
+    return hostReadU64(from.items, from.offset + at, True)
+
+@platform(native) pub fn writeBigU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+    checkWordInBounds(to, at, 2)
+    store(bitcast(to.items + at) :: %U16, bigEndian(value))
+
+@platform(js) pub fn writeBigU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+    checkWordInBounds(to, at, 2)
+    hostWriteU16(to.items, to.offset + at, value, False)
+
+@platform(native) pub fn writeLittleU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+    checkWordInBounds(to, at, 2)
+    store(bitcast(to.items + at) :: %U16, littleEndian(value))
+
+@platform(js) pub fn writeLittleU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+    checkWordInBounds(to, at, 2)
+    hostWriteU16(to.items, to.offset + at, value, True)
+
+@platform(native) pub fn writeBigU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+    checkWordInBounds(to, at, 4)
+    store(bitcast(to.items + at) :: %U32, bigEndian(value))
+
+@platform(js) pub fn writeBigU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+    checkWordInBounds(to, at, 4)
+    hostWriteU32(to.items, to.offset + at, value, False)
+
+@platform(native) pub fn writeLittleU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+    checkWordInBounds(to, at, 4)
+    store(bitcast(to.items + at) :: %U32, littleEndian(value))
+
+@platform(js) pub fn writeLittleU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+    checkWordInBounds(to, at, 4)
+    hostWriteU32(to.items, to.offset + at, value, True)
+
+@platform(native) pub fn writeBigU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+    checkWordInBounds(to, at, 8)
+    store(bitcast(to.items + at) :: %U64, bigEndian(value))
+
+@platform(js) pub fn writeBigU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+    checkWordInBounds(to, at, 8)
+    hostWriteU64(to.items, to.offset + at, value, False)
+
+@platform(native) pub fn writeLittleU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+    checkWordInBounds(to, at, 8)
+    store(bitcast(to.items + at) :: %U64, littleEndian(value))
+
+@platform(js) pub fn writeLittleU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+    checkWordInBounds(to, at, 8)
+    hostWriteU64(to.items, to.offset + at, value, True)
+
+{-
    The iteration protocol - Design-Vector §4.1, Implementation-Vector.md §9 item 5.
 
    This is what the whole vector design is for: a loop written over `vectors(xs)` is one loop, it

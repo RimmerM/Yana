@@ -8,11 +8,6 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
 table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
   .0 teardown$none
   .1 teardown$none
@@ -24,6 +19,11 @@ table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
 }
 
 table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -568,7 +568,7 @@ fn borrows(%times: I64) -> Size {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: Held) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$14 : %()
+    %v9 = symbol ResolveTest.continuation$15 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call lent(()), %times, %v8 : Outcome((), ())
@@ -585,7 +585,7 @@ fn owns(%times: I64) -> Size {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (->value$: Held) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$15 : %()
+    %v9 = symbol ResolveTest.continuation$16 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call handed(()), %times, %v8 : Outcome((), ())
@@ -602,7 +602,7 @@ fn viaTry(%times: I64) -> Result(I64, Size) {
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (->value$: Result(I64, Held)) -> Outcome((), Result(I64, Size))
-    %v9 = symbol ResolveTest.continuation$16 : %()
+    %v9 = symbol ResolveTest.continuation$17 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call results(Result(I64, Size)), %times, %v8 : Outcome((), Result(I64, Size))
@@ -630,7 +630,7 @@ fn ignores(%times: I64) -> Size {
     init %local1.count, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (->value$: Result(I64, Held)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$17 : %()
+    %v9 = symbol ResolveTest.continuation$18 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call results(()), %times, %v8 : Outcome((), ())
@@ -649,7 +649,7 @@ fn main() -> Int {
     ret %v8
 }
 
-fn ResolveTest.continuation$14(%env: %{total: &mut Size}, %value$: Held) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{total: &mut Size}, %value$: Held) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Size
     %v3 = load [%env].total : &mut Size
@@ -698,7 +698,7 @@ fn lent(())(%times: I64, %body: (value$: Held) -> Outcome((), ())) -> Outcome(()
     jmp b1
 }
 
-fn ResolveTest.continuation$15(%env: %{total: &mut Size}, %value$: Held) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{total: &mut Size}, %value$: Held) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &mut Size
     %v3 = load [%env].total : &mut Size
@@ -746,7 +746,7 @@ fn handed(())(%times: I64, %body: (->value$: Held) -> Outcome((), ())) -> Outcom
     jmp b1
 }
 
-fn ResolveTest.continuation$16(%env: %{total: &mut Size}, %value$: Result(I64, Held)) -> Outcome((), Result(I64, Size)) {
+fn ResolveTest.continuation$17(%env: %{total: &mut Size}, %value$: Result(I64, Held)) -> Outcome((), Result(I64, Size)) {
   b0:
     %value$ = move %value$ : Result(I64, Held)
     %v3 = call Try(Result(e, a), a, e).toOutcome(I64, Held), %value$ : Outcome(Held, I64)
@@ -828,7 +828,7 @@ fn results(Result(I64, Size))(%times: I64, %body: (->value$: Result(I64, Held)) 
     ret %v36
 }
 
-fn ResolveTest.continuation$17(%env: %{count: &mut Size}, %value$: Result(I64, Held)) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{count: &mut Size}, %value$: Result(I64, Held)) -> Outcome((), ()) {
   b0:
     drop_derived %value$ reclaim reclaim$Result(I64, Held)
     %v2 = load [%env].count : &mut Size

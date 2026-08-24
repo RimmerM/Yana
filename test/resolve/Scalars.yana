@@ -1,5 +1,5 @@
 -- The small scalars of Analysis-Library.md §2.5: `min`/`max` on `Ord`, `abs` on `Signed`, `clamp`,
--- `signum`, `Bounded`, `Endian` and the two rounding-up forms.
+-- `signum`, `Bounded`, `ByteSwap` and the two rounding-up forms.
 --
 -- What this asserts that reading Core cannot is that the new class members coexist with the plain
 -- functions of the same names over `Vec(a, n)`. Design.md's R1 admits one plain function per (name,
@@ -60,13 +60,13 @@ fn limits() -> Int:
         (widen(unsigned) :: Int) * 100 + wide * 100000 + finite * 1000000
 
 fn bytes() -> Int:
-    let word = swapEndian(truncate(305419896) :: U32)
-    let short = swapEndian(truncate(258) :: U16)
-    let signedWord = swapEndian(widen(1) :: I32)
-    let plain = swapEndian(1)
+    let word = byteSwap(truncate(305419896) :: U32)
+    let short = byteSwap(truncate(258) :: U16)
+    let signedWord = byteSwap(widen(1) :: I32)
+    let plain = byteSwap(1)
 
     let original = truncate(123456789) :: U32
-    let roundTrip = if swapEndian(swapEndian(original)) == original then 1 else 0
+    let roundTrip = if byteSwap(byteSwap(original)) == original then 1 else 0
 
     return (if word == 2018915346 then 1 else 0) +
         (if (widen(short) :: Int) == 513 then 1 else 0) * 10 +

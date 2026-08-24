@@ -112,6 +112,35 @@ pub fn hostVectorUpTo(self: %a, index: Size, limit: Size) -> Vec(a)
 pub fn hostSetVector(self: %a, index: Size, value: Vec(a)) -> {}
 
 {-
+   A machine word out of a byte array, and back into one - this target's half of `readBigU32` and
+   its eleven siblings in `Core/Container.yana`.
+
+   `DataView` is the host primitive for exactly this question, and it is the whole reason these are
+   intrinsics rather than the shift chains they replace. At 16 and 32 bits the two forms measure the
+   same on Node 24 - V8 compiles four subscripts and three shifts about as well as one `getUint32` -
+   and at **64 bits it is 2x on a read and 7x on a write**, because a `U64` here is a `bigint` and the
+   alternative is building one out of eight bytes.
+
+   **`%U8` and not `%a`.** A `DataView` needs the array's buffer, and only the typed row has one -
+   see `typedArrayFor`, where a host array of `U8` is a `Uint8Array` and a host array of anything
+   without a typed form is a plain array with no `.buffer` at all. Every caller reads bytes, so
+   nothing is given up by saying so in the signature.
+
+   **The order is an argument** rather than six more declarations, because that is where the host
+   takes it: `getUint32(index, littleEndian)`. Measured, the flag costs nothing a per-order helper
+   would have saved, and it halves the emitted helper count.
+
+   The index is in *bytes* from the start of the array, which is what a caller reading a binary
+   format already has and is the one unit a `DataView` deals in.
+-}
+pub fn hostReadU16(self: %U8, index: Size, little: Bool) -> U16
+pub fn hostReadU32(self: %U8, index: Size, little: Bool) -> U32
+pub fn hostReadU64(self: %U8, index: Size, little: Bool) -> U64
+pub fn hostWriteU16(self: %U8, index: Size, value: U16, little: Bool) -> {}
+pub fn hostWriteU32(self: %U8, index: Size, value: U32, little: Bool) -> {}
+pub fn hostWriteU64(self: %U8, index: Size, value: U64, little: Bool) -> {}
+
+{-
    The host string - Implementation-String.md part 2's JS column.
 
    `String` here is the host `string` primitive with no wrapper at all, which is what part 2 asks for

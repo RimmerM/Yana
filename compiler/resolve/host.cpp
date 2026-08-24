@@ -276,6 +276,31 @@ static ModulePtr<Value> emitHostVector(ExprResolver& resolver, Buffer<ModulePtr<
     return value;
 }
 
+/*
+ * A machine word out of a byte array, and back into one - see NativeOp::HostWordRead.
+ *
+ * The accessor's name is the whole of what this stage decides, and it decides it from the width the
+ * declaration was written at rather than from anything at the call. The order travels as the last
+ * argument, which is where the host takes it too - so nothing here has to know which of the eight
+ * library functions called it.
+ */
+template<NativeOp op, U32 bits>
+static ModulePtr<Value> emitHostWord(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                     LocationId source, StringId name) {
+    auto read = op == NativeOp::HostWordRead;
+    auto text = bits == 16 ? (read ? "getUint16"_v : "setUint16"_v)
+              : bits == 32 ? (read ? "getUint32"_v : "setUint32"_v)
+                           : (read ? "getBigUint64"_v : "setBigUint64"_v);
+
+    auto instruction = resolver.create<InstNative>(source, name, type, op,
+                                                   resolver.context.addUnqualifiedName(text.ptr, text.length));
+
+    for(auto arg: args) instruction->args.push(resolver.module.arena, arg);
+
+    resolver.append(instruction);
+    return read ? resolver.ref(instruction) : nullptr;
+}
+
 static ModulePtr<Value> emitHostSetVector(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
                                           LocationId source, StringId) {
     auto vector = resolver.valueType(args[2]);
@@ -336,6 +361,13 @@ void definePreludeHost(Program& program, Module& native) {
     attachIntrinsic(*module, "hostVector"_v, emitHostVector<false>);
     attachIntrinsic(*module, "hostVectorUpTo"_v, emitHostVector<true>);
     attachIntrinsic(*module, "hostSetVector"_v, emitHostSetVector);
+
+    attachIntrinsic(*module, "hostReadU16"_v, emitHostWord<NativeOp::HostWordRead, 16>);
+    attachIntrinsic(*module, "hostReadU32"_v, emitHostWord<NativeOp::HostWordRead, 32>);
+    attachIntrinsic(*module, "hostReadU64"_v, emitHostWord<NativeOp::HostWordRead, 64>);
+    attachIntrinsic(*module, "hostWriteU16"_v, emitHostWord<NativeOp::HostWordWrite, 16>);
+    attachIntrinsic(*module, "hostWriteU32"_v, emitHostWord<NativeOp::HostWordWrite, 32>);
+    attachIntrinsic(*module, "hostWriteU64"_v, emitHostWord<NativeOp::HostWordWrite, 64>);
 
     // The host string - Implementation-String.md part 2's JS column. `length` is a field and
     // `charCodeAt` a method, exactly as they are for an array; the last three are operators.

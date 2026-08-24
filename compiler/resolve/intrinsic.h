@@ -182,9 +182,9 @@ void defineOrd(Module& module, TypePtr type, GlobalPtr<GenEnv> gen = nullptr);
 ModulePtr<ClassInstance> defineNum(Module& module, TypePtr type);
 ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type);
 
-// `Endian`, for the integer types that have a whole number of bytes to reverse - `isByteSwappable`
-// is that test, and defineEndian's comment is why it is not every integer type.
-ModulePtr<ClassInstance> defineEndian(Module& module, TypePtr type);
+// `ByteSwap`, for the integer types that have a whole number of bytes to reverse - `isByteSwappable`
+// is that test, and defineByteSwap's comment is why it is not every integer type.
+ModulePtr<ClassInstance> defineByteSwap(Module& module, TypePtr type);
 bool isByteSwappable(GlobalBase global, TypePtr type);
 
 // `Bits`, for the integer types the counts are declared over - `hasBitCounts` is that test, and

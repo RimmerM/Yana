@@ -549,7 +549,7 @@ fn doubled(%x: Int, %body: (value$: Int) -> $r) -> $r {
 fn throughLens(%n: Int) -> Maybe(Int) {
   b0:
     %v1 = alloc : (value$: Int) -> Maybe(Int)
-    %v2 = symbol ResolveTest.continuation$14 : %()
+    %v2 = symbol ResolveTest.continuation$15 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -588,7 +588,7 @@ fn throughLens(%n: Int) -> Maybe(Int) {
 fn viaSkipping(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$15 : %()
+    %v2 = symbol ResolveTest.continuation$16 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -789,7 +789,7 @@ fn Drop(Token).drop(%value: Token) -> () {
     ret
 }
 
-fn ResolveTest.continuation$14(%env: %{}, %value$: Int) -> Maybe(Int) {
+fn ResolveTest.continuation$15(%env: %{}, %value$: Int) -> Maybe(Int) {
   b0:
     %v4 = sub %value$, 8 : Int
     %v5 = call parse, %v4 : Maybe(Int)
@@ -825,7 +825,7 @@ fn doubled(Maybe(Int))(%x: Int, %body: (value$: Int) -> Maybe(Int)) -> Maybe(Int
     ret %v8
 }
 
-fn ResolveTest.continuation$15(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.continuation$16(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = add %found, 1 : Int
     ret %v4

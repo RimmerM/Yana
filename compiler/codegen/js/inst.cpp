@@ -602,27 +602,11 @@ static void ensureFloatBits(Gen& g, bool wide) {
  * `type` is the array *reference*, so the element is its pointee - the same question the resolver
  * asked when it folded `hostFixedCapacity`, asked of the same type.
  */
+// The same, asked of an array *reference* - the element is its pointee, which is the question the
+// resolver asked when it folded `hostFixedCapacity`. The rule itself is at js scope below, because
+// zeroValue and the constant builder in type.cpp are the other two readers of it.
 static JsPtr<Expr> hostArrayOf(Gen& g, TypePtr type, JsPtr<Expr> elements) {
-    auto typed = typedArrayFor(g.global, pointeeType(g.global, type));
-    if(!typed.length) return elements;
-
-    auto node = make<CallExpr>(g, variable(g, literalName(g, typed)));
-    node->args.push(g.file.arena, elements);
-    node->construct = true;
-
-    /*
-     * `pure` in the sense the flag means - reads nothing, writes nothing. A typed array's
-     * constructor allocates, which no other expression can observe, and copies out of an argument
-     * whose own effects the walk still visits.
-     *
-     * It is load-bearing rather than tidy. The empty array a literal is built into is overwritten by
-     * the literal in the next statement, and `foldInitialValue` is what makes the two one - but only
-     * for an initializer nothing has to be ordered against. Without this, every array literal of a
-     * numeric element allocated a `new Int32Array([])` that nothing ever read.
-     */
-    node->pure = true;
-
-    return asExpr(g, node);
+    return hostArrayForElement(g, pointeeType(g.global, type), elements);
 }
 
 static JsPtr<Expr> construct(Gen& g, StringView type, JsPtr<Expr> argument) {
@@ -1019,6 +1003,27 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
             define(g, pointer, saturatingToLong(g, to, value));
             return;
         }
+
+        /*
+         * A literal crosses at compile time. `BigInt(0)` is `0n`, and writing the call out left a
+         * constant the folds above this could not see through - which is the difference between
+         * `Target.byteOrder == Big` costing nothing here and costing a `bigint` compare.
+         *
+         * An exact integer only, which is every number literal a cast from an integer type can
+         * produce: `constantNumber` has already refused a fraction and an infinity, and `BigInt`
+         * would have thrown on either.
+         */
+        F64 literal;
+        if(constantNumber(g, value, literal) && isExactInteger(literal)) {
+            define(g, pointer, coerce(g, to, bigInt(g, U64(I64(literal)), toInt && toInt->isSigned)));
+            return;
+        }
+
+        // What the operand's type says about its range, which is the one thing the peephole cannot
+        // recover here: an enum's tag arrives as a parameter or a call result. Without it the round
+        // trip back out of the `bigint` domain - which is what every `valueOf` on this target is -
+        // stays in the emitted text. See foldBigIntRoundTrip.
+        noteScalarRange(g, value, from);
 
         define(g, pointer, coerce(g, to, globalCall(g, "BigInt"_v, value)));
         return;
@@ -1956,6 +1961,42 @@ void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& nat
             define(g, value, asExpr(g, call));
             break;
         }
+        /*
+         * `$readU32(a, i, le)` - a word out of a byte array through the array's own `DataView`.
+         *
+         * The width comes off the accessor's name, which is what `method` carries and what the two
+         * slots below are indexed by; the order is the last argument and is passed straight through.
+         * See NativeOp::HostWordRead for why this is a helper and Gen::viewHelper for why the view
+         * is cached on the array.
+         */
+        case NativeOp::HostWordRead:
+        case NativeOp::HostWordWrite: {
+            auto read = native.op == NativeOp::HostWordRead;
+            auto accessor = stringView(g.context.findName(native.method));
+            auto width = accessor == "getUint16"_v || accessor == "setUint16"_v ? 0
+                       : accessor == "getUint32"_v || accessor == "setUint32"_v ? 1 : 2;
+            auto& slot = read ? g.readWordHelper[width] : g.writeWordHelper[width];
+
+            if(!slot.text) {
+                static const StringView names[2][3] = {
+                    { "$writeU16"_v, "$writeU32"_v, "$writeU64"_v },
+                    { "$readU16"_v, "$readU32"_v, "$readU64"_v },
+                };
+
+                slot = uniqueName(g, names[read][width], false);
+            }
+
+            auto call = make<CallExpr>(g, variable(g, slot));
+            for(auto arg: args.contents(g.local)) call->args.push(g.file.arena, useValue(g, arg));
+
+            if(read) {
+                define(g, value, asExpr(g, call));
+            } else {
+                emitExpr(g, asExpr(g, call));
+            }
+
+            break;
+        }
         case NativeOp::HostBinary: {
             /*
              * `a <op> b`, where the operator is the host's own - see NativeOp::HostBinary.
@@ -2731,6 +2772,139 @@ void emitGrowHelper(Gen& g) {
     emit(g, function);
 }
 
+/*
+ * A host array holding `elements`, in whichever of §14's two rows this element type belongs to.
+ *
+ * `[a, b, c]` for an element the host boxes, and `new Int32Array([a, b, c])` for one it does not -
+ * which is the whole of the difference between the two rows. It is one function because there are
+ * three producers of a host array and they have to make the same choice: the storage of an
+ * `Array(a)`, the zero of a `[T *n]`, and a written literal of either. `typedArrayFor` is the
+ * choice; nothing here decides anything.
+ *
+ * The fixed array was the reader that disagreed, and it was silent: a `[U8 *64]` was a plain host
+ * array of sixty-four boxed zeroes, where an `Array(U8)` of the same contents was a `Uint8Array`.
+ * That cost eight bytes an element and, once the word transfers existed, meant a byte buffer the
+ * host's own `DataView` could not be pointed at - see NativeOp::HostWordRead, which is what made the
+ * disagreement visible.
+ *
+ * `pure` in the sense the flag means - reads nothing, writes nothing. A typed array's constructor
+ * allocates, which no other expression can observe, and copies out of an argument whose own effects
+ * the walk still visits. It is load-bearing rather than tidy: the empty array a literal is built
+ * into is overwritten by the literal in the next statement, and `foldInitialValue` is what makes the
+ * two one - but only for an initializer nothing has to be ordered against.
+ */
+JsPtr<Expr> hostArrayForElement(Gen& g, TypePtr element, JsPtr<Expr> elements) {
+    auto typed = typedArrayFor(g.global, element);
+    if(!typed.length) return elements;
+
+    auto node = make<CallExpr>(g, variable(g, literalName(g, typed)));
+    node->args.push(g.file.arena, elements);
+    node->construct = true;
+    node->pure = true;
+
+    return asExpr(g, node);
+}
+
+/*
+ * The word transfers, and the one thing that makes them worth having:
+ *
+ *     function $view(a) { return a.$dv || (a.$dv = new DataView(a.buffer, a.byteOffset)); }
+ *     function $readU32(a, i, e) { return $view(a).getUint32(i, e); }
+ *     function $writeU64(a, i, v, e) { $view(a).setBigUint64(i, v, e); }
+ *
+ * **The view is built once per array and kept on it.** That is not a tidy-up: `new DataView` at each
+ * call measures 134 ms against the 9.7 ms of the shift chain these replace, so a form without a
+ * cache is fifteen times *worse* than doing nothing. Nor is the cache free to site anywhere - a
+ * one-entry memo on `.buffer` is 33 ms, and 352 ms once a loop alternates between two arrays, which
+ * is what a digest reading a message and writing a pad does; a `WeakMap` is 27 ms on a write where
+ * four stores are 4.6. The property is the only one of the four that is not slower than the shifts.
+ *
+ * It costs the array nothing measurable: an element sum over a `Uint8Array` carrying `$dv` is 8.4 ms
+ * against 8.4 ms without it, and the shift chain over one is 9.8 against 9.7. The map transitions
+ * once and stays monomorphic.
+ *
+ * **What it buys is the 64-bit pair.** At 32 bits the host and the shifts measure the same (9.7 both
+ * ways on a read; the write is 2.3 against 4.6). At 64 bits a `U64` is a `bigint` here, so the
+ * alternative to `getBigUint64` is composing one out of two 32-bit halves - 13.6 ms against 7.1 -
+ * and the alternative to `setBigUint64` is eight stores and eight shifts in the `bigint` domain,
+ * which is 52 ms against 7.1. All figures Node 24, 64 KB, best of repeated runs.
+ *
+ * `$view` is a call rather than the expression inlined into each of the four, for the reason the
+ * user of this file will care about: it is the same speed - 9.8 ms against 9.7 - and it is one
+ * function instead of four copies of the same three operations.
+ */
+void emitWordHelpers(Gen& g) {
+    auto wanted = false;
+    for(U32 i = 0; i < 3; i++) {
+        wanted = wanted || g.readWordHelper[i].text || g.writeWordHelper[i].text;
+    }
+
+    if(!wanted) return;
+
+    emit(g, make<CommentStmt>(g, internText(g,
+        "the machine words of a binary format, through one DataView per array"_v)));
+
+    g.viewHelper = uniqueName(g, "$view"_v, false);
+
+    // `function $view(a) { return a.$dv || (a.$dv = new DataView(a.buffer, a.byteOffset)); }`
+    {
+        auto function = make<FunStmt>(g, g.viewHelper);
+        auto array = literalName(g, "a"_v);
+        function->args.push(g.file.arena, array);
+
+        function->body = collect(g, [&] {
+            auto slot = field(g, variable(g, array), literalName(g, "$dv"_v));
+
+            auto made = make<CallExpr>(g, variable(g, literalName(g, "DataView"_v)));
+            made->args.push(g.file.arena, field(g, variable(g, array), literalName(g, "buffer"_v)));
+            made->args.push(g.file.arena, field(g, variable(g, array), literalName(g, "byteOffset"_v)));
+            made->construct = true;
+
+            auto stored = asExpr(g, make<AssignExpr>(g, slot, asExpr(g, made)));
+            emit(g, make<ReturnStmt>(g, asExpr(g, make<BinaryExpr>(g, BinaryOp::LogicalOr, slot, stored))));
+        });
+
+        emit(g, function);
+    }
+
+    auto define = [&](Name name, StringView accessor, bool read) {
+        if(!name.text) return;
+
+        auto function = make<FunStmt>(g, name);
+        auto array = literalName(g, "a"_v);
+        auto index = literalName(g, "i"_v);
+        auto amount = literalName(g, "v"_v);
+        auto order = literalName(g, "e"_v);
+
+        function->args.push(g.file.arena, array);
+        function->args.push(g.file.arena, index);
+        if(!read) function->args.push(g.file.arena, amount);
+        function->args.push(g.file.arena, order);
+
+        function->body = collect(g, [&] {
+            auto view = make<CallExpr>(g, variable(g, g.viewHelper));
+            view->args.push(g.file.arena, variable(g, array));
+
+            auto call = make<CallExpr>(g, field(g, asExpr(g, view), literalName(g, accessor)));
+            call->args.push(g.file.arena, variable(g, index));
+            if(!read) call->args.push(g.file.arena, variable(g, amount));
+            call->args.push(g.file.arena, variable(g, order));
+
+            if(read) emit(g, make<ReturnStmt>(g, asExpr(g, call)));
+            else emitExpr(g, asExpr(g, call));
+        });
+
+        emit(g, function);
+    };
+
+    define(g.readWordHelper[0], "getUint16"_v, true);
+    define(g.readWordHelper[1], "getUint32"_v, true);
+    define(g.readWordHelper[2], "getBigUint64"_v, true);
+    define(g.writeWordHelper[0], "setUint16"_v, false);
+    define(g.writeWordHelper[1], "setUint32"_v, false);
+    define(g.writeWordHelper[2], "setBigUint64"_v, false);
+}
+
 // Declared in build.h, which is where the reasoning lives: two callers read this and they must
 // not disagree. At js scope rather than in the anonymous namespace above because gen.cpp is the
 // other one.
@@ -2760,6 +2934,7 @@ AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate) {
         if(!stepped) return plan;
 
         plan.kind = AggregateBuildPlan::Array;
+        plan.type = type;
         plan.eligible = true;
         return plan;
     }
@@ -2881,7 +3056,11 @@ JsPtr<Expr> buildFromPlan(Gen& g, InstAggregate& aggregate, const AggregateBuild
             elements->values.push(g.file.arena, value(i));
         }
 
-        return asExpr(g, elements);
+        // In §14's typed row where the element belongs to it, which is the same choice `zeroValue`
+        // makes for the storage this literal is written over - see hostArrayForElement. The two
+        // disagreeing is exactly the defect that rule exists to prevent.
+        auto array = (ArrayType*)g.global[plan.type];
+        return hostArrayForElement(g, array->content, asExpr(g, elements));
     }
 
     /*

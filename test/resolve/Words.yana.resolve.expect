@@ -1,0 +1,752 @@
+let image$base: () = <none>
+
+let &heapFree: %%U8 = 0
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn checkWordInBounds(%from: Flat(U8), %at: Size, %width: Size) -> () {
+  b0:
+    %count = load %from@Flat.length : Size
+    %v4 = cmp_lt %count, %width : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = bitcast %at : USize
+    %v7 = sub %count, %width : Size
+    %v8 = bitcast %v7 : USize
+    %v9 = cmp_gt %v6, %v8 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = phi [b1, %v9], [b2, True] : Bool
+    call checkCondition, %v13
+    ret
+}
+
+fn readBigU16(%from: Flat(U8), %at: Size) -> U16 {
+  b0:
+    call checkWordInBounds, %from, %at, 2
+    %v4 = load %from@Flat.items : %U8
+    %v5 = strideof U8 : Size
+    %v6 = mul %at, %v5 : Size
+    %v7 = add %v4, %v6 : %U8
+    %v8 = bitcast %v7 : %U16
+    %v9 = load [%v8] : U16
+    %v10 = call bigEndian(U16), %v9 : U16
+    ret %v10
+}
+
+fn readLittleU16(%from: Flat(U8), %at: Size) -> U16 {
+  b0:
+    call checkWordInBounds, %from, %at, 2
+    %v4 = load %from@Flat.items : %U8
+    %v5 = strideof U8 : Size
+    %v6 = mul %at, %v5 : Size
+    %v7 = add %v4, %v6 : %U8
+    %v8 = bitcast %v7 : %U16
+    %v9 = load [%v8] : U16
+    %v10 = call littleEndian(U16), %v9 : U16
+    ret %v10
+}
+
+fn readBigU32(%from: Flat(U8), %at: Size) -> U32 {
+  b0:
+    call checkWordInBounds, %from, %at, 4
+    %v4 = load %from@Flat.items : %U8
+    %v5 = strideof U8 : Size
+    %v6 = mul %at, %v5 : Size
+    %v7 = add %v4, %v6 : %U8
+    %v8 = bitcast %v7 : %U32
+    %v9 = load [%v8] : U32
+    %v10 = call bigEndian(U32), %v9 : U32
+    ret %v10
+}
+
+fn readLittleU32(%from: Flat(U8), %at: Size) -> U32 {
+  b0:
+    call checkWordInBounds, %from, %at, 4
+    %v4 = load %from@Flat.items : %U8
+    %v5 = strideof U8 : Size
+    %v6 = mul %at, %v5 : Size
+    %v7 = add %v4, %v6 : %U8
+    %v8 = bitcast %v7 : %U32
+    %v9 = load [%v8] : U32
+    %v10 = call littleEndian(U32), %v9 : U32
+    ret %v10
+}
+
+fn readBigU64(%from: Flat(U8), %at: Size) -> U64 {
+  b0:
+    call checkWordInBounds, %from, %at, 8
+    %v4 = load %from@Flat.items : %U8
+    %v5 = strideof U8 : Size
+    %v6 = mul %at, %v5 : Size
+    %v7 = add %v4, %v6 : %U8
+    %v8 = bitcast %v7 : %U64
+    %v9 = load [%v8] : U64
+    %v10 = call bigEndian(U64), %v9 : U64
+    ret %v10
+}
+
+fn writeBigU16(%to: Flat(U8), %at: Size, %value: U16) -> () {
+  b0:
+    %v3 = load %to : Flat(U8)
+    call checkWordInBounds, %v3, %at, 2
+    %v6 = load %to : Flat(U8)
+    %v7 = load %to@Flat.items : %U8
+    %v8 = strideof U8 : Size
+    %v9 = mul %at, %v8 : Size
+    %v10 = add %v7, %v9 : %U8
+    %v11 = bitcast %v10 : %U16
+    %v12 = call bigEndian(U16), %value : U16
+    assign [%v11], %v12
+    ret
+}
+
+fn writeLittleU16(%to: Flat(U8), %at: Size, %value: U16) -> () {
+  b0:
+    %v3 = load %to : Flat(U8)
+    call checkWordInBounds, %v3, %at, 2
+    %v6 = load %to : Flat(U8)
+    %v7 = load %to@Flat.items : %U8
+    %v8 = strideof U8 : Size
+    %v9 = mul %at, %v8 : Size
+    %v10 = add %v7, %v9 : %U8
+    %v11 = bitcast %v10 : %U16
+    %v12 = call littleEndian(U16), %value : U16
+    assign [%v11], %v12
+    ret
+}
+
+fn writeBigU32(%to: Flat(U8), %at: Size, %value: U32) -> () {
+  b0:
+    %v3 = load %to : Flat(U8)
+    call checkWordInBounds, %v3, %at, 4
+    %v6 = load %to : Flat(U8)
+    %v7 = load %to@Flat.items : %U8
+    %v8 = strideof U8 : Size
+    %v9 = mul %at, %v8 : Size
+    %v10 = add %v7, %v9 : %U8
+    %v11 = bitcast %v10 : %U32
+    %v12 = call bigEndian(U32), %value : U32
+    assign [%v11], %v12
+    ret
+}
+
+fn writeLittleU32(%to: Flat(U8), %at: Size, %value: U32) -> () {
+  b0:
+    %v3 = load %to : Flat(U8)
+    call checkWordInBounds, %v3, %at, 4
+    %v6 = load %to : Flat(U8)
+    %v7 = load %to@Flat.items : %U8
+    %v8 = strideof U8 : Size
+    %v9 = mul %at, %v8 : Size
+    %v10 = add %v7, %v9 : %U8
+    %v11 = bitcast %v10 : %U32
+    %v12 = call littleEndian(U32), %value : U32
+    assign [%v11], %v12
+    ret
+}
+
+fn writeBigU64(%to: Flat(U8), %at: Size, %value: U64) -> () {
+  b0:
+    %v3 = load %to : Flat(U8)
+    call checkWordInBounds, %v3, %at, 8
+    %v6 = load %to : Flat(U8)
+    %v7 = load %to@Flat.items : %U8
+    %v8 = strideof U8 : Size
+    %v9 = mul %at, %v8 : Size
+    %v10 = add %v7, %v9 : %U8
+    %v11 = bitcast %v10 : %U64
+    %v12 = call bigEndian(U64), %value : U64
+    assign [%v11], %v12
+    ret
+}
+
+fn bigEndian(U16)(%value: U16) -> U16 {
+  b0:
+    %v2 = byteorder Endian : Endian
+    %v3 = cast %v2 : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v7 = byteswap %value : U16
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %value], [b1, %v7] : U16
+    ret %v1
+}
+
+fn littleEndian(U16)(%value: U16) -> U16 {
+  b0:
+    %v2 = byteorder Endian : Endian
+    %v3 = cast %v2 : Int
+    %v5 = cmp_eq %v3, 0 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v7 = byteswap %value : U16
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %value], [b1, %v7] : U16
+    ret %v1
+}
+
+fn bigEndian(U32)(%value: U32) -> U32 {
+  b0:
+    %v2 = byteorder Endian : Endian
+    %v3 = cast %v2 : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v7 = byteswap %value : U32
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %value], [b1, %v7] : U32
+    ret %v1
+}
+
+fn littleEndian(U32)(%value: U32) -> U32 {
+  b0:
+    %v2 = byteorder Endian : Endian
+    %v3 = cast %v2 : Int
+    %v5 = cmp_eq %v3, 0 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v7 = byteswap %value : U32
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %value], [b1, %v7] : U32
+    ret %v1
+}
+
+fn bigEndian(U64)(%value: U64) -> U64 {
+  b0:
+    %v2 = byteorder Endian : Endian
+    %v3 = cast %v2 : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v7 = byteswap %value : U64
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v1 = phi [b2, %value], [b1, %v7] : U64
+    ret %v1
+}
+
+fn Reclaim(Array(a)).reclaim(U8)(%value: Array(U8)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(U8)
+    call releaseRun(U8), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(U8)
+    %v14 = load %value@Array.run@Run.items : %U8
+    %v15 = load %i : Int
+    %v16 = cast %v15 : Size
+    %v17 = strideof U8 : Size
+    %v18 = mul %v16, %v17 : Size
+    %v19 = add %v14, %v18 : %U8
+    %v20 = load [%v19] : U8
+    %doomed = alloc : U8
+    init %local3, %v20
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
+    jmp b1
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = syscall 60, %status : Size
+    ret
+}
+
+fn freeListHead(%sizeClass: Size) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn releaseRun(U8)(%self: Run(U8)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %U8
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn check(%held: Bool, %bit: Int) -> Int {
+  b0:
+    je %held, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %bit], [b2, 0] : Int
+    ret %v6
+}
+
+fn order() -> Int {
+  b0:
+    %v0 = byteorder Endian : Endian
+    %v2 = cmp_eq %v0, Little : Bool
+    %v4 = call check, %v2, 1 : Int
+    %v5 = byteorder Endian : Endian
+    %v7 = cmp_eq %v5, Big : Bool
+    %v9 = xor %v7, True : Bool
+    %v11 = call check, %v9, 2 : Int
+    %v12 = add %v4, %v11 : Int
+    ret %v12
+}
+
+fn opaqueU32(%value: U32) -> U32 {
+  b0:
+    ret %value
+}
+
+fn opaqueU16(%value: U16) -> U16 {
+  b0:
+    ret %value
+}
+
+fn opaqueU64(%value: U64) -> U64 {
+  b0:
+    ret %value
+}
+
+fn conversions() -> Int {
+  b0:
+    %v1 = call opaqueU32, 305419896 : U32
+    %v2 = call bigEndian(U32), %v1 : U32
+    %v5 = cmp_eq %v2, 2018915346 : Bool
+    %v7 = call check, %v5, 4 : Int
+    %v9 = call opaqueU32, 305419896 : U32
+    %v10 = call littleEndian(U32), %v9 : U32
+    %v13 = cmp_eq %v10, 305419896 : Bool
+    %v15 = call check, %v13, 8 : Int
+    %v16 = add %v7, %v15 : Int
+    %v18 = call opaqueU32, 305419896 : U32
+    %v19 = call bigEndian(U32), %v18 : U32
+    %v20 = call bigEndian(U32), %v19 : U32
+    %v23 = cmp_eq %v20, 305419896 : Bool
+    %v25 = call check, %v23, 16 : Int
+    %v26 = add %v16, %v25 : Int
+    %v28 = call opaqueU16, 4660 : U16
+    %v29 = call bigEndian(U16), %v28 : U16
+    %v32 = cmp_eq %v29, 13330 : Bool
+    %v34 = call check, %v32, 32 : Int
+    %v35 = add %v26, %v34 : Int
+    %v37 = call opaqueU64, 1 : U64
+    %v38 = call bigEndian(U64), %v37 : U64
+    %v41 = cmp_eq %v38, 72057594037927936 : Bool
+    %v43 = call check, %v41, 64 : Int
+    %v44 = add %v35, %v43 : Int
+    ret %v44
+}
+
+fn roundTrip() -> Int {
+  b0:
+    %v8 = alloc : Array(U8)
+    %v11 = alloc *8 : U8
+    %v12 = addressof %local1 : %U8
+    init %bytes@Array.run@Run.items, %v12
+    init %bytes@Array.run@Run.capacity, 8
+    init %bytes@Array.run@Run.ownsHeap, 0
+    aggregate [%v12][0] = 0, [%v12][1] = 0, [%v12][2] = 0, [%v12][3] = 0, [%v12][4] = 0, [%v12][5] = 0, [%v12][6] = 0, [%v12][7] = 0
+    init %bytes@Array.length, 8
+    %v27 = load %bytes : Array(U8)
+    %v30 = borrow_mut %bytes : &mut Array(U8)
+    %v31 = alloc : Flat(U8)
+    %v32 = load [%v30]@Array.run@Run.items : %U8
+    init %local2@Flat.items, %v32
+    %v34 = load [%v30]@Array.length : @bits(30) U32
+    %v35 = cast %v34 : Size
+    init %local2@Flat.length, %v35
+    %v37 = borrow_mut %local2 : &mut Flat(U8)
+    call writeBigU16, %v37, 0, 4660
+    %v39 = load %bytes : Array(U8)
+    %v42 = borrow_mut %bytes : &mut Array(U8)
+    %v43 = alloc : Flat(U8)
+    %v44 = load [%v42]@Array.run@Run.items : %U8
+    init %local3@Flat.items, %v44
+    %v46 = load [%v42]@Array.length : @bits(30) U32
+    %v47 = cast %v46 : Size
+    init %local3@Flat.length, %v47
+    %v49 = borrow_mut %local3 : &mut Flat(U8)
+    call writeLittleU16, %v49, 2, 4660
+    %v51 = load %bytes : Array(U8)
+    %v52 = borrow %bytes : &Array(U8)
+    %v53 = alloc : Flat(U8)
+    %v54 = load [%v52]@Array.run@Run.items : %U8
+    init %local4@Flat.items, %v54
+    %v56 = load [%v52]@Array.length : @bits(30) U32
+    %v57 = cast %v56 : Size
+    init %local4@Flat.length, %v57
+    %v60 = call readBigU16, %v53, 0 : U16
+    %v63 = cmp_eq %v60, 4660 : Bool
+    %v65 = call check, %v63, 128 : Int
+    %v66 = load %bytes : Array(U8)
+    %v67 = borrow %bytes : &Array(U8)
+    %v68 = alloc : Flat(U8)
+    %v69 = load [%v67]@Array.run@Run.items : %U8
+    init %local5@Flat.items, %v69
+    %v71 = load [%v67]@Array.length : @bits(30) U32
+    %v72 = cast %v71 : Size
+    init %local5@Flat.length, %v72
+    %v75 = call readLittleU16, %v68, 2 : U16
+    %v78 = cmp_eq %v75, 4660 : Bool
+    %v80 = call check, %v78, 256 : Int
+    %v81 = add %v65, %v80 : Int
+    %v82 = load %bytes : Array(U8)
+    %v83 = borrow %bytes : &Array(U8)
+    %v84 = alloc : Flat(U8)
+    %v85 = load [%v83]@Array.run@Run.items : %U8
+    init %local6@Flat.items, %v85
+    %v87 = load [%v83]@Array.length : @bits(30) U32
+    %v88 = cast %v87 : Size
+    init %local6@Flat.length, %v88
+    %v91 = call readLittleU16, %v84, 0 : U16
+    %v94 = cmp_eq %v91, 13330 : Bool
+    %v96 = call check, %v94, 512 : Int
+    %shorts = add %v81, %v96 : Int
+    %v98 = load %bytes : Array(U8)
+    %v101 = borrow_mut %bytes : &mut Array(U8)
+    %v102 = alloc : Flat(U8)
+    %v103 = load [%v101]@Array.run@Run.items : %U8
+    init %local7@Flat.items, %v103
+    %v105 = load [%v101]@Array.length : @bits(30) U32
+    %v106 = cast %v105 : Size
+    init %local7@Flat.length, %v106
+    %v108 = borrow_mut %local7 : &mut Flat(U8)
+    call writeBigU64, %v108, 0, 1311768467463790320
+    %v110 = load %bytes : Array(U8)
+    %v111 = borrow %bytes : &Array(U8)
+    %v112 = alloc : Flat(U8)
+    %v113 = load [%v111]@Array.run@Run.items : %U8
+    init %local8@Flat.items, %v113
+    %v115 = load [%v111]@Array.length : @bits(30) U32
+    %v116 = cast %v115 : Size
+    init %local8@Flat.length, %v116
+    %v119 = call readBigU64, %v112, 0 : U64
+    drop %bytes reclaim Reclaim(Array(a)).reclaim(U8)
+    %v122 = cmp_eq %v119, 1311768467463790320 : Bool
+    %wide = call check, %v122, 1024 : Int
+    %v125 = add %shorts, %wide : Int
+    ret %v125
+}
+
+fn layout() -> Int {
+  b0:
+    %v8 = alloc : Array(U8)
+    %v11 = alloc *8 : U8
+    %v12 = addressof %local1 : %U8
+    init %bytes@Array.run@Run.items, %v12
+    init %bytes@Array.run@Run.capacity, 8
+    init %bytes@Array.run@Run.ownsHeap, 0
+    aggregate [%v12][0] = 0, [%v12][1] = 0, [%v12][2] = 0, [%v12][3] = 0, [%v12][4] = 0, [%v12][5] = 0, [%v12][6] = 0, [%v12][7] = 0
+    init %bytes@Array.length, 8
+    %v27 = load %bytes : Array(U8)
+    %v30 = borrow_mut %bytes : &mut Array(U8)
+    %v31 = alloc : Flat(U8)
+    %v32 = load [%v30]@Array.run@Run.items : %U8
+    init %local2@Flat.items, %v32
+    %v34 = load [%v30]@Array.length : @bits(30) U32
+    %v35 = cast %v34 : Size
+    init %local2@Flat.length, %v35
+    %v37 = borrow_mut %local2 : &mut Flat(U8)
+    call writeBigU32, %v37, 0, 305419896
+    %v39 = load %bytes : Array(U8)
+    %v42 = borrow_mut %bytes : &mut Array(U8)
+    %v43 = alloc : Flat(U8)
+    %v44 = load [%v42]@Array.run@Run.items : %U8
+    init %local3@Flat.items, %v44
+    %v46 = load [%v42]@Array.length : @bits(30) U32
+    %v47 = cast %v46 : Size
+    init %local3@Flat.length, %v47
+    %v49 = borrow_mut %local3 : &mut Flat(U8)
+    call writeLittleU32, %v49, 4, 305419896
+    %v51 = load %bytes : Array(U8)
+    %v54 = borrow %bytes : &Array(U8)
+    %v55 = load [%v54]@Array.length : @bits(30) U32
+    %v56 = cast 0 : USize
+    %v57 = cast %v55 : USize
+    %v58 = cmp_ge %v56, %v57 : Bool
+    call checkCondition, %v58
+    %v60 = load [%v54]@Array.run@Run.items : %U8
+    %v61 = strideof U8 : Long
+    %v62 = mul 0, %v61 : Long
+    %v63 = add %v60, %v62 : %U8
+    %v64 = borrow [%v63] : &U8
+    %v65 = load [%v64] : U8
+    %v68 = cmp_eq %v65, 18 : Bool
+    %v70 = call check, %v68, 2048 : Int
+    %v71 = load %bytes : Array(U8)
+    %v74 = borrow %bytes : &Array(U8)
+    %v75 = load [%v74]@Array.length : @bits(30) U32
+    %v76 = cast 3 : USize
+    %v77 = cast %v75 : USize
+    %v78 = cmp_ge %v76, %v77 : Bool
+    call checkCondition, %v78
+    %v80 = load [%v74]@Array.run@Run.items : %U8
+    %v81 = strideof U8 : Long
+    %v82 = mul 3, %v81 : Long
+    %v83 = add %v80, %v82 : %U8
+    %v84 = borrow [%v83] : &U8
+    %v85 = load [%v84] : U8
+    %v88 = cmp_eq %v85, 120 : Bool
+    %v90 = call check, %v88, 4096 : Int
+    %v91 = add %v70, %v90 : Int
+    %v92 = load %bytes : Array(U8)
+    %v95 = borrow %bytes : &Array(U8)
+    %v96 = load [%v95]@Array.length : @bits(30) U32
+    %v97 = cast 4 : USize
+    %v98 = cast %v96 : USize
+    %v99 = cmp_ge %v97, %v98 : Bool
+    call checkCondition, %v99
+    %v101 = load [%v95]@Array.run@Run.items : %U8
+    %v102 = strideof U8 : Long
+    %v103 = mul 4, %v102 : Long
+    %v104 = add %v101, %v103 : %U8
+    %v105 = borrow [%v104] : &U8
+    %v106 = load [%v105] : U8
+    %v109 = cmp_eq %v106, 120 : Bool
+    %v111 = call check, %v109, 8192 : Int
+    %v112 = add %v91, %v111 : Int
+    %v113 = load %bytes : Array(U8)
+    %v116 = borrow %bytes : &Array(U8)
+    %v117 = load [%v116]@Array.length : @bits(30) U32
+    %v118 = cast 7 : USize
+    %v119 = cast %v117 : USize
+    %v120 = cmp_ge %v118, %v119 : Bool
+    call checkCondition, %v120
+    %v122 = load [%v116]@Array.run@Run.items : %U8
+    %v123 = strideof U8 : Long
+    %v124 = mul 7, %v123 : Long
+    %v125 = add %v122, %v124 : %U8
+    %v126 = borrow [%v125] : &U8
+    %v127 = load [%v126] : U8
+    %v130 = cmp_eq %v127, 18 : Bool
+    %v132 = call check, %v130, 16384 : Int
+    %ends = add %v112, %v132 : Int
+    %v134 = load %bytes : Array(U8)
+    %v135 = borrow %bytes : &Array(U8)
+    %v136 = alloc : Flat(U8)
+    %v137 = load [%v135]@Array.run@Run.items : %U8
+    init %local4@Flat.items, %v137
+    %v139 = load [%v135]@Array.length : @bits(30) U32
+    %v140 = cast %v139 : Size
+    init %local4@Flat.length, %v140
+    %v143 = call readLittleU32, %v136, 0 : U32
+    drop %bytes reclaim Reclaim(Array(a)).reclaim(U8)
+    %v146 = cmp_eq %v143, 2018915346 : Bool
+    %v148 = call check, %v146, 32768 : Int
+    %v149 = add %ends, %v148 : Int
+    ret %v149
+}
+
+fn unaligned() -> Int {
+  b0:
+    %v8 = alloc : Array(U8)
+    %v11 = alloc *8 : U8
+    %v12 = addressof %local1 : %U8
+    init %bytes@Array.run@Run.items, %v12
+    init %bytes@Array.run@Run.capacity, 8
+    init %bytes@Array.run@Run.ownsHeap, 0
+    aggregate [%v12][0] = 0, [%v12][1] = 0, [%v12][2] = 0, [%v12][3] = 0, [%v12][4] = 0, [%v12][5] = 0, [%v12][6] = 0, [%v12][7] = 0
+    init %bytes@Array.length, 8
+    %v27 = load %bytes : Array(U8)
+    %v30 = borrow_mut %bytes : &mut Array(U8)
+    %v31 = alloc : Flat(U8)
+    %v32 = load [%v30]@Array.run@Run.items : %U8
+    init %local2@Flat.items, %v32
+    %v34 = load [%v30]@Array.length : @bits(30) U32
+    %v35 = cast %v34 : Size
+    init %local2@Flat.length, %v35
+    %v37 = borrow_mut %local2 : &mut Flat(U8)
+    call writeBigU32, %v37, 1, 305419896
+    %v39 = load %bytes : Array(U8)
+    %v41 = load %bytes : Array(U8)
+    %v42 = borrow %bytes : &Array(U8)
+    %v43 = alloc : Flat(U8)
+    %v44 = load [%v42]@Array.run@Run.items : %U8
+    init %local3@Flat.items, %v44
+    %v46 = load [%v42]@Array.length : @bits(30) U32
+    %v47 = cast %v46 : Size
+    init %local3@Flat.length, %v47
+    %v50 = call readBigU32, %v43, 1 : U32
+    %v53 = add %v50, 1 : U32
+    %v54 = borrow_mut %bytes : &mut Array(U8)
+    %v55 = alloc : Flat(U8)
+    %v56 = load [%v54]@Array.run@Run.items : %U8
+    init %local4@Flat.items, %v56
+    %v58 = load [%v54]@Array.length : @bits(30) U32
+    %v59 = cast %v58 : Size
+    init %local4@Flat.length, %v59
+    %v61 = borrow_mut %local4 : &mut Flat(U8)
+    call writeBigU32, %v61, 1, %v53
+    %v63 = load %bytes : Array(U8)
+    %v64 = borrow %bytes : &Array(U8)
+    %v65 = alloc : Flat(U8)
+    %v66 = load [%v64]@Array.run@Run.items : %U8
+    init %local5@Flat.items, %v66
+    %v68 = load [%v64]@Array.length : @bits(30) U32
+    %v69 = cast %v68 : Size
+    init %local5@Flat.length, %v69
+    %v72 = call readBigU32, %v65, 1 : U32
+    %v75 = cmp_eq %v72, 305419897 : Bool
+    %v77 = call check, %v75, 65536 : Int
+    %v78 = load %bytes : Array(U8)
+    %v81 = borrow %bytes : &Array(U8)
+    %v82 = load [%v81]@Array.length : @bits(30) U32
+    %v83 = cast 0 : USize
+    %v84 = cast %v82 : USize
+    %v85 = cmp_ge %v83, %v84 : Bool
+    call checkCondition, %v85
+    %v87 = load [%v81]@Array.run@Run.items : %U8
+    %v88 = strideof U8 : Long
+    %v89 = mul 0, %v88 : Long
+    %v90 = add %v87, %v89 : %U8
+    %v91 = borrow [%v90] : &U8
+    %v92 = load [%v91] : U8
+    drop %bytes reclaim Reclaim(Array(a)).reclaim(U8)
+    %v95 = cmp_eq %v92, 0 : Bool
+    %v97 = call check, %v95, 131072 : Int
+    %v98 = add %v77, %v97 : Int
+    ret %v98
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call order : Int
+    %v1 = call conversions : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call roundTrip : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call layout : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call unaligned : Int
+    %v8 = add %v6, %v7 : Int
+    ret %v8
+}

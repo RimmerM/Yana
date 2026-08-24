@@ -1768,6 +1768,7 @@ Ptr<File> genProgram(Context& context, Program& program) {
     emitBitOpHelpers(g);
     emitDivisionHelpers(g);
     emitGrowHelper(g);
+    emitWordHelpers(g);
 
     genEntryCall(g);
 

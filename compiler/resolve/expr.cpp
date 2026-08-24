@@ -215,6 +215,22 @@ ModulePtr<Value> ExprResolver::makeFloat(LocationId source, TypePtr type, F64 va
  */
 ModulePtr<Value> ExprResolver::globalValue(ModulePtr<Global> global_, LocationId source) {
     if(!initializedGlobal(global_, source)) return nullptr;
+
+    /*
+     * A target question - `Target.byteOrder` - which is a constant whose value this stage does not
+     * have. See `Global::targetMetric`: the read becomes the metric and the target folds it, which
+     * is the same arrangement `sizeOf` on a concrete type is in.
+     *
+     * The global is never marked used, so nothing emits storage for it. That is not a special case
+     * either: an immutable global is a name for a constant and occupies nothing, and this is one
+     * whose constant is written down somewhere other than in the source.
+     */
+    auto& definition = *local[global_];
+    if(definition.targetMetric) {
+        return ref(emit<InstTypeMetric>(source, StringId(), definition.type, definition.type,
+                                        definition.metric));
+    }
+
     return load(Place::inGlobal(global_), source);
 }
 

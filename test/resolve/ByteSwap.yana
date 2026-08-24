@@ -1,10 +1,10 @@
 {-
-   `swapEndian` - the byte reversal, which is one instruction on every machine this compiles for.
+   `byteSwap` - the byte reversal, which is one instruction on every machine this compiles for.
 
    # extensions: v3
 
    The class is source (`lib/Core.yana`) and its integer instances are generated one `ByteSwap` at a
-   time (`defineEndian` in resolve/intrinsic.cpp), so what this asserts is the whole path: the
+   time (`defineByteSwap` in resolve/intrinsic.cpp), so what this asserts is the whole path: the
    instance selection, the instruction, the two backends' spellings of it and the two folds that see
    through it.
 
@@ -40,10 +40,10 @@
 fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
 
 -- The four bytes of `0x12345678`, the other way round.
-fn word() -> Int = check(swapEndian(opaqueU32(305419896)) == 2018915346, 1)
+fn word() -> Int = check(byteSwap(opaqueU32(305419896)) == 2018915346, 1)
 
 -- Two bytes, which is the width that is expanded rather than reversed.
-fn short() -> Int = check((widen(swapEndian(opaqueU16(truncate(258) :: U16))) :: Int) == 513, 2)
+fn short() -> Int = check((widen(byteSwap(opaqueU16(truncate(258) :: U16))) :: Int) == 513, 2)
 
 {-
    The same at a *signed* 16-bit type, where the value is held sign-extended in its register.
@@ -55,28 +55,28 @@ fn short() -> Int = check((widen(swapEndian(opaqueU16(truncate(258) :: U16))) ::
 -}
 fn signedShort() -> Int:
     let value = opaqueI16(bitcast(truncate(65280) :: U16) :: I16)
-    return check((widen(swapEndian(value)) :: Int) == 255, 4)
+    return check((widen(byteSwap(value)) :: Int) == 255, 4)
 
 -- Eight bytes, `0x0102030405060708` reversed.
 fn wide() -> Int =
-    check(swapEndian(opaqueU64(72623859790382856)) == 578437695752307201, 8)
+    check(byteSwap(opaqueU64(72623859790382856)) == 578437695752307201, 8)
 
 -- The two canonical widths, which reach their instances through `Int` and `Long` rather than through
 -- the fixed-width family.
 fn canonical() -> Int =
-    check(swapEndian(opaqueInt(1)) == 16777216, 16) +
-    check(swapEndian(opaqueLong(1)) == 72057594037927936, 32)
+    check(byteSwap(opaqueInt(1)) == 16777216, 16) +
+    check(byteSwap(opaqueLong(1)) == 72057594037927936, 32)
 
 -- The signed fixed widths, whose instances are the unsigned ones' at the same width.
 fn signedWidths() -> Int =
-    check(swapEndian(bitcast(opaqueU32(1)) :: I32) == 16777216, 64) +
-    check(swapEndian(bitcast(opaqueU64(1)) :: I64) == 72057594037927936, 128)
+    check(byteSwap(bitcast(opaqueU32(1)) :: I32) == 16777216, 64) +
+    check(byteSwap(bitcast(opaqueU64(1)) :: I64) == 72057594037927936, 128)
 
 -- A reversal of a reversal is what went in, which both folds are asked to see: `opt_fold` collapses
 -- the pair here, and `foldUnaryValue` collapses whatever survives into the lower IR.
 fn roundTrip() -> Int:
     let value = opaqueU64(1311768467463790320)
-    return check(swapEndian(swapEndian(value)) == value, 256)
+    return check(byteSwap(byteSwap(value)) == value, 256)
 
 {-
    And the shape `movbe` exists for: a value reversed on its way out of memory, and one reversed on
@@ -90,14 +90,14 @@ fn throughMemory() -> Int:
     let &words = [0, 0] :: [U32]
 
     words[0] = opaqueU32(305419896)
-    let read = check(swapEndian(words[0]) == 2018915346, 512)
+    let read = check(byteSwap(words[0]) == 2018915346, 512)
 
-    words[1] = swapEndian(opaqueU32(305419896))
+    words[1] = byteSwap(opaqueU32(305419896))
     return read + check(words[1] == 2018915346, 1024)
 
 -- The constant path, which is the one case here that is *meant* to fold: the answer has to be the
 -- one the instruction would have given.
-fn folded() -> Int = check(swapEndian(truncate(305419896) :: U32) == 2018915346, 2048)
+fn folded() -> Int = check(byteSwap(truncate(305419896) :: U32) == 2018915346, 2048)
 
 {-
    And the same reversal reached through a *witness* rather than by name.
@@ -105,10 +105,10 @@ fn folded() -> Int = check(swapEndian(truncate(305419896) :: U32) == 2018915346,
    A generated instance is a real function as well as an expansion at the call site, and this is the
    build that tells the two apart: a fixture with a `.run.expect` is compiled a second time with
    specialization declined, so `swapVia` is then one body with the instance passed to it, calling the
-   `Endian` method through the table. That is the least-travelled path and the one where an instance
+   `ByteSwap` method through the table. That is the least-travelled path and the one where an instance
    whose body was only ever a call-site expansion would have nothing to call.
 -}
-@noinline fn (Endian(a)) swapVia(value: a) -> a = swapEndian(value)
+@noinline fn (ByteSwap(a)) swapVia(value: a) -> a = byteSwap(value)
 
 fn generic() -> Int =
     check(swapVia(opaqueU32(305419896)) == 2018915346, 4096) +

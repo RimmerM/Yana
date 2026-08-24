@@ -1,0 +1,18 @@
+
+indirect<complex>(%p: Ptr, %a: Int, %b: Int, %keep: Int): Int {
+  b_0 {
+    %r = call_sysv %p, %a, %b: Int
+    %s = add %r, %keep: Int
+    ret %s
+  }
+}
+
+
+--- codegen: indirect ---
+  prologue  => 55488bec534883e4f0
+block #0:
+  jmp uses=[] creates=[] pre=[rcx->rbx, rdi->rcx, rsi->rdi, rdx->rsi]  => 8bd9488bcf8bfe8bf2
+block #1:
+  call_sysv uses=[rcx, rdi, rsi] creates=[rax]  => ffd1
+  add uses=[rax, rbx] creates=[rax]  => 01d8
+  ret uses=[rax] creates=[]  => 488d65f85b5dc3

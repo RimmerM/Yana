@@ -492,7 +492,11 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
                 elements->values.push(g.file.arena, zeroValue(g, array->content));
             }
 
-            return asExpr(g, elements);
+            // And in §14's typed row where the element has one, on the same terms `Array(a)`'s own
+            // storage is: a `[U8 *64]` is a `Uint8Array`, which is what lets a word transfer reach
+            // its buffer (see NativeOp::HostWordRead) and is what the row was for in the first
+            // place. See hostArrayForElement, which is the one rule all three builders ask.
+            return hostArrayForElement(g, array->content, asExpr(g, elements));
         }
         case Type::Gen:
             /*
@@ -628,7 +632,7 @@ JsPtr<Expr> constantAggregate(Gen& g, ModulePtr<ConstValue> constant) {
                     elements->values.push(g.file.arena, constantAggregate(g, child));
                 }
 
-                return asExpr(g, elements);
+                return hostArrayForElement(g, ((ArrayType*)declared)->content, asExpr(g, elements));
             }
 
             if(declared->kind != Type::Tup) return nullValue(g);
@@ -946,6 +950,23 @@ JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value) {
          * when nothing refined it, so the common case emits the same text it always did.
          */
         if(isLong(g, type)) {
+            /*
+             * A literal that is already this type's normal form, which the reduction would answer
+             * with itself. `asIntN(64, 0n)` is `0n`, and leaving the call in is what stopped a
+             * folded constant from reaching the comparison that wanted it - `Target.byteOrder` is
+             * where that showed up.
+             *
+             * The full width and matching signedness only: those are the two facts that make the
+             * identity obvious without reading the value, and every literal the emitter writes at a
+             * 64-bit type is one. A `@bits(58) U64` still goes through the host.
+             */
+            U64 literal;
+            bool literalSigned;
+            if(integer->bits == 64 && constantBigInt(g, value, literal, literalSigned) &&
+               literalSigned == integer->isSigned) {
+                return value;
+            }
+
             return hostCall(g, "BigInt"_v, integer->isSigned ? "asIntN"_v : "asUintN"_v,
                             number(g, integer->bits), value);
         }

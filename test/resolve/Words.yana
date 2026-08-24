@@ -1,0 +1,117 @@
+{-
+   The byte order a target has, and the word transfers written over it - Analysis-Warts.md part 4.
+
+   # extensions: v3
+
+   Three things that only work if they agree, so they are one fixture:
+
+   - **`Target.byteOrder`**, a constant with no initializer whose value is the *target's*. It reaches
+     the IR as a `byteorder` metric and is folded by whichever backend emits, so what a run asserts
+     is that the two backends fold it to the same answer as each other and as the byte a memory
+     transfer actually lands on.
+   - **`bigEndian` / `littleEndian`**, which are that constant and a `byteSwap`, and are each their
+     own inverse.
+   - **`readBigU32` and its eleven siblings**, which are a load and a reversal natively and a
+     `DataView` accessor on JS - two implementations that have to answer the same numbers.
+
+   Compiled at v3 so the native side exercises `movbe`, which is what a reversal beside an access
+   folds to there; `ByteSwap.yana` is where that folding is asserted on its own.
+
+   Each case contributes a distinct power of two and `main` is 262143 when they all pass, so a
+   failure names itself in binary.
+-}
+
+fn check(held: Bool, bit: Int) -> Int = if held then bit else 0
+
+{-
+   The constant itself.
+
+   Every target this compiles for is little-endian, so the assertion is that answer *and* that the
+   two spellings of the question agree: `Target.byteOrder == Little` is the enum comparison, and the
+   byte a big-endian write puts first is the same fact reached through memory.
+
+   A fixture cannot assert that the constant folds - folding leaves nothing to look at - so what
+   `Words.yana.lower.expect` is for is that it does: this function's body is a `ret` of a constant
+   there, with no `byteorder` and no comparison left in it.
+-}
+fn order() -> Int =
+    check(Target.byteOrder == Little, 1) +
+    check(!(Target.byteOrder == Big), 2)
+
+{-
+   The two order conversions, and the property that makes one name serve a read and a write: each is
+   its own inverse, so applying it twice is the identity at every width.
+
+   `opaqueU32` keeps the fold from answering instead - see ByteSwap.yana, where the same guard is and
+   for the same reason.
+-}
+@noinline fn opaqueU32(value: U32) -> U32 = value
+@noinline fn opaqueU16(value: U16) -> U16 = value
+@noinline fn opaqueU64(value: U64) -> U64 = value
+
+fn conversions() -> Int =
+    check(bigEndian(opaqueU32(305419896)) == 2018915346, 4) +
+    check(littleEndian(opaqueU32(305419896)) == 305419896, 8) +
+    check(bigEndian(bigEndian(opaqueU32(305419896))) == 305419896, 16) +
+    check(bigEndian(opaqueU16(4660)) == 13330, 32) +
+    check(bigEndian(opaqueU64(1)) == 72057594037927936, 64)
+
+{-
+   The transfers, round-tripped at all three widths.
+
+   A write in one order and a read back in the same order is the number that went in; a read back in
+   the *other* order is that number's byte reversal. Both are asserted, because a pair of functions
+   that were both wrong in the same direction would pass the first on its own.
+-}
+fn roundTrip() -> Int:
+    let &bytes = [0 :: U8, 0, 0, 0, 0, 0, 0, 0]
+
+    writeBigU16(bytes, 0, 4660)
+    writeLittleU16(bytes, 2, 4660)
+
+    let shorts =
+        check(readBigU16(bytes, 0) == 4660, 128) +
+        check(readLittleU16(bytes, 2) == 4660, 256) +
+        check(readLittleU16(bytes, 0) == 13330, 512)
+
+    writeBigU64(bytes, 0, 1311768467463790320)
+    let wide = check(readBigU64(bytes, 0) == 1311768467463790320, 1024)
+
+    return shorts + wide
+
+{-
+   Which byte is first, which is the one assertion memory makes that arithmetic cannot.
+
+   `0x12345678` written big-endian starts with `0x12` and written little-endian starts with `0x78`,
+   on every target - that is what "big-endian" means, and it is what would silently invert if the
+   conversion above were reading `Target.byteOrder` the wrong way round. The two reads on either side
+   of it would still agree with each other.
+-}
+fn layout() -> Int:
+    let &bytes = [0 :: U8, 0, 0, 0, 0, 0, 0, 0]
+
+    writeBigU32(bytes, 0, 305419896)
+    writeLittleU32(bytes, 4, 305419896)
+
+    let ends =
+        check(bytes[0] == 18, 2048) +
+        check(bytes[3] == 120, 4096) +
+        check(bytes[4] == 120, 8192) +
+        check(bytes[7] == 18, 16384)
+
+    -- And the same four bytes read as the other order, which is the reversal and not a new number.
+    return ends + check(readLittleU32(bytes, 0) == 2018915346, 32768)
+
+{-
+   The offset is in bytes and is not required to be aligned, which is the whole reason these take a
+   `[U8]` rather than a buffer of words: a format's fields land where the format put them.
+-}
+fn unaligned() -> Int:
+    let &bytes = [0 :: U8, 0, 0, 0, 0, 0, 0, 0]
+
+    writeBigU32(bytes, 1, 305419896)
+    writeBigU32(bytes, 1, readBigU32(bytes, 1) + 1)
+
+    return check(readBigU32(bytes, 1) == 305419897, 65536) + check(bytes[0] == 0, 131072)
+
+fn main() -> Int = order() + conversions() + roundTrip() + layout() + unaligned()

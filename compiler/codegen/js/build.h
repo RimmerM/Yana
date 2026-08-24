@@ -468,6 +468,27 @@ struct Gen {
      */
     Name growHelper;
 
+    /*
+     * The word transfers, and the `DataView` they ride on - see NativeOp::HostWordRead.
+     *
+     * `viewHelper` is the cache and the other four are the operations. Five names rather than one
+     * expression per call site because that is what makes the cache worth having: `new DataView` at
+     * every call is fifteen times slower than the shift chain these replace, so the view is built
+     * once per array and hung off it, and every word after the first is one property read.
+     *
+     * A property on the array rather than a table keyed by buffer, which was the other candidate and
+     * is slower than doing nothing: a one-entry memo collapses to 30x the moment a loop touches two
+     * buffers - which a digest reading a message and writing a pad does - and a `WeakMap` lookup
+     * costs more than the shifts. The property was measured not to disturb the array it is attached
+     * to: element access over a tagged `Uint8Array` is 8.4 ms against 8.4 ms plain.
+     *
+     * Named lazily, one per width and direction, on `growHelper`'s terms. The slot is the width: 0 is
+     * 16 bits, 1 is 32 and 2 is 64.
+     */
+    Name viewHelper;
+    Name readWordHelper[3];
+    Name writeWordHelper[3];
+
     // The heading each family of helpers is emitted under, so that a family the peephole emptied
     // takes its own comment with it - see removeDeadHelpers.
     JsPtr<Stmt> wideHelperComment = nullptr;
@@ -712,6 +733,25 @@ inline JsPtr<Expr> bigInt(Gen& g, U64 value, bool isSigned) {
     return asExpr(g, make<BigIntExpr>(g, value, isSigned));
 }
 
+/*
+ * A `bigint` literal's value, or false where this is not one.
+ *
+ * The `bigint` half of `constantNumber` below, and it is a separate question rather than a widening
+ * of that one: the two domains do not mix in this language's output any more than they do in the
+ * host's, so a fold that took either would be a fold that could write `0n === 0`.
+ *
+ * `value` is the raw sixty-four bits and `isSigned` says which number they spell, so a caller
+ * comparing two of them has to agree about that first - see `foldBigIntComparison`.
+ */
+inline bool constantBigInt(Gen& g, JsPtr<Expr> pointer, U64& into, bool& isSigned) {
+    auto expr = g.base[pointer];
+    if(expr->kind != Expr::BigInt) return false;
+
+    into = ((BigIntExpr*)expr)->value;
+    isSigned = ((BigIntExpr*)expr)->isSigned;
+    return true;
+}
+
 inline JsPtr<Expr> boolean(Gen& g, bool value) {
     return asExpr(g, make<BoolExpr>(g, value));
 }
@@ -922,9 +962,39 @@ inline JsPtr<Expr> foldComparison(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Ex
     }
 }
 
+/*
+ * The same over two `bigint` literals, which is the domain the 64-bit types live in here.
+ *
+ * Only the comparisons, and deliberately: an *arithmetic* fold would have to wrap at the operand's
+ * declared width, which is a property of the type rather than of the literal and is not in hand at
+ * this call. A comparison answers a `Bool` and needs nothing but the two values.
+ *
+ * The literals must agree about signedness before their bits are read as numbers - the same
+ * sixty-four bits are two different values otherwise, and every pair the emitter actually builds
+ * agrees, because both sides of a comparison have been coerced to one operand type.
+ */
+inline JsPtr<Expr> foldBigIntComparison(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
+    U64 a, b;
+    bool leftSigned, rightSigned;
+
+    if(!constantBigInt(g, lhs, a, leftSigned) || !constantBigInt(g, rhs, b, rightSigned)) return nullptr;
+    if(leftSigned != rightSigned) return nullptr;
+
+    switch(op) {
+        case BinaryOp::Lt: return boolean(g, leftSigned ? I64(a) <  I64(b) : a <  b);
+        case BinaryOp::Le: return boolean(g, leftSigned ? I64(a) <= I64(b) : a <= b);
+        case BinaryOp::Gt: return boolean(g, leftSigned ? I64(a) >  I64(b) : a >  b);
+        case BinaryOp::Ge: return boolean(g, leftSigned ? I64(a) >= I64(b) : a >= b);
+        case BinaryOp::Eq: return boolean(g, a == b);
+        case BinaryOp::Ne: return boolean(g, a != b);
+        default: return nullptr;
+    }
+}
+
 inline JsPtr<Expr> binary(Gen& g, BinaryOp op, JsPtr<Expr> lhs, JsPtr<Expr> rhs) {
     if(auto folded = foldBinaryOp(g, op, lhs, rhs)) return folded;
     if(auto folded = foldComparison(g, op, lhs, rhs)) return folded;
+    if(auto folded = foldBigIntComparison(g, op, lhs, rhs)) return folded;
 
     return asExpr(g, make<BinaryExpr>(g, op, lhs, rhs));
 }
@@ -1178,6 +1248,16 @@ void emitDivisionHelpers(Gen& g);
 
 // The typed array's growth, where a program asked for one. See NativeOp::HostGrow in inst.cpp.
 void emitGrowHelper(Gen& g);
+
+// A host array holding `elements`, in whichever of Implementation-Containers.md §14's two rows this
+// element type belongs to - `[a, b]` or `new Uint8Array([a, b])`. Declared here because the three
+// places that build one must not disagree about the row: the zero of a `[T *n]`, a written literal
+// of one, and the storage of an `Array(a)`. See `typedArrayFor`, which is the rule itself.
+JsPtr<Expr> hostArrayForElement(Gen& g, TypePtr element, JsPtr<Expr> elements);
+
+// The `DataView` cache and the word transfers a program asked for. See NativeOp::HostWordRead in
+// inst.cpp, and Gen::viewHelper for what the cache is and what it was measured against.
+void emitWordHelpers(Gen& g);
 
 // Whether a value of this type is a host object - what `isMemoryType` is on native, asked of this
 // target instead. See type.cpp for the three places the two answers differ.
@@ -1833,6 +1913,10 @@ TypePtr placeType(Gen& g, const Place& place, Size limit = maxLimit<Size>);
  * `[0, 3]`.
  */
 void noteValueType(Gen& g, JsPtr<Expr> value, TypePtr type);
+
+// The same statement made from a resolve type rather than recovered from a shape, for the one site
+// that has the type and no shape - see its definition, and NativeOp-free `genCast`'s bigint arm.
+void noteScalarRange(Gen& g, JsPtr<Expr> value, TypePtr type);
 
 /*
  * The place as an owner plus a bit range, for the two callers that have to tell them apart.

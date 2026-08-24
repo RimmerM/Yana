@@ -1,0 +1,73 @@
+"use strict";
+// ResolveTest
+function opaqueU32(value) {
+  return value;
+}
+
+function opaqueU16(value) {
+  return value;
+}
+
+function opaqueU64(value) {
+  return value;
+}
+
+function main() {
+  var v2 = 3 + (($swap32(opaqueU32(305419896)) >>> 0 === 2018915346 ? 4 : 0) + (opaqueU32(305419896) === 305419896 ? 8 : 0) + ($swap32($swap32(opaqueU32(305419896)) >>> 0) >>> 0 === 305419896 ? 16 : 0) + (($swap16(opaqueU16(4660)) & 65535) === 13330 ? 32 : 0) + (BigInt.asUintN(64, $swap64(opaqueU64(1n))) === 72057594037927936n ? 64 : 0));
+  var v82 = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]);
+  $writeU16(v82, 0, 4660, 0);
+  $writeU16(v82, 2, 4660, 1);
+  var shorts = ($readU16(v82, 0, 0) === 4660 ? 128 : 0) + ($readU16(v82, 2, 1) === 4660 ? 256 : 0) + ($readU16(v82, 0, 1) === 13330 ? 512 : 0);
+  $writeU64(v82, 0, 1311768467463790320n, 0);
+  var v4 = v2 + (shorts + ($readU64(v82, 0, 0) === 1311768467463790320n ? 1024 : 0));
+  var v218 = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]);
+  $writeU32(v218, 0, 305419896, 0);
+  $writeU32(v218, 4, 305419896, 1);
+  var v6 = v4 + ((v218[0] === 18 ? 2048 : 0) + (v218[3] === 120 ? 4096 : 0) + (v218[4] === 120 ? 8192 : 0) + (v218[7] === 18 ? 16384 : 0) + ($readU32(v218, 0, 1) === 2018915346 ? 32768 : 0));
+  var v324 = new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0]);
+  $writeU32(v324, 1, 305419896, 0);
+  $writeU32(v324, 1, $readU32(v324, 1, 0) + 1 >>> 0, 0);
+  return v6 + (($readU32(v324, 1, 0) === 305419897 ? 65536 : 0) + (v324[0] === 0 ? 131072 : 0));
+}
+
+function $swap16(v) {
+  return (v & 255) << 8 | v >> 8 & 255;
+}
+
+function $swap32(v) {
+  return (v & 255) << 24 | (v >> 8 & 255) << 16 | v >> 8 & 65280 | v >> 24 & 255;
+}
+
+function $swap64(v) {
+  return (v & 255n) << 56n | (v >> 8n & 255n) << 48n | (v >> 16n & 255n) << 40n | (v >> 24n & 255n) << 32n | v >> 8n & 4278190080n | v >> 24n & 16711680n | v >> 40n & 65280n | v >> 56n & 255n;
+}
+
+// the machine words of a binary format, through one DataView per array
+function $view(a) {
+  return a.$dv || (a.$dv = new DataView(a.buffer, a.byteOffset));
+}
+
+function $readU16(a, i, e) {
+  return $view(a).getUint16(i, e);
+}
+
+function $readU32(a, i, e) {
+  return $view(a).getUint32(i, e);
+}
+
+function $readU64(a, i, e) {
+  return $view(a).getBigUint64(i, e);
+}
+
+function $writeU16(a, i, v, e) {
+  $view(a).setUint16(i, v, e);
+}
+
+function $writeU32(a, i, v, e) {
+  $view(a).setUint32(i, v, e);
+}
+
+function $writeU64(a, i, v, e) {
+  $view(a).setBigUint64(i, v, e);
+}
+main();

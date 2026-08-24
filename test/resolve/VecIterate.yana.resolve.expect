@@ -1,29 +1,29 @@
-table closure$Core.continuation$1(Flat(Int), Int, ()) before Core.continuation$1(Flat(Int), Int, ()) {
+table closure$Core.continuation$2(Flat(Int), Int, ()) before Core.continuation$2(Flat(Int), Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$Core.continuation$4(Flat(Int), Int, ()) before Core.continuation$4(Flat(Int), Int, ()) {
+table closure$Core.continuation$5(Flat(Int), Int, ()) before Core.continuation$5(Flat(Int), Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$Core.continuation$1(Array(Int), Int, ()) before Core.continuation$1(Array(Int), Int, ()) {
+table closure$Core.continuation$2(Array(Int), Int, ()) before Core.continuation$2(Array(Int), Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$Core.continuation$4(Array(Int), Int, ()) before Core.continuation$4(Array(Int), Int, ()) {
+table closure$Core.continuation$5(Array(Int), Int, ()) before Core.continuation$5(Array(Int), Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$Core.continuation$1(Array(Float), Float, ()) before Core.continuation$1(Array(Float), Float, ()) {
+table closure$Core.continuation$2(Array(Float), Float, ()) before Core.continuation$2(Array(Float), Float, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$Core.continuation$4(Array(Float), Float, ()) before Core.continuation$4(Array(Float), Float, ()) {
+table closure$Core.continuation$5(Array(Float), Float, ()) before Core.continuation$5(Array(Float), Float, ()) {
   .0 teardown$none
   .1 teardown$none
 }
@@ -31,11 +31,6 @@ table closure$Core.continuation$4(Array(Float), Float, ()) before Core.continuat
 let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
-
-table closure$ResolveTest.continuation$14 before ResolveTest.continuation$14 {
-  .0 teardown$none
-  .1 teardown$none
-}
 
 table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
   .0 teardown$none
@@ -52,7 +47,7 @@ table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$16(Array(Int), Int) before ResolveTest.continuation$16(Array(Int), Int) {
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -62,12 +57,17 @@ table closure$ResolveTest.continuation$17(Array(Int), Int) before ResolveTest.co
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$16(Array(Float), Float) before ResolveTest.continuation$16(Array(Float), Float) {
+table closure$ResolveTest.continuation$18(Array(Int), Int) before ResolveTest.continuation$18(Array(Int), Int) {
   .0 teardown$none
   .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$17(Array(Float), Float) before ResolveTest.continuation$17(Array(Float), Float) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$18(Array(Float), Float) before ResolveTest.continuation$18(Array(Float), Float) {
   .0 teardown$none
   .1 teardown$none
 }
@@ -88,7 +88,7 @@ fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Ou
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$1(Flat(Int), Int, ()) : %()
+    %v13 = symbol Core.continuation$2(Flat(Int), Int, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Flat(a), a).chunks(Int, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -106,7 +106,7 @@ fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Ou
     ret %v23
 }
 
-fn Core.continuation$1(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$2(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -241,7 +241,7 @@ fn vectorsMasked(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: {Vec(Int)
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Core.continuation$4(Flat(Int), Int, ()) : %()
+    %v12 = symbol Core.continuation$5(Flat(Int), Int, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Flat(a), a).chunks(Int, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -259,7 +259,7 @@ fn vectorsMasked(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: {Vec(Int)
     ret %v22
 }
 
-fn Core.continuation$4(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$5(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -347,7 +347,7 @@ fn vectors(Array(Int), Int, ())(%self: Array(Int), %body: (value$: Vec(Int)) -> 
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$1(Array(Int), Int, ()) : %()
+    %v13 = symbol Core.continuation$2(Array(Int), Int, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Array(a), a).chunks(Int, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -365,7 +365,7 @@ fn vectors(Array(Int), Int, ())(%self: Array(Int), %body: (value$: Vec(Int)) -> 
     ret %v23
 }
 
-fn Core.continuation$1(Array(Int), Int, ())(%env: %{width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$2(Array(Int), Int, ())(%env: %{width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -500,7 +500,7 @@ fn vectorsMasked(Array(Int), Int, ())(%self: Array(Int), %body: (value$: {Vec(In
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Core.continuation$4(Array(Int), Int, ()) : %()
+    %v12 = symbol Core.continuation$5(Array(Int), Int, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Array(a), a).chunks(Int, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -518,7 +518,7 @@ fn vectorsMasked(Array(Int), Int, ())(%self: Array(Int), %body: (value$: {Vec(In
     ret %v22
 }
 
-fn Core.continuation$4(Array(Int), Int, ())(%env: %{width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$5(Array(Int), Int, ())(%env: %{width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -606,7 +606,7 @@ fn vectors(Array(Float), Float, ())(%self: Array(Float), %body: (value$: Vec(Flo
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
     %v12 = alloc : (value$: Flat(Float)) -> Outcome((), Outcome((), ()))
-    %v13 = symbol Core.continuation$1(Array(Float), Float, ()) : %()
+    %v13 = symbol Core.continuation$2(Array(Float), Float, ()) : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Chunked(Array(a), a).chunks(Float, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
@@ -624,7 +624,7 @@ fn vectors(Array(Float), Float, ())(%self: Array(Float), %body: (value$: Vec(Flo
     ret %v23
 }
 
-fn Core.continuation$1(Array(Float), Float, ())(%env: %{width: Size, body: &(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$2(Array(Float), Float, ())(%env: %{width: Size, body: &(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -782,7 +782,7 @@ fn vectorsMasked(Array(Float), Float, ())(%self: Array(Float), %body: (value$: {
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Float)) -> Outcome((), Outcome((), ()))
-    %v12 = symbol Core.continuation$4(Array(Float), Float, ()) : %()
+    %v12 = symbol Core.continuation$5(Array(Float), Float, ()) : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Array(a), a).chunks(Float, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
@@ -800,7 +800,7 @@ fn vectorsMasked(Array(Float), Float, ())(%self: Array(Float), %body: (value$: {
     ret %v22
 }
 
-fn Core.continuation$4(Array(Float), Float, ())(%env: %{width: Size, body: &(value$: {Vec(Float), Int}) -> Outcome((), ())}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$5(Array(Float), Float, ())(%env: %{width: Size, body: &(value$: {Vec(Float), Int}) -> Outcome((), ())}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -1044,7 +1044,7 @@ fn sumInts(%xs: Flat(Int)) -> Int {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(Int)) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$14 : %()
+    %v10 = symbol ResolveTest.continuation$15 : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(Flat(Int), Int, ()), %xs, %v9 : Outcome((), ())
@@ -1063,7 +1063,7 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: {Vec(Int), Int}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$15 : %()
+    %v10 = symbol ResolveTest.continuation$16 : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectorsMasked(Flat(Int), Int, ()), %xs, %v9 : Outcome((), ())
@@ -1094,7 +1094,7 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     init %local2.acc, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Vec(a)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$16 : %()
+    %v9 = symbol ResolveTest.continuation$17 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = gencall vectors(c, a, ()), %xs, %v8 : Outcome((), ())
@@ -1125,7 +1125,7 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(a), Int}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$17 : %()
+    %v10 = symbol ResolveTest.continuation$18 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall vectorsMasked(c, a, ()), %xs, %v9 : Outcome((), ())
@@ -1258,7 +1258,7 @@ fn main() -> Int {
     ret %v151
 }
 
-fn ResolveTest.continuation$14(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &mut Vec(Int)
     %v3 = load [%env].acc : &mut Vec(Int)
@@ -1270,7 +1270,7 @@ fn ResolveTest.continuation$14(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -
     ret %v7
 }
 
-fn ResolveTest.continuation$15(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(Int)
     %live = load %value$.1 : Int
@@ -1295,7 +1295,7 @@ fn ResolveTest.continuation$15(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), 
     ret %v24
 }
 
-(Chunked(c, a), Num(Vec(a)), Length(Flat(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
+(Chunked(c, a), Num(Vec(a)), Length(Flat(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$17(%env: %{acc: &mut Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -1319,7 +1319,7 @@ fn ResolveTest.continuation$15(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), 
     ret %v7
 }
 
-(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(Flat(a))) fn ResolveTest.continuation$17(%env: %{acc: &mut Vec(a)}, %value$: {Vec(a), Int}) -> Outcome((), ()) {
+(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(Flat(a))) fn ResolveTest.continuation$18(%env: %{acc: &mut Vec(a)}, %value$: {Vec(a), Int}) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
@@ -1359,7 +1359,7 @@ fn total(Array(Int), Int)(%xs: Array(Int)) -> Int {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(Int)) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$16(Array(Int), Int) : %()
+    %v10 = symbol ResolveTest.continuation$17(Array(Int), Int) : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(Array(Int), Int, ()), %xs, %v9 : Outcome((), ())
@@ -1368,7 +1368,7 @@ fn total(Array(Int), Int)(%xs: Array(Int)) -> Int {
     ret %v15
 }
 
-fn ResolveTest.continuation$16(Array(Int), Int)(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &mut Vec(Int)
     %v3 = load [%env].acc : &mut Vec(Int)
@@ -1390,7 +1390,7 @@ fn biggest(Array(Int), Int)(%xs: Array(Int), %floor: Int) -> Int {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(Int), Int}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$17(Array(Int), Int) : %()
+    %v10 = symbol ResolveTest.continuation$18(Array(Int), Int) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call vectorsMasked(Array(Int), Int, ()), %xs, %v9 : Outcome((), ())
@@ -1399,7 +1399,7 @@ fn biggest(Array(Int), Int)(%xs: Array(Int), %floor: Int) -> Int {
     ret %v15
 }
 
-fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(Int)
     %live = load %value$.1 : Int
@@ -1434,7 +1434,7 @@ fn total(Array(Float), Float)(%xs: Array(Float)) -> Float {
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(Float)) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$16(Array(Float), Float) : %()
+    %v10 = symbol ResolveTest.continuation$17(Array(Float), Float) : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = call vectors(Array(Float), Float, ()), %xs, %v9 : Outcome((), ())
@@ -1443,7 +1443,7 @@ fn total(Array(Float), Float)(%xs: Array(Float)) -> Float {
     ret %v15
 }
 
-fn ResolveTest.continuation$16(Array(Float), Float)(%env: %{acc: &mut Vec(Float)}, %value$: Vec(Float)) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(Array(Float), Float)(%env: %{acc: &mut Vec(Float)}, %value$: Vec(Float)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].acc : &mut Vec(Float)
     %v3 = load [%env].acc : &mut Vec(Float)
@@ -1465,7 +1465,7 @@ fn biggest(Array(Float), Float)(%xs: Array(Float), %floor: Float) -> Float {
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(Float), Int}) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$17(Array(Float), Float) : %()
+    %v10 = symbol ResolveTest.continuation$18(Array(Float), Float) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call vectorsMasked(Array(Float), Float, ()), %xs, %v9 : Outcome((), ())
@@ -1474,7 +1474,7 @@ fn biggest(Array(Float), Float)(%xs: Array(Float), %floor: Float) -> Float {
     ret %v15
 }
 
-fn ResolveTest.continuation$17(Array(Float), Float)(%env: %{acc: &mut Vec(Float)}, %value$: {Vec(Float), Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(Array(Float), Float)(%env: %{acc: &mut Vec(Float)}, %value$: {Vec(Float), Int}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(Float)
     %live = load %value$.1 : Int

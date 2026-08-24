@@ -1633,8 +1633,13 @@ Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges) {
 
             return integerRange(value, value);
         }
-        case Expr::Var:
-            return ranges.of(((VarExpr*)expr)->name);
+        case Expr::Var: {
+            // The binding table first, since what a name was *initialized to* is tighter than what
+            // its type admits. Failing that, whatever `noteScalarRange` stamped on this read - which
+            // is how a parameter has a range at all, a parameter being declared by nothing.
+            auto held = ranges.of(((VarExpr*)expr)->name);
+            return held.known ? held : declaredRange(*expr);
+        }
         case Expr::Field:
         case Expr::Index:
             // What the place's declared type says its contents are - see `Expr::valueBits`. The one
@@ -1673,10 +1678,14 @@ Range rangeOf(Gen& g, JsPtr<Expr> pointer, Ranges& ranges) {
         }
         case Expr::Assign:
             return rangeOf(g, ((AssignExpr*)expr)->value, ranges);
-        case Expr::Call:
-            return rangeOfCall(g, *(CallExpr*)expr, ranges);
+        case Expr::Call: {
+            auto known = rangeOfCall(g, *(CallExpr*)expr, ranges);
+            return known.known ? known : declaredRange(*expr);
+        }
         default:
-            return unknownRange();
+            // Nothing recovered from the shape, so whatever a type said about this value - see
+            // `Expr::valueBits`, which is zero for every expression nothing stamped.
+            return declaredRange(*expr);
     }
 }
 
@@ -1711,6 +1720,99 @@ void collectRanges(Gen& g, StmtList& list, Names& names, Ranges& ranges) {
  * the mask" when the mask has no holes. Every mask `coerce` builds is `2^bits - 1`, so this costs
  * nothing and is the check that makes the rule true rather than usually true.
  */
+/*
+ * `Number(BigInt(x))` - a value that crossed into the `bigint` domain and straight back out.
+ *
+ * This is what a *type* the language holds at 64 bits costs on a target where 64 bits is a `bigint`,
+ * and the shape the emitter cannot avoid producing: `Core.Enum`'s `valueOf` answers `I64`, because
+ * `I64` is the widest thing a `@value` attribute admits - so reading a three-constructor enum's tag
+ * as a byte was `Number(BigInt.asIntN(64, BigInt(k))) & 255`, three host calls and an allocation for
+ * a value that never left 0..2.
+ *
+ * The fix belongs here rather than in the class's declared type, and that is the point worth
+ * recording: what `valueOf` answers is a question about the *language* - `@value(4294967296)` is
+ * legal and a narrower answer could not report it - and what the round trip costs is a question
+ * about this target. Narrowing the class to make one backend cheaper would have put a range limit on
+ * every program to pay for it.
+ *
+ * **The condition is a known range, which asserts exactly what this needs**: the operand is a JS
+ * `number`, it is a mathematical integer, and it lies inside ±2^53. `BigInt(x)` of such a value is
+ * that integer and `Number()` of it is that integer back, so the pair is the identity - and the
+ * reduction between them is too, since `asIntN(64, ...)` cannot alter a value that fits 53 bits.
+ * `asUintN` is the one that can, on a negative operand, so it is folded only for a range that says
+ * there is none.
+ *
+ * `pure` is checked on each call for `foldBigIntCall`'s reason: these are the host's `BigInt` and
+ * `Number`, built by `globalCall`, and a program that declares its own function of either name is
+ * not this.
+ */
+bool foldBigIntRoundTrip(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
+    auto expr = g.base[slot];
+    if(expr->kind != Expr::Call) return false;
+
+    // The host global a call names, or empty for anything else.
+    auto globalNamed = [&](CallExpr& call) -> StringView {
+        if(!call.pure || call.args.size() != 1) return ""_v;
+
+        auto callee = g.base[call.callee];
+        if(callee->kind != Expr::Var) return ""_v;
+
+        auto name = ((VarExpr*)callee)->name;
+        if(name.text == literalName(g, "Number"_v).text) return "Number"_v;
+        if(name.text == literalName(g, "BigInt"_v).text) return "BigInt"_v;
+
+        return ""_v;
+    };
+
+    auto& outer = *(CallExpr*)expr;
+    if(globalNamed(outer) != "Number"_v) return false;
+
+    auto inner = outer.args.get(g.base, 0);
+    auto held = g.base[inner];
+    if(held->kind != Expr::Call) return false;
+
+    // `BigInt.asIntN(64, ...)` in the middle, which is the reduction to `I64`'s own width. Stepped
+    // over rather than matched separately, since what is on either side of it decides the fold.
+    auto& middle = *(CallExpr*)held;
+    auto signedReduction = true;
+
+    if(middle.pure && middle.args.size() == 2) {
+        auto callee = g.base[middle.callee];
+
+        if(callee->kind == Expr::Field) {
+            auto& member = *(FieldExpr*)callee;
+            auto object = g.base[member.object];
+
+            if(object->kind == Expr::Var &&
+               ((VarExpr*)object)->name.text == literalName(g, "BigInt"_v).text) {
+                auto isSigned = member.field.text == literalName(g, "asIntN"_v).text;
+                if(!isSigned && member.field.text != literalName(g, "asUintN"_v).text) return false;
+
+                F64 bits;
+                if(!constantNumber(g, middle.args.get(g.base, 0), bits) || bits != 64) return false;
+
+                inner = middle.args.get(g.base, 1);
+                held = g.base[inner];
+                signedReduction = isSigned;
+
+                if(held->kind != Expr::Call) return false;
+            }
+        }
+    }
+
+    auto& made = *(CallExpr*)held;
+    if(globalNamed(made) != "BigInt"_v) return false;
+
+    auto value = made.args.get(g.base, 0);
+    auto range = rangeOf(g, value, ranges);
+
+    if(!range.known) return false;
+    if(!signedReduction && range.low < 0) return false;
+
+    slot = value;
+    return true;
+}
+
 bool foldCoercion(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     auto expr = g.base[slot];
     if(expr->kind != Expr::Binary) return false;
@@ -2515,6 +2617,63 @@ bool foldNumericIdentity(Gen& g, JsPtr<Expr>& slot) {
 }
 
 /*
+ * The two host calls that cross into the `bigint` domain, over a literal.
+ *
+ * `BigInt(0)` is `0n` and `BigInt.asIntN(64, 0n)` is `0n`, and until this ran the emitter wrote both
+ * out around a constant it had itself just folded. That is not a missing tidy-up: it is what stopped
+ * `Target.byteOrder == Big` - a metric the target answers with a number, cast to the `I64` an enum's
+ * `valueOf` reports in - from ever reaching `foldBigIntComparison` and disappearing. Native folds the
+ * same chain in `lower_fold`; this is that half.
+ *
+ * The reduction is only removed at the full width and with the literal's own signedness, which is
+ * `coerce`'s rule at the other end of the same identity - see the note there.
+ *
+ * `pure` is checked rather than the name alone: `BigInt` here is the host's, built by `globalCall`,
+ * and a program that declares its own function of that name is not this.
+ */
+JsPtr<Expr> foldBigIntCall(Gen& g, CallExpr& call) {
+    if(!call.pure) return nullptr;
+
+    auto callee = g.base[call.callee];
+
+    // `BigInt(x)` - a variable, whose name is the host's.
+    if(callee->kind == Expr::Var) {
+        if(((VarExpr*)callee)->name.text != literalName(g, "BigInt"_v).text) return nullptr;
+        if(call.args.size() != 1) return nullptr;
+
+        F64 literal;
+        if(!constantNumber(g, call.args.get(g.base, 0), literal) || !isExactInteger(literal)) return nullptr;
+
+        // Signed, because that is what the value *is* - a negative operand has to print as one, and
+        // `coerce` puts the type's own reduction around this wherever the two differ.
+        return bigInt(g, U64(I64(literal)), true);
+    }
+
+    // `BigInt.asIntN(bits, x)` - a field of that same name.
+    if(callee->kind != Expr::Field) return nullptr;
+
+    auto& member = *(FieldExpr*)callee;
+    auto object = g.base[member.object];
+
+    if(object->kind != Expr::Var) return nullptr;
+    if(((VarExpr*)object)->name.text != literalName(g, "BigInt"_v).text) return nullptr;
+
+    auto isSigned = member.field.text == literalName(g, "asIntN"_v).text;
+    if(!isSigned && member.field.text != literalName(g, "asUintN"_v).text) return nullptr;
+    if(call.args.size() != 2) return nullptr;
+
+    F64 bits;
+    if(!constantNumber(g, call.args.get(g.base, 0), bits) || bits != 64) return nullptr;
+
+    U64 literal;
+    bool literalSigned;
+    if(!constantBigInt(g, call.args.get(g.base, 1), literal, literalSigned)) return nullptr;
+    if(literalSigned != isSigned) return nullptr;
+
+    return call.args.get(g.base, 1);
+}
+
+/*
  * An integer operation whose operands have both become literals, evaluated.
  *
  * The emitter already folds what it can see - see `binary` in build.h - and this is the same rules
@@ -2529,6 +2688,7 @@ bool foldConstantOp(Gen& g, JsPtr<Expr>& slot) {
         auto& node = *(BinaryExpr*)expr;
         auto folded = foldBinaryOp(g, node.op, node.lhs, node.rhs);
         if(!folded) folded = foldComparison(g, node.op, node.lhs, node.rhs);
+        if(!folded) folded = foldBigIntComparison(g, node.op, node.lhs, node.rhs);
 
         if(folded) {
             slot = folded;
@@ -2550,6 +2710,11 @@ bool foldConstantOp(Gen& g, JsPtr<Expr>& slot) {
 
     if(expr->kind == Expr::Call) {
         if(auto folded = foldCall(g, *(CallExpr*)expr)) {
+            slot = folded;
+            return true;
+        }
+
+        if(auto folded = foldBigIntCall(g, *(CallExpr*)expr)) {
             slot = folded;
             return true;
         }
@@ -2595,7 +2760,7 @@ bool foldExprs(Gen& g, JsPtr<Expr>& slot, Ranges& ranges) {
     // them because each feeds the other - a removed mask leaves a literal to evaluate, and an
     // evaluated operand is a range the next coercion can see.
     while(foldSignExtend(g, slot, ranges) || foldBitwiseOperand(g, slot) ||
-          foldCoercion(g, slot, ranges) ||
+          foldCoercion(g, slot, ranges) || foldBigIntRoundTrip(g, slot, ranges) ||
           foldConstantOp(g, slot) || foldNumericIdentity(g, slot) ||
           foldConditions(g, slot, ranges) || foldDecidedTernary(g, slot) ||
           foldBooleanWidening(g, slot, ranges)) {
@@ -2674,22 +2839,35 @@ bool fuseList(Gen& g, StmtList& list) {
  * read and never a fraction, an infinity or a `-0`.
  */
 struct Constants {
+    /*
+     * A number or a `bigint`, and never one read as the other.
+     *
+     * The two domains do not mix in the emitted program any more than they do in the host's, so an
+     * entry says which it is and `substituteConstants` writes back a literal of that kind. Carrying
+     * only numbers is what left `Target.byteOrder` unfolded on this target: the metric folds to a
+     * number, an enum's `valueOf` casts it to the `I64` the class answers in, and from there the
+     * whole chain is `bigint` - so the one thing the constant existed to do stopped happening the
+     * moment a body read it twice and the emitter bound it to a name.
+     */
     struct Entry {
         Name name;
         F64 value;
+        U64 bits;
+        bool wide;
+        bool isSigned;
     };
 
     // Inline, and one of these per list per round: an emitted body has a handful of numeric locals.
     SmallArray<Entry, 8> entries;
 
-    F64* find(Name name) {
-        for(auto& entry: entries) if(entry.name.text == name.text) return &entry.value;
+    Entry* find(Name name) {
+        for(auto& entry: entries) if(entry.name.text == name.text) return &entry;
         return nullptr;
     }
 
-    void set(Name name, F64 value) {
+    void set(Name name, const Entry& value) {
         if(auto existing = find(name)) *existing = value;
-        else entries.push(Entry { name, value });
+        else entries.push(value);
     }
 
     void erase(Name name) {
@@ -2702,9 +2880,20 @@ struct Constants {
     }
 };
 
-// A value the table may hold - the same rule `numberLiteral` writes one back under.
-bool carriedValue(Gen& g, JsPtr<Expr> pointer, F64& into) {
-    return constantNumber(g, pointer, into) && isExactInteger(into);
+// A value the table may hold - the same rule `numberLiteral` writes one back under for a number,
+// and every `bigint` literal, which is already exactly the value it denotes.
+bool carriedValue(Gen& g, JsPtr<Expr> pointer, Constants::Entry& into) {
+    if(constantNumber(g, pointer, into.value) && isExactInteger(into.value)) {
+        into.wide = false;
+        return true;
+    }
+
+    if(constantBigInt(g, pointer, into.bits, into.isSigned)) {
+        into.wide = true;
+        return true;
+    }
+
+    return false;
 }
 
 /*
@@ -2722,7 +2911,8 @@ bool substituteConstants(Gen& g, JsPtr<Expr>& slot, Constants& known) {
         auto held = known.find(((VarExpr*)expr)->name);
         if(!held) return false;
 
-        auto literal = numberLiteral(g, *held);
+        auto literal = held->wide ? bigInt(g, held->bits, held->isSigned)
+                                  : numberLiteral(g, held->value);
         if(!literal) return false;
 
         slot = literal;
@@ -2782,14 +2972,14 @@ bool propagateConstants(Gen& g, StmtList& list) {
         // And last, what this statement makes known. A `var` introduces the only names tracked at
         // all; an assignment may only update one that is already here, since a name this list did
         // not declare could be a global that any call in between had written.
-        F64 value;
+        Constants::Entry value { };
 
         if(stmt->kind == Stmt::Decl) {
             auto& declaration = *(DeclStmt*)stmt;
             declared.add(declaration.name.text);
 
             if(declaration.value && carriedValue(g, declaration.value, value)) {
-                known.set(declaration.name, value);
+                known.set(declaration.name, Constants::Entry { declaration.name, value.value, value.bits, value.wide, value.isSigned });
             } else {
                 known.erase(declaration.name);
             }
@@ -2803,7 +2993,7 @@ bool propagateConstants(Gen& g, StmtList& list) {
 
             auto name = ((VarExpr*)target)->name;
             if(declared.contains(name.text) && carriedValue(g, assign.value, value)) {
-                known.set(name, value);
+                known.set(name, Constants::Entry { name, value.value, value.bits, value.wide, value.isSigned });
             }
         }
     }

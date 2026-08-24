@@ -454,7 +454,7 @@ fn runStep(%s: Step, %x: Int) -> Int {
 fn main() -> Int {
   b0:
     %v0 = alloc : (Int) -> Int
-    %v1 = symbol ResolveTest.lambda$14 : %()
+    %v1 = symbol ResolveTest.lambda$15 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
@@ -466,26 +466,26 @@ fn main() -> Int {
     init %local1.env, %v12
     %b = call apply, %v8, 20 : Int
     %f = alloc : (Int) -> Int
-    %v17 = symbol ResolveTest.lambda$15 : %()
+    %v17 = symbol ResolveTest.lambda$16 : %()
     init %local2.code, %v17
     %v20 = cast 0 : %()
     init %local2.env, %v20
     %c = calldyn %f, 5 : Int
     %v24 = alloc : (Int) -> Int
-    %v25 = symbol ResolveTest.lambda$16 : %()
+    %v25 = symbol ResolveTest.lambda$17 : %()
     init %local3.code, %v25
     %v28 = cast 0 : %()
     init %local3.env, %v28
     %d = call twice, %v24, 1 : Int
     %g = alloc : (Int) -> Int
-    %v33 = symbol ResolveTest.lambda$17 : %()
+    %v33 = symbol ResolveTest.lambda$18 : %()
     init %local4.code, %v33
     %v36 = cast 0 : %()
     init %local4.env, %v36
     %e = calldyn %g, 4 : Int
     %step = alloc : Step
     %v42 = alloc : (Int) -> Int
-    %v43 = symbol ResolveTest.lambda$18 : %()
+    %v43 = symbol ResolveTest.lambda$19 : %()
     init %local6.code, %v43
     %v46 = cast 0 : %()
     init %local6.env, %v46
@@ -493,7 +493,7 @@ fn main() -> Int {
     %h = call runStep, %step, 6 : Int
     drop_derived %local5 via drop$Step reclaim reclaim$Step
     %v51 = alloc : (Int) -> Int
-    %v52 = symbol ResolveTest.lambda$19 : %()
+    %v52 = symbol ResolveTest.lambda$20 : %()
     init %local7.code, %v52
     %v55 = cast 0 : %()
     init %local7.env, %v55
@@ -507,7 +507,7 @@ fn main() -> Int {
     %counter = alloc heap : Int
     init %counter, 100
     %v70 = alloc : (&Int) -> ()
-    %v71 = symbol ResolveTest.lambda$20 : %()
+    %v71 = symbol ResolveTest.lambda$21 : %()
     init %local10.code, %v71
     %v74 = cast 0 : %()
     init %local10.env, %v74
@@ -527,7 +527,7 @@ fn main() -> Int {
     ret %v87
 }
 
-fn ResolveTest.lambda$14(%env: %{}, %x: Int) -> Int {
+fn ResolveTest.lambda$15(%env: %{}, %x: Int) -> Int {
   b0:
     %v4 = add %x, 1 : Int
     ret %v4
@@ -539,31 +539,31 @@ fn funvalue$double(%env: %(), %x: Int) -> Int {
     ret %v2
 }
 
-fn ResolveTest.lambda$15(%env: %{}, %x: Int) -> Int {
+fn ResolveTest.lambda$16(%env: %{}, %x: Int) -> Int {
   b0:
     %v2 = mul %x, %x : Int
     ret %v2
 }
 
-fn ResolveTest.lambda$16(%env: %{}, %x: Int) -> Int {
+fn ResolveTest.lambda$17(%env: %{}, %x: Int) -> Int {
   b0:
     %v4 = add %x, 3 : Int
     ret %v4
 }
 
-fn ResolveTest.lambda$17(%env: %{}, %x: Int) -> Int {
+fn ResolveTest.lambda$18(%env: %{}, %x: Int) -> Int {
   b0:
     %v4 = mul %x, 3 : Int
     ret %v4
 }
 
-fn ResolveTest.lambda$18(%env: %{}, %x: Int) -> Int {
+fn ResolveTest.lambda$19(%env: %{}, %x: Int) -> Int {
   b0:
     %v4 = sub %x, 1 : Int
     ret %v4
 }
 
-fn ResolveTest.lambda$19(%env: %{}, %x: Int) -> Int {
+fn ResolveTest.lambda$20(%env: %{}, %x: Int) -> Int {
   b0:
     %v4 = add %x, 10 : Int
     ret %v4
@@ -583,7 +583,7 @@ fn funvalue$consume(%env: %(), %xs: Array(Int)) -> Int {
     ret %v3
 }
 
-fn ResolveTest.lambda$20(%env: %{}, %t: Int) -> () {
+fn ResolveTest.lambda$21(%env: %{}, %t: Int) -> () {
   b0:
     %v2 = load %t : Int
     %v5 = add %v2, 5 : Int

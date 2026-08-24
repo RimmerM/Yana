@@ -230,3 +230,7 @@ instance Reclaim(Array(a)):
             i = i + 1
 
         releaseRun(value.run)
+
+-- The exchange, natively - two derefs of the window's base. `Array.yana` is where the reason is.
+pub fn swapElements(&self: Flat(a), left: Size, right: Size) -> {} =
+    swap(*(self.items + left), *(self.items + right))

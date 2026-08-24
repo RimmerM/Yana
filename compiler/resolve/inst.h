@@ -1074,6 +1074,25 @@ enum class TypeMetricKind: U8 {
      * field, so it is one step shorter rather than one longer. A number has nothing to describe.
      */
     Count,
+
+    /*
+     * Which end of a word the target puts the low byte at, as a value of Core's `Endian` - the
+     * number of the constructor, so 0 is `Little` and 1 is `Big`.
+     *
+     * The one metric that is not a question about `of` at all. It names the `Endian` type because
+     * every metric names the type it answers *in*, and what it measures is the machine: resolve
+     * does not know a byte order any more than it knows how wide a `Size` is, and for the same
+     * reason - one resolution serves every target, and the two answers differ between them.
+     *
+     * A metric rather than a form of its own because everything this needs is what the other four
+     * already have. It folds to an immediate wherever a target is known, which is every path that
+     * reaches a machine; `kInstPure` lets CSE keep one of them per function and LICM hoist it out
+     * of the loop that reads a binary format; and `ReprTable::metric` is already the one place a
+     * target's layout answers are read. `Target.byteOrder` in lib/Core/Bits.yana is the whole of
+     * what a program sees of it - see `Global::targetMetric`, which is how a read of that name
+     * becomes this instruction rather than a load of storage nothing emitted.
+     */
+    ByteOrder,
 };
 
 struct InstTypeMetric: Inst {
@@ -1221,6 +1240,32 @@ enum class NativeOp: U8 {
      * grows by being written past its end and never asks for this.
      */
     HostGrow,
+
+    /*
+     * A whole machine word out of a byte array, and back into one - `DataView.getUint32(i, le)`.
+     *
+     * The host's own answer to what a digest, a decoder and every other reader of a binary format
+     * spends its time on, and this target's half of `readBigU32` and its eleven siblings. Natively
+     * that pair is a load and a `movbe`; here it was four subscripts, three shifts and three ors per
+     * word, and eight of each at 64 bits with a `bigint` built out of them.
+     *
+     * `method` is the accessor's name - `getUint16`, `getUint32`, `getBigUint64` - which is where the
+     * *width* lives. The byte order is the last argument rather than part of the name, because that is where
+     * the host puts it too: `getUint32(i, littleEndian)` takes a boolean, so one emitted helper
+     * serves both orders and there are six of them rather than twelve. Measured: the flag as an
+     * argument costs nothing a per-order helper would have saved.
+     *
+     * Its own operation rather than a `HostCall` because the receiver is not the array. A `DataView`
+     * has to exist over the array's buffer, and building one per call is fifteen times slower than
+     * the shifts this replaces - so the emitted helper hangs one off the array on first use and
+     * every later word rides on it. See `emitWordHelpers` for the form and what it was measured
+     * against.
+     *
+     * Read only where the element is a `U8`, which is what makes the buffer available: a host array
+     * of bytes is a `Uint8Array` (see typedArrayFor), and a plain host array has no `.buffer`.
+     */
+    HostWordRead,
+    HostWordWrite,
 };
 
 // Whether an operation's meaning belongs to the host rather than to the machine. The JS emitter
@@ -1228,7 +1273,8 @@ enum class NativeOp: U8 {
 inline bool isHostOp(NativeOp op) {
     return op == NativeOp::HostCall || op == NativeOp::HostField || op == NativeOp::HostArray ||
            op == NativeOp::HostBinary || op == NativeOp::HostGlobalCall || op == NativeOp::HostThrow ||
-           op == NativeOp::HostGrow;
+           op == NativeOp::HostGrow || op == NativeOp::HostWordRead ||
+           op == NativeOp::HostWordWrite;
 }
 
 struct InstNative: Inst {

@@ -829,6 +829,25 @@ struct Global {
     // nothing in any source names one.
     bool exported = false;
 
+    /*
+     * A question about the target rather than storage - `@target(byteOrder)`, and so far only that.
+     *
+     * A constant whose value this stage does not know. Resolve serves every target at once, so the
+     * byte order is no more answerable here than a `Size`'s width is, and the device is the one
+     * `bitWidth` already uses for that: `globalValue` answers a read of this name with an
+     * `InstTypeMetric` carrying `metric` below, and the target folds it to an immediate.
+     *
+     * A global rather than a nullary intrinsic because a constant is what it *is*: nothing can
+     * write it, nothing can observe it changing, and a name that reads as a call invites a reader
+     * to wonder whether the call is elided. It occupies nothing either - no read ever reaches
+     * `used`, so no storage is emitted, which is the same thing an ordinary constant `let` does.
+     *
+     * The type is the compiler's, not the declaration's: what a target question answers in is
+     * decided by the question. See targetConstants in module_decl.cpp for the table.
+     */
+    bool targetMetric = false;
+    TypeMetricKind metric = TypeMetricKind::Size;
+
     bool used = false;
 };
 

@@ -252,6 +252,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case TypeMetricKind::Align: return "alignof"_v;
                 case TypeMetricKind::Stride: return "strideof"_v;
                 case TypeMetricKind::Count: return "countof"_v;
+                case TypeMetricKind::ByteOrder: return "byteorder"_v;
             }
             break;
         case Value::Native:
@@ -265,6 +266,9 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case NativeOp::HostBinary: return "hostbinary"_v;
                 case NativeOp::HostGlobalCall: return "hostglobalcall"_v;
                 case NativeOp::HostThrow: return "hostthrow"_v;
+                case NativeOp::HostGrow: return "hostgrow"_v;
+                case NativeOp::HostWordRead: return "hostwordread"_v;
+                case NativeOp::HostWordWrite: return "hostwordwrite"_v;
             }
             break;
         case Value::Cmp:
@@ -1019,6 +1023,7 @@ static void printTable(ResolvePrint& print, Global& global_) {
                     case TypeMetricKind::Align: print.writer.writeString("alignof "_v); break;
                     case TypeMetricKind::Stride: print.writer.writeString("strideof "_v); break;
                     case TypeMetricKind::Count: print.writer.writeString("countof "_v); break;
+                    case TypeMetricKind::ByteOrder: print.writer.writeString("byteorder "_v); break;
                 }
 
                 printType(print, slot.metricType());
