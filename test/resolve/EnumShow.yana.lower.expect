@@ -1,7 +1,7 @@
-@Core.string$58 = [82, 101, 100]
-@Core.string$59 = [71, 114, 101, 101, 110]
-@Core.string$60 = [66, 108, 117, 101]
-@Core.string$62 = [70, 114, 111, 109, 67, 117, 114, 114, 101, 110, 116]
+@Core.string$59 = [82, 101, 100]
+@Core.string$60 = [71, 114, 101, 101, 110]
+@Core.string$61 = [66, 108, 117, 101]
+@Core.string$63 = [70, 114, 111, 109, 67, 117, 114, 114, 101, 110, 116]
 @image$base = []
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -12,7 +12,7 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$2 = [58, 41]
 @ResolveTest.string$3 = [58, 41]
 
-newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
+String.ofCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   b_1 {
     %v_2 = call_complex allocateHeap, %capacity: Ptr
     %v_3 = cast %capacity: Int
@@ -28,7 +28,7 @@ newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   }
 }
 
-pushString<complex>(%self: Ptr, %other: Ptr) {
+String.push<complex>(%self: Ptr, %other: Ptr) {
   b_0 {
     %v_1 = load %other, 8: Ptr
     %v_2 = add %other, 12: Ptr
@@ -784,7 +784,7 @@ resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
 describe<complex>(%v_0: Ptr, %c: Int) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_2, 5
+    call_complex String.ofCapacity, %v_2, 5
     %v_3 = cast %c: Long
     %v_4 = cmp_eq %v_3, 0: Int
     je %v_4, b_5, b_6
@@ -797,25 +797,25 @@ describe<complex>(%v_0: Ptr, %c: Int) {
 
   b_9 {
     %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @Core.string$60, 4
+    call_complex stringLiteral, %v_10, @Core.string$61, 4
     jmp b_11
   }
 
   b_8 {
     %v_12 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_12, @Core.string$59, 5
+    call_complex stringLiteral, %v_12, @Core.string$60, 5
     jmp b_11
   }
 
   b_5 {
     %v_13 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_13, @Core.string$58, 3
+    call_complex stringLiteral, %v_13, @Core.string$59, 3
     jmp b_11
   }
 
   b_11 {
     %v_14 = phi [b_5, %v_13], [b_8, %v_12], [b_9, %v_10]: Ptr
-    call_complex pushString, %v_2, %v_14
+    call_complex String.push, %v_2, %v_14
     call_complex Reclaim(String).reclaim, %v_14
     copy %v_0, %v_2, 16
     ret 
@@ -835,10 +835,10 @@ main<complex>(): Int {
 
   b_5 {
     %v_6 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_6, 11
+    call_complex String.ofCapacity, %v_6, 11
     %v_7 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_7, @Core.string$62, 11
-    call_complex pushString, %v_6, %v_7
+    call_complex stringLiteral, %v_7, @Core.string$63, 11
+    call_complex String.push, %v_6, %v_7
     call_complex Reclaim(String).reclaim, %v_7
     %v_8 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_8, @ResolveTest.string$1, 11
@@ -849,10 +849,10 @@ main<complex>(): Int {
 
   b_11 {
     %v_12 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_12, 2
+    call_complex String.ofCapacity, %v_12, 2
     %v_13 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_13, @ResolveTest.string$3, 2
-    call_complex pushString, %v_12, %v_13
+    call_complex String.push, %v_12, %v_13
     call_complex Reclaim(String).reclaim, %v_13
     %v_14 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_14, @ResolveTest.string$2, 2

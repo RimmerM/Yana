@@ -498,7 +498,26 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                 : expectedType;
 
             if(declared.type) {
+                /*
+                 * Both readings of `[T]` are accepted here, and neither is the type the parameter
+                 * gets - that is `expectedType`, taken from the class a few lines down. What is
+                 * written in an instance member is a restatement of a signature the class already
+                 * fixed, so this comparison is a consistency check and nothing else.
+                 *
+                 * The two readings are the two things the same syntax means elsewhere: `[T]` in a
+                 * binding position is the slice (bindingType), and in a type position it is the
+                 * owner (resolveType). An instance is both at once - `instance Contiguous(&[a], a)`
+                 * writes `self: [a]` for a `Flat(a)` the head spelled as a borrow, while
+                 * `instance (n: Int) Sized([Int *n])` writes `xs: [Int *n]` for the fixed array
+                 * itself, which slicing would forget the count of. Insisting on one reading rejects
+                 * the other, so a written type that matches either is what was meant.
+                 */
                 auto written = resolveType(module, *module.parse[declared.type], gen);
+                if(!sameType(written, expectedDeclared)) {
+                    auto bound = bindingType(module, *module.parse[declared.type], declared.bind, gen);
+                    if(sameType(bound, expectedDeclared)) written = bound;
+                }
+
                 if(!sameType(written, expectedDeclared)) {
                     module.context.diagnostics.error("argument %@ has type %@ here but %@ in class %@"_v, declared.source,
                                                      module.context.findName(declared.name),

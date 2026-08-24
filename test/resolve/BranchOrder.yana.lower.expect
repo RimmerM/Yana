@@ -6,7 +6,7 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$0 = [57, 57]
 @ResolveTest.string$1 = [49, 57]
 
-newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
+String.ofCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   b_1 {
     %v_2 = call_complex allocateHeap, %capacity: Ptr
     %v_3 = cast %capacity: Int
@@ -691,7 +691,7 @@ resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
 withAnd<complex>(%text: Ptr, %keep: Int, %out: Ptr): Int {
   b_0 {
     %kept = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %kept, 16
+    call_complex String.ofCapacity, %kept, 16
     %v_1 = add %text, 12: Ptr
     %v_2 = load %v_1, 4: Int
     %v_3 = sext %keep: Long
@@ -832,7 +832,7 @@ countUp<complex>(%start: Int): Int {
 main<complex>(): Int {
   b_0 {
     %out = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %out, 32
+    call_complex String.ofCapacity, %out, 32
     %v_1 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_1, @ResolveTest.string$0, 2
     %v_2 = call_complex withAnd, %v_1, 2, %out: Int

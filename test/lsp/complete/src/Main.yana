@@ -35,6 +35,13 @@ fn corner(p: Point) -> Int:
 fn shift(&p: Point) -> Int = p.y
 --                             ^memberBorrow
 
+-- A namespaced declaration reaches a dot only through the type that owns it, and under its last
+-- segment - `Point.span` is offered here as `span`. `Corner.spanned` takes a `Point` too and is not
+-- offered at all, which is what filtering this list on the prefix they share asserts: it would sit
+-- directly beside `span` if the skip stopped working. See Shapes.yana.
+fn spanning(p: Point) -> Int = p.span()
+--                                   ^memberNamespace
+
 -- The trigger character, and the one position where there is no token at the cursor to stand in
 -- for: a `.` typed with nothing after it yet. The parser reaches the end of the statement instead,
 -- and the sentinel goes at the cursor rather than over anything. This body does not parse, which is

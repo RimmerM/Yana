@@ -1,28 +1,28 @@
-let Core.string$58: String = "Red"
+let Core.string$59: String = "Red"
 
-let Core.string$59: String = "Green"
+let Core.string$60: String = "Green"
 
-let Core.string$60: String = "Blue"
+let Core.string$61: String = "Blue"
 
-let Core.string$61: String = "Red"
+let Core.string$62: String = "Red"
 
-let Core.string$62: String = "Green"
+let Core.string$63: String = "Green"
 
-let Core.string$63: String = "Blue"
+let Core.string$64: String = "Blue"
 
-let Core.string$64: String = "FromStart"
+let Core.string$65: String = "FromStart"
 
-let Core.string$65: String = "FromCurrent"
+let Core.string$66: String = "FromCurrent"
 
-let Core.string$66: String = "FromEnd"
+let Core.string$67: String = "FromEnd"
 
-let Core.string$70: String = "Low"
+let Core.string$71: String = "Low"
 
-let Core.string$71: String = "High"
+let Core.string$72: String = "High"
 
-let Core.string$72: String = "Low"
+let Core.string$73: String = "Low"
 
-let Core.string$73: String = "High"
+let Core.string$74: String = "High"
 
 let image$base: () = <none>
 
@@ -46,7 +46,7 @@ let ResolveTest.string$7: String = "Red"
 
 let ResolveTest.string$8: String = "Red"
 
-fn stringUnit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> Int {
   b0:
     %v2 = borrow %self : &String
     %v3 = cast %v2 : &StringData
@@ -100,9 +100,9 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
 
   b6:
     %v16 = load %i : Size
-    %v17 = call stringUnit, %self, %v16 : Int
+    %v17 = call String.unit, %self, %v16 : Int
     %v18 = load %i : Size
-    %v19 = call stringUnit, %other, %v18 : Int
+    %v19 = call String.unit, %other, %v18 : Int
     %v20 = cmp_ne %v17, %v19 : Bool
     je %v20, b7, b8
 
@@ -143,7 +143,7 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$58 : %CodeUnit
+    %v5 = symbol Core.string$59 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     jmp b5
 
@@ -152,12 +152,12 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
     je %v9, b3, b4
 
   b3:
-    %v11 = symbol Core.string$59 : %CodeUnit
+    %v11 = symbol Core.string$60 : %CodeUnit
     %v13 = call stringLiteral, %v11, 5 : String
     jmp b5
 
   b4:
-    %v14 = symbol Core.string$60 : %CodeUnit
+    %v14 = symbol Core.string$61 : %CodeUnit
     %v16 = call stringLiteral, %v14, 4 : String
     jmp b5
 
@@ -173,7 +173,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$61 : %CodeUnit
+    %v5 = symbol Core.string$62 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     %v8 = call Eq(String).==, %name, %v7 : Bool
     je %v8, b3, b4
@@ -194,7 +194,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     jmp b13
 
   b5:
-    %v21 = symbol Core.string$62 : %CodeUnit
+    %v21 = symbol Core.string$63 : %CodeUnit
     %v23 = call stringLiteral, %v21, 5 : String
     %v24 = call Eq(String).==, %name, %v23 : Bool
     je %v24, b7, b8
@@ -215,7 +215,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     jmp b13
 
   b9:
-    %v37 = symbol Core.string$63 : %CodeUnit
+    %v37 = symbol Core.string$64 : %CodeUnit
     %v39 = call stringLiteral, %v37, 4 : String
     %v40 = call Eq(String).==, %name, %v39 : Bool
     je %v40, b11, b12
@@ -248,7 +248,7 @@ fn Enum(Whence).nameOf(%item: Whence) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$64 : %CodeUnit
+    %v5 = symbol Core.string$65 : %CodeUnit
     %v7 = call stringLiteral, %v5, 9 : String
     jmp b5
 
@@ -257,12 +257,12 @@ fn Enum(Whence).nameOf(%item: Whence) -> String {
     je %v9, b3, b4
 
   b3:
-    %v11 = symbol Core.string$65 : %CodeUnit
+    %v11 = symbol Core.string$66 : %CodeUnit
     %v13 = call stringLiteral, %v11, 11 : String
     jmp b5
 
   b4:
-    %v14 = symbol Core.string$66 : %CodeUnit
+    %v14 = symbol Core.string$67 : %CodeUnit
     %v16 = call stringLiteral, %v14, 7 : String
     jmp b5
 
@@ -278,12 +278,12 @@ fn Enum(Pair(Int)).nameOf(%item: Pair(Int)) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$70 : %CodeUnit
+    %v5 = symbol Core.string$71 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     jmp b3
 
   b2:
-    %v8 = symbol Core.string$71 : %CodeUnit
+    %v8 = symbol Core.string$72 : %CodeUnit
     %v10 = call stringLiteral, %v8, 4 : String
     jmp b3
 
@@ -299,7 +299,7 @@ fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$72 : %CodeUnit
+    %v5 = symbol Core.string$73 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     %v8 = call Eq(String).==, %name, %v7 : Bool
     je %v8, b3, b4
@@ -320,7 +320,7 @@ fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
     jmp b9
 
   b5:
-    %v21 = symbol Core.string$73 : %CodeUnit
+    %v21 = symbol Core.string$74 : %CodeUnit
     %v23 = call stringLiteral, %v21, 4 : String
     %v24 = call Eq(String).==, %name, %v23 : Bool
     je %v24, b7, b8

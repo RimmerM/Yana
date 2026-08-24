@@ -514,6 +514,27 @@ void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source,
     auto plain = findFunction(module, name, source, nameSource);
 
     /*
+     * A dot-call whose receiver's type declares a function of this name in its own namespace -
+     * `String.reserve` for `s.reserve(n)`, where a bare `reserve` is `Array`'s.
+     *
+     * It replaces the plain half rather than joining it, which keeps R1's "at most one plain
+     * function" intact and states the precedence: a name declared *for this type* is what a dot on
+     * a value of the type means, and a plain function of the same name is what it means for every
+     * other type. That is the whole reason the namespace exists - `reserveString` was the previous
+     * spelling of this - and it is the one place two plain functions could otherwise reach one
+     * call.
+     *
+     * Resolved by name rather than taken from the registry, so that `pub`, the import lists and
+     * `hiding` decide here exactly as they do for the written spelling `String.reserve(s, n)`.
+     * Nothing is lost when they say no: `plain` is already the answer for the bare name.
+     */
+    if(shape.receiver) {
+        if(auto method = findTypeMethod(module, shape.receiver, name)) {
+            if(auto found = findFunction(module, method, source, nameSource)) plain = found;
+        }
+    }
+
+    /*
      * A plain function is a candidate when it is of this call's kind and the call site's arguments
      * reach its parameters - the kind being what separates a call from a loop, and the arguments
      * being where arity, the names and the defaults are all one question. A loop's callee declares

@@ -36,8 +36,8 @@ fn hold(n: Int) -> Held:
 
 -- A key that owns its bytes: a fresh run per call, not a literal's borrowed one.
 fn key(n: Int) -> String:
-    let &s = newStringOfCapacity(16 :: Size)
-    pushString(s, "k-")
+    let &s = String.ofCapacity(16 :: Size)
+    String.push(s, "k-")
     show(n, s)
     return s
 

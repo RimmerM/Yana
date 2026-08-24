@@ -83,14 +83,14 @@ fn pushUnsigned(value: U64, &to: String) -> {}:
 -- A decimal exponent, which is at most three digits at either width.
 fn pushExponent(value: Int, &to: String) -> {}:
     if value >= 100:
-        pushUnit(to, 48 + value / 100)
-        pushUnit(to, 48 + (value / 10) % 10)
-        pushUnit(to, 48 + value % 10)
+        String.pushUnit(to, 48 + value / 100)
+        String.pushUnit(to, 48 + (value / 10) % 10)
+        String.pushUnit(to, 48 + value % 10)
     else if value >= 10:
-        pushUnit(to, 48 + value / 10)
-        pushUnit(to, 48 + value % 10)
+        String.pushUnit(to, 48 + value / 10)
+        String.pushUnit(to, 48 + value % 10)
     else:
-        pushUnit(to, 48 + value)
+        String.pushUnit(to, 48 + value)
 
 {-
    Where the plain form stops and the scientific one starts.
@@ -111,12 +111,12 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
 
     -- Below one, and close enough to write the zeros out.
     if exp < 0 && (0 - exp) <= fixedPointLimit:
-        pushUnit(to, 48)
-        pushUnit(to, 46)
+        String.pushUnit(to, 48)
+        String.pushUnit(to, 46)
 
         let &zeros = 0 - exp - 1
         while zeros > 0:
-            pushUnit(to, 48)
+            String.pushUnit(to, 48)
             zeros = zeros - 1
 
         pushDecimalDigits(value.digits, count, count, to)
@@ -131,7 +131,7 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
 
             let &zeros = value.exponent
             while zeros > 0:
-                pushUnit(to, 48)
+                String.pushUnit(to, 48)
                 zeros = zeros - 1
         else:
             pushDecimalDigits(value.digits, count, count + value.exponent, to)
@@ -139,10 +139,10 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
         return {}
 
     pushDecimalDigits(value.digits, count, 1, to)
-    pushUnit(to, 69)
+    String.pushUnit(to, 69)
 
     if exp < 0:
-        pushUnit(to, 45)
+        String.pushUnit(to, 45)
         pushExponent(0 - exp, to)
     else:
         pushExponent(exp, to)
@@ -161,16 +161,16 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
 -}
 fn writeSpecial(value: Double, &to: String) -> Bool:
     if value != value:
-        pushString(to, "NaN")
+        String.push(to, "NaN")
         return True
 
-    if value < 0.0 || (value == 0.0 && 1.0 / value < 0.0) then pushUnit(to, 45)
+    if value < 0.0 || (value == 0.0 && 1.0 / value < 0.0) then String.pushUnit(to, 45)
 
     -- A finite number minus itself is zero and an infinity minus itself is a NaN, which is the only
     -- test that does not need a bound written down - and the largest finite double is above 1e308,
     -- so a written one would be wrong as well as awkward.
     if value - value != 0.0:
-        pushString(to, "Inf")
+        String.push(to, "Inf")
         return True
 
     return False
@@ -198,7 +198,7 @@ instance Show(Double):
         if writeSpecial(value, to) then return {}
 
         let magnitude = magnitudeOf(value)
-        if magnitude == 0.0 then pushUnit(to, 48)
+        if magnitude == 0.0 then String.pushUnit(to, 48)
         else writeShortest(doubleShortest(magnitude), to)
 
     fn showBound(value: Double) -> Maybe(Size) = Just(26)
@@ -210,7 +210,7 @@ instance Show(Float):
         -- The magnitude at the value's own width, since the decoder reads its bits and the sign is
         -- already written. Widening for the tests above cannot change any of their answers.
         let magnitude = if value < 0.0 then 0.0 - value else value
-        if magnitude == 0.0 then pushUnit(to, 48)
+        if magnitude == 0.0 then String.pushUnit(to, 48)
         else writeShortest(floatShortest(magnitude), to)
 
     fn showBound(value: Float) -> Maybe(Size) = Just(18)
@@ -251,41 +251,41 @@ fn scaleDigits(digits: String, pointAt: Int, decimals: Int, &scaled: String) -> 
     -- which would need the first dropped digit to be the one right after the last kept one.
     if keep < 0 then return 0
 
-    let carry = keep < count && stringUnit(digits, keep :: Size) >= 53
+    let carry = keep < count && String.unit(digits, keep :: Size) >= 53
 
     -- The kept digits, and then the zeros that a `decimals` reaching past the end asks for.
-    let &kept = newStringOfCapacity(48 :: Size)
+    let &kept = String.ofCapacity(48 :: Size)
     let &i = 0 :: Int
 
     while i < keep:
-        pushUnit(kept, if i < count then stringUnit(digits, i :: Size) else 48)
+        String.pushUnit(kept, if i < count then String.unit(digits, i :: Size) else 48)
         i = i + 1
 
     if !carry:
-        pushString(scaled, kept)
+        String.push(scaled, kept)
         return keep
 
     -- The carry stops at the first digit below nine and turns every nine after it into a zero. All
     -- nines - or nothing kept at all - is where it escapes and the answer is one digit longer.
     let &at = keep
-    while at > 0 && stringUnit(kept, (at - 1) :: Size) == 57:
+    while at > 0 && String.unit(kept, (at - 1) :: Size) == 57:
         at = at - 1
 
     if at == 0:
-        pushUnit(scaled, 49)
+        String.pushUnit(scaled, 49)
 
         let &zeros = 0 :: Int
         while zeros < keep:
-            pushUnit(scaled, 48)
+            String.pushUnit(scaled, 48)
             zeros = zeros + 1
 
         return keep + 1
 
     i = 0
     while i < keep:
-        if i < at - 1 then pushUnit(scaled, stringUnit(kept, i :: Size))
-        else if i == at - 1 then pushUnit(scaled, stringUnit(kept, i :: Size) + 1)
-        else pushUnit(scaled, 48)
+        if i < at - 1 then String.pushUnit(scaled, String.unit(kept, i :: Size))
+        else if i == at - 1 then String.pushUnit(scaled, String.unit(kept, i :: Size) + 1)
+        else String.pushUnit(scaled, 48)
         i = i + 1
 
     return keep
@@ -297,39 +297,39 @@ fn writeScaled(scaled: String, width: Int, decimals: Int, &to: String) -> {}:
     let whole = width - decimals
 
     if whole <= 0:
-        pushUnit(to, 48)
+        String.pushUnit(to, 48)
 
         if decimals > 0:
-            pushUnit(to, 46)
+            String.pushUnit(to, 46)
 
             let &zeros = 0 - whole
             while zeros > 0:
-                pushUnit(to, 48)
+                String.pushUnit(to, 48)
                 zeros = zeros - 1
     else:
         let &i = 0 :: Int
         while i < whole:
-            pushUnit(to, stringUnit(scaled, i :: Size))
+            String.pushUnit(to, String.unit(scaled, i :: Size))
             i = i + 1
 
-        if decimals > 0 then pushUnit(to, 46)
+        if decimals > 0 then String.pushUnit(to, 46)
 
     let &at = if whole > 0 then whole else 0
     while at < width:
-        pushUnit(to, stringUnit(scaled, at :: Size))
+        String.pushUnit(to, String.unit(scaled, at :: Size))
         at = at + 1
 
 pub fn showFixed(value: Double, decimals: Size, &to: String) -> {}:
     if writeSpecial(value, to) then return {}
 
     let magnitude = magnitudeOf(value)
-    let &digits = newStringOfCapacity(24 :: Size)
+    let &digits = String.ofCapacity(24 :: Size)
     let &pointAt = 1 :: Int
 
     -- Zero has no shortest decimal to ask for - Ryu is defined on a non-zero value - so it is the
     -- one digit it is, with the point after it. Everything downstream is the same for it.
     if magnitude == 0.0:
-        pushUnit(digits, 48)
+        String.pushUnit(digits, 48)
     else:
         let shortest = doubleShortest(magnitude)
         let count = decimalLength(shortest.digits)
@@ -337,7 +337,7 @@ pub fn showFixed(value: Double, decimals: Size, &to: String) -> {}:
         pointAt = count + shortest.exponent
 
     let places = truncate(if decimals < 0 then 0 else decimals) :: Int
-    let &scaled = newStringOfCapacity(48 :: Size)
+    let &scaled = String.ofCapacity(48 :: Size)
     let width = scaleDigits(digits, pointAt, places, scaled)
 
     writeScaled(scaled, width, places, to)

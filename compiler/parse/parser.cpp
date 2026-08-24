@@ -338,8 +338,15 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
     // report its own piece of what is missing - a `fn` on a line of its own is one keystroke, not
     // a missing name and a missing argument list and a missing body. So this is the other place
     // the recovering expect belongs: the rest of the line goes, and an error node holds the spot.
+    // Whether the name is an operator, which decides one thing below: a `varid` may be written
+    // under a namespace and an operator may not.
+    auto isOperator = false;
+
     auto parsedName = expectSync("expected function name"_v, stmtStops(), [&](Token& t) {
-        return t.type == Token::VarID || t.type == Token::VarSym;
+        if(t.type != Token::VarID && t.type != Token::VarSym) return false;
+
+        isOperator = t.type == Token::VarSym;
+        return true;
     });
 
     if(!parsedName) {
@@ -354,6 +361,14 @@ void Parser::parseFunDecl(ast::DeclList& decls, ast::AttrList attributes, bool e
     }
 
     auto name = parsedName.unwrap().id;
+
+    // The lexer will happily build `X86.+` as a qualified `VarSym`, and it must not become a
+    // declaration: an operator's whole point is the bare spelling, and its fixity is looked up by
+    // the name it is written with - a namespaced one could never be found by an infix expression.
+    if(isOperator && context.find(name).segmentCount > 1) {
+        error("an operator cannot be declared under a namespace - it is only ever written bare, so nothing could name this one"_v);
+    }
+
     ast::ParseList<ast::Arg> args;
 
     auto argsClosed = parens([&] {

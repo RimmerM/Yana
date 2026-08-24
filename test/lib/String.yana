@@ -29,8 +29,8 @@ fn units(s: String) -> Int = truncate(length(s)) :: Int
 fn concatenation() -> {}:
     let joined = "ab" + "cde"
     assert(units(joined) == 5)
-    assert(stringUnit(joined, 0) == 97)      -- `a`
-    assert(stringUnit(joined, 4) == 101)     -- `e`
+    assert(String.unit(joined, 0) == 97)      -- `a`
+    assert(String.unit(joined, 4) == 101)     -- `e`
 
     -- Either side empty is the case a length that came out of a miscounted loop gets wrong, and it
     -- is also the one place a concatenation could legitimately hand back one of its arguments.
@@ -40,12 +40,12 @@ fn concatenation() -> {}:
     return
 
 -- Appending, which is the same bytes reached the other way: `a + b` builds a third string and
--- `pushString` grows the first. The two have to agree about the result even though only one of them
+-- `String.push` grows the first. The two have to agree about the result even though only one of them
 -- allocates for it.
 fn appending() -> {}:
-    let &built = newStringOfCapacity(16 :: Size)
-    pushString(built, "ab")
-    pushString(built, "cde")
+    let &built = String.ofCapacity(16 :: Size)
+    String.push(built, "ab")
+    String.push(built, "cde")
 
     assert(units(built) == 5)
     assert(built == "abcde")

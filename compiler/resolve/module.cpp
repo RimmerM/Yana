@@ -486,6 +486,10 @@ static void passFunctionSignatures(Module& module, ast::Module& ast) {
         readConventionAttribute(module, decl, *function);
         readLegacySseAttribute(module, decl, *function);
 
+        // Here rather than in the declare pass, because a prefix that names a type is only
+        // answerable once every type of the module exists - see registerNamespace.
+        registerNamespace(module, decl.fun.name, decl.source);
+
         auto& context = *(*module.types)[env];
 
         if(context.types.isNotEmpty()) {

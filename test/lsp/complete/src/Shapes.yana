@@ -36,8 +36,29 @@ pub data Label {text: Int, weight: Int = 1}
 -- since deciding whether to write the argument at all is what a reader needs it for.
 pub fn shifted(s: Shape, by: Int = 1) -> Int = area(s) + by
 
--- A record of records, so that an update path has more than one segment to walk.
+{-
+   A record of records, so that an update path has more than one segment to walk.
+-}
 pub data Line {from: Point, to: Point}
+
+{-
+   The two kinds of namespaced declaration, both of which take a `Point` first and only one of which
+   a dot on a `Point` may offer - doc/spec/modules.md, "Namespaces".
+
+   `Point.span` is in the receiver type's namespace, so `p.` offers it, and offers it under its last
+   segment: `span` is what a dot-call writes and `Point.span` is not. `Corner.spanned` is a plain
+   namespace that happens to take a `Point`, so the signature test alone would offer it under a name
+   no call site could use - it must not appear in a member list at all.
+
+   The two share a prefix on purpose. `Main.yana`'s `memberNamespace` marker filters a member list
+   on `span`, so a skip that stopped working would put `spanned` in a list beside `span` rather than
+   somewhere nothing looks.
+
+   Both are `pub`, so an importer sees exactly what this module's own bodies do.
+-}
+pub fn Point.span(self: Point) -> Int = self.x + self.y
+
+pub fn Corner.spanned(at: Point) -> Int = at.x
 
 -- Unmarked, so it is private to this module and completion must not offer it. The counterpart of
 -- `hiddenTwin` in Hidden.yana, from the other side of the boundary: that one is a `pub` declaration

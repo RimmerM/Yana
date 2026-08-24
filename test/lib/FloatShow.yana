@@ -17,17 +17,17 @@
 -}
 
 fn shown(value: Double) -> String:
-    let &sink = newStringOfCapacity(32 :: Size)
+    let &sink = String.ofCapacity(32 :: Size)
     show(value, sink)
     return sink
 
 fn shownNarrow(value: Float) -> String:
-    let &sink = newStringOfCapacity(32 :: Size)
+    let &sink = String.ofCapacity(32 :: Size)
     show(value, sink)
     return sink
 
 fn fixed(value: Double, decimals: Size) -> String:
-    let &sink = newStringOfCapacity(64 :: Size)
+    let &sink = String.ofCapacity(64 :: Size)
     showFixed(value, decimals, sink)
     return sink
 
@@ -175,7 +175,7 @@ fn bounds() -> {}:
    expected string could have been written for.
 -}
 fn roundTrips(value: Double) -> Bool:
-    let &text = newStringOfCapacity(32 :: Size)
+    let &text = String.ofCapacity(32 :: Size)
     show(value, text)
 
     let &at = 0 :: Size
@@ -184,7 +184,7 @@ fn roundTrips(value: Double) -> Bool:
         Err(_) -> return False
 
 fn roundTripsNarrow(value: Float) -> Bool:
-    let &text = newStringOfCapacity(32 :: Size)
+    let &text = String.ofCapacity(32 :: Size)
     show(value, text)
 
     let &at = 0 :: Size

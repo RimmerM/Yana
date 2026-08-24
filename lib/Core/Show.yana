@@ -13,8 +13,8 @@ import Native
 -- `"False"` is five units, which is the longer of the two.
 instance Show(Bool):
     fn show(value: Bool, &to: String) -> {}:
-        if value then pushString(to, "True")
-        else pushString(to, "False")
+        if value then String.push(to, "True")
+        else String.push(to, "False")
 
     fn showBound(value: Bool) -> Maybe(Size) = Just(5)
 
@@ -82,7 +82,7 @@ instance Show(Long):
    why a format containing one string and three integers still sizes its buffer in one addition.
 -}
 instance Show(String):
-    fn show(value: String, &to: String) -> {} = pushString(to, value)
+    fn show(value: String, &to: String) -> {} = String.push(to, value)
     fn showBound(value: String) -> Maybe(Size) = Just(length(value))
 
 {-
@@ -100,21 +100,20 @@ instance Show(String):
    That is the whole of what the `Maybe(Size)` return type buys, and it is why a format holding an
    `Maybe(Int)` and three integers still sizes its buffer in one addition.
 
-   This did not compile until recently, and the note that stood here said so: a `&` parameter of a
-   constrained generic instance method used not to arrive as a place, so every write to the sink -
-   `pushString(to, "Nothing")` included - was rejected with `a & argument must have exactly type
-   String, but this is &mut String`. Both halves of that are gone. The instance below is the proof
-   for the callee's side; a `fn (Show(a)) shown(value: a) -> Int` formatting into a local sink is the
-   proof for the caller's, and `Show.yana` in the test corpus is where it is written.
+   It also depends on a `&` parameter of a constrained generic instance method arriving as a place,
+   which is what lets every write to the sink - `String.push(to, "Nothing")` included - typecheck. The
+   instance below is the proof for the callee's side; a `fn (Show(a)) shown(value: a) -> Int`
+   formatting into a local sink is the proof for the caller's, and `Show.yana` in the test corpus is
+   where it is written.
 -}
 instance (Show(a)) Show(Maybe(a)):
     fn show(value: Maybe(a), &to: String) -> {} = match value:
         Just(inner):
-            pushString(to, "Just(")
+            String.push(to, "Just(")
             show(inner, to)
-            pushUnit(to, 41)
+            String.pushUnit(to, 41)
 
-        Nothing -> pushString(to, "Nothing")
+        Nothing -> String.push(to, "Nothing")
 
     -- `Nothing` in, `Nothing` out: an element that cannot say what it costs makes the option that
     -- holds it unable to either, and answering a number here would be the one thing an instance may

@@ -70,14 +70,14 @@
  * ## §7.4 The temporary a call fills
  *
  * The four above describe a temporary this function *writes*. A record filled by a call is the same
- * shape with the writes on the other side of a call boundary - `newStringOfCapacity` is handed
+ * shape with the writes on the other side of a call boundary - `String.ofCapacity` is handed
  * somewhere to build a string, and the result is copied into the local that wanted it:
  *
  *      %2 = alloca 16                       %3 = alloca 16
- *      call newStringOfCapacity, %2, 37     call newStringOfCapacity, %3, 37
- *      %3 = alloca 16                ->     call pushString, %3, ..
+ *      call String.ofCapacity, %2, 37       call String.ofCapacity, %3, 37
+ *      %3 = alloca 16                ->     call String.push, %3, ..
  *      copy %3, %2, 16                      ..
- *      call pushString, %3, ..
+ *      call String.push, %3, ..
  *
  * The call is as redirectable as a store: it writes through the pointer it is given, and giving it
  * the destination writes the same bytes in the same place. So a call is admitted as a use of the

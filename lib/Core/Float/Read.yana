@@ -50,7 +50,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     let &negative = False
 
     if at < units:
-        let unit = stringUnit(text, at)
+        let unit = String.unit(text, at)
         if unit == 45:
             negative = True
             at = at + 1
@@ -61,9 +61,9 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     -- no more: `Infinity` reads as `Inf` with the cursor left on the `i`, which is the same answer
     -- a caller gets for any trailing text it did not ask about.
     if at + 3 <= units:
-        let first = lowerAscii(stringUnit(text, at))
-        let second = lowerAscii(stringUnit(text, at + 1))
-        let third = lowerAscii(stringUnit(text, at + 2))
+        let first = lowerAscii(String.unit(text, at))
+        let second = lowerAscii(String.unit(text, at + 1))
+        let third = lowerAscii(String.unit(text, at + 2))
 
         if first == 105 && second == 110 && third == 102:
             return Just(Scanned {stop: at + 3, mantissa: 0, exponent: 0, digits: 0,
@@ -112,14 +112,14 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     let &exponent = 0 :: Int
 
     if at < units:
-        let unit = stringUnit(text, at)
+        let unit = String.unit(text, at)
 
         if unit == 101 || unit == 69:
             let &probe = at + 1
             let &negativeExponent = False
 
             if probe < units:
-                let sign = stringUnit(text, probe)
+                let sign = String.unit(text, probe)
                 if sign == 45:
                     negativeExponent = True
                     probe = probe + 1
@@ -131,7 +131,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
             let &sawDigit = False
 
             while probe < units:
-                let digit = digitValue(stringUnit(text, probe), 10)
+                let digit = digitValue(String.unit(text, probe), 10)
                 if digit < 0 then break
 
                 sawDigit = True
@@ -253,12 +253,12 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
         let infinite = 1.0 / 0.0
         return if scanned.negative then 0.0 - infinite else infinite
 
-    let &digits = newStringOfCapacity(32 :: Size)
+    let &digits = String.ofCapacity(32 :: Size)
     pushUnsigned(scanned.mantissa, digits)
-    pushUnit(digits, 101)
+    String.pushUnit(digits, 101)
 
     if scanned.exponent < 0:
-        pushUnit(digits, 45)
+        String.pushUnit(digits, 45)
         pushUnsigned(wideCount(0 - scanned.exponent), digits)
     else:
         pushUnsigned(wideCount(scanned.exponent), digits)

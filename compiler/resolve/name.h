@@ -9,7 +9,8 @@
  * functions, class functions, classes, operator fixity and instances alike. There is one
  * traversal, so there is one answer to each of the questions the traversal decides:
  *
- *  - what a qualified name means (`Core.Maybe`, `Maybe.Just`, `X.f` through an import alias);
+ *  - what a qualified name means (`Core.Maybe`, `Maybe.Just`, `Hmac.sha1`, `X.f` through an
+ *    import alias);
  *  - which module a name is looked for in, and in what order;
  *  - what an import's include/exclude lists hide;
  *  - and what happens when two imports offer the same name.
@@ -17,7 +18,9 @@
  * Getting those four answers in one place is the point: they are the rules that turn into
  * silent, hard-to-find inconsistencies when each kind of name grows its own copy.
  *
- * A name is a sequence of segments (`A.B.f` is three). Resolution walks, in order:
+ * A name is a sequence of segments (`A.B.f` is three), and so is a *declaration's* name - a
+ * declaration may be written under a namespace, which makes `Hmac.sha1` one name of two segments
+ * rather than two things. Resolution walks, in order:
  *
  *  1. the module itself, matching the whole name against its own symbols, and - for a
  *     two-or-more segment name - the last segment against a symbol namespaced under the
@@ -28,7 +31,14 @@
  * Step 1 wins outright: a local definition shadows an import, which is what stops a new symbol
  * appearing in Core from silently capturing a name a user module already defines. Steps 2 and 3
  * have equal weight, so two hits there are ambiguous and reported as such rather than resolved
- * by import order.
+ * by import order - *between* imports. Within one they are ordered, and only in the one case where
+ * both can apply: see search()'s fallback for an import whose own name is also a namespace of its
+ * declarations.
+ *
+ * A namespace is a name and nothing else, which is why nothing here has a table of them. What a
+ * prefix means - a module, a record, a class, a type's method namespace, or a namespace no
+ * declaration but this one uses - is decided by which of the lookups answers, exactly as it always
+ * was. registerNamespace holds the one rule that is not a lookup.
  */
 
 /*
@@ -84,9 +94,46 @@ struct NameRef {
     U32 segments() const { return identifier->segmentCount - start; }
     StringId segment(U32 index) const { return identifier->getHash(start + index); }
 
-    // The whole remaining name as one id, valid only when a single segment is left. Multi-segment
-    // symbol names are matched segment by segment instead.
+    // The leading segment of the symbol, which is the name an import's include and exclude lists
+    // name: `hiding (Maybe)` hides `Maybe.Just`, and `hiding (Hmac)` hides all of that namespace.
     StringId single() const { return identifier->getHash(start); }
+
+    /*
+     * A run of the remaining segments as one id.
+     *
+     * A declaration's name may itself be several segments - `Hmac.sha1`, `String.reserve` - so a
+     * lookup has to be able to ask for the whole of what is left rather than only for one segment
+     * of it. `rest()` is that, and `range()` is what a symbol namespaced under another name needs:
+     * `Maybe.Just` is a constructor whose record is `range(0, 1)` and whose own name is the last
+     * segment.
+     *
+     * Hashed out of the text rather than interned, and that is the point of doing it this way:
+     * `addIdentifier` keys a multi-segment name by the hash of its whole text and a single-segment
+     * one by the hash of its only segment, which for one segment are the same bytes. So this
+     * answers with the id the declaration was interned under while allocating nothing - and a name
+     * lookup is the hottest path in the resolver, asked once per name and once per import of it.
+     */
+    StringId range(U32 from, U32 count) const {
+        auto first = start + from;
+        auto end = first + count;
+
+        // One segment's id is stored already, and this is where the hot path goes: a single-segment
+        // name is almost every lookup there is, and hashing its text again would put a pass over the
+        // name in front of every one of them.
+        if(count == 1) return identifier->getHash(first);
+
+        // getSegmentOffset() reads `segments`, which a single-segment identifier does not have -
+        // and the two edges are the whole of what it would be asked for here anyway.
+        auto begin = first == 0 ? 0 : identifier->getSegmentOffset(first);
+
+        // One before the next segment, which is the separator this run does not include.
+        auto stop = end >= identifier->segmentCount ? identifier->textLength
+                                                    : identifier->getSegmentOffset(end) - 1;
+
+        return Context::nameHash(StringView { identifier->text + begin, stop - begin });
+    }
+
+    StringId rest() const { return range(0, segments()); }
 };
 
 /*
@@ -135,6 +182,26 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
         }
 
         auto value = find(*import.module, reference);
+
+        /*
+         * The alias answered nothing, so the whole name is tried against the module as well.
+         *
+         * This is the case where the two steps meet: an import whose local name is also the
+         * namespace of one of its own declarations. `import File` where module `File` declares
+         * `File.open` offers that name both ways - `File` consumed as the module leaving `open`,
+         * and `File.open` matched whole - and consuming the alias used to be *instead of* rather
+         * than *before*, which made such a namespace unreachable rather than ambiguous.
+         *
+         * Before rather than beside, so nothing has to compare two values of an arbitrary T: an
+         * author writing `File.open` means the module's `open` where there is one, and the module
+         * decided to declare both if there are two. A `qualified` import still contributes only its
+         * qualified spelling, which the alias match is.
+         */
+        if(!value && matchedAlias && !import.qualified) {
+            reference.start = 0;
+            value = find(*import.module, reference);
+        }
+
         if(!value) continue;
 
         // Visibility is checked on the leading segment of the symbol, which is the name the
@@ -212,6 +279,36 @@ void forEachVisible(Context& context, Module& module, Visit&& visit) {
 TypePtr findType(Module& module, StringId name, LocationId source);
 Maybe<TypeAlias*> findAlias(Module& module, StringId name, LocationId source);
 Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId source);
+
+/*
+ * A declaration written under a namespace - doc/spec/modules.md, "Namespaces".
+ *
+ * A declaration's name may be qualified, and the prefix is one of two things: a type this module
+ * declares, in which case the declaration joins that type's namespace and a dot-call on a value of
+ * it finds the name; or nothing at all, in which case the prefix is a plain namespace of the
+ * module. **Nothing opens a namespace.** The name *is* the namespace, so which of the two a prefix
+ * means never changes what the declaration is called or how it is looked up - it decides only
+ * whether a dot-call reaches it, which is why there is no `namespace` declaration to write and no
+ * collision to report between a namespace and anything else.
+ *
+ * What is reported is a prefix naming a type this module did *not* declare. That is the orphan
+ * rule's reasoning rather than a spelling rule: if any module could add to `String`'s namespace
+ * then `s.reserve(n)` would mean different things in two files, and "what can I do to a String"
+ * would depend on what a file happened to import. Extending a foreign type is still available
+ * through the plain dot-call form, which is import-scoped and honest about being local.
+ *
+ * A no-op for the single-segment name almost every declaration has.
+ */
+void registerNamespace(Module& module, StringId name, LocationId source);
+
+/*
+ * The name a function of this type's namespace was declared under, or none - `String.reserve` for
+ * a receiver of type `String` and a written `reserve`.
+ *
+ * The answer is a name rather than a function so that the caller resolves it the ordinary way; see
+ * Program::typeMethods for why that matters.
+ */
+StringId findTypeMethod(Module& module, TypePtr receiver, StringId name);
 /*
  * `occurrence` is where the name was *written*, which is not always where it is looked up.
  *

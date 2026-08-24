@@ -987,13 +987,15 @@ void definePreludeText(Program& program, Module& core) {
      * chunk list and a set of resolved holes and no call site for name resolution to start from.
      * Everything else about a format is an ordinary call to an ordinary function.
      */
-    auto findText = [&](const char* text, Size length) -> ModulePtr<Function> {
-        auto found = module->functions.get(context.addUnqualifiedName(text, length));
+    // By nameHash rather than by interning: two of the three are namespaced under `String`, and a
+    // qualified name is keyed by the hash of its whole text - see NameRef::range.
+    auto findText = [&](StringView text) -> ModulePtr<Function> {
+        auto found = module->functions.get(Context::nameHash(text));
         return found ? found.unwrap() : nullptr;
     };
 
-    program.newString = findText("newStringOfCapacity", 19);
-    program.pushString = findText("pushString", 10);
-    program.formatBound = findText("formatBound", 11);
+    program.newString = findText("String.ofCapacity"_v);
+    program.pushString = findText("String.push"_v);
+    program.formatBound = findText("formatBound"_v);
 }
 

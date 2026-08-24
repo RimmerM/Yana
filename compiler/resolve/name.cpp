@@ -33,9 +33,7 @@ bool Module::visible(const Import& import, StringId name) {
 
 TypePtr findType(Module& module, StringId name, LocationId source) {
     auto found = search<TypePtr>(module.context, module, name, source, [](Module& in, NameRef reference) -> TypePtr {
-        if(reference.segments() != 1) return nullptr;
-
-        auto type = in.namedTypes.get(reference.single());
+        auto type = in.namedTypes.get(reference.rest());
         return type ? type.unwrap() : nullptr;
     });
 
@@ -45,9 +43,7 @@ TypePtr findType(Module& module, StringId name, LocationId source) {
 
 Maybe<TypeAlias*> findAlias(Module& module, StringId name, LocationId source) {
     auto found = search<TypeAlias*>(module.context, module, name, source, [](Module& in, NameRef reference) -> TypeAlias* {
-        if(reference.segments() != 1) return nullptr;
-
-        auto alias = in.aliases.get(reference.single());
+        auto alias = in.aliases.get(reference.rest());
         return alias ? &alias.unwrap() : nullptr;
     });
 
@@ -66,13 +62,13 @@ Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId 
             return constructor ? constructor.unwrap() : ConstructorRef {};
         }
 
-        if(reference.segments() != 2) return {};
-
-        auto type = in.namedTypes.get(reference.segment(0));
+        // `Record.Constructor`, where the record's own name may itself be namespaced - everything
+        // but the last segment is the type, which for the ordinary `Maybe.Just` is one segment.
+        auto type = in.namedTypes.get(reference.range(0, reference.segments() - 1));
         if(!type || global[type.unwrap()]->kind != Type::Record) return {};
 
         auto record = (RecordType*)global[type.unwrap()];
-        auto wanted = reference.segment(1);
+        auto wanted = reference.segment(reference.segments() - 1);
 
         for(Size i = 0; i < record->constructors.size(); i++) {
             if(record->constructors.get(global, i).name == wanted) {
@@ -90,11 +86,70 @@ Maybe<ConstructorRef> findConstructor(Module& module, StringId name, LocationId 
     return found && (*found).record ? Just(*found) : Nothing();
 }
 
+// (declaring type, last segment of the name). One entry per method, so the dot-call asks a hash
+// map rather than composing and interning `Type.name` at every call site.
+static U64 namespaceKey(TypePtr owner, StringId member) {
+    return (U64(U32(owner)) << 32) | U64(U32(member));
+}
+
+void registerNamespace(Module& module, StringId name, LocationId source) {
+    auto identifier = &module.context.find(name);
+    auto count = identifier->segmentCount;
+    if(count < 2) return;
+
+    // Everything but the last segment, which is the namespace, and the last, which is the name
+    // inside it. Hashed out of the text for the reason NameRef::range gives.
+    auto member = identifier->getHash(count - 1);
+    auto prefix = Context::nameHash(StringView { identifier->text, identifier->getSegmentOffset(count - 1) - 1 });
+
+    if(auto owner = module.namedTypes.get(prefix)) {
+        *module.program.typeMethods.add(namespaceKey(owner.unwrap(), member)).value = name;
+        return;
+    }
+
+    /*
+     * Not a type here, so this is either a plain namespace - which needs nothing - or the mistake
+     * the header describes, which is a type some other module declared. The same lookup findType
+     * makes, written out rather than called: findType records a reference in the semantic index,
+     * and the index should hold a *type* against the place a type was written rather than against
+     * a function declaration that happens to borrow its name.
+     */
+    auto foreign = search<TypePtr>(module.context, module, prefix, source, [](Module& in, NameRef reference) -> TypePtr {
+        auto type = in.namedTypes.get(reference.rest());
+        return type ? type.unwrap() : nullptr;
+    });
+
+    if(foreign) {
+        module.context.diagnostics.error("%@ adds to the namespace of a type this module does not declare - a type's methods have to be one set, or `x.f(y)` would mean different things in two files. Write a plain function and call it with a dot"_v,
+                                         source, module.context.findName(name));
+    }
+}
+
+StringId findTypeMethod(Module& module, TypePtr receiver, StringId name) {
+    auto global = *module.types;
+    if(!receiver) return StringId();
+
+    // What a `.` reaches through one reference, which is the step collectDotCallables takes and for
+    // the same reason: a function declared over `String` serves `s.reserve(n)` where `s` is a
+    // borrow of one.
+    auto type = receiver;
+    if(isPointer(global, type)) type = ((PtrType*)global[type])->to;
+    else if(isBorrow(global, type)) type = ((BorrowType*)global[type])->to;
+
+    type = canonicalType(global, type);
+    if(!type) return StringId();
+
+    // The declaration rather than an instantiation of it: `Array(Int)` and `Array(U8)` share the
+    // one namespace `Array` was declared under.
+    if(global[type]->kind == Type::Record) type = (TypePtr)((RecordType*)global[type])->base(global);
+
+    auto found = module.program.typeMethods.get(namespaceKey(type, name));
+    return found ? found.unwrap() : StringId();
+}
+
 ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source) {
     auto found = search<ModulePtr<Global>>(module.context, module, name, source, [](Module& in, NameRef reference) -> ModulePtr<Global> {
-        if(reference.segments() != 1) return nullptr;
-
-        auto global_ = in.globals.get(reference.single());
+        auto global_ = in.globals.get(reference.rest());
         return global_ ? global_.unwrap() : nullptr;
     });
 
@@ -105,9 +160,7 @@ ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source) {
 
 ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence) {
     auto found = search<ModulePtr<Function>>(module.context, module, name, source, [](Module& in, NameRef reference) -> ModulePtr<Function> {
-        if(reference.segments() != 1) return nullptr;
-
-        auto function = in.functions.get(reference.single());
+        auto function = in.functions.get(reference.rest());
         return function ? function.unwrap() : nullptr;
     });
 
@@ -135,9 +188,7 @@ ModulePtr<Function> findFunction(Module& module, StringId name, LocationId sourc
 
 GlobalPtr<TypeClass> findClass(Module& module, StringId name, LocationId source) {
     auto found = search<GlobalPtr<TypeClass>>(module.context, module, name, source, [](Module& in, NameRef reference) -> GlobalPtr<TypeClass> {
-        if(reference.segments() != 1) return nullptr;
-
-        auto typeClass = in.classes.get(reference.single());
+        auto typeClass = in.classes.get(reference.rest());
         return typeClass ? typeClass.unwrap() : nullptr;
     });
 
@@ -150,6 +201,10 @@ OperatorFixity findFixity(Module& module, StringId name) {
     // not conflict; the traversal is used only to get the same module order as everything else. It
     // is also never `pub`, for the reason doc/spec/modules.md gives: an operator's grouping applies
     // wherever the operator is in scope, so `visible` is the only thing an import hides it with.
+    //
+    // The one lookup that still insists on a single segment, because an operator cannot be
+    // namespaced: its whole point is the bare spelling, and `parseFunDecl` rejects a qualified one
+    // where it is written.
     //
     // `declared` is what carries "not in this module" here, rather than a sentinel precedence -
     // see OperatorFixity.
@@ -171,16 +226,16 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
     auto global = *module.types;
 
     auto collect = [&](Module& in, NameRef reference, bool foreign) {
+        // `Ord.compare` names one class's function explicitly, and the class's own name may itself
+        // be namespaced - so everything but the last segment is the class. Hoisted out of the loop
+        // because it is one answer for every candidate, and `range` hashes to produce it.
+        auto segments = reference.segments();
+        auto member = reference.segment(segments - 1);
+        auto owner = segments == 1 ? StringId() : reference.range(0, segments - 1);
+
         for(auto& candidate: in.classFunctions) {
-            if(reference.segments() == 1) {
-                if(candidate.name != reference.single()) continue;
-            } else if(reference.segments() == 2) {
-                // `Ord.compare` names one class's function explicitly.
-                if(global[candidate.typeClass]->name != reference.segment(0)) continue;
-                if(candidate.name != reference.segment(1)) continue;
-            } else {
-                continue;
-            }
+            if(candidate.name != member) continue;
+            if(segments > 1 && global[candidate.typeClass]->name != owner) continue;
 
             // A member is exported with its class and never on its own - the signatures are the
             // interface the class declares, and a class nobody may name has none to offer. Asked
@@ -227,6 +282,13 @@ void findClassFunctions(Module& module, StringId name, LocationId source, ClassF
 
         if(!Module::visible(import, reference.single())) continue;
         collect(*import.module, reference, true);
+
+        // And the whole name against the module too, where its own local name was what the alias
+        // consumed - search()'s case, and the dedup inside `collect` is what makes running both
+        // harmless when they answer the same candidate.
+        if(matchedAlias && !import.qualified) {
+            collect(*import.module, NameRef { reference.identifier, 0 }, true);
+        }
     }
 }
 

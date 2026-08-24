@@ -1,0 +1,54 @@
+{-
+   What a generic body may hand a class function.
+
+   A borrow's extent is the call, and a *deferred* dispatch has no body to read that off - so it
+   reads the declaration instead, and `checkClassBorrows` holds every implementation to it. See
+   `assumedRetained` in compiler/resolve/analyze_escape.cpp, and `resolve/Reject.ClassBorrow.yana`
+   for the other half.
+
+   Every line below was rejected before that rule, and only with **specialization declined**: in a
+   specialized build the dispatch is a direct call with a real summary and none of it arises, which
+   is why the shape it blocked - `lib/Digest`'s HMAC - was written out once per digest instead of
+   once over the class. What it asserts is that a slice reaching a class function does not come back
+   marked as outliving the frame, whether the slice is a view of the generic body's own buffer or one
+   its caller lent it.
+-}
+data Adder {total: Int}
+
+pub class Eater(d):
+  fn newEater() -> d
+  fn eat(&self: d, from: &[U8]) -> {}
+  fn total(self: d) -> Int
+
+instance Eater(Adder):
+    fn newEater() -> Adder = Adder {total: 0}
+
+    fn eat(&self: Adder, from: &[U8]) -> {}:
+        let &i = 0 :: Size
+        while i < length(from):
+            self.total = self.total + (from[i] :: Int)
+            i = i + 1
+
+    fn total(self: Adder) -> Int = self.total
+
+{-
+   The generic body, doing both things HMAC does: a buffer of its own handed over as a view, and the
+   caller's slice handed straight on.
+-}
+fn (Eater(d)) eatBothWays(->state: d, message: &[U8]) -> Int:
+    let &own = [7 :: U8, 8, 9]
+    let &eater = state
+    eat(eater, own)
+    eat(eater, own[1..3])
+    eat(eater, message)
+    return total(eater)
+
+-- And a caller that owns what it lends, which is the position the summary decides.
+fn main() -> Int:
+    let &message = [1 :: U8, 2, 3]
+    assert(eatBothWays(newEater() :: Adder, message) == 7 + 8 + 9 + 8 + 9 + 1 + 2 + 3)
+
+    let fixed = [10 :: U8, 20] :: [U8 *2]
+    assert(eatBothWays(newEater() :: Adder, fixed) == 7 + 8 + 9 + 8 + 9 + 10 + 20)
+
+    return 0

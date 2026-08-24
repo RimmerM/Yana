@@ -143,7 +143,7 @@ bool walkAddress(LowerBase base, LowerValue* address, U64 size, U64 offset, bool
          * still one this pass can redirect.
          *
          * A record filled by a call rather than by writes is the shape §16.2 of
-         * `test/bench/findings.md` declined - `newStringOfCapacity` is given somewhere to build a
+         * `test/bench/findings.md` declined - `String.ofCapacity` is given somewhere to build a
          * string and the result is then copied where it was wanted. The call is as redirectable as a
          * store: it writes through the pointer it was given, and giving it the destination instead
          * writes the same bytes in the same place. What it is *not* is analysable, so the caller

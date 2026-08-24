@@ -1,0 +1,28 @@
+{-
+   The two things a namespaced declaration may not be - doc/spec/modules.md, "Namespaces".
+
+   Neither produces a program to run, which is why they are here rather than beside
+   `lib/Namespace.yana`.
+
+   **An operator, because it is only ever written bare.** The lexer will happily build `X86.+` as a
+   qualified `VarSym` - a dot between a `conid` and a symbol is a qualifier exactly as it is before a
+   `varid` - so nothing about the *name* stops this. What stops it is that fixity is looked up by the
+   name an infix expression writes, which is `+`, so a namespaced operator is a declaration no
+   expression could ever reach.
+
+   **A type this module did not declare**, which is the orphan rule's reasoning rather than a
+   spelling rule: a type's methods have to be one set, or `x.f(y)` would mean different things in two
+   files depending on what each imported. `String` is Core's, so this module may not add to it - and
+   the plain dot-call form, which is scoped to the file that wrote the import, is what remains for
+   adding an operation to a foreign type.
+
+   A prefix that names *nothing* is not an error and is not tested here: that is a plain namespace,
+   and `lib/Namespace.yana` asserts it works.
+-}
+
+fn X86.+(a: Int, b: Int) -> Int = a + b
+
+fn String.mine(self: String) -> Int = 1
+
+fn main() -> {}:
+    return

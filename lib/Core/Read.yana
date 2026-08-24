@@ -37,7 +37,7 @@ import Native
    sketch of `read(from: &Flat(CodeUnit))`. A slice of code units is a native-only thing: a JS string
    has no addressable units at all, which is the same reason `Chunked(String, CodeUnit)` above is
    `@platform(native)`. A `String` and an index into it is the portable spelling of the same idea and
-   costs the same, since `stringUnit` is a load on one target and a `charCodeAt` on the other.
+   costs the same, since `String.unit` is a load on one target and a `charCodeAt` on the other.
 
    **It composes with `?` immediately** - `let n = read(text, at)?` inside a function returning a
    `Result(ReadError, _)` - which makes this the first substantial user of the `Try` machinery in
@@ -100,7 +100,7 @@ fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
     let &over = False
 
     while at < units:
-        let digit = digitValue(stringUnit(text, at), radix)
+        let digit = digitValue(String.unit(text, at), radix)
         if digit < 0 then break
 
         let wide = wideCount(digit)
@@ -130,7 +130,7 @@ fn readBounded(text: String, &at: Size, radix: Int, low: Long, high: Long) -> Re
     let &negative = False
 
     if start < units:
-        let unit = stringUnit(text, start)
+        let unit = String.unit(text, start)
         if unit == 45:
             negative = True
             start = start + 1

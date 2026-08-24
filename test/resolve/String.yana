@@ -21,7 +21,7 @@
    call form is `length(s)` exactly as it is for every container here. `s[i]` needs an `Index`
    instance, and `Index` hands back a *borrow* - which a string unit is not on JS, where it is a
    number computed by `charCodeAt`. Core's own note on that class says it does not cover a container
-   whose elements are computed rather than stored; `stringUnit` is the accessor until the class that
+   whose elements are computed rather than stored; `String.unit` is the accessor until the class that
    does lands.
 -}
 
@@ -30,7 +30,7 @@
 fn literalLength() -> Int = truncate(length("hello")) :: Int
 
 -- One raw native unit - part 3. ASCII, so this is also the code point, and `a` is 97 on both.
-fn firstUnit() -> Int = stringUnit("abc", 0)
+fn firstUnit() -> Int = String.unit("abc", 0)
 
 -- The empty literal, which is the one length that cannot come out of a miscounted loop by accident.
 fn emptyLength() -> Int = truncate(length("")) :: Int
@@ -45,12 +45,12 @@ fn emptyLength() -> Int = truncate(length("")) :: Int
    fourth one added for strings.
 
    The placement is the assertion and it is in the goldens, which is what keeps this one here: what
-   `pushString` computes is `test/lib/String.yana`'s business, and where the bytes it wrote came from
+   `String.push` computes is `test/lib/String.yana`'s business, and where the bytes it wrote came from
    is this file's.
 -}
 fn appendToLiteral() -> Int:
     let &start = "lit"
-    pushString(start, "eral")
+    String.push(start, "eral")
     return truncate(length(start)) :: Int
 
 fn main() -> Int:

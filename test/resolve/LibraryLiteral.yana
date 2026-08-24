@@ -41,7 +41,7 @@ fn markers() -> Int:
     return total
 
 fn shown(value: Double) -> String:
-    let &sink = newStringOfCapacity(16 :: Size)
+    let &sink = String.ofCapacity(16 :: Size)
     show(value, sink)
     return sink
 
@@ -50,7 +50,7 @@ fn shown(value: Double) -> String:
 fn library() -> Int:
     let &total = 0 :: Int
     let &zero = 0.0 :: Double
-    let &sink = newStringOfCapacity(16 :: Size)
+    let &sink = String.ofCapacity(16 :: Size)
 
     if shown(zero / zero) == "NaN" then total = total + 1
     if shown(1.0 / zero) == "Inf" then total = total + 1
@@ -58,15 +58,15 @@ fn library() -> Int:
     show(True, sink)
     if sink == "True" then total = total + 1
 
-    sink = newStringOfCapacity(16 :: Size)
+    sink = String.ofCapacity(16 :: Size)
     show(False, sink)
     if sink == "False" then total = total + 1
 
-    sink = newStringOfCapacity(16 :: Size)
+    sink = String.ofCapacity(16 :: Size)
     show(Nothing :: Maybe(Int), sink)
     if sink == "Nothing" then total = total + 1
 
-    sink = newStringOfCapacity(16 :: Size)
+    sink = String.ofCapacity(16 :: Size)
     show(Just(7), sink)
     if sink == "Just(7)" then total = total + 1
 

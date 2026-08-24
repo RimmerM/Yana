@@ -28,8 +28,8 @@ import Native
 import File
 
 fn scratchRoot() -> String:
-    let &name = newStringOfCapacity(32)
-    pushString(name, "/tmp/yana-file-")
+    let &name = String.ofCapacity(32)
+    String.push(name, "/tmp/yana-file-")
     show(truncate(processId()) :: Int, name)
     return name
 
@@ -176,11 +176,11 @@ fn copyingBlocks(root: String) -> Result(FileError, Int):
     let source = joinPath(root, "big.bin")
     let target = joinPath(root, "big-copy.bin")
 
-    let &text = newStringOfCapacity(100000)
+    let &text = String.ofCapacity(100000)
     let &at = 0 :: Int
 
     while at < 100000:
-        pushUnit(text, 97 + (at `rem` 26))
+        String.pushUnit(text, 97 + (at `rem` 26))
         at = at + 1
 
     writeWholeFile(source, text)?
@@ -253,7 +253,7 @@ fn failures(root: String) -> Result(FileError, Int):
     assert((readWholeFile(root) is Err(Unsupported)))
 
     -- What an error says about itself, in both forms.
-    let &text = newStringOfCapacity(32)
+    let &text = String.ofCapacity(32)
     show(NotFound, text)
     assert(text == "NotFound")
     assert(describeError(NoDiskSpace) == "the disk is full")

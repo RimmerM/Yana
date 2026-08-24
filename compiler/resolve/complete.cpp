@@ -169,6 +169,32 @@ static void collectBindings(Collector& into) {
 }
 
 /*
+ * The per-name half of an import's visibility, asked the way search() asks it.
+ *
+ * An import's include and exclude lists name a symbol by its *leading* segment, so `hiding (String)`
+ * hides `String.reserve` along with the type and `hiding (Hmac)` hides that whole namespace. Every
+ * offer below goes through this rather than through the whole name, because a completion the
+ * resolver would then refuse is worse than no completion at all.
+ */
+static bool importOffers(Context& context, const Import& import, StringId name) {
+    return Module::visible(import, context.find(name).getHash(0));
+}
+
+/*
+ * The last segment of a namespaced name, as a name in its own right.
+ *
+ * A segment's hash *is* the id the same text would be interned under, which is what lets every
+ * lookup in resolve/name.h compare one without building it. An item in a completion list is the
+ * other case: it is text an editor shows, so the identifier has to exist rather than merely be
+ * addressable. Interned here rather than where the declaration was read, because this is the only
+ * place that wants the characters and a completion request is not a path worth saving work on.
+ */
+static StringId lastSegment(Context& context, const Identifier& identifier) {
+    auto offset = identifier.getSegmentOffset(identifier.segmentCount - 1);
+    return context.addQualifiedName(identifier.text + offset, identifier.textLength - offset, 1);
+}
+
+/*
  * §8.1's first kind: everything a name written here could refer to.
  *
  * `forEachVisible` supplies which modules those are and how each has to be written, and
@@ -198,7 +224,7 @@ static void collectVisible(Collector& into, Module& module) {
          */
         auto offer = [&](const Symbol& symbol, bool exported) {
             if(visible.import && !exported) return;
-            if(visible.import && !Module::visible(*visible.import, symbol.name)) return;
+            if(visible.import && !importOffers(context, *visible.import, symbol.name)) return;
             into.add(symbol, resultTypeOf(*owner, symbol), visible.qualifier, rank);
         };
 
@@ -417,11 +443,16 @@ static void collectDotCallables(Collector& into, Module& module, TypePtr receive
         // `collectVisible` uses, and one rung below the fields, which stay nearest of all.
         auto rank = visible.import ? U8(RankImported) : U8(RankModule);
 
-        auto offer = [&](const Symbol& symbol, bool exported) {
+        // `label` overrides the name the item is offered under, which only a namespaced method
+        // needs - see the loop below.
+        auto offer = [&](const Symbol& symbol, bool exported, StringId label = StringId()) {
             if(visible.import && !exported) return;
-            if(visible.import && !Module::visible(*visible.import, symbol.name)) return;
+            if(visible.import && !importOffers(context, *visible.import, symbol.name)) return;
 
-            into.add(symbol, resultTypeOf(*owner, symbol), visible.qualifier, rank);
+            auto offered = symbol;
+            if(label) offered.name = label;
+
+            into.add(offered, resultTypeOf(*owner, symbol), visible.qualifier, rank);
         };
 
         for(auto entry: owner->functions.entries()) {
@@ -431,11 +462,28 @@ static void collectDotCallables(Collector& into, Module& module, TypePtr receive
             auto function = local[entry.value];
             if(function->signature || function->instanceOf) continue;
 
+            /*
+             * A namespaced name reaches a dot only through the type that owns it, and it is offered
+             * under its last segment: `s.` offers `reserve`, because `reserve` is what a dot-call
+             * writes and `String.reserve` is not.
+             *
+             * Everything else namespaced is skipped outright. `Hmac.tag(key: Int, ...)` takes an
+             * `Int` first, so the signature test below would offer it on every integer in the
+             * program under a name no call site could use.
+             */
+            auto label = StringId();
+            auto& identifier = context.find(function->name);
+
+            if(identifier.segmentCount > 1) {
+                label = lastSegment(context, identifier);
+                if(findTypeMethod(module, receiver, label) != function->name) continue;
+            }
+
             auto env = functionGen(global, *function);
             if(!acceptsReceiver(into.resolver, module, env, firstParameter(local, entry.value),
                                 receiver, stepped)) continue;
 
-            offer(functionSymbol(*owner, entry.value), function->exported);
+            offer(functionSymbol(*owner, entry.value), function->exported, label);
         }
 
         // A member is exported with its class, which is the same rule findClassFunctions applies.
@@ -715,7 +763,7 @@ void capturePatternCompletion(ExprResolver& resolver, TypePtr pivot) {
 
             auto symbol = constructorSymbol(*owner, entry.value);
             if(visible.import && !exportedSymbol(*owner, entry.value)) continue;
-            if(visible.import && !Module::visible(*visible.import, symbol.name)) continue;
+            if(visible.import && !importOffers(context, *visible.import, symbol.name)) continue;
 
             collector.add(symbol, resultTypeOf(*owner, symbol), visible.qualifier, rank);
         }

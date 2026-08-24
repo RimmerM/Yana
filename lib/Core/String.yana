@@ -11,9 +11,27 @@ import Native
 
    The guiding principle of that document is that the *default* path - length, indexing, append,
    concat - costs what the target's own string costs. That is why `length` is a field read rather
-   than a walk, why `stringUnit` does no decoding, and why the whole Unicode tier (code points,
+   than a walk, why `String.unit` does no decoding, and why the whole Unicode tier (code points,
    grapheme clusters, boundary-safe slicing) is deliberately absent here rather than folded into
    these: it is parts 4 to 7, and every one of them is layered *on* this without changing it.
+
+   ------------------------------------------------------------------------------------------
+   Why the names are namespaced under `String`
+
+   Because `reserve`, `push` and `unit` are `Array`'s, and a string wanting the same three used to
+   spell them `reserveString`, `pushString` and `stringUnit` - the type written into the name to get
+   out of the way of a bare one already taken. `String.reserve` is that fact said once, and
+   `s.reserve(n)` finds it from the receiver's type, which is what the awkward spelling was standing
+   in for all along.
+
+   `Array`'s are deliberately *not* namespaced. The namespace is for the second claimant of a name,
+   not the first: bare `push` is what a container's append means, code generic over `Array(a)` calls
+   it by that name, and moving it would be churn that buys the reader nothing.
+
+   Four names here keep the old shape - `stringData`, `stringDataMut`, `stringFromData` and
+   `stringLiteral`. They are the representation seam the compiler attaches intrinsics to rather than
+   anything a program calls, and `String.data` is not a name the lexer will build: `data` is a
+   keyword, so the qualifier ends and a dot operator begins.
 -}
 
 {-
@@ -47,7 +65,7 @@ import Native
    cover a container whose elements are computed rather than stored, and a weaker parent class that
    yields values is what such a container wants and is not written yet.
 
-   So `s[i]` does not parse into this today; `stringUnit(s, i)` is the accessor. When the read-only
+   So `s[i]` does not parse into this today; `String.unit(s, i)` is the accessor. When the read-only
    parent class lands, this becomes an instance of it and the spelling arrives with no change here.
 
    No decode, no validation that what comes back is a whole code point. Reading one unit is always
@@ -56,10 +74,10 @@ import Native
    which is the same tier `get` on an array is on and goes the same way when `checkBounds`
    (Implementation-Containers.md §15) lands.
 -}
-@platform(native) pub fn stringUnit(self: String, index: Size) -> Int =
+@platform(native) pub fn String.unit(self: String, index: Size) -> Int =
     (*(stringData(self).bytes.run.items + index)) :: Int
 
-@platform(js) pub fn stringUnit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
+@platform(js) pub fn String.unit(self: String, index: Size) -> Int = hostCharCodeAt(self, index)
 
 {-
    Concatenation - part 8, which observes that this is *already* encoding-agnostic with no extra
@@ -79,9 +97,9 @@ import Native
         let leftLength = length(lhs)
         let rightLength = length(rhs)
 
-        let &fresh = newStringOfCapacity(leftLength + rightLength)
-        appendUnits(fresh, stringData(lhs).bytes.run.items, leftLength)
-        appendUnits(fresh, stringData(rhs).bytes.run.items, rightLength)
+        let &fresh = String.ofCapacity(leftLength + rightLength)
+        String.appendUnits(fresh, stringData(lhs).bytes.run.items, leftLength)
+        String.appendUnits(fresh, stringData(rhs).bytes.run.items, rightLength)
 
         return fresh
 
@@ -104,7 +122,7 @@ import Native
 
         let &i = 0 :: Size
         while i < count:
-            if stringUnit(self, i) != stringUnit(other, i) then return False
+            if String.unit(self, i) != String.unit(other, i) then return False
             i = i + 1
 
         return True
@@ -134,8 +152,8 @@ import Native
 
         let &i = 0 :: Size
         while i < shared:
-            let left = stringUnit(self, i)
-            let right = stringUnit(other, i)
+            let left = String.unit(self, i)
+            let right = String.unit(other, i)
             if left < right then return LT
             if left > right then return GT
             i = i + 1
@@ -157,7 +175,7 @@ import Native
 
    **One body for both targets**, which is unusual in this file and is the honest state rather
    than a claim about the two: what a string hash costs is the walk over its units, and both targets
-   walk. `stringUnit` is one load natively and one `charCodeAt` on JS, and `../../benchmark/map-js`
+   walk. `String.unit` is one load natively and one `charCodeAt` on JS, and `../../benchmark/map-js`
    §9.1 measures that walk as the *whole* cost there - reading the characters and merely adding them
    costs 30.9 ns per key where FNV-1a costs 24.0, so every candidate mixer lands within 12% of every
    other and the mixer is not what to spend on.
@@ -186,7 +204,7 @@ instance Hash(String):
         let &i = 0 :: Size
 
         while i < n:
-            h = (h `xor` (truncate(stringUnit(value, i)) :: U32)) * 16777619
+            h = (h `xor` (truncate(String.unit(value, i)) :: U32)) * 16777619
             i = i + 1
 
         return h
@@ -237,10 +255,10 @@ instance Hash(String):
 
 -- A string with room for `capacity` units and nothing in it yet. The run is the allocation; the
 -- length is zero until something appends.
-@platform(native) pub fn newStringOfCapacity(capacity: Size) -> String =
+@platform(native) pub fn String.ofCapacity(capacity: Size) -> String =
     stringFromData(StringData {bytes: Array {run: newRun(capacity), length: (0 :: Count)}})
 
-@platform(js) pub fn newStringOfCapacity(capacity: Size) -> String = ""
+@platform(js) pub fn String.ofCapacity(capacity: Size) -> String = ""
 
 {-
    Room for `wanted` more units, growing if there is not - the check-and-grow that
@@ -250,14 +268,14 @@ instance Hash(String):
    rather than reallocating per unit. `resize` is what relocates, and a *borrowed* run - a literal
    being appended to - relocates by copying and freeing nothing, which is where copy-on-write happens.
 -}
-@platform(native) pub fn reserveString(&self: String, wanted: Size) -> {}:
+@platform(native) pub fn String.reserve(&self: String, wanted: Size) -> {}:
     -- The container's own growth, rather than a second copy of it here. `reserve` takes the
     -- capacity to reach and this takes the amount to add, which is the whole difference between the
     -- two.
     let target = stringDataMut(self)
     reserve(target.bytes, (target.bytes.length :: Size) + wanted)
 
-@platform(js) pub fn reserveString(&self: String, wanted: Size) -> {} = {}
+@platform(js) pub fn String.reserve(&self: String, wanted: Size) -> {} = {}
 
 {-
    One unit appended - what every `Show` instance ultimately writes through.
@@ -267,19 +285,19 @@ instance Hash(String):
    most `showBound` units, the buffer was sized from the bounds, so the appends are provably in range
    and the reserve above them is the only check.
 -}
-@platform(native) pub fn pushUnit(&self: String, unit: Int) -> {}:
+@platform(native) pub fn String.pushUnit(&self: String, unit: Int) -> {}:
     -- `push` is the reserve, the bounds check, the store and the count bump, and it was all four of
     -- them written twice until the bytes became an `Array(CodeUnit)`.
     push(stringDataMut(self).bytes, truncate(unit) :: CodeUnit)
 
-@platform(js) pub fn pushUnit(&self: String, unit: Int) -> {}:
+@platform(js) pub fn String.pushUnit(&self: String, unit: Int) -> {}:
     self = hostConcat(self, hostFromCharCode(unit))
 
 -- A whole string appended, which is the common case and is a block copy rather than a loop.
-@platform(native) pub fn pushString(&self: String, other: String) -> {}:
-    appendUnits(self, stringData(other).bytes.run.items, length(other))
+@platform(native) pub fn String.push(&self: String, other: String) -> {}:
+    String.appendUnits(self, stringData(other).bytes.run.items, length(other))
 
-@platform(js) pub fn pushString(&self: String, other: String) -> {}:
+@platform(js) pub fn String.push(&self: String, other: String) -> {}:
     self = hostConcat(self, other)
 
 {-
@@ -288,18 +306,18 @@ instance Hash(String):
 
    The check is the same one `push` makes and is here for a worse reason. `push` compared the count
    against the capacity and gave up, which lost an element; this copies a whole block and had no
-   comparison at all, so a `reserveString` the allocator refused was followed by a `copyMemory` of
+   comparison at all, so a `String.reserve` the allocator refused was followed by a `copyMemory` of
    `count` units into a buffer that had not grown to hold them. That is a write past the end of the
    run, not a lost append - and it was reachable by exactly the route the array's was, since both
    reserves end at the same `resize`.
 
-   Read off `run.capacity` rather than off `reserveString`, which answers nothing: what has to hold
+   Read off `run.capacity` rather than off `String.reserve`, which answers nothing: what has to hold
    before the copy is that the room is *there*, and that is one comparison against the field the copy
    is about to run past.
 -}
-@platform(native) pub fn appendUnits(&self: String, from: %CodeUnit, count: Size) -> {}:
+@platform(native) pub fn String.appendUnits(&self: String, from: %CodeUnit, count: Size) -> {}:
     if count <= 0 then return {}
-    reserveString(self, count)
+    String.reserve(self, count)
 
     let target = stringDataMut(self)
     let wanted = (target.bytes.length :: Size) + count

@@ -24,7 +24,7 @@ fn slotCount(self: Held) -> Size = self.value.capacity :: Size
    §2a: `let &` takes the value out where the source is a whole-value projection out of a temporary
    nothing else names.
 
-   `&` already meant "own and mutable" for a temporary - `let &copy = newStringOfCapacity(n)` borrows
+   `&` already meant "own and mutable" for a temporary - `let &copy = String.ofCapacity(n)` borrows
    nothing, because a call result is an rvalue with no other owner. The only initializer it refused
    was a *projection* out of one, which is what `?` and every `match` payload is. Nothing new is
    written here: the move is what `&` on any other temporary already does.

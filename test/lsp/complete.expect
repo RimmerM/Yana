@@ -7,13 +7,13 @@ member at 27:19
   corner [kind 3, sort 2corner] inserts snippet corner(${1:p}) -- fn corner(p: Point) -> Int
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
+  spanning [kind 3, sort 2spanning] inserts snippet spanning(${1:p}) -- fn spanning(p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
   ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
   floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
   round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
-  splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a, n)
   ... more items follow
 
 memberTyped at 29:18
@@ -27,32 +27,37 @@ memberBorrow at 35:31
   corner [kind 3, sort 2corner] inserts snippet corner(${1:p}) -- fn corner(p: Point) -> Int
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
+  spanning [kind 3, sort 2spanning] inserts snippet spanning(${1:p}) -- fn spanning(p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
   ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
   floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
   round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
-  splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a, n)
   ... more items follow
 
-dot at 44:6
+memberNamespace at 42:37
+  filtered: true
+  spanning [kind 3, sort 2spanning] -- fn spanning(p: Point) -> Int
+  span [kind 3, sort 3span] -- fn Point.span(self: Point) -> Int
+
+dot at 51:6
   filtered: false
   x [kind 5, sort 1x] -- field x: Int
   y [kind 5, sort 1y] -- field y: Int
   corner [kind 3, sort 2corner] inserts snippet corner(${1:p}) -- fn corner(p: Point) -> Int
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
+  spanning [kind 3, sort 2spanning] inserts snippet spanning(${1:p}) -- fn spanning(p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
   ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
   floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
   round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
-  splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a, n)
   ... more items follow
 
-memberSum at 58:19
+memberSum at 65:19
   filtered: false
   argumentNaming [kind 3, sort 2argumentNaming] -- fn argumentNaming(s: Shape) -> Int
   arguments [kind 3, sort 2arguments] -- fn arguments(s: Shape) -> Int
@@ -68,52 +73,52 @@ memberSum at 58:19
   scale [kind 3, sort 3scale] -- fn scale(s: Shape, by: Int) -> Int
   ... more items follow
 
-callee at 70:20
+callee at 77:20
   filtered: true
   scale [kind 3, sort 3scale] -- fn scale(s: Shape, by: Int) -> Int
   scaleTwice [kind 3, sort 3scaleTwice] -- fn scaleTwice(s: Shape) -> Int
 
-argument at 70:30
+argument at 77:30
   filtered: true
   boxScale [kind 6, sort 0boxScale] -- local boxScale: Int
   box [kind 6, sort 1box] -- local box: Shape
 
-expected at 75:18
+expected at 82:18
   filtered: true
   shapeOrigin [kind 3, sort 0shapeOrigin] -- fn shapeOrigin() -> Point
   Shape [kind 22, sort 3Shape] -- data Shape
   shapeAt [kind 3, sort 3shapeAt] -- fn shapeAt(at: {x: Int, y: Int}) -> Int
 
-constructor at 80:18
+constructor at 87:18
   filtered: true
   Nothing [kind 20, sort 0Nothing] -- Maybe.Nothing(())
   not [kind 2, sort 3not] inserts snippet not(${1:value}) -- class fn not(value: a) -> a -- declared by class Bitwise
 
-namedFields at 90:18
+namedFields at 97:18
   filtered: true
   sq [kind 6, sort 1sq] -- local sq: Shape
   Square [kind 20, sort 3Square] inserts snippet Square {side: ${1}} -- Shape.Square({side: Int})
   sqrt [kind 3, sort 3sqrt] inserts snippet sqrt(${1:value}) -- fn sqrt(value: a) -> a
 
-payload at 92:21
+payload at 99:21
   filtered: true
   just [kind 6, sort 1just] -- local just: Int
   Just [kind 20, sort 3Just] inserts snippet Just(${1}) -- Maybe.Just(a)
 
-alreadyCalled at 97:21
+alreadyCalled at 104:21
   filtered: true
   scale [kind 3, sort 3scale] -- fn scale(s: Shape, by: Int) -> Int
   scaleTwice [kind 3, sort 3scaleTwice] -- fn scaleTwice(s: Shape) -> Int
 
-qualified at 101:23
+qualified at 108:23
   filtered: true
   qualOnly [kind 3, sort 3qualOnly] -- fn qualOnly() -> Int
 
-included at 106:20
+included at 113:20
   filtered: true
   hiddenPair [kind 3, sort 3hiddenPair] -- fn hiddenPair() -> Int
 
-empty at 112:0
+empty at 119:0
   filtered: false
   box [kind 6, sort 1box] -- local box: Shape
   boxScale [kind 6, sort 1boxScale] -- local boxScale: Int
@@ -129,7 +134,7 @@ empty at 112:0
   twice [kind 6, sort 1twice] -- local twice: Int
   ... more items follow
 
-field at 127:21
+field at 134:21
   filtered: true
   side [kind 5, sort 0side] inserts side:  -- field side: Int
   Signed [kind 8, sort 3Signed] -- class Signed
@@ -138,11 +143,11 @@ field at 127:21
   signum [kind 3, sort 3signum] inserts snippet signum(${1:value}) -- fn signum(value: a) -> a
   sink [kind 2, sort 3sink] inserts snippet sink(${1:to}, ${2:from}) -- class fn sink(&to: a, ->from: a) -> () -- declared by class Sink
 
-fieldName at 131:22
+fieldName at 138:22
   filtered: true
   side [kind 5, sort 0side] -- field side: Int
 
-tupleField at 138:26
+tupleField at 145:26
   filtered: false
   x [kind 5, sort 0x] inserts x:  -- field x: Int
   y [kind 5, sort 0y] inserts y:  -- field y: Int
@@ -158,24 +163,25 @@ tupleField at 138:26
   origin [kind 3, sort 2origin] inserts origin() -- fn origin() -> Point
   ... more items follow
 
-recordName at 148:25
+recordName at 155:25
   filtered: true
   Point [kind 20, sort 0Point] inserts snippet Point {x: ${1}, y: ${2}} -- Point.Point({x: Int, y: Int})
+  Point.span [kind 3, sort 3Point.span] inserts snippet Point.span(${1:self}) -- fn Point.span(self: Point) -> Int
 
-defaulted at 153:26
+defaulted at 160:26
   filtered: true
   Label [kind 20, sort 0Label] inserts snippet Label {text: ${1}} -- Label.Label({text: Int, weight: Int})
   Lanewise [kind 8, sort 3Lanewise] -- class Lanewise
   lane [kind 3, sort 3lane] inserts snippet lane(${1:vector}, ${2:index}) -- fn lane(vector: Vec(a, n), index: Int) -> a
   lanes [kind 3, sort 3lanes] inserts snippet lanes(${1:vector}) -- fn lanes(vector: Vec(a, n)) -> Int
 
-defaultedCall at 158:36
+defaultedCall at 165:36
   filtered: true
   shift [kind 3, sort 0shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
   shifted [kind 3, sort 0shifted] inserts snippet shifted(${1:s}) -- fn shifted(s: Shape, by: Int = 1) -> Int
   shifting [kind 3, sort 0shifting] inserts snippet shifting(${1:s}) -- fn shifting(s: Shape) -> Int
 
-argumentName at 165:40
+argumentName at 172:40
   filtered: false
   Circle [kind 20, sort 0Circle] inserts snippet Circle {radius: ${1}} -- Shape.Circle({radius: Int})
   Square [kind 20, sort 0Square] inserts snippet Square {side: ${1}} -- Shape.Square({side: Int})
@@ -191,20 +197,20 @@ argumentName at 165:40
   matching [kind 3, sort 2matching] inserts snippet matching(${1:s}) -- fn matching(s: Shape) -> Int
   ... more items follow
 
-namePosition at 169:45
+namePosition at 176:45
   filtered: false
   by [kind 6, sort 0by] -- argument by: Int
   s [kind 6, sort 0s] -- argument s: Shape
 
-pattern at 177:7
+pattern at 184:7
   filtered: true
   Square [kind 20, sort 0Square] inserts snippet Square {side: ${1}} -- Shape.Square({side: Int})
 
-update at 184:37
+update at 191:37
   filtered: true
   from [kind 5, sort 1from] -- field from: Point
 
-updateEmpty at 187:33
+updateEmpty at 194:33
   filtered: false
   from [kind 5, sort 1from] inserts from:  -- field from: Point
   to [kind 5, sort 1to] inserts to:  -- field to: Point
@@ -220,19 +226,19 @@ updateEmpty at 187:33
   sqrt [kind 3, sort 3sqrt] inserts snippet sqrt(${1:value}) -- fn sqrt(value: a) -> a
   ... more items follow
 
-updatePath at 190:40
+updatePath at 197:40
   filtered: false
   x [kind 5, sort 1x] inserts x:  -- field x: Int
   y [kind 5, sort 1y] inserts y:  -- field y: Int
   corner [kind 3, sort 2corner] inserts snippet corner(${1:p}) -- fn corner(p: Point) -> Int
   privately [kind 3, sort 2privately] inserts snippet privately(${1:p}) -- fn privately(p: Point) -> Int
   shift [kind 3, sort 2shift] inserts snippet shift(${1:p}) -- fn shift(&p: Point) -> Int
+  spanning [kind 3, sort 2spanning] inserts snippet spanning(${1:p}) -- fn spanning(p: Point) -> Int
   typing [kind 3, sort 2typing] inserts snippet typing(${1:p}) -- fn typing(p: Point) -> Int
   ceil [kind 3, sort 3ceil] inserts snippet ceil(${1:value}) -- fn ceil(value: a) -> a
   exchange [kind 3, sort 3exchange] inserts snippet exchange(${1:slot}, ${2:value}) -- fn exchange(&slot: a, ->value: a) -> a
   floor [kind 3, sort 3floor] inserts snippet floor(${1:value}) -- fn floor(value: a) -> a
   fma [kind 3, sort 3fma] inserts snippet fma(${1:lhs}, ${2:rhs}, ${3:addend}) -- fn fma(lhs: a, rhs: a, addend: a) -> a
   round [kind 3, sort 3round] inserts snippet round(${1:value}) -- fn round(value: a) -> a
-  splat [kind 3, sort 3splat] inserts snippet splat(${1:value}) -- fn splat(value: a) -> Vec(a, n)
   ... more items follow
 

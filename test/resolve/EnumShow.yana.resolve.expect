@@ -1,14 +1,14 @@
-let Core.string$58: String = "Red"
+let Core.string$59: String = "Red"
 
-let Core.string$59: String = "Green"
+let Core.string$60: String = "Green"
 
-let Core.string$60: String = "Blue"
+let Core.string$61: String = "Blue"
 
-let Core.string$61: String = "FromStart"
+let Core.string$62: String = "FromStart"
 
-let Core.string$62: String = "FromCurrent"
+let Core.string$63: String = "FromCurrent"
 
-let Core.string$63: String = "FromEnd"
+let Core.string$64: String = "FromEnd"
 
 let image$base: () = <none>
 
@@ -69,7 +69,7 @@ fn formatBound(%bound: Maybe(Size)) -> Size {
     ret %v9
 }
 
-fn stringUnit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> Int {
   b0:
     %v2 = borrow %self : &String
     %v3 = cast %v2 : &StringData
@@ -84,7 +84,7 @@ fn stringUnit(%self: String, %index: Size) -> Int {
     ret %v11
 }
 
-fn newStringOfCapacity(%capacity: Size) -> String {
+fn String.ofCapacity(%capacity: Size) -> String {
   b0:
     %v1 = alloc : StringData
     %v2 = alloc : Array(CodeUnit)
@@ -106,7 +106,7 @@ fn newStringOfCapacity(%capacity: Size) -> String {
     ret %v19
 }
 
-fn reserveString(%self: String, %wanted: Size) -> () {
+fn String.reserve(%self: String, %wanted: Size) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &mut String
@@ -123,7 +123,7 @@ fn reserveString(%self: String, %wanted: Size) -> () {
     ret
 }
 
-fn pushString(%self: String, %other: String) -> () {
+fn String.push(%self: String, %other: String) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow %other : &String
@@ -133,11 +133,11 @@ fn pushString(%self: String, %other: String) -> () {
     %v7 = load [%v4]@StringData.bytes@Array.run@Run.items : %CodeUnit
     %v8 = call Length(String).length, %other : Size
     %v9 = borrow_mut %self : &mut String
-    call appendUnits, %v9, %v7, %v8
+    call String.appendUnits, %v9, %v7, %v8
     ret
 }
 
-fn appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
+fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
   b0:
     %v5 = cmp_le %count, 0 : Bool
     je %v5, b1, b2
@@ -151,7 +151,7 @@ fn appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
   b3:
     %v9 = load %self : String
     %v10 = borrow_mut %self : &mut String
-    call reserveString, %v10, %count
+    call String.reserve, %v10, %count
     %v12 = load %self : String
     %v13 = borrow_mut %self : &mut String
     %v14 = cast %v13 : &mut StringData
@@ -228,9 +228,9 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
 
   b6:
     %v16 = load %i : Size
-    %v17 = call stringUnit, %self, %v16 : Int
+    %v17 = call String.unit, %self, %v16 : Int
     %v18 = load %i : Size
-    %v19 = call stringUnit, %other, %v18 : Int
+    %v19 = call String.unit, %other, %v18 : Int
     %v20 = cmp_ne %v17, %v19 : Bool
     je %v20, b7, b8
 
@@ -334,7 +334,7 @@ fn Show(Colour).show(%value: Colour, %to: String) -> () {
     je %v4, b1, b2
 
   b1:
-    %v6 = symbol Core.string$58 : %CodeUnit
+    %v6 = symbol Core.string$59 : %CodeUnit
     %v8 = call stringLiteral, %v6, 3 : String
     jmp b5
 
@@ -343,19 +343,19 @@ fn Show(Colour).show(%value: Colour, %to: String) -> () {
     je %v10, b3, b4
 
   b3:
-    %v12 = symbol Core.string$59 : %CodeUnit
+    %v12 = symbol Core.string$60 : %CodeUnit
     %v14 = call stringLiteral, %v12, 5 : String
     jmp b5
 
   b4:
-    %v15 = symbol Core.string$60 : %CodeUnit
+    %v15 = symbol Core.string$61 : %CodeUnit
     %v17 = call stringLiteral, %v15, 4 : String
     jmp b5
 
   b5:
     %v21 = phi [b1, %v8], [b3, %v14], [b4, %v17] : String
     %v22 = borrow_mut %to : &mut String
-    call pushString, %v22, %v21
+    call String.push, %v22, %v21
     drop %local1 reclaim Reclaim(String).reclaim
     ret
 }
@@ -374,7 +374,7 @@ fn Show(Whence).show(%value: Whence, %to: String) -> () {
     je %v4, b1, b2
 
   b1:
-    %v6 = symbol Core.string$61 : %CodeUnit
+    %v6 = symbol Core.string$62 : %CodeUnit
     %v8 = call stringLiteral, %v6, 9 : String
     jmp b5
 
@@ -383,19 +383,19 @@ fn Show(Whence).show(%value: Whence, %to: String) -> () {
     je %v10, b3, b4
 
   b3:
-    %v12 = symbol Core.string$62 : %CodeUnit
+    %v12 = symbol Core.string$63 : %CodeUnit
     %v14 = call stringLiteral, %v12, 11 : String
     jmp b5
 
   b4:
-    %v15 = symbol Core.string$63 : %CodeUnit
+    %v15 = symbol Core.string$64 : %CodeUnit
     %v17 = call stringLiteral, %v15, 7 : String
     jmp b5
 
   b5:
     %v21 = phi [b1, %v8], [b3, %v14], [b4, %v17] : String
     %v22 = borrow_mut %to : &mut String
-    call pushString, %v22, %v21
+    call String.push, %v22, %v21
     drop %local1 reclaim Reclaim(String).reclaim
     ret
 }
@@ -1388,7 +1388,7 @@ fn describe(%c: Colour) -> String {
     %v2 = call Show(Colour).showBound, %c : Maybe(Size)
     %v3 = call formatBound, %v2 : Size
     %v4 = add 0, %v3 : Size
-    %v5 = call newStringOfCapacity, %v4 : String
+    %v5 = call String.ofCapacity, %v4 : String
     %v6 = alloc : String
     init %local1, %v5
     %v8 = borrow_mut %local1 : &mut String
@@ -1417,7 +1417,7 @@ fn main() -> Int {
     %v12 = call Show(Whence).showBound, FromCurrent : Maybe(Size)
     %v13 = call formatBound, %v12 : Size
     %v14 = add 0, %v13 : Size
-    %v15 = call newStringOfCapacity, %v14 : String
+    %v15 = call String.ofCapacity, %v14 : String
     %v16 = alloc : String
     init %local2, %v15
     %v18 = borrow_mut %local2 : &mut String
@@ -1439,7 +1439,7 @@ fn main() -> Int {
     %v31 = call Show(Mood).showBound, Happy : Maybe(Size)
     %v32 = call formatBound, %v31 : Size
     %v33 = add 0, %v32 : Size
-    %v34 = call newStringOfCapacity, %v33 : String
+    %v34 = call String.ofCapacity, %v33 : String
     %v35 = alloc : String
     init %local4, %v34
     %v37 = borrow_mut %local4 : &mut String
@@ -1500,7 +1500,7 @@ fn Show(Mood).show(%value: Mood, %to: String) -> () {
   b3:
     %v15 = phi [b2, %v9], [b1, %v12] : String
     %v16 = borrow_mut %to : &mut String
-    call pushString, %v16, %v15
+    call String.push, %v16, %v15
     drop %local1 reclaim Reclaim(String).reclaim
     ret
 }

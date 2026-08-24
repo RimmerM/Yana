@@ -23,16 +23,16 @@
 -- One sink, one constraint, every instance this file can reach. A local `let &` is what a `&`
 -- parameter needs, and `a` being a variable rather than a type is the whole of what changed.
 fn (Show(a)) shown(value: a) -> Int:
-    let &sink = newStringOfCapacity(64 :: Size)
+    let &sink = String.ofCapacity(64 :: Size)
     show(value, sink)
     return truncate(length(sink)) :: Int
 
 -- The first unit written, which distinguishes "True" from "False" and a sign from a digit without
 -- needing the whole text.
 fn firstShownUnit(value: Int) -> Int:
-    let &sink = newStringOfCapacity(64 :: Size)
+    let &sink = String.ofCapacity(64 :: Size)
     show(value, sink)
-    return stringUnit(sink, 0)
+    return String.unit(sink, 0)
 
 -- The bounds, or a sentinel for `Nothing`. `Nothing` is not a failure - it is the honest answer for
 -- a type where measuring costs what formatting costs - so it stays distinguishable from a number.

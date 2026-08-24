@@ -33,7 +33,7 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn stringUnit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> Int {
   b0:
     %v2 = borrow %self : &String
     %v3 = cast %v2 : &StringData
@@ -48,7 +48,7 @@ fn stringUnit(%self: String, %index: Size) -> Int {
     ret %v11
 }
 
-fn newStringOfCapacity(%capacity: Size) -> String {
+fn String.ofCapacity(%capacity: Size) -> String {
   b0:
     %v1 = alloc : StringData
     %v2 = alloc : Array(CodeUnit)
@@ -70,7 +70,7 @@ fn newStringOfCapacity(%capacity: Size) -> String {
     ret %v19
 }
 
-fn pushUnit(%self: String, %unit: Int) -> () {
+fn String.pushUnit(%self: String, %unit: Int) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &mut String
@@ -1174,7 +1174,7 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
 
 fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
   b0:
-    %v4 = call newStringOfCapacity, 16 : String
+    %v4 = call String.ofCapacity, 16 : String
     %kept = alloc : String
     init %kept, %v4
     %i = alloc : Int
@@ -1202,7 +1202,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
   b4:
     %v20 = load %i : Int
     %v21 = cast %v20 : Size
-    %v22 = call stringUnit, %text, %v21 : Int
+    %v22 = call String.unit, %text, %v21 : Int
     jmp b6
 
   b5:
@@ -1211,7 +1211,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
   b6:
     %v26 = phi [b4, %v22], [b5, 57] : Int
     %v27 = borrow_mut %kept : &mut String
-    call pushUnit, %v27, %v26
+    call String.pushUnit, %v27, %v26
     %v29 = load %i : Int
     %v32 = add %v29, 1 : Int
     assign %i, %v32
@@ -1232,7 +1232,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     %v44 = load %at : Int
     %v47 = sub %v44, 1 : Int
     %v48 = cast %v47 : Size
-    %v49 = call stringUnit, %v43, %v48 : Int
+    %v49 = call String.unit, %v43, %v48 : Int
     %v52 = cmp_eq %v49, 57 : Bool
     jmp b11
 
@@ -1252,7 +1252,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
   b13:
     %v69 = load %out : String
     %v71 = borrow_mut %out : &mut String
-    call pushUnit, %v71, 49
+    call String.pushUnit, %v71, 49
     %zeros = alloc : Int
     init %zeros, 0
     jmp b15
@@ -1272,7 +1272,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
   b17:
     %v80 = load %out : String
     %v82 = borrow_mut %out : &mut String
-    call pushUnit, %v82, 48
+    call String.pushUnit, %v82, 48
     %v84 = load %zeros : Int
     %v87 = add %v84, 1 : Int
     assign %zeros, %v87
@@ -1296,9 +1296,9 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     %v102 = load %kept : String
     %v103 = load %i : Int
     %v104 = cast %v103 : Size
-    %v105 = call stringUnit, %v102, %v104 : Int
+    %v105 = call String.unit, %v102, %v104 : Int
     %v106 = borrow_mut %out : &mut String
-    call pushUnit, %v106, %v105
+    call String.pushUnit, %v106, %v105
     %v108 = load %i : Int
     %v111 = add %v108, 1 : Int
     assign %i, %v111
@@ -1385,7 +1385,7 @@ fn main() -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v4 = call newStringOfCapacity, 32 : String
+    %v4 = call String.ofCapacity, 32 : String
     %out = alloc : String
     init %out, %v4
     %v7 = load %total : Int

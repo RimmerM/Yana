@@ -24,31 +24,31 @@
 -- parameter is part of it - the writes are what keep the inner loop from being folded away before
 -- the threading runs.
 fn withAnd(text: String, keep: Int, &out: String) -> Int:
-    let &kept = newStringOfCapacity(16 :: Size)
+    let &kept = String.ofCapacity(16 :: Size)
     let &i = 0 :: Int
     let count = truncate(length(text)) :: Int
 
     while i < keep:
-        pushUnit(kept, if i < count then stringUnit(text, i :: Size) else 57)
+        String.pushUnit(kept, if i < count then String.unit(text, i :: Size) else 57)
         i = i + 1
 
     let &at = keep
-    while at > 0 && stringUnit(kept, (at - 1) :: Size) == 57:
+    while at > 0 && String.unit(kept, (at - 1) :: Size) == 57:
         at = at - 1
 
     if at == 0:
-        pushUnit(out, 49)
+        String.pushUnit(out, 49)
 
         let &zeros = 0 :: Int
         while zeros < keep:
-            pushUnit(out, 48)
+            String.pushUnit(out, 48)
             zeros = zeros + 1
 
         return keep + 1
 
     i = 0
     while i < keep:
-        pushUnit(out, stringUnit(kept, i :: Size))
+        String.pushUnit(out, String.unit(kept, i :: Size))
         i = i + 1
 
     return at
@@ -71,7 +71,7 @@ fn countDown(start: Int) -> Int:
 
 fn main() -> Int:
     let &total = 0 :: Int
-    let &out = newStringOfCapacity(32 :: Size)
+    let &out = String.ofCapacity(32 :: Size)
 
     total = total + withAnd("99", 2, out)   -- all nines: 3
     total = total + withAnd("19", 2, out)   -- stops at the 1: 1

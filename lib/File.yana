@@ -229,22 +229,22 @@ fn openFlagsOf(access: FileAccess, mode: CreateMode, flags: Size) -> OpenFlags:
 fn bytesOf(return text: String) -> %U8 = bitcast(stringData(text).bytes.run.items) :: %U8
 
 fn terminated(path: String) -> String:
-    let &copy = newStringOfCapacity(length(path) + 1)
-    pushString(copy, path)
-    pushUnit(copy, 0)
+    let &copy = String.ofCapacity(length(path) + 1)
+    String.push(copy, path)
+    String.pushUnit(copy, 0)
 
     return copy
 
 -- `dir` and `name` joined by a separator, which is what a directory traversal needs and what a
 -- caller without it builds by hand into a fixed buffer at every site that walks a tree.
 pub fn joinPath(dir: String, name: String) -> String:
-    let &joined = newStringOfCapacity(length(dir) + length(name) + 1)
+    let &joined = String.ofCapacity(length(dir) + length(name) + 1)
 
     if length(dir) > 0:
-        pushString(joined, dir)
-        if stringUnit(dir, length(dir) - 1) != 47 then pushUnit(joined, 47)
+        String.push(joined, dir)
+        if String.unit(dir, length(dir) - 1) != 47 then String.pushUnit(joined, 47)
 
-    pushString(joined, name)
+    String.push(joined, name)
 
     return joined
 
@@ -569,21 +569,21 @@ fn parentOf(path: String) -> Size:
     let &at = length(path) - 1
 
     -- A trailing separator names the same directory, so it is not the one to cut at.
-    while at > 0 && stringUnit(path, at) == 47:
+    while at > 0 && String.unit(path, at) == 47:
         at = at - 1
 
     while at > 0:
-        if stringUnit(path, at) == 47 then return at
+        if String.unit(path, at) == 47 then return at
         at = at - 1
 
     return 0
 
 fn prefixOf(path: String, count: Size) -> String:
-    let &copy = newStringOfCapacity(count)
+    let &copy = String.ofCapacity(count)
     let &at = 0 :: Size
 
     while at < count:
-        pushUnit(copy, stringUnit(path, at))
+        String.pushUnit(copy, String.unit(path, at))
         at = at + 1
 
     return copy
@@ -719,8 +719,8 @@ fn nameLength(record: %DirectoryRecord) -> Size:
 
 fn nameOf(record: %DirectoryRecord) -> String:
     let count = nameLength(record)
-    let &name = newStringOfCapacity(count)
-    appendUnits(name, bitcast(nameStart(record)) :: %CodeUnit, count)
+    let &name = String.ofCapacity(count)
+    String.appendUnits(name, bitcast(nameStart(record)) :: %CodeUnit, count)
 
     return name
 
@@ -759,7 +759,7 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
     -- The size as a capacity, which is a narrowing on a target whose word is smaller than an
     -- `off_t`. It costs nothing to be wrong: the loop below grows the string whenever it runs out
     -- and refuses a file past `maxCount` either way, so this is a first guess rather than a bound.
-    let &text = newStringOfCapacity(if info.size > 0 then truncate(info.size) :: Size else readBlock)
+    let &text = String.ofCapacity(if info.size > 0 then truncate(info.size) :: Size else readBlock)
     let &total = 0 :: Size
     let &running = True
 
@@ -770,7 +770,7 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
         -- Nothing left to fill: grow before asking, so that the read below always has room and a
         -- short answer means the file ended rather than that the buffer did.
         if room <= 0:
-            reserveString(text, readBlock)
+            String.reserve(text, readBlock)
         else:
             let got = readFile(file.handle, bitcast(target.bytes.run.items + total) :: %U8, room)
             if got < 0 then return Err(errorOf(0 - got))
