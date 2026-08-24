@@ -413,6 +413,20 @@ U8 packedTrailingByte(LowerInst* inst) {
         case LowerInst::Floor: return 0x09;
         case LowerInst::Ceil:  return 0x0a;
 
+        /*
+         * `sha1rnds4`'s round function, which is 0 through 3 for the four twenty-round groups.
+         *
+         * Read off the kind rather than from an operand, on the shuffle pattern's terms: which group
+         * a round belongs to was decided where the IR was built and nothing between there and here
+         * has an opinion about it. Only the four rounds forms declare `patternImmediate`, so the
+         * five message instructions never reach this arm.
+         */
+        case LowerInst::ShaBinary: {
+            auto op = ((LowerInstShaBinary*)inst)->getSha();
+            assertTrue(op >= LowerSha::Sha1Rounds0 && op <= LowerSha::Sha1Rounds3);
+            return U8((U8)op - (U8)LowerSha::Sha1Rounds0);
+        }
+
         case LowerInst::VecShuffle: {
             // `unwrap` rather than a check: the form was selected *because* this answered, so one
             // that does not now is a pattern something rewrote behind the selection. And a form
@@ -964,6 +978,27 @@ MachineFormId selectPackedForm(LowerBase base, LowerInst* inst) {
             if(isVectorLike(type)) return widthForm(laneBytes(type.lane) == 4 ? FormVFmaF32 : FormVFmaF64, type);
             return type == LowerType::Float32 ? FormFma32 : FormFma64;
         }
+
+        /*
+         * The SHA extension's seven, which are answered here because their operands are vectors and
+         * *not* through `widthForm`: there is one width and it is 128 bits, so there is no ymm twin
+         * to reach for and no lane to read off the type. The resolve verifier has already refused
+         * every shape but four 32-bit words.
+         *
+         * `sha1rnds4`'s four round functions are one form, the byte being `packedTrailingByte`'s.
+         */
+        case LowerInst::ShaBinary:
+            switch(((LowerInstShaBinary*)inst)->getSha()) {
+                case LowerSha::Sha1Msg1:   return FormSha1Msg1;
+                case LowerSha::Sha1Msg2:   return FormSha1Msg2;
+                case LowerSha::Sha1NextE:  return FormSha1NextE;
+                case LowerSha::Sha256Msg1: return FormSha256Msg1;
+                case LowerSha::Sha256Msg2: return FormSha256Msg2;
+                default:                   return FormSha1Rounds;
+            }
+
+        case LowerInst::Sha256Rounds:
+            return FormSha256Rounds;
 
         // The three directed roundings, answered here at every width for `Sqrt`'s reason: `roundss`
         // and `roundps` are one instruction family, so one switch answers for the whole of it. Which
@@ -1705,6 +1740,28 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
         case LowerInst::And:
         case LowerInst::Or:
         case LowerInst::Xor:
+            return {};
+
+        /*
+         * The SHA extension's seven, whose only refusal is the feature itself.
+         *
+         * There is nothing about the operands to check - the resolve verifier has already held them
+         * to four 32-bit lanes, which is the one shape these exist at - and there is no expansion to
+         * fall back to, so a target that does not claim the extension is a target this cannot be
+         * emitted for. That is a diagnostic rather than an assert for `checkVectorSupported`'s stated
+         * reason: an `assertTrue` inside form selection compiles away in a release build.
+         *
+         * A program should not reach this. `hasShaExtension` answers false on such a build and the
+         * library branches on it in source, so what a build without the extension compiles is the
+         * portable compression function - which is a decision made where both implementations are
+         * written rather than by anything here.
+         */
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
+            if((targetFeatures() & kFeatureSha) == 0) {
+                return Just("the SHA extension instructions need a target that claims it - `-enable-inst sha`, named beside the level rather than instead of one. `hasShaExtension` is what source branches on so that a build without it takes a portable implementation instead"_v);
+            }
+
             return {};
 
         default:

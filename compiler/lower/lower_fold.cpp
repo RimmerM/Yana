@@ -1617,6 +1617,7 @@ bool isRepeatable(LowerInst* inst) {
         case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
         case LowerInst::BitsUpTo:
         case LowerInst::GatherBits: case LowerInst::ScatterBits:
+        case LowerInst::Crc32:
         case LowerInst::Cmp:
         case LowerInst::Select:
 
@@ -1635,6 +1636,12 @@ bool isRepeatable(LowerInst* inst) {
         case LowerInst::Ceil:
         case LowerInst::Round:
         case LowerInst::Fma:
+
+        // The SHA rounds, on the same terms: each is a pure function of its operands and of the
+        // instruction it is, so a loop-invariant one - the round constants a compression loop reads
+        // are exactly that - may be hoisted and a repeated one removed.
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
 
         // All five, and for the same reason the arithmetic above is here: each is a pure function of
         // its operands and of the fields it carries. It is what lets a splat of a loop-invariant

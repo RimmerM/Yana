@@ -123,6 +123,10 @@ FeatureSet x64FeaturesFor(const CompileSettings& settings) {
      */
     if(settings.extensions.level >= TargetExtensions::V4) features |= kFeatureAvx512f;
 
+    // And the one extension that is not a level, read straight from the flag beside it - see
+    // kFeatureSha, and TargetExtensions::sha for why it is not inside one.
+    if(settings.extensions.sha) features |= kFeatureSha;
+
     return features;
 }
 

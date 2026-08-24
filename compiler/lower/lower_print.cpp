@@ -236,6 +236,12 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "round"_v;
         case LowerInst::Fma:
             return "fma"_v;
+        // The nine two-operand SHA instructions print as themselves rather than as `sha` plus a
+        // field, so that a `.lower` fixture reads the way the disassembly does.
+        case LowerInst::ShaBinary:
+            return nameOfLowerSha(((LowerInstShaBinary*)&inst)->getSha());
+        case LowerInst::Sha256Rounds:
+            return "sha256rnds2"_v;
         case LowerInst::Add:
             return "add"_v;
         case LowerInst::Sub:
@@ -278,6 +284,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "gatherbits"_v;
         case LowerInst::ScatterBits:
             return "scatterbits"_v;
+        case LowerInst::Crc32:
+            return "crc32"_v;
         case LowerInst::Cmp:
             return nameForCmp(((LowerInstCmp&)inst).getCmp());
         case LowerInst::Select:

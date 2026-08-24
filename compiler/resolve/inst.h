@@ -1469,6 +1469,42 @@ struct InstVecShuffle: Inst {
         right = f(right);
     }
 };
+
+/*
+ * Which of the SHA extension's two-operand instructions this is - see `Value::ShaBinary`.
+ *
+ * `sha1rnds4` is four members rather than one with an immediate, and that is worth the four: its
+ * immediate selects the *round function*, so the four values are four different operations that
+ * happen to share an opcode, and nothing that reads this enum then has to carry a number it must
+ * check the range of. There are exactly four and there will never be a fifth.
+ */
+enum class ShaOp: U8 {
+    Sha1Msg1,
+    Sha1Msg2,
+    Sha1NextE,
+    Sha1Rounds0,
+    Sha1Rounds1,
+    Sha1Rounds2,
+    Sha1Rounds3,
+    Sha256Msg1,
+    Sha256Msg2,
+};
+
+// The nine, as text - what the IR printer writes after `sha` and what a `.lower` fixture reads back.
+inline StringView nameOfShaOp(ShaOp op) {
+    switch(op) {
+        case ShaOp::Sha1Msg1:    return "sha1msg1"_v;
+        case ShaOp::Sha1Msg2:    return "sha1msg2"_v;
+        case ShaOp::Sha1NextE:   return "sha1nexte"_v;
+        case ShaOp::Sha1Rounds0: return "sha1rnds4.0"_v;
+        case ShaOp::Sha1Rounds1: return "sha1rnds4.1"_v;
+        case ShaOp::Sha1Rounds2: return "sha1rnds4.2"_v;
+        case ShaOp::Sha1Rounds3: return "sha1rnds4.3"_v;
+        case ShaOp::Sha256Msg1:  return "sha256msg1"_v;
+        default:                 return "sha256msg2"_v;
+    }
+}
+
 // `vzeroupper` - see `Value::VZeroUpper` in inst.def. No operands and no result: what it changes is
 // processor state that nothing in this IR names, which is why it is a statement rather than a value.
 struct InstVZeroUpper: Inst {
@@ -1477,6 +1513,37 @@ struct InstVZeroUpper: Inst {
     template<class F> void mapOperandFields(ModuleBase, F&&) {}
 };
 
+// One of the SHA extension's two-operand instructions - see `Value::ShaBinary` in inst.def, which is
+// where what each of them computes is written down.
+struct InstShaBinary: Inst {
+    InstShaBinary(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> lhs, ModulePtr<Value> rhs, ShaOp op):
+        Inst(Value::ShaBinary, block, type), lhs(lhs), rhs(rhs), op(op) {}
+
+    ModulePtr<Value> lhs;
+    ModulePtr<Value> rhs;
+    ShaOp op;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        lhs = f(lhs);
+        rhs = f(rhs);
+    }
+};
+
+// `sha256rnds2` - the one SHA instruction with three operands, and the only reason this is a
+// separate kind rather than a tenth member of `ShaOp`.
+struct InstSha256Rounds: Inst {
+    InstSha256Rounds(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> state,
+                     ModulePtr<Value> feed, ModulePtr<Value> keys):
+        Inst(Value::Sha256Rounds, block, type), state(state), feed(feed), keys(keys) {}
+
+    ModulePtr<Value> state, feed, keys;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) {
+        state = f(state);
+        feed = f(feed);
+        keys = f(keys);
+    }
+};
 
 // Every lane combined into one scalar, in the pairwise order Design-Vector §4.5 states. `type` is
 // the lane's; for a mask it is `Int`, so `any` is Or, `all` is And and `count` is Add.

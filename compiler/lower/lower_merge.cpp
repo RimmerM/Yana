@@ -149,6 +149,7 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         case LowerInst::BitsUpTo:
         case LowerInst::GatherBits:
         case LowerInst::ScatterBits:
+        case LowerInst::Crc32:
         case LowerInst::Cmp:
         case LowerInst::Select:
 
@@ -164,6 +165,12 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         case LowerInst::Ceil:
         case LowerInst::Round:
         case LowerInst::Fma:
+
+        // `ShaBinary` carries its instruction in `flags`, which the caller compares beside this -
+        // which is exactly why the op lives there rather than past the operands. See the note on
+        // `VecShuffle` below, which is the same question answered the other way.
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
 
         // Four of the five vector kinds. `VecShuffle` is deliberately not one of them: its pattern
         // is stored past its operands rather than in `flags`, so two of them that pick different

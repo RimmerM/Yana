@@ -717,6 +717,57 @@ static ModulePtr<Value> emitFma(ExprResolver& resolver, Buffer<ModulePtr<Value>>
     if(!requireFloating(resolver, type, source, "fma"_v)) return nullptr;
     return resolver.ref(resolver.emit<InstFma>(source, name, type, args[0], args[1], args[2]));
 }
+
+/*
+ * The SHA extension's seven, and the predicate that decides whether a body may name them - see
+ * `lib/Core/X86.sha.yana`, where all of this is argued.
+ *
+ * They are here rather than beside `Bits` in intrinsic.cpp because their operands are vectors and
+ * this is the file that knows what one is; they are *not* part of the portable set below, and
+ * `defineCpuIntrinsics` is separate from `defineVectorIntrinsics` so that the difference is a call
+ * rather than a comment.
+ */
+template<ShaOp op>
+static ModulePtr<Value> emitShaBinary(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                      LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstShaBinary>(source, name, type, args[0], args[1], op));
+}
+
+/*
+ * `sha1Rounds`, whose third argument is the instruction's trailing byte rather than an operand.
+ *
+ * A literal 0 to 3, checked here for `constantLane`'s reason: this is the only place that can name
+ * the argument, since below it the round function is a field of a kind and there is nothing left to
+ * point at. What it selects is which of SHA-1's four round functions the four rounds use, so a
+ * computed one is not a different value of anything - it is four different instructions.
+ */
+static ModulePtr<Value> emitSha1Rounds(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                       LocationId source, StringId name) {
+    auto value = resolver.local[args[2]];
+
+    if(value->kind != Value::ConstInt) {
+        resolver.context.diagnostics.error("the round group of `sha1Rounds` must be a constant - it is the instruction's trailing byte, and a computed one is not an instruction"_v,
+                                           source);
+        return nullptr;
+    }
+
+    auto group = ((ConstInt&)*value).value;
+
+    if(group < 0 || group > 3) {
+        resolver.context.diagnostics.error("`sha1Rounds` has four round groups, numbered 0 to 3, and this names %@"_v,
+                                           source, I32(group));
+        return nullptr;
+    }
+
+    auto op = ShaOp(U8(ShaOp::Sha1Rounds0) + U8(group));
+    return resolver.ref(resolver.emit<InstShaBinary>(source, name, type, args[0], args[1], op));
+}
+
+static ModulePtr<Value> emitSha256Rounds(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                         LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstSha256Rounds>(source, name, type, args[0], args[1], args[2]));
+}
+
 // `X86.vzeroupper()` - no arguments and no result, so the hook is the emit and nothing else. The
 // type it is given is the declared one, which is `{}`; see `Value::VZeroUpper` in inst.def.
 static ModulePtr<Value> emitVZeroUpper(ExprResolver& resolver, Buffer<ModulePtr<Value>>, TypePtr type,
@@ -724,7 +775,25 @@ static ModulePtr<Value> emitVZeroUpper(ExprResolver& resolver, Buffer<ModulePtr<
     return resolver.ref(resolver.emit<InstVZeroUpper>(source, name, type));
 }
 
+/*
+ * Whether this build reads `Core/X86.sha.yana` at all - which is the `sha` file selector, asked here
+ * so that the two cannot disagree. A declaration the selector dropped is one `attachIntrinsic` would
+ * report as missing, and a declaration it kept with no intrinsic attached is a function with no body.
+ */
+bool hasCpuIntrinsics(const CompileSettings& settings) {
+    return targetSelector(settings, "sha"_v) == TargetSelector::Matched;
+}
+
 void defineCpuIntrinsics(Module& core) {
+    attachIntrinsic(core, "X86.sha1Message1"_v, emitShaBinary<ShaOp::Sha1Msg1>);
+    attachIntrinsic(core, "X86.sha1Message2"_v, emitShaBinary<ShaOp::Sha1Msg2>);
+    attachIntrinsic(core, "X86.sha1NextE"_v, emitShaBinary<ShaOp::Sha1NextE>);
+    attachIntrinsic(core, "X86.sha1Rounds"_v, emitSha1Rounds);
+
+    attachIntrinsic(core, "X86.sha256Message1"_v, emitShaBinary<ShaOp::Sha256Msg1>);
+    attachIntrinsic(core, "X86.sha256Message2"_v, emitShaBinary<ShaOp::Sha256Msg2>);
+    attachIntrinsic(core, "X86.sha256Rounds"_v, emitSha256Rounds);
+
     attachIntrinsic(core, "X86.vzeroupper"_v, emitVZeroUpper);
 }
 

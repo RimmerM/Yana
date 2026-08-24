@@ -1,0 +1,56 @@
+{-
+   What the three legacy-SSE markers refuse, and where each refusal is made.
+
+   Five of them are read off the declaration, which is the only place that can name the attribute
+   the author wrote. The sixth is not here and cannot be: a wide vector inside a marked function, and
+   a SHA instruction inside an *unmarked* one, are both questions about a body after inlining, so
+   they are reported by the x64 backend - see `checkLegacyVectorEncoding` in machine_vector.cpp.
+
+   The second of those pair is the one worth knowing about. `@x86_legacy_sse` marks a
+   `LowerFunction`, and an inlined body has none - so a marked helper spliced into an unmarked caller
+   would carry its SHA instructions into a VEX-encoded body with nothing left to say so. That check
+   is the root test the deleted `markLegacyVectorEncodings` used to find its own starting set, kept
+   as an assertion now that nothing infers the answer.
+-}
+
+import Native
+
+-- Two of the six conventions the lower IR has are the compiler's own choice between internal shapes,
+-- and one describes what a syscall leaves alone rather than how anything is entered. Naming one is
+-- writing an implementation detail down as though it were an interface.
+@convention(simple)
+fn internalShape(x: Int) -> Int = x
+
+@convention(system)
+fn kernelSide(x: Int) -> Int = x
+
+-- A name no convention has.
+@convention(fastcall)
+fn unknownName(x: Int) -> Int = x
+
+-- The attribute takes exactly one argument, and it is a name rather than an expression.
+@convention
+fn noArgument(x: Int) -> Int = x
+
+@convention(clobber, sysv)
+fn twoArguments(x: Int) -> Int = x
+
+-- Two of them on one declaration say two different things about how one function is entered.
+@convention(clobber)
+@convention(sysv)
+fn twice(x: Int) -> Int = x
+
+{-
+   And the encoding attribute, which takes no arguments at all.
+
+   `@x86_legacy_sse(entry)` is the spelling an earlier design had, where one attribute meant both
+   "encode this body without a prefix" and "clear the vector state on the way in". They are facts
+   about different sets of functions - every function of a region is encoded legacy, and only its
+   entry points may clear the state, since a helper's vector argument would be destroyed - so the
+   second is `X86.vzeroupper()`, a call the author places. Reserving the argument form here is what
+   keeps the attribute meaning one thing.
+-}
+@x86_legacy_sse(entry)
+fn withArgument(x: Int) -> Int = x
+
+fn main() -> Int = 0

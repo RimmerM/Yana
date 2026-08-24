@@ -470,6 +470,11 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
         if(hasBitCounts(global, type)) {
             defineBits(module, type);
             defineBitPermute(module, type);
+
+            // And the checksum step at the same two widths, on the target that has the instruction.
+            // `Size` reaches this through `hasBitCounts` as it reaches the counts, which is correct:
+            // it is 64 bits wide wherever this is generated at all.
+            if(hasCrcInstruction(module.context.settings)) defineCrc(module, type);
         }
     }
 
@@ -714,6 +719,9 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
     // simd.cpp's - Design-Vector §3.3.
     defineVectorIntrinsics(*module);
 
+    // And the machine-specific ones, where the file selector kept the declarations to attach them to.
+    if(hasCpuIntrinsics(context.settings)) defineCpuIntrinsics(*module);
+
     TypePtr numeric[] = {
         program.scalar.int_,
         program.scalar.long_,
@@ -753,6 +761,11 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
     defineBits(*module, program.scalar.long_);
     defineBitPermute(*module, program.scalar.int_);
     defineBitPermute(*module, program.scalar.long_);
+
+    if(hasCrcInstruction(context.settings)) {
+        defineCrc(*module, program.scalar.int_);
+        defineCrc(*module, program.scalar.long_);
+    }
 
     /*
      * The same instances over the vector of each are **not** here - simd.cpp generates them where

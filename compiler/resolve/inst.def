@@ -330,6 +330,61 @@ YANA_INST(BitsUpTo,     InstBinary,      "bitsupto"_v,    kInstResult | kInstPur
  */
 YANA_INST(GatherBits,   InstBinary,      "gatherbits"_v,  kInstResult | kInstPure)
 YANA_INST(ScatterBits,  InstBinary,      "scatterbits"_v, kInstResult | kInstPure)
+/*
+ * The CRC-32C step - `Core.Crc.crc32`, and the one instruction in this file that computes a named
+ * *function* rather than an operation on bits.
+ *
+ * `crc32 acc, chunk` folds `chunk` into the running remainder `acc` under the Castagnoli polynomial
+ * `0x11EDC6F41` reflected, which is SSE4.2's `crc32` and nothing else. It is not parameterized by a
+ * polynomial and cannot be: the polynomial is in the silicon, and the IEEE one every archive format
+ * uses is a different function that this instruction cannot compute. `lib/Digest/Crc.yana` is where
+ * both live and where that difference is written down.
+ *
+ * **A kind rather than a library table**, on `GatherBits`' terms and more strongly: what it replaces
+ * is not an expression a peephole could recognize but a two-kilobyte table and a dependent load per
+ * eight bytes, and no amount of looking at the emitted code would turn one into the other. It is
+ * baseline rather than a feature - SSE4.2 is inside x86-64-v2 and v2 is this backend's floor - so
+ * unlike `GatherBits` there is no expansion behind it on the targets that have it, and unlike
+ * `Bsr` it is reachable from source.
+ *
+ * **Both operands are the instruction's own type**, which is `InstBinary`'s rule and is what fixes
+ * the shape at the seam: the accumulator is thirty-two bits and the chunk is thirty-two or
+ * sixty-four, so the generated body widens the accumulator to the chunk's width and truncates the
+ * answer back. That is exactly what the 64-bit form does in the register - it writes a
+ * zero-extended 32-bit result - so both conversions fold away and the pair is one instruction.
+ *
+ * Declared at 32 and 64 bits, which is `CountBits`' set and for its reason: the lower IR has no
+ * scalar below `Int32`, so an 8- or 16-bit form could not say how wide its chunk was. The machine
+ * has `crc32 r32, r/m8`; a tail of fewer than four bytes reaches it through the table instead, which
+ * costs a handful of lookups once per message.
+ */
+YANA_INST(Crc32,        InstBinary,      "crc32"_v,       kInstResult | kInstPure)
+/*
+ * The SHA extension - seven instructions that compute rounds of SHA-1 and SHA-256, as two kinds.
+ *
+ * Unlike everything above them these are not an *operation* the language has and a target happens to
+ * have an instruction for; each one is a named step of a named algorithm, and there is no portable
+ * meaning to give it. So they are reachable from source only through the `@platform(x64)`
+ * declarations in `lib/Core/X86.sha.yana`, they exist only where `hasShaExtension` is true, and **no
+ * backend expands them**: what stands in for one where the extension is absent is the library's own
+ * portable compression function, chosen in source. A backend that tried to expand `sha256rnds2`
+ * would be writing SHA-256 a second time.
+ *
+ * `ShaBinary` is the six two-operand ones plus the four functions of `sha1rnds4`, which is nine
+ * members of `ShaOp` - see inst.h. One kind rather than nine is what keeps a dozen switches in this
+ * compiler to one case label each, and the `op` field is what CSE and the printer compare.
+ *
+ * `Sha256Rounds` is `sha256rnds2` and is separate for one reason: it takes three operands where
+ * every other one takes two. Its third is the round constants added to the message words, and on the
+ * machine that operand is *implicitly xmm0* - which is a register-allocation constraint the x64 form
+ * carries and nothing above it needs to know.
+ *
+ * Both are pure. Each is a function of its operands with no state, no memory and no flags, so a
+ * repeated one CSEs and a loop-invariant one hoists - which matters here more than usual, because
+ * the round constants a compression loop reads are exactly that.
+ */
+YANA_INST(ShaBinary,    InstShaBinary,   "sha"_v,         kInstResult | kInstPure)
+YANA_INST(Sha256Rounds, InstSha256Rounds, "sha256rnds2"_v, kInstResult | kInstPure)
 
 /*
  * `vzeroupper` - the vector state reset, as an ordinary call a program writes.

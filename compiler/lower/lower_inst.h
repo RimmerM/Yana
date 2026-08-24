@@ -218,6 +218,26 @@ struct LowerInst {
         GatherBits,
         ScatterBits,
 
+        /*
+         * The CRC-32C step - `Core.Crc.crc32`, and the one binary here that is a named function
+         * rather than an operation on bits.
+         *
+         * `lhs` is the running remainder and `rhs` is the chunk folded into it, both at the
+         * instruction's own width, and the answer is the new remainder in the low thirty-two bits.
+         * The polynomial is Castagnoli's and is not a parameter - see resolve/inst.def, where that
+         * is argued, and `lib/Digest/Crc.yana`, where the IEEE one it is *not* lives.
+         *
+         * A real kind rather than an intrinsic, on `BitsUpTo`'s terms: a checksum over a
+         * loop-invariant word written as an intrinsic would be pinned inside the loop that reads it,
+         * where as a binary in this range it hoists and CSEs for nothing.
+         *
+         * **No backend has to expand it, and no backend other than x86-64 may see it.** SSE4.2 is
+         * inside x86-64-v2 and v2 is the floor, so the one target this reaches always has the
+         * instruction; a target that does not is one `Core.Crc` has no instances on, which is where
+         * the choice is made rather than here.
+         */
+        Crc32,
+
         // Comparison (supports any two of the same type):
         Cmp,
         LastBinary = Cmp,
@@ -228,6 +248,23 @@ struct LowerInst {
         // `a * b + c`, at most once rounded. Not a Binary and not a Unary, and the one three-operand
         // arithmetic kind in this IR - see LowerInstFma.
         Fma,
+
+        /*
+         * The SHA extension's seven instructions, as two kinds - see resolve/inst.def, where what
+         * each computes is argued.
+         *
+         * **Deliberately not in the binary range above**, and `ShaBinary` is the reason: it carries
+         * an op in `flags` and there are nine of them, so a pass that read it as an ordinary binary
+         * would treat `sha256msg1 a, b` and `sha1msg2 a, b` as one computation. `Cmp` sits in that
+         * range with a field for exactly this reason and gets away with it because every pass that
+         * handles a comparison handles it by name; nothing here should have to remember that.
+         *
+         * Neither has an expansion anywhere. There is no sequence of ordinary instructions that
+         * stands for one of these - what stands for them is a different implementation of the same
+         * digest, which the library chooses in source through `hasShaExtension`.
+         */
+        ShaBinary,
+        Sha256Rounds,
 
         /*
          * `vzeroupper` - the vector state reset, written in source as `X86.vzeroupper()`.
@@ -803,6 +840,86 @@ struct LowerInstFma: LowerInstSingle {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> a, b, c;
+};
+
+/*
+ * Which of the SHA extension's two-operand instructions a `ShaBinary` is.
+ *
+ * The same nine as `ShaOp` in resolve/inst.h and a second enum rather than that one, on
+ * `LowerReduce`'s terms: the two tiers do not include each other's headers, and a seam that has to
+ * translate is a seam that cannot silently drift when one side gains a member.
+ */
+enum class LowerSha: U8 {
+    Sha1Msg1,
+    Sha1Msg2,
+    Sha1NextE,
+    Sha1Rounds0,
+    Sha1Rounds1,
+    Sha1Rounds2,
+    Sha1Rounds3,
+    Sha256Msg1,
+    Sha256Msg2,
+};
+
+// The nine as text - what the lower printer writes and what a `.lower` fixture reads back.
+inline StringView nameOfLowerSha(LowerSha op) {
+    switch(op) {
+        case LowerSha::Sha1Msg1:    return "sha1msg1"_v;
+        case LowerSha::Sha1Msg2:    return "sha1msg2"_v;
+        case LowerSha::Sha1NextE:   return "sha1nexte"_v;
+        case LowerSha::Sha1Rounds0: return "sha1rnds4_0"_v;
+        case LowerSha::Sha1Rounds1: return "sha1rnds4_1"_v;
+        case LowerSha::Sha1Rounds2: return "sha1rnds4_2"_v;
+        case LowerSha::Sha1Rounds3: return "sha1rnds4_3"_v;
+        case LowerSha::Sha256Msg1:  return "sha256msg1"_v;
+        default:                    return "sha256msg2"_v;
+    }
+}
+
+/*
+ * The SHA extension's two-operand instructions - `LowerInst::ShaBinary`.
+ *
+ * Two used values, one type, and the instruction itself in `flags`. All three of the operands and
+ * the result are a four-lane vector of 32-bit words, which the resolve verifier has already checked
+ * and which is the register the machine reads.
+ *
+ * `flags` and not a field past the operands, which is `VecShuffle`'s mistake read the other way: a
+ * value there is compared by `sameCarriedData` for nothing, so two of these that are different
+ * instructions over the same pair of vectors are told apart by CSE without a case being written.
+ */
+struct LowerInstShaBinary: LowerInstSingle {
+    LowerInstShaBinary(StringId name, LowerType type, LowerPtr<LowerValue> lhs, LowerPtr<LowerValue> rhs,
+                       LowerSha op):
+        LowerInstSingle(ShaBinary, name, type), lhs(lhs), rhs(rhs)
+    {
+        usedCount = 2;
+        flags = (U8)op;
+    }
+
+    LowerSha getSha() const { return (LowerSha)flags; }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> lhs, rhs;
+};
+
+/*
+ * `sha256rnds2` - the one SHA instruction with three operands.
+ *
+ * `state` is the four working words it advances, `feed` is the four it reads them against, and
+ * `keys` is the message words with their round constants already added. On the machine that third
+ * operand is **implicitly xmm0**, which is a constraint the x64 form carries and nothing at this
+ * tier has to know: here it is an ordinary third use.
+ */
+struct LowerInstSha256Rounds: LowerInstSingle {
+    LowerInstSha256Rounds(StringId name, LowerType type, LowerPtr<LowerValue> state,
+                          LowerPtr<LowerValue> feed, LowerPtr<LowerValue> keys):
+        LowerInstSingle(Sha256Rounds, name, type), state(state), feed(feed), keys(keys)
+    {
+        usedCount = 3;
+    }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> state, feed, keys;
 };
 
 /*

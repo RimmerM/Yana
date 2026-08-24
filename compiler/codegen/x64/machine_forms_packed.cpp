@@ -120,6 +120,91 @@ void MachineFormBuilder::registerPackedForms() {
         form.encoding.opcodeMap = kOpcodeMap0F38;
     }
 
+    /*
+     * The SHA extension - seven instructions, and the only rows in this file that are not one
+     * operation at one lane width.
+     *
+     * All seven are `NP 0F 38 xx /r` (`sha1rnds4` is `0F 3A CC /r ib`), destructive two-address like
+     * every packed row here, and none writes a flag. What separates them from their neighbours is
+     * that a lane means nothing to them: each takes 128 bits and reads them as the four 32-bit words
+     * a SHA state or message schedule is made of, and there is no other width to select.
+     *
+     * **They are placed before the packed arithmetic and not among it**, and the ids say the same
+     * thing, because nothing about these is derived: `packedArith` builds a family from a lane
+     * table, and a family of one instruction is not one.
+     *
+     * `requiredFeatures` is `kFeatureSha`, which no psABI level implies - see
+     * `TargetExtensions::sha`. A build without it never produces one of these at all: the source
+     * declarations are `@platform(x64)` and guarded by `hasShaExtension`, and what stands in for
+     * them is the library's portable compression rather than any expansion here.
+     */
+    auto sha = [&](MachineFormId id, StringView formName, U8 op) {
+        auto& form = add(id, OpSha, formName);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+        form.defs.push(tiedDef(0, ClassXmm128));
+        form.requiredFeatures = kFeatureSha;
+        form.legacyOnly = true;
+        form.encoding = sseRegRm(0x00, op, useRef(0), useRef(1), OperationWidth::FromResult);
+        form.encoding.opcodeMap = kOpcodeMap0F38;
+    };
+
+    sha(FormSha1Msg1,   "sha1msg1 xmm, xmm/m"_v,   0xc9);
+    sha(FormSha1Msg2,   "sha1msg2 xmm, xmm/m"_v,   0xca);
+    sha(FormSha1NextE,  "sha1nexte xmm, xmm/m"_v,  0xc8);
+    sha(FormSha256Msg1, "sha256msg1 xmm, xmm/m"_v, 0xcc);
+    sha(FormSha256Msg2, "sha256msg2 xmm, xmm/m"_v, 0xcd);
+
+    /*
+     * `sha1rnds4 xmm1, xmm2/m128, imm8` - the four SHA-1 round functions as one instruction.
+     *
+     * The immediate selects which of the four twenty-round groups this is, and it is a *fact about
+     * the instruction* rather than an operand the IR built: `LowerSha` has four members for it, and
+     * `packedTrailingByte` reads the byte back off the kind. That is `patternImmediate`, which is
+     * what a shuffle's control byte and a lane index already are, and it is why there is one form
+     * here rather than four.
+     *
+     * `0F 3A` rather than `0F 38`, which is the only thing that separates its encoding from the five
+     * above.
+     */
+    {
+        auto& form = add(FormSha1Rounds, OpSha, "sha1rnds4 xmm, xmm/m, imm8"_v);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+        form.defs.push(tiedDef(0, ClassXmm128));
+        form.requiredFeatures = kFeatureSha;
+        form.legacyOnly = true;
+        form.encoding = sseRegRm(0x00, 0xcc, useRef(0), useRef(1), OperationWidth::FromResult);
+        form.encoding.opcodeMap = kOpcodeMap0F3A;
+        form.encoding.patternImmediate = true;
+    }
+
+    /*
+     * `sha256rnds2 xmm1, xmm2/m128, <XMM0>` - two full rounds of SHA-256, and the one instruction in
+     * this backend with an implicit register operand.
+     *
+     * Three uses: the four state words it advances (destructive, ModRM.reg), the four it reads them
+     * against (ModRM.r/m), and the message words with their round constants added - which the
+     * encoding does not name at all and the machine reads out of **xmm0**. So the third operand is
+     * `fixedVectorReg(0)` and the encoder writes nothing for it.
+     *
+     * Nothing else about it is unusual, and nothing else had to be built for it: `shapeOf` turns a
+     * fixed-register constraint into an `ArgLocation` without asking which bank it is in, and the
+     * parallel copy in front of the instruction is what puts the value there. What it costs a caller
+     * is one register the allocator cannot use freely across the compression loop, which is why
+     * `lib/Digest/Sha256.native.yana` reads the round constants where it does.
+     */
+    {
+        auto& form = add(FormSha256Rounds, OpSha256Rounds, "sha256rnds2 xmm, xmm/m, xmm0"_v);
+        form.uses.push(anyReg(ClassXmm128));
+        form.uses.push(regOrMem(MemoryAccessKind::Read, ClassXmm128));
+        form.uses.push(fixedVectorReg(0, ClassXmm128));
+        form.defs.push(tiedDef(0, ClassXmm128));
+        form.requiredFeatures = kFeatureSha;
+        form.legacyOnly = true;
+        form.encoding = sseRegRm(0x00, 0xcb, useRef(0), useRef(1), OperationWidth::FromResult);
+        form.encoding.opcodeMap = kOpcodeMap0F38;
+    }
 
     // The integer widths of one operation, in lane order, and the two float ones. `0` for a lane
     // type the machine has no instruction for, which is a form this table does not build.

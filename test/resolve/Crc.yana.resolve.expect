@@ -1,0 +1,45 @@
+let image$base: () = <none>
+
+fn word() -> U32 {
+  b0:
+    %v4 = crc32 4294967295, 305419896 : U32
+    ret %v4
+}
+
+fn wide() -> U32 {
+  b0:
+    %v1 = cast 4294967295 : U64
+    %v4 = crc32 %v1, 81985529216486895 : U64
+    %v5 = cast %v4 : U32
+    ret %v5
+}
+
+fn folded(%seed: U32, %chunk: U32) -> U32 {
+  b0:
+    %v2 = crc32 %seed, %chunk : U32
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    %a = call word : U32
+    %b = call wide : U32
+    %v2 = cast %a : I64
+    %v3 = cast %b : I64
+    %total = add %v2, %v3 : I64
+    %v7 = call folded, 4294967295, 305419896 : U32
+    %v8 = cmp_ne %v7, %a : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v12 = neg 1 : Int
+    ret %v12
+
+  b2:
+    jmp b3
+
+  b3:
+    %v17 = rem %total, 1000 : I64
+    %v18 = cast %v17 : Int
+    ret %v18
+}

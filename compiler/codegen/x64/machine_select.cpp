@@ -120,6 +120,10 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
             assertTrue("a bit operation reached selection unexpanded" == nullptr);
             return OpNone;
 
+        // The checksum step, which unlike the three above has no expansion in front of it: the
+        // instruction is baseline, so this is where it arrives and where it stays.
+        case LowerInst::Crc32: return OpCrc32;
+
 
         // The two accesses that reverse on the way. Written only where the feature is present, so
         // reaching one of these is already a decision - see selectByteSwapMemory.
@@ -135,6 +139,12 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         // widths rather than two operations. Same for `vfmadd213`.
         case LowerInst::Sqrt: return OpSqrt;
         case LowerInst::Fma:  return OpFma;
+
+        // The SHA extension's two kinds, one opcode each. Which of the seven instructions a
+        // `ShaBinary` is is the *form*'s answer rather than this one's, exactly as which shuffle a
+        // `VecShuffle` is is.
+        case LowerInst::ShaBinary:    return OpSha;
+        case LowerInst::Sha256Rounds: return OpSha256Rounds;
 
         // The three directed roundings, which are one instruction with the mode in a trailing byte -
         // so one op here, exactly as the four square roots are one. `Round` is absent because
@@ -443,6 +453,11 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
             assertTrue("a bit operation reached selection unexpanded" == nullptr);
             return FormNop;
 
+        // The checksum step, at the width its operands are - the resolve verifier has already
+        // refused every other one.
+        case LowerInst::Crc32:
+            return is64Bit(((LowerInstBinary*)inst)->result.type) ? FormCrc32_64 : FormCrc32_32;
+
         // The BMI1 pair-replacements, one form each. The lowest-bit family is three forms of one
         // opcode selected by the instruction's own field, exactly as `X86MinMax` is.
         case LowerInst::X86AndNot: return FormAndNot;
@@ -473,6 +488,8 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::Floor:
         case LowerInst::Ceil:
         case LowerInst::Round:
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
             assertTrue("a packed instruction selectPackedForm did not answer for" == nullptr);
             return FormNop;
 

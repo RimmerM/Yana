@@ -1108,6 +1108,18 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
                                             cloneValue(clone, ((InstFma&)inst).b),
                                             cloneValue(clone, ((InstFma&)inst).c));
             break;
+        case Value::Sha256Rounds:
+            result = resolver.emit<InstSha256Rounds>(inst.source, inst.name, type,
+                                                     cloneValue(clone, ((InstSha256Rounds&)inst).state),
+                                                     cloneValue(clone, ((InstSha256Rounds&)inst).feed),
+                                                     cloneValue(clone, ((InstSha256Rounds&)inst).keys));
+            break;
+        case Value::ShaBinary:
+            result = resolver.emit<InstShaBinary>(inst.source, inst.name, type,
+                                                  cloneValue(clone, ((InstShaBinary&)inst).lhs),
+                                                  cloneValue(clone, ((InstShaBinary&)inst).rhs),
+                                                  ((InstShaBinary&)inst).op);
+            break;
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
@@ -1124,7 +1136,8 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
         case Value::Xor:
         case Value::BitsUpTo:
         case Value::GatherBits:
-        case Value::ScatterBits: {
+        case Value::ScatterBits:
+        case Value::Crc32: {
             auto& binary = (InstBinary&)inst;
             result = resolver.emit<InstBinary>(inst.source, inst.name, type, inst.kind,
                                                cloneValue(clone, binary.lhs), cloneValue(clone, binary.rhs));

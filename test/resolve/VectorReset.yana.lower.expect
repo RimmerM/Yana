@@ -1,0 +1,42 @@
+@image$base = []
+
+compressLike<clobber>(%state: i32x4, %message: i32x4): Int {
+  b_0 {
+    vzeroupper 
+    %mixed = sha256msg1 %state, %message: i32x4
+    %v_1 = add %mixed, %state: i32x4
+    %v_2 = vlane %v_1, 0: Int
+    ret %v_2
+  }
+}
+
+throughHelper<clobber>(%state: i32x4): Int {
+  b_0 {
+    vzeroupper 
+    %v_1 = sha256msg2 %state, %state: i32x4
+    %v_2 = vlane %v_1, 0: Int
+    ret %v_2
+  }
+}
+
+plainReset<complex>(%x: Int): Int {
+  b_0 {
+    vzeroupper 
+    %v_1 = add %x, 1: Int
+    ret %v_1
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %a = vsplat 1: i32x4
+    %b = vsplat 2: i32x4
+    %v_1 = call_clobber compressLike, %a, %b: Int
+    %v_2 = call_clobber throughHelper, %a: Int
+    %v_3 = add %v_1, %v_2: Int
+    %v_4 = call_complex plainReset, 0: Int
+    %v_5 = add %v_3, %v_4: Int
+    ret %v_5
+  }
+}
+

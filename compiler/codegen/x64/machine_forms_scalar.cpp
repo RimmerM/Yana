@@ -595,6 +595,52 @@ void MachineFormBuilder::registerScalarForms() {
     memoryTwin(FormLowBitMaskMem, FormLowBitMask, "blsmsk r, [address]"_v);
 
     /*
+     * CRC32 - `f2 0f 38 f1 /r`, SSE4.2, and the one row in this table that computes a named function.
+     *
+     * Destructive two-operand like the group-1 ALU forms above: ModRM.reg is both the running
+     * remainder and the answer, ModRM.r/m is the chunk folded into it. So the tie is `tiedDef(0)`
+     * and the encoder is the ordinary RegRm shape - what is unusual is only where the opcode lives,
+     * which is the `0f 38` map under a mandatory `f2`, exactly as `movbe` is under none.
+     *
+     * **No `requiredFeatures`, and that is the point of the floor.** SSE4.2 is inside x86-64-v2 and
+     * v2 is `kFeatureBaseline` here, so a target this backend compiles for always has the
+     * instruction. `Core.Crc` is `@platform(x64)` in source, which is what keeps a build for any
+     * other machine from producing one of these at all.
+     *
+     * **The width comes from the result and not from a prefix.** The 32-bit form has none and the
+     * 64-bit form is the same encoding under REX.W, which is what `OperationWidth::FromResult`
+     * already writes for every other integer form here. The machine's byte and word forms - `f0`,
+     * and `f1` under `66` - have no producer: the lower IR has no scalar below `Int32`, so nothing
+     * can say a chunk is one byte wide. A row nobody can select is a row nothing tests.
+     *
+     * The r/m side takes the memory twin every other binary here takes, and it is worth more than
+     * most: the chunk being folded comes *out of the message*, so the load feeding this is the whole
+     * of what the loop reads and folding it removes the only other instruction in the loop body.
+     */
+    {
+        auto crc32Form = [&](MachineFormId id, StringView formName, OperationWidth width) {
+            auto& form = add(id, OpCrc32, formName);
+            form.uses.push(anyReg());
+            form.uses.push(regOrMem(MemoryAccessKind::Read));
+            form.defs.push(tiedDef(0));
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::RegRm,
+                .opcode = 0xf1, .escape = 0x0f, .prefix = 0xf2,
+                .regField = defRef(0), .rmField = useRef(1),
+                .width = width,
+            };
+
+            form.encoding.opcodeMap = kOpcodeMap0F38;
+        };
+
+        crc32Form(FormCrc32_32, "crc32 r32, r/m32"_v, OperationWidth::Fixed32);
+        crc32Form(FormCrc32_64, "crc32 r64, r/m64"_v, OperationWidth::Fixed64);
+
+        memoryTwin(FormCrc32Mem32, FormCrc32_32, "crc32 r32, [address]"_v);
+        memoryTwin(FormCrc32Mem64, FormCrc32_64, "crc32 r64, [address]"_v);
+    }
+
+    /*
      * Multiply and divide.
      *
      * The group-3 forms read their first operand out of rax and write their result back into it (or,

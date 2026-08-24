@@ -166,6 +166,30 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name) 
         if(name == archTable[i]) return answer(!isJs && settings.arch == TargetArch(i));
     }
 
+    /*
+     * The instruction-set extensions that are not a level - `sha` today, and see
+     * `TargetExtensions::sha` for why it is not inside one.
+     *
+     * **Two names per extension and not one, because a selector has no negation.** `sha` selects the
+     * declaration written over the instructions and `nosha` the one that stands in for it, and every
+     * target satisfies exactly one of the two - which makes them a partition of the same shape
+     * `js`/`native` is, and is what lets a *file* hold the hardware implementation. That matters
+     * more here than the spelling does: a build without the extension must not *resolve* a body
+     * naming instructions it cannot encode, and a body kept behind a compile-time `if` would still
+     * be resolved and would still reach a backend in a build with the IR optimizer off.
+     *
+     * A JS build and a non-x86-64 one are `nosha`, on the same argument an operating system name
+     * makes above: what `sha` selects is written in terms of an x86 instruction, and a target with
+     * no such instruction has no business compiling it.
+     */
+    if(name == "sha"_v) {
+        return answer(!isJs && settings.arch == TargetArch::X64 && settings.extensions.sha);
+    }
+
+    if(name == "nosha"_v) {
+        return answer(isJs || settings.arch != TargetArch::X64 || !settings.extensions.sha);
+    }
+
     return TargetSelector::Unknown;
 }
 
@@ -303,6 +327,11 @@ static void applyHostExtensions(CompileSettings& settings) {
 
     bool hasABM     = !!(infoex_ecx & (1 << 5));
 
+    // The SHA extension, which is in no level - see TargetExtensions::sha. Leaf 7's EBX bit 29, and
+    // it needs no `xgetbv` question beside it: the seven instructions are `xmm` operations, so what
+    // has to be enabled for them is the SSE state every part meeting the v2 floor already saves.
+    bool hasSHA     = !!(info7_ebx & (1 << 29));
+
     /*
      * **What the processor has is not what the program may use.** The wide registers are extended
      * state, and an operating system that has not enabled saving them leaves their instructions
@@ -342,6 +371,10 @@ static void applyHostExtensions(CompileSettings& settings) {
     settings.extensions.level = meetsV4 ? TargetExtensions::V4
                               : meetsV3 ? TargetExtensions::V3
                                         : TargetExtensions::V2;
+
+    // And the extension beside the level, taken from the host on the same terms: an unnamed build is
+    // `-march=native`'s bargain, and this is one more thing the host either has or has not.
+    settings.extensions.sha = hasSHA;
 #endif // __X86__
 }
 
@@ -565,9 +598,17 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 } else if(value == "neon") {
                     settings.extensions.neon = true;
                     return true;
+                } else if(value == "sha") {
+                    // Beside a level rather than one of them - see TargetExtensions::sha. Written as
+                    // a second `-enable-inst`, since naming it does not say which level the rest of
+                    // the machine meets.
+                    settings.extensions.sha = true;
+                    return true;
                 } else {
                     error = "Unrecognized instruction set level. Valid levels are: "
-                            "v2|v3|v4 (or sse4.2|avx2|avx512, which name the same three), and neon.";
+                            "v2|v3|v4 (or sse4.2|avx2|avx512, which name the same three), plus the "
+                            "extensions `sha` and `neon`, which are named beside a level rather than "
+                            "instead of one.";
                     return false;
                 }
             case Flag::to:

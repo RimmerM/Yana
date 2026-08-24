@@ -361,7 +361,10 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
          */
         case Value::BitsUpTo:
         case Value::GatherBits:
-        case Value::ScatterBits: {
+        case Value::ScatterBits:
+        // `crc32` is here for the same reason and not for BMI2's: it too is declared at 32 and 64
+        // bits only, so the value in the register is the value.
+        case Value::Crc32: {
             auto& binaryInst = (InstBinary&)instruction;
             auto lhs = lower.lower[mappedValue(lower, binaryInst.lhs)];
             auto rhs = lower.lower[mappedValue(lower, binaryInst.rhs)];
@@ -371,7 +374,9 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 ? binary<LowerInst::BitsUpTo>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name)
                 : instruction.kind == Value::GatherBits
                 ? binary<LowerInst::GatherBits>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name)
-                : binary<LowerInst::ScatterBits>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name);
+                : instruction.kind == Value::ScatterBits
+                ? binary<LowerInst::ScatterBits>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name)
+                : binary<LowerInst::Crc32>(lower.lower, lower.to, block, lhs, rhs, type, instruction.name);
             break;
         }
         // The two floating-point operations that are neither the unary pair above nor the binary
@@ -437,6 +442,15 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 mappedValue(lower, fma.a), mappedValue(lower, fma.b), mappedValue(lower, fma.c)));
             break;
         }
+        /*
+         * The SHA extension's two kinds, which cross this seam as themselves.
+         *
+         * Nothing is spent here and nothing could be: what each of them computes is a named step of
+         * a named algorithm, so there is no narrower width to mask into place and no expansion to
+         * write. The op is translated rather than reinterpreted, on `VecReduce`'s terms - the two
+         * enums are declared in two headers that do not include each other, and a switch is what
+         * keeps them from drifting apart silently.
+         */
         // No operands, no result, and no target question to ask: what it means is the same on every
         // machine that has it, and a machine that does not is one this never reaches - see the
         // `@platform(x64)` declaration it comes from.
@@ -444,6 +458,35 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVZeroUpper());
             break;
 
+        case Value::ShaBinary: {
+            auto& sha = (InstShaBinary&)instruction;
+            auto op = LowerSha::Sha1Msg1;
+
+            switch(sha.op) {
+                case ShaOp::Sha1Msg1:    op = LowerSha::Sha1Msg1; break;
+                case ShaOp::Sha1Msg2:    op = LowerSha::Sha1Msg2; break;
+                case ShaOp::Sha1NextE:   op = LowerSha::Sha1NextE; break;
+                case ShaOp::Sha1Rounds0: op = LowerSha::Sha1Rounds0; break;
+                case ShaOp::Sha1Rounds1: op = LowerSha::Sha1Rounds1; break;
+                case ShaOp::Sha1Rounds2: op = LowerSha::Sha1Rounds2; break;
+                case ShaOp::Sha1Rounds3: op = LowerSha::Sha1Rounds3; break;
+                case ShaOp::Sha256Msg1:  op = LowerSha::Sha256Msg1; break;
+                case ShaOp::Sha256Msg2:  op = LowerSha::Sha256Msg2; break;
+            }
+
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstShaBinary(
+                instruction.name, lowerType(lower, instruction.type),
+                mappedValue(lower, sha.lhs), mappedValue(lower, sha.rhs), op));
+            break;
+        }
+        case Value::Sha256Rounds: {
+            auto& rounds = (InstSha256Rounds&)instruction;
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSha256Rounds(
+                instruction.name, lowerType(lower, instruction.type),
+                mappedValue(lower, rounds.state), mappedValue(lower, rounds.feed),
+                mappedValue(lower, rounds.keys)));
+            break;
+        }
         /*
          * The two rotations, and the widths that do not survive this seam.
          *

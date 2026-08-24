@@ -108,6 +108,21 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
             return same(x.c, y.c)
                 && ((same(x.a, y.a) && same(x.b, y.b)) || (same(x.a, y.b) && same(x.b, y.a)));
         }
+        // The SHA rounds: three operands in fixed positions, and nothing commutes about any of them.
+        case Value::Sha256Rounds: {
+            auto& x = (InstSha256Rounds&)a;
+            auto& y = (InstSha256Rounds&)b;
+
+            return same(x.state, y.state) && same(x.feed, y.feed) && same(x.keys, y.keys);
+        }
+        // And the two-operand ones, where the *op* is part of the identity: two of these over one
+        // pair of vectors are the same computation only if they are the same instruction.
+        case Value::ShaBinary: {
+            auto& x = (InstShaBinary&)a;
+            auto& y = (InstShaBinary&)b;
+
+            return x.op == y.op && same(x.lhs, y.lhs) && same(x.rhs, y.rhs);
+        }
         // Commutative, so the operands are compared as a pair rather than in order. The folder
         // already moves a constant to the right, which settles the common case before this is
         // asked; this is what catches `x + y` against a `y + x` neither of whose operands is one.
@@ -123,7 +138,8 @@ bool sameComputation(OptContext& opt, Value& a, Value& b) {
         case Value::Rol: case Value::Ror:
         // The three bit operations, here and not above: `bitsUpTo` takes a value and a count, and a
         // permutation takes a value and a mask. Neither pair may be exchanged.
-        case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits:
+        // `crc32` joins them: its accumulator and its chunk are not the same thing either.
+        case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32:
             return same(((InstBinary&)a).lhs, ((InstBinary&)b).lhs) &&
                    same(((InstBinary&)a).rhs, ((InstBinary&)b).rhs);
         case Value::Cmp:

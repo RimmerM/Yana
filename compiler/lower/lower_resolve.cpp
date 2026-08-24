@@ -194,6 +194,46 @@ InstResolver handleBinary() {
     };
 }
 
+/*
+ * The SHA extension's two shapes, so that what the printer writes can be read back.
+ *
+ * Two resolvers rather than one because the arity differs: `sha256rnds2` names three vectors and the
+ * other seven name two, which is the same split the kinds have.
+ */
+template<LowerSha op>
+InstResolver handleSha() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 2);
+
+        auto lhs = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto rhs = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : lhs->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstShaBinary(
+            getResultName(result), type, lhs - base, rhs - base, op)));
+    };
+}
+
+InstResolver handleSha256Rounds() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 3);
+
+        auto state = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto feed = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto keys = tryMaybe(findValue(resolve, base, block, ast.args[2], ast.source), return Nothing());
+        auto result = ast.results[0];
+        auto providedType = getResultType(result);
+        auto type = providedType ? providedType.unwrap() : state->type;
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSha256Rounds(
+            getResultName(result), type, state - base, feed - base, keys - base)));
+    };
+}
+
 template<LowerCmp cmp>
 InstResolver handleCmp() {
     return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
@@ -541,6 +581,19 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("bitsupto"_v), handleBinary<LowerInst::BitsUpTo>());
     instructionSet.add(Context::nameHash("gatherbits"_v), handleBinary<LowerInst::GatherBits>());
     instructionSet.add(Context::nameHash("scatterbits"_v), handleBinary<LowerInst::ScatterBits>());
+    instructionSet.add(Context::nameHash("crc32"_v), handleBinary<LowerInst::Crc32>());
+
+    // The SHA extension, under the names the printer writes - see nameOfLowerSha.
+    instructionSet.add(Context::nameHash("sha1msg1"_v), handleSha<LowerSha::Sha1Msg1>());
+    instructionSet.add(Context::nameHash("sha1msg2"_v), handleSha<LowerSha::Sha1Msg2>());
+    instructionSet.add(Context::nameHash("sha1nexte"_v), handleSha<LowerSha::Sha1NextE>());
+    instructionSet.add(Context::nameHash("sha1rnds4_0"_v), handleSha<LowerSha::Sha1Rounds0>());
+    instructionSet.add(Context::nameHash("sha1rnds4_1"_v), handleSha<LowerSha::Sha1Rounds1>());
+    instructionSet.add(Context::nameHash("sha1rnds4_2"_v), handleSha<LowerSha::Sha1Rounds2>());
+    instructionSet.add(Context::nameHash("sha1rnds4_3"_v), handleSha<LowerSha::Sha1Rounds3>());
+    instructionSet.add(Context::nameHash("sha256msg1"_v), handleSha<LowerSha::Sha256Msg1>());
+    instructionSet.add(Context::nameHash("sha256msg2"_v), handleSha<LowerSha::Sha256Msg2>());
+    instructionSet.add(Context::nameHash("sha256rnds2"_v), handleSha256Rounds());
 
     instructionSet.add(Context::nameHash("cmp_eq"_v), handleCmp<LowerCmp::eq>());
     instructionSet.add(Context::nameHash("cmp_neq"_v), handleCmp<LowerCmp::neq>());

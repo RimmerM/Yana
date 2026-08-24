@@ -533,6 +533,11 @@ static bool mayWriteMemory(LowerInst* inst) {
         // `Fma` is neither unary nor binary, so the fallback would answer *yes* for it - which is
         // the rule this is written to and is wrong here, an FMA being arithmetic like any other.
         case LowerInst::Fma:
+
+        // The SHA rounds, for the same reason: `Sha256Rounds` has three operands and would reach the
+        // fallback, and neither of the two touches memory.
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
             return false;
         default:
             return !isUnary(inst) && !isBinary(inst) && !isCast(inst);

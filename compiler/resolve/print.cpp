@@ -503,6 +503,31 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 
             break;
         }
+        case Value::Sha256Rounds: {
+            auto& rounds = (InstSha256Rounds&)inst;
+
+            for(auto operand: { rounds.state, rounds.feed, rounds.keys }) {
+                print.writer.writeByte(' ');
+                printValue(print, *print.local[operand]);
+            }
+
+            break;
+        }
+        // The op first and then the operands, so that the nine instructions this kind stands for are
+        // told apart in the text: `sha sha256msg1 %1 %2`.
+        case Value::ShaBinary: {
+            auto& sha = (InstShaBinary&)inst;
+
+            print.writer.writeByte(' ');
+            print.writer.writeString(nameOfShaOp(sha.op));
+
+            for(auto operand: { sha.lhs, sha.rhs }) {
+                print.writer.writeByte(' ');
+                printValue(print, *print.local[operand]);
+            }
+
+            break;
+        }
         case Value::Add:
         case Value::Sub:
         case Value::Mul:
@@ -519,6 +544,7 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
         case Value::BitsUpTo:
         case Value::GatherBits:
         case Value::ScatterBits:
+        case Value::Crc32:
         case Value::Xor:
         case Value::Cmp: {
             auto& binary = (InstBinary&)inst;

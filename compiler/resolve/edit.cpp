@@ -112,6 +112,19 @@ void IrEditor::recordUses(Inst* inst) {
             addUse(fma->c, inst);
             break;
         }
+        case Value::Sha256Rounds: {
+            auto rounds = (InstSha256Rounds*)inst;
+            addUse(rounds->state, inst);
+            addUse(rounds->feed, inst);
+            addUse(rounds->keys, inst);
+            break;
+        }
+        case Value::ShaBinary: {
+            auto sha = (InstShaBinary*)inst;
+            addUse(sha->lhs, inst);
+            addUse(sha->rhs, inst);
+            break;
+        }
         // The table the slot is read out of. A TypeMetric has no operand at all - it names a type -
         // which is why the two are not one case despite being the same kind of question.
         case Value::TableSlot:
@@ -133,6 +146,7 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::BitsUpTo:
         case Value::GatherBits:
         case Value::ScatterBits:
+        case Value::Crc32:
         case Value::Xor:
         case Value::Cmp: {
             auto binary = (InstBinary*)inst;

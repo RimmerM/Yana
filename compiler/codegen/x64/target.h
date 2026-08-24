@@ -184,6 +184,26 @@ static constexpr FeatureSet kFeatureLzcnt = 1 << 11;
 static constexpr FeatureSet kFeatureFma3 = 1 << 6;
 
 /*
+ * The SHA extension - the seven instructions that compute SHA-1 and SHA-256 rounds, and the one
+ * feature here that no psABI level implies.
+ *
+ * Every other bit in this file is set and cleared with the rest of its level, because the levels are
+ * what the target description is (see TargetExtensions). This one is not in any of them: Intel
+ * shipped it four generations after the part that defines v3 and AMD shipped it with Zen 1, so a v3
+ * machine may have it or not. `TargetExtensions::sha` is therefore a flag beside the level and this
+ * bit is read from it directly.
+ *
+ * What it buys is a hash rather than an instruction count: `sha256rnds2` performs two full rounds of
+ * SHA-256 over four state words, which is about twenty-five ordinary operations, and the whole of
+ * the digest's inner loop becomes eight instructions per block instead of several hundred.
+ *
+ * The hazard of claiming it wrongly is the loud kind, which is why it may be detected: `0f 38 cb`
+ * decodes as nothing at all without the extension, so a wrong claim faults rather than answering
+ * differently.
+ */
+static constexpr FeatureSet kFeatureSha = 1 << 12;
+
+/*
  * The features this backend is compiling for.
  *
  * A process-wide value rather than a parameter, for the same reason `targetRegisters()` is one: it

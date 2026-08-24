@@ -1,0 +1,44 @@
+{-
+   `Core.Crc` - the CRC-32C step, which is `crc32` and is the one class in `Bits.yana` that names a
+   machine instruction rather than an operation on bits.
+
+   Two widths and two conversions, and the conversions are the half worth asserting: the class is
+   declared `crc32(remainder: a, chunk: a) -> a` rather than with the thirty-two-bit accumulator a
+   caller has, because the 64-bit instruction reads its remainder from the low half of the
+   destination and writes a zero-extended answer - so the `widen` and the `truncate` a caller writes
+   around it are what the instruction already does, and the goldens are where that shows.
+
+   **`@platform(x64)` on the class and therefore on every use.** SSE4.2 is inside x86-64-v2 and v2 is
+   this backend's floor, so a native x86-64 target always has the instruction and there is no feature
+   level to name; a target that is not x86-64 has no instances at all, which is why there is no
+   `.js.expect` beside this file and never will be.
+
+   The answers are `zlib`'s Castagnoli polynomial computed by a reference implementation, not by this
+   one - see the comment on each.
+-}
+
+import Native
+
+-- One 32-bit chunk folded into the initial remainder. 0x4dece20c.
+fn word() -> U32 = crc32(4294967295, 305419896)
+
+-- And one 64-bit chunk, where the remainder is widened on the way in and truncated on the way out.
+-- 0x9a4f27dc, which is a different value from the 32-bit fold of the same low word - the instruction
+-- consumes eight bytes rather than four.
+fn wide() -> U32 = truncate(crc32(widen(4294967295 :: U32) :: U64, 81985529216486895)) :: U32
+
+-- The same fold reached through a value rather than a literal, so that the goldens hold one that
+-- constant folding cannot answer. Nothing folds a CRC today; the row exists so that a fold added
+-- later has a fixture that says what it must answer.
+fn folded(seed: U32, chunk: U32) -> U32 = crc32(seed, chunk)
+
+fn main() -> Int:
+    let a = word()
+    let b = wide()
+
+    -- 1307369996 + 2588878812 = 3896248808, which is 808 modulo a thousand. Taken modulo so that the
+    -- answer fits the exit status a `.run.expect` compares.
+    let total = (widen(a) :: I64) + (widen(b) :: I64)
+
+    if folded(4294967295, 305419896) != a then return -1
+    return truncate(total `rem` 1000) :: Int

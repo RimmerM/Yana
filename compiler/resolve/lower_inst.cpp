@@ -122,6 +122,7 @@ LowerInst::Kind binaryKind(LowerContext& lower, InstBinary& binary) {
         case Value::BitsUpTo: return LowerInst::BitsUpTo;
         case Value::GatherBits: return LowerInst::GatherBits;
         case Value::ScatterBits: return LowerInst::ScatterBits;
+        case Value::Crc32: return LowerInst::Crc32;
         default:
             assertTrue("expected binary instruction" == nullptr);
             return LowerInst::Add;
@@ -188,6 +189,8 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Ceil:
         case Value::Round:
         case Value::Fma:
+        case Value::ShaBinary:
+        case Value::Sha256Rounds:
         case Value::VZeroUpper:
         case Value::Add:
         case Value::Sub:
@@ -205,6 +208,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::BitsUpTo:
         case Value::GatherBits:
         case Value::ScatterBits:
+        case Value::Crc32:
         case Value::Xor:
         case Value::Cmp:
         case Value::Select:

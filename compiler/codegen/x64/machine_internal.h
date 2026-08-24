@@ -97,6 +97,11 @@ enum: MachineFormId {
     FormAndNotMem,
     FormLowBitClearMem, FormLowBitIsolateMem, FormLowBitMaskMem,
 
+    // The CRC-32C step at its two widths, and the memory twin of each. Baseline rather than a
+    // feature - see their registration in machine_forms_scalar.cpp.
+    FormCrc32_32, FormCrc32_64,
+    FormCrc32Mem32, FormCrc32Mem64,
+
     FormMul,
     FormDiv,
     FormIDiv,
@@ -202,6 +207,10 @@ enum: MachineFormId {
     // neither has a lane width: both address bytes. See lowerByteLaneShuffles, which is what
     // materializes the pattern, and OpVPermute, whose third row this is.
     FormVByteShuffle,
+
+    FormSha1Msg1, FormSha1Msg2, FormSha1NextE,
+    FormSha256Msg1, FormSha256Msg2,
+    FormSha1Rounds, FormSha256Rounds,
 
     FormVAdd8, FormVAdd16, FormVAdd32, FormVAdd64, FormVAddF32, FormVAddF64,
     FormVSub8, FormVSub16, FormVSub32, FormVSub64, FormVSubF32, FormVSubF64,

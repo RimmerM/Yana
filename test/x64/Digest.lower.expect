@@ -1,0 +1,147 @@
+
+crcWord<complex>(%acc: Int, %chunk: Int): Int {
+  b_0 {
+    %r = crc32 %acc, %chunk: Int
+    ret %r
+  }
+}
+
+crcWide<complex>(%acc: Long, %chunk: Long): Long {
+  b_0 {
+    %r = crc32 %acc, %chunk: Long
+    ret %r
+  }
+}
+
+crcFromMemory<complex>(%acc: Long, %p: Ptr): Long {
+  b_0 {
+    %chunk = load %p, 8: Long
+    %r = crc32 %acc, %chunk: Long
+    ret %r
+  }
+}
+
+crcChain<complex>(%acc: Long, %a: Long, %b: Long): Long {
+  b_0 {
+    %x = crc32 %acc, %a: Long
+    %r = crc32 %x, %b: Long
+    ret %r
+  }
+}
+
+shaMessages<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %m1 = sha256msg1 %a, %b: i32x4
+    %m2 = sha256msg2 %m1, %b: i32x4
+    %s1 = sha1msg1 %m2, %a: i32x4
+    %s2 = sha1msg2 %s1, %b: i32x4
+    %e = sha1nexte %s2, %a: i32x4
+    ret %e
+  }
+}
+
+shaRounds<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r0 = sha1rnds4_0 %a, %b: i32x4
+    %r1 = sha1rnds4_1 %r0, %b: i32x4
+    %r2 = sha1rnds4_2 %r1, %b: i32x4
+    %r3 = sha1rnds4_3 %r2, %b: i32x4
+    ret %r3
+  }
+}
+
+shaState<complex>(%state: i32x4, %feed: i32x4, %keys: i32x4, %more: i32x4): i32x4 {
+  b_0 {
+    %x = sha256rnds2 %state, %feed, %keys: i32x4
+    %r = sha256rnds2 %x, %feed, %more: i32x4
+    ret %r
+  }
+}
+
+alignWords<complex>(%a: i32x4, %b: i32x4): i32x4 {
+  b_0 {
+    %r = vshuffle %a, %b, 5, 6, 7, 0: i32x4
+    ret %r
+  }
+}
+
+alignBytes<complex>(%a: i8x16, %b: i8x16): i8x16 {
+  b_0 {
+    %r = vshuffle %a, %b, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4: i8x16
+    ret %r
+  }
+}
+
+
+--- codegen: crcWord ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  crc32 uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc7f20f38f1c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: crcWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  crc32 uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 488bc7f2480f38f1c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: crcFromMemory ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  x86_addr scale=1 disp=0 uses=[rsi] creates=[-]  => 
+  crc32 uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488bc7f2480f38f106
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: crcChain ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  crc32 uses=[rdi, rsi] creates=[rdi]  => f2480f38f1fe
+  crc32 uses=[rax, rdx] creates=[rax] pre=[rdi->rax]  => 488bc7f2480f38f1c2
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: shaMessages ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  sha256msg1 uses=[xmm2, xmm1] creates=[xmm2] pre=[xmm0->xmm2]  => 0f28d00f38ccd1
+  sha256msg2 uses=[xmm2, xmm1] creates=[xmm2]  => 0f38cdd1
+  sha1msg1 uses=[xmm2, xmm0] creates=[xmm2]  => 0f38c9d0
+  sha1msg2 uses=[xmm2, xmm1] creates=[xmm2]  => 0f38cad1
+  sha1nexte uses=[xmm2, xmm0] creates=[xmm2]  => 0f38c8d0
+  ret uses=[xmm0] creates=[] pre=[xmm2->xmm0]  => 0f28c2c3
+
+--- codegen: shaRounds ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  sha1rnds4_0 uses=[xmm0, xmm1] creates=[xmm0]  => 0f3accc100
+  sha1rnds4_1 uses=[xmm0, xmm1] creates=[xmm0]  => 0f3accc101
+  sha1rnds4_2 uses=[xmm0, xmm1] creates=[xmm0]  => 0f3accc102
+  sha1rnds4_3 uses=[xmm0, xmm1] creates=[xmm0]  => 0f3accc103
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: shaState ---
+block #0:
+  jmp uses=[] creates=[] pre=[xmm1->xmm7, xmm0->xmm1, xmm2->xmm0, xmm7->xmm2]  => 0f28f90f28c80f28c20f28d7
+block #1:
+  sha256rnds2 uses=[xmm1, xmm2, xmm0] creates=[xmm1]  => 0f38cbca
+  sha256rnds2 uses=[xmm1, xmm2, xmm0] creates=[xmm1] pre=[xmm3->xmm0]  => 0f28c30f38cbca
+  ret uses=[xmm0] creates=[] pre=[xmm1->xmm0]  => 0f28c1c3
+
+--- codegen: alignWords ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => 660f3a0fc104
+  ret uses=[xmm0] creates=[]  => c3
+
+--- codegen: alignBytes ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vshuffle uses=[xmm0, xmm1] creates=[xmm0]  => 660f3a0fc105
+  ret uses=[xmm0] creates=[]  => c3

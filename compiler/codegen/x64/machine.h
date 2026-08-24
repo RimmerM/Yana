@@ -102,6 +102,32 @@ enum : MachineOpcodeId {
     OpAndNot,
     OpLowBit,
 
+    /*
+     * The CRC-32C step - `crc32`, SSE4.2, and therefore inside this backend's floor.
+     *
+     * An opcode of its own for the reason the two above are: it takes two operands and writes none
+     * of the flags, so a form of `OpXor` would make that opcode flags-selective for something that
+     * is not a target feature. It is also not an arithmetic operation in any sense a peephole should
+     * be able to walk into - what it computes is a polynomial remainder, and nothing about its
+     * operands may be exchanged, folded or reassociated.
+     */
+    OpCrc32,
+
+    /*
+     * The SHA extension - two opcodes for seven instructions.
+     *
+     * `OpSha` is the six that take two operands, plus `sha1rnds4`'s round-function byte, which is a
+     * *form* of it in the sense every other family here uses one: the opcode is the operation and
+     * the form is which spelling of it. `OpSha256Rounds` is separate because `sha256rnds2` takes
+     * three operands where the rest take two, which is `OpLowBit`'s argument at a different
+     * operation - nothing that walks one opcode's operands could be pointed at the other unchanged.
+     *
+     * None of the seven touches the flags, and none of them is arithmetic any peephole should be
+     * able to reach into: what each computes is a named step of a named algorithm.
+     */
+    OpSha,
+    OpSha256Rounds,
+
     OpCmp,
 
     // Floating point. Opcodes of their own rather than forms of the integer ones, because a float
@@ -500,6 +526,22 @@ inline MachineOperandConstraint anyReg(RegisterClassId cls = ClassGpr64) {
     return MachineOperandConstraint {
         .kind = OperandConstraintKind::Register,
         .regClass = cls,
+    };
+}
+
+/*
+ * One particular *vector* register, which today is xmm0 and `sha256rnds2` alone.
+ *
+ * `fixedReg` below is the general-register spelling of the same thing; this exists because a
+ * `PhysicalReg` names a bank and the two shorthands cannot share one, not because the allocator
+ * treats the two cases differently - it does not. Everything from `shapeOf` down works in
+ * `MachineLocation`s and asks the bank nothing.
+ */
+inline MachineOperandConstraint fixedVectorReg(Size index, RegisterClassId cls) {
+    return MachineOperandConstraint {
+        .kind = OperandConstraintKind::FixedRegister,
+        .regClass = cls,
+        .fixedReg = vectorReg(index),
     };
 }
 

@@ -1,0 +1,91 @@
+{-
+   `@convention`, `@x86_legacy_sse` and `X86.vzeroupper()` - the three markers that make a legacy-SSE
+   region, asserted where they are written.
+
+   # extensions: sha v3
+
+   What they are for is one hazard: the SHA extension has no VEX spelling in the architecture, so a
+   function holding one of its instructions crosses between prefixed and unprefixed encodings every
+   few instructions unless the whole body is unprefixed - which costs 140x on the part it was
+   measured on - and even then can be *entered* with an upper half left dirty by its caller, which
+   costs a further ~160 ns per call. See `legacyVectorEncodings` in codegen/x64/target.h for the
+   first number and `test/bench/shamix/` for the second.
+
+   The three markers answer that as three separate facts, and keeping them separate is the point:
+
+     - `@x86_legacy_sse` is about *encoding* and goes on every function of the region, helpers
+       included, because the crossing is between two instructions and a call does not stop it.
+     - `X86.vzeroupper()` is the state change itself, and it is a *call* rather than something the
+       attribute implies - because only the region's entry points want it, and a rule deriving which
+       ones from a signature would stop being right the moment one changed.
+
+   **The convention is `sysv` and not `clobber`**, which an earlier design had. What the reset needs
+   is a convention with no callee-saved *vector* register; `clobber` keeps nothing at all, which
+   costs the caller a `push`/`pop` pair per preserved register and buys nothing more. System V's
+   vector file is caller-saved by the psABI, which is a promise that outlives any decision this
+   compiler makes about its own conventions - `Complex` satisfies the condition today and is not
+   obliged to keep doing so.
+
+   Both halves of the safety are checked rather than assumed, in `checkLegacyVectorEncoding`: a
+   function calling the intrinsic may not be entered under a convention preserving a vector register,
+   and may not hold a *wide* vector value. Wide, because `vzeroupper` zeroes bits 128 and up and
+   leaves the low half alone - a `Vec(U32, 4)` is an xmm and survives, which is why the helper below
+   may take one.
+
+   What is asserted here is that all three reach the backend from source at all: before this, no Yana
+   declaration could name a convention - `LowerFunction::callType` had exactly one setter, the
+   lower-IR text parser - and the region was decided by a pass walking the call graph instead.
+
+   The bytes `vzeroupper` encodes to are pinned separately, in `test/x64/VectorReset.lower`, and the
+   library that uses all three is `lib/Digest/Hardware.sha.yana`.
+-}
+
+import Native
+
+{-
+   The region's entry point, with all three markers.
+
+   `@noinline` is written out rather than implied by `@convention`, and it is load-bearing: the
+   convention and the reset describe a *call boundary*, and an inlined function has none. It is on
+   the declaration that depends on it rather than folded into a general attribute, so that a future
+   `@convention(sysv)` does not inherit an inlining decision it has no opinion about.
+-}
+@noinline
+@convention(clobber)
+@x86_legacy_sse
+fn compressLike(state: Vec(U32, 4), message: Vec(U32, 4)) -> Int:
+    X86.vzeroupper()
+
+    -- A SHA instruction, which is what makes this region a region: it has no VEX spelling, so the
+    -- `add` and the lane read around it must not have one either.
+    let mixed = X86.sha256Message1(state, message)
+    return bitcast(lane(mixed + state, 0)) :: Int
+
+-- A helper of the same region: the encoding attribute and nothing else. It takes a vector argument,
+-- which is exactly why it must not clear the state - and why `@x86_legacy_sse` says only one thing.
+@x86_legacy_sse
+fn helper(words: Vec(U32, 4)) -> Vec(U32, 4) = X86.sha256Message2(words, words)
+
+@noinline
+@convention(clobber)
+@x86_legacy_sse
+fn throughHelper(state: Vec(U32, 4)) -> Int:
+    X86.vzeroupper()
+    return bitcast(lane(helper(state), 0)) :: Int
+
+{-
+   And a reset outside any of it.
+
+   Legal, and worth one line: the instruction is not tied to the attribute in either direction. A
+   function may clear the vector state without being encoded legacy - what it costs is three bytes -
+   and the check that holds a *marked* function to its promise has nothing to say about this one.
+-}
+fn plainReset(x: Int) -> Int:
+    X86.vzeroupper()
+    return x + 1
+
+fn main() -> Int:
+    let a = splat(1 :: U32) :: Vec(U32, 4)
+    let b = splat(2 :: U32) :: Vec(U32, 4)
+
+    return compressLike(a, b) + throughHelper(a) + plainReset(0)

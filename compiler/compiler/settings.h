@@ -100,6 +100,27 @@ struct TargetExtensions {
     Level level = V2;
 
     /*
+     * The SHA extension - `sha1rnds4` and the six instructions beside it.
+     *
+     * **A flag of its own and not part of a level**, which is the one place this description departs
+     * from the psABI's shape, and it is the psABI's doing rather than a preference: SHA-NI is in no
+     * level. Intel shipped it on Goldmont and then on Ice Lake, four generations after Haswell made
+     * v3; AMD has had it since Zen 1. So a v3 machine may or may not have it and a v2 one may, which
+     * is exactly the shape `neon` below has - an extension beside the level rather than inside it.
+     *
+     * The hazard of claiming it wrongly is the loud kind: `0f 38 cb` decodes as nothing at all on a
+     * part without the extension, so a wrong claim faults rather than answering differently. That is
+     * what makes host detection safe to default to here.
+     *
+     * What it buys is `lib/Digest/Sha1.native.yana` and `Sha256.native.yana`, which is 3-6x on the
+     * two digests - see `test/bench/hash/findings.md`. A build without it takes the portable
+     * compression beside them, which is a decision made in source through `hasShaExtension` rather
+     * than by any expansion in a backend: there is no sequence of ordinary instructions that stands
+     * for one of these, and a backend that tried to write one would be writing SHA-256 twice.
+     */
+    bool sha = false;
+
+    /*
      * ARM extensions.
      */
 

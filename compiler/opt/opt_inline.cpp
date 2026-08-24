@@ -901,7 +901,8 @@ struct Inliner {
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
-            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits:
+            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32:
+            case Value::ShaBinary: case Value::Sha256Rounds:
             // A callee this stage already if-converted. `settle` runs the whole round on a callee
             // before a site is judged against it, so a body reaching here can hold one - and a
             // select is an ordinary pure computation with no decision copied along with it.
@@ -1657,7 +1658,8 @@ struct Inliner {
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
-            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits:
+            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32:
+            case Value::ShaBinary: case Value::Sha256Rounds:
             // A select of decided arms on a decided condition is decided, which is `foldSelect`'s
             // rule read forwards: the site knows which arm survives, so a branch below it on the
             // result is one that does not survive the call either.
@@ -2432,6 +2434,19 @@ struct Inliner {
                 return (Inst*)createInst<InstFma>(module, function, into, source, name, type,
                                                   value(fma.a), value(fma.b), value(fma.c));
             }
+            // The two SHA kinds, here for `Fma`'s reason: one has three operands and the other has
+            // two and a field, so neither can be read as a Binary.
+            case Value::Sha256Rounds: {
+                auto& rounds = (InstSha256Rounds&)instruction;
+                return (Inst*)createInst<InstSha256Rounds>(module, function, into, source, name, type,
+                                                           value(rounds.state), value(rounds.feed),
+                                                           value(rounds.keys));
+            }
+            case Value::ShaBinary: {
+                auto& sha = (InstShaBinary&)instruction;
+                return (Inst*)createInst<InstShaBinary>(module, function, into, source, name, type,
+                                                        value(sha.lhs), value(sha.rhs), sha.op);
+            }
             case Value::Select: {
                 auto& select = (InstSelect&)instruction;
                 return (Inst*)createInst<InstSelect>(module, function, into, source, name, type,
@@ -2477,7 +2492,7 @@ struct Inliner {
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor:
-            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: {
+            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32: {
                 auto& binary = (InstBinary&)instruction;
                 return (Inst*)createInst<InstBinary>(module, function, into, source, name, type,
                                                      instruction.kind, value(binary.lhs), value(binary.rhs));

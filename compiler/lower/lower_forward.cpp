@@ -40,6 +40,13 @@ bool touchesMemory(LowerInst* inst) {
         // this function's stated design (a new kind touches memory until it says otherwise) and is
         // wrong here. `Sqrt` reaches the fallback correctly, being a Unary.
         case LowerInst::Fma:
+
+        // The SHA rounds, here for `Fma`'s reason: `Sha256Rounds` has three operands and is neither
+        // unary nor binary, so the fallback would answer *yes* for it. `ShaBinary` is a binary and
+        // would reach the fallback correctly; it is named beside its sibling so that the two are not
+        // separated by a rule neither of them states.
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
             return false;
         default:
             return !isUnary(inst) && !isBinary(inst) && !isCast(inst);

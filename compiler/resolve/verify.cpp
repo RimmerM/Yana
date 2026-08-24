@@ -1032,7 +1032,11 @@ void Verifier::verifyInstruction(Value& instruction) {
          */
         case Value::BitsUpTo:
         case Value::GatherBits:
-        case Value::ScatterBits: {
+        case Value::ScatterBits:
+        // `crc32` has the same rule for a reason of its own: 32 and 64 are the widths the machine's
+        // two useful forms take, and a narrower chunk could not say how wide it was once `lowerType`
+        // had answered `Int32` for it.
+        case Value::Crc32: {
             auto type = instruction.type ? global[instruction.type] : nullptr;
 
             if(!type || type->kind != Type::Int || vectorLanes(global, instruction.type)) {
@@ -1045,6 +1049,30 @@ void Verifier::verifyInstruction(Value& instruction) {
                     fail(instruction.source, "%%@ operates on the bits of a %@-bit integer, which is not a width this operation has"_v,
                          instruction.id, integer.bits);
                 }
+            }
+
+            break;
+        }
+
+        /*
+         * The SHA extension's two kinds, whose rule is one thing: every operand and the result is a
+         * four-lane vector of 32-bit words, which is the register the instructions read and write.
+         *
+         * Nothing else is checked and nothing else could be. What each of these computes is a named
+         * step of a named algorithm, so there is no property of the operands a stage above the
+         * machine could hold them to - which is why the declarations in `lib/Core/X86.sha.yana` state
+         * `Vec(U32, 4)` outright rather than being generic over anything.
+         */
+        case Value::ShaBinary:
+        case Value::Sha256Rounds: {
+            auto lanes = vectorLanes(global, instruction.type);
+            auto lane = vectorLane(global, instruction.type);
+
+            if(lanes != 4 || !lane || global[lane]->kind != Type::Int ||
+               ((IntType*)global[lane])->bits != 32)
+            {
+                fail(instruction.source, "%%@ is a SHA extension instruction over something that is not four 32-bit lanes"_v,
+                     instruction.id);
             }
 
             break;

@@ -445,6 +445,17 @@ static void deriveEffects(Analysis& analysis) {
                 useValue(analysis, effects, ((InstFma&)instruction).c);
                 break;
 
+            case Value::Sha256Rounds:
+                useValue(analysis, effects, ((InstSha256Rounds&)instruction).state);
+                useValue(analysis, effects, ((InstSha256Rounds&)instruction).feed);
+                useValue(analysis, effects, ((InstSha256Rounds&)instruction).keys);
+                break;
+
+            case Value::ShaBinary:
+                useValue(analysis, effects, ((InstShaBinary&)instruction).lhs);
+                useValue(analysis, effects, ((InstShaBinary&)instruction).rhs);
+                break;
+
             case Value::Add:
             case Value::Sub:
             case Value::Mul:
@@ -461,6 +472,7 @@ static void deriveEffects(Analysis& analysis) {
             case Value::BitsUpTo:
             case Value::GatherBits:
             case Value::ScatterBits:
+            case Value::Crc32:
             case Value::Xor:
             case Value::Cmp:
                 useValue(analysis, effects, ((InstBinary&)instruction).lhs);

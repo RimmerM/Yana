@@ -289,6 +289,33 @@ static bool validateFma(Diagnostics* diagnostics, LowerBase base, LowerInstFma* 
     return true;
 }
 
+/*
+ * The SHA extension's two kinds, whose rule is one thing: every operand and the result is the same
+ * 128-bit vector.
+ *
+ * Not the lane count, and not the lane type, because this tier no longer has either - `lowerType`
+ * answers `Vec128` for a four-lane word vector and for every other shape of the same width. The
+ * resolve verifier is where "four 32-bit lanes" is checked, being the last stage at which a language
+ * type is still visible; what is left here is that nothing has converted on the way down.
+ */
+static bool validateSha(Diagnostics* diagnostics, LowerBase base, LowerInst* inst) {
+    auto wanted = inst->kind == LowerInst::Sha256Rounds ? 3u : 2u;
+
+    if(((LowerInstSingle*)inst)->usedCount != wanted) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    for(auto offset: ((LowerInstSingle*)inst)->used()) {
+        if(base[offset]->type != ((LowerInstSingle*)inst)->result.type) {
+            diagnostics->error("inconsistent argument types to operation"_v, inst->source);
+            return false;
+        }
+    }
+
+    return true;
+}
+
 static bool validateSet(Diagnostics* diagnostics, LowerBase base, LowerInstUnary* inst) {
     if(base[inst->from]->type != inst->result.type) {
         diagnostics->error("inconsistent types in copy of local"_v, inst->source);
@@ -1154,6 +1181,9 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateAbs(diagnostics, base, (LowerInstUnary*)inst);
         case LowerInst::Fma:
             return validateFma(diagnostics, base, (LowerInstFma*)inst);
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
+            return validateSha(diagnostics, base, inst);
         case LowerInst::Add:
             return validateAdd(diagnostics, base, (LowerInstBinary*)inst);
         case LowerInst::Sub:
@@ -1185,6 +1215,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::BitsUpTo:
         case LowerInst::GatherBits:
         case LowerInst::ScatterBits:
+        // `crc32` joins them: an accumulator and a chunk, both at the instruction's own width.
+        case LowerInst::Crc32:
             return validateBit(diagnostics, base, (LowerInstBinary*)inst);
         case LowerInst::Cmp:
             return validateCmp(diagnostics, base, (LowerInstCmp*)inst);

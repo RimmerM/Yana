@@ -206,7 +206,13 @@ static std::string featuresOf(const CompileSettings& settings) {
     };
 
     // v2, which is the floor: everything this compiler emits assumes it.
-    add("sse2"); add("sse3"); add("ssse3"); add("sse4.1"); add("sse4.2"); add("popcnt"); add("cx16");
+    //
+    // `crc32` is a feature of its own in LLVM even though it is part of SSE4.2 on every part that
+    // has either - the two were split so that a target description could name the instruction
+    // without the string comparisons. Without it `llvm.x86.sse42.crc32.*` fails instruction
+    // selection outright rather than expanding into anything, which is how this was found.
+    add("sse2"); add("sse3"); add("ssse3"); add("sse4.1"); add("sse4.2"); add("crc32");
+    add("popcnt"); add("cx16");
 
     if(settings.extensions.level >= TargetExtensions::V3) {
         add("avx"); add("avx2"); add("bmi"); add("bmi2"); add("fma"); add("f16c");
@@ -216,6 +222,9 @@ static std::string featuresOf(const CompileSettings& settings) {
     if(settings.extensions.level >= TargetExtensions::V4) {
         add("avx512f"); add("avx512bw"); add("avx512cd"); add("avx512dq"); add("avx512vl");
     }
+
+    // The extension that is in no level, named beside one - see TargetExtensions::sha.
+    if(settings.extensions.sha) add("sha");
 
     return features;
 }

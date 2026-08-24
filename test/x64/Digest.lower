@@ -1,0 +1,110 @@
+# The instructions `lib/Digest` reaches for, as the bytes they encode to.
+#
+# extensions: sha
+#
+# Two families and one shuffle, and each is here for a different reason:
+#
+#   - `crc32` is **baseline**. SSE4.2 is inside x86-64-v2 and v2 is this backend's floor, so there is
+#     no feature level to name and no fallback behind it; `Core.Crc` is `@platform(x64)` in source
+#     and that is the whole of the target test. Both widths and both operand shapes are here, the
+#     memory twin included - the chunk being folded comes out of the message, so the load fold is
+#     what removes the only other instruction in the loop.
+#   - The **SHA extension**, whose seven instructions have no VEX spelling in the architecture. That
+#     is the fact `MachineForm::legacyOnly` states and this file is where the bytes say so: every row
+#     below is `0f 38` or `0f 3a` with no prefix, at a level that would otherwise have turned each of
+#     them into a `v`-something. `sha256rnds2`'s third operand is not encoded at all - it is xmm0,
+#     and the allocator is what puts the value there.
+#   - `palignr`, which `Core.alignLanes` is and which the message schedules use. Baseline, and the
+#     one two-source shuffle that serves every lane width: it shifts *bytes*, so the lane appears
+#     only in the immediate.
+#
+# The directive names the extension beside a level rather than instead of one, since no psABI level
+# implies it - see TargetExtensions::sha.
+
+# The remainder and the chunk at the same width, which is what the class hands the instruction: the
+# accumulator a caller has is thirty-two bits and reaches the 64-bit form widened, which the machine
+# already does.
+crcWord(%acc: Int, %chunk: Int): Int {
+    {
+        %r = crc32 %acc, %chunk: Int
+        ret %r
+    }
+}
+
+crcWide(%acc: Long, %chunk: Long): Long {
+    {
+        %r = crc32 %acc, %chunk: Long
+        ret %r
+    }
+}
+
+# The chunk read straight out of memory, which is every use in the library: one instruction per eight
+# bytes and no register holding the word.
+crcFromMemory(%acc: Long, %p: Ptr): Long {
+    {
+        %chunk = load %p, 8: Long
+        %r = crc32 %acc, %chunk: Long
+        ret %r
+    }
+}
+
+# Two folds in a row over one accumulator - the loop body, with the dependency the instruction's
+# latency is paid on.
+crcChain(%acc: Long, %a: Long, %b: Long): Long {
+    {
+        %x = crc32 %acc, %a: Long
+        %r = crc32 %x, %b: Long
+        ret %r
+    }
+}
+
+# The five two-operand SHA instructions, each destructive and each `0f 38`.
+shaMessages(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %m1 = sha256msg1 %a, %b: i32x4
+        %m2 = sha256msg2 %m1, %b: i32x4
+        %s1 = sha1msg1 %m2, %a: i32x4
+        %s2 = sha1msg2 %s1, %b: i32x4
+        %e = sha1nexte %s2, %a: i32x4
+        ret %e
+    }
+}
+
+# `sha1rnds4` at all four round functions, which are four kinds and one form: the trailing byte comes
+# off the instruction rather than from an operand - see packedTrailingByte.
+shaRounds(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r0 = sha1rnds4_0 %a, %b: i32x4
+        %r1 = sha1rnds4_1 %r0, %b: i32x4
+        %r2 = sha1rnds4_2 %r1, %b: i32x4
+        %r3 = sha1rnds4_3 %r2, %b: i32x4
+        ret %r3
+    }
+}
+
+# `sha256rnds2`, whose third operand the encoding does not name: it is xmm0, and what puts the value
+# there is the parallel copy in front of the instruction. Two in a row, so that the copy is visible
+# where the two rounds want different keys.
+shaState(%state: i32x4, %feed: i32x4, %keys: i32x4, %more: i32x4): i32x4 {
+    {
+        %x = sha256rnds2 %state, %feed, %keys: i32x4
+        %r = sha256rnds2 %x, %feed, %more: i32x4
+        ret %r
+    }
+}
+
+# A window out of two vectors placed end to end, at a 32-bit lane and at a byte one. The immediate is
+# the lane offset in *bytes*, which is why one form serves both.
+alignWords(%a: i32x4, %b: i32x4): i32x4 {
+    {
+        %r = vshuffle %a, %b, 5, 6, 7, 0: i32x4
+        ret %r
+    }
+}
+
+alignBytes(%a: i8x16, %b: i8x16): i8x16 {
+    {
+        %r = vshuffle %a, %b, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4: i8x16
+        ret %r
+    }
+}

@@ -514,6 +514,81 @@ static llvm::Function* bitPermuteHelper(FunGen& f, bool gather, BitOpWidth width
     return helper;
 }
 
+/*
+ * The CRC-32C step - `llvm.x86.sse42.crc32.32.32` and `llvm.x86.sse42.crc32.64.64`.
+ *
+ * Unlike the bit permutations above there is no software arm here and no feature test in front of
+ * one: `Core.Crc` is `@platform(x64)`, SSE4.2 is inside x86-64-v2 and v2 is the floor, so an
+ * instruction of this kind only exists in a module compiled for a machine that has it. A target
+ * without one has no instances of the class and reaches the table in `lib/Digest/Crc.yana` instead,
+ * which is a decision made where the two implementations are written rather than here.
+ *
+ * The intrinsic's own signature is the machine's: at 64 bits it takes and answers an `i64` whose
+ * upper half is zero, which is what the resolve-level widen and truncate around it already say.
+ */
+static void genCrc32(FunGen& f, LowerInstBinary& inst) {
+    auto width = bitOpWidthOf(f, inst.result.type);
+    auto which = width.bits == 64 ? llvm::Intrinsic::x86_sse42_crc32_64_64
+                                  : llvm::Intrinsic::x86_sse42_crc32_32_32;
+
+    llvm::Value* args[] = { use(f, inst, inst.lhs), use(f, inst, inst.rhs) };
+    f.define(inst.result, f.builder.CreateIntrinsic(which, {}, args, nullptr, nameOf(f, inst.result)));
+}
+
+/*
+ * The SHA extension's seven, as LLVM's own x86 intrinsics.
+ *
+ * One for one with the machine, including `sha256rnds2`'s third operand: LLVM states it as an
+ * ordinary argument and its backend is what pins the value to xmm0, exactly as the form in
+ * `machine_forms_packed.cpp` does on the other path. The vectors are `<4 x i32>` on both sides, which
+ * is what the resolve verifier has already held them to.
+ *
+ * There is no software arm and no feature test in front of one, on `genCrc32`'s terms: a module only
+ * holds one of these if it was compiled for a target claiming the extension, and `featuresOf` writes
+ * `+sha` from the same flag.
+ */
+static void genSha(FunGen& f, LowerInst& inst) {
+    auto name = nameOf(f, ((LowerInstSingle&)inst).result);
+
+    if(inst.kind == LowerInst::Sha256Rounds) {
+        auto& rounds = (LowerInstSha256Rounds&)inst;
+        llvm::Value* args[] = {
+            use(f, inst, rounds.state), use(f, inst, rounds.feed), use(f, inst, rounds.keys)
+        };
+
+        f.define(rounds.result, f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sha256rnds2, {},
+                                                          args, nullptr, name));
+        return;
+    }
+
+    auto& sha = (LowerInstShaBinary&)inst;
+    llvm::Value* args[] = { use(f, inst, sha.lhs), use(f, inst, sha.rhs), nullptr };
+    Size count = 2;
+    llvm::Intrinsic::ID which = llvm::Intrinsic::x86_sha1msg1;
+
+    switch(sha.getSha()) {
+        case LowerSha::Sha1Msg1:   which = llvm::Intrinsic::x86_sha1msg1; break;
+        case LowerSha::Sha1Msg2:   which = llvm::Intrinsic::x86_sha1msg2; break;
+        case LowerSha::Sha1NextE:  which = llvm::Intrinsic::x86_sha1nexte; break;
+        case LowerSha::Sha256Msg1: which = llvm::Intrinsic::x86_sha256msg1; break;
+        case LowerSha::Sha256Msg2: which = llvm::Intrinsic::x86_sha256msg2; break;
+
+        // The four round functions, whose selector LLVM states as a third argument where the machine
+        // states it as a trailing byte. It has to be a literal there, which it is by construction:
+        // the kind is what carries it.
+        default:
+            which = llvm::Intrinsic::x86_sha1rnds4;
+            args[2] = llvm::ConstantInt::get(llvm::Type::getInt8Ty(f.gen.llvm),
+                                             (U8)sha.getSha() - (U8)LowerSha::Sha1Rounds0);
+            count = 3;
+            break;
+    }
+
+    f.define(sha.result, f.builder.CreateIntrinsic(which, {},
+                                                   llvm::ArrayRef<llvm::Value*>(args, count),
+                                                   nullptr, name));
+}
+
 static void genBitOperation(FunGen& f, LowerInstBinary& inst) {
     auto lhs = use(f, inst, inst.lhs);
     auto rhs = use(f, inst, inst.rhs);
@@ -1178,6 +1253,13 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::GatherBits:
         case LowerInst::ScatterBits:
             genBitOperation(f, (LowerInstBinary&)inst);
+            break;
+        case LowerInst::Crc32:
+            genCrc32(f, (LowerInstBinary&)inst);
+            break;
+        case LowerInst::ShaBinary:
+        case LowerInst::Sha256Rounds:
+            genSha(f, inst);
             break;
 
         /*

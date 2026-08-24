@@ -246,6 +246,14 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b,
              || (same(fmaA->a, fmaB->b) && same(fmaA->b, fmaB->a)));
     }
 
+    // `sha256rnds2`, on `Fma`'s terms exactly: three operands, no field, and nothing commutes.
+    if(a->kind == LowerInst::Sha256Rounds) {
+        auto x = (LowerInstSha256Rounds*)a;
+        auto y = (LowerInstSha256Rounds*)b;
+
+        return same(x->state, y->state) && same(x->feed, y->feed) && same(x->keys, y->keys);
+    }
+
     if(isUnary(a) || isCast(a)) {
         return same(((LowerInstUnary*)a)->from, ((LowerInstUnary*)b)->from);
     }
