@@ -443,6 +443,8 @@ static InstanceMatch matchInstanceAt(Module& module, GlobalPtr<TypeClass> typeCl
         // declared in `Text` over a payload-free sum, and reaches this point only if nothing matched
         // - which it never does.
         if(auto generated = enumShowInstance(module, typeClass, args)) return InstanceMatch { generated, {} };
+        if(auto generated = enumEqInstance(module, typeClass, args)) return InstanceMatch { generated, {} };
+        if(auto generated = enumOrdInstance(module, typeClass, args)) return InstanceMatch { generated, {} };
     }
 
     return best;

@@ -1218,6 +1218,152 @@ ModulePtr<ClassInstance> enumShowInstance(Module& module, GlobalPtr<TypeClass> t
     return generateInstance(*program.core, typeClass, args, { methods, 2 });
 }
 
+/*
+ * `Eq` and `Ord` for a payload-free sum, generated on the terms `enumShowInstance` set.
+ *
+ * The boilerplate this removes was one line per enum and the line was always the same -
+ * `valueOf(lhs) == valueOf(rhs)` - which is the shape of a thing that should not be written. It was
+ * also the *wrong* line: `valueOf` answers `I64`, which on JS is a `bigint`, so comparing two
+ * weekdays there converted both to a `bigint` and compared those. What these emit is the comparison
+ * the values already are, at the width the declaration gave them.
+ *
+ * **Nothing is cast.** A payload-free sum *is* its discriminant, so the operands go to the
+ * comparison as they stand and the operation happens at the type's own width - one byte for a
+ * two-constructor enum. That is what the `valueOf` route could not do, since the class fixes the
+ * width it reports in.
+ *
+ * **A negative `@value` is the one case that needs a cast**, and it needs one because a bare
+ * comparison of two enum values is *unsigned*: `signedOperand` answers a record with false, so
+ * `@value(-1)` would sort above everything. The values are signed - `valueOf` sign-extends one, and
+ * `data Signal = @value(-1) Failed | @value(0) Idle` means what it says - so where any constructor
+ * pins a negative number both operands are widened to a signed integer first. `Int` where the values
+ * fit it, which is a `number` on JS and free on every native target; `I64` only for a declaration
+ * whose values need it, which no ABI this has met asks for.
+ *
+ * The common case - every enum that pins nothing, and every one whose numbers are all non-negative -
+ * has no cast at all and is one instruction.
+ */
+namespace {
+
+/*
+ * The type two of these are compared *at*, or null where they are compared as they stand.
+ *
+ * Null is the answer for every enum whose values are all non-negative, which is the common case and
+ * the one that costs nothing: the operands are the numbers already and an unsigned comparison of
+ * them is their order.
+ */
+static TypePtr enumCompareType(ExprResolver& resolver, RecordType& record) {
+    auto& module = resolver.module;
+    auto negative = false;
+    auto wide = false;
+
+    for(auto constructor: record.constructors.contents(resolver.global)) {
+        if(constructor.value < 0) negative = true;
+        if(constructor.value < minLimit<I32> || constructor.value > maxLimit<I32>) wide = true;
+    }
+
+    if(!negative) return nullptr;
+    return wide ? module.scalar.long_ : module.scalar.int_;
+}
+
+// Both operands at that type, where one is called for. A `Cast` rather than a `Bitcast`: what is
+// wanted is the *number*, so a one-byte `-1` has to arrive as `-1` and not as 255.
+static ModulePtr<Value> enumCompareOperand(ExprResolver& resolver, ModulePtr<Value> value, TypePtr at,
+                                           LocationId source) {
+    if(!at) return value;
+    return resolver.ref(resolver.emit<InstUnary>(source, StringId(), at, Value::Cast, value));
+}
+
+template<CompareOp op>
+static ModulePtr<Value> emitEnumCompareOp(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                          LocationId source, StringId resultName) {
+    auto record = enumHead(resolver.global, resolver.valueType(args[0]));
+    auto at = record ? enumCompareType(resolver, *record) : nullptr;
+
+    return resolver.ref(resolver.emit<InstCmp>(source, resultName, resolver.module.scalar.bool_,
+                                               enumCompareOperand(resolver, args[0], at, source),
+                                               enumCompareOperand(resolver, args[1], at, source), op));
+}
+
+/*
+ * `compare`, as the two comparisons an `Ordering` is made of.
+ *
+ * `lhs < rhs ? LT : (lhs == rhs ? EQ : GT)`, written with selects rather than branches so that it
+ * costs no blocks: an `Ordering` is a number here as much as the operands are, and each arm is a
+ * constant. The four relational operators above never reach this at all - they are emitted as their
+ * own comparison - so what this serves is a caller that wanted the three-way answer.
+ */
+static ModulePtr<Value> emitEnumCompare(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                        LocationId source, StringId resultName) {
+    auto& module = resolver.module;
+    auto bool_ = module.scalar.bool_;
+
+    auto record = enumHead(resolver.global, type);
+    if(!record || record->constructors.size() != 3) return nullptr;
+
+    auto constructors = record->constructors.contents(resolver.global);
+
+    // An `Ordering` constructor as a value, in `fromValue`'s two steps and for its reason: the
+    // number narrows to the width the sum is held in, and then the bits are read as that sum.
+    auto ordering = [&](Size index) {
+        auto pinned = resolver.makeInt(source, module.scalar.int_, U64(constructors[index].value));
+        return resolver.ref(resolver.emit<InstUnary>(source, StringId(), type, Value::Bitcast, pinned));
+    };
+
+    auto operands = enumHead(resolver.global, resolver.valueType(args[0]));
+    auto at = operands ? enumCompareType(resolver, *operands) : nullptr;
+    auto lhs = enumCompareOperand(resolver, args[0], at, source);
+    auto rhs = enumCompareOperand(resolver, args[1], at, source);
+
+    auto less = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, lhs, rhs, CompareOp::Lt));
+    auto same = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, lhs, rhs, CompareOp::Eq));
+
+    auto tail = resolver.ref(resolver.emit<InstSelect>(source, StringId(), type, same,
+                                                       ordering(1), ordering(2)));
+    return resolver.ref(resolver.emit<InstSelect>(source, resultName, type, less, ordering(0), tail));
+}
+
+}
+
+ModulePtr<ClassInstance> enumEqInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    auto& program = module.program;
+    if(!typeClass || !program.core || typeClass != program.coreClasses.eq) return nullptr;
+    if(args.length != 1 || !enumHead(*program.types, args[0])) return nullptr;
+
+    // `==` only. `!=` has a default written over it in the class, and one comparison negated is what
+    // that default already is.
+    IntrinsicMethod methods[] = { { "=="_v, 2, emitEnumCompareOp<CompareOp::Eq> } };
+
+    return generateInstance(*program.core, typeClass, args, { methods, 1 });
+}
+
+ModulePtr<ClassInstance> enumOrdInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args) {
+    auto& program = module.program;
+    if(!typeClass || !program.core || typeClass != program.coreClasses.ord) return nullptr;
+    if(args.length != 1 || !enumHead(*program.types, args[0])) return nullptr;
+
+    /*
+     * The four operators as well as `compare`, though the class defaults every one of them over it.
+     *
+     * A default would make `a < b` build an `Ordering` and then compare *that* against `LT` - three
+     * operations and a constant where the machine has one instruction. Emitting them here is the
+     * same argument `bitWidth` makes in `Bits`: the generic body is correct and is not what the
+     * operation is.
+     *
+     * `min` and `max` keep their defaults, since those are written over `<=` and `>=` and are
+     * therefore already one comparison and a select once these exist.
+     */
+    IntrinsicMethod methods[] = {
+        { "compare"_v, 2, emitEnumCompare, nullptr, false },
+        { "<"_v, 2, emitEnumCompareOp<CompareOp::Lt> },
+        { "<="_v, 2, emitEnumCompareOp<CompareOp::Le> },
+        { ">"_v, 2, emitEnumCompareOp<CompareOp::Gt> },
+        { ">="_v, 2, emitEnumCompareOp<CompareOp::Ge> },
+    };
+
+    return generateInstance(*program.core, typeClass, args, { methods, 5 });
+}
+
 ModulePtr<ClassInstance> defineBitcast(Module& module, TypePtr from, TypePtr to, GlobalPtr<GenEnv> gen) {
     TypePtr args[] = { from, to };
     IntrinsicMethod methods[] = { { "bitcast"_v, 1, emitBitcast } };

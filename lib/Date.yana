@@ -257,12 +257,6 @@ pub data Weekday
   | @value(5) Saturday
   | @value(6) Sunday
 
--- A payload-free sum is a number, and its `Show` and its `Enum` instance are generated from the
--- declaration - but `Eq` is not, and comparing two weekdays is the first thing anybody does with
--- one. One line over `valueOf`, which is the reinterpretation the number already is.
-instance Eq(Weekday):
-    fn ==(lhs: Weekday, rhs: Weekday) -> Bool = valueOf(lhs) == valueOf(rhs)
-
 {-
    Division that rounds *down* rather than toward zero, and the reason both of these exist.
 

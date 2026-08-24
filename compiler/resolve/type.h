@@ -1577,6 +1577,13 @@ struct CoreClasses {
     // hole's type, and there is no written call for the ordinary overload set to start from.
     GlobalPtr<TypeClass> show = nullptr;
 
+    // The two comparisons a payload-free sum gets for nothing - see `enumEqInstance`. Known by name
+    // on `enum_`'s terms and consulted at the same place: a type with no declared instance is asked
+    // whether it is an enum, and a string comparison at every failed lookup is what that must not
+    // cost.
+    GlobalPtr<TypeClass> eq = nullptr;
+    GlobalPtr<TypeClass> ord = nullptr;
+
     /*
      * The classes a *vector* joins on demand - Implementation-Vector.md §9 items 1 to 3.
      *

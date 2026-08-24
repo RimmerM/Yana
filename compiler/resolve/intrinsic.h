@@ -222,6 +222,12 @@ ModulePtr<ClassInstance> enumInstance(Module& module, GlobalPtr<TypeClass> typeC
 // so a type that writes its own keeps it. What it produces is the constructor's name.
 ModulePtr<ClassInstance> enumShowInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
 
+// `Eq` and `Ord` for a payload-free sum, on the same terms and consulted beside it - the comparison
+// the values already are, at the width the declaration gave them. See enumEqInstance for why the
+// `valueOf` route these replace was both boilerplate and slower.
+ModulePtr<ClassInstance> enumEqInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+ModulePtr<ClassInstance> enumOrdInstance(Module& module, GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args);
+
 // Attaches a hook to a signature the module declared in source but gave no body. This is how a
 // generic intrinsic is written: the declaration says what it means to the type checker, and the
 // hook says what it generates. Reports if no such function was declared.

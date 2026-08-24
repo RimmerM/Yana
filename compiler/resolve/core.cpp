@@ -622,6 +622,8 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.rewrap = classNamed(*module, "Rewrap"_v);
     program.coreClasses.index = classNamed(*module, "Index"_v);
     program.coreClasses.show = classNamed(*module, "Show"_v);
+    program.coreClasses.eq = classNamed(*module, "Eq"_v);
+    program.coreClasses.ord = classNamed(*module, "Ord"_v);
     program.coreClasses.copy = classNamed(*module, "Copy"_v);
     program.coreClasses.sink = classNamed(*module, "Sink"_v);
     program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);
