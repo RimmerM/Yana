@@ -973,6 +973,36 @@ struct Verifier {
             }
 
             state.set(at, id);
+
+            /*
+             * And its home, where the segment it is in is one the home still backs.
+             *
+             * `leavesFree` is exactly the statement that the home never stopped holding the value -
+             * it is what lets an edge *out* of a Cached or Region segment carry no copy at all, and
+             * `WebAllocation::edgeTransfer` returns false on that ground. So a value in one of them
+             * occupies two locations, and recording only the segment's left the next block - which
+             * reads the value at its home again, the segment having ended at the block boundary -
+             * looking at a home that holds nothing.
+             *
+             * The whole-block Region is where it bit: `h` in `whirlpoolCompress` is promoted into a
+             * register for the block the loop header is, its home slot still holding it, and the
+             * edge into the loop body reads the home. The allocation was right and this walk's model
+             * of it was one location short.
+             *
+             * A collision here is not reported, unlike the one above. Two webs may not share a home
+             * - the home is the web's storage for as long as the web exists - but a *register* home
+             * is the ordinary case for a value whose region moved it elsewhere, and the register may
+             * legitimately be holding something else meanwhile. What the home records is a copy of
+             * the value, so whoever else is there has the stronger claim and keeps it.
+             */
+            auto& web = regs.placement.webs[regs.placement.webOf[id]];
+            auto segment = web.segmentAt(beforeInst(set->firstIndex));
+
+            if(segment && segment->leavesFree() && web.home.isValid() && web.home != at
+               && state.get(web.home) == kNullLive)
+            {
+                state.set(web.home, id);
+            }
         });
     }
 
