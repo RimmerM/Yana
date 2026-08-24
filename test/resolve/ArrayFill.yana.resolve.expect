@@ -1,0 +1,431 @@
+let image$base: () = <none>
+
+let table: [U8 *8] = [3, 1, 4, 1, 5, 9, 2, 6]
+
+let zeroBlock: [U8 *64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn Length([a *n]).length(64, U8)(%self: [U8 *64]) -> Size {
+  b0:
+    %v1 = countof 64 : Int
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
+fn Length([a *n]).length(8, I32)(%self: [I32 *8]) -> Size {
+  b0:
+    %v1 = countof 8 : Int
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
+fn Length([a *n]).length(3, I32)(%self: [I32 *3]) -> Size {
+  b0:
+    %v1 = countof 3 : Int
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
+fn Length([a *n]).length(8, U8)(%self: [U8 *8]) -> Size {
+  b0:
+    %v1 = countof 8 : Int
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
+fn Length([a *n]).length(1, Int)(%self: [Int *1]) -> Size {
+  b0:
+    %v1 = countof 1 : Int
+    %v2 = cast %v1 : Size
+    ret %v2
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = syscall 60, %status : Size
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn at(%i: Size) -> Size {
+  b0:
+    ret %i
+}
+
+fn filled() -> Int {
+  b0:
+    %v1 = alloc : [U8 *64]
+    aggregate %block[0] = 0, %block[1] = 0, %block[2] = 0, %block[3] = 0, %block[4] = 0, %block[5] = 0, %block[6] = 0, %block[7] = 0, %block[8] = 0, %block[9] = 0, %block[10] = 0, %block[11] = 0, %block[12] = 0, %block[13] = 0, %block[14] = 0, %block[15] = 0, %block[16] = 0, %block[17] = 0, %block[18] = 0, %block[19] = 0, %block[20] = 0, %block[21] = 0, %block[22] = 0, %block[23] = 0, %block[24] = 0, %block[25] = 0, %block[26] = 0, %block[27] = 0, %block[28] = 0, %block[29] = 0, %block[30] = 0, %block[31] = 0, %block[32] = 0, %block[33] = 0, %block[34] = 0, %block[35] = 0, %block[36] = 0, %block[37] = 0, %block[38] = 0, %block[39] = 0, %block[40] = 0, %block[41] = 0, %block[42] = 0, %block[43] = 0, %block[44] = 0, %block[45] = 0, %block[46] = 0, %block[47] = 0, %block[48] = 0, %block[49] = 0, %block[50] = 0, %block[51] = 0, %block[52] = 0, %block[53] = 0, %block[54] = 0, %block[55] = 0, %block[56] = 0, %block[57] = 0, %block[58] = 0, %block[59] = 0, %block[60] = 0, %block[61] = 0, %block[62] = 0, %block[63] = 0
+    %v67 = load %block : [U8 *64]
+    %v69 = call at, 0 : Size
+    %v70 = borrow %block : &[U8 *64]
+    %v71 = alloc : Flat(U8)
+    %v72 = addressof [%v70] : %U8
+    init %local1@Flat.items, %v72
+    %v74 = countof 64 : Size
+    init %local1@Flat.length, %v74
+    %v76 = borrow %local1 : &Flat(U8)
+    %v77 = load [%v76]@Flat.length : Size
+    %v78 = cast %v69 : USize
+    %v79 = cast %v77 : USize
+    %v80 = cmp_ge %v78, %v79 : Bool
+    call checkCondition, %v80
+    %v82 = load [%v76]@Flat.items : %U8
+    %v83 = strideof U8 : Long
+    %v84 = mul %v69, %v83 : Long
+    %v85 = add %v82, %v84 : %U8
+    %v86 = borrow [%v85] : &U8
+    %v87 = load [%v86] : U8
+    %v88 = cast %v87 : Int
+    %v89 = load %block : [U8 *64]
+    %v91 = call at, 63 : Size
+    %v92 = borrow %block : &[U8 *64]
+    %v93 = alloc : Flat(U8)
+    %v94 = addressof [%v92] : %U8
+    init %local2@Flat.items, %v94
+    %v96 = countof 64 : Size
+    init %local2@Flat.length, %v96
+    %v98 = borrow %local2 : &Flat(U8)
+    %v99 = load [%v98]@Flat.length : Size
+    %v100 = cast %v91 : USize
+    %v101 = cast %v99 : USize
+    %v102 = cmp_ge %v100, %v101 : Bool
+    call checkCondition, %v102
+    %v104 = load [%v98]@Flat.items : %U8
+    %v105 = strideof U8 : Long
+    %v106 = mul %v91, %v105 : Long
+    %v107 = add %v104, %v106 : %U8
+    %v108 = borrow [%v107] : &U8
+    %v109 = load [%v108] : U8
+    %v110 = cast %v109 : Int
+    %v111 = add %v88, %v110 : Int
+    %v112 = load %block : [U8 *64]
+    %v113 = call Length([a *n]).length(64, U8), %v112 : Size
+    %v114 = cast %v113 : Int
+    %v115 = add %v111, %v114 : Int
+    ret %v115
+}
+
+fn ones() -> Int {
+  b0:
+    %v2 = neg 1 : I32
+    %v3 = alloc : [I32 *8]
+    aggregate %lanes[0] = %v2, %lanes[1] = %v2, %lanes[2] = %v2, %lanes[3] = %v2, %lanes[4] = %v2, %lanes[5] = %v2, %lanes[6] = %v2, %lanes[7] = %v2
+    %v13 = load %lanes : [I32 *8]
+    %v15 = call at, 7 : Size
+    %v16 = borrow %lanes : &[I32 *8]
+    %v17 = alloc : Flat(I32)
+    %v18 = addressof [%v16] : %I32
+    init %local1@Flat.items, %v18
+    %v20 = countof 8 : Size
+    init %local1@Flat.length, %v20
+    %v22 = borrow %local1 : &Flat(I32)
+    %v23 = load [%v22]@Flat.length : Size
+    %v24 = cast %v15 : USize
+    %v25 = cast %v23 : USize
+    %v26 = cmp_ge %v24, %v25 : Bool
+    call checkCondition, %v26
+    %v28 = load [%v22]@Flat.items : %I32
+    %v29 = strideof I32 : Long
+    %v30 = mul %v15, %v29 : Long
+    %v31 = add %v28, %v30 : %I32
+    %v32 = borrow [%v31] : &I32
+    %v33 = load [%v32] : I32
+    %v34 = load %lanes : [I32 *8]
+    %v35 = call Length([a *n]).length(8, I32), %v34 : Size
+    %v36 = cast %v35 : Int
+    %v37 = cast %v33 : Int
+    %v38 = add %v37, %v36 : Int
+    ret %v38
+}
+
+fn small() -> Int {
+  b0:
+    %v1 = alloc : [U8 *8]
+    aggregate %pair[0] = 3, %pair[1] = 3, %pair[2] = 3, %pair[3] = 3, %pair[4] = 3, %pair[5] = 3, %pair[6] = 3, %pair[7] = 3
+    %v11 = load %pair : [U8 *8]
+    %v13 = call at, 0 : Size
+    %v14 = borrow %pair : &[U8 *8]
+    %v15 = alloc : Flat(U8)
+    %v16 = addressof [%v14] : %U8
+    init %local1@Flat.items, %v16
+    %v18 = countof 8 : Size
+    init %local1@Flat.length, %v18
+    %v20 = borrow %local1 : &Flat(U8)
+    %v21 = load [%v20]@Flat.length : Size
+    %v22 = cast %v13 : USize
+    %v23 = cast %v21 : USize
+    %v24 = cmp_ge %v22, %v23 : Bool
+    call checkCondition, %v24
+    %v26 = load [%v20]@Flat.items : %U8
+    %v27 = strideof U8 : Long
+    %v28 = mul %v13, %v27 : Long
+    %v29 = add %v26, %v28 : %U8
+    %v30 = borrow [%v29] : &U8
+    %v31 = load [%v30] : U8
+    %v32 = cast %v31 : Int
+    %v33 = load %pair : [U8 *8]
+    %v35 = call at, 7 : Size
+    %v36 = borrow %pair : &[U8 *8]
+    %v37 = alloc : Flat(U8)
+    %v38 = addressof [%v36] : %U8
+    init %local2@Flat.items, %v38
+    %v40 = countof 8 : Size
+    init %local2@Flat.length, %v40
+    %v42 = borrow %local2 : &Flat(U8)
+    %v43 = load [%v42]@Flat.length : Size
+    %v44 = cast %v35 : USize
+    %v45 = cast %v43 : USize
+    %v46 = cmp_ge %v44, %v45 : Bool
+    call checkCondition, %v46
+    %v48 = load [%v42]@Flat.items : %U8
+    %v49 = strideof U8 : Long
+    %v50 = mul %v35, %v49 : Long
+    %v51 = add %v48, %v50 : %U8
+    %v52 = borrow [%v51] : &U8
+    %v53 = load [%v52] : U8
+    %v54 = cast %v53 : Int
+    %v55 = add %v32, %v54 : Int
+    ret %v55
+}
+
+fn nonUniform() -> Int {
+  b0:
+    %v1 = alloc : [I32 *8]
+    aggregate %words[0] = 7, %words[1] = 7, %words[2] = 7, %words[3] = 7, %words[4] = 7, %words[5] = 7, %words[6] = 7, %words[7] = 7
+    %v11 = load %words : [I32 *8]
+    %v13 = call at, 0 : Size
+    %v14 = borrow %words : &[I32 *8]
+    %v15 = alloc : Flat(I32)
+    %v16 = addressof [%v14] : %I32
+    init %local1@Flat.items, %v16
+    %v18 = countof 8 : Size
+    init %local1@Flat.length, %v18
+    %v20 = borrow %local1 : &Flat(I32)
+    %v21 = load [%v20]@Flat.length : Size
+    %v22 = cast %v13 : USize
+    %v23 = cast %v21 : USize
+    %v24 = cmp_ge %v22, %v23 : Bool
+    call checkCondition, %v24
+    %v26 = load [%v20]@Flat.items : %I32
+    %v27 = strideof I32 : Long
+    %v28 = mul %v13, %v27 : Long
+    %v29 = add %v26, %v28 : %I32
+    %v30 = borrow [%v29] : &I32
+    %v31 = load [%v30] : I32
+    %v32 = load %words : [I32 *8]
+    %v34 = call at, 7 : Size
+    %v35 = borrow %words : &[I32 *8]
+    %v36 = alloc : Flat(I32)
+    %v37 = addressof [%v35] : %I32
+    init %local2@Flat.items, %v37
+    %v39 = countof 8 : Size
+    init %local2@Flat.length, %v39
+    %v41 = borrow %local2 : &Flat(I32)
+    %v42 = load [%v41]@Flat.length : Size
+    %v43 = cast %v34 : USize
+    %v44 = cast %v42 : USize
+    %v45 = cmp_ge %v43, %v44 : Bool
+    call checkCondition, %v45
+    %v47 = load [%v41]@Flat.items : %I32
+    %v48 = strideof I32 : Long
+    %v49 = mul %v34, %v48 : Long
+    %v50 = add %v47, %v49 : %I32
+    %v51 = borrow [%v50] : &I32
+    %v52 = load [%v51] : I32
+    %v53 = add %v31, %v52 : I32
+    %v54 = cast %v53 : Int
+    ret %v54
+}
+
+fn handWritten() -> Int {
+  b0:
+    %v32 = alloc : [U8 *32]
+    aggregate %block[0] = 0, %block[1] = 0, %block[2] = 0, %block[3] = 0, %block[4] = 0, %block[5] = 0, %block[6] = 0, %block[7] = 0, %block[8] = 0, %block[9] = 0, %block[10] = 0, %block[11] = 0, %block[12] = 0, %block[13] = 0, %block[14] = 0, %block[15] = 0, %block[16] = 0, %block[17] = 0, %block[18] = 0, %block[19] = 0, %block[20] = 0, %block[21] = 0, %block[22] = 0, %block[23] = 0, %block[24] = 0, %block[25] = 0, %block[26] = 0, %block[27] = 0, %block[28] = 0, %block[29] = 0, %block[30] = 0, %block[31] = 0
+    %v66 = load %block : [U8 *32]
+    %v68 = call at, 31 : Size
+    %v69 = borrow %block : &[U8 *32]
+    %v70 = alloc : Flat(U8)
+    %v71 = addressof [%v69] : %U8
+    init %local1@Flat.items, %v71
+    %v73 = countof 32 : Size
+    init %local1@Flat.length, %v73
+    %v75 = borrow %local1 : &Flat(U8)
+    %v76 = load [%v75]@Flat.length : Size
+    %v77 = cast %v68 : USize
+    %v78 = cast %v76 : USize
+    %v79 = cmp_ge %v77, %v78 : Bool
+    call checkCondition, %v79
+    %v81 = load [%v75]@Flat.items : %U8
+    %v82 = strideof U8 : Long
+    %v83 = mul %v68, %v82 : Long
+    %v84 = add %v81, %v83 : %U8
+    %v85 = borrow [%v84] : &U8
+    %v86 = load [%v85] : U8
+    %v87 = cast %v86 : Int
+    ret %v87
+}
+
+fn inferred() -> Int {
+  b0:
+    %v3 = alloc : [I32 *3]
+    aggregate %xs[0] = 10, %xs[1] = 20, %xs[2] = 30
+    %v8 = load %xs : [I32 *3]
+    %v10 = call at, 2 : Size
+    %v11 = borrow %xs : &[I32 *3]
+    %v12 = alloc : Flat(I32)
+    %v13 = addressof [%v11] : %I32
+    init %local1@Flat.items, %v13
+    %v15 = countof 3 : Size
+    init %local1@Flat.length, %v15
+    %v17 = borrow %local1 : &Flat(I32)
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast %v10 : USize
+    %v20 = cast %v18 : USize
+    %v21 = cmp_ge %v19, %v20 : Bool
+    call checkCondition, %v21
+    %v23 = load [%v17]@Flat.items : %I32
+    %v24 = strideof I32 : Long
+    %v25 = mul %v10, %v24 : Long
+    %v26 = add %v23, %v25 : %I32
+    %v27 = borrow [%v26] : &I32
+    %v28 = load [%v27] : I32
+    %v29 = load %xs : [I32 *3]
+    %v30 = call Length([a *n]).length(3, I32), %v29 : Size
+    %v31 = cast %v30 : Int
+    %v32 = cast %v28 : Int
+    %v33 = add %v32, %v31 : Int
+    %v34 = load table : [U8 *8]
+    %v36 = call at, 5 : Size
+    %v37 = borrow table : &[U8 *8]
+    %v38 = alloc : Flat(U8)
+    %v39 = addressof [%v37] : %U8
+    init %local2@Flat.items, %v39
+    %v41 = countof 8 : Size
+    init %local2@Flat.length, %v41
+    %v43 = borrow %local2 : &Flat(U8)
+    %v44 = load [%v43]@Flat.length : Size
+    %v45 = cast %v36 : USize
+    %v46 = cast %v44 : USize
+    %v47 = cmp_ge %v45, %v46 : Bool
+    call checkCondition, %v47
+    %v49 = load [%v43]@Flat.items : %U8
+    %v50 = strideof U8 : Long
+    %v51 = mul %v36, %v50 : Long
+    %v52 = add %v49, %v51 : %U8
+    %v53 = borrow [%v52] : &U8
+    %v54 = load [%v53] : U8
+    %v55 = cast %v54 : Int
+    %v56 = add %v33, %v55 : Int
+    %v57 = load table : [U8 *8]
+    %v58 = call Length([a *n]).length(8, U8), %v57 : Size
+    %v59 = cast %v58 : Int
+    %v60 = add %v56, %v59 : Int
+    ret %v60
+}
+
+fn oneElement() -> Int {
+  b0:
+    %v1 = alloc : [Int *1]
+    aggregate %one[0] = 42
+    %v4 = load %one : [Int *1]
+    %v6 = call at, 0 : Size
+    %v7 = borrow %one : &[Int *1]
+    %v8 = alloc : Flat(Int)
+    %v9 = addressof [%v7] : %Int
+    init %local1@Flat.items, %v9
+    %v11 = countof 1 : Size
+    init %local1@Flat.length, %v11
+    %v13 = borrow %local1 : &Flat(Int)
+    %v14 = load [%v13]@Flat.length : Size
+    %v15 = cast %v6 : USize
+    %v16 = cast %v14 : USize
+    %v17 = cmp_ge %v15, %v16 : Bool
+    call checkCondition, %v17
+    %v19 = load [%v13]@Flat.items : %Int
+    %v20 = strideof Int : Long
+    %v21 = mul %v6, %v20 : Long
+    %v22 = add %v19, %v21 : %Int
+    %v23 = borrow [%v22] : &Int
+    %v24 = load [%v23] : Int
+    %v25 = load %one : [Int *1]
+    %v26 = call Length([a *n]).length(1, Int), %v25 : Size
+    %v27 = cast %v26 : Int
+    %v28 = add %v24, %v27 : Int
+    ret %v28
+}
+
+fn constant() -> Int {
+  b0:
+    %v0 = load zeroBlock : [U8 *64]
+    %v2 = call at, 40 : Size
+    %v3 = borrow zeroBlock : &[U8 *64]
+    %v4 = alloc : Flat(U8)
+    %v5 = addressof [%v3] : %U8
+    init %local0@Flat.items, %v5
+    %v7 = countof 64 : Size
+    init %local0@Flat.length, %v7
+    %v9 = borrow %local0 : &Flat(U8)
+    %v10 = load [%v9]@Flat.length : Size
+    %v11 = cast %v2 : USize
+    %v12 = cast %v10 : USize
+    %v13 = cmp_ge %v11, %v12 : Bool
+    call checkCondition, %v13
+    %v15 = load [%v9]@Flat.items : %U8
+    %v16 = strideof U8 : Long
+    %v17 = mul %v2, %v16 : Long
+    %v18 = add %v15, %v17 : %U8
+    %v19 = borrow [%v18] : &U8
+    %v20 = load [%v19] : U8
+    %v21 = cast %v20 : Int
+    %v22 = load zeroBlock : [U8 *64]
+    %v23 = call Length([a *n]).length(64, U8), %v22 : Size
+    %v24 = cast %v23 : Int
+    %v25 = add %v21, %v24 : Int
+    ret %v25
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = call filled : Int
+    %v1 = call ones : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call small : Int
+    %v4 = add %v2, %v3 : Int
+    %v5 = call nonUniform : Int
+    %v6 = add %v4, %v5 : Int
+    %v7 = call handWritten : Int
+    %v8 = add %v6, %v7 : Int
+    %v9 = call inferred : Int
+    %v10 = add %v8, %v9 : Int
+    %v11 = call oneElement : Int
+    %v12 = add %v10, %v11 : Int
+    %v13 = call constant : Int
+    %v14 = add %v12, %v13 : Int
+    ret %v14
+}

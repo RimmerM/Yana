@@ -2110,14 +2110,59 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
         return nullptr;
     }
 
-    if(written != length.unwrap()) {
-        context.diagnostics.error("this literal has %@ elements and %@ holds exactly %@"_v, source,
-                                  written, describeType(context, global, target), length.unwrap());
+    auto count = U32(length.unwrap());
+    auto elements = items.contents(parse);
+
+    /*
+     * The fill - `[0] :: [U8 *64]`, Implementation-Containers.md §8.
+     *
+     * One element written at a target that holds more spreads into every one of them. It is the
+     * only count mismatch that is accepted, and that is what keeps the check below doing its job:
+     * two elements at a sixteen-element target is still the mistake it always was, so the only way
+     * to reach a fill by accident is to write exactly one element *and* to have written the count
+     * in the type, which is the statement of intent this reads.
+     *
+     * `TrivialCopy` is what licenses it. The elements are one value appearing `count` times, and a
+     * type whose duplicate is not its bytes would be handed over that many times from one place -
+     * see the note on InstAggregate, whose components `deriveEffects` reads as hand-overs.
+     *
+     * There is deliberately no separate instruction for it. The literal a fill expands to is the
+     * literal it replaces, so every pass below reads the shape it already read, and the collapse
+     * back into one operation happens in `lower_mem.cpp` where the target's repr is known - which
+     * is also where a *hand-written* run of zeroes gets the same treatment.
+     */
+    auto fill = written == 1 && count > 1;
+
+    if(!fill && written != count) {
+        context.diagnostics.error("this literal has %@ elements and %@ holds exactly %@ - one element fills the whole array, and any other count has to be written out"_v,
+                                  source, written, describeType(context, global, target), count);
         return nullptr;
     }
 
+    if(fill) {
+        // Asked of the context rather than of the type, for the reason sinkValue gives: an
+        // unconstrained `a` is non-TrivialCopy inside this body however a caller substitutes it,
+        // and a declared `TrivialCopy(a)` is what makes the duplicate legal.
+        auto ownership = ownershipIn(module, functionGen(global, function), element);
+
+        if(!ownership.trivialCopy) {
+            context.diagnostics.error("a fill writes one value into every element, which only a type whose duplicate is its bytes may do - %@ is not one of those, so this array's elements have to be written out"_v,
+                                      source, describeType(context, global, element));
+            return nullptr;
+        }
+    }
+
     ValueList values;
-    for(auto item: items.contents(parse)) values.push(resolve(item, element));
+
+    if(fill) {
+        // Converted once rather than once per element: `buildAggregate` converts what it is given,
+        // and handing it the same already-converted value `count` times is what keeps a fill from
+        // emitting `count` copies of a widening it only needs to do once.
+        auto value = convert(resolve(elements[0], element), element, source);
+        for(U32 i = 0; i < count; i++) values.push(value);
+    } else {
+        for(auto item: elements) values.push(resolve(item, element));
+    }
 
     auto storage = allocate(target, source, StringId());
     auto place = placeFor(storage, source);

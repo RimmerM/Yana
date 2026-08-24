@@ -121,6 +121,21 @@ struct Type {
         Fun,    // A function type.
         App,    // Application of higher-kinded type.
         Arr,    // An array of a type.
+
+        /*
+         * `[T *_]` - a fixed array whose count is the literal written at it.
+         *
+         * A kind of its own rather than a flag on `ArrPayload`, because the payload is two
+         * `ParsePtr`s and a third field would widen the eight-byte union every `ast::Type` carries.
+         * `length` is null here, exactly as it is for the growable `[T]`, and what separates the two
+         * is which kind was written.
+         *
+         * It resolves *only* where a literal supplies the count - the `::` in an expression and the
+         * one in a constant. `resolveType` reports it anywhere else, since a parameter, a field or a
+         * return type has nothing to take a count from.
+         */
+        ArrInferred,
+
         Map,    // A map from one type to another.
 
         /*

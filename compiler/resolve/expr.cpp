@@ -943,10 +943,19 @@ ModulePtr<Value> ExprResolver::resolve(const ast::Expr& expr, TypePtr target, bo
         case ast::Expr::Coerce: {
             auto& coerce = *parse[expr.coerce];
 
-            // Resolved against this function's own context, so that an ascription inside a generic
-            // body may name the variables that body is written over - `cast(p) :: %a` is how a
-            // generic function says which of the two pointer types a reinterpretation produces.
-            auto type = resolveType(module, coerce.type, functionGen(global, function));
+            /*
+             * Resolved against this function's own context, so that an ascription inside a generic
+             * body may name the variables that body is written over - `cast(p) :: %a` is how a
+             * generic function says which of the two pointer types a reinterpretation produces.
+             *
+             * `[T *_]` is the one type whose count is not in the type at all: it is the number of
+             * elements the literal on the other side of the `::` has, and `resolveType` is handed
+             * the type and never the value. See inferredArrayType.
+             */
+            auto env = functionGen(global, function);
+            auto type = coerce.type.kind == ast::Type::ArrInferred
+                ? inferredArrayType(module, coerce.type, coerce.target, env)
+                : resolveType(module, coerce.type, env);
 
             /*
              * The cursor sentinel takes the ascription as what this position asked for.

@@ -995,6 +995,14 @@ private:
                     if(type.arr.length) toString(*base[type.arr.length], true);
                     removeLevel();
                     break;
+                case Type::ArrInferred:
+                    // The count is not a node - it is the literal this type is written at - so
+                    // there is nothing below the element type to print.
+                    stream.writeString("ArrType <inferred count> "_v);
+                    makeLevel();
+                    toString(*base[type.arr.type], true);
+                    removeLevel();
+                    break;
                 case Type::Lit:
                     // A number written where a type is - `Vec(Float, 4)`. See ast::Type::Lit.
                     stream.writeString("LitType "_v);

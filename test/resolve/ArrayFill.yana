@@ -1,0 +1,97 @@
+{-
+   The fill and the inferred count - Implementation-Containers.md §8.
+
+   Two spellings that both exist because a fixed array's count is in its type and a literal's is in
+   its syntax, and each is sometimes the one you have:
+
+    - `[0] :: [U8 *64]` writes the count and lets one element stand for all of them.
+    - `[1, 2, 3] :: [Int *_]` writes the elements and lets the count follow from them.
+
+   They are complementary rather than composable: `[0] :: [U8 *_]` is a one-element array, since the
+   count `_` would take is the one it is trying to read off the literal. That falls out of the two
+   rules rather than being a third one, and `oneElement` below is what pins it.
+
+   The fill is *not* a new instruction. It expands into the same `InstAggregate` a hand-written
+   literal produces, so every pass between here and the backend reads the shape it already read; the
+   collapse back into one operation happens in `lowerUniformFill`, where the target's repr is known.
+   Which is why `handWritten` is here: it asserts that the collapse is a fact about the aggregate
+   rather than about the syntax, by getting the same `setpattern` out of a literal nobody filled.
+
+   **The index every array here is read at is opaque**, and that is what makes the goldens mean
+   anything. Read at a constant, `opt` promotes a small array and folds the load, so the function
+   reaches lowering with no array in it at all and the `.lower.expect` says nothing about the
+   decision this fixture is about. `at(i)` is one `@noinline` call that hands back what it was
+   given, and it is the whole reason the arrays survive to be lowered.
+-}
+
+import Native
+
+@noinline fn at(i: Size) -> Size = i
+
+-- The fill, as the count it produces and the value it put everywhere. Sixty-four bytes of zero is
+-- the block every digest starts from, and is what the syntax exists for.
+fn filled() -> Int:
+    let &block = [0] :: [U8 *64]
+    return (block[at(0)] :: Int) + (block[at(63)] :: Int) + (truncate(length(block)) :: Int)
+
+-- All ones, which is the other pattern a byte fill has: `-1` is `ff` at every width, so a signed
+-- element is not a special case of anything.
+fn ones() -> Int:
+    let &lanes = [-1] :: [I32 *8]
+    return lanes[at(7)] + (truncate(length(lanes)) :: Int)
+
+{-
+   A fill below `kFillPatternBytes`, which stays the stores it was written as.
+
+   Eight bytes is half the threshold, and the point is that the *answer* does not depend on which
+   side of it a fill lands on - only the instruction count does. `expandBlockOperations` would give
+   a fill this small the same stores anyway, so nothing is lost by leaving them where the forwarding
+   pass can still read them.
+-}
+fn small() -> Int:
+    let &pair = [3] :: [U8 *8]
+    return (pair[at(0)] :: Int) + (pair[at(7)] :: Int)
+
+-- A pattern that is *not* byte-uniform, which is the case the collapse has to decline: `07 07 07 07`
+-- is not seven, so these eight elements stay eight stores.
+fn nonUniform() -> Int:
+    let &words = [7] :: [I32 *8]
+    return words[at(0)] + words[at(7)]
+
+-- The same run written out, which lowers exactly as `filled` does. The collapse compares the
+-- elements by value rather than by identity, so thirty-two separately written zeroes are one byte
+-- pattern - which is what makes this an optimization of the library as it stands and not only of
+-- the syntax that replaces it.
+fn handWritten() -> Int:
+    let &block = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U8 *32]
+    return block[at(31)] :: Int
+
+{-
+   The count read off the literal - `[T *_]`.
+
+   `_` is legal only as the ascribed type of an array literal, because that is the only position
+   with a literal to count. Everywhere else it is reported; see Reject.ArrayFill.yana.
+-}
+let table = [3, 1, 4, 1, 5, 9, 2, 6] :: [U8 *_]
+
+fn inferred() -> Int:
+    let &xs = [10, 20, 30] :: [I32 *_]
+    return xs[at(2)] + (truncate(length(xs)) :: Int)
+         + (table[at(5)] :: Int) + (truncate(length(table)) :: Int)
+
+-- One element at `_` is one element, not a fill: the count a fill would spread into is the one being
+-- inferred, so there is nothing for it to disagree with.
+fn oneElement() -> Int:
+    let &one = [42] :: [Int *_]
+    return one[at(0)] + (truncate(length(one)) :: Int)
+
+-- A fill in a global, which is the position that made the syntax worth having: a `let` pattern
+-- carries no type annotation, so this `::` is the only thing saying what the constant is - and a
+-- constant is a tree, so sixty-four zeroes cost one child pointer apiece rather than one value.
+let zeroBlock = [0] :: [U8 *64]
+
+fn constant() -> Int = (zeroBlock[at(40)] :: Int) + (truncate(length(zeroBlock)) :: Int)
+
+fn main() -> Int =
+    filled() + ones() + small() + nonUniform() + handWritten() + inferred() + oneElement() + constant()

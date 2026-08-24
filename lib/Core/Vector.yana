@@ -185,12 +185,20 @@ pub class Lanewise(v -> m):
 
    Masks get `and`, `or`, `xor` and `not` from `Bitwise`, whose instance simd.cpp generates - so the
    combining of two masks is written the way the combining of two conditions is.
+
+   **The lane count is a const parameter here for the reason it is one on `lane` and `horizontalSum`**
+   - Implementation-Const-Generics.md §5's first row. `Mask(a)` in a parameter is the target's natural
+   width and nothing else, so without it a mask over a *written* width had no reader at all: at `v3`,
+   where the natural `Vec(U8)` is thirty-two lanes, `firstSet(a .> b)` over a `Vec(U8, 16)` reported
+   "cannot convert Mask(U8) to Mask(U8)" and there was no spelling that worked. The vector family was
+   given the parameter when const generics landed and this family was missed; `Core/Read.yana`'s digit
+   scan is what found it, since a portable `interleaveLow` forces its vectors to sixteen lanes.
 -}
-pub fn any(mask: Mask(a)) -> Bool
-pub fn all(mask: Mask(a)) -> Bool
-pub fn none(mask: Mask(a)) -> Bool
-pub fn count(mask: Mask(a)) -> Int
-pub fn firstSet(mask: Mask(a)) -> Int
+pub fn (n: Int) any(mask: Mask(a, n)) -> Bool
+pub fn (n: Int) all(mask: Mask(a, n)) -> Bool
+pub fn (n: Int) none(mask: Mask(a, n)) -> Bool
+pub fn (n: Int) count(mask: Mask(a, n)) -> Int
+pub fn (n: Int) firstSet(mask: Mask(a, n)) -> Int
 
 {-
    The first `count` lanes set and the rest clear - the tail mask, and the one operation in this

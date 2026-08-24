@@ -121,3 +121,14 @@ alias X = Y(&Int)
 alias X = { x: *Int, y: *[Int], z: *{*Int, *{Int, Int}} }
 alias X = [*[*[Int: *{a, b}]]]
 alias X = Y(*Z)
+
+-- Fixed arrays, and the three things that may stand where the count does: a literal, a name that a
+-- const parameter will bind, and `_` - which says the count is the literal the type is written at
+-- rather than anything in the type. `[T]` and `[T *_]` are different kinds rather than one with an
+-- absent count, so the printer names the second.
+alias X = [Int *4]
+alias X = [Int *n]
+alias X = [Int *_]
+alias X = [[Int *_] *_]
+alias X = { x: [Int *_], y: &[Int *4] }
+alias X = [(Int) -> Bool *_]

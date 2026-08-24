@@ -274,166 +274,154 @@ define fastcc i32 @main() {
   %36 = getelementptr i8, ptr %4, i64 8
   %37 = load i32, ptr %36, align 1
   store i32 7, ptr %36, align 1
-  store i32 0, ptr %3, align 1
-  %38 = getelementptr i8, ptr %3, i64 4
-  store i32 0, ptr %38, align 1
-  %39 = getelementptr i8, ptr %3, i64 8
-  store i32 0, ptr %39, align 1
-  %40 = getelementptr i8, ptr %3, i64 12
-  store i32 0, ptr %40, align 1
-  %41 = getelementptr i8, ptr %3, i64 16
-  store i32 0, ptr %41, align 1
-  %42 = getelementptr i8, ptr %3, i64 20
-  store i32 0, ptr %42, align 1
-  %43 = getelementptr i8, ptr %3, i64 24
-  store i32 0, ptr %43, align 1
-  %44 = getelementptr i8, ptr %4, i64 12
-  store i32 7, ptr %44, align 1
-  br label %45
+  call void @llvm.memset.p0.i64(ptr align 1 %3, i8 0, i64 28, i1 false)
+  %38 = getelementptr i8, ptr %4, i64 12
+  store i32 7, ptr %38, align 1
+  br label %39
 
-45:                                               ; preds = %139, %8
-  %46 = phi i32 [ 0, %8 ], [ %143, %139 ]
-  %47 = add i32 %46, 4
-  %48 = icmp sle i32 %47, 7
+39:                                               ; preds = %133, %8
+  %40 = phi i32 [ 0, %8 ], [ %137, %133 ]
+  %41 = add i32 %40, 4
+  %42 = icmp sle i32 %41, 7
+  %43 = zext i1 %42 to i32
+  br i1 %42, label %133, label %44
+
+44:                                               ; preds = %39
+  %45 = sext i32 %40 to i64
+  br label %46
+
+46:                                               ; preds = %127, %44
+  %47 = phi i64 [ %45, %44 ], [ %130, %127 ]
+  %48 = icmp slt i64 %47, 7
   %49 = zext i1 %48 to i32
-  br i1 %48, label %139, label %50
+  br i1 %48, label %124, label %50
 
-50:                                               ; preds = %45
-  %51 = sext i32 %46 to i64
-  br label %52
-
-52:                                               ; preds = %133, %50
-  %53 = phi i64 [ %51, %50 ], [ %136, %133 ]
-  %54 = icmp slt i64 %53, 7
-  %55 = zext i1 %54 to i32
-  br i1 %54, label %130, label %56
-
-56:                                               ; preds = %52
-  %57 = load ptr, ptr %ints, align 1
-  %58 = load i32, ptr %21, align 1
-  %59 = zext i32 %58 to i64
-  %60 = call fastcc i32 @sumInts(ptr %57, i64 %59)
-  %61 = mul i32 %60, 100000
+50:                                               ; preds = %46
+  %51 = load ptr, ptr %ints, align 1
+  %52 = load i32, ptr %21, align 1
+  %53 = zext i32 %52 to i64
+  %54 = call fastcc i32 @sumInts(ptr %51, i64 %53)
+  %55 = mul i32 %54, 100000
   store ptr %1, ptr %2, align 1
-  %62 = getelementptr i8, ptr %2, i64 8
-  %63 = load i32, ptr %62, align 1
-  store i32 3, ptr %62, align 1
+  %56 = getelementptr i8, ptr %2, i64 8
+  %57 = load i32, ptr %56, align 1
+  store i32 3, ptr %56, align 1
   store i32 1, ptr %1, align 1
-  %64 = getelementptr i8, ptr %1, i64 4
-  store i32 2, ptr %64, align 1
-  %65 = getelementptr i8, ptr %1, i64 8
-  store i32 3, ptr %65, align 1
-  %66 = getelementptr i8, ptr %2, i64 12
-  store i32 3, ptr %66, align 1
-  %67 = call fastcc i32 @sumInts(ptr %1, i64 3)
+  %58 = getelementptr i8, ptr %1, i64 4
+  store i32 2, ptr %58, align 1
+  %59 = getelementptr i8, ptr %1, i64 8
+  store i32 3, ptr %59, align 1
+  %60 = getelementptr i8, ptr %2, i64 12
+  store i32 3, ptr %60, align 1
+  %61 = call fastcc i32 @sumInts(ptr %1, i64 3)
   call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %2)
-  %68 = mul i32 %67, 10000
-  %69 = add i32 %61, %68
-  %70 = load ptr, ptr %xs, align 1
-  %71 = getelementptr i8, ptr %xs, i64 12
-  %72 = load i32, ptr %71, align 1
-  %73 = load ptr, ptr %ys, align 1
-  br label %74
+  %62 = mul i32 %61, 10000
+  %63 = add i32 %55, %62
+  %64 = load ptr, ptr %xs, align 1
+  %65 = getelementptr i8, ptr %xs, i64 12
+  %66 = load i32, ptr %65, align 1
+  %67 = load ptr, ptr %ys, align 1
+  br label %68
 
-74:                                               ; preds = %121, %56
-  %75 = phi <4 x float> [ zeroinitializer, %56 ], [ %128, %121 ]
-  %76 = phi i32 [ 0, %56 ], [ %129, %121 ]
-  %77 = add i32 %76, 4
-  %78 = icmp sle i32 %77, %72
-  %79 = zext i1 %78 to i32
-  br i1 %78, label %121, label %80
+68:                                               ; preds = %115, %50
+  %69 = phi <4 x float> [ zeroinitializer, %50 ], [ %122, %115 ]
+  %70 = phi i32 [ 0, %50 ], [ %123, %115 ]
+  %71 = add i32 %70, 4
+  %72 = icmp sle i32 %71, %66
+  %73 = zext i1 %72 to i32
+  br i1 %72, label %115, label %74
 
-80:                                               ; preds = %74
-  %81 = icmp slt i32 %76, %72
-  %82 = zext i1 %81 to i32
-  br i1 %81, label %84, label %83
+74:                                               ; preds = %68
+  %75 = icmp slt i32 %70, %66
+  %76 = zext i1 %75 to i32
+  br i1 %75, label %78, label %77
 
-83:                                               ; preds = %80
-  br label %94
+77:                                               ; preds = %74
+  br label %88
 
-84:                                               ; preds = %80
-  %85 = sub i32 %72, %76
-  %.splatinsert = insertelement <4 x i32> poison, i32 %85, i32 0
+78:                                               ; preds = %74
+  %79 = sub i32 %66, %70
+  %.splatinsert = insertelement <4 x i32> poison, i32 %79, i32 0
   %.splat = shufflevector <4 x i32> %.splatinsert, <4 x i32> poison, <4 x i32> zeroinitializer
-  %86 = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
-  %87 = sext i32 %76 to i64
-  %88 = shl i64 %87, 2
-  %89 = getelementptr i8, ptr %70, i64 %88
-  %90 = load <4 x float>, ptr %89, align 1
-  %x = select <4 x i1> %86, <4 x float> %90, <4 x float> zeroinitializer
-  %91 = getelementptr i8, ptr %73, i64 %88
-  %92 = load <4 x float>, ptr %91, align 1
-  %y = select <4 x i1> %86, <4 x float> %92, <4 x float> zeroinitializer
-  %93 = call <4 x float> @llvm.fma.v4f32(<4 x float> %x, <4 x float> %y, <4 x float> %75)
-  br label %94
+  %80 = icmp slt <4 x i32> <i32 0, i32 1, i32 2, i32 3>, %.splat
+  %81 = sext i32 %70 to i64
+  %82 = shl i64 %81, 2
+  %83 = getelementptr i8, ptr %64, i64 %82
+  %84 = load <4 x float>, ptr %83, align 1
+  %x = select <4 x i1> %80, <4 x float> %84, <4 x float> zeroinitializer
+  %85 = getelementptr i8, ptr %67, i64 %82
+  %86 = load <4 x float>, ptr %85, align 1
+  %y = select <4 x i1> %80, <4 x float> %86, <4 x float> zeroinitializer
+  %87 = call <4 x float> @llvm.fma.v4f32(<4 x float> %x, <4 x float> %y, <4 x float> %69)
+  br label %88
 
-94:                                               ; preds = %84, %83
-  %95 = phi <4 x float> [ %75, %83 ], [ %93, %84 ]
-  %96 = shufflevector <4 x float> %95, <4 x float> poison, <2 x i32> <i32 0, i32 2>
-  %97 = shufflevector <4 x float> %95, <4 x float> poison, <2 x i32> <i32 1, i32 3>
-  %98 = fadd <2 x float> %96, %97
-  %99 = shufflevector <2 x float> %98, <2 x float> poison, <1 x i32> zeroinitializer
-  %100 = shufflevector <2 x float> %98, <2 x float> poison, <1 x i32> <i32 1>
-  %101 = fadd <1 x float> %99, %100
-  %102 = extractelement <1 x float> %101, i64 0
+88:                                               ; preds = %78, %77
+  %89 = phi <4 x float> [ %69, %77 ], [ %87, %78 ]
+  %90 = shufflevector <4 x float> %89, <4 x float> poison, <2 x i32> <i32 0, i32 2>
+  %91 = shufflevector <4 x float> %89, <4 x float> poison, <2 x i32> <i32 1, i32 3>
+  %92 = fadd <2 x float> %90, %91
+  %93 = shufflevector <2 x float> %92, <2 x float> poison, <1 x i32> zeroinitializer
+  %94 = shufflevector <2 x float> %92, <2 x float> poison, <1 x i32> <i32 1>
+  %95 = fadd <1 x float> %93, %94
+  %96 = extractelement <1 x float> %95, i64 0
   call fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %xs)
   call fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %ys)
-  %103 = fcmp oeq float %102, 3.000000e+01
-  %104 = zext i1 %103 to i32
-  %105 = select i1 %103, i32 30, i32 0
-  %106 = mul i32 %105, 100
-  %107 = add i32 %69, %106
-  %108 = load ptr, ptr %ints, align 1
-  %109 = getelementptr i8, ptr %ints, i64 12
-  %110 = load i32, ptr %109, align 1
-  %111 = zext i32 %110 to i64
-  %112 = call fastcc i32 @indexOf(ptr %108, i64 %111, i32 8)
+  %97 = fcmp oeq float %96, 3.000000e+01
+  %98 = zext i1 %97 to i32
+  %99 = select i1 %97, i32 30, i32 0
+  %100 = mul i32 %99, 100
+  %101 = add i32 %63, %100
+  %102 = load ptr, ptr %ints, align 1
+  %103 = getelementptr i8, ptr %ints, i64 12
+  %104 = load i32, ptr %103, align 1
+  %105 = zext i32 %104 to i64
+  %106 = call fastcc i32 @indexOf(ptr %102, i64 %105, i32 8)
   call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %ints)
-  %113 = mul i32 %112, 10
-  %114 = add i32 %107, %113
-  %115 = load ptr, ptr %4, align 1
-  %116 = getelementptr i8, ptr %4, i64 12
-  %117 = load i32, ptr %116, align 1
-  %118 = zext i32 %117 to i64
-  %119 = call fastcc i32 @sumInts(ptr %115, i64 %118)
+  %107 = mul i32 %106, 10
+  %108 = add i32 %101, %107
+  %109 = load ptr, ptr %4, align 1
+  %110 = getelementptr i8, ptr %4, i64 12
+  %111 = load i32, ptr %110, align 1
+  %112 = zext i32 %111 to i64
+  %113 = call fastcc i32 @sumInts(ptr %109, i64 %112)
   call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %4)
-  %120 = add i32 %114, %119
-  ret i32 %120
+  %114 = add i32 %108, %113
+  ret i32 %114
 
-121:                                              ; preds = %74
-  %122 = sext i32 %76 to i64
-  %123 = shl i64 %122, 2
-  %124 = getelementptr i8, ptr %70, i64 %123
-  %125 = load <4 x float>, ptr %124, align 1
-  %126 = getelementptr i8, ptr %73, i64 %123
-  %127 = load <4 x float>, ptr %126, align 1
-  %128 = call <4 x float> @llvm.fma.v4f32(<4 x float> %125, <4 x float> %127, <4 x float> %75)
-  %129 = add i32 %76, 4
-  br label %74
+115:                                              ; preds = %68
+  %116 = sext i32 %70 to i64
+  %117 = shl i64 %116, 2
+  %118 = getelementptr i8, ptr %64, i64 %117
+  %119 = load <4 x float>, ptr %118, align 1
+  %120 = getelementptr i8, ptr %67, i64 %117
+  %121 = load <4 x float>, ptr %120, align 1
+  %122 = call <4 x float> @llvm.fma.v4f32(<4 x float> %119, <4 x float> %121, <4 x float> %69)
+  %123 = add i32 %70, 4
+  br label %68
 
-130:                                              ; preds = %52
-  %131 = icmp uge i64 %53, 7
-  %132 = zext i1 %131 to i32
-  br i1 %131, label %137, label %133
+124:                                              ; preds = %46
+  %125 = icmp uge i64 %47, 7
+  %126 = zext i1 %125 to i32
+  br i1 %125, label %131, label %127
 
-133:                                              ; preds = %130
-  %134 = shl i64 %53, 2
-  %135 = getelementptr i8, ptr %3, i64 %134
-  store i32 3, ptr %135, align 1
-  %136 = add i64 %53, 1
-  br label %52
+127:                                              ; preds = %124
+  %128 = shl i64 %47, 2
+  %129 = getelementptr i8, ptr %3, i64 %128
+  store i32 3, ptr %129, align 1
+  %130 = add i64 %47, 1
+  br label %46
 
-137:                                              ; preds = %130
-  %138 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
+131:                                              ; preds = %124
+  %132 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
   unreachable
 
-139:                                              ; preds = %45
-  %140 = sext i32 %46 to i64
-  %141 = shl i64 %140, 2
-  %142 = getelementptr i8, ptr %3, i64 %141
-  store <4 x i32> <i32 3, i32 3, i32 3, i32 3>, ptr %142, align 1
-  %143 = add i32 %46, 4
-  br label %45
+133:                                              ; preds = %39
+  %134 = sext i32 %40 to i64
+  %135 = shl i64 %134, 2
+  %136 = getelementptr i8, ptr %3, i64 %135
+  store <4 x i32> <i32 3, i32 3, i32 3, i32 3>, ptr %136, align 1
+  %137 = add i32 %40, 4
+  br label %39
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind readnone willreturn
@@ -445,8 +433,12 @@ declare i1 @llvm.vector.reduce.or.v4i1(<4 x i1>) #0
 ; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
 declare i32 @llvm.cttz.i32(i32, i1 immarg) #1
 
+; Function Attrs: argmemonly nocallback nofree nounwind willreturn writeonly
+declare void @llvm.memset.p0.i64(ptr nocapture writeonly, i8, i64, i1 immarg) #2
+
 ; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
 declare <4 x float> @llvm.fma.v4f32(<4 x float>, <4 x float>, <4 x float>) #1
 
 attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
 attributes #1 = { nocallback nofree nosync nounwind readnone speculatable willreturn }
+attributes #2 = { argmemonly nocallback nofree nounwind willreturn writeonly }

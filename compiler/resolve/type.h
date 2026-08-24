@@ -1604,6 +1604,21 @@ struct CoreClasses {
  */
 TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr);
 
+/*
+ * The type of `value :: [T *_]` - the count read off the literal the ascription is written at.
+ *
+ * A helper rather than a case inside `resolveType`, because the count is not in the type at all:
+ * it is a fact about the *expression* on the other side of the `::`, and `resolveType` is handed
+ * only the type. The two callers are the two places an ascription is resolved - the expression
+ * resolver's `Coerce` arm and the constant evaluator's - which is exactly the set of positions
+ * where a literal supplies one.
+ *
+ * Null, having reported, where the ascribed value is not an array literal. `resolveType` reports
+ * the same kind reaching it any other way, since a parameter or a field has nothing to count.
+ */
+TypePtr inferredArrayType(Module& module, const ast::Type& written, const ast::Expr& value,
+                          GenEnv* env);
+
 // One argument of a written application, at whichever kind the *declaration's* parameter at that
 // index is: a type, or a count that takes an integer literal or a const parameter. `declared` is the
 // context of whatever is being applied - a record's, an alias's or a class's.

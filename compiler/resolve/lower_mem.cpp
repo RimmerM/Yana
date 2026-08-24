@@ -218,6 +218,98 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
 }
 
 /*
+ * The bytes below which a fill stays the stores it was written as.
+ *
+ * `expandBlockOperations` gives a fill this small the same stores anyway - `stepWidth` caps the step
+ * at the whole operation - so the exchange buys no instructions and costs `lower_forward` the fact
+ * that it knows what is in each slot.
+ */
+static constexpr U32 kFillPatternBytes = 16;
+
+/*
+ * A run whose every element is the same byte, as one `SetPattern` - the block fill.
+ *
+ * `[0] :: [U8 *64]` is a fill written as one element, and the resolver expands it into the same
+ * sixty-four-component `InstAggregate` a hand-written literal produces, precisely so that nothing
+ * between there and here needs a second shape to reason about. This is where it collapses again -
+ * and it collapses a *hand-written* run of zeroes on the same terms, which is why the recognition is
+ * over the aggregate rather than over the syntax that built it. A growable literal's run is the same
+ * instruction over the same steps, so `[0, 0, ...] :: [Int]` reaches it too.
+ *
+ * Five things have to hold, and each is a fact this pass checks rather than a claim it is handed:
+ *
+ *  - **Every component is an element**, at index `i` in position `i`, covering the whole run. An
+ *    aggregate with a constructor or a `Field` step is a record, whose components are not a stride
+ *    apart; and a component `buildAggregate` skipped - which is what an element that failed to
+ *    resolve leaves - shifts every index after it and is refused by the same test.
+ *  - **An integer constant.** `SetPattern` names a byte, and a value known only at run time cannot
+ *    be shown to have a uniform one however wide it is.
+ *  - **The same constant in every element.** Compared by *value* rather than by pointer, which is
+ *    what lets a hand-written run of zeroes collapse and not only a fill: the fill pushes one value
+ *    `count` times, but `[0, 0, ...]` resolves each zero separately and nothing above here merges
+ *    them. Two `ConstInt`s of one type holding one number are one byte pattern, which is the whole
+ *    of what this needs to know about them.
+ *  - **A plain scalar whose stride is its size.** A narrow repr - `Bool`, a three-bit enum - stores
+ *    fewer bits than it occupies and its store path is not a plain one; a stride above the size
+ *    would leave inter-element padding this writes and the stores do not.
+ *  - **Every byte of the element equal.** `0` and `-1` qualify at every width and any `U8` does;
+ *    `7 :: U32` does not, because `07 07 07 07` is not seven. Read off the constant rather than off
+ *    the target's byte order, which does not enter: a value whose bytes are all equal reads the same
+ *    either way, and one whose bytes are not is refused here.
+ */
+static bool lowerUniformFill(LowerContext& lower, LowerBlock& block, Function& function,
+                             InstAggregate& aggregate) {
+    if(aggregate.constructor != maxLimit<U16>) return false;
+
+    auto count = aggregate.components.size();
+    if(count < 2) return false;
+
+    auto first = aggregate.components.get(lower.local, 0);
+    if(!first.value) return false;
+
+    auto value = lower.local[first.value];
+    if(value->kind != Value::ConstInt) return false;
+
+    auto repr = lower.repr.of(value->type);
+    if(!repr.scalarBits || isNarrowRepr(repr) || !repr.size || repr.stride != repr.size) return false;
+
+    auto bytes = U64(repr.size) * count;
+    if(bytes < kFillPatternBytes) return false;
+
+    auto written = ((ConstInt*)value)->value;
+    auto byte = written & 0xff;
+
+    for(U32 i = 1; i < repr.size; i++) {
+        if(((written >> (i * 8)) & 0xff) != byte) return false;
+    }
+
+    for(Size i = 0; i < count; i++) {
+        auto component = aggregate.components.get(lower.local, i);
+        if(!component.value) return false;
+
+        auto element = lower.local[component.value];
+        if(element->kind != Value::ConstInt || ((ConstInt*)element)->value != written) return false;
+
+        // The type as well as the number, because the byte count comes from the first element's
+        // repr and a component of a different width would be filled at the wrong stride.
+        if(element->type != value->type) return false;
+
+        if(component.step.kind != ProjectionKind::Index || !component.step.value) return false;
+
+        auto index = lower.local[component.step.value];
+        if(index->kind != Value::ConstInt || ((ConstInt*)index)->value != i) return false;
+    }
+
+    auto to = lowerPlace(lower, block, function, aggregate.place);
+    if(!to) return false;
+
+    block.addInst(lower.lower, new (lower.to.arena) LowerInstSetPattern(
+        to, immediate(lower, bytes), immediate(lower, byte, LowerType::Int32)));
+
+    return true;
+}
+
+/*
  * The storage and ownership instructions.
  *
  * Returns the instruction whose result is this value, or null when the arm mapped what it produced
@@ -478,6 +570,8 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
          */
         case Value::Aggregate: {
             auto& aggregate = (InstAggregate&)instruction;
+
+            if(lowerUniformFill(lower, block, *function, aggregate)) return nullptr;
 
             eachWrittenComponent(lower.local, lower.from.arena, aggregate,
                                  [&](Place place, ModulePtr<Value> value, Size) {

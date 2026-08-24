@@ -2351,9 +2351,17 @@ ast::Type Parser::parseArrayType(const WithLocation& location, ast::ParsePtr<ast
             auto map = ast::Type::MapPayload { heap(from), heap(to) };
             type = Just(makeType(Map, map, map, location, attributes));
         } else if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == arraySizeId; })) {
-            auto size = parseExpr();
-            auto arr = ast::Type::ArrPayload { heap(from), heap(size) };
-            type = Just(makeType(Arr, arr, arr, location, attributes));
+            // `[T *_]` - the count is whatever the literal written at this type has. Read here
+            // rather than through `parseExpr`, which would have to admit `_` as an expression
+            // everywhere to say it in this one position.
+            if(maybe(Token::kw_)) {
+                auto arr = ast::Type::ArrPayload { heap(from), nullptr };
+                type = Just(makeType(ArrInferred, arr, arr, location, attributes));
+            } else {
+                auto size = parseExpr();
+                auto arr = ast::Type::ArrPayload { heap(from), heap(size) };
+                type = Just(makeType(Arr, arr, arr, location, attributes));
+            }
         } else {
             auto arr = ast::Type::ArrPayload { heap(from), nullptr };
             type = Just(makeType(Arr, arr, arr, location, attributes));

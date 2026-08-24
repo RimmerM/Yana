@@ -1,0 +1,43 @@
+{-
+   What the fill and the inferred count refuse - Implementation-Containers.md §8.
+
+   The two spellings are deliberately narrow, and each rejection below is the reason one of them is:
+
+    - A fill is **one element and no other count**, which is what keeps the count check doing its
+      job. Two elements at a five-element target is the mistake it always was, so the only way to
+      reach a fill by accident is to write exactly one element *and* to have written the count in
+      the type - which is the statement of intent the rule reads.
+    - A fill is **one value duplicated**, which only `TrivialCopy` licenses. The elements are one
+      value appearing `n` times, and a type whose duplicate is not its bytes would be handed over
+      that many times from one place.
+    - `_` is **a count taken off a literal**, so it is legal only where there is one. A parameter, a
+      field or a return type has nothing to count, and inferring a *signature* from a body is a
+      different feature that recursion and forward declaration both have opinions about.
+-}
+
+import Native
+
+-- **A fill is one element.** Any other count is compared against the type, exactly as it was before
+-- fills existed.
+fn twoAtFive() -> {}:
+    let xs = [1, 2] :: [Int *5]
+
+-- **And it duplicates, so the element has to be duplicable.** A `String` owns its bytes; four of
+-- them from one value would be one allocation with four owners and four teardowns.
+fn owned() -> {}:
+    let &xs = ["hi"] :: [String *4]
+
+-- **`_` needs a literal to count.** A parameter has none, and the diagnostic says where one would
+-- have to be rather than naming a type that failed to resolve.
+fn parameter(xs: [Int *_]) -> Int = 0
+
+-- A field is the same case one step out: a default is not what the type is read from, and a field
+-- with no default has nothing at all.
+data Holder {values: [Int *_]}
+
+-- And an ascription on something that is not an array literal has nothing to count either, however
+-- much the type looks like it should work.
+fn notALiteral() -> {}:
+    let n = 5 :: [Int *_]
+
+fn main() -> Int = 0

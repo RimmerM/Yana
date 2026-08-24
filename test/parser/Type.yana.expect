@@ -600,8 +600,39 @@ Module
 |               | `-GenType a
 |               `-Field <anonymous>
 |                 `-GenType b
+|-AliasDecl X 
+| `-AppType 
+|   |-ConType Y
+|   `-RefType 
+|     `-ConType Z
+|-AliasDecl X 
+| `-ArrType 
+|   |-ConType Int
+|   `-LitExpr 4
+|-AliasDecl X 
+| `-ArrType 
+|   |-ConType Int
+|   `-VarExpr n
+|-AliasDecl X 
+| `-ArrType <inferred count> 
+|   `-ConType Int
+|-AliasDecl X 
+| `-ArrType <inferred count> 
+|   `-ArrType <inferred count> 
+|     `-ConType Int
+|-AliasDecl X 
+| `-TupType 
+|   |-Field x
+|   | `-ArrType <inferred count> 
+|   |   `-ConType Int
+|   `-Field y
+|     `-BorrowType 
+|       `-ArrType 
+|         |-ConType Int
+|         `-LitExpr 4
 `-AliasDecl X 
-  `-AppType 
-    |-ConType Y
-    `-RefType 
-      `-ConType Z
+  `-ArrType <inferred count> 
+    `-FunType 
+      |-Arg <anonymous>
+      | `-ConType Int
+      `-ConType Bool

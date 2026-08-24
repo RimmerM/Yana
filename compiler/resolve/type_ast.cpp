@@ -1049,6 +1049,13 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             auto element = resolveType(module, *module.parse[type.arr.type], env);
             return instantiateRecord(module, module.program.arrayType, { &element, 1 }, type.source);
         }
+        case ast::Type::ArrInferred:
+            // Reached only where nothing supplies a count. The two positions that do - the `::` of
+            // an expression and of a constant - call `inferredArrayType` before they get here, so
+            // arriving at this arm *is* the diagnostic's condition rather than a case it tests for.
+            return errorType(module, type.source,
+                             "a count written `_` is taken from the literal the type is written at, and there is no literal here - write the number, or move the type onto a `::` in front of one"_v);
+
         case ast::Type::Map: {
             // `[K: V]` is `Map(K, V)`, on exactly the terms `[T]` is `Array(T)` above: a spelling in
             // the grammar for a record declared in Collections - Implementation-Map.md §7.
@@ -1162,4 +1169,35 @@ bool checkReturnRoot(Module& module, TypePtr type, ast::BindType convention, U32
 TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsMutable) {
     if(!allRootsMutable || !isBorrow(*module.types, result)) return result;
     return resolveBorrowType(module, ((BorrowType*)(*module.types)[result])->to, true);
+}
+
+TypePtr inferredArrayType(Module& module, const ast::Type& written, const ast::Expr& value,
+                          GenEnv* env) {
+    assertTrue(written.kind == ast::Type::ArrInferred);
+
+    /*
+     * An array literal and nothing else. A fill is one too - `[0] :: [U8 *_]` is a one-element
+     * array, since the count it would spread into is the one this type is trying to read off it -
+     * and that falls out rather than being a case: the count is the number of elements written.
+     */
+    if(value.kind != ast::Expr::Array) {
+        module.context.diagnostics.error("a count written `_` is taken from the array literal the type is written at, and this is not one - write the number instead"_v,
+                                         written.source);
+        return module.scalar.error;
+    }
+
+    auto element = resolveType(module, *module.parse[written.arr.type], env);
+
+    // Copied rather than named, because `SmallList::size` is not const and this is handed the
+    // expression by reference - the same reason `resolveArray` takes its list by value.
+    auto items = value.arr;
+    auto count = items.size();
+
+    if(count > kMaxFixedArrayLength) {
+        module.context.diagnostics.error("a fixed array may hold at most %@ elements, and this literal has %@"_v,
+                                         written.source, U32(kMaxFixedArrayLength), U64(count));
+        return module.scalar.error;
+    }
+
+    return resolveFixedArrayType(module, element, U32(count), written.source);
 }

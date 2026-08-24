@@ -128,6 +128,31 @@ instance Chunked(Flat(a), a):
     iter fn chunks(self: Flat(a)) -> Flat(a) = yield elements(self)
 
 {-
+   And the fixed array, which had no `length` at all.
+
+   `[a *n]` already reaches every `[a]` function through the conversion at a call - that is
+   Implementation-Containers.md §6, and it is what makes `total(xs)` in the fixed-array fixture
+   compile with no instance anywhere. What it could not do is answer `length` about *itself*, which
+   a generic body constrained on `Length(c)` asks, and the answer costs nothing: a fixed array stores
+   no count, so what every other container here loads is a constant.
+
+   **`Chunked` and `Contiguous` are deliberately not here beside it**, and the reason is a compiler
+   limitation rather than a decision about containers. `Chunked`'s member is an `iter fn`, and a
+   *parametric* instance of one - which this would be, the count being a variable - cannot have its
+   continuation result inferred when the body that selects it is compiled with specialization
+   declined: "cannot infer type argument $r of Chunked([a *n], a).chunks". So the two were written,
+   found to compile in a specialized build and fail in the erased one, and withdrawn. What wanted
+   them was `Digest`'s result type in `lib/Digest/`, and what it does instead is take a `Flat(U8)` -
+   which the conversion at the call already supplies - and ask the class for the one thing a generic
+   body cannot reach by conversion. See `Digest.finishInto`.
+
+   `(n: Int)` is the context and `a` is introduced by the head, which is the instance form const
+   generics landed with - see `Sized` in test/resolve/ConstGeneric.yana.
+-}
+instance (n: Int) Length([a *n]):
+    fn length(self: [a *n]) -> Size = n :: Size
+
+{-
    Reading a whole vector out of a chunk, and writing one back - Implementation-Vector.md §12's "a
    way to read a vector out of a `Flat(a)`", which is what the iteration protocol below is built on.
 

@@ -627,13 +627,35 @@ static ConstantPtr arrayConstant(Module& module, const ast::Expr& expr, TypePtr 
     // here - a generic `[T *n]` has no constant to be.
     auto length = constValue(global, array.count);
 
-    if(elements.size() != length) {
-        context.diagnostics.error("%@ has %@ elements, but %@ holds %@"_v, expr.source, what,
-                                  elements.size(), describeType(context, global, expected), length);
+    /*
+     * The fill, on exactly the terms resolveFixedArray states it: one element at a target holding
+     * more spreads into every one of them, and any other mismatch is the mistake it was.
+     *
+     * No ownership question arises here, unlike in a body. A constant has no teardown and no
+     * hand-over - it is bytes in the image - so what the expression resolver asks `TrivialCopy`
+     * about is already answered for anything that can be a constant at all.
+     */
+    auto fill = elements.size() == 1 && length > 1;
+
+    if(!fill && elements.size() != length) {
+        context.diagnostics.error("%@ has %@ elements, but %@ holds %@ - one element fills the whole array, and any other count has to be written out"_v,
+                                  expr.source, what, elements.size(), describeType(context, global, expected), length);
         return nullptr;
     }
 
     auto value = makeConst(module, expected, ConstKind::Aggregate);
+
+    if(fill) {
+        auto content = evaluateConstant(module, elements[0], array.content, what, staticForm, notConstant);
+        if(!content && !isUnit(global, array.content)) return nullptr;
+
+        // The same constant `length` times. A constant is a tree rather than bytes - see
+        // aggregate constants - so the children are pointers into one arena and repeating one
+        // costs a pointer apiece rather than a copy of the value apiece.
+        for(U64 i = 0; i < length; i++) value->children.push(module.arena, content);
+
+        return value - *module.arena;
+    }
 
     for(auto element: elements) {
         auto content = evaluateConstant(module, element, array.content, what, staticForm, notConstant);
@@ -821,7 +843,14 @@ ConstantPtr evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expe
      */
     if(value->kind == ast::Expr::Coerce) {
         auto& coerce = *module.parse[value->coerce];
-        auto written = resolveType(module, coerce.type);
+
+        // `[T *_]` counts the literal rather than reading a number out of the type - see
+        // inferredArrayType. A global is one of the two positions that can, and the more useful of
+        // them: a `let` pattern carries no type annotation, so this `::` is the only thing here
+        // that says what the constant is.
+        auto written = coerce.type.kind == ast::Type::ArrInferred
+            ? inferredArrayType(module, coerce.type, coerce.target, nullptr)
+            : resolveType(module, coerce.type);
 
         // The written type failed to resolve, which `resolveType` has already reported - as the
         // error type rather than as nothing, which is what every other reader of it tests for. A
