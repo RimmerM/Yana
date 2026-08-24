@@ -199,6 +199,29 @@ FeatureSet targetFeatures();
 void setTargetFeatures(FeatureSet features);
 
 /*
+ * Whether this function must be encoded without a vector prefix, whatever the target's features say.
+ *
+ * **One function, one encoding.** Mixing VEX-encoded vector instructions with legacy SSE ones inside
+ * a function is architecturally legal and is a performance trap: a legacy SSE write leaves the upper
+ * half of the register it names alone, so the processor has to preserve state the VEX instructions
+ * around it were free to discard, and every crossing costs. On the part this was measured on
+ * (Golden Cove) the cost is **140x** on a function that alternates the two every few instructions,
+ * which is exactly what a SHA-NI compression loop is: `sha256rnds2` is legacy-encoded and has no VEX
+ * spelling in the architecture, and the `paddd` and `pshufd` around it do.
+ *
+ * So a function holding one of those - `MachineForm::legacyOnly` - is encoded in legacy form
+ * throughout, and `selectAlternativeForm` is where that is spent. What it costs is the three-operand
+ * shape and the unaligned memory operand a VEX form would have had; what it buys is the 25x the
+ * hardware digest is worth in the first place.
+ *
+ * Process-wide and per function, for the reason `targetFeatures` is: form selection is asked from a
+ * dozen places that have an instruction and no function. `transformFunction` sets it, which is the
+ * narrowest point every path through this backend passes.
+ */
+bool legacyVectorEncodings();
+void setLegacyVectorEncodings(bool legacy);
+
+/*
  * And what a given set of settings comes to.
  *
  * Only the vector extensions are read, and only when they were *named*: see

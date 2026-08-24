@@ -50,6 +50,7 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Fun:        return OpFunctionAddress;
         case LowerInst::Imm:        return OpImm;
         case LowerInst::Nop:        return OpNop;
+        case LowerInst::VZeroUpper: return OpVZeroUpper;
         case LowerInst::Set:        return OpMove;
         case LowerInst::Cast:       return OpCast;
         case LowerInst::Bitcast:    return OpBitcast;
@@ -361,6 +362,19 @@ static MachineFormId selectAlternativeForm(MachineFormId id) {
         auto& form = machineTarget().form(alternative);
         if((form.requiredFeatures & ~targetFeatures()) != 0) return id;
 
+        /*
+         * And the one thing a *function* has a say in - see `legacyVectorEncodings` in target.h.
+         *
+         * A function that holds an instruction with no VEX spelling is encoded without one
+         * throughout, because alternating the two inside a loop costs far more than either
+         * encoding buys. Only the prefixed alternatives are refused: the scalar ones a level also
+         * brings - `shlx` off `shl cl`, `mulx` off `mul` - name general registers and are no part
+         * of this.
+         */
+        if(legacyVectorEncodings() && form.encoding.prefixEncoding != PrefixEncoding::Legacy) {
+            return id;
+        }
+
         id = alternative;
     }
 }
@@ -392,6 +406,9 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
 
     switch(inst->kind) {
         case LowerInst::Nop:        return FormNop;
+        // One form, and the only one this kind ever has: it is a whole instruction with no operands,
+        // so there is nothing for `selectPackedForm` above to have chosen between.
+        case LowerInst::VZeroUpper: return FormVZeroUpper;
         case LowerInst::Arg:        return FormArg;
         case LowerInst::Phi:        return FormPhi;
         case LowerInst::X86Address: return FormAddress;

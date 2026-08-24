@@ -1,0 +1,31 @@
+
+vectorReset<complex>() {
+  b_0 {
+    vzeroupper 
+    ret 
+  }
+}
+
+resetThenAdd<complex>(%a: Int, %b: Int): Int {
+  b_0 {
+    vzeroupper 
+    %r = add %a, %b: Int
+    ret %r
+  }
+}
+
+
+--- codegen: vectorReset ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vzeroupper uses=[] creates=[]  => c5f877
+  ret uses=[] creates=[]  => c3
+
+--- codegen: resetThenAdd ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vzeroupper uses=[] creates=[]  => c5f877
+  add uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8d0437
+  ret uses=[rax] creates=[]  => c3

@@ -17,9 +17,20 @@
 static constexpr FeatureSet kBaselineFeatures = kFeatureBaseline;
 
 static FeatureSet gTargetFeatures = kBaselineFeatures;
+static bool gLegacyVectorEncodings = false;
 
 FeatureSet targetFeatures() {
     return gTargetFeatures;
+}
+
+// See the note in target.h. False by default, which is what every function that holds no
+// legacy-only form gets and is what this backend did before there was such a form.
+bool legacyVectorEncodings() {
+    return gLegacyVectorEncodings;
+}
+
+void setLegacyVectorEncodings(bool legacy) {
+    gLegacyVectorEncodings = legacy;
 }
 
 void setTargetFeatures(FeatureSet features) {

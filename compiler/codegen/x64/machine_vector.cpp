@@ -1712,6 +1712,139 @@ static Maybe<StringView> unsupportedVectorReason(LowerBase base, LowerInst* inst
     }
 }
 
+/*
+ * A wide vector value inside a function that either is encoded without a vector prefix or clears the
+ * vector state - the one thing neither can survive, reported rather than emitted.
+ *
+ * **Wide, and not "vector"**, which is the whole precision of this check. `vzeroupper` zeroes bits
+ * 128 and up and leaves the low half of every register alone, so a `Vec(U32, 4)` held in an xmm is
+ * untouched by it and a `Vec(I32, 8)` is destroyed. An earlier reading of this had the entry reset
+ * unsafe in any function taking a vector argument, and concluded that such a function needed a
+ * calling convention that preserved nothing - which was two mistakes: an xmm argument survives, and
+ * `Complex` already clobbers all sixteen vector registers anyway, so no convention this compiler
+ * enters a function under has a callee-saved one to protect.
+ *
+ * The attribute promises that no instruction in this body carries a VEX prefix, which is what stops
+ * the crossing between prefixed and unprefixed encodings that costs 140x on the part it was measured
+ * on - see `legacyVectorEncodings` in target.h. `vectorClassNeedsVex` keeps that promise for the
+ * three *narrow* classes and answers `false` for the wide ones, because they have no legacy spelling
+ * to be chosen against: a 256-bit move is VEX whatever any function says. So a wide value inside a
+ * marked function is a body that mixes the two encodings while claiming not to, and nothing else in
+ * the backend would say so.
+ *
+ * **This is a hole in the mechanism as it stood rather than one the attribute introduced.** The pass
+ * that used to decide the same flag by walking the call graph had it too, and could not have
+ * reported it: it marked a function *because* it held a SHA instruction, so there was no declaration
+ * to point a diagnostic at and no author to have written it.
+ *
+ * Asked of the types rather than of the placement, which is a superset: a function naming a 32-byte
+ * type and having every one of them folded away before a register is handed out would be reported
+ * here and would have been harmless. That is the right way to be wrong. The exact answer only exists
+ * after register allocation, which is far past the point a diagnostic can name a declaration, and a
+ * region written in legacy encodings has no business naming a wide vector in the first place.
+ */
+bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun) {
+    auto ok = true;
+
+    /*
+     * The other direction, and the backstop the declared form needs: a function holding an
+     * instruction with *no* VEX spelling and not marked.
+     *
+     * This is what the deleted pass computed to find its roots - `functionHasLegacyOnlyVectors` -
+     * kept as an assertion now that nothing infers the answer. The closure it then ran downward
+     * through the call graph is what went; the root test is still exactly right, and without it the
+     * attribute would fail silently in the one way that matters. An **inlined** marked function is
+     * the case: the flag belongs to a `LowerFunction`, a spliced body has none, and the SHA
+     * instructions would arrive in a VEX-encoded caller with nothing to say so.
+     *
+     * Reported against the caller, which is where the fix is: give the callee `@noinline`, or mark
+     * the caller too. A kind test rather than a form test, so that the answer exists before
+     * selection has run.
+     */
+    auto holdsReset = false;
+
+    if(!fun.legacyVectors) {
+        for(auto offset: fun.blocks.contents(base)) {
+            auto block = base[offset];
+
+            for(auto i: block->instructions.contents(base)) {
+                auto inst = base[i];
+                if(inst->kind == LowerInst::VZeroUpper) holdsReset = true;
+                if(inst->kind != LowerInst::ShaBinary && inst->kind != LowerInst::Sha256Rounds) continue;
+
+                ctx.diagnostics.error("x64: %@ holds a SHA-extension instruction but is not marked `@x86_legacy_sse` - that instruction has no VEX spelling, so this body would cross between prefixed and unprefixed encodings. Mark this function, or give the one it was inlined from `@noinline`"_v,
+                                      inst->source, ctx.findName(fun.name));
+                ok = false;
+            }
+        }
+
+        // An unmarked function may still call `X86.vzeroupper()`, and the wide-vector test below is
+        // what makes that safe - so it is asked whenever either is true rather than only when the
+        // attribute is written. A marked function reaches it because it is marked; this one reaches
+        // it because it holds the instruction the test is about.
+        if(!holdsReset) return ok;
+    } else {
+        for(auto offset: fun.blocks.contents(base)) {
+            auto block = base[offset];
+
+            for(auto i: block->instructions.contents(base)) {
+                if(base[i]->kind == LowerInst::VZeroUpper) holdsReset = true;
+            }
+        }
+    }
+
+    /*
+     * The other half of what makes an entry reset safe, and the half that is a property of the
+     * *convention* rather than of any value: no register this function is expected to give back may
+     * be one the instruction clears.
+     *
+     * **Checked rather than assumed, and the difference is not academic.** `Complex` - what every
+     * function gets by default - happens to clobber all sixteen vector registers today, so this
+     * passes without a convention being written. That is a fact about the current internal
+     * convention and not a promise: the backend is entitled to start preserving some of them if that
+     * allocates better, and the day it does, every `X86.vzeroupper()` in the program would begin
+     * corrupting a caller's register with nothing to say so. A library that wants the guarantee in
+     * its own declaration writes `@convention(sysv)`, whose vector file is caller-saved *by the
+     * psABI* rather than by this compiler's current judgement.
+     */
+    if(holdsReset) {
+        auto& convention = targetConstraints().getConvention(fun.callType);
+
+        if(convention.calleeSaved.banks[BankVector] != 0) {
+            ctx.diagnostics.error("x64: %@ calls `X86.vzeroupper()` under the `%@` convention, which preserves vector registers - the instruction would clear the upper half of one this function never named and never saved. Write `@convention(sysv)`, whose vector file is caller-saved by the ABI"_v,
+                                  fun.source, ctx.findName(fun.name), nameForCallType(fun.callType));
+            ok = false;
+        }
+    }
+
+    auto report = [&](LocationId source, StringView why) {
+        ctx.diagnostics.error("x64: %@ holds a vector wider than 128 bits, and %@"_v,
+                              source, ctx.findName(fun.name), why);
+        ok = false;
+    };
+
+    auto why = fun.legacyVectors
+        ? "is marked `@x86_legacy_sse` - a wide vector has no unprefixed encoding, so this body would mix VEX and legacy instructions, which is what the attribute is there to prevent. Narrow the type, or drop the attribute"_v
+        : "calls `X86.vzeroupper()` - that instruction zeroes bits 128 and up of every vector register, so a wide value live across it is silently truncated. Narrow the type, or move the call"_v;
+
+    for(auto type: fun.returnTypes.contents(base)) {
+        if(isWideVector(LowerType(type))) report(fun.source, why);
+    }
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(auto i: block->instructions.contents(base)) {
+            auto inst = base[i];
+            for(auto& value: inst->created()) {
+                if(isWideVector(value.type)) report(inst->source, why);
+            }
+        }
+    }
+
+    return ok;
+}
+
 bool checkVectorSupported(Context& ctx, LowerBase base, LowerFunction& fun) {
     auto ok = true;
 

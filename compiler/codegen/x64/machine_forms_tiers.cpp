@@ -606,6 +606,7 @@ void MachineFormBuilder::registerVexTier() {
          */
         auto needsVexTwin = [&](const MachineForm& form) {
             if(form.encoding.prefixEncoding != PrefixEncoding::Legacy) return false;
+            if(form.legacyOnly) return false;  // no VEX encoding exists - see MachineForm::legacyOnly
             if(form.alternative != 0 || form.alternativeOf != 0) return false;
             if(form.memorySourceOf != 0) return false;
             if(form.encoding.family == EncodingFamily::None) return false;

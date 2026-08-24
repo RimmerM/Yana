@@ -188,6 +188,7 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::Ceil:
         case Value::Round:
         case Value::Fma:
+        case Value::VZeroUpper:
         case Value::Add:
         case Value::Sub:
         case Value::Mul:

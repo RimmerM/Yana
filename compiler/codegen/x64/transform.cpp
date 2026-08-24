@@ -480,6 +480,11 @@ static const TransformPass kTransformPipeline[] = {
     // packed one. Above every pass that rewrites a select, since the one it builds is an ordinary
     // compare-and-select from here down and nothing below needs to know where it came from.
     { "expandRoundAway"_v,             expandRoundAway,             0 },
+
+    // Anywhere above selection would do - it removes an instruction and reads nothing - and it is
+    // here so that no later pass has to consider a kind that this build cannot emit. Not
+    // vectors-only: `functionHasVectors` asks about values, and this instruction has none.
+    { "dropUnsupportedVectorResets"_v, dropUnsupportedVectorResets, 0 },
     { "lowerVectorReductions"_v,       lowerVectorReductions,       0, true },
 
     /*
@@ -836,6 +841,31 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
     // instruction and no settings, so the answer is process-wide rather than carried. See
     // targetFeatures in target.h.
     setTargetFeatures(x64FeaturesFor(ctx.settings));
+
+    /*
+     * And whether this function is one of the ones that has to be encoded without a vector prefix -
+     * see `legacyVectorEncodings` in target.h.
+     *
+     * **Read here and decided nowhere**, which is the change from what this used to be. It was a
+     * module pass - `markLegacyVectorEncodings` - that took the functions holding an instruction
+     * with no VEX spelling as roots and closed downward through the call graph, because the crossing
+     * that costs is between two *instructions* and a compression loop calling a four-instruction
+     * helper crosses twice per call however the loop itself is encoded.
+     *
+     * What that could not see is the *caller*. The dirt costing ~160 ns per call to the hardware
+     * SHA path was a wide vector left in the caller's registers by a 64-byte block copy, and no
+     * decision about the callee's encoding reaches it - so the closure was a correct answer to half
+     * the question and there was no half left for it to be the other one of. `@x86_legacy_sse` is
+     * the same set said by the author, which costs a line per function in one file, is checkable
+     * (see checkLegacyVectorEncoding, which the closure could not have been), and leaves the other
+     * half to `X86.vzeroupper()` - a call, placed where the author knows no vector value is
+     * arriving. See Analysis-Warts.md §7.
+     */
+    setLegacyVectorEncodings(fun.legacyVectors);
+
+    // And whether the attribute's promise is one this body can keep - beside checkVectorSupported
+    // below, at the same point and for the same reason.
+    checkLegacyVectorEncoding(ctx, base, fun);
 
     // Asked here because this is the first thing the backend does to a function and the question is
     // about the IR as it arrives - so a frame this backend cannot build is a diagnostic against the

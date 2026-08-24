@@ -1179,6 +1179,23 @@ void genInst(FunGen& f, LowerInst& inst) {
         case LowerInst::ScatterBits:
             genBitOperation(f, (LowerInstBinary&)inst);
             break;
+
+        /*
+         * `vzeroupper`, dropped.
+         *
+         * Deliberately not `llvm.x86.avx.vzeroupper`, and not an omission. LLVM decides for itself
+         * which vector instructions carry a prefix and runs `X86VZeroUpper` to place the resets that
+         * choice implies, so on this backend both halves of the source-level mechanism belong to
+         * LLVM: `@x86_legacy_sse` says nothing here either. Emitting the intrinsic as well would be
+         * a second opinion about state LLVM is already tracking, at best redundant and at worst a
+         * reset in a place its own pass had proved unnecessary.
+         *
+         * So a program that writes `X86.vzeroupper()` gets it honoured by the x64 backend and
+         * subsumed by this one, which is the same relationship the two have over every other
+         * encoding decision.
+         */
+        case LowerInst::VZeroUpper:
+            break;
         case LowerInst::Cmp:
             genCmp(f, (LowerInstCmp&)inst);
             break;

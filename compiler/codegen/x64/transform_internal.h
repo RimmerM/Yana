@@ -289,6 +289,10 @@ void scalarizeVectorLanes(Context&, LowerBase base, LowerFunction& fun);
 void expandFusedMultiplyAdd(Context&, LowerBase base, LowerFunction& fun);
 void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun);
 void expandRoundAway(Context&, LowerBase base, LowerFunction& fun);
+
+// `X86.vzeroupper()` where the target has no AVX, which is a machine with nothing to reset - see the
+// note on the pass.
+void dropUnsupportedVectorResets(Context&, LowerBase base, LowerFunction& fun);
 void expandBitScans(Context&, LowerBase base, LowerFunction& fun);
 
 // The three operations BMI2 has an instruction for and the floor does not - `bitsUpTo` and the two

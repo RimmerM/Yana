@@ -475,6 +475,15 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInst(LowerInst::Nop)));
     });
 
+    // `vzeroupper` - `nop`'s shape, and here so that a `.lower` fixture can round-trip one: the
+    // printer emits the name, so the parser has to accept it or a golden could not be regenerated.
+    instructionSet.add(Context::nameHash("vzeroupper"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 0);
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstVZeroUpper()));
+    });
+
     instructionSet.add(Context::nameHash("cast"_v), handleCast<false, false>());
     instructionSet.add(Context::nameHash("sext"_v), handleCast<true, true>());
     instructionSet.add(Context::nameHash("ftoi"_v), handleCast<false, true>());

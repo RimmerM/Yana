@@ -812,6 +812,25 @@ struct LowerFunction {
     LowerCallType callType = kDefaultCallType;
 
     /*
+     * This function must be encoded without a vector prefix - the x86-64 backend's, read by it and
+     * by nothing else.
+     *
+     * `@x86_legacy_sse` on the declaration, carried here by resolve/lower.cpp beside `callType`.
+     * `legacyVectorEncodings` in codegen/x64/target.h is the note on why such a decision exists at
+     * all, and `checkLegacyVectorEncoding` in codegen/x64/machine_vector.cpp is what holds the
+     * marked function to it.
+     *
+     * **Declared rather than inferred**, which is a change: a module pass used to take the functions
+     * holding a SHA instruction as roots and close downward through the call graph. That answered
+     * for the callee's own encoding and could not answer for the caller's registers, which is where
+     * the remaining cost was - see the note in transformFunction.
+     *
+     * False everywhere on every other target and on every module that never reaches a SHA extension
+     * instruction, which is all but one.
+     */
+    bool legacyVectors = false;
+
+    /*
      * Constant data emitted immediately in front of this function's entry point, or null.
      *
      * "Immediately" is the whole content of the field: a code generator may pad before the data but

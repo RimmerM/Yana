@@ -2744,6 +2744,13 @@ struct Emitter {
                 to.buffer.writeByte(0x90);
                 break;
 
+            // The one place a program can ask for this rather than the emitter deciding it is owed -
+            // `X86.vzeroupper()`. Same three bytes, written by the same function, so the explicit
+            // form and the boundary ones cannot disagree about what the instruction is.
+            case PseudoKind::VZeroUpper:
+                emitVectorZeroUpper();
+                break;
+
             case PseudoKind::CallDirect: {
                 // The callee's address is a rel32 in the instruction rather than a value in a
                 // register, which is why the Fun that produced it was elided.

@@ -437,6 +437,13 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 mappedValue(lower, fma.a), mappedValue(lower, fma.b), mappedValue(lower, fma.c)));
             break;
         }
+        // No operands, no result, and no target question to ask: what it means is the same on every
+        // machine that has it, and a machine that does not is one this never reaches - see the
+        // `@platform(x64)` declaration it comes from.
+        case Value::VZeroUpper:
+            result = block.addInst(lower.lower, new (lower.to.arena) LowerInstVZeroUpper());
+            break;
+
         /*
          * The two rotations, and the widths that do not survive this seam.
          *

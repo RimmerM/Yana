@@ -208,6 +208,8 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "imm"_v;
         case LowerInst::Nop:
             return "nop"_v;
+        case LowerInst::VZeroUpper:
+            return "vzeroupper"_v;
         case LowerInst::Cast:
             return nameForCast(base, (LowerInstCast&)inst);
         case LowerInst::Bitcast:

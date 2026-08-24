@@ -1469,6 +1469,14 @@ struct InstVecShuffle: Inst {
         right = f(right);
     }
 };
+// `vzeroupper` - see `Value::VZeroUpper` in inst.def. No operands and no result: what it changes is
+// processor state that nothing in this IR names, which is why it is a statement rather than a value.
+struct InstVZeroUpper: Inst {
+    InstVZeroUpper(ModulePtr<Block> block, TypePtr unit): Inst(Value::VZeroUpper, block, unit) {}
+
+    template<class F> void mapOperandFields(ModuleBase, F&&) {}
+};
+
 
 // Every lane combined into one scalar, in the pairwise order Design-Vector §4.5 states. `type` is
 // the lane's; for a mask it is `Int`, so `any` is Or, `all` is And and `count` is Add.

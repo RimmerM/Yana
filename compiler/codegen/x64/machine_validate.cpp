@@ -302,9 +302,14 @@ bool validateMachineForms(const MachineTarget& target) {
          * operation added to the table above gets its twin from the sweep in the constructor, and
          * one added somewhere the sweep does not look fails here instead of costing silently.
          *
-         * A pseudo is exempt and is the one exemption. Its bytes are its own emitter's rather than
+         * A pseudo is exempt for a reason of its own: its bytes are its own emitter's rather than
          * this descriptor's, and the emitters ask `packedNeedsVex` directly - there is nothing for a
          * second form to describe, the operand constraints being identical either way.
+         *
+         * And a form that declares `legacyOnly`, which is the other exemption and the sharper one:
+         * the SHA extension's seven instructions have no VEX encoding *in the architecture*, so a
+         * twin of one is a byte sequence that decodes as nothing. See MachineForm::legacyOnly, and
+         * the same test in `needsVexTwin`, which is the sweep this rule exists to police.
          */
         auto touchesVectorRegister = [&](const MachineForm& f) {
             auto vectorClass = [](const MachineOperandConstraint& c) {
@@ -326,6 +331,7 @@ bool validateMachineForms(const MachineTarget& target) {
         };
 
         if(encoding.prefixEncoding == PrefixEncoding::Legacy && form.alternative == 0
+            && !form.legacyOnly
             && encoding.family != EncodingFamily::None && encoding.family != EncodingFamily::Pseudo
             && touchesVectorRegister(form))
         {

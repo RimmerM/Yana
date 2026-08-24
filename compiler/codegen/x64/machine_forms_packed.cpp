@@ -1220,10 +1220,15 @@ void MachineFormBuilder::registerPackedForms() {
     auto& zero = add(FormVZeroUpper, OpVZeroUpper, "vzeroupper"_v);
     zero.requiredFeatures = kFeatureAvx;
     zero.encoding = EncodingDescriptor {
-        .family = EncodingFamily::Opcode,
+        // A pseudo rather than an `Opcode` row, and the reason is that this instruction's prefix is
+        // a VEX one: `emitOpcode` writes a legacy prefix, a REX and an escape and has no VEX to
+        // write, so the row as originally declared emitted a bare `77` - which decodes as `ja`. It
+        // was never reached until `X86.vzeroupper()` gave a program a way to ask for it, which is
+        // how that went unnoticed. `C5 F8 77` is VEX.128.0F.WIG, written by emitVectorZeroUpper.
+        .family = EncodingFamily::Pseudo,
+        .pseudo = PseudoKind::VZeroUpper,
         .opcode = 0x77,
-        // No operand and no result, so the width is stated rather than derived - and it is what
-        // the encoding is: `C5 F8 77` is VEX.128.0F.WIG, which is W0 as this writer emits it.
+        // No operand and no result, so the width is stated rather than derived.
         .width = OperationWidth::Fixed32,
         .prefixEncoding = PrefixEncoding::Vex,
     };

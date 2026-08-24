@@ -1,0 +1,37 @@
+# `vzeroupper` - the vector state reset, as the bytes it encodes to.
+#
+# extensions: v3
+#
+# One instruction, its own fixture, and worth both. It is what `X86.vzeroupper()` becomes: the only
+# instruction a program asks for here rather than an operation it performs, written at the entry of a
+# function marked `@x86_legacy_sse` so that no upper half is non-zero when the first unprefixed
+# vector instruction runs. See `Value::VZeroUpper` in resolve/inst.def.
+#
+# **Pinned because the bytes were wrong and nothing noticed.** `FormVZeroUpper` was declared as an
+# `EncodingFamily::Opcode` row carrying `PrefixEncoding::Vex`, and that family writes a legacy
+# prefix, a REX and an escape - it has no VEX to write. So the row emitted a bare `77`, which decodes
+# as `ja` and jumped into the middle of the function. Nothing selected the form until the intrinsic
+# gave a program a way to ask for it, so it sat unreachable and untested for as long as it existed.
+# `c5 f8 77` is VEX.128.0F.WIG, and it is written in exactly one place - Emitter::emitVectorZeroUpper
+# - which the pseudo this form now uses calls rather than repeats.
+#
+# At v3 rather than at the floor, and that is the assertion rather than a setting: below AVX there is
+# no encoding that could have left an upper half non-zero and no instruction to write, so
+# `dropUnsupportedVectorResets` removes it and this golden would record an empty block. The two
+# behaviours are one decision seen at two levels, and only the level with the instruction can pin it.
+vectorReset() {
+    {
+        vzeroupper
+        ret
+    }
+}
+
+# Beside a real instruction, so that the encoding is pinned in a position rather than alone in a
+# block: three bytes, then whatever follows, with nothing merged and nothing reordered.
+resetThenAdd(%a: Int, %b: Int): Int {
+    {
+        vzeroupper
+        %r = add %a, %b: Int
+        ret %r
+    }
+}

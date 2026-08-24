@@ -667,6 +667,12 @@ enum class PseudoKind: U8 {
     // neither an epilogue to run nor a `ret` to run it before.
     NoReturn,
 
+    // `vzeroupper` - three fixed bytes and no operands, which is `Nop`'s shape. A pseudo rather than
+    // an `EncodingFamily::Opcode` row because that family writes a legacy prefix, a REX and an
+    // escape, and this instruction's prefix is a VEX one - and because the bytes are already written
+    // in exactly one place, `Emitter::emitVectorZeroUpper`, which this calls rather than repeats.
+    VZeroUpper,
+
     Jump,
     Branch,
     AllocaFixed,
@@ -1037,6 +1043,22 @@ struct MachineForm {
     // opcode names the same operand as its address (validateMachineForms).
     MachineFormId memorySource = 0;
     MachineFormId memorySourceOf = 0;
+
+    /*
+     * The operation has no VEX spelling at all, so the sweep that derives one must skip it.
+     *
+     * Every other legacy packed row in this table is `paddd` to `vpaddd`'s: the VEX prefix is a
+     * second encoding of the same instruction, and `registerNarrowVexForms` builds it from the
+     * legacy row so that the two cannot disagree about what the operation is. The SHA extension is
+     * the exception - its seven instructions are legacy-encoded and nothing else, so a derived
+     * `vsha256rnds2` is a byte sequence that decodes as nothing at all.
+     *
+     * A flag rather than a test on the opcode, because what it states is a fact about the
+     * *instruction set* rather than about this backend's opcode numbering - and because the failure
+     * it prevents is silent until the program runs: the twin is selected at v3 and faults, which is
+     * exactly what it did.
+     */
+    bool legacyOnly = false;
 
     /*
      * The same operation written with a vector prefix, where the target can encode one.
@@ -1468,6 +1490,10 @@ U8 broadcastLaneByte(LowerType type, U8 index);
 bool isPooledVectorConstant(LowerBase base, LowerValue* value);
 
 bool checkVectorSupported(Context& ctx, LowerBase base, LowerFunction& fun);
+
+// And whether a function marked `@x86_legacy_sse` keeps the promise that attribute makes - see the
+// note on it in machine_vector.cpp.
+bool checkLegacyVectorEncoding(Context& ctx, LowerBase base, LowerFunction& fun);
 
 // The width the operation this form describes works at - see OperationWidth. Asked by the encoder to
 // choose the operand size, and by the memory-operand rules to decide whether a frame slot is exactly

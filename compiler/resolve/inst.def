@@ -330,6 +330,28 @@ YANA_INST(BitsUpTo,     InstBinary,      "bitsupto"_v,    kInstResult | kInstPur
  */
 YANA_INST(GatherBits,   InstBinary,      "gatherbits"_v,  kInstResult | kInstPure)
 YANA_INST(ScatterBits,  InstBinary,      "scatterbits"_v, kInstResult | kInstPure)
+
+/*
+ * `vzeroupper` - the vector state reset, as an ordinary call a program writes.
+ *
+ * Reachable only through `X86.vzeroupper()` in `lib/Core/X86.sha.yana`, beside the seven above and
+ * for the same reason: it is a named instruction of one architecture with no portable meaning. What
+ * it does is clear the upper half of every vector register, which is what a function whose body is
+ * encoded without a VEX prefix - `@x86_legacy_sse` - needs to have happened before its first
+ * instruction runs. See Analysis-Warts.md §7, and `legacyVectorEncodings` in codegen/x64/target.h.
+ *
+ * **Explicit rather than emitted by the backend at the entry of a marked function.** The two facts
+ * are about different sets of functions - the whole region is encoded legacy, and only its two entry
+ * points may clear the state, because a helper that took a vector argument would have it destroyed -
+ * and a rule deriving which is which from a signature stops being right silently. So the encoding is
+ * an attribute and the state change is a call, placed where the author knows it is safe.
+ *
+ * **Not pure, and it has no result**, which is the whole of what the traits have to say: it takes no
+ * operands, so anything treating it as recomputable would delete it outright. It is also not a
+ * memory operation, so nothing above the backend orders anything against it - which is correct at
+ * the only place it may be written, the top of a function, where there is nothing yet to order.
+ */
+YANA_INST(VZeroUpper,   InstVZeroUpper,  "vzeroupper"_v,  0)
 YANA_INST(Cmp,          InstCmp,         "cmp"_v,         kInstResult | kInstPure)
 // Pure because both of its arms are: a select is only ever built out of values that may be computed
 // unconditionally, so there is nothing in one that recomputing could repeat and nothing that not

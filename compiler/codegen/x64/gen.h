@@ -158,7 +158,6 @@ void classifyResults(const CallConvention& convention, Size count, F&& typeOf, A
 // the area cannot knock rsp off the boundary the callee is entitled to expect.
 U32 argAreaBytes(const CallConvention& convention, const ArgLocationList& args);
 
-
 // The calling conventions, which are the one part of an instruction's register behaviour that a
 // machine form cannot state for itself: where a call's arguments go depends on how many of each bank
 // came before them, which a fixed operand list cannot say. Everything else - fixed registers, ties,
@@ -1217,6 +1216,13 @@ inline RegisterClassId widestVectorClass() {
  */
 inline bool vectorClassNeedsVex(RegisterClassId regClass) {
     if(regClass != ClassFloat32 && regClass != ClassFloat64 && regClass != ClassXmm128) return false;
+
+    // And the one thing a function has a say in - see `legacyVectorEncodings` in target.h. A copy or
+    // a spill written with a vector prefix inside a function whose arithmetic is legacy is exactly
+    // the crossing that flag exists to stop, and the allocator writes more of these than the
+    // instruction selector writes anything.
+    if(legacyVectorEncodings()) return false;
+
     return (targetFeatures() & kFeatureAvx) != 0;
 }
 
@@ -1224,6 +1230,7 @@ inline bool vectorClassNeedsVex(RegisterClassId regClass) {
 // packed instructions: those are all ClassXmm128 at the narrow width and ClassYmm256 at the wide one,
 // and the wide one is VEX whatever this answers.
 inline bool packedNeedsVex() {
+    if(legacyVectorEncodings()) return false;
     return (targetFeatures() & kFeatureAvx) != 0;
 }
 

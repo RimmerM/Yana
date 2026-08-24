@@ -230,6 +230,19 @@ struct LowerInst {
         Fma,
 
         /*
+         * `vzeroupper` - the vector state reset, written in source as `X86.vzeroupper()`.
+         *
+         * No operands and no result: what it changes is processor state nothing in this IR names.
+         * See `Value::VZeroUpper` in resolve/inst.def for why it is a call a program writes rather
+         * than something the backend inserts at the entry of a `legacyVectors` function.
+         *
+         * It has no expansion, on the SHA instructions' terms and for a different reason: there is
+         * nothing for a target without AVX to do, so a build below that level drops it rather than
+         * standing anything in for it.
+         */
+        VZeroUpper,
+
+        /*
          * The five vector operations that are not one of the above.
          *
          * Everything else a vector does is an instruction that already exists: an add of two
@@ -1102,6 +1115,11 @@ struct LowerInstCopy: LowerInst {
 };
 
 // Copies a pattern byte to the target pointer.
+// `vzeroupper` - see `LowerInst::VZeroUpper`. Nothing to carry: no operands, no result, no fields.
+struct LowerInstVZeroUpper: LowerInst {
+    LowerInstVZeroUpper(): LowerInst(VZeroUpper) {}
+};
+
 struct LowerInstSetPattern: LowerInst {
     LowerInstSetPattern(LowerPtr<LowerValue> to, LowerPtr<LowerValue> count, LowerPtr<LowerValue> pattern):
         LowerInst(SetPattern), to(to), count(count), pattern(pattern)

@@ -1354,6 +1354,39 @@ void biasUnsignedPackedCompares(Context&, LowerBase base, LowerFunction& fun) {
  * Scalar as well as packed, so this pass is not `vectorsOnly` - `Real(Double).round` is a scalar
  * `Round` and reaches selection by exactly this path.
  */
+/*
+ * `vzeroupper` on a machine that has no VEX-encoded instruction to have dirtied anything.
+ *
+ * `X86.vzeroupper()` is what a program writes at the entry of a legacy-encoded region so that no
+ * upper half is non-zero when its first unprefixed vector instruction runs - see `Value::VZeroUpper`
+ * in resolve/inst.def. Below AVX there is no encoding that could have left one non-zero and no
+ * instruction to write, so the call is removed rather than standing anything in for it.
+ *
+ * It is not conditional in *source*, and that is the point of doing it here: the library says the
+ * instruction it wants at the place it wants it, and which builds have something to emit for it is a
+ * question about the target that only the backend can answer. `hasShaExtension` and the AVX level
+ * are independent - Goldmont shipped SHA-NI with no AVX at all - so a build where this fires is a
+ * real configuration rather than a hypothetical one.
+ *
+ * No operands and no result, so removal is the list edit and nothing else: there is no use list to
+ * repair and nothing that named it.
+ */
+void dropUnsupportedVectorResets(Context&, LowerBase base, LowerFunction& fun) {
+    if(targetFeatures() & kFeatureAvx) return;
+
+    for(auto offset: fun.blocks.contents(base)) {
+        auto block = base[offset];
+
+        for(Size i = 0; i < block->instructions.size();) {
+            if(base[block->instructions.get(base, i)]->kind == LowerInst::VZeroUpper) {
+                block->instructions.remove(base, i);
+            } else {
+                i++;
+            }
+        }
+    }
+}
+
 void expandRoundAway(Context&, LowerBase base, LowerFunction& fun) {
     for(auto offset: fun.blocks.contents(base)) {
         auto block = base[offset];

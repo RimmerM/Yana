@@ -1128,6 +1128,8 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
         case LowerInst::Imm:
             return validateImm(diagnostics, (LowerImm*)inst);
         case LowerInst::Nop:
+        // Nothing to check: no operands to type, no result to name, no fields to be out of range.
+        case LowerInst::VZeroUpper:
             return true;
         case LowerInst::Cast:
             return validateCast(diagnostics, base, (LowerInstCast*)inst);

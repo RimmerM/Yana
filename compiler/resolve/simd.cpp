@@ -717,6 +717,16 @@ static ModulePtr<Value> emitFma(ExprResolver& resolver, Buffer<ModulePtr<Value>>
     if(!requireFloating(resolver, type, source, "fma"_v)) return nullptr;
     return resolver.ref(resolver.emit<InstFma>(source, name, type, args[0], args[1], args[2]));
 }
+// `X86.vzeroupper()` - no arguments and no result, so the hook is the emit and nothing else. The
+// type it is given is the declared one, which is `{}`; see `Value::VZeroUpper` in inst.def.
+static ModulePtr<Value> emitVZeroUpper(ExprResolver& resolver, Buffer<ModulePtr<Value>>, TypePtr type,
+                                       LocationId source, StringId name) {
+    return resolver.ref(resolver.emit<InstVZeroUpper>(source, name, type));
+}
+
+void defineCpuIntrinsics(Module& core) {
+    attachIntrinsic(core, "X86.vzeroupper"_v, emitVZeroUpper);
+}
 
 void defineVectorIntrinsics(Module& core) {
     attachIntrinsic(core, "splat"_v, emitSplat);
