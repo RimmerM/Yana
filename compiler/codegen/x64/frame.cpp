@@ -46,9 +46,25 @@ static bool callsAnything(LowerBase base, LowerFunction& fun) {
     return false;
 }
 
-// An alloca whose size is not an immediate moves rsp at run time. Read straight from the IR rather
-// than from FrameObjects::hasDynamicAlloca, which is the same test made by collectFrameObjects and
-// is not available yet at the point this has to be answered.
+/*
+ * An alloca whose size is not an immediate moves rsp at run time. Read straight from the IR rather
+ * than from `FrameObjects::hasDynamicAlloca`, which is the same test made by collectFrameObjects and
+ * is not available yet at the point this has to be answered.
+ *
+ * **This over-reports, and every caller is one where over-reporting is the safe direction.**
+ * `isImm` wants `LowerValue::Implicit` as well as the kind - the flag saying the constant has been
+ * folded into the instruction that reads it - and nothing sets that flag until the constant passes
+ * run. So at any point before those passes this answers "dynamic" for a fixed-size alloca too.
+ *
+ * The one reader left is `functionNeedsFramePointer`, which is asked before allocation and where a
+ * wrong "yes" costs a register in a function that turns out not to need one. A wrong *"no"* would be
+ * unrecoverable - `register.cpp` asserts that a dynamic alloca has a frame pointer - so the test may
+ * not be sharpened here to whatever the kind happens to be mid-pipeline: a pass is free to
+ * materialize a constant into a register or fold one out of it, and this runs before both.
+ *
+ * The **refusal** that used to read it too has moved, for exactly that reason - see the note in
+ * computeFrameLayout. A refusal answered conservatively rejects programs that compile.
+ */
 static bool hasDynamicAlloca(LowerBase base, LowerFunction& fun) {
     for(auto offset: fun.blocks.contents(base)) {
         for(auto i: base[offset]->instructions.contents(base)) {
@@ -166,25 +182,6 @@ bool functionMayRealignStack(LowerBase base, LowerFunction& fun, const Constrain
 static void reportUnsupportedFrame(Context& ctx, LowerFunction& fun) {
     ctx.diagnostics.error("x64: %@ both allocates at run time and needs a stack alignment stronger than its calling convention promises, and this backend cannot build a frame that does both - the alignment moves the locals below the stack pointer and the allocation moves the stack pointer out from under them"_v,
                           nullptr, ctx.findName(fun.name));
-}
-
-/*
- * Asked here of everything the IR states outright, and asked again in computeFrameLayout of the one
- * thing it does not.
- *
- * The split is the same one functionMayRealignStack draws and it is drawn here for a sharper reason:
- * this is a *refusal*, so answering it conservatively would reject programs that compile. An alloca
- * that demands an over-aligned address and a call that demands an over-aligned rsp are both written
- * in the IR and are exact here; a spill slot that demands one is not, and refusing every function
- * that merely *holds* a wide value would refuse most of them. So the wide-spill half is left to the
- * layout, which knows whether a slot was actually made - and reports the same diagnostic when it was.
- */
-bool checkFrameSupported(Context& ctx, LowerBase base, LowerFunction& fun, const Constraints& constraints) {
-    if(!hasDynamicAlloca(base, fun)) return true;
-    if(requiredStackAlignment(base, fun, constraints) <= constraints.getConvention(fun.callType).stackAlignment) return true;
-
-    reportUnsupportedFrame(ctx, fun);
-    return false;
 }
 
 /*
@@ -315,17 +312,32 @@ FrameLayout computeFrameLayout(Context& ctx, LowerBase base, LowerFunction& fun,
      * through rsp, and a run-time allocation moves rsp out from under them. Supporting both would
      * take a third base register held for the whole function, which nothing reserves.
      *
-     * checkFrameSupported reported it before any of this ran wherever the IR said so outright. What
-     * it could not see is a realignment demanded by a *spill slot*, since nothing knew what would
-     * spill - so the report is made here as well, and the two are exclusive: whichever of them sees
-     * the combination first is the one that names it.
+     * **Reported here and nowhere else, which is a change.** It used to be asked twice: once at the
+     * top of `transformFunction`, over the IR as it arrived, and again here for the one demand that
+     * form could not see - a realignment a *spill slot* asked for, since nothing knew what would
+     * spill until allocation had run.
      *
-     * What is left after either is only to build *a* frame rather than an inconsistent one, and the
-     * frame that is still internally consistent is the one that does not realign. It is under-aligned
-     * for whatever asked for the alignment, which is what the diagnostic says; nothing runs it.
+     * The early copy is gone because neither of the two facts it needed is settled that early.
+     * `frame.hasDynamicAlloca` is `collectFrameObjects`' answer and is exact; the same question
+     * asked over the arriving IR is not, because `isImm` wants a flag the constant passes have not
+     * set yet, so every fixed-size alloca read as dynamic. Being wrong in that direction is fine for
+     * a frame pointer and not fine for a refusal - it rejects programs that compile, which is what
+     * the first `@convention(sysv)` callee ran into: it raised its callers' required alignment above
+     * what their own convention promised, and all three were refused on the strength of a 16-byte
+     * alloca of a slice descriptor. Sharpening the early test instead would have traded that for the
+     * unrecoverable direction, since a pass may materialize a constant into a register or fold one
+     * out of it and that test runs before both.
+     *
+     * So the question is asked once, at the only point where both halves of it are exact. Nothing is
+     * emitted for this function until the layout it returns is built.
+     *
+     * What is left after the report is only to build *a* frame rather than an inconsistent one, and
+     * the frame that is still internally consistent is the one that does not realign. It is
+     * under-aligned for whatever asked for the alignment, which is what the diagnostic says; nothing
+     * runs it.
      */
     if(layout.realignsStack && frame.hasDynamicAlloca) {
-        if(requiredStackAlignment(base, fun, constraints) <= entryAlignment) reportUnsupportedFrame(ctx, fun);
+        reportUnsupportedFrame(ctx, fun);
         layout.realignsStack = false;
     }
 

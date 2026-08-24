@@ -1466,8 +1466,8 @@ U8 broadcastLaneByte(LowerType type, U8 index);
 /*
  * The vector operations this backend cannot emit, reported where a program can still be stopped.
  *
- * The same split - and for the same reason - as `checkFrameSupported`, whose comment says it
- * outright: a gap stated as an `assertTrue` inside form selection compiles away in a release build,
+ * The same split - and for the same reason - as the frame refusal in frame.cpp, whose comment says
+ * it outright: a gap stated as an `assertTrue` inside form selection compiles away in a release build,
  * so the program that stopped in a debug build emits something that is not it in the configuration
  * users actually build. `test/resolve/VecOps.yana` was the demonstration, exiting 255 natively where
  * the same fixture answers 2042 under Node.

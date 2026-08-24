@@ -867,13 +867,6 @@ void transformFunction(Context& ctx, LowerBase base, LowerFunction& fun, Machine
     // below, at the same point and for the same reason.
     checkLegacyVectorEncoding(ctx, base, fun);
 
-    // Asked here because this is the first thing the backend does to a function and the question is
-    // about the IR as it arrives - so a frame this backend cannot build is a diagnostic against the
-    // program rather than something the frame builder discovers with the code half emitted. See
-    // checkFrameSupported; the pipeline still runs, since a reported error stops emission anyway and
-    // a half-transformed function is worse to reason about than a whole one.
-    checkFrameSupported(ctx, base, fun, targetConstraints());
-
     // And the same question about the vector operations, at the same point and for the same reason -
     // see checkVectorSupported. It has to stand after setTargetFeatures, since which forms exist is
     // a function of the feature set this build claims.

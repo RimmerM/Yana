@@ -1174,8 +1174,9 @@ struct FunctionRegs {
  *
  * A dynamic alloca and a realignment are the one combination not supported: the alloca moves rsp out
  * from under the locals the realignment put there, and keeping them reachable would take a third base
- * register held for the whole function. checkFrameSupported reports it as the function enters the
- * backend, in every build, rather than leaving it to an assertion a release build removes.
+ * register held for the whole function. `computeFrameLayout` reports it, in every build, rather than
+ * leaving it to an assertion a release build removes - and reports it there rather than earlier
+ * because that is where both halves of the question are exact. See the note beside it.
  */
 /*
  * The bytes a whole vector register occupies when it is preserved.
@@ -1317,8 +1318,6 @@ bool functionMayRealignStack(LowerBase base, LowerFunction& fun, const Constrain
 // Whether this backend can build a frame for this function at all, reported if it cannot. Answered
 // from the IR before any backend decision has been taken, and unconditionally rather than as an
 // assertion - the one unsupported combination is a dynamic alloca in a function that also has to
-// realign the stack. Returns false having reported; see checkFrameSupported in frame.cpp.
-bool checkFrameSupported(Context& ctx, LowerBase base, LowerFunction& fun, const Constraints& constraints);
 
 // Checks that the offsets a layout produced describe a frame its objects fit in, and that no two of
 // them land on the same bytes. Both failures corrupt memory rather than producing a visibly wrong
