@@ -34,6 +34,7 @@ let sysRemoveDirectory = 84 :: Size
 let sysUnlink = 87 :: Size
 let sysDirectoryEntries = 217 :: Size
 let sysClockTime = 228 :: Size
+let sysGetRandom = 318 :: Size
 
 -- PROT_READ | PROT_WRITE, and MAP_PRIVATE | MAP_ANONYMOUS.
 let protReadWrite = 3 :: Size
@@ -378,6 +379,36 @@ pub let clockMonotonic = 1 :: Size
 -- draws. `Native.Clock` is what turns a failure into a fallback.
 pub fn readClock(clock: Size, &into: ClockTime) -> Size =
     syscall2(sysClockTime, clock, clockAddress(into))
+
+{-
+   ==========================================================================================
+   The kernel's entropy pool - Analysis-Library.md §2.7.
+   ==========================================================================================
+
+   `getrandom`, which is the one way in this file's vocabulary to ask for bytes nobody can predict.
+   Reading `/dev/urandom` is the older spelling and is three calls rather than one, each of which can
+   fail differently - a chroot with no `/dev`, a process out of descriptors - and the descriptor is
+   the whole of what the system call exists to remove.
+
+   Call number 318, which is 2014's and is therefore the *newest* number this file names: a kernel
+   older than 3.17 answers `ENOSYS` and `Native.Entropy` is what turns that into a "no".
+
+   The flags are the kernel's own two bits and only one of them is written here. `GRND_NONBLOCK` is
+   what stops a call at boot time, before the pool is initialized, from parking the process until it
+   is; the answer then is `EAGAIN`, which is a failure a caller can do something about where an
+   unbounded wait is not. `GRND_RANDOM` selects the blocking pool and is deliberately absent - the
+   two pools have been the same generator since 5.6, and asking for it on an older kernel is the
+   unbounded wait again.
+
+   Answers the kernel's own number - the count it filled or the negated errno - which is the line
+   every call in this file draws. **A short answer is not an error**: the call is documented to fill
+   at most 256 bytes without being interruptible and to stop early for a signal past that, so a
+   caller that wants a buffer full has to ask again for the rest. `Native.Entropy` is that loop.
+-}
+pub let randomNonBlocking = 1 :: Size
+
+pub fn readRandom(to: %U8, count: Size, flags: Size) -> Size =
+    syscall3(sysGetRandom, bitcast(to) :: Size, count, flags)
 
 -- This process's own identifier, which cannot fail and so is the one call here that answers no
 -- error. What wants it is a program that has to name something no other process will name at the

@@ -63,8 +63,8 @@ pub fn unixTimeMicros() -> I64:
        `FormCallIndirect` already reads a callee out of a register for a closure - so what is absent
        is the front half of an FFI, which doc/spec/targets.md records as an open question and
        resolve/host.h describes in the same words. **Analysis-Function-Pointers.md is the design for
-       it**, written from this gap: a function type that names a foreign convention is one word and
-       is entered under that ABI, which is the whole of what has to be added.
+       it**, written from this gap: a function type that names a calling convention is one word and
+       is entered under that convention, which is the whole of what has to be added.
        `test/x64/ForeignIndirect.lower` is the part that turned out to need nothing.
 
    So the fast path is one primitive away and the primitive is a language decision, not a clock one.

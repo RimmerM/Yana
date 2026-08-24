@@ -1,0 +1,47 @@
+{-
+   Bytes nobody can predict, on the target that has a kernel - Analysis-Library.md §2.7.
+
+   One function over `getrandom`, sitting between the call number and `Random.secureRandom` the way
+   `Clock.native.yana` sits between `clock_gettime` and `Date`: `Linux.x64.yana` knows one kernel's
+   numbers and nothing about what a program wants them to mean, and this knows what the answer means
+   and nothing about which call produced it.
+
+   **A pointer and a count, which is every other call in this layer's shape.** A `[U8]` would read
+   better and is deliberately not written: `values` - the only way to get an address out of a slice -
+   exists natively and not on JavaScript, so a container in a signature here would be a container
+   `Random` cannot construct the argument for on the other target. `File` is where the same layering
+   puts the slice, one module up, and `Random` puts it in the same place.
+
+   `Bool` and not the kernel's number, which is this file's one departure from the layer under it.
+   `File` maps nineteen errno values onto a closed set because a program branches on them; there is
+   nothing to branch on here. `ENOSYS` from a kernel older than the call, `EAGAIN` from a pool that
+   is not seeded yet and `EFAULT` from an address that cannot be written all mean the same thing to a
+   caller - ask somewhere else - and the caller §2.7 has in mind is `randomSeed`, whose somewhere
+   else is the clock.
+
+   There is no JavaScript file beside this, and that is the honest shape rather than a gap: that host
+   has no entropy source a library may rely on, so the answer there is a constant `False` and
+   `Random` writes it inline. See the note on `fillEntropy` there for why `crypto.getRandomValues`
+   and `Math.random` are both refused.
+-}
+
+{-
+   Fills `count` bytes at `to`, answering whether it managed to.
+
+   **The loop is not defensive.** `getrandom` fills at most 256 bytes uninterruptibly and is
+   documented to stop early past that when a signal arrives, so a short answer is the call working as
+   specified rather than a failure - and a caller asking for more than a page would see one on a busy
+   machine. Zero is treated as a failure and not as a short answer, since a call that filled nothing
+   has made no progress and asking again would spin.
+-}
+pub fn systemEntropy(to: %U8, count: Size) -> Bool:
+    let &filled = 0 :: Size
+
+    while filled < count:
+        let answer = readRandom(to + filled, count - filled, randomNonBlocking)
+        if answer <= 0 then return False
+
+        filled = filled + answer
+
+    return True
+
