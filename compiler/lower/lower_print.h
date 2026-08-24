@@ -50,5 +50,4 @@ StringView nameForInst(LowerBase base, LowerInst& inst);
 StringView nameForType(LowerType type);
 StringView nameForLane(LowerLane lane);
 void writeType(Net::Writer& writer, LowerType type);
-StringView nameForCallType(LowerCallType type);
 StringView nameForCall(LowerCallType type);

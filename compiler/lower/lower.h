@@ -2,6 +2,7 @@
 
 #include "../compiler/context.h"
 #include "../util/container.h"
+#include "convention.h"
 
 struct LowerFunction;
 struct LowerInst;
@@ -259,31 +260,6 @@ inline LowerType scalarFormOf(LowerType type) {
 
     return LowerType::Int32;
 }
-
-enum class LowerCallType {
-    // System V calling convention used on Linux, macOS, etc.
-    Sysv,
-
-    // Calling convention used for 64-bit Windows.
-    Win64,
-
-    // Calling convention for "simple" functions, which retains most caller registers.
-    Simple,
-
-    // Calling convention for "complex" functions, which gives most registers to the callee.
-    Complex,
-
-    // Calling convention that clobbers all registers.
-    Clobber,
-
-    // Calling convention for system calls.
-    Syscall,
-
-    // Must always be last.
-    LastType = Syscall,
-};
-
-static constexpr LowerCallType kDefaultCallType = LowerCallType::Complex;
 
 using BlockIndex = I16;
 // One entry per block, and several of these exist per function - the postorder, the dominator

@@ -536,6 +536,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         auto target = result->addFunction(uniqueFunctionName(lower, function->name));
         target->source = function->source;
 
+        // The two declaration-level facts the backend reads back off a function rather than working
+        // out for itself - `@convention(name)` and `@x86_legacy_sse`. A declaration that named no
+        // convention keeps `kDefaultCallType`, which is what every function got before either
+        // attribute existed.
+        if(function->convention) target->callType = function->convention.unwrap();
+        target->legacyVectors = function->legacySse;
+
         // Which of them the program starts at, recorded under the name it ended up with rather than
         // the one it was resolved under - see LowerModule::entry.
         if(functionPointer == program.entry) result->entry = target->name;

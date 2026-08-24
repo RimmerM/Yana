@@ -478,6 +478,14 @@ static void passFunctionSignatures(Module& module, ast::Module& ast) {
         function->exported = decl.exported;
         readInlineAttribute(module, decl, *function);
 
+        // Plain declarations only, and not the class-member calls to readInlineAttribute in
+        // module_class.cpp and module_default.cpp. Both of these describe how a function is
+        // *entered* and how its body is *encoded*, and a class member has neither to itself: what a
+        // call site does at an instance member is fixed by the class signature it was selected
+        // through, exactly as the argument conventions are.
+        readConventionAttribute(module, decl, *function);
+        readLegacySseAttribute(module, decl, *function);
+
         auto& context = *(*module.types)[env];
 
         if(context.types.isNotEmpty()) {

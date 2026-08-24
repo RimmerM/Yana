@@ -57,6 +57,11 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
 void checkGlobalTeardown(Module& module);
 void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function);
 
+// `@convention(name)` and `@x86_legacy_sse`, read off the same declaration and by the same rules -
+// see module_decl.cpp. Both are properties of the declaration rather than of any call site.
+void readConventionAttribute(Module& module, const ast::Decl& decl, Function& function);
+void readLegacySseAttribute(Module& module, const ast::Decl& decl, Function& function);
+
 // -- module_sig.cpp ----------------------------------------------------------------------------
 
 Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringId name,

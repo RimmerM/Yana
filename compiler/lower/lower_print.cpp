@@ -425,26 +425,6 @@ void writeType(Net::Writer& writer, LowerType type) {
     printInt(writer, type.lanes());
 }
 
-StringView nameForCallType(LowerCallType type) {
-    switch(type) {
-        case LowerCallType::Sysv:
-            return "sysv"_v;
-        case LowerCallType::Win64:
-            return "win64"_v;
-        case LowerCallType::Simple:
-            return "simple"_v;
-        case LowerCallType::Complex:
-            return "complex"_v;
-        case LowerCallType::Clobber:
-            return "clobber"_v;
-        case LowerCallType::Syscall:
-            return "system"_v;
-    }
-
-    assertTrue(false);
-    return ""_v;
-}
-
 StringView nameForCall(LowerCallType type) {
     switch(type) {
         case LowerCallType::Sysv:

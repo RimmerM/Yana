@@ -2,6 +2,7 @@
 
 #include "block.h"
 #include "class.h"
+#include "../lower/convention.h"
 
 namespace ast {
 struct Module;
@@ -441,6 +442,36 @@ struct Function {
      */
     bool inlineHint = false;
     bool noInline = false;
+
+    /*
+     * `@convention(clobber)`, as written on the declaration - see readConventionAttribute.
+     *
+     * A `Maybe` rather than a value defaulted to `kDefaultCallType`, because "the author did not
+     * say" and "the author wrote the name the default happens to have" are different facts about a
+     * declaration even where they lower to the same number. Only the first may be changed by a
+     * later pass deciding a function would be better entered another way.
+     *
+     * On the declaration for the reason `@platform` and the inline attributes are: what convention a
+     * function is entered under has to be an answer two separate compilations reach without seeing
+     * each other, and a caller in another module has only the declaration to read it off.
+     */
+    Maybe<LowerCallType> convention = Nothing();
+
+    /*
+     * `@x86_legacy_sse` - this function's vector instructions are encoded without a VEX prefix.
+     *
+     * One architecture, one instruction family, one file. It exists because the SHA extension has no
+     * VEX spelling in the architecture, so a function holding one of those instructions crosses
+     * between prefixed and unprefixed encodings every few instructions unless the whole body is
+     * unprefixed - which costs 140x on the part it was measured on. See `legacyVectorEncodings` in
+     * codegen/x64/target.h, where the measurement is, and Analysis-Warts.md §7 for why this is
+     * declared rather than inferred by a pass over the call graph.
+     *
+     * Carried through to `LowerFunction::legacyVectors`, which is what the backend reads. Ignored by
+     * every other backend: LLVM picks its own encodings and inserts its own `vzeroupper`, and no
+     * other target has a prefix to leave off.
+     */
+    bool legacySse = false;
 
     // A class function's declared signature. It has arguments and a return type but no body and
     // never will: it exists so that selection has something to match against, and is the one

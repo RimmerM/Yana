@@ -595,6 +595,98 @@ void readInlineAttribute(Module& module, const ast::Decl& decl, Function& functi
     }
 }
 
+/*
+ * `@convention(name)` - the calling convention a function is entered under.
+ *
+ * The name table is `lower/convention.h`'s, shared with the lower-IR parser and printer so that the
+ * three spellings of a convention cannot drift apart - see the note there.
+ *
+ * **Not every convention in that table may be written**, and `conventionWritableInSource` is where
+ * the set is argued. What a program may name is `clobber`, whose promise is semantic rather than an
+ * implementation detail, and the two foreign ABIs a `foreign` declaration will need. `simple` and
+ * `complex` are the backend's own choice between two internal shapes and are reported here, because
+ * pinning one would write down as an interface something the backend is entitled to change.
+ *
+ * This does *not* imply `@noinline`, and the omission is deliberate. A convention describes a call
+ * boundary, so a function that is inlined has none - but that is a fact about one call site, and an
+ * attribute whose whole point is to be general has no business carrying an inlining decision for
+ * every future user of it. A declaration that depends on the boundary surviving writes `@noinline`
+ * beside this and says why; see `sha256CompressBlocks` in lib/Digest/Hardware.sha.yana.
+ */
+void readConventionAttribute(Module& module, const ast::Decl& decl, Function& function) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return;
+
+    auto& context = module.context;
+    auto conventionName = context.addUnqualifiedName("convention", 10);
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name != conventionName) continue;
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@convention` takes one argument - the name of a calling convention, as in `@convention(clobber)`"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto argument = attribute.args.get(module.parse, 0).value;
+        if(argument.kind != ast::Expr::Var) {
+            context.diagnostics.error("`@convention` takes the name of a calling convention, written as an identifier"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        auto found = callTypeForName(argument.var);
+        if(!found) {
+            context.diagnostics.error("unknown calling convention %@ - the ones a declaration may name are `clobber`, `sysv` and `win64`"_v,
+                                      attribute.source, context.findName(argument.var));
+            continue;
+        }
+
+        if(!conventionWritableInSource(found.unwrap())) {
+            context.diagnostics.error("%@ is not a convention a declaration may name - `simple` and `complex` are the compiler's own choice between two internal shapes, and `system` describes what a syscall leaves alone rather than how anything is entered. Write `clobber`, `sysv` or `win64`"_v,
+                                      attribute.source, context.findName(argument.var));
+            continue;
+        }
+
+        if(function.convention) {
+            context.diagnostics.error("this declaration already names a calling convention"_v, attribute.source);
+            continue;
+        }
+
+        function.convention = found;
+    }
+}
+
+/*
+ * `@x86_legacy_sse` - see the note on `Function::legacySse`.
+ *
+ * No arguments, and deliberately no second form saying "and clear the vector state on entry". That
+ * is a separate fact about a separate set of functions - the two entry points and not the twelve
+ * helpers below them - and deriving which is which from a signature is what would silently stop
+ * being right the first time an entry point gained a vector parameter. The state change is
+ * `X86.vzeroupper()`, an ordinary call the author places. See Analysis-Warts.md §7.
+ */
+void readLegacySseAttribute(Module& module, const ast::Decl& decl, Function& function) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return;
+
+    auto& context = module.context;
+    auto legacyName = context.addUnqualifiedName("x86_legacy_sse", 14);
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name != legacyName) continue;
+
+        if(attribute.args.isNotEmpty()) {
+            context.diagnostics.error("`@x86_legacy_sse` takes no arguments - it says how this function's vector instructions are encoded, and nothing else. The vector state is cleared by calling `X86.vzeroupper()`"_v,
+                                      attribute.source);
+            continue;
+        }
+
+        function.legacySse = true;
+    }
+}
+
 static TypeLayout readLayoutAttribute(Module& module, const ast::Decl& decl) {
     auto attributes = decl.attributes;
     if(attributes.isEmpty()) return TypeLayout::Auto;

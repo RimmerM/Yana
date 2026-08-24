@@ -156,20 +156,6 @@ void LowerParser::parseGlobal(bool mut) {
     }
 }
 
-// The calling convention names accepted after a function's own name, matching what the printer
-// emits for one - `main<sysv>(...)`. A function that does not name one gets kDefaultCallType.
-static Maybe<LowerCallType> callTypeForName(StringId name) {
-    static const StringView names[] = {
-        "sysv"_v, "win64"_v, "simple"_v, "complex"_v, "clobber"_v, "system"_v,
-    };
-
-    for(Size i = 0; i < sizeof(names) / sizeof(StringView); i++) {
-        if(Context::nameHash(names[i]) == name) return Just(LowerCallType(i));
-    }
-
-    return Nothing();
-}
-
 void LowerParser::parseDecl() {
     auto name = tryMaybe(expectNode(LowerToken::LabelID, "expected label identifier"_v), return);
     auto f = new (module.arena) LowerFunction(module.arena, &module, name.payload.id);
