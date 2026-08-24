@@ -82,6 +82,40 @@ fn relocate(->x: a) -> a:
     let ->y = x
     return y
 
+{-
+   A `Sink` that reads its source *after* writing its destination, which is the shape every sink
+   owning a resource has - clearing the source is the usual spelling of it, and a swap is the
+   smallest one this file can write, since a `->` parameter is owned but not mutable.
+
+   Its own type rather than a change to `Handle` above, because it asserts the one thing the rest of
+   this file deliberately does not: the destination's *value*. The header says why that is normally
+   meaningless - a relocation that went missing leaves whatever the block copy put there, so the
+   value would be right by accident and only the count is wrong. A sink that reads back inverts that.
+   The accident becomes the failure, and the value becomes the only thing that can tell a relocation
+   into distinct storage from one that aliased the source into it.
+
+   Which is a real distinction on exactly one target. Native's block copy is a `memcpy` into a
+   destination that is somewhere else by construction; JS builds it property by property, so a
+   member carrying a sink call needs the copy to have *created* the destination, and handing the
+   property over instead makes the call `sink(x, x)` - where the second write reads what the first
+   one already overwrote. See genBlockCopy in codegen/js/inst.cpp, where handing the property over is
+   right for the members that relocate by their bytes and is this bug for the members that do not.
+-}
+data Cell {slot: I64, back: I64}
+
+instance Sink(Cell):
+    fn sink(&to: Cell, ->from: Cell) -> {}:
+        sinkCalls += 1
+        to.slot = from.back
+        to.back = from.slot
+
+data Boxed {cell: Cell, mark: I64}
+
+fn crossed() -> I64:
+    let b = Boxed {cell: Cell {slot: 90, back: 1}, mark: 9}
+    let ->c = b
+    return c.cell.slot + c.cell.back + c.mark
+
 fn main() -> I64:
     let &result = 0 :: I64
 
@@ -128,5 +162,10 @@ fn main() -> I64:
     if sinkCalls != 8 then return -10
 
     result += relocatedPair.left.value + relocatedPair.right
+
+    -- 1 + 90 + 9. Aliased it would be 1 + 1 + 9: the second write would read a `slot` the first one
+    -- had already overwritten, because the two ends of the swap would be one object.
+    result += crossed()
+    if sinkCalls != 9 then return -11
 
     return result + sinkCalls

@@ -1,0 +1,174 @@
+{-
+   Writing an aggregate into storage is a *copy* of it - on both targets, and this is the fixture
+   that says so.
+
+   Native never had to be told. A `load` of an aggregate there computes an address and copies
+   nothing; what makes the result a value is the consumer, because every one of them copies - a
+   store is a `memcpy`, a `return` is a `memcpy` into the caller's buffer, and an aggregate
+   parameter arrives as the *caller's* address (see `arrivesAsCopy`), so the callee's first write of
+   it is a `memcpy` too. On JS a place read hands back the object itself and `v = other` beside it
+   rebinds a name, so every one of those copies has to be put back by hand - see `keptValue` in
+   codegen/js/place.cpp and Gen::keptTwice.
+
+   Nine shapes. Seven because the copy is owed at four different positions and by three different
+   kinds of source, and each of those seven was a wrong answer on JS before `keptValue` existed -
+   what they have in common is the only thing that makes them one bug: a second name for one object,
+   reached by writing something that was still somebody else's storage. The last two are the `return`
+   position with the inliner kept out of it, where the frame is part of the answer and the two
+   directions of that have to be asserted separately.
+
+   **Asserted by mutating the copy and reading the original**, which is the only assertion that can
+   tell a duplicate from an alias - the two agree on every value until one of them is written
+   through. Every case therefore checks twice: that the write reached the copy (so that a fix which
+   duplicated too eagerly and wrote the duplicate would fail here rather than pass quietly), and
+   that it did not reach the source.
+
+   Nothing here is a constant: `seed` is `@noinline`, so the folding in `compiler/opt` cannot answer
+   any of these checks from the literals and the emitted code has to perform them. The `.js.expect`
+   beside this is the other half of the assertion and the one that bounds the *cost* - a genuine
+   move is still free, and a fix that copied at every write rather than at the ones that need it
+   would show up there as `slice()` on lines that have none.
+-}
+
+@noinline
+fn seed() -> Int = 0
+
+data Buf {bytes: [Int *4], used: Int}
+data Wrap {inner: Buf, tag: Int}
+
+-- Storage that outlives every function below, which is what makes a field initialized from it the
+-- shape the digest module hit: one buffer shared by every value built out of it.
+let zeros = [0] :: [Int *4]
+
+-- 1. A record field from a global fixed array.
+fn fromGlobal() -> Buf = Buf {bytes: zeros, used: seed()}
+
+-- 3. A record field from another record's field. The source is borrowed, so nothing here may take
+-- it - and after inlining this is also the shape where `compiler/opt` answers the read with the
+-- value that was stored into the field, which is what Gen::keptTwice exists for.
+fn fromField(w: &Wrap) -> Buf = Buf {bytes: w.inner.bytes, used: seed() + 3}
+
+-- 5. A loaded field handed back through a `return`, which is the caller's copy to make on native
+-- and the callee's here.
+fn bytesOf(w: &Wrap) -> [Int *4] = w.inner.bytes
+
+-- 6. An owned aggregate parameter written into a local. `b` is the caller's storage, because that is
+-- what a by-value aggregate argument is on every target - so this write is a copy and the mutation
+-- below it may not reach the caller.
+fn eat(b: Buf) -> Int:
+    let &m = b
+    m.bytes[0] = seed() + 6
+    return m.bytes[0]
+
+-- 7. A join. Which of the two the component names is decided at run time and neither is fresh, so
+-- the copy is owed on both edges.
+fn fromEither(flag: Bool, w: &Wrap) -> Buf =
+    Buf {bytes: if flag then zeros else w.inner.bytes, used: seed() + 7}
+
+-- 8. Case 5 with the inliner kept out of it, which is the whole of what it adds: inlined, the copy
+-- lands on the write the body was folded into, and only here does it land on the `return` itself.
+-- `returnedValue` hands over storage the *frame* owns because nothing outside it can be a second
+-- name, and a borrowed parameter's field is exactly the storage that fails that test.
+@noinline
+fn bytesKept(w: &Wrap) -> [Int *4] = w.inner.bytes
+
+{-
+   9. The other side of 8: a projection of the frame's own storage, handed back.
+
+   `sinkValue` in resolve/expr_construct.cpp already answers the unprojected form - `return own` of a
+   whole local is a move and always was - and declines a projected one, which is what left this to be
+   answered here. Nothing outside the frame names `w`, so the object goes to the caller rather than a
+   duplicate of it.
+
+   Asserted the only way this direction can be: there is no source left to compare against, so what
+   the run checks is that the value arrived *intact*, and what bounds the cost is the `.js.expect`
+   beside this having no `slice()` on this function. A duplicate here would still be correct and
+   still be a needless allocation per call, and the pair is what catches it.
+-}
+@noinline
+fn innerBytes() -> [Int *4]:
+    let &w = Wrap {inner: Buf {bytes: [0, 0, 0, 9], used: seed()}, tag: seed()}
+    return w.inner.bytes
+
+fn main() -> Int:
+    -- 1. Two records built from one global. Before `keptValue` they were one buffer, and a program
+    -- with two digests in it hashed into whichever the other one held.
+    let &a = fromGlobal()
+    let &b = fromGlobal()
+    a.bytes[0] = seed() + 1
+
+    if a.bytes[0] != 1 then return -1
+    if b.bytes[0] != 0 then return -101
+    if zeros[0] != 0 then return -201
+
+    -- 2. A record field from a local fixed array the body goes on using. `let &` is what keeps it
+    -- live: an immutable local consumed here is a move, and a move is still free.
+    --
+    -- The elements this one carries are not all zero, and that is the other half of the assertion:
+    -- a duplicate that lost them is not a wrong number here but an *absent* one, and `undefined` is
+    -- falsy - so a check of a zero element against zero would pass over a copy with no elements at
+    -- all. Reading back an element nothing wrote is what tells a copy from an empty object; see
+    -- ErasedCopy.yana, where that was a real defect and this is the shape it took.
+    let &xs = [0, 9, 0, 0] :: [Int *4]
+    let &two = Buf {bytes: xs, used: seed()}
+    two.bytes[0] = seed() + 2
+
+    if two.bytes[0] != 2 then return -2
+    if two.bytes[1] != 9 then return -302
+    if xs[0] != 0 then return -102
+
+    -- 3.
+    let &w = Wrap {inner: Buf {bytes: [0, 0, 7, 0], used: seed()}, tag: seed()}
+    let &three = fromField(w)
+    three.bytes[0] = seed() + 3
+
+    if three.bytes[0] != 3 then return -3
+    if three.bytes[2] != 7 then return -303
+    if w.inner.bytes[0] != 0 then return -103
+
+    -- 4. A whole local from a global, with no record anywhere in it - the same write with one
+    -- projection fewer.
+    let &four = zeros
+    four[0] = seed() + 4
+
+    if four[0] != 4 then return -4
+    if zeros[0] != 0 then return -104
+
+    -- 5.
+    let &five = bytesOf(w)
+    five[0] = seed() + 5
+
+    if five[0] != 5 then return -5
+    if w.inner.bytes[0] != 0 then return -105
+
+    -- 6.
+    if eat(w.inner) != 6 then return -6
+    if w.inner.bytes[0] != 0 then return -106
+
+    -- 7. Both edges, since only one of them runs per call.
+    let &taken = fromEither(True, w)
+    let &other = fromEither(False, w)
+    taken.bytes[0] = seed() + 7
+    other.bytes[0] = seed() + 7
+
+    if taken.bytes[0] != 7 then return -7
+    if other.bytes[0] != 7 then return -207
+    if zeros[0] != 0 then return -107
+    if w.inner.bytes[0] != 0 then return -307
+
+    -- 8. The copy is owed at the `return`, so the mutation below may not reach `w`.
+    let &eight = bytesKept(w)
+    eight[0] = seed() + 8
+
+    if eight[0] != 8 then return -8
+    if w.inner.bytes[0] != 0 then return -108
+
+    -- 9. Nothing to compare against, so this is the intactness half - the element the frame wrote
+    -- has to still be there, which an empty object or a stale one would not answer.
+    let &nine = innerBytes()
+
+    if nine[3] != 9 then return -9
+
+    -- 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9, out of the copies rather than out of the literals.
+    return a.bytes[0] + two.bytes[0] + three.bytes[0] + four[0] + five[0] + eat(w.inner) +
+           taken.bytes[0] + eight[0] + nine[3]

@@ -6,6 +6,9 @@ mut @copyCalls = [0, 0, 0, 0]
 @typeDesc$Point = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @witness$TrivialCopy(Point) = []
 @genEnv$copyInto(Point) = [0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Quad = [36, 0, 0, 0, 36, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$TrivialCopy(Quad) = []
+@genEnv$copyInto(Quad) = [0, 0, 0, 0, 0, 0, 0, 0]
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {
@@ -46,40 +49,129 @@ main<complex>(): Int {
     je %v_6, b_7, b_8
   }
 
-  b_7 {
-    ret 18446744073709551615
-  }
-
   b_8 {
-    jmp b_9
+    %quad = alloca 36, 4: Ptr
+    store %quad, 10, 4
+    %v_9 = add %quad, 4: Ptr
+    store %v_9, 20, 4
+    %v_10 = add %quad, 8: Ptr
+    store %v_10, 30, 4
+    %v_11 = add %quad, 12: Ptr
+    store %v_11, 40, 4
+    %v_12 = add %quad, 16: Ptr
+    store %v_12, 1, 4
+    %v_13 = add %quad, 20: Ptr
+    store %v_13, 2, 4
+    %v_14 = add %quad, 24: Ptr
+    store %v_14, 3, 4
+    %v_15 = add %quad, 28: Ptr
+    store %v_15, 4, 4
+    %v_16 = add %quad, 32: Ptr
+    store %v_16, 5, 4
+    %v_17 = alloca 36, 4: Ptr
+    setpattern %v_17, 16, 0
+    %v_18 = add %v_17, 16: Ptr
+    store %v_18, 0, 4
+    %v_19 = add %v_17, 20: Ptr
+    store %v_19, 0, 4
+    %v_20 = add %v_17, 24: Ptr
+    store %v_20, 0, 4
+    %v_21 = add %v_17, 28: Ptr
+    store %v_21, 0, 4
+    %v_22 = add %v_17, 32: Ptr
+    store %v_22, 0, 4
+    call_complex copyInto, @genEnv$copyInto(Quad), %v_17, %quad
+    %v_23 = loads %v_17, 4: Int
+    %v_24 = cmp_neq %v_23, 10: Int
+    je %v_24, b_25, b_26
   }
 
-  b_9 {
-    %v_10 = loads @copyCalls, 4: Int
-    %v_11 = add %v_10, 1: Int
-    store @copyCalls, %v_11, 4
-    %v_12 = cmp_neq %v_11, 1: Int
-    je %v_12, b_13, b_14
+  b_26 {
+    %v_27 = add %v_17, 12: Ptr
+    %v_28 = loads %v_27, 4: Int
+    %v_29 = cmp_neq %v_28, 40: Int
+    je %v_29, b_30, b_31
   }
 
-  b_13 {
+  b_31 {
+    %v_32 = add %v_17, 24: Ptr
+    %v_33 = loads %v_32, 4: Int
+    %v_34 = cmp_neq %v_33, 3: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_36 {
+    %v_37 = add %v_17, 32: Ptr
+    %v_38 = loads %v_37, 4: Int
+    %v_39 = cmp_neq %v_38, 5: Int
+    je %v_39, b_40, b_41
+  }
+
+  b_41 {
+    store %v_17, 99, 4
+    store %v_32, 99, 4
+    %v_42 = loads %quad, 4: Int
+    %v_43 = cmp_neq %v_42, 10: Int
+    je %v_43, b_44, b_45
+  }
+
+  b_45 {
+    %v_46 = add %quad, 24: Ptr
+    %v_47 = loads %v_46, 4: Int
+    %v_48 = cmp_neq %v_47, 3: Int
+    je %v_48, b_49, b_50
+  }
+
+  b_50 {
+    %v_51 = loads @copyCalls, 4: Int
+    %v_52 = add %v_51, 1: Int
+    store @copyCalls, %v_52, 4
+    %v_53 = cmp_neq %v_52, 1: Int
+    je %v_53, b_54, b_55
+  }
+
+  b_55 {
+    %v_56 = loads %number, 4: Int
+    %v_57 = loads %v_3, 4: Int
+    %v_58 = add %v_56, %v_57: Int
+    %v_59 = add %v_3, 4: Ptr
+    %v_60 = loads %v_59, 4: Int
+    %v_61 = add %v_58, %v_60: Int
+    %v_62 = add %v_61, 10: Int
+    %v_63 = add %v_62, %v_52: Int
+    ret %v_63
+  }
+
+  b_54 {
     ret 18446744073709551614
   }
 
-  b_14 {
-    jmp b_15
+  b_49 {
+    ret 18446744073709551608
   }
 
-  b_15 {
-    %v_16 = loads %number, 4: Int
-    %v_17 = loads %v_3, 4: Int
-    %v_18 = add %v_16, %v_17: Int
-    %v_19 = add %v_3, 4: Ptr
-    %v_20 = loads %v_19, 4: Int
-    %v_21 = add %v_18, %v_20: Int
-    %v_22 = add %v_21, 10: Int
-    %v_23 = add %v_22, %v_11: Int
-    ret %v_23
+  b_44 {
+    ret 18446744073709551609
+  }
+
+  b_40 {
+    ret 18446744073709551610
+  }
+
+  b_35 {
+    ret 18446744073709551611
+  }
+
+  b_30 {
+    ret 18446744073709551612
+  }
+
+  b_25 {
+    ret 18446744073709551613
+  }
+
+  b_7 {
+    ret 18446744073709551615
   }
 }
 
@@ -107,6 +199,20 @@ moveInit$Point<complex>(%to: Ptr, %from: Ptr) {
 copyInit$Point<complex>(%to: Ptr, %from: Ptr) {
   b_0 {
     copy %to, %from, 8
+    ret 
+  }
+}
+
+moveInit$Quad<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    copy %to, %from, 36
+    ret 
+  }
+}
+
+copyInit$Quad<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    copy %to, %from, 36
     ret 
   }
 }

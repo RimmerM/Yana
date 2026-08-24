@@ -324,23 +324,33 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
          * cannot arise for a scalar, whose reference is the box or the triple - both of those name a
          * slot already - which is why this asks `isJsObject` first.
          *
-         * Property by property and shallow, and not `cloneValue`: this is a *move*, so the source is
-         * dead afterwards and a nested aggregate has nobody left to alias with. `genBlockCopy` clones
-         * because both of its sides stay live.
+         * Property by property, and whether each property is duplicated is `keepsLiveStorage`'s
+         * question rather than a property of the case: where the value moved, the source is dead
+         * afterwards and a nested aggregate has nobody left to alias with; where it is still
+         * somebody's storage, this is `genBlockCopy` with the shape known and clones for the reason
+         * that one does.
          */
         auto written = useValue(g, value);
+        auto keeps = keepsLiveStorage(g, type, value);
 
         if(isJsObject(g, type) && writesThroughReference(g, place)) {
             auto source = g.base[written]->kind == Expr::Var
                 ? written
                 : declare(g, generatedName(g, "moved"_v, produced.id), written);
 
-            eachProperty(g, type, [&](Name key, TypePtr) {
-                emitExpr(g, assign(g, field(g, target, key), field(g, source, key)));
+            eachProperty(g, type, [&](Name key, TypePtr member) {
+                auto read = field(g, source, key);
+                emitExpr(g, assign(g, field(g, target, key),
+                                   keeps ? cloneValue(g, member, read, produced.source) : read));
             });
 
             return;
         }
+
+        // And the whole value where the write is one assignment. `cloneValue` rather than the
+        // property walk above, because the storage this names is the binding itself: there is no
+        // object already there to write the properties of.
+        if(keeps) written = cloneValue(g, type, written, produced.source);
 
         if(elided) {
             storeHostProperty(g, target, written);
@@ -1853,7 +1863,11 @@ void genAggregate(Gen& g, InstAggregate& aggregate) {
 
             eachAggregateComponent(g.local, aggregate,
                                    [&](const AggregateComponent& component, Size) {
-                elements->values.push(g.file.arena, useValue(g, component.value));
+                auto type = g.local[component.value]->type;
+
+                elements->values.push(g.file.arena,
+                                      keptValue(g, type, component.value,
+                                                useValue(g, component.value), aggregate.source));
             });
 
             // Through the same choice the empty array made, and this is the second reader §14's
@@ -2028,9 +2042,41 @@ void genBlockCopy(Gen& g, Value& instruction, InstNative& native) {
         return;
     }
 
+    /*
+     * Property by property, and whether each one is duplicated is what `relocates` answers - for the
+     * properties it is entitled to answer for, which is not all of them.
+     *
+     * A relocation's source is dead the moment the glue returns, so for a member the copy fully
+     * moves there is nobody left to be a second name and the assignment alone is the whole copy.
+     * `moveInit$Quad` was building a fresh `[Int *4]` per call to hand to a `from` that no longer
+     * existed. A duplicate's source stays live and owns what it owned, which is every property of
+     * `copyInit$` glue and the case this was written for.
+     *
+     * **A member that relocates by more than its bytes is not one of them**, and it is what makes
+     * this a per-property question rather than a flag on the whole copy. The glue does not end here:
+     * `moveInitFor` follows the copy with a `Sink` call per member whose bytes are not the whole
+     * story, and that call needs the destination to be *distinct* storage - so the duplicate is
+     * doing two jobs at once there, and the one that is easy to miss is that it is what creates the
+     * destination at all. Aliasing them made `moveInit$Pair` call `sink(x, x)`, which this fixture's
+     * sink happened to survive because it only assigns; one that clears its source, which is the
+     * ordinary shape for a type owning a resource, would have cleared the value it had just moved.
+     *
+     * The predicate is `sinkMembers`' from the other side: it emits a call exactly where `sinkFor`
+     * answers one, which is exactly where the type is not TrivialSink. Conservative in the safe
+     * direction for a boxed field, which `sinkMembers` skips and this still duplicates.
+     *
+     * All of which exists on one target only. Native writes the same `memcpy` either way - the bytes
+     * are the bytes - and the glue is resolve IR each backend compiles its own way, so the
+     * distinction lives where the copy is built rather than blitted.
+     */
+    auto& module = *g.function->module;
+
     eachProperty(g, shape, [&](Name key, TypePtr member) {
+        auto read = field(g, source, key);
+        auto relocated = native.relocates && ownershipOf(module, member).trivialSink;
+
         emitExpr(g, assign(g, field(g, target, key),
-                           cloneValue(g, member, field(g, source, key), instruction.source)));
+                           relocated ? read : cloneValue(g, member, read, instruction.source)));
     });
 }
 
@@ -2820,8 +2866,13 @@ AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate) {
 }
 
 JsPtr<Expr> buildFromPlan(Gen& g, InstAggregate& aggregate, const AggregateBuildPlan& plan) {
+    // Each component on the terms `storeInto` writes one on: a literal is storage being filled, so
+    // a component that is still somebody else's storage is duplicated into it. See keptValue.
     auto value = [&](Size at) {
-        return useValue(g, aggregate.components.get(g.local, at).value);
+        auto component = aggregate.components.get(g.local, at).value;
+        auto type = g.local[component]->type;
+
+        return keptValue(g, type, component, useValue(g, component), aggregate.source);
     };
 
     if(plan.kind == AggregateBuildPlan::Array) {

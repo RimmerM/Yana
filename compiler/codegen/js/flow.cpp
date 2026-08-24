@@ -445,9 +445,22 @@ void emitTerminator(Gen& g, U32 block, U32& next, U32 stopAt, bool& done) {
 
     switch(instruction.kind) {
         case Value::Ret: {
+            /*
+             * A `return` keeps its value the way a store does, so it asks the same question: native's
+             * caller supplies the buffer and the callee `memcpy`s into it, which is a copy of
+             * whatever the callee was naming. It is also what lets everything else treat a call's
+             * result as fresh - see namesLiveStorage.
+             *
+             * Through `returnedValue` rather than `keptValue` directly, because this is the one
+             * position where the frame is part of the answer: storage the frame owns is handed over
+             * instead, since nothing is left to be its second name.
+             */
             auto& returned = (InstRet&)instruction;
-            auto value = returned.value && !isUnit(g.global, g.local[returned.value]->type)
-                ? useValue(g, returned.value) : JsPtr<Expr>(nullptr);
+            auto type = returned.value ? g.local[returned.value]->type : nullptr;
+            auto value = returned.value && !isUnit(g.global, type)
+                ? returnedValue(g, type, returned.value, useValue(g, returned.value),
+                                instruction.source)
+                : JsPtr<Expr>(nullptr);
 
             emit(g, make<ReturnStmt>(g, value));
             done = true;

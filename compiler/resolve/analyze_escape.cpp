@@ -78,6 +78,44 @@ static void handedOver(Analysis& analysis, ModulePtr<Value> arg, Provenance& int
     }
 }
 
+/*
+ * What a callee this pass cannot see through is assumed to do with one argument.
+ *
+ * It keeps what it was handed by `->` and nothing else - which is a reading of the declaration
+ * rather than a guess about the body, and the only one available: a callee with no body is an
+ * intrinsic, or a class signature whose implementation is chosen per instance. Both are declarations
+ * and nothing else, so the conventions written on them are the whole of the contract.
+ *
+ * **A borrow's extent is the call.** That is the language's rule everywhere else, and a body is what
+ * it takes to contradict it - `retained` is derived from one wherever there is one to derive it
+ * from. Reading a borrow as a retention *because* there is no body assumed the opposite of what the
+ * declaration says, and it was expensive in the erased form, where the callee every container
+ * reaches with no summary is *pointer arithmetic*: `Flat {items: self.items + from}` in
+ * `unclampedSlice` is a call to an intrinsic `+`, so `self` came back retained, and that answer
+ * climbed through `elements`, `chunks`, `valueAt`, `push` and `insert` until every accessor in the
+ * library reported that it kept its container. A specialized build turns the same call into an
+ * instruction and none of it happens, which is why it was only ever visible with specialization
+ * declined - and why a generic body could not hand a class function a view of anything it owned.
+ *
+ * A class signature is *held* to this rather than trusted for it: checkClassBorrows reports an
+ * implementation that keeps a parameter the signature declared as a borrow, so what is assumed here
+ * is true of every instance rather than of the ones some call site happened to look at. It is the
+ * same division checkContinuationExtent already draws for a class iterator's continuation.
+ *
+ * An intrinsic has no such check and needs none - it is an instruction - but it does have to say so
+ * where it hands something over. `store(to: %a, ->value: a)` is the one that does, and the `->` is
+ * not decoration: the value is written into the pointee, so the frame that owned it has to stop
+ * owing it a drop.
+ */
+static bool assumedRetained(Analysis& analysis, ModulePtr<Function> callee, U16 index) {
+    if(!callee) return true;
+
+    auto& declared = analysis.local[callee]->args;
+    if(index >= declared.size()) return true;
+
+    return analysis.local[declared.get(analysis.local, index)]->convention == ast::BindType::Sink;
+}
+
 // One round of seeds. Separate from the closure below only so that both can be repeated together:
 // a store into a root that a later instruction turns out to hand away is an escape too, and one
 // pass in instruction order would miss it.
@@ -184,8 +222,9 @@ static bool escapeRound(Analysis& analysis) {
                 U16 index = 0;
 
                 for(auto arg: call.args.contents(analysis.local)) {
-                    auto retained = !summary || index >= summary->args.size() ||
-                                    summary->args.get(analysis.local, index).retained;
+                    auto known = summary && index < summary->args.size();
+                    auto retained = known ? summary->args.get(analysis.local, index).retained
+                                          : assumedRetained(analysis, call.callee, index);
 
                     if(retained) {
                         ScratchProvenance leaving(analysis);
@@ -248,8 +287,8 @@ static bool escapeRound(Analysis& analysis) {
                  *
                  * There is a summary for a call to a generic *function*, whose body was resolved
                  * before the call was deferred. A deferred *class* dispatch names the class
-                 * signature, which has no body - summaryOf answers null for it, and the walk falls
-                 * back to assuming everything is kept, which is what this case did for both.
+                 * signature, which has no body - summaryOf answers null for it, and what stands in
+                 * for one is what its declaration says about each parameter; see assumedRetained.
                  *
                  * Consulting it is what lets an adaptor be written. `for x in upTo(n)` inside an
                  * `iter fn` is a call to a function generic in what the loop body returns, so it is
@@ -275,9 +314,10 @@ static bool escapeRound(Analysis& analysis) {
                 auto declared = call.callee ? analysis.local[call.callee]->args.size() : 0;
 
                 for(auto arg: call.args.contents(analysis.local)) {
+                    auto known = summary && index < summary->args.size();
                     auto retained = index < declared &&
-                                    (!summary || index >= summary->args.size() ||
-                                     summary->args.get(analysis.local, index).retained);
+                                    (known ? summary->args.get(analysis.local, index).retained
+                                           : assumedRetained(analysis, call.callee, index));
 
                     if(retained) {
                         ScratchProvenance leaving(analysis);

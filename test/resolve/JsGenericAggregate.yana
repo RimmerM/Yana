@@ -1,0 +1,24 @@
+{-
+   A generic constructor handed an owned concrete record, which is what every `newDigest` in
+   `lib/Digest` is.
+
+   The JS backend used to drop the owned argument at such a call - the emitted call was
+   `newBlocks({})`, so the wrapper was built over a state of no fields at all and every digest
+   answered zeros. Nothing on the native side ever showed it, which is why this carries both a
+   `.js.expect` and a `.run.expect`: the assertion worth having is that the two targets agree on the
+   number, not that the JavaScript reads a particular way.
+
+   `.generic` because the erased ABI is the harder of the two forms - a specialization would have
+   substituted the concrete record in and never exercised the owned-argument path at all.
+-}
+data State {h: [U32 *8]}
+
+data Blocks(c) {state: c, block: [U8 *64], used: Size, total: Size}
+
+fn newState() -> State = State {h: [11, 22, 33, 44, 55, 66, 77, 88]}
+
+fn newBlocks(->state: c) -> Blocks(c) = Blocks {state: state, block: [0], used: 0, total: 0}
+
+fn main() -> I64:
+    let &w = newBlocks(newState())
+    return (w.state.h[0] + w.state.h[7]) :: I64

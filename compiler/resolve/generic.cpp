@@ -1077,6 +1077,8 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             auto cloned = resolver.create<InstNative>(inst.source, inst.name, type, native.op,
                                                       native.method);
 
+            cloned->relocates = native.relocates;
+
             for(auto arg: native.args.contents(clone.local)) {
                 cloned->args.push(clone.module.arena, cloneValue(clone, arg));
             }
@@ -1749,6 +1751,12 @@ ModulePtr<Function> instantiateFunction(Module& from, ModulePtr<Function> pointe
      * shape, so this is not a hypothetical.
      */
     specialized->instanceOf = generic->instanceOf;
+
+    // And the same for a class default, which carries no `instanceOf` to be recognized by: what a
+    // deferred dispatch reaches is this specialization, so it is the one checkClassBorrows has to
+    // hold to the promise rather than only the generic form it came from.
+    specialized->classDefault = generic->classDefault;
+
     for(auto type: generic->instanceArgs.contents(local)) {
         specialized->instanceArgs.push(owner.arena, substituteType(owner, type, args, source));
     }

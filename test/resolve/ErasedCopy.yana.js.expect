@@ -6,6 +6,9 @@ const genEnv$copyInto_Int = [typeDesc$Int, witness$TrivialCopy_Int];
 const typeDesc$Point = [8, 8, 1155, moveInit$Point, copyInit$Point, teardown$none, teardown$none];
 const witness$TrivialCopy_Point = [];
 const genEnv$copyInto_Point = [typeDesc$Point, witness$TrivialCopy_Point];
+const typeDesc$Quad = [36, 36, 1155, moveInit$Quad, copyInit$Quad, teardown$none, teardown$none];
+const witness$TrivialCopy_Quad = [];
+const genEnv$copyInto_Quad = [typeDesc$Quad, witness$TrivialCopy_Quad];
 
 // Core
 function teardown$none(value) {
@@ -25,12 +28,41 @@ function main() {
   if (pair.x !== 3) {
     return -1;
   } else {
-    var v58 = copyCalls + 1 | 0;
-    copyCalls = v58;
-    if (v58 !== 1) {
-      return -2;
+    var quad = { values: [10, 20, 30, 40], places: [{ x: 1, y: 2 }, { x: 3, y: 4 }], tag: 5 };
+    var v54 = { values: [0, 0, 0, 0], places: [{ x: 0, y: 0 }, { x: 0, y: 0 }], tag: 0 };
+    copyInto(genEnv$copyInto_Quad, v54, quad);
+    if (v54.values[0] !== 10) {
+      return -3;
     } else {
-      return (((number.$v + v12.x | 0) + v12.y | 0) + 10 | 0) + v58 | 0;
+      if (v54.values[3] !== 40) {
+        return -4;
+      } else {
+        if (v54.places[1].x !== 3) {
+          return -5;
+        } else {
+          if (v54.tag !== 5) {
+            return -6;
+          } else {
+            v54.values[0] = 99;
+            v54.places[1].x = 99;
+            if (quad.values[0] !== 10) {
+              return -7;
+            } else {
+              if (quad.places[1].x !== 3) {
+                return -8;
+              } else {
+                var v337 = copyCalls + 1 | 0;
+                copyCalls = v337;
+                if (v337 !== 1) {
+                  return -2;
+                } else {
+                  return (((number.$v + v12.x | 0) + v12.y | 0) + 10 | 0) + v337 | 0;
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -51,5 +83,17 @@ function moveInit$Point(to, from) {
 function copyInit$Point(to, from) {
   to.x = from.x;
   to.y = from.y;
+}
+
+function moveInit$Quad(to, from) {
+  to.values = from.values;
+  to.places = from.places;
+  to.tag = from.tag;
+}
+
+function copyInit$Quad(to, from) {
+  to.values = from.values.slice();
+  to.places = [{ x: from.places[0].x, y: from.places[0].y }, { x: from.places[1].x, y: from.places[1].y }];
+  to.tag = from.tag;
 }
 main();

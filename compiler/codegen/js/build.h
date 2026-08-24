@@ -571,6 +571,23 @@ struct Gen {
      */
     IndexSet builtWhole;
 
+    /*
+     * The values this body *keeps* in more than one position - see prepareKeptValues.
+     *
+     * A position that keeps a value is one that has to end up holding a value of its own: a write
+     * into storage, an aggregate's component, a `return`, a phi input. One value reaching two of
+     * them is two names for one object on this target, so all but one of them would have to be a
+     * duplicate - and which one may go free is not decidable in emission order, since the free one
+     * would then be mutated through before the later duplicate read it. So every one of them
+     * duplicates, and the set is what says so.
+     *
+     * It is not something the resolver's own output contains: an ownership-checked body consumes a
+     * value once. `compiler/opt`'s store-to-load forwarding is what produces it, and it is right to
+     * - `load p` where `copy p, v` came before it holds `v`'s bytes, which is what every native
+     * consumer copies out of. This target is the one that has to put the copy back.
+     */
+    HashSet<U32> keptTwice;
+
     // The borrow and address values that are a second *name* for the storage they were taken of
     // rather than a box holding it - see prepareLocals. A place rooted in one of these reaches the
     // storage directly, which is what makes a borrow that never leaves the function cost nothing.
@@ -1782,6 +1799,22 @@ TypePtr blockCopyShape(Gen& g, InstNative& instruction);
 
 JsPtr<Expr> constantValue(Gen& g, Value& value);
 JsPtr<Expr> useValue(Gen& g, ModulePtr<Value> pointer);
+
+/*
+ * A value in a position that keeps it - a write into storage, or a `return`. The duplicate where
+ * what it names is storage somebody else still holds, and the expression itself where it is not;
+ * see the note above the definition for why this target is the only one that has to ask.
+ */
+JsPtr<Expr> keptValue(Gen& g, TypePtr type, ModulePtr<Value> value, JsPtr<Expr> source,
+                      LocationId where);
+
+// The same question on its own, for a writer that duplicates member by member rather than whole.
+bool keepsLiveStorage(Gen& g, TypePtr type, ModulePtr<Value> value);
+
+// The same question at a `return`, where the frame's own storage is handed over rather than copied.
+// See handsOverFrameStorage.
+JsPtr<Expr> returnedValue(Gen& g, TypePtr type, ModulePtr<Value> value, JsPtr<Expr> source,
+                          LocationId where);
 
 // The emitted name of a module-level global.
 JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer);

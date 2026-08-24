@@ -38,8 +38,59 @@ table genEnv$copyInto(Point) {
   .1 witness$TrivialCopy(Point)
 }
 
+table typeDesc$Quad {
+  .0 sizeof Quad
+  .1 strideof Quad
+  .2 alignof Quad | 131
+  .3 moveInit$Quad
+  .4 copyInit$Quad
+  .5 teardown$none
+  .6 teardown$none
+}
+
+table witness$TrivialCopy(Quad) {
+}
+
+table genEnv$copyInto(Quad) {
+  .0 typeDesc$Quad
+  .1 witness$TrivialCopy(Quad)
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
 fn teardown$none(%value: %()) -> () {
   b0:
+    ret
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = syscall 60, %status : Size
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
     ret
 }
 
@@ -80,33 +131,264 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v29 = alloc : Tracked
-    aggregate %local3@Tracked.value = 10
-    %tracked = call Copy(Tracked).copy, %v29 : Tracked
-    %v33 = load copyCalls : Int
-    %v36 = cmp_ne %v33, 1 : Bool
-    je %v36, b4, b5
+    %quad = alloc : Quad
+    %v34 = alloc : [Int *4]
+    aggregate %local4[0] = 10, %local4[1] = 20, %local4[2] = 30, %local4[3] = 40
+    %v40 = alloc : Point
+    aggregate %local5@Point.x = 1, %local5@Point.y = 2
+    %v44 = alloc : Point
+    aggregate %local6@Point.x = 3, %local6@Point.y = 4
+    %v48 = alloc : [Point *2]
+    aggregate %local7[0] = %v40, %local7[1] = %v44
+    aggregate %local3@Quad.values = %v34, %local3@Quad.places = %v48, %local3@Quad.tag = 5
+    %v54 = alloc : Quad
+    %v59 = alloc : [Int *4]
+    aggregate %local9[0] = 0, %local9[1] = 0, %local9[2] = 0, %local9[3] = 0
+    %v65 = alloc : Point
+    aggregate %local10@Point.x = 0, %local10@Point.y = 0
+    %v69 = alloc : Point
+    aggregate %local11@Point.x = 0, %local11@Point.y = 0
+    %v73 = alloc : [Point *2]
+    aggregate %local12[0] = %v65, %local12[1] = %v69
+    aggregate %copied@Quad.values = %v59, %copied@Quad.places = %v73, %copied@Quad.tag = 0
+    %v79 = load %copied : Quad
+    %v80 = borrow_mut %copied : &mut Quad
+    gencall env genEnv$copyInto(Quad) copyInto(Quad), %v80, %quad
+    %v82 = load %copied : Quad
+    %v83 = load %copied@Quad.values : [Int *4]
+    %v85 = borrow %copied@Quad.values : &[Int *4]
+    %v86 = alloc : Flat(Int)
+    %v87 = addressof [%v85] : %Int
+    init %local13@Flat.items, %v87
+    %v89 = countof 4 : Size
+    init %local13@Flat.length, %v89
+    %v92 = borrow %local13 : &Flat(Int)
+    %v93 = load [%v92]@Flat.length : Size
+    %v94 = cast 0 : USize
+    %v95 = cast %v93 : USize
+    %v96 = cmp_ge %v94, %v95 : Bool
+    call checkCondition, %v96
+    %v98 = load [%v92]@Flat.items : %Int
+    %v99 = strideof Int : Long
+    %v100 = mul 0, %v99 : Long
+    %v101 = add %v98, %v100 : %Int
+    %v102 = borrow [%v101] : &Int
+    %v103 = load [%v102] : Int
+    %v106 = cmp_ne %v103, 10 : Bool
+    je %v106, b4, b5
 
   b4:
-    %v40 = neg 2 : Int
-    ret %v40
+    %v110 = neg 3 : Int
+    ret %v110
 
   b5:
     jmp b6
 
   b6:
-    %v43 = load %number : Int
-    %v44 = load %target : Point
-    %v45 = load %target@Point.x : Int
-    %v46 = add %v43, %v45 : Int
-    %v47 = load %target : Point
-    %v48 = load %target@Point.y : Int
-    %v49 = add %v46, %v48 : Int
-    %v50 = load %local4@Tracked.value : Int
-    %v51 = add %v49, %v50 : Int
-    %v52 = load copyCalls : Int
-    %v53 = add %v51, %v52 : Int
-    ret %v53
+    %v113 = load %copied : Quad
+    %v114 = load %copied@Quad.values : [Int *4]
+    %v116 = borrow %copied@Quad.values : &[Int *4]
+    %v117 = alloc : Flat(Int)
+    %v118 = addressof [%v116] : %Int
+    init %local14@Flat.items, %v118
+    %v120 = countof 4 : Size
+    init %local14@Flat.length, %v120
+    %v123 = borrow %local14 : &Flat(Int)
+    %v124 = load [%v123]@Flat.length : Size
+    %v125 = cast 3 : USize
+    %v126 = cast %v124 : USize
+    %v127 = cmp_ge %v125, %v126 : Bool
+    call checkCondition, %v127
+    %v129 = load [%v123]@Flat.items : %Int
+    %v130 = strideof Int : Long
+    %v131 = mul 3, %v130 : Long
+    %v132 = add %v129, %v131 : %Int
+    %v133 = borrow [%v132] : &Int
+    %v134 = load [%v133] : Int
+    %v137 = cmp_ne %v134, 40 : Bool
+    je %v137, b7, b8
+
+  b7:
+    %v141 = neg 4 : Int
+    ret %v141
+
+  b8:
+    jmp b9
+
+  b9:
+    %v144 = load %copied : Quad
+    %v145 = load %copied@Quad.places : [Point *2]
+    %v147 = borrow %copied@Quad.places : &[Point *2]
+    %v148 = alloc : Flat(Point)
+    %v149 = addressof [%v147] : %Point
+    init %local15@Flat.items, %v149
+    %v151 = countof 2 : Size
+    init %local15@Flat.length, %v151
+    %v154 = borrow %local15 : &Flat(Point)
+    %v155 = load [%v154]@Flat.length : Size
+    %v156 = cast 1 : USize
+    %v157 = cast %v155 : USize
+    %v158 = cmp_ge %v156, %v157 : Bool
+    call checkCondition, %v158
+    %v160 = load [%v154]@Flat.items : %Point
+    %v161 = strideof Point : Long
+    %v162 = mul 1, %v161 : Long
+    %v163 = add %v160, %v162 : %Point
+    %v164 = borrow [%v163] : &Point
+    %v165 = load [%v164] : Point
+    %v166 = load [%v164]@Point.x : Int
+    %v169 = cmp_ne %v166, 3 : Bool
+    je %v169, b10, b11
+
+  b10:
+    %v173 = neg 5 : Int
+    ret %v173
+
+  b11:
+    jmp b12
+
+  b12:
+    %v176 = load %copied : Quad
+    %v177 = load %copied@Quad.tag : Int
+    %v180 = cmp_ne %v177, 5 : Bool
+    je %v180, b13, b14
+
+  b13:
+    %v184 = neg 6 : Int
+    ret %v184
+
+  b14:
+    jmp b15
+
+  b15:
+    %v187 = load %copied : Quad
+    %v188 = load %copied@Quad.values : [Int *4]
+    %v190 = borrow_mut %copied@Quad.values : &mut [Int *4]
+    %v191 = alloc : Flat(Int)
+    %v192 = addressof [%v190] : %Int
+    init %local16@Flat.items, %v192
+    %v194 = countof 4 : Size
+    init %local16@Flat.length, %v194
+    %v197 = borrow_mut %local16 : &mut Flat(Int)
+    %v198 = load [%v197]@Flat.length : Size
+    %v199 = cast 0 : USize
+    %v200 = cast %v198 : USize
+    %v201 = cmp_ge %v199, %v200 : Bool
+    call checkCondition, %v201
+    %v203 = load [%v197]@Flat.items : %Int
+    %v204 = strideof Int : Long
+    %v205 = mul 0, %v204 : Long
+    %v206 = add %v203, %v205 : %Int
+    %v207 = borrow_mut [%v206] : &mut Int
+    assign [%v207], 99
+    %v210 = load %copied : Quad
+    %v211 = load %copied@Quad.places : [Point *2]
+    %v213 = borrow_mut %copied@Quad.places : &mut [Point *2]
+    %v214 = alloc : Flat(Point)
+    %v215 = addressof [%v213] : %Point
+    init %local17@Flat.items, %v215
+    %v217 = countof 2 : Size
+    init %local17@Flat.length, %v217
+    %v220 = borrow_mut %local17 : &mut Flat(Point)
+    %v221 = load [%v220]@Flat.length : Size
+    %v222 = cast 1 : USize
+    %v223 = cast %v221 : USize
+    %v224 = cmp_ge %v222, %v223 : Bool
+    call checkCondition, %v224
+    %v226 = load [%v220]@Flat.items : %Point
+    %v227 = strideof Point : Long
+    %v228 = mul 1, %v227 : Long
+    %v229 = add %v226, %v228 : %Point
+    %v230 = borrow_mut [%v229] : &mut Point
+    assign [%v230]@Point.x, 99
+    %v233 = load %local3@Quad.values : [Int *4]
+    %v235 = borrow %local3@Quad.values : &[Int *4]
+    %v236 = alloc : Flat(Int)
+    %v237 = addressof [%v235] : %Int
+    init %local18@Flat.items, %v237
+    %v239 = countof 4 : Size
+    init %local18@Flat.length, %v239
+    %v242 = borrow %local18 : &Flat(Int)
+    %v243 = load [%v242]@Flat.length : Size
+    %v244 = cast 0 : USize
+    %v245 = cast %v243 : USize
+    %v246 = cmp_ge %v244, %v245 : Bool
+    call checkCondition, %v246
+    %v248 = load [%v242]@Flat.items : %Int
+    %v249 = strideof Int : Long
+    %v250 = mul 0, %v249 : Long
+    %v251 = add %v248, %v250 : %Int
+    %v252 = borrow [%v251] : &Int
+    %v253 = load [%v252] : Int
+    %v256 = cmp_ne %v253, 10 : Bool
+    je %v256, b16, b17
+
+  b16:
+    %v260 = neg 7 : Int
+    ret %v260
+
+  b17:
+    jmp b18
+
+  b18:
+    %v263 = load %local3@Quad.places : [Point *2]
+    %v265 = borrow %local3@Quad.places : &[Point *2]
+    %v266 = alloc : Flat(Point)
+    %v267 = addressof [%v265] : %Point
+    init %local19@Flat.items, %v267
+    %v269 = countof 2 : Size
+    init %local19@Flat.length, %v269
+    %v272 = borrow %local19 : &Flat(Point)
+    %v273 = load [%v272]@Flat.length : Size
+    %v274 = cast 1 : USize
+    %v275 = cast %v273 : USize
+    %v276 = cmp_ge %v274, %v275 : Bool
+    call checkCondition, %v276
+    %v278 = load [%v272]@Flat.items : %Point
+    %v279 = strideof Point : Long
+    %v280 = mul 1, %v279 : Long
+    %v281 = add %v278, %v280 : %Point
+    %v282 = borrow [%v281] : &Point
+    %v283 = load [%v282] : Point
+    %v284 = load [%v282]@Point.x : Int
+    %v287 = cmp_ne %v284, 3 : Bool
+    je %v287, b19, b20
+
+  b19:
+    %v291 = neg 8 : Int
+    ret %v291
+
+  b20:
+    jmp b21
+
+  b21:
+    %v294 = alloc : Tracked
+    aggregate %local20@Tracked.value = 10
+    %tracked = call Copy(Tracked).copy, %v294 : Tracked
+    %v298 = load copyCalls : Int
+    %v301 = cmp_ne %v298, 1 : Bool
+    je %v301, b22, b23
+
+  b22:
+    %v305 = neg 2 : Int
+    ret %v305
+
+  b23:
+    jmp b24
+
+  b24:
+    %v308 = load %number : Int
+    %v309 = load %target : Point
+    %v310 = load %target@Point.x : Int
+    %v311 = add %v308, %v310 : Int
+    %v312 = load %target : Point
+    %v313 = load %target@Point.y : Int
+    %v314 = add %v311, %v313 : Int
+    %v315 = load %local21@Tracked.value : Int
+    %v316 = add %v314, %v315 : Int
+    %v317 = load copyCalls : Int
+    %v318 = add %v316, %v317 : Int
+    ret %v318
 }
 
 fn Copy(Tracked).copy(%from: Tracked) -> Tracked {
@@ -125,7 +407,7 @@ fn moveInit$Int(%to: %Int, %from: %Int) -> () {
     %v2 = sizeof Int : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
+    copymemory relocating %v3, %v4, %v2
     ret
 }
 
@@ -143,13 +425,31 @@ fn moveInit$Point(%to: %Point, %from: %Point) -> () {
     %v2 = sizeof Point : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
+    copymemory relocating %v3, %v4, %v2
     ret
 }
 
 fn copyInit$Point(%to: %Point, %from: %Point) -> () {
   b0:
     %v2 = sizeof Point : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory %v3, %v4, %v2
+    ret
+}
+
+fn moveInit$Quad(%to: %Quad, %from: %Quad) -> () {
+  b0:
+    %v2 = sizeof Quad : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory relocating %v3, %v4, %v2
+    ret
+}
+
+fn copyInit$Quad(%to: %Quad, %from: %Quad) -> () {
+  b0:
+    %v2 = sizeof Quad : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
     copymemory %v3, %v4, %v2

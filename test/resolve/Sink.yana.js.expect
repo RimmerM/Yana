@@ -99,13 +99,20 @@ function main() {
                   } else {
                     result = BigInt.asIntN(64, result + relocated.value);
                     var relocatedPair = relocate_Pair({ left: { value: 80n }, right: 8n });
-                    var v164 = sinkCalls.$v;
-                    if (v164 !== 8n) {
+                    if (sinkCalls.$v !== 8n) {
                       return -10n;
                     } else {
-                      var v255 = BigInt.asIntN(64, result + BigInt.asIntN(64, relocatedPair.left.value + relocatedPair.right));
-                      result = v255;
-                      return BigInt.asIntN(64, v255 + v164);
+                      var v269 = BigInt.asIntN(64, result + BigInt.asIntN(64, relocatedPair.left.value + relocatedPair.right));
+                      var b = { cell: { slot: 90n, back: 1n }, mark: 9n };
+                      var c = { cell: { slot: 0n, back: 0n }, mark: 0n };
+                      moveInit$Boxed(c, b);
+                      result = BigInt.asIntN(64, v269 + BigInt.asIntN(64, BigInt.asIntN(64, c.cell.slot + c.cell.back) + c.mark));
+                      var v185 = sinkCalls.$v;
+                      if (v185 !== 9n) {
+                        return -11n;
+                      } else {
+                        return BigInt.asIntN(64, result + v185);
+                      }
                     }
                   }
                 }
@@ -121,6 +128,12 @@ function main() {
 function Sink_Handle_sink(to, from) {
   add_eq_I64(sinkCalls, "$v", 1, 1n);
   to.value = from.value;
+}
+
+function Sink_Cell_sink(to, from) {
+  add_eq_I64(sinkCalls, "$v", 1, 1n);
+  to.slot = from.back;
+  to.back = from.slot;
 }
 
 function moveInit$Pair(to, from) {
@@ -145,6 +158,12 @@ function moveInit$Either(to, from) {
 
 function ResolveTest_lambda$14(env) {
   return env.value;
+}
+
+function moveInit$Boxed(to, from) {
+  to.cell = { slot: from.cell.slot, back: from.cell.back };
+  to.mark = from.mark;
+  Sink_Cell_sink(to.cell, from.cell);
 }
 
 function relocate_Handle(x) {

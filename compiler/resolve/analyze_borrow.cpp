@@ -894,6 +894,39 @@ void checkMaterializedBorrows(Analysis& analysis) {
 }
 
 /*
+ * A class function's borrowed parameters, which may not outlive the call either.
+ *
+ * The general form of the rule below, and the same division of labour: a call site that selected
+ * the instance reads this body's summary and is told exactly what it kept, and a call site that
+ * *deferred* the dispatch has only the class signature to read - so what it believes instead is the
+ * declaration, and this is what makes the declaration true of every implementation. See
+ * assumedRetained in analyze_escape.cpp, which is the assumption this pays for.
+ *
+ * `->` is both the escape hatch and the answer to the diagnostic. A member that has to store what
+ * it is given asks for it by value, which is what `IndexInsert.insertAt` already does: "an insert
+ * that misses stores it, and storage that outlives the call cannot be borrowed".
+ *
+ * A class *default* is held to it as well, and has to be: an instance that supplies no
+ * implementation puts the default in the slot, so a deferred dispatch reaches it exactly as it
+ * reaches a written one. See Function::classDefault.
+ */
+void checkClassBorrows(Analysis& analysis) {
+    auto& function = analysis.function;
+    if(!function.instanceOf && !function.classDefault) return;
+
+    for(auto argPointer: function.args.contents(analysis.local)) {
+        auto arg = analysis.local[argPointer];
+        if(arg->convention == ast::BindType::Sink) continue;
+
+        auto slot = backingLocal(analysis, (ModulePtr<Value>)argPointer);
+        if(slot == maxLimit<U32> || !analysis.escaped[slot]) continue;
+
+        report(analysis, "this implements a class function, so it cannot keep %@ beyond the call - a call in a generic body cannot see which implementation runs, and takes the declaration's word that a borrowed argument's extent is the call. Declare the parameter `->` if the body has to store what it is given"_v,
+               arg->source, analysis.context.findName(arg->name));
+    }
+}
+
+/*
  * A class iterator's continuation, which may not outlive the call.
  *
  * The one rule a deferred dispatch cannot check for itself, checked instead everywhere it has to

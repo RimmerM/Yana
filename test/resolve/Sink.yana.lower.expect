@@ -563,8 +563,38 @@ main<complex>(): Long {
     %v_94 = loads %v_93, 8: Long
     %v_95 = add %v_92, %v_94: Long
     %v_96 = add %v_84, %v_95: Long
-    %v_97 = add %v_96, %v_87: Long
-    ret %v_97
+    %b = alloca 24, 8: Ptr
+    store %b, 90, 8
+    %v_97 = add %b, 8: Ptr
+    store %v_97, 1, 8
+    %v_98 = add %b, 16: Ptr
+    store %v_98, 9, 8
+    %c = alloca 24, 8: Ptr
+    call_complex moveInit$Boxed, %c, %b
+    %v_99 = loads %c, 8: Long
+    %v_100 = add %c, 8: Ptr
+    %v_101 = loads %v_100, 8: Long
+    %v_102 = add %v_99, %v_101: Long
+    %v_103 = add %c, 16: Ptr
+    %v_104 = loads %v_103, 8: Long
+    %v_105 = add %v_102, %v_104: Long
+    %v_106 = add %v_96, %v_105: Long
+    %v_107 = loads @sinkCalls, 8: Long
+    %v_108 = cmp_neq %v_107, 9: Int
+    je %v_108, b_109, b_110
+  }
+
+  b_109 {
+    ret 18446744073709551605
+  }
+
+  b_110 {
+    jmp b_111
+  }
+
+  b_111 {
+    %v_112 = add %v_106, %v_107: Long
+    ret %v_112
   }
 
   b_57 {
@@ -579,6 +609,19 @@ Sink(Handle).sink<complex>(%to: Ptr, %from: Ptr) {
     call_complex +=(I64), @sinkCalls, 1
     %v_1 = loads %from, 8: Long
     store %to, %v_1, 8
+    ret 
+  }
+}
+
+Sink(Cell).sink<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    call_complex +=(I64), @sinkCalls, 1
+    %v_1 = add %from, 8: Ptr
+    %v_2 = loads %v_1, 8: Long
+    store %to, %v_2, 8
+    %v_3 = loads %from, 8: Long
+    %v_4 = add %to, 8: Ptr
+    store %v_4, %v_3, 8
     ret 
   }
 }
@@ -628,6 +671,14 @@ ResolveTest.lambda$14<complex>(%env: Ptr): Long {
   b_0 {
     %v_1 = loads %env, 8: Long
     ret %v_1
+  }
+}
+
+moveInit$Boxed<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    copy %to, %from, 24
+    call_complex Sink(Cell).sink, %to, %from
+    ret 
   }
 }
 

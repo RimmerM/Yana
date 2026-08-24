@@ -1,0 +1,120 @@
+let image$base: () = <none>
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = syscall 60, %status : Size
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn newState() -> State {
+  b0:
+    %v0 = alloc : State
+    %v9 = alloc : [U32 *8]
+    aggregate %local1[0] = 11, %local1[1] = 22, %local1[2] = 33, %local1[3] = 44, %local1[4] = 55, %local1[5] = 66, %local1[6] = 77, %local1[7] = 88
+    aggregate %local0@State.h = %v9
+    ret %v0
+}
+
+fn newBlocks(%state: c) -> Blocks(c) {
+  schema {
+    #0 type c
+    #1 type Blocks(c)
+  }
+
+  b0:
+    %v1 = alloc : Blocks(c)
+    %v3 = alloc : [U8 *64]
+    aggregate %local2[0] = 0, %local2[1] = 0, %local2[2] = 0, %local2[3] = 0, %local2[4] = 0, %local2[5] = 0, %local2[6] = 0, %local2[7] = 0, %local2[8] = 0, %local2[9] = 0, %local2[10] = 0, %local2[11] = 0, %local2[12] = 0, %local2[13] = 0, %local2[14] = 0, %local2[15] = 0, %local2[16] = 0, %local2[17] = 0, %local2[18] = 0, %local2[19] = 0, %local2[20] = 0, %local2[21] = 0, %local2[22] = 0, %local2[23] = 0, %local2[24] = 0, %local2[25] = 0, %local2[26] = 0, %local2[27] = 0, %local2[28] = 0, %local2[29] = 0, %local2[30] = 0, %local2[31] = 0, %local2[32] = 0, %local2[33] = 0, %local2[34] = 0, %local2[35] = 0, %local2[36] = 0, %local2[37] = 0, %local2[38] = 0, %local2[39] = 0, %local2[40] = 0, %local2[41] = 0, %local2[42] = 0, %local2[43] = 0, %local2[44] = 0, %local2[45] = 0, %local2[46] = 0, %local2[47] = 0, %local2[48] = 0, %local2[49] = 0, %local2[50] = 0, %local2[51] = 0, %local2[52] = 0, %local2[53] = 0, %local2[54] = 0, %local2[55] = 0, %local2[56] = 0, %local2[57] = 0, %local2[58] = 0, %local2[59] = 0, %local2[60] = 0, %local2[61] = 0, %local2[62] = 0, %local2[63] = 0
+    aggregate %local1@Blocks.state = %state, %local1@Blocks.block = %v3, %local1@Blocks.used = 0, %local1@Blocks.total = 0
+    ret %v1
+}
+
+fn main() -> I64 {
+  b0:
+    %v0 = call newState : State
+    %v1 = copy %local0 : State
+    %v2 = call newBlocks(State), %v1 : Blocks(State)
+    %w = alloc : Blocks(State)
+    init %w, %v2
+    %v5 = load %w : Blocks(State)
+    %v6 = load %w@Blocks.state : State
+    %v7 = load %w@Blocks.state@State.h : [U32 *8]
+    %v9 = borrow %w@Blocks.state@State.h : &[U32 *8]
+    %v10 = alloc : Flat(U32)
+    %v11 = addressof [%v9] : %U32
+    init %local4@Flat.items, %v11
+    %v13 = countof 8 : Size
+    init %local4@Flat.length, %v13
+    %v16 = borrow %local4 : &Flat(U32)
+    %v17 = load [%v16]@Flat.length : Size
+    %v18 = cast 0 : USize
+    %v19 = cast %v17 : USize
+    %v20 = cmp_ge %v18, %v19 : Bool
+    call checkCondition, %v20
+    %v22 = load [%v16]@Flat.items : %U32
+    %v23 = strideof U32 : Long
+    %v24 = mul 0, %v23 : Long
+    %v25 = add %v22, %v24 : %U32
+    %v26 = borrow [%v25] : &U32
+    %v27 = load [%v26] : U32
+    %v28 = load %w : Blocks(State)
+    %v29 = load %w@Blocks.state : State
+    %v30 = load %w@Blocks.state@State.h : [U32 *8]
+    %v32 = borrow %w@Blocks.state@State.h : &[U32 *8]
+    %v33 = alloc : Flat(U32)
+    %v34 = addressof [%v32] : %U32
+    init %local5@Flat.items, %v34
+    %v36 = countof 8 : Size
+    init %local5@Flat.length, %v36
+    %v39 = borrow %local5 : &Flat(U32)
+    %v40 = load [%v39]@Flat.length : Size
+    %v41 = cast 7 : USize
+    %v42 = cast %v40 : USize
+    %v43 = cmp_ge %v41, %v42 : Bool
+    call checkCondition, %v43
+    %v45 = load [%v39]@Flat.items : %U32
+    %v46 = strideof U32 : Long
+    %v47 = mul 7, %v46 : Long
+    %v48 = add %v45, %v47 : %U32
+    %v49 = borrow [%v48] : &U32
+    %v50 = load [%v49] : U32
+    %v51 = add %v27, %v50 : U32
+    %v52 = cast %v51 : I64
+    ret %v52
+}
+
+fn newBlocks(State)(%state: State) -> Blocks(State) {
+  b0:
+    %v1 = alloc : Blocks(State)
+    %v2 = alloc : [U8 *64]
+    aggregate %local2[0] = 0, %local2[1] = 0, %local2[2] = 0, %local2[3] = 0, %local2[4] = 0, %local2[5] = 0, %local2[6] = 0, %local2[7] = 0, %local2[8] = 0, %local2[9] = 0, %local2[10] = 0, %local2[11] = 0, %local2[12] = 0, %local2[13] = 0, %local2[14] = 0, %local2[15] = 0, %local2[16] = 0, %local2[17] = 0, %local2[18] = 0, %local2[19] = 0, %local2[20] = 0, %local2[21] = 0, %local2[22] = 0, %local2[23] = 0, %local2[24] = 0, %local2[25] = 0, %local2[26] = 0, %local2[27] = 0, %local2[28] = 0, %local2[29] = 0, %local2[30] = 0, %local2[31] = 0, %local2[32] = 0, %local2[33] = 0, %local2[34] = 0, %local2[35] = 0, %local2[36] = 0, %local2[37] = 0, %local2[38] = 0, %local2[39] = 0, %local2[40] = 0, %local2[41] = 0, %local2[42] = 0, %local2[43] = 0, %local2[44] = 0, %local2[45] = 0, %local2[46] = 0, %local2[47] = 0, %local2[48] = 0, %local2[49] = 0, %local2[50] = 0, %local2[51] = 0, %local2[52] = 0, %local2[53] = 0, %local2[54] = 0, %local2[55] = 0, %local2[56] = 0, %local2[57] = 0, %local2[58] = 0, %local2[59] = 0, %local2[60] = 0, %local2[61] = 0, %local2[62] = 0, %local2[63] = 0
+    aggregate %local1@Blocks.state = %state, %local1@Blocks.block = %v2, %local1@Blocks.used = 0, %local1@Blocks.total = 0
+    ret %v1
+}

@@ -121,6 +121,171 @@ JsPtr<Expr> useValue(Gen& g, ModulePtr<Value> pointer) {
     return nullValue(g);
 }
 
+/*
+ * Whether what a value names is storage somebody else still holds.
+ *
+ * The question a write has to ask on this target and on no other. Native's `load` of an aggregate
+ * computes an address and copies nothing; what makes the result a *value* there is the consumer,
+ * because every one of them copies - a store is a `memcpy`, a `return` is a `memcpy` into the
+ * caller's buffer, and an aggregate parameter arrives as the caller's address (see `arrivesAsCopy`)
+ * so the callee's first write of it is a `memcpy` too. Here a place read hands back the object
+ * itself and `v = other` beside it rebinds a name, so the copy has to be put back by hand.
+ *
+ * Stated as the *fresh* kinds rather than the aliasing ones, and it is deliberate that the default
+ * is to duplicate: a missed copy is two names for one object and shows up as a wrong answer far
+ * from here, where a needless one is only a needless one. What earns a place on this list is a
+ * value that either has no storage behind it or has storage the resolver has already proved dead:
+ *
+ *  - a *move* is exactly that proof, and it is the whole of what a move is here (README, §3.3);
+ *  - a *copy* is the duplicate itself, so duplicating it again would be the second of two;
+ *  - a whole local used as a value is the move of that local, which is the only form the resolver
+ *    emits one in - a local that stays live is read with a `load` and lands in the default;
+ *  - a *call* hands back a value of its own, which the `Ret` below guarantees by asking this same
+ *    question of whatever it returns;
+ *  - a host call answers a fresh object or nothing that is one.
+ *
+ * A join is whichever of its inputs the edge took, so it is as fresh as the least fresh of them.
+ * `pick(c) = Buf {bytes: if c then a else b}` is that shape and it is three lines of Yana; the depth
+ * cap is for a loop-carried phi, which reaches itself and is answered conservatively.
+ *
+ * And *every* kind is aliasing where the body keeps the value twice, fresh or not - a second keeper
+ * of one object is a second name for it however fresh the first one was. See Gen::keptTwice for why
+ * that is a case at all and why neither of the two may go free.
+ */
+static bool namesLiveStorage(Gen& g, ModulePtr<Value> pointer, U32 depth) {
+    if(!pointer) return false;
+    if(depth >= 8) return true;
+    if(g.keptTwice.contains(U32(pointer))) return true;
+
+    auto& value = *g.local[pointer];
+
+    switch(value.kind) {
+        case Value::Move:
+        case Value::Copy:
+        case Value::Alloc:
+        case Value::Call:
+        case Value::CallDyn:
+        case Value::Native:
+            return false;
+
+        case Value::Phi: {
+            for(auto input: ((InstPhi&)value).inputs.contents(g.local)) {
+                if(namesLiveStorage(g, input.value, depth + 1)) return true;
+            }
+
+            return false;
+        }
+        case Value::Select: {
+            auto& select = (InstSelect&)value;
+            return namesLiveStorage(g, select.whenTrue, depth + 1) ||
+                   namesLiveStorage(g, select.whenFalse, depth + 1);
+        }
+        default:
+            return true;
+    }
+}
+
+/*
+ * Whether a type is one this duplicate is *for*.
+ *
+ * `cloneValue` is a structural copy, which is to say it is native's `memcpy` of one value and
+ * nothing more: it copies an `Array(a)`'s two properties and shares the run they point at, exactly
+ * as copying the `{ptr, len}` pair over there does. That is the whole answer for a type nobody owes
+ * a teardown, and it is never the answer for a type that does - a bitwise duplicate of a droppable
+ * value is two owners of one buffer, and the copy of one is its `Sink`, reached through an
+ * `InstCopy` that has its own destination.
+ *
+ * So a droppable type declines, and there is no site it leaves uncovered. Every write of one into
+ * storage is a *move* by construction: `transferFrom` in analyze_effects.cpp records the handover
+ * and declines only "anything with no teardown to hand over", which is the same line drawn from the
+ * other side. Where the source is dead nothing is owed, and where it is live a structural clone
+ * would not have been the copy anyway - it would have been the double free.
+ *
+ * `isGeneric` declines for a different reason and it is not a hole either: an erased body has no
+ * shape to duplicate from, so `storeInto` sends a write of one through the descriptor's `kCopyInit`
+ * - a copy already, and the one gap 4 exists to have closed. Asking `cloneValue` here instead would
+ * report every erased write as a shape this target cannot see.
+ */
+static bool copiesStructurally(Gen& g, TypePtr type) {
+    if(!isJsObject(g, type) || isGeneric(g.global, type)) return false;
+
+    return !g.function || !needsTeardown(*g.function->module, type);
+}
+
+/*
+ * A value in a position that *keeps* it - written into storage, or handed back through a `return`.
+ *
+ * The duplicate is `cloneValue`'s, which is the same one an `InstCopy` emits: the two are the same
+ * operation reached for different reasons, and a type whose copy is not structural has an
+ * `InstCopy` with its own `Sink` rather than arriving here.
+ */
+JsPtr<Expr> keptValue(Gen& g, TypePtr type, ModulePtr<Value> value, JsPtr<Expr> source,
+                      LocationId where) {
+    if(!copiesStructurally(g, type)) return source;
+    if(!namesLiveStorage(g, value, 0)) return source;
+
+    return cloneValue(g, type, source, where);
+}
+
+bool keepsLiveStorage(Gen& g, TypePtr type, ModulePtr<Value> value) {
+    return copiesStructurally(g, type) && namesLiveStorage(g, value, 0);
+}
+
+/*
+ * Whether a `return` may hand the object over rather than duplicate it.
+ *
+ * The one position where the *frame* is the answer. `namesLiveStorage` is asked about a value and
+ * has to hold for every position it is asked at, so a read of a local lands in its default: the
+ * local goes on existing and a second name for its contents would be a second name. At a `ret` it
+ * does not go on existing - the frame is what dies, and its storage dies with it - so what is left
+ * to ask is whether anything *outside* the frame can still reach the object.
+ *
+ * Nothing can, and it is the rest of this file that makes that true rather than an assumption:
+ *
+ *  - every write into storage duplicates a value that was still somebody else's, so a slot reached
+ *    from a global or through a borrow holds an object of its own rather than this one;
+ *  - a droppable type is the exception to that and does not need to be one, because a write of one
+ *    is a *move* (see copiesStructurally) - a local written somewhere else is moved-from and cannot
+ *    be what a later `ret` names;
+ *  - a value kept in two positions is `Gen::keptTwice`, which is asked here as it is asked there.
+ *
+ * So the slot has to be one this frame genuinely owns, which is `sinkValue`'s test in
+ * resolve/expr_construct.cpp and is the same list for the same reason: a `&` parameter, a borrowed
+ * slot, a closure environment and a materialized field temporary all name storage that outlives the
+ * return, and a view names another local's. `sinkValue` additionally declines a *projected* place,
+ * which is the one thing not repeated here - `local@Exit` is a payload of the frame's own storage
+ * and dies with the rest of it - and that is the whole of what this recovers over the resolver's
+ * own answer.
+ */
+static bool handsOverFrameStorage(Gen& g, ModulePtr<Value> value) {
+    if(!value || g.keptTwice.contains(U32(value))) return false;
+    if(!g.function) return false;
+
+    auto& instruction = *g.local[value];
+    if(instruction.kind != Value::LoadPlace) return false;
+
+    auto& place = ((InstLoadPlace&)instruction).place;
+    if(place.root != PlaceRoot::Local || place.local >= g.function->localCount()) return false;
+
+    auto slot = g.function->localAt(g.local, place.local);
+    if(slot.borrowed || slot.closureEnv || slot.materialized) return false;
+    if(slot.viewOf != maxLimit<U32>) return false;
+
+    // A parameter slot names the caller's storage under every convention but `->`, which is the one
+    // the caller recorded a handover for. Recognized the way every pass recognizes a parameter: its
+    // slot is named by an Arg, exactly as an allocation's is named by its Alloc.
+    auto parameter = slot.value && g.local[slot.value]->kind == Value::Arg;
+
+    return !parameter || slot.convention == ast::BindType::Sink;
+}
+
+JsPtr<Expr> returnedValue(Gen& g, TypePtr type, ModulePtr<Value> value, JsPtr<Expr> source,
+                          LocationId where) {
+    if(handsOverFrameStorage(g, value)) return source;
+
+    return keptValue(g, type, value, source, where);
+}
+
 JsPtr<Expr> globalValue(Gen& g, ModulePtr<Global> pointer) {
     auto found = g.globalNames.get(U32(pointer));
     return variable(g, found ? found.unwrap() : Name {});

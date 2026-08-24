@@ -109,7 +109,7 @@ fn moveInit$Pair(%to: %Pair, %from: %Pair) -> () {
     %v2 = sizeof Pair : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
+    copymemory relocating %v3, %v4, %v2
     %v6 = addressof [%to]@Pair.left : %Handle
     %v7 = addressof [%from]@Pair.left : %Handle
     call Sink(Handle).sink, %v6, %v7

@@ -81,6 +81,7 @@ ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, as
 
     auto function = addAnonymousFunction(module, classDefaultName(module, typeClass, member.fun.name), member.source);
     function->gen = env - global;
+    function->classDefault = true;
     function->returnType = signature.returnType;
     function->ast = pointer;
     readInlineAttribute(module, member, *function);

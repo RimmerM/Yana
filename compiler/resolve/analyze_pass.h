@@ -530,6 +530,7 @@ void checkReturnRoots(Analysis& analysis);
 void checkMaterializedBorrows(Analysis& analysis);
 void checkEscapingViews(Analysis& analysis);
 void checkClosureEnvironments(Analysis& analysis);
+void checkClassBorrows(Analysis& analysis);
 
 // The rule a deferred class dispatch takes on trust - see Function::classContinuation.
 void checkContinuationExtent(Analysis& analysis);

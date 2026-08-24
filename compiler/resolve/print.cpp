@@ -460,6 +460,11 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             auto& native = (InstNative&)inst;
             Size index = 0;
 
+            // Which of the two a block copy is - see InstNative::relocates. In front of the
+            // arguments for the reason the method below is: it is what the operation *is*, and the
+            // two are the same three operands with different rules about the second one.
+            if(native.relocates) print.writer.writeString(" relocating"_v);
+
             // The host member, where there is one. It is what the operation *is* - two `hostcall`s
             // differing only in their method are two different operations - so it prints in front of
             // the arguments rather than as one of them.

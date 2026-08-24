@@ -1243,6 +1243,23 @@ struct InstNative: Inst {
 
     NativeOp op;
 
+    /*
+     * That this block copy *relocates* rather than duplicates - the source is dead the moment it
+     * returns and nothing may read it again. Set on the opening copy of `moveInit$` glue and on
+     * nothing else; `CopyMemory` reached any other way is `Native.blockCopy`, whose source the
+     * caller goes on owning.
+     *
+     * A fact about this copy rather than about the function it sits in, which is why it is here and
+     * not a flag on `Function`: the same glue could one day open with more than one, and a copy
+     * that relocates is what each of them would separately be.
+     *
+     * Only one backend can tell the difference. Native writes the same `memcpy` either way - the
+     * bytes are the bytes, and the source being dead changes nothing about writing them. On JS the
+     * copy is structural and has to be *built*, so relocating is the assignment alone where
+     * duplicating is a `cloneValue` per property. See genBlockCopy.
+     */
+    bool relocates = false;
+
     template<class F> void mapOperandFields(ModuleBase base, F&& f) { mapValueList(base, args, f); }
 };
 

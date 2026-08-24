@@ -674,6 +674,55 @@ void prepareBuiltLocals(Gen& g, Function& function) {
     });
 }
 
+/*
+ * The values kept in more than one position - see Gen::keptTwice.
+ *
+ * One walk, counting rather than marking, because the second occurrence is what the answer is: a
+ * value kept once is the ordinary case and every value in a body is one until something else keeps
+ * it too. A `Swap` is not among the positions - it exchanges two *places* and keeps no value at all.
+ *
+ * A phi input is counted even though the edge itself never calls `keptValue`: a value that is a phi
+ * input *and* something else's source is two keepers, and the assignment on the edge is the one
+ * that would hand the object over. `namesLiveStorage` looking through a phi to its inputs is what
+ * covers the ordinary case, and this is what covers the case that value has a second reader.
+ */
+void prepareKeptValues(Gen& g, Function& function) {
+    g.keptTwice.clear();
+
+    HashSet<U32> seen;
+    auto kept = [&](ModulePtr<Value> value) {
+        if(!value) return;
+        if(seen.contains(U32(value))) g.keptTwice.add(U32(value));
+        seen.add(U32(value));
+    };
+
+    eachInstruction(g, function, [&](Value& instruction) {
+        switch(instruction.kind) {
+            case Value::Init:
+            case Value::Assign:
+                kept(((InstInit&)instruction).value);
+                break;
+            case Value::Exchange:
+                kept(((InstExchange&)instruction).value);
+                break;
+            case Value::Aggregate:
+                for(auto component: ((InstAggregate&)instruction).components.contents(g.local)) {
+                    kept(component.value);
+                }
+
+                break;
+            case Value::Ret:
+                kept(((InstRet&)instruction).value);
+                break;
+            case Value::Phi:
+                for(auto input: ((InstPhi&)instruction).inputs.contents(g.local)) kept(input.value);
+                break;
+            default:
+                break;
+        }
+    });
+}
+
 // Which local slot names this parameter, or -1 where it has none. A place is rooted in a *slot* and
 // an argument is a *value*, and `bindFunctionArgs` is what ties the two together - so this is the
 // lookup that question needs and there is no index to shortcut it with.
@@ -693,6 +742,7 @@ StmtList genBody(Gen& g, Function& function) {
     prepareFunLocals(g, function);
     prepareRefLocals(g, function);
     prepareBuiltLocals(g, function);
+    prepareKeptValues(g, function);
     prepareCfg(g, function);
 
     return collect(g, [&] {

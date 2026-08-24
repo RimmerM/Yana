@@ -1,0 +1,341 @@
+@image$base = []
+@zeros = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+seed<complex>(): Int {
+  b_0 {
+    ret 0
+  }
+}
+
+eat<complex>(%b: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 16, 16: Ptr
+    %v_2 = load %b, 4: Int
+    %v_3 = add %b, 4: Ptr
+    copy %v_1, %v_3, 16
+    %v_4 = call_complex seed: Int
+    %v_5 = add %v_4, 6: Int
+    ret %v_5
+  }
+}
+
+bytesKept<complex>(%v_0: Ptr, %w: Ptr) {
+  b_1 {
+    copy %v_0, %w, 16
+    ret 
+  }
+}
+
+innerBytes<complex>(%v_0: Ptr) {
+  b_1 {
+    %v_2 = call_complex seed: Int
+    %v_3 = call_complex seed: Int
+    store %v_0, 0, 4
+    %v_4 = add %v_0, 4: Ptr
+    store %v_4, 0, 4
+    %v_5 = add %v_0, 8: Ptr
+    store %v_5, 0, 4
+    %v_6 = add %v_0, 12: Ptr
+    store %v_6, 9, 4
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 12, 16: Ptr
+    %zeros = global @zeros: Ptr
+    %v_2 = call_complex seed: Int
+    %v_3 = load %zeros, 4: Int
+    %v_4 = add %zeros, 4: Ptr
+    copy %v_1, %v_4, 12
+    %v_5 = alloca 12, 16: Ptr
+    copy %v_5, %v_1, 12
+    %v_6 = alloca 12, 16: Ptr
+    %zeros = global @zeros: Ptr
+    %v_7 = call_complex seed: Int
+    %v_8 = load %zeros, 4: Int
+    %v_9 = add %zeros, 4: Ptr
+    copy %v_6, %v_9, 12
+    %v_10 = alloca 12, 16: Ptr
+    copy %v_10, %v_6, 12
+    %v_11 = call_complex seed: Int
+    %v_12 = add %v_11, 1: Int
+    %v_13 = cmp_neq %v_12, 1: Int
+    je %v_13, b_14, b_15
+  }
+
+  b_15 {
+    %v_16 = cmp_neq %v_8, 0: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_18 {
+    %v_19 = loads @zeros, 4: Int
+    %v_20 = cmp_neq %v_19, 0: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    %v_23 = call_complex seed: Int
+    %v_24 = call_complex seed: Int
+    %v_25 = add %v_24, 2: Int
+    %v_26 = cmp_neq %v_25, 2: Int
+    je %v_26, b_27, b_28
+  }
+
+  b_28 {
+    jmp b_29
+  }
+
+  b_29 {
+    jmp b_30
+  }
+
+  b_30 {
+    %v_31 = alloca 24, 4: Ptr
+    %v_32 = call_complex seed: Int
+    %v_33 = call_complex seed: Int
+    store %v_31, 0, 4
+    %v_34 = add %v_31, 4: Ptr
+    store %v_34, 0, 4
+    %v_35 = add %v_31, 8: Ptr
+    store %v_35, 7, 4
+    %v_36 = add %v_31, 12: Ptr
+    store %v_36, 0, 4
+    %v_37 = add %v_31, 16: Ptr
+    store %v_37, %v_32, 4
+    %v_38 = add %v_31, 20: Ptr
+    store %v_38, %v_33, 4
+    %v_39 = call_complex seed: Int
+    %v_40 = load %v_31, 4: Int
+    %v_41 = add %v_31, 4: Ptr
+    %v_42 = load %v_41, 4: Int
+    %v_43 = add %v_31, 8: Ptr
+    %v_44 = load %v_43, 4: Int
+    %v_45 = add %v_31, 12: Ptr
+    %v_46 = load %v_45, 4: Int
+    %v_47 = call_complex seed: Int
+    %v_48 = add %v_47, 3: Int
+    %v_49 = cmp_neq %v_48, 3: Int
+    je %v_49, b_50, b_51
+  }
+
+  b_51 {
+    %v_52 = cmp_neq %v_44, 7: Int
+    je %v_52, b_53, b_54
+  }
+
+  b_54 {
+    %v_55 = loads %v_31, 4: Int
+    %v_56 = cmp_neq %v_55, 0: Int
+    je %v_56, b_57, b_58
+  }
+
+  b_58 {
+    %zeros = global @zeros: Ptr
+    %v_59 = alloca 12, 16: Ptr
+    %v_60 = load %zeros, 4: Int
+    %v_61 = add %zeros, 4: Ptr
+    copy %v_59, %v_61, 12
+    %v_62 = call_complex seed: Int
+    %v_63 = add %v_62, 4: Int
+    %v_64 = cmp_neq %v_63, 4: Int
+    je %v_64, b_65, b_66
+  }
+
+  b_66 {
+    %v_67 = loads @zeros, 4: Int
+    %v_68 = cmp_neq %v_67, 0: Int
+    je %v_68, b_69, b_70
+  }
+
+  b_70 {
+    %v_71 = alloca 12, 16: Ptr
+    %v_72 = load %v_31, 4: Int
+    %v_73 = add %v_31, 4: Ptr
+    copy %v_71, %v_73, 12
+    %v_74 = call_complex seed: Int
+    %v_75 = add %v_74, 5: Int
+    %v_76 = cmp_neq %v_75, 5: Int
+    je %v_76, b_77, b_78
+  }
+
+  b_78 {
+    %v_79 = loads %v_31, 4: Int
+    %v_80 = cmp_neq %v_79, 0: Int
+    je %v_80, b_81, b_82
+  }
+
+  b_82 {
+    %v_83 = call_complex eat, %v_31: Int
+    %v_84 = cmp_neq %v_83, 6: Int
+    je %v_84, b_85, b_86
+  }
+
+  b_86 {
+    %v_87 = loads %v_31, 4: Int
+    %v_88 = cmp_neq %v_87, 0: Int
+    je %v_88, b_89, b_90
+  }
+
+  b_90 {
+    %v_91 = alloca 12, 16: Ptr
+    %zeros = global @zeros: Ptr
+    %v_92 = call_complex seed: Int
+    %v_93 = load %zeros, 4: Int
+    %v_94 = add %zeros, 4: Ptr
+    copy %v_91, %v_94, 12
+    %v_95 = alloca 12, 16: Ptr
+    copy %v_95, %v_91, 12
+    %v_96 = call_complex seed: Int
+    %v_97 = load %v_31, 4: Int
+    %v_98 = add %v_31, 4: Ptr
+    %v_99 = alloca 12, 16: Ptr
+    copy %v_99, %v_98, 12
+    %v_100 = call_complex seed: Int
+    %v_101 = add %v_100, 7: Int
+    %v_102 = call_complex seed: Int
+    %v_103 = cmp_neq %v_101, 7: Int
+    je %v_103, b_104, b_105
+  }
+
+  b_105 {
+    %v_106 = cmp_neq %v_102, 0: Int
+    je %v_106, b_107, b_108
+  }
+
+  b_108 {
+    %v_109 = loads @zeros, 4: Int
+    %v_110 = cmp_neq %v_109, 0: Int
+    je %v_110, b_111, b_112
+  }
+
+  b_112 {
+    %v_113 = loads %v_31, 4: Int
+    %v_114 = cmp_neq %v_113, 0: Int
+    je %v_114, b_115, b_116
+  }
+
+  b_116 {
+    %eight = alloca 16, 4: Ptr
+    call_complex bytesKept, %eight, %v_31
+    %v_117 = call_complex seed: Int
+    %v_118 = add %v_117, 8: Int
+    store %eight, %v_118, 4
+    %v_119 = cmp_neq %v_118, 8: Int
+    je %v_119, b_120, b_121
+  }
+
+  b_121 {
+    %v_122 = loads %v_31, 4: Int
+    %v_123 = cmp_neq %v_122, 0: Int
+    je %v_123, b_124, b_125
+  }
+
+  b_125 {
+    %nine = alloca 16, 4: Ptr
+    call_complex innerBytes, %nine
+    %v_126 = add %nine, 12: Ptr
+    %v_127 = loads %v_126, 4: Int
+    %v_128 = cmp_neq %v_127, 9: Int
+    je %v_128, b_129, b_130
+  }
+
+  b_130 {
+    %v_131 = add %v_12, %v_25: Int
+    %v_132 = add %v_131, %v_48: Int
+    %v_133 = add %v_132, %v_63: Int
+    %v_134 = add %v_133, %v_75: Int
+    %v_135 = call_complex eat, %v_31: Int
+    %v_136 = add %v_134, %v_135: Int
+    %v_137 = add %v_136, %v_101: Int
+    %v_138 = loads %eight, 4: Int
+    %v_139 = add %v_137, %v_138: Int
+    %v_140 = add %nine, 12: Ptr
+    %v_141 = loads %v_140, 4: Int
+    %v_142 = add %v_139, %v_141: Int
+    ret %v_142
+  }
+
+  b_129 {
+    ret 18446744073709551607
+  }
+
+  b_124 {
+    ret 18446744073709551508
+  }
+
+  b_120 {
+    ret 18446744073709551608
+  }
+
+  b_115 {
+    ret 18446744073709551309
+  }
+
+  b_111 {
+    ret 18446744073709551509
+  }
+
+  b_107 {
+    ret 18446744073709551409
+  }
+
+  b_104 {
+    ret 18446744073709551609
+  }
+
+  b_89 {
+    ret 18446744073709551510
+  }
+
+  b_85 {
+    ret 18446744073709551610
+  }
+
+  b_81 {
+    ret 18446744073709551511
+  }
+
+  b_77 {
+    ret 18446744073709551611
+  }
+
+  b_69 {
+    ret 18446744073709551512
+  }
+
+  b_65 {
+    ret 18446744073709551612
+  }
+
+  b_57 {
+    ret 18446744073709551513
+  }
+
+  b_53 {
+    ret 18446744073709551313
+  }
+
+  b_50 {
+    ret 18446744073709551613
+  }
+
+  b_27 {
+    ret 18446744073709551614
+  }
+
+  b_21 {
+    ret 18446744073709551415
+  }
+
+  b_17 {
+    ret 18446744073709551515
+  }
+
+  b_14 {
+    ret 18446744073709551615
+  }
+}
+

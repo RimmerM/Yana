@@ -1,0 +1,37 @@
+{-
+   A class function may not keep what it was lent.
+
+   The rule a *deferred* dispatch takes on trust - see `assumedRetained` in analyze_escape.cpp. A
+   call site that selected the instance reads the implementation's own summary and is told what it
+   kept; a call site inside a generic body names the class signature, which has no body, so what it
+   believes instead is the declaration: a borrow's extent is the call. This is where that belief is
+   paid for, one implementation at a time, so that a generic body handing `update` a view of its own
+   buffer is not taking the word of whichever instance a caller happens to select.
+
+   `->` is the answer to every diagnostic below, and it is what `IndexInsert.insertAt` already writes:
+   an insert that misses *stores* the key, so it asks for the key rather than borrowing it.
+-}
+data Holder {view: &[Int], at: Int}
+
+let &sink = Holder {view: [0], at: 0}
+
+pub class Keep(c):
+  fn keepGlobally(&self: c, xs: &[Int]) -> {}
+  fn keepInside(&self: c, xs: &[Int]) -> {}
+  fn readOnly(&self: c, xs: &[Int]) -> Int
+
+data Box {n: Int, held: Holder}
+
+instance Keep(Box):
+    -- Into a global, which outlives every frame there is.
+    fn keepGlobally(&self: Box, xs: &[Int]) -> {}:
+        sink.view = xs
+
+    -- And into storage the caller passed in, which outlives this frame for the same reason.
+    fn keepInside(&self: Box, xs: &[Int]) -> {}:
+        self.held.view = xs
+
+    -- The control: reading through the borrow is what a borrow is for, and is not reported.
+    fn readOnly(&self: Box, xs: &[Int]) -> Int = xs[0] + self.n
+
+fn main() -> Int = 0

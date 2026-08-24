@@ -385,6 +385,18 @@ struct Function {
     bool classContinuation = false;
 
     /*
+     * Set for the body a class wrote for one of its own signatures - see resolveClassDefault.
+     *
+     * `instanceOf` is what every other pass asks "is this a class function", and a default is the
+     * one that answers no: it is generic over the class's variables rather than an implementation
+     * for one assignment of them, and it is specialized per instance the first time a call reaches
+     * it. Which is a distinction with no consequence anywhere until a rule has to hold for
+     * everything a *deferred* dispatch can land on - and a slot the instance left empty holds the
+     * default, so it can land there. See checkClassBorrows.
+     */
+    bool classDefault = false;
+
+    /*
      * Set for a *skipping* lens - Analysis-Lens.md §7.1, Design.md's Transparent and skipping
      * lenses. Its result type is not its continuation's, so the continuation runs at most once and
      * the call site has to say where the skip goes.
@@ -1199,6 +1211,19 @@ struct Program {
     // The instances of TrivialCopy and TrivialSink the compiler answers structurally, interned per
     // (class, type). See structuralInstance in name.cpp.
     HashMap<U64, ModulePtr<ClassInstance>> structuralInstances;
+
+    /*
+     * The functions declared under a type's namespace - `String.reserve` for `String` - keyed by
+     * (declaring type, last segment) and holding the whole name the declaration was written under.
+     *
+     * Program-wide rather than per module because a type has exactly one declaring module and
+     * therefore one namespace, which is the rule registerNamespace enforces: `x.f(y)` must not mean
+     * different things in two files. What it holds is a *name* rather than a function, so that the
+     * dot-call resolves it through findFunction like any other written name - `pub`, the import
+     * lists and `hiding` then decide exactly as they do for the qualified spelling, and none of
+     * that has to be restated here. See findTypeMethod.
+     */
+    HashMap<U64, StringId> typeMethods;
 
     // The runtime half of the generic model, interned per type - see witness.h. A TypeDesc is
     // built the first time something generic needs to know about a type it cannot see.

@@ -370,6 +370,10 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
         copyInst->args.push(module.arena, castTo);
         copyInst->args.push(module.arena, castFrom);
         copyInst->args.push(module.arena, bytes);
+
+        // `from` is dead when this returns, which is the whole of what a relocation is and the one
+        // thing separating this copy from `copyInit$`'s identical one. See InstNative::relocates.
+        copyInst->relocates = true;
         resolver.append(copyInst);
     }
 

@@ -482,6 +482,25 @@ fn relocate(%x: a) -> a {
     ret %y
 }
 
+fn crossed() -> I64 {
+  b0:
+    %b = alloc : Boxed
+    %v1 = alloc : Cell
+    aggregate %local1@Cell.slot = 90, %local1@Cell.back = 1
+    aggregate %local0@Boxed.cell = %v1, %local0@Boxed.mark = 9
+    %b = move %local0 via moveInit$Boxed : Boxed
+    %c = alloc : Boxed
+    init %local2, %b
+    %v10 = load %local2@Boxed.cell : Cell
+    %v11 = load %local2@Boxed.cell@Cell.slot : I64
+    %v12 = load %local2@Boxed.cell : Cell
+    %v13 = load %local2@Boxed.cell@Cell.back : I64
+    %v14 = add %v11, %v13 : I64
+    %v15 = load %local2@Boxed.mark : I64
+    %v16 = add %v14, %v15 : I64
+    ret %v16
+}
+
 fn main() -> I64 {
   b0:
     %result = alloc : I64
@@ -591,7 +610,7 @@ fn main() -> I64 {
     %closed = call captured, %v96 : () -> I64
     %v98 = load sinkCalls : I64
     %v101 = cmp_ne %v98, 5 : Bool
-    je %v101, b31, b20
+    je %v101, b34, b20
 
   b19:
     %v105 = neg 7 : I64
@@ -677,11 +696,27 @@ fn main() -> I64 {
     %v179 = borrow_mut %result : &mut I64
     call +=(I64), %v179, %v178
     %v181 = load %result : I64
-    %v182 = load sinkCalls : I64
-    %v183 = add %v181, %v182 : I64
-    ret %v183
+    %v182 = call crossed : I64
+    %v183 = borrow_mut %result : &mut I64
+    call +=(I64), %v183, %v182
+    %v185 = load sinkCalls : I64
+    %v188 = cmp_ne %v185, 9 : Bool
+    je %v188, b31, b32
 
   b31:
+    %v192 = neg 11 : I64
+    ret %v192
+
+  b32:
+    jmp b33
+
+  b33:
+    %v195 = load %result : I64
+    %v196 = load sinkCalls : I64
+    %v197 = add %v195, %v196 : I64
+    ret %v197
+
+  b34:
     drop_derived %local3 via drop$() -> I64 reclaim reclaim$() -> I64
     jmp b19
 }
@@ -696,12 +731,24 @@ fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {
     ret
 }
 
+fn Sink(Cell).sink(%to: Cell, %from: Cell) -> () {
+  b0:
+    %v2 = load sinkCalls : I64
+    %v5 = borrow_mut sinkCalls : &mut I64
+    call +=(I64), %v5, 1
+    %v7 = load %from@Cell.back : I64
+    assign %to@Cell.slot, %v7
+    %v9 = load %from@Cell.slot : I64
+    assign %to@Cell.back, %v9
+    ret
+}
+
 fn moveInit$Pair(%to: %Pair, %from: %Pair) -> () {
   b0:
     %v2 = sizeof Pair : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
+    copymemory relocating %v3, %v4, %v2
     %v6 = addressof [%to]@Pair.left : %Handle
     %v7 = addressof [%from]@Pair.left : %Handle
     call Sink(Handle).sink, %v6, %v7
@@ -713,7 +760,7 @@ fn moveInit$Nest(%to: %Nest, %from: %Nest) -> () {
     %v2 = sizeof Nest : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
+    copymemory relocating %v3, %v4, %v2
     %v6 = addressof [%to]@Nest.inner : %Pair
     %v7 = addressof [%from]@Nest.inner : %Pair
     call moveInit$Pair, %v6, %v7
@@ -725,7 +772,7 @@ fn moveInit$Either(%to: %Either, %from: %Either) -> () {
     %v2 = sizeof Either : Long
     %v3 = cast %to : %()
     %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
+    copymemory relocating %v3, %v4, %v2
     %v6 = load [%from].discriminant : Int
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b2, b3
@@ -748,6 +795,18 @@ fn ResolveTest.lambda$14(%env: %{h: Handle}) -> I64 {
     %v1 = load [%env].h : Handle
     %v2 = load [%env].h@Handle.value : I64
     ret %v2
+}
+
+fn moveInit$Boxed(%to: %Boxed, %from: %Boxed) -> () {
+  b0:
+    %v2 = sizeof Boxed : Long
+    %v3 = cast %to : %()
+    %v4 = cast %from : %()
+    copymemory relocating %v3, %v4, %v2
+    %v6 = addressof [%to]@Boxed.cell : %Cell
+    %v7 = addressof [%from]@Boxed.cell : %Cell
+    call Sink(Cell).sink, %v6, %v7
+    ret
 }
 
 fn relocate(Handle)(%x: Handle) -> Handle {

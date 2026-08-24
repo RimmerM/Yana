@@ -27,6 +27,22 @@ data Tracked {value: Int}
 -- `memcpy` natively, a property-by-property duplicate on JS.
 data Point {x: Int, y: Int}
 
+{-
+   And the same thing holding a `[T *n]`, because "property by property" is exactly what a fixed
+   array has none of.
+
+   A fixed array is its elements and has no properties at all (see eachProperty), so the object
+   literal `cloneValue` builds for a record was building `{}` for this field and every element was
+   gone. That is not hypothetical: a record with a `[U32 *4]` in it lost it whenever it was passed by
+   value, and the digest built out of one answered zeros. The array now has a case of its own -
+   `slice()` where the elements are values a read duplicates, written out one by one where an element
+   is itself an object.
+
+   `Point` beside the numbers rather than four more numbers, so that both halves of that case are
+   here: the shallow copy the numeric arrays take, and the walk an array of objects needs.
+-}
+data Quad {values: [Int *4], places: [Point *2], tag: Int}
+
 instance Copy(Tracked):
     fn copy(from: Tracked) -> Tracked:
         copyCalls = copyCalls + 1
@@ -54,6 +70,31 @@ fn main() -> Int:
 
     -- The source survives the duplicate, which is the whole difference from a move.
     if pair.x != 3 then return -1
+
+    {-
+       The array-carrying record through the same erased write.
+
+       Checked element by element rather than by a sum, because `{}` in place of the copy is not a
+       wrong number on this target - it is a value with no elements at all, and reading one back
+       answers `undefined`. The comparison is what turns that into a failure here rather than into
+       arithmetic on a missing value somewhere downstream.
+    -}
+    let quad = Quad {values: [10, 20, 30, 40], places: [Point {x: 1, y: 2}, Point {x: 3, y: 4}], tag: 5}
+    let &copied = Quad {values: [0, 0, 0, 0], places: [Point {x: 0, y: 0}, Point {x: 0, y: 0}], tag: 0}
+    copyInto(copied, quad)
+
+    if copied.values[0] != 10 then return -3
+    if copied.values[3] != 40 then return -4
+    if copied.places[1].x != 3 then return -5
+    if copied.tag != 5 then return -6
+
+    -- And the duplicate is independent of what it was made from, which is the half a `slice()` that
+    -- was not there would have got right by accident.
+    copied.values[0] = 99
+    copied.places[1].x = 99
+
+    if quad.values[0] != 10 then return -7
+    if quad.places[1].x != 3 then return -8
 
     -- The authored instance is reachable directly, which is what keeps `Tracked`'s descriptor - and
     -- so the adapter in its copyInit slot - in the emitted program.

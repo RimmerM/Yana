@@ -1018,6 +1018,36 @@ JsPtr<Expr> cloneValue(Gen& g, TypePtr type, JsPtr<Expr> source, LocationId wher
     if(isNewtype(g, type, content)) return cloneValue(g, content, source, where);
 
     /*
+     * `[T *n]` is a host array here, and it needs a case of its own for the reason `zeroValue` above
+     * needs one: `eachProperty` answers *nothing* for an array - a fixed array has elements rather
+     * than properties - so the object literal below would build `{}` and every element would be
+     * gone. That is not hypothetical; it is what a record with a `[U32 *4]` field passed by value
+     * became on this target, and the digest built out of it answered zeros.
+     *
+     * `slice()` where the elements are values a read duplicates - a number, a bigint - which is the
+     * shallow copy every engine has and is the whole answer for the numeric arrays this type is
+     * nearly always over. Where an element is an *object*, the copy has to reach it: the count is
+     * part of the type, so the elements are written out and cloned one by one rather than mapped
+     * through a lambda this IR would have to build.
+     */
+    if(g.global[type]->kind == Type::Array) {
+        auto array = (ArrayType*)g.global[type];
+        auto count = constValue(g.global, array->count);
+
+        if(!isJsObject(g, array->content)) {
+            return asPureCall(g, call(g, field(g, source, literalName(g, "slice"_v))));
+        }
+
+        auto elements = make<ArrayExpr>(g);
+        for(U64 i = 0; i < count; i++) {
+            elements->values.push(g.file.arena,
+                                  cloneValue(g, array->content, index(g, source, U32(i)), where));
+        }
+
+        return asExpr(g, elements);
+    }
+
+    /*
      * A sum copies every property of the flattened union, not only the live constructor's. Which
      * one is live is a run-time fact and the shape is not, so copying all of them keeps this one
      * object literal instead of a switch over the tag - and the properties belonging to the other

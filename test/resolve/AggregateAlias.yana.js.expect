@@ -1,0 +1,176 @@
+"use strict";
+var zeros = [0, 0, 0, 0];
+
+// ResolveTest
+function seed() {
+  return 0;
+}
+
+function eat(b) {
+  var m = { bytes: b.bytes.slice(), used: b.used };
+  var v8 = m.bytes;
+  var v29 = seed() + 6 | 0;
+  v8[0] = v29;
+  return m.bytes[0];
+}
+
+function bytesKept(w) {
+  var v2 = w.inner.bytes;
+  return v2.slice();
+}
+
+function innerBytes() {
+  var v0 = { inner: { bytes: [0, 0, 0, 0], used: 0 }, tag: 0 };
+  var v6 = [0, 0, 0, 9];
+  var v12 = seed();
+  var v14 = seed();
+  v0.inner.bytes = v6;
+  v0.inner.used = v12;
+  v0.tag = v14;
+  return v0.inner.bytes;
+}
+
+function main() {
+  var v1194 = seed();
+  var v1331 = { bytes: zeros.slice(), used: v1194 }.bytes;
+  var a = { bytes: v1331.slice(), used: v1194 };
+  var v1198 = seed();
+  var v1335 = { bytes: zeros.slice(), used: v1198 }.bytes;
+  var b = { bytes: v1335.slice(), used: v1198 };
+  var v11 = a.bytes;
+  var v32 = seed() + 1 | 0;
+  v11[0] = v32;
+  if (a.bytes[0] !== 1) {
+    return -1;
+  } else {
+    if (b.bytes[0]) {
+      return -101;
+    } else {
+      if (zeros[0]) {
+        return -201;
+      } else {
+        var v136 = [0, 9, 0, 0];
+        var v142 = { bytes: v136.slice(), used: seed() };
+        var v151 = v142.bytes;
+        var v172 = seed() + 2 | 0;
+        v151[0] = v172;
+        if (v142.bytes[0] !== 2) {
+          return -2;
+        } else {
+          if (v142.bytes[1] !== 9) {
+            return -302;
+          } else {
+            if (v136[0]) {
+              return -102;
+            } else {
+              var v272 = { inner: { bytes: [0, 0, 0, 0], used: 0 }, tag: 0 };
+              var v278 = [0, 0, 7, 0];
+              var v284 = seed();
+              var v286 = seed();
+              v272.inner.bytes = v278;
+              v272.inner.used = v284;
+              v272.tag = v286;
+              var v1202 = v272.inner.bytes;
+              var v1205 = seed() + 3 | 0;
+              var v1345 = { bytes: v1202.slice(), used: v1205 }.bytes;
+              var three = { bytes: v1345.slice(), used: v1205 };
+              var v298 = three.bytes;
+              var v319 = seed() + 3 | 0;
+              v298[0] = v319;
+              if (three.bytes[0] !== 3) {
+                return -3;
+              } else {
+                if (three.bytes[2] !== 7) {
+                  return -303;
+                } else {
+                  if (v272.inner.bytes[0]) {
+                    return -103;
+                  } else {
+                    var four = zeros.slice();
+                    var v449 = seed() + 4 | 0;
+                    four[0] = v449;
+                    if (four[0] !== 4) {
+                      return -4;
+                    } else {
+                      if (zeros[0]) {
+                        return -104;
+                      } else {
+                        var v1208 = v272.inner.bytes;
+                        var five = v1208.slice();
+                        var v545 = seed() + 5 | 0;
+                        five[0] = v545;
+                        if (five[0] !== 5) {
+                          return -5;
+                        } else {
+                          if (v272.inner.bytes[0]) {
+                            return -105;
+                          } else {
+                            if (eat(v272.inner) !== 6) {
+                              return -6;
+                            } else {
+                              if (v272.inner.bytes[0]) {
+                                return -106;
+                              } else {
+                                var v1219 = seed() + 7 | 0;
+                                var v1349 = { bytes: zeros.slice(), used: v1219 }.bytes;
+                                var taken = { bytes: v1349.slice(), used: v1219 };
+                                var v1226 = v272.inner.bytes;
+                                var v1232 = seed() + 7 | 0;
+                                var v1353 = { bytes: v1226.slice(), used: v1232 }.bytes;
+                                var other = { bytes: v1353.slice(), used: v1232 };
+                                var v676 = taken.bytes;
+                                var v697 = seed() + 7 | 0;
+                                v676[0] = v697;
+                                var v704 = other.bytes;
+                                var v725 = seed() + 7 | 0;
+                                v704[0] = v725;
+                                if (taken.bytes[0] !== 7) {
+                                  return -7;
+                                } else {
+                                  if (other.bytes[0] !== 7) {
+                                    return -207;
+                                  } else {
+                                    if (zeros[0]) {
+                                      return -107;
+                                    } else {
+                                      if (v272.inner.bytes[0]) {
+                                        return -307;
+                                      } else {
+                                        var eight = bytesKept(v272);
+                                        var v889 = seed() + 8 | 0;
+                                        eight[0] = v889;
+                                        if (eight[0] !== 8) {
+                                          return -8;
+                                        } else {
+                                          if (v272.inner.bytes[0]) {
+                                            return -108;
+                                          } else {
+                                            var nine = innerBytes();
+                                            if (nine[3] !== 9) {
+                                              return -9;
+                                            } else {
+                                              return (((((((a.bytes[0] + v142.bytes[0] | 0) + three.bytes[0] | 0) + four[0] | 0) + five[0] | 0) + eat(v272.inner) | 0) + taken.bytes[0] | 0) + eight[0] | 0) + nine[3] | 0;
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+main();
