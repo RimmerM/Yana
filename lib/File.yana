@@ -1,6 +1,7 @@
 module
 
 import Native
+import Date
 
 {-
    ==========================================================================================
@@ -260,20 +261,28 @@ pub fn joinPath(dir: String, name: String) -> String:
    answers: when the contents were last read, when they were last written, and when the inode itself
    last changed.
 
-   Times are microseconds since the epoch in an `I64`, which is what Analysis-Library.md §3.1 says
-   `Timestamp` will be - so a `Date` port has nothing to convert.
+   **The three times are `Timestamp`s.** They were an `I64` of microseconds since the epoch, written
+   that way because the type Analysis-Library.md §3.1 promised did not exist yet and the number was
+   already the right one. It exists now, so the field says what it holds: a `Timestamp` *is* that
+   `I64`, so this costs nothing at runtime and buys what a bare integer could not - the difference
+   between two of them is an `Interval`, comparing one against a duration does not compile, and
+   `dateOf` takes one without a conversion at the call site. `timestampOfMicros` is the way back in,
+   for a caller holding a number that came from somewhere else.
 
    `isLink` can only be true through `linkInfo`, since every other path here follows links. Computing
    it from an ordinary `stat` would make it dead: `stat` follows, so `S_ISLNK` of what it answers
    never holds.
 -}
-pub data FileInfo {size: I64, modifiedTime: I64, accessedTime: I64, changedTime: I64,
-                   isLink: Bool, isDirectory: Bool}
+pub data FileInfo {size: I64, modifiedTime: Timestamp, accessedTime: Timestamp,
+                   changedTime: Timestamp, isLink: Bool, isDirectory: Bool}
 
 fn byteRun(count: Size) -> Run(U8) = newRun(count)
 
--- A `timespec` pair as the microseconds `FileInfo` carries.
-fn microseconds(seconds: I64, nanos: I64) -> I64 = seconds * 1000000 + nanos / 1000
+-- A `timespec` pair as the point in time `FileInfo` carries. The kernel's two words are a second
+-- and a remainder in nanoseconds, and a `Timestamp` is microseconds, so the remainder is divided
+-- rather than carried - the same three digits `Native.Clock` drops for the same reason.
+fn statTime(seconds: I64, nanos: I64) -> Timestamp =
+    timestampOfMicros(seconds * 1000000 + nanos / 1000)
 
 {-
    What `stat` answered, off the record it filled - Analysis-Language.md §5.2.
@@ -286,9 +295,9 @@ fn infoOf(status: FileStatus) -> FileInfo:
     let kind = kindOf(status.mode)
 
     return FileInfo {size: status.size,
-                     modifiedTime: microseconds(status.modifiedSeconds, status.modifiedNanos),
-                     accessedTime: microseconds(status.accessedSeconds, status.accessedNanos),
-                     changedTime: microseconds(status.changedSeconds, status.changedNanos),
+                     modifiedTime: statTime(status.modifiedSeconds, status.modifiedNanos),
+                     accessedTime: statTime(status.accessedSeconds, status.accessedNanos),
+                     changedTime: statTime(status.changedSeconds, status.changedNanos),
                      isLink: kind is Just(LinkKind),
                      isDirectory: kind is Just(DirectoryKind)}
 

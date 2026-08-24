@@ -1,0 +1,93 @@
+{-
+   Reading a clock, on the target that has a kernel - Analysis-Library.md §3.1.
+
+   Two names and nothing above them: what a `Timestamp` is, what an `Interval` is and what either
+   means are `Date`'s, and this answers only the two numbers a machine can be asked for. That split
+   is what lets `Date` be one portable file - the whole of the difference between a system call and
+   `Date.now()` is here and in `Clock.js.yana` beside it.
+
+   Both answer an `I64` rather than a `Result`, and that is a decision rather than an oversight.
+   `clock_gettime` fails on an unknown clock id and on an address it cannot write, and neither is a
+   thing a caller of these could have done differently - the two ids are this file's own constants
+   and the buffer is this file's own local. A `Result` here would be a case every caller has to
+   name, forever, for a failure that cannot happen. What a failure *does* answer is zero, which for
+   the wall clock reads as the epoch and for the monotonic one as the base it does not promise
+   anyway.
+
+   The units differ between the two and deliberately. The wall clock answers microseconds, which is
+   what `Timestamp` carries and what a date is built out of; the monotonic clock answers
+   nanoseconds, because measuring a short operation is the only thing it is for and microseconds
+   are too coarse to do it with. `Date` divides in one direction and never in the other.
+-}
+
+-- Microseconds since 1970-01-01 UTC, which is what `Timestamp` holds. The `timespec`'s nanoseconds
+-- are divided here rather than carried, since nothing above this can use them: a wall clock's
+-- resolution is not its accuracy, and no consumer of a date wants a unit `Interval` cannot express.
+pub fn unixTimeMicros() -> I64:
+    let &time = ClockTime {}
+    if readClock(clockRealtime, time) < 0 then return 0
+
+    return time.seconds * 1000000 + time.nanos / 1000
+
+{-
+   ==========================================================================================
+   The fast path this does not take, and what it would cost.
+   ==========================================================================================
+
+   Both calls above are system calls, and on this platform they do not have to be: the kernel maps a
+   **vDSO** into every process - a small shared ELF object - whose `__vdso_clock_gettime` reads the
+   same clock out of a shared page without ever entering the kernel. It is roughly 20 ns against 60
+   or more for the call below, and more than that on a machine with the speculation mitigations that
+   make a `syscall` expensive. Measuring something short is exactly what `monotonicNanos` is for, so
+   this is the one place in the library where that difference is the whole point.
+
+   **It is not taken, and the reason is a language one rather than a difficulty.** Three things are
+   needed and the compiler supplies two of them:
+
+    1. *The address of the vDSO.* The kernel passes it in the auxiliary vector as `AT_SYSINFO_EHDR`,
+       which sits on the initial stack - and `genProcessEntry` in codegen/x64/emit.cpp aligns `rsp`
+       and calls `main`, so nothing in the program can reach it afterwards. `/proc/self/auxv` is the
+       way in that needs no compiler change: one `open`, one `read` and a scan for key 33, done once
+       and cached in a `let &` beside a flag saying it has been tried. That is ordinary library code
+       and the syscalls it needs are all in `Linux.x64.yana` already.
+    2. *The symbol.* `__vdso_clock_gettime` is found by walking the mapped object's program headers
+       to `PT_DYNAMIC`, reading `DT_SYMTAB`, `DT_STRTAB` and `DT_HASH` out of it, and adding the load
+       bias - the difference between the base the kernel chose and the first `PT_LOAD`'s own address.
+       Fiddly and exact, but again ordinary code over a `%U8`.
+    3. *The call.* This is the one that is missing. The address has to be entered under the **System
+       V** ABI, and there is no way to write that: `@convention(sysv)` is a property of a declaration
+       (see `conventionWritableInSource` in lower/convention.h), and nothing in the language turns an
+       address into something callable. The lower IR and the amd64 backend are both ready for it -
+       `LowerCallType::Sysv` is a call type a call site may carry, `shapeOf` in
+       codegen/x64/constraint.cpp places the arguments by the convention on the instruction, and
+       `FormCallIndirect` already reads a callee out of a register for a closure - so what is absent
+       is the front half of an FFI, which doc/spec/targets.md records as an open question and
+       resolve/host.h describes in the same words. **Analysis-Function-Pointers.md is the design for
+       it**, written from this gap: a function type that names a foreign convention is one word and
+       is entered under that ABI, which is the whole of what has to be added.
+       `test/x64/ForeignIndirect.lower` is the part that turned out to need nothing.
+
+   So the fast path is one primitive away and the primitive is a language decision, not a clock one.
+   When a `foreign` declaration lands, what changes here is that `unixTimeMicros` and
+   `monotonicNanos` consult a cached function pointer first and fall back to the call below when the
+   lookup found nothing - a process with no `/proc` mounted, a kernel that maps no vDSO, an
+   architecture whose vDSO does not export the symbol. That fallback is why the two functions answer
+   an `I64` rather than a `Result`: it is already the shape a fast path with a slow one underneath
+   wants, and nothing above this file would have to change at all.
+
+   Two things are deliberately *not* the answer here, since both look like fast paths and neither is.
+   The **vsyscall** page at `0xffffffffff600000` is at a fixed address and needs no lookup, and it
+   has been emulated rather than executed for a decade - a trap into the kernel, which is slower than
+   the system call it replaces - and is absent outright under `vsyscall=none`. And reading the vvar
+   data page directly, rather than through the vDSO's own code, means depending on a kernel structure
+   that is not an ABI and changes between versions.
+-}
+
+-- Nanoseconds from a base this makes no promise about, which is the whole of `CLOCK_MONOTONIC`'s
+-- contract: the difference between two of these is a real elapsed duration, and one of them on its
+-- own means nothing at all.
+pub fn monotonicNanos() -> I64:
+    let &time = ClockTime {}
+    if readClock(clockMonotonic, time) < 0 then return 0
+
+    return time.seconds * 1000000000 + time.nanos

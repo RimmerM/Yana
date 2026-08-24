@@ -113,6 +113,11 @@ enum class HostMember: U8 {
     // of it. `toExponential()` with no argument is shortest as well and breaks a tie the other way.
     ToString,
 
+    // `Date.now()` - integral milliseconds since 1970-01-01 UTC, as a `number`. A dotted path like
+    // the two above it. It is the whole of what this target's `Native/Clock.js.yana` is written over,
+    // and `performance.now()` is deliberately not beside it: see that file for why.
+    DateNow,
+
     // The one that is a statement rather than a call or an operator - see NativeOp::HostThrow. Its
     // "member name" is never printed; the emitter writes `throw` itself.
     Fail,
@@ -132,6 +137,7 @@ StringView hostMemberName(HostMember member) {
         case HostMember::Log: return "console.log"_v;
         case HostMember::ToNumber: return "Number"_v;
         case HostMember::ToString: return "String"_v;
+        case HostMember::DateNow: return "Date.now"_v;
         case HostMember::Fail: return "throw"_v;
     }
 
@@ -352,6 +358,11 @@ void definePreludeHost(Program& program, Module& native) {
                     emitHostMember<NativeOp::HostGlobalCall, HostMember::ToNumber>);
     attachIntrinsic(*module, "hostToString"_v,
                     emitHostMember<NativeOp::HostGlobalCall, HostMember::ToString>);
+
+    // The clock - Analysis-Library.md §3.1. A host global call like the two above, and the one host
+    // operation whose answer is not a function of its arguments.
+    attachIntrinsic(*module, "hostDateNow"_v,
+                    emitHostMember<NativeOp::HostGlobalCall, HostMember::DateNow>);
 
     /*
      * `hostAtMut` answers a *mutable* borrow, and the grammar has one spelling for a borrow type -

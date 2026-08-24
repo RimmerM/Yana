@@ -26,6 +26,7 @@
 
 import Native
 import File
+import Date
 
 fn scratchRoot() -> String:
     let &name = String.ofCapacity(32)
@@ -142,7 +143,9 @@ fn appending(root: String) -> Result(FileError, Int):
     assert(direct.size == linked.size)
     assert(!(linked.isLink))
     assert(!(linked.isDirectory))
-    assert(!(linked.modifiedTime <= 0))
+    -- A `Timestamp` now rather than an `I64` of microseconds, so the comparison is against a point
+    -- in time rather than against zero - and `epoch()` is the point a bare `0` used to stand for.
+    assert(linked.modifiedTime > epoch())
 
     removeFile(path)?
 

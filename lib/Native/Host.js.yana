@@ -219,6 +219,25 @@ pub fn hostToNumber(text: String) -> Double
 pub fn hostToString(value: a) -> String
 
 {-
+   `Date.now()` - the host's clock, and the only one this library asks for.
+
+   A call on a global rather than on a value, like `String.fromCharCode` and `console.log` above.
+   Integral milliseconds since 1970-01-01 UTC, as a `number`, which is what the specification says
+   this returns and is therefore the same fact on every host - the test `hostIndexOf` and the two
+   float conversions are held to.
+
+   **`performance.now()` is deliberately not declared beside it**, and `Native/Clock.js.yana` is
+   where the argument is written out: it is absent from a bare script context, its resolution is
+   clamped by the engine as a side-channel mitigation, and its origin is per-document. A host
+   operation this library cannot rely on being there is one no program above may correctly call.
+
+   A `Double` rather than a `Long`, because a `number` is what arrives: turning it into the target's
+   `bigint` is a conversion, and where that conversion belongs is the caller, who knows which unit
+   it wanted and therefore which side of it stays exact.
+-}
+pub fn hostDateNow() -> Double
+
+{-
    `throw "..."` - how a program stops here, and the one thing every host agrees means "stop".
 
    There is no `abort` in JavaScript and no exit status a script can set; an exception nobody catches

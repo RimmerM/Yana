@@ -1,0 +1,37 @@
+{-
+   Reading a clock, on the target that has one - Analysis-Library.md §3.1.
+
+   `Clock.native.yana` beside this is the same two names over `clock_gettime`, and `Date.yana` above
+   both is portable because of it. What the two files share is the pair of names and nothing else,
+   which is Analysis-Modules.md §2.5's rule for what earns a file rather than an attribute.
+
+   **There is one clock here, and it is the wall clock.** `Date.now()` is the only time source every
+   host agrees on: `performance.now()` exists in browsers and in Node, and it is deliberately *not*
+   used. Its resolution is clamped by the engine as a side-channel mitigation - a millisecond in
+   several browsers by default, and coarser still where the document is not cross-origin isolated -
+   so it is not reliably better than what is here; its time origin is per-document rather than
+   per-process, so two readings taken in different frames are not comparable; and it is absent from
+   a bare script context, which is exactly what this project's own JavaScript driver runs
+   (`vm.runInNewContext` supplies the ECMAScript built-ins and nothing else). A declaration a host
+   may not have is a program that stops working on it, and this is a library.
+
+   So `monotonicNanos` below is *not* monotonic here, and the comment on it says so rather than
+   letting the name claim otherwise. On this target it steps whenever the machine's clock is
+   corrected, and it resolves to a millisecond. What it is still good for is measuring something
+   that takes longer than one, which is most of what a script measures.
+-}
+
+-- `Date.now()`, as the integral milliseconds it answers. A `number` becomes a `Long` here and the
+-- arithmetic below is done in it: a millisecond count is about 2^41 today, so microseconds still
+-- fit a double exactly and *nanoseconds do not* - 2^61 - and one conversion for both is simpler than
+-- an argument per unit about which side of it is exact.
+fn unixMillis() -> I64:
+    let milliseconds = truncate(hostDateNow()) :: Long
+    return milliseconds :: I64
+
+-- Microseconds since 1970-01-01 UTC, which is what `Timestamp` holds.
+pub fn unixTimeMicros() -> I64 = unixMillis() * 1000
+
+-- The same clock again, in the unit `Clock.native.yana` promises. Not monotonic here - see above -
+-- and resolved to a millisecond, so the last six digits are always zero.
+pub fn monotonicNanos() -> I64 = unixMillis() * 1000000

@@ -33,6 +33,7 @@ let sysMakeDirectory = 83 :: Size
 let sysRemoveDirectory = 84 :: Size
 let sysUnlink = 87 :: Size
 let sysDirectoryEntries = 217 :: Size
+let sysClockTime = 228 :: Size
 
 -- PROT_READ | PROT_WRITE, and MAP_PRIVATE | MAP_ANONYMOUS.
 let protReadWrite = 3 :: Size
@@ -336,6 +337,47 @@ pub data Errno
 
 -- The kernel's own number as one of these, or nothing where it is a case this set does not name.
 pub fn errnoOf(code: I64) -> Maybe(Errno) = fromValue(code)
+
+{-
+   ==========================================================================================
+   The clocks - Analysis-Library.md §3.1.
+   ==========================================================================================
+
+   `struct timespec`, as the record the kernel fills, on `FileStatus`'s pattern above and for the
+   same reason: two words at an ABI-fixed layout, so `@layout(c)` is what holds it rather than two
+   offset constants somebody keeps in step with a kernel header. The three times in `FileStatus` are
+   this pair inlined; this is the one the kernel writes on its own.
+
+   Nanoseconds, which is the resolution `clock_gettime` reports at and *not* the one `Timestamp`
+   carries - `Date` divides. Doing it here would throw away the only clock a program can measure a
+   short operation with.
+-}
+@layout(c)
+pub data ClockTime {seconds: I64 = 0, nanos: I64 = 0}
+
+fn clockAddress(&into: ClockTime) -> Size = bitcast(addressOf(into)) :: Size
+
+{-
+   The two clocks a program has a reason to ask for, as the kernel's own numbers.
+
+   `clockRealtime` is the wall clock: it is what "now" means to anything outside this process, and
+   it steps when the machine's own idea of the time is corrected. `clockMonotonic` never steps
+   backwards and has no defined base, which is what makes it the one to measure *with* and the one
+   that cannot be shown to anybody.
+
+   `CLOCK_MONOTONIC` rather than `CLOCK_MONOTONIC_RAW`, which is what the C++ this ports asked for.
+   Raw is unslewed by NTP, and being unslewed is a *drift* against real seconds - about 50 parts per
+   million on a machine whose clock is being corrected. The adjusted one is what "a second" means
+   here, and both are equally free of steps. The raw one also had no vDSO implementation for years,
+   so asking for it used to cost a system call where this does not.
+-}
+pub let clockRealtime = 0 :: Size
+pub let clockMonotonic = 1 :: Size
+
+-- The kernel's own number, which is 0 or the negated errno - the line every call in this file
+-- draws. `Native.Clock` is what turns a failure into a fallback.
+pub fn readClock(clock: Size, &into: ClockTime) -> Size =
+    syscall2(sysClockTime, clock, clockAddress(into))
 
 -- This process's own identifier, which cannot fail and so is the one call here that answers no
 -- error. What wants it is a program that has to name something no other process will name at the

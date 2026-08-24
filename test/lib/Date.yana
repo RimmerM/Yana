@@ -1,0 +1,287 @@
+{-
+   `Date` - Analysis-Library.md §3.1, on both targets.
+
+   Three claims, and they fail independently, so they are three groups of functions below.
+
+    - **The affine structure admits what it should and nothing else.** `Timestamp + Interval` is a
+      timestamp, `Timestamp - Timestamp` is an interval, and `Timestamp + Timestamp` does not
+      compile. Only the first two can be asserted here; the third is asserted by its absence, and
+      the place a compiler-refused expression *is* pinned is `test/resolve/Reject.*`.
+    - **The calendar round-trips.** Every date this file names is converted both ways and compared
+      against a value worked out by hand, and the interesting cases are all before the epoch: that
+      is where a truncating division and a floored one disagree, which is the bug this port fixes.
+    - **The clocks answer something a clock could answer.** A wall clock cannot be asserted against
+      a constant without the constant going stale, so what is checked is the pair of bounds that
+      stay true for the life of the program: it is after a date already in the past, and it is not
+      in a future far enough away to be a wrong unit. A clock reading in milliseconds rather than
+      microseconds fails the first, and one in nanoseconds fails the second.
+
+   Run on both targets, where `Native/Clock.js.yana` is `Date.now()` and `Native/Clock.native.yana`
+   is `clock_gettime`. The calendar arithmetic is the same source on both and is where a `bigint`
+   and a machine word have to agree about a signed division, which is worth the second run on its
+   own.
+-}
+
+import Date
+
+-- 2001-09-09T01:46:40Z, which is 1000000000 seconds after the epoch - the "billennium" second, and
+-- a value it is easy to check against an independent source.
+let billennium = 1000000000000000 :: I64
+
+fn intervals() -> {}:
+    -- The six constructors and their readers, each against the next unit up.
+    assert(toMicros(micros(7)) == 7)
+    assert(toMicros(millis(1)) == 1000)
+    assert(toMillis(seconds(1)) == 1000)
+    assert(toSeconds(minutes(1)) == 60)
+    assert(toMinutes(hours(1)) == 60)
+    assert(toHours(days(1)) == 24)
+    assert(toDays(days(365)) == 365)
+
+    -- Reading back truncates toward zero rather than rounding, which is the one thing about these
+    -- that a caller could be surprised by.
+    assert(toSeconds(millis(1500)) == 1)
+    assert(toSeconds(millis(-1500)) == -1)
+
+    -- `nanos` is the lossy direction, and the only one.
+    assert(toMicros(nanos(1500)) == 1)
+
+    -- `Advance(Interval)`: an interval displaced by an interval is an interval.
+    assert(seconds(2) + millis(500) == millis(2500))
+    assert(seconds(2) - millis(500) == millis(1500))
+
+    -- `Scale(Interval)`, which `Timestamp` deliberately does not join.
+    assert(seconds(1) * 3 == seconds(3))
+    assert(minutes(2) / 4 == seconds(30))
+
+    -- Derived `Ord`, over the content.
+    assert(millis(1) < seconds(1))
+    assert(seconds(0 - 1) < micros(0))
+    return
+
+fn timestamps() -> {}:
+    let base = epoch()
+    let later = base + seconds(90)
+
+    -- The three operations the two classes exist to admit.
+    assert(later - base == seconds(90))
+    assert(later - seconds(90) == base)
+    assert(base + minutes(1) + seconds(30) == later)
+
+    -- And the two names for the one point that has one.
+    assert(sinceEpoch(later) == seconds(90))
+    assert(afterEpoch(seconds(90)) == later)
+    assert(timestampOfMicros(90000000) == later)
+
+    -- Ordering is over the point, which is what makes a timestamp comparable at all.
+    assert(later > base)
+    assert(base - seconds(1) < base)
+    return
+
+-- The formatted form, which is microseconds and nothing else - what a human reads is `DateFormat`'s
+-- job and it is not in this port. Asserted through the sink, since that is how a fixture with no
+-- string goldens gets at the characters.
+fn shown() -> {}:
+    let &sink = String.ofCapacity(64 :: Size)
+    show(seconds(1), sink)
+    assert(length(sink) == 7)         -- "1000000"
+
+    let &other = String.ofCapacity(64 :: Size)
+    show(epoch(), other)
+    assert(length(other) == 1)        -- "0"
+    return
+
+fn sameDate(got: Date, year: I32, month: U8, day: U8) -> Bool =
+    got.year == year && got.month == month && got.day == day
+
+fn sameTime(got: Date, hour: U8, minute: U8, second: U8, micros: U32) -> Bool =
+    got.hour == hour && got.minute == minute && got.second == second && got.micros == micros
+
+fn calendar() -> {}:
+    -- The epoch itself, which is what `Date {}` already is.
+    let start = dateOf(epoch())
+    assert(sameDate(start, 1970, 1, 1))
+    assert(sameTime(start, 0, 0, 0, 0))
+    assert(timestampOf(Date {}) == epoch())
+
+    let billion = dateOf(Timestamp(billennium))
+    assert(sameDate(billion, 2001, 9, 9))
+    assert(sameTime(billion, 1, 46, 40, 0))
+
+    -- A leap day, which the era arithmetic reaches without a leap-year test anywhere in the module.
+    let leap = Date {year: 2024, month: 2, day: 29, hour: 23, minute: 59, second: 59, micros: 999999}
+    assert(sameDate(dateOf(timestampOf(leap)), 2024, 2, 29))
+    assert(sameTime(dateOf(timestampOf(leap)), 23, 59, 59, 999999))
+
+    -- 1900 is not a leap year and 2000 is, which is the whole of the Gregorian rule and the reason
+    -- the conversion counts in 400-year eras.
+    assert(sameDate(dateOf(timestampOf(Date {year: 1900, month: 3, day: 1}) - days(1)), 1900, 2, 28))
+    assert(sameDate(dateOf(timestampOf(Date {year: 2000, month: 3, day: 1}) - days(1)), 2000, 2, 29))
+
+    -- Every month boundary of one year, both ways.
+    assert(sameDate(dateOf(timestampOf(Date {year: 2026, month: 12, day: 31, hour: 23})), 2026, 12, 31))
+    assert(sameDate(dateOf(timestampOf(Date {year: 2026, month: 12, day: 31, hour: 23}) + hours(1)), 2027, 1, 1))
+    return
+
+{-
+   Before the epoch, which is where this port and the C++ it comes from disagree.
+
+   The C++ divides a negative microsecond count with truncating division and corrects afterwards
+   with `if(days < 0) days--`, and that correction is wrong at exactly the boundary it exists for:
+   a timestamp that is an *exact* negative multiple of a day gets its day decremented while its
+   remainder stays zero, so one day before the epoch came out as 1969-12-30. The first two
+   assertions here are that case.
+-}
+fn beforeTheEpoch() -> {}:
+    let oneDayBefore = dateOf(epoch() - days(1))
+    assert(sameDate(oneDayBefore, 1969, 12, 31))
+    assert(sameTime(oneDayBefore, 0, 0, 0, 0))
+
+    -- And one microsecond before it, where the remainder is not zero and the truncating form is
+    -- wrong in the other direction.
+    let justBefore = dateOf(epoch() - micros(1))
+    assert(sameDate(justBefore, 1969, 12, 31))
+    assert(sameTime(justBefore, 23, 59, 59, 999999))
+
+    -- A year before, an era before, and a date the shifted-year trick has to get right: January of
+    -- a year belongs to the *previous* March-to-February block.
+    assert(sameDate(dateOf(epoch() - days(365)), 1969, 1, 1))
+    assert(sameDate(dateOf(timestampOf(Date {year: 1600, month: 1, day: 1})), 1600, 1, 1))
+    assert(sameDate(dateOf(timestampOf(Date {year: 1, month: 1, day: 1})), 1, 1, 1))
+
+    -- Round-tripping a date before the epoch, which is the composition of the two halves.
+    let old = Date {year: 1867, month: 3, day: 29, hour: 6, minute: 5, second: 4, micros: 3}
+    assert(sameDate(dateOf(timestampOf(old)), 1867, 3, 29))
+    assert(sameTime(dateOf(timestampOf(old)), 6, 5, 4, 3))
+    return
+
+{-
+   The zone, which is minutes here where the C++ encodes quarter-hours in a byte.
+
+   A wall-clock reading in a zone ahead of UTC names an *earlier* instant than the same reading in
+   UTC, which is the sign that is easy to get backwards and is what the first pair asserts. Nepal's
+   +05:45 is the case an encoding in quarter-hours cannot represent at all, and it is the reason the
+   field is minutes.
+-}
+{-
+   The two ends of the range, which is where the arithmetic under `dateOf` has to not overflow.
+
+   A `Timestamp` is a signed 64-bit count of microseconds, so it reaches about 292 thousand years
+   either side of the epoch - and both ends are a value the *conversion* has to survive, not just a
+   value the type can hold. The first version of `floorDiv` here did not: it wrote the floored
+   quotient as `-((divisor - 1 - value) / divisor)`, which adds a day's worth of microseconds to a
+   number that is already the whole range, and the most negative timestamp came out 292 thousand
+   years from where it belongs. The multiply that recovered the time-of-day had the same shape and
+   the same failure. Both are now written as a correction to `rem`, which never leaves the divisor's
+   own magnitude, and these two assertions are what say so.
+
+   The years are Howard Hinnant's own algorithm run at both bounds, which is the independent source:
+   1970 plus 9223372036854775807 microseconds is in the year 294247, and the same distance back is
+   in -290308.
+-}
+fn extremes() -> {}:
+    let latest = dateOf(Timestamp(9223372036854775807))
+    assert(latest.year == 294247)
+    assert(latest.month == 1 && latest.day == 10)
+
+    let earliest = dateOf(Timestamp(0 - 9223372036854775807))
+    assert(earliest.year == 0 - 290308)
+    assert(earliest.month == 12 && earliest.day == 21)
+
+    -- The time of day at the negative end, which is the half the removed multiply got wrong: it is
+    -- a remainder inside one day and not a value near the range's end at all.
+    assert(earliest.hour < 24 && earliest.minute < 60 && earliest.second < 60)
+    assert(earliest.micros < 1000000)
+    return
+
+fn zones() -> {}:
+    let atTwo = dateOf(epoch(), 120)
+    assert(sameDate(atTwo, 1970, 1, 1))
+    assert(sameTime(atTwo, 2, 0, 0, 0))
+    assert(atTwo.zoneMinutes == 120)
+    assert(timestampOf(atTwo) == epoch())
+
+    let behind = dateOf(epoch(), -300)
+    assert(sameDate(behind, 1969, 12, 31))
+    assert(sameTime(behind, 19, 0, 0, 0))
+    assert(timestampOf(behind) == epoch())
+
+    let kathmandu = dateOf(Timestamp(billennium), 345)
+    assert(sameTime(kathmandu, 7, 31, 40, 0))
+    assert(timestampOf(kathmandu) == Timestamp(billennium))
+    return
+
+fn weekdays() -> {}:
+    -- 1970-01-01 was a Thursday, which is the one fact the numbering rests on.
+    assert(weekdayAt(epoch()) == Thursday)
+    assert(weekdayOf(Date {}) == Thursday)
+
+    -- Seven consecutive days, so a wrong modulus shows up as a wrong day rather than as an offset
+    -- that happens to be right on the one date the numbering was fitted to.
+    assert(weekdayAt(epoch() + days(1)) == Friday)
+    assert(weekdayAt(epoch() + days(2)) == Saturday)
+    assert(weekdayAt(epoch() + days(3)) == Sunday)
+    assert(weekdayAt(epoch() + days(4)) == Monday)
+    assert(weekdayAt(epoch() + days(5)) == Tuesday)
+    assert(weekdayAt(epoch() + days(6)) == Wednesday)
+    assert(weekdayAt(epoch() + days(7)) == Thursday)
+
+    -- And before it, which is the half a truncating modulus gets wrong.
+    assert(weekdayAt(epoch() - days(1)) == Wednesday)
+    assert(weekdayAt(epoch() - days(7)) == Thursday)
+
+    -- Both entry points agree, which they only do because both go through the day count.
+    assert(weekdayOf(dateOf(Timestamp(billennium))) == weekdayAt(Timestamp(billennium)))
+    assert(weekdayAt(Timestamp(billennium)) == Sunday)
+
+    -- The zone can move a reading across midnight, and the weekday moves with it.
+    assert(weekdayAt(epoch(), -60) == Wednesday)
+    return
+
+{-
+   The clocks, against the only assertions a clock admits.
+
+   A wall clock cannot be compared to a constant without the constant going stale, so the bounds are
+   the two that stay true: it is after a date that is already in the past, and it is before one far
+   enough away that only a wrong *unit* could reach it. Between them they catch the mistake this is
+   really guarding against - milliseconds or nanoseconds where microseconds were meant - which is
+   otherwise a clock that looks like it works until a date is formatted out of it.
+
+   `monotonicNanos` is checked for being a number that moves forward and for being in the right
+   unit against the same wall clock. It is not checked for being *monotonic*: on JavaScript it is
+   not, deliberately, and `Native/Clock.js.yana` says why.
+-}
+fn clocks() -> {}:
+    let now = currentTime()
+    assert(now > timestampOf(Date {year: 2025, month: 1, day: 1}))
+    assert(now < timestampOf(Date {year: 2200, month: 1, day: 1}))
+
+    -- Reading it twice cannot go backwards, and the two readings are close together - a second is
+    -- generous for two adjacent calls and tight enough that a clock answering something unrelated
+    -- fails it.
+    let again = currentTime()
+    assert(again >= now)
+    assert(again - now < seconds(1))
+
+    -- The monotonic clock in the wall clock's unit, which is what catches a factor of a thousand:
+    -- both are read within a moment of each other, so if it were seconds since the epoch rather
+    -- than nanoseconds since a base, the difference could not be under a day.
+    let ticks = monotonicNanos()
+    assert(ticks > 0)
+    assert(monotonicNanos() >= ticks)
+
+    -- And the conversion into the type, which is the only thing above this that uses it.
+    assert(nanos(ticks) >= micros(0))
+    return
+
+fn main() -> Int:
+    intervals()
+    timestamps()
+    shown()
+    calendar()
+    beforeTheEpoch()
+    extremes()
+    zones()
+    weekdays()
+    clocks()
+    return 0

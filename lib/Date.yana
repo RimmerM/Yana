@@ -1,0 +1,410 @@
+{-
+   Time, as a point and as a duration - Analysis-Library.md §3.1.
+
+   Two newtypes over an `I64` of microseconds, and the reason there are two rather than one is the
+   whole design: `Timestamp` is a *point* on a line and `Interval` is a *displacement* along it, and
+   the operations that are legal between them are not the ones a single numeric type would offer.
+   Subtracting two points gives a displacement; adding a displacement to a point gives a point; and
+   adding two points is not an operation, in the way that adding two dates on a calendar is not one.
+
+   **Neither type has a `Num` instance, and that is a decision this file exists to record.**
+   `Num(a)` is single-typed - `+ : (a, a) -> a` - so the affine structure above does not fit it.
+   Instancing it for `Timestamp` would admit `Timestamp + Timestamp`, which is the one thing the
+   split is for. What is written instead is three small classes - `Advance`, `Difference` and
+   `Scale` - covering seven operations between them, which is the alternative §3.1 names in the same
+   sentence and sets aside. It sets it aside in favour of free operators, and free operators turn out
+   not to be available: see the section below, which is the one place this file departs from what
+   §3.1 asked for and says why it had to.
+
+   **`Interval` has no `FromInt` instance either**, for the same reason read from the other end:
+   `let t: Interval = 5` reads as neither five seconds nor five microseconds. The C++'s `0.5_s` and
+   `100_ms` literal suffixes have no counterpart here, and `seconds(3)` and `millis(500)` are the
+   better spelling anyway - a unit named in the call rather than glued to the number.
+
+   Microseconds and not nanoseconds, which is the range decision the C++ made and it carries over:
+   a signed 64-bit nanosecond count runs out in the year 2262, and a microsecond one covers about
+   292 thousand years either side of the epoch. What is left needing nanoseconds is measuring a short
+   operation, and that is `monotonicNanos` below, which deliberately does not answer an `Interval`.
+
+   `DateFormat` is not here. It is the other half of §3.1 and it is a text-shaped problem rather
+   than a time-shaped one - a template language, its parser and a formatter - so it is left for its
+   own file, and nothing below anticipates it.
+-}
+
+import Native
+
+{-
+   ==========================================================================================
+   The two types.
+   ==========================================================================================
+
+   `Eq` and `Ord` are derived rather than written, which for a newtype over an integer is the whole
+   of what a hand-written instance would say. `Show` is not derivable here: it would forward to
+   `show` on the *content*, and `I64` is not in `Show` - the instances are at `Int` and `Long`, the
+   two canonical widths - so the one-line forward is written out below instead.
+
+   Comparing two `Interval`s is meaningful and so is ordering them, which is why `Ord` is on both.
+   What is not meaningful is comparing an `Interval` to a `Timestamp`, and nothing here lets you:
+   the classes are single-typed, so the ordering that would be wrong is one there is no instance for.
+-}
+pub alias qualified Timestamp = I64 deriving (Eq, Ord)
+pub alias qualified Interval = I64 deriving (Eq, Ord)
+
+-- Microseconds, which is what the C++ shows too. It is a diagnostic form and not a presentation
+-- one - what a human reads is `DateFormat`'s job - so the bound is `Long`'s twenty and the text is
+-- the number.
+instance Show(Timestamp):
+    fn show(value: Timestamp, &to: String) -> {} = show(value.0 :: Long, to)
+    fn showBound(value: Timestamp) -> Maybe(Size) = Just(20)
+
+instance Show(Interval):
+    fn show(value: Interval, &to: String) -> {} = show(value.0 :: Long, to)
+    fn showBound(value: Interval) -> Maybe(Size) = Just(20)
+
+{-
+   ==========================================================================================
+   The affine operators, as three classes.
+   ==========================================================================================
+
+   **§3.1 says "declare the four legal operations as free operators", and that is not a thing this
+   language can do.** An overload set is keyed by `(name, arity)` and holds every class function of
+   that name and arity plus *at most one* plain function (doc/spec/overloading.md, R1) - so there is
+   one plain binary `+` in a program and one plain binary `-`, and `Native` has already spent both
+   on pointer arithmetic. That is also why pointer *difference* over there is a named `difference`
+   rather than the `-` it wants to be.
+
+   So the alternative §3.1 names in the same sentence and sets aside - "or need three classes" - is
+   the one that works, and it is three exactly. `Advance` is a point displaced by a duration,
+   `Difference` is the gap between two points, and `Scale` is a duration stretched by a number. Each
+   is a real operation with a real name, and between them they admit precisely the seven combinations
+   that mean something.
+
+   What makes the two `-`s unambiguous is that a candidate matches or it does not, with no ranking
+   (R2): `Timestamp - Interval` finds `Advance(Timestamp)` and no `Difference` candidate, because
+   `Difference`'s second argument is a `Timestamp`. `Timestamp - Timestamp` finds the other one for
+   the mirror-image reason. And `Timestamp + Timestamp` - the operation this whole design exists to
+   refuse - matches nothing at all and is reported as such.
+
+   `Advance` carries the duration as a second parameter with a functional dependency, because a
+   `Timestamp` advances by exactly one kind of thing and saying so is what lets `time + amount` be
+   typed from `time` alone. `Difference` does not, and the difference between them is a resolver
+   rule worth knowing about:
+
+   **an operator in the middle of an infix chain is offered the whole chain's expected type**, which
+   is what makes `a `or` b `or` c` at a `WideInt` result compute at 53 bits rather than settling its
+   literals to `Int` (test/resolve/LiteralWidth.yana, `adoptChain`). That expected type fills in
+   whatever the arguments left open - and a `Difference(t -> i)` leaves `i` open, since no argument
+   mentions it. So `later - base == seconds(90)` offered `Bool` as the result of the *subtraction*,
+   `i` became `Bool`, and there was no instance of anything at that point. Naming `Interval` in the
+   signature closes the hole: nothing is open, so there is nothing for the offer to fill, and the
+   class matches on its arguments the way `Num` does. It also says the true thing - a difference
+   between two points *in time* is a duration and not a type variable.
+-}
+pub class Advance(t -> i):
+  fn +(point: t, amount: i) -> t
+  fn -(point: t, amount: i) -> t
+
+pub class Difference(t):
+  fn -(from: t, to: t) -> Interval
+
+pub class Scale(a):
+  fn *(amount: a, factor: I64) -> a
+  fn /(amount: a, divisor: I64) -> a
+
+instance Advance(Timestamp, Interval):
+    fn +(point: Timestamp, amount: Interval) -> Timestamp = Timestamp(point.0 + amount.0)
+    fn -(point: Timestamp, amount: Interval) -> Timestamp = Timestamp(point.0 - amount.0)
+
+-- The one instance of this, and the reason there is not one at `Interval`: an interval displaced by
+-- an interval is `Advance(Interval)` above, so instancing `Difference(Interval)` as well would give
+-- `a - b` on two intervals two matching candidates and make it an error.
+instance Difference(Timestamp):
+    fn -(from: Timestamp, to: Timestamp) -> Interval = Interval(from.0 - to.0)
+
+-- An interval is its own displacement, which is what makes an interval a vector where a timestamp
+-- is a point: `seconds(3) + millis(500)` is a duration, and the two are the same kind of thing.
+instance Advance(Interval, Interval):
+    fn +(point: Interval, amount: Interval) -> Interval = Interval(point.0 + amount.0)
+    fn -(point: Interval, amount: Interval) -> Interval = Interval(point.0 - amount.0)
+
+{-
+   Scaling, which `Timestamp` deliberately does not join.
+
+   The C++ has `*` and `/` on a timestamp as well, and both are meaningless: half of a point in time
+   is not a point in time, it is half of the displacement from an origin nobody named. A duration is
+   the thing with a zero to scale about, so this is instanced there and nowhere else.
+-}
+instance Scale(Interval):
+    fn *(amount: Interval, factor: I64) -> Interval = Interval(amount.0 * factor)
+    fn /(amount: Interval, divisor: I64) -> Interval = Interval(amount.0 / divisor)
+
+{-
+   ==========================================================================================
+   Naming a duration, and reading one back.
+   ==========================================================================================
+
+   The replacement for `_s` / `_ms` / `_m` / `_hours` / `_days`, and the reason they are functions
+   rather than the literal suffixes they port is that this language has no user-defined suffixes -
+   which turns out to read better at the call site anyway: `seconds(3)` says its unit in front of
+   the number, where `3_s` says it behind.
+
+   Six constructors and six readers, and the readers *truncate* toward zero rather than rounding:
+   `toSeconds(millis(1500))` is 1, exactly as an integer division is everywhere else. A caller
+   wanting the remainder has `toMicros` and its own arithmetic.
+-}
+pub fn micros(count: I64) -> Interval = Interval(count)
+pub fn millis(count: I64) -> Interval = Interval(count * 1000)
+pub fn seconds(count: I64) -> Interval = Interval(count * 1000000)
+pub fn minutes(count: I64) -> Interval = Interval(count * 60000000)
+pub fn hours(count: I64) -> Interval = Interval(count * 3600000000)
+pub fn days(count: I64) -> Interval = Interval(count * 86400000000)
+
+-- Nanoseconds, which is not a unit an `Interval` can hold and is the unit `monotonicNanos` answers
+-- in. Here so that the one lossy direction between the two is written once, where it can say that
+-- it is lossy, rather than at each call site as a division by a thousand.
+pub fn nanos(count: I64) -> Interval = Interval(count / 1000)
+
+pub fn toMicros(amount: Interval) -> I64 = amount.0
+pub fn toMillis(amount: Interval) -> I64 = amount.0 / 1000
+pub fn toSeconds(amount: Interval) -> I64 = amount.0 / 1000000
+pub fn toMinutes(amount: Interval) -> I64 = amount.0 / 60000000
+pub fn toHours(amount: Interval) -> I64 = amount.0 / 3600000000
+pub fn toDays(amount: Interval) -> I64 = amount.0 / 86400000000
+
+-- The two ways a `Timestamp` and an `Interval` relate to the epoch, which is the one point on the
+-- line that has a name. `sinceEpoch` is `time - epoch()` said without the subtraction, and
+-- `afterEpoch` is the C++'s `Interval::asTimestamp` under a name that says which direction it goes.
+pub fn epoch() -> Timestamp = Timestamp(0)
+pub fn sinceEpoch(time: Timestamp) -> Interval = Interval(time.0)
+pub fn afterEpoch(amount: Interval) -> Timestamp = Timestamp(amount.0)
+
+-- Microseconds since the epoch, as the way in for a number that came from somewhere else - a
+-- `timespec` a kernel filled, a field read out of a file format, a count another program printed.
+-- `Timestamp(x)` is the same call and the constructor is public too; what this adds is a name that
+-- says which unit it takes, since the one mistake it exists to catch is milliseconds.
+pub fn timestampOfMicros(count: I64) -> Timestamp = Timestamp(count)
+
+{-
+   ==========================================================================================
+   Reading a clock.
+   ==========================================================================================
+
+   Two, because there are two questions and one answer cannot serve both. `currentTime` is the wall
+   clock: it is what "now" means to anything outside this process, it is comparable against a time
+   somebody else recorded, and it *steps* when the machine's clock is corrected. `monotonicNanos`
+   never steps and has no meaning outside this process, which is what makes it the one to measure
+   with and the one that can never be shown to anybody.
+
+   `monotonicNanos` answers an `I64` of nanoseconds rather than an `Interval`, and that is the one
+   place in this file where a raw number is the honest type. An `Interval` is microseconds, so
+   returning one would throw away three digits from the only clock in the library fine enough to
+   time a function call with. `nanos` above converts, at the call site that decides it can afford to.
+
+   Neither can fail. `Native.Clock` is where that is argued: the two clock ids are its own constants
+   and the buffer is its own local, so there is no failure a caller could have avoided, and a
+   `Result` here would be a case every caller names forever for something that does not happen.
+-}
+pub fn currentTime() -> Timestamp = Timestamp(unixTimeMicros())
+
+pub fn monotonicNanos() -> I64 = Native.monotonicNanos()
+
+{-
+   ==========================================================================================
+   The calendar.
+   ==========================================================================================
+
+   A broken-down date, and the fields are the ones a calendar has rather than the ones a clock does.
+   Every field defaults, so `Date {}` is the epoch itself and `Date {year: 2026, month: 8, day: 24}`
+   is a date with the time left at midnight - which is what makes the record usable as a literal
+   without a constructor per shape.
+
+   **The year is an `I32` where the C++ has an `I16`, and that is what makes `dateOf` total.** A
+   `Timestamp` spans about 292 thousand years either side of the epoch; an `I16` covers 32 thousand,
+   so a timestamp outside that range broke down into a year that had silently wrapped. Two bytes buys
+   a conversion that is defined for every value of its argument, which is worth more than the size of
+   a record nobody stores in bulk.
+
+   **The zone is minutes rather than the C++'s quarter-hours.** Its encoding existed to fit an
+   offset into a byte, and the two functions that encoded and decoded it were the price. Every zone
+   in use is a whole number of minutes in [-720, 840], which an `I16` holds outright, so the pair
+   goes and the field means what it says.
+
+   `micros` is 0-999999 and holds *the whole sub-second part*, which the C++'s comment says is
+   0-1000 and its code does not: `getDate` writes `timestamp.microseconds % 1000000` into it. The
+   name and the range agree here.
+-}
+pub data Date {
+    year: I32 = 1970,
+    month: U8 = 1,
+    day: U8 = 1,
+    hour: U8 = 0,
+    minute: U8 = 0,
+    second: U8 = 0,
+    micros: U32 = 0,
+    zoneMinutes: I16 = 0
+}
+
+-- Monday first, which is ISO-8601's numbering less one and the C++'s own. Pinned rather than left
+-- to declaration order because the numbering is arithmetic here - `weekdayAt` computes the index
+-- and reads a constructor out of it - so it is a fact this file depends on rather than one it
+-- happens to have.
+pub data Weekday
+  = @value(0) Monday
+  | @value(1) Tuesday
+  | @value(2) Wednesday
+  | @value(3) Thursday
+  | @value(4) Friday
+  | @value(5) Saturday
+  | @value(6) Sunday
+
+-- A payload-free sum is a number, and its `Show` and its `Enum` instance are generated from the
+-- declaration - but `Eq` is not, and comparing two weekdays is the first thing anybody does with
+-- one. One line over `valueOf`, which is the reinterpretation the number already is.
+instance Eq(Weekday):
+    fn ==(lhs: Weekday, rhs: Weekday) -> Bool = valueOf(lhs) == valueOf(rhs)
+
+{-
+   Division that rounds *down* rather than toward zero, and the reason both of these exist.
+
+   Every calendar conversion below divides a signed count of microseconds by a positive constant and
+   needs the answer that tiles the line evenly: one day before the epoch has to be day -1 with a
+   remainder of zero, and truncating division answers day 0 with a remainder of -86400. The C++
+   corrects for that afterwards with `if(days < 0) days--`, and that correction is wrong at exactly
+   the boundary it was written for - a timestamp that is an exact negative multiple of a day gets
+   decremented and its remainder does not, so 1969-12-31T00:00:00 came out as 1969-12-30. Doing the
+   division correctly in the first place removes the correction and the case it got wrong.
+
+   `divisor` is positive at every call here, which is what lets both be a sign test on the remainder
+   rather than on the pair.
+
+   **Both are written as a correction to `rem` rather than as arithmetic that avoids it, and that is
+   about overflow rather than about brevity.** The obvious floored form is `-((divisor - 1 - value) /
+   divisor)` for a negative value, and it adds `divisor` to a magnitude that is already the whole
+   range: at the most negative `Timestamp` an `I64` holds, `divisor - 1 - value` wraps and the answer
+   is off by 292 thousand years. The same trap is one line further down - `value - quotient *
+   divisor` is the textbook remainder and `quotient * divisor` is `value` rounded, which at the same
+   input is *past* the end of the range. Nothing here multiplies or adds outside the divisor's own
+   magnitude, so every value of the argument is a value these are defined at.
+-}
+fn floorDiv(value: I64, divisor: I64) -> I64:
+    let quotient = value / divisor
+    return if value `rem` divisor < 0 then quotient - 1 else quotient
+
+-- The remainder that goes with it, and therefore never negative - which `rem` is not, since it takes
+-- its sign from the dividend.
+fn floorRem(value: I64, divisor: I64) -> I64:
+    let remainder = value `rem` divisor
+    return if remainder < 0 then remainder + divisor else remainder
+
+let microsPerSecond = 1000000 :: I64
+let microsPerDay = 86400000000 :: I64
+let secondsPerDay = 86400 :: I64
+let secondsPerHour = 3600 :: I64
+
+{-
+   The two halves of the civil-calendar conversion, from
+   http://howardhinnant.github.io/date_algorithms.html - which is where the C++ took them too.
+
+   The trick both halves share is the *era*: a 400-year block, which is the period over which the
+   Gregorian calendar's leap rule repeats exactly and therefore the unit in which day counting has
+   no special cases at all. Within an era every quantity below is a bounded non-negative integer and
+   every division is exact, which is why there is not a leap-year test anywhere in this file.
+
+   Shifting the year back by one for January and February is the second trick: it puts the leap day
+   at the *end* of the shifted year, so the day-of-year formula does not have to know whether the
+   February it is walking past had 28 days or 29.
+-}
+fn daysFromCivil(year: I64, month: I64, day: I64) -> I64:
+    let shiftedYear = if month <= 2 then year - 1 else year
+    let era = floorDiv(shiftedYear, 400)
+    let yearOfEra = shiftedYear - era * 400                                            -- 0-399
+    let shiftedMonth = if month > 2 then month - 3 else month + 9                      -- 0-11
+    let dayOfYear = (153 * shiftedMonth + 2) / 5 + day - 1                             -- 0-365
+    let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear       -- 0-146096
+
+    -- 719468 is the number of days from 0000-03-01 - the era's own origin - to 1970-01-01, so
+    -- subtracting it is what moves the answer onto the epoch this module counts from.
+    return era * 146097 + dayOfEra - 719468
+
+{-
+   The whole of `Timestamp` from `Date`, and the one direction that can be asked for a date nobody
+   could have observed.
+
+   Nothing here range-checks its argument, which is deliberate and is what makes the function
+   useful: month 13 is January of the next year and day 0 is the last day of the previous month,
+   which is how date arithmetic is written when there is no calendar type to do it with. The
+   formulas above stay exact for any of them.
+
+   The zone is *subtracted*, since a wall-clock reading in a zone ahead of UTC names an earlier
+   instant than the same reading in UTC.
+-}
+pub fn timestampOf(date: Date) -> Timestamp:
+    let days = daysFromCivil(date.year :: I64, date.month :: I64, date.day :: I64)
+    let secondsOfDay = (date.hour :: I64) * secondsPerHour + (date.minute :: I64) * 60
+                     + (date.second :: I64) - (date.zoneMinutes :: I64) * 60
+
+    return Timestamp((days * secondsPerDay + secondsOfDay) * microsPerSecond + (date.micros :: I64))
+
+{-
+   And back, which is the half that needs the floor division.
+
+   `civil_from_days` is inlined rather than being a function of its own, exactly as it is in the
+   C++: it produces three numbers, this is its only caller, and the alternative is a record that
+   exists to be destructured one line later.
+-}
+pub fn dateOf(time: Timestamp, zoneMinutes: I16 = 0) -> Date:
+    let local = time.0 + (zoneMinutes :: I64) * 60 * microsPerSecond
+    let days = floorDiv(local, microsPerDay)
+    let inDay = floorRem(local, microsPerDay)                                          -- 0-86399999999
+
+    -- 719468 again, moving the epoch-relative day count onto the era's origin so that everything
+    -- below is non-negative within its own era.
+    let shifted = days + 719468
+    let era = floorDiv(shifted, 146097)
+    let dayOfEra = shifted - era * 146097                                              -- 0-146096
+    let yearOfEra = (dayOfEra - dayOfEra / 1460 + dayOfEra / 36524
+                     - dayOfEra / 146096) / 365                                        -- 0-399
+    let dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)     -- 0-365
+    let shiftedMonth = (5 * dayOfYear + 2) / 153                                       -- 0-11
+    let day = dayOfYear - (153 * shiftedMonth + 2) / 5 + 1                             -- 1-31
+    let month = if shiftedMonth < 10 then shiftedMonth + 3 else shiftedMonth - 9       -- 1-12
+
+    -- The shifted year runs March to February, so January and February belong to the next one.
+    let year = yearOfEra + era * 400 + (if month <= 2 then 1 else 0)
+
+    let secondsOfDay = inDay / microsPerSecond                                         -- 0-86399
+
+    return Date {
+        year: truncate(year) :: I32,
+        month: truncate(month) :: U8,
+        day: truncate(day) :: U8,
+        hour: truncate(secondsOfDay / secondsPerHour) :: U8,
+        minute: truncate((secondsOfDay `rem` secondsPerHour) / 60) :: U8,
+        second: truncate(secondsOfDay `rem` 60) :: U8,
+        micros: truncate(inDay `rem` microsPerSecond) :: U32,
+        zoneMinutes: zoneMinutes
+    }
+
+{-
+   The day of the week, from either end.
+
+   Both go through the day count rather than through a formula of their own, which is what keeps
+   there being one calendar in this file: a weekday is a day number modulo seven, and the only thing
+   worth writing down is which day the numbering starts on. 1970-01-01 was a Thursday, so adding
+   three before the modulus puts Monday at zero.
+
+   `fromValue` is partial because a payload-free sum's numbering is open in general, and the index
+   here is provably 0-6 - `floorRem` against a positive divisor cannot answer anything else - so the
+   fallback is unreachable rather than a default. It is written as `?? Monday` rather than as a
+   seven-arm `match` because the arms would be a second copy of the `@value` list above.
+-}
+fn weekdayOfDays(days: I64) -> Weekday:
+    let named = fromValue(floorRem(days + 3, 7)) :: Maybe(Weekday)
+    return named ?? Monday
+
+pub fn weekdayAt(time: Timestamp, zoneMinutes: I16 = 0) -> Weekday:
+    let local = time.0 + (zoneMinutes :: I64) * 60 * microsPerSecond
+    return weekdayOfDays(floorDiv(local, microsPerDay))
+
+pub fn weekdayOf(date: Date) -> Weekday =
+    weekdayOfDays(daysFromCivil(date.year :: I64, date.month :: I64, date.day :: I64))
