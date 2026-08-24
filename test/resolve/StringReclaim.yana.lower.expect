@@ -1,3 +1,5 @@
+@Core.string$0 = [48, 48, 48, 49, 48, 50, 48, 51, 48, 52, 48, 53, 48, 54, 48, 55, 48, 56, 48, 57, 49, 48, 49, 49, 49, 50, 49, 51, 49, 52, 49, 53, 49, 54, 49, 55, 49, 56, 49, 57, 50, 48, 50, 49, 50, 50, 50, 51, 50, 52, 50, 53, 50, 54, 50, 55, 50, 56, 50, 57, 51, 48, 51, 49, 51, 50, 51, 51, 51, 52, 51, 53, 51, 54, 51, 55, 51, 56, 51, 57, 52, 48, 52, 49, 52, 50, 52, 51, 52, 52, 52, 53, 52, 54, 52, 55, 52, 56, 52, 57, 53, 48, 53, 49, 53, 50, 53, 51, 53, 52, 53, 53, 53, 54, 53, 55, 53, 56, 53, 57, 54, 48, 54, 49, 54, 50, 54, 51, 54, 52, 54, 53, 54, 54, 54, 55, 54, 56, 54, 57, 55, 48, 55, 49, 55, 50, 55, 51, 55, 52, 55, 53, 55, 54, 55, 55, 55, 56, 55, 57, 56, 48, 56, 49, 56, 50, 56, 51, 56, 52, 56, 53, 56, 54, 56, 55, 56, 56, 56, 57, 57, 48, 57, 49, 57, 50, 57, 51, 57, 52, 57, 53, 57, 54, 57, 55, 57, 56, 57, 57]
+@decimalPairs = [0, 0, 0, 0, 0, 0, 0, 0, 200, 0, 0, 0, 200, 0, 0, 0]
 @image$base = []
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -15,124 +17,118 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$9 = [58, 32, 115, 99, 111, 114, 101, 32]
 @ResolveTest.string$10 = [32, 111, 107]
 
-showSigned<complex>(%value: Long, %to: Ptr) {
+pushUnsigned<complex>(%value: Long, %to: Ptr) {
   b_0 {
-    %v_1 = cmp_eq %value, 0: Int
-    je %v_1, b_2, b_3
-  }
-
-  b_3 {
-    %v_4 = cmp_igt %value, 0: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_6 {
-    jmp b_7
-  }
-
-  b_5 {
-    %v_8 = sub 0, %value: Long
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = phi [b_6, %value], [b_5, %v_8]: Long
-    %digits = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %digits, 20
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_7, %v_9], [b_12, %v_13]: Long
-    %v_14 = cmp_ilt %v_11, 0: Int
-    je %v_14, b_12, b_15
-  }
-
-  b_15 {
-    %v_16 = cmp_ilt %value, 0: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_18 {
-    jmp b_19
-  }
-
-  b_17 {
-    call_complex push(CodeUnit), %to, 45
-    jmp b_19
-  }
-
-  b_19 {
-    %v_20 = add %digits, 12: Ptr
-    %v_21 = load %v_20, 4: Int
-    %v_22 = sext %v_21: Long
-    jmp b_23
-  }
-
-  b_23 {
-    %v_24 = phi [b_19, %v_22], [b_25, %v_26]: Long
-    %v_27 = cmp_igt %v_24, 0: Int
-    je %v_27, b_25, b_28
-  }
-
-  b_28 {
-    %v_29 = add %digits, 8: Ptr
-    %v_30 = load %v_29, 4: Long
-    %v_31 = shr %v_30, 30: Long
-    %v_32 = cast %v_31: Int
-    %v_33 = cmp_eq %v_32, 1: Int
-    je %v_33, b_34, b_35
-  }
-
-  b_35 {
-    jmp b_36
-  }
-
-  b_34 {
-    %v_37 = load %digits, 8: Ptr
-    call_complex freeHeap, %v_37
-    jmp b_36
-  }
-
-  b_36 {
-    ret 
-  }
-
-  b_25 {
-    %v_26 = sub %v_24, 1: Long
-    %v_38 = load %digits, 8: Ptr
-    %v_39 = add %v_38, %v_26: Ptr
-    %v_40 = load %v_39, 1: Int
-    call_complex push(CodeUnit), %to, %v_40
-    jmp b_23
-  }
-
-  b_12 {
-    %v_41 = imulhi %v_11, 7378697629483820647: Long
-    %v_42 = sar %v_41, 2: Long
-    %v_43 = shr %v_42, 63: Long
-    %v_44 = add %v_42, %v_43: Long
-    %v_45 = imul %v_44, 10: Long
-    %v_46 = sub %v_11, %v_45: Long
-    %v_47 = sub 0, %v_46: Long
-    %digit = cast %v_47: Int
-    %v_48 = add %digit, 48: Int
-    %v_49 = and %v_48, 255: Int
-    call_complex push(CodeUnit), %digits, %v_49
-    %v_50 = imulhi %v_11, 7378697629483820647: Long
-    %v_51 = sar %v_50, 2: Long
-    %v_52 = shr %v_51, 63: Long
-    %v_13 = add %v_51, %v_52: Long
-    jmp b_10
+    %v_1 = alloca 20, 1: Ptr
+    setpattern %v_1, 20, 0
+    jmp b_2
   }
 
   b_2 {
-    call_complex push(CodeUnit), %to, 48
+    %v_3 = phi [b_0, 20], [b_4, %v_5]: Long
+    %v_6 = phi [b_0, %value], [b_4, %quotient]: Long
+    %v_7 = cmp_ge %v_6, 100: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    %v_10 = cmp_ge %v_6, 10: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_12 {
+    %v_13 = sub %v_3, 1: Long
+    %v_14 = cmp_ge %v_13, 20: Int
+    je %v_14, b_15, b_16
+  }
+
+  b_16 {
+    %v_17 = add %v_1, %v_13: Ptr
+    %v_18 = add %v_6, 48: Long
+    %v_19 = cast %v_18: Int
+    %v_20 = and %v_19, 255: Int
+    store %v_17, %v_20, 1
+    jmp b_21
+  }
+
+  b_15 {
+    %v_22 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_11 {
+    %v_23 = shl %v_6, 1: Long
+    %v_24 = sub %v_3, 2: Long
+    %v_25 = cmp_ge %v_24, 20: Int
+    je %v_25, b_15, b_26
+  }
+
+  b_26 {
+    %v_27 = add %v_1, %v_24: Ptr
+    %v_28 = load @decimalPairs, 8: Ptr
+    %v_29 = add %v_28, %v_23: Ptr
+    %v_30 = load %v_29, 1: Int
+    store %v_27, %v_30, 1
+    %v_31 = add %v_24, 1: Long
+    %v_32 = cmp_ge %v_31, 20: Int
+    je %v_32, b_15, b_33
+  }
+
+  b_33 {
+    %v_34 = add %v_1, %v_31: Ptr
+    %v_35 = add %v_23, 1: Long
+    %v_36 = load @decimalPairs, 8: Ptr
+    %v_37 = add %v_36, %v_35: Ptr
+    %v_38 = load %v_37, 1: Int
+    store %v_34, %v_38, 1
+    jmp b_21
+  }
+
+  b_21 {
+    %v_39 = phi [b_16, %v_13], [b_33, %v_24]: Long
+    %v_40 = add %v_1, %v_39: Ptr
+    %v_41 = sub 20, %v_39: Long
+    call_complex String.appendUnits, %to, %v_40, %v_41
     ret 
+  }
+
+  b_8 {
+    %v_42 = mulhi %v_6, 5165088340638674453: Long
+    %v_43 = sub %v_6, %v_42: Long
+    %v_44 = shr %v_43, 1: Long
+    %v_45 = add %v_44, %v_42: Long
+    %quotient = shr %v_45, 6: Long
+    %v_46 = mul %quotient, 100: Long
+    %v_47 = sub %v_6, %v_46: Long
+    %v_48 = shl %v_47, 1: Long
+    %v_5 = sub %v_3, 2: Long
+    %v_49 = cmp_ge %v_5, 20: Int
+    je %v_49, b_15, b_50
+  }
+
+  b_50 {
+    %v_51 = add %v_1, %v_5: Ptr
+    %v_52 = load @decimalPairs, 8: Ptr
+    %v_53 = add %v_52, %v_48: Ptr
+    %v_54 = load %v_53, 1: Int
+    store %v_51, %v_54, 1
+    %v_55 = add %v_5, 1: Long
+    %v_56 = cmp_ge %v_55, 20: Int
+    je %v_56, b_15, b_4
+  }
+
+  b_4 {
+    %v_57 = add %v_1, %v_55: Ptr
+    %v_58 = add %v_48, 1: Long
+    %v_59 = load @decimalPairs, 8: Ptr
+    %v_60 = add %v_59, %v_58: Ptr
+    %v_61 = load %v_60, 1: Int
+    store %v_57, %v_61, 1
+    jmp b_2
   }
 }
 
-newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
+String.ofCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   b_1 {
     %v_2 = call_complex allocateHeap, %capacity: Ptr
     %v_3 = cast %capacity: Int
@@ -148,18 +144,18 @@ newStringOfCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   }
 }
 
-pushString<complex>(%self: Ptr, %other: Ptr) {
+String.push<complex>(%self: Ptr, %other: Ptr) {
   b_0 {
     %v_1 = load %other, 8: Ptr
     %v_2 = add %other, 12: Ptr
     %v_3 = load %v_2, 4: Int
     %v_4 = sext %v_3: Long
-    call_complex appendUnits, %self, %v_1, %v_4
+    call_complex String.appendUnits, %self, %v_1, %v_4
     ret 
   }
 }
 
-appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
+String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ile %count, 0: Int
     je %v_1, b_2, b_3
@@ -207,6 +203,30 @@ appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
   }
 }
 
+Show(Int).show<complex>(%value: Int, %to: Ptr) {
+  b_0 {
+    %v_1 = sext %value: Long
+    %v_2 = cmp_ilt %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_4 {
+    call_complex pushUnsigned, %v_1, %to
+    jmp b_5
+  }
+
+  b_3 {
+    call_complex push(CodeUnit), %to, 45
+    %v_6 = sub 0, %v_1: Long
+    call_complex pushUnsigned, %v_6, %to
+    jmp b_5
+  }
+
+  b_5 {
+    ret 
+  }
+}
+
 Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
     %v_2 = add %lhs, 12: Ptr
@@ -217,11 +237,11 @@ Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
     %v_7 = sext %v_6: Long
     %v_8 = add %v_4, %v_7: Long
     %fresh = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %fresh, %v_8
+    call_complex String.ofCapacity, %fresh, %v_8
     %v_9 = load %lhs, 8: Ptr
-    call_complex appendUnits, %fresh, %v_9, %v_4
+    call_complex String.appendUnits, %fresh, %v_9, %v_4
     %v_10 = load %rhs, 8: Ptr
-    call_complex appendUnits, %fresh, %v_10, %v_7
+    call_complex String.appendUnits, %fresh, %v_10, %v_7
     copy %v_0, %fresh, 16
     ret 
   }
@@ -921,18 +941,18 @@ resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
 buildInCallee<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_1, 37
+    call_complex String.ofCapacity, %v_1, 37
     %v_2 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_2, @ResolveTest.string$0, 4
-    call_complex pushString, %v_1, %v_2
-    call_complex showSigned, 7, %v_1
+    call_complex String.push, %v_1, %v_2
+    call_complex Show(Int).show, 7, %v_1
     %v_3 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_3, @ResolveTest.string$1, 8
-    call_complex pushString, %v_1, %v_3
-    call_complex showSigned, 9, %v_1
+    call_complex String.push, %v_1, %v_3
+    call_complex Show(Int).show, 9, %v_1
     %v_4 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_4, @ResolveTest.string$2, 3
-    call_complex pushString, %v_1, %v_4
+    call_complex String.push, %v_1, %v_4
     %v_5 = add %v_1, 12: Ptr
     %v_6 = load %v_5, 4: Int
     call_complex Reclaim(String).reclaim, %v_1
@@ -943,18 +963,19 @@ buildInCallee<complex>(): Int {
 buildHere<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_1, 37
+    call_complex String.ofCapacity, %v_1, 37
     %v_2 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_2, @ResolveTest.string$3, 4
-    call_complex pushString, %v_1, %v_2
-    call_complex showSigned, 7, %v_1
+    call_complex String.push, %v_1, %v_2
+    %id = imm 7: Int
+    call_complex Show(Int).show, %id, %v_1
     %v_3 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_3, @ResolveTest.string$4, 8
-    call_complex pushString, %v_1, %v_3
-    call_complex showSigned, 7, %v_1
+    call_complex String.push, %v_1, %v_3
+    call_complex Show(Int).show, %id, %v_1
     %v_4 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_4, @ResolveTest.string$5, 3
-    call_complex pushString, %v_1, %v_4
+    call_complex String.push, %v_1, %v_4
     %v_5 = add %v_1, 12: Ptr
     %v_6 = load %v_5, 4: Int
     call_complex Reclaim(String).reclaim, %v_1
@@ -980,18 +1001,18 @@ concatHere<complex>(): Int {
 buildUnnamed<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    call_complex newStringOfCapacity, %v_1, 37
+    call_complex String.ofCapacity, %v_1, 37
     %v_2 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_2, @ResolveTest.string$8, 4
-    call_complex pushString, %v_1, %v_2
-    call_complex showSigned, 7, %v_1
+    call_complex String.push, %v_1, %v_2
+    call_complex Show(Int).show, 7, %v_1
     %v_3 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_3, @ResolveTest.string$9, 8
-    call_complex pushString, %v_1, %v_3
-    call_complex showSigned, 9, %v_1
+    call_complex String.push, %v_1, %v_3
+    call_complex Show(Int).show, 9, %v_1
     %v_4 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_4, @ResolveTest.string$10, 3
-    call_complex pushString, %v_1, %v_4
+    call_complex String.push, %v_1, %v_4
     %v_5 = add %v_1, 12: Ptr
     %v_6 = load %v_5, 4: Int
     call_complex Reclaim(String).reclaim, %v_1

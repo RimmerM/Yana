@@ -66,6 +66,12 @@ pub class Read(a):
    Letters count from ten in either case, which is what makes `readRadix(text, at, 16)` accept
    `ff` and `FF` and what makes every radix up to 36 spelled the same way. A unit at or above the
    radix is not a digit *here*, which is why the test is against the radix rather than against `9`.
+
+   **Three range tests in sequence, and a shorter spelling was tried and lost.** `unit or 32` folds
+   the two alphabets together and one test then covers both - it is fewer instructions and it is
+   slower, because the arms below are if-converted into a select chain and an early `return` out of
+   the middle of one is a branch that chain does not have. Measured at +6% on `test/bench/numbers`'s
+   integer read; see §62.3.
 -}
 fn digitValue(unit: Int, radix: Int) -> Int:
     let &value = 0 - 1
@@ -78,19 +84,124 @@ fn digitValue(unit: Int, radix: Int) -> Int:
     return value
 
 {-
+   ------------------------------------------------------------------------------------------
+   Reading digits a vector at a time - Implementation-Vector.md §9 item 8's family, applied to the
+   reading direction.
+   ------------------------------------------------------------------------------------------
+
+   **This is where a vector earns its keep in this library, and the direction is the reason.**
+   Writing a number, the digits are produced one at a time out of a register and would have to be
+   *inserted* into a lane one at a time, which costs more than the arithmetic it would replace - see
+   `Core/Show.yana`, where that was measured and declined. Reading one, they arrive in memory sixteen
+   at a time already, so one load answers both questions a digit loop asks: where the digits stop,
+   and what eight of them are worth.
+
+   Three functions rather than one, and the split is what keeps a short number from paying for a long
+   one. `digitOffsets` is the load; `digitRunOf` is the compare, which every caller wants; and
+   `eightDigitsOf` is the splitting tree, which only a caller with eight digits in hand wants and
+   which is the expensive half. They take and answer a `Vec(U8)` so that a loop reading twenty-four
+   digits loads three times rather than six.
+-}
+
+{-
+   **Sixteen lanes, written down, and not the target's natural width** - which is the one thing here
+   that is not obvious and is not negotiable.
+
+   `interleaveLow` is a *portable* whole-vector operation: at sixteen lanes it is one instruction on
+   every x86 back to SSE2, and at thirty-two there is no instruction for it at all - every shuffle at
+   256 bits works inside each 128-bit half and the only crossing is an exchange of whole halves. So a
+   build at `v3`, where `Vec(U8)` means thirty-two lanes, does not compile this at all; the backend
+   refuses it by name rather than emitting something else, which is how it was found. Sixteen is also
+   all this needs - the tree below reads eight digits and nothing here scales with the width - so the
+   count is stated and the same code runs at every tier.
+
+   `vectorPast` rather than `loadVectorTail` for the same reason: the load has to be sixteen units
+   wide whatever the natural width is. It takes a raw address and promises nothing, and what makes it
+   safe is the same fact §8's guarantee rests on - a `String`'s units are a run the language allocated
+   and padded, so sixteen bytes from anywhere inside it are readable. What is past the end is whatever
+   the padding holds, so it may look like a digit, and `digitRunOf` is handed the count that says how
+   many lanes were ever the string's.
+-}
+
+-- The units at `at`, biased so that a digit is `0` to `9` and nothing else is.
+@platform(native) fn digitOffsets(text: String, at: Size) -> Vec(U8, 16):
+    let raw = vectorPast(stringData(text).bytes.run.items + at) :: Vec(CodeUnit, 16)
+    return bitcast(raw - (splat(48 :: CodeUnit) :: Vec(CodeUnit, 16))) :: Vec(U8, 16)
+
+-- How many leading lanes are digits, never more than the string has left. One compare and a
+-- `firstSet`, which is the operation that makes a vector search terminate correctly - see Core's own
+-- note on it, and note that its answer when nothing is set is the lane count, which is what makes a
+-- window of nothing but digits fall out as "all of them".
+@platform(native) fn digitRunOf(offset: Vec(U8, 16), available: Int) -> Int:
+    let run = firstSet(offset .> (splat(9 :: U8) :: Vec(U8, 16)))
+    return if run < available then run else available
+
+{-
+   The first eight lanes as a number.
+
+   The tree is the standard one and every step halves the lane count by doubling the width.
+   `interleaveLow` against zero spreads eight byte lanes into sixteen-bit ones **without leaving the
+   register**, which is what an `unpackLow` into a narrower vector would have needed a sub-register
+   transfer for and this backend has none (Implementation-Vector.md §12). Read as thirty-two-bit
+   lanes, each of the four then holds two adjacent digits - the earlier one in the low half, since the
+   units sit in the register little-endian - so one masked multiply and add turns four lanes of two
+   digits into four numbers below a hundred, and the four are weighted and summed as scalars.
+
+   Measured 1.60x against the scalar loop over the same eight units; §62.4 of test/bench/findings.md.
+-}
+@platform(native) fn eightDigitsOf(offset: Vec(U8, 16)) -> U64:
+    let spread = interleaveLow(offset, zero() :: Vec(U8, 16))
+    let asPairs = bitcast(spread) :: Vec(U32, 4)
+    let pairs = (asPairs `and` (splat(65535 :: U32) :: Vec(U32, 4))) * (splat(10 :: U32) :: Vec(U32, 4)) +
+                (asPairs `shr` (splat(16 :: U32) :: Vec(U32, 4)))
+
+    return (widen(lane(pairs, 0)) :: U64) * 1000000 + (widen(lane(pairs, 1)) :: U64) * 10000 +
+           (widen(lane(pairs, 2)) :: U64) * 100 + (widen(lane(pairs, 3)) :: U64)
+
+{-
+   Eight more digits at `at`, where there are eight and they all are.
+
+   The shared spelling of the three above, for a caller whose loop is not `readMagnitude`'s -
+   `Float/Read.yana`'s scan, which has a decimal point and an exponent to watch for and so cannot be a
+   counted loop. It answers `False` rather than a count, because that caller only ever wants a whole
+   block: a short tail is one it is going to read a unit at a time anyway.
+
+   `False` on JS, where a string has no addressable units, which is what lets the scan stay one body
+   instead of two.
+-}
+@platform(native) fn eightMoreDigits(text: String, at: Size, &value: U64) -> Bool:
+    -- Eight units have to exist, which is what the caller wants anyway and is also what keeps the
+    -- sixteen-unit window inside Design-Vector §5.1's guarantee - it starts at least eight units
+    -- before the end, so it reaches at most eight bytes past it.
+    if at + 8 > length(text) then return False
+
+    let offset = digitOffsets(text, at)
+    if digitRunOf(offset, 8) < 8 then return False
+
+    value = eightDigitsOf(offset)
+    return True
+
+@platform(js) fn eightMoreDigits(text: String, at: Size, &value: U64) -> Bool = False
+
+{-
    The digits at `at`, as an unsigned magnitude, with `limit` the largest one the caller will take.
 
    The cursor is advanced only on the way out, and only through the copy: a caller of this one is
    about to decide whether the magnitude fits its own type, and a read that is rejected there has to
    leave the cursor where an unread one would.
 
-   **Overflow is detected before it happens rather than after.** `seen > (limit - digit) / radix` is
-   exactly the test that the next step stays at or below the limit, and it is the only formulation
-   that works for a `limit` at the top of the type - where computing the product and comparing it
-   would already have wrapped.
+   **Overflow is detected before it happens rather than after**, because computing the product and
+   comparing it would already have wrapped at a `limit` at the top of the type.
+
+   **The division in it is not a division.** Every call site in this file supplies a literal radix
+   and a literal limit, so the strength reduction turns `(limit - digit) / radix` into a multiply and
+   a shift before it is ever executed. Hoisting it by hand - keeping `limit / radix` and its remainder
+   and comparing against the pair - was written and reverted: it replaces one folded division with a
+   two-compare chain that depends on the accumulator, and it is **42% slower** on
+   `test/bench/numbers`'s integer read. §62.3.
 -}
-fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
-                 &stop: Size, &value: U64) -> Maybe(ReadError):
+fn readDigits(text: String, from: Size, radix: Int, limit: U64,
+              &stop: Size, &value: U64) -> Maybe(ReadError):
     let units = length(text)
     let base = wideCount(radix)
 
@@ -116,6 +227,76 @@ fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
     stop = at
     value = seen
     return Nothing
+
+{-
+   And the same magnitude with the units read a vector at a time, which is what a native build does
+   for radix ten.
+
+   **Nineteen digits is the whole design.** Nineteen nines is below `2^64`, so a run that short cannot
+   wrap the accumulator - which means no per-digit overflow test, no per-digit range test either
+   (the compare that produced the run already checked every lane), and one comparison against `limit`
+   at the end instead of one per digit. Two blocks of eight and a tail of at most three is every
+   decimal number a `U64` holds bar the twenty-digit ones, and those fall through to the loop above
+   along with every other radix.
+
+   The loop reloads rather than shifting the vector along, because a load that hits L1 is cheaper than
+   the lane rearrangement would be and because the next window's *run* has to be measured anyway.
+
+   Measured on `test/bench/numbers`: **3.45x** on a corpus of fifteen to nineteen digit values and
+   **1.45x** on one of one to ten - §62.4, where the two arrangements that lose are also written down.
+   The short corpus gains as much as it does because the run length is what turns the tail into a
+   counted loop; an arrangement where the block was tried without measuring first was 12% *slower*
+   there, since a four-digit number paid for a splitting tree it could not use.
+-}
+@platform(native) fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
+                                   &stop: Size, &value: U64) -> Maybe(ReadError):
+    let units = length(text)
+
+    -- **A window is only ever loaded where there is a unit in it**, which is why this reads `from >=
+    -- units` rather than letting the count sort it out. Design-Vector §5.1 guarantees the readable
+    -- bytes past an object's *last* byte, so a whole vector starting one past the end asks for one
+    -- byte more than the guarantee names - which the allocators happen to give and which is exactly
+    -- the kind of thing to not be relying on. The same test is the reason the loop below reloads
+    -- under a branch.
+    if radix != 10 || from >= units then return readDigits(text, from, radix, limit, stop, value)
+
+    let &at = from
+    let &seen = 0 :: U64
+    let &count = 0 :: Int
+
+    let &offset = digitOffsets(text, at)
+    let &run = digitRunOf(offset, truncate(units - at) :: Int)
+
+    -- At most two blocks: a third would put the count past nineteen and the no-wrap argument with it.
+    while run >= 8 && count <= 8:
+        seen = seen * 100000000 + eightDigitsOf(offset)
+        at = at + 8
+        count = count + 8
+        run = 0
+
+        if at < units:
+            offset = digitOffsets(text, at)
+            run = digitRunOf(offset, truncate(units - at) :: Int)
+
+    if run >= 8 || count + run > 19 then return readDigits(text, from, radix, limit, stop, value)
+    if count + run == 0 then return Just(NoDigits)
+
+    let &i = 0 :: Int
+    while i < run:
+        seen = seen * 10 + wideCount(String.unit(text, at + (i :: Size)) - 48)
+        i = i + 1
+
+    if seen > limit then return Just(OutOfRange)
+
+    stop = at + (run :: Size)
+    value = seen
+    return Nothing
+
+-- On JS a string has no addressable units to load, so eight of them are eight `charCodeAt` calls and
+-- the loop above is already that. One name, split at the natural boundary rather than at every caller.
+@platform(js) fn readMagnitude(text: String, from: Size, radix: Int, limit: U64,
+                               &stop: Size, &value: U64) -> Maybe(ReadError) =
+    readDigits(text, from, radix, limit, stop, value)
 
 {-
    A signed value in a radix, refused where it does not fit between `low` and `high`.

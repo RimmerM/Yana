@@ -5,31 +5,49 @@ import Native
 {-
    The host's own answer, which is what a JS build decides a float's digits with.
 
-   **A ruling rather than a shortcut**, and the argument is that `Number.prototype.toExponential()`
-   with no argument is *specified* to produce the shortest decimal that reads back as the number -
-   which is the same sentence Ryu's correctness theorem is. Reading a float's bits at all on this
-   target would mean the 64-bit `Double`/`I64` bitcast the language deliberately does not have, so
-   the alternative is not a slower Ryu but no Ryu.
+   **A ruling rather than a shortcut**, and the argument is that `Number::toString` is *specified* to
+   produce the shortest decimal that reads back as the number, with a tie broken to the even digit -
+   which is the same sentence Ryu's correctness theorem is, clause for clause. Reading a float's bits
+   at all on this target would mean the 64-bit `Double`/`I64` bitcast the language deliberately does
+   not have, so the alternative is not a slower Ryu but no Ryu.
+
+   **`toString` and not `toExponential`**, which matters for one reason: `toExponential` is shortest
+   as well, but it breaks a tie the *other* way - the specification says to take the larger where two
+   decimals are equally close, and Ryu takes the even one. A JS build asking for that form has to
+   recognize the disagreement and undo it, which costs about ninety lines: a probe one digit past
+   the shortest form looking for a five, and then a hundred-and-one-digit expansion to find out
+   whether it actually stopped there or the five was itself a rounding. Asking for the form whose
+   rule already matches is what makes `Show.yana`'s two targets agree by construction rather than by
+   correction.
+
+   That is also the answer to "an algorithm configurable to produce the same result as JS": the
+   configuration is which of the host's two specified shortest forms you ask for, and one of them is
+   already Ryu's. Nothing native has a rounding policy to set, and adding one would be a knob with no
+   caller - see Analysis-Library.md §2.1.
 
    A `.js.yana` file, so a native build never reads it - Analysis-Modules.md §2.5. It answers the
    same two names `Ryu.native.yana` does, and `Ryu.yana` holds the `Shortest` both produce.
 -}
+fn doubleShortest(value: Double) -> Shortest = shortestOfText(hostToString(value))
 
 {-
-   The JS half of the same two, which is the host's own answer read back out of a string.
+   And the same question at single precision, which the host cannot be asked directly.
 
-   `toExponential()` with no argument is *specified* to be the shortest decimal that reads back as
-   the number, so the double's digits arrive in one call. A `Float` is a `number` here as well, so
-   the host's shortest is the shortest for the wrong type - `0.1` at single precision is a different
-   number from `0.1` and has different digits - and what finds the right one is the round trip: the
-   fewest digits whose value, narrowed back to `Float`, is the value that was asked about.
+   A `Float` is a `number` here as well, so `String` on one answers the shortest decimal for the
+   *double* that holds it - the shortest for the wrong type, since `0.1` at single precision is a
+   different number from `0.1` and has different digits. What finds the right one is the round trip:
+   the fewest digits whose value, narrowed back to `Float`, is the value that was asked about.
 
    Nine is where the walk stops because nine digits round-trip every `Float` there is, so the last
    step needs no test.
--}
-fn doubleShortest(value: Double) -> Shortest =
-    evenAtTie(value, shortestOfText(hostToExponential(value)))
 
+   **This one keeps the tie correction, and that is not an oversight.** `toExponentialAt` is the only
+   way to ask the host for a decimal of a stated width, and its tie rule is the one that disagrees -
+   so the two functions below still have a caller. What removed them from the double's path was a
+   host call with the right rule, and there is no such call at this width. The cost is bounded: the
+   probe is one call and rejects almost everything, and `terminatesAt` is only reached by a value
+   that already looks like a tie.
+-}
 fn floatShortest(value: Float) -> Shortest:
     let wide = value :: Double
     let &places = 0 :: Int
@@ -47,8 +65,8 @@ fn floatShortest(value: Float) -> Shortest:
    Every finite binary float has a *terminating* decimal expansion, so this is a real question with a
    yes or no answer rather than an approximation - and a hundred and one digits is where the host is
    asked for it, which is the widest `toExponential` takes. That width is exact for every value this
-   is asked about: a tie needs the expansion to stop within nineteen digits, and where it does the
-   remaining eighty-two are the value's own zeros rather than a rounding that produced some.
+   is asked about: a tie needs the expansion to stop within ten digits at this width, and where it
+   does the remaining ninety-one are the value's own zeros rather than a rounding that produced some.
 
    Read off the text rather than through `shortestOfText`, because a hundred and one digits is four
    times what a `U64` holds and the question is only about which of them are zero.
@@ -60,7 +78,7 @@ fn terminatesAt(value: Double, count: Int) -> Bool:
     let &i = 0 :: Size
 
     while i < units:
-        let unit = stringUnit(text, i)
+        let unit = String.unit(text, i)
         if unit == 101 || unit == 69 then return True
 
         -- The sign and the point are not digits; everything else in a `toExponential` result is.
@@ -73,13 +91,13 @@ fn terminatesAt(value: Double, count: Int) -> Bool:
     return True
 
 {-
-   The one case the host and Ryu disagree about, corrected so that the two targets never do.
+   The one case `toExponentialAt` and Ryu disagree about, corrected so that the two targets never do.
 
    Both pick the digits closest to the value. Where two are *equally* close - where the exact value
-   sits exactly on the midpoint between them - the specification says to take the larger and Ryu
-   takes the even one, which is the same rule IEEE rounding itself uses and is the one worth keeping:
-   ties-to-larger biases a whole column of a table upwards, and at single precision the two rules
-   disagree often enough to show up in a few thousand random values.
+   sits exactly on the midpoint between them - `toExponential` is specified to take the larger and
+   Ryu takes the even one, which is the same rule IEEE rounding itself uses and is the one worth
+   keeping: ties-to-larger biases a whole column of a table upwards, and at single precision the two
+   rules disagree often enough to show up in a few thousand random values.
 
    A tie is recognizable exactly, and it needs two things: the expansion one digit past the shortest
    form has to end in a five, and it has to *stop* there. The first is one call and rejects almost
@@ -104,30 +122,49 @@ fn evenAtTie(value: Double, shortest: Shortest) -> Shortest:
     return Shortest {digits: shortest.digits - 1, exponent: shortest.exponent}
 
 {-
-   `d.ddde±x`, read back into the pair the renderer wants.
+   A written decimal, read back into the pair the renderer wants.
 
-   The host writes the point after the first digit and this wants the digits as one integer, so the
-   exponent it reports is the written one less however many digits followed the point. Trailing
-   zeros are removed afterwards, which the no-argument form never produces and the `n`-digit form
-   always can: `decimalLength` counts what the number is written with, so a `1500` that means `15`
-   would be rendered two digits too wide.
+   Two forms reach this and it has to take both. `toExponentialAt` writes `d.ddde±x`, which is what
+   it always wrote; `String` writes whichever of the plain and the exponent forms the specification
+   picks, so `1e-7`, `0.000001`, `100000` and `123456789012345680000` are all inputs here.
+
+   **The trailing zeros are never accumulated, and that is what makes the plain form safe.** A value
+   below 1e21 is written out in full there, so `String` can hand this twenty-one digits - four more
+   than a `U64` holds - and every one past the seventeenth is a zero standing for a power of ten. So
+   a run of zeros is *counted* rather than multiplied in, and it is only spent when a non-zero digit
+   arrives after it. What is left over at the end is the trailing run, and it goes into the exponent
+   - which is what a separate stripping loop would otherwise be for.
+
+   A leading zero is skipped entirely rather than counted: it is a place in the written number and
+   never a digit of the answer, which is what makes `0.000001` one digit and an exponent of -6.
 -}
 fn shortestOfText(text: String) -> Shortest:
     let units = length(text)
     let &digits = 0 :: U64
+    let &zeros = 0 :: Int
     let &fractional = 0 :: Int
     let &afterPoint = False
     let &i = 0 :: Size
 
     while i < units:
-        let unit = stringUnit(text, i)
+        let unit = String.unit(text, i)
         if unit == 101 || unit == 69 then break
 
         if unit == 46:
             afterPoint = True
         else:
-            digits = digits * 10 + wideCount(unit - 48)
             if afterPoint then fractional = fractional + 1
+
+            if unit == 48:
+                -- A zero before the first significant digit is a place and nothing else; one after
+                -- it is only a digit if something non-zero follows.
+                if digits != 0 then zeros = zeros + 1
+            else:
+                while zeros > 0:
+                    digits = digits * 10
+                    zeros = zeros - 1
+
+                digits = digits * 10 + wideCount(unit - 48)
 
         i = i + 1
 
@@ -136,7 +173,7 @@ fn shortestOfText(text: String) -> Shortest:
     i = i + 1
 
     if i < units:
-        let unit = stringUnit(text, i)
+        let unit = String.unit(text, i)
         if unit == 45:
             negative = True
             i = i + 1
@@ -144,14 +181,8 @@ fn shortestOfText(text: String) -> Shortest:
             i = i + 1
 
     while i < units:
-        exponent = exponent * 10 + (stringUnit(text, i) - 48)
+        exponent = exponent * 10 + (String.unit(text, i) - 48)
         i = i + 1
 
     if negative then exponent = 0 - exponent
-    exponent = exponent - fractional
-
-    while digits != 0 && digits % 10 == 0:
-        digits = digits / 10
-        exponent = exponent + 1
-
-    return Shortest {digits: digits, exponent: exponent}
+    return Shortest {digits: digits, exponent: exponent + zeros - fractional}

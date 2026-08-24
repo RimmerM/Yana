@@ -57,6 +57,18 @@ fn readCount(text: String) -> Long:
         Err(OutOfRange) -> return 0 - 1
         Err(_) -> return 0 - 2
 
+fn readLong(text: String) -> Long:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Long):
+        Ok(value) -> return value
+        Err(_) -> return 0 - 999
+
+fn longCursor(text: String) -> Size:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Long):
+        Ok(_) -> return at
+        Err(_) -> return if at == 0 then 0 - 1 else 0 - 2
+
 fn integers() -> {}:
     assert(readInt("0") == 0)
     assert(readInt("42") == 42)
@@ -65,6 +77,65 @@ fn integers() -> {}:
     assert(readInt("2147483647") == 2147483647)
     assert(readInt("-2147483648") == (minValue() :: Int))
     assert(readInt("12abc") == 12)
+
+    return
+
+{-
+   Digit runs at every length the vector reader's blocks fall on - Core/Read.yana's `readMagnitude`.
+
+   Natively that body reads eight units at a time out of one vector load, takes at most two such
+   blocks, and hands anything longer than nineteen digits back to the scalar loop. So the lengths that
+   matter are the ones either side of eight, sixteen and nineteen, and the ones where the run *ends*
+   inside a window rather than at the end of the string - a vector load reads past the string and the
+   count is what says how many lanes were ever its own.
+
+   Every one of these is an ordinary read on JS, which is the point of asserting values rather than
+   the path that produced them.
+-}
+fn runs() -> {}:
+    let &at = 0 :: Size
+
+    -- Either side of one block, of two, and of the nineteen-digit ceiling.
+    assert(readLong("1234567") == 1234567)
+    assert(readLong("12345678") == 12345678)
+    assert(readLong("123456789") == 123456789)
+    assert(readLong("123456789012345") == 123456789012345)
+    assert(readLong("1234567890123456") == 1234567890123456)
+    assert(readLong("12345678901234567") == 12345678901234567)
+    assert(readLong("999999999999999999") == 999999999999999999)
+    assert(readLong("9223372036854775807") == (maxValue() :: Long))
+    assert(readLong("-9223372036854775808") == (minValue() :: Long))
+
+    -- Leading zeros are places and not digits, so a run far longer than nineteen still names a
+    -- small number - and this is the case a length-based ceiling would refuse.
+    assert(readLong("00000000000000000000042") == 42)
+    assert(readLong("0000000000000000000000000000") == 0)
+
+    -- A run that ends inside the window, at each offset a block boundary can fall on.
+    assert(longCursor("1234567x") == 7)
+    assert(longCursor("12345678x") == 8)
+    assert(longCursor("123456789x") == 9)
+    assert(longCursor("1234567890123456x") == 16)
+    assert(longCursor("12345678901234567x") == 17)
+    assert(longCursor("1234567890123456789x") == 19)
+
+    -- Twenty digits and more, which is where the scalar loop takes over: the first fits a `U64` and
+    -- the second does not, and both have to be read to the end before that can be said.
+    at = 0
+    match read("18446744073709551615", at) :: Result(ReadError, U64):
+        Ok(value) -> assert(value == (maxValue() :: U64) && at == 20)
+        Err(_) -> assert(False)
+
+    at = 0
+    match read("99999999999999999999999", at) :: Result(ReadError, U64):
+        Ok(_) -> assert(False)
+        Err(OutOfRange) -> assert(at == 0)
+        Err(_) -> assert(False)
+
+    -- And the same length refused at a narrow type, which is the range check rather than the width
+    -- of the accumulator.
+    assert(readByte("00000000000000000127") == 127)
+    assert(readByte("00000000000000000128") == 0 - 1)
 
     return
 
@@ -244,6 +315,7 @@ fn widest() -> {}:
 fn main() -> Int:
     widest()
     integers()
+    runs()
     ranges()
     radix()
     floats()

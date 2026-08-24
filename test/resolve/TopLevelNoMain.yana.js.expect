@@ -3,44 +3,6 @@ var tally = 0;
 var doubled = 0;
 var final = 0;
 
-// Core
-function showSigned(value, to$o, to$k, to$s) {
-  if (value === 0n) {
-    var v91 = to$o[to$k] + String.fromCharCode(48);
-    to$o[to$k] = v91;
-  } else {
-    var remaining = value;
-    if (value > 0n) {
-      remaining = BigInt.asIntN(64, 0n - remaining);
-    }
-    var digits = "";
-    L0: for (;;) {
-      if (remaining < 0n) {
-        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, $rem(remaining, 10n)))) | 0) + 48 | 0);
-        remaining = BigInt.asIntN(64, $div(remaining, 10n));
-        continue L0;
-      }
-      break L0;
-    }
-    if (value < 0n) {
-      var v100 = to$o[to$k] + String.fromCharCode(45);
-      to$o[to$k] = v100;
-    }
-    var i = digits.length;
-    L1: for (;;) {
-      if (i > 0) {
-        var v79 = i - 1 | 0;
-        i = v79;
-        var v103 = digits.charCodeAt(v79);
-        var v106 = to$o[to$k] + String.fromCharCode(v103);
-        to$o[to$k] = v106;
-        continue L1;
-      }
-      break L1;
-    }
-  }
-}
-
 // ResolveTest
 function main$() {
   var v0 = tally;
@@ -48,22 +10,13 @@ function main$() {
   tally = 42;
   var v7 = v0 + 42 | 0;
   final = v7;
-  var v23 = { $v: "" };
-  v23.$v = v23.$v + "tally ";
-  showSigned(42n, v23, "$v", 1);
-  v23.$v = v23.$v + " doubled ";
-  showSigned(BigInt.asIntN(64, BigInt(v0)), v23, "$v", 1);
-  v23.$v = v23.$v + " final ";
-  showSigned(BigInt.asIntN(64, BigInt(v7)), v23, "$v", 1);
-  console.log(v23.$v);
-}
-
-// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
-function $div(a, b) {
-  return b ? a / b : b;
-}
-
-function $rem(a, b) {
-  return b ? a % b : a;
+  var v23 = "";
+  v23 = v23 + "tally ";
+  v23 = v23 + String(42);
+  v23 = v23 + " doubled ";
+  v23 = v23 + String(v0);
+  v23 = v23 + " final ";
+  v23 = v23 + String(v7);
+  console.log(v23);
 }
 main$();

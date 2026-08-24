@@ -1,63 +1,24 @@
 "use strict";
-// Core
-function showSigned(value, to$o, to$k, to$s) {
-  if (value === 0n) {
-    var v91 = to$o[to$k] + String.fromCharCode(48);
-    to$o[to$k] = v91;
-  } else {
-    var remaining = value;
-    if (value > 0n) {
-      remaining = BigInt.asIntN(64, 0n - remaining);
-    }
-    var digits = "";
-    L0: for (;;) {
-      if (remaining < 0n) {
-        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, $rem(remaining, 10n)))) | 0) + 48 | 0);
-        remaining = BigInt.asIntN(64, $div(remaining, 10n));
-        continue L0;
-      }
-      break L0;
-    }
-    if (value < 0n) {
-      var v100 = to$o[to$k] + String.fromCharCode(45);
-      to$o[to$k] = v100;
-    }
-    var i = digits.length;
-    L1: for (;;) {
-      if (i > 0) {
-        var v79 = i - 1 | 0;
-        i = v79;
-        var v103 = digits.charCodeAt(v79);
-        var v106 = to$o[to$k] + String.fromCharCode(v103);
-        to$o[to$k] = v106;
-        continue L1;
-      }
-      break L1;
-    }
-  }
-}
-
 // ResolveTest
 function oneIntText() {
-  var v7 = { $v: "" };
-  v7.$v = v7.$v + "n=";
-  showSigned(7n, v7, "$v", 1);
-  v7.$v = v7.$v + "!";
-  var text = v7.$v;
+  var v7 = "";
+  v7 = v7 + "n=";
+  v7 = v7 + String(7);
+  v7 = v7 + "!";
   var total = 0;
-  if (text.length !== 4) {
+  if (v7.length !== 4) {
     return 0;
   } else {
-    if (text.charCodeAt(0) === 110) {
+    if (v7.charCodeAt(0) === 110) {
       total = total + 1 | 0;
     }
-    if (text.charCodeAt(1) === 61) {
+    if (v7.charCodeAt(1) === 61) {
       total = total + 1 | 0;
     }
-    if (text.charCodeAt(2) === 55) {
+    if (v7.charCodeAt(2) === 55) {
       total = total + 1 | 0;
     }
-    if (text.charCodeAt(3) === 33) {
+    if (v7.charCodeAt(3) === 33) {
       total = total + 1 | 0;
     }
     return total;
@@ -69,10 +30,10 @@ function inLoop() {
   var i = 0;
   L0: for (;;) {
     if (i < 100) {
-      var v18 = { $v: "" };
-      v18.$v = v18.$v + "iteration ";
-      showSigned(BigInt.asIntN(64, BigInt(i)), v18, "$v", 1);
-      total = total + v18.$v.length | 0;
+      var v18 = "";
+      v18 = v18 + "iteration ";
+      v18 = v18 + String(i);
+      total = total + v18.length | 0;
       i = i + 1 | 0;
       continue L0;
     }
@@ -82,47 +43,38 @@ function inLoop() {
 }
 
 function main() {
-  var v42 = { $v: "" };
-  v42.$v = v42.$v + "n = ";
-  showSigned(42n, v42, "$v", 1);
-  var v13 = (v42.$v.length + 13 | 0) + oneIntText() | 0;
-  var v55 = "";
-  v55 = v55 + "hello ";
-  v55 = v55 + "world";
-  var v17 = v13 + v55.length | 0;
-  var v69 = { $v: "" };
-  v69.$v = v69.$v + "ab";
-  v69.$v = v69.$v + "-";
-  showSigned(12n, v69, "$v", 1);
-  v69.$v = v69.$v + "-";
-  v69.$v = v69.$v + "ab";
-  v69.$v = v69.$v + "-";
-  showSigned(345n, v69, "$v", 1);
-  var v21 = v17 + v69.$v.length | 0;
-  var v100 = { $v: "" };
-  showSigned(-2147483648n, v100, "$v", 1);
-  var v25 = v21 + v100.$v.length | 0;
-  var v109 = "";
-  v109 = v109 + "True";
-  v109 = v109 + "/";
-  v109 = v109 + "False";
-  var v33 = (v25 + v109.length | 0) + inLoop() | 0;
-  var v137 = { $v: "" };
-  v137.$v = v137.$v + "[";
-  v137.$v = v137.$v + "format";
-  v137.$v = v137.$v + " ran ";
-  showSigned(2n, v137, "$v", 1);
-  v137.$v = v137.$v + " times]\n";
-  console.log(v137.$v);
+  var v42 = "";
+  v42 = v42 + "n = ";
+  v42 = v42 + String(42);
+  var v13 = (v42.length + 13 | 0) + oneIntText() | 0;
+  var v57 = "";
+  v57 = v57 + "hello ";
+  v57 = v57 + "world";
+  var v17 = v13 + v57.length | 0;
+  var v71 = "";
+  v71 = v71 + "ab";
+  v71 = v71 + "-";
+  v71 = v71 + String(12);
+  v71 = v71 + "-";
+  v71 = v71 + "ab";
+  v71 = v71 + "-";
+  v71 = v71 + String(345);
+  var v21 = v17 + v71.length | 0;
+  var v106 = "";
+  v106 = v106 + String(-2147483648);
+  var v25 = v21 + v106.length | 0;
+  var v117 = "";
+  v117 = v117 + "True";
+  v117 = v117 + "/";
+  v117 = v117 + "False";
+  var v33 = (v25 + v117.length | 0) + inLoop() | 0;
+  var v145 = "";
+  v145 = v145 + "[";
+  v145 = v145 + "format";
+  v145 = v145 + " ran ";
+  v145 = v145 + String(2);
+  v145 = v145 + " times]\n";
+  console.log(v145);
   return v33;
-}
-
-// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
-function $div(a, b) {
-  return b ? a / b : b;
-}
-
-function $rem(a, b) {
-  return b ? a % b : a;
 }
 main();

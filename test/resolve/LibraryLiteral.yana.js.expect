@@ -1,42 +1,5 @@
 "use strict";
 // Core
-function showSigned(value, to$o, to$k, to$s) {
-  if (value === 0n) {
-    var v91 = to$o[to$k] + String.fromCharCode(48);
-    to$o[to$k] = v91;
-  } else {
-    var remaining = value;
-    if (value > 0n) {
-      remaining = BigInt.asIntN(64, 0n - remaining);
-    }
-    var digits = "";
-    L0: for (;;) {
-      if (remaining < 0n) {
-        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, $rem(remaining, 10n)))) | 0) + 48 | 0);
-        remaining = BigInt.asIntN(64, $div(remaining, 10n));
-        continue L0;
-      }
-      break L0;
-    }
-    if (value < 0n) {
-      var v100 = to$o[to$k] + String.fromCharCode(45);
-      to$o[to$k] = v100;
-    }
-    var i = digits.length;
-    L1: for (;;) {
-      if (i > 0) {
-        var v79 = i - 1 | 0;
-        i = v79;
-        var v103 = digits.charCodeAt(v79);
-        var v106 = to$o[to$k] + String.fromCharCode(v103);
-        to$o[to$k] = v106;
-        continue L1;
-      }
-      break L1;
-    }
-  }
-}
-
 function decimalLength(value) {
   var limit = 10n;
   var digits = 1;
@@ -57,34 +20,21 @@ function decimalLength(value) {
 }
 
 function pushDecimalDigits(value, count, pointAt, to$o, to$k, to$s) {
-  var buffer = "";
-  var rest = value;
-  var left = count;
+  var digits = String(value);
+  var i = 0;
   L0: for (;;) {
-    if (left > 0) {
-      buffer = buffer + String.fromCharCode((Number(BigInt.asUintN(64, $rem(rest, 10n))) | 0) + 48 | 0);
-      rest = BigInt.asUintN(64, $div(rest, 10n));
-      left = left - 1 | 0;
+    if (i < count) {
+      if (i === pointAt) {
+        var v36 = to$o[to$k] + String.fromCharCode(46);
+        to$o[to$k] = v36;
+      }
+      var v38 = digits.charCodeAt(i);
+      var v41 = to$o[to$k] + String.fromCharCode(v38);
+      to$o[to$k] = v41;
+      i = i + 1 | 0;
       continue L0;
     }
     break L0;
-  }
-  var written = 0;
-  var k = count;
-  L1: for (;;) {
-    if (k > 0) {
-      k = k - 1 | 0;
-      if (written === pointAt) {
-        var v86 = to$o[to$k] + String.fromCharCode(46);
-        to$o[to$k] = v86;
-      }
-      var v88 = buffer.charCodeAt(k);
-      var v91 = to$o[to$k] + String.fromCharCode(v88);
-      to$o[to$k] = v91;
-      written = written + 1 | 0;
-      continue L1;
-    }
-    break L1;
   }
 }
 
@@ -192,129 +142,90 @@ function writeSpecial(value, to$o, to$k, to$s) {
   }
 }
 
-function terminatesAt(value, count) {
-  var text = value.toExponential(100);
-  var v81 = text.length;
-  var seen = 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i < v81) {
-      var v82 = text.charCodeAt(i);
-      if (v82 === 101 | v82 === 69) {
-        return 1;
-      } else {
-        B1: {
-          if (v82 !== 46 & v82 !== 45 & v82 !== 43) {
-            var v55 = seen + 1 | 0;
-            seen = v55;
-            if (v55 > count & v82 !== 48) {
-              return 0;
+function Show_Double_show(value, to$o, to$k, to$s) {
+  if (!writeSpecial(value, to$o, to$k, to$s)) {
+    var v30 = value < 0 ? 0 - value : value;
+    if (v30 === 0) {
+      var v33 = to$o[to$k] + String.fromCharCode(48);
+      to$o[to$k] = v33;
+    } else {
+      var v35 = String(v30);
+      var v36 = v35.length;
+      var digits = 0n;
+      var zeros = 0;
+      var fractional = 0;
+      var afterPoint = 0;
+      var i = 0;
+      L0: for (;;) {
+        if (i < v36) {
+          var v57 = v35.charCodeAt(i);
+          if (!(v57 === 101 | v57 === 69)) {
+            if (v57 === 46) {
+              afterPoint = 1;
+            } else {
+              if (afterPoint) {
+                fractional = fractional + 1 | 0;
+              }
+              if (v57 === 48) {
+                if (digits !== 0n) {
+                  zeros = zeros + 1 | 0;
+                }
+              } else {
+                L1: for (;;) {
+                  if (zeros > 0) {
+                    digits = BigInt.asUintN(64, digits * 10n);
+                    zeros = zeros - 1 | 0;
+                    continue L1;
+                  }
+                  break L1;
+                }
+                digits = BigInt.asUintN(64, BigInt.asUintN(64, digits * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v57 - 48 | 0))));
+              }
             }
+            i = i + 1 | 0;
+            continue L0;
           }
         }
-        i = i + 1 | 0;
-        continue L0;
+        break L0;
       }
-    } else {
-      return 1;
-    }
-    break L0;
-  }
-}
-
-function evenAtTie(value, shortest$digits, shortest$exponent) {
-  var shortest = { digits: shortest$digits, exponent: shortest$exponent };
-  if (BigInt.asUintN(64, $rem(shortest$digits, 2n)) === 0n) {
-    return shortest;
-  } else {
-    var count = decimalLength(shortest$digits);
-    var probe = shortestOfText(value.toExponential(count));
-    if (probe.exponent !== (shortest.exponent - 1 | 0)) {
-      return shortest;
-    } else {
-      if (probe.digits !== BigInt.asUintN(64, BigInt.asUintN(64, BigInt.asUintN(64, shortest.digits - 1n) * 10n) + 5n)) {
-        return shortest;
-      } else {
-        if (terminatesAt(value, count + 1 | 0) ^ 1) {
-          return shortest;
+      var exponent = 0;
+      var negative = 0;
+      var v131 = i + 1 | 0;
+      i = v131;
+      if (v131 < v36) {
+        var v137 = v35.charCodeAt(i);
+        if (v137 === 45) {
+          negative = 1;
+          i = i + 1 | 0;
         } else {
-          return { digits: BigInt.asUintN(64, shortest.digits - 1n), exponent: shortest.exponent };
-        }
-      }
-    }
-  }
-}
-
-function shortestOfText(text) {
-  var v183 = text.length;
-  var digits = 0n;
-  var fractional = 0;
-  var afterPoint = 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i < v183) {
-      var v184 = text.charCodeAt(i);
-      if (!(v184 === 101 | v184 === 69)) {
-        if (v184 === 46) {
-          afterPoint = 1;
-        } else {
-          digits = BigInt.asUintN(64, BigInt.asUintN(64, digits * 10n) + BigInt.asUintN(64, BigInt.asIntN(64, BigInt(v184 - 48 | 0))));
-          if (afterPoint) {
-            fractional = fractional + 1 | 0;
+          if (v137 === 43) {
+            i = i + 1 | 0;
           }
         }
-        i = i + 1 | 0;
-        continue L0;
       }
-    }
-    break L0;
-  }
-  var exponent = 0;
-  var negative = 0;
-  var v76 = i + 1 | 0;
-  i = v76;
-  if (v76 < v183) {
-    var v187 = text.charCodeAt(i);
-    if (v187 === 45) {
-      negative = 1;
-      i = i + 1 | 0;
-    } else {
-      if (v187 === 43) {
-        i = i + 1 | 0;
+      L2: for (;;) {
+        if (i < v36) {
+          exponent = Math.imul(exponent, 10) + (v35.charCodeAt(i) - 48 | 0) | 0;
+          i = i + 1 | 0;
+          continue L2;
+        }
+        break L2;
       }
-    }
-  }
-  L1: for (;;) {
-    if (i < v183) {
-      exponent = Math.imul(exponent, 10) + (text.charCodeAt(i) - 48 | 0) | 0;
-      i = i + 1 | 0;
-      continue L1;
-    }
-    break L1;
-  }
-  if (negative) {
-    exponent = 0 - exponent | 0;
-  }
-  exponent = exponent - fractional | 0;
-  L2: for (;;) {
-    if (digits !== 0n) {
-      if (BigInt.asUintN(64, $rem(digits, 10n)) === 0n) {
-        digits = BigInt.asUintN(64, $div(digits, 10n));
-        exponent = exponent + 1 | 0;
-        continue L2;
+      if (negative) {
+        exponent = 0 - exponent | 0;
       }
+      writeShortest(digits, (exponent + zeros | 0) - fractional | 0, to$o, to$k, to$s);
     }
-    break L2;
   }
-  return { digits: digits, exponent: exponent };
 }
 
 function Show_Maybe_a_show_Int(value, to$o, to$k, to$s) {
   if (!(value === null)) {
     to$o[to$k] = to$o[to$k] + "Just(";
-    showSigned(BigInt.asIntN(64, BigInt(value)), to$o, to$k, to$s);
-    var v36 = to$o[to$k] + String.fromCharCode(41);
-    to$o[to$k] = v36;
+    var v31 = String(value);
+    to$o[to$k] = to$o[to$k] + v31;
+    var v37 = to$o[to$k] + String.fromCharCode(41);
+    to$o[to$k] = v37;
   } else {
     to$o[to$k] = to$o[to$k] + "Nothing";
   }
@@ -350,29 +261,19 @@ function markers() {
   return total;
 }
 
-function shown(value) {
-  var sink = { $v: "" };
-  if (!writeSpecial(value, sink, "$v", 1)) {
-    var v20 = value < 0 ? 0 - value : value;
-    if (v20 === 0) {
-      var v37 = sink.$v + String.fromCharCode(48);
-      sink.$v = v37;
-    } else {
-      var v25 = shortestOfText(v20.toExponential());
-      var v28 = evenAtTie(v20, v25.digits, v25.exponent);
-      writeShortest(v28.digits, v28.exponent, sink, "$v", 1);
-    }
-  }
-  return sink.$v;
-}
-
 function library() {
   var total = 0;
   var sink = { $v: "" };
-  if (shown(0 / 0) === "NaN") {
+  var v12 = 0 / 0;
+  var sink$1 = { $v: "" };
+  Show_Double_show(v12, sink$1, "$v", 1);
+  if (sink$1.$v === "NaN") {
     total = total + 1 | 0;
   }
-  if (shown(1 / 0) === "Inf") {
+  var v27 = 1 / 0;
+  var sink$2 = { $v: "" };
+  Show_Double_show(v27, sink$2, "$v", 1);
+  if (sink$2.$v === "Inf") {
     total = total + 1 | 0;
   }
   sink.$v = sink.$v + "True";
@@ -402,10 +303,6 @@ function main() {
 }
 
 // `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
-function $div(a, b) {
-  return b ? a / b : b;
-}
-
 function $rem(a, b) {
   return b ? a % b : a;
 }

@@ -11,8 +11,11 @@ import Native
    all of it.
 
    The split from `Ryu.yana` is where the target stops mattering. Deciding the shortest decimal is
-   the host's job on JS and Ryu's natively; writing it out is the same code on both, and this file
-   has one `@platform` in it.
+   the host's job on JS and Ryu's natively; writing it out is very nearly the same code on both, and
+   the one thing that is not is where the digits are *held* - natively a `[CodeUnit *20]` on the frame
+   and on JS the string `String(value)` hands back, since a fixed array is native-only
+   (Implementation-Containers.md §6). Everything about where the point goes and which form is chosen
+   is below that split and is one body.
 -}
 
 -- How many digits a value below 10^17 is written with. Seventeen is the most a shortest-round-trip
@@ -32,53 +35,64 @@ fn decimalLength(value: U64) -> Int:
    The digits, most significant first, with a decimal point after `pointAt` of them.
 
    A `pointAt` equal to `count` writes no point at all, which is what an integral value and the
-   one-digit scientific form both want. The digits come out of the division least-significant first,
-   so they go into a buffer and come back out of it backwards - the same temporary `showSigned`
-   spends above, and the same one to remove when a body this generic can hold a `[U8 *20]`.
+   one-digit scientific form both want.
+
+   **The same two-digit loop `Core/Show.yana` is written around**, and for the same reason: the
+   digits come out of the division least-significant first, so they go into a `[CodeUnit *20]` from
+   its end downwards and arrive in order. What that removed here was a *heap* string per float
+   formatted - the count is known in advance, so this one never even had to discover where the digits
+   started.
+
+   The point makes it two block copies rather than one, and that is the whole of what a decimal point
+   costs: the digits either side of it are contiguous in the buffer already.
 -}
-fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String) -> {}:
-    let &buffer = newStringOfCapacity(20 :: Size)
+@platform(native) fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String) -> {}:
+    let &buffer = [0] :: [CodeUnit *20]
+
+    let &at = 20 :: Size
     let &rest = value
     let &left = count
 
-    while left > 0:
-        let digit = truncate(rest % 10) :: Int
-        pushUnit(buffer, 48 + digit)
-        rest = rest / 10
-        left = left - 1
+    while left >= 2:
+        let quotient = rest / 100
+        let pair = truncate((rest - quotient * 100) * 2) :: Size
 
-    let &written = 0 :: Int
-    let &k = count
+        at = at - 2
+        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
+        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
 
-    while k > 0:
-        k = k - 1
-        if written == pointAt then pushUnit(to, 46)
-        pushUnit(to, stringUnit(buffer, k :: Size))
-        written = written + 1
+        rest = quotient
+        left = left - 2
+
+    -- An odd count leaves the leading digit, which is below ten because `count` is what the value
+    -- actually has rather than a width somebody chose.
+    if left == 1:
+        at = at - 1
+        buffer[at] = truncate(48 + rest) :: CodeUnit
+
+    if pointAt >= count:
+        String.appendUnits(to, values(buffer) + at, count :: Size)
+    else:
+        String.appendUnits(to, values(buffer) + at, pointAt :: Size)
+        String.pushUnit(to, 46)
+        String.appendUnits(to, values(buffer) + at + (pointAt :: Size), (count - pointAt) :: Size)
 
 {-
-   A `U64` in decimal, at whatever width it needs.
+   And the host's own digits, with the point put back into them.
 
-   `pushDecimalDigits` takes a count because every caller of it has one in hand; this is for the two
-   that do not, and it is the same loop with the count discovered rather than given.
+   `String(value)` writes exactly `count` of them - `count` is `decimalLength` of this same value at
+   every call site - so there is nothing here to line up, only a point to insert. That one host call
+   replaces a loop dividing the value apart a digit at a time and concatenating each onto a
+   temporary.
 -}
-fn pushUnsigned(value: U64, &to: String) -> {}:
-    if value == 0:
-        pushUnit(to, 48)
-        return {}
+@platform(js) fn pushDecimalDigits(value: U64, count: Int, pointAt: Int, &to: String) -> {}:
+    let digits = hostToString(value)
+    let &i = 0 :: Int
 
-    let &buffer = newStringOfCapacity(24 :: Size)
-    let &rest = value
-
-    while rest > 0:
-        let digit = truncate(rest % 10) :: Int
-        pushUnit(buffer, 48 + digit)
-        rest = rest / 10
-
-    let &i = length(buffer)
-    while i > 0:
-        i = i - 1
-        pushUnit(to, stringUnit(buffer, i))
+    while i < count:
+        if i == pointAt then String.pushUnit(to, 46)
+        String.pushUnit(to, String.unit(digits, i :: Size))
+        i = i + 1
 
 -- A decimal exponent, which is at most three digits at either width.
 fn pushExponent(value: Int, &to: String) -> {}:

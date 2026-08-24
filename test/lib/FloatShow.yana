@@ -83,6 +83,30 @@ fn ordinary() -> {}:
 
     return
 
+{-
+   Where the *host's* two written forms meet - the boundary a JS build reads its digits across.
+
+   Natively these are ordinary values and the section says nothing. On JS the shortest decimal comes
+   out of `String(x)`, which writes a value below 1e21 in full and everything above it with an
+   exponent - so `1.2345678901234568e20` arrives as twenty-one digits, four more than a `U64` holds,
+   with the last four standing for a power of ten rather than being digits of the answer. That is the
+   case `shortestOfText`'s deferred zero run exists for, and the two rows either side of 1e21 are what
+   would catch it accumulating them.
+
+   `9.999999999999999e20` is the awkward one: sixteen significant digits *and* five trailing zeros in
+   the written form, so both halves of that rule are exercised by one value.
+-}
+fn hostForms() -> {}:
+
+    assert(matches(1.2345678901234568e20, "1.2345678901234568E20"))
+    assert(matches(9.999999999999999e20, "9.999999999999999E20"))
+    assert(matches(1.0e21, "1E21"))
+    assert(matches(1.2345678901234568e21, "1.2345678901234568E21"))
+    assert(matches(1.0e17, "1E17"))
+    assert(matches(0.000001, "0.000001"))
+
+    return
+
 -- The far ends of the range, where the exponent is three digits and the mantissa is at its widest.
 fn extremes() -> {}:
 
@@ -233,6 +257,7 @@ fn main() -> Int:
     special()
     thresholds()
     ordinary()
+    hostForms()
     extremes()
     narrow()
     fixedPoint()

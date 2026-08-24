@@ -19,53 +19,116 @@ instance Show(Bool):
     fn showBound(value: Bool) -> Maybe(Size) = Just(5)
 
 {-
-   The integers, written once over the widest signed type they all widen into.
+   ==========================================================================================
+   The integers, and the digit machinery every decimal in this library is written through.
+   ==========================================================================================
 
-   `showSigned` is the whole implementation and the instances below only say how wide the value can
-   be. One body for both targets, because this is arithmetic and nothing else - `Long` is a machine
-   word natively and a `bigint` on JS, and division and remainder mean the same thing on both.
+   `pushUnsigned` is the whole implementation: a magnitude in decimal, appended. `showSigned` below
+   it is a sign and a call, and `Float/Show.yana`'s digit forms are the same loop with a count given
+   rather than discovered. There is one decimal-digit loop in Core and this is it.
 
-   **The digits are produced in the negative domain**, which looks backwards and is the point. The
-   most negative value of any width has no positive counterpart, so negating it first gives that same
-   number back and a loop dividing it would emit wrong digits forever. Working downwards from zero
-   makes `-9223372036854775808` an ordinary input rather than a case anyone has to remember. It needs
-   truncating division and a remainder that follows the dividend's sign, which is what both targets
-   do.
+   **Two digits at a time, out of a two hundred unit table.** `value / 100` and the remainder as an
+   index is one division, one multiply and one pair of loads per *two* digits, against a division and
+   a remainder per digit - which is what this was. The table is the classic one and its whole content
+   is in its name: unit `2n` and `2n + 1` are the tens and the units of `n`.
 
-   The reversal buffer is a real cost - one temporary string per integer formatted - and it is the
-   obvious thing to remove later: the digits are produced least-significant first and the sink can
-   only be appended to. Writing them into a `[U8 *20]` instead would need no allocation at all, and
-   is left until fixed arrays are reachable from a body this generic.
+   **The digits go into a `[CodeUnit *20]` and reach the sink in one block copy**, with no temporary
+   string anywhere. The digits come out least-significant first and a sink can only be appended to,
+   so the obvious form pushes them into a *heap* string and reads them back out backwards - one
+   allocation, one free and one bounds-checked load per digit, per integer formatted. A fixed array
+   is written from its end downwards, which puts them in order with no reversal at all, and
+   `String.appendUnits` is the one copy that follows. Twenty units is exact: `18446744073709551615` is the
+   widest magnitude a `U64` has and it is twenty digits.
+
+   Worth 4.2x on the digit generation and 3.1x on `show(Int)` including the sink's own allocation -
+   `test/bench/numbers/` is the harness and §62 of test/bench/findings.md is the measurement.
+
+   **Not vectorized, and that is a measurement rather than an omission** - §62.2. Eight digits at a
+   time is expressible over `Vec(U32, 4)` and it loses: the value arrives in a register and a lane
+   has to be *inserted* into a vector one at a time, which costs more than the four table iterations
+   it replaces at every width this loop actually sees. What a vector is for is the reading direction,
+   where the digits arrive in memory sixteen at a time already - see `Core/Read.yana`.
+-}
+let decimalPairs = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899"
+
+{-
+   A magnitude in decimal, appended - the native body, which is the loop above.
+
+   `at` walks down from the end of the buffer and is where the answer starts; the two-digit loop
+   stops with one or two digits left, which is the one place the count is odd and is why the tail is
+   written out rather than folded into the loop.
+-}
+@platform(native) fn pushUnsigned(value: U64, &to: String) -> {}:
+    let &buffer = [0] :: [CodeUnit *20]
+
+    let &at = 20 :: Size
+    let &rest = value
+
+    while rest >= 100:
+        let quotient = rest / 100
+        let pair = truncate((rest - quotient * 100) * 2) :: Size
+
+        at = at - 2
+        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
+        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+
+        rest = quotient
+
+    if rest >= 10:
+        let pair = truncate(rest * 2) :: Size
+        at = at - 2
+        buffer[at] = truncate(String.unit(decimalPairs, pair)) :: CodeUnit
+        buffer[at + 1] = truncate(String.unit(decimalPairs, pair + 1)) :: CodeUnit
+    else:
+        at = at - 1
+        buffer[at] = truncate(48 + rest) :: CodeUnit
+
+    String.appendUnits(to, values(buffer) + at, 20 - at)
+
+{-
+   And the host's own, which is one call.
+
+   `String(x)` on a `bigint` is its decimal and on a `number` an integer's decimal, so the loop above
+   has no reason to exist here - and the one it replaced was the worst code in this file on that
+   target, since `String.pushUnit` is a *concatenation* there and the reversal spent two of them per digit.
+   A fixed array is native-only anyway (Implementation-Containers.md §6), so this was never going to
+   be one body.
+-}
+@platform(js) fn pushUnsigned(value: U64, &to: String) -> {} = String.push(to, hostToString(value))
+
+{-
+   A signed value in decimal - the sign, then the magnitude.
+
+   **The magnitude is taken in the unsigned domain**, which is what replaced producing the digits
+   downwards from zero. Both are answers to the same problem - the most negative value of any width
+   has no positive counterpart, so negating it in its own type gives that same number back - and the
+   unsigned negation of a two's complement pattern is the magnitude for every input including that
+   one, `9223372036854775808` for `-9223372036854775808`. It costs one instruction and it lets the
+   digit loop be written once, over an unsigned value, for every caller in Core.
 
    Not `pub`: it is how the `Show` instances below are written and not something to call directly,
    since what a program wants of an integer is `show` and the instance decides the rest.
 -}
 fn showSigned(value: Long, &to: String) -> {}:
-    if value == 0:
-        pushUnit(to, 48)
-        return {}
+    if value < 0:
+        String.pushUnit(to, 45)
+        pushUnsigned((0 :: U64) - (bitcast(value) :: U64), to)
+    else:
+        pushUnsigned(bitcast(value) :: U64, to)
 
-    -- Downwards from zero, so that every width's most negative value is representable throughout.
-    let &remaining = value
-    if remaining > 0 then remaining = 0 - remaining
+{-
+   An `Int`'s own path, which exists for what it costs on each target rather than for what it says.
 
-    let &digits = newStringOfCapacity(20 :: Size)
-    while remaining < 0:
-        let digit = truncate(0 - (remaining `rem` 10)) :: Int
-        pushUnit(digits, 48 + digit)
-        remaining = remaining / 10
-
-    if value < 0 then pushUnit(to, 45)
-
-    -- Reversed, because the loop above produced them backwards.
-    let &i = length(digits)
-    while i > 0:
-        i = i - 1
-        pushUnit(to, stringUnit(digits, i :: Size))
+   Natively it is the widening the instance always did. On JS an `Int` is a `number` and a `Long` is
+   a `bigint`, so `value :: Long` there is a real `BigInt()` conversion in front of a call whose
+   whole body is one `String()` - and handing the host the number it already has removes both.
+-}
+@platform(native) fn showSmall(value: Int, &to: String) -> {} = showSigned(value :: Long, to)
+@platform(js) fn showSmall(value: Int, &to: String) -> {} = String.push(to, hostToString(value))
 
 -- `-2147483648` is eleven units, which is the widest an `Int` gets.
 instance Show(Int):
-    fn show(value: Int, &to: String) -> {} = showSigned(value :: Long, to)
+    fn show(value: Int, &to: String) -> {} = showSmall(value, to)
     fn showBound(value: Int) -> Maybe(Size) = Just(11)
 
 -- `-9223372036854775808` is twenty.

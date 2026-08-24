@@ -58,7 +58,27 @@ inline void applyExtensionDirective(CompileSettings& settings, StringView conten
 
             settings.extensions.level = level.level;
             settings.explicitExtensions = true;
-            return;
+            break;
+        }
+
+        /*
+         * `# extensions: sha` - the one extension that is not a level, and so the one directive that
+         * does not end the scan.
+         *
+         * A fixture may write it beside a level (two directive lines), which is why the loop
+         * continues past a match rather than returning: the level and the extension are separate
+         * facts about the target, exactly as they are on the command line where `-enable-inst sha`
+         * is a second flag rather than a replacement for the first.
+         *
+         * **A fixture that names it will fault on a machine without the extension**, which is
+         * `CopyMemory.Avx2.yana`'s bargain at a different feature: these drivers execute what they
+         * compile, so a fixture asking for an instruction set is asking for one the machine running
+         * it has. Nothing here detects; a fixture that names nothing is compiled for v2 without the
+         * extension, which is what keeps the rest of the corpus reproducible.
+         */
+        if("sha"_v.length <= left && compareMem(rest, "sha"_v.ptr, 3) == 0) {
+            settings.extensions.sha = true;
+            settings.explicitExtensions = true;
         }
     }
 }

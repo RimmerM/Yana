@@ -47,11 +47,13 @@ import Native
    big-integer fallback, and a bounded number of steps for every input.
 
    **On JS both are the host's own**, and that is a ruling rather than a shortcut - see Host, where
-   the two declarations are and where the argument for them is written out. The short version is
-   that `Number.prototype.toExponential()` with no argument is *specified* to produce the shortest
-   decimal that reads back as the number, which is the same sentence as the paragraph above, and
-   that reading a float's bits at all on that target would mean the 64-bit `Double`/`I64` bitcast it
-   deliberately does not have.
+   the declarations are and where the argument for them is written out. The short version is that
+   `Number::toString` is *specified* to produce the shortest decimal that reads back as the number
+   **with a tie broken to the even digit**, which is the same sentence as the paragraph above clause
+   for clause, and that reading a float's bits at all on that target would mean the 64-bit
+   `Double`/`I64` bitcast it deliberately does not have. The two targets therefore agree by
+   construction rather than by correction - asking the host for a form whose rule does *not* already
+   match costs `Ryu.js.yana` about ninety lines of detecting the disagreement and undoing it.
 
    **One algorithm for both widths.** `shortestOf` takes a mantissa and an exponent and knows
    nothing about which format they came out of; `Show(Float)` and `Show(Double)` differ only in the

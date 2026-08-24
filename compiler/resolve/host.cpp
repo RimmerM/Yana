@@ -106,6 +106,13 @@ enum class HostMember: U8 {
     // specification. It is the other target's `readDouble` and its whole table.
     ToNumber,
 
+    // `String(value)` - the host's own value-to-decimal conversion, and the inverse of the row
+    // above. For a `bigint` or an integral `number` it is the decimal digits; for a `Number` it is
+    // *the shortest decimal that reads back as that number, ties to even*, which is the same
+    // sentence Ryu's correctness theorem is and is why `Ryu.js.yana` needs no tie correction on top
+    // of it. `toExponential()` with no argument is shortest as well and breaks a tie the other way.
+    ToString,
+
     // The one that is a statement rather than a call or an operator - see NativeOp::HostThrow. Its
     // "member name" is never printed; the emitter writes `throw` itself.
     Fail,
@@ -124,6 +131,7 @@ StringView hostMemberName(HostMember member) {
         case HostMember::FromCharCode: return "String.fromCharCode"_v;
         case HostMember::Log: return "console.log"_v;
         case HostMember::ToNumber: return "Number"_v;
+        case HostMember::ToString: return "String"_v;
         case HostMember::Fail: return "throw"_v;
     }
 
@@ -338,12 +346,12 @@ void definePreludeHost(Program& program, Module& native) {
     // The float text tier - Analysis-Library.md §2.1's JS column. Both are the host's own, which is
     // the same ruling `indexOf` above takes: what these compute is specified exactly, so there is no
     // room for the cross-engine disagreement that keeps the decoding tier out of the host.
-    attachIntrinsic(*module, "hostToExponential"_v,
-                    emitHostMember<NativeOp::HostCall, HostMember::ToExponential>);
     attachIntrinsic(*module, "hostToExponentialAt"_v,
                     emitHostMember<NativeOp::HostCall, HostMember::ToExponential>);
     attachIntrinsic(*module, "hostToNumber"_v,
                     emitHostMember<NativeOp::HostGlobalCall, HostMember::ToNumber>);
+    attachIntrinsic(*module, "hostToString"_v,
+                    emitHostMember<NativeOp::HostGlobalCall, HostMember::ToString>);
 
     /*
      * `hostAtMut` answers a *mutable* borrow, and the grammar has one spelling for a borrow type -

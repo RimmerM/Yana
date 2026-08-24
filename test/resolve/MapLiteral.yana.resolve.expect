@@ -145,7 +145,7 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn stringUnit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> Int {
   b0:
     %v2 = borrow %self : &String
     %v3 = cast %v2 : &StringData
@@ -206,9 +206,9 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
 
   b6:
     %v16 = load %i : Size
-    %v17 = call stringUnit, %self, %v16 : Int
+    %v17 = call String.unit, %self, %v16 : Int
     %v18 = load %i : Size
-    %v19 = call stringUnit, %other, %v18 : Int
+    %v19 = call String.unit, %other, %v18 : Int
     %v20 = cmp_ne %v17, %v19 : Bool
     je %v20, b7, b8
 
@@ -248,7 +248,7 @@ fn Hash(String).hash(%value: String, %state: U32) -> U32 {
   b3:
     %v14 = load %h : U32
     %v15 = load %i : Size
-    %v16 = call stringUnit, %value, %v15 : Int
+    %v16 = call String.unit, %value, %v15 : Int
     %v17 = cast %v16 : U32
     %v18 = xor %v14, %v17 : U32
     %v21 = mul %v18, 16777619 : U32

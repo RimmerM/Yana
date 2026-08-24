@@ -1,3 +1,7 @@
+let Core.string$0: String = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899"
+
+let decimalPairs: String = "00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899" {StringData(Array(Run(&Core.string$0, 200, 0), 200))}
+
 let image$base: () = <none>
 
 let &heapNext: %U8 = 0
@@ -20,104 +24,230 @@ let ResolveTest.string$1: String = " doubled "
 
 let ResolveTest.string$2: String = " final "
 
+fn pushUnsigned(%value: U64, %to: String) -> () {
+  b0:
+    %v3 = alloc : [CodeUnit *20]
+    aggregate %buffer[0] = 0, %buffer[1] = 0, %buffer[2] = 0, %buffer[3] = 0, %buffer[4] = 0, %buffer[5] = 0, %buffer[6] = 0, %buffer[7] = 0, %buffer[8] = 0, %buffer[9] = 0, %buffer[10] = 0, %buffer[11] = 0, %buffer[12] = 0, %buffer[13] = 0, %buffer[14] = 0, %buffer[15] = 0, %buffer[16] = 0, %buffer[17] = 0, %buffer[18] = 0, %buffer[19] = 0
+    %at = alloc : Size
+    init %at, 20
+    %rest = alloc : U64
+    init %rest, %value
+    jmp b1
+
+  b1:
+    %v31 = load %rest : U64
+    %v34 = cmp_ge %v31, 100 : Bool
+    je %v34, b3, b2
+
+  b2:
+    %v108 = load %rest : U64
+    %v111 = cmp_ge %v108, 10 : Bool
+    je %v111, b4, b5
+
+  b3:
+    %v36 = load %rest : U64
+    %quotient = div %v36, 100 : U64
+    %v40 = load %rest : U64
+    %v43 = mul %quotient, 100 : U64
+    %v44 = sub %v40, %v43 : U64
+    %v47 = mul %v44, 2 : U64
+    %pair = cast %v47 : Size
+    %v49 = load %at : Size
+    %v52 = sub %v49, 2 : Size
+    assign %at, %v52
+    %v54 = load %buffer : [CodeUnit *20]
+    %v55 = load %at : Size
+    %v56 = borrow_mut %buffer : &mut [CodeUnit *20]
+    %v57 = alloc : Flat(CodeUnit)
+    %v58 = addressof [%v56] : %CodeUnit
+    init %local4@Flat.items, %v58
+    %v60 = countof 20 : Size
+    init %local4@Flat.length, %v60
+    %v62 = borrow_mut %local4 : &mut Flat(CodeUnit)
+    %v63 = load [%v62]@Flat.length : Size
+    %v64 = cast %v55 : USize
+    %v65 = cast %v63 : USize
+    %v66 = cmp_ge %v64, %v65 : Bool
+    call checkCondition, %v66
+    %v68 = load [%v62]@Flat.items : %CodeUnit
+    %v69 = strideof CodeUnit : Long
+    %v70 = mul %v55, %v69 : Long
+    %v71 = add %v68, %v70 : %CodeUnit
+    %v72 = borrow_mut [%v71] : &mut CodeUnit
+    %v73 = load decimalPairs : String
+    %v74 = call String.unit, %v73, %pair : Int
+    %v75 = cast %v74 : CodeUnit
+    assign [%v72], %v75
+    %v77 = load %buffer : [CodeUnit *20]
+    %v78 = load %at : Size
+    %v81 = add %v78, 1 : Size
+    %v82 = borrow_mut %buffer : &mut [CodeUnit *20]
+    %v83 = alloc : Flat(CodeUnit)
+    %v84 = addressof [%v82] : %CodeUnit
+    init %local5@Flat.items, %v84
+    %v86 = countof 20 : Size
+    init %local5@Flat.length, %v86
+    %v88 = borrow_mut %local5 : &mut Flat(CodeUnit)
+    %v89 = load [%v88]@Flat.length : Size
+    %v90 = cast %v81 : USize
+    %v91 = cast %v89 : USize
+    %v92 = cmp_ge %v90, %v91 : Bool
+    call checkCondition, %v92
+    %v94 = load [%v88]@Flat.items : %CodeUnit
+    %v95 = strideof CodeUnit : Long
+    %v96 = mul %v81, %v95 : Long
+    %v97 = add %v94, %v96 : %CodeUnit
+    %v98 = borrow_mut [%v97] : &mut CodeUnit
+    %v99 = load decimalPairs : String
+    %v102 = add %pair, 1 : Size
+    %v103 = call String.unit, %v99, %v102 : Int
+    %v104 = cast %v103 : CodeUnit
+    assign [%v98], %v104
+    assign %rest, %quotient
+    jmp b1
+
+  b4:
+    %v113 = load %rest : U64
+    %v116 = mul %v113, 2 : U64
+    %pair = cast %v116 : Size
+    %v118 = load %at : Size
+    %v121 = sub %v118, 2 : Size
+    assign %at, %v121
+    %v123 = load %buffer : [CodeUnit *20]
+    %v124 = load %at : Size
+    %v125 = borrow_mut %buffer : &mut [CodeUnit *20]
+    %v126 = alloc : Flat(CodeUnit)
+    %v127 = addressof [%v125] : %CodeUnit
+    init %local6@Flat.items, %v127
+    %v129 = countof 20 : Size
+    init %local6@Flat.length, %v129
+    %v131 = borrow_mut %local6 : &mut Flat(CodeUnit)
+    %v132 = load [%v131]@Flat.length : Size
+    %v133 = cast %v124 : USize
+    %v134 = cast %v132 : USize
+    %v135 = cmp_ge %v133, %v134 : Bool
+    call checkCondition, %v135
+    %v137 = load [%v131]@Flat.items : %CodeUnit
+    %v138 = strideof CodeUnit : Long
+    %v139 = mul %v124, %v138 : Long
+    %v140 = add %v137, %v139 : %CodeUnit
+    %v141 = borrow_mut [%v140] : &mut CodeUnit
+    %v142 = load decimalPairs : String
+    %v143 = call String.unit, %v142, %pair : Int
+    %v144 = cast %v143 : CodeUnit
+    assign [%v141], %v144
+    %v146 = load %buffer : [CodeUnit *20]
+    %v147 = load %at : Size
+    %v150 = add %v147, 1 : Size
+    %v151 = borrow_mut %buffer : &mut [CodeUnit *20]
+    %v152 = alloc : Flat(CodeUnit)
+    %v153 = addressof [%v151] : %CodeUnit
+    init %local7@Flat.items, %v153
+    %v155 = countof 20 : Size
+    init %local7@Flat.length, %v155
+    %v157 = borrow_mut %local7 : &mut Flat(CodeUnit)
+    %v158 = load [%v157]@Flat.length : Size
+    %v159 = cast %v150 : USize
+    %v160 = cast %v158 : USize
+    %v161 = cmp_ge %v159, %v160 : Bool
+    call checkCondition, %v161
+    %v163 = load [%v157]@Flat.items : %CodeUnit
+    %v164 = strideof CodeUnit : Long
+    %v165 = mul %v150, %v164 : Long
+    %v166 = add %v163, %v165 : %CodeUnit
+    %v167 = borrow_mut [%v166] : &mut CodeUnit
+    %v168 = load decimalPairs : String
+    %v171 = add %pair, 1 : Size
+    %v172 = call String.unit, %v168, %v171 : Int
+    %v173 = cast %v172 : CodeUnit
+    assign [%v167], %v173
+    jmp b6
+
+  b5:
+    %v175 = load %at : Size
+    %v178 = sub %v175, 1 : Size
+    assign %at, %v178
+    %v180 = load %buffer : [CodeUnit *20]
+    %v181 = load %at : Size
+    %v182 = borrow_mut %buffer : &mut [CodeUnit *20]
+    %v183 = alloc : Flat(CodeUnit)
+    %v184 = addressof [%v182] : %CodeUnit
+    init %local8@Flat.items, %v184
+    %v186 = countof 20 : Size
+    init %local8@Flat.length, %v186
+    %v188 = borrow_mut %local8 : &mut Flat(CodeUnit)
+    %v189 = load [%v188]@Flat.length : Size
+    %v190 = cast %v181 : USize
+    %v191 = cast %v189 : USize
+    %v192 = cmp_ge %v190, %v191 : Bool
+    call checkCondition, %v192
+    %v194 = load [%v188]@Flat.items : %CodeUnit
+    %v195 = strideof CodeUnit : Long
+    %v196 = mul %v181, %v195 : Long
+    %v197 = add %v194, %v196 : %CodeUnit
+    %v198 = borrow_mut [%v197] : &mut CodeUnit
+    %v200 = load %rest : U64
+    %v202 = add 48, %v200 : U64
+    %v203 = cast %v202 : CodeUnit
+    assign [%v198], %v203
+    jmp b6
+
+  b6:
+    %v207 = load %to : String
+    %v208 = load %buffer : [CodeUnit *20]
+    %v209 = borrow %buffer : &[CodeUnit *20]
+    %v210 = alloc : Flat(CodeUnit)
+    %v211 = addressof [%v209] : %CodeUnit
+    init %local9@Flat.items, %v211
+    %v213 = countof 20 : Size
+    init %local9@Flat.length, %v213
+    %v215 = borrow %local9 : &Flat(CodeUnit)
+    %v216 = call values(CodeUnit), %v215 : %CodeUnit
+    %v217 = load %at : Size
+    %v218 = strideof CodeUnit : Size
+    %v219 = mul %v217, %v218 : Size
+    %v220 = add %v216, %v219 : %CodeUnit
+    %v222 = load %at : Size
+    %v224 = sub 20, %v222 : Size
+    %v225 = borrow_mut %to : &mut String
+    call String.appendUnits, %v225, %v220, %v224
+    ret
+}
+
 fn showSigned(%value: Long, %to: String) -> () {
   b0:
-    %v4 = cmp_eq %value, 0 : Bool
+    %v4 = cmp_lt %value, 0 : Bool
     je %v4, b1, b2
 
   b1:
     %v6 = load %to : String
     %v8 = borrow_mut %to : &mut String
-    call pushUnit, %v8, 48
-    ret
+    call String.pushUnit, %v8, 45
+    %v11 = bitcast %value : U64
+    %v12 = sub 0, %v11 : U64
+    %v13 = load %to : String
+    %v14 = borrow_mut %to : &mut String
+    call pushUnsigned, %v12, %v14
+    jmp b3
 
   b2:
+    %v16 = bitcast %value : U64
+    %v17 = load %to : String
+    %v18 = borrow_mut %to : &mut String
+    call pushUnsigned, %v16, %v18
     jmp b3
 
   b3:
-    %remaining = alloc : Long
-    init %remaining, %value
-    %v14 = load %remaining : Long
-    %v17 = cmp_gt %v14, 0 : Bool
-    je %v17, b4, b5
-
-  b4:
-    %v20 = load %remaining : Long
-    %v22 = sub 0, %v20 : Long
-    assign %remaining, %v22
-    jmp b6
-
-  b5:
-    jmp b6
-
-  b6:
-    %v27 = call newStringOfCapacity, 20 : String
-    %digits = alloc : String
-    init %digits, %v27
-    jmp b7
-
-  b7:
-    %v31 = load %remaining : Long
-    %v34 = cmp_lt %v31, 0 : Bool
-    je %v34, b9, b8
-
-  b8:
-    %v58 = cmp_lt %value, 0 : Bool
-    je %v58, b10, b11
-
-  b9:
-    %v37 = load %remaining : Long
-    %v40 = rem %v37, 10 : Long
-    %v42 = sub 0, %v40 : Long
-    %digit = cast %v42 : Int
-    %v44 = load %digits : String
-    %v47 = add 48, %digit : Int
-    %v48 = borrow_mut %digits : &mut String
-    call pushUnit, %v48, %v47
-    %v50 = load %remaining : Long
-    %v53 = div %v50, 10 : Long
-    assign %remaining, %v53
-    jmp b7
-
-  b10:
-    %v60 = load %to : String
-    %v62 = borrow_mut %to : &mut String
-    call pushUnit, %v62, 45
-    jmp b12
-
-  b11:
-    jmp b12
-
-  b12:
-    %v66 = load %digits : String
-    %v67 = call Length(String).length, %v66 : Size
-    %i = alloc : Size
-    init %i, %v67
-    jmp b13
-
-  b13:
-    %v71 = load %i : Size
-    %v74 = cmp_gt %v71, 0 : Bool
-    je %v74, b15, b16
-
-  b14:
     ret
+}
 
-  b15:
-    %v76 = load %i : Size
-    %v79 = sub %v76, 1 : Size
-    assign %i, %v79
-    %v81 = load %to : String
-    %v82 = load %digits : String
-    %v83 = load %i : Size
-    %v84 = call stringUnit, %v82, %v83 : Int
-    %v85 = borrow_mut %to : &mut String
-    call pushUnit, %v85, %v84
-    jmp b13
-
-  b16:
-    drop %digits reclaim Reclaim(String).reclaim
-    jmp b14
+fn showSmall(%value: Int, %to: String) -> () {
+  b0:
+    %v2 = cast %value : Long
+    %v3 = load %to : String
+    %v4 = borrow_mut %to : &mut String
+    call showSigned, %v2, %v4
+    ret
 }
 
 fn checkFailed() -> () {
@@ -173,7 +303,7 @@ fn print(%text: String) -> () {
     ret
 }
 
-fn stringUnit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> Int {
   b0:
     %v2 = borrow %self : &String
     %v3 = cast %v2 : &StringData
@@ -188,7 +318,7 @@ fn stringUnit(%self: String, %index: Size) -> Int {
     ret %v11
 }
 
-fn newStringOfCapacity(%capacity: Size) -> String {
+fn String.ofCapacity(%capacity: Size) -> String {
   b0:
     %v1 = alloc : StringData
     %v2 = alloc : Array(CodeUnit)
@@ -210,7 +340,7 @@ fn newStringOfCapacity(%capacity: Size) -> String {
     ret %v19
 }
 
-fn reserveString(%self: String, %wanted: Size) -> () {
+fn String.reserve(%self: String, %wanted: Size) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &mut String
@@ -227,7 +357,7 @@ fn reserveString(%self: String, %wanted: Size) -> () {
     ret
 }
 
-fn pushUnit(%self: String, %unit: Int) -> () {
+fn String.pushUnit(%self: String, %unit: Int) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &mut String
@@ -239,7 +369,7 @@ fn pushUnit(%self: String, %unit: Int) -> () {
     ret
 }
 
-fn pushString(%self: String, %other: String) -> () {
+fn String.push(%self: String, %other: String) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow %other : &String
@@ -249,11 +379,11 @@ fn pushString(%self: String, %other: String) -> () {
     %v7 = load [%v4]@StringData.bytes@Array.run@Run.items : %CodeUnit
     %v8 = call Length(String).length, %other : Size
     %v9 = borrow_mut %self : &mut String
-    call appendUnits, %v9, %v7, %v8
+    call String.appendUnits, %v9, %v7, %v8
     ret
 }
 
-fn appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
+fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
   b0:
     %v5 = cmp_le %count, 0 : Bool
     je %v5, b1, b2
@@ -267,7 +397,7 @@ fn appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
   b3:
     %v9 = load %self : String
     %v10 = borrow_mut %self : &mut String
-    call reserveString, %v10, %count
+    call String.reserve, %v10, %count
     %v12 = load %self : String
     %v13 = borrow_mut %self : &mut String
     %v14 = cast %v13 : &mut StringData
@@ -307,10 +437,9 @@ fn appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
 
 fn Show(Int).show(%value: Int, %to: String) -> () {
   b0:
-    %v2 = cast %value : Long
-    %v3 = load %to : String
-    %v4 = borrow_mut %to : &mut String
-    call showSigned, %v2, %v4
+    %v2 = load %to : String
+    %v3 = borrow_mut %to : &mut String
+    call showSmall, %value, %v3
     ret
 }
 
@@ -1290,6 +1419,12 @@ fn abortProcess() -> () {
     ret
 }
 
+fn values(CodeUnit)(%self: Flat(CodeUnit)) -> %CodeUnit {
+  b0:
+    %v1 = load %self@Flat.items : %CodeUnit
+    ret %v1
+}
+
 fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
   b0:
     %v2 = load %self : Run(CodeUnit)
@@ -1452,25 +1587,25 @@ fn main$() -> () {
     %v19 = call Show(Int).showBound, %v11 : Maybe(Size)
     %v20 = call formatBound, %v19 : Size
     %v21 = add %v18, %v20 : Size
-    %v22 = call newStringOfCapacity, %v21 : String
+    %v22 = call String.ofCapacity, %v21 : String
     %v23 = alloc : String
     init %local1, %v22
     %v25 = symbol ResolveTest.string$0 : %CodeUnit
     %v27 = call stringLiteral, %v25, 6 : String
     %v28 = borrow_mut %local1 : &mut String
-    call pushString, %v28, %v27
+    call String.push, %v28, %v27
     %v30 = borrow_mut %local1 : &mut String
     call Show(Int).show, %v9, %v30
     %v32 = symbol ResolveTest.string$1 : %CodeUnit
     %v34 = call stringLiteral, %v32, 9 : String
     %v35 = borrow_mut %local1 : &mut String
-    call pushString, %v35, %v34
+    call String.push, %v35, %v34
     %v37 = borrow_mut %local1 : &mut String
     call Show(Int).show, %v10, %v37
     %v39 = symbol ResolveTest.string$2 : %CodeUnit
     %v41 = call stringLiteral, %v39, 7 : String
     %v42 = borrow_mut %local1 : &mut String
-    call pushString, %v42, %v41
+    call String.push, %v42, %v41
     %v44 = borrow_mut %local1 : &mut String
     call Show(Int).show, %v11, %v44
     %v46 = load %local1 : String

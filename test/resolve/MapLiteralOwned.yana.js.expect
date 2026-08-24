@@ -14,43 +14,6 @@ function indexSlotsFor(wanted) {
   return slots;
 }
 
-function showSigned(value, to$o, to$k, to$s) {
-  if (value === 0n) {
-    var v91 = to$o[to$k] + String.fromCharCode(48);
-    to$o[to$k] = v91;
-  } else {
-    var remaining = value;
-    if (value > 0n) {
-      remaining = BigInt.asIntN(64, 0n - remaining);
-    }
-    var digits = "";
-    L0: for (;;) {
-      if (remaining < 0n) {
-        digits = digits + String.fromCharCode((Number(BigInt.asIntN(64, 0n - BigInt.asIntN(64, $rem(remaining, 10n)))) | 0) + 48 | 0);
-        remaining = BigInt.asIntN(64, $div(remaining, 10n));
-        continue L0;
-      }
-      break L0;
-    }
-    if (value < 0n) {
-      var v100 = to$o[to$k] + String.fromCharCode(45);
-      to$o[to$k] = v100;
-    }
-    var i = digits.length;
-    L1: for (;;) {
-      if (i > 0) {
-        var v79 = i - 1 | 0;
-        i = v79;
-        var v103 = digits.charCodeAt(v79);
-        var v106 = to$o[to$k] + String.fromCharCode(v103);
-        to$o[to$k] = v106;
-        continue L1;
-      }
-      break L1;
-    }
-  }
-}
-
 function checkCondition(failed) {
   if (failed) {
     throw "yana: a runtime check failed";
@@ -347,28 +310,25 @@ function Reclaim_Array_a_reclaim_Held(value) {
 
 // ResolveTest
 function main() {
-  var s = { $v: "" };
-  s.$v = s.$v + "k-";
-  showSigned(1n, s, "$v", 1);
-  var v371 = s.$v;
+  var s = "";
+  s = s + "k-";
+  s = s + String(1);
   live = live + 1 | 0;
-  var v376 = { n: 1 };
-  var s$1 = { $v: "" };
-  s$1.$v = s$1.$v + "k-";
-  showSigned(2n, s$1, "$v", 1);
-  var v388 = s$1.$v;
+  var v377 = { n: 1 };
+  var s$1 = "";
+  s$1 = s$1 + "k-";
+  s$1 = s$1 + String(2);
   live = live + 1 | 0;
-  var v393 = { n: 2 };
-  var s$2 = { $v: "" };
-  s$2.$v = s$2.$v + "k-";
-  showSigned(3n, s$2, "$v", 1);
-  var v405 = s$2.$v;
+  var v395 = { n: 2 };
+  var s$2 = "";
+  s$2 = s$2 + "k-";
+  s$2 = s$2 + String(3);
   live = live + 1 | 0;
-  var v410 = { n: 3 };
+  var v413 = { n: 3 };
   var v14 = newMap_String_Held(3);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, v371, v376);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, v388, v393);
-  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, v405, v410);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s, v377);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$1, v395);
+  IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$2, v413);
   if (v14.keys.length !== 3) {
     Reclaim_Array_a_reclaim_Held(v14.values);
     return -1;
@@ -377,28 +337,26 @@ function main() {
       Reclaim_Array_a_reclaim_Held(v14.values);
       return -2;
     } else {
-      var s$3 = { $v: "" };
-      s$3.$v = s$3.$v + "k-";
-      showSigned(2n, s$3, "$v", 1);
-      var v424 = s$3.$v;
-      var v425 = null;
-      var at = findEntry_String_Held(v14, v424, hashKey_String(v424));
+      var s$3 = "";
+      s$3 = s$3 + "k-";
+      s$3 = s$3 + String(2);
+      var v429 = null;
+      var at = findEntry_String_Held(v14, s$3, hashKey_String(s$3));
       if (at < 0) {
-        v425 = null;
+        v429 = null;
       } else {
-        v425 = v14.values[at];
+        v429 = v14.values[at];
       }
-      if (!(v425 === null)) {
-        if (v425.n !== 2) {
+      if (!(v429 === null)) {
+        if (v429.n !== 2) {
           Reclaim_Array_a_reclaim_Held(v14.values);
           return -3;
         } else {
-          var s$4 = { $v: "" };
-          s$4.$v = s$4.$v + "k-";
-          showSigned(4n, s$4, "$v", 1);
-          var v454 = s$4.$v;
+          var s$4 = "";
+          s$4 = s$4 + "k-";
+          s$4 = s$4 + String(4);
           live = live + 1 | 0;
-          IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, v454, { n: 4 });
+          IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$4, { n: 4 });
           if (v14.keys.length !== 4) {
             Reclaim_Array_a_reclaim_Held(v14.values);
             return -5;
@@ -407,12 +365,11 @@ function main() {
               Reclaim_Array_a_reclaim_Held(v14.values);
               return -6;
             } else {
-              var s$5 = { $v: "" };
-              s$5.$v = s$5.$v + "k-";
-              showSigned(4n, s$5, "$v", 1);
-              var v473 = s$5.$v;
+              var s$5 = "";
+              s$5 = s$5 + "k-";
+              s$5 = s$5 + String(4);
               live = live + 1 | 0;
-              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, v473, { n: 40 });
+              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v14, s$5, { n: 40 });
               if (v14.keys.length !== 4) {
                 Reclaim_Array_a_reclaim_Held(v14.values);
                 return -7;
@@ -421,35 +378,32 @@ function main() {
                   Reclaim_Array_a_reclaim_Held(v14.values);
                   return -8;
                 } else {
-                  var s$6 = { $v: "" };
-                  s$6.$v = s$6.$v + "k-";
-                  showSigned(4n, s$6, "$v", 1);
-                  if (Index_Map_k_v_k_v_get_String_Held(v14, s$6.$v).n !== 40) {
+                  var s$6 = "";
+                  s$6 = s$6 + "k-";
+                  s$6 = s$6 + String(4);
+                  if (Index_Map_k_v_k_v_get_String_Held(v14, s$6).n !== 40) {
                     Reclaim_Array_a_reclaim_Held(v14.values);
                     return -9;
                   } else {
-                    var s$7 = { $v: "" };
-                    s$7.$v = s$7.$v + "k-";
-                    showSigned(9n, s$7, "$v", 1);
-                    var v503 = s$7.$v;
+                    var s$7 = "";
+                    s$7 = s$7 + "k-";
+                    s$7 = s$7 + String(9);
                     live = live + 1 | 0;
-                    var v508 = { n: 9 };
-                    var s$8 = { $v: "" };
-                    s$8.$v = s$8.$v + "k-";
-                    showSigned(8n, s$8, "$v", 1);
-                    var v520 = s$8.$v;
+                    var v516 = { n: 9 };
+                    var s$8 = "";
+                    s$8 = s$8 + "k-";
+                    s$8 = s$8 + String(8);
                     live = live + 1 | 0;
-                    var v525 = { n: 8 };
-                    var s$9 = { $v: "" };
-                    s$9.$v = s$9.$v + "k-";
-                    showSigned(9n, s$9, "$v", 1);
-                    var v537 = s$9.$v;
+                    var v534 = { n: 8 };
+                    var s$9 = "";
+                    s$9 = s$9 + "k-";
+                    s$9 = s$9 + String(9);
                     live = live + 1 | 0;
-                    var v542 = { n: 90 };
+                    var v552 = { n: 90 };
                     var v188 = newMap_String_Held(3);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, v503, v508);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, v520, v525);
-                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, v537, v542);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$7, v516);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$8, v534);
+                    IndexInsert_Map_k_v_k_v_insertAt_String_Held(v188, s$9, v552);
                     if (v188.keys.length !== 2) {
                       Reclaim_Array_a_reclaim_Held(v14.values);
                       Reclaim_Array_a_reclaim_Held(v188.values);
@@ -460,10 +414,10 @@ function main() {
                         Reclaim_Array_a_reclaim_Held(v188.values);
                         return -11;
                       } else {
-                        var s$10 = { $v: "" };
-                        s$10.$v = s$10.$v + "k-";
-                        showSigned(9n, s$10, "$v", 1);
-                        if (Index_Map_k_v_k_v_get_String_Held(v188, s$10.$v).n !== 90) {
+                        var s$10 = "";
+                        s$10 = s$10 + "k-";
+                        s$10 = s$10 + String(9);
+                        if (Index_Map_k_v_k_v_get_String_Held(v188, s$10).n !== 90) {
                           Reclaim_Array_a_reclaim_Held(v14.values);
                           Reclaim_Array_a_reclaim_Held(v188.values);
                           return -12;
@@ -481,12 +435,11 @@ function main() {
                               Reclaim_Array_a_reclaim_Held(v251.values);
                               return -14;
                             } else {
-                              var s$11 = { $v: "" };
-                              s$11.$v = s$11.$v + "k-";
-                              showSigned(0n, s$11, "$v", 1);
-                              var v569 = s$11.$v;
+                              var s$11 = "";
+                              s$11 = s$11 + "k-";
+                              s$11 = s$11 + String(0);
                               live = live + 1 | 0;
-                              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v251, v569, { n: 0 });
+                              IndexInsert_Map_k_v_k_v_insertAt_String_Held(v251, s$11, { n: 0 });
                               var v288 = live;
                               if (v288 !== 7) {
                                 Reclaim_Array_a_reclaim_Held(v14.values);
@@ -516,15 +469,6 @@ function main() {
       }
     }
   }
-}
-
-// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
-function $div(a, b) {
-  return b ? a / b : b;
-}
-
-function $rem(a, b) {
-  return b ? a % b : a;
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14

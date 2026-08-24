@@ -3,16 +3,16 @@
 
    **`.js.yana`, so the file itself is the platform** - Analysis-Modules.md §2.5. On a native build
    nothing here is read at all, which is what makes a host operation unreachable rather than merely
-   unused there. It used to be twenty-five `@platform(js)` attributes saying the same thing
+   unused there. The alternative is twenty-five `@platform(js)` attributes saying the same thing
    twenty-five times; the name says it once, and there is no way to write a declaration here that
    forgets to.
 
    `%a` is the array, and what a `%a` means on this target is in host.h: an opaque reference to
    storage, since nothing this target can express does arithmetic on one. That is why these need no
-   type of their own. A `HostArray(a)` newtype was written first and removed: it typed exactly the
-   same programs, and it put a host element in a *record* place rather than a pointer one, which
-   quietly moved every element of every container inside the ownership graph and made a write through
-   one owe a drop the native path does not owe.
+   type of their own. A `HostArray(a)` newtype would type exactly the same programs and would put a
+   host element in a *record* place rather than a pointer one - which moves every element of every
+   container inside the ownership graph and makes a write through one owe a drop the native path
+   does not owe.
 -}
 
 -- An empty host array - `[]`. The array literal builds its own with the elements in it, since a
@@ -42,9 +42,9 @@ pub fn hostLength(self: %a) -> Size
    Closing a gap - `self.copyWithin(to, from, end)`, the move without the shortening.
 
    The counterpart of the native build's `copyMemory`, and it is deliberately the *only* one here.
-   A `.splice` was declared beside it and removed: it shortens as well as moves, which is what a
-   container wants when the slot at the end has to stop existing, and no container needs that asked
-   for separately any more. `Array(a)`'s count is `@host` on the row whose elements are host objects,
+   A `.splice` is not declared beside it. It shortens as well as moves, which is what a container
+   wants when the slot at the end has to stop existing, and no container here needs that asked for
+   separately: `Array(a)`'s count is `@host` on the row whose elements are host objects,
    so writing the new count *is* the truncation and the duplicate this leaves behind is released by
    the statement that records the removal (see `remove` in `Core/Array.yana`). On the typed row the
    elements are numbers, the stale slot is as inert as the bytes `copyMemory` leaves, and the stored
@@ -81,9 +81,13 @@ pub fn hostGrow(self: %a, capacity: Size) -> %a
 
    `hostAt` and `hostAtMut` answer a borrow, and carry the `return` marker for the reason `borrow`
    does: the result names storage this function was handed rather than storage of its own.
+
+   `hostWrite` declares `->value` for the reason `store` does on the other target: what the array
+   holds afterwards *is* that value, so the frame that owned it stops owing it a drop - and a
+   declaration is all an intrinsic has to say so with. `Array.js.yana`'s `push` is where it matters.
 -}
 pub fn hostRead(self: %a, index: Size) -> a
-pub fn hostWrite(self: %a, index: Size, value: a) -> {}
+pub fn hostWrite(self: %a, index: Size, ->value: a) -> {}
 pub fn hostAt(return self: %a, index: Size) -> &a
 pub fn hostAtMut(return self: %a, index: Size) -> &a
 
@@ -170,30 +174,49 @@ pub fn hostLog(text: String) -> {}
 {-
    The float text tier - Analysis-Library.md §2.1's JS column.
 
-   The other target computes both of these itself, out of Ryu and its tables. Here they are the
-   host's own, and that is a ruling rather than a shortcut: what each of them produces is specified
-   exactly - `toExponential()` with no argument is *the shortest decimal that reads back as this
-   number*, and `Number` is a correctly rounded decimal-to-double conversion - so there is no room
-   for the cross-engine disagreement that keeps the grapheme tables out of the host. Two engines that
-   disagree about either are two engines one of which is wrong.
+   The other target computes all of this itself, out of Ryu and its tables. Here it is the host's
+   own, and that is a ruling rather than a shortcut: what each of these produces is specified exactly
+   - `toExponential(n)` is *the nearest decimal with `n` digits after the point*, `Number` is a
+   correctly rounded decimal-to-double conversion, and `String` below is the shortest round trip - so
+   there is no room for the cross-engine disagreement that keeps the grapheme tables out of the host.
+   Two engines that disagree about any of them are two engines one of which is wrong.
 
    Reading the digits back out of a string looks like a detour and is not: the alternative is the
    64-bit `Double`/`I64` bitcast this target deliberately does not generate (see
    `defineBitcastLadder`, which argues why), and every operation Ryu is written in would then be
    `bigint` arithmetic behind it.
 
-   Two declarations for one member, because a Yana signature has one arity: `toExponential()` is the
-   shortest form and `toExponential(n)` is `n` digits after the point, which is what the `Float`
-   instance steps upwards through to find the shortest representation *at its own width* - a number
-   here is a double, so the host's own shortest is the shortest for the wrong type.
+   **The no-argument form is deliberately not declared.** `toExponential()` is a second specified
+   shortest form, and its tie rule is the one that disagrees with Ryu's - so a build that reached for
+   it had to detect the disagreement and undo it, which is ninety lines that `String` below does not
+   need. A declaration nobody may correctly call is worse than no declaration; `Core/Float/Ryu.js.yana`
+   is where the argument is written out. What is left here is the *`n` digits* form, which the `Float`
+   instance steps upwards through to find the shortest representation at its own width - a number here
+   is a double, so the host's own shortest is the shortest for the wrong type.
 -}
-pub fn hostToExponential(value: Double) -> String
 pub fn hostToExponentialAt(value: Double, digits: Int) -> String
 
 -- `Number(text)` - the host's decimal-to-double conversion. `NaN` for text that is not a number,
 -- which is the host's answer and is what the caller turns into an error; the library above decides
 -- what a failure is, exactly as it does for `indexOf`'s `-1`.
 pub fn hostToNumber(text: String) -> Double
+
+{-
+   `String(value)` - the inverse of the one above, and the *other* specified shortest form.
+
+   Generic over what it is handed, because the host's own is: a `bigint` and an integral `number`
+   both write their digits, which is what makes `Show(Int)` and `Show(Long)` one call here instead of
+   a concatenation per digit, and a fractional `number` writes **the shortest decimal that reads back
+   as it, with a tie broken to the even digit** - Number::toString, and word for word the rule Ryu
+   follows on the other target.
+
+   That last sentence is why this declaration exists at all. `toExponential()` above is shortest too
+   and breaks a tie *upwards*, so a JS build using it had to detect the disagreement and undo it -
+   two functions, one of which asked the host for a hundred and one digits to decide whether an
+   expansion terminated. Asking for the form whose rule already matches deletes all of that; see
+   `Core/Float/Ryu.js.yana`, which is one line long where it was ninety.
+-}
+pub fn hostToString(value: a) -> String
 
 {-
    `throw "..."` - how a program stops here, and the one thing every host agrees means "stop".

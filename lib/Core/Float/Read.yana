@@ -81,8 +81,31 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     let &afterPoint = False
     let &any = False
 
+    let &eight = 0 :: U64
+
     while at < units:
-        let unit = stringUnit(text, at)
+        {-
+           Eight digits at a time, where the kept mantissa has room for eight more.
+
+           `digits <= 9` is the whole guard and it is exact: seventeen is what a double distinguishes,
+           so a block may only be taken while nine or fewer have been kept. It is therefore entered at
+           most twice - one to nine, nine to seventeen - and a value written with more digits than
+           that reaches the dropped-digit arm below a unit at a time, which is where it belongs since
+           each of those changes the exponent and not the mantissa.
+
+           `digits > 0` keeps the leading zeros out of it. They are places rather than digits, so a
+           block taken across them would count eight of something this loop deliberately does not
+           count. Core/Read.yana's `eightMoreDigits` is the load, and it answers `False` on JS.
+        -}
+        while digits > 0 && digits <= 9 && eightMoreDigits(text, at, eight):
+            mantissa = mantissa * 100000000 + eight
+            digits = digits + 8
+            if afterPoint then fractional = fractional + 8
+            at = at + 8
+
+        if at >= units then break
+
+        let unit = String.unit(text, at)
 
         if unit == 46:
             if afterPoint then break
