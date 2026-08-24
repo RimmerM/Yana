@@ -1,0 +1,75 @@
+{-
+   A `->` argument whose value came from a call, inside a generic body that gets specialized.
+
+   The local table of a specialization is copied from the generic body **position for position**, so
+   a value that had a slot there has one waiting at the same index. What the emitters do instead is
+   *append*: `emitDirectCall`, and the Copy, Exchange and CallDyn arms of the cloner, each call
+   `Function::addLocal`, which hands out `locals.size()`. The loop at the end of `cloneBody` then
+   points the original index at the same value, leaving two slots naming one instruction.
+
+   **The window between those two is what this fixture pins.** Anything cloned after the result and
+   before that fixup which asks `findPlace` for it - which is every `->` argument, since `sinkValue`
+   builds the hand-over out of the place - baked the appended index into a `Place`. The fixup then
+   moved `Value::slot` back to the original index, and the move was left naming a slot no instruction
+   defines: no init was recorded for it, the move recorded a Moved, and a loop carried that state
+   round to the next iteration as *"this value has been moved out of and cannot be used again"*.
+
+   So it reproduced only where the generic body gave the result a slot at all - which is what makes
+   `keep` below the case and `direct` the control. They are the same loop over the same element type;
+   one is written at `String` and one is a specialization of a body written over `a`, and before the
+   fix the second was rejected while the first compiled.
+
+   The IR is the assertion as much as the answer is: `keep(String)`'s body has to contain the
+   hand-over out of the call's own slot, and a slot index that no instruction defines is exactly what
+   the goldens would show if it came back.
+-}
+
+import Native
+
+fn one(i: Size) -> String = "ab"
+
+-- The control: the identical loop, written at a concrete element type. It never went through the
+-- cloner, so it was always correct - and it is here so that a change breaking both would not read
+-- as a change breaking neither.
+fn direct(count: Size) -> [String]:
+    let &out = [] :: [String]
+    let &i = 0 :: Size
+
+    while i < count:
+        push(out, one(i))
+        i = i + 1
+
+    return out
+
+-- The case. `push` takes `->item: a`, so the call result is handed over out of the slot the call
+-- filled, and the loop is what turns a wrong slot into a use-after-move rather than a silent one.
+fn keep(count: Size, item: (Size) -> a) -> [a]:
+    let &out = [] :: [a]
+    let &i = 0 :: Size
+
+    while i < count:
+        push(out, item(i))
+        i = i + 1
+
+    return out
+
+-- The same shape one step further out: an owning element whose teardown makes a lost hand-over a
+-- double drop rather than a diagnostic. Nested containers are where the slot mix-up would be
+-- observable at run time and not only in the IR.
+fn rows(count: Size) -> [[Int]]:
+    let &out = [] :: [[Int]]
+    let &i = 0 :: Size
+
+    while i < count:
+        push(out, [] :: [Int])
+        i = i + 1
+
+    return out
+
+fn main() -> Int:
+    let &a = direct(3)
+    let &b = keep(4, one)
+    let &c = rows(2)
+
+    return (truncate(length(a)) :: Int) + (truncate(length(b)) :: Int)
+         + (truncate(length(b[2])) :: Int) + (truncate(length(c)) :: Int)

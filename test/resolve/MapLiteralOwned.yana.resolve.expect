@@ -1320,7 +1320,8 @@ fn appendPair(String, Held)(%self: Map(String, Held), %key: String, %value: Held
     init %local3@Entry.key, %key
     init %local3@Entry.value, %value
     %v8 = borrow_mut %self@Map.entries : &mut Array(Entry(String, Held))
-    call push(Entry(String, Held)), %v8, %v5
+    %v9 = move %local3 : Entry(String, Held)
+    call push(Entry(String, Held)), %v8, %v9
     ret
 }
 

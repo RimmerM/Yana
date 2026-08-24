@@ -930,7 +930,8 @@ fn appendPair(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int) -> () {
     init %local3@Entry.key, %key
     init %local3@Entry.value, %value
     %v8 = borrow_mut %self@Map.entries : &mut Array(Entry(Int, Int))
-    call push(Entry(Int, Int)), %v8, %v5
+    %v9 = copy %local3 : Entry(Int, Int)
+    call push(Entry(Int, Int)), %v8, %v9
     ret
 }
 
@@ -1407,7 +1408,8 @@ fn appendPair(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -
     init %local3@Entry.key, %key
     init %local3@Entry.value, %value
     %v8 = borrow_mut %self@Map.entries : &mut Array(Entry(String, Int))
-    call push(Entry(String, Int)), %v8, %v5
+    %v9 = move %local3 : Entry(String, Int)
+    call push(Entry(String, Int)), %v8, %v9
     ret
 }
 

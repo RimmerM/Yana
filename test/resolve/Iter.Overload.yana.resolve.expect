@@ -46,8 +46,9 @@ fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size
     init %self@Flat.length, %v8
-    %v11 = call unclampedSlice(Int), %self, 0, %v2 : Flat(Int)
-    ret %v11
+    %v11 = borrow %self : &Flat(Int)
+    %v12 = call unclampedSlice(Int), %v11, 0, %v2 : Flat(Int)
+    ret %v12
 }
 
 fn unclampedSlice(Int)(%self: Flat(Int), %from: Size, %count: Size) -> Flat(Int) {

@@ -419,7 +419,49 @@ struct Clone {
     // Cleared once a call inside the body turned out not to be instantiable. The clone runs to
     // the end anyway, but stops claiming that the holes it now has are compiler bugs.
     bool ok = true;
+
+    // Which slots of the copied table already hold their value - see `pairClonedLocal` and the
+    // use-recording loop at the end of cloneBody, which is the other reader.
+    IndexSet filled;
 };
+
+/*
+ * The slot a cloned result fills.
+ *
+ * The local table is copied position for position before any instruction is cloned, so a value that
+ * had a slot in the generic body has one *waiting at the same index* here. What the emitters do
+ * instead is append: `emitDirectCall`, and the Copy, Exchange and CallDyn arms below, each call
+ * `Function::addLocal`, which hands out `locals.size()`. So the result briefly answers with a slot
+ * past the end of the copied table, and the loop at the end of cloneBody then points the original
+ * index at the same value - leaving two slots naming one instruction.
+ *
+ * **The window between those two is where it bit.** Anything cloned after the result and before the
+ * fixup that asks `findPlace` for it - which is every `->` argument, since `sinkValue` builds an
+ * `InstMove` out of the place - baked the appended index into a Place. The fixup then moved
+ * `Value::slot` back to the original index and the Move was left naming a slot no instruction
+ * defines: `deriveEffects` recorded no init for it, the move recorded a Moved, and a loop carried
+ * that state to the next iteration as "this value has been moved out of and cannot be used again".
+ * It reproduced only where the *generic* body gave the result a slot at all, which is why a
+ * concrete body written out by hand was fine and its specialization was not.
+ *
+ * So the pairing is made here, at the point the value exists, and the appended slot is released.
+ * Nothing points at it - it was created moments ago and the value has just been re-pointed - so it
+ * is left empty rather than removed, which is the state every not-yet-filled slot is already in.
+ */
+static void pairClonedLocal(Clone& clone, const Inst& original, ModulePtr<Value> cloned) {
+    auto slot = original.slot;
+    if(!cloned || slot == maxLimit<U32> || slot >= clone.from.localCount()) return;
+
+    auto& to = clone.resolver.function;
+    auto appended = clone.local[cloned]->slot;
+    if(appended == slot) return;
+
+    IrEditor editor(clone.module, to);
+    if(appended < to.localCount()) editor.setLocalValue(appended, nullptr);
+
+    editor.setLocalValue(slot, cloned);
+    clone.filled.set(slot, true);
+}
 
 static TypePtr cloneType(Clone& clone, TypePtr type) {
     return substituteType(clone.module, type, clone.args, clone.source);
@@ -697,7 +739,11 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
 
     auto pointer = (ModulePtr<Value>)((Inst*)&call - clone.local);
     auto result = clone.resolver.emitDirectCall(callee, toBuffer(args), call.source, nullptr, call.name);
-    if(result) clone.values.add(pointer, result);
+
+    if(result) {
+        clone.values.add(pointer, result);
+        pairClonedLocal(clone, call, result);
+    }
 }
 
 static void cloneBody(Clone& clone, Function& to);
@@ -1138,7 +1184,12 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             for(auto arg: call.args.contents(clone.local)) args.push(cloneValue(clone, arg));
 
             auto value = resolver.emitDirectCall(call.callee, toBuffer(args), inst.source, nullptr, inst.name);
-            if(value) clone.values.add(pointer, value);
+
+            if(value) {
+                clone.values.add(pointer, value);
+                pairClonedLocal(clone, inst, value);
+            }
+
             return;
         }
         case Value::Symbol: {
@@ -1206,7 +1257,11 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             return;
     }
 
-    if(result) clone.values.add(pointer, resolver.ref((Inst*)result));
+    if(result) {
+        auto value = resolver.ref((Inst*)result);
+        clone.values.add(pointer, value);
+        pairClonedLocal(clone, inst, value);
+    }
 }
 
 static void cloneBody(Clone& clone, Function& to) {
@@ -1311,7 +1366,8 @@ static void cloneBody(Clone& clone, Function& to) {
      */
     // Which slots hold a value before the body is cloned, and therefore have their uses recorded by
     // `IrEditor::append` in the ordinary way. Everything else is owed them afterwards - see below.
-    IndexSet filled;
+    // On `Clone` rather than here, because `pairClonedLocal` adds to it while the body is cloned.
+    auto& filled = clone.filled;
     filled.reset(from.localCount());
 
     for(Size i = 0; i < from.localCount(); i++) {
@@ -1371,7 +1427,7 @@ static void cloneBody(Clone& clone, Function& to) {
     }
 
     for(Size i = 0; i < from.localCount(); i++) {
-        if(materialized[i]) continue;
+        if(materialized[i] || filled[i]) continue;
 
         IrEditor(clone.module, to).setLocalValue(U32(i), cloneDefinition(clone, from.localAt(local, U32(i)).value));
     }
