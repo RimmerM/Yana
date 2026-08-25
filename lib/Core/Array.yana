@@ -10,9 +10,10 @@ import Native
    operation over it does, down to `emptyArray`. Analysis-Modules.md §2.5 is the mechanism; this is
    the case where it goes all the way.
 
-   `newArray` at the bottom is the one thing here that is a declaration, and it is here precisely
-   because it is the one that does *not* differ: it is written over `emptyArray`, `reserve` and
-   `push`, so both targets run the same body and a copy in each file would be the same lines twice.
+   `newArray` and the `Append` instance below it are the declarations that are here, and they are
+   here precisely because they are the ones that do *not* differ: both are written over
+   `emptyArray`, `reserve` and `push`, so both targets run the same body and a copy in each file
+   would be the same lines twice.
 
    What is left is the part that is neither implementation: what an array *is*, why subscripting it
    is a generated instance rather than a conversion, and why the unclamped window exists. Two files
@@ -153,3 +154,65 @@ pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
    read past the end. `Sort.yana` is the one caller today and derives every index it passes from
    the window's own length.
 -}
+
+{-
+   Joining two arrays - `Core`'s `Append`, and the second instance of it.
+
+   **In the two platform files and not here**, which is a change from the borrowing version this
+   replaces. That one sized a third array and copied both operands into it, so `emptyArray`,
+   `reserve` and `push` were the whole seam and both targets answered all three. A consuming join
+   takes the left operand's storage instead, and what that costs is target-shaped: natively the tail
+   is one `copyMemory` of `n` strides, and on JS it is a read and a write per element because a host
+   array's slots are not bytes anyone may move in bulk.
+
+   **The element constraint is gone with it.** The borrowing join had to *duplicate* every element,
+   so it carried `TrivialCopy(a)` and `Array(String)` had no `++` at all - the comment here used to
+   say that an element type owning something has no join and that a caller should write the pushes
+   out by hand. Moving an element is something every type permits, so the instance is now
+   unconstrained and `[String] ++ [String]` is an ordinary sentence.
+
+   The one thing both bodies must do is empty the donor before it dies. Its elements belong to the
+   result now, and `Reclaim(Array(a))`'s walk is over the live prefix - so a donor left at its old
+   length would run a teardown on every element the result is still holding.
+-}
+
+-- And the identity, which makes `Array(a)` a `Monoid` and every fold in Join.yana available on it.
+-- Unconstrained like the join above: an empty array of anything is an empty run and a zero, whatever
+-- the element would have been.
+instance Monoid(Array(a)):
+    fn empty() -> Array(a) = emptyArray()
+
+{-
+   Duplicating one - `Core`'s `Copy`.
+
+   An array owns its run, so it is not TrivialCopy whatever its elements are and the blanket instance
+   beside the class does not reach it. `Copy(a)` on the element and not `TrivialCopy(a)`: an element
+   that is itself an owner has a `Copy` of its own - `String` does, and so does a nested `Array` by
+   this instance - and the blanket makes every trivial element satisfy it too, so the one constraint
+   covers both worlds. `copy` on an `Int` is the identity function and disappears.
+
+   A plain function with the instance forwarding to it, for the reason `joinedArrays` is one: a
+   constraint may only be written in a signature, and a class function's signature is the class's.
+
+   Element-wise and not one block copy, because that is what a `Copy(a)` element means - a type whose
+   bytes are not its whole story is exactly the case `Copy` exists for. Where the element *is*
+   trivial the loop body is the copy alone and nothing is called, which is the shape the backend can
+   see through; a bulk path for that row would need an instance per constraint, and two instances at
+   `Array(a)` differing only in what they demand of `a` overlap.
+-}
+fn (Copy(a)) copiedArray(from: Array(a)) -> Array(a):
+    let count = length(from)
+
+    let &out = [] :: [a]
+    reserve(out, count)
+
+    let &i = 0 :: Size
+    while i < count:
+        let ->item = copy(from[i])
+        push(out, item)
+        i = i + 1
+
+    return out
+
+instance (Copy(a)) Copy(Array(a)):
+    fn copy(from: Array(a)) -> Array(a) = copiedArray(from)

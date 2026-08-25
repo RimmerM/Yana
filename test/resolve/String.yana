@@ -53,6 +53,31 @@ fn appendToLiteral() -> Int:
     String.push(start, "eral")
     return truncate(length(start)) :: Int
 
+{-
+   A comparison of two literals in *value* position, which is the one place the two targets had
+   different answers for what a `Bool` is.
+
+   `if a == b` was always right and is not what this asks. On JS a comparison is the host's own
+   `===`, whose result is `true`/`false`, while a `Bool` that is a value is the number 0 or 1 - and
+   the two agree on truthiness, so the mismatch stayed invisible for as long as nothing *named* the
+   result. Naming it is what this does: `same == True` compiled to `("abc" === "abc") === 1`, which
+   is `true === 1`, which is false. See `boolNumber` in codegen/js/type.cpp, which every other
+   producer of a host boolean already went through.
+
+   Both directions, because a wrong representation answers wrongly for equal and unequal strings
+   alike, and then the two compared against each other - which is the shape that cannot be satisfied
+   by any single constant.
+-}
+fn comparedAsValue() -> Int:
+    let same = "abc" == "abc"
+    let differs = "abc" == "abd"
+
+    if !(same == True) then return 0
+    if !(differs == False) then return 0
+    if same == differs then return 0
+
+    return 9
+
 fn main() -> Int:
     let &total = 0 :: Int
 
@@ -60,5 +85,6 @@ fn main() -> Int:
     total = total + firstUnit()          -- 97
     total = total + emptyLength()        -- 0
     total = total + appendToLiteral()    -- 7
+    total = total + comparedAsValue()    -- 9
 
     return total

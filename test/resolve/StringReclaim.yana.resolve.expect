@@ -459,31 +459,21 @@ fn Length(String).length(%self: String) -> Size {
 
 fn Append(String).++(%lhs: String, %rhs: String) -> String {
   b0:
-    %leftLength = call Length(String).length, %lhs : Size
     %rightLength = call Length(String).length, %rhs : Size
-    %v4 = add %leftLength, %rightLength : Size
-    %v5 = call String.ofCapacity, %v4 : String
-    %fresh = alloc : String
-    init %fresh, %v5
-    %v8 = load %fresh : String
-    %v9 = borrow %lhs : 'String
-    %v10 = cast %v9 : 'StringData
-    %v11 = load [%v10]@StringData.bytes : Array(CodeUnit)
-    %v12 = load [%v10]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v13 = load [%v10]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v14 = borrow_mut %fresh : &String
-    call String.appendUnits, %v14, %v13, %leftLength
-    %v16 = load %fresh : String
-    %v17 = borrow %rhs : 'String
-    %v18 = cast %v17 : 'StringData
-    %v19 = load [%v18]@StringData.bytes : Array(CodeUnit)
-    %v20 = load [%v18]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v21 = load [%v18]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v22 = borrow_mut %fresh : &String
-    call String.appendUnits, %v22, %v21, %rightLength
-    %v24 = load %fresh : String
-    %v25 = move %fresh : String
-    ret %v25
+    %out = alloc : String
+    init %out, %lhs
+    %v5 = load %out : String
+    %v6 = borrow %rhs : 'String
+    %v7 = cast %v6 : 'StringData
+    %v8 = load [%v7]@StringData.bytes : Array(CodeUnit)
+    %v9 = load [%v7]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v10 = load [%v7]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v11 = borrow_mut %out : &String
+    call String.appendUnits, %v11, %v10, %rightLength
+    drop %rhs reclaim Reclaim(String).reclaim
+    %v13 = load %out : String
+    %v14 = move %out : String
+    ret %v14
 }
 
 fn Reclaim(String).reclaim(%value: String) -> () {

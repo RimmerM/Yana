@@ -1,0 +1,274 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+// ResolveTest
+function sumCells(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v19 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v16 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v19 ? 1 : 0);
+      acc = BigInt.asIntN(64, BigInt.asIntN(64, acc + xs$items[v16].a) + xs$items[v16].c);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumQuads(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v19 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v16 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v19 ? 1 : 0);
+      acc = BigInt.asIntN(64, BigInt.asIntN(64, acc + xs$items[v16].w) + xs$items[v16].z);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function dotCells(xs$items, xs$length, xs$offset, ys$items, ys$length, ys$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v28 = xs$length >>> 0;
+  var v41 = ys$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length & i < ys$length) {
+      var v25 = xs$offset + i | 0;
+      var v27 = i >>> 0;
+      checkCondition(v27 >= v28 ? 1 : 0);
+      var v34 = xs$items[v25].a;
+      var v38 = ys$offset + i | 0;
+      checkCondition(v27 >= v41 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + BigInt.asIntN(64, v34 * ys$items[v38].b));
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumDown(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = xs$length - 1 | 0;
+  var v23 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i >= 0) {
+      var v20 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v23 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v20].b);
+      i = i - 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumWords(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v19 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v16 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v19 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v16]);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumInt(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v21 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v18 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v21 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v18].c);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function forInt(xs$items, xs$length, xs$offset, n) {
+  var acc = 0n;
+  var v8 = 0;
+  var v20 = xs$length >>> 0;
+  L0: for (;;) {
+    var i = v8;
+    if (i < n) {
+      var v17 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v20 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v17].c);
+      var v29 = v8;
+      if ((n - v29 | 0) > 1) {
+        v8 = v29 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function forDownInt(xs$items, xs$length, xs$offset, n) {
+  var acc = 0n;
+  if (n > 0) {
+    if (n >= 1) {
+      var v12 = n - 1 | 0;
+      var v27 = xs$length >>> 0;
+      L0: for (;;) {
+        var i = v12;
+        if (i >= 0) {
+          var v20 = BigInt.asIntN(64, acc * 10n);
+          var v24 = xs$offset + i | 0;
+          checkCondition(i >>> 0 >= v27 ? 1 : 0);
+          acc = BigInt.asIntN(64, v20 + xs$items[v24].a);
+          var v36 = v12;
+          if (!(v36 < 1)) {
+            v12 = v36 - 1 | 0;
+            continue L0;
+          }
+        }
+        break L0;
+      }
+    }
+  }
+  return acc;
+}
+
+function forStepInt(xs$items, xs$length, xs$offset, n) {
+  var acc = 0n;
+  var v8 = 0;
+  var v23 = xs$length >>> 0;
+  L0: for (;;) {
+    var i = v8;
+    if (i < n) {
+      var v16 = BigInt.asIntN(64, acc * 10n);
+      var v20 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v23 ? 1 : 0);
+      acc = BigInt.asIntN(64, v16 + xs$items[v20].a);
+      var v32 = v8;
+      if ((n - v32 | 0) > 2) {
+        v8 = v32 + 2 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function forInclusiveInt(xs$items, xs$length, xs$offset, n) {
+  var acc = 0n;
+  var v8 = 0;
+  var v23 = xs$length >>> 0;
+  L0: for (;;) {
+    var i = v8;
+    if (i <= n) {
+      var v16 = BigInt.asIntN(64, acc * 10n);
+      var v20 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v23 ? 1 : 0);
+      acc = BigInt.asIntN(64, v16 + xs$items[v20].a);
+      var v32 = v8;
+      if ((n - v32 | 0) >= 1) {
+        v8 = v32 + 1 | 0;
+        continue L0;
+      }
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function main() {
+  var v16 = [{ a: 1n, b: 2n, c: 3n }, { a: 10n, b: 20n, c: 30n }, { a: 100n, b: 200n, c: 300n }];
+  if (v16.length !== 3) {
+    v16.length = 3;
+  }
+  var v40 = [{ a: 7n, b: 5n, c: 9n }, { a: 7n, b: 5n, c: 9n }, { a: 7n, b: 5n, c: 9n }];
+  if (v40.length !== 3) {
+    v40.length = 3;
+  }
+  var v61 = [{ w: 1n, x: 2n, y: 3n, z: 4n }, { w: 10n, x: 20n, y: 30n, z: 40n }];
+  if (v61.length !== 2) {
+    v61.length = 2;
+  }
+  var v74 = [1n, 2n, 3n, 4n, 5n];
+  if (v74.length !== 5) {
+    v74.length = 5;
+  }
+  var total = 0;
+  if (sumCells(v16, 3, 0) === 444n) {
+    total = total + 1 | 0;
+  }
+  if (sumQuads(v61, 2, 0) === 55n) {
+    total = total + 1 | 0;
+  }
+  if (dotCells(v16, 3, 0, v40, 3, 0) === 555n) {
+    total = total + 1 | 0;
+  }
+  if (sumDown(v16, 3, 0) === 222n) {
+    total = total + 1 | 0;
+  }
+  if (sumWords(v74, 5, 0) === 15n) {
+    total = total + 1 | 0;
+  }
+  if (sumInt(v16, 3, 0) === 333n) {
+    total = total + 1 | 0;
+  }
+  if (forInt(v16, 3, 0, 3) === 333n) {
+    total = total + 1 | 0;
+  }
+  if (forDownInt(v16, 3, 0, 3) === 10101n) {
+    total = total + 1 | 0;
+  }
+  if (forStepInt(v16, 3, 0, 3) === 110n) {
+    total = total + 1 | 0;
+  }
+  if (forInclusiveInt(v16, 3, 0, 2) === 300n) {
+    total = total + 1 | 0;
+  }
+  var v335 = [];
+  if (v335.length !== 0) {
+    v335.length = 0;
+  }
+  if (sumCells(v335, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (forInt(v16, 3, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (forDownInt(v16, 3, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (forStepInt(v16, 3, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+main();

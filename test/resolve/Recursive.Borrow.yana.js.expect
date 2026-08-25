@@ -1,0 +1,104 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+// ResolveTest
+function swapAt(xs, a, b) {
+  var v6 = xs.offset;
+  var v7 = v6 + a | 0;
+  var v8 = xs.length;
+  var v9 = a >>> 0;
+  var v10 = v8 >>> 0;
+  checkCondition(v9 >= v10 ? 1 : 0);
+  var v13 = xs.items;
+  var old = v13[v7];
+  var v21 = v6 + b | 0;
+  var v23 = b >>> 0;
+  checkCondition(v23 >= v10 ? 1 : 0);
+  v13[v7] = v13[v21];
+  var v48 = xs.offset + b | 0;
+  checkCondition(v23 >= xs.length >>> 0 ? 1 : 0);
+  xs.items[v48] = old;
+}
+
+function quicksort(xs, lo, hi) {
+  if (!(lo >= hi)) {
+    var v25 = xs.offset + hi | 0;
+    checkCondition(hi >>> 0 >= xs.length >>> 0 ? 1 : 0);
+    var pivot = xs.items[v25];
+    var cut = lo;
+    var i = lo;
+    L0: for (;;) {
+      if (i < hi) {
+        var v48 = xs.offset + i | 0;
+        checkCondition(i >>> 0 >= xs.length >>> 0 ? 1 : 0);
+        if (xs.items[v48] <= pivot) {
+          swapAt(xs, i, cut);
+          cut = cut + 1 | 0;
+        }
+        i = i + 1 | 0;
+        continue L0;
+      }
+      break L0;
+    }
+    swapAt(xs, cut, hi);
+    quicksort(xs, lo, cut - 1 | 0);
+    quicksort(xs, cut + 1 | 0, hi);
+  }
+}
+
+function reverseInto(xs, lo, hi) {
+  if (!(lo >= hi)) {
+    swapAt(xs, lo, hi);
+    var v13 = lo + 1 | 0;
+    var v16 = hi - 1 | 0;
+    if (v13 < v16) {
+      reverseInto(xs, v13, v16);
+    }
+  }
+}
+
+function main() {
+  var v8 = new Int32Array([5, 3, 9, 1, 7, 2, 8]);
+  quicksort({ items: v8, length: 7, offset: 0 }, 0, 6);
+  if (v8[0] !== 1) {
+    return -1;
+  } else {
+    if (v8[3] !== 5) {
+      return -2;
+    } else {
+      if (v8[6] !== 9) {
+        return -3;
+      } else {
+        var v116 = { items: v8, length: 7, offset: 0 };
+        swapAt(v116, 0, 6);
+        reverseInto(v116, 1, 5);
+        if (v8[0] !== 9) {
+          return -4;
+        } else {
+          if (v8[6] !== 1) {
+            return -5;
+          } else {
+            var total = 0;
+            var i = 0;
+            L0: for (;;) {
+              if (i < 7) {
+                checkCondition(i >>> 0 >= 7 ? 1 : 0);
+                total = total + v8[i] | 0;
+                i = i + 1 | 0;
+                continue L0;
+              }
+              break L0;
+            }
+            return total;
+          }
+        }
+      }
+    }
+  }
+}
+main();

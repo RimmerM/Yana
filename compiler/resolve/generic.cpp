@@ -426,6 +426,45 @@ struct Clone {
 };
 
 /*
+ * The instruction's own copy of "which slot my result fills".
+ *
+ * `Local::value` and `Value::slot` are the pairing every pass reads, and six instruction kinds hold
+ * the same number *again* in a field of their own - which is what lowering reads to find the storage
+ * a result is written into. Re-pointing the pairing without this leaves the two disagreeing, and the
+ * disagreement is silent until something acts on the instruction's copy.
+ *
+ * The two fixups below are where that happened, and both are the specializer's: `cloneBody` copies
+ * the local table position for position while the emitters *append*, so a cloned result briefly owns
+ * a slot past the end and the fixup points the original index at it - moving `Value::slot` and
+ * leaving `InstExchange::local` on the appended one. `dischargeExchange` allocates over that field,
+ * so the exchange built its storage in an empty slot while every reader of the result went on naming
+ * the slot the fixup had moved it to, and the exchange was then erased with those readers still
+ * pointing at it. A generic `exchange` inside an `iter fn` body - which is what folding a container
+ * with a consuming `++` was - crashed the compiler in lowering, two passes after the verifier first
+ * reported the use lists as wrong.
+ *
+ * Written here rather than inside `IrEditor::setLocalValue`, which is where it looks like it
+ * belongs: a slot's value and an instruction's own field are *not* always the same number, and the
+ * inliner's graft depends on that - it points several of the caller's slots at one cloned call while
+ * the call keeps writing into the one it was given. What is specific to these two fixups is that
+ * they are correcting a pairing the emitter got wrong, so the instruction's copy is wrong with it.
+ *
+ * A switch over the six rather than a virtual, on `inst.def`'s terms: the list is closed, and a kind
+ * that grows a slot of its own later fails to compile here rather than keeping a stale one.
+ */
+static void setResultLocal(Value& value, U32 slot) {
+    switch(value.kind) {
+        case Value::Alloc:    ((InstAlloc&)value).local = slot; break;
+        case Value::Exchange: ((InstExchange&)value).local = slot; break;
+        case Value::Copy:     ((InstCopy&)value).local = slot; break;
+        case Value::Call:     ((InstCall&)value).local = slot; break;
+        case Value::CallDyn:  ((InstCallDyn&)value).local = slot; break;
+        case Value::GenCall:  ((InstGenCall&)value).local = slot; break;
+        default: break;
+    }
+}
+
+/*
  * The slot a cloned result fills.
  *
  * The local table is copied position for position before any instruction is cloned, so a value that
@@ -447,6 +486,17 @@ struct Clone {
  * So the pairing is made here, at the point the value exists, and the appended slot is released.
  * Nothing points at it - it was created moments ago and the value has just been re-pointed - so it
  * is left empty rather than removed, which is the state every not-yet-filled slot is already in.
+ *
+ * **Every emitter that produces a result has to call this, and the three in `cloneGenCall` are the
+ * ones easiest to miss.** A deferred generic call leaves that function three ways - a class
+ * dispatch through `emitInstanceCall`, a generic intrinsic through `expandIntrinsic`, and an
+ * ordinary instantiation through `emitDirectCall` - and only the last was paired. The first is what
+ * `copy(x)` is in a body with `Copy(a)` in scope, so `acc = acc ++ copy(x)` specialized to a `drop`
+ * of the original slot sitting between the call and a `move` of the appended one: the copy's run was
+ * released and handed straight back to the accumulator's own growth, and the join read the bytes it
+ * had just written there. In a loop the same split reported "this value has been moved out of and
+ * cannot be used again" instead, because the state the move recorded belonged to a slot no
+ * instruction defines.
  */
 static void pairClonedLocal(Clone& clone, const Inst& original, ModulePtr<Value> cloned) {
     auto slot = original.slot;
@@ -461,6 +511,7 @@ static void pairClonedLocal(Clone& clone, const Inst& original, ModulePtr<Value>
 
     editor.setLocalValue(slot, cloned);
     clone.filled.set(slot, true);
+    setResultLocal(*clone.local[cloned], slot);
 }
 
 static TypePtr cloneType(Clone& clone, TypePtr type) {
@@ -715,7 +766,11 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
         auto result = clone.resolver.emitInstanceCall(clone.site, instance.instance, toBuffer(instance.args),
                                                       call.index, toBuffer(args), call.source, nullptr, call.name);
 
-        if(result) clone.values.add(pointer, result);
+        if(result) {
+            clone.values.add(pointer, result);
+            pairClonedLocal(clone, call, result);
+        }
+
         return;
     } else if(clone.local[call.callee]->intrinsic) {
         // A generic intrinsic is generated rather than instantiated, here for the same reason it
@@ -724,8 +779,12 @@ static void cloneGenCall(Clone& clone, InstGenCall& call) {
         auto result = clone.resolver.expandIntrinsic(call.callee, toBuffer(typeArgs), toBuffer(args),
                                                      call.source, call.name);
 
-        if(result) clone.values.add(pointer, result);
-        else clone.ok = false;
+        if(result) {
+            clone.values.add(pointer, result);
+            pairClonedLocal(clone, call, result);
+        } else {
+            clone.ok = false;
+        }
 
         return;
     } else {
@@ -1444,7 +1503,12 @@ static void cloneBody(Clone& clone, Function& to) {
     for(Size i = 0; i < from.localCount(); i++) {
         if(materialized[i] || filled[i]) continue;
 
-        IrEditor(clone.module, to).setLocalValue(U32(i), cloneDefinition(clone, from.localAt(local, U32(i)).value));
+        auto definition = cloneDefinition(clone, from.localAt(local, U32(i)).value);
+        IrEditor(clone.module, to).setLocalValue(U32(i), definition);
+
+        // The instruction's own copy of the same number - see setResultLocal. This is the fixup
+        // `pairClonedLocal` exists to run early for; anything it did not reach arrives here.
+        if(definition) setResultLocal(*local[definition], U32(i));
     }
 
     /*

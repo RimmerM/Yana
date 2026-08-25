@@ -1,0 +1,19 @@
+"use strict";
+// ResolveTest
+function wide() {
+  return 0;
+}
+
+function main() {
+  if (wide() !== 0) {
+    return wide();
+  } else {
+    return Number(BigInt.asIntN(32, BigInt.asIntN(64, $rem(20015998348988n, 1000003n)))) | 0;
+  }
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $rem(a, b) {
+  return b ? a % b : a;
+}
+main();

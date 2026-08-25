@@ -258,16 +258,62 @@ pub class (FromInt(a)) Num(a):
    Declared here rather than beside `String` for the reason `Index` is: a class only a container
    file could name would not be an extension point.
 
-   It is deliberately not called `Monoid`: there is no identity element in it, because a type that
-   can join two values need not have an empty one and requiring it would rule out the non-empty
-   containers that are the obvious next instance.
+   **Both operands are `->`, which is what makes a chain linear rather than quadratic.** A borrowing
+   `++` has to size the result from two lengths and copy both operands into it, so `acc = acc ++ x`
+   in a loop copies the accumulator once per step and building an n-byte string costs O(n^2). A
+   consuming one takes the left operand's storage, appends the right into it, and hands the same
+   storage back - the ordinary amortized append. Measured on 2000 appends building 20 KB: 335 us
+   against 2050 us, and the gap grows with length.
+
+   What it costs is that joining something the caller does not own needs the copy written down -
+   `a.copy() ++ "b"`, which is what `Copy(String)` in String.yana is for. That is the trade taken
+   deliberately: the allocation is a thing the program *says*, rather than a thing a temporary does
+   on its way past. An iterator that yields owned values (`-> ->T`) feeds a fold with no copy at all;
+   one that yields borrows into its own storage (`Entry('k, 'v)`) needs one, and that copy is the
+   cost of the element being somewhere else, not of this convention.
+
+   It also removes the element constraint from `Array`'s instance. A borrowing join has to duplicate
+   every element, so it could only serve elements a bitwise copy is valid for and `Array(String)` had
+   no `++` at all; a consuming one *moves* them, and moving is something every element type permits.
+
+   `Ord.min` above is the precedent for `->` on a class member, and `checkClassBorrows` permits an
+   implementation to keep a `->` parameter - that is the rule's whole purpose.
+
+   It is deliberately not called `Monoid`: `Monoid` is declared below and has this as a superclass,
+   because a type that can join two values need not have an empty one and requiring it here would
+   rule out the non-empty containers that are the obvious next instance.
 
    `infixl 7`, which is `+`'s own precedence and associativity. A chain that mixes the two is not
    something anyone writes, so what the number is for is the chain of `++`s, and that groups the way
    it always did.
 -}
 pub class Append(a):
-  fn ++(lhs: a, rhs: a) -> a
+  fn ++(->lhs: a, ->rhs: a) -> a
+
+{-
+   Joining, with something to join nothing into - `Append` plus an identity.
+
+   The split is not ceremony. `Append` is what an operator needs and is satisfiable by types that
+   have no empty value at all: a non-empty list, a `{Int, Int}` range, a rope of at least one leaf.
+   `Monoid` is what a *fold* needs, because a fold over no elements has to answer something, and the
+   identity is the only honest answer. So every function in `Join.yana` that can be written against
+   `Append` is - `appendAll` takes the seed as an argument - and the ones that cannot say `Monoid`.
+
+   The laws are the usual two and they are not checked: `empty() ++ x` and `x ++ empty()` are both
+   `x`, and `++` is associative. Associativity is what makes a fold's grouping free to be whatever is
+   cheapest, which for a consuming `++` is left-to-right into the accumulator's own storage.
+
+   `empty` mentions `a` only in its result, which is `FromInt`'s shape and works for the same reason:
+   the expected type is what selects the instance, so `let &acc = empty() :: String` and a call in
+   argument position both resolve. There is nothing to pass, and a `Monoid` whose identity took an
+   argument would not be one.
+
+   No default for the class parameter, unlike `FromInt(a = Int)`: an unadorned `empty()` should be a
+   diagnostic rather than a guess, because the two instances the library writes are a string and an
+   array and nothing makes either the obvious one.
+-}
+pub class (Append(a)) Monoid(a):
+  fn empty() -> a
 
 {-
    Turning a value into text - Implementation-Storage.md part 7, whose `Storage(StringUnit)` sink is
@@ -412,6 +458,70 @@ pub fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
 -- storage.
 pub class Copy(a):
   fn copy(from: a) -> a
+
+{-
+   Everything a bitwise duplicate is correct for, without an instance per type.
+
+   `TrivialCopy` is the compiler's structural answer and `Copy` is the authored one, and a type may
+   have *both* - unlike `Sink`, where writing an instance is the statement that the bytes are not
+   enough. So this does not overlap the instances below: `String`, `Array(a)` and `Map(k, v)` own
+   storage and are therefore not TrivialCopy however their elements answer.
+
+   Without it, `copy` would be a function only the types that could not use the obvious answer had,
+   and no container could constrain its elements by "these can be duplicated" - `Copy(a)` would
+   exclude `Int` rather than include `String`, which is the wrong direction. With it, `Copy(a)` is
+   the one constraint that means duplicable, and the trivial case costs nothing: `copyInitFor` in
+   resolve/witness.cpp prefers TrivialCopy over an authored instance, so a scalar's descriptor slot
+   is still the block copy and this body is never called for one.
+
+   **`copy` of a reference is a copy of the reference.** `Copy` is over `a` and a `'a` is a type, so
+   `copy(entry.key)` where `pairs` handed out an `Entry('k, 'v)` binds the class variable to `'k` -
+   and nothing at the call site overrides that, not the expected type of a `->` argument and not an
+   ascription on the result. Duplicating what a container handed out is therefore done through a
+   *place*: `copy(xs[i])` is a read of the element, which is what `copiedArray` in Array.yana and
+   `copyEntriesFrom` in the two Map files are written against.
+-}
+instance (TrivialCopy(a)) Copy(a):
+    fn copy(from: a) -> a:
+        -- `let ->` and not `return from`, and the difference is only visible for an *aggregate*.
+        -- A scalar arrives in a register and returning it is already the duplicate; a record does
+        -- not, so `from` names storage the caller owns and keeps, and handing it back is a borrow
+        -- returned from a signature with no `return` marker - which is what the checker says. A `->`
+        -- binding of a TrivialCopy value is Design.md's other half of that convention: an
+        -- independent copy, leaving the source valid.
+        let ->duplicate = from
+        return duplicate
+
+{-
+   And the three carriers, whose answer is their payload's.
+
+   `Maybe(Int)` is trivial and reaches the instance above; `Maybe(String)` is not, because a member
+   that owns storage makes the whole value own storage. Without these the constraint would stop at
+   the first sum type in the way, and `Copy(a)` is meant to be readable as "this can be duplicated"
+   for every `a` a program can build out of the ones that can.
+
+   No overlap with the blanket above for the reason the containers have none: the two are candidates
+   only where the payload is trivial *and* the carrier is not, which cannot happen - a sum of trivial
+   members is trivial.
+
+   `match` and not a field read, because a sum has no field to read: the copy is per constructor and
+   the empty ones copy themselves.
+-}
+instance (Copy(a)) Copy(Maybe(a)):
+    fn copy(from: Maybe(a)) -> Maybe(a) = match from:
+        Just(inner) -> Just(copy(inner))
+        Nothing -> Nothing
+
+instance (Copy(e), Copy(a)) Copy(Result(e, a)):
+    fn copy(from: Result(e, a)) -> Result(e, a) = match from:
+        Ok(inner) -> Ok(copy(inner))
+        Err(problem) -> Err(copy(problem))
+
+instance (Copy(a), Copy(e)) Copy(Outcome(a, e)):
+    fn copy(from: Outcome(a, e)) -> Outcome(a, e) = match from:
+        Proceed(inner) -> Proceed(copy(inner))
+        Exit(problem) -> Exit(copy(problem))
+
 
 -- `to` arrives uninitialized and must be fully initialized before returning. That obligation is
 -- Design.md's `@uninit &`, which is not implementable yet - nothing in the language produces

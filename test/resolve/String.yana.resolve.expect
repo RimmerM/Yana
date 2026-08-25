@@ -18,6 +18,14 @@ let ResolveTest.string$3: String = "lit"
 
 let ResolveTest.string$4: String = "eral"
 
+let ResolveTest.string$5: String = "abc"
+
+let ResolveTest.string$6: String = "abc"
+
+let ResolveTest.string$7: String = "abc"
+
+let ResolveTest.string$8: String = "abd"
+
 fn checkFailed() -> () {
   b0:
     call abortProcess
@@ -146,6 +154,53 @@ fn Length(String).length(%self: String) -> Size {
     %units = cast %v4 : Int
     %v6 = cast %units : Size
     ret %v6
+}
+
+fn Eq(String).==(%self: String, %other: String) -> Bool {
+  b0:
+    %count = call Length(String).length, %self : Size
+    %v3 = call Length(String).length, %other : Size
+    %v4 = cmp_ne %count, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret False
+
+  b2:
+    jmp b3
+
+  b3:
+    %i = alloc : Size
+    init %i, 0
+    jmp b4
+
+  b4:
+    %v13 = load %i : Size
+    %v14 = cmp_lt %v13, %count : Bool
+    je %v14, b6, b5
+
+  b5:
+    ret True
+
+  b6:
+    %v16 = load %i : Size
+    %v17 = call String.unit, %self, %v16 : Int
+    %v18 = load %i : Size
+    %v19 = call String.unit, %other, %v18 : Int
+    %v20 = cmp_ne %v17, %v19 : Bool
+    je %v20, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v25 = load %i : Size
+    %v28 = add %v25, 1 : Size
+    assign %i, %v28
+    jmp b4
 }
 
 fn Reclaim(String).reclaim(%value: String) -> () {
@@ -1241,6 +1296,53 @@ fn appendToLiteral() -> Int {
     ret %v13
 }
 
+fn comparedAsValue() -> Int {
+  b0:
+    %v0 = symbol ResolveTest.string$5 : %CodeUnit
+    %v2 = call stringLiteral, %v0, 3 : String
+    %v3 = symbol ResolveTest.string$6 : %CodeUnit
+    %v5 = call stringLiteral, %v3, 3 : String
+    %same = call Eq(String).==, %v2, %v5 : Bool
+    %v7 = symbol ResolveTest.string$7 : %CodeUnit
+    %v9 = call stringLiteral, %v7, 3 : String
+    %v10 = symbol ResolveTest.string$8 : %CodeUnit
+    %v12 = call stringLiteral, %v10, 3 : String
+    %differs = call Eq(String).==, %v9, %v12 : Bool
+    %v15 = cmp_eq %same, True : Bool
+    %v17 = xor %v15, True : Bool
+    je %v17, b1, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    %v23 = cmp_eq %differs, False : Bool
+    %v25 = xor %v23, True : Bool
+    je %v25, b4, b5
+
+  b4:
+    ret 0
+
+  b5:
+    jmp b6
+
+  b6:
+    %v30 = cmp_eq %same, %differs : Bool
+    je %v30, b7, b8
+
+  b7:
+    ret 0
+
+  b8:
+    jmp b9
+
+  b9:
+    ret 9
+}
+
 fn main() -> Int {
   b0:
     %total = alloc : Int
@@ -1262,5 +1364,9 @@ fn main() -> Int {
     %v17 = add %v15, %v16 : Int
     assign %total, %v17
     %v19 = load %total : Int
-    ret %v19
+    %v20 = call comparedAsValue : Int
+    %v21 = add %v19, %v20 : Int
+    assign %total, %v21
+    %v23 = load %total : Int
+    ret %v23
 }

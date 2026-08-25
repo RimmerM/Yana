@@ -185,6 +185,24 @@ fn indexReset(&self: Map(k, v)) -> {}:
    make possible: an `Int32Array` has a stored count, so `reserve` sets the capacity and the count is
    this map's to say. Nothing is read out of the old contents, so no copy of them is wanted.
 -}
+-- The entries of another map, duplicated into this one - `Map.yana`'s `copiedMap`. Two runs here
+-- and one natively, and the subscript rather than `keyAt`/`valueAt` for the reason the native file
+-- gives at the same function.
+fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)) -> {}:
+    let count = length(from.keys)
+    reserve(self.keys, count)
+    reserve(self.values, count)
+
+    let &at = 0 :: Size
+    while at < count:
+        let ->key = copy(from.keys[at])
+        push(self.keys, key)
+
+        let ->value = copy(from.values[at])
+        push(self.values, value)
+
+        at = at + 1
+
 fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size) -> {}:
     reserve(self.index, slots)
     self.index.length = truncate(slots) :: Count

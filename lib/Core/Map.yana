@@ -467,3 +467,52 @@ pub class IndexInsert(c -> k, v):
 
 instance (Hash(k)) IndexInsert(Map(k, v), k, v):
     fn insertAt(&self: Map(k, v), ->index: k, ->value: v) -> {} = insert(self, index, value)
+
+{-
+   Duplicating an entry, and then a whole map - `Core`'s `Copy`.
+
+   `Copy(k)` and `Copy(v)` for the reason `Array`'s instance takes one: the blanket instance beside
+   the class makes every trivial key and value satisfy it, so `Map(Int, Int)` copies with the
+   constraints folding away and `Map(String, Array(Int))` copies at all.
+
+   **The entries are appended and the index is rebuilt**, rather than either being copied. That is
+   three separate constraints meeting:
+
+   - the index is an `Array(I32)` on JS and a raw `Run(U8)` natively, so there is nothing with a
+     `Copy` to copy - and rebuilding it also means this cannot produce a map whose index disagrees
+     with its entries, which a byte copy would have to be trusted about;
+   - the entries themselves are one run natively and two on JS, so `copyEntriesFrom` is a body per
+     platform file - which is what every accessor in this file already is;
+   - and `copy(from.entries)` at the whole run, which the native field would have allowed, is
+     refused: `Copy(Array(a))` reached with `a` bound to `Entry(k, v)` grows the type argument, and
+     *"it would need endlessly many specializations"* is the compiler declining to prove that stops.
+     Copying one entry at a time never grows one.
+
+   The threshold test is `reserveMap`'s: below the scan limit there is no index at all, and a copy of
+   a small map is entries and nothing else.
+
+   `pairs` and `insert` would have been the obvious body and it does not compile: `pairs` hands out
+   an `Entry('k, 'v)`, and `copy` applied to a reference *value* binds the class variable to the
+   reference rather than to what it refers to. Nothing at the call site overrides that - not the
+   expected type of a `->` argument, and not an ascription on the result - so the copy that comes
+   back is the borrow again. A subscript is a place rather than a reference value, which is why
+   `copyEntriesFrom` reads one.
+-}
+instance (Copy(k), Copy(v)) Copy(Entry(k, v)):
+    fn copy(from: Entry(k, v)) -> Entry(k, v) =
+        Entry {key: copy(from.key), value: copy(from.value)}
+
+fn (Hash(k), Copy(k), Copy(v)) copiedMap(from: Map(k, v)) -> Map(k, v):
+    let &out = emptyMap() :: Map(k, v)
+
+    copyEntriesFrom(out, from)
+
+    let count = entryCount(out)
+
+    if count > scanLimitOf(out):
+        indexRebuild(out, indexSlotsFor(count))
+
+    return out
+
+instance (Hash(k), Copy(k), Copy(v)) Copy(Map(k, v)):
+    fn copy(from: Map(k, v)) -> Map(k, v) = copiedMap(from)

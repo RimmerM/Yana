@@ -83,28 +83,40 @@ import Native
    Concatenation - part 8, which observes that this is *already* encoding-agnostic with no extra
    work: joining two strings never inspects their content, only their raw units, whatever those mean.
 
-   The native body is the one allocation in the raw tier. It sizes the result exactly, so a `++`
-   chain allocates once per `++` - which is what makes `Show`'s bound worth having and is exactly the
-   cost Implementation-Storage.md part 8 exists to avoid for interpolation. A program building a
-   string in a loop should reach for the sink below, not for this.
+   **The native body appends into the left operand rather than sizing a third string.** Both operands
+   are `->` - see `Append` in Core.yana - so the storage the left one sits in is this function's to
+   keep, and appending to it is the sink below with the units already to hand. A `++` chain therefore
+   allocates on the doublings rather than once per `++`, which is the difference between amortized
+   O(n) and O(n^2) for `acc = acc ++ x` in a loop.
 
-   The JS body is the host's `+`, which the engine implements with a rope and which therefore has the
-   opposite cost profile. That difference is real and is not hidden; it is also the reason `Show`
-   writes into a sink rather than returning a string, so that neither target's `+` is on the hot path.
+   A literal's run is borrowed, so the first append to one relocates it to the heap and copies; every
+   append after that is a `copyMemory` into room that is already there. That is the shape
+   `Text.native.yana` describes at `resize`, reached from the operator rather than only from `Show`.
+
+   `rhs` is consumed like `lhs`: its run is released when this frame ends, which is where the units
+   it held go. Joining something the caller means to keep is `copy(that) ++ other`.
+
+   The JS body is the host's `+`, unchanged: a host string is immutable, so there is no storage to
+   take over and the engine's rope is what makes the chain linear there. The consuming signature
+   costs that target nothing.
 -}
 @platform(native) instance Append(String):
-    fn ++(lhs: String, rhs: String) -> String:
-        let leftLength = length(lhs)
+    fn ++(->lhs: String, ->rhs: String) -> String:
         let rightLength = length(rhs)
 
-        let &fresh = String.ofCapacity(leftLength + rightLength)
-        String.appendUnits(fresh, stringData(lhs).bytes.run.items, leftLength)
-        String.appendUnits(fresh, stringData(rhs).bytes.run.items, rightLength)
+        let &out = lhs
+        String.appendUnits(out, stringData(rhs).bytes.run.items, rightLength)
 
-        return fresh
+        return out
 
 @platform(js) instance Append(String):
-    fn ++(lhs: String, rhs: String) -> String = hostConcat(lhs, rhs)
+    fn ++(->lhs: String, ->rhs: String) -> String = hostConcat(lhs, rhs)
+
+-- And the identity, which makes `String` a `Monoid` and every fold in Join.yana available on it. One
+-- body for both targets: the empty literal is a borrowed run over no bytes natively and `""` on JS,
+-- and neither allocates.
+instance Monoid(String):
+    fn empty() -> String = ""
 
 {-
    Equality, as a raw unit-wise comparison - part 3.
@@ -235,6 +247,35 @@ instance Hash(String):
 -}
 @platform(native) instance Reclaim(String):
     fn reclaim(->value: String) -> {} = releaseRun(stringData(value).bytes.run)
+
+{-
+   Duplicating one - `Core`'s `Copy`, and what `++` consuming its operands makes routine.
+
+   A string owns its run, so it is not TrivialCopy and the blanket instance beside the class does not
+   reach it. Without this one there was no way at all to get a second `String` from a first, which is
+   what made `a.copy() ++ "b"` - the escape hatch for joining something the caller does not own - a
+   sentence that did not compile.
+
+   The native body is `ofCapacity` and one `appendUnits`, which is the concatenation above with one
+   source instead of two: sized exactly, one allocation, and the units copied without being looked
+   at. A borrowed run - a literal - is copied to the heap by this, which is the point: the result is
+   a string somebody may append to, and the original is left as it was.
+
+   The JS body is the value. A host string is immutable and has no storage to share, so two names for
+   one of them cannot observe each other and there is nothing to duplicate. That is not an
+   optimization of a copy; it is what a copy *is* on that target.
+-}
+@platform(native) instance Copy(String):
+    fn copy(from: String) -> String:
+        let count = length(from)
+
+        let &fresh = String.ofCapacity(count)
+        String.appendUnits(fresh, stringData(from).bytes.run.items, count)
+
+        return fresh
+
+@platform(js) instance Copy(String):
+    fn copy(from: String) -> String = from
 
 {-
    ==========================================================================================

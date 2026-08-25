@@ -1,0 +1,29 @@
+"use strict";
+// ResolveTest
+function main() {
+  var a = 10n;
+  var i = 0n;
+  L0: for (;;) {
+    if (i < 4n) {
+      a = BigInt.asIntN(64, a + 1n);
+      i = BigInt.asIntN(64, i + 1n);
+      continue L0;
+    }
+    break L0;
+  }
+  var v48 = BigInt.asIntN(64, a + 42n);
+  a = 10n;
+  var i$1 = 0n;
+  var total = 0n;
+  L1: for (;;) {
+    if (i$1 < 3n) {
+      total = BigInt.asIntN(64, total + a);
+      a = BigInt.asIntN(64, a + 1n);
+      i$1 = BigInt.asIntN(64, i$1 + 1n);
+      continue L1;
+    }
+    break L1;
+  }
+  return Number(BigInt.asIntN(32, BigInt.asIntN(64, v48 + total))) | 0;
+}
+main();

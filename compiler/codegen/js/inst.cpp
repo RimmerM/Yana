@@ -2066,7 +2066,22 @@ void genHost(Gen& g, ModulePtr<Value> value, Value& instruction, InstNative& nat
                 if(entry.text.length != text.length) continue;
                 if(compareMem(entry.text.ptr, text.ptr, text.length) != 0) continue;
 
-                define(g, value, binary(g, entry.op, left, right));
+                /*
+                 * Through `boolNumber` where the result is one, for the reason the comparison arm
+                 * above goes through it: six of the seven operators here produce a *host boolean*,
+                 * and a `Bool` on this target is the number 0 or 1. The two forms agree on
+                 * truthiness, so `if s == t` was right and stayed right - what was not is a `Bool`
+                 * reaching a value position, where `hostStringEq(a, b) != False` compiled to
+                 * `(a === b) !== 0` and answered `true` for two strings that are equal.
+                 *
+                 * Asked of the instruction's type rather than of the operator, because `+` is in
+                 * this table too and its result is a string or a number. `boolNumber` is free
+                 * wherever it is redundant - see the two position rules at its definition.
+                 */
+                auto result = binary(g, entry.op, left, right);
+                if(isBool(g, instruction.type)) result = boolNumber(g, result);
+
+                define(g, value, result);
                 return;
             }
 

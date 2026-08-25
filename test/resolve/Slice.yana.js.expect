@@ -1,0 +1,125 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+// ResolveTest
+function total(xs$items, xs$length, xs$offset) {
+  var sum = 0;
+  var i = 0;
+  var v21 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v18 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v21 ? 1 : 0);
+      sum = sum + xs$items[v18] | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return sum;
+}
+
+function middle(xs$items, xs$length, xs$offset) {
+  var start = 1;
+  if (1 > xs$length) {
+    start = xs$length;
+  }
+  var end = 3;
+  if (3 < start) {
+    end = start;
+  }
+  if (end > xs$length) {
+    end = xs$length;
+  }
+  return total(xs$items, end - start | 0, xs$offset + start | 0);
+}
+
+function main() {
+  var v209;
+  var v5 = new Int32Array([1, 2, 3, 4]);
+  var v4 = { items: v5, length: 4 };
+  if (total(v5, 4, 0) !== 10) {
+    return -1;
+  } else {
+    var v37 = v4.items;
+    var v38 = v4.length;
+    if (middle(v37, v38, 0) !== 5) {
+      return -2;
+    } else {
+      var i = 0;
+      L0: for (;;) {
+        if (i < v38) {
+          checkCondition(i >>> 0 >= v38 ? 1 : 0);
+          var value = v37[i];
+          v37[i] = value + value | 0;
+          i = i + 1 | 0;
+          continue L0;
+        }
+        break L0;
+      }
+      var v69 = v4.items;
+      var v72 = v4.length;
+      if (total(v69, v72, 0) !== 20) {
+        return -3;
+      } else {
+        var v192 = v72 + 1;
+        if (v192 > v69.length) {
+          growJsArray_Int(v4, v192);
+        }
+        v4.items[v72] = 5;
+        var v206 = v192 & 1073741823;
+        v4.length = v206;
+        if (v206 !== 5) {
+          return -4;
+        } else {
+          var v106 = v4.items;
+          var sum = 0;
+          v209 = 1;
+          L1: for (;;) {
+            var v215 = v209;
+            if (v215 < v206) {
+              checkCondition(v209 >>> 0 >= v206 ? 1 : 0);
+              sum = sum + v106[v215] | 0;
+              v209 = v209 + 1 | 0;
+              continue L1;
+            }
+            break L1;
+          }
+          if (sum !== 23) {
+            return -5;
+          } else {
+            return total(v4.items, v4.length, 0);
+          }
+        }
+      }
+    }
+  }
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
+}
+main();

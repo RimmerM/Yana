@@ -1,0 +1,116 @@
+"use strict";
+// ResolveTest
+function maybes() {
+  var score = 0n;
+  if (Eq_Opt_a_eq_eq_Int(1, 1)) {
+    score = BigInt.asIntN(64, score + 1n);
+  }
+  if (Eq_Opt_a_eq_eq_Int(1, 2) ^ 1) {
+    score = BigInt.asIntN(64, score + 2n);
+  }
+  if (Eq_Opt_a_eq_eq_Int(null, null)) {
+    score = BigInt.asIntN(64, score + 4n);
+  }
+  if (Eq_Opt_a_eq_eq_Bool(1, 0) ^ 1) {
+    score = BigInt.asIntN(64, score + 8n);
+  }
+  return score;
+}
+
+function pointers() {
+  var v2 = { $v: 0n };
+  var v5 = { $v: 0n };
+  var v47 = v2 < v5 ? v2 : v5;
+  var v49 = v5 < v2 ? v5 : v2;
+  var score = 0n;
+  if (v47 <= v49) {
+    score = BigInt.asIntN(64, score + 1n);
+  }
+  if ((v2 < v5 ? v2 : v5) == v47) {
+    score = BigInt.asIntN(64, score + 2n);
+  }
+  var v40 = BigInt.asIntN(64, score + 4n);
+  score = v40;
+  return v40;
+}
+
+function main() {
+  var v2 = BigInt.asIntN(64, maybes() + pointers());
+  var v7 = { $v: 0n };
+  return Number(BigInt.asIntN(32, BigInt.asIntN(64, v2 + (Eq_Opt_a_eq_eq_remI64({ $tag: 1, $p: v7 }, { $tag: 1, $p: v7 }) ? 16n : 0n)))) | 0;
+}
+
+function Eq_Opt_a_eq_eq_Int(lhs, rhs) {
+  var v2;
+  B0: {
+    B1: {
+      if (!(lhs === null)) {
+        if (!(rhs === null)) {
+          v2 = lhs === rhs ? 1 : 0;
+          break B0;
+        }
+      }
+    }
+    B2: {
+      if (lhs === null) {
+        if (rhs === null) {
+          v2 = 1;
+          break B0;
+        }
+      }
+    }
+    v2 = 0;
+  }
+  return v2;
+}
+
+function Eq_Opt_a_eq_eq_Bool(lhs, rhs) {
+  var v2;
+  B0: {
+    B1: {
+      if (lhs <= 1) {
+        if (rhs <= 1) {
+          v2 = lhs === rhs ? 1 : 0;
+          break B0;
+        }
+      }
+    }
+    B2: {
+      if (!(lhs <= 1)) {
+        if (!(rhs <= 1)) {
+          v2 = 1;
+          break B0;
+        }
+      }
+    }
+    v2 = 0;
+  }
+  return v2;
+}
+
+function Eq_Opt_a_eq_eq_remI64(lhs, rhs) {
+  var v2;
+  B0: {
+    B1: {
+      var v3 = lhs.$tag;
+      if (v3 === 1) {
+        var x = lhs.$p;
+        if (rhs.$tag === 1) {
+          v2 = x == rhs.$p ? 1 : 0;
+          break B0;
+        }
+      }
+    }
+    B2: {
+      if (v3 === 0) {
+        if (rhs.$tag === 0) {
+          v2 = 1;
+          break B0;
+        }
+      }
+    }
+    v2 = 0;
+  }
+  return v2;
+}
+main();

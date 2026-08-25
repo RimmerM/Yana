@@ -1,0 +1,75 @@
+"use strict";
+var drops = 0;
+
+// ResolveTest
+function sameMaybe(lhs, rhs) {
+  var v26;
+  B0: {
+    B1: {
+      var v2 = lhs === null ? 0 : 1;
+      if (v2 === 1) {
+        if (!(rhs === null)) {
+          v26 = lhs === rhs ? 1 : 0;
+          break B0;
+        }
+      }
+    }
+    B2: {
+      if (v2 === 0) {
+        if (rhs === null) {
+          v26 = 1;
+          break B0;
+        }
+      }
+    }
+    v26 = 0;
+  }
+  return v26;
+}
+
+function ordered(a, b, c) {
+  var v34;
+  B0: {
+    B1: {
+      var v3 = a === null ? 0 : 1;
+      if (v3 === 1) {
+        if (!(b === null)) {
+          if (c === 0) {
+            v34 = a + b | 0;
+            break B0;
+          }
+        }
+      }
+    }
+    B2: {
+      if (v3 === 1) {
+        if (b === null) {
+          v34 = a + c | 0;
+          break B0;
+        }
+      }
+    }
+    v34 = 0;
+  }
+  return v34;
+}
+
+function main() {
+  var total = 0;
+  if (sameMaybe(3, 4)) {
+    total = total + 1000 | 0;
+  }
+  var v28 = ordered(3, 4, 0);
+  drop$Maybe_Held(3);
+  drop$Maybe_Held(4);
+  var v44 = ((total + v28 | 0) + Math.imul(drops, 10) | 0) + 7 | 0;
+  total = v44;
+  return v44;
+}
+
+function drop$Maybe_Held(value) {
+  if (!(value === null)) {
+    drops = drops + 1 | 0;
+  }
+}
+main();

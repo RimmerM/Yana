@@ -1,0 +1,46 @@
+"use strict";
+// ResolveTest
+function opaqueInt(x) {
+  return x;
+}
+
+function opaqueLong(x) {
+  return x;
+}
+
+function opaqueU32(x) {
+  return x;
+}
+
+function opaqueU64(x) {
+  return x;
+}
+
+function main() {
+  return (($popcount32(opaqueInt(305419896)) | 0) === 13 ? 1 : 0) + ((Math.clz32(opaqueInt(305419896)) | 0) === 3 ? 2 : 0) + (($ctz32(opaqueInt(305419896)) | 0) === 3 ? 4 : 0) + ((($popcount32(opaqueInt(0)) | 0) === 0 ? 8 : 0) + ((Math.clz32(opaqueInt(0)) | 0) === 32 ? 16 : 0) + (($ctz32(opaqueInt(0)) | 0) === 32 ? 32 : 0)) + ((Math.clz32(opaqueU32(4294967295)) >>> 0 === 0 ? 64 : 0) + ($ctz32(opaqueU32(2147483648)) >>> 0 === 31 ? 128 : 0)) + ((BigInt.asIntN(64, $popcount64(opaqueLong(72623859790382856n))) === 13n ? 256 : 0) + (BigInt.asIntN(64, $clz64(opaqueLong(72623859790382856n))) === 7n ? 512 : 0)) + ((BigInt.asUintN(64, $clz64(opaqueU64(0n))) === 64n ? 1024 : 0) + (BigInt.asUintN(64, $ctz64(opaqueU64(0n))) === 64n ? 2048 : 0));
+}
+
+function $popcount32(v) {
+  var a = v - (v >>> 1 & 1431655765);
+  var b = (a & 858993459) + (a >>> 2 & 858993459);
+  return Math.imul(b + (b >>> 4) & 252645135, 16843009) >>> 24;
+}
+
+function $ctz32(v) {
+  return v ? 31 - Math.clz32(v & -v) : 32;
+}
+
+function $popcount64(v) {
+  return BigInt($popcount32(Number(v & 4294967295n)) + $popcount32(Number(v >> 32n & 4294967295n)));
+}
+
+function $clz64(v) {
+  var h = Number(v >> 32n & 4294967295n);
+  return BigInt(h ? Math.clz32(h) : 32 + Math.clz32(Number(v & 4294967295n)));
+}
+
+function $ctz64(v) {
+  var l = Number(v & 4294967295n);
+  return BigInt(l ? $ctz32(l) : 32 + $ctz32(Number(v >> 32n & 4294967295n)));
+}
+main();

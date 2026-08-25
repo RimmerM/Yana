@@ -1,0 +1,158 @@
+"use strict";
+var reclaims = 0;
+
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function push_Int(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_Int(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+// ResolveTest
+function collect(xs$items, xs$length, xs$offset) {
+  var out = { items: new Int32Array([]), length: 0 };
+  var i = 0;
+  var v21 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v18 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v21 ? 1 : 0);
+      push_Int(out, xs$items[v18]);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return out;
+}
+
+function main() {
+  var v5 = new Int32Array([1, 2, 3, 4]);
+  var a = collect(v5, 4, 0);
+  var v31 = a.length;
+  checkCondition(0 >= v31 ? 1 : 0);
+  var v34 = a.items;
+  var v36 = v34[0];
+  checkCondition(1 >= v31 ? 1 : 0);
+  var v51 = v36 + Math.imul(v34[1], 2) | 0;
+  checkCondition(2 >= v31 ? 1 : 0);
+  var v66 = v51 + Math.imul(v34[2], 4) | 0;
+  checkCondition(3 >= v31 ? 1 : 0);
+  var total = v66 + Math.imul(v34[3], 8) | 0;
+  var out = { items: new Int32Array([]), length: 0 };
+  var i = 0;
+  L0: for (;;) {
+    if (i < 4) {
+      checkCondition(i >>> 0 >= 4 ? 1 : 0);
+      push_Int(out, v5[i]);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var v101 = out.length;
+  checkCondition(0 >= v101 ? 1 : 0);
+  var v104 = out.items;
+  var v107 = total + v104[0] | 0;
+  checkCondition(1 >= v101 ? 1 : 0);
+  var v122 = v107 + Math.imul(v104[1], 2) | 0;
+  checkCondition(2 >= v101 ? 1 : 0);
+  var v137 = v122 + Math.imul(v104[2], 4) | 0;
+  checkCondition(3 >= v101 ? 1 : 0);
+  total = v137 + Math.imul(v104[3], 8) | 0;
+  var out$1 = { items: new Int32Array([]), length: 0 };
+  var i$1 = 0;
+  L1: for (;;) {
+    if (i$1 < 4) {
+      checkCondition(i$1 >>> 0 >= 4 ? 1 : 0);
+      push_Int(out$1, funvalue$double(null, v5[i$1]));
+      i$1 = i$1 + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  var v177 = out$1.length;
+  checkCondition(0 >= v177 ? 1 : 0);
+  var v180 = out$1.items;
+  var v183 = total + v180[0] | 0;
+  checkCondition(1 >= v177 ? 1 : 0);
+  var v198 = v183 + Math.imul(v180[1], 2) | 0;
+  checkCondition(2 >= v177 ? 1 : 0);
+  var v213 = v198 + Math.imul(v180[2], 4) | 0;
+  checkCondition(3 >= v177 ? 1 : 0);
+  var v228 = v213 + Math.imul(v180[3], 8) | 0;
+  total = v228;
+  var d = roundTrip_Int({ items: new Int32Array([5, 6, 7, 8]), length: 4 });
+  var v254 = d.length;
+  checkCondition(0 >= v254 ? 1 : 0);
+  var v257 = d.items;
+  var v260 = v228 + v257[0] | 0;
+  checkCondition(1 >= v254 ? 1 : 0);
+  var v275 = v260 + Math.imul(v257[1], 2) | 0;
+  checkCondition(2 >= v254 ? 1 : 0);
+  var v290 = v275 + Math.imul(v257[2], 4) | 0;
+  checkCondition(3 >= v254 ? 1 : 0);
+  total = v290 + Math.imul(v257[3], 8) | 0;
+  if (reclaims !== 0) {
+    return -1;
+  } else {
+    var c = collect(v5, 4, 0);
+    var v330 = reclaims;
+    if (v330 !== 0) {
+      reclaims = v330 + 1 | 0;
+      return -2;
+    } else {
+      var v349 = c.length;
+      checkCondition(0 >= v349 ? 1 : 0);
+      var v352 = c.items;
+      var v355 = total + v352[0] | 0;
+      checkCondition(3 >= v349 ? 1 : 0);
+      var v367 = v352[3];
+      reclaims = v330 + 1 | 0;
+      var v368 = v355 + v367 | 0;
+      total = v368;
+      return v368;
+    }
+  }
+}
+
+function funvalue$double(env, v) {
+  return Math.imul(v, 2);
+}
+
+function roundTrip_Int(xs) {
+  return xs;
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
+}
+main();

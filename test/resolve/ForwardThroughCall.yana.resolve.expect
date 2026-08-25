@@ -447,31 +447,21 @@ fn Length(String).length(%self: String) -> Size {
 
 fn Append(String).++(%lhs: String, %rhs: String) -> String {
   b0:
-    %leftLength = call Length(String).length, %lhs : Size
     %rightLength = call Length(String).length, %rhs : Size
-    %v4 = add %leftLength, %rightLength : Size
-    %v5 = call String.ofCapacity, %v4 : String
-    %fresh = alloc : String
-    init %fresh, %v5
-    %v8 = load %fresh : String
-    %v9 = borrow %lhs : 'String
-    %v10 = cast %v9 : 'StringData
-    %v11 = load [%v10]@StringData.bytes : Array(CodeUnit)
-    %v12 = load [%v10]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v13 = load [%v10]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v14 = borrow_mut %fresh : &String
-    call String.appendUnits, %v14, %v13, %leftLength
-    %v16 = load %fresh : String
-    %v17 = borrow %rhs : 'String
-    %v18 = cast %v17 : 'StringData
-    %v19 = load [%v18]@StringData.bytes : Array(CodeUnit)
-    %v20 = load [%v18]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v21 = load [%v18]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v22 = borrow_mut %fresh : &String
-    call String.appendUnits, %v22, %v21, %rightLength
-    %v24 = load %fresh : String
-    %v25 = move %fresh : String
-    ret %v25
+    %out = alloc : String
+    init %out, %lhs
+    %v5 = load %out : String
+    %v6 = borrow %rhs : 'String
+    %v7 = cast %v6 : 'StringData
+    %v8 = load [%v7]@StringData.bytes : Array(CodeUnit)
+    %v9 = load [%v7]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v10 = load [%v7]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v11 = borrow_mut %out : &String
+    call String.appendUnits, %v11, %v10, %rightLength
+    drop %rhs reclaim Reclaim(String).reclaim
+    %v13 = load %out : String
+    %v14 = move %out : String
+    ret %v14
 }
 
 fn Reclaim(String).reclaim(%value: String) -> () {
@@ -1589,14 +1579,14 @@ fn built(%n: Int) -> Int {
     %v4 = load %text : String
     %v5 = symbol ResolveTest.string$1 : %CodeUnit
     %v7 = call stringLiteral, %v5, 1 : String
-    %v8 = call Append(String).++, %v4, %v7 : String
+    %v8 = move %text : String
+    %v9 = call Append(String).++, %v8, %v7 : String
+    assign %text, %v9
+    %v11 = load %text : String
+    %v12 = call Length(String).length, %v11 : Size
     drop %text reclaim Reclaim(String).reclaim
-    assign %text, %v8
-    %v10 = load %text : String
-    %v11 = call Length(String).length, %v10 : Size
-    drop %text reclaim Reclaim(String).reclaim
-    %v12 = cast %v11 : Int
-    ret %v12
+    %v13 = cast %v12 : Int
+    ret %v13
 }
 
 fn inLaterBlock(%n: Int) -> Int {
@@ -1611,20 +1601,20 @@ fn inLaterBlock(%n: Int) -> Int {
     %v8 = load %text : String
     %v9 = symbol ResolveTest.string$2 : %CodeUnit
     %v11 = call stringLiteral, %v9, 1 : String
-    %v12 = call Append(String).++, %v8, %v11 : String
-    drop %text reclaim Reclaim(String).reclaim
-    assign %text, %v12
+    %v12 = move %text : String
+    %v13 = call Append(String).++, %v12, %v11 : String
+    assign %text, %v13
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v16 = load %text : String
-    %v17 = call Length(String).length, %v16 : Size
+    %v17 = load %text : String
+    %v18 = call Length(String).length, %v17 : Size
     drop %text reclaim Reclaim(String).reclaim
-    %v18 = cast %v17 : Int
-    ret %v18
+    %v19 = cast %v18 : Int
+    ret %v19
 }
 
 fn inLoop(%n: Int) -> Int {
@@ -1641,8 +1631,8 @@ fn inLoop(%n: Int) -> Int {
     je %v9, b3, b2
 
   b2:
-    %v33 = load %total : Int
-    ret %v33
+    %v34 = load %total : Int
+    ret %v34
 
   b3:
     %v11 = load %i : Int
@@ -1652,19 +1642,19 @@ fn inLoop(%n: Int) -> Int {
     %v15 = load %text : String
     %v16 = symbol ResolveTest.string$3 : %CodeUnit
     %v18 = call stringLiteral, %v16, 1 : String
-    %v19 = call Append(String).++, %v15, %v18 : String
+    %v19 = move %text : String
+    %v20 = call Append(String).++, %v19, %v18 : String
+    assign %text, %v20
+    %v22 = load %total : Int
+    %v23 = load %text : String
+    %v24 = call Length(String).length, %v23 : Size
     drop %text reclaim Reclaim(String).reclaim
-    assign %text, %v19
-    %v21 = load %total : Int
-    %v22 = load %text : String
-    %v23 = call Length(String).length, %v22 : Size
-    drop %text reclaim Reclaim(String).reclaim
-    %v24 = cast %v23 : Int
-    %v25 = add %v21, %v24 : Int
-    assign %total, %v25
-    %v27 = load %i : Int
-    %v30 = add %v27, 1 : Int
-    assign %i, %v30
+    %v25 = cast %v24 : Int
+    %v26 = add %v22, %v25 : Int
+    assign %total, %v26
+    %v28 = load %i : Int
+    %v31 = add %v28, 1 : Int
+    assign %i, %v31
     jmp b1
 }
 

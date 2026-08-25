@@ -492,7 +492,26 @@ ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source)
     auto toValue = (ModulePtr<Value>)(to - *module.arena);
     auto fromValue = (ModulePtr<Value>)(from - *module.arena);
 
-    if(ownership.authoredCopy) {
+    /*
+     * TrivialCopy first, which is what the three-way list above always meant and did not say.
+     *
+     * The two are not exclusive. An authored `Sink` clears `trivialSink` - a type that refers to its
+     * own address cannot be relocated by its bytes, so writing the instance *is* the statement that
+     * the structural answer is wrong - but an authored `Copy` deliberately does not clear
+     * `trivialCopy`, because duplicating bytes that may be duplicated is never wrong. So a type can
+     * have both, and asking for the adapter first picked the call over the block copy for every one
+     * of them.
+     *
+     * That is reachable from ordinary library code: `instance (TrivialCopy(a)) Copy(a)` is what
+     * makes `Copy(a)` mean "this can be duplicated" for a container to constrain its elements by,
+     * and with it every scalar's `copyInit$` became a call to a generated identity function. Slower
+     * everywhere, and wrong on the erased path, where a descriptor slot holding a call rather than a
+     * block copy is what `Erased.yana`'s "incorrect argument type to call" was.
+     *
+     * `TrivialCopy` is the stronger fact and the cheaper answer, so it wins. The adapter is for the
+     * case it exists for: a type whose bytes are not its whole story.
+     */
+    if(ownership.authoredCopy && !ownership.trivialCopy) {
         auto implementation = instanceImplementation(module, module.coreClasses.copy, type, source);
 
         if(implementation) {

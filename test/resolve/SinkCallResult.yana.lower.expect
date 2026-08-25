@@ -18,50 +18,80 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$12 = [120, 121]
 @ResolveTest.string$13 = [112, 113, 114]
 
-String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
-  b_0 {
-    %v_1 = cmp_ile %count, 0: Int
-    je %v_1, b_2, b_3
+Append(String).++<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+  b_1 {
+    %v_2 = add %rhs, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    %v_4 = sext %v_3: Long
+    %out = alloca 16, 8: Ptr
+    copy %out, %lhs, 16
+    %v_5 = load %rhs, 8: Ptr
+    %v_6 = cmp_ile %v_4, 0: Int
+    je %v_6, b_7, b_8
   }
 
-  b_3 {
-    %v_4 = add %self, 12: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = cast %v_5: Long
-    %v_7 = add %v_6, %count: Long
-    call_complex reserve(CodeUnit), %self, %v_7
-    %v_8 = add %self, 12: Ptr
-    %v_9 = load %v_8, 4: Int
-    %v_10 = cast %v_9: Long
-    %wanted = add %v_10, %count: Long
-    %v_11 = add %self, 8: Ptr
-    %v_12 = load %v_11, 4: Long
-    %v_13 = and %v_12, 1073741823: Long
-    %v_14 = cast %v_13: Int
+  b_8 {
+    %v_9 = add %out, 12: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = cast %v_10: Long
+    %v_12 = add %v_11, %v_4: Long
+    call_complex reserve(CodeUnit), %out, %v_12
+    %v_13 = add %out, 12: Ptr
+    %v_14 = load %v_13, 4: Int
     %v_15 = cast %v_14: Long
-    %v_16 = cmp_ilt %v_15, %wanted: Int
-    je %v_16, b_17, b_18
+    %wanted = add %v_15, %v_4: Long
+    %v_16 = add %out, 8: Ptr
+    %v_17 = load %v_16, 4: Long
+    %v_18 = and %v_17, 1073741823: Long
+    %v_19 = cast %v_18: Int
+    %v_20 = cast %v_19: Long
+    %v_21 = cmp_ilt %v_20, %wanted: Int
+    je %v_21, b_22, b_23
   }
 
-  b_18 {
-    %v_19 = load %self, 8: Ptr
-    %v_20 = add %v_19, %v_10: Ptr
-    %v_21 = add %from, %count: Ptr
-    %v_22 = sub %v_21, %from: Long
-    call_complex copyMemory, %v_20, %from, %v_22
-    %v_23 = cast %wanted: Int
-    %v_24 = and %v_23, 1073741823: Int
-    %v_25 = add %self, 12: Ptr
-    store %v_25, %v_24, 4
-    ret 
+  b_23 {
+    %v_24 = load %out, 8: Ptr
+    %v_25 = add %v_24, %v_15: Ptr
+    %v_26 = add %v_5, %v_4: Ptr
+    %v_27 = sub %v_26, %v_5: Long
+    call_complex copyMemory, %v_25, %v_5, %v_27
+    %v_28 = cast %wanted: Int
+    %v_29 = and %v_28, 1073741823: Int
+    %v_30 = add %out, 12: Ptr
+    store %v_30, %v_29, 4
+    jmp b_31
   }
 
-  b_17 {
-    %v_26 = syscall 60, 134: Long
+  b_22 {
+    %v_32 = syscall 60, 134: Long
     unreachable 
   }
 
-  b_2 {
+  b_7 {
+    jmp b_31
+  }
+
+  b_31 {
+    %v_33 = add %rhs, 8: Ptr
+    %v_34 = load %v_33, 4: Long
+    %v_35 = shr %v_34, 30: Long
+    %v_36 = cast %v_35: Int
+    %v_37 = cmp_eq %v_36, 1: Int
+    je %v_37, b_38, b_39
+  }
+
+  b_39 {
+    jmp b_40
+  }
+
+  b_38 {
+    %v_41 = load %rhs, 8: Ptr
+    call_complex freeHeap, %v_41
+    jmp b_40
+  }
+
+  b_40 {
+    copy %v_0, %out, 16
     ret 
   }
 }
@@ -1014,31 +1044,7 @@ resize(String)<complex>(%self: Ptr, %wanted: Long): Int {
 
 joined<complex>(%v_0: Ptr, %a: Ptr, %b: Ptr) {
   b_1 {
-    %v_2 = add %a, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = sext %v_3: Long
-    %v_5 = add %b, 12: Ptr
-    %v_6 = load %v_5, 4: Int
-    %v_7 = sext %v_6: Long
-    %v_8 = add %v_4, %v_7: Long
-    %v_9 = call_complex allocateHeap, %v_8: Ptr
-    %v_10 = cast %v_8: Int
-    %v_11 = and %v_10, 1073741823: Int
-    %fresh = alloca 16, 8: Ptr
-    store %fresh, %v_9, 8
-    %v_12 = add %fresh, 8: Ptr
-    %v_13 = load %v_12, 4: Int
-    %v_14 = or %v_11, 1073741824: Int
-    store %v_12, %v_14, 4
-    %v_15 = add %fresh, 12: Ptr
-    store %v_15, 0, 4
-    %v_16 = load %a, 8: Ptr
-    call_complex String.appendUnits, %fresh, %v_16, %v_4
-    %v_17 = load %b, 8: Ptr
-    call_complex String.appendUnits, %fresh, %v_17, %v_7
-    call_complex Reclaim(String).reclaim, %a
-    call_complex Reclaim(String).reclaim, %b
-    copy %v_0, %fresh, 16
+    call_complex Append(String).++, %v_0, %a, %b
     ret 
   }
 }

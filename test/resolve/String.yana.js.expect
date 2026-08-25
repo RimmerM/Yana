@@ -1,8 +1,26 @@
 "use strict";
 // ResolveTest
+function comparedAsValue() {
+  var v29 = "abc" === "abc" ? 1 : 0;
+  var v30 = "abc" === "abd" ? 1 : 0;
+  if (v29 === 1 ^ 1) {
+    return 0;
+  } else {
+    if (v30 === 0 ^ 1) {
+      return 0;
+    } else {
+      if (v29 === v30) {
+        return 0;
+      } else {
+        return 9;
+      }
+    }
+  }
+}
+
 function main() {
   var start = "lit";
   start = start + "eral";
-  return start.length + 102 | 0;
+  return (start.length + 102 | 0) + comparedAsValue() | 0;
 }
 main();

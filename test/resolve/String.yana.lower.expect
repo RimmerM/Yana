@@ -8,6 +8,10 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$3 = [108, 105, 116]
 @ResolveTest.string$4 = [101, 114, 97, 108]
+@ResolveTest.string$5 = [97, 98, 99]
+@ResolveTest.string$6 = [97, 98, 99]
+@ResolveTest.string$7 = [97, 98, 99]
+@ResolveTest.string$8 = [97, 98, 100]
 
 String.unit<complex>(%self: Ptr, %index: Long): Int {
   b_0 {
@@ -80,6 +84,61 @@ Length(String).length<complex>(%self: Ptr): Long {
     %v_2 = load %v_1, 4: Int
     %v_3 = sext %v_2: Long
     ret %v_3
+  }
+}
+
+Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
+  b_0 {
+    %v_1 = add %self, 12: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = sext %v_2: Long
+    %v_4 = add %other, 12: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = sext %v_5: Long
+    %v_7 = cmp_neq %v_3, %v_6: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_8 {
+    ret 0
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = load %self, 8: Ptr
+    %v_12 = load %other, 8: Ptr
+    jmp b_13
+  }
+
+  b_13 {
+    %v_14 = phi [b_10, 0], [b_15, %v_16]: Long
+    %v_17 = cmp_ilt %v_14, %v_3: Int
+    je %v_17, b_18, b_19
+  }
+
+  b_19 {
+    ret 1
+  }
+
+  b_18 {
+    %v_20 = add %v_11, %v_14: Ptr
+    %v_21 = load %v_20, 1: Int
+    %v_22 = add %v_12, %v_14: Ptr
+    %v_23 = load %v_22, 1: Int
+    %v_24 = cmp_neq %v_21, %v_23: Int
+    je %v_24, b_8, b_25
+  }
+
+  b_25 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = add %v_14, 1: Long
+    jmp b_13
   }
 }
 
@@ -698,6 +757,51 @@ resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
   }
 }
 
+comparedAsValue<complex>(): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_1, @ResolveTest.string$5, 3
+    %v_2 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_2, @ResolveTest.string$6, 3
+    %same = call_complex Eq(String).==, %v_1, %v_2: Int
+    %v_3 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_3, @ResolveTest.string$7, 3
+    %v_4 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_4, @ResolveTest.string$8, 3
+    %differs = call_complex Eq(String).==, %v_3, %v_4: Int
+    je %same, b_5, b_6
+  }
+
+  b_6 {
+    ret 0
+  }
+
+  b_5 {
+    jmp b_7
+  }
+
+  b_7 {
+    je %differs, b_6, b_8
+  }
+
+  b_8 {
+    jmp b_9
+  }
+
+  b_9 {
+    %v_10 = cmp_eq %same, %differs: Int
+    je %v_10, b_6, b_11
+  }
+
+  b_11 {
+    jmp b_12
+  }
+
+  b_12 {
+    ret 9
+  }
+}
+
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
@@ -740,7 +844,9 @@ main<complex>(): Int {
 
   b_21 {
     %v_23 = add %v_10, %v_13: Int
-    ret %v_23
+    %v_24 = call_complex comparedAsValue: Int
+    %v_25 = add %v_23, %v_24: Int
+    ret %v_25
   }
 }
 

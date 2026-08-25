@@ -1,0 +1,98 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+// ResolveTest
+function direct(ps$items, ps$length, ps$offset) {
+  var sum = 0;
+  var i = 0;
+  var v30 = ps$length >>> 0;
+  L0: for (;;) {
+    if (i < ps$length) {
+      var v41 = ps$offset + i | 0;
+      checkCondition(i >>> 0 >= v30 ? 1 : 0);
+      sum = sum + ps$items[v41].y | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return sum;
+}
+
+function oneLift(ps$items, ps$length, ps$offset) {
+  var sum = 0;
+  var i = 0;
+  var v60 = ps$length >>> 0;
+  L0: for (;;) {
+    if (i < ps$length) {
+      var v71 = ps$offset + i | 0;
+      checkCondition(i >>> 0 >= v60 ? 1 : 0);
+      if (funvalue$positiveX(null, ps$items[v71])) {
+        sum = sum + ps$items[v71].y | 0;
+      }
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return sum;
+}
+
+function twoLifts(ps$items, ps$length, ps$offset) {
+  var sum = 0;
+  var i = 0;
+  var v90 = ps$length >>> 0;
+  L0: for (;;) {
+    if (i < ps$length) {
+      var v101 = ps$offset + i | 0;
+      checkCondition(i >>> 0 >= v90 ? 1 : 0);
+      var v105 = ps$items[v101];
+      if (funvalue$positiveX(null, v105)) {
+        sum = sum + funvalue$yOf(null, v105) | 0;
+      }
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return sum;
+}
+
+function scalar(ns$items, ns$length, ns$offset) {
+  var sum = 0;
+  var i = 0;
+  var v30 = ns$length >>> 0;
+  L0: for (;;) {
+    if (i < ns$length) {
+      var v41 = ns$offset + i | 0;
+      checkCondition(i >>> 0 >= v30 ? 1 : 0);
+      sum = sum + ns$items[v41] | 0;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return sum;
+}
+
+function main() {
+  var v13 = [{ x: 0, y: 0 }, { x: 1, y: 2 }, { x: 3, y: 5 }];
+  if (v13.length !== 3) {
+    v13.length = 3;
+  }
+  return ((direct(v13, 3, 0) + oneLift(v13, 3, 0) | 0) + twoLifts(v13, 3, 0) | 0) + scalar(new Int32Array([1, 2, 3, 4]), 4, 0) | 0;
+}
+
+function funvalue$positiveX(env, v) {
+  return v.x > 0 ? 1 : 0;
+}
+
+function funvalue$yOf(env, v) {
+  return v.y;
+}
+main();

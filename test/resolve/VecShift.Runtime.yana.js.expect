@@ -1,0 +1,20 @@
+"use strict";
+var counter = 0;
+
+// ResolveTest
+function opaque(n) {
+  var v2 = counter + n | 0;
+  counter = v2;
+  if (v2 > 1000) {
+    return 1;
+  } else {
+    return n;
+  }
+}
+
+function main() {
+  var n = opaque(2);
+  var m = BigInt.asIntN(64, BigInt(opaque(3)));
+  return (((5 << n) + (100 >>> n | 0) | 0) + (-32 >> n) | 0) + (Number(BigInt.asIntN(32, BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asUintN(64, BigInt.asIntN(64, 3n << m)) >> BigInt.asIntN(64, m - 1n)) + BigInt.asIntN(64, BigInt.asIntN(64, 0n - 3n) >> m)))) | 0) | 0;
+}
+main();

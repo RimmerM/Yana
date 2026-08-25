@@ -1,18 +1,24 @@
 "use strict";
 // ResolveTest
+function joined(a, b) {
+  return a + b;
+}
+
 function threeParts(a, b, c) {
-  return a + b + c;
+  return joined(joined(a, b), c);
 }
 
 function main() {
-  if ("abcd" === "abcd" ^ 1) {
+  if (joined("ab", "cd") === "abcd" ^ 1) {
     return -1;
   } else {
     var three = threeParts("a", "bc", "def");
     if (three === "abcdef" ^ 1) {
       return -2;
     } else {
-      var v24 = ["xy"];
+      var v24 = [];
+      var v33 = joined("x", "y");
+      v24[0] = v33;
       var v41 = threeParts("p", "q", "r");
       v24[1] = v41;
       if (v24.length !== 2) {

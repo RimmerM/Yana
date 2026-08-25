@@ -346,6 +346,26 @@ fn indexReset(&self: Map(k, v)) -> {}:
    allocation it already has. Only the control bytes and their clone are initialized: an entry number
    in a slot whose control byte says Empty is never read.
 -}
+{-
+   The entries of another map, duplicated into this one - `Map.yana`'s `copiedMap`, which builds the
+   index afterwards. One run here and two on JS, which is the split every accessor above has.
+
+   The subscript and not `keyAt`/`valueAt`, which is the one thing about this loop that is not
+   obvious: those hand back a `'k`, and `copy` applied to a reference *value* binds the class
+   variable to the reference rather than to what it refers to - so the copy that comes back is the
+   borrow again and every use of it is refused. A subscript is a place, and reading a place through
+   `copy`'s borrowed parameter is the ordinary thing. `copiedArray` in Array.yana is the same loop.
+-}
+fn (Copy(k), Copy(v)) copyEntriesFrom(&self: Map(k, v), from: Map(k, v)) -> {}:
+    let count = length(from.entries)
+    reserve(self.entries, count)
+
+    let &at = 0 :: Size
+    while at < count:
+        let ->entry = copy(from.entries[at])
+        push(self.entries, entry)
+        at = at + 1
+
 fn (Hash(k)) indexRebuild(&self: Map(k, v), slots: Size) -> {}:
     -- Held in a local rather than written inside the check, because an argument in `&` position is
     -- resolved as an ordinary expression when the call it is in is itself an argument - see the note

@@ -1,0 +1,188 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function remove_Int(self, index) {
+  var count = self.length;
+  if (index >>> 0 >= count) {
+    return null;
+  } else {
+    var v16 = self.items;
+    var v18 = v16[index];
+    v16.copyWithin(index, index + 1 | 0, count);
+    self.length = count - 1 & 1073741823;
+    return v18;
+  }
+}
+
+function growJsArray_Int(self, wanted) {
+  var v3 = self.items;
+  var room = v3.length;
+  var v5 = room + room | 0;
+  var wide = v5;
+  if (v5 < wanted) {
+    wide = wanted;
+  }
+  if (wide < 4) {
+    wide = 4;
+  }
+  var v25 = $grow(v3, wide);
+  self.items = v25;
+}
+
+// ResolveTest
+function main() {
+  var v5 = new Int32Array([1, 2, 3, 4]);
+  var v19 = { items: new Int32Array([0, 0, 0, 0]), length: 4 };
+  var v34 = remove_Int(v19, 0);
+  var v39 = remove_Int(v19, 0);
+  var v44 = remove_Int(v19, 0);
+  var v49 = remove_Int(v19, 0);
+  var i = 0;
+  L0: for (;;) {
+    if (i < 4) {
+      checkCondition(i >>> 0 >= 4 ? 1 : 0);
+      var v356 = funvalue$double(null, v5[i]);
+      var count = v19.length;
+      var v2162 = count + 1;
+      if (v2162 > v19.items.length) {
+        growJsArray_Int(v19, v2162);
+      }
+      v19.items[count] = v356;
+      v19.length = v2162 & 1073741823;
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var sum = 0;
+  var i$1 = 0;
+  L1: for (;;) {
+    if (i$1 < 4) {
+      checkCondition(i$1 >>> 0 >= 4 ? 1 : 0);
+      var v337 = v5[i$1];
+      if (funvalue$isBig(null, v337)) {
+        sum = sum + v337 | 0;
+      }
+      i$1 = i$1 + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  var big = 0;
+  var i$2 = 0;
+  L2: for (;;) {
+    if (i$2 < 4) {
+      checkCondition(i$2 >>> 0 >= 4 ? 1 : 0);
+      var v440 = v5[i$2];
+      if (funvalue$isBig(null, v440)) {
+        big = big + funvalue$double(null, v440) | 0;
+      }
+      i$2 = i$2 + 1 | 0;
+      continue L2;
+    }
+    break L2;
+  }
+  var v137 = v19.length;
+  checkCondition(0 >= v137 ? 1 : 0);
+  var v140 = v19.items;
+  var v142 = v140[0];
+  checkCondition(1 >= v137 ? 1 : 0);
+  var v155 = v142 + v140[1] | 0;
+  checkCondition(2 >= v137 ? 1 : 0);
+  var v168 = v155 + v140[2] | 0;
+  checkCondition(3 >= v137 ? 1 : 0);
+  var v185 = ((v168 + v140[3] | 0) + sum | 0) + big | 0;
+  var total = 0;
+  var v482 = new Int32Array([1, 2, 3, 4]);
+  var i$3 = 0;
+  L3: for (;;) {
+    if (i$3 < 4) {
+      checkCondition(i$3 >>> 0 >= 4 ? 1 : 0);
+      var v531 = v482[i$3];
+      var v647 = 0;
+      if (v531 > 3) {
+        v647 = 0;
+      } else {
+        total = total + v531 | 0;
+        v647 = 0;
+      }
+      if (v647 !== 1) {
+        i$3 = i$3 + 1 | 0;
+        continue L3;
+      }
+    }
+    break L3;
+  }
+  var v190 = v185 + total | 0;
+  var v589 = null;
+  var v613 = { $tag: 0, $p: null };
+  var i$4 = 0;
+  L4: for (;;) {
+    if (i$4 < 4) {
+      checkCondition(i$4 >>> 0 >= 4 ? 1 : 0);
+      var v633 = v5[i$4];
+      var v742 = { $tag: 0, $p: null };
+      var v747 = funvalue$double(null, v633);
+      var v1886 = null;
+      if (v747 > 4) {
+        v1886 = v747;
+      } else {
+        v1886 = null;
+      }
+      if (!(v1886 === null)) {
+        v742 = { $tag: 1, $p: v1886 };
+      } else {
+        v742 = { $tag: 0, $p: null };
+      }
+      if (v742.$tag === 1) {
+        v613 = v742;
+      } else {
+        i$4 = i$4 + 1 | 0;
+        continue L4;
+      }
+    } else {
+      v613 = { $tag: 0, $p: null };
+    }
+    break L4;
+  }
+  if (v613.$tag === 1) {
+    v589 = v613.$p;
+  } else {
+    v589 = null;
+  }
+  var v205 = v190 + (!(v589 === null) ? v589 : 0) | 0;
+  var total$1 = 0;
+  var v680 = new Int32Array([1, 2, 3]);
+  var i$5 = 0;
+  L5: for (;;) {
+    if (i$5 < 3) {
+      checkCondition(i$5 >>> 0 >= 3 ? 1 : 0);
+      total$1 = (total$1 + v680[i$5] | 0) + 1 | 0;
+      i$5 = i$5 + 1 | 0;
+      continue L5;
+    }
+    break L5;
+  }
+  return v205 + total$1 | 0;
+}
+
+function funvalue$double(env, v) {
+  return Math.imul(v, 2);
+}
+
+function funvalue$isBig(env, v) {
+  return v > 2 ? 1 : 0;
+}
+
+// a typed array's growth - see Implementation-Containers.md, section 14
+function $grow(a, n) {
+  const b = new a.constructor(n);
+  b.set(a);
+  return b;
+}
+main();

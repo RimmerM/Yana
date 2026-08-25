@@ -1,0 +1,197 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+// ResolveTest
+function sumWords(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v19 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v16 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v19 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v16]);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumNarrow(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v21 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v18 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v21 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v18]);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function dot(xs$items, xs$length, xs$offset, ys$items, ys$length, ys$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v20 = xs$length >>> 0;
+  var v32 = ys$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v17 = xs$offset + i | 0;
+      var v19 = i >>> 0;
+      checkCondition(v19 >= v20 ? 1 : 0);
+      var v25 = xs$items[v17];
+      var v29 = ys$offset + i | 0;
+      checkCondition(v19 >= v32 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + BigInt.asIntN(64, v25 * ys$items[v29]));
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumEven(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 0;
+  var v19 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v16 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v19 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v16]);
+      i = i + 2 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumTail(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = 1;
+  var v19 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i < xs$length) {
+      var v16 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v19 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v16]);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumDown(xs$items, xs$length, xs$offset) {
+  var acc = 0n;
+  var i = xs$length - 1 | 0;
+  var v23 = xs$length >>> 0;
+  L0: for (;;) {
+    if (i >= 0) {
+      var v20 = xs$offset + i | 0;
+      checkCondition(i >>> 0 >= v23 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v20]);
+      i = i - 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function sumStrided(xs$items, xs$length, xs$offset, n) {
+  var acc = 0n;
+  var i = 0;
+  var v23 = xs$length >>> 0;
+  L0: for (;;) {
+    if (BigInt.asIntN(64, BigInt(i)) < n) {
+      var v17 = Math.imul(i, 2);
+      var v20 = xs$offset + v17 | 0;
+      checkCondition(v17 >>> 0 >= v23 ? 1 : 0);
+      acc = BigInt.asIntN(64, acc + xs$items[v20]);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return acc;
+}
+
+function main() {
+  var v7 = [1n, 2n, 3n, 4n, 5n, 6n];
+  if (v7.length !== 6) {
+    v7.length = 6;
+  }
+  var v25 = [2n, 2n, 2n, 2n, 2n, 2n];
+  if (v25.length !== 6) {
+    v25.length = 6;
+  }
+  var v37 = [];
+  if (v37.length !== 0) {
+    v37.length = 0;
+  }
+  var total = 0;
+  if (sumWords(v7, 6, 0) === 21n) {
+    total = total + 1 | 0;
+  }
+  if (sumNarrow(v7, 6, 0) === 21n) {
+    total = total + 1 | 0;
+  }
+  if (dot(v7, 6, 0, v25, 6, 0) === 42n) {
+    total = total + 1 | 0;
+  }
+  if (sumEven(v7, 6, 0) === 9n) {
+    total = total + 1 | 0;
+  }
+  if (sumTail(v7, 6, 0) === 20n) {
+    total = total + 1 | 0;
+  }
+  if (sumDown(v7, 6, 0) === 21n) {
+    total = total + 1 | 0;
+  }
+  if (sumStrided(v7, 6, 0, 3n) === 9n) {
+    total = total + 1 | 0;
+  }
+  if (sumWords(v37, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (sumNarrow(v37, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (sumEven(v37, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (sumTail(v37, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (sumDown(v37, 0, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  if (sumStrided(v7, 6, 0, 0n) === 0n) {
+    total = total + 1 | 0;
+  }
+  var v344 = [9n];
+  if (v344.length !== 1) {
+    v344.length = 1;
+  }
+  if (sumTail(v344, 1, 0) === 0n) {
+    total = total + 1 | 0;
+  }
+  return total;
+}
+main();

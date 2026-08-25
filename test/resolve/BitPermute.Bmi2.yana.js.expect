@@ -1,0 +1,142 @@
+"use strict";
+// ResolveTest
+function opaqueU32(x) {
+  return x;
+}
+
+function opaqueI32(x) {
+  return x;
+}
+
+function opaqueU64(x) {
+  return x;
+}
+
+function ends() {
+  var v65;
+  B0: {
+    B1: {
+      var v1 = opaqueU32(3735928559);
+      var v31 = (opaqueU32(3735928559) === 3735928559 ? 16 : 0) + 8 + (opaqueU32(3735928559) === 3735928559 ? 32 : 0);
+      if (opaqueU32(3735928559) === 3735928559) {
+        if (opaqueU32(3735928559) === 3735928559) {
+          v65 = opaqueU32(3735928559) === 3735928559 ? 1 : 0;
+          break B0;
+        }
+      }
+    }
+    v65 = 0;
+  }
+  return v31 + (v65 ? 64 : 0);
+}
+
+function signed() {
+  var v62;
+  B0: {
+    B1: {
+      var byteMask = opaqueI32(-16777216);
+      if (($pext32(opaqueI32(305419896), byteMask) | 0) === 18) {
+        if (($pdep32(opaqueI32(18), byteMask) | 0) === 301989888) {
+          v62 = ($pext32(opaqueI32(-1), opaqueI32(-1)) | 0) === -1 ? 1 : 0;
+          break B0;
+        }
+      }
+    }
+    v62 = 0;
+  }
+  return v62 ? 8388608 : 0;
+}
+
+function main() {
+  var v222;
+  var v2 = ((opaqueU32(3735928559) & 65535) === 48879 ? 1 : 0) + ((opaqueU32(3735928559) & 15) === 15 ? 2 : 0) + ((opaqueU32(3735928559) & 1) === 1 ? 4 : 0) + ends() | 0;
+  var v69 = (BigInt.asUintN(64, opaqueU64(81985529216486895n) & 16777215n) === 11259375n ? 128 : 0) + (opaqueU64(81985529216486895n) === 81985529216486895n ? 256 : 0);
+  var v70 = opaqueU64(81985529216486895n);
+  var v8 = ((v2 + (v69 + (opaqueU64(81985529216486895n) === 81985529216486895n ? 512 : 0)) | 0) + (((opaqueU32(3735928559) >>> 16 & 255) === 173 ? 1024 : 0) + ((opaqueU32(3735928559) & 65535) === 48879 ? 2048 : 0) + (opaqueU32(3735928559) >>> 28 === 13 ? 4096 : 0)) | 0) + (($pext32(opaqueU32(305419896), opaqueU32(4278255360)) >>> 0 === 4694 ? 8192 : 0) + ($pdep32(opaqueU32(4694), opaqueU32(4278255360)) >>> 0 === 302011904 ? 16384 : 0) + ($pext32(opaqueU32(3735928559), opaqueU32(65535)) >>> 0 === 48879 ? 32768 : 0) + ($pdep32(opaqueU32(15), opaqueU32(252645135)) >>> 0 === 15 ? 65536 : 0)) | 0;
+  var value = opaqueU32(305419896);
+  var mask = opaqueU32(4278255360);
+  var wideValue = opaqueU64(81985529216486895n);
+  var wideMask = opaqueU64(71776123356119040n);
+  var v14 = ((v8 + (($pdep32($pext32(value, mask) >>> 0, mask) >>> 0 === (value & mask) >>> 0 ? 131072 : 0) + (BigInt.asUintN(64, $pdep64(BigInt.asUintN(64, $pext64(wideValue, wideMask)), wideMask)) === BigInt.asUintN(64, wideValue & wideMask) ? 262144 : 0)) | 0) + (($pext32(opaqueU32(3735928559), opaqueU32(0)) >>> 0 === 0 ? 524288 : 0) + ($pdep32(opaqueU32(3735928559), opaqueU32(0)) >>> 0 === 0 ? 1048576 : 0) + ($pext32(opaqueU32(3735928559), opaqueU32(4294967295)) >>> 0 === 3735928559 ? 2097152 : 0) + ($pdep32(opaqueU32(3735928559), opaqueU32(4294967295)) >>> 0 === 3735928559 ? 4194304 : 0)) | 0) + signed() | 0;
+  if (BigInt.asUintN(64, $pext64(opaqueU64(81985529216486895n), opaqueU64(71776123356119040n))) === 2329003n) {
+    v222 = BigInt.asUintN(64, $pdep64(opaqueU64(291n), opaqueU64(71776123356119040n))) === 19070976n ? 1 : 0;
+  } else {
+    v222 = 0;
+  }
+  return (((v14 + (v222 ? 16777216 : 0) | 0) + (($pdep32(opaqueU32(43981), 1431655765) | $pdep32(opaqueU32(4660), 2863311530)) >>> 0 === 1179474545 ? 33554432 : 0) | 0) + 201326592 | 0) + ((lowVia_U32(opaqueU32(3735928559), 16) === 48879 ? 268435456 : 0) + (gatherVia_U32(opaqueU32(305419896), opaqueU32(4278255360)) === 4694 ? 536870912 : 0)) | 0;
+}
+
+function lowVia_U32(value, count) {
+  return $bzhi32(value, count) >>> 0;
+}
+
+function gatherVia_U32(value, mask) {
+  return $pext32(value, mask) >>> 0;
+}
+
+function $bzhi32(v, n) {
+  return n >>> 0 < 32 ? v & (1 << n) - 1 : v;
+}
+
+function $pext32(v, m) {
+  var o = 0;
+  var b = 1;
+  $bp: for (;;) {
+    if (!m) {
+      break $bp;
+    }
+    var l = m & -m;
+    o = o | (v & l ? b : 0);
+    m = m ^ l;
+    b = b << 1;
+  }
+  return o;
+}
+
+function $pext64(v, m) {
+  var u = BigInt.asUintN(64, m);
+  var o = 0n;
+  var b = 1n;
+  $bp: for (;;) {
+    if (!u) {
+      break $bp;
+    }
+    var l = u & -u;
+    o = o | (v & l ? b : 0n);
+    u = u ^ l;
+    b = b << 1n;
+  }
+  return o;
+}
+
+function $pdep32(v, m) {
+  var o = 0;
+  var b = 1;
+  $bp: for (;;) {
+    if (!m) {
+      break $bp;
+    }
+    var l = m & -m;
+    o = o | (v & b ? l : 0);
+    m = m ^ l;
+    b = b << 1;
+  }
+  return o;
+}
+
+function $pdep64(v, m) {
+  var u = BigInt.asUintN(64, m);
+  var o = 0n;
+  var b = 1n;
+  $bp: for (;;) {
+    if (!u) {
+      break $bp;
+    }
+    var l = u & -u;
+    o = o | (v & b ? l : 0n);
+    u = u ^ l;
+    b = b << 1n;
+  }
+  return o;
+}
+main();

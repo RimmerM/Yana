@@ -229,20 +229,33 @@ Show(Int).show<complex>(%value: Int, %to: Ptr) {
 
 Append(String).++<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
-    %v_2 = add %lhs, 12: Ptr
+    %v_2 = add %rhs, 12: Ptr
     %v_3 = load %v_2, 4: Int
     %v_4 = sext %v_3: Long
-    %v_5 = add %rhs, 12: Ptr
-    %v_6 = load %v_5, 4: Int
-    %v_7 = sext %v_6: Long
-    %v_8 = add %v_4, %v_7: Long
-    %fresh = alloca 16, 8: Ptr
-    call_complex String.ofCapacity, %fresh, %v_8
-    %v_9 = load %lhs, 8: Ptr
-    call_complex String.appendUnits, %fresh, %v_9, %v_4
-    %v_10 = load %rhs, 8: Ptr
-    call_complex String.appendUnits, %fresh, %v_10, %v_7
-    copy %v_0, %fresh, 16
+    %out = alloca 16, 8: Ptr
+    copy %out, %lhs, 16
+    %v_5 = load %rhs, 8: Ptr
+    call_complex String.appendUnits, %out, %v_5, %v_4
+    %v_6 = add %rhs, 8: Ptr
+    %v_7 = load %v_6, 4: Long
+    %v_8 = shr %v_7, 30: Long
+    %v_9 = cast %v_8: Int
+    %v_10 = cmp_eq %v_9, 1: Int
+    je %v_10, b_11, b_12
+  }
+
+  b_12 {
+    jmp b_13
+  }
+
+  b_11 {
+    %v_14 = load %rhs, 8: Ptr
+    call_complex freeHeap, %v_14
+    jmp b_13
+  }
+
+  b_13 {
+    copy %v_0, %out, 16
     ret 
   }
 }

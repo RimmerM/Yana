@@ -198,6 +198,28 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
                 pending.push(place.pointer);
             }
+        } else if(produced.kind == Value::Cast || produced.kind == Value::Bitcast) {
+            /*
+             * A cast of a reference is the same address written differently, so it carries the same
+             * roots - which analyze_provenance says at its own `Cast` arm in the same words, and
+             * this walk did not.
+             *
+             * What it cost: `stringData(s)` is a `borrow` of the string and a `cast` of that borrow
+             * to `'StringData`, so a read through the result is a `LoadPlace` rooted in the *cast*.
+             * The walk pushed the cast, found no arm for it, and stopped - so a `->` parameter whose
+             * only mention was that borrow looked dead one instruction later, and the drop pass
+             * released its run between the cast and the load through it. `"a" ++ copy("b")` answered
+             * `"aa"`: the freed run was handed straight back to the accumulator's own growth, and
+             * the append read the bytes it had just written there.
+             *
+             * Asked of the *operand* rather than of the result, because both directions are real:
+             * `cast %borrow : 'StringData` narrows one reference to another, and
+             * `bitcast(run.items) :: %U8` reads a typed pointer as bytes for `copyMemory`. Anything
+             * else pushes a value with no roots to contribute and the walk ends there anyway, so the
+             * test is a filter on work rather than on correctness.
+             */
+            auto from = ((InstUnary&)produced).from;
+            if(from && refersToStorage(analysis, analysis.local[from]->type)) pending.push(from);
         } else if((produced.kind == Value::Add || produced.kind == Value::Sub) &&
                   isPointer(analysis.global, produced.type)) {
             /*

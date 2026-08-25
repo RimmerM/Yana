@@ -1,0 +1,107 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+// ResolveTest
+function strided(by) {
+  var v2 = [];
+  if (v2.length !== 0) {
+    v2.length = 0;
+  }
+  var n = 0;
+  var v97 = 0;
+  L0: for (;;) {
+    if (n < 6) {
+      var v16 = { a: n, b: 0, c: 0, d: 0, e: Math.imul(n, 10), f: 0 };
+      var v28 = { a: v16.a, b: v16.b, c: v16.c, d: v16.d, e: v16.e, f: v16.f };
+      var count = v97 | 0;
+      var v89 = count + 1 | 0;
+      v2[count] = v28;
+      var v95 = v89 & 1073741823;
+      if (v2.length !== v95) {
+        v2.length = v95;
+      }
+      n = n + 1 | 0;
+      v97 = v95;
+      continue L0;
+    }
+    break L0;
+  }
+  var i = 0;
+  var total = 0;
+  var v55 = v97 >>> 0;
+  L1: for (;;) {
+    if (i < 6) {
+      checkCondition(i >>> 0 >= v55 ? 1 : 0);
+      total = (total + v2[i].a | 0) + v2[i].e | 0;
+      i = i + by | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  return total;
+}
+
+function everyOther() {
+  var v1 = [];
+  if (v1.length !== 0) {
+    v1.length = 0;
+  }
+  var n = 0;
+  var v98 = 0;
+  L0: for (;;) {
+    if (n < 6) {
+      var v15 = { a: n, b: 0, c: 0, d: 0, e: Math.imul(n, 10), f: 0 };
+      var v27 = { a: v15.a, b: v15.b, c: v15.c, d: v15.d, e: v15.e, f: v15.f };
+      var count = v98 | 0;
+      var v90 = count + 1 | 0;
+      v1[count] = v27;
+      var v96 = v90 & 1073741823;
+      if (v1.length !== v96) {
+        v1.length = v96;
+      }
+      n = n + 1 | 0;
+      v98 = v96;
+      continue L0;
+    }
+    break L0;
+  }
+  var i = 0;
+  var total = 0;
+  var v54 = v98 >>> 0;
+  L1: for (;;) {
+    if (i < 6) {
+      checkCondition(i >>> 0 >= v54 ? 1 : 0);
+      total = (total + v1[i].a | 0) + v1[i].e | 0;
+      i = i + 2 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  return total;
+}
+
+function main() {
+  if (strided(2) !== 66) {
+    return -1;
+  } else {
+    if (everyOther() !== 66) {
+      return -2;
+    } else {
+      if (strided(1) !== 165) {
+        return -3;
+      } else {
+        if (strided(9) !== 0) {
+          return -4;
+        } else {
+          return strided(2) + strided(3) | 0;
+        }
+      }
+    }
+  }
+}
+main();

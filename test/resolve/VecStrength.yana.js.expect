@@ -1,0 +1,139 @@
+"use strict";
+// ResolveTest
+function divBy3(v) {
+  return [v[0] / 3 | 0, v[1] / 3 | 0, v[2] / 3 | 0, v[3] / 3 | 0];
+}
+
+function remBy3(v) {
+  return [$rem(v[0], 3) | 0, $rem(v[1], 3) | 0, $rem(v[2], 3) | 0, $rem(v[3], 3) | 0];
+}
+
+function divBy7(v) {
+  return [v[0] / 7 | 0, v[1] / 7 | 0, v[2] / 7 | 0, v[3] / 7 | 0];
+}
+
+function divByMinus3(v) {
+  return [v[0] / -3 | 0, v[1] / -3 | 0, v[2] / -3 | 0, v[3] / -3 | 0];
+}
+
+function divBy4(v) {
+  return [v[0] / 4 | 0, v[1] / 4 | 0, v[2] / 4 | 0, v[3] / 4 | 0];
+}
+
+function remBy4(v) {
+  return [$rem(v[0], 4) | 0, $rem(v[1], 4) | 0, $rem(v[2], 4) | 0, $rem(v[3], 4) | 0];
+}
+
+function divByMinus8(v) {
+  return [v[0] / -8 | 0, v[1] / -8 | 0, v[2] / -8 | 0, v[3] / -8 | 0];
+}
+
+function udivBy3(v) {
+  return [v[0] / 3 >>> 0, v[1] / 3 >>> 0, v[2] / 3 >>> 0, v[3] / 3 >>> 0];
+}
+
+function udivBy7(v) {
+  return [v[0] / 7 >>> 0, v[1] / 7 >>> 0, v[2] / 7 >>> 0, v[3] / 7 >>> 0];
+}
+
+function uremBy7(v) {
+  return [$rem(v[0], 7) >>> 0, $rem(v[1], 7) >>> 0, $rem(v[2], 7) >>> 0, $rem(v[3], 7) >>> 0];
+}
+
+function divQuadBy3(v) {
+  return [BigInt.asIntN(64, $div(v[0], 3n)), BigInt.asIntN(64, $div(v[1], 3n))];
+}
+
+function remQuadBy3(v) {
+  return [BigInt.asIntN(64, $rem(v[0], 3n)), BigInt.asIntN(64, $rem(v[1], 3n))];
+}
+
+function divQuadByMinus7(v) {
+  return [BigInt.asIntN(64, $div(v[0], -7n)), BigInt.asIntN(64, $div(v[1], -7n))];
+}
+
+function udivQuadBy7(v) {
+  return [BigInt.asUintN(64, $div(v[0], 7n)), BigInt.asUintN(64, $div(v[1], 7n))];
+}
+
+function uremQuadBy7(v) {
+  return [BigInt.asUintN(64, $rem(v[0], 7n)), BigInt.asUintN(64, $rem(v[1], 7n))];
+}
+
+function main() {
+  var v542 = 1 & true & true & true ? 1 : 0;
+  var v21 = divBy3([71, -271, 471, -671]);
+  var v35 = v542 + (v21[0] === 23 & v21[1] === -90 & v21[2] === 157 & v21[3] === -223 ? 1 : 0);
+  var v38 = remBy3([71, -271, 471, -671]);
+  var v52 = v35 + (v38[0] === 2 & v38[1] === -1 & v38[2] === 0 & v38[3] === -2 ? 1 : 0);
+  var v55 = divBy7([71, -271, 471, -671]);
+  var v69 = v52 + (v55[0] === 10 & v55[1] === -38 & v55[2] === 67 & v55[3] === -95 ? 1 : 0);
+  var v72 = divByMinus3([71, -271, 471, -671]);
+  var v86 = v69 + (v72[0] === -23 & v72[1] === 90 & v72[2] === -157 & v72[3] === 223 ? 1 : 0);
+  var v89 = divBy4([71, -271, 471, -671]);
+  var v103 = v86 + (v89[0] === 17 & v89[1] === -67 & v89[2] === 117 & v89[3] === -167 ? 1 : 0);
+  var v106 = remBy4([71, -271, 471, -671]);
+  var v120 = v103 + (v106[0] === 3 & v106[1] === -3 & v106[2] === 3 & v106[3] === -3 ? 1 : 0);
+  var v123 = divByMinus8([71, -271, 471, -671]);
+  var v137 = v120 + (v123[0] === -8 & v123[1] === 33 & v123[2] === -58 & v123[3] === 83 ? 1 : 0);
+  var q = udivBy3([71, 4294967025, 471, 4294966625]);
+  var r = udivBy7([71, 4294967025, 471, 4294966625]);
+  var v194 = v137 + ((q[0] | 0) === 23 ? 1 : 0) + ((q[1] | 0) === 1431655675 ? 1 : 0) + ((r[3] | 0) === 613566660 ? 1 : 0);
+  var v197 = divBy3([71, -271, 471, -671]);
+  var v201$0 = Math.imul(v197[0], 3);
+  var v201$1 = Math.imul(v197[1], 3);
+  var v201$2 = Math.imul(v197[2], 3);
+  var v201$3 = Math.imul(v197[3], 3);
+  var v202 = remBy3([71, -271, 471, -671]);
+  var v217 = v194 + (((v201$0 + v202[0] | 0) === 71 ? 1 : 0) + ((v201$1 + v202[1] | 0) === -271 ? 1 : 0) + (((v201$2 + v202[2] | 0) === 471 ? 1 : 0) + ((v201$3 + v202[3] | 0) === -671 ? 1 : 0)) === 4 ? 1 : 0);
+  var v220 = divBy4([71, -271, 471, -671]);
+  var v224$0 = Math.imul(v220[0], 4);
+  var v224$1 = Math.imul(v220[1], 4);
+  var v224$2 = Math.imul(v220[2], 4);
+  var v224$3 = Math.imul(v220[3], 4);
+  var v225 = remBy4([71, -271, 471, -671]);
+  var v240 = v217 + (((v224$0 + v225[0] | 0) === 71 ? 1 : 0) + ((v224$1 + v225[1] | 0) === -271 ? 1 : 0) + (((v224$2 + v225[2] | 0) === 471 ? 1 : 0) + ((v224$3 + v225[3] | 0) === -671 ? 1 : 0)) === 4 ? 1 : 0);
+  var v243 = udivBy7([71, 4294967025, 471, 4294966625]);
+  var v246$0 = Math.imul(v243[0], 7) >>> 0;
+  var v246$1 = Math.imul(v243[1], 7) >>> 0;
+  var v246$2 = Math.imul(v243[2], 7) >>> 0;
+  var v246$3 = Math.imul(v243[3], 7) >>> 0;
+  var v247 = uremBy7([71, 4294967025, 471, 4294966625]);
+  var v262 = v240 + ((v246$0 + v247[0] >>> 0 === 71 ? 1 : 0) + (v246$1 + v247[1] >>> 0 === 4294967025 ? 1 : 0) + ((v246$2 + v247[2] >>> 0 === 471 ? 1 : 0) + (v246$3 + v247[3] >>> 0 === 4294966625 ? 1 : 0)) === 4 ? 1 : 0);
+  var steps$0$1 = BigInt.asIntN(64, 0n * 1000000000007n);
+  var steps$1$1 = BigInt.asIntN(64, 1n * 1000000000007n);
+  var v471$0 = BigInt.asIntN(64, 0n & 1n);
+  var v471$1 = BigInt.asIntN(64, 1n & 1n);
+  var v474$0 = BigInt.asIntN(64, v471$0 * 2n);
+  var v474$1 = BigInt.asIntN(64, v471$1 * 2n);
+  var alternating$0$1 = BigInt.asIntN(64, 1n - v474$0);
+  var alternating$1$1 = BigInt.asIntN(64, 1n - v474$1);
+  var v478$0 = BigInt.asIntN(64, 123456789012345n + steps$0$1);
+  var v478$1 = BigInt.asIntN(64, 123456789012345n + steps$1$1);
+  var v479$0 = BigInt.asIntN(64, v478$0 * alternating$0$1);
+  var v479$1 = BigInt.asIntN(64, v478$1 * alternating$1$1);
+  var v349 = v262 + (v479$0 === 123456789012345n & v479$1 === -124456789012352n ? 1 : 0) + (divQuadBy3([v479$0, v479$1])[0] === 41152263004115n ? 1 : 0) + (divQuadBy3([v479$0, v479$1])[1] === -41485596337450n ? 1 : 0) + (divQuadByMinus7([v479$0, v479$1])[1] === 17779541287478n ? 1 : 0);
+  var uq$0 = BigInt.asUintN(64, v479$0);
+  var uq$1 = BigInt.asUintN(64, v479$1);
+  var v388 = v349 + (BigInt.asIntN(64, udivQuadBy7([uq$0, uq$1])[0]) === 17636684144620n ? 1 : 0) + (BigInt.asIntN(64, udivQuadBy7([uq$0, uq$1])[1]) === 2635231373845791323n ? 1 : 0);
+  var v391 = divQuadBy3([v479$0, v479$1]);
+  var v394$0 = BigInt.asIntN(64, v391[0] * 3n);
+  var v394$1 = BigInt.asIntN(64, v391[1] * 3n);
+  var v395 = remQuadBy3([v479$0, v479$1]);
+  var v410 = v388 + ((BigInt.asIntN(64, v394$0 + v395[0]) === v479$0 ? 1 : 0) + (BigInt.asIntN(64, v394$1 + v395[1]) === v479$1 ? 1 : 0) === (v479$0 === v479$0 ? 1 : 0) + (v479$1 === v479$1 ? 1 : 0) ? 1 : 0);
+  var v413 = udivQuadBy7([uq$0, uq$1]);
+  var v416$0 = BigInt.asUintN(64, v413[0] * 7n);
+  var v416$1 = BigInt.asUintN(64, v413[1] * 7n);
+  var v417 = uremQuadBy7([uq$0, uq$1]);
+  return v410 + ((BigInt.asUintN(64, v416$0 + v417[0]) === uq$0 ? 1 : 0) + (BigInt.asUintN(64, v416$1 + v417[1]) === uq$1 ? 1 : 0) === (uq$0 === uq$0 ? 1 : 0) + (uq$1 === uq$1 ? 1 : 0) ? 1 : 0);
+}
+
+// `x / 0` is 0 and `x % 0` is x - see doc/spec/types.md
+function $div(a, b) {
+  return b ? a / b : b;
+}
+
+function $rem(a, b) {
+  return b ? a % b : a;
+}
+main();

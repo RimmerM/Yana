@@ -234,3 +234,44 @@ instance Reclaim(Array(a)):
 -- The exchange, natively - two derefs of the window's base. `Array.yana` is where the reason is.
 pub fn swapElements(&self: Flat(a), left: Size, right: Size) -> {} =
     swap(*(self.items + left), *(self.items + right))
+
+{-
+   Joining two arrays, natively - `Core`'s `Append`. Array.yana is where the shape is argued.
+
+   The left operand's run becomes the result's, so the only allocation is the growth `reserve` does
+   and a chain of `++`s doubles rather than sizing a fresh array per step.
+
+   The tail is one `copyMemory` and not a loop of moves, which is what a relocation of `n` values
+   *is* for every type whose bytes are its whole story - and every type reaches this, because a move
+   is a move. A type with an authored `Sink` refers to its own address and would need the per-element
+   form; nothing in this tree has one, and `TrivialSink` is the fact that would have to be asked.
+
+   `copyMemory` rather than `moveMemory`: the two runs are different allocations, so the regions
+   cannot overlap - unlike `remove` above, which slides one run over itself.
+
+   Then the donor is emptied. Its elements are the result's now, and `Reclaim(Array(a))` walks the
+   live prefix, so leaving the length alone would tear down every element twice. The run itself is
+   still released with the donor, which is exactly right: it is the slots that are dead, not what was
+   in them.
+-}
+fn joinedArrays(->lhs: Array(a), ->rhs: Array(a)) -> Array(a):
+    let &out = lhs
+    let &donor = rhs
+
+    let rightLength = donor.length :: Size
+    if rightLength > 0:
+        let leftLength = out.length :: Size
+        reserve(out, leftLength + rightLength)
+        checkCondition(leftLength + rightLength > (out.run.capacity :: Size))
+
+        copyMemory(bitcast(out.run.items + leftLength) :: %U8,
+                   bitcast(donor.run.items) :: %U8,
+                   byteSpan(donor.run.items, rightLength))
+
+        out.length = truncate(leftLength + rightLength) :: Count
+
+    donor.length = 0
+    return out
+
+instance Append(Array(a)):
+    fn ++(->lhs: Array(a), ->rhs: Array(a)) -> Array(a) = joinedArrays(lhs, rhs)

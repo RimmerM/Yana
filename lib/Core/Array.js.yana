@@ -178,3 +178,32 @@ pub fn swapElements(&self: Flat(a), left: Size, right: Size) -> {}:
 
     hostWrite(self.items, self.offset + left, second)
     hostWrite(self.items, self.offset + right, first)
+
+{-
+   Joining two arrays on JS - `Core`'s `Append`. Array.yana is where the shape is argued.
+
+   A read and a write per element, because a host array's slots are not bytes and there is no bulk
+   move of them. `hostRead` under a `->` binding is a move out of the slot and `push` is the write
+   that hands it on, which is the pair `remove` and `swapElements` above already use.
+
+   The donor is emptied afterwards for the reason the native body gives: its elements are the
+   result's now, and `Reclaim(Array(a))` walks the live prefix.
+-}
+fn joinedArrays(->lhs: Array(a), ->rhs: Array(a)) -> Array(a):
+    let &out = lhs
+    let &donor = rhs
+
+    let rightLength = donor.length :: Size
+    reserve(out, (out.length :: Size) + rightLength)
+
+    let &i = 0 :: Size
+    while i < rightLength:
+        let ->item = hostRead(donor.items, i)
+        push(out, item)
+        i = i + 1
+
+    donor.length = 0
+    return out
+
+instance Append(Array(a)):
+    fn ++(->lhs: Array(a), ->rhs: Array(a)) -> Array(a) = joinedArrays(lhs, rhs)
