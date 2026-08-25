@@ -37,8 +37,10 @@ fn partialMove() -> I64:
     let pair = Pair {left: Buffer {bytes: null()}, right: Buffer {bytes: null()}}
     return take(pair.left)
 
--- Taking ownership of borrowed storage. A `&` binding never owns what it refers to, so there is
--- nothing there to hand away.
+-- Taking ownership out of borrowed storage and putting nothing back. The move itself is allowed
+-- through a `&` - see test/lib/BorrowUpdate.yana - because an exclusive borrow means nothing else
+-- can look into the window it opens, and nothing unwinds through it. What it cannot do is end that
+-- way: the caller still owns this storage and would release a value that has already left.
 fn moveFromBorrow(&held: Buffer) -> I64 = take(held)
 
 -- A move update is a move, so it is the same three rules again rather than three of its own: the
@@ -53,20 +55,68 @@ fn updateThenUse(->pair: Pair) -> Pair:
     return pair
 
 {-
-   The same rule with no local behind it.
+   The same rule with no local behind it, and the one borrow the reinitialization rule cannot help.
 
    `moveFromBorrow` above is a `&` parameter, which has a slot in this frame to be found not to own
    its contents. A `let &` binding of a *returned* borrow has none - the storage belongs to whatever
    `pick` was handed - so the check that catches the parameter had nothing to look at and this was
    accepted in silence.
 
-   It is worth its own case because DropAssignBorrow.yana depends on it. A write through a borrow
-   releases what was there without consulting any state, on the grounds that a borrow always refers
-   to an initialized value; a move out of one is the only thing in the language that could have made
-   that false.
+   What it still has none of is an *identity*. `chosen` is a call's result rather than a load of an
+   access path, so a write back through it could not be shown to reach the same storage this move
+   emptied - and without that, allowing the move would be allowing the hole. internBorrowSlot lists
+   the four shapes it declines and this is one of them, so the message here stays the blunt one.
+
+   It is worth its own case because DropAssignBorrow.yana depends on what follows from it. A write
+   through a borrow releases what was there, on the grounds that a borrow refers to an initialized
+   value; a move out of one is the only thing in the language that could have made that false, and
+   the second ownership lattice is what now tells the two apart.
 -}
 fn pick(return &a: Buffer, return &b: Buffer, first: Bool) -> &Buffer = if first then a else b
 
 fn moveFromBorrowBinding(&x: Buffer, &y: Buffer) -> I64:
     let &chosen = pick(x, y, True)
     return take(chosen)
+
+{-
+   Emptied on the way to an exit that puts nothing back.
+
+   The move itself is allowed - `refill` below writes into the same storage two lines later, and
+   that is the whole rule - so what is left to be wrong is the shape of the control flow. `Maybe` is
+   where these land in the lattice: owned on one path out and moved on the other.
+
+   It is refused rather than resolved with a drop flag, which is what an owned local in the same
+   shape gets. A flag answers "does this still hold something" at run time, and it lives in the
+   frame that owns the storage; here that frame is the caller's, and this one has nowhere to write
+   a bit the caller would have to read before its own teardown.
+-}
+fn refill(&held: Buffer) -> {}:
+    let ->old = held
+    held = old
+
+fn emptyOnOnePath(&held: Buffer, keep: Bool) -> {}:
+    let ->old = held
+    if keep:
+        held = old
+
+-- Twice with nothing in between, which is the same rule stated at the second move rather than at
+-- the exit: there is nothing left in the storage for it to take.
+fn twiceWithNoRefill(&held: Buffer) -> I64:
+    let ->first = held
+    let ->second = held
+    held = first
+    return take(second)
+
+{-
+   Reading the storage in the window between the move and the write back.
+
+   The window is unobservable to everyone *else* - a `&` is exclusive, so no second reader exists -
+   and that says nothing about this body, which is holding the only reference there is. So this is
+   the ordinary use after move, reported against borrowed storage because there is now a state to
+   report it against.
+-}
+fn readsTheWindow(&held: Buffer) -> I64:
+    let ->old = held
+    let n = take(held)
+    held = old
+    return n

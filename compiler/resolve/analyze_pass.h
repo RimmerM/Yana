@@ -235,6 +235,60 @@ struct PendingFlag {
 
 using FlagList = ArrayList<PendingFlag, 4>;
 
+/*
+ * One piece of storage this frame borrows, named by the path the borrow was loaded out of.
+ *
+ * The ownership lattice is keyed by local index, and a place rooted in a borrow has no local to be
+ * keyed by - `rootLocal` answers nothing for one, so every ownership effect stated over a borrow
+ * root fell out of every list. That is why taking ownership out of borrowed storage was refused
+ * outright rather than checked: there was no state to check it against.
+ *
+ * These are that state. Two loads of the same path are the same storage, so `%v2` and `%v3` in
+ *
+ *     %v2 = load [%env].acc : &String
+ *     %v3 = load [%env].acc : &String
+ *
+ * intern to one slot - which is the whole point, because a move through one of them and the write
+ * back through the other are a statement about the same bytes.
+ *
+ * A *second* lattice rather than extra rows on the first, and that is a deliberate trade. Widening
+ * the first would have meant widening liveness, provenance, demand and the range builder with it,
+ * since every one of those sizes itself from `localCount` - and each would then be carrying rows
+ * for storage this frame does not own, cannot drop and never allocates. The duplicated walk is
+ * forty lines; the alternative touches six passes to say nothing new in any of them.
+ */
+struct BorrowSlot {
+    // The local the access path is rooted in, and the Field/Downcast steps from it, as a range
+    // within AnalysisScratch::borrowPath. Flattened rather than a list per slot for the reason
+    // every other list here is: one array per function instead of one per slot.
+    U32 root = 0;
+    U32 pathStart = 0;
+    U32 pathCount = 0;
+
+    /*
+     * Whether `root` is a local's index or a pointer value's id.
+     *
+     * The environment of a lifted continuation arrives as a raw pointer - `%env: %{acc: &String}` -
+     * so the path a captured `&` is loaded out of is rooted in one, and that is the case this whole
+     * mechanism exists for. Reading a pointer root as an identity is a much smaller claim than
+     * reasoning about one: nothing here says what is on the other side of the address, only that
+     * the same SSA value plus the same field path is the same address, which is true of any pointer
+     * whatever it points at. Two *different* values holding one address intern as two slots, and
+     * that errs the safe way - a move through one and a write through the other leave the first
+     * slot emptied at the return, which is refused.
+     */
+    bool viaPointer = false;
+
+    // What the borrow refers to. Only droppable storage is tracked at all - moving out of a slot
+    // nobody has to release and never writing back is a copy, and has always been one.
+    TypePtr type = nullptr;
+
+    // Where ownership left, for the diagnostic. The first move rather than the last: it is the one
+    // whose obligation the later ones inherit, and it is the line the reader has to change.
+    LocationId movedAt {};
+    bool moved = false;
+};
+
 struct AnalysisScratch {
     ~AnalysisScratch() {
         for(auto set: borrowed) delete set;
@@ -258,6 +312,11 @@ struct AnalysisScratch {
     IndexSet occupied;
     IndexSet positions;
 
+    // Which slots checkMoves has already reported a use after move for, so that one value that is
+    // gone reads as one mistake. Over locals rather than over instruction indices, which is why it
+    // is not one of the three above.
+    IndexSet reportedUse;
+
     LocalSet outlives;
     LocalSet escaped;
     LocalSet transferred;
@@ -271,6 +330,14 @@ struct AnalysisScratch {
     ArrayList<OwnState> stateBefore;
     ArrayList<OwnState> blockEntry;
     Array<OwnState> walkState;
+
+    // The same three tables again for borrowed storage - see BorrowSlot - plus the slots themselves
+    // and the flattened access paths they are interned by.
+    ArrayList<OwnState> borrowStateBefore;
+    ArrayList<OwnState> borrowEntry;
+    Array<OwnState> borrowWalk;
+    Array<BorrowSlot> borrowSlots;
+    Array<U32> borrowPath;
 
     /*
      * The numbering and what it is indexed by, which every pass above reads.
@@ -365,6 +432,11 @@ struct Analysis {
 
     // Ownership state before each instruction, one row per instruction index.
     ArrayList<OwnState>& stateBefore;
+
+    // And the same for borrowed storage, whose rows are one per interned slot rather than one per
+    // local. Empty for every function that never moves out of a borrow, which is almost all of them.
+    ArrayList<OwnState>& borrowStateBefore;
+    Array<BorrowSlot>& borrowSlots;
 
     /*
      * The flow facts, all keyed the same way: values by their id, roots by their local index.
@@ -490,6 +562,20 @@ void applyBackward(Analysis& analysis, Size first, Size end, LocalSet& live);
  */
 
 void computeOwnership(Analysis& analysis);
+
+/*
+ * The same lattice again, for storage this frame borrows rather than owns - see BorrowSlot.
+ *
+ * Interns a slot per access path any move names, and runs the identical forward walk over them.
+ * Does nothing at all when no move in the body is rooted in a borrow, which is the common case:
+ * the interning pass is what discovers whether there is any work, and it is one scan of the
+ * instruction list.
+ */
+void computeBorrowOwnership(Analysis& analysis);
+
+// The slot a place rooted in a borrow was interned as, or maxLimit<U32> for a place this pass
+// cannot name - see borrowSlotOf's own comment for which those are and why each one is left out.
+U32 borrowSlotOf(Analysis& analysis, const Place& place);
 
 /*
  * Provenance and containment (analyze_provenance.cpp).

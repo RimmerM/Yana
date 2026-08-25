@@ -626,11 +626,93 @@ static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId
 }
 
 /*
+ * Whether a local names storage this frame may empty and fill again.
+ *
+ * `&` and nothing else. A plain borrowed parameter is shared - any number of readers may be looking
+ * at the same storage at the same time, and one of them emptying it is visible to the rest however
+ * quickly it writes back. Exclusivity is precisely the capability that makes the window between the
+ * move and the write unobservable, which is what the whole rule rests on.
+ *
+ * A closure's environment slot is not owned either and is not a `&` binding, so it falls out here
+ * without a case of its own.
+ */
+static bool exclusiveBinding(Analysis& analysis, U32 local) {
+    if(local >= analysis.function.localCount()) return false;
+
+    auto slot = analysis.function.localAt(analysis.local, local);
+    return slot.borrowed && slot.convention == ast::BindType::Ref;
+}
+
+/*
+ * Every place one instruction reads, for the use-after-move check over borrowed storage.
+ *
+ * The first ownership lattice needs nothing like this: `computeEffects` already records a use of
+ * the *local* a place is rooted in, and reading a local that was moved out of is exactly what the
+ * loop over `effects.uses` reports. A borrow-rooted place has no such local - what its read
+ * records is the local the access path starts in, and that local is as initialized as it ever was,
+ * so a read of storage this body has emptied looked like a read of a perfectly good environment
+ * pointer. This is what asks the second lattice the same question the first one is asked.
+ *
+ * An unprojected `Init` or `Assign` is left out because it is the *fill*, and filling a slot that
+ * was moved out of is the point. A projected one is a read: it writes one field and leaves the
+ * rest, so the rest had better still be there.
+ */
+template<class F>
+static void eachReadPlace(Inst& instruction, F&& visit) {
+    switch(instruction.kind) {
+        case Value::LoadPlace: visit(((InstLoadPlace&)instruction).place); break;
+        case Value::Aggregate: visit(((InstAggregate&)instruction).place); break;
+        case Value::Borrow:    visit(((InstBorrow&)instruction).place); break;
+        case Value::Move:      visit(((InstMove&)instruction).place); break;
+        case Value::Exchange:  visit(((InstExchange&)instruction).place); break;
+        case Value::Copy:      visit(((InstCopy&)instruction).place); break;
+        case Value::Drop:      visit(((InstDrop&)instruction).place); break;
+        case Value::Address:   visit(((InstAddress&)instruction).place); break;
+
+        case Value::Swap:
+            visit(((InstSwap&)instruction).a);
+            visit(((InstSwap&)instruction).b);
+            break;
+
+        case Value::Init:
+        case Value::Assign: {
+            auto& write = (InstInit&)instruction;
+            auto projections = write.place.projections;
+            if(projections.isNotEmpty()) visit(write.place);
+            break;
+        }
+
+        default: break;
+    }
+}
+
+/*
  * Use after move, and the moves that cannot be represented at all.
  */
 void checkMoves(Analysis& analysis) {
     auto transfer = [&](ModulePtr<Value> value, LocationId source) {
         checkTransfer(analysis, value, source);
+    };
+
+    /*
+     * Which borrowed slots this body took ownership out of, and where.
+     *
+     * Two lists rather than one of pairs, because the second is only ever read through an index
+     * found in the first. Both stay empty for every body that does not do this, which is all but a
+     * handful - see the release-point loop at the end, which is skipped entirely when they are.
+     */
+    SmallArray<U32, 2> emptiedLocals;
+    SmallArray<LocationId, 2> emptiedAt;
+
+    // Which slots have already had a use-after-move reported - see the loop below.
+    auto& reportedUse = analysis.scratch.reportedUse;
+    reportedUse.reset(analysis.localCount);
+
+    auto recordEmptied = [&](U32 local, LocationId source) {
+        for(auto seen: emptiedLocals) if(seen == local) return;
+
+        emptiedLocals.push(local);
+        emptiedAt.push(source);
     };
 
     for(Size i = 0; i < analysis.instructionCount; i++) {
@@ -695,8 +777,55 @@ void checkMoves(Analysis& analysis) {
                             (root != maxLimit<U32> && !analysis.tracked[root].owned);
 
             if(borrowed) {
-                report(analysis, "cannot take ownership of borrowed storage - a `&` binding never owns what it refers to"_v,
-                       instruction.source);
+                auto slot = borrowSlotOf(analysis, moved.place);
+                auto exclusive = moved.place.root == PlaceRoot::Borrow
+                    ? slot != maxLimit<U32>
+                    : exclusiveBinding(analysis, root);
+
+                if(!exclusive) {
+                    report(analysis, "cannot take ownership of borrowed storage - a `&` binding never owns what it refers to"_v,
+                           instruction.source);
+                    continue;
+                }
+
+                // Allowed here and settled below, where the state at each release point says
+                // whether anything was put back. Recorded rather than reported, because the line
+                // worth pointing at is this one and the fact that decides it is somewhere else.
+                if(slot != maxLimit<U32>) {
+                    auto& borrowedSlot = analysis.borrowSlots[slot];
+
+                    if(!borrowedSlot.moved) {
+                        borrowedSlot.moved = true;
+                        borrowedSlot.movedAt = instruction.source;
+                    }
+                } else {
+                    recordEmptied(root, instruction.source);
+                }
+
+                /*
+                 * A second move with nothing put back between them, which the loop below cannot
+                 * see for a borrow root: what a move through one *uses* is the local the access
+                 * path starts in, and that local is as initialized as it ever was. The state that
+                 * knows better is this pass's own.
+                 *
+                 * The local tier needs nothing here - the slot behind a `&` parameter is a row in
+                 * the first lattice, a move marks it, and the loop below reads exactly that.
+                 */
+                if(slot != maxLimit<U32> && analysis.borrowStateBefore[i][slot] != OwnState::Owned) {
+                    report(analysis, "this storage has already been moved out of and nothing has been written back to it"_v,
+                           instruction.source);
+                }
+
+                /*
+                 * The loop below is skipped for this instruction, and only for this one.
+                 *
+                 * What a move through a borrow *uses* is the storage it is taking out, and the load
+                 * that produced the value already said so one instruction earlier - at the token
+                 * the reader wrote, where this instruction's source is the binding it goes into. So
+                 * letting both speak reports one mistake twice, in the wrong order, and the second
+                 * of the two points at the name receiving the value rather than the one that has
+                 * nothing left to give.
+                 */
                 continue;
             }
 
@@ -707,8 +836,41 @@ void checkMoves(Analysis& analysis) {
             }
         }
 
+        // The same question the loop below asks of a local, asked of borrowed storage - see
+        // eachReadPlace. Skipped outright for the bodies that have no slots, which is nearly all.
+        if(analysis.borrowSlots.isNotEmpty()) {
+            eachReadPlace(instruction, [&](const Place& place) {
+                auto slot = borrowSlotOf(analysis, place);
+                if(slot == maxLimit<U32>) return;
+                if(analysis.borrowStateBefore[i][slot] == OwnState::Owned) return;
+
+                report(analysis,
+                       analysis.borrowStateBefore[i][slot] == OwnState::Moved
+                           ? "this storage has been moved out of and nothing has been written back to it"_v
+                           : "this storage may have been moved out of on some paths reaching here"_v,
+                       instruction.source);
+            });
+        }
+
         for(auto use: effects.uses) {
             if(states[use] == OwnState::Owned || states[use] == OwnState::Uninitialized) continue;
+
+            /*
+             * Once per slot, however many uses reach it.
+             *
+             * `uses` is not a list of places the reader wrote - it is what `useValue` walked to,
+             * which climbs from a call's argument back through the load that produced it to the
+             * slot the load named. For an owned local the two coincide and always did. For one
+             * behind a `&` they do not: reading through a borrow is a load and then a use of what
+             * it loaded, so `length(acc)` named `acc` three times and reported it three times, at
+             * two columns of the same line.
+             *
+             * The first is the one to keep. A value that is gone is gone, and every later mention
+             * of it is the same mistake with a different column - what the reader has to change is
+             * where it left.
+             */
+            if(reportedUse[use]) continue;
+            reportedUse.set(use, true);
 
             auto name = analysis.tracked[use].name;
             auto moved = states[use] == OwnState::Moved;
@@ -724,6 +886,79 @@ void checkMoves(Analysis& analysis) {
                              : "this value may have been moved out of on some paths reaching here"_v,
                        instruction.source);
             }
+        }
+    }
+
+    /*
+     * The other half of the rule: what was taken out has to be back before the borrow is.
+     *
+     * `acc = acc ++ part` through a `&` is safe for a reason the compiler can state rather than
+     * guess at - the storage is emptied, a value is written back, and only then does the frame let
+     * go of the reference. So this is not a relaxation of the ownership model but the model asked
+     * one program point later. What made the blanket refusal look necessary was that the point had
+     * no state to be asked at: a borrow root has no row in the first lattice, which is what
+     * computeBorrowOwnership exists to give it.
+     *
+     * Every `ret` is a release point and nothing else is. There is no unwinding in this language -
+     * a failed check aborts the process rather than running teardowns on the way out - so the
+     * window between the move and the write cannot be observed by anything but this body, and this
+     * body reading through it is the use-after-move above. A call taking the same borrow is that
+     * same use.
+     *
+     * `Maybe` is refused rather than flagged. A local resolves one with a drop flag, because the
+     * flag lives in the frame that owns the storage; here that frame is the caller's, and this one
+     * has nowhere to write a bit the caller would have to read. So a body that fills the slot on
+     * one path and returns without filling it on another is a body that has to say which.
+     */
+    if(emptiedLocals.isEmpty() && analysis.borrowSlots.isEmpty()) return;
+
+    // One diagnostic per slot however many returns fail to fill it, since they are all the same
+    // mistake stated at the same line.
+    SmallArray<bool, 2> reportedLocal;
+    SmallArray<bool, 2> reportedSlot;
+    for(Size i = 0; i < emptiedLocals.size(); i++) reportedLocal.push(false);
+    for(Size i = 0; i < analysis.borrowSlots.size(); i++) reportedSlot.push(false);
+
+    auto complain = [&](LocationId source, StringId name) {
+        /*
+         * Worded for the reader rather than for the pass. The release point this was proved at is a
+         * `ret`, but the body in front of the reader may be a `for` whose lines were lifted into a
+         * continuation without their saying so - so naming the return would send them looking at
+         * the wrong brace. What is true in both shapes is that some path leaves here without
+         * putting anything back.
+         */
+        if(name) {
+            report(analysis, "%@ is moved out of here and not written back on every path out - the storage belongs to somebody else, who would release a value that has already left"_v,
+                   source, analysis.context.findName(name));
+        } else {
+            report(analysis, "this takes ownership out of borrowed storage and does not write a value back on every path out - the storage belongs to somebody else, who would release what has already left"_v,
+                   source);
+        }
+    };
+
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        if(analysis.local[analysis.order[i]]->kind != Value::Ret) continue;
+
+        for(Size e = 0; e < emptiedLocals.size(); e++) {
+            auto local = emptiedLocals[e];
+            if(reportedLocal[e] || analysis.stateBefore[i][local] == OwnState::Owned) continue;
+
+            reportedLocal[e] = true;
+            complain(emptiedAt[e], analysis.tracked[local].name);
+        }
+
+        for(Size sl = 0; sl < analysis.borrowSlots.size(); sl++) {
+            auto& slot = analysis.borrowSlots[sl];
+            if(!slot.moved || reportedSlot[sl]) continue;
+            if(analysis.borrowStateBefore[i][sl] == OwnState::Owned) continue;
+
+            reportedSlot[sl] = true;
+
+            // Unnamed deliberately. The local a borrow slot's path is rooted in is the environment
+            // a lifted continuation was handed, and "env" names nothing the reader wrote - the
+            // name that would help is the field's, which is a step along the path rather than the
+            // root it starts at.
+            complain(slot.movedAt, StringId {});
         }
     }
 }

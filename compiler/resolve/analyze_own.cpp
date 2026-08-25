@@ -140,3 +140,235 @@ void computeOwnership(Analysis& analysis) {
         }
     }
 }
+
+/*
+ * Borrowed storage, as a lattice of its own.
+ *
+ * The forward walk below is the one above with a different index. What is not the same is where the
+ * rows come from: a local has a slot because the frame has one, and a borrow root has one only if
+ * this pass can prove that two mentions of it are the same storage. Interning is that proof, and
+ * everything it declines to intern stays refused exactly as it was.
+ */
+
+// The steps a path may take and still name storage inside the root it started in. The same line
+// placeOverwriteDrops draws, and for the same reason: an Index or a Deref leaves the root behind,
+// so what is on the other side is not something this frame's slot speaks for.
+static bool pathStep(const Projection& projection, U32& step) {
+    if(projection.kind == ProjectionKind::Field || projection.kind == ProjectionKind::Downcast) {
+        step = projection.index;
+        return true;
+    }
+
+    return false;
+}
+
+/*
+ * The slot a borrow-rooted place names, interning one if this is the first mention of it.
+ *
+ * Four things are declined, and each of them is a case where a later mention could be different
+ * storage from this one:
+ *
+ *  - a projected place, because a move out of part of a value is refused anyway (`wholeMove`);
+ *  - a shared borrow, because it is not exclusive, so something else may be looking at the storage
+ *    while this frame has emptied it - `&` is the capability that makes the window unobservable;
+ *  - a borrow that is anything but a load of an access path: a call result, a phi, a select. Two
+ *    of those in one body may or may not be the same storage and nothing here can say which;
+ *  - a path stepping through an Index or a Deref, per pathStep.
+ *
+ * `find` is a linear scan. The array it scans is empty for every function that never moves out of a
+ * borrow and one entry long for very nearly all of the rest - a body with two of these in it is a
+ * fold over two accumulators - so an index on it would be a hash table to hold one element.
+ */
+static U32 internBorrowSlot(Analysis& analysis, const Place& place, bool create) {
+    if(place.root != PlaceRoot::Borrow) return maxLimit<U32>;
+
+    auto projections = place.projections;
+    if(projections.isNotEmpty()) return maxLimit<U32>;
+
+    auto borrow = place.pointer;
+    if(!borrow) return maxLimit<U32>;
+
+    auto borrowType = analysis.local[borrow]->type;
+    if(!borrowType || !isBorrow(analysis.global, borrowType)) return maxLimit<U32>;
+
+    auto& reference = *(BorrowType*)analysis.global[borrowType];
+    if(!reference.mut || !reference.to) return maxLimit<U32>;
+
+    auto& source = *analysis.local[borrow];
+    if(source.kind != Value::LoadPlace) return maxLimit<U32>;
+
+    /*
+     * The path's own root, which is a local for a `&` binding this frame has a slot for and a
+     * pointer for a captured one - see BorrowSlot::viaPointer. A global root is left out: nothing
+     * can move out of one in the first place, so a slot for it would never be emptied.
+     */
+    auto& path = ((InstLoadPlace&)source).place;
+    U32 root = maxLimit<U32>;
+    auto viaPointer = path.root == PlaceRoot::Pointer;
+
+    if(viaPointer) {
+        if(!path.pointer) return maxLimit<U32>;
+        root = analysis.local[path.pointer]->id;
+    } else {
+        root = rootLocal(analysis, path);
+    }
+
+    if(root == maxLimit<U32>) return maxLimit<U32>;
+
+    // Built before the scan because the comparison is against it, and discarded by rewinding the
+    // shared array when the slot turns out to already exist.
+    auto& steps = analysis.scratch.borrowPath;
+    auto start = U32(steps.size());
+
+    for(auto projection: path.projections.contents(analysis.local)) {
+        U32 step = 0;
+        if(!pathStep(projection, step)) { steps.resize(start); return maxLimit<U32>; }
+        steps.push(step);
+    }
+
+    auto count = U32(steps.size()) - start;
+
+    for(Size i = 0; i < analysis.borrowSlots.size(); i++) {
+        auto& candidate = analysis.borrowSlots[i];
+        if(candidate.root != root || candidate.viaPointer != viaPointer) continue;
+        if(candidate.pathCount != count) continue;
+
+        auto same = true;
+        for(U32 s = 0; s < count && same; s++) {
+            same = steps[candidate.pathStart + s] == steps[start + s];
+        }
+
+        if(!same) continue;
+
+        steps.resize(start);
+        return U32(i);
+    }
+
+    if(!create) { steps.resize(start); return maxLimit<U32>; }
+
+    analysis.borrowSlots.push(BorrowSlot {
+        .root = root,
+        .pathStart = start,
+        .pathCount = count,
+        .viaPointer = viaPointer,
+        .type = reference.to,
+    });
+
+    return U32(analysis.borrowSlots.size() - 1);
+}
+
+U32 borrowSlotOf(Analysis& analysis, const Place& place) {
+    return internBorrowSlot(analysis, place, false);
+}
+
+// The write that fills borrowed storage again. An Init or a whole-slot Assign through the same
+// borrow, which is what `acc = acc ++ part` lowers its second half to.
+static U32 filledSlot(Analysis& analysis, Inst& instruction) {
+    if(instruction.kind != Value::Assign && instruction.kind != Value::Init) return maxLimit<U32>;
+    return borrowSlotOf(analysis, ((InstInit&)instruction).place);
+}
+
+void computeBorrowOwnership(Analysis& analysis) {
+    // Emptied by the constructor, with the rest - see Analysis::Analysis. What is reset here is only
+    // the table, because a body with no slots must leave no rows behind for the next one either.
+    auto& slots = analysis.borrowSlots;
+    analysis.borrowStateBefore.reset(0);
+
+    /*
+     * The interning scan, which is also the test for whether there is anything to do.
+     *
+     * Only a move creates a slot. A write through a borrow is what *fills* one, and a body full of
+     * those with no move among them has nothing to prove - which is every function in the library
+     * that assigns through a `&` parameter, and the reason this pass costs them one scan and no
+     * rows at all.
+     *
+     * Droppable only. Storage nobody has to release cannot be double-freed by a hole, so a move out
+     * of it and no write back is a read, and reads of borrowed storage are what borrowing is for.
+     */
+    for(Size i = 0; i < analysis.instructionCount; i++) {
+        auto& instruction = *analysis.local[analysis.order[i]];
+        if(instruction.kind != Value::Move) continue;
+
+        auto& moved = (InstMove&)instruction;
+        if(!needsTeardown(analysis.module, placeType(analysis.module, analysis.function, moved.place))) {
+            continue;
+        }
+
+        internBorrowSlot(analysis, moved.place, true);
+    }
+
+    if(slots.isEmpty()) return;
+
+    auto count = slots.size();
+    auto blocks = analysis.blockCount();
+
+    auto& entry = analysis.scratch.borrowEntry;
+    auto& states = analysis.scratch.borrowWalk;
+    auto& reached = analysis.scratch.work;
+
+    analysis.borrowStateBefore.reset(analysis.instructionCount, count, OwnState::Owned);
+    entry.reset(blocks, count, OwnState::Owned);
+    reached.reset(blocks);
+
+    /*
+     * Borrowed storage arrives holding something, on every path, always.
+     *
+     * That is the difference from the lattice above, whose bottom is Uninitialized because a local's
+     * storage genuinely holds nothing until something puts a value in it. A borrow is a reference to
+     * a value that already exists - there is no program point at which one refers to a hole, because
+     * the frame that lent it could not have lent it otherwise. So the walk starts at Owned and the
+     * only thing that can empty a slot is this body's own move.
+     */
+    reached.set(0, true);
+    SmallArray<Size, 32> worklist;
+    worklist.push(0);
+
+    while(worklist.size()) {
+        auto index = worklist.pop().unwrap();
+        auto block = analysis.blockAt(index);
+        auto range = analysis.blockRanges[index];
+
+        states.clear();
+        for(auto state: entry[index]) states.push(state);
+
+        for(Size i = range.first; i < range.end; i++) {
+            analysis.borrowStateBefore.copyInto(i, states);
+
+            auto& instruction = *analysis.local[analysis.order[i]];
+
+            // Moves before fills, on the same reading as the lattice above: `acc = acc ++ part`
+            // empties the slot and then puts a value back, and the second of the two is what the
+            // instruction after it sees.
+            if(instruction.kind == Value::Move) {
+                auto slot = borrowSlotOf(analysis, ((InstMove&)instruction).place);
+                if(slot != maxLimit<U32>) states[slot] = OwnState::Moved;
+            }
+
+            auto filled = filledSlot(analysis, instruction);
+            if(filled != maxLimit<U32>) states[filled] = OwnState::Owned;
+        }
+
+        for(auto successor: block->successors()) {
+            if(!successor) continue;
+
+            auto successorIndex = analysis.local[successor]->index;
+            auto updated = false;
+
+            if(!reached[successorIndex]) {
+                entry.copyInto(successorIndex, states);
+                reached.set(successorIndex, true);
+                updated = true;
+            } else {
+                for(Size l = 0; l < count; l++) {
+                    auto joined = joinState(entry[successorIndex][l], states[l]);
+                    if(joined == entry[successorIndex][l]) continue;
+
+                    entry[successorIndex][l] = joined;
+                    updated = true;
+                }
+            }
+
+            if(updated) worklist.push(successorIndex);
+        }
+    }
+}

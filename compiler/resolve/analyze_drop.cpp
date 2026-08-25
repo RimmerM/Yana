@@ -257,9 +257,34 @@ static void placeOverwriteDrops(Analysis& analysis, DropList& blockDrops) {
             auto type = placeType(analysis.module, analysis.function, write.place);
             if(!needsTeardown(analysis.module, type)) continue;
 
-            // The two roots that are initialized by the time anything can name them. Neither has a
-            // row in the state table, and neither needs one - see above.
-            if(write.place.root == PlaceRoot::Borrow || write.place.root == PlaceRoot::Global) {
+            /*
+             * The two roots that are initialized by the time anything can name them, so a write
+             * through either replaces something and owes it a release.
+             *
+             * A borrow is only *usually* initialized. This frame may have emptied it and be filling
+             * it again, which is the whole of Design-Test.md's `acc = acc ++ part`, and releasing
+             * what a move already handed to `++` is a double free. The second lattice is what says
+             * which of the two this write is; a body that never moves out of a borrow has no slots
+             * in it, borrowSlotOf answers nothing, and the answer is the unconditional one it has
+             * always been.
+             *
+             * A global cannot be emptied at all - checkMoves refuses the move outright - so it
+             * keeps the unconditional reading with no state to consult.
+             */
+            if(write.place.root == PlaceRoot::Borrow) {
+                // Asked only where there is something to ask. A write through a borrow is ordinary
+                // and a move out of one is not, so the table is empty for all but a handful of
+                // functions and this is the whole of what those cost the rest.
+                auto slot = analysis.borrowSlots.isEmpty()
+                    ? maxLimit<U32> : borrowSlotOf(analysis, write.place);
+                auto emptied = slot != maxLimit<U32> &&
+                               analysis.borrowStateBefore[i][slot] != OwnState::Owned;
+
+                if(!emptied) blockDrops[b].push(PendingDrop { maxLimit<U32>, U32(i), pointer });
+                continue;
+            }
+
+            if(write.place.root == PlaceRoot::Global) {
                 blockDrops[b].push(PendingDrop { maxLimit<U32>, U32(i), pointer });
                 continue;
             }

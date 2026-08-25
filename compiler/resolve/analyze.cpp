@@ -31,7 +31,8 @@ Analysis::Analysis(Module& module, Function& function):
     liveIn(scratch.liveIn), liveOut(scratch.liveOut), values(scratch.values),
     contents(scratch.contents), outlives(scratch.outlives), escaped(scratch.escaped),
     transferred(scratch.transferred), releasesStorage(scratch.releasesStorage),
-    stateBefore(scratch.stateBefore), order(scratch.order), blockRanges(scratch.blockRanges),
+    stateBefore(scratch.stateBefore), borrowStateBefore(scratch.borrowStateBefore),
+    borrowSlots(scratch.borrowSlots), order(scratch.order), blockRanges(scratch.blockRanges),
     effects(scratch.effects), tracked(scratch.tracked), demand(scratch.demand),
     indexOf(scratch.indexOf) {
 
@@ -42,6 +43,8 @@ Analysis::Analysis(Module& module, Function& function):
     tracked.clear();
     demand.clear();
     indexOf.reset();
+    borrowSlots.clear();
+    scratch.borrowPath.clear();
 }
 
 /*
@@ -153,6 +156,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
 
     computeLiveness(analysis);
     computeOwnership(analysis);
+    computeBorrowOwnership(analysis);
 
     // The interprocedural half, in the order each part needs the one before it: which storage every
     // value refers to, what has to outlive the frame, what each root's representation must do, and
