@@ -944,32 +944,29 @@ main<complex>(): Int {
     store %v_35, 9, 4
     %v_36 = add %v_30, 12: Ptr
     store %v_36, 3, 4
-    %v_37 = loads %v_31, 4: Int
-    %v_38 = loads %v_34, 4: Int
-    %v_39 = loads %v_35, 4: Int
     call_complex Reclaim(Array(a)).reclaim(Int), %v_30
-    %v_40 = add %v_29, 24: Long
-    %v_41 = cast %v_40: Int
-    ret %v_41
+    %v_37 = add %v_29, 24: Long
+    %v_38 = cast %v_37: Int
+    ret %v_38
   }
 
   b_25 {
-    %v_42 = sext %v_21: Long
-    %v_43 = cmp_ge %v_42, %v_16: Int
-    je %v_43, b_44, b_19
+    %v_39 = sext %v_21: Long
+    %v_40 = cmp_ge %v_39, %v_16: Int
+    je %v_40, b_41, b_19
   }
 
   b_19 {
-    %v_45 = shl %v_42, 2: Long
-    %v_46 = add %v_12, %v_45: Ptr
-    %v_47 = loads %v_46, 4: Int
-    %v_20 = add %v_18, %v_47: Int
+    %v_42 = shl %v_39, 2: Long
+    %v_43 = add %v_12, %v_42: Ptr
+    %v_44 = loads %v_43, 4: Int
+    %v_20 = add %v_18, %v_44: Int
     %v_22 = add %v_21, 1: Int
     jmp b_17
   }
 
-  b_44 {
-    %v_48 = syscall 60, 134: Long
+  b_41 {
+    %v_45 = syscall 60, 134: Long
     unreachable 
   }
 }

@@ -117,6 +117,40 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
             ? (slot.convention == ast::BindType::Sink && !disposer)
             : !slot.borrowed;
 
+        /*
+         * A value *loaded* out of a raw pointer is not this frame's to release.
+         *
+         * `transferFrom` already says so from the other side: a handover whose source is a load out
+         * of a pointer place is `outsideModel`, so nothing marks the memory moved and the pointer
+         * keeps whatever it held. The destination has to agree, and it did not - the temporary the
+         * load went into was an ordinary owned local, so the drop placer released it at its last
+         * use while the memory it came out of still held the same value.
+         *
+         * `swapElements(xs, i, j)` is where that reached the library. `swap(*(p + i), *(p + j))`
+         * resolves each argument as an expression before borrowArgument takes the place out of it,
+         * so each element was loaded into a temporary, that temporary was dropped, and the swap then
+         * exchanged two released buffers. It is invisible for every element type whose teardown is
+         * nothing, which is why `sort` looked correct for as long as it was only ever run on one.
+         *
+         * Taking ownership out of a pointer is still spelled, and still allowed: `let ->x = *p` in
+         * `Reclaim(Array(a))` moves the temporary on into a binding that *is* droppable, and the
+         * teardown it owes runs there. So this is `droppable` and not `owned` - the two bits are
+         * separate for exactly this, one saying whether the end of the local's life runs anything
+         * and the other whether ownership may leave it. Writing `owned = false` here instead makes
+         * that line "cannot take ownership of borrowed storage", which is a sentence about a rule
+         * this is not.
+         */
+        auto droppable = ownership.needsTeardown();
+
+        if(droppable && slot.value) {
+            auto& definition = *analysis.local[slot.value];
+
+            if(definition.kind == Value::LoadPlace &&
+               ((InstLoadPlace&)definition).place.root == PlaceRoot::Pointer) {
+                droppable = false;
+            }
+        }
+
         // A closure's environment is allocated here and owned by the function value built out of
         // it, so this frame neither drops it nor hands its storage back on its own account - the
         // value's teardown does both. It may still be *reached* by name where that teardown turns
@@ -131,7 +165,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
             .type = slot.type,
             .name = slot.name,
             .owned = owned,
-            .droppable = ownership.needsTeardown(),
+            .droppable = droppable,
         });
     }
 

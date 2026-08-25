@@ -27,26 +27,5 @@ fn immutableExchange() -> I64:
     let old = exchange(slot, Handle {value: 2})
     return old.value
 
-{-
-   A subscript in `&` position, which does not work and is not about swap.
-
-   `xs[0] = v` routes through `getMut` because resolvePlace has a case for a subscript; an argument
-   is resolved as an ordinary expression first and reaches `get`, whose result is an immutable
-   borrow. So what arrives at the `&` parameter is a place that may not be written, and the
-   diagnostic is the one any immutable argument gets.
-
-   The ordering is what makes this more than an oversight: which accessor a subscript wants is
-   decided by the parameter's convention, and the convention is not known until overload resolution
-   has picked a callee, which needs the argument types. Every `&` parameter has this - it is not
-   reached by swap, only shown by it - and a collection that wants an exchange of its own element
-   offers an operation rather than leaving callers to write this.
--}
-fn element() -> I64:
-    let &xs = [1, 2, 3]
-    let old = exchange(xs[0], 9)
-    return old
-
-fn twoElements() -> I64:
-    let &xs = [1, 2, 3]
-    swap(xs[0], xs[2])
-    return xs[0]
+-- A subscript in `&` position used to be here, and is not a rejection any more: `swap(xs[i], xs[j])`
+-- and `exchange(xs[i], v)` both compile. See test/lib/Exchange.yana, which runs them.

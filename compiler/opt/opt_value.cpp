@@ -786,8 +786,23 @@ static bool isDeadRead(OptContext& opt, Value& instruction) {
 
     if(instruction.kind != Value::LoadPlace) return false;
 
+    /*
+     * Every root, and the two that were missing are the ones a loop body reads through.
+     *
+     * A read performs nothing. What the two roots above have that these do not is a *writer this
+     * pass can see*, and that is the question for forwarding a read rather than for removing one:
+     * nothing observes what a dead load produced, so what it read and who else writes there cannot
+     * matter. A borrow names storage that exists by construction, so removing one cannot even
+     * remove a fault; a raw pointer can fault, and a load nothing reads is not a program asking it
+     * to - Native's unsafety is what the address means, not a promise to dereference it.
+     *
+     * `for v in items(xs)` is what found this - see Container.yana, where the protocol's cost is
+     * argued. The element is loaded once for the continuation's parameter and once for the use, the
+     * two are the same pointer-rooted place, and the first was left behind: one dead load per
+     * iteration, in exactly the loops an iteration protocol exists to make free.
+     */
     auto& place = ((InstLoadPlace&)instruction).place;
-    return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
+    return true;
 }
 
 /*

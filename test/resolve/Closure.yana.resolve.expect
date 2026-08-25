@@ -8,22 +8,22 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.lambda$15 before ResolveTest.lambda$15 {
+table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
   .0 teardown$none
   .1 closureRelease${amount: Int}
 }
 
-table closure$ResolveTest.lambda$16 before ResolveTest.lambda$16 {
+table closure$ResolveTest.lambda$19 before ResolveTest.lambda$19 {
   .0 teardown$none
   .1 closureRelease${scale: Int, offset: Int}
 }
 
-table closure$ResolveTest.lambda$17 before ResolveTest.lambda$17 {
+table closure$ResolveTest.lambda$20 before ResolveTest.lambda$20 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
+table closure$ResolveTest.lambda$21 before ResolveTest.lambda$21 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -367,7 +367,7 @@ fn makeAdder(%amount: Int) -> (Int) -> Int {
     init %local0.amount, %amount
     %v3 = addressof %local0 : %()
     %v4 = alloc : (Int) -> Int
-    %v5 = symbol ResolveTest.lambda$15 : %()
+    %v5 = symbol ResolveTest.lambda$18 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     ret %v4
@@ -380,7 +380,7 @@ fn makeScaler(%scale: Int, %offset: Int) -> (Int) -> Int {
     init %local0.offset, %offset
     %v5 = addressof %local0 : %()
     %v6 = alloc : (Int) -> Int
-    %v7 = symbol ResolveTest.lambda$16 : %()
+    %v7 = symbol ResolveTest.lambda$19 : %()
     init %local1.code, %v7
     init %local1.env, %v5
     ret %v6
@@ -392,7 +392,7 @@ fn main() -> Int {
     init %local0.base, %base
     %v4 = addressof %local0 : %()
     %v5 = alloc : (Int) -> Int
-    %v6 = symbol ResolveTest.lambda$17 : %()
+    %v6 = symbol ResolveTest.lambda$20 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %a = call apply, %v5, 1 : Int
@@ -403,7 +403,7 @@ fn main() -> Int {
     init %local3.total, %v15
     %v17 = addressof %local3 : %()
     %v18 = alloc : () -> ()
-    %v19 = symbol ResolveTest.lambda$18 : %()
+    %v19 = symbol ResolveTest.lambda$21 : %()
     init %local4.code, %v19
     init %local4.env, %v17
     call applyUnit, %v18
@@ -420,14 +420,14 @@ fn main() -> Int {
     ret %v35
 }
 
-fn ResolveTest.lambda$15(%env: %{amount: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$18(%env: %{amount: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].amount : Int
     %v3 = add %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$16(%env: %{scale: Int, offset: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$19(%env: %{scale: Int, offset: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].scale : Int
     %v3 = mul %x, %v2 : Int
@@ -436,14 +436,14 @@ fn ResolveTest.lambda$16(%env: %{scale: Int, offset: Int}, %x: Int) -> Int {
     ret %v5
 }
 
-fn ResolveTest.lambda$17(%env: %{base: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$20(%env: %{base: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].base : Int
     %v3 = add %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$18(%env: %{total: &Int}) -> () {
+fn ResolveTest.lambda$21(%env: %{total: &Int}) -> () {
   b0:
     %v1 = load [%env].total : &Int
     %v2 = load [%env].total : &Int

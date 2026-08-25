@@ -14,7 +14,7 @@ sometimesLeaves<complex>(%x: Int): Int {
     %v_2 = loads @log, 4: Int
     %v_3 = add %v_2, 1: Int
     store @log, %v_3, 4
-    %v_4 = call_complex ResolveTest.continuation$16, %v_1: Int
+    %v_4 = call_complex ResolveTest.continuation$19, %v_1: Int
     %v_5 = loads @log, 4: Int
     %v_6 = add %v_5, 100: Int
     store @log, %v_6, 4
@@ -79,7 +79,7 @@ leavesWithValue<complex>(%x: Int): Int {
     %v_3 = add %v_2, 1: Int
     store @log, %v_3, 4
     %v_4 = shl %x, 1: Int
-    %v_5 = call_complex ResolveTest.continuation$18, %v_1, %v_4: Int
+    %v_5 = call_complex ResolveTest.continuation$21, %v_1, %v_4: Int
     %v_6 = loads @log, 4: Int
     %v_7 = add %v_6, 100: Int
     store @log, %v_7, 4
@@ -111,8 +111,8 @@ main<complex>(): Int {
   }
 }
 
-@closure$ResolveTest.continuation$16 = [0, 0, 0, 0, 0, 0, 0, 0]
-ResolveTest.continuation$16<complex>(%env: Ptr): Int {
+@closure$ResolveTest.continuation$19 = [0, 0, 0, 0, 0, 0, 0, 0]
+ResolveTest.continuation$19<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
     %v_2 = cmp_igt %v_1, 100: Int
@@ -133,7 +133,7 @@ ResolveTest.continuation$16<complex>(%env: Ptr): Int {
   }
 }
 
-ResolveTest.continuation$18<complex>(%env: Ptr, %value$: Int): Int {
+ResolveTest.continuation$21<complex>(%env: Ptr, %value$: Int): Int {
   b_0 {
     %v_1 = cmp_igt %value$, 10: Int
     je %v_1, b_2, b_3

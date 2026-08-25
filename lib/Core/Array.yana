@@ -127,22 +127,15 @@ pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
     return out
 
 {-
-   Exchanging two elements of a window, as an operation the container offers.
+   Exchanging two elements of a window, which is `swap(xs[i], xs[j])` and needs nothing from here.
 
-   `swap(xs[i], xs[j])` is what a caller would write and it does not compile - test/resolve/
-   Reject.Exchange.yana is where that is recorded, and the reason is an ordering rather than an
-   omission: which accessor a subscript wants is decided by the parameter's convention, and the
-   convention is not known until overload resolution has picked a callee, which needs the argument
-   types. So an argument is resolved as an ordinary expression, reaches `get`, and arrives at the
-   `&` parameter as a borrow that may not be written. That fixture's own comment names the way out -
-   "a collection that wants an exchange of its own element offers an operation rather than leaving
-   callers to write this" - and this is that operation.
-
-   **Two derefs of the window's own base, rather than two calls to `getMut`.** The class route is
-   not merely blocked at the subscript: `swap(getMut(xs, i), getMut(xs, j))` is two mutable borrows
-   of one container alive at once, which is the case Reject.Ownership.yana exists for. The base is
-   what neither of those can be taken of - a raw address is outside the ownership model by
-   construction - so the exchange is written where the addresses are and nowhere above them.
+   There was a `swapElements` in both platform files, and it existed because that line did not
+   compile. The reason was an ordering: which accessor a subscript wants is decided by the
+   parameter's convention, and the convention was not consulted, so an argument was resolved as an
+   ordinary expression, reached `get`, and arrived at the `&` parameter as a borrow that may not be
+   written. It is consulted now - `pushdown` already knew the parameter several lines before the
+   argument was resolved - so a subscript in a `&` position routes through `getMut` like the
+   assignment target it resembles, and both platforms use the one operation.
 
    A swap and not a three-line rotate through a temporary, for the reason `swap` itself is a
    declaration rather than a body: `let temp = xs[i]` duplicates the element, which every element
@@ -151,8 +144,7 @@ pub fn newArray(count: Size, item: (Size) -> a) -> Array(a):
    what `swap` promises and what makes this usable for a `String` and not only for an `Int`.
 
    Unchecked, on the same tier as `get`: both indices name live elements or the caller has already
-   read past the end. `Sort.yana` is the one caller today and derives every index it passes from
-   the window's own length.
+   read past the end.
 -}
 
 {-

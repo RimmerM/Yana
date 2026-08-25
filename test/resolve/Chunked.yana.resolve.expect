@@ -8,12 +8,7 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
+table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -23,22 +18,12 @@ table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
   .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -53,12 +38,27 @@ table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .1 teardown$none
 }
 
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
 table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
+table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -609,7 +609,7 @@ fn sumChunked(%xs: Chunks) -> Int {
     init %local2.total, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Flat(Int)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$15 : %()
+    %v9 = symbol ResolveTest.continuation$18 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call Chunked(Chunks, Int).chunks(()), %xs, %v8 : Outcome((), ())
@@ -626,7 +626,7 @@ fn sumContiguous(%xs: Ring) -> Int {
     init %local2.total, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Flat(Int)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$17 : %()
+    %v9 = symbol ResolveTest.continuation$20 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call Chunked(Ring, Int).chunks(()), %xs, %v8 : Outcome((), ())
@@ -643,7 +643,7 @@ fn sumArray(%xs: Array(Int)) -> Int {
     init %local2.total, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Flat(Int)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$19 : %()
+    %v9 = symbol ResolveTest.continuation$22 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call Chunked(Array(a), a).chunks(Int, ()), %xs, %v8 : Outcome((), ())
@@ -660,7 +660,7 @@ fn total(%xs: Flat(Int)) -> Int {
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$21 : %()
+    %v9 = symbol ResolveTest.continuation$24 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call each(Int, ()), %xs, %v8 : Outcome((), ())
@@ -686,7 +686,7 @@ fn firstOver(%xs: Chunks, %bound: Int) -> Int {
     init %local1.bound, %bound
     %v4 = addressof %local1 : %()
     %v5 = alloc : (value$: Flat(Int)) -> Outcome((), Int)
-    %v6 = symbol ResolveTest.continuation$22 : %()
+    %v6 = symbol ResolveTest.continuation$25 : %()
     init %local2.code, %v6
     init %local2.env, %v4
     %v9 = call Chunked(Chunks, Int).chunks(Int), %xs, %v5 : Outcome((), Int)
@@ -712,7 +712,7 @@ fn firstOfEachChunk(%xs: Chunks) -> Int {
     init %local2.total, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Flat(Int)) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$24 : %()
+    %v9 = symbol ResolveTest.continuation$27 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call Chunked(Chunks, Int).chunks(()), %xs, %v8 : Outcome((), ())
@@ -880,7 +880,7 @@ fn Chunked(Ring, Int).chunks(%self: Ring, %body: (value$: Flat(Int)) -> Outcome(
     ret %v10
 }
 
-fn ResolveTest.continuation$15(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {total: &Int}
     %v3 = load [%env].total : &Int
@@ -888,7 +888,7 @@ fn ResolveTest.continuation$15(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     init %local1.total, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: Int) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$16 : %()
+    %v8 = symbol ResolveTest.continuation$19 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = call each(Int, ()), %value$, %v7 : Outcome((), ())
@@ -897,7 +897,7 @@ fn ResolveTest.continuation$15(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     ret %v12
 }
 
-fn ResolveTest.continuation$16(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$19(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int
@@ -1037,7 +1037,7 @@ fn Chunked(Chunks, Int).chunks(())(%self: Chunks, %body: (value$: Flat(Int)) -> 
     ret %v56
 }
 
-fn ResolveTest.continuation$17(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$20(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {total: &Int}
     %v3 = load [%env].total : &Int
@@ -1045,7 +1045,7 @@ fn ResolveTest.continuation$17(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     init %local1.total, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: Int) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$18 : %()
+    %v8 = symbol ResolveTest.continuation$21 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = call each(Int, ()), %value$, %v7 : Outcome((), ())
@@ -1054,7 +1054,7 @@ fn ResolveTest.continuation$17(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     ret %v12
 }
 
-fn ResolveTest.continuation$18(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int
@@ -1086,7 +1086,7 @@ fn Chunked(Ring, Int).chunks(())(%self: Ring, %body: (value$: Flat(Int)) -> Outc
     ret %v12
 }
 
-fn ResolveTest.continuation$19(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {total: &Int}
     %v3 = load [%env].total : &Int
@@ -1094,7 +1094,7 @@ fn ResolveTest.continuation$19(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     init %local1.total, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: Int) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$20 : %()
+    %v8 = symbol ResolveTest.continuation$23 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = call each(Int, ()), %value$, %v7 : Outcome((), ())
@@ -1103,7 +1103,7 @@ fn ResolveTest.continuation$19(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     ret %v12
 }
 
-fn ResolveTest.continuation$20(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int
@@ -1115,7 +1115,7 @@ fn ResolveTest.continuation$20(%env: %{total: &Int}, %value$: Int) -> Outcome(()
     ret %v7
 }
 
-fn ResolveTest.continuation$21(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &Int
     %v3 = load [%env].sum : &Int
@@ -1127,14 +1127,14 @@ fn ResolveTest.continuation$21(%env: %{sum: &Int}, %value$: Int) -> Outcome((), 
     ret %v7
 }
 
-fn ResolveTest.continuation$22(%env: %{bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
+fn ResolveTest.continuation$25(%env: %{bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
   b0:
     %v2 = alloc : {bound: Int}
     %v3 = load [%env].bound : Int
     init %local1.bound, %v3
     %v5 = addressof %local1 : %()
     %v6 = alloc : (value$: Int) -> Outcome((), Int)
-    %v7 = symbol ResolveTest.continuation$23 : %()
+    %v7 = symbol ResolveTest.continuation$26 : %()
     init %local2.code, %v7
     init %local2.env, %v5
     %v10 = call each(Int, Int), %value$, %v6 : Outcome((), Int)
@@ -1154,7 +1154,7 @@ fn ResolveTest.continuation$22(%env: %{bound: Int}, %value$: Flat(Int)) -> Outco
     ret %v16
 }
 
-fn ResolveTest.continuation$23(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$26(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
   b0:
     %v2 = load [%env].bound : Int
     %v3 = cmp_gt %value$, %v2 : Bool
@@ -1302,7 +1302,7 @@ fn Chunked(Chunks, Int).chunks(Int)(%self: Chunks, %body: (value$: Flat(Int)) ->
     ret %v56
 }
 
-fn ResolveTest.continuation$24(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$27(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
     %v2 = alloc : {total: &Int}
     %v3 = load [%env].total : &Int
@@ -1310,7 +1310,7 @@ fn ResolveTest.continuation$24(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     init %local1.total, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: Int) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$25 : %()
+    %v8 = symbol ResolveTest.continuation$28 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = call each(Int, ()), %value$, %v7 : Outcome((), ())
@@ -1319,7 +1319,7 @@ fn ResolveTest.continuation$24(%env: %{total: &Int}, %value$: Flat(Int)) -> Outc
     ret %v12
 }
 
-fn ResolveTest.continuation$25(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$28(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int

@@ -81,6 +81,29 @@ fn throughAVariable() -> {}:
 
     assert(length(c) == 5)
 
+-- And the same parameter given a *value*, which is the rule read in the other direction: a `'a`
+-- position takes a reference to what it is handed, exactly as a written `'String` position does.
+--
+-- It did not, and the asymmetry was the same one this file is about. The concrete branch of the
+-- solve reaches `convertibleType`, which knows how to borrow a value into a reference parameter;
+-- a pattern with a variable in it skips that branch, so the two types were walked structurally, a
+-- Borrow met a String, and `duplicated(text)` was "argument 1 is String, which does not fit 'a" -
+-- for a function that does nothing but read through the reference.
+--
+-- Shared only. `&a` is exclusive, and a value does not silently become storage something may write
+-- through: lending one is a decision with a spelling.
+fn built() -> String = "ab" ++ "cde"
+
+fn fromAValue() -> {}:
+    let &text = built()
+    let ->c = duplicated(text)
+
+    assert(length(c) == 5)
+    assert(c == "abcde")
+
+    -- The source is untouched, which is what says a reference was taken rather than the value moved.
+    assert(text == "abcde")
+
 {-
    The result direction, untouched.
 
@@ -104,5 +127,6 @@ fn main() -> Int:
     ownedThroughBorrow()
     entriesOfAMap()
     throughAVariable()
+    fromAValue()
     resultsStayReferences()
     return 0

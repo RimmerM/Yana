@@ -261,6 +261,91 @@ U32 borrowSlotOf(Analysis& analysis, const Place& place) {
     return internBorrowSlot(analysis, place, false);
 }
 
+/*
+ * Whether a local names storage this frame may empty and fill again.
+ *
+ * `&` and nothing else. A plain borrowed parameter is shared - any number of readers may be looking
+ * at the same storage at once, and one of them emptying it is visible to the rest however quickly it
+ * writes back. Exclusivity is precisely the capability that makes the window unobservable, which is
+ * what the whole rule rests on, and it is the same test internBorrowSlot applies to a borrow value's
+ * `mut` bit one level further out.
+ *
+ * A closure's environment slot is not owned either and is not a `&` binding, so it falls out here
+ * without a case of its own.
+ */
+static bool exclusiveBinding(Analysis& analysis, U32 local) {
+    if(local >= analysis.function.localCount()) return false;
+
+    auto slot = analysis.function.localAt(analysis.local, local);
+    return slot.borrowed && slot.convention == ast::BindType::Ref;
+}
+
+BorrowedPlace borrowedPlaceOf(Analysis& analysis, const Place& place) {
+    BorrowedPlace result;
+
+    /*
+     * A raw pointer root is deliberately absent. `let ->x = *p` is Native taking ownership of memory
+     * it holds the only address of, which is the one thing that module exists to be able to do, so a
+     * pointer place is not borrowed storage in this sense at all.
+     *
+     * A global is borrowed - nothing may take its contents - but never emptiable: its storage
+     * outlives every frame there is, so there is no release point at which a write back could be
+     * required, and checkMoves gives it its own message.
+     */
+    auto borrowedRoot = place.root == PlaceRoot::Borrow;
+    auto local = maxLimit<U32>;
+
+    if(!borrowedRoot) {
+        if(place.root != PlaceRoot::Local) return result;
+
+        local = rootLocal(analysis, place);
+        if(local == maxLimit<U32> || analysis.tracked[local].owned) return result;
+    }
+
+    result.borrowed = true;
+
+    /*
+     * A value with no teardown is *read* out of borrowed storage rather than taken out of it.
+     *
+     * Nothing is invalidated by the read: there is no teardown to run twice, and the bytes the
+     * source holds are as good after it as before. So the obligation this rule exists to impose -
+     * put something back before the owner sees it again - has nothing to protect, and there is no
+     * state to keep either.
+     *
+     * It is not a corner. `String` on the JavaScript target is a host primitive, so the identical
+     * `concat` that reaches the lattice natively needs no lattice at all there - and without this
+     * the interning scan, which only ever makes a slot for droppable storage, would decline and the
+     * move would be refused on a target where it is the safest thing in the file.
+     */
+    if(!needsTeardown(analysis.module, placeType(analysis.module, analysis.function, place))) {
+        result.emptiable = true;
+        return result;
+    }
+
+    if(borrowedRoot) {
+        result.slot = borrowSlotOf(analysis, place);
+        result.emptiable = result.slot != maxLimit<U32>;
+        return result;
+    }
+
+    // The state row is the *slot's*, so a projected place cannot use it: the lattice is per local
+    // and says nothing about which member of one is still there.
+    auto projections = place.projections;
+    if(projections.isNotEmpty() || !exclusiveBinding(analysis, local)) return result;
+
+    result.emptiable = true;
+    result.local = local;
+    return result;
+}
+
+OwnState borrowedStateAt(Analysis& analysis, Size index, const BorrowedPlace& place) {
+    if(place.slot != maxLimit<U32>) return analysis.borrowStateBefore[index][place.slot];
+    if(place.local != maxLimit<U32>) return analysis.stateBefore[index][place.local];
+
+    // Not emptiable, so nothing ever took anything out of it.
+    return OwnState::Owned;
+}
+
 // The write that fills borrowed storage again. An Init or a whole-slot Assign through the same
 // borrow, which is what `acc = acc ++ part` lowers its second half to.
 static U32 filledSlot(Analysis& analysis, Inst& instruction) {

@@ -485,15 +485,7 @@ pub class Copy(a):
    `'k` and duplicated the reference. `test/lib/CopyBorrow.yana` is what says it does not now.
 -}
 instance (TrivialCopy(a)) Copy(a):
-    fn copy(from: a) -> a:
-        -- `let ->` and not `return from`, and the difference is only visible for an *aggregate*.
-        -- A scalar arrives in a register and returning it is already the duplicate; a record does
-        -- not, so `from` names storage the caller owns and keeps, and handing it back is a borrow
-        -- returned from a signature with no `return` marker - which is what the checker says. A `->`
-        -- binding of a TrivialCopy value is Design.md's other half of that convention: an
-        -- independent copy, leaving the source valid.
-        let ->duplicate = from
-        return duplicate
+    fn copy(from: a) -> a = from
 
 {-
    And the three carriers, whose answer is their payload's.

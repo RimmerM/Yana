@@ -2,12 +2,12 @@ let image$base: () = <none>
 
 let &log: Int = 0
 
-table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
+table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -110,7 +110,7 @@ fn bumped(%c: Counter, %body: (value$: Int) -> $r) -> $r {
 fn bound() -> Int {
   b0:
     %v0 = alloc : (value$: Int) -> Int
-    %v1 = symbol ResolveTest.continuation$15 : %()
+    %v1 = symbol ResolveTest.continuation$18 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
@@ -130,7 +130,7 @@ fn statement() -> Int {
   b0:
     assign log, 3
     %v2 = alloc : () -> Int
-    %v3 = symbol ResolveTest.continuation$16 : %()
+    %v3 = symbol ResolveTest.continuation$19 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
@@ -141,7 +141,7 @@ fn statement() -> Int {
 fn explicit() -> Int {
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$17 : %()
+    %v2 = symbol ResolveTest.continuation$20 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -152,7 +152,7 @@ fn explicit() -> Int {
 fn destructured() -> Int {
   b0:
     %v1 = alloc : (low: Int, high: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$18 : %()
+    %v2 = symbol ResolveTest.continuation$21 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -163,7 +163,7 @@ fn destructured() -> Int {
 fn generic() -> Int {
   b0:
     %v2 = alloc : (value$: Int) -> Int
-    %v3 = symbol ResolveTest.continuation$19 : %()
+    %v3 = symbol ResolveTest.continuation$22 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
@@ -177,7 +177,7 @@ fn borrowed() -> Int {
     aggregate %c@Counter.value = 5
     %v3 = load %c : Counter
     %v4 = alloc : (value$: Int) -> Int
-    %v5 = symbol ResolveTest.continuation$21 : %()
+    %v5 = symbol ResolveTest.continuation$24 : %()
     init %local1.code, %v5
     %v8 = cast 0 : %()
     init %local1.env, %v8
@@ -189,7 +189,7 @@ fn borrowed() -> Int {
 fn written() -> Int {
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.lambda$22 : %()
+    %v2 = symbol ResolveTest.lambda$25 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -200,7 +200,7 @@ fn written() -> Int {
 fn nested() -> Int {
   b0:
     %v0 = alloc : (value$: Int) -> Int
-    %v1 = symbol ResolveTest.continuation$23 : %()
+    %v1 = symbol ResolveTest.continuation$26 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
@@ -234,7 +234,7 @@ fn inLoop(%n: Int) -> Int {
     init %local2.total, %v17
     %v19 = addressof %local2 : %()
     %v20 = alloc : (value$: Int) -> ()
-    %v21 = symbol ResolveTest.continuation$25 : %()
+    %v21 = symbol ResolveTest.continuation$28 : %()
     init %local3.code, %v21
     init %local3.env, %v19
     call logged(()), %v20
@@ -267,7 +267,7 @@ fn main() -> Int {
     ret %v25
 }
 
-fn ResolveTest.continuation$15(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$18(%env: %{}, %value$: Int) -> Int {
   b0:
     ret %value$
 }
@@ -285,7 +285,7 @@ fn logged(Int)(%body: (value$: Int) -> Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$16(%env: %{}) -> Int {
+fn ResolveTest.continuation$19(%env: %{}) -> Int {
   b0:
     %v1 = load log : Int
     %v4 = add %v1, 1 : Int
@@ -306,7 +306,7 @@ fn scope(Int)(%body: () -> Int) -> Int {
     ret %v5
 }
 
-fn ResolveTest.continuation$17(%env: %{}, %n: Int) -> Int {
+fn ResolveTest.continuation$20(%env: %{}, %n: Int) -> Int {
   b0:
     %v4 = mul %n, 2 : Int
     ret %v4
@@ -319,7 +319,7 @@ fn plusOne(Int)(%x: Int, %body: (value$: Int) -> Int) -> Int {
     ret %v4
 }
 
-fn ResolveTest.continuation$18(%env: %{}, %low: Int, %high: Int) -> Int {
+fn ResolveTest.continuation$21(%env: %{}, %low: Int, %high: Int) -> Int {
   b0:
     %v3 = alloc : {low: Int, high: Int}
     init %local0.low, %low
@@ -339,20 +339,20 @@ fn split(Int)(%x: Int, %body: (low: Int, high: Int) -> Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$19(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$22(%env: %{}, %value$: Int) -> Int {
   b0:
     %v3 = alloc : {x: Int}
     init %local0.x, %value$
     %v5 = addressof %local0 : %()
     %v6 = alloc : (value$: Bool) -> Int
-    %v7 = symbol ResolveTest.continuation$20 : %()
+    %v7 = symbol ResolveTest.continuation$23 : %()
     init %local1.code, %v7
     init %local1.env, %v5
     %v10 = call twiceOver(Bool, Int), True, %v6 : Int
     ret %v10
 }
 
-fn ResolveTest.continuation$20(%env: %{x: Int}, %value$: Bool) -> Int {
+fn ResolveTest.continuation$23(%env: %{x: Int}, %value$: Bool) -> Int {
   b0:
     je %value$, b1, b2
 
@@ -387,7 +387,7 @@ fn twiceOver(Int, Int)(%value: Int, %body: (value$: Int) -> Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$21(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$24(%env: %{}, %value$: Int) -> Int {
   b0:
     ret %value$
 }
@@ -408,16 +408,16 @@ fn bumped(Int)(%c: Counter, %body: (value$: Int) -> Int) -> Int {
     ret %v9
 }
 
-fn ResolveTest.lambda$22(%env: %{}, %n: Int) -> Int {
+fn ResolveTest.lambda$25(%env: %{}, %n: Int) -> Int {
   b0:
     %v4 = mul %n, 3 : Int
     ret %v4
 }
 
-fn ResolveTest.continuation$23(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$26(%env: %{}, %value$: Int) -> Int {
   b0:
     %v2 = alloc : (value$: Int) -> Int
-    %v3 = symbol ResolveTest.continuation$24 : %()
+    %v3 = symbol ResolveTest.continuation$27 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
@@ -425,12 +425,12 @@ fn ResolveTest.continuation$23(%env: %{}, %value$: Int) -> Int {
     ret %v8
 }
 
-fn ResolveTest.continuation$24(%env: %{}, %b: Int) -> Int {
+fn ResolveTest.continuation$27(%env: %{}, %b: Int) -> Int {
   b0:
     ret %b
 }
 
-fn ResolveTest.continuation$25(%env: %{total: &Int}, %value$: Int) -> () {
+fn ResolveTest.continuation$28(%env: %{total: &Int}, %value$: Int) -> () {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int

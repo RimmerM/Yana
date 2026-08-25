@@ -169,9 +169,22 @@ static ModulePtr<Value> exchangedPlace(ExprResolver& resolver, ModulePtr<Value> 
 
 static ModulePtr<Value> emitSwap(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr,
                                  LocationId source, StringId) {
-    // The exchanged type comes off the argument rather than off the declaration: `swap` returns
-    // unit, so the substituted result type says nothing about what is being swapped.
+    /*
+     * The exchanged type comes off the argument rather than off the declaration: `swap` returns
+     * unit, so the substituted result type says nothing about what is being swapped.
+     *
+     * Which means reading through a borrow when the argument already is one. `swap(xs[i], xs[j])`
+     * resolves each subscript through `getMut`, whose result is a `&a` - so the type off the
+     * argument is the reference and not what is being exchanged, and `borrowArgument` was then
+     * asked for a borrow of a borrow and answered that its operand names no storage. `exchange` is
+     * not affected and needs no such line: its type is the declaration's, which the solve already
+     * bound to the pointee.
+     */
     auto type = resolver.valueType(args[0]);
+
+    if(type && resolver.global[type]->kind == Type::Borrow) {
+        if(auto to = ((BorrowType*)resolver.global[type])->to) type = to;
+    }
 
     auto a = exchangedPlace(resolver, args[0], type, source);
     auto b = exchangedPlace(resolver, args[1], type, source);

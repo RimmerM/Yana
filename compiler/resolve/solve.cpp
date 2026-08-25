@@ -136,6 +136,37 @@ static bool bindInto(ExprResolver& resolver, TypePtr pattern, TypePtr actual, Ty
         }
     }
 
+    /*
+     * And the dual: **a value handed to a `'a` parameter borrows into it.**
+     *
+     * `fn f(x: 'String)` given a `String` takes a reference to it, and has since references were
+     * written - the concrete branch at the bottom of this function reaches `convertibleType`, which
+     * knows how. `fn (Copy(a)) f(x: 'a)` given the same `String` did not, because `'a` is generic:
+     * the concrete branch is skipped for a pattern with a variable in it, and `matchType` walks the
+     * two structurally, finds a Borrow against a String and answers no. So `duplicated(s)` was
+     * "argument 1 is String, which does not fit 'a" for a function whose whole purpose is to read
+     * through a reference.
+     *
+     * It is the same sentence as the rule above this one, in the other direction, and it is here for
+     * the same reason: a signature must not mean something different because a variable appears in
+     * it. Both together say that the reference-ness of an argument position and the reference-ness
+     * of what is handed to it are settled by conversion, not by the shape of the type variable.
+     *
+     * Only for a *shared* borrow. `&a` is exclusive, and a value does not silently become storage
+     * something may write through - a `&` argument has to name mutable storage the caller chose to
+     * lend, which is a decision with a spelling.
+     *
+     * Only where the pattern is generic, which is exactly the position that was failing. A concrete
+     * `'String` already goes through `convertibleType`, and that path knows things this one does not
+     * - so routing it here as well would replace a working answer with a narrower one.
+     */
+    if(widen && isGeneric(global, pattern) && isBorrow(global, pattern) && !isBorrow(global, actual)) {
+        auto& reference = *(BorrowType*)global[pattern];
+        if(!reference.mut && reference.to) {
+            return bindInto(resolver, reference.to, actual, bindings, widen);
+        }
+    }
+
     if(global[pattern]->kind == Type::Gen) {
         auto index = ((GenType*)global[pattern])->index;
         if(index >= bindings.size()) return false;

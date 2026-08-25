@@ -124,6 +124,34 @@ instance Chunked(Flat(a), a):
     iter fn chunks(self: Flat(a)) -> Flat(a) = yield elements(self)
 
 {-
+   Every element of a container, one at a time - the protocol's other half.
+
+   `chunks` is what a container *implements*, because a run of elements is what it can hand over
+   without promising anything about the next one. This is what a caller wants, and until it existed
+   every caller wrote the same two nested loops: a `for` over the chunks and a `while` over an index
+   inside it, which is four lines and an index variable to say "each element".
+
+   **It costs nothing.** The optimizer flattens the continuation into the caller and then folds the
+   chunk loop away for a container that has one chunk, so `for v in items(xs)` and the hand-written
+   index loop reach the same instructions - the same `mul`, `add`, load, accumulate and increment,
+   in the same blocks. That is measured rather than assumed; the two were compared in the optimized
+   IR before this was written.
+
+   Yields `'a` and not `a`, which is what makes it available to an element type that owns something:
+   a borrow of the element is a view into the container, and a caller that wants a value of its own
+   asks `copy` for one. `Reduce.yana` reads through it, `Join.yana` copies out of it, and neither
+   has to say which the protocol supports.
+-}
+pub iter fn (Chunked(c, a)) items(self: c) -> 'a:
+    for chunk in chunks(self):
+        let n = length(chunk)
+        let &i = 0 :: Size
+
+        while i < n:
+            yield chunk[i]
+            i = i + 1
+
+{-
    And the fixed array, which had no `length` at all.
 
    `[a *n]` already reaches every `[a]` function through the conversion at a call - that is
@@ -382,9 +410,11 @@ fn checkWordInBounds(from: Flat(U8), at: Size, width: Size) -> {}:
    negative rather than wrapping when a chunk is shorter than one vector - which is the case the test
    has to reject, and does. It is the same guard `i + width <= n` made at `i = 0`.
 
-   Native only for now, and the reason is not vectors: an `iter fn` that yields from inside a `for`
-   captures the continuation it was handed, and a reference to a function value the JS backend
-   flattened into two variables has no object to name. Every adaptor in the language has that gap.
+   Both targets. This said "native only for now, and the reason is not vectors: an `iter fn` that
+   yields from inside a `for` captures the continuation it was handed, and a reference to a function
+   value the JS backend flattened into two variables has no object to name". Whatever was true of
+   that once, it is not now - this iterator and `items` above both yield from inside a `for`, and
+   both were run on the JavaScript build before the claim was removed.
 -}
 pub iter fn (Chunked(c, a)) vectorsMasked(self: c) -> {Vec(a), Int}:
     let width = lanes(zero() :: Vec(a)) :: Size

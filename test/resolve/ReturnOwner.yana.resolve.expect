@@ -10,27 +10,27 @@ let &heapRegionNext: Size = 0
 
 let &reclaims: Int = 0
 
-table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
+table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
+table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$17(Int, Int) before ResolveTest.continuation$17(Int, Int) {
+table closure$ResolveTest.continuation$20(Int, Int) before ResolveTest.continuation$20(Int, Int) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$15(Int, Int, ()) before ResolveTest.continuation$15(Int, Int, ()) {
+table closure$ResolveTest.continuation$18(Int, Int, ()) before ResolveTest.continuation$18(Int, Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
@@ -1230,7 +1230,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
-    %v10 = symbol ResolveTest.continuation$15 : %()
+    %v10 = symbol ResolveTest.continuation$18 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall each(a, Outcome((), $r)), %xs, %v9 : Outcome((), Outcome((), $r))
@@ -1309,7 +1309,7 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     init %local3.out, %v5
     %v7 = addressof %local3 : %()
     %v8 = alloc : (value$: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$16 : %()
+    %v9 = symbol ResolveTest.continuation$19 : %()
     init %local4.code, %v9
     init %local4.env, %v7
     %v12 = call each(Int, ()), %xs, %v8 : Outcome((), ())
@@ -1341,7 +1341,7 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     init %local4.out, %v6
     %v8 = addressof %local4 : %()
     %v9 = alloc : (value$: b) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$17 : %()
+    %v10 = symbol ResolveTest.continuation$20 : %()
     init %local5.code, %v10
     init %local5.env, %v8
     %v13 = gencall mapped(a, b, ()), %xs, %f, %v9 : Outcome((), ())
@@ -1741,7 +1741,7 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$18(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
@@ -1777,7 +1777,7 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret %v12
 }
 
-fn ResolveTest.continuation$16(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$19(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].out : &Array(Int)
     %v3 = load [%v2] : Array(Int)
@@ -1836,7 +1836,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
     jmp b1
 }
 
-(TrivialCopy(a), Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$17(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
+(TrivialCopy(a), Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$20(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type b
@@ -1875,7 +1875,7 @@ fn collectMapped(Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int) -> Array(Int) {
     init %local4.out, %v6
     %v8 = addressof %local4 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$17(Int, Int) : %()
+    %v10 = symbol ResolveTest.continuation$20(Int, Int) : %()
     init %local5.code, %v10
     init %local5.env, %v8
     %v13 = call mapped(Int, Int, ()), %xs, %f, %v9 : Outcome((), ())
@@ -1884,7 +1884,7 @@ fn collectMapped(Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int) -> Array(Int) {
     ret %v15
 }
 
-fn ResolveTest.continuation$17(Int, Int)(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$20(Int, Int)(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].out : &Array(Int)
     %v3 = load [%v2] : Array(Int)
@@ -1904,7 +1904,7 @@ fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: Int
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
-    %v10 = symbol ResolveTest.continuation$15(Int, Int, ()) : %()
+    %v10 = symbol ResolveTest.continuation$18(Int, Int, ()) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Int, Outcome((), ())), %xs, %v9 : Outcome((), Outcome((), ()))
@@ -1922,7 +1922,7 @@ fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: Int
     ret %v20
 }
 
-fn ResolveTest.continuation$15(Int, Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$18(Int, Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load [%env].body : '(value$: Int) -> Outcome((), ())
     %v3 = load [%v2] : (value$: Int) -> Outcome((), ())

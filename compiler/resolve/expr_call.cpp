@@ -1580,6 +1580,35 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
         // The one thing a *generic* signature can tell an argument - see arrayShapeFor.
         if(!expected && parameter) expected = arrayShapeFor(*parameter, arg->value);
 
+        /*
+         * A subscript in a `&` position, which is the one argument shape whose *accessor* the
+         * convention decides.
+         *
+         * `xs[i]` is sugar for `get` when it is read and `getMut` when it is written, and an
+         * argument was always the first: it was resolved as an ordinary expression, reached `get`,
+         * and arrived at the `&` parameter as a borrow that may not be written. So `swap(xs[i],
+         * xs[j])` did not compile, and `Array.yana` grew a `swapElements` for the one caller that
+         * needed it.
+         *
+         * The ordering that made that look unavoidable - which accessor is wanted depends on the
+         * convention, and the convention is not known until selection has picked a callee, which
+         * needs the argument types - is not the ordering this loop is in. `pushdown` already knows
+         * the sole candidate and the parameter this position fills, several lines above, and asks it
+         * `isMutableBorrow()` to decide whether to push the type down. It is the same question one
+         * step further: push the *convention* down as well.
+         *
+         * Only where the candidate is sole, on exactly the terms pushdown itself is. Where a name
+         * has overloads that disagree about the convention there is no answer to push, and the
+         * argument stays a read - which is what it was for every call before this.
+         */
+        auto wantsPlace = parameter && parameter->isMutableBorrow();
+
+        if(wantsPlace && arg->value.kind == ast::Expr::Sub) {
+            auto borrowed = resolveSubscript(arg->value, *parse[arg->value.sub], true);
+            args[position] = borrowed ? ResolvedArg(borrowed) : ResolvedArg::failed();
+            continue;
+        }
+
         args[position] = resolveArgument(arg->value, expected);
     }
 

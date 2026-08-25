@@ -54,13 +54,8 @@ fn (Chunked(c, a), Num(a), Num(Vec(a))) sumVectors(xs: c) -> a:
 fn (Chunked(c, a), Num(a)) sumElements(xs: c) -> a:
     let &acc = 0 :: a
 
-    for chunk in chunks(xs):
-        let n = length(chunk)
-        let &i = 0 :: Size
-
-        while i < n:
-            acc = acc + chunk[i]
-            i = i + 1
+    for v in items(xs):
+        acc = acc + v
 
     return acc
 
@@ -76,13 +71,8 @@ fn (Chunked(c, a), Num(a), Num(Vec(a))) productVectors(xs: c) -> a:
 fn (Chunked(c, a), Num(a)) productElements(xs: c) -> a:
     let &acc = 1 :: a
 
-    for chunk in chunks(xs):
-        let n = length(chunk)
-        let &i = 0 :: Size
-
-        while i < n:
-            acc = acc * chunk[i]
-            i = i + 1
+    for v in items(xs):
+        acc = acc * v
 
     return acc
 
@@ -97,13 +87,8 @@ fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumVectors(xs: c, ifEmpty: a) -> 
 fn (Chunked(c, a), Ord(a), TrivialCopy(a)) maximumElements(xs: c, ifEmpty: a) -> a:
     let &acc = ifEmpty
 
-    for chunk in chunks(xs):
-        let n = length(chunk)
-        let &i = 0 :: Size
-
-        while i < n:
-            if chunk[i] > acc then acc = chunk[i]
-            i = i + 1
+    for v in items(xs):
+        if v > acc then acc = v
 
     return acc
 
@@ -118,13 +103,8 @@ fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumVectors(xs: c, ifEmpty: a) -> 
 fn (Chunked(c, a), Ord(a), TrivialCopy(a)) minimumElements(xs: c, ifEmpty: a) -> a:
     let &acc = ifEmpty
 
-    for chunk in chunks(xs):
-        let n = length(chunk)
-        let &i = 0 :: Size
-
-        while i < n:
-            if chunk[i] < acc then acc = chunk[i]
-            i = i + 1
+    for v in items(xs):
+        if v < acc then acc = v
 
     return acc
 
@@ -147,13 +127,8 @@ fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) occurrencesVectors(xs: c, wanted: a)
 fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
     let &total = 0
 
-    for chunk in chunks(xs):
-        let n = length(chunk)
-        let &i = 0 :: Size
-
-        while i < n:
-            if chunk[i] == wanted then total = total + 1
-            i = i + 1
+    for v in items(xs):
+        if v == wanted then total = total + 1
 
     return total
 
@@ -176,6 +151,16 @@ fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) indexOfVectors(xs: c, wanted: a) -> 
 
     return Nothing
 
+{-
+   The one scalar walk in this file that is still an index loop.
+
+   Every other one became `for v in items(xs)`, which is what the iteration protocol is for. This
+   one answers *where* rather than *what*, so the position is half the result - and `items` yields
+   elements and not positions. A counter beside the loop would work and would be the same two
+   variables this already has, spelled twice.
+
+   `at` is what the vector half returns as well, so the two answer the same thing in the same units.
+-}
 fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
     let &at = 0 :: Size
 

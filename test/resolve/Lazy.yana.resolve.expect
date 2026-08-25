@@ -176,7 +176,7 @@ fn fallbackSkipped(%m: Maybe(Int)) -> Int {
   b0:
     %m = copy %m : Maybe(Int)
     %v2 = alloc : () -> Int
-    %v3 = symbol ResolveTest.deferred$15 : %()
+    %v3 = symbol ResolveTest.deferred$18 : %()
     init %local2.code, %v3
     %v6 = cast 0 : %()
     init %local2.env, %v6
@@ -218,7 +218,7 @@ fn maskSkips() -> Int {
     %v0 = alloc : Mask
     aggregate %local0@Mask.bits = 0
     %v3 = alloc : () -> Mask
-    %v4 = symbol ResolveTest.deferred$16 : %()
+    %v4 = symbol ResolveTest.deferred$19 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -232,7 +232,7 @@ fn maskRuns() -> Int {
     %v0 = alloc : Mask
     aggregate %local0@Mask.bits = 7
     %v3 = alloc : () -> Mask
-    %v4 = symbol ResolveTest.deferred$17 : %()
+    %v4 = symbol ResolveTest.deferred$20 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -392,7 +392,7 @@ fn main() -> Int {
 
   b27:
     %v113 = alloc : () -> Int
-    %v114 = symbol ResolveTest.deferred$18 : %()
+    %v114 = symbol ResolveTest.deferred$21 : %()
     init %local5.code, %v114
     %v117 = cast 0 : %()
     init %local5.env, %v117
@@ -411,7 +411,7 @@ fn main() -> Int {
 
   b30:
     %v132 = alloc : () -> Int
-    %v133 = symbol ResolveTest.deferred$19 : %()
+    %v133 = symbol ResolveTest.deferred$22 : %()
     init %local6.code, %v133
     %v136 = cast 0 : %()
     init %local6.env, %v136
@@ -503,31 +503,31 @@ fn Bitwise(Mask).not(%value: Mask) -> Mask {
     ret %v1
 }
 
-fn ResolveTest.deferred$15(%env: %{}) -> Int {
-  b0:
-    %v1 = call bumpValue : Int
-    ret %v1
-}
-
-fn ResolveTest.deferred$16(%env: %{}) -> Mask {
-  b0:
-    %v1 = call bumpMask : Mask
-    ret %v1
-}
-
-fn ResolveTest.deferred$17(%env: %{}) -> Mask {
-  b0:
-    %v1 = call bumpMask : Mask
-    ret %v1
-}
-
 fn ResolveTest.deferred$18(%env: %{}) -> Int {
   b0:
     %v1 = call bumpValue : Int
     ret %v1
 }
 
-fn ResolveTest.deferred$19(%env: %{}) -> Int {
+fn ResolveTest.deferred$19(%env: %{}) -> Mask {
+  b0:
+    %v1 = call bumpMask : Mask
+    ret %v1
+}
+
+fn ResolveTest.deferred$20(%env: %{}) -> Mask {
+  b0:
+    %v1 = call bumpMask : Mask
+    ret %v1
+}
+
+fn ResolveTest.deferred$21(%env: %{}) -> Int {
+  b0:
+    %v1 = call bumpValue : Int
+    ret %v1
+}
+
+fn ResolveTest.deferred$22(%env: %{}) -> Int {
   b0:
     %v1 = call bumpValue : Int
     ret %v1

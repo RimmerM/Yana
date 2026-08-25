@@ -777,12 +777,11 @@ Index(Map(k, v), k, v).get(Int, Int)<complex>(%self: Ptr, %key: Int): Ptr {
     %v_10 = shl %at, 3: Long
     %v_11 = add %v_9, %v_10: Ptr
     %v_12 = add %v_11, 4: Ptr
-    %v_13 = loads %v_12, 4: Int
     ret %v_12
   }
 
   b_7 {
-    %v_14 = syscall 60, 134: Long
+    %v_13 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -1459,12 +1458,11 @@ Index(Map(k, v), k, v).get(String, Int)<complex>(%self: Ptr, %key: Ptr): Ptr {
     %v_6 = imul %at, 24: Long
     %v_7 = add %v_5, %v_6: Ptr
     %v_8 = add %v_7, 16: Ptr
-    %v_9 = loads %v_8, 4: Int
     ret %v_8
   }
 
   b_3 {
-    %v_10 = syscall 60, 134: Long
+    %v_9 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -3798,10 +3796,9 @@ total<complex>(%m: Ptr): Int {
   b_7 {
     %v_13 = shl %v_9, 3: Long
     %v_14 = add %v_4, %v_13: Ptr
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = add %v_14, 4: Ptr
-    %v_17 = loads %v_16, 4: Int
-    %v_8 = add %v_6, %v_17: Int
+    %v_15 = add %v_14, 4: Ptr
+    %v_16 = loads %v_15, 4: Int
+    %v_8 = add %v_6, %v_16: Int
     %v_10 = add %v_9, 1: Long
     jmp b_5
   }
@@ -4513,11 +4510,9 @@ main<complex>(): Int {
   }
 
   b_248 {
-    %v_346 = add %v_252, 16: Ptr
-    %v_347 = loads %v_346, 4: Int
-    %v_348 = add %v_252, 12: Ptr
-    %v_349 = load %v_348, 4: Int
-    %v_249 = add %v_247, %v_349: Int
+    %v_346 = add %v_252, 12: Ptr
+    %v_347 = load %v_346, 4: Int
+    %v_249 = add %v_247, %v_347: Int
     %v_251 = add %v_250, 1: Long
     %v_253 = add %v_252, 24: Ptr
     jmp b_246
@@ -4528,11 +4523,11 @@ main<complex>(): Int {
   }
 
   b_193 {
-    %v_350 = load %two, 8: Ptr
-    %v_351 = imul %v_192, 24: Long
-    %v_352 = add %v_350, %v_351: Ptr
+    %v_348 = load %two, 8: Ptr
+    %v_349 = imul %v_192, 24: Long
+    %v_350 = add %v_348, %v_349: Ptr
     %doomed = alloca 20, 8: Ptr
-    copy %doomed, %v_352, 20
+    copy %doomed, %v_350, 20
     call_complex Reclaim(String).reclaim, %doomed
     %v_194 = add %v_192, 1: Long
     jmp b_191
@@ -4547,13 +4542,11 @@ main<complex>(): Int {
   }
 
   b_148 {
-    %v_353 = shl %v_150, 3: Long
-    %v_354 = add %v_145, %v_353: Ptr
-    %v_355 = loads %v_354, 4: Int
-    %v_356 = add %v_354, 4: Ptr
-    %v_357 = loads %v_356, 4: Int
-    %v_358 = imul %v_147, 10: Int
-    %v_149 = add %v_358, %v_355: Int
+    %v_351 = shl %v_150, 3: Long
+    %v_352 = add %v_145, %v_351: Ptr
+    %v_353 = imul %v_147, 10: Int
+    %v_354 = loads %v_352, 4: Int
+    %v_149 = add %v_353, %v_354: Int
     %v_151 = add %v_150, 1: Long
     jmp b_146
   }
@@ -4563,31 +4556,31 @@ main<complex>(): Int {
   }
 
   b_128 {
-    %v_359 = phi [b_129, %v_131], [b_127, 0]: Int
-    %v_360 = phi [b_129, %v_134], [b_127, 0]: Int
-    %v_361 = call_complex Index(Map(k, v), k, v).get(Int, Int), %v_119, %v_359: Ptr
-    %v_362 = loads %v_361, 4: Int
-    %v_363 = imul %v_359, 10: Int
-    %v_364 = cmp_eq %v_362, %v_363: Int
-    je %v_364, b_365, b_366
+    %v_355 = phi [b_129, %v_131], [b_127, 0]: Int
+    %v_356 = phi [b_129, %v_134], [b_127, 0]: Int
+    %v_357 = call_complex Index(Map(k, v), k, v).get(Int, Int), %v_119, %v_355: Ptr
+    %v_358 = loads %v_357, 4: Int
+    %v_359 = imul %v_355, 10: Int
+    %v_360 = cmp_eq %v_358, %v_359: Int
+    je %v_360, b_361, b_362
   }
 
-  b_365 {
-    %v_367 = add %v_360, 1: Int
-    jmp b_366
+  b_361 {
+    %v_363 = add %v_356, 1: Int
+    jmp b_362
   }
 
-  b_366 {
-    %v_134 = phi [b_128, %v_360], [b_365, %v_367]: Int
-    %v_131 = add %v_359, 1: Int
+  b_362 {
+    %v_134 = phi [b_128, %v_356], [b_361, %v_363]: Int
+    %v_131 = add %v_355, 1: Int
     jmp b_129
   }
 
   b_10 {
-    %v_368 = phi [b_117, %v_119], [b_108, %dup], [b_99, %dup], [b_53, %v_45], [b_43, %v_45], [b_25, %v_2], [b_21, %v_2], [b_11, %v_2], [b_0, %v_2]: Ptr
-    %v_369 = phi [b_117, 18446744073709551600], [b_108, 18446744073709551602], [b_99, 18446744073709551603], [b_53, 18446744073709551608], [b_43, 18446744073709551609], [b_25, 18446744073709551612], [b_21, 18446744073709551613], [b_11, 18446744073709551614], [b_0, 18446744073709551615]: Int
-    call_complex reclaim$Map(Int, Int), %v_368
-    ret %v_369
+    %v_364 = phi [b_117, %v_119], [b_108, %dup], [b_99, %dup], [b_53, %v_45], [b_43, %v_45], [b_25, %v_2], [b_21, %v_2], [b_11, %v_2], [b_0, %v_2]: Ptr
+    %v_365 = phi [b_117, 18446744073709551600], [b_108, 18446744073709551602], [b_99, 18446744073709551603], [b_53, 18446744073709551608], [b_43, 18446744073709551609], [b_25, 18446744073709551612], [b_21, 18446744073709551613], [b_11, 18446744073709551614], [b_0, 18446744073709551615]: Int
+    call_complex reclaim$Map(Int, Int), %v_364
+    ret %v_365
   }
 
   b_116 {

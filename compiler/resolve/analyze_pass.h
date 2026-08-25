@@ -282,11 +282,6 @@ struct BorrowSlot {
     // What the borrow refers to. Only droppable storage is tracked at all - moving out of a slot
     // nobody has to release and never writing back is a copy, and has always been one.
     TypePtr type = nullptr;
-
-    // Where ownership left, for the diagnostic. The first move rather than the last: it is the one
-    // whose obligation the later ones inherit, and it is the line the reader has to change.
-    LocationId movedAt {};
-    bool moved = false;
 };
 
 struct AnalysisScratch {
@@ -576,6 +571,36 @@ void computeBorrowOwnership(Analysis& analysis);
 // The slot a place rooted in a borrow was interned as, or maxLimit<U32> for a place this pass
 // cannot name - see borrowSlotOf's own comment for which those are and why each one is left out.
 U32 borrowSlotOf(Analysis& analysis, const Place& place);
+
+/*
+ * Storage this frame borrows and may empty, wherever the state for it lives.
+ *
+ * There is one rule about emptying borrowed storage - see checkMoves - and the IR gives that storage
+ * two shapes, so without this there would appear to be two rules. A `&` binding has a slot in this
+ * frame naming the caller's storage, which the ownership lattice has always had a row for; a captured
+ * `&` reaches its storage through a borrow value and has no slot at all, which is what BorrowSlot
+ * exists for. The difference is where the state is kept and nothing else, so it is answered once here
+ * rather than branched on at each of the three points that ask.
+ */
+struct BorrowedPlace {
+    // Whether this place names borrowed storage at all. False for a local this frame owns, for a
+    // global, and for a raw pointer.
+    bool borrowed = false;
+
+    // Whether the rule can be applied to it: exclusive, whole, and nameable again by a later write.
+    // A `borrowed` place that is not `emptiable` is the blanket refusal this rule replaced.
+    bool emptiable = false;
+
+    // Exactly one of these is set when `emptiable`. `local` is a row in the ownership lattice,
+    // `slot` a row in the borrow lattice.
+    U32 local = maxLimit<U32>;
+    U32 slot = maxLimit<U32>;
+};
+
+BorrowedPlace borrowedPlaceOf(Analysis& analysis, const Place& place);
+
+// What `place` holds before instruction `index`, read out of whichever lattice carries it.
+OwnState borrowedStateAt(Analysis& analysis, Size index, const BorrowedPlace& place);
 
 /*
  * Provenance and containment (analyze_provenance.cpp).

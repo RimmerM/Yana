@@ -120,3 +120,29 @@ fn readsTheWindow(&held: Buffer) -> I64:
     let n = take(held)
     held = old
     return n
+
+{-
+   Duplicating a value with a teardown out of raw memory.
+
+   A pointer's target has no owner, so none of the "this frame only borrows it" rules has a lender
+   to name and none of them applies. Copying it is a different question: two names now run one
+   teardown, and that is about the value rather than about whose it was.
+
+   All of it used to leave the check unexamined, on the reading that `return *p` is what Native
+   needs it to be. What that exempted was the copy and not the *move* - `let ->x = *p` is an
+   InstMove, never reaches this check at all, and is what `Reclaim(Array(a))` is written on. So the
+   escape hatch is not closed here, it is spelled, and the message names the spelling.
+-}
+fn copiedOutOfMemory(p: %Buffer) -> I64:
+    let &held = *p
+    return take(held)
+
+fn returnedOutOfMemory(p: %Buffer) -> Buffer = *p
+
+-- The move, which is the same two lines said the way Native means them, and stays accepted.
+fn takenOutOfMemory(p: %Buffer) -> I64:
+    let ->held = *p
+    return take(held)
+
+-- A scalar is duplicated by reading it, so there is nothing here to be two owners of.
+fn scalarOutOfMemory(p: %I64) -> I64 = *p

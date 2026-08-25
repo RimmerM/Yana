@@ -2,12 +2,12 @@ let image$base: () = <none>
 
 let &log: Int = 0
 
-table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
+table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -199,7 +199,7 @@ fn attempt(%open: Bool, %body: () -> a) -> Maybe(a) {
 fn always(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$15 : %()
+    %v2 = symbol ResolveTest.continuation$18 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -225,7 +225,7 @@ fn valued(%n: Int) -> Int {
 
   b1:
     %v5 = alloc : (found: Int) -> Int
-    %v6 = symbol ResolveTest.continuation$16 : %()
+    %v6 = symbol ResolveTest.continuation$19 : %()
     init %local0.code, %v6
     %v9 = cast 0 : %()
     init %local0.env, %v9
@@ -268,7 +268,7 @@ fn mixed(%n: Int) -> Int {
     init %local1.total, %v9
     %v11 = addressof %local1 : %()
     %v12 = alloc : (found: Int) -> Outcome((), Int)
-    %v13 = symbol ResolveTest.continuation$17 : %()
+    %v13 = symbol ResolveTest.continuation$20 : %()
     init %local2.code, %v13
     init %local2.env, %v11
     %v16 = call findFirst(Outcome((), Int)), %n, %v12 : Maybe(Outcome((), Int))
@@ -309,7 +309,7 @@ fn mixed(%n: Int) -> Int {
 fn reasoned(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$18 : %()
+    %v2 = symbol ResolveTest.continuation$21 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -333,7 +333,7 @@ fn reasoned(%n: Int) -> Int {
 fn guarded(%open: Bool) -> Int {
   b0:
     %v1 = alloc : () -> Int
-    %v2 = symbol ResolveTest.continuation$19 : %()
+    %v2 = symbol ResolveTest.continuation$22 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -372,7 +372,7 @@ fn doubled(%x: Int, %body: (value$: Int) -> $r) -> $r {
 fn nested(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$20 : %()
+    %v2 = symbol ResolveTest.continuation$23 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -383,7 +383,7 @@ fn nested(%n: Int) -> Int {
 fn written(%n: Int) -> Int {
   b0:
     %v1 = alloc : (found: Int) -> Int
-    %v2 = symbol ResolveTest.lambda$22 : %()
+    %v2 = symbol ResolveTest.lambda$25 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -444,7 +444,7 @@ fn main() -> Int {
     ret %v54
 }
 
-fn ResolveTest.continuation$15(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.continuation$18(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = add %found, 1 : Int
     ret %v4
@@ -477,13 +477,13 @@ fn findFirst(Int)(%n: Int, %body: (found: Int) -> Int) -> Maybe(Int) {
     ret %v21
 }
 
-fn ResolveTest.continuation$16(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.continuation$19(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = mul %found, 3 : Int
     ret %v4
 }
 
-fn ResolveTest.continuation$17(%env: %{total: &Int}, %found: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$20(%env: %{total: &Int}, %found: Int) -> Outcome((), Int) {
   b0:
     %v4 = cmp_gt %found, 100 : Bool
     je %v4, b1, b2
@@ -534,7 +534,7 @@ fn findFirst(Outcome((), Int))(%n: Int, %body: (found: Int) -> Outcome((), Int))
     ret %v21
 }
 
-fn ResolveTest.continuation$18(%env: %{}, %value: Int) -> Int {
+fn ResolveTest.continuation$21(%env: %{}, %value: Int) -> Int {
   b0:
     %v4 = add %value, 1 : Int
     ret %v4
@@ -572,7 +572,7 @@ fn checked(Int)(%n: Int, %body: (found: Int) -> Int) -> Result(Int, Int) {
     ret %v20
 }
 
-fn ResolveTest.continuation$19(%env: %{}) -> Int {
+fn ResolveTest.continuation$22(%env: %{}) -> Int {
   b0:
     ret 3
 }
@@ -600,13 +600,13 @@ fn attempt(Int)(%open: Bool, %body: () -> Int) -> Maybe(Int) {
     ret %v14
 }
 
-fn ResolveTest.continuation$20(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$23(%env: %{}, %value$: Int) -> Int {
   b0:
     %v2 = alloc : {d: Int}
     init %local0.d, %value$
     %v4 = addressof %local0 : %()
     %v5 = alloc : (found: Int) -> Int
-    %v6 = symbol ResolveTest.continuation$21 : %()
+    %v6 = symbol ResolveTest.continuation$24 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call findFirst(Int), %value$, %v5 : Maybe(Int)
@@ -624,7 +624,7 @@ fn ResolveTest.continuation$20(%env: %{}, %value$: Int) -> Int {
     ret %v17
 }
 
-fn ResolveTest.continuation$21(%env: %{d: Int}, %found: Int) -> Int {
+fn ResolveTest.continuation$24(%env: %{d: Int}, %found: Int) -> Int {
   b0:
     %v2 = load [%env].d : Int
     %v3 = add %found, %v2 : Int
@@ -644,7 +644,7 @@ fn doubled(Int)(%x: Int, %body: (found: Int) -> Int) -> Int {
     ret %v8
 }
 
-fn ResolveTest.lambda$22(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.lambda$25(%env: %{}, %found: Int) -> Int {
   b0:
     %v4 = mul %found, 5 : Int
     ret %v4

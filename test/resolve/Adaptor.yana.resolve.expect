@@ -8,21 +8,6 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.continuation$15 before ResolveTest.continuation$15 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$16 before ResolveTest.continuation$16 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$17 before ResolveTest.continuation$17 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
   .1 teardown$none
@@ -38,7 +23,7 @@ table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$15(Int, Int, Int) before ResolveTest.continuation$15(Int, Int, Int) {
+table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -48,27 +33,17 @@ table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$18(Int, Int) before ResolveTest.continuation$18(Int, Int) {
-  .0 teardown$none
-  .1 teardown$none
-}
-
-table closure$ResolveTest.continuation$15(Int, Int, ()) before ResolveTest.continuation$15(Int, Int, ()) {
-  .0 teardown$none
-  .1 teardown$none
-}
-
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$16(Int, ()) before ResolveTest.continuation$16(Int, ()) {
+table closure$ResolveTest.continuation$18(Int, Int, Int) before ResolveTest.continuation$18(Int, Int, Int) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
   .1 teardown$none
 }
@@ -78,22 +53,37 @@ table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$17(Int, ()) before ResolveTest.continuation$17(Int, ()) {
+table closure$ResolveTest.continuation$21(Int, Int) before ResolveTest.continuation$21(Int, Int) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$16(Int, Outcome((), ())) before ResolveTest.continuation$16(Int, Outcome((), ())) {
+table closure$ResolveTest.continuation$18(Int, Int, ()) before ResolveTest.continuation$18(Int, Int, ()) {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$19(Bool) before ResolveTest.continuation$19(Bool) {
+table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$20(Bool) before ResolveTest.continuation$20(Bool) {
+table closure$ResolveTest.continuation$19(Int, ()) before ResolveTest.continuation$19(Int, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$20(Int, ()) before ResolveTest.continuation$20(Int, ()) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$19(Int, Outcome((), ())) before ResolveTest.continuation$19(Int, Outcome((), ())) {
   .0 teardown$none
   .1 teardown$none
 }
@@ -103,7 +93,17 @@ table closure$ResolveTest.continuation$22(Bool) before ResolveTest.continuation$
   .1 teardown$none
 }
 
-table closure$ResolveTest.continuation$21(Bool) before ResolveTest.continuation$21(Bool) {
+table closure$ResolveTest.continuation$23(Bool) before ResolveTest.continuation$23(Bool) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$25(Bool) before ResolveTest.continuation$25(Bool) {
+  .0 teardown$none
+  .1 teardown$none
+}
+
+table closure$ResolveTest.continuation$24(Bool) before ResolveTest.continuation$24(Bool) {
   .0 teardown$none
   .1 teardown$none
 }
@@ -1607,7 +1607,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
-    %v10 = symbol ResolveTest.continuation$15 : %()
+    %v10 = symbol ResolveTest.continuation$18 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall each(a, Outcome((), $r)), %xs, %v9 : Outcome((), Outcome((), $r))
@@ -1645,7 +1645,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
-    %v10 = symbol ResolveTest.continuation$16 : %()
+    %v10 = symbol ResolveTest.continuation$19 : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = gencall each(a, Outcome((), $r)), %xs, %v9 : Outcome((), Outcome((), $r))
@@ -1683,7 +1683,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
     %v10 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
-    %v11 = symbol ResolveTest.continuation$17 : %()
+    %v11 = symbol ResolveTest.continuation$20 : %()
     init %local5.code, %v11
     init %local5.env, %v9
     %v14 = gencall filtered(a, Outcome((), $r)), %xs, %keep, %v10 : Outcome((), Outcome((), $r))
@@ -1731,7 +1731,7 @@ fn double(%v: Int) -> Int {
     init %local3.out, %v4
     %v6 = addressof %local3 : %()
     %v7 = alloc : (value$: b) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$18 : %()
+    %v8 = symbol ResolveTest.continuation$21 : %()
     init %local4.code, %v8
     init %local4.env, %v6
     %v11 = gencall mapped(b, a, ()), %xs, %f, %v7 : Outcome((), ())
@@ -1761,7 +1761,7 @@ fn countUp(%limit: Int, %marker: a) -> Int {
     init %local4.total, %v27
     %v29 = addressof %local4 : %()
     %v30 = alloc : (value$: Int) -> Outcome((), ())
-    %v31 = symbol ResolveTest.continuation$19 : %()
+    %v31 = symbol ResolveTest.continuation$22 : %()
     init %local5.code, %v31
     init %local5.env, %v29
     %v34 = borrow %local2 : 'Array(Int)
@@ -1792,7 +1792,7 @@ fn firstOver(%xs: Flat(Int), %bound: Int, %marker: a) -> Int {
     init %local3.bound, %bound
     %v11 = addressof %local3 : %()
     %v12 = alloc : (value$: Int) -> Outcome((), Int)
-    %v13 = symbol ResolveTest.continuation$20 : %()
+    %v13 = symbol ResolveTest.continuation$23 : %()
     init %local4.code, %v13
     init %local4.env, %v11
     %v16 = call mapped(Int, Int, Int), %xs, %v3, %v12 : Outcome((), Int)
@@ -1830,7 +1830,7 @@ fn throughLens(%value: a, %n: Int) -> Int {
     init %local1.n, %n
     %v4 = addressof %local1 : %()
     %v5 = alloc : () -> Int
-    %v6 = symbol ResolveTest.continuation$21 : %()
+    %v6 = symbol ResolveTest.continuation$24 : %()
     init %local2.code, %v6
     init %local2.env, %v4
     %v9 = call scope(Int), %v5 : Int
@@ -1896,7 +1896,7 @@ fn main() -> Int {
     init %local12.sum, %v88
     %v90 = addressof %local12 : %()
     %v91 = alloc : (value$: Int) -> Outcome((), ())
-    %v92 = symbol ResolveTest.continuation$23 : %()
+    %v92 = symbol ResolveTest.continuation$26 : %()
     init %local13.code, %v92
     init %local13.env, %v90
     %v95 = borrow %xs : 'Array(Int)
@@ -1925,7 +1925,7 @@ fn main() -> Int {
     init %local19.big, %v120
     %v122 = addressof %local19 : %()
     %v123 = alloc : (value$: Int) -> Outcome((), ())
-    %v124 = symbol ResolveTest.continuation$24 : %()
+    %v124 = symbol ResolveTest.continuation$27 : %()
     init %local20.code, %v124
     init %local20.env, %v122
     %v127 = borrow %xs : 'Array(Int)
@@ -2014,7 +2014,7 @@ fn main() -> Int {
     ret %v224
 }
 
-(Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$18(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type b
     #1 type a
@@ -2049,7 +2049,7 @@ fn main() -> Int {
     ret %v12
 }
 
-(Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$16(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$19(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
@@ -2092,7 +2092,7 @@ fn main() -> Int {
     ret %v15
 }
 
-(Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$17(%env: %{body: '(value$: a) -> Outcome((), $r), f: '(a) -> a}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$20(%env: %{body: '(value$: a) -> Outcome((), $r), f: '(a) -> a}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
@@ -2126,7 +2126,7 @@ fn main() -> Int {
     ret %v12
 }
 
-(Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$18(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
+(Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$21(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
   schema {
     #0 type b
     #1 type a
@@ -2147,7 +2147,7 @@ fn main() -> Int {
     ret %v5
 }
 
-fn ResolveTest.continuation$19(%env: %{limit: Int, total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{limit: Int, total: &Int}, %value$: Int) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type {limit: Int, total: &Int}
@@ -2231,7 +2231,7 @@ fn funvalue$double(%env: %(), %v: Int) -> Int {
     ret %v2
 }
 
-fn ResolveTest.continuation$20(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$23(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
   schema {
     #0 type a
     #1 type {bound: Int}
@@ -2265,7 +2265,7 @@ fn mapped(Int, Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: In
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), Outcome((), Int))
-    %v10 = symbol ResolveTest.continuation$15(Int, Int, Int) : %()
+    %v10 = symbol ResolveTest.continuation$18(Int, Int, Int) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Int, Outcome((), Int)), %xs, %v9 : Outcome((), Outcome((), Int))
@@ -2283,7 +2283,7 @@ fn mapped(Int, Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: In
     ret %v20
 }
 
-fn ResolveTest.continuation$15(Int, Int, Int)(%env: %{body: '(value$: Int) -> Outcome((), Int), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
+fn ResolveTest.continuation$18(Int, Int, Int)(%env: %{body: '(value$: Int) -> Outcome((), Int), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
   b0:
     %v2 = load [%env].body : '(value$: Int) -> Outcome((), Int)
     %v3 = load [%v2] : (value$: Int) -> Outcome((), Int)
@@ -2354,7 +2354,7 @@ fn each(Int, Outcome((), Int))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((
     jmp b1
 }
 
-fn ResolveTest.continuation$21(%env: %{n: Int}) -> Int {
+fn ResolveTest.continuation$24(%env: %{n: Int}) -> Int {
   schema {
     #0 type a
     #1 type {total: &Int, n: Int}
@@ -2379,7 +2379,7 @@ fn ResolveTest.continuation$21(%env: %{n: Int}) -> Int {
     init %local3.n, %v25
     %v27 = addressof %local3 : %()
     %v28 = alloc : (value$: Int) -> Outcome((), ())
-    %v29 = symbol ResolveTest.continuation$22 : %()
+    %v29 = symbol ResolveTest.continuation$25 : %()
     init %local4.code, %v29
     init %local4.env, %v27
     %v32 = borrow %local1 : 'Array(Int)
@@ -2394,7 +2394,7 @@ fn ResolveTest.continuation$21(%env: %{n: Int}) -> Int {
     ret %v40
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &Int, n: Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$25(%env: %{total: &Int, n: Int}, %value$: Int) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type {total: &Int, n: Int}
@@ -2427,14 +2427,14 @@ fn collectMappedInto(Int, Int)(%out: Array(Int), %xs: Flat(Int), %f: (v: Int) ->
     init %local3.out, %v4
     %v6 = addressof %local3 : %()
     %v7 = alloc : (value$: Int) -> Outcome((), ())
-    %v8 = symbol ResolveTest.continuation$18(Int, Int) : %()
+    %v8 = symbol ResolveTest.continuation$21(Int, Int) : %()
     init %local4.code, %v8
     init %local4.env, %v6
     %v11 = call mapped(Int, Int, ()), %xs, %f, %v7 : Outcome((), ())
     ret
 }
 
-fn ResolveTest.continuation$18(Int, Int)(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$21(Int, Int)(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].out : &Array(Int)
     %v3 = load [%v2] : Array(Int)
@@ -2454,7 +2454,7 @@ fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: Int
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
-    %v10 = symbol ResolveTest.continuation$15(Int, Int, ()) : %()
+    %v10 = symbol ResolveTest.continuation$18(Int, Int, ()) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Int, Outcome((), ())), %xs, %v9 : Outcome((), Outcome((), ()))
@@ -2472,7 +2472,7 @@ fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: Int
     ret %v20
 }
 
-fn ResolveTest.continuation$15(Int, Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$18(Int, Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load [%env].body : '(value$: Int) -> Outcome((), ())
     %v3 = load [%v2] : (value$: Int) -> Outcome((), ())
@@ -2549,7 +2549,7 @@ fn funvalue$isBig(%env: %(), %v: Int) -> Bool {
     ret %v2
 }
 
-fn ResolveTest.continuation$23(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$26(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &Int
     %v3 = load [%env].sum : &Int
@@ -2570,7 +2570,7 @@ fn filtered(Int, ())(%xs: Flat(Int), %keep: (v: Int) -> Bool, %body: (value$: In
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
-    %v10 = symbol ResolveTest.continuation$16(Int, ()) : %()
+    %v10 = symbol ResolveTest.continuation$19(Int, ()) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Int, Outcome((), ())), %xs, %v9 : Outcome((), Outcome((), ()))
@@ -2588,7 +2588,7 @@ fn filtered(Int, ())(%xs: Flat(Int), %keep: (v: Int) -> Bool, %body: (value$: In
     ret %v20
 }
 
-fn ResolveTest.continuation$16(Int, ())(%env: %{keep: '(v: Int) -> Bool, body: '(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$19(Int, ())(%env: %{keep: '(v: Int) -> Bool, body: '(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load [%env].keep : '(v: Int) -> Bool
     %v3 = load [%v2] : (v: Int) -> Bool
@@ -2620,7 +2620,7 @@ fn ResolveTest.continuation$16(Int, ())(%env: %{keep: '(v: Int) -> Bool, body: '
     ret %v19
 }
 
-fn ResolveTest.continuation$24(%env: %{big: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$27(%env: %{big: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].big : &Int
     %v3 = load [%env].big : &Int
@@ -2641,7 +2641,7 @@ fn over(Int, ())(%xs: Flat(Int), %keep: (v: Int) -> Bool, %f: (v: Int) -> Int, %
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
     %v10 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
-    %v11 = symbol ResolveTest.continuation$17(Int, ()) : %()
+    %v11 = symbol ResolveTest.continuation$20(Int, ()) : %()
     init %local5.code, %v11
     init %local5.env, %v9
     %v14 = call filtered(Int, Outcome((), ())), %xs, %keep, %v10 : Outcome((), Outcome((), ()))
@@ -2659,7 +2659,7 @@ fn over(Int, ())(%xs: Flat(Int), %keep: (v: Int) -> Bool, %f: (v: Int) -> Int, %
     ret %v21
 }
 
-fn ResolveTest.continuation$17(Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$20(Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load [%env].body : '(value$: Int) -> Outcome((), ())
     %v3 = load [%v2] : (value$: Int) -> Outcome((), ())
@@ -2691,7 +2691,7 @@ fn filtered(Int, Outcome((), ()))(%xs: Flat(Int), %keep: (v: Int) -> Bool, %body
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), Outcome((), Outcome((), ())))
-    %v10 = symbol ResolveTest.continuation$16(Int, Outcome((), ())) : %()
+    %v10 = symbol ResolveTest.continuation$19(Int, Outcome((), ())) : %()
     init %local4.code, %v10
     init %local4.env, %v8
     %v13 = call each(Int, Outcome((), Outcome((), ()))), %xs, %v9 : Outcome((), Outcome((), Outcome((), ())))
@@ -2709,7 +2709,7 @@ fn filtered(Int, Outcome((), ()))(%xs: Flat(Int), %keep: (v: Int) -> Bool, %body
     ret %v20
 }
 
-fn ResolveTest.continuation$16(Int, Outcome((), ()))(%env: %{keep: '(v: Int) -> Bool, body: '(value$: Int) -> Outcome((), Outcome((), ()))}, %value$: Int) -> Outcome((), Outcome((), Outcome((), ()))) {
+fn ResolveTest.continuation$19(Int, Outcome((), ()))(%env: %{keep: '(v: Int) -> Bool, body: '(value$: Int) -> Outcome((), Outcome((), ()))}, %value$: Int) -> Outcome((), Outcome((), Outcome((), ()))) {
   b0:
     %v2 = load [%env].keep : '(v: Int) -> Bool
     %v3 = load [%v2] : (v: Int) -> Bool
@@ -2807,7 +2807,7 @@ fn countUp(Bool)(%limit: Int, %marker: Bool) -> Int {
     init %local4.total, %v26
     %v28 = addressof %local4 : %()
     %v29 = alloc : (value$: Int) -> Outcome((), ())
-    %v30 = symbol ResolveTest.continuation$19(Bool) : %()
+    %v30 = symbol ResolveTest.continuation$22(Bool) : %()
     init %local5.code, %v30
     init %local5.env, %v28
     %v33 = borrow %local2 : 'Array(Int)
@@ -2823,7 +2823,7 @@ fn countUp(Bool)(%limit: Int, %marker: Bool) -> Int {
     ret %v41
 }
 
-fn ResolveTest.continuation$19(Bool)(%env: %{limit: Int, total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(Bool)(%env: %{limit: Int, total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].limit : Int
     %v3 = cmp_gt %value$, %v2 : Bool
@@ -2859,7 +2859,7 @@ fn firstOver(Bool)(%xs: Flat(Int), %bound: Int, %marker: Bool) -> Int {
     init %local3.bound, %bound
     %v11 = addressof %local3 : %()
     %v12 = alloc : (value$: Int) -> Outcome((), Int)
-    %v13 = symbol ResolveTest.continuation$20(Bool) : %()
+    %v13 = symbol ResolveTest.continuation$23(Bool) : %()
     init %local4.code, %v13
     init %local4.env, %v11
     %v16 = call mapped(Int, Int, Int), %xs, %v3, %v12 : Outcome((), Int)
@@ -2875,7 +2875,7 @@ fn firstOver(Bool)(%xs: Flat(Int), %bound: Int, %marker: Bool) -> Int {
     ret 0
 }
 
-fn ResolveTest.continuation$20(Bool)(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$23(Bool)(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
   b0:
     %v2 = load [%env].bound : Int
     %v3 = cmp_gt %value$, %v2 : Bool
@@ -2901,14 +2901,14 @@ fn throughLens(Bool)(%value: Bool, %n: Int) -> Int {
     init %local1.n, %n
     %v4 = addressof %local1 : %()
     %v5 = alloc : () -> Int
-    %v6 = symbol ResolveTest.continuation$21(Bool) : %()
+    %v6 = symbol ResolveTest.continuation$24(Bool) : %()
     init %local2.code, %v6
     init %local2.env, %v4
     %v9 = call scope(Int), %v5 : Int
     ret %v9
 }
 
-fn ResolveTest.continuation$21(Bool)(%env: %{n: Int}) -> Int {
+fn ResolveTest.continuation$24(Bool)(%env: %{n: Int}) -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
@@ -2927,7 +2927,7 @@ fn ResolveTest.continuation$21(Bool)(%env: %{n: Int}) -> Int {
     init %local3.n, %v24
     %v26 = addressof %local3 : %()
     %v27 = alloc : (value$: Int) -> Outcome((), ())
-    %v28 = symbol ResolveTest.continuation$22(Bool) : %()
+    %v28 = symbol ResolveTest.continuation$25(Bool) : %()
     init %local4.code, %v28
     init %local4.env, %v26
     %v31 = borrow %local1 : 'Array(Int)
@@ -2943,7 +2943,7 @@ fn ResolveTest.continuation$21(Bool)(%env: %{n: Int}) -> Int {
     ret %v39
 }
 
-fn ResolveTest.continuation$22(Bool)(%env: %{total: &Int, n: Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$25(Bool)(%env: %{total: &Int, n: Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int
