@@ -457,7 +457,7 @@ fn Length(String).length(%self: String) -> Size {
     ret %v6
 }
 
-fn Append(String).+(%lhs: String, %rhs: String) -> String {
+fn Append(String).++(%lhs: String, %rhs: String) -> String {
   b0:
     %leftLength = call Length(String).length, %lhs : Size
     %rightLength = call Length(String).length, %rhs : Size
@@ -1656,7 +1656,7 @@ fn concatHere() -> Int {
     %v2 = call stringLiteral, %v0, 2 : String
     %v3 = symbol ResolveTest.string$7 : %CodeUnit
     %v5 = call stringLiteral, %v3, 3 : String
-    %joined = call Append(String).+, %v2, %v5 : String
+    %joined = call Append(String).++, %v2, %v5 : String
     %v7 = call Length(String).length, %joined : Size
     drop %local0 reclaim Reclaim(String).reclaim
     %v8 = cast %v7 : Int

@@ -74,11 +74,12 @@ module
    which is where the type comes from.
 
    The four superclasses are the whole of what a kernel needs, which is why every function below is
-   written `fn (Num(a), Real(a, m)) ...` and asks for nothing else: `Num` for the arithmetic,
-   `FromDecimal` for a written coefficient, `Lanewise` for the comparison and the choice, and `Bitwise`
-   for combining two of those choices. `Num` is repeated at each kernel because `+` is declared by
-   two classes - `Num` and `Append` - and a requirement reached through a superclass does not settle
-   which of the two a call means.
+   written `fn (Real(a, m)) ...` and asks for nothing else: `Num` for the arithmetic, `FromDecimal`
+   for a written coefficient, `Lanewise` for the comparison and the choice, and `Bitwise` for
+   combining two of those choices. Each is reached *through* the superclass list rather than repeated
+   in the kernel's own, and what makes that work is that every name a kernel uses is declared by
+   exactly one class: `+` is `Num`'s alone, joining having `++` (`Core.yana`'s `Append`), so there is
+   nothing for a kernel to have to choose between.
 -}
 pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
   -- The four an instance answers. Each is one line of bit arithmetic at the type's own width.
@@ -125,10 +126,10 @@ pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
    `Bounded`'s two members are: `let turn = tau() :: Double` and `circle(pi())` both work, and
    neither needs a second name per width.
 -}
-pub fn (Num(a), Real(a, m)) pi() -> a = 3.1415926535897932
-pub fn (Num(a), Real(a, m)) tau() -> a = 6.2831853071795865
-pub fn (Num(a), Real(a, m)) toRadians(degrees: a) -> a = degrees * 1.7453292519943296e-2
-pub fn (Num(a), Real(a, m)) toDegrees(radians: a) -> a = radians * 5.7295779513082321e1
+pub fn (Real(a, m)) pi() -> a = 3.1415926535897932
+pub fn (Real(a, m)) tau() -> a = 6.2831853071795865
+pub fn (Real(a, m)) toRadians(degrees: a) -> a = degrees * 1.7453292519943296e-2
+pub fn (Real(a, m)) toDegrees(radians: a) -> a = radians * 5.7295779513082321e1
 
 {-
    Four shapes every kernel below needs and no class supplies.
@@ -143,23 +144,23 @@ pub fn (Num(a), Real(a, m)) toDegrees(radians: a) -> a = radians * 5.72957795130
    `signOfOther` is how a written constant reaches `a` at all: it is passed as a bare literal, which
    *is* pushed down to the parameter's type, and comes back carrying the sign of something typed.
 -}
-fn (Num(a), Real(a, m)) magnitudeOf(value: a) -> a = select(value .<= 0.0, 0.0 - value, value)
+fn (Real(a, m)) magnitudeOf(value: a) -> a = select(value .<= 0.0, 0.0 - value, value)
 
-fn (Num(a), Real(a, m)) signOfOther(size: a, like: a) -> a =
+fn (Real(a, m)) signOfOther(size: a, like: a) -> a =
     select(like .< 0.0, 0.0 - magnitudeOf(size), magnitudeOf(size))
 
-fn (Num(a), Real(a, m)) zeroLike(value: a) -> a = magnitudeOf(value * 0.0)
+fn (Real(a, m)) zeroLike(value: a) -> a = magnitudeOf(value * 0.0)
 
 -- `infinity` read through an argument. The member itself is nullary and a nullary generic cannot
 -- take its type from an operand position - `x - infinity()` has nothing to select on, and only a
 -- `::` or a return type decides one. This is the return type, so every kernel below asks for the
 -- infinity of something it already holds.
-fn (Num(a), Real(a, m)) infinityLike(value: a) -> a = infinity()
+fn (Real(a, m)) infinityLike(value: a) -> a = infinity()
 
 -- A quiet NaN, built rather than written: there is no decimal literal for one. Zero times an
 -- infinity is NaN under IEEE 754 at every width and on both targets, and `value` is there only to
 -- carry the type.
-fn (Num(a), Real(a, m)) notANumberLike(value: a) -> a = zeroLike(value) * infinityLike(value)
+fn (Real(a, m)) notANumberLike(value: a) -> a = zeroLike(value) * infinityLike(value)
 
 {-
    Rounding - all four derived from the one an instance supplies.
@@ -180,7 +181,7 @@ fn (Num(a), Real(a, m)) notANumberLike(value: a) -> a = zeroLike(value) * infini
 -- multiply, exact only while the quotient is: a dividend many orders above the divisor answers
 -- something with the right sign and fewer correct digits, which is the honest cost of not carrying a
 -- multi-word reduction here.
-fn (Num(a), Real(a, m)) modulusOf(lhs: a, rhs: a) -> a = lhs - trunc(lhs / rhs) * rhs
+fn (Real(a, m)) modulusOf(lhs: a, rhs: a) -> a = lhs - trunc(lhs / rhs) * rhs
 
 {-
    `exp` and `exp2`, which share one series and differ only in how the argument is reduced.
@@ -198,7 +199,7 @@ fn (Num(a), Real(a, m)) modulusOf(lhs: a, rhs: a) -> a = lhs - trunc(lhs / rhs) 
    infinity or an exact zero, rather than whatever a series at a reduced argument times a saturated
    scale happens to be.
 -}
-fn (Num(a), Real(a, m)) expSeries(r: a) -> a:
+fn (Real(a, m)) expSeries(r: a) -> a:
     let tail = 5.0000000000000000e-1 + r * (1.6666666666666667e-1 + r * (4.1666666666666667e-2 + r *
         (8.3333333333333333e-3 + r * (1.3888888888888889e-3 + r * (1.9841269841269841e-4 + r *
         (2.4801587301587302e-5 + r * (2.7557319223985891e-6 + r * (2.7557319223985891e-7 + r *
@@ -207,17 +208,17 @@ fn (Num(a), Real(a, m)) expSeries(r: a) -> a:
     return 1.0 + r + r * r * tail
 
 -- The two ends, shared by `exp` and `exp2`: an infinity above the range and a zero below it.
-fn (Num(a), Real(a, m)) expSaturated(value: a) -> a =
+fn (Real(a, m)) expSaturated(value: a) -> a =
     select(value .> 0.0, infinityLike(value), zeroLike(value))
 
-fn (Num(a), Real(a, m)) expOf(value: a) -> a:
+fn (Real(a, m)) expOf(value: a) -> a:
     let n = round(value * 1.4426950408889634)
     let r = value - n * 6.9311523437500000e-1 - n * 3.1948089599609375e-5 + n * 1.9044819055125117e-9 +
         n * 1.7241763572428681e-13 - n * 2.3188373964033726e-17 - n * 2.0944213109842661e-21
     let core = scaleByExponent(expSeries(r), n)
     return select(magnitudeOf(value) .> 800.0, expSaturated(value), core)
 
-fn (Num(a), Real(a, m)) exp2Of(value: a) -> a:
+fn (Real(a, m)) exp2Of(value: a) -> a:
     let n = round(value)
     let f = value - n
     let r = f * 6.9311523437500000e-1 + f * 3.1946184945309417e-5
@@ -238,15 +239,15 @@ fn (Num(a), Real(a, m)) exp2Of(value: a) -> a:
    held exactly. Sharing the *parts* rather than the answer keeps the whole exponent whole, so a
    power of two comes back exact. `log10` has no such structure to preserve and is the multiplication.
 -}
-fn (Num(a), Real(a, m)) logExponent(value: a) -> a:
+fn (Real(a, m)) logExponent(value: a) -> a:
     let raw = exponentOf(value)
     return select(significandOf(value) .> 1.4142135623730950, raw + 1.0, raw)
 
-fn (Num(a), Real(a, m)) logSignificand(value: a) -> a:
+fn (Real(a, m)) logSignificand(value: a) -> a:
     let raw = significandOf(value)
     return select(raw .> 1.4142135623730950, raw * 0.5, raw)
 
-fn (Num(a), Real(a, m)) logSeries(significand: a) -> a:
+fn (Real(a, m)) logSeries(significand: a) -> a:
     let s = (significand - 1.0) / (significand + 1.0)
     let z = s * s
     let tail = 3.3333333333333333e-1 + z * (2.0000000000000000e-1 + z * (1.4285714285714286e-1 + z *
@@ -258,22 +259,22 @@ fn (Num(a), Real(a, m)) logSeries(significand: a) -> a:
 -- What a non-positive argument answers, shared by all three so that they cannot disagree: a
 -- negative infinity at zero and a NaN below it. `value - infinity()` is how the first is written -
 -- `value` is zero wherever that arm is taken, and it is what gives the infinity its type.
-fn (Num(a), Real(a, m)) logGuard(value: a, answer: a) -> a:
+fn (Real(a, m)) logGuard(value: a, answer: a) -> a:
     let atZero = value - infinityLike(value)
     return select(value .> 0.0, answer, select(value .== 0.0, atZero, notANumberLike(value)))
 
-fn (Num(a), Real(a, m)) logOf(value: a) -> a:
+fn (Real(a, m)) logOf(value: a) -> a:
     let e = logExponent(value)
     let series = logSeries(logSignificand(value))
     let answer = series + e * 6.9311523437500000e-1 + e * 3.1946184945309417e-5
     return logGuard(value, answer)
 
-fn (Num(a), Real(a, m)) log2Of(value: a) -> a:
+fn (Real(a, m)) log2Of(value: a) -> a:
     let e = logExponent(value)
     let answer = logSeries(logSignificand(value)) * 1.4426950408889634 + e
     return logGuard(value, answer)
 
-fn (Num(a), Real(a, m)) log10Of(value: a) -> a = logOf(value) * 4.3429448190325183e-1
+fn (Real(a, m)) log10Of(value: a) -> a = logOf(value) * 4.3429448190325183e-1
 
 {-
    `pow`, which is `2 ^ (y * log2 x)` plus the cases that identity does not cover.
@@ -286,7 +287,7 @@ fn (Num(a), Real(a, m)) log10Of(value: a) -> a = logOf(value) * 4.34294481903251
    `y == 0` answers 1 before anything else, including for a zero, a negative and a NaN base, which is
    IEEE 754's rule and is what a caller writing `x ^ 0` inside a loop expects.
 -}
-fn (Num(a), Real(a, m)) powerOf(base: a, exponent: a) -> a:
+fn (Real(a, m)) powerOf(base: a, exponent: a) -> a:
     let size = exp2Of(exponent * log2Of(magnitudeOf(base)))
     let whole = trunc(exponent) .== exponent
     let odd = modulusOf(exponent, 2.0) .!= 0.0
@@ -298,7 +299,7 @@ fn (Num(a), Real(a, m)) powerOf(base: a, exponent: a) -> a:
 -- The cube root. The logarithm gives about half the bits and two Newton steps give the rest, which
 -- is cheaper than a series over a range with no useful reduction - and unlike `pow` it is defined
 -- for a negative argument, so the sign is carried around the computation rather than rejected.
-fn (Num(a), Real(a, m)) cubeRootOf(value: a) -> a:
+fn (Real(a, m)) cubeRootOf(value: a) -> a:
     let size = magnitudeOf(value)
     let guess = exp2Of(log2Of(size) * 3.3333333333333333e-1)
     let once = guess - (guess - size / (guess * guess)) * 3.3333333333333333e-1
@@ -308,7 +309,7 @@ fn (Num(a), Real(a, m)) cubeRootOf(value: a) -> a:
 -- The hypotenuse, scaled by the larger operand so that neither the square nor the sum can overflow
 -- for a pair whose answer does not. That is the whole reason it is a function rather than
 -- `sqrt(x*x + y*y)`, which loses a `Float` above 1.8e19 for a result that is perfectly representable.
-fn (Num(a), Real(a, m)) hypotenuseOf(x: a, y: a) -> a:
+fn (Real(a, m)) hypotenuseOf(x: a, y: a) -> a:
     let ax = magnitudeOf(x)
     let ay = magnitudeOf(y)
     let larger = select(ax .> ay, ax, ay)
@@ -329,13 +330,13 @@ fn (Num(a), Real(a, m)) hypotenuseOf(x: a, y: a) -> a:
    bits, so `n * piece` is exact while `n` fits in twelve bits fewer than the mantissa. That is |x|
    below about 6.4e3 for a `Float` and 1.7e12 for a `Double`.
 -}
-fn (Num(a), Real(a, m)) sineSeries(z: a) -> a:
+fn (Real(a, m)) sineSeries(z: a) -> a:
     return 1.6666666666666667e-1 - z * (8.3333333333333333e-3 - z * (1.9841269841269841e-4 - z *
         (2.7557319223985891e-6 - z * (2.5052108385441719e-8 - z * (1.6059043836821615e-10 - z *
         (7.6471637318198165e-13 - z * (2.8114572543455208e-15 - z * (8.2206352466243297e-18 - z *
         1.9572941063391261e-20))))))))
 
-fn (Num(a), Real(a, m)) cosineSeries(z: a) -> a:
+fn (Real(a, m)) cosineSeries(z: a) -> a:
     return 4.1666666666666667e-2 - z * (1.3888888888888889e-3 - z * (2.4801587301587302e-5 - z *
         (2.7557319223985891e-7 - z * (2.0876756987868099e-9 - z * (1.1470745597729725e-11 - z *
         (4.7794773323873853e-14 - z * (1.5619206968586226e-16 - z * 4.1103176233121649e-19)))))))
@@ -343,26 +344,26 @@ fn (Num(a), Real(a, m)) cosineSeries(z: a) -> a:
 -- The four quadrant answers, chosen by `n` modulo 4. The quadrant arrives as a whole float rather
 -- than an integer because there is no integer type a body generic in `a` could name - and comparing
 -- it against 0, 1 and 2 is exact for anything that came out of `round`.
-fn (Num(a), Real(a, m)) quadrantOf(quadrant: a, r: a) -> a:
+fn (Real(a, m)) quadrantOf(quadrant: a, r: a) -> a:
     let z = r * r
     let sine = r - r * z * sineSeries(z)
     let cosine = 1.0 - 0.5 * z + z * z * cosineSeries(z)
     let upper = select(quadrant .== 2.0, 0.0 - sine, 0.0 - cosine)
     return select(quadrant .== 0.0, sine, select(quadrant .== 1.0, cosine, upper))
 
-fn (Num(a), Real(a, m)) reducedAngle(value: a, n: a) -> a =
+fn (Real(a, m)) reducedAngle(value: a, n: a) -> a =
     value - n * 1.5708007812500000 + n * 4.4535845518112183e-6 + n * 8.7061380327213556e-10 - n *
         6.2228000530240024e-14 - n * 5.7208605257555445e-18 - n * 3.2818390803041373e-22
 
-fn (Num(a), Real(a, m)) quadrantIndex(n: a, offset: a) -> a:
+fn (Real(a, m)) quadrantIndex(n: a, offset: a) -> a:
     let shifted = n + offset
     return shifted - 4.0 * floor(shifted * 0.25)
 
-fn (Num(a), Real(a, m)) sineOf(value: a) -> a:
+fn (Real(a, m)) sineOf(value: a) -> a:
     let n = round(value * 6.3661977236758134e-1)
     return quadrantOf(quadrantIndex(n, 0.0), reducedAngle(value, n))
 
-fn (Num(a), Real(a, m)) cosineOf(value: a) -> a:
+fn (Real(a, m)) cosineOf(value: a) -> a:
     let n = round(value * 6.3661977236758134e-1)
     return quadrantOf(quadrantIndex(n, 1.0), reducedAngle(value, n))
 
@@ -370,7 +371,7 @@ fn (Num(a), Real(a, m)) cosineOf(value: a) -> a:
 -- reducing its argument twice. It is unbounded at the odd multiples of pi/2 and answers a very large
 -- number there rather than an infinity, because the reduced angle is not exactly pi/2 and its cosine
 -- is not exactly zero.
-fn (Num(a), Real(a, m)) tangentOf(value: a) -> a:
+fn (Real(a, m)) tangentOf(value: a) -> a:
     let n = round(value * 6.3661977236758134e-1)
     let r = reducedAngle(value, n)
     return quadrantOf(quadrantIndex(n, 0.0), r) / quadrantOf(quadrantIndex(n, 1.0), r)
@@ -385,7 +386,7 @@ fn (Num(a), Real(a, m)) tangentOf(value: a) -> a:
    an odd series are well past a double's last bit; over [0, 1] without the second reduction the same
    accuracy would need more than a hundred.
 -}
-fn (Num(a), Real(a, m)) arcTangentSeries(z: a) -> a:
+fn (Real(a, m)) arcTangentSeries(z: a) -> a:
     return 3.3333333333333333e-1 - z * (2.0000000000000000e-1 - z * (1.4285714285714286e-1 - z *
         (1.1111111111111111e-1 - z * (9.0909090909090909e-2 - z * (7.6923076923076923e-2 - z *
         (6.6666666666666667e-2 - z * (5.8823529411764706e-2 - z * (5.2631578947368421e-2 - z *
@@ -393,11 +394,11 @@ fn (Num(a), Real(a, m)) arcTangentSeries(z: a) -> a:
         (3.7037037037037037e-2 - z * (3.4482758620689655e-2 - z * (3.2258064516129032e-2 - z *
         (3.0303030303030303e-2 - z * 2.8571428571428571e-2)))))))))))))))
 
-fn (Num(a), Real(a, m)) arcTangentCore(u: a) -> a:
+fn (Real(a, m)) arcTangentCore(u: a) -> a:
     let z = u * u
     return u - u * z * arcTangentSeries(z)
 
-fn (Num(a), Real(a, m)) arcTangentOf(value: a) -> a:
+fn (Real(a, m)) arcTangentOf(value: a) -> a:
     let size = magnitudeOf(value)
     let folded = select(size .> 1.0, 1.0 / size, size)
     let steep = folded .> 2.6794919243112271e-1
@@ -409,7 +410,7 @@ fn (Num(a), Real(a, m)) arcTangentOf(value: a) -> a:
 
 -- The two-argument form, which is `atan(y/x)` plus the quadrant the quotient threw away. The axis
 -- case is selected last, so a zero `x` never reaches the division's answer.
-fn (Num(a), Real(a, m)) arcTangent2Of(y: a, x: a) -> a:
+fn (Real(a, m)) arcTangent2Of(y: a, x: a) -> a:
     let base = arcTangentOf(y / x)
     let shifted = select(y .< 0.0, base - 3.1415926535897932, base + 3.1415926535897932)
     let general = select(x .< 0.0, shifted, base)
@@ -420,11 +421,11 @@ fn (Num(a), Real(a, m)) arcTangent2Of(y: a, x: a) -> a:
 -- argument is an exact zero and `atan2` answers pi/2, 0 or pi from its axis case rather than from a
 -- division. The clamp on the radicand is for an argument a rounding pushed just past 1, where
 -- `1 - x*x` is a small negative and the square root would be NaN for a value the caller meant as 1.
-fn (Num(a), Real(a, m)) arcSineOf(value: a) -> a:
+fn (Real(a, m)) arcSineOf(value: a) -> a:
     let square = 1.0 - value * value
     return arcTangent2Of(value, sqrt(select(square .< 0.0, zeroLike(square), square)))
 
-fn (Num(a), Real(a, m)) arcCosineOf(value: a) -> a:
+fn (Real(a, m)) arcCosineOf(value: a) -> a:
     let square = 1.0 - value * value
     return arcTangent2Of(sqrt(select(square .< 0.0, zeroLike(square), square)), value)
 

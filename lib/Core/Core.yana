@@ -35,6 +35,7 @@ infixl 6 `rol`
 infixl 6 `ror`
 infixl 7 +
 infixl 7 -
+infixl 7 ++
 infixl 8 *
 infixl 8 /
 infixl 8 `rem`
@@ -229,25 +230,44 @@ pub class (FromInt(a)) Num(a):
   fn -(value: a) -> a = 0 - value
 
 {-
-   Joining two of something - what `"a" + "b"` is, and what `Num` must not be made to mean.
+   Joining two of something - what `"a" ++ "b"` is, and what `Num` must not be made to mean.
 
-   `+` on strings is Implementation-String.md part 8's, and the shape of the problem is that `Num`'s
-   `+` cannot serve it: `Num` has `FromInt` as a superclass, so an instance of it would have to say
-   what the string `3` is, and it would also bring `-`, `*` and `/`, none of which joining has an
-   answer for. Widening the class to fit would make every numeric type promise something about
-   concatenation. So this is a second class, and `+` is overloaded on it exactly as a name may be
-   overloaded on any two classes - selection is by the operand type, and a type in only one of them
-   reaches only that one.
+   Concatenation on strings is Implementation-String.md part 8's, and the shape of the problem is
+   that `Num`'s `+` cannot serve it: `Num` has `FromInt` as a superclass, so an instance of it would
+   have to say what the string `3` is, and it would also bring `-`, `*` and `/`, none of which
+   joining has an answer for. Widening the class to fit would make every numeric type promise
+   something about concatenation.
 
-   Declared here rather than beside `String` for the reason `Index` is: it is a class a *user* type
-   may join - a rope, a builder, a list - and a class only a container file could name would not be
-   one.
+   **So joining has an operator of its own, and that is a decision separate from having a class of
+   its own.** Spelling it `+` is possible - a name may be declared by any two classes and selection
+   is by the operand type - and what it costs is paid wherever the operand is a *variable*: two
+   candidate classes and no argument to choose between them means a generic body has to name which
+   it meant, even where only one could ever apply. `++` is a name nothing else declares, so `+` is
+   `Num`'s alone, and a signature may therefore reach it through a superclass. That is what lets
+   `Real`'s kernels in `lib/Math.yana` be written `fn (Real(a, m)) ...` and `alignUp` in `Bits.yana`
+   be written `fn (Integral(a)) ...` - in both, `Num` is a superclass away and nothing has to repeat
+   it.
+
+   **A class and not the one plain `++` a program is allowed.** An overload set admits at most one
+   plain function (doc/spec/overloading.md, R1), so writing `String ++ String` as an ordinary
+   function would spend the language's only `++` on one type in the standard library. Joining is the
+   operation most likely to be wanted by a type this tree does not contain - a rope, a builder, a
+   non-empty list, a lazy sequence - and the class is what leaves that open. It is instanced at
+   `String` and at `Array(a)`, which are the two the library has.
+
+   Declared here rather than beside `String` for the reason `Index` is: a class only a container
+   file could name would not be an extension point.
+
    It is deliberately not called `Monoid`: there is no identity element in it, because a type that
    can join two values need not have an empty one and requiring it would rule out the non-empty
-   containers that are the obvious second instance.
+   containers that are the obvious next instance.
+
+   `infixl 7`, which is `+`'s own precedence and associativity. A chain that mixes the two is not
+   something anyone writes, so what the number is for is the chain of `++`s, and that groups the way
+   it always did.
 -}
 pub class Append(a):
-  fn +(lhs: a, rhs: a) -> a
+  fn ++(lhs: a, rhs: a) -> a
 
 {-
    Turning a value into text - Implementation-Storage.md part 7, whose `Storage(StringUnit)` sink is

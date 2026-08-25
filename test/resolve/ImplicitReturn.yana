@@ -10,12 +10,12 @@ fn double(x: Int) = x * 2
    Generic, with the constraint the body turned out to need collected the same way a written
    signature's would be - the result type being inferred does not change what `+` requires.
 
-   `Num(a)` is written out rather than inferred, and that is a consequence of `+` being overloaded
-   across two classes: `Num` and `Append`, the latter being what `"a" + "b"` is
-   (Implementation-String.md part 8). A body using `+` on a *concrete* type still needs no
-   constraint - the operand type selects - but one whose operand is a variable has two classes that
-   would serve and nothing to choose between them, so it has to say which. That is what the
-   ambiguity diagnostic asks for by name.
+   `Num(a)` is written out rather than inferred, and what it is doing is not disambiguating the
+   operator: `+` is `Num`'s and nothing else's, since joining has `++` (`Core.yana`'s `Append`). It
+   is what makes the *call* below typeable. `sum(1, 2)` hands over two literals and no expected type,
+   and a literal takes its type from `FromInt` - which `Num` declares as a superclass - so without a
+   constraint there is nothing for `a` to be inferred from and the type argument is reported as
+   uninferable at the call rather than as anything about the body.
 -}
 fn (Num(a)) sum(lhs: a, rhs: a) = lhs + rhs
 

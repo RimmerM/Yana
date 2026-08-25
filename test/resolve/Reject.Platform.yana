@@ -17,4 +17,12 @@ fn quoted() -> Int = 3
 @platform(avx2)
 fn wideOnly() -> Int = 4
 
+-- The control, and the line between it and the one above. An extension that no level implies is a
+-- target name, because it comes as a *pair* - `sha` and `nosha` partition every target, so a
+-- declaration excluded by one is answered by another the other selected. `avx2` has no such other
+-- half: there is nothing a build below it selects instead, which is what makes it a question about
+-- encoding rather than about which program was resolved.
+@platform(sha)
+fn withExtension() -> Int = 5
+
 fn main() -> Int = 0

@@ -445,7 +445,7 @@ fn Length(String).length(%self: String) -> Size {
     ret %v6
 }
 
-fn Append(String).+(%lhs: String, %rhs: String) -> String {
+fn Append(String).++(%lhs: String, %rhs: String) -> String {
   b0:
     %leftLength = call Length(String).length, %lhs : Size
     %rightLength = call Length(String).length, %rhs : Size
@@ -1589,7 +1589,7 @@ fn built(%n: Int) -> Int {
     %v4 = load %text : String
     %v5 = symbol ResolveTest.string$1 : %CodeUnit
     %v7 = call stringLiteral, %v5, 1 : String
-    %v8 = call Append(String).+, %v4, %v7 : String
+    %v8 = call Append(String).++, %v4, %v7 : String
     drop %text reclaim Reclaim(String).reclaim
     assign %text, %v8
     %v10 = load %text : String
@@ -1611,7 +1611,7 @@ fn inLaterBlock(%n: Int) -> Int {
     %v8 = load %text : String
     %v9 = symbol ResolveTest.string$2 : %CodeUnit
     %v11 = call stringLiteral, %v9, 1 : String
-    %v12 = call Append(String).+, %v8, %v11 : String
+    %v12 = call Append(String).++, %v8, %v11 : String
     drop %text reclaim Reclaim(String).reclaim
     assign %text, %v12
     jmp b3
@@ -1652,7 +1652,7 @@ fn inLoop(%n: Int) -> Int {
     %v15 = load %text : String
     %v16 = symbol ResolveTest.string$3 : %CodeUnit
     %v18 = call stringLiteral, %v16, 1 : String
-    %v19 = call Append(String).+, %v15, %v18 : String
+    %v19 = call Append(String).++, %v15, %v18 : String
     drop %text reclaim Reclaim(String).reclaim
     assign %text, %v19
     %v21 = load %total : Int

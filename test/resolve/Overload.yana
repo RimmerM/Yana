@@ -30,12 +30,13 @@ fn (Bitwise(a)) bothGeneric(x: a, y: a) -> a = x `and` y
 {-
    R3 and R4, over two classes that genuinely share a name.
 
-   Declared here rather than reached for in Core, and the reason is worth writing down: these rules
-   used to be demonstrated with `and`, which was declared by both `Integral` and `Logic`. That was an
-   accident of Core's layout rather than a design - the two declarations were identical and no type
-   was ever in both - and splitting `Bitwise` out left exactly one `and` in the language. Core's real
-   two-class name is `+`, in `Num` and `Append`, and an operator cannot be written `Num.+`, so a
-   fixture for the qualified form has to bring its own pair.
+   Declared here rather than reached for in Core, and the reason is worth writing down: **the
+   standard library has no name declared by two classes.** `and` was `Integral`'s and `Logic`'s until
+   `Bitwise` was split out, and `+` was `Num`'s and `Append`'s until joining took `++` - each of those
+   was an overload the library chose to stop having, because a name with two candidate classes is one
+   a generic body cannot use without saying which. So the pair these rules are demonstrated on has to
+   be declared here, and an operator would not serve anyway: `Num.+` is not something that can be
+   written, since a qualified name is not an operator's spelling.
 -}
 class Area(a):
     fn size(value: a) -> Int

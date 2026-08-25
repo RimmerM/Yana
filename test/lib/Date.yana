@@ -3,10 +3,10 @@
 
    Three claims, and they fail independently, so they are three groups of functions below.
 
-    - **The affine structure admits what it should and nothing else.** `Timestamp + Interval` is a
-      timestamp, `Timestamp - Timestamp` is an interval, and `Timestamp + Timestamp` does not
-      compile. Only the first two can be asserted here; the third is asserted by its absence, and
-      the place a compiler-refused expression *is* pinned is `test/resolve/Reject.*`.
+    - **The affine structure admits what it should and nothing else.** `time.advanceBy(amount)` is
+      a timestamp, `later.since(earlier)` is an interval, and there is no name at all for adding two
+      timestamps. Only the first two can be asserted here; the third is asserted by its absence, and
+      by the operation being a function that does not exist rather than a call that does not type.
     - **The calendar round-trips.** Every date this file names is converted both ways and compared
       against a value worked out by hand, and the interesting cases are all before the epoch: that
       is where a truncating division and a floored one disagree, which is the bug this port fixes.
@@ -46,13 +46,13 @@ fn intervals() -> {}:
     -- `nanos` is the lossy direction, and the only one.
     assert(toMicros(nanos(1500)) == 1)
 
-    -- `Advance(Interval)`: an interval displaced by an interval is an interval.
-    assert(seconds(2) + millis(500) == millis(2500))
-    assert(seconds(2) - millis(500) == millis(1500))
+    -- An interval is its own displacement, so both operands are the same kind of thing.
+    assert(seconds(2).plus(millis(500)) == millis(2500))
+    assert(seconds(2).minus(millis(500)) == millis(1500))
 
-    -- `Scale(Interval)`, which `Timestamp` deliberately does not join.
-    assert(seconds(1) * 3 == seconds(3))
-    assert(minutes(2) / 4 == seconds(30))
+    -- Scaling, which `Timestamp` deliberately has no counterpart to.
+    assert(seconds(1).scaledBy(3) == seconds(3))
+    assert(minutes(2).dividedBy(4) == seconds(30))
 
     -- Derived `Ord`, over the content.
     assert(millis(1) < seconds(1))
@@ -61,12 +61,12 @@ fn intervals() -> {}:
 
 fn timestamps() -> {}:
     let base = epoch()
-    let later = base + seconds(90)
+    let later = base.advanceBy(seconds(90))
 
-    -- The three operations the two classes exist to admit.
-    assert(later - base == seconds(90))
-    assert(later - seconds(90) == base)
-    assert(base + minutes(1) + seconds(30) == later)
+    -- The three operations between a point and a displacement.
+    assert(later.since(base) == seconds(90))
+    assert(later.retreatBy(seconds(90)) == base)
+    assert(base.advanceBy(minutes(1)).advanceBy(seconds(30)) == later)
 
     -- And the two names for the one point that has one.
     assert(sinceEpoch(later) == seconds(90))
@@ -75,7 +75,7 @@ fn timestamps() -> {}:
 
     -- Ordering is over the point, which is what makes a timestamp comparable at all.
     assert(later > base)
-    assert(base - seconds(1) < base)
+    assert(base.retreatBy(seconds(1)) < base)
     return
 
 -- The formatted form, which is microseconds and nothing else - what a human reads is `DateFormat`'s
@@ -115,12 +115,12 @@ fn calendar() -> {}:
 
     -- 1900 is not a leap year and 2000 is, which is the whole of the Gregorian rule and the reason
     -- the conversion counts in 400-year eras.
-    assert(sameDate(dateOf(timestampOf(Date {year: 1900, month: 3, day: 1}) - days(1)), 1900, 2, 28))
-    assert(sameDate(dateOf(timestampOf(Date {year: 2000, month: 3, day: 1}) - days(1)), 2000, 2, 29))
+    assert(sameDate(dateOf(timestampOf(Date {year: 1900, month: 3, day: 1}).retreatBy(days(1))), 1900, 2, 28))
+    assert(sameDate(dateOf(timestampOf(Date {year: 2000, month: 3, day: 1}).retreatBy(days(1))), 2000, 2, 29))
 
     -- Every month boundary of one year, both ways.
     assert(sameDate(dateOf(timestampOf(Date {year: 2026, month: 12, day: 31, hour: 23})), 2026, 12, 31))
-    assert(sameDate(dateOf(timestampOf(Date {year: 2026, month: 12, day: 31, hour: 23}) + hours(1)), 2027, 1, 1))
+    assert(sameDate(dateOf(timestampOf(Date {year: 2026, month: 12, day: 31, hour: 23}).advanceBy(hours(1))), 2027, 1, 1))
     return
 
 {-
@@ -133,19 +133,19 @@ fn calendar() -> {}:
    assertions here are that case.
 -}
 fn beforeTheEpoch() -> {}:
-    let oneDayBefore = dateOf(epoch() - days(1))
+    let oneDayBefore = dateOf(epoch().retreatBy(days(1)))
     assert(sameDate(oneDayBefore, 1969, 12, 31))
     assert(sameTime(oneDayBefore, 0, 0, 0, 0))
 
     -- And one microsecond before it, where the remainder is not zero and the truncating form is
     -- wrong in the other direction.
-    let justBefore = dateOf(epoch() - micros(1))
+    let justBefore = dateOf(epoch().retreatBy(micros(1)))
     assert(sameDate(justBefore, 1969, 12, 31))
     assert(sameTime(justBefore, 23, 59, 59, 999999))
 
     -- A year before, an era before, and a date the shifted-year trick has to get right: January of
     -- a year belongs to the *previous* March-to-February block.
-    assert(sameDate(dateOf(epoch() - days(365)), 1969, 1, 1))
+    assert(sameDate(dateOf(epoch().retreatBy(days(365))), 1969, 1, 1))
     assert(sameDate(dateOf(timestampOf(Date {year: 1600, month: 1, day: 1})), 1600, 1, 1))
     assert(sameDate(dateOf(timestampOf(Date {year: 1, month: 1, day: 1})), 1, 1, 1))
 
@@ -218,17 +218,17 @@ fn weekdays() -> {}:
 
     -- Seven consecutive days, so a wrong modulus shows up as a wrong day rather than as an offset
     -- that happens to be right on the one date the numbering was fitted to.
-    assert(weekdayAt(epoch() + days(1)) == Friday)
-    assert(weekdayAt(epoch() + days(2)) == Saturday)
-    assert(weekdayAt(epoch() + days(3)) == Sunday)
-    assert(weekdayAt(epoch() + days(4)) == Monday)
-    assert(weekdayAt(epoch() + days(5)) == Tuesday)
-    assert(weekdayAt(epoch() + days(6)) == Wednesday)
-    assert(weekdayAt(epoch() + days(7)) == Thursday)
+    assert(weekdayAt(epoch().advanceBy(days(1))) == Friday)
+    assert(weekdayAt(epoch().advanceBy(days(2))) == Saturday)
+    assert(weekdayAt(epoch().advanceBy(days(3))) == Sunday)
+    assert(weekdayAt(epoch().advanceBy(days(4))) == Monday)
+    assert(weekdayAt(epoch().advanceBy(days(5))) == Tuesday)
+    assert(weekdayAt(epoch().advanceBy(days(6))) == Wednesday)
+    assert(weekdayAt(epoch().advanceBy(days(7))) == Thursday)
 
     -- And before it, which is the half a truncating modulus gets wrong.
-    assert(weekdayAt(epoch() - days(1)) == Wednesday)
-    assert(weekdayAt(epoch() - days(7)) == Thursday)
+    assert(weekdayAt(epoch().retreatBy(days(1))) == Wednesday)
+    assert(weekdayAt(epoch().retreatBy(days(7))) == Thursday)
 
     -- Both entry points agree, which they only do because both go through the day count.
     assert(weekdayOf(dateOf(Timestamp(billennium))) == weekdayAt(Timestamp(billennium)))
@@ -261,7 +261,7 @@ fn clocks() -> {}:
     -- fails it.
     let again = currentTime()
     assert(again >= now)
-    assert(again - now < seconds(1))
+    assert(again.since(now) < seconds(1))
 
     -- The monotonic clock in the wall clock's unit, which is what catches a factor of a thousand:
     -- both are read within a moment of each other, so if it were seconds since the epoch rather

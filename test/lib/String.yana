@@ -27,16 +27,16 @@ fn units(s: String) -> Int = truncate(length(s)) :: Int
    it is asserted where the allocator can be counted.
 -}
 fn concatenation() -> {}:
-    let joined = "ab" + "cde"
+    let joined = "ab" ++ "cde"
     assert(units(joined) == 5)
     assert(String.unit(joined, 0) == 97)      -- `a`
     assert(String.unit(joined, 4) == 101)     -- `e`
 
     -- Either side empty is the case a length that came out of a miscounted loop gets wrong, and it
     -- is also the one place a concatenation could legitimately hand back one of its arguments.
-    assert(units("" + "abc") == 3)
-    assert(units("abc" + "") == 3)
-    assert(units("" + "") == 0)
+    assert(units("" ++ "abc") == 3)
+    assert(units("abc" ++ "") == 3)
+    assert(units("" ++ "") == 0)
     return
 
 -- Appending, which is the same bytes reached the other way: `a + b` builds a third string and
@@ -49,7 +49,7 @@ fn appending() -> {}:
 
     assert(units(built) == 5)
     assert(built == "abcde")
-    assert(built == "ab" + "cde")
+    assert(built == "ab" ++ "cde")
     return
 
 -- Equality is raw unit-wise on both targets, which part 3 argues is never a place they can disagree:

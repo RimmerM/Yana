@@ -53,8 +53,9 @@ fn (n: Int) doubled(v: Vec(I16, n)) -> Vec(I16, n) = max(reverse(v), v)
    could not be written at all. It is written here now, and what makes it work is that nothing behind
    the grammar had to change: `ClassConstraint::args` was always a list of arbitrary types, and
    `hasClassRequirement` compares them by pointer against the interned `Vec(I16, n)` the call site
-   left undecided. That is the comparison which settles `+` between `Num` and `Append` - the
-   ambiguity diagnostic's *"or declare which one this function requires"*, now followable here.
+   left undecided. That comparison is what makes the requirement *findable*: the lane count is a
+   const parameter of this signature, so the type the constraint names is one only this signature
+   can build.
 
    The constraint is written *after* the const parameter it mentions and `sameCount` below writes it
    before, because §10.3's first pass declares every `Const` entry ahead of the rest. Either order is

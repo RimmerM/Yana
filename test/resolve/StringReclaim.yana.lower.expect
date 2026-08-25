@@ -227,7 +227,7 @@ Show(Int).show<complex>(%value: Int, %to: Ptr) {
   }
 }
 
-Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+Append(String).++<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
     %v_2 = add %lhs, 12: Ptr
     %v_3 = load %v_2, 4: Int
@@ -990,7 +990,7 @@ concatHere<complex>(): Int {
     %v_2 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_2, @ResolveTest.string$7, 3
     %joined = alloca 16, 8: Ptr
-    call_complex Append(String).+, %joined, %v_1, %v_2
+    call_complex Append(String).++, %joined, %v_1, %v_2
     %v_3 = add %joined, 12: Ptr
     %v_4 = load %v_3, 4: Int
     call_complex Reclaim(String).reclaim, %joined

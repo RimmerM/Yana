@@ -83,17 +83,17 @@ import Native
    Concatenation - part 8, which observes that this is *already* encoding-agnostic with no extra
    work: joining two strings never inspects their content, only their raw units, whatever those mean.
 
-   The native body is the one allocation in the raw tier. It sizes the result exactly, so a `+` chain
-   allocates once per `+` - which is what makes `Show`'s bound worth having and is exactly the cost
-   Implementation-Storage.md part 8 exists to avoid for interpolation. A program building a string in
-   a loop should reach for the sink below, not for this.
+   The native body is the one allocation in the raw tier. It sizes the result exactly, so a `++`
+   chain allocates once per `++` - which is what makes `Show`'s bound worth having and is exactly the
+   cost Implementation-Storage.md part 8 exists to avoid for interpolation. A program building a
+   string in a loop should reach for the sink below, not for this.
 
    The JS body is the host's `+`, which the engine implements with a rope and which therefore has the
    opposite cost profile. That difference is real and is not hidden; it is also the reason `Show`
    writes into a sink rather than returning a string, so that neither target's `+` is on the hot path.
 -}
 @platform(native) instance Append(String):
-    fn +(lhs: String, rhs: String) -> String:
+    fn ++(lhs: String, rhs: String) -> String:
         let leftLength = length(lhs)
         let rightLength = length(rhs)
 
@@ -104,7 +104,7 @@ import Native
         return fresh
 
 @platform(js) instance Append(String):
-    fn +(lhs: String, rhs: String) -> String = hostConcat(lhs, rhs)
+    fn ++(lhs: String, rhs: String) -> String = hostConcat(lhs, rhs)
 
 {-
    Equality, as a raw unit-wise comparison - part 3.

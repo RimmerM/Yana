@@ -197,7 +197,7 @@ String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
   }
 }
 
-Append(String).+<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
+Append(String).++<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_1 {
     %v_2 = add %lhs, 12: Ptr
     %v_3 = load %v_2, 4: Int
@@ -948,7 +948,7 @@ built<complex>(%n: Int): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_1, @ResolveTest.string$1, 1
     %v_2 = alloca 16, 8: Ptr
-    call_complex Append(String).+, %v_2, %text, %v_1
+    call_complex Append(String).++, %v_2, %text, %v_1
     call_complex Reclaim(String).reclaim, %text
     copy %text, %v_2, 16
     %v_3 = add %text, 12: Ptr
@@ -970,7 +970,7 @@ inLaterBlock<complex>(%n: Int): Int {
     %v_4 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_4, @ResolveTest.string$2, 1
     %v_5 = alloca 16, 8: Ptr
-    call_complex Append(String).+, %v_5, %text, %v_4
+    call_complex Append(String).++, %v_5, %text, %v_4
     call_complex Reclaim(String).reclaim, %text
     copy %text, %v_5, 16
     jmp b_6
@@ -1066,7 +1066,7 @@ main<complex>(): Int {
     %v_40 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_40, @ResolveTest.string$3, 1
     %v_41 = alloca 16, 8: Ptr
-    call_complex Append(String).+, %v_41, %text, %v_40
+    call_complex Append(String).++, %v_41, %text, %v_40
     call_complex Reclaim(String).reclaim, %text
     copy %text, %v_41, 16
     %v_42 = add %text, 12: Ptr

@@ -10,11 +10,9 @@
    **Neither type has a `Num` instance, and that is a decision this file exists to record.**
    `Num(a)` is single-typed - `+ : (a, a) -> a` - so the affine structure above does not fit it.
    Instancing it for `Timestamp` would admit `Timestamp + Timestamp`, which is the one thing the
-   split is for. What is written instead is three small classes - `Advance`, `Difference` and
-   `Scale` - covering seven operations between them, which is the alternative §3.1 names in the same
-   sentence and sets aside. It sets it aside in favour of free operators, and free operators turn out
-   not to be available: see the section below, which is the one place this file departs from what
-   §3.1 asked for and says why it had to.
+   split is for. What is written instead is seven named functions in the two types' namespaces -
+   `advanceBy`, `since`, `scaledBy` and the rest - rather than the operators §3.1 asks for. The
+   section below is where that departure is argued.
 
    **`Interval` has no `FromInt` instance either**, for the same reason read from the other end:
    `let t: Interval = 5` reads as neither five seconds nor five microseconds. The C++'s `0.5_s` and
@@ -63,80 +61,81 @@ instance Show(Interval):
 
 {-
    ==========================================================================================
-   The affine operators, as three classes.
+   The affine operations, as named functions in the two types' namespaces.
    ==========================================================================================
 
-   **§3.1 says "declare the four legal operations as free operators", and that is not a thing this
-   language can do.** An overload set is keyed by `(name, arity)` and holds every class function of
-   that name and arity plus *at most one* plain function (doc/spec/overloading.md, R1) - so there is
-   one plain binary `+` in a program and one plain binary `-`, and `Native` has already spent both
-   on pointer arithmetic. That is also why pointer *difference* over there is a named `difference`
-   rather than the `-` it wants to be.
+   Seven operations, and every one of them is an ordinary function reached by a dot - `later.since(
+   base)`, `base.advanceBy(seconds(90))`, `amount.scaledBy(3)`. doc/spec/classes.md is the standing
+   preference this follows: the standard library keeps typeclasses restrained and prefers a
+   procedural surface even where a functional encoding would be more elegant.
 
-   So the alternative §3.1 names in the same sentence and sets aside - "or need three classes" - is
-   the one that works, and it is three exactly. `Advance` is a point displaced by a duration,
-   `Difference` is the gap between two points, and `Scale` is a duration stretched by a number. Each
-   is a real operation with a real name, and between them they admit precisely the seven combinations
-   that mean something.
+   **§3.1 asks for four free operators, and an operator is what this cannot have.** An overload set
+   is keyed by `(name, arity)` and holds every class function of that name and arity plus *at most
+   one* plain function (doc/spec/overloading.md, R1) - so there is one plain binary `+` in a program
+   and one plain binary `-`, and `Native` has already spent both on pointer arithmetic. That is also
+   why pointer *difference* over there is a named `difference` rather than the `-` it wants to be.
 
-   What makes the two `-`s unambiguous is that a candidate matches or it does not, with no ranking
-   (R2): `Timestamp - Interval` finds `Advance(Timestamp)` and no `Difference` candidate, because
-   `Difference`'s second argument is a `Timestamp`. `Timestamp - Timestamp` finds the other one for
-   the mirror-image reason. And `Timestamp + Timestamp` - the operation this whole design exists to
-   refuse - matches nothing at all and is reported as such.
+   **The other way to spell an operator is a class, and a class is not what any of these is.** Three
+   would carry the seven bodies below - a point displaced by a duration, the gap between two points,
+   a duration stretched by a number - and each would have exactly one implementation, one hard-coded
+   result type, and no generic function anywhere constrained on it. A class earns a public name by
+   having a generic consumer, by being what the compiler or the syntax selects, by a functional
+   dependency or superclass that carries weight, or by admitting implementations this tree does not
+   write. "Another concrete function needs the same spelling" is on none of that list, and it is the
+   only thing the three would have.
 
-   `Advance` carries the duration as a second parameter with a functional dependency, because a
-   `Timestamp` advances by exactly one kind of thing and saying so is what lets `time + amount` be
-   typed from `time` alone. `Difference` does not, and the difference between them is a resolver
-   rule worth knowing about:
+   What the spelling costs is real and worth naming: `later - base == seconds(90)` reads better than
+   `later.since(base) == seconds(90)`. What it buys, besides an honest abstraction, is that two
+   resolver rules stop bearing on this file at all:
 
-   **an operator in the middle of an infix chain is offered the whole chain's expected type**, which
-   is what makes `a `or` b `or` c` at a `WideInt` result compute at 53 bits rather than settling its
-   literals to `Int` (test/resolve/LiteralWidth.yana, `adoptChain`). That expected type fills in
-   whatever the arguments left open - and a `Difference(t -> i)` leaves `i` open, since no argument
-   mentions it. So `later - base == seconds(90)` offered `Bool` as the result of the *subtraction*,
-   `i` became `Bool`, and there was no instance of anything at that point. Naming `Interval` in the
-   signature closes the hole: nothing is open, so there is nothing for the offer to fill, and the
-   class matches on its arguments the way `Num` does. It also says the true thing - a difference
-   between two points *in time* is a duration and not a type variable.
+     - **An operator in the middle of an infix chain is offered the whole chain's expected type**,
+       which is what makes `a `or` b `or` c` at a `WideInt` result compute at 53 bits rather than
+       settling its literals to `Int` (test/resolve/LiteralWidth.yana, `adoptChain`). A class
+       `Difference(t -> i)` leaves `i` open, so `later - base == seconds(90)` would offer `Bool` as
+       the result of the *subtraction* and find no instance at all. A named function's result is
+       written down and there is nothing for the offer to fill.
+     - **A candidate matches or it does not, with no ranking**, so two matching candidates are an
+       error rather than a contest. An interval displaced by an interval and the gap between two
+       intervals are the same signature, so one class pair could admit only one of them. Two names
+       admit both.
+
+   **The affine structure is still stated, and it is stated by the signatures.** `Timestamp` is a
+   point and `Interval` is a displacement: a point advances or retreats by a displacement and
+   answers a point, the gap between two points is a displacement, and a displacement scales. What
+   is refused is refused by there being no function for it - `Timestamp.advanceBy` takes an
+   `Interval` and nothing takes two `Timestamp`s and answers one, so "adding two dates" is a name
+   that does not exist rather than a call that does not type.
+
+   The names read in the direction they compute. `later.since(earlier)` is the subtraction with its
+   operands in the order the answer is positive for, and `time.advanceBy` / `time.retreatBy` are the
+   two directions written out rather than one of them and a negated argument - an `Interval` may be
+   negative, so `retreatBy` is a name for the common case and not a second way to say the same thing.
 -}
-pub class Advance(t -> i):
-  fn +(point: t, amount: i) -> t
-  fn -(point: t, amount: i) -> t
+pub fn Timestamp.advanceBy(time: Timestamp, amount: Interval) -> Timestamp = Timestamp(time.0 + amount.0)
+pub fn Timestamp.retreatBy(time: Timestamp, amount: Interval) -> Timestamp = Timestamp(time.0 - amount.0)
 
-pub class Difference(t):
-  fn -(from: t, to: t) -> Interval
+pub fn Timestamp.since(later: Timestamp, earlier: Timestamp) -> Interval = Interval(later.0 - earlier.0)
 
-pub class Scale(a):
-  fn *(amount: a, factor: I64) -> a
-  fn /(amount: a, divisor: I64) -> a
-
-instance Advance(Timestamp, Interval):
-    fn +(point: Timestamp, amount: Interval) -> Timestamp = Timestamp(point.0 + amount.0)
-    fn -(point: Timestamp, amount: Interval) -> Timestamp = Timestamp(point.0 - amount.0)
-
--- The one instance of this, and the reason there is not one at `Interval`: an interval displaced by
--- an interval is `Advance(Interval)` above, so instancing `Difference(Interval)` as well would give
--- `a - b` on two intervals two matching candidates and make it an error.
-instance Difference(Timestamp):
-    fn -(from: Timestamp, to: Timestamp) -> Interval = Interval(from.0 - to.0)
-
--- An interval is its own displacement, which is what makes an interval a vector where a timestamp
--- is a point: `seconds(3) + millis(500)` is a duration, and the two are the same kind of thing.
-instance Advance(Interval, Interval):
-    fn +(point: Interval, amount: Interval) -> Interval = Interval(point.0 + amount.0)
-    fn -(point: Interval, amount: Interval) -> Interval = Interval(point.0 - amount.0)
+-- An interval is its own displacement, which is what makes an interval a vector where a timestamp is
+-- a point: `seconds(3).plus(millis(500))` is a duration, and the two operands are the same kind of
+-- thing. `plus` and `minus` rather than `advanceBy` and `retreatBy`, because nothing is being
+-- displaced - a duration has no position to move.
+pub fn Interval.plus(amount: Interval, addend: Interval) -> Interval = Interval(amount.0 + addend.0)
+pub fn Interval.minus(amount: Interval, subtrahend: Interval) -> Interval = Interval(amount.0 - subtrahend.0)
 
 {-
-   Scaling, which `Timestamp` deliberately does not join.
+   Scaling, which `Timestamp` deliberately has no counterpart to.
 
    The C++ has `*` and `/` on a timestamp as well, and both are meaningless: half of a point in time
    is not a point in time, it is half of the displacement from an origin nobody named. A duration is
-   the thing with a zero to scale about, so this is instanced there and nowhere else.
+   the thing with a zero to scale about, so this is written here and nowhere else.
+
+   The factor is an `I64` and not an `Interval`: what a duration multiplies by is a number, and the
+   product of two durations is not a duration. `dividedBy` truncates toward zero, exactly as the
+   integer division under it does and as the readers above do.
 -}
-instance Scale(Interval):
-    fn *(amount: Interval, factor: I64) -> Interval = Interval(amount.0 * factor)
-    fn /(amount: Interval, divisor: I64) -> Interval = Interval(amount.0 / divisor)
+pub fn Interval.scaledBy(amount: Interval, factor: I64) -> Interval = Interval(amount.0 * factor)
+pub fn Interval.dividedBy(amount: Interval, divisor: I64) -> Interval = Interval(amount.0 / divisor)
 
 {-
    ==========================================================================================
@@ -172,7 +171,7 @@ pub fn toHours(amount: Interval) -> I64 = amount.0 / 3600000000
 pub fn toDays(amount: Interval) -> I64 = amount.0 / 86400000000
 
 -- The two ways a `Timestamp` and an `Interval` relate to the epoch, which is the one point on the
--- line that has a name. `sinceEpoch` is `time - epoch()` said without the subtraction, and
+-- line that has a name. `sinceEpoch` is `time.since(epoch())` said without the second argument, and
 -- `afterEpoch` is the C++'s `Interval::asTimestamp` under a name that says which direction it goes.
 pub fn epoch() -> Timestamp = Timestamp(0)
 pub fn sinceEpoch(time: Timestamp) -> Interval = Interval(time.0)
