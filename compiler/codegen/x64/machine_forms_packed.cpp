@@ -135,8 +135,9 @@ void MachineFormBuilder::registerPackedForms() {
      *
      * `requiredFeatures` is `kFeatureSha`, which no psABI level implies - see
      * `TargetExtensions::sha`. A build without it never produces one of these at all: the source
-     * declarations are `@platform(x64)` and guarded by `hasShaExtension`, and what stands in for
-     * them is the library's portable compression rather than any expansion here.
+     * declarations in `lib/Native/Intrinsic/X86.yana` are `@platform(sha)`, so there is nothing for
+     * such a build to name, and what stands in for them is the library's portable compression rather
+     * than any expansion here.
      */
     auto sha = [&](MachineFormId id, StringView formName, U8 op) {
         auto& form = add(id, OpSha, formName);

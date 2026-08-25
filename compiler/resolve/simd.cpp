@@ -719,8 +719,7 @@ static ModulePtr<Value> emitFma(ExprResolver& resolver, Buffer<ModulePtr<Value>>
 }
 
 /*
- * The SHA extension's seven, and the predicate that decides whether a body may name them - see
- * `lib/Core/X86.sha.yana`, where all of this is argued.
+ * The SHA extension's seven - see `lib/Native/Intrinsic/X86.yana`, where all of this is argued.
  *
  * They are here rather than beside `Bits` in intrinsic.cpp because their operands are vectors and
  * this is the file that knows what one is; they are *not* part of the portable set below, and
@@ -776,25 +775,37 @@ static ModulePtr<Value> emitVZeroUpper(ExprResolver& resolver, Buffer<ModulePtr<
 }
 
 /*
- * Whether this build reads `Core/X86.sha.yana` at all - which is the `sha` file selector, asked here
- * so that the two cannot disagree. A declaration the selector dropped is one `attachIntrinsic` would
- * report as missing, and a declaration it kept with no intrinsic attached is a function with no body.
+ * The hooks for `lib/Native/Intrinsic/X86.yana`, attached to exactly the declarations this build's
+ * attributes kept.
+ *
+ * **The gating is asked here in the same vocabulary the source asks it in**, one question per
+ * `@platform` group, because the two must answer alike in both directions: a declaration the
+ * attribute dropped is one `attachIntrinsic` would report as missing, and a declaration it kept with
+ * no hook attached is a function with no body. `targetSelector` is the single place either spelling
+ * is decided, so the pairing below reads as the file does.
+ *
+ * `crc32` and `vzeroupper` are the architecture's own and `sha` is an extension inside it, which is
+ * why this is two tests rather than one - a v3 machine without the SHA extension still has both of
+ * the first pair.
  */
-bool hasCpuIntrinsics(const CompileSettings& settings) {
-    return targetSelector(settings, "sha"_v) == TargetSelector::Matched;
-}
+void defineCpuIntrinsics(Module& native) {
+    auto& settings = native.context.settings;
 
-void defineCpuIntrinsics(Module& core) {
-    attachIntrinsic(core, "X86.sha1Message1"_v, emitShaBinary<ShaOp::Sha1Msg1>);
-    attachIntrinsic(core, "X86.sha1Message2"_v, emitShaBinary<ShaOp::Sha1Msg2>);
-    attachIntrinsic(core, "X86.sha1NextE"_v, emitShaBinary<ShaOp::Sha1NextE>);
-    attachIntrinsic(core, "X86.sha1Rounds"_v, emitSha1Rounds);
+    if(targetSelector(settings, "x64"_v) == TargetSelector::Matched) {
+        attachIntrinsic(native, "X86.crc32"_v, emitBinary<Value::Crc32>);
+        attachIntrinsic(native, "X86.vzeroupper"_v, emitVZeroUpper);
+    }
 
-    attachIntrinsic(core, "X86.sha256Message1"_v, emitShaBinary<ShaOp::Sha256Msg1>);
-    attachIntrinsic(core, "X86.sha256Message2"_v, emitShaBinary<ShaOp::Sha256Msg2>);
-    attachIntrinsic(core, "X86.sha256Rounds"_v, emitSha256Rounds);
+    if(targetSelector(settings, "sha"_v) == TargetSelector::Matched) {
+        attachIntrinsic(native, "X86.sha1Message1"_v, emitShaBinary<ShaOp::Sha1Msg1>);
+        attachIntrinsic(native, "X86.sha1Message2"_v, emitShaBinary<ShaOp::Sha1Msg2>);
+        attachIntrinsic(native, "X86.sha1NextE"_v, emitShaBinary<ShaOp::Sha1NextE>);
+        attachIntrinsic(native, "X86.sha1Rounds"_v, emitSha1Rounds);
 
-    attachIntrinsic(core, "X86.vzeroupper"_v, emitVZeroUpper);
+        attachIntrinsic(native, "X86.sha256Message1"_v, emitShaBinary<ShaOp::Sha256Msg1>);
+        attachIntrinsic(native, "X86.sha256Message2"_v, emitShaBinary<ShaOp::Sha256Msg2>);
+        attachIntrinsic(native, "X86.sha256Rounds"_v, emitSha256Rounds);
+    }
 }
 
 void defineVectorIntrinsics(Module& core) {

@@ -1,0 +1,38 @@
+{-
+   `X86.vzeroupper()` on a target that claims no extension at all.
+
+   `VectorReset.yana` is the same three markers around a SHA instruction and claims `sha v3` for the
+   *body's* sake. This is the half of that fixture the extension has nothing to do with: the reset is
+   declared `@platform(x64)` in `lib/Native/Intrinsic/X86.yana`, so it is reachable from every
+   x86-64 build, and a program clearing a vector state it may not even have is correct rather than
+   ill-formed - a machine with no AVX has no dirty upper half, and the backend drops the call
+   (`transform_expand.cpp`).
+
+   That is the property worth a fixture of its own: the availability of an instruction is a fact
+   about *that* instruction, and gating a file on one extension is what made it a fact about its
+   neighbours instead.
+
+   `@x86_legacy_sse` and `@convention(clobber)` are here because the reset's own precondition needs
+   them - a function that clears the vector file may not be entered under a convention preserving one
+   - and not because either has anything to do with a SHA instruction either.
+-}
+
+import Native
+
+@noinline
+@convention(clobber)
+@x86_legacy_sse
+fn resetThenAdd(lhs: Vec(U32, 4), rhs: Vec(U32, 4)) -> Int:
+    X86.vzeroupper()
+    return bitcast(lane(lhs + rhs, 0)) :: Int
+
+-- And outside any region, which is the same instruction with nothing around it.
+fn plainReset(x: Int) -> Int:
+    X86.vzeroupper()
+    return x + 1
+
+fn main() -> Int:
+    let a = splat(3 :: U32) :: Vec(U32, 4)
+    let b = splat(4 :: U32) :: Vec(U32, 4)
+
+    return resetThenAdd(a, b) + plainReset(0)

@@ -331,7 +331,7 @@ YANA_INST(BitsUpTo,     InstBinary,      "bitsupto"_v,    kInstResult | kInstPur
 YANA_INST(GatherBits,   InstBinary,      "gatherbits"_v,  kInstResult | kInstPure)
 YANA_INST(ScatterBits,  InstBinary,      "scatterbits"_v, kInstResult | kInstPure)
 /*
- * The CRC-32C step - `Core.Crc.crc32`, and the one instruction in this file that computes a named
+ * The CRC-32C step - `X86.crc32`, and the one instruction in this file that computes a named
  * *function* rather than an operation on bits.
  *
  * `crc32 acc, chunk` folds `chunk` into the running remainder `acc` under the Castagnoli polynomial
@@ -365,7 +365,8 @@ YANA_INST(Crc32,        InstBinary,      "crc32"_v,       kInstResult | kInstPur
  * Unlike everything above them these are not an *operation* the language has and a target happens to
  * have an instruction for; each one is a named step of a named algorithm, and there is no portable
  * meaning to give it. So they are reachable from source only through the `@platform(x64)`
- * declarations in `lib/Core/X86.sha.yana`, they exist only where `hasShaExtension` is true, and **no
+ * declarations in `lib/Native/Intrinsic/X86.yana`, they exist only where the `sha` selector is
+ * matched, and **no
  * backend expands them**: what stands in for one where the extension is absent is the library's own
  * portable compression function, chosen in source. A backend that tried to expand `sha256rnds2`
  * would be writing SHA-256 a second time.
@@ -389,7 +390,7 @@ YANA_INST(Sha256Rounds, InstSha256Rounds, "sha256rnds2"_v, kInstResult | kInstPu
 /*
  * `vzeroupper` - the vector state reset, as an ordinary call a program writes.
  *
- * Reachable only through `X86.vzeroupper()` in `lib/Core/X86.sha.yana`, beside the seven above and
+ * Reachable only through `X86.vzeroupper()` in `lib/Native/Intrinsic/X86.yana`, beside the seven above and
  * for the same reason: it is a named instruction of one architecture with no portable meaning. What
  * it does is clear the upper half of every vector register, which is what a function whose body is
  * encoded without a VEX prefix - `@x86_legacy_sse` - needs to have happened before its first

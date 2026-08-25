@@ -604,7 +604,7 @@ void MachineFormBuilder::registerScalarForms() {
      *
      * **No `requiredFeatures`, and that is the point of the floor.** SSE4.2 is inside x86-64-v2 and
      * v2 is `kFeatureBaseline` here, so a target this backend compiles for always has the
-     * instruction. `Core.Crc` is `@platform(x64)` in source, which is what keeps a build for any
+     * instruction. `X86.crc32` is `@platform(x64)` in source, which is what keeps a build for any
      * other machine from producing one of these at all.
      *
      * **The width comes from the result and not from a prefix.** The 32-bit form has none and the

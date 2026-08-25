@@ -38,6 +38,10 @@
 
    The bytes `vzeroupper` encodes to are pinned separately, in `test/x64/VectorReset.lower`, and the
    library that uses all three is `lib/Digest/Hardware.sha.yana`.
+
+   The extension directive above is the *body's* and not the markers': every function here folds with
+   a SHA instruction, which is why the fixture claims one. That none of the three markers needs the
+   extension is `VectorResetBaseline.yana`, which claims nothing at all.
 -}
 
 import Native

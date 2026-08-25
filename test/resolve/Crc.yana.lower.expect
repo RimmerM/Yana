@@ -2,33 +2,35 @@
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = crc32 4294967295, 305419896: Int
-    %v_2 = crc32 4294967295, 81985529216486895: Long
-    %v_3 = cast %v_2: Int
-    %v_4 = cast %v_1: Long
-    %v_5 = cast %v_3: Long
-    %total = add %v_4, %v_5: Long
-    %v_6 = cmp_neq %v_1, %v_1: Int
-    je %v_6, b_7, b_8
-  }
-
-  b_7 {
-    ret 18446744073709551615
-  }
-
-  b_8 {
-    jmp b_9
+    %v_1 = crc32 4294967295, 81985529216486895: Long
+    %v_2 = cast %v_1: Int
+    %v_3 = cast %v_2: Long
+    %v_4 = crc32 %v_3, 4822678189205111: Long
+    %v_5 = cast %v_4: Int
+    %v_6 = cast %v_2: Long
+    %v_7 = cast %v_5: Long
+    %total = add %v_6, %v_7: Long
+    %v_8 = cmp_neq %v_2, %v_2: Int
+    je %v_8, b_9, b_10
   }
 
   b_9 {
-    %v_10 = imulhi %total, 2361183241434822607: Long
-    %v_11 = sar %v_10, 7: Long
-    %v_12 = shr %v_11, 63: Long
-    %v_13 = add %v_11, %v_12: Long
-    %v_14 = imul %v_13, 1000: Long
-    %v_15 = sub %total, %v_14: Long
-    %v_16 = cast %v_15: Int
-    ret %v_16
+    ret 18446744073709551615
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = imulhi %total, 2361183241434822607: Long
+    %v_13 = sar %v_12, 7: Long
+    %v_14 = shr %v_13, 63: Long
+    %v_15 = add %v_13, %v_14: Long
+    %v_16 = imul %v_15, 1000: Long
+    %v_17 = sub %total, %v_16: Long
+    %v_18 = cast %v_17: Int
+    ret %v_18
   }
 }
 

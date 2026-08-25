@@ -3,6 +3,7 @@
 #include "intrinsic.h"
 #include "name.h"
 #include "../parse/parser.h"
+#include "simd.h"
 
 /*
  * Native's declarations.
@@ -530,6 +531,10 @@ void definePreludeNative(Program& program, Module& module) {
     // After `sliceType`, which is what the head names, and before any body of this module is
     // resolved - which happens once every module's declarations have been read.
     defineNativeIndexInstances(*native);
+
+    // The processor's own instructions - `lib/Native/Intrinsic/X86.yana`, whose declarations are
+    // this module's because reaching one is meant to cost an `import Native`.
+    defineCpuIntrinsics(*native);
 }
 
 /*

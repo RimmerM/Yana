@@ -1060,7 +1060,7 @@ void Verifier::verifyInstruction(Value& instruction) {
          *
          * Nothing else is checked and nothing else could be. What each of these computes is a named
          * step of a named algorithm, so there is no property of the operands a stage above the
-         * machine could hold them to - which is why the declarations in `lib/Core/X86.sha.yana` state
+         * machine could hold them to - which is why the declarations in `lib/Native/Intrinsic/X86.yana` state
          * `Vec(U32, 4)` outright rather than being generic over anything.
          */
         case Value::ShaBinary:

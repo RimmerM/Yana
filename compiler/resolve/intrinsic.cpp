@@ -654,42 +654,6 @@ ModulePtr<ClassInstance> defineBitPermute(Module& module, TypePtr type) {
     return generateInstance(module, classNamed(module, "BitPermute"_v), { &type, 1 }, { methods, 2 });
 }
 
-/*
- * `Crc`, whose one method is one instruction - generated here beside `BitPermute`, and for every one
- * of its reasons.
- *
- * The signature is `crc32(remainder: a, chunk: a) -> a` and not the `U32` accumulator a caller would
- * write by hand, which is what keeps this a plain `emitBinary`: the machine's 64-bit form reads its
- * remainder from the *low half* of the destination and writes a zero-extended answer, so a `U64`
- * remainder is exactly what the instruction has and the widen and truncate a caller writes around it
- * fold to nothing. `lib/Digest/Crc.native.yana` is the caller and is where that shows.
- *
- * The class is `@platform(x64)` in source and this is only reached where that attribute kept it, so
- * there is no target here without the instruction and no expansion to write. `hasCrcInstruction` is
- * the same question asked of the settings, and the two must answer alike or a call would resolve to
- * a class with no instance.
- */
-ModulePtr<ClassInstance> defineCrc(Module& module, TypePtr type) {
-    IntrinsicMethod methods[] = {
-        { "crc32"_v, 2, emitBinary<Value::Crc32> },
-    };
-
-    return generateInstance(module, classNamed(module, "Crc"_v), { &type, 1 }, { methods, 1 });
-}
-
-/*
- * Whether this build's target has the `crc32` instruction, which is the same question the
- * `@platform(x64)` on the class in source asks and is asked here so that the two cannot disagree.
- *
- * x86-64 and not a JavaScript build. There is no feature test beside it: SSE4.2 is inside
- * x86-64-v2, v2 is this backend's floor (`kFeatureBaseline`), so a native x86-64 target always has
- * it. x86-32, ARM and JS have no instances of the class at all, and `lib/Digest/Crc.yana` is where
- * a caller finds the table those targets use instead.
- */
-bool hasCrcInstruction(const CompileSettings& settings) {
-    return settings.arch == TargetArch::X64 && !isJsMode(settings.mode);
-}
-
 // The widths the counts are declared over - 32 and 64, which is the set every target has an
 // instruction for and the set `lowerType` has a scalar for. See defineBits and the note in inst.def.
 bool hasBitCounts(GlobalBase global, TypePtr type) {

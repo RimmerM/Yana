@@ -196,10 +196,6 @@ bool hasBitCounts(GlobalBase global, TypePtr type);
 // why one predicate is right for the two.
 ModulePtr<ClassInstance> defineBitPermute(Module& module, TypePtr type);
 
-// `Crc`, over the two widths the machine's useful forms take, and only where the machine is x86-64 -
-// see defineCrc and hasCrcInstruction, which is the same test the class's `@platform(x64)` makes.
-ModulePtr<ClassInstance> defineCrc(Module& module, TypePtr type);
-bool hasCrcInstruction(const CompileSettings& settings);
 // `Bitwise`, whose `not` differs between a `Bool` and a wider integer - see the definition.
 ModulePtr<ClassInstance> defineBitwise(Module& module, TypePtr type, Emit complement);
 void defineTruth(Module& module, TypePtr type, Emit emit);

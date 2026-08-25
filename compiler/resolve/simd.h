@@ -38,11 +38,11 @@
 // from definePreludeCore once those declarations are read.
 void defineVectorIntrinsics(Module& core);
 
-// The machine-specific set - the SHA extension and the predicate that gates it. Separate from the
-// portable set above because the declarations it attaches to are `@platform(x64)`, so on any other
-// target there is nothing there to attach to. See `lib/Core/X86.sha.yana`.
-void defineCpuIntrinsics(Module& core);
-bool hasCpuIntrinsics(const CompileSettings& settings);
+// The machine-specific set - `lib/Native/Intrinsic/X86.yana`. Separate from the portable set above
+// because it attaches to a module of `Native` rather than of `Core`, and because each of its
+// declarations names the target it needs; the gating is inside, one test per `@platform` group.
+// Called from definePreludeNative once Native's declarations are read.
+void defineCpuIntrinsics(Module& native);
 
 /*
  * The bulk operations' hooks - §9 items 6 and 7.

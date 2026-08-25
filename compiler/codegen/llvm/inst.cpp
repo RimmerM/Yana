@@ -518,7 +518,7 @@ static llvm::Function* bitPermuteHelper(FunGen& f, bool gather, BitOpWidth width
  * The CRC-32C step - `llvm.x86.sse42.crc32.32.32` and `llvm.x86.sse42.crc32.64.64`.
  *
  * Unlike the bit permutations above there is no software arm here and no feature test in front of
- * one: `Core.Crc` is `@platform(x64)`, SSE4.2 is inside x86-64-v2 and v2 is the floor, so an
+ * one: `X86.crc32` is `@platform(x64)`, SSE4.2 is inside x86-64-v2 and v2 is the floor, so an
  * instruction of this kind only exists in a module compiled for a machine that has it. A target
  * without one has no instances of the class and reaches the table in `lib/Digest/Crc.yana` instead,
  * which is a decision made where the two implementations are written rather than here.

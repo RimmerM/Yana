@@ -219,7 +219,7 @@ struct LowerInst {
         ScatterBits,
 
         /*
-         * The CRC-32C step - `Core.Crc.crc32`, and the one binary here that is a named function
+         * The CRC-32C step - `X86.crc32`, and the one binary here that is a named function
          * rather than an operation on bits.
          *
          * `lhs` is the running remainder and `rhs` is the chunk folded into it, both at the
@@ -233,7 +233,7 @@ struct LowerInst {
          *
          * **No backend has to expand it, and no backend other than x86-64 may see it.** SSE4.2 is
          * inside x86-64-v2 and v2 is the floor, so the one target this reaches always has the
-         * instruction; a target that does not is one `Core.Crc` has no instances on, which is where
+         * instruction; a target that does not is one `X86.crc32` is not declared on, which is where
          * the choice is made rather than here.
          */
         Crc32,

@@ -298,43 +298,6 @@ pub class (Integral(a)) BitPermute(a):
   fn gatherBits(value: a, mask: a) -> a
   fn scatterBits(value: a, mask: a) -> a
 
-{-
-   The CRC-32C step - x86's `crc32`, and the one thing in this file that computes a named function
-   rather than an operation on bits.
-
-   `crc32(remainder, chunk)` folds `chunk` into the running remainder under the **Castagnoli**
-   polynomial, reflected. That is the polynomial in the silicon and the class is not parameterized by
-   one, because there is nothing a parameter could select: the IEEE polynomial that zip, gzip and PNG
-   mean is a different function that this instruction cannot compute, and a caller who wants it wants
-   the table in `Digest/Crc.yana`. The two live side by side there, and the note above them is where
-   the difference is written down rather than here.
-
-   **A class of its own and `@platform(x64)`, which is the only such attribute in this file.** Every
-   other class here is something a target either has an instruction for or can spend a few operations
-   on; a CRC is neither - a target without the instruction pays a two-kilobyte table and a dependent
-   load per byte, which is not an expansion of anything and is not a thing the compiler should be
-   writing on a caller's behalf. So on a target that has no `crc32` the class does not exist, a body
-   naming it does not compile, and the library's own file selector is what routes such a build to the
-   table. `defineCrc` in resolve/intrinsic.cpp asks the settings the same question this attribute
-   asks, and the two must agree.
-
-   **No feature level guards it.** SSE4.2 is inside x86-64-v2 and v2 is the backend's floor, so
-   there is no x86-64 target here without the instruction - unlike `BitPermute` above, which is v3
-   and has a network behind it below that level.
-
-   Instanced at 32 and 64 bits, which is `Bits`' set and for its reason. The machine also has a form
-   taking a single byte; the lower IR has no scalar below `Int32` for it to be told apart from the
-   32-bit one, so a tail of fewer than four bytes reaches the table instead - which costs a handful
-   of lookups once per message and nothing per block.
-
-   The remainder is at the chunk's width rather than always thirty-two, which is what the machine
-   does: the 64-bit form reads the remainder from the low half of its destination and writes a
-   zero-extended answer, so the widen and the truncate a caller writes around it are what the
-   instruction already performs and both fold away.
--}
-@platform(x64) pub class (Integral(a)) Crc(a):
-  fn crc32(remainder: a, chunk: a) -> a
-
 -- Whether exactly one bit is set - `Math.h`'s `isPowerOf2`, and the test an allocator's size class
 -- and `alignUp`'s undocumented precondition are both about. Zero has no bits set and is not one.
 pub fn (Num(a), Integral(a), Eq(a)) isPowerOf2(value: a) -> Bool = value != 0 && (value `and` (value - 1)) == 0

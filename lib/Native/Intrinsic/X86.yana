@@ -1,0 +1,186 @@
+module Native
+
+{-
+   The instructions that are one machine's rather than an operation the language has - x86's, and
+   nothing that is not one.
+
+   Everything in `Core` is portable: a name there means the same thing on every target, and where a
+   target has no instruction for it a backend writes what it does have. **This file is the
+   exception**, and there is one of it per processor family. `Intrinsic/X86.yana` is x86's; an ARM
+   one joins it beside rather than inside it, under its own namespace and its own attributes, and
+   nothing outside this directory declares an instruction at all.
+
+   ------------------------------------------------------------------------------------------------
+   Why `Native`, and why a namespace inside it
+
+   A file of module `Native`, two directories deep, which is what `module Native` above says
+   (Analysis-Modules.md §2.1). `Native` is the unsafe half of the prelude and the one module that is
+   **not** implicitly imported, so naming an instruction costs an `import Native` - which is exactly
+   the statement a program should have to make to leave portable ground. `Core` is implicitly
+   imported and is therefore the wrong place: a name reachable by writing nothing must mean the same
+   thing on every target.
+
+   `X86.` is a namespace and not a module - doc/spec/modules.md. A module would give these a `pub`
+   boundary they have no interface behind, a second import every user of them would write, and a
+   coherence unit; what a prefix is wanted for here is naming and nothing else. It has to be there
+   because a reader of `Digest/Hardware.sha.yana` must be able to tell an instruction from a
+   function: `sha1Rounds(abcd, e, 0)` reads as a library call and is a single opcode with a trailing
+   byte, and `X86.sha1Rounds(abcd, e, 0)` says which manual to open.
+
+   The names are the machine's, spelled the way this language spells names. Anyone reading a body
+   that uses them is reading against Intel's manual, and a name invented here would only stand
+   between the two.
+
+   ------------------------------------------------------------------------------------------------
+   Why availability is an attribute per declaration and not a selector on the file name
+
+   Every declaration below carries the target it needs: `@platform(x64)` for what an x86-64 build
+   always has, `@platform(sha)` for what an extension answers for. **A declaration an attribute
+   excluded is never resolved**, which is the whole of what the gating owes: a build without the
+   extension must not resolve a body naming instructions it cannot encode, and it cannot, because
+   there is no declaration for such a body to name.
+
+   A file-name selector (`X86.sha.yana`) says that about *every* declaration in a file at once, and
+   that is why it is the wrong shape here - `vzeroupper` and `crc32` have nothing to do with the SHA
+   extension, and a file selected on `sha` deletes them from every build that does not claim it.
+   One file with one attribute per declaration says which instruction needs what, and adding a
+   second extension adds a declaration rather than a file.
+
+   What is still a *file* is code written **in terms of** these - `Digest/Hardware.sha.yana` and its
+   `nosha` half, two implementations of the same two names. That is a body rather than a
+   declaration, and the distinction is load-bearing: a body kept behind a compile-time
+   `if hasShaExtension()` leaves the untaken arm **resolved**. It is IR, it reaches lowering in any
+   build with the IR optimizer off (`-no-opt`, which every fixture in this tree is also compiled
+   with), and the backend then refuses instructions the target cannot encode. See `targetSelector`
+   in compiler/compiler/settings.cpp, which answers both spellings so that an attribute and a file
+   name can never disagree about what a target is called.
+
+   ------------------------------------------------------------------------------------------------
+   Why there is nothing portable behind them
+
+   Every other machine-specific operation this compiler knows about is an *arrangement of bits* a
+   backend can write out longhand: `pext` is a loop, `lzcnt` is a scan and a subtraction, `movbe` is
+   a load and a reversal. Nothing here is. `sha256rnds2` is two rounds of a hash and `crc32` is a
+   named polynomial, so a backend that expanded either would hold a second implementation of a
+   published algorithm inside the compiler, tested by nothing and free to drift from the library's.
+   There is therefore no expansion behind any of these at any tier, and what stands in for them is a
+   different implementation of the same function selected the same way: `Digest/Hardware.nosha.yana`
+   for the hashes, and the byte table in `Digest/Crc.yana` for the checksum.
+-}
+
+{-
+   ==========================================================================================
+   The baseline - what an x86-64 target has by having been x86-64.
+   ==========================================================================================
+
+   The CRC-32C step. SSE4.2, and therefore x86-64-v2, and therefore this backend's floor:
+   `kFeatureBaseline` *is* v2 (codegen/x64/target.h), so there is no feature name beside the
+   architecture here and no tier below this one to fall back to.
+
+   `X86.crc32(remainder, chunk)` folds `chunk` into the running remainder under the **Castagnoli**
+   polynomial `0x11EDC6F41`, reflected. That is the polynomial in the silicon and there is no
+   parameter for another: the IEEE polynomial that zip, gzip, PNG and Ethernet mean is a different
+   function this instruction cannot compute, and a caller who wants it wants the table in
+   `Digest/Crc.yana`. The two live side by side there, and the note above them is where the
+   difference is written down rather than here.
+
+   **One width, and it is sixty-four.** The machine has `crc32 r32/r64, r/m8/16/32/64`; what a
+   checksum over a run of bytes wants is the widest of those, and the narrower ones are not
+   declared because nothing above the backend can select one - the lower IR has no scalar below
+   `Int32`, so a byte-wide chunk cannot be told apart from a 32-bit one. A tail of fewer than eight
+   bytes reaches the table instead, which costs a handful of lookups once per message and nothing
+   per block.
+
+   **The remainder is at the chunk's width rather than at thirty-two**, which is what the machine
+   does: the 64-bit form reads its remainder from the low half of its destination and writes a
+   zero-extended answer, so the `widen` and the `truncate` a caller writes around it are conversions
+   the instruction already performs and both fold away. `crcWide` in `Digest/Crc.native.yana` is
+   that caller and is where it shows.
+-}
+@platform(x64) pub fn X86.crc32(remainder: U64, chunk: U64) -> U64
+
+{-
+   `vzeroupper` - the vector state reset.
+
+   Clears the upper half of every vector register. What it is for is the state a processor is in when
+   it executes a *legacy-encoded* SSE instruction while some upper half is non-zero, which costs a
+   large and silent penalty on every part this matters on - so a function whose body is encoded
+   without a VEX prefix wants this to have happened before its first instruction runs.
+
+   `@platform(x64)` and nothing narrower, because the instruction is AVX's and clearing a state that
+   cannot be dirty is a no-op rather than an error: on a machine with no AVX the backend drops the
+   call outright (`transform_expand.cpp`), so a program that writes it is correct everywhere x86-64
+   is and pays for it only where there is something to clear.
+
+   **A call rather than something the backend emits at the entry of such a function**, and the reason
+   is that the two are about different sets of functions. `@x86_legacy_sse` is about *encoding* and
+   belongs on every function of a region; clearing the state may only happen where no vector value is
+   arriving, which is the region's entry points and not the helpers below them. A rule deriving one
+   from the other would read a signature and be right until somebody added a vector parameter, at
+   which point it would stop firing and say nothing.
+
+   **It is destructive, and where it is safe is the caller's convention.** Every register it clears
+   has to be one nobody is holding a value in: `@convention(clobber)` is what says so for the caller,
+   since nothing survives one of its calls, and having no vector parameter is what says so for this
+   function. Written anywhere else it is corruption of a value nothing named.
+
+   On LLVM this is dropped - that backend chooses its own encodings and places its own resets. See
+   Analysis-Warts.md §7 and `legacyVectorEncodings` in compiler/codegen/x64/target.h.
+-}
+@platform(x64) pub fn X86.vzeroupper() -> {}
+
+{-
+   ==========================================================================================
+   The SHA extension - `@platform(sha)`, seven instructions.
+   ==========================================================================================
+
+   Not inside any level: a v3 or v4 machine may or may not have these, so `sha` is a selector of its
+   own and `-enable-inst sha` or a host that reports it is what turns them on. `nosha` is the other
+   half of that partition and is what `Digest/Hardware.nosha.yana` is selected by; see
+   `targetSelector`, where the pair is argued.
+
+   **Why the operands say `Vec(U32, 4)`.** Not `Vec(U32)`, whose lane count is the target's, and not
+   a const parameter: these instructions read 128 bits as the four words a SHA state or message
+   schedule is made of, there is no other width, and a signature that suggested otherwise would be
+   describing an instruction that does not exist.
+
+   ------------------------------------------------------------------------------------------------
+   SHA-1, four instructions.
+
+   `sha1Message1(w0_3, w4_7)` and `sha1Message2(w16_19, w13_16)` are the two halves of the message
+   schedule: the first performs the exclusive-ors that do not need a rotation, the second finishes
+   them and rotates. Between them a caller does the one `xor` the pair does not - the schedule needs
+   four inputs and each instruction reads two.
+
+   `sha1NextE(e, state)` adds the `E` working variable into the top word of the next round group,
+   which is the one part of SHA-1's state that does not live in the four-word register with the rest.
+
+   `sha1Rounds(abcd, e, group)` performs four rounds. `group` selects which of the four round
+   functions - 0 for the choice, 1 and 3 for the parity, 2 for the majority - and **must be a
+   literal**: it is the instruction's trailing byte, so a computed one is not an instruction. It is
+   checked where it is written, which is the only place that can name the argument.
+-}
+@platform(sha) pub fn X86.sha1Message1(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@platform(sha) pub fn X86.sha1Message2(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@platform(sha) pub fn X86.sha1NextE(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@platform(sha) pub fn X86.sha1Rounds(abcd: Vec(U32, 4), e: Vec(U32, 4), group: Int) -> Vec(U32, 4)
+
+{-
+   SHA-256, three instructions.
+
+   `sha256Message1(w0_3, w4_7)` and `sha256Message2(w16_19, w12_15)` are the message schedule's two
+   halves, on SHA-1's pattern: the first applies the small sigma to four words, the second finishes
+   the sum and applies the other sigma. The `+ w[i-7]` in the middle is the caller's, and it is one
+   `add` and one `alignLanes`.
+
+   `sha256Rounds(state, feed, keys)` performs **two full rounds**. `keys` is the two message words
+   with their round constants already added, and on the machine it is an implicit operand read out of
+   `xmm0` - which is a register-allocation constraint the backend carries and a caller never sees.
+   `state` and `feed` are the eight working variables in two registers, in the order the instruction
+   wants them rather than in the order the specification names them: `{C, D, G, H}` and
+   `{A, B, E, F}`, which is why the compression function shuffles once on the way in and once on the
+   way out.
+-}
+@platform(sha) pub fn X86.sha256Message1(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@platform(sha) pub fn X86.sha256Message2(a: Vec(U32, 4), b: Vec(U32, 4)) -> Vec(U32, 4)
+@platform(sha) pub fn X86.sha256Rounds(state: Vec(U32, 4), feed: Vec(U32, 4), keys: Vec(U32, 4)) -> Vec(U32, 4)

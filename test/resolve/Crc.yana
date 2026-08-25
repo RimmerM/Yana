@@ -1,17 +1,17 @@
 {-
-   `Core.Crc` - the CRC-32C step, which is `crc32` and is the one class in `Bits.yana` that names a
-   machine instruction rather than an operation on bits.
+   `X86.crc32` - the CRC-32C step, which is the one instruction `lib/Native/Intrinsic/X86.yana`
+   declares that computes a named function rather than an arrangement of bits.
 
-   Two widths and two conversions, and the conversions are the half worth asserting: the class is
-   declared `crc32(remainder: a, chunk: a) -> a` rather than with the thirty-two-bit accumulator a
-   caller has, because the 64-bit instruction reads its remainder from the low half of the
+   One width and two conversions, and the conversions are the half worth asserting: the intrinsic is
+   declared `crc32(remainder: U64, chunk: U64) -> U64` rather than with the thirty-two-bit
+   accumulator a caller has, because the instruction reads its remainder from the low half of the
    destination and writes a zero-extended answer - so the `widen` and the `truncate` a caller writes
    around it are what the instruction already does, and the goldens are where that shows.
 
-   **`@platform(x64)` on the class and therefore on every use.** SSE4.2 is inside x86-64-v2 and v2 is
-   this backend's floor, so a native x86-64 target always has the instruction and there is no feature
-   level to name; a target that is not x86-64 has no instances at all, which is why there is no
-   `.js.expect` beside this file and never will be.
+   **`@platform(x64)` on the declaration and therefore on every use.** SSE4.2 is inside x86-64-v2 and
+   v2 is this backend's floor, so a native x86-64 target always has the instruction and there is no
+   feature level to name; a target that is not x86-64 has no declaration at all, which is why there
+   is no `.js.expect` beside this file and never will be.
 
    The answers are `zlib`'s Castagnoli polynomial computed by a reference implementation, not by this
    one - see the comment on each.
@@ -19,26 +19,26 @@
 
 import Native
 
--- One 32-bit chunk folded into the initial remainder. 0x4dece20c.
-fn word() -> U32 = crc32(4294967295, 305419896)
+-- One 64-bit chunk folded into the initial remainder, where the remainder is widened on the way in
+-- and truncated on the way out. 0x9a4f27dc, over the eight bytes of 0x0123456789abcdef.
+fn wide() -> U32 = truncate(X86.crc32(widen(4294967295 :: U32) :: U64, 81985529216486895)) :: U32
 
--- And one 64-bit chunk, where the remainder is widened on the way in and truncated on the way out.
--- 0x9a4f27dc, which is a different value from the 32-bit fold of the same low word - the instruction
--- consumes eight bytes rather than four.
-fn wide() -> U32 = truncate(crc32(widen(4294967295 :: U32) :: U64, 81985529216486895)) :: U32
-
--- The same fold reached through a value rather than a literal, so that the goldens hold one that
+-- The same fold reached through values rather than literals, so that the goldens hold one that
 -- constant folding cannot answer. Nothing folds a CRC today; the row exists so that a fold added
 -- later has a fixture that says what it must answer.
-fn folded(seed: U32, chunk: U32) -> U32 = crc32(seed, chunk)
+fn folded(seed: U32, chunk: U64) -> U32 = truncate(X86.crc32(widen(seed) :: U64, chunk)) :: U32
+
+-- And a second chunk folded into the first one's remainder, which is what a running checksum is.
+-- 0x94b28b26, over the eight bytes of 0x0011223344556677.
+fn chained() -> U32 = folded(wide(), 4822678189205111)
 
 fn main() -> Int:
-    let a = word()
-    let b = wide()
+    let a = wide()
+    let b = chained()
 
-    -- 1307369996 + 2588878812 = 3896248808, which is 808 modulo a thousand. Taken modulo so that the
+    -- 2588878812 + 2494728998 = 5083607810, which is 810 modulo a thousand. Taken modulo so that the
     -- answer fits the exit status a `.run.expect` compares.
     let total = (widen(a) :: I64) + (widen(b) :: I64)
 
-    if folded(4294967295, 305419896) != a then return -1
+    if folded(4294967295, 81985529216486895) != a then return -1
     return truncate(total `rem` 1000) :: Int
