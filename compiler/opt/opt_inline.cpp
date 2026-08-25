@@ -2627,6 +2627,33 @@ struct Inliner {
     }
 
     /*
+     * Whether a value in the callee is backed by memory there - which is what the caller's slot has
+     * to be repointed at, since a slot *is* storage and everything rooted in one is an address.
+     *
+     * Three shapes are, and they are the three ways a memory value comes to exist:
+     *
+     *  - it owns a slot, which is what `backingLocal` asks of an operand: an allocation, a copy,
+     *    and a call whose result the target returns through the caller's storage;
+     *  - it read a place, which for a memory type *is* that place rather than a copy of it;
+     *  - it relocated out of one, which is a `Move`: no slot of its own, but lowering names the
+     *    source's storage until an `init` writes the bytes somewhere else, so a slot pointed at one
+     *    is pointed at real memory. This is the interpolation shape - `Text.yana` builds a string in
+     *    a callee and hands it back - and the copy below would be a second one of every such string.
+     *
+     * Everything else is a value in a register and occupies nothing, whatever `isMemoryType` says
+     * about its type. That question is the target-independent one resolve asked, and a type can be
+     * memory for one target and not for another.
+     */
+    bool occupiesStorage(Candidate& candidate, ModulePtr<Value> value) {
+        if(!value) return false;
+
+        auto kind = opt.local[value]->kind;
+        if(kind == Value::LoadPlace || kind == Value::Move) return true;
+
+        return opt.local[value]->slot < candidate.callee->localCount();
+    }
+
+    /*
      * The straight-line splice: one block's worth of instructions, in front of the call.
      *
      * Answers the value the call becomes, or null where the callee returned nothing. Nothing about
@@ -2647,10 +2674,55 @@ struct Inliner {
         }
 
         bindLocals(clone, candidate);
-        opt.ir().insert(block, index, clone.emitted);
 
         auto& ret = (InstRet&)*opt.local[body->terminator()];
-        return Just(ret.value ? mapValue(clone, ret.value) : nullptr);
+        if(!ret.value) {
+            opt.ir().insert(block, index, clone.emitted);
+            return Just(ModulePtr<Value>(nullptr));
+        }
+
+        auto result = mapValue(clone, ret.value);
+
+        /*
+         * And the copy, where the value the callee returned occupies nothing.
+         *
+         * The fast path above is the whole reason this case is kept apart from `spliceControlFlow`:
+         * a thunk's `ret` names storage - a call's result slot, an allocation, a place it loaded -
+         * so repointing the caller's slot at that value is the copy, made by not making one. A value
+         * that is in *no* storage has nothing for the slot to name, and a slot left holding one is
+         * exactly the "backend reading a local nothing allocated" `graft` warns about above.
+         *
+         * It arises where a memory type's representation on some target is not memory at all. A
+         * `String` is a record natively and a host primitive on JS, so `fn f(..) -> String = a ++ b`
+         * optimizes to a `ret` of a `hostbinary` - a register value of a type `isMemoryType` calls
+         * memory, since that question is the target-independent one resolve asked. Nothing then
+         * wrote the caller's slot and `move %local0` read it: `"a" ++ "b" ++ "c"` under a consuming
+         * `++` emitted `(null + "c").length`.
+         *
+         * So the storage is made here and written into, which is what a `ret` of a memory value
+         * already is - the same statement `spliceControlFlow` makes per returning path. The alloc
+         * and the write go behind the cloned body rather than in front of it, because nothing in the
+         * body can name either and this is one block.
+         */
+        if(candidate.copiedResult && !occupiesStorage(candidate, ret.value)) {
+            auto& module = *opt.module;
+            auto& function = *opt.function;
+            auto source = ret.source;
+
+            auto storage = createInst<InstAlloc>(module, function, block, source, StringId(),
+                                                 opt.local[result]->type,
+                                                 candidate.callerResultSlot);
+            clone.emitted.push((Inst*)storage);
+            clone.emitted.push((Inst*)createInst<InstInit>(
+                module, function, block, source, StringId(), module.scalar.unit,
+                Place::inLocal(candidate.callerResultSlot), result, Value::Init));
+
+            opt.ir().insert(block, index, clone.emitted);
+            return Just((ModulePtr<Value>)((Value*)storage - opt.local));
+        }
+
+        opt.ir().insert(block, index, clone.emitted);
+        return Just(result);
     }
 
     /*

@@ -1,0 +1,52 @@
+{-
+   A `->` argument whose value is another call's result, where the callee is small enough to inline.
+
+   `sinkValue` builds the hand-over out of the argument's *place*, and a call returning a memory type
+   has one: the caller allocates the storage and the call writes into it, so the result is named by
+   the slot rather than by a register. `f(->g())` is therefore `call g` and then `move %local` out of
+   the slot that call filled, and both halves are right as long as the call is still there to fill it.
+
+   The inliner is what took it away. A straight-line callee whose `ret` names something other than an
+   allocation - `fn f(..) -> T = g(..)`, the forwarding thunk - is grafted by handing the caller the
+   cloned body and repointing the caller's slot at whatever the `ret` named, which is a copy made by
+   not making one. That works while the value it repoints at is *memory*: a call's result slot, an
+   allocation, a place, a relocation out of one. It does not work for a value in a register, and a
+   memory type can have one - `isMemoryType` is the target-independent question resolve asked, and a
+   `String` is a record natively and a host primitive on JS. So `fn joined(->a, ->b) -> String = a ++ b`
+   optimized to a `ret` of a host `+`, the slot was pointed at an expression, nothing wrote it, and
+   `move %local0` read a JS variable that was never assigned: `joined(joined("a", "b"), "c")` emitted
+   `(null + "c").length`.
+
+   Native was correct throughout, which is why the fixture asserts rather than prints: the two builds
+   disagreeing is the whole of the bug, and only running both catches it. The unoptimized build was
+   correct as well - the call it moves out of is still there - so `runUnoptimizedPass` reports it
+   too, as the optimizer changing the answer.
+
+   **The empty `.js.expect` beside this file is load-bearing.** `runJsPass` is called only where one
+   exists, so a fixture with a `.run.expect` and no golden never has its JavaScript emitted, let
+   alone executed - which is 89 of the 237 fixtures here, and is why `SpecializedSink.yana` could
+   store a `null` into an array for as long as it had a golden that agreed with it.
+-}
+
+-- The thunk. One call and a `ret` of its result, with the result a memory type.
+fn joined(->a: String, ->b: String) -> String = a ++ b
+
+-- The same shape nested, so the outer call's `->` argument is the inner call's result.
+fn threeParts(->a: String, ->b: String, ->c: String) -> String = joined(joined(a, b), c)
+
+fn main() -> Int:
+    let two = joined("ab", "cd")
+    if two != "abcd" then return -1
+
+    let three = threeParts("a", "bc", "def")
+    if three != "abcdef" then return -2
+
+    -- And stored rather than only read, which is where a null outlives the expression that made it.
+    let &out = [] :: [String]
+    push(out, joined("x", "y"))
+    push(out, threeParts("p", "q", "r"))
+
+    if out[0] != "xy" then return -3
+    if out[1] != "pqr" then return -4
+
+    return (truncate(length(three)) :: Int) + (truncate(length(out[1])) :: Int)
