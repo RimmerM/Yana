@@ -925,6 +925,39 @@ static JsPtr<Expr> saturatingToLong(Gen& g, TypePtr to, JsPtr<Expr> value) {
     return asExpr(g, node);
 }
 
+/*
+ * Out of the `bigint` domain and into a `number` one - `truncate(w)` from a `U64`, and every other
+ * narrowing cast that crosses the representation split.
+ *
+ * **The reduction happens on the `bigint` and not on the number it becomes**, which is the whole of
+ * this function. `Number(w) >>> 0` reads as "the low thirty-two bits" and is not: `Number` converts
+ * the *whole* magnitude to a double first, so every bit above the fifty-third is already gone when
+ * `>>> 0` asks for the low thirty-two. `truncate(0x0123456789ABCDEFn)` answered 0x89ABCE00 instead
+ * of 0x89ABCDEF - a wrong answer rather than a slow one, on any value a hash word takes.
+ *
+ * It was invisible for as long as nothing narrowed a *runtime* wide value: a constant one folds in
+ * `compiler/opt` and the fold is done in full precision, so the optimized build was right and only
+ * the unoptimized build was wrong. `resolve/Truncate.Wide.yana` is the fixture, and it is a number
+ * on both targets in both modes for that reason - the fixture runner's optimizer-equivalence check
+ * is what named this.
+ *
+ * At the target's own width and signedness, which makes the `coerce` below a no-op on an in-range
+ * value rather than a second opinion about it - and makes the 33-to-53-bit band fall out for free,
+ * since `Number` is exact once the value has been reduced to fifty-three bits or fewer.
+ *
+ * A float target keeps the plain conversion: what it wants really is the whole magnitude, rounded.
+ */
+static JsPtr<Expr> narrowedFromLong(Gen& g, TypePtr to, JsPtr<Expr> value) {
+    if(isFloat(g.global, to)) return globalCall(g, "Number"_v, value);
+
+    auto integer = intType(g, to);
+    auto reduced = integer
+        ? hostCall(g, "BigInt"_v, integer->isSigned ? "asIntN"_v : "asUintN"_v,
+                   number(g, integer->bits), value)
+        : value;
+
+    return coerce(g, to, globalCall(g, "Number"_v, reduced));
+}
 
 void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     auto from = g.local[instruction.from]->type;
@@ -1039,8 +1072,7 @@ void genCast(Gen& g, ModulePtr<Value> pointer, InstUnary& instruction) {
     }
 
     if(fromLong && !toLong) {
-        auto asNumber = globalCall(g, "Number"_v, value);
-        define(g, pointer, isFloat(g.global, to) ? asNumber : coerce(g, to, asNumber));
+        define(g, pointer, narrowedFromLong(g, to, value));
         return;
     }
 
@@ -3202,10 +3234,7 @@ static JsPtr<Expr> convertLane(Gen& g, TypePtr from, TypePtr to, JsPtr<Expr> val
         return coerce(g, to, globalCall(g, "BigInt"_v, value));
     }
 
-    if(fromLong && !toLong) {
-        auto asNumber = globalCall(g, "Number"_v, value);
-        return isFloat(g.global, to) ? asNumber : coerce(g, to, asNumber);
-    }
+    if(fromLong && !toLong) return narrowedFromLong(g, to, value);
 
     if(isFloat(g.global, from) && !isFloat(g.global, to)) {
         return coerce(g, to, saturatingToNumber(g, to, value));

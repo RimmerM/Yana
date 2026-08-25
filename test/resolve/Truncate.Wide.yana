@@ -1,0 +1,53 @@
+{-
+   Narrowing out of a 64-bit type, which on JavaScript means out of the `bigint` domain.
+
+   `truncate(w)` from a `U64` is "the low thirty-two bits", and this target used to emit
+   `Number(w) >>> 0` for it - which is not that. `Number` converts the *whole* magnitude to a double
+   first, so every bit above the fifty-third is gone by the time `>>> 0` asks for the low
+   thirty-two: `truncate(0x0123456789ABCDEF)` answered 0x89ABCE00 where both the specification and
+   the native build say 0x89ABCDEF. See `narrowedFromLong` in codegen/js/inst.cpp, which reduces on
+   the `bigint` and only then converts.
+
+   **Every value here goes through a function**, and that is the whole design of this fixture. A
+   narrowing of a *constant* is folded in `compiler/opt`, in full precision, so the optimized build
+   was right and only the unoptimized one was wrong - which is exactly the shape the fixture
+   runner's optimizer-equivalence check exists to catch and is how this was found. Inlining is what
+   would put the constant back, so the values are parameters and the checks are comparisons rather
+   than a golden.
+
+   The three widths below are the three cases: a result whose top bit is clear, one whose top bit is
+   set, and one that fills the word. Only the first survives the old lowering, which is why a
+   digest's high half looked fine and its low half did not.
+-}
+
+import Native
+
+fn lowWord(w: U64) -> U32 = truncate(w)
+fn highWord(w: U64) -> U32 = truncate(w `shr` 32)
+fn lowByte(w: U64) -> U8 = truncate(w)
+fn lowSigned(w: U64) -> Int = truncate(w)
+fn asInt(x: U32) -> Int = bitcast(x)
+
+fn main() -> Int:
+    -- Above 2^53, so the double `Number` produces is already inexact.
+    let w = 0x0123456789ABCDEF :: U64
+
+    if lowWord(w) != (0x89ABCDEF :: U32): return 1
+    if highWord(w) != (0x01234567 :: U32): return 2
+    if lowByte(w) != (0xEF :: U8): return 3
+
+    -- The signed target, which reduces at the same width and reads the bits back as `Int`.
+    if lowSigned(w) != asInt(0x89ABCDEF): return 4
+
+    -- A high half whose own top bit is set, which is the case `highWord` above does not cover.
+    let v = 0xFEDCBA9876543210 :: U64
+    if lowWord(v) != (0x76543210 :: U32): return 5
+    if highWord(v) != (0xFEDCBA98 :: U32): return 6
+    if lowByte(v) != (0x10 :: U8): return 7
+
+    -- Every bit set, so no reduction anywhere may leave a sign behind.
+    let full = 0xFFFFFFFFFFFFFFFF :: U64
+    if lowWord(full) != (0xFFFFFFFF :: U32): return 8
+    if highWord(full) != (0xFFFFFFFF :: U32): return 9
+
+    return 0
