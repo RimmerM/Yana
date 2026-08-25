@@ -140,6 +140,35 @@ static bool bindInto(ExprResolver& resolver, TypePtr pattern, TypePtr actual, Ty
         auto index = ((GenType*)global[pattern])->index;
         if(index >= bindings.size()) return false;
 
+        /*
+         * A **borrow handed to a bare variable binds what it points at**, not the borrow.
+         *
+         * The same rule the concrete branch below already applies through `convertibleType`, said
+         * here for the position that never reaches it: `fn f(x: String)` given a `'String` reads
+         * through, and a signature must not mean something different because some other parameter
+         * mentioned a variable. That is the sentence the paragraph below this one is about, and a
+         * bare `a` was the one position still exempt from it.
+         *
+         * A reference is not a value of its own on this side of a call. Nothing takes one apart,
+         * duplicates it or drops it - what those operations mean is what they mean for the storage
+         * it names - so a variable bound to `'k` gives a callee a `k` it cannot do any of the three
+         * to, and the failure is not at the binding. `copy(entry.key)` over a `pairs` yielding
+         * `Entry('k, 'v)` bound `Copy`'s variable to `'k`, selected the blanket instance over
+         * `TrivialCopy` because a reference is a pointer and a pointer is trivially copyable, and
+         * duplicated the reference: `let ->duplicate = copy(k)` answered a second name for one
+         * value. It was reported, when it was reported at all, as a borrow escaping the frame that
+         * made it - which is true, and is a sentence about a line the program did not write.
+         *
+         * Argument direction only, on the same terms as everything else here. A *result* position
+         * asks what a call produces, and `-> 'a` is a signature deliberately answering a reference -
+         * `Map.find` and `unwrapOr` are both written that way. So is a variable reached at depth:
+         * `Maybe('v)` is a carrier of references and a real type, and this is the outermost binding
+         * rather than the structural walk (see matchType below, which nested positions go through).
+         */
+        if(widen && isBorrow(global, actual)) {
+            if(auto to = ((BorrowType*)global[actual])->to) actual = to;
+        }
+
         if(!bindings[index]) {
             bindings[index] = actual;
             return true;

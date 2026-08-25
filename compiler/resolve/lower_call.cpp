@@ -287,7 +287,25 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
 
                 auto value = mappedValue(lower, arg);
 
-                if(parameter && !byAddress && isGeneric(lower.global, parameter->type) &&
+                /*
+                 * A direct value handed to a position the callee reads as an address.
+                 *
+                 * The question is the *callee's*, and it is asked of the callee's own declaration
+                 * for the reason the paragraph about `lowerArgExists` gives: that body was compiled
+                 * against its own variables, so what it does with a position was settled before this
+                 * caller substituted anything. `isMemoryType` of the declared type is that question,
+                 * and it is not the same as `isGeneric` of it - a type may mention a variable and
+                 * still be a shape both worlds carry in a register.
+                 *
+                 * `'a` is exactly that shape and it is not a corner: a borrow is a direct type
+                 * however opaque what it points at is (see isDirectType, which says so of `%T` and
+                 * of `&T` in the same breath), so a body declaring `x: 'a` reads the reference out
+                 * of a register. Asking `isGeneric` boxed it here and left the callee dereferencing
+                 * the box - one indirection too many, in a program that then read a `String` out of
+                 * a slot holding a pointer to one. `fn (Copy(a)) duplicated(x: 'a) -> a` is the
+                 * whole of what it takes to reach it.
+                 */
+                if(parameter && !byAddress && isMemoryType(lower.global, parameter->type) &&
                    !isMemoryType(lower.global, concrete)) {
                     value = materialize(value, concrete);
                 }

@@ -491,12 +491,11 @@ instance (Hash(k)) IndexInsert(Map(k, v), k, v):
    The threshold test is `reserveMap`'s: below the scan limit there is no index at all, and a copy of
    a small map is entries and nothing else.
 
-   `pairs` and `insert` would have been the obvious body and it does not compile: `pairs` hands out
-   an `Entry('k, 'v)`, and `copy` applied to a reference *value* binds the class variable to the
-   reference rather than to what it refers to. Nothing at the call site overrides that - not the
-   expected type of a `->` argument, and not an ascription on the result - so the copy that comes
-   back is the borrow again. A subscript is a place rather than a reference value, which is why
-   `copyEntriesFrom` reads one.
+   `pairs` and `insert` would have been the obvious body, and it is the third point above that rules
+   it out rather than anything about the borrows `pairs` hands over: `copy` of an `Entry('k, 'v)`'s
+   fields duplicates the key and the value, since a borrow handed to a bare type variable binds what
+   it points at. What it cannot do is grow the type argument, and inserting is `insert` at
+   `Map(k, v)` from inside `Copy(Map(k, v))`.
 -}
 instance (Copy(k), Copy(v)) Copy(Entry(k, v)):
     fn copy(from: Entry(k, v)) -> Entry(k, v) =

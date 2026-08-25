@@ -1146,25 +1146,23 @@ fn insert(String, Held)(%self: Map(String, Held), %key: String, %value: Held) ->
     %v10 = load %self : Map(String, Held)
     %v11 = borrow_mut %self : &Map(String, Held)
     %v12 = call valueAtMut(Held, String), %v11, %at : &Held
-    %v13 = load [%v12] : Held
-    %v14 = borrow_mut [%v12] : &Held
     %value = move %value : Held
-    %v16 = exchange [%v14], %value : Held
-    aggregate %local3.discriminant = 1, %local3@Just = %v16
+    %v14 = exchange [%v12], %value : Held
+    aggregate %local3.discriminant = 1, %local3@Just = %v14
     ret %v9
 
   b2:
     jmp b3
 
   b3:
-    %v21 = load %self : Map(String, Held)
-    %v22 = borrow_mut %self : &Map(String, Held)
+    %v19 = load %self : Map(String, Held)
+    %v20 = borrow_mut %self : &Map(String, Held)
     %key = move %key : String
     %value = move %value : Held
-    call appendEntry(String, Held), %v22, %key, %value, %h
-    %v26 = alloc : Maybe(Held)
+    call appendEntry(String, Held), %v20, %key, %value, %h
+    %v24 = alloc : Maybe(Held)
     init %local5.discriminant, 0
-    ret %v26
+    ret %v24
 
   b4:
     drop %key reclaim Reclaim(String).reclaim

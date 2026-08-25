@@ -1070,11 +1070,72 @@ JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value) {
 }
 
 /*
+ * Moving a value out of storage that is about to be written - the fresh slot native's `memcpy`
+ * relocates into, and the *shallow* half of `cloneValue` below.
+ *
+ * The difference is one level deep and it is the whole difference: a property is read straight
+ * rather than duplicated, so the value handed back shares every nested object with the storage it
+ * came out of. That is sound exactly where this is used and nowhere else - the write that follows
+ * rebinds *every* property of that storage (see storeInto's property walk, and genBlockCopy's), so
+ * the two stop sharing anything the moment it has run, which is what makes this a relocation rather
+ * than an alias.
+ *
+ * Why a duplicate is needed at all is that this target has no slots. Native relocates the old bytes
+ * into the result's own stack slot and then overwrites the place; here `placeExpr` of a place rooted
+ * in a reference *is* the object the write is about to change property by property, so reading it
+ * and writing it are the same object and the old value is gone. `exchange(a, [])` answered a length
+ * of 0 where native answered 3 - see genExchange, and genSwap next door, which had it twice over.
+ *
+ * `cloneValue` is the wrong tool for it: duplicating the nested objects as well is work the caller
+ * does not need and would make an `exchange` in a loop quadratic in the depth of the value.
+ */
+JsPtr<Expr> relocatedValue(Gen& g, TypePtr type, JsPtr<Expr> source) {
+    // A niche-folded record is not an object but may hold one, and a newtype is the value it wraps -
+    // both are representation steps rather than structure, so both are followed rather than stopped
+    // at. Exactly the two cloneValue opens with, and for the same reason.
+    if(auto payload = foldedPayload(g, type)) {
+        if(!isJsObject(g, payload)) return source;
+
+        return ternary(g, binary(g, BinaryOp::Eq, source, nullValue(g)), nullValue(g),
+                       relocatedValue(g, payload, source));
+    }
+
+    if(!isJsObject(g, type)) return source;
+
+    TypePtr content = nullptr;
+    if(isNewtype(g, type, content)) return relocatedValue(g, content, source);
+
+    /*
+     * A shape this body cannot see, handed back as it stands.
+     *
+     * An erased write goes through the descriptor's `moveInit` into storage the caller made (see
+     * erasedRelocate), so the duplicate this would build is one the write does not need - and there
+     * is no property list here to build it out of anyway.
+     */
+    if(g.global[type]->kind == Type::Gen) return source;
+
+    // A host row's elements are its slots, and `eachProperty` answers nothing for one - the same
+    // arm cloneValue needs, and `slice()` is already the shallow copy this wants.
+    if(g.global[type]->kind == Type::Array) {
+        return asPureCall(g, call(g, field(g, source, literalName(g, "slice"_v))));
+    }
+
+    auto object = make<ObjectExpr>(g);
+    eachProperty(g, type, [&](Name key, TypePtr member) {
+        object->properties.push(g.file.arena, Property { key, field(g, source, key) });
+    });
+
+    return asExpr(g, object);
+}
+
+/*
  * Copying - the one ownership operation that costs anything here (§2.5).
  *
  * A structural duplicate, property by property, rather than a call into a runtime cloner: the shape
  * is known at compile time and an object literal listing every property in construction order is
  * both the fastest form and the one that keeps the type's hidden class.
+ *
+ * `relocatedValue` above is the shallow form, which is what a *move* out of storage wants.
  */
 JsPtr<Expr> cloneValue(Gen& g, TypePtr type, JsPtr<Expr> source, LocationId where) {
     /*

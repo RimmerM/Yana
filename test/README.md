@@ -163,6 +163,26 @@ Fixtures with both `.js.expect` and `.run.expect` - or, under `lib/`, with a `.j
 the same answer the amd64 backend gave, since the two targets agreeing is the property worth
 asserting. That needs `node` on PATH; without it the driver says so once and skips.
 
+**Both files, and the `.js.expect` is the one that decides.** `runJsPass` is called only where one
+exists, so a fixture with a run expectation and no golden has its JavaScript neither emitted nor
+executed - the JS backend never sees it at all. 89 of the 237 fixtures with a `.run.expect` were in
+that position, and one of them - `SpecializedSink.yana` - had been storing `null` into an array on
+JS for as long as it had a golden that agreed with it.
+
+So **a new fixture that is not about a native-only property should be given a `.js.expect`**, which
+means creating the file empty and running `generate`. 44 of those 89 were given one; the seven that
+were not are named below, and the rest already had one. Making the run expectation alone sufficient
+is not the answer, because being native-only is a real and common thing for a fixture to be:
+
+- `Pointer.yana`, `LazyPointer.yana`, `Record.yana`, `RunExtentClone.yana` and `Box.Storage.yana`
+  are about raw pointers and addresses, which a host value does not have;
+- `TailPad.yana` asserts sizes and strides in bytes, and `FoldedAddress.yana` an x86 addressing mode.
+
+Every one of the seven says so in its own header. `OptChain.Index.yana` was an eighth until the
+defect it was held back for was fixed - `prepareLocals` boxed a local because the local's *own* type
+was not a host object, where what a reference needs is an object at the end of the path, so
+`match maybeArr(n): Just(xs) -> xs[1]` read `.$v` off the bare array. It runs on both targets now.
+
 `node-harness.js` is one Node process for the whole run, fed scripts over a pipe — starting Node ~170
 times was most of the wall time of this half. Each script is still evaluated with
 `vm.runInNewContext`, so it gets a fresh global and fresh intrinsics: the *process* is shared and no

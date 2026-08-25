@@ -1874,6 +1874,7 @@ JsPtr<Expr> coerce(Gen& g, TypePtr type, JsPtr<Expr> value);
 // A structural duplicate, property by property - the one ownership operation that costs anything
 // here (§2.5).
 JsPtr<Expr> cloneValue(Gen& g, TypePtr type, JsPtr<Expr> source, LocationId where);
+JsPtr<Expr> relocatedValue(Gen& g, TypePtr type, JsPtr<Expr> source);
 
 // The shape a `Native` block copy moves, or null where it is not one whole value of one type.
 TypePtr blockCopyShape(Gen& g, InstNative& instruction);

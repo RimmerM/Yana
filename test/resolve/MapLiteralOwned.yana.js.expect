@@ -181,9 +181,10 @@ function insert_String_Held(self, key, value) {
   var h = hashKey_String(key);
   var at = findEntry_String_Held(self, key, h);
   if (at >= 0) {
-    var v14 = self.values[at];
-    v14.n = value.n;
-    return v14;
+    var v31 = self.values[at];
+    var v34 = { n: v31.n };
+    v31.n = value.n;
+    return v34;
   } else {
     appendEntry_String_Held(self, key, value, h);
     return null;

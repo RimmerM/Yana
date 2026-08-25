@@ -234,6 +234,109 @@ void storeHostProperty(Gen& g, JsPtr<Expr> target, JsPtr<Expr> value) {
     }), StmtList {}));
 }
 
+/*
+ * Whether a move takes a value out of storage something can still *write*.
+ *
+ * The move itself proves nothing about that. What it proves is that the value is dead - nobody will
+ * read it again - and on native that is the whole question, because the bytes are copied out before
+ * anything else can touch them. Here a move hands over a *name* for the object those bytes are in,
+ * so what matters is not who may read that storage but who may overwrite it, and there is exactly
+ * one shape that can: a whole-value write through a mutable reference, which copies into the object
+ * property by property rather than rebinding a name. `writeExprInto` below is that write.
+ *
+ * The two halves are asked separately, and the narrow one is the point:
+ *
+ *  - a place with **projections** is written by rebinding a property, so the object a move took out
+ *    of it survives the write. `move %value@Just` off a consumed parameter stays free.
+ *  - a place with **no projections** whose root is a shared borrow or a by-value parameter is never
+ *    the destination of such a write either - a consuming parameter is storage the caller has given
+ *    up, and `Try_Maybe(a).toOutcome` handing its payload straight back is what that buys.
+ *
+ * What is left is a `&` and a raw pointer: `exchange` and `swap`, and the two of them only.
+ */
+static bool rootIsMutableReference(Gen& g, const Place& place) {
+    auto projections = place.projections;
+    if(projections.isNotEmpty()) return false;
+    if(place.root == PlaceRoot::Pointer) return true;
+
+    // Conservative for a root this cannot see the borrow behind, which is the safe direction: a
+    // needless duplicate is a needless duplicate, and a missed one is a value that is simply gone.
+    if(place.root == PlaceRoot::Borrow) {
+        auto& root = *g.local[place.pointer];
+        return root.kind != Value::Borrow || ((InstBorrow&)root).mut;
+    }
+
+    if(place.root != PlaceRoot::Local || place.local >= g.function->localCount()) return false;
+
+    // `Ref` and not `borrowed` alone, on the same terms placeExpr tells the two apart: a consuming
+    // by-value parameter of memory type is borrowed storage and is not a reference anybody writes.
+    auto slot = g.function->localAt(g.local, place.local);
+    return slot.borrowed && slot.convention == ast::BindType::Ref;
+}
+
+static bool relocatesForeignStorage(Gen& g, Value& produced) {
+    if(produced.kind != Value::Move) return false;
+
+    return rootIsMutableReference(g, ((InstMove&)produced).place);
+}
+
+/*
+ * The write half of `storeInto`, over an expression that has already been built.
+ *
+ * Split out for `genSwap`, which has two values in flight and no `Value` to ask about either of
+ * them: what it holds is the two places' former contents, and the question every branch below turns
+ * on - does writing this place replace a name or the properties of an object - is about the *place*
+ * rather than about where the value came from. Writing that assignment out a second time there is
+ * what left a swap of two object places emitting `v12 = v13` over two locals that named the borrows
+ * rather than the storage, which is a pair of statements that changes nothing anybody can see.
+ *
+ * `keeps` is `keepsLiveStorage`'s answer where there is a value to ask it of, and false for a
+ * relocation, which is what the two swap writes are.
+ */
+void writeExprInto(Gen& g, const Place& place, TypePtr type, JsPtr<Expr> target, bool elided,
+                   JsPtr<Expr> written, bool keeps, U32 id, LocationId where) {
+    /*
+     * A whole aggregate written through a reference is a copy *into* the storage the reference
+     * names - which is what the native side's memcpy is, and what `v = other` here is not.
+     *
+     * The case is `xs[i] = value` where the element is a record: `getMut` hands back the element
+     * object itself, because a reference to an object is the object on this target, and rebinding
+     * the emitted name would leave the array holding the value that was there. It cannot arise for
+     * a scalar, whose reference is the box or the triple - both of those name a slot already -
+     * which is why this asks `isJsObject` first.
+     *
+     * Property by property, and whether each property is duplicated is `keepsLiveStorage`'s question
+     * rather than a property of the case: where the value moved, the source is dead afterwards and a
+     * nested aggregate has nobody left to alias with; where it is still somebody's storage, this is
+     * `genBlockCopy` with the shape known and clones for the reason that one does.
+     */
+    if(isJsObject(g, type) && writesThroughReference(g, place)) {
+        auto source = g.base[written]->kind == Expr::Var
+            ? written
+            : declare(g, generatedName(g, "moved"_v, id), written);
+
+        eachProperty(g, type, [&](Name key, TypePtr member) {
+            auto read = field(g, source, key);
+            emitExpr(g, assign(g, field(g, target, key),
+                               keeps ? cloneValue(g, member, read, where) : read));
+        });
+
+        return;
+    }
+
+    // And the whole value where the write is one assignment. `cloneValue` rather than the property
+    // walk above, because the storage this names is the binding itself: there is no object already
+    // there to write the properties of.
+    if(keeps) written = cloneValue(g, type, written, where);
+
+    if(elided) {
+        storeHostProperty(g, target, written);
+        return;
+    }
+
+    emitExpr(g, assign(g, target, written));
+}
+
 void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value) {
     auto& produced = *g.local[value];
 
@@ -342,31 +445,33 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
         auto written = useValue(g, value);
         auto keeps = keepsLiveStorage(g, type, value);
 
-        if(isJsObject(g, type) && writesThroughReference(g, place)) {
-            auto source = g.base[written]->kind == Expr::Var
-                ? written
-                : declare(g, generatedName(g, "moved"_v, produced.id), written);
-
-            eachProperty(g, type, [&](Name key, TypePtr member) {
-                auto read = field(g, source, key);
-                emitExpr(g, assign(g, field(g, target, key),
-                                   keeps ? cloneValue(g, member, read, produced.source) : read));
-            });
-
-            return;
+        /*
+         * A move out of storage this frame does not own is a *relocation* and not a handover.
+         *
+         * `namesLiveStorage` reads a move as proof that what it names is dead, which is the whole of
+         * what a move is on native - the resolver has said nobody will read that value again, so the
+         * bytes may be taken. Here the expression a move produces is not bytes but a name for the
+         * object they are in, and the proof covers the *value* rather than the *storage*: whoever
+         * owns that storage still has it and may write it, at which point the handover was an alias
+         * and the value is gone.
+         *
+         * Which is not hypothetical - it is what an `exchange` becomes. `dischargeExchange` lowers
+         * one to `move [%b]` into a slot of its own followed by `assign [%b], new`, so the move's
+         * source is written by the very next instruction; `exchange(a, [] :: [Int])` handed back a
+         * length of 0 where native handed back 3. The un-discharged form has the same hole and is
+         * closed in `genExchange`, which is the shape a build with the optimizer off emits.
+         *
+         * Shallow, because that is exactly what native's `memcpy` of one value is - and it is the
+         * form a droppable type *must* take: `Array(Int)`'s duplicate shares the run it points at,
+         * which is sound here for the same reason it is sound there, namely that the source has just
+         * given it up. `keeps` is the other question and stays the other question: a value the
+         * source still owns is duplicated by `cloneValue` all the way down.
+         */
+        if(!keeps && relocatesForeignStorage(g, produced)) {
+            written = relocatedValue(g, type, written);
         }
 
-        // And the whole value where the write is one assignment. `cloneValue` rather than the
-        // property walk above, because the storage this names is the binding itself: there is no
-        // object already there to write the properties of.
-        if(keeps) written = cloneValue(g, type, written, produced.source);
-
-        if(elided) {
-            storeHostProperty(g, target, written);
-            return;
-        }
-
-        emitExpr(g, assign(g, target, written));
+        writeExprInto(g, place, type, target, elided, written, keeps, produced.id, produced.source);
         return;
     }
 
@@ -1788,6 +1893,38 @@ void genBorrow(Gen& g, ModulePtr<Value> value, Value& instruction, const Place& 
 }
 
 /*
+ * The value a place holds, taken out of it and given a name of its own, before the write that
+ * replaces it.
+ *
+ * Native has nothing to say here: the old bytes are relocated into the result's own stack slot and
+ * the place is then overwritten, and the two never overlap. This target has no slots, so what
+ * `placeExpr` answers is a name for the storage rather than a snapshot of it, and how much that
+ * costs depends on what the write ahead does to that storage:
+ *
+ *  - **it copies into it**, for an object-shaped value whose place is rooted in a reference - see
+ *    writeExprInto's property walk. The read and the write are then the same object and the old
+ *    value is simply gone; `exchange(a, [] :: [Int])` handed back a length of 0 where native handed
+ *    back 3, with no diagnostic on either build. What is needed is a *shallow* duplicate, which is
+ *    `relocatedValue`.
+ *  - **it rebinds it**, for everything else - a whole local, a property, a bit range of a word. The
+ *    old value survives the write; what does not survive is an expression naming where it was, so
+ *    it is materialized and nothing is duplicated.
+ *
+ * A `var` in the second case where the expression used to be handed on unnamed. That is not free
+ * and it is not optional: `exchange(p.left, …)` emits `p.left = …`, and a `p.left` left to be
+ * evaluated at its use reads the value that write put there.
+ */
+static JsPtr<Expr> takenFromPlace(Gen& g, const Place& place, TypePtr type, Name name) {
+    auto source = placeExpr(g, place);
+
+    if(isJsObject(g, type) && writesThroughReference(g, place)) {
+        return declare(g, name, relocatedValue(g, type, source));
+    }
+
+    return declare(g, name, source);
+}
+
+/*
  * Three relocations through a temporary, and the temporary is not removable: neither place can be
  * written until both have been read. That is the cost `exchange` exists to avoid, and it is the same
  * cost on both targets.
@@ -1798,22 +1935,45 @@ void genSwap(Gen& g, Value& instruction, InstSwap& swap) {
 
     if(!swap.sink) {
         /*
-         * Both sides may be bit ranges of the *same* word - `swap(t.f.a, t.g.a)` is two bits of one
-         * byte - so both reads are materialized before either write. With two locations one
-         * temporary is enough and the second is left out, which is what keeps this the same emitted
-         * shape it has always had on a target that packs nothing.
+         * Both former contents are taken out before either place is written, and *both* of them,
+         * always. Two reasons that used to be one:
+         *
+         *  - both sides may be bit ranges of the same word - `swap(t.f.a, t.g.a)` is two bits of one
+         *    byte - so a read left to be evaluated at its use would see the other write;
+         *  - and for an object-shaped value the write ahead is a copy into the storage the place
+         *    names, so an expression naming that storage is not a value that survives it. That is
+         *    `takenFromPlace`'s job and it is why one temporary is no longer enough: the shallow
+         *    duplicate is what makes the second write's source distinct from the first write's
+         *    destination.
          */
-        PlaceBits aBits, bBits;
-        placeOwner(g, swap.a, aBits);
-        placeOwner(g, swap.b, bBits);
+        auto former = takenFromPlace(g, swap.a, swap.content,
+                                     generatedName(g, "swap"_v, instruction.id));
+        auto other = takenFromPlace(g, swap.b, swap.content,
+                                    generatedName(g, "swapped"_v, instruction.id));
 
-        auto temporary = declare(g, generatedName(g, "swap"_v, instruction.id), a);
-        auto other = aBits.valid() || bBits.valid()
-            ? declare(g, generatedName(g, "swapped"_v, instruction.id), b)
-            : b;
+        /*
+         * And the writes go through `writeExprInto` rather than through an assignment written here.
+         *
+         * `assign(g, a, other)` is a *rebinding*, and `a` for a place rooted in a borrow is the
+         * local this body declared for that borrow - so the two statements assigned two locals
+         * nothing read again and the swap was silently not performed. Both targets answered 53 for
+         * a swap of two `Array(Int)` fields; this one answered 35, which is the two lengths in the
+         * order they started in.
+         */
+        auto aElided = false, bElided = false;
+        auto aTarget = placeTarget(g, swap.a, aElided);
+        auto bTarget = placeTarget(g, swap.b, bElided);
 
-        if(!assignPlace(g, swap.a, swap.content, other)) emitExpr(g, assign(g, a, other));
-        if(!assignPlace(g, swap.b, swap.content, temporary)) emitExpr(g, assign(g, b, temporary));
+        if(!assignPlace(g, swap.a, swap.content, other)) {
+            writeExprInto(g, swap.a, swap.content, aTarget, aElided, other, false,
+                          instruction.id, instruction.source);
+        }
+
+        if(!assignPlace(g, swap.b, swap.content, former)) {
+            writeExprInto(g, swap.b, swap.content, bTarget, bElided, former, false,
+                          instruction.id, instruction.source);
+        }
+
         return;
     }
 
@@ -1828,16 +1988,11 @@ void genSwap(Gen& g, Value& instruction, InstSwap& swap) {
 // there is nothing to save it from.
 void genExchange(Gen& g, ModulePtr<Value> value, Value& instruction, InstExchange& exchange) {
     if(!exchange.sink) {
-        // The old value has to be read before the write, and where the place is a bit range the read
-        // is an expression over the word the write is about to change - so it is materialized rather
-        // than left to be evaluated at its use.
-        PlaceBits bits;
-        placeOwner(g, exchange.place, bits);
-
-        auto previous = placeExpr(g, exchange.place);
-        define(g, value, bits.valid()
-            ? declare(g, valueName(g, instruction), previous)
-            : previous);
+        // The old value has to be out of the place before the write, which is `takenFromPlace`'s
+        // whole subject: a bit range is an expression over the word the write is about to change,
+        // and an object-shaped value is the storage that write copies into.
+        define(g, value, takenFromPlace(g, exchange.place, instruction.type,
+                                        valueName(g, instruction)));
 
         storeInto(g, exchange.place, instruction.type, exchange.value);
         return;

@@ -345,10 +345,10 @@ function insert_String_Int(self, key, value) {
   var h = hashKey_String(key);
   var at = findEntry_String_Int(self, key, h);
   if (at >= 0) {
-    var v30 = self.values.items;
-    var v15 = v30[at];
-    v30[at] = value;
-    return v15;
+    var v28 = self.values.items;
+    var v13$1 = v28[at];
+    v28[at] = value;
+    return v13$1;
   } else {
     appendEntry_String_Int(self, key, value, h);
     return null;
@@ -517,10 +517,11 @@ function insert_Int_Array_Int(self, key, value) {
     at = indexFind_Int_Array_Int(self, key, h);
   }
   if (at >= 0) {
-    var v14 = self.values[at];
-    v14.items = value.items;
-    v14.length = value.length;
-    return v14;
+    var v41 = self.values[at];
+    var v44 = { items: v41.items, length: v41.length };
+    v41.items = value.items;
+    v41.length = value.length;
+    return v44;
   } else {
     appendEntry_Int_Array_Int(self, key, value, h);
     return null;
@@ -677,13 +678,14 @@ function insert_Int_Map_Int_Int(self, key, value) {
   var h = hashKey_Int(key);
   var at = findEntry_Int_Map_Int_Int(self, key, h);
   if (at >= 0) {
-    var v14 = self.values[at];
-    v14.keys = value.keys;
-    v14.values = value.values;
-    v14.index = value.index;
-    v14.live = value.live;
-    v14.mask = value.mask;
-    return v14;
+    var v30 = self.values[at];
+    var v33 = { keys: v30.keys, values: v30.values, index: v30.index, live: v30.live, mask: v30.mask };
+    v30.keys = value.keys;
+    v30.values = value.values;
+    v30.index = value.index;
+    v30.live = value.live;
+    v30.mask = value.mask;
+    return v33;
   } else {
     appendEntry_Int_Map_Int_Int(self, key, value, h);
     return null;

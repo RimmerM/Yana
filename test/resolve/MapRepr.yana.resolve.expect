@@ -810,22 +810,20 @@ fn insert(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int) -> Maybe(Int) 
     %v10 = load %self : Map(Int, Int)
     %v11 = borrow_mut %self : &Map(Int, Int)
     %v12 = call valueAtMut(Int, Int), %v11, %at : &Int
-    %v13 = load [%v12] : Int
-    %v14 = borrow_mut [%v12] : &Int
-    %v15 = exchange [%v14], %value : Int
-    aggregate %local3.discriminant = 1, %local3@Just = %v15
+    %v13 = exchange [%v12], %value : Int
+    aggregate %local3.discriminant = 1, %local3@Just = %v13
     ret %v9
 
   b2:
     jmp b3
 
   b3:
-    %v20 = load %self : Map(Int, Int)
-    %v21 = borrow_mut %self : &Map(Int, Int)
-    call appendEntry(Int, Int), %v21, %key, %value, %h
-    %v23 = alloc : Maybe(Int)
+    %v18 = load %self : Map(Int, Int)
+    %v19 = borrow_mut %self : &Map(Int, Int)
+    call appendEntry(Int, Int), %v19, %key, %value, %h
+    %v21 = alloc : Maybe(Int)
     init %local5.discriminant, 0
-    ret %v23
+    ret %v21
 }
 
 fn valueAtMut(Int, Int)(%self: Map(Int, Int), %at: Size) -> &Int {
@@ -1282,23 +1280,21 @@ fn insert(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -> Ma
     %v10 = load %self : Map(String, Int)
     %v11 = borrow_mut %self : &Map(String, Int)
     %v12 = call valueAtMut(Int, String), %v11, %at : &Int
-    %v13 = load [%v12] : Int
-    %v14 = borrow_mut [%v12] : &Int
-    %v15 = exchange [%v14], %value : Int
-    aggregate %local3.discriminant = 1, %local3@Just = %v15
+    %v13 = exchange [%v12], %value : Int
+    aggregate %local3.discriminant = 1, %local3@Just = %v13
     ret %v9
 
   b2:
     jmp b3
 
   b3:
-    %v20 = load %self : Map(String, Int)
-    %v21 = borrow_mut %self : &Map(String, Int)
+    %v18 = load %self : Map(String, Int)
+    %v19 = borrow_mut %self : &Map(String, Int)
     %key = move %key : String
-    call appendEntry(String, Int), %v21, %key, %value, %h
-    %v24 = alloc : Maybe(Int)
+    call appendEntry(String, Int), %v19, %key, %value, %h
+    %v22 = alloc : Maybe(Int)
     init %local5.discriminant, 0
-    ret %v24
+    ret %v22
 
   b4:
     drop %key reclaim Reclaim(String).reclaim

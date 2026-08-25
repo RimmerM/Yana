@@ -1,0 +1,62 @@
+"use strict";
+// Core
+function checkCondition(failed) {
+  if (failed) {
+    throw "yana: a runtime check failed";
+  }
+}
+
+function Try_Maybe_a_a_toOutcome_Array_Int(value) {
+  var v1;
+  if (!(value === null)) {
+    v1 = value;
+  } else {
+    v1 = null;
+  }
+  return v1;
+}
+
+// ResolveTest
+function maybeArr(n) {
+  if (n > 0) {
+    return { items: new Int32Array([n, Math.imul(n, 2), Math.imul(n, 3)]), length: 3 };
+  } else {
+    return null;
+  }
+}
+
+function indexed(n) {
+  var v25;
+  var v3 = Try_Maybe_a_a_toOutcome_Array_Int(maybeArr(n));
+  if (v3 === null) {
+    v25 = null;
+  } else {
+    checkCondition(1 >= v3.length ? 1 : 0);
+    v25 = v3.items[1];
+  }
+  return v25;
+}
+
+function sum(n) {
+  var v25;
+  var v3 = Try_Maybe_a_a_toOutcome_Array_Int(maybeArr(n));
+  if (v3 === null) {
+    v25 = null;
+  } else {
+    checkCondition(0 >= v3.length ? 1 : 0);
+    v25 = v3.items[0];
+  }
+  return v25;
+}
+
+function main() {
+  var v1 = indexed(4);
+  var v28 = !(v1 === null) ? v1 : 0;
+  var v7 = indexed(-1);
+  var v33 = !(v7 === null) ? v7 : 0;
+  var v11 = sum(5);
+  var v38 = !(v11 === null) ? v11 : 0;
+  var v17 = sum(-1);
+  return ((v28 + v33 | 0) + v38 | 0) + (!(v17 === null) ? v17 : 0) | 0;
+}
+main();

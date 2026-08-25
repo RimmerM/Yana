@@ -474,12 +474,15 @@ pub class Copy(a):
    resolve/witness.cpp prefers TrivialCopy over an authored instance, so a scalar's descriptor slot
    is still the block copy and this body is never called for one.
 
-   **`copy` of a reference is a copy of the reference.** `Copy` is over `a` and a `'a` is a type, so
-   `copy(entry.key)` where `pairs` handed out an `Entry('k, 'v)` binds the class variable to `'k` -
-   and nothing at the call site overrides that, not the expected type of a `->` argument and not an
-   ascription on the result. Duplicating what a container handed out is therefore done through a
-   *place*: `copy(xs[i])` is a read of the element, which is what `copiedArray` in Array.yana and
-   `copyEntriesFrom` in the two Map files are written against.
+   **`copy` of a reference duplicates what it points at.** A borrow handed to a position declared as
+   a bare type variable binds the *pointee*, which is the same rule a concrete parameter has always
+   had - `fn f(x: String)` given a `'String` reads through - said for the position that used to be
+   exempt from it. So `copy(entry.key)` over a `pairs` yielding `Entry('k, 'v)` is a duplicate of
+   the key and not a second name for it, which is what it reads as.
+
+   It was the other way round until the rule was written down, and the failure was silent where it
+   was not confusing: `'k` is a pointer, a pointer is TrivialCopy, so this instance was selected at
+   `'k` and duplicated the reference. `test/lib/CopyBorrow.yana` is what says it does not now.
 -}
 instance (TrivialCopy(a)) Copy(a):
     fn copy(from: a) -> a:

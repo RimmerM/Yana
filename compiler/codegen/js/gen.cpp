@@ -319,6 +319,9 @@ bool borrowStaysHere(Gen& g, Value& user, ModulePtr<Value> borrow) {
  * instruction: a re-borrow of an alias is an alias too, and a use of *that* one which escapes has
  * to reach back and box the local both of them name.
  */
+// Defined below, where the loop that first needed it is - see genFunction's parameter boxing.
+static I32 localSlotOf(Gen& g, Function& function, ModulePtr<Value> value);
+
 void prepareLocals(Gen& g, Function& function) {
     g.aliasBorrows.reset();
     g.boxed.reset(function.localCount());
@@ -346,13 +349,52 @@ void prepareLocals(Gen& g, Function& function) {
      * the other requirement, and scalarization is what introduced it: `&f.optionA` where `f` is a
      * scalarized record has to name something writable, and `f` is a `var` holding a number. The box
      * is what the reference names, with the field's shift saying where in it the bit is.
+     *
+     * **What decides it is the type the place arrives at, not the type it starts from.** A reference
+     * needs an object to hang off, and the walk reaches one wherever a projection lands on a value
+     * this target holds as an object - at which point the reference is that object and the root
+     * needs nothing. Asking the root alone over-approximates in the one direction that is not safe
+     * to be wrong in: it boxes a local whose *storage* something other than an `alloca` produced,
+     * and only `genAlloc` consults `g.boxed`, so the box was read back off a value nobody built.
+     *
+     * `Maybe(Array(Int))` is the shape that catches it and it is not an obscure one - a niche-folded
+     * carrier is not an object (see isJsObject: the payload plus the pattern that says it has none),
+     * while its payload is - so `match maybeArr(n): Just(xs) -> xs[1]` borrows `local@Just`, and the
+     * call writes its result straight into that slot with no `alloca` to box. Emitted `v1.$v` over a
+     * value that was the bare array and threw on the first read. `length(xs)` was correct in the
+     * same arm, because a borrow that is only handed to a callee never walks back to the root.
+     *
+     * **Locals this frame owns, and not parameters.** A parameter's form is settled by the calling
+     * convention before this body is looked at: `declaredArgTakesValue` is the caller's half, and it
+     * says a by-value parameter of memory type is handed over as a reference, which for a type that
+     * is not an object here is the box. So a parameter of such a type arrives boxed whatever its
+     * borrows turn out to reach, and refining it by the pointee makes the two ends disagree -
+     * `unwrapOr(Tree)` read `m` as the bare value out of a `{$v: t.left}` the caller had built.
      */
+    IndexSet isParameter;
+    isParameter.reset(function.localCount());
+
+    for(auto argPointer: function.args.contents(g.local)) {
+        auto slot = localSlotOf(g, function, (ModulePtr<Value>)argPointer);
+        if(slot >= 0 && Size(slot) < isParameter.size()) isParameter.set(Size(slot), true);
+    }
+
     auto boxIfNarrowRoot = [&](const Place& place) {
         if(place.root != PlaceRoot::Local || place.local >= g.boxed.size()) return;
         if(place.local >= function.localCount()) return;
 
         auto type = function.localAt(g.local, place.local).type;
-        if(type && !isJsObject(g, type)) g.boxed.set(place.local, true);
+        if(!type || isJsObject(g, type)) return;
+
+        if(!isParameter[place.local]) {
+            // `placeType` from resolve/place.h rather than this file's walk: the question is what
+            // the path arrives at, and the JS walk answers that *and* builds the expression out of
+            // tables three preparation passes have not filled in yet.
+            auto pointee = ::placeType(*g.program.core, function, place);
+            if(pointee && isJsObject(g, pointee)) return;
+        }
+
+        g.boxed.set(place.local, true);
     };
 
     eachInstruction(g, function, [&](Value& instruction) {

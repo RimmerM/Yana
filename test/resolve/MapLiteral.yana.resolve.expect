@@ -716,22 +716,20 @@ fn insert(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int) -> Maybe(Int) 
     %v10 = load %self : Map(Int, Int)
     %v11 = borrow_mut %self : &Map(Int, Int)
     %v12 = call valueAtMut(Int, Int), %v11, %at : &Int
-    %v13 = load [%v12] : Int
-    %v14 = borrow_mut [%v12] : &Int
-    %v15 = exchange [%v14], %value : Int
-    aggregate %local3.discriminant = 1, %local3@Just = %v15
+    %v13 = exchange [%v12], %value : Int
+    aggregate %local3.discriminant = 1, %local3@Just = %v13
     ret %v9
 
   b2:
     jmp b3
 
   b3:
-    %v20 = load %self : Map(Int, Int)
-    %v21 = borrow_mut %self : &Map(Int, Int)
-    call appendEntry(Int, Int), %v21, %key, %value, %h
-    %v23 = alloc : Maybe(Int)
+    %v18 = load %self : Map(Int, Int)
+    %v19 = borrow_mut %self : &Map(Int, Int)
+    call appendEntry(Int, Int), %v19, %key, %value, %h
+    %v21 = alloc : Maybe(Int)
     init %local5.discriminant, 0
-    ret %v23
+    ret %v21
 }
 
 fn findEntry(Int, Int)(%self: Map(Int, Int), %key: Int, %h: U32) -> Size {
@@ -1577,23 +1575,21 @@ fn insert(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -> Ma
     %v10 = load %self : Map(String, Int)
     %v11 = borrow_mut %self : &Map(String, Int)
     %v12 = call valueAtMut(Int, String), %v11, %at : &Int
-    %v13 = load [%v12] : Int
-    %v14 = borrow_mut [%v12] : &Int
-    %v15 = exchange [%v14], %value : Int
-    aggregate %local3.discriminant = 1, %local3@Just = %v15
+    %v13 = exchange [%v12], %value : Int
+    aggregate %local3.discriminant = 1, %local3@Just = %v13
     ret %v9
 
   b2:
     jmp b3
 
   b3:
-    %v20 = load %self : Map(String, Int)
-    %v21 = borrow_mut %self : &Map(String, Int)
+    %v18 = load %self : Map(String, Int)
+    %v19 = borrow_mut %self : &Map(String, Int)
     %key = move %key : String
-    call appendEntry(String, Int), %v21, %key, %value, %h
-    %v24 = alloc : Maybe(Int)
+    call appendEntry(String, Int), %v19, %key, %value, %h
+    %v22 = alloc : Maybe(Int)
     init %local5.discriminant, 0
-    ret %v24
+    ret %v22
 
   b4:
     drop %key reclaim Reclaim(String).reclaim
@@ -2379,24 +2375,22 @@ fn insert(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %value: Array
     %v10 = load %self : Map(Int, Array(Int))
     %v11 = borrow_mut %self : &Map(Int, Array(Int))
     %v12 = call valueAtMut(Array(Int), Int), %v11, %at : &Array(Int)
-    %v13 = load [%v12] : Array(Int)
-    %v14 = borrow_mut [%v12] : &Array(Int)
     %value = move %value : Array(Int)
-    %v16 = exchange [%v14], %value : Array(Int)
-    aggregate %local3.discriminant = 1, %local3@Just = %v16
+    %v14 = exchange [%v12], %value : Array(Int)
+    aggregate %local3.discriminant = 1, %local3@Just = %v14
     ret %v9
 
   b2:
     jmp b3
 
   b3:
-    %v21 = load %self : Map(Int, Array(Int))
-    %v22 = borrow_mut %self : &Map(Int, Array(Int))
+    %v19 = load %self : Map(Int, Array(Int))
+    %v20 = borrow_mut %self : &Map(Int, Array(Int))
     %value = move %value : Array(Int)
-    call appendEntry(Int, Array(Int)), %v22, %key, %value, %h
-    %v25 = alloc : Maybe(Array(Int))
+    call appendEntry(Int, Array(Int)), %v20, %key, %value, %h
+    %v23 = alloc : Maybe(Array(Int))
     init %local5.discriminant, 0
-    ret %v25
+    ret %v23
 }
 
 fn findEntry(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %h: U32) -> Size {
@@ -3208,24 +3202,22 @@ fn insert(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %value:
     %v10 = load %self : Map(Int, Map(Int, Int))
     %v11 = borrow_mut %self : &Map(Int, Map(Int, Int))
     %v12 = call valueAtMut(Map(Int, Int), Int), %v11, %at : &Map(Int, Int)
-    %v13 = load [%v12] : Map(Int, Int)
-    %v14 = borrow_mut [%v12] : &Map(Int, Int)
     %value = move %value : Map(Int, Int)
-    %v16 = exchange [%v14], %value : Map(Int, Int)
-    aggregate %local3.discriminant = 1, %local3@Just = %v16
+    %v14 = exchange [%v12], %value : Map(Int, Int)
+    aggregate %local3.discriminant = 1, %local3@Just = %v14
     ret %v9
 
   b2:
     jmp b3
 
   b3:
-    %v21 = load %self : Map(Int, Map(Int, Int))
-    %v22 = borrow_mut %self : &Map(Int, Map(Int, Int))
+    %v19 = load %self : Map(Int, Map(Int, Int))
+    %v20 = borrow_mut %self : &Map(Int, Map(Int, Int))
     %value = move %value : Map(Int, Int)
-    call appendEntry(Int, Map(Int, Int)), %v22, %key, %value, %h
-    %v25 = alloc : Maybe(Map(Int, Int))
+    call appendEntry(Int, Map(Int, Int)), %v20, %key, %value, %h
+    %v23 = alloc : Maybe(Map(Int, Int))
     init %local5.discriminant, 0
-    ret %v25
+    ret %v23
 }
 
 fn findEntry(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %h: U32) -> Size {
