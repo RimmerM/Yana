@@ -139,6 +139,27 @@ StringView archName(TargetArch arch) {
 }
 
 /*
+ * The three levels, and the three older spellings that name the same machines.
+ *
+ * The aliases are kept because they read better at a call site that is about one instruction set -
+ * `-enable-inst avx2` says why a benchmark row exists more clearly than `v3` does - and because
+ * every script and fixture already writes them. What is *not* kept is a spelling for a machine no
+ * level describes: `avx` alone was Sandy Bridge, which is a v2 part everywhere else, and `sse4.1`
+ * alone was Penryn, which is below the floor. Both now name the level that contains them.
+ */
+struct LevelName { StringView name; TargetExtensions::Level level; };
+
+static const LevelName levelTable[] = {
+    { "v2"_v, TargetExtensions::V2 },
+    { "v3"_v, TargetExtensions::V3 },
+    { "v4"_v, TargetExtensions::V4 },
+
+    { "sse4.2"_v, TargetExtensions::V2 },
+    { "avx2"_v, TargetExtensions::V3 },
+    { "avx512"_v, TargetExtensions::V4 },
+};
+
+/*
  * One dotted segment of a file name, answered against this compilation.
  *
  * The three tables are the ones the command line already reads, so a selector is spelled the way
@@ -167,6 +188,33 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name) 
     }
 
     /*
+     * The x86-64 levels, answered as **at least**: `v3` matches a v3 or a v4 build, exactly as
+     * `-enable-inst v3` means "you may use this and everything below it".
+     *
+     * A level is a selector because a *declaration naming an instruction* has to be able to say
+     * which machines have it, and that is the same question `sha` answers below. What a level name
+     * must not be used for is choosing between two implementations of a portable operation: the
+     * compiler already selects instructions by level, and a source-level fork would be a second
+     * answer to that question with nothing keeping the two in step. The distinction is between
+     * "this name *is* an instruction" and "this name has a faster spelling on a better machine";
+     * only the first belongs here, and `lib/Native/Intrinsic/X86.yana` is the only file that has
+     * one.
+     *
+     * The aliases come from the same table `-enable-inst` reads, so a selector is spelled the way
+     * the command line spells it. `avx` is deliberately not among them - it alone was Sandy Bridge,
+     * which is a v2 part everywhere in this compiler.
+     */
+    if(!isJs && settings.arch == TargetArch::X64) {
+        for(auto& entry: levelTable) {
+            if(name == entry.name) return answer(settings.extensions.level >= entry.level);
+        }
+    } else {
+        for(auto& entry: levelTable) {
+            if(name == entry.name) return TargetSelector::Excluded;
+        }
+    }
+
+    /*
      * The instruction-set extensions that are not a level - `sha` today, and see
      * `TargetExtensions::sha` for why it is not inside one.
      *
@@ -181,38 +229,22 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name) 
      * A JS build and a non-x86-64 one are `nosha`, on the same argument an operating system name
      * makes above: what `sha` selects is written in terms of an x86 instruction, and a target with
      * no such instruction has no business compiling it.
+     *
+     * **`sha` requires v3 as well as the extension**, which is not a claim about the hardware -
+     * Goldmont shipped SHA-NI with no AVX at all. It is a claim about `lib/Digest/Hardware.sha.yana`,
+     * which is a legacy-encoded region and therefore written in terms of `X86.vzeroupper()`: the
+     * reset is an AVX instruction, so the file needs both, and the part of the partition that says
+     * so is this line. A SHA-without-AVX target is `nosha` and takes the portable compression, which
+     * is the whole of what those parts give up.
      */
-    if(name == "sha"_v) {
-        return answer(!isJs && settings.arch == TargetArch::X64 && settings.extensions.sha);
-    }
+    auto hasSha = !isJs && settings.arch == TargetArch::X64 && settings.extensions.sha
+               && settings.extensions.level >= TargetExtensions::V3;
 
-    if(name == "nosha"_v) {
-        return answer(isJs || settings.arch != TargetArch::X64 || !settings.extensions.sha);
-    }
+    if(name == "sha"_v) return answer(hasSha);
+    if(name == "nosha"_v) return answer(!hasSha);
 
     return TargetSelector::Unknown;
 }
-
-/*
- * The three levels, and the three older spellings that name the same machines.
- *
- * The aliases are kept because they read better at a call site that is about one instruction set -
- * `-enable-inst avx2` says why a benchmark row exists more clearly than `v3` does - and because
- * every script and fixture already writes them. What is *not* kept is a spelling for a machine no
- * level describes: `avx` alone was Sandy Bridge, which is a v2 part everywhere else, and `sse4.1`
- * alone was Penryn, which is below the floor. Both now name the level that contains them.
- */
-struct LevelName { StringView name; TargetExtensions::Level level; };
-
-static const LevelName levelTable[] = {
-    { "v2"_v, TargetExtensions::V2 },
-    { "v3"_v, TargetExtensions::V3 },
-    { "v4"_v, TargetExtensions::V4 },
-
-    { "sse4.2"_v, TargetExtensions::V2 },
-    { "avx2"_v, TargetExtensions::V3 },
-    { "avx512"_v, TargetExtensions::V4 },
-};
 
 Maybe<TargetExtensions::Level> matchLevel(const String& arg) {
     for(auto& entry: levelTable) {

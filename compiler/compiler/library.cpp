@@ -196,7 +196,7 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
                 auto answer = targetSelector(walk.context.settings, selector);
 
                 if(answer == TargetSelector::Unknown) {
-                    walk.context.diagnostics.error("%@ in the standard library names %@, which is not a target - a file name selects a target with `native`, `js`, an operating system or an architecture"_v,
+                    walk.context.diagnostics.error("%@ in the standard library names %@, which is not a target - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
                                                    nullptr, formatPath("%@/%@"_v, walk.path, fileName),
                                                    toString(selector));
                     return;

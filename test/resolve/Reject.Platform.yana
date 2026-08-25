@@ -11,17 +11,19 @@ fn noTarget() -> Int = 2
 @platform("js")
 fn quoted() -> Int = 3
 
--- An architecture is a target name and a *level* within one is not: `-extensions` says which
--- machine inside x86-64 to generate for, and a declaration that exists only above one is a question
--- about instruction selection rather than about which target compiled it.
+-- Two controls, and neither is rejected: a level (`v3`, spelled `avx2` here) and an extension no
+-- level implies (`sha`) are both target names, because both answer "does this machine have this
+-- instruction" - which is the question a declaration in `Native/Intrinsic/X86.yana` is asking. A
+-- level is answered as "at least", so `avx2` holds on a v3 or a v4 build.
+--
+-- What a level name must *not* be used for is choosing between two implementations of a portable
+-- operation: the compiler already selects instructions by level, and a source-level fork would be a
+-- second answer to that question with nothing keeping the two in step. That is a rule about what to
+-- write, not something the attribute can check, so what is pinned here is only that the name
+-- resolves.
 @platform(avx2)
 fn wideOnly() -> Int = 4
 
--- The control, and the line between it and the one above. An extension that no level implies is a
--- target name, because it comes as a *pair* - `sha` and `nosha` partition every target, so a
--- declaration excluded by one is answered by another the other selected. `avx2` has no such other
--- half: there is nothing a build below it selects instead, which is what makes it a question about
--- encoding rather than about which program was resolved.
 @platform(sha)
 fn withExtension() -> Int = 5
 

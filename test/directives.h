@@ -52,33 +52,51 @@ inline void applyExtensionDirective(CompileSettings& settings, StringView conten
         auto rest = content.ptr + i + directive.length;
         auto left = content.length - i - directive.length;
 
-        for(auto& level: levels) {
-            if(level.name.length > left) continue;
-            if(compareMem(rest, level.name.ptr, level.name.length) != 0) continue;
-
-            settings.extensions.level = level.level;
-            settings.explicitExtensions = true;
-            break;
-        }
-
         /*
-         * `# extensions: sha` - the one extension that is not a level, and so the one directive that
-         * does not end the scan.
+         * **Every name on the line, not just the first.** `# extensions: sha v3` is two facts about
+         * one target and the two are independent - a level says which instructions the compiler may
+         * choose and `sha` says whether an extension beside it is claimed, exactly as they are on the
+         * command line where `-enable-inst sha` is a second flag rather than a replacement for the
+         * first. Reading only the leading token made the second name a comment: `sha v3` claimed the
+         * extension and quietly compiled for v2.
          *
-         * A fixture may write it beside a level (two directive lines), which is why the loop
-         * continues past a match rather than returning: the level and the extension are separate
-         * facts about the target, exactly as they are on the command line where `-enable-inst sha`
-         * is a second flag rather than a replacement for the first.
+         * The scan stops at the end of the line, so a directive says nothing about the prose under
+         * it. Several `# extensions:` lines in one file still accumulate, which is what the outer
+         * loop is for.
          *
-         * **A fixture that names it will fault on a machine without the extension**, which is
-         * `CopyMemory.Avx2.yana`'s bargain at a different feature: these drivers execute what they
-         * compile, so a fixture asking for an instruction set is asking for one the machine running
-         * it has. Nothing here detects; a fixture that names nothing is compiled for v2 without the
-         * extension, which is what keeps the rest of the corpus reproducible.
+         * **A fixture that names one will fault on a machine without it**, which is
+         * `CopyMemory.Avx2.yana`'s bargain: these drivers execute what they compile, so a fixture
+         * asking for an instruction set is asking for one the machine running it has. Nothing here
+         * detects; a fixture that names nothing is compiled for v2 without any extension, which is
+         * what keeps the rest of the corpus reproducible.
          */
-        if("sha"_v.length <= left && compareMem(rest, "sha"_v.ptr, 3) == 0) {
-            settings.extensions.sha = true;
-            settings.explicitExtensions = true;
+        for(Size at = 0; at < left && rest[at] != '\n' && rest[at] != '\r';) {
+            if(rest[at] == ' ' || rest[at] == '\t' || rest[at] == ',') { at++; continue; }
+
+            auto remaining = left - at;
+            auto matched = Size(0);
+
+            for(auto& level: levels) {
+                if(level.name.length > remaining) continue;
+                if(compareMem(rest + at, level.name.ptr, level.name.length) != 0) continue;
+
+                settings.extensions.level = level.level;
+                settings.explicitExtensions = true;
+                matched = level.name.length;
+                break;
+            }
+
+            if(!matched && "sha"_v.length <= remaining && compareMem(rest + at, "sha"_v.ptr, 3) == 0) {
+                settings.extensions.sha = true;
+                settings.explicitExtensions = true;
+                matched = "sha"_v.length;
+            }
+
+            // An unrecognized word ends the line's meaning rather than being skipped over, so a typo
+            // is a fixture that does not get what it asked for rather than one that silently gets
+            // half of it - and the fixture's own assertions are what report it.
+            if(!matched) break;
+            at += matched;
         }
     }
 }

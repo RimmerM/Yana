@@ -34,17 +34,18 @@ module Native
    ------------------------------------------------------------------------------------------------
    Why availability is an attribute per declaration and not a selector on the file name
 
-   Every declaration below carries the target it needs: `@platform(x64)` for what an x86-64 build
-   always has, `@platform(sha)` for what an extension answers for. **A declaration an attribute
-   excluded is never resolved**, which is the whole of what the gating owes: a build without the
-   extension must not resolve a body naming instructions it cannot encode, and it cannot, because
-   there is no declaration for such a body to name.
+   Every declaration below carries the target it needs, and there are three different answers in one
+   file: `@platform(x64)` for what an x86-64 build always has, `@platform(v3)` for what the AVX tier
+   supplies, and `@platform(sha)` for what an extension no level implies answers for. **A declaration
+   an attribute excluded is never resolved**, which is the whole of what the gating owes: a build
+   without the instruction must not resolve a body naming it, and it cannot, because there is no
+   declaration for such a body to name.
 
-   A file-name selector (`X86.sha.yana`) says that about *every* declaration in a file at once, and
-   that is why it is the wrong shape here - `vzeroupper` and `crc32` have nothing to do with the SHA
-   extension, and a file selected on `sha` deletes them from every build that does not claim it.
-   One file with one attribute per declaration says which instruction needs what, and adding a
-   second extension adds a declaration rather than a file.
+   A file-name selector (`X86.sha.yana`) says one thing about *every* declaration in a file at once,
+   and three answers is exactly why that is the wrong shape here - `crc32` and `vzeroupper` have
+   nothing to do with the SHA extension, and a file selected on `sha` deletes them from every build
+   that does not claim it. One attribute per declaration says which instruction needs what, and
+   adding a second extension adds a declaration rather than a file.
 
    What is still a *file* is code written **in terms of** these - `Digest/Hardware.sha.yana` and its
    `nosha` half, two implementations of the same two names. That is a body rather than a
@@ -70,7 +71,7 @@ module Native
 
 {-
    ==========================================================================================
-   The baseline - what an x86-64 target has by having been x86-64.
+   `@platform(x64)` - what an x86-64 target has by having been x86-64.
    ==========================================================================================
 
    The CRC-32C step. SSE4.2, and therefore x86-64-v2, and therefore this backend's floor:
@@ -100,6 +101,10 @@ module Native
 @platform(x64) pub fn X86.crc32(remainder: U64, chunk: U64) -> U64
 
 {-
+   ==========================================================================================
+   `@platform(v3)` - the AVX tier.
+   ==========================================================================================
+
    `vzeroupper` - the vector state reset.
 
    Clears the upper half of every vector register. What it is for is the state a processor is in when
@@ -107,10 +112,11 @@ module Native
    large and silent penalty on every part this matters on - so a function whose body is encoded
    without a VEX prefix wants this to have happened before its first instruction runs.
 
-   `@platform(x64)` and nothing narrower, because the instruction is AVX's and clearing a state that
-   cannot be dirty is a no-op rather than an error: on a machine with no AVX the backend drops the
-   call outright (`transform_expand.cpp`), so a program that writes it is correct everywhere x86-64
-   is and pays for it only where there is something to clear.
+   **`v3` and not `x64`**, because the instruction is AVX's: below that tier there is no encoding
+   that could have left an upper half non-zero, nothing to clear, and no instruction to write. A
+   level selector is answered as "at least", so this exists on a v3 or a v4 build and nowhere else.
+   `avx` is not a spelling for it here for the reason it is not one on the command line either - AVX
+   alone was Sandy Bridge, which this compiler describes as v2.
 
    **A call rather than something the backend emits at the entry of such a function**, and the reason
    is that the two are about different sets of functions. `@x86_legacy_sse` is about *encoding* and
@@ -127,7 +133,7 @@ module Native
    On LLVM this is dropped - that backend chooses its own encodings and places its own resets. See
    Analysis-Warts.md §7 and `legacyVectorEncodings` in compiler/codegen/x64/target.h.
 -}
-@platform(x64) pub fn X86.vzeroupper() -> {}
+@platform(v3) pub fn X86.vzeroupper() -> {}
 
 {-
    ==========================================================================================
@@ -138,6 +144,11 @@ module Native
    own and `-enable-inst sha` or a host that reports it is what turns them on. `nosha` is the other
    half of that partition and is what `Digest/Hardware.nosha.yana` is selected by; see
    `targetSelector`, where the pair is argued.
+
+   **`sha` also requires v3**, which is a fact about the library rather than about the silicon:
+   `Digest/Hardware.sha.yana` is a legacy-encoded region and is therefore written in terms of
+   `X86.vzeroupper()` above. Goldmont shipped these instructions with no AVX at all; such a part is
+   `nosha` here and takes the portable compression, which is the whole of what it gives up.
 
    **Why the operands say `Vec(U32, 4)`.** Not `Vec(U32)`, whose lane count is the target's, and not
    a const parameter: these instructions read 128 bits as the four words a SHA state or message

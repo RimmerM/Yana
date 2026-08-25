@@ -73,10 +73,10 @@ ast::ParsePtr<ast::Decl> declAt(ast::DeclList decls, Size index) {
  * attribute and a file name can never disagree about what a target is called, and `Linux.x64.yana`'s
  * statement can be made about a single declaration in a file that is otherwise portable.
  *
- * The extension names are what `lib/Native/Intrinsic/X86.yana` gates on. There the *declaration* is
- * the right granularity rather than the file: `crc32` and `vzeroupper` are the architecture's own
- * and the SHA instructions are an extension's, and one file selected on `sha` would have deleted the
- * first pair from every build that does not claim it.
+ * The level and extension names are what `lib/Native/Intrinsic/X86.yana` gates on, and there the
+ * *declaration* is the right granularity rather than the file: `crc32` is the architecture's own,
+ * `vzeroupper` is AVX's and the SHA instructions are an extension's, so one file selected on `sha`
+ * deleted the first two from every build that did not claim the third.
  *
  * Multiple names inside one attribute read as **or** (`@platform(js, native)` is every target and
  * therefore pointless), and `@platform` written twice on one declaration reads as **and**, so all
@@ -104,7 +104,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 
         if(attribute.args.isEmpty()) {
             if(report) {
-                context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), an operating system, an architecture or an instruction-set extension"_v,
+                context.diagnostics.error("`@platform` needs at least one target - a platform (`js`, `native`), an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
                                           attribute.source);
             }
 
@@ -115,7 +115,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
         for(auto arg: attribute.args.contents(module.parse)) {
             if(arg.value.kind != ast::Expr::Var) {
                 if(report) {
-                    context.diagnostics.error("a `@platform` target is a bare name - `js`, `native`, an operating system, an architecture or an instruction-set extension"_v,
+                    context.diagnostics.error("a `@platform` target is a bare name - `js`, `native`, an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
                                               arg.value.source);
                 }
 
@@ -127,7 +127,7 @@ static bool platformEnabled(Module& module, const ast::Decl& decl, bool report =
 
             if(answer == TargetSelector::Unknown) {
                 if(report) {
-                    context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`) or an instruction-set extension (`sha`, `nosha`)"_v,
+                    context.diagnostics.error("unknown target %@ - expected `js`, `native`, an operating system (`linux`, `mac`, `win32`), an architecture (`x64`, `x86`, `arm`, `arm64`), an x86-64 level (`v2`, `v3`, `v4`) or an instruction-set extension (`sha`, `nosha`)"_v,
                                               arg.value.source, name);
                 }
 

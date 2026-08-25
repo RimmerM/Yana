@@ -784,15 +784,18 @@ static ModulePtr<Value> emitVZeroUpper(ExprResolver& resolver, Buffer<ModulePtr<
  * no hook attached is a function with no body. `targetSelector` is the single place either spelling
  * is decided, so the pairing below reads as the file does.
  *
- * `crc32` and `vzeroupper` are the architecture's own and `sha` is an extension inside it, which is
- * why this is two tests rather than one - a v3 machine without the SHA extension still has both of
- * the first pair.
+ * Three tests and not one, because the three groups are three different facts: `crc32` is the
+ * architecture's own, `vzeroupper` is AVX's, and the SHA instructions are an extension no level
+ * implies. A v3 machine without the extension has the first two and not the third.
  */
 void defineCpuIntrinsics(Module& native) {
     auto& settings = native.context.settings;
 
     if(targetSelector(settings, "x64"_v) == TargetSelector::Matched) {
         attachIntrinsic(native, "X86.crc32"_v, emitBinary<Value::Crc32>);
+    }
+
+    if(targetSelector(settings, "v3"_v) == TargetSelector::Matched) {
         attachIntrinsic(native, "X86.vzeroupper"_v, emitVZeroUpper);
     }
 
