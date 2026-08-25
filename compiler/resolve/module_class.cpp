@@ -328,26 +328,46 @@ void resolveInstance(Module& module, ast::Decl& decl) {
     auto genPointer = prepareGenEnv(module, GenEnv::Instance, {}, decl.instance.constraints, true);
     auto gen = (*module.types)[genPointer];
 
-    if(type.kind == ast::Type::App) {
-        auto& app = *module.parse[type.app];
-        if(app.base.kind != ast::Type::Con) {
-            module.context.diagnostics.error("an instance must name a class"_v, decl.source);
-            return;
-        }
-
-        className = app.base.name;
-        auto appArgs = app.args;
-        for(auto arg: appArgs.contents(module.parse)) args.push(resolveType(module, arg, gen));
-    } else {
+    if(type.kind != ast::Type::App) {
         module.context.diagnostics.error(
             "type-namespaced instances are not available yet - write `instance Class(Type)`"_v, decl.source);
         return;
     }
 
+    auto& app = *module.parse[type.app];
+    if(app.base.kind != ast::Type::Con) {
+        module.context.diagnostics.error("an instance must name a class"_v, decl.source);
+        return;
+    }
+
+    className = app.base.name;
+
+    /*
+     * The class is found *before* its arguments are resolved, which is what lets a head position be a
+     * count - Implementation-Const-Generics.md §1.1's `class Chunked(c, a, n: Int -> m)`.
+     *
+     * Which positions are counts is a fact about the declaration and not about the shape of what was
+     * written, exactly as it is for `data` and for `Vec` (see resolveAppArg, which is this same
+     * question and was already shared with a class *constraint*'s argument list). Resolved without it,
+     * `instance Digest(Sha256, 32)` reported "a number is not a type" and `instance (n: Int) Sized(c,
+     * n)` reported that `n` was a number rather than binding it - so a class could declare a const
+     * parameter, a constraint could name one, and no instance could ever be written to satisfy either.
+     *
+     * Ordering costs nothing here. A `data` or `class` head has to resolve its constraints late
+     * because the class may be declared further down the file; an instance's context resolves in
+     * place, since every class is declared by the time instances are read.
+     */
     auto classPointer = findClass(module, className, decl.source);
     if(!classPointer) {
         module.context.diagnostics.error("unknown class %@"_v, decl.source, module.context.findName(className));
         return;
+    }
+
+    auto declared = (*module.types)[classPointer]->gen;
+
+    Size index = 0;
+    for(auto arg: app.args.contents(module.parse)) {
+        args.push(resolveAppArg(module, declared, index++, arg, gen));
     }
 
     // The two implicit classes have no instances to write: whether a type is TrivialCopy is decided

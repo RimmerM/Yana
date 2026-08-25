@@ -91,6 +91,36 @@ instance Sized([Int *2], Int):
   fn firstItem(xs: [Int *2]) -> Int = 100
 
 {-
+   §1.1's third head: a **class** that declares a const parameter, and an instance that fills it.
+
+   The head half of this was built with the rest of §1.1 and the constraint half with §10.3 - a
+   signature could write `(n: Int, Widths(d, n))` and get a witness slot for it - but no instance
+   could ever be written, because `resolveInstance` resolved its head arguments before it looked the
+   class up and so had no parameter list to read the count position off. `Widths(Narrow, 2)` was
+   therefore "a number is not a type" and `Widths(Wide, n)` was "n is a const parameter - a number,
+   not a type", which is a feature that exists everywhere except where it could be used.
+
+   Both instance forms are here for the reason the two `Sized` ones are: a written count means that
+   count and a quantified one answers every count, and selection prefers the specific one.
+-}
+class Widths(d, n: Int):
+  fn widthSum(self: d, xs: [Int *n]) -> Int
+
+data Narrow {bias: Int}
+data Wide {bias: Int}
+
+instance Widths(Narrow, 2):
+  fn widthSum(self: Narrow, xs: [Int *2]) -> Int = xs[0] + xs[1] + self.bias
+
+instance (n: Int) Widths(Wide, n):
+  fn widthSum(self: Wide, xs: [Int *n]) -> Int = n + self.bias
+
+-- And the count reached through the class rather than through an argument's own type, which is what
+-- a const parameter on a head is *for*: `n` is the class's, so this body has one without either of
+-- its arguments mentioning an array of that width.
+fn (n: Int, Widths(d, n)) widthThrough(s: d, xs: [Int *n]) -> Int = widthSum(s, xs)
+
+{-
    A class constraint over an *applied* type - Implementation-Const-Generics.md §10.
 
    This is the row of §10.6 that the const-generic vector is not: a fixed array erases, so the
@@ -104,6 +134,60 @@ instance Sized([Int *2], Int):
 -}
 fn (n: Int, Sized([Int *n], Int)) firstThrough(xs: [Int *n]) -> Int = firstItem(xs)
 
+{-
+   The three shapes an erased body could not have, each of which was a defect rather than a decision.
+
+   **A result of the body's own array type.** `ret` copies into storage the caller provided and that
+   copy is `sizeof [Int *n]`, so the result is a requirement on the environment exactly as a local
+   is - and only the local's was recorded. This body reached `genTypeDesc` with no slot and read
+   environment cell 65535, which is a 262140-byte offset and a segmentation fault. `requireResultSlot`
+   in expr_body.cpp is where the requirement is stated now; note that `doubled` never *allocates* an
+   `[Int *n]`, which is why every earlier fixture happened to have a slot and this one did not.
+-}
+fn (n: Int) doubled(xs: [Int *n]) -> [Int *n]:
+    let &out = xs
+
+    let &i = 0 :: Int
+    while i < n:
+        out[i] = out[i] * 2
+        i = i + 1
+
+    return out
+
+{-
+   **A copy of the array, mutated, with the caller still holding the original.** Native copies into
+   fresh storage; JS had rebound one name to the other and mutated the caller's array through it, so
+   `mutatedCopy` answered 3 there and 4 here. Two things were wrong and both are asserted by this
+   number: `storeInto` now asks `aliasesLiveStorage` before it treats a whole-value write as a
+   rebinding, and `genBlockCopy` has an arm for a host *row*, whose slots are its elements - the
+   property walk it used to fall into found none, so `copyInit$[Int *n]` was a copy that copied
+   nothing.
+-}
+fn (n: Int) mutatedCopy(xs: [Int *n]) -> Int:
+    let &c = xs
+    c[0] = c[0] + 1
+    return c[0]
+
+{-
+   **A fill at a count this body cannot read** (§4.1). `[0] :: [U8 *n]` is "n zeroes" whatever `n`
+   is - a sentence rather than an approximation - where a written-out literal is right for one count
+   and wrong for the rest, which is why that one is still refused (Reject.ConstGeneric.yana) and this
+   one is built. There is no aggregate to build with no number of components, so it is
+   `eachFixedElement`'s counted loop, in front of which sits the empty aggregate that says the local
+   is initialized as a whole.
+-}
+fn (n: Int) filled(like: [Int *n]) -> Int:
+    let &out = [7] :: [Int *n]
+
+    let &total = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < n:
+        total = total + out[i]
+        i = i + 1
+
+    return total
+
 fn main() -> Int:
     let xs = [7, 2, 3, 4] :: [Int *4]
     let p = Pair {left: [10, 0], right: [100, 0]} :: Pair(Int, 2)
@@ -113,6 +197,27 @@ fn main() -> Int:
     --
     -- `firstThrough` reaches each of those two through a witness slot rather than directly, so it
     -- adds 100 and 7 again: 252 + 107 = 359.
-    return countOf(xs) + firstOf(xs) + sumOf(xs) + heldFirst(three()) + both(p)
-             + firstItem(p.left) + firstItem(xs) + aliased(xs)
-             + firstThrough(p.left) + firstThrough(xs)
+    let base = countOf(xs) + firstOf(xs) + sumOf(xs) + heldFirst(three()) + both(p)
+                 + firstItem(p.left) + firstItem(xs) + aliased(xs)
+                 + firstThrough(p.left) + firstThrough(xs)
+
+    -- `doubled` answers [14, 4, 6, 8] and this reads the last of them: 8.
+    let &ys = [7, 2, 3, 4] :: [Int *4]
+    let twice = doubled(ys)[3]
+
+    -- 8, and then the copy: `mutatedCopy` answers 8 and `ys` still holds the 7 it started with, so
+    -- the two together are 15 rather than 16. That is the assertion, and it is a number on both
+    -- targets rather than a golden either of them could have been regenerated into agreeing with.
+    let copied = mutatedCopy(ys) + ys[0]
+
+    -- Four sevens.
+    let rest = twice + copied + filled(xs)
+
+    -- §1.1's class-head count, one call per instance form and one through the constraint. `Narrow`
+    -- takes the written instance at 2 - 10 + 0 + 1 = 11 - and `Wide` takes the parametric one, which
+    -- answers the count itself: 2 + 1 = 3 here and 4 + 1 = 5 through the witness.
+    let p2 = [10, 0] :: [Int *2]
+    let widths = widthSum(Narrow {bias: 1}, p2) + widthSum(Wide {bias: 1}, p2)
+                   + widthThrough(Wide {bias: 1}, xs)
+
+    return base + rest + widths

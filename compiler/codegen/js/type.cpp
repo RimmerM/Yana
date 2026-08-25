@@ -430,6 +430,65 @@ bool isNewtype(Gen& g, TypePtr type, TypePtr& content) {
 }
 
 /*
+ * Whether an expression is a value rather than a fresh object - a literal of one of the host's
+ * primitive kinds.
+ *
+ * The one thing it decides is whether `fill` may place it in every slot of a row. `fill` puts *one*
+ * value in each, so a row of a primitive is right and a row of an object literal would be `n`
+ * aliases of one object, where the written form gives each slot its own.
+ */
+static bool isPrimitiveValue(Gen& g, JsPtr<Expr> value) {
+    switch(g.base[value]->kind) {
+        case Expr::Number:
+        case Expr::BigInt:
+        case Expr::String:
+        case Expr::Bool:
+        case Expr::Null:
+        case Expr::Undefined:
+            return true;
+        default:
+            return false;
+    }
+}
+
+/*
+ * A fresh `[T *n]` whose count this body cannot see - Implementation-Const-Generics.md §3.2 on this
+ * target, and the erased half of the arm below.
+ *
+ * The written form spells out `n` zeroes, and there is nothing to spell out when `n` is a cell of the
+ * caller's environment. The host has the two constructions that say the same thing at run time:
+ *
+ *   - **A typed row from a length.** `new Uint8Array(n)` is `n` zero bytes by the host's own
+ *     specification, so the erased form is not merely available here - it is *shorter* than the
+ *     concrete one, which builds a literal and copies it. Every numeric element takes this path,
+ *     which is every fixed array a digest, a hash or a word transfer is made of.
+ *   - **`new Array(n).fill(z)`** for the rest, where `z` is a value rather than an object - `Bool`'s
+ *     zero, a `bigint`, a null reference, a niche-folded record's absent pattern.
+ *
+ * An element whose zero is an *object* has neither: `fill` would make the row `n` aliases of one
+ * object, and the alternative needs a callback this tree has no node for. That is reported at the
+ * allocation rather than guessed at here - see the Alloc arm of genInstruction, which is where the
+ * `Run(a)` gap next to it is reported and is the one place with a source location to point at.
+ */
+JsPtr<Expr> erasedZeroArray(Gen& g, ArrayType& array) {
+    auto count = genConstValue(g, array.count);
+    if(!count) return nullValue(g);
+
+    if(typedArrayFor(g.global, array.content).length) {
+        return hostArrayForElement(g, array.content, count);
+    }
+
+    auto zero = zeroValue(g, array.content);
+    if(!isPrimitiveValue(g, zero)) return nullValue(g);
+
+    auto row = make<CallExpr>(g, variable(g, literalName(g, "Array"_v)));
+    row->args.push(g.file.arena, count);
+    row->construct = true;
+
+    return call(g, field(g, asExpr(g, row), literalName(g, "fill"_v)), zero);
+}
+
+/*
  * The value a freshly allocated slot of this type holds.
  *
  * Every property a value of the type will ever have is present here, which is the point: §2.3 makes
@@ -486,9 +545,17 @@ JsPtr<Expr> zeroValue(Gen& g, TypePtr type) {
              * node, which is where a container stops being storage and starts being a host value.
              */
             auto array = (ArrayType*)value;
+            auto written = writtenCount(g.global, array->count);
+
+            // A count this body cannot see - see erasedZeroArray, which is the same statement made
+            // at run time. `writtenCount` rather than `constValue` because the second one *asserts*
+            // that the count is a number: with assertions off it read a `GenType` as a `ConstType`
+            // and the loop below ran to a garbage bound, which is how this arrived.
+            if(!written) return erasedZeroArray(g, *array);
+
             auto elements = make<ArrayExpr>(g);
 
-            for(U64 i = 0; i < constValue(g.global, array->count); i++) {
+            for(U64 i = 0; i < written.unwrap(); i++) {
                 elements->values.push(g.file.arena, zeroValue(g, array->content));
             }
 
@@ -1053,11 +1120,16 @@ JsPtr<Expr> cloneValue(Gen& g, TypePtr type, JsPtr<Expr> source, LocationId wher
      */
     if(g.global[type]->kind == Type::Array) {
         auto array = (ArrayType*)g.global[type];
-        auto count = constValue(g.global, array->count);
 
+        // `slice()` needs no count at all, so it answers an erased array as readily as a written one
+        // and is asked first. The written-out form below is the one that cannot: `writtenCount`
+        // rather than `constValue`, which asserts that the count is a number - and where there is
+        // none the elements are objects, which is the case genInstruction's Alloc arm reports.
         if(!isJsObject(g, array->content)) {
             return asPureCall(g, call(g, field(g, source, literalName(g, "slice"_v))));
         }
+
+        auto count = writtenCount(g.global, array->count).from(0);
 
         auto elements = make<ArrayExpr>(g);
         for(U64 i = 0; i < count; i++) {

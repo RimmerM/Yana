@@ -8,12 +8,22 @@ const witness$Sized_Int_mul2_Int = [thunk$Sized_Int_mul2_Int_firstItem_0];
 const genEnv$firstThrough_2 = [2, witness$Sized_Int_mul2_Int];
 const witness$Sized_Int_mul4_Int = [thunk$Sized_Int_mul4_Int_firstItem_0];
 const genEnv$firstThrough_4 = [4, witness$Sized_Int_mul4_Int];
+const typeDesc$_Int_mul4 = [16, 16, 1155, moveInit$_Int_mul4, copyInit$_Int_mul4, teardown$none, teardown$none];
+const genEnv$doubled_4 = [typeDesc$_Int_mul4, 4];
+const genEnv$mutatedCopy_4 = [typeDesc$_Int_mul4, 4];
+const genEnv$filled_4 = [typeDesc$_Int_mul4, 4];
+const typeDesc$Wide = [4, 4, 1155, moveInit$Wide, copyInit$Wide, teardown$none, teardown$none];
+const witness$Widths_Wide_4 = [thunk$Widths_Wide_4_widthSum_0];
+const genEnv$widthThrough_4_Wide = [typeDesc$Wide, 4, witness$Widths_Wide_4];
 
 // Core
 function checkCondition(failed) {
   if (failed) {
     throw "yana: a runtime check failed";
   }
+}
+
+function teardown$none(value) {
 }
 
 // ResolveTest
@@ -50,16 +60,79 @@ function both(p) {
   return firstOf(genEnv$firstOf_2, p.left) + firstOf(genEnv$firstOf_2, p.right) | 0;
 }
 
+function widthThrough(genEnv, s, xs) {
+  return genEnv[2][0](s, xs);
+}
+
 function firstThrough(genEnv, xs) {
   var out1 = { $v: 0 };
   genEnv[1][0](out1, xs);
   return out1.$v;
 }
 
+function doubled(genEnv, xs) {
+  var out = new Int32Array(genEnv[1]);
+  genEnv[0][4](out, xs);
+  var i = 0;
+  var v8 = genEnv[1];
+  var v28 = genEnv[1] >>> 0;
+  L0: for (;;) {
+    if (i < v8) {
+      checkCondition(i >>> 0 >= v28 ? 1 : 0);
+      out[i] = Math.imul(out[i], 2);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return out;
+}
+
+function mutatedCopy(genEnv, xs) {
+  var c = new Int32Array(genEnv[1]);
+  genEnv[0][4](c, xs);
+  checkCondition(0 >= genEnv[1] >>> 0 ? 1 : 0);
+  c[0] = c[0] + 1 | 0;
+  return c[0];
+}
+
+function filled(genEnv, like) {
+  var v2 = new Int32Array(genEnv[1]);
+  var v4 = 0;
+  var v9 = genEnv[1];
+  L0: for (;;) {
+    var v8 = v4;
+    if (v8 < v9) {
+      v2[v8] = 7;
+      v4 = v8 + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  var total = 0;
+  var i = 0;
+  var v25 = genEnv[1];
+  var v46 = v9 >>> 0;
+  L1: for (;;) {
+    if (i < v25) {
+      checkCondition(i >>> 0 >= v46 ? 1 : 0);
+      total = total + v2[i] | 0;
+      i = i + 1 | 0;
+      continue L1;
+    }
+    break L1;
+  }
+  return total;
+}
+
 function main() {
   var xs = new Int32Array([7, 2, 3, 4]);
   var p = { left: new Int32Array([10, 0]), right: new Int32Array([100, 0]) };
-  return ((((((((countOf(genEnv$countOf_4, xs) + firstOf(genEnv$firstOf_4, xs) | 0) + sumOf(genEnv$sumOf_4, xs) | 0) + new Int32Array([4, 5, 6])[0] | 0) + both(p) | 0) + 100 | 0) + xs[0] | 0) + aliased(genEnv$aliased_4, xs) | 0) + firstThrough(genEnv$firstThrough_2, p.left) | 0) + firstThrough(genEnv$firstThrough_4, xs) | 0;
+  var base = ((((((((countOf(genEnv$countOf_4, xs) + firstOf(genEnv$firstOf_4, xs) | 0) + sumOf(genEnv$sumOf_4, xs) | 0) + new Int32Array([4, 5, 6])[0] | 0) + both(p) | 0) + 100 | 0) + xs[0] | 0) + aliased(genEnv$aliased_4, xs) | 0) + firstThrough(genEnv$firstThrough_2, p.left) | 0) + firstThrough(genEnv$firstThrough_4, xs) | 0;
+  var v50 = new Int32Array([7, 2, 3, 4]);
+  var rest = (doubled(genEnv$doubled_4, v50)[3] + (mutatedCopy(genEnv$mutatedCopy_4, v50) + v50[0] | 0) | 0) + filled(genEnv$filled_4, xs) | 0;
+  var p2 = new Int32Array([10, 0]);
+  return (base + rest | 0) + (((p2[0] + p2[1] | 0) + 4 | 0) + widthThrough(genEnv$widthThrough_4_Wide, { $v: 1 }, xs) | 0) | 0;
 }
 
 function thunk$Sized_Int_mul2_Int_firstItem_0(result, xs) {
@@ -68,5 +141,25 @@ function thunk$Sized_Int_mul2_Int_firstItem_0(result, xs) {
 
 function thunk$Sized_Int_mul4_Int_firstItem_0(result, xs) {
   result.$v = xs[0];
+}
+
+function moveInit$_Int_mul4(to, from) {
+  to.set(from);
+}
+
+function copyInit$_Int_mul4(to, from) {
+  to.set(from);
+}
+
+function moveInit$Wide(to, from) {
+  to.$v = from.$v;
+}
+
+function copyInit$Wide(to, from) {
+  to.$v = from.$v;
+}
+
+function thunk$Widths_Wide_4_widthSum_0(self, xs) {
+  return self.$v + 4 | 0;
 }
 main();

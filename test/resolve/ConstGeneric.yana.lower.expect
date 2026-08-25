@@ -8,6 +8,19 @@
 @genEnv$firstThrough(2) = [2, 0, 0, 0, 0, 0, 0, 0]
 @witness$Sized([Int *4], Int) = [0, 0, 0, 0]
 @genEnv$firstThrough(4) = [4, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$[Int *4] = [16, 0, 0, 0, 16, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$doubled(4) = [0, 0, 0, 0, 4, 0, 0, 0]
+@genEnv$mutatedCopy(4) = [0, 0, 0, 0, 4, 0, 0, 0]
+@genEnv$filled(4) = [0, 0, 0, 0, 4, 0, 0, 0]
+@typeDesc$Wide = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$Widths(Wide, 4) = [0, 0, 0, 0]
+@genEnv$widthThrough(4, Wide) = [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
 
 countOf<complex>(%genEnv: Ptr, %xs: Ptr): Int {
   b_0 {
@@ -100,6 +113,20 @@ both<complex>(%p: Ptr): Int {
   }
 }
 
+widthThrough<complex>(%genEnv: Ptr, %s: Ptr, %xs: Ptr): Int {
+  b_0 {
+    %v_1 = add %genEnv, 8: Ptr
+    %v_2 = loads %v_1, 4: Int
+    %v_3 = sext %v_2: Long
+    %v_4 = add %v_3, @image$base: Ptr
+    %v_5 = loads %v_4, 4: Int
+    %v_6 = sext %v_5: Long
+    %v_7 = add %v_6, @image$base: Ptr
+    %v_8 = call_complex %v_7, %s, %xs: Int
+    ret %v_8
+  }
+}
+
 firstThrough<complex>(%genEnv: Ptr, %xs: Ptr): Int {
   b_0 {
     %v_1 = add %genEnv, 4: Ptr
@@ -113,6 +140,172 @@ firstThrough<complex>(%genEnv: Ptr, %xs: Ptr): Int {
     call_complex %v_7, %v_8, %xs
     %v_9 = loads %v_8, 4: Int
     ret %v_9
+  }
+}
+
+doubled<complex>(%genEnv: Ptr, %v_0: Ptr, %xs: Ptr) {
+  b_1 {
+    %v_2 = loads %genEnv, 4: Int
+    %v_3 = sext %v_2: Long
+    %v_4 = add %v_3, @image$base: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = cast %v_5: Long
+    %out = alloca %v_6, 16: Ptr
+    %v_7 = add %v_3, @image$base: Ptr
+    %v_8 = load %v_7, 4: Int
+    %v_9 = cast %v_8: Long
+    copy %out, %xs, %v_9
+    %v_10 = add %genEnv, 4: Ptr
+    %v_11 = load %v_10, 4: Int
+    %v_12 = cast %v_11: Long
+    %v_13 = sext %v_11: Long
+    jmp b_14
+  }
+
+  b_14 {
+    %v_15 = phi [b_1, 0], [b_16, %v_17]: Long
+    %v_18 = cmp_ilt %v_15, %v_13: Int
+    je %v_18, b_19, b_20
+  }
+
+  b_20 {
+    %v_21 = loads %genEnv, 4: Int
+    %v_22 = sext %v_21: Long
+    %v_23 = add %v_22, @image$base: Ptr
+    %v_24 = load %v_23, 4: Int
+    %v_25 = cast %v_24: Long
+    copy %v_0, %out, %v_25
+    ret 
+  }
+
+  b_19 {
+    %v_26 = cmp_ge %v_15, %v_12: Int
+    je %v_26, b_27, b_28
+  }
+
+  b_28 {
+    %v_29 = shl %v_15, 2: Long
+    %v_30 = add %out, %v_29: Ptr
+    jmp b_16
+  }
+
+  b_16 {
+    %v_31 = loads %v_30, 4: Int
+    %v_32 = shl %v_31, 1: Int
+    store %v_30, %v_32, 4
+    %v_17 = add %v_15, 1: Long
+    jmp b_14
+  }
+
+  b_27 {
+    %v_33 = syscall 60, 134: Long
+    unreachable 
+  }
+}
+
+mutatedCopy<complex>(%genEnv: Ptr, %xs: Ptr): Int {
+  b_0 {
+    %v_1 = loads %genEnv, 4: Int
+    %v_2 = sext %v_1: Long
+    %v_3 = add %v_2, @image$base: Ptr
+    %v_4 = load %v_3, 4: Int
+    %v_5 = cast %v_4: Long
+    %c = alloca %v_5, 16: Ptr
+    %v_6 = add %v_2, @image$base: Ptr
+    %v_7 = load %v_6, 4: Int
+    %v_8 = cast %v_7: Long
+    copy %c, %xs, %v_8
+    %v_9 = add %genEnv, 4: Ptr
+    %v_10 = load %v_9, 4: Int
+    %v_11 = cast %v_10: Long
+    %v_12 = cmp_eq %v_11, 0: Int
+    je %v_12, b_13, b_14
+  }
+
+  b_14 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = loads %c, 4: Int
+    %v_17 = add %v_16, 1: Int
+    store %c, %v_17, 4
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = loads %c, 4: Int
+    ret %v_19
+  }
+
+  b_13 {
+    %v_20 = syscall 60, 134: Long
+    unreachable 
+  }
+}
+
+filled<complex>(%genEnv: Ptr, %like: Ptr): Int {
+  b_0 {
+    %v_1 = loads %genEnv, 4: Int
+    %v_2 = sext %v_1: Long
+    %v_3 = add %v_2, @image$base: Ptr
+    %v_4 = load %v_3, 4: Int
+    %v_5 = cast %v_4: Long
+    %v_6 = alloca %v_5, 16: Ptr
+    %v_7 = add %genEnv, 4: Ptr
+    %v_8 = load %v_7, 4: Int
+    %v_9 = cast %v_8: Long
+    jmp b_10
+  }
+
+  b_10 {
+    %v_11 = phi [b_0, 0], [b_12, %v_13]: Long
+    %v_14 = cmp_ilt %v_11, %v_9: Int
+    je %v_14, b_12, b_15
+  }
+
+  b_15 {
+    %v_16 = load %v_7, 4: Int
+    %v_17 = sext %v_16: Long
+    jmp b_18
+  }
+
+  b_18 {
+    %v_19 = phi [b_15, 0], [b_20, %v_21]: Int
+    %v_22 = phi [b_15, 0], [b_20, %v_23]: Long
+    %v_24 = cmp_ilt %v_22, %v_17: Int
+    je %v_24, b_25, b_26
+  }
+
+  b_26 {
+    ret %v_19
+  }
+
+  b_25 {
+    %v_27 = cmp_ge %v_22, %v_9: Int
+    je %v_27, b_28, b_20
+  }
+
+  b_20 {
+    %v_29 = shl %v_22, 2: Long
+    %v_30 = add %v_6, %v_29: Ptr
+    %v_31 = loads %v_30, 4: Int
+    %v_21 = add %v_19, %v_31: Int
+    %v_23 = add %v_22, 1: Long
+    jmp b_18
+  }
+
+  b_28 {
+    %v_32 = syscall 60, 134: Long
+    unreachable 
+  }
+
+  b_12 {
+    %v_33 = shl %v_11, 2: Long
+    %v_34 = add %v_6, %v_33: Ptr
+    store %v_34, 7, 4
+    %v_13 = add %v_11, 1: Long
+    jmp b_10
   }
 }
 
@@ -150,8 +343,32 @@ main<complex>(): Int {
     %v_20 = call_complex firstThrough, @genEnv$firstThrough(2), %p: Int
     %v_21 = add %v_19, %v_20: Int
     %v_22 = call_complex firstThrough, @genEnv$firstThrough(4), %xs: Int
-    %v_23 = add %v_21, %v_22: Int
-    ret %v_23
+    %base = add %v_21, %v_22: Int
+    %v_23 = alloca 16, 4: Ptr
+    store %v_23, 7, 4
+    %v_24 = add %v_23, 4: Ptr
+    store %v_24, 2, 4
+    %v_25 = add %v_23, 8: Ptr
+    store %v_25, 3, 4
+    %v_26 = add %v_23, 12: Ptr
+    store %v_26, 4, 4
+    %v_27 = alloca 16, 4: Ptr
+    call_complex doubled, @genEnv$doubled(4), %v_27, %v_23
+    %v_28 = add %v_27, 12: Ptr
+    %twice = loads %v_28, 4: Int
+    %v_29 = call_complex mutatedCopy, @genEnv$mutatedCopy(4), %v_23: Int
+    %v_30 = loads %v_23, 4: Int
+    %copied = add %v_29, %v_30: Int
+    %v_31 = add %twice, %copied: Int
+    %v_32 = call_complex filled, @genEnv$filled(4), %xs: Int
+    %rest = add %v_31, %v_32: Int
+    %v_33 = alloca 4, 4: Ptr
+    store %v_33, 1, 4
+    %v_34 = call_complex widthThrough, @genEnv$widthThrough(4, Wide), %v_33, %xs: Int
+    %widths = add 14, %v_34: Int
+    %v_35 = add %base, %rest: Int
+    %v_36 = add %v_35, %widths: Int
+    ret %v_36
   }
 }
 
@@ -167,6 +384,42 @@ thunk$Sized([Int *4], Int).firstItem#0<complex>(%result: Ptr, %xs: Ptr) {
     %v_1 = loads %xs, 4: Int
     store %result, %v_1, 4
     ret 
+  }
+}
+
+moveInit$[Int *4]<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    copy %to, %from, 16
+    ret 
+  }
+}
+
+copyInit$[Int *4]<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    copy %to, %from, 16
+    ret 
+  }
+}
+
+moveInit$Wide<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    copy %to, %from, 4
+    ret 
+  }
+}
+
+copyInit$Wide<complex>(%to: Ptr, %from: Ptr) {
+  b_0 {
+    copy %to, %from, 4
+    ret 
+  }
+}
+
+thunk$Widths(Wide, 4).widthSum#0<complex>(%self: Ptr, %xs: Ptr): Int {
+  b_0 {
+    %self$bias = loads %self, 4: Int
+    %v_1 = add %self$bias, 4: Int
+    ret %v_1
   }
 }
 

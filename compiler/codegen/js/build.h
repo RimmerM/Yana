@@ -1849,6 +1849,11 @@ TypePtr transparentTupleOf(Gen& g, TypePtr type);
 // already present - see type.cpp.
 JsPtr<Expr> zeroValue(Gen& g, TypePtr type);
 
+// The same, for a `[T *n]` whose count is a cell of the caller's environment rather than a number -
+// a typed row built from a length, or `new Array(n).fill(z)`. See type.cpp for the third case, which
+// is the one genInstruction's Alloc arm reports.
+JsPtr<Expr> erasedZeroArray(Gen& g, ArrayType& array);
+
 // A source-level constant as a host value, in the same shape zeroValue gives the type - see
 // type.cpp, and repr/constant.cpp for the target that has bytes instead.
 JsPtr<Expr> constantAggregate(Gen& g, ModulePtr<ConstValue> constant);
@@ -1890,6 +1895,10 @@ JsPtr<Expr> keptValue(Gen& g, TypePtr type, ModulePtr<Value> value, JsPtr<Expr> 
 
 // The same question on its own, for a writer that duplicates member by member rather than whole.
 bool keepsLiveStorage(Gen& g, TypePtr type, ModulePtr<Value> value);
+
+// Whether what this value names is storage somebody else still holds, with no question asked about
+// the type - the erased write's half of keepsLiveStorage. See place.cpp.
+bool aliasesLiveStorage(Gen& g, ModulePtr<Value> value);
 
 // The same question at a `return`, where the frame's own storage is handed over rather than copied.
 // See handsOverFrameStorage.

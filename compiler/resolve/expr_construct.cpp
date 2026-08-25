@@ -2097,21 +2097,29 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
     auto written = U32(items.size());
 
     /*
-     * A count this body cannot read has nothing a literal could be checked against, and there is no
-     * literal it would be right for: `[1, 2, 3] :: [Int *n]` is three elements for one `n` and wrong
-     * for every other. Reported rather than accepted at the count that happens to be written,
-     * because the alternative is a program that compiles and holds the wrong number of things.
+     * A count this body cannot read has nothing a *written-out* literal could be checked against, and
+     * there is no such literal it would be right for: `[1, 2, 3] :: [Int *n]` is three elements for
+     * one `n` and wrong for every other. Refused rather than accepted at the count that happens to be
+     * written, because the alternative is a program that compiles and holds the wrong number of
+     * things.
+     *
+     * **The fill is the exception, and it is the one shape that means the same thing at every
+     * count.** `[0] :: [U8 *n]` is "n zeroes" whatever `n` turns out to be, which is a sentence
+     * rather than an approximation - so it is admitted here and built as the loop below. It is also
+     * the only literal an erased body wants: a generic `finish` writing into a buffer of the digest's
+     * own width has no other way to make one. See §4.1, which is the same "the erased path is the
+     * path that was already there for a long array" that eachFixedElement rests on.
      */
     auto length = writtenCount(global, array->count);
+    auto elements = items.contents(parse);
 
-    if(!length) {
-        context.diagnostics.error("%@ has a count this body does not know, so a literal cannot be built at it - write the elements at a type whose count is a number"_v,
+    if(!length && written != 1) {
+        context.diagnostics.error("%@ has a count this body does not know, so its elements cannot be written out - one element fills an array of any count, and that is the only literal a count nobody here can read has a meaning for"_v,
                                   source, describeType(context, global, target));
         return nullptr;
     }
 
-    auto count = U32(length.unwrap());
-    auto elements = items.contents(parse);
+    auto count = U32(length.from(0));
 
     /*
      * The fill - `[0] :: [U8 *64]`, Implementation-Containers.md §8.
@@ -2130,10 +2138,14 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
      * literal it replaces, so every pass below reads the shape it already read, and the collapse
      * back into one operation happens in `lower_mem.cpp` where the target's repr is known - which
      * is also where a *hand-written* run of zeroes gets the same treatment.
+     *
+     * An erased count is always a fill, since the check above has already refused everything else
+     * that could reach here - and it is the one that cannot be a written-out literal, because there
+     * is no number of components to write. It takes eachFixedElement's loop instead.
      */
-    auto fill = written == 1 && count > 1;
+    auto fill = written == 1 && (!length || count > 1);
 
-    if(!fill && written != count) {
+    if(length && !fill && written != count) {
         context.diagnostics.error("this literal has %@ elements and %@ holds exactly %@ - one element fills the whole array, and any other count has to be written out"_v,
                                   source, written, describeType(context, global, target), count);
         return nullptr;
@@ -2150,6 +2162,45 @@ ModulePtr<Value> ExprResolver::resolveFixedArray(const ast::Expr& expr, ast::Par
                                       source, describeType(context, global, element));
             return nullptr;
         }
+    }
+
+    /*
+     * The fill at a count nobody here can read, which is the one literal that is not a literal.
+     *
+     * `buildAggregate` writes a component per element and there is no number of components to write,
+     * so this is `eachFixedElement`'s counted walk with the same value stored into each slot - the
+     * loop the teardown and the copy glue already take for an erased array, reached the same way and
+     * for the same reason. Converted once above the loop for the reason the written fill converts
+     * once: the widening is about the value, not about how many places it goes.
+     *
+     * **The empty aggregate in front of it is what makes the local initialized**, and it is not a
+     * decoration. `deriveEffects` reads an aggregate at an *empty* path as a definition of the whole
+     * slot and an element write as a use of it, so a loop of element writes alone leaves the slot
+     * Uninitialized on the edge into the loop and Owned on the back edge - which joins to
+     * `MaybeMoved`, and every read of the array afterwards is "out may have been moved out of on
+     * some paths". Saying once, up front, that this instruction defines the whole value is the same
+     * statement the written fill's aggregate makes; the difference is only that the elements arrive
+     * after it rather than inside it.
+     *
+     * Sound because a fill is `TrivialCopy` by the rule above, and a type whose duplicate is its
+     * bytes owes no teardown - so there is no window here in which a drop could run over slots the
+     * loop has not reached yet.
+     *
+     * Nothing else in this function applies: there is no length to check, and the `TrivialCopy` rule
+     * that licenses a fill has already been asked.
+     */
+    if(!length) {
+        auto value = convert(resolve(elements[0], element), element, source);
+        auto erased = allocate(target, source, StringId());
+        auto into = placeFor(erased, source);
+
+        append(create<InstAggregate>(source, StringId(), module.scalar.unit, into));
+
+        eachFixedElement(into, element, array->count, source, [&](Place slot, ModulePtr<Value>) {
+            initialize(slot, value, source);
+        });
+
+        return erased;
     }
 
     ValueList values;

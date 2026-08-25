@@ -268,6 +268,19 @@ bool keepsLiveStorage(Gen& g, TypePtr type, ModulePtr<Value> value) {
 }
 
 /*
+ * The same question with the type left out - see keepsLiveStorage, which is this and the shape test
+ * together.
+ *
+ * The erased write is the one caller, and it is why the two are separate: `copiesStructurally`
+ * declines a generic type because an erased body has no shape to walk, and what it duplicates *with*
+ * is the descriptor's `copyInit` instead. So the shape half of the question is already answered
+ * there, and what is left is the half that decides whether a duplicate is needed at all.
+ */
+bool aliasesLiveStorage(Gen& g, ModulePtr<Value> value) {
+    return namesLiveStorage(g, value, 0);
+}
+
+/*
  * Whether a `return` may hand the object over rather than duplicate it.
  *
  * The one position where the *frame* is the answer. `namesLiveStorage` is asked about a value and

@@ -140,6 +140,30 @@ static void checkLazyForcing(Module& module, Function& function) {
     }
 }
 
+/*
+ * The result type's descriptor, where the result is a type this body cannot measure.
+ *
+ * An indirect result is copied into storage the *caller* provided, and the length of that copy is
+ * `sizeof` the result type - so a generic result is a requirement on the environment in exactly the
+ * way a generic local is. `allocate` records the local's; nothing recorded this one, so a body whose
+ * result type it never also allocated reached `genTypeDesc` with no slot and read cell 65535.
+ * `fn (n: Int) id(xs: [Int *n]) -> [Int *n] = xs` was the shortest such body.
+ *
+ * Asked at the end of the body rather than beside the signature, because the `=` form's result type
+ * is not known until here - and it is the same question either way, since what needs the size is the
+ * `ret`. Free for everything it does not apply to: a concrete type and a bare type variable both
+ * return from requireTypeSlot immediately, the second because its slot came from the declaration.
+ *
+ * `isMemoryType` and not "is it generic", because a result carried in a register is copied by
+ * nothing: a `'a` result is an address and a `Vec(I16, n)` result is a register class, and asking
+ * for either one's descriptor buys an environment cell and a table that no instruction reads.
+ */
+static void requireResultSlot(Module& module, Function& function) {
+    auto global = *module.types;
+    if(!isMemoryType(global, function.returnType)) return;
+    if(auto env = functionGen(global, function)) requireTypeSlot(module, *env, function.returnType);
+}
+
 // Class signatures, generated functions and specializations have no AST and are already complete.
 bool resolveFunctionBody(Module& module, Function& function) {
     auto& context = module.context;
@@ -210,6 +234,7 @@ bool resolveFunctionBody(Module& module, Function& function) {
 
         checkLensYields(module, function, toBuffer(resolver.yields), decl.source);
         checkLazyForcing(module, function);
+        requireResultSlot(module, function);
 
         function.ast = nullptr;
         function.resolving = false;
@@ -284,6 +309,7 @@ bool resolveFunctionBody(Module& module, Function& function) {
     }
 
     checkLazyForcing(module, function);
+    requireResultSlot(module, function);
 
     function.ast = nullptr;
     function.resolving = false;

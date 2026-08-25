@@ -82,6 +82,14 @@ bool erasedRelocate(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type
  *
  * Only asked where the shape is unknown. Where it is known, writing through the reference is the
  * property-by-property copy every other path here emits.
+ *
+ * **This answers where the value is going and not what it is**, which is the whole of what the
+ * caller has to add. Rebinding is right for a value with no other name - a call's result, the fresh
+ * object an erased `alloc` produced - and is an *alias* for one somebody else still holds, since
+ * `v = other` on this target names one object twice where native's memcpy makes two. So the write
+ * asks `aliasesLiveStorage` beside this and goes through the descriptor's `copyInit` when it says
+ * yes. `AliasGen.yana` is the fixture: `let &c = xs` inside an erased body answered 4 where the
+ * native build answered 3, because `c` and `xs` were one array.
  */
 bool rebindsOwnStorage(Gen& g, const Place& place) {
     auto projections = place.projections;
@@ -302,7 +310,8 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
          * What is in that slot is one generated function per concrete type, compiled by whichever
          * backend is emitting: a `memcpy` there, genBlockCopy's structural duplicate here.
          */
-        if(g.genEnv && isGeneric(g.global, type) && !rebindsOwnStorage(g, place)) {
+        if(g.genEnv && isGeneric(g.global, type) &&
+           (!rebindsOwnStorage(g, place) || aliasesLiveStorage(g, value))) {
             if(auto descriptor = genTypeDesc(g, type)) {
                 emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kCopyInit),
                                  referenceTo(g, type, target), referenceTo(g, type, useValue(g, value))));
@@ -2084,6 +2093,41 @@ void genBlockCopy(Gen& g, Value& instruction, InstNative& native) {
     }
 
     /*
+     * A host row, whose slots are its elements rather than named properties.
+     *
+     * The walk below is `eachProperty`, and a fixed array has none - so without this arm the glue
+     * for a `[T *n]` was a function that copied *nothing*. It was not a visible gap for as long as
+     * nothing called it: a concrete write duplicates through `cloneValue`, which has an array arm of
+     * its own, and only the erased write reaches the descriptor slot. `AliasGen.yana` is the number
+     * that says so - 4 where the native build answers 3, one array under two names.
+     *
+     * The count is written, always: this glue is generated per concrete type (see copyInitFor, which
+     * declines a generic one), so the erased count of the caller is not a case here.
+     *
+     * `set` for a typed row, which is the host's own block copy into storage that stays the same
+     * object - the property this needs and the reason it is not `to = from.slice()`. Slot by slot
+     * otherwise, on the same `relocates` question the properties below are asked.
+     */
+    if(g.global[shape]->kind == Type::Array) {
+        auto& array = *(ArrayType*)g.global[shape];
+
+        if(typedArrayFor(g.global, array.content).length) {
+            emitExpr(g, call(g, field(g, target, literalName(g, "set"_v)), source));
+            return;
+        }
+
+        auto relocated = native.relocates && ownershipOf(*g.function->module, array.content).trivialSink;
+
+        for(U64 i = 0, count = writtenCount(g.global, array.count).from(0); i < count; i++) {
+            auto read = index(g, source, U32(i));
+            emitExpr(g, assign(g, index(g, target, U32(i)),
+                               relocated ? read : cloneValue(g, array.content, read, instruction.source)));
+        }
+
+        return;
+    }
+
+    /*
      * Property by property, and whether each one is duplicated is what `relocates` answers - for the
      * properties it is entitled to answer for, which is not all of them.
      *
@@ -2924,7 +2968,13 @@ AggregateBuildPlan wholeLocalPlan(Gen& g, InstAggregate& aggregate) {
      */
     if(g.global[type]->kind == Type::Array) {
         if(place.projections.isNotEmpty()) return plan;
-        if(aggregate.components.size() != constValue(g.global, ((ArrayType*)g.global[type])->count)) return plan;
+
+        // A count this body cannot read is not a length to compare against, and the aggregate at
+        // such a place is the erased fill's - which names the whole local and writes no components,
+        // because what supplies them is the loop after it. `writtenCount` rather than `constValue`,
+        // which asserts that the count is a number.
+        auto written = writtenCount(g.global, ((ArrayType*)g.global[type])->count);
+        if(!written || aggregate.components.size() != written.unwrap()) return plan;
 
         auto stepped = true;
         eachAggregateComponent(g.local, aggregate, [&](const AggregateComponent& component, Size) {
@@ -3700,6 +3750,28 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                 g.context.diagnostics.error("a run of slots has no representation on the JS target yet - it needs the host array of Implementation-Containers.md §14"_v,
                                             instruction.source);
                 break;
+            }
+
+            /*
+             * The one `[T *n]` whose fresh storage this target cannot build - see erasedZeroArray,
+             * which is where the two shapes that *are* buildable are argued.
+             *
+             * An erased count and an element whose zero is an object: `fill` would place one object
+             * in every slot and this tree has no callback node to build `n` of them. Reported here
+             * rather than in zeroValue for the reason the run above is - this is the allocation, so
+             * this is the frame that has a source location to point at. Every numeric element takes
+             * the typed row and never reaches this.
+             */
+            if(instruction.type && g.global[instruction.type]->kind == Type::Array) {
+                auto& array = *(ArrayType*)g.global[instruction.type];
+
+                if(!writtenCount(g.global, array.count) && !typedArrayFor(g.global, array.content).length &&
+                   isJsObject(g, array.content)) {
+                    g.context.diagnostics.error("a `%@` of an unknown count cannot be created on the JS target - its elements are objects, so a row of them is built one at a time and there is nothing here to build them with. Write the count in the type, or hold the elements in a growable array"_v,
+                                                instruction.source,
+                                                describeType(g.context, g.global, instruction.type));
+                    break;
+                }
             }
 
             /*

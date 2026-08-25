@@ -69,6 +69,14 @@ fn (n: Int) nothingDecides() -> Int = n
 -- a two-element and a three-element array has no instantiation.
 fn (n: Int) twoArrays(xs: [Int *n], ys: [Int *n]) -> Int = 0
 
+-- §4.1: a literal at a count this body cannot read. The *fill* is admitted, because one element
+-- means the same thing at every count - see `filled` in ConstGeneric.yana - and a written-out
+-- literal is not, because three elements are right for `n = 3` and wrong for every other `n`. The
+-- diagnostic names the form that does exist rather than only refusing this one.
+fn (n: Int) writtenOut(like: [Int *n]) -> Int:
+    let &out = [1, 2, 3] :: [Int *n]
+    return out[0]
+
 fn main() -> Int:
     let a = [1, 2] :: [Int *2]
     let b = [1, 2, 3] :: [Int *3]
