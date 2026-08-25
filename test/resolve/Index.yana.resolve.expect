@@ -233,21 +233,27 @@ fn fromSlice(%xs: Flat(Int)) -> Int {
     ret %v14
 }
 
-fn fromFixed(%xs: Flat(Int)) -> Int {
+fn fromFixed(%xs: [Int *3]) -> Int {
   b0:
-    %v3 = borrow %xs : 'Flat(Int)
-    %v4 = load [%v3]@Flat.length : Size
-    %v5 = cast 1 : USize
-    %v6 = cast %v4 : USize
-    %v7 = cmp_ge %v5, %v6 : Bool
-    call checkCondition, %v7
-    %v9 = load [%v3]@Flat.items : %Int
-    %v10 = strideof Int : Long
-    %v11 = mul 1, %v10 : Long
-    %v12 = add %v9, %v11 : %Int
-    %v13 = borrow [%v12] : 'Int
-    %v14 = load [%v13] : Int
-    ret %v14
+    %v2 = borrow %xs : '[Int *3]
+    %xs = alloc : Flat(Int)
+    %v4 = addressof [%v2] : %Int
+    init %xs@Flat.items, %v4
+    %v6 = countof 3 : Size
+    init %xs@Flat.length, %v6
+    %v9 = borrow %xs : 'Flat(Int)
+    %v10 = load [%v9]@Flat.length : Size
+    %v11 = cast 1 : USize
+    %v12 = cast %v10 : USize
+    %v13 = cmp_ge %v11, %v12 : Bool
+    call checkCondition, %v13
+    %v15 = load [%v9]@Flat.items : %Int
+    %v16 = strideof Int : Long
+    %v17 = mul 1, %v16 : Long
+    %v18 = add %v15, %v17 : %Int
+    %v19 = borrow [%v18] : 'Int
+    %v20 = load [%v19] : Int
+    ret %v20
 }
 
 fn fieldOfElement(%xs: Flat(Cell)) -> Int {
@@ -460,26 +466,20 @@ fn main() -> Int {
     %v128 = add %v117, %v127 : Int
     %v132 = alloc : [Int *3]
     aggregate %local11[0] = 1, %local11[1] = 2, %local11[2] = 3
-    %v137 = borrow %local11 : '[Int *3]
-    %v138 = alloc : Flat(Int)
-    %v139 = addressof [%v137] : %Int
-    init %local12@Flat.items, %v139
-    %v141 = countof 3 : Size
-    init %local12@Flat.length, %v141
-    %v143 = call fromFixed, %v138 : Int
-    %v144 = add %v128, %v143 : Int
-    %v145 = load %xs : Array(Int)
-    %v146 = borrow %xs : 'Array(Int)
-    %v147 = alloc : Flat(Int)
-    %v148 = load [%v146]@Array.run@Run.items : %Int
-    init %local13@Flat.items, %v148
-    %v150 = load [%v146]@Array.length : @bits(30) U32
-    %v151 = cast %v150 : Size
-    init %local13@Flat.length, %v151
-    %v153 = call fromSlice, %v147 : Int
+    %v137 = call fromFixed, %v132 : Int
+    %v138 = add %v128, %v137 : Int
+    %v139 = load %xs : Array(Int)
+    %v140 = borrow %xs : 'Array(Int)
+    %v141 = alloc : Flat(Int)
+    %v142 = load [%v140]@Array.run@Run.items : %Int
+    init %local12@Flat.items, %v142
+    %v144 = load [%v140]@Array.length : @bits(30) U32
+    %v145 = cast %v144 : Size
+    init %local12@Flat.length, %v145
+    %v147 = call fromSlice, %v141 : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    %v154 = add %v144, %v153 : Int
-    ret %v154
+    %v148 = add %v138, %v147 : Int
+    ret %v148
 }
 
 fn sumOfTwo(Array(Int), Size, Int)(%xs: Array(Int), %a: Size, %b: Size) -> Int {

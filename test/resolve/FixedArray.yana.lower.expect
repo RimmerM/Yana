@@ -78,29 +78,46 @@ main<complex>(): Int {
   }
 
   b_25 {
-    %v_26 = alloca 4, 8: Ptr
-    %v_27 = alloca 8, 4: Ptr
-    %v_28 = load %v_26, 4: Int
-    store %v_26, 2, 4
-    store %v_27, 7, 4
-    %v_29 = add %v_27, 4: Ptr
-    store %v_29, 8, 4
-    %v_30 = call_complex total, %v_27, 2: Int
-    %v_31 = cmp_neq %v_30, 15: Int
-    je %v_31, b_32, b_33
+    %v_26 = alloca 8, 4: Ptr
+    store %v_26, 7, 4
+    %v_27 = add %v_26, 4: Ptr
+    store %v_27, 8, 4
+    %v_28 = call_complex total, %v_26, 2: Int
+    %v_29 = cmp_neq %v_28, 15: Int
+    je %v_29, b_30, b_31
   }
 
-  b_33 {
-    jmp b_34
+  b_31 {
+    %v_32 = alloca 8, 4: Ptr
+    store %v_32, 7, 4
+    %v_33 = add %v_32, 4: Ptr
+    store %v_33, 8, 4
+    %v_34 = loads %v_32, 4: Int
+    %v_35 = add %v_34, 1: Int
+    store %v_32, %v_35, 4
+    %v_36 = loads %v_33, 4: Int
+    %v_37 = add %v_36, 1: Int
+    store %v_33, %v_37, 4
+    %v_38 = call_complex total, %v_32, 2: Int
+    %v_39 = cmp_neq %v_38, 17: Int
+    je %v_39, b_40, b_41
   }
 
-  b_34 {
+  b_41 {
+    jmp b_42
+  }
+
+  b_42 {
     %none = alloca 1, 1: Ptr
-    %v_35 = call_complex total, %v_1, 4: Int
-    ret %v_35
+    %v_43 = call_complex total, %v_1, 4: Int
+    ret %v_43
   }
 
-  b_32 {
+  b_40 {
+    ret 18446744073709551606
+  }
+
+  b_30 {
     ret 18446744073709551610
   }
 
@@ -109,27 +126,27 @@ main<complex>(): Int {
   }
 
   b_20 {
-    %v_36 = sext %v_15: Long
-    %v_37 = cmp_ge %v_36, 4: Int
-    je %v_37, b_38, b_39
+    %v_44 = sext %v_15: Long
+    %v_45 = cmp_ge %v_44, 4: Int
+    je %v_45, b_46, b_47
   }
 
-  b_39 {
-    %v_40 = shl %v_36, 2: Long
-    %v_41 = add %v_1, %v_40: Ptr
-    %value = loads %v_41, 4: Int
+  b_47 {
+    %v_48 = shl %v_44, 2: Long
+    %v_49 = add %v_1, %v_48: Ptr
+    %value = loads %v_49, 4: Int
     jmp b_16
   }
 
   b_16 {
-    %v_42 = add %value, %value: Int
-    store %v_41, %v_42, 4
+    %v_50 = add %value, %value: Int
+    store %v_49, %v_50, 4
     %v_17 = add %v_15, 1: Int
     jmp b_14
   }
 
-  b_38 {
-    %v_43 = syscall 60, 134: Long
+  b_46 {
+    %v_51 = syscall 60, 134: Long
     unreachable 
   }
 

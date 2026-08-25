@@ -64,11 +64,18 @@ function main() {
         if (total(new Int32Array([7, 8]), 2, 0) !== 15) {
           return -6;
         } else {
-          var v232 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
-          if (BigInt.asIntN(64, BigInt.asIntN(64, v232[0].wide + v232[1].wide) + v232[2].wide) !== 60n) {
-            return -8;
+          var v120 = new Int32Array([7, 8]);
+          v120[0] = v120[0] + 1 | 0;
+          v120[1] = v120[1] + 1 | 0;
+          if (total(v120, 2, 0) !== 17) {
+            return -10;
           } else {
-            return total(v24, 4, 0);
+            var v263 = [{ wide: 10n, narrow: 1 }, { wide: 20n, narrow: 2 }, { wide: 30n, narrow: 3 }];
+            if (BigInt.asIntN(64, BigInt.asIntN(64, v263[0].wide + v263[1].wide) + v263[2].wide) !== 60n) {
+              return -8;
+            } else {
+              return total(v24, 4, 0);
+            }
           }
         }
       }

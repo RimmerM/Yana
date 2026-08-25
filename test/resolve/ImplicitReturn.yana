@@ -10,14 +10,28 @@ fn double(x: Int) = x * 2
    Generic, with the constraint the body turned out to need collected the same way a written
    signature's would be - the result type being inferred does not change what `+` requires.
 
-   `Num(a)` is written out rather than inferred, and what it is doing is not disambiguating the
-   operator: `+` is `Num`'s and nothing else's, since joining has `++` (`Core.yana`'s `Append`). It
-   is what makes the *call* below typeable. `sum(1, 2)` hands over two literals and no expected type,
-   and a literal takes its type from `FromInt` - which `Num` declares as a superclass - so without a
-   constraint there is nothing for `a` to be inferred from and the type argument is reported as
-   uninferable at the call rather than as anything about the body.
+   **`Num(a)` is documentation here and nothing else**, which is what the three below are the
+   fixture for: a statically known callee has its body resolved, so the requirement the body reaches
+   is collected into its context whether or not the signature said it, and the call binds `a` from
+   its arguments either way. All four spellings are the same function - written out, written as a
+   bare parameter, and left off entirely - and the standard library writes it out for a reader
+   rather than for the resolver. Where it is *not* optional is a class signature and an indirect
+   call, neither of which has a body to read the requirement off.
+
+   `+` is `Num`'s and nothing else's, since joining has `++` (`Core.yana`'s `Append`), so none of
+   these has an ambiguity to settle either.
 -}
 fn (Num(a)) sum(lhs: a, rhs: a) = lhs + rhs
+
+-- The same body with the parameter declared and nothing said about it. `fn (a) f(...)` used to add
+-- an *anonymous* variable to the context - the constraint carried no name - so the `a` in the
+-- parameter list inferred a second one and the call reported "cannot infer type argument  of
+-- added", with the empty name where the variable should have been, for a call whose arguments state
+-- the type outright.
+fn (a) added(lhs: a, rhs: a) = lhs + rhs
+
+-- And with no context list at all, which is the same function again.
+fn plussed(lhs: a, rhs: a) = lhs + rhs
 
 -- An aggregate result, to show inference is not limited to scalars.
 fn origin() = Point {x: 0, y: 0}
@@ -41,4 +55,4 @@ fn fact(n: Int) -> Int = if n <= 1 then 1 else n * fact(n - 1)
 
 fn main() -> Int:
     let p = origin()
-    return double(3) + sum(1, 2) + answer() + useLater() + annotated(0) + fact(4) + p.x
+    return double(3) + sum(1, 2) + added(1, 2) + plussed(1, 2) + answer() + useLater() + annotated(0) + fact(4) + p.x

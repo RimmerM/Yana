@@ -2074,7 +2074,16 @@ ast::Constraint Parser::parseConstraint() {
         return { .fun = { name, heap(type) }, .source = context.addLocation(location), .kind = ast::Constraint::Function };
     }
 
-    return { .source = context.addLocation(location), .kind = ast::Constraint::Any };
+    /*
+     * `fn (a) f(x: a)` - a type parameter the context declares and constrains with nothing.
+     *
+     * The name is the payload and not decoration: `module_decl.cpp` introduces a variable for it,
+     * and an entry with no name introduces an *anonymous* one - which the `a` in the parameter list
+     * then never binds, because it infers a second variable of its own. The call site's diagnostic
+     * for that is "cannot infer type argument  of f", with the empty name where the variable should
+     * be, and it fires on a call whose arguments state the type outright.
+     */
+    return { .name = name, .source = context.addLocation(location), .kind = ast::Constraint::Any };
 }
 
 void Parser::parseConstraints(ast::ConstraintList& list) {

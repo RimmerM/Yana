@@ -125,25 +125,33 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
  *    Growth is nominal, because only the growable type can grow: `push` says `Array(T)` and `sort`
  *    says `[T]`, and the difference between them is exactly this function.
  *
- * `[T *n]` in a binding position goes the same way, which is §6's "as an immutable argument it
+ * ## `[T *n]` is the exception, and it keeps the owner
+ *
+ * A fixed array's count is *in its type*, so the descriptor a slice would build carries nothing the
+ * type did not already say - and building it throws the number away. The parameter therefore stays
+ * `[T *n]`, whether `n` is written (`fn f(xs: [Int *4])`) or quantified over
+ * (`fn (n: Int) firstOf(xs: [Int *n])`, Implementation-Const-Generics.md §1.7). Three things follow,
+ * and each is the reason:
+ *
+ *  - **One pointer rather than two words.** A borrow of a fixed array is the address of its storage,
+ *    since there is no second half to pass.
+ *  - **The length is a constant in the body.** `length(xs)` is `countof n`, which folds where `n` is
+ *    written - so every bounds check inside the callee folds with it, and none of that is available
+ *    through a `Flat`.
+ *  - **A caller cannot pass the wrong size.** `[Int *3]` where `[Int *4]` is declared is a type
+ *    error, where two slices are one type and the mistake is a runtime read past the end.
+ *
+ * Slicing it would also have destroyed what a quantified count is *for*: `Flat(T)` carries a length
+ * field and no type-level number, so `firstOf([1, 2, 3, 4])` would report "cannot infer `n`" for a
+ * call that states it.
+ *
+ * A fixed array still *reaches* every `[T]` function, which is §6's "as an immutable argument it
  * produces a slice; as a mutable-element argument a mutable slice - both free, no coercion, no
- * specialization". The one thing it is never is a *growable* argument: `push` says `Array(T)`, so a
- * fixed array reaching it is rejected by the ordinary conversion rule with a diagnostic naming why -
- * see convertType.
- *
- * ## The one exception: a count the signature quantified over
- *
- * `fn (n: Int) firstOf(xs: [Int *n])` keeps the owner - Implementation-Const-Generics.md §1.7.
- *
- * The slice conversion is *exactly* "forget the count": `Flat(T)` carries a length field and no
- * type-level number, which is what makes it one type for every `n`. A signature that names `n` is
- * saying the opposite, and slicing it would leave the variable with nothing to bind from - so
- * `firstOf([1, 2, 3, 4])` would report "cannot infer `n`" for a call whose argument states it.
- *
- * A *written* count is unaffected, because there is nothing to infer from it: `fn f(xs: [Int *4])`
- * still takes a slice, and its four is a fact about what the caller may pass rather than something
- * the body reads back. So this is not a second rule for fixed arrays - it is the same rule, applied
- * to the one case where the conversion would destroy information the declaration asked for.
+ * specialization" - that conversion now happens at the call rather than at the declaration, so a
+ * signature that wants the count keeps it and one that does not pays exactly what it did before. The
+ * one thing a fixed array is never is a *growable* argument: `push` says `Array(T)`, so a fixed array
+ * reaching it is rejected by the ordinary conversion rule with a diagnostic naming why - see
+ * convertType.
  */
 TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind, GenEnv* env) {
     auto type = resolveType(module, written, env);
@@ -151,7 +159,7 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind
     if(written.kind != ast::Type::Arr) return type;
 
     auto base = *module.types;
-    if(base[type]->kind == Type::Array && isGeneric(base, ((ArrayType*)base[type])->count)) return type;
+    if(base[type]->kind == Type::Array) return type;
 
     auto slice = sliceOf(module, type);
     return slice ? slice : type;

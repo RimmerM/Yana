@@ -29,6 +29,24 @@ fn computed() -> {}:
     let xs = [1] :: [Int *n]
 
 {-
+   **A count is part of the parameter's type**, so the wrong one is a type error rather than a read
+   past the end.
+
+   That is the whole of what a fixed-array parameter buys over the `&[Int]` it would otherwise
+   become: two slices of different lengths are one type, and a callee written against one of them
+   finds out at run time. `bindingType` in resolve/type_ast.cpp is where the count is kept.
+-}
+fn pairSum(p: [Int *2]) -> Int = p[0] + p[1]
+
+fn wrongLength() -> Int = pairSum([1, 2, 3, 4])
+
+-- The same mistake through a name rather than a literal, which is the argument-mismatch path and the
+-- one a real program takes: `quad` has a type, and it is not this parameter's.
+fn wrongArray() -> Int:
+    let quad = [1, 2, 3, 4] :: [Int *4]
+    return pairSum(quad)
+
+{-
    A fixed array of itself has no finite size, and there is no edge to cut.
 
    `breakLayoutCycles` inserts an indirection at the back edge of a record cycle; a fixed array has

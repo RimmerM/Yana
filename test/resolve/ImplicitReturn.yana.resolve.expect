@@ -17,6 +17,28 @@ fn double(%x: Int) -> Int {
     ret %v2
 }
 
+(Num(a)) fn added(%lhs: a, %rhs: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v2 = gencall Num(a).+, %lhs, %rhs : a
+    ret %v2
+}
+
+(Num(a)) fn plussed(%lhs: a, %rhs: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v2 = gencall Num(a).+, %lhs, %rhs : a
+    ret %v2
+}
+
 fn origin() -> Point {
   b0:
     %v0 = alloc : Point
@@ -72,20 +94,36 @@ fn main() -> Int {
     %v2 = call double, 3 : Int
     %v7 = call sum(Int), 1, 2 : Int
     %v8 = add %v2, %v7 : Int
-    %v9 = call answer : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call useLater : Int
-    %v12 = add %v10, %v11 : Int
-    %v14 = call annotated, 0 : Int
-    %v15 = add %v12, %v14 : Int
-    %v17 = call fact, 4 : Int
-    %v18 = add %v15, %v17 : Int
-    %v19 = load %local0@Point.x : Int
-    %v20 = add %v18, %v19 : Int
-    ret %v20
+    %v13 = call added(Int), 1, 2 : Int
+    %v14 = add %v8, %v13 : Int
+    %v19 = call plussed(Int), 1, 2 : Int
+    %v20 = add %v14, %v19 : Int
+    %v21 = call answer : Int
+    %v22 = add %v20, %v21 : Int
+    %v23 = call useLater : Int
+    %v24 = add %v22, %v23 : Int
+    %v26 = call annotated, 0 : Int
+    %v27 = add %v24, %v26 : Int
+    %v29 = call fact, 4 : Int
+    %v30 = add %v27, %v29 : Int
+    %v31 = load %local0@Point.x : Int
+    %v32 = add %v30, %v31 : Int
+    ret %v32
 }
 
 fn sum(Int)(%lhs: Int, %rhs: Int) -> Int {
+  b0:
+    %v2 = add %lhs, %rhs : Int
+    ret %v2
+}
+
+fn added(Int)(%lhs: Int, %rhs: Int) -> Int {
+  b0:
+    %v2 = add %lhs, %rhs : Int
+    ret %v2
+}
+
+fn plussed(Int)(%lhs: Int, %rhs: Int) -> Int {
   b0:
     %v2 = add %lhs, %rhs : Int
     ret %v2
