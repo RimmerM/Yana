@@ -1,8 +1,7 @@
 "use strict";
-var sinkCalls = 0n;
-const typeDesc$Handle = [8, 8, 2176, Sink_Handle_sink, teardown$none, teardown$none, teardown$none];
+const typeDesc$Handle = [teardown$none, moveInit$Handle, copyInit$Handle];
 const genEnv$relocate_Handle = [typeDesc$Handle];
-const typeDesc$Pair = [16, 16, 2176, moveInit$Pair, teardown$none, teardown$none, teardown$none];
+const typeDesc$Pair = [teardown$none, moveInit$Pair, copyInit$Pair];
 const genEnv$relocate_Pair = [typeDesc$Pair];
 
 // Core
@@ -12,33 +11,46 @@ function teardown$none(value) {
 // ResolveTest
 function relocate(genEnv, x) {
   var y = {};
-  genEnv[0][3](y, x);
+  genEnv[0][1](y, x);
   return y;
 }
 
 function main() {
-  var moved = relocate(genEnv$relocate_Handle, { value: 10n });
-  if (sinkCalls !== 1n) {
+  var moved = relocate(genEnv$relocate_Handle, { $v: 10n }).$v;
+  if (moved !== 10n) {
     return -1n;
   } else {
-    var movedPair = relocate(genEnv$relocate_Pair, { left: { value: 20n }, right: 5n });
-    var v23 = sinkCalls;
-    if (v23 !== 2n) {
+    var p = { left: 20n, right: 5n };
+    var movedPair = relocate(genEnv$relocate_Pair, { left: p.left, right: p.right });
+    var v24 = movedPair.left;
+    if (v24 !== 20n) {
       return -2n;
     } else {
-      return BigInt.asIntN(64, BigInt.asIntN(64, BigInt.asIntN(64, moved.value + movedPair.left.value) + movedPair.right) + v23);
+      var v34 = movedPair.right;
+      if (v34 !== 5n) {
+        return -3n;
+      } else {
+        return BigInt.asIntN(64, BigInt.asIntN(64, moved + v24) + v34);
+      }
     }
   }
 }
 
-function Sink_Handle_sink(to, from) {
-  sinkCalls = BigInt.asIntN(64, sinkCalls + 1n);
-  to.value = from.value;
+function moveInit$Handle(to, from) {
+  to.$v = from.$v;
+}
+
+function copyInit$Handle(to, from) {
+  to.$v = from.$v;
 }
 
 function moveInit$Pair(to, from) {
-  to.left = { value: from.left.value };
+  to.left = from.left;
   to.right = from.right;
-  Sink_Handle_sink(to.left, from.left);
+}
+
+function copyInit$Pair(to, from) {
+  to.left = from.left;
+  to.right = from.right;
 }
 main();

@@ -2009,6 +2009,8 @@ main<complex>(): Int {
     store %v_17, 0, 8
     %v_18 = add %v_14, 32: Ptr
     store %v_18, 0, 8
+    store %v_17, 0, 4
+    store %v_15, 0, 4
     copy %v_14, %v_13, 40
     call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_14, %v_1, %v_4
     call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_14, %v_5, %v_8
@@ -2022,314 +2024,1981 @@ main<complex>(): Int {
   b_23 {
     %v_24 = loads @live, 4: Int
     %v_25 = cmp_neq %v_24, 3: Int
-    je %v_25, b_22, b_26
+    je %v_25, b_26, b_27
   }
 
-  b_26 {
-    %v_27 = alloca 16, 8: Ptr
-    call_complex key, %v_27, 2
-    %v_28 = alloca 8, 8: Ptr
-    %v_29 = call_complex hashKey(String), %v_27: Int
-    %at = call_complex findEntry(String, Held), %v_14, %v_27, %v_29: Long
-    %v_30 = cmp_ilt %at, 0: Int
-    je %v_30, b_31, b_32
+  b_27 {
+    %v_28 = alloca 16, 8: Ptr
+    call_complex key, %v_28, 2
+    %v_29 = alloca 8, 8: Ptr
+    %v_30 = call_complex hashKey(String), %v_28: Int
+    %at = call_complex findEntry(String, Held), %v_14, %v_28, %v_30: Long
+    %v_31 = cmp_ilt %at, 0: Int
+    je %v_31, b_32, b_33
+  }
+
+  b_33 {
+    %v_34 = load %v_14, 8: Ptr
+    %v_35 = imul %at, 24: Long
+    %v_36 = add %v_34, %v_35: Ptr
+    %v_37 = add %v_36, 16: Ptr
+    store %v_29, %v_37, 8
+    jmp b_38
   }
 
   b_32 {
-    %v_33 = load %v_14, 8: Ptr
-    %v_34 = imul %at, 24: Long
-    %v_35 = add %v_33, %v_34: Ptr
-    %v_36 = add %v_35, 16: Ptr
-    store %v_28, %v_36, 8
-    jmp b_37
+    store %v_29, 0, 8
+    jmp b_38
   }
 
-  b_31 {
-    store %v_28, 0, 8
-    jmp b_37
-  }
-
-  b_37 {
-    call_complex Reclaim(String).reclaim, %v_27
-    %v_38 = load %v_28, 8: Long
-    %v_39 = cmp_neq %v_38, 0: Int
-    je %v_39, b_40, b_22
-  }
-
-  b_22 {
-    %v_41 = phi [b_37, 18446744073709551612], [b_42, 18446744073709551607], [b_43, 18446744073709551608], [b_44, 18446744073709551609], [b_45, 18446744073709551610], [b_46, 18446744073709551611], [b_40, 18446744073709551613], [b_23, 18446744073709551614], [b_0, 18446744073709551615]: Int
-    call_complex drop$Map(String, Held), %v_14
-    call_complex reclaim$Map(String, Held), %v_14
-    ret %v_41
-  }
-
-  b_40 {
-    %h = bitcast %v_38: Ptr
-    %v_47 = loads %h, 4: Int
-    %v_48 = cmp_neq %v_47, 2: Int
-    je %v_48, b_22, b_46
-  }
-
-  b_46 {
-    %v_49 = alloca 16, 8: Ptr
-    call_complex key, %v_49, 4
-    %v_50 = loads @live, 4: Int
-    %v_51 = add %v_50, 1: Int
-    store @live, %v_51, 4
-    %v_52 = alloca 4, 4: Ptr
-    store %v_52, 4, 4
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_14, %v_49, %v_52
-    %v_53 = add %v_14, 12: Ptr
-    %v_54 = load %v_53, 4: Int
-    %v_55 = cmp_neq %v_54, 4: Int
-    je %v_55, b_22, b_45
-  }
-
-  b_45 {
-    %v_56 = loads @live, 4: Int
-    %v_57 = cmp_neq %v_56, 4: Int
-    je %v_57, b_22, b_44
-  }
-
-  b_44 {
-    %v_58 = alloca 16, 8: Ptr
-    call_complex key, %v_58, 4
-    %v_59 = loads @live, 4: Int
-    %v_60 = add %v_59, 1: Int
-    store @live, %v_60, 4
-    %v_61 = alloca 4, 4: Ptr
-    store %v_61, 40, 4
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_14, %v_58, %v_61
-    %v_62 = add %v_14, 12: Ptr
-    %v_63 = load %v_62, 4: Int
-    %v_64 = cmp_neq %v_63, 4: Int
-    je %v_64, b_22, b_43
-  }
-
-  b_43 {
-    %v_65 = loads @live, 4: Int
-    %v_66 = cmp_neq %v_65, 4: Int
-    je %v_66, b_22, b_42
+  b_38 {
+    call_complex Reclaim(String).reclaim, %v_28
+    %v_39 = load %v_29, 8: Long
+    %v_40 = cmp_neq %v_39, 0: Int
+    je %v_40, b_41, b_42
   }
 
   b_42 {
-    %v_67 = alloca 16, 8: Ptr
-    call_complex key, %v_67, 4
-    %v_68 = call_complex Index(Map(k, v), k, v).get(String, Held), %v_14, %v_67: Ptr
-    call_complex Reclaim(String).reclaim, %v_67
-    %v_69 = loads %v_68, 4: Int
-    %v_70 = cmp_neq %v_69, 40: Int
-    je %v_70, b_22, b_71
+    %v_43 = add %v_14, 12: Ptr
+    %v_44 = load %v_43, 4: Int
+    %v_45 = sext %v_44: Long
+    jmp b_46
   }
 
-  b_71 {
-    %v_72 = alloca 16, 8: Ptr
-    call_complex key, %v_72, 9
-    %v_73 = loads @live, 4: Int
-    %v_74 = add %v_73, 1: Int
-    store @live, %v_74, 4
-    %v_75 = alloca 4, 4: Ptr
-    store %v_75, 9, 4
-    %v_76 = alloca 16, 8: Ptr
-    call_complex key, %v_76, 8
-    %v_77 = loads @live, 4: Int
-    %v_78 = add %v_77, 1: Int
-    store @live, %v_78, 4
-    %v_79 = alloca 4, 4: Ptr
-    store %v_79, 8, 4
-    %v_80 = alloca 16, 8: Ptr
-    call_complex key, %v_80, 9
-    %v_81 = loads @live, 4: Int
-    %v_82 = add %v_81, 1: Int
-    store @live, %v_82, 4
-    %v_83 = alloca 4, 4: Ptr
-    store %v_83, 90, 4
-    %v_84 = alloca 40, 8: Ptr
-    call_complex newMap(String, Held), %v_84, 3
-    %v_85 = alloca 40, 8: Ptr
-    store %v_85, 0, 8
-    %v_86 = add %v_85, 8: Ptr
-    store %v_86, 0, 8
-    %v_87 = add %v_85, 16: Ptr
-    store %v_87, 0, 8
-    %v_88 = add %v_85, 24: Ptr
-    store %v_88, 0, 8
-    %v_89 = add %v_85, 32: Ptr
-    store %v_89, 0, 8
-    copy %v_85, %v_84, 40
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_85, %v_72, %v_75
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_85, %v_76, %v_79
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_85, %v_80, %v_83
-    %v_90 = add %v_85, 12: Ptr
-    %v_91 = load %v_90, 4: Int
-    %v_92 = cmp_neq %v_91, 2: Int
-    je %v_92, b_93, b_94
+  b_46 {
+    %v_47 = phi [b_42, 0], [b_48, %v_49]: Long
+    %v_50 = cmp_ilt %v_47, %v_45: Int
+    je %v_50, b_48, b_51
   }
 
-  b_94 {
-    %v_95 = loads @live, 4: Int
-    %v_96 = cmp_neq %v_95, 6: Int
-    je %v_96, b_93, b_97
+  b_51 {
+    %v_52 = add %v_14, 8: Ptr
+    %v_53 = load %v_52, 4: Int
+    %v_54 = shr %v_53, 30: Int
+    %v_55 = cmp_eq %v_54, 1: Int
+    je %v_55, b_56, b_57
   }
 
-  b_97 {
-    %v_98 = alloca 16, 8: Ptr
-    call_complex key, %v_98, 9
-    %v_99 = call_complex Index(Map(k, v), k, v).get(String, Held), %v_85, %v_98: Ptr
-    call_complex Reclaim(String).reclaim, %v_98
-    %v_100 = loads %v_99, 4: Int
-    %v_101 = cmp_neq %v_100, 90: Int
-    je %v_101, b_93, b_102
+  b_57 {
+    jmp b_58
+  }
+
+  b_56 {
+    %v_59 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_59
+    jmp b_58
+  }
+
+  b_58 {
+    %v_60 = add %v_14, 24: Ptr
+    %v_61 = load %v_60, 4: Int
+    %v_62 = shr %v_61, 30: Int
+    %v_63 = cmp_eq %v_62, 1: Int
+    je %v_63, b_64, b_65
+  }
+
+  b_65 {
+    jmp b_66
+  }
+
+  b_64 {
+    %v_67 = add %v_14, 16: Ptr
+    %v_68 = load %v_67, 8: Ptr
+    call_complex freeHeap, %v_68
+    jmp b_66
+  }
+
+  b_66 {
+    ret 18446744073709551612
+  }
+
+  b_48 {
+    %v_69 = load %v_14, 8: Ptr
+    %v_70 = imul %v_47, 24: Long
+    %v_71 = add %v_69, %v_70: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_71, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_72 = loads @live, 4: Int
+    %v_73 = sub %v_72, 1: Int
+    store @live, %v_73, 4
+    %v_49 = add %v_47, 1: Long
+    jmp b_46
+  }
+
+  b_41 {
+    %h = bitcast %v_39: Ptr
+    %v_74 = loads %h, 4: Int
+    %v_75 = cmp_neq %v_74, 2: Int
+    je %v_75, b_76, b_77
+  }
+
+  b_77 {
+    %v_78 = alloca 16, 8: Ptr
+    call_complex key, %v_78, 4
+    %v_79 = loads @live, 4: Int
+    %v_80 = add %v_79, 1: Int
+    store @live, %v_80, 4
+    %v_81 = alloca 4, 4: Ptr
+    store %v_81, 4, 4
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_14, %v_78, %v_81
+    %v_82 = add %v_14, 12: Ptr
+    %v_83 = load %v_82, 4: Int
+    %v_84 = cmp_neq %v_83, 4: Int
+    je %v_84, b_85, b_86
+  }
+
+  b_86 {
+    %v_87 = loads @live, 4: Int
+    %v_88 = cmp_neq %v_87, 4: Int
+    je %v_88, b_89, b_90
+  }
+
+  b_90 {
+    %v_91 = alloca 16, 8: Ptr
+    call_complex key, %v_91, 4
+    %v_92 = loads @live, 4: Int
+    %v_93 = add %v_92, 1: Int
+    store @live, %v_93, 4
+    %v_94 = alloca 4, 4: Ptr
+    store %v_94, 40, 4
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_14, %v_91, %v_94
+    %v_95 = add %v_14, 12: Ptr
+    %v_96 = load %v_95, 4: Int
+    %v_97 = cmp_neq %v_96, 4: Int
+    je %v_97, b_98, b_99
+  }
+
+  b_99 {
+    %v_100 = loads @live, 4: Int
+    %v_101 = cmp_neq %v_100, 4: Int
+    je %v_101, b_102, b_103
+  }
+
+  b_103 {
+    %v_104 = alloca 16, 8: Ptr
+    call_complex key, %v_104, 4
+    %v_105 = call_complex Index(Map(k, v), k, v).get(String, Held), %v_14, %v_104: Ptr
+    call_complex Reclaim(String).reclaim, %v_104
+    %v_106 = loads %v_105, 4: Int
+    %v_107 = cmp_neq %v_106, 40: Int
+    je %v_107, b_108, b_109
+  }
+
+  b_109 {
+    %v_110 = alloca 16, 8: Ptr
+    call_complex key, %v_110, 9
+    %v_111 = loads @live, 4: Int
+    %v_112 = add %v_111, 1: Int
+    store @live, %v_112, 4
+    %v_113 = alloca 4, 4: Ptr
+    store %v_113, 9, 4
+    %v_114 = alloca 16, 8: Ptr
+    call_complex key, %v_114, 8
+    %v_115 = loads @live, 4: Int
+    %v_116 = add %v_115, 1: Int
+    store @live, %v_116, 4
+    %v_117 = alloca 4, 4: Ptr
+    store %v_117, 8, 4
+    %v_118 = alloca 16, 8: Ptr
+    call_complex key, %v_118, 9
+    %v_119 = loads @live, 4: Int
+    %v_120 = add %v_119, 1: Int
+    store @live, %v_120, 4
+    %v_121 = alloca 4, 4: Ptr
+    store %v_121, 90, 4
+    %v_122 = alloca 40, 8: Ptr
+    call_complex newMap(String, Held), %v_122, 3
+    %v_123 = alloca 40, 8: Ptr
+    store %v_123, 0, 8
+    %v_124 = add %v_123, 8: Ptr
+    store %v_124, 0, 8
+    %v_125 = add %v_123, 16: Ptr
+    store %v_125, 0, 8
+    %v_126 = add %v_123, 24: Ptr
+    store %v_126, 0, 8
+    %v_127 = add %v_123, 32: Ptr
+    store %v_127, 0, 8
+    store %v_126, 0, 4
+    store %v_124, 0, 4
+    copy %v_123, %v_122, 40
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_123, %v_110, %v_113
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_123, %v_114, %v_117
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_123, %v_118, %v_121
+    %v_128 = add %v_123, 12: Ptr
+    %v_129 = load %v_128, 4: Int
+    %v_130 = cmp_neq %v_129, 2: Int
+    je %v_130, b_131, b_132
+  }
+
+  b_132 {
+    %v_133 = loads @live, 4: Int
+    %v_134 = cmp_neq %v_133, 6: Int
+    je %v_134, b_135, b_136
+  }
+
+  b_136 {
+    %v_137 = alloca 16, 8: Ptr
+    call_complex key, %v_137, 9
+    %v_138 = call_complex Index(Map(k, v), k, v).get(String, Held), %v_123, %v_137: Ptr
+    call_complex Reclaim(String).reclaim, %v_137
+    %v_139 = loads %v_138, 4: Int
+    %v_140 = cmp_neq %v_139, 90: Int
+    je %v_140, b_141, b_142
+  }
+
+  b_142 {
+    %v_143 = alloca 40, 8: Ptr
+    call_complex newMap(String, Held), %v_143, 0
+    %v_144 = alloca 40, 8: Ptr
+    store %v_144, 0, 8
+    %v_145 = add %v_144, 8: Ptr
+    store %v_145, 0, 8
+    %v_146 = add %v_144, 16: Ptr
+    store %v_146, 0, 8
+    %v_147 = add %v_144, 24: Ptr
+    store %v_147, 0, 8
+    %v_148 = add %v_144, 32: Ptr
+    store %v_148, 0, 8
+    store %v_147, 0, 4
+    store %v_145, 0, 4
+    copy %v_144, %v_143, 40
+    %v_149 = add %v_144, 12: Ptr
+    %v_150 = load %v_149, 4: Int
+    %v_151 = cmp_neq %v_150, 0: Int
+    je %v_151, b_152, b_153
+  }
+
+  b_153 {
+    %v_154 = loads @live, 4: Int
+    %v_155 = cmp_neq %v_154, 6: Int
+    je %v_155, b_156, b_157
+  }
+
+  b_157 {
+    %v_158 = alloca 16, 8: Ptr
+    call_complex key, %v_158, 0
+    %v_159 = loads @live, 4: Int
+    %v_160 = add %v_159, 1: Int
+    store @live, %v_160, 4
+    %v_161 = alloca 4, 4: Ptr
+    store %v_161, 0, 4
+    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_144, %v_158, %v_161
+    %v_162 = loads @live, 4: Int
+    %v_163 = cmp_neq %v_162, 7: Int
+    je %v_163, b_164, b_165
+  }
+
+  b_165 {
+    %v_166 = add %v_14, 12: Ptr
+    %v_167 = load %v_166, 4: Int
+    %v_168 = sext %v_167: Long
+    jmp b_169
+  }
+
+  b_169 {
+    %v_170 = phi [b_165, 0], [b_171, %v_172]: Long
+    %v_173 = cmp_ilt %v_170, %v_168: Int
+    je %v_173, b_171, b_174
+  }
+
+  b_174 {
+    %v_175 = add %v_14, 8: Ptr
+    %v_176 = load %v_175, 4: Int
+    %v_177 = shr %v_176, 30: Int
+    %v_178 = cmp_eq %v_177, 1: Int
+    je %v_178, b_179, b_180
+  }
+
+  b_180 {
+    jmp b_181
+  }
+
+  b_179 {
+    %v_182 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_182
+    jmp b_181
+  }
+
+  b_181 {
+    %v_183 = add %v_14, 24: Ptr
+    %v_184 = load %v_183, 4: Int
+    %v_185 = shr %v_184, 30: Int
+    %v_186 = cmp_eq %v_185, 1: Int
+    je %v_186, b_187, b_188
+  }
+
+  b_188 {
+    jmp b_189
+  }
+
+  b_187 {
+    %v_190 = add %v_14, 16: Ptr
+    %v_191 = load %v_190, 8: Ptr
+    call_complex freeHeap, %v_191
+    jmp b_189
+  }
+
+  b_189 {
+    %v_192 = add %v_123, 12: Ptr
+    %v_193 = load %v_192, 4: Int
+    %v_194 = sext %v_193: Long
+    jmp b_195
+  }
+
+  b_195 {
+    %v_196 = phi [b_189, 0], [b_197, %v_198]: Long
+    %v_199 = cmp_ilt %v_196, %v_194: Int
+    je %v_199, b_197, b_200
+  }
+
+  b_200 {
+    %v_201 = add %v_123, 8: Ptr
+    %v_202 = load %v_201, 4: Int
+    %v_203 = shr %v_202, 30: Int
+    %v_204 = cmp_eq %v_203, 1: Int
+    je %v_204, b_205, b_206
+  }
+
+  b_206 {
+    jmp b_207
+  }
+
+  b_205 {
+    %v_208 = load %v_123, 8: Ptr
+    call_complex freeHeap, %v_208
+    jmp b_207
+  }
+
+  b_207 {
+    %v_209 = add %v_123, 24: Ptr
+    %v_210 = load %v_209, 4: Int
+    %v_211 = shr %v_210, 30: Int
+    %v_212 = cmp_eq %v_211, 1: Int
+    je %v_212, b_213, b_214
+  }
+
+  b_214 {
+    jmp b_215
+  }
+
+  b_213 {
+    %v_216 = add %v_123, 16: Ptr
+    %v_217 = load %v_216, 8: Ptr
+    call_complex freeHeap, %v_217
+    jmp b_215
+  }
+
+  b_215 {
+    %v_218 = add %v_144, 12: Ptr
+    %v_219 = load %v_218, 4: Int
+    %v_220 = load %v_144, 8: Ptr
+    jmp b_221
+  }
+
+  b_221 {
+    %v_222 = phi [b_215, 0], [b_223, %v_224]: Int
+    %v_225 = phi [b_215, %v_220], [b_223, %v_226]: Ptr
+    %v_227 = cmp_ilt %v_222, %v_219: Int
+    je %v_227, b_223, b_228
+  }
+
+  b_228 {
+    %v_229 = add %v_144, 8: Ptr
+    %v_230 = load %v_229, 4: Int
+    %v_231 = shr %v_230, 30: Int
+    %v_232 = cmp_eq %v_231, 1: Int
+    je %v_232, b_233, b_234
+  }
+
+  b_234 {
+    jmp b_235
+  }
+
+  b_233 {
+    %v_236 = load %v_144, 8: Ptr
+    call_complex freeHeap, %v_236
+    jmp b_235
+  }
+
+  b_235 {
+    %v_237 = add %v_144, 24: Ptr
+    %v_238 = load %v_237, 4: Int
+    %v_239 = shr %v_238, 30: Int
+    %v_240 = cmp_eq %v_239, 1: Int
+    je %v_240, b_241, b_242
+  }
+
+  b_242 {
+    jmp b_243
+  }
+
+  b_241 {
+    %v_244 = add %v_144, 16: Ptr
+    %v_245 = load %v_244, 8: Ptr
+    call_complex freeHeap, %v_245
+    jmp b_243
+  }
+
+  b_243 {
+    %v_246 = imul %v_162, 10: Int
+    %v_247 = loads @live, 4: Int
+    %v_248 = add %v_246, %v_247: Int
+    %v_249 = add %v_248, 1: Int
+    ret %v_249
+  }
+
+  b_223 {
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_225, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_250 = loads @live, 4: Int
+    %v_251 = sub %v_250, 1: Int
+    store @live, %v_251, 4
+    %v_224 = add %v_222, 1: Int
+    %v_226 = add %v_225, 24: Ptr
+    jmp b_221
+  }
+
+  b_197 {
+    %v_252 = load %v_123, 8: Ptr
+    %v_253 = imul %v_196, 24: Long
+    %v_254 = add %v_252, %v_253: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_254, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_255 = loads @live, 4: Int
+    %v_256 = sub %v_255, 1: Int
+    store @live, %v_256, 4
+    %v_198 = add %v_196, 1: Long
+    jmp b_195
+  }
+
+  b_171 {
+    %v_257 = load %v_14, 8: Ptr
+    %v_258 = imul %v_170, 24: Long
+    %v_259 = add %v_257, %v_258: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_259, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_260 = loads @live, 4: Int
+    %v_261 = sub %v_260, 1: Int
+    store @live, %v_261, 4
+    %v_172 = add %v_170, 1: Long
+    jmp b_169
+  }
+
+  b_164 {
+    %v_262 = add %v_14, 12: Ptr
+    %v_263 = load %v_262, 4: Int
+    %v_264 = sext %v_263: Long
+    jmp b_265
+  }
+
+  b_265 {
+    %v_266 = phi [b_164, 0], [b_267, %v_268]: Long
+    %v_269 = cmp_ilt %v_266, %v_264: Int
+    je %v_269, b_267, b_270
+  }
+
+  b_270 {
+    %v_271 = add %v_14, 8: Ptr
+    %v_272 = load %v_271, 4: Int
+    %v_273 = shr %v_272, 30: Int
+    %v_274 = cmp_eq %v_273, 1: Int
+    je %v_274, b_275, b_276
+  }
+
+  b_276 {
+    jmp b_277
+  }
+
+  b_275 {
+    %v_278 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_278
+    jmp b_277
+  }
+
+  b_277 {
+    %v_279 = add %v_14, 24: Ptr
+    %v_280 = load %v_279, 4: Int
+    %v_281 = shr %v_280, 30: Int
+    %v_282 = cmp_eq %v_281, 1: Int
+    je %v_282, b_283, b_284
+  }
+
+  b_284 {
+    jmp b_285
+  }
+
+  b_283 {
+    %v_286 = add %v_14, 16: Ptr
+    %v_287 = load %v_286, 8: Ptr
+    call_complex freeHeap, %v_287
+    jmp b_285
+  }
+
+  b_285 {
+    %v_288 = add %v_123, 12: Ptr
+    %v_289 = load %v_288, 4: Int
+    %v_290 = sext %v_289: Long
+    jmp b_291
+  }
+
+  b_291 {
+    %v_292 = phi [b_285, 0], [b_293, %v_294]: Long
+    %v_295 = cmp_ilt %v_292, %v_290: Int
+    je %v_295, b_293, b_296
+  }
+
+  b_296 {
+    %v_297 = add %v_123, 8: Ptr
+    %v_298 = load %v_297, 4: Int
+    %v_299 = shr %v_298, 30: Int
+    %v_300 = cmp_eq %v_299, 1: Int
+    je %v_300, b_301, b_302
+  }
+
+  b_302 {
+    jmp b_303
+  }
+
+  b_301 {
+    %v_304 = load %v_123, 8: Ptr
+    call_complex freeHeap, %v_304
+    jmp b_303
+  }
+
+  b_303 {
+    %v_305 = add %v_123, 24: Ptr
+    %v_306 = load %v_305, 4: Int
+    %v_307 = shr %v_306, 30: Int
+    %v_308 = cmp_eq %v_307, 1: Int
+    je %v_308, b_309, b_310
+  }
+
+  b_310 {
+    jmp b_311
+  }
+
+  b_309 {
+    %v_312 = add %v_123, 16: Ptr
+    %v_313 = load %v_312, 8: Ptr
+    call_complex freeHeap, %v_313
+    jmp b_311
+  }
+
+  b_311 {
+    %v_314 = add %v_144, 12: Ptr
+    %v_315 = load %v_314, 4: Int
+    %v_316 = load %v_144, 8: Ptr
+    jmp b_317
+  }
+
+  b_317 {
+    %v_318 = phi [b_311, 0], [b_319, %v_320]: Int
+    %v_321 = phi [b_311, %v_316], [b_319, %v_322]: Ptr
+    %v_323 = cmp_ilt %v_318, %v_315: Int
+    je %v_323, b_319, b_324
+  }
+
+  b_324 {
+    %v_325 = add %v_144, 8: Ptr
+    %v_326 = load %v_325, 4: Int
+    %v_327 = shr %v_326, 30: Int
+    %v_328 = cmp_eq %v_327, 1: Int
+    je %v_328, b_329, b_330
+  }
+
+  b_330 {
+    jmp b_331
+  }
+
+  b_329 {
+    %v_332 = load %v_144, 8: Ptr
+    call_complex freeHeap, %v_332
+    jmp b_331
+  }
+
+  b_331 {
+    %v_333 = add %v_144, 24: Ptr
+    %v_334 = load %v_333, 4: Int
+    %v_335 = shr %v_334, 30: Int
+    %v_336 = cmp_eq %v_335, 1: Int
+    je %v_336, b_337, b_338
+  }
+
+  b_338 {
+    jmp b_339
+  }
+
+  b_337 {
+    %v_340 = add %v_144, 16: Ptr
+    %v_341 = load %v_340, 8: Ptr
+    call_complex freeHeap, %v_341
+    jmp b_339
+  }
+
+  b_339 {
+    ret 18446744073709551601
+  }
+
+  b_319 {
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_321, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_342 = loads @live, 4: Int
+    %v_343 = sub %v_342, 1: Int
+    store @live, %v_343, 4
+    %v_320 = add %v_318, 1: Int
+    %v_322 = add %v_321, 24: Ptr
+    jmp b_317
+  }
+
+  b_293 {
+    %v_344 = load %v_123, 8: Ptr
+    %v_345 = imul %v_292, 24: Long
+    %v_346 = add %v_344, %v_345: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_346, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_347 = loads @live, 4: Int
+    %v_348 = sub %v_347, 1: Int
+    store @live, %v_348, 4
+    %v_294 = add %v_292, 1: Long
+    jmp b_291
+  }
+
+  b_267 {
+    %v_349 = load %v_14, 8: Ptr
+    %v_350 = imul %v_266, 24: Long
+    %v_351 = add %v_349, %v_350: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_351, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_352 = loads @live, 4: Int
+    %v_353 = sub %v_352, 1: Int
+    store @live, %v_353, 4
+    %v_268 = add %v_266, 1: Long
+    jmp b_265
+  }
+
+  b_156 {
+    %v_354 = add %v_14, 12: Ptr
+    %v_355 = load %v_354, 4: Int
+    %v_356 = sext %v_355: Long
+    jmp b_357
+  }
+
+  b_357 {
+    %v_358 = phi [b_156, 0], [b_359, %v_360]: Long
+    %v_361 = cmp_ilt %v_358, %v_356: Int
+    je %v_361, b_359, b_362
+  }
+
+  b_362 {
+    %v_363 = add %v_14, 8: Ptr
+    %v_364 = load %v_363, 4: Int
+    %v_365 = shr %v_364, 30: Int
+    %v_366 = cmp_eq %v_365, 1: Int
+    je %v_366, b_367, b_368
+  }
+
+  b_368 {
+    jmp b_369
+  }
+
+  b_367 {
+    %v_370 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_370
+    jmp b_369
+  }
+
+  b_369 {
+    %v_371 = add %v_14, 24: Ptr
+    %v_372 = load %v_371, 4: Int
+    %v_373 = shr %v_372, 30: Int
+    %v_374 = cmp_eq %v_373, 1: Int
+    je %v_374, b_375, b_376
+  }
+
+  b_376 {
+    jmp b_377
+  }
+
+  b_375 {
+    %v_378 = add %v_14, 16: Ptr
+    %v_379 = load %v_378, 8: Ptr
+    call_complex freeHeap, %v_379
+    jmp b_377
+  }
+
+  b_377 {
+    %v_380 = add %v_123, 12: Ptr
+    %v_381 = load %v_380, 4: Int
+    %v_382 = sext %v_381: Long
+    jmp b_383
+  }
+
+  b_383 {
+    %v_384 = phi [b_377, 0], [b_385, %v_386]: Long
+    %v_387 = cmp_ilt %v_384, %v_382: Int
+    je %v_387, b_385, b_388
+  }
+
+  b_388 {
+    %v_389 = add %v_123, 8: Ptr
+    %v_390 = load %v_389, 4: Int
+    %v_391 = shr %v_390, 30: Int
+    %v_392 = cmp_eq %v_391, 1: Int
+    je %v_392, b_393, b_394
+  }
+
+  b_394 {
+    jmp b_395
+  }
+
+  b_393 {
+    %v_396 = load %v_123, 8: Ptr
+    call_complex freeHeap, %v_396
+    jmp b_395
+  }
+
+  b_395 {
+    %v_397 = add %v_123, 24: Ptr
+    %v_398 = load %v_397, 4: Int
+    %v_399 = shr %v_398, 30: Int
+    %v_400 = cmp_eq %v_399, 1: Int
+    je %v_400, b_401, b_402
+  }
+
+  b_402 {
+    jmp b_403
+  }
+
+  b_401 {
+    %v_404 = add %v_123, 16: Ptr
+    %v_405 = load %v_404, 8: Ptr
+    call_complex freeHeap, %v_405
+    jmp b_403
+  }
+
+  b_403 {
+    %v_406 = add %v_144, 12: Ptr
+    %v_407 = load %v_406, 4: Int
+    %v_408 = load %v_144, 8: Ptr
+    jmp b_409
+  }
+
+  b_409 {
+    %v_410 = phi [b_403, 0], [b_411, %v_412]: Int
+    %v_413 = phi [b_403, %v_408], [b_411, %v_414]: Ptr
+    %v_415 = cmp_ilt %v_410, %v_407: Int
+    je %v_415, b_411, b_416
+  }
+
+  b_416 {
+    %v_417 = add %v_144, 8: Ptr
+    %v_418 = load %v_417, 4: Int
+    %v_419 = shr %v_418, 30: Int
+    %v_420 = cmp_eq %v_419, 1: Int
+    je %v_420, b_421, b_422
+  }
+
+  b_422 {
+    jmp b_423
+  }
+
+  b_421 {
+    %v_424 = load %v_144, 8: Ptr
+    call_complex freeHeap, %v_424
+    jmp b_423
+  }
+
+  b_423 {
+    %v_425 = add %v_144, 24: Ptr
+    %v_426 = load %v_425, 4: Int
+    %v_427 = shr %v_426, 30: Int
+    %v_428 = cmp_eq %v_427, 1: Int
+    je %v_428, b_429, b_430
+  }
+
+  b_430 {
+    jmp b_431
+  }
+
+  b_429 {
+    %v_432 = add %v_144, 16: Ptr
+    %v_433 = load %v_432, 8: Ptr
+    call_complex freeHeap, %v_433
+    jmp b_431
+  }
+
+  b_431 {
+    ret 18446744073709551602
+  }
+
+  b_411 {
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_413, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_434 = loads @live, 4: Int
+    %v_435 = sub %v_434, 1: Int
+    store @live, %v_435, 4
+    %v_412 = add %v_410, 1: Int
+    %v_414 = add %v_413, 24: Ptr
+    jmp b_409
+  }
+
+  b_385 {
+    %v_436 = load %v_123, 8: Ptr
+    %v_437 = imul %v_384, 24: Long
+    %v_438 = add %v_436, %v_437: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_438, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_439 = loads @live, 4: Int
+    %v_440 = sub %v_439, 1: Int
+    store @live, %v_440, 4
+    %v_386 = add %v_384, 1: Long
+    jmp b_383
+  }
+
+  b_359 {
+    %v_441 = load %v_14, 8: Ptr
+    %v_442 = imul %v_358, 24: Long
+    %v_443 = add %v_441, %v_442: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_443, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_444 = loads @live, 4: Int
+    %v_445 = sub %v_444, 1: Int
+    store @live, %v_445, 4
+    %v_360 = add %v_358, 1: Long
+    jmp b_357
+  }
+
+  b_152 {
+    %v_446 = add %v_14, 12: Ptr
+    %v_447 = load %v_446, 4: Int
+    %v_448 = sext %v_447: Long
+    jmp b_449
+  }
+
+  b_449 {
+    %v_450 = phi [b_152, 0], [b_451, %v_452]: Long
+    %v_453 = cmp_ilt %v_450, %v_448: Int
+    je %v_453, b_451, b_454
+  }
+
+  b_454 {
+    %v_455 = add %v_14, 8: Ptr
+    %v_456 = load %v_455, 4: Int
+    %v_457 = shr %v_456, 30: Int
+    %v_458 = cmp_eq %v_457, 1: Int
+    je %v_458, b_459, b_460
+  }
+
+  b_460 {
+    jmp b_461
+  }
+
+  b_459 {
+    %v_462 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_462
+    jmp b_461
+  }
+
+  b_461 {
+    %v_463 = add %v_14, 24: Ptr
+    %v_464 = load %v_463, 4: Int
+    %v_465 = shr %v_464, 30: Int
+    %v_466 = cmp_eq %v_465, 1: Int
+    je %v_466, b_467, b_468
+  }
+
+  b_468 {
+    jmp b_469
+  }
+
+  b_467 {
+    %v_470 = add %v_14, 16: Ptr
+    %v_471 = load %v_470, 8: Ptr
+    call_complex freeHeap, %v_471
+    jmp b_469
+  }
+
+  b_469 {
+    %v_472 = add %v_123, 12: Ptr
+    %v_473 = load %v_472, 4: Int
+    %v_474 = sext %v_473: Long
+    jmp b_475
+  }
+
+  b_475 {
+    %v_476 = phi [b_469, 0], [b_477, %v_478]: Long
+    %v_479 = cmp_ilt %v_476, %v_474: Int
+    je %v_479, b_477, b_480
+  }
+
+  b_480 {
+    %v_481 = add %v_123, 8: Ptr
+    %v_482 = load %v_481, 4: Int
+    %v_483 = shr %v_482, 30: Int
+    %v_484 = cmp_eq %v_483, 1: Int
+    je %v_484, b_485, b_486
+  }
+
+  b_486 {
+    jmp b_487
+  }
+
+  b_485 {
+    %v_488 = load %v_123, 8: Ptr
+    call_complex freeHeap, %v_488
+    jmp b_487
+  }
+
+  b_487 {
+    %v_489 = add %v_123, 24: Ptr
+    %v_490 = load %v_489, 4: Int
+    %v_491 = shr %v_490, 30: Int
+    %v_492 = cmp_eq %v_491, 1: Int
+    je %v_492, b_493, b_494
+  }
+
+  b_494 {
+    jmp b_495
+  }
+
+  b_493 {
+    %v_496 = add %v_123, 16: Ptr
+    %v_497 = load %v_496, 8: Ptr
+    call_complex freeHeap, %v_497
+    jmp b_495
+  }
+
+  b_495 {
+    %v_498 = add %v_144, 12: Ptr
+    %v_499 = load %v_498, 4: Int
+    %v_500 = load %v_144, 8: Ptr
+    jmp b_501
+  }
+
+  b_501 {
+    %v_502 = phi [b_495, 0], [b_503, %v_504]: Int
+    %v_505 = phi [b_495, %v_500], [b_503, %v_506]: Ptr
+    %v_507 = cmp_ilt %v_502, %v_499: Int
+    je %v_507, b_503, b_508
+  }
+
+  b_508 {
+    %v_509 = add %v_144, 8: Ptr
+    %v_510 = load %v_509, 4: Int
+    %v_511 = shr %v_510, 30: Int
+    %v_512 = cmp_eq %v_511, 1: Int
+    je %v_512, b_513, b_514
+  }
+
+  b_514 {
+    jmp b_515
+  }
+
+  b_513 {
+    %v_516 = load %v_144, 8: Ptr
+    call_complex freeHeap, %v_516
+    jmp b_515
+  }
+
+  b_515 {
+    %v_517 = add %v_144, 24: Ptr
+    %v_518 = load %v_517, 4: Int
+    %v_519 = shr %v_518, 30: Int
+    %v_520 = cmp_eq %v_519, 1: Int
+    je %v_520, b_521, b_522
+  }
+
+  b_522 {
+    jmp b_523
+  }
+
+  b_521 {
+    %v_524 = add %v_144, 16: Ptr
+    %v_525 = load %v_524, 8: Ptr
+    call_complex freeHeap, %v_525
+    jmp b_523
+  }
+
+  b_523 {
+    ret 18446744073709551603
+  }
+
+  b_503 {
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_505, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_526 = loads @live, 4: Int
+    %v_527 = sub %v_526, 1: Int
+    store @live, %v_527, 4
+    %v_504 = add %v_502, 1: Int
+    %v_506 = add %v_505, 24: Ptr
+    jmp b_501
+  }
+
+  b_477 {
+    %v_528 = load %v_123, 8: Ptr
+    %v_529 = imul %v_476, 24: Long
+    %v_530 = add %v_528, %v_529: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_530, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_531 = loads @live, 4: Int
+    %v_532 = sub %v_531, 1: Int
+    store @live, %v_532, 4
+    %v_478 = add %v_476, 1: Long
+    jmp b_475
+  }
+
+  b_451 {
+    %v_533 = load %v_14, 8: Ptr
+    %v_534 = imul %v_450, 24: Long
+    %v_535 = add %v_533, %v_534: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_535, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_536 = loads @live, 4: Int
+    %v_537 = sub %v_536, 1: Int
+    store @live, %v_537, 4
+    %v_452 = add %v_450, 1: Long
+    jmp b_449
+  }
+
+  b_141 {
+    %v_538 = add %v_14, 12: Ptr
+    %v_539 = load %v_538, 4: Int
+    %v_540 = sext %v_539: Long
+    jmp b_541
+  }
+
+  b_541 {
+    %v_542 = phi [b_141, 0], [b_543, %v_544]: Long
+    %v_545 = cmp_ilt %v_542, %v_540: Int
+    je %v_545, b_543, b_546
+  }
+
+  b_546 {
+    %v_547 = add %v_14, 8: Ptr
+    %v_548 = load %v_547, 4: Int
+    %v_549 = shr %v_548, 30: Int
+    %v_550 = cmp_eq %v_549, 1: Int
+    je %v_550, b_551, b_552
+  }
+
+  b_552 {
+    jmp b_553
+  }
+
+  b_551 {
+    %v_554 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_554
+    jmp b_553
+  }
+
+  b_553 {
+    %v_555 = add %v_14, 24: Ptr
+    %v_556 = load %v_555, 4: Int
+    %v_557 = shr %v_556, 30: Int
+    %v_558 = cmp_eq %v_557, 1: Int
+    je %v_558, b_559, b_560
+  }
+
+  b_560 {
+    jmp b_561
+  }
+
+  b_559 {
+    %v_562 = add %v_14, 16: Ptr
+    %v_563 = load %v_562, 8: Ptr
+    call_complex freeHeap, %v_563
+    jmp b_561
+  }
+
+  b_561 {
+    %v_564 = add %v_123, 12: Ptr
+    %v_565 = load %v_564, 4: Int
+    %v_566 = sext %v_565: Long
+    jmp b_567
+  }
+
+  b_567 {
+    %v_568 = phi [b_561, 0], [b_569, %v_570]: Long
+    %v_571 = cmp_ilt %v_568, %v_566: Int
+    je %v_571, b_569, b_572
+  }
+
+  b_572 {
+    %v_573 = add %v_123, 8: Ptr
+    %v_574 = load %v_573, 4: Int
+    %v_575 = shr %v_574, 30: Int
+    %v_576 = cmp_eq %v_575, 1: Int
+    je %v_576, b_577, b_578
+  }
+
+  b_578 {
+    jmp b_579
+  }
+
+  b_577 {
+    %v_580 = load %v_123, 8: Ptr
+    call_complex freeHeap, %v_580
+    jmp b_579
+  }
+
+  b_579 {
+    %v_581 = add %v_123, 24: Ptr
+    %v_582 = load %v_581, 4: Int
+    %v_583 = shr %v_582, 30: Int
+    %v_584 = cmp_eq %v_583, 1: Int
+    je %v_584, b_585, b_586
+  }
+
+  b_586 {
+    jmp b_587
+  }
+
+  b_585 {
+    %v_588 = add %v_123, 16: Ptr
+    %v_589 = load %v_588, 8: Ptr
+    call_complex freeHeap, %v_589
+    jmp b_587
+  }
+
+  b_587 {
+    ret 18446744073709551604
+  }
+
+  b_569 {
+    %v_590 = load %v_123, 8: Ptr
+    %v_591 = imul %v_568, 24: Long
+    %v_592 = add %v_590, %v_591: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_592, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_593 = loads @live, 4: Int
+    %v_594 = sub %v_593, 1: Int
+    store @live, %v_594, 4
+    %v_570 = add %v_568, 1: Long
+    jmp b_567
+  }
+
+  b_543 {
+    %v_595 = load %v_14, 8: Ptr
+    %v_596 = imul %v_542, 24: Long
+    %v_597 = add %v_595, %v_596: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_597, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_598 = loads @live, 4: Int
+    %v_599 = sub %v_598, 1: Int
+    store @live, %v_599, 4
+    %v_544 = add %v_542, 1: Long
+    jmp b_541
+  }
+
+  b_135 {
+    %v_600 = add %v_14, 12: Ptr
+    %v_601 = load %v_600, 4: Int
+    %v_602 = sext %v_601: Long
+    jmp b_603
+  }
+
+  b_603 {
+    %v_604 = phi [b_135, 0], [b_605, %v_606]: Long
+    %v_607 = cmp_ilt %v_604, %v_602: Int
+    je %v_607, b_605, b_608
+  }
+
+  b_608 {
+    %v_609 = add %v_14, 8: Ptr
+    %v_610 = load %v_609, 4: Int
+    %v_611 = shr %v_610, 30: Int
+    %v_612 = cmp_eq %v_611, 1: Int
+    je %v_612, b_613, b_614
+  }
+
+  b_614 {
+    jmp b_615
+  }
+
+  b_613 {
+    %v_616 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_616
+    jmp b_615
+  }
+
+  b_615 {
+    %v_617 = add %v_14, 24: Ptr
+    %v_618 = load %v_617, 4: Int
+    %v_619 = shr %v_618, 30: Int
+    %v_620 = cmp_eq %v_619, 1: Int
+    je %v_620, b_621, b_622
+  }
+
+  b_622 {
+    jmp b_623
+  }
+
+  b_621 {
+    %v_624 = add %v_14, 16: Ptr
+    %v_625 = load %v_624, 8: Ptr
+    call_complex freeHeap, %v_625
+    jmp b_623
+  }
+
+  b_623 {
+    %v_626 = add %v_123, 12: Ptr
+    %v_627 = load %v_626, 4: Int
+    %v_628 = sext %v_627: Long
+    jmp b_629
+  }
+
+  b_629 {
+    %v_630 = phi [b_623, 0], [b_631, %v_632]: Long
+    %v_633 = cmp_ilt %v_630, %v_628: Int
+    je %v_633, b_631, b_634
+  }
+
+  b_634 {
+    %v_635 = add %v_123, 8: Ptr
+    %v_636 = load %v_635, 4: Int
+    %v_637 = shr %v_636, 30: Int
+    %v_638 = cmp_eq %v_637, 1: Int
+    je %v_638, b_639, b_640
+  }
+
+  b_640 {
+    jmp b_641
+  }
+
+  b_639 {
+    %v_642 = load %v_123, 8: Ptr
+    call_complex freeHeap, %v_642
+    jmp b_641
+  }
+
+  b_641 {
+    %v_643 = add %v_123, 24: Ptr
+    %v_644 = load %v_643, 4: Int
+    %v_645 = shr %v_644, 30: Int
+    %v_646 = cmp_eq %v_645, 1: Int
+    je %v_646, b_647, b_648
+  }
+
+  b_648 {
+    jmp b_649
+  }
+
+  b_647 {
+    %v_650 = add %v_123, 16: Ptr
+    %v_651 = load %v_650, 8: Ptr
+    call_complex freeHeap, %v_651
+    jmp b_649
+  }
+
+  b_649 {
+    ret 18446744073709551605
+  }
+
+  b_631 {
+    %v_652 = load %v_123, 8: Ptr
+    %v_653 = imul %v_630, 24: Long
+    %v_654 = add %v_652, %v_653: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_654, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_655 = loads @live, 4: Int
+    %v_656 = sub %v_655, 1: Int
+    store @live, %v_656, 4
+    %v_632 = add %v_630, 1: Long
+    jmp b_629
+  }
+
+  b_605 {
+    %v_657 = load %v_14, 8: Ptr
+    %v_658 = imul %v_604, 24: Long
+    %v_659 = add %v_657, %v_658: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_659, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_660 = loads @live, 4: Int
+    %v_661 = sub %v_660, 1: Int
+    store @live, %v_661, 4
+    %v_606 = add %v_604, 1: Long
+    jmp b_603
+  }
+
+  b_131 {
+    %v_662 = add %v_14, 12: Ptr
+    %v_663 = load %v_662, 4: Int
+    %v_664 = sext %v_663: Long
+    jmp b_665
+  }
+
+  b_665 {
+    %v_666 = phi [b_131, 0], [b_667, %v_668]: Long
+    %v_669 = cmp_ilt %v_666, %v_664: Int
+    je %v_669, b_667, b_670
+  }
+
+  b_670 {
+    %v_671 = add %v_14, 8: Ptr
+    %v_672 = load %v_671, 4: Int
+    %v_673 = shr %v_672, 30: Int
+    %v_674 = cmp_eq %v_673, 1: Int
+    je %v_674, b_675, b_676
+  }
+
+  b_676 {
+    jmp b_677
+  }
+
+  b_675 {
+    %v_678 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_678
+    jmp b_677
+  }
+
+  b_677 {
+    %v_679 = add %v_14, 24: Ptr
+    %v_680 = load %v_679, 4: Int
+    %v_681 = shr %v_680, 30: Int
+    %v_682 = cmp_eq %v_681, 1: Int
+    je %v_682, b_683, b_684
+  }
+
+  b_684 {
+    jmp b_685
+  }
+
+  b_683 {
+    %v_686 = add %v_14, 16: Ptr
+    %v_687 = load %v_686, 8: Ptr
+    call_complex freeHeap, %v_687
+    jmp b_685
+  }
+
+  b_685 {
+    %v_688 = add %v_123, 12: Ptr
+    %v_689 = load %v_688, 4: Int
+    %v_690 = sext %v_689: Long
+    jmp b_691
+  }
+
+  b_691 {
+    %v_692 = phi [b_685, 0], [b_693, %v_694]: Long
+    %v_695 = cmp_ilt %v_692, %v_690: Int
+    je %v_695, b_693, b_696
+  }
+
+  b_696 {
+    %v_697 = add %v_123, 8: Ptr
+    %v_698 = load %v_697, 4: Int
+    %v_699 = shr %v_698, 30: Int
+    %v_700 = cmp_eq %v_699, 1: Int
+    je %v_700, b_701, b_702
+  }
+
+  b_702 {
+    jmp b_703
+  }
+
+  b_701 {
+    %v_704 = load %v_123, 8: Ptr
+    call_complex freeHeap, %v_704
+    jmp b_703
+  }
+
+  b_703 {
+    %v_705 = add %v_123, 24: Ptr
+    %v_706 = load %v_705, 4: Int
+    %v_707 = shr %v_706, 30: Int
+    %v_708 = cmp_eq %v_707, 1: Int
+    je %v_708, b_709, b_710
+  }
+
+  b_710 {
+    jmp b_711
+  }
+
+  b_709 {
+    %v_712 = add %v_123, 16: Ptr
+    %v_713 = load %v_712, 8: Ptr
+    call_complex freeHeap, %v_713
+    jmp b_711
+  }
+
+  b_711 {
+    ret 18446744073709551606
+  }
+
+  b_693 {
+    %v_714 = load %v_123, 8: Ptr
+    %v_715 = imul %v_692, 24: Long
+    %v_716 = add %v_714, %v_715: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_716, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_717 = loads @live, 4: Int
+    %v_718 = sub %v_717, 1: Int
+    store @live, %v_718, 4
+    %v_694 = add %v_692, 1: Long
+    jmp b_691
+  }
+
+  b_667 {
+    %v_719 = load %v_14, 8: Ptr
+    %v_720 = imul %v_666, 24: Long
+    %v_721 = add %v_719, %v_720: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_721, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_722 = loads @live, 4: Int
+    %v_723 = sub %v_722, 1: Int
+    store @live, %v_723, 4
+    %v_668 = add %v_666, 1: Long
+    jmp b_665
+  }
+
+  b_108 {
+    %v_724 = add %v_14, 12: Ptr
+    %v_725 = load %v_724, 4: Int
+    %v_726 = sext %v_725: Long
+    jmp b_727
+  }
+
+  b_727 {
+    %v_728 = phi [b_108, 0], [b_729, %v_730]: Long
+    %v_731 = cmp_ilt %v_728, %v_726: Int
+    je %v_731, b_729, b_732
+  }
+
+  b_732 {
+    %v_733 = add %v_14, 8: Ptr
+    %v_734 = load %v_733, 4: Int
+    %v_735 = shr %v_734, 30: Int
+    %v_736 = cmp_eq %v_735, 1: Int
+    je %v_736, b_737, b_738
+  }
+
+  b_738 {
+    jmp b_739
+  }
+
+  b_737 {
+    %v_740 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_740
+    jmp b_739
+  }
+
+  b_739 {
+    %v_741 = add %v_14, 24: Ptr
+    %v_742 = load %v_741, 4: Int
+    %v_743 = shr %v_742, 30: Int
+    %v_744 = cmp_eq %v_743, 1: Int
+    je %v_744, b_745, b_746
+  }
+
+  b_746 {
+    jmp b_747
+  }
+
+  b_745 {
+    %v_748 = add %v_14, 16: Ptr
+    %v_749 = load %v_748, 8: Ptr
+    call_complex freeHeap, %v_749
+    jmp b_747
+  }
+
+  b_747 {
+    ret 18446744073709551607
+  }
+
+  b_729 {
+    %v_750 = load %v_14, 8: Ptr
+    %v_751 = imul %v_728, 24: Long
+    %v_752 = add %v_750, %v_751: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_752, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_753 = loads @live, 4: Int
+    %v_754 = sub %v_753, 1: Int
+    store @live, %v_754, 4
+    %v_730 = add %v_728, 1: Long
+    jmp b_727
   }
 
   b_102 {
-    %v_103 = alloca 40, 8: Ptr
-    call_complex newMap(String, Held), %v_103, 0
-    %v_104 = alloca 40, 8: Ptr
-    store %v_104, 0, 8
-    %v_105 = add %v_104, 8: Ptr
-    store %v_105, 0, 8
-    %v_106 = add %v_104, 16: Ptr
-    store %v_106, 0, 8
-    %v_107 = add %v_104, 24: Ptr
-    store %v_107, 0, 8
-    %v_108 = add %v_104, 32: Ptr
-    store %v_108, 0, 8
-    copy %v_104, %v_103, 40
-    %v_109 = add %v_104, 12: Ptr
-    %v_110 = load %v_109, 4: Int
-    %v_111 = cmp_neq %v_110, 0: Int
-    je %v_111, b_112, b_113
+    %v_755 = sext %v_96: Long
+    jmp b_756
   }
 
-  b_113 {
-    %v_114 = loads @live, 4: Int
-    %v_115 = cmp_neq %v_114, 6: Int
-    je %v_115, b_112, b_116
+  b_756 {
+    %v_757 = phi [b_102, 0], [b_758, %v_759]: Long
+    %v_760 = cmp_ilt %v_757, %v_755: Int
+    je %v_760, b_758, b_761
   }
 
-  b_116 {
-    %v_117 = alloca 16, 8: Ptr
-    call_complex key, %v_117, 0
-    %v_118 = loads @live, 4: Int
-    %v_119 = add %v_118, 1: Int
-    store @live, %v_119, 4
-    %v_120 = alloca 4, 4: Ptr
-    store %v_120, 0, 4
-    call_complex IndexInsert(Map(k, v), k, v).insertAt(String, Held), %v_104, %v_117, %v_120
-    %v_121 = loads @live, 4: Int
-    %v_122 = cmp_neq %v_121, 7: Int
-    je %v_122, b_112, b_123
+  b_761 {
+    %v_762 = add %v_14, 8: Ptr
+    %v_763 = load %v_762, 4: Int
+    %v_764 = shr %v_763, 30: Int
+    %v_765 = cmp_eq %v_764, 1: Int
+    je %v_765, b_766, b_767
   }
 
-  b_123 {
-    call_complex drop$Map(String, Held), %v_14
-    call_complex reclaim$Map(String, Held), %v_14
-    call_complex drop$Map(String, Held), %v_85
-    call_complex reclaim$Map(String, Held), %v_85
-    call_complex drop$Map(String, Held), %v_104
-    call_complex reclaim$Map(String, Held), %v_104
-    %v_124 = imul %v_121, 10: Int
-    %v_125 = loads @live, 4: Int
-    %v_126 = add %v_124, %v_125: Int
-    %v_127 = add %v_126, 1: Int
-    ret %v_127
+  b_767 {
+    jmp b_768
   }
 
-  b_112 {
-    %v_128 = phi [b_116, 18446744073709551601], [b_113, 18446744073709551602], [b_102, 18446744073709551603]: Int
-    call_complex drop$Map(String, Held), %v_14
-    call_complex reclaim$Map(String, Held), %v_14
-    call_complex drop$Map(String, Held), %v_85
-    call_complex reclaim$Map(String, Held), %v_85
-    call_complex drop$Map(String, Held), %v_104
-    call_complex reclaim$Map(String, Held), %v_104
-    ret %v_128
+  b_766 {
+    %v_769 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_769
+    jmp b_768
   }
 
-  b_93 {
-    %v_129 = phi [b_97, 18446744073709551604], [b_94, 18446744073709551605], [b_71, 18446744073709551606]: Int
-    call_complex drop$Map(String, Held), %v_14
-    call_complex reclaim$Map(String, Held), %v_14
-    call_complex drop$Map(String, Held), %v_85
-    call_complex reclaim$Map(String, Held), %v_85
-    ret %v_129
-  }
-}
-
-drop$Map(String, Held)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 12: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = sext %v_2: Long
-    jmp b_4
+  b_768 {
+    %v_770 = add %v_14, 24: Ptr
+    %v_771 = load %v_770, 4: Int
+    %v_772 = shr %v_771, 30: Int
+    %v_773 = cmp_eq %v_772, 1: Int
+    je %v_773, b_774, b_775
   }
 
-  b_4 {
-    %v_5 = phi [b_0, 0], [b_6, %v_7]: Long
-    %v_8 = cmp_ilt %v_5, %v_3: Int
-    je %v_8, b_6, b_9
+  b_775 {
+    jmp b_776
   }
 
-  b_9 {
-    %v_10 = add %value, 8: Ptr
-    %v_11 = load %v_10, 4: Int
-    %v_12 = shr %v_11, 30: Int
-    %v_13 = cmp_eq %v_12, 1: Int
-    je %v_13, b_14, b_15
+  b_774 {
+    %v_777 = add %v_14, 16: Ptr
+    %v_778 = load %v_777, 8: Ptr
+    call_complex freeHeap, %v_778
+    jmp b_776
   }
 
-  b_15 {
-    jmp b_16
+  b_776 {
+    ret 18446744073709551608
   }
 
-  b_14 {
-    %v_17 = load %value, 8: Ptr
-    call_complex freeHeap, %v_17
-    jmp b_16
-  }
-
-  b_16 {
-    ret 
-  }
-
-  b_6 {
-    %v_18 = load %value, 8: Ptr
-    %v_19 = imul %v_5, 24: Long
-    %v_20 = add %v_18, %v_19: Ptr
+  b_758 {
+    %v_779 = load %v_14, 8: Ptr
+    %v_780 = imul %v_757, 24: Long
+    %v_781 = add %v_779, %v_780: Ptr
     %doomed = alloca 20, 8: Ptr
-    copy %doomed, %v_20, 20
-    %v_21 = loads @live, 4: Int
-    %v_22 = sub %v_21, 1: Int
-    store @live, %v_22, 4
+    copy %doomed, %v_781, 20
     call_complex Reclaim(String).reclaim, %doomed
-    %v_7 = add %v_5, 1: Long
-    jmp b_4
-  }
-}
-
-reclaim$Map(String, Held)<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 24: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
-    je %v_4, b_5, b_6
+    %v_782 = loads @live, 4: Int
+    %v_783 = sub %v_782, 1: Int
+    store @live, %v_783, 4
+    %v_759 = add %v_757, 1: Long
+    jmp b_756
   }
 
-  b_6 {
-    jmp b_7
+  b_98 {
+    %v_784 = sext %v_96: Long
+    jmp b_785
   }
 
-  b_5 {
-    %v_8 = add %value, 16: Ptr
-    %v_9 = load %v_8, 8: Ptr
-    call_complex freeHeap, %v_9
-    jmp b_7
+  b_785 {
+    %v_786 = phi [b_98, 0], [b_787, %v_788]: Long
+    %v_789 = cmp_ilt %v_786, %v_784: Int
+    je %v_789, b_787, b_790
   }
 
-  b_7 {
-    ret 
+  b_790 {
+    %v_791 = add %v_14, 8: Ptr
+    %v_792 = load %v_791, 4: Int
+    %v_793 = shr %v_792, 30: Int
+    %v_794 = cmp_eq %v_793, 1: Int
+    je %v_794, b_795, b_796
+  }
+
+  b_796 {
+    jmp b_797
+  }
+
+  b_795 {
+    %v_798 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_798
+    jmp b_797
+  }
+
+  b_797 {
+    %v_799 = add %v_14, 24: Ptr
+    %v_800 = load %v_799, 4: Int
+    %v_801 = shr %v_800, 30: Int
+    %v_802 = cmp_eq %v_801, 1: Int
+    je %v_802, b_803, b_804
+  }
+
+  b_804 {
+    jmp b_805
+  }
+
+  b_803 {
+    %v_806 = add %v_14, 16: Ptr
+    %v_807 = load %v_806, 8: Ptr
+    call_complex freeHeap, %v_807
+    jmp b_805
+  }
+
+  b_805 {
+    ret 18446744073709551609
+  }
+
+  b_787 {
+    %v_808 = load %v_14, 8: Ptr
+    %v_809 = imul %v_786, 24: Long
+    %v_810 = add %v_808, %v_809: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_810, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_811 = loads @live, 4: Int
+    %v_812 = sub %v_811, 1: Int
+    store @live, %v_812, 4
+    %v_788 = add %v_786, 1: Long
+    jmp b_785
+  }
+
+  b_89 {
+    %v_813 = sext %v_83: Long
+    jmp b_814
+  }
+
+  b_814 {
+    %v_815 = phi [b_89, 0], [b_816, %v_817]: Long
+    %v_818 = cmp_ilt %v_815, %v_813: Int
+    je %v_818, b_816, b_819
+  }
+
+  b_819 {
+    %v_820 = add %v_14, 8: Ptr
+    %v_821 = load %v_820, 4: Int
+    %v_822 = shr %v_821, 30: Int
+    %v_823 = cmp_eq %v_822, 1: Int
+    je %v_823, b_824, b_825
+  }
+
+  b_825 {
+    jmp b_826
+  }
+
+  b_824 {
+    %v_827 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_827
+    jmp b_826
+  }
+
+  b_826 {
+    %v_828 = add %v_14, 24: Ptr
+    %v_829 = load %v_828, 4: Int
+    %v_830 = shr %v_829, 30: Int
+    %v_831 = cmp_eq %v_830, 1: Int
+    je %v_831, b_832, b_833
+  }
+
+  b_833 {
+    jmp b_834
+  }
+
+  b_832 {
+    %v_835 = add %v_14, 16: Ptr
+    %v_836 = load %v_835, 8: Ptr
+    call_complex freeHeap, %v_836
+    jmp b_834
+  }
+
+  b_834 {
+    ret 18446744073709551610
+  }
+
+  b_816 {
+    %v_837 = load %v_14, 8: Ptr
+    %v_838 = imul %v_815, 24: Long
+    %v_839 = add %v_837, %v_838: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_839, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_840 = loads @live, 4: Int
+    %v_841 = sub %v_840, 1: Int
+    store @live, %v_841, 4
+    %v_817 = add %v_815, 1: Long
+    jmp b_814
+  }
+
+  b_85 {
+    %v_842 = sext %v_83: Long
+    jmp b_843
+  }
+
+  b_843 {
+    %v_844 = phi [b_85, 0], [b_845, %v_846]: Long
+    %v_847 = cmp_ilt %v_844, %v_842: Int
+    je %v_847, b_845, b_848
+  }
+
+  b_848 {
+    %v_849 = add %v_14, 8: Ptr
+    %v_850 = load %v_849, 4: Int
+    %v_851 = shr %v_850, 30: Int
+    %v_852 = cmp_eq %v_851, 1: Int
+    je %v_852, b_853, b_854
+  }
+
+  b_854 {
+    jmp b_855
+  }
+
+  b_853 {
+    %v_856 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_856
+    jmp b_855
+  }
+
+  b_855 {
+    %v_857 = add %v_14, 24: Ptr
+    %v_858 = load %v_857, 4: Int
+    %v_859 = shr %v_858, 30: Int
+    %v_860 = cmp_eq %v_859, 1: Int
+    je %v_860, b_861, b_862
+  }
+
+  b_862 {
+    jmp b_863
+  }
+
+  b_861 {
+    %v_864 = add %v_14, 16: Ptr
+    %v_865 = load %v_864, 8: Ptr
+    call_complex freeHeap, %v_865
+    jmp b_863
+  }
+
+  b_863 {
+    ret 18446744073709551611
+  }
+
+  b_845 {
+    %v_866 = load %v_14, 8: Ptr
+    %v_867 = imul %v_844, 24: Long
+    %v_868 = add %v_866, %v_867: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_868, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_869 = loads @live, 4: Int
+    %v_870 = sub %v_869, 1: Int
+    store @live, %v_870, 4
+    %v_846 = add %v_844, 1: Long
+    jmp b_843
+  }
+
+  b_76 {
+    %v_871 = add %v_14, 12: Ptr
+    %v_872 = load %v_871, 4: Int
+    %v_873 = sext %v_872: Long
+    jmp b_874
+  }
+
+  b_874 {
+    %v_875 = phi [b_76, 0], [b_876, %v_877]: Long
+    %v_878 = cmp_ilt %v_875, %v_873: Int
+    je %v_878, b_876, b_879
+  }
+
+  b_879 {
+    %v_880 = add %v_14, 8: Ptr
+    %v_881 = load %v_880, 4: Int
+    %v_882 = shr %v_881, 30: Int
+    %v_883 = cmp_eq %v_882, 1: Int
+    je %v_883, b_884, b_885
+  }
+
+  b_885 {
+    jmp b_886
+  }
+
+  b_884 {
+    %v_887 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_887
+    jmp b_886
+  }
+
+  b_886 {
+    %v_888 = add %v_14, 24: Ptr
+    %v_889 = load %v_888, 4: Int
+    %v_890 = shr %v_889, 30: Int
+    %v_891 = cmp_eq %v_890, 1: Int
+    je %v_891, b_892, b_893
+  }
+
+  b_893 {
+    jmp b_894
+  }
+
+  b_892 {
+    %v_895 = add %v_14, 16: Ptr
+    %v_896 = load %v_895, 8: Ptr
+    call_complex freeHeap, %v_896
+    jmp b_894
+  }
+
+  b_894 {
+    ret 18446744073709551613
+  }
+
+  b_876 {
+    %v_897 = load %v_14, 8: Ptr
+    %v_898 = imul %v_875, 24: Long
+    %v_899 = add %v_897, %v_898: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_899, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_900 = loads @live, 4: Int
+    %v_901 = sub %v_900, 1: Int
+    store @live, %v_901, 4
+    %v_877 = add %v_875, 1: Long
+    jmp b_874
+  }
+
+  b_26 {
+    %v_902 = sext %v_20: Long
+    jmp b_903
+  }
+
+  b_903 {
+    %v_904 = phi [b_26, 0], [b_905, %v_906]: Long
+    %v_907 = cmp_ilt %v_904, %v_902: Int
+    je %v_907, b_905, b_908
+  }
+
+  b_908 {
+    %v_909 = add %v_14, 8: Ptr
+    %v_910 = load %v_909, 4: Int
+    %v_911 = shr %v_910, 30: Int
+    %v_912 = cmp_eq %v_911, 1: Int
+    je %v_912, b_913, b_914
+  }
+
+  b_914 {
+    jmp b_915
+  }
+
+  b_913 {
+    %v_916 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_916
+    jmp b_915
+  }
+
+  b_915 {
+    %v_917 = add %v_14, 24: Ptr
+    %v_918 = load %v_917, 4: Int
+    %v_919 = shr %v_918, 30: Int
+    %v_920 = cmp_eq %v_919, 1: Int
+    je %v_920, b_921, b_922
+  }
+
+  b_922 {
+    jmp b_923
+  }
+
+  b_921 {
+    %v_924 = add %v_14, 16: Ptr
+    %v_925 = load %v_924, 8: Ptr
+    call_complex freeHeap, %v_925
+    jmp b_923
+  }
+
+  b_923 {
+    ret 18446744073709551614
+  }
+
+  b_905 {
+    %v_926 = load %v_14, 8: Ptr
+    %v_927 = imul %v_904, 24: Long
+    %v_928 = add %v_926, %v_927: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_928, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_929 = loads @live, 4: Int
+    %v_930 = sub %v_929, 1: Int
+    store @live, %v_930, 4
+    %v_906 = add %v_904, 1: Long
+    jmp b_903
+  }
+
+  b_22 {
+    %v_931 = sext %v_20: Long
+    jmp b_932
+  }
+
+  b_932 {
+    %v_933 = phi [b_22, 0], [b_934, %v_935]: Long
+    %v_936 = cmp_ilt %v_933, %v_931: Int
+    je %v_936, b_934, b_937
+  }
+
+  b_937 {
+    %v_938 = add %v_14, 8: Ptr
+    %v_939 = load %v_938, 4: Int
+    %v_940 = shr %v_939, 30: Int
+    %v_941 = cmp_eq %v_940, 1: Int
+    je %v_941, b_942, b_943
+  }
+
+  b_943 {
+    jmp b_944
+  }
+
+  b_942 {
+    %v_945 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_945
+    jmp b_944
+  }
+
+  b_944 {
+    %v_946 = add %v_14, 24: Ptr
+    %v_947 = load %v_946, 4: Int
+    %v_948 = shr %v_947, 30: Int
+    %v_949 = cmp_eq %v_948, 1: Int
+    je %v_949, b_950, b_951
+  }
+
+  b_951 {
+    jmp b_952
+  }
+
+  b_950 {
+    %v_953 = add %v_14, 16: Ptr
+    %v_954 = load %v_953, 8: Ptr
+    call_complex freeHeap, %v_954
+    jmp b_952
+  }
+
+  b_952 {
+    ret 18446744073709551615
+  }
+
+  b_934 {
+    %v_955 = load %v_14, 8: Ptr
+    %v_956 = imul %v_933, 24: Long
+    %v_957 = add %v_955, %v_956: Ptr
+    %doomed = alloca 20, 8: Ptr
+    copy %doomed, %v_957, 20
+    call_complex Reclaim(String).reclaim, %doomed
+    %v_958 = loads @live, 4: Int
+    %v_959 = sub %v_958, 1: Int
+    store @live, %v_959, 4
+    %v_935 = add %v_933, 1: Long
+    jmp b_932
   }
 }
 

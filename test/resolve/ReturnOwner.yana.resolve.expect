@@ -12,27 +12,22 @@ let &reclaims: Int = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20(Int, Int) before ResolveTest.continuation$20(Int, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Int, Int, ()) before ResolveTest.continuation$18(Int, Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn checkFailed() -> () {
@@ -1443,7 +1438,7 @@ fn main() -> Int {
     %v90 = add %v87, %v89 : %Int
     %v91 = borrow [%v90] : 'Int
     %v92 = load [%v91] : Int
-    drop %local3 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local3 via Reclaim(Array(a)).reclaim(Int)
     %v95 = mul %v92, 8 : Int
     %v96 = add %v78, %v95 : Int
     %total = alloc : Int
@@ -1511,7 +1506,7 @@ fn main() -> Int {
     %v171 = add %v168, %v170 : %Int
     %v172 = borrow [%v171] : 'Int
     %v173 = load [%v172] : Int
-    drop %local6 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local6 via Reclaim(Array(a)).reclaim(Int)
     %v176 = mul %v173, 8 : Int
     %v177 = add %v159, %v176 : Int
     assign %total, %v177
@@ -1583,7 +1578,7 @@ fn main() -> Int {
     %v257 = add %v254, %v256 : %Int
     %v258 = borrow [%v257] : 'Int
     %v259 = load [%v258] : Int
-    drop %local9 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local9 via Reclaim(Array(a)).reclaim(Int)
     %v262 = mul %v259, 8 : Int
     %v263 = add %v245, %v262 : Int
     assign %total, %v263
@@ -1652,7 +1647,7 @@ fn main() -> Int {
     %v351 = add %v348, %v350 : %Int
     %v352 = borrow [%v351] : 'Int
     %v353 = load [%v352] : Int
-    drop %local12 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local12 via Reclaim(Array(a)).reclaim(Int)
     %v356 = mul %v353, 8 : Int
     %v357 = add %v339, %v356 : Int
     assign %total, %v357
@@ -1677,7 +1672,7 @@ fn main() -> Int {
     %v377 = cast %v376 : Size
     init %local13@Flat.length, %v377
     %held = call wrap, %v373 : Cell
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v380 = load reclaims : Int
     %v383 = cmp_ne %v380, 0 : Bool
     je %v383, b8, b5
@@ -1718,18 +1713,18 @@ fn main() -> Int {
     %v421 = add %v418, %v420 : %Int
     %v422 = borrow [%v421] : 'Int
     %v423 = load [%v422] : Int
-    drop %local14 via Drop(Cell).drop reclaim reclaim$Cell
+    drop %local14 via teardown$Cell
     %v424 = add %v408, %v423 : Int
     assign %total, %v424
     %v426 = load %total : Int
     ret %v426
 
   b7:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b8:
-    drop %local14 via Drop(Cell).drop reclaim reclaim$Cell
+    drop %local14 via teardown$Cell
     jmp b4
 }
 
@@ -2003,6 +1998,14 @@ fn roundTrip(Int)(%xs: Array(Int)) -> Array(Int) {
 
 fn reclaim$Cell(%value: Cell) -> () {
   b0:
-    drop %value@Cell.slots reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Cell.slots via Reclaim(Array(a)).reclaim(Int)
+    ret
+}
+
+fn teardown$Cell(%value: Cell) -> () {
+  b0:
+    %v1 = addressof %value : %Cell
+    drop [%v1] via Drop(Cell).drop
+    drop_derived [%v1] via reclaim$Cell
     ret
 }

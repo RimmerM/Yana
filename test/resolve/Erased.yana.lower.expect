@@ -1,10 +1,10 @@
 @image$base = []
-@typeDesc$Int = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$() = [0, 0, 0, 0, 0, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Int = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
+@typeDesc$() = [0, 0, 0, 0, 0, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0]
 @genEnv$pick(Int, ()) = [0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$identity(Int) = [0, 0, 0, 0]
 @genEnv$firstOf(Int) = [0, 0, 0, 0]
-@typeDesc$Bool = [1, 0, 0, 0, 1, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Bool = [1, 0, 0, 0, 1, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0]
 @genEnv$pick(Int, Bool) = [0, 0, 0, 0, 0, 0, 0, 0]
 @witness$Num(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @witness$FromInt(Int) = [0, 0, 0, 0]
@@ -97,23 +97,47 @@ smaller<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr) {
     je %v_9, b_10, b_11
   }
 
+  b_12 {
+    jmp b_13
+  }
+
+  b_14 {
+    jmp b_13
+  }
+
+  b_13 {
+    %v_15 = phi [b_12, %x], [b_14, %y]: Ptr
+    %v_16 = loads %genEnv, 4: Int
+    %v_17 = sext %v_16: Long
+    %v_18 = add %v_17, @image$base: Ptr
+    %v_19 = load %v_18, 4: Int
+    %v_20 = cast %v_19: Long
+    copy %v_0, %v_15, %v_20
+    ret 
+  }
+
   b_10 {
+    %v_21 = loads %genEnv, 4: Int
+    %v_22 = sext %v_21: Long
+    %v_23 = add %v_22, @image$base: Ptr
+    %v_24 = add %v_23, 12: Ptr
+    %v_25 = loads %v_24, 4: Int
+    %v_26 = sext %v_25: Long
+    %v_27 = add %v_26, @image$base: Ptr
+    call_complex %v_27, %y
     jmp b_12
   }
 
   b_11 {
-    jmp b_12
-  }
-
-  b_12 {
-    %v_13 = phi [b_10, %x], [b_11, %y]: Ptr
-    %v_14 = loads %genEnv, 4: Int
-    %v_15 = sext %v_14: Long
-    %v_16 = add %v_15, @image$base: Ptr
-    %v_17 = load %v_16, 4: Int
-    %v_18 = cast %v_17: Long
-    copy %v_0, %v_13, %v_18
-    ret 
+    %v_28 = loads %genEnv, 4: Int
+    %v_29 = sext %v_28: Long
+    %v_30 = add %v_29, @image$base: Ptr
+    %v_31 = add %v_30, 12: Ptr
+    %v_32 = loads %v_31, 4: Int
+    %v_33 = sext %v_32: Long
+    %v_34 = add %v_33, @image$base: Ptr
+    call_complex %v_34, %x
+    jmp b_14
   }
 }
 
@@ -206,9 +230,17 @@ increment<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
     %v_32 = loads %genEnv, 4: Int
     %v_33 = sext %v_32: Long
     %v_34 = add %v_33, @image$base: Ptr
-    %v_35 = load %v_34, 4: Int
-    %v_36 = cast %v_35: Long
-    copy %v_0, %v_31, %v_36
+    %v_35 = add %v_34, 12: Ptr
+    %v_36 = loads %v_35, 4: Int
+    %v_37 = sext %v_36: Long
+    %v_38 = add %v_37, @image$base: Ptr
+    call_complex %v_38, %v_18
+    %v_39 = loads %genEnv, 4: Int
+    %v_40 = sext %v_39: Long
+    %v_41 = add %v_40, @image$base: Ptr
+    %v_42 = load %v_41, 4: Int
+    %v_43 = cast %v_42: Long
+    copy %v_0, %v_31, %v_43
     ret 
   }
 }
@@ -318,34 +350,6 @@ main<complex>(): Int {
     %v_31 = loads %v_30, 4: Int
     %v_32 = add %v_28, %v_31: Int
     ret %v_32
-  }
-}
-
-moveInit$Int<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 4
-    ret 
-  }
-}
-
-copyInit$Int<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 4
-    ret 
-  }
-}
-
-moveInit$Bool<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 1
-    ret 
-  }
-}
-
-copyInit$Bool<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 1
-    ret 
   }
 }
 

@@ -280,6 +280,45 @@ static void transferFrom(Analysis& analysis, Effects& effects, ModulePtr<Value> 
     if(needsTeardown(analysis.module, type)) effects.moves.push(root);
 }
 
+/*
+ * The same, for an argument that reaches a callee with no `move` in front of it.
+ *
+ * An erased class dispatch applies no conventions - `emitGenericDispatch` says why, and it is a
+ * decision about the ABI rather than an omission: the callee is not a function this site reaches,
+ * so what a `->` costs is settled where the witness is loaded. What it still *does* is consume,
+ * and the argument it consumes arrives as a plain load of the slot. `backingLocal` cannot see
+ * through one - a load produces a value rather than being a slot's contents - so the place is
+ * asked directly.
+ *
+ * The direct call takes the same route, for the case its own arm was written about: `cloneGenCall`
+ * turns a dispatch into a concrete call at instantiation, and nothing puts a move in front of an
+ * argument that did not have one.
+ *
+ * Only a whole local. A projection would be a partial move, which checkMoves rejects rather than
+ * represents, and saying the whole slot moved would be a lie in the direction that leaks nothing
+ * and releases something twice.
+ */
+static void transferFromArgument(Analysis& analysis, Effects& effects, ModulePtr<Value> value) {
+    if(!value) return;
+
+    auto& produced = *analysis.local[value];
+
+    if(produced.kind == Value::LoadPlace) {
+        auto& place = ((InstLoadPlace&)produced).place;
+
+        if(place.root == PlaceRoot::Local && place.local < analysis.localCount &&
+           place.projections.size() == 0) {
+            useSlot(analysis, effects, place.local);
+
+            auto type = analysis.function.localAt(analysis.local, place.local).type;
+            if(needsTeardown(analysis.module, type)) effects.moves.push(place.local);
+            return;
+        }
+    }
+
+    transferFrom(analysis, effects, value);
+}
+
 static void deriveEffects(Analysis& analysis) {
     auto local = analysis.local;
     analysis.effects.reset(analysis.order.size());
@@ -558,7 +597,7 @@ static void deriveEffects(Analysis& analysis) {
                         ? local[callee->args.get(local, position)] : nullptr;
 
                     if(declared && declared->convention == ast::BindType::Sink) {
-                        transferFrom(analysis, effects, arg);
+                        transferFromArgument(analysis, effects, arg);
                     }
 
                     position++;
@@ -578,12 +617,43 @@ static void deriveEffects(Analysis& analysis) {
                 break;
             }
 
-            case Value::GenCall:
-                for(auto arg: ((InstGenCall&)instruction).args.contents(local)) {
+            case Value::GenCall: {
+                /*
+                 * The same two facts the direct call above records, for the same reason and out of
+                 * the same place: `InstGenCall::callee` is the class signature this dispatches to,
+                 * and a signature is where a `->` is declared. Which *instance* runs is not known
+                 * here and does not have to be - a class method's conventions are the class's, so
+                 * every instance takes the argument the same way.
+                 *
+                 * The move the resolver emits in front of a `->` argument is **not** there on this
+                 * path, unlike the concrete one: an erased class call passes the loaded value
+                 * straight through. So this is the only record of the handover rather than the
+                 * second one, and without it the frame goes on owning what the callee took -
+                 * `acc = acc ++ copy(v)` released the accumulator it had just given away, once per
+                 * iteration, which is a use-after-free in the middle of a fold.
+                 *
+                 * Invisible until now because a generic body got no drops at all (see
+                 * analyzeFunction): nothing acted on the ownership this pass was getting wrong.
+                 */
+                auto& call = (InstGenCall&)instruction;
+                auto callee = call.callee ? local[call.callee] : nullptr;
+                U16 position = 0;
+
+                for(auto arg: call.args.contents(local)) {
                     useValue(analysis, effects, arg);
+
+                    auto declared = callee && position < callee->args.size()
+                        ? local[callee->args.get(local, position)] : nullptr;
+
+                    if(declared && declared->convention == ast::BindType::Sink) {
+                        transferFromArgument(analysis, effects, arg);
+                    }
+
+                    position++;
                 }
 
                 break;
+            }
 
             case Value::Je:
                 useValue(analysis, effects, ((InstJe&)instruction).cond);

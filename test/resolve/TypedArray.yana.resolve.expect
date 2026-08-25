@@ -3003,7 +3003,7 @@ fn ints() -> Int {
     %v46 = add %v41, %v45 : Int
     %v47 = load %xs : Array(Int)
     %v48 = call capacity(Int), %v47 : Size
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v49 = cast %v48 : Int
     %v50 = add %v46, %v49 : Int
     ret %v50
@@ -3077,11 +3077,11 @@ fn bytes() -> Int {
     ret %v69
 
   b6:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(U8)
+    drop %xs via Reclaim(Array(a)).reclaim(U8)
     jmp b5
 
   b7:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(U8)
+    drop %xs via Reclaim(Array(a)).reclaim(U8)
     jmp b5
 }
 
@@ -3156,11 +3156,11 @@ fn signedBytes() -> Int {
     ret %v78
 
   b6:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(I8)
+    drop %xs via Reclaim(Array(a)).reclaim(I8)
     jmp b5
 
   b7:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(I8)
+    drop %xs via Reclaim(Array(a)).reclaim(I8)
     jmp b5
 }
 
@@ -3230,11 +3230,11 @@ fn floats() -> Int {
     ret %v67
 
   b6:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Float)
+    drop %xs via Reclaim(Array(a)).reclaim(Float)
     jmp b5
 
   b7:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Float)
+    drop %xs via Reclaim(Array(a)).reclaim(Float)
     jmp b5
 }
 
@@ -3307,11 +3307,11 @@ fn doubles() -> Int {
     ret %v70
 
   b6:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Double)
+    drop %xs via Reclaim(Array(a)).reclaim(Double)
     jmp b5
 
   b7:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Double)
+    drop %xs via Reclaim(Array(a)).reclaim(Double)
     jmp b5
 }
 
@@ -3406,11 +3406,11 @@ fn records() -> Int {
     ret %v92
 
   b6:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pair)
+    drop %xs via Reclaim(Array(a)).reclaim(Pair)
     jmp b5
 
   b7:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pair)
+    drop %xs via Reclaim(Array(a)).reclaim(Pair)
     jmp b5
 }
 

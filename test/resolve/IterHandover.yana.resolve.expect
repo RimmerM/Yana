@@ -10,22 +10,18 @@ let &heapRegionNext: Size = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -424,7 +420,7 @@ fn consume(%h: Held) -> Size {
   b0:
     %v1 = load %h@Held.value : Array(U8)
     %v2 = load %h@Held.value@Array.length : @bits(30) U32
-    drop_derived %h reclaim reclaim$Held
+    drop_derived %h via reclaim$Held
     %v3 = cast %v2 : Size
     ret %v3
 }
@@ -683,7 +679,7 @@ fn lent(())(%times: I64, %body: (value$: Held) -> Outcome((), ())) -> Outcome(()
   b3:
     %v13 = call make : Held
     %v14 = calldyn %body, %v13 : Outcome((), ())
-    drop_derived %local2 reclaim reclaim$Held
+    drop_derived %local2 via reclaim$Held
     %v15 = load %local3.discriminant : Int
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b4, b5
@@ -756,7 +752,7 @@ fn ResolveTest.continuation$20(%env: %{total: &Size}, %value$: Result(I64, Held)
 
   b1:
     %v8 = load %local1@Exit : I64
-    drop_derived %local1 reclaim reclaim$Outcome(Held, I64)
+    drop_derived %local1 via reclaim$Outcome(Held, I64)
     %v9 = call Try(Result(e, a), a, e).fromExit(I64, Size), %v8 : Result(I64, Size)
     %v26 = alloc : Outcome((), Result(I64, Size))
     aggregate %local5.discriminant = 1, %local5@Exit = %v9
@@ -830,7 +826,7 @@ fn results(Result(I64, Size))(%times: I64, %body: (->value$: Result(I64, Held)) 
 
 fn ResolveTest.continuation$21(%env: %{count: &Size}, %value$: Result(I64, Held)) -> Outcome((), ()) {
   b0:
-    drop_derived %value$ reclaim reclaim$Result(I64, Held)
+    drop_derived %value$ via reclaim$Result(I64, Held)
     %v2 = load [%env].count : &Size
     %v3 = load [%env].count : &Size
     %v4 = load [%v3] : Size
@@ -891,7 +887,7 @@ fn results(())(%times: I64, %body: (->value$: Result(I64, Held)) -> Outcome((), 
 
 fn reclaim$Held(%value: Held) -> () {
   b0:
-    drop %value@Held.value reclaim Reclaim(Array(a)).reclaim(U8)
+    drop %value@Held.value via Reclaim(Array(a)).reclaim(U8)
     ret
 }
 
@@ -905,7 +901,7 @@ fn reclaim$Outcome(Held, I64)(%value: Outcome(Held, I64)) -> () {
     ret
 
   b2:
-    drop_derived %value@Proceed reclaim reclaim$Held
+    drop_derived %value@Proceed via reclaim$Held
     jmp b1
 
   b3:
@@ -922,7 +918,7 @@ fn reclaim$Result(I64, Held)(%value: Result(I64, Held)) -> () {
     ret
 
   b2:
-    drop_derived %value@Ok reclaim reclaim$Held
+    drop_derived %value@Ok via reclaim$Held
     jmp b1
 
   b3:

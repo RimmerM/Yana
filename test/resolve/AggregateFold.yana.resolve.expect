@@ -221,7 +221,7 @@ fn later(%seed: Int) -> Int {
     %v78 = add %v75, %v77 : %Int
     %v79 = borrow [%v78] : 'Int
     %v80 = load [%v79] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v81 = add %v65, %v80 : Int
     ret %v81
 }
@@ -275,7 +275,7 @@ fn readBetween() -> Int {
     %v61 = add %v58, %v60 : %Int
     %v62 = borrow [%v61] : 'Int
     %v63 = load [%v62] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v64 = add %a, %v63 : Int
     ret %v64
 }
@@ -343,7 +343,7 @@ fn folds() -> Int {
     %v77 = add %v74, %v76 : %Int
     %v78 = borrow [%v77] : 'Int
     %v79 = load [%v78] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v80 = add %v64, %v79 : Int
     ret %v80
 }

@@ -4,12 +4,10 @@ let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -234,7 +232,7 @@ fn main() -> Int {
     %v28 = cast %v27 : Size
     init %local2@Flat.length, %v28
     %v30 = call classMember, %v24, 7 : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v31 = add %v1, %v30 : Int
     ret %v31
 }

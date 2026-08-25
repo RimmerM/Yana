@@ -302,11 +302,12 @@ void lowerTerminator(LowerContext& lower, LowerBlock& block, ModulePtr<Inst> poi
 
             if(memoryResult && returned) {
                 // The other place bytes are written into storage that did not hold them: the
-                // caller's hidden result slot. A returned move relocates into it by whatever rule
-                // its type relocates by, exactly as an initialization does.
+                // caller's hidden result slot. The same block copy an initialization is, over the
+                // same count - a constant here and a load out of the caller's descriptor where the
+                // result type is this body's own variable.
                 auto target = lower.returnPlaces.getValue(functionPointer).unwrap();
                 auto source = mappedValue(lower, returned);
-                auto copyInst = relocate(lower, block, target, returned, source, function->returnType);
+                auto copyInst = relocateWith(lower, block, target, source, function->returnType);
                 copyInst->source = instruction.source;
             }
 

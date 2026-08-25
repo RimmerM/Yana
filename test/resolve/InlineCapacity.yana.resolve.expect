@@ -1193,7 +1193,7 @@ fn inlineSize() -> I64 {
     %v6 = addressof %local0@Array.run : %Int
     aggregate [%v6][0] = 1, [%v6][1] = 2, [%v6][2] = 3, [%v6][3] = 4
     init %local0@Array.length, 4
-    drop %local0 reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %local0 via teardown$@inline(4) @capacity(4) Array(Int)
     %v13 = sizeof @inline(4) @capacity(4) Array(Int) : Size
     %v14 = cast %v13 : I64
     ret %v14
@@ -1209,7 +1209,7 @@ fn plainSize() -> I64 {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %local0@Array.length, 4
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v19 = sizeof Array(Int) : Size
     %v20 = cast %v19 : I64
     ret %v20
@@ -1225,7 +1225,7 @@ fn nestedSize() -> I64 {
     aggregate %local0@Buffer.items = %v3, %local0@Buffer.tag = 7
     %v12 = sizeof Buffer : Size
     %v13 = load %local0@Buffer.tag : Int
-    drop_derived %local0 reclaim reclaim$Buffer
+    drop_derived %local0 via reclaim$Buffer
     %v14 = sizeof Int : Size
     %v15 = sub %v12, %v14 : Size
     %v16 = cast %v15 : I64
@@ -1358,7 +1358,7 @@ fn holdHandles() -> I64 {
     %v17 = load %hs@Array.length : @bits(30) U32
     init %local3@Array.length, %v17
     %v19 = load %local3@Array.length : @bits(30) U32
-    drop %hs via drop$@inline(2) @capacity(2) Array(Handle) reclaim drop$@inline(2) @capacity(2) Array(Handle)
+    drop %hs via teardown$@inline(2) @capacity(2) Array(Handle)
     %v20 = cast %v19 : Size
     %v21 = cast %v20 : I64
     ret %v21
@@ -1374,7 +1374,7 @@ fn holdInRecord() -> Int {
     init %local2@Array.length, 1
     aggregate %local0@Holder.hs = %v2, %local0@Holder.tag = 5
     %v10 = load %local0@Holder.tag : Int
-    drop_derived %local0 via drop$Holder reclaim reclaim$Holder
+    drop_derived %local0 via teardown$Holder
     ret %v10
 }
 
@@ -1665,51 +1665,51 @@ fn main() -> Int {
     %v277 = cast %v276 : Size
     init %local11@Flat.length, %v277
     %v279 = call total, %v273 : Int
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     ret %v279
 
   b43:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b10
 
   b44:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b13
 
   b45:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b16
 
   b46:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b19
 
   b47:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b22
 
   b48:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b25
 
   b49:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b28
 
   b50:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b31
 
   b51:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b34
 
   b52:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b37
 
   b53:
-    drop %xs reclaim reclaim$@inline(4) @capacity(4) Array(Int)
+    drop %xs via teardown$@inline(4) @capacity(4) Array(Int)
     jmp b40
 }
 
@@ -1723,6 +1723,25 @@ fn Drop(Handle).drop(%value: Handle) -> () {
     ret
 }
 
+fn teardown$@inline(4) @capacity(4) Array(Int)(%value: @inline(4) @capacity(4) Array(Int)) -> () {
+  b0:
+    %v1 = alloc : Array(Int)
+    %v2 = addressof %value@Array.run : %Int
+    init %local1@Array.run@Run.items, %v2
+    init %local1@Array.run@Run.capacity, 4
+    init %local1@Array.run@Run.ownsHeap, 2
+    %v8 = load %value@Array.length : @bits(30) U32
+    init %local1@Array.length, %v8
+    drop %local1 via Reclaim(Array(a)).reclaim(Int)
+    ret
+}
+
+fn reclaim$Buffer(%value: Buffer) -> () {
+  b0:
+    drop %value@Buffer.items via reclaim$@inline(4) @capacity(4) Array(Int)
+    ret
+}
+
 fn reclaim$@inline(4) @capacity(4) Array(Int)(%value: @inline(4) @capacity(4) Array(Int)) -> () {
   b0:
     %v1 = alloc : Array(Int)
@@ -1732,17 +1751,11 @@ fn reclaim$@inline(4) @capacity(4) Array(Int)(%value: @inline(4) @capacity(4) Ar
     init %local1@Array.run@Run.ownsHeap, 2
     %v8 = load %value@Array.length : @bits(30) U32
     init %local1@Array.length, %v8
-    drop %local1 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local1 via Reclaim(Array(a)).reclaim(Int)
     ret
 }
 
-fn reclaim$Buffer(%value: Buffer) -> () {
-  b0:
-    drop %value@Buffer.items reclaim reclaim$@inline(4) @capacity(4) Array(Int)
-    ret
-}
-
-fn drop$@inline(2) @capacity(2) Array(Handle)(%value: @inline(2) @capacity(2) Array(Handle)) -> () {
+fn teardown$@inline(2) @capacity(2) Array(Handle)(%value: @inline(2) @capacity(2) Array(Handle)) -> () {
   b0:
     %v1 = alloc : Array(Handle)
     %v2 = addressof %value@Array.run : %Handle
@@ -1755,13 +1768,8 @@ fn drop$@inline(2) @capacity(2) Array(Handle)(%value: @inline(2) @capacity(2) Ar
     ret
 }
 
-fn drop$Holder(%value: Holder) -> () {
+fn teardown$Holder(%value: Holder) -> () {
   b0:
-    drop %value@Holder.hs via drop$@inline(2) @capacity(2) Array(Handle)
-    ret
-}
-
-fn reclaim$Holder(%value: Holder) -> () {
-  b0:
+    drop %value@Holder.hs via teardown$@inline(2) @capacity(2) Array(Handle)
     ret
 }

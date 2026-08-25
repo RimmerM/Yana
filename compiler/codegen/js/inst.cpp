@@ -49,17 +49,19 @@ void define(Gen& g, ModulePtr<Value> pointer, JsPtr<Expr> value) {
  * nobody else, and running a `Sink` there would empty a source that has none.
  */
 /*
- * The relocation a body that cannot see the type performs - resolve/lower.cpp's erased half of
- * relocateWith, and the same three lines for the same reason.
+ * The relocation a body that cannot see the type performs - and the one place this target and the
+ * native one answer differently.
  *
- * Which of the two relocations applies is exactly what the body has no way to decide: the resolver
- * left `sink` null because there was no concrete type to find one for. So the answer travels in the
+ * Natively a relocation is a block copy of the descriptor's `kSize` bytes, emitted inline whether or
+ * not the body knows the count (resolve/lower_mem.cpp's `relocateWith`). Here a block copy is
+ * property by property, so what an unknown type withholds is not a number but the *shape* - and a
+ * shape is not something a call site can be handed as an immediate. So the answer travels in the
  * descriptor the caller passed, and this is the cell read and the call that reads it.
  *
- * Unconditional, like the erased teardown: a TrivialSink type's `moveInit` is a real function that
- * copies its value rather than a null slot, so there is nothing to test before calling. On this
- * target that function is the property-by-property copy genBlockCopy emits, which is why relaxing
- * blockCopyShape to shapes that are not objects was the other half of closing this.
+ * Unconditional, like the erased teardown: every relocatable type has a real `moveInit` rather than
+ * a null slot, so there is nothing to test before calling. On this target that function is the
+ * property-by-property copy genBlockCopy emits, which is why relaxing blockCopyShape to shapes that
+ * are not objects was the other half of closing this.
  */
 bool erasedRelocate(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type) {
     if(!g.genEnv || !isGeneric(g.global, type)) return false;
@@ -67,7 +69,7 @@ bool erasedRelocate(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type
     auto descriptor = genTypeDesc(g, type);
     if(!descriptor) return false;
 
-    emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kMoveInit),
+    emitExpr(g, call(g, tableCell(g, descriptor, ManagedTypeDesc::kMoveInit),
                      referenceTo(g, type, target), referenceTo(g, type, source)));
     return true;
 }
@@ -394,9 +396,8 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
     auto target = placeTarget(g, place, elided);
 
     auto moved = produced.kind == Value::Move;
-    ModulePtr<Function> sink = moved ? ((InstMove&)produced).sink : nullptr;
 
-    if(!sink) {
+    {
         if(moved && erasedRelocate(g, target, useValue(g, value), type)) return;
 
         /*
@@ -416,7 +417,7 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
         if(g.genEnv && isGeneric(g.global, type) &&
            (!rebindsOwnStorage(g, place) || aliasesLiveStorage(g, value))) {
             if(auto descriptor = genTypeDesc(g, type)) {
-                emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kCopyInit),
+                emitExpr(g, call(g, tableCell(g, descriptor, ManagedTypeDesc::kCopyInit),
                                  referenceTo(g, type, target), referenceTo(g, type, useValue(g, value))));
                 return;
             }
@@ -472,27 +473,14 @@ void storeInto(Gen& g, const Place& place, TypePtr type, ModulePtr<Value> value)
         }
 
         writeExprInto(g, place, type, target, elided, written, keeps, produced.id, produced.source);
-        return;
     }
-
-    emitExpr(g, call(g, functionValue(g, sink, produced.source),
-                     referenceTo(g, type, target),
-                     referenceTo(g, type, useValue(g, value))));
 }
 
-// The same, for the two instructions that are relocations by construction and carry the callee
-// themselves rather than on a value that has to be recognized as a move first.
-void relocateWith(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type,
-                  ModulePtr<Function> sink, LocationId where) {
-    if(!sink) {
-        if(erasedRelocate(g, target, source, type)) return;
-
-        emitExpr(g, assign(g, target, source));
-        return;
-    }
-
-    emitExpr(g, call(g, functionValue(g, sink, where),
-                     referenceTo(g, type, target), referenceTo(g, type, source)));
+// The same, for the two instructions that are relocations by construction rather than by carrying a
+// value something has to recognize as a move first.
+void relocateWith(Gen& g, JsPtr<Expr> target, JsPtr<Expr> source, TypePtr type) {
+    if(erasedRelocate(g, target, source, type)) return;
+    emitExpr(g, assign(g, target, source));
 }
 
 /*
@@ -1212,22 +1200,36 @@ void genDrop(Gen& g, InstDrop& instruction) {
      * and the host collector does both - which is exactly the carve-out Design-Memory §4 states for
      * this target. What is left is `drop`: an effect at last use, never elided on any target, and
      * the one place Yana-on-JS does something the JS it replaces cannot.
+     *
+     * So `teardown` here is already the drop half alone rather than the merged function a machine
+     * target's drop names - `teardownAtSite` chooses that once, per program, rather than every
+     * consumer testing for it.
      */
-    if(!instruction.drop) return;
 
-    auto type = placeType(g, instruction.place);
+    /*
+     * The erased case first, because it is the one where "no drop named" does not mean "nothing to
+     * run" - see InstDrop::erased. A body that cannot see the shape of what it is dropping names
+     * neither half, and what runs is the teardown the caller's descriptor holds, reached through
+     * the same cell read every other erased operation uses. This one *is* written against a
+     * reference - the descriptor's slot has one signature for every type - so the box is right here.
+     *
+     * One slot and one call, and unlike the native side that is not a merge: reclaim is the
+     * collector's here, so the drop half was always the whole of a teardown on this target.
+     */
+    if(instruction.erased) {
+        auto erasedType = placeType(g, instruction.place);
 
-    if(g.genEnv && isGeneric(g.global, type)) {
-        // The teardown the caller's descriptor names, reached through the same cell read every
-        // other erased operation uses. This one *is* written against a reference - the descriptor's
-        // slot has one signature for every type - so the box is right here.
-        if(auto descriptor = genTypeDesc(g, type)) {
-            emitExpr(g, call(g, tableCell(g, descriptor, TypeDescFields::kDrop),
+        if(auto descriptor = genTypeDesc(g, erasedType)) {
+            emitExpr(g, call(g, tableCell(g, descriptor, ManagedTypeDesc::kDrop),
                              referenceTo(g, instruction.place)));
         }
 
         return;
     }
+
+    if(!instruction.teardown) return;
+
+    auto type = placeType(g, instruction.place);
 
     /*
      * Which form the argument takes, asked of the *callee* rather than worked out from the type.
@@ -1244,7 +1246,7 @@ void genDrop(Gen& g, InstDrop& instruction) {
      * the erased entry (teardownEntry), which a concrete site never names. So the question is the
      * parameter's declared type, which is a fact rather than a population.
      */
-    auto callee = g.local[instruction.drop];
+    auto callee = g.local[instruction.teardown];
     auto takesAddress = callee->args.isNotEmpty() &&
                         isPointer(g.global, g.local[callee->args.get(g.local, 0)]->type);
 
@@ -1271,12 +1273,12 @@ void genDrop(Gen& g, InstDrop& instruction) {
                       ((Arg*)g.local[callee->args.get(g.local, 0)])->convention)) {
         auto parts = funPartsOfPlace(g, instruction.place);
 
-        emitExpr(g, call(g, functionValue(g, instruction.drop, instruction.source),
+        emitExpr(g, call(g, functionValue(g, instruction.teardown, instruction.source),
                          parts.code, parts.env));
         return;
     }
 
-    emitExpr(g, call(g, functionValue(g, instruction.drop, instruction.source),
+    emitExpr(g, call(g, functionValue(g, instruction.teardown, instruction.source),
                      takesAddress ? referenceTo(g, instruction.place)
                                   : placeExpr(g, instruction.place)));
 }
@@ -1933,7 +1935,7 @@ void genSwap(Gen& g, Value& instruction, InstSwap& swap) {
     auto a = placeExpr(g, swap.a);
     auto b = placeExpr(g, swap.b);
 
-    if(!swap.sink) {
+    {
         /*
          * Both former contents are taken out before either place is written, and *both* of them,
          * always. Two reasons that used to be one:
@@ -1974,20 +1976,13 @@ void genSwap(Gen& g, Value& instruction, InstSwap& swap) {
                           instruction.id, instruction.source);
         }
 
-        return;
     }
-
-    auto temporary = declare(g, generatedName(g, "swap"_v, instruction.id), zeroValue(g, swap.content));
-
-    relocateWith(g, temporary, a, swap.content, swap.sink, instruction.source);
-    relocateWith(g, a, b, swap.content, swap.sink, instruction.source);
-    relocateWith(g, b, temporary, swap.content, swap.sink, instruction.source);
 }
 
 // Two relocations and no temporary: what is coming in is already a value rather than a place, so
 // there is nothing to save it from.
 void genExchange(Gen& g, ModulePtr<Value> value, Value& instruction, InstExchange& exchange) {
-    if(!exchange.sink) {
+    {
         // The old value has to be out of the place before the write, which is `takenFromPlace`'s
         // whole subject: a bit range is an expression over the word the write is about to change,
         // and an object-shaped value is the storage that write copies into.
@@ -1995,21 +1990,11 @@ void genExchange(Gen& g, ModulePtr<Value> value, Value& instruction, InstExchang
                                         valueName(g, instruction)));
 
         storeInto(g, exchange.place, instruction.type, exchange.value);
-        return;
     }
-
-    auto out = declare(g, valueName(g, instruction), zeroValue(g, instruction.type));
-    g.values.add(U32(value), out);
-
-    relocateWith(g, out, placeExpr(g, exchange.place), instruction.type, exchange.sink,
-                 instruction.source);
-    storeInto(g, exchange.place, instruction.type, exchange.value);
 }
 
 // Property by property, and a nested aggregate is duplicated rather than aliased: on native those
-// bytes are *inline*, so the copy makes an independent value of them. The member `Sink` calls that
-// follow this in the glue then run over storage that is this value's own, which is what they are
-// there to fix up.
+// bytes are *inline*, so the copy makes an independent value of them.
 /*
  * The host - Implementation-Containers.md §14.1.
  *
@@ -2338,19 +2323,6 @@ void genBlockCopy(Gen& g, Value& instruction, InstNative& native) {
      * `moveInit$Quad` was building a fresh `[Int *4]` per call to hand to a `from` that no longer
      * existed. A duplicate's source stays live and owns what it owned, which is every property of
      * `copyInit$` glue and the case this was written for.
-     *
-     * **A member that relocates by more than its bytes is not one of them**, and it is what makes
-     * this a per-property question rather than a flag on the whole copy. The glue does not end here:
-     * `moveInitFor` follows the copy with a `Sink` call per member whose bytes are not the whole
-     * story, and that call needs the destination to be *distinct* storage - so the duplicate is
-     * doing two jobs at once there, and the one that is easy to miss is that it is what creates the
-     * destination at all. Aliasing them made `moveInit$Pair` call `sink(x, x)`, which this fixture's
-     * sink happened to survive because it only assigns; one that clears its source, which is the
-     * ordinary shape for a type owning a resource, would have cleared the value it had just moved.
-     *
-     * The predicate is `sinkMembers`' from the other side: it emits a call exactly where `sinkFor`
-     * answers one, which is exactly where the type is not TrivialSink. Conservative in the safe
-     * direction for a boxed field, which `sinkMembers` skips and this still duplicates.
      *
      * All of which exists on one target only. Native writes the same `memcpy` either way - the bytes
      * are the bytes - and the glue is resolve IR each backend compiles its own way, so the
@@ -4377,12 +4349,20 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
 
         case Value::TypeMetric: {
             /*
-             * How wide a type is *here*, which is not what the native target would have said.
+             * A measurement of a type, which on this target is a measurement of what *this compiler*
+             * would have laid out and not of what the runtime allocates.
              *
-             * The point of the metric travelling in the IR rather than being folded during
-             * resolution is this line: the JS family has its own answers, and a `sizeOf` compiled
-             * for this target reports them. A generic body reads the descriptor slot instead, the
-             * same way the native path does.
+             * That distinction is why `sizeOf` and `alignOf` are `@platform(native)`: how many bytes
+             * a JS object occupies is the engine's answer and changes with its hidden class, its
+             * boxing decisions and its garbage collector, and nothing emitted here can observe it.
+             * What survives on this target are the metrics the *compiler itself* asks for over a
+             * type it can see - the size a block copy is told to copy, the width `bitWidth(x: Size)`
+             * subtracts from - and every one of those is a constant by the time it reaches here.
+             *
+             * A type variable therefore has no answer at all, where natively it has a descriptor
+             * cell. A managed descriptor holds no measurements to load (see ManagedTypeDesc), so a
+             * body that reaches this with one is a body that got past `@platform` by some route
+             * this backend cannot serve, and saying so is the whole of what it can do.
              */
             auto& metric = (InstTypeMetric&)instruction;
 
@@ -4395,19 +4375,12 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
                 }
             }
 
-            if(auto descriptor = genTypeDesc(g, metric.of)) {
-                // The alignment shares the flags cell and sits above them - see
-                // TypeDescFields::kFlags. Same element, one shift.
-                if(metric.metric == TypeMetricKind::Align) {
-                    define(g, value, binary(g, BinaryOp::Shr,
-                                            tableCell(g, descriptor, TypeDescFields::kFlags),
-                                            number(g, F64(kPackedMetricShift))));
-                    break;
-                }
+            if(isGeneric(g.global, metric.of)) {
+                g.context.diagnostics.error(
+                    "the JS target cannot measure a type it cannot see - a byte count is the engine's answer here rather than this compiler's, which is why `sizeOf` and `alignOf` are `@platform(native)`"_v,
+                    instruction.source);
 
-                auto slot = metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
-                                                                    : TypeDescFields::kSize;
-                define(g, value, tableCell(g, descriptor, slot));
+                define(g, value, number(g, F64(0)));
                 break;
             }
 
@@ -4419,7 +4392,8 @@ void genInstruction(Gen& g, ModulePtr<Inst> pointer) {
              * `sizeOf` answers an `I64`, so a `number` here is a value of the wrong host type - and
              * `coerce` does not rescue it: the reduction for a 64-bit type is `BigInt.asIntN`, which
              * throws on a `number` rather than converting one. It went unnoticed while nothing that
-             * measured a type was compiled for this target; `FixedArray.yana`'s `sizeOf` is the first.
+             * measured a type was compiled for this target; the block copy behind a `copyInit$` is
+             * what asks for one now.
              */
             define(g, value, isLong(g, instruction.type)
                 ? bigInt(g, U64(number_), true)

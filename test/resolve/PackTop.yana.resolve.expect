@@ -2397,7 +2397,7 @@ fn main() -> I64 {
     %v112 = borrow [%v111] : 'B1
     %v113 = load [%v112] : B1
     %v114 = load [%v112]@B1.lo : @bits(6) U32
-    drop %a reclaim Reclaim(Array(a)).reclaim(B1)
+    drop %a via Reclaim(Array(a)).reclaim(B1)
     %v116 = cast %v114 : U32
     %v118 = cmp_ne %v116, 1 : Bool
     je %v118, b10, b11
@@ -2460,7 +2460,7 @@ fn main() -> I64 {
     %v176 = borrow [%v175] : 'B2
     %v177 = load [%v176] : B2
     %v178 = load [%v176]@B2.lo : @bits(12) U32
-    drop %b reclaim Reclaim(Array(a)).reclaim(B2)
+    drop %b via Reclaim(Array(a)).reclaim(B2)
     %v180 = cast %v178 : U32
     %v182 = cmp_ne %v180, 4095 : Bool
     je %v182, b16, b17
@@ -2556,7 +2556,7 @@ fn main() -> I64 {
     %v275 = borrow [%v274] : 'B4
     %v276 = load [%v275] : B4
     %v277 = load [%v275]@B4.hi : @bits(1) U32
-    drop %c reclaim Reclaim(Array(a)).reclaim(B4)
+    drop %c via Reclaim(Array(a)).reclaim(B4)
     %v279 = cast %v277 : U32
     %v281 = cmp_ne %v279, 0 : Bool
     je %v281, b25, b26
@@ -2646,7 +2646,7 @@ fn main() -> I64 {
     %v367 = borrow [%v366] : 'Gap
     %v368 = load [%v367] : Gap
     %v369 = load [%v367]@Gap.spare : @bits(2) U32
-    drop %d reclaim Reclaim(Array(a)).reclaim(Gap)
+    drop %d via Reclaim(Array(a)).reclaim(Gap)
     %v371 = cast %v369 : U32
     %v373 = cmp_ne %v371, 3 : Bool
     je %v373, b34, b35
@@ -2748,7 +2748,7 @@ fn main() -> I64 {
     %v478 = borrow [%v477] : 'Signed
     %v479 = load [%v478] : Signed
     %v480 = load [%v478]@Signed.lo : @bits(20) U32
-    drop %e reclaim Reclaim(Array(a)).reclaim(Signed)
+    drop %e via Reclaim(Array(a)).reclaim(Signed)
     %v482 = cast %v480 : U32
     %v484 = cmp_ne %v482, 1048575 : Bool
     je %v484, b43, b44
@@ -2965,42 +2965,42 @@ fn main() -> I64 {
     ret 1
 
   b82:
-    drop %a reclaim Reclaim(Array(a)).reclaim(B1)
+    drop %a via Reclaim(Array(a)).reclaim(B1)
     jmp b1
 
   b83:
-    drop %a reclaim Reclaim(Array(a)).reclaim(B1)
+    drop %a via Reclaim(Array(a)).reclaim(B1)
     jmp b4
 
   b84:
-    drop %a reclaim Reclaim(Array(a)).reclaim(B1)
+    drop %a via Reclaim(Array(a)).reclaim(B1)
     jmp b7
 
   b85:
-    drop %b reclaim Reclaim(Array(a)).reclaim(B2)
+    drop %b via Reclaim(Array(a)).reclaim(B2)
     jmp b13
 
   b86:
-    drop %c reclaim Reclaim(Array(a)).reclaim(B4)
+    drop %c via Reclaim(Array(a)).reclaim(B4)
     jmp b19
 
   b87:
-    drop %c reclaim Reclaim(Array(a)).reclaim(B4)
+    drop %c via Reclaim(Array(a)).reclaim(B4)
     jmp b22
 
   b88:
-    drop %d reclaim Reclaim(Array(a)).reclaim(Gap)
+    drop %d via Reclaim(Array(a)).reclaim(Gap)
     jmp b28
 
   b89:
-    drop %d reclaim Reclaim(Array(a)).reclaim(Gap)
+    drop %d via Reclaim(Array(a)).reclaim(Gap)
     jmp b31
 
   b90:
-    drop %e reclaim Reclaim(Array(a)).reclaim(Signed)
+    drop %e via Reclaim(Array(a)).reclaim(Signed)
     jmp b37
 
   b91:
-    drop %e reclaim Reclaim(Array(a)).reclaim(Signed)
+    drop %e via Reclaim(Array(a)).reclaim(Signed)
     jmp b40
 }

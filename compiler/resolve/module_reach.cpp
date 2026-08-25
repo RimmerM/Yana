@@ -161,30 +161,15 @@ static void markReachable(Program& program, Array<ModulePtr<Function>>& pending,
                         reach(((InstSymbol&)instruction).callee);
                         reachTable(((InstSymbol&)instruction).global);
                         break;
-                    case Value::Move:
-                        reach(((InstMove&)instruction).sink);
-                        break;
                     case Value::Copy:
                         reach(((InstCopy&)instruction).copy);
                         break;
-                    // The two relocations `dischargeOwnership` expands into `Move`s, for the bodies
-                    // where it declined to - a scalarized or opaque content type, and every generic
-                    // body, where the expansion has no lower form to take. Reached from here for
-                    // exactly the reason `Move::sink` is, and missed until the discharge stopped
-                    // running in front of everything that asks this question.
-                    case Value::Swap:
-                        reach(((InstSwap&)instruction).sink);
-                        break;
-                    case Value::Exchange:
-                        reach(((InstExchange&)instruction).sink);
-                        break;
                     case Value::Drop:
-                        // Both teardown implementations are reached from here and from nowhere
-                        // else: a derived glue function has no call site in the source at all, and
-                        // an authored instance may have none either. The same goes for the release
-                        // of heap storage, which lowering emits as a call nothing in the IR names.
-                        reach(((InstDrop&)instruction).drop);
-                        reach(((InstDrop&)instruction).reclaim);
+                        // The teardown is reached from here and from nowhere else: a derived glue
+                        // function has no call site in the source at all, and an authored instance
+                        // may have none either. The same goes for the release of heap storage,
+                        // which lowering emits as a call nothing in the IR names.
+                        reach(((InstDrop&)instruction).teardown);
                         if(((InstDrop&)instruction).releaseStorage) reach(program.freeHeap);
                         break;
                     case Value::Alloc:

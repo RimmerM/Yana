@@ -243,7 +243,8 @@ struct Devirtualize {
         if(!header) return Reach::Empty;
 
         auto table = opt.local[header];
-        if(!table->isTable || table->table.size() < ClosureHeaderFields::kCount) return Reach::Unknown;
+        auto slots = ClosureHeaderFields::kCount;
+        if(!table->isTable || table->table.size() < slots) return Reach::Unknown;
 
         auto isEmpty = [&](U16 slot) {
             auto cell = table->table.get(opt.local, slot);
@@ -251,23 +252,23 @@ struct Devirtualize {
             return cell.function() == opt.program.emptyTeardown;
         };
 
-        auto dropEmpty = isEmpty(ClosureHeaderFields::kDrop);
-        if(dropEmpty && (collected || isEmpty(ClosureHeaderFields::kReclaim))) return Reach::Empty;
+        if(isEmpty(ClosureHeaderFields::kTeardown)) return Reach::Empty;
 
         /*
          * Whether the table this describes is one the backends actually put anywhere.
          *
-         * Both of these are load-bearing and neither is obvious. `closureHeaderRead` is
-         * markClosureHeaders' answer, and a lambda it cleared has no header at run time whatever the
-         * table says - it is computed before this pass, so it is final here. The drop slot is what
-         * the JS side gates its store on (`closureNeedsTeardown` asks the environment type, and a
-         * non-empty entry is exactly that question answered yes), so a header whose drop half is
-         * empty may be present natively and absent there.
+         * `closureHeaderRead` is markClosureHeaders' answer, and a lambda it cleared has no header
+         * at run time whatever the table says - it is computed before this pass, so it is final
+         * here. `Unknown` rather than a guess: the cost of being wrong is a teardown reading a
+         * header that was never written.
          *
-         * Anything short of both is `Unknown` rather than a guess: the cost of being wrong is a
-         * teardown reading a header that was never written.
+         * The other half of this test was "the drop slot is empty", which the JS side gates its
+         * store on - a header whose drop half is empty is present natively and absent there. With
+         * one slot per target that question is the emptiness test above: the slot holds the drop
+         * half on a managed target and the merged teardown natively, so each backend's answer is
+         * about the table its own build emits.
          */
-        if(dropEmpty || !opt.local[lambda]->closureHeaderRead) return Reach::Unknown;
+        if(!opt.local[lambda]->closureHeaderRead) return Reach::Unknown;
         return Reach::Present;
     }
 
@@ -499,29 +500,19 @@ bool devirtualizeClosureDrop(OptContext& opt, Block& block, Size index, InstDrop
      * The header is there every time, so the test in front of the search is dead.
      *
      * Which is all this site can save. Which lambda the value holds is still a run-time fact and the
-     * entries are still two different functions, so the search itself stays - see the header. What
+     * entry is still reached through the header, so the search itself stays - see the header. What
      * changes is the callee: the same glue, interned separately, without the branch.
+     *
+     * One rewrite, because the drop names one function. This used to be two, and the second had to
+     * *carry the pairing across* rather than recompute it: a reclaim naming the same function as the
+     * drop is one traversal serving both halves, and rewriting the two independently would have
+     * broken that identity and run the walk twice. There is no identity left to preserve.
      *
      * Answered `false` rather than `true`, because the drop has not been taken. `dischargeDrop`
      * expands it in the ordinary way from here, and what it expands is now one call shorter.
      */
-    auto& module = *opt.module;
-    auto source = drop.source;
-    auto known = [&](Teardown half) {
-        return funTeardownKnownHeader(module, type, half, source);
-    };
-
-    // A reclaim naming the same function as the drop is one traversal serving both halves, and
-    // `dischargeDrop` reads that identity to run it once. Rewriting the two independently would
-    // break the identity and run it twice, so the pairing is carried across rather than recomputed.
-    auto shared = drop.drop && drop.drop == drop.reclaim;
-
-    if(drop.drop) drop.drop = known(Teardown::Drop);
-
-    // Left alone on a managed target, where `dischargeDrop` emits no reclaim call at all: generating
-    // a second variant for a half that is never called is the one way this can only cost.
-    if(drop.reclaim && !devirtualize.collected) {
-        drop.reclaim = shared ? drop.drop : known(Teardown::Reclaim);
+    if(drop.teardown) {
+        drop.teardown = funTeardownKnownHeader(*opt.module, type, drop.source);
     }
 
     opt.changed = true;

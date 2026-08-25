@@ -192,20 +192,20 @@ fn classify(%n: Int) -> Int {
     %v57 = add %v54, %v56 : %Int
     %v58 = borrow [%v57] : 'Int
     %v59 = load [%v58] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v60 = add %v59, %n : Int
     ret %v60
 
   b10:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b11:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b4
 
   b12:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b7
 }
 

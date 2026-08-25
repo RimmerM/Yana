@@ -25,7 +25,7 @@ fn retarget(%slot: (Int) -> Int) -> () {
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
-    drop_derived %slot via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    drop_derived %slot via teardown$(Int) -> Int
     assign %slot, %v1
     ret
 }
@@ -38,7 +38,7 @@ fn reweight(%step: Step, %weight: Int) -> () {
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
-    drop_derived %step@Step.run via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    drop_derived %step@Step.run via teardown$(Int) -> Int
     assign %step@Step.run, %v3
     ret
 }
@@ -76,7 +76,7 @@ fn main() -> Int {
     %v34 = calldyn %v32, 10 : Int
     %v35 = load %s : Step
     %v36 = load %s@Step.weight : Int
-    drop_derived %s via drop$Step reclaim reclaim$Step
+    drop_derived %s via teardown$Step
     %last = mul %v34, %v36 : Int
     %v38 = add %before, %after : Int
     %v39 = add %v38, %last : Int
@@ -101,7 +101,7 @@ fn funvalue$double(%env: %(), %x: Int) -> Int {
     ret %v2
 }
 
-fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -111,7 +111,7 @@ fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
   b1:
     %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
+    %v8 = sizeof {slot: Int} : Long
     %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
@@ -122,35 +122,8 @@ fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
     ret
 }
 
-fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$Step(%value: Step) -> () {
   b0:
-    %v1 = load %value.env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
-    %v10 = cast %v9 : %()
-    %v11 = tableslot : %()
-    calldyn %v11, %v1
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn drop$Step(%value: Step) -> () {
-  b0:
-    drop_derived %value@Step.run via drop$(Int) -> Int
-    ret
-}
-
-fn reclaim$Step(%value: Step) -> () {
-  b0:
-    drop_derived %value@Step.run reclaim reclaim$(Int) -> Int
+    drop_derived %value@Step.run via teardown$(Int) -> Int
     ret
 }

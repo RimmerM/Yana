@@ -240,8 +240,7 @@ static StringView instructionName(Value& value, GlobalBase global) {
             // Named after what it actually runs. A teardown with an authored half on either side is
             // opaque to region placement, so telling the two apart in the dump is telling apart the
             // two things placement decides between.
-            if(((InstDrop&)value).dropKind == TeardownKind::Authored ||
-               ((InstDrop&)value).reclaimKind == TeardownKind::Authored) {
+            if(((InstDrop&)value).kind == TeardownKind::Authored) {
                 return "drop"_v;
             }
 
@@ -374,14 +373,6 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             auto& moved = (InstMove&)inst;
             print.writer.writeByte(' ');
             printPlace(print, *function, moved.place);
-
-            // `move %x via Sink(T).sink` - which of the two relocations this is, since a bitwise
-            // move and a call are very different things to read past.
-            if(moved.sink) {
-                print.writer.writeString(" via "_v);
-                print.writer.writeString(print.context.findName(print.local[moved.sink]->name));
-            }
-
             break;
         }
         case Value::Swap: {
@@ -390,12 +381,6 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             printPlace(print, *function, swap.a);
             print.writer.writeString(", "_v);
             printPlace(print, *function, swap.b);
-
-            if(swap.sink) {
-                print.writer.writeString(" via "_v);
-                print.writer.writeString(print.context.findName(print.local[swap.sink]->name));
-            }
-
             break;
         }
         case Value::Exchange: {
@@ -404,12 +389,6 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             printPlace(print, *function, exchange.place);
             print.writer.writeString(", "_v);
             printValue(print, *print.local[exchange.value]);
-
-            if(exchange.sink) {
-                print.writer.writeString(" via "_v);
-                print.writer.writeString(print.context.findName(print.local[exchange.sink]->name));
-            }
-
             break;
         }
         case Value::Copy: {
@@ -429,23 +408,22 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
             print.writer.writeByte(' ');
             printPlace(print, *function, dropped.place);
 
-            // The two halves are printed separately because they are elided separately: a region
-            // reset discharges the reclaim and leaves the drop, and a dump that merged them would
-            // not show which one survived.
-            if(dropped.drop) {
+            // One name, because a drop runs one function - see InstDrop::teardown. Which halves
+            // that function stands for is a property of the type and is printed where the type is,
+            // in the teardown's own name: `reclaim$X` releases storage, `teardown$X` does both.
+            if(dropped.teardown) {
                 print.writer.writeString(" via "_v);
-                print.writer.writeString(print.context.findName(print.local[dropped.drop]->name));
-            }
-
-            if(dropped.reclaim) {
-                print.writer.writeString(" reclaim "_v);
-                print.writer.writeString(print.context.findName(print.local[dropped.reclaim]->name));
+                print.writer.writeString(print.context.findName(print.local[dropped.teardown]->name));
             }
 
             // The last part of the reclaim half: handing back storage this frame owns. Printed
             // because a teardown of a type with nothing to run is otherwise indistinguishable from
             // no teardown at all.
             if(dropped.releaseStorage) print.writer.writeString(" release"_v);
+
+            // And the shape with no halves to print: what runs is the caller's descriptor's, which
+            // is not a name this function has. See InstDrop::erased.
+            if(dropped.erased) print.writer.writeString(" erased"_v);
 
             break;
         }

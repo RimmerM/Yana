@@ -8,11 +8,11 @@ const witness$Sized_Int_mul2_Int = [thunk$Sized_Int_mul2_Int_firstItem_0];
 const genEnv$firstThrough_2 = [2, witness$Sized_Int_mul2_Int];
 const witness$Sized_Int_mul4_Int = [thunk$Sized_Int_mul4_Int_firstItem_0];
 const genEnv$firstThrough_4 = [4, witness$Sized_Int_mul4_Int];
-const typeDesc$_Int_mul4 = [16, 16, 1155, moveInit$_Int_mul4, copyInit$_Int_mul4, teardown$none, teardown$none];
+const typeDesc$_Int_mul4 = [teardown$none, moveInit$_Int_mul4, copyInit$_Int_mul4];
 const genEnv$doubled_4 = [typeDesc$_Int_mul4, 4];
 const genEnv$mutatedCopy_4 = [typeDesc$_Int_mul4, 4];
 const genEnv$filled_4 = [typeDesc$_Int_mul4, 4];
-const typeDesc$Wide = [4, 4, 1155, moveInit$Wide, copyInit$Wide, teardown$none, teardown$none];
+const typeDesc$Wide = [teardown$none, moveInit$Wide, copyInit$Wide];
 const witness$Widths_Wide_4 = [thunk$Widths_Wide_4_widthSum_0];
 const genEnv$widthThrough_4_Wide = [typeDesc$Wide, 4, witness$Widths_Wide_4];
 
@@ -72,7 +72,7 @@ function firstThrough(genEnv, xs) {
 
 function doubled(genEnv, xs) {
   var out = new Int32Array(genEnv[1]);
-  genEnv[0][4](out, xs);
+  genEnv[0][2](out, xs);
   var i = 0;
   var v8 = genEnv[1];
   var v28 = genEnv[1] >>> 0;
@@ -90,7 +90,7 @@ function doubled(genEnv, xs) {
 
 function mutatedCopy(genEnv, xs) {
   var c = new Int32Array(genEnv[1]);
-  genEnv[0][4](c, xs);
+  genEnv[0][2](c, xs);
   checkCondition(0 >= genEnv[1] >>> 0 ? 1 : 0);
   c[0] = c[0] + 1 | 0;
   return c[0];

@@ -239,8 +239,8 @@ instance Reclaim(Array(a)):
 
    The tail is one `copyMemory` and not a loop of moves, which is what a relocation of `n` values
    *is* for every type whose bytes are its whole story - and every type reaches this, because a move
-   is a move. A type with an authored `Sink` refers to its own address and would need the per-element
-   form; nothing in this tree has one, and `TrivialSink` is the fact that would have to be asked.
+   is a move, and there is no type for which it is not - a relocation is the bytes for everything the
+   language can express, so the per-element form this would otherwise need does not exist.
 
    `copyMemory` rather than `moveMemory`: the two runs are different allocations, so the regions
    cannot overlap - unlike `remove` above, which slides one run over itself.

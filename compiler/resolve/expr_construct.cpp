@@ -1011,12 +1011,6 @@ ModulePtr<Value> ExprResolver::sinkValue(ModulePtr<Value> value, LocationId sour
     if(!ownership.trivialCopy) {
         auto moved = create<InstMove>(source, name, type, place.unwrap());
 
-        // Asked of the type rather than of the context, unlike TrivialCopy above: relocating an
-        // unknown `a` is the erased path's business - the descriptor its caller passed carries the
-        // moveInit - and nothing concrete to call exists here to name. ownershipIn never reports a
-        // generic type as non-TrivialSink for a reason it could act on, so this asks what it can.
-        if(!ownership.trivialSink) moved->sink = sinkFor(module, type, source);
-
         append(moved);
         return ref(moved);
     }

@@ -1165,7 +1165,7 @@ fn insert(String, Held)(%self: Map(String, Held), %key: String, %value: Held) ->
     ret %v24
 
   b4:
-    drop %key reclaim Reclaim(String).reclaim
+    drop %key via Reclaim(String).reclaim
     jmp b1
 }
 
@@ -1583,22 +1583,17 @@ fn Reclaim(Array(a)).reclaim(Entry(String, Held))(%value: Array(Entry(String, He
     %v21 = move %local2 : Entry(String, Held)
     %doomed = alloc : Entry(String, Held)
     init %local3, %v21
-    drop_derived %local3 via drop$Entry(String, Held) reclaim reclaim$Entry(String, Held)
+    drop_derived %local3 via teardown$Entry(String, Held)
     %v24 = load %i : Int
     %v26 = add %v24, 1 : Int
     assign %i, %v26
     jmp b1
 }
 
-fn drop$Entry(String, Held)(%value: Entry(String, Held)) -> () {
+fn teardown$Entry(String, Held)(%value: Entry(String, Held)) -> () {
   b0:
+    drop %value@Entry.key via Reclaim(String).reclaim
     drop %value@Entry.value via Drop(Held).drop
-    ret
-}
-
-fn reclaim$Entry(String, Held)(%value: Entry(String, Held)) -> () {
-  b0:
-    drop %value@Entry.key reclaim Reclaim(String).reclaim
     ret
 }
 
@@ -2967,7 +2962,7 @@ fn main() -> Int {
     %v59 = call key, 2 : String
     %v60 = borrow %m : 'Map(String, Held)
     %v61 = call find(String, Held), %v60, %v59 : Maybe('Held)
-    drop %local8 reclaim Reclaim(String).reclaim
+    drop %local8 via Reclaim(String).reclaim
     %v62 = load %local9.discriminant : Int
     %v64 = cmp_eq %v62, 1 : Bool
     je %v64, b8, b48
@@ -3063,7 +3058,7 @@ fn main() -> Int {
     %v158 = call key, 4 : String
     %v159 = borrow %m : 'Map(String, Held)
     %v160 = call Index(Map(k, v), k, v).get(String, Held), %v159, %v158 : 'Held
-    drop %local14 reclaim Reclaim(String).reclaim
+    drop %local14 via Reclaim(String).reclaim
     %v161 = load [%v160] : Held
     %v162 = load [%v160]@Held.n : Int
     %v165 = cmp_ne %v162, 40 : Bool
@@ -3131,7 +3126,7 @@ fn main() -> Int {
     %v233 = call key, 9 : String
     %v234 = borrow %dup : 'Map(String, Held)
     %v235 = call Index(Map(k, v), k, v).get(String, Held), %v234, %v233 : 'Held
-    drop %local23 reclaim Reclaim(String).reclaim
+    drop %local23 via Reclaim(String).reclaim
     %v236 = load [%v235] : Held
     %v237 = load [%v235]@Held.n : Int
     %v240 = cmp_ne %v237, 90 : Bool
@@ -3196,14 +3191,14 @@ fn main() -> Int {
     %inside = load live : Int
     %v301 = load %m : Map(String, Held)
     %v302 = call take, %v301 : Int
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     %v303 = load %dup : Map(String, Held)
     %v304 = call take, %v303 : Int
-    drop_derived %dup via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %dup via teardown$Map(String, Held)
     %v305 = add %v302, %v304 : Int
     %v306 = load %none : Map(String, Held)
     %v307 = call take, %v306 : Int
-    drop_derived %none via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %none via teardown$Map(String, Held)
     %held = add %v305, %v307 : Int
     %v311 = mul %inside, 10 : Int
     %v312 = load live : Int
@@ -3213,72 +3208,72 @@ fn main() -> Int {
     ret %v317
 
   b46:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b1
 
   b47:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b4
 
   b48:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b7
 
   b49:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b9
 
   b50:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b13
 
   b51:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b16
 
   b52:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b19
 
   b53:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b22
 
   b54:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
     jmp b25
 
   b55:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %dup via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
+    drop_derived %dup via teardown$Map(String, Held)
     jmp b28
 
   b56:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %dup via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
+    drop_derived %dup via teardown$Map(String, Held)
     jmp b31
 
   b57:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %dup via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
+    drop_derived %dup via teardown$Map(String, Held)
     jmp b34
 
   b58:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %dup via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %none via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
+    drop_derived %dup via teardown$Map(String, Held)
+    drop_derived %none via teardown$Map(String, Held)
     jmp b37
 
   b59:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %dup via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %none via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
+    drop_derived %dup via teardown$Map(String, Held)
+    drop_derived %none via teardown$Map(String, Held)
     jmp b40
 
   b60:
-    drop_derived %m via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %dup via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
-    drop_derived %none via drop$Map(String, Held) reclaim reclaim$Map(String, Held)
+    drop_derived %m via teardown$Map(String, Held)
+    drop_derived %dup via teardown$Map(String, Held)
+    drop_derived %none via teardown$Map(String, Held)
     jmp b43
 }
 
@@ -3290,14 +3285,9 @@ fn Drop(Held).drop(%value: Held) -> () {
     ret
 }
 
-fn drop$Map(String, Held)(%value: Map(String, Held)) -> () {
+fn teardown$Map(String, Held)(%value: Map(String, Held)) -> () {
   b0:
     drop %value@Map.entries via Reclaim(Array(a)).reclaim(Entry(String, Held))
-    ret
-}
-
-fn reclaim$Map(String, Held)(%value: Map(String, Held)) -> () {
-  b0:
-    drop %value@Map.index reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Map.index via Reclaim(Run(a)).reclaim(U8)
     ret
 }

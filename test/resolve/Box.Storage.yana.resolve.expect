@@ -373,11 +373,11 @@ fn outOfLine() -> Int {
   b6:
     %v33 = load %local0@Config.cold.* : Diagnostics
     %v34 = call levelOf, %v33 : Int
-    drop_derived %local0 reclaim reclaim$Config
+    drop_derived %local0 via reclaim$Config
     ret %v34
 
   b7:
-    drop_derived %local0 reclaim reclaim$Config
+    drop_derived %local0 via reclaim$Config
     jmp b3
 }
 
@@ -419,12 +419,12 @@ fn writesThrough() -> Int {
     %v37 = load %c : Config
     %v38 = load %c@Config.cold.* : Diagnostics
     %v39 = load %c@Config.cold.*@Diagnostics.level : Int
-    drop_derived %c reclaim reclaim$Config
+    drop_derived %c via reclaim$Config
     %v40 = add %v36, %v39 : Int
     ret %v40
 
   b4:
-    drop_derived %c reclaim reclaim$Config
+    drop_derived %c via reclaim$Config
     jmp b1
 }
 

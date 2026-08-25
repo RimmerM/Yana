@@ -10,11 +10,36 @@
 
 #include "lower_internal.h"
 
-// What a teardown's place holds. A generic teardown only ever names a whole local - a partial move
-// is rejected long before here - so a root that is anything else is a concrete one by construction.
+/*
+ * What a teardown's place holds.
+ *
+ * Two roots and no projections, which is every place an *erased* drop can name. A whole local is
+ * the ordinary one - a partial move is rejected long before here, so nothing reaches this with a
+ * path into a value.
+ *
+ * The other is a write through a `&`: `slot = e` releases what the borrowed storage held before it
+ * is overwritten, and inside a generic body that release is the caller's descriptor's. This used to
+ * answer null for it, on the reading that anything not rooted in a local is concrete by
+ * construction - true for as long as a generic body got no drops at all, and a null type reaches
+ * `genTypeDesc` as "not generic", which is the answer that then indexes a descriptor nobody has.
+ *
+ * Anything else is concrete, and answering null for it is what says so.
+ */
 TypePtr dropPlaceType(LowerContext& lower, Function& function, const Place& place) {
     auto projections = place.projections;
-    if(place.root != PlaceRoot::Local || projections.isNotEmpty()) return nullptr;
+    if(projections.isNotEmpty()) return nullptr;
+
+    if(place.root == PlaceRoot::Pointer || place.root == PlaceRoot::Borrow) {
+        if(!place.pointer) return nullptr;
+
+        // Both spellings of an address, because both roots reach here: a `&` is what a write
+        // through a borrow is rooted in and a `%T` is what an erased teardown entry was handed.
+        auto address = lower.local[place.pointer]->type;
+        if(isBorrow(lower.global, address)) return ((BorrowType*)lower.global[address])->to;
+        return pointeeType(lower.global, address);
+    }
+
+    if(place.root != PlaceRoot::Local) return nullptr;
     if(place.local >= function.localCount()) return nullptr;
 
     return function.localAt(lower.local, place.local).type;

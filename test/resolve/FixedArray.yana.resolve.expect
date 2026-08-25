@@ -430,7 +430,7 @@ fn emptySize() -> I64 {
     ret %v2
 }
 
-fn main() -> Int {
+fn sizeClaims() -> Int {
   b0:
     %v0 = call fixedSize : I64
     %v3 = cmp_ne %v0, 16 : Bool
@@ -456,149 +456,165 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v24 = alloc : [Int *4]
-    aggregate %xs[0] = 1, %xs[1] = 2, %xs[2] = 3, %xs[3] = 4
-    %v30 = load %xs : [Int *4]
-    %v31 = borrow %xs : '[Int *4]
-    %v32 = alloc : Flat(Int)
-    %v33 = addressof [%v31] : %Int
-    init %local1@Flat.items, %v33
-    %v35 = countof 4 : Size
-    init %local1@Flat.length, %v35
-    %v37 = call total, %v32 : Int
-    %v40 = cmp_ne %v37, 10 : Bool
-    je %v40, b7, b8
+    %v20 = call padStride : I64
+    %v23 = cmp_ne %v20, 48 : Bool
+    je %v23, b7, b8
 
   b7:
-    %v44 = neg 3 : Int
-    ret %v44
+    %v27 = neg 7 : Int
+    ret %v27
 
   b8:
     jmp b9
 
   b9:
-    %v47 = load %xs : [Int *4]
-    %v48 = borrow %xs : '[Int *4]
-    %v49 = alloc : Flat(Int)
-    %v50 = addressof [%v48] : %Int
-    init %local2@Flat.items, %v50
-    %v52 = countof 4 : Size
-    init %local2@Flat.length, %v52
-    %v54 = call middle, %v49 : Int
-    %v57 = cmp_ne %v54, 5 : Bool
-    je %v57, b10, b11
+    %v30 = call emptySize : I64
+    %v33 = cmp_ne %v30, 0 : Bool
+    je %v33, b10, b11
 
   b10:
-    %v61 = neg 4 : Int
-    ret %v61
+    %v37 = neg 9 : Int
+    ret %v37
 
   b11:
     jmp b12
 
   b12:
-    %v64 = load %xs : [Int *4]
-    %v65 = borrow_mut %xs : &[Int *4]
-    %v66 = alloc : Flat(Int)
-    %v67 = addressof [%v65] : %Int
-    init %local3@Flat.items, %v67
-    %v69 = countof 4 : Size
-    init %local3@Flat.length, %v69
-    %v71 = borrow_mut %local3 : &Flat(Int)
-    call double, %v71
-    %v73 = load %xs : [Int *4]
-    %v74 = borrow %xs : '[Int *4]
-    %v75 = alloc : Flat(Int)
-    %v76 = addressof [%v74] : %Int
-    init %local4@Flat.items, %v76
-    %v78 = countof 4 : Size
-    init %local4@Flat.length, %v78
-    %v80 = call total, %v75 : Int
-    %v83 = cmp_ne %v80, 20 : Bool
-    je %v83, b13, b14
+    ret 0
+}
+
+fn main() -> Int {
+  b0:
+    %claims = call sizeClaims : Int
+    %v3 = cmp_ne %claims, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret %claims
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = alloc : [Int *4]
+    aggregate %xs[0] = 1, %xs[1] = 2, %xs[2] = 3, %xs[3] = 4
+    %v17 = load %xs : [Int *4]
+    %v18 = borrow %xs : '[Int *4]
+    %v19 = alloc : Flat(Int)
+    %v20 = addressof [%v18] : %Int
+    init %local1@Flat.items, %v20
+    %v22 = countof 4 : Size
+    init %local1@Flat.length, %v22
+    %v24 = call total, %v19 : Int
+    %v27 = cmp_ne %v24, 10 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v31 = neg 3 : Int
+    ret %v31
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = load %xs : [Int *4]
+    %v35 = borrow %xs : '[Int *4]
+    %v36 = alloc : Flat(Int)
+    %v37 = addressof [%v35] : %Int
+    init %local2@Flat.items, %v37
+    %v39 = countof 4 : Size
+    init %local2@Flat.length, %v39
+    %v41 = call middle, %v36 : Int
+    %v44 = cmp_ne %v41, 5 : Bool
+    je %v44, b7, b8
+
+  b7:
+    %v48 = neg 4 : Int
+    ret %v48
+
+  b8:
+    jmp b9
+
+  b9:
+    %v51 = load %xs : [Int *4]
+    %v52 = borrow_mut %xs : &[Int *4]
+    %v53 = alloc : Flat(Int)
+    %v54 = addressof [%v52] : %Int
+    init %local3@Flat.items, %v54
+    %v56 = countof 4 : Size
+    init %local3@Flat.length, %v56
+    %v58 = borrow_mut %local3 : &Flat(Int)
+    call double, %v58
+    %v60 = load %xs : [Int *4]
+    %v61 = borrow %xs : '[Int *4]
+    %v62 = alloc : Flat(Int)
+    %v63 = addressof [%v61] : %Int
+    init %local4@Flat.items, %v63
+    %v65 = countof 4 : Size
+    init %local4@Flat.length, %v65
+    %v67 = call total, %v62 : Int
+    %v70 = cmp_ne %v67, 20 : Bool
+    je %v70, b10, b11
+
+  b10:
+    %v74 = neg 5 : Int
+    ret %v74
+
+  b11:
+    jmp b12
+
+  b12:
+    %v79 = alloc : [Int *2]
+    aggregate %local5[0] = 7, %local5[1] = 8
+    %v83 = call pairSum, %v79 : Int
+    %v86 = cmp_ne %v83, 15 : Bool
+    je %v86, b13, b14
 
   b13:
-    %v87 = neg 5 : Int
-    ret %v87
+    %v90 = neg 6 : Int
+    ret %v90
 
   b14:
     jmp b15
 
   b15:
-    %v92 = alloc : [Int *2]
-    aggregate %local5[0] = 7, %local5[1] = 8
-    %v96 = call pairSum, %v92 : Int
-    %v99 = cmp_ne %v96, 15 : Bool
-    je %v99, b16, b17
+    %v95 = alloc : [Int *2]
+    aggregate %pair[0] = 7, %pair[1] = 8
+    %v99 = load %pair : [Int *2]
+    %v100 = borrow_mut %pair : &[Int *2]
+    call bump, %v100
+    %v102 = load %pair : [Int *2]
+    %v103 = call pairSum, %v102 : Int
+    %v106 = cmp_ne %v103, 17 : Bool
+    je %v106, b16, b17
 
   b16:
-    %v103 = neg 6 : Int
-    ret %v103
+    %v110 = neg 10 : Int
+    ret %v110
 
   b17:
     jmp b18
 
   b18:
-    %v108 = alloc : [Int *2]
-    aggregate %pair[0] = 7, %pair[1] = 8
-    %v112 = load %pair : [Int *2]
-    %v113 = borrow_mut %pair : &[Int *2]
-    call bump, %v113
-    %v115 = load %pair : [Int *2]
-    %v116 = call pairSum, %v115 : Int
-    %v119 = cmp_ne %v116, 17 : Bool
-    je %v119, b19, b20
+    %v113 = call padRead : I64
+    %v116 = cmp_ne %v113, 60 : Bool
+    je %v116, b19, b20
 
   b19:
-    %v123 = neg 10 : Int
-    ret %v123
+    %v120 = neg 8 : Int
+    ret %v120
 
   b20:
     jmp b21
 
   b21:
-    %v126 = call padStride : I64
-    %v129 = cmp_ne %v126, 48 : Bool
-    je %v129, b22, b23
-
-  b22:
-    %v133 = neg 7 : Int
-    ret %v133
-
-  b23:
-    jmp b24
-
-  b24:
-    %v136 = call padRead : I64
-    %v139 = cmp_ne %v136, 60 : Bool
-    je %v139, b25, b26
-
-  b25:
-    %v143 = neg 8 : Int
-    ret %v143
-
-  b26:
-    jmp b27
-
-  b27:
-    %v146 = call emptySize : I64
-    %v149 = cmp_ne %v146, 0 : Bool
-    je %v149, b28, b29
-
-  b28:
-    %v153 = neg 9 : Int
-    ret %v153
-
-  b29:
-    jmp b30
-
-  b30:
-    %v156 = load %xs : [Int *4]
-    %v157 = borrow %xs : '[Int *4]
-    %v158 = alloc : Flat(Int)
-    %v159 = addressof [%v157] : %Int
-    init %local7@Flat.items, %v159
-    %v161 = countof 4 : Size
-    init %local7@Flat.length, %v161
-    %v163 = call total, %v158 : Int
-    ret %v163
+    %v123 = load %xs : [Int *4]
+    %v124 = borrow %xs : '[Int *4]
+    %v125 = alloc : Flat(Int)
+    %v126 = addressof [%v124] : %Int
+    init %local7@Flat.items, %v126
+    %v128 = countof 4 : Size
+    init %local7@Flat.length, %v128
+    %v130 = call total, %v125 : Int
+    ret %v130
 }

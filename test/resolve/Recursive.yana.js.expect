@@ -46,18 +46,18 @@ function total(t) {
 }
 
 function leftOf(t) {
-  var v24;
+  var v22;
   var v19;
   var absent = { $tag: 0, left: null, right: null, label: 0, $p: 0 };
   if (t.$tag === 0) {
     v19 = t.$p;
   } else {
     if (t.left === null) {
-      v24 = absent;
+      v22 = absent;
     } else {
-      v24 = t.left;
+      v22 = t.left;
     }
-    v19 = total(v24);
+    v19 = total(v22);
   }
   return v19;
 }
@@ -84,16 +84,16 @@ function main() {
   var values = v46 + (total(t) + leftOf(t) | 0) | 0;
   add_eq_Int(liveNodes, "$v", 1, 1);
   add_eq_Int(liveNodes, "$v", 1, 1);
-  var v99 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
-  v99.rest.$v = null;
+  var v97 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
+  v97.rest.$v = null;
   var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
-  c.rest.$v = v99;
-  var v123 = idsOf(c);
+  c.rest.$v = v97;
+  var v121 = idsOf(c);
   drop$Chain(c);
   if (liveNodes.$v) {
     return -1;
   } else {
-    return values + v123 | 0;
+    return values + v121 | 0;
   }
 }
 

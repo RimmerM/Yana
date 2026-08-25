@@ -4,47 +4,38 @@ let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Point, ()) before ResolveTest.continuation$18(Point, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19(Point, Int, ()) before ResolveTest.continuation$19(Point, Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Point, Outcome((), ())) before ResolveTest.continuation$18(Point, Outcome((), ())) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn checkFailed() -> () {
@@ -517,7 +508,7 @@ fn main() -> Int {
     %v71 = cast %v70 : Size
     init %local9@Flat.length, %v71
     %v73 = call twoLifts, %v67 : Int
-    drop %ps reclaim Reclaim(Array(a)).reclaim(Point)
+    drop %ps via Reclaim(Array(a)).reclaim(Point)
     %v74 = add %v64, %v73 : Int
     %v75 = load %ns : Array(Int)
     %v76 = borrow %ns : 'Array(Int)
@@ -528,7 +519,7 @@ fn main() -> Int {
     %v81 = cast %v80 : Size
     init %local10@Flat.length, %v81
     %v83 = call scalar, %v77 : Int
-    drop %ns reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %ns via Reclaim(Array(a)).reclaim(Int)
     %v84 = add %v74, %v83 : Int
     ret %v84
 }

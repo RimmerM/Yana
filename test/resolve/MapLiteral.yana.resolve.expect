@@ -12,12 +12,10 @@ let &shared: Map(Int, Int) = <startup>
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 let ResolveTest.string$0: String = "x"
@@ -30,7 +28,6 @@ let ResolveTest.string$3: String = "y"
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn slotFor(%h: U32, %mask: @bits(30) U32) -> Size {
@@ -1592,7 +1589,7 @@ fn insert(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -> Ma
     ret %v22
 
   b4:
-    drop %key reclaim Reclaim(String).reclaim
+    drop %key via Reclaim(String).reclaim
     jmp b1
 }
 
@@ -2358,7 +2355,7 @@ fn IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int))(%self: Map(Int, Array(
     %v4 = borrow_mut %self : &Map(Int, Array(Int))
     %value = move %value : Array(Int)
     %v6 = call insert(Int, Array(Int)), %v4, %index, %value : Maybe(Array(Int))
-    drop_derived %local3 reclaim reclaim$Maybe(Array(Int))
+    drop_derived %local3 via reclaim$Maybe(Array(Int))
     ret
 }
 
@@ -3185,7 +3182,7 @@ fn IndexInsert(Map(k, v), k, v).insertAt(Int, Map(Int, Int))(%self: Map(Int, Map
     %v4 = borrow_mut %self : &Map(Int, Map(Int, Int))
     %value = move %value : Map(Int, Int)
     %v6 = call insert(Int, Map(Int, Int)), %v4, %index, %value : Maybe(Map(Int, Int))
-    drop_derived %local3 reclaim reclaim$Maybe(Map(Int, Int))
+    drop_derived %local3 via reclaim$Maybe(Map(Int, Int))
     ret
 }
 
@@ -3567,7 +3564,7 @@ fn reclaim$Maybe(Array(Int))(%value: Maybe(Array(Int))) -> () {
     ret
 
   b2:
-    drop %value@Just reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Just via Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b3:
@@ -3619,7 +3616,7 @@ fn reclaim$Maybe(Map(Int, Int))(%value: Maybe(Map(Int, Int))) -> () {
     ret
 
   b2:
-    drop_derived %value@Just reclaim reclaim$Map(Int, Int)
+    drop_derived %value@Just via reclaim$Map(Int, Int)
     jmp b1
 
   b3:
@@ -3628,8 +3625,8 @@ fn reclaim$Maybe(Map(Int, Int))(%value: Maybe(Map(Int, Int))) -> () {
 
 fn reclaim$Map(Int, Int)(%value: Map(Int, Int)) -> () {
   b0:
-    drop %value@Map.entries reclaim Reclaim(Array(a)).reclaim(Entry(Int, Int))
-    drop %value@Map.index reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Map.entries via Reclaim(Array(a)).reclaim(Entry(Int, Int))
+    drop %value@Map.index via Reclaim(Run(a)).reclaim(U8)
     ret
 }
 
@@ -3699,7 +3696,7 @@ fn Reclaim(Array(a)).reclaim(Entry(String, Int))(%value: Array(Entry(String, Int
     %v21 = move %local2 : Entry(String, Int)
     %doomed = alloc : Entry(String, Int)
     init %local3, %v21
-    drop_derived %local3 reclaim reclaim$Entry(String, Int)
+    drop_derived %local3 via reclaim$Entry(String, Int)
     %v24 = load %i : Int
     %v26 = add %v24, 1 : Int
     assign %i, %v26
@@ -3736,7 +3733,7 @@ fn Reclaim(Array(a)).reclaim(Entry(Int, Array(Int)))(%value: Array(Entry(Int, Ar
     %v21 = move %local2 : Entry(Int, Array(Int))
     %doomed = alloc : Entry(Int, Array(Int))
     init %local3, %v21
-    drop_derived %local3 reclaim reclaim$Entry(Int, Array(Int))
+    drop_derived %local3 via reclaim$Entry(Int, Array(Int))
     %v24 = load %i : Int
     %v26 = add %v24, 1 : Int
     assign %i, %v26
@@ -3773,7 +3770,7 @@ fn Reclaim(Array(a)).reclaim(Entry(Int, Map(Int, Int)))(%value: Array(Entry(Int,
     %v21 = move %local2 : Entry(Int, Map(Int, Int))
     %doomed = alloc : Entry(Int, Map(Int, Int))
     init %local3, %v21
-    drop_derived %local3 reclaim reclaim$Entry(Int, Map(Int, Int))
+    drop_derived %local3 via reclaim$Entry(Int, Map(Int, Int))
     %v24 = load %i : Int
     %v26 = add %v24, 1 : Int
     assign %i, %v26
@@ -3782,19 +3779,19 @@ fn Reclaim(Array(a)).reclaim(Entry(Int, Map(Int, Int)))(%value: Array(Entry(Int,
 
 fn reclaim$Entry(String, Int)(%value: Entry(String, Int)) -> () {
   b0:
-    drop %value@Entry.key reclaim Reclaim(String).reclaim
+    drop %value@Entry.key via Reclaim(String).reclaim
     ret
 }
 
 fn reclaim$Entry(Int, Array(Int))(%value: Entry(Int, Array(Int))) -> () {
   b0:
-    drop %value@Entry.value reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Entry.value via Reclaim(Array(a)).reclaim(Int)
     ret
 }
 
 fn reclaim$Entry(Int, Map(Int, Int))(%value: Entry(Int, Map(Int, Int))) -> () {
   b0:
-    drop_derived %value@Entry.value reclaim reclaim$Map(Int, Int)
+    drop_derived %value@Entry.value via reclaim$Map(Int, Int)
     ret
 }
 
@@ -5581,7 +5578,7 @@ fn main() -> Int {
     %v110 = borrow %m : 'Map(Int, Int)
     %v111 = call Index(Map(k, v), k, v).get(Int, Int), %v110, 4 : 'Int
     %v112 = load [%v111] : Int
-    drop_derived %m reclaim reclaim$Map(Int, Int)
+    drop_derived %m via reclaim$Map(Int, Int)
     %v115 = cmp_ne %v112, 40 : Bool
     je %v115, b13, b14
 
@@ -5600,7 +5597,7 @@ fn main() -> Int {
     %v133 = borrow_mut %local3 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v133, 7, 70
     %v135 = call total, %inferred : Int
-    drop_derived %local3 reclaim reclaim$Map(Int, Int)
+    drop_derived %local3 via reclaim$Map(Int, Int)
     %v138 = cmp_ne %v135, 70 : Bool
     je %v138, b16, b17
 
@@ -5649,7 +5646,7 @@ fn main() -> Int {
   b24:
     %v188 = load %empty : Map(Int, Int)
     %v189 = call Length(Map(k, v)).length(Int, Int), %v188 : Size
-    drop_derived %empty reclaim reclaim$Map(Int, Int)
+    drop_derived %empty via reclaim$Map(Int, Int)
     %v190 = cast %v189 : Int
     %v193 = cmp_ne %v190, 1 : Bool
     je %v193, b25, b26
@@ -5669,7 +5666,7 @@ fn main() -> Int {
     %v209 = borrow_mut %local7 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v209, 8, 80
     %v211 = call total, %ascribed : Int
-    drop_derived %local7 reclaim reclaim$Map(Int, Int)
+    drop_derived %local7 via reclaim$Map(Int, Int)
     %v214 = cmp_ne %v211, 80 : Bool
     je %v214, b28, b29
 
@@ -5691,7 +5688,7 @@ fn main() -> Int {
     %v235 = borrow_mut %local9 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v235, 2, 2
     %v237 = call total, %v229 : Int
-    drop_derived %local9 reclaim reclaim$Map(Int, Int)
+    drop_derived %local9 via reclaim$Map(Int, Int)
     %v240 = cmp_ne %v237, 3 : Bool
     je %v240, b31, b32
 
@@ -5725,7 +5722,7 @@ fn main() -> Int {
     %v278 = borrow %table@Table.rows : 'Map(Int, Int)
     %v279 = call Index(Map(k, v), k, v).get(Int, Int), %v278, 8 : 'Int
     %v280 = load [%v279] : Int
-    drop_derived %table reclaim reclaim$Table
+    drop_derived %table via reclaim$Table
     %v281 = add %v273, %v280 : Int
     %v284 = cmp_ne %v281, 170 : Bool
     je %v284, b34, b35
@@ -5780,7 +5777,7 @@ fn main() -> Int {
     %v345 = borrow %local14 : 'Map(Int, Int)
     %v346 = call Index(Map(k, v), k, v).get(Int, Int), %v345, 2 : 'Int
     %v347 = load [%v346] : Int
-    drop_derived %local14 reclaim reclaim$Map(Int, Int)
+    drop_derived %local14 via reclaim$Map(Int, Int)
     %v350 = cmp_ne %v347, 20 : Bool
     je %v350, b43, b44
 
@@ -5918,7 +5915,7 @@ fn main() -> Int {
     init %local23.code, %v516
     init %local23.env, %v514
     %v519 = call pairs(Int, Int, ()), %ordered, %v515 : Outcome((), ())
-    drop_derived %local20 reclaim reclaim$Map(Int, Int)
+    drop_derived %local20 via reclaim$Map(Int, Int)
     %v520 = load %seen : Int
     %v523 = cmp_ne %v520, 312 : Bool
     je %v523, b58, b59
@@ -5964,7 +5961,7 @@ fn main() -> Int {
     %v581 = borrow %local25 : 'Map(Int, Int)
     %v582 = call Index(Map(k, v), k, v).get(Int, Int), %v581, 1 : 'Int
     %v583 = load [%v582] : Int
-    drop_derived %local25 reclaim reclaim$Map(Int, Int)
+    drop_derived %local25 via reclaim$Map(Int, Int)
     %v584 = symbol ResolveTest.string$2 : %CodeUnit
     %v586 = call stringLiteral, %v584, 1 : String
     %v587 = borrow %local26 : 'Map(String, Int)
@@ -5976,10 +5973,10 @@ fn main() -> Int {
     %v594 = borrow %local26 : 'Map(String, Int)
     %v595 = call Index(Map(k, v), k, v).get(String, Int), %v594, %v593 : 'Int
     %v596 = load [%v595] : Int
-    drop_derived %local26 reclaim reclaim$Map(String, Int)
+    drop_derived %local26 via reclaim$Map(String, Int)
     %v597 = add %v590, %v596 : Int
     %v598 = call Length(Map(k, v)).length(Int, Int), %none : Size
-    drop_derived %local27 reclaim reclaim$Map(Int, Int)
+    drop_derived %local27 via reclaim$Map(Int, Int)
     %v599 = cast %v598 : Int
     %v600 = add %v597, %v599 : Int
     %v603 = cmp_ne %v600, 13 : Bool
@@ -6031,7 +6028,7 @@ fn main() -> Int {
     init %local36.code, %v662
     init %local36.env, %v660
     %v665 = call pairs(Int, Array(Int), ()), %lists, %v661 : Outcome((), ())
-    drop_derived %local33 reclaim reclaim$Map(Int, Array(Int))
+    drop_derived %local33 via reclaim$Map(Int, Array(Int))
     %v666 = load %elements : Int
     %v669 = cmp_ne %v666, 3 : Bool
     je %v669, b67, b68
@@ -6063,7 +6060,7 @@ fn main() -> Int {
     %v703 = borrow [%v699] : 'Map(Int, Int)
     %v704 = call Index(Map(k, v), k, v).get(Int, Int), %v703, 2 : 'Int
     %v705 = load [%v704] : Int
-    drop_derived %local41 reclaim reclaim$Map(Int, Map(Int, Int))
+    drop_derived %local41 via reclaim$Map(Int, Map(Int, Int))
     %v708 = cmp_ne %v705, 3 : Bool
     je %v708, b70, b71
 
@@ -6078,43 +6075,43 @@ fn main() -> Int {
     ret 1
 
   b73:
-    drop_derived %m reclaim reclaim$Map(Int, Int)
+    drop_derived %m via reclaim$Map(Int, Int)
     jmp b1
 
   b74:
-    drop_derived %m reclaim reclaim$Map(Int, Int)
+    drop_derived %m via reclaim$Map(Int, Int)
     jmp b4
 
   b75:
-    drop_derived %m reclaim reclaim$Map(Int, Int)
+    drop_derived %m via reclaim$Map(Int, Int)
     jmp b7
 
   b76:
-    drop_derived %m reclaim reclaim$Map(Int, Int)
+    drop_derived %m via reclaim$Map(Int, Int)
     jmp b10
 
   b77:
-    drop_derived %empty reclaim reclaim$Map(Int, Int)
+    drop_derived %empty via reclaim$Map(Int, Int)
     jmp b19
 
   b78:
-    drop_derived %empty reclaim reclaim$Map(Int, Int)
+    drop_derived %empty via reclaim$Map(Int, Int)
     jmp b22
 
   b79:
-    drop_derived %local14 reclaim reclaim$Map(Int, Int)
+    drop_derived %local14 via reclaim$Map(Int, Int)
     jmp b37
 
   b80:
-    drop_derived %local14 reclaim reclaim$Map(Int, Int)
+    drop_derived %local14 via reclaim$Map(Int, Int)
     jmp b40
 
   b81:
-    drop_derived %big reclaim reclaim$Map(Int, Int)
+    drop_derived %big via reclaim$Map(Int, Int)
     jmp b46
 
   b82:
-    drop_derived %big reclaim reclaim$Map(Int, Int)
+    drop_derived %big via reclaim$Map(Int, Int)
     jmp b50
 }
 
@@ -6216,27 +6213,27 @@ fn ResolveTest.continuation$20(%env: %{elements: &Int}, %value$: Entry('Int, 'Ar
 
 fn reclaim$Table(%value: Table) -> () {
   b0:
-    drop_derived %value@Table.rows reclaim reclaim$Map(Int, Int)
+    drop_derived %value@Table.rows via reclaim$Map(Int, Int)
     ret
 }
 
 fn reclaim$Map(String, Int)(%value: Map(String, Int)) -> () {
   b0:
-    drop %value@Map.entries reclaim Reclaim(Array(a)).reclaim(Entry(String, Int))
-    drop %value@Map.index reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Map.entries via Reclaim(Array(a)).reclaim(Entry(String, Int))
+    drop %value@Map.index via Reclaim(Run(a)).reclaim(U8)
     ret
 }
 
 fn reclaim$Map(Int, Array(Int))(%value: Map(Int, Array(Int))) -> () {
   b0:
-    drop %value@Map.entries reclaim Reclaim(Array(a)).reclaim(Entry(Int, Array(Int)))
-    drop %value@Map.index reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Map.entries via Reclaim(Array(a)).reclaim(Entry(Int, Array(Int)))
+    drop %value@Map.index via Reclaim(Run(a)).reclaim(U8)
     ret
 }
 
 fn reclaim$Map(Int, Map(Int, Int))(%value: Map(Int, Map(Int, Int))) -> () {
   b0:
-    drop %value@Map.entries reclaim Reclaim(Array(a)).reclaim(Entry(Int, Map(Int, Int)))
-    drop %value@Map.index reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Map.entries via Reclaim(Array(a)).reclaim(Entry(Int, Map(Int, Int)))
+    drop %value@Map.index via Reclaim(Run(a)).reclaim(U8)
     ret
 }

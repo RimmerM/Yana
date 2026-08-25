@@ -613,7 +613,7 @@ fn main() -> Int {
     %v318 = add %v315, %v317 : Int
     %v319 = load %local4@Settings.limit : Maybe(Int)
     %v321 = call unwrapOr, %v319, 0 : Int
-    drop_derived %local4 reclaim reclaim$Settings
+    drop_derived %local4 via reclaim$Settings
     %defaults = add %v318, %v321 : Int
     %v325 = cmp_eq %defaults, 21 : Bool
     je %v325, b46, b47
@@ -651,6 +651,6 @@ fn main() -> Int {
 
 fn reclaim$Settings(%value: Settings) -> () {
   b0:
-    drop %value@Settings.label reclaim Reclaim(String).reclaim
+    drop %value@Settings.label via Reclaim(String).reclaim
     ret
 }

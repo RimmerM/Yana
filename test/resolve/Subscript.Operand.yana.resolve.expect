@@ -433,7 +433,7 @@ fn main() -> Int {
     %v91 = cast %v90 : Size
     init %local7@Flat.length, %v91
     %v93 = call nested, %v79, %v87 : Int
-    drop %idx reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %idx via Reclaim(Array(a)).reclaim(Int)
     %v96 = cmp_ne %v93, 3 : Bool
     je %v96, b18, b8
 
@@ -508,28 +508,28 @@ fn main() -> Int {
     %v163 = cast %v162 : Size
     init %local12@Flat.length, %v163
     %v165 = call total, %v159 : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     ret %v165
 
   b16:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    drop %idx reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
+    drop %idx via Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b17:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
-    drop %idx reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
+    drop %idx via Reclaim(Array(a)).reclaim(Int)
     jmp b4
 
   b18:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b7
 
   b19:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b10
 
   b20:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b13
 }

@@ -14,7 +14,7 @@ import Native
 
 -- The whole claim, as a number. A fixed array is its elements and nothing else, so four `Int`s cost
 -- exactly four `Int`s: no count, no capacity, no run pointer, no padding at either end.
-fn fixedSize() -> I64:
+@platform(native) fn fixedSize() -> I64:
     let xs = [1, 2, 3, 4] :: [Int *4]
     return sizeOf(xs)
 
@@ -22,7 +22,7 @@ fn fixedSize() -> I64:
 -- one is the array's bytes plus whatever else it holds, with no per-element metadata between them.
 data Quad {values: [Int *4], tag: Int}
 
-fn nestedSize() -> I64:
+@platform(native) fn nestedSize() -> I64:
     let q = Quad {values: [1, 2, 3, 4], tag: 0}
     return sizeOf(q) - sizeOf(q.tag)
 
@@ -88,7 +88,7 @@ fn bump(&p: [Int *2]) -> {}:
 -}
 data Pad {wide: I64, narrow: U8}
 
-fn padStride() -> I64:
+@platform(native) fn padStride() -> I64:
     let ps = [Pad {wide: 1, narrow: 2}, Pad {wide: 3, narrow: 4}, Pad {wide: 5, narrow: 6}] :: [Pad *3]
     return sizeOf(ps)
 
@@ -98,16 +98,38 @@ fn padRead() -> I64:
 
 -- Zero elements is a value occupying nothing rather than a case. It has no element to release and
 -- no base address to compute, which is what keeps the derived teardown from walking off the end.
-fn emptySize() -> I64:
+@platform(native) fn emptySize() -> I64:
     let none = [] :: [Int *0]
     return sizeOf(none)
 
-fn main() -> Int:
+{-
+   The four claims about *bytes*, which only one of the two targets has any.
+
+   `sizeOf` is `@platform(native)`: what a value costs on a managed target is the runtime's answer
+   rather than this compiler's, so there is no number for these to be about there and no descriptor
+   cell to read one out of (see ManagedTypeDesc). Everything else in this file is a claim about
+   *behaviour* - a fixed array reaches every `[T]` function, a mutable slice writes through to it,
+   two elements never overlap - and every one of those is true on both targets and asserted on both.
+
+   Gathered here rather than left in `main` under a platform test each, so that the JS half of the
+   file is one declaration saying "no bytes to check" instead of four holes.
+-}
+@platform(native) fn sizeClaims() -> Int:
     -- Four `Int`s and nothing else. `Int` is four bytes, so sixteen.
     if fixedSize() != 16 then return -1
 
     -- The same sixteen inside a record, which is what "flattens at zero overhead" means.
     if nestedSize() != 16 then return -2
+
+    if padStride() != 48 then return -7
+    if emptySize() != 0 then return -9
+    return 0
+
+@platform(js) fn sizeClaims() -> Int = 0
+
+fn main() -> Int:
+    let claims = sizeClaims()
+    if claims != 0 then return claims
 
     let &xs = [1, 2, 3, 4] :: [Int *4]
 
@@ -129,8 +151,6 @@ fn main() -> Int:
     bump(pair)
     if pairSum(pair) != 17 then return -10
 
-    if padStride() != 48 then return -7
     if padRead() != 60 then return -8
-    if emptySize() != 0 then return -9
 
     return total(xs)

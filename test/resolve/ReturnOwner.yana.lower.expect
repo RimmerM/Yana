@@ -989,21 +989,23 @@ main<complex>(): Int {
   b_176 {
     %v_177 = add %v_172, 12: Ptr
     %v_178 = loads %v_177, 4: Int
-    %v_179 = add %v_163, 1: Int
-    store @reclaims, %v_179, 4
+    %v_179 = loads @reclaims, 4: Int
+    %v_180 = add %v_179, 1: Int
+    store @reclaims, %v_180, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %c
-    %v_180 = add %v_174, %v_178: Int
-    ret %v_180
+    %v_181 = add %v_174, %v_178: Int
+    ret %v_181
   }
 
   b_13 {
-    %v_181 = syscall 60, 134: Long
+    %v_182 = syscall 60, 134: Long
     unreachable 
   }
 
   b_165 {
-    %v_182 = add %v_163, 1: Int
-    store @reclaims, %v_182, 4
+    %v_183 = loads @reclaims, 4: Int
+    %v_184 = add %v_183, 1: Int
+    store @reclaims, %v_184, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %c
     ret 18446744073709551614
   }
@@ -1014,15 +1016,15 @@ main<complex>(): Int {
   }
 
   b_47 {
-    %v_183 = cmp_ge %v_43, %v_40: Int
-    je %v_183, b_13, b_44
+    %v_185 = cmp_ge %v_43, %v_40: Int
+    je %v_185, b_13, b_44
   }
 
   b_44 {
-    %v_184 = shl %v_43, 2: Long
-    %v_185 = add %v_2, %v_184: Ptr
-    %v_186 = loads %v_185, 4: Int
-    call_complex push(Int), %out, %v_186
+    %v_186 = shl %v_43, 2: Long
+    %v_187 = add %v_2, %v_186: Ptr
+    %v_188 = loads %v_187, 4: Int
+    call_complex push(Int), %out, %v_188
     %v_45 = add %v_43, 1: Long
     jmp b_42
   }

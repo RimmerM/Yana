@@ -75,9 +75,18 @@ pub fn isNull(it: %a) -> Bool
 pub fn borrow(return it: %a) -> 'a
 pub fn borrowMut(return it: %a) -> &a
 
--- The size and alignment of a value's type, in bytes.
-pub fn sizeOf(it: a) -> Size
-pub fn alignOf(it: a) -> Size
+{-
+   The size and alignment of a value's type, in bytes.
+
+   `@platform(native)`, and the only two declarations in this file that need to say so - the rest of
+   it is raw pointers, which no managed target has at all. A byte count is a fact about a layout
+   *this compiler chose*, and on a managed target it did not choose one: how much a value costs is
+   the runtime's answer, it changes with the engine's hidden classes and its collector, and nothing
+   a program emits there can observe it. So the question has no answer rather than a different one,
+   and a managed type descriptor carries no measurement to load - see ManagedTypeDesc.
+-}
+@platform(native) pub fn sizeOf(it: a) -> Size
+@platform(native) pub fn alignOf(it: a) -> Size
 
 -- Pointer arithmetic, in elements rather than in bytes: `p + 1` advances by one `a`, whatever an
 -- `a` is. Byte-granular work casts to `%U8` first, where the two coincide.

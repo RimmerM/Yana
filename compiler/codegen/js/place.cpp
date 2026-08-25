@@ -741,7 +741,7 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
 
                     /*
                      * The *slot* rather than the byte offset, which is what every other table here
-                     * is read by - `genEnv[1][6]` is `TypeDescFields::kCopyInit`, not a distance in
+                     * is read by - `genEnv[1][6]` is `ManagedTypeDesc::kCopyInit`, not a distance in
                      * bytes. The header is materialized as an array with one element per slot, so a
                      * native offset indexes past the end of it: `kReclaim` is slot 1 and offset 8,
                      * and `$h[8]` on a two-element array is `undefined`.

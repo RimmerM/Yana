@@ -448,10 +448,12 @@ pub fn ??(->value: Maybe(a), @lazy fallback: a) -> a = match value:
 -- The ownership classes a type can join by writing an instance.
 --
 -- What they are for is the cases the structural answer gets wrong, and each of them is a statement
--- that it does: `Copy` for a type that can be duplicated but not by copying its bytes, `Sink` for
--- one that cannot be relocated by copying its bytes because it refers to its own address,
--- `Reclaim` for one whose storage is released by something other than handing an allocation back,
--- and `Drop` for one whose lifetime ends in an effect.
+-- that it does: `Copy` for a type that can be duplicated but not by copying its bytes, `Reclaim`
+-- for one whose storage is released by something other than handing an allocation back, and `Drop`
+-- for one whose lifetime ends in an effect.
+--
+-- There is deliberately no authored *relocation*. A move is the bytes, always - see `TrivialSink`
+-- below and doc/spec/core.md for what was removed and why.
 --
 -- A type that writes none of them still gets all of the behaviours - a bitwise copy, a bitwise
 -- move, and the derived teardown that recurses into each member and then releases this owner's own
@@ -463,9 +465,8 @@ pub class Copy(a):
    Everything a bitwise duplicate is correct for, without an instance per type.
 
    `TrivialCopy` is the compiler's structural answer and `Copy` is the authored one, and a type may
-   have *both* - unlike `Sink`, where writing an instance is the statement that the bytes are not
-   enough. So this does not overlap the instances below: `String`, `Array(a)` and `Map(k, v)` own
-   storage and are therefore not TrivialCopy however their elements answer.
+   have *both*. So this does not overlap the instances below: `String`, `Array(a)` and `Map(k, v)`
+   own storage and are therefore not TrivialCopy however their elements answer.
 
    Without it, `copy` would be a function only the types that could not use the obvious answer had,
    and no container could constrain its elements by "these can be duplicated" - `Copy(a)` would
@@ -518,24 +519,6 @@ instance (Copy(a), Copy(e)) Copy(Outcome(a, e)):
         Exit(problem) -> Exit(copy(problem))
 
 
-{-
-   Relocating a value - Design-Memory §4.
-
-   `to` arrives uninitialized and must be fully initialized before returning. That obligation is
-   Design.md's `@uninit &`, which is not implementable yet - nothing in the language produces
-   uninitialized storage for a caller to pass - so it is documented here and unchecked. When the
-   attribute lands this signature gains it and nothing else about the class changes.
-
-   **One caller may hand over two names for one place.** `swap` is three relocations through a
-   temporary, and `swap(xs[i], xs[i])` is legal - the borrow checker exempts swap from the rule that
-   refuses two element borrows of one container, precisely because a swap reads both places before
-   it writes either. The middle relocation is then `to` and `from` at one address. The value itself
-   survives, since the third write restores what the first saved, but an instance that counts or
-   registers sees relocations a caller did not ask for. Until the compiler emits a guarded swap for
-   this class, an instance that must not is one this language cannot express.
--}
-pub class Sink(a):
-  fn sink(&to: a, ->from: a) -> {}
 
 {-
    The two halves of teardown - Design-Memory §4.
@@ -574,6 +557,12 @@ pub class Drop(a):
    is treated as non-TrivialCopy inside the body regardless of what a caller later substitutes, so
    discovering the fact at one concrete call site may never upgrade a borrow to a copy. The
    constraint is the only thing that can.
+
+   **`TrivialSink` asks whether a type may be relocated, not how.** There is no authored counterpart
+   to it the way `Copy` is `TrivialCopy`'s: a move is the bytes for every type that has one, so a
+   type outside this class is one nothing can move rather than one that moves by a call. Nothing
+   answers no today; the class is what a future immovable type would be excluded by, and what a
+   container that relocates its elements would constrain on.
 -}
 pub class TrivialCopy(a)
 pub class TrivialSink(a)

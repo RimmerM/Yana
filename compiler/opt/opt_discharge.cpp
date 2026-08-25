@@ -133,11 +133,18 @@ struct Discharge {
             replacement.push(call);
         };
 
-        step(drop.drop);
-        if(!collected && drop.reclaim != drop.drop) step(drop.reclaim);
+        /*
+         * One call, and no test in front of it.
+         *
+         * This used to be two - the drop half, and the reclaim half where it named something else -
+         * with the `collected` flag suppressing the second on a managed target. Both questions are
+         * settled where the teardown is chosen: `teardownAtSite` answers the drop half alone on a
+         * managed target and the merged function natively, so what arrives here is what runs.
+         */
+        step(drop.teardown);
 
         /*
-         * Handing the allocation back, after both halves have finished reading it.
+         * Handing the allocation back, after the teardown has finished reading it.
          *
          * The address rather than the value, and `freeHeap` is written over `%U8` - so the pointer
          * is reinterpreted rather than converted, both sides being one machine word with only what
@@ -210,11 +217,8 @@ struct Discharge {
     }
 
     ModulePtr<Value> relocate(Block& block, InstList& into, LocationId source, TypePtr content,
-                              const Place& from, ModulePtr<Function> sink) {
+                              const Place& from) {
         auto move = createInst<InstMove>(*opt.module, *opt.function, block, source, StringId(), content, from);
-        move->sink = sink;
-        if(sink) opt.local[sink]->used = true;
-
         into.push(move);
         return (ModulePtr<Value>)(move - opt.local);
     }
@@ -254,11 +258,11 @@ struct Discharge {
         auto held = Place::inLocal(temporary->local);
 
         write(block, replacement, source, held,
-              relocate(block, replacement, source, content, swap.a, swap.sink), Value::Init);
+              relocate(block, replacement, source, content, swap.a), Value::Init);
         write(block, replacement, source, swap.a,
-              relocate(block, replacement, source, content, swap.b, swap.sink), Value::Assign);
+              relocate(block, replacement, source, content, swap.b), Value::Assign);
         write(block, replacement, source, swap.b,
-              relocate(block, replacement, source, content, held, swap.sink), Value::Assign);
+              relocate(block, replacement, source, content, held), Value::Assign);
 
         opt.ir().insert(block, index, replacement);
         opt.ir().eraseInstruction((ModulePtr<Inst>)(&swap - opt.local));
@@ -305,7 +309,7 @@ struct Discharge {
             opt.ir().setLocalValue(exchange.local, old);
 
             write(block, replacement, source, Place::inLocal(exchange.local),
-                  relocate(block, replacement, source, content, exchange.place, exchange.sink),
+                  relocate(block, replacement, source, content, exchange.place),
                   Value::Init);
         }
 

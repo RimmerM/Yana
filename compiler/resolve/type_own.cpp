@@ -163,8 +163,14 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
             // Design.md: an unconstrained generic parameter is treated as non-TrivialCopy inside
             // the body regardless of what a caller substitutes, so that a generic function's
             // accepted programs are fixed by its own signature. The same argument applies to the
-            // other two: the body must be written as though the type owns something.
-            result = Ownership { false, false, false, false, TeardownKind::Derived, TeardownKind::Derived };
+            // teardown: the body must be written as though the type owns something.
+            //
+            // `trivialSink` is the one that is *not* a statement about this body. Since there is no
+            // authored relocation, every type a caller can substitute relocates by its bytes, and
+            // the erased path does exactly that through the descriptor. What a false here buys is
+            // that `TrivialSink(a)` remains a constraint a signature may state and a body may act
+            // on - which is what a future immovable type would be excluded by.
+            result = Ownership { false, false, false, TeardownKind::Derived, TeardownKind::Derived };
             break;
 
         case Type::Tup: {
@@ -219,14 +225,14 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
             // That answer is the same for a non-capturing lambda, whose descriptor is null. Making
             // it depend on what one value captured would make ownership a property of a value
             // rather than of a type, which is exactly what the model does not allow.
-            result = Ownership { false, true, false, false, TeardownKind::Derived, TeardownKind::Derived };
+            result = Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
             break;
 
         default:
             // Ref, RegionPtr, Region, Array and Map. None of them are constructible yet;
             // classifying them conservatively is what makes adding one a decision rather than a
             // silently wrong default.
-            result = Ownership { false, false, false, false, TeardownKind::Derived, TeardownKind::Derived };
+            result = Ownership { false, false, false, TeardownKind::Derived, TeardownKind::Derived };
             break;
     }
 
@@ -264,11 +270,6 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
 
         if(hasInstance(module, module.coreClasses.drop, type)) result.drop = TeardownKind::Authored;
         if(hasInstance(module, module.coreClasses.copy, type)) result.authoredCopy = true;
-
-        if(hasInstance(module, module.coreClasses.sink, type)) {
-            result.authoredSink = true;
-            result.trivialSink = false;
-        }
     }
 
     // Duplicating a value whose lifetime releases something would release it twice, so a teardown
@@ -277,10 +278,8 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
     if(result.needsTeardown()) result.trivialCopy = false;
 
     // And TrivialCopy implies TrivialSink, because a duplicate is strictly more than a relocation:
-    // a type whose bytes cannot even be *moved* without a call - it refers to its own address -
-    // certainly cannot have those bytes duplicated into a second live value. Saying so here is what
-    // makes an authored `Sink` reachable at all, since `->` copies rather than moves a TrivialCopy
-    // source and a type left in both classes would never take the move path its instance is for.
+    // a type whose bytes cannot be *moved* certainly cannot have those bytes duplicated into a
+    // second live value.
     if(!result.trivialSink) result.trivialCopy = false;
 
     return result;
@@ -517,11 +516,6 @@ static Ownership ownershipInAt(Module& module, GenEnv* env, TypePtr type, U32 de
              */
             if(hasInstance(module, module.coreClasses.reclaim, type)) result.reclaim = TeardownKind::Authored;
             if(hasInstance(module, module.coreClasses.drop, type)) result.drop = TeardownKind::Authored;
-
-            if(hasInstance(module, module.coreClasses.sink, type)) {
-                result.authoredSink = true;
-                result.trivialSink = false;
-            }
 
             if(result.needsTeardown() || !result.trivialSink) result.trivialCopy = false;
             return result;

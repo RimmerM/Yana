@@ -458,7 +458,7 @@ fn Append(String).++(%lhs: String, %rhs: String) -> String {
     %v10 = load [%v7]@StringData.bytes@Array.run@Run.items : %CodeUnit
     %v11 = borrow_mut %out : &String
     call String.appendUnits, %v11, %v10, %rightLength
-    drop %rhs reclaim Reclaim(String).reclaim
+    drop %rhs via Reclaim(String).reclaim
     %v13 = load %out : String
     %v14 = move %out : String
     ret %v14
@@ -1584,7 +1584,7 @@ fn built(%n: Int) -> Int {
     assign %text, %v9
     %v11 = load %text : String
     %v12 = call Length(String).length, %v11 : Size
-    drop %text reclaim Reclaim(String).reclaim
+    drop %text via Reclaim(String).reclaim
     %v13 = cast %v12 : Int
     ret %v13
 }
@@ -1612,7 +1612,7 @@ fn inLaterBlock(%n: Int) -> Int {
   b3:
     %v17 = load %text : String
     %v18 = call Length(String).length, %v17 : Size
-    drop %text reclaim Reclaim(String).reclaim
+    drop %text via Reclaim(String).reclaim
     %v19 = cast %v18 : Int
     ret %v19
 }
@@ -1648,7 +1648,7 @@ fn inLoop(%n: Int) -> Int {
     %v22 = load %total : Int
     %v23 = load %text : String
     %v24 = call Length(String).length, %v23 : Size
-    drop %text reclaim Reclaim(String).reclaim
+    drop %text via Reclaim(String).reclaim
     %v25 = cast %v24 : Int
     %v26 = add %v22, %v25 : Int
     assign %total, %v26

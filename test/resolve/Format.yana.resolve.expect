@@ -1656,7 +1656,7 @@ fn oneInt() -> Int {
     call Show(Int).show, 42, %v14
     %text = load %local1 : String
     %v17 = call Length(String).length, %text : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v18 = cast %v17 : Int
     ret %v18
 }
@@ -1737,7 +1737,7 @@ fn oneIntText() -> Int {
 
   b12:
     %v74 = call String.unit, %text, 3 : Int
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v77 = cmp_eq %v74, 33 : Bool
     je %v77, b13, b14
 
@@ -1755,7 +1755,7 @@ fn oneIntText() -> Int {
     ret %v86
 
   b16:
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     jmp b1
 }
 
@@ -1777,7 +1777,7 @@ fn oneString() -> Int {
     call Show(String).show, %inner, %v15
     %text = load %local1 : String
     %v18 = call Length(String).length, %text : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v19 = cast %v18 : Int
     ret %v19
 }
@@ -1823,7 +1823,7 @@ fn mixed() -> Int {
     call Show(Int).show, 345, %v44
     %text = load %local1 : String
     %v47 = call Length(String).length, %text : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v48 = cast %v47 : Int
     ret %v48
 }
@@ -1841,7 +1841,7 @@ fn negative() -> Int {
     call Show(Int).show, %v2, %v10
     %text = load %local1 : String
     %v13 = call Length(String).length, %text : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v14 = cast %v13 : Int
     ret %v14
 }
@@ -1867,7 +1867,7 @@ fn boolean() -> Int {
     call Show(Bool).show, False, %v19
     %text = load %local1 : String
     %v22 = call Length(String).length, %text : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v23 = cast %v22 : Int
     ret %v23
 }
@@ -1906,7 +1906,7 @@ fn inLoop() -> Int {
     %text = load %local3 : String
     %v28 = load %total : Int
     %v29 = call Length(String).length, %text : Size
-    drop %local3 reclaim Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     %v30 = cast %v29 : Int
     %v31 = add %v28, %v30 : Int
     assign %total, %v31
@@ -1991,6 +1991,6 @@ fn printed() -> Int {
     call String.push, %v32, %v31
     %v34 = load %local1 : String
     call print, %v34
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     ret 0
 }

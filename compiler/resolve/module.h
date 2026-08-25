@@ -584,7 +584,7 @@ enum class TableCell: U8 {
      * whoever materializes it combines them - which is the same division Metric already makes, with
      * one more thing to say.
      *
-     * One cell uses it, TypeDescFields::kFlags, and the shift is chosen for that use: the flags
+     * One cell uses it, NativeTypeDesc::kFlags, and the shift is chosen for that use: the flags
      * occupy bits 0 to 7 and every bit above them was spare.
      */
     PackedMetric,
@@ -1185,11 +1185,15 @@ struct Program {
     HashMap<U32, ModulePtr<Function>> dropGlue;
     HashMap<U32, ModulePtr<Function>> reclaimGlue;
 
+    // The merged walk - one InstDrop per member naming that member's merged teardown, which is what
+    // a drop site actually calls. See teardownBothFor, and Teardown::Both for why the halves are not
+    // asked for separately there.
+    HashMap<U32, ModulePtr<Function>> teardownGlue;
+
     // The same glue for a function type with the header test left out, for the drop sites that can
     // prove it - see funTeardownKnownHeader and devirtualizeClosureDrop. Only the function types
-    // some site proved it for are in here.
-    HashMap<U32, ModulePtr<Function>> dropGlueKnown;
-    HashMap<U32, ModulePtr<Function>> reclaimGlueKnown;
+    // some site proved it for are in here, and only the one half this target asks for.
+    HashMap<U32, ModulePtr<Function>> teardownGlueKnown;
 
     /*
      * The *erased* entry point of a teardown half, interned the same way - see teardownEntryFor.
@@ -1204,7 +1208,12 @@ struct Program {
      * has none of these at all.
      */
     HashMap<U32, ModulePtr<Function>> dropEntry;
-    HashMap<U32, ModulePtr<Function>> reclaimEntry;
+    HashMap<U32, ModulePtr<Function>> teardownEntry;
+
+    // The wrapper that runs one half after the other, keyed by type - see teardownBothFor. Only for
+    // a type whose two halves are two genuinely different *authored* answers; a type whose halves
+    // are both derived gets one merged walk instead, and everything else has a single half to name.
+    HashMap<U32, ModulePtr<Function>> teardownBoth;
 
     HashMap<U32, ModulePtr<Function>> moveInitGlue;
     HashMap<U32, ModulePtr<Function>> copyInitGlue;

@@ -1,16 +1,16 @@
 @image$base = []
-@typeDesc$Person = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Person = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @property$Person.name = [0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$nameOf(Person) = [0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Item = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Item = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @property$Item.name = [0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$nameOf(Item) = [0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$rename(Person) = [0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Left = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Left = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @property$Left.name = [0, 0, 0, 0, 0, 0, 0, 0]
 @property$Left.tag = [0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$labelled(Left) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Right = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Right = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @property$Right.name = [0, 0, 0, 0, 0, 0, 0, 0]
 @property$Right.tag = [0, 0, 0, 0, 0, 0, 0, 0]
 @genEnv$labelled(Right) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -125,20 +125,6 @@ main<complex>(): Int {
   }
 }
 
-moveInit$Person<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
-copyInit$Person<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
 read$Person.name<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
     %v_1 = loads %owner, 4: Int
@@ -155,20 +141,6 @@ set$Person.name<complex>(%owner: Ptr, %value: Ptr) {
   }
 }
 
-moveInit$Item<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
-copyInit$Item<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
 read$Item.name<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
     %v_1 = loads %owner, 4: Int
@@ -181,20 +153,6 @@ set$Item.name<complex>(%owner: Ptr, %value: Ptr) {
   b_0 {
     %v_1 = loads %value, 4: Int
     store %owner, %v_1, 4
-    ret 
-  }
-}
-
-moveInit$Left<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
-copyInit$Left<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
     ret 
   }
 }
@@ -229,20 +187,6 @@ set$Left.tag<complex>(%owner: Ptr, %value: Ptr) {
     %v_1 = loads %value, 4: Int
     %v_2 = add %owner, 4: Ptr
     store %v_2, %v_1, 4
-    ret 
-  }
-}
-
-moveInit$Right<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
-copyInit$Right<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
     ret 
   }
 }

@@ -10,7 +10,6 @@ let &heapRegionNext: Size = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -519,7 +518,7 @@ fn buffers(())(%count: Size, %unit: Size, %body: (->value$: Size) -> Outcome((),
     %v41 = cast %v40 : Size
     %v43 = mul %v41, 1000 : Size
     %v44 = call readByte, %base, %last : Size
-    drop %local2 reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %local2 via Reclaim(Run(a)).reclaim(U8)
     %v45 = add %v43, %v44 : Size
     %v46 = calldyn %body, %v45 : Outcome((), ())
     %v47 = load %local4.discriminant : Int

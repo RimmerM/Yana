@@ -71,9 +71,15 @@ enum class TeardownKind: U8 {
  * borrows is decided while resolving the `let`, and it is decided by whether `e`'s type is
  * TrivialCopy.
  *
- * `trivialCopy` and `trivialSink` are the two implicit classes; `authoredCopy`, `authoredSink`,
- * `reclaim` and `drop` record what an `instance Copy(T)` / `Sink(T)` / `Reclaim(T)` / `Drop(T)`
- * supplied, since those *are* spellable and are what InstCopy, InstMove and InstDrop call.
+ * `trivialCopy` and `trivialSink` are the two implicit classes; `authoredCopy`, `reclaim` and
+ * `drop` record what an `instance Copy(T)` / `Reclaim(T)` / `Drop(T)` supplied, since those *are*
+ * spellable and are what InstCopy and InstDrop call.
+ *
+ * **There is no authored relocation.** A move is the bytes, always - `moveInit` in a type
+ * descriptor is the target's own bulk relocation and never a user function. `trivialSink` therefore
+ * asks *whether* a type may be relocated rather than *how*, which is why it needs no witness: a
+ * type that answers no is one nothing can move, not one that moves by a call. See the note on
+ * `Sink` in doc/spec/core.md for what was removed and why.
  *
  * Teardown is two fields rather than one because Design-Memory §4 splits it, and the split is what
  * makes three previously separate rules one sentence each: `Reclaim` compiles to nothing on the JS
@@ -86,19 +92,14 @@ enum class TeardownKind: U8 {
  *
  *  - a type with either half of a teardown is not TrivialCopy, because copying it would duplicate
  *    the resource that teardown releases;
- *  - a type with an authored Sink anywhere inside it is not TrivialSink, because moving it is a
- *    call rather than a memcpy;
  *  - a type that is not TrivialSink is not TrivialCopy either, because a duplicate is strictly more
- *    than a relocation: bytes that cannot be moved without a call cannot be duplicated by copying
- *    them. This one is load-bearing rather than tidy - `->` copies a TrivialCopy source instead of
- *    moving it, so a type in both classes would never reach the move its Sink exists for;
+ *    than a relocation: bytes that cannot be moved cannot be duplicated by copying them;
  *  - every property is structural over members, so one non-trivial field is enough.
  */
 struct Ownership {
     bool trivialCopy = true;
     bool trivialSink = true;
     bool authoredCopy = false;
-    bool authoredSink = false;
 
     // Release this value's own storage. Elidable: something else may reclaim it in bulk.
     TeardownKind reclaim = TeardownKind::None;
@@ -112,8 +113,7 @@ struct Ownership {
     // test - so it compares every field rather than the three a caller usually reads.
     bool operator == (const Ownership& o) const {
         return trivialCopy == o.trivialCopy && trivialSink == o.trivialSink
-            && authoredCopy == o.authoredCopy && authoredSink == o.authoredSink
-            && reclaim == o.reclaim && drop == o.drop;
+            && authoredCopy == o.authoredCopy && reclaim == o.reclaim && drop == o.drop;
     }
 
     bool operator != (const Ownership& o) const { return !(*this == o); }
@@ -1549,7 +1549,6 @@ struct CoreClasses {
     // `let ->z = x` and the end of a value's lifetime are language syntax, and what they compile
     // to is a lookup of these.
     GlobalPtr<TypeClass> copy = nullptr;
-    GlobalPtr<TypeClass> sink = nullptr;
     GlobalPtr<TypeClass> reclaim = nullptr;
     GlobalPtr<TypeClass> drop = nullptr;
 

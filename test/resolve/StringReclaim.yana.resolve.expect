@@ -470,7 +470,7 @@ fn Append(String).++(%lhs: String, %rhs: String) -> String {
     %v10 = load [%v7]@StringData.bytes@Array.run@Run.items : %CodeUnit
     %v11 = borrow_mut %out : &String
     call String.appendUnits, %v11, %v10, %rightLength
-    drop %rhs reclaim Reclaim(String).reclaim
+    drop %rhs via Reclaim(String).reclaim
     %v13 = load %out : String
     %v14 = move %out : String
     ret %v14
@@ -1601,7 +1601,7 @@ fn buildInCallee() -> Int {
     aggregate %local0@Row.id = 7, %local0@Row.score = 9
     %text = call line, %v0 : String
     %v5 = call Length(String).length, %text : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v6 = cast %v5 : Int
     ret %v6
 }
@@ -1635,7 +1635,7 @@ fn buildHere() -> Int {
     call String.push, %v28, %v27
     %text = load %local1 : String
     %v31 = call Length(String).length, %text : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v32 = cast %v31 : Int
     ret %v32
 }
@@ -1648,7 +1648,7 @@ fn concatHere() -> Int {
     %v5 = call stringLiteral, %v3, 3 : String
     %joined = call Append(String).++, %v2, %v5 : String
     %v7 = call Length(String).length, %joined : Size
-    drop %local0 reclaim Reclaim(String).reclaim
+    drop %local0 via Reclaim(String).reclaim
     %v8 = cast %v7 : Int
     ret %v8
 }
@@ -1682,7 +1682,7 @@ fn buildUnnamed() -> Int {
     call String.push, %v31, %v30
     %v33 = load %local1 : String
     %v34 = call Length(String).length, %v33 : Size
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     %v35 = cast %v34 : Int
     ret %v35
 }

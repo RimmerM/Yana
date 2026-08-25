@@ -372,7 +372,7 @@ fn buildAndDrop() -> Int {
     init %local0@Cons.tail, %v27
     init %local0@Cons.tail.*, %v3
     %v30 = call sum, %xs : Int
-    drop_derived %local0 reclaim reclaim$List
+    drop_derived %local0 via reclaim$List
     ret %v30
 }
 
@@ -418,7 +418,7 @@ fn reclaim$List(%value: List) -> () {
     ret
 
   b2:
-    drop_derived %value@Cons.tail.* reclaim reclaim$List release
+    drop_derived %value@Cons.tail.* via reclaim$List release
     jmp b1
 
   b3:

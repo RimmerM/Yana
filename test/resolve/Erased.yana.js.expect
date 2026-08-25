@@ -1,10 +1,10 @@
 "use strict";
-const typeDesc$Int = [4, 4, 1155, moveInit$Int, copyInit$Int, teardown$none, teardown$none];
-const typeDesc$ = [0, 0, 387, teardown$none, teardown$none, teardown$none, teardown$none];
+const typeDesc$Int = [teardown$none, moveInit$Int, copyInit$Int];
+const typeDesc$ = [teardown$none, teardown$none, teardown$none];
 const genEnv$pick_Int = [typeDesc$Int, typeDesc$];
 const genEnv$identity_Int = [typeDesc$Int];
 const genEnv$firstOf_Int = [typeDesc$Int];
-const typeDesc$Bool = [1, 1, 387, moveInit$Bool, copyInit$Bool, teardown$none, teardown$none];
+const typeDesc$Bool = [teardown$none, moveInit$Bool, copyInit$Bool];
 const genEnv$pick_Int_Bool = [typeDesc$Int, typeDesc$Bool];
 const witness$Num_Int = [thunk$Num_Int_add_0, thunk$Num_Int_sub_1, thunk$Num_Int_mul_2, thunk$Num_Int_div_3, thunk$Num_Int_sub_4, null];
 const witness$FromInt_Int = [thunk$FromInt_Int_fromInt_0];
@@ -44,8 +44,10 @@ function twice(genEnv, x) {
 function smaller(genEnv, x, y) {
   var v6;
   if (genEnv[1][0](x, y)) {
+    genEnv[0][0](y);
     v6 = x;
   } else {
+    genEnv[0][0](x);
     v6 = y;
   }
   return v6;
@@ -61,6 +63,7 @@ function increment(genEnv, x) {
   genEnv[1][5][0](out4, 1n);
   var out2 = { $v: {} };
   genEnv[1][0](out2, x, out4);
+  genEnv[0][0](out4);
   return out2;
 }
 

@@ -343,7 +343,7 @@ fn useSession(%s: Session) -> Int {
   b0:
     %v1 = load %s@Session.owner : Handle
     %v2 = load %s@Session.owner@Handle.id : Int
-    drop_derived %s via drop$Session reclaim reclaim$Session
+    drop_derived %s via teardown$Session
     ret %v2
 }
 
@@ -415,14 +415,9 @@ fn duplicate(Int)(%x: Int) -> {left: Int, right: Int} {
     ret %v5
 }
 
-fn drop$Session(%value: Session) -> () {
+fn teardown$Session(%value: Session) -> () {
   b0:
+    drop %value@Session.pages via Reclaim(Buffer).reclaim
     drop %value@Session.owner via Drop(Handle).drop
-    ret
-}
-
-fn reclaim$Session(%value: Session) -> () {
-  b0:
-    drop %value@Session.pages reclaim Reclaim(Buffer).reclaim
     ret
 }

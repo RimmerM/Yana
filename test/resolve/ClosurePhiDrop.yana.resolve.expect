@@ -4,17 +4,10 @@ let &dropCalls: Int = 0
 
 table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
   .0 drop${g: Guard}
-  .1 teardown$none
 }
 
 table closure$ResolveTest.lambda$19 before ResolveTest.lambda$19 {
   .0 drop${g: Guard}
-  .1 teardown$none
-}
-
-fn teardown$none(%value: %()) -> () {
-  b0:
-    ret
 }
 
 fn either(%pick: Int, %id: Int) -> Int {
@@ -49,7 +42,7 @@ fn either(%pick: Int, %id: Int) -> Int {
   b3:
     %f = phi [b1, %v12], [b2, %v20] : (x: Int) -> Int
     %v28 = calldyn %f, 10 : Int
-    drop_derived %local5 via drop$(x: Int) -> Int reclaim reclaim$(x: Int) -> Int
+    drop_derived %local5 via teardown$(x: Int) -> Int
     ret %v28
 }
 
@@ -99,7 +92,7 @@ fn drop${g: Guard}(%value: {g: Guard}) -> () {
     ret
 }
 
-fn drop$(x: Int) -> Int(%value: (x: Int) -> Int) -> () {
+fn teardown$(x: Int) -> Int(%value: (x: Int) -> Int) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -109,28 +102,7 @@ fn drop$(x: Int) -> Int(%value: (x: Int) -> Int) -> () {
   b1:
     %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
-    %v10 = cast %v9 : %()
-    %v11 = tableslot : %()
-    calldyn %v11, %v1
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn reclaim$(x: Int) -> Int(%value: (x: Int) -> Int) -> () {
-  b0:
-    %v1 = load %value.env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
+    %v8 = sizeof {slot: Int} : Long
     %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()

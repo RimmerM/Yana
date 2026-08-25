@@ -583,22 +583,29 @@ static InstDrop* makeDrop(Analysis& analysis, Block& block, U32 localIndex, Loca
         return makeDrop(analysis, block, closure.local, source);
     }
 
-    auto drop_ = teardownFor(module, slot.type, Teardown::Drop, source);
-    auto reclaim = teardownFor(module, slot.type, Teardown::Reclaim, source);
+    /*
+     * A type this body cannot see the shape of has no teardown to name here, and that is not the
+     * same as having none - see InstDrop::erased. `teardownFor` would answer glue synthesized for a
+     * *type variable*, which is an empty function standing for whatever the caller's type does, and
+     * naming it would be worse than naming nothing: it is what several passes would then correctly
+     * prove does nothing and elide the drop for.
+     */
+    auto erased = isGeneric(*module.types, slot.type);
+    auto teardown = erased ? ModulePtr<Function>() : teardownAtSite(module, slot.type, source);
 
     // Heap storage this frame owns has to be handed back whether or not the type it holds has
     // anything of its own to run - which is the reclaim half applied to this allocation rather than
     // to its members.
     auto releases = localIndex < analysis.releasesStorage.size() && analysis.releasesStorage[localIndex];
-    if(!drop_ && !reclaim && !releases) return nullptr;
+    if(!teardown && !releases && !erased) return nullptr;
 
     auto drop = createInst<InstDrop>(module, analysis.function, block, source, StringId(),
                                      module.scalar.unit, Place::inLocal(localIndex),
-                                     ownership.drop, ownership.reclaim);
+                                     teardownKindAtSite(module, ownership));
 
-    drop->drop = drop_;
-    drop->reclaim = reclaim;
+    drop->teardown = teardown;
     drop->releaseStorage = releases;
+    drop->erased = erased;
 
     if(releases && analysis.module.program.freeHeap) {
         analysis.local[analysis.module.program.freeHeap]->used = true;
@@ -629,15 +636,16 @@ static InstDrop* makeOverwriteDrop(Analysis& analysis, Block& block, ModulePtr<I
     auto type = placeType(module, analysis.function, place);
     auto ownership = ownershipOf(module, type);
 
-    auto drop_ = teardownFor(module, type, Teardown::Drop, source);
-    auto reclaim = teardownFor(module, type, Teardown::Reclaim, source);
-    if(!drop_ && !reclaim) return nullptr;
+    // The same erased case makeDrop states, at the same place in the same order.
+    auto erased = isGeneric(*module.types, type);
+    auto teardown = erased ? ModulePtr<Function>() : teardownAtSite(module, type, source);
+    if(!teardown && !erased) return nullptr;
 
     auto drop = createInst<InstDrop>(module, analysis.function, block, source, StringId(),
-                                     module.scalar.unit, place, ownership.drop, ownership.reclaim);
+                                     module.scalar.unit, place, teardownKindAtSite(module, ownership));
 
-    drop->drop = drop_;
-    drop->reclaim = reclaim;
+    drop->teardown = teardown;
+    drop->erased = erased;
     return drop;
 }
 
@@ -848,7 +856,7 @@ static void elaborateFlaggedDrops(Analysis& analysis, FlaggedDropList& flagged) 
 
         // A drop whose only job is handing the allocation back has nothing conditional about it -
         // see the header. Left where it is rather than wrapped in a branch that always runs.
-        if(!dropped.drop && !dropped.reclaim) continue;
+        if(!dropped.teardown) continue;
 
         Size index = 0;
         for(Size i = 0; i < block->instructionCount(); i++) {
@@ -889,8 +897,7 @@ static void elaborateFlaggedDrops(Analysis& analysis, FlaggedDropList& flagged) 
             dropped.releaseStorage = false;
 
             auto release = createInst<InstDrop>(module, function, *tail, source, StringId(),
-                                                module.scalar.unit, dropped.place,
-                                                dropped.dropKind, dropped.reclaimKind);
+                                                module.scalar.unit, dropped.place, dropped.kind);
 
             release->releaseStorage = true;
             editor.append(*tail, release);

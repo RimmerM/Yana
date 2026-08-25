@@ -60,8 +60,8 @@ pub fn stringDataMut(return &self: String) -> &StringData
    `Array(CodeUnit)` owned the run, and after this the string owns it. A borrow would be wrong here in the
    way a value is wrong in `stringData` above - there would be two owners rather than none.
 
-   No `Sink` runs and nothing is copied. The bytes are already in the right shape and the right
-   place; what changes is which type the compiler calls them, exactly as in the other direction.
+   Nothing is copied. The bytes are already in the right shape and the right place; what changes is
+   which type the compiler calls them, exactly as in the other direction.
 -}
 pub fn stringFromData(->value: StringData) -> String
 

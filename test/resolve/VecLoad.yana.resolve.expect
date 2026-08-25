@@ -590,7 +590,7 @@ fn main() -> Int {
     %v149 = cast %v148 : Size
     init %local12@Flat.length, %v149
     %v151 = call sumInts, %v145 : Int
-    drop %local10 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local10 via Reclaim(Array(a)).reclaim(Int)
     %v154 = mul %v151, 10000 : Int
     %v155 = add %v125, %v154 : Int
     %v156 = borrow %local2 : 'Array(Float)
@@ -608,8 +608,8 @@ fn main() -> Int {
     %v168 = cast %v167 : Size
     init %ys@Flat.length, %v168
     %v170 = call dot, %xs, %ys : Float
-    drop %local2 reclaim Reclaim(Array(a)).reclaim(Float)
-    drop %local4 reclaim Reclaim(Array(a)).reclaim(Float)
+    drop %local2 via Reclaim(Array(a)).reclaim(Float)
+    drop %local4 via Reclaim(Array(a)).reclaim(Float)
     %v173 = cmp_eq %v170, 30 : Bool
     je %v173, b1, b2
 
@@ -631,7 +631,7 @@ fn main() -> Int {
     %v191 = cast %v190 : Size
     init %ints@Flat.length, %v191
     %v194 = call indexOf, %ints, 8 : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v197 = mul %v194, 10 : Int
     %v198 = add %v185, %v197 : Int
     %v199 = load %target : Array(Int)
@@ -643,7 +643,7 @@ fn main() -> Int {
     %v205 = cast %v204 : Size
     init %local16@Flat.length, %v205
     %v207 = call sumInts, %v201 : Int
-    drop %target reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %target via Reclaim(Array(a)).reclaim(Int)
     %v208 = add %v198, %v207 : Int
     ret %v208
 }

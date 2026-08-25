@@ -1,12 +1,12 @@
 "use strict";
 var copyCalls = 0;
-const typeDesc$Int = [4, 4, 1155, moveInit$Int, copyInit$Int, teardown$none, teardown$none];
+const typeDesc$Int = [teardown$none, moveInit$Int, copyInit$Int];
 const witness$TrivialCopy_Int = [];
 const genEnv$copyInto_Int = [typeDesc$Int, witness$TrivialCopy_Int];
-const typeDesc$Point = [8, 8, 1155, moveInit$Point, copyInit$Point, teardown$none, teardown$none];
+const typeDesc$Point = [teardown$none, moveInit$Point, copyInit$Point];
 const witness$TrivialCopy_Point = [];
 const genEnv$copyInto_Point = [typeDesc$Point, witness$TrivialCopy_Point];
-const typeDesc$Quad = [36, 36, 1155, moveInit$Quad, copyInit$Quad, teardown$none, teardown$none];
+const typeDesc$Quad = [teardown$none, moveInit$Quad, copyInit$Quad];
 const witness$TrivialCopy_Quad = [];
 const genEnv$copyInto_Quad = [typeDesc$Quad, witness$TrivialCopy_Quad];
 
@@ -16,7 +16,8 @@ function teardown$none(value) {
 
 // ResolveTest
 function copyInto(genEnv, slot, from) {
-  genEnv[0][4](slot, from);
+  genEnv[0][0](slot);
+  genEnv[0][2](slot, from);
 }
 
 function main() {

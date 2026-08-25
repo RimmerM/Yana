@@ -4,42 +4,34 @@ let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19(Chunks, Int, ()) before ResolveTest.continuation$19(Chunks, Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Chunks, Int, ()) before ResolveTest.continuation$18(Chunks, Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19(Flat(Int), Int, ()) before ResolveTest.continuation$19(Flat(Int), Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Flat(Int), Int, ()) before ResolveTest.continuation$18(Flat(Int), Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn checkFailed() -> () {
@@ -345,7 +337,7 @@ fn main() -> Int {
     init %local3@Array.length, 2
     aggregate %local0@Chunks.a = %v3, %local0@Chunks.b = %v18, %local0@Chunks.used = 2
     %v33 = call sumItems, %v0 : Int
-    drop_derived %local0 reclaim reclaim$Chunks
+    drop_derived %local0 via reclaim$Chunks
     %v36 = alloc : Array(Int)
     %v39 = alloc *2 : Int
     %v40 = addressof %local6 : %Int
@@ -362,7 +354,7 @@ fn main() -> Int {
     %v55 = cast %v54 : Size
     init %local7@Flat.length, %v55
     %v57 = call sumArray, %v51 : Int
-    drop %local5 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local5 via Reclaim(Array(a)).reclaim(Int)
     %v58 = add %v33, %v57 : Int
     ret %v58
 }
@@ -774,7 +766,7 @@ fn ResolveTest.continuation$19(Flat(Int), Int, ())(%env: %{body: '(value$: Int) 
 
 fn reclaim$Chunks(%value: Chunks) -> () {
   b0:
-    drop %value@Chunks.a reclaim Reclaim(Array(a)).reclaim(Int)
-    drop %value@Chunks.b reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.a via Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.b via Reclaim(Array(a)).reclaim(Int)
     ret
 }

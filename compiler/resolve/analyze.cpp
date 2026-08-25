@@ -97,11 +97,10 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
          * parameter is the opposite: the caller handed ownership over and recorded the handover as
          * an InstMove, so this frame is the one that owes it a drop.
          *
-         * The exception is a function that *is* the drop, or the sink. `Drop::drop` receives the
-         * value in order to release it, and dropping its own parameter at the end would call
-         * itself forever; `Sink::sink` empties its source into the destination, so what is left is
-         * not something to release either. Both are the two places in the language where a `->`
-         * parameter's disposal is the body's own business.
+         * The exception is a function that *is* the drop. `Drop::drop` receives the value in order
+         * to release it, and dropping its own parameter at the end would call itself forever, so a
+         * teardown is the one place in the language where a `->` parameter's disposal is the body's
+         * own business.
          *
          * Derived teardown glue is the third and is asked by flag rather than by class, because it
          * is anonymous and has no `instanceOf` to be recognized by - see Function::disposer, which
@@ -110,8 +109,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
         auto parameter = isParameterSlot(analysis, l);
         auto disposer = function.disposer ||
                         function.instanceOf == module.coreClasses.drop ||
-                        function.instanceOf == module.coreClasses.reclaim ||
-                        function.instanceOf == module.coreClasses.sink;
+                        function.instanceOf == module.coreClasses.reclaim;
 
         auto owned = parameter
             ? (slot.convention == ast::BindType::Sink && !disposer)
@@ -229,11 +227,21 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     // produces a second round of diagnostics about the first round's mistakes.
     if(!analysis.ok) return false;
 
-    // A generic body is checked and then left alone. Its type variables classify conservatively -
-    // Design.md requires an unconstrained parameter to be treated as owning something - so drops
-    // derived here would be drops of a type nothing knows the shape of. What reaches the backend is
-    // this function's specializations, and each of those is an ordinary function that gets its own.
-    if(function.gen) return true;
+    /*
+     * A generic body is checked and then left alone - *where it is not the code*.
+     *
+     * Under the default specialization mode what reaches the backend is this function's
+     * specializations, and each of those is an ordinary function that gets its own drops; the
+     * generic body is a template nothing runs, and inserting drops into it would be work thrown
+     * away. Under `Generic` the same body is what runs, and skipping this leaked every owned value
+     * a generic body held - silently, since the leak is in the body the fixtures do not execute
+     * when they compare the two modes' output rather than their behaviour.
+     *
+     * What gets inserted there is an *erased* drop: the type variables classify conservatively
+     * (Design.md requires an unconstrained parameter to be treated as owning something), so the
+     * drop names neither half and runs what the caller's descriptor holds. See InstDrop::erased.
+     */
+    if(function.gen && module.program.specialization != Program::Specialization::Generic) return true;
 
     insertDrops(analysis);
     return analysis.ok;
@@ -314,11 +322,11 @@ void reselectStorage(Module& module, Function& function) {
     selectStorage(analysis, unused);
 }
 
-// Which functions the passes run over. A signature has no body, an intrinsic is generated at each
-// call site rather than being one function, and a generic body is checked but never given drops -
-// what reaches the backend is its specializations, and those are ordinary functions that get their
-// own drops here. Checking the generic body anyway is what puts a use-after-move diagnostic on the
-// function that has the bug instead of once per instantiation.
+// Which functions the passes run over. A signature has no body, and an intrinsic is generated at
+// each call site rather than being one function. A generic body is included, and whether it comes
+// out with drops in it depends on whether it is the code - see analyzeFunction. It is checked
+// either way, which is what puts a use-after-move diagnostic on the function that has the bug
+// instead of once per instantiation.
 static bool ownershipApplies(Function& function) {
     return !function.signature && !function.intrinsic && function.blocks.isNotEmpty();
 }

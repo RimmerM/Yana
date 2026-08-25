@@ -1,34 +1,23 @@
 -- The relocation a body that cannot see the type performs, on both targets.
 --
 -- Compiled with specialization declined (see the `.generic` marker), so `relocate` below is the
--- erased form: it has no `Sink` to name and no size to copy, and what it runs comes out of the
--- `moveInit` slot of the descriptor its caller passed. ErasedSink.yana asserts the same thing about
--- the native lowering; this one exists because the JS backend answers it differently - a value of
--- unknown shape is a reference there rather than an address, and the storage the relocation fills
--- gets its properties from whatever fills it.
+-- erased form: it has no size to copy and, on a managed target, no shape either, so what it runs
+-- comes out of the `moveInit` slot of the descriptor its caller passed. ErasedWitness.yana asserts
+-- the same thing about the native lowering; this one exists because the JS backend answers it
+-- differently - a value of unknown shape is a reference there rather than an address, and the
+-- storage the relocation fills gets its properties from whatever fills it.
 --
--- Asserted by counting rather than by reading the IR, for the reason that file gives: a relocation
--- that went missing leaves the destination holding whatever the copy put there, and a value read
--- out of it would be right by accident.
---
--- The counter is written as an assignment rather than with `+=`, and deliberately: `+=` takes a `&`
--- parameter, and in this mode even a concrete one is compiled erased - which is the half of §3.4
--- the JS target does not have yet and reports rather than emits.
-
-import Native
-
-let &sinkCalls = 0 :: I64
+-- Asserted by reading every field of what came back rather than by counting calls. There used to be
+-- a counter, incremented by an authored `Sink`; that class is gone - doc/spec/core.md says why - and
+-- with it the only thing inside the language that could see a relocation happen. What is left is
+-- what it produced, which is why the fields are distinct and non-zero: a relocation that went
+-- missing leaves the destination holding whatever the copy put there, and *one* field read out of
+-- it would be right by accident.
 
 data Handle {value: I64}
 
-instance Sink(Handle):
-    fn sink(&to: Handle, ->from: Handle) -> {}:
-        sinkCalls = sinkCalls + 1
-        to.value = from.value
-
--- A record with no `Sink` of its own and a member that has one, so its descriptor's `moveInit` is
--- the derived glue rather than an authored instance. The generic body cannot tell the difference,
--- which is the point of the slot.
+-- A nested record, so the relocation has to carry a member that is itself an aggregate. The generic
+-- body cannot tell that from a flat one, which is the point of the slot.
 data Pair {left: Handle, right: I64}
 
 fn relocate(->x: a) -> a:
@@ -38,11 +27,12 @@ fn relocate(->x: a) -> a:
 fn main() -> I64:
     let h = Handle {value: 10}
     let moved = relocate(h)
-    if sinkCalls != 1 then return -1
+    if moved.value != 10 then return -1
 
     let p = Pair {left: Handle {value: 20}, right: 5}
     let movedPair = relocate(p)
-    if sinkCalls != 2 then return -2
+    if movedPair.left.value != 20 then return -2
+    if movedPair.right != 5 then return -3
 
-    -- 10 + 20 + 5 + 2 = 37
-    return moved.value + movedPair.left.value + movedPair.right + sinkCalls
+    -- 10 + 20 + 5 = 35
+    return moved.value + movedPair.left.value + movedPair.right

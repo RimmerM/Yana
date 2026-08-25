@@ -10,102 +10,82 @@ let &heapRegionNext: Size = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Int, Int, Int) before ResolveTest.continuation$18(Int, Int, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21(Int, Int) before ResolveTest.continuation$21(Int, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Int, Int, ()) before ResolveTest.continuation$18(Int, Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19(Int, ()) before ResolveTest.continuation$19(Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20(Int, ()) before ResolveTest.continuation$20(Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19(Int, Outcome((), ())) before ResolveTest.continuation$19(Int, Outcome((), ())) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$22(Bool) before ResolveTest.continuation$22(Bool) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$23(Bool) before ResolveTest.continuation$23(Bool) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$25(Bool) before ResolveTest.continuation$25(Bool) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$24(Bool) before ResolveTest.continuation$24(Bool) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn checkFailed() -> () {
@@ -1990,7 +1970,7 @@ fn main() -> Int {
     %v194 = add %v191, %v193 : %Int
     %v195 = borrow [%v194] : 'Int
     %v196 = load [%v195] : Int
-    drop %out reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %out via Reclaim(Array(a)).reclaim(Int)
     %v197 = add %v181, %v196 : Int
     %v198 = load %sum : Int
     %v199 = add %v197, %v198 : Int
@@ -2007,7 +1987,7 @@ fn main() -> Int {
     %v215 = cast %v214 : Size
     init %local23@Flat.length, %v215
     %v218 = call firstOver(Bool), %v211, 4, True : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v219 = add %v206, %v218 : Int
     %v223 = call throughLens(Bool), True, 1 : Int
     %v224 = add %v219, %v223 : Int
@@ -2818,7 +2798,7 @@ fn countUp(Bool)(%limit: Int, %marker: Bool) -> Int {
     %v38 = cast %v37 : Size
     init %local6@Flat.length, %v38
     %v40 = call each(Int, ()), %v34, %v29 : Outcome((), ())
-    drop %local2 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local2 via Reclaim(Array(a)).reclaim(Int)
     %v41 = load %total : Int
     ret %v41
 }
@@ -2938,7 +2918,7 @@ fn ResolveTest.continuation$24(Bool)(%env: %{n: Int}) -> Int {
     %v36 = cast %v35 : Size
     init %local5@Flat.length, %v36
     %v38 = call each(Int, ()), %v32, %v27 : Outcome((), ())
-    drop %local1 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local1 via Reclaim(Array(a)).reclaim(Int)
     %v39 = load %total : Int
     ret %v39
 }

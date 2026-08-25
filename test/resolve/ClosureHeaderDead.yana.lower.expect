@@ -1,20 +1,13 @@
 @image$base = []
 mut @dropCalls = [0, 0, 0, 0]
 
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
 consume<complex>(%f: Ptr): Int {
   b_0 {
     %v_1 = add %f, 8: Ptr
     %v_2 = load %f, 8: Ptr
     %v_3 = load %v_1, 8: Ptr
     %v_4 = call_complex %v_2, %v_3, 1: Int
-    call_complex drop$(Int) -> Int, %f
-    call_complex reclaim$(Int) -> Int, %f
+    call_complex teardown$(Int) -> Int, %f
     ret %v_4
   }
 }
@@ -38,7 +31,7 @@ main<complex>(): Int {
   }
 }
 
-@closure$ResolveTest.lambda$19 = [0, 0, 0, 0, 0, 0, 0, 0]
+@closure$ResolveTest.lambda$19 = [0, 0, 0, 0]
 ResolveTest.lambda$19<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
@@ -56,7 +49,7 @@ drop${g: Guard}<complex>(%value: Ptr) {
   }
 }
 
-drop$(Int) -> Int<complex>(%value: Ptr) {
+teardown$(Int) -> Int<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
     %v_2 = load %v_1, 8: Ptr
@@ -68,39 +61,12 @@ drop$(Int) -> Int<complex>(%value: Ptr) {
   b_5 {
     %v_7 = load %value, 8: Ptr
     %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 8: Long
+    %v_9 = sub %v_8, 4: Long
     %v_10 = bitcast %v_9: Ptr
     %v_11 = loads %v_10, 4: Int
     %v_12 = sext %v_11: Long
     %v_13 = add %v_12, @image$base: Ptr
     call_complex %v_13, %v_2
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-reclaim$(Int) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %value, 8: Ptr
-    %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 8: Long
-    %v_10 = bitcast %v_9: Ptr
-    %v_11 = add %v_10, 4: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_13 = sext %v_12: Long
-    %v_14 = add %v_13, @image$base: Ptr
-    call_complex %v_14, %v_2
     jmp b_6
   }
 

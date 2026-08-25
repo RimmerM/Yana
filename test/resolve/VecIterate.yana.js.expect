@@ -1,10 +1,5 @@
 "use strict";
 // Core
-function loadVector_Int(from$items, from$length, from$offset, at) {
-  var v4 = from$offset + at | 0;
-  return [from$items[v4], from$items[v4 + 1 | 0], from$items[v4 + 2 | 0], from$items[v4 + 3 | 0]];
-}
-
 function loadVectorTail_Int(from$items, from$length, from$offset, at) {
   var v4 = from$offset + at | 0;
   var v9 = (from$offset + from$length | 0) - 1 | 0;
@@ -36,8 +31,8 @@ function sumInts(xs$items, xs$length, xs$offset) {
   var i = 0;
   L0: for (;;) {
     if (i <= last) {
-      var v126 = loadVector_Int(xs$items, xs$length, xs$offset, i);
-      acc = [acc[0] + v126[0] | 0, acc[1] + v126[1] | 0, acc[2] + v126[2] | 0, acc[3] + v126[3] | 0];
+      var v345 = xs$offset + i | 0;
+      acc = [acc[0] + xs$items[v345] | 0, acc[1] + xs$items[v345 + 1 | 0] | 0, acc[2] + xs$items[v345 + 2 | 0] | 0, acc[3] + xs$items[v345 + 3 | 0] | 0];
       i = i + 4 | 0;
       continue L0;
     }
@@ -55,39 +50,6 @@ function sumInts(xs$items, xs$length, xs$offset) {
   return (acc[0] + acc[1] | 0) + (acc[2] + acc[3] | 0) | 0;
 }
 
-function largest(xs$items, xs$length, xs$offset, floor) {
-  var acc = [floor, floor, floor, floor];
-  var last = xs$length - 4 | 0;
-  var i = 0;
-  L0: for (;;) {
-    if (i <= last) {
-      var v114 = loadVector_Int(xs$items, xs$length, xs$offset, i);
-      var v319$0 = v114[0];
-      var v319$1 = v114[1];
-      var v319$2 = v114[2];
-      var v319$3 = v114[3];
-      acc = [acc[0] > v319$0 ? acc[0] : v319$0, acc[1] > v319$1 ? acc[1] : v319$1, acc[2] > v319$2 ? acc[2] : v319$2, acc[3] > v319$3 ? acc[3] : v319$3];
-      i = i + 4 | 0;
-      continue L0;
-    }
-    break L0;
-  }
-  if (i < xs$length) {
-    var v89 = loadVectorTail_Int(xs$items, xs$length, xs$offset, i);
-    var v91 = xs$length - i | 0;
-    var v297$0 = 0 < v91;
-    var v297$1 = 1 < v91;
-    var v297$2 = 2 < v91;
-    var v297$3 = 3 < v91;
-    var v298$0 = v297$0 ? v89[0] : acc[0];
-    var v298$1 = v297$1 ? v89[1] : acc[1];
-    var v298$2 = v297$2 ? v89[2] : acc[2];
-    var v298$3 = v297$3 ? v89[3] : acc[3];
-    acc = [acc[0] > v298$0 ? acc[0] : v298$0, acc[1] > v298$1 ? acc[1] : v298$1, acc[2] > v298$2 ? acc[2] : v298$2, acc[3] > v298$3 ? acc[3] : v298$3];
-  }
-  return Math.max(Math.max(acc[0], acc[1]), Math.max(acc[2], acc[3]));
-}
-
 function main() {
   var v12 = new Int32Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   var v35 = new Float32Array([3, 1, 4, 1, 5]);
@@ -95,113 +57,138 @@ function main() {
   if (sumInts(v12, 11, 0) === 66) {
     result = result + 1 | 0;
   }
-  if (largest(v12, 11, 0, 0) === 11) {
-    result = result + 2 | 0;
-  }
   var acc = [0, 0, 0, 0];
   var i = 0;
   L0: for (;;) {
     if (i <= 7) {
-      var v271 = loadVector_Int(v12, 11, 0, i);
-      acc = [acc[0] + v271[0] | 0, acc[1] + v271[1] | 0, acc[2] + v271[2] | 0, acc[3] + v271[3] | 0];
+      var v2927 = v12[i];
+      var v2931 = v12[i + 1 | 0];
+      var v2935 = v12[i + 2 | 0];
+      var v2939 = v12[i + 3 | 0];
+      acc = [acc[0] > v2927 ? acc[0] : v2927, acc[1] > v2931 ? acc[1] : v2931, acc[2] > v2935 ? acc[2] : v2935, acc[3] > v2939 ? acc[3] : v2939];
       i = i + 4 | 0;
       continue L0;
     }
     break L0;
   }
   if (i < 11) {
-    var v232 = 11 - i | 0;
-    var live$0 = 0 < v232;
-    var live$1 = 1 < v232;
-    var live$2 = 2 < v232;
-    var live$3 = 3 < v232;
-    var v248 = loadVectorTail_Int(v12, 11, 0, i);
-    acc = [acc[0] + (live$0 ? v248[0] : 0) | 0, acc[1] + (live$1 ? v248[1] : 0) | 0, acc[2] + (live$2 ? v248[2] : 0) | 0, acc[3] + (live$3 ? v248[3] : 0) | 0];
+    var v2720 = loadVectorTail_Int(v12, 11, 0, i);
+    var v2722 = 11 - i | 0;
+    var v2733$0 = 0 < v2722;
+    var v2733$1 = 1 < v2722;
+    var v2733$2 = 2 < v2722;
+    var v2733$3 = 3 < v2722;
+    var v2734$0 = v2733$0 ? v2720[0] : acc[0];
+    var v2734$1 = v2733$1 ? v2720[1] : acc[1];
+    var v2734$2 = v2733$2 ? v2720[2] : acc[2];
+    var v2734$3 = v2733$3 ? v2720[3] : acc[3];
+    acc = [acc[0] > v2734$0 ? acc[0] : v2734$0, acc[1] > v2734$1 ? acc[1] : v2734$1, acc[2] > v2734$2 ? acc[2] : v2734$2, acc[3] > v2734$3 ? acc[3] : v2734$3];
   }
-  if (((acc[0] + acc[1] | 0) + (acc[2] + acc[3] | 0) | 0) === 66) {
-    result = result + 4 | 0;
+  if (Math.max(Math.max(acc[0], acc[1]), Math.max(acc[2], acc[3])) === 11) {
+    result = result + 2 | 0;
   }
   var acc$1 = [0, 0, 0, 0];
   var i$1 = 0;
   L1: for (;;) {
     if (i$1 <= 7) {
-      var v392 = loadVector_Int(v12, 11, 0, i$1);
-      var v2390$0 = v392[0];
-      var v2390$1 = v392[1];
-      var v2390$2 = v392[2];
-      var v2390$3 = v392[3];
-      acc$1 = [acc$1[0] > v2390$0 ? acc$1[0] : v2390$0, acc$1[1] > v2390$1 ? acc$1[1] : v2390$1, acc$1[2] > v2390$2 ? acc$1[2] : v2390$2, acc$1[3] > v2390$3 ? acc$1[3] : v2390$3];
+      acc$1 = [acc$1[0] + v12[i$1] | 0, acc$1[1] + v12[i$1 + 1 | 0] | 0, acc$1[2] + v12[i$1 + 2 | 0] | 0, acc$1[3] + v12[i$1 + 3 | 0] | 0];
       i$1 = i$1 + 4 | 0;
       continue L1;
     }
     break L1;
   }
   if (i$1 < 11) {
-    var v367 = loadVectorTail_Int(v12, 11, 0, i$1);
-    var v369 = 11 - i$1 | 0;
-    var v2368$0 = 0 < v369;
-    var v2368$1 = 1 < v369;
-    var v2368$2 = 2 < v369;
-    var v2368$3 = 3 < v369;
-    var v2369$0 = v2368$0 ? v367[0] : acc$1[0];
-    var v2369$1 = v2368$1 ? v367[1] : acc$1[1];
-    var v2369$2 = v2368$2 ? v367[2] : acc$1[2];
-    var v2369$3 = v2368$3 ? v367[3] : acc$1[3];
-    acc$1 = [acc$1[0] > v2369$0 ? acc$1[0] : v2369$0, acc$1[1] > v2369$1 ? acc$1[1] : v2369$1, acc$1[2] > v2369$2 ? acc$1[2] : v2369$2, acc$1[3] > v2369$3 ? acc$1[3] : v2369$3];
+    var v230 = 11 - i$1 | 0;
+    var live$0 = 0 < v230;
+    var live$1 = 1 < v230;
+    var live$2 = 2 < v230;
+    var live$3 = 3 < v230;
+    var v246 = loadVectorTail_Int(v12, 11, 0, i$1);
+    acc$1 = [acc$1[0] + (live$0 ? v246[0] : 0) | 0, acc$1[1] + (live$1 ? v246[1] : 0) | 0, acc$1[2] + (live$2 ? v246[2] : 0) | 0, acc$1[3] + (live$3 ? v246[3] : 0) | 0];
   }
-  if (Math.max(Math.max(acc$1[0], acc$1[1]), Math.max(acc$1[2], acc$1[3])) === 11) {
-    result = result + 8 | 0;
+  if (((acc$1[0] + acc$1[1] | 0) + (acc$1[2] + acc$1[3] | 0) | 0) === 66) {
+    result = result + 4 | 0;
   }
   var acc$2 = [0, 0, 0, 0];
   var i$2 = 0;
   L2: for (;;) {
-    if (i$2 <= 1) {
-      acc$2 = [Math.fround(acc$2[0] + v35[i$2]), Math.fround(acc$2[1] + v35[i$2 + 1 | 0]), Math.fround(acc$2[2] + v35[i$2 + 2 | 0]), Math.fround(acc$2[3] + v35[i$2 + 3 | 0])];
+    if (i$2 <= 7) {
+      var v2803 = v12[i$2];
+      var v2807 = v12[i$2 + 1 | 0];
+      var v2811 = v12[i$2 + 2 | 0];
+      var v2815 = v12[i$2 + 3 | 0];
+      acc$2 = [acc$2[0] > v2803 ? acc$2[0] : v2803, acc$2[1] > v2807 ? acc$2[1] : v2807, acc$2[2] > v2811 ? acc$2[2] : v2811, acc$2[3] > v2815 ? acc$2[3] : v2815];
       i$2 = i$2 + 4 | 0;
       continue L2;
     }
     break L2;
   }
-  if (i$2 < 5) {
-    var v499 = Math.fround(5 - i$2 | 0);
-    var live$0$1 = 0 < v499;
-    var live$1$1 = 1 < v499;
-    var live$2$1 = 2 < v499;
-    var live$3$1 = 3 < v499;
-    var v507 = loadVectorTail_Float(v35, 5, 0, i$2);
-    acc$2 = [Math.fround(acc$2[0] + (live$0$1 ? v507[0] : 0)), Math.fround(acc$2[1] + (live$1$1 ? v507[1] : 0)), Math.fround(acc$2[2] + (live$2$1 ? v507[2] : 0)), Math.fround(acc$2[3] + (live$3$1 ? v507[3] : 0))];
+  if (i$2 < 11) {
+    var v365 = loadVectorTail_Int(v12, 11, 0, i$2);
+    var v367 = 11 - i$2 | 0;
+    var v2794$0 = 0 < v367;
+    var v2794$1 = 1 < v367;
+    var v2794$2 = 2 < v367;
+    var v2794$3 = 3 < v367;
+    var v2795$0 = v2794$0 ? v365[0] : acc$2[0];
+    var v2795$1 = v2794$1 ? v365[1] : acc$2[1];
+    var v2795$2 = v2794$2 ? v365[2] : acc$2[2];
+    var v2795$3 = v2794$3 ? v365[3] : acc$2[3];
+    acc$2 = [acc$2[0] > v2795$0 ? acc$2[0] : v2795$0, acc$2[1] > v2795$1 ? acc$2[1] : v2795$1, acc$2[2] > v2795$2 ? acc$2[2] : v2795$2, acc$2[3] > v2795$3 ? acc$2[3] : v2795$3];
   }
-  if (Math.fround(Math.fround(acc$2[0] + acc$2[1]) + Math.fround(acc$2[2] + acc$2[3])) === 14) {
-    result = result + 16 | 0;
+  if (Math.max(Math.max(acc$2[0], acc$2[1]), Math.max(acc$2[2], acc$2[3])) === 11) {
+    result = result + 8 | 0;
   }
   var acc$3 = [0, 0, 0, 0];
   var i$3 = 0;
   L3: for (;;) {
     if (i$3 <= 1) {
-      var v2449 = v35[i$3];
-      var v2453 = v35[i$3 + 1 | 0];
-      var v2457 = v35[i$3 + 2 | 0];
-      var v2461 = v35[i$3 + 3 | 0];
-      acc$3 = [acc$3[0] > v2449 ? acc$3[0] : v2449, acc$3[1] > v2453 ? acc$3[1] : v2453, acc$3[2] > v2457 ? acc$3[2] : v2457, acc$3[3] > v2461 ? acc$3[3] : v2461];
+      acc$3 = [Math.fround(acc$3[0] + v35[i$3]), Math.fround(acc$3[1] + v35[i$3 + 1 | 0]), Math.fround(acc$3[2] + v35[i$3 + 2 | 0]), Math.fround(acc$3[3] + v35[i$3 + 3 | 0])];
       i$3 = i$3 + 4 | 0;
       continue L3;
     }
     break L3;
   }
   if (i$3 < 5) {
-    var v626 = loadVectorTail_Float(v35, 5, 0, i$3);
-    var v2438 = Math.fround(5 - i$3 | 0);
-    var v2440$0 = 0 < v2438;
-    var v2440$1 = 1 < v2438;
-    var v2440$2 = 2 < v2438;
-    var v2440$3 = 3 < v2438;
-    var v2441$0 = v2440$0 ? v626[0] : acc$3[0];
-    var v2441$1 = v2440$1 ? v626[1] : acc$3[1];
-    var v2441$2 = v2440$2 ? v626[2] : acc$3[2];
-    var v2441$3 = v2440$3 ? v626[3] : acc$3[3];
-    acc$3 = [acc$3[0] > v2441$0 ? acc$3[0] : v2441$0, acc$3[1] > v2441$1 ? acc$3[1] : v2441$1, acc$3[2] > v2441$2 ? acc$3[2] : v2441$2, acc$3[3] > v2441$3 ? acc$3[3] : v2441$3];
+    var v497 = Math.fround(5 - i$3 | 0);
+    var live$0$1 = 0 < v497;
+    var live$1$1 = 1 < v497;
+    var live$2$1 = 2 < v497;
+    var live$3$1 = 3 < v497;
+    var v505 = loadVectorTail_Float(v35, 5, 0, i$3);
+    acc$3 = [Math.fround(acc$3[0] + (live$0$1 ? v505[0] : 0)), Math.fround(acc$3[1] + (live$1$1 ? v505[1] : 0)), Math.fround(acc$3[2] + (live$2$1 ? v505[2] : 0)), Math.fround(acc$3[3] + (live$3$1 ? v505[3] : 0))];
   }
-  if (Math.max(Math.max(acc$3[0], acc$3[1]), Math.max(acc$3[2], acc$3[3])) === 5) {
+  if (Math.fround(Math.fround(acc$3[0] + acc$3[1]) + Math.fround(acc$3[2] + acc$3[3])) === 14) {
+    result = result + 16 | 0;
+  }
+  var acc$4 = [0, 0, 0, 0];
+  var i$4 = 0;
+  L4: for (;;) {
+    if (i$4 <= 1) {
+      var v2890 = v35[i$4];
+      var v2894 = v35[i$4 + 1 | 0];
+      var v2898 = v35[i$4 + 2 | 0];
+      var v2902 = v35[i$4 + 3 | 0];
+      acc$4 = [acc$4[0] > v2890 ? acc$4[0] : v2890, acc$4[1] > v2894 ? acc$4[1] : v2894, acc$4[2] > v2898 ? acc$4[2] : v2898, acc$4[3] > v2902 ? acc$4[3] : v2902];
+      i$4 = i$4 + 4 | 0;
+      continue L4;
+    }
+    break L4;
+  }
+  if (i$4 < 5) {
+    var v624 = loadVectorTail_Float(v35, 5, 0, i$4);
+    var v2879 = Math.fround(5 - i$4 | 0);
+    var v2881$0 = 0 < v2879;
+    var v2881$1 = 1 < v2879;
+    var v2881$2 = 2 < v2879;
+    var v2881$3 = 3 < v2879;
+    var v2882$0 = v2881$0 ? v624[0] : acc$4[0];
+    var v2882$1 = v2881$1 ? v624[1] : acc$4[1];
+    var v2882$2 = v2881$2 ? v624[2] : acc$4[2];
+    var v2882$3 = v2881$3 ? v624[3] : acc$4[3];
+    acc$4 = [acc$4[0] > v2882$0 ? acc$4[0] : v2882$0, acc$4[1] > v2882$1 ? acc$4[1] : v2882$1, acc$4[2] > v2882$2 ? acc$4[2] : v2882$2, acc$4[3] > v2882$3 ? acc$4[3] : v2882$3];
+  }
+  if (Math.max(Math.max(acc$4[0], acc$4[1]), Math.max(acc$4[2], acc$4[3])) === 5) {
     result = result + 32 | 0;
   }
   return result;

@@ -31,58 +31,29 @@
  * on a value that has to be recognized as a move first.
  */
 LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
-                               LowerPtr<LowerValue> source, TypePtr type, ModulePtr<Function> sink,
-                               bool erased) {
-    if(erased && !sink) {
-        auto descriptor = genTypeDesc(lower, block, type);
-        auto moveInit = tableSlotAddress(lower, block, descriptor, TypeDescFields::kMoveInit);
-
-        return call(lower.lower, lower.to, block, 0, 3, kDefaultCallType, [&](LowerInstCall* relocation) {
-            relocation->used()[0] = moveInit;
-            relocation->used()[1] = target;
-            relocation->used()[2] = source;
-        });
-    }
-
-    if(!sink) {
-        auto count = sizeOfType(lower, block, type);
-        return block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, source, count));
-    }
-
-    // Reachable because module.cpp's reachability walk follows the sink field, which is what puts
-    // the callee in front of lowering at all.
-    auto callee = lower.functions.getValue(sink).unwrap();
-    auto fun = block.addInst(lower.lower, new (lower.to.arena) LowerInstFun(StringId(), callee));
-
-    return call(lower.lower, lower.to, block, 0, 3, lower.lower[callee]->callType, [&](LowerInstCall* sinkCall) {
-        sinkCall->used()[0] = fun->created().ptr - lower.lower;
-        sinkCall->used()[1] = target;
-        sinkCall->used()[2] = source;
-    });
-}
-
-LowerInst* relocate(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
-                           ModulePtr<Value> value, LowerPtr<LowerValue> source, TypePtr type) {
-    auto& produced = *lower.local[value];
-    auto moved = produced.kind == Value::Move;
-    auto sink = moved ? ((InstMove&)produced).sink : nullptr;
-
+                               LowerPtr<LowerValue> source, TypePtr type) {
     /*
-     * The erased case: a move of a value whose type this body cannot see.
+     * A relocation is the bytes. All of them, on this target, whatever the body can see.
      *
-     * Which of Design-Memory §4.1's two relocations applies is exactly what the body has no way to
-     * decide - the resolver left `sink` null because there was no concrete type to find one for -
-     * so the answer travels in the descriptor its caller passed, and this is the load and the call
-     * that read it. Unconditional, like the erased teardown and for the same reason: a TrivialSink
-     * type's moveInit is a real function that copies its bytes rather than a null slot, so there is
-     * nothing to test before calling.
+     * `sizeOfType` is what makes the erased case the same instruction as the concrete one: a
+     * constant for a type this body knows and a load out of the caller's descriptor for a type
+     * variable, so the only difference between the two is where the count comes from.
      *
-     * Only a move. Initializing storage from a copy or from a call result is a write of bytes that
-     * already belong to nobody, and running a `Sink` there would empty a source that has none.
+     * It used to be a call through the descriptor's `moveInit` slot whenever the type was generic.
+     * That slot answered *which* relocation applied, back when a type could supply an authored one -
+     * see doc/spec/core.md#there-is-no-authored-relocation for why none can. With that gone the slot
+     * held one thing for every type in the language, a block copy of the size sitting two cells
+     * above it, and reaching it cost a load and an indirect call to reach a `memcpy` this emits
+     * inline.
+     *
+     * **A managed target still reads the slot**, and that is not an inconsistency: a block copy
+     * there is property by property, so what its erased relocation needs is the *shape*, and a byte
+     * count is not one. See `erasedRelocate` in codegen/js/inst.cpp.
      */
-    auto erased = moved && lower.genEnv && isGeneric(lower.global, type);
-    return relocateWith(lower, block, target, source, type, sink, erased);
+    auto count = sizeOfType(lower, block, type);
+    return block.addInst(lower.lower, new (lower.to.arena) LowerInstCopy(target, source, count));
 }
+
 
 /*
  * One write into one place - what an `Init`, an `Assign` and one element of an `InstAggregate` all
@@ -168,7 +139,7 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
             auto staged = mappedValue(lower, value);
 
             if(isMemoryType(lower.global, written)) {
-                relocate(lower, block, staging, value, staged, written);
+                relocateWith(lower, block, staging, staged, written);
             } else {
                 block.addInst(lower.lower, new (lower.to.arena) LowerInstStore(
                     staging, staged, memoryWidth(lower, written)));
@@ -205,7 +176,7 @@ LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function
         auto stored = mappedValue(lower, value);
 
         if(isMemoryType(lower.global, lower.local[value]->type)) {
-            return relocate(lower, block, address, value, stored, lower.local[value]->type);
+            return relocateWith(lower, block, address, stored, lower.local[value]->type);
         } else {
             // As at the load: a tag is as wide as its record's Repr says, and the constructor
             // index being written is an `Int` whichever record it belongs to.
@@ -724,9 +695,9 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
             auto temporary = block.addInst(lower.lower, new (lower.to.arena) LowerInstAlloca(StringId(), bytes, alignment));
             auto slot = temporary->created().ptr - lower.lower;
 
-            relocateWith(lower, block, slot, a, swap.content, swap.sink, erased);
-            relocateWith(lower, block, a, b, swap.content, swap.sink, erased);
-            result = relocateWith(lower, block, b, slot, swap.content, swap.sink, erased);
+            relocateWith(lower, block, slot, a, swap.content);
+            relocateWith(lower, block, a, b, swap.content);
+            result = relocateWith(lower, block, b, slot, swap.content);
             break;
         }
         case Value::Exchange: {
@@ -785,8 +756,8 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
             // Out first, then in: the incoming value is relocated by whatever rule its own move
             // recorded, which is the same question an Init of it would ask and is asked the same way.
-            relocateWith(lower, block, target, address, content, exchange.sink, erased);
-            relocate(lower, block, address, exchange.value, incoming, content);
+            relocateWith(lower, block, target, address, content);
+            relocateWith(lower, block, address, incoming, content);
 
             lower.values.add(instValue, target);
             return nullptr;
@@ -828,11 +799,10 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
         }
         case Value::Drop: {
             /*
-             * Two halves, either of which may be absent: run what the value's lifetime ends in, and
-             * hand back the storage it occupied. A drop with neither is one the pass should have
-             * elided rather than emitted.
+             * A teardown to run and storage to hand back, either of which may be absent. A drop with
+             * neither is one the pass should have elided rather than emitted.
              *
-             * The order is the one the language requires - whatever the drop does, it does while
+             * The order is the one the language requires - whatever the teardown does, it does while
              * the storage is still there to do it in.
              */
             auto& dropped = (InstDrop&)instruction;
@@ -851,6 +821,12 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
                 });
             };
 
+            auto step = [&](ModulePtr<Function> callee) {
+                if(!callee) return;
+                if(result) result->source = instruction.source;
+                result = callWith(callee);
+            };
+
             /*
              * The erased case: a teardown the body cannot name, because the type it belongs to is
              * one of this function's own type variables. What runs is whatever the caller's
@@ -858,55 +834,52 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
              * the lower IR takes a call's callee as an ordinary operand, so a loaded address is as
              * good a callee as a symbol.
              *
-             * The slots are never null, which is what keeps this branch-free: a type with nothing
-             * to run gets the shared empty teardown rather than a hole, so the erased path is one
-             * unconditional call per half instead of a load, a test and a split block. The flags in
-             * the descriptor still say which halves are empty, for a later pass that wants to skip
-             * the call rather than make it.
+             * **One call and not two.** Both halves live in one slot here (NativeTypeDesc::kTeardown),
+             * already merged by whoever wrote the descriptor - so the "did the two halves name the
+             * same walk" question the concrete path asks below is settled before this code runs,
+             * rather than being a comparison of two loaded addresses that this call would have to
+             * make on every drop of every erased value.
+             *
+             * The slot is never null, which is what keeps this branch-free: a type with nothing to
+             * run gets the shared empty teardown rather than a hole, so the erased path is one
+             * unconditional call instead of a load, a test and a split block. The flags in the
+             * descriptor still say whether it is that empty one, for a later pass that wants to
+             * skip the call rather than make it.
+             *
+             * `releaseStorage` is unaffected and is handled below with the concrete case: handing
+             * an allocation back is this frame's business and needs no descriptor, since what
+             * `freeHeap` is given is an address rather than a value.
              */
-            auto placeType = dropPlaceType(lower, *function, dropped.place);
-
-            if(lower.genEnv && isGeneric(lower.global, placeType)) {
+            if(dropped.erased) {
+                auto placeType = dropPlaceType(lower, *function, dropped.place);
                 auto descriptor = genTypeDesc(lower, block, placeType);
 
-                auto erasedStep = [&](U16 slot) {
-                    auto operation = tableSlotAddress(lower, block, descriptor, slot);
+                // An erased drop is placed only where the type is one of this body's own variables,
+                // so the descriptor its caller passed is exactly the one that describes it. Reaching
+                // here without one means the place type could not be answered - `dropPlaceType` is
+                // where that is decided - and the alternative to saying so out loud is indexing a
+                // table at address zero, which is what a write through a `&` used to do here.
+                assertTrue(bool(descriptor));
 
-                    if(result) result->source = instruction.source;
-                    result = call(lower.lower, lower.to, block, 0, 2, kDefaultCallType,
-                                  [&](LowerInstCall* teardown) {
-                        teardown->used()[0] = operation;
-                        teardown->used()[1] = address;
-                    });
-                };
+                auto operation = tableSlotAddress(lower, block, descriptor, NativeTypeDesc::kTeardown);
 
-                erasedStep(TypeDescFields::kDrop);
-                erasedStep(TypeDescFields::kReclaim);
-                break;
+                result = call(lower.lower, lower.to, block, 0, 2, kDefaultCallType,
+                              [&](LowerInstCall* teardown) {
+                    teardown->used()[0] = operation;
+                    teardown->used()[1] = address;
+                });
             }
 
-            auto step = [&](ModulePtr<Function> callee) {
-                if(!callee) return;
-                if(result) result->source = instruction.source;
-                result = callWith(callee);
-            };
-
-            step(dropped.drop);
-
             /*
-             * One traversal may serve both halves - Implementation-Containers.md §13.
+             * One call, because a drop names one function.
              *
-             * A container writes a single walk over its live elements, and which halves it supplies
-             * is computed from the element types: `Array(Buffer)` has both, because the walk both
-             * releases the run and runs each buffer's `Drop`. Running it twice would free the run
-             * twice, so the second call is what is dropped rather than the second half.
-             *
-             * Which of them is elidable is unaffected. A region discharges the reclaim half in bulk
-             * and leaves the drop half to run at last use, and this is the case where both are
-             * present - so what runs there is one call, the drop's, and the release inside it does
-             * nothing because the run's tag says the region owns the storage.
+             * This used to be two, guarded by whether the second named the same thing as the first -
+             * a container writes a single walk over its live elements and supplies both halves from
+             * it (Implementation-Containers.md §13), so running the second call would have released
+             * every element twice. That comparison is a fact about the *type*, so it is made where
+             * the type is (teardownBothFor) and what arrives here is the answer.
              */
-            if(dropped.reclaim != dropped.drop) step(dropped.reclaim);
+            step(dropped.teardown);
 
             // Handing back this allocation is the last thing that happens to it, after both halves
             // have finished reading it.

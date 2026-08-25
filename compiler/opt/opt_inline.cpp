@@ -961,8 +961,7 @@ struct Inliner {
                 if(drop.isEmpty()) return 0;
 
                 U32 size = 1;
-                if(drop.drop) size++;
-                if(drop.reclaim && drop.reclaim != drop.drop) size++;
+                if(drop.teardown) size++;
                 if(drop.releaseStorage) size += 3;
 
                 return size;
@@ -2368,21 +2367,16 @@ struct Inliner {
                 return (Inst*)cloned;
             }
             case Value::Move: {
-                // The sink travels unchanged: which function relocates a type is a property of the
-                // type, and the type did not move. See clonableKind for why the instruction may.
                 auto& move = (InstMove&)instruction;
-                auto cloned = createInst<InstMove>(module, function, into, source, name, type,
+                return (Inst*)createInst<InstMove>(module, function, into, source, name, type,
                                                    place(move.place));
-                cloned->sink = move.sink;
-                return (Inst*)cloned;
             }
             case Value::Drop: {
                 /*
                  * A teardown, copied whole - see clonableKind.
                  *
-                 * Both halves and both kinds travel unchanged, for the same reason `InstMove::sink`
-                 * does: which function tears a type down is a property of the type, and the type did
-                 * not move. `releaseStorage` travels for the reason `InstAlloc::storage` does - it is
+                 * Both halves and both kinds travel unchanged: which function tears a type down is
+                 * a property of the type, and the type did not move. `releaseStorage` travels for the reason `InstAlloc::storage` does - it is
                  * the other half of one statement about one allocation, and splitting them is how a
                  * frame-placed run gets handed to `freeHeap`.
                  *
@@ -2392,20 +2386,18 @@ struct Inliner {
                  */
                 auto& drop = (InstDrop&)instruction;
                 auto cloned = createInst<InstDrop>(module, function, into, source, name, type,
-                                                   place(drop.place), drop.dropKind, drop.reclaimKind);
-                cloned->drop = drop.drop;
-                cloned->reclaim = drop.reclaim;
+                                                   place(drop.place), drop.kind);
+                cloned->teardown = drop.teardown;
                 cloned->releaseStorage = drop.releaseStorage;
+                cloned->erased = drop.erased;
                 return (Inst*)cloned;
             }
             case Value::Swap: {
                 // Two places and a content type. The type is a global handle, so it means the same
-                // thing in either function, and the sink travels as `Move`'s does.
+                // thing in either function.
                 auto& swap = (InstSwap&)instruction;
-                auto cloned = createInst<InstSwap>(module, function, into, source, name, type,
+                return (Inst*)createInst<InstSwap>(module, function, into, source, name, type,
                                                    place(swap.a), place(swap.b), swap.content);
-                cloned->sink = swap.sink;
-                return (Inst*)cloned;
             }
             case Value::Exchange: {
                 // A write over a value taken out, so it has both a place and an operand - and a
@@ -2413,7 +2405,6 @@ struct Inliner {
                 auto& exchange = (InstExchange&)instruction;
                 auto cloned = createInst<InstExchange>(module, function, into, source, name, type,
                                                        place(exchange.place), value(exchange.value));
-                cloned->sink = exchange.sink;
                 cloned->local = exchange.local == maxLimit<U32> ? maxLimit<U32>
                                                                 : clone.locals[exchange.local];
                 return (Inst*)cloned;
@@ -3344,9 +3335,8 @@ struct Inliner {
         auto& dropped = (InstDrop&)*opt.local[pointer];
 
         if(dropped.releaseStorage) return false;
-        if(dropped.drop && dropped.reclaim) return false;
 
-        auto callee = dropped.drop ? dropped.drop : dropped.reclaim;
+        auto callee = dropped.teardown;
         if(!callee) return false;
         if(callee == (ModulePtr<Function>)(opt.function - opt.local)) return false;
 
@@ -3589,8 +3579,7 @@ struct Inliner {
                         if(instruction.kind == Value::Call) {
                             record(callSites, ((InstCall&)instruction).callee);
                         } else if(instruction.kind == Value::Drop) {
-                            record(callSites, ((InstDrop&)instruction).drop);
-                            record(callSites, ((InstDrop&)instruction).reclaim);
+                            record(callSites, ((InstDrop&)instruction).teardown);
                         } else if(instruction.kind == Value::Symbol) {
                             // The other way a body is reached, and the one a `calldyn` goes through
                             // - see `movesIntoSite`.

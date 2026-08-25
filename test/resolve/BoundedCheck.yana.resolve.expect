@@ -529,7 +529,7 @@ fn main() -> Int {
     %v113 = cast %v112 : Size
     init %local10@Flat.length, %v113
     %v115 = call dot, %v101, %v109 : I64
-    drop %short reclaim Reclaim(Array(a)).reclaim(I64)
+    drop %short via Reclaim(Array(a)).reclaim(I64)
     %v118 = cmp_eq %v115, 42 : Bool
     je %v118, b7, b8
 
@@ -728,7 +728,7 @@ fn main() -> Int {
     %v294 = cast %v293 : Size
     init %local19@Flat.length, %v294
     %v296 = call sumDown, %v290 : I64
-    drop %empty reclaim Reclaim(Array(a)).reclaim(I64)
+    drop %empty via Reclaim(Array(a)).reclaim(I64)
     %v299 = cmp_eq %v296, 0 : Bool
     je %v299, b34, b35
 
@@ -751,7 +751,7 @@ fn main() -> Int {
     %v314 = cast %v313 : Size
     init %local20@Flat.length, %v314
     %v317 = call sumStrided, %v310, 0 : I64
-    drop %words reclaim Reclaim(Array(a)).reclaim(I64)
+    drop %words via Reclaim(Array(a)).reclaim(I64)
     %v320 = cmp_eq %v317, 0 : Bool
     je %v320, b37, b38
 
@@ -782,7 +782,7 @@ fn main() -> Int {
     %v348 = cast %v347 : Size
     init %local23@Flat.length, %v348
     %v350 = call sumTail, %v344 : I64
-    drop %one reclaim Reclaim(Array(a)).reclaim(I64)
+    drop %one via Reclaim(Array(a)).reclaim(I64)
     %v353 = cmp_eq %v350, 0 : Bool
     je %v353, b40, b41
 

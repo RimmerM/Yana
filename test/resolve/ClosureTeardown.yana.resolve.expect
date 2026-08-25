@@ -10,22 +10,18 @@ let &heapRegionNext: Size = 0
 
 table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.lambda$19 before ResolveTest.lambda$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.lambda$20 before ResolveTest.lambda$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.lambda$21 before ResolveTest.lambda$21 {
-  .0 teardown$none
-  .1 closureRelease${amount: Int}
+  .0 closureRelease${amount: Int}
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -396,7 +392,7 @@ fn either(%pick: Int, %a: Int, %b: Int) -> Int {
   b3:
     %f = phi [b1, %v10], [b2, %v17] : (Int) -> Int
     %v25 = call apply, %f, 10 : Int
-    drop_derived %local4 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    drop_derived %local4 via teardown$(Int) -> Int
     ret %v25
 }
 
@@ -419,7 +415,7 @@ fn main() -> Int {
     %c = call either, 2, 3, 7 : Int
     %f = call escaping, 100 : (Int) -> Int
     %d = calldyn %f, 1 : Int
-    drop_derived %local0 via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    drop_derived %local0 via teardown$(Int) -> Int
     %v14 = add %a, %b : Int
     %v15 = add %v14, %c : Int
     %v16 = add %v15, %d : Int
@@ -454,7 +450,7 @@ fn ResolveTest.lambda$21(%env: %{amount: Int}, %x: Int) -> Int {
     ret %v3
 }
 
-fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -464,28 +460,7 @@ fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
   b1:
     %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
-    %v10 = cast %v9 : %()
-    %v11 = tableslot : %()
-    calldyn %v11, %v1
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
-  b0:
-    %v1 = load %value.env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
+    %v8 = sizeof {slot: Int} : Long
     %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()

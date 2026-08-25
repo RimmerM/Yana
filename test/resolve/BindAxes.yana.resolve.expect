@@ -429,7 +429,7 @@ fn setName(%self: Held, %n: Size) -> () {
     init %local1@Run.items, %v5
     init %local1@Run.capacity, %v10
     init %local1@Run.ownsHeap, 1
-    drop %self@Held.value reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %self@Held.value via Reclaim(Run(a)).reclaim(U8)
     assign %self@Held.value, %v2
     ret
 }
@@ -453,7 +453,7 @@ fn viaTry(%ok: Bool, %n: Size) -> Result(I64, Size) {
 
   b1:
     %v9 = load %local1@Exit : I64
-    drop_derived %local1 reclaim reclaim$Outcome(Held, I64)
+    drop_derived %local1 via reclaim$Outcome(Held, I64)
     %v10 = call Try(Result(e, a), a, e).fromExit(I64, Size), %v9 : Result(I64, Size)
     ret %v10
 
@@ -469,7 +469,7 @@ fn viaTry(%ok: Bool, %n: Size) -> Result(I64, Size) {
     %v22 = alloc : Result(I64, Size)
     %v24 = load %opened : Held
     %v25 = call slotCount, %v24 : Size
-    drop_derived %opened reclaim reclaim$Held
+    drop_derived %opened via reclaim$Held
     aggregate %local4.discriminant = 1, %local4@Ok = %v25
     ret %v22
 }
@@ -495,11 +495,11 @@ fn viaNamedPlace(%b: Box, %n: Size) -> Size {
     call setName, %v13, %n
     %v15 = load %taken : Held
     %v16 = call slotCount, %v15 : Size
-    drop_derived %taken reclaim reclaim$Held
+    drop_derived %taken via reclaim$Held
     ret %v16
 
   b3:
-    drop_derived %b reclaim reclaim$Box
+    drop_derived %b via reclaim$Box
     jmp b1
 }
 
@@ -520,11 +520,11 @@ fn viaPattern(%b: Box, %n: Size) -> Size {
     %v10 = borrow_mut %local1 : &Held
     call setName, %v10, %n
     %v12 = call slotCount, %held : Size
-    drop_derived %local1 reclaim reclaim$Held
+    drop_derived %local1 via reclaim$Held
     ret %v12
 
   b3:
-    drop_derived %b reclaim reclaim$Box
+    drop_derived %b via reclaim$Box
     jmp b1
 }
 
@@ -538,7 +538,7 @@ fn reclaim$Outcome(Held, I64)(%value: Outcome(Held, I64)) -> () {
     ret
 
   b2:
-    drop_derived %value@Proceed reclaim reclaim$Held
+    drop_derived %value@Proceed via reclaim$Held
     jmp b1
 
   b3:
@@ -547,7 +547,7 @@ fn reclaim$Outcome(Held, I64)(%value: Outcome(Held, I64)) -> () {
 
 fn reclaim$Held(%value: Held) -> () {
   b0:
-    drop %value@Held.value reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Held.value via Reclaim(Run(a)).reclaim(U8)
     ret
 }
 
@@ -561,7 +561,7 @@ fn reclaim$Box(%value: Box) -> () {
     ret
 
   b2:
-    drop_derived %value@Filled reclaim reclaim$Held
+    drop_derived %value@Filled via reclaim$Held
     jmp b1
 
   b3:

@@ -1,31 +1,25 @@
 table closure$Core.continuation$5(Flat(Int), Int, ()) before Core.continuation$5(Flat(Int), Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$Core.continuation$8(Flat(Int), Int, ()) before Core.continuation$8(Flat(Int), Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$Core.continuation$5(Array(Int), Int, ()) before Core.continuation$5(Array(Int), Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$Core.continuation$8(Array(Int), Int, ()) before Core.continuation$8(Array(Int), Int, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$Core.continuation$5(Array(Float), Float, ()) before Core.continuation$5(Array(Float), Float, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$Core.continuation$8(Array(Float), Float, ()) before Core.continuation$8(Array(Float), Float, ()) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 let image$base: () = <none>
@@ -34,42 +28,34 @@ let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20(Array(Int), Int) before ResolveTest.continuation$20(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21(Array(Int), Int) before ResolveTest.continuation$21(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20(Array(Float), Float) before ResolveTest.continuation$20(Array(Float), Float) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21(Array(Float), Float) before ResolveTest.continuation$21(Array(Float), Float) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -1211,7 +1197,7 @@ fn main() -> Int {
 
   b9:
     %v113 = call biggest(Array(Int), Int), %xs, 0 : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v116 = cmp_eq %v113, 11 : Bool
     je %v116, b10, b11
 
@@ -1240,7 +1226,7 @@ fn main() -> Int {
 
   b15:
     %v139 = call biggest(Array(Float), Float), %ys, 0 : Float
-    drop %local2 reclaim Reclaim(Array(a)).reclaim(Float)
+    drop %local2 via Reclaim(Array(a)).reclaim(Float)
     %v142 = cmp_eq %v139, 5 : Bool
     je %v142, b16, b17
 

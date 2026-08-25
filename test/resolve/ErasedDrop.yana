@@ -1,0 +1,125 @@
+{-
+   What a body that cannot see the type releases - the teardown half of Erased.yana, on both targets.
+
+   Compiled with specialization declined (see the `.generic` marker), so every function below with a
+   type variable in it is the erased form: it holds a value whose shape it does not know, and what
+   runs when that value's lifetime ends is whatever the caller's descriptor names.
+
+   Four separate things went wrong here, none of them reachable until this file existed, and each is
+   asserted by what the counter says rather than by what the IR looks like:
+
+    1. **A generic body got no drops at all.** The pass that places them skipped every body with a
+       schema, on the reading that what reaches the backend is that body's specializations - true
+       where a specialization is what runs, and false here, where the generic body *is* the code. So
+       an erased frame leaked everything it owned, and every check below is downstream of this one.
+    2. **The two halves of one teardown were called twice.** A container writes a single walk over
+       its live elements and supplies both the drop and the reclaim from it, which the concrete path
+       has always known; the erased path called each slot in turn. `[Counted]` is that shape, and a
+       second walk shows up here as the counter going *negative* rather than as a crash.
+    3. **An erased class dispatch did not hand over its `->` arguments.** It applies no conventions
+       by design - the callee is not a function the site reaches - so the argument arrives as a plain
+       load and nothing recorded the handover. The accumulator in a fold was therefore released once
+       per iteration while the callee still owned it, which is what `concat` and `repeated` reach.
+    4. **A managed `copyInit` was handed the box rather than the value.** The glue calls the type's
+       authored `Copy` with the storage it was given, which natively *is* the argument; on a managed
+       target a `%T` whose pointee is not a host object is a box, so `Copy(String)` - the identity
+       there - wrote the box into a string-shaped hole. `repeated` is the caller that reaches it.
+
+   Dispatch.Borrow.yana carries the fifth of the set, because it is the only file with the shape: a
+   write through a `&` inside a generic body, whose overwrite drop names a place rooted in a borrow
+   rather than in a local.
+
+   The counter is authored rather than derived, and holds no storage, so this runs on the managed
+   target too: `Drop` is the one half of a teardown a collector does not do for you.
+-}
+
+let &live = 0 :: I64
+
+data Counted {tag: I64}
+
+fn counted(tag: I64) -> Counted:
+    live = live + 1
+    return Counted {tag: tag}
+
+instance Drop(Counted):
+    fn drop(->value: Counted) -> {}:
+        live = live - 1
+
+{-
+   A type whose two halves are two *different* functions: an authored `Drop` for the effect, and the
+   derived reclaim that releases what its member owns. Every other shape in the corpus has one half
+   or has both served by one walk, and this is the only one where merging them into a single erased
+   slot has a wrapper to generate rather than a function to name.
+-}
+data Holder {items: [Int], tag: I64}
+
+fn holder(tag: I64) -> Holder:
+    live = live + 1
+    return Holder {items: [1, 2, 3], tag: tag}
+
+instance Drop(Holder):
+    fn drop(->value: Holder) -> {}:
+        live = live - 1
+
+-- A `->` parameter this body never mentions. It is owned before the first instruction runs and dead
+-- everywhere, so there is no last use for a drop to sit after - which is the one shape the
+-- placement walk has to name specially.
+fn swallow(->x: a) -> {}:
+    return
+
+-- And one it does mention: rebound to a second name, which is where the value ends up and where the
+-- teardown it owes belongs. `doomed` is never read, so its last use is the binding itself and the
+-- drop sits immediately after - which is why the count this reads is the *released* one.
+fn rebind(->x: a) -> I64:
+    let ->doomed = x
+    return live
+
+-- Handed on rather than released here. The count is read on both sides of the handover, so a frame
+-- that released too early fails the first digit and one that released twice fails the second.
+fn passOn(->x: a) -> I64:
+    let before = live
+    swallow(x)
+    return before * 10 + live
+
+fn main() -> Int:
+    -- One value, handed to a body that cannot see what it is.
+    swallow(counted(1))
+    if live != 0 then return -1
+
+    -- The same, rebound inside the callee and read after it died: zero where the drop ran, one
+    -- where the body kept what it was given.
+    if rebind(counted(2)) != 0 then return -2
+    if live != 0 then return -3
+
+    -- Live on the way in, gone on the way out.
+    if passOn(counted(3)) != 10 then return -4
+    if live != 0 then return -5
+
+    {-
+       A container of them, which is the case with two teardown halves served by one traversal:
+       `Reclaim(Array(a))` walks the live prefix and releases the run, and it is also what runs each
+       element's `Drop`. Called twice, every element is dropped twice and the counter ends at -3.
+    -}
+    let &many = [] :: [Counted]
+    push(many, counted(5))
+    push(many, counted(6))
+    push(many, counted(7))
+    if live != 3 then return -6
+
+    swallow(many)
+    if live != 0 then return -7
+
+    {-
+       And the fold, whose accumulator is moved out through a class method and written back once per
+       iteration. What the callee took, this frame must stop owning - through a dispatch it cannot
+       see the instance of.
+    -}
+    -- The two-different-halves shape, released through one slot.
+    swallow(holder(11))
+    if live != 0 then return -11
+
+    if concat(["ab", "cd", "ef"]) != "abcdef" then return -8
+    if repeated("ab", 3) != "ababab" then return -9
+    if live != 0 then return -10
+
+    return 0

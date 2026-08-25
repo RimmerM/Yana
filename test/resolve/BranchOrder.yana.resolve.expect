@@ -1305,11 +1305,11 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     jmp b19
 
   b22:
-    drop %kept reclaim Reclaim(String).reclaim
+    drop %kept via Reclaim(String).reclaim
     jmp b13
 
   b23:
-    drop %kept reclaim Reclaim(String).reclaim
+    drop %kept via Reclaim(String).reclaim
     jmp b20
 }
 
@@ -1407,7 +1407,7 @@ fn main() -> Int {
     %v27 = load %total : Int
     %v28 = load %out : String
     %v29 = call Length(String).length, %v28 : Size
-    drop %out reclaim Reclaim(String).reclaim
+    drop %out via Reclaim(String).reclaim
     %v30 = cast %v29 : Int
     %v31 = add %v27, %v30 : Int
     assign %total, %v31

@@ -1297,7 +1297,7 @@ fn insert(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -> Ma
     ret %v22
 
   b4:
-    drop %key reclaim Reclaim(String).reclaim
+    drop %key via Reclaim(String).reclaim
     jmp b1
 }
 
@@ -1789,7 +1789,7 @@ fn Reclaim(Array(a)).reclaim(Entry(String, Int))(%value: Array(Entry(String, Int
     %v21 = move %local2 : Entry(String, Int)
     %doomed = alloc : Entry(String, Int)
     init %local3, %v21
-    drop_derived %local3 reclaim reclaim$Entry(String, Int)
+    drop_derived %local3 via reclaim$Entry(String, Int)
     %v24 = load %i : Int
     %v26 = add %v24, 1 : Int
     assign %i, %v26
@@ -1798,7 +1798,7 @@ fn Reclaim(Array(a)).reclaim(Entry(String, Int))(%value: Array(Entry(String, Int
 
 fn reclaim$Entry(String, Int)(%value: Entry(String, Int)) -> () {
   b0:
-    drop %value@Entry.key reclaim Reclaim(String).reclaim
+    drop %value@Entry.key via Reclaim(String).reclaim
     ret
 }
 
@@ -3175,24 +3175,24 @@ fn main() -> Int {
     %v20 = call insert(String, Int), %v19, %v16, 6 : Maybe(Int)
     %v21 = load %a : Map(Int, Int)
     %v22 = call touchInt, %v21 : Int
-    drop_derived %a reclaim reclaim$Map(Int, Int)
+    drop_derived %a via reclaim$Map(Int, Int)
     %v23 = load %b : Map(String, Int)
     %v24 = call touchString, %v23 : Int
-    drop_derived %b reclaim reclaim$Map(String, Int)
+    drop_derived %b via reclaim$Map(String, Int)
     %v25 = add %v22, %v24 : Int
     ret %v25
 }
 
 fn reclaim$Map(Int, Int)(%value: Map(Int, Int)) -> () {
   b0:
-    drop %value@Map.entries reclaim Reclaim(Array(a)).reclaim(Entry(Int, Int))
-    drop %value@Map.index reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Map.entries via Reclaim(Array(a)).reclaim(Entry(Int, Int))
+    drop %value@Map.index via Reclaim(Run(a)).reclaim(U8)
     ret
 }
 
 fn reclaim$Map(String, Int)(%value: Map(String, Int)) -> () {
   b0:
-    drop %value@Map.entries reclaim Reclaim(Array(a)).reclaim(Entry(String, Int))
-    drop %value@Map.index reclaim Reclaim(Run(a)).reclaim(U8)
+    drop %value@Map.entries via Reclaim(Array(a)).reclaim(Entry(String, Int))
+    drop %value@Map.index via Reclaim(Run(a)).reclaim(U8)
     ret
 }

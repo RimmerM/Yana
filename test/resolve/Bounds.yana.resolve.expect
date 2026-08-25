@@ -1550,7 +1550,7 @@ fn ownerEdges() -> Int {
     %v55 = add %v52, %v54 : %Int
     %v56 = borrow [%v55] : 'Int
     %v57 = load [%v56] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v58 = add %v42, %v57 : Int
     ret %v58
 }
@@ -1574,7 +1574,7 @@ fn sliceEdges() -> Int {
     init %xs@Flat.length, %v31
     %v35 = borrow %xs : 'Flat(Int)
     %window = call slice(Int), %v35, 2, 5 : Flat(Int)
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v39 = borrow %local3 : 'Flat(Int)
     %v40 = load [%v39]@Flat.length : Size
     %v41 = cast 0 : USize
@@ -1635,7 +1635,7 @@ fn genericEdges() -> Int {
     %v20 = cast %v19 : Size
     %v23 = sub %v20, 1 : Size
     %v25 = call atBoth(Array(Int), Size, Int), %xs, 0, %v23 : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     ret %v25
 }
 
@@ -1661,7 +1661,7 @@ fn oneElement() -> Int {
     %v25 = add %v22, %v24 : %Int
     %v26 = borrow [%v25] : 'Int
     %v27 = load [%v26] : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     ret %v27
 }
 

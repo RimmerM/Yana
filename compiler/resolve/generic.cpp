@@ -1045,9 +1045,6 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             auto moved = resolver.emit<InstMove>(inst.source, inst.name, type,
                                                  clonePlace(clone, source.place));
 
-            auto ownership = ownershipIn(clone.module, functionGen(clone.global, resolver.function), type);
-            if(!ownership.trivialSink) moved->sink = sinkFor(clone.module, type, inst.source);
-
             result = moved;
             break;
         }
@@ -1066,9 +1063,6 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             auto swapped = cloneType(clone, swap.content);
             auto cloned = resolver.emit<InstSwap>(inst.source, inst.name, type, a, b, swapped);
 
-            auto ownership = ownershipIn(clone.module, functionGen(clone.global, resolver.function), swapped);
-            if(!ownership.trivialSink) cloned->sink = sinkFor(clone.module, swapped, inst.source);
-
             result = cloned;
             break;
         }
@@ -1077,9 +1071,6 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             auto place = clonePlace(clone, exchange.place);
             auto cloned = resolver.emit<InstExchange>(inst.source, inst.name, type, place,
                                                       cloneValue(clone, exchange.value));
-
-            auto ownership = ownershipIn(clone.module, functionGen(clone.global, resolver.function), type);
-            if(!ownership.trivialSink) cloned->sink = sinkFor(clone.module, type, inst.source);
 
             // The same reconciliation the Copy case performs: a type that turned out to be
             // register-sized has no second storage to make, so the result wants no slot.
@@ -1325,6 +1316,23 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             return;
         case Value::Ret:
             resolver.emit<InstRet>(inst.source, StringId(), type, cloneValue(clone, ((InstRet&)inst).value));
+            return;
+        case Value::Drop:
+            /*
+             * Dropped rather than cloned, and that is what makes the specialization correct.
+             *
+             * A drop is not something a body *says*; it is where the pass that placed it found a
+             * value's last use, and both halves of it name functions chosen for a type this clone is
+             * about to substitute. The clone is an ordinary function that will be analyzed like any
+             * other - specializations are generated *during* analysis, and the sweep repeats until
+             * no module grew, so this one gets its own pass - and that pass inserts its own drops
+             * against its own types. Copying these in as well would be the same value released
+             * twice.
+             *
+             * It only ever sees one at all because of the erased mode: a generic body gets drops
+             * where it is the code rather than a template (see analyzeFunction), and a call site
+             * that specializes such a body anyway is exactly this case.
+             */
             return;
         default:
             clone.context.diagnostics.error("internal: this instruction cannot be specialized"_v, inst.source);

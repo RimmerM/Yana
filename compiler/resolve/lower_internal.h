@@ -282,11 +282,8 @@ LowerInst* lowerCallInst(LowerContext& lower, LowerBlock& block, Inst& instructi
 // ownership ones share. In lower_mem.cpp.
 LowerInst* lowerStore(LowerContext& lower, LowerBlock& block, Function* function, Place place,
                       ModulePtr<Value> value);
-LowerInst* relocate(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
-                    ModulePtr<Value> value, LowerPtr<LowerValue> source, TypePtr type);
 LowerInst* relocateWith(LowerContext& lower, LowerBlock& block, LowerPtr<LowerValue> target,
-                        LowerPtr<LowerValue> source, TypePtr type, ModulePtr<Function> sink,
-                        bool erased);
+                        LowerPtr<LowerValue> source, TypePtr type);
 
 // Reading an instruction's operand, in lower_inst.cpp: the value it was mapped to, or the constant
 // materialized for this function on first use.

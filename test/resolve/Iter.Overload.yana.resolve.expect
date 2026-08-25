@@ -4,12 +4,10 @@ let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -228,7 +226,7 @@ fn main() -> Int {
     init %local8.code, %v38
     init %local8.env, %v36
     %v41 = call Chunked(Array(a), a).chunks(Int, ()), %xs, %v37 : Outcome((), ())
-    drop %local5 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local5 via Reclaim(Array(a)).reclaim(Int)
     %v42 = load %total : Int
     ret %v42
 }

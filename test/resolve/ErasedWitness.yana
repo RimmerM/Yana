@@ -3,38 +3,33 @@
 -- Compiled with specialization declined (see the `.generic` marker), so what runs is the erased
 -- form: the size, the relocation and the witnesses all come out of the environment the caller built.
 --
--- Two things are asserted here that nothing else asserts, both by counting rather than by reading
--- the IR - a relocation that went missing leaves the destination holding whatever the block copy
--- put there, and a value read out of it would be right by accident.
+-- Two things are asserted here that nothing else asserts:
 --
---  - a `->` of a type variable runs the type's *own* relocation, which is the `moveInit` slot of the
---    descriptor. A generic body has no `Sink` to name and no size to copy, so a block copy here
---    would silently be the wrong answer for exactly the types that need the call.
+--  - a `->` of a type variable relocates through the `moveInit` slot of the descriptor rather than
+--    by a block copy of a size this body does not have. Read back field by field, since a
+--    relocation that went missing leaves the destination holding whatever the copy put there.
+--    ErasedRelocate.yana asserts the same property on the JavaScript target, where the slot answers
+--    a shape rather than a size.
 --  - a dispatch on a requirement another one implies goes through the witness the caller already
 --    passed. `Num(a)` is what these signatures declare; `FromInt(a)` is what a literal needs, and it
 --    is reached through `Num`'s own superclass pointer rather than through a second slot.
+--
+-- This file used to be `ErasedSink.yana`, and the relocation half was asserted by a counter an
+-- authored `Sink` instance incremented. That class is gone - doc/spec/core.md records why - so the
+-- half that remains unique to this fixture is the witness one, and the name says so.
 
 import Native
 
-let &sinkCalls = 0 :: I64
-
 data Handle {value: I64}
 
-instance Sink(Handle):
-    fn sink(&to: Handle, ->from: Handle) -> {}:
-        sinkCalls += 1
-        to.value = from.value
+-- A nested record, so the relocation carries a member that is itself an aggregate.
+data Pair {left: Handle, right: I64}
 
 -- The relocation the body cannot name. `let ->y = x` is the one consumer of a move with no
 -- destination of its own, so it provides one - and filling it is a call through the descriptor.
 fn relocate(->x: a) -> a:
     let ->y = x
     return y
-
--- A record with no `Sink` of its own and a member that has one, so its descriptor's `moveInit` is
--- the derived glue rather than an authored instance. The generic body cannot tell the difference,
--- which is the point of the slot.
-data Pair {left: Handle, right: I64}
 
 -- The implied requirement, dispatched from a body that declared only what implies it.
 fn (Num(a)) increment(x: a) -> a = x + 1
@@ -50,18 +45,16 @@ fn (FromInt(a)) unit(like: a) -> a = 1
 
 fn (Num(a)) numeric(x: a) -> a = unit(x)
 
--- Every count is read where the answer is decided by what the erased body did, and the bindings are
--- ordinary ones: a `let ->` of a call result would relocate again, here in `main`, and the counts
--- would then be about this frame rather than about the one that could not see the type.
 fn main() -> I64:
     let h = Handle {value: 10}
     let moved = relocate(h)
-    if sinkCalls != 1 then return -1
+    if moved.value != 10 then return -1
 
     let p = Pair {left: Handle {value: 20}, right: 5}
     let movedPair = relocate(p)
-    if sinkCalls != 2 then return -2
+    if movedPair.left.value != 20 then return -2
+    if movedPair.right != 5 then return -3
 
-    -- 10 + 20 + 5 + 2 + 21 + 1 = 59, where the 2 is the count itself, 21 is `twice(19)` and the 1
-    -- is `numeric`'s literal, built through a witness it never asked its caller for.
-    return moved.value + movedPair.left.value + movedPair.right + sinkCalls + twice(19) + numeric(4)
+    -- 10 + 20 + 5 + 21 + 1 = 57, where 21 is `twice(19)` and the 1 is `numeric`'s literal, built
+    -- through a witness it never asked its caller for.
+    return moved.value + movedPair.left.value + movedPair.right + twice(19) + numeric(4)

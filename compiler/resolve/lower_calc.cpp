@@ -67,14 +67,14 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
             if(!descriptor) return nullptr;
 
             // The alignment shares the flags cell and sits above them, so reading it is the same
-            // load and one shift - see TypeDescFields::kFlags. The other two are whole cells.
+            // load and one shift - see NativeTypeDesc::kFlags. The other two are whole cells.
             if(metric.metric == TypeMetricKind::Align) {
                 lower.values.add(instValue, descAlign(lower, block, descriptor));
                 return nullptr;
             }
 
-            auto offset = metric.metric == TypeMetricKind::Stride ? TypeDescFields::kStride
-                                                                  : TypeDescFields::kSize;
+            auto offset = metric.metric == TypeMetricKind::Stride ? NativeTypeDesc::kStride
+                                                                  : NativeTypeDesc::kSize;
 
             lower.values.add(instValue, descField(lower, block, descriptor, offset));
             return nullptr;

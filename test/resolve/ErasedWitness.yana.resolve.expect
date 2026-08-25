@@ -1,0 +1,268 @@
+let image$base: () = <none>
+
+table typeDesc$Handle {
+  .0 sizeof Handle
+  .1 strideof Handle
+  .2 alignof Handle | 131
+  .3 teardown$none
+}
+
+table genEnv$relocate(Handle) {
+  .0 typeDesc$Handle
+}
+
+table typeDesc$Pair {
+  .0 sizeof Pair
+  .1 strideof Pair
+  .2 alignof Pair | 131
+  .3 teardown$none
+}
+
+table genEnv$relocate(Pair) {
+  .0 typeDesc$Pair
+}
+
+table typeDesc$Int {
+  .0 sizeof Int
+  .1 strideof Int
+  .2 alignof Int | 131
+  .3 teardown$none
+}
+
+table witness$Num(Int) {
+  .0 thunk$Num(Int).+#0
+  .1 thunk$Num(Int).-#1
+  .2 thunk$Num(Int).*#2
+  .3 thunk$Num(Int)./#3
+  .4 thunk$Num(Int).-#4
+  .5 witness$FromInt(Int)
+}
+
+table witness$FromInt(Int) {
+  .0 thunk$FromInt(Int).fromInt#0
+}
+
+table genEnv$twice(Int) {
+  .0 typeDesc$Int
+  .1 witness$Num(Int)
+}
+
+table genEnv$numeric(Int) {
+  .0 typeDesc$Int
+  .1 witness$Num(Int)
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = syscall 60, %status : Size
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+fn relocate(%x: a) -> a {
+  schema {
+    #0 type a
+  }
+
+  b0:
+    %x = move %x : a
+    %y = alloc : a
+    init %local1, %x
+    ret %y
+}
+
+(Num(a)) fn increment(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v4 = gencall FromInt(a).fromInt, 1 : a
+    %v2 = gencall Num(a).+, %x, %v4 : a
+    drop_derived %local1 erased
+    ret %v2
+}
+
+(Num(a)) fn twice(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v1 = gencall increment(a), %x : a
+    %v2 = gencall increment(a), %v1 : a
+    drop_derived %local1 erased
+    ret %v2
+}
+
+(FromInt(a)) fn unit(%like: a) -> a {
+  schema {
+    #0 type a
+    #1 class FromInt(a)
+  }
+
+  b0:
+    %v3 = gencall FromInt(a).fromInt, 1 : a
+    ret %v3
+}
+
+(Num(a)) fn numeric(%x: a) -> a {
+  schema {
+    #0 type a
+    #1 class Num(a)
+  }
+
+  b0:
+    %v1 = gencall unit(a), %x : a
+    ret %v1
+}
+
+fn main() -> I64 {
+  b0:
+    %h = alloc : Handle
+    aggregate %local0@Handle.value = 10
+    %h = copy %local0 : Handle
+    %moved = gencall env genEnv$relocate(Handle) relocate(Handle), %h : Handle
+    %v5 = load %local2@Handle.value : I64
+    %v8 = cmp_ne %v5, 10 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v12 = neg 1 : I64
+    ret %v12
+
+  b2:
+    jmp b3
+
+  b3:
+    %p = alloc : Pair
+    %v16 = alloc : Handle
+    aggregate %local4@Handle.value = 20
+    aggregate %local3@Pair.left = %v16, %local3@Pair.right = 5
+    %p = copy %local3 : Pair
+    %movedPair = gencall env genEnv$relocate(Pair) relocate(Pair), %p : Pair
+    %v23 = load %local6@Pair.left : Handle
+    %v24 = load %local6@Pair.left@Handle.value : I64
+    %v27 = cmp_ne %v24, 20 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v31 = neg 2 : I64
+    ret %v31
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = load %local6@Pair.right : I64
+    %v37 = cmp_ne %v34, 5 : Bool
+    je %v37, b7, b8
+
+  b7:
+    %v41 = neg 3 : I64
+    ret %v41
+
+  b8:
+    jmp b9
+
+  b9:
+    %v44 = load %local2@Handle.value : I64
+    %v45 = load %local6@Pair.left : Handle
+    %v46 = load %local6@Pair.left@Handle.value : I64
+    %v47 = add %v44, %v46 : I64
+    %v48 = load %local6@Pair.right : I64
+    %v49 = add %v47, %v48 : I64
+    %v52 = gencall env genEnv$twice(Int) twice(Int), 19 : Int
+    %v53 = cast %v52 : I64
+    %v54 = add %v49, %v53 : I64
+    %v57 = gencall env genEnv$numeric(Int) numeric(Int), 4 : Int
+    %v58 = cast %v57 : I64
+    %v59 = add %v54, %v58 : I64
+    ret %v59
+}
+
+fn thunk$Num(Int).+#0(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = add %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(Int).-#1(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = sub %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(Int).*#2(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v5 = mul %v3, %v4 : Int
+    init [%result], %v5
+    ret
+}
+
+fn thunk$Num(Int)./#3(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+  b0:
+    %v3 = load [%lhs] : Int
+    %v4 = load [%rhs] : Int
+    %v6 = cmp_eq %v4, 0 : Bool
+    call checkCondition, %v6
+    %v8 = div %v3, %v4 : Int
+    init [%result], %v8
+    ret
+}
+
+fn thunk$Num(Int).-#4(%result: %Int, %value: %Int) -> () {
+  b0:
+    %v2 = load [%value] : Int
+    %v3 = neg %v2 : Int
+    init [%result], %v3
+    ret
+}
+
+fn thunk$FromInt(Int).fromInt#0(%result: %Int, %value: Long) -> () {
+  b0:
+    %v2 = cast %value : Int
+    init [%result], %v2
+    ret
+}

@@ -10,21 +10,15 @@ import Native
    a collection handed back - and Reject.Exchange.yana holds the cases where `->` is refused and one
    of these is what the program should have said.
 
-   Nothing here reads the IR. Where the relocations went is asserted by the counter the `Sink`
-   instance increments, and whether anything was dropped by the counter the `Drop` instance keeps -
-   a relocation that went missing leaves the destination holding whatever the copy left there, and a
-   value read out of it would be right by accident.
+   Nothing here reads the IR. Both ends of every operation are read instead - what came out and what
+   is now in the place - because a relocation that went missing leaves the destination holding
+   whatever the copy left there, and *one* of the two would be right by accident. Whether anything
+   was dropped is the counter the `Drop` instance keeps.
 -}
 
-let &sinkCalls = 0 :: I64
 let &liveBuffers = 0 :: I64
 
 data Handle {value: I64}
-
-instance Sink(Handle):
-    fn sink(&to: Handle, ->from: Handle) -> {}:
-        sinkCalls += 1
-        to.value = from.value
 
 data Buffer {bytes: %U8}
 
@@ -71,28 +65,27 @@ fn globalExchange() -> I64:
     return old * 10 + counter
 
 {-
-   What the two cost.
+   A record rather than a scalar, which is where the relocation is a block copy rather than a load
+   and a store.
 
    A swap cannot write either place until it has read both, so it relocates three times through a
-   temporary. An exchange is handed a value rather than a place, so it relocates twice and needs no
-   temporary. That is the entire reason both exist, and it is the counter that says so.
+   temporary; an exchange is handed a value rather than a place, so it relocates twice and needs no
+   temporary. That is the entire reason both exist. What the count is cannot be read from inside the
+   language any more - see doc/spec/core.md on the `Sink` class that used to make it observable -
+   so what is asserted is what the operations promise rather than what they cost.
 -}
-fn sinkSwap() -> I64:
+fn swapRecords() -> I64:
     let &a = Handle {value: 1}
     let &b = Handle {value: 2}
 
-    sinkCalls = 0
     swap(a, b)
+    return a.value * 10 + b.value
 
-    return sinkCalls * 100 + a.value * 10 + b.value
-
-fn sinkExchange() -> I64:
+fn exchangeRecord() -> I64:
     let &slot = Handle {value: 1}
 
-    sinkCalls = 0
     let old = exchange(slot, Handle {value: 2})
-
-    return sinkCalls * 100 + old.value * 10 + slot.value
+    return old.value * 10 + slot.value
 
 -- A swap of owned values runs no teardown at all. Both places held a live value before and both do
 -- after, so there is nothing whose lifetime ended and nothing to drop - which is the property that
@@ -132,11 +125,11 @@ fn main() -> I64:
     if exchangeScalar() != 19 then return -2
     if globalExchange() != 57 then return -3
 
-    -- Three relocations, and the values crossed over: 300 + 2*10 + 1.
-    if sinkSwap() != 321 then return -4
+    -- The values crossed over rather than one write winning.
+    if swapRecords() != 21 then return -4
 
-    -- Two, and the old value came back: 200 + 1*10 + 2.
-    if sinkExchange() != 212 then return -5
+    -- The old value came back and the new one is in the place.
+    if exchangeRecord() != 12 then return -5
 
     if swapDroppable() != 2 then return -6
     if liveBuffers != 0 then return -7

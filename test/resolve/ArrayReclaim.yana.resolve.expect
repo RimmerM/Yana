@@ -1145,7 +1145,7 @@ fn frameOnly() -> Int {
     %v43 = add %v40, %v42 : %Int
     %v44 = borrow [%v43] : 'Int
     %v45 = load [%v44] : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v46 = add %v31, %v45 : Int
     ret %v46
 }
@@ -1181,7 +1181,7 @@ fn grown() -> Int {
     %v42 = load [%v41] : Int
     %v43 = load %xs : Array(Int)
     %v44 = load %xs@Array.length : @bits(30) U32
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v45 = cast %v44 : Size
     %v46 = cast %v42 : Size
     %v47 = add %v46, %v45 : Size
@@ -1212,7 +1212,7 @@ fn boundMutable() -> Int {
     %v30 = add %v27, %v29 : %Int
     %v31 = borrow [%v30] : 'Int
     %v32 = load [%v31] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     ret %v32
 }
 

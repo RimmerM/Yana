@@ -450,7 +450,7 @@ fn main() -> Int {
     %v114 = cast %v113 : Size
     init %local9@Flat.length, %v114
     %v116 = call fieldOfElement, %v110 : Int
-    drop %cells reclaim Reclaim(Array(a)).reclaim(Cell)
+    drop %cells via Reclaim(Array(a)).reclaim(Cell)
     %v117 = add %v107, %v116 : Int
     %v118 = load %store : Array(Int)
     %v119 = borrow_mut %store : &Array(Int)
@@ -462,7 +462,7 @@ fn main() -> Int {
     init %local10@Flat.length, %v124
     %v126 = borrow_mut %local10 : &Flat(Int)
     %v127 = call throughPointer, %v126 : Int
-    drop %store reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %store via Reclaim(Array(a)).reclaim(Int)
     %v128 = add %v117, %v127 : Int
     %v132 = alloc : [Int *3]
     aggregate %local11[0] = 1, %local11[1] = 2, %local11[2] = 3
@@ -477,7 +477,7 @@ fn main() -> Int {
     %v145 = cast %v144 : Size
     init %local12@Flat.length, %v145
     %v147 = call fromSlice, %v141 : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v148 = add %v138, %v147 : Int
     ret %v148
 }

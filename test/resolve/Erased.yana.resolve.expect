@@ -4,10 +4,7 @@ table typeDesc$Int {
   .0 sizeof Int
   .1 strideof Int
   .2 alignof Int | 131
-  .3 moveInit$Int
-  .4 copyInit$Int
-  .5 teardown$none
-  .6 teardown$none
+  .3 teardown$none
 }
 
 table typeDesc$() {
@@ -15,9 +12,6 @@ table typeDesc$() {
   .1 strideof ()
   .2 alignof () | 131
   .3 teardown$none
-  .4 teardown$none
-  .5 teardown$none
-  .6 teardown$none
 }
 
 table genEnv$pick(Int, ()) {
@@ -37,10 +31,7 @@ table typeDesc$Bool {
   .0 sizeof Bool
   .1 strideof Bool
   .2 alignof Bool | 131
-  .3 moveInit$Bool
-  .4 copyInit$Bool
-  .5 teardown$none
-  .6 teardown$none
+  .3 teardown$none
 }
 
 table genEnv$pick(Int, Bool) {
@@ -237,7 +228,7 @@ fn pick(%flag: Bool, %x: a, %y: b) -> b {
 
   b0:
     %v2 = gencall Ord(a).<, %x, %y : Bool
-    je %v2, b1, b2
+    je %v2, b4, b5
 
   b1:
     jmp b3
@@ -248,6 +239,14 @@ fn pick(%flag: Bool, %x: a, %y: b) -> b {
   b3:
     %v6 = phi [b1, %x], [b2, %y] : a
     ret %v6
+
+  b4:
+    drop_derived %y erased
+    jmp b1
+
+  b5:
+    drop_derived %x erased
+    jmp b2
 }
 
 (Ord(a)) fn middle(%x: a, %y: a, %z: a) -> a {
@@ -271,6 +270,7 @@ fn pick(%flag: Bool, %x: a, %y: b) -> b {
   b0:
     %v4 = gencall FromInt(a).fromInt, 1 : a
     %v2 = gencall Num(a).+, %x, %v4 : a
+    drop_derived %local1 erased
     ret %v2
 }
 
@@ -312,42 +312,6 @@ fn main() -> Int {
     %v41 = gencall env genEnv$nothingForwarded(Int) nothingForwarded(Int), 7 : Int
     %v42 = add %v38, %v41 : Int
     ret %v42
-}
-
-fn moveInit$Int(%to: %Int, %from: %Int) -> () {
-  b0:
-    %v2 = sizeof Int : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory relocating %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$Int(%to: %Int, %from: %Int) -> () {
-  b0:
-    %v2 = sizeof Int : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
-}
-
-fn moveInit$Bool(%to: %Bool, %from: %Bool) -> () {
-  b0:
-    %v2 = sizeof Bool : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory relocating %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$Bool(%to: %Bool, %from: %Bool) -> () {
-  b0:
-    %v2 = sizeof Bool : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
 }
 
 fn thunk$Num(Int).+#0(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {

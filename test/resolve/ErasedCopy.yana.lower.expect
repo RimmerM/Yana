@@ -1,12 +1,12 @@
 @image$base = []
 mut @copyCalls = [0, 0, 0, 0]
-@typeDesc$Int = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Int = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @witness$TrivialCopy(Int) = []
 @genEnv$copyInto(Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Point = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Point = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @witness$TrivialCopy(Point) = []
 @genEnv$copyInto(Point) = [0, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$Quad = [36, 0, 0, 0, 36, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Quad = [36, 0, 0, 0, 36, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @witness$TrivialCopy(Quad) = []
 @genEnv$copyInto(Quad) = [0, 0, 0, 0, 0, 0, 0, 0]
 
@@ -21,9 +21,17 @@ copyInto<complex>(%genEnv: Ptr, %slot: Ptr, %from: Ptr) {
     %v_1 = loads %genEnv, 4: Int
     %v_2 = sext %v_1: Long
     %v_3 = add %v_2, @image$base: Ptr
-    %v_4 = load %v_3, 4: Int
-    %v_5 = cast %v_4: Long
-    copy %slot, %from, %v_5
+    %v_4 = add %v_3, 12: Ptr
+    %v_5 = loads %v_4, 4: Int
+    %v_6 = sext %v_5: Long
+    %v_7 = add %v_6, @image$base: Ptr
+    call_complex %v_7, %slot
+    %v_8 = loads %genEnv, 4: Int
+    %v_9 = sext %v_8: Long
+    %v_10 = add %v_9, @image$base: Ptr
+    %v_11 = load %v_10, 4: Int
+    %v_12 = cast %v_11: Long
+    copy %slot, %from, %v_12
     ret 
   }
 }
@@ -172,48 +180,6 @@ main<complex>(): Int {
 
   b_7 {
     ret 18446744073709551615
-  }
-}
-
-moveInit$Int<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 4
-    ret 
-  }
-}
-
-copyInit$Int<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 4
-    ret 
-  }
-}
-
-moveInit$Point<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
-copyInit$Point<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 8
-    ret 
-  }
-}
-
-moveInit$Quad<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 36
-    ret 
-  }
-}
-
-copyInit$Quad<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 36
-    ret 
   }
 }
 

@@ -187,11 +187,21 @@ bool runProgramOwnership(Program& program);
  */
 void reselectStorage(Module& module, Function& function);
 
-// Which half of a teardown a request is about - see Design-Memory §4. The two are elidable under
-// different conditions, so nothing may ask for "the teardown" without saying which.
+/*
+ * Which of a teardown's halves is being asked about - and `Both`, which is what a *site* asks for.
+ *
+ * The split is real and load-bearing: `Drop` is an effect at last use and is never elided on any
+ * target, `Reclaim` releases the value's own storage and is the collector's business on a managed
+ * one and a region's in bulk. What is *not* real is asking for them separately at the point one
+ * value is released, because a container routinely supplies both from one walk over its live
+ * elements - so two answers there have to be compared before either is used, and every consumer
+ * that held two of them had to restate the comparison. `Both` is that comparison, made once, where
+ * the fact lives. See teardownBothFor.
+ */
 enum class Teardown: U8 {
     Drop,
     Reclaim,
+    Both,
 };
 
 // The implementation one type's teardown half runs - an authored instance, or the glue synthesized
@@ -207,6 +217,16 @@ ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardow
 // definition for why the two cannot be one function.
 ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, LocationId source);
 
+// The whole of one type's teardown as a single function - see teardownBothFor. Null where the type
+// has nothing to run. This is what a machine target's descriptor slot holds.
+ModulePtr<Function> teardownBothFor(Module& module, TypePtr type, LocationId source);
+
+// The same question asked of *this* program's target: the merged teardown natively, and the drop
+// half alone on a managed one, where reclaim is the collector's. What an InstDrop names.
+Teardown siteTeardown(Module& module);
+ModulePtr<Function> teardownAtSite(Module& module, TypePtr type, LocationId source);
+TeardownKind teardownKindAtSite(Module& module, const Ownership& ownership);
+
 /*
  * The teardown of a function type with the header test left out, for a drop site that has proved
  * what the test would have found - see devirtualizeClosureDrop, its one caller.
@@ -214,7 +234,7 @@ ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, L
  * Interned per type beside the conditional glue, and generated on demand: a program where no site
  * can prove it never builds one.
  */
-ModulePtr<Function> funTeardownKnownHeader(Module& module, TypePtr type, Teardown half, LocationId source);
+ModulePtr<Function> funTeardownKnownHeader(Module& module, TypePtr type, LocationId source);
 
 // Writes the analysis result for the whole program, in the same golden-file spirit as the resolve
 // and lower IR dumps. This is what makes liveness inspectable rather than only trusted.

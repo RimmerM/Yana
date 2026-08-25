@@ -1,0 +1,231 @@
+"use strict";
+var live = 0n;
+const typeDesc$Counted = [dropAt$Counted, moveInit$Counted, teardown$none];
+const genEnv$swallow_Counted = [typeDesc$Counted];
+const genEnv$rebind_Counted = [typeDesc$Counted];
+const genEnv$passOn_Counted = [typeDesc$Counted];
+const typeDesc$Array_Counted = [dropAt$Array_Counted, moveInit$Array_Counted, teardown$none];
+const genEnv$swallow_Array_Counted = [typeDesc$Array_Counted];
+const typeDesc$Holder = [dropAt$Holder, moveInit$Holder, teardown$none];
+const genEnv$swallow_Holder = [typeDesc$Holder];
+const typeDesc$String = [teardown$none, moveInit$String, copyInit$String];
+const witness$Monoid_String = [thunk$Monoid_String_empty_0, null];
+const witness$Append_String = [thunk$Append_String_add_add_0];
+const witness$Copy_String = [thunk$Copy_String_copy_0];
+const genEnv$repeated_String = [typeDesc$String, witness$Monoid_String, witness$Copy_String];
+witness$Monoid_String[1] = witness$Append_String;
+
+// Core
+function repeated(genEnv, value, times) {
+  var out2 = { $v: {} };
+  genEnv[1][0](out2);
+  var v4 = {};
+  genEnv[0][1](v4, out2);
+  var i = 0;
+  L0: for (;;) {
+    if (i < times) {
+      var out14 = { $v: {} };
+      genEnv[2][0](out14, value);
+      var out15 = { $v: {} };
+      genEnv[1][1][0](out15, v4, out14);
+      genEnv[0][2](v4, out15);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+  return v4;
+}
+
+function teardown$none(value) {
+}
+
+function appendAll_Array_String_String(seed, parts) {
+  var v3 = { $v: seed };
+  var v54 = parts.length;
+  var i = 0;
+  L0: for (;;) {
+    if (i < v54) {
+      var v78 = i;
+      if (v78 >>> 0 >= v54) {
+        throw "yana: a runtime check failed";
+      } else {
+        v3.$v = v3.$v + parts[v78];
+        i = i + 1 | 0;
+        continue L0;
+      }
+    } else {
+      return v3.$v;
+    }
+    break L0;
+  }
+}
+
+function Reclaim_Array_a_reclaim_Counted(value) {
+  var count = value.length;
+  var i = 0;
+  L0: for (;;) {
+    if (i < count) {
+      live = BigInt.asIntN(64, live - 1n);
+      i = i + 1 | 0;
+      continue L0;
+    }
+    break L0;
+  }
+}
+
+// ResolveTest
+function swallow(genEnv, x) {
+  genEnv[0][0](x);
+}
+
+function rebind(genEnv, x) {
+  var doomed = {};
+  genEnv[0][1](doomed, x);
+  genEnv[0][0](doomed);
+  return live;
+}
+
+function passOn(genEnv, x) {
+  var before = live;
+  swallow([genEnv[0]], x);
+  return BigInt.asIntN(64, BigInt.asIntN(64, before * 10n) + live);
+}
+
+function main() {
+  live = BigInt.asIntN(64, live + 1n);
+  swallow(genEnv$swallow_Counted, { $v: 1n });
+  var v4 = live;
+  if (v4 !== 0n) {
+    return -1;
+  } else {
+    live = BigInt.asIntN(64, v4 + 1n);
+    if (rebind(genEnv$rebind_Counted, { $v: 2n }) !== 0n) {
+      return -2;
+    } else {
+      var v27 = live;
+      if (v27 !== 0n) {
+        return -3;
+      } else {
+        live = BigInt.asIntN(64, v27 + 1n);
+        if (passOn(genEnv$passOn_Counted, { $v: 3n }) !== 10n) {
+          return -4;
+        } else {
+          var v50 = live;
+          if (v50 !== 0n) {
+            return -5;
+          } else {
+            var v60 = [];
+            if (v60.length !== 0) {
+              v60.length = 0;
+            }
+            live = BigInt.asIntN(64, v50 + 1n);
+            var count = v60.length;
+            var v194 = count + 1;
+            v60[count] = 5n;
+            var v200 = v194 & 1073741823;
+            if (v60.length !== v200) {
+              v60.length = v200;
+            }
+            live = BigInt.asIntN(64, live + 1n);
+            var count$1 = v60.length;
+            var v211 = count$1 + 1;
+            v60[count$1] = 6n;
+            var v217 = v211 & 1073741823;
+            if (v60.length !== v217) {
+              v60.length = v217;
+            }
+            live = BigInt.asIntN(64, live + 1n);
+            var count$2 = v60.length;
+            var v228 = count$2 + 1;
+            v60[count$2] = 7n;
+            var v234 = v228 & 1073741823;
+            if (v60.length !== v234) {
+              v60.length = v234;
+            }
+            if (live !== 3n) {
+              Reclaim_Array_a_reclaim_Counted(v60);
+              return -6;
+            } else {
+              swallow(genEnv$swallow_Array_Counted, v60);
+              var v96 = live;
+              if (v96 !== 0n) {
+                return -7;
+              } else {
+                live = BigInt.asIntN(64, v96 + 1n);
+                swallow(genEnv$swallow_Holder, { items: { items: new Int32Array([1, 2, 3]), length: 3 }, tag: 11n });
+                if (live !== 0n) {
+                  return -11;
+                } else {
+                  var v123 = ["ab", "cd", "ef"];
+                  if (v123.length !== 3) {
+                    v123.length = 3;
+                  }
+                  if (appendAll_Array_String_String("", v123) === "abcdef" ^ 1) {
+                    return -8;
+                  } else {
+                    if (repeated(genEnv$repeated_String, { $v: "ab" }, 3).$v === "ababab" ^ 1) {
+                      return -9;
+                    } else {
+                      if (live !== 0n) {
+                        return -10;
+                      } else {
+                        return 0;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function dropAt$Counted(value) {
+  live = BigInt.asIntN(64, live - 1n);
+}
+
+function moveInit$Counted(to, from) {
+  to.$v = from.$v;
+}
+
+function dropAt$Array_Counted(value) {
+  Reclaim_Array_a_reclaim_Counted(value);
+}
+
+function moveInit$Array_Counted(to, from) {
+  to.$v = from.$v;
+}
+
+function dropAt$Holder(value) {
+  live = BigInt.asIntN(64, live - 1n);
+}
+
+function moveInit$Holder(to, from) {
+  to.items = from.items;
+  to.tag = from.tag;
+}
+
+function moveInit$String(to, from) {
+  to.$v = from.$v;
+}
+
+function copyInit$String(to, from) {
+  to.$v = from.$v;
+}
+
+function thunk$Monoid_String_empty_0(result) {
+  result.$v = "";
+}
+
+function thunk$Append_String_add_add_0(result, lhs, rhs) {
+  result.$v = lhs.$v + rhs.$v;
+}
+
+function thunk$Copy_String_copy_0(result, from) {
+  result.$v = from.$v;
+}
+main();

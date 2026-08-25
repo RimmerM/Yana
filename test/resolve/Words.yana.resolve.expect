@@ -550,7 +550,7 @@ fn roundTrip() -> Int {
     %v116 = cast %v115 : Size
     init %local8@Flat.length, %v116
     %v119 = call readBigU64, %v112, 0 : U64
-    drop %bytes reclaim Reclaim(Array(a)).reclaim(U8)
+    drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v122 = cmp_eq %v119, 1311768467463790320 : Bool
     %wide = call check, %v122, 1024 : Int
     %v125 = add %shorts, %wide : Int
@@ -659,7 +659,7 @@ fn layout() -> Int {
     %v140 = cast %v139 : Size
     init %local4@Flat.length, %v140
     %v143 = call readLittleU32, %v136, 0 : U32
-    drop %bytes reclaim Reclaim(Array(a)).reclaim(U8)
+    drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v146 = cmp_eq %v143, 2018915346 : Bool
     %v148 = call check, %v146, 32768 : Int
     %v149 = add %ends, %v148 : Int
@@ -730,7 +730,7 @@ fn unaligned() -> Int {
     %v90 = add %v87, %v89 : %U8
     %v91 = borrow [%v90] : 'U8
     %v92 = load [%v91] : U8
-    drop %bytes reclaim Reclaim(Array(a)).reclaim(U8)
+    drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v95 = cmp_eq %v92, 0 : Bool
     %v97 = call check, %v95, 131072 : Int
     %v98 = add %v77, %v97 : Int

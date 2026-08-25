@@ -417,43 +417,43 @@ function touchString(m) {
 
 function main() {
   var a = { keys: { items: new Int32Array([]), length: 0 }, values: { items: new Int32Array([]), length: 0 }, index: { items: new Int32Array([]), length: 0 }, live: 0, mask: 0 };
-  var v53 = mix32(67918732);
-  var at = findEntry_Int_Int(a, 1, v53);
+  var v51 = mix32(67918732);
+  var at = findEntry_Int_Int(a, 1, v51);
   if (at >= 0) {
     a.values.items[at] = 5;
   } else {
-    var v106 = a.keys.length;
+    var v98 = a.keys.length;
     push_Int(a.keys, 1);
     push_Int(a.values, 5);
-    var v111 = a.mask;
-    if (v111 === 0) {
-      var v142 = v106 + 1;
-      if (v142 > 8) {
-        indexRebuild_Int_Int(a, indexSlotsFor(v142));
+    var v103 = a.mask;
+    if (v103 === 0) {
+      var v134 = v98 + 1;
+      if (v134 > 8) {
+        indexRebuild_Int_Int(a, indexSlotsFor(v134));
       }
     } else {
-      var v118 = v111 + 1;
-      if (a.live + 1 > v118 - (v118 >>> 3)) {
-        indexRebuild_Int_Int(a, Math.imul(v106 + 1, 2) > v118 ? v118 + v118 | 0 : v118);
+      var v110 = v103 + 1;
+      if (a.live + 1 > v110 - (v110 >>> 3)) {
+        indexRebuild_Int_Int(a, Math.imul(v98 + 1, 2) > v110 ? v110 + v110 | 0 : v110);
       } else {
-        indexPlace_Int_Int(a, v106, v53);
+        indexPlace_Int_Int(a, v98, v51);
       }
     }
   }
-  var v75 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
-  var v76 = [];
-  if (v76.length !== 0) {
-    v76.length = 0;
+  var v73 = { keys: null, values: { items: null, length: 0 }, index: { items: null, length: 0 }, live: 0, mask: 0 };
+  var v74 = [];
+  if (v74.length !== 0) {
+    v74.length = 0;
   }
-  var v80 = { items: new Int32Array([]), length: 0 };
-  var v84 = { items: new Int32Array([]), length: 0 };
-  v75.keys = v76;
-  v75.values = v80;
-  v75.index = v84;
-  v75.live = 0;
-  v75.mask = 0;
-  var v18 = insert_String_Int(v75, "a", 6);
-  return touchInt(a) + touchString(v75) | 0;
+  var v78 = { items: new Int32Array([]), length: 0 };
+  var v82 = { items: new Int32Array([]), length: 0 };
+  v73.keys = v74;
+  v73.values = v78;
+  v73.index = v82;
+  v73.live = 0;
+  v73.mask = 0;
+  var v18 = insert_String_Int(v73, "a", 6);
+  return touchInt(a) + touchString(v73) | 0;
 }
 
 // a typed array's growth - see Implementation-Containers.md, section 14

@@ -8,8 +8,6 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-let &sinkCalls: I64 = 0
-
 let &liveBuffers: I64 = 0
 
 let &counter: I64 = 5
@@ -409,50 +407,42 @@ fn globalExchange() -> I64 {
     ret %v9
 }
 
-fn sinkSwap() -> I64 {
+fn swapRecords() -> I64 {
   b0:
     %v0 = alloc : Handle
     aggregate %a@Handle.value = 1
     %v3 = alloc : Handle
     aggregate %b@Handle.value = 2
-    assign sinkCalls, 0
-    %v8 = load %a : Handle
-    %v9 = load %b : Handle
-    %v10 = borrow_mut %a : &Handle
-    %v11 = borrow_mut %b : &Handle
-    swap [%v10], [%v11] via Sink(Handle).sink
-    %v13 = load sinkCalls : I64
-    %v16 = mul %v13, 100 : I64
-    %v17 = load %a : Handle
-    %v18 = load %a@Handle.value : I64
-    %v21 = mul %v18, 10 : I64
-    %v22 = add %v16, %v21 : I64
-    %v23 = load %b : Handle
-    %v24 = load %b@Handle.value : I64
-    %v25 = add %v22, %v24 : I64
-    ret %v25
+    %v6 = load %a : Handle
+    %v7 = load %b : Handle
+    %v8 = borrow_mut %a : &Handle
+    %v9 = borrow_mut %b : &Handle
+    swap [%v8], [%v9]
+    %v11 = load %a : Handle
+    %v12 = load %a@Handle.value : I64
+    %v15 = mul %v12, 10 : I64
+    %v16 = load %b : Handle
+    %v17 = load %b@Handle.value : I64
+    %v18 = add %v15, %v17 : I64
+    ret %v18
 }
 
-fn sinkExchange() -> I64 {
+fn exchangeRecord() -> I64 {
   b0:
     %v0 = alloc : Handle
     aggregate %slot@Handle.value = 1
-    assign sinkCalls, 0
-    %v5 = load %slot : Handle
-    %v6 = alloc : Handle
+    %v3 = load %slot : Handle
+    %v4 = alloc : Handle
     aggregate %local1@Handle.value = 2
-    %v9 = borrow_mut %slot : &Handle
-    %v10 = move %local1 via Sink(Handle).sink : Handle
-    %old = exchange [%v9], %v10 via Sink(Handle).sink : Handle
-    %v12 = load sinkCalls : I64
-    %v15 = mul %v12, 100 : I64
-    %v16 = load %local2@Handle.value : I64
-    %v19 = mul %v16, 10 : I64
-    %v20 = add %v15, %v19 : I64
-    %v21 = load %slot : Handle
-    %v22 = load %slot@Handle.value : I64
-    %v23 = add %v20, %v22 : I64
-    ret %v23
+    %v7 = borrow_mut %slot : &Handle
+    %v8 = copy %local1 : Handle
+    %old = exchange [%v7], %v8 : Handle
+    %v10 = load %local3@Handle.value : I64
+    %v13 = mul %v10, 10 : I64
+    %v14 = load %slot : Handle
+    %v15 = load %slot@Handle.value : I64
+    %v16 = add %v13, %v15 : I64
+    ret %v16
 }
 
 fn swapDroppable() -> I64 {
@@ -576,8 +566,8 @@ fn main() -> I64 {
     jmp b9
 
   b9:
-    %v33 = call sinkSwap : I64
-    %v36 = cmp_ne %v33, 321 : Bool
+    %v33 = call swapRecords : I64
+    %v36 = cmp_ne %v33, 21 : Bool
     je %v36, b10, b11
 
   b10:
@@ -588,8 +578,8 @@ fn main() -> I64 {
     jmp b12
 
   b12:
-    %v43 = call sinkExchange : I64
-    %v46 = cmp_ne %v43, 212 : Bool
+    %v43 = call exchangeRecord : I64
+    %v46 = cmp_ne %v43, 12 : Bool
     je %v46, b13, b14
 
   b13:
@@ -675,16 +665,6 @@ fn main() -> I64 {
     assign %result, 1
     %v115 = load %result : I64
     ret %v115
-}
-
-fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {
-  b0:
-    %v2 = load sinkCalls : I64
-    %v5 = borrow_mut sinkCalls : &I64
-    call +=(I64), %v5, 1
-    %v7 = load %from@Handle.value : I64
-    assign %to@Handle.value, %v7
-    ret
 }
 
 fn Drop(Buffer).drop(%value: Buffer) -> () {

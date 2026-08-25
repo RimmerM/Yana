@@ -1654,7 +1654,7 @@ fn main() -> I64 {
     %v238 = borrow [%v237] : 'Outer
     %v239 = load [%v238] : Outer
     %v240 = load [%v238]@Outer.tail : U32
-    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    drop %ys via Reclaim(Array(a)).reclaim(Outer)
     %v243 = cmp_ne %v240, 8 : Bool
     je %v243, b34, b26
 
@@ -1674,40 +1674,40 @@ fn main() -> I64 {
     %v260 = mul %v257, 100 : Size
     %v261 = add %v254, %v260 : Size
     %v262 = load %xs : Array(Pad)
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
     %v263 = sizeof Array(Pad) : Size
     %v264 = add %v261, %v263 : Size
     %v265 = cast %v264 : I64
     ret %v265
 
   b28:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
     jmp b7
 
   b29:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
     jmp b10
 
   b30:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
     jmp b13
 
   b31:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
-    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
+    drop %ys via Reclaim(Array(a)).reclaim(Outer)
     jmp b16
 
   b32:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
-    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
+    drop %ys via Reclaim(Array(a)).reclaim(Outer)
     jmp b19
 
   b33:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
-    drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
+    drop %ys via Reclaim(Array(a)).reclaim(Outer)
     jmp b22
 
   b34:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Pad)
+    drop %xs via Reclaim(Array(a)).reclaim(Pad)
     jmp b25
 }

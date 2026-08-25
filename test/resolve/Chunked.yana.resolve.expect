@@ -10,57 +10,46 @@ let &heapRegionNext: Size = 0
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$26 before ResolveTest.continuation$26 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$25 before ResolveTest.continuation$25 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn checkFailed() -> () {
@@ -745,7 +734,7 @@ fn main() -> Int {
     %v40 = call sumContiguous, %ring : Int
     %v41 = add %v39, %v40 : Int
     %v42 = call sumArray, %arr : Int
-    drop %local4 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local4 via Reclaim(Array(a)).reclaim(Int)
     %v43 = add %v41, %v42 : Int
     %v44 = borrow %local1 : 'Ring
     %v45 = call Contiguous(Ring, Int).elements, %v44 : Flat(Int)
@@ -754,12 +743,12 @@ fn main() -> Int {
     %v48 = borrow %local1 : 'Ring
     %v49 = call Contiguous(Ring, Int).elements, %v48 : Flat(Int)
     %v50 = call count(Int), %v49 : Int
-    drop_derived %local1 reclaim reclaim$Ring
+    drop_derived %local1 via reclaim$Ring
     %v51 = add %v47, %v50 : Int
     %v53 = call firstOver, %cs, 3 : Int
     %v54 = add %v51, %v53 : Int
     %v55 = call firstOfEachChunk, %cs : Int
-    drop_derived %local0 reclaim reclaim$Chunks
+    drop_derived %local0 via reclaim$Chunks
     %v56 = add %v54, %v55 : Int
     ret %v56
 }
@@ -1340,14 +1329,14 @@ fn count(Int)(%xs: Flat(Int)) -> Int {
 
 fn reclaim$Chunks(%value: Chunks) -> () {
   b0:
-    drop %value@Chunks.a reclaim Reclaim(Array(a)).reclaim(Int)
-    drop %value@Chunks.b reclaim Reclaim(Array(a)).reclaim(Int)
-    drop %value@Chunks.c reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.a via Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.b via Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.c via Reclaim(Array(a)).reclaim(Int)
     ret
 }
 
 fn reclaim$Ring(%value: Ring) -> () {
   b0:
-    drop %value@Ring.items reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Ring.items via Reclaim(Array(a)).reclaim(Int)
     ret
 }

@@ -1815,7 +1815,7 @@ fn buildLiteral() -> I64 {
     %v44 = borrow [%v43] : 'Handle
     %v45 = load [%v44] : Handle
     %v46 = call marker, %v45 : I64
-    drop %local2 via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %local2 via Reclaim(Array(a)).reclaim(Handle)
     %v47 = add %v31, %v46 : I64
     ret %v47
 }
@@ -1863,7 +1863,7 @@ fn buildPushed() -> I64 {
     %v44 = borrow [%v43] : 'Handle
     %v45 = load [%v44] : Handle
     %v46 = call marker, %v45 : I64
-    drop %handles via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %handles via Reclaim(Array(a)).reclaim(Handle)
     %v47 = add %v30, %v46 : I64
     ret %v47
 }
@@ -1997,7 +1997,7 @@ fn main() -> I64 {
     %v113 = borrow [%v112] : 'Handle
     %v114 = load [%v113] : Handle
     %v115 = call marker, %v114 : I64
-    drop %rest via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %rest via Reclaim(Array(a)).reclaim(Handle)
     %v118 = cmp_ne %v115, 6 : Bool
     je %v118, b25, b26
 
@@ -2020,7 +2020,7 @@ fn main() -> I64 {
     call push(Int), %v136, 20
     %v138 = load %plain : Array(Int)
     %v139 = load %plain@Array.length : @bits(30) U32
-    drop %plain reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %plain via Reclaim(Array(a)).reclaim(Int)
     %v140 = cast %v139 : Size
     %v143 = cmp_ne %v140, 2 : Bool
     je %v143, b28, b29
@@ -2036,11 +2036,11 @@ fn main() -> I64 {
     ret 1
 
   b31:
-    drop %rest via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %rest via Reclaim(Array(a)).reclaim(Handle)
     jmp b19
 
   b32:
-    drop %rest via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %rest via Reclaim(Array(a)).reclaim(Handle)
     jmp b22
 }
 

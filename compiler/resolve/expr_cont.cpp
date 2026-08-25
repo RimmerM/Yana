@@ -148,8 +148,6 @@ ModulePtr<Value> ExprResolver::outcomePayload(ModulePtr<Value> value, bool proce
 
     if(isGeneric(global, content) && !ownership.trivialCopy) {
         auto moved = create<InstMove>(source, StringId(), content, place);
-        if(!ownership.trivialSink) moved->sink = sinkFor(module, content, source);
-
         append(moved);
         return ref(moved);
     }

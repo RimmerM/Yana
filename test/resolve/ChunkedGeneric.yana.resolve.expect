@@ -4,92 +4,74 @@ let &heapFree: %%U8 = 0
 
 table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21 before ResolveTest.continuation$21 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19(Chunks, Int) before ResolveTest.continuation$19(Chunks, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Chunks, Int) before ResolveTest.continuation$18(Chunks, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21(Chunks, Int) before ResolveTest.continuation$21(Chunks, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20(Chunks, Int) before ResolveTest.continuation$20(Chunks, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$23(Chunks, Int) before ResolveTest.continuation$23(Chunks, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$22(Chunks, Int) before ResolveTest.continuation$22(Chunks, Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$19(Array(Int), Int) before ResolveTest.continuation$19(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$18(Array(Int), Int) before ResolveTest.continuation$18(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$21(Array(Int), Int) before ResolveTest.continuation$21(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$20(Array(Int), Int) before ResolveTest.continuation$20(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$23(Array(Int), Int) before ResolveTest.continuation$23(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 table closure$ResolveTest.continuation$22(Array(Int), Int) before ResolveTest.continuation$22(Array(Int), Int) {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn checkFailed() -> () {
@@ -471,7 +453,7 @@ fn main() -> Int {
     %v36 = call countUntil(Chunks, Int), %cs, 100 : Int
     %v37 = add %v33, %v36 : Int
     %v40 = call countChunks(Chunks, Int), %cs, 100 : Int
-    drop_derived %local0 reclaim reclaim$Chunks
+    drop_derived %local0 via reclaim$Chunks
     %v41 = add %v37, %v40 : Int
     %v45 = alloc : Array(Int)
     %v48 = alloc *3 : Int
@@ -482,7 +464,7 @@ fn main() -> Int {
     aggregate [%v49][0] = 7, [%v49][1] = 8, [%v49][2] = 9
     init %local5@Array.length, 3
     %v60 = call countAll(Array(Int), Int), %v45 : Int
-    drop %local5 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local5 via Reclaim(Array(a)).reclaim(Int)
     %v61 = add %v41, %v60 : Int
     %v65 = alloc : Array(Int)
     %v68 = alloc *3 : Int
@@ -493,7 +475,7 @@ fn main() -> Int {
     aggregate [%v69][0] = 7, [%v69][1] = 8, [%v69][2] = 9
     init %local7@Array.length, 3
     %v82 = call countUntil(Array(Int), Int), %v65, 2 : Int
-    drop %local7 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local7 via Reclaim(Array(a)).reclaim(Int)
     %v83 = add %v61, %v82 : Int
     %v87 = alloc : Array(Int)
     %v90 = alloc *3 : Int
@@ -504,7 +486,7 @@ fn main() -> Int {
     aggregate [%v91][0] = 7, [%v91][1] = 8, [%v91][2] = 9
     init %local9@Array.length, 3
     %v104 = call countChunks(Array(Int), Int), %v87, 100 : Int
-    drop %local9 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local9 via Reclaim(Array(a)).reclaim(Int)
     %v105 = add %v83, %v104 : Int
     ret %v105
 }
@@ -1525,7 +1507,7 @@ fn ResolveTest.continuation$23(Array(Int), Int)(%env: %{n: &Int, bound: Int}, %v
 
 fn reclaim$Chunks(%value: Chunks) -> () {
   b0:
-    drop %value@Chunks.a reclaim Reclaim(Array(a)).reclaim(Int)
-    drop %value@Chunks.b reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.a via Reclaim(Array(a)).reclaim(Int)
+    drop %value@Chunks.b via Reclaim(Array(a)).reclaim(Int)
     ret
 }

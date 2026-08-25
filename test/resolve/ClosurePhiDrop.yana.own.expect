@@ -1,7 +1,3 @@
-fn teardown$none {
-  arg value readonly
-}
-
 fn either {
   arg pick readonly
   arg id readonly
@@ -41,12 +37,7 @@ fn drop${g: Guard} {
   %value: {g: Guard} borrowed droppable readonly live [0, 1)
 }
 
-fn drop$(x: Int) -> Int {
-  arg value unknown retained
-  %value: (x: Int) -> Int borrowed droppable unknown escapes live [0, 11)
-}
-
-fn reclaim$(x: Int) -> Int {
+fn teardown$(x: Int) -> Int {
   arg value unknown retained
   %value: (x: Int) -> Int borrowed droppable unknown escapes live [0, 11)
 }

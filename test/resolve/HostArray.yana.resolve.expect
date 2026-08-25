@@ -1695,7 +1695,7 @@ fn container() -> Int {
     %v114 = borrow %local10 : 'Flat(Handle)
     %v115 = call slice(Handle), %v114, 1, 2 : Flat(Handle)
     %tail = call idsOf, %v115 : Int
-    drop %xs via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %xs via Reclaim(Array(a)).reclaim(Handle)
     %v117 = load %score : Int
     %v120 = mul %v117, 1000 : Int
     %v123 = mul %whole, 10 : Int
@@ -1704,20 +1704,20 @@ fn container() -> Int {
     ret %v125
 
   b13:
-    drop %xs via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %xs via Reclaim(Array(a)).reclaim(Handle)
     jmp b1
 
   b14:
-    drop %xs via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %xs via Reclaim(Array(a)).reclaim(Handle)
     jmp b4
 
   b15:
-    drop %xs via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %xs via Reclaim(Array(a)).reclaim(Handle)
     drop_derived %local7 via drop$Maybe(Handle)
     jmp b7
 
   b16:
-    drop %xs via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
+    drop %xs via Reclaim(Array(a)).reclaim(Handle)
     jmp b10
 }
 

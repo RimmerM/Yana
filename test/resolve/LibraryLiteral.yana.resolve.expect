@@ -1994,7 +1994,7 @@ fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
     %v9 = call stringLiteral, %v7, 7 : String
     %v10 = borrow_mut %to : &String
     call String.push, %v10, %v9
-    drop %local2 reclaim Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     jmp b3
 
   b2:
@@ -2004,7 +2004,7 @@ fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
     %v17 = call stringLiteral, %v15, 5 : String
     %v18 = borrow_mut %to : &String
     call String.push, %v18, %v17
-    drop %local3 reclaim Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     %v20 = load %to : String
     %v21 = borrow_mut %to : &String
     call Show(Int).show, %inner, %v21
@@ -3063,7 +3063,7 @@ fn markers() -> Int {
     %v4 = symbol ResolveTest.string$8 : %CodeUnit
     %v6 = call stringLiteral, %v4, 4 : String
     %v7 = call Eq(String).==, %v3, %v6 : Bool
-    drop %local1 reclaim Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     je %v7, b1, b2
 
   b1:
@@ -3080,7 +3080,7 @@ fn markers() -> Int {
     %v17 = symbol ResolveTest.string$9 : %CodeUnit
     %v19 = call stringLiteral, %v17, 4 : String
     %v20 = call Eq(String).==, %v16, %v19 : Bool
-    drop %local2 reclaim Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     je %v20, b4, b5
 
   b4:
@@ -3097,7 +3097,7 @@ fn markers() -> Int {
     %v30 = symbol ResolveTest.string$10 : %CodeUnit
     %v32 = call stringLiteral, %v30, 4 : String
     %v33 = call Eq(String).==, %v29, %v32 : Bool
-    drop %local3 reclaim Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     je %v33, b7, b8
 
   b7:
@@ -3114,7 +3114,7 @@ fn markers() -> Int {
     %v43 = symbol ResolveTest.string$11 : %CodeUnit
     %v45 = call stringLiteral, %v43, 4 : String
     %v46 = call Eq(String).==, %v42, %v45 : Bool
-    drop %local4 reclaim Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     je %v46, b10, b11
 
   b10:
@@ -3131,7 +3131,7 @@ fn markers() -> Int {
     %v56 = symbol ResolveTest.string$12 : %CodeUnit
     %v58 = call stringLiteral, %v56, 4 : String
     %v59 = call Eq(String).==, %v55, %v58 : Bool
-    drop %local5 reclaim Reclaim(String).reclaim
+    drop %local5 via Reclaim(String).reclaim
     je %v59, b13, b14
 
   b13:
@@ -3148,7 +3148,7 @@ fn markers() -> Int {
     %v69 = symbol ResolveTest.string$13 : %CodeUnit
     %v71 = call stringLiteral, %v69, 4 : String
     %v72 = call Eq(String).==, %v68, %v71 : Bool
-    drop %local6 reclaim Reclaim(String).reclaim
+    drop %local6 via Reclaim(String).reclaim
     je %v72, b16, b17
 
   b16:
@@ -3165,7 +3165,7 @@ fn markers() -> Int {
     %v82 = symbol ResolveTest.string$14 : %CodeUnit
     %v84 = call stringLiteral, %v82, 4 : String
     %v85 = call Eq(String).==, %v81, %v84 : Bool
-    drop %local7 reclaim Reclaim(String).reclaim
+    drop %local7 via Reclaim(String).reclaim
     je %v85, b19, b20
 
   b19:
@@ -3182,7 +3182,7 @@ fn markers() -> Int {
     %v95 = symbol ResolveTest.string$15 : %CodeUnit
     %v97 = call stringLiteral, %v95, 4 : String
     %v98 = call Eq(String).==, %v94, %v97 : Bool
-    drop %local8 reclaim Reclaim(String).reclaim
+    drop %local8 via Reclaim(String).reclaim
     je %v98, b22, b23
 
   b22:
@@ -3228,7 +3228,7 @@ fn library() -> Int {
     %v14 = symbol ResolveTest.string$16 : %CodeUnit
     %v16 = call stringLiteral, %v14, 3 : String
     %v17 = call Eq(String).==, %v13, %v16 : Bool
-    drop %local4 reclaim Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     je %v17, b1, b2
 
   b1:
@@ -3247,7 +3247,7 @@ fn library() -> Int {
     %v31 = symbol ResolveTest.string$17 : %CodeUnit
     %v33 = call stringLiteral, %v31, 3 : String
     %v34 = call Eq(String).==, %v30, %v33 : Bool
-    drop %local5 reclaim Reclaim(String).reclaim
+    drop %local5 via Reclaim(String).reclaim
     je %v34, b4, b5
 
   b4:
@@ -3280,7 +3280,7 @@ fn library() -> Int {
 
   b9:
     %v61 = call String.ofCapacity, 16 : String
-    drop %sink reclaim Reclaim(String).reclaim
+    drop %sink via Reclaim(String).reclaim
     assign %sink, %v61
     %v64 = load %sink : String
     %v65 = borrow_mut %sink : &String
@@ -3302,7 +3302,7 @@ fn library() -> Int {
 
   b12:
     %v81 = call String.ofCapacity, 16 : String
-    drop %sink reclaim Reclaim(String).reclaim
+    drop %sink via Reclaim(String).reclaim
     assign %sink, %v81
     %v83 = alloc : Maybe(Int)
     init %local8.discriminant, 0
@@ -3326,7 +3326,7 @@ fn library() -> Int {
 
   b15:
     %v103 = call String.ofCapacity, 16 : String
-    drop %sink reclaim Reclaim(String).reclaim
+    drop %sink via Reclaim(String).reclaim
     assign %sink, %v103
     %v107 = alloc : Maybe(Int)
     aggregate %local10.discriminant = 1, %local10@Just = 7
@@ -3337,7 +3337,7 @@ fn library() -> Int {
     %v114 = symbol ResolveTest.string$21 : %CodeUnit
     %v116 = call stringLiteral, %v114, 7 : String
     %v117 = call Eq(String).==, %v113, %v116 : Bool
-    drop %sink reclaim Reclaim(String).reclaim
+    drop %sink via Reclaim(String).reclaim
     je %v117, b16, b17
 
   b16:

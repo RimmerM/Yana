@@ -254,14 +254,16 @@ useSession<complex>(%s: Ptr): Int {
   b_0 {
     %v_1 = add %s, 12: Ptr
     %v_2 = loads %v_1, 4: Int
-    %v_3 = loads @effects, 4: Int
-    %v_4 = add %v_3, %v_2: Int
-    store @effects, %v_4, 4
-    %v_5 = loads @released, 4: Int
-    %v_6 = add %v_5, 1: Int
-    store @released, %v_6, 4
-    %v_7 = load %s, 8: Ptr
-    call_complex freeHeap, %v_7
+    %v_3 = loads @released, 4: Int
+    %v_4 = add %v_3, 1: Int
+    store @released, %v_4, 4
+    %v_5 = load %s, 8: Ptr
+    call_complex freeHeap, %v_5
+    %v_6 = loads @effects, 4: Int
+    %v_7 = add %s, 12: Ptr
+    %v_8 = loads %v_7, 4: Int
+    %v_9 = add %v_6, %v_8: Int
+    store @effects, %v_9, 4
     ret %v_2
   }
 }

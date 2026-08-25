@@ -32,14 +32,28 @@
  */
 
 /*
- * The slots of a TypeDesc.
+ * The slots of a TypeDesc, of which there are two sets - one per target.
  *
  * Read only through whatever its target's materialization made of these positions - a word by byte
  * offset, an address through InstTableSlot. There is no second description: a tuple laid out like a
  * descriptor used to sit beside this one so that the typed IR could project into it, and it went
  * away when a slot stopped being a field of anything.
+ *
+ * **The two layouts share nothing, deliberately.** They used to share a prefix and overlap in the
+ * tail, on the reading that a size is a size everywhere; it is not. Every question a descriptor
+ * answers is a question about a *representation*, and the two targets do not have one in common -
+ * so what each holds is what its own backend loads, in its own order, and a slot one target does
+ * not read is a per-type function that target does not generate. A resolved program belongs to one
+ * target (`@platform` selects declarations during resolution, and Program::optimized says out loud
+ * that a second target's request would be answered with the first's IR), so no image ever contains
+ * both, and each name below is used only by the backend it belongs to. `writeTypeDesc` is the
+ * single writer and branches once, which is where to look if that ever stops being true.
  */
-namespace TypeDescFields {
+
+/*
+ * What a machine target's descriptor holds: three measurements and one teardown.
+ */
+namespace NativeTypeDesc {
     /*
      * No leading identity word.
      *
@@ -76,22 +90,66 @@ namespace TypeDescFields {
     static constexpr U32 kFlagMask = (1u << kAlignShift) - 1;
 
     /*
-     * The four lifecycle operations, each a code address or null. See TypeDescFlags for what null
-     * means in each case - it is "nothing to do", never "unavailable".
+     * **Both halves of the teardown, as one function.**
      *
-     * `kCopyInit` is the *duplicate* where `kMoveInit` is the relocation, and the two are separate
-     * for the reason Implementation-JS-Closure.md part 5.2 gives: a move can be a `memmove` on
-     * native and a property-by-property rewrite on a managed target, and a copy is neither of those
-     * plus a call - it runs the authored `Copy` of every member that has one. Without it an erased
-     * write that is not a relocation had nothing to reach, which is what `codegen/js/README.md`
-     * gap 4 was.
+     * A concrete drop site names the two halves separately, because it can see which of them a
+     * region discharged and which of them this type has at all. Erased code can do neither: it
+     * holds an address and a descriptor, the descriptor's flags are not a thing a call may branch
+     * on for free, and the two halves are frequently *the same function* - a container writes one
+     * walk over its live elements and supplies both from it (Implementation-Containers.md §13), so
+     * two slots called in turn would release every element twice.
+     *
+     * Two slots and a guard would answer that, and the guard is exactly what a descriptor exists to
+     * avoid: the equality is known once, per type, at the point the table is written, and paying
+     * for it again at every erased drop asks the machine to rediscover a compile-time fact. So the
+     * merge happens where the fact lives - see `teardownBothFor`, which answers the shared function
+     * itself wherever there is one and generates a two-call wrapper only where the halves genuinely
+     * differ.
+     *
+     * **The region case does not want a second slot; it wants a second descriptor.** A region
+     * discharges the reclaim half of everything inside it in bulk and leaves the drop half to run at
+     * last use, and the first reading of that was "one slot cannot express it, so put the drop half
+     * beside this one". It is the wrong reading. Whether a value is region-allocated is not
+     * something the *drop site* discovers - an erased body cannot discover it at all - it is
+     * something the site that builds the environment knows, and that site is already choosing which
+     * descriptor to name. So it names one whose teardown slot is the drop half alone, and the
+     * discharged and undischarged paths are one call to two different addresses.
+     *
+     * That costs at most a second interned descriptor per type, keyed by provenance rather than by
+     * type alone - which is exactly what `closureReleaseFor` already does for a frame environment
+     * against a heap one. `genEnvFor` interns on `(callee, type arguments)` and goes on doing so;
+     * only the descriptor it names differs.
+     *
+     * A code address and never null. See TypeDescFlags for what the empty case is - it is "nothing
+     * to do", never "unavailable", so erased code calls unconditionally and never tests first.
      */
-    static constexpr U16 kMoveInit = 3;
-    static constexpr U16 kCopyInit = 4;
-    static constexpr U16 kReclaim = 5;
-    static constexpr U16 kDrop = 6;
+    static constexpr U16 kTeardown = 3;
 
-    static constexpr U16 kCount = 7;
+    static constexpr U16 kCount = 4;
+}
+
+/*
+ * What a managed target's descriptor holds: the two operations whose *shape* it cannot reconstruct,
+ * and the effect at last use.
+ *
+ * The three measurements are absent, and that is the difference between the targets rather than an
+ * economy. A byte count is not a fact about a JS value - the runtime decides what an object costs,
+ * and nothing this compiler emits can observe it - so `sizeOf` and `alignOf` are `@platform(native)`
+ * and there is no question left for a size cell to answer. What that leaves is `kMoveInit` and
+ * `kCopyInit`, which native performs inline from `kSize` (see `relocateWith` and the `Copy` case in
+ * resolve/lower_mem.cpp): a managed block copy is property by property, so what an unknown type
+ * withholds *here* is the shape, and no number reconstructs one.
+ *
+ * Reclaim is absent for the older reason: the collector releases storage, so there is no such half
+ * to run and `kDrop` is the whole of a teardown here - which is also why this target needs no merged
+ * slot the way the native one does.
+ */
+namespace ManagedTypeDesc {
+    static constexpr U16 kDrop = 0;
+    static constexpr U16 kMoveInit = 1;
+    static constexpr U16 kCopyInit = 2;
+
+    static constexpr U16 kCount = 3;
 }
 
 // A descriptor has no tuple form. It used to have one, so that a place rooted in a descriptor
@@ -145,10 +203,27 @@ TypePtr funValueFieldType(Module& module, U16 field);
  * none is emitted.
  */
 namespace ClosureHeaderFields {
-    static constexpr U16 kDrop = 0;
-    static constexpr U16 kReclaim = 1;
+    /*
+     * One slot, holding what this target's teardown of the environment is.
+     *
+     * Natively that is both halves - release the captures, and hand back the storage under them
+     * where the environment is heap-placed. On a managed target it is the drop half alone, because
+     * the collector owns the storage. Which of those the slot holds is decided once, by
+     * `closureHeaderFor`, in exactly the way `teardownAtSite` decides it for an ordinary drop.
+     *
+     * It used to be two - a drop slot and a reclaim slot - and everything that touched them had to
+     * ask whether they named the same function first, because a captured container supplies both
+     * halves from one walk. `devirtualizeClosureDrop` is the site that shows what that cost: it had
+     * to *carry the pairing across* a rewrite rather than recompute it, with a comment explaining
+     * that rewriting the two independently would run the walk twice. See NativeTypeDesc::kTeardown,
+     * which is the same collapse for the same reason.
+     *
+     * Always callable, never null, so nothing that reaches it has to test one first - see
+     * emptyTeardown.
+     */
+    static constexpr U16 kTeardown = 0;
 
-    static constexpr U16 kCount = 2;
+    static constexpr U16 kCount = 1;
 }
 
 TypePtr closureHeaderPlaceType(Module& module);
@@ -421,11 +496,14 @@ bool genericBodyLowerable(Module& module, ModulePtr<Function> function);
 /*
  * `moveInit(dst, src)`: initialize uninitialized `dst` from an owned `src`, leaving `src` dead.
  *
- * A block copy for a TrivialSink type, the authored `Sink` where the type has one, and the bytes
- * plus a call per non-trivial member for an aggregate that contains one. Always a real function
- * rather than a flag the caller interprets, because the caller is generic code that does not know
- * the size - which is exactly the thing the descriptor exists to carry. Null where relocation is a
- * copy of nothing, and null with a diagnostic where this compiler cannot state one at all.
+ * The bytes, as a real function rather than a flag the caller interprets, because the caller is
+ * generic code that does not know how many. Null where relocation is a copy of nothing, and null
+ * with a diagnostic where the type may not be relocated at all.
+ *
+ * **Asked only for a managed target.** A native erased relocation block-copies `kSize` bytes inline
+ * - see `relocateWith` in resolve/lower_mem.cpp - so the slot this fills is read on one target and
+ * the glue is generated for one target. What a managed block copy needs is the *shape*, and a byte
+ * count is not one, which is the whole of the difference.
  */
 ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source);
 
@@ -433,9 +511,8 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
  * `copyInit(dst, src)`: initialize uninitialized `dst` as a structural duplicate of `src`, leaving
  * `src` alive and owning what it owned.
  *
- * The same three-way answer moveInit has, over `Copy` instead of `Sink`: the bytes alone for a
- * TrivialCopy type, the authored `Copy` where the type has one, and the bytes plus a call per
- * non-trivial member for an aggregate that contains one. Null where duplicating is a copy of
+ * Three answers where `moveInit` now has one: the bytes alone for a TrivialCopy type, the authored
+ * `Copy` where the type has one, and neither. Null where duplicating is a copy of
  * nothing, and null with a diagnostic where this compiler cannot state one at all - which is the
  * constraint being reported during context construction rather than at the write.
  *
@@ -446,11 +523,3 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
  */
 ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source);
 
-/*
- * The relocation a *concrete* move runs, or null when it is a block copy the mover emits itself.
- *
- * This is the question InstMove::sink holds the answer to. It differs from moveInitFor only in the
- * TrivialSink case, where a descriptor slot still needs a function to name and an already-resolved
- * move does not - it copies the bytes inline instead of calling something that copies the bytes.
- */
-ModulePtr<Function> sinkFor(Module& module, TypePtr type, LocationId source);

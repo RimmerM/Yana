@@ -259,7 +259,6 @@ main<complex>(): Int {
     store %v_3, %v_1, 8
     %v_4 = load %v_2, 8: Ptr
     %a = call_complex %v_4, %v_1: Int
-    call_complex dropKnown$() -> Int, %v_2
     call_complex reclaimKnown$() -> Int, %v_2
     %v_5 = loads @dropCalls, 4: Int
     %v_6 = cmp_neq %v_5, 1: Int
@@ -297,20 +296,11 @@ main<complex>(): Int {
   }
 }
 
-@closure$ResolveTest.lambda$18 = [0, 0, 0, 0, 0, 0, 0, 0]
+@closure$ResolveTest.lambda$18 = [0, 0, 0, 0]
 ResolveTest.lambda$18<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
     ret %v_1
-  }
-}
-
-drop${g: Guard}<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = loads @dropCalls, 4: Int
-    %v_2 = add %v_1, 1: Int
-    store @dropCalls, %v_2, 4
-    ret 
   }
 }
 
@@ -322,23 +312,10 @@ ResolveTest.lambda$19<complex>(%env: Ptr): Int {
 
 closureRelease${g: Guard}<complex>(%env: Ptr) {
   b_0 {
+    %v_1 = loads @dropCalls, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @dropCalls, %v_2, 4
     call_complex freeHeap, %env
-    ret 
-  }
-}
-
-dropKnown$() -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = load %value, 8: Ptr
-    %v_4 = bitcast %v_3: Long
-    %v_5 = sub %v_4, 8: Long
-    %v_6 = bitcast %v_5: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
-    %v_9 = add %v_8, @image$base: Ptr
-    call_complex %v_9, %v_2
     ret 
   }
 }
@@ -349,13 +326,12 @@ reclaimKnown$() -> Int<complex>(%value: Ptr) {
     %v_2 = load %v_1, 8: Ptr
     %v_3 = load %value, 8: Ptr
     %v_4 = bitcast %v_3: Long
-    %v_5 = sub %v_4, 8: Long
+    %v_5 = sub %v_4, 4: Long
     %v_6 = bitcast %v_5: Ptr
-    %v_7 = add %v_6, 4: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = sext %v_8: Long
-    %v_10 = add %v_9, @image$base: Ptr
-    call_complex %v_10, %v_2
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = sext %v_7: Long
+    %v_9 = add %v_8, @image$base: Ptr
+    call_complex %v_9, %v_2
     ret 
   }
 }

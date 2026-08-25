@@ -317,7 +317,7 @@ fn oneSize() -> I64 {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %local0@Array.length, 4
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v20 = sizeof Array(Int) : Size
     %v21 = cast %v20 : I64
     ret %v21
@@ -337,7 +337,7 @@ fn twoSize() -> I64 {
     aggregate %local0@Quad.values = %v5, %local0@Quad.tag = 0
     %v22 = sizeof Quad : Size
     %v23 = load %local0@Quad.tag : Int
-    drop_derived %local0 reclaim reclaim$Quad
+    drop_derived %local0 via reclaim$Quad
     %v24 = sizeof Int : Size
     %v25 = sub %v22, %v24 : Size
     %v26 = cast %v25 : I64
@@ -474,7 +474,7 @@ fn main() -> Int {
     %v125 = cast %v124 : Size
     init %local8@Flat.length, %v125
     %v127 = call total, %v121 : Int
-    drop %local6 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local6 via Reclaim(Array(a)).reclaim(Int)
     %v130 = cmp_ne %v127, 15 : Bool
     je %v130, b22, b17
 
@@ -495,28 +495,28 @@ fn main() -> Int {
     %v143 = cast %v142 : Size
     init %local9@Flat.length, %v143
     %v145 = call total, %v139 : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     ret %v145
 
   b19:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b7
 
   b20:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b10
 
   b21:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b13
 
   b22:
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     jmp b16
 }
 
 fn reclaim$Quad(%value: Quad) -> () {
   b0:
-    drop %value@Quad.values reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Quad.values via Reclaim(Array(a)).reclaim(Int)
     ret
 }

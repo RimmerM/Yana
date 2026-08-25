@@ -449,7 +449,7 @@ fn leftOf(%t: Tree) -> Int {
     %v14 = call unwrapOr(Tree), %v12, %v13 : 'Tree
     %v15 = load [%v14] : Tree
     %v16 = call total, %v15 : Int
-    drop_derived %local1 reclaim reclaim$Tree
+    drop_derived %local1 via reclaim$Tree
     jmp b3
 
   b2:
@@ -461,7 +461,7 @@ fn leftOf(%t: Tree) -> Int {
     ret %v19
 
   b4:
-    drop_derived %local1 reclaim reclaim$Tree
+    drop_derived %local1 via reclaim$Tree
     jmp b2
 }
 
@@ -491,7 +491,7 @@ fn buildList() -> Int {
     init %local0@Cons.tail, %v27
     init %local0@Cons.tail.*, %v3
     %v30 = call sum, %xs : Int
-    drop_derived %local0 reclaim reclaim$List
+    drop_derived %local0 via reclaim$List
     ret %v30
 }
 
@@ -527,7 +527,7 @@ fn buildTree() -> Int {
     aggregate %local5.discriminant = 1, %local5@Branch.left = %v20, %local5@Branch.right = %v31, %local5@Branch.label = 7
     %v40 = call total, %t : Int
     %v41 = call leftOf, %t : Int
-    drop_derived %local5 reclaim reclaim$Tree
+    drop_derived %local5 via reclaim$Tree
     %v42 = add %v40, %v41 : Int
     ret %v42
 }
@@ -586,7 +586,7 @@ fn buildChain() -> Int {
     init %local0@Link.rest, %v20
     init %local0@Link.rest.*, %v4
     %v23 = call idsOf, %c : Int
-    drop_derived %local0 via drop$Chain reclaim reclaim$Chain
+    drop_derived %local0 via teardown$Chain
     ret %v23
 }
 
@@ -650,8 +650,8 @@ fn reclaim$Tree(%value: Tree) -> () {
     ret
 
   b2:
-    drop_derived %value@Branch.left reclaim reclaim$Maybe(Tree)
-    drop_derived %value@Branch.right reclaim reclaim$Maybe(Tree)
+    drop_derived %value@Branch.left via reclaim$Maybe(Tree)
+    drop_derived %value@Branch.right via reclaim$Maybe(Tree)
     jmp b1
 
   b3:
@@ -668,7 +668,7 @@ fn reclaim$Maybe(Tree)(%value: Maybe(Tree)) -> () {
     ret
 
   b2:
-    drop_derived %value@Just.* reclaim reclaim$Tree release
+    drop_derived %value@Just.* via reclaim$Tree release
     jmp b1
 
   b3:
@@ -685,14 +685,14 @@ fn reclaim$List(%value: List) -> () {
     ret
 
   b2:
-    drop_derived %value@Cons.tail.* reclaim reclaim$List release
+    drop_derived %value@Cons.tail.* via reclaim$List release
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn drop$Chain(%value: Chain) -> () {
+fn teardown$Chain(%value: Chain) -> () {
   b0:
     %v1 = load %value.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
@@ -703,24 +703,7 @@ fn drop$Chain(%value: Chain) -> () {
 
   b2:
     drop %value@Link.payload via Drop(Tracked).drop
-    drop_derived %value@Link.rest.* via drop$Chain
-    jmp b1
-
-  b3:
-    jmp b1
-}
-
-fn reclaim$Chain(%value: Chain) -> () {
-  b0:
-    %v1 = load %value.discriminant : Int
-    %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b3
-
-  b1:
-    ret
-
-  b2:
-    drop_derived %value@Link.rest.* reclaim reclaim$Chain release
+    drop_derived %value@Link.rest.* via teardown$Chain release
     jmp b1
 
   b3:

@@ -1,12 +1,6 @@
 @image$base = []
 mut @dropCalls = [0, 0, 0, 0]
 
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
 either<complex>(%pick: Int, %id: Int): Int {
   b_0 {
     %v_1 = cmp_ilt %pick, 1: Int
@@ -39,7 +33,6 @@ either<complex>(%pick: Int, %id: Int): Int {
     %v_12 = load %f, 8: Ptr
     %v_13 = load %v_11, 8: Ptr
     %v_14 = call_complex %v_12, %v_13, 10: Int
-    call_complex dropKnown$(x: Int) -> Int, %f
     call_complex reclaimKnown$(x: Int) -> Int, %f
     ret %v_14
   }
@@ -56,7 +49,7 @@ main<complex>(): Int {
   }
 }
 
-@closure$ResolveTest.lambda$18 = [0, 0, 0, 0, 0, 0, 0, 0]
+@closure$ResolveTest.lambda$18 = [0, 0, 0, 0]
 ResolveTest.lambda$18<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
@@ -74,7 +67,7 @@ drop${g: Guard}<complex>(%value: Ptr) {
   }
 }
 
-@closure$ResolveTest.lambda$19 = [0, 0, 0, 0, 0, 0, 0, 0]
+@closure$ResolveTest.lambda$19 = [0, 0, 0, 0]
 ResolveTest.lambda$19<complex>(%env: Ptr, %x: Int): Int {
   b_0 {
     %v_1 = loads %env, 4: Int
@@ -92,35 +85,18 @@ drop${g: Guard}$1<complex>(%value: Ptr) {
   }
 }
 
-dropKnown$(x: Int) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = load %value, 8: Ptr
-    %v_4 = bitcast %v_3: Long
-    %v_5 = sub %v_4, 8: Long
-    %v_6 = bitcast %v_5: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
-    %v_9 = add %v_8, @image$base: Ptr
-    call_complex %v_9, %v_2
-    ret 
-  }
-}
-
 reclaimKnown$(x: Int) -> Int<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
     %v_2 = load %v_1, 8: Ptr
     %v_3 = load %value, 8: Ptr
     %v_4 = bitcast %v_3: Long
-    %v_5 = sub %v_4, 8: Long
+    %v_5 = sub %v_4, 4: Long
     %v_6 = bitcast %v_5: Ptr
-    %v_7 = add %v_6, 4: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = sext %v_8: Long
-    %v_10 = add %v_9, @image$base: Ptr
-    call_complex %v_10, %v_2
+    %v_7 = loads %v_6, 4: Int
+    %v_8 = sext %v_7: Long
+    %v_9 = add %v_8, @image$base: Ptr
+    call_complex %v_9, %v_2
     ret 
   }
 }

@@ -54,7 +54,7 @@ fn Try(Maybe(a), a, ()).toOutcome(Array(Int))(%value: Maybe(Array(Int))) -> Outc
     ret %v1
 
   b4:
-    drop_derived %value reclaim reclaim$Maybe(Array(Int))
+    drop_derived %value via reclaim$Maybe(Array(Int))
     jmp b1
 }
 
@@ -82,7 +82,7 @@ fn reclaim$Maybe(Array(Int))(%value: Maybe(Array(Int))) -> () {
     ret
 
   b2:
-    drop %value@Just reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Just via Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b3:
@@ -530,7 +530,7 @@ fn indexed(%n: Int) -> Maybe(Int) {
     %v20 = add %v17, %v19 : %Int
     %v21 = borrow [%v20] : 'Int
     %v22 = load [%v21] : Int
-    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    drop_derived %local1 via reclaim$Outcome(Array(Int), ())
     %v23 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v22 : Maybe(Int)
     jmp b3
 
@@ -539,7 +539,7 @@ fn indexed(%n: Int) -> Maybe(Int) {
     ret %v28
 
   b4:
-    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    drop_derived %local1 via reclaim$Outcome(Array(Int), ())
     jmp b1
 }
 
@@ -571,7 +571,7 @@ fn sum(%n: Int) -> Maybe(Int) {
     %v20 = add %v17, %v19 : %Int
     %v21 = borrow [%v20] : 'Int
     %v22 = load [%v21] : Int
-    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    drop_derived %local1 via reclaim$Outcome(Array(Int), ())
     %v23 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v22 : Maybe(Int)
     jmp b3
 
@@ -580,7 +580,7 @@ fn sum(%n: Int) -> Maybe(Int) {
     ret %v28
 
   b4:
-    drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
+    drop_derived %local1 via reclaim$Outcome(Array(Int), ())
     jmp b1
 }
 
@@ -630,7 +630,7 @@ fn reclaim$Outcome(Array(Int), ())(%value: Outcome(Array(Int), ())) -> () {
     ret
 
   b2:
-    drop %value@Proceed reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %value@Proceed via Reclaim(Array(a)).reclaim(Int)
     jmp b1
 
   b3:

@@ -490,8 +490,7 @@ main<complex>(): Int {
     %v_41 = add %v_40, 8: Ptr
     store %v_41, 5, 4
     %v_42 = call_complex idsOf, %c: Int
-    call_complex drop$Chain, %c
-    call_complex reclaim$Chain, %c
+    call_complex teardown$Chain, %c
     %v_43 = loads @liveNodes, 4: Int
     %v_44 = cmp_neq %v_43, 0: Int
     %v_45 = add %values, %v_42: Int
@@ -584,7 +583,7 @@ reclaim$List<complex>(%value: Ptr) {
   }
 }
 
-drop$Chain<complex>(%value: Ptr) {
+teardown$Chain<complex>(%value: Ptr) {
   b_0 {
     %v_1 = load %value, 8: Long
     %v_2 = cmp_neq %v_1, 0: Int
@@ -598,29 +597,7 @@ drop$Chain<complex>(%value: Ptr) {
   b_3 {
     call_complex -=(Int), @liveNodes, 1
     %v_6 = load %value, 8: Ptr
-    call_complex drop$Chain, %v_6
-    jmp b_5
-  }
-
-  b_4 {
-    jmp b_5
-  }
-}
-
-reclaim$Chain<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = load %value, 8: Long
-    %v_2 = cmp_neq %v_1, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_5 {
-    ret 
-  }
-
-  b_3 {
-    %v_6 = bitcast %v_1: Ptr
-    call_complex reclaim$Chain, %v_6
+    call_complex teardown$Chain, %v_6
     %v_7 = load %value, 8: Ptr
     call_complex freeHeap, %v_7
     jmp b_5

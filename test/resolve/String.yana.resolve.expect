@@ -1291,7 +1291,7 @@ fn appendToLiteral() -> Int {
     call String.push, %v9, %v8
     %v11 = load %start : String
     %v12 = call Length(String).length, %v11 : Size
-    drop %start reclaim Reclaim(String).reclaim
+    drop %start via Reclaim(String).reclaim
     %v13 = cast %v12 : Int
     ret %v13
 }

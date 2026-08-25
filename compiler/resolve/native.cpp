@@ -419,11 +419,15 @@ static void attachPointerIntrinsics(Module& module) {
         // declarations that used to sit here are gone: a probe writes `vectorAt(p) :: Vec(U8, 16)`
         // now that a count is a const parameter with a default, so there is nothing left to pin.
         attachIntrinsic(module, "bits"_v, emitMaskBits);
+
+        // And the two measurements, `@platform(native)` for a different reason: not "no machine to
+        // ask" but "the wrong thing to ask". How many bytes a value occupies on a managed target is
+        // the runtime's answer rather than this compiler's - see the declarations in
+        // `Native/Pointer.yana`, and ManagedTypeDesc for the descriptor cell that consequently does
+        // not exist.
+        attachIntrinsic(module, "sizeOf"_v, emitSizeOf);
+        attachIntrinsic(module, "alignOf"_v, emitAlignOf);
     }
-
-
-    attachIntrinsic(module, "sizeOf"_v, emitSizeOf);
-    attachIntrinsic(module, "alignOf"_v, emitAlignOf);
 
     attachIntrinsic(module, "+"_v, emitPointerOffset<Value::Add>);
     attachIntrinsic(module, "-"_v, emitPointerOffset<Value::Sub>);

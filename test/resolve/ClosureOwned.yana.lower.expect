@@ -4,12 +4,6 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 
-teardown$none<complex>(%value: Ptr) {
-  b_0 {
-    ret 
-  }
-}
-
 mapMemory<complex>(%size: Long): Ptr {
   b_0 {
     %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
@@ -301,20 +295,18 @@ main<complex>(): Int {
     %v_16 = load %first, 8: Ptr
     %v_17 = load %v_15, 8: Ptr
     %v_18 = call_complex %v_16, %v_17: Int
-    call_complex drop$() -> Int, %first
-    call_complex reclaim$() -> Int, %first
+    call_complex teardown$() -> Int, %first
     %v_19 = add %second, 8: Ptr
     %v_20 = load %second, 8: Ptr
     %v_21 = load %v_19, 8: Ptr
     %v_22 = call_complex %v_20, %v_21: Int
-    call_complex drop$() -> Int, %second
-    call_complex reclaim$() -> Int, %second
+    call_complex teardown$() -> Int, %second
     %v_23 = add %v_18, %v_22: Int
     ret %v_23
   }
 }
 
-@closure$ResolveTest.lambda$18 = [0, 0, 0, 0, 0, 0, 0, 0]
+@closure$ResolveTest.lambda$18 = [0, 0, 0, 0]
 ResolveTest.lambda$18<complex>(%env: Ptr): Int {
   b_0 {
     %v_1 = load %env, 8: Ptr
@@ -380,7 +372,7 @@ closureRelease${xs: Array(Int)}<complex>(%env: Ptr) {
   }
 }
 
-drop$() -> Int<complex>(%value: Ptr) {
+teardown$() -> Int<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
     %v_2 = load %v_1, 8: Ptr
@@ -392,39 +384,12 @@ drop$() -> Int<complex>(%value: Ptr) {
   b_5 {
     %v_7 = load %value, 8: Ptr
     %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 8: Long
+    %v_9 = sub %v_8, 4: Long
     %v_10 = bitcast %v_9: Ptr
     %v_11 = loads %v_10, 4: Int
     %v_12 = sext %v_11: Long
     %v_13 = add %v_12, @image$base: Ptr
     call_complex %v_13, %v_2
-    jmp b_6
-  }
-
-  b_6 {
-    ret 
-  }
-}
-
-reclaim$() -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = bitcast 0: Ptr
-    %v_4 = cmp_neq %v_2, %v_3: Int
-    je %v_4, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = load %value, 8: Ptr
-    %v_8 = bitcast %v_7: Long
-    %v_9 = sub %v_8, 8: Long
-    %v_10 = bitcast %v_9: Ptr
-    %v_11 = add %v_10, 4: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %v_13 = sext %v_12: Long
-    %v_14 = add %v_13, @image$base: Ptr
-    call_complex %v_14, %v_2
     jmp b_6
   }
 

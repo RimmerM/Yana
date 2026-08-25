@@ -10,7 +10,6 @@ let &heapRegionNext: Size = 0
 
 table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
   .0 teardown$none
-  .1 teardown$none
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -387,7 +386,7 @@ fn mutated() -> Int {
     %v34 = load %c : Config
     %v35 = load %c@Config.cold.* : Diagnostics
     %v36 = call levelOf, %v35 : Int
-    drop_derived %c reclaim reclaim$Config
+    drop_derived %c via reclaim$Config
     %v37 = add %v33, %v36 : Int
     ret %v37
 }
@@ -410,7 +409,7 @@ fn pinnedValue() -> Int {
     %v20 = add %v14, %v19 : Int
     %v21 = load %local0@Pinned.detail.* : Diagnostics
     %v22 = load %local0@Pinned.detail.*@Diagnostics.level : Int
-    drop_derived %local0 reclaim reclaim$Pinned
+    drop_derived %local0 via reclaim$Pinned
     %v23 = add %v20, %v22 : Int
     ret %v23
 }
@@ -447,7 +446,7 @@ fn throughLens() -> Int {
     init %local4.code, %v17
     init %local4.env, %v15
     %v20 = call levelIn(Int), %v11, %v16 : Int
-    drop_derived %c reclaim reclaim$Config
+    drop_derived %c via reclaim$Config
     ret %v20
 }
 

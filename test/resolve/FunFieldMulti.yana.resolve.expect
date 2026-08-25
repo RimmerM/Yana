@@ -31,7 +31,7 @@ fn retarget(%slot: (Int) -> Int) -> () {
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
-    drop_derived %slot via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    drop_derived %slot via teardown$(Int) -> Int
     assign %slot, %v1
     ret
 }
@@ -43,14 +43,14 @@ fn retargetBoth(%a: (Int) -> Int, %b: (Int) -> Int) -> () {
     init %local2.code, %v3
     %v6 = cast 0 : %()
     init %local2.env, %v6
-    drop_derived %a via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    drop_derived %a via teardown$(Int) -> Int
     assign %a, %v2
     %v9 = alloc : (Int) -> Int
     %v10 = symbol funvalue$square : %()
     init %local3.code, %v10
     %v13 = cast 0 : %()
     init %local3.env, %v13
-    drop_derived %b via drop$(Int) -> Int reclaim reclaim$(Int) -> Int
+    drop_derived %b via teardown$(Int) -> Int
     assign %b, %v9
     ret
 }
@@ -100,7 +100,7 @@ fn main() -> Int {
     %v47 = load %h : Handlers
     %v48 = load %h@Handlers.second : (Int) -> Int
     %v50 = calldyn %v48, 10 : Int
-    drop_derived %h via drop$Handlers reclaim reclaim$Handlers
+    drop_derived %h via teardown$Handlers
     %both = add %v46, %v50 : Int
     %v52 = add %before, %one : Int
     %v53 = add %v52, %both : Int
@@ -131,7 +131,7 @@ fn funvalue$double(%env: %(), %x: Int) -> Int {
     ret %v2
 }
 
-fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -141,7 +141,7 @@ fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
   b1:
     %v6 = load %value.code : %()
     %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
+    %v8 = sizeof {slot: Int} : Long
     %v9 = sub %v7, %v8 : Long
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
@@ -152,37 +152,9 @@ fn drop$(Int) -> Int(%value: (Int) -> Int) -> () {
     ret
 }
 
-fn reclaim$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$Handlers(%value: Handlers) -> () {
   b0:
-    %v1 = load %value.env : %()
-    %v3 = cast 0 : %()
-    %v4 = cmp_ne %v1, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int, slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
-    %v10 = cast %v9 : %()
-    %v11 = tableslot : %()
-    calldyn %v11, %v1
-    jmp b2
-
-  b2:
-    ret
-}
-
-fn drop$Handlers(%value: Handlers) -> () {
-  b0:
-    drop_derived %value@Handlers.first via drop$(Int) -> Int
-    drop_derived %value@Handlers.second via drop$(Int) -> Int
-    ret
-}
-
-fn reclaim$Handlers(%value: Handlers) -> () {
-  b0:
-    drop_derived %value@Handlers.first reclaim reclaim$(Int) -> Int
-    drop_derived %value@Handlers.second reclaim reclaim$(Int) -> Int
+    drop_derived %value@Handlers.first via teardown$(Int) -> Int
+    drop_derived %value@Handlers.second via teardown$(Int) -> Int
     ret
 }

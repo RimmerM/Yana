@@ -268,7 +268,7 @@ fn Reclaim(Array(a)).reclaim(String)(%value: Array(String)) -> () {
     %v21 = move %local2 : String
     %doomed = alloc : String
     init %local3, %v21
-    drop %local3 reclaim Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     %v24 = load %i : Int
     %v26 = add %v24, 1 : Int
     assign %i, %v26
@@ -305,7 +305,7 @@ fn Reclaim(Array(a)).reclaim(Array(Int))(%value: Array(Array(Int))) -> () {
     %v21 = move %local2 : Array(Int)
     %doomed = alloc : Array(Int)
     init %local3, %v21
-    drop %local3 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local3 via Reclaim(Array(a)).reclaim(Int)
     %v24 = load %i : Int
     %v26 = add %v24, 1 : Int
     assign %i, %v26
@@ -1642,7 +1642,7 @@ fn main() -> Int {
     init %c, %v16
     %v19 = load %a : Array(String)
     %v20 = load %a@Array.length : @bits(30) U32
-    drop %a reclaim Reclaim(Array(a)).reclaim(String)
+    drop %a via Reclaim(Array(a)).reclaim(String)
     %v21 = cast %v20 : Size
     %v22 = cast %v21 : Int
     %v23 = load %b : Array(String)
@@ -1664,12 +1664,12 @@ fn main() -> Int {
     %v41 = borrow [%v40] : 'String
     %v42 = load [%v41] : String
     %v43 = call Length(String).length, %v42 : Size
-    drop %b reclaim Reclaim(Array(a)).reclaim(String)
+    drop %b via Reclaim(Array(a)).reclaim(String)
     %v44 = cast %v43 : Int
     %v45 = add %v27, %v44 : Int
     %v46 = load %c : Array(Array(Int))
     %v47 = load %c@Array.length : @bits(30) U32
-    drop %c reclaim Reclaim(Array(a)).reclaim(Array(Int))
+    drop %c via Reclaim(Array(a)).reclaim(Array(Int))
     %v48 = cast %v47 : Size
     %v49 = cast %v48 : Int
     %v50 = add %v45, %v49 : Int

@@ -42,10 +42,7 @@ table typeDesc$[Int *4] {
   .0 sizeof [Int *4]
   .1 strideof [Int *4]
   .2 alignof [Int *4] | 131
-  .3 moveInit$[Int *4]
-  .4 copyInit$[Int *4]
-  .5 teardown$none
-  .6 teardown$none
+  .3 teardown$none
 }
 
 table genEnv$doubled(4) {
@@ -67,10 +64,7 @@ table typeDesc$Wide {
   .0 sizeof Wide
   .1 strideof Wide
   .2 alignof Wide | 131
-  .3 moveInit$Wide
-  .4 copyInit$Wide
-  .5 teardown$none
-  .6 teardown$none
+  .3 teardown$none
 }
 
 table witness$Widths(Wide, 4) {
@@ -748,42 +742,6 @@ fn thunk$Sized([Int *4], Int).firstItem#0(%result: %Int, %xs: %[Int *4]) -> () {
     %v2 = load [%xs] : [Int *4]
     %v3 = call Sized([Int *n], Int).firstItem(4), %v2 : Int
     init [%result], %v3
-    ret
-}
-
-fn moveInit$[Int *4](%to: %[Int *4], %from: %[Int *4]) -> () {
-  b0:
-    %v2 = sizeof [Int *4] : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory relocating %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$[Int *4](%to: %[Int *4], %from: %[Int *4]) -> () {
-  b0:
-    %v2 = sizeof [Int *4] : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
-}
-
-fn moveInit$Wide(%to: %Wide, %from: %Wide) -> () {
-  b0:
-    %v2 = sizeof Wide : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory relocating %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$Wide(%to: %Wide, %from: %Wide) -> () {
-  b0:
-    %v2 = sizeof Wide : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
     ret
 }
 

@@ -1531,7 +1531,7 @@ fn escaping() -> Int {
     %v41 = add %v38, %v40 : %Int
     %v42 = borrow [%v41] : 'Int
     %v43 = load [%v42] : Int
-    drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v44 = add %v29, %v43 : Int
     ret %v44
 }
@@ -1586,7 +1586,7 @@ fn main() -> Int {
     %v70 = call sum, %v64 : Int
     %v71 = load %small : Array(Int)
     %v72 = load %small@Array.length : @bits(30) U32
-    drop %small reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %small via Reclaim(Array(a)).reclaim(Int)
     %v73 = cast %v72 : Size
     %v74 = cast %v70 : Size
     %v75 = add %v74, %v73 : Size

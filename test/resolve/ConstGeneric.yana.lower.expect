@@ -8,11 +8,11 @@
 @genEnv$firstThrough(2) = [2, 0, 0, 0, 0, 0, 0, 0]
 @witness$Sized([Int *4], Int) = [0, 0, 0, 0]
 @genEnv$firstThrough(4) = [4, 0, 0, 0, 0, 0, 0, 0]
-@typeDesc$[Int *4] = [16, 0, 0, 0, 16, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$[Int *4] = [16, 0, 0, 0, 16, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @genEnv$doubled(4) = [0, 0, 0, 0, 4, 0, 0, 0]
 @genEnv$mutatedCopy(4) = [0, 0, 0, 0, 4, 0, 0, 0]
 @genEnv$filled(4) = [0, 0, 0, 0, 4, 0, 0, 0]
-@typeDesc$Wide = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@typeDesc$Wide = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @witness$Widths(Wide, 4) = [0, 0, 0, 0]
 @genEnv$widthThrough(4, Wide) = [0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0]
 
@@ -383,34 +383,6 @@ thunk$Sized([Int *4], Int).firstItem#0<complex>(%result: Ptr, %xs: Ptr) {
   b_0 {
     %v_1 = loads %xs, 4: Int
     store %result, %v_1, 4
-    ret 
-  }
-}
-
-moveInit$[Int *4]<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 16
-    ret 
-  }
-}
-
-copyInit$[Int *4]<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 16
-    ret 
-  }
-}
-
-moveInit$Wide<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 4
-    ret 
-  }
-}
-
-copyInit$Wide<complex>(%to: Ptr, %from: Ptr) {
-  b_0 {
-    copy %to, %from, 4
     ret 
   }
 }

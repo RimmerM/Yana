@@ -160,11 +160,11 @@ LowerPtr<LowerValue> descField(LowerContext& lower, LowerBlock& block,
 }
 
 // A descriptor's alignment, which shares the flags cell rather than having one of its own - see
-// TypeDescFields::kFlags. The load is the same load; the shift is what the packing costs, and it is
+// NativeTypeDesc::kFlags. The load is the same load; the shift is what the packing costs, and it is
 // paid only by an explicit `alignof` on a type variable.
 LowerPtr<LowerValue> descAlign(LowerContext& lower, LowerBlock& block,
                                LowerPtr<LowerValue> descriptor) {
-    auto word = descField(lower, block, descriptor, TypeDescFields::kFlags);
+    auto word = descField(lower, block, descriptor, NativeTypeDesc::kFlags);
     auto shifted = binary<LowerInst::Shr>(lower.lower, lower.to, block, lower.lower[word],
                                           lower.lower[immediate(lower, kPackedMetricShift)],
                                           LowerType::Int64, StringId());
@@ -176,7 +176,7 @@ LowerPtr<LowerValue> descAlign(LowerContext& lower, LowerBlock& block,
 // out of its descriptor where it is not.
 LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, TypePtr type) {
     if(auto descriptor = genTypeDesc(lower, block, type)) {
-        return descField(lower, block, descriptor, TypeDescFields::kSize);
+        return descField(lower, block, descriptor, NativeTypeDesc::kSize);
     }
 
     return immediate(lower, typeSize(lower, type));
@@ -196,7 +196,7 @@ LowerPtr<LowerValue> sizeOfType(LowerContext& lower, LowerBlock& block, TypePtr 
  */
 LowerPtr<LowerValue> storageSize(LowerContext& lower, LowerBlock& block, TypePtr type) {
     if(auto descriptor = genTypeDesc(lower, block, type)) {
-        return descField(lower, block, descriptor, TypeDescFields::kSize);
+        return descField(lower, block, descriptor, NativeTypeDesc::kSize);
     }
 
     return immediate(lower, max(typeSize(lower, type), 1u));
@@ -213,7 +213,7 @@ LowerPtr<LowerValue> storageSize(LowerContext& lower, LowerBlock& block, TypePtr
  */
 LowerPtr<LowerValue> strideSize(LowerContext& lower, LowerBlock& block, TypePtr type) {
     if(auto descriptor = genTypeDesc(lower, block, type)) {
-        return descField(lower, block, descriptor, TypeDescFields::kStride);
+        return descField(lower, block, descriptor, NativeTypeDesc::kStride);
     }
 
     return immediate(lower, typeStride(lower, type));

@@ -6,10 +6,7 @@ table typeDesc$Int {
   .0 sizeof Int
   .1 strideof Int
   .2 alignof Int | 131
-  .3 moveInit$Int
-  .4 copyInit$Int
-  .5 teardown$none
-  .6 teardown$none
+  .3 teardown$none
 }
 
 table witness$TrivialCopy(Int) {
@@ -24,10 +21,7 @@ table typeDesc$Point {
   .0 sizeof Point
   .1 strideof Point
   .2 alignof Point | 131
-  .3 moveInit$Point
-  .4 copyInit$Point
-  .5 teardown$none
-  .6 teardown$none
+  .3 teardown$none
 }
 
 table witness$TrivialCopy(Point) {
@@ -42,10 +36,7 @@ table typeDesc$Quad {
   .0 sizeof Quad
   .1 strideof Quad
   .2 alignof Quad | 131
-  .3 moveInit$Quad
-  .4 copyInit$Quad
-  .5 teardown$none
-  .6 teardown$none
+  .3 teardown$none
 }
 
 table witness$TrivialCopy(Quad) {
@@ -101,6 +92,7 @@ fn abortProcess() -> () {
   }
 
   b0:
+    drop_derived %slot erased
     assign %slot, %from
     ret
 }
@@ -400,58 +392,4 @@ fn Copy(Tracked).copy(%from: Tracked) -> Tracked {
     %v7 = load %from@Tracked.value : Int
     aggregate %local1@Tracked.value = %v7
     ret %v6
-}
-
-fn moveInit$Int(%to: %Int, %from: %Int) -> () {
-  b0:
-    %v2 = sizeof Int : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory relocating %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$Int(%to: %Int, %from: %Int) -> () {
-  b0:
-    %v2 = sizeof Int : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
-}
-
-fn moveInit$Point(%to: %Point, %from: %Point) -> () {
-  b0:
-    %v2 = sizeof Point : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory relocating %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$Point(%to: %Point, %from: %Point) -> () {
-  b0:
-    %v2 = sizeof Point : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
-}
-
-fn moveInit$Quad(%to: %Quad, %from: %Quad) -> () {
-  b0:
-    %v2 = sizeof Quad : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory relocating %v3, %v4, %v2
-    ret
-}
-
-fn copyInit$Quad(%to: %Quad, %from: %Quad) -> () {
-  b0:
-    %v2 = sizeof Quad : Long
-    %v3 = cast %to : %()
-    %v4 = cast %from : %()
-    copymemory %v3, %v4, %v2
-    ret
 }

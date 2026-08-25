@@ -50,15 +50,17 @@ TypePtr closureHeaderPlaceType(Module& module) {
 
     // One per slot, so that the tuple's size is the table's size. Which slot is which does not
     // matter here and deliberately has no name: nothing reads a field of this.
+    auto count = ClosureHeaderFields::kCount;
+
     Field fields[ClosureHeaderFields::kCount];
-    for(U16 i = 0; i < ClosureHeaderFields::kCount; i++) {
+    for(U16 i = 0; i < count; i++) {
         fields[i] = Field { word, context.addUnqualifiedName("slot", 4) };
     }
 
     // Pinned, and this is the strict one: the code generator places exactly these bytes in front of
     // an entry point and the teardown subtracts exactly this size to find them. checkTableTypes is
     // what asserts the two agree.
-    auto tuple = resolveTupleType(module, { fields, ClosureHeaderFields::kCount }, kNullLocation, TypeLayout::C);
+    auto tuple = resolveTupleType(module, { fields, count }, kNullLocation, TypeLayout::C);
     return (Type*)tuple - *module.types;
 }
 
@@ -152,9 +154,9 @@ struct TableBuilder {
  * The teardown a type with nothing to run gets.
  *
  * A descriptor's lifecycle slots are never null, which is what lets erased code call them without
- * first testing them: one unconditional indirect call per half, instead of a load, a comparison and
- * a split block at every drop of a generic value. The flags still record which halves are empty, for
- * a pass that would rather skip the call than make it.
+ * first testing them: one unconditional indirect call, instead of a load, a comparison and a split
+ * block at every drop of a generic value. The flags still record which halves are empty, for a pass
+ * that would rather skip the call than make it.
  *
  * One per program rather than one per type: it does nothing, so there is nothing to distinguish.
  */
@@ -177,130 +179,27 @@ ModulePtr<Function> emptyTeardown(Module& module, LocationId source) {
     return program.emptyTeardown;
 }
 
-// Whether any member of `content` relocates by a call rather than by its bytes. Asked instead of
-// sinkFor() wherever the answer is only being tested, since asking sinkFor() would *generate* the
-// glue for every member of every constructor of every record the question is asked about.
-static bool hasSinkingMember(Module& module, TypePtr content) {
-    auto global = *module.types;
-    if(!content) return false;
-
-    // A fixed array's `n` members are one type, so one answer covers all of them - and an empty one
-    // has no member to ask about, whatever its element would have said.
-    if(global[content]->kind == Type::Array) {
-        auto array = (ArrayType*)global[content];
-        // A count this stage cannot read is a const variable, and an array of `n` elements is
-        // non-empty for every `n` but zero - so the conservative answer is the element's.
-        return writtenCount(global, array->count).from(1) &&
-               !ownershipOf(module, array->content).trivialSink;
-    }
-
-    if(global[content]->kind != Type::Tup) return false;
-
-    for(auto field: ((TupType*)global[content])->fields.contents(global)) {
-        // A boxed member relocates as its pointer, whatever relocating its *target* would have
-        // taken: the target does not move, so nothing it said about its own address stops applying.
-        // This is what lets a self-referential type become TrivialSink by boxing the edge.
-        if(field.boxed) continue;
-        if(!ownershipOf(module, field.type).trivialSink) return true;
-    }
-
-    return false;
-}
-
-/*
- * The per-member half of a derived relocation: one call for each member whose bytes are not the
- * whole story, projected off the two bases.
- *
- * Both projections are addressed rather than loaded, because that is what the callee wants either
- * way - `fn sink(&to: a, ->from: a)` passes both of its conventions as addresses, and generated
- * glue takes two raw pointers.
- */
-// One call, given the two places the member occupies in the destination and the source.
-static void sinkMember(ExprResolver& resolver, Module& module, Place to, Place from,
-                       ModulePtr<Function> implementation, LocationId source) {
-    auto toMember = resolver.addressOf(to, source, StringId());
-    auto fromMember = resolver.addressOf(from, source, StringId());
-
-    auto call = resolver.create<InstCall>(source, StringId(), module.scalar.unit, implementation);
-    call->args.push(module.arena, toMember);
-    call->args.push(module.arena, fromMember);
-    resolver.append(call);
-}
-
-/*
- * A fixed array's per-element half - Implementation-Containers.md §6.
- *
- * `n` elements at a stride, walked with the same helper the teardown uses so that the two agree
- * about when a walk is unrolled and when it is a loop. The two bases are stepped together, which is
- * why this cannot go through `eachFixedElement` twice: the loop it emits owns the counter, so the
- * source's element has to be computed inside the same body as the destination's.
- */
-static void sinkFixedElements(ExprResolver& resolver, Module& module, Place to, Place from,
-                              ArrayType& array, LocationId source) {
-    auto implementation = sinkFor(module, array.content, source);
-    if(!implementation) return;
-
-    // `to`'s side is what the walk hands out and `from`'s is the same element of the other array,
-    // which is what makes this one body under either shape the walk chooses.
-    resolver.eachFixedElement(to, array.content, array.count, source,
-                              [&](Place destination, ModulePtr<Value> index) {
-        sinkMember(resolver, module, destination,
-                   resolver.project(from, ProjectionKind::Index, 0, index), implementation, source);
-    });
-}
-
-static void sinkMembers(ExprResolver& resolver, Module& module, Place to, Place from,
-                        TypePtr content, LocationId source) {
-    auto global = *module.types;
-
-    if(content && global[content]->kind == Type::Array) {
-        sinkFixedElements(resolver, module, to, from, *(ArrayType*)global[content], source);
-        return;
-    }
-
-    if(!content || global[content]->kind != Type::Tup) return;
-
-    U16 index = 0;
-
-    for(auto field: ((TupType*)global[content])->fields.contents(global)) {
-        // Skipped for the reason hasSinkingMember gives: the block copy above already moved the
-        // pointer, and the target it names has not moved at all.
-        if(field.boxed) { index++; continue; }
-
-        if(auto implementation = sinkFor(module, field.type, source)) {
-            sinkMember(resolver, module, resolver.project(to, ProjectionKind::Field, index),
-                       resolver.project(from, ProjectionKind::Field, index), implementation, source);
-        }
-
-        index++;
-    }
-}
-
 } // namespace
 
 /*
- * moveInit.
+ * moveInit - the bulk relocation of one type, as a two-argument function over raw pointers.
  *
- * Implementation-Generics.md part 4 lists three answers - a block copy for TrivialSink, the
- * authored `Sink` where one exists, and unavailable - and what every caller wants is one shape: a
- * two-argument function taking the destination and the source as raw pointers, so that generic code
- * can call it without knowing either type or size. An authored `Sink` is already that shape, since
- * `(&to: a, ->from: a) -> {}` is two addresses and a unit result, so it is named directly rather
- * than wrapped in an adapter that would forward its two arguments and nothing else.
+ * One shape and one answer: the destination, the source, and the bytes. Generic code calls it
+ * without knowing either the type or its size, and each backend compiles the block copy its own way
+ * - a `memcpy` natively, a property-by-property rewrite on a managed target - which is the whole
+ * reason this is generated resolve IR rather than a descriptor operation each target implements.
  *
- * The fourth case is the one the list does not name and the one an aggregate usually is: a type
- * that is *neither*, because it has a member that is neither. Relocating it is its bytes plus a
- * call per such member - the same structural recursion the derived teardown is - and the bytes come
- * first so that the members which do relocate bitwise, the discriminant of a multi-constructor
- * record among them, are carried by the one copy rather than by a projection each. What that copy
- * writes over the non-trivial members is written again by their sinks, which is sound because a
- * destination is uninitialized until a sink has filled it and no one reads it in between.
+ * **There is no authored half.** There used to be: `instance Sink(T)` supplied a relocation for a
+ * type that referred to its own address, and an aggregate with such a member relocated by its bytes
+ * plus a call per member. It is gone, and doc/spec/core.md records why - the case it existed for
+ * could not be written (a class member may not retain the address of a borrowed parameter) and the
+ * design routes every instance of it through `@box` instead, which keeps the target's address by
+ * moving a pointer.
  *
- * The "unavailable" case is not represented in the descriptor at all, deliberately. Whether a body
- * may move a value of an unknown type is a question its *schema* answers, and it is answered before
- * any of this is reached; a descriptor that carried "you may not" would be inviting a second, later
- * check of something already settled. What is reported here instead is the concrete gap: a type
- * whose relocation this compiler cannot state, which used to produce a function with an empty body.
+ * What is left of the three-answer list is two: the bytes, or nothing. "Nothing" is a type that may
+ * not be relocated at all, which is reported here rather than represented in the descriptor -
+ * whether a body may move a value of an unknown type is a question its *schema* answers, and it is
+ * answered before any of this is reached.
  */
 ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source) {
     auto& program = module.program;
@@ -314,26 +213,17 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
     // moving is a fact about `()`, not about how wide it happens to be.
     if(isUnit(*module.types, type)) return nullptr;
 
-    if(ownership.authoredSink) {
-        auto implementation = instanceImplementation(module, module.coreClasses.sink, type, source);
-        if(implementation) *program.moveInitGlue.add(U32(type)).value = implementation;
-        return implementation;
-    }
-
     auto global = *module.types;
-    auto record = global[type]->kind == Type::Record ? (RecordType*)global[type] : nullptr;
 
     /*
-     * A type that relocates by neither rule and has no members to recurse into. Every kind that
-     * reaches this is one ownershipOf classifies conservatively because it is not constructible yet
-     * - Ref, Region, Map - and the conservative answer is worth keeping: emitting the block copy
-     * anyway would turn "adding one of these is a decision" into a silently wrong default.
+     * A type that may not be relocated. Every kind that reaches this is one ownershipOf classifies
+     * conservatively because it is not constructible yet - Ref, Region, Map - and the conservative
+     * answer is worth keeping: emitting the block copy anyway would turn "adding one of these is a
+     * decision" into a silently wrong default.
      */
-    if(!ownership.trivialSink && !record && global[type]->kind != Type::Tup &&
-       global[type]->kind != Type::Array) {
-        module.context.diagnostics.error(
-            "%@ cannot be relocated: it is not TrivialSink and has no Sink instance"_v, source,
-            describeType(module.context, global, type));
+    if(!ownership.trivialSink) {
+        module.context.diagnostics.error("%@ cannot be relocated: it is not TrivialSink"_v, source,
+                                         describeType(module.context, global, type));
         return nullptr;
     }
 
@@ -375,60 +265,6 @@ ModulePtr<Function> moveInitFor(Module& module, TypePtr type, LocationId source)
         // thing separating this copy from `copyInit$`'s identical one. See InstNative::relocates.
         copyInst->relocates = true;
         resolver.append(copyInst);
-    }
-
-    if(!ownership.trivialSink) {
-        auto toBase = Place::atPointer((ModulePtr<Value>)(to - *module.arena));
-        auto fromBase = Place::atPointer((ModulePtr<Value>)(from - *module.arena));
-
-        if(!record) {
-            sinkMembers(resolver, module, toBase, fromBase, type, source);
-        } else if(record->layout == RecordType::Single) {
-            sinkMembers(resolver, module,
-                        resolver.project(toBase, ProjectionKind::Downcast, 0),
-                        resolver.project(fromBase, ProjectionKind::Downcast, 0),
-                        record->constructors.get(global, 0).content, source);
-        } else if(record->layout == RecordType::Multi) {
-            /*
-             * Each constructor carries a different payload, so which members need a call depends on
-             * which one is present. Read off the *source*, whose discriminant is the one that was
-             * true before the copy above made it true of both.
-             *
-             * A chain of tests rather than a jump table, for the reason teardownGlueFor gives: `je`
-             * is the IR's only conditional. A constructor whose payload relocates bitwise is
-             * skipped entirely, since the copy above has already moved it.
-             */
-            auto exit = resolver.addBlock();
-
-            for(auto constructor: record->constructors.contents(global)) {
-                auto content = constructor.content;
-                if(!hasSinkingMember(module, content)) continue;
-
-                auto discriminant = resolver.load(
-                    resolver.project(fromBase, ProjectionKind::Discriminant, 0), source);
-
-                auto index = resolver.makeInt(source, module.scalar.int_, constructor.index);
-                auto matches = resolver.emit<InstCmp>(source, StringId(), module.scalar.bool_,
-                                                      discriminant, index, CompareOp::Eq);
-
-                auto sinks = resolver.addBlock();
-                auto next = resolver.addBlock();
-                resolver.terminate(resolver.emit<InstJe>(source, StringId(), module.scalar.unit,
-                                                         resolver.ref(matches), sinks, next));
-
-                resolver.current = sinks;
-                sinkMembers(resolver, module,
-                            resolver.project(toBase, ProjectionKind::Downcast, U16(constructor.index)),
-                            resolver.project(fromBase, ProjectionKind::Downcast, U16(constructor.index)),
-                            content, source);
-                resolver.terminate(resolver.emit<InstJmp>(source, StringId(), module.scalar.unit, exit));
-
-                resolver.current = next;
-            }
-
-            resolver.terminate(resolver.emit<InstJmp>(source, StringId(), module.scalar.unit, exit));
-            resolver.current = exit;
-        }
     }
 
     resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
@@ -516,15 +352,25 @@ ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source)
 
         if(implementation) {
             /*
-             * `*to = copy(from)`.
+             * `*to = copy(*from)`.
              *
-             * The argument is the pointer rather than a load of it, because `from: a` of a memory
-             * type is passed as the address of the caller's storage - which is exactly what this
-             * frame was handed. The result is a value of that type, and the write is the ordinary
-             * initialization of uninitialized storage that every constructor performs.
+             * The read is what bridges the two conventions, and it is not a formality on the target
+             * this glue is generated for. A slot hands over *storage*; `copy` declares `from: a` and
+             * wants the value. Natively those coincide - a memory type's argument is the address of
+             * the caller's storage, which is exactly what this frame was handed - and this used to
+             * pass the pointer straight through on the strength of that. On a managed target they
+             * do not coincide at all: a `%T` whose pointee is not a host object is a **box**, so
+             * what the instance received was the box rather than what was in it. `Copy(String)` on
+             * that target is the identity (a host string has no storage to duplicate), which made
+             * the whole of `copyInit$String` `to.$v = from` - the descriptor's copy slot writing a
+             * box into a string-shaped hole, and every later read of it garbage.
+             *
+             * The same bridge `closureReleaseFor` writes for the same reason, and it costs nothing
+             * where the two conventions did coincide: a load of a place handed to a by-reference
+             * parameter lowers back to the address it came from.
              */
             auto duplicate = resolver.create<InstCall>(source, StringId(), type, implementation);
-            duplicate->args.push(module.arena, fromValue);
+            duplicate->args.push(module.arena, resolver.load(Place::atPointer(fromValue), source));
             resolver.append(duplicate);
 
             resolver.initialize(Place::atPointer(toValue), resolver.ref(duplicate), source);
@@ -565,13 +411,6 @@ ModulePtr<Function> copyInitFor(Module& module, TypePtr type, LocationId source)
  * an already-resolved move of a concrete type emits the copy itself and needs to know only whether
  * there is a call to make instead.
  */
-ModulePtr<Function> sinkFor(Module& module, TypePtr type, LocationId source) {
-    if(!type || isGeneric(*module.types, type)) return nullptr;
-    if(ownershipOf(module, type).trivialSink) return nullptr;
-
-    return moveInitFor(module, type, source);
-}
-
 /*
  * Whether a place can be addressed with constant offsets.
  *
@@ -1712,45 +1551,72 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
 
     auto ownership = ownershipOf(module, type);
 
-    /*
-     * The three measurements, as questions rather than answers.
-     *
-     * This is the last thing in resolve that used to know how wide a type was, and it did not have
-     * to: `size`, `align` and `stride` are the emitting target's, and a descriptor whose numbers were
-     * filled in here would be a native artifact that the JS backend then read as though it described
-     * JS values. So the slot says *which measurement of which type* and whoever materializes the
-     * table answers it - the same trade InstTypeMetric makes for the instruction form, for the same
-     * reason.
-     */
-    TableBuilder table(module, *global_, TypeDescFields::kCount);
-    table.putMetric(TypeDescFields::kSize, type, TypeMetricKind::Size);
-    table.putMetric(TypeDescFields::kStride, type, TypeMetricKind::Stride);
-
-    // Nothing selects a non-canonical Repr yet, and no type declares that it must keep its address,
-    // so the only source of a stable-address requirement is a Repr variant - which is Milestone 8's.
-    // The alignment shares this cell, and cannot be written here: it is the emitting target's
-    // number where the flags are this pass's. See TableCell::PackedMetric.
-    table.putPackedMetric(TypeDescFields::kFlags, type, TypeMetricKind::Align,
-                          U16(typeDescFlags(ownership, false)));
-
     // Every lifecycle slot holds a callable address, so erased code never has to test one - see
-    // emptyTeardown. A type whose bytes are its whole relocation still gets a real moveInit, since
-    // that one has a size to copy and is not a no-op.
+    // emptyTeardown.
     auto orEmpty = [&](ModulePtr<Function> implementation) {
         return implementation ? implementation : emptyTeardown(module, source);
     };
 
     /*
-     * The *entry* rather than the implementation, which is the difference between what a slot can
-     * be called with and what the teardown itself declares - see teardownEntry. A slot holds one
-     * signature for every type that could fill it, and erased code has an address and nothing else.
+     * Two layouts, one per target, and nothing in common between them - see NativeTypeDesc and
+     * ManagedTypeDesc for what each holds and why.
+     *
+     * This is the single writer, and the saving is more than the cells it does not write: a slot is
+     * filled by *generating* the function that goes in it, so a slot a target does not read is a
+     * per-type function that target does not emit. A native build contains no `moveInit$T` or
+     * `copyInit$T` for any type; a managed build contains no reclaim glue and no measurements at all.
      */
-    table.putFunction(TypeDescFields::kMoveInit, orEmpty(moveInitFor(module, type, source)));
-    table.putFunction(TypeDescFields::kCopyInit, orEmpty(copyInitFor(module, type, source)));
-    table.putFunction(TypeDescFields::kReclaim,
-                      orEmpty(teardownEntry(module, type, Teardown::Reclaim, source)));
-    table.putFunction(TypeDescFields::kDrop,
-                      orEmpty(teardownEntry(module, type, Teardown::Drop, source)));
+    if(isJsMode(module.context.settings.mode)) {
+        TableBuilder table(module, *global_, ManagedTypeDesc::kCount);
+
+        /*
+         * The *entry* rather than the implementation, which is the difference between what a slot
+         * can be called with and what the teardown itself declares - see teardownEntry. A slot holds
+         * one signature for every type that could fill it, and erased code has an address and
+         * nothing else.
+         */
+        table.putFunction(ManagedTypeDesc::kDrop,
+                          orEmpty(teardownEntry(module, type, Teardown::Drop, source)));
+
+        table.putFunction(ManagedTypeDesc::kMoveInit, orEmpty(moveInitFor(module, type, source)));
+        table.putFunction(ManagedTypeDesc::kCopyInit, orEmpty(copyInitFor(module, type, source)));
+
+        return pointer;
+    }
+
+    TableBuilder table(module, *global_, NativeTypeDesc::kCount);
+
+    /*
+     * The three measurements, as questions rather than answers.
+     *
+     * This is the last thing in resolve that used to know how wide a type was, and it did not have
+     * to: `size`, `align` and `stride` are the emitting target's, and a descriptor whose numbers were
+     * filled in here would be a native artifact that some other backend then read as though it
+     * described its own values. So the slot says *which measurement of which type* and whoever
+     * materializes the table answers it - the same trade InstTypeMetric makes for the instruction
+     * form, for the same reason.
+     */
+    table.putMetric(NativeTypeDesc::kSize, type, TypeMetricKind::Size);
+    table.putMetric(NativeTypeDesc::kStride, type, TypeMetricKind::Stride);
+
+    // Nothing selects a non-canonical Repr yet, and no type declares that it must keep its address,
+    // so the only source of a stable-address requirement is a Repr variant - which is Milestone 8's.
+    // The alignment shares this cell, and cannot be written here: it is the emitting target's
+    // number where the flags are this pass's. See TableCell::PackedMetric.
+    table.putPackedMetric(NativeTypeDesc::kFlags, type, TypeMetricKind::Align,
+                          U16(typeDescFlags(ownership, false)));
+
+    // The relocatability check `moveInitFor` performs on the other target, asked directly: a type
+    // nothing can move has to be refused on both, and not only on the one that would have gone
+    // looking for a function to name.
+    if(!ownership.trivialSink) {
+        module.context.diagnostics.error("%@ cannot be relocated: it is not TrivialSink"_v, source,
+                                         describeType(module.context, *module.types, type));
+    }
+
+    // Both halves as one call - see NativeTypeDesc::kTeardown, and teardownBothFor for what happens
+    // where a type has two of them.
+    table.putFunction(NativeTypeDesc::kTeardown, orEmpty(teardownBothFor(module, type, source)));
 
     return pointer;
 }
@@ -1782,34 +1648,32 @@ ModulePtr<Global> closureHeaderFor(Module& module, ModulePtr<Function> lambda, T
     TableBuilder table(module, *global_, ClosureHeaderFields::kCount);
     global_->prefixOf = lambda;
 
-    auto orEmpty = [&](ModulePtr<Function> implementation) {
-        return implementation ? implementation : emptyTeardown(module, source);
-    };
-
-    // The entries rather than the implementations, for the reason typeDescFor gives: teardownFunValue
-    // reaches these through an InstCallDyn with the environment's *address*, which is the same
-    // uniform slot ABI a descriptor has and not the convention a teardown declares.
-    table.putFunction(ClosureHeaderFields::kDrop,
-                      orEmpty(teardownEntry(module, envType, Teardown::Drop, source)));
-
-    // The frame-environment answer, which is also the safe one to start from: a header that never
-    // reaches selectStorage releases the captures and leaves the storage alone, and storage nothing
-    // decided about is storage in the frame.
-    table.putFunction(ClosureHeaderFields::kReclaim,
-                      orEmpty(teardownEntry(module, envType, Teardown::Reclaim, source)));
+    /*
+     * The entry rather than the implementation, for the reason typeDescFor gives: teardownFunValue
+     * reaches this through an InstCallDyn with the environment's *address*, which is the same
+     * uniform slot ABI a descriptor has and not the convention a teardown declares.
+     *
+     * `siteTeardown` picks what goes in it: the merged teardown natively, the drop half alone on a
+     * managed target. What this frame is, though, is the *frame-environment* answer, which is the
+     * safe one to start from - a header that never reaches selectStorage releases the captures and
+     * leaves the storage alone, and storage nothing decided about is storage in the frame.
+     */
+    auto teardown = teardownEntry(module, envType, siteTeardown(module), source);
+    table.putFunction(ClosureHeaderFields::kTeardown,
+                      teardown ? teardown : emptyTeardown(module, source));
 
     function->closureHeader = pointer;
     return pointer;
 }
 
 /*
- * The heap environment's reclaim: the captures, and then the storage under them.
+ * The heap environment's teardown: the captures, and then the storage under them.
  *
- * A wrapper rather than a flag on the environment type's own reclaim, because the two callers want
+ * A wrapper rather than a flag on the environment type's own teardown, because the two callers want
  * different things from the same type - a closure whose environment is in the frame runs exactly the
  * inner one - and because which of them a lambda needs is settled at compile time. The shared
  * teardown a function value goes through never learns the difference: it calls what the header
- * names.
+ * names, which is one slot.
  */
 ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationId source) {
     auto& program = module.program;
@@ -1830,7 +1694,7 @@ ModulePtr<Function> closureReleaseFor(Module& module, TypePtr envType, LocationI
      * `freeHeap` is a declaration of the native heap file, so a target with no heap of this kind has
      * no allocation under an environment to hand back.
      */
-    auto reclaim = teardownImplementation(module, envType, Teardown::Reclaim, source);
+    auto reclaim = teardownImplementation(module, envType, siteTeardown(module), source);
     if(!reclaim && !program.freeHeap) {
         *program.closureRelease.add(U32(envType)).value = ModulePtr<Function>();
         return {};
@@ -1885,12 +1749,17 @@ void setClosureRelease(Module& module, ModulePtr<Global> header, ModulePtr<Funct
     auto global_ = local[header];
     if(!reclaim) return;
 
+    // Nothing to patch on a managed target: the collector owns the environment's storage, so there
+    // is no heap variant to move to and the slot already holds the drop half. See
+    // ClosureHeaderFields.
+    if(isJsMode(module.context.settings.mode)) return;
+
     local[reclaim]->used = true;
 
     // The slot is overwritten rather than a second one appended, which is what a list of positions
     // makes obvious and a list of relocations did not: two entries for one slot would be two
     // addresses for one word, and which of them an emitter wrote would be whichever it saw last.
-    global_->table.set(local, ClosureHeaderFields::kReclaim, TableSlot::functionOf(reclaim));
+    global_->table.set(local, ClosureHeaderFields::kTeardown, TableSlot::functionOf(reclaim));
 }
 
 /*

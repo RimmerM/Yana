@@ -873,11 +873,6 @@ struct InstMove: Inst {
 
     Place place;
 
-    // Set when relocating the type is a call rather than a memcpy: the authored `Sink` where the
-    // type has one, and the generated member-wise glue where a member has one. Null for a
-    // TrivialSink type, whose relocation is its bytes - see sinkFor.
-    ModulePtr<Function> sink = nullptr;
-
     static constexpr Size kPlaceCount = 1;
     Place* placeAt(Size) { return &place; }
 };
@@ -912,11 +907,6 @@ struct InstSwap: Inst {
     // produces nothing - and lowering has no Module to ask placeType with.
     TypePtr content;
 
-    // The relocation, on the same terms as InstMove::sink: null when the type's bytes are its whole
-    // relocation, and the authored or generated `Sink` otherwise. One field for what lowering
-    // performs three times.
-    ModulePtr<Function> sink = nullptr;
-
     // The only instruction in the IR that names two places, which is what fixes `kMaxPlaces` at two.
     static constexpr Size kPlaceCount = 2;
     Place* placeAt(Size index) { return index == 0 ? &a : &b; }
@@ -941,8 +931,6 @@ struct InstExchange: Inst {
 
     Place place;
     ModulePtr<Value> value;
-
-    ModulePtr<Function> sink = nullptr;
 
     // Storage for the result, as InstCopy has: what came out of the place is a value with a root of
     // its own, and for a memory type that root has to be somewhere. maxLimit for a scalar, which
@@ -1000,19 +988,29 @@ struct InstCopy: Inst {
  * one already understands and the optimizer can fold. See analyze_drop.cpp's header.
  */
 struct InstDrop: Inst {
-    InstDrop(ModulePtr<Block> block, TypePtr unit, Place place, TeardownKind dropKind,
-             TeardownKind reclaimKind):
-        Inst(Value::Drop, block, unit), place(place), dropKind(dropKind), reclaimKind(reclaimKind) {}
+    InstDrop(ModulePtr<Block> block, TypePtr unit, Place place, TeardownKind kind):
+        Inst(Value::Drop, block, unit), place(place), kind(kind) {}
 
     Place place;
 
-    // What to run for each half: an authored instance, or the glue synthesized for a derived one.
-    // Null where that half is empty, which the pass elides rather than emits.
-    ModulePtr<Function> drop = nullptr;
-    ModulePtr<Function> reclaim = nullptr;
+    /*
+     * What to run: an authored instance, the glue synthesized for a derived one, or the single
+     * function that stands for both halves - see teardownBothFor. Null where there is nothing to
+     * run, which the pass elides rather than emits (unless there is storage to hand back, or the
+     * type is one this body cannot see).
+     *
+     * **One field and not two.** The halves are still two things and are still elidable under
+     * different conditions - that decision belongs to whoever picks what goes in here, which is the
+     * drop pass for a value's own teardown and `dischargeDrop` for a region's. What an instruction
+     * holds is the outcome. Two fields meant every consumer had to ask whether they named the same
+     * function before running both, because a container supplies both halves from one walk; five
+     * places restated that comparison and a sixth would have been written eventually.
+     */
+    ModulePtr<Function> teardown = nullptr;
 
-    TeardownKind dropKind;
-    TeardownKind reclaimKind;
+    // Authored or derived, for the dump's mnemonic. The merged answer is the stronger of the two -
+    // see teardownKind - because a value with an authored half has an authored teardown.
+    TeardownKind kind;
 
     // Set when this place's own storage has to be handed back as well - a heap-placed allocation
     // whose frame owns it. Separate from `reclaim` because most values release nothing of their own
@@ -1020,7 +1018,20 @@ struct InstDrop: Inst {
     // no teardown at all can still be heap-placed.
     bool releaseStorage = false;
 
-    bool isEmpty() const { return !drop && !reclaim && !releaseStorage; }
+    /*
+     * Set where this body cannot name what it is dropping: the place's type is one of its own type
+     * variables, so what runs is whatever the caller's descriptor holds - see NativeTypeDesc's
+     * teardown slot, and lowering's Drop case for the call that reads it.
+     *
+     * The two halves are null here and mean nothing. That is not "there is nothing to run": which
+     * halves a type has is settled where the type is, and this body is compiled once for every type
+     * that will ever reach it. A flag rather than an absence, because `isEmpty` is what several
+     * passes elide a drop on, and an erased drop is the one shape that runs everything while naming
+     * nothing.
+     */
+    bool erased = false;
+
+    bool isEmpty() const { return !teardown && !releaseStorage && !erased; }
 
     static constexpr Size kPlaceCount = 1;
     Place* placeAt(Size) { return &place; }

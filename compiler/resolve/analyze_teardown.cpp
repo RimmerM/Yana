@@ -25,7 +25,22 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
                                            bool headerKnown = false);
 
 static TeardownKind teardownKind(const Ownership& ownership, Teardown half) {
-    return half == Teardown::Drop ? ownership.drop : ownership.reclaim;
+    if(half == Teardown::Drop) return ownership.drop;
+    if(half == Teardown::Reclaim) return ownership.reclaim;
+
+    // The stronger of the two, which is what the merged answer *is*: a value with an authored half
+    // has an authored teardown, and one with only derived halves has a derived one. Nothing reads
+    // this to decide which body runs - it decides how a drop of it prints and whether the pass that
+    // placed it thinks there is anything to place.
+    if(ownership.drop == TeardownKind::Authored || ownership.reclaim == TeardownKind::Authored) {
+        return TeardownKind::Authored;
+    }
+
+    if(ownership.drop == TeardownKind::Derived || ownership.reclaim == TeardownKind::Derived) {
+        return TeardownKind::Derived;
+    }
+
+    return TeardownKind::None;
 }
 
 // The name a glue function is printed and linked under. It is not addressable in source; what it
@@ -35,6 +50,7 @@ static StringId teardownGlueName(Module& module, TypePtr type, Teardown half, bo
         return derivedName(module, half == Teardown::Drop ? "dropKnown$"_v : "reclaimKnown$"_v, type);
     }
 
+    if(half == Teardown::Both) return derivedName(module, "teardown$"_v, type);
     return derivedName(module, half == Teardown::Drop ? "drop$"_v : "reclaim$"_v, type);
 }
 
@@ -54,22 +70,15 @@ ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, Loc
      * use of a refined array crosses - build the descriptor, then drop through it - and it exists so
      * that the boundary is crossed in one place rather than at every InstDrop that names this type.
      *
-     * **The two halves have to answer with the same function wherever the plain type's do**, which
-     * is what the second line below is for. Lowering runs the reclaim half only when it names
-     * something other than the drop half (see the InstDrop case there), and a container's walk is one
-     * traversal serving both - so two glue functions wrapping one traversal would run it twice and
-     * release every element twice. That is invisible in the IR and invisible in a size assertion; it
-     * shows up as a drop counter going negative, which is what the fixture reads.
-     *
-     * The drop half is the one that carries it, for the reason teardownPlace gives at the same
-     * decision: it is the half a region does not discharge in bulk.
+     * This used to force the two halves to answer with the *same function* wherever the plain
+     * type's did - a container's walk is one traversal serving both, so two glue functions wrapping
+     * one traversal would have run it twice and released every element twice, which is invisible in
+     * the IR and shows up as a drop counter going negative. Nothing wraps one traversal twice any
+     * more: a site names one teardown, and a refinement's is one merged glue around the plain type's
+     * merged walk. See teardownBothFor.
      */
     if(kind != TeardownKind::None && inlineRefinement(module, type)) {
-        auto plain = unrefined(*module.types, type);
-        auto plainDrop = teardownFor(module, plain, Teardown::Drop, source);
-        auto shared = plainDrop && plainDrop == teardownFor(module, plain, Teardown::Reclaim, source);
-
-        return teardownGlueFor(module, type, shared ? Teardown::Drop : half, source);
+        return teardownGlueFor(module, type, half, source);
     }
 
     if(kind == TeardownKind::Authored) {
@@ -116,42 +125,33 @@ ModulePtr<Function> teardownFor(Module& module, TypePtr type, Teardown half, Loc
  */
 static void teardownPlace(ExprResolver& resolver, Module& module, Place place, TypePtr type,
                           bool boxed, Teardown half, LocationId source) {
-    auto implementation = teardownFor(module, type, half, source);
+    auto implementation = half == Teardown::Both ? teardownBothFor(module, type, source)
+                                                 : teardownFor(module, type, half, source);
     auto teardown = teardownKind(ownershipOf(module, type), half);
-    auto releases = boxed && half == Teardown::Reclaim;
+
+    // The box itself, which the reclaim half hands back - so the merged answer hands it back too,
+    // and only the drop-half-alone form leaves it alone.
+    auto releases = boxed && half != Teardown::Drop;
 
     /*
-     * One traversal serving both halves, a level down - Implementation-Containers.md §13.
+     * The "one traversal serving both halves" dedup used to be here, and is gone with the shape
+     * that needed it.
      *
-     * Lowering already declines to run the reclaim half of an InstDrop whose two halves name one
-     * function, which is what keeps `Array(Buffer)`'s single walk from freeing the run twice. That
-     * check cannot see across a *derived* teardown, though: a record holding one generates `drop$X`
-     * and `reclaim$X`, each with an InstDrop of its own naming that walk in its own half, and the two
-     * glue functions are different functions - so the InstDrop on the record runs both and the walk
-     * runs twice. A `data X {xs: [Handle]}` released every handle twice, and the fixture that found
-     * it is the container refinement's, which is the first thing to put one inside a record.
+     * A member whose reclaim names the same walk as its drop appeared in *both* `drop$X` and
+     * `reclaim$X`, and an owner calling those two glue functions in turn therefore walked it twice -
+     * `data X {xs: [Handle]}` released every handle twice, and the fixture that found it is the
+     * container refinement's. So the reclaim copy was dropped here, as one of five places restating
+     * one comparison.
      *
-     * Emitted in the *drop* half and skipped in the reclaim one, which is the same choice lowering
-     * makes for the flat case and for the same reason: a region discharging the reclaim half in bulk
-     * leaves the drop half to run at last use, and the release inside the walk does nothing there
-     * because the run's tag says the region owns the storage.
+     * A merged glue emits **one** InstDrop per member, naming that member's merged teardown, so no
+     * member is visited twice and `drop$X` and `reclaim$X` are never both run over one value. The
+     * comparison is made once, where the fact is - see teardownBothFor.
      */
-    if(half == Teardown::Reclaim && implementation &&
-       implementation == teardownFor(module, type, Teardown::Drop, source)) {
-        implementation = nullptr;
-        teardown = TeardownKind::None;
-    }
-
     if(!implementation && !releases) return;
 
-    auto isDrop = half == Teardown::Drop;
-    auto drop = resolver.emit<InstDrop>(source, StringId(), module.scalar.unit, place,
-                                        isDrop ? teardown : TeardownKind::None,
-                                        isDrop ? TeardownKind::None : teardown);
+    auto drop = resolver.emit<InstDrop>(source, StringId(), module.scalar.unit, place, teardown);
 
-    if(isDrop) drop->drop = implementation;
-    else drop->reclaim = implementation;
-
+    drop->teardown = implementation;
     drop->releaseStorage = releases;
 }
 
@@ -314,9 +314,8 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
      * and lets whoever emits decode it - see InstTableSlot, and TypeMetric two lines above, which is
      * the same trade for the same reason.
      */
-    auto slot = half == Teardown::Drop ? ClosureHeaderFields::kDrop : ClosureHeaderFields::kReclaim;
     auto operation = resolver.ref(resolver.emit<InstTableSlot>(
-        source, StringId(), headerType, header, slot));
+        source, StringId(), headerType, header, ClosureHeaderFields::kTeardown));
 
     // No signature: this is the compiler calling a teardown it generated, not a program calling a
     // function value, so there are no conventions to honour and no environment convention either.
@@ -344,9 +343,16 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
 static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardown half, LocationId source,
                                            bool headerKnown) {
     auto& program = module.program;
-    auto& interned = half == Teardown::Drop
-        ? (headerKnown ? program.dropGlueKnown : program.dropGlue)
-        : (headerKnown ? program.reclaimGlueKnown : program.reclaimGlue);
+    /*
+     * One known-header map rather than one per half: `funTeardownKnownHeader` is the only caller
+     * that asks for one, and it asks with `siteTeardown` - a constant of the compilation. So a
+     * program has exactly one half in there and keying it by which would be three maps to hold what
+     * is always the same one.
+     */
+    auto& interned = headerKnown ? program.teardownGlueKnown
+                   : half == Teardown::Both ? program.teardownGlue
+                   : half == Teardown::Drop ? program.dropGlue
+                                            : program.reclaimGlue;
 
     if(auto found = interned.get(U32(type))) return found.unwrap();
 
@@ -463,9 +469,11 @@ static ModulePtr<Function> teardownGlueFor(Module& module, TypePtr type, Teardow
                 auto content = constructor.content;
                 if(!content) continue;
 
-                // A boxed payload always contributes to the reclaim half even where its target has
-                // nothing to release, because the box itself has to be handed back.
-                auto releases = constructor.boxed && half == Teardown::Reclaim;
+                // A boxed payload always contributes where the box is handed back - the reclaim
+                // half, and therefore the merged one - even where its target has nothing of its own
+                // to release. Same test as teardownPlace's `releases`, and it has to agree with it:
+                // this decides whether the arm is emitted and that decides what the arm does.
+                auto releases = constructor.boxed && half != Teardown::Drop;
                 if(!releases && !contributes(module, content, half)) continue;
 
                 auto discriminant = resolver.load(
@@ -578,6 +586,7 @@ bool checkReclaimShape(Module& module, Function& function) {
 
 // Declared in analyze.h so that a TypeDesc can name both halves - see witness.cpp.
 ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardown half, LocationId source) {
+    if(half == Teardown::Both) return teardownBothFor(module, type, source);
     return teardownFor(module, type, half, source);
 }
 
@@ -599,7 +608,8 @@ ModulePtr<Function> teardownImplementation(Module& module, TypePtr type, Teardow
  * Generated only where a descriptor asks for one, so a program with no erased generics emits none.
  */
 ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, LocationId source) {
-    auto implementation = teardownFor(module, type, half, source);
+    auto implementation = half == Teardown::Both ? teardownBothFor(module, type, source)
+                                                 : teardownFor(module, type, half, source);
     if(!implementation) return nullptr;
 
     /*
@@ -619,10 +629,13 @@ ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, L
     if(!isJsMode(module.context.settings.mode)) return implementation;
 
     auto& program = module.program;
-    auto& interned = half == Teardown::Drop ? program.dropEntry : program.reclaimEntry;
+    // Two maps and not three, on the same terms as the glue above: a descriptor slot and a closure
+    // header ask with `Teardown::Drop` on a managed target and `Teardown::Both` natively, and
+    // nothing asks a slot for a reclaim half on its own.
+    auto& interned = half == Teardown::Both ? program.teardownEntry : program.dropEntry;
     if(auto found = interned.get(U32(type))) return found.unwrap();
 
-    auto name = derivedName(module, half == Teardown::Drop ? "dropAt$"_v : "reclaimAt$"_v, type);
+    auto name = derivedName(module, half == Teardown::Both ? "teardownAt$"_v : "dropAt$"_v, type);
     auto function = addAnonymousFunction(module, name, source);
     auto pointer = function - *module.arena;
 
@@ -645,13 +658,135 @@ ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, L
 }
 
 /*
+ * **The teardown of a type: one function, and the only thing a drop site names.**
+ *
+ * The two halves are a real distinction - a `Drop` is an effect at last use and is never elided,
+ * a `Reclaim` releases storage and is the collector's on a managed target and a region's in bulk -
+ * but that distinction belongs to whoever *decides* what to run, and not to the value being torn
+ * down. A container writes one walk over its live elements and supplies both halves from it
+ * (Implementation-Containers.md §13), so a consumer holding two answers has to ask whether they are
+ * the same function before using either. That comparison used to be restated in five places, one of
+ * which was missed and released every element of a `data X {xs: [Handle]}` twice. It is made here
+ * now, once per type, and what everything else holds is the answer.
+ *
+ * Four cases, and only two of them generate anything:
+ *
+ *  - **neither half** - null, and a descriptor slot gets the shared empty teardown instead;
+ *  - **one half, or two that are one function** - that function *is* the answer. This is nearly all
+ *    of the corpus: a `[T]` of scalars has a reclaim and no drop, and a container that supplies both
+ *    from one walk answers with that walk;
+ *  - **both halves derived** - one glue that walks the members once, tearing each down by its own
+ *    merged teardown. Not a wrapper around `drop$X` and `reclaim$X`: those two walk the same members
+ *    and it is their overlap that the removed dedup existed to paper over;
+ *  - **an authored half beside a different one** - the only genuine wrapper, and the order is the
+ *    language's: whatever the drop does, it does while the storage is still there to do it in.
+ */
+ModulePtr<Function> teardownBothFor(Module& module, TypePtr type, LocationId source) {
+    auto ownership = ownershipOf(module, type);
+    if(!ownership.needsTeardown()) return nullptr;
+
+    /*
+     * One merged walk, for the two shapes whose halves are both this compiler's own glue: a type
+     * whose members carry them, and a refinement, which is glue around the plain type's walk and so
+     * is glue around the plain type's *merged* walk.
+     *
+     * The refinement is the case that used to be handled by making its two halves answer the same
+     * function, so that a two-call site would collapse to one. There is no two-call site left.
+     */
+    if(inlineRefinement(module, type)) return teardownGlueFor(module, type, Teardown::Both, source);
+
+    if(ownership.drop == TeardownKind::Derived && ownership.reclaim == TeardownKind::Derived) {
+        return teardownGlueFor(module, type, Teardown::Both, source);
+    }
+
+    auto drop = teardownFor(module, type, Teardown::Drop, source);
+    auto reclaim = teardownFor(module, type, Teardown::Reclaim, source);
+
+    if(!drop) return reclaim;
+    if(!reclaim || reclaim == drop) return drop;
+
+    auto& program = module.program;
+    if(auto found = program.teardownBoth.get(U32(type))) return found.unwrap();
+
+    auto function = addAnonymousFunction(module, derivedName(module, "teardown$"_v, type), source);
+    auto pointer = function - *module.arena;
+    *program.teardownBoth.add(U32(type)).value = pointer;
+
+    function->returnType = module.scalar.unit;
+    function->used = true;
+
+    /*
+     * The subject taken by `->`, which is the convention every teardown declares and the one a
+     * concrete drop site calls with - see teardownGlueFor, whose note on `disposer` applies here
+     * word for word.
+     *
+     * The two halves run as drops **through the address** rather than of the binding, and that is
+     * not a detail. A drop of a place *consumes* it, so two drops of one local read as one value
+     * moved twice and are refused by the check that exists to refuse exactly that. Writing them as
+     * calls instead has the same problem from the other side: that loads the subject and hands it to
+     * two `->` parameters. What this function does is run two teardowns over one piece of storage,
+     * and the address is how that is said.
+     */
+    auto valueName = module.context.addQualifiedName("value", 5, 1);
+    auto arg = function->addArg(module, valueName, type, source);
+    arg->convention = ast::BindType::Sink;
+    function->disposer = true;
+
+    auto subject = function->addLocal(module, type, valueName,
+                                      (ModulePtr<Value>)(arg - *module.arena), ast::BindType::Sink);
+
+    ExprResolver resolver(module.context, module, *function);
+    auto address = resolver.ref(resolver.emit<InstAddress>(source, StringId(),
+                                                           resolvePointerType(module, type),
+                                                           Place::inLocal(subject)));
+    auto base = Place::atPointer(address);
+
+    auto half = [&](ModulePtr<Function> implementation, TeardownKind kind) {
+        auto step = resolver.emit<InstDrop>(source, StringId(), module.scalar.unit, base, kind);
+        step->teardown = implementation;
+    };
+
+    half(drop, ownership.drop);
+    half(reclaim, ownership.reclaim);
+
+    resolver.terminate(resolver.emit<InstRet>(source, StringId(), module.scalar.unit, nullptr));
+    return pointer;
+}
+
+/*
+ * What a drop site in *this* program calls, which is a per-target question.
+ *
+ * Natively both halves run, so the answer is the merged one. On a managed target the collector owns
+ * storage and there is no reclaim half to run at all - `dischargeDrop` emits no call for one and a
+ * descriptor holds no slot for one - so the answer is the drop half alone.
+ *
+ * Asked here rather than at every consumer, and asked of the *mode* rather than of a layout, for
+ * the reason `teardownEntry` gives at the same decision: a resolved program belongs to one target,
+ * so the choice is a constant of the compilation and not a branch anything downstream repeats. It is
+ * also what lets `dischargeDrop` expand a drop with no target test of its own.
+ */
+Teardown siteTeardown(Module& module) {
+    return isJsMode(module.context.settings.mode) ? Teardown::Drop : Teardown::Both;
+}
+
+ModulePtr<Function> teardownAtSite(Module& module, TypePtr type, LocationId source) {
+    if(siteTeardown(module) == Teardown::Drop) return teardownFor(module, type, Teardown::Drop, source);
+    return teardownBothFor(module, type, source);
+}
+
+// The classification that goes with it, for the dump's mnemonic - see InstDrop::kind.
+TeardownKind teardownKindAtSite(Module& module, const Ownership& ownership) {
+    return teardownKind(ownership, siteTeardown(module));
+}
+
+/*
  * The drop-site form of the glue above: the same body with the header test left out.
  *
  * Only for a function type, and only for a caller that has proved what the test would have found -
  * see devirtualizeClosureDrop, which is the one caller. Interned per type beside the conditional
  * one, so a program in which no site can prove it never generates one.
  */
-ModulePtr<Function> funTeardownKnownHeader(Module& module, TypePtr type, Teardown half, LocationId source) {
+ModulePtr<Function> funTeardownKnownHeader(Module& module, TypePtr type, LocationId source) {
     assertTrue((*module.types)[type]->kind == Type::Fun);
-    return teardownGlueFor(module, type, half, source, true);
+    return teardownGlueFor(module, type, siteTeardown(module), source, true);
 }

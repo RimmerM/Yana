@@ -147,22 +147,11 @@ ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name) {
  * one place to begin with. Being usable on two elements of one container is what they are *for*, and
  * it is why the library had a `swapElements` at all before a subscript could reach a `&` parameter.
  *
- * What a self-swap does cost is *three relocations of the same value*, which for a type with an
- * authored `Sink` means three calls to it - one of them with `to` and `from` naming one place. The
- * data survives, since the third write restores what the first saved, but an author who counts or
- * registers in a `sink` sees the extra ones. Nothing in this tree has an authored Sink; when one
- * exists, the fix is a guarded swap emitted for non-TrivialSink types alone.
+ * A self-swap therefore costs three block copies of the same bytes and nothing else. It used to cost
+ * three calls to an authored `Sink`, one of them with `to` and `from` naming one place; that class
+ * is gone - see doc/spec/core.md - and with it the only thing that could have observed the extra
+ * relocations.
  */
-
-// The relocation, on exactly the terms sinkValue records one for a `->`. Asked the same way for the
-// same reason: a body that cannot see the type leaves this null and relocates through the caller's
-// descriptor instead, and a specialization asks again for the type it turned out to be.
-static ModulePtr<Function> relocationFor(ExprResolver& resolver, TypePtr type, LocationId source) {
-    auto ownership = ownershipIn(resolver.module, functionGen(resolver.global, resolver.function), type);
-    if(ownership.trivialSink) return nullptr;
-
-    return sinkFor(resolver.module, type, source);
-}
 
 /*
  * The mutable borrow a `&` parameter would have made.
@@ -204,10 +193,8 @@ static ModulePtr<Value> emitSwap(ExprResolver& resolver, Buffer<ModulePtr<Value>
     auto b = exchangedPlace(resolver, args[1], type, source);
     if(!a || !b) return nullptr;
 
-    auto swap = resolver.emit<InstSwap>(source, StringId(), resolver.module.scalar.unit,
-                                        Place::inBorrow(a), Place::inBorrow(b), type);
-
-    swap->sink = relocationFor(resolver, type, source);
+    resolver.emit<InstSwap>(source, StringId(), resolver.module.scalar.unit,
+                            Place::inBorrow(a), Place::inBorrow(b), type);
     return nullptr;
 }
 
@@ -222,9 +209,6 @@ static ModulePtr<Value> emitExchange(ExprResolver& resolver, Buffer<ModulePtr<Va
     if(!incoming) return nullptr;
 
     auto exchange = resolver.emit<InstExchange>(source, name, type, Place::inBorrow(slot), incoming);
-
-    exchange->sink = relocationFor(resolver, type, source);
-
     auto result = resolver.ref(exchange);
 
     // Storage for what came out, for the reason rootSink gives: a value has no address, so a name
@@ -677,7 +661,6 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.eq = classNamed(*module, "Eq"_v);
     program.coreClasses.ord = classNamed(*module, "Ord"_v);
     program.coreClasses.copy = classNamed(*module, "Copy"_v);
-    program.coreClasses.sink = classNamed(*module, "Sink"_v);
     program.coreClasses.reclaim = classNamed(*module, "Reclaim"_v);
     program.coreClasses.drop = classNamed(*module, "Drop"_v);
     program.coreClasses.trivialCopy = classNamed(*module, "TrivialCopy"_v);

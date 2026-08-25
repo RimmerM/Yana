@@ -206,7 +206,7 @@ fn spanned() -> Int {
     %v95 = add %v92, %v94 : %Int
     %v96 = borrow [%v95] : 'Int
     %v97 = load [%v96] : Int
-    drop %ys reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %ys via Reclaim(Array(a)).reclaim(Int)
     %v98 = add %v82, %v97 : Int
     %v99 = load %xs : Array(Int)
     %v102 = borrow %xs : 'Array(Int)
@@ -221,7 +221,7 @@ fn spanned() -> Int {
     %v111 = add %v108, %v110 : %Int
     %v112 = borrow [%v111] : 'Int
     %v113 = load [%v112] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v114 = add %v98, %v113 : Int
     ret %v114
 }
@@ -275,7 +275,7 @@ fn overwritten() -> Int {
     %v62 = add %v59, %v61 : %Int
     %v63 = borrow [%v62] : 'Int
     %v64 = load [%v63] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     ret %v64
 }
 
@@ -333,7 +333,7 @@ fn computed() -> Int {
     %v65 = add %v62, %v64 : %Int
     %v66 = borrow [%v65] : 'Int
     %v67 = load [%v66] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v68 = add %v53, %v67 : Int
     ret %v68
 }
@@ -388,7 +388,7 @@ fn aliased(%n: Int) -> Int {
     %v61 = add %v58, %v60 : %Int
     %v62 = borrow [%v61] : 'Int
     %v63 = load [%v62] : Int
-    drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
+    drop %xs via Reclaim(Array(a)).reclaim(Int)
     %v64 = add %v49, %v63 : Int
     ret %v64
 }
