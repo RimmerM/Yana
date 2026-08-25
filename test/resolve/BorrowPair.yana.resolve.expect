@@ -1,33 +1,33 @@
 let image$base: () = <none>
 
-fn make(%x: &Int, %y: &Int) -> Pair(&Int, &Int) {
+fn make(%x: 'Int, %y: 'Int) -> Pair('Int, 'Int) {
   b0:
-    %v2 = alloc : Pair(&Int, &Int)
+    %v2 = alloc : Pair('Int, 'Int)
     aggregate %local0@Pair.first = %x, %local0@Pair.second = %y
     ret %v2
 }
 
-fn firstOf(%self: Box(a)) -> &a {
+fn firstOf(%self: Box(a)) -> 'a {
   schema {
     #0 type a
   }
 
   b0:
     %v1 = load %self@Box.item : a
-    %v2 = borrow %self@Box.item : &a
+    %v2 = borrow %self@Box.item : 'a
     ret %v2
 }
 
-fn viewed(%self: Box(a), %other: Box(a)) -> Pair(&a, &a) {
+fn viewed(%self: Box(a), %other: Box(a)) -> Pair('a, 'a) {
   schema {
     #0 type a
-    #1 type Pair(&a, &a)
+    #1 type Pair('a, 'a)
   }
 
   b0:
-    %v2 = alloc : Pair(&a, &a)
-    %v3 = gencall firstOf(a), %self : &a
-    %v4 = gencall firstOf(a), %other : &a
+    %v2 = alloc : Pair('a, 'a)
+    %v3 = gencall firstOf(a), %self : 'a
+    %v4 = gencall firstOf(a), %other : 'a
     aggregate %local2@Pair.first = %v3, %local2@Pair.second = %v4
     ret %v2
 }
@@ -39,45 +39,45 @@ fn main() -> Int {
     %b = alloc : Int
     init %b, 4
     %v6 = load %a : Int
-    %v7 = borrow %a : &Int
+    %v7 = borrow %a : 'Int
     %v8 = load %b : Int
-    %v9 = borrow %b : &Int
-    %p = call make, %v7, %v9 : Pair(&Int, &Int)
+    %v9 = borrow %b : 'Int
+    %p = call make, %v7, %v9 : Pair('Int, 'Int)
     %x = alloc : Box(Int)
     init %local3@Box, 5
     %y = alloc : Box(Int)
     init %local4@Box, 6
-    %v17 = borrow %local3 : &Box(Int)
-    %v18 = borrow %local4 : &Box(Int)
-    %q = call viewed(Int), %v17, %v18 : Pair(&Int, &Int)
-    %v20 = load %local2@Pair.first : &Int
-    %v21 = load %local2@Pair.second : &Int
+    %v17 = borrow %local3 : 'Box(Int)
+    %v18 = borrow %local4 : 'Box(Int)
+    %q = call viewed(Int), %v17, %v18 : Pair('Int, 'Int)
+    %v20 = load %local2@Pair.first : 'Int
+    %v21 = load %local2@Pair.second : 'Int
     %v22 = load [%v20] : Int
     %v23 = load [%v21] : Int
     %v24 = add %v22, %v23 : Int
-    %v25 = load %local5@Pair.first : &Int
+    %v25 = load %local5@Pair.first : 'Int
     %v26 = load [%v25] : Int
     %v27 = add %v24, %v26 : Int
-    %v28 = load %local5@Pair.second : &Int
+    %v28 = load %local5@Pair.second : 'Int
     %v29 = load [%v28] : Int
     %v30 = add %v27, %v29 : Int
     ret %v30
 }
 
-fn viewed(Int)(%self: Box(Int), %other: Box(Int)) -> Pair(&Int, &Int) {
+fn viewed(Int)(%self: Box(Int), %other: Box(Int)) -> Pair('Int, 'Int) {
   b0:
-    %v2 = alloc : Pair(&Int, &Int)
-    %v3 = borrow %self : &Box(Int)
-    %v4 = call firstOf(Int), %v3 : &Int
-    %v5 = borrow %other : &Box(Int)
-    %v6 = call firstOf(Int), %v5 : &Int
+    %v2 = alloc : Pair('Int, 'Int)
+    %v3 = borrow %self : 'Box(Int)
+    %v4 = call firstOf(Int), %v3 : 'Int
+    %v5 = borrow %other : 'Box(Int)
+    %v6 = call firstOf(Int), %v5 : 'Int
     aggregate %local2@Pair.first = %v4, %local2@Pair.second = %v6
     ret %v2
 }
 
-fn firstOf(Int)(%self: Box(Int)) -> &Int {
+fn firstOf(Int)(%self: Box(Int)) -> 'Int {
   b0:
     %v1 = load %self@Box.item : Int
-    %v2 = borrow %self@Box.item : &Int
+    %v2 = borrow %self@Box.item : 'Int
     ret %v2
 }

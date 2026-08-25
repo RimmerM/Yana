@@ -48,10 +48,10 @@ fn main() -> Int {
     %counter = alloc : Int
     init %counter, 0
     %v6 = load %counter : Int
-    %v8 = borrow_mut %counter : &mut Int
+    %v8 = borrow_mut %counter : &Int
     call genericBump(Int), 1, %v8
     %v11 = load %counter : Int
-    %v12 = borrow_mut %counter : &mut Int
+    %v12 = borrow_mut %counter : &Int
     call plainBump, 1, %v12
     %narrow = cast %narrow : U64
     %v17 = call genericWidth(Int), 1, %narrow : U64

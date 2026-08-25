@@ -109,7 +109,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Int)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Int)
+    %v8 = borrow_mut %self : &Array(Int)
     call reserve(Int), %v8, %v7
     %v10 = load %self : Array(Int)
     %v11 = load %self@Array.run : Run(Int)
@@ -149,7 +149,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Int)
-    %v11 = borrow_mut %self : &mut Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v11, %wanted
     ret
 }
@@ -190,7 +190,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
     %v23 = load %self : Array(Int)
     %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -1207,7 +1207,7 @@ fn total(%xs: Flat(Int)) -> Int {
     %v13 = load %sum : Int
     %v14 = load %i : Int
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : &Flat(Int)
+    %v16 = borrow %xs : 'Flat(Int)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -1217,7 +1217,7 @@ fn total(%xs: Flat(Int)) -> Int {
     %v23 = strideof Int : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %Int
-    %v26 = borrow [%v25] : &Int
+    %v26 = borrow [%v25] : 'Int
     %v27 = load [%v26] : Int
     %v28 = add %v13, %v27 : Int
     assign %sum, %v28
@@ -1248,7 +1248,7 @@ fn double(%xs: Flat(Int)) -> () {
     %v11 = load %xs : Flat(Int)
     %v12 = load %i : Int
     %v13 = cast %v12 : Size
-    %v14 = borrow %xs : &Flat(Int)
+    %v14 = borrow %xs : 'Flat(Int)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -1258,12 +1258,12 @@ fn double(%xs: Flat(Int)) -> () {
     %v21 = strideof Int : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %Int
-    %v24 = borrow [%v23] : &Int
+    %v24 = borrow [%v23] : 'Int
     %value = load [%v24] : Int
     %v26 = load %xs : Flat(Int)
     %v27 = load %i : Int
     %v28 = cast %v27 : Size
-    %v29 = borrow_mut %xs : &mut Flat(Int)
+    %v29 = borrow_mut %xs : &Flat(Int)
     %v30 = load [%v29]@Flat.length : Size
     %v31 = cast %v28 : USize
     %v32 = cast %v30 : USize
@@ -1273,7 +1273,7 @@ fn double(%xs: Flat(Int)) -> () {
     %v36 = strideof Int : Long
     %v37 = mul %v28, %v36 : Long
     %v38 = add %v35, %v37 : %Int
-    %v39 = borrow_mut [%v38] : &mut Int
+    %v39 = borrow_mut [%v38] : &Int
     %v40 = add %value, %value : Int
     assign [%v39], %v40
     %v42 = load %i : Int
@@ -1286,7 +1286,7 @@ fn middle(%xs: Flat(Int)) -> Int {
   b0:
     %v3 = cast 1 : Size
     %v4 = cast 3 : Size
-    %v5 = borrow %xs : &Flat(Int)
+    %v5 = borrow %xs : 'Flat(Int)
     %v6 = call slice(Int), %v5, %v3, %v4 : Flat(Int)
     %v7 = call total, %v6 : Int
     ret %v7
@@ -1297,7 +1297,7 @@ fn atCursor(%c: Cursor) -> Int {
     %v1 = load %c@Cursor.items : Flat(Int)
     %v2 = load %c@Cursor.at : Int
     %v3 = cast %v2 : Size
-    %v4 = borrow %c@Cursor.items : &Flat(Int)
+    %v4 = borrow %c@Cursor.items : 'Flat(Int)
     %v5 = load [%v4]@Flat.length : Size
     %v6 = cast %v3 : USize
     %v7 = cast %v5 : USize
@@ -1307,7 +1307,7 @@ fn atCursor(%c: Cursor) -> Int {
     %v11 = strideof Int : Long
     %v12 = mul %v3, %v11 : Long
     %v13 = add %v10, %v12 : %Int
-    %v14 = borrow [%v13] : &Int
+    %v14 = borrow [%v13] : 'Int
     %v15 = load [%v14] : Int
     ret %v15
 }
@@ -1358,7 +1358,7 @@ fn main() -> Int {
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %xs@Array.length, 4
     %v20 = load %xs : Array(Int)
-    %v21 = borrow %xs : &Array(Int)
+    %v21 = borrow %xs : 'Array(Int)
     %v22 = alloc : Flat(Int)
     %v23 = load [%v21]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v23
@@ -1378,7 +1378,7 @@ fn main() -> Int {
 
   b3:
     %v38 = load %xs : Array(Int)
-    %v39 = borrow %xs : &Array(Int)
+    %v39 = borrow %xs : 'Array(Int)
     %v40 = alloc : Flat(Int)
     %v41 = load [%v39]@Array.run@Run.items : %Int
     init %local3@Flat.items, %v41
@@ -1398,17 +1398,17 @@ fn main() -> Int {
 
   b6:
     %v56 = load %xs : Array(Int)
-    %v57 = borrow_mut %xs : &mut Array(Int)
+    %v57 = borrow_mut %xs : &Array(Int)
     %v58 = alloc : Flat(Int)
     %v59 = load [%v57]@Array.run@Run.items : %Int
     init %local4@Flat.items, %v59
     %v61 = load [%v57]@Array.length : @bits(30) U32
     %v62 = cast %v61 : Size
     init %local4@Flat.length, %v62
-    %v64 = borrow_mut %local4 : &mut Flat(Int)
+    %v64 = borrow_mut %local4 : &Flat(Int)
     call double, %v64
     %v66 = load %xs : Array(Int)
-    %v67 = borrow %xs : &Array(Int)
+    %v67 = borrow %xs : 'Array(Int)
     %v68 = alloc : Flat(Int)
     %v69 = load [%v67]@Array.run@Run.items : %Int
     init %local5@Flat.items, %v69
@@ -1428,7 +1428,7 @@ fn main() -> Int {
 
   b9:
     %v84 = load %xs : Array(Int)
-    %v87 = borrow_mut %xs : &mut Array(Int)
+    %v87 = borrow_mut %xs : &Array(Int)
     call push(Int), %v87, 5
     %v89 = load %xs : Array(Int)
     %v90 = load %xs@Array.length : @bits(30) U32
@@ -1445,7 +1445,7 @@ fn main() -> Int {
 
   b12:
     %v101 = load %xs : Array(Int)
-    %v102 = borrow %xs : &Array(Int)
+    %v102 = borrow %xs : 'Array(Int)
     %v103 = alloc : Flat(Int)
     %v104 = load [%v102]@Array.run@Run.items : %Int
     init %local6@Flat.items, %v104
@@ -1465,7 +1465,7 @@ fn main() -> Int {
 
   b15:
     %v120 = load %xs : Array(Int)
-    %v121 = borrow %xs : &Array(Int)
+    %v121 = borrow %xs : 'Array(Int)
     %v122 = alloc : Flat(Int)
     %v123 = load [%v121]@Array.run@Run.items : %Int
     init %local7@Flat.items, %v123

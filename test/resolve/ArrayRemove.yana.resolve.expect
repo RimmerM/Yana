@@ -54,7 +54,7 @@ fn push(Buffer)(%self: Array(Buffer), %item: Buffer) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Buffer)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Buffer)
+    %v8 = borrow_mut %self : &Array(Buffer)
     call reserve(Buffer), %v8, %v7
     %v10 = load %self : Array(Buffer)
     %v11 = load %self@Array.run : Run(Buffer)
@@ -94,7 +94,7 @@ fn reserve(Buffer)(%self: Array(Buffer), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Buffer)
-    %v11 = borrow_mut %self : &mut Array(Buffer)
+    %v11 = borrow_mut %self : &Array(Buffer)
     call growArray(Buffer), %v11, %wanted
     ret
 }
@@ -135,7 +135,7 @@ fn growArray(Buffer)(%self: Array(Buffer), %wanted: Size) -> () {
     %v23 = load %self : Array(Buffer)
     %v24 = load %self@Array.run : Run(Buffer)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Buffer)
+    %v26 = borrow_mut %self@Array.run : &Run(Buffer)
     %v27 = call resize(Buffer), %v26, %v25 : Bool
     ret
 }
@@ -1476,7 +1476,7 @@ fn releaseRun(Buffer)(%self: Run(Buffer)) -> () {
 fn makeBuffer(%mark: I64) -> Buffer {
   b0:
     %v1 = load liveBuffers : I64
-    %v4 = borrow_mut liveBuffers : &mut I64
+    %v4 = borrow_mut liveBuffers : &I64
     call +=(I64), %v4, 1
     %buffer = alloc : Buffer
     %v8 = call allocateHeap, 16 : %U8
@@ -1504,17 +1504,17 @@ fn main() -> I64 {
     init %xs, %v0
     %v3 = load %xs : Array(Buffer)
     %v5 = call makeBuffer, 1 : Buffer
-    %v6 = borrow_mut %xs : &mut Array(Buffer)
+    %v6 = borrow_mut %xs : &Array(Buffer)
     %v7 = move %local2 : Buffer
     call push(Buffer), %v6, %v7
     %v9 = load %xs : Array(Buffer)
     %v11 = call makeBuffer, 2 : Buffer
-    %v12 = borrow_mut %xs : &mut Array(Buffer)
+    %v12 = borrow_mut %xs : &Array(Buffer)
     %v13 = move %local3 : Buffer
     call push(Buffer), %v12, %v13
     %v15 = load %xs : Array(Buffer)
     %v17 = call makeBuffer, 3 : Buffer
-    %v18 = borrow_mut %xs : &mut Array(Buffer)
+    %v18 = borrow_mut %xs : &Array(Buffer)
     %v19 = move %local4 : Buffer
     call push(Buffer), %v18, %v19
     %v21 = load liveBuffers : I64
@@ -1544,7 +1544,7 @@ fn main() -> I64 {
 
   b6:
     %v43 = load %xs : Array(Buffer)
-    %v46 = borrow_mut %xs : &mut Array(Buffer)
+    %v46 = borrow_mut %xs : &Array(Buffer)
     %v47 = call remove(Buffer), %v46, 1 : Maybe(Buffer)
     drop_derived %local5 via drop$Maybe(Buffer)
     %v48 = load %xs : Array(Buffer)
@@ -1562,7 +1562,7 @@ fn main() -> I64 {
 
   b9:
     %v60 = load %xs : Array(Buffer)
-    %v63 = borrow %xs : &Array(Buffer)
+    %v63 = borrow %xs : 'Array(Buffer)
     %v64 = load [%v63]@Array.length : @bits(30) U32
     %v65 = cast 0 : USize
     %v66 = cast %v64 : USize
@@ -1572,7 +1572,7 @@ fn main() -> I64 {
     %v70 = strideof Buffer : Long
     %v71 = mul 0, %v70 : Long
     %v72 = add %v69, %v71 : %Buffer
-    %v73 = borrow [%v72] : &Buffer
+    %v73 = borrow [%v72] : 'Buffer
     %v74 = load [%v73] : Buffer
     %v75 = call marker, %v74 : I64
     %v78 = cmp_ne %v75, 1 : Bool
@@ -1587,7 +1587,7 @@ fn main() -> I64 {
 
   b12:
     %v85 = load %xs : Array(Buffer)
-    %v88 = borrow %xs : &Array(Buffer)
+    %v88 = borrow %xs : 'Array(Buffer)
     %v89 = load [%v88]@Array.length : @bits(30) U32
     %v90 = cast 1 : USize
     %v91 = cast %v89 : USize
@@ -1597,7 +1597,7 @@ fn main() -> I64 {
     %v95 = strideof Buffer : Long
     %v96 = mul 1, %v95 : Long
     %v97 = add %v94, %v96 : %Buffer
-    %v98 = borrow [%v97] : &Buffer
+    %v98 = borrow [%v97] : 'Buffer
     %v99 = load [%v98] : Buffer
     %v100 = call marker, %v99 : I64
     %v103 = cmp_ne %v100, 3 : Bool
@@ -1624,12 +1624,12 @@ fn main() -> I64 {
 
   b18:
     %v120 = load %xs : Array(Buffer)
-    %v123 = borrow_mut %xs : &mut Array(Buffer)
+    %v123 = borrow_mut %xs : &Array(Buffer)
     %v124 = call remove(Buffer), %v123, 5 : Maybe(Buffer)
     drop_derived %local6 via drop$Maybe(Buffer)
     %v125 = load %xs : Array(Buffer)
     %v130 = sub 0, 1 : Int
-    %v131 = borrow_mut %xs : &mut Array(Buffer)
+    %v131 = borrow_mut %xs : &Array(Buffer)
     %v132 = call remove(Buffer), %v131, %v130 : Maybe(Buffer)
     drop_derived %local7 via drop$Maybe(Buffer)
     %v133 = load %xs : Array(Buffer)
@@ -1647,7 +1647,7 @@ fn main() -> I64 {
 
   b21:
     %v145 = load %xs : Array(Buffer)
-    %v148 = borrow_mut %xs : &mut Array(Buffer)
+    %v148 = borrow_mut %xs : &Array(Buffer)
     %v149 = call remove(Buffer), %v148, 1 : Maybe(Buffer)
     drop_derived %local8 via drop$Maybe(Buffer)
     %v150 = load %xs : Array(Buffer)
@@ -1665,7 +1665,7 @@ fn main() -> I64 {
 
   b24:
     %v162 = load %xs : Array(Buffer)
-    %v165 = borrow %xs : &Array(Buffer)
+    %v165 = borrow %xs : 'Array(Buffer)
     %v166 = load [%v165]@Array.length : @bits(30) U32
     %v167 = cast 0 : USize
     %v168 = cast %v166 : USize
@@ -1675,7 +1675,7 @@ fn main() -> I64 {
     %v172 = strideof Buffer : Long
     %v173 = mul 0, %v172 : Long
     %v174 = add %v171, %v173 : %Buffer
-    %v175 = borrow [%v174] : &Buffer
+    %v175 = borrow [%v174] : 'Buffer
     %v176 = load [%v175] : Buffer
     %v177 = call marker, %v176 : I64
     %v180 = cmp_ne %v177, 1 : Bool
@@ -1690,7 +1690,7 @@ fn main() -> I64 {
 
   b27:
     %v187 = load %xs : Array(Buffer)
-    %v190 = borrow_mut %xs : &mut Array(Buffer)
+    %v190 = borrow_mut %xs : &Array(Buffer)
     %v191 = call remove(Buffer), %v190, 0 : Maybe(Buffer)
     drop_derived %local9 via drop$Maybe(Buffer)
     %v192 = load %xs : Array(Buffer)
@@ -1721,12 +1721,12 @@ fn main() -> I64 {
   b33:
     %v214 = load %xs : Array(Buffer)
     %v216 = call makeBuffer, 7 : Buffer
-    %v217 = borrow_mut %xs : &mut Array(Buffer)
+    %v217 = borrow_mut %xs : &Array(Buffer)
     %v218 = move %local10 : Buffer
     call push(Buffer), %v217, %v218
     %v220 = load %xs : Array(Buffer)
     %v222 = call makeBuffer, 8 : Buffer
-    %v223 = borrow_mut %xs : &mut Array(Buffer)
+    %v223 = borrow_mut %xs : &Array(Buffer)
     %v224 = move %local11 : Buffer
     call push(Buffer), %v223, %v224
     %v226 = load liveBuffers : I64
@@ -1742,7 +1742,7 @@ fn main() -> I64 {
 
   b36:
     %v236 = load %xs : Array(Buffer)
-    %v239 = borrow_mut %xs : &mut Array(Buffer)
+    %v239 = borrow_mut %xs : &Array(Buffer)
     %v240 = call remove(Buffer), %v239, 0 : Maybe(Buffer)
     %v241 = load %local12.discriminant : Int
     %v243 = cmp_eq %v241, 1 : Bool
@@ -1805,7 +1805,7 @@ fn main() -> I64 {
 
   b48:
     %v295 = load %xs : Array(Buffer)
-    %v298 = borrow_mut %xs : &mut Array(Buffer)
+    %v298 = borrow_mut %xs : &Array(Buffer)
     %v299 = call remove(Buffer), %v298, 9 : Maybe(Buffer)
     %v300 = load %local14.discriminant : Int
     %v302 = cmp_eq %v300, 1 : Bool
@@ -1837,7 +1837,7 @@ fn main() -> I64 {
 
   b54:
     %v323 = load %xs : Array(Buffer)
-    %v326 = borrow_mut %xs : &mut Array(Buffer)
+    %v326 = borrow_mut %xs : &Array(Buffer)
     %v327 = call remove(Buffer), %v326, 0 : Maybe(Buffer)
     drop %xs via Reclaim(Array(a)).reclaim(Buffer) reclaim Reclaim(Array(a)).reclaim(Buffer)
     drop_derived %local16 via drop$Maybe(Buffer)
@@ -1937,7 +1937,7 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     %v1 = load %value@Buffer.bytes : %U8
     call freeHeap, %v1
     %v3 = load liveBuffers : I64
-    %v6 = borrow_mut liveBuffers : &mut I64
+    %v6 = borrow_mut liveBuffers : &I64
     call -=(I64), %v6, 1
     ret
 }

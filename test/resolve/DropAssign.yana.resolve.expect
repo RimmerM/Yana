@@ -345,7 +345,7 @@ fn freeHeap(%allocation: %U8) -> () {
 fn makeBuffer(%size: Size) -> Buffer {
   b0:
     %v1 = load liveBuffers : I64
-    %v4 = borrow_mut liveBuffers : &mut I64
+    %v4 = borrow_mut liveBuffers : &I64
     call +=(I64), %v4, 1
     %buffer = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
@@ -436,7 +436,7 @@ fn throughBorrow() -> I64 {
     init %b, %v1
     %v4 = load %b : Buffer
     %v6 = call makeBuffer, 32 : Buffer
-    %v7 = borrow_mut %b : &mut Buffer
+    %v7 = borrow_mut %b : &Buffer
     %v8 = move %local2 : Buffer
     call replace, %v7, %v8
     %counted = load liveBuffers : I64
@@ -475,7 +475,7 @@ fn main() -> I64 {
     init %result, 0
     %v3 = load %result : I64
     %v4 = call whole : I64
-    %v5 = borrow_mut %result : &mut I64
+    %v5 = borrow_mut %result : &I64
     call +=(I64), %v5, %v4
     %v7 = load liveBuffers : I64
     %v10 = cmp_ne %v7, 0 : Bool
@@ -491,7 +491,7 @@ fn main() -> I64 {
   b3:
     %v17 = load %result : I64
     %v18 = call immediate : I64
-    %v19 = borrow_mut %result : &mut I64
+    %v19 = borrow_mut %result : &I64
     call +=(I64), %v19, %v18
     %v21 = load liveBuffers : I64
     %v24 = cmp_ne %v21, 0 : Bool
@@ -507,7 +507,7 @@ fn main() -> I64 {
   b6:
     %v31 = load %result : I64
     %v32 = call field : I64
-    %v33 = borrow_mut %result : &mut I64
+    %v33 = borrow_mut %result : &I64
     call +=(I64), %v33, %v32
     %v35 = load liveBuffers : I64
     %v38 = cmp_ne %v35, 0 : Bool
@@ -523,7 +523,7 @@ fn main() -> I64 {
   b9:
     %v45 = load %result : I64
     %v46 = call throughBorrow : I64
-    %v47 = borrow_mut %result : &mut I64
+    %v47 = borrow_mut %result : &I64
     call +=(I64), %v47, %v46
     %v49 = load liveBuffers : I64
     %v52 = cmp_ne %v49, 0 : Bool
@@ -539,7 +539,7 @@ fn main() -> I64 {
   b12:
     %v59 = load %result : I64
     %v60 = call afterMove : I64
-    %v61 = borrow_mut %result : &mut I64
+    %v61 = borrow_mut %result : &I64
     call +=(I64), %v61, %v60
     %v63 = load liveBuffers : I64
     %v66 = cmp_ne %v63, 0 : Bool
@@ -562,7 +562,7 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     %v1 = load %value@Buffer.bytes : %U8
     call freeHeap, %v1
     %v3 = load liveBuffers : I64
-    %v6 = borrow_mut liveBuffers : &mut I64
+    %v6 = borrow_mut liveBuffers : &I64
     call -=(I64), %v6, 1
     ret
 }

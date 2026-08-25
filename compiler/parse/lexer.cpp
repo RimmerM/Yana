@@ -307,6 +307,11 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
             token.type = Token::opTilde;
         } else if(*p == '&') {
             token.type = Token::opAmp;
+        } else if(*p == '\'') {
+            // The shared loan marker. A run it is part of is an ordinary VarSym, the same rule every
+            // other entry in tokens.def is read under - which is what leaves `&'` free to become one
+            // reserved lexeme when named loan groups arrive.
+            token.type = Token::opQuote;
         } else if(*p == '?') {
             // Only a `?` alone: a run it is part of - `??`, `<?>` - is still an ordinary VarSym, the
             // same rule every other entry in tokens.def is read under.
@@ -696,12 +701,6 @@ void Lexer::next(Token& token) {
             token.type = Token::Float;
             token.data.floating = lit.f;
         }
-    }
-
-    // Check for character literals.
-    else if(*p == '\'') {
-        token.data.character = parseCharLiteral(p, m, diag);
-        token.type = Token::Char;
     }
 
     // Check for string literals.

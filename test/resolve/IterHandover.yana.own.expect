@@ -72,7 +72,7 @@ fn consume {
 fn borrows {
   arg times readonly
   %total: Size writable live [0, 12)
-  %local1: {total: &mut Size} closure writable addressed live [2, 10)
+  %local1: {total: &Size} closure writable addressed live [2, 10)
   %local2: (value$: Held) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
@@ -80,7 +80,7 @@ fn borrows {
 fn owns {
   arg times readonly
   %total: Size writable live [0, 12)
-  %local1: {total: &mut Size} closure writable addressed live [2, 10)
+  %local1: {total: &Size} closure writable addressed live [2, 10)
   %local2: (->value$: Held) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
@@ -88,7 +88,7 @@ fn owns {
 fn viaTry {
   arg times readonly
   %total: Size writable live [0, 14) [16, 18)
-  %local1: {total: &mut Size} closure writable addressed live [2, 10)
+  %local1: {total: &Size} closure writable addressed live [2, 10)
   %local2: (->value$: Result(I64, Held)) -> Outcome((), Result(I64, Size)) droppable readonly live [6, 11)
   %local3: Outcome((), Result(I64, Size)) readonly live [10, 16)
   %local4: Result(I64, Size) readonly live [16, 17) [18, 20)
@@ -97,7 +97,7 @@ fn viaTry {
 fn ignores {
   arg times readonly
   %count: Size writable live [0, 12)
-  %local1: {count: &mut Size} closure writable addressed live [2, 10)
+  %local1: {count: &Size} closure writable addressed live [2, 10)
   %local2: (->value$: Result(I64, Held)) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }

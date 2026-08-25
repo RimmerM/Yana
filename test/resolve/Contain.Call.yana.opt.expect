@@ -43,7 +43,7 @@ fn borrowed() -> Int {
     %v0 = alloc : Flags
     init %f@Flags.read, False
     init %f@Flags.write, False
-    %v6 = borrow %f : &Flags
+    %v6 = borrow_mut %f : &Flags
     %zero = call mutate, %v6 : Int
     %v9 = load %f@Flags.read : Bool
     %v20 = select %v9 ? 1000 : 2000 : Int
@@ -67,7 +67,7 @@ fn main() -> Int {
     %v2 = add %v17, %v25 : Int
     %v26 = alloc : Flags
     init %f@Flags.read:unit8, 0
-    %v31 = borrow %f : &Flags
+    %v31 = borrow_mut %f : &Flags
     %zero = call mutate, %v31 : Int
     %v92 = load %f@Flags.read:unit8 : U32
     %v94 = and %v92, 1 : U32

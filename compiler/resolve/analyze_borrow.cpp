@@ -768,9 +768,25 @@ void checkReturnRoots(Analysis& analysis) {
      * array goes with the result. Reporting on them would reject `data Mixed {view: &[Int], owned:
      * [Int]}` for the half that is doing nothing wrong.
      *
-     * Nothing is lost by that. The case it would have caught - a record holding a view of *this*
-     * frame's container - is checkEscapingViews', which asks about the descriptor's own slot and so
-     * is not confused by what else the record contains.
+     * Something *is* lost by that, and it is worth naming rather than leaving as a claim that the
+     * slice case covers it. checkEscapingViews asks about a descriptor's own slot, so it catches a
+     * record holding a view of this frame's container; it says nothing about a record holding a
+     * plain `&T`. So this is accepted and should not be:
+     *
+     *     fn escaping() -> Pair(&Int, &Int):
+     *         let &a = 3 :: Int
+     *         let &b = 4 :: Int
+     *         return make(a, b)
+     *
+     * `Pair(&Int, &Int)` is not `isBorrowLike`, so the arm above is skipped; `actualRoots` is empty
+     * because `a` and `b` are locals rather than arguments; and nothing else asks. The result names
+     * two dead stack slots and the program is compiled.
+     *
+     * The missing fact is field sensitivity, and no rearrangement of these checks supplies it: the
+     * question "is this local root reached through a borrow, or is it the owned half" is one
+     * provenance deliberately does not keep an answer to. Analysis-Borrows.md §2.4 and §6.6 are
+     * where the replacement is - a loan slot on the semantic type, which knows the path each
+     * reference sits at - and this comment is the marker for what that work has to close.
      */
     if(summary.invalidRoot && isBorrowLike(analysis.module, function.returnType)) {
         report(analysis,
@@ -803,165 +819,195 @@ void checkReturnRoots(Analysis& analysis) {
 }
 
 /*
- * A closure that outlives the frame cannot hold a borrow of it.
+ * A loan that left the extent its signature gave it.
  *
- * Design-Memory §8's third case says a closure that must outlive the frame that built it has to own
- * what it captures, and this is where that is checked: the environment escaped, so anything in it
- * that is a `&T` names storage this frame is about to stop guaranteeing. The capture conventions are
- * chosen before any of this is known - a capture is decided at the name that made it, and whether
- * the closure escapes is a whole-function fact - so the two meet here rather than at the lambda.
+ * Five things used to ask this, one function each, and every one of them opened by reading
+ * `analysis.escaped` and then differed only in which slot it was looking at and what it said. They
+ * are one statement - *something borrowed outlived what was keeping it valid* - and the useful part
+ * is not the loop but the answer to the second question: **what said this loan's extent**. There
+ * are two kinds of answer, and that is the division below rather than five.
  *
- * A closure that is merely *called* does not trip this. Nothing marks the environment escaped at an
- * InstCallDyn, deliberately: a lifted body has no way to name its own environment, so it cannot
- * store one, and treating every call as a handover would reject every closure that is used.
+ * A *declaration* says it, on behalf of implementations no call site can see. A class function's
+ * borrowed parameter and a class iterator's continuation are both of these: a generic body cannot
+ * see which instance runs, so it takes the declaration's word, and what makes the declaration true
+ * is checking every implementation against it here. See assumedRetained in analyze_escape.cpp,
+ * which is the assumption these pay for.
+ *
+ * Or this frame's *own storage* says it, and then the reason is a property of the slot: a slice is
+ * a view of a container this frame is about to tear down, a widened `&` argument is a temporary the
+ * return would have narrowed back, a closure environment holds a reference to the frame that built
+ * it. Three slot flags, three sentences, one loop.
+ *
+ * All of this is what Analysis-Borrows.md §6.3 calls "an ad-hoc repair at one dispatch mechanism
+ * instead of the meaning of a borrowed parameter", and §8.4 replaces the lot with ordinary
+ * signature conformance once a loan is part of a type. Collapsing them first is what makes that one
+ * edit rather than five: the reasons stay, the five entry points do not.
  */
-/*
- * The one borrow that is still a temporary, escaping.
- *
- * A `&` argument whose declared type is wider than the field's - `increment(&x: Int)` given a
- * `@bits(13)` field - is widened into a temporary and narrowed back when the call returns, because
- * a reference cannot convert. That is right for a callee that reads and writes through it and wrong
- * for one that keeps it: the temporary dies with the frame, and nothing would ever narrow.
- *
- * Nothing about packing is left in this check. A borrow of a narrow field at its *own* type is a
- * reference that carries the field's shift, works wherever the field is, and outlives whatever it
- * likes - see NarrowRef in resolve/lower.cpp. What is reported here is a conversion with nowhere to
- * happen, and the fix is in the signature.
- */
-/*
- * A slice may not outlive the container it is a view of - Implementation-Containers.md §4.
- *
- * The descriptor holds a `%T` into the run, and a raw pointer is outside the ownership model by
- * construction, so nothing about the *fields* of a slice says it refers to anything. What says so is
- * Local::viewOf, written where the descriptor was built out of an owned array, and this is the check
- * that spends it: the slice escaped this frame while the array it points into is this frame's, so
- * the frame is about to run that array's teardown and free the run underneath it.
- *
- * Precise rather than provenance-shaped, deliberately. Asking "does the returned value contain a
- * borrow" would have to go through the containment relation, which is field-insensitive - so a
- * record holding both an owned array and a slice would be rejected for the owned half. This asks
- * about the slice's own slot and nothing else, and a slice's slot is only ever a view when this
- * frame made it one.
- *
- * A slice that came *in* as a parameter has no `viewOf` and is not reported here: what it refers to
- * is the caller's, and whether the caller may hand it on is the caller's own return-root check.
- */
-void checkEscapingViews(Analysis& analysis) {
-    for(Size l = 0; l < analysis.localCount; l++) {
-        auto slot = analysis.function.localAt(analysis.local, U32(l));
-        if(slot.viewOf == maxLimit<U32> || !analysis.escaped[l]) continue;
 
-        auto viewed = analysis.function.localAt(analysis.local, viewedRoot(analysis, slot.viewOf));
-        auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
+// Which promise one parameter is held to, or None where this function made none - which is every
+// function that does not implement a class.
+enum class DeclaredExtent: U8 {
+    None,
 
-        /*
-         * A view of a *parameter's* container is the return-root check's business, not this one's.
-         *
-         * What this check is about is a container this frame owns and is about to tear down; a
-         * parameter's is the caller's, outlives the call, and is exactly what
-         * `fn elements(return self: Array(a)) -> &[a]` hands a view of - Implementation-Containers.md
-         * §5. Whether *this* signature is allowed to hand it back is one question with one answer,
-         * and checkReturnRoots is where it is asked: deriveSummary walks the same `viewOf` chain, so
-         * a view of an argument the signature did not mark `return` is reported there and naming the
-         * argument. A sunk parameter is not exempt - the callee owns what it was given, so its
-         * teardown is this frame's like any other local's.
-         */
-        auto owner = viewed.value && analysis.local[viewed.value]->kind == Value::Arg
-            ? (Arg*)analysis.local[viewed.value] : nullptr;
+    // An ordinary borrowed parameter of a class implementation or a class default.
+    Parameter,
 
-        if(owner && owner->convention != ast::BindType::Sink) continue;
+    /*
+     * The continuation a `for` loop appends. It is the last parameter, always - the desugaring puts
+     * it there, so an implementation cannot have written one of its own after it - and it is a
+     * separate answer because it is the one a caller could not have declared and the one `->`
+     * cannot rescue. See Function::classContinuation and emitGenericDispatch.
+     */
+    Continuation,
+};
 
-        if(viewed.name) {
-            report(analysis, "this borrow of %@ outlives the frame that owns it - a slice is a view into the container's storage, and the container is released when this function returns"_v,
-                   source, analysis.context.findName(viewed.name));
-        } else {
-            report(analysis, "this borrow of an array outlives the frame that owns it - a slice is a view into the container's storage, and the container is released when this function returns"_v,
-                   source);
-        }
-    }
-}
-
-void checkMaterializedBorrows(Analysis& analysis) {
-    for(Size l = 0; l < analysis.localCount; l++) {
-        auto slot = analysis.function.localAt(analysis.local, U32(l));
-        if(!slot.materialized || !analysis.escaped[l]) continue;
-
-        auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
-
-        report(analysis, "cannot borrow this beyond the call - the callee declared a wider type than the field has, so what it receives is a temporary written back when the call returns, and this callee keeps it. Declare the parameter at the field's own type"_v,
-               source);
-    }
-}
-
-/*
- * A class function's borrowed parameters, which may not outlive the call either.
- *
- * The general form of the rule below, and the same division of labour: a call site that selected
- * the instance reads this body's summary and is told exactly what it kept, and a call site that
- * *deferred* the dispatch has only the class signature to read - so what it believes instead is the
- * declaration, and this is what makes the declaration true of every implementation. See
- * assumedRetained in analyze_escape.cpp, which is the assumption this pays for.
- *
- * `->` is both the escape hatch and the answer to the diagnostic. A member that has to store what
- * it is given asks for it by value, which is what `IndexInsert.insertAt` already does: "an insert
- * that misses stores it, and storage that outlives the call cannot be borrowed".
- *
- * A class *default* is held to it as well, and has to be: an instance that supplies no
- * implementation puts the default in the slot, so a deferred dispatch reaches it exactly as it
- * reaches a written one. See Function::classDefault.
- */
-void checkClassBorrows(Analysis& analysis) {
+static DeclaredExtent declaredParameterExtent(Analysis& analysis, U16 index) {
     auto& function = analysis.function;
-    if(!function.instanceOf && !function.classDefault) return;
+
+    if(function.classContinuation && index + 1 == function.args.size()) {
+        return DeclaredExtent::Continuation;
+    }
+
+    // A class *default* is held to the rule as well, and has to be: an instance that supplies no
+    // implementation puts the default in the slot, so a deferred dispatch reaches it exactly as it
+    // reaches a written one. See Function::classDefault.
+    if(function.instanceOf || function.classDefault) return DeclaredExtent::Parameter;
+
+    return DeclaredExtent::None;
+}
+
+// The parameters a declaration promised would not be retained, and were.
+static void checkDeclaredExtents(Analysis& analysis) {
+    auto& function = analysis.function;
+    if(!function.instanceOf && !function.classDefault && !function.classContinuation) return;
+
+    U16 index = 0;
 
     for(auto argPointer: function.args.contents(analysis.local)) {
         auto arg = analysis.local[argPointer];
-        if(arg->convention == ast::BindType::Sink) continue;
+        auto kind = declaredParameterExtent(analysis, index);
+        index++;
+
+        // `->` is both the escape hatch and the answer to the diagnostic: a member that has to
+        // store what it is given asks for it by value. A continuation has no such hatch, which is
+        // why it is a separate sentence rather than a separate check.
+        if(kind == DeclaredExtent::None || arg->convention == ast::BindType::Sink) continue;
 
         auto slot = backingLocal(analysis, (ModulePtr<Value>)argPointer);
         if(slot == maxLimit<U32> || !analysis.escaped[slot]) continue;
 
-        report(analysis, "this implements a class function, so it cannot keep %@ beyond the call - a call in a generic body cannot see which implementation runs, and takes the declaration's word that a borrowed argument's extent is the call. Declare the parameter `->` if the body has to store what it is given"_v,
-               arg->source, analysis.context.findName(arg->name));
+        if(kind == DeclaredExtent::Continuation) {
+            report(analysis, "this implements a class %@, so its continuation cannot outlive the call - a `for` loop in a generic body cannot see which implementation runs, and takes the declaration's word that the continuation is called rather than stored"_v,
+                   arg->source,
+                   function.funKind == ast::FunKind::Iter ? "`iter fn`"_v : "`lens fn`"_v);
+        } else {
+            report(analysis, "this implements a class function, so it cannot keep %@ beyond the call - a call in a generic body cannot see which implementation runs, and takes the declaration's word that a borrowed argument's extent is the call. Declare the parameter `->` if the body has to store what it is given"_v,
+                   arg->source, analysis.context.findName(arg->name));
+        }
     }
 }
 
 /*
- * A class iterator's continuation, which may not outlive the call.
+ * One escaped local, and what this frame was keeping it valid with.
  *
- * The one rule a deferred dispatch cannot check for itself, checked instead everywhere it has to
- * hold - see Function::classContinuation. Every other retained argument is a fact a caller reads
- * off this body's summary; this one is a fact the *class* promises on behalf of implementations no
- * caller can see, so it is a rule about the implementation rather than a report about a call.
- *
- * The continuation is the last parameter, always: the desugaring appends it, so an implementation
- * cannot have written one of its own after it.
+ * The three flags are mutually exclusive by construction - a closure environment is not a view and a
+ * view is not a materialized temporary - so the order they are tested in is a formality rather than
+ * a precedence, and the early returns say that rather than implying a fallthrough that cannot
+ * happen.
  */
-void checkContinuationExtent(Analysis& analysis) {
-    auto& function = analysis.function;
-    if(!function.classContinuation || function.args.size() == 0) return;
-
-    auto index = function.args.size() - 1;
-    auto argument = function.args.get(analysis.local, index);
-    auto slot = backingLocal(analysis, (ModulePtr<Value>)argument);
-
-    if(slot == maxLimit<U32> || !analysis.escaped[slot]) return;
-
-    report(analysis, "this implements a class %@, so its continuation cannot outlive the call - a `for` loop in a generic body cannot see which implementation runs, and takes the declaration's word that the continuation is called rather than stored"_v,
-           analysis.local[argument]->source,
-           function.funKind == ast::FunKind::Iter ? "`iter fn`"_v : "`lens fn`"_v);
-}
-
-void checkClosureEnvironments(Analysis& analysis) {
+static void checkFrameExtent(Analysis& analysis, Size local) {
     auto global = analysis.global;
+    auto slot = analysis.function.localAt(analysis.local, U32(local));
+    auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
 
-    for(Size l = 0; l < analysis.localCount; l++) {
-        auto slot = analysis.function.localAt(analysis.local, U32(l));
-        if(!slot.closureEnv || !analysis.escaped[l]) continue;
-        if(!slot.type || global[slot.type]->kind != Type::Tup) continue;
+    /*
+     * The one borrow that is still a temporary, escaping.
+     *
+     * A `&` argument whose declared type is wider than the field's - `increment(&x: Int)` given a
+     * `@bits(13)` field - is widened into a temporary and narrowed back when the call returns,
+     * because a reference cannot convert. That is right for a callee that reads and writes through
+     * it and wrong for one that keeps it: the temporary dies with the frame, and nothing would ever
+     * narrow.
+     *
+     * Nothing about packing is left in this check. A borrow of a narrow field at its *own* type is a
+     * reference that carries the field's shift, works wherever the field is, and outlives whatever
+     * it likes - see NarrowRef in resolve/lower.cpp. What is reported here is a conversion with
+     * nowhere to happen, and the fix is in the signature.
+     */
+    if(slot.materialized) {
+        report(analysis, "cannot borrow this beyond the call - the callee declared a wider type than the field has, so what it receives is a temporary written back when the call returns, and this callee keeps it. Declare the parameter at the field's own type"_v,
+               source);
+        return;
+    }
 
-        auto source = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
+    /*
+     * A slice may not outlive the container it is a view of - Implementation-Containers.md §4.
+     *
+     * The descriptor holds a `%T` into the run, and a raw pointer is outside the ownership model by
+     * construction, so nothing about the *fields* of a slice says it refers to anything. What says
+     * so is Local::viewOf, written where the descriptor was built out of an owned array, and this is
+     * the check that spends it: the slice escaped this frame while the array it points into is this
+     * frame's, so the frame is about to run that array's teardown and free the run underneath it.
+     *
+     * Precise rather than provenance-shaped, deliberately. Asking "does the returned value contain a
+     * borrow" would have to go through the containment relation, which is field-insensitive - so a
+     * record holding both an owned array and a slice would be rejected for the owned half. This asks
+     * about the slice's own slot and nothing else, and a slice's slot is only ever a view when this
+     * frame made it one.
+     *
+     * A slice that came *in* as a parameter has no `viewOf` and is not reported here: what it refers
+     * to is the caller's, and whether the caller may hand it on is the caller's own return-root
+     * check.
+     */
+    if(slot.viewOf != maxLimit<U32>) {
+        auto viewed = analysis.function.localAt(analysis.local, viewedRoot(analysis, slot.viewOf));
 
+        /*
+         * A view of a *parameter's* container is the return-root check's business, not this one's.
+         *
+         * What this is about is a container this frame owns and is about to tear down; a parameter's
+         * is the caller's, outlives the call, and is exactly what
+         * `fn elements(return self: Array(a)) -> '[a]` hands a view of -
+         * Implementation-Containers.md §5. Whether *this* signature is allowed to hand it back is
+         * one question with one answer, and checkReturnRoots is where it is asked: deriveSummary
+         * walks the same `viewOf` chain, so a view of an argument the signature did not mark
+         * `return` is reported there and naming the argument. A sunk parameter is not exempt - the
+         * callee owns what it was given, so its teardown is this frame's like any other local's.
+         */
+        auto owner = viewed.value && analysis.local[viewed.value]->kind == Value::Arg
+            ? (Arg*)analysis.local[viewed.value] : nullptr;
+
+        if(owner && owner->convention != ast::BindType::Sink) return;
+
+        auto viewSource = slot.value ? analysis.local[slot.value]->source : analysis.function.source;
+
+        if(viewed.name) {
+            report(analysis, "this borrow of %@ outlives the frame that owns it - a slice is a view into the container's storage, and the container is released when this function returns"_v,
+                   viewSource, analysis.context.findName(viewed.name));
+        } else {
+            report(analysis, "this borrow of an array outlives the frame that owns it - a slice is a view into the container's storage, and the container is released when this function returns"_v,
+                   viewSource);
+        }
+
+        return;
+    }
+
+    /*
+     * A closure that outlives the frame cannot hold a borrow of it.
+     *
+     * Design-Memory §8's third case says a closure that must outlive the frame that built it has to
+     * own what it captures, and this is where that is checked: the environment escaped, so anything
+     * in it that is a `&T` names storage this frame is about to stop guaranteeing. The capture
+     * conventions are chosen before any of this is known - a capture is decided at the name that
+     * made it, and whether the closure escapes is a whole-function fact - so the two meet here
+     * rather than at the lambda.
+     *
+     * A closure that is merely *called* does not trip this. Nothing marks the environment escaped at
+     * an InstCallDyn, deliberately: a lifted body has no way to name its own environment, so it
+     * cannot store one, and treating every call as a handover would reject every closure that is
+     * used.
+     */
+    if(slot.closureEnv && slot.type && global[slot.type]->kind == Type::Tup) {
         for(auto field: ((TupType*)global[slot.type])->fields.contents(global)) {
             /*
              * A captured slice is a captured reference - see isBorrowLike - and it is reported
@@ -980,4 +1026,12 @@ void checkClosureEnvironments(Analysis& analysis) {
             }
         }
     }
+}
+
+void checkLoanExtents(Analysis& analysis) {
+    for(Size l = 0; l < analysis.localCount; l++) {
+        if(analysis.escaped[l]) checkFrameExtent(analysis, l);
+    }
+
+    checkDeclaredExtents(analysis);
 }

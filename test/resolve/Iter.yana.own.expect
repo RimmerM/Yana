@@ -5,7 +5,7 @@ fn teardown$none {
 fn sum {
   arg n readonly
   %total: Int writable live [0, 12)
-  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local1: {total: &Int} closure writable addressed live [2, 10)
   %local2: (value$: Int) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
@@ -13,7 +13,7 @@ fn sum {
 fn odds {
   arg n readonly
   %total: Int writable live [0, 12)
-  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local1: {total: &Int} closure writable addressed live [2, 10)
   %local2: (value$: Int) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
@@ -21,7 +21,7 @@ fn odds {
 fn upToFive {
   arg n readonly
   %total: Int writable live [0, 12)
-  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local1: {total: &Int} closure writable addressed live [2, 10)
   %local2: (value$: Int) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
@@ -38,7 +38,7 @@ fn firstOverOrCount {
   arg n readonly
   arg bound readonly
   %seen: Int writable live [0, 20) [22, 24)
-  %local1: {bound: Int, seen: &mut Int} closure writable addressed live [2, 11)
+  %local1: {bound: Int, seen: &Int} closure writable addressed live [2, 11)
   %local2: (value$: Int) -> Outcome((), Outcome((), Int)) droppable readonly live [7, 12)
   %local3: Outcome((), Outcome((), Int)) readonly live [11, 19) [20, 21)
 }
@@ -47,7 +47,7 @@ fn grid {
   arg rows readonly
   arg columns readonly
   %total: Int writable live [0, 13)
-  %local1: {columns: Int, total: &mut Int} closure writable addressed live [2, 11)
+  %local1: {columns: Int, total: &Int} closure writable addressed live [2, 11)
   %local2: (value$: Int) -> Outcome((), ()) droppable readonly live [7, 12)
   %local3: Outcome((), ()) readonly live [11, 12)
 }
@@ -55,17 +55,17 @@ fn grid {
 fn corners_ {
   arg n readonly
   %total: Int writable live [0, 12)
-  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local1: {total: &Int} closure writable addressed live [2, 10)
   %local2: (value$: {x: Int, y: Int}) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
 
 fn generic {
   %total: Int writable live [0, 21)
-  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local1: {total: &Int} closure writable addressed live [2, 10)
   %local2: (value$: Int) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
-  %local4: {total: &mut Int} closure writable addressed live [11, 19)
+  %local4: {total: &Int} closure writable addressed live [11, 19)
   %local5: (value$: Bool) -> Outcome((), ()) droppable readonly live [15, 20)
   %local6: Outcome((), ()) readonly live [19, 20)
 }
@@ -90,7 +90,7 @@ fn firstPairOver {
 fn withLens {
   arg n readonly
   %total: Int writable live [0, 12)
-  %local1: {total: &mut Int} closure writable addressed live [2, 10)
+  %local1: {total: &Int} closure writable addressed live [2, 10)
   %local2: (value$: Int) -> Outcome((), ()) droppable readonly live [6, 11)
   %local3: Outcome((), ()) readonly live [10, 11)
 }
@@ -184,7 +184,7 @@ fn upTo(Outcome((), Int)) {
 fn ResolveTest.continuation$20 {
   arg env readonly
   arg value$ readonly
-  %local0: {total: &mut Int, r: Int} closure writable addressed live [1, 11)
+  %local0: {total: &Int, r: Int} closure writable addressed live [1, 11)
   %local1: (value$: Int) -> Outcome((), ()) droppable readonly live [7, 12)
   %local2: Outcome((), ()) readonly live [11, 12)
   %local3: Outcome((), ()) readonly live [12, 15)
@@ -279,7 +279,7 @@ fn upTo(Pair) {
 fn ResolveTest.continuation$27 {
   arg env readonly
   arg value$ readonly
-  %local0: {total: &mut Int, x: Int} closure writable addressed live [0, 10)
+  %local0: {total: &Int, x: Int} closure writable addressed live [0, 10)
   %local1: (value$: Int) -> () droppable readonly live [6, 11)
   %local2: Outcome((), ()) readonly live [11, 14)
 }

@@ -30,7 +30,7 @@ fn replace(&slot: Pair, ->with: Pair) -> {}:
 
 -- A borrow in the result, rooted in a parameter the signature marked. Not surprising, deliberately:
 -- it is written down, and a report that flagged it would be flagging the signature.
-fn borrowed(return p: Pair) -> &I64 = p.left
+fn borrowed(return p: Pair) -> 'I64 = p.left
 
 -- Storage. The annotation is what forces it here, but the interesting case is the one where escape
 -- analysis chooses the heap and nothing in the source says so; both produce this row.

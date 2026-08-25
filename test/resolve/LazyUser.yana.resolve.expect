@@ -304,8 +304,8 @@ fn mutableCapture() -> Int {
     %v4 = load %n : Int
     %v7 = add %v4, 40 : Int
     assign %n, %v7
-    %v10 = alloc : {n: &mut Int}
-    %v11 = borrow_mut %n : &mut Int
+    %v10 = alloc : {n: &Int}
+    %v11 = borrow_mut %n : &Int
     init %local1.n, %v11
     %v13 = addressof %local1 : %()
     %v14 = alloc : () -> Int
@@ -777,9 +777,9 @@ fn ResolveTest.deferred$15(%env: %{n: Int}) -> Int {
     ret %v4
 }
 
-fn ResolveTest.deferred$16(%env: %{n: &mut Int}) -> Int {
+fn ResolveTest.deferred$16(%env: %{n: &Int}) -> Int {
   b0:
-    %v1 = load [%env].n : &mut Int
+    %v1 = load [%env].n : &Int
     %v2 = load [%v1] : Int
     %v5 = mul %v2, 2 : Int
     ret %v5

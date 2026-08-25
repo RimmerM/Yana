@@ -42,10 +42,10 @@ fn middle(xs: [Int]) -> Int = total(xs[1..3])
    table: a field's default is ownership, and a binding's is a borrow.
 
    This is the shape zero-copy parsing is written in - Design-Memory §5.3's
-   `data Parser {input: &String, pos: Int}` with an array in it - and it needs no lifetime parameter
+   `data Parser {input: 'String, pos: Int}` with an array in it - and it needs no lifetime parameter
    on the record, because ordinary last-use liveness is what keeps the source alive.
 -}
-data Cursor {items: &[Int], at: Int}
+data Cursor {items: '[Int], at: Int}
 
 fn atCursor(c: Cursor) -> Int = c.items[c.at]
 

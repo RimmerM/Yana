@@ -160,7 +160,6 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind
 static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEnv* env, LocationId source) {
     auto parseBase = module.parse;
     SmallArray<FunArg, 8> args;
-    auto allRootsMutable = true;
     auto roots = 0u;
     auto written = 0u;
     U32 index = 0;
@@ -180,7 +179,6 @@ static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEn
             if(checkReturnRoot(module, arg.type, declared.bind, index, source)) {
                 arg.returnRoot = true;
                 roots++;
-                if(declared.bind != ast::BindType::Ref) allRootsMutable = false;
             }
         }
 
@@ -190,13 +188,9 @@ static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEn
 
     auto result = resolveType(module, type.ret, env);
 
-    if(isBorrow(*module.types, result)) {
-        if(!roots && !written) {
-            module.context.diagnostics.error("a function type returning a borrow must mark the argument it is rooted in with `return`"_v,
-                                             source);
-        } else if(roots) {
-            result = applyReturnRootMutability(module, result, allRootsMutable);
-        }
+    if(isBorrow(*module.types, result) && !roots && !written) {
+        module.context.diagnostics.error("a function type returning a borrow must mark the argument it is rooted in with `return`"_v,
+                                         source);
     }
 
     return resolveFunType(module, toBuffer(args), result, type.kind);
@@ -1070,28 +1064,42 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
 
             return instantiateRecord(module, module.program.mapType, { args, 2 }, type.source);
         }
-        case ast::Type::Borrow: {
+        /*
+         * The two reference capabilities, which differ in this and in nothing else -
+         * Analysis-Borrows.md §3.2.
+         *
+         * `&T` is exclusive and writable; `'T` is shared. Both are written on the type, which is
+         * the whole point of having two: the result of `Index.get` and the result of `Index.getMut`
+         * used to be the same written type, and which of the two a caller actually got was decided
+         * afterwards by `applyReturnRootMutability` reading the return-root group. A signature that
+         * does not say what it hands back is not a signature, and a reference nested inside
+         * `Maybe`, a field or a generic argument had no way to be promoted at all.
+         *
+         * `&` therefore means the same thing everywhere it appears - a parameter binding, a local
+         * binding, a stored reference - and there is no `mut` keyword anywhere.
+         */
+        case ast::Type::Borrow:
+        case ast::Type::Shared: {
             auto to = resolveType(module, *module.parse[type.to], env);
+            auto mut = type.kind == ast::Type::Borrow;
 
             /*
-             * `&[T]` is a slice - Implementation-Containers.md §4.2.
+             * `'[T]` is a slice - Implementation-Containers.md §4.2.
              *
              * A field has only a type, so this is the spelling a *stored* borrow of a container has,
              * and what is stored is the descriptor rather than an address of the owner. It is the
              * shape zero-copy parsing is written in - Design-Memory §5.3's
-             * `data Parser {input: &String, pos: Int}` with an array in it - and it is tracked by
+             * `data Parser {input: 'String, pos: Int}` with an array in it - and it is tracked by
              * ordinary last-use liveness with no lifetime parameter on the record.
              *
-             * There is deliberately no spelling for a stored *mutable* slice: a field has no
-             * return-root group to confer exclusivity, which is the existing borrow model's rule
-             * rather than anything about arrays.
+             * `&[T]` reaches the same type, and that is a representation gap rather than a ruling:
+             * §4.5 wants a shared and an exclusive slice to differ in capability exactly as direct
+             * references do, and a slice descriptor has nowhere to carry the bit yet. Until it does,
+             * the exclusive spelling is accepted and silently means the shared one.
              */
             if(auto slice = sliceOf(module, to)) return slice;
 
-            // Immutable until the signature it belongs to says otherwise: what makes a returned
-            // borrow exclusive is the return-root group being entirely `return &`, which is not
-            // known until every argument of the declaration has been read.
-            return resolveBorrowType(module, to, false);
+            return resolveBorrowType(module, to, mut);
         }
         case ast::Type::Fun:
             return resolveFunTypeAst(module, *module.parse[type.fun], env, type.source);
@@ -1164,11 +1172,6 @@ bool checkReturnRoot(Module& module, TypePtr type, ast::BindType convention, U32
     }
 
     return true;
-}
-
-TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsMutable) {
-    if(!allRootsMutable || !isBorrow(*module.types, result)) return result;
-    return resolveBorrowType(module, ((BorrowType*)(*module.types)[result])->to, true);
 }
 
 TypePtr inferredArrayType(Module& module, const ast::Type& written, const ast::Expr& value,

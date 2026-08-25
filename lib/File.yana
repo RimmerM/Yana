@@ -713,7 +713,7 @@ fn entryKindByte(kind: EntryKind) -> U8 = truncate(valueOf(kind)) :: U8
 -- Where a record's name starts. The head is a record and the name is not a field of it - its length
 -- is a scan rather than a number the head carries - so this is the one piece of address arithmetic a
 -- variable-length record costs.
-fn nameStart(record: %DirectoryRecord) -> %U8 = (bitcast(record) :: %U8) + entryNameOffset
+fn nameStart(return record: %DirectoryRecord) -> %U8 = (bitcast(record) :: %U8) + entryNameOffset
 
 -- The name out of one record: NUL-terminated inside the record, so its length is a scan rather than
 -- a field. `d_reclen` covers the padding after it, which is why it cannot be used as the length.

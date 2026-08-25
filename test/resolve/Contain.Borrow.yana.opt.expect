@@ -39,7 +39,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b6:
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -590,7 +590,7 @@ fn around() -> Int {
     %v0 = alloc : Flags
     init %f@Flags.read, False
     init %f@Flags.write, True
-    %v16 = borrow %f : &Flags
+    %v16 = borrow_mut %f : &Flags
     %handed = call mutate, %v16 : Int
     %v19 = load %f@Flags.read : Bool
     %after = select %v19 ? 100 : 200 : Int
@@ -711,7 +711,7 @@ fn fill(%n: Int) -> Int {
     je %v105, b16, b15
 
   b15:
-    %v107 = borrow_mut %xs : &mut Array(Int)
+    %v107 = borrow_mut %xs : &Array(Int)
     call growArray(Int), %v107, %v102
     jmp b17
 
@@ -748,7 +748,7 @@ fn main() -> Int {
   b0:
     %v5 = alloc : Flags
     init %f@Flags.read:unit8, 2
-    %v10 = borrow %f : &Flags
+    %v10 = borrow_mut %f : &Flags
     %handed = call mutate, %v10 : Int
     %v37 = load %f@Flags.read:unit8 : U32
     %v39 = and %v37, 1 : U32

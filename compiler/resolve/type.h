@@ -1713,10 +1713,6 @@ bool checkLazyArgument(Module& module, ast::BindType convention, bool returnRoot
 // written function type, so that a contract means the same thing in both places.
 bool checkReturnRoot(Module& module, TypePtr type, ast::BindType convention, U32 index, LocationId source);
 
-// The result type of a function whose group is `roots`: `&T` becomes `&mut T` exactly when every
-// member of the group it may be rooted in is itself a `return &`. See resolveSignature.
-TypePtr applyReturnRootMutability(Module& module, TypePtr result, bool allRootsMutable);
-
 // Instantiates a generic record for a set of fully concrete arguments, interning the result so
 // that `Maybe(Int)` names one type no matter how many places write it.
 TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> record, Buffer<TypePtr> args, LocationId source);

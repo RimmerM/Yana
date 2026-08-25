@@ -37,11 +37,11 @@ fn moveBy(%p: Point, %dx: Int, %dy: Int) -> () {
   b0:
     %v3 = load %p : Point
     %v4 = load %p@Point.x : Int
-    %v5 = borrow_mut %p@Point.x : &mut Int
+    %v5 = borrow_mut %p@Point.x : &Int
     call +=(Int), %v5, %dx
     %v7 = load %p : Point
     %v8 = load %p@Point.y : Int
-    %v9 = borrow_mut %p@Point.y : &mut Int
+    %v9 = borrow_mut %p@Point.y : &Int
     call +=(Int), %v9, %dy
     ret
 }
@@ -59,13 +59,13 @@ fn main() -> Int {
     %total = alloc : Int
     init %total, 0
     %v3 = load %total : Int
-    %v5 = borrow_mut %total : &mut Int
+    %v5 = borrow_mut %total : &Int
     call bump, %v5, 5
     %v7 = load %total : Int
-    %v10 = borrow_mut %total : &mut Int
+    %v10 = borrow_mut %total : &Int
     call +=(Int), %v10, 3
     %v12 = load %total : Int
-    %v15 = borrow_mut %total : &mut Int
+    %v15 = borrow_mut %total : &Int
     call *=(Int), %v15, 2
     %left = alloc : Int
     init %left, 1
@@ -73,17 +73,17 @@ fn main() -> Int {
     init %right, 2
     %v23 = load %left : Int
     %v24 = load %right : Int
-    %v25 = borrow_mut %left : &mut Int
-    %v26 = borrow_mut %right : &mut Int
+    %v25 = borrow_mut %left : &Int
+    %v26 = borrow_mut %right : &Int
     call swap, %v25, %v26
     %v28 = alloc : Point
     aggregate %here@Point.x = 10, %here@Point.y = 20
     %v32 = load %here : Point
-    %v35 = borrow_mut %here : &mut Point
+    %v35 = borrow_mut %here : &Point
     call moveBy, %v35, 1, 2
     %v37 = load %total : Int
     %v38 = load %total : Int
-    %v39 = borrow_mut %total : &mut Int
+    %v39 = borrow_mut %total : &Int
     call copyThroughBorrow, %v39, %v38
     %v41 = load %total : Int
     %v42 = load %left : Int

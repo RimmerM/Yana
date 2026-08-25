@@ -174,15 +174,15 @@ pub fn slots(return self: Run(a)) -> %a = self.items
    **Generated rather than written, and this is what they would say if they were written:**
 
        @platform(native) instance Index(Flat(a), Size, a):
-           fn get(return self: Flat(a), index: Size) -> &a = borrow(self.items + index)
+           fn get(return self: Flat(a), index: Size) -> 'a = borrow(self.items + index)
            fn getMut(return &self: Flat(a), index: Size) -> &a = borrowMut(self.items + index)
 
        @platform(js) instance Index(Flat(a), Size, a):
-           fn get(return self: Flat(a), index: Size) -> &a = hostAt(self.items, self.offset + index)
+           fn get(return self: Flat(a), index: Size) -> 'a = hostAt(self.items, self.offset + index)
            fn getMut(return &self: Flat(a), index: Size) -> &a = hostAtMut(self.items, self.offset + index)
 
        instance Index(%a, I64, a):
-           fn get(return self: %a, index: I64) -> &a = borrow(self + index)
+           fn get(return self: %a, index: I64) -> 'a = borrow(self + index)
            fn getMut(return &self: %a, index: I64) -> &a = borrowMut(self + index)
 
    Each of those is one address computation with nothing behind it, and every one of them is

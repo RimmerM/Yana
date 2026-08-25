@@ -256,7 +256,7 @@ fn main() -> I64 {
 fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {
   b0:
     %v2 = load sinkCalls : I64
-    %v5 = borrow_mut sinkCalls : &mut I64
+    %v5 = borrow_mut sinkCalls : &I64
     gencall env genEnv$+=(I64) +=(I64), %v5, 1
     %v7 = load %from@Handle.value : I64
     assign %to@Handle.value, %v7

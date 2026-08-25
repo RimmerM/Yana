@@ -345,7 +345,7 @@ fn freeHeap(%allocation: %U8) -> () {
 fn makeBuffer(%size: Size) -> Buffer {
   b0:
     %v1 = load liveBuffers : I64
-    %v4 = borrow_mut liveBuffers : &mut I64
+    %v4 = borrow_mut liveBuffers : &I64
     call +=(I64), %v4, 1
     %v6 = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
@@ -414,7 +414,7 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     %v1 = load %value@Buffer.bytes : %U8
     call freeHeap, %v1
     %v3 = load liveBuffers : I64
-    %v6 = borrow_mut liveBuffers : &mut I64
+    %v6 = borrow_mut liveBuffers : &I64
     call -=(I64), %v6, 1
     ret
 }

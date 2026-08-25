@@ -35,8 +35,8 @@ fn checkCondition(%failed: Bool) -> () {
 
 fn String.unit(%self: String, %index: Size) -> Int {
   b0:
-    %v2 = borrow %self : &String
-    %v3 = cast %v2 : &StringData
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'StringData
     %v4 = load [%v3]@StringData.bytes : Array(CodeUnit)
     %v5 = load [%v3]@StringData.bytes@Array.run : Run(CodeUnit)
     %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %CodeUnit
@@ -73,19 +73,19 @@ fn String.ofCapacity(%capacity: Size) -> String {
 fn String.pushUnit(%self: String, %unit: Int) -> () {
   b0:
     %v2 = load %self : String
-    %v3 = borrow_mut %self : &mut String
-    %v4 = cast %v3 : &mut StringData
+    %v3 = borrow_mut %self : &String
+    %v4 = cast %v3 : &StringData
     %v5 = load [%v4]@StringData.bytes : Array(CodeUnit)
     %v6 = cast %unit : CodeUnit
-    %v7 = borrow_mut [%v4]@StringData.bytes : &mut Array(CodeUnit)
+    %v7 = borrow_mut [%v4]@StringData.bytes : &Array(CodeUnit)
     call push(CodeUnit), %v7, %v6
     ret
 }
 
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int
@@ -95,8 +95,8 @@ fn Length(String).length(%self: String) -> Size {
 
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
-    %v1 = borrow %value : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4
@@ -120,7 +120,7 @@ fn reserve(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(CodeUnit)
-    %v11 = borrow_mut %self : &mut Array(CodeUnit)
+    %v11 = borrow_mut %self : &Array(CodeUnit)
     call growArray(CodeUnit), %v11, %wanted
     ret
 }
@@ -161,7 +161,7 @@ fn growArray(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
     %v23 = load %self : Array(CodeUnit)
     %v24 = load %self@Array.run : Run(CodeUnit)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(CodeUnit)
+    %v26 = borrow_mut %self@Array.run : &Run(CodeUnit)
     %v27 = call resize(CodeUnit), %v26, %v25 : Bool
     ret
 }
@@ -173,7 +173,7 @@ fn push(CodeUnit)(%self: Array(CodeUnit), %item: CodeUnit) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(CodeUnit)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(CodeUnit)
+    %v8 = borrow_mut %self : &Array(CodeUnit)
     call reserve(CodeUnit), %v8, %v7
     %v10 = load %self : Array(CodeUnit)
     %v11 = load %self@Array.run : Run(CodeUnit)
@@ -1210,7 +1210,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
 
   b6:
     %v26 = phi [b4, %v22], [b5, 57] : Int
-    %v27 = borrow_mut %kept : &mut String
+    %v27 = borrow_mut %kept : &String
     call String.pushUnit, %v27, %v26
     %v29 = load %i : Int
     %v32 = add %v29, 1 : Int
@@ -1251,7 +1251,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
 
   b13:
     %v69 = load %out : String
-    %v71 = borrow_mut %out : &mut String
+    %v71 = borrow_mut %out : &String
     call String.pushUnit, %v71, 49
     %zeros = alloc : Int
     init %zeros, 0
@@ -1271,7 +1271,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
 
   b17:
     %v80 = load %out : String
-    %v82 = borrow_mut %out : &mut String
+    %v82 = borrow_mut %out : &String
     call String.pushUnit, %v82, 48
     %v84 = load %zeros : Int
     %v87 = add %v84, 1 : Int
@@ -1297,7 +1297,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     %v103 = load %i : Int
     %v104 = cast %v103 : Size
     %v105 = call String.unit, %v102, %v104 : Int
-    %v106 = borrow_mut %out : &mut String
+    %v106 = borrow_mut %out : &String
     call String.pushUnit, %v106, %v105
     %v108 = load %i : Int
     %v111 = add %v108, 1 : Int
@@ -1392,7 +1392,7 @@ fn main() -> Int {
     %v8 = symbol ResolveTest.string$0 : %CodeUnit
     %v10 = call stringLiteral, %v8, 2 : String
     %v12 = load %out : String
-    %v13 = borrow_mut %out : &mut String
+    %v13 = borrow_mut %out : &String
     %v14 = call withAnd, %v10, 2, %v13 : Int
     %v15 = add %v7, %v14 : Int
     assign %total, %v15
@@ -1400,7 +1400,7 @@ fn main() -> Int {
     %v18 = symbol ResolveTest.string$1 : %CodeUnit
     %v20 = call stringLiteral, %v18, 2 : String
     %v22 = load %out : String
-    %v23 = borrow_mut %out : &mut String
+    %v23 = borrow_mut %out : &String
     %v24 = call withAnd, %v20, 2, %v23 : Int
     %v25 = add %v17, %v24 : Int
     assign %total, %v25

@@ -122,10 +122,12 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             return;
         }
         case Type::Borrow:
-            // `&T` is how a borrow is written; `&mut T` is a printed form rather than a source one,
-            // since what makes a returned borrow mutable is the group it is rooted in rather than
-            // anything written on the result - see resolveSignature.
-            target << (((BorrowType*)base[type])->mut ? "&mut " : "&");
+            // Both spellings are source forms now, and each says its own capability: `&T` is the
+            // exclusive writable reference and `'T` the shared one - Analysis-Borrows.md §3.2.
+            // There was one written form and a printed `&mut T` that no program could type, because
+            // what made a result exclusive was the group it was rooted in rather than anything on
+            // the result itself.
+            target << (((BorrowType*)base[type])->mut ? "&" : "'");
             describeType(context, base, ((BorrowType*)base[type])->to, target);
             return;
         case Type::Float:

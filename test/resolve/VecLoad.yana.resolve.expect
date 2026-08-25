@@ -503,7 +503,7 @@ fn fill(%xs: Flat(Int), %value: Int) -> () {
     %v29 = load %xs : Flat(Int)
     %v30 = load %i : Int
     %v31 = cast %v30 : Size
-    %v32 = borrow_mut %xs : &mut Flat(Int)
+    %v32 = borrow_mut %xs : &Flat(Int)
     %v33 = load [%v32]@Flat.length : Size
     %v34 = cast %v31 : USize
     %v35 = cast %v33 : USize
@@ -513,7 +513,7 @@ fn fill(%xs: Flat(Int), %value: Int) -> () {
     %v39 = strideof Int : Long
     %v40 = mul %v31, %v39 : Long
     %v41 = add %v38, %v40 : %Int
-    %v42 = borrow_mut [%v41] : &mut Int
+    %v42 = borrow_mut [%v41] : &Int
     assign [%v42], %value
     %v44 = load %i : Int
     %v47 = add %v44, 1 : Int
@@ -556,16 +556,16 @@ fn main() -> Int {
     aggregate [%v89][0] = 0, [%v89][1] = 0, [%v89][2] = 0, [%v89][3] = 0, [%v89][4] = 0, [%v89][5] = 0, [%v89][6] = 0
     init %target@Array.length, 7
     %v104 = load %target : Array(Int)
-    %v106 = borrow_mut %target : &mut Array(Int)
+    %v106 = borrow_mut %target : &Array(Int)
     %v107 = alloc : Flat(Int)
     %v108 = load [%v106]@Array.run@Run.items : %Int
     init %local8@Flat.items, %v108
     %v110 = load [%v106]@Array.length : @bits(30) U32
     %v111 = cast %v110 : Size
     init %local8@Flat.length, %v111
-    %v113 = borrow_mut %local8 : &mut Flat(Int)
+    %v113 = borrow_mut %local8 : &Flat(Int)
     call fill, %v113, 3
-    %v115 = borrow %local0 : &Array(Int)
+    %v115 = borrow %local0 : 'Array(Int)
     %ints = alloc : Flat(Int)
     %v117 = load [%v115]@Array.run@Run.items : %Int
     init %ints@Flat.items, %v117
@@ -582,7 +582,7 @@ fn main() -> Int {
     init %local10@Array.run@Run.ownsHeap, 0
     aggregate [%v133][0] = 1, [%v133][1] = 2, [%v133][2] = 3
     init %local10@Array.length, 3
-    %v144 = borrow %local10 : &Array(Int)
+    %v144 = borrow %local10 : 'Array(Int)
     %v145 = alloc : Flat(Int)
     %v146 = load [%v144]@Array.run@Run.items : %Int
     init %local12@Flat.items, %v146
@@ -593,14 +593,14 @@ fn main() -> Int {
     drop %local10 reclaim Reclaim(Array(a)).reclaim(Int)
     %v154 = mul %v151, 10000 : Int
     %v155 = add %v125, %v154 : Int
-    %v156 = borrow %local2 : &Array(Float)
+    %v156 = borrow %local2 : 'Array(Float)
     %xs = alloc : Flat(Float)
     %v158 = load [%v156]@Array.run@Run.items : %Float
     init %xs@Flat.items, %v158
     %v160 = load [%v156]@Array.length : @bits(30) U32
     %v161 = cast %v160 : Size
     init %xs@Flat.length, %v161
-    %v163 = borrow %local4 : &Array(Float)
+    %v163 = borrow %local4 : 'Array(Float)
     %ys = alloc : Flat(Float)
     %v165 = load [%v163]@Array.run@Run.items : %Float
     init %ys@Flat.items, %v165
@@ -623,7 +623,7 @@ fn main() -> Int {
     %v181 = phi [b1, 30], [b2, 0] : Int
     %v184 = mul %v181, 100 : Int
     %v185 = add %v155, %v184 : Int
-    %v186 = borrow %local0 : &Array(Int)
+    %v186 = borrow %local0 : 'Array(Int)
     %ints = alloc : Flat(Int)
     %v188 = load [%v186]@Array.run@Run.items : %Int
     init %ints@Flat.items, %v188
@@ -635,7 +635,7 @@ fn main() -> Int {
     %v197 = mul %v194, 10 : Int
     %v198 = add %v185, %v197 : Int
     %v199 = load %target : Array(Int)
-    %v200 = borrow %target : &Array(Int)
+    %v200 = borrow %target : 'Array(Int)
     %v201 = alloc : Flat(Int)
     %v202 = load [%v200]@Array.run@Run.items : %Int
     init %local16@Flat.items, %v202

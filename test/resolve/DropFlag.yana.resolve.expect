@@ -632,7 +632,7 @@ fn main() -> Int {
     init %result, 0
     %v3 = load %result : Int
     %v5 = call replaced, True : Int
-    %v6 = borrow_mut %result : &mut Int
+    %v6 = borrow_mut %result : &Int
     call +=(Int), %v6, %v5
     %v8 = load live : Int
     %v11 = cmp_ne %v8, 0 : Bool
@@ -648,7 +648,7 @@ fn main() -> Int {
   b3:
     %v18 = load %result : Int
     %v20 = call replaced, False : Int
-    %v21 = borrow_mut %result : &mut Int
+    %v21 = borrow_mut %result : &Int
     call +=(Int), %v21, %v20
     %v23 = load live : Int
     %v26 = cmp_ne %v23, 0 : Bool
@@ -664,7 +664,7 @@ fn main() -> Int {
   b6:
     %v33 = load %result : Int
     %v36 = call maybeReplaced, False, False : Int
-    %v37 = borrow_mut %result : &mut Int
+    %v37 = borrow_mut %result : &Int
     call +=(Int), %v37, %v36
     %v39 = load live : Int
     %v42 = cmp_ne %v39, 0 : Bool
@@ -680,7 +680,7 @@ fn main() -> Int {
   b9:
     %v49 = load %result : Int
     %v52 = call maybeReplaced, False, True : Int
-    %v53 = borrow_mut %result : &mut Int
+    %v53 = borrow_mut %result : &Int
     call +=(Int), %v53, %v52
     %v55 = load live : Int
     %v58 = cmp_ne %v55, 0 : Bool
@@ -696,7 +696,7 @@ fn main() -> Int {
   b12:
     %v65 = load %result : Int
     %v68 = call maybeReplaced, True, False : Int
-    %v69 = borrow_mut %result : &mut Int
+    %v69 = borrow_mut %result : &Int
     call +=(Int), %v69, %v68
     %v71 = load live : Int
     %v74 = cmp_ne %v71, 0 : Bool
@@ -712,7 +712,7 @@ fn main() -> Int {
   b15:
     %v81 = load %result : Int
     %v84 = call maybeReplaced, True, True : Int
-    %v85 = borrow_mut %result : &mut Int
+    %v85 = borrow_mut %result : &Int
     call +=(Int), %v85, %v84
     %v87 = load live : Int
     %v90 = cmp_ne %v87, 0 : Bool
@@ -728,7 +728,7 @@ fn main() -> Int {
   b18:
     %v97 = load %result : Int
     %v100 = call nested, True, True : Int
-    %v101 = borrow_mut %result : &mut Int
+    %v101 = borrow_mut %result : &Int
     call +=(Int), %v101, %v100
     %v103 = load live : Int
     %v106 = cmp_ne %v103, 0 : Bool
@@ -744,7 +744,7 @@ fn main() -> Int {
   b21:
     %v113 = load %result : Int
     %v116 = call nested, True, False : Int
-    %v117 = borrow_mut %result : &mut Int
+    %v117 = borrow_mut %result : &Int
     call +=(Int), %v117, %v116
     %v119 = load live : Int
     %v122 = cmp_ne %v119, 0 : Bool
@@ -760,7 +760,7 @@ fn main() -> Int {
   b24:
     %v129 = load %result : Int
     %v132 = call nested, False, True : Int
-    %v133 = borrow_mut %result : &mut Int
+    %v133 = borrow_mut %result : &Int
     call +=(Int), %v133, %v132
     %v135 = load live : Int
     %v138 = cmp_ne %v135, 0 : Bool
@@ -776,7 +776,7 @@ fn main() -> Int {
   b27:
     %v145 = load %result : Int
     %v147 = call pair, True : Int
-    %v148 = borrow_mut %result : &mut Int
+    %v148 = borrow_mut %result : &Int
     call +=(Int), %v148, %v147
     %v150 = load live : Int
     %v153 = cmp_ne %v150, 0 : Bool
@@ -792,7 +792,7 @@ fn main() -> Int {
   b30:
     %v160 = load %result : Int
     %v162 = call pair, False : Int
-    %v163 = borrow_mut %result : &mut Int
+    %v163 = borrow_mut %result : &Int
     call +=(Int), %v163, %v162
     %v165 = load live : Int
     %v168 = cmp_ne %v165, 0 : Bool
@@ -808,7 +808,7 @@ fn main() -> Int {
   b33:
     %v175 = load %result : Int
     %v178 = call heaped, False, False : Int
-    %v179 = borrow_mut %result : &mut Int
+    %v179 = borrow_mut %result : &Int
     call +=(Int), %v179, %v178
     %v181 = load live : Int
     %v184 = cmp_ne %v181, 0 : Bool
@@ -824,7 +824,7 @@ fn main() -> Int {
   b36:
     %v191 = load %result : Int
     %v194 = call heaped, True, False : Int
-    %v195 = borrow_mut %result : &mut Int
+    %v195 = borrow_mut %result : &Int
     call +=(Int), %v195, %v194
     %v197 = load live : Int
     %v200 = cmp_ne %v197, 0 : Bool
@@ -840,7 +840,7 @@ fn main() -> Int {
   b39:
     %v207 = load %result : Int
     %v210 = call heaped, True, True : Int
-    %v211 = borrow_mut %result : &mut Int
+    %v211 = borrow_mut %result : &Int
     call +=(Int), %v211, %v210
     %v213 = load live : Int
     %v216 = cmp_ne %v213, 0 : Bool

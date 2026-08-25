@@ -54,10 +54,10 @@ fn order() -> Int {
     %seen = alloc : Int
     init %seen, 0
     %v3 = load %seen : Int
-    %v5 = borrow_mut %seen : &mut Int
+    %v5 = borrow_mut %seen : &Int
     %v6 = call step, %v5, 1 : Int
     %v7 = load %seen : Int
-    %v9 = borrow_mut %seen : &mut Int
+    %v9 = borrow_mut %seen : &Int
     %v10 = call step, %v9, 2 : Int
     %difference = call subtract, %v10, %v6 : Int
     %v12 = load %seen : Int
@@ -70,7 +70,7 @@ fn borrowNamed() -> Int {
     %slot = alloc : Int
     init %slot, 0
     %v4 = load %slot : Int
-    %v5 = borrow_mut %slot : &mut Int
+    %v5 = borrow_mut %slot : &Int
     %digit = call step, %v5, 7 : Int
     %v7 = load %slot : Int
     %v8 = add %v7, %digit : Int
@@ -105,8 +105,8 @@ fn lazyNamed() -> Int {
   b0:
     %ran = alloc : Int
     init %ran, 0
-    %v4 = alloc : {ran: &mut Int}
-    %v5 = borrow_mut %ran : &mut Int
+    %v4 = alloc : {ran: &Int}
+    %v5 = borrow_mut %ran : &Int
     init %local1.ran, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : () -> Int
@@ -206,8 +206,8 @@ fn loops() -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v5 = alloc : {total: &mut Int}
-    %v6 = borrow_mut %total : &mut Int
+    %v5 = alloc : {total: &Int}
+    %v6 = borrow_mut %total : &Int
     init %local1.total, %v6
     %v8 = addressof %local1 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), ())
@@ -215,8 +215,8 @@ fn loops() -> Int {
     init %local2.code, %v10
     init %local2.env, %v8
     %v13 = call upTo(()), 4, 0, %v9 : Outcome((), ())
-    %v16 = alloc : {total: &mut Int}
-    %v17 = borrow_mut %total : &mut Int
+    %v16 = alloc : {total: &Int}
+    %v17 = borrow_mut %total : &Int
     init %local4.total, %v17
     %v19 = addressof %local4 : %()
     %v20 = alloc : (value$: Int) -> Outcome((), ())
@@ -306,11 +306,11 @@ fn Measure(Bool).measure(%it: Bool, %scale: Int) -> Int {
     ret %v6
 }
 
-fn ResolveTest.deferred$15(%env: %{ran: &mut Int}) -> Int {
+fn ResolveTest.deferred$15(%env: %{ran: &Int}) -> Int {
   b0:
-    %v1 = load [%env].ran : &mut Int
+    %v1 = load [%env].ran : &Int
     %v2 = load [%v1] : Int
-    %v3 = borrow_mut [%v1] : &mut Int
+    %v3 = borrow_mut [%v1] : &Int
     %v4 = call counted, %v3 : Int
     ret %v4
 }
@@ -332,10 +332,10 @@ fn ResolveTest.continuation$17(%env: %{}, %value$: Int) -> Int {
     ret %value$
 }
 
-fn ResolveTest.continuation$18(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
@@ -377,10 +377,10 @@ fn upTo(())(%limit: Int, %from: Int, %body: (value$: Int) -> Outcome((), ())) ->
     jmp b1
 }
 
-fn ResolveTest.continuation$19(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$19(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5

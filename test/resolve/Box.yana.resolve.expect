@@ -352,7 +352,7 @@ fn raise(%d: Diagnostics) -> () {
   b0:
     %v1 = load %d : Diagnostics
     %v2 = load %d@Diagnostics.count : Int
-    %v5 = borrow_mut %d@Diagnostics.count : &mut Int
+    %v5 = borrow_mut %d@Diagnostics.count : &Int
     call +=(Int), %v5, 1
     ret
 }
@@ -369,7 +369,7 @@ fn mutated() -> Int {
     init %c@Config.cold.*, %v2
     %v11 = load %c : Config
     %v12 = load %c@Config.cold.* : Diagnostics
-    %v13 = borrow_mut %c@Config.cold.* : &mut Diagnostics
+    %v13 = borrow_mut %c@Config.cold.* : &Diagnostics
     call raise, %v13
     %v15 = load %c : Config
     %v16 = load %c@Config.cold.* : Diagnostics
@@ -438,8 +438,8 @@ fn throughLens() -> Int {
     init %c@Config.cold, %v8
     init %c@Config.cold.*, %v2
     %v11 = load %c : Config
-    %v12 = alloc : {c: &mut Config}
-    %v13 = borrow_mut %c : &mut Config
+    %v12 = alloc : {c: &Config}
+    %v13 = borrow_mut %c : &Config
     init %local3.c, %v13
     %v15 = addressof %local3 : %()
     %v16 = alloc : (value$: Int) -> Int
@@ -489,9 +489,9 @@ fn main() -> Int {
     ret %v22
 }
 
-fn ResolveTest.continuation$15(%env: %{c: &mut Config}, %value$: Int) -> Int {
+fn ResolveTest.continuation$15(%env: %{c: &Config}, %value$: Int) -> Int {
   b0:
-    %v2 = load [%env].c : &mut Config
+    %v2 = load [%env].c : &Config
     %v3 = load [%v2] : Config
     %v4 = load [%v2]@Config.cold.* : Diagnostics
     %v5 = load [%v2]@Config.cold.*@Diagnostics.count : Int

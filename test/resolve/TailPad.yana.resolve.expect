@@ -44,7 +44,7 @@ fn push(Pad)(%self: Array(Pad), %item: Pad) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Pad)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Pad)
+    %v8 = borrow_mut %self : &Array(Pad)
     call reserve(Pad), %v8, %v7
     %v10 = load %self : Array(Pad)
     %v11 = load %self@Array.run : Run(Pad)
@@ -84,7 +84,7 @@ fn reserve(Pad)(%self: Array(Pad), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Pad)
-    %v11 = borrow_mut %self : &mut Array(Pad)
+    %v11 = borrow_mut %self : &Array(Pad)
     call growArray(Pad), %v11, %wanted
     ret
 }
@@ -125,7 +125,7 @@ fn growArray(Pad)(%self: Array(Pad), %wanted: Size) -> () {
     %v23 = load %self : Array(Pad)
     %v24 = load %self@Array.run : Run(Pad)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Pad)
+    %v26 = borrow_mut %self@Array.run : &Run(Pad)
     %v27 = call resize(Pad), %v26, %v25 : Bool
     ret
 }
@@ -145,7 +145,7 @@ fn push(Outer)(%self: Array(Outer), %item: Outer) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Outer)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Outer)
+    %v8 = borrow_mut %self : &Array(Outer)
     call reserve(Outer), %v8, %v7
     %v10 = load %self : Array(Outer)
     %v11 = load %self@Array.run : Run(Outer)
@@ -185,7 +185,7 @@ fn reserve(Outer)(%self: Array(Outer), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Outer)
-    %v11 = borrow_mut %self : &mut Array(Outer)
+    %v11 = borrow_mut %self : &Array(Outer)
     call growArray(Outer), %v11, %wanted
     ret
 }
@@ -226,7 +226,7 @@ fn growArray(Outer)(%self: Array(Outer), %wanted: Size) -> () {
     %v23 = load %self : Array(Outer)
     %v24 = load %self@Array.run : Run(Outer)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Outer)
+    %v26 = borrow_mut %self@Array.run : &Run(Outer)
     %v27 = call resize(Outer), %v26, %v25 : Bool
     ret
 }
@@ -1458,21 +1458,21 @@ fn main() -> I64 {
     init %xs, %v31
     %v34 = load %xs : Array(Pad)
     %v36 = call pad, 10 : Pad
-    %v37 = borrow_mut %xs : &mut Array(Pad)
+    %v37 = borrow_mut %xs : &Array(Pad)
     %v38 = copy %local5 : Pad
     call push(Pad), %v37, %v38
     %v40 = load %xs : Array(Pad)
     %v42 = call pad, 20 : Pad
-    %v43 = borrow_mut %xs : &mut Array(Pad)
+    %v43 = borrow_mut %xs : &Array(Pad)
     %v44 = copy %local7 : Pad
     call push(Pad), %v43, %v44
     %v46 = load %xs : Array(Pad)
     %v48 = call pad, 30 : Pad
-    %v49 = borrow_mut %xs : &mut Array(Pad)
+    %v49 = borrow_mut %xs : &Array(Pad)
     %v50 = copy %local9 : Pad
     call push(Pad), %v49, %v50
     %v52 = load %xs : Array(Pad)
-    %v55 = borrow %xs : &Array(Pad)
+    %v55 = borrow %xs : 'Array(Pad)
     %v56 = load [%v55]@Array.length : @bits(30) U32
     %v57 = cast 0 : USize
     %v58 = cast %v56 : USize
@@ -1482,7 +1482,7 @@ fn main() -> I64 {
     %v62 = strideof Pad : Long
     %v63 = mul 0, %v62 : Long
     %v64 = add %v61, %v63 : %Pad
-    %v65 = borrow [%v64] : &Pad
+    %v65 = borrow [%v64] : 'Pad
     %v66 = load [%v65] : Pad
     %v67 = load [%v65]@Pad.n : U32
     %v70 = cmp_ne %v67, 10 : Bool
@@ -1497,7 +1497,7 @@ fn main() -> I64 {
 
   b9:
     %v77 = load %xs : Array(Pad)
-    %v80 = borrow %xs : &Array(Pad)
+    %v80 = borrow %xs : 'Array(Pad)
     %v81 = load [%v80]@Array.length : @bits(30) U32
     %v82 = cast 1 : USize
     %v83 = cast %v81 : USize
@@ -1507,7 +1507,7 @@ fn main() -> I64 {
     %v87 = strideof Pad : Long
     %v88 = mul 1, %v87 : Long
     %v89 = add %v86, %v88 : %Pad
-    %v90 = borrow [%v89] : &Pad
+    %v90 = borrow [%v89] : 'Pad
     %v91 = load [%v90] : Pad
     %v92 = load [%v90]@Pad.n : U32
     %v95 = cmp_ne %v92, 20 : Bool
@@ -1522,7 +1522,7 @@ fn main() -> I64 {
 
   b12:
     %v102 = load %xs : Array(Pad)
-    %v105 = borrow %xs : &Array(Pad)
+    %v105 = borrow %xs : 'Array(Pad)
     %v106 = load [%v105]@Array.length : @bits(30) U32
     %v107 = cast 2 : USize
     %v108 = cast %v106 : USize
@@ -1532,7 +1532,7 @@ fn main() -> I64 {
     %v112 = strideof Pad : Long
     %v113 = mul 2, %v112 : Long
     %v114 = add %v111, %v113 : %Pad
-    %v115 = borrow [%v114] : &Pad
+    %v115 = borrow [%v114] : 'Pad
     %v116 = load [%v115] : Pad
     %v117 = load [%v115]@Pad.n : U32
     %v120 = cmp_ne %v117, 30 : Bool
@@ -1553,18 +1553,18 @@ fn main() -> I64 {
     %v131 = alloc : Outer
     %v133 = call pad, 5 : Pad
     aggregate %local13@Outer.inner = %v133, %local13@Outer.tail = 6
-    %v136 = borrow_mut %ys : &mut Array(Outer)
+    %v136 = borrow_mut %ys : &Array(Outer)
     %v137 = copy %local13 : Outer
     call push(Outer), %v136, %v137
     %v139 = load %ys : Array(Outer)
     %v140 = alloc : Outer
     %v142 = call pad, 7 : Pad
     aggregate %local16@Outer.inner = %v142, %local16@Outer.tail = 8
-    %v145 = borrow_mut %ys : &mut Array(Outer)
+    %v145 = borrow_mut %ys : &Array(Outer)
     %v146 = copy %local16 : Outer
     call push(Outer), %v145, %v146
     %v148 = load %ys : Array(Outer)
-    %v151 = borrow %ys : &Array(Outer)
+    %v151 = borrow %ys : 'Array(Outer)
     %v152 = load [%v151]@Array.length : @bits(30) U32
     %v153 = cast 0 : USize
     %v154 = cast %v152 : USize
@@ -1574,7 +1574,7 @@ fn main() -> I64 {
     %v158 = strideof Outer : Long
     %v159 = mul 0, %v158 : Long
     %v160 = add %v157, %v159 : %Outer
-    %v161 = borrow [%v160] : &Outer
+    %v161 = borrow [%v160] : 'Outer
     %v162 = load [%v161] : Outer
     %v163 = load [%v161]@Outer.inner : Pad
     %v164 = load [%v161]@Outer.inner@Pad.n : U32
@@ -1590,7 +1590,7 @@ fn main() -> I64 {
 
   b18:
     %v174 = load %ys : Array(Outer)
-    %v177 = borrow %ys : &Array(Outer)
+    %v177 = borrow %ys : 'Array(Outer)
     %v178 = load [%v177]@Array.length : @bits(30) U32
     %v179 = cast 0 : USize
     %v180 = cast %v178 : USize
@@ -1600,7 +1600,7 @@ fn main() -> I64 {
     %v184 = strideof Outer : Long
     %v185 = mul 0, %v184 : Long
     %v186 = add %v183, %v185 : %Outer
-    %v187 = borrow [%v186] : &Outer
+    %v187 = borrow [%v186] : 'Outer
     %v188 = load [%v187] : Outer
     %v189 = load [%v187]@Outer.tail : U32
     %v192 = cmp_ne %v189, 6 : Bool
@@ -1615,7 +1615,7 @@ fn main() -> I64 {
 
   b21:
     %v199 = load %ys : Array(Outer)
-    %v202 = borrow %ys : &Array(Outer)
+    %v202 = borrow %ys : 'Array(Outer)
     %v203 = load [%v202]@Array.length : @bits(30) U32
     %v204 = cast 1 : USize
     %v205 = cast %v203 : USize
@@ -1625,7 +1625,7 @@ fn main() -> I64 {
     %v209 = strideof Outer : Long
     %v210 = mul 1, %v209 : Long
     %v211 = add %v208, %v210 : %Outer
-    %v212 = borrow [%v211] : &Outer
+    %v212 = borrow [%v211] : 'Outer
     %v213 = load [%v212] : Outer
     %v214 = load [%v212]@Outer.inner : Pad
     %v215 = load [%v212]@Outer.inner@Pad.n : U32
@@ -1641,7 +1641,7 @@ fn main() -> I64 {
 
   b24:
     %v225 = load %ys : Array(Outer)
-    %v228 = borrow %ys : &Array(Outer)
+    %v228 = borrow %ys : 'Array(Outer)
     %v229 = load [%v228]@Array.length : @bits(30) U32
     %v230 = cast 1 : USize
     %v231 = cast %v229 : USize
@@ -1651,7 +1651,7 @@ fn main() -> I64 {
     %v235 = strideof Outer : Long
     %v236 = mul 1, %v235 : Long
     %v237 = add %v234, %v236 : %Outer
-    %v238 = borrow [%v237] : &Outer
+    %v238 = borrow [%v237] : 'Outer
     %v239 = load [%v238] : Outer
     %v240 = load [%v238]@Outer.tail : U32
     drop %ys reclaim Reclaim(Array(a)).reclaim(Outer)

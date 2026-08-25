@@ -58,5 +58,4 @@ class YanaCommenter : Commenter {
 class YanaQuoteHandler : SimpleTokenSetQuoteHandler(
     YanaTokenTypes.STRING,
     YanaTokenTypes.STRING_ESCAPE,
-    YanaTokenTypes.CHAR,
 )

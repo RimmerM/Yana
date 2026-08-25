@@ -92,7 +92,7 @@ fn bumpedHigh() -> Pair {
     init %p@Pair.b, 999999
     %v5 = load %p : Pair
     %v6 = load %p@Pair.b : @bits(20) U32
-    %v7 = borrow_mut %p@Pair.b : &mut @bits(20) U32
+    %v7 = borrow_mut %p@Pair.b : &@bits(20) U32
     call nudge, %v7
     %v9 = load %p : Pair
     ret %v9
@@ -166,7 +166,7 @@ fn boxed() -> Boxed {
     init %x@Boxed.b, 4095
     %v7 = load %x : Boxed
     %v8 = load %x@Boxed.b : @bits(12) U32
-    %v9 = borrow_mut %x@Boxed.b : &mut @bits(12) U32
+    %v9 = borrow_mut %x@Boxed.b : &@bits(12) U32
     call nudge12, %v9
     %v11 = load %x : Boxed
     ret %v11

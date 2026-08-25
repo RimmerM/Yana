@@ -142,7 +142,7 @@ fn releaseRun(Vec(Int))(%self: Run(Vec(Int))) -> () {
 
 fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
   b0:
-    %v3 = borrow %xs : &Flat(Vec(Int))
+    %v3 = borrow %xs : 'Flat(Vec(Int))
     %v4 = load [%v3]@Flat.length : Size
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
@@ -152,9 +152,9 @@ fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
     %v10 = strideof Vec(Int) : Long
     %v11 = mul 0, %v10 : Long
     %v12 = add %v9, %v11 : %Vec(Int)
-    %v13 = borrow [%v12] : &Vec(Int)
+    %v13 = borrow [%v12] : 'Vec(Int)
     %v14 = load [%v13] : Vec(Int)
-    %v17 = borrow %xs : &Flat(Vec(Int))
+    %v17 = borrow %xs : 'Flat(Vec(Int))
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast 1 : USize
     %v20 = cast %v18 : USize
@@ -164,7 +164,7 @@ fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
     %v24 = strideof Vec(Int) : Long
     %v25 = mul 1, %v24 : Long
     %v26 = add %v23, %v25 : %Vec(Int)
-    %v27 = borrow [%v26] : &Vec(Int)
+    %v27 = borrow [%v26] : 'Vec(Int)
     %v28 = load [%v27] : Vec(Int)
     %v29 = add %v14, %v28 : Vec(Int)
     ret %v29
@@ -172,7 +172,7 @@ fn sum(%xs: Flat(Vec(Int))) -> Vec(Int) {
 
 fn masked(%xs: Flat(Vec(Int))) -> Vec(Int) {
   b0:
-    %v3 = borrow %xs : &Flat(Vec(Int))
+    %v3 = borrow %xs : 'Flat(Vec(Int))
     %v4 = load [%v3]@Flat.length : Size
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
@@ -182,9 +182,9 @@ fn masked(%xs: Flat(Vec(Int))) -> Vec(Int) {
     %v10 = strideof Vec(Int) : Long
     %v11 = mul 0, %v10 : Long
     %v12 = add %v9, %v11 : %Vec(Int)
-    %v13 = borrow [%v12] : &Vec(Int)
+    %v13 = borrow [%v12] : 'Vec(Int)
     %v14 = load [%v13] : Vec(Int)
-    %v17 = borrow %xs : &Flat(Vec(Int))
+    %v17 = borrow %xs : 'Flat(Vec(Int))
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast 1 : USize
     %v20 = cast %v18 : USize
@@ -194,7 +194,7 @@ fn masked(%xs: Flat(Vec(Int))) -> Vec(Int) {
     %v24 = strideof Vec(Int) : Long
     %v25 = mul 1, %v24 : Long
     %v26 = add %v23, %v25 : %Vec(Int)
-    %v27 = borrow [%v26] : &Vec(Int)
+    %v27 = borrow [%v26] : 'Vec(Int)
     %v28 = load [%v27] : Vec(Int)
     %v29 = and %v14, %v28 : Vec(Int)
     ret %v29
@@ -212,7 +212,7 @@ fn main() -> Int {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v6][0] = %v0, [%v6][1] = %v1
     init %local0@Array.length, 2
-    %v15 = borrow %local0 : &Array(Vec(Int))
+    %v15 = borrow %local0 : 'Array(Vec(Int))
     %xs = alloc : Flat(Vec(Int))
     %v17 = load [%v15]@Array.run@Run.items : %Vec(Int)
     init %xs@Flat.items, %v17
@@ -220,7 +220,7 @@ fn main() -> Int {
     %v20 = cast %v19 : Size
     init %xs@Flat.length, %v20
     %s = call sum, %xs : Vec(Int)
-    %v23 = borrow %local0 : &Array(Vec(Int))
+    %v23 = borrow %local0 : 'Array(Vec(Int))
     %xs = alloc : Flat(Vec(Int))
     %v25 = load [%v23]@Array.run@Run.items : %Vec(Int)
     init %xs@Flat.items, %v25

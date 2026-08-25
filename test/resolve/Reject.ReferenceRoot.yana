@@ -1,0 +1,32 @@
+-- A parameter whose *value* is an address, and the return roots it can and cannot supply.
+--
+-- The two shapes are `&T` and `%T`, and they have the same standing here for the same reason: the
+-- address arrives in a register, so the body's copy of it is its own, but the storage it names is
+-- still the caller's. That is what `return` has always been about, so both may carry the marker and
+-- both are reported without it. Neither used to be either - a parameter with no slot in this frame
+-- had no provenance at all, so a result built out of one was rooted in nothing and the check it
+-- should have failed never ran. See Provenance::args and arrivesAsCopy.
+--
+-- ReferenceRoot.yana is the accepting half: the same signatures with the markers written.
+
+import Native
+
+data Pair(a, b) {first: a, second: b}
+
+-- Repackaging into a generic aggregate does not launder the references it carries. Both arguments
+-- are roots of the result, and neither is declared.
+fn pairOf(x: 'Int, y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
+
+-- The same one level down, where the result is a reference rather than a record holding two.
+fn firstOf(x: 'Int, y: 'Int) -> 'Int = x
+
+-- A pointer handed straight back. Address arithmetic on it is the same answer: `p + 1` stays inside
+-- whatever `p` named.
+fn passThrough(p: %U8) -> %U8 = p
+
+fn offsetOf(p: %U8) -> %U8 = p + (1 :: Size)
+
+-- And a reference reached through a nested type, so the result is not itself borrow-shaped.
+fn maybeOf(x: 'Int) -> Maybe('Int) = Just(x)
+
+fn main() -> Int = 0

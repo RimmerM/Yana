@@ -180,7 +180,7 @@ fn classify(%n: Int) -> Int {
 
   b9:
     %v45 = load %xs : Array(Int)
-    %v48 = borrow %xs : &Array(Int)
+    %v48 = borrow %xs : 'Array(Int)
     %v49 = load [%v48]@Array.length : @bits(30) U32
     %v50 = cast 0 : USize
     %v51 = cast %v49 : USize
@@ -190,7 +190,7 @@ fn classify(%n: Int) -> Int {
     %v55 = strideof Int : Long
     %v56 = mul 0, %v55 : Long
     %v57 = add %v54, %v56 : %Int
-    %v58 = borrow [%v57] : &Int
+    %v58 = borrow [%v57] : 'Int
     %v59 = load [%v58] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     %v60 = add %v59, %n : Int

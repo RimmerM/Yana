@@ -111,7 +111,9 @@ bool deriveSummary(Analysis& analysis) {
         joinProvenance(*returned, *leaving);
     }
 
-    U64 actual = 0;
+    // The roots that are arguments with no slot, which arrive already in the shape this mask wants -
+    // see Provenance::args.
+    U64 actual = returned->args;
     auto invalid = returned->global || returned->unknown;
 
     // Over the roots the return value has rather than over the frame - see IndexSet::forEach.

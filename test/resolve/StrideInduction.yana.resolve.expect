@@ -36,7 +36,7 @@ fn push(Cell)(%self: Array(Cell), %item: Cell) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Cell)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Cell)
+    %v8 = borrow_mut %self : &Array(Cell)
     call reserve(Cell), %v8, %v7
     %v10 = load %self : Array(Cell)
     %v11 = load %self@Array.run : Run(Cell)
@@ -76,7 +76,7 @@ fn reserve(Cell)(%self: Array(Cell), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Cell)
-    %v11 = borrow_mut %self : &mut Array(Cell)
+    %v11 = borrow_mut %self : &Array(Cell)
     call growArray(Cell), %v11, %wanted
     ret
 }
@@ -117,7 +117,7 @@ fn growArray(Cell)(%self: Array(Cell), %wanted: Size) -> () {
     %v23 = load %self : Array(Cell)
     %v24 = load %self@Array.run : Run(Cell)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Cell)
+    %v26 = borrow_mut %self@Array.run : &Run(Cell)
     %v27 = call resize(Cell), %v26, %v25 : Bool
     ret
 }
@@ -1132,7 +1132,7 @@ fn strided(%xs: Flat(Cell), %by: Size) -> Int {
   b3:
     %v14 = load %total : Int
     %v15 = load %i : Size
-    %v16 = borrow %xs : &Flat(Cell)
+    %v16 = borrow %xs : 'Flat(Cell)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -1142,12 +1142,12 @@ fn strided(%xs: Flat(Cell), %by: Size) -> Int {
     %v23 = strideof Cell : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %Cell
-    %v26 = borrow [%v25] : &Cell
+    %v26 = borrow [%v25] : 'Cell
     %v27 = load [%v26] : Cell
     %v28 = load [%v26]@Cell.a : Int
     %v29 = add %v14, %v28 : Int
     %v30 = load %i : Size
-    %v31 = borrow %xs : &Flat(Cell)
+    %v31 = borrow %xs : 'Flat(Cell)
     %v32 = load [%v31]@Flat.length : Size
     %v33 = cast %v30 : USize
     %v34 = cast %v32 : USize
@@ -1157,7 +1157,7 @@ fn strided(%xs: Flat(Cell), %by: Size) -> Int {
     %v38 = strideof Cell : Long
     %v39 = mul %v30, %v38 : Long
     %v40 = add %v37, %v39 : %Cell
-    %v41 = borrow [%v40] : &Cell
+    %v41 = borrow [%v40] : 'Cell
     %v42 = load [%v41] : Cell
     %v43 = load [%v41]@Cell.e : Int
     %v44 = add %v29, %v43 : Int
@@ -1188,7 +1188,7 @@ fn everyOther(%xs: Flat(Cell)) -> Int {
   b3:
     %v13 = load %total : Int
     %v14 = load %i : Size
-    %v15 = borrow %xs : &Flat(Cell)
+    %v15 = borrow %xs : 'Flat(Cell)
     %v16 = load [%v15]@Flat.length : Size
     %v17 = cast %v14 : USize
     %v18 = cast %v16 : USize
@@ -1198,12 +1198,12 @@ fn everyOther(%xs: Flat(Cell)) -> Int {
     %v22 = strideof Cell : Long
     %v23 = mul %v14, %v22 : Long
     %v24 = add %v21, %v23 : %Cell
-    %v25 = borrow [%v24] : &Cell
+    %v25 = borrow [%v24] : 'Cell
     %v26 = load [%v25] : Cell
     %v27 = load [%v25]@Cell.a : Int
     %v28 = add %v13, %v27 : Int
     %v29 = load %i : Size
-    %v30 = borrow %xs : &Flat(Cell)
+    %v30 = borrow %xs : 'Flat(Cell)
     %v31 = load [%v30]@Flat.length : Size
     %v32 = cast %v29 : USize
     %v33 = cast %v31 : USize
@@ -1213,7 +1213,7 @@ fn everyOther(%xs: Flat(Cell)) -> Int {
     %v37 = strideof Cell : Long
     %v38 = mul %v29, %v37 : Long
     %v39 = add %v36, %v38 : %Cell
-    %v40 = borrow [%v39] : &Cell
+    %v40 = borrow [%v39] : 'Cell
     %v41 = load [%v40] : Cell
     %v42 = load [%v40]@Cell.e : Int
     %v43 = add %v28, %v42 : Int
@@ -1244,7 +1244,7 @@ fn main() -> Int {
 
   b2:
     %v40 = load %xs : Array(Cell)
-    %v41 = borrow %xs : &Array(Cell)
+    %v41 = borrow %xs : 'Array(Cell)
     %v42 = alloc : Flat(Cell)
     %v43 = load [%v41]@Array.run@Run.items : %Cell
     init %local5@Flat.items, %v43
@@ -1262,7 +1262,7 @@ fn main() -> Int {
     %v25 = load %n : Int
     %v28 = mul %v25, 10 : Int
     aggregate %local3@Cell.a = %v21, %local3@Cell.b = 0, %local3@Cell.c = 0, %local3@Cell.d = 0, %local3@Cell.e = %v28, %local3@Cell.f = 0
-    %v31 = borrow_mut %xs : &mut Array(Cell)
+    %v31 = borrow_mut %xs : &Array(Cell)
     %v32 = copy %local3 : Cell
     call push(Cell), %v31, %v32
     %v34 = load %n : Int
@@ -1279,7 +1279,7 @@ fn main() -> Int {
 
   b6:
     %v59 = load %xs : Array(Cell)
-    %v60 = borrow %xs : &Array(Cell)
+    %v60 = borrow %xs : 'Array(Cell)
     %v61 = alloc : Flat(Cell)
     %v62 = load [%v60]@Array.run@Run.items : %Cell
     init %local6@Flat.items, %v62
@@ -1299,7 +1299,7 @@ fn main() -> Int {
 
   b9:
     %v77 = load %xs : Array(Cell)
-    %v78 = borrow %xs : &Array(Cell)
+    %v78 = borrow %xs : 'Array(Cell)
     %v79 = alloc : Flat(Cell)
     %v80 = load [%v78]@Array.run@Run.items : %Cell
     init %local7@Flat.items, %v80
@@ -1319,7 +1319,7 @@ fn main() -> Int {
 
   b12:
     %v96 = load %xs : Array(Cell)
-    %v97 = borrow %xs : &Array(Cell)
+    %v97 = borrow %xs : 'Array(Cell)
     %v98 = alloc : Flat(Cell)
     %v99 = load [%v97]@Array.run@Run.items : %Cell
     init %local8@Flat.items, %v99
@@ -1339,7 +1339,7 @@ fn main() -> Int {
 
   b15:
     %v115 = load %xs : Array(Cell)
-    %v116 = borrow %xs : &Array(Cell)
+    %v116 = borrow %xs : 'Array(Cell)
     %v117 = alloc : Flat(Cell)
     %v118 = load [%v116]@Array.run@Run.items : %Cell
     init %local9@Flat.items, %v118
@@ -1348,7 +1348,7 @@ fn main() -> Int {
     init %local9@Flat.length, %v121
     %v124 = call strided, %v117, 2 : Int
     %v125 = load %xs : Array(Cell)
-    %v126 = borrow %xs : &Array(Cell)
+    %v126 = borrow %xs : 'Array(Cell)
     %v127 = alloc : Flat(Cell)
     %v128 = load [%v126]@Array.run@Run.items : %Cell
     init %local10@Flat.items, %v128

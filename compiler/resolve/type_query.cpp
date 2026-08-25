@@ -295,23 +295,58 @@ bool isBorrowLike(Module& module, TypePtr type) {
     return isBorrow(*module.types, type) || sliceElement(module, type) != nullptr;
 }
 
-static bool containsBorrowLikeAt(Module& module, TypePtr type, U32 depth) {
-    if(!type || !depth) return false;
+/*
+ * The walk, over the types already on the path rather than to a fixed depth.
+ *
+ * A depth of eight stood here, and it was not a conservative bound - it was a wrong answer past
+ * four levels of record nesting. Each `data` costs two: the Record and the Tup its constructor
+ * holds. So `data L5 {a: L4}` over `L4 {a: L3}` over `L3 {a: L2}` over `L2 {a: L1}` over
+ * `L1 {r: 'Int}` ran out one level short of the reference, `containsBorrowLike` answered no, and
+ * `checkReturnRoots` returned before asking anything - a function handing back a reference five
+ * records deep was accepted with no group declared. Analysis-Borrows.md §6.6: "a semantic safety
+ * property cannot stop at an arbitrary nesting depth".
+ *
+ * `seen` is what replaces it, and it is what the depth was standing in for. The set of types
+ * reachable from one type is finite because types are interned, so refusing to re-enter one already
+ * on the path terminates on any shape - including a recursive nominal type, which is the case §6.6
+ * asks for a visited set rather than a bound. Answering `false` for a re-entry is the right bottom:
+ * a cycle adds a reference only through a path that reaches it without the cycle, and that path is
+ * walked anyway.
+ *
+ * Linear rather than hashed, because the set is the *path* and not the reachable closure - it is a
+ * handful of entries for every type any program has written.
+ */
+static bool containsBorrowLikeAt(Module& module, TypePtr type, SmallArray<TypePtr, 16>& seen) {
+    if(!type) return false;
     if(isBorrowLike(module, type)) return true;
 
     auto base = *module.types;
     auto value = base[type];
+
+    // Only the three kinds below are descended into, so only they can repeat - and asking before
+    // the walk rather than at the top keeps a scalar out of the set entirely.
+    if(value->kind != Type::Tup && value->kind != Type::Record && value->kind != Type::Array) {
+        return false;
+    }
+
+    for(auto entry: seen) {
+        if(entry == type) return false;
+    }
+
+    seen.push(type);
+
+    auto found = false;
 
     // A raw pointer is not descended into and neither is what it points at - `%T` is where this
     // analysis stops by construction. An owned container therefore does not contain a reference:
     // `Array(T)` holds a `Run(T)` holds a `%T`, and nothing on that path is a borrow.
     if(value->kind == Type::Tup) {
         for(auto field: ((TupType*)value)->fields.contents(base)) {
-            if(containsBorrowLikeAt(module, field.type, depth - 1)) return true;
+            if(containsBorrowLikeAt(module, field.type, seen)) { found = true; break; }
         }
     } else if(value->kind == Type::Record && ((RecordType*)value)->layout != RecordType::Enum) {
         for(auto constructor: ((RecordType*)value)->constructors.contents(base)) {
-            if(containsBorrowLikeAt(module, constructor.content, depth - 1)) return true;
+            if(containsBorrowLikeAt(module, constructor.content, seen)) { found = true; break; }
         }
     } else if(value->kind == Type::Array) {
         // `[&T *4]` holds four references and is exactly as unable to outlive them as a record of
@@ -319,14 +354,18 @@ static bool containsBorrowLikeAt(Module& module, TypePtr type, U32 depth) {
         auto array = (ArrayType*)value;
         // A count this stage cannot read is a const variable, and the conservative answer for one is
         // that the array is not empty - an erased `[&T *n]` holds borrows for every `n` but zero.
-        if(writtenCount(base, array->count).from(1)) return containsBorrowLikeAt(module, array->content, depth - 1);
+        if(writtenCount(base, array->count).from(1)) {
+            found = containsBorrowLikeAt(module, array->content, seen);
+        }
     }
 
-    return false;
+    seen.pop();
+    return found;
 }
 
 bool containsBorrowLike(Module& module, TypePtr type) {
-    return containsBorrowLikeAt(module, type, 8);
+    SmallArray<TypePtr, 16> seen;
+    return containsBorrowLikeAt(module, type, seen);
 }
 
 bool needsTeardown(Module& module, TypePtr type) {
@@ -399,6 +438,20 @@ bool isMemoryType(GlobalBase base, TypePtr type) {
     return type && !isUnit(base, type) && !isDirectType(base, type);
 }
 
+/*
+ * Whether what the body sees of a parameter is a copy with no caller storage behind it.
+ *
+ * A borrow is exempt for exactly the reason a raw pointer is, and leaving it out was the other half
+ * of the hole Provenance::args closes. `&Int` is a direct type, so the address arrives in a register
+ * and the body's copy of it is its own - but the *storage that address names* is still the
+ * caller's, which is the only thing a return root has ever been about. Refusing the marker there
+ * left `fn make(x: &Int, y: &Int) -> Pair(&Int, &Int)` with no way to state its real contract:
+ * writing `return x` was rejected, and not writing it was accepted and unsound.
+ *
+ * What stays refused is a parameter whose value is not an address at all - an `Int`, a `Float`, a
+ * vector, an enumeration. The caller's storage genuinely did not travel for those, so a borrow in
+ * the result cannot be rooted in one. See checkReturnRoot, the one caller.
+ */
 bool arrivesAsCopy(GlobalBase base, TypePtr type) {
-    return isDirectType(base, type) && !isPointer(base, type);
+    return isDirectType(base, type) && !isPointer(base, type) && !isBorrow(base, type);
 }

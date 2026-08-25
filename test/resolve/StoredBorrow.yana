@@ -3,22 +3,22 @@
 
    Most of this already worked and is here to say so, because the part that did not was easy to
    mistake for the whole. `convert` has always known both directions - `convertBorrow` takes a
-   borrow of a place for `T -> &T` and emits a load for `&T -> T` - so anywhere a type is *expected*
+   reference to a place for `T -> 'T` and emits a load for `'T -> T` - so anywhere a type is *expected*
    a borrow is already transparent, and construction already borrows because the field's declared
    type is what the argument is converted to. There is no `&x` spelling at a construction site for
    the same reason there is no `->x` at a call: in this language the receiving end declares the
    convention and the supplying end writes the value.
 
    What did not work is dispatch, which is the one position where nothing expects a type. `p.a + p.b`
-   binds `Num`'s variable to `&Int` and then looks for an instance of it, and nobody writes
-   `instance Num(&Int)`. So the signature *fits* and the call dies afterwards, which is why the
+   binds `Num`'s variable to `'Int` and then looks for an instance of it, and nobody writes
+   `instance Num('Int)`. So the signature *fits* and the call dies afterwards, which is why the
    fallback in emitCall tests for a selected instance rather than for a match.
 
    The fallback only fires when nothing accepts the arguments as they stand, so `borrows` below -
-   which takes `&Int` and is handed one - still resolves to itself rather than to `owns`.
+   which takes `'Int` and is handed one - still resolves to itself rather than to `owns`.
 -}
 
-data Pair {a: &Int, b: &Int}
+data Pair {a: 'Int, b: 'Int}
 
 data Held {n: Int}
 
@@ -29,11 +29,11 @@ instance Eq(Held):
 -- Two functions of the same name, one over the borrow and one over what it borrows. The borrow one
 -- has to keep winning for an argument that is a borrow, or the fallback is rewriting calls that
 -- were already right.
-fn takes(v: &Int) -> Int = 100
+fn takes(v: 'Int) -> Int = 100
 
 fn owns(v: Int) -> Int = 1
 
-fn borrows(v: &Int) -> Int = 2
+fn borrows(v: 'Int) -> Int = 2
 
 fn main() -> Int:
     let &x = 7 :: Int

@@ -66,9 +66,9 @@ fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {}:
     push(self.keys, key)
     push(self.values, value)
 
-fn keyAt(return self: Map(k, v), at: Size) -> &k = hostAt(self.keys.items, at)
+fn keyAt(return self: Map(k, v), at: Size) -> 'k = hostAt(self.keys.items, at)
 
-fn valueAt(return self: Map(k, v), at: Size) -> &v = hostAt(self.values.items, at)
+fn valueAt(return self: Map(k, v), at: Size) -> 'v = hostAt(self.values.items, at)
 
 fn valueAtMut(return &self: Map(k, v), at: Size) -> &v = hostAtMut(self.values.items, at)
 

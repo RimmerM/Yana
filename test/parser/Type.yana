@@ -67,6 +67,28 @@ alias X = &(%Int)
 alias X = &(&Int)
 alias X = &(%[Int])
 
+-- SharedType. The other reference capability, and the same grammar - Analysis-Borrows.md §3.2.
+-- `&` is exclusive and `'` is shared; nesting either inside the other is a parse question rather
+-- than a sensible type, and the parser answers it the same way for both.
+alias X = 'X
+alias X = '[Int]
+alias X = '{Int, Int}
+alias X = '(() -> Int)
+alias X = '(Int)
+alias X = '('Int)
+alias X = '(&Int)
+alias X = &('Int)
+alias X = '(%Int)
+alias X = Maybe('Int)
+alias X = Pair('Int, &Int)
+
+-- The one that is *not* decided by the grammar, kept here because it is evidence rather than a
+-- feature: a lowercase argument reads as a shared reference to a type variable, so a loan group
+-- applied positionally at a use - Analysis-Borrows.md §9.3's `PairView('left, 'right)` - would be
+-- the same token sequence as this. Slots need a channel of their own; the parser cannot tell them
+-- apart and neither can a reader.
+alias X = Pair('a, 'b)
+
 -- RefType (checked reference).
 alias X = *X
 alias X = *[Int]

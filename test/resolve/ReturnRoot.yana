@@ -2,12 +2,12 @@
 
 data Point {x: Int, y: Int}
 
--- An immutable accessor. The result is a borrow of the caller's storage, so `p` stays borrowed for
+-- A shared accessor. The result is a reference to the caller's storage, so `p` stays borrowed for
 -- as long as the result is live.
-fn xOf(return p: Point) -> &Int = p.x
+fn xOf(return p: Point) -> 'Int = p.x
 
--- A mutable selector. Every member of the group is `return &`, which is what makes the result
--- exclusive rather than shared.
+-- An exclusive selector. Both are written now: `'Int` above says shared and `&Int` here says
+-- exclusive, where the two used to be one spelling and the group decided which.
 fn larger(return &a: Int, return &b: Int) -> &Int = if a > b then a else b
 
 fn main() -> Int:

@@ -398,8 +398,8 @@ fn main() -> Int {
     %a = call apply, %v5, 1 : Int
     %total = alloc : Int
     init %total, 0
-    %v14 = alloc : {total: &mut Int}
-    %v15 = borrow_mut %total : &mut Int
+    %v14 = alloc : {total: &Int}
+    %v15 = borrow_mut %total : &Int
     init %local3.total, %v15
     %v17 = addressof %local3 : %()
     %v18 = alloc : () -> ()
@@ -443,10 +443,10 @@ fn ResolveTest.lambda$17(%env: %{base: Int}, %x: Int) -> Int {
     ret %v3
 }
 
-fn ResolveTest.lambda$18(%env: %{total: &mut Int}) -> () {
+fn ResolveTest.lambda$18(%env: %{total: &Int}) -> () {
   b0:
-    %v1 = load [%env].total : &mut Int
-    %v2 = load [%env].total : &mut Int
+    %v1 = load [%env].total : &Int
+    %v2 = load [%env].total : &Int
     %v3 = load [%v2] : Int
     %v6 = add %v3, 7 : Int
     assign [%v1], %v6

@@ -924,9 +924,6 @@ private:
             case Literal::Float:
                 printValue(stream, literal.f);
                 break;
-            case Literal::Char:
-                printValue(stream, U32(literal.c));
-                break;
             case Literal::String: {
                 stream.writeByte('"');
                 write(stream, context.findName(literal.s));
@@ -969,6 +966,12 @@ private:
                     break;
                 case Type::Borrow:
                     stream.writeString("BorrowType "_v);
+                    makeLevel();
+                    toString(*base[type.to], true);
+                    removeLevel();
+                    break;
+                case Type::Shared:
+                    stream.writeString("SharedType "_v);
                     makeLevel();
                     toString(*base[type.to], true);
                     removeLevel();

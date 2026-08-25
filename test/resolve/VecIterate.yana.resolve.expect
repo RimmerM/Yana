@@ -81,9 +81,9 @@ fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Ou
   b0:
     %empty = vsplat 0 : Vec(Int)
     %width = cast 4 : Size
-    %v6 = alloc : {width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}
+    %v6 = alloc : {width: Size, body: '(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}
     init %local2.width, %width
-    %v8 = borrow %body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v8 = borrow %body : '(value$: Vec(Int)) -> Outcome((), ())
     init %local2.body, %v8
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
@@ -106,7 +106,7 @@ fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Ou
     ret %v23
 }
 
-fn Core.continuation$2(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$2(Flat(Int), Int, ())(%env: %{width: Size, body: '(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -126,7 +126,7 @@ fn Core.continuation$2(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: 
     je %v13, b6, b7
 
   b3:
-    %v15 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v15 = load [%env].body : '(value$: Vec(Int)) -> Outcome((), ())
     %v16 = load [%v15] : (value$: Vec(Int)) -> Outcome((), ())
     %v17 = load %i : Size
     %v18 = call loadVector(Int), %value$, %v17 : Vec(Int)
@@ -158,7 +158,7 @@ fn Core.continuation$2(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: 
     %v44 = cast %v35 : Int
     %v45 = vsplat %v44 : Vec(Int)
     %live = cmp_lt %v43, %v45 : Mask(Int)
-    %v47 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v47 = load [%env].body : '(value$: Vec(Int)) -> Outcome((), ())
     %v48 = load [%v47] : (value$: Vec(Int)) -> Outcome((), ())
     %v49 = load %i : Size
     %v50 = call loadVectorTail(Int), %value$, %v49 : Vec(Int)
@@ -210,7 +210,7 @@ fn loadVectorTail(Int)(%from: Flat(Int), %at: Size) -> Vec(Int) {
 
 fn Chunked(Flat(a), a).chunks(Int, Outcome((), ()))(%self: Flat(Int), %body: (value$: Flat(Int)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = borrow %self : &Flat(Int)
+    %v2 = borrow %self : 'Flat(Int)
     %v3 = call Contiguous(Flat(a), a).elements(Int), %v2 : Flat(Int)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : Int
@@ -235,9 +235,9 @@ fn vectorsMasked(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: {Vec(Int)
   b0:
     %v3 = vsplat 0 : Vec(Int)
     %width = cast 4 : Size
-    %v6 = alloc : {width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}
+    %v6 = alloc : {width: Size, body: '(value$: {Vec(Int), Int}) -> Outcome((), ())}
     init %local2.width, %width
-    %v8 = borrow %body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v8 = borrow %body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
@@ -259,7 +259,7 @@ fn vectorsMasked(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: {Vec(Int)
     ret %v22
 }
 
-fn Core.continuation$5(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$5(Flat(Int), Int, ())(%env: %{width: Size, body: '(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -279,7 +279,7 @@ fn Core.continuation$5(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: 
     je %v13, b6, b7
 
   b3:
-    %v15 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v15 = load [%env].body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
     %v16 = load [%v15] : (value$: {Vec(Int), Int}) -> Outcome((), ())
     %v17 = alloc : {Vec(Int), Int}
     %v18 = load %i : Size
@@ -305,7 +305,7 @@ fn Core.continuation$5(Flat(Int), Int, ())(%env: %{width: Size, body: &(value$: 
     jmp b1
 
   b6:
-    %v37 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v37 = load [%env].body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
     %v38 = load [%v37] : (value$: {Vec(Int), Int}) -> Outcome((), ())
     %v39 = alloc : {Vec(Int), Int}
     %v40 = load %i : Size
@@ -340,9 +340,9 @@ fn vectors(Array(Int), Int, ())(%self: Array(Int), %body: (value$: Vec(Int)) -> 
   b0:
     %empty = vsplat 0 : Vec(Int)
     %width = cast 4 : Size
-    %v6 = alloc : {width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}
+    %v6 = alloc : {width: Size, body: '(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}
     init %local2.width, %width
-    %v8 = borrow %body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v8 = borrow %body : '(value$: Vec(Int)) -> Outcome((), ())
     init %local2.body, %v8
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
@@ -365,7 +365,7 @@ fn vectors(Array(Int), Int, ())(%self: Array(Int), %body: (value$: Vec(Int)) -> 
     ret %v23
 }
 
-fn Core.continuation$2(Array(Int), Int, ())(%env: %{width: Size, body: &(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$2(Array(Int), Int, ())(%env: %{width: Size, body: '(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -385,7 +385,7 @@ fn Core.continuation$2(Array(Int), Int, ())(%env: %{width: Size, body: &(value$:
     je %v13, b6, b7
 
   b3:
-    %v15 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v15 = load [%env].body : '(value$: Vec(Int)) -> Outcome((), ())
     %v16 = load [%v15] : (value$: Vec(Int)) -> Outcome((), ())
     %v17 = load %i : Size
     %v18 = call loadVector(Int), %value$, %v17 : Vec(Int)
@@ -417,7 +417,7 @@ fn Core.continuation$2(Array(Int), Int, ())(%env: %{width: Size, body: &(value$:
     %v44 = cast %v35 : Int
     %v45 = vsplat %v44 : Vec(Int)
     %live = cmp_lt %v43, %v45 : Mask(Int)
-    %v47 = load [%env].body : &(value$: Vec(Int)) -> Outcome((), ())
+    %v47 = load [%env].body : '(value$: Vec(Int)) -> Outcome((), ())
     %v48 = load [%v47] : (value$: Vec(Int)) -> Outcome((), ())
     %v49 = load %i : Size
     %v50 = call loadVectorTail(Int), %value$, %v49 : Vec(Int)
@@ -447,7 +447,7 @@ fn Core.continuation$2(Array(Int), Int, ())(%env: %{width: Size, body: &(value$:
 
 fn Chunked(Array(a), a).chunks(Int, Outcome((), ()))(%self: Array(Int), %body: (value$: Flat(Int)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = borrow %self : &Array(Int)
+    %v2 = borrow %self : 'Array(Int)
     %v3 = call Contiguous(Array(a), a).elements(Int), %v2 : Flat(Int)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : Int
@@ -467,14 +467,14 @@ fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
-    %v3 = borrow %self : &Array(Int)
+    %v3 = borrow %self : 'Array(Int)
     %self = alloc : Flat(Int)
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %self@Flat.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size
     init %self@Flat.length, %v8
-    %v11 = borrow %self : &Flat(Int)
+    %v11 = borrow %self : 'Flat(Int)
     %v12 = call unclampedSlice(Int), %v11, 0, %v2 : Flat(Int)
     ret %v12
 }
@@ -494,9 +494,9 @@ fn vectorsMasked(Array(Int), Int, ())(%self: Array(Int), %body: (value$: {Vec(In
   b0:
     %v3 = vsplat 0 : Vec(Int)
     %width = cast 4 : Size
-    %v6 = alloc : {width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}
+    %v6 = alloc : {width: Size, body: '(value$: {Vec(Int), Int}) -> Outcome((), ())}
     init %local2.width, %width
-    %v8 = borrow %body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v8 = borrow %body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
@@ -518,7 +518,7 @@ fn vectorsMasked(Array(Int), Int, ())(%self: Array(Int), %body: (value$: {Vec(In
     ret %v22
 }
 
-fn Core.continuation$5(Array(Int), Int, ())(%env: %{width: Size, body: &(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$5(Array(Int), Int, ())(%env: %{width: Size, body: '(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -538,7 +538,7 @@ fn Core.continuation$5(Array(Int), Int, ())(%env: %{width: Size, body: &(value$:
     je %v13, b6, b7
 
   b3:
-    %v15 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v15 = load [%env].body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
     %v16 = load [%v15] : (value$: {Vec(Int), Int}) -> Outcome((), ())
     %v17 = alloc : {Vec(Int), Int}
     %v18 = load %i : Size
@@ -564,7 +564,7 @@ fn Core.continuation$5(Array(Int), Int, ())(%env: %{width: Size, body: &(value$:
     jmp b1
 
   b6:
-    %v37 = load [%env].body : &(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v37 = load [%env].body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
     %v38 = load [%v37] : (value$: {Vec(Int), Int}) -> Outcome((), ())
     %v39 = alloc : {Vec(Int), Int}
     %v40 = load %i : Size
@@ -599,9 +599,9 @@ fn vectors(Array(Float), Float, ())(%self: Array(Float), %body: (value$: Vec(Flo
   b0:
     %empty = vsplat 0 : Vec(Float)
     %width = cast 4 : Size
-    %v6 = alloc : {width: Size, body: &(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}
+    %v6 = alloc : {width: Size, body: '(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}
     init %local2.width, %width
-    %v8 = borrow %body : &(value$: Vec(Float)) -> Outcome((), ())
+    %v8 = borrow %body : '(value$: Vec(Float)) -> Outcome((), ())
     init %local2.body, %v8
     init %local2.empty, %empty
     %v11 = addressof %local2 : %()
@@ -624,7 +624,7 @@ fn vectors(Array(Float), Float, ())(%self: Array(Float), %body: (value$: Vec(Flo
     ret %v23
 }
 
-fn Core.continuation$2(Array(Float), Float, ())(%env: %{width: Size, body: &(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$2(Array(Float), Float, ())(%env: %{width: Size, body: '(value$: Vec(Float)) -> Outcome((), ()), empty: Vec(Float)}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -644,7 +644,7 @@ fn Core.continuation$2(Array(Float), Float, ())(%env: %{width: Size, body: &(val
     je %v13, b6, b7
 
   b3:
-    %v15 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
+    %v15 = load [%env].body : '(value$: Vec(Float)) -> Outcome((), ())
     %v16 = load [%v15] : (value$: Vec(Float)) -> Outcome((), ())
     %v17 = load %i : Size
     %v18 = call loadVector(Float), %value$, %v17 : Vec(Float)
@@ -677,7 +677,7 @@ fn Core.continuation$2(Array(Float), Float, ())(%env: %{width: Size, body: &(val
     %v45 = vsplat %v44 : Vec(I32)
     %v46 = cmp_lt %v43, %v45 : Mask(I32)
     %live = bitcast %v46 : Mask(Float)
-    %v48 = load [%env].body : &(value$: Vec(Float)) -> Outcome((), ())
+    %v48 = load [%env].body : '(value$: Vec(Float)) -> Outcome((), ())
     %v49 = load [%v48] : (value$: Vec(Float)) -> Outcome((), ())
     %v50 = load %i : Size
     %v51 = call loadVectorTail(Float), %value$, %v50 : Vec(Float)
@@ -729,7 +729,7 @@ fn loadVectorTail(Float)(%from: Flat(Float), %at: Size) -> Vec(Float) {
 
 fn Chunked(Array(a), a).chunks(Float, Outcome((), ()))(%self: Array(Float), %body: (value$: Flat(Float)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = borrow %self : &Array(Float)
+    %v2 = borrow %self : 'Array(Float)
     %v3 = call Contiguous(Array(a), a).elements(Float), %v2 : Flat(Float)
     %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
     %v5 = load %local3.discriminant : Int
@@ -749,14 +749,14 @@ fn Contiguous(Array(a), a).elements(Float)(%self: Array(Float)) -> Flat(Float) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
-    %v3 = borrow %self : &Array(Float)
+    %v3 = borrow %self : 'Array(Float)
     %self = alloc : Flat(Float)
     %v5 = load [%v3]@Array.run@Run.items : %Float
     init %self@Flat.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size
     init %self@Flat.length, %v8
-    %v11 = borrow %self : &Flat(Float)
+    %v11 = borrow %self : 'Flat(Float)
     %v12 = call unclampedSlice(Float), %v11, 0, %v2 : Flat(Float)
     ret %v12
 }
@@ -776,9 +776,9 @@ fn vectorsMasked(Array(Float), Float, ())(%self: Array(Float), %body: (value$: {
   b0:
     %v3 = vsplat 0 : Vec(Float)
     %width = cast 4 : Size
-    %v6 = alloc : {width: Size, body: &(value$: {Vec(Float), Int}) -> Outcome((), ())}
+    %v6 = alloc : {width: Size, body: '(value$: {Vec(Float), Int}) -> Outcome((), ())}
     init %local2.width, %width
-    %v8 = borrow %body : &(value$: {Vec(Float), Int}) -> Outcome((), ())
+    %v8 = borrow %body : '(value$: {Vec(Float), Int}) -> Outcome((), ())
     init %local2.body, %v8
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Float)) -> Outcome((), Outcome((), ()))
@@ -800,7 +800,7 @@ fn vectorsMasked(Array(Float), Float, ())(%self: Array(Float), %body: (value$: {
     ret %v22
 }
 
-fn Core.continuation$5(Array(Float), Float, ())(%env: %{width: Size, body: &(value$: {Vec(Float), Int}) -> Outcome((), ())}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
+fn Core.continuation$5(Array(Float), Float, ())(%env: %{width: Size, body: '(value$: {Vec(Float), Int}) -> Outcome((), ())}, %value$: Flat(Float)) -> Outcome((), Outcome((), ())) {
   b0:
     %v2 = load %value$@Flat.length : Size
     %v3 = load [%env].width : Size
@@ -820,7 +820,7 @@ fn Core.continuation$5(Array(Float), Float, ())(%env: %{width: Size, body: &(val
     je %v13, b6, b7
 
   b3:
-    %v15 = load [%env].body : &(value$: {Vec(Float), Int}) -> Outcome((), ())
+    %v15 = load [%env].body : '(value$: {Vec(Float), Int}) -> Outcome((), ())
     %v16 = load [%v15] : (value$: {Vec(Float), Int}) -> Outcome((), ())
     %v17 = alloc : {Vec(Float), Int}
     %v18 = load %i : Size
@@ -846,7 +846,7 @@ fn Core.continuation$5(Array(Float), Float, ())(%env: %{width: Size, body: &(val
     jmp b1
 
   b6:
-    %v37 = load [%env].body : &(value$: {Vec(Float), Int}) -> Outcome((), ())
+    %v37 = load [%env].body : '(value$: {Vec(Float), Int}) -> Outcome((), ())
     %v38 = load [%v37] : (value$: {Vec(Float), Int}) -> Outcome((), ())
     %v39 = alloc : {Vec(Float), Int}
     %v40 = load %i : Size
@@ -1039,8 +1039,8 @@ fn sumInts(%xs: Flat(Int)) -> Int {
     %v2 = vsplat 0 : Vec(Int)
     %acc = alloc : Vec(Int)
     init %acc, %v2
-    %v5 = alloc : {acc: &mut Vec(Int)}
-    %v6 = borrow_mut %acc : &mut Vec(Int)
+    %v5 = alloc : {acc: &Vec(Int)}
+    %v6 = borrow_mut %acc : &Vec(Int)
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(Int)) -> Outcome((), ())
@@ -1058,8 +1058,8 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     %v2 = vsplat %floor : Vec(Int)
     %acc = alloc : Vec(Int)
     init %acc, %v2
-    %v5 = alloc : {acc: &mut Vec(Int)}
-    %v6 = borrow_mut %acc : &mut Vec(Int)
+    %v5 = alloc : {acc: &Vec(Int)}
+    %v6 = borrow_mut %acc : &Vec(Int)
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: {Vec(Int), Int}) -> Outcome((), ())
@@ -1077,7 +1077,7 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     #0 type c
     #1 type a
     #2 type Vec(a)
-    #3 type {acc: &mut Vec(a)}
+    #3 type {acc: &Vec(a)}
     #4 type (value$: Vec(a)) -> Outcome((), ())
     #5 class Chunked(c, a)
     #6 class Num(Vec(a))
@@ -1089,8 +1089,8 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     %v1 = gencall zero(0, a) : Vec(a)
     %acc = alloc : Vec(a)
     init %acc, %v1
-    %v4 = alloc : {acc: &mut Vec(a)}
-    %v5 = borrow_mut %acc : &mut Vec(a)
+    %v4 = alloc : {acc: &Vec(a)}
+    %v5 = borrow_mut %acc : &Vec(a)
     init %local2.acc, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Vec(a)) -> Outcome((), ())
@@ -1108,7 +1108,7 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     #0 type c
     #1 type a
     #2 type Vec(a)
-    #3 type {acc: &mut Vec(a)}
+    #3 type {acc: &Vec(a)}
     #4 type (value$: {Vec(a), Int}) -> Outcome((), ())
     #5 class Chunked(c, a)
     #6 class Ord(a)
@@ -1120,8 +1120,8 @@ fn largest(%xs: Flat(Int), %floor: Int) -> Int {
     %v2 = gencall splat(0, a), %floor : Vec(a)
     %acc = alloc : Vec(a)
     init %acc, %v2
-    %v5 = alloc : {acc: &mut Vec(a)}
-    %v6 = borrow_mut %acc : &mut Vec(a)
+    %v5 = alloc : {acc: &Vec(a)}
+    %v6 = borrow_mut %acc : &Vec(a)
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(a), Int}) -> Outcome((), ())
@@ -1154,7 +1154,7 @@ fn main() -> Int {
     init %local2@Array.length, 5
     %result = alloc : Int
     init %result, 0
-    %v60 = borrow %local0 : &Array(Int)
+    %v60 = borrow %local0 : 'Array(Int)
     %xs = alloc : Flat(Int)
     %v62 = load [%v60]@Array.run@Run.items : %Int
     init %xs@Flat.items, %v62
@@ -1175,7 +1175,7 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v79 = borrow %local0 : &Array(Int)
+    %v79 = borrow %local0 : 'Array(Int)
     %xs = alloc : Flat(Int)
     %v81 = load [%v79]@Array.run@Run.items : %Int
     init %xs@Flat.items, %v81
@@ -1258,10 +1258,10 @@ fn main() -> Int {
     ret %v151
 }
 
-fn ResolveTest.continuation$15(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{acc: &Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].acc : &mut Vec(Int)
-    %v3 = load [%env].acc : &mut Vec(Int)
+    %v2 = load [%env].acc : &Vec(Int)
+    %v3 = load [%env].acc : &Vec(Int)
     %v4 = load [%v3] : Vec(Int)
     %v5 = add %v4, %value$ : Vec(Int)
     assign [%v2], %v5
@@ -1270,12 +1270,12 @@ fn ResolveTest.continuation$15(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -
     ret %v7
 }
 
-fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{acc: &Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(Int)
     %live = load %value$.1 : Int
-    %v4 = load [%env].acc : &mut Vec(Int)
-    %v5 = load [%env].acc : &mut Vec(Int)
+    %v4 = load [%env].acc : &Vec(Int)
+    %v5 = load [%env].acc : &Vec(Int)
     %v6 = load [%v5] : Vec(Int)
     %v8 = vsplat 0 : Vec(Int)
     %v10 = vwithlane %v8, 1, 1 : Vec(Int)
@@ -1284,7 +1284,7 @@ fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), 
     %v15 = cast %live : Int
     %v16 = vsplat %v15 : Vec(Int)
     %v17 = cmp_lt %v14, %v16 : Mask(Int)
-    %v18 = load [%env].acc : &mut Vec(Int)
+    %v18 = load [%env].acc : &Vec(Int)
     %v19 = load [%v18] : Vec(Int)
     %v20 = select %v17 ? %v : %v19 : Vec(Int)
     %v21 = cmp_gt %v6, %v20 : Mask(Int)
@@ -1295,12 +1295,12 @@ fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), 
     ret %v24
 }
 
-(Chunked(c, a), Num(Vec(a)), Length(Flat(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$17(%env: %{acc: &mut Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
+(Chunked(c, a), Num(Vec(a)), Length(Flat(a)), Lanewise(Vec(a), Mask(a))) fn ResolveTest.continuation$17(%env: %{acc: &Vec(a)}, %value$: Vec(a)) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
     #2 type Vec(a)
-    #3 type {acc: &mut Vec(a)}
+    #3 type {acc: &Vec(a)}
     #4 type (value$: Vec(a)) -> Outcome((), ())
     #5 class Chunked(c, a)
     #6 class Num(Vec(a))
@@ -1309,8 +1309,8 @@ fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), 
   }
 
   b0:
-    %v2 = load [%env].acc : &mut Vec(a)
-    %v3 = load [%env].acc : &mut Vec(a)
+    %v2 = load [%env].acc : &Vec(a)
+    %v3 = load [%env].acc : &Vec(a)
     %v4 = load [%v3] : Vec(a)
     %v5 = gencall Num(Vec(a)).+, %v4, %value$ : Vec(a)
     assign [%v2], %v5
@@ -1319,12 +1319,12 @@ fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), 
     ret %v7
 }
 
-(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(Flat(a))) fn ResolveTest.continuation$18(%env: %{acc: &mut Vec(a)}, %value$: {Vec(a), Int}) -> Outcome((), ()) {
+(Chunked(c, a), Ord(a), Lanewise(Vec(a), Mask(a)), Length(Flat(a))) fn ResolveTest.continuation$18(%env: %{acc: &Vec(a)}, %value$: {Vec(a), Int}) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
     #2 type Vec(a)
-    #3 type {acc: &mut Vec(a)}
+    #3 type {acc: &Vec(a)}
     #4 type (value$: {Vec(a), Int}) -> Outcome((), ())
     #5 class Chunked(c, a)
     #6 class Ord(a)
@@ -1335,11 +1335,11 @@ fn ResolveTest.continuation$16(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), 
   b0:
     %v = load %value$.0 : Vec(a)
     %live = load %value$.1 : Int
-    %v4 = load [%env].acc : &mut Vec(a)
-    %v5 = load [%env].acc : &mut Vec(a)
+    %v4 = load [%env].acc : &Vec(a)
+    %v5 = load [%env].acc : &Vec(a)
     %v6 = load [%v5] : Vec(a)
     %v7 = gencall maskUpTo(a), %live : Mask(a)
-    %v8 = load [%env].acc : &mut Vec(a)
+    %v8 = load [%env].acc : &Vec(a)
     %v9 = load [%v8] : Vec(a)
     %v10 = gencall Lanewise(Vec(a), Mask(a)).select, %v7, %v, %v9 : Vec(a)
     %v11 = gencall max(0, a), %v6, %v10 : Vec(a)
@@ -1354,8 +1354,8 @@ fn total(Array(Int), Int)(%xs: Array(Int)) -> Int {
     %v2 = vsplat 0 : Vec(Int)
     %acc = alloc : Vec(Int)
     init %acc, %v2
-    %v5 = alloc : {acc: &mut Vec(Int)}
-    %v6 = borrow_mut %acc : &mut Vec(Int)
+    %v5 = alloc : {acc: &Vec(Int)}
+    %v6 = borrow_mut %acc : &Vec(Int)
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(Int)) -> Outcome((), ())
@@ -1368,10 +1368,10 @@ fn total(Array(Int), Int)(%xs: Array(Int)) -> Int {
     ret %v15
 }
 
-fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{acc: &mut Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{acc: &Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].acc : &mut Vec(Int)
-    %v3 = load [%env].acc : &mut Vec(Int)
+    %v2 = load [%env].acc : &Vec(Int)
+    %v3 = load [%env].acc : &Vec(Int)
     %v4 = load [%v3] : Vec(Int)
     %v5 = add %v4, %value$ : Vec(Int)
     assign [%v2], %v5
@@ -1385,8 +1385,8 @@ fn biggest(Array(Int), Int)(%xs: Array(Int), %floor: Int) -> Int {
     %v2 = vsplat %floor : Vec(Int)
     %acc = alloc : Vec(Int)
     init %acc, %v2
-    %v5 = alloc : {acc: &mut Vec(Int)}
-    %v6 = borrow_mut %acc : &mut Vec(Int)
+    %v5 = alloc : {acc: &Vec(Int)}
+    %v6 = borrow_mut %acc : &Vec(Int)
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(Int), Int}) -> Outcome((), ())
@@ -1399,12 +1399,12 @@ fn biggest(Array(Int), Int)(%xs: Array(Int), %floor: Int) -> Int {
     ret %v15
 }
 
-fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{acc: &mut Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{acc: &Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(Int)
     %live = load %value$.1 : Int
-    %v4 = load [%env].acc : &mut Vec(Int)
-    %v5 = load [%env].acc : &mut Vec(Int)
+    %v4 = load [%env].acc : &Vec(Int)
+    %v5 = load [%env].acc : &Vec(Int)
     %v6 = load [%v5] : Vec(Int)
     %v8 = vsplat 0 : Vec(Int)
     %v10 = vwithlane %v8, 1, 1 : Vec(Int)
@@ -1413,7 +1413,7 @@ fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{acc: &mut Vec(Int)}, %va
     %v15 = cast %live : Int
     %v16 = vsplat %v15 : Vec(Int)
     %v17 = cmp_lt %v14, %v16 : Mask(Int)
-    %v18 = load [%env].acc : &mut Vec(Int)
+    %v18 = load [%env].acc : &Vec(Int)
     %v19 = load [%v18] : Vec(Int)
     %v20 = select %v17 ? %v : %v19 : Vec(Int)
     %v21 = cmp_gt %v6, %v20 : Mask(Int)
@@ -1429,8 +1429,8 @@ fn total(Array(Float), Float)(%xs: Array(Float)) -> Float {
     %v2 = vsplat 0 : Vec(Float)
     %acc = alloc : Vec(Float)
     init %acc, %v2
-    %v5 = alloc : {acc: &mut Vec(Float)}
-    %v6 = borrow_mut %acc : &mut Vec(Float)
+    %v5 = alloc : {acc: &Vec(Float)}
+    %v6 = borrow_mut %acc : &Vec(Float)
     init %local2.acc, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: Vec(Float)) -> Outcome((), ())
@@ -1443,10 +1443,10 @@ fn total(Array(Float), Float)(%xs: Array(Float)) -> Float {
     ret %v15
 }
 
-fn ResolveTest.continuation$17(Array(Float), Float)(%env: %{acc: &mut Vec(Float)}, %value$: Vec(Float)) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(Array(Float), Float)(%env: %{acc: &Vec(Float)}, %value$: Vec(Float)) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].acc : &mut Vec(Float)
-    %v3 = load [%env].acc : &mut Vec(Float)
+    %v2 = load [%env].acc : &Vec(Float)
+    %v3 = load [%env].acc : &Vec(Float)
     %v4 = load [%v3] : Vec(Float)
     %v5 = add %v4, %value$ : Vec(Float)
     assign [%v2], %v5
@@ -1460,8 +1460,8 @@ fn biggest(Array(Float), Float)(%xs: Array(Float), %floor: Float) -> Float {
     %v2 = vsplat %floor : Vec(Float)
     %acc = alloc : Vec(Float)
     init %acc, %v2
-    %v5 = alloc : {acc: &mut Vec(Float)}
-    %v6 = borrow_mut %acc : &mut Vec(Float)
+    %v5 = alloc : {acc: &Vec(Float)}
+    %v6 = borrow_mut %acc : &Vec(Float)
     init %local3.acc, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: {Vec(Float), Int}) -> Outcome((), ())
@@ -1474,12 +1474,12 @@ fn biggest(Array(Float), Float)(%xs: Array(Float), %floor: Float) -> Float {
     ret %v15
 }
 
-fn ResolveTest.continuation$18(Array(Float), Float)(%env: %{acc: &mut Vec(Float)}, %value$: {Vec(Float), Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(Array(Float), Float)(%env: %{acc: &Vec(Float)}, %value$: {Vec(Float), Int}) -> Outcome((), ()) {
   b0:
     %v = load %value$.0 : Vec(Float)
     %live = load %value$.1 : Int
-    %v4 = load [%env].acc : &mut Vec(Float)
-    %v5 = load [%env].acc : &mut Vec(Float)
+    %v4 = load [%env].acc : &Vec(Float)
+    %v5 = load [%env].acc : &Vec(Float)
     %v6 = load [%v5] : Vec(Float)
     %v8 = vsplat 0 : Vec(I32)
     %v10 = vwithlane %v8, 1, 1 : Vec(I32)
@@ -1489,7 +1489,7 @@ fn ResolveTest.continuation$18(Array(Float), Float)(%env: %{acc: &mut Vec(Float)
     %v16 = vsplat %v15 : Vec(I32)
     %v17 = cmp_lt %v14, %v16 : Mask(I32)
     %v18 = bitcast %v17 : Mask(Float)
-    %v19 = load [%env].acc : &mut Vec(Float)
+    %v19 = load [%env].acc : &Vec(Float)
     %v20 = load [%v19] : Vec(Float)
     %v21 = select %v18 ? %v : %v20 : Vec(Float)
     %v22 = cmp_gt %v6, %v21 : Mask(Float)

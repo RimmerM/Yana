@@ -19,7 +19,7 @@ fn teardown$none(%value: %()) -> () {
 
 fn Chunked(Array(a), a).chunks(Int, ())(%self: Array(Int), %body: (value$: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = borrow %self : &Array(Int)
+    %v2 = borrow %self : 'Array(Int)
     %v3 = call Contiguous(Array(a), a).elements(Int), %v2 : Flat(Int)
     %v4 = calldyn %body, %v3 : Outcome((), ())
     %v5 = load %local3.discriminant : Int
@@ -39,14 +39,14 @@ fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
-    %v3 = borrow %self : &Array(Int)
+    %v3 = borrow %self : 'Array(Int)
     %self = alloc : Flat(Int)
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %self@Flat.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size
     init %self@Flat.length, %v8
-    %v11 = borrow %self : &Flat(Int)
+    %v11 = borrow %self : 'Flat(Int)
     %v12 = call unclampedSlice(Int), %v11, 0, %v2 : Flat(Int)
     ret %v12
 }
@@ -202,8 +202,8 @@ fn main() -> Int {
     init %total, 0
     %v3 = alloc : Box
     aggregate %local1@Box.n = 7
-    %v6 = alloc : {total: &mut Int}
-    %v7 = borrow_mut %total : &mut Int
+    %v6 = alloc : {total: &Int}
+    %v7 = borrow_mut %total : &Int
     init %local2.total, %v7
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: Int) -> Outcome((), ())
@@ -219,8 +219,8 @@ fn main() -> Int {
     init %local5@Array.run@Run.ownsHeap, 0
     aggregate [%v22][0] = 10, [%v22][1] = 20, [%v22][2] = 30
     init %local5@Array.length, 3
-    %v33 = alloc : {total: &mut Int}
-    %v34 = borrow_mut %total : &mut Int
+    %v33 = alloc : {total: &Int}
+    %v34 = borrow_mut %total : &Int
     init %local7.total, %v34
     %v36 = addressof %local7 : %()
     %v37 = alloc : (value$: Flat(Int)) -> Outcome((), ())
@@ -233,10 +233,10 @@ fn main() -> Int {
     ret %v42
 }
 
-fn ResolveTest.continuation$15(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
@@ -273,10 +273,10 @@ fn chunks(())(%b: Box, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), (
     ret %v18
 }
 
-fn ResolveTest.continuation$16(%env: %{total: &mut Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{total: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = load %value$@Flat.length : Size
     %v6 = cast %v5 : Int

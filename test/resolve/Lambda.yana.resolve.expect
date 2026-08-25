@@ -395,7 +395,7 @@ fn apply(%f: (Int) -> Int, %x: Int) -> Int {
 fn runOn(%f: (&Int) -> (), %target: Int) -> () {
   b0:
     %v2 = load %target : Int
-    %v3 = borrow_mut %target : &mut Int
+    %v3 = borrow_mut %target : &Int
     calldyn %f, %v3
     ret
 }
@@ -512,7 +512,7 @@ fn main() -> Int {
     %v74 = cast 0 : %()
     init %local10.env, %v74
     %v76 = load %counter : Int
-    %v77 = borrow_mut %counter : &mut Int
+    %v77 = borrow_mut %counter : &Int
     call runOn, %v70, %v77
     %v79 = add %a, %b : Int
     %v80 = add %v79, %c : Int

@@ -144,7 +144,7 @@ fn opaque(%x: Size) -> Size {
 fn indexed(%xs: Flat(Int), %i: Int) -> Int {
   b0:
     %v2 = cast %i : Size
-    %v3 = borrow %xs : &Flat(Int)
+    %v3 = borrow %xs : 'Flat(Int)
     %v4 = load [%v3]@Flat.length : Size
     %v5 = cast %v2 : USize
     %v6 = cast %v4 : USize
@@ -154,7 +154,7 @@ fn indexed(%xs: Flat(Int), %i: Int) -> Int {
     %v10 = strideof Int : Long
     %v11 = mul %v2, %v10 : Long
     %v12 = add %v9, %v11 : %Int
-    %v13 = borrow [%v12] : &Int
+    %v13 = borrow [%v12] : 'Int
     %v14 = load [%v13] : Int
     ret %v14
 }
@@ -197,7 +197,7 @@ fn main() -> Int {
     init %local1@Array.run@Run.ownsHeap, 0
     aggregate [%v11][0] = 10, [%v11][1] = 20, [%v11][2] = 30
     init %local1@Array.length, 3
-    %v22 = borrow %local1 : &Array(Int)
+    %v22 = borrow %local1 : 'Array(Int)
     %xs = alloc : Flat(Int)
     %v24 = load [%v22]@Array.run@Run.items : %Int
     init %xs@Flat.items, %v24

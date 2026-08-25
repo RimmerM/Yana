@@ -36,7 +36,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Int)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Int)
+    %v8 = borrow_mut %self : &Array(Int)
     call reserve(Int), %v8, %v7
     %v10 = load %self : Array(Int)
     %v11 = load %self@Array.run : Run(Int)
@@ -76,7 +76,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Int)
-    %v11 = borrow_mut %self : &mut Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v11, %wanted
     ret
 }
@@ -117,7 +117,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
     %v23 = load %self : Array(Int)
     %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -1121,7 +1121,7 @@ fn frameOnly() -> Int {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v7][0] = 10, [%v7][1] = 20, [%v7][2] = 30
     init %local0@Array.length, 3
-    %v20 = borrow %local0 : &Array(Int)
+    %v20 = borrow %local0 : 'Array(Int)
     %v21 = load [%v20]@Array.length : @bits(30) U32
     %v22 = cast 0 : USize
     %v23 = cast %v21 : USize
@@ -1131,9 +1131,9 @@ fn frameOnly() -> Int {
     %v27 = strideof Int : Long
     %v28 = mul 0, %v27 : Long
     %v29 = add %v26, %v28 : %Int
-    %v30 = borrow [%v29] : &Int
+    %v30 = borrow [%v29] : 'Int
     %v31 = load [%v30] : Int
-    %v34 = borrow %local0 : &Array(Int)
+    %v34 = borrow %local0 : 'Array(Int)
     %v35 = load [%v34]@Array.length : @bits(30) U32
     %v36 = cast 2 : USize
     %v37 = cast %v35 : USize
@@ -1143,7 +1143,7 @@ fn frameOnly() -> Int {
     %v41 = strideof Int : Long
     %v42 = mul 2, %v41 : Long
     %v43 = add %v40, %v42 : %Int
-    %v44 = borrow [%v43] : &Int
+    %v44 = borrow [%v43] : 'Int
     %v45 = load [%v44] : Int
     drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
     %v46 = add %v31, %v45 : Int
@@ -1161,13 +1161,13 @@ fn grown() -> Int {
     aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
     init %xs@Array.length, 3
     %v18 = load %xs : Array(Int)
-    %v21 = borrow_mut %xs : &mut Array(Int)
+    %v21 = borrow_mut %xs : &Array(Int)
     call push(Int), %v21, 4
     %v23 = load %xs : Array(Int)
-    %v26 = borrow_mut %xs : &mut Array(Int)
+    %v26 = borrow_mut %xs : &Array(Int)
     call push(Int), %v26, 5
     %v28 = load %xs : Array(Int)
-    %v31 = borrow %xs : &Array(Int)
+    %v31 = borrow %xs : 'Array(Int)
     %v32 = load [%v31]@Array.length : @bits(30) U32
     %v33 = cast 0 : USize
     %v34 = cast %v32 : USize
@@ -1177,7 +1177,7 @@ fn grown() -> Int {
     %v38 = strideof Int : Long
     %v39 = mul 0, %v38 : Long
     %v40 = add %v37, %v39 : %Int
-    %v41 = borrow [%v40] : &Int
+    %v41 = borrow [%v40] : 'Int
     %v42 = load [%v41] : Int
     %v43 = load %xs : Array(Int)
     %v44 = load %xs@Array.length : @bits(30) U32
@@ -1200,7 +1200,7 @@ fn boundMutable() -> Int {
     aggregate [%v7][0] = 4, [%v7][1] = 5, [%v7][2] = 6
     init %xs@Array.length, 3
     %v18 = load %xs : Array(Int)
-    %v21 = borrow %xs : &Array(Int)
+    %v21 = borrow %xs : 'Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
     %v23 = cast 1 : USize
     %v24 = cast %v22 : USize
@@ -1210,7 +1210,7 @@ fn boundMutable() -> Int {
     %v28 = strideof Int : Long
     %v29 = mul 1, %v28 : Long
     %v30 = add %v27, %v29 : %Int
-    %v31 = borrow [%v30] : &Int
+    %v31 = borrow [%v30] : 'Int
     %v32 = load [%v31] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     ret %v32

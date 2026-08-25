@@ -15,6 +15,7 @@
 bool joinProvenance(Provenance& target, const Provenance& source) {
     auto changed = target.locals.unionWith(source.locals);
 
+    if((source.args & ~target.args) != 0) { target.args |= source.args; changed = true; }
     if(source.global && !target.global) { target.global = true; changed = true; }
     if(source.unknown && !target.unknown) { target.unknown = true; changed = true; }
     return changed;
@@ -207,19 +208,46 @@ static bool flowRound(Analysis& analysis) {
             produced->locals.set(backing, true);
 
             /*
-             * A borrow-like result also *contains* whatever the callee said it is rooted in.
+             * A result that *contains* a reference also contains whatever the callee said it is
+             * rooted in.
              *
              * The slot is where the result landed, which is what the line above says and is the
-             * whole answer for an owned aggregate: a returned record is a handover, and it refers to
-             * nothing but the new storage it now occupies. A slice is not a handover - it is a
-             * reference of memory type (isBorrowLike) - so the callee's declared root group has to
-             * cross the call, and the slot having a backing local is exactly what stops the Call
-             * case below from being reached to do it.
+             * whole answer for an aggregate holding nothing but owned members: a returned record is
+             * a handover, and it refers to nothing but the new storage it now occupies.
+             *
+             * It is not the whole answer for one holding a reference, and testing `isBorrowLike`
+             * here made that the same case. A slice passed the test - it is a reference of memory
+             * type - and a record with a slice or a `&T` in it did not, so the callee's declared
+             * root group stopped crossing the call at the first aggregate that wrapped it. Two
+             * levels was enough to lose it: `fn d1(n: 'Int) -> L1 = L1 {r: n}` is an Aggregate and
+             * is caught by the component writes below, but `fn d2(n: 'Int) -> L2 = L2 {a: d1(n)}`
+             * reads `d1`'s result through this path, and with no roots joined here `deriveSummary`
+             * saw a result rooted in nothing and let the signature hand back a reference it never
+             * declared. Analysis-Borrows.md §2.4's "provenance can be lost by repackaging a
+             * reference into a generic aggregate", exactly.
+             *
+             * `containsBorrowLike` rather than `isBorrowLike`, so the two are one question: it tests
+             * `isBorrowLike` first, so a slice still answers yes for the reason it always did.
              */
-            if(instruction.kind == Value::Call && isBorrowLike(analysis.module, instruction.type)) {
-                auto& call = (InstCall&)instruction;
-                callResultProvenance(analysis, call.callee, call.args, instruction.type, *part);
-                changed = joinProvenance(analysis.contents[backing], *part) || changed;
+            if(containsBorrowLike(analysis.module, instruction.type)) {
+                if(instruction.kind == Value::Call) {
+                    auto& call = (InstCall&)instruction;
+                    callResultProvenance(analysis, call.callee, call.args, instruction.type, *part);
+                    changed = joinProvenance(analysis.contents[backing], *part) || changed;
+                } else if(instruction.kind == Value::GenCall) {
+                    /*
+                     * No summary to read, so the conservative answer the GenCall case below already
+                     * gives: anything this call was handed. Written here as well because a result of
+                     * memory type never reaches that case - the backing slot is what diverts it.
+                     */
+                    part->reset(analysis.localCount);
+
+                    for(auto arg: ((InstGenCall&)instruction).args.contents(local)) {
+                        joinProvenance(*part, provenanceOf(analysis, arg));
+                    }
+
+                    changed = joinProvenance(analysis.contents[backing], *part) || changed;
+                }
             }
         } else {
             switch(instruction.kind) {
@@ -458,6 +486,34 @@ void computeProvenance(Analysis& analysis) {
          */
         auto id = analysis.local[slot.value]->id;
         if(id < analysis.values.size()) analysis.values[id].locals.set(l, true);
+    }
+
+    /*
+     * And a parameter with no slot at all refers to *itself* - see Provenance::args.
+     *
+     * The loop above is over locals, so it reaches a parameter only where the frame gave it one:
+     * `&x: T` names storage the caller owns and gets a slot holding that address, and an argument
+     * of memory type gets one because that is where it was copied to. A parameter whose declared
+     * type is itself a reference gets neither - `&Int` and `%U8` are direct types, so they arrive in
+     * a register and `resolveArgs` makes no local - and the two of them are exactly the parameters
+     * whose *value* is an address into the caller.
+     *
+     * So they had no provenance whatever, and a result derived from one was rooted in nothing. That
+     * is not a missed optimization: `deriveSummary` reads "no roots" as "the result is bounded by
+     * this frame", so the return-root check had nothing to object to and the signature was free to
+     * hand back a reference it never declared. Both halves of it were reachable from source -
+     * `Pair(&Int, &Int)` built out of two `&Int` parameters, and a `%U8` handed straight back.
+     *
+     * Rooted in the argument index rather than in a slot, because there is no slot to root it in.
+     * Everything downstream composes the two the same way: `joinProvenance` carries both, and
+     * `deriveSummary` turns each into the same bit of the same mask.
+     */
+    for(auto argPointer: analysis.function.args.contents(analysis.local)) {
+        auto arg = analysis.local[argPointer];
+        if(!isBorrow(analysis.global, arg->type) && !isPointer(analysis.global, arg->type)) continue;
+        if(backingLocal(analysis, (ModulePtr<Value>)argPointer) != maxLimit<U32>) continue;
+
+        if(arg->id < analysis.values.size()) analysis.values[arg->id].args |= rootBit(arg->index);
     }
 
     // Bounded rather than unbounded: each round can only add, and the lattice is finite, so this

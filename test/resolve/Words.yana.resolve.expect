@@ -477,27 +477,27 @@ fn roundTrip() -> Int {
     aggregate [%v12][0] = 0, [%v12][1] = 0, [%v12][2] = 0, [%v12][3] = 0, [%v12][4] = 0, [%v12][5] = 0, [%v12][6] = 0, [%v12][7] = 0
     init %bytes@Array.length, 8
     %v27 = load %bytes : Array(U8)
-    %v30 = borrow_mut %bytes : &mut Array(U8)
+    %v30 = borrow_mut %bytes : &Array(U8)
     %v31 = alloc : Flat(U8)
     %v32 = load [%v30]@Array.run@Run.items : %U8
     init %local2@Flat.items, %v32
     %v34 = load [%v30]@Array.length : @bits(30) U32
     %v35 = cast %v34 : Size
     init %local2@Flat.length, %v35
-    %v37 = borrow_mut %local2 : &mut Flat(U8)
+    %v37 = borrow_mut %local2 : &Flat(U8)
     call writeBigU16, %v37, 0, 4660
     %v39 = load %bytes : Array(U8)
-    %v42 = borrow_mut %bytes : &mut Array(U8)
+    %v42 = borrow_mut %bytes : &Array(U8)
     %v43 = alloc : Flat(U8)
     %v44 = load [%v42]@Array.run@Run.items : %U8
     init %local3@Flat.items, %v44
     %v46 = load [%v42]@Array.length : @bits(30) U32
     %v47 = cast %v46 : Size
     init %local3@Flat.length, %v47
-    %v49 = borrow_mut %local3 : &mut Flat(U8)
+    %v49 = borrow_mut %local3 : &Flat(U8)
     call writeLittleU16, %v49, 2, 4660
     %v51 = load %bytes : Array(U8)
-    %v52 = borrow %bytes : &Array(U8)
+    %v52 = borrow %bytes : 'Array(U8)
     %v53 = alloc : Flat(U8)
     %v54 = load [%v52]@Array.run@Run.items : %U8
     init %local4@Flat.items, %v54
@@ -508,7 +508,7 @@ fn roundTrip() -> Int {
     %v63 = cmp_eq %v60, 4660 : Bool
     %v65 = call check, %v63, 128 : Int
     %v66 = load %bytes : Array(U8)
-    %v67 = borrow %bytes : &Array(U8)
+    %v67 = borrow %bytes : 'Array(U8)
     %v68 = alloc : Flat(U8)
     %v69 = load [%v67]@Array.run@Run.items : %U8
     init %local5@Flat.items, %v69
@@ -520,7 +520,7 @@ fn roundTrip() -> Int {
     %v80 = call check, %v78, 256 : Int
     %v81 = add %v65, %v80 : Int
     %v82 = load %bytes : Array(U8)
-    %v83 = borrow %bytes : &Array(U8)
+    %v83 = borrow %bytes : 'Array(U8)
     %v84 = alloc : Flat(U8)
     %v85 = load [%v83]@Array.run@Run.items : %U8
     init %local6@Flat.items, %v85
@@ -532,17 +532,17 @@ fn roundTrip() -> Int {
     %v96 = call check, %v94, 512 : Int
     %shorts = add %v81, %v96 : Int
     %v98 = load %bytes : Array(U8)
-    %v101 = borrow_mut %bytes : &mut Array(U8)
+    %v101 = borrow_mut %bytes : &Array(U8)
     %v102 = alloc : Flat(U8)
     %v103 = load [%v101]@Array.run@Run.items : %U8
     init %local7@Flat.items, %v103
     %v105 = load [%v101]@Array.length : @bits(30) U32
     %v106 = cast %v105 : Size
     init %local7@Flat.length, %v106
-    %v108 = borrow_mut %local7 : &mut Flat(U8)
+    %v108 = borrow_mut %local7 : &Flat(U8)
     call writeBigU64, %v108, 0, 1311768467463790320
     %v110 = load %bytes : Array(U8)
-    %v111 = borrow %bytes : &Array(U8)
+    %v111 = borrow %bytes : 'Array(U8)
     %v112 = alloc : Flat(U8)
     %v113 = load [%v111]@Array.run@Run.items : %U8
     init %local8@Flat.items, %v113
@@ -568,27 +568,27 @@ fn layout() -> Int {
     aggregate [%v12][0] = 0, [%v12][1] = 0, [%v12][2] = 0, [%v12][3] = 0, [%v12][4] = 0, [%v12][5] = 0, [%v12][6] = 0, [%v12][7] = 0
     init %bytes@Array.length, 8
     %v27 = load %bytes : Array(U8)
-    %v30 = borrow_mut %bytes : &mut Array(U8)
+    %v30 = borrow_mut %bytes : &Array(U8)
     %v31 = alloc : Flat(U8)
     %v32 = load [%v30]@Array.run@Run.items : %U8
     init %local2@Flat.items, %v32
     %v34 = load [%v30]@Array.length : @bits(30) U32
     %v35 = cast %v34 : Size
     init %local2@Flat.length, %v35
-    %v37 = borrow_mut %local2 : &mut Flat(U8)
+    %v37 = borrow_mut %local2 : &Flat(U8)
     call writeBigU32, %v37, 0, 305419896
     %v39 = load %bytes : Array(U8)
-    %v42 = borrow_mut %bytes : &mut Array(U8)
+    %v42 = borrow_mut %bytes : &Array(U8)
     %v43 = alloc : Flat(U8)
     %v44 = load [%v42]@Array.run@Run.items : %U8
     init %local3@Flat.items, %v44
     %v46 = load [%v42]@Array.length : @bits(30) U32
     %v47 = cast %v46 : Size
     init %local3@Flat.length, %v47
-    %v49 = borrow_mut %local3 : &mut Flat(U8)
+    %v49 = borrow_mut %local3 : &Flat(U8)
     call writeLittleU32, %v49, 4, 305419896
     %v51 = load %bytes : Array(U8)
-    %v54 = borrow %bytes : &Array(U8)
+    %v54 = borrow %bytes : 'Array(U8)
     %v55 = load [%v54]@Array.length : @bits(30) U32
     %v56 = cast 0 : USize
     %v57 = cast %v55 : USize
@@ -598,12 +598,12 @@ fn layout() -> Int {
     %v61 = strideof U8 : Long
     %v62 = mul 0, %v61 : Long
     %v63 = add %v60, %v62 : %U8
-    %v64 = borrow [%v63] : &U8
+    %v64 = borrow [%v63] : 'U8
     %v65 = load [%v64] : U8
     %v68 = cmp_eq %v65, 18 : Bool
     %v70 = call check, %v68, 2048 : Int
     %v71 = load %bytes : Array(U8)
-    %v74 = borrow %bytes : &Array(U8)
+    %v74 = borrow %bytes : 'Array(U8)
     %v75 = load [%v74]@Array.length : @bits(30) U32
     %v76 = cast 3 : USize
     %v77 = cast %v75 : USize
@@ -613,13 +613,13 @@ fn layout() -> Int {
     %v81 = strideof U8 : Long
     %v82 = mul 3, %v81 : Long
     %v83 = add %v80, %v82 : %U8
-    %v84 = borrow [%v83] : &U8
+    %v84 = borrow [%v83] : 'U8
     %v85 = load [%v84] : U8
     %v88 = cmp_eq %v85, 120 : Bool
     %v90 = call check, %v88, 4096 : Int
     %v91 = add %v70, %v90 : Int
     %v92 = load %bytes : Array(U8)
-    %v95 = borrow %bytes : &Array(U8)
+    %v95 = borrow %bytes : 'Array(U8)
     %v96 = load [%v95]@Array.length : @bits(30) U32
     %v97 = cast 4 : USize
     %v98 = cast %v96 : USize
@@ -629,13 +629,13 @@ fn layout() -> Int {
     %v102 = strideof U8 : Long
     %v103 = mul 4, %v102 : Long
     %v104 = add %v101, %v103 : %U8
-    %v105 = borrow [%v104] : &U8
+    %v105 = borrow [%v104] : 'U8
     %v106 = load [%v105] : U8
     %v109 = cmp_eq %v106, 120 : Bool
     %v111 = call check, %v109, 8192 : Int
     %v112 = add %v91, %v111 : Int
     %v113 = load %bytes : Array(U8)
-    %v116 = borrow %bytes : &Array(U8)
+    %v116 = borrow %bytes : 'Array(U8)
     %v117 = load [%v116]@Array.length : @bits(30) U32
     %v118 = cast 7 : USize
     %v119 = cast %v117 : USize
@@ -645,13 +645,13 @@ fn layout() -> Int {
     %v123 = strideof U8 : Long
     %v124 = mul 7, %v123 : Long
     %v125 = add %v122, %v124 : %U8
-    %v126 = borrow [%v125] : &U8
+    %v126 = borrow [%v125] : 'U8
     %v127 = load [%v126] : U8
     %v130 = cmp_eq %v127, 18 : Bool
     %v132 = call check, %v130, 16384 : Int
     %ends = add %v112, %v132 : Int
     %v134 = load %bytes : Array(U8)
-    %v135 = borrow %bytes : &Array(U8)
+    %v135 = borrow %bytes : 'Array(U8)
     %v136 = alloc : Flat(U8)
     %v137 = load [%v135]@Array.run@Run.items : %U8
     init %local4@Flat.items, %v137
@@ -677,18 +677,18 @@ fn unaligned() -> Int {
     aggregate [%v12][0] = 0, [%v12][1] = 0, [%v12][2] = 0, [%v12][3] = 0, [%v12][4] = 0, [%v12][5] = 0, [%v12][6] = 0, [%v12][7] = 0
     init %bytes@Array.length, 8
     %v27 = load %bytes : Array(U8)
-    %v30 = borrow_mut %bytes : &mut Array(U8)
+    %v30 = borrow_mut %bytes : &Array(U8)
     %v31 = alloc : Flat(U8)
     %v32 = load [%v30]@Array.run@Run.items : %U8
     init %local2@Flat.items, %v32
     %v34 = load [%v30]@Array.length : @bits(30) U32
     %v35 = cast %v34 : Size
     init %local2@Flat.length, %v35
-    %v37 = borrow_mut %local2 : &mut Flat(U8)
+    %v37 = borrow_mut %local2 : &Flat(U8)
     call writeBigU32, %v37, 1, 305419896
     %v39 = load %bytes : Array(U8)
     %v41 = load %bytes : Array(U8)
-    %v42 = borrow %bytes : &Array(U8)
+    %v42 = borrow %bytes : 'Array(U8)
     %v43 = alloc : Flat(U8)
     %v44 = load [%v42]@Array.run@Run.items : %U8
     init %local3@Flat.items, %v44
@@ -697,17 +697,17 @@ fn unaligned() -> Int {
     init %local3@Flat.length, %v47
     %v50 = call readBigU32, %v43, 1 : U32
     %v53 = add %v50, 1 : U32
-    %v54 = borrow_mut %bytes : &mut Array(U8)
+    %v54 = borrow_mut %bytes : &Array(U8)
     %v55 = alloc : Flat(U8)
     %v56 = load [%v54]@Array.run@Run.items : %U8
     init %local4@Flat.items, %v56
     %v58 = load [%v54]@Array.length : @bits(30) U32
     %v59 = cast %v58 : Size
     init %local4@Flat.length, %v59
-    %v61 = borrow_mut %local4 : &mut Flat(U8)
+    %v61 = borrow_mut %local4 : &Flat(U8)
     call writeBigU32, %v61, 1, %v53
     %v63 = load %bytes : Array(U8)
-    %v64 = borrow %bytes : &Array(U8)
+    %v64 = borrow %bytes : 'Array(U8)
     %v65 = alloc : Flat(U8)
     %v66 = load [%v64]@Array.run@Run.items : %U8
     init %local5@Flat.items, %v66
@@ -718,7 +718,7 @@ fn unaligned() -> Int {
     %v75 = cmp_eq %v72, 305419897 : Bool
     %v77 = call check, %v75, 65536 : Int
     %v78 = load %bytes : Array(U8)
-    %v81 = borrow %bytes : &Array(U8)
+    %v81 = borrow %bytes : 'Array(U8)
     %v82 = load [%v81]@Array.length : @bits(30) U32
     %v83 = cast 0 : USize
     %v84 = cast %v82 : USize
@@ -728,7 +728,7 @@ fn unaligned() -> Int {
     %v88 = strideof U8 : Long
     %v89 = mul 0, %v88 : Long
     %v90 = add %v87, %v89 : %U8
-    %v91 = borrow [%v90] : &U8
+    %v91 = borrow [%v90] : 'U8
     %v92 = load [%v91] : U8
     drop %bytes reclaim Reclaim(Array(a)).reclaim(U8)
     %v95 = cmp_eq %v92, 0 : Bool

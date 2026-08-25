@@ -111,10 +111,10 @@ fn borrowed() -> Int {
     %v = alloc : Int
     init %v, 10
     %v4 = load %v : Int
-    %v5 = borrow_mut %v : &mut Int
+    %v5 = borrow_mut %v : &Int
     call bump, %v5
     %v7 = load %v : Int
-    %v8 = borrow_mut %v : &mut Int
+    %v8 = borrow_mut %v : &Int
     call bump, %v8
     %v10 = load %v : Int
     ret %v10

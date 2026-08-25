@@ -71,8 +71,8 @@ fn formatBound(%bound: Maybe(Size)) -> Size {
 
 fn String.unit(%self: String, %index: Size) -> Int {
   b0:
-    %v2 = borrow %self : &String
-    %v3 = cast %v2 : &StringData
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'StringData
     %v4 = load [%v3]@StringData.bytes : Array(CodeUnit)
     %v5 = load [%v3]@StringData.bytes@Array.run : Run(CodeUnit)
     %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %CodeUnit
@@ -109,8 +109,8 @@ fn String.ofCapacity(%capacity: Size) -> String {
 fn String.reserve(%self: String, %wanted: Size) -> () {
   b0:
     %v2 = load %self : String
-    %v3 = borrow_mut %self : &mut String
-    %v4 = cast %v3 : &mut StringData
+    %v3 = borrow_mut %self : &String
+    %v4 = cast %v3 : &StringData
     %v5 = load [%v4] : StringData
     %v6 = load [%v4]@StringData.bytes : Array(CodeUnit)
     %v7 = load [%v4] : StringData
@@ -118,7 +118,7 @@ fn String.reserve(%self: String, %wanted: Size) -> () {
     %v9 = load [%v4]@StringData.bytes@Array.length : @bits(30) U32
     %v10 = cast %v9 : Size
     %v11 = add %v10, %wanted : Size
-    %v12 = borrow_mut [%v4]@StringData.bytes : &mut Array(CodeUnit)
+    %v12 = borrow_mut [%v4]@StringData.bytes : &Array(CodeUnit)
     call reserve(CodeUnit), %v12, %v11
     ret
 }
@@ -126,13 +126,13 @@ fn String.reserve(%self: String, %wanted: Size) -> () {
 fn String.push(%self: String, %other: String) -> () {
   b0:
     %v2 = load %self : String
-    %v3 = borrow %other : &String
-    %v4 = cast %v3 : &StringData
+    %v3 = borrow %other : 'String
+    %v4 = cast %v3 : 'StringData
     %v5 = load [%v4]@StringData.bytes : Array(CodeUnit)
     %v6 = load [%v4]@StringData.bytes@Array.run : Run(CodeUnit)
     %v7 = load [%v4]@StringData.bytes@Array.run@Run.items : %CodeUnit
     %v8 = call Length(String).length, %other : Size
-    %v9 = borrow_mut %self : &mut String
+    %v9 = borrow_mut %self : &String
     call String.appendUnits, %v9, %v7, %v8
     ret
 }
@@ -150,11 +150,11 @@ fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
 
   b3:
     %v9 = load %self : String
-    %v10 = borrow_mut %self : &mut String
+    %v10 = borrow_mut %self : &String
     call String.reserve, %v10, %count
     %v12 = load %self : String
-    %v13 = borrow_mut %self : &mut String
-    %v14 = cast %v13 : &mut StringData
+    %v13 = borrow_mut %self : &String
+    %v14 = cast %v13 : &StringData
     %v15 = load [%v14] : StringData
     %v16 = load [%v14]@StringData.bytes : Array(CodeUnit)
     %v17 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
@@ -191,8 +191,8 @@ fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
 
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int
@@ -256,8 +256,8 @@ fn Eq(String).!=(%self: String, %other: String) -> Bool {
 
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
-    %v1 = borrow %value : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4
@@ -281,7 +281,7 @@ fn reserve(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(CodeUnit)
-    %v11 = borrow_mut %self : &mut Array(CodeUnit)
+    %v11 = borrow_mut %self : &Array(CodeUnit)
     call growArray(CodeUnit), %v11, %wanted
     ret
 }
@@ -322,7 +322,7 @@ fn growArray(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
     %v23 = load %self : Array(CodeUnit)
     %v24 = load %self@Array.run : Run(CodeUnit)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(CodeUnit)
+    %v26 = borrow_mut %self@Array.run : &Run(CodeUnit)
     %v27 = call resize(CodeUnit), %v26, %v25 : Bool
     ret
 }
@@ -354,7 +354,7 @@ fn Show(Colour).show(%value: Colour, %to: String) -> () {
 
   b5:
     %v21 = phi [b1, %v8], [b3, %v14], [b4, %v17] : String
-    %v22 = borrow_mut %to : &mut String
+    %v22 = borrow_mut %to : &String
     call String.push, %v22, %v21
     drop %local1 reclaim Reclaim(String).reclaim
     ret
@@ -394,7 +394,7 @@ fn Show(Whence).show(%value: Whence, %to: String) -> () {
 
   b5:
     %v21 = phi [b1, %v8], [b3, %v14], [b4, %v17] : String
-    %v22 = borrow_mut %to : &mut String
+    %v22 = borrow_mut %to : &String
     call String.push, %v22, %v21
     drop %local1 reclaim Reclaim(String).reclaim
     ret
@@ -1391,7 +1391,7 @@ fn describe(%c: Colour) -> String {
     %v5 = call String.ofCapacity, %v4 : String
     %v6 = alloc : String
     init %local1, %v5
-    %v8 = borrow_mut %local1 : &mut String
+    %v8 = borrow_mut %local1 : &String
     call Show(Colour).show, %c, %v8
     %v10 = load %local1 : String
     %v11 = move %local1 : String
@@ -1420,7 +1420,7 @@ fn main() -> Int {
     %v15 = call String.ofCapacity, %v14 : String
     %v16 = alloc : String
     init %local2, %v15
-    %v18 = borrow_mut %local2 : &mut String
+    %v18 = borrow_mut %local2 : &String
     call Show(Whence).show, FromCurrent, %v18
     %v20 = load %local2 : String
     %v21 = symbol ResolveTest.string$1 : %CodeUnit
@@ -1442,7 +1442,7 @@ fn main() -> Int {
     %v34 = call String.ofCapacity, %v33 : String
     %v35 = alloc : String
     init %local4, %v34
-    %v37 = borrow_mut %local4 : &mut String
+    %v37 = borrow_mut %local4 : &String
     call Show(Mood).show, Happy, %v37
     %v39 = load %local4 : String
     %v40 = symbol ResolveTest.string$2 : %CodeUnit
@@ -1499,7 +1499,7 @@ fn Show(Mood).show(%value: Mood, %to: String) -> () {
 
   b3:
     %v15 = phi [b2, %v9], [b1, %v12] : String
-    %v16 = borrow_mut %to : &mut String
+    %v16 = borrow_mut %to : &String
     call String.push, %v16, %v15
     drop %local1 reclaim Reclaim(String).reclaim
     ret

@@ -181,7 +181,7 @@ fn borrowed() -> Int {
     init %local1.code, %v5
     %v8 = cast 0 : %()
     init %local1.env, %v8
-    %v10 = borrow_mut %c : &mut Counter
+    %v10 = borrow_mut %c : &Counter
     %v11 = call bumped(Int), %v10, %v4 : Int
     ret %v11
 }
@@ -229,8 +229,8 @@ fn inLoop(%n: Int) -> Int {
     %v11 = load %i : Int
     %v14 = add %v11, 1 : Int
     assign %i, %v14
-    %v16 = alloc : {total: &mut Int}
-    %v17 = borrow_mut %total : &mut Int
+    %v16 = alloc : {total: &Int}
+    %v17 = borrow_mut %total : &Int
     init %local2.total, %v17
     %v19 = addressof %local2 : %()
     %v20 = alloc : (value$: Int) -> ()
@@ -430,10 +430,10 @@ fn ResolveTest.continuation$24(%env: %{}, %b: Int) -> Int {
     ret %b
 }
 
-fn ResolveTest.continuation$25(%env: %{total: &mut Int}, %value$: Int) -> () {
+fn ResolveTest.continuation$25(%env: %{total: &Int}, %value$: Int) -> () {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5

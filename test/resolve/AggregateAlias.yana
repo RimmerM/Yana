@@ -46,11 +46,11 @@ fn fromGlobal() -> Buf = Buf {bytes: zeros, used: seed()}
 -- 3. A record field from another record's field. The source is borrowed, so nothing here may take
 -- it - and after inlining this is also the shape where `compiler/opt` answers the read with the
 -- value that was stored into the field, which is what Gen::keptTwice exists for.
-fn fromField(w: &Wrap) -> Buf = Buf {bytes: w.inner.bytes, used: seed() + 3}
+fn fromField(w: 'Wrap) -> Buf = Buf {bytes: w.inner.bytes, used: seed() + 3}
 
 -- 5. A loaded field handed back through a `return`, which is the caller's copy to make on native
 -- and the callee's here.
-fn bytesOf(w: &Wrap) -> [Int *4] = w.inner.bytes
+fn bytesOf(w: 'Wrap) -> [Int *4] = w.inner.bytes
 
 -- 6. An owned aggregate parameter written into a local. `b` is the caller's storage, because that is
 -- what a by-value aggregate argument is on every target - so this write is a copy and the mutation
@@ -62,7 +62,7 @@ fn eat(b: Buf) -> Int:
 
 -- 7. A join. Which of the two the component names is decided at run time and neither is fresh, so
 -- the copy is owed on both edges.
-fn fromEither(flag: Bool, w: &Wrap) -> Buf =
+fn fromEither(flag: Bool, w: 'Wrap) -> Buf =
     Buf {bytes: if flag then zeros else w.inner.bytes, used: seed() + 7}
 
 -- 8. Case 5 with the inliner kept out of it, which is the whole of what it adds: inlined, the copy
@@ -70,7 +70,7 @@ fn fromEither(flag: Bool, w: &Wrap) -> Buf =
 -- `returnedValue` hands over storage the *frame* owns because nothing outside it can be a second
 -- name, and a borrowed parameter's field is exactly the storage that fails that test.
 @noinline
-fn bytesKept(w: &Wrap) -> [Int *4] = w.inner.bytes
+fn bytesKept(w: 'Wrap) -> [Int *4] = w.inner.bytes
 
 {-
    9. The other side of 8: a projection of the frame's own storage, handed back.

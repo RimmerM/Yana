@@ -76,7 +76,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Int)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Int)
+    %v8 = borrow_mut %self : &Array(Int)
     call reserve(Int), %v8, %v7
     %v10 = load %self : Array(Int)
     %v11 = load %self@Array.run : Run(Int)
@@ -116,7 +116,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Int)
-    %v11 = borrow_mut %self : &mut Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v11, %wanted
     ret
 }
@@ -157,7 +157,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
     %v23 = load %self : Array(Int)
     %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -1191,7 +1191,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   b3:
     %v11 = load %i : Int
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : &a
+    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : 'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : Int
@@ -1214,7 +1214,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #4 type {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
@@ -1223,10 +1223,10 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   }
 
   b0:
-    %v3 = alloc : {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
-    %v4 = borrow %body : &(value$: b) -> Outcome((), $r)
+    %v3 = alloc : {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
+    %v4 = borrow %body : '(value$: b) -> Outcome((), $r)
     init %local3.body, %v4
-    %v6 = borrow %f : &(a) -> b
+    %v6 = borrow %f : '(a) -> b
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
@@ -1279,7 +1279,7 @@ fn collect(%xs: Flat(Int)) -> Array(Int) {
     %v13 = load %out : Array(Int)
     %v14 = load %i : Int
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : &Flat(Int)
+    %v16 = borrow %xs : 'Flat(Int)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -1289,9 +1289,9 @@ fn collect(%xs: Flat(Int)) -> Array(Int) {
     %v23 = strideof Int : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %Int
-    %v26 = borrow [%v25] : &Int
+    %v26 = borrow [%v25] : 'Int
     %v27 = load [%v26] : Int
-    %v28 = borrow_mut %out : &mut Array(Int)
+    %v28 = borrow_mut %out : &Array(Int)
     call push(Int), %v28, %v27
     %v30 = load %i : Int
     %v33 = add %v30, 1 : Int
@@ -1304,8 +1304,8 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     %v1 = call emptyArray(Int) : Array(Int)
     %out = alloc : Array(Int)
     init %out, %v1
-    %v4 = alloc : {out: &mut Array(Int)}
-    %v5 = borrow_mut %out : &mut Array(Int)
+    %v4 = alloc : {out: &Array(Int)}
+    %v5 = borrow_mut %out : &Array(Int)
     init %local3.out, %v5
     %v7 = addressof %local3 : %()
     %v8 = alloc : (value$: Int) -> Outcome((), ())
@@ -1323,7 +1323,7 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     #0 type a
     #1 type b
     #2 type Array(b)
-    #3 type {out: &mut Array(b)}
+    #3 type {out: &Array(b)}
     #4 type (value$: b) -> Outcome((), ())
     #5 class TrivialCopy(a)
     #6 class Bitcast(%b, %U8)
@@ -1336,8 +1336,8 @@ fn collectFor(%xs: Flat(Int)) -> Array(Int) {
     %v2 = gencall emptyArray(b) : Array(b)
     %out = alloc : Array(b)
     init %out, %v2
-    %v5 = alloc : {out: &mut Array(b)}
-    %v6 = borrow_mut %out : &mut Array(b)
+    %v5 = alloc : {out: &Array(b)}
+    %v6 = borrow_mut %out : &Array(b)
     init %local4.out, %v6
     %v8 = addressof %local4 : %()
     %v9 = alloc : (value$: b) -> Outcome((), ())
@@ -1383,7 +1383,7 @@ fn main() -> Int {
     aggregate [%v8][0] = 1, [%v8][1] = 2, [%v8][2] = 3, [%v8][3] = 4
     init %xs@Array.length, 4
     %v20 = load %xs : Array(Int)
-    %v21 = borrow %xs : &Array(Int)
+    %v21 = borrow %xs : 'Array(Int)
     %v22 = alloc : Flat(Int)
     %v23 = load [%v21]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v23
@@ -1391,7 +1391,7 @@ fn main() -> Int {
     %v26 = cast %v25 : Size
     init %local2@Flat.length, %v26
     %a = call collect, %v22 : Array(Int)
-    %v31 = borrow %local3 : &Array(Int)
+    %v31 = borrow %local3 : 'Array(Int)
     %v32 = load [%v31]@Array.length : @bits(30) U32
     %v33 = cast 0 : USize
     %v34 = cast %v32 : USize
@@ -1401,9 +1401,9 @@ fn main() -> Int {
     %v38 = strideof Int : Long
     %v39 = mul 0, %v38 : Long
     %v40 = add %v37, %v39 : %Int
-    %v41 = borrow [%v40] : &Int
+    %v41 = borrow [%v40] : 'Int
     %v42 = load [%v41] : Int
-    %v45 = borrow %local3 : &Array(Int)
+    %v45 = borrow %local3 : 'Array(Int)
     %v46 = load [%v45]@Array.length : @bits(30) U32
     %v47 = cast 1 : USize
     %v48 = cast %v46 : USize
@@ -1413,11 +1413,11 @@ fn main() -> Int {
     %v52 = strideof Int : Long
     %v53 = mul 1, %v52 : Long
     %v54 = add %v51, %v53 : %Int
-    %v55 = borrow [%v54] : &Int
+    %v55 = borrow [%v54] : 'Int
     %v56 = load [%v55] : Int
     %v59 = mul %v56, 2 : Int
     %v60 = add %v42, %v59 : Int
-    %v63 = borrow %local3 : &Array(Int)
+    %v63 = borrow %local3 : 'Array(Int)
     %v64 = load [%v63]@Array.length : @bits(30) U32
     %v65 = cast 2 : USize
     %v66 = cast %v64 : USize
@@ -1427,11 +1427,11 @@ fn main() -> Int {
     %v70 = strideof Int : Long
     %v71 = mul 2, %v70 : Long
     %v72 = add %v69, %v71 : %Int
-    %v73 = borrow [%v72] : &Int
+    %v73 = borrow [%v72] : 'Int
     %v74 = load [%v73] : Int
     %v77 = mul %v74, 4 : Int
     %v78 = add %v60, %v77 : Int
-    %v81 = borrow %local3 : &Array(Int)
+    %v81 = borrow %local3 : 'Array(Int)
     %v82 = load [%v81]@Array.length : @bits(30) U32
     %v83 = cast 3 : USize
     %v84 = cast %v82 : USize
@@ -1441,7 +1441,7 @@ fn main() -> Int {
     %v88 = strideof Int : Long
     %v89 = mul 3, %v88 : Long
     %v90 = add %v87, %v89 : %Int
-    %v91 = borrow [%v90] : &Int
+    %v91 = borrow [%v90] : 'Int
     %v92 = load [%v91] : Int
     drop %local3 reclaim Reclaim(Array(a)).reclaim(Int)
     %v95 = mul %v92, 8 : Int
@@ -1449,7 +1449,7 @@ fn main() -> Int {
     %total = alloc : Int
     init %total, %v96
     %v99 = load %xs : Array(Int)
-    %v100 = borrow %xs : &Array(Int)
+    %v100 = borrow %xs : 'Array(Int)
     %v101 = alloc : Flat(Int)
     %v102 = load [%v100]@Array.run@Run.items : %Int
     init %local5@Flat.items, %v102
@@ -1458,7 +1458,7 @@ fn main() -> Int {
     init %local5@Flat.length, %v105
     %b = call collectFor, %v101 : Array(Int)
     %v108 = load %total : Int
-    %v111 = borrow %local6 : &Array(Int)
+    %v111 = borrow %local6 : 'Array(Int)
     %v112 = load [%v111]@Array.length : @bits(30) U32
     %v113 = cast 0 : USize
     %v114 = cast %v112 : USize
@@ -1468,10 +1468,10 @@ fn main() -> Int {
     %v118 = strideof Int : Long
     %v119 = mul 0, %v118 : Long
     %v120 = add %v117, %v119 : %Int
-    %v121 = borrow [%v120] : &Int
+    %v121 = borrow [%v120] : 'Int
     %v122 = load [%v121] : Int
     %v123 = add %v108, %v122 : Int
-    %v126 = borrow %local6 : &Array(Int)
+    %v126 = borrow %local6 : 'Array(Int)
     %v127 = load [%v126]@Array.length : @bits(30) U32
     %v128 = cast 1 : USize
     %v129 = cast %v127 : USize
@@ -1481,11 +1481,11 @@ fn main() -> Int {
     %v133 = strideof Int : Long
     %v134 = mul 1, %v133 : Long
     %v135 = add %v132, %v134 : %Int
-    %v136 = borrow [%v135] : &Int
+    %v136 = borrow [%v135] : 'Int
     %v137 = load [%v136] : Int
     %v140 = mul %v137, 2 : Int
     %v141 = add %v123, %v140 : Int
-    %v144 = borrow %local6 : &Array(Int)
+    %v144 = borrow %local6 : 'Array(Int)
     %v145 = load [%v144]@Array.length : @bits(30) U32
     %v146 = cast 2 : USize
     %v147 = cast %v145 : USize
@@ -1495,11 +1495,11 @@ fn main() -> Int {
     %v151 = strideof Int : Long
     %v152 = mul 2, %v151 : Long
     %v153 = add %v150, %v152 : %Int
-    %v154 = borrow [%v153] : &Int
+    %v154 = borrow [%v153] : 'Int
     %v155 = load [%v154] : Int
     %v158 = mul %v155, 4 : Int
     %v159 = add %v141, %v158 : Int
-    %v162 = borrow %local6 : &Array(Int)
+    %v162 = borrow %local6 : 'Array(Int)
     %v163 = load [%v162]@Array.length : @bits(30) U32
     %v164 = cast 3 : USize
     %v165 = cast %v163 : USize
@@ -1509,7 +1509,7 @@ fn main() -> Int {
     %v169 = strideof Int : Long
     %v170 = mul 3, %v169 : Long
     %v171 = add %v168, %v170 : %Int
-    %v172 = borrow [%v171] : &Int
+    %v172 = borrow [%v171] : 'Int
     %v173 = load [%v172] : Int
     drop %local6 reclaim Reclaim(Array(a)).reclaim(Int)
     %v176 = mul %v173, 8 : Int
@@ -1521,7 +1521,7 @@ fn main() -> Int {
     init %local7.code, %v181
     %v184 = cast 0 : %()
     init %local7.env, %v184
-    %v186 = borrow %xs : &Array(Int)
+    %v186 = borrow %xs : 'Array(Int)
     %v187 = alloc : Flat(Int)
     %v188 = load [%v186]@Array.run@Run.items : %Int
     init %local8@Flat.items, %v188
@@ -1530,7 +1530,7 @@ fn main() -> Int {
     init %local8@Flat.length, %v191
     %c = call collectMapped(Int, Int), %v187, %v180 : Array(Int)
     %v194 = load %total : Int
-    %v197 = borrow %local9 : &Array(Int)
+    %v197 = borrow %local9 : 'Array(Int)
     %v198 = load [%v197]@Array.length : @bits(30) U32
     %v199 = cast 0 : USize
     %v200 = cast %v198 : USize
@@ -1540,10 +1540,10 @@ fn main() -> Int {
     %v204 = strideof Int : Long
     %v205 = mul 0, %v204 : Long
     %v206 = add %v203, %v205 : %Int
-    %v207 = borrow [%v206] : &Int
+    %v207 = borrow [%v206] : 'Int
     %v208 = load [%v207] : Int
     %v209 = add %v194, %v208 : Int
-    %v212 = borrow %local9 : &Array(Int)
+    %v212 = borrow %local9 : 'Array(Int)
     %v213 = load [%v212]@Array.length : @bits(30) U32
     %v214 = cast 1 : USize
     %v215 = cast %v213 : USize
@@ -1553,11 +1553,11 @@ fn main() -> Int {
     %v219 = strideof Int : Long
     %v220 = mul 1, %v219 : Long
     %v221 = add %v218, %v220 : %Int
-    %v222 = borrow [%v221] : &Int
+    %v222 = borrow [%v221] : 'Int
     %v223 = load [%v222] : Int
     %v226 = mul %v223, 2 : Int
     %v227 = add %v209, %v226 : Int
-    %v230 = borrow %local9 : &Array(Int)
+    %v230 = borrow %local9 : 'Array(Int)
     %v231 = load [%v230]@Array.length : @bits(30) U32
     %v232 = cast 2 : USize
     %v233 = cast %v231 : USize
@@ -1567,11 +1567,11 @@ fn main() -> Int {
     %v237 = strideof Int : Long
     %v238 = mul 2, %v237 : Long
     %v239 = add %v236, %v238 : %Int
-    %v240 = borrow [%v239] : &Int
+    %v240 = borrow [%v239] : 'Int
     %v241 = load [%v240] : Int
     %v244 = mul %v241, 4 : Int
     %v245 = add %v227, %v244 : Int
-    %v248 = borrow %local9 : &Array(Int)
+    %v248 = borrow %local9 : 'Array(Int)
     %v249 = load [%v248]@Array.length : @bits(30) U32
     %v250 = cast 3 : USize
     %v251 = cast %v249 : USize
@@ -1581,7 +1581,7 @@ fn main() -> Int {
     %v255 = strideof Int : Long
     %v256 = mul 3, %v255 : Long
     %v257 = add %v254, %v256 : %Int
-    %v258 = borrow [%v257] : &Int
+    %v258 = borrow [%v257] : 'Int
     %v259 = load [%v258] : Int
     drop %local9 reclaim Reclaim(Array(a)).reclaim(Int)
     %v262 = mul %v259, 8 : Int
@@ -1599,7 +1599,7 @@ fn main() -> Int {
     %v286 = move %handed : Array(Int)
     %d = call roundTrip(Int), %v286 : Array(Int)
     %v288 = load %total : Int
-    %v291 = borrow %local12 : &Array(Int)
+    %v291 = borrow %local12 : 'Array(Int)
     %v292 = load [%v291]@Array.length : @bits(30) U32
     %v293 = cast 0 : USize
     %v294 = cast %v292 : USize
@@ -1609,10 +1609,10 @@ fn main() -> Int {
     %v298 = strideof Int : Long
     %v299 = mul 0, %v298 : Long
     %v300 = add %v297, %v299 : %Int
-    %v301 = borrow [%v300] : &Int
+    %v301 = borrow [%v300] : 'Int
     %v302 = load [%v301] : Int
     %v303 = add %v288, %v302 : Int
-    %v306 = borrow %local12 : &Array(Int)
+    %v306 = borrow %local12 : 'Array(Int)
     %v307 = load [%v306]@Array.length : @bits(30) U32
     %v308 = cast 1 : USize
     %v309 = cast %v307 : USize
@@ -1622,11 +1622,11 @@ fn main() -> Int {
     %v313 = strideof Int : Long
     %v314 = mul 1, %v313 : Long
     %v315 = add %v312, %v314 : %Int
-    %v316 = borrow [%v315] : &Int
+    %v316 = borrow [%v315] : 'Int
     %v317 = load [%v316] : Int
     %v320 = mul %v317, 2 : Int
     %v321 = add %v303, %v320 : Int
-    %v324 = borrow %local12 : &Array(Int)
+    %v324 = borrow %local12 : 'Array(Int)
     %v325 = load [%v324]@Array.length : @bits(30) U32
     %v326 = cast 2 : USize
     %v327 = cast %v325 : USize
@@ -1636,11 +1636,11 @@ fn main() -> Int {
     %v331 = strideof Int : Long
     %v332 = mul 2, %v331 : Long
     %v333 = add %v330, %v332 : %Int
-    %v334 = borrow [%v333] : &Int
+    %v334 = borrow [%v333] : 'Int
     %v335 = load [%v334] : Int
     %v338 = mul %v335, 4 : Int
     %v339 = add %v321, %v338 : Int
-    %v342 = borrow %local12 : &Array(Int)
+    %v342 = borrow %local12 : 'Array(Int)
     %v343 = load [%v342]@Array.length : @bits(30) U32
     %v344 = cast 3 : USize
     %v345 = cast %v343 : USize
@@ -1650,7 +1650,7 @@ fn main() -> Int {
     %v349 = strideof Int : Long
     %v350 = mul 3, %v349 : Long
     %v351 = add %v348, %v350 : %Int
-    %v352 = borrow [%v351] : &Int
+    %v352 = borrow [%v351] : 'Int
     %v353 = load [%v352] : Int
     drop %local12 reclaim Reclaim(Array(a)).reclaim(Int)
     %v356 = mul %v353, 8 : Int
@@ -1669,7 +1669,7 @@ fn main() -> Int {
 
   b3:
     %v371 = load %xs : Array(Int)
-    %v372 = borrow %xs : &Array(Int)
+    %v372 = borrow %xs : 'Array(Int)
     %v373 = alloc : Flat(Int)
     %v374 = load [%v372]@Array.run@Run.items : %Int
     init %local13@Flat.items, %v374
@@ -1692,7 +1692,7 @@ fn main() -> Int {
   b6:
     %v392 = load %total : Int
     %v393 = load %local14@Cell.slots : Array(Int)
-    %v396 = borrow %local14@Cell.slots : &Array(Int)
+    %v396 = borrow %local14@Cell.slots : 'Array(Int)
     %v397 = load [%v396]@Array.length : @bits(30) U32
     %v398 = cast 0 : USize
     %v399 = cast %v397 : USize
@@ -1702,11 +1702,11 @@ fn main() -> Int {
     %v403 = strideof Int : Long
     %v404 = mul 0, %v403 : Long
     %v405 = add %v402, %v404 : %Int
-    %v406 = borrow [%v405] : &Int
+    %v406 = borrow [%v405] : 'Int
     %v407 = load [%v406] : Int
     %v408 = add %v392, %v407 : Int
     %v409 = load %local14@Cell.slots : Array(Int)
-    %v412 = borrow %local14@Cell.slots : &Array(Int)
+    %v412 = borrow %local14@Cell.slots : 'Array(Int)
     %v413 = load [%v412]@Array.length : @bits(30) U32
     %v414 = cast 3 : USize
     %v415 = cast %v413 : USize
@@ -1716,7 +1716,7 @@ fn main() -> Int {
     %v419 = strideof Int : Long
     %v420 = mul 3, %v419 : Long
     %v421 = add %v418, %v420 : %Int
-    %v422 = borrow [%v421] : &Int
+    %v422 = borrow [%v421] : 'Int
     %v423 = load [%v422] : Int
     drop %local14 via Drop(Cell).drop reclaim reclaim$Cell
     %v424 = add %v408, %v423 : Int
@@ -1741,13 +1741,13 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #4 type {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
@@ -1756,9 +1756,9 @@ fn Drop(Cell).drop(%self: Cell) -> () {
   }
 
   b0:
-    %v2 = load [%env].body : &(value$: b) -> Outcome((), $r)
+    %v2 = load [%env].body : '(value$: b) -> Outcome((), $r)
     %v3 = load [%v2] : (value$: b) -> Outcome((), $r)
-    %v4 = load [%env].f : &(a) -> b
+    %v4 = load [%env].f : '(a) -> b
     %v5 = load [%v4] : (a) -> b
     %v6 = calldyn %v5, %value$ : b
     %v7 = calldyn %v3, %v6 : Outcome((), $r)
@@ -1777,11 +1777,11 @@ fn Drop(Cell).drop(%self: Cell) -> () {
     ret %v12
 }
 
-fn ResolveTest.continuation$16(%env: %{out: &mut Array(Int)}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].out : &mut Array(Int)
+    %v2 = load [%env].out : &Array(Int)
     %v3 = load [%v2] : Array(Int)
-    %v4 = borrow_mut [%v2] : &mut Array(Int)
+    %v4 = borrow_mut [%v2] : &Array(Int)
     call push(Int), %v4, %value$
     %v6 = alloc : Outcome((), ())
     init %local0.discriminant, 0
@@ -1809,7 +1809,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Int)
+    %v17 = borrow %xs : 'Flat(Int)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -1819,7 +1819,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
     %v24 = strideof Int : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Int
-    %v27 = borrow [%v26] : &Int
+    %v27 = borrow [%v26] : 'Int
     %v28 = load [%v27] : Int
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : Int
@@ -1836,12 +1836,12 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
     jmp b1
 }
 
-(TrivialCopy(a), Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$17(%env: %{out: &mut Array(b)}, %value$: b) -> Outcome((), ()) {
+(TrivialCopy(a), Bitcast(%b, %U8), Bitcast(%U8, %b), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$17(%env: %{out: &Array(b)}, %value$: b) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type b
     #2 type Array(b)
-    #3 type {out: &mut Array(b)}
+    #3 type {out: &Array(b)}
     #4 type (value$: b) -> Outcome((), ())
     #5 class TrivialCopy(a)
     #6 class Bitcast(%b, %U8)
@@ -1851,7 +1851,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
   }
 
   b0:
-    %v2 = load [%env].out : &mut Array(b)
+    %v2 = load [%env].out : &Array(b)
     %v3 = load [%v2] : Array(b)
     gencall push(b), %v3, %value$
     %v5 = alloc : Outcome((), ())
@@ -1870,8 +1870,8 @@ fn collectMapped(Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int) -> Array(Int) {
     %v2 = call emptyArray(Int) : Array(Int)
     %out = alloc : Array(Int)
     init %out, %v2
-    %v5 = alloc : {out: &mut Array(Int)}
-    %v6 = borrow_mut %out : &mut Array(Int)
+    %v5 = alloc : {out: &Array(Int)}
+    %v6 = borrow_mut %out : &Array(Int)
     init %local4.out, %v6
     %v8 = addressof %local4 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), ())
@@ -1884,11 +1884,11 @@ fn collectMapped(Int, Int)(%xs: Flat(Int), %f: (v: Int) -> Int) -> Array(Int) {
     ret %v15
 }
 
-fn ResolveTest.continuation$17(Int, Int)(%env: %{out: &mut Array(Int)}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(Int, Int)(%env: %{out: &Array(Int)}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].out : &mut Array(Int)
+    %v2 = load [%env].out : &Array(Int)
     %v3 = load [%v2] : Array(Int)
-    %v4 = borrow_mut [%v2] : &mut Array(Int)
+    %v4 = borrow_mut [%v2] : &Array(Int)
     call push(Int), %v4, %value$
     %v6 = alloc : Outcome((), ())
     init %local1.discriminant, 0
@@ -1897,10 +1897,10 @@ fn ResolveTest.continuation$17(Int, Int)(%env: %{out: &mut Array(Int)}, %value$:
 
 fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v3 = alloc : {body: &(value$: Int) -> Outcome((), ()), f: &(v: Int) -> Int}
-    %v4 = borrow %body : &(value$: Int) -> Outcome((), ())
+    %v3 = alloc : {body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}
+    %v4 = borrow %body : '(value$: Int) -> Outcome((), ())
     init %local3.body, %v4
-    %v6 = borrow %f : &(v: Int) -> Int
+    %v6 = borrow %f : '(v: Int) -> Int
     init %local3.f, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
@@ -1922,11 +1922,11 @@ fn mapped(Int, Int, ())(%xs: Flat(Int), %f: (v: Int) -> Int, %body: (value$: Int
     ret %v20
 }
 
-fn ResolveTest.continuation$15(Int, Int, ())(%env: %{body: &(value$: Int) -> Outcome((), ()), f: &(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$15(Int, Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Int) -> Int}, %value$: Int) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load [%env].body : &(value$: Int) -> Outcome((), ())
+    %v2 = load [%env].body : '(value$: Int) -> Outcome((), ())
     %v3 = load [%v2] : (value$: Int) -> Outcome((), ())
-    %v4 = load [%env].f : &(v: Int) -> Int
+    %v4 = load [%env].f : '(v: Int) -> Int
     %v5 = load [%v4] : (v: Int) -> Int
     %v6 = calldyn %v5, %value$ : Int
     %v7 = calldyn %v3, %v6 : Outcome((), ())
@@ -1966,7 +1966,7 @@ fn each(Int, Outcome((), ()))(%xs: Flat(Int), %body: (value$: Int) -> Outcome(()
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Int)
+    %v17 = borrow %xs : 'Flat(Int)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -1976,7 +1976,7 @@ fn each(Int, Outcome((), ()))(%xs: Flat(Int), %body: (value$: Int) -> Outcome(()
     %v24 = strideof Int : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Int
-    %v27 = borrow [%v26] : &Int
+    %v27 = borrow [%v26] : 'Int
     %v28 = load [%v27] : Int
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), ()))
     %v30 = load %local3.discriminant : Int

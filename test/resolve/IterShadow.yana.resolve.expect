@@ -19,7 +19,7 @@ fn teardown$none(%value: %()) -> () {
 
 fn Chunked(Flat(a), a).chunks(Int, ())(%self: Flat(Int), %body: (value$: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = borrow %self : &Flat(Int)
+    %v2 = borrow %self : 'Flat(Int)
     %v3 = call Contiguous(Flat(a), a).elements(Int), %v2 : Flat(Int)
     %v4 = calldyn %body, %v3 : Outcome((), ())
     %v5 = load %local3.discriminant : Int
@@ -183,8 +183,8 @@ fn named(%value: Int) -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v6 = alloc : {total: &mut Int, value: Int}
-    %v7 = borrow_mut %total : &mut Int
+    %v6 = alloc : {total: &Int, value: Int}
+    %v7 = borrow_mut %total : &Int
     init %local1.total, %v7
     init %local1.value, %value
     %v10 = addressof %local1 : %()
@@ -201,8 +201,8 @@ fn classMember(%xs: Flat(Int), %value: Int) -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v6 = alloc : {total: &mut Int, value: Int}
-    %v7 = borrow_mut %total : &mut Int
+    %v6 = alloc : {total: &Int, value: Int}
+    %v7 = borrow_mut %total : &Int
     init %local2.total, %v7
     init %local2.value, %value
     %v10 = addressof %local2 : %()
@@ -226,7 +226,7 @@ fn main() -> Int {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v10][0] = 1, [%v10][1] = 2, [%v10][2] = 3, [%v10][3] = 4
     init %local0@Array.length, 4
-    %v23 = borrow %local0 : &Array(Int)
+    %v23 = borrow %local0 : 'Array(Int)
     %v24 = alloc : Flat(Int)
     %v25 = load [%v23]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v25
@@ -239,10 +239,10 @@ fn main() -> Int {
     ret %v31
 }
 
-fn ResolveTest.continuation$15(%env: %{total: &mut Int, value: Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{total: &Int, value: Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = load [%env].value : Int
     %v6 = add %v4, %v5 : Int
@@ -286,10 +286,10 @@ fn upTo(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((),
     jmp b1
 }
 
-fn ResolveTest.continuation$16(%env: %{total: &mut Int, value: Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{total: &Int, value: Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = load [%env].value : Int
     %v6 = add %v4, %v5 : Int

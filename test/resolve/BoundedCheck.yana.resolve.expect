@@ -157,7 +157,7 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : &Flat(I64)
+    %v14 = borrow %xs : 'Flat(I64)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -167,7 +167,7 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
     %v21 = strideof I64 : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : &I64
+    %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -200,7 +200,7 @@ fn sumNarrow(%xs: Flat(I64)) -> I64 {
     %v13 = load %acc : I64
     %v14 = load %i : Int
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : &Flat(I64)
+    %v16 = borrow %xs : 'Flat(I64)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -210,7 +210,7 @@ fn sumNarrow(%xs: Flat(I64)) -> I64 {
     %v23 = strideof I64 : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %I64
-    %v26 = borrow [%v25] : &I64
+    %v26 = borrow [%v25] : 'I64
     %v27 = load [%v26] : I64
     %v28 = add %v13, %v27 : I64
     assign %acc, %v28
@@ -241,7 +241,7 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
   b3:
     %v13 = load %acc : I64
     %v14 = load %i : Size
-    %v15 = borrow %xs : &Flat(I64)
+    %v15 = borrow %xs : 'Flat(I64)
     %v16 = load [%v15]@Flat.length : Size
     %v17 = cast %v14 : USize
     %v18 = cast %v16 : USize
@@ -251,10 +251,10 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
     %v22 = strideof I64 : Long
     %v23 = mul %v14, %v22 : Long
     %v24 = add %v21, %v23 : %I64
-    %v25 = borrow [%v24] : &I64
+    %v25 = borrow [%v24] : 'I64
     %v26 = load [%v25] : I64
     %v27 = load %i : Size
-    %v28 = borrow %ys : &Flat(I64)
+    %v28 = borrow %ys : 'Flat(I64)
     %v29 = load [%v28]@Flat.length : Size
     %v30 = cast %v27 : USize
     %v31 = cast %v29 : USize
@@ -264,7 +264,7 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
     %v35 = strideof I64 : Long
     %v36 = mul %v27, %v35 : Long
     %v37 = add %v34, %v36 : %I64
-    %v38 = borrow [%v37] : &I64
+    %v38 = borrow [%v37] : 'I64
     %v39 = load [%v38] : I64
     %v40 = mul %v26, %v39 : I64
     %v41 = add %v13, %v40 : I64
@@ -296,7 +296,7 @@ fn sumEven(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : &Flat(I64)
+    %v14 = borrow %xs : 'Flat(I64)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -306,7 +306,7 @@ fn sumEven(%xs: Flat(I64)) -> I64 {
     %v21 = strideof I64 : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : &I64
+    %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -337,7 +337,7 @@ fn sumTail(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : &Flat(I64)
+    %v14 = borrow %xs : 'Flat(I64)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -347,7 +347,7 @@ fn sumTail(%xs: Flat(I64)) -> I64 {
     %v21 = strideof I64 : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : &I64
+    %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -379,7 +379,7 @@ fn sumDown(%xs: Flat(I64)) -> I64 {
   b3:
     %v16 = load %acc : I64
     %v17 = load %i : Size
-    %v18 = borrow %xs : &Flat(I64)
+    %v18 = borrow %xs : 'Flat(I64)
     %v19 = load [%v18]@Flat.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
@@ -389,7 +389,7 @@ fn sumDown(%xs: Flat(I64)) -> I64 {
     %v25 = strideof I64 : Long
     %v26 = mul %v17, %v25 : Long
     %v27 = add %v24, %v26 : %I64
-    %v28 = borrow [%v27] : &I64
+    %v28 = borrow [%v27] : 'I64
     %v29 = load [%v28] : I64
     %v30 = add %v16, %v29 : I64
     assign %acc, %v30
@@ -421,7 +421,7 @@ fn sumStrided(%xs: Flat(I64), %n: I64) -> I64 {
     %v13 = load %acc : I64
     %v14 = load %i : Size
     %v17 = mul %v14, 2 : Size
-    %v18 = borrow %xs : &Flat(I64)
+    %v18 = borrow %xs : 'Flat(I64)
     %v19 = load [%v18]@Flat.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
@@ -431,7 +431,7 @@ fn sumStrided(%xs: Flat(I64), %n: I64) -> I64 {
     %v25 = strideof I64 : Long
     %v26 = mul %v17, %v25 : Long
     %v27 = add %v24, %v26 : %I64
-    %v28 = borrow [%v27] : &I64
+    %v28 = borrow [%v27] : 'I64
     %v29 = load [%v28] : I64
     %v30 = add %v13, %v29 : I64
     assign %acc, %v30
@@ -469,7 +469,7 @@ fn main() -> Int {
     %total = alloc : Int
     init %total, 0
     %v59 = load %words : Array(I64)
-    %v60 = borrow %words : &Array(I64)
+    %v60 = borrow %words : 'Array(I64)
     %v61 = alloc : Flat(I64)
     %v62 = load [%v60]@Array.run@Run.items : %I64
     init %local7@Flat.items, %v62
@@ -491,7 +491,7 @@ fn main() -> Int {
 
   b3:
     %v79 = load %words : Array(I64)
-    %v80 = borrow %words : &Array(I64)
+    %v80 = borrow %words : 'Array(I64)
     %v81 = alloc : Flat(I64)
     %v82 = load [%v80]@Array.run@Run.items : %I64
     init %local8@Flat.items, %v82
@@ -513,7 +513,7 @@ fn main() -> Int {
 
   b6:
     %v99 = load %words : Array(I64)
-    %v100 = borrow %words : &Array(I64)
+    %v100 = borrow %words : 'Array(I64)
     %v101 = alloc : Flat(I64)
     %v102 = load [%v100]@Array.run@Run.items : %I64
     init %local9@Flat.items, %v102
@@ -521,7 +521,7 @@ fn main() -> Int {
     %v105 = cast %v104 : Size
     init %local9@Flat.length, %v105
     %v107 = load %short : Array(I64)
-    %v108 = borrow %short : &Array(I64)
+    %v108 = borrow %short : 'Array(I64)
     %v109 = alloc : Flat(I64)
     %v110 = load [%v108]@Array.run@Run.items : %I64
     init %local10@Flat.items, %v110
@@ -544,7 +544,7 @@ fn main() -> Int {
 
   b9:
     %v127 = load %words : Array(I64)
-    %v128 = borrow %words : &Array(I64)
+    %v128 = borrow %words : 'Array(I64)
     %v129 = alloc : Flat(I64)
     %v130 = load [%v128]@Array.run@Run.items : %I64
     init %local11@Flat.items, %v130
@@ -566,7 +566,7 @@ fn main() -> Int {
 
   b12:
     %v147 = load %words : Array(I64)
-    %v148 = borrow %words : &Array(I64)
+    %v148 = borrow %words : 'Array(I64)
     %v149 = alloc : Flat(I64)
     %v150 = load [%v148]@Array.run@Run.items : %I64
     init %local12@Flat.items, %v150
@@ -588,7 +588,7 @@ fn main() -> Int {
 
   b15:
     %v167 = load %words : Array(I64)
-    %v168 = borrow %words : &Array(I64)
+    %v168 = borrow %words : 'Array(I64)
     %v169 = alloc : Flat(I64)
     %v170 = load [%v168]@Array.run@Run.items : %I64
     init %local13@Flat.items, %v170
@@ -610,7 +610,7 @@ fn main() -> Int {
 
   b18:
     %v187 = load %words : Array(I64)
-    %v188 = borrow %words : &Array(I64)
+    %v188 = borrow %words : 'Array(I64)
     %v189 = alloc : Flat(I64)
     %v190 = load [%v188]@Array.run@Run.items : %I64
     init %local14@Flat.items, %v190
@@ -632,7 +632,7 @@ fn main() -> Int {
 
   b21:
     %v208 = load %empty : Array(I64)
-    %v209 = borrow %empty : &Array(I64)
+    %v209 = borrow %empty : 'Array(I64)
     %v210 = alloc : Flat(I64)
     %v211 = load [%v209]@Array.run@Run.items : %I64
     init %local15@Flat.items, %v211
@@ -654,7 +654,7 @@ fn main() -> Int {
 
   b24:
     %v228 = load %empty : Array(I64)
-    %v229 = borrow %empty : &Array(I64)
+    %v229 = borrow %empty : 'Array(I64)
     %v230 = alloc : Flat(I64)
     %v231 = load [%v229]@Array.run@Run.items : %I64
     init %local16@Flat.items, %v231
@@ -676,7 +676,7 @@ fn main() -> Int {
 
   b27:
     %v248 = load %empty : Array(I64)
-    %v249 = borrow %empty : &Array(I64)
+    %v249 = borrow %empty : 'Array(I64)
     %v250 = alloc : Flat(I64)
     %v251 = load [%v249]@Array.run@Run.items : %I64
     init %local17@Flat.items, %v251
@@ -698,7 +698,7 @@ fn main() -> Int {
 
   b30:
     %v268 = load %empty : Array(I64)
-    %v269 = borrow %empty : &Array(I64)
+    %v269 = borrow %empty : 'Array(I64)
     %v270 = alloc : Flat(I64)
     %v271 = load [%v269]@Array.run@Run.items : %I64
     init %local18@Flat.items, %v271
@@ -720,7 +720,7 @@ fn main() -> Int {
 
   b33:
     %v288 = load %empty : Array(I64)
-    %v289 = borrow %empty : &Array(I64)
+    %v289 = borrow %empty : 'Array(I64)
     %v290 = alloc : Flat(I64)
     %v291 = load [%v289]@Array.run@Run.items : %I64
     init %local19@Flat.items, %v291
@@ -743,7 +743,7 @@ fn main() -> Int {
 
   b36:
     %v308 = load %words : Array(I64)
-    %v309 = borrow %words : &Array(I64)
+    %v309 = borrow %words : 'Array(I64)
     %v310 = alloc : Flat(I64)
     %v311 = load [%v309]@Array.run@Run.items : %I64
     init %local20@Flat.items, %v311
@@ -774,7 +774,7 @@ fn main() -> Int {
     aggregate [%v334][0] = 9
     init %one@Array.length, 1
     %v342 = load %one : Array(I64)
-    %v343 = borrow %one : &Array(I64)
+    %v343 = borrow %one : 'Array(I64)
     %v344 = alloc : Flat(I64)
     %v345 = load [%v343]@Array.run@Run.items : %I64
     init %local23@Flat.items, %v345

@@ -56,7 +56,7 @@ fn push(Handle)(%self: Array(Handle), %item: Handle) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Handle)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Handle)
+    %v8 = borrow_mut %self : &Array(Handle)
     call reserve(Handle), %v8, %v7
     %v10 = load %self : Array(Handle)
     %v11 = load %self@Array.run : Run(Handle)
@@ -96,7 +96,7 @@ fn reserve(Handle)(%self: Array(Handle), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Handle)
-    %v11 = borrow_mut %self : &mut Array(Handle)
+    %v11 = borrow_mut %self : &Array(Handle)
     call growArray(Handle), %v11, %wanted
     ret
 }
@@ -137,7 +137,7 @@ fn growArray(Handle)(%self: Array(Handle), %wanted: Size) -> () {
     %v23 = load %self : Array(Handle)
     %v24 = load %self@Array.run : Run(Handle)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Handle)
+    %v26 = borrow_mut %self@Array.run : &Run(Handle)
     %v27 = call resize(Handle), %v26, %v25 : Bool
     ret
 }
@@ -239,7 +239,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Int)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Int)
+    %v8 = borrow_mut %self : &Array(Int)
     call reserve(Int), %v8, %v7
     %v10 = load %self : Array(Int)
     %v11 = load %self@Array.run : Run(Int)
@@ -279,7 +279,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Int)
-    %v11 = borrow_mut %self : &mut Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v11, %wanted
     ret
 }
@@ -320,7 +320,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
     %v23 = load %self : Array(Int)
     %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -1758,7 +1758,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
 fn openHandle(%mark: I64) -> Handle {
   b0:
     %v1 = load liveHandles : I64
-    %v4 = borrow_mut liveHandles : &mut I64
+    %v4 = borrow_mut liveHandles : &I64
     call +=(I64), %v4, 1
     %handle = alloc : Handle
     %v8 = call allocateHeap, 16 : %U8
@@ -1789,7 +1789,7 @@ fn buildLiteral() -> I64 {
     init %local2@Array.run@Run.ownsHeap, 0
     aggregate [%v8][0] = %v1, [%v8][1] = %v3
     init %local2@Array.length, 2
-    %v19 = borrow %local2 : &Array(Handle)
+    %v19 = borrow %local2 : 'Array(Handle)
     %v20 = load [%v19]@Array.length : @bits(30) U32
     %v21 = cast 0 : USize
     %v22 = cast %v20 : USize
@@ -1799,10 +1799,10 @@ fn buildLiteral() -> I64 {
     %v26 = strideof Handle : Long
     %v27 = mul 0, %v26 : Long
     %v28 = add %v25, %v27 : %Handle
-    %v29 = borrow [%v28] : &Handle
+    %v29 = borrow [%v28] : 'Handle
     %v30 = load [%v29] : Handle
     %v31 = call marker, %v30 : I64
-    %v34 = borrow %local2 : &Array(Handle)
+    %v34 = borrow %local2 : 'Array(Handle)
     %v35 = load [%v34]@Array.length : @bits(30) U32
     %v36 = cast 1 : USize
     %v37 = cast %v35 : USize
@@ -1812,7 +1812,7 @@ fn buildLiteral() -> I64 {
     %v41 = strideof Handle : Long
     %v42 = mul 1, %v41 : Long
     %v43 = add %v40, %v42 : %Handle
-    %v44 = borrow [%v43] : &Handle
+    %v44 = borrow [%v43] : 'Handle
     %v45 = load [%v44] : Handle
     %v46 = call marker, %v45 : I64
     drop %local2 via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
@@ -1827,16 +1827,16 @@ fn buildPushed() -> I64 {
     init %handles, %v0
     %v3 = load %handles : Array(Handle)
     %v5 = call openHandle, 3 : Handle
-    %v6 = borrow_mut %handles : &mut Array(Handle)
+    %v6 = borrow_mut %handles : &Array(Handle)
     %v7 = move %local2 : Handle
     call push(Handle), %v6, %v7
     %v9 = load %handles : Array(Handle)
     %v11 = call openHandle, 4 : Handle
-    %v12 = borrow_mut %handles : &mut Array(Handle)
+    %v12 = borrow_mut %handles : &Array(Handle)
     %v13 = move %local3 : Handle
     call push(Handle), %v12, %v13
     %v15 = load %handles : Array(Handle)
-    %v18 = borrow %handles : &Array(Handle)
+    %v18 = borrow %handles : 'Array(Handle)
     %v19 = load [%v18]@Array.length : @bits(30) U32
     %v20 = cast 0 : USize
     %v21 = cast %v19 : USize
@@ -1846,11 +1846,11 @@ fn buildPushed() -> I64 {
     %v25 = strideof Handle : Long
     %v26 = mul 0, %v25 : Long
     %v27 = add %v24, %v26 : %Handle
-    %v28 = borrow [%v27] : &Handle
+    %v28 = borrow [%v27] : 'Handle
     %v29 = load [%v28] : Handle
     %v30 = call marker, %v29 : I64
     %v31 = load %handles : Array(Handle)
-    %v34 = borrow %handles : &Array(Handle)
+    %v34 = borrow %handles : 'Array(Handle)
     %v35 = load [%v34]@Array.length : @bits(30) U32
     %v36 = cast 1 : USize
     %v37 = cast %v35 : USize
@@ -1860,7 +1860,7 @@ fn buildPushed() -> I64 {
     %v41 = strideof Handle : Long
     %v42 = mul 1, %v41 : Long
     %v43 = add %v40, %v42 : %Handle
-    %v44 = borrow [%v43] : &Handle
+    %v44 = borrow [%v43] : 'Handle
     %v45 = load [%v44] : Handle
     %v46 = call marker, %v45 : I64
     drop %handles via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
@@ -1947,16 +1947,16 @@ fn main() -> I64 {
     init %rest, %v60
     %v63 = load %rest : Array(Handle)
     %v65 = call openHandle, 5 : Handle
-    %v66 = borrow_mut %rest : &mut Array(Handle)
+    %v66 = borrow_mut %rest : &Array(Handle)
     %v67 = move %local2 : Handle
     call push(Handle), %v66, %v67
     %v69 = load %rest : Array(Handle)
     %v71 = call openHandle, 6 : Handle
-    %v72 = borrow_mut %rest : &mut Array(Handle)
+    %v72 = borrow_mut %rest : &Array(Handle)
     %v73 = move %local3 : Handle
     call push(Handle), %v72, %v73
     %v75 = load %rest : Array(Handle)
-    %v78 = borrow_mut %rest : &mut Array(Handle)
+    %v78 = borrow_mut %rest : &Array(Handle)
     %v79 = call remove(Handle), %v78, 0 : Maybe(Handle)
     drop_derived %local4 via drop$Maybe(Handle)
     %v80 = load liveHandles : I64
@@ -1984,7 +1984,7 @@ fn main() -> I64 {
 
   b24:
     %v100 = load %rest : Array(Handle)
-    %v103 = borrow %rest : &Array(Handle)
+    %v103 = borrow %rest : 'Array(Handle)
     %v104 = load [%v103]@Array.length : @bits(30) U32
     %v105 = cast 0 : USize
     %v106 = cast %v104 : USize
@@ -1994,7 +1994,7 @@ fn main() -> I64 {
     %v110 = strideof Handle : Long
     %v111 = mul 0, %v110 : Long
     %v112 = add %v109, %v111 : %Handle
-    %v113 = borrow [%v112] : &Handle
+    %v113 = borrow [%v112] : 'Handle
     %v114 = load [%v113] : Handle
     %v115 = call marker, %v114 : I64
     drop %rest via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
@@ -2013,10 +2013,10 @@ fn main() -> I64 {
     %plain = alloc : Array(Int)
     init %plain, %v125
     %v128 = load %plain : Array(Int)
-    %v131 = borrow_mut %plain : &mut Array(Int)
+    %v131 = borrow_mut %plain : &Array(Int)
     call push(Int), %v131, 10
     %v133 = load %plain : Array(Int)
-    %v136 = borrow_mut %plain : &mut Array(Int)
+    %v136 = borrow_mut %plain : &Array(Int)
     call push(Int), %v136, 20
     %v138 = load %plain : Array(Int)
     %v139 = load %plain@Array.length : @bits(30) U32
@@ -2049,10 +2049,10 @@ fn Drop(Handle).drop(%value: Handle) -> () {
     %v1 = load %value@Handle.slot : %U8
     call freeHeap, %v1
     %v3 = load liveHandles : I64
-    %v6 = borrow_mut liveHandles : &mut I64
+    %v6 = borrow_mut liveHandles : &I64
     call -=(I64), %v6, 1
     %v8 = load releases : I64
-    %v11 = borrow_mut releases : &mut I64
+    %v11 = borrow_mut releases : &I64
     call +=(I64), %v11, 1
     ret
 }

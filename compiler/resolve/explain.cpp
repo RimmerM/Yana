@@ -435,7 +435,10 @@ static void explainResult(Context& context, const Explanation& explanation, Arra
         return;
     }
 
-    text.append(explanation.mutableResult ? "a mutable borrow"_v : "a borrow"_v);
+    // Shared and exclusive rather than immutable and mutable - Analysis-Borrows.md §3.4. The modes
+    // are properties of one loan rather than of the object, and the aliasing rule is what a reader
+    // needs named.
+    text.append(explanation.mutableResult ? "an exclusive reference"_v : "a shared reference"_v);
     text.append(" rooted in "_v);
 
     auto listed = 0;

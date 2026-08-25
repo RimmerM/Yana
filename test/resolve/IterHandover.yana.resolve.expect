@@ -563,8 +563,8 @@ fn borrows(%times: I64) -> Size {
   b0:
     %total = alloc : Size
     init %total, 0
-    %v4 = alloc : {total: &mut Size}
-    %v5 = borrow_mut %total : &mut Size
+    %v4 = alloc : {total: &Size}
+    %v5 = borrow_mut %total : &Size
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (value$: Held) -> Outcome((), ())
@@ -580,8 +580,8 @@ fn owns(%times: I64) -> Size {
   b0:
     %total = alloc : Size
     init %total, 0
-    %v4 = alloc : {total: &mut Size}
-    %v5 = borrow_mut %total : &mut Size
+    %v4 = alloc : {total: &Size}
+    %v5 = borrow_mut %total : &Size
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (->value$: Held) -> Outcome((), ())
@@ -597,8 +597,8 @@ fn viaTry(%times: I64) -> Result(I64, Size) {
   b0:
     %total = alloc : Size
     init %total, 0
-    %v4 = alloc : {total: &mut Size}
-    %v5 = borrow_mut %total : &mut Size
+    %v4 = alloc : {total: &Size}
+    %v5 = borrow_mut %total : &Size
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (->value$: Result(I64, Held)) -> Outcome((), Result(I64, Size))
@@ -625,8 +625,8 @@ fn ignores(%times: I64) -> Size {
   b0:
     %count = alloc : Size
     init %count, 0
-    %v4 = alloc : {count: &mut Size}
-    %v5 = borrow_mut %count : &mut Size
+    %v4 = alloc : {count: &Size}
+    %v5 = borrow_mut %count : &Size
     init %local1.count, %v5
     %v7 = addressof %local1 : %()
     %v8 = alloc : (->value$: Result(I64, Held)) -> Outcome((), ())
@@ -649,10 +649,10 @@ fn main() -> Int {
     ret %v8
 }
 
-fn ResolveTest.continuation$15(%env: %{total: &mut Size}, %value$: Held) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{total: &Size}, %value$: Held) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Size
-    %v3 = load [%env].total : &mut Size
+    %v2 = load [%env].total : &Size
+    %v3 = load [%env].total : &Size
     %v4 = load [%v3] : Size
     %v5 = load %value$@Held.value : Array(U8)
     %v6 = load %value$@Held.value@Array.length : @bits(30) U32
@@ -698,10 +698,10 @@ fn lent(())(%times: I64, %body: (value$: Held) -> Outcome((), ())) -> Outcome(()
     jmp b1
 }
 
-fn ResolveTest.continuation$16(%env: %{total: &mut Size}, %value$: Held) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{total: &Size}, %value$: Held) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Size
-    %v3 = load [%env].total : &mut Size
+    %v2 = load [%env].total : &Size
+    %v3 = load [%env].total : &Size
     %v4 = load [%v3] : Size
     %value$ = move %value$ : Held
     %v6 = call consume, %value$ : Size
@@ -746,7 +746,7 @@ fn handed(())(%times: I64, %body: (->value$: Held) -> Outcome((), ())) -> Outcom
     jmp b1
 }
 
-fn ResolveTest.continuation$17(%env: %{total: &mut Size}, %value$: Result(I64, Held)) -> Outcome((), Result(I64, Size)) {
+fn ResolveTest.continuation$17(%env: %{total: &Size}, %value$: Result(I64, Held)) -> Outcome((), Result(I64, Size)) {
   b0:
     %value$ = move %value$ : Result(I64, Held)
     %v3 = call Try(Result(e, a), a, e).toOutcome(I64, Held), %value$ : Outcome(Held, I64)
@@ -767,8 +767,8 @@ fn ResolveTest.continuation$17(%env: %{total: &mut Size}, %value$: Result(I64, H
     %v11 = move %local1@Proceed : Held
     %v12 = alloc : Held
     init %opened, %v11
-    %v14 = load [%env].total : &mut Size
-    %v15 = load [%env].total : &mut Size
+    %v14 = load [%env].total : &Size
+    %v15 = load [%env].total : &Size
     %v16 = load [%v15] : Size
     %v17 = load %opened : Held
     %v18 = move %opened : Held
@@ -828,11 +828,11 @@ fn results(Result(I64, Size))(%times: I64, %body: (->value$: Result(I64, Held)) 
     ret %v36
 }
 
-fn ResolveTest.continuation$18(%env: %{count: &mut Size}, %value$: Result(I64, Held)) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{count: &Size}, %value$: Result(I64, Held)) -> Outcome((), ()) {
   b0:
     drop_derived %value$ reclaim reclaim$Result(I64, Held)
-    %v2 = load [%env].count : &mut Size
-    %v3 = load [%env].count : &mut Size
+    %v2 = load [%env].count : &Size
+    %v3 = load [%env].count : &Size
     %v4 = load [%v3] : Size
     %v7 = add %v4, 1 : Size
     assign [%v2], %v7

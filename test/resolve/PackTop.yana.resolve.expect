@@ -44,7 +44,7 @@ fn push(B1)(%self: Array(B1), %item: B1) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(B1)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(B1)
+    %v8 = borrow_mut %self : &Array(B1)
     call reserve(B1), %v8, %v7
     %v10 = load %self : Array(B1)
     %v11 = load %self@Array.run : Run(B1)
@@ -84,7 +84,7 @@ fn reserve(B1)(%self: Array(B1), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(B1)
-    %v11 = borrow_mut %self : &mut Array(B1)
+    %v11 = borrow_mut %self : &Array(B1)
     call growArray(B1), %v11, %wanted
     ret
 }
@@ -125,7 +125,7 @@ fn growArray(B1)(%self: Array(B1), %wanted: Size) -> () {
     %v23 = load %self : Array(B1)
     %v24 = load %self@Array.run : Run(B1)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(B1)
+    %v26 = borrow_mut %self@Array.run : &Run(B1)
     %v27 = call resize(B1), %v26, %v25 : Bool
     ret
 }
@@ -145,7 +145,7 @@ fn push(B2)(%self: Array(B2), %item: B2) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(B2)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(B2)
+    %v8 = borrow_mut %self : &Array(B2)
     call reserve(B2), %v8, %v7
     %v10 = load %self : Array(B2)
     %v11 = load %self@Array.run : Run(B2)
@@ -185,7 +185,7 @@ fn reserve(B2)(%self: Array(B2), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(B2)
-    %v11 = borrow_mut %self : &mut Array(B2)
+    %v11 = borrow_mut %self : &Array(B2)
     call growArray(B2), %v11, %wanted
     ret
 }
@@ -226,7 +226,7 @@ fn growArray(B2)(%self: Array(B2), %wanted: Size) -> () {
     %v23 = load %self : Array(B2)
     %v24 = load %self@Array.run : Run(B2)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(B2)
+    %v26 = borrow_mut %self@Array.run : &Run(B2)
     %v27 = call resize(B2), %v26, %v25 : Bool
     ret
 }
@@ -246,7 +246,7 @@ fn push(B4)(%self: Array(B4), %item: B4) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(B4)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(B4)
+    %v8 = borrow_mut %self : &Array(B4)
     call reserve(B4), %v8, %v7
     %v10 = load %self : Array(B4)
     %v11 = load %self@Array.run : Run(B4)
@@ -286,7 +286,7 @@ fn reserve(B4)(%self: Array(B4), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(B4)
-    %v11 = borrow_mut %self : &mut Array(B4)
+    %v11 = borrow_mut %self : &Array(B4)
     call growArray(B4), %v11, %wanted
     ret
 }
@@ -327,7 +327,7 @@ fn growArray(B4)(%self: Array(B4), %wanted: Size) -> () {
     %v23 = load %self : Array(B4)
     %v24 = load %self@Array.run : Run(B4)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(B4)
+    %v26 = borrow_mut %self@Array.run : &Run(B4)
     %v27 = call resize(B4), %v26, %v25 : Bool
     ret
 }
@@ -347,7 +347,7 @@ fn push(Gap)(%self: Array(Gap), %item: Gap) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Gap)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Gap)
+    %v8 = borrow_mut %self : &Array(Gap)
     call reserve(Gap), %v8, %v7
     %v10 = load %self : Array(Gap)
     %v11 = load %self@Array.run : Run(Gap)
@@ -387,7 +387,7 @@ fn reserve(Gap)(%self: Array(Gap), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Gap)
-    %v11 = borrow_mut %self : &mut Array(Gap)
+    %v11 = borrow_mut %self : &Array(Gap)
     call growArray(Gap), %v11, %wanted
     ret
 }
@@ -428,7 +428,7 @@ fn growArray(Gap)(%self: Array(Gap), %wanted: Size) -> () {
     %v23 = load %self : Array(Gap)
     %v24 = load %self@Array.run : Run(Gap)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Gap)
+    %v26 = borrow_mut %self@Array.run : &Run(Gap)
     %v27 = call resize(Gap), %v26, %v25 : Bool
     ret
 }
@@ -448,7 +448,7 @@ fn push(Signed)(%self: Array(Signed), %item: Signed) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Signed)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Signed)
+    %v8 = borrow_mut %self : &Array(Signed)
     call reserve(Signed), %v8, %v7
     %v10 = load %self : Array(Signed)
     %v11 = load %self@Array.run : Run(Signed)
@@ -488,7 +488,7 @@ fn reserve(Signed)(%self: Array(Signed), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Signed)
-    %v11 = borrow_mut %self : &mut Array(Signed)
+    %v11 = borrow_mut %self : &Array(Signed)
     call growArray(Signed), %v11, %wanted
     ret
 }
@@ -529,7 +529,7 @@ fn growArray(Signed)(%self: Array(Signed), %wanted: Size) -> () {
     %v23 = load %self : Array(Signed)
     %v24 = load %self@Array.run : Run(Signed)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Signed)
+    %v26 = borrow_mut %self@Array.run : &Run(Signed)
     %v27 = call resize(Signed), %v26, %v25 : Bool
     ret
 }
@@ -2295,18 +2295,18 @@ fn main() -> I64 {
     %v4 = alloc : B1
     init %local2@B1.lo, 63
     init %local2@B1.hi, 3
-    %v9 = borrow_mut %a : &mut Array(B1)
+    %v9 = borrow_mut %a : &Array(B1)
     %v10 = copy %local2 : B1
     call push(B1), %v9, %v10
     %v12 = load %a : Array(B1)
     %v13 = alloc : B1
     init %local4@B1.lo, 1
     init %local4@B1.hi, 1
-    %v18 = borrow_mut %a : &mut Array(B1)
+    %v18 = borrow_mut %a : &Array(B1)
     %v19 = copy %local4 : B1
     call push(B1), %v18, %v19
     %v21 = load %a : Array(B1)
-    %v24 = borrow %a : &Array(B1)
+    %v24 = borrow %a : 'Array(B1)
     %v25 = load [%v24]@Array.length : @bits(30) U32
     %v26 = cast 0 : USize
     %v27 = cast %v25 : USize
@@ -2316,7 +2316,7 @@ fn main() -> I64 {
     %v31 = strideof B1 : Long
     %v32 = mul 0, %v31 : Long
     %v33 = add %v30, %v32 : %B1
-    %v34 = borrow [%v33] : &B1
+    %v34 = borrow [%v33] : 'B1
     %v35 = load [%v34] : B1
     %v36 = load [%v34]@B1.hi : @bits(2) U32
     %v38 = cast %v36 : U32
@@ -2332,7 +2332,7 @@ fn main() -> I64 {
 
   b3:
     %v47 = load %a : Array(B1)
-    %v50 = borrow %a : &Array(B1)
+    %v50 = borrow %a : 'Array(B1)
     %v51 = load [%v50]@Array.length : @bits(30) U32
     %v52 = cast 0 : USize
     %v53 = cast %v51 : USize
@@ -2342,7 +2342,7 @@ fn main() -> I64 {
     %v57 = strideof B1 : Long
     %v58 = mul 0, %v57 : Long
     %v59 = add %v56, %v58 : %B1
-    %v60 = borrow [%v59] : &B1
+    %v60 = borrow [%v59] : 'B1
     %v61 = load [%v60] : B1
     %v62 = load [%v60]@B1.lo : @bits(6) U32
     %v64 = cast %v62 : U32
@@ -2358,7 +2358,7 @@ fn main() -> I64 {
 
   b6:
     %v73 = load %a : Array(B1)
-    %v76 = borrow %a : &Array(B1)
+    %v76 = borrow %a : 'Array(B1)
     %v77 = load [%v76]@Array.length : @bits(30) U32
     %v78 = cast 1 : USize
     %v79 = cast %v77 : USize
@@ -2368,7 +2368,7 @@ fn main() -> I64 {
     %v83 = strideof B1 : Long
     %v84 = mul 1, %v83 : Long
     %v85 = add %v82, %v84 : %B1
-    %v86 = borrow [%v85] : &B1
+    %v86 = borrow [%v85] : 'B1
     %v87 = load [%v86] : B1
     %v88 = load [%v86]@B1.hi : @bits(2) U32
     %v90 = cast %v88 : U32
@@ -2384,7 +2384,7 @@ fn main() -> I64 {
 
   b9:
     %v99 = load %a : Array(B1)
-    %v102 = borrow %a : &Array(B1)
+    %v102 = borrow %a : 'Array(B1)
     %v103 = load [%v102]@Array.length : @bits(30) U32
     %v104 = cast 1 : USize
     %v105 = cast %v103 : USize
@@ -2394,7 +2394,7 @@ fn main() -> I64 {
     %v109 = strideof B1 : Long
     %v110 = mul 1, %v109 : Long
     %v111 = add %v108, %v110 : %B1
-    %v112 = borrow [%v111] : &B1
+    %v112 = borrow [%v111] : 'B1
     %v113 = load [%v112] : B1
     %v114 = load [%v112]@B1.lo : @bits(6) U32
     drop %a reclaim Reclaim(Array(a)).reclaim(B1)
@@ -2417,11 +2417,11 @@ fn main() -> I64 {
     %v129 = alloc : B2
     init %local8@B2.lo, 4095
     init %local8@B2.hi, 15
-    %v134 = borrow_mut %b : &mut Array(B2)
+    %v134 = borrow_mut %b : &Array(B2)
     %v135 = copy %local8 : B2
     call push(B2), %v134, %v135
     %v137 = load %b : Array(B2)
-    %v140 = borrow %b : &Array(B2)
+    %v140 = borrow %b : 'Array(B2)
     %v141 = load [%v140]@Array.length : @bits(30) U32
     %v142 = cast 0 : USize
     %v143 = cast %v141 : USize
@@ -2431,7 +2431,7 @@ fn main() -> I64 {
     %v147 = strideof B2 : Long
     %v148 = mul 0, %v147 : Long
     %v149 = add %v146, %v148 : %B2
-    %v150 = borrow [%v149] : &B2
+    %v150 = borrow [%v149] : 'B2
     %v151 = load [%v150] : B2
     %v152 = load [%v150]@B2.hi : @bits(4) U32
     %v154 = cast %v152 : U32
@@ -2447,7 +2447,7 @@ fn main() -> I64 {
 
   b15:
     %v163 = load %b : Array(B2)
-    %v166 = borrow %b : &Array(B2)
+    %v166 = borrow %b : 'Array(B2)
     %v167 = load [%v166]@Array.length : @bits(30) U32
     %v168 = cast 0 : USize
     %v169 = cast %v167 : USize
@@ -2457,7 +2457,7 @@ fn main() -> I64 {
     %v173 = strideof B2 : Long
     %v174 = mul 0, %v173 : Long
     %v175 = add %v172, %v174 : %B2
-    %v176 = borrow [%v175] : &B2
+    %v176 = borrow [%v175] : 'B2
     %v177 = load [%v176] : B2
     %v178 = load [%v176]@B2.lo : @bits(12) U32
     drop %b reclaim Reclaim(Array(a)).reclaim(B2)
@@ -2480,18 +2480,18 @@ fn main() -> I64 {
     %v193 = alloc : B4
     init %local12@B4.lo, 2147483647
     init %local12@B4.hi, 1
-    %v198 = borrow_mut %c : &mut Array(B4)
+    %v198 = borrow_mut %c : &Array(B4)
     %v199 = copy %local12 : B4
     call push(B4), %v198, %v199
     %v201 = load %c : Array(B4)
     %v202 = alloc : B4
     init %local14@B4.lo, 0
     init %local14@B4.hi, 0
-    %v207 = borrow_mut %c : &mut Array(B4)
+    %v207 = borrow_mut %c : &Array(B4)
     %v208 = copy %local14 : B4
     call push(B4), %v207, %v208
     %v210 = load %c : Array(B4)
-    %v213 = borrow %c : &Array(B4)
+    %v213 = borrow %c : 'Array(B4)
     %v214 = load [%v213]@Array.length : @bits(30) U32
     %v215 = cast 0 : USize
     %v216 = cast %v214 : USize
@@ -2501,7 +2501,7 @@ fn main() -> I64 {
     %v220 = strideof B4 : Long
     %v221 = mul 0, %v220 : Long
     %v222 = add %v219, %v221 : %B4
-    %v223 = borrow [%v222] : &B4
+    %v223 = borrow [%v222] : 'B4
     %v224 = load [%v223] : B4
     %v225 = load [%v223]@B4.hi : @bits(1) U32
     %v227 = cast %v225 : U32
@@ -2517,7 +2517,7 @@ fn main() -> I64 {
 
   b21:
     %v236 = load %c : Array(B4)
-    %v239 = borrow %c : &Array(B4)
+    %v239 = borrow %c : 'Array(B4)
     %v240 = load [%v239]@Array.length : @bits(30) U32
     %v241 = cast 0 : USize
     %v242 = cast %v240 : USize
@@ -2527,7 +2527,7 @@ fn main() -> I64 {
     %v246 = strideof B4 : Long
     %v247 = mul 0, %v246 : Long
     %v248 = add %v245, %v247 : %B4
-    %v249 = borrow [%v248] : &B4
+    %v249 = borrow [%v248] : 'B4
     %v250 = load [%v249] : B4
     %v251 = load [%v249]@B4.lo : @bits(31) U32
     %v253 = cast %v251 : U32
@@ -2543,7 +2543,7 @@ fn main() -> I64 {
 
   b24:
     %v262 = load %c : Array(B4)
-    %v265 = borrow %c : &Array(B4)
+    %v265 = borrow %c : 'Array(B4)
     %v266 = load [%v265]@Array.length : @bits(30) U32
     %v267 = cast 1 : USize
     %v268 = cast %v266 : USize
@@ -2553,7 +2553,7 @@ fn main() -> I64 {
     %v272 = strideof B4 : Long
     %v273 = mul 1, %v272 : Long
     %v274 = add %v271, %v273 : %B4
-    %v275 = borrow [%v274] : &B4
+    %v275 = borrow [%v274] : 'B4
     %v276 = load [%v275] : B4
     %v277 = load [%v275]@B4.hi : @bits(1) U32
     drop %c reclaim Reclaim(Array(a)).reclaim(B4)
@@ -2577,11 +2577,11 @@ fn main() -> I64 {
     init %local18@Gap.lo, 1023
     init %local18@Gap.mid, 15
     init %local18@Gap.spare, 3
-    %v299 = borrow_mut %d : &mut Array(Gap)
+    %v299 = borrow_mut %d : &Array(Gap)
     %v300 = copy %local18 : Gap
     call push(Gap), %v299, %v300
     %v302 = load %d : Array(Gap)
-    %v305 = borrow %d : &Array(Gap)
+    %v305 = borrow %d : 'Array(Gap)
     %v306 = load [%v305]@Array.length : @bits(30) U32
     %v307 = cast 0 : USize
     %v308 = cast %v306 : USize
@@ -2591,7 +2591,7 @@ fn main() -> I64 {
     %v312 = strideof Gap : Long
     %v313 = mul 0, %v312 : Long
     %v314 = add %v311, %v313 : %Gap
-    %v315 = borrow [%v314] : &Gap
+    %v315 = borrow [%v314] : 'Gap
     %v316 = load [%v315] : Gap
     %v317 = load [%v315]@Gap.mid : @bits(4) U32
     %v319 = cast %v317 : U32
@@ -2607,7 +2607,7 @@ fn main() -> I64 {
 
   b30:
     %v328 = load %d : Array(Gap)
-    %v331 = borrow %d : &Array(Gap)
+    %v331 = borrow %d : 'Array(Gap)
     %v332 = load [%v331]@Array.length : @bits(30) U32
     %v333 = cast 0 : USize
     %v334 = cast %v332 : USize
@@ -2617,7 +2617,7 @@ fn main() -> I64 {
     %v338 = strideof Gap : Long
     %v339 = mul 0, %v338 : Long
     %v340 = add %v337, %v339 : %Gap
-    %v341 = borrow [%v340] : &Gap
+    %v341 = borrow [%v340] : 'Gap
     %v342 = load [%v341] : Gap
     %v343 = load [%v341]@Gap.lo : @bits(10) U32
     %v345 = cast %v343 : U32
@@ -2633,7 +2633,7 @@ fn main() -> I64 {
 
   b33:
     %v354 = load %d : Array(Gap)
-    %v357 = borrow %d : &Array(Gap)
+    %v357 = borrow %d : 'Array(Gap)
     %v358 = load [%v357]@Array.length : @bits(30) U32
     %v359 = cast 0 : USize
     %v360 = cast %v358 : USize
@@ -2643,7 +2643,7 @@ fn main() -> I64 {
     %v364 = strideof Gap : Long
     %v365 = mul 0, %v364 : Long
     %v366 = add %v363, %v365 : %Gap
-    %v367 = borrow [%v366] : &Gap
+    %v367 = borrow [%v366] : 'Gap
     %v368 = load [%v367] : Gap
     %v369 = load [%v367]@Gap.spare : @bits(2) U32
     drop %d reclaim Reclaim(Array(a)).reclaim(Gap)
@@ -2670,18 +2670,18 @@ fn main() -> I64 {
     %v395 = cast %v394 : @bits(12) I32
     init %local22@Signed.lo, 1048575
     init %local22@Signed.hi, %v395
-    %v398 = borrow_mut %e : &mut Array(Signed)
+    %v398 = borrow_mut %e : &Array(Signed)
     %v399 = copy %local22 : Signed
     call push(Signed), %v398, %v399
     %v401 = load %e : Array(Signed)
     %v402 = alloc : Signed
     init %local24@Signed.lo, 0
     init %local24@Signed.hi, 2047
-    %v407 = borrow_mut %e : &mut Array(Signed)
+    %v407 = borrow_mut %e : &Array(Signed)
     %v408 = copy %local24 : Signed
     call push(Signed), %v407, %v408
     %v410 = load %e : Array(Signed)
-    %v413 = borrow %e : &Array(Signed)
+    %v413 = borrow %e : 'Array(Signed)
     %v414 = load [%v413]@Array.length : @bits(30) U32
     %v415 = cast 0 : USize
     %v416 = cast %v414 : USize
@@ -2691,7 +2691,7 @@ fn main() -> I64 {
     %v420 = strideof Signed : Long
     %v421 = mul 0, %v420 : Long
     %v422 = add %v419, %v421 : %Signed
-    %v423 = borrow [%v422] : &Signed
+    %v423 = borrow [%v422] : 'Signed
     %v424 = load [%v423] : Signed
     %v425 = load [%v423]@Signed.hi : @bits(12) I32
     %v430 = sub 0, 2048 : Int
@@ -2709,7 +2709,7 @@ fn main() -> I64 {
 
   b39:
     %v440 = load %e : Array(Signed)
-    %v443 = borrow %e : &Array(Signed)
+    %v443 = borrow %e : 'Array(Signed)
     %v444 = load [%v443]@Array.length : @bits(30) U32
     %v445 = cast 1 : USize
     %v446 = cast %v444 : USize
@@ -2719,7 +2719,7 @@ fn main() -> I64 {
     %v450 = strideof Signed : Long
     %v451 = mul 1, %v450 : Long
     %v452 = add %v449, %v451 : %Signed
-    %v453 = borrow [%v452] : &Signed
+    %v453 = borrow [%v452] : 'Signed
     %v454 = load [%v453] : Signed
     %v455 = load [%v453]@Signed.hi : @bits(12) I32
     %v457 = cast %v455 : I32
@@ -2735,7 +2735,7 @@ fn main() -> I64 {
 
   b42:
     %v465 = load %e : Array(Signed)
-    %v468 = borrow %e : &Array(Signed)
+    %v468 = borrow %e : 'Array(Signed)
     %v469 = load [%v468]@Array.length : @bits(30) U32
     %v470 = cast 0 : USize
     %v471 = cast %v469 : USize
@@ -2745,7 +2745,7 @@ fn main() -> I64 {
     %v475 = strideof Signed : Long
     %v476 = mul 0, %v475 : Long
     %v477 = add %v474, %v476 : %Signed
-    %v478 = borrow [%v477] : &Signed
+    %v478 = borrow [%v477] : 'Signed
     %v479 = load [%v478] : Signed
     %v480 = load [%v478]@Signed.lo : @bits(20) U32
     drop %e reclaim Reclaim(Array(a)).reclaim(Signed)
@@ -2765,7 +2765,7 @@ fn main() -> I64 {
     init %l1@B1.lo, 63
     init %l1@B1.hi, 3
     %v496 = load %l1 : B1
-    %v497 = borrow_mut %l1 : &mut B1
+    %v497 = borrow_mut %l1 : &B1
     call pin1, %v497
     %v499 = load %l1 : B1
     %v500 = load %l1@B1.hi : @bits(2) U32
@@ -2799,7 +2799,7 @@ fn main() -> I64 {
     init %l4@B4.lo, 2147483647
     init %l4@B4.hi, 1
     %v528 = load %l4 : B4
-    %v529 = borrow_mut %l4 : &mut B4
+    %v529 = borrow_mut %l4 : &B4
     call pin4, %v529
     %v531 = load %l4 : B4
     %v532 = load %l4@B4.hi : @bits(1) U32
@@ -2834,7 +2834,7 @@ fn main() -> I64 {
     init %gg@Gap.mid, 15
     init %gg@Gap.spare, 3
     %v562 = load %gg : Gap
-    %v563 = borrow_mut %gg : &mut Gap
+    %v563 = borrow_mut %gg : &Gap
     call pinGap, %v563
     %v565 = load %gg : Gap
     %v566 = load %gg@Gap.mid : @bits(4) U32
@@ -2930,7 +2930,7 @@ fn main() -> I64 {
     init %gs@Signed.lo, 1048575
     init %gs@Signed.hi, %v652
     %v655 = load %gs : Signed
-    %v656 = borrow_mut %gs : &mut Signed
+    %v656 = borrow_mut %gs : &Signed
     call pinSigned, %v656
     %v658 = load %gs : Signed
     %v659 = load %gs@Signed.hi : @bits(12) I32

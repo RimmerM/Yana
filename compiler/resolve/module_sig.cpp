@@ -37,13 +37,9 @@
 void applyReturnRoots(Module& module, Function& function, LocationId source) {
     if(!isBorrow(*module.types, function.returnType)) return;
 
-    if(!function.returnRoots) {
-        if(!function.returnRootWritten) {
-            module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
-                                             source);
-        }
-    } else {
-        function.returnType = applyReturnRootMutability(module, function.returnType, function.returnRootsMutable);
+    if(!function.returnRoots && !function.returnRootWritten) {
+        module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
+                                         source);
     }
 }
 
@@ -162,7 +158,6 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
     // already been told what is wrong with it, and "you must mark an argument" would be the second
     // diagnostic about the same line saying the opposite of the first.
     auto written = 0u;
-    auto allRootsMutable = true;
 
     for(auto arg: decl.fun.args.contents(module.parse)) {
         if(!arg.type) {
@@ -246,7 +241,6 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
 
             if(checkReturnRoot(module, type, arg.bind, index, arg.source)) {
                 roots++;
-                if(arg.bind != ast::BindType::Ref) allRootsMutable = false;
             } else {
                 declared->returnRoot = false;
             }
@@ -276,7 +270,6 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
 
     function->returnRoots = roots > 0;
     function->returnRootWritten = written > 0;
-    function->returnRootsMutable = allRootsMutable;
 
     // A function still waiting on its body has no result type to check yet. The same check runs
     // from resolveFunctionBody() once there is one, off the three flags just recorded.

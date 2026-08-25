@@ -19,7 +19,7 @@
  *   analyze_escape.cpp      what has to outlive the frame, and the storage class that follows.
  *   analyze_demand.cpp      what each root's representation has to be able to do.
  *   analyze_summary.cpp     what all of the above says to a caller.
- *   analyze_borrow.cpp      the four checks: moves, exclusivity, return roots, closure captures.
+ *   analyze_borrow.cpp      the checks: moves, exclusivity, return roots, and loan extents.
  *   analyze_drop.cpp        where the drops go, and the rewrite that puts them there.
  *   analyze_teardown.cpp    the glue a drop names, and the shape rule an authored `Reclaim` obeys.
  *   analyze_print.cpp       the dump.
@@ -122,6 +122,29 @@ struct Effects {
  */
 struct Provenance {
     LocalSet locals;
+
+    /*
+     * The parameters this refers to that have no slot in this frame to be named by - see
+     * computeProvenance's seeding, and `rootBit` for the encoding.
+     *
+     * A parameter gets a local only where the frame has storage for it: a `&` binding, or an
+     * argument of memory type. A `&Int` or a `%U8` arrives in a register, so it has neither - and a
+     * copy of an address still names the caller's storage, which is the whole of why a raw pointer
+     * is exempt from `arrivesAsCopy`. Without a bit here those two parameters had *no* provenance
+     * at all, so a result built out of one looked rooted in nothing: `fn make(x: &Int, y: &Int) ->
+     * Pair(&Int, &Int)` was accepted with no `return` group and handed the caller two references
+     * its signature never mentioned, and `fn passThrough(p: %U8) -> %U8 = p` the same.
+     *
+     * A bitmask over argument indices rather than a set over locals, because that is the shape the
+     * one consumer wants: `FunctionSummary::actualRoots` is already a mask over the same indices,
+     * so this reaches it by an `|=` rather than through a slot-to-argument lookup.
+     *
+     * Not consulted by the escape pass, and correctly so. What escape places is storage this frame
+     * allocated, and a parameter with no slot allocated nothing here; what it *refers* to is the
+     * caller's, which is exactly what the return-root contract is for.
+     */
+    U64 args = 0;
+
     bool global = false;
 
     // Storage this analysis cannot name: the result of an opaque call, or anything reached through
@@ -133,6 +156,7 @@ struct Provenance {
     // provenance in the passes below is produced this way rather than constructed.
     void reset(Size count) {
         locals.reset(count);
+        args = 0;
         global = false;
         unknown = false;
     }
@@ -527,13 +551,12 @@ bool deriveSummary(Analysis& analysis);
 void checkMoves(Analysis& analysis);
 void checkBorrows(Analysis& analysis);
 void checkReturnRoots(Analysis& analysis);
-void checkMaterializedBorrows(Analysis& analysis);
-void checkEscapingViews(Analysis& analysis);
-void checkClosureEnvironments(Analysis& analysis);
-void checkClassBorrows(Analysis& analysis);
 
-// The rule a deferred class dispatch takes on trust - see Function::classContinuation.
-void checkContinuationExtent(Analysis& analysis);
+// Everything borrowed that outlived what was keeping it valid: a slice of this frame's container, a
+// widened `&` temporary, a captured reference in an escaping closure, and the parameters a class
+// implementation promised on behalf of instances no call site can see. One statement with five
+// reasons - see the comment on the definition, and Analysis-Borrows.md §8.4 for what replaces it.
+void checkLoanExtents(Analysis& analysis);
 
 /*
  * Drop placement and the rewrite (analyze_drop.cpp).

@@ -338,10 +338,10 @@ fn replace(%slot: Pair, %with: Pair) -> () {
     ret
 }
 
-fn borrowed(%p: Pair) -> &I64 {
+fn borrowed(%p: Pair) -> 'I64 {
   b0:
     %v1 = load %p@Pair.left : I64
-    %v2 = borrow %p@Pair.left : &I64
+    %v2 = borrow %p@Pair.left : 'I64
     ret %v2
 }
 
@@ -365,7 +365,7 @@ fn placed() -> I64 {
 fn bump(%counter: I64) -> () {
   b0:
     %v1 = load %counter : I64
-    %v4 = borrow_mut %counter : &mut I64
+    %v4 = borrow_mut %counter : &I64
     call +=(I64), %v4, 1
     ret
 }
@@ -386,16 +386,16 @@ fn main() -> Int {
     %v4 = load %pair : Pair
     %v5 = alloc : Pair
     aggregate %local1@Pair.left = 3, %local1@Pair.right = 4
-    %v9 = borrow_mut %pair : &mut Pair
+    %v9 = borrow_mut %pair : &Pair
     %v10 = copy %local1 : Pair
     call replace, %v9, %v10
     %v12 = load %pair : Pair
-    %v13 = borrow %pair : &Pair
-    %v14 = call borrowed, %v13 : &I64
+    %v13 = borrow %pair : 'Pair
+    %v14 = call borrowed, %v13 : 'I64
     %count = alloc : I64
     init %count, 0
     %v18 = load %count : I64
-    %v19 = borrow_mut %count : &mut I64
+    %v19 = borrow_mut %count : &I64
     call bump, %v19
     %a = call identity(Int), 3 : Int
     %b = call identity(Int), 4 : Int

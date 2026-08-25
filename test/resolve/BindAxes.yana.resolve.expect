@@ -464,7 +464,7 @@ fn viaTry(%ok: Bool, %n: Size) -> Result(I64, Size) {
     init %opened, %v13
     %v16 = load %opened : Held
     %v19 = add %n, 1 : Size
-    %v20 = borrow_mut %opened : &mut Held
+    %v20 = borrow_mut %opened : &Held
     call setName, %v20, %v19
     %v22 = alloc : Result(I64, Size)
     %v24 = load %opened : Held
@@ -491,7 +491,7 @@ fn viaNamedPlace(%b: Box, %n: Size) -> Size {
     %taken = alloc : Held
     init %taken, %held
     %v12 = load %taken : Held
-    %v13 = borrow_mut %taken : &mut Held
+    %v13 = borrow_mut %taken : &Held
     call setName, %v13, %n
     %v15 = load %taken : Held
     %v16 = call slotCount, %v15 : Size
@@ -517,7 +517,7 @@ fn viaPattern(%b: Box, %n: Size) -> Size {
     %v7 = move %b@Filled : Held
     %held = alloc : Held
     init %local1, %v7
-    %v10 = borrow_mut %local1 : &mut Held
+    %v10 = borrow_mut %local1 : &Held
     call setName, %v10, %n
     %v12 = call slotCount, %held : Size
     drop_derived %local1 reclaim reclaim$Held

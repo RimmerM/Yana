@@ -36,7 +36,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Int)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Int)
+    %v8 = borrow_mut %self : &Array(Int)
     call reserve(Int), %v8, %v7
     %v10 = load %self : Array(Int)
     %v11 = load %self@Array.run : Run(Int)
@@ -76,7 +76,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Int)
-    %v11 = borrow_mut %self : &mut Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v11, %wanted
     ret
 }
@@ -117,7 +117,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
     %v23 = load %self : Array(Int)
     %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -1458,7 +1458,7 @@ fn sum(%xs: Flat(Int)) -> Int {
     %v13 = load %total : Int
     %v14 = load %i : Int
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : &Flat(Int)
+    %v16 = borrow %xs : 'Flat(Int)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -1468,7 +1468,7 @@ fn sum(%xs: Flat(Int)) -> Int {
     %v23 = strideof Int : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %Int
-    %v26 = borrow [%v25] : &Int
+    %v26 = borrow [%v25] : 'Int
     %v27 = load [%v26] : Int
     %v28 = add %v13, %v27 : Int
     assign %total, %v28
@@ -1494,7 +1494,7 @@ fn make() -> Array(Int) {
 fn escaping() -> Int {
   b0:
     %xs = call make : Array(Int)
-    %v3 = borrow %local0 : &Array(Int)
+    %v3 = borrow %local0 : 'Array(Int)
     %v4 = load [%v3]@Array.length : @bits(30) U32
     %v5 = cast 0 : USize
     %v6 = cast %v4 : USize
@@ -1504,9 +1504,9 @@ fn escaping() -> Int {
     %v10 = strideof Int : Long
     %v11 = mul 0, %v10 : Long
     %v12 = add %v9, %v11 : %Int
-    %v13 = borrow [%v12] : &Int
+    %v13 = borrow [%v12] : 'Int
     %v14 = load [%v13] : Int
-    %v17 = borrow %local0 : &Array(Int)
+    %v17 = borrow %local0 : 'Array(Int)
     %v18 = load [%v17]@Array.length : @bits(30) U32
     %v19 = cast 1 : USize
     %v20 = cast %v18 : USize
@@ -1516,10 +1516,10 @@ fn escaping() -> Int {
     %v24 = strideof Int : Long
     %v25 = mul 1, %v24 : Long
     %v26 = add %v23, %v25 : %Int
-    %v27 = borrow [%v26] : &Int
+    %v27 = borrow [%v26] : 'Int
     %v28 = load [%v27] : Int
     %v29 = add %v14, %v28 : Int
-    %v32 = borrow %local0 : &Array(Int)
+    %v32 = borrow %local0 : 'Array(Int)
     %v33 = load [%v32]@Array.length : @bits(30) U32
     %v34 = cast 2 : USize
     %v35 = cast %v33 : USize
@@ -1529,7 +1529,7 @@ fn escaping() -> Int {
     %v39 = strideof Int : Long
     %v40 = mul 2, %v39 : Long
     %v41 = add %v38, %v40 : %Int
-    %v42 = borrow [%v41] : &Int
+    %v42 = borrow [%v41] : 'Int
     %v43 = load [%v42] : Int
     drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
     %v44 = add %v29, %v43 : Int
@@ -1547,7 +1547,7 @@ fn main() -> Int {
     aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
     init %small@Array.length, 3
     %v18 = load %small : Array(Int)
-    %v21 = borrow_mut %small : &mut Array(Int)
+    %v21 = borrow_mut %small : &Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
     %v23 = cast 0 : USize
     %v24 = cast %v22 : USize
@@ -1557,26 +1557,26 @@ fn main() -> Int {
     %v28 = strideof Int : Long
     %v29 = mul 0, %v28 : Long
     %v30 = add %v27, %v29 : %Int
-    %v31 = borrow_mut [%v30] : &mut Int
+    %v31 = borrow_mut [%v30] : &Int
     assign [%v31], 10
     %v34 = load %small : Array(Int)
-    %v37 = borrow_mut %small : &mut Array(Int)
+    %v37 = borrow_mut %small : &Array(Int)
     call push(Int), %v37, 4
     %v39 = load %small : Array(Int)
-    %v42 = borrow_mut %small : &mut Array(Int)
+    %v42 = borrow_mut %small : &Array(Int)
     call push(Int), %v42, 5
     %v44 = load %small : Array(Int)
-    %v47 = borrow_mut %small : &mut Array(Int)
+    %v47 = borrow_mut %small : &Array(Int)
     %v48 = call remove(Int), %v47, 1 : Maybe(Int)
     %v49 = load %small : Array(Int)
-    %v52 = borrow_mut %small : &mut Array(Int)
+    %v52 = borrow_mut %small : &Array(Int)
     %v53 = call remove(Int), %v52, 99 : Maybe(Int)
     %v54 = load %small : Array(Int)
     %v59 = sub 0, 1 : Int
-    %v60 = borrow_mut %small : &mut Array(Int)
+    %v60 = borrow_mut %small : &Array(Int)
     %v61 = call remove(Int), %v60, %v59 : Maybe(Int)
     %v62 = load %small : Array(Int)
-    %v63 = borrow %small : &Array(Int)
+    %v63 = borrow %small : 'Array(Int)
     %v64 = alloc : Flat(Int)
     %v65 = load [%v63]@Array.run@Run.items : %Int
     init %local5@Flat.items, %v65

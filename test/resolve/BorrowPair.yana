@@ -4,13 +4,16 @@
 data Pair(a, b) {first: a, second: b}
 data Box(a) {item: a}
 
-fn make(x: &Int, y: &Int) -> Pair(&Int, &Int) = Pair {first: x, second: y}
+-- The markers are the point of the case: the result holds references to both arguments, so both
+-- are roots. A `&T` parameter can carry `return` for the same reason a `%T` one can - the address
+-- arrives in a register, and the storage it names is still the caller's.
+fn make(return x: 'Int, return y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
 
 -- The generic form: the borrows come out of accessors rather than in as parameters, which is how
 -- the map's iterator gets them.
-fn firstOf(return self: Box(a)) -> &a = self.item
+fn firstOf(return self: Box(a)) -> 'a = self.item
 
-fn viewed(return self: Box(a), return other: Box(a)) -> Pair(&a, &a) =
+fn viewed(return self: Box(a), return other: Box(a)) -> Pair('a, 'a) =
     Pair {first: firstOf(self), second: firstOf(other)}
 
 fn main() -> Int:

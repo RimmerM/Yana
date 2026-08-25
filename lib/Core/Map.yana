@@ -358,7 +358,7 @@ pub fn (Hash(k)) containsKey(self: Map(k, v), key: k) -> Bool =
    learned to walk out of a direct aggregate into the call that produced it, the map was dropped at
    the call and the borrow read storage that had been handed back.
 -}
-pub fn (Hash(k)) find(return self: Map(k, v), key: k) -> Maybe(&v):
+pub fn (Hash(k)) find(return self: Map(k, v), key: k) -> Maybe('v):
     let at = findEntry(self, key, hashKey(key))
     if at < 0 then return Nothing
 
@@ -411,7 +411,7 @@ pub fn clear(&self: Map(k, v)) -> {}:
    made `contains` into `containsKey`. `drain` needs an `iter fn` that consumes its source, which
    nothing in the language does yet.
 -}
-pub iter fn pairs(self: Map(k, v)) -> Entry(&k, &v):
+pub iter fn pairs(self: Map(k, v)) -> Entry('k, 'v):
     let count = entryCount(self)
     let &at = 0 :: Size
 
@@ -432,7 +432,7 @@ pub iter fn pairs(self: Map(k, v)) -> Entry(&k, &v):
    `v`.
 -}
 instance (Hash(k)) Index(Map(k, v), k, v):
-    fn get(return self: Map(k, v), key: k) -> &v:
+    fn get(return self: Map(k, v), key: k) -> 'v:
         let at = findEntry(self, key, hashKey(key))
         checkCondition(at < 0)
 

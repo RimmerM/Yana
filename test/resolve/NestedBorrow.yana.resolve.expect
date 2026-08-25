@@ -1,0 +1,62 @@
+let image$base: () = <none>
+
+fn wrap1(%n: 'Int) -> L1 {
+  b0:
+    %v1 = alloc : L1
+    aggregate %local0@L1.r = %n
+    ret %v1
+}
+
+fn wrap2(%n: 'Int) -> L2 {
+  b0:
+    %v1 = alloc : L2
+    %v2 = call wrap1, %n : L1
+    aggregate %local0@L2.a = %v2
+    ret %v1
+}
+
+fn wrap3(%n: 'Int) -> L3 {
+  b0:
+    %v1 = alloc : L3
+    %v2 = call wrap2, %n : L2
+    aggregate %local0@L3.a = %v2
+    ret %v1
+}
+
+fn wrap4(%n: 'Int) -> L4 {
+  b0:
+    %v1 = alloc : L4
+    %v2 = call wrap3, %n : L3
+    aggregate %local0@L4.a = %v2
+    ret %v1
+}
+
+fn wrap5(%n: 'Int) -> L5 {
+  b0:
+    %v1 = alloc : L5
+    %v2 = call wrap4, %n : L4
+    aggregate %local0@L5.a = %v2
+    ret %v1
+}
+
+fn readBack(%v: L5) -> Int {
+  b0:
+    %v1 = load %v@L5.a : L4
+    %v2 = load %v@L5.a@L4.a : L3
+    %v3 = load %v@L5.a@L4.a@L3.a : L2
+    %v4 = load %v@L5.a@L4.a@L3.a@L2.a : L1
+    %v5 = load %v@L5.a@L4.a@L3.a@L2.a@L1.r : 'Int
+    %v6 = load [%v5] : Int
+    ret %v6
+}
+
+fn main() -> Int {
+  b0:
+    %n = alloc : Int
+    init %n, 7
+    %v3 = load %n : Int
+    %v4 = borrow %n : 'Int
+    %deep = call wrap5, %v4 : L5
+    %v6 = call readBack, %deep : Int
+    ret %v6
+}

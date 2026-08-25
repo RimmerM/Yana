@@ -120,7 +120,7 @@ fn teardown$none(%value: %()) -> () {
 
 fn Chunked(Array(a), a).chunks(Int, ())(%self: Array(Int), %body: (value$: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = borrow %self : &Array(Int)
+    %v2 = borrow %self : 'Array(Int)
     %v3 = call Contiguous(Array(a), a).elements(Int), %v2 : Flat(Int)
     %v4 = calldyn %body, %v3 : Outcome((), ())
     %v5 = load %local3.discriminant : Int
@@ -140,14 +140,14 @@ fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
   b0:
     %v1 = load %self@Array.length : @bits(30) U32
     %v2 = cast %v1 : Size
-    %v3 = borrow %self : &Array(Int)
+    %v3 = borrow %self : 'Array(Int)
     %self = alloc : Flat(Int)
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %self@Flat.items, %v5
     %v7 = load [%v3]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size
     init %self@Flat.length, %v8
-    %v11 = borrow %self : &Flat(Int)
+    %v11 = borrow %self : 'Flat(Int)
     %v12 = call unclampedSlice(Int), %v11, 0, %v2 : Flat(Int)
     ret %v12
 }
@@ -165,7 +165,7 @@ fn unclampedSlice(Int)(%self: Flat(Int), %from: Size, %count: Size) -> Flat(Int)
 
 fn Chunked(Array(a), a).chunks(Int, Int)(%self: Array(Int), %body: (value$: Flat(Int)) -> Outcome((), Int)) -> Outcome((), Int) {
   b0:
-    %v2 = borrow %self : &Array(Int)
+    %v2 = borrow %self : 'Array(Int)
     %v3 = call Contiguous(Array(a), a).elements(Int), %v2 : Flat(Int)
     %v4 = calldyn %body, %v3 : Outcome((), Int)
     %v5 = load %local3.discriminant : Int
@@ -323,7 +323,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   b3:
     %v11 = load %i : Int
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : &a
+    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : 'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : Int
@@ -344,9 +344,9 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int}
+    #2 type {n: &Int}
     #3 type (value$: a) -> Outcome((), ())
-    #4 type {n: &mut Int}
+    #4 type {n: &Int}
     #5 type (value$: Flat(a)) -> Outcome((), ())
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -356,8 +356,8 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v4 = alloc : {n: &mut Int}
-    %v5 = borrow_mut %n : &mut Int
+    %v4 = alloc : {n: &Int}
+    %v5 = borrow_mut %n : &Int
     init %local2.n, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Flat(a)) -> Outcome((), ())
@@ -373,9 +373,9 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int, bound: Int}
+    #2 type {n: &Int, bound: Int}
     #3 type (value$: a) -> Outcome((), Int)
-    #4 type {n: &mut Int, bound: Int}
+    #4 type {n: &Int, bound: Int}
     #5 type (value$: Flat(a)) -> Outcome((), Int)
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -385,8 +385,8 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v5 = alloc : {n: &mut Int, bound: Int}
-    %v6 = borrow_mut %n : &mut Int
+    %v5 = alloc : {n: &Int, bound: Int}
+    %v6 = borrow_mut %n : &Int
     init %local2.n, %v6
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
@@ -412,9 +412,9 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int, bound: Int}
+    #2 type {n: &Int, bound: Int}
     #3 type (value$: a) -> Outcome((), Outcome((), Int))
-    #4 type {n: &mut Int, bound: Int}
+    #4 type {n: &Int, bound: Int}
     #5 type (value$: Flat(a)) -> Outcome((), Int)
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -424,8 +424,8 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v5 = alloc : {n: &mut Int, bound: Int}
-    %v6 = borrow_mut %n : &mut Int
+    %v5 = alloc : {n: &Int, bound: Int}
+    %v6 = borrow_mut %n : &Int
     init %local2.n, %v6
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
@@ -517,7 +517,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
 
   b0:
     %v2 = load %self@Chunks.a : Array(Int)
-    %v3 = borrow %self@Chunks.a : &Array(Int)
+    %v3 = borrow %self@Chunks.a : 'Array(Int)
     %v4 = alloc : Flat(Int)
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v5
@@ -539,7 +539,7 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
 
   b3:
     %v21 = load %self@Chunks.b : Array(Int)
-    %v22 = borrow %self@Chunks.b : &Array(Int)
+    %v22 = borrow %self@Chunks.b : 'Array(Int)
     %v23 = alloc : Flat(Int)
     %v24 = load [%v22]@Array.run@Run.items : %Int
     init %local4@Flat.items, %v24
@@ -566,13 +566,13 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     ret %v37
 }
 
-(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{n: &mut Int}, %value$: Flat(a)) -> Outcome((), ()) {
+(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{n: &Int}, %value$: Flat(a)) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int}
+    #2 type {n: &Int}
     #3 type (value$: a) -> Outcome((), ())
-    #4 type {n: &mut Int}
+    #4 type {n: &Int}
     #5 type (value$: Flat(a)) -> Outcome((), ())
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -580,9 +580,9 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   }
 
   b0:
-    %v2 = alloc : {n: &mut Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: a) -> Outcome((), ())
@@ -595,13 +595,13 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     ret %v12
 }
 
-(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$16(%env: %{n: &mut Int}, %value$: a) -> Outcome((), ()) {
+(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$16(%env: %{n: &Int}, %value$: a) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int}
+    #2 type {n: &Int}
     #3 type (value$: a) -> Outcome((), ())
-    #4 type {n: &mut Int}
+    #4 type {n: &Int}
     #5 type (value$: Flat(a)) -> Outcome((), ())
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -609,8 +609,8 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   }
 
   b0:
-    %v2 = load [%env].n : &mut Int
-    %v3 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
+    %v3 = load [%env].n : &Int
     %v4 = load [%v3] : Int
     %v7 = add %v4, 1 : Int
     assign [%v2], %v7
@@ -619,13 +619,13 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     ret %v9
 }
 
-(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$17(%env: %{n: &mut Int, bound: Int}, %value$: Flat(a)) -> Outcome((), Int) {
+(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$17(%env: %{n: &Int, bound: Int}, %value$: Flat(a)) -> Outcome((), Int) {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int, bound: Int}
+    #2 type {n: &Int, bound: Int}
     #3 type (value$: a) -> Outcome((), Int)
-    #4 type {n: &mut Int, bound: Int}
+    #4 type {n: &Int, bound: Int}
     #5 type (value$: Flat(a)) -> Outcome((), Int)
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -633,9 +633,9 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   }
 
   b0:
-    %v2 = alloc : {n: &mut Int, bound: Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int, bound: Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = load [%env].bound : Int
     init %local1.bound, %v6
@@ -661,13 +661,13 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     ret %v19
 }
 
-(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$18(%env: %{n: &mut Int, bound: Int}, %value$: a) -> Outcome((), Int) {
+(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$18(%env: %{n: &Int, bound: Int}, %value$: a) -> Outcome((), Int) {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int, bound: Int}
+    #2 type {n: &Int, bound: Int}
     #3 type (value$: a) -> Outcome((), Int)
-    #4 type {n: &mut Int, bound: Int}
+    #4 type {n: &Int, bound: Int}
     #5 type (value$: Flat(a)) -> Outcome((), Int)
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -675,14 +675,14 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   }
 
   b0:
-    %v2 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
     %v3 = load [%v2] : Int
     %v4 = load [%env].bound : Int
     %v5 = cmp_ge %v3, %v4 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].n : &mut Int
+    %v7 = load [%env].n : &Int
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v22 = alloc : Outcome((), Int)
@@ -693,8 +693,8 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     jmp b3
 
   b3:
-    %v11 = load [%env].n : &mut Int
-    %v12 = load [%env].n : &mut Int
+    %v11 = load [%env].n : &Int
+    %v12 = load [%env].n : &Int
     %v13 = load [%v12] : Int
     %v16 = add %v13, 1 : Int
     assign [%v11], %v16
@@ -703,13 +703,13 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     ret %v18
 }
 
-(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$19(%env: %{n: &mut Int, bound: Int}, %value$: Flat(a)) -> Outcome((), Int) {
+(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$19(%env: %{n: &Int, bound: Int}, %value$: Flat(a)) -> Outcome((), Int) {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int, bound: Int}
+    #2 type {n: &Int, bound: Int}
     #3 type (value$: a) -> Outcome((), Outcome((), Int))
-    #4 type {n: &mut Int, bound: Int}
+    #4 type {n: &Int, bound: Int}
     #5 type (value$: Flat(a)) -> Outcome((), Int)
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -717,9 +717,9 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   }
 
   b0:
-    %v2 = alloc : {n: &mut Int, bound: Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int, bound: Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = load [%env].bound : Int
     init %local1.bound, %v6
@@ -757,13 +757,13 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     ret %v26
 }
 
-(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$20(%env: %{n: &mut Int, bound: Int}, %value$: a) -> Outcome((), Outcome((), Int)) {
+(Chunked(c, a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$20(%env: %{n: &Int, bound: Int}, %value$: a) -> Outcome((), Outcome((), Int)) {
   schema {
     #0 type c
     #1 type a
-    #2 type {n: &mut Int, bound: Int}
+    #2 type {n: &Int, bound: Int}
     #3 type (value$: a) -> Outcome((), Outcome((), Int))
-    #4 type {n: &mut Int, bound: Int}
+    #4 type {n: &Int, bound: Int}
     #5 type (value$: Flat(a)) -> Outcome((), Int)
     #6 class Chunked(c, a)
     #7 class Length(Flat(a))
@@ -771,14 +771,14 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
   }
 
   b0:
-    %v2 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
     %v3 = load [%v2] : Int
     %v4 = load [%env].bound : Int
     %v5 = cmp_ge %v3, %v4 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].n : &mut Int
+    %v7 = load [%env].n : &Int
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v25 = alloc : Outcome((), Int)
@@ -791,8 +791,8 @@ fn Chunked(Chunks, Int).chunks(%self: Chunks, %body: (value$: Flat(Int)) -> Outc
     jmp b3
 
   b3:
-    %v11 = load [%env].n : &mut Int
-    %v12 = load [%env].n : &mut Int
+    %v11 = load [%env].n : &Int
+    %v12 = load [%env].n : &Int
     %v13 = load [%v12] : Int
     %v16 = add %v13, 1 : Int
     assign [%v11], %v16
@@ -807,8 +807,8 @@ fn countAll(Chunks, Int)(%xs: Chunks) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v4 = alloc : {n: &mut Int}
-    %v5 = borrow_mut %n : &mut Int
+    %v4 = alloc : {n: &Int}
+    %v5 = borrow_mut %n : &Int
     init %local2.n, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Flat(Int)) -> Outcome((), ())
@@ -820,11 +820,11 @@ fn countAll(Chunks, Int)(%xs: Chunks) -> Int {
     ret %v13
 }
 
-fn ResolveTest.continuation$15(Chunks, Int)(%env: %{n: &mut Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(Chunks, Int)(%env: %{n: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
-    %v2 = alloc : {n: &mut Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: Int) -> Outcome((), ())
@@ -837,10 +837,10 @@ fn ResolveTest.continuation$15(Chunks, Int)(%env: %{n: &mut Int}, %value$: Flat(
     ret %v12
 }
 
-fn ResolveTest.continuation$16(Chunks, Int)(%env: %{n: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(Chunks, Int)(%env: %{n: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].n : &mut Int
-    %v3 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
+    %v3 = load [%env].n : &Int
     %v4 = load [%v3] : Int
     %v6 = add %v4, 1 : Int
     assign [%v2], %v6
@@ -870,7 +870,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Int)
+    %v17 = borrow %xs : 'Flat(Int)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -880,7 +880,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
     %v24 = strideof Int : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Int
-    %v27 = borrow [%v26] : &Int
+    %v27 = borrow [%v26] : 'Int
     %v28 = load [%v27] : Int
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : Int
@@ -900,7 +900,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
 fn Chunked(Chunks, Int).chunks(())(%self: Chunks, %body: (value$: Flat(Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = load %self@Chunks.a : Array(Int)
-    %v3 = borrow %self@Chunks.a : &Array(Int)
+    %v3 = borrow %self@Chunks.a : 'Array(Int)
     %v4 = alloc : Flat(Int)
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v5
@@ -922,7 +922,7 @@ fn Chunked(Chunks, Int).chunks(())(%self: Chunks, %body: (value$: Flat(Int)) -> 
 
   b3:
     %v20 = load %self@Chunks.b : Array(Int)
-    %v21 = borrow %self@Chunks.b : &Array(Int)
+    %v21 = borrow %self@Chunks.b : 'Array(Int)
     %v22 = alloc : Flat(Int)
     %v23 = load [%v21]@Array.run@Run.items : %Int
     init %local4@Flat.items, %v23
@@ -953,8 +953,8 @@ fn countUntil(Chunks, Int)(%xs: Chunks, %bound: Int) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v5 = alloc : {n: &mut Int, bound: Int}
-    %v6 = borrow_mut %n : &mut Int
+    %v5 = alloc : {n: &Int, bound: Int}
+    %v6 = borrow_mut %n : &Int
     init %local2.n, %v6
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
@@ -976,11 +976,11 @@ fn countUntil(Chunks, Int)(%xs: Chunks, %bound: Int) -> Int {
     ret %v21
 }
 
-fn ResolveTest.continuation$17(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
+fn ResolveTest.continuation$17(Chunks, Int)(%env: %{n: &Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
   b0:
-    %v2 = alloc : {n: &mut Int, bound: Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int, bound: Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = load [%env].bound : Int
     init %local1.bound, %v6
@@ -1006,16 +1006,16 @@ fn ResolveTest.continuation$17(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
     ret %v23
 }
 
-fn ResolveTest.continuation$18(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$18(Chunks, Int)(%env: %{n: &Int, bound: Int}, %value$: Int) -> Outcome((), Int) {
   b0:
-    %v2 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
     %v3 = load [%v2] : Int
     %v4 = load [%env].bound : Int
     %v5 = cmp_ge %v3, %v4 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].n : &mut Int
+    %v7 = load [%env].n : &Int
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
@@ -1026,8 +1026,8 @@ fn ResolveTest.continuation$18(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
     jmp b3
 
   b3:
-    %v15 = load [%env].n : &mut Int
-    %v16 = load [%env].n : &mut Int
+    %v15 = load [%env].n : &Int
+    %v16 = load [%env].n : &Int
     %v17 = load [%v16] : Int
     %v19 = add %v17, 1 : Int
     assign [%v15], %v19
@@ -1057,7 +1057,7 @@ fn each(Int, Int)(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Int)) -> O
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Int)
+    %v17 = borrow %xs : 'Flat(Int)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -1067,7 +1067,7 @@ fn each(Int, Int)(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Int)) -> O
     %v24 = strideof Int : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Int
-    %v27 = borrow [%v26] : &Int
+    %v27 = borrow [%v26] : 'Int
     %v28 = load [%v27] : Int
     %v29 = calldyn %body, %v28 : Outcome((), Int)
     %v30 = load %local3.discriminant : Int
@@ -1087,7 +1087,7 @@ fn each(Int, Int)(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), Int)) -> O
 fn Chunked(Chunks, Int).chunks(Int)(%self: Chunks, %body: (value$: Flat(Int)) -> Outcome((), Int)) -> Outcome((), Int) {
   b0:
     %v2 = load %self@Chunks.a : Array(Int)
-    %v3 = borrow %self@Chunks.a : &Array(Int)
+    %v3 = borrow %self@Chunks.a : 'Array(Int)
     %v4 = alloc : Flat(Int)
     %v5 = load [%v3]@Array.run@Run.items : %Int
     init %local2@Flat.items, %v5
@@ -1109,7 +1109,7 @@ fn Chunked(Chunks, Int).chunks(Int)(%self: Chunks, %body: (value$: Flat(Int)) ->
 
   b3:
     %v20 = load %self@Chunks.b : Array(Int)
-    %v21 = borrow %self@Chunks.b : &Array(Int)
+    %v21 = borrow %self@Chunks.b : 'Array(Int)
     %v22 = alloc : Flat(Int)
     %v23 = load [%v21]@Array.run@Run.items : %Int
     init %local4@Flat.items, %v23
@@ -1140,8 +1140,8 @@ fn countChunks(Chunks, Int)(%xs: Chunks, %bound: Int) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v5 = alloc : {n: &mut Int, bound: Int}
-    %v6 = borrow_mut %n : &mut Int
+    %v5 = alloc : {n: &Int, bound: Int}
+    %v6 = borrow_mut %n : &Int
     init %local2.n, %v6
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
@@ -1163,11 +1163,11 @@ fn countChunks(Chunks, Int)(%xs: Chunks, %bound: Int) -> Int {
     ret %v21
 }
 
-fn ResolveTest.continuation$19(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
+fn ResolveTest.continuation$19(Chunks, Int)(%env: %{n: &Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
   b0:
-    %v2 = alloc : {n: &mut Int, bound: Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int, bound: Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = load [%env].bound : Int
     init %local1.bound, %v6
@@ -1205,16 +1205,16 @@ fn ResolveTest.continuation$19(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
     ret %v30
 }
 
-fn ResolveTest.continuation$20(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
+fn ResolveTest.continuation$20(Chunks, Int)(%env: %{n: &Int, bound: Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
   b0:
-    %v2 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
     %v3 = load [%v2] : Int
     %v4 = load [%env].bound : Int
     %v5 = cmp_ge %v3, %v4 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].n : &mut Int
+    %v7 = load [%env].n : &Int
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
@@ -1227,8 +1227,8 @@ fn ResolveTest.continuation$20(Chunks, Int)(%env: %{n: &mut Int, bound: Int}, %v
     jmp b3
 
   b3:
-    %v18 = load [%env].n : &mut Int
-    %v19 = load [%env].n : &mut Int
+    %v18 = load [%env].n : &Int
+    %v19 = load [%env].n : &Int
     %v20 = load [%v19] : Int
     %v22 = add %v20, 1 : Int
     assign [%v18], %v22
@@ -1260,7 +1260,7 @@ fn each(Int, Outcome((), Int))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Int)
+    %v17 = borrow %xs : 'Flat(Int)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -1270,7 +1270,7 @@ fn each(Int, Outcome((), Int))(%xs: Flat(Int), %body: (value$: Int) -> Outcome((
     %v24 = strideof Int : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Int
-    %v27 = borrow [%v26] : &Int
+    %v27 = borrow [%v26] : 'Int
     %v28 = load [%v27] : Int
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), Int))
     %v30 = load %local3.discriminant : Int
@@ -1291,8 +1291,8 @@ fn countAll(Array(Int), Int)(%xs: Array(Int)) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v4 = alloc : {n: &mut Int}
-    %v5 = borrow_mut %n : &mut Int
+    %v4 = alloc : {n: &Int}
+    %v5 = borrow_mut %n : &Int
     init %local2.n, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Flat(Int)) -> Outcome((), ())
@@ -1304,11 +1304,11 @@ fn countAll(Array(Int), Int)(%xs: Array(Int)) -> Int {
     ret %v13
 }
 
-fn ResolveTest.continuation$15(Array(Int), Int)(%env: %{n: &mut Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(Array(Int), Int)(%env: %{n: &Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
-    %v2 = alloc : {n: &mut Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : (value$: Int) -> Outcome((), ())
@@ -1321,10 +1321,10 @@ fn ResolveTest.continuation$15(Array(Int), Int)(%env: %{n: &mut Int}, %value$: F
     ret %v12
 }
 
-fn ResolveTest.continuation$16(Array(Int), Int)(%env: %{n: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(Array(Int), Int)(%env: %{n: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].n : &mut Int
-    %v3 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
+    %v3 = load [%env].n : &Int
     %v4 = load [%v3] : Int
     %v6 = add %v4, 1 : Int
     assign [%v2], %v6
@@ -1337,8 +1337,8 @@ fn countUntil(Array(Int), Int)(%xs: Array(Int), %bound: Int) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v5 = alloc : {n: &mut Int, bound: Int}
-    %v6 = borrow_mut %n : &mut Int
+    %v5 = alloc : {n: &Int, bound: Int}
+    %v6 = borrow_mut %n : &Int
     init %local2.n, %v6
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
@@ -1360,11 +1360,11 @@ fn countUntil(Array(Int), Int)(%xs: Array(Int), %bound: Int) -> Int {
     ret %v21
 }
 
-fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
+fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{n: &Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
   b0:
-    %v2 = alloc : {n: &mut Int, bound: Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int, bound: Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = load [%env].bound : Int
     init %local1.bound, %v6
@@ -1390,16 +1390,16 @@ fn ResolveTest.continuation$17(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
     ret %v23
 }
 
-fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{n: &Int, bound: Int}, %value$: Int) -> Outcome((), Int) {
   b0:
-    %v2 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
     %v3 = load [%v2] : Int
     %v4 = load [%env].bound : Int
     %v5 = cmp_ge %v3, %v4 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].n : &mut Int
+    %v7 = load [%env].n : &Int
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
@@ -1410,8 +1410,8 @@ fn ResolveTest.continuation$18(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
     jmp b3
 
   b3:
-    %v15 = load [%env].n : &mut Int
-    %v16 = load [%env].n : &mut Int
+    %v15 = load [%env].n : &Int
+    %v16 = load [%env].n : &Int
     %v17 = load [%v16] : Int
     %v19 = add %v17, 1 : Int
     assign [%v15], %v19
@@ -1424,8 +1424,8 @@ fn countChunks(Array(Int), Int)(%xs: Array(Int), %bound: Int) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v5 = alloc : {n: &mut Int, bound: Int}
-    %v6 = borrow_mut %n : &mut Int
+    %v5 = alloc : {n: &Int, bound: Int}
+    %v6 = borrow_mut %n : &Int
     init %local2.n, %v6
     init %local2.bound, %bound
     %v9 = addressof %local2 : %()
@@ -1447,11 +1447,11 @@ fn countChunks(Array(Int), Int)(%xs: Array(Int), %bound: Int) -> Int {
     ret %v21
 }
 
-fn ResolveTest.continuation$19(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
+fn ResolveTest.continuation$19(Array(Int), Int)(%env: %{n: &Int, bound: Int}, %value$: Flat(Int)) -> Outcome((), Int) {
   b0:
-    %v2 = alloc : {n: &mut Int, bound: Int}
-    %v3 = load [%env].n : &mut Int
-    %v4 = borrow_mut [%v3] : &mut Int
+    %v2 = alloc : {n: &Int, bound: Int}
+    %v3 = load [%env].n : &Int
+    %v4 = borrow_mut [%v3] : &Int
     init %local1.n, %v4
     %v6 = load [%env].bound : Int
     init %local1.bound, %v6
@@ -1489,16 +1489,16 @@ fn ResolveTest.continuation$19(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
     ret %v30
 }
 
-fn ResolveTest.continuation$20(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
+fn ResolveTest.continuation$20(Array(Int), Int)(%env: %{n: &Int, bound: Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
   b0:
-    %v2 = load [%env].n : &mut Int
+    %v2 = load [%env].n : &Int
     %v3 = load [%v2] : Int
     %v4 = load [%env].bound : Int
     %v5 = cmp_ge %v3, %v4 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].n : &mut Int
+    %v7 = load [%env].n : &Int
     %v8 = load [%v7] : Int
     %v9 = neg %v8 : Int
     %v10 = alloc : Outcome((), Int)
@@ -1511,8 +1511,8 @@ fn ResolveTest.continuation$20(Array(Int), Int)(%env: %{n: &mut Int, bound: Int}
     jmp b3
 
   b3:
-    %v18 = load [%env].n : &mut Int
-    %v19 = load [%env].n : &mut Int
+    %v18 = load [%env].n : &Int
+    %v19 = load [%env].n : &Int
     %v20 = load [%v19] : Int
     %v22 = add %v20, 1 : Int
     assign [%v18], %v22

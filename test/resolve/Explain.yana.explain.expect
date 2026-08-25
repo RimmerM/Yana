@@ -94,13 +94,13 @@ fn replace(&slot: Pair, ->with: Pair) -> ()
 ---
 - **retains**: with
 
-fn borrowed(return p: Pair) -> &I64
+fn borrowed(return p: Pair) -> 'I64
   suspends:   unknown (not inferred yet)
   ambients:   unknown (not implemented)
   storage:    the result's storage is the caller's, not this frame's
   mutates:    none
   retains:    none
-  returns:    a borrow rooted in p
+  returns:    a shared reference rooted in p
   calls:      called at 1 site
 
 fn placed() -> I64

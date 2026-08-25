@@ -29,8 +29,7 @@ struct Token {
         Integer = FirstLiteral,
         Float,
         String,
-        Char,
-        LastLiteral = Char,
+        LastLiteral = String,
 
         /* Identifiers */
         VarID,
@@ -79,7 +78,6 @@ struct Token {
     union Payload {
         I64 integer;
         double floating;
-        U32 character;
         StringId id;
     } data;
 

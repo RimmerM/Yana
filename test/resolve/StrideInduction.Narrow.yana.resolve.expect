@@ -36,7 +36,7 @@ fn push(Cell)(%self: Array(Cell), %item: Cell) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Cell)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Cell)
+    %v8 = borrow_mut %self : &Array(Cell)
     call reserve(Cell), %v8, %v7
     %v10 = load %self : Array(Cell)
     %v11 = load %self@Array.run : Run(Cell)
@@ -76,7 +76,7 @@ fn reserve(Cell)(%self: Array(Cell), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Cell)
-    %v11 = borrow_mut %self : &mut Array(Cell)
+    %v11 = borrow_mut %self : &Array(Cell)
     call growArray(Cell), %v11, %wanted
     ret
 }
@@ -117,7 +117,7 @@ fn growArray(Cell)(%self: Array(Cell), %wanted: Size) -> () {
     %v23 = load %self : Array(Cell)
     %v24 = load %self@Array.run : Run(Cell)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Cell)
+    %v26 = borrow_mut %self@Array.run : &Run(Cell)
     %v27 = call resize(Cell), %v26, %v25 : Bool
     ret
 }
@@ -1144,7 +1144,7 @@ fn strided(%by: Int) -> Int {
     %v26 = load %n : Int
     %v29 = mul %v26, 10 : Int
     aggregate %local3@Cell.a = %v22, %local3@Cell.b = 0, %local3@Cell.c = 0, %local3@Cell.d = 0, %local3@Cell.e = %v29, %local3@Cell.f = 0
-    %v32 = borrow_mut %xs : &mut Array(Cell)
+    %v32 = borrow_mut %xs : &Array(Cell)
     %v33 = copy %local3 : Cell
     call push(Cell), %v32, %v33
     %v35 = load %n : Int
@@ -1166,7 +1166,7 @@ fn strided(%by: Int) -> Int {
     %v54 = load %xs : Array(Cell)
     %v55 = load %i : Int
     %v56 = cast %v55 : Size
-    %v57 = borrow %xs : &Array(Cell)
+    %v57 = borrow %xs : 'Array(Cell)
     %v58 = load [%v57]@Array.length : @bits(30) U32
     %v59 = cast %v56 : USize
     %v60 = cast %v58 : USize
@@ -1176,14 +1176,14 @@ fn strided(%by: Int) -> Int {
     %v64 = strideof Cell : Long
     %v65 = mul %v56, %v64 : Long
     %v66 = add %v63, %v65 : %Cell
-    %v67 = borrow [%v66] : &Cell
+    %v67 = borrow [%v66] : 'Cell
     %v68 = load [%v67] : Cell
     %v69 = load [%v67]@Cell.a : Int
     %v70 = add %v53, %v69 : Int
     %v71 = load %xs : Array(Cell)
     %v72 = load %i : Int
     %v73 = cast %v72 : Size
-    %v74 = borrow %xs : &Array(Cell)
+    %v74 = borrow %xs : 'Array(Cell)
     %v75 = load [%v74]@Array.length : @bits(30) U32
     %v76 = cast %v73 : USize
     %v77 = cast %v75 : USize
@@ -1193,7 +1193,7 @@ fn strided(%by: Int) -> Int {
     %v81 = strideof Cell : Long
     %v82 = mul %v73, %v81 : Long
     %v83 = add %v80, %v82 : %Cell
-    %v84 = borrow [%v83] : &Cell
+    %v84 = borrow [%v83] : 'Cell
     %v85 = load [%v84] : Cell
     %v86 = load [%v84]@Cell.e : Int
     %v87 = add %v70, %v86 : Int
@@ -1240,7 +1240,7 @@ fn everyOther() -> Int {
     %v25 = load %n : Int
     %v28 = mul %v25, 10 : Int
     aggregate %local3@Cell.a = %v21, %local3@Cell.b = 0, %local3@Cell.c = 0, %local3@Cell.d = 0, %local3@Cell.e = %v28, %local3@Cell.f = 0
-    %v31 = borrow_mut %xs : &mut Array(Cell)
+    %v31 = borrow_mut %xs : &Array(Cell)
     %v32 = copy %local3 : Cell
     call push(Cell), %v31, %v32
     %v34 = load %n : Int
@@ -1262,7 +1262,7 @@ fn everyOther() -> Int {
     %v53 = load %xs : Array(Cell)
     %v54 = load %i : Int
     %v55 = cast %v54 : Size
-    %v56 = borrow %xs : &Array(Cell)
+    %v56 = borrow %xs : 'Array(Cell)
     %v57 = load [%v56]@Array.length : @bits(30) U32
     %v58 = cast %v55 : USize
     %v59 = cast %v57 : USize
@@ -1272,14 +1272,14 @@ fn everyOther() -> Int {
     %v63 = strideof Cell : Long
     %v64 = mul %v55, %v63 : Long
     %v65 = add %v62, %v64 : %Cell
-    %v66 = borrow [%v65] : &Cell
+    %v66 = borrow [%v65] : 'Cell
     %v67 = load [%v66] : Cell
     %v68 = load [%v66]@Cell.a : Int
     %v69 = add %v52, %v68 : Int
     %v70 = load %xs : Array(Cell)
     %v71 = load %i : Int
     %v72 = cast %v71 : Size
-    %v73 = borrow %xs : &Array(Cell)
+    %v73 = borrow %xs : 'Array(Cell)
     %v74 = load [%v73]@Array.length : @bits(30) U32
     %v75 = cast %v72 : USize
     %v76 = cast %v74 : USize
@@ -1289,7 +1289,7 @@ fn everyOther() -> Int {
     %v80 = strideof Cell : Long
     %v81 = mul %v72, %v80 : Long
     %v82 = add %v79, %v81 : %Cell
-    %v83 = borrow [%v82] : &Cell
+    %v83 = borrow [%v82] : 'Cell
     %v84 = load [%v83] : Cell
     %v85 = load [%v83]@Cell.e : Int
     %v86 = add %v69, %v85 : Int

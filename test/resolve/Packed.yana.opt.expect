@@ -55,9 +55,9 @@ fn together() -> Int {
     %v0 = alloc : Flags
     init %f@Flags.optionA, False
     init %f@Flags.optionB, False
-    %v7 = borrow_mut %f@Flags.optionA : &mut Bool
+    %v7 = borrow_mut %f@Flags.optionA : &Bool
     call flip, %v7
-    %v11 = borrow_mut %f@Flags.optionB : &mut Bool
+    %v11 = borrow_mut %f@Flags.optionB : &Bool
     call flip, %v11
     %v14 = load %f@Flags.optionA : Bool
     %v35 = select %v14 ? 1 : 0 : Int
@@ -72,20 +72,20 @@ fn unpacked() -> Int {
     ret 85
 }
 
-fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &mut Bool {
+fn pick(%flag: Bool, %a: Bool, %b: Bool) -> &Bool {
   b0:
     je %flag, b1, b2
 
   b1:
-    %v5 = borrow_mut %a : &mut Bool
+    %v5 = borrow_mut %a : &Bool
     jmp b3
 
   b2:
-    %v7 = borrow_mut %b : &mut Bool
+    %v7 = borrow_mut %b : &Bool
     jmp b3
 
   b3:
-    %v10 = phi [b1, %v5], [b2, %v7] : &mut Bool
+    %v10 = phi [b1, %v5], [b2, %v7] : &Bool
     ret %v10
 }
 
@@ -94,9 +94,9 @@ fn loaned() -> Int {
     %v0 = alloc : Flags
     init %f@Flags.optionA, True
     init %f@Flags.optionB, True
-    %v10 = borrow_mut %f@Flags.optionA : &mut Bool
-    %v11 = borrow_mut %f@Flags.optionB : &mut Bool
-    %v12 = call pick, True, %v10, %v11 : &mut Bool
+    %v10 = borrow_mut %f@Flags.optionA : &Bool
+    %v11 = borrow_mut %f@Flags.optionB : &Bool
+    %v12 = call pick, True, %v10, %v11 : &Bool
     assign [%v12], False
     %v16 = load %f@Flags.optionA : Bool
     %v37 = select %v16 ? 1 : 0 : Int
@@ -106,9 +106,9 @@ fn loaned() -> Int {
     ret %v35
 }
 
-fn optionOf(%f: Flags) -> &mut Bool {
+fn optionOf(%f: Flags) -> &Bool {
   b0:
-    %v3 = borrow_mut %f@Flags.optionA : &mut Bool
+    %v3 = borrow_mut %f@Flags.optionA : &Bool
     ret %v3
 }
 
@@ -131,8 +131,8 @@ fn interleaved() -> Int {
     %v0 = alloc : Flags
     init %g@Flags.optionA, True
     init %g@Flags.optionB, False
-    %v9 = borrow_mut %g@Flags.optionA : &mut Bool
-    %v10 = borrow_mut %g@Flags.optionB : &mut Bool
+    %v9 = borrow_mut %g@Flags.optionA : &Bool
+    %v10 = borrow_mut %g@Flags.optionB : &Bool
     call swapBools, %v9, %v10
     %v13 = load %g@Flags.optionA : Bool
     %v34 = select %v13 ? 1 : 0 : Int
@@ -174,7 +174,7 @@ fn threaded() -> Int {
     init %h@Header.version, 1
     init %h@Header.flags, 2
     init %h@Header.length, 100
-    %v9 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    %v9 = borrow_mut %h@Header.length : &@bits(13) U32
     call nudgeTwice, %v9
     %v12 = load %h@Header.length : @bits(13) U32
     %v13 = cast %v12 : Int
@@ -211,15 +211,15 @@ fn wide() -> Int {
     init %s@Nine.g, False
     init %s@Nine.h, False
     init %s@Nine.i, False
-    %v37 = borrow_mut %s@Nine.a : &mut Bool
-    %v38 = borrow_mut %s@Nine.b : &mut Bool
-    %v39 = borrow_mut %s@Nine.c : &mut Bool
-    %v40 = borrow_mut %s@Nine.d : &mut Bool
-    %v41 = borrow_mut %s@Nine.e : &mut Bool
-    %v42 = borrow_mut %s@Nine.f : &mut Bool
-    %v43 = borrow_mut %s@Nine.g : &mut Bool
-    %v44 = borrow_mut %s@Nine.h : &mut Bool
-    %v45 = borrow_mut %s@Nine.i : &mut Bool
+    %v37 = borrow_mut %s@Nine.a : &Bool
+    %v38 = borrow_mut %s@Nine.b : &Bool
+    %v39 = borrow_mut %s@Nine.c : &Bool
+    %v40 = borrow_mut %s@Nine.d : &Bool
+    %v41 = borrow_mut %s@Nine.e : &Bool
+    %v42 = borrow_mut %s@Nine.f : &Bool
+    %v43 = borrow_mut %s@Nine.g : &Bool
+    %v44 = borrow_mut %s@Nine.h : &Bool
+    %v45 = borrow_mut %s@Nine.i : &Bool
     call nine, %v37, %v38, %v39, %v40, %v41, %v42, %v43, %v44, %v45
     %v48 = load %s@Nine.a : Bool
     %v80 = select %v48 ? 1 : 0 : Int
@@ -238,9 +238,9 @@ fn tally() -> Int {
     init %e@Entry.live, False
     init %e@Entry.kind, 2
     init %e@Entry.count, 7
-    %v9 = borrow_mut %e@Entry.live : &mut Bool
+    %v9 = borrow_mut %e@Entry.live : &Bool
     call flip, %v9
-    %v13 = borrow_mut %e@Entry.kind : &mut @bits(3) U32
+    %v13 = borrow_mut %e@Entry.kind : &@bits(3) U32
     call tick, %v13
     %v16 = load %e@Entry.count : Int
     %v19 = add %v16, 1 : Int
@@ -256,9 +256,9 @@ fn tally() -> Int {
     ret %v43
 }
 
-fn liveOf(%e: Entry) -> &mut Bool {
+fn liveOf(%e: Entry) -> &Bool {
   b0:
-    %v3 = borrow_mut %e@Entry.live : &mut Bool
+    %v3 = borrow_mut %e@Entry.live : &Bool
     ret %v3
 }
 
@@ -276,9 +276,9 @@ fn main() -> Int {
   b0:
     %v29 = alloc : Flags
     init %f@Flags.optionA:unit8, 0
-    %v34 = borrow_mut %f@Flags.optionA : &mut Bool
+    %v34 = borrow_mut %f@Flags.optionA : &Bool
     call flip, %v34
-    %v36 = borrow_mut %f@Flags.optionB : &mut Bool
+    %v36 = borrow_mut %f@Flags.optionB : &Bool
     call flip, %v36
     %v196 = load %f@Flags.optionA:unit8 : U32
     %v198 = and %v196, 1 : U32
@@ -292,9 +292,9 @@ fn main() -> Int {
     %v8 = add %v46, 926589 : Int
     %v48 = alloc : Flags
     init %f@Flags.optionA:unit8, 3
-    %v53 = borrow_mut %f@Flags.optionA : &mut Bool
-    %v54 = borrow_mut %f@Flags.optionB : &mut Bool
-    %v55 = call pick, True, %v53, %v54 : &mut Bool
+    %v53 = borrow_mut %f@Flags.optionA : &Bool
+    %v54 = borrow_mut %f@Flags.optionB : &Bool
+    %v55 = call pick, True, %v53, %v54 : &Bool
     assign [%v55], False
     %v224 = load %f@Flags.optionA:unit8 : U32
     %v226 = and %v224, 1 : U32
@@ -309,8 +309,8 @@ fn main() -> Int {
     %v12 = add %v10, 3 : Int
     %v69 = alloc : Flags
     init %g@Flags.optionA:unit8, 1
-    %v74 = borrow_mut %g@Flags.optionA : &mut Bool
-    %v75 = borrow_mut %g@Flags.optionB : &mut Bool
+    %v74 = borrow_mut %g@Flags.optionA : &Bool
+    %v75 = borrow_mut %g@Flags.optionB : &Bool
     call swapBools, %v74, %v75
     %v252 = load %g@Flags.optionA:unit8 : U32
     %v254 = and %v252, 1 : U32
@@ -324,7 +324,7 @@ fn main() -> Int {
     %v14 = add %v12, %v85 : Int
     %v86 = alloc : Header
     init %h@Header.version:unit32, 2162788
-    %v93 = borrow_mut %h@Header.length : &mut @bits(13) U32
+    %v93 = borrow_mut %h@Header.length : &@bits(13) U32
     call nudgeTwice, %v93
     %v290 = load %h@Header.version:unit32 : U32
     %v292 = and %v290, 8191 : U32
@@ -337,15 +337,15 @@ fn main() -> Int {
     %v16 = add %v14, %v101 : Int
     %v102 = alloc : Nine
     init %s@Nine.a:unit16, 0
-    %v121 = borrow_mut %s@Nine.a : &mut Bool
-    %v122 = borrow_mut %s@Nine.b : &mut Bool
-    %v123 = borrow_mut %s@Nine.c : &mut Bool
-    %v124 = borrow_mut %s@Nine.d : &mut Bool
-    %v125 = borrow_mut %s@Nine.e : &mut Bool
-    %v126 = borrow_mut %s@Nine.f : &mut Bool
-    %v127 = borrow_mut %s@Nine.g : &mut Bool
-    %v128 = borrow_mut %s@Nine.h : &mut Bool
-    %v129 = borrow_mut %s@Nine.i : &mut Bool
+    %v121 = borrow_mut %s@Nine.a : &Bool
+    %v122 = borrow_mut %s@Nine.b : &Bool
+    %v123 = borrow_mut %s@Nine.c : &Bool
+    %v124 = borrow_mut %s@Nine.d : &Bool
+    %v125 = borrow_mut %s@Nine.e : &Bool
+    %v126 = borrow_mut %s@Nine.f : &Bool
+    %v127 = borrow_mut %s@Nine.g : &Bool
+    %v128 = borrow_mut %s@Nine.h : &Bool
+    %v129 = borrow_mut %s@Nine.i : &Bool
     call nine, %v121, %v122, %v123, %v124, %v125, %v126, %v127, %v128, %v129
     %v386 = load %s@Nine.a:unit16 : U32
     %v388 = and %v386, 1 : U32
@@ -365,9 +365,9 @@ fn main() -> Int {
     %v145 = alloc : Entry
     init %e@Entry.live:unit8, 2
     init %e@Entry.count, 7
-    %v152 = borrow_mut %e@Entry.live : &mut Bool
+    %v152 = borrow_mut %e@Entry.live : &Bool
     call flip, %v152
-    %v154 = borrow_mut %e@Entry.kind : &mut @bits(3) U32
+    %v154 = borrow_mut %e@Entry.kind : &@bits(3) U32
     call tick, %v154
     %v156 = load %e@Entry.count : Int
     %v158 = add %v156, 1 : Int

@@ -36,7 +36,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Int)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Int)
+    %v8 = borrow_mut %self : &Array(Int)
     call reserve(Int), %v8, %v7
     %v10 = load %self : Array(Int)
     %v11 = load %self@Array.run : Run(Int)
@@ -76,7 +76,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Int)
-    %v11 = borrow_mut %self : &mut Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v11, %wanted
     ret
 }
@@ -117,7 +117,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
     %v23 = load %self : Array(Int)
     %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -1519,13 +1519,13 @@ fn ownerEdges() -> Int {
     aggregate [%v7][0] = 10, [%v7][1] = 20, [%v7][2] = 30
     init %xs@Array.length, 3
     %v18 = load %xs : Array(Int)
-    %v21 = borrow_mut %xs : &mut Array(Int)
+    %v21 = borrow_mut %xs : &Array(Int)
     call push(Int), %v21, 40
     %v23 = load %xs : Array(Int)
-    %v26 = borrow_mut %xs : &mut Array(Int)
+    %v26 = borrow_mut %xs : &Array(Int)
     %v27 = call remove(Int), %v26, 3 : Maybe(Int)
     %v28 = load %xs : Array(Int)
-    %v31 = borrow %xs : &Array(Int)
+    %v31 = borrow %xs : 'Array(Int)
     %v32 = load [%v31]@Array.length : @bits(30) U32
     %v33 = cast 0 : USize
     %v34 = cast %v32 : USize
@@ -1535,10 +1535,10 @@ fn ownerEdges() -> Int {
     %v38 = strideof Int : Long
     %v39 = mul 0, %v38 : Long
     %v40 = add %v37, %v39 : %Int
-    %v41 = borrow [%v40] : &Int
+    %v41 = borrow [%v40] : 'Int
     %v42 = load [%v41] : Int
     %v43 = load %xs : Array(Int)
-    %v46 = borrow %xs : &Array(Int)
+    %v46 = borrow %xs : 'Array(Int)
     %v47 = load [%v46]@Array.length : @bits(30) U32
     %v48 = cast 2 : USize
     %v49 = cast %v47 : USize
@@ -1548,7 +1548,7 @@ fn ownerEdges() -> Int {
     %v53 = strideof Int : Long
     %v54 = mul 2, %v53 : Long
     %v55 = add %v52, %v54 : %Int
-    %v56 = borrow [%v55] : &Int
+    %v56 = borrow [%v55] : 'Int
     %v57 = load [%v56] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     %v58 = add %v42, %v57 : Int
@@ -1565,17 +1565,17 @@ fn sliceEdges() -> Int {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v10][0] = 1, [%v10][1] = 2, [%v10][2] = 3, [%v10][3] = 4, [%v10][4] = 5, [%v10][5] = 6
     init %local0@Array.length, 6
-    %v26 = borrow %local0 : &Array(Int)
+    %v26 = borrow %local0 : 'Array(Int)
     %xs = alloc : Flat(Int)
     %v28 = load [%v26]@Array.run@Run.items : %Int
     init %xs@Flat.items, %v28
     %v30 = load [%v26]@Array.length : @bits(30) U32
     %v31 = cast %v30 : Size
     init %xs@Flat.length, %v31
-    %v35 = borrow %xs : &Flat(Int)
+    %v35 = borrow %xs : 'Flat(Int)
     %window = call slice(Int), %v35, 2, 5 : Flat(Int)
     drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
-    %v39 = borrow %local3 : &Flat(Int)
+    %v39 = borrow %local3 : 'Flat(Int)
     %v40 = load [%v39]@Flat.length : Size
     %v41 = cast 0 : USize
     %v42 = cast %v40 : USize
@@ -1585,9 +1585,9 @@ fn sliceEdges() -> Int {
     %v46 = strideof Int : Long
     %v47 = mul 0, %v46 : Long
     %v48 = add %v45, %v47 : %Int
-    %v49 = borrow [%v48] : &Int
+    %v49 = borrow [%v48] : 'Int
     %v50 = load [%v49] : Int
-    %v53 = borrow %local3 : &Flat(Int)
+    %v53 = borrow %local3 : 'Flat(Int)
     %v54 = load [%v53]@Flat.length : Size
     %v55 = cast 2 : USize
     %v56 = cast %v54 : USize
@@ -1597,7 +1597,7 @@ fn sliceEdges() -> Int {
     %v60 = strideof Int : Long
     %v61 = mul 2, %v60 : Long
     %v62 = add %v59, %v61 : %Int
-    %v63 = borrow [%v62] : &Int
+    %v63 = borrow [%v62] : 'Int
     %v64 = load [%v63] : Int
     %v65 = add %v50, %v64 : Int
     ret %v65
@@ -1613,9 +1613,9 @@ fn sliceEdges() -> Int {
   }
 
   b0:
-    %v3 = gencall Index(c, k, v).get, %xs, %a : &v
+    %v3 = gencall Index(c, k, v).get, %xs, %a : 'v
     %v4 = load [%v3] : v
-    %v5 = gencall Index(c, k, v).get, %xs, %b : &v
+    %v5 = gencall Index(c, k, v).get, %xs, %b : 'v
     %v6 = load [%v5] : v
     %v7 = gencall Num(v).+, %v4, %v6 : v
     ret %v7
@@ -1649,7 +1649,7 @@ fn oneElement() -> Int {
     init %local0@Array.run@Run.ownsHeap, 0
     aggregate [%v5][0] = 42
     init %local0@Array.length, 1
-    %v16 = borrow %local0 : &Array(Int)
+    %v16 = borrow %local0 : 'Array(Int)
     %v17 = load [%v16]@Array.length : @bits(30) U32
     %v18 = cast 0 : USize
     %v19 = cast %v17 : USize
@@ -1659,7 +1659,7 @@ fn oneElement() -> Int {
     %v23 = strideof Int : Long
     %v24 = mul 0, %v23 : Long
     %v25 = add %v22, %v24 : %Int
-    %v26 = borrow [%v25] : &Int
+    %v26 = borrow [%v25] : 'Int
     %v27 = load [%v26] : Int
     drop %local0 reclaim Reclaim(Array(a)).reclaim(Int)
     ret %v27
@@ -1682,7 +1682,7 @@ fn main() -> Int {
 
 fn atBoth(Array(Int), Size, Int)(%xs: Array(Int), %a: Size, %b: Size) -> Int {
   b0:
-    %v3 = borrow %xs : &Array(Int)
+    %v3 = borrow %xs : 'Array(Int)
     %v4 = load [%v3]@Array.length : @bits(30) U32
     %v5 = cast %a : USize
     %v6 = cast %v4 : USize
@@ -1692,9 +1692,9 @@ fn atBoth(Array(Int), Size, Int)(%xs: Array(Int), %a: Size, %b: Size) -> Int {
     %v10 = strideof Int : Long
     %v11 = mul %a, %v10 : Long
     %v12 = add %v9, %v11 : %Int
-    %v13 = borrow [%v12] : &Int
+    %v13 = borrow [%v12] : 'Int
     %v14 = load [%v13] : Int
-    %v15 = borrow %xs : &Array(Int)
+    %v15 = borrow %xs : 'Array(Int)
     %v16 = load [%v15]@Array.length : @bits(30) U32
     %v17 = cast %b : USize
     %v18 = cast %v16 : USize
@@ -1704,7 +1704,7 @@ fn atBoth(Array(Int), Size, Int)(%xs: Array(Int), %a: Size, %b: Size) -> Int {
     %v22 = strideof Int : Long
     %v23 = mul %b, %v22 : Long
     %v24 = add %v21, %v23 : %Int
-    %v25 = borrow [%v24] : &Int
+    %v25 = borrow [%v24] : 'Int
     %v26 = load [%v25] : Int
     %v27 = add %v14, %v26 : Int
     ret %v27

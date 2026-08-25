@@ -273,7 +273,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   b3:
     %v11 = load %i : Int
     %v13 = cast %v11 : Size
-    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : &a
+    %v12 = gencall Index(Flat(a), Size, a).get, %xs, %v13 : 'a
     %v14 = load [%v12] : a
     %v15 = calldyn %body, %v14 : Outcome((), $r)
     %v16 = load %local3.discriminant : Int
@@ -295,7 +295,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     #0 type a
     #1 type $r
     #2 type Outcome((), Outcome((), $r))
-    #3 type {keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}
+    #3 type {keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}
     #4 type (value$: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
@@ -304,10 +304,10 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   }
 
   b0:
-    %v3 = alloc : {keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}
-    %v4 = borrow %keep : &(a) -> Bool
+    %v3 = alloc : {keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}
+    %v4 = borrow %keep : '(a) -> Bool
     init %local3.keep, %v4
-    %v6 = borrow %body : &(value$: a) -> Outcome((), $r)
+    %v6 = borrow %body : '(value$: a) -> Outcome((), $r)
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
@@ -335,7 +335,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #4 type {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
@@ -344,10 +344,10 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
   }
 
   b0:
-    %v4 = alloc : {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
-    %v5 = borrow %body : &(value$: b) -> Outcome((), $r)
+    %v4 = alloc : {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
+    %v5 = borrow %body : '(value$: b) -> Outcome((), $r)
     init %local4.body, %v5
-    %v7 = borrow %f : &(a) -> b
+    %v7 = borrow %f : '(a) -> b
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
     %v10 = alloc : (value$: a) -> Outcome((), Outcome((), $r))
@@ -386,8 +386,8 @@ fn direct(%ps: Flat(Point)) -> Int {
   b0:
     %sum = alloc : Int
     init %sum, 0
-    %v4 = alloc : {sum: &mut Int}
-    %v5 = borrow_mut %sum : &mut Int
+    %v4 = alloc : {sum: &Int}
+    %v5 = borrow_mut %sum : &Int
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Point) -> Outcome((), ())
@@ -408,8 +408,8 @@ fn oneLift(%ps: Flat(Point)) -> Int {
     init %local2.code, %v5
     %v8 = cast 0 : %()
     init %local2.env, %v8
-    %v10 = alloc : {sum: &mut Int}
-    %v11 = borrow_mut %sum : &mut Int
+    %v10 = alloc : {sum: &Int}
+    %v11 = borrow_mut %sum : &Int
     init %local3.sum, %v11
     %v13 = addressof %local3 : %()
     %v14 = alloc : (value$: Point) -> Outcome((), ())
@@ -435,8 +435,8 @@ fn twoLifts(%ps: Flat(Point)) -> Int {
     init %local3.code, %v11
     %v14 = cast 0 : %()
     init %local3.env, %v14
-    %v16 = alloc : {sum: &mut Int}
-    %v17 = borrow_mut %sum : &mut Int
+    %v16 = alloc : {sum: &Int}
+    %v17 = borrow_mut %sum : &Int
     init %local4.sum, %v17
     %v19 = addressof %local4 : %()
     %v20 = alloc : (value$: Int) -> Outcome((), ())
@@ -452,8 +452,8 @@ fn scalar(%ns: Flat(Int)) -> Int {
   b0:
     %sum = alloc : Int
     init %sum, 0
-    %v4 = alloc : {sum: &mut Int}
-    %v5 = borrow_mut %sum : &mut Int
+    %v4 = alloc : {sum: &Int}
+    %v5 = borrow_mut %sum : &Int
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Int) -> Outcome((), ())
@@ -490,7 +490,7 @@ fn main() -> Int {
     aggregate [%v34][0] = 1, [%v34][1] = 2, [%v34][2] = 3, [%v34][3] = 4
     init %ns@Array.length, 4
     %v46 = load %ps : Array(Point)
-    %v47 = borrow %ps : &Array(Point)
+    %v47 = borrow %ps : 'Array(Point)
     %v48 = alloc : Flat(Point)
     %v49 = load [%v47]@Array.run@Run.items : %Point
     init %local7@Flat.items, %v49
@@ -499,7 +499,7 @@ fn main() -> Int {
     init %local7@Flat.length, %v52
     %v54 = call direct, %v48 : Int
     %v55 = load %ps : Array(Point)
-    %v56 = borrow %ps : &Array(Point)
+    %v56 = borrow %ps : 'Array(Point)
     %v57 = alloc : Flat(Point)
     %v58 = load [%v56]@Array.run@Run.items : %Point
     init %local8@Flat.items, %v58
@@ -509,7 +509,7 @@ fn main() -> Int {
     %v63 = call oneLift, %v57 : Int
     %v64 = add %v54, %v63 : Int
     %v65 = load %ps : Array(Point)
-    %v66 = borrow %ps : &Array(Point)
+    %v66 = borrow %ps : 'Array(Point)
     %v67 = alloc : Flat(Point)
     %v68 = load [%v66]@Array.run@Run.items : %Point
     init %local9@Flat.items, %v68
@@ -520,7 +520,7 @@ fn main() -> Int {
     drop %ps reclaim Reclaim(Array(a)).reclaim(Point)
     %v74 = add %v64, %v73 : Int
     %v75 = load %ns : Array(Int)
-    %v76 = borrow %ns : &Array(Int)
+    %v76 = borrow %ns : 'Array(Int)
     %v77 = alloc : Flat(Int)
     %v78 = load [%v76]@Array.run@Run.items : %Int
     init %local10@Flat.items, %v78
@@ -533,12 +533,12 @@ fn main() -> Int {
     ret %v84
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$15(%env: %{keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type $r
     #2 type Outcome((), Outcome((), $r))
-    #3 type {keep: &(a) -> Bool, body: &(value$: a) -> Outcome((), $r)}
+    #3 type {keep: '(a) -> Bool, body: '(value$: a) -> Outcome((), $r)}
     #4 type (value$: a) -> Outcome((), Outcome((), $r))
     #5 type Outcome((), $r)
     #6 class TrivialCopy(a)
@@ -547,13 +547,13 @@ fn main() -> Int {
   }
 
   b0:
-    %v2 = load [%env].keep : &(a) -> Bool
+    %v2 = load [%env].keep : '(a) -> Bool
     %v3 = load [%v2] : (a) -> Bool
     %v4 = calldyn %v3, %value$ : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%env].body : &(value$: a) -> Outcome((), $r)
+    %v6 = load [%env].body : '(value$: a) -> Outcome((), $r)
     %v7 = load [%v6] : (value$: a) -> Outcome((), $r)
     %v8 = calldyn %v7, %value$ : Outcome((), $r)
     %v9 = load %local1.discriminant : Int
@@ -577,13 +577,13 @@ fn main() -> Int {
     ret %v15
 }
 
-(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$16(%env: %{body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
+(TrivialCopy(a), Length(Flat(a)), Index(Flat(a), Size, a)) fn ResolveTest.continuation$16(%env: %{body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}, %value$: a) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type a
     #1 type b
     #2 type $r
     #3 type Outcome((), Outcome((), $r))
-    #4 type {body: &(value$: b) -> Outcome((), $r), f: &(a) -> b}
+    #4 type {body: '(value$: b) -> Outcome((), $r), f: '(a) -> b}
     #5 type (value$: a) -> Outcome((), Outcome((), $r))
     #6 type Outcome((), $r)
     #7 class TrivialCopy(a)
@@ -592,9 +592,9 @@ fn main() -> Int {
   }
 
   b0:
-    %v2 = load [%env].body : &(value$: b) -> Outcome((), $r)
+    %v2 = load [%env].body : '(value$: b) -> Outcome((), $r)
     %v3 = load [%v2] : (value$: b) -> Outcome((), $r)
-    %v4 = load [%env].f : &(a) -> b
+    %v4 = load [%env].f : '(a) -> b
     %v5 = load [%v4] : (a) -> b
     %v6 = calldyn %v5, %value$ : b
     %v7 = calldyn %v3, %v6 : Outcome((), $r)
@@ -613,10 +613,10 @@ fn main() -> Int {
     ret %v12
 }
 
-fn ResolveTest.continuation$17(%env: %{sum: &mut Int}, %value$: Point) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(%env: %{sum: &Int}, %value$: Point) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].sum : &mut Int
-    %v3 = load [%env].sum : &mut Int
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
     %v4 = load [%v3] : Int
     %v5 = load %value$@Point.y : Int
     %v6 = add %v4, %v5 : Int
@@ -647,7 +647,7 @@ fn each(Point, ())(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), ())) 
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Point)
+    %v17 = borrow %xs : 'Flat(Point)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -657,7 +657,7 @@ fn each(Point, ())(%xs: Flat(Point), %body: (value$: Point) -> Outcome((), ())) 
     %v24 = strideof Point : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Point
-    %v27 = borrow [%v26] : &Point
+    %v27 = borrow [%v26] : 'Point
     %v28 = load [%v27] : Point
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : Int
@@ -680,10 +680,10 @@ fn funvalue$positiveX(%env: %(), %v: Point) -> Bool {
     ret %v2
 }
 
-fn ResolveTest.continuation$18(%env: %{sum: &mut Int}, %value$: Point) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{sum: &Int}, %value$: Point) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].sum : &mut Int
-    %v3 = load [%env].sum : &mut Int
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
     %v4 = load [%v3] : Int
     %v5 = load %value$@Point.y : Int
     %v6 = add %v4, %v5 : Int
@@ -695,10 +695,10 @@ fn ResolveTest.continuation$18(%env: %{sum: &mut Int}, %value$: Point) -> Outcom
 
 fn filtered(Point, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v3 = alloc : {keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), ())}
-    %v4 = borrow %keep : &(v: Point) -> Bool
+    %v3 = alloc : {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), ())}
+    %v4 = borrow %keep : '(v: Point) -> Bool
     init %local3.keep, %v4
-    %v6 = borrow %body : &(value$: Point) -> Outcome((), ())
+    %v6 = borrow %body : '(value$: Point) -> Outcome((), ())
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Point) -> Outcome((), Outcome((), ()))
@@ -720,15 +720,15 @@ fn filtered(Point, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (valu
     ret %v20
 }
 
-fn ResolveTest.continuation$15(Point, ())(%env: %{keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), ())}, %value$: Point) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$15(Point, ())(%env: %{keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), ())}, %value$: Point) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load [%env].keep : &(v: Point) -> Bool
+    %v2 = load [%env].keep : '(v: Point) -> Bool
     %v3 = load [%v2] : (v: Point) -> Bool
     %v4 = calldyn %v3, %value$ : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%env].body : &(value$: Point) -> Outcome((), ())
+    %v6 = load [%env].body : '(value$: Point) -> Outcome((), ())
     %v7 = load [%v6] : (value$: Point) -> Outcome((), ())
     %v8 = calldyn %v7, %value$ : Outcome((), ())
     %v9 = load %local1.discriminant : Int
@@ -773,7 +773,7 @@ fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outc
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Point)
+    %v17 = borrow %xs : 'Flat(Point)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -783,7 +783,7 @@ fn each(Point, Outcome((), ()))(%xs: Flat(Point), %body: (value$: Point) -> Outc
     %v24 = strideof Point : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Point
-    %v27 = borrow [%v26] : &Point
+    %v27 = borrow [%v26] : 'Point
     %v28 = load [%v27] : Point
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), ()))
     %v30 = load %local3.discriminant : Int
@@ -806,10 +806,10 @@ fn funvalue$yOf(%env: %(), %v: Point) -> Int {
     ret %v2
 }
 
-fn ResolveTest.continuation$19(%env: %{sum: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$19(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].sum : &mut Int
-    %v3 = load [%env].sum : &mut Int
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
@@ -820,10 +820,10 @@ fn ResolveTest.continuation$19(%env: %{sum: &mut Int}, %value$: Int) -> Outcome(
 
 fn mapFiltered(Point, Int, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %f: (v: Point) -> Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v4 = alloc : {body: &(value$: Int) -> Outcome((), ()), f: &(v: Point) -> Int}
-    %v5 = borrow %body : &(value$: Int) -> Outcome((), ())
+    %v4 = alloc : {body: '(value$: Int) -> Outcome((), ()), f: '(v: Point) -> Int}
+    %v5 = borrow %body : '(value$: Int) -> Outcome((), ())
     init %local4.body, %v5
-    %v7 = borrow %f : &(v: Point) -> Int
+    %v7 = borrow %f : '(v: Point) -> Int
     init %local4.f, %v7
     %v9 = addressof %local4 : %()
     %v10 = alloc : (value$: Point) -> Outcome((), Outcome((), ()))
@@ -845,11 +845,11 @@ fn mapFiltered(Point, Int, ())(%xs: Flat(Point), %keep: (v: Point) -> Bool, %f: 
     ret %v21
 }
 
-fn ResolveTest.continuation$16(Point, Int, ())(%env: %{body: &(value$: Int) -> Outcome((), ()), f: &(v: Point) -> Int}, %value$: Point) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$16(Point, Int, ())(%env: %{body: '(value$: Int) -> Outcome((), ()), f: '(v: Point) -> Int}, %value$: Point) -> Outcome((), Outcome((), ())) {
   b0:
-    %v2 = load [%env].body : &(value$: Int) -> Outcome((), ())
+    %v2 = load [%env].body : '(value$: Int) -> Outcome((), ())
     %v3 = load [%v2] : (value$: Int) -> Outcome((), ())
-    %v4 = load [%env].f : &(v: Point) -> Int
+    %v4 = load [%env].f : '(v: Point) -> Int
     %v5 = load [%v4] : (v: Point) -> Int
     %v6 = calldyn %v5, %value$ : Int
     %v7 = calldyn %v3, %v6 : Outcome((), ())
@@ -870,10 +870,10 @@ fn ResolveTest.continuation$16(Point, Int, ())(%env: %{body: &(value$: Int) -> O
 
 fn filtered(Point, Outcome((), ()))(%xs: Flat(Point), %keep: (v: Point) -> Bool, %body: (value$: Point) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %v3 = alloc : {keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), Outcome((), ()))}
-    %v4 = borrow %keep : &(v: Point) -> Bool
+    %v3 = alloc : {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), Outcome((), ()))}
+    %v4 = borrow %keep : '(v: Point) -> Bool
     init %local3.keep, %v4
-    %v6 = borrow %body : &(value$: Point) -> Outcome((), Outcome((), ()))
+    %v6 = borrow %body : '(value$: Point) -> Outcome((), Outcome((), ()))
     init %local3.body, %v6
     %v8 = addressof %local3 : %()
     %v9 = alloc : (value$: Point) -> Outcome((), Outcome((), Outcome((), ())))
@@ -895,15 +895,15 @@ fn filtered(Point, Outcome((), ()))(%xs: Flat(Point), %keep: (v: Point) -> Bool,
     ret %v20
 }
 
-fn ResolveTest.continuation$15(Point, Outcome((), ()))(%env: %{keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), Outcome((), ()))}, %value$: Point) -> Outcome((), Outcome((), Outcome((), ()))) {
+fn ResolveTest.continuation$15(Point, Outcome((), ()))(%env: %{keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), Outcome((), ()))}, %value$: Point) -> Outcome((), Outcome((), Outcome((), ()))) {
   b0:
-    %v2 = load [%env].keep : &(v: Point) -> Bool
+    %v2 = load [%env].keep : '(v: Point) -> Bool
     %v3 = load [%v2] : (v: Point) -> Bool
     %v4 = calldyn %v3, %value$ : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%env].body : &(value$: Point) -> Outcome((), Outcome((), ()))
+    %v6 = load [%env].body : '(value$: Point) -> Outcome((), Outcome((), ()))
     %v7 = load [%v6] : (value$: Point) -> Outcome((), Outcome((), ()))
     %v8 = calldyn %v7, %value$ : Outcome((), Outcome((), ()))
     %v9 = load %local1.discriminant : Int
@@ -948,7 +948,7 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: P
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Point)
+    %v17 = borrow %xs : 'Flat(Point)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -958,7 +958,7 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: P
     %v24 = strideof Point : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Point
-    %v27 = borrow [%v26] : &Point
+    %v27 = borrow [%v26] : 'Point
     %v28 = load [%v27] : Point
     %v29 = calldyn %body, %v28 : Outcome((), Outcome((), Outcome((), ())))
     %v30 = load %local3.discriminant : Int
@@ -975,10 +975,10 @@ fn each(Point, Outcome((), Outcome((), ())))(%xs: Flat(Point), %body: (value$: P
     jmp b1
 }
 
-fn ResolveTest.continuation$20(%env: %{sum: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$20(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].sum : &mut Int
-    %v3 = load [%env].sum : &mut Int
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
@@ -1008,7 +1008,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
   b3:
     %v15 = load %i : Int
     %v16 = cast %v15 : Size
-    %v17 = borrow %xs : &Flat(Int)
+    %v17 = borrow %xs : 'Flat(Int)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -1018,7 +1018,7 @@ fn each(Int, ())(%xs: Flat(Int), %body: (value$: Int) -> Outcome((), ())) -> Out
     %v24 = strideof Int : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Int
-    %v27 = borrow [%v26] : &Int
+    %v27 = borrow [%v26] : 'Int
     %v28 = load [%v27] : Int
     %v29 = calldyn %body, %v28 : Outcome((), ())
     %v30 = load %local3.discriminant : Int

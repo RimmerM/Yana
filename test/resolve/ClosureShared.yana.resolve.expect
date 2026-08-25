@@ -30,8 +30,8 @@ fn main() -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v3 = alloc : {total: &mut Int}
-    %v4 = borrow_mut %total : &mut Int
+    %v3 = alloc : {total: &Int}
+    %v4 = borrow_mut %total : &Int
     init %local1.total, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : () -> ()
@@ -39,8 +39,8 @@ fn main() -> Int {
     init %local2.code, %v8
     init %local2.env, %v6
     call applyUnit, %v7
-    %v12 = alloc : {total: &mut Int}
-    %v13 = borrow_mut %total : &mut Int
+    %v12 = alloc : {total: &Int}
+    %v13 = borrow_mut %total : &Int
     init %local3.total, %v13
     %v15 = addressof %local3 : %()
     %v16 = alloc : () -> ()
@@ -49,8 +49,8 @@ fn main() -> Int {
     init %local4.env, %v15
     call applyUnit, %v16
     %seen = load %total : Int
-    %v22 = alloc : {total: &mut Int}
-    %v23 = borrow_mut %total : &mut Int
+    %v22 = alloc : {total: &Int}
+    %v23 = borrow_mut %total : &Int
     init %local5.total, %v23
     %v25 = addressof %local5 : %()
     %v26 = alloc : () -> ()
@@ -63,30 +63,30 @@ fn main() -> Int {
     ret %v32
 }
 
-fn ResolveTest.lambda$15(%env: %{total: &mut Int}) -> () {
+fn ResolveTest.lambda$15(%env: %{total: &Int}) -> () {
   b0:
-    %v1 = load [%env].total : &mut Int
-    %v2 = load [%env].total : &mut Int
+    %v1 = load [%env].total : &Int
+    %v2 = load [%env].total : &Int
     %v3 = load [%v2] : Int
     %v6 = add %v3, 1 : Int
     assign [%v1], %v6
     ret
 }
 
-fn ResolveTest.lambda$16(%env: %{total: &mut Int}) -> () {
+fn ResolveTest.lambda$16(%env: %{total: &Int}) -> () {
   b0:
-    %v1 = load [%env].total : &mut Int
-    %v2 = load [%env].total : &mut Int
+    %v1 = load [%env].total : &Int
+    %v2 = load [%env].total : &Int
     %v3 = load [%v2] : Int
     %v6 = mul %v3, 10 : Int
     assign [%v1], %v6
     ret
 }
 
-fn ResolveTest.lambda$17(%env: %{total: &mut Int}) -> () {
+fn ResolveTest.lambda$17(%env: %{total: &Int}) -> () {
   b0:
-    %v1 = load [%env].total : &mut Int
-    %v2 = load [%env].total : &mut Int
+    %v1 = load [%env].total : &Int
+    %v2 = load [%env].total : &Int
     %v3 = load [%v2] : Int
     %v6 = add %v3, 5 : Int
     assign [%v1], %v6

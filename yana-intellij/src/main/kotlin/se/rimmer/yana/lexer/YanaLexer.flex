@@ -66,8 +66,8 @@ IDENT_PART    = [a-zA-Z0-9_]
 VAR_ID        = [a-z_] {IDENT_PART}*
 CON_ID        = [A-Z] {IDENT_PART}*
 
-SYMBOL        = [!#$%&*+\-./:<=>?@\\\^|~]
-NOT_SYMBOL    = [^!#$%&*+\-./:<=>?@\\\^|~]
+SYMBOL        = [!#$%&'*+\-./:<=>?@\\\^|~]
+NOT_SYMBOL    = [^!#$%&'*+\-./:<=>?@\\\^|~]
 
 // `--` opens a comment only when what follows is not another symbol, so `-->` is an operator and
 // not an empty comment. The longest-match rule does the rest: for `-- text` the comment reaches the
@@ -82,7 +82,6 @@ BINARY        = 0 [bB] [01]+
 EXPONENT      = [eE] [+\-]? {DIGIT}+
 FLOAT         = {DIGIT}+ ("." {DIGIT}+ {EXPONENT}? | {EXPONENT})
 
-CHAR          = "'" ( [^'\\\r\n] | \\[^\r\n] )* "'"
 
 %%
 
@@ -105,7 +104,6 @@ CHAR          = "'" ( [^'\\\r\n] | \\[^\r\n] )* "'"
   {BINARY}            { return YanaTokenTypes.INTEGER; }
   {DECIMAL}           { return YanaTokenTypes.INTEGER; }
 
-  {CHAR}              { return YanaTokenTypes.CHAR; }
   \"                  { yybegin(STRING); return YanaTokenTypes.STRING; }
 
   // `@data` is a keyword whose first character is a symbol, so it is matched here and looked up in

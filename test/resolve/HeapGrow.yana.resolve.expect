@@ -44,7 +44,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Int)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Int)
+    %v8 = borrow_mut %self : &Array(Int)
     call reserve(Int), %v8, %v7
     %v10 = load %self : Array(Int)
     %v11 = load %self@Array.run : Run(Int)
@@ -84,7 +84,7 @@ fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Int)
-    %v11 = borrow_mut %self : &mut Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v11, %wanted
     ret
 }
@@ -125,7 +125,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
     %v23 = load %self : Array(Int)
     %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -1154,7 +1154,7 @@ fn main() -> Int {
   b3:
     %v12 = load %xs : Array(Int)
     %v13 = load %i : Int
-    %v14 = borrow_mut %xs : &mut Array(Int)
+    %v14 = borrow_mut %xs : &Array(Int)
     call push(Int), %v14, %v13
     %v16 = load %i : Int
     %v19 = add %v16, 1 : Int
@@ -1170,7 +1170,7 @@ fn main() -> Int {
 
   b6:
     %v35 = load %xs : Array(Int)
-    %v38 = borrow %xs : &Array(Int)
+    %v38 = borrow %xs : 'Array(Int)
     %v39 = load [%v38]@Array.length : @bits(30) U32
     %v40 = cast 0 : USize
     %v41 = cast %v39 : USize
@@ -1180,7 +1180,7 @@ fn main() -> Int {
     %v45 = strideof Int : Long
     %v46 = mul 0, %v45 : Long
     %v47 = add %v44, %v46 : %Int
-    %v48 = borrow [%v47] : &Int
+    %v48 = borrow [%v47] : 'Int
     %v49 = load [%v48] : Int
     %v52 = cmp_ne %v49, 0 : Bool
     je %v52, b23, b8
@@ -1194,7 +1194,7 @@ fn main() -> Int {
 
   b9:
     %v59 = load %xs : Array(Int)
-    %v62 = borrow %xs : &Array(Int)
+    %v62 = borrow %xs : 'Array(Int)
     %v63 = load [%v62]@Array.length : @bits(30) U32
     %v64 = cast 131071 : USize
     %v65 = cast %v63 : USize
@@ -1204,7 +1204,7 @@ fn main() -> Int {
     %v69 = strideof Int : Long
     %v70 = mul 131071, %v69 : Long
     %v71 = add %v68, %v70 : %Int
-    %v72 = borrow [%v71] : &Int
+    %v72 = borrow [%v71] : 'Int
     %v73 = load [%v72] : Int
     %v76 = cmp_ne %v73, 131071 : Bool
     je %v76, b24, b11
@@ -1218,7 +1218,7 @@ fn main() -> Int {
 
   b12:
     %v83 = load %xs : Array(Int)
-    %v86 = borrow %xs : &Array(Int)
+    %v86 = borrow %xs : 'Array(Int)
     %v87 = load [%v86]@Array.length : @bits(30) U32
     %v88 = cast 131072 : USize
     %v89 = cast %v87 : USize
@@ -1228,7 +1228,7 @@ fn main() -> Int {
     %v93 = strideof Int : Long
     %v94 = mul 131072, %v93 : Long
     %v95 = add %v92, %v94 : %Int
-    %v96 = borrow [%v95] : &Int
+    %v96 = borrow [%v95] : 'Int
     %v97 = load [%v96] : Int
     %v100 = cmp_ne %v97, 131072 : Bool
     je %v100, b25, b14
@@ -1242,7 +1242,7 @@ fn main() -> Int {
 
   b15:
     %v107 = load %xs : Array(Int)
-    %v110 = borrow %xs : &Array(Int)
+    %v110 = borrow %xs : 'Array(Int)
     %v111 = load [%v110]@Array.length : @bits(30) U32
     %v112 = cast 199999 : USize
     %v113 = cast %v111 : USize
@@ -1252,7 +1252,7 @@ fn main() -> Int {
     %v117 = strideof Int : Long
     %v118 = mul 199999, %v117 : Long
     %v119 = add %v116, %v118 : %Int
-    %v120 = borrow [%v119] : &Int
+    %v120 = borrow [%v119] : 'Int
     %v121 = load [%v120] : Int
     %v124 = cmp_ne %v121, 199999 : Bool
     je %v124, b26, b17
@@ -1285,7 +1285,7 @@ fn main() -> Int {
     %v144 = load %xs : Array(Int)
     %v145 = load %j : Int
     %v146 = cast %v145 : Size
-    %v147 = borrow %xs : &Array(Int)
+    %v147 = borrow %xs : 'Array(Int)
     %v148 = load [%v147]@Array.length : @bits(30) U32
     %v149 = cast %v146 : USize
     %v150 = cast %v148 : USize
@@ -1295,7 +1295,7 @@ fn main() -> Int {
     %v154 = strideof Int : Long
     %v155 = mul %v146, %v154 : Long
     %v156 = add %v153, %v155 : %Int
-    %v157 = borrow [%v156] : &Int
+    %v157 = borrow [%v156] : 'Int
     %v158 = load [%v157] : Int
     %v159 = add %v143, %v158 : Int
     assign %total, %v159

@@ -12,8 +12,8 @@ let greeting: String = "ab" {StringData(Array(Run(&ResolveTest.string$0, 2, 0), 
 
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int

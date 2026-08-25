@@ -396,14 +396,4 @@ void definePreludeHost(Program& program, Module& native) {
     attachIntrinsic(*module, "hostDateNow"_v,
                     emitHostMember<NativeOp::HostGlobalCall, HostMember::DateNow>);
 
-    /*
-     * `hostAtMut` answers a *mutable* borrow, and the grammar has one spelling for a borrow type -
-     * so which of the two it is comes from the signature it appears in, and this one has no `return`
-     * group to say so. Said here instead, exactly as `Native` says it about `borrowMut`.
-     */
-    if(auto found = module->functions.get(context.addUnqualifiedName("hostAtMut", 9))) {
-        auto function = (*module->arena)[found.unwrap()];
-        auto declared = (BorrowType*)(*module->types)[function->returnType];
-        function->returnType = resolveBorrowType(*module, declared->to, true);
-    }
 }

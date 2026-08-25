@@ -204,7 +204,7 @@ fn elementCrossesEffect() -> Int {
     init %xs@Array.length, 2
     %first = call note, 4 : Int
     %v18 = load %xs : Array(Int)
-    %v21 = borrow_mut %xs : &mut Array(Int)
+    %v21 = borrow_mut %xs : &Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
     %v23 = cast 0 : USize
     %v24 = cast %v22 : USize
@@ -214,11 +214,11 @@ fn elementCrossesEffect() -> Int {
     %v28 = strideof Int : Long
     %v29 = mul 0, %v28 : Long
     %v30 = add %v27, %v29 : %Int
-    %v31 = borrow_mut [%v30] : &mut Int
+    %v31 = borrow_mut [%v30] : &Int
     %v33 = call note, 5 : Int
     assign [%v31], %v33
     %v35 = load %xs : Array(Int)
-    %v38 = borrow %xs : &Array(Int)
+    %v38 = borrow %xs : 'Array(Int)
     %v39 = load [%v38]@Array.length : @bits(30) U32
     %v40 = cast 0 : USize
     %v41 = cast %v39 : USize
@@ -228,11 +228,11 @@ fn elementCrossesEffect() -> Int {
     %v45 = strideof Int : Long
     %v46 = mul 0, %v45 : Long
     %v47 = add %v44, %v46 : %Int
-    %v48 = borrow [%v47] : &Int
+    %v48 = borrow [%v47] : 'Int
     %v49 = load [%v48] : Int
     %v52 = mul %v49, 10 : Int
     %v53 = load %xs : Array(Int)
-    %v56 = borrow %xs : &Array(Int)
+    %v56 = borrow %xs : 'Array(Int)
     %v57 = load [%v56]@Array.length : @bits(30) U32
     %v58 = cast 1 : USize
     %v59 = cast %v57 : USize
@@ -242,7 +242,7 @@ fn elementCrossesEffect() -> Int {
     %v63 = strideof Int : Long
     %v64 = mul 1, %v63 : Long
     %v65 = add %v62, %v64 : %Int
-    %v66 = borrow [%v65] : &Int
+    %v66 = borrow [%v65] : 'Int
     %v67 = load [%v66] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     %v68 = add %v52, %v67 : Int

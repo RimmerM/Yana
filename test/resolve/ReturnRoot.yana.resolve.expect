@@ -1,13 +1,13 @@
 let image$base: () = <none>
 
-fn xOf(%p: Point) -> &Int {
+fn xOf(%p: Point) -> 'Int {
   b0:
     %v1 = load %p@Point.x : Int
-    %v2 = borrow %p@Point.x : &Int
+    %v2 = borrow %p@Point.x : 'Int
     ret %v2
 }
 
-fn larger(%a: Int, %b: Int) -> &mut Int {
+fn larger(%a: Int, %b: Int) -> &Int {
   b0:
     %v2 = load %a : Int
     %v3 = load %b : Int
@@ -16,16 +16,16 @@ fn larger(%a: Int, %b: Int) -> &mut Int {
 
   b1:
     %v6 = load %a : Int
-    %v7 = borrow_mut %a : &mut Int
+    %v7 = borrow_mut %a : &Int
     jmp b3
 
   b2:
     %v8 = load %b : Int
-    %v9 = borrow_mut %b : &mut Int
+    %v9 = borrow_mut %b : &Int
     jmp b3
 
   b3:
-    %v12 = phi [b1, %v7], [b2, %v9] : &mut Int
+    %v12 = phi [b1, %v7], [b2, %v9] : &Int
     ret %v12
 }
 
@@ -33,17 +33,17 @@ fn main() -> Int {
   b0:
     %here = alloc : Point
     aggregate %local0@Point.x = 10, %local0@Point.y = 20
-    %v4 = borrow %local0 : &Point
-    %v5 = call xOf, %v4 : &Int
+    %v4 = borrow %local0 : 'Point
+    %v5 = call xOf, %v4 : 'Int
     %left = alloc : Int
     init %left, 1
     %right = alloc : Int
     init %right, 2
     %v12 = load %left : Int
     %v13 = load %right : Int
-    %v14 = borrow_mut %left : &mut Int
-    %v15 = borrow_mut %right : &mut Int
-    %v16 = call larger, %v14, %v15 : &mut Int
+    %v14 = borrow_mut %left : &Int
+    %v15 = borrow_mut %right : &Int
+    %v16 = call larger, %v14, %v15 : &Int
     assign [%v16], 40
     %v19 = load [%v5] : Int
     %v20 = load [%v16] : Int

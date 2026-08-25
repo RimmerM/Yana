@@ -229,7 +229,6 @@ struct Function {
     // result can be checked against it once the body has produced one - see applyReturnRoots().
     bool returnRoots = false;
     bool returnRootWritten = false;
-    bool returnRootsMutable = true;
     ModuleList<ModulePtr<Arg>, false> args;
     ModuleList<ModulePtr<Block>, false> blocks;
     ModuleList<Local, false> locals;

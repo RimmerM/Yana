@@ -139,7 +139,7 @@ fn lastWins() -> Int {
 fn bumpNone() -> Maybe(Int) {
   b0:
     %v0 = load counter : Int
-    %v3 = borrow_mut counter : &mut Int
+    %v3 = borrow_mut counter : &Int
     call +=(Int), %v3, 1
     %v5 = alloc : Maybe(Int)
     init %local0.discriminant, 0
@@ -149,7 +149,7 @@ fn bumpNone() -> Maybe(Int) {
 fn bumpValue(%value: Int) -> Int {
   b0:
     %v1 = load counter : Int
-    %v4 = borrow_mut counter : &mut Int
+    %v4 = borrow_mut counter : &Int
     call +=(Int), %v4, 1
     ret %value
 }

@@ -70,7 +70,7 @@ fn direct {
   arg ps unknown
   %ps: Flat(Point) borrowed unknown live [0, 11)
   %sum: Int writable live [0, 12)
-  %local2: {sum: &mut Int} closure writable addressed live [2, 10)
+  %local2: {sum: &Int} closure writable addressed live [2, 10)
   %local3: (value$: Point) -> Outcome((), ()) droppable readonly live [6, 11)
   %local4: Outcome((), ()) readonly live [10, 11)
 }
@@ -80,7 +80,7 @@ fn oneLift {
   %ps: Flat(Point) borrowed unknown live [0, 16)
   %sum: Int writable live [0, 17)
   %local2: (v: Point) -> Bool droppable readonly live [2, 16)
-  %local3: {sum: &mut Int} closure writable addressed live [7, 15)
+  %local3: {sum: &Int} closure writable addressed live [7, 15)
   %local4: (value$: Point) -> Outcome((), ()) droppable readonly live [11, 16)
   %local5: Outcome((), ()) readonly live [15, 16)
 }
@@ -91,7 +91,7 @@ fn twoLifts {
   %sum: Int writable live [0, 22)
   %local2: (v: Point) -> Bool droppable readonly live [2, 21)
   %local3: (v: Point) -> Int droppable readonly live [7, 21)
-  %local4: {sum: &mut Int} closure writable addressed live [12, 20)
+  %local4: {sum: &Int} closure writable addressed live [12, 20)
   %local5: (value$: Int) -> Outcome((), ()) droppable readonly live [16, 21)
   %local6: Outcome((), ()) readonly live [20, 21)
 }
@@ -100,7 +100,7 @@ fn scalar {
   arg ns readonly
   %ns: Flat(Int) borrowed readonly live [0, 11)
   %sum: Int writable live [0, 12)
-  %local2: {sum: &mut Int} closure writable addressed live [2, 10)
+  %local2: {sum: &Int} closure writable addressed live [2, 10)
   %local3: (value$: Int) -> Outcome((), ()) droppable readonly live [6, 11)
   %local4: Outcome((), ()) readonly live [10, 11)
 }
@@ -157,7 +157,7 @@ fn filtered(Point, ()) {
   %xs: Flat(Point) borrowed unknown live [0, 11)
   %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 3)
   %body: (value$: Point) -> Outcome((), ()) borrowed droppable readonly live [0, 5)
-  %local3: {keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), ())} closure writable addressed live [0, 10)
+  %local3: {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), ())} closure writable addressed live [0, 10)
   %local4: (value$: Point) -> Outcome((), Outcome((), ())) droppable readonly live [6, 11)
   %local5: Outcome((), Outcome((), ())) readonly live [10, 15)
   %local6: Outcome((), ()) readonly live [16, 19)
@@ -206,7 +206,7 @@ fn mapFiltered(Point, Int, ()) {
   %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 11)
   %f: (v: Point) -> Int borrowed droppable readonly live [0, 5)
   %body: (value$: Int) -> Outcome((), ()) borrowed droppable readonly live [0, 3)
-  %local4: {body: &(value$: Int) -> Outcome((), ()), f: &(v: Point) -> Int} closure writable addressed live [0, 10)
+  %local4: {body: '(value$: Int) -> Outcome((), ()), f: '(v: Point) -> Int} closure writable addressed live [0, 10)
   %local5: (value$: Point) -> Outcome((), Outcome((), ())) droppable readonly live [6, 11)
   %local6: Outcome((), Outcome((), ())) readonly live [10, 15)
   %local7: Outcome((), ()) readonly live [16, 19)
@@ -232,7 +232,7 @@ fn filtered(Point, Outcome((), ())) {
   %xs: Flat(Point) borrowed unknown live [0, 11)
   %keep: (v: Point) -> Bool borrowed droppable readonly live [0, 3)
   %body: (value$: Point) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 5)
-  %local3: {keep: &(v: Point) -> Bool, body: &(value$: Point) -> Outcome((), Outcome((), ()))} closure writable addressed live [0, 10)
+  %local3: {keep: '(v: Point) -> Bool, body: '(value$: Point) -> Outcome((), Outcome((), ()))} closure writable addressed live [0, 10)
   %local4: (value$: Point) -> Outcome((), Outcome((), Outcome((), ()))) droppable readonly live [6, 11)
   %local5: Outcome((), Outcome((), Outcome((), ()))) readonly live [10, 15)
   %local6: Outcome((), Outcome((), ())) readonly live [16, 19)

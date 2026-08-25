@@ -60,7 +60,7 @@ fn main() -> Int {
     %before = mul %v12, %v14 : Int
     %v16 = load %s : Step
     %v17 = load %s@Step.run : (Int) -> Int
-    %v18 = borrow_mut %s@Step.run : &mut (Int) -> Int
+    %v18 = borrow_mut %s@Step.run : &(Int) -> Int
     call retarget, %v18
     %v20 = load %s : Step
     %v21 = load %s@Step.run : (Int) -> Int
@@ -69,7 +69,7 @@ fn main() -> Int {
     %v25 = load %s@Step.weight : Int
     %after = mul %v23, %v25 : Int
     %v27 = load %s : Step
-    %v29 = borrow_mut %s : &mut Step
+    %v29 = borrow_mut %s : &Step
     call reweight, %v29, 4
     %v31 = load %s : Step
     %v32 = load %s@Step.run : (Int) -> Int

@@ -67,7 +67,7 @@ fn main() -> Int {
     %v13 = alloc : Counter
     aggregate %local6@Counter.value = 36
     aggregate %local5@Owning.tag = 1, %local5@Owning.held = %v13
-    %v25 = borrow_mut released : &mut Int
+    %v25 = borrow_mut released : &Int
     call +=(Int), %v25, 1
     %v7 = load released : Int
     %v8 = add %v7, 142 : Int
@@ -76,7 +76,7 @@ fn main() -> Int {
 
 fn Drop(Counter).drop(%value: Counter) -> () {
   b0:
-    %v4 = borrow_mut released : &mut Int
+    %v4 = borrow_mut released : &Int
     call +=(Int), %v4, 1
     ret
 }

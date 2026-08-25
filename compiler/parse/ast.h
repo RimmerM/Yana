@@ -59,7 +59,6 @@ struct Literal {
         Int,
         Double,
         Float,
-        Char,
         String,
         Bool, // Unreachable from source today: True/False are ConIDs (nullary constructors), not literal tokens.
     };
@@ -73,7 +72,6 @@ struct Literal {
     union {
         U32 a[2];
         float f;
-        WChar32 c;
         StringId s;
         bool b;
     };
@@ -115,7 +113,10 @@ struct Type {
         Con,    // A type name for a named type.
         Ptr,    // An unchecked raw pointer to a type (sigil '%', aliased Ptr(a)).
         Ref,    // A checked reference to a type (sigil '*', aliased Ref(a)).
-        Borrow, // A borrow of a type (sigil '&').
+        Borrow, // An exclusive, writable reference to a type (sigil '&').
+        Shared, // A shared reference to a type (sigil '\''). Analysis-Borrows.md §3.2: the two
+                // differ in capability and in nothing else, which is why `&` no longer means one
+                // thing on a parameter and another on a result.
         Gen,    // A generic or polymorphic named type.
         Tup,    // A tuple type with optionally named fields.
         Fun,    // A function type.

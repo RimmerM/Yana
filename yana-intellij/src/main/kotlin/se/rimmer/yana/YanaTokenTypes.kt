@@ -53,7 +53,6 @@ object YanaTokenTypes {
     @JvmField val FLOAT = YanaTokenType("FLOAT")
     @JvmField val STRING = YanaTokenType("STRING")
     @JvmField val STRING_ESCAPE = YanaTokenType("STRING_ESCAPE")
-    @JvmField val CHAR = YanaTokenType("CHAR")
 
     @JvmField val LINE_COMMENT = YanaTokenType("LINE_COMMENT")
     @JvmField val BLOCK_COMMENT = YanaTokenType("BLOCK_COMMENT")
@@ -69,5 +68,5 @@ object YanaTokenTypes {
     @JvmField val GRAVE = YanaTokenType("GRAVE")
 
     @JvmField val COMMENTS: TokenSet = TokenSet.create(LINE_COMMENT, BLOCK_COMMENT)
-    @JvmField val STRINGS: TokenSet = TokenSet.create(STRING, STRING_ESCAPE, CHAR)
+    @JvmField val STRINGS: TokenSet = TokenSet.create(STRING, STRING_ESCAPE)
 }

@@ -145,7 +145,7 @@ fn main() -> Int {
     %v0 = alloc : Box
     aggregate %a@Box.value = 5, %a@Box.other = 0
     %v4 = load %a : Box
-    %v5 = borrow %a : &Box
+    %v5 = borrow_mut %a : &Box
     %v7 = call recovered, %v5, True : Int
     %v10 = cmp_ne %v7, 1005 : Bool
     je %v10, b1, b2
@@ -161,7 +161,7 @@ fn main() -> Int {
     %v17 = alloc : Box
     aggregate %b@Box.value = 5, %b@Box.other = 0
     %v21 = load %b : Box
-    %v22 = borrow %b : &Box
+    %v22 = borrow_mut %b : &Box
     %v24 = call recovered, %v22, False : Int
     %v27 = cmp_ne %v24, 5 : Bool
     je %v27, b4, b5
@@ -177,7 +177,7 @@ fn main() -> Int {
     %v34 = alloc : Box
     aggregate %c@Box.value = 500, %c@Box.other = 0
     %v38 = load %c : Box
-    %v39 = borrow %c : &Box
+    %v39 = borrow_mut %c : &Box
     %v41 = call recovered, %v39, True : Int
     %v44 = cmp_ne %v41, 500 : Bool
     je %v44, b7, b8
@@ -193,7 +193,7 @@ fn main() -> Int {
     %v51 = alloc : Box
     aggregate %d@Box.value = 5, %d@Box.other = 0
     %v55 = load %d : Box
-    %v56 = borrow %d : &Box
+    %v56 = borrow_mut %d : &Box
     %v58 = call bothArmsWrite, %v56, True : Int
     %v61 = cmp_ne %v58, 6 : Bool
     je %v61, b10, b11
@@ -209,7 +209,7 @@ fn main() -> Int {
     %v68 = alloc : Box
     aggregate %e@Box.value = 5, %e@Box.other = 0
     %v72 = load %e : Box
-    %v73 = borrow %e : &Box
+    %v73 = borrow_mut %e : &Box
     %v75 = call bothArmsWrite, %v73, False : Int
     %v78 = cmp_ne %v75, 7 : Bool
     je %v78, b13, b14
@@ -225,7 +225,7 @@ fn main() -> Int {
     %v85 = alloc : Box
     aggregate %f@Box.value = 5, %f@Box.other = 0
     %v89 = load %f : Box
-    %v90 = borrow %f : &Box
+    %v90 = borrow_mut %f : &Box
     %v92 = call neitherArmWrites, %v90, True : Int
     %v95 = cmp_ne %v92, 6 : Bool
     je %v95, b16, b17
@@ -241,7 +241,7 @@ fn main() -> Int {
     %v102 = alloc : Box
     aggregate %g@Box.value = 5, %g@Box.other = 0
     %v106 = load %g : Box
-    %v107 = borrow %g : &Box
+    %v107 = borrow_mut %g : &Box
     %v109 = call neitherArmWrites, %v107, False : Int
     %v112 = cmp_ne %v109, 7 : Bool
     je %v112, b19, b20
@@ -257,7 +257,7 @@ fn main() -> Int {
     %v119 = alloc : Box
     aggregate %h@Box.value = 50, %h@Box.other = 0
     %v123 = load %h : Box
-    %v124 = borrow %h : &Box
+    %v124 = borrow_mut %h : &Box
     %v126 = call chained, %v124, True : Int
     %v129 = cmp_ne %v126, 21 : Bool
     je %v129, b22, b23
@@ -273,7 +273,7 @@ fn main() -> Int {
     %v136 = alloc : Box
     aggregate %i@Box.value = 5, %i@Box.other = 0
     %v140 = load %i : Box
-    %v141 = borrow %i : &Box
+    %v141 = borrow_mut %i : &Box
     %v143 = call chained, %v141, True : Int
     %v146 = cmp_ne %v143, 15 : Bool
     je %v146, b25, b26
@@ -289,7 +289,7 @@ fn main() -> Int {
     %v153 = alloc : Box
     aggregate %j@Box.value = 50, %j@Box.other = 0
     %v157 = load %j : Box
-    %v158 = borrow %j : &Box
+    %v158 = borrow_mut %j : &Box
     %v160 = call chained, %v158, False : Int
     %v163 = cmp_ne %v160, 150 : Bool
     je %v163, b28, b29

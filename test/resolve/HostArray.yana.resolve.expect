@@ -48,7 +48,7 @@ fn push(Handle)(%self: Array(Handle), %item: Handle) -> () {
     %count = cast %v3 : Size
     %v5 = load %self : Array(Handle)
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Handle)
+    %v8 = borrow_mut %self : &Array(Handle)
     call reserve(Handle), %v8, %v7
     %v10 = load %self : Array(Handle)
     %v11 = load %self@Array.run : Run(Handle)
@@ -88,7 +88,7 @@ fn reserve(Handle)(%self: Array(Handle), %wanted: Size) -> () {
 
   b3:
     %v10 = load %self : Array(Handle)
-    %v11 = borrow_mut %self : &mut Array(Handle)
+    %v11 = borrow_mut %self : &Array(Handle)
     call growArray(Handle), %v11, %wanted
     ret
 }
@@ -129,7 +129,7 @@ fn growArray(Handle)(%self: Array(Handle), %wanted: Size) -> () {
     %v23 = load %self : Array(Handle)
     %v24 = load %self@Array.run : Run(Handle)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Handle)
+    %v26 = borrow_mut %self@Array.run : &Run(Handle)
     %v27 = call resize(Handle), %v26, %v25 : Bool
     ret
 }
@@ -1533,7 +1533,7 @@ fn releaseRun(Handle)(%self: Run(Handle)) -> () {
 fn openHandle(%id: Int) -> Handle {
   b0:
     %v1 = load live : Int
-    %v4 = borrow_mut live : &mut Int
+    %v4 = borrow_mut live : &Int
     call +=(Int), %v4, 1
     %v6 = alloc : Handle
     aggregate %local0@Handle.id = %id
@@ -1562,7 +1562,7 @@ fn idsOf(%xs: Flat(Handle)) -> Int {
     %v12 = load %total : Int
     %v15 = mul %v12, 10 : Int
     %v16 = load %i : Size
-    %v17 = borrow %xs : &Flat(Handle)
+    %v17 = borrow %xs : 'Flat(Handle)
     %v18 = load [%v17]@Flat.length : Size
     %v19 = cast %v16 : USize
     %v20 = cast %v18 : USize
@@ -1572,7 +1572,7 @@ fn idsOf(%xs: Flat(Handle)) -> Int {
     %v24 = strideof Handle : Long
     %v25 = mul %v16, %v24 : Long
     %v26 = add %v23, %v25 : %Handle
-    %v27 = borrow [%v26] : &Handle
+    %v27 = borrow [%v26] : 'Handle
     %v28 = load [%v27] : Handle
     %v29 = load [%v27]@Handle.id : Int
     %v30 = add %v15, %v29 : Int
@@ -1597,11 +1597,11 @@ fn container() -> Int {
     init %xs@Array.length, 2
     %v17 = load %xs : Array(Handle)
     %v19 = call openHandle, 3 : Handle
-    %v20 = borrow_mut %xs : &mut Array(Handle)
+    %v20 = borrow_mut %xs : &Array(Handle)
     %v21 = move %local4 : Handle
     call push(Handle), %v20, %v21
     %v23 = load %xs : Array(Handle)
-    %v26 = borrow_mut %xs : &mut Array(Handle)
+    %v26 = borrow_mut %xs : &Array(Handle)
     %v27 = load [%v26]@Array.length : @bits(30) U32
     %v28 = cast 0 : USize
     %v29 = cast %v27 : USize
@@ -1611,7 +1611,7 @@ fn container() -> Int {
     %v33 = strideof Handle : Long
     %v34 = mul 0, %v33 : Long
     %v35 = add %v32, %v34 : %Handle
-    %v36 = borrow_mut [%v35] : &mut Handle
+    %v36 = borrow_mut [%v35] : &Handle
     %v38 = call openHandle, 4 : Handle
     drop [%v36] via Drop(Handle).drop
     assign [%v36], %v38
@@ -1642,7 +1642,7 @@ fn container() -> Int {
     %score = alloc : Int
     init %score, 0
     %v63 = load %xs : Array(Handle)
-    %v66 = borrow_mut %xs : &mut Array(Handle)
+    %v66 = borrow_mut %xs : &Array(Handle)
     %v67 = call remove(Handle), %v66, 1 : Maybe(Handle)
     %v68 = load %local7.discriminant : Int
     %v70 = cmp_eq %v68, 1 : Bool
@@ -1676,7 +1676,7 @@ fn container() -> Int {
 
   b12:
     %v93 = load %xs : Array(Handle)
-    %v94 = borrow %xs : &Array(Handle)
+    %v94 = borrow %xs : 'Array(Handle)
     %v95 = alloc : Flat(Handle)
     %v96 = load [%v94]@Array.run@Run.items : %Handle
     init %local9@Flat.items, %v96
@@ -1685,14 +1685,14 @@ fn container() -> Int {
     init %local9@Flat.length, %v99
     %whole = call idsOf, %v95 : Int
     %v102 = load %xs : Array(Handle)
-    %v105 = borrow %xs : &Array(Handle)
+    %v105 = borrow %xs : 'Array(Handle)
     %v106 = alloc : Flat(Handle)
     %v107 = load [%v105]@Array.run@Run.items : %Handle
     init %local10@Flat.items, %v107
     %v109 = load [%v105]@Array.length : @bits(30) U32
     %v110 = cast %v109 : Size
     init %local10@Flat.length, %v110
-    %v114 = borrow %local10 : &Flat(Handle)
+    %v114 = borrow %local10 : 'Flat(Handle)
     %v115 = call slice(Handle), %v114, 1, 2 : Flat(Handle)
     %tail = call idsOf, %v115 : Int
     drop %xs via Reclaim(Array(a)).reclaim(Handle) reclaim Reclaim(Array(a)).reclaim(Handle)
@@ -1764,7 +1764,7 @@ fn main() -> Int {
 fn Drop(Handle).drop(%value: Handle) -> () {
   b0:
     %v1 = load live : Int
-    %v4 = borrow_mut live : &mut Int
+    %v4 = borrow_mut live : &Int
     call -=(Int), %v4, 1
     %v6 = load closed : Int
     %v7 = load %value@Handle.id : Int

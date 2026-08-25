@@ -518,7 +518,7 @@ fn indexed(%n: Int) -> Maybe(Int) {
 
   b2:
     %v8 = load %local1@Proceed : Array(Int)
-    %v11 = borrow %local1@Proceed : &Array(Int)
+    %v11 = borrow %local1@Proceed : 'Array(Int)
     %v12 = load [%v11]@Array.length : @bits(30) U32
     %v13 = cast 1 : USize
     %v14 = cast %v12 : USize
@@ -528,7 +528,7 @@ fn indexed(%n: Int) -> Maybe(Int) {
     %v18 = strideof Int : Long
     %v19 = mul 1, %v18 : Long
     %v20 = add %v17, %v19 : %Int
-    %v21 = borrow [%v20] : &Int
+    %v21 = borrow [%v20] : 'Int
     %v22 = load [%v21] : Int
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
     %v23 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v22 : Maybe(Int)
@@ -559,7 +559,7 @@ fn sum(%n: Int) -> Maybe(Int) {
 
   b2:
     %v8 = load %local1@Proceed : Array(Int)
-    %v11 = borrow %local1@Proceed : &Array(Int)
+    %v11 = borrow %local1@Proceed : 'Array(Int)
     %v12 = load [%v11]@Array.length : @bits(30) U32
     %v13 = cast 0 : USize
     %v14 = cast %v12 : USize
@@ -569,7 +569,7 @@ fn sum(%n: Int) -> Maybe(Int) {
     %v18 = strideof Int : Long
     %v19 = mul 0, %v18 : Long
     %v20 = add %v17, %v19 : %Int
-    %v21 = borrow [%v20] : &Int
+    %v21 = borrow [%v20] : 'Int
     %v22 = load [%v21] : Int
     drop_derived %local1 reclaim reclaim$Outcome(Array(Int), ())
     %v23 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Array(Int), Int), %v22 : Maybe(Int)

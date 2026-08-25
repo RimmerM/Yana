@@ -627,14 +627,14 @@ fn main() -> Int {
   b3:
     %v108 = load %total : Int
     %v109 = load %i : Int
-    %v110 = borrow %local0 : &[Long *12]
+    %v110 = borrow %local0 : '[Long *12]
     %longs = alloc : Flat(Long)
     %v112 = addressof [%v110] : %Long
     init %longs@Flat.items, %v112
     %v114 = countof 12 : Size
     init %longs@Flat.length, %v114
     %v116 = cast %v109 : Size
-    %v117 = borrow %longs : &Flat(Long)
+    %v117 = borrow %longs : 'Flat(Long)
     %v118 = load [%v117]@Flat.length : Size
     %v119 = cast %v116 : USize
     %v120 = cast %v118 : USize
@@ -644,19 +644,19 @@ fn main() -> Int {
     %v124 = strideof Long : Long
     %v125 = mul %v116, %v124 : Long
     %v126 = add %v123, %v125 : %Long
-    %v127 = borrow [%v126] : &Long
+    %v127 = borrow [%v126] : 'Long
     %v128 = load [%v127] : Long
     %v129 = call signedLong, %v128 : Int
     %v130 = add %v108, %v129 : Int
     %v131 = load %i : Int
-    %v132 = borrow %local0 : &[Long *12]
+    %v132 = borrow %local0 : '[Long *12]
     %longs = alloc : Flat(Long)
     %v134 = addressof [%v132] : %Long
     init %longs@Flat.items, %v134
     %v136 = countof 12 : Size
     init %longs@Flat.length, %v136
     %v138 = cast %v131 : Size
-    %v139 = borrow %longs : &Flat(Long)
+    %v139 = borrow %longs : 'Flat(Long)
     %v140 = load [%v139]@Flat.length : Size
     %v141 = cast %v138 : USize
     %v142 = cast %v140 : USize
@@ -666,7 +666,7 @@ fn main() -> Int {
     %v146 = strideof Long : Long
     %v147 = mul %v138, %v146 : Long
     %v148 = add %v145, %v147 : %Long
-    %v149 = borrow [%v148] : &Long
+    %v149 = borrow [%v148] : 'Long
     %v150 = load [%v149] : Long
     %v151 = call scaled, %v150 : Int
     %v152 = add %v130, %v151 : Int
@@ -688,14 +688,14 @@ fn main() -> Int {
   b6:
     %v168 = load %total : Int
     %v169 = load %i : Int
-    %v170 = borrow %local1 : &[Int *9]
+    %v170 = borrow %local1 : '[Int *9]
     %ints = alloc : Flat(Int)
     %v172 = addressof [%v170] : %Int
     init %ints@Flat.items, %v172
     %v174 = countof 9 : Size
     init %ints@Flat.length, %v174
     %v176 = cast %v169 : Size
-    %v177 = borrow %ints : &Flat(Int)
+    %v177 = borrow %ints : 'Flat(Int)
     %v178 = load [%v177]@Flat.length : Size
     %v179 = cast %v176 : USize
     %v180 = cast %v178 : USize
@@ -705,7 +705,7 @@ fn main() -> Int {
     %v184 = strideof Int : Long
     %v185 = mul %v176, %v184 : Long
     %v186 = add %v183, %v185 : %Int
-    %v187 = borrow [%v186] : &Int
+    %v187 = borrow [%v186] : 'Int
     %v188 = load [%v187] : Int
     %v189 = call signedInt, %v188 : Int
     %v190 = add %v168, %v189 : Int
@@ -727,14 +727,14 @@ fn main() -> Int {
   b9:
     %v206 = load %total : Int
     %v207 = load %i : Int
-    %v208 = borrow %local2 : &[U64 *8]
+    %v208 = borrow %local2 : '[U64 *8]
     %ulongs = alloc : Flat(U64)
     %v210 = addressof [%v208] : %U64
     init %ulongs@Flat.items, %v210
     %v212 = countof 8 : Size
     init %ulongs@Flat.length, %v212
     %v214 = cast %v207 : Size
-    %v215 = borrow %ulongs : &Flat(U64)
+    %v215 = borrow %ulongs : 'Flat(U64)
     %v216 = load [%v215]@Flat.length : Size
     %v217 = cast %v214 : USize
     %v218 = cast %v216 : USize
@@ -744,7 +744,7 @@ fn main() -> Int {
     %v222 = strideof U64 : Long
     %v223 = mul %v214, %v222 : Long
     %v224 = add %v221, %v223 : %U64
-    %v225 = borrow [%v224] : &U64
+    %v225 = borrow [%v224] : 'U64
     %v226 = load [%v225] : U64
     %v227 = call unsignedLong, %v226 : Int
     %v228 = add %v206, %v227 : Int
@@ -766,14 +766,14 @@ fn main() -> Int {
   b12:
     %v244 = load %total : Int
     %v245 = load %i : Int
-    %v246 = borrow %local3 : &[U32 *6]
+    %v246 = borrow %local3 : '[U32 *6]
     %uints = alloc : Flat(U32)
     %v248 = addressof [%v246] : %U32
     init %uints@Flat.items, %v248
     %v250 = countof 6 : Size
     init %uints@Flat.length, %v250
     %v252 = cast %v245 : Size
-    %v253 = borrow %uints : &Flat(U32)
+    %v253 = borrow %uints : 'Flat(U32)
     %v254 = load [%v253]@Flat.length : Size
     %v255 = cast %v252 : USize
     %v256 = cast %v254 : USize
@@ -783,7 +783,7 @@ fn main() -> Int {
     %v260 = strideof U32 : Long
     %v261 = mul %v252, %v260 : Long
     %v262 = add %v259, %v261 : %U32
-    %v263 = borrow [%v262] : &U32
+    %v263 = borrow [%v262] : 'U32
     %v264 = load [%v263] : U32
     %v265 = call unsignedInt, %v264 : Int
     %v266 = add %v244, %v265 : Int

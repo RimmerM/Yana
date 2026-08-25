@@ -110,14 +110,14 @@ fn main() -> Int {
     %number = alloc : Int
     init %number, 0
     %v3 = load %number : Int
-    %v6 = borrow_mut %number : &mut Int
+    %v6 = borrow_mut %number : &Int
     gencall env genEnv$copyInto(Int) copyInto(Int), %v6, 7
     %pair = alloc : Point
     aggregate %local1@Point.x = 3, %local1@Point.y = 4
     %v12 = alloc : Point
     aggregate %target@Point.x = 0, %target@Point.y = 0
     %v16 = load %target : Point
-    %v17 = borrow_mut %target : &mut Point
+    %v17 = borrow_mut %target : &Point
     gencall env genEnv$copyInto(Point) copyInto(Point), %v17, %pair
     %v19 = load %local1@Point.x : Int
     %v22 = cmp_ne %v19, 3 : Bool
@@ -152,17 +152,17 @@ fn main() -> Int {
     aggregate %local12[0] = %v65, %local12[1] = %v69
     aggregate %copied@Quad.values = %v59, %copied@Quad.places = %v73, %copied@Quad.tag = 0
     %v79 = load %copied : Quad
-    %v80 = borrow_mut %copied : &mut Quad
+    %v80 = borrow_mut %copied : &Quad
     gencall env genEnv$copyInto(Quad) copyInto(Quad), %v80, %quad
     %v82 = load %copied : Quad
     %v83 = load %copied@Quad.values : [Int *4]
-    %v85 = borrow %copied@Quad.values : &[Int *4]
+    %v85 = borrow %copied@Quad.values : '[Int *4]
     %v86 = alloc : Flat(Int)
     %v87 = addressof [%v85] : %Int
     init %local13@Flat.items, %v87
     %v89 = countof 4 : Size
     init %local13@Flat.length, %v89
-    %v92 = borrow %local13 : &Flat(Int)
+    %v92 = borrow %local13 : 'Flat(Int)
     %v93 = load [%v92]@Flat.length : Size
     %v94 = cast 0 : USize
     %v95 = cast %v93 : USize
@@ -172,7 +172,7 @@ fn main() -> Int {
     %v99 = strideof Int : Long
     %v100 = mul 0, %v99 : Long
     %v101 = add %v98, %v100 : %Int
-    %v102 = borrow [%v101] : &Int
+    %v102 = borrow [%v101] : 'Int
     %v103 = load [%v102] : Int
     %v106 = cmp_ne %v103, 10 : Bool
     je %v106, b4, b5
@@ -187,13 +187,13 @@ fn main() -> Int {
   b6:
     %v113 = load %copied : Quad
     %v114 = load %copied@Quad.values : [Int *4]
-    %v116 = borrow %copied@Quad.values : &[Int *4]
+    %v116 = borrow %copied@Quad.values : '[Int *4]
     %v117 = alloc : Flat(Int)
     %v118 = addressof [%v116] : %Int
     init %local14@Flat.items, %v118
     %v120 = countof 4 : Size
     init %local14@Flat.length, %v120
-    %v123 = borrow %local14 : &Flat(Int)
+    %v123 = borrow %local14 : 'Flat(Int)
     %v124 = load [%v123]@Flat.length : Size
     %v125 = cast 3 : USize
     %v126 = cast %v124 : USize
@@ -203,7 +203,7 @@ fn main() -> Int {
     %v130 = strideof Int : Long
     %v131 = mul 3, %v130 : Long
     %v132 = add %v129, %v131 : %Int
-    %v133 = borrow [%v132] : &Int
+    %v133 = borrow [%v132] : 'Int
     %v134 = load [%v133] : Int
     %v137 = cmp_ne %v134, 40 : Bool
     je %v137, b7, b8
@@ -218,13 +218,13 @@ fn main() -> Int {
   b9:
     %v144 = load %copied : Quad
     %v145 = load %copied@Quad.places : [Point *2]
-    %v147 = borrow %copied@Quad.places : &[Point *2]
+    %v147 = borrow %copied@Quad.places : '[Point *2]
     %v148 = alloc : Flat(Point)
     %v149 = addressof [%v147] : %Point
     init %local15@Flat.items, %v149
     %v151 = countof 2 : Size
     init %local15@Flat.length, %v151
-    %v154 = borrow %local15 : &Flat(Point)
+    %v154 = borrow %local15 : 'Flat(Point)
     %v155 = load [%v154]@Flat.length : Size
     %v156 = cast 1 : USize
     %v157 = cast %v155 : USize
@@ -234,7 +234,7 @@ fn main() -> Int {
     %v161 = strideof Point : Long
     %v162 = mul 1, %v161 : Long
     %v163 = add %v160, %v162 : %Point
-    %v164 = borrow [%v163] : &Point
+    %v164 = borrow [%v163] : 'Point
     %v165 = load [%v164] : Point
     %v166 = load [%v164]@Point.x : Int
     %v169 = cmp_ne %v166, 3 : Bool
@@ -263,13 +263,13 @@ fn main() -> Int {
   b15:
     %v187 = load %copied : Quad
     %v188 = load %copied@Quad.values : [Int *4]
-    %v190 = borrow_mut %copied@Quad.values : &mut [Int *4]
+    %v190 = borrow_mut %copied@Quad.values : &[Int *4]
     %v191 = alloc : Flat(Int)
     %v192 = addressof [%v190] : %Int
     init %local16@Flat.items, %v192
     %v194 = countof 4 : Size
     init %local16@Flat.length, %v194
-    %v197 = borrow_mut %local16 : &mut Flat(Int)
+    %v197 = borrow_mut %local16 : &Flat(Int)
     %v198 = load [%v197]@Flat.length : Size
     %v199 = cast 0 : USize
     %v200 = cast %v198 : USize
@@ -279,17 +279,17 @@ fn main() -> Int {
     %v204 = strideof Int : Long
     %v205 = mul 0, %v204 : Long
     %v206 = add %v203, %v205 : %Int
-    %v207 = borrow_mut [%v206] : &mut Int
+    %v207 = borrow_mut [%v206] : &Int
     assign [%v207], 99
     %v210 = load %copied : Quad
     %v211 = load %copied@Quad.places : [Point *2]
-    %v213 = borrow_mut %copied@Quad.places : &mut [Point *2]
+    %v213 = borrow_mut %copied@Quad.places : &[Point *2]
     %v214 = alloc : Flat(Point)
     %v215 = addressof [%v213] : %Point
     init %local17@Flat.items, %v215
     %v217 = countof 2 : Size
     init %local17@Flat.length, %v217
-    %v220 = borrow_mut %local17 : &mut Flat(Point)
+    %v220 = borrow_mut %local17 : &Flat(Point)
     %v221 = load [%v220]@Flat.length : Size
     %v222 = cast 1 : USize
     %v223 = cast %v221 : USize
@@ -299,16 +299,16 @@ fn main() -> Int {
     %v227 = strideof Point : Long
     %v228 = mul 1, %v227 : Long
     %v229 = add %v226, %v228 : %Point
-    %v230 = borrow_mut [%v229] : &mut Point
+    %v230 = borrow_mut [%v229] : &Point
     assign [%v230]@Point.x, 99
     %v233 = load %local3@Quad.values : [Int *4]
-    %v235 = borrow %local3@Quad.values : &[Int *4]
+    %v235 = borrow %local3@Quad.values : '[Int *4]
     %v236 = alloc : Flat(Int)
     %v237 = addressof [%v235] : %Int
     init %local18@Flat.items, %v237
     %v239 = countof 4 : Size
     init %local18@Flat.length, %v239
-    %v242 = borrow %local18 : &Flat(Int)
+    %v242 = borrow %local18 : 'Flat(Int)
     %v243 = load [%v242]@Flat.length : Size
     %v244 = cast 0 : USize
     %v245 = cast %v243 : USize
@@ -318,7 +318,7 @@ fn main() -> Int {
     %v249 = strideof Int : Long
     %v250 = mul 0, %v249 : Long
     %v251 = add %v248, %v250 : %Int
-    %v252 = borrow [%v251] : &Int
+    %v252 = borrow [%v251] : 'Int
     %v253 = load [%v252] : Int
     %v256 = cmp_ne %v253, 10 : Bool
     je %v256, b16, b17
@@ -332,13 +332,13 @@ fn main() -> Int {
 
   b18:
     %v263 = load %local3@Quad.places : [Point *2]
-    %v265 = borrow %local3@Quad.places : &[Point *2]
+    %v265 = borrow %local3@Quad.places : '[Point *2]
     %v266 = alloc : Flat(Point)
     %v267 = addressof [%v265] : %Point
     init %local19@Flat.items, %v267
     %v269 = countof 2 : Size
     init %local19@Flat.length, %v269
-    %v272 = borrow %local19 : &Flat(Point)
+    %v272 = borrow %local19 : 'Flat(Point)
     %v273 = load [%v272]@Flat.length : Size
     %v274 = cast 1 : USize
     %v275 = cast %v273 : USize
@@ -348,7 +348,7 @@ fn main() -> Int {
     %v279 = strideof Point : Long
     %v280 = mul 1, %v279 : Long
     %v281 = add %v278, %v280 : %Point
-    %v282 = borrow [%v281] : &Point
+    %v282 = borrow [%v281] : 'Point
     %v283 = load [%v282] : Point
     %v284 = load [%v282]@Point.x : Int
     %v287 = cmp_ne %v284, 3 : Bool

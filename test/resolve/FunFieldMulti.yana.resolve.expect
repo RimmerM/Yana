@@ -78,7 +78,7 @@ fn main() -> Int {
     %before = add %v17, %v21 : Int
     %v23 = load %h : Handlers
     %v24 = load %h@Handlers.first : (Int) -> Int
-    %v25 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
+    %v25 = borrow_mut %h@Handlers.first : &(Int) -> Int
     call retarget, %v25
     %v27 = load %h : Handlers
     %v28 = load %h@Handlers.first : (Int) -> Int
@@ -91,8 +91,8 @@ fn main() -> Int {
     %v37 = load %h@Handlers.first : (Int) -> Int
     %v38 = load %h : Handlers
     %v39 = load %h@Handlers.second : (Int) -> Int
-    %v40 = borrow_mut %h@Handlers.first : &mut (Int) -> Int
-    %v41 = borrow_mut %h@Handlers.second : &mut (Int) -> Int
+    %v40 = borrow_mut %h@Handlers.first : &(Int) -> Int
+    %v41 = borrow_mut %h@Handlers.second : &(Int) -> Int
     call retargetBoth, %v40, %v41
     %v43 = load %h : Handlers
     %v44 = load %h@Handlers.first : (Int) -> Int

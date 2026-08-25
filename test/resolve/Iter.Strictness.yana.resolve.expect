@@ -43,8 +43,8 @@ fn main() -> Int {
     init %total, 0
     %v3 = alloc : Box
     aggregate %local1@Box.v = 7
-    %v6 = alloc : {total: &mut Int}
-    %v7 = borrow_mut %total : &mut Int
+    %v6 = alloc : {total: &Int}
+    %v7 = borrow_mut %total : &Int
     init %local2.total, %v7
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: Int) -> Outcome((), ())
@@ -54,8 +54,8 @@ fn main() -> Int {
     %v14 = call walk(()), %v3, %v10 : Outcome((), ())
     %v15 = alloc : Bag
     aggregate %local5@Bag.w = 30
-    %v18 = alloc : {total: &mut Int}
-    %v19 = borrow_mut %total : &mut Int
+    %v18 = alloc : {total: &Int}
+    %v19 = borrow_mut %total : &Int
     init %local6.total, %v19
     %v21 = addressof %local6 : %()
     %v22 = alloc : (value$: Int) -> Outcome((), ())
@@ -89,10 +89,10 @@ fn Streamed(Bag).walk(%self: Bag, %body: (value$: Int) -> Outcome((), $r)) -> Ou
     ret %v9
 }
 
-fn ResolveTest.continuation$15(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
@@ -118,10 +118,10 @@ fn walk(())(%b: Box, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ())
     ret %v9
 }
 
-fn ResolveTest.continuation$16(%env: %{total: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &mut Int
-    %v3 = load [%env].total : &mut Int
+    %v2 = load [%env].total : &Int
+    %v3 = load [%env].total : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5

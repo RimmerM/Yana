@@ -213,6 +213,12 @@ bool isWhiteChar(char c) {
 }
 
 // Checks if the provided character is a symbol in the language.
+//
+// `'` is one, which it would not be in a language with character literals - see
+// Implementation-String.md §1.1 for why this one has none. Being a symbol is what lets the loan
+// marker of Analysis-Borrows.md be an ordinary reserved operator in `tokens.def` rather than a
+// branch of its own in each of the two lexers, and it is what will let `&'` lex as one run when
+// named loan groups arrive.
 bool isSymbol(char c) {
     // We use a small lookup table for this,
     // since the number of branches would be ridiculous otherwise.
@@ -223,7 +229,7 @@ bool isSymbol(char c) {
         true, /* $ */
         true, /* % */
         true, /* & */
-        false, /* ' */
+        true, /* ' */
         false, /* ( */
         false, /* ) */
         true, /* * */

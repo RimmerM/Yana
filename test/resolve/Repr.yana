@@ -12,7 +12,7 @@ alias Id = @bits(53) U64
 data Flags {optionA: Bool, optionB: Bool}
 
 -- A borrow is never null, so pattern zero is free - the one niche that needs no refinement to exist.
-data Held {at: &Int}
+data Held {at: 'Int}
 
 -- A raw pointer is deliberately *not* niche-bearing: null() and isNull are ordinary Native
 -- intrinsics, so zero is a value a %U8 can legally hold.

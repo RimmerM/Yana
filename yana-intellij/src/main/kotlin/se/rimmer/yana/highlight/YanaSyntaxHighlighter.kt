@@ -59,7 +59,6 @@ object YanaColors {
     val NUMBER = key("YANA_NUMBER", DefaultLanguageHighlighterColors.NUMBER)
     val STRING = key("YANA_STRING", DefaultLanguageHighlighterColors.STRING)
     val STRING_ESCAPE = key("YANA_STRING_ESCAPE", DefaultLanguageHighlighterColors.VALID_STRING_ESCAPE)
-    val CHAR = key("YANA_CHAR", DefaultLanguageHighlighterColors.STRING)
 
     val LINE_COMMENT = key("YANA_LINE_COMMENT", DefaultLanguageHighlighterColors.LINE_COMMENT)
     val BLOCK_COMMENT = key("YANA_BLOCK_COMMENT", DefaultLanguageHighlighterColors.BLOCK_COMMENT)
@@ -95,7 +94,6 @@ class YanaSyntaxHighlighter : SyntaxHighlighterBase() {
             YanaTokenTypes.INTEGER, YanaTokenTypes.FLOAT -> YanaColors.NUMBER
             YanaTokenTypes.STRING -> YanaColors.STRING
             YanaTokenTypes.STRING_ESCAPE -> YanaColors.STRING_ESCAPE
-            YanaTokenTypes.CHAR -> YanaColors.CHAR
 
             YanaTokenTypes.LINE_COMMENT -> YanaColors.LINE_COMMENT
             YanaTokenTypes.BLOCK_COMMENT -> YanaColors.BLOCK_COMMENT

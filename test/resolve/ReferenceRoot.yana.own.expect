@@ -1,0 +1,35 @@
+fn pairOf {
+  arg x readonly return
+  arg y readonly return
+  result arguments
+  %local0: Pair('Int, 'Int) readonly live [0, 3)
+}
+
+fn firstOf {
+  arg x readonly return
+  arg y readonly
+  result arguments
+}
+
+fn passThrough {
+  arg p readonly return
+  result arguments
+}
+
+fn offsetOf {
+  arg p readonly return
+  result arguments
+}
+
+fn maybeOf {
+  arg x readonly return
+  result arguments
+  %local0: Maybe('Int) readonly live [0, 3)
+}
+
+fn main {
+  %a: Int readonly live [0, 32)
+  %b: Int readonly live [2, 30)
+  %local2: Pair('Int, 'Int) readonly live [8, 30)
+  %local3: Maybe('Int) readonly live [16, 20) [21, 23)
+}

@@ -1,0 +1,36 @@
+-- The accepting half of Reject.ReferenceRoot.yana: the same signatures with their roots declared.
+--
+-- What this pins is that `return` may be written on a parameter whose value is an address, which is
+-- the half of the fix that is not a rejection. `&T` and `%T` are both direct types, so both arrive
+-- in a register - and `arrivesAsCopy` used to refuse the marker on the first of them for that
+-- reason, which left `pairOf` below with no way to state a contract it was nevertheless held to.
+
+import Native
+
+data Pair(a, b) {first: a, second: b}
+
+fn pairOf(return x: 'Int, return y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
+
+fn firstOf(return x: 'Int, y: 'Int) -> 'Int = x
+
+fn passThrough(return p: %U8) -> %U8 = p
+
+fn offsetOf(return p: %U8) -> %U8 = p + (1 :: Size)
+
+fn maybeOf(return x: 'Int) -> Maybe('Int) = Just(x)
+
+-- And the caller side, so that the group is spent as well as declared: each result's last use is
+-- inside the extent of the storage it names.
+fn main() -> Int:
+    let &a = 3 :: Int
+    let &b = 4 :: Int
+
+    let p = pairOf(a, b)
+    let f = firstOf(a, b)
+
+    let m = maybeOf(a)
+    let seen = match m:
+        Just(v) -> v + 0
+        Nothing -> 0
+
+    return p.first + p.second + f + seen

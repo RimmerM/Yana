@@ -98,7 +98,7 @@ fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {} =
    through it would reach nobody. A *borrow* of the same place is not - it is the narrow reference
    that backend already builds, which names the slot rather than copying it.
 -}
-fn keyAt(return self: Map(k, v), at: Size) -> &k =
+fn keyAt(return self: Map(k, v), at: Size) -> 'k =
     borrow(self.entries.run.items + at).key
 
 {-
@@ -111,7 +111,7 @@ fn keyAt(return self: Map(k, v), at: Size) -> &k =
    backend already builds, which names the slot rather than copying it. So this is one body for both
    targets and the other spelling is one for neither.
 -}
-fn valueAt(return self: Map(k, v), at: Size) -> &v =
+fn valueAt(return self: Map(k, v), at: Size) -> 'v =
     borrow(self.entries.run.items + at).value
 
 fn valueAtMut(return &self: Map(k, v), at: Size) -> &v =

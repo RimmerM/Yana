@@ -97,8 +97,8 @@ fn loopingOut(%n: Int) -> Int {
     assign %i, %v16
     %v18 = load %i : Int
     %v19 = sub %n, %v18 : Int
-    %v20 = alloc : {seen: &mut Int}
-    %v21 = borrow_mut %seen : &mut Int
+    %v20 = alloc : {seen: &Int}
+    %v21 = borrow_mut %seen : &Int
     init %local2.seen, %v21
     %v23 = addressof %local2 : %()
     %v24 = alloc : (found: Int) -> ()
@@ -130,8 +130,8 @@ fn statementTail(%n: Int) -> Int {
     je %v6, b1, b2
 
   b1:
-    %v8 = alloc : {seen: &mut Int}
-    %v9 = borrow_mut %seen : &mut Int
+    %v8 = alloc : {seen: &Int}
+    %v9 = borrow_mut %seen : &Int
     init %local1.seen, %v9
     %v11 = addressof %local1 : %()
     %v12 = alloc : (found: Int) -> ()
@@ -232,10 +232,10 @@ fn main() -> Int {
     ret %v29
 }
 
-fn ResolveTest.continuation$15(%env: %{seen: &mut Int}, %found: Int) -> () {
+fn ResolveTest.continuation$15(%env: %{seen: &Int}, %found: Int) -> () {
   b0:
-    %v2 = load [%env].seen : &mut Int
-    %v3 = load [%env].seen : &mut Int
+    %v2 = load [%env].seen : &Int
+    %v3 = load [%env].seen : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %found : Int
     assign [%v2], %v5
@@ -269,10 +269,10 @@ fn findFirst(())(%n: Int, %body: (found: Int) -> ()) -> Maybe(()) {
     ret %v21
 }
 
-fn ResolveTest.continuation$16(%env: %{seen: &mut Int}, %found: Int) -> () {
+fn ResolveTest.continuation$16(%env: %{seen: &Int}, %found: Int) -> () {
   b0:
-    %v2 = load [%env].seen : &mut Int
-    %v3 = load [%env].seen : &mut Int
+    %v2 = load [%env].seen : &Int
+    %v3 = load [%env].seen : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %found : Int
     assign [%v2], %v5

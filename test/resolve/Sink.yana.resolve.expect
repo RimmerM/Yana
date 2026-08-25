@@ -507,7 +507,7 @@ fn main() -> I64 {
     init %result, 0
     %v3 = load %result : I64
     %v4 = call direct : I64
-    %v5 = borrow_mut %result : &mut I64
+    %v5 = borrow_mut %result : &I64
     call +=(I64), %v5, %v4
     %v7 = load sinkCalls : I64
     %v10 = cmp_ne %v7, 1 : Bool
@@ -523,7 +523,7 @@ fn main() -> I64 {
   b3:
     %v17 = load %result : I64
     %v18 = call derived : I64
-    %v19 = borrow_mut %result : &mut I64
+    %v19 = borrow_mut %result : &I64
     call +=(I64), %v19, %v18
     %v21 = load sinkCalls : I64
     %v24 = cmp_ne %v21, 2 : Bool
@@ -539,7 +539,7 @@ fn main() -> I64 {
   b6:
     %v31 = load %result : I64
     %v32 = call nested : I64
-    %v33 = borrow_mut %result : &mut I64
+    %v33 = borrow_mut %result : &I64
     call +=(I64), %v33, %v32
     %v35 = load sinkCalls : I64
     %v38 = cmp_ne %v35, 3 : Bool
@@ -555,7 +555,7 @@ fn main() -> I64 {
   b9:
     %v45 = load %result : I64
     %v47 = call tagged, True : I64
-    %v48 = borrow_mut %result : &mut I64
+    %v48 = borrow_mut %result : &I64
     call +=(I64), %v48, %v47
     %v50 = load sinkCalls : I64
     %v53 = cmp_ne %v50, 4 : Bool
@@ -571,7 +571,7 @@ fn main() -> I64 {
   b12:
     %v60 = load %result : I64
     %v62 = call tagged, False : I64
-    %v63 = borrow_mut %result : &mut I64
+    %v63 = borrow_mut %result : &I64
     call +=(I64), %v63, %v62
     %v65 = load sinkCalls : I64
     %v68 = cmp_ne %v65, 4 : Bool
@@ -590,7 +590,7 @@ fn main() -> I64 {
     %v78 = load %result : I64
     %handed = move %local1 via Sink(Handle).sink : Handle
     %v80 = call consume, %handed : I64
-    %v81 = borrow_mut %result : &mut I64
+    %v81 = borrow_mut %result : &I64
     call +=(I64), %v81, %v80
     %v83 = load sinkCalls : I64
     %v86 = cmp_ne %v83, 4 : Bool
@@ -623,7 +623,7 @@ fn main() -> I64 {
     %v108 = load %result : I64
     %v109 = calldyn %closed : I64
     drop_derived %local3 via drop$() -> I64 reclaim reclaim$() -> I64
-    %v110 = borrow_mut %result : &mut I64
+    %v110 = borrow_mut %result : &I64
     call +=(I64), %v110, %v109
     %pair = alloc : Pair
     %v113 = alloc : Handle
@@ -648,7 +648,7 @@ fn main() -> I64 {
     %v132 = load %local6@Pair.left@Handle.value : I64
     %v133 = load %local6@Pair.right : I64
     %v134 = add %v132, %v133 : I64
-    %v135 = borrow_mut %result : &mut I64
+    %v135 = borrow_mut %result : &I64
     call +=(I64), %v135, %v134
     %v137 = alloc : Handle
     aggregate %local7@Handle.value = 70
@@ -668,7 +668,7 @@ fn main() -> I64 {
   b27:
     %v152 = load %result : I64
     %v153 = load %local8@Handle.value : I64
-    %v154 = borrow_mut %result : &mut I64
+    %v154 = borrow_mut %result : &I64
     call +=(I64), %v154, %v153
     %v156 = alloc : Pair
     %v157 = alloc : Handle
@@ -693,11 +693,11 @@ fn main() -> I64 {
     %v176 = load %local11@Pair.left@Handle.value : I64
     %v177 = load %local11@Pair.right : I64
     %v178 = add %v176, %v177 : I64
-    %v179 = borrow_mut %result : &mut I64
+    %v179 = borrow_mut %result : &I64
     call +=(I64), %v179, %v178
     %v181 = load %result : I64
     %v182 = call crossed : I64
-    %v183 = borrow_mut %result : &mut I64
+    %v183 = borrow_mut %result : &I64
     call +=(I64), %v183, %v182
     %v185 = load sinkCalls : I64
     %v188 = cmp_ne %v185, 9 : Bool
@@ -724,7 +724,7 @@ fn main() -> I64 {
 fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {
   b0:
     %v2 = load sinkCalls : I64
-    %v5 = borrow_mut sinkCalls : &mut I64
+    %v5 = borrow_mut sinkCalls : &I64
     call +=(I64), %v5, 1
     %v7 = load %from@Handle.value : I64
     assign %to@Handle.value, %v7
@@ -734,7 +734,7 @@ fn Sink(Handle).sink(%to: Handle, %from: Handle) -> () {
 fn Sink(Cell).sink(%to: Cell, %from: Cell) -> () {
   b0:
     %v2 = load sinkCalls : I64
-    %v5 = borrow_mut sinkCalls : &mut I64
+    %v5 = borrow_mut sinkCalls : &I64
     call +=(I64), %v5, 1
     %v7 = load %from@Cell.back : I64
     assign %to@Cell.slot, %v7

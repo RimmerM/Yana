@@ -205,7 +205,7 @@ fn withCall(%seed: Int, %count: Int) -> Int {
 
   b3:
     %v17 = load %seen : Int
-    %v18 = borrow_mut %seen : &mut Int
+    %v18 = borrow_mut %seen : &Int
     call bump, %v18
     %v20 = load %seen : Int
     %v21 = load %local0@Point.x : Int
@@ -239,7 +239,7 @@ fn fromCall(%count: Int) -> Int {
 
   b3:
     %v12 = load %seen : Int
-    %v13 = borrow_mut %seen : &mut Int
+    %v13 = borrow_mut %seen : &Int
     call bump, %v13
     %v15 = load %seen : Int
     %v16 = load %local0@Point.x : Int
@@ -275,7 +275,7 @@ fn escaping(%count: Int) -> Int {
 
   b3:
     %v14 = load %r : Point
-    %v15 = borrow_mut %r : &mut Point
+    %v15 = borrow_mut %r : &Point
     call widen, %v15
     %v17 = load %total : Int
     %v18 = load %r : Point

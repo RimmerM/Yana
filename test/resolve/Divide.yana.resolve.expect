@@ -661,14 +661,14 @@ fn main() -> Int {
   b5:
     %v249 = load %total : Int
     %v250 = load %i : Int
-    %v251 = borrow %local0 : &[Long *7]
+    %v251 = borrow %local0 : '[Long *7]
     %longs = alloc : Flat(Long)
     %v253 = addressof [%v251] : %Long
     init %longs@Flat.items, %v253
     %v255 = countof 7 : Size
     init %longs@Flat.length, %v255
     %v257 = cast %v250 : Size
-    %v258 = borrow %longs : &Flat(Long)
+    %v258 = borrow %longs : 'Flat(Long)
     %v259 = load [%v258]@Flat.length : Size
     %v260 = cast %v257 : USize
     %v261 = cast %v259 : USize
@@ -678,19 +678,19 @@ fn main() -> Int {
     %v265 = strideof Long : Long
     %v266 = mul %v257, %v265 : Long
     %v267 = add %v264, %v266 : %Long
-    %v268 = borrow [%v267] : &Long
+    %v268 = borrow [%v267] : 'Long
     %v269 = load [%v268] : Long
     %v270 = call literalMinusOneL, %v269 : Int
     %v271 = add %v249, %v270 : Int
     %v272 = load %i : Int
-    %v273 = borrow %local2 : &[Int *7]
+    %v273 = borrow %local2 : '[Int *7]
     %ints = alloc : Flat(Int)
     %v275 = addressof [%v273] : %Int
     init %ints@Flat.items, %v275
     %v277 = countof 7 : Size
     init %ints@Flat.length, %v277
     %v279 = cast %v272 : Size
-    %v280 = borrow %ints : &Flat(Int)
+    %v280 = borrow %ints : 'Flat(Int)
     %v281 = load [%v280]@Flat.length : Size
     %v282 = cast %v279 : USize
     %v283 = cast %v281 : USize
@@ -700,7 +700,7 @@ fn main() -> Int {
     %v287 = strideof Int : Long
     %v288 = mul %v279, %v287 : Long
     %v289 = add %v286, %v288 : %Int
-    %v290 = borrow [%v289] : &Int
+    %v290 = borrow [%v289] : 'Int
     %v291 = load [%v290] : Int
     %v292 = call literalMinusOneI, %v291 : Int
     %v293 = add %v271, %v292 : Int
@@ -713,14 +713,14 @@ fn main() -> Int {
   b6:
     %v157 = load %total : Int
     %v158 = load %i : Int
-    %v159 = borrow %local0 : &[Long *7]
+    %v159 = borrow %local0 : '[Long *7]
     %longs = alloc : Flat(Long)
     %v161 = addressof [%v159] : %Long
     init %longs@Flat.items, %v161
     %v163 = countof 7 : Size
     init %longs@Flat.length, %v163
     %v165 = cast %v158 : Size
-    %v166 = borrow %longs : &Flat(Long)
+    %v166 = borrow %longs : 'Flat(Long)
     %v167 = load [%v166]@Flat.length : Size
     %v168 = cast %v165 : USize
     %v169 = cast %v167 : USize
@@ -730,17 +730,17 @@ fn main() -> Int {
     %v173 = strideof Long : Long
     %v174 = mul %v165, %v173 : Long
     %v175 = add %v172, %v174 : %Long
-    %v176 = borrow [%v175] : &Long
+    %v176 = borrow [%v175] : 'Long
     %v177 = load [%v176] : Long
     %v178 = load %j : Int
-    %v179 = borrow %local1 : &[Long *7]
+    %v179 = borrow %local1 : '[Long *7]
     %dLongs = alloc : Flat(Long)
     %v181 = addressof [%v179] : %Long
     init %dLongs@Flat.items, %v181
     %v183 = countof 7 : Size
     init %dLongs@Flat.length, %v183
     %v185 = cast %v178 : Size
-    %v186 = borrow %dLongs : &Flat(Long)
+    %v186 = borrow %dLongs : 'Flat(Long)
     %v187 = load [%v186]@Flat.length : Size
     %v188 = cast %v185 : USize
     %v189 = cast %v187 : USize
@@ -750,19 +750,19 @@ fn main() -> Int {
     %v193 = strideof Long : Long
     %v194 = mul %v185, %v193 : Long
     %v195 = add %v192, %v194 : %Long
-    %v196 = borrow [%v195] : &Long
+    %v196 = borrow [%v195] : 'Long
     %v197 = load [%v196] : Long
     %v198 = call runtimeL, %v177, %v197 : Int
     %v199 = add %v157, %v198 : Int
     %v200 = load %i : Int
-    %v201 = borrow %local2 : &[Int *7]
+    %v201 = borrow %local2 : '[Int *7]
     %ints = alloc : Flat(Int)
     %v203 = addressof [%v201] : %Int
     init %ints@Flat.items, %v203
     %v205 = countof 7 : Size
     init %ints@Flat.length, %v205
     %v207 = cast %v200 : Size
-    %v208 = borrow %ints : &Flat(Int)
+    %v208 = borrow %ints : 'Flat(Int)
     %v209 = load [%v208]@Flat.length : Size
     %v210 = cast %v207 : USize
     %v211 = cast %v209 : USize
@@ -772,17 +772,17 @@ fn main() -> Int {
     %v215 = strideof Int : Long
     %v216 = mul %v207, %v215 : Long
     %v217 = add %v214, %v216 : %Int
-    %v218 = borrow [%v217] : &Int
+    %v218 = borrow [%v217] : 'Int
     %v219 = load [%v218] : Int
     %v220 = load %j : Int
-    %v221 = borrow %local3 : &[Int *7]
+    %v221 = borrow %local3 : '[Int *7]
     %dInts = alloc : Flat(Int)
     %v223 = addressof [%v221] : %Int
     init %dInts@Flat.items, %v223
     %v225 = countof 7 : Size
     init %dInts@Flat.length, %v225
     %v227 = cast %v220 : Size
-    %v228 = borrow %dInts : &Flat(Int)
+    %v228 = borrow %dInts : 'Flat(Int)
     %v229 = load [%v228]@Flat.length : Size
     %v230 = cast %v227 : USize
     %v231 = cast %v229 : USize
@@ -792,7 +792,7 @@ fn main() -> Int {
     %v235 = strideof Int : Long
     %v236 = mul %v227, %v235 : Long
     %v237 = add %v234, %v236 : %Int
-    %v238 = borrow [%v237] : &Int
+    %v238 = borrow [%v237] : 'Int
     %v239 = load [%v238] : Int
     %v240 = call runtimeI, %v219, %v239 : Int
     %v241 = add %v199, %v240 : Int
@@ -831,14 +831,14 @@ fn main() -> Int {
   b12:
     %v317 = load %total : Int
     %v318 = load %i : Int
-    %v319 = borrow %local4 : &[U64 *5]
+    %v319 = borrow %local4 : '[U64 *5]
     %ulongs = alloc : Flat(U64)
     %v321 = addressof [%v319] : %U64
     init %ulongs@Flat.items, %v321
     %v323 = countof 5 : Size
     init %ulongs@Flat.length, %v323
     %v325 = cast %v318 : Size
-    %v326 = borrow %ulongs : &Flat(U64)
+    %v326 = borrow %ulongs : 'Flat(U64)
     %v327 = load [%v326]@Flat.length : Size
     %v328 = cast %v325 : USize
     %v329 = cast %v327 : USize
@@ -848,17 +848,17 @@ fn main() -> Int {
     %v333 = strideof U64 : Long
     %v334 = mul %v325, %v333 : Long
     %v335 = add %v332, %v334 : %U64
-    %v336 = borrow [%v335] : &U64
+    %v336 = borrow [%v335] : 'U64
     %v337 = load [%v336] : U64
     %v338 = load %j : Int
-    %v339 = borrow %local5 : &[U64 *5]
+    %v339 = borrow %local5 : '[U64 *5]
     %dULongs = alloc : Flat(U64)
     %v341 = addressof [%v339] : %U64
     init %dULongs@Flat.items, %v341
     %v343 = countof 5 : Size
     init %dULongs@Flat.length, %v343
     %v345 = cast %v338 : Size
-    %v346 = borrow %dULongs : &Flat(U64)
+    %v346 = borrow %dULongs : 'Flat(U64)
     %v347 = load [%v346]@Flat.length : Size
     %v348 = cast %v345 : USize
     %v349 = cast %v347 : USize
@@ -868,19 +868,19 @@ fn main() -> Int {
     %v353 = strideof U64 : Long
     %v354 = mul %v345, %v353 : Long
     %v355 = add %v352, %v354 : %U64
-    %v356 = borrow [%v355] : &U64
+    %v356 = borrow [%v355] : 'U64
     %v357 = load [%v356] : U64
     %v358 = call runtimeU, %v337, %v357 : Int
     %v359 = add %v317, %v358 : Int
     %v360 = load %i : Int
-    %v361 = borrow %local6 : &[U32 *5]
+    %v361 = borrow %local6 : '[U32 *5]
     %uints = alloc : Flat(U32)
     %v363 = addressof [%v361] : %U32
     init %uints@Flat.items, %v363
     %v365 = countof 5 : Size
     init %uints@Flat.length, %v365
     %v367 = cast %v360 : Size
-    %v368 = borrow %uints : &Flat(U32)
+    %v368 = borrow %uints : 'Flat(U32)
     %v369 = load [%v368]@Flat.length : Size
     %v370 = cast %v367 : USize
     %v371 = cast %v369 : USize
@@ -890,17 +890,17 @@ fn main() -> Int {
     %v375 = strideof U32 : Long
     %v376 = mul %v367, %v375 : Long
     %v377 = add %v374, %v376 : %U32
-    %v378 = borrow [%v377] : &U32
+    %v378 = borrow [%v377] : 'U32
     %v379 = load [%v378] : U32
     %v380 = load %j : Int
-    %v381 = borrow %local7 : &[U32 *5]
+    %v381 = borrow %local7 : '[U32 *5]
     %dUInts = alloc : Flat(U32)
     %v383 = addressof [%v381] : %U32
     init %dUInts@Flat.items, %v383
     %v385 = countof 5 : Size
     init %dUInts@Flat.length, %v385
     %v387 = cast %v380 : Size
-    %v388 = borrow %dUInts : &Flat(U32)
+    %v388 = borrow %dUInts : 'Flat(U32)
     %v389 = load [%v388]@Flat.length : Size
     %v390 = cast %v387 : USize
     %v391 = cast %v389 : USize
@@ -910,7 +910,7 @@ fn main() -> Int {
     %v395 = strideof U32 : Long
     %v396 = mul %v387, %v395 : Long
     %v397 = add %v394, %v396 : %U32
-    %v398 = borrow [%v397] : &U32
+    %v398 = borrow [%v397] : 'U32
     %v399 = load [%v398] : U32
     %v400 = call runtimeW, %v379, %v399 : Int
     %v401 = add %v359, %v400 : Int

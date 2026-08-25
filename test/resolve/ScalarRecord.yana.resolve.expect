@@ -104,12 +104,12 @@ fn borrowed() -> Int {
     aggregate %s@Settings.flags = %v1, %s@Settings.count = 0
     %v8 = load %s : Settings
     %v9 = load %s@Settings.flags : Flags
-    %v10 = borrow_mut %s@Settings.flags : &mut Flags
+    %v10 = borrow_mut %s@Settings.flags : &Flags
     call setBoth, %v10
     %v12 = load %s : Settings
     %v13 = load %s@Settings.flags : Flags
     %v14 = load %s@Settings.flags@Flags.a : Bool
-    %v15 = borrow_mut %s@Settings.flags@Flags.a : &mut Bool
+    %v15 = borrow_mut %s@Settings.flags@Flags.a : &Bool
     call flip, %v15
     %v17 = load %s : Settings
     %v18 = load %s@Settings.flags : Flags
@@ -130,11 +130,11 @@ fn coPacked() -> Int {
     init %t@Two.g, %v6
     %v13 = load %t : Two
     %v14 = load %t@Two.f : Flags
-    %v15 = borrow_mut %t@Two.f : &mut Flags
+    %v15 = borrow_mut %t@Two.f : &Flags
     call clear, %v15
     %v17 = load %t : Two
     %v18 = load %t@Two.g : Flags
-    %v19 = borrow_mut %t@Two.g : &mut Flags
+    %v19 = borrow_mut %t@Two.g : &Flags
     call setBoth, %v19
     %v21 = load %t : Two
     %v22 = load %t@Two.f : Flags
@@ -191,11 +191,11 @@ fn extracted() -> Int {
     ret %v20
 }
 
-fn secondOf(%f: Flags) -> &mut Bool {
+fn secondOf(%f: Flags) -> &Bool {
   b0:
     %v1 = load %f : Flags
     %v2 = load %f@Flags.b : Bool
-    %v3 = borrow_mut %f@Flags.b : &mut Bool
+    %v3 = borrow_mut %f@Flags.b : &Bool
     ret %v3
 }
 
@@ -212,8 +212,8 @@ fn reborrowed() -> Int {
     init %t@Two.g, %v6
     %v13 = load %t : Two
     %v14 = load %t@Two.g : Flags
-    %v15 = borrow_mut %t@Two.g : &mut Flags
-    %v16 = call secondOf, %v15 : &mut Bool
+    %v15 = borrow_mut %t@Two.g : &Flags
+    %v16 = call secondOf, %v15 : &Bool
     assign [%v16], True
     %v19 = load %t : Two
     %v20 = load %t@Two.f : Flags
@@ -243,13 +243,13 @@ fn swapped() -> Int {
     %v16 = load %t : Two
     %v17 = load %t@Two.g : Flags
     %v18 = load %t@Two.g@Flags.a : Bool
-    %v19 = borrow_mut %t@Two.f@Flags.a : &mut Bool
-    %v20 = borrow_mut %t@Two.g@Flags.a : &mut Bool
+    %v19 = borrow_mut %t@Two.f@Flags.a : &Bool
+    %v20 = borrow_mut %t@Two.g@Flags.a : &Bool
     swap [%v19], [%v20]
     %v22 = load %t : Two
     %v23 = load %t@Two.f : Flags
     %v24 = load %t@Two.f@Flags.b : Bool
-    %v26 = borrow_mut %t@Two.f@Flags.b : &mut Bool
+    %v26 = borrow_mut %t@Two.f@Flags.b : &Bool
     %previous = exchange [%v26], True : Bool
     %v28 = load %t : Two
     %v29 = load %t@Two.f : Flags
@@ -429,7 +429,7 @@ fn reordered() -> Int {
     assign %i@Inefficient.d, %v23
     %v25 = load %i : Inefficient
     %v26 = load %i@Inefficient.f : @bits(4) Int
-    %v27 = borrow_mut %i@Inefficient.f : &mut @bits(4) Int
+    %v27 = borrow_mut %i@Inefficient.f : &@bits(4) Int
     call bump, %v27
     %v29 = load %i : Inefficient
     %v30 = load %i@Inefficient.b : U64
@@ -489,7 +489,7 @@ fn pinned() -> Int {
     assign %p@Pinned.d, %v18
     %v20 = load %p : Pinned
     %v21 = load %p@Pinned.f : @bits(4) Int
-    %v22 = borrow_mut %p@Pinned.f : &mut @bits(4) Int
+    %v22 = borrow_mut %p@Pinned.f : &@bits(4) Int
     call bump, %v22
     %v24 = load %p : Pinned
     %v25 = load %p@Pinned.b : U64
@@ -686,7 +686,7 @@ fn Drop(Owned).drop(%value: Owned) -> () {
   b3:
     %v10 = phi [b1, 1], [b2, 2] : Int
     %v11 = cast %v10 : I64
-    %v12 = borrow_mut dropped : &mut I64
+    %v12 = borrow_mut dropped : &I64
     call +=(I64), %v12, %v11
     ret
 }

@@ -63,8 +63,8 @@ fn checkCondition(%failed: Bool) -> () {
 
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int
@@ -74,8 +74,8 @@ fn Length(String).length(%self: String) -> Size {
 
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
-    %v1 = borrow %value : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4
@@ -438,13 +438,13 @@ fn main() -> Int {
 
   b27:
     %v140 = load table : [Int *3]
-    %v142 = borrow table : &[Int *3]
+    %v142 = borrow table : '[Int *3]
     %v143 = alloc : Flat(Int)
     %v144 = addressof [%v142] : %Int
     init %local1@Flat.items, %v144
     %v146 = countof 3 : Size
     init %local1@Flat.length, %v146
-    %v149 = borrow %local1 : &Flat(Int)
+    %v149 = borrow %local1 : 'Flat(Int)
     %v150 = load [%v149]@Flat.length : Size
     %v151 = cast 0 : USize
     %v152 = cast %v150 : USize
@@ -454,16 +454,16 @@ fn main() -> Int {
     %v156 = strideof Int : Long
     %v157 = mul 0, %v156 : Long
     %v158 = add %v155, %v157 : %Int
-    %v159 = borrow [%v158] : &Int
+    %v159 = borrow [%v158] : 'Int
     %v160 = load [%v159] : Int
     %v161 = load table : [Int *3]
-    %v163 = borrow table : &[Int *3]
+    %v163 = borrow table : '[Int *3]
     %v164 = alloc : Flat(Int)
     %v165 = addressof [%v163] : %Int
     init %local2@Flat.items, %v165
     %v167 = countof 3 : Size
     init %local2@Flat.length, %v167
-    %v170 = borrow %local2 : &Flat(Int)
+    %v170 = borrow %local2 : 'Flat(Int)
     %v171 = load [%v170]@Flat.length : Size
     %v172 = cast 2 : USize
     %v173 = cast %v171 : USize
@@ -473,7 +473,7 @@ fn main() -> Int {
     %v177 = strideof Int : Long
     %v178 = mul 2, %v177 : Long
     %v179 = add %v176, %v178 : %Int
-    %v180 = borrow [%v179] : &Int
+    %v180 = borrow [%v179] : 'Int
     %v181 = load [%v180] : Int
     %v182 = add %v160, %v181 : Int
     %v185 = cmp_eq %v182, 26 : Bool
@@ -490,13 +490,13 @@ fn main() -> Int {
 
   b30:
     %v194 = load corners : [Point *2]
-    %v196 = borrow corners : &[Point *2]
+    %v196 = borrow corners : '[Point *2]
     %v197 = alloc : Flat(Point)
     %v198 = addressof [%v196] : %Point
     init %local3@Flat.items, %v198
     %v200 = countof 2 : Size
     init %local3@Flat.length, %v200
-    %v203 = borrow %local3 : &Flat(Point)
+    %v203 = borrow %local3 : 'Flat(Point)
     %v204 = load [%v203]@Flat.length : Size
     %v205 = cast 1 : USize
     %v206 = cast %v204 : USize
@@ -506,7 +506,7 @@ fn main() -> Int {
     %v210 = strideof Point : Long
     %v211 = mul 1, %v210 : Long
     %v212 = add %v209, %v211 : %Point
-    %v213 = borrow [%v212] : &Point
+    %v213 = borrow [%v212] : 'Point
     %v214 = load [%v213] : Point
     %v215 = call sum, %v214 : Int
     %v218 = cmp_eq %v215, 6 : Bool

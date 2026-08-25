@@ -115,14 +115,14 @@ fn evens(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r
   schema {
     #0 type $r
     #1 type Outcome((), Outcome((), $r))
-    #2 type {body: &(value$: Int) -> Outcome((), $r)}
+    #2 type {body: '(value$: Int) -> Outcome((), $r)}
     #3 type (value$: Int) -> Outcome((), Outcome((), $r))
     #4 type Outcome((), $r)
   }
 
   b0:
-    %v2 = alloc : {body: &(value$: Int) -> Outcome((), $r)}
-    %v3 = borrow %body : &(value$: Int) -> Outcome((), $r)
+    %v2 = alloc : {body: '(value$: Int) -> Outcome((), $r)}
+    %v3 = borrow %body : '(value$: Int) -> Outcome((), $r)
     init %local1.body, %v3
     %v5 = addressof %local1 : %()
     %v6 = alloc : (value$: Int) -> Outcome((), Outcome((), $r))
@@ -161,7 +161,7 @@ fn main() -> Int {
     %v21 = alloc : Point
     aggregate %q@Point.x = 1, %q@Point.y = 1
     %v25 = load %q : Point
-    %v27 = borrow_mut %q : &mut Point
+    %v27 = borrow_mut %q : &Point
     call bump, %v27, 5
     %step = alloc : Step
     %v31 = alloc : (Int) -> Int
@@ -178,8 +178,8 @@ fn main() -> Int {
     %f = call Describe(Point).describe, %p : Int
     %sum = alloc : Int
     init %sum, 0
-    %v48 = alloc : {sum: &mut Int}
-    %v49 = borrow_mut %sum : &mut Int
+    %v48 = alloc : {sum: &Int}
+    %v49 = borrow_mut %sum : &Int
     init %local6.sum, %v49
     %v51 = addressof %local6 : %()
     %v52 = alloc : (value$: Int) -> Outcome((), ())
@@ -209,11 +209,11 @@ fn Describe(Point).describe(%v: Point) -> Int {
     ret %v6
 }
 
-fn ResolveTest.continuation$15(%env: %{body: &(value$: Int) -> Outcome((), $r)}, %value$: Int) -> Outcome((), Outcome((), $r)) {
+fn ResolveTest.continuation$15(%env: %{body: '(value$: Int) -> Outcome((), $r)}, %value$: Int) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type $r
     #1 type Outcome((), Outcome((), $r))
-    #2 type {body: &(value$: Int) -> Outcome((), $r)}
+    #2 type {body: '(value$: Int) -> Outcome((), $r)}
     #3 type (value$: Int) -> Outcome((), Outcome((), $r))
     #4 type Outcome((), $r)
   }
@@ -224,7 +224,7 @@ fn ResolveTest.continuation$15(%env: %{body: &(value$: Int) -> Outcome((), $r)},
     je %v7, b1, b2
 
   b1:
-    %v9 = load [%env].body : &(value$: Int) -> Outcome((), $r)
+    %v9 = load [%env].body : '(value$: Int) -> Outcome((), $r)
     %v10 = load [%v9] : (value$: Int) -> Outcome((), $r)
     %v11 = calldyn %v10, %value$ : Outcome((), $r)
     %v12 = load %local0.discriminant : Int
@@ -267,10 +267,10 @@ fn ResolveTest.lambda$17(%env: %{}, %x: Int) -> Int {
     ret %v4
 }
 
-fn ResolveTest.continuation$18(%env: %{sum: &mut Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$18(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].sum : &mut Int
-    %v3 = load [%env].sum : &mut Int
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
     %v4 = load [%v3] : Int
     %v5 = add %v4, %value$ : Int
     assign [%v2], %v5
@@ -281,8 +281,8 @@ fn ResolveTest.continuation$18(%env: %{sum: &mut Int}, %value$: Int) -> Outcome(
 
 fn evens(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = alloc : {body: &(value$: Int) -> Outcome((), ())}
-    %v3 = borrow %body : &(value$: Int) -> Outcome((), ())
+    %v2 = alloc : {body: '(value$: Int) -> Outcome((), ())}
+    %v3 = borrow %body : '(value$: Int) -> Outcome((), ())
     init %local1.body, %v3
     %v5 = addressof %local1 : %()
     %v6 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
@@ -304,14 +304,14 @@ fn evens(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome(()
     ret %v17
 }
 
-fn ResolveTest.continuation$15(())(%env: %{body: &(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$15(())(%env: %{body: '(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
   b0:
     %v3 = rem %value$, 2 : Int
     %v5 = cmp_eq %v3, 0 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].body : &(value$: Int) -> Outcome((), ())
+    %v7 = load [%env].body : '(value$: Int) -> Outcome((), ())
     %v8 = load [%v7] : (value$: Int) -> Outcome((), ())
     %v9 = calldyn %v8, %value$ : Outcome((), ())
     %v10 = load %local0.discriminant : Int

@@ -255,7 +255,7 @@ fn total(%xs: Flat(Int)) -> Int {
     %v13 = load %sum : Int
     %v14 = load %i : Int
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : &Flat(Int)
+    %v16 = borrow %xs : 'Flat(Int)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -265,7 +265,7 @@ fn total(%xs: Flat(Int)) -> Int {
     %v23 = strideof Int : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %Int
-    %v26 = borrow [%v25] : &Int
+    %v26 = borrow [%v25] : 'Int
     %v27 = load [%v26] : Int
     %v28 = add %v13, %v27 : Int
     assign %sum, %v28
@@ -296,7 +296,7 @@ fn double(%xs: Flat(Int)) -> () {
     %v11 = load %xs : Flat(Int)
     %v12 = load %i : Int
     %v13 = cast %v12 : Size
-    %v14 = borrow %xs : &Flat(Int)
+    %v14 = borrow %xs : 'Flat(Int)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -306,12 +306,12 @@ fn double(%xs: Flat(Int)) -> () {
     %v21 = strideof Int : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %Int
-    %v24 = borrow [%v23] : &Int
+    %v24 = borrow [%v23] : 'Int
     %value = load [%v24] : Int
     %v26 = load %xs : Flat(Int)
     %v27 = load %i : Int
     %v28 = cast %v27 : Size
-    %v29 = borrow_mut %xs : &mut Flat(Int)
+    %v29 = borrow_mut %xs : &Flat(Int)
     %v30 = load [%v29]@Flat.length : Size
     %v31 = cast %v28 : USize
     %v32 = cast %v30 : USize
@@ -321,7 +321,7 @@ fn double(%xs: Flat(Int)) -> () {
     %v36 = strideof Int : Long
     %v37 = mul %v28, %v36 : Long
     %v38 = add %v35, %v37 : %Int
-    %v39 = borrow_mut [%v38] : &mut Int
+    %v39 = borrow_mut [%v38] : &Int
     %v40 = add %value, %value : Int
     assign [%v39], %v40
     %v42 = load %i : Int
@@ -334,7 +334,7 @@ fn middle(%xs: Flat(Int)) -> Int {
   b0:
     %v3 = cast 1 : Size
     %v4 = cast 3 : Size
-    %v5 = borrow %xs : &Flat(Int)
+    %v5 = borrow %xs : 'Flat(Int)
     %v6 = call slice(Int), %v5, %v3, %v4 : Flat(Int)
     %v7 = call total, %v6 : Int
     ret %v7
@@ -372,13 +372,13 @@ fn padRead() -> I64 {
     %v12 = alloc : [Pad *3]
     aggregate %ps[0] = %v0, %ps[1] = %v4, %ps[2] = %v8
     %v17 = load %ps : [Pad *3]
-    %v19 = borrow %ps : &[Pad *3]
+    %v19 = borrow %ps : '[Pad *3]
     %v20 = alloc : Flat(Pad)
     %v21 = addressof [%v19] : %Pad
     init %local4@Flat.items, %v21
     %v23 = countof 3 : Size
     init %local4@Flat.length, %v23
-    %v26 = borrow %local4 : &Flat(Pad)
+    %v26 = borrow %local4 : 'Flat(Pad)
     %v27 = load [%v26]@Flat.length : Size
     %v28 = cast 0 : USize
     %v29 = cast %v27 : USize
@@ -388,17 +388,17 @@ fn padRead() -> I64 {
     %v33 = strideof Pad : Long
     %v34 = mul 0, %v33 : Long
     %v35 = add %v32, %v34 : %Pad
-    %v36 = borrow [%v35] : &Pad
+    %v36 = borrow [%v35] : 'Pad
     %v37 = load [%v36] : Pad
     %v38 = load [%v36]@Pad.wide : I64
     %v39 = load %ps : [Pad *3]
-    %v41 = borrow %ps : &[Pad *3]
+    %v41 = borrow %ps : '[Pad *3]
     %v42 = alloc : Flat(Pad)
     %v43 = addressof [%v41] : %Pad
     init %local5@Flat.items, %v43
     %v45 = countof 3 : Size
     init %local5@Flat.length, %v45
-    %v48 = borrow %local5 : &Flat(Pad)
+    %v48 = borrow %local5 : 'Flat(Pad)
     %v49 = load [%v48]@Flat.length : Size
     %v50 = cast 1 : USize
     %v51 = cast %v49 : USize
@@ -408,18 +408,18 @@ fn padRead() -> I64 {
     %v55 = strideof Pad : Long
     %v56 = mul 1, %v55 : Long
     %v57 = add %v54, %v56 : %Pad
-    %v58 = borrow [%v57] : &Pad
+    %v58 = borrow [%v57] : 'Pad
     %v59 = load [%v58] : Pad
     %v60 = load [%v58]@Pad.wide : I64
     %v61 = add %v38, %v60 : I64
     %v62 = load %ps : [Pad *3]
-    %v64 = borrow %ps : &[Pad *3]
+    %v64 = borrow %ps : '[Pad *3]
     %v65 = alloc : Flat(Pad)
     %v66 = addressof [%v64] : %Pad
     init %local6@Flat.items, %v66
     %v68 = countof 3 : Size
     init %local6@Flat.length, %v68
-    %v71 = borrow %local6 : &Flat(Pad)
+    %v71 = borrow %local6 : 'Flat(Pad)
     %v72 = load [%v71]@Flat.length : Size
     %v73 = cast 2 : USize
     %v74 = cast %v72 : USize
@@ -429,7 +429,7 @@ fn padRead() -> I64 {
     %v78 = strideof Pad : Long
     %v79 = mul 2, %v78 : Long
     %v80 = add %v77, %v79 : %Pad
-    %v81 = borrow [%v80] : &Pad
+    %v81 = borrow [%v80] : 'Pad
     %v82 = load [%v81] : Pad
     %v83 = load [%v81]@Pad.wide : I64
     %v84 = add %v61, %v83 : I64
@@ -473,7 +473,7 @@ fn main() -> Int {
     %v24 = alloc : [Int *4]
     aggregate %xs[0] = 1, %xs[1] = 2, %xs[2] = 3, %xs[3] = 4
     %v30 = load %xs : [Int *4]
-    %v31 = borrow %xs : &[Int *4]
+    %v31 = borrow %xs : '[Int *4]
     %v32 = alloc : Flat(Int)
     %v33 = addressof [%v31] : %Int
     init %local1@Flat.items, %v33
@@ -492,7 +492,7 @@ fn main() -> Int {
 
   b9:
     %v47 = load %xs : [Int *4]
-    %v48 = borrow %xs : &[Int *4]
+    %v48 = borrow %xs : '[Int *4]
     %v49 = alloc : Flat(Int)
     %v50 = addressof [%v48] : %Int
     init %local2@Flat.items, %v50
@@ -511,16 +511,16 @@ fn main() -> Int {
 
   b12:
     %v64 = load %xs : [Int *4]
-    %v65 = borrow_mut %xs : &mut [Int *4]
+    %v65 = borrow_mut %xs : &[Int *4]
     %v66 = alloc : Flat(Int)
     %v67 = addressof [%v65] : %Int
     init %local3@Flat.items, %v67
     %v69 = countof 4 : Size
     init %local3@Flat.length, %v69
-    %v71 = borrow_mut %local3 : &mut Flat(Int)
+    %v71 = borrow_mut %local3 : &Flat(Int)
     call double, %v71
     %v73 = load %xs : [Int *4]
-    %v74 = borrow %xs : &[Int *4]
+    %v74 = borrow %xs : '[Int *4]
     %v75 = alloc : Flat(Int)
     %v76 = addressof [%v74] : %Int
     init %local4@Flat.items, %v76
@@ -546,7 +546,7 @@ fn main() -> Int {
     init %local5@Array.run@Run.ownsHeap, 0
     aggregate [%v96][0] = 7, [%v96][1] = 8
     init %local5@Array.length, 2
-    %v106 = borrow %local5 : &Array(Int)
+    %v106 = borrow %local5 : 'Array(Int)
     %v107 = alloc : Flat(Int)
     %v108 = load [%v106]@Array.run@Run.items : %Int
     init %local7@Flat.items, %v108
@@ -603,7 +603,7 @@ fn main() -> Int {
 
   b27:
     %v153 = load %xs : [Int *4]
-    %v154 = borrow %xs : &[Int *4]
+    %v154 = borrow %xs : '[Int *4]
     %v155 = alloc : Flat(Int)
     %v156 = addressof [%v154] : %Int
     init %local8@Flat.items, %v156

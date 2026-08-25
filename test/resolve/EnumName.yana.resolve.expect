@@ -48,8 +48,8 @@ let ResolveTest.string$8: String = "Red"
 
 fn String.unit(%self: String, %index: Size) -> Int {
   b0:
-    %v2 = borrow %self : &String
-    %v3 = cast %v2 : &StringData
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'StringData
     %v4 = load [%v3]@StringData.bytes : Array(CodeUnit)
     %v5 = load [%v3]@StringData.bytes@Array.run : Run(CodeUnit)
     %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %CodeUnit
@@ -63,8 +63,8 @@ fn String.unit(%self: String, %index: Size) -> Int {
 
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int
@@ -128,8 +128,8 @@ fn Eq(String).!=(%self: String, %other: String) -> Bool {
 
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
-    %v1 = borrow %value : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4

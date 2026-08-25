@@ -147,8 +147,8 @@ fn checkCondition(%failed: Bool) -> () {
 
 fn String.unit(%self: String, %index: Size) -> Int {
   b0:
-    %v2 = borrow %self : &String
-    %v3 = cast %v2 : &StringData
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'StringData
     %v4 = load [%v3]@StringData.bytes : Array(CodeUnit)
     %v5 = load [%v3]@StringData.bytes@Array.run : Run(CodeUnit)
     %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %CodeUnit
@@ -169,8 +169,8 @@ fn Hash(Int).hash(%value: Int, %state: U32) -> U32 {
 
 fn Length(String).length(%self: String) -> Size {
   b0:
-    %v1 = borrow %self : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
     %units = cast %v4 : Int
@@ -261,8 +261,8 @@ fn Hash(String).hash(%value: String, %state: U32) -> U32 {
 
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
-    %v1 = borrow %value : &String
-    %v2 = cast %v1 : &StringData
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
     call releaseRun(CodeUnit), %v4
@@ -275,7 +275,7 @@ fn newMap(Int, Int)(%capacity: Size) -> Map(Int, Int) {
     %self = alloc : Map(Int, Int)
     init %self, %v1
     %v4 = load %self : Map(Int, Int)
-    %v5 = borrow_mut %self : &mut Map(Int, Int)
+    %v5 = borrow_mut %self : &Map(Int, Int)
     call reserveMap(Int, Int), %v5, %capacity
     %v7 = load %self : Map(Int, Int)
     %v8 = move %self : Map(Int, Int)
@@ -305,7 +305,7 @@ fn emptyArray(Entry(Int, Int))() -> Array(Entry(Int, Int)) {
 fn reserveMap(Int, Int)(%self: Map(Int, Int), %wanted: Size) -> () {
   b0:
     %v3 = load %self : Map(Int, Int)
-    %v4 = borrow_mut %self : &mut Map(Int, Int)
+    %v4 = borrow_mut %self : &Map(Int, Int)
     call reserveEntries(Int, Int), %v4, %wanted
     %v6 = load %self : Map(Int, Int)
     %v7 = call scanLimitOf(Int, Int), %v6 : Size
@@ -338,7 +338,7 @@ fn reserveMap(Int, Int)(%self: Map(Int, Int), %wanted: Size) -> () {
 
   b6:
     %v24 = load %self : Map(Int, Int)
-    %v25 = borrow_mut %self : &mut Map(Int, Int)
+    %v25 = borrow_mut %self : &Map(Int, Int)
     call indexRebuild(Int, Int), %v25, %slots
     jmp b8
 
@@ -356,7 +356,7 @@ fn reserveEntries(Int, Int)(%self: Map(Int, Int), %wanted: Size) -> () {
   b0:
     %v2 = load %self : Map(Int, Int)
     %v3 = load %self@Map.entries : Array(Entry(Int, Int))
-    %v4 = borrow_mut %self@Map.entries : &mut Array(Entry(Int, Int))
+    %v4 = borrow_mut %self@Map.entries : &Array(Entry(Int, Int))
     call reserve(Entry(Int, Int)), %v4, %wanted
     ret
 }
@@ -378,7 +378,7 @@ fn reserve(Entry(Int, Int))(%self: Array(Entry(Int, Int)), %wanted: Size) -> () 
 
   b3:
     %v10 = load %self : Array(Entry(Int, Int))
-    %v11 = borrow_mut %self : &mut Array(Entry(Int, Int))
+    %v11 = borrow_mut %self : &Array(Entry(Int, Int))
     call growArray(Entry(Int, Int)), %v11, %wanted
     ret
 }
@@ -419,7 +419,7 @@ fn growArray(Entry(Int, Int))(%self: Array(Entry(Int, Int)), %wanted: Size) -> (
     %v23 = load %self : Array(Entry(Int, Int))
     %v24 = load %self@Array.run : Run(Entry(Int, Int))
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Entry(Int, Int))
+    %v26 = borrow_mut %self@Array.run : &Run(Entry(Int, Int))
     %v27 = call resize(Entry(Int, Int)), %v26, %v25 : Bool
     ret
 }
@@ -447,7 +447,7 @@ fn indexRebuild(Int, Int)(%self: Map(Int, Int), %slots: Size) -> () {
     %v5 = add %slots, 16 : Size
     %v7 = mul %slots, 4 : Size
     %v8 = add %v5, %v7 : Size
-    %v9 = borrow_mut %self@Map.index : &mut Run(U8)
+    %v9 = borrow_mut %self@Map.index : &Run(U8)
     %grown = call resize(U8), %v9, %v8 : Bool
     %v12 = xor %grown, True : Bool
     call checkCondition, %v12
@@ -457,7 +457,7 @@ fn indexRebuild(Int, Int)(%self: Map(Int, Int), %slots: Size) -> () {
     %v19 = cast %v18 : @bits(30) U32
     assign %self@Map.mask, %v19
     %v21 = load %self : Map(Int, Int)
-    %v22 = borrow_mut %self : &mut Map(Int, Int)
+    %v22 = borrow_mut %self : &Map(Int, Int)
     call indexReset(Int, Int), %v22
     %v24 = load %self : Map(Int, Int)
     %count = call entryCount(Int, Int), %v24 : Size
@@ -479,7 +479,7 @@ fn indexRebuild(Int, Int)(%self: Map(Int, Int), %slots: Size) -> () {
     %v36 = load %self : Map(Int, Int)
     %v37 = load %at : Size
     %v38 = call hashAt(Int, Int), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &mut Map(Int, Int)
+    %v39 = borrow_mut %self : &Map(Int, Int)
     call indexPlace(Int, Int), %v39, %v35, %v38
     %v41 = load %at : Size
     %v43 = add %v41, 1 : Size
@@ -510,14 +510,14 @@ fn entryCount(Int, Int)(%self: Map(Int, Int)) -> Size {
 
 fn hashAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> U32 {
   b0:
-    %v2 = borrow %self : &Map(Int, Int)
-    %v3 = call keyAt(Int, Int), %v2, %at : &Int
+    %v2 = borrow %self : 'Map(Int, Int)
+    %v3 = call keyAt(Int, Int), %v2, %at : 'Int
     %v4 = load [%v3] : Int
     %v5 = call hashKey(Int), %v4 : U32
     ret %v5
 }
 
-fn keyAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> &Int {
+fn keyAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> 'Int {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(Int, Int))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Int))
@@ -525,9 +525,9 @@ fn keyAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> &Int {
     %v5 = strideof Entry(Int, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Int)
-    %v8 = borrow [%v7] : &Entry(Int, Int)
+    %v8 = borrow [%v7] : 'Entry(Int, Int)
     %v9 = load [%v8]@Entry.key : Int
-    %v10 = borrow [%v8]@Entry.key : &Int
+    %v10 = borrow [%v8]@Entry.key : 'Int
     ret %v10
 }
 
@@ -553,10 +553,10 @@ fn indexPlace(Int, Int)(%self: Map(Int, Int), %at: Size, %h: U32) -> () {
     %taken = load [%v13] : U8
     %v15 = load %self : Map(Int, Int)
     %v16 = call tagOf, %h : U8
-    %v17 = borrow_mut %self : &mut Map(Int, Int)
+    %v17 = borrow_mut %self : &Map(Int, Int)
     call setControl(Int, Int), %v17, %slot, %v16
     %v19 = load %self : Map(Int, Int)
-    %v20 = borrow %self : &Map(Int, Int)
+    %v20 = borrow %self : 'Map(Int, Int)
     %v21 = call entryNumbers(Int, Int), %v20 : %@bits(30) U32
     %v22 = strideof @bits(30) U32 : Size
     %v23 = mul %slot, %v22 : Size
@@ -698,7 +698,7 @@ fn entryNumbers(Int, Int)(%self: Map(Int, Int)) -> %@bits(30) U32 {
 fn IndexInsert(Map(k, v), k, v).insertAt(Int, Int)(%self: Map(Int, Int), %index: Int, %value: Int) -> () {
   b0:
     %v3 = load %self : Map(Int, Int)
-    %v4 = borrow_mut %self : &mut Map(Int, Int)
+    %v4 = borrow_mut %self : &Map(Int, Int)
     %v5 = call insert(Int, Int), %v4, %index, %value : Maybe(Int)
     ret
 }
@@ -714,10 +714,10 @@ fn insert(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int) -> Maybe(Int) 
   b1:
     %v9 = alloc : Maybe(Int)
     %v10 = load %self : Map(Int, Int)
-    %v11 = borrow_mut %self : &mut Map(Int, Int)
-    %v12 = call valueAtMut(Int, Int), %v11, %at : &mut Int
+    %v11 = borrow_mut %self : &Map(Int, Int)
+    %v12 = call valueAtMut(Int, Int), %v11, %at : &Int
     %v13 = load [%v12] : Int
-    %v14 = borrow_mut [%v12] : &mut Int
+    %v14 = borrow_mut [%v12] : &Int
     %v15 = exchange [%v14], %value : Int
     aggregate %local3.discriminant = 1, %local3@Just = %v15
     ret %v9
@@ -727,7 +727,7 @@ fn insert(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int) -> Maybe(Int) 
 
   b3:
     %v20 = load %self : Map(Int, Int)
-    %v21 = borrow_mut %self : &mut Map(Int, Int)
+    %v21 = borrow_mut %self : &Map(Int, Int)
     call appendEntry(Int, Int), %v21, %key, %value, %h
     %v23 = alloc : Maybe(Int)
     init %local5.discriminant, 0
@@ -790,8 +790,8 @@ fn scanEntries(Int, Int)(%self: Map(Int, Int), %key: Int) -> Size {
 
 fn keyEquals(Int, Int)(%self: Map(Int, Int), %at: Size, %key: Int) -> Bool {
   b0:
-    %v3 = borrow %self : &Map(Int, Int)
-    %v4 = call keyAt(Int, Int), %v3, %at : &Int
+    %v3 = borrow %self : 'Map(Int, Int)
+    %v4 = call keyAt(Int, Int), %v3, %at : 'Int
     %v5 = load [%v4] : Int
     %v6 = cmp_eq %v5, %key : Bool
     ret %v6
@@ -898,7 +898,7 @@ fn indexFind(Int, Int)(%self: Map(Int, Int), %key: Int, %h: U32) -> Size {
 
 fn entryNumber(Int, Int)(%self: Map(Int, Int), %slot: Size) -> Size {
   b0:
-    %v2 = borrow %self : &Map(Int, Int)
+    %v2 = borrow %self : 'Map(Int, Int)
     %v3 = call entryNumbers(Int, Int), %v2 : %@bits(30) U32
     %v4 = strideof @bits(30) U32 : Size
     %v5 = mul %slot, %v4 : Size
@@ -908,7 +908,7 @@ fn entryNumber(Int, Int)(%self: Map(Int, Int), %slot: Size) -> Size {
     ret %v8
 }
 
-fn valueAtMut(Int, Int)(%self: Map(Int, Int), %at: Size) -> &mut Int {
+fn valueAtMut(Int, Int)(%self: Map(Int, Int), %at: Size) -> &Int {
   b0:
     %v2 = load %self : Map(Int, Int)
     %v3 = load %self@Map.entries : Array(Entry(Int, Int))
@@ -917,9 +917,9 @@ fn valueAtMut(Int, Int)(%self: Map(Int, Int), %at: Size) -> &mut Int {
     %v6 = strideof Entry(Int, Int) : Size
     %v7 = mul %at, %v6 : Size
     %v8 = add %v5, %v7 : %Entry(Int, Int)
-    %v9 = borrow_mut [%v8] : &mut Entry(Int, Int)
+    %v9 = borrow_mut [%v8] : &Entry(Int, Int)
     %v10 = load [%v9]@Entry.value : Int
-    %v11 = borrow_mut [%v9]@Entry.value : &mut Int
+    %v11 = borrow_mut [%v9]@Entry.value : &Int
     ret %v11
 }
 
@@ -928,7 +928,7 @@ fn appendEntry(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int, %h: U32) 
     %v5 = load %self : Map(Int, Int)
     %at = call entryCount(Int, Int), %v5 : Size
     %v7 = load %self : Map(Int, Int)
-    %v8 = borrow_mut %self : &mut Map(Int, Int)
+    %v8 = borrow_mut %self : &Map(Int, Int)
     call appendPair(Int, Int), %v8, %key, %value
     %v10 = load %self : Map(Int, Int)
     %v11 = load %self@Map.mask : @bits(30) U32
@@ -950,7 +950,7 @@ fn appendEntry(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int, %h: U32) 
     %v23 = load %self : Map(Int, Int)
     %v25 = add %at, 1 : Size
     %v26 = call indexSlotsFor, %v25 : Size
-    %v27 = borrow_mut %self : &mut Map(Int, Int)
+    %v27 = borrow_mut %self : &Map(Int, Int)
     call indexRebuild(Int, Int), %v27, %v26
     jmp b5
 
@@ -991,13 +991,13 @@ fn appendEntry(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int, %h: U32) 
 
   b11:
     %v4 = phi [b9, %v52], [b10, %slots] : Size
-    %v55 = borrow_mut %self : &mut Map(Int, Int)
+    %v55 = borrow_mut %self : &Map(Int, Int)
     call indexRebuild(Int, Int), %v55, %v4
     ret
 
   b12:
     %v58 = load %self : Map(Int, Int)
-    %v59 = borrow_mut %self : &mut Map(Int, Int)
+    %v59 = borrow_mut %self : &Map(Int, Int)
     call indexPlace(Int, Int), %v59, %at, %h
     ret
 }
@@ -1009,7 +1009,7 @@ fn appendPair(Int, Int)(%self: Map(Int, Int), %key: Int, %value: Int) -> () {
     %v5 = alloc : Entry(Int, Int)
     init %local3@Entry.key, %key
     init %local3@Entry.value, %value
-    %v8 = borrow_mut %self@Map.entries : &mut Array(Entry(Int, Int))
+    %v8 = borrow_mut %self@Map.entries : &Array(Entry(Int, Int))
     %v9 = copy %local3 : Entry(Int, Int)
     call push(Entry(Int, Int)), %v8, %v9
     ret
@@ -1022,7 +1022,7 @@ fn push(Entry(Int, Int))(%self: Array(Entry(Int, Int)), %item: Entry(Int, Int)) 
     %count = cast %v3 : Size
     %v5 = load %self : Array(Entry(Int, Int))
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Entry(Int, Int))
+    %v8 = borrow_mut %self : &Array(Entry(Int, Int))
     call reserve(Entry(Int, Int)), %v8, %v7
     %v10 = load %self : Array(Entry(Int, Int))
     %v11 = load %self@Array.run : Run(Entry(Int, Int))
@@ -1057,7 +1057,7 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn pairs(Int, Int, ())(%self: Map(Int, Int), %body: (value$: Entry(&Int, &Int)) -> Outcome((), ())) -> Outcome((), ()) {
+fn pairs(Int, Int, ())(%self: Map(Int, Int), %body: (value$: Entry('Int, 'Int)) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %count = call entryCount(Int, Int), %self : Size
     %at = alloc : Size
@@ -1075,13 +1075,13 @@ fn pairs(Int, Int, ())(%self: Map(Int, Int), %body: (value$: Entry(&Int, &Int)) 
     ret %v10
 
   b3:
-    %v14 = alloc : Entry(&Int, &Int)
+    %v14 = alloc : Entry('Int, 'Int)
     %v15 = load %at : Size
-    %v16 = borrow %self : &Map(Int, Int)
-    %v17 = call keyAt(Int, Int), %v16, %v15 : &Int
+    %v16 = borrow %self : 'Map(Int, Int)
+    %v17 = call keyAt(Int, Int), %v16, %v15 : 'Int
     %v18 = load %at : Size
-    %v19 = borrow %self : &Map(Int, Int)
-    %v20 = call valueAt(Int, Int), %v19, %v18 : &Int
+    %v19 = borrow %self : 'Map(Int, Int)
+    %v20 = call valueAt(Int, Int), %v19, %v18 : 'Int
     aggregate %local3@Entry.key = %v17, %local3@Entry.value = %v20
     %v22 = calldyn %body, %v14 : Outcome((), ())
     %v23 = load %local4.discriminant : Int
@@ -1098,7 +1098,7 @@ fn pairs(Int, Int, ())(%self: Map(Int, Int), %body: (value$: Entry(&Int, &Int)) 
     jmp b1
 }
 
-fn valueAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> &Int {
+fn valueAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> 'Int {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(Int, Int))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Int))
@@ -1106,9 +1106,9 @@ fn valueAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> &Int {
     %v5 = strideof Entry(Int, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Int)
-    %v8 = borrow [%v7] : &Entry(Int, Int)
+    %v8 = borrow [%v7] : 'Entry(Int, Int)
     %v9 = load [%v8]@Entry.value : Int
-    %v10 = borrow [%v8]@Entry.value : &Int
+    %v10 = borrow [%v8]@Entry.value : 'Int
     ret %v10
 }
 
@@ -1118,14 +1118,14 @@ fn Length(Map(k, v)).length(Int, Int)(%self: Map(Int, Int)) -> Size {
     ret %v1
 }
 
-fn Index(Map(k, v), k, v).get(Int, Int)(%self: Map(Int, Int), %key: Int) -> &Int {
+fn Index(Map(k, v), k, v).get(Int, Int)(%self: Map(Int, Int), %key: Int) -> 'Int {
   b0:
     %v2 = call hashKey(Int), %key : U32
     %at = call findEntry(Int, Int), %self, %key, %v2 : Size
     %v5 = cmp_lt %at, 0 : Bool
     call checkCondition, %v5
-    %v7 = borrow %self : &Map(Int, Int)
-    %v8 = call valueAt(Int, Int), %v7, %at : &Int
+    %v7 = borrow %self : 'Map(Int, Int)
+    %v8 = call valueAt(Int, Int), %v7, %at : 'Int
     ret %v8
 }
 
@@ -1135,7 +1135,7 @@ fn newMap(String, Int)(%capacity: Size) -> Map(String, Int) {
     %self = alloc : Map(String, Int)
     init %self, %v1
     %v4 = load %self : Map(String, Int)
-    %v5 = borrow_mut %self : &mut Map(String, Int)
+    %v5 = borrow_mut %self : &Map(String, Int)
     call reserveMap(String, Int), %v5, %capacity
     %v7 = load %self : Map(String, Int)
     %v8 = move %self : Map(String, Int)
@@ -1165,7 +1165,7 @@ fn emptyArray(Entry(String, Int))() -> Array(Entry(String, Int)) {
 fn reserveMap(String, Int)(%self: Map(String, Int), %wanted: Size) -> () {
   b0:
     %v3 = load %self : Map(String, Int)
-    %v4 = borrow_mut %self : &mut Map(String, Int)
+    %v4 = borrow_mut %self : &Map(String, Int)
     call reserveEntries(String, Int), %v4, %wanted
     %v6 = load %self : Map(String, Int)
     %v7 = call scanLimitOf(String, Int), %v6 : Size
@@ -1198,7 +1198,7 @@ fn reserveMap(String, Int)(%self: Map(String, Int), %wanted: Size) -> () {
 
   b6:
     %v24 = load %self : Map(String, Int)
-    %v25 = borrow_mut %self : &mut Map(String, Int)
+    %v25 = borrow_mut %self : &Map(String, Int)
     call indexRebuild(String, Int), %v25, %slots
     jmp b8
 
@@ -1216,7 +1216,7 @@ fn reserveEntries(String, Int)(%self: Map(String, Int), %wanted: Size) -> () {
   b0:
     %v2 = load %self : Map(String, Int)
     %v3 = load %self@Map.entries : Array(Entry(String, Int))
-    %v4 = borrow_mut %self@Map.entries : &mut Array(Entry(String, Int))
+    %v4 = borrow_mut %self@Map.entries : &Array(Entry(String, Int))
     call reserve(Entry(String, Int)), %v4, %wanted
     ret
 }
@@ -1238,7 +1238,7 @@ fn reserve(Entry(String, Int))(%self: Array(Entry(String, Int)), %wanted: Size) 
 
   b3:
     %v10 = load %self : Array(Entry(String, Int))
-    %v11 = borrow_mut %self : &mut Array(Entry(String, Int))
+    %v11 = borrow_mut %self : &Array(Entry(String, Int))
     call growArray(Entry(String, Int)), %v11, %wanted
     ret
 }
@@ -1279,7 +1279,7 @@ fn growArray(Entry(String, Int))(%self: Array(Entry(String, Int)), %wanted: Size
     %v23 = load %self : Array(Entry(String, Int))
     %v24 = load %self@Array.run : Run(Entry(String, Int))
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Entry(String, Int))
+    %v26 = borrow_mut %self@Array.run : &Run(Entry(String, Int))
     %v27 = call resize(Entry(String, Int)), %v26, %v25 : Bool
     ret
 }
@@ -1307,7 +1307,7 @@ fn indexRebuild(String, Int)(%self: Map(String, Int), %slots: Size) -> () {
     %v5 = add %slots, 16 : Size
     %v7 = mul %slots, 4 : Size
     %v8 = add %v5, %v7 : Size
-    %v9 = borrow_mut %self@Map.index : &mut Run(U8)
+    %v9 = borrow_mut %self@Map.index : &Run(U8)
     %grown = call resize(U8), %v9, %v8 : Bool
     %v12 = xor %grown, True : Bool
     call checkCondition, %v12
@@ -1317,7 +1317,7 @@ fn indexRebuild(String, Int)(%self: Map(String, Int), %slots: Size) -> () {
     %v19 = cast %v18 : @bits(30) U32
     assign %self@Map.mask, %v19
     %v21 = load %self : Map(String, Int)
-    %v22 = borrow_mut %self : &mut Map(String, Int)
+    %v22 = borrow_mut %self : &Map(String, Int)
     call indexReset(String, Int), %v22
     %v24 = load %self : Map(String, Int)
     %count = call entryCount(String, Int), %v24 : Size
@@ -1339,7 +1339,7 @@ fn indexRebuild(String, Int)(%self: Map(String, Int), %slots: Size) -> () {
     %v36 = load %self : Map(String, Int)
     %v37 = load %at : Size
     %v38 = call hashAt(String, Int), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &mut Map(String, Int)
+    %v39 = borrow_mut %self : &Map(String, Int)
     call indexPlace(String, Int), %v39, %v35, %v38
     %v41 = load %at : Size
     %v43 = add %v41, 1 : Size
@@ -1370,14 +1370,14 @@ fn entryCount(String, Int)(%self: Map(String, Int)) -> Size {
 
 fn hashAt(String, Int)(%self: Map(String, Int), %at: Size) -> U32 {
   b0:
-    %v2 = borrow %self : &Map(String, Int)
-    %v3 = call keyAt(String, Int), %v2, %at : &String
+    %v2 = borrow %self : 'Map(String, Int)
+    %v3 = call keyAt(String, Int), %v2, %at : 'String
     %v4 = load [%v3] : String
     %v5 = call hashKey(String), %v4 : U32
     ret %v5
 }
 
-fn keyAt(String, Int)(%self: Map(String, Int), %at: Size) -> &String {
+fn keyAt(String, Int)(%self: Map(String, Int), %at: Size) -> 'String {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(String, Int))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Int))
@@ -1385,9 +1385,9 @@ fn keyAt(String, Int)(%self: Map(String, Int), %at: Size) -> &String {
     %v5 = strideof Entry(String, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Int)
-    %v8 = borrow [%v7] : &Entry(String, Int)
+    %v8 = borrow [%v7] : 'Entry(String, Int)
     %v9 = load [%v8]@Entry.key : String
-    %v10 = borrow [%v8]@Entry.key : &String
+    %v10 = borrow [%v8]@Entry.key : 'String
     ret %v10
 }
 
@@ -1413,10 +1413,10 @@ fn indexPlace(String, Int)(%self: Map(String, Int), %at: Size, %h: U32) -> () {
     %taken = load [%v13] : U8
     %v15 = load %self : Map(String, Int)
     %v16 = call tagOf, %h : U8
-    %v17 = borrow_mut %self : &mut Map(String, Int)
+    %v17 = borrow_mut %self : &Map(String, Int)
     call setControl(String, Int), %v17, %slot, %v16
     %v19 = load %self : Map(String, Int)
-    %v20 = borrow %self : &Map(String, Int)
+    %v20 = borrow %self : 'Map(String, Int)
     %v21 = call entryNumbers(String, Int), %v20 : %@bits(30) U32
     %v22 = strideof @bits(30) U32 : Size
     %v23 = mul %slot, %v22 : Size
@@ -1558,7 +1558,7 @@ fn entryNumbers(String, Int)(%self: Map(String, Int)) -> %@bits(30) U32 {
 fn IndexInsert(Map(k, v), k, v).insertAt(String, Int)(%self: Map(String, Int), %index: String, %value: Int) -> () {
   b0:
     %v3 = load %self : Map(String, Int)
-    %v4 = borrow_mut %self : &mut Map(String, Int)
+    %v4 = borrow_mut %self : &Map(String, Int)
     %index = move %index : String
     %v6 = call insert(String, Int), %v4, %index, %value : Maybe(Int)
     ret
@@ -1575,10 +1575,10 @@ fn insert(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -> Ma
   b1:
     %v9 = alloc : Maybe(Int)
     %v10 = load %self : Map(String, Int)
-    %v11 = borrow_mut %self : &mut Map(String, Int)
-    %v12 = call valueAtMut(Int, String), %v11, %at : &mut Int
+    %v11 = borrow_mut %self : &Map(String, Int)
+    %v12 = call valueAtMut(Int, String), %v11, %at : &Int
     %v13 = load [%v12] : Int
-    %v14 = borrow_mut [%v12] : &mut Int
+    %v14 = borrow_mut [%v12] : &Int
     %v15 = exchange [%v14], %value : Int
     aggregate %local3.discriminant = 1, %local3@Just = %v15
     ret %v9
@@ -1588,7 +1588,7 @@ fn insert(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -> Ma
 
   b3:
     %v20 = load %self : Map(String, Int)
-    %v21 = borrow_mut %self : &mut Map(String, Int)
+    %v21 = borrow_mut %self : &Map(String, Int)
     %key = move %key : String
     call appendEntry(String, Int), %v21, %key, %value, %h
     %v24 = alloc : Maybe(Int)
@@ -1656,8 +1656,8 @@ fn scanEntries(String, Int)(%self: Map(String, Int), %key: String) -> Size {
 
 fn keyEquals(String, Int)(%self: Map(String, Int), %at: Size, %key: String) -> Bool {
   b0:
-    %v3 = borrow %self : &Map(String, Int)
-    %v4 = call keyAt(String, Int), %v3, %at : &String
+    %v3 = borrow %self : 'Map(String, Int)
+    %v4 = call keyAt(String, Int), %v3, %at : 'String
     %v5 = load [%v4] : String
     %v6 = call Eq(String).==, %v5, %key : Bool
     ret %v6
@@ -1764,7 +1764,7 @@ fn indexFind(String, Int)(%self: Map(String, Int), %key: String, %h: U32) -> Siz
 
 fn entryNumber(String, Int)(%self: Map(String, Int), %slot: Size) -> Size {
   b0:
-    %v2 = borrow %self : &Map(String, Int)
+    %v2 = borrow %self : 'Map(String, Int)
     %v3 = call entryNumbers(String, Int), %v2 : %@bits(30) U32
     %v4 = strideof @bits(30) U32 : Size
     %v5 = mul %slot, %v4 : Size
@@ -1774,7 +1774,7 @@ fn entryNumber(String, Int)(%self: Map(String, Int), %slot: Size) -> Size {
     ret %v8
 }
 
-fn valueAtMut(Int, String)(%self: Map(String, Int), %at: Size) -> &mut Int {
+fn valueAtMut(Int, String)(%self: Map(String, Int), %at: Size) -> &Int {
   b0:
     %v2 = load %self : Map(String, Int)
     %v3 = load %self@Map.entries : Array(Entry(String, Int))
@@ -1783,9 +1783,9 @@ fn valueAtMut(Int, String)(%self: Map(String, Int), %at: Size) -> &mut Int {
     %v6 = strideof Entry(String, Int) : Size
     %v7 = mul %at, %v6 : Size
     %v8 = add %v5, %v7 : %Entry(String, Int)
-    %v9 = borrow_mut [%v8] : &mut Entry(String, Int)
+    %v9 = borrow_mut [%v8] : &Entry(String, Int)
     %v10 = load [%v9]@Entry.value : Int
-    %v11 = borrow_mut [%v9]@Entry.value : &mut Int
+    %v11 = borrow_mut [%v9]@Entry.value : &Int
     ret %v11
 }
 
@@ -1794,7 +1794,7 @@ fn appendEntry(String, Int)(%self: Map(String, Int), %key: String, %value: Int, 
     %v5 = load %self : Map(String, Int)
     %at = call entryCount(String, Int), %v5 : Size
     %v7 = load %self : Map(String, Int)
-    %v8 = borrow_mut %self : &mut Map(String, Int)
+    %v8 = borrow_mut %self : &Map(String, Int)
     %key = move %key : String
     call appendPair(String, Int), %v8, %key, %value
     %v11 = load %self : Map(String, Int)
@@ -1817,7 +1817,7 @@ fn appendEntry(String, Int)(%self: Map(String, Int), %key: String, %value: Int, 
     %v24 = load %self : Map(String, Int)
     %v26 = add %at, 1 : Size
     %v27 = call indexSlotsFor, %v26 : Size
-    %v28 = borrow_mut %self : &mut Map(String, Int)
+    %v28 = borrow_mut %self : &Map(String, Int)
     call indexRebuild(String, Int), %v28, %v27
     jmp b5
 
@@ -1858,13 +1858,13 @@ fn appendEntry(String, Int)(%self: Map(String, Int), %key: String, %value: Int, 
 
   b11:
     %v4 = phi [b9, %v53], [b10, %slots] : Size
-    %v56 = borrow_mut %self : &mut Map(String, Int)
+    %v56 = borrow_mut %self : &Map(String, Int)
     call indexRebuild(String, Int), %v56, %v4
     ret
 
   b12:
     %v59 = load %self : Map(String, Int)
-    %v60 = borrow_mut %self : &mut Map(String, Int)
+    %v60 = borrow_mut %self : &Map(String, Int)
     call indexPlace(String, Int), %v60, %at, %h
     ret
 }
@@ -1876,7 +1876,7 @@ fn appendPair(String, Int)(%self: Map(String, Int), %key: String, %value: Int) -
     %v5 = alloc : Entry(String, Int)
     init %local3@Entry.key, %key
     init %local3@Entry.value, %value
-    %v8 = borrow_mut %self@Map.entries : &mut Array(Entry(String, Int))
+    %v8 = borrow_mut %self@Map.entries : &Array(Entry(String, Int))
     %v9 = move %local3 : Entry(String, Int)
     call push(Entry(String, Int)), %v8, %v9
     ret
@@ -1889,7 +1889,7 @@ fn push(Entry(String, Int))(%self: Array(Entry(String, Int)), %item: Entry(Strin
     %count = cast %v3 : Size
     %v5 = load %self : Array(Entry(String, Int))
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Entry(String, Int))
+    %v8 = borrow_mut %self : &Array(Entry(String, Int))
     call reserve(Entry(String, Int)), %v8, %v7
     %v10 = load %self : Array(Entry(String, Int))
     %v11 = load %self@Array.run : Run(Entry(String, Int))
@@ -1912,18 +1912,18 @@ fn push(Entry(String, Int))(%self: Array(Entry(String, Int)), %item: Entry(Strin
     ret
 }
 
-fn Index(Map(k, v), k, v).get(String, Int)(%self: Map(String, Int), %key: String) -> &Int {
+fn Index(Map(k, v), k, v).get(String, Int)(%self: Map(String, Int), %key: String) -> 'Int {
   b0:
     %v2 = call hashKey(String), %key : U32
     %at = call findEntry(String, Int), %self, %key, %v2 : Size
     %v5 = cmp_lt %at, 0 : Bool
     call checkCondition, %v5
-    %v7 = borrow %self : &Map(String, Int)
-    %v8 = call valueAt(Int, String), %v7, %at : &Int
+    %v7 = borrow %self : 'Map(String, Int)
+    %v8 = call valueAt(Int, String), %v7, %at : 'Int
     ret %v8
 }
 
-fn valueAt(Int, String)(%self: Map(String, Int), %at: Size) -> &Int {
+fn valueAt(Int, String)(%self: Map(String, Int), %at: Size) -> 'Int {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(String, Int))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Int))
@@ -1931,9 +1931,9 @@ fn valueAt(Int, String)(%self: Map(String, Int), %at: Size) -> &Int {
     %v5 = strideof Entry(String, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Int)
-    %v8 = borrow [%v7] : &Entry(String, Int)
+    %v8 = borrow [%v7] : 'Entry(String, Int)
     %v9 = load [%v8]@Entry.value : Int
-    %v10 = borrow [%v8]@Entry.value : &Int
+    %v10 = borrow [%v8]@Entry.value : 'Int
     ret %v10
 }
 
@@ -1943,7 +1943,7 @@ fn newMap(Int, Array(Int))(%capacity: Size) -> Map(Int, Array(Int)) {
     %self = alloc : Map(Int, Array(Int))
     init %self, %v1
     %v4 = load %self : Map(Int, Array(Int))
-    %v5 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v5 = borrow_mut %self : &Map(Int, Array(Int))
     call reserveMap(Int, Array(Int)), %v5, %capacity
     %v7 = load %self : Map(Int, Array(Int))
     %v8 = move %self : Map(Int, Array(Int))
@@ -1973,7 +1973,7 @@ fn emptyArray(Entry(Int, Array(Int)))() -> Array(Entry(Int, Array(Int))) {
 fn reserveMap(Int, Array(Int))(%self: Map(Int, Array(Int)), %wanted: Size) -> () {
   b0:
     %v3 = load %self : Map(Int, Array(Int))
-    %v4 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v4 = borrow_mut %self : &Map(Int, Array(Int))
     call reserveEntries(Int, Array(Int)), %v4, %wanted
     %v6 = load %self : Map(Int, Array(Int))
     %v7 = call scanLimitOf(Int, Array(Int)), %v6 : Size
@@ -2006,7 +2006,7 @@ fn reserveMap(Int, Array(Int))(%self: Map(Int, Array(Int)), %wanted: Size) -> ()
 
   b6:
     %v24 = load %self : Map(Int, Array(Int))
-    %v25 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v25 = borrow_mut %self : &Map(Int, Array(Int))
     call indexRebuild(Int, Array(Int)), %v25, %slots
     jmp b8
 
@@ -2024,7 +2024,7 @@ fn reserveEntries(Int, Array(Int))(%self: Map(Int, Array(Int)), %wanted: Size) -
   b0:
     %v2 = load %self : Map(Int, Array(Int))
     %v3 = load %self@Map.entries : Array(Entry(Int, Array(Int)))
-    %v4 = borrow_mut %self@Map.entries : &mut Array(Entry(Int, Array(Int)))
+    %v4 = borrow_mut %self@Map.entries : &Array(Entry(Int, Array(Int)))
     call reserve(Entry(Int, Array(Int))), %v4, %wanted
     ret
 }
@@ -2046,7 +2046,7 @@ fn reserve(Entry(Int, Array(Int)))(%self: Array(Entry(Int, Array(Int))), %wanted
 
   b3:
     %v10 = load %self : Array(Entry(Int, Array(Int)))
-    %v11 = borrow_mut %self : &mut Array(Entry(Int, Array(Int)))
+    %v11 = borrow_mut %self : &Array(Entry(Int, Array(Int)))
     call growArray(Entry(Int, Array(Int))), %v11, %wanted
     ret
 }
@@ -2087,7 +2087,7 @@ fn growArray(Entry(Int, Array(Int)))(%self: Array(Entry(Int, Array(Int))), %want
     %v23 = load %self : Array(Entry(Int, Array(Int)))
     %v24 = load %self@Array.run : Run(Entry(Int, Array(Int)))
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Entry(Int, Array(Int)))
+    %v26 = borrow_mut %self@Array.run : &Run(Entry(Int, Array(Int)))
     %v27 = call resize(Entry(Int, Array(Int))), %v26, %v25 : Bool
     ret
 }
@@ -2115,7 +2115,7 @@ fn indexRebuild(Int, Array(Int))(%self: Map(Int, Array(Int)), %slots: Size) -> (
     %v5 = add %slots, 16 : Size
     %v7 = mul %slots, 4 : Size
     %v8 = add %v5, %v7 : Size
-    %v9 = borrow_mut %self@Map.index : &mut Run(U8)
+    %v9 = borrow_mut %self@Map.index : &Run(U8)
     %grown = call resize(U8), %v9, %v8 : Bool
     %v12 = xor %grown, True : Bool
     call checkCondition, %v12
@@ -2125,7 +2125,7 @@ fn indexRebuild(Int, Array(Int))(%self: Map(Int, Array(Int)), %slots: Size) -> (
     %v19 = cast %v18 : @bits(30) U32
     assign %self@Map.mask, %v19
     %v21 = load %self : Map(Int, Array(Int))
-    %v22 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v22 = borrow_mut %self : &Map(Int, Array(Int))
     call indexReset(Int, Array(Int)), %v22
     %v24 = load %self : Map(Int, Array(Int))
     %count = call entryCount(Int, Array(Int)), %v24 : Size
@@ -2147,7 +2147,7 @@ fn indexRebuild(Int, Array(Int))(%self: Map(Int, Array(Int)), %slots: Size) -> (
     %v36 = load %self : Map(Int, Array(Int))
     %v37 = load %at : Size
     %v38 = call hashAt(Int, Array(Int)), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v39 = borrow_mut %self : &Map(Int, Array(Int))
     call indexPlace(Int, Array(Int)), %v39, %v35, %v38
     %v41 = load %at : Size
     %v43 = add %v41, 1 : Size
@@ -2178,14 +2178,14 @@ fn entryCount(Int, Array(Int))(%self: Map(Int, Array(Int))) -> Size {
 
 fn hashAt(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size) -> U32 {
   b0:
-    %v2 = borrow %self : &Map(Int, Array(Int))
-    %v3 = call keyAt(Int, Array(Int)), %v2, %at : &Int
+    %v2 = borrow %self : 'Map(Int, Array(Int))
+    %v3 = call keyAt(Int, Array(Int)), %v2, %at : 'Int
     %v4 = load [%v3] : Int
     %v5 = call hashKey(Int), %v4 : U32
     ret %v5
 }
 
-fn keyAt(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size) -> &Int {
+fn keyAt(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size) -> 'Int {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(Int, Array(Int)))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Array(Int)))
@@ -2193,9 +2193,9 @@ fn keyAt(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size) -> &Int {
     %v5 = strideof Entry(Int, Array(Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Array(Int))
-    %v8 = borrow [%v7] : &Entry(Int, Array(Int))
+    %v8 = borrow [%v7] : 'Entry(Int, Array(Int))
     %v9 = load [%v8]@Entry.key : Int
-    %v10 = borrow [%v8]@Entry.key : &Int
+    %v10 = borrow [%v8]@Entry.key : 'Int
     ret %v10
 }
 
@@ -2214,10 +2214,10 @@ fn indexPlace(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size, %h: U32) 
     %taken = load [%v13] : U8
     %v15 = load %self : Map(Int, Array(Int))
     %v16 = call tagOf, %h : U8
-    %v17 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v17 = borrow_mut %self : &Map(Int, Array(Int))
     call setControl(Int, Array(Int)), %v17, %slot, %v16
     %v19 = load %self : Map(Int, Array(Int))
-    %v20 = borrow %self : &Map(Int, Array(Int))
+    %v20 = borrow %self : 'Map(Int, Array(Int))
     %v21 = call entryNumbers(Int, Array(Int)), %v20 : %@bits(30) U32
     %v22 = strideof @bits(30) U32 : Size
     %v23 = mul %slot, %v22 : Size
@@ -2359,7 +2359,7 @@ fn entryNumbers(Int, Array(Int))(%self: Map(Int, Array(Int))) -> %@bits(30) U32 
 fn IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int))(%self: Map(Int, Array(Int)), %index: Int, %value: Array(Int)) -> () {
   b0:
     %v3 = load %self : Map(Int, Array(Int))
-    %v4 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v4 = borrow_mut %self : &Map(Int, Array(Int))
     %value = move %value : Array(Int)
     %v6 = call insert(Int, Array(Int)), %v4, %index, %value : Maybe(Array(Int))
     drop_derived %local3 reclaim reclaim$Maybe(Array(Int))
@@ -2377,10 +2377,10 @@ fn insert(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %value: Array
   b1:
     %v9 = alloc : Maybe(Array(Int))
     %v10 = load %self : Map(Int, Array(Int))
-    %v11 = borrow_mut %self : &mut Map(Int, Array(Int))
-    %v12 = call valueAtMut(Array(Int), Int), %v11, %at : &mut Array(Int)
+    %v11 = borrow_mut %self : &Map(Int, Array(Int))
+    %v12 = call valueAtMut(Array(Int), Int), %v11, %at : &Array(Int)
     %v13 = load [%v12] : Array(Int)
-    %v14 = borrow_mut [%v12] : &mut Array(Int)
+    %v14 = borrow_mut [%v12] : &Array(Int)
     %value = move %value : Array(Int)
     %v16 = exchange [%v14], %value : Array(Int)
     aggregate %local3.discriminant = 1, %local3@Just = %v16
@@ -2391,7 +2391,7 @@ fn insert(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %value: Array
 
   b3:
     %v21 = load %self : Map(Int, Array(Int))
-    %v22 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v22 = borrow_mut %self : &Map(Int, Array(Int))
     %value = move %value : Array(Int)
     call appendEntry(Int, Array(Int)), %v22, %key, %value, %h
     %v25 = alloc : Maybe(Array(Int))
@@ -2455,8 +2455,8 @@ fn scanEntries(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int) -> Size 
 
 fn keyEquals(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size, %key: Int) -> Bool {
   b0:
-    %v3 = borrow %self : &Map(Int, Array(Int))
-    %v4 = call keyAt(Int, Array(Int)), %v3, %at : &Int
+    %v3 = borrow %self : 'Map(Int, Array(Int))
+    %v4 = call keyAt(Int, Array(Int)), %v3, %at : 'Int
     %v5 = load [%v4] : Int
     %v6 = cmp_eq %v5, %key : Bool
     ret %v6
@@ -2563,7 +2563,7 @@ fn indexFind(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %h: U32) -
 
 fn entryNumber(Int, Array(Int))(%self: Map(Int, Array(Int)), %slot: Size) -> Size {
   b0:
-    %v2 = borrow %self : &Map(Int, Array(Int))
+    %v2 = borrow %self : 'Map(Int, Array(Int))
     %v3 = call entryNumbers(Int, Array(Int)), %v2 : %@bits(30) U32
     %v4 = strideof @bits(30) U32 : Size
     %v5 = mul %slot, %v4 : Size
@@ -2573,7 +2573,7 @@ fn entryNumber(Int, Array(Int))(%self: Map(Int, Array(Int)), %slot: Size) -> Siz
     ret %v8
 }
 
-fn valueAtMut(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: Size) -> &mut Array(Int) {
+fn valueAtMut(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: Size) -> &Array(Int) {
   b0:
     %v2 = load %self : Map(Int, Array(Int))
     %v3 = load %self@Map.entries : Array(Entry(Int, Array(Int)))
@@ -2582,9 +2582,9 @@ fn valueAtMut(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: Size) -> &mut A
     %v6 = strideof Entry(Int, Array(Int)) : Size
     %v7 = mul %at, %v6 : Size
     %v8 = add %v5, %v7 : %Entry(Int, Array(Int))
-    %v9 = borrow_mut [%v8] : &mut Entry(Int, Array(Int))
+    %v9 = borrow_mut [%v8] : &Entry(Int, Array(Int))
     %v10 = load [%v9]@Entry.value : Array(Int)
-    %v11 = borrow_mut [%v9]@Entry.value : &mut Array(Int)
+    %v11 = borrow_mut [%v9]@Entry.value : &Array(Int)
     ret %v11
 }
 
@@ -2593,7 +2593,7 @@ fn appendEntry(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %value: 
     %v5 = load %self : Map(Int, Array(Int))
     %at = call entryCount(Int, Array(Int)), %v5 : Size
     %v7 = load %self : Map(Int, Array(Int))
-    %v8 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v8 = borrow_mut %self : &Map(Int, Array(Int))
     %value = move %value : Array(Int)
     call appendPair(Int, Array(Int)), %v8, %key, %value
     %v11 = load %self : Map(Int, Array(Int))
@@ -2616,7 +2616,7 @@ fn appendEntry(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %value: 
     %v24 = load %self : Map(Int, Array(Int))
     %v26 = add %at, 1 : Size
     %v27 = call indexSlotsFor, %v26 : Size
-    %v28 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v28 = borrow_mut %self : &Map(Int, Array(Int))
     call indexRebuild(Int, Array(Int)), %v28, %v27
     jmp b5
 
@@ -2657,13 +2657,13 @@ fn appendEntry(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %value: 
 
   b11:
     %v4 = phi [b9, %v53], [b10, %slots] : Size
-    %v56 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v56 = borrow_mut %self : &Map(Int, Array(Int))
     call indexRebuild(Int, Array(Int)), %v56, %v4
     ret
 
   b12:
     %v59 = load %self : Map(Int, Array(Int))
-    %v60 = borrow_mut %self : &mut Map(Int, Array(Int))
+    %v60 = borrow_mut %self : &Map(Int, Array(Int))
     call indexPlace(Int, Array(Int)), %v60, %at, %h
     ret
 }
@@ -2675,7 +2675,7 @@ fn appendPair(Int, Array(Int))(%self: Map(Int, Array(Int)), %key: Int, %value: A
     %v5 = alloc : Entry(Int, Array(Int))
     init %local3@Entry.key, %key
     init %local3@Entry.value, %value
-    %v8 = borrow_mut %self@Map.entries : &mut Array(Entry(Int, Array(Int)))
+    %v8 = borrow_mut %self@Map.entries : &Array(Entry(Int, Array(Int)))
     %v9 = move %local3 : Entry(Int, Array(Int))
     call push(Entry(Int, Array(Int))), %v8, %v9
     ret
@@ -2688,7 +2688,7 @@ fn push(Entry(Int, Array(Int)))(%self: Array(Entry(Int, Array(Int))), %item: Ent
     %count = cast %v3 : Size
     %v5 = load %self : Array(Entry(Int, Array(Int)))
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Entry(Int, Array(Int)))
+    %v8 = borrow_mut %self : &Array(Entry(Int, Array(Int)))
     call reserve(Entry(Int, Array(Int))), %v8, %v7
     %v10 = load %self : Array(Entry(Int, Array(Int)))
     %v11 = load %self@Array.run : Run(Entry(Int, Array(Int)))
@@ -2711,7 +2711,7 @@ fn push(Entry(Int, Array(Int)))(%self: Array(Entry(Int, Array(Int))), %item: Ent
     ret
 }
 
-fn pairs(Int, Array(Int), ())(%self: Map(Int, Array(Int)), %body: (value$: Entry(&Int, &Array(Int))) -> Outcome((), ())) -> Outcome((), ()) {
+fn pairs(Int, Array(Int), ())(%self: Map(Int, Array(Int)), %body: (value$: Entry('Int, 'Array(Int))) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %count = call entryCount(Int, Array(Int)), %self : Size
     %at = alloc : Size
@@ -2729,13 +2729,13 @@ fn pairs(Int, Array(Int), ())(%self: Map(Int, Array(Int)), %body: (value$: Entry
     ret %v10
 
   b3:
-    %v14 = alloc : Entry(&Int, &Array(Int))
+    %v14 = alloc : Entry('Int, 'Array(Int))
     %v15 = load %at : Size
-    %v16 = borrow %self : &Map(Int, Array(Int))
-    %v17 = call keyAt(Int, Array(Int)), %v16, %v15 : &Int
+    %v16 = borrow %self : 'Map(Int, Array(Int))
+    %v17 = call keyAt(Int, Array(Int)), %v16, %v15 : 'Int
     %v18 = load %at : Size
-    %v19 = borrow %self : &Map(Int, Array(Int))
-    %v20 = call valueAt(Array(Int), Int), %v19, %v18 : &Array(Int)
+    %v19 = borrow %self : 'Map(Int, Array(Int))
+    %v20 = call valueAt(Array(Int), Int), %v19, %v18 : 'Array(Int)
     aggregate %local3@Entry.key = %v17, %local3@Entry.value = %v20
     %v22 = calldyn %body, %v14 : Outcome((), ())
     %v23 = load %local4.discriminant : Int
@@ -2752,7 +2752,7 @@ fn pairs(Int, Array(Int), ())(%self: Map(Int, Array(Int)), %body: (value$: Entry
     jmp b1
 }
 
-fn valueAt(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: Size) -> &Array(Int) {
+fn valueAt(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: Size) -> 'Array(Int) {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(Int, Array(Int)))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Array(Int)))
@@ -2760,9 +2760,9 @@ fn valueAt(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: Size) -> &Array(In
     %v5 = strideof Entry(Int, Array(Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Array(Int))
-    %v8 = borrow [%v7] : &Entry(Int, Array(Int))
+    %v8 = borrow [%v7] : 'Entry(Int, Array(Int))
     %v9 = load [%v8]@Entry.value : Array(Int)
-    %v10 = borrow [%v8]@Entry.value : &Array(Int)
+    %v10 = borrow [%v8]@Entry.value : 'Array(Int)
     ret %v10
 }
 
@@ -2772,7 +2772,7 @@ fn newMap(Int, Map(Int, Int))(%capacity: Size) -> Map(Int, Map(Int, Int)) {
     %self = alloc : Map(Int, Map(Int, Int))
     init %self, %v1
     %v4 = load %self : Map(Int, Map(Int, Int))
-    %v5 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v5 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call reserveMap(Int, Map(Int, Int)), %v5, %capacity
     %v7 = load %self : Map(Int, Map(Int, Int))
     %v8 = move %self : Map(Int, Map(Int, Int))
@@ -2802,7 +2802,7 @@ fn emptyArray(Entry(Int, Map(Int, Int)))() -> Array(Entry(Int, Map(Int, Int))) {
 fn reserveMap(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %wanted: Size) -> () {
   b0:
     %v3 = load %self : Map(Int, Map(Int, Int))
-    %v4 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v4 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call reserveEntries(Int, Map(Int, Int)), %v4, %wanted
     %v6 = load %self : Map(Int, Map(Int, Int))
     %v7 = call scanLimitOf(Int, Map(Int, Int)), %v6 : Size
@@ -2835,7 +2835,7 @@ fn reserveMap(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %wanted: Size)
 
   b6:
     %v24 = load %self : Map(Int, Map(Int, Int))
-    %v25 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v25 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call indexRebuild(Int, Map(Int, Int)), %v25, %slots
     jmp b8
 
@@ -2853,7 +2853,7 @@ fn reserveEntries(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %wanted: S
   b0:
     %v2 = load %self : Map(Int, Map(Int, Int))
     %v3 = load %self@Map.entries : Array(Entry(Int, Map(Int, Int)))
-    %v4 = borrow_mut %self@Map.entries : &mut Array(Entry(Int, Map(Int, Int)))
+    %v4 = borrow_mut %self@Map.entries : &Array(Entry(Int, Map(Int, Int)))
     call reserve(Entry(Int, Map(Int, Int))), %v4, %wanted
     ret
 }
@@ -2875,7 +2875,7 @@ fn reserve(Entry(Int, Map(Int, Int)))(%self: Array(Entry(Int, Map(Int, Int))), %
 
   b3:
     %v10 = load %self : Array(Entry(Int, Map(Int, Int)))
-    %v11 = borrow_mut %self : &mut Array(Entry(Int, Map(Int, Int)))
+    %v11 = borrow_mut %self : &Array(Entry(Int, Map(Int, Int)))
     call growArray(Entry(Int, Map(Int, Int))), %v11, %wanted
     ret
 }
@@ -2916,7 +2916,7 @@ fn growArray(Entry(Int, Map(Int, Int)))(%self: Array(Entry(Int, Map(Int, Int))),
     %v23 = load %self : Array(Entry(Int, Map(Int, Int)))
     %v24 = load %self@Array.run : Run(Entry(Int, Map(Int, Int)))
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Entry(Int, Map(Int, Int)))
+    %v26 = borrow_mut %self@Array.run : &Run(Entry(Int, Map(Int, Int)))
     %v27 = call resize(Entry(Int, Map(Int, Int))), %v26, %v25 : Bool
     ret
 }
@@ -2944,7 +2944,7 @@ fn indexRebuild(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %slots: Size
     %v5 = add %slots, 16 : Size
     %v7 = mul %slots, 4 : Size
     %v8 = add %v5, %v7 : Size
-    %v9 = borrow_mut %self@Map.index : &mut Run(U8)
+    %v9 = borrow_mut %self@Map.index : &Run(U8)
     %grown = call resize(U8), %v9, %v8 : Bool
     %v12 = xor %grown, True : Bool
     call checkCondition, %v12
@@ -2954,7 +2954,7 @@ fn indexRebuild(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %slots: Size
     %v19 = cast %v18 : @bits(30) U32
     assign %self@Map.mask, %v19
     %v21 = load %self : Map(Int, Map(Int, Int))
-    %v22 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v22 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call indexReset(Int, Map(Int, Int)), %v22
     %v24 = load %self : Map(Int, Map(Int, Int))
     %count = call entryCount(Int, Map(Int, Int)), %v24 : Size
@@ -2976,7 +2976,7 @@ fn indexRebuild(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %slots: Size
     %v36 = load %self : Map(Int, Map(Int, Int))
     %v37 = load %at : Size
     %v38 = call hashAt(Int, Map(Int, Int)), %v36, %v37 : U32
-    %v39 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v39 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call indexPlace(Int, Map(Int, Int)), %v39, %v35, %v38
     %v41 = load %at : Size
     %v43 = add %v41, 1 : Size
@@ -3007,14 +3007,14 @@ fn entryCount(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int))) -> Size {
 
 fn hashAt(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size) -> U32 {
   b0:
-    %v2 = borrow %self : &Map(Int, Map(Int, Int))
-    %v3 = call keyAt(Int, Map(Int, Int)), %v2, %at : &Int
+    %v2 = borrow %self : 'Map(Int, Map(Int, Int))
+    %v3 = call keyAt(Int, Map(Int, Int)), %v2, %at : 'Int
     %v4 = load [%v3] : Int
     %v5 = call hashKey(Int), %v4 : U32
     ret %v5
 }
 
-fn keyAt(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size) -> &Int {
+fn keyAt(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size) -> 'Int {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(Int, Map(Int, Int)))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Map(Int, Int)))
@@ -3022,9 +3022,9 @@ fn keyAt(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size) -> &Int 
     %v5 = strideof Entry(Int, Map(Int, Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Map(Int, Int))
-    %v8 = borrow [%v7] : &Entry(Int, Map(Int, Int))
+    %v8 = borrow [%v7] : 'Entry(Int, Map(Int, Int))
     %v9 = load [%v8]@Entry.key : Int
-    %v10 = borrow [%v8]@Entry.key : &Int
+    %v10 = borrow [%v8]@Entry.key : 'Int
     ret %v10
 }
 
@@ -3043,10 +3043,10 @@ fn indexPlace(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size, %h:
     %taken = load [%v13] : U8
     %v15 = load %self : Map(Int, Map(Int, Int))
     %v16 = call tagOf, %h : U8
-    %v17 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v17 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call setControl(Int, Map(Int, Int)), %v17, %slot, %v16
     %v19 = load %self : Map(Int, Map(Int, Int))
-    %v20 = borrow %self : &Map(Int, Map(Int, Int))
+    %v20 = borrow %self : 'Map(Int, Map(Int, Int))
     %v21 = call entryNumbers(Int, Map(Int, Int)), %v20 : %@bits(30) U32
     %v22 = strideof @bits(30) U32 : Size
     %v23 = mul %slot, %v22 : Size
@@ -3188,7 +3188,7 @@ fn entryNumbers(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int))) -> %@bits(30
 fn IndexInsert(Map(k, v), k, v).insertAt(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %index: Int, %value: Map(Int, Int)) -> () {
   b0:
     %v3 = load %self : Map(Int, Map(Int, Int))
-    %v4 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v4 = borrow_mut %self : &Map(Int, Map(Int, Int))
     %value = move %value : Map(Int, Int)
     %v6 = call insert(Int, Map(Int, Int)), %v4, %index, %value : Maybe(Map(Int, Int))
     drop_derived %local3 reclaim reclaim$Maybe(Map(Int, Int))
@@ -3206,10 +3206,10 @@ fn insert(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %value:
   b1:
     %v9 = alloc : Maybe(Map(Int, Int))
     %v10 = load %self : Map(Int, Map(Int, Int))
-    %v11 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
-    %v12 = call valueAtMut(Map(Int, Int), Int), %v11, %at : &mut Map(Int, Int)
+    %v11 = borrow_mut %self : &Map(Int, Map(Int, Int))
+    %v12 = call valueAtMut(Map(Int, Int), Int), %v11, %at : &Map(Int, Int)
     %v13 = load [%v12] : Map(Int, Int)
-    %v14 = borrow_mut [%v12] : &mut Map(Int, Int)
+    %v14 = borrow_mut [%v12] : &Map(Int, Int)
     %value = move %value : Map(Int, Int)
     %v16 = exchange [%v14], %value : Map(Int, Int)
     aggregate %local3.discriminant = 1, %local3@Just = %v16
@@ -3220,7 +3220,7 @@ fn insert(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %value:
 
   b3:
     %v21 = load %self : Map(Int, Map(Int, Int))
-    %v22 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v22 = borrow_mut %self : &Map(Int, Map(Int, Int))
     %value = move %value : Map(Int, Int)
     call appendEntry(Int, Map(Int, Int)), %v22, %key, %value, %h
     %v25 = alloc : Maybe(Map(Int, Int))
@@ -3284,8 +3284,8 @@ fn scanEntries(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int) ->
 
 fn keyEquals(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size, %key: Int) -> Bool {
   b0:
-    %v3 = borrow %self : &Map(Int, Map(Int, Int))
-    %v4 = call keyAt(Int, Map(Int, Int)), %v3, %at : &Int
+    %v3 = borrow %self : 'Map(Int, Map(Int, Int))
+    %v4 = call keyAt(Int, Map(Int, Int)), %v3, %at : 'Int
     %v5 = load [%v4] : Int
     %v6 = cmp_eq %v5, %key : Bool
     ret %v6
@@ -3392,7 +3392,7 @@ fn indexFind(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %h: 
 
 fn entryNumber(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %slot: Size) -> Size {
   b0:
-    %v2 = borrow %self : &Map(Int, Map(Int, Int))
+    %v2 = borrow %self : 'Map(Int, Map(Int, Int))
     %v3 = call entryNumbers(Int, Map(Int, Int)), %v2 : %@bits(30) U32
     %v4 = strideof @bits(30) U32 : Size
     %v5 = mul %slot, %v4 : Size
@@ -3402,7 +3402,7 @@ fn entryNumber(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %slot: Size) 
     ret %v8
 }
 
-fn valueAtMut(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: Size) -> &mut Map(Int, Int) {
+fn valueAtMut(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: Size) -> &Map(Int, Int) {
   b0:
     %v2 = load %self : Map(Int, Map(Int, Int))
     %v3 = load %self@Map.entries : Array(Entry(Int, Map(Int, Int)))
@@ -3411,9 +3411,9 @@ fn valueAtMut(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: Size) -> 
     %v6 = strideof Entry(Int, Map(Int, Int)) : Size
     %v7 = mul %at, %v6 : Size
     %v8 = add %v5, %v7 : %Entry(Int, Map(Int, Int))
-    %v9 = borrow_mut [%v8] : &mut Entry(Int, Map(Int, Int))
+    %v9 = borrow_mut [%v8] : &Entry(Int, Map(Int, Int))
     %v10 = load [%v9]@Entry.value : Map(Int, Int)
-    %v11 = borrow_mut [%v9]@Entry.value : &mut Map(Int, Int)
+    %v11 = borrow_mut [%v9]@Entry.value : &Map(Int, Int)
     ret %v11
 }
 
@@ -3422,7 +3422,7 @@ fn appendEntry(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %v
     %v5 = load %self : Map(Int, Map(Int, Int))
     %at = call entryCount(Int, Map(Int, Int)), %v5 : Size
     %v7 = load %self : Map(Int, Map(Int, Int))
-    %v8 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v8 = borrow_mut %self : &Map(Int, Map(Int, Int))
     %value = move %value : Map(Int, Int)
     call appendPair(Int, Map(Int, Int)), %v8, %key, %value
     %v11 = load %self : Map(Int, Map(Int, Int))
@@ -3445,7 +3445,7 @@ fn appendEntry(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %v
     %v24 = load %self : Map(Int, Map(Int, Int))
     %v26 = add %at, 1 : Size
     %v27 = call indexSlotsFor, %v26 : Size
-    %v28 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v28 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call indexRebuild(Int, Map(Int, Int)), %v28, %v27
     jmp b5
 
@@ -3486,13 +3486,13 @@ fn appendEntry(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %v
 
   b11:
     %v4 = phi [b9, %v53], [b10, %slots] : Size
-    %v56 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v56 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call indexRebuild(Int, Map(Int, Int)), %v56, %v4
     ret
 
   b12:
     %v59 = load %self : Map(Int, Map(Int, Int))
-    %v60 = borrow_mut %self : &mut Map(Int, Map(Int, Int))
+    %v60 = borrow_mut %self : &Map(Int, Map(Int, Int))
     call indexPlace(Int, Map(Int, Int)), %v60, %at, %h
     ret
 }
@@ -3504,7 +3504,7 @@ fn appendPair(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int, %va
     %v5 = alloc : Entry(Int, Map(Int, Int))
     init %local3@Entry.key, %key
     init %local3@Entry.value, %value
-    %v8 = borrow_mut %self@Map.entries : &mut Array(Entry(Int, Map(Int, Int)))
+    %v8 = borrow_mut %self@Map.entries : &Array(Entry(Int, Map(Int, Int)))
     %v9 = move %local3 : Entry(Int, Map(Int, Int))
     call push(Entry(Int, Map(Int, Int))), %v8, %v9
     ret
@@ -3517,7 +3517,7 @@ fn push(Entry(Int, Map(Int, Int)))(%self: Array(Entry(Int, Map(Int, Int))), %ite
     %count = cast %v3 : Size
     %v5 = load %self : Array(Entry(Int, Map(Int, Int)))
     %v7 = add %count, 1 : Size
-    %v8 = borrow_mut %self : &mut Array(Entry(Int, Map(Int, Int)))
+    %v8 = borrow_mut %self : &Array(Entry(Int, Map(Int, Int)))
     call reserve(Entry(Int, Map(Int, Int))), %v8, %v7
     %v10 = load %self : Array(Entry(Int, Map(Int, Int)))
     %v11 = load %self@Array.run : Run(Entry(Int, Map(Int, Int)))
@@ -3540,18 +3540,18 @@ fn push(Entry(Int, Map(Int, Int)))(%self: Array(Entry(Int, Map(Int, Int))), %ite
     ret
 }
 
-fn Index(Map(k, v), k, v).get(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int) -> &Map(Int, Int) {
+fn Index(Map(k, v), k, v).get(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %key: Int) -> 'Map(Int, Int) {
   b0:
     %v2 = call hashKey(Int), %key : U32
     %at = call findEntry(Int, Map(Int, Int)), %self, %key, %v2 : Size
     %v5 = cmp_lt %at, 0 : Bool
     call checkCondition, %v5
-    %v7 = borrow %self : &Map(Int, Map(Int, Int))
-    %v8 = call valueAt(Map(Int, Int), Int), %v7, %at : &Map(Int, Int)
+    %v7 = borrow %self : 'Map(Int, Map(Int, Int))
+    %v8 = call valueAt(Map(Int, Int), Int), %v7, %at : 'Map(Int, Int)
     ret %v8
 }
 
-fn valueAt(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: Size) -> &Map(Int, Int) {
+fn valueAt(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: Size) -> 'Map(Int, Int) {
   b0:
     %v2 = load %self@Map.entries : Array(Entry(Int, Map(Int, Int)))
     %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Map(Int, Int)))
@@ -3559,9 +3559,9 @@ fn valueAt(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: Size) -> &Ma
     %v5 = strideof Entry(Int, Map(Int, Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Map(Int, Int))
-    %v8 = borrow [%v7] : &Entry(Int, Map(Int, Int))
+    %v8 = borrow [%v7] : 'Entry(Int, Map(Int, Int))
     %v9 = load [%v8]@Entry.value : Map(Int, Int)
-    %v10 = borrow [%v8]@Entry.value : &Map(Int, Int)
+    %v10 = borrow [%v8]@Entry.value : 'Map(Int, Int)
     ret %v10
 }
 
@@ -5420,11 +5420,11 @@ fn total(%m: Map(Int, Int)) -> Int {
   b0:
     %sum = alloc : Int
     init %sum, 0
-    %v4 = alloc : {sum: &mut Int}
-    %v5 = borrow_mut %sum : &mut Int
+    %v4 = alloc : {sum: &Int}
+    %v5 = borrow_mut %sum : &Int
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
-    %v8 = alloc : (value$: Entry(&Int, &Int)) -> Outcome((), ())
+    %v8 = alloc : (value$: Entry('Int, 'Int)) -> Outcome((), ())
     %v9 = symbol ResolveTest.continuation$15 : %()
     init %local3.code, %v9
     init %local3.env, %v7
@@ -5503,13 +5503,13 @@ fn main() -> Int {
     %v8 = alloc : Map(Int, Int)
     init %m, %v7
     %v10 = load %m : Map(Int, Int)
-    %v11 = borrow_mut %m : &mut Map(Int, Int)
+    %v11 = borrow_mut %m : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v11, 1, 10
     %v13 = load %m : Map(Int, Int)
-    %v14 = borrow_mut %m : &mut Map(Int, Int)
+    %v14 = borrow_mut %m : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v14, 2, 20
     %v16 = load %m : Map(Int, Int)
-    %v17 = borrow_mut %m : &mut Map(Int, Int)
+    %v17 = borrow_mut %m : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v17, 3, 30
     %v19 = load %m : Map(Int, Int)
     %v20 = call Length(Map(k, v)).length(Int, Int), %v19 : Size
@@ -5526,17 +5526,17 @@ fn main() -> Int {
 
   b3:
     %v33 = load %m : Map(Int, Int)
-    %v36 = borrow %m : &Map(Int, Int)
-    %v37 = call Index(Map(k, v), k, v).get(Int, Int), %v36, 1 : &Int
+    %v36 = borrow %m : 'Map(Int, Int)
+    %v37 = call Index(Map(k, v), k, v).get(Int, Int), %v36, 1 : 'Int
     %v38 = load [%v37] : Int
     %v39 = load %m : Map(Int, Int)
-    %v42 = borrow %m : &Map(Int, Int)
-    %v43 = call Index(Map(k, v), k, v).get(Int, Int), %v42, 2 : &Int
+    %v42 = borrow %m : 'Map(Int, Int)
+    %v43 = call Index(Map(k, v), k, v).get(Int, Int), %v42, 2 : 'Int
     %v44 = load [%v43] : Int
     %v45 = add %v38, %v44 : Int
     %v46 = load %m : Map(Int, Int)
-    %v49 = borrow %m : &Map(Int, Int)
-    %v50 = call Index(Map(k, v), k, v).get(Int, Int), %v49, 3 : &Int
+    %v49 = borrow %m : 'Map(Int, Int)
+    %v50 = call Index(Map(k, v), k, v).get(Int, Int), %v49, 3 : 'Int
     %v51 = load [%v50] : Int
     %v52 = add %v45, %v51 : Int
     %v55 = cmp_ne %v52, 60 : Bool
@@ -5551,10 +5551,10 @@ fn main() -> Int {
 
   b6:
     %v64 = load %m : Map(Int, Int)
-    %v68 = borrow_mut %m : &mut Map(Int, Int)
+    %v68 = borrow_mut %m : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v68, 4, 40
     %v70 = load %m : Map(Int, Int)
-    %v74 = borrow_mut %m : &mut Map(Int, Int)
+    %v74 = borrow_mut %m : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v74, 1, 100
     %v76 = load %m : Map(Int, Int)
     %v77 = call Length(Map(k, v)).length(Int, Int), %v76 : Size
@@ -5571,8 +5571,8 @@ fn main() -> Int {
 
   b9:
     %v90 = load %m : Map(Int, Int)
-    %v93 = borrow %m : &Map(Int, Int)
-    %v94 = call Index(Map(k, v), k, v).get(Int, Int), %v93, 1 : &Int
+    %v93 = borrow %m : 'Map(Int, Int)
+    %v94 = call Index(Map(k, v), k, v).get(Int, Int), %v93, 1 : 'Int
     %v95 = load [%v94] : Int
     %v98 = cmp_ne %v95, 100 : Bool
     je %v98, b76, b11
@@ -5586,8 +5586,8 @@ fn main() -> Int {
 
   b12:
     %v107 = load %m : Map(Int, Int)
-    %v110 = borrow %m : &Map(Int, Int)
-    %v111 = call Index(Map(k, v), k, v).get(Int, Int), %v110, 4 : &Int
+    %v110 = borrow %m : 'Map(Int, Int)
+    %v111 = call Index(Map(k, v), k, v).get(Int, Int), %v110, 4 : 'Int
     %v112 = load [%v111] : Int
     drop_derived %m reclaim reclaim$Map(Int, Int)
     %v115 = cmp_ne %v112, 40 : Bool
@@ -5605,7 +5605,7 @@ fn main() -> Int {
     %inferred = alloc : Map(Int, Int)
     init %local3, %v127
     %v130 = load %local3 : Map(Int, Int)
-    %v133 = borrow_mut %local3 : &mut Map(Int, Int)
+    %v133 = borrow_mut %local3 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v133, 7, 70
     %v135 = call total, %inferred : Int
     drop_derived %local3 reclaim reclaim$Map(Int, Int)
@@ -5638,11 +5638,11 @@ fn main() -> Int {
 
   b21:
     %v165 = load %empty : Map(Int, Int)
-    %v169 = borrow_mut %empty : &mut Map(Int, Int)
+    %v169 = borrow_mut %empty : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v169, 1, 5
     %v171 = load %empty : Map(Int, Int)
-    %v174 = borrow %empty : &Map(Int, Int)
-    %v175 = call Index(Map(k, v), k, v).get(Int, Int), %v174, 1 : &Int
+    %v174 = borrow %empty : 'Map(Int, Int)
+    %v175 = call Index(Map(k, v), k, v).get(Int, Int), %v174, 1 : 'Int
     %v176 = load [%v175] : Int
     %v179 = cmp_ne %v176, 5 : Bool
     je %v179, b78, b23
@@ -5674,7 +5674,7 @@ fn main() -> Int {
     %ascribed = alloc : Map(Int, Int)
     init %local7, %v205
     %v208 = load %local7 : Map(Int, Int)
-    %v209 = borrow_mut %local7 : &mut Map(Int, Int)
+    %v209 = borrow_mut %local7 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v209, 8, 80
     %v211 = call total, %ascribed : Int
     drop_derived %local7 reclaim reclaim$Map(Int, Int)
@@ -5693,10 +5693,10 @@ fn main() -> Int {
     %v229 = alloc : Map(Int, Int)
     init %local9, %v228
     %v231 = load %local9 : Map(Int, Int)
-    %v232 = borrow_mut %local9 : &mut Map(Int, Int)
+    %v232 = borrow_mut %local9 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v232, 1, 1
     %v234 = load %local9 : Map(Int, Int)
-    %v235 = borrow_mut %local9 : &mut Map(Int, Int)
+    %v235 = borrow_mut %local9 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v235, 2, 2
     %v237 = call total, %v229 : Int
     drop_derived %local9 reclaim reclaim$Map(Int, Int)
@@ -5716,22 +5716,22 @@ fn main() -> Int {
     %v254 = alloc : Map(Int, Int)
     init %local12, %v253
     %v256 = load %local12 : Map(Int, Int)
-    %v257 = borrow_mut %local12 : &mut Map(Int, Int)
+    %v257 = borrow_mut %local12 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v257, 9, 90
     aggregate %table@Table.rows = %v254
     %v260 = load %table : Table
     %v261 = load %table@Table.rows : Map(Int, Int)
-    %v265 = borrow_mut %table@Table.rows : &mut Map(Int, Int)
+    %v265 = borrow_mut %table@Table.rows : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v265, 8, 80
     %v267 = load %table : Table
     %v268 = load %table@Table.rows : Map(Int, Int)
-    %v271 = borrow %table@Table.rows : &Map(Int, Int)
-    %v272 = call Index(Map(k, v), k, v).get(Int, Int), %v271, 9 : &Int
+    %v271 = borrow %table@Table.rows : 'Map(Int, Int)
+    %v272 = call Index(Map(k, v), k, v).get(Int, Int), %v271, 9 : 'Int
     %v273 = load [%v272] : Int
     %v274 = load %table : Table
     %v275 = load %table@Table.rows : Map(Int, Int)
-    %v278 = borrow %table@Table.rows : &Map(Int, Int)
-    %v279 = call Index(Map(k, v), k, v).get(Int, Int), %v278, 8 : &Int
+    %v278 = borrow %table@Table.rows : 'Map(Int, Int)
+    %v279 = call Index(Map(k, v), k, v).get(Int, Int), %v278, 8 : 'Int
     %v280 = load [%v279] : Int
     drop_derived %table reclaim reclaim$Table
     %v281 = add %v273, %v280 : Int
@@ -5750,13 +5750,13 @@ fn main() -> Int {
     %dup = alloc : Map(Int, Int)
     init %local14, %v300
     %v303 = load %local14 : Map(Int, Int)
-    %v306 = borrow_mut %local14 : &mut Map(Int, Int)
+    %v306 = borrow_mut %local14 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v306, 1, 10
     %v308 = load %local14 : Map(Int, Int)
-    %v309 = borrow_mut %local14 : &mut Map(Int, Int)
+    %v309 = borrow_mut %local14 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v309, 2, 20
     %v311 = load %local14 : Map(Int, Int)
-    %v312 = borrow_mut %local14 : &mut Map(Int, Int)
+    %v312 = borrow_mut %local14 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v312, 1, 30
     %v314 = call Length(Map(k, v)).length(Int, Int), %dup : Size
     %v315 = cast %v314 : Int
@@ -5771,8 +5771,8 @@ fn main() -> Int {
     jmp b39
 
   b39:
-    %v329 = borrow %local14 : &Map(Int, Int)
-    %v330 = call Index(Map(k, v), k, v).get(Int, Int), %v329, 1 : &Int
+    %v329 = borrow %local14 : 'Map(Int, Int)
+    %v330 = call Index(Map(k, v), k, v).get(Int, Int), %v329, 1 : 'Int
     %v331 = load [%v330] : Int
     %v334 = cmp_ne %v331, 30 : Bool
     je %v334, b80, b41
@@ -5785,8 +5785,8 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v345 = borrow %local14 : &Map(Int, Int)
-    %v346 = call Index(Map(k, v), k, v).get(Int, Int), %v345, 2 : &Int
+    %v345 = borrow %local14 : 'Map(Int, Int)
+    %v346 = call Index(Map(k, v), k, v).get(Int, Int), %v345, 2 : 'Int
     %v347 = load [%v346] : Int
     drop_derived %local14 reclaim reclaim$Map(Int, Int)
     %v350 = cmp_ne %v347, 20 : Bool
@@ -5804,40 +5804,40 @@ fn main() -> Int {
     %v385 = alloc : Map(Int, Int)
     init %big, %v384
     %v387 = load %big : Map(Int, Int)
-    %v390 = borrow_mut %big : &mut Map(Int, Int)
+    %v390 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v390, 0, 0
     %v392 = load %big : Map(Int, Int)
-    %v393 = borrow_mut %big : &mut Map(Int, Int)
+    %v393 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v393, 1, 10
     %v395 = load %big : Map(Int, Int)
-    %v396 = borrow_mut %big : &mut Map(Int, Int)
+    %v396 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v396, 2, 20
     %v398 = load %big : Map(Int, Int)
-    %v399 = borrow_mut %big : &mut Map(Int, Int)
+    %v399 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v399, 3, 30
     %v401 = load %big : Map(Int, Int)
-    %v402 = borrow_mut %big : &mut Map(Int, Int)
+    %v402 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v402, 4, 40
     %v404 = load %big : Map(Int, Int)
-    %v405 = borrow_mut %big : &mut Map(Int, Int)
+    %v405 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v405, 5, 50
     %v407 = load %big : Map(Int, Int)
-    %v408 = borrow_mut %big : &mut Map(Int, Int)
+    %v408 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v408, 6, 60
     %v410 = load %big : Map(Int, Int)
-    %v411 = borrow_mut %big : &mut Map(Int, Int)
+    %v411 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v411, 7, 70
     %v413 = load %big : Map(Int, Int)
-    %v414 = borrow_mut %big : &mut Map(Int, Int)
+    %v414 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v414, 8, 80
     %v416 = load %big : Map(Int, Int)
-    %v417 = borrow_mut %big : &mut Map(Int, Int)
+    %v417 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v417, 9, 90
     %v419 = load %big : Map(Int, Int)
-    %v420 = borrow_mut %big : &mut Map(Int, Int)
+    %v420 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v420, 10, 100
     %v422 = load %big : Map(Int, Int)
-    %v423 = borrow_mut %big : &mut Map(Int, Int)
+    %v423 = borrow_mut %big : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v423, 11, 110
     %v425 = load %big : Map(Int, Int)
     %v426 = call Length(Map(k, v)).length(Int, Int), %v425 : Size
@@ -5872,8 +5872,8 @@ fn main() -> Int {
   b51:
     %v451 = load %big : Map(Int, Int)
     %v452 = load %i : Int
-    %v453 = borrow %big : &Map(Int, Int)
-    %v454 = call Index(Map(k, v), k, v).get(Int, Int), %v453, %v452 : &Int
+    %v453 = borrow %big : 'Map(Int, Int)
+    %v454 = call Index(Map(k, v), k, v).get(Int, Int), %v453, %v452 : 'Int
     %v455 = load [%v454] : Int
     %v456 = load %i : Int
     %v459 = mul %v456, 10 : Int
@@ -5907,21 +5907,21 @@ fn main() -> Int {
     %ordered = alloc : Map(Int, Int)
     init %local20, %v494
     %v497 = load %local20 : Map(Int, Int)
-    %v500 = borrow_mut %local20 : &mut Map(Int, Int)
+    %v500 = borrow_mut %local20 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v500, 3, 1
     %v502 = load %local20 : Map(Int, Int)
-    %v503 = borrow_mut %local20 : &mut Map(Int, Int)
+    %v503 = borrow_mut %local20 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v503, 1, 2
     %v505 = load %local20 : Map(Int, Int)
-    %v506 = borrow_mut %local20 : &mut Map(Int, Int)
+    %v506 = borrow_mut %local20 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v506, 2, 3
     %seen = alloc : Int
     init %seen, 0
-    %v511 = alloc : {seen: &mut Int}
-    %v512 = borrow_mut %seen : &mut Int
+    %v511 = alloc : {seen: &Int}
+    %v512 = borrow_mut %seen : &Int
     init %local22.seen, %v512
     %v514 = addressof %local22 : %()
-    %v515 = alloc : (value$: Entry(&Int, &Int)) -> Outcome((), ())
+    %v515 = alloc : (value$: Entry('Int, 'Int)) -> Outcome((), ())
     %v516 = symbol ResolveTest.continuation$16 : %()
     init %local23.code, %v516
     init %local23.env, %v514
@@ -5940,15 +5940,15 @@ fn main() -> Int {
 
   b60:
     %v532 = load shared : Map(Int, Int)
-    %v536 = borrow_mut shared : &mut Map(Int, Int)
+    %v536 = borrow_mut shared : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v536, 6, 60
     %v538 = load shared : Map(Int, Int)
-    %v541 = borrow shared : &Map(Int, Int)
-    %v542 = call Index(Map(k, v), k, v).get(Int, Int), %v541, 5 : &Int
+    %v541 = borrow shared : 'Map(Int, Int)
+    %v542 = call Index(Map(k, v), k, v).get(Int, Int), %v541, 5 : 'Int
     %v543 = load [%v542] : Int
     %v544 = load shared : Map(Int, Int)
-    %v547 = borrow shared : &Map(Int, Int)
-    %v548 = call Index(Map(k, v), k, v).get(Int, Int), %v547, 6 : &Int
+    %v547 = borrow shared : 'Map(Int, Int)
+    %v548 = call Index(Map(k, v), k, v).get(Int, Int), %v547, 6 : 'Int
     %v549 = load [%v548] : Int
     %v550 = add %v543, %v549 : Int
     %v553 = cmp_ne %v550, 110 : Bool
@@ -5969,20 +5969,20 @@ fn main() -> Int {
     %v573 = call stringLiteral, %v571, 1 : String
     %two = call pair(String, Int), %v569, 1, %v573, 2 : Map(String, Int)
     %none = call emptyOf(Int, Int) : Map(Int, Int)
-    %v581 = borrow %local25 : &Map(Int, Int)
-    %v582 = call Index(Map(k, v), k, v).get(Int, Int), %v581, 1 : &Int
+    %v581 = borrow %local25 : 'Map(Int, Int)
+    %v582 = call Index(Map(k, v), k, v).get(Int, Int), %v581, 1 : 'Int
     %v583 = load [%v582] : Int
     drop_derived %local25 reclaim reclaim$Map(Int, Int)
     %v584 = symbol ResolveTest.string$2 : %CodeUnit
     %v586 = call stringLiteral, %v584, 1 : String
-    %v587 = borrow %local26 : &Map(String, Int)
-    %v588 = call Index(Map(k, v), k, v).get(String, Int), %v587, %v586 : &Int
+    %v587 = borrow %local26 : 'Map(String, Int)
+    %v588 = call Index(Map(k, v), k, v).get(String, Int), %v587, %v586 : 'Int
     %v589 = load [%v588] : Int
     %v590 = add %v583, %v589 : Int
     %v591 = symbol ResolveTest.string$3 : %CodeUnit
     %v593 = call stringLiteral, %v591, 1 : String
-    %v594 = borrow %local26 : &Map(String, Int)
-    %v595 = call Index(Map(k, v), k, v).get(String, Int), %v594, %v593 : &Int
+    %v594 = borrow %local26 : 'Map(String, Int)
+    %v595 = call Index(Map(k, v), k, v).get(String, Int), %v594, %v593 : 'Int
     %v596 = load [%v595] : Int
     drop_derived %local26 reclaim reclaim$Map(String, Int)
     %v597 = add %v590, %v596 : Int
@@ -6021,20 +6021,20 @@ fn main() -> Int {
     %lists = alloc : Map(Int, Array(Int))
     init %local33, %v643
     %v646 = load %local33 : Map(Int, Array(Int))
-    %v647 = borrow_mut %local33 : &mut Map(Int, Array(Int))
+    %v647 = borrow_mut %local33 : &Map(Int, Array(Int))
     %v648 = move %local28 : Array(Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int)), %v647, 1, %v648
     %v650 = load %local33 : Map(Int, Array(Int))
-    %v651 = borrow_mut %local33 : &mut Map(Int, Array(Int))
+    %v651 = borrow_mut %local33 : &Map(Int, Array(Int))
     %v652 = move %local30 : Array(Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int)), %v651, 2, %v652
     %elements = alloc : Int
     init %elements, 0
-    %v657 = alloc : {elements: &mut Int}
-    %v658 = borrow_mut %elements : &mut Int
+    %v657 = alloc : {elements: &Int}
+    %v658 = borrow_mut %elements : &Int
     init %local35.elements, %v658
     %v660 = addressof %local35 : %()
-    %v661 = alloc : (value$: Entry(&Int, &Array(Int))) -> Outcome((), ())
+    %v661 = alloc : (value$: Entry('Int, 'Array(Int))) -> Outcome((), ())
     %v662 = symbol ResolveTest.continuation$17 : %()
     init %local36.code, %v662
     init %local36.env, %v660
@@ -6056,20 +6056,20 @@ fn main() -> Int {
     %v683 = alloc : Map(Int, Int)
     init %local39, %v682
     %v685 = load %local39 : Map(Int, Int)
-    %v686 = borrow_mut %local39 : &mut Map(Int, Int)
+    %v686 = borrow_mut %local39 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v686, 2, 3
     %v689 = call newMap(Int, Map(Int, Int)), 1 : Map(Int, Map(Int, Int))
     %nested = alloc : Map(Int, Map(Int, Int))
     init %local41, %v689
     %v692 = load %local41 : Map(Int, Map(Int, Int))
-    %v693 = borrow_mut %local41 : &mut Map(Int, Map(Int, Int))
+    %v693 = borrow_mut %local41 : &Map(Int, Map(Int, Int))
     %v694 = move %local39 : Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Map(Int, Int)), %v693, 1, %v694
-    %v698 = borrow %local41 : &Map(Int, Map(Int, Int))
-    %v699 = call Index(Map(k, v), k, v).get(Int, Map(Int, Int)), %v698, 1 : &Map(Int, Int)
+    %v698 = borrow %local41 : 'Map(Int, Map(Int, Int))
+    %v699 = call Index(Map(k, v), k, v).get(Int, Map(Int, Int)), %v698, 1 : 'Map(Int, Int)
     %v700 = load [%v699] : Map(Int, Int)
-    %v703 = borrow [%v699] : &Map(Int, Int)
-    %v704 = call Index(Map(k, v), k, v).get(Int, Int), %v703, 2 : &Int
+    %v703 = borrow [%v699] : 'Map(Int, Int)
+    %v704 = call Index(Map(k, v), k, v).get(Int, Int), %v703, 2 : 'Int
     %v705 = load [%v704] : Int
     drop_derived %local41 reclaim reclaim$Map(Int, Map(Int, Int))
     %v708 = cmp_ne %v705, 3 : Bool
@@ -6132,19 +6132,19 @@ fn main$() -> Int {
     %v4 = alloc : Map(Int, Int)
     init %local1, %v3
     %v6 = load %local1 : Map(Int, Int)
-    %v7 = borrow_mut %local1 : &mut Map(Int, Int)
+    %v7 = borrow_mut %local1 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v7, 5, 50
     init shared, %v4
     %v10 = call main : Int
     ret %v10
 }
 
-fn ResolveTest.continuation$15(%env: %{sum: &mut Int}, %value$: Entry(&Int, &Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$15(%env: %{sum: &Int}, %value$: Entry('Int, 'Int)) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].sum : &mut Int
-    %v3 = load [%env].sum : &mut Int
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
     %v4 = load [%v3] : Int
-    %v5 = load %value$@Entry.value : &Int
+    %v5 = load %value$@Entry.value : 'Int
     %v6 = load [%v5] : Int
     %v7 = add %v4, %v6 : Int
     assign [%v2], %v7
@@ -6153,13 +6153,13 @@ fn ResolveTest.continuation$15(%env: %{sum: &mut Int}, %value$: Entry(&Int, &Int
     ret %v9
 }
 
-fn ResolveTest.continuation$16(%env: %{seen: &mut Int}, %value$: Entry(&Int, &Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$16(%env: %{seen: &Int}, %value$: Entry('Int, 'Int)) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].seen : &mut Int
-    %v3 = load [%env].seen : &mut Int
+    %v2 = load [%env].seen : &Int
+    %v3 = load [%env].seen : &Int
     %v4 = load [%v3] : Int
     %v7 = mul %v4, 10 : Int
-    %v8 = load %value$@Entry.key : &Int
+    %v8 = load %value$@Entry.key : 'Int
     %v9 = load [%v8] : Int
     %v10 = add %v7, %v9 : Int
     assign [%v2], %v10
@@ -6174,7 +6174,7 @@ fn single(Int, Int)(%key: Int, %value: Int) -> Map(Int, Int) {
     %v4 = alloc : Map(Int, Int)
     init %local3, %v3
     %v6 = load %local3 : Map(Int, Int)
-    %v7 = borrow_mut %local3 : &mut Map(Int, Int)
+    %v7 = borrow_mut %local3 : &Map(Int, Int)
     call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v7, %key, %value
     ret %v4
 }
@@ -6185,11 +6185,11 @@ fn pair(String, Int)(%k1: String, %v1: Int, %k2: String, %v2: Int) -> Map(String
     %v6 = alloc : Map(String, Int)
     init %m, %v5
     %v8 = load %m : Map(String, Int)
-    %v9 = borrow_mut %m : &mut Map(String, Int)
+    %v9 = borrow_mut %m : &Map(String, Int)
     %k1 = move %k1 : String
     call IndexInsert(Map(k, v), k, v).insertAt(String, Int), %v9, %k1, %v1
     %v12 = load %m : Map(String, Int)
-    %v13 = borrow_mut %m : &mut Map(String, Int)
+    %v13 = borrow_mut %m : &Map(String, Int)
     %k2 = move %k2 : String
     call IndexInsert(Map(k, v), k, v).insertAt(String, Int), %v13, %k2, %v2
     %v16 = load %m : Map(String, Int)
@@ -6205,12 +6205,12 @@ fn emptyOf(Int, Int)() -> Map(Int, Int) {
     ret %v2
 }
 
-fn ResolveTest.continuation$17(%env: %{elements: &mut Int}, %value$: Entry(&Int, &Array(Int))) -> Outcome((), ()) {
+fn ResolveTest.continuation$17(%env: %{elements: &Int}, %value$: Entry('Int, 'Array(Int))) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].elements : &mut Int
-    %v3 = load [%env].elements : &mut Int
+    %v2 = load [%env].elements : &Int
+    %v3 = load [%env].elements : &Int
     %v4 = load [%v3] : Int
-    %v5 = load %value$@Entry.value : &Array(Int)
+    %v5 = load %value$@Entry.value : 'Array(Int)
     %v6 = load [%v5] : Array(Int)
     %v7 = load [%v5]@Array.length : @bits(30) U32
     %v8 = cast %v7 : Size

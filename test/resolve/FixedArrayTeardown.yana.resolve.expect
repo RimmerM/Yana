@@ -380,7 +380,7 @@ fn abortProcess() -> () {
 fn openHandle(%mark: I64) -> Handle {
   b0:
     %v1 = load liveHandles : I64
-    %v4 = borrow_mut liveHandles : &mut I64
+    %v4 = borrow_mut liveHandles : &I64
     call +=(I64), %v4, 1
     %handle = alloc : Handle
     %v8 = call allocateHeap, 16 : %U8
@@ -405,13 +405,13 @@ fn small() -> I64 {
     %v3 = call openHandle, 2 : Handle
     %hs = alloc : [Handle *2]
     aggregate %local2[0] = %v1, %local2[1] = %v3
-    %v9 = borrow %local2 : &[Handle *2]
+    %v9 = borrow %local2 : '[Handle *2]
     %hs = alloc : Flat(Handle)
     %v11 = addressof [%v9] : %Handle
     init %hs@Flat.items, %v11
     %v13 = countof 2 : Size
     init %hs@Flat.length, %v13
-    %v16 = borrow %hs : &Flat(Handle)
+    %v16 = borrow %hs : 'Flat(Handle)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast 0 : USize
     %v19 = cast %v17 : USize
@@ -421,16 +421,16 @@ fn small() -> I64 {
     %v23 = strideof Handle : Long
     %v24 = mul 0, %v23 : Long
     %v25 = add %v22, %v24 : %Handle
-    %v26 = borrow [%v25] : &Handle
+    %v26 = borrow [%v25] : 'Handle
     %v27 = load [%v26] : Handle
     %v28 = call marker, %v27 : I64
-    %v30 = borrow %local2 : &[Handle *2]
+    %v30 = borrow %local2 : '[Handle *2]
     %hs = alloc : Flat(Handle)
     %v32 = addressof [%v30] : %Handle
     init %hs@Flat.items, %v32
     %v34 = countof 2 : Size
     init %hs@Flat.length, %v34
-    %v37 = borrow %hs : &Flat(Handle)
+    %v37 = borrow %hs : 'Flat(Handle)
     %v38 = load [%v37]@Flat.length : Size
     %v39 = cast 1 : USize
     %v40 = cast %v38 : USize
@@ -440,7 +440,7 @@ fn small() -> I64 {
     %v44 = strideof Handle : Long
     %v45 = mul 1, %v44 : Long
     %v46 = add %v43, %v45 : %Handle
-    %v47 = borrow [%v46] : &Handle
+    %v47 = borrow [%v46] : 'Handle
     %v48 = load [%v47] : Handle
     %v49 = call marker, %v48 : I64
     drop_derived %local2 via drop$[Handle *2]
@@ -458,13 +458,13 @@ fn large() -> I64 {
     %v11 = call openHandle, 6 : Handle
     %hs = alloc : [Handle *6]
     aggregate %local6[0] = %v1, %local6[1] = %v3, %local6[2] = %v5, %local6[3] = %v7, %local6[4] = %v9, %local6[5] = %v11
-    %v21 = borrow %local6 : &[Handle *6]
+    %v21 = borrow %local6 : '[Handle *6]
     %hs = alloc : Flat(Handle)
     %v23 = addressof [%v21] : %Handle
     init %hs@Flat.items, %v23
     %v25 = countof 6 : Size
     init %hs@Flat.length, %v25
-    %v28 = borrow %hs : &Flat(Handle)
+    %v28 = borrow %hs : 'Flat(Handle)
     %v29 = load [%v28]@Flat.length : Size
     %v30 = cast 0 : USize
     %v31 = cast %v29 : USize
@@ -474,16 +474,16 @@ fn large() -> I64 {
     %v35 = strideof Handle : Long
     %v36 = mul 0, %v35 : Long
     %v37 = add %v34, %v36 : %Handle
-    %v38 = borrow [%v37] : &Handle
+    %v38 = borrow [%v37] : 'Handle
     %v39 = load [%v38] : Handle
     %v40 = call marker, %v39 : I64
-    %v42 = borrow %local6 : &[Handle *6]
+    %v42 = borrow %local6 : '[Handle *6]
     %hs = alloc : Flat(Handle)
     %v44 = addressof [%v42] : %Handle
     init %hs@Flat.items, %v44
     %v46 = countof 6 : Size
     init %hs@Flat.length, %v46
-    %v49 = borrow %hs : &Flat(Handle)
+    %v49 = borrow %hs : 'Flat(Handle)
     %v50 = load [%v49]@Flat.length : Size
     %v51 = cast 5 : USize
     %v52 = cast %v50 : USize
@@ -493,7 +493,7 @@ fn large() -> I64 {
     %v56 = strideof Handle : Long
     %v57 = mul 5, %v56 : Long
     %v58 = add %v55, %v57 : %Handle
-    %v59 = borrow [%v58] : &Handle
+    %v59 = borrow [%v58] : 'Handle
     %v60 = load [%v59] : Handle
     %v61 = call marker, %v60 : I64
     drop_derived %local6 via drop$[Handle *6]
@@ -511,13 +511,13 @@ fn nested() -> I64 {
     aggregate %local0@Pair.handles = %v5, %local0@Pair.tag = 100
     %v11 = load %local0@Pair.tag : I64
     %v12 = load %local0@Pair.handles : [Handle *2]
-    %v14 = borrow %local0@Pair.handles : &[Handle *2]
+    %v14 = borrow %local0@Pair.handles : '[Handle *2]
     %v15 = alloc : Flat(Handle)
     %v16 = addressof [%v14] : %Handle
     init %local4@Flat.items, %v16
     %v18 = countof 2 : Size
     init %local4@Flat.length, %v18
-    %v21 = borrow %local4 : &Flat(Handle)
+    %v21 = borrow %local4 : 'Flat(Handle)
     %v22 = load [%v21]@Flat.length : Size
     %v23 = cast 1 : USize
     %v24 = cast %v22 : USize
@@ -527,7 +527,7 @@ fn nested() -> I64 {
     %v28 = strideof Handle : Long
     %v29 = mul 1, %v28 : Long
     %v30 = add %v27, %v29 : %Handle
-    %v31 = borrow [%v30] : &Handle
+    %v31 = borrow [%v30] : 'Handle
     %v32 = load [%v31] : Handle
     %v33 = call marker, %v32 : I64
     drop_derived %local0 via drop$Pair
@@ -622,10 +622,10 @@ fn Drop(Handle).drop(%value: Handle) -> () {
     %v1 = load %value@Handle.slot : %U8
     call freeHeap, %v1
     %v3 = load liveHandles : I64
-    %v6 = borrow_mut liveHandles : &mut I64
+    %v6 = borrow_mut liveHandles : &I64
     call -=(I64), %v6, 1
     %v8 = load releases : I64
-    %v11 = borrow_mut releases : &mut I64
+    %v11 = borrow_mut releases : &I64
     call +=(I64), %v11, 1
     ret
 }

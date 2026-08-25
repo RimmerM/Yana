@@ -35,7 +35,7 @@ fn mutableOnOneArm(%flag: Bool) -> Int {
 
   b1:
     %v6 = load %p : Point
-    %v7 = borrow_mut %p : &mut Point
+    %v7 = borrow_mut %p : &Point
     call bump, %v7
     jmp b3
 
@@ -57,7 +57,7 @@ fn copyIsIndependent() -> Int {
     %v6 = load %local0@Point.y : Int
     aggregate %duplicate@Point.x = %v5, %duplicate@Point.y = %v6
     %v8 = load %duplicate : Point
-    %v9 = borrow_mut %duplicate : &mut Point
+    %v9 = borrow_mut %duplicate : &Point
     call bump, %v9
     %v11 = call read, %source : Int
     %v12 = load %duplicate : Point

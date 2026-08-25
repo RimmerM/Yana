@@ -454,7 +454,7 @@ fn total(%xs: Flat(Int)) -> Int {
     %v13 = load %sum : Int
     %v14 = load %i : Int
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : &Flat(Int)
+    %v16 = borrow %xs : 'Flat(Int)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -464,12 +464,12 @@ fn total(%xs: Flat(Int)) -> Int {
     %v23 = strideof Int : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %Int
-    %v26 = borrow [%v25] : &Int
+    %v26 = borrow [%v25] : 'Int
     %v27 = load [%v26] : Int
-    %v28 = borrow_mut %sum : &mut Int
+    %v28 = borrow_mut %sum : &Int
     call +=(Int), %v28, %v27
     %v30 = load %i : Int
-    %v33 = borrow_mut %i : &mut Int
+    %v33 = borrow_mut %i : &Int
     call +=(Int), %v33, 1
     jmp b1
 }
@@ -520,7 +520,7 @@ fn main() -> Int {
 fn ResolveTest.lambda$15(%env: %{xs: Array(Int)}) -> Int {
   b0:
     %v1 = load [%env].xs : Array(Int)
-    %v2 = borrow [%env].xs : &Array(Int)
+    %v2 = borrow [%env].xs : 'Array(Int)
     %v3 = alloc : Flat(Int)
     %v4 = load [%v2]@Array.run@Run.items : %Int
     init %local0@Flat.items, %v4

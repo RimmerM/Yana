@@ -31,7 +31,7 @@ let &self = self + 1
 
 -- A borrow has an extent and a global does not. What would be stored is the address of storage in
 -- the entry function's own frame, which stops existing the moment the program starts.
-fn xOf(return p: Point) -> &Int = p.x
+fn xOf(return p: Point) -> 'Int = p.x
 
 let &point = Point {x: 1, y: 2}
 let &edge = xOf(point)

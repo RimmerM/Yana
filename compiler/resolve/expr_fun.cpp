@@ -591,7 +591,6 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
 
     SmallArray<FunArg, 8> signature;
     U16 index = 0;
-    auto allRootsMutable = true;
     auto roots = 0u;
 
     for(auto arg: astArgs.contents(parse)) {
@@ -623,7 +622,6 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
         if(arg.returnRoot) {
             if(checkReturnRoot(module, argType, arg.bind, index, arg.source)) {
                 roots++;
-                if(arg.bind != ast::BindType::Ref) allRootsMutable = false;
             } else {
                 declared->returnRoot = false;
             }
@@ -663,10 +661,6 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
     } else if(!lambda->returnType) {
         // Every path left through an explicit `return`, which resultInferred has already reported.
         lambda->returnType = module.scalar.unit;
-    }
-
-    if(isBorrow(global, lambda->returnType) && roots) {
-        lambda->returnType = applyReturnRootMutability(module, lambda->returnType, allRootsMutable);
     }
 
     auto type = resolveFunType(module, toBuffer(signature), lambda->returnType, ast::FunKind::Plain);

@@ -2284,6 +2284,9 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
     } else if(maybe(Token::opAmp)) {
         auto type = parseAType(location, nullptr);
         return makeType(Borrow, to, heap(type), type.source, attributes);
+    } else if(maybe(Token::opQuote)) {
+        auto type = parseAType(location, nullptr);
+        return makeType(Shared, to, heap(type), type.source, attributes);
     } else if(token.type == Token::ConID || token.type == Token::VarID) {
         auto isVar = token.type == Token::VarID;
         auto name = token.data.id;
@@ -2482,10 +2485,6 @@ ast::Expr Parser::toLiteral(const Token::Payload& payload, Token::Type type, con
         case Token::Float:
             lit.d(payload.floating);
             kind = ast::Literal::Double;
-            break;
-        case Token::Char:
-            lit.c = payload.character;
-            kind = ast::Literal::Char;
             break;
         case Token::String:
             lit.s = payload.id;

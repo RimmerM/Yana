@@ -48,7 +48,7 @@ fn totalOf(m: Maybe(Tree)) -> Int = match m:
 -- is the one the move just told the compiler not to run. See wholeMove in resolve/analyze_borrow.cpp.
 -- Reading through the pointer is what a fold over a recursive structure wants anyway, and the
 -- `return` roots are what say whose storage the answer lives in.
-fn unwrapOr(return m: Maybe(a), return fallback: a) -> &a = match m:
+fn unwrapOr(return m: Maybe(a), return fallback: a) -> 'a = match m:
     Nothing -> fallback
     Just(v) -> v
 

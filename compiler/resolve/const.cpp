@@ -276,7 +276,9 @@ static LiteralFit literalBitsAt(Module& module, const WrittenNumber& written, Ty
  * every case a constant has - a literal collects a second class only by meeting another literal, and
  * there is nothing here for it to meet.
  *
- * Null for a character literal, which has neither a class nor a type in the language yet.
+ * The `default` arm is unreachable for a well-formed kind and is a guard rather than a case: the
+ * kind arrives as `expr.kind - Expr::Lit` rather than as an enumerator, so a malformed node reaches
+ * here as a number no enumerator has.
  */
 static TypePtr literalDefaultType(Module& module, ast::Literal::Kind literal) {
     auto global = *module.types;

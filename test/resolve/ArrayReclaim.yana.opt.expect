@@ -19,7 +19,7 @@ fn push(Int)(%self: Array(Int), %item: Int) -> () {
     je %v33, b2, b1
 
   b1:
-    %v36 = borrow_mut %self : &mut Array(Int)
+    %v36 = borrow_mut %self : &Array(Int)
     call growArray(Int), %v36, %v7
     jmp b3
 
@@ -79,7 +79,7 @@ fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
 
   b6:
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &mut Run(Int)
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
     %v27 = call resize(Int), %v26, %v25 : Bool
     ret
 }
@@ -667,9 +667,9 @@ fn grown() -> Int {
     init %xs@Array.run@Run.ownsHeap, 0
     aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
     init %xs@Array.length, 3
-    %v21 = borrow_mut %xs : &mut Array(Int)
+    %v21 = borrow_mut %xs : &Array(Int)
     call push(Int), %v21, 4
-    %v26 = borrow_mut %xs : &mut Array(Int)
+    %v26 = borrow_mut %xs : &Array(Int)
     call push(Int), %v26, 5
     %v32 = load %xs@Array.length : @bits(30) U32
     %v34 = cast %v32 : USize
@@ -741,9 +741,9 @@ fn main() -> Int {
     init %xs@Array.run@Run.capacity:unit32, %v137
     aggregate [%v36][0] = 1, [%v36][1] = 2, [%v36][2] = 3
     init %xs@Array.length, 3
-    %v49 = borrow_mut %xs : &mut Array(Int)
+    %v49 = borrow_mut %xs : &Array(Int)
     call push(Int), %v49, 4
-    %v52 = borrow_mut %xs : &mut Array(Int)
+    %v52 = borrow_mut %xs : &Array(Int)
     call push(Int), %v52, 5
     %v55 = load %xs@Array.length : @bits(30) U32
     %v56 = cast %v55 : USize

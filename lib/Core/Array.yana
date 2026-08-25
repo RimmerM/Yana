@@ -51,11 +51,11 @@ import Native
    Written out, the owner's pair would read:
 
        @platform(native) instance Index(Array(a), Size, a):
-           fn get(return self: Array(a), index: Size) -> &a = borrow(self.run.items + index)
+           fn get(return self: Array(a), index: Size) -> 'a = borrow(self.run.items + index)
            fn getMut(return &self: Array(a), index: Size) -> &a = borrowMut(self.run.items + index)
 
        @platform(js) instance Index(Array(a), Size, a):
-           fn get(return self: Array(a), index: Size) -> &a = hostAt(self.items, index)
+           fn get(return self: Array(a), index: Size) -> 'a = hostAt(self.items, index)
            fn getMut(return &self: Array(a), index: Size) -> &a = hostAtMut(self.items, index)
 
    The bodies are the slice's, minus the descriptor. `self.run.items` is the base the slice would

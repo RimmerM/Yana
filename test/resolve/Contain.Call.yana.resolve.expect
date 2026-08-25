@@ -83,7 +83,7 @@ fn borrowed() -> Int {
     init %f@Flags.read, False
     init %f@Flags.write, False
     %v5 = load %f : Flags
-    %v6 = borrow %f : &Flags
+    %v6 = borrow_mut %f : &Flags
     %zero = call mutate, %v6 : Int
     %v8 = load %f : Flags
     %v9 = load %f@Flags.read : Bool

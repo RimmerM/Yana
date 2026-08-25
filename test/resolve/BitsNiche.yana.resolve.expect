@@ -79,7 +79,7 @@ fn main() -> Int {
     %v48 = load %b : Wide
     %v49 = load %b@Wide.only : @bits(13) U32
     %v50 = load %n : U32
-    %v51 = borrow_mut %b@Wide.only : &mut @bits(13) U32
+    %v51 = borrow_mut %b@Wide.only : &@bits(13) U32
     call setThrough, %v51, %v50
     %v53 = alloc : Maybe(Wide)
     %v55 = load %b : Wide
@@ -114,7 +114,7 @@ fn main() -> Int {
     %v89 = and %v87, 8191 : U32
     %v90 = cast %v89 : @bits(13) U32
     aggregate %local11@Wide.only = %v90
-    %v92 = borrow_mut %dst : &mut Wide
+    %v92 = borrow_mut %dst : &Wide
     call put(Wide), %v92, %v86
     %v94 = alloc : Maybe(Wide)
     %v96 = load %dst : Wide
@@ -129,8 +129,8 @@ fn main() -> Int {
     aggregate %y@Wide.only = 2
     %v108 = load %x : Wide
     %v109 = load %y : Wide
-    %v110 = borrow_mut %x : &mut Wide
-    %v111 = borrow_mut %y : &mut Wide
+    %v110 = borrow_mut %x : &Wide
+    %v111 = borrow_mut %y : &Wide
     swap [%v110], [%v111]
     %v113 = alloc : Maybe(Wide)
     %v115 = load %x : Wide

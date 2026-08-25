@@ -49,7 +49,7 @@ fn fromGlobal() -> Buf {
     ret %v0
 }
 
-fn fromField(%w: &Wrap) -> Buf {
+fn fromField(%w: 'Wrap) -> Buf {
   b0:
     %v1 = alloc : Buf
     %v2 = load [%w]@Wrap.inner : Buf
@@ -60,7 +60,7 @@ fn fromField(%w: &Wrap) -> Buf {
     ret %v1
 }
 
-fn bytesOf(%w: &Wrap) -> [Int *4] {
+fn bytesOf(%w: 'Wrap) -> [Int *4] {
   b0:
     %v1 = load [%w]@Wrap.inner : Buf
     %v2 = load [%w]@Wrap.inner@Buf.bytes : [Int *4]
@@ -73,13 +73,13 @@ fn eat(%b: Buf) -> Int {
     init %m, %b
     %v3 = load %m : Buf
     %v4 = load %m@Buf.bytes : [Int *4]
-    %v6 = borrow_mut %m@Buf.bytes : &mut [Int *4]
+    %v6 = borrow_mut %m@Buf.bytes : &[Int *4]
     %v7 = alloc : Flat(Int)
     %v8 = addressof [%v6] : %Int
     init %local2@Flat.items, %v8
     %v10 = countof 4 : Size
     init %local2@Flat.length, %v10
-    %v13 = borrow_mut %local2 : &mut Flat(Int)
+    %v13 = borrow_mut %local2 : &Flat(Int)
     %v14 = load [%v13]@Flat.length : Size
     %v15 = cast 0 : USize
     %v16 = cast %v14 : USize
@@ -89,19 +89,19 @@ fn eat(%b: Buf) -> Int {
     %v20 = strideof Int : Long
     %v21 = mul 0, %v20 : Long
     %v22 = add %v19, %v21 : %Int
-    %v23 = borrow_mut [%v22] : &mut Int
+    %v23 = borrow_mut [%v22] : &Int
     %v24 = call seed : Int
     %v27 = add %v24, 6 : Int
     assign [%v23], %v27
     %v29 = load %m : Buf
     %v30 = load %m@Buf.bytes : [Int *4]
-    %v32 = borrow %m@Buf.bytes : &[Int *4]
+    %v32 = borrow %m@Buf.bytes : '[Int *4]
     %v33 = alloc : Flat(Int)
     %v34 = addressof [%v32] : %Int
     init %local3@Flat.items, %v34
     %v36 = countof 4 : Size
     init %local3@Flat.length, %v36
-    %v39 = borrow %local3 : &Flat(Int)
+    %v39 = borrow %local3 : 'Flat(Int)
     %v40 = load [%v39]@Flat.length : Size
     %v41 = cast 0 : USize
     %v42 = cast %v40 : USize
@@ -111,12 +111,12 @@ fn eat(%b: Buf) -> Int {
     %v46 = strideof Int : Long
     %v47 = mul 0, %v46 : Long
     %v48 = add %v45, %v47 : %Int
-    %v49 = borrow [%v48] : &Int
+    %v49 = borrow [%v48] : 'Int
     %v50 = load [%v49] : Int
     ret %v50
 }
 
-fn fromEither(%flag: Bool, %w: &Wrap) -> Buf {
+fn fromEither(%flag: Bool, %w: 'Wrap) -> Buf {
   b0:
     %v2 = alloc : Buf
     je %flag, b1, b2
@@ -138,7 +138,7 @@ fn fromEither(%flag: Bool, %w: &Wrap) -> Buf {
     ret %v2
 }
 
-fn bytesKept(%w: &Wrap) -> [Int *4] {
+fn bytesKept(%w: 'Wrap) -> [Int *4] {
   b0:
     %v1 = load [%w]@Wrap.inner : Buf
     %v2 = load [%w]@Wrap.inner@Buf.bytes : [Int *4]
@@ -171,13 +171,13 @@ fn main() -> Int {
     init %b, %v3
     %v6 = load %a : Buf
     %v7 = load %a@Buf.bytes : [Int *4]
-    %v9 = borrow_mut %a@Buf.bytes : &mut [Int *4]
+    %v9 = borrow_mut %a@Buf.bytes : &[Int *4]
     %v10 = alloc : Flat(Int)
     %v11 = addressof [%v9] : %Int
     init %local4@Flat.items, %v11
     %v13 = countof 4 : Size
     init %local4@Flat.length, %v13
-    %v16 = borrow_mut %local4 : &mut Flat(Int)
+    %v16 = borrow_mut %local4 : &Flat(Int)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast 0 : USize
     %v19 = cast %v17 : USize
@@ -187,19 +187,19 @@ fn main() -> Int {
     %v23 = strideof Int : Long
     %v24 = mul 0, %v23 : Long
     %v25 = add %v22, %v24 : %Int
-    %v26 = borrow_mut [%v25] : &mut Int
+    %v26 = borrow_mut [%v25] : &Int
     %v27 = call seed : Int
     %v30 = add %v27, 1 : Int
     assign [%v26], %v30
     %v32 = load %a : Buf
     %v33 = load %a@Buf.bytes : [Int *4]
-    %v35 = borrow %a@Buf.bytes : &[Int *4]
+    %v35 = borrow %a@Buf.bytes : '[Int *4]
     %v36 = alloc : Flat(Int)
     %v37 = addressof [%v35] : %Int
     init %local5@Flat.items, %v37
     %v39 = countof 4 : Size
     init %local5@Flat.length, %v39
-    %v42 = borrow %local5 : &Flat(Int)
+    %v42 = borrow %local5 : 'Flat(Int)
     %v43 = load [%v42]@Flat.length : Size
     %v44 = cast 0 : USize
     %v45 = cast %v43 : USize
@@ -209,7 +209,7 @@ fn main() -> Int {
     %v49 = strideof Int : Long
     %v50 = mul 0, %v49 : Long
     %v51 = add %v48, %v50 : %Int
-    %v52 = borrow [%v51] : &Int
+    %v52 = borrow [%v51] : 'Int
     %v53 = load [%v52] : Int
     %v56 = cmp_ne %v53, 1 : Bool
     je %v56, b1, b2
@@ -224,13 +224,13 @@ fn main() -> Int {
   b3:
     %v63 = load %b : Buf
     %v64 = load %b@Buf.bytes : [Int *4]
-    %v66 = borrow %b@Buf.bytes : &[Int *4]
+    %v66 = borrow %b@Buf.bytes : '[Int *4]
     %v67 = alloc : Flat(Int)
     %v68 = addressof [%v66] : %Int
     init %local6@Flat.items, %v68
     %v70 = countof 4 : Size
     init %local6@Flat.length, %v70
-    %v73 = borrow %local6 : &Flat(Int)
+    %v73 = borrow %local6 : 'Flat(Int)
     %v74 = load [%v73]@Flat.length : Size
     %v75 = cast 0 : USize
     %v76 = cast %v74 : USize
@@ -240,7 +240,7 @@ fn main() -> Int {
     %v80 = strideof Int : Long
     %v81 = mul 0, %v80 : Long
     %v82 = add %v79, %v81 : %Int
-    %v83 = borrow [%v82] : &Int
+    %v83 = borrow [%v82] : 'Int
     %v84 = load [%v83] : Int
     %v87 = cmp_ne %v84, 0 : Bool
     je %v87, b4, b5
@@ -254,13 +254,13 @@ fn main() -> Int {
 
   b6:
     %v94 = load zeros : [Int *4]
-    %v96 = borrow zeros : &[Int *4]
+    %v96 = borrow zeros : '[Int *4]
     %v97 = alloc : Flat(Int)
     %v98 = addressof [%v96] : %Int
     init %local7@Flat.items, %v98
     %v100 = countof 4 : Size
     init %local7@Flat.length, %v100
-    %v103 = borrow %local7 : &Flat(Int)
+    %v103 = borrow %local7 : 'Flat(Int)
     %v104 = load [%v103]@Flat.length : Size
     %v105 = cast 0 : USize
     %v106 = cast %v104 : USize
@@ -270,7 +270,7 @@ fn main() -> Int {
     %v110 = strideof Int : Long
     %v111 = mul 0, %v110 : Long
     %v112 = add %v109, %v111 : %Int
-    %v113 = borrow [%v112] : &Int
+    %v113 = borrow [%v112] : 'Int
     %v114 = load [%v113] : Int
     %v117 = cmp_ne %v114, 0 : Bool
     je %v117, b7, b8
@@ -291,13 +291,13 @@ fn main() -> Int {
     aggregate %two@Buf.bytes = %v135, %two@Buf.used = %v136
     %v138 = load %two : Buf
     %v139 = load %two@Buf.bytes : [Int *4]
-    %v141 = borrow_mut %two@Buf.bytes : &mut [Int *4]
+    %v141 = borrow_mut %two@Buf.bytes : &[Int *4]
     %v142 = alloc : Flat(Int)
     %v143 = addressof [%v141] : %Int
     init %local10@Flat.items, %v143
     %v145 = countof 4 : Size
     init %local10@Flat.length, %v145
-    %v148 = borrow_mut %local10 : &mut Flat(Int)
+    %v148 = borrow_mut %local10 : &Flat(Int)
     %v149 = load [%v148]@Flat.length : Size
     %v150 = cast 0 : USize
     %v151 = cast %v149 : USize
@@ -307,19 +307,19 @@ fn main() -> Int {
     %v155 = strideof Int : Long
     %v156 = mul 0, %v155 : Long
     %v157 = add %v154, %v156 : %Int
-    %v158 = borrow_mut [%v157] : &mut Int
+    %v158 = borrow_mut [%v157] : &Int
     %v159 = call seed : Int
     %v162 = add %v159, 2 : Int
     assign [%v158], %v162
     %v164 = load %two : Buf
     %v165 = load %two@Buf.bytes : [Int *4]
-    %v167 = borrow %two@Buf.bytes : &[Int *4]
+    %v167 = borrow %two@Buf.bytes : '[Int *4]
     %v168 = alloc : Flat(Int)
     %v169 = addressof [%v167] : %Int
     init %local11@Flat.items, %v169
     %v171 = countof 4 : Size
     init %local11@Flat.length, %v171
-    %v174 = borrow %local11 : &Flat(Int)
+    %v174 = borrow %local11 : 'Flat(Int)
     %v175 = load [%v174]@Flat.length : Size
     %v176 = cast 0 : USize
     %v177 = cast %v175 : USize
@@ -329,7 +329,7 @@ fn main() -> Int {
     %v181 = strideof Int : Long
     %v182 = mul 0, %v181 : Long
     %v183 = add %v180, %v182 : %Int
-    %v184 = borrow [%v183] : &Int
+    %v184 = borrow [%v183] : 'Int
     %v185 = load [%v184] : Int
     %v188 = cmp_ne %v185, 2 : Bool
     je %v188, b10, b11
@@ -344,13 +344,13 @@ fn main() -> Int {
   b12:
     %v195 = load %two : Buf
     %v196 = load %two@Buf.bytes : [Int *4]
-    %v198 = borrow %two@Buf.bytes : &[Int *4]
+    %v198 = borrow %two@Buf.bytes : '[Int *4]
     %v199 = alloc : Flat(Int)
     %v200 = addressof [%v198] : %Int
     init %local12@Flat.items, %v200
     %v202 = countof 4 : Size
     init %local12@Flat.length, %v202
-    %v205 = borrow %local12 : &Flat(Int)
+    %v205 = borrow %local12 : 'Flat(Int)
     %v206 = load [%v205]@Flat.length : Size
     %v207 = cast 1 : USize
     %v208 = cast %v206 : USize
@@ -360,7 +360,7 @@ fn main() -> Int {
     %v212 = strideof Int : Long
     %v213 = mul 1, %v212 : Long
     %v214 = add %v211, %v213 : %Int
-    %v215 = borrow [%v214] : &Int
+    %v215 = borrow [%v214] : 'Int
     %v216 = load [%v215] : Int
     %v219 = cmp_ne %v216, 9 : Bool
     je %v219, b13, b14
@@ -374,13 +374,13 @@ fn main() -> Int {
 
   b15:
     %v226 = load %xs : [Int *4]
-    %v228 = borrow %xs : &[Int *4]
+    %v228 = borrow %xs : '[Int *4]
     %v229 = alloc : Flat(Int)
     %v230 = addressof [%v228] : %Int
     init %local13@Flat.items, %v230
     %v232 = countof 4 : Size
     init %local13@Flat.length, %v232
-    %v235 = borrow %local13 : &Flat(Int)
+    %v235 = borrow %local13 : 'Flat(Int)
     %v236 = load [%v235]@Flat.length : Size
     %v237 = cast 0 : USize
     %v238 = cast %v236 : USize
@@ -390,7 +390,7 @@ fn main() -> Int {
     %v242 = strideof Int : Long
     %v243 = mul 0, %v242 : Long
     %v244 = add %v241, %v243 : %Int
-    %v245 = borrow [%v244] : &Int
+    %v245 = borrow [%v244] : 'Int
     %v246 = load [%v245] : Int
     %v249 = cmp_ne %v246, 0 : Bool
     je %v249, b16, b17
@@ -412,19 +412,19 @@ fn main() -> Int {
     %v270 = call seed : Int
     aggregate %w@Wrap.inner = %v257, %w@Wrap.tag = %v270
     %v272 = load %w : Wrap
-    %v273 = borrow %w : &Wrap
+    %v273 = borrow %w : 'Wrap
     %v274 = call fromField, %v273 : Buf
     %three = alloc : Buf
     init %three, %v274
     %v277 = load %three : Buf
     %v278 = load %three@Buf.bytes : [Int *4]
-    %v280 = borrow_mut %three@Buf.bytes : &mut [Int *4]
+    %v280 = borrow_mut %three@Buf.bytes : &[Int *4]
     %v281 = alloc : Flat(Int)
     %v282 = addressof [%v280] : %Int
     init %local19@Flat.items, %v282
     %v284 = countof 4 : Size
     init %local19@Flat.length, %v284
-    %v287 = borrow_mut %local19 : &mut Flat(Int)
+    %v287 = borrow_mut %local19 : &Flat(Int)
     %v288 = load [%v287]@Flat.length : Size
     %v289 = cast 0 : USize
     %v290 = cast %v288 : USize
@@ -434,19 +434,19 @@ fn main() -> Int {
     %v294 = strideof Int : Long
     %v295 = mul 0, %v294 : Long
     %v296 = add %v293, %v295 : %Int
-    %v297 = borrow_mut [%v296] : &mut Int
+    %v297 = borrow_mut [%v296] : &Int
     %v298 = call seed : Int
     %v301 = add %v298, 3 : Int
     assign [%v297], %v301
     %v303 = load %three : Buf
     %v304 = load %three@Buf.bytes : [Int *4]
-    %v306 = borrow %three@Buf.bytes : &[Int *4]
+    %v306 = borrow %three@Buf.bytes : '[Int *4]
     %v307 = alloc : Flat(Int)
     %v308 = addressof [%v306] : %Int
     init %local20@Flat.items, %v308
     %v310 = countof 4 : Size
     init %local20@Flat.length, %v310
-    %v313 = borrow %local20 : &Flat(Int)
+    %v313 = borrow %local20 : 'Flat(Int)
     %v314 = load [%v313]@Flat.length : Size
     %v315 = cast 0 : USize
     %v316 = cast %v314 : USize
@@ -456,7 +456,7 @@ fn main() -> Int {
     %v320 = strideof Int : Long
     %v321 = mul 0, %v320 : Long
     %v322 = add %v319, %v321 : %Int
-    %v323 = borrow [%v322] : &Int
+    %v323 = borrow [%v322] : 'Int
     %v324 = load [%v323] : Int
     %v327 = cmp_ne %v324, 3 : Bool
     je %v327, b19, b20
@@ -471,13 +471,13 @@ fn main() -> Int {
   b21:
     %v334 = load %three : Buf
     %v335 = load %three@Buf.bytes : [Int *4]
-    %v337 = borrow %three@Buf.bytes : &[Int *4]
+    %v337 = borrow %three@Buf.bytes : '[Int *4]
     %v338 = alloc : Flat(Int)
     %v339 = addressof [%v337] : %Int
     init %local21@Flat.items, %v339
     %v341 = countof 4 : Size
     init %local21@Flat.length, %v341
-    %v344 = borrow %local21 : &Flat(Int)
+    %v344 = borrow %local21 : 'Flat(Int)
     %v345 = load [%v344]@Flat.length : Size
     %v346 = cast 2 : USize
     %v347 = cast %v345 : USize
@@ -487,7 +487,7 @@ fn main() -> Int {
     %v351 = strideof Int : Long
     %v352 = mul 2, %v351 : Long
     %v353 = add %v350, %v352 : %Int
-    %v354 = borrow [%v353] : &Int
+    %v354 = borrow [%v353] : 'Int
     %v355 = load [%v354] : Int
     %v358 = cmp_ne %v355, 7 : Bool
     je %v358, b22, b23
@@ -503,13 +503,13 @@ fn main() -> Int {
     %v365 = load %w : Wrap
     %v366 = load %w@Wrap.inner : Buf
     %v367 = load %w@Wrap.inner@Buf.bytes : [Int *4]
-    %v369 = borrow %w@Wrap.inner@Buf.bytes : &[Int *4]
+    %v369 = borrow %w@Wrap.inner@Buf.bytes : '[Int *4]
     %v370 = alloc : Flat(Int)
     %v371 = addressof [%v369] : %Int
     init %local22@Flat.items, %v371
     %v373 = countof 4 : Size
     init %local22@Flat.length, %v373
-    %v376 = borrow %local22 : &Flat(Int)
+    %v376 = borrow %local22 : 'Flat(Int)
     %v377 = load [%v376]@Flat.length : Size
     %v378 = cast 0 : USize
     %v379 = cast %v377 : USize
@@ -519,7 +519,7 @@ fn main() -> Int {
     %v383 = strideof Int : Long
     %v384 = mul 0, %v383 : Long
     %v385 = add %v382, %v384 : %Int
-    %v386 = borrow [%v385] : &Int
+    %v386 = borrow [%v385] : 'Int
     %v387 = load [%v386] : Int
     %v390 = cmp_ne %v387, 0 : Bool
     je %v390, b25, b26
@@ -536,13 +536,13 @@ fn main() -> Int {
     %four = alloc : [Int *4]
     init %four, %v397
     %v400 = load %four : [Int *4]
-    %v402 = borrow_mut %four : &mut [Int *4]
+    %v402 = borrow_mut %four : &[Int *4]
     %v403 = alloc : Flat(Int)
     %v404 = addressof [%v402] : %Int
     init %local24@Flat.items, %v404
     %v406 = countof 4 : Size
     init %local24@Flat.length, %v406
-    %v409 = borrow_mut %local24 : &mut Flat(Int)
+    %v409 = borrow_mut %local24 : &Flat(Int)
     %v410 = load [%v409]@Flat.length : Size
     %v411 = cast 0 : USize
     %v412 = cast %v410 : USize
@@ -552,18 +552,18 @@ fn main() -> Int {
     %v416 = strideof Int : Long
     %v417 = mul 0, %v416 : Long
     %v418 = add %v415, %v417 : %Int
-    %v419 = borrow_mut [%v418] : &mut Int
+    %v419 = borrow_mut [%v418] : &Int
     %v420 = call seed : Int
     %v423 = add %v420, 4 : Int
     assign [%v419], %v423
     %v425 = load %four : [Int *4]
-    %v427 = borrow %four : &[Int *4]
+    %v427 = borrow %four : '[Int *4]
     %v428 = alloc : Flat(Int)
     %v429 = addressof [%v427] : %Int
     init %local25@Flat.items, %v429
     %v431 = countof 4 : Size
     init %local25@Flat.length, %v431
-    %v434 = borrow %local25 : &Flat(Int)
+    %v434 = borrow %local25 : 'Flat(Int)
     %v435 = load [%v434]@Flat.length : Size
     %v436 = cast 0 : USize
     %v437 = cast %v435 : USize
@@ -573,7 +573,7 @@ fn main() -> Int {
     %v441 = strideof Int : Long
     %v442 = mul 0, %v441 : Long
     %v443 = add %v440, %v442 : %Int
-    %v444 = borrow [%v443] : &Int
+    %v444 = borrow [%v443] : 'Int
     %v445 = load [%v444] : Int
     %v448 = cmp_ne %v445, 4 : Bool
     je %v448, b28, b29
@@ -587,13 +587,13 @@ fn main() -> Int {
 
   b30:
     %v455 = load zeros : [Int *4]
-    %v457 = borrow zeros : &[Int *4]
+    %v457 = borrow zeros : '[Int *4]
     %v458 = alloc : Flat(Int)
     %v459 = addressof [%v457] : %Int
     init %local26@Flat.items, %v459
     %v461 = countof 4 : Size
     init %local26@Flat.length, %v461
-    %v464 = borrow %local26 : &Flat(Int)
+    %v464 = borrow %local26 : 'Flat(Int)
     %v465 = load [%v464]@Flat.length : Size
     %v466 = cast 0 : USize
     %v467 = cast %v465 : USize
@@ -603,7 +603,7 @@ fn main() -> Int {
     %v471 = strideof Int : Long
     %v472 = mul 0, %v471 : Long
     %v473 = add %v470, %v472 : %Int
-    %v474 = borrow [%v473] : &Int
+    %v474 = borrow [%v473] : 'Int
     %v475 = load [%v474] : Int
     %v478 = cmp_ne %v475, 0 : Bool
     je %v478, b31, b32
@@ -617,18 +617,18 @@ fn main() -> Int {
 
   b33:
     %v485 = load %w : Wrap
-    %v486 = borrow %w : &Wrap
+    %v486 = borrow %w : 'Wrap
     %v487 = call bytesOf, %v486 : [Int *4]
     %five = alloc : [Int *4]
     init %five, %v487
     %v490 = load %five : [Int *4]
-    %v492 = borrow_mut %five : &mut [Int *4]
+    %v492 = borrow_mut %five : &[Int *4]
     %v493 = alloc : Flat(Int)
     %v494 = addressof [%v492] : %Int
     init %local29@Flat.items, %v494
     %v496 = countof 4 : Size
     init %local29@Flat.length, %v496
-    %v499 = borrow_mut %local29 : &mut Flat(Int)
+    %v499 = borrow_mut %local29 : &Flat(Int)
     %v500 = load [%v499]@Flat.length : Size
     %v501 = cast 0 : USize
     %v502 = cast %v500 : USize
@@ -638,18 +638,18 @@ fn main() -> Int {
     %v506 = strideof Int : Long
     %v507 = mul 0, %v506 : Long
     %v508 = add %v505, %v507 : %Int
-    %v509 = borrow_mut [%v508] : &mut Int
+    %v509 = borrow_mut [%v508] : &Int
     %v510 = call seed : Int
     %v513 = add %v510, 5 : Int
     assign [%v509], %v513
     %v515 = load %five : [Int *4]
-    %v517 = borrow %five : &[Int *4]
+    %v517 = borrow %five : '[Int *4]
     %v518 = alloc : Flat(Int)
     %v519 = addressof [%v517] : %Int
     init %local30@Flat.items, %v519
     %v521 = countof 4 : Size
     init %local30@Flat.length, %v521
-    %v524 = borrow %local30 : &Flat(Int)
+    %v524 = borrow %local30 : 'Flat(Int)
     %v525 = load [%v524]@Flat.length : Size
     %v526 = cast 0 : USize
     %v527 = cast %v525 : USize
@@ -659,7 +659,7 @@ fn main() -> Int {
     %v531 = strideof Int : Long
     %v532 = mul 0, %v531 : Long
     %v533 = add %v530, %v532 : %Int
-    %v534 = borrow [%v533] : &Int
+    %v534 = borrow [%v533] : 'Int
     %v535 = load [%v534] : Int
     %v538 = cmp_ne %v535, 5 : Bool
     je %v538, b34, b35
@@ -675,13 +675,13 @@ fn main() -> Int {
     %v545 = load %w : Wrap
     %v546 = load %w@Wrap.inner : Buf
     %v547 = load %w@Wrap.inner@Buf.bytes : [Int *4]
-    %v549 = borrow %w@Wrap.inner@Buf.bytes : &[Int *4]
+    %v549 = borrow %w@Wrap.inner@Buf.bytes : '[Int *4]
     %v550 = alloc : Flat(Int)
     %v551 = addressof [%v549] : %Int
     init %local31@Flat.items, %v551
     %v553 = countof 4 : Size
     init %local31@Flat.length, %v553
-    %v556 = borrow %local31 : &Flat(Int)
+    %v556 = borrow %local31 : 'Flat(Int)
     %v557 = load [%v556]@Flat.length : Size
     %v558 = cast 0 : USize
     %v559 = cast %v557 : USize
@@ -691,7 +691,7 @@ fn main() -> Int {
     %v563 = strideof Int : Long
     %v564 = mul 0, %v563 : Long
     %v565 = add %v562, %v564 : %Int
-    %v566 = borrow [%v565] : &Int
+    %v566 = borrow [%v565] : 'Int
     %v567 = load [%v566] : Int
     %v570 = cmp_ne %v567, 0 : Bool
     je %v570, b37, b38
@@ -721,13 +721,13 @@ fn main() -> Int {
     %v589 = load %w : Wrap
     %v590 = load %w@Wrap.inner : Buf
     %v591 = load %w@Wrap.inner@Buf.bytes : [Int *4]
-    %v593 = borrow %w@Wrap.inner@Buf.bytes : &[Int *4]
+    %v593 = borrow %w@Wrap.inner@Buf.bytes : '[Int *4]
     %v594 = alloc : Flat(Int)
     %v595 = addressof [%v593] : %Int
     init %local32@Flat.items, %v595
     %v597 = countof 4 : Size
     init %local32@Flat.length, %v597
-    %v600 = borrow %local32 : &Flat(Int)
+    %v600 = borrow %local32 : 'Flat(Int)
     %v601 = load [%v600]@Flat.length : Size
     %v602 = cast 0 : USize
     %v603 = cast %v601 : USize
@@ -737,7 +737,7 @@ fn main() -> Int {
     %v607 = strideof Int : Long
     %v608 = mul 0, %v607 : Long
     %v609 = add %v606, %v608 : %Int
-    %v610 = borrow [%v609] : &Int
+    %v610 = borrow [%v609] : 'Int
     %v611 = load [%v610] : Int
     %v614 = cmp_ne %v611, 0 : Bool
     je %v614, b43, b44
@@ -751,24 +751,24 @@ fn main() -> Int {
 
   b45:
     %v622 = load %w : Wrap
-    %v623 = borrow %w : &Wrap
+    %v623 = borrow %w : 'Wrap
     %v624 = call fromEither, True, %v623 : Buf
     %taken = alloc : Buf
     init %taken, %v624
     %v628 = load %w : Wrap
-    %v629 = borrow %w : &Wrap
+    %v629 = borrow %w : 'Wrap
     %v630 = call fromEither, False, %v629 : Buf
     %other = alloc : Buf
     init %other, %v630
     %v633 = load %taken : Buf
     %v634 = load %taken@Buf.bytes : [Int *4]
-    %v636 = borrow_mut %taken@Buf.bytes : &mut [Int *4]
+    %v636 = borrow_mut %taken@Buf.bytes : &[Int *4]
     %v637 = alloc : Flat(Int)
     %v638 = addressof [%v636] : %Int
     init %local37@Flat.items, %v638
     %v640 = countof 4 : Size
     init %local37@Flat.length, %v640
-    %v643 = borrow_mut %local37 : &mut Flat(Int)
+    %v643 = borrow_mut %local37 : &Flat(Int)
     %v644 = load [%v643]@Flat.length : Size
     %v645 = cast 0 : USize
     %v646 = cast %v644 : USize
@@ -778,19 +778,19 @@ fn main() -> Int {
     %v650 = strideof Int : Long
     %v651 = mul 0, %v650 : Long
     %v652 = add %v649, %v651 : %Int
-    %v653 = borrow_mut [%v652] : &mut Int
+    %v653 = borrow_mut [%v652] : &Int
     %v654 = call seed : Int
     %v657 = add %v654, 7 : Int
     assign [%v653], %v657
     %v659 = load %other : Buf
     %v660 = load %other@Buf.bytes : [Int *4]
-    %v662 = borrow_mut %other@Buf.bytes : &mut [Int *4]
+    %v662 = borrow_mut %other@Buf.bytes : &[Int *4]
     %v663 = alloc : Flat(Int)
     %v664 = addressof [%v662] : %Int
     init %local38@Flat.items, %v664
     %v666 = countof 4 : Size
     init %local38@Flat.length, %v666
-    %v669 = borrow_mut %local38 : &mut Flat(Int)
+    %v669 = borrow_mut %local38 : &Flat(Int)
     %v670 = load [%v669]@Flat.length : Size
     %v671 = cast 0 : USize
     %v672 = cast %v670 : USize
@@ -800,19 +800,19 @@ fn main() -> Int {
     %v676 = strideof Int : Long
     %v677 = mul 0, %v676 : Long
     %v678 = add %v675, %v677 : %Int
-    %v679 = borrow_mut [%v678] : &mut Int
+    %v679 = borrow_mut [%v678] : &Int
     %v680 = call seed : Int
     %v683 = add %v680, 7 : Int
     assign [%v679], %v683
     %v685 = load %taken : Buf
     %v686 = load %taken@Buf.bytes : [Int *4]
-    %v688 = borrow %taken@Buf.bytes : &[Int *4]
+    %v688 = borrow %taken@Buf.bytes : '[Int *4]
     %v689 = alloc : Flat(Int)
     %v690 = addressof [%v688] : %Int
     init %local39@Flat.items, %v690
     %v692 = countof 4 : Size
     init %local39@Flat.length, %v692
-    %v695 = borrow %local39 : &Flat(Int)
+    %v695 = borrow %local39 : 'Flat(Int)
     %v696 = load [%v695]@Flat.length : Size
     %v697 = cast 0 : USize
     %v698 = cast %v696 : USize
@@ -822,7 +822,7 @@ fn main() -> Int {
     %v702 = strideof Int : Long
     %v703 = mul 0, %v702 : Long
     %v704 = add %v701, %v703 : %Int
-    %v705 = borrow [%v704] : &Int
+    %v705 = borrow [%v704] : 'Int
     %v706 = load [%v705] : Int
     %v709 = cmp_ne %v706, 7 : Bool
     je %v709, b46, b47
@@ -837,13 +837,13 @@ fn main() -> Int {
   b48:
     %v716 = load %other : Buf
     %v717 = load %other@Buf.bytes : [Int *4]
-    %v719 = borrow %other@Buf.bytes : &[Int *4]
+    %v719 = borrow %other@Buf.bytes : '[Int *4]
     %v720 = alloc : Flat(Int)
     %v721 = addressof [%v719] : %Int
     init %local40@Flat.items, %v721
     %v723 = countof 4 : Size
     init %local40@Flat.length, %v723
-    %v726 = borrow %local40 : &Flat(Int)
+    %v726 = borrow %local40 : 'Flat(Int)
     %v727 = load [%v726]@Flat.length : Size
     %v728 = cast 0 : USize
     %v729 = cast %v727 : USize
@@ -853,7 +853,7 @@ fn main() -> Int {
     %v733 = strideof Int : Long
     %v734 = mul 0, %v733 : Long
     %v735 = add %v732, %v734 : %Int
-    %v736 = borrow [%v735] : &Int
+    %v736 = borrow [%v735] : 'Int
     %v737 = load [%v736] : Int
     %v740 = cmp_ne %v737, 7 : Bool
     je %v740, b49, b50
@@ -867,13 +867,13 @@ fn main() -> Int {
 
   b51:
     %v747 = load zeros : [Int *4]
-    %v749 = borrow zeros : &[Int *4]
+    %v749 = borrow zeros : '[Int *4]
     %v750 = alloc : Flat(Int)
     %v751 = addressof [%v749] : %Int
     init %local41@Flat.items, %v751
     %v753 = countof 4 : Size
     init %local41@Flat.length, %v753
-    %v756 = borrow %local41 : &Flat(Int)
+    %v756 = borrow %local41 : 'Flat(Int)
     %v757 = load [%v756]@Flat.length : Size
     %v758 = cast 0 : USize
     %v759 = cast %v757 : USize
@@ -883,7 +883,7 @@ fn main() -> Int {
     %v763 = strideof Int : Long
     %v764 = mul 0, %v763 : Long
     %v765 = add %v762, %v764 : %Int
-    %v766 = borrow [%v765] : &Int
+    %v766 = borrow [%v765] : 'Int
     %v767 = load [%v766] : Int
     %v770 = cmp_ne %v767, 0 : Bool
     je %v770, b52, b53
@@ -899,13 +899,13 @@ fn main() -> Int {
     %v777 = load %w : Wrap
     %v778 = load %w@Wrap.inner : Buf
     %v779 = load %w@Wrap.inner@Buf.bytes : [Int *4]
-    %v781 = borrow %w@Wrap.inner@Buf.bytes : &[Int *4]
+    %v781 = borrow %w@Wrap.inner@Buf.bytes : '[Int *4]
     %v782 = alloc : Flat(Int)
     %v783 = addressof [%v781] : %Int
     init %local42@Flat.items, %v783
     %v785 = countof 4 : Size
     init %local42@Flat.length, %v785
-    %v788 = borrow %local42 : &Flat(Int)
+    %v788 = borrow %local42 : 'Flat(Int)
     %v789 = load [%v788]@Flat.length : Size
     %v790 = cast 0 : USize
     %v791 = cast %v789 : USize
@@ -915,7 +915,7 @@ fn main() -> Int {
     %v795 = strideof Int : Long
     %v796 = mul 0, %v795 : Long
     %v797 = add %v794, %v796 : %Int
-    %v798 = borrow [%v797] : &Int
+    %v798 = borrow [%v797] : 'Int
     %v799 = load [%v798] : Int
     %v802 = cmp_ne %v799, 0 : Bool
     je %v802, b55, b56
@@ -929,18 +929,18 @@ fn main() -> Int {
 
   b57:
     %v809 = load %w : Wrap
-    %v810 = borrow %w : &Wrap
+    %v810 = borrow %w : 'Wrap
     %v811 = call bytesKept, %v810 : [Int *4]
     %eight = alloc : [Int *4]
     init %eight, %v811
     %v814 = load %eight : [Int *4]
-    %v816 = borrow_mut %eight : &mut [Int *4]
+    %v816 = borrow_mut %eight : &[Int *4]
     %v817 = alloc : Flat(Int)
     %v818 = addressof [%v816] : %Int
     init %local45@Flat.items, %v818
     %v820 = countof 4 : Size
     init %local45@Flat.length, %v820
-    %v823 = borrow_mut %local45 : &mut Flat(Int)
+    %v823 = borrow_mut %local45 : &Flat(Int)
     %v824 = load [%v823]@Flat.length : Size
     %v825 = cast 0 : USize
     %v826 = cast %v824 : USize
@@ -950,18 +950,18 @@ fn main() -> Int {
     %v830 = strideof Int : Long
     %v831 = mul 0, %v830 : Long
     %v832 = add %v829, %v831 : %Int
-    %v833 = borrow_mut [%v832] : &mut Int
+    %v833 = borrow_mut [%v832] : &Int
     %v834 = call seed : Int
     %v837 = add %v834, 8 : Int
     assign [%v833], %v837
     %v839 = load %eight : [Int *4]
-    %v841 = borrow %eight : &[Int *4]
+    %v841 = borrow %eight : '[Int *4]
     %v842 = alloc : Flat(Int)
     %v843 = addressof [%v841] : %Int
     init %local46@Flat.items, %v843
     %v845 = countof 4 : Size
     init %local46@Flat.length, %v845
-    %v848 = borrow %local46 : &Flat(Int)
+    %v848 = borrow %local46 : 'Flat(Int)
     %v849 = load [%v848]@Flat.length : Size
     %v850 = cast 0 : USize
     %v851 = cast %v849 : USize
@@ -971,7 +971,7 @@ fn main() -> Int {
     %v855 = strideof Int : Long
     %v856 = mul 0, %v855 : Long
     %v857 = add %v854, %v856 : %Int
-    %v858 = borrow [%v857] : &Int
+    %v858 = borrow [%v857] : 'Int
     %v859 = load [%v858] : Int
     %v862 = cmp_ne %v859, 8 : Bool
     je %v862, b58, b59
@@ -987,13 +987,13 @@ fn main() -> Int {
     %v869 = load %w : Wrap
     %v870 = load %w@Wrap.inner : Buf
     %v871 = load %w@Wrap.inner@Buf.bytes : [Int *4]
-    %v873 = borrow %w@Wrap.inner@Buf.bytes : &[Int *4]
+    %v873 = borrow %w@Wrap.inner@Buf.bytes : '[Int *4]
     %v874 = alloc : Flat(Int)
     %v875 = addressof [%v873] : %Int
     init %local47@Flat.items, %v875
     %v877 = countof 4 : Size
     init %local47@Flat.length, %v877
-    %v880 = borrow %local47 : &Flat(Int)
+    %v880 = borrow %local47 : 'Flat(Int)
     %v881 = load [%v880]@Flat.length : Size
     %v882 = cast 0 : USize
     %v883 = cast %v881 : USize
@@ -1003,7 +1003,7 @@ fn main() -> Int {
     %v887 = strideof Int : Long
     %v888 = mul 0, %v887 : Long
     %v889 = add %v886, %v888 : %Int
-    %v890 = borrow [%v889] : &Int
+    %v890 = borrow [%v889] : 'Int
     %v891 = load [%v890] : Int
     %v894 = cmp_ne %v891, 0 : Bool
     je %v894, b61, b62
@@ -1020,13 +1020,13 @@ fn main() -> Int {
     %nine = alloc : [Int *4]
     init %nine, %v901
     %v904 = load %nine : [Int *4]
-    %v906 = borrow %nine : &[Int *4]
+    %v906 = borrow %nine : '[Int *4]
     %v907 = alloc : Flat(Int)
     %v908 = addressof [%v906] : %Int
     init %local50@Flat.items, %v908
     %v910 = countof 4 : Size
     init %local50@Flat.length, %v910
-    %v913 = borrow %local50 : &Flat(Int)
+    %v913 = borrow %local50 : 'Flat(Int)
     %v914 = load [%v913]@Flat.length : Size
     %v915 = cast 3 : USize
     %v916 = cast %v914 : USize
@@ -1036,7 +1036,7 @@ fn main() -> Int {
     %v920 = strideof Int : Long
     %v921 = mul 3, %v920 : Long
     %v922 = add %v919, %v921 : %Int
-    %v923 = borrow [%v922] : &Int
+    %v923 = borrow [%v922] : 'Int
     %v924 = load [%v923] : Int
     %v927 = cmp_ne %v924, 9 : Bool
     je %v927, b64, b65
@@ -1051,13 +1051,13 @@ fn main() -> Int {
   b66:
     %v934 = load %a : Buf
     %v935 = load %a@Buf.bytes : [Int *4]
-    %v937 = borrow %a@Buf.bytes : &[Int *4]
+    %v937 = borrow %a@Buf.bytes : '[Int *4]
     %v938 = alloc : Flat(Int)
     %v939 = addressof [%v937] : %Int
     init %local51@Flat.items, %v939
     %v941 = countof 4 : Size
     init %local51@Flat.length, %v941
-    %v944 = borrow %local51 : &Flat(Int)
+    %v944 = borrow %local51 : 'Flat(Int)
     %v945 = load [%v944]@Flat.length : Size
     %v946 = cast 0 : USize
     %v947 = cast %v945 : USize
@@ -1067,17 +1067,17 @@ fn main() -> Int {
     %v951 = strideof Int : Long
     %v952 = mul 0, %v951 : Long
     %v953 = add %v950, %v952 : %Int
-    %v954 = borrow [%v953] : &Int
+    %v954 = borrow [%v953] : 'Int
     %v955 = load [%v954] : Int
     %v956 = load %two : Buf
     %v957 = load %two@Buf.bytes : [Int *4]
-    %v959 = borrow %two@Buf.bytes : &[Int *4]
+    %v959 = borrow %two@Buf.bytes : '[Int *4]
     %v960 = alloc : Flat(Int)
     %v961 = addressof [%v959] : %Int
     init %local52@Flat.items, %v961
     %v963 = countof 4 : Size
     init %local52@Flat.length, %v963
-    %v966 = borrow %local52 : &Flat(Int)
+    %v966 = borrow %local52 : 'Flat(Int)
     %v967 = load [%v966]@Flat.length : Size
     %v968 = cast 0 : USize
     %v969 = cast %v967 : USize
@@ -1087,18 +1087,18 @@ fn main() -> Int {
     %v973 = strideof Int : Long
     %v974 = mul 0, %v973 : Long
     %v975 = add %v972, %v974 : %Int
-    %v976 = borrow [%v975] : &Int
+    %v976 = borrow [%v975] : 'Int
     %v977 = load [%v976] : Int
     %v978 = add %v955, %v977 : Int
     %v979 = load %three : Buf
     %v980 = load %three@Buf.bytes : [Int *4]
-    %v982 = borrow %three@Buf.bytes : &[Int *4]
+    %v982 = borrow %three@Buf.bytes : '[Int *4]
     %v983 = alloc : Flat(Int)
     %v984 = addressof [%v982] : %Int
     init %local53@Flat.items, %v984
     %v986 = countof 4 : Size
     init %local53@Flat.length, %v986
-    %v989 = borrow %local53 : &Flat(Int)
+    %v989 = borrow %local53 : 'Flat(Int)
     %v990 = load [%v989]@Flat.length : Size
     %v991 = cast 0 : USize
     %v992 = cast %v990 : USize
@@ -1108,17 +1108,17 @@ fn main() -> Int {
     %v996 = strideof Int : Long
     %v997 = mul 0, %v996 : Long
     %v998 = add %v995, %v997 : %Int
-    %v999 = borrow [%v998] : &Int
+    %v999 = borrow [%v998] : 'Int
     %v1000 = load [%v999] : Int
     %v1001 = add %v978, %v1000 : Int
     %v1002 = load %four : [Int *4]
-    %v1004 = borrow %four : &[Int *4]
+    %v1004 = borrow %four : '[Int *4]
     %v1005 = alloc : Flat(Int)
     %v1006 = addressof [%v1004] : %Int
     init %local54@Flat.items, %v1006
     %v1008 = countof 4 : Size
     init %local54@Flat.length, %v1008
-    %v1011 = borrow %local54 : &Flat(Int)
+    %v1011 = borrow %local54 : 'Flat(Int)
     %v1012 = load [%v1011]@Flat.length : Size
     %v1013 = cast 0 : USize
     %v1014 = cast %v1012 : USize
@@ -1128,17 +1128,17 @@ fn main() -> Int {
     %v1018 = strideof Int : Long
     %v1019 = mul 0, %v1018 : Long
     %v1020 = add %v1017, %v1019 : %Int
-    %v1021 = borrow [%v1020] : &Int
+    %v1021 = borrow [%v1020] : 'Int
     %v1022 = load [%v1021] : Int
     %v1023 = add %v1001, %v1022 : Int
     %v1024 = load %five : [Int *4]
-    %v1026 = borrow %five : &[Int *4]
+    %v1026 = borrow %five : '[Int *4]
     %v1027 = alloc : Flat(Int)
     %v1028 = addressof [%v1026] : %Int
     init %local55@Flat.items, %v1028
     %v1030 = countof 4 : Size
     init %local55@Flat.length, %v1030
-    %v1033 = borrow %local55 : &Flat(Int)
+    %v1033 = borrow %local55 : 'Flat(Int)
     %v1034 = load [%v1033]@Flat.length : Size
     %v1035 = cast 0 : USize
     %v1036 = cast %v1034 : USize
@@ -1148,7 +1148,7 @@ fn main() -> Int {
     %v1040 = strideof Int : Long
     %v1041 = mul 0, %v1040 : Long
     %v1042 = add %v1039, %v1041 : %Int
-    %v1043 = borrow [%v1042] : &Int
+    %v1043 = borrow [%v1042] : 'Int
     %v1044 = load [%v1043] : Int
     %v1045 = add %v1023, %v1044 : Int
     %v1046 = load %w : Wrap
@@ -1157,13 +1157,13 @@ fn main() -> Int {
     %v1049 = add %v1045, %v1048 : Int
     %v1050 = load %taken : Buf
     %v1051 = load %taken@Buf.bytes : [Int *4]
-    %v1053 = borrow %taken@Buf.bytes : &[Int *4]
+    %v1053 = borrow %taken@Buf.bytes : '[Int *4]
     %v1054 = alloc : Flat(Int)
     %v1055 = addressof [%v1053] : %Int
     init %local56@Flat.items, %v1055
     %v1057 = countof 4 : Size
     init %local56@Flat.length, %v1057
-    %v1060 = borrow %local56 : &Flat(Int)
+    %v1060 = borrow %local56 : 'Flat(Int)
     %v1061 = load [%v1060]@Flat.length : Size
     %v1062 = cast 0 : USize
     %v1063 = cast %v1061 : USize
@@ -1173,17 +1173,17 @@ fn main() -> Int {
     %v1067 = strideof Int : Long
     %v1068 = mul 0, %v1067 : Long
     %v1069 = add %v1066, %v1068 : %Int
-    %v1070 = borrow [%v1069] : &Int
+    %v1070 = borrow [%v1069] : 'Int
     %v1071 = load [%v1070] : Int
     %v1072 = add %v1049, %v1071 : Int
     %v1073 = load %eight : [Int *4]
-    %v1075 = borrow %eight : &[Int *4]
+    %v1075 = borrow %eight : '[Int *4]
     %v1076 = alloc : Flat(Int)
     %v1077 = addressof [%v1075] : %Int
     init %local57@Flat.items, %v1077
     %v1079 = countof 4 : Size
     init %local57@Flat.length, %v1079
-    %v1082 = borrow %local57 : &Flat(Int)
+    %v1082 = borrow %local57 : 'Flat(Int)
     %v1083 = load [%v1082]@Flat.length : Size
     %v1084 = cast 0 : USize
     %v1085 = cast %v1083 : USize
@@ -1193,17 +1193,17 @@ fn main() -> Int {
     %v1089 = strideof Int : Long
     %v1090 = mul 0, %v1089 : Long
     %v1091 = add %v1088, %v1090 : %Int
-    %v1092 = borrow [%v1091] : &Int
+    %v1092 = borrow [%v1091] : 'Int
     %v1093 = load [%v1092] : Int
     %v1094 = add %v1072, %v1093 : Int
     %v1095 = load %nine : [Int *4]
-    %v1097 = borrow %nine : &[Int *4]
+    %v1097 = borrow %nine : '[Int *4]
     %v1098 = alloc : Flat(Int)
     %v1099 = addressof [%v1097] : %Int
     init %local58@Flat.items, %v1099
     %v1101 = countof 4 : Size
     init %local58@Flat.length, %v1101
-    %v1104 = borrow %local58 : &Flat(Int)
+    %v1104 = borrow %local58 : 'Flat(Int)
     %v1105 = load [%v1104]@Flat.length : Size
     %v1106 = cast 3 : USize
     %v1107 = cast %v1105 : USize
@@ -1213,7 +1213,7 @@ fn main() -> Int {
     %v1111 = strideof Int : Long
     %v1112 = mul 3, %v1111 : Long
     %v1113 = add %v1110, %v1112 : %Int
-    %v1114 = borrow [%v1113] : &Int
+    %v1114 = borrow [%v1113] : 'Int
     %v1115 = load [%v1114] : Int
     %v1116 = add %v1094, %v1115 : Int
     ret %v1116

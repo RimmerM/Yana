@@ -271,7 +271,7 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : &Flat(Cell)
+    %v14 = borrow %xs : 'Flat(Cell)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -281,12 +281,12 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
     %v21 = strideof Cell : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %Cell
-    %v24 = borrow [%v23] : &Cell
+    %v24 = borrow [%v23] : 'Cell
     %v25 = load [%v24] : Cell
     %v26 = load [%v24]@Cell.a : I64
     %v27 = add %v12, %v26 : I64
     %v28 = load %i : Size
-    %v29 = borrow %xs : &Flat(Cell)
+    %v29 = borrow %xs : 'Flat(Cell)
     %v30 = load [%v29]@Flat.length : Size
     %v31 = cast %v28 : USize
     %v32 = cast %v30 : USize
@@ -296,7 +296,7 @@ fn sumCells(%xs: Flat(Cell)) -> I64 {
     %v36 = strideof Cell : Long
     %v37 = mul %v28, %v36 : Long
     %v38 = add %v35, %v37 : %Cell
-    %v39 = borrow [%v38] : &Cell
+    %v39 = borrow [%v38] : 'Cell
     %v40 = load [%v39] : Cell
     %v41 = load [%v39]@Cell.c : I64
     %v42 = add %v27, %v41 : I64
@@ -328,7 +328,7 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : &Flat(Quad)
+    %v14 = borrow %xs : 'Flat(Quad)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -338,12 +338,12 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
     %v21 = strideof Quad : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %Quad
-    %v24 = borrow [%v23] : &Quad
+    %v24 = borrow [%v23] : 'Quad
     %v25 = load [%v24] : Quad
     %v26 = load [%v24]@Quad.w : I64
     %v27 = add %v12, %v26 : I64
     %v28 = load %i : Size
-    %v29 = borrow %xs : &Flat(Quad)
+    %v29 = borrow %xs : 'Flat(Quad)
     %v30 = load [%v29]@Flat.length : Size
     %v31 = cast %v28 : USize
     %v32 = cast %v30 : USize
@@ -353,7 +353,7 @@ fn sumQuads(%xs: Flat(Quad)) -> I64 {
     %v36 = strideof Quad : Long
     %v37 = mul %v28, %v36 : Long
     %v38 = add %v35, %v37 : %Quad
-    %v39 = borrow [%v38] : &Quad
+    %v39 = borrow [%v38] : 'Quad
     %v40 = load [%v39] : Quad
     %v41 = load [%v39]@Quad.z : I64
     %v42 = add %v27, %v41 : I64
@@ -398,7 +398,7 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
   b6:
     %v21 = load %acc : I64
     %v22 = load %i : Size
-    %v23 = borrow %xs : &Flat(Cell)
+    %v23 = borrow %xs : 'Flat(Cell)
     %v24 = load [%v23]@Flat.length : Size
     %v25 = cast %v22 : USize
     %v26 = cast %v24 : USize
@@ -408,11 +408,11 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     %v30 = strideof Cell : Long
     %v31 = mul %v22, %v30 : Long
     %v32 = add %v29, %v31 : %Cell
-    %v33 = borrow [%v32] : &Cell
+    %v33 = borrow [%v32] : 'Cell
     %v34 = load [%v33] : Cell
     %v35 = load [%v33]@Cell.a : I64
     %v36 = load %i : Size
-    %v37 = borrow %ys : &Flat(Cell)
+    %v37 = borrow %ys : 'Flat(Cell)
     %v38 = load [%v37]@Flat.length : Size
     %v39 = cast %v36 : USize
     %v40 = cast %v38 : USize
@@ -422,7 +422,7 @@ fn dotCells(%xs: Flat(Cell), %ys: Flat(Cell)) -> I64 {
     %v44 = strideof Cell : Long
     %v45 = mul %v36, %v44 : Long
     %v46 = add %v43, %v45 : %Cell
-    %v47 = borrow [%v46] : &Cell
+    %v47 = borrow [%v46] : 'Cell
     %v48 = load [%v47] : Cell
     %v49 = load [%v47]@Cell.b : I64
     %v50 = mul %v35, %v49 : I64
@@ -456,7 +456,7 @@ fn sumDown(%xs: Flat(Cell)) -> I64 {
   b3:
     %v16 = load %acc : I64
     %v17 = load %i : Size
-    %v18 = borrow %xs : &Flat(Cell)
+    %v18 = borrow %xs : 'Flat(Cell)
     %v19 = load [%v18]@Flat.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
@@ -466,7 +466,7 @@ fn sumDown(%xs: Flat(Cell)) -> I64 {
     %v25 = strideof Cell : Long
     %v26 = mul %v17, %v25 : Long
     %v27 = add %v24, %v26 : %Cell
-    %v28 = borrow [%v27] : &Cell
+    %v28 = borrow [%v27] : 'Cell
     %v29 = load [%v28] : Cell
     %v30 = load [%v28]@Cell.b : I64
     %v31 = add %v16, %v30 : I64
@@ -498,7 +498,7 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
   b3:
     %v12 = load %acc : I64
     %v13 = load %i : Size
-    %v14 = borrow %xs : &Flat(I64)
+    %v14 = borrow %xs : 'Flat(I64)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
@@ -508,7 +508,7 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
     %v21 = strideof I64 : Long
     %v22 = mul %v13, %v21 : Long
     %v23 = add %v20, %v22 : %I64
-    %v24 = borrow [%v23] : &I64
+    %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
     %v26 = add %v12, %v25 : I64
     assign %acc, %v26
@@ -541,7 +541,7 @@ fn sumInt(%xs: Flat(Cell)) -> I64 {
     %v13 = load %acc : I64
     %v14 = load %i : Int
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : &Flat(Cell)
+    %v16 = borrow %xs : 'Flat(Cell)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
@@ -551,7 +551,7 @@ fn sumInt(%xs: Flat(Cell)) -> I64 {
     %v23 = strideof Cell : Long
     %v24 = mul %v15, %v23 : Long
     %v25 = add %v22, %v24 : %Cell
-    %v26 = borrow [%v25] : &Cell
+    %v26 = borrow [%v25] : 'Cell
     %v27 = load [%v26] : Cell
     %v28 = load [%v26]@Cell.c : I64
     %v29 = add %v13, %v28 : I64
@@ -578,7 +578,7 @@ fn forInt(%xs: Flat(Cell), %n: Int) -> I64 {
   b2:
     %v13 = load %acc : I64
     %v14 = cast %i : Size
-    %v15 = borrow %xs : &Flat(Cell)
+    %v15 = borrow %xs : 'Flat(Cell)
     %v16 = load [%v15]@Flat.length : Size
     %v17 = cast %v14 : USize
     %v18 = cast %v16 : USize
@@ -588,7 +588,7 @@ fn forInt(%xs: Flat(Cell), %n: Int) -> I64 {
     %v22 = strideof Cell : Long
     %v23 = mul %v14, %v22 : Long
     %v24 = add %v21, %v23 : %Cell
-    %v25 = borrow [%v24] : &Cell
+    %v25 = borrow [%v24] : 'Cell
     %v26 = load [%v25] : Cell
     %v27 = load [%v25]@Cell.c : I64
     %v28 = add %v13, %v27 : I64
@@ -638,7 +638,7 @@ fn forDownInt(%xs: Flat(Cell), %n: Int) -> I64 {
     %v17 = load %acc : I64
     %v20 = mul %v17, 10 : I64
     %v21 = cast %i : Size
-    %v22 = borrow %xs : &Flat(Cell)
+    %v22 = borrow %xs : 'Flat(Cell)
     %v23 = load [%v22]@Flat.length : Size
     %v24 = cast %v21 : USize
     %v25 = cast %v23 : USize
@@ -648,7 +648,7 @@ fn forDownInt(%xs: Flat(Cell), %n: Int) -> I64 {
     %v29 = strideof Cell : Long
     %v30 = mul %v21, %v29 : Long
     %v31 = add %v28, %v30 : %Cell
-    %v32 = borrow [%v31] : &Cell
+    %v32 = borrow [%v31] : 'Cell
     %v33 = load [%v32] : Cell
     %v34 = load [%v32]@Cell.a : I64
     %v35 = add %v20, %v34 : I64
@@ -688,7 +688,7 @@ fn forStepInt(%xs: Flat(Cell), %n: Int) -> I64 {
     %v13 = load %acc : I64
     %v16 = mul %v13, 10 : I64
     %v17 = cast %i : Size
-    %v18 = borrow %xs : &Flat(Cell)
+    %v18 = borrow %xs : 'Flat(Cell)
     %v19 = load [%v18]@Flat.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
@@ -698,7 +698,7 @@ fn forStepInt(%xs: Flat(Cell), %n: Int) -> I64 {
     %v25 = strideof Cell : Long
     %v26 = mul %v17, %v25 : Long
     %v27 = add %v24, %v26 : %Cell
-    %v28 = borrow [%v27] : &Cell
+    %v28 = borrow [%v27] : 'Cell
     %v29 = load [%v28] : Cell
     %v30 = load [%v28]@Cell.a : I64
     %v31 = add %v16, %v30 : I64
@@ -738,7 +738,7 @@ fn forInclusiveInt(%xs: Flat(Cell), %n: Int) -> I64 {
     %v13 = load %acc : I64
     %v16 = mul %v13, 10 : I64
     %v17 = cast %i : Size
-    %v18 = borrow %xs : &Flat(Cell)
+    %v18 = borrow %xs : 'Flat(Cell)
     %v19 = load [%v18]@Flat.length : Size
     %v20 = cast %v17 : USize
     %v21 = cast %v19 : USize
@@ -748,7 +748,7 @@ fn forInclusiveInt(%xs: Flat(Cell), %n: Int) -> I64 {
     %v25 = strideof Cell : Long
     %v26 = mul %v17, %v25 : Long
     %v27 = add %v24, %v26 : %Cell
-    %v28 = borrow [%v27] : &Cell
+    %v28 = borrow [%v27] : 'Cell
     %v29 = load [%v28] : Cell
     %v30 = load [%v28]@Cell.a : I64
     %v31 = add %v16, %v30 : I64
@@ -824,7 +824,7 @@ fn main() -> Int {
     %total = alloc : Int
     init %total, 0
     %v107 = load %cells : Array(Cell)
-    %v108 = borrow %cells : &Array(Cell)
+    %v108 = borrow %cells : 'Array(Cell)
     %v109 = alloc : Flat(Cell)
     %v110 = load [%v108]@Array.run@Run.items : %Cell
     init %local17@Flat.items, %v110
@@ -846,7 +846,7 @@ fn main() -> Int {
 
   b3:
     %v127 = load %quads : Array(Quad)
-    %v128 = borrow %quads : &Array(Quad)
+    %v128 = borrow %quads : 'Array(Quad)
     %v129 = alloc : Flat(Quad)
     %v130 = load [%v128]@Array.run@Run.items : %Quad
     init %local18@Flat.items, %v130
@@ -869,7 +869,7 @@ fn main() -> Int {
 
   b6:
     %v147 = load %cells : Array(Cell)
-    %v148 = borrow %cells : &Array(Cell)
+    %v148 = borrow %cells : 'Array(Cell)
     %v149 = alloc : Flat(Cell)
     %v150 = load [%v148]@Array.run@Run.items : %Cell
     init %local19@Flat.items, %v150
@@ -877,7 +877,7 @@ fn main() -> Int {
     %v153 = cast %v152 : Size
     init %local19@Flat.length, %v153
     %v155 = load %others : Array(Cell)
-    %v156 = borrow %others : &Array(Cell)
+    %v156 = borrow %others : 'Array(Cell)
     %v157 = alloc : Flat(Cell)
     %v158 = load [%v156]@Array.run@Run.items : %Cell
     init %local20@Flat.items, %v158
@@ -900,7 +900,7 @@ fn main() -> Int {
 
   b9:
     %v175 = load %cells : Array(Cell)
-    %v176 = borrow %cells : &Array(Cell)
+    %v176 = borrow %cells : 'Array(Cell)
     %v177 = alloc : Flat(Cell)
     %v178 = load [%v176]@Array.run@Run.items : %Cell
     init %local21@Flat.items, %v178
@@ -922,7 +922,7 @@ fn main() -> Int {
 
   b12:
     %v195 = load %words : Array(I64)
-    %v196 = borrow %words : &Array(I64)
+    %v196 = borrow %words : 'Array(I64)
     %v197 = alloc : Flat(I64)
     %v198 = load [%v196]@Array.run@Run.items : %I64
     init %local22@Flat.items, %v198
@@ -945,7 +945,7 @@ fn main() -> Int {
 
   b15:
     %v215 = load %cells : Array(Cell)
-    %v216 = borrow %cells : &Array(Cell)
+    %v216 = borrow %cells : 'Array(Cell)
     %v217 = alloc : Flat(Cell)
     %v218 = load [%v216]@Array.run@Run.items : %Cell
     init %local23@Flat.items, %v218
@@ -967,7 +967,7 @@ fn main() -> Int {
 
   b18:
     %v235 = load %cells : Array(Cell)
-    %v236 = borrow %cells : &Array(Cell)
+    %v236 = borrow %cells : 'Array(Cell)
     %v237 = alloc : Flat(Cell)
     %v238 = load [%v236]@Array.run@Run.items : %Cell
     init %local24@Flat.items, %v238
@@ -989,7 +989,7 @@ fn main() -> Int {
 
   b21:
     %v256 = load %cells : Array(Cell)
-    %v257 = borrow %cells : &Array(Cell)
+    %v257 = borrow %cells : 'Array(Cell)
     %v258 = alloc : Flat(Cell)
     %v259 = load [%v257]@Array.run@Run.items : %Cell
     init %local25@Flat.items, %v259
@@ -1011,7 +1011,7 @@ fn main() -> Int {
 
   b24:
     %v277 = load %cells : Array(Cell)
-    %v278 = borrow %cells : &Array(Cell)
+    %v278 = borrow %cells : 'Array(Cell)
     %v279 = alloc : Flat(Cell)
     %v280 = load [%v278]@Array.run@Run.items : %Cell
     init %local26@Flat.items, %v280
@@ -1033,7 +1033,7 @@ fn main() -> Int {
 
   b27:
     %v298 = load %cells : Array(Cell)
-    %v299 = borrow %cells : &Array(Cell)
+    %v299 = borrow %cells : 'Array(Cell)
     %v300 = alloc : Flat(Cell)
     %v301 = load [%v299]@Array.run@Run.items : %Cell
     init %local27@Flat.items, %v301
@@ -1067,7 +1067,7 @@ fn main() -> Int {
     init %empty@Array.run@Run.ownsHeap, 0
     init %empty@Array.length, 0
     %v342 = load %empty : Array(Cell)
-    %v343 = borrow %empty : &Array(Cell)
+    %v343 = borrow %empty : 'Array(Cell)
     %v344 = alloc : Flat(Cell)
     %v345 = load [%v343]@Array.run@Run.items : %Cell
     init %local30@Flat.items, %v345
@@ -1090,7 +1090,7 @@ fn main() -> Int {
 
   b33:
     %v362 = load %cells : Array(Cell)
-    %v363 = borrow %cells : &Array(Cell)
+    %v363 = borrow %cells : 'Array(Cell)
     %v364 = alloc : Flat(Cell)
     %v365 = load [%v363]@Array.run@Run.items : %Cell
     init %local31@Flat.items, %v365
@@ -1112,7 +1112,7 @@ fn main() -> Int {
 
   b36:
     %v383 = load %cells : Array(Cell)
-    %v384 = borrow %cells : &Array(Cell)
+    %v384 = borrow %cells : 'Array(Cell)
     %v385 = alloc : Flat(Cell)
     %v386 = load [%v384]@Array.run@Run.items : %Cell
     init %local32@Flat.items, %v386
@@ -1134,7 +1134,7 @@ fn main() -> Int {
 
   b39:
     %v404 = load %cells : Array(Cell)
-    %v405 = borrow %cells : &Array(Cell)
+    %v405 = borrow %cells : 'Array(Cell)
     %v406 = alloc : Flat(Cell)
     %v407 = load [%v405]@Array.run@Run.items : %Cell
     init %local33@Flat.items, %v407

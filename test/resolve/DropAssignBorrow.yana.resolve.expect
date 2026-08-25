@@ -345,7 +345,7 @@ fn freeHeap(%allocation: %U8) -> () {
 fn makeBuffer(%size: Size) -> Buffer {
   b0:
     %v1 = load liveBuffers : I64
-    %v4 = borrow_mut liveBuffers : &mut I64
+    %v4 = borrow_mut liveBuffers : &I64
     call +=(I64), %v4, 1
     %buffer = alloc : Buffer
     %v7 = call allocateHeap, %size : %U8
@@ -363,29 +363,29 @@ fn firstByte(%it: Buffer) -> I64 {
     ret %v3
 }
 
-fn pick(%a: Buffer, %b: Buffer, %first: Bool) -> &mut Buffer {
+fn pick(%a: Buffer, %b: Buffer, %first: Bool) -> &Buffer {
   b0:
     je %first, b1, b2
 
   b1:
     %v4 = load %a : Buffer
-    %v5 = borrow_mut %a : &mut Buffer
+    %v5 = borrow_mut %a : &Buffer
     jmp b3
 
   b2:
     %v6 = load %b : Buffer
-    %v7 = borrow_mut %b : &mut Buffer
+    %v7 = borrow_mut %b : &Buffer
     jmp b3
 
   b3:
-    %v10 = phi [b1, %v5], [b2, %v7] : &mut Buffer
+    %v10 = phi [b1, %v5], [b2, %v7] : &Buffer
     ret %v10
 }
 
-fn holderOf(%self: Holder) -> &mut Holder {
+fn holderOf(%self: Holder) -> &Holder {
   b0:
     %v1 = load %self : Holder
-    %v2 = borrow_mut %self : &mut Holder
+    %v2 = borrow_mut %self : &Holder
     ret %v2
 }
 
@@ -399,9 +399,9 @@ fn whole() -> I64 {
     init %y, %v5
     %v8 = load %x : Buffer
     %v9 = load %y : Buffer
-    %v11 = borrow_mut %x : &mut Buffer
-    %v12 = borrow_mut %y : &mut Buffer
-    %v13 = call pick, %v11, %v12, True : &mut Buffer
+    %v11 = borrow_mut %x : &Buffer
+    %v12 = borrow_mut %y : &Buffer
+    %v13 = call pick, %v11, %v12, True : &Buffer
     %v15 = call makeBuffer, 32 : Buffer
     drop [%v13] via Drop(Buffer).drop
     assign [%v13], %v15
@@ -427,9 +427,9 @@ fn other() -> I64 {
     init %y, %v5
     %v8 = load %x : Buffer
     %v9 = load %y : Buffer
-    %v11 = borrow_mut %x : &mut Buffer
-    %v12 = borrow_mut %y : &mut Buffer
-    %v13 = call pick, %v11, %v12, False : &mut Buffer
+    %v11 = borrow_mut %x : &Buffer
+    %v12 = borrow_mut %y : &Buffer
+    %v13 = call pick, %v11, %v12, False : &Buffer
     %v15 = call makeBuffer, 32 : Buffer
     drop [%v13] via Drop(Buffer).drop
     assign [%v13], %v15
@@ -451,8 +451,8 @@ fn field() -> I64 {
     %v2 = call makeBuffer, 16 : Buffer
     aggregate %owner@Holder.slot = %v2, %owner@Holder.tag = 3
     %v5 = load %owner : Holder
-    %v6 = borrow_mut %owner : &mut Holder
-    %v7 = call holderOf, %v6 : &mut Holder
+    %v6 = borrow_mut %owner : &Holder
+    %v7 = call holderOf, %v6 : &Holder
     %v9 = call makeBuffer, 32 : Buffer
     drop [%v7]@Holder.slot via Drop(Buffer).drop
     assign [%v7]@Holder.slot, %v9
@@ -474,7 +474,7 @@ fn main() -> I64 {
     init %result, 0
     %v3 = load %result : I64
     %v4 = call whole : I64
-    %v5 = borrow_mut %result : &mut I64
+    %v5 = borrow_mut %result : &I64
     call +=(I64), %v5, %v4
     %v7 = load liveBuffers : I64
     %v10 = cmp_ne %v7, 0 : Bool
@@ -490,7 +490,7 @@ fn main() -> I64 {
   b3:
     %v17 = load %result : I64
     %v18 = call other : I64
-    %v19 = borrow_mut %result : &mut I64
+    %v19 = borrow_mut %result : &I64
     call +=(I64), %v19, %v18
     %v21 = load liveBuffers : I64
     %v24 = cmp_ne %v21, 0 : Bool
@@ -506,7 +506,7 @@ fn main() -> I64 {
   b6:
     %v31 = load %result : I64
     %v32 = call field : I64
-    %v33 = borrow_mut %result : &mut I64
+    %v33 = borrow_mut %result : &I64
     call +=(I64), %v33, %v32
     %v35 = load liveBuffers : I64
     %v38 = cmp_ne %v35, 0 : Bool
@@ -529,7 +529,7 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
     %v1 = load %value@Buffer.bytes : %U8
     call freeHeap, %v1
     %v3 = load liveBuffers : I64
-    %v6 = borrow_mut liveBuffers : &mut I64
+    %v6 = borrow_mut liveBuffers : &I64
     call -=(I64), %v6, 1
     ret
 }

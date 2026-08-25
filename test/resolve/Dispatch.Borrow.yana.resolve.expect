@@ -148,7 +148,7 @@ fn releaseRun(Int)(%self: Run(Int)) -> () {
 
   b0:
     %v2 = load %xs : c
-    %v3 = gencall Index(c, k, v).getMut, %v2, %at : &mut v
+    %v3 = gencall Index(c, k, v).getMut, %v2, %at : &v
     %v4 = load [%v3] : v
     %v8 = gencall FromInt(v).fromInt, 1 : v
     %v6 = gencall Num(v).+, %v4, %v8 : v
@@ -167,10 +167,10 @@ fn main() -> Int {
     aggregate [%v7][0] = 5, [%v7][1] = 6, [%v7][2] = 7
     init %xs@Array.length, 3
     %v18 = load %xs : Array(Int)
-    %v21 = borrow_mut %xs : &mut Array(Int)
+    %v21 = borrow_mut %xs : &Array(Int)
     %ignored = call bump(Array(Int), Size, Int), %v21, 0 : Int
     %v23 = load %xs : Array(Int)
-    %v26 = borrow %xs : &Array(Int)
+    %v26 = borrow %xs : 'Array(Int)
     %v27 = load [%v26]@Array.length : @bits(30) U32
     %v28 = cast 0 : USize
     %v29 = cast %v27 : USize
@@ -180,10 +180,10 @@ fn main() -> Int {
     %v33 = strideof Int : Long
     %v34 = mul 0, %v33 : Long
     %v35 = add %v32, %v34 : %Int
-    %v36 = borrow [%v35] : &Int
+    %v36 = borrow [%v35] : 'Int
     %v37 = load [%v36] : Int
     %v38 = load %xs : Array(Int)
-    %v41 = borrow %xs : &Array(Int)
+    %v41 = borrow %xs : 'Array(Int)
     %v42 = load [%v41]@Array.length : @bits(30) U32
     %v43 = cast 1 : USize
     %v44 = cast %v42 : USize
@@ -193,7 +193,7 @@ fn main() -> Int {
     %v48 = strideof Int : Long
     %v49 = mul 1, %v48 : Long
     %v50 = add %v47, %v49 : %Int
-    %v51 = borrow [%v50] : &Int
+    %v51 = borrow [%v50] : 'Int
     %v52 = load [%v51] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     %v53 = add %v37, %v52 : Int
@@ -203,7 +203,7 @@ fn main() -> Int {
 fn bump(Array(Int), Size, Int)(%xs: Array(Int), %at: Size) -> Int {
   b0:
     %v2 = load %xs : Array(Int)
-    %v3 = borrow_mut %xs : &mut Array(Int)
+    %v3 = borrow_mut %xs : &Array(Int)
     %v4 = load [%v3]@Array.length : @bits(30) U32
     %v5 = cast %at : USize
     %v6 = cast %v4 : USize
@@ -213,7 +213,7 @@ fn bump(Array(Int), Size, Int)(%xs: Array(Int), %at: Size) -> Int {
     %v10 = strideof Int : Long
     %v11 = mul %at, %v10 : Long
     %v12 = add %v9, %v11 : %Int
-    %v13 = borrow_mut [%v12] : &mut Int
+    %v13 = borrow_mut [%v12] : &Int
     %v14 = load [%v13] : Int
     %v17 = add %v14, 1 : Int
     assign [%v13], %v17

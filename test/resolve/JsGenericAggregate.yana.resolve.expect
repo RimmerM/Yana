@@ -66,13 +66,13 @@ fn main() -> I64 {
     %v5 = load %w : Blocks(State)
     %v6 = load %w@Blocks.state : State
     %v7 = load %w@Blocks.state@State.h : [U32 *8]
-    %v9 = borrow %w@Blocks.state@State.h : &[U32 *8]
+    %v9 = borrow %w@Blocks.state@State.h : '[U32 *8]
     %v10 = alloc : Flat(U32)
     %v11 = addressof [%v9] : %U32
     init %local4@Flat.items, %v11
     %v13 = countof 8 : Size
     init %local4@Flat.length, %v13
-    %v16 = borrow %local4 : &Flat(U32)
+    %v16 = borrow %local4 : 'Flat(U32)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast 0 : USize
     %v19 = cast %v17 : USize
@@ -82,18 +82,18 @@ fn main() -> I64 {
     %v23 = strideof U32 : Long
     %v24 = mul 0, %v23 : Long
     %v25 = add %v22, %v24 : %U32
-    %v26 = borrow [%v25] : &U32
+    %v26 = borrow [%v25] : 'U32
     %v27 = load [%v26] : U32
     %v28 = load %w : Blocks(State)
     %v29 = load %w@Blocks.state : State
     %v30 = load %w@Blocks.state@State.h : [U32 *8]
-    %v32 = borrow %w@Blocks.state@State.h : &[U32 *8]
+    %v32 = borrow %w@Blocks.state@State.h : '[U32 *8]
     %v33 = alloc : Flat(U32)
     %v34 = addressof [%v32] : %U32
     init %local5@Flat.items, %v34
     %v36 = countof 8 : Size
     init %local5@Flat.length, %v36
-    %v39 = borrow %local5 : &Flat(U32)
+    %v39 = borrow %local5 : 'Flat(U32)
     %v40 = load [%v39]@Flat.length : Size
     %v41 = cast 7 : USize
     %v42 = cast %v40 : USize
@@ -103,7 +103,7 @@ fn main() -> I64 {
     %v46 = strideof U32 : Long
     %v47 = mul 7, %v46 : Long
     %v48 = add %v45, %v47 : %U32
-    %v49 = borrow [%v48] : &U32
+    %v49 = borrow [%v48] : 'U32
     %v50 = load [%v49] : U32
     %v51 = add %v27, %v50 : U32
     %v52 = cast %v51 : I64

@@ -76,7 +76,6 @@ class YanaColorSettingsPage : ColorSettingsPage {
             AttributesDescriptor("Literals//Number", YanaColors.NUMBER),
             AttributesDescriptor("Literals//String", YanaColors.STRING),
             AttributesDescriptor("Literals//String escape", YanaColors.STRING_ESCAPE),
-            AttributesDescriptor("Literals//Character", YanaColors.CHAR),
             AttributesDescriptor("Comments//Line comment", YanaColors.LINE_COMMENT),
             AttributesDescriptor("Comments//Block comment", YanaColors.BLOCK_COMMENT),
             AttributesDescriptor("Braces and operators//Parentheses", YanaColors.PARENTHESES),

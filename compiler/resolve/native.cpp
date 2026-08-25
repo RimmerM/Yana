@@ -420,14 +420,6 @@ static void attachPointerIntrinsics(Module& module) {
         attachIntrinsic(module, "bits"_v, emitMaskBits);
     }
 
-    // `borrowMut` is declared `-> &a` like its immutable sibling, because the grammar has one
-    // spelling for a borrow type; which of the two it is comes from the signature it appears in,
-    // and this one has no `return` group to say so. So it is said here instead.
-    if(auto found = module.functions.get(module.context.addUnqualifiedName("borrowMut", 9))) {
-        auto function = (*module.arena)[found.unwrap()];
-        auto declared = (BorrowType*)(*module.types)[function->returnType];
-        function->returnType = resolveBorrowType(module, declared->to, true);
-    }
 
     attachIntrinsic(module, "sizeOf"_v, emitSizeOf);
     attachIntrinsic(module, "alignOf"_v, emitAlignOf);

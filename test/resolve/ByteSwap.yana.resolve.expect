@@ -273,7 +273,7 @@ fn throughMemory() -> Int {
     aggregate [%v6][0] = 0, [%v6][1] = 0
     init %words@Array.length, 2
     %v15 = load %words : Array(U32)
-    %v18 = borrow_mut %words : &mut Array(U32)
+    %v18 = borrow_mut %words : &Array(U32)
     %v19 = load [%v18]@Array.length : @bits(30) U32
     %v20 = cast 0 : USize
     %v21 = cast %v19 : USize
@@ -283,11 +283,11 @@ fn throughMemory() -> Int {
     %v25 = strideof U32 : Long
     %v26 = mul 0, %v25 : Long
     %v27 = add %v24, %v26 : %U32
-    %v28 = borrow_mut [%v27] : &mut U32
+    %v28 = borrow_mut [%v27] : &U32
     %v30 = call opaqueU32, 305419896 : U32
     assign [%v28], %v30
     %v32 = load %words : Array(U32)
-    %v35 = borrow %words : &Array(U32)
+    %v35 = borrow %words : 'Array(U32)
     %v36 = load [%v35]@Array.length : @bits(30) U32
     %v37 = cast 0 : USize
     %v38 = cast %v36 : USize
@@ -297,13 +297,13 @@ fn throughMemory() -> Int {
     %v42 = strideof U32 : Long
     %v43 = mul 0, %v42 : Long
     %v44 = add %v41, %v43 : %U32
-    %v45 = borrow [%v44] : &U32
+    %v45 = borrow [%v44] : 'U32
     %v46 = load [%v45] : U32
     %v47 = byteswap %v46 : U32
     %v50 = cmp_eq %v47, 2018915346 : Bool
     %read = call check, %v50, 512 : Int
     %v53 = load %words : Array(U32)
-    %v56 = borrow_mut %words : &mut Array(U32)
+    %v56 = borrow_mut %words : &Array(U32)
     %v57 = load [%v56]@Array.length : @bits(30) U32
     %v58 = cast 1 : USize
     %v59 = cast %v57 : USize
@@ -313,12 +313,12 @@ fn throughMemory() -> Int {
     %v63 = strideof U32 : Long
     %v64 = mul 1, %v63 : Long
     %v65 = add %v62, %v64 : %U32
-    %v66 = borrow_mut [%v65] : &mut U32
+    %v66 = borrow_mut [%v65] : &U32
     %v68 = call opaqueU32, 305419896 : U32
     %v69 = byteswap %v68 : U32
     assign [%v66], %v69
     %v71 = load %words : Array(U32)
-    %v74 = borrow %words : &Array(U32)
+    %v74 = borrow %words : 'Array(U32)
     %v75 = load [%v74]@Array.length : @bits(30) U32
     %v76 = cast 1 : USize
     %v77 = cast %v75 : USize
@@ -328,7 +328,7 @@ fn throughMemory() -> Int {
     %v81 = strideof U32 : Long
     %v82 = mul 1, %v81 : Long
     %v83 = add %v80, %v82 : %U32
-    %v84 = borrow [%v83] : &U32
+    %v84 = borrow [%v83] : 'U32
     %v85 = load [%v84] : U32
     drop %words reclaim Reclaim(Array(a)).reclaim(U32)
     %v88 = cmp_eq %v85, 2018915346 : Bool

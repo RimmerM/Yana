@@ -27,9 +27,9 @@ fn swap(%a: Int, %b: Int) -> () {
 
 fn moveBy(%p: Point, %dx: Int, %dy: Int) -> () {
   b0:
-    %v5 = borrow_mut %p@Point.x : &mut Int
+    %v5 = borrow_mut %p@Point.x : &Int
     call +=(Int), %v5, %dx
-    %v9 = borrow_mut %p@Point.y : &mut Int
+    %v9 = borrow_mut %p@Point.y : &Int
     call +=(Int), %v9, %dy
     ret
 }
@@ -46,9 +46,9 @@ fn main() -> Int {
   b0:
     %v28 = alloc : Point
     aggregate %here@Point.x = 10, %here@Point.y = 20
-    %v66 = borrow_mut %here@Point.x : &mut Int
+    %v66 = borrow_mut %here@Point.x : &Int
     call +=(Int), %v66, 1
-    %v68 = borrow_mut %here@Point.y : &mut Int
+    %v68 = borrow_mut %here@Point.y : &Int
     call +=(Int), %v68, 2
     %v47 = load %here@Point.x : Int
     %v48 = add %v47, 33 : Int

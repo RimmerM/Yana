@@ -409,7 +409,7 @@ fn totalOf(%m: Maybe(Tree)) -> Int {
     ret %v10
 }
 
-fn unwrapOr(%m: Maybe(a), %fallback: a) -> &a {
+fn unwrapOr(%m: Maybe(a), %fallback: a) -> 'a {
   schema {
     #0 type a
   }
@@ -421,15 +421,15 @@ fn unwrapOr(%m: Maybe(a), %fallback: a) -> &a {
 
   b1:
     %v = load %m@Just : a
-    %v8 = borrow %m@Just : &a
+    %v8 = borrow %m@Just : 'a
     jmp b3
 
   b2:
-    %v6 = borrow %fallback : &a
+    %v6 = borrow %fallback : 'a
     jmp b3
 
   b3:
-    %v11 = phi [b2, %v6], [b1, %v8] : &a
+    %v11 = phi [b2, %v6], [b1, %v8] : 'a
     ret %v11
 }
 
@@ -444,9 +444,9 @@ fn leftOf(%t: Tree) -> Int {
   b1:
     %b = load %t@Branch : {left: Maybe(Tree), right: Maybe(Tree), label: Int}
     %v11 = load %t@Branch.left : Maybe(Tree)
-    %v12 = borrow %t@Branch.left : &Maybe(Tree)
-    %v13 = borrow %local1 : &Tree
-    %v14 = call unwrapOr(Tree), %v12, %v13 : &Tree
+    %v12 = borrow %t@Branch.left : 'Maybe(Tree)
+    %v13 = borrow %local1 : 'Tree
+    %v14 = call unwrapOr(Tree), %v12, %v13 : 'Tree
     %v15 = load [%v14] : Tree
     %v16 = call total, %v15 : Int
     drop_derived %local1 reclaim reclaim$Tree
@@ -535,7 +535,7 @@ fn buildTree() -> Int {
 fn track(%id: Int) -> Tracked {
   b0:
     %v1 = load liveNodes : Int
-    %v4 = borrow_mut liveNodes : &mut Int
+    %v4 = borrow_mut liveNodes : &Int
     call +=(Int), %v4, 1
     %v6 = alloc : Tracked
     aggregate %local0@Tracked.id = %id
@@ -615,12 +615,12 @@ fn main() -> Int {
 fn Drop(Tracked).drop(%value: Tracked) -> () {
   b0:
     %v1 = load liveNodes : Int
-    %v4 = borrow_mut liveNodes : &mut Int
+    %v4 = borrow_mut liveNodes : &Int
     call -=(Int), %v4, 1
     ret
 }
 
-fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> &Tree {
+fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> 'Tree {
   b0:
     %v3 = load %m.discriminant : Int
     %v5 = cmp_eq %v3, 0 : Bool
@@ -628,15 +628,15 @@ fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> &Tree {
 
   b1:
     %v = load %m@Just.* : Tree
-    %v8 = borrow %m@Just.* : &Tree
+    %v8 = borrow %m@Just.* : 'Tree
     jmp b3
 
   b2:
-    %v10 = borrow %fallback : &Tree
+    %v10 = borrow %fallback : 'Tree
     jmp b3
 
   b3:
-    %v2 = phi [b2, %v10], [b1, %v8] : &Tree
+    %v2 = phi [b2, %v10], [b1, %v8] : 'Tree
     ret %v2
 }
 

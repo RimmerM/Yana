@@ -169,7 +169,7 @@ fn later(%seed: Int) -> Int {
     init %xs@Array.length, 3
     %v = call opaque, %seed : Int
     %v20 = load %xs : Array(Int)
-    %v23 = borrow_mut %xs : &mut Array(Int)
+    %v23 = borrow_mut %xs : &Array(Int)
     %v24 = load [%v23]@Array.length : @bits(30) U32
     %v25 = cast 1 : USize
     %v26 = cast %v24 : USize
@@ -179,10 +179,10 @@ fn later(%seed: Int) -> Int {
     %v30 = strideof Int : Long
     %v31 = mul 1, %v30 : Long
     %v32 = add %v29, %v31 : %Int
-    %v33 = borrow_mut [%v32] : &mut Int
+    %v33 = borrow_mut [%v32] : &Int
     assign [%v33], %v
     %v35 = load %xs : Array(Int)
-    %v38 = borrow %xs : &Array(Int)
+    %v38 = borrow %xs : 'Array(Int)
     %v39 = load [%v38]@Array.length : @bits(30) U32
     %v40 = cast 0 : USize
     %v41 = cast %v39 : USize
@@ -192,10 +192,10 @@ fn later(%seed: Int) -> Int {
     %v45 = strideof Int : Long
     %v46 = mul 0, %v45 : Long
     %v47 = add %v44, %v46 : %Int
-    %v48 = borrow [%v47] : &Int
+    %v48 = borrow [%v47] : 'Int
     %v49 = load [%v48] : Int
     %v50 = load %xs : Array(Int)
-    %v53 = borrow %xs : &Array(Int)
+    %v53 = borrow %xs : 'Array(Int)
     %v54 = load [%v53]@Array.length : @bits(30) U32
     %v55 = cast 1 : USize
     %v56 = cast %v54 : USize
@@ -205,11 +205,11 @@ fn later(%seed: Int) -> Int {
     %v60 = strideof Int : Long
     %v61 = mul 1, %v60 : Long
     %v62 = add %v59, %v61 : %Int
-    %v63 = borrow [%v62] : &Int
+    %v63 = borrow [%v62] : 'Int
     %v64 = load [%v63] : Int
     %v65 = add %v49, %v64 : Int
     %v66 = load %xs : Array(Int)
-    %v69 = borrow %xs : &Array(Int)
+    %v69 = borrow %xs : 'Array(Int)
     %v70 = load [%v69]@Array.length : @bits(30) U32
     %v71 = cast 2 : USize
     %v72 = cast %v70 : USize
@@ -219,7 +219,7 @@ fn later(%seed: Int) -> Int {
     %v76 = strideof Int : Long
     %v77 = mul 2, %v76 : Long
     %v78 = add %v75, %v77 : %Int
-    %v79 = borrow [%v78] : &Int
+    %v79 = borrow [%v78] : 'Int
     %v80 = load [%v79] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     %v81 = add %v65, %v80 : Int
@@ -237,7 +237,7 @@ fn readBetween() -> Int {
     aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
     init %xs@Array.length, 3
     %v18 = load %xs : Array(Int)
-    %v21 = borrow %xs : &Array(Int)
+    %v21 = borrow %xs : 'Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
     %v23 = cast 1 : USize
     %v24 = cast %v22 : USize
@@ -247,10 +247,10 @@ fn readBetween() -> Int {
     %v28 = strideof Int : Long
     %v29 = mul 1, %v28 : Long
     %v30 = add %v27, %v29 : %Int
-    %v31 = borrow [%v30] : &Int
+    %v31 = borrow [%v30] : 'Int
     %a = load [%v31] : Int
     %v33 = load %xs : Array(Int)
-    %v36 = borrow_mut %xs : &mut Array(Int)
+    %v36 = borrow_mut %xs : &Array(Int)
     %v37 = load [%v36]@Array.length : @bits(30) U32
     %v38 = cast 1 : USize
     %v39 = cast %v37 : USize
@@ -260,10 +260,10 @@ fn readBetween() -> Int {
     %v43 = strideof Int : Long
     %v44 = mul 1, %v43 : Long
     %v45 = add %v42, %v44 : %Int
-    %v46 = borrow_mut [%v45] : &mut Int
+    %v46 = borrow_mut [%v45] : &Int
     assign [%v46], 20
     %v49 = load %xs : Array(Int)
-    %v52 = borrow %xs : &Array(Int)
+    %v52 = borrow %xs : 'Array(Int)
     %v53 = load [%v52]@Array.length : @bits(30) U32
     %v54 = cast 1 : USize
     %v55 = cast %v53 : USize
@@ -273,7 +273,7 @@ fn readBetween() -> Int {
     %v59 = strideof Int : Long
     %v60 = mul 1, %v59 : Long
     %v61 = add %v58, %v60 : %Int
-    %v62 = borrow [%v61] : &Int
+    %v62 = borrow [%v61] : 'Int
     %v63 = load [%v62] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     %v64 = add %a, %v63 : Int
@@ -291,7 +291,7 @@ fn folds() -> Int {
     aggregate [%v7][0] = 1, [%v7][1] = 2, [%v7][2] = 3
     init %xs@Array.length, 3
     %v18 = load %xs : Array(Int)
-    %v21 = borrow_mut %xs : &mut Array(Int)
+    %v21 = borrow_mut %xs : &Array(Int)
     %v22 = load [%v21]@Array.length : @bits(30) U32
     %v23 = cast 1 : USize
     %v24 = cast %v22 : USize
@@ -301,10 +301,10 @@ fn folds() -> Int {
     %v28 = strideof Int : Long
     %v29 = mul 1, %v28 : Long
     %v30 = add %v27, %v29 : %Int
-    %v31 = borrow_mut [%v30] : &mut Int
+    %v31 = borrow_mut [%v30] : &Int
     assign [%v31], 20
     %v34 = load %xs : Array(Int)
-    %v37 = borrow %xs : &Array(Int)
+    %v37 = borrow %xs : 'Array(Int)
     %v38 = load [%v37]@Array.length : @bits(30) U32
     %v39 = cast 0 : USize
     %v40 = cast %v38 : USize
@@ -314,10 +314,10 @@ fn folds() -> Int {
     %v44 = strideof Int : Long
     %v45 = mul 0, %v44 : Long
     %v46 = add %v43, %v45 : %Int
-    %v47 = borrow [%v46] : &Int
+    %v47 = borrow [%v46] : 'Int
     %v48 = load [%v47] : Int
     %v49 = load %xs : Array(Int)
-    %v52 = borrow %xs : &Array(Int)
+    %v52 = borrow %xs : 'Array(Int)
     %v53 = load [%v52]@Array.length : @bits(30) U32
     %v54 = cast 1 : USize
     %v55 = cast %v53 : USize
@@ -327,11 +327,11 @@ fn folds() -> Int {
     %v59 = strideof Int : Long
     %v60 = mul 1, %v59 : Long
     %v61 = add %v58, %v60 : %Int
-    %v62 = borrow [%v61] : &Int
+    %v62 = borrow [%v61] : 'Int
     %v63 = load [%v62] : Int
     %v64 = add %v48, %v63 : Int
     %v65 = load %xs : Array(Int)
-    %v68 = borrow %xs : &Array(Int)
+    %v68 = borrow %xs : 'Array(Int)
     %v69 = load [%v68]@Array.length : @bits(30) U32
     %v70 = cast 2 : USize
     %v71 = cast %v69 : USize
@@ -341,7 +341,7 @@ fn folds() -> Int {
     %v75 = strideof Int : Long
     %v76 = mul 2, %v75 : Long
     %v77 = add %v74, %v76 : %Int
-    %v78 = borrow [%v77] : &Int
+    %v78 = borrow [%v77] : 'Int
     %v79 = load [%v78] : Int
     drop %xs reclaim Reclaim(Array(a)).reclaim(Int)
     %v80 = add %v64, %v79 : Int
