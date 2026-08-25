@@ -694,6 +694,14 @@ bool runProgramOwnership(Program& program) {
  * storage is trusted about aliasing inside itself, and owes its callers a `return` marker that
  * makes the outside checkable.
  *
+ * One derivation is no longer left there, and the reason is the word *inside*. A subscript in a `&`
+ * position reaches a user function's parameter, so the aliasing question stops being the library's
+ * own: `f(&xs[i], &xs[j])` is a caller's question answered by a rule written for a callee's
+ * insides. `sameContainer` in analyze_borrow.cpp walks the two addresses back to the container they
+ * came out of and refuses the pair, with `swap` and `exchange` exempt - see core.cpp for why those
+ * two need no proof that the indices differ. What stays unchecked is what the seam was for: a
+ * pointer whose derivation this frame cannot name.
+ *
  * **Regions.** The storage decision is between the frame and the heap; StorageClass::Region is
  * reserved and never selected. Implementation-Regions.md part 4 is the third case in this
  * decision rather than a new pass, which is why it was left out rather than approximated.

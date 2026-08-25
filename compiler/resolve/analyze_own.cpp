@@ -316,8 +316,18 @@ BorrowedPlace borrowedPlaceOf(Analysis& analysis, const Place& place) {
      * `concat` that reaches the lattice natively needs no lattice at all there - and without this
      * the interning scan, which only ever makes a slot for droppable storage, would decline and the
      * move would be refused on a target where it is the safest thing in the file.
+     *
+     * **TrivialSink as well as no teardown**, because it is the second clause above that an
+     * authored `Sink` denies: writing one *is* the statement that the bytes are not the whole story
+     * (Core.yana says so where the class is declared). A type whose sink fixes up an interior
+     * reference leaves stale bytes behind when it is relocated out of a container that still counts
+     * the element, and nothing about the absence of a teardown makes that safe. Nothing in this tree
+     * has an authored Sink, so this costs no fixture and closes the hole before there is one.
      */
-    if(!needsTeardown(analysis.module, placeType(analysis.module, analysis.function, place))) {
+    auto held = ownershipIn(analysis.module, functionGen(analysis.global, analysis.function),
+                            placeType(analysis.module, analysis.function, place));
+
+    if(!held.needsTeardown() && held.trivialSink) {
         result.emptiable = true;
         return result;
     }

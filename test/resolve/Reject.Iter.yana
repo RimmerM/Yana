@@ -58,8 +58,10 @@ fn zeroStep(n: Int) -> Int:
 
     return total
 
--- A value that is already an iterator would have to be stepped by the loop rather than run by it,
--- which is external iteration and phase 2.
+-- Not a call, which is the one rejection with two readings. Here it is the second: a value that is
+-- already an iterator would have to be stepped by the loop rather than run by it, which is external
+-- iteration and phase 2. Unreachable except behind another error, since the line above it - binding
+-- an iterator to a name - is refused where the call is written.
 fn stored(n: Int) -> Int:
     let it = upTo(n)
 
@@ -68,7 +70,9 @@ fn stored(n: Int) -> Int:
 
     return 0
 
--- The same, reached through a name that is not a call at all.
+-- And the first reading, which is the common one: a container, whose traversal simply has not been
+-- named. Nothing derives an iterator from a type - deliberately, since a container has several and
+-- which one is meant is what the call says - so `items(xs)` is what this line is missing.
 fn overCollection(xs: [Int]) -> Int:
     for x in xs:
         return x

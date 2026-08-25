@@ -28,9 +28,19 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
     auto& source = unwrapNested(loop.from);
 
     if(source.kind != ast::Expr::App) {
-        // A binding, a field, a subscript: something already built, being stepped rather than run.
-        // That is external iteration whichever way it is reached, and phase 2 is what it waits on.
-        context.diagnostics.error("`for` iterates a call of a named `iter fn` in this version - a value that is already an iterator would have to be stepped by the loop rather than run by it, which is external iteration"_v,
+        /*
+         * A binding, a field, a subscript: something already built.
+         *
+         * Two readings, and the message used to state only the second. A *container* here is the
+         * common one by a wide margin, and what it is missing is not a mechanism but a written
+         * call: a `for` reaches its iterator by name and nothing derives one from a type, which is
+         * a deliberate absence - a container has several traversals and naming the one meant is the
+         * point. The other reading is a value that genuinely is an iterator, which would have to be
+         * stepped rather than run; that is external iteration and phase 2 waits on it. Unreachable
+         * today in any case, since binding an iterator to a name is itself refused where the call
+         * is written, and the author has that diagnostic already.
+         */
+        context.diagnostics.error("`for` runs a call of a named `iter fn`, and no rule finds one from the type of a value - name the traversal, as in `for x in items(xs)`. A value that is already an iterator is the other reading of this, and stepping one rather than running it is external iteration, which this version does not have"_v,
                                   loop.from.source);
         return nullptr;
     }

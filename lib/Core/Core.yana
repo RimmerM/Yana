@@ -518,10 +518,22 @@ instance (Copy(a), Copy(e)) Copy(Outcome(a, e)):
         Exit(problem) -> Exit(copy(problem))
 
 
--- `to` arrives uninitialized and must be fully initialized before returning. That obligation is
--- Design.md's `@uninit &`, which is not implementable yet - nothing in the language produces
--- uninitialized storage for a caller to pass - so it is documented here and unchecked. When the
--- attribute lands this signature gains it and nothing else about the class changes.
+{-
+   Relocating a value - Design-Memory §4.
+
+   `to` arrives uninitialized and must be fully initialized before returning. That obligation is
+   Design.md's `@uninit &`, which is not implementable yet - nothing in the language produces
+   uninitialized storage for a caller to pass - so it is documented here and unchecked. When the
+   attribute lands this signature gains it and nothing else about the class changes.
+
+   **One caller may hand over two names for one place.** `swap` is three relocations through a
+   temporary, and `swap(xs[i], xs[i])` is legal - the borrow checker exempts swap from the rule that
+   refuses two element borrows of one container, precisely because a swap reads both places before
+   it writes either. The middle relocation is then `to` and `from` at one address. The value itself
+   survives, since the third write restores what the first saved, but an instance that counts or
+   registers sees relocations a caller did not ask for. Until the compiler emits a guarded swap for
+   this class, an instance that must not is one this language cannot express.
+-}
 pub class Sink(a):
   fn sink(&to: a, ->from: a) -> {}
 

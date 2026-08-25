@@ -136,6 +136,126 @@ static bool placesOverlap(ModuleBase base, Place lhs, Place rhs) {
 }
 
 /*
+ * The container a pointer-rooted borrow reaches into, where there is one this frame can name.
+ *
+ * `xs[i]` in a `&` position is `Index.getMut`, whose body is `borrowMut(self.run.items + index)` -
+ * so what arrives at the borrow checker is `borrow_mut [%p]` with `%p` an offset from a base
+ * pointer *loaded out of the container's own storage*. placesOverlap() answers no for two of those,
+ * by the rule that a raw pointer carries no aliasing information, and that rule is right about a
+ * pointer and wrong about this: the two addresses were derived from one place a moment earlier, and
+ * that place is checkable.
+ *
+ * So the derivation is walked back rather than the pointer reasoned about. Through the offset
+ * arithmetic to the load that produced the base, and through the load's own root to the local the
+ * container lives in - which is the whole chain, since the accessor is one expression.
+ *
+ * Both halves of the answer are needed and neither is enough alone. The local tells two containers
+ * apart, so `f(&a[i], &b[j])` stays legal; the loaded place keeps the field sensitivity
+ * placesOverlap already has, so a container with two runs is two containers here as well.
+ *
+ * Nothing found is the honest answer for storage this frame did not name - a `%T` parameter, a
+ * pointer out of an opaque call - and it leaves those exactly as unchecked as they were. That is
+ * the seam analyze.cpp's limitation list describes, kept where it was put: a collection written
+ * over raw storage is still trusted about aliasing *inside itself*.
+ */
+struct ContainerReach {
+    bool found = false;
+    U32 local = maxLimit<U32>;
+    Place field;
+};
+
+static ContainerReach containerReach(Analysis& analysis, const Place& place) {
+    ContainerReach result;
+    if(place.root != PlaceRoot::Pointer || !place.pointer) return result;
+
+    auto value = place.pointer;
+
+    for(Size step = 0; step < 8 && value; step++) {
+        auto& produced = *analysis.local[value];
+
+        // The index, folded into the address. Which operand is the base is read off the types
+        // rather than assumed: `p + i` is the shape the accessor writes, and the addition is
+        // commutative even where the meaning is not.
+        if(produced.kind == Value::Add || produced.kind == Value::Sub) {
+            auto& arithmetic = (InstBinary&)produced;
+            auto lhs = arithmetic.lhs ? analysis.local[arithmetic.lhs]->type : nullptr;
+            value = lhs && isPointer(analysis.global, lhs) ? arithmetic.lhs : arithmetic.rhs;
+            continue;
+        }
+
+        if(produced.kind != Value::LoadPlace) return result;
+
+        auto loaded = ((InstLoadPlace&)produced).place;
+        auto local = rootLocal(analysis, loaded);
+
+        // A container reached through a `&` of it - which is every call of an accessor, since the
+        // receiver is `return &self`. One step is enough: the borrow's own place is the container.
+        if(local == maxLimit<U32> && loaded.root == PlaceRoot::Borrow && loaded.pointer) {
+            auto& source = *analysis.local[loaded.pointer];
+            if(source.kind == Value::Borrow) local = rootLocal(analysis, ((InstBorrow&)source).place);
+        }
+
+        if(local == maxLimit<U32>) return result;
+
+        /*
+         * And through a descriptor to what it describes - Local::viewOf, the same chain useSlot
+         * walks. A `[T *n]` reaches a subscript as a `Flat(T)` built at the call, so two subscripts
+         * of one fixed array are two descriptors and would otherwise be two containers. The depth
+         * bound is against a cycle, exactly as it is there.
+         */
+        for(Size hop = 0; hop < 8; hop++) {
+            auto view = analysis.function.localAt(analysis.local, local).viewOf;
+            if(view == maxLimit<U32> || view >= analysis.localCount) break;
+            local = view;
+        }
+
+        result.found = true;
+        result.local = local;
+        result.field = loaded;
+        return result;
+    }
+
+    return result;
+}
+
+// Two exclusive borrows that reach into one container, which cannot be told apart by index without
+// proving something about the two subscripts - and proving that is a different analysis than this.
+static bool sameContainer(Analysis& analysis, const Place& lhs, const Place& rhs) {
+    auto left = containerReach(analysis, lhs);
+    if(!left.found) return false;
+
+    auto right = containerReach(analysis, rhs);
+    if(!right.found || left.local != right.local) return false;
+
+    return placesOverlap(analysis.local, left.field, right.field);
+}
+
+/*
+ * Whether a borrow is handed to nothing but an operation that is total under aliasing.
+ *
+ * `swap` and `exchange` are the two, and being usable on two elements of one container is what they
+ * are *for*: a swap reads both places before it writes either, so the two naming one place is a
+ * no-op rather than a loss, and an exchange has one place to begin with. That is why the library
+ * had a `swapElements` at all before a subscript could reach a `&` parameter.
+ *
+ * The exemption is per borrow and not per call, which is the narrow way to say it: a borrow that
+ * reaches anything else - a user function, a store, a second name - is not covered by the argument
+ * above and is checked. A borrow with no uses at all is not exempt either, since the reason to
+ * excuse it would be missing.
+ */
+static bool exchangedOnly(Analysis& analysis, ModulePtr<Value> borrow) {
+    auto any = false;
+
+    for(auto user: analysis.local[borrow]->uses(analysis.local)) {
+        auto kind = analysis.local[user]->kind;
+        if(kind != Value::Swap && kind != Value::Exchange) return false;
+        any = true;
+    }
+
+    return any;
+}
+
+/*
  * Exclusivity - Design.md's second question, and the only one of the four with an extent to
  * compute first.
  */
@@ -376,7 +496,29 @@ void checkBorrows(Analysis& analysis) {
                     overlaps = overlaps || placesOverlap(analysis.local, borrowed.place, places[p]);
                 }
 
-                if(!overlaps) continue;
+                /*
+                 * And the case placesOverlap() is entitled to answer no for: two elements of one
+                 * container, whose addresses are raw pointers by the time a borrow is taken of
+                 * them. Asked only of two *exclusive* borrows, which is the pair that cannot both
+                 * be right - a shared one alongside another shared one is what borrows are for,
+                 * and a shared one alongside an exclusive one is already caught wherever the
+                 * container itself is named.
+                 */
+                auto container = false;
+
+                if(!overlaps && borrowed.mut && instruction.kind == Value::Borrow &&
+                   ((InstBorrow&)instruction).mut) {
+                    container = sameContainer(analysis, borrowed.place, ((InstBorrow&)instruction).place);
+                }
+
+                if(!overlaps && !container) continue;
+
+                // The two operations that mean it - see exchangedOnly. Both ends have to be one,
+                // since it is the pair that is being excused rather than either borrow.
+                if(container && exchangedOnly(analysis, (ModulePtr<Value>)pointer) &&
+                   exchangedOnly(analysis, (ModulePtr<Value>)other)) {
+                    continue;
+                }
 
                 // The instructions that consume the borrow reach the storage *through* it, which is
                 // the whole point of handing one out rather than a conflict with it.
@@ -403,9 +545,11 @@ void checkBorrows(Analysis& analysis) {
                 if(!borrowed.mut && !writes) continue;
 
                 report(analysis,
-                       borrowed.mut
-                           ? "this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live"_v
-                           : "this write conflicts with an immutable borrow of the same storage that is still live"_v,
+                       container
+                           ? "two exclusive borrows of elements of one container are live at once, and nothing here says the two subscripts differ - `swap` and `exchange` are the operations that need no such proof"_v
+                           : borrowed.mut
+                               ? "this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live"_v
+                               : "this write conflicts with an immutable borrow of the same storage that is still live"_v,
                        instruction.source);
 
                 note(analysis, "the borrow it conflicts with is here"_v, borrowed.source);

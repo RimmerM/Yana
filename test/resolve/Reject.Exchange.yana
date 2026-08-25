@@ -29,3 +29,47 @@ fn immutableExchange() -> I64:
 
 -- A subscript in `&` position used to be here, and is not a rejection any more: `swap(xs[i], xs[j])`
 -- and `exchange(xs[i], v)` both compile. See test/lib/Exchange.yana, which runs them.
+
+{-
+   And what a subscript in `&` position *is* refused for, which is everything else.
+
+   Two elements of one container are two exclusive borrows the index alone tells apart, and nothing
+   in this analysis reads an index: `xs[i]` reaches the checker as a borrow of a raw pointer offset
+   from a base loaded out of the container, and a raw pointer is what the borrow checker declines to
+   reason about. Proving `i != j` is a value analysis rather than a borrow one.
+
+   So the pair is refused wherever the operation could tell: even `xs[0]` twice, since the rule is
+   about what the analysis can say and not about what this line happens to have written. `swap` and
+   `exchange` are the exemption, and the two functions above it are why - the exemption is per
+   borrow, so a borrow handed to anything else is checked however the other one is used.
+-}
+fn twice(&a: I64, &b: I64) -> {}:
+    a = a + 1
+    b = b + 10
+
+fn distinctElements() -> {}:
+    let &xs = [1, 2, 3] :: [I64]
+    twice(xs[0], xs[1])
+
+fn sameElement() -> {}:
+    let &xs = [1, 2, 3] :: [I64]
+    twice(xs[0], xs[0])
+
+-- The accessor written out, which is what the subscript is sugar for and reaches the same rule.
+fn throughTheAccessor() -> {}:
+    let &xs = [1, 2, 3] :: [I64]
+    twice(getMut(xs, 0), getMut(xs, 1))
+
+-- A fixed array, which reaches its element through a `Flat` descriptor built at the call - so the
+-- two borrows are rooted in two different locals and are one container all the same. Local::viewOf
+-- is the chain that says so.
+fn fixedArray() -> {}:
+    let &fa = [1, 2, 3] :: [I64 *3]
+    twice(fa[0], fa[1])
+
+-- Two containers are two containers: the root each borrow traces back to is what tells them apart,
+-- and this is not a rejection.
+fn separateContainers() -> {}:
+    let &xs = [1, 2, 3] :: [I64]
+    let &ys = [4, 5, 6] :: [I64]
+    twice(xs[0], ys[0])

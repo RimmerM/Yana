@@ -138,6 +138,20 @@ ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name) {
  * answered where the storage is, and the exclusivity check already answered whether two of them may
  * be live at once. `swap(x, x)` is two mutable borrows of one place and is rejected by the rule that
  * was there before either of these existed.
+ *
+ * **Two elements of one container are the exception, and these two are the only things exempt from
+ * it.** The exclusivity check refuses that pair for every other operation, because telling `xs[i]`
+ * from `xs[j]` means proving something about the two indices and that is a different analysis - see
+ * `sameContainer` in analyze_borrow.cpp. These need no such proof: a swap reads both places before
+ * it writes either, so the two naming one place is a no-op rather than a loss, and an exchange has
+ * one place to begin with. Being usable on two elements of one container is what they are *for*, and
+ * it is why the library had a `swapElements` at all before a subscript could reach a `&` parameter.
+ *
+ * What a self-swap does cost is *three relocations of the same value*, which for a type with an
+ * authored `Sink` means three calls to it - one of them with `to` and `from` naming one place. The
+ * data survives, since the third write restores what the first saved, but an author who counts or
+ * registers in a `sink` sees the extra ones. Nothing in this tree has an authored Sink; when one
+ * exists, the fix is a guarded swap emitted for non-TrivialSink types alone.
  */
 
 // The relocation, on exactly the terms sinkValue records one for a `->`. Asked the same way for the

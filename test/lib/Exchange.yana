@@ -98,6 +98,31 @@ fn mapInsertDisplaces() -> {}:
     assert(size(m[1]) == 8)
     assert(length(m) == 1)
 
+{-
+   Two elements of one container, which is the pair every *other* operation is now refused - see
+   `Reject.Exchange.yana`. Nothing here says the two subscripts differ and neither operation needs it
+   said: a swap reads both places before it writes either, so the two naming one place is a no-op
+   rather than a loss, and an exchange has one place to begin with.
+
+   The self-swap is at an index the front end cannot fold, so what runs is the general three-step
+   relocation with both ends at one address rather than anything a constant let it skip.
+-}
+fn swapElements() -> {}:
+    let &xs = [counted(3), counted(8), counted(5)]
+
+    swap(xs[0], xs[1])
+    assert(size(xs[0]) == 8)
+    assert(size(xs[1]) == 3)
+
+    let i = length(xs) - 3
+    swap(xs[i], xs[i])
+    assert(size(xs[0]) == 8)
+    assert(size(xs[1]) == 3)
+
+    let ->old = exchange(xs[2], counted(2))
+    assert(size(old) == 5)
+    assert(size(xs[2]) == 2)
+
 fn main() -> Int:
     exchangeLocal()
     exchangeField()
@@ -105,4 +130,5 @@ fn main() -> Int:
     swapLocals()
     swapFields()
     mapInsertDisplaces()
+    swapElements()
     return 0
