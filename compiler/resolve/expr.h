@@ -1542,13 +1542,21 @@ struct ExprResolver {
      * expression that must be resolved from the top, so anything emitted while looking would be
      * emitted twice.
      *
-     * The way out is that `funKind` is a property of the *declaration* and not of the receiver's
-     * type. So the name is asked first, against `kind`, and the receiver is resolved only once
-     * something of that name and kind is known to exist. `upTo(n).twice()` names no iterator, so its
-     * receiver is left alone and the caller's own diagnostic stands.
+     * The way out is that `funKind` and the parameter list are properties of the *declaration* and
+     * not of the receiver's type. So the name is asked first - against `kind`, and against the
+     * arguments where `fit` says to - and the receiver is resolved only once something that could
+     * serve this call is known to exist. `upTo(n).twice()` names no iterator, so its receiver is
+     * left alone and the caller's own diagnostic stands.
      *
      * Answers false where the callee is not a name at all - an adaptor chain, a value of function
      * type - which is the caller's own case to report.
+     *
+     * One case is still decided too late, and it is the field: `x.f(y)` where the receiver has a
+     * field `f` of function type is an indirect call and not this form, and only the receiver's
+     * type says so. Reaching that answer costs the resolve, so a statement rejected there has
+     * emitted its receiver and is then resolved again from the top. It needs a name that is both a
+     * visible `lens fn` and a field of the receiver, which no program in the tree has; closing it
+     * means a way to ask a type of an expression without emitting for it.
      */
     struct NamedCallee {
         // Braced: an uninitialized StringId is what `!name` would read - see diagnostics.h.
@@ -1559,22 +1567,57 @@ struct ExprResolver {
         // and null for a name that turned out to be a *field* of the receiver holding a callable.
         ModulePtr<Value> receiver = nullptr;
 
+        /*
+         * The name written for each argument in call order, the receiver's included.
+         *
+         * Built from the syntax before anything is resolved, because it is half of what decides
+         * whether this call is one of these forms at all - see `fit` below. The receiver's own
+         * entry is empty: a receiver is positional by construction, written to the left of the
+         * name with nowhere to put one. See resolveNamedCall.
+         */
+        ArgNames names;
+
         Size leading() const { return receiver ? Size(1) : Size(0); }
+        Size arity() const { return names.size(); }
     };
 
     /*
-     * `classMembers` says whether a class member of that kind counts as "something of this name
-     * exists", and the two callers genuinely differ. A `for` loop dispatches to one - `Container`'s
-     * `iter fn chunks` is a class member and loops over it work. A lens statement does not yet: a
-     * class `lens fn` is declarable and has no call site (see the diagnostic that says so), so
-     * counting one here would resolve the receiver, find no plain lens to hand it to, and have
-     * nowhere to put what it had already emitted.
+     * `supplied` is CallShape::supplied - the trailing parameters this call site fills itself - and
+     * `fit` says whether a candidate has to be able to take the written arguments with those left
+     * over.
      *
-     * It is a flag rather than two functions because the difference is one line and the day the
-     * lens statement grows the dispatch a loop already has, the flag is what goes.
+     * That is the difference between the two callers, and it is about what happens on a no. A `for`
+     * loop that names an iterator of the wrong arity is a loop with a mistake in it, and it wants
+     * the diagnostic that says so - so it asks about the name alone and lets selection report. A
+     * lens statement's no is not a diagnostic at all: a call that fills the continuation itself is
+     * an *ordinary* call and stays one, so the statement hands the block back untouched. Which
+     * means the question has to be settled here, before the receiver is resolved, or the receiver
+     * is emitted into a statement that then gets resolved again from the top.
      */
-    bool namedCallee(const ast::Expr& calleeExpr, ast::FunKind kind, NamedCallee& out,
-                     bool classMembers = true);
+    bool namedCallee(const ast::Expr& calleeExpr, const ast::AppExpr& application, ast::FunKind kind,
+                     Size supplied, bool fit, NamedCallee& out);
+
+    // Which callee a `for` loop's iterator or a lens statement's lens resolved to - one of the
+    // three things selection can answer with, which is what the two call sites branch on. See
+    // ResolvedCallee, whose three live kinds these are.
+    struct HandedCallee {
+        // A plain function, or the implementation an instance supplies - which may be the class's
+        // own default body. Both are desugared, so both are called the same way.
+        ModulePtr<Function> function = nullptr;
+
+        // Set instead, where the instance is this body's own type variables' to decide.
+        ClassMatch dispatch;
+
+        // What the overload set was gathered under, which is what the diagnostics below selection
+        // name. Not always what the call site wrote: a dot-call reaches a type's own namespace, and
+        // `Atomic.store` is the name that answers `c.store(...)`.
+        StringId name {};
+
+        explicit operator bool() const { return function != nullptr || dispatch.typeClass != nullptr; }
+    };
+
+    bool selectHandedCallee(const ast::AppExpr& application, ast::FunKind kind, LocationId source,
+                            const NamedCallee& named, ArgList& values, HandedCallee& out);
 
     // What the call site does with the value the continuation produced, which is Analysis-Lens.md
     // §5.1's three shapes and nothing else. Reached by both kinds of lens: a transparent one holds

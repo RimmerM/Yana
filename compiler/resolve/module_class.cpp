@@ -128,20 +128,10 @@ void resolveClassSignatures(Module& module, TypeClass& typeClass) {
         auto stored = typeClass.functions.get(*module.types, index);
         stored.fun = signature - *module.arena;
 
-        /*
-         * A default for a `lens fn` or `iter fn` member is not available.
-         *
-         * A default is a generic function over the *class's* variables, and the desugaring a lens or
-         * an iterator needs adds one the class does not have - so the body would be resolved against
-         * a continuation nothing in the class's context names. The instance is where such a body
-         * belongs, and it is one line there: Implementation-Containers.md §5's contiguous container
-         * writes `iter fn chunks(self: C) -> &[a] = yield elements(self)` in its `Chunked` instance.
-         */
-        if(member.fun.body && signature->funKind != ast::FunKind::Plain) {
-            module.context.diagnostics.error("a class member declared %@ cannot have a default body - the continuation it hands over to would be a type variable the class head does not declare, so write the body in each instance instead"_v,
-                                             member.source,
-                                             signature->funKind == ast::FunKind::Iter ? "`iter fn`"_v : "`lens fn`"_v);
-        } else if(member.fun.body) {
+        // A `lens fn` or `iter fn` default is an ordinary default that is also desugared - see
+        // resolveClassDefault, which does that in a context of its own for the reason a member
+        // signature could not.
+        if(member.fun.body) {
             stored.defaultFun = resolveClassDefault(module, typeClass, member, pointer, *signature);
         }
 

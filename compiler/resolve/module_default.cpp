@@ -82,6 +82,7 @@ ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, as
     auto function = addAnonymousFunction(module, classDefaultName(module, typeClass, member.fun.name), member.source);
     function->gen = env - global;
     function->classDefault = true;
+    function->funKind = signature.funKind;
     function->returnType = signature.returnType;
     function->ast = pointer;
     readInlineAttribute(module, member, *function);
@@ -92,6 +93,34 @@ ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, as
         copied->convention = arg->convention;
         copied->loan = arg->loan;
         copied->lazyType = arg->lazyType;
+    }
+
+    /*
+     * A `lens fn` or `iter fn` default, desugared here - which is the same step
+     * `resolveInstance` takes for an implementation an instance wrote, and for the same reason.
+     *
+     * The class declared the written shape and stopped there (see resolveSignature's
+     * `classSignature`), so the continuation parameter and the result variable it returns are
+     * added where there is a context that can hold them. That is exactly what this one is: it was
+     * built above out of *copies* of the class's variables, so `$r` lands after them at an index no
+     * instance selection fills, and the head keeps meaning what it meant. Appending to the class's
+     * own context is what could not be done, and is the whole of what "a class member cannot be
+     * desugared" ever meant - not that a class cannot write the body.
+     *
+     * Which makes a default here the same thing it is for an ordinary member: one body, resolved
+     * against the class's variables and specialized per instance that inherited it. `Lock`'s
+     * `withLock` is the case that wanted it - `lock`, `yield`, `unlock`, written once beside the
+     * three signatures it is made of instead of copied into every instance.
+     */
+    if(signature.funKind != ast::FunKind::Plain) {
+        env->open = true;
+        resolveLensSignature(module, *function, env, member);
+        env->open = false;
+
+        // The continuation this desugaring just synthesized is one a deferred dispatch has to
+        // assume the extent of, because it has no body to read - see Function::classContinuation,
+        // and resolveInstance, which says the same about an implementation.
+        function->classContinuation = function->yieldForm;
     }
 
     return function - *module.arena;

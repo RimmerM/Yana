@@ -48,11 +48,9 @@ data Pair {a: [Int]}
 instance Chunked(Pair, Int):
     fn chunks(self: Pair) -> '[Int] = elements(self.a)
 
-{-
-   And a class cannot write such a body itself, which is why `Contiguous` has no `chunks` default:
-   the continuation it hands over to is a type variable, and a class's variables are its head's.
--}
-class Walked(c -> a):
-  iter fn walk(self: c) -> '[a] = yield elements(self)
+-- A class *can* write such a body itself, and used to be refused for it: the desugaring's result
+-- variable has nowhere to go in the class's own context, which is a fact about that context rather
+-- than about the body. A default gets a context of its own for exactly this reason - see
+-- resolveClassDefault, and LensClass.yana, which calls one.
 
 fn main() -> Int = passChunked(Chunks {a: [1], b: [2]})

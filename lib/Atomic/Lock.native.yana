@@ -59,18 +59,17 @@ pub class Lock(a):
    the unlock runs on the way out of it, including a `return` that leaves the enclosing function from
    inside. That needs no destructor and nothing written at either site.
 
-   One generic body rather than a class member, for two reasons worth keeping apart - a class member
-   *can* carry a default in general, which is how `Eq` supplies `!=` in terms of `==`.
+   A generic function beside the class rather than a member with a default, and the reason is not a
+   restriction: a class `lens fn` may carry one, and calling it works - see LensClass.yana. It is
+   what a member would be *for*. A member is a position an instance may answer differently, and
+   these three lines are the same three lines for every lock that can be written against this
+   interface: waiting is `lock`'s business, and a lock with a scoped primitive of its own would
+   still release by unlocking. Nothing here would ever be overridden.
 
-   A class `lens fn` has no call site today: it is declarable, and calling one is refused, because a
-   lens call reaches its implementation by name and a class function is not one. That is the reason
-   that will go away.
-
-   The one that will not: a `lens fn` member is the one kind that may not carry a default, since the
-   continuation it hands over to would be a type variable the class head does not declare. So even
-   once class lenses are callable, a member here would be these three lines in every instance - a
-   promise each new lock had to keep by copying it. Written once over the class, a new instance gets
-   the scoped form for nothing and cannot get it wrong.
+   And a position costs. A member is a slot in every witness, which an erased call loads through -
+   so a default nobody overrides is one more indirection per instance for a body that was going to
+   be the same body. Outside the class it is one generic function, specialized per lock exactly as
+   it would have been, and the class stays the four operations that actually differ.
 
    The explicit pair stays public because a lock taken in one function and released in another is a
    real algorithm rather than a mistake.

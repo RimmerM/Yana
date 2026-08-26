@@ -142,6 +142,30 @@ fn lambdaInGeneric(value: a) -> Int:
     let f = () -> 1
     return f()
 
+{-
+   A `lens fn` declared by a class, called wrongly.
+
+   Both of these were once one message saying a class `lens fn` had no call site at all. It has one
+   now - the statement form, which is the same one a named lens has and the same one a `for` loop is
+   for an `iter fn` - so what is left are the two ordinary ways to get a class call wrong: writing it
+   in expression position, where there is no rest-of-block for it to hand over to, and reaching a
+   type the class has no instance for.
+-}
+data Unguarded {n: Int}
+
+class Scoped(a):
+  lens fn around(self: a) -> Int
+
+instance Scoped(Lock):
+    lens fn around(self: Lock) -> Int:
+        yield self.held
+
+fn classLensInExpression(l: Lock) -> Int = around(l) + 1
+
+fn classLensWithoutInstance(u: Unguarded) -> Int:
+    let seen = u.around()
+    return seen
+
 -- A `@lazy` parameter of a lens or an iterator. Accepting it was silently wrong rather than
 -- unsupported: both call sites resolve their written arguments before lifting the continuation, so
 -- the thunk was built out of a value that had already been computed - the argument ran whether or

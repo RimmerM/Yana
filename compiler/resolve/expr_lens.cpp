@@ -559,6 +559,97 @@ void checkLensYields(Module& module, Function& function, Buffer<LensYield> yield
 }
 
 /*
+ * The callee of a call whose last argument is the call site's own - a `for` loop's iterator, or a
+ * lens statement's lens.
+ *
+ * Design.md's R5 over both halves of the name, run by the same function an ordinary call runs, with
+ * the three facts that make this call site itself carried in `CallShape`: the callee is declared
+ * `kind`, the call site supplies the last argument, and an undecided match may be deferred.
+ *
+ * Written once for both, and it was written twice for a long time. The loop had its own gather, its
+ * own R5, its own ambiguity report and its own missing-instance tracking, and three defects lived in
+ * that gap - the class half shadowed, the wrong signature pushed into the arguments, the wrong class
+ * blamed for a missing instance. Sharing the ordinary selection fixed those. The lens statement then
+ * had none of it: `findFunction` and nothing else, which is why a `lens fn` declared by a class was
+ * a declaration nothing could call while a `for` over a class `iter fn` had always worked. Both are
+ * this now, and the difference between them is two arguments.
+ *
+ * `values` comes back in the callee's parameter order with its defaults filled in and holding
+ * whatever a borrow was read through to, which is the list the continuation's shape is inferred
+ * from and the list the call is emitted with - see ResolvedCallee::args. False when nothing serves
+ * the call or an argument failed, both of which have already been reported.
+ */
+bool ExprResolver::selectHandedCallee(const ast::AppExpr& application, ast::FunKind kind,
+                                      LocationId source, const NamedCallee& named, ArgList& values,
+                                      HandedCallee& out) {
+    CallShape shape;
+    shape.kind = kind;
+    shape.requiresKind = true;
+    shape.supplied = 1;
+    if(named.receiver) shape.receiver = valueType(named.receiver);
+
+    // The written names, the receiver's empty entry included - built by `namedCallee`, since they
+    // are what it asked its own question about. See NamedCallee::names.
+    auto names = toBuffer(named.names);
+
+    OverloadSet set;
+    gatherOverloads(named.name, named.arity(), source, named.nameSource, set, shape, names);
+    out.name = set.name;
+
+    /*
+     * Which parameter of the sole candidate each written argument fills, where there is a sole
+     * candidate at all. The two halves count their parameters differently and the mapping is what
+     * has to know it: the plain half is desugared and carries the continuation this call site
+     * supplies, and a class member is not - see CallShape::supplied.
+     */
+    auto pushdown = pushdownSignature(set);
+    ArgMapping mapping;
+    const ArgMapping* pushdownMapping = nullptr;
+
+    if(pushdown && mapArguments(pushdown, names, named.arity(),
+                                pushdown == set.direct ? shape.supplied : 0, set.name, source,
+                                false, mapping)) {
+        pushdownMapping = &mapping;
+    }
+
+    // Resolved once, whichever half serves the call - resolving is emission, so there is no
+    // resolving a second time and no discarding the first. The receiver is already resolved, and is
+    // pushed here rather than by `resolveHandedArguments` for exactly that reason.
+    if(named.leading()) values.push(named.receiver);
+    resolveHandedArguments(pushdown, pushdownMapping, application.args, values, named.leading());
+    if(anyArgumentFailed(toBuffer(values))) return false;
+
+    ResolvedCallee selected;
+    selectCallee(set, toBuffer(values), nullptr, source, selected);
+    replaceContents(values, selected.args);
+
+    switch(selected.kind) {
+        case ResolvedCallee::Kind::Failed:
+            return false;
+
+        case ResolvedCallee::Kind::Plain:
+            out.function = selected.function;
+            break;
+
+        case ResolvedCallee::Kind::Instance:
+            // The implementation the instance supplies is desugared where it was written - so
+            // everything the call site does below this point is unchanged. A slot the instance left
+            // to a default holds the class's own body, which is desugared too.
+            out.function = local[selected.match.instance]->functions.get(local, selected.match.index);
+            break;
+
+        case ResolvedCallee::Kind::Dispatch:
+            // The class is known and the instance is not, because the types that would decide it
+            // are this body's own variables. There is no implementation to read the continuation's
+            // shape off, so it comes from the class signature - see classContinuationSignature.
+            adopt(out.dispatch, selected.match);
+            break;
+    }
+
+    return bool(out);
+}
+
+/*
  * The arguments a lens or iterator call actually wrote, resolved.
  *
  * Pushed down only where the parameter's type says something: a generic position is what the
@@ -638,7 +729,14 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
 
     /*
      * Which name this statement calls, and what it wrote to the left of it - the same decision a
-     * `for` source makes, and now literally the same code. See NamedCallee in expr.h.
+     * `for` source makes, and literally the same code. See NamedCallee in expr.h.
+     *
+     * Three questions in one, and all three are settled before anything is emitted, because a no to
+     * any of them means this statement is an ordinary expression that the block loop is about to
+     * resolve from the top. Is the callee a name; is something of that name a `lens fn`; and do the
+     * written arguments leave the continuation unfilled. The last is what tells a lens statement
+     * from an ordinary call of the same lens - `plusOne(4, (n: Int) -> n * 3)` writes the
+     * continuation out and is always legal - so it is a fall-through rather than a diagnostic.
      *
      * Both spellings are one rule: `withLock(l)` names the lens directly and `l.withLock()` is
      * Design.md's dot-call form, which is `withLock(l)` and therefore just as much a named lens.
@@ -651,85 +749,74 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
      * name a binding shadows for that reason.
      */
     NamedCallee named;
-    if(!namedCallee(calleeExpr, ast::FunKind::Lens, named, false)) return false;
+    if(!namedCallee(calleeExpr, application, ast::FunKind::Lens, 1, true, named)) return false;
 
-    /*
-     * Looked up at the call and recorded against the *name*, which is the same split every ordinary
-     * call keeps - see findFunction. Recording it against the whole application puts the callee on a
-     * span the arguments are inside, so a cursor in one of them walks outwards and finds it.
-     *
-     * The plain half only, which is what `namedCallee` was told: a class `lens fn` has no call site
-     * yet and the ordinary path reports that in terms the author can act on.
-     */
-    auto callee = findFunction(module, named.name, call.source, named.nameSource);
-    if(!callee || local[callee]->funKind != ast::FunKind::Lens) return false;
-
-    auto target = local[callee];
     auto source = call.source;
-    auto arguments = application.args;
-    auto leading = named.leading();
+
+    // Past this point the statement is a lens call, so everything that can go wrong with it is
+    // reported here rather than handed back - see anyArgumentFailed, which is the same rule said
+    // about one argument.
+    result = nullptr;
 
     /*
-     * The written arguments have to reach every parameter but the continuation - which is the same
-     * normalization every other call performs, and is asked here for a different purpose: a call
-     * that fills the continuation too is an *ordinary* call, and stays one. That form is always
-     * legal and is what a call site reaches for when the rest of the block is not what it wants to
-     * run, so a list this cannot normalize is handed back rather than reported on.
+     * The overload set and one selection over it, shared with the `for` loop - see
+     * selectHandedCallee.
+     *
+     * This is what the statement did not have. `findFunction` was the whole of it: the plain half,
+     * looked up by name, with no class candidates, no instance selection and no deferred dispatch -
+     * so a `lens fn` declared in a class was a declaration with no call site, and the ordinary path
+     * had a diagnostic saying exactly that. A lens and an iterator are the same desugaring over the
+     * same continuation (see resolveLensSignature, which runs for both), and a loop over a class
+     * `iter fn` has worked all along; nothing about the lens made the difference but this.
      */
-    // The receiver's own entry is empty, because a receiver is positional by construction - it is
-    // written to the left of the name and there is nowhere to put one. See resolveNamedCall.
-    ArgNames names;
-    if(leading) names.push(StringId());
-    collectArgNames(arguments, names);
+    ArgList values;
+    HandedCallee selected;
+    if(!selectHandedCallee(application, ast::FunKind::Lens, source, named, values, selected)) return true;
 
-    ArgMapping mapping;
-    if(!mapArguments(callee, toBuffer(names), arguments.size() + leading, 1, named.name, source,
-                     false, mapping)) {
-        return false;
-    }
-
-    result = nullptr;
+    auto callee = selected.function;
+    auto& dispatch = selected.dispatch;
 
     /*
      * A skipping lens says at the declaration that it may not continue, and the call site has to say
      * where that goes. Both halves of "the ability to skip is exactly the presence of a wrapper" are
      * checked here: a skipping call without alternatives is rejected, and - below - a transparent one
      * never grows a join it did not need.
+     *
+     * Never set for a class member, and that is a property of the declaration rather than a case
+     * left out here: the skipping form is the *explicit* continuation form, and a class signature is
+     * not desugared at all - what it writes is what it hands over. So a deferred dispatch is
+     * transparent by construction. See resolveSignature's `classSignature`.
      */
-    auto skipping = target->skipping;
+    auto skipping = callee && local[callee]->skipping;
+
     if(skipping && !declaration) {
         context.diagnostics.error("%@ may skip its continuation, so this call has to say where the skip goes - write it as `let pat = %@(...) | else -> ...`, which is the only position `| else ->` can be written in"_v,
-                                  source, context.findName(target->name), context.findName(target->name));
+                                  source, context.findName(selected.name), context.findName(selected.name));
         return true;
     }
 
     auto alternativeList = declaration ? declaration->alts : ast::ParseList<ast::Alt>();
     if(skipping && alternativeList.contents(parse).size() == 0) {
         context.diagnostics.error("%@ returns %@ rather than what its continuation returns, so it may not continue into the block below - this call needs `| else -> ...` saying what happens then"_v,
-                                  source, context.findName(target->name),
-                                  describeType(context, global, target->returnType));
+                                  source, context.findName(selected.name),
+                                  describeType(context, global, local[callee]->returnType));
         return true;
     }
 
-    // The receiver is already resolved - resolving is emission, so there is no resolving a second
-    // time - and is pushed here rather than by `resolveHandedArguments` for exactly that reason.
-    ArgList handed;
-    if(leading) handed.push(named.receiver);
-    resolveHandedArguments(callee, &mapping, arguments, handed, leading);
-
-    // The call is this statement, and the rest of the block is its continuation - so stopping here
-    // means the block below is resolved as itself rather than lifted, which is the same thing every
-    // other diagnostic in this function does. See anyArgumentFailed.
-    if(anyArgumentFailed(toBuffer(handed))) return true;
-
-    // In the callee's parameter order with its defaults filled in, which is what the continuation's
-    // own shape is inferred from below - see ArgMapping.
-    ArgList values;
-    normalizeArguments(mapping, toBuffer(handed), values);
-    materializeDefaults(callee, source, values);
-
+    /*
+     * What the continuation binds, from whichever half answered - the same two questions a `for`
+     * loop asks, for the same reason.
+     *
+     * A named `lens fn` has been desugared, so its continuation parameter states the shape and the
+     * written arguments decide the types in it. A class member has not, so its written result *is*
+     * the handed type and selection has already decided the class's arguments.
+     */
     Array<FunArg> params;
-    if(!continuationSignature(*this, module, callee, toBuffer(values), source, params)) return true;
+    auto shaped = dispatch.typeClass
+        ? classContinuationSignature(*this, module, dispatch, source, params)
+        : continuationSignature(*this, module, callee, toBuffer(values), source, params);
+
+    if(!shaped) return true;
 
     ContinuationShape shape;
     auto continuation = makeContinuation(toBuffer(params), declaration, block, index + 1, source, shape, skipping);
@@ -737,7 +824,18 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
 
     values.push(continuation);
 
-    auto call_ = emitKnownFunction(callee, toBuffer(values), source, nullptr, StringId());
+    /*
+     * The deferred half is told what this call produces, because the class signature does not say:
+     * a lens returns what its continuation returns, and which of §5.1's three shapes that is has
+     * just been settled by lifting the block. It is read off the continuation rather than out of
+     * `shape`, because that is the one place all three shapes agree - the value it hands back is
+     * the function's declared result whether or not it is wrapped. See emitGenericDispatch.
+     */
+    auto handedBack = ((FunType*)global[valueType(continuation)])->result;
+
+    auto call_ = dispatch.typeClass
+        ? emitGenericDispatch(dispatch, toBuffer(values), source, StringId(), handedBack)
+        : emitKnownFunction(callee, toBuffer(values), source, nullptr, StringId());
 
     if(!call_ || !current) return true;
 
@@ -758,7 +856,7 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     TrySelection selection;
     if(!selectTry(module, function, valueType(call_), selection)) {
         context.diagnostics.error("%@ returns %@ here, which has no `Try` instance to say whether its continuation ran"_v,
-                                  source, context.findName(target->name),
+                                  source, context.findName(selected.name),
                                   describeType(context, global, valueType(call_)));
         return true;
     }

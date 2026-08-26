@@ -1,0 +1,148 @@
+-- Calling a `lens fn` declared by a class, from a concrete body and from a generic one.
+--
+-- `Lens.yana` next door calls named lenses, which is the whole of what a lens statement used to
+-- reach: it looked its callee up with `findFunction` and stopped there, so a class `lens fn` was a
+-- declaration nothing could call and the ordinary call path had a diagnostic saying exactly that.
+-- A lens and an iterator are one desugaring over one continuation - resolveLensSignature runs for
+-- both - and `ChunkedGeneric.yana` has been looping over a class `iter fn` all along. What was
+-- missing was the selection, and this fixture is the three halves of it:
+--
+--  * an instance selected here, whose implementation is desugared where it was written, so the
+--    call site is the same call a named lens gets;
+--  * a body whose own type variables would decide the instance, where there is nothing to desugar
+--    against and the continuation's shape comes from the *class signature* instead - a class member
+--    is not desugared, so its written result is what it hands over;
+--  * the dot form of both, which is `hold(g)` written `g.hold()` and therefore just as much a
+--    named lens.
+
+data Gate {depth: Int}
+
+class Guard(a):
+  fn depth(self: a) -> Int
+
+  lens fn hold(self: a) -> {}
+  lens fn depthOf(self: a) -> Int
+
+  -- A default, written once beside the signatures it is made of. It is the same thing a default is
+  -- for an ordinary member - a generic function over the class's variables, specialized per
+  -- instance that inherited it - and it is desugared in a context of its own, which is what a
+  -- member signature had nowhere to put. `Lock`'s `withLock` is this shape.
+  lens fn twiceDeep(self: a) -> Int:
+      yield depth(self) * 2
+
+  -- And the same for an iterator, which is the point of all of this: a lens and an iterator are one
+  -- desugaring over one continuation, so what one may declare the other may.
+  iter fn steps(self: a) -> Int:
+      let &i = 0 :: Int
+
+      while i < depth(self):
+          yield i
+          i = i + 1
+
+instance Guard(Gate):
+    fn depth(self: Gate) -> Int = self.depth
+
+    lens fn hold(self: Gate) -> {}:
+        yield {}
+
+    lens fn depthOf(self: Gate) -> Int:
+        yield self.depth
+
+-- The instance is selected here, so what the continuation binds is read off the implementation.
+fn concrete() -> Int:
+    let g = Gate {depth: 3}
+    let d = depthOf(g)
+    return d + 1
+
+-- The same call written with a dot. A receiver is argument 0 and nothing else about it differs.
+fn dotted() -> Int:
+    let g = Gate {depth: 5}
+    let d = g.depthOf()
+    return d + 1
+
+-- A member handing over nothing, which is the `withLock` shape: a nullary continuation and a bare
+-- statement, with the rest of the block inside it.
+fn unitHandover() -> Int:
+    let g = Gate {depth: 7}
+    let &n = 0 :: Int
+
+    g.hold()
+    n = n + g.depth
+
+    return n
+
+-- Deferred: `a` is this body's own variable, so no instance can be selected and the call becomes a
+-- dispatch carrying the continuation one argument past the class signature.
+fn (Guard(a)) deferred(x: a) -> Int:
+    let d = depthOf(x)
+    return d * 2
+
+fn (Guard(a)) deferredDot(x: a) -> Int:
+    let d = x.depthOf()
+    return d * 3
+
+-- A deferred call that hands over nothing, and whose continuation captures a local of the frame it
+-- was lifted out of.
+fn (Guard(a)) deferredUnit(x: a, bump: Int) -> Int:
+    let &n = 1 :: Int
+
+    hold(x)
+    n = n + bump
+
+    return n
+
+-- A deferred call whose continuation leaves the enclosing function, which is the shape that costs
+-- an exit signal - §5.1's second, since every path of the block below returns.
+fn (Guard(a)) deferredExit(x: a) -> Int:
+    let d = x.depthOf()
+
+    if d > 100:
+        return 0
+
+    return d
+
+-- The default, inherited by `Gate` - the instance supplies neither a body nor a signature for it,
+-- so the slot holds the class's own and the call specializes it here.
+fn inherited() -> Int:
+    let g = Gate {depth: 6}
+    let d = g.twiceDeep()
+    return d
+
+-- And the same default reached from a body whose variables would decide the instance, which is the
+-- deferred dispatch landing on a slot the instance left to the class.
+fn (Guard(a)) deferredDefault(x: a) -> Int:
+    let d = twiceDeep(x)
+    return d + 1
+
+-- A `for` over an inherited `iter fn` default, concrete and deferred.
+fn iterated() -> Int:
+    let g = Gate {depth: 4}
+    let &t = 0 :: Int
+
+    for i in g.steps():
+        t = t + i
+
+    return t
+
+fn (Guard(a)) deferredIter(x: a) -> Int:
+    let &t = 0 :: Int
+
+    for i in steps(x):
+        t = t + i + 1
+
+    return t
+
+fn main() -> Int:
+    let g = Gate {depth: 2}
+
+    return concrete() +          -- 4
+           dotted() +            -- 6
+           unitHandover() +      -- 7
+           deferred(g) +         -- 4
+           deferredDot(g) +      -- 6
+           deferredUnit(g, 9) +  -- 10
+           deferredExit(g) +     -- 2
+           inherited() +         -- 12
+           deferredDefault(g) +  -- 5
+           iterated() +          -- 6
+           deferredIter(g)       -- 3

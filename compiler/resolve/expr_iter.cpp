@@ -65,14 +65,10 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
      * erased callback ABI and is unaffected by anything here. The test below says which of the two
      * was written rather than reporting the second reason for both.
      */
-    NamedCallee callee_;
-    namedCallee(calleeExpr, ast::FunKind::Iter, callee_);
+    NamedCallee named;
+    namedCallee(calleeExpr, application, ast::FunKind::Iter, 1, false, named);
 
-    auto name = callee_.name;
-    auto nameSource = callee_.nameSource;
-    auto receiver = callee_.receiver;
-
-    if(!name) {
+    if(!named.name) {
         // `xs.filter(p).map(f)` lands here, since the callee of the outer call is not a name: an
         // adaptor takes the iterator it wraps as an argument, and passing one needs the erased
         // callback ABI - a function value says nothing about which of its arguments is the
@@ -82,93 +78,21 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
         return nullptr;
     }
 
-    auto leading = receiver ? Size(1) : Size(0);
-
     /*
-     * The overload set, and one selection over it - Design.md's R5, run by the same function an
-     * ordinary call runs.
-     *
-     * A `for` loop used to have its own: its own gather, its own R5, its own ambiguity report and
-     * its own missing-instance tracking. Three separate defects lived in the gap - the class half
-     * was shadowed outright, the wrong signature was pushed into the arguments, and the wrong class
-     * was blamed for a missing instance - and every one of them was a rule the ordinary selection
-     * already kept. What genuinely differs is three facts about the *call site*, and they are what
-     * CallShape carries: the callee is declared `iter fn`, the loop supplies the last argument
-     * itself, and there is no generic dispatch to defer an undecided match to.
+     * The overload set and one selection over it, shared with the lens statement - see
+     * selectHandedCallee, which is where the rules a loop and a lens call have in common now live.
+     * A loop reaches it holding `iter fn`; that is the whole of the difference.
      */
-    CallShape shape;
-    shape.kind = ast::FunKind::Iter;
-    shape.requiresKind = true;
-    shape.supplied = 1;
-    if(receiver) shape.receiver = valueType(receiver);
-
-    // The receiver's own entry is empty, because a receiver is positional by construction - it is
-    // written to the left of the name and there is nowhere to put one. See resolveNamedCall.
-    ArgNames names;
-    if(leading) names.push(StringId());
-    for(auto arg: application.args.contents(parse)) names.push(arg.name);
-
-    OverloadSet set;
-    gatherOverloads(name, application.args.size() + leading, source.source, nameSource, set, shape,
-                    toBuffer(names));
-
-    /*
-     * Which parameter of the sole candidate each written argument fills, where there is a sole
-     * candidate at all. The two halves count their parameters differently and the mapping is what
-     * has to know it: the plain half is a desugared `iter fn` carrying the continuation the loop
-     * supplies, and a class member is not desugared - see CallShape::supplied.
-     */
-    auto pushdown = pushdownSignature(set);
-    ArgMapping mapping;
-    const ArgMapping* pushdownMapping = nullptr;
-
-    if(pushdown && mapArguments(pushdown, toBuffer(names), application.args.size() + leading,
-                                pushdown == set.direct ? shape.supplied : 0, set.name, source.source,
-                                false, mapping)) {
-        pushdownMapping = &mapping;
+    HandedCallee selected;
+    if(!selectHandedCallee(application, ast::FunKind::Iter, source.source, named, values, selected)) {
+        return nullptr;
     }
 
-    // Resolved once, whichever half serves the loop - resolving is emission, so there is no
-    // resolving a second time and no discarding the first. The receiver is already resolved, and is
-    // pushed here rather than by `resolveHandedArguments` for exactly that reason.
-    if(leading) values.push(receiver);
-    resolveHandedArguments(pushdown, pushdownMapping, application.args, values, leading);
-    if(anyArgumentFailed(toBuffer(values))) return nullptr;
-
-    ResolvedCallee selected;
-    selectCallee(set, toBuffer(values), nullptr, source.source, selected);
-
-    // Whatever selection settled on, including a borrow it read through - see ResolvedCallee::args.
-    replaceContents(values, selected.args);
-
-    switch(selected.kind) {
-        case ResolvedCallee::Kind::Failed:
-            return nullptr;
-
-        case ResolvedCallee::Kind::Plain:
-            call = &application;
-            return selected.function;
-
-        case ResolvedCallee::Kind::Instance: {
-            // The implementation the instance supplies is an `iter fn` like any other, desugared
-            // where it was written - so everything the loop does below this point is unchanged.
-            call = &application;
-            return local[selected.match.instance]->functions.get(local, selected.match.index);
-        }
-
-        case ResolvedCallee::Kind::Dispatch:
-            /*
-             * The class is known and the instance is not, because the types that would decide it
-             * are this body's own variables. There is no implementation to hand back, so the loop
-             * is desugared against the class signature and the call is deferred - which is what
-             * the match carries out of here in place of a function.
-             */
-            call = &application;
-            adopt(dispatch, selected.match);
-            return nullptr;
-    }
-
-    return nullptr;
+    // Both halves are the loop's answer, and the caller reads whichever was set: an implementation
+    // to desugar the body against, or a class the body is desugared against instead.
+    call = &application;
+    adopt(dispatch, selected.dispatch);
+    return selected.function;
 }
 
 /*

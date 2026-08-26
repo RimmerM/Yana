@@ -755,51 +755,53 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
     auto implementation = local[instance]->functions.get(local, index);
     if(!implementation) return nullptr;
 
-    // A default the instance did not override is generic over the *class's* type variables rather
-    // than over the head's, so what specializes it is what the head resolves to - `Ptr(Int)`, for
-    // `Eq(Ptr(a))` selected at `a = Int` - and not the head's own bindings. Reading the class types
-    // back off the head is what makes a concrete and a parametric instance the same case here.
-    if(implementation == global[local[instance]->typeClass]->functions.get(global, index).defaultFun) {
-        TypeList classArgs;
-        for(auto type: local[instance]->forTypes.contents(local)) {
-            classArgs.push(substituteType(module, type, instanceArgs, source));
-        }
-
-        auto specialized = instantiateFunction(site, implementation, toBuffer(classArgs), source);
-        if(!specialized) return nullptr;
-
-        return emitDirectCall(specialized, args, source, target, resultName);
-    }
+    auto inherited = implementation == global[local[instance]->typeClass]->functions.get(global, index).defaultFun;
 
     /*
      * The types the implementation is compiled at, which are not always the ones the head bound.
      *
-     * An ordinary member is written against the head's variables and nothing else, so the head's
-     * bindings are the whole answer. An **iterator or lens** member declares one more: the
-     * desugaring gives its continuation a result variable, and it lands after the instance's own
-     * because a class has nowhere to put one and the head therefore cannot bind it
-     * (Implementation-Containers.md §5, and resolveInstance). Nothing about the instance answers it
-     * - the *call site* does, through the continuation it passes - so the trailing variables are
-     * solved from the arguments rather than substituted.
+     * Two things move it off the head's own bindings, and a `lens fn` default is where they meet.
      *
-     * The head's own positions are put back afterwards rather than left to the solve. They are
-     * already decided, and binding them a second time against arguments that may have been widened
-     * or read through a borrow is a second opinion about a question selection has answered.
+     * A **default** the instance did not override is generic over the *class's* type variables
+     * rather than over the head's, so what specializes it is what the head resolves to - `Ptr(Int)`,
+     * for `Eq(Ptr(a))` selected at `a = Int`. Reading the class types back off the head is what
+     * makes a concrete and a parametric instance the same case here.
+     *
+     * An **iterator or lens** declares one variable more than either of those lists has: the
+     * desugaring gives its continuation a result, and it lands after the ones an instance selection
+     * fills because a class has nowhere to put one and the head therefore cannot bind it
+     * (Implementation-Containers.md §5, resolveInstance, and resolveClassDefault, which does the
+     * same for a body the class wrote). Nothing about the instance answers it - the *call site*
+     * does, through the continuation it passes - so the trailing variables are solved from the
+     * arguments rather than substituted.
+     *
+     * The already-decided positions are put back afterwards rather than left to the solve. They are
+     * decided, and binding them a second time against arguments that may have been widened or read
+     * through a borrow is a second opinion about a question selection has answered.
      */
     auto implEnv = functionGen(global, *local[implementation]);
     auto bound = implEnv ? implEnv->types.size() : 0;
 
     TypeList typeArgs;
-    for(auto type: instanceArgs) typeArgs.push(type);
+
+    if(inherited) {
+        for(auto type: local[instance]->forTypes.contents(local)) {
+            typeArgs.push(substituteType(module, type, instanceArgs, source));
+        }
+    } else {
+        for(auto type: instanceArgs) typeArgs.push(type);
+    }
 
     if(bound > typeArgs.size()) {
+        auto decided = typeArgs.size();
+
         Solution solution;
         Solver solver(*this, solution, implEnv);
 
-        for(Size i = 0; i < typeArgs.size(); i++) solution.types[i] = typeArgs[i];
+        for(Size i = 0; i < decided; i++) solution.types[i] = typeArgs[i];
         solver.bindArguments(implementation, args, Unresolved::Binds);
 
-        if(!solver.settle(typeArgs.size(), bound)) {
+        if(!solver.settle(decided, bound)) {
             context.diagnostics.error("cannot infer type argument %@ of %@ here"_v, source,
                                       context.findName(global[implEnv->types.get(global, solution.position)]->name),
                                       context.findName(local[implementation]->name));
@@ -808,9 +810,19 @@ ModulePtr<Value> ExprResolver::emitInstanceCall(Module& site, ModulePtr<ClassIns
 
         // Seeded above so that a later position reads them, restored here so that a widen the solve
         // performed on one of them does not become the answer.
-        for(Size i = 0; i < typeArgs.size(); i++) solution.types[i] = typeArgs[i];
+        for(Size i = 0; i < decided; i++) solution.types[i] = typeArgs[i];
 
         replaceContents(typeArgs, solution.types);
+    }
+
+    // A default is specialized for the class types and called as the ordinary function that makes
+    // it - it is written against the class's variables rather than the head's, so there is no
+    // instance signature for the arguments to be restated in.
+    if(inherited) {
+        auto specialized = instantiateFunction(site, implementation, toBuffer(typeArgs), source);
+        if(!specialized) return nullptr;
+
+        return emitDirectCall(specialized, args, source, target, resultName);
     }
 
     // A concrete instance's implementation is a function like any other - unless the desugaring
@@ -1672,55 +1684,99 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
  * that cost was `c.withLock()`, refused with a message telling its author to write the call as a
  * statement of its own, which is what they had written.
  */
-bool ExprResolver::namedCallee(const ast::Expr& calleeExpr, ast::FunKind kind, NamedCallee& out,
-                               bool classMembers) {
-    if(calleeExpr.kind == ast::Expr::Var && !findBinding(calleeExpr.var)) {
-        out.name = calleeExpr.var;
-        out.nameSource = calleeExpr.source;
-        return true;
+bool ExprResolver::namedCallee(const ast::Expr& calleeExpr, const ast::AppExpr& application,
+                               ast::FunKind kind, Size supplied, bool fit, NamedCallee& out) {
+    auto dotted = calleeExpr.kind == ast::Expr::Field;
+    const ast::FieldExpr* field = nullptr;
+    StringId name;
+    LocationId nameSource = kNullLocation;
+
+    if(dotted) {
+        field = parse[calleeExpr.field];
+        auto& selected = field->field;
+
+        if(selected.kind != ast::Expr::Var || isCursorSentinel(context, selected.var)) return false;
+
+        name = selected.var;
+        nameSource = selected.source;
+    } else {
+        if(calleeExpr.kind != ast::Expr::Var || findBinding(calleeExpr.var)) return false;
+
+        name = calleeExpr.var;
+        nameSource = calleeExpr.source;
     }
 
-    if(calleeExpr.kind != ast::Expr::Field) return false;
-
-    auto& field = *parse[calleeExpr.field];
-    auto& selected = field.field;
-
-    if(selected.kind != ast::Expr::Var || isCursorSentinel(context, selected.var)) return false;
+    // Syntax alone, and that is what makes it usable below: the arity and the written names are
+    // what "could anything of this name serve this call" is asked about, and neither needs a
+    // receiver to exist yet.
+    auto written = application.args;
+    if(dotted) out.names.push(StringId());
+    for(auto arg: written.contents(parse)) out.names.push(arg.name);
 
     /*
-     * Whether anything of this name is declared as `kind` at all, asked with no occurrence recorded
-     * and before the receiver exists. Both halves are asked, because a class member is as much a
-     * name as a plain function is - and the plain half alone is what let a `lens fn` of a class have
-     * no call site.
+     * Whether anything of this name could serve this call, asked with no occurrence recorded and
+     * before the receiver exists.
+     *
+     * Both halves are asked, because a class member is as much a name as a plain function is - and
+     * the plain half alone is what let a `lens fn` of a class have no call site at all.
+     *
+     * `fit` is the second half of the question and only a lens statement asks it: the arguments
+     * have to leave the trailing `supplied` parameters unwritten, since a call that fills them is
+     * an ordinary call and the statement must hand it back rather than report on it. Counted
+     * against the plain half's desugared signature and against a class member's undesugared one -
+     * see CallShape::supplied, which is the same split.
      */
-    auto declaredAs = [&](StringId candidate) {
-        auto plain = findFunction(module, candidate, selected.source, kNullLocation, false);
-        if(plain && local[plain]->funKind == kind) return true;
+    auto takes = [&](ModulePtr<Function> declared, Size unwritten) {
+        if(local[declared]->funKind != kind) return false;
+        if(!fit) return true;
 
-        if(!classMembers) return false;
+        ArgMapping mapping;
+        return mapArguments(declared, toBuffer(out.names), out.arity(), unwritten, name, kNullLocation,
+                            false, mapping);
+    };
+
+    auto serves = [&]() {
+        auto plain = findFunction(module, name, nameSource, kNullLocation, false);
+        if(plain && takes(plain, supplied)) return true;
 
         ClassFunList found;
-        findClassFunctions(module, candidate, selected.source, found);
+        findClassFunctions(module, name, nameSource, found);
 
         for(auto& entry: found) {
             auto declared = global[entry.typeClass]->functions.get(global, entry.index);
-            if(declared.fun && local[declared.fun]->funKind == kind) return true;
+            if(declared.fun && takes(declared.fun, 0)) return true;
         }
 
         return false;
     };
 
-    if(!declaredAs(selected.var)) return false;
+    /*
+     * Asked where a no costs something, which is not both callers and not both spellings.
+     *
+     * A dot form always asks, because the receiver is about to be resolved and a name that serves
+     * nothing would have emitted it for nothing - `upTo(n).twice()` is that case. A plain name
+     * emits nothing at all, so the only reason to ask is that the caller wants the answer: a lens
+     * statement does, since its no is a fall-through to an ordinary call, and a `for` loop does not
+     * - `for x in plain(n)` is a loop with a mistake in it, and handing the name back is what lets
+     * selection say which mistake rather than "that is not a name".
+     */
+    if((dotted || fit) && !serves()) return false;
 
-    out.receiver = resolve(field.target);
-    if(!out.receiver || global[valueType(out.receiver)]->kind == Type::Error) return false;
+    if(dotted) {
+        out.receiver = resolve(field->target);
+        if(!out.receiver || global[valueType(out.receiver)]->kind == Type::Error) return false;
 
-    // A field of function type is a value, and a value is not this form - only a name that is *not*
-    // a field of the receiver is a dot-call. See resolveDotCall, whose choice this repeats.
-    if(hasFieldNamed(valueType(out.receiver), selected.var)) return false;
+        // A field of function type is a value, and a value is not this form - only a name that is
+        // *not* a field of the receiver is a dot-call. See resolveDotCall, whose choice this
+        // repeats, and NamedCallee for the one thing this ordering costs.
+        if(hasFieldNamed(valueType(out.receiver), name)) return false;
+    }
 
-    out.name = selected.var;
-    out.nameSource = selected.source;
+    // Last, so that every `false` above leaves the name unset - which is what the `for` loop reads
+    // in place of the answer, since what it wants to say about a source it cannot name depends on
+    // which of these it was.
+    out.name = name;
+    out.nameSource = nameSource;
     return true;
 }
 
@@ -2259,8 +2315,10 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
         // whatever that function's arity is. An ordinary call has no such case - a lens or an
         // iterator with its continuation written out is one - so it always falls through to arity.
         if(set.shape.requiresKind && declared->funKind != set.shape.kind) {
-            context.diagnostics.error("%@ is not an `iter fn`, so a `for` loop has nothing to be the body of - a collection is iterated by an `iter fn` over it rather than directly"_v,
-                                      source, context.findName(declared->name));
+            context.diagnostics.error(set.shape.isLoop()
+                ? "%@ is not an `iter fn`, so a `for` loop has nothing to be the body of - a collection is iterated by an `iter fn` over it rather than directly"_v
+                : "%@ is not a `lens fn`, so there is nothing for the rest of this block to be the continuation of"_v,
+                source, context.findName(declared->name));
             return;
         }
 
@@ -2313,8 +2371,8 @@ void ExprResolver::selectCallee(const OverloadSet& set, Buffer<ResolvedArg> args
             context.diagnostics.error("%@ is an `iter fn` of class %@, so it is run by a `for` loop rather than called - write `for x in %@(...)`"_v,
                                       source, context.findName(callName), className, context.findName(callName));
         } else if(declared->funKind == ast::FunKind::Lens) {
-            context.diagnostics.error("%@ is a `lens fn` of class %@, and a class member declared as one has no call site yet - a lens call reaches its implementation by name, which a class function is not"_v,
-                                      source, context.findName(callName), className);
+            context.diagnostics.error("%@ is a `lens fn` of class %@, so the rest of the block is its continuation - write it as a statement of its own, or as `let pat = %@(...)`, rather than in the middle of an expression"_v,
+                                      source, context.findName(callName), className, context.findName(callName));
         } else {
             context.diagnostics.error("%@ is an ordinary class function of %@ rather than an `iter fn`, so a `for` loop has nothing to be the body of"_v,
                                       source, context.findName(callName), className);
