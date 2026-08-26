@@ -436,21 +436,29 @@ pub fn moveMemory(to: %U8, from: %U8, count: Size) -> {}:
    arguments and the result are plain integers because that is what the kernel ABI passes, and a
    pointer reaches one through `bitcast`.
 
-   **`Size` and not `I64`, which is Analysis-Modules.md §4.2.1's fourth row.** What these positions
-   are is *machine words* - a syscall passes and returns registers - so they are the width of a
-   pointer by definition rather than sixty-four bits by habit. It is the same type today and it is
-   not the same statement, and the difference is the whole point of writing the audit before `Size`
-   stops being `I64`.
+   **A machine word, and not `I64`, which is Analysis-Modules.md §4.2.1's fourth row.** What these
+   positions are is *machine words* - a syscall passes and returns registers - so they are the width
+   of a pointer by definition rather than sixty-four bits by habit. It is the same type today and it
+   is not the same statement, and the difference is the whole point of writing the audit before
+   `Size` stops being `I64`.
+
+   **The arguments are `USize` and the result is `Size`**, which is two different facts about one
+   register and the reason they are two types. An argument is a word the kernel reads however the
+   call says to - an address, a count, a flag word - and none of those is a number with a sign; the
+   *result* is the one position where the kernel imposes a reading, being the answer where it is
+   non-negative and the negated errno where it is not. Declaring the arguments signed said the
+   opposite of what an address is and made every caller launder one through a signed rung on the way
+   in, and the alignment arithmetic above a count paid for a sign nothing there could hold.
 
    It also puts the one real trap where it will be seen. A 64-bit file offset is *not* a word: it
    stays `I64` at `readFileAt` and `seekFile`, and on a 32-bit ABI it is split across two argument
    registers, which no arity here can express. So a 32-bit port fails to compile at exactly those
    call sites rather than silently acquiring a 2 GB limit - see the note at `truncateFile`.
 -}
-pub fn syscall0(number: Size) -> Size
-pub fn syscall1(number: Size, a: Size) -> Size
-pub fn syscall2(number: Size, a: Size, b: Size) -> Size
-pub fn syscall3(number: Size, a: Size, b: Size, c: Size) -> Size
-pub fn syscall4(number: Size, a: Size, b: Size, c: Size, d: Size) -> Size
-pub fn syscall5(number: Size, a: Size, b: Size, c: Size, d: Size, e: Size) -> Size
-pub fn syscall6(number: Size, a: Size, b: Size, c: Size, d: Size, e: Size, f: Size) -> Size
+pub fn syscall0(number: USize) -> Size
+pub fn syscall1(number: USize, a: USize) -> Size
+pub fn syscall2(number: USize, a: USize, b: USize) -> Size
+pub fn syscall3(number: USize, a: USize, b: USize, c: USize) -> Size
+pub fn syscall4(number: USize, a: USize, b: USize, c: USize, d: USize) -> Size
+pub fn syscall5(number: USize, a: USize, b: USize, c: USize, d: USize, e: USize) -> Size
+pub fn syscall6(number: USize, a: USize, b: USize, c: USize, d: USize, e: USize, f: USize) -> Size

@@ -118,9 +118,18 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
     jmp b1
 }
 
+fn numberOf(%call: Syscall) -> USize {
+  b0:
+    %v1 = cast %call : I64
+    %v2 = cast %v1 : USize
+    ret %v2
+}
+
 fn exitProcess(%status: Size) -> () {
   b0:
-    %v2 = syscall 60, %status : Size
+    %v2 = call numberOf, 60 : USize
+    %v3 = bitcast %status : USize
+    %v4 = syscall %v2, %v3 : Size
     ret
 }
 

@@ -11,45 +11,96 @@
    An arm64 port is `Linux.arm64.yana` beside this, and nothing else has to change to accept it.
 -}
 
--- amd64 Linux call numbers.
-let sysRead = 0 :: Size
-let sysWrite = 1 :: Size
-let sysOpen = 2 :: Size
-let sysClose = 3 :: Size
-let sysStat = 4 :: Size
-let sysFileStat = 5 :: Size
-let sysLinkStat = 6 :: Size
-let sysSeek = 8 :: Size
-let sysMmap = 9 :: Size
-let sysMunmap = 11 :: Size
-let sysReadAt = 17 :: Size
-let sysWriteAt = 18 :: Size
-let sysExit = 60 :: Size
-let sysProcessId = 39 :: Size
-let sysSync = 74 :: Size
-let sysTruncate = 77 :: Size
-let sysRename = 82 :: Size
-let sysMakeDirectory = 83 :: Size
-let sysRemoveDirectory = 84 :: Size
-let sysUnlink = 87 :: Size
-let sysDirectoryEntries = 217 :: Size
-let sysClockTime = 228 :: Size
-let sysGetRandom = 318 :: Size
+{-
+   The amd64 Linux call numbers, as a type - and for the reason `Errno` below is one.
+
+   The argument that section makes applies here unchanged and is not about brevity: a set of `let`s
+   is a set of integers that happen to be spelled with names, and nothing relates them or says what
+   a position holding one will accept. A type says both, and the compiler checks it.
+
+   What it buys that `Errno` does not need is the *other* generated direction. `nameOf` is a literal
+   for a known constructor, so a tracing build gets "openat" out of the same declaration that gets
+   the kernel 257, with no table to write and none to keep in step - see `numberOf`, which is the one
+   place a call's number is produced and therefore the one place such a mode would print from.
+
+   The set is what this library calls and not the kernel's whole table, which is three hundred long
+   and mostly about facilities nothing here has. A module that needs one more adds it here, where a
+   call number belongs: it is a fact about *this kernel on this architecture*, which is what this
+   file is.
+-}
+pub data Syscall
+  = @value(0)   SysRead
+  | @value(1)   SysWrite
+  | @value(2)   SysOpen
+  | @value(3)   SysClose
+  | @value(4)   SysStat
+  | @value(5)   SysFileStat
+  | @value(6)   SysLinkStat
+  | @value(8)   SysSeek
+  | @value(9)   SysMmap
+  | @value(11)  SysMunmap
+  | @value(17)  SysReadAt
+  | @value(18)  SysWriteAt
+  | @value(39)  SysProcessId
+  | @value(60)  SysExit
+  | @value(74)  SysSync
+  | @value(77)  SysTruncate
+  | @value(82)  SysRename
+  | @value(83)  SysMakeDirectory
+  | @value(84)  SysRemoveDirectory
+  | @value(87)  SysUnlink
+  | @value(217) SysDirectoryEntries
+  | @value(228) SysClockTime
+  | @value(318) SysGetRandom
+
+{-
+   The number the machine is actually given, which is the constructor's own `@value`.
+
+   Free at every call: `valueOf` of a known constructor folds to its literal, so `syscall1(numberOf(
+   SysClose), handle)` reaches the backend as `syscall 3` exactly as the `let` did. What it is not is
+   free to *get wrong* - a position taking a `Syscall` will not accept 3, and 3 was what the previous
+   spelling accepted from anywhere.
+
+   One function rather than a conversion at each site, because it is also the seam: a tracing mode
+   has one body to add `nameOf(call)` to, and nothing else in the file has to know it exists.
+-}
+pub fn numberOf(call: Syscall) -> USize =
+    truncate(valueOf(call)) :: USize
 
 -- PROT_READ | PROT_WRITE, and MAP_PRIVATE | MAP_ANONYMOUS.
-let protReadWrite = 3 :: Size
-let mapPrivateAnonymous = 34 :: Size
+--
+-- Left as constants, deliberately, where the call numbers became a type: these are *masks*, and the
+-- values a position accepts are the sums of subsets rather than the named ones. An enumeration of
+-- them would be an enumeration of the combinations somebody happened to write down.
+let protReadWrite = 3 :: USize
+let mapPrivateAnonymous = 34 :: USize
+
+{-
+   The page, which is the unit every mapping here is rounded to.
+
+   4096 on x86-64, and stated once here rather than at each caller for the reason every other number
+   in this file is here: it is a fact about one kernel on one architecture, and `Thread.linux.yana`
+   computing it for itself was that file knowing something it has no way to be right about. An arm64
+   port sets it to its own page and nothing above this changes.
+-}
+pub let pageBytes = 4096 :: USize
 
 -- Maps `size` bytes of zeroed, readable and writable address space, or null if the kernel
 -- refused. mmap reports failure as a small negative value rather than as an error flag, which is
 -- why the result is checked as a number before it becomes a pointer.
 pub fn mapMemory(size: Size) -> %U8:
-    let result = syscall6(sysMmap, 0, size, protReadWrite, mapPrivateAnonymous, -1, 0)
+    -- The descriptor is -1 as a *word* rather than as a number: every argument position is a word,
+    -- and this is the one place the kernel's "no file" is a bit pattern instead of a count. Written
+    -- out here because it cannot be a `let` - a global's initializer is a literal, and the all-ones
+    -- word of a width no stage above `repr` has is not one.
+    let anonymous = bitcast(0 - 1 :: Size) :: USize
+    let result = syscall6(numberOf(SysMmap), 0, bitcast(size) :: USize, protReadWrite, mapPrivateAnonymous, anonymous, 0)
     if result < 0 then return null()
 
     return bitcast(result) :: %U8
 
-pub fn unmapMemory(from: %U8, size: Size) -> Size = syscall2(sysMunmap, bitcast(from) :: Size, size)
+pub fn unmapMemory(from: %U8, size: Size) -> Size =
+    syscall2(numberOf(SysMunmap), bitcast(from) :: USize, bitcast(size) :: USize)
 
 {-
    The file calls, and what they all have in common - Analysis-Library.md §2.9.
@@ -96,7 +147,7 @@ pub fn unmapMemory(from: %U8, size: Size) -> Size = syscall2(sysMunmap, bitcast(
    question with a different name. One operator for both is what makes `if empty` False while
    `if !empty` is True.
 -}
-pub alias qualified OpenFlags = Size deriving (Bitwise, Truth)
+pub alias qualified OpenFlags = USize deriving (Bitwise, Truth)
 
 -- The low two bits are the access mode and are a small enumeration rather than a set - `readOnly`
 -- is zero, so an open that asks for nothing asks for reading - and everything above them is a flag
@@ -118,21 +169,22 @@ pub let openTemporary = OpenFlags(4259840)
 -- which mean nothing at all unless the open creates something. A second newtype rather than a
 -- second use of the first: handing `open` its flags where it wanted its mode is exactly the mistake
 -- two bare `I64`s in a row invite.
-pub alias qualified FileMode = Size deriving (Bitwise, Truth)
+pub alias qualified FileMode = USize deriving (Bitwise, Truth)
 
-pub fn fileMode(bits: Size) -> FileMode = FileMode(bits)
-pub fn modeShifted(mode: FileMode, by: Size) -> FileMode = FileMode(mode.0 `shl` by)
+pub fn fileMode(bits: USize) -> FileMode = FileMode(bits)
+pub fn modeShifted(mode: FileMode, by: USize) -> FileMode = FileMode(mode.0 `shl` by)
 
 pub fn openPath(path: %U8, flags: OpenFlags, mode: FileMode) -> Size =
-    syscall3(sysOpen, bitcast(path) :: Size, flags.0, mode.0)
+    syscall3(numberOf(SysOpen), bitcast(path) :: USize, flags.0, mode.0)
 
-pub fn closeFile(handle: Size) -> Size = syscall1(sysClose, handle)
+pub fn closeFile(handle: Size) -> Size =
+    syscall1(numberOf(SysClose), bitcast(handle) :: USize)
 
 pub fn readFile(handle: Size, to: %U8, count: Size) -> Size =
-    syscall3(sysRead, handle, bitcast(to) :: Size, count)
+    syscall3(numberOf(SysRead), bitcast(handle) :: USize, bitcast(to) :: USize, bitcast(count) :: USize)
 
 pub fn writeFile(handle: Size, from: %U8, count: Size) -> Size =
-    syscall3(sysWrite, handle, bitcast(from) :: Size, count)
+    syscall3(numberOf(SysWrite), bitcast(handle) :: USize, bitcast(from) :: USize, bitcast(count) :: USize)
 
 {-
    A 64-bit file offset, in a syscall argument register.
@@ -140,7 +192,9 @@ pub fn writeFile(handle: Size, from: %U8, count: Size) -> Size =
    `pread64`, `pwrite64`, `ftruncate` and `lseek` all take an `off_t`, which is sixty-four bits on
    thirty-two-bit Linux too - Analysis-Modules.md §4.2.1's file-offset row, which is the counterexample
    that makes the `Size` audit a per-parameter job rather than a rewrite. So the offset stays `I64` in
-   every signature here and is narrowed at the one place it becomes a machine word.
+   every signature here and is narrowed where it becomes a machine word, written out at each call
+   rather than behind a name: `truncate(at) :: USize` says what it does, and the `offsetWord` that
+   used to wrap it said only that somebody had wrapped it.
 
    **The narrowing is the identity, because this file is x86-64.** A word is sixty-four bits on this
    architecture and an offset fits one; the compiler cannot know that, because `Size` is deliberately
@@ -149,21 +203,21 @@ pub fn writeFile(handle: Size, from: %U8, count: Size) -> Size =
    offset across *two* argument registers, which is a different call rather than a narrower one, and
    the file that makes it is `Linux.x86.yana` beside this one.
 -}
-fn offsetWord(at: I64) -> Size = truncate(at) :: Size
 
 -- The positional pair, which is `pread64`/`pwrite64` and not a seek and a read. The file position
 -- is untouched by both, which is the whole of what makes them a second pair rather than a
 -- convenience over the first.
 pub fn readFileAt(handle: Size, to: %U8, count: Size, at: I64) -> Size =
-    syscall4(sysReadAt, handle, bitcast(to) :: Size, count, offsetWord(at))
+    syscall4(numberOf(SysReadAt), bitcast(handle) :: USize, bitcast(to) :: USize, bitcast(count) :: USize, truncate(at) :: USize)
 
 pub fn writeFileAt(handle: Size, from: %U8, count: Size, at: I64) -> Size =
-    syscall4(sysWriteAt, handle, bitcast(from) :: Size, count, offsetWord(at))
+    syscall4(numberOf(SysWriteAt), bitcast(handle) :: USize, bitcast(from) :: USize, bitcast(count) :: USize, truncate(at) :: USize)
 
+pub fn syncFile(handle: Size) -> Size =
+    syscall1(numberOf(SysSync), bitcast(handle) :: USize)
 
-pub fn syncFile(handle: Size) -> Size = syscall1(sysSync, handle)
-
-pub fn truncateFile(handle: Size, size: I64) -> Size = syscall2(sysTruncate, handle, offsetWord(size))
+pub fn truncateFile(handle: Size, size: I64) -> Size =
+    syscall2(numberOf(SysTruncate), bitcast(handle) :: USize, truncate(size) :: USize)
 
 {-
    `struct stat`, as the record the kernel fills - Analysis-Language.md §5.2.
@@ -218,16 +272,16 @@ pub data FileStatus {
    `File`: the caller writes `let &status = FileStatus {}` and reads named fields off it afterwards,
    and the one place that still knows the buffer is bytes is the line below that takes its address.
 -}
-fn statusAddress(&into: FileStatus) -> Size = bitcast(addressOf(into)) :: Size
+fn statusAddress(&into: FileStatus) -> USize = bitcast(addressOf(into)) :: USize
 
 pub fn statPath(path: %U8, &into: FileStatus) -> Size =
-    syscall2(sysStat, bitcast(path) :: Size, statusAddress(into))
+    syscall2(numberOf(SysStat), bitcast(path) :: USize, statusAddress(into))
 
 pub fn statLink(path: %U8, &into: FileStatus) -> Size =
-    syscall2(sysLinkStat, bitcast(path) :: Size, statusAddress(into))
+    syscall2(numberOf(SysLinkStat), bitcast(path) :: USize, statusAddress(into))
 
 pub fn statFile(handle: Size, &into: FileStatus) -> Size =
-    syscall2(sysFileStat, handle, statusAddress(into))
+    syscall2(numberOf(SysFileStat), bitcast(handle) :: USize, statusAddress(into))
 
 {-
    What the mode's type bits say a directory entry is - Analysis-Language.md §5.1.
@@ -241,28 +295,30 @@ pub data FileKind = @value(16384) DirectoryKind | @value(32768) RegularKind | @v
 
 pub let modeTypeMask = FileMode(61440)
 
--- Through `I32` rather than straight to `Size`, which is the idiom `slotFor` in `Core/Map.yana`
--- writes and for the same reason: a `U32` does not widen into a signed word, because on a target
--- whose word is thirty-two bits its top half would not fit. Reinterpreting first says that these
--- are mode bits and never a large unsigned number.
+-- Straight into the word now that the word a mode is held in is unsigned, which is what these bits
+-- always were. It used to go through `I32` first, because a `U32` does not widen into a *signed*
+-- word - on a target whose word is thirty-two bits its top half would not fit - and that detour is
+-- exactly the sort of thing the signed spelling was costing.
 pub fn kindOf(mode: U32) -> Maybe(FileKind) =
-    fromValue((FileMode((bitcast(mode) :: I32) :: Size) `and` modeTypeMask).0)
+    fromValue(bitcast((FileMode(widen(mode) :: USize) `and` modeTypeMask).0) :: Size)
 
-pub fn removePath(path: %U8) -> Size = syscall1(sysUnlink, bitcast(path) :: Size)
+pub fn removePath(path: %U8) -> Size =
+    syscall1(numberOf(SysUnlink), bitcast(path) :: USize)
 
 pub fn renamePath(from: %U8, to: %U8) -> Size =
-    syscall2(sysRename, bitcast(from) :: Size, bitcast(to) :: Size)
+    syscall2(numberOf(SysRename), bitcast(from) :: USize, bitcast(to) :: USize)
 
 pub fn makeDirectory(path: %U8, mode: FileMode) -> Size =
-    syscall2(sysMakeDirectory, bitcast(path) :: Size, mode.0)
+    syscall2(numberOf(SysMakeDirectory), bitcast(path) :: USize, mode.0)
 
-pub fn removeDirectoryPath(path: %U8) -> Size = syscall1(sysRemoveDirectory, bitcast(path) :: Size)
+pub fn removeDirectoryPath(path: %U8) -> Size =
+    syscall1(numberOf(SysRemoveDirectory), bitcast(path) :: USize)
 
 -- `getdents64`, which is the only reading call here that answers a *block* of variable-length
 -- records rather than bytes: zero means the directory ended, and a positive answer is how many
 -- bytes of `into` the kernel filled. The record layout is `DirectoryRecord` below.
 pub fn readDirectoryEntries(handle: Size, into: %U8, count: Size) -> Size =
-    syscall3(sysDirectoryEntries, handle, bitcast(into) :: Size, count)
+    syscall3(numberOf(SysDirectoryEntries), bitcast(handle) :: USize, bitcast(into) :: USize, bitcast(count) :: USize)
 
 {-
    `dirent64`'s fixed head, by the same rule `FileStatus` is a record: the inode number, the offset
@@ -297,7 +353,7 @@ pub data EntryKind = @value(4) EntryDirectory | @value(8) EntryRegular | @value(
 pub data Whence = @value(0) FromStart | @value(1) FromCurrent | @value(2) FromEnd
 
 pub fn seekFile(handle: Size, offset: I64, whence: Whence) -> I64 =
-    syscall3(sysSeek, handle, offsetWord(offset), truncate(valueOf(whence)) :: Size) :: I64
+    syscall3(numberOf(SysSeek), bitcast(handle) :: USize, truncate(offset) :: USize, truncate(valueOf(whence)) :: USize) :: I64
 
 {-
    The errno numbers `File` maps, as one type - Analysis-Language.md §5.1.
@@ -356,7 +412,7 @@ pub fn errnoOf(code: I64) -> Maybe(Errno) = fromValue(code)
 @layout(c)
 pub data ClockTime {seconds: I64 = 0, nanos: I64 = 0}
 
-fn clockAddress(&into: ClockTime) -> Size = bitcast(addressOf(into)) :: Size
+fn clockAddress(&into: ClockTime) -> USize = bitcast(addressOf(into)) :: USize
 
 {-
    The two clocks a program has a reason to ask for, as the kernel's own numbers.
@@ -372,13 +428,13 @@ fn clockAddress(&into: ClockTime) -> Size = bitcast(addressOf(into)) :: Size
    here, and both are equally free of steps. The raw one also had no vDSO implementation for years,
    so asking for it used to cost a system call where this does not.
 -}
-pub let clockRealtime = 0 :: Size
-pub let clockMonotonic = 1 :: Size
+pub let clockRealtime = 0 :: USize
+pub let clockMonotonic = 1 :: USize
 
 -- The kernel's own number, which is 0 or the negated errno - the line every call in this file
 -- draws. `Native.Clock` is what turns a failure into a fallback.
-pub fn readClock(clock: Size, &into: ClockTime) -> Size =
-    syscall2(sysClockTime, clock, clockAddress(into))
+pub fn readClock(clock: USize, &into: ClockTime) -> Size =
+    syscall2(numberOf(SysClockTime), clock, clockAddress(into))
 
 {-
    ==========================================================================================
@@ -405,16 +461,15 @@ pub fn readClock(clock: Size, &into: ClockTime) -> Size =
    at most 256 bytes without being interruptible and to stop early for a signal past that, so a
    caller that wants a buffer full has to ask again for the rest. `Native.Entropy` is that loop.
 -}
-pub let randomNonBlocking = 1 :: Size
+pub let randomNonBlocking = 1 :: USize
 
-pub fn readRandom(to: %U8, count: Size, flags: Size) -> Size =
-    syscall3(sysGetRandom, bitcast(to) :: Size, count, flags)
+pub fn readRandom(to: %U8, count: Size, flags: USize) -> Size =
+    syscall3(numberOf(SysGetRandom), bitcast(to) :: USize, bitcast(count) :: USize, flags)
 
 -- This process's own identifier, which cannot fail and so is the one call here that answers no
 -- error. What wants it is a program that has to name something no other process will name at the
 -- same time - a lock file, a scratch directory - and `test/lib/File.yana` is the first.
-pub fn processId() -> Size = syscall0(sysProcessId)
+pub fn processId() -> Size = syscall0(numberOf(SysProcessId))
 
 pub fn exitProcess(status: Size) -> {}:
-    syscall1(sysExit, status)
-    return
+    syscall1(numberOf(SysExit), bitcast(status) :: USize)

@@ -166,7 +166,9 @@ fn hasFlag(flags: Size, flag: Size) -> Bool = (flags `and` flag) != 0
 -- Readable by everyone, writable unless `fileReadOnly`, executable if asked, and then narrowed to
 -- the owner or to the owner's group if either private flag is set.
 fn createAccess(flags: Size) -> FileMode:
-    let &base = 4 :: Size
+    -- Permission bits, so the word they are assembled in is the unsigned one `FileMode` is - these
+    -- are a bit pattern and never a count, which is the whole of why that newtype changed width.
+    let &base = 4 :: USize
     if !hasFlag(flags, fileReadOnly) then base = base `or` 2
     if hasFlag(flags, fileExecutable) then base = base `or` 1
 

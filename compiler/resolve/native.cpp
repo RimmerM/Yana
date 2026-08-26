@@ -397,6 +397,20 @@ static void definePointerInstances(Module& module) {
     auto address = module.program.scalar.size;
     defineBitcast(module, pointer, address, envPointer);
     defineBitcast(module, address, pointer, envPointer);
+
+    /*
+     * And the same rung unsigned, on the argument above applied unchanged: `USize` *is* the target's
+     * word too, so the pair holds the same value for the same reason.
+     *
+     * It is not a convenience. An address has no sign - nothing subtracts one pointer from a smaller
+     * one and expects a negative address - so a layer that wants to say "machine word, unsigned"
+     * about one had to launder it through the signed rung and back, which is two casts stating
+     * something neither of them meant. The system-call layer is where that showed: every argument a
+     * kernel takes is a word, and the file saying so could not name an address as one.
+     */
+    auto unsignedAddress = module.program.scalar.unsignedSize;
+    defineBitcast(module, pointer, unsignedAddress, envPointer);
+    defineBitcast(module, unsignedAddress, pointer, envPointer);
 }
 
 static void attachPointerIntrinsics(Module& module) {
