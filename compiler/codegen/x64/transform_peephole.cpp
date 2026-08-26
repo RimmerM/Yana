@@ -228,7 +228,26 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
         case LowerInst::Imm:
             return isIntLike(type) && ((LowerImm*)inst)->i <= 0xffffffffull;
 
-        case LowerInst::Set:
+        /*
+         * A copy, which is as clear as its source and no clearer.
+         *
+         * This answered `narrow` unconditionally and was **wrong**, on the same ground the refusal
+         * of `Set` in `readsLowHalfOnly` below stands on: `mov r32, r32` would do the clearing
+         * itself, but the allocator coalesces a copy whose source dies into no instruction at all,
+         * and the register the copy "wrote" is then the source's with the source's upper half still
+         * in it. `set %arg; cast to Long` was two empty encodings and a 64-bit read of a register
+         * the System V convention says nothing about above bit 31 - see `keepThroughSet` and
+         * `keepSetOfArgument` in test/x64/UpperHalf.lower.
+         *
+         * Following the source rather than refusing outright, because the copy is transparent in
+         * both directions: a `set` of something already clear is clear whether or not the move
+         * survives, which is the case the corpus actually has.
+         */
+        case LowerInst::Set: {
+            if(depth == 0) return false;
+            return isZeroExtended(base, base[((LowerInstUnary*)inst)->from], depth - 1);
+        }
+
         case LowerInst::Neg:   case LowerInst::Not:
         case LowerInst::Add:   case LowerInst::Sub:
         case LowerInst::Mul:   case LowerInst::IMul:
@@ -236,6 +255,51 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
         case LowerInst::Rem:   case LowerInst::IRem:
         case LowerInst::MulHi: case LowerInst::IMulHi:
         case LowerInst::Shl:   case LowerInst::Sar:
+
+        // The rotations and the byte reversal, which write their destination exactly as the shifts
+        // above do - `rol r32`, `rorx r32, r/m32, imm8`, `bswap r32`. They were absent rather than
+        // excluded: each was added to the IR after this list was written, which is the drift a list
+        // of kinds collects and the reason inst.def's columns exist.
+        case LowerInst::Rol:   case LowerInst::Ror:
+        case LowerInst::Bswap:
+
+        // `crc32 r32, r/m32`, whose result is a checksum and whose destination is the accumulator
+        // written whole. The 64-bit form is the one that would not qualify, and `narrow` is what
+        // separates them.
+        case LowerInst::Crc32:
+
+        /*
+         * The conditional move, and the one entry here that is not "the instruction wrote the
+         * register" but "the instruction wrote the register **either way**".
+         *
+         * `cmovcc r32, r/m32` zero-extends its destination in 64-bit mode whether or not the
+         * condition held - the destination is architecturally always written at a 32-bit operand
+         * size, which is exactly why it cannot be used to preserve an upper half. So a select whose
+         * arms are Int32 leaves a clear register on both paths, and the tie that put the first arm
+         * there beforehand does not enter into it.
+         */
+        case LowerInst::Select:
+
+        // A lane taken out of a vector, which crosses banks as `movd`/`pextrb`/`pextrw`/`pextrd`
+        // into a general register - all four write the 32-bit destination and none has a form that
+        // preserves anything above it.
+        case LowerInst::VecLane:
+
+        /*
+         * And the four x86 kinds a transform above this one produced, each of them a rewrite of
+         * something this list already answered for.
+         *
+         * That is what makes them worth naming rather than a completeness exercise: `selectBitOps`
+         * turns `not a; and n, b` into `x86_andnot` and `x, x - 1` into `x86_lowbit_clear`, and
+         * `selectByteSwapAccesses` turns a load and a `bswap` into `x86_movbe_load` - so a value
+         * that *was* clear here stopped being clear the moment the rewrite that made it cheaper ran.
+         * `andn r32`, `blsr r32`, `movsx r32, r/m8` and `movbe r32, m32` all write a 32-bit
+         * destination.
+         */
+        case LowerInst::X86AndNot:
+        case LowerInst::X86LowBit:
+        case LowerInst::X86Sext:
+        case LowerInst::X86MovbeLoad:
             return narrow;
 
         // Masking cannot set a bit its operands do not have between them, so one clear operand is
@@ -271,6 +335,35 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
             if(count->inst()->kind == LowerInst::Imm && immValue(count) >= 32) return true;
 
             return depth > 0 && isZeroExtended(base, base[binary->lhs], depth - 1);
+        }
+
+        /*
+         * A phi, which is as clear as every value that reaches it - the same shape `Or` and `Xor`
+         * have, and for a reason that is about the allocator rather than about an encoding.
+         *
+         * A phi is no instruction. It is resolved into a copy on each incoming edge, and
+         * `resolvePhis` gives every one of those copies the class of the *phi's own type* - so an
+         * Int32 phi is `mov r32, r32`, `mov r32, [slot]`, `mov [slot], r32` or `xchg r32, r32`
+         * between two 32-bit registers, and each of those clears what it does not write. A slot is
+         * packed to the value's width (`stackSlotClassFor`), so a spill and reload of one is 32 bits
+         * in both directions.
+         *
+         * And where the allocator emits no copy at all, the register the phi "wrote" is the
+         * source's - which is exactly the hole `Set` above fell into, and is why this is the
+         * sources' answer rather than a claim of its own.
+         *
+         * The recursion terminates on the budget: a loop's phi reaches itself, and the answer at
+         * depth zero is the refusal. In practice it rarely gets there - the value on a back edge is
+         * usually an `add` or an `and`, which answers from its own type without consulting the phi.
+         */
+        case LowerInst::Phi: {
+            if(depth == 0) return false;
+
+            for(auto used: inst->used()) {
+                if(!isZeroExtended(base, base[used], depth - 1)) return false;
+            }
+
+            return true;
         }
 
         // A comparison materialized into a register is a zero-extension by construction - `setcc`
@@ -313,6 +406,16 @@ static bool isZeroExtended(LowerBase base, LowerValue* value, U32 depth = kExten
         // it is the signed widening `movsxd`. A sign extension is the one that carries a bit up.
         case LowerInst::Load: {
             auto load = (LowerInstLoad*)inst;
+            if(!isIntLike(type) || load->getWidth() > 4) return false;
+            return !load->isSigned() || !is64Bit(type);
+        }
+
+        // The same load, under the same rule. An acquire or relaxed load of four bytes or fewer is
+        // an ordinary `mov` on this architecture and a seq_cst one is too - the ordering is the
+        // fences around it rather than the width it writes - so nothing about being atomic changes
+        // which bits of the destination the instruction fills.
+        case LowerInst::AtomicLoad: {
+            auto load = (LowerInstAtomicLoad*)inst;
             if(!isIntLike(type) || load->getWidth() > 4) return false;
             return !load->isSigned() || !is64Bit(type);
         }
@@ -387,12 +490,19 @@ static bool isNonNegative32(LowerBase base, LowerValue* value) {
  *
  * And the refusals that matter, none of which is merely conservative:
  *
- *  - **another `Cast`.** Not because the instruction reads too much - `movsxd` and the truncating
- *    `mov` both read 32 bits - but because `isZeroExtended` answers for a `Cast` by its *types*, on
- *    the grounds that a cast with a 32-bit end moves at 32 bits and therefore clears. Marking this
- *    one makes that untrue of it, and the second cast may already have been marked on the strength
- *    of it. Declining here keeps that answer independent of this marking, which is the property
- *    §9.4 established and the one thing here that would silently produce a wrong register.
+ *  - **another `Cast`, and a `Set`.** Not because either reads too much - `movsxd`, the truncating
+ *    `mov` and `mov r32, r32` all read 32 bits - but because both are copies, and `isZeroExtended`
+ *    answers for a copy by its *type*: a cast with a 32-bit end moves at 32 bits and therefore
+ *    clears, and so does a 32-bit `Set`. Neither claim survives this marking. The cast may already
+ *    have been marked on the strength of the answer, and a `Set` the allocator coalesces away is not
+ *    a `mov` at all - the register it "wrote" is the source's, with whatever this peephole just
+ *    licensed leaving in the top of it. Declining here keeps that answer independent of this
+ *    marking, which is the property §9.4 established and the one thing here that would silently
+ *    produce a wrong register.
+ *
+ *    This is also the line the additions below stand on the right side of. Every kind added to the
+ *    whitelist emits a real instruction that writes its whole 32-bit destination, and none of them
+ *    is a copy the allocator can make disappear.
  *  - **a call, a return, a phi and a branch.** The first two are the ABI question - no convention
  *    here promises anything about the upper half of a 32-bit argument or result, so this backend
  *    must not start depending on one - and a stack-passed argument becomes an `X86PushArg` that
@@ -410,6 +520,21 @@ static bool readsLowHalfOnly(LowerBase base, LowerInst* user, LowerValue* value)
             return store->value == value - base && store->getWidth() <= 4;
         }
 
+        // The two stores a transform above this one folded a store into, held to the same rule and
+        // asked of the same operand: `add [mem], r32` and `movbe [mem], r32` read the register at
+        // the width the access states and no more. Absent rather than excluded - `selectStoreUpdates`
+        // and `selectByteSwapAccesses` both run above `selectMachineInstructions`, so a store this
+        // answered for stopped being answered for as soon as it was rewritten.
+        case LowerInst::X86StoreOp: {
+            auto store = (LowerInstX86StoreOp*)user;
+            return store->value == value - base && store->getWidth() <= 4;
+        }
+
+        case LowerInst::X86MovbeStore: {
+            auto store = (LowerInstX86MovbeStore*)user;
+            return store->value == value - base && store->getWidth() <= 4;
+        }
+
         // The scalar crosses banks as `movd r32, xmm`, which is four bytes and no more.
         case LowerInst::VecSplat:
             return true;
@@ -422,7 +547,18 @@ static bool readsLowHalfOnly(LowerBase base, LowerInst* user, LowerValue* value)
         case LowerInst::MulHi: case LowerInst::IMulHi:
         case LowerInst::Shl: case LowerInst::Shr: case LowerInst::Sar:
         case LowerInst::And: case LowerInst::Or: case LowerInst::Xor:
-        case LowerInst::Cmp: case LowerInst::Select: {
+        case LowerInst::Cmp: case LowerInst::Select:
+
+        // The rest of the arithmetic, which was missing for the reason the list above `isZeroExtended`
+        // gives: each of these was added to the IR after this whitelist was written. The type test
+        // below is what actually admits them, and it is the same test the others pass.
+        case LowerInst::Rol: case LowerInst::Ror:
+        case LowerInst::Bswap: case LowerInst::Crc32:
+
+        // And the three rewrites, for the same reason as the two stores above: `andn r32`,
+        // `blsr r32` and `movsx r32, r/m8` read 32 bits of a 32-bit operand, and the pair each of
+        // them replaced was already answered for here.
+        case LowerInst::X86AndNot: case LowerInst::X86LowBit: case LowerInst::X86Sext: {
             for(auto& created: user->created()) if(!narrow(created.type)) return false;
             for(auto used: user->used()) if(!narrow(base[used]->type)) return false;
             return true;

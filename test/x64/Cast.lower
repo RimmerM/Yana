@@ -86,8 +86,13 @@ skipWide(%a: Long, %b: Long): Long {
 
 # The same question asked of a 64-bit operation, which is where a container's capacity arithmetic
 # lives. A mask cannot set a bit neither operand has, and a logical shift only moves bits down, so
-# both leave a register with nothing above bit 31 and the narrowing has nothing to clear. `sar`
-# fills from the sign bit instead, so the third narrowing here is the one that stays.
+# both leave a register with nothing above bit 31 and the narrowing has nothing to clear.
+#
+# `sar` fills from the sign bit instead and answers no - but the third narrowing is elided all the
+# same, by the *forwards* rule rather than this one: every reader of it here is a 32-bit `add`, so
+# what is above bit 31 is never looked at whatever the shift left there. This said the third one
+# stays, which the golden beside it has never agreed with. `keepArithmeticShift` in UpperHalf.lower
+# is the control that actually holds `sar` to the backwards rule, by widening the result instead.
 skipMasked(%p: Ptr): Int {
     {
         %h = load %p, 8: Long

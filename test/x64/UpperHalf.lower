@@ -1,0 +1,318 @@
+# The upper-half question, asked of every kind that answers it - see `isZeroExtended` and
+# `readsLowHalfOnly` in codegen/x64/transform_peephole.cpp.
+#
+# A widening `cast` from Int to Long is `mov eax, eax`, which clears bits 32-63 of its destination -
+# and is doing nothing whenever they were clear already. Two rules decide that, and this file is the
+# roster of what each of them knows:
+#
+#   - **backwards**, `isZeroExtended`: the value's definition already wrote a 32-bit register, so
+#     every bit above 31 was cleared by the instruction that produced it.
+#   - **forwards**, `readsLowHalfOnly`: nothing reads the upper half of the *cast's own result*, so
+#     it does not matter what is left there.
+#
+# Cast.lower beside this file is the pair of rules themselves - the arithmetic, the masks, the loads
+# and the two refusals. What is here is every kind that was missing from them: each was added to the
+# lower IR, or produced by a transform, after the whitelists were written, and a kind absent from a
+# whitelist reads as "no" without saying so anywhere.
+#
+# What to look for:
+#
+#   - **every `cast` in a `skip` or `low` function is an empty encoding**, and the *first* one in
+#     each `keep` function is a `8bff`-shaped move that stayed - what a `keep` names is the value it
+#     is about, and two of them then widen the result of that move, which is clear and skips. That is
+#     the whole assertion of the file, in both directions: a move where there should be none is a
+#     peephole that stopped working, and none where there should be one is a rule gone unsound.
+#   - **`select` is here for a reason of its own.** `cmovcc r32, r/m32` writes its destination
+#     whether or not the condition holds - a 32-bit conditional move zero-extends unconditionally,
+#     which is exactly why it cannot be used to preserve an upper half. So both arms leave a clear
+#     register and the widening after it emits nothing.
+#   - **`atomic_load` is an ordinary `mov`.** The ordering an acquire load carries on this
+#     architecture is in what may be reordered around it, not in the width it writes, so a four-byte
+#     one fills the same register bits a plain load does.
+#   - **`x86_storeadd` is the forwards rule, on an instruction no pass wrote.** `selectStoreUpdates`
+#     runs above `selectMachineInstructions`, so the store this rule answered for had already been
+#     rewritten by the time it was asked - which is the shape of every gap in this file.
+#   - **`skipPhi` and `keepPhiOfArgument` are the pair that pins a rule worth nothing.** A phi is as
+#     clear as its sources, which is sound and which changes not one byte over the 280 programs of
+#     `test/lib` and `test/resolve`; the fixture is the whole of its test.
+#   - **`keepSetOfArgument` is the one that was wrong.** A `set` claimed to have written a 32-bit
+#     register unconditionally, and a `set` whose source dies is coalesced into nothing at all - so
+#     `set %arg; cast to Long` was two empty encodings and a 64-bit read of a register the System V
+#     convention describes only the low half of. The rule follows the copy now, which is why
+#     `skipThroughSet` beside it still skips: there the source is clear, so the copy is too.
+#   - **the other controls each emit their move**, and each for a reason of its own: an argument
+#     register and a call's result are the ABI's business above bit 31, an eight-byte atomic load
+#     fills the whole register, and a 64-bit `sar` fills the upper half from the sign bit rather than
+#     with zeros.
+
+# ## Backwards: definitions that leave a clear register
+
+# The rotations. `ror r/m32, imm8` writes the whole 32-bit destination exactly as `shl` does, and
+# `rol` is the same instruction with the count taken the other way round.
+skipRotateRight(%x: Int): Long {
+    {
+        %r = ror %x, 7: Int
+        %w = cast %r: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+skipRotateLeft(%x: Int): Long {
+    {
+        %r = rol %x, 7: Int
+        %w = cast %r: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# `bswap r32`, which permutes the four bytes of a 32-bit register and writes all of it.
+skipByteSwap(%x: Int): Long {
+    {
+        %r = bswap %x: Int
+        %w = cast %r: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# `crc32 r32, r/m32`. The 64-bit form is the one that would not qualify, and the rule reads the
+# result type to tell them apart.
+skipCrc32(%acc: Int, %chunk: Int): Long {
+    {
+        %r = crc32 %acc, %chunk: Int
+        %w = cast %r: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# The conditional move, whose destination is written on both paths.
+skipSelect(%c: Int, %a: Int, %b: Int): Long {
+    {
+        %cmp = cmp_igt %c, 0: Int
+        %s = select %cmp, %a, %b: Int
+        %w = cast %s: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# A four-byte atomic load, which is a `mov` with an ordering rule attached to it.
+skipAtomicLoad(%p: Ptr): Long {
+    {
+        %v = atomic_load %p, 4, acquire: Int
+        %w = cast %v: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# The eight-byte one is a 64-bit load and has nothing to be clear about, so the narrowing below it
+# stands. This is the control for the case above rather than a case of its own.
+keepAtomicLoadWide(%p: Ptr): Long {
+    {
+        %v = atomic_load %p, 8, acquire: Long
+        %n = cast %v: Int
+        %w = cast %n: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# A lane out of a vector, which crosses banks as `pextrd r32` - a general register written whole.
+skipVectorLane(%v: i32x4): Long {
+    {
+        %l = vlane %v, 2: Int
+        %w = cast %l: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# A phi, which is no instruction at all: it is a copy on each incoming edge, and `resolvePhis` gives
+# every one of those the class of the *phi's own type* - so an Int32 phi is `mov r32, r32` or a
+# 32-bit slot transfer, each of which clears what it does not write. Where the allocator emits no
+# copy, the register is the source's - which is why the answer is the sources' and not a claim of the
+# phi's own.
+#
+# Worth nothing measured: over the 280 programs of `test/lib` and `test/resolve` this case changes
+# not one byte, and it is here so that the reasoning is pinned rather than because anything needed it.
+skipPhi(%c: Int, %a: Int, %b: Int): Long {
+    start {
+        je (cmp_igt %c, 0), left, right
+    }
+
+    left {
+        %x = add %a, %b: Int
+        jmp end
+    }
+
+    right {
+        %y = mul %a, %b: Int
+        jmp end
+    }
+
+    end {
+        %p = phi [left, %x], [right, %y]: Int
+        %w = cast %p: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# And the control: one arm carries an argument through unchanged, so the phi is only as clear as
+# that - which is not at all.
+keepPhiOfArgument(%c: Int, %a: Int, %b: Int): Long {
+    start {
+        je (cmp_igt %c, 0), left, right
+    }
+
+    left {
+        %x = add %a, %b: Int
+        jmp end
+    }
+
+    right {
+        jmp end
+    }
+
+    end {
+        %p = phi [left, %x], [right, %b]: Int
+        %w = cast %p: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# ## Forwards: readers that look no further than bit 31
+
+# The rotations again, from the other side: the narrowing above them has nothing to clear because
+# `ror r32` reads 32 bits of its operand and no more.
+lowRotate(%x: Long): Int {
+    {
+        %n = cast %x: Int
+        %r = ror %n, 7: Int
+        ret %r
+    }
+}
+
+lowRotateLeft(%x: Long): Int {
+    {
+        %n = cast %x: Int
+        %r = rol %n, 7: Int
+        ret %r
+    }
+}
+
+lowByteSwap(%x: Long): Int {
+    {
+        %n = cast %x: Int
+        %r = bswap %n: Int
+        ret %r
+    }
+}
+
+lowCrc32(%x: Long, %chunk: Int): Int {
+    {
+        %n = cast %x: Int
+        %r = crc32 %n, %chunk: Int
+        ret %r
+    }
+}
+
+# The read-modify-write. `selectStoreUpdates` has already turned the load, the add and the store into
+# one `add [rdi], esi` by the time this is asked, so the rule has to know that instruction and not
+# only the `store` it replaced.
+lowStoreUpdate(%p: Ptr, %x: Long) {
+    {
+        %n = cast %x: Int
+        %old = load %p, 4: Int
+        %new = add %old, %n: Int
+        store %p, %new, 4
+        ret
+    }
+}
+
+# And the sign extension `selectSignExtends` builds out of a shift pair, which reads one byte of its
+# operand - fewer than the 32 bits the rule needs and therefore inside them.
+lowSignExtend(%x: Long): Int {
+    {
+        %n = cast %x: Int
+        %u = shl %n, 24: Int
+        %d = sar %u, 24: Int
+        ret %d
+    }
+}
+
+# ## The controls
+
+# An argument arrives in a register the System V convention says nothing about above bit 31.
+keepArgumentWidened(%v: Int): Long {
+    {
+        %w = cast %v: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+identity(%x: Int): Int {
+    { ret %x }
+}
+
+# Nor does anything promise it of a return register.
+keepCallResultWidened(%a: Int): Long {
+    {
+        %r = call_complex identity, %a: Int
+        %w = cast %r: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# An arithmetic shift fills from the sign bit, so a 64-bit one leaves the upper half full of copies of
+# bit 63 and the narrowing below it has real work to do. The *second* cast is skipped for the reason
+# the first is not: what it widens is a 32-bit cast's result, which moved at 32 bits and cleared.
+#
+# Written as a widening rather than as an ordinary 32-bit use, which is what it was first and what
+# made it no control at all: a narrowed value read only by a 32-bit `add` is skipped by the forwards
+# rule whatever its definition did, so the sar never came into it.
+keepArithmeticShift(%x: Long): Long {
+    {
+        %s = sar %x, 40L: Long
+        %n = cast %s: Int
+        %w = cast %n: Long
+        ret %w
+    }
+}
+
+# The one that was wrong. A `set` is a copy, and a copy whose source dies is coalesced into nothing
+# at all - so reading it as an instruction that wrote a 32-bit register is reading an instruction
+# that is not there. Here the copy is of an argument, whose upper half the System V convention does
+# not describe, and the widening after it used to emit nothing: two empty encodings and a 64-bit
+# `lea` over a register holding whatever the caller left in it.
+#
+# The rule follows the copy now, so this is the source's answer: an argument's, which is no.
+keepSetOfArgument(%v: Int): Long {
+    {
+        %s = set %v: Int
+        %w = cast %s: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}
+
+# And the same copy over something that *is* clear, which is what the corpus has and what following
+# the source rather than refusing outright keeps: the narrowing above the `set` did the clearing, so
+# the widening below it still has nothing to do.
+skipThroughSet(%p: Ptr): Long {
+    {
+        %v = load %p, 8: Long
+        %n = cast %v: Int
+        %s = set %n: Int
+        %w = cast %s: Long
+        %t = add %w, 1L: Long
+        ret %t
+    }
+}

@@ -1,0 +1,455 @@
+
+skipRotateRight<complex>(%x: Int): Long {
+  b_0 {
+    %r = ror %x, 7: Int
+    %w = cast %r: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipRotateLeft<complex>(%x: Int): Long {
+  b_0 {
+    %r = rol %x, 7: Int
+    %w = cast %r: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipByteSwap<complex>(%x: Int): Long {
+  b_0 {
+    %r = bswap %x: Int
+    %w = cast %r: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipCrc32<complex>(%acc: Int, %chunk: Int): Long {
+  b_0 {
+    %r = crc32 %acc, %chunk: Int
+    %w = cast %r: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipSelect<complex>(%c: Int, %a: Int, %b: Int): Long {
+  b_0 {
+    %cmp = cmp_igt %c, 0: Int
+    %s = select %cmp, %a, %b: Int
+    %w = cast %s: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipAtomicLoad<complex>(%p: Ptr): Long {
+  b_0 {
+    %v = atomic_load %p, 4, acquire: Int
+    %w = cast %v: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+keepAtomicLoadWide<complex>(%p: Ptr): Long {
+  b_0 {
+    %v = atomic_load %p, 8, acquire: Long
+    %n = cast %v: Int
+    %w = cast %n: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipVectorLane<complex>(%v: i32x4): Long {
+  b_0 {
+    %l = vlane %v, 2: Int
+    %w = cast %l: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipPhi<complex>(%c: Int, %a: Int, %b: Int): Long {
+  start {
+    %v_0 = cmp_igt %c, 0: Int
+    je %v_0, left, right
+  }
+
+  left {
+    %x = add %a, %b: Int
+    jmp end
+  }
+
+  right {
+    %y = mul %a, %b: Int
+    jmp end
+  }
+
+  end {
+    %p = phi [left, %x], [right, %y]: Int
+    %w = cast %p: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+keepPhiOfArgument<complex>(%c: Int, %a: Int, %b: Int): Long {
+  start {
+    %v_0 = cmp_igt %c, 0: Int
+    je %v_0, left, right
+  }
+
+  left {
+    %x = add %a, %b: Int
+    jmp end
+  }
+
+  right {
+    jmp end
+  }
+
+  end {
+    %p = phi [left, %x], [right, %b]: Int
+    %w = cast %p: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+lowRotate<complex>(%x: Long): Int {
+  b_0 {
+    %n = cast %x: Int
+    %r = ror %n, 7: Int
+    ret %r
+  }
+}
+
+lowRotateLeft<complex>(%x: Long): Int {
+  b_0 {
+    %n = cast %x: Int
+    %r = rol %n, 7: Int
+    ret %r
+  }
+}
+
+lowByteSwap<complex>(%x: Long): Int {
+  b_0 {
+    %n = cast %x: Int
+    %r = bswap %n: Int
+    ret %r
+  }
+}
+
+lowCrc32<complex>(%x: Long, %chunk: Int): Int {
+  b_0 {
+    %n = cast %x: Int
+    %r = crc32 %n, %chunk: Int
+    ret %r
+  }
+}
+
+lowStoreUpdate<complex>(%p: Ptr, %x: Long) {
+  b_0 {
+    %n = cast %x: Int
+    %old = load %p, 4: Int
+    %new = add %old, %n: Int
+    store %p, %new, 4
+    ret 
+  }
+}
+
+lowSignExtend<complex>(%x: Long): Int {
+  b_0 {
+    %n = cast %x: Int
+    %u = shl %n, 24: Int
+    %d = sar %u, 24: Int
+    ret %d
+  }
+}
+
+keepArgumentWidened<complex>(%v: Int): Long {
+  b_0 {
+    %w = cast %v: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+identity<complex>(%x: Int): Int {
+  b_0 {
+    ret %x
+  }
+}
+
+keepCallResultWidened<complex>(%a: Int): Long {
+  b_0 {
+    %r = call_complex identity, %a: Int
+    %w = cast %r: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+keepArithmeticShift<complex>(%x: Long): Long {
+  b_0 {
+    %s = sar %x, 40: Long
+    %n = cast %s: Int
+    %w = cast %n: Long
+    ret %w
+  }
+}
+
+keepSetOfArgument<complex>(%v: Int): Long {
+  b_0 {
+    %s = set %v: Int
+    %w = cast %s: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+skipThroughSet<complex>(%p: Ptr): Long {
+  b_0 {
+    %v = load %p, 8: Long
+    %n = cast %v: Int
+    %s = set %n: Int
+    %w = cast %s: Long
+    %t = add %w, 1: Long
+    ret %t
+  }
+}
+
+
+--- codegen: skipRotateRight ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  ror uses=[rdi, -] creates=[rdi]  => c1cf07
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipRotateLeft ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  rol uses=[rdi, -] creates=[rdi]  => c1c707
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipByteSwap ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  bswap uses=[rdi] creates=[rdi]  => 0fcf
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipCrc32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  crc32 uses=[rdi, rsi] creates=[rdi]  => f20f38f1fe
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipSelect ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  cmp_igt uses=[rdi, -] creates=[-]  => 85ff
+  select uses=[rsi, rdx, -] creates=[rsi]  => 0f4ef2
+  cast uses=[rsi] creates=[rsi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rsi->rax]  => 488d4601
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipAtomicLoad ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_load uses=[rdi] creates=[rdi]  => 8b3f
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepAtomicLoadWide ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_load uses=[rdi] creates=[rdi]  => 488b3f
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipVectorLane ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  vlane uses=[xmm0] creates=[rax]  => 660f3a16c002
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 48ffc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipPhi ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax, rdx->rcx]  => 8bc68bca
+block start:
+  imm uses=[] creates=[-]  => 
+  cmp_igt uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 7f04
+block right:
+  mul uses=[rax, rcx] creates=[rax]  => f7e1
+  jmp uses=[] creates=[]  => eb02
+block left:
+  add uses=[rax, rcx] creates=[rax]  => 01c8
+  jmp uses=[] creates=[]  => 
+block end:
+  cast uses=[rax] creates=[rax]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 48ffc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepPhiOfArgument ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block start:
+  imm uses=[] creates=[-]  => 
+  cmp_igt uses=[rdi, -] creates=[-]  => 85ff
+  je uses=[-] creates=[]  => 7f04
+block right:
+  jmp uses=[] creates=[] pre=[rdx->rax]  => 8bc2eb03
+block left:
+  add uses=[rax, rdx] creates=[rax] pre=[rsi->rax]  => 8d0416
+  jmp uses=[] creates=[]  => 
+block end:
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 48ffc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: lowRotate ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  ror uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1c807
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: lowRotateLeft ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  rol uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 8bc7c1c007
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: lowByteSwap ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 
+  bswap uses=[rax] creates=[rax] pre=[rdi->rax]  => 8bc70fc8
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: lowCrc32 ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 
+  crc32 uses=[rax, rsi] creates=[rax] pre=[rdi->rax]  => 8bc7f20f38f1c6
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: lowStoreUpdate ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rsi] creates=[rsi]  => 
+  x86_storeadd uses=[rdi, rsi] creates=[]  => 0137
+  ret uses=[] creates=[]  => c3
+
+--- codegen: lowSignExtend ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 
+  x86_sext8 uses=[rdi] creates=[rax]  => 400fbec7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepArgumentWidened ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: identity ---
+block #0:
+  jmp uses=[] creates=[] pre=[rdi->rax]  => 8bc7
+block #1:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepCallResultWidened ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  fun uses=[] creates=[-]  => 
+  call_complex uses=[-, rdi] creates=[rax]  => e8ebffffff
+  cast uses=[rax] creates=[rax]  => 8bc0
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax]  => 48ffc0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepArithmeticShift ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  imm uses=[] creates=[-]  => 
+  sar uses=[rdi, -] creates=[rdi]  => 48c1ff28
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  cast uses=[rdi] creates=[rax]  => 8bc7
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: keepSetOfArgument ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  set uses=[rdi] creates=[rdi]  => 
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: skipThroughSet ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  load uses=[rdi] creates=[rdi]  => 488b3f
+  cast uses=[rdi] creates=[rdi]  => 8bff
+  set uses=[rdi] creates=[rdi]  => 
+  cast uses=[rdi] creates=[rdi]  => 
+  imm uses=[] creates=[-]  => 
+  add uses=[rax, -] creates=[rax] pre=[rdi->rax]  => 488d4701
+  ret uses=[rax] creates=[]  => c3
