@@ -67,19 +67,7 @@ fn isSomething(%m: Maybe(a)) -> Int {
 
   b0:
     %v1 = load %m.discriminant : Int
-    %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    %v5 = load %m@Just : a
-    jmp b3
-
-  b3:
-    %v10 = phi [b2, 1], [b1, 0] : Int
-    ret %v10
+    ret %v1
 }
 
 fn wrap(%x: a) -> Maybe(a) {
@@ -300,18 +288,7 @@ fn unbox(())(%b: Box(())) -> () {
 
 fn isSomething(())(%m: Maybe(())) -> Int {
   b0:
-    %v2 = load %m.discriminant : Int
-    %v4 = cmp_eq %v2, 1 : Bool
-    je %v4, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v1 = phi [b2, 1], [b1, 0] : Int
+    %v1 = load %m.discriminant : Int
     ret %v1
 }
 

@@ -1,0 +1,98 @@
+-- A constructor map whose results are string literals - compiler/resolve/map.h, and the one
+-- non-`TrivialCopy` result the feature serves.
+--
+-- The ownership restriction is what makes every other owning type wait: reading an element of a
+-- static table produces a *value*, and a value with a teardown read out of shared storage is a
+-- second owner of something the table still holds. A string literal is the case where that argument
+-- does not bite, and it does not bite because the table is not what produces the value.
+--
+--  - **Natively** a literal is the two words `stringLiteral` is handed - the address of a blob and a
+--    length (Implementation-String.md part 9). Both are constants, so both go in the table, and each
+--    arm then builds its string exactly as the arm the author wrote did. The run is borrowed, so the
+--    value's teardown is the same nothing a written literal's is.
+--  - **On JS** a host string is one value with nothing underneath it, so the table is an array of
+--    them and the read is the value.
+--
+-- Both are asserted below by the two emitted forms, which is why this fixture has a `.js.expect` as
+-- well as a `.resolve.expect`: the divergence is the point, and a change that made one target build
+-- the other's form would still produce the right answer at run time.
+
+data Colour = Red | Green | Blue | Violet | White
+
+-- The plain shape: one literal per constructor, of different lengths, so the length in each slot is
+-- asserted as well as the address.
+fn nameOf(c: Colour) -> String = match c:
+    Red -> "red"
+    Green -> "green"
+    Blue -> "blue"
+    Violet -> "violet"
+    White -> "white"
+
+-- A literal repeated across two arms and a wildcard covering the rest. There is one blob per *slot*
+-- rather than one per distinct text, which is what two written literals of the same text already
+-- are - see stringLiteralBytes.
+fn warmth(c: Colour) -> String = match c:
+    Red -> "warm"
+    Violet -> "warm"
+    _ -> "cool"
+
+-- Every constructor answering the same literal is the uniform form, so the pivot is never read and
+-- there is no table at all: this is the literal, built where the match was.
+fn kindOf(c: Colour) -> String = match c:
+    Red -> "colour"
+    _ -> "colour"
+
+-- ## What a two-constructor map declines to
+--
+-- Below the minimum a table is built for, and no arithmetic form can state a string - so this stays
+-- the comparison and the two literals it was written as. That is the documented edge of the
+-- guarantee: an eligible map over three or more constructors never remains a chain, and a
+-- two-constructor match is never forced to touch memory.
+data Bit = Zero | One
+
+fn bitName(b: Bit) -> String = match b:
+    Zero -> "zero"
+    One -> "one"
+
+-- ## The empty literal, and a table read twice
+--
+-- An empty string is a length of zero against a blob of no bytes, which is the slot most likely to
+-- be got wrong by an off-by-one in either direction.
+data Sign = Minus | Zeroed | Plus
+
+fn signText(s: Sign) -> String = match s:
+    Minus -> "-"
+    Zeroed -> ""
+    Plus -> "+"
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- Read twice on purpose. Two uses of one constant are two values, and a table lookup that handed out
+-- one shared object would be the same string twice rather than two of them - so both are held at
+-- once and compared with each other as well as against a written literal.
+fn twice(c: Colour) -> Int:
+    let first = nameOf(c)
+    let second = nameOf(c)
+    return check(first == second, 1) + check(length(first) == length(second), 2)
+
+fn main() -> Int =
+    check(nameOf(Red) == "red", 1) +
+    check(nameOf(Green) == "green", 2) +
+    check(nameOf(Blue) == "blue", 4) +
+    check(nameOf(Violet) == "violet", 8) +
+    check(nameOf(White) == "white", 16) +
+
+    check(warmth(Red) == "warm" && warmth(Violet) == "warm", 32) +
+    check(warmth(Green) == "cool" && warmth(Blue) == "cool" && warmth(White) == "cool", 64) +
+
+    check(kindOf(Red) == "colour" && kindOf(White) == "colour", 128) +
+    check(bitName(Zero) == "zero" && bitName(One) == "one", 256) +
+
+    check(signText(Minus) == "-" && signText(Plus) == "+", 512) +
+    check(signText(Zeroed) == "" && length(signText(Zeroed)) == 0, 1024) +
+
+    -- A length read off the table rather than compared against one, since the two words are stored
+    -- separately and only this asserts the second of them.
+    check(length(nameOf(Violet)) == 6 && length(nameOf(Red)) == 3, 2048) +
+
+    check(twice(Green) == 3, 4096)

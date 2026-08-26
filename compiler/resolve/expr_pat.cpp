@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "map.h"
 #include "complete.h"
 #include "name.h"
 #include "index.h"
@@ -1132,6 +1133,44 @@ ModulePtr<Value> ExprResolver::resolveMatch(const ast::Expr& expr, const ast::Ma
     Array<ast::Pat> patterns;
     patterns.reserve(U32(alternatives.size()));
     for(auto alternative: alternatives) patterns.push(alternative.pat);
+
+    /*
+     * A constructor map - map.h, and the one shape of `match` that is answered without a branch.
+     *
+     * Recognized here, where the constructor patterns and their coverage are still explicit, rather
+     * than recovered from the blocks below after they have been built. `used` gates it because a
+     * match whose every arm is a constant and whose value is discarded is nothing at all, and the
+     * ordinary path already produces no value for one; there is nothing here to improve.
+     *
+     * The diagnostics stay where they are. `recognizeConstructorMap` reports nothing and declines
+     * anything it is unsure of - an inexhaustive match, an arm at another type, a pattern that tests
+     * or binds - so everything it accepts is still judged by a PatternSpace, and everything it
+     * refuses reaches the loop below unchanged. What it never does is *half* accept: a map it
+     * recognizes has a form chosen for it already, so this cannot fall through after warning.
+     */
+    ConstructorMap map;
+
+    if(used && !decomposed && recognizeConstructorMap(*this, match, toBuffer(patterns), pivotType, target, map)) {
+        PatternSpace mapped(*this, pivotType);
+        auto covered = false;
+
+        for(auto& pattern: patterns) {
+            if(covered) {
+                context.diagnostics.warning("this alternative is unreachable - the ones before it already cover every value"_v,
+                                            pattern.source);
+                continue;
+            }
+
+            if(!mapped.useful(pattern)) {
+                context.diagnostics.warning("this alternative is unreachable - an earlier one already covers it"_v,
+                                            pattern.source);
+            }
+
+            covered = mapped.add(pattern);
+        }
+
+        return emitConstructorMap(*this, map, pivot, expr.source);
+    }
 
     PatternSpace space(*this, pivotType);
     BindingScope scope(*this);

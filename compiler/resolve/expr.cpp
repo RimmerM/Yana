@@ -530,34 +530,10 @@ ModulePtr<Value> ExprResolver::resolveString(LocationId source, StringId text) {
         return nullptr;
     }
 
-    /*
-     * The bytes, as a global of their own, named by position rather than by content.
-     *
-     * The counter is what makes two literals two globals. Interning them by content instead would
-     * save the bytes of a repeated literal, and is deliberately not done here: the name would then
-     * have to be derived from the content, so a literal containing a quote or a newline would need
-     * escaping into an identifier - a decision worth making once, later, in one place, rather than
-     * as a side effect of emitting the first one.
-     *
-     * **The module's own name is part of it, and that is a correctness requirement rather than
-     * tidiness.** The counter is per module, and `LowerModule::globals` is one map over the whole
-     * program keyed by name - so `string$0` from `Text` and `string$0` from the program that
-     * imported it were one entry, and the one lowered second silently replaced the other's bytes.
-     * What that looks like is a library function returning a literal from somewhere else: `"Inf"`
-     * came back as the first three bytes of whichever literal the *caller's* module numbered zero,
-     * with the right length and the wrong content. It went unnoticed because no library function
-     * outside a class instance returned a literal until `Show(Double)` needed to write `Inf`.
-     */
-    StringBuilder name;
-    name << context.findName(module.name) << ".string$";
-    name.appendValue(module.stringLiteralCount++);
-
+    // The bytes, as a global of their own - see stringLiteralBytes, which is the one place a
+    // literal's blob is made and the one place its name is decided.
     auto size = content.size();
-    auto bytes = module.addGlobal(builtName(context, name), source);
-    bytes->type = module.scalar.string_;
-    bytes->literalBytes = ByteBuffer((Byte*)module.arena.alloc(size), size);
-    copy((const Byte*)content.text(), bytes->literalBytes.ptr, size);
-    bytes->used = true;
+    auto bytes = stringLiteralBytes(module, text, source);
 
     auto constructor = module.program.stringLiteral;
     auto local = *module.arena;

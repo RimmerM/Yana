@@ -1,0 +1,419 @@
+let image$base: () = <none>
+
+let &tokensDropped: Int = 0
+
+let ResolveTest.map$0: [Point *4] = [Point(0, 0), Point(1, 0), Point(0, 1), Point(1, 1)]
+
+let ResolveTest.map$1: [{Int, Bool, Float} *4] = [{0, 1, 1056964608}, {1, 1, 1069547520}, {2, 0, 1075838976}, {3, 0, 1080033280}]
+
+let ResolveTest.map$2: [Box *4] = [Box(Point(0, 0), Point(4, 4)), Box(Point(4, 0), Point(4, 4)), Box(Point(0, 4), Point(4, 4)), Box(Point(4, 4), Point(4, 4))]
+
+let ResolveTest.map$3: [Maybe(Int) *4] = [Nothing, Just(1), Just(2), Just(3)]
+
+fn cornerOf(%c: Corner) -> Point {
+  b0:
+    %v1 = cast %c : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$0[%v2] : Point
+    ret %v3
+}
+
+fn axesOf(%c: Corner) -> {Int, Bool, Float} {
+  b0:
+    %v1 = cast %c : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$1[%v2] : {Int, Bool, Float}
+    ret %v3
+}
+
+fn boxOf(%c: Corner) -> Box {
+  b0:
+    %v1 = cast %c : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$2[%v2] : Box
+    ret %v3
+}
+
+fn hintOf(%c: Corner) -> Maybe(Int) {
+  b0:
+    %v1 = cast %c : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$3[%v2] : Maybe(Int)
+    ret %v3
+}
+
+fn always(%c: Corner) -> Point {
+  b0:
+    %v1 = alloc : Point
+    init %local0@Point.x, 9
+    init %local0@Point.y, 9
+    ret %v1
+}
+
+fn tokenOf(%c: Corner) -> Token {
+  b0:
+    %v1 = cast %c : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v8 = cast %c : Int
+    %v10 = cmp_eq %v8, 1 : Bool
+    je %v10, b4, b3
+
+  b2:
+    %v5 = alloc : Token
+    aggregate %local0@Token.id = 10
+    jmp b7
+
+  b3:
+    %v15 = cast %c : Int
+    %v17 = cmp_eq %v15, 2 : Bool
+    je %v17, b6, b5
+
+  b4:
+    %v12 = alloc : Token
+    aggregate %local1@Token.id = 20
+    jmp b7
+
+  b5:
+    %v22 = alloc : Token
+    aggregate %local3@Token.id = 40
+    jmp b7
+
+  b6:
+    %v19 = alloc : Token
+    aggregate %local2@Token.id = 30
+    jmp b7
+
+  b7:
+    %v29 = phi [b2, %v5], [b4, %v12], [b6, %v19], [b5, %v22] : Token
+    ret %v29
+}
+
+fn opaque(%c: Corner) -> Corner {
+  b0:
+    ret %c
+}
+
+fn check(%condition: Bool, %weight: Int) -> Int {
+  b0:
+    je %condition, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %weight], [b2, 0] : Int
+    ret %v6
+}
+
+fn independent(%c: Corner) -> Int {
+  b0:
+    %v1 = call cornerOf, %c : Point
+    %first = alloc : Point
+    init %first, %v1
+    %second = call cornerOf, %c : Point
+    assign %first@Point.x, 100
+    %v7 = load %first : Point
+    %v8 = load %first@Point.x : Int
+    %v11 = cmp_eq %v8, 100 : Bool
+    %v13 = call check, %v11, 1 : Int
+    %v14 = load %local2@Point.x : Int
+    %v17 = cmp_ne %v14, 100 : Bool
+    je %v17, b2, b1
+
+  b1:
+    %v20 = cmp_eq %c, TopRight : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = phi [b1, %v20], [b2, True] : Bool
+    je %v24, b5, b4
+
+  b4:
+    %v27 = cmp_eq %c, BottomRight : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v31 = phi [b4, %v27], [b5, True] : Bool
+    %v33 = call check, %v31, 2 : Int
+    %v34 = add %v13, %v33 : Int
+    ret %v34
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call opaque, TopLeft : Corner
+    %v2 = call cornerOf, %v1 : Point
+    %v3 = load %local0@Point.x : Int
+    %v6 = cmp_eq %v3, 0 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v9 = call opaque, TopLeft : Corner
+    %v10 = call cornerOf, %v9 : Point
+    %v11 = load %local1@Point.y : Int
+    %v14 = cmp_eq %v11, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v18 = phi [b1, %v14], [b2, False] : Bool
+    %v20 = call check, %v18, 1 : Int
+    %v22 = call opaque, BottomRight : Corner
+    %v23 = call cornerOf, %v22 : Point
+    %v24 = load %local2@Point.x : Int
+    %v27 = cmp_eq %v24, 1 : Bool
+    je %v27, b4, b5
+
+  b4:
+    %v30 = call opaque, BottomRight : Corner
+    %v31 = call cornerOf, %v30 : Point
+    %v32 = load %local3@Point.y : Int
+    %v35 = cmp_eq %v32, 1 : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v39 = phi [b4, %v35], [b5, False] : Bool
+    %v41 = call check, %v39, 2 : Int
+    %v42 = add %v20, %v41 : Int
+    %v44 = call opaque, TopRight : Corner
+    %v45 = call cornerOf, %v44 : Point
+    %v46 = load %local4@Point.x : Int
+    %v49 = cmp_eq %v46, 1 : Bool
+    je %v49, b7, b8
+
+  b7:
+    %v52 = call opaque, BottomLeft : Corner
+    %v53 = call cornerOf, %v52 : Point
+    %v54 = load %local5@Point.y : Int
+    %v57 = cmp_eq %v54, 1 : Bool
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v61 = phi [b7, %v57], [b8, False] : Bool
+    %v63 = call check, %v61, 4 : Int
+    %v64 = add %v42, %v63 : Int
+    %v66 = call opaque, TopLeft : Corner
+    %v67 = call axesOf, %v66 : {Int, Bool, Float}
+    %v68 = load %local6.0 : Int
+    %v71 = cmp_eq %v68, 0 : Bool
+    je %v71, b10, b11
+
+  b10:
+    %v74 = call opaque, TopLeft : Corner
+    %v75 = call axesOf, %v74 : {Int, Bool, Float}
+    %v76 = load %local7.1 : Bool
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v80 = phi [b10, %v76], [b11, False] : Bool
+    %v82 = call check, %v80, 8 : Int
+    %v83 = add %v64, %v82 : Int
+    %v85 = call opaque, BottomRight : Corner
+    %v86 = call axesOf, %v85 : {Int, Bool, Float}
+    %v87 = load %local8.0 : Int
+    %v90 = cmp_eq %v87, 3 : Bool
+    je %v90, b13, b14
+
+  b13:
+    %v93 = call opaque, BottomRight : Corner
+    %v94 = call axesOf, %v93 : {Int, Bool, Float}
+    %v95 = load %local9.1 : Bool
+    %v97 = xor %v95, True : Bool
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v101 = phi [b13, %v97], [b14, False] : Bool
+    %v103 = call check, %v101, 16 : Int
+    %v104 = add %v83, %v103 : Int
+    %v106 = call opaque, BottomLeft : Corner
+    %v107 = call axesOf, %v106 : {Int, Bool, Float}
+    %v108 = load %local10.2 : Float
+    %v111 = cmp_eq %v108, 2.5 : Bool
+    je %v111, b16, b17
+
+  b16:
+    %v114 = call opaque, TopRight : Corner
+    %v115 = call axesOf, %v114 : {Int, Bool, Float}
+    %v116 = load %local11.2 : Float
+    %v119 = cmp_eq %v116, 1.5 : Bool
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v123 = phi [b16, %v119], [b17, False] : Bool
+    %v125 = call check, %v123, 32 : Int
+    %v126 = add %v104, %v125 : Int
+    %v128 = call opaque, BottomRight : Corner
+    %v129 = call boxOf, %v128 : Box
+    %v130 = load %local12@Box.origin : Point
+    %v131 = load %local12@Box.origin@Point.x : Int
+    %v134 = cmp_eq %v131, 4 : Bool
+    je %v134, b19, b20
+
+  b19:
+    %v137 = call opaque, BottomRight : Corner
+    %v138 = call boxOf, %v137 : Box
+    %v139 = load %local13@Box.origin : Point
+    %v140 = load %local13@Box.origin@Point.y : Int
+    %v143 = cmp_eq %v140, 4 : Bool
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v147 = phi [b19, %v143], [b20, False] : Bool
+    %v149 = call check, %v147, 64 : Int
+    %v150 = add %v126, %v149 : Int
+    %v152 = call opaque, TopRight : Corner
+    %v153 = call boxOf, %v152 : Box
+    %v154 = load %local14@Box.origin : Point
+    %v155 = load %local14@Box.origin@Point.x : Int
+    %v158 = cmp_eq %v155, 4 : Bool
+    je %v158, b22, b23
+
+  b22:
+    %v161 = call opaque, TopRight : Corner
+    %v162 = call boxOf, %v161 : Box
+    %v163 = load %local15@Box.origin : Point
+    %v164 = load %local15@Box.origin@Point.y : Int
+    %v167 = cmp_eq %v164, 0 : Bool
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v171 = phi [b22, %v167], [b23, False] : Bool
+    %v173 = call check, %v171, 128 : Int
+    %v174 = add %v150, %v173 : Int
+    %v176 = call opaque, TopLeft : Corner
+    %v177 = call boxOf, %v176 : Box
+    %v178 = load %local16@Box.span : Point
+    %v179 = load %local16@Box.span@Point.x : Int
+    %v182 = cmp_eq %v179, 4 : Bool
+    %v184 = call check, %v182, 256 : Int
+    %v185 = add %v174, %v184 : Int
+    %v187 = call opaque, TopLeft : Corner
+    %v188 = call hintOf, %v187 : Maybe(Int)
+    %v189 = load %local17.discriminant : Int
+    %v191 = cmp_eq %v189, 0 : Bool
+    je %v191, b26, b25
+
+  b25:
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v197 = phi [b26, True], [b25, False] : Bool
+    %v199 = call check, %v197, 512 : Int
+    %v200 = add %v185, %v199 : Int
+    %v202 = call opaque, BottomLeft : Corner
+    %v203 = call hintOf, %v202 : Maybe(Int)
+    %v204 = load %local18.discriminant : Int
+    %v206 = cmp_eq %v204, 1 : Bool
+    je %v206, b29, b28
+
+  b28:
+    jmp b31
+
+  b29:
+    %v208 = load %local18@Just : Int
+    %v210 = cmp_eq %v208, 2 : Bool
+    je %v210, b30, b28
+
+  b30:
+    jmp b31
+
+  b31:
+    %v216 = phi [b30, True], [b28, False] : Bool
+    %v218 = call check, %v216, 1024 : Int
+    %v219 = add %v200, %v218 : Int
+    %v221 = call opaque, TopLeft : Corner
+    %v222 = call always, %v221 : Point
+    %v223 = load %local19@Point.x : Int
+    %v226 = cmp_eq %v223, 9 : Bool
+    je %v226, b32, b33
+
+  b32:
+    %v229 = call opaque, BottomRight : Corner
+    %v230 = call always, %v229 : Point
+    %v231 = load %local20@Point.y : Int
+    %v234 = cmp_eq %v231, 9 : Bool
+    jmp b34
+
+  b33:
+    jmp b34
+
+  b34:
+    %v238 = phi [b32, %v234], [b33, False] : Bool
+    %v240 = call check, %v238, 2048 : Int
+    %v241 = add %v219, %v240 : Int
+    %v243 = call opaque, TopLeft : Corner
+    %v244 = call tokenOf, %v243 : Token
+    %v245 = load %local21@Token.id : Int
+    drop %local21 via Drop(Token).drop
+    %v248 = cmp_eq %v245, 10 : Bool
+    je %v248, b35, b36
+
+  b35:
+    %v251 = call opaque, BottomRight : Corner
+    %v252 = call tokenOf, %v251 : Token
+    %v253 = load %local22@Token.id : Int
+    drop %local22 via Drop(Token).drop
+    %v256 = cmp_eq %v253, 40 : Bool
+    jmp b37
+
+  b36:
+    jmp b37
+
+  b37:
+    %v260 = phi [b35, %v256], [b36, False] : Bool
+    %v262 = call check, %v260, 4096 : Int
+    %v263 = add %v241, %v262 : Int
+    %v265 = call opaque, TopLeft : Corner
+    %v266 = call independent, %v265 : Int
+    %v269 = cmp_eq %v266, 3 : Bool
+    %v271 = call check, %v269, 8192 : Int
+    %v272 = add %v263, %v271 : Int
+    ret %v272
+}
+
+fn Drop(Token).drop(%value: Token) -> () {
+  b0:
+    %v1 = load tokensDropped : Int
+    %v2 = load %value@Token.id : Int
+    %v3 = add %v1, %v2 : Int
+    assign tokensDropped, %v3
+    ret
+}

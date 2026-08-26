@@ -1,0 +1,99 @@
+-- Constructor maps over a sum that carries payloads - compiler/resolve/map.h.
+--
+-- The selector here is the *discriminant*, not the constructor's value: a sum with a payload carries
+-- a tag beside it, and that tag numbers the constructors rather than standing for them. So these
+-- maps read one field of the pivot instead of casting it, and everything above that is the same
+-- five forms.
+--
+-- The eligibility rule is the interesting half, because a payload is exactly the thing a table
+-- lookup cannot perform. A pattern may name a constructor and it may write `_` under it; anything
+-- else - a binding, a nested test, an operator section, a `->` that takes the payload out - is work
+-- the map does not do, and the whole match goes back to the ordinary path. The second section is
+-- one of each of those, and its golden is a comparison chain.
+
+data Shape =
+    Circle(Int) |
+    Square {width: Int, height: Int} |
+    Point |
+    Segment {from: Int, to: Int} |
+    Poly(Int)
+
+-- The plain shape: every arm names a constructor, every payload is `_`, and nothing is read out of
+-- the pivot but its tag. Five results needing three bits each is fifteen bits of immediate, so this
+-- packs.
+fn sides(s: Shape) -> Int = match s:
+    Circle(_) -> 1
+    Square(_) -> 4
+    Point -> 0
+    Segment(_) -> 2
+    Poly(_) -> 5
+
+-- A constructor with no payload writes no pattern at all, and one with a payload may leave its off
+-- as well - `Square` and `Square(_)` are the same statement about what is tested.
+fn closed(s: Shape) -> Bool = match s:
+    Circle -> True
+    Square -> True
+    Poly -> True
+    _ -> False
+
+-- A wildcard filling three of the five, over the discriminant rather than over a pinned value.
+fn isSegment(s: Shape) -> Bool = match s:
+    Segment(_) -> True
+    _ -> False
+
+-- An enumeration result, so the tag is read, mapped, and cast into a type of its own.
+data Family = Round | Straight | Degenerate
+
+fn familyOf(s: Shape) -> Family = match s:
+    Circle(_) -> Round
+    Square(_) -> Straight
+    Point -> Degenerate
+    Segment(_) -> Straight
+    Poly(_) -> Straight
+
+-- ## What a payload takes back out of the map
+--
+-- Each of these is one alternative away from the shapes above, and each declines the whole match.
+-- The goldens below are comparison chains, and that is the assertion: recognition is not a
+-- best-effort that falls back per arm.
+
+-- A payload *bound*, which is a read of the pivot the map has no way to perform.
+fn radius(s: Shape) -> Int = match s:
+    Circle(r) -> r
+    _ -> 0
+
+-- A payload *tested*, which is a second column of the decision the map only covers one of.
+fn bigCircle(s: Shape) -> Int = match s:
+    Circle(100.._) -> 2
+    Circle(_) -> 1
+    _ -> 0
+
+-- An arm that is not a constant. One is enough: what a map answers is data, and a call is not.
+@noinline fn computed(s: Shape) -> Int = sides(s)
+
+fn mixed(s: Shape) -> Int = match s:
+    Point -> 0
+    other -> computed(other)
+
+@noinline fn opaque(s: Shape) -> Shape = s
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+fn main() -> Int =
+    check(sides(opaque(Circle(1))) == 1 && sides(opaque(Point)) == 0, 1) +
+    check(sides(opaque(Square {width: 2, height: 3})) == 4 && sides(opaque(Poly(6))) == 5, 2) +
+    check(sides(opaque(Segment {from: 0, to: 1})) == 2, 4) +
+
+    check(closed(opaque(Circle(1))) && closed(opaque(Square {width: 1, height: 1})), 8) +
+    check(closed(opaque(Poly(3))) && !closed(opaque(Point)), 16) +
+    check(!closed(opaque(Segment {from: 0, to: 1})), 32) +
+
+    check(isSegment(opaque(Segment {from: 0, to: 1})) && !isSegment(opaque(Circle(1))), 64) +
+
+    check(familyOf(opaque(Circle(1))) == Round && familyOf(opaque(Point)) == Degenerate, 128) +
+    check(familyOf(opaque(Square {width: 1, height: 1})) == Straight && familyOf(opaque(Poly(3))) == Straight, 256) +
+
+    check(radius(opaque(Circle(7))) == 7 && radius(opaque(Point)) == 0, 512) +
+    check(bigCircle(opaque(Circle(200))) == 2 && bigCircle(opaque(Circle(2))) == 1, 1024) +
+    check(bigCircle(opaque(Point)) == 0, 2048) +
+    check(mixed(opaque(Point)) == 0 && mixed(opaque(Poly(1))) == 5, 4096)

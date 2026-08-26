@@ -1,0 +1,120 @@
+"use strict";
+var tokensDropped = 0;
+var ResolveTest_map$0 = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }];
+var ResolveTest_map$1 = [{ f0: 0, f1: 1, f2: 0.5 }, { f0: 1, f1: 1, f2: 1.5 }, { f0: 2, f1: 0, f2: 2.5 }, { f0: 3, f1: 0, f2: 3.5 }];
+var ResolveTest_map$2 = [{ origin: { x: 0, y: 0 }, span: { x: 4, y: 4 } }, { origin: { x: 4, y: 0 }, span: { x: 4, y: 4 } }, { origin: { x: 0, y: 4 }, span: { x: 4, y: 4 } }, { origin: { x: 4, y: 4 }, span: { x: 4, y: 4 } }];
+var ResolveTest_map$3 = [null, 1, 2, 3];
+
+// ResolveTest
+function tokenOf(c) {
+  var v29;
+  var v1 = c | 0;
+  if (v1 === 0) {
+    v29 = 10;
+  } else {
+    if (v1 === 1) {
+      v29 = 20;
+    } else {
+      if (v1 === 2) {
+        v29 = 30;
+      } else {
+        v29 = 40;
+      }
+    }
+  }
+  return v29;
+}
+
+function opaque(c) {
+  return c;
+}
+
+function main() {
+  var v18;
+  var v39;
+  var v61;
+  var v80;
+  var v101;
+  var v123;
+  var v147;
+  var v171;
+  var v216;
+  var v260;
+  if (ResolveTest_map$0[opaque(0) | 0].x === 0) {
+    v18 = ResolveTest_map$0[opaque(0) | 0].y === 0 ? 1 : 0;
+  } else {
+    v18 = 0;
+  }
+  var v283 = v18 ? 1 : 0;
+  if (ResolveTest_map$0[opaque(3) | 0].x === 1) {
+    v39 = ResolveTest_map$0[opaque(3) | 0].y === 1 ? 1 : 0;
+  } else {
+    v39 = 0;
+  }
+  var v42 = v283 + (v39 ? 2 : 0);
+  if (ResolveTest_map$0[opaque(1) | 0].x === 1) {
+    v61 = ResolveTest_map$0[opaque(2) | 0].y === 1 ? 1 : 0;
+  } else {
+    v61 = 0;
+  }
+  var v64 = v42 + (v61 ? 4 : 0);
+  if (ResolveTest_map$1[opaque(0) | 0].f0 === 0) {
+    v80 = ResolveTest_map$1[opaque(0) | 0].f1;
+  } else {
+    v80 = 0;
+  }
+  var v83 = v64 + (v80 ? 8 : 0);
+  if (ResolveTest_map$1[opaque(3) | 0].f0 === 3) {
+    v101 = ResolveTest_map$1[opaque(3) | 0].f1 ^ 1;
+  } else {
+    v101 = 0;
+  }
+  var v104 = v83 + (v101 ? 16 : 0);
+  if (ResolveTest_map$1[opaque(2) | 0].f2 === 2.5) {
+    v123 = ResolveTest_map$1[opaque(1) | 0].f2 === 1.5 ? 1 : 0;
+  } else {
+    v123 = 0;
+  }
+  var v126 = v104 + (v123 ? 32 : 0);
+  if (ResolveTest_map$2[opaque(3) | 0].origin.x === 4) {
+    v147 = ResolveTest_map$2[opaque(3) | 0].origin.y === 4 ? 1 : 0;
+  } else {
+    v147 = 0;
+  }
+  var v150 = v126 + (v147 ? 64 : 0);
+  if (ResolveTest_map$2[opaque(1) | 0].origin.x === 4) {
+    v171 = ResolveTest_map$2[opaque(1) | 0].origin.y === 0 ? 1 : 0;
+  } else {
+    v171 = 0;
+  }
+  B0: {
+    B1: {
+      var v200 = v150 + (v171 ? 128 : 0) + (ResolveTest_map$2[opaque(0) | 0].span.x === 4 ? 256 : 0) + (ResolveTest_map$3[opaque(0) | 0] === null ? 512 : 0);
+      var v352 = ResolveTest_map$3[opaque(2) | 0];
+      if (!(v352 === null)) {
+        if (v352 === 2) {
+          v216 = 1;
+          break B0;
+        }
+      }
+    }
+    v216 = 0;
+  }
+  var v219 = v200 + (v216 ? 1024 : 0);
+  var v221 = opaque(0);
+  var v229 = opaque(3);
+  var v241 = v219 + 2048;
+  var v245 = tokenOf(opaque(0));
+  tokensDropped = tokensDropped + v245 | 0;
+  if (v245 === 10) {
+    var v253 = tokenOf(opaque(3));
+    tokensDropped = tokensDropped + v253 | 0;
+    v260 = v253 === 40 ? 1 : 0;
+  } else {
+    v260 = 0;
+  }
+  var v263 = v241 + (v260 ? 4096 : 0);
+  var v265 = opaque(0);
+  return v263 + ((ResolveTest_map$0[v265 | 0].x !== 100 | v265 === 1 | v265 === 3 ? 2 : 0) + 1 === 3 ? 8192 : 0);
+}
+main();

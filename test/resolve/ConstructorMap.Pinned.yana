@@ -1,0 +1,136 @@
+-- Constructor maps over a *pinned* enumeration - compiler/resolve/map.h.
+--
+-- The selector of a payload-free sum is `Constructor::value`, which `@value(n)` writes and which is
+-- somebody else's ABI: it may be sparse, it may be negative, and it may not fit in an `Int`. So
+-- "contiguous" throughout the feature means contiguous *selector values* and never contiguous source
+-- declarations, and every form here is over the numbers rather than over the positions.
+--
+-- The other half of that is what makes each form total. A well-typed value of one of these types
+-- carries one of the numbers its declaration names and nothing else, so there is no out-of-range
+-- case for a range test to guard, no hole for an index to fall into, and no default a bounds check
+-- would have to reach.
+
+-- ## Sparse - the errno shape
+--
+-- Eleven constructors over a span of fifteen. The chain this replaces is up to eleven comparisons;
+-- the table is fifteen slots, four of which are fill a value can never select.
+data Signal =
+    @value(1) Hup | @value(2) Interrupt | @value(3) Quit | @value(4) Illegal |
+    @value(6) Abort | @value(8) Arith | @value(9) Kill | @value(11) Fault |
+    @value(13) Pipe | @value(14) Alarm | @value(15) Terminate
+
+fn defaultAction(s: Signal) -> Int = match s:
+    Hup -> 1
+    Interrupt -> 1
+    Quit -> 2
+    Illegal -> 2
+    Abort -> 2
+    Arith -> 2
+    Kill -> 3
+    Fault -> 2
+    Pipe -> 1
+    Alarm -> 1
+    Terminate -> 1
+
+-- The same domain read as a `Bool`, and the case the interval rule is written for: `{13, 14, 15}` is
+-- three numbers with nothing of this type between them and the top, so it is one comparison - and
+-- `{2, 4, 6}` is not an interval at all however few numbers it names, so it is a bit test.
+fn isLate(s: Signal) -> Bool = match s:
+    Pipe -> True
+    Alarm -> True
+    Terminate -> True
+    _ -> False
+
+fn isEven(s: Signal) -> Bool = match s:
+    Interrupt -> True
+    Illegal -> True
+    Abort -> True
+    Arith -> True
+    Alarm -> True
+    _ -> False
+
+-- ## Sparse enough that a table is refused
+--
+-- Three constructors over a span of a hundred and twenty-one. The size rule declines that - a table
+-- is worth a good deal of fill, but not forty slots per constructor - so this stays the comparison
+-- chain it was written as, which is what the golden below asserts.
+data Errno = @value(2) NotFound | @value(13) Access | @value(122) Quota
+
+fn errorClass(e: Errno) -> Int = match e:
+    NotFound -> 1
+    Access -> 2
+    Quota -> 3
+
+-- A `Bool` over that same sparse domain is still one comparison, because the interval is over the
+-- *domain*: `{13, 122}` has nothing of this type between it and the top.
+fn isDenied(e: Errno) -> Bool = match e:
+    Access -> True
+    Quota -> True
+    _ -> False
+
+-- ## Negative values
+--
+-- The numbers count up from below zero, so every relative index is `selector - lowest` with a
+-- negative `lowest` - and the affine fit is solved over signed numbers rather than over the bit
+-- patterns the constants are stored as.
+data Level = @value(-2) Debug | @value(-1) Info | @value(0) Warning | @value(1) Error
+
+fn severity(l: Level) -> Int = match l:
+    Debug -> 10
+    Info -> 20
+    Warning -> 30
+    Error -> 40
+
+fn isProblem(l: Level) -> Bool = match l:
+    Warning -> True
+    Error -> True
+    _ -> False
+
+fn tagOf(l: Level) -> Int = match l:
+    Debug -> 3
+    Info -> 1
+    Warning -> 4
+    Error -> 1
+
+-- ## Values outside 32 bits
+--
+-- The selector arithmetic moves to `Long` for these, which is a property of the declaration rather
+-- than of the map: an `Int` cannot hold the number the value *is*, so nothing built from it can be
+-- computed at that width.
+data Wide = @value(4294967296) First | @value(4294967297) Second | @value(4294967300) Third
+
+fn wideIndex(w: Wide) -> Int = match w:
+    First -> 1
+    Second -> 2
+    Third -> 3
+
+fn isFirst(w: Wide) -> Bool = match w:
+    First -> True
+    _ -> False
+
+@noinline fn opaqueSignal(s: Signal) -> Signal = s
+@noinline fn opaqueErrno(e: Errno) -> Errno = e
+@noinline fn opaqueLevel(l: Level) -> Level = l
+@noinline fn opaqueWide(w: Wide) -> Wide = w
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+fn main() -> Int =
+    check(defaultAction(opaqueSignal(Hup)) == 1 && defaultAction(opaqueSignal(Kill)) == 3, 1) +
+    check(defaultAction(opaqueSignal(Quit)) == 2 && defaultAction(opaqueSignal(Terminate)) == 1, 2) +
+    check(defaultAction(opaqueSignal(Fault)) == 2 && defaultAction(opaqueSignal(Alarm)) == 1, 4) +
+
+    check(isLate(opaqueSignal(Pipe)) && isLate(opaqueSignal(Terminate)), 8) +
+    check(!isLate(opaqueSignal(Hup)) && !isLate(opaqueSignal(Fault)), 16) +
+    check(isEven(opaqueSignal(Interrupt)) && isEven(opaqueSignal(Alarm)), 32) +
+    check(!isEven(opaqueSignal(Hup)) && !isEven(opaqueSignal(Kill)) && !isEven(opaqueSignal(Terminate)), 64) +
+
+    check(errorClass(opaqueErrno(NotFound)) == 1 && errorClass(opaqueErrno(Quota)) == 3, 128) +
+    check(isDenied(opaqueErrno(Access)) && isDenied(opaqueErrno(Quota)) && !isDenied(opaqueErrno(NotFound)), 256) +
+
+    check(severity(opaqueLevel(Debug)) == 10 && severity(opaqueLevel(Error)) == 40, 512) +
+    check(isProblem(opaqueLevel(Warning)) && !isProblem(opaqueLevel(Info)), 1024) +
+    check(tagOf(opaqueLevel(Debug)) == 3 && tagOf(opaqueLevel(Warning)) == 4 && tagOf(opaqueLevel(Error)) == 1, 2048) +
+
+    check(wideIndex(opaqueWide(First)) == 1 && wideIndex(opaqueWide(Third)) == 3, 4096) +
+    check(isFirst(opaqueWide(First)) && !isFirst(opaqueWide(Second)) && !isFirst(opaqueWide(Third)), 8192)

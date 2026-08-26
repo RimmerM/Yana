@@ -208,35 +208,25 @@ firstOrRest<complex>(%m: Ptr): Int {
 
   b_4 {
     %v_5 = cmp_le %v_1, 2: Int
-    je %v_5, b_6, b_7
+    %rest = load %m, 1: Int
+    %v_6 = add %rest, 1: Int
+    %v_7 = select %v_5, %v_6, 0: Int
+    jmp b_8
   }
 
   b_3 {
-    %v_8 = load %m, 1: Int
-    %v_9 = cmp_eq %v_8, 0: Int
-    je %v_9, b_10, b_4
-  }
-
-  b_10 {
-    jmp b_11
-  }
-
-  b_7 {
-    jmp b_11
-  }
-
-  b_6 {
-    %rest = load %m, 1: Int
-    %v_12 = cmp_eq %rest, 0: Int
-    %v_13 = cmp_eq %rest, 1: Int
-    %v_14 = select %v_13, 2, 3: Int
-    %v_15 = select %v_12, 1, %v_14: Int
-    jmp b_11
+    %v_9 = load %m, 1: Int
+    %v_10 = cmp_eq %v_9, 0: Int
+    je %v_10, b_11, b_4
   }
 
   b_11 {
-    %v_16 = phi [b_10, 10], [b_6, %v_15], [b_7, 0]: Int
-    ret %v_16
+    jmp b_8
+  }
+
+  b_8 {
+    %v_12 = phi [b_11, 10], [b_4, %v_7]: Int
+    ret %v_12
   }
 }
 

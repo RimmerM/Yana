@@ -13,8 +13,22 @@
 LowerType lowerType(LowerContext& lower, TypePtr type) {
     auto base = lower.global;
     auto value = base[type];
+    /*
+     * A payload-free sum is its number, so it is the register class that number needs.
+     *
+     * `Int32` unconditionally is what this used to be, and `@value` is what makes that wrong: the
+     * numbers an enumeration is pinned to are somebody else's ABI, and one of them may not fit in
+     * thirty-two bits. `enumRange` already computes the width for the packer, and `computeRecord`
+     * already gives such a type eight bytes of storage - so the two halves disagreed, and what a
+     * `@value(4294967296)` constructor lowered to was that value with its top bit gone. `valueOf`
+     * answered zero for it, and every comparison against it agreed, because both sides truncated.
+     *
+     * A negative value is covered without a case of its own: `EnumRange::bits` is already the whole
+     * signed word such a declaration takes.
+     */
     if(value->kind == Type::Record && ((RecordType*)value)->layout == RecordType::Enum) {
-        return LowerType::Int32;
+        auto range = enumRange(base, *(RecordType*)value);
+        return range.bits > 32 ? LowerType::Int64 : LowerType::Int32;
     }
 
     if(value->kind == Type::Ptr || value->kind == Type::Borrow || isMemoryType(base, type)) {

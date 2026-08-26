@@ -42,26 +42,8 @@ fn describe(%m: Maybe(Color)) -> Int {
   b2:
     %c = load %m@Just : Color
     %v8 = cast %c : Int
-    %v10 = cmp_eq %v8, 0 : Bool
-    je %v10, b4, b3
-
-  b3:
-    %v13 = cast %c : Int
-    %v15 = cmp_eq %v13, 1 : Bool
-    je %v15, b6, b5
-
-  b4:
-    jmp b7
-
-  b5:
-    jmp b7
-
-  b6:
-    jmp b7
-
-  b7:
-    %v22 = phi [b4, 1], [b6, 2], [b5, 3] : Int
-    ret %v22
+    %v10 = add %v8, 1 : Int
+    ret %v10
 }
 
 fn onlyRed(%m: Maybe(Color)) -> Int {

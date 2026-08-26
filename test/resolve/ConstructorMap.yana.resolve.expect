@@ -1,0 +1,688 @@
+let image$base: () = <none>
+
+let ResolveTest.map$0: [Int *6] = [1000, 2000, 3500, 4000, 5000, 6000]
+
+let ResolveTest.map$1: [Double *6] = [4609434218613702656, 4612811918334230528, 4616189618054758400, 4620833955170484224, 4602678819172646912, 4625196817309499392]
+
+let ResolveTest.map$2: [Double *6] = [0, 0, 0, 0, 9223372036854775808, 0]
+
+fn budget(%op: Op) -> Int {
+  b0:
+    ret 5
+}
+
+fn indexOf(%op: Op) -> Int {
+  b0:
+    %v1 = cast %op : Int
+    ret %v1
+}
+
+fn slotOf(%op: Op) -> Int {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = mul %v1, 10 : Int
+    %v5 = add %v3, 100 : Int
+    ret %v5
+}
+
+fn opposite(%op: Op) -> Op {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = mul %v1, -1 : Int
+    %v5 = add %v3, 5 : Int
+    %v6 = cast %v5 : Op
+    ret %v6
+}
+
+fn arity(%op: Op) -> Int {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = shl %v1, 1 : Int
+    %v5 = shr 2474, %v3 : Int
+    %v7 = and %v5, 3 : Int
+    ret %v7
+}
+
+fn code(%op: Op) -> Int {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = shl %v1, 2 : Int
+    %v5 = shr 1797, %v3 : Int
+    %v7 = and %v5, 15 : Int
+    ret %v7
+}
+
+fn isArithmetic(%op: Op) -> Bool {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = cmp_le %v1, 3 : Bool
+    ret %v3
+}
+
+fn isLate(%op: Op) -> Bool {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = cmp_ge %v1, 4 : Bool
+    ret %v3
+}
+
+fn isMiddle(%op: Op) -> Bool {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = cmp_ge %v1, 1 : Bool
+    %v5 = cmp_le %v1, 3 : Bool
+    %v6 = and %v3, %v5 : Bool
+    ret %v6
+}
+
+fn isNegate(%op: Op) -> Bool {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = cmp_eq %v1, 4 : Bool
+    ret %v3
+}
+
+fn isBinary(%op: Op) -> Bool {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = shr 47, %v1 : Int
+    %v5 = and %v3, 1 : Int
+    %v7 = cmp_ne %v5, 0 : Bool
+    ret %v7
+}
+
+fn isCommutative(%op: Op) -> Bool {
+  b0:
+    %v1 = cast %op : Int
+    %v3 = shr 37, %v1 : Int
+    %v5 = and %v3, 1 : Int
+    %v7 = cmp_ne %v5, 0 : Bool
+    ret %v7
+}
+
+fn opcode(%op: Op) -> Int {
+  b0:
+    %v1 = cast %op : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$0[%v2] : Int
+    ret %v3
+}
+
+fn weight(%op: Op) -> Double {
+  b0:
+    %v1 = cast %op : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$1[%v2] : Double
+    ret %v3
+}
+
+fn signedZero(%op: Op) -> Double {
+  b0:
+    %v1 = cast %op : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$2[%v2] : Double
+    ret %v3
+}
+
+fn bitValue(%b: Bit) -> Int {
+  b0:
+    %v1 = cast %b : Int
+    %v3 = mul %v1, 900 : Int
+    %v5 = add %v3, 100 : Int
+    ret %v5
+}
+
+fn check(%condition: Bool, %weight: Int) -> Int {
+  b0:
+    je %condition, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %weight], [b2, 0] : Int
+    ret %v6
+}
+
+fn opaque(%op: Op) -> Op {
+  b0:
+    ret %op
+}
+
+fn opaqueBit(%b: Bit) -> Bit {
+  b0:
+    ret %b
+}
+
+fn folded() -> Int {
+  b0:
+    %v1 = call opcode, Mul : Int
+    %v3 = call arity, Neg : Int
+    %v4 = add %v1, %v3 : Int
+    %v6 = call slotOf, Div : Int
+    %v7 = add %v4, %v6 : Int
+    ret %v7
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call opaque, Add : Op
+    %v2 = call budget, %v1 : Int
+    %v5 = cmp_eq %v2, 5 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v8 = call opaque, Cmp : Op
+    %v9 = call budget, %v8 : Int
+    %v12 = cmp_eq %v9, 5 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v16 = phi [b1, %v12], [b2, False] : Bool
+    %v18 = call check, %v16, 1 : Int
+    %v20 = call opaque, Add : Op
+    %v21 = call indexOf, %v20 : Int
+    %v24 = cmp_eq %v21, 0 : Bool
+    je %v24, b4, b5
+
+  b4:
+    %v27 = call opaque, Cmp : Op
+    %v28 = call indexOf, %v27 : Int
+    %v31 = cmp_eq %v28, 5 : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v35 = phi [b4, %v31], [b5, False] : Bool
+    je %v35, b7, b8
+
+  b7:
+    %v38 = call opaque, Mul : Op
+    %v39 = call indexOf, %v38 : Int
+    %v42 = cmp_eq %v39, 2 : Bool
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v46 = phi [b7, %v42], [b8, False] : Bool
+    %v48 = call check, %v46, 2 : Int
+    %v49 = add %v18, %v48 : Int
+    %v51 = call opaque, Add : Op
+    %v52 = call slotOf, %v51 : Int
+    %v55 = cmp_eq %v52, 100 : Bool
+    je %v55, b10, b11
+
+  b10:
+    %v58 = call opaque, Cmp : Op
+    %v59 = call slotOf, %v58 : Int
+    %v62 = cmp_eq %v59, 150 : Bool
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v66 = phi [b10, %v62], [b11, False] : Bool
+    je %v66, b13, b14
+
+  b13:
+    %v69 = call opaque, Div : Op
+    %v70 = call slotOf, %v69 : Int
+    %v73 = cmp_eq %v70, 130 : Bool
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v77 = phi [b13, %v73], [b14, False] : Bool
+    %v79 = call check, %v77, 4 : Int
+    %v80 = add %v49, %v79 : Int
+    %v82 = call opaque, Add : Op
+    %v83 = call opposite, %v82 : Op
+    %v85 = cmp_eq %v83, Cmp : Bool
+    je %v85, b16, b17
+
+  b16:
+    %v88 = call opaque, Neg : Op
+    %v89 = call opposite, %v88 : Op
+    %v91 = cmp_eq %v89, Sub : Bool
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v95 = phi [b16, %v91], [b17, False] : Bool
+    je %v95, b19, b20
+
+  b19:
+    %v98 = call opaque, Mul : Op
+    %v99 = call opposite, %v98 : Op
+    %v101 = cmp_eq %v99, Div : Bool
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v105 = phi [b19, %v101], [b20, False] : Bool
+    %v107 = call check, %v105, 8 : Int
+    %v108 = add %v80, %v107 : Int
+    %v110 = call opaque, Add : Op
+    %v111 = call arity, %v110 : Int
+    %v114 = cmp_eq %v111, 2 : Bool
+    je %v114, b22, b23
+
+  b22:
+    %v117 = call opaque, Neg : Op
+    %v118 = call arity, %v117 : Int
+    %v121 = cmp_eq %v118, 1 : Bool
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v125 = phi [b22, %v121], [b23, False] : Bool
+    je %v125, b25, b26
+
+  b25:
+    %v128 = call opaque, Cmp : Op
+    %v129 = call arity, %v128 : Int
+    %v132 = cmp_eq %v129, 2 : Bool
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v136 = phi [b25, %v132], [b26, False] : Bool
+    %v138 = call check, %v136, 16 : Int
+    %v139 = add %v108, %v138 : Int
+    %v141 = call opaque, Add : Op
+    %v142 = call code, %v141 : Int
+    %v145 = cmp_eq %v142, 5 : Bool
+    je %v145, b28, b29
+
+  b28:
+    %v148 = call opaque, Mul : Op
+    %v149 = call code, %v148 : Int
+    %v152 = cmp_eq %v149, 7 : Bool
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v156 = phi [b28, %v152], [b29, False] : Bool
+    je %v156, b31, b32
+
+  b31:
+    %v159 = call opaque, Sub : Op
+    %v160 = call code, %v159 : Int
+    %v163 = cmp_eq %v160, 0 : Bool
+    jmp b33
+
+  b32:
+    jmp b33
+
+  b33:
+    %v167 = phi [b31, %v163], [b32, False] : Bool
+    je %v167, b34, b35
+
+  b34:
+    %v170 = call opaque, Cmp : Op
+    %v171 = call code, %v170 : Int
+    %v174 = cmp_eq %v171, 0 : Bool
+    jmp b36
+
+  b35:
+    jmp b36
+
+  b36:
+    %v178 = phi [b34, %v174], [b35, False] : Bool
+    %v180 = call check, %v178, 32 : Int
+    %v181 = add %v139, %v180 : Int
+    %v183 = call opaque, Add : Op
+    %v184 = call isArithmetic, %v183 : Bool
+    je %v184, b37, b38
+
+  b37:
+    %v187 = call opaque, Div : Op
+    %v188 = call isArithmetic, %v187 : Bool
+    jmp b39
+
+  b38:
+    jmp b39
+
+  b39:
+    %v192 = phi [b37, %v188], [b38, False] : Bool
+    je %v192, b40, b41
+
+  b40:
+    %v195 = call opaque, Neg : Op
+    %v196 = call isArithmetic, %v195 : Bool
+    %v198 = xor %v196, True : Bool
+    jmp b42
+
+  b41:
+    jmp b42
+
+  b42:
+    %v202 = phi [b40, %v198], [b41, False] : Bool
+    je %v202, b43, b44
+
+  b43:
+    %v205 = call opaque, Cmp : Op
+    %v206 = call isArithmetic, %v205 : Bool
+    %v208 = xor %v206, True : Bool
+    jmp b45
+
+  b44:
+    jmp b45
+
+  b45:
+    %v212 = phi [b43, %v208], [b44, False] : Bool
+    %v214 = call check, %v212, 64 : Int
+    %v215 = add %v181, %v214 : Int
+    %v217 = call opaque, Neg : Op
+    %v218 = call isLate, %v217 : Bool
+    je %v218, b46, b47
+
+  b46:
+    %v221 = call opaque, Cmp : Op
+    %v222 = call isLate, %v221 : Bool
+    jmp b48
+
+  b47:
+    jmp b48
+
+  b48:
+    %v226 = phi [b46, %v222], [b47, False] : Bool
+    je %v226, b49, b50
+
+  b49:
+    %v229 = call opaque, Add : Op
+    %v230 = call isLate, %v229 : Bool
+    %v232 = xor %v230, True : Bool
+    jmp b51
+
+  b50:
+    jmp b51
+
+  b51:
+    %v236 = phi [b49, %v232], [b50, False] : Bool
+    je %v236, b52, b53
+
+  b52:
+    %v239 = call opaque, Div : Op
+    %v240 = call isLate, %v239 : Bool
+    %v242 = xor %v240, True : Bool
+    jmp b54
+
+  b53:
+    jmp b54
+
+  b54:
+    %v246 = phi [b52, %v242], [b53, False] : Bool
+    %v248 = call check, %v246, 128 : Int
+    %v249 = add %v215, %v248 : Int
+    %v251 = call opaque, Sub : Op
+    %v252 = call isMiddle, %v251 : Bool
+    je %v252, b55, b56
+
+  b55:
+    %v255 = call opaque, Div : Op
+    %v256 = call isMiddle, %v255 : Bool
+    jmp b57
+
+  b56:
+    jmp b57
+
+  b57:
+    %v260 = phi [b55, %v256], [b56, False] : Bool
+    je %v260, b58, b59
+
+  b58:
+    %v263 = call opaque, Add : Op
+    %v264 = call isMiddle, %v263 : Bool
+    %v266 = xor %v264, True : Bool
+    jmp b60
+
+  b59:
+    jmp b60
+
+  b60:
+    %v270 = phi [b58, %v266], [b59, False] : Bool
+    je %v270, b61, b62
+
+  b61:
+    %v273 = call opaque, Neg : Op
+    %v274 = call isMiddle, %v273 : Bool
+    %v276 = xor %v274, True : Bool
+    jmp b63
+
+  b62:
+    jmp b63
+
+  b63:
+    %v280 = phi [b61, %v276], [b62, False] : Bool
+    %v282 = call check, %v280, 256 : Int
+    %v283 = add %v249, %v282 : Int
+    %v285 = call opaque, Neg : Op
+    %v286 = call isNegate, %v285 : Bool
+    je %v286, b64, b65
+
+  b64:
+    %v289 = call opaque, Add : Op
+    %v290 = call isNegate, %v289 : Bool
+    %v292 = xor %v290, True : Bool
+    jmp b66
+
+  b65:
+    jmp b66
+
+  b66:
+    %v296 = phi [b64, %v292], [b65, False] : Bool
+    je %v296, b67, b68
+
+  b67:
+    %v299 = call opaque, Cmp : Op
+    %v300 = call isNegate, %v299 : Bool
+    %v302 = xor %v300, True : Bool
+    jmp b69
+
+  b68:
+    jmp b69
+
+  b69:
+    %v306 = phi [b67, %v302], [b68, False] : Bool
+    %v308 = call check, %v306, 512 : Int
+    %v309 = add %v283, %v308 : Int
+    %v311 = call opaque, Add : Op
+    %v312 = call isBinary, %v311 : Bool
+    je %v312, b70, b71
+
+  b70:
+    %v315 = call opaque, Cmp : Op
+    %v316 = call isBinary, %v315 : Bool
+    jmp b72
+
+  b71:
+    jmp b72
+
+  b72:
+    %v320 = phi [b70, %v316], [b71, False] : Bool
+    je %v320, b73, b74
+
+  b73:
+    %v323 = call opaque, Neg : Op
+    %v324 = call isBinary, %v323 : Bool
+    %v326 = xor %v324, True : Bool
+    jmp b75
+
+  b74:
+    jmp b75
+
+  b75:
+    %v330 = phi [b73, %v326], [b74, False] : Bool
+    %v332 = call check, %v330, 1024 : Int
+    %v333 = add %v309, %v332 : Int
+    %v335 = call opaque, Add : Op
+    %v336 = call isCommutative, %v335 : Bool
+    je %v336, b76, b77
+
+  b76:
+    %v339 = call opaque, Mul : Op
+    %v340 = call isCommutative, %v339 : Bool
+    jmp b78
+
+  b77:
+    jmp b78
+
+  b78:
+    %v344 = phi [b76, %v340], [b77, False] : Bool
+    je %v344, b79, b80
+
+  b79:
+    %v347 = call opaque, Cmp : Op
+    %v348 = call isCommutative, %v347 : Bool
+    jmp b81
+
+  b80:
+    jmp b81
+
+  b81:
+    %v352 = phi [b79, %v348], [b80, False] : Bool
+    je %v352, b82, b83
+
+  b82:
+    %v355 = call opaque, Sub : Op
+    %v356 = call isCommutative, %v355 : Bool
+    %v358 = xor %v356, True : Bool
+    jmp b84
+
+  b83:
+    jmp b84
+
+  b84:
+    %v362 = phi [b82, %v358], [b83, False] : Bool
+    %v364 = call check, %v362, 2048 : Int
+    %v365 = add %v333, %v364 : Int
+    %v367 = call opaque, Add : Op
+    %v368 = call opcode, %v367 : Int
+    %v371 = cmp_eq %v368, 1000 : Bool
+    je %v371, b85, b86
+
+  b85:
+    %v374 = call opaque, Mul : Op
+    %v375 = call opcode, %v374 : Int
+    %v378 = cmp_eq %v375, 3500 : Bool
+    jmp b87
+
+  b86:
+    jmp b87
+
+  b87:
+    %v382 = phi [b85, %v378], [b86, False] : Bool
+    je %v382, b88, b89
+
+  b88:
+    %v385 = call opaque, Cmp : Op
+    %v386 = call opcode, %v385 : Int
+    %v389 = cmp_eq %v386, 6000 : Bool
+    jmp b90
+
+  b89:
+    jmp b90
+
+  b90:
+    %v393 = phi [b88, %v389], [b89, False] : Bool
+    %v395 = call check, %v393, 4096 : Int
+    %v396 = add %v365, %v395 : Int
+    %v398 = call opaque, Add : Op
+    %v399 = call weight, %v398 : Double
+    %v402 = cmp_eq %v399, 1.5 : Bool
+    je %v402, b91, b92
+
+  b91:
+    %v405 = call opaque, Div : Op
+    %v406 = call weight, %v405 : Double
+    %v409 = cmp_eq %v406, 8.25 : Bool
+    jmp b93
+
+  b92:
+    jmp b93
+
+  b93:
+    %v413 = phi [b91, %v409], [b92, False] : Bool
+    je %v413, b94, b95
+
+  b94:
+    %v416 = call opaque, Cmp : Op
+    %v417 = call weight, %v416 : Double
+    %v420 = cmp_eq %v417, 16 : Bool
+    jmp b96
+
+  b95:
+    jmp b96
+
+  b96:
+    %v424 = phi [b94, %v420], [b95, False] : Bool
+    %v426 = call check, %v424, 8192 : Int
+    %v427 = add %v396, %v426 : Int
+    %v430 = call opaque, Add : Op
+    %v431 = call signedZero, %v430 : Double
+    %v433 = div 1, %v431 : Double
+    %v436 = cmp_gt %v433, 0 : Bool
+    je %v436, b97, b98
+
+  b97:
+    %v440 = call opaque, Neg : Op
+    %v441 = call signedZero, %v440 : Double
+    %v443 = div 1, %v441 : Double
+    %v446 = cmp_lt %v443, 0 : Bool
+    jmp b99
+
+  b98:
+    jmp b99
+
+  b99:
+    %v450 = phi [b97, %v446], [b98, False] : Bool
+    %v452 = call check, %v450, 16384 : Int
+    %v453 = add %v427, %v452 : Int
+    %v455 = call opaqueBit, Zero : Bit
+    %v456 = call bitValue, %v455 : Int
+    %v459 = cmp_eq %v456, 100 : Bool
+    je %v459, b100, b101
+
+  b100:
+    %v462 = call opaqueBit, One : Bit
+    %v463 = call bitValue, %v462 : Int
+    %v466 = cmp_eq %v463, 1000 : Bool
+    jmp b102
+
+  b101:
+    jmp b102
+
+  b102:
+    %v470 = phi [b100, %v466], [b101, False] : Bool
+    %v472 = call check, %v470, 32768 : Int
+    %v473 = add %v453, %v472 : Int
+    %v474 = call folded : Int
+    %v477 = cmp_eq %v474, 3631 : Bool
+    %v479 = call check, %v477, 65536 : Int
+    %v480 = add %v473, %v479 : Int
+    ret %v480
+}

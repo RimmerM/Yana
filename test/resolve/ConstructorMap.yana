@@ -1,0 +1,209 @@
+-- Constructor maps: a `match` whose every arm is compile-time data - compiler/resolve/map.h.
+--
+-- A property function written the obvious way used to be exactly the decision tree it describes: one
+-- comparison per constructor, chained through blocks, joined by a phi. What the mapping *is* was
+-- never stated anywhere, so nothing downstream had a reason to recognise it.
+--
+-- Recognition happens beside `resolveMatch`, where the constructor patterns and their coverage are
+-- still explicit, and lowers immediately into comparisons, arithmetic, immutable globals and indexed
+-- loads - so both targets get the same answer and the guarantee survives `-no-opt`. That last part
+-- is why the golden IR below is the point of this file: every function here is asserted to have no
+-- branch in it at all, which is a property of the *unoptimized* output.
+--
+-- The five forms, one section each. Which one a map takes is decided by `chooseForm` and is a
+-- function of the map alone, never of what a target would prefer.
+
+data Op = Add | Sub | Mul | Div | Neg | Cmp
+
+-- ## 1. Uniform
+--
+-- Every constructor answers the same thing, so the pivot is never read. The `_` here is not a
+-- default in the usual sense - it fills the constructors the alternatives did not name, and the
+-- domain is closed, so what comes out is the constant and nothing else.
+fn budget(op: Op) -> Int = match op:
+    Neg -> 5
+    _ -> 5
+
+-- ## 2. Affine - the results are `selector * stride + bias`
+--
+-- The identity, which is `Enum.valueOf` written out by hand: a cast, because past the match the
+-- number already *is* the answer.
+fn indexOf(op: Op) -> Int = match op:
+    Add -> 0
+    Sub -> 1
+    Mul -> 2
+    Div -> 3
+    Neg -> 4
+    Cmp -> 5
+
+-- A stride and a bias, at the selector's own width rather than through `Long`: every product and
+-- every sum fits in an `Int`, and a widening round trip nothing needs is two real instructions at
+-- `-no-opt`.
+fn slotOf(op: Op) -> Int = match op:
+    Add -> 100
+    Sub -> 110
+    Mul -> 120
+    Div -> 130
+    Neg -> 140
+    Cmp -> 150
+
+-- A descending line, and an *enumeration* result - so the number comes back out through a cast into
+-- the type, which is the same cast `Enum.fromValue` builds its payload with.
+fn opposite(op: Op) -> Op = match op:
+    Add -> Cmp
+    Sub -> Neg
+    Mul -> Div
+    Div -> Mul
+    Neg -> Sub
+    Cmp -> Add
+
+-- ## 3. Packed - the whole map in the bits of one immediate
+--
+-- Two-bit fields. This is the arity table an instruction description is made of, and it costs a
+-- shift and a mask rather than an indexed byte read.
+fn arity(op: Op) -> Int = match op:
+    Add -> 2
+    Sub -> 2
+    Mul -> 2
+    Div -> 2
+    Neg -> 1
+    Cmp -> 2
+
+-- Four-bit fields, and a wildcard filling four of the six. A partial map over a closed domain is a
+-- total one: what `_` names is constructors, not values outside the type.
+fn code(op: Op) -> Int = match op:
+    Add -> 5
+    Mul -> 7
+    _ -> 0
+
+-- ## 4. Predicates - a `Bool` property, without a branch
+--
+-- One interval reaching the lowest selector, so only the upper comparison is emitted. That is not a
+-- peephole: a value of `Op` carries one of these six numbers and nothing else.
+fn isArithmetic(op: Op) -> Bool = match op:
+    Add -> True
+    Sub -> True
+    Mul -> True
+    Div -> True
+    _ -> False
+
+-- One interval reaching the highest, so only the lower comparison is.
+fn isLate(op: Op) -> Bool = match op:
+    Neg -> True
+    Cmp -> True
+    _ -> False
+
+-- An interval touching neither end - two comparisons, which is what a range test costs however many
+-- constructors it covers.
+fn isMiddle(op: Op) -> Bool = match op:
+    Sub -> True
+    Mul -> True
+    Div -> True
+    _ -> False
+
+-- A run of one, which is an equality.
+fn isNegate(op: Op) -> Bool = match op:
+    Neg -> True
+    _ -> False
+
+-- And the set that is *not* one interval - the `isCommutative` shape. One immediate holds the whole
+-- answer, which reads no memory and is what makes it better than a byte table at this size.
+fn isBinary(op: Op) -> Bool = match op:
+    Neg -> False
+    _ -> True
+
+fn isCommutative(op: Op) -> Bool = match op:
+    Add -> True
+    Mul -> True
+    Cmp -> True
+    _ -> False
+
+-- ## 5. Tables
+--
+-- Numbers too wide to pack: six of them needing sixteen bits each is ninety-six bits of immediate,
+-- well past what one word may hold, so this is a static array and an indexed load.
+fn opcode(op: Op) -> Int = match op:
+    Add -> 1000
+    Sub -> 2000
+    Mul -> 3500
+    Div -> 4000
+    Neg -> 5000
+    Cmp -> 6000
+
+-- Floating-point results are always a table: a float constant's bits are not its value, so none of
+-- the arithmetic forms can state one.
+fn weight(op: Op) -> Double = match op:
+    Add -> 1.5
+    Sub -> 2.5
+    Mul -> 4.0
+    Div -> 8.25
+    Neg -> 0.5
+    Cmp -> 16.0
+
+-- The reason constant equality is bit-exact rather than numeric. `-0.0` and `0.0` are the same
+-- number and different values, so this is a *table* and not the uniform constant a numeric
+-- comparison would have collapsed it into. The table below is the assertion.
+fn signedZero(op: Op) -> Double = match op:
+    Neg -> -0.0
+    _ -> 0.0
+
+-- ## The size rule applies to the table alone
+--
+-- Two constructors are below the minimum a *table* is built for - indexing a two-entry table already
+-- costs what the chain does - but the four arithmetic forms read no memory, so nothing gates them
+-- and this is a line rather than a comparison and a select. What a two-constructor map declines to
+-- is in ConstructorMap.Strings.yana, where no arithmetic form can state the answer.
+data Bit = Zero | One
+
+fn bitValue(b: Bit) -> Int = match b:
+    Zero -> 100
+    One -> 1000
+
+-- One number rather than sixteen tests, on the terms the corpus already uses: the score says which
+-- form disagreed, not that one of them did.
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- The pivot every check below goes through.
+--
+-- Without it none of this runs: `budget(Add)` is a map read at a *constant* selector, which
+-- `foldConstantRead` answers with the constant itself and the folder then propagates through the
+-- whole of `main`. That is a real and wanted property - a table whose every read folds occupies
+-- nothing - but it means a program written that way asserts the folder rather than the form. So the
+-- constructor arrives through a call the inliner may not open, and each check reads the table.
+@noinline fn opaque(op: Op) -> Op = op
+@noinline fn opaqueBit(b: Bit) -> Bit = b
+
+-- And the other half of that, asserted where it belongs: a table read at a selector the caller knows
+-- folds to the slot's constant, so this function is one number and the two tables it names occupy
+-- nothing on its account.
+fn folded() -> Int = opcode(Mul) + arity(Neg) + slotOf(Div)
+
+-- Every alternative of every map above is taken, because a form that answers the wrong constructor
+-- is only shown to be wrong by the constructor it answers for.
+fn main() -> Int =
+    check(budget(opaque(Add)) == 5 && budget(opaque(Cmp)) == 5, 1) +
+
+    check(indexOf(opaque(Add)) == 0 && indexOf(opaque(Cmp)) == 5 && indexOf(opaque(Mul)) == 2, 2) +
+    check(slotOf(opaque(Add)) == 100 && slotOf(opaque(Cmp)) == 150 && slotOf(opaque(Div)) == 130, 4) +
+    check(opposite(opaque(Add)) == Cmp && opposite(opaque(Neg)) == Sub && opposite(opaque(Mul)) == Div, 8) +
+
+    check(arity(opaque(Add)) == 2 && arity(opaque(Neg)) == 1 && arity(opaque(Cmp)) == 2, 16) +
+    check(code(opaque(Add)) == 5 && code(opaque(Mul)) == 7 && code(opaque(Sub)) == 0 && code(opaque(Cmp)) == 0, 32) +
+
+    check(isArithmetic(opaque(Add)) && isArithmetic(opaque(Div)) && !isArithmetic(opaque(Neg)) && !isArithmetic(opaque(Cmp)), 64) +
+    check(isLate(opaque(Neg)) && isLate(opaque(Cmp)) && !isLate(opaque(Add)) && !isLate(opaque(Div)), 128) +
+    check(isMiddle(opaque(Sub)) && isMiddle(opaque(Div)) && !isMiddle(opaque(Add)) && !isMiddle(opaque(Neg)), 256) +
+    check(isNegate(opaque(Neg)) && !isNegate(opaque(Add)) && !isNegate(opaque(Cmp)), 512) +
+    check(isBinary(opaque(Add)) && isBinary(opaque(Cmp)) && !isBinary(opaque(Neg)), 1024) +
+    check(isCommutative(opaque(Add)) && isCommutative(opaque(Mul)) && isCommutative(opaque(Cmp)) && !isCommutative(opaque(Sub)), 2048) +
+
+    check(opcode(opaque(Add)) == 1000 && opcode(opaque(Mul)) == 3500 && opcode(opaque(Cmp)) == 6000, 4096) +
+    check(weight(opaque(Add)) == 1.5 && weight(opaque(Div)) == 8.25 && weight(opaque(Cmp)) == 16.0, 8192) +
+
+    -- The sign of a zero, read the one way that can see it: dividing into it answers an infinity
+    -- whose sign is the divisor's.
+    check(1.0 / signedZero(opaque(Add)) > 0.0 && 1.0 / signedZero(opaque(Neg)) < 0.0, 16384) +
+
+    check(bitValue(opaqueBit(Zero)) == 100 && bitValue(opaqueBit(One)) == 1000, 32768) +
+
+    check(folded() == 3631, 65536)

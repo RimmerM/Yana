@@ -131,6 +131,7 @@ set(RESOLVE_SOURCE_FILES
     resolve/expr_cont.cpp
     resolve/expr_iter.cpp
     resolve/expr_try.cpp
+    resolve/expr_map.cpp
     resolve/expr_pat.cpp
     resolve/lower.h
     resolve/lower_internal.h

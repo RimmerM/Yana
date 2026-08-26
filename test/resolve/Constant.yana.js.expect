@@ -11,8 +11,7 @@ var mask = 18446744073709551615n;
 
 // ResolveTest
 function main() {
-  var v429 = heading | 0;
-  var score = (v429 === 0 ? 1 : v429 === 1 ? 2 : v429 === 2 ? 4 : 8) + 64;
+  var score = (33825 >>> (heading << 2) & 15) + 64;
   if (ready) {
     score = score + 1024 | 0;
   }
@@ -33,7 +32,7 @@ function main() {
   if (-1 === fell) {
     score = score + 1048576 | 0;
   }
-  if (!((state | 0) === 0)) {
+  if ((state | 0) === 1) {
     score = score + 131072 | 0;
   }
   if (minimum < 0n) {

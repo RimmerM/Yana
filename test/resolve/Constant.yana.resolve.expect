@@ -23,51 +23,16 @@ let &mask: U64 = 18446744073709551615
 fn directionValue(%d: Direction) -> Int {
   b0:
     %v1 = cast %d : Int
-    %v3 = cmp_eq %v1, 0 : Bool
-    je %v3, b2, b1
-
-  b1:
-    %v6 = cast %d : Int
-    %v8 = cmp_eq %v6, 1 : Bool
-    je %v8, b4, b3
-
-  b2:
-    jmp b7
-
-  b3:
-    %v11 = cast %d : Int
-    %v13 = cmp_eq %v11, 2 : Bool
-    je %v13, b6, b5
-
-  b4:
-    jmp b7
-
-  b5:
-    jmp b7
-
-  b6:
-    jmp b7
-
-  b7:
-    %v21 = phi [b2, 1], [b4, 2], [b6, 4], [b5, 8] : Int
-    ret %v21
+    %v3 = shl %v1, 2 : Int
+    %v5 = shr 33825, %v3 : Int
+    %v7 = and %v5, 15 : Int
+    ret %v7
 }
 
 fn stateValue(%s: State(Int)) -> Int {
   b0:
     %v1 = cast %s : Int
-    %v3 = cmp_eq %v1, 0 : Bool
-    je %v3, b2, b1
-
-  b1:
-    jmp b3
-
-  b2:
-    jmp b3
-
-  b3:
-    %v9 = phi [b2, 0], [b1, 1] : Int
-    ret %v9
+    ret %v1
 }
 
 fn main() -> Int {

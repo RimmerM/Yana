@@ -7,26 +7,8 @@ let &minusOne: I64 = 18446744073709551615
 fn colorValue(%c: Color) -> Int {
   b0:
     %v1 = cast %c : Int
-    %v3 = cmp_eq %v1, 0 : Bool
-    je %v3, b2, b1
-
-  b1:
-    %v6 = cast %c : Int
-    %v8 = cmp_eq %v6, 1 : Bool
-    je %v8, b4, b3
-
-  b2:
-    jmp b5
-
-  b3:
-    jmp b5
-
-  b4:
-    jmp b5
-
-  b5:
-    %v15 = phi [b2, 1], [b4, 2], [b3, 3] : Int
-    ret %v15
+    %v3 = add %v1, 1 : Int
+    ret %v3
 }
 
 fn shapeValue(%s: Shape) -> Int {

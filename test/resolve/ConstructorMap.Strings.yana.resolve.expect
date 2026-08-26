@@ -1,0 +1,561 @@
+let image$base: () = <none>
+
+let &heapFree: %%U8 = 0
+
+let ResolveTest.string$0: String = "red"
+
+let ResolveTest.string$1: String = "green"
+
+let ResolveTest.string$2: String = "blue"
+
+let ResolveTest.string$3: String = "violet"
+
+let ResolveTest.string$4: String = "white"
+
+let ResolveTest.map$0: [{%CodeUnit, Int} *5] = [{&ResolveTest.string$0, 3}, {&ResolveTest.string$1, 5}, {&ResolveTest.string$2, 4}, {&ResolveTest.string$3, 6}, {&ResolveTest.string$4, 5}]
+
+let ResolveTest.string$5: String = "warm"
+
+let ResolveTest.string$6: String = "cool"
+
+let ResolveTest.string$7: String = "cool"
+
+let ResolveTest.string$8: String = "warm"
+
+let ResolveTest.string$9: String = "cool"
+
+let ResolveTest.map$1: [{%CodeUnit, Int} *5] = [{&ResolveTest.string$5, 4}, {&ResolveTest.string$6, 4}, {&ResolveTest.string$7, 4}, {&ResolveTest.string$8, 4}, {&ResolveTest.string$9, 4}]
+
+let ResolveTest.string$10: String = "colour"
+
+let ResolveTest.string$11: String = "zero"
+
+let ResolveTest.string$12: String = "one"
+
+let ResolveTest.string$13: String = "-"
+
+let ResolveTest.string$14: String = <none>
+
+let ResolveTest.string$15: String = "+"
+
+let ResolveTest.map$2: [{%CodeUnit, Int} *3] = [{&ResolveTest.string$13, 1}, {&ResolveTest.string$14, 0}, {&ResolveTest.string$15, 1}]
+
+let ResolveTest.string$16: String = "red"
+
+let ResolveTest.string$17: String = "green"
+
+let ResolveTest.string$18: String = "blue"
+
+let ResolveTest.string$19: String = "violet"
+
+let ResolveTest.string$20: String = "white"
+
+let ResolveTest.string$21: String = "warm"
+
+let ResolveTest.string$22: String = "warm"
+
+let ResolveTest.string$23: String = "cool"
+
+let ResolveTest.string$24: String = "cool"
+
+let ResolveTest.string$25: String = "cool"
+
+let ResolveTest.string$26: String = "colour"
+
+let ResolveTest.string$27: String = "colour"
+
+let ResolveTest.string$28: String = "zero"
+
+let ResolveTest.string$29: String = "one"
+
+let ResolveTest.string$30: String = "-"
+
+let ResolveTest.string$31: String = "+"
+
+let ResolveTest.string$32: String = <none>
+
+fn String.unit(%self: String, %index: Size) -> Int {
+  b0:
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'StringData
+    %v4 = load [%v3]@StringData.bytes : Array(CodeUnit)
+    %v5 = load [%v3]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v7 = strideof CodeUnit : Size
+    %v8 = mul %index, %v7 : Size
+    %v9 = add %v6, %v8 : %CodeUnit
+    %v10 = load [%v9] : CodeUnit
+    %v11 = cast %v10 : Int
+    ret %v11
+}
+
+fn Length(String).length(%self: String) -> Size {
+  b0:
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
+    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
+    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
+    %units = cast %v4 : Int
+    %v6 = cast %units : Size
+    ret %v6
+}
+
+fn Eq(String).==(%self: String, %other: String) -> Bool {
+  b0:
+    %count = call Length(String).length, %self : Size
+    %v3 = call Length(String).length, %other : Size
+    %v4 = cmp_ne %count, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret False
+
+  b2:
+    jmp b3
+
+  b3:
+    %i = alloc : Size
+    init %i, 0
+    jmp b4
+
+  b4:
+    %v13 = load %i : Size
+    %v14 = cmp_lt %v13, %count : Bool
+    je %v14, b6, b5
+
+  b5:
+    ret True
+
+  b6:
+    %v16 = load %i : Size
+    %v17 = call String.unit, %self, %v16 : Int
+    %v18 = load %i : Size
+    %v19 = call String.unit, %other, %v18 : Int
+    %v20 = cmp_ne %v17, %v19 : Bool
+    je %v20, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v25 = load %i : Size
+    %v28 = add %v25, 1 : Size
+    assign %i, %v28
+    jmp b4
+}
+
+fn Reclaim(String).reclaim(%value: String) -> () {
+  b0:
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'StringData
+    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
+    %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
+    call releaseRun(CodeUnit), %v4
+    ret
+}
+
+fn freeListHead(%sizeClass: Size) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
+  b0:
+    %v2 = alloc : StringData
+    %v3 = alloc : Array(CodeUnit)
+    %v4 = alloc : Run(CodeUnit)
+    %v5 = cast %length : U32
+    %v7 = and %v5, 1073741823 : U32
+    %v8 = cast %v7 : @bits(30) U32
+    init %local2@Run.items, %bytes
+    init %local2@Run.capacity, %v8
+    init %local2@Run.ownsHeap, 0
+    %v13 = cast %length : U32
+    %v15 = and %v13, 1073741823 : U32
+    %v16 = cast %v15 : @bits(30) U32
+    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
+    aggregate %local0@StringData.bytes = %v3
+    %v19 = move %local0 : StringData
+    %v20 = alloc : String
+    init %local3, %v19
+    ret %v20
+}
+
+fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %CodeUnit
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn nameOf(%c: Colour) -> String {
+  b0:
+    %v1 = cast %c : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$0[%v2].0 : %CodeUnit
+    %v4 = load ResolveTest.map$0[%v2].1 : Int
+    %v5 = call stringLiteral, %v3, %v4 : String
+    ret %v5
+}
+
+fn warmth(%c: Colour) -> String {
+  b0:
+    %v1 = cast %c : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$1[%v2].0 : %CodeUnit
+    %v4 = load ResolveTest.map$1[%v2].1 : Int
+    %v5 = call stringLiteral, %v3, %v4 : String
+    ret %v5
+}
+
+fn kindOf(%c: Colour) -> String {
+  b0:
+    %v1 = symbol ResolveTest.string$10 : %CodeUnit
+    %v3 = call stringLiteral, %v1, 6 : String
+    ret %v3
+}
+
+fn bitName(%b: Bit) -> String {
+  b0:
+    %v1 = cast %b : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v8 = symbol ResolveTest.string$12 : %CodeUnit
+    %v10 = call stringLiteral, %v8, 3 : String
+    jmp b3
+
+  b2:
+    %v5 = symbol ResolveTest.string$11 : %CodeUnit
+    %v7 = call stringLiteral, %v5, 4 : String
+    jmp b3
+
+  b3:
+    %v13 = phi [b2, %v7], [b1, %v10] : String
+    ret %v13
+}
+
+fn signText(%s: Sign) -> String {
+  b0:
+    %v1 = cast %s : Int
+    %v2 = cast %v1 : Size
+    %v3 = load ResolveTest.map$2[%v2].0 : %CodeUnit
+    %v4 = load ResolveTest.map$2[%v2].1 : Int
+    %v5 = call stringLiteral, %v3, %v4 : String
+    ret %v5
+}
+
+fn check(%condition: Bool, %weight: Int) -> Int {
+  b0:
+    je %condition, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %weight], [b2, 0] : Int
+    ret %v6
+}
+
+fn twice(%c: Colour) -> Int {
+  b0:
+    %first = call nameOf, %c : String
+    %second = call nameOf, %c : String
+    %v3 = call Eq(String).==, %first, %second : Bool
+    %v5 = call check, %v3, 1 : Int
+    %v6 = call Length(String).length, %first : Size
+    drop %local0 via Reclaim(String).reclaim
+    %v7 = call Length(String).length, %second : Size
+    drop %local1 via Reclaim(String).reclaim
+    %v8 = cmp_eq %v6, %v7 : Bool
+    %v10 = call check, %v8, 2 : Int
+    %v11 = add %v5, %v10 : Int
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call nameOf, Red : String
+    %v2 = symbol ResolveTest.string$16 : %CodeUnit
+    %v4 = call stringLiteral, %v2, 3 : String
+    %v5 = call Eq(String).==, %v1, %v4 : Bool
+    drop %local0 via Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
+    %v7 = call check, %v5, 1 : Int
+    %v9 = call nameOf, Green : String
+    %v10 = symbol ResolveTest.string$17 : %CodeUnit
+    %v12 = call stringLiteral, %v10, 5 : String
+    %v13 = call Eq(String).==, %v9, %v12 : Bool
+    drop %local2 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
+    %v15 = call check, %v13, 2 : Int
+    %v16 = add %v7, %v15 : Int
+    %v18 = call nameOf, Blue : String
+    %v19 = symbol ResolveTest.string$18 : %CodeUnit
+    %v21 = call stringLiteral, %v19, 4 : String
+    %v22 = call Eq(String).==, %v18, %v21 : Bool
+    drop %local4 via Reclaim(String).reclaim
+    drop %local5 via Reclaim(String).reclaim
+    %v24 = call check, %v22, 4 : Int
+    %v25 = add %v16, %v24 : Int
+    %v27 = call nameOf, Violet : String
+    %v28 = symbol ResolveTest.string$19 : %CodeUnit
+    %v30 = call stringLiteral, %v28, 6 : String
+    %v31 = call Eq(String).==, %v27, %v30 : Bool
+    drop %local6 via Reclaim(String).reclaim
+    drop %local7 via Reclaim(String).reclaim
+    %v33 = call check, %v31, 8 : Int
+    %v34 = add %v25, %v33 : Int
+    %v36 = call nameOf, White : String
+    %v37 = symbol ResolveTest.string$20 : %CodeUnit
+    %v39 = call stringLiteral, %v37, 5 : String
+    %v40 = call Eq(String).==, %v36, %v39 : Bool
+    drop %local8 via Reclaim(String).reclaim
+    drop %local9 via Reclaim(String).reclaim
+    %v42 = call check, %v40, 16 : Int
+    %v43 = add %v34, %v42 : Int
+    %v45 = call warmth, Red : String
+    %v46 = symbol ResolveTest.string$21 : %CodeUnit
+    %v48 = call stringLiteral, %v46, 4 : String
+    %v49 = call Eq(String).==, %v45, %v48 : Bool
+    drop %local10 via Reclaim(String).reclaim
+    drop %local11 via Reclaim(String).reclaim
+    je %v49, b1, b2
+
+  b1:
+    %v52 = call warmth, Violet : String
+    %v53 = symbol ResolveTest.string$22 : %CodeUnit
+    %v55 = call stringLiteral, %v53, 4 : String
+    %v56 = call Eq(String).==, %v52, %v55 : Bool
+    drop %local12 via Reclaim(String).reclaim
+    drop %local13 via Reclaim(String).reclaim
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v60 = phi [b1, %v56], [b2, False] : Bool
+    %v62 = call check, %v60, 32 : Int
+    %v63 = add %v43, %v62 : Int
+    %v65 = call warmth, Green : String
+    %v66 = symbol ResolveTest.string$23 : %CodeUnit
+    %v68 = call stringLiteral, %v66, 4 : String
+    %v69 = call Eq(String).==, %v65, %v68 : Bool
+    drop %local14 via Reclaim(String).reclaim
+    drop %local15 via Reclaim(String).reclaim
+    je %v69, b4, b5
+
+  b4:
+    %v72 = call warmth, Blue : String
+    %v73 = symbol ResolveTest.string$24 : %CodeUnit
+    %v75 = call stringLiteral, %v73, 4 : String
+    %v76 = call Eq(String).==, %v72, %v75 : Bool
+    drop %local16 via Reclaim(String).reclaim
+    drop %local17 via Reclaim(String).reclaim
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v80 = phi [b4, %v76], [b5, False] : Bool
+    je %v80, b7, b8
+
+  b7:
+    %v83 = call warmth, White : String
+    %v84 = symbol ResolveTest.string$25 : %CodeUnit
+    %v86 = call stringLiteral, %v84, 4 : String
+    %v87 = call Eq(String).==, %v83, %v86 : Bool
+    drop %local18 via Reclaim(String).reclaim
+    drop %local19 via Reclaim(String).reclaim
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v91 = phi [b7, %v87], [b8, False] : Bool
+    %v93 = call check, %v91, 64 : Int
+    %v94 = add %v63, %v93 : Int
+    %v96 = call kindOf, Red : String
+    %v97 = symbol ResolveTest.string$26 : %CodeUnit
+    %v99 = call stringLiteral, %v97, 6 : String
+    %v100 = call Eq(String).==, %v96, %v99 : Bool
+    drop %local20 via Reclaim(String).reclaim
+    drop %local21 via Reclaim(String).reclaim
+    je %v100, b10, b11
+
+  b10:
+    %v103 = call kindOf, White : String
+    %v104 = symbol ResolveTest.string$27 : %CodeUnit
+    %v106 = call stringLiteral, %v104, 6 : String
+    %v107 = call Eq(String).==, %v103, %v106 : Bool
+    drop %local22 via Reclaim(String).reclaim
+    drop %local23 via Reclaim(String).reclaim
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v111 = phi [b10, %v107], [b11, False] : Bool
+    %v113 = call check, %v111, 128 : Int
+    %v114 = add %v94, %v113 : Int
+    %v116 = call bitName, Zero : String
+    %v117 = symbol ResolveTest.string$28 : %CodeUnit
+    %v119 = call stringLiteral, %v117, 4 : String
+    %v120 = call Eq(String).==, %v116, %v119 : Bool
+    drop %local24 via Reclaim(String).reclaim
+    drop %local25 via Reclaim(String).reclaim
+    je %v120, b13, b14
+
+  b13:
+    %v123 = call bitName, One : String
+    %v124 = symbol ResolveTest.string$29 : %CodeUnit
+    %v126 = call stringLiteral, %v124, 3 : String
+    %v127 = call Eq(String).==, %v123, %v126 : Bool
+    drop %local26 via Reclaim(String).reclaim
+    drop %local27 via Reclaim(String).reclaim
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v131 = phi [b13, %v127], [b14, False] : Bool
+    %v133 = call check, %v131, 256 : Int
+    %v134 = add %v114, %v133 : Int
+    %v136 = call signText, Minus : String
+    %v137 = symbol ResolveTest.string$30 : %CodeUnit
+    %v139 = call stringLiteral, %v137, 1 : String
+    %v140 = call Eq(String).==, %v136, %v139 : Bool
+    drop %local28 via Reclaim(String).reclaim
+    drop %local29 via Reclaim(String).reclaim
+    je %v140, b16, b17
+
+  b16:
+    %v143 = call signText, Plus : String
+    %v144 = symbol ResolveTest.string$31 : %CodeUnit
+    %v146 = call stringLiteral, %v144, 1 : String
+    %v147 = call Eq(String).==, %v143, %v146 : Bool
+    drop %local30 via Reclaim(String).reclaim
+    drop %local31 via Reclaim(String).reclaim
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v151 = phi [b16, %v147], [b17, False] : Bool
+    %v153 = call check, %v151, 512 : Int
+    %v154 = add %v134, %v153 : Int
+    %v156 = call signText, Zeroed : String
+    %v157 = symbol ResolveTest.string$32 : %CodeUnit
+    %v159 = call stringLiteral, %v157, 0 : String
+    %v160 = call Eq(String).==, %v156, %v159 : Bool
+    drop %local32 via Reclaim(String).reclaim
+    drop %local33 via Reclaim(String).reclaim
+    je %v160, b19, b20
+
+  b19:
+    %v163 = call signText, Zeroed : String
+    %v164 = call Length(String).length, %v163 : Size
+    drop %local34 via Reclaim(String).reclaim
+    %v167 = cmp_eq %v164, 0 : Bool
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v171 = phi [b19, %v167], [b20, False] : Bool
+    %v173 = call check, %v171, 1024 : Int
+    %v174 = add %v154, %v173 : Int
+    %v176 = call nameOf, Violet : String
+    %v177 = call Length(String).length, %v176 : Size
+    drop %local35 via Reclaim(String).reclaim
+    %v180 = cmp_eq %v177, 6 : Bool
+    je %v180, b22, b23
+
+  b22:
+    %v183 = call nameOf, Red : String
+    %v184 = call Length(String).length, %v183 : Size
+    drop %local36 via Reclaim(String).reclaim
+    %v187 = cmp_eq %v184, 3 : Bool
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v191 = phi [b22, %v187], [b23, False] : Bool
+    %v193 = call check, %v191, 2048 : Int
+    %v194 = add %v174, %v193 : Int
+    %v196 = call twice, Green : Int
+    %v199 = cmp_eq %v196, 3 : Bool
+    %v201 = call check, %v199, 4096 : Int
+    %v202 = add %v194, %v201 : Int
+    ret %v202
+}

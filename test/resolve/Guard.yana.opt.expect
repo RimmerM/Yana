@@ -24,19 +24,11 @@ fn describe(%m: Maybe(Color)) -> Int {
   b0:
     %v1 = load %m.discriminant : Int
     %v3 = cmp_eq %v1, 1 : Bool
-    je %v3, b2, b1
-
-  b1:
-    ret 0
-
-  b2:
     %c = load %m@Just : Color
     %v8 = cast %c : Int
-    %v10 = cmp_eq %v8, 0 : Bool
-    %v15 = cmp_eq %v8, 1 : Bool
-    %v24 = select %v15 ? 2 : 3 : Int
-    %v26 = select %v10 ? 1 : %v24 : Int
-    ret %v26
+    %v10 = add %v8, 1 : Int
+    %v12 = select %v3 ? %v10 : 0 : Int
+    ret %v12
 }
 
 fn onlyRed(%m: Maybe(Color)) -> Int {
@@ -156,26 +148,10 @@ fn scan(%c: Color) -> Int {
 
 fn main() -> Int {
   b0:
-    %v21 = alloc : Maybe(Color)
-    aggregate %local4.discriminant = 1, %local4@Just = Red
-    %v25 = call describe, %v21 : Int
-    %v26 = add %v25, 5 : Int
-    %v27 = alloc : Maybe(Color)
-    aggregate %local5.discriminant = 1, %local5@Just = Green
-    %v31 = call describe, %v27 : Int
-    %v32 = add %v26, %v31 : Int
-    %v33 = alloc : Maybe(Color)
-    aggregate %local6.discriminant = 1, %local6@Just = Blue
-    %v37 = call describe, %v33 : Int
-    %v38 = add %v32, %v37 : Int
-    %v39 = alloc : Maybe(Color)
-    init %local7.discriminant, 0
-    %v42 = call describe, %v39 : Int
-    %v43 = add %v38, %v42 : Int
     %v44 = alloc : Maybe(Color)
     aggregate %local8.discriminant = 1, %local8@Just = Red
     %v48 = call onlyRed, %v44 : Int
-    %v49 = add %v43, %v48 : Int
+    %v49 = add %v48, 11 : Int
     %v50 = alloc : Maybe(Color)
     aggregate %local9.discriminant = 1, %local9@Just = Green
     %v54 = call onlyRed, %v50 : Int

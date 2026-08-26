@@ -1,0 +1,370 @@
+let image$base: () = <none>
+
+fn sides(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = shl %v1, 2 : Int
+    %v5 = shr 335937, %v3 : Int
+    %v7 = and %v5, 15 : Int
+    ret %v7
+}
+
+fn closed(%s: Shape) -> Bool {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = shr 19, %v1 : Int
+    %v5 = and %v3, 1 : Int
+    %v7 = cmp_ne %v5, 0 : Bool
+    ret %v7
+}
+
+fn isSegment(%s: Shape) -> Bool {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 3 : Bool
+    ret %v3
+}
+
+fn familyOf(%s: Shape) -> Family {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = shl %v1, 1 : Int
+    %v5 = shr 356, %v3 : Int
+    %v7 = and %v5, 3 : Int
+    %v8 = cast %v7 : Family
+    ret %v8
+}
+
+fn radius(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %r = load %s@Circle : Int
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %r], [b1, 0] : Int
+    ret %v9
+}
+
+fn bigCircle(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v10 = load %s.discriminant : Int
+    %v12 = cmp_eq %v10, 0 : Bool
+    je %v12, b5, b4
+
+  b2:
+    %v5 = load %s@Circle : Int
+    %v7 = cmp_ge %v5, 100 : Bool
+    je %v7, b3, b1
+
+  b3:
+    jmp b6
+
+  b4:
+    jmp b6
+
+  b5:
+    %v14 = load %s@Circle : Int
+    jmp b6
+
+  b6:
+    %v20 = phi [b3, 2], [b5, 1], [b4, 0] : Int
+    ret %v20
+}
+
+fn computed(%s: Shape) -> Int {
+  b0:
+    %v1 = call sides, %s : Int
+    ret %v1
+}
+
+fn mixed(%s: Shape) -> Int {
+  b0:
+    %v1 = load %s.discriminant : Int
+    %v3 = cmp_eq %v1, 2 : Bool
+    je %v3, b2, b1
+
+  b1:
+    %v6 = call computed, %s : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, 0], [b1, %v6] : Int
+    ret %v9
+}
+
+fn opaque(%s: Shape) -> Shape {
+  b0:
+    ret %s
+}
+
+fn check(%condition: Bool, %weight: Int) -> Int {
+  b0:
+    je %condition, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %weight], [b2, 0] : Int
+    ret %v6
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Shape
+    aggregate %local0.discriminant = 0, %local0@Circle = 1
+    %v4 = call opaque, %v0 : Shape
+    %v5 = call sides, %v4 : Int
+    %v8 = cmp_eq %v5, 1 : Bool
+    je %v8, b1, b2
+
+  b1:
+    %v10 = alloc : Shape
+    init %local2.discriminant, 2
+    %v13 = call opaque, %v10 : Shape
+    %v14 = call sides, %v13 : Int
+    %v17 = cmp_eq %v14, 0 : Bool
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v21 = phi [b1, %v17], [b2, False] : Bool
+    %v23 = call check, %v21, 1 : Int
+    %v24 = alloc : Shape
+    aggregate %local4.discriminant = 1, %local4@Square.width = 2, %local4@Square.height = 3
+    %v29 = call opaque, %v24 : Shape
+    %v30 = call sides, %v29 : Int
+    %v33 = cmp_eq %v30, 4 : Bool
+    je %v33, b4, b5
+
+  b4:
+    %v35 = alloc : Shape
+    aggregate %local6.discriminant = 4, %local6@Poly = 6
+    %v39 = call opaque, %v35 : Shape
+    %v40 = call sides, %v39 : Int
+    %v43 = cmp_eq %v40, 5 : Bool
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v47 = phi [b4, %v43], [b5, False] : Bool
+    %v49 = call check, %v47, 2 : Int
+    %v50 = add %v23, %v49 : Int
+    %v51 = alloc : Shape
+    aggregate %local8.discriminant = 3, %local8@Segment.from = 0, %local8@Segment.to = 1
+    %v56 = call opaque, %v51 : Shape
+    %v57 = call sides, %v56 : Int
+    %v60 = cmp_eq %v57, 2 : Bool
+    %v62 = call check, %v60, 4 : Int
+    %v63 = add %v50, %v62 : Int
+    %v64 = alloc : Shape
+    aggregate %local10.discriminant = 0, %local10@Circle = 1
+    %v68 = call opaque, %v64 : Shape
+    %v69 = call closed, %v68 : Bool
+    je %v69, b7, b8
+
+  b7:
+    %v71 = alloc : Shape
+    aggregate %local12.discriminant = 1, %local12@Square.width = 1, %local12@Square.height = 1
+    %v76 = call opaque, %v71 : Shape
+    %v77 = call closed, %v76 : Bool
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v81 = phi [b7, %v77], [b8, False] : Bool
+    %v83 = call check, %v81, 8 : Int
+    %v84 = add %v63, %v83 : Int
+    %v85 = alloc : Shape
+    aggregate %local14.discriminant = 4, %local14@Poly = 3
+    %v89 = call opaque, %v85 : Shape
+    %v90 = call closed, %v89 : Bool
+    je %v90, b10, b11
+
+  b10:
+    %v92 = alloc : Shape
+    init %local16.discriminant, 2
+    %v95 = call opaque, %v92 : Shape
+    %v96 = call closed, %v95 : Bool
+    %v98 = xor %v96, True : Bool
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v102 = phi [b10, %v98], [b11, False] : Bool
+    %v104 = call check, %v102, 16 : Int
+    %v105 = add %v84, %v104 : Int
+    %v106 = alloc : Shape
+    aggregate %local18.discriminant = 3, %local18@Segment.from = 0, %local18@Segment.to = 1
+    %v111 = call opaque, %v106 : Shape
+    %v112 = call closed, %v111 : Bool
+    %v114 = xor %v112, True : Bool
+    %v116 = call check, %v114, 32 : Int
+    %v117 = add %v105, %v116 : Int
+    %v118 = alloc : Shape
+    aggregate %local20.discriminant = 3, %local20@Segment.from = 0, %local20@Segment.to = 1
+    %v123 = call opaque, %v118 : Shape
+    %v124 = call isSegment, %v123 : Bool
+    je %v124, b13, b14
+
+  b13:
+    %v126 = alloc : Shape
+    aggregate %local22.discriminant = 0, %local22@Circle = 1
+    %v130 = call opaque, %v126 : Shape
+    %v131 = call isSegment, %v130 : Bool
+    %v133 = xor %v131, True : Bool
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v137 = phi [b13, %v133], [b14, False] : Bool
+    %v139 = call check, %v137, 64 : Int
+    %v140 = add %v117, %v139 : Int
+    %v141 = alloc : Shape
+    aggregate %local24.discriminant = 0, %local24@Circle = 1
+    %v145 = call opaque, %v141 : Shape
+    %v146 = call familyOf, %v145 : Family
+    %v148 = cmp_eq %v146, Round : Bool
+    je %v148, b16, b17
+
+  b16:
+    %v150 = alloc : Shape
+    init %local26.discriminant, 2
+    %v153 = call opaque, %v150 : Shape
+    %v154 = call familyOf, %v153 : Family
+    %v156 = cmp_eq %v154, Degenerate : Bool
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v160 = phi [b16, %v156], [b17, False] : Bool
+    %v162 = call check, %v160, 128 : Int
+    %v163 = add %v140, %v162 : Int
+    %v164 = alloc : Shape
+    aggregate %local28.discriminant = 1, %local28@Square.width = 1, %local28@Square.height = 1
+    %v169 = call opaque, %v164 : Shape
+    %v170 = call familyOf, %v169 : Family
+    %v172 = cmp_eq %v170, Straight : Bool
+    je %v172, b19, b20
+
+  b19:
+    %v174 = alloc : Shape
+    aggregate %local30.discriminant = 4, %local30@Poly = 3
+    %v178 = call opaque, %v174 : Shape
+    %v179 = call familyOf, %v178 : Family
+    %v181 = cmp_eq %v179, Straight : Bool
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v185 = phi [b19, %v181], [b20, False] : Bool
+    %v187 = call check, %v185, 256 : Int
+    %v188 = add %v163, %v187 : Int
+    %v189 = alloc : Shape
+    aggregate %local32.discriminant = 0, %local32@Circle = 7
+    %v193 = call opaque, %v189 : Shape
+    %v194 = call radius, %v193 : Int
+    %v197 = cmp_eq %v194, 7 : Bool
+    je %v197, b22, b23
+
+  b22:
+    %v199 = alloc : Shape
+    init %local34.discriminant, 2
+    %v202 = call opaque, %v199 : Shape
+    %v203 = call radius, %v202 : Int
+    %v206 = cmp_eq %v203, 0 : Bool
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v210 = phi [b22, %v206], [b23, False] : Bool
+    %v212 = call check, %v210, 512 : Int
+    %v213 = add %v188, %v212 : Int
+    %v214 = alloc : Shape
+    aggregate %local36.discriminant = 0, %local36@Circle = 200
+    %v218 = call opaque, %v214 : Shape
+    %v219 = call bigCircle, %v218 : Int
+    %v222 = cmp_eq %v219, 2 : Bool
+    je %v222, b25, b26
+
+  b25:
+    %v224 = alloc : Shape
+    aggregate %local38.discriminant = 0, %local38@Circle = 2
+    %v228 = call opaque, %v224 : Shape
+    %v229 = call bigCircle, %v228 : Int
+    %v232 = cmp_eq %v229, 1 : Bool
+    jmp b27
+
+  b26:
+    jmp b27
+
+  b27:
+    %v236 = phi [b25, %v232], [b26, False] : Bool
+    %v238 = call check, %v236, 1024 : Int
+    %v239 = add %v213, %v238 : Int
+    %v240 = alloc : Shape
+    init %local40.discriminant, 2
+    %v243 = call opaque, %v240 : Shape
+    %v244 = call bigCircle, %v243 : Int
+    %v247 = cmp_eq %v244, 0 : Bool
+    %v249 = call check, %v247, 2048 : Int
+    %v250 = add %v239, %v249 : Int
+    %v251 = alloc : Shape
+    init %local42.discriminant, 2
+    %v254 = call opaque, %v251 : Shape
+    %v255 = call mixed, %v254 : Int
+    %v258 = cmp_eq %v255, 0 : Bool
+    je %v258, b28, b29
+
+  b28:
+    %v260 = alloc : Shape
+    aggregate %local44.discriminant = 4, %local44@Poly = 1
+    %v264 = call opaque, %v260 : Shape
+    %v265 = call mixed, %v264 : Int
+    %v268 = cmp_eq %v265, 5 : Bool
+    jmp b30
+
+  b29:
+    jmp b30
+
+  b30:
+    %v272 = phi [b28, %v268], [b29, False] : Bool
+    %v274 = call check, %v272, 4096 : Int
+    %v275 = add %v250, %v274 : Int
+    ret %v275
+}

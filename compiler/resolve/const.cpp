@@ -703,7 +703,7 @@ static TupType* recordFields(GlobalBase global, TypePtr type) {
  * internal error rather than a wrong constant: this file is naming another module's declarations, and
  * the honest failure for that is to say the declaration changed under it.
  */
-static ConstantPtr nativeStringConstant(Module& module, const ast::Expr& expr, StringId text, StringView what) {
+static ConstantPtr nativeStringConstant(Module& module, LocationId source, StringId text, StringView what) {
     auto& context = module.context;
     auto global = *module.types;
 
@@ -732,28 +732,15 @@ static ConstantPtr nativeStringConstant(Module& module, const ast::Expr& expr, S
 
     if(!bytes.found || !run.found || !length.found || !items.found || !capacity.found || !ownsHeap.found) {
         context.diagnostics.error("internal: %@ is a string, but this target's string layout is not the one this compiler writes"_v,
-                                  expr.source, what);
+                                  source, what);
         return nullptr;
     }
 
-    /*
-     * The bytes, as a global of their own, named by position rather than by content - the same
-     * counter and the same reasoning as `resolveString`, which is the other half of this: a literal
-     * in an expression and a literal in a declaration produce the same two things, and only where
-     * the value goes differs.
-     */
-    auto decoded = context.findName(text);
-    auto size = decoded.size();
-
-    StringBuilder name;
-    name << context.findName(module.name) << ".string$";
-    name.appendValue(module.stringLiteralCount++);
-
-    auto blob = module.addGlobal(builtName(context, name), expr.source);
-    blob->type = module.scalar.string_;
-    blob->literalBytes = ByteBuffer((Byte*)module.arena.alloc(size), size);
-    copy((const Byte*)decoded.text(), blob->literalBytes.ptr, size);
-    blob->used = true;
+    // The bytes, as a global of their own - the same one `resolveString` makes, which is the other
+    // half of this: a literal in an expression and a literal in a declaration produce the same two
+    // things, and only where the value goes differs.
+    auto size = context.findName(text).size();
+    auto blob = stringLiteralBytes(module, text, source);
 
     // A count at the width the field holds it - `Count` is a `@bits(30) U32`, so this is the same
     // narrowing `length :: Count` performs in the call form.
@@ -791,6 +778,45 @@ static ConstantPtr nativeStringConstant(Module& module, const ast::Expr& expr, S
 }
 
 /*
+ * The bytes of a string literal, as a global of their own.
+ *
+ * The one place a literal's blob is created, shared by the three things that need one - an
+ * expression (`resolveString`), a declaration's constant (`nativeStringConstant` below) and a
+ * constructor map's table (`emitConstructorMap`). The three used to write these eight lines each,
+ * and what they have to agree about is not the bytes but the *name*.
+ *
+ * The counter is what makes two literals two globals. Interning them by content instead would save
+ * the bytes of a repeated literal, and is deliberately not done here: the name would then have to
+ * be derived from the content, so a literal containing a quote or a newline would need escaping
+ * into an identifier - a decision worth making once, later, in one place, rather than as a side
+ * effect of emitting the first one.
+ *
+ * **The module's own name is part of it, and that is a correctness requirement rather than
+ * tidiness.** The counter is per module, and `LowerModule::globals` is one map over the whole
+ * program keyed by name - so `string$0` from `Text` and `string$0` from the program that imported
+ * it were one entry, and the one lowered second silently replaced the other's bytes. What that
+ * looks like is a library function returning a literal from somewhere else: `"Inf"` came back as
+ * the first three bytes of whichever literal the *caller's* module numbered zero, with the right
+ * length and the wrong content.
+ */
+Global* stringLiteralBytes(Module& module, StringId text, LocationId source) {
+    auto& context = module.context;
+    auto content = context.findName(text);
+
+    StringBuilder name;
+    name << context.findName(module.name) << ".string$";
+    name.appendValue(module.stringLiteralCount++);
+
+    auto size = content.size();
+    auto bytes = module.addGlobal(builtName(context, name), source);
+    bytes->type = module.scalar.string_;
+    bytes->literalBytes = ByteBuffer((Byte*)module.arena.alloc(size), size);
+    copy((const Byte*)content.text(), bytes->literalBytes.ptr, size);
+    bytes->used = true;
+    return bytes;
+}
+
+/*
  * A string literal.
  *
  * The two targets diverge completely, which is `resolveString`'s split and not a second one: a host
@@ -825,7 +851,7 @@ static ConstantPtr stringConstant(Module& module, const ast::Expr& expr, TypePtr
         return value - *module.arena;
     }
 
-    return nativeStringConstant(module, expr, expr.lit.s, what);
+    return nativeStringConstant(module, expr.source, expr.lit.s, what);
 }
 
 ConstantPtr evaluateConstant(Module& module, const ast::Expr& expr, TypePtr expected, StringView what,

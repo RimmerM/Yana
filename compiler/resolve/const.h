@@ -131,6 +131,15 @@ TypePtr constantType(ModuleBase local, ConstantPtr constant);
  */
 bool constantHasStaticForm(GlobalBase global, ModuleBase local, ConstantPtr constant);
 
+/*
+ * The bytes of a string literal, as a global of its own.
+ *
+ * The one place a literal's blob is created and the one place its name is decided - see the
+ * implementation for why the module's own name is part of that name. Three callers: an expression
+ * (`resolveString`), a declaration's constant, and a constructor map's table.
+ */
+Global* stringLiteralBytes(Module& module, StringId text, LocationId source);
+
 // What a construction leaves out of field `field` takes instead, or null where the declaration
 // wrote no default for it. One scan, shared by the expression form and the constant form, so that
 // what a field falls back to cannot depend on which of the two is asking.

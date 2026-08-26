@@ -1,0 +1,112 @@
+-- What a constructor map may put *in* a table - compiler/resolve/map.h, and the ownership rule that
+-- decides most of what this feature covers.
+--
+-- Reading an element of a static table produces a value, and a value with a teardown read out of
+-- shared storage is a second owner of something the table still holds. So the question is not how a
+-- result lays out but what duplicating its bytes *means*:
+--
+--  - a type resolve models in a register is unconditionally fine - the read is the copy;
+--  - a memory type is fine when it is `TrivialCopy`, which is exactly the statement "these bytes
+--    duplicated are a second independent value";
+--  - anything else declines the whole map, and the match stays the chain it was written as.
+--
+-- `String` is the one exception and has ConstructorMap.Strings.yana to itself, because the table
+-- there holds what a literal is *built from* rather than a value to be read out of it.
+
+data Corner = TopLeft | TopRight | BottomLeft | BottomRight
+
+-- ## Aggregates that may be read out
+--
+-- A record of two numbers is `TrivialCopy`: no teardown, no authored `Copy`, so the four slots are
+-- four independent values and reading one is the whole of producing it.
+data Point {x: Int, y: Int}
+
+fn cornerOf(c: Corner) -> Point = match c:
+    TopLeft -> Point {x: 0, y: 0}
+    TopRight -> Point {x: 1, y: 0}
+    BottomLeft -> Point {x: 0, y: 1}
+    BottomRight -> Point {x: 1, y: 1}
+
+-- A tuple, which is the same statement without a declaration in front of it. Mixed field types, so
+-- the slot's layout is asserted as well as its address.
+fn axesOf(c: Corner) -> {Int, Bool, Float} = match c:
+    TopLeft -> {0, True, 0.5}
+    TopRight -> {1, True, 1.5}
+    BottomLeft -> {2, False, 2.5}
+    BottomRight -> {3, False, 3.5}
+
+-- A nested aggregate: a record whose field is a record. Nothing about the table changes - a constant
+-- is a tree, and what a field's offset is remains the emitting target's answer.
+data Box {origin: Point, span: Point}
+
+fn boxOf(c: Corner) -> Box = match c:
+    TopLeft -> Box {origin: Point {x: 0, y: 0}, span: Point {x: 4, y: 4}}
+    TopRight -> Box {origin: Point {x: 4, y: 0}, span: Point {x: 4, y: 4}}
+    BottomLeft -> Box {origin: Point {x: 0, y: 4}, span: Point {x: 4, y: 4}}
+    BottomRight -> Box {origin: Point {x: 4, y: 4}, span: Point {x: 4, y: 4}}
+
+-- A *sum* result, which is a constructor and its payload rather than a number. The uniform case is
+-- underneath it: an aggregate constant answering every constructor is built as fresh storage per
+-- use, because two reads of one constant are two values and one of them may be written through.
+fn hintOf(c: Corner) -> Maybe(Int) = match c:
+    TopLeft -> Nothing
+    TopRight -> Just(1)
+    BottomLeft -> Just(2)
+    BottomRight -> Just(3)
+
+fn always(c: Corner) -> Point = match c:
+    TopLeft -> Point {x: 9, y: 9}
+    _ -> Point {x: 9, y: 9}
+
+-- ## What may not
+--
+-- A type with a teardown. Its constant form is perfectly good - this is a record of one number - and
+-- the table would lay out correctly; what it cannot do is hand out four values that each owe a
+-- `drop` for storage one global holds. The golden below is a comparison chain.
+data Token {id: Int}
+
+let &tokensDropped = 0
+
+instance Drop(Token):
+    fn drop(->value: Token) -> {}:
+        tokensDropped = tokensDropped + value.id
+
+fn tokenOf(c: Corner) -> Token = match c:
+    TopLeft -> Token {id: 10}
+    TopRight -> Token {id: 20}
+    BottomLeft -> Token {id: 30}
+    BottomRight -> Token {id: 40}
+
+@noinline fn opaque(c: Corner) -> Corner = c
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+-- Read twice, and one of the two written through. A table lookup that handed out shared storage
+-- rather than a value would make the second read see the first one's assignment.
+fn independent(c: Corner) -> Int:
+    let &first = cornerOf(c)
+    let second = cornerOf(c)
+    first.x = 100
+    return check(first.x == 100, 1) + check(second.x != 100 || c == TopRight || c == BottomRight, 2)
+
+fn main() -> Int =
+    check(cornerOf(opaque(TopLeft)).x == 0 && cornerOf(opaque(TopLeft)).y == 0, 1) +
+    check(cornerOf(opaque(BottomRight)).x == 1 && cornerOf(opaque(BottomRight)).y == 1, 2) +
+    check(cornerOf(opaque(TopRight)).x == 1 && cornerOf(opaque(BottomLeft)).y == 1, 4) +
+
+    check(axesOf(opaque(TopLeft)).0 == 0 && axesOf(opaque(TopLeft)).1, 8) +
+    check(axesOf(opaque(BottomRight)).0 == 3 && !axesOf(opaque(BottomRight)).1, 16) +
+    check(axesOf(opaque(BottomLeft)).2 == 2.5 && axesOf(opaque(TopRight)).2 == 1.5, 32) +
+
+    check(boxOf(opaque(BottomRight)).origin.x == 4 && boxOf(opaque(BottomRight)).origin.y == 4, 64) +
+    check(boxOf(opaque(TopRight)).origin.x == 4 && boxOf(opaque(TopRight)).origin.y == 0, 128) +
+    check(boxOf(opaque(TopLeft)).span.x == 4, 256) +
+
+    check(hintOf(opaque(TopLeft)) is Nothing, 512) +
+    check(hintOf(opaque(BottomLeft)) is Just(2), 1024) +
+
+    check(always(opaque(TopLeft)).x == 9 && always(opaque(BottomRight)).y == 9, 2048) +
+
+    check(tokenOf(opaque(TopLeft)).id == 10 && tokenOf(opaque(BottomRight)).id == 40, 4096) +
+
+    check(independent(opaque(TopLeft)) == 3, 8192)

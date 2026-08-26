@@ -1011,6 +1011,11 @@ struct Module {
     // their names unique - see ExprResolver::resolveString.
     U32 stringLiteralCount = 0;
 
+    // And how many constructor-map tables it has built, for the same reason and by the same rule -
+    // see emitConstructorMap. Numbered per module, because `LowerModule::globals` is one map over
+    // the whole program keyed by name and two modules would otherwise collide on `map$0`.
+    U32 constructorMapCount = 0;
+
     HashMap<StringId, ModulePtr<Global>> globals;
     HashMap<StringId, GlobalPtr<TypeClass>> classes;
     HashMap<StringId, OperatorFixity> operatorFixity;
