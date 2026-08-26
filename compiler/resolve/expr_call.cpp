@@ -511,28 +511,40 @@ void ExprResolver::gatherOverloads(StringId name, Size arity, LocationId source,
      * why the two have to be passed separately rather than one standing in for the other. See
      * findFunction and resolve/index.h.
      */
-    auto plain = findFunction(module, name, source, nameSource);
-
     /*
      * A dot-call whose receiver's type declares a function of this name in its own namespace -
      * `String.reserve` for `s.reserve(n)`, where a bare `reserve` is `Array`'s.
      *
-     * It replaces the plain half rather than joining it, which keeps R1's "at most one plain
-     * function" intact and states the precedence: a name declared *for this type* is what a dot on
-     * a value of the type means, and a plain function of the same name is what it means for every
-     * other type. That is the whole reason the namespace exists - `reserveString` was the previous
-     * spelling of this - and it is the one place two plain functions could otherwise reach one
-     * call.
+     * It is the plain half rather than joining it, which keeps R1's "at most one plain function"
+     * intact and states the precedence: a name declared *for this type* is what a dot on a value of
+     * the type means, and a plain function of the same name is what it means for every other type.
+     * That is the whole reason the namespace exists - `reserveString` was the previous spelling of
+     * this - and it is the one place two plain functions could otherwise reach one call.
      *
      * Resolved by name rather than taken from the registry, so that `pub`, the import lists and
      * `hiding` decide here exactly as they do for the written spelling `String.reserve(s, n)`.
-     * Nothing is lost when they say no: `plain` is already the answer for the bare name.
+     *
+     * **Asked before the bare name and not after it**, which is not a tidying. `search` reports an
+     * ambiguity where a name is visible through more than one import, and reports it *as it looks* -
+     * so a bare lookup performed first has already produced the diagnostic by the time a type method
+     * could have replaced its answer. That is the state `store` and `exchange` were in: `Atomic` and
+     * `Native` both declare them, so `c.store(7, StoreRelease)` was refused as ambiguous even though
+     * the receiver decides it, and every call in the library and its fixtures had to be written out
+     * qualified. Looking the method up first means the bare name is never asked about, and there is
+     * nothing to be ambiguous.
+     *
+     * The fallback is unconditional: a type method that is not visible here - not `pub`, hidden by
+     * an import list - leaves the bare name as the answer exactly as before, ambiguity and all.
      */
+    ModulePtr<Function> plain = nullptr;
+
     if(shape.receiver) {
         if(auto method = findTypeMethod(module, shape.receiver, name)) {
-            if(auto found = findFunction(module, method, source, nameSource)) plain = found;
+            plain = findFunction(module, method, source, nameSource);
         }
     }
+
+    if(!plain) plain = findFunction(module, name, source, nameSource);
 
     /*
      * A plain function is a candidate when it is of this call's kind and the call site's arguments

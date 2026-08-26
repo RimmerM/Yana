@@ -51,7 +51,7 @@ fn loadAfterConsume() -> Int:
 fn storeAfterConsume() -> Int:
     let c = atomic(1)
     let v = intoValue(c)
-    Atomic.store(c, 2, StoreRelaxed)
+    c.store(2, StoreRelaxed)
     return v
 
 -- Handed to a `->` parameter and then used. The callee took over the location.

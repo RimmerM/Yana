@@ -139,6 +139,31 @@ StringId findTypeMethod(Module& module, TypePtr receiver, StringId name) {
     type = canonicalType(global, type);
     if(!type) return StringId();
 
+    /*
+     * `Atomic(a)`, whose namespace is a *module* and not a type's.
+     *
+     * The registry below is keyed by the declaring type, and this constructor has no declaration to
+     * key on: it is supplied by the compiler, so `findType` answers nothing for the bare name and
+     * there is no `RecordType` for `registerNamespace` to attach a method to. Every other route to
+     * one - interning a canonical `Atomic(a)` and registering it, or keying the map by name - is a
+     * change to how every type's methods are found, for one type that is not declared like any of
+     * them.
+     *
+     * What it has instead is the module `Atomic`, named after the type it exists to supply, so
+     * `Atomic.store` is already a name that resolves - it is the spelling every fixture and the
+     * specification write today, precisely because a bare `store` collides with `Native`'s. So the
+     * dot-call is made to mean that name, which is the same guarantee the registry gives: a dot on
+     * a value resolves to what the qualified spelling resolves to, with `pub`, the import lists and
+     * `hiding` deciding both the same way.
+     */
+    if(global[type]->kind == Type::Atomic) {
+        auto owner = module.context.findName(module.program.atomicTypeName);
+        auto member = module.context.findName(name);
+        auto qualified = owner + String(".") + member;
+
+        return module.context.addQualifiedName(qualified.text(), qualified.size(), 2);
+    }
+
     // The declaration rather than an instantiation of it: `Array(Int)` and `Array(U8)` share the
     // one namespace `Array` was declared under.
     if(global[type]->kind == Type::Record) type = (TypePtr)((RecordType*)global[type])->base(global);

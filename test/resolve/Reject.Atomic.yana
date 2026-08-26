@@ -50,7 +50,7 @@ fn owning() -> {}:
 -- and `LoadAcquire` is a `LoadOrder`, which is a different type and not a weaker spelling of one.
 fn wrongOrderType() -> {}:
     let c = atomic(0)
-    Atomic.store(c, 1, LoadAcquire)
+    c.store(1, LoadAcquire)
     return
 
 fn loadTakesALoadOrder() -> Int:

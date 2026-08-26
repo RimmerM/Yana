@@ -1,10 +1,24 @@
 import Atomic
 import Native
 
--- `store` and `exchange` are declared by `Native` as well, so a file importing both writes
--- `Atomic.store` and `Atomic.exchange`. That is the ordinary qualified form rather than anything
--- special about this module, and it is written out here because a program building a lock-free
--- structure imports both of these and will meet it.
+{-
+   `store` and `exchange` are declared by `Native` as well, and this file imports both modules - so
+   the two spellings below are both here on purpose, because the collision is what they are about.
+
+   **The dot form is what a program writes.** `c.store(7, StoreRelease)` resolves through the
+   receiver: a dot-call asks the receiver's type for the name before it asks what is merely in
+   scope, so `Atomic(Int)` decides it and `Native`'s `store` is not a competitor. That is the same
+   rule `s.reserve(n)` gets from `String.reserve`, reaching `Atomic` by the module named after the
+   type rather than by a type namespace - see findTypeMethod, which says why that is the honest
+   route for a constructor the compiler supplies rather than a source file declares.
+
+   **The qualified form still works**, and two calls below are left written out to keep it tested.
+   It is the only spelling available where there is no receiver to ask - a call written prefix, or
+   one whose target is a type variable the body has not decided yet.
+
+   Both were once necessary. A bare `store` is visible through two imports, and the ambiguity used
+   to be reported before the receiver could settle it, so every call in this file was qualified.
+-}
 
 -- Construction, consumption and the three basic operations - Analysis-Atomics.md §3.1 and §3.4.
 --
@@ -15,9 +29,9 @@ import Native
 fn basics() -> Int:
     let c = atomic(0)
 
-    Atomic.store(c, 7, StoreRelease)
+    Atomic.store(c, 7, StoreRelease)          -- the qualified spelling, kept tested
     let seen = c.load(LoadAcquire)
-    let previous = Atomic.exchange(c, 9, UpdateAcquireRelease)
+    let previous = Atomic.exchange(c, 9, UpdateAcquireRelease)  -- and the other one
 
     return seen + previous + intoValue(c)
 
@@ -59,7 +73,7 @@ fn retry() -> Int:
 fn ordering() -> Int:
     let c = atomic(0)
 
-    Atomic.store(c, 1, StoreRelaxed)
+    c.store(1, StoreRelaxed)
     fence(FenceRelease)
     spinHint()
 
@@ -74,11 +88,11 @@ fn widths(p: %U8) -> Long:
     let flag = atomic(True)
     let address = atomic(p)
 
-    Atomic.store(byte, 9, StoreRelease)
-    Atomic.store(half, 9, StoreRelease)
-    Atomic.store(word, 9, StoreRelease)
-    Atomic.store(flag, False, StoreRelease)
-    Atomic.exchange(address, p, UpdateAcquireRelease)
+    byte.store(9, StoreRelease)
+    half.store(9, StoreRelease)
+    word.store(9, StoreRelease)
+    flag.store(False, StoreRelease)
+    address.exchange(p, UpdateAcquireRelease)
 
     return long.fetchAdd(1, UpdateRelaxed)
 
@@ -103,8 +117,8 @@ data Code = @value(0) Ok | @value(1000) Retry | @value(60000) Fatal
 fn classify() -> Code:
     let c = atomic(Ok)
 
-    Atomic.store(c, Retry, StoreRelaxed)
-    let previous = Atomic.exchange(c, Fatal, UpdateAcquireRelease)
+    c.store(Retry, StoreRelaxed)
+    let previous = c.exchange(Fatal, UpdateAcquireRelease)
 
     match c.compareExchange(Fatal, Ok, UpdateSequential):
         Exchanged -> return previous
@@ -115,7 +129,7 @@ data Wide = @value(0) Low | @value(4000000000) High
 
 fn wide() -> Wide:
     let w = atomic(Low)
-    Atomic.exchange(w, High, UpdateRelaxed)
+    w.exchange(High, UpdateRelaxed)
     return w.load(LoadAcquire)
 
 {-
@@ -164,7 +178,7 @@ fn viewed(p: %U8) -> Int:
     let view = Native.atomicAt(p) :: 'Atomic(Int)
     let other = Native.atomicAt(p) :: 'Atomic(Int)
 
-    Atomic.store(view, 1, StoreRelease)
+    view.store(1, StoreRelease)
     let bumped = other.fetchAdd(2, UpdateAcquireRelease)
 
     return bumped + view.load(LoadAcquire)

@@ -27,12 +27,12 @@ data Holder = Holder {flag: Atomic(Int), tag: Int}
 fn immutableBinding() -> Int:
     let c = atomic(0)
 
-    Atomic.store(c, 7, StoreRelease)
-    return c.load(LoadAcquire) + Atomic.exchange(c, 9, UpdateAcquireRelease)
+    c.store(7, StoreRelease)
+    return c.load(LoadAcquire) + c.exchange(9, UpdateAcquireRelease)
 
 -- The same through a shared loan, which is what a caller hands over when it keeps the atomic.
 fn throughShared(c: 'Atomic(Int)) -> Int:
-    Atomic.store(c, 1, StoreRelease)
+    c.store(1, StoreRelease)
     return c.load(LoadAcquire)
 
 {-
@@ -59,7 +59,7 @@ fn sameTwice() -> Int:
 -- it; the atomic inside it is not a counter-example, because what is written is written through the
 -- atomic's own borrow and not through the record's.
 fn fieldOfImmutable(h: 'Holder) -> Int:
-    Atomic.store(h.flag, 1, StoreRelease)
+    h.flag.store(1, StoreRelease)
     return h.flag.load(LoadAcquire) + h.tag
 
 fn holderCase() -> Int:

@@ -23,8 +23,8 @@
 import Atomic
 import Native
 
--- `store` and `exchange` are declared by `Native` too, so both are written qualified - see
--- `resolve/Atomic.yana`, where the same collision is explained.
+-- `store` and `exchange` are declared by `Native` too, and the dot form is what settles which one
+-- a call means - see `resolve/Atomic.yana`, where the collision and both spellings are explained.
 
 -- A structure holding one, for `ownership` at the bottom. A second field beside it deliberately:
 -- what makes the field case worth checking is that the atomic is *part* of something, so a record
@@ -46,13 +46,13 @@ fn basics() -> {}:
     let c = atomic(0)
     assert(c.load(LoadRelaxed) == 0)
 
-    Atomic.store(c, 7, StoreRelease)
+    c.store(7, StoreRelease)
     assert(c.load(LoadAcquire) == 7)
 
-    Atomic.store(c, 11, StoreSequential)
+    c.store(11, StoreSequential)
     assert(c.load(LoadSequential) == 11)
 
-    assert(Atomic.exchange(c, 9, UpdateAcquireRelease) == 11)
+    assert(c.exchange(9, UpdateAcquireRelease) == 11)
     assert(c.load(LoadRelaxed) == 9)
     assert(intoValue(c) == 9)
 
@@ -288,27 +288,27 @@ fn enums() -> {}:
         Exchanged -> assert(False)
         Unchanged(->actual) -> assert(actual == Locked)
 
-    assert(Atomic.exchange(state, Idle, UpdateSequential) == Locked)
+    assert(state.exchange(Idle, UpdateSequential) == Locked)
     assert(intoValue(state) == Idle)
 
     -- And the two-byte one, whose pinned numbers are far enough apart that a byte would lose them.
     let code = atomic(Ok)
-    Atomic.store(code, Retry, StoreRelease)
+    code.store(Retry, StoreRelease)
     assert(code.load(LoadAcquire) == Retry)
-    assert(Atomic.exchange(code, Fatal, UpdateAcquireRelease) == Retry)
+    assert(code.exchange(Fatal, UpdateAcquireRelease) == Retry)
     assert(code.load(LoadRelaxed) == Fatal)
 
 -- A flag, which is the enumeration `Bool` already is - and a pointer, which is the family's other
 -- member and the one a lock-free structure actually swings.
 fn flagsAndPointers(p: %U8) -> {}:
     let flag = atomic(False)
-    assert(Atomic.exchange(flag, True, UpdateAcquireRelease) == False)
+    assert(flag.exchange(True, UpdateAcquireRelease) == False)
     assert(flag.load(LoadAcquire) == True)
 
     let empty = null() :: %U8
     let address = atomic(empty)
-    Atomic.store(address, p, StoreRelease)
-    assert(Atomic.exchange(address, empty, UpdateAcquireRelease) == p)
+    address.store(p, StoreRelease)
+    assert(address.exchange(empty, UpdateAcquireRelease) == p)
     assert(intoValue(address) == empty)
 
 {-
@@ -322,7 +322,7 @@ fn flagsAndPointers(p: %U8) -> {}:
 fn ordering() -> {}:
     let c = atomic(0)
 
-    Atomic.store(c, 1, StoreRelaxed)
+    c.store(1, StoreRelaxed)
     fence(FenceRelease)
     assert(c.load(LoadRelaxed) == 1)
 
@@ -352,7 +352,7 @@ fn viewed() -> {}:
     let p = bitcast(addressOf(storage)) :: %U8
     let view = Native.atomicAt(p) :: 'Atomic(U32)
 
-    Atomic.store(view, 7, StoreRelease)
+    view.store(7, StoreRelease)
     assert(view.load(LoadAcquire) == 7)
 
     -- What the location holds, read the ordinary way. The view is the same bytes and not a copy of
