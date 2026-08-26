@@ -10,22 +10,11 @@
 namespace {
 
 // The same coarse memory model the CSE has, and it has to be the same one: what this pass exists to
-// recover is exactly what that one retired. See `writesStorage` in lower_cse.cpp.
-bool writesAnything(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Store:
-        case LowerInst::Copy:
-        case LowerInst::SetPattern:
-        case LowerInst::Call:
-            return true;
-        default:
-            return false;
-    }
-}
-
+// recover is exactly what that one retired. Both ask `writesStorage` in lower_inst.h, which is what
+// makes "the same one" a fact rather than a comment - the two used to name different sets.
 bool blockWrites(LowerBase base, LowerBlock* block) {
     for(auto offset: block->instructions.contents(base)) {
-        if(writesAnything(base[offset])) return true;
+        if(writesStorage(base[offset])) return true;
     }
 
     return false;
@@ -130,7 +119,7 @@ Size loadFloorOf(LowerBase base, LowerBlock* guard) {
     auto list = guard->instructions.contents(base);
 
     for(Size i = 0; i < list.size(); i++) {
-        if(writesAnything(base[list[i]])) floor = i + 1;
+        if(writesStorage(base[list[i]])) floor = i + 1;
     }
 
     return floor;
@@ -310,7 +299,7 @@ bool recoverJoin(LowerBase base, LowerModule& module, LowerBlock* join) {
 
         // A write ends the walk rather than skipping it: every load below one reads storage the
         // guard's copy no longer describes, and the arithmetic below it is reached through the load.
-        if(writesAnything(inst)) break;
+        if(writesStorage(inst)) break;
         if(!isMovable(inst)) continue;
 
         auto isLoad = inst->kind == LowerInst::Load;

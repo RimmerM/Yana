@@ -641,32 +641,13 @@ bool readOnlyInsideLoop(LowerBase base, const LoopInfo& loops, const ReducibleLo
     return true;
 }
 
-// Whether an instruction that nothing reads may simply go. The list is what this pass orphans:
-// everything on it computes a value and does nothing else.
+// Whether an instruction that nothing reads may simply go, which is `kLowerPure` and one operand of
+// the definition of it: an instruction with two results is one where nothing reading *this* value
+// says nothing about the other. The list this used to be was narrower than the property by a dozen
+// kinds - every rounding, every vector operation and every comparison among them - each of which was
+// simply left in the function with no reader.
 bool isRemovableArithmetic(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Imm:
-        case LowerInst::Set:
-        case LowerInst::Cast:
-        case LowerInst::Bitcast:
-        case LowerInst::Neg:
-        case LowerInst::Not:
-        case LowerInst::Add:
-        case LowerInst::Sub:
-        case LowerInst::Mul:
-        case LowerInst::IMul:
-        case LowerInst::Shl:
-        case LowerInst::Shr:
-        case LowerInst::Sar:
-        case LowerInst::Rol:
-        case LowerInst::Ror:
-        case LowerInst::And:
-        case LowerInst::Or:
-        case LowerInst::Xor:
-            return inst->createdCount == 1;
-        default:
-            return false;
-    }
+    return isPure(inst) && inst->createdCount == 1;
 }
 
 /*

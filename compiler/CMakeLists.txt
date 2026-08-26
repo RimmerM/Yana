@@ -194,6 +194,8 @@ set(LOWER_SOURCE_FILES
     lower/lower.h
     lower/lower.cpp
     lower/lower_inst.h
+    lower/inst.def
+    lower/inst.cpp
     lower/lower_parser.h
     lower/lower_parser.cpp
     lower/lower_lexer.cpp

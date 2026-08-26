@@ -9,34 +9,37 @@
 
 namespace {
 
-// The operations an accumulator may be carried through: associative, commutative, and with an
-// identity. Both multiplies qualify because only the low half is produced, and the low half of a
-// product does not depend on the operands' signedness.
-bool isAccumulator(LowerInst::Kind kind) {
+/*
+ * The operations an accumulator may be carried through - associative, commutative, and with an
+ * identity - and what it holds before the first frame contributes to it.
+ *
+ * One function for the three conditions rather than a predicate and a lookup, because the third is
+ * the one nothing else states: the first two are the kind's own row, and a kind that gains both bits
+ * later would flow straight into an identity of zero, which is the wrong answer for most operations
+ * that could gain them. So the identity is what says yes, and a kind with no entry is refused.
+ *
+ * Both multiplies qualify because only the low half is produced, and the low half of a product does
+ * not depend on the operands' signedness - which is why `mulhi` beside them carries
+ * `kLowerCommutative` and not `kLowerAssociative`, and is not one of these.
+ */
+Maybe<U64> accumulatorIdentity(LowerInst::Kind kind, LowerType type) {
+    auto flags = lowerInstTraits(kind).flags;
+    if(!(flags & kLowerCommutative) || !(flags & kLowerAssociative)) return Nothing();
+
     switch(kind) {
         case LowerInst::Add:
-        case LowerInst::Mul:
-        case LowerInst::IMul:
-        case LowerInst::And:
         case LowerInst::Or:
         case LowerInst::Xor:
-            return true;
-        default:
-            return false;
-    }
-}
-
-// What the accumulator holds before the first frame contributes to it. `And`'s is all ones, which is
-// the one that has to know how wide the register is.
-U64 identityFor(LowerInst::Kind kind, LowerType type) {
-    switch(kind) {
+            return Just(U64(0));
         case LowerInst::Mul:
         case LowerInst::IMul:
-            return 1;
+            return Just(U64(1));
+
+        // All ones, which is the one identity that has to know how wide the register is.
         case LowerInst::And:
-            return type == LowerType::Int32 ? 0xffffffffull : ~U64(0);
+            return Just(type == LowerType::Int32 ? U64(0xffffffff) : ~U64(0));
         default:
-            return 0;
+            return Nothing();
     }
 }
 
@@ -93,7 +96,8 @@ bool analyzeChain(LowerBase base, LowerBlock* block, Size callIndex, LowerInst::
     for(;;) {
         for(Size i = start; i < current->instructions.size(); i++) {
             auto inst = base[current->instructions.get(base, i)];
-            if(!isBinary(inst) || !isAccumulator(inst->kind)) return false;
+            if(!isBinary(inst)) return false;
+            if(!accumulatorIdentity(inst->kind, ((LowerInstBinary*)inst)->result.type)) return false;
 
             auto result = ((LowerInstSingle*)inst)->created().ptr;
             if(!isInt(result->type)) return false;
@@ -466,7 +470,7 @@ void eliminateTailRecursion(LowerBase base, LowerModule& module, LowerFunction& 
         accumulator = makePhi(module, predecessors, accumulatorType);
 
         auto preheader = base[header->incoming.get(base, 0)];
-        auto imm = new (arena) LowerImm(StringId(), accumulatorType, identityFor(op, accumulatorType));
+        auto imm = new (arena) LowerImm(StringId(), accumulatorType, accumulatorIdentity(op, accumulatorType).unwrap());
         identity = ((LowerInstSingle*)preheader->addInst(base, imm))->created().ptr;
     }
 

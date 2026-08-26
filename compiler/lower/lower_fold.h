@@ -63,24 +63,6 @@ LowerInst* foldBinary(LowerBase base, LowerModule& module, LowerBlock& block, Lo
 void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& fun);
 
 /*
- * Whether an instruction computes a value out of its operands and does nothing else.
- *
- * Two passes ask it and they ask it for two reasons that happen to have one answer: something that
- * only computes may be answered from an earlier one that dominates it, and it may be dropped when
- * nothing reads it. Written out rather than derived from a range, because the ranges in lower_inst.h
- * group instructions by *shape* - `isBinary` includes the comparison and `FirstUnary` starts at
- * `Set` - and this is a different question.
- *
- * The four dividing operations are in it, and used to need a paragraph defending that: the machine
- * raises on a zero divisor and on `INT_MIN / -1`, so they could trap where nothing else here could.
- * They no longer can. `makeDivisionTotal` in lower_divide.cpp runs in front of every reader of this
- * list and leaves a division that faults on nothing, which is what makes them ordinary members of it
- * rather than tolerated ones - and what lets lower_licm.cpp *move* one, which no argument about
- * dominance could have justified.
- */
-bool isRepeatable(LowerInst* inst);
-
-/*
  * The computations nothing reads any more, dropped. Answers whether it dropped anything.
  *
  * Two passes leave these behind. A replacement moves the readers of one value onto another, which can

@@ -13,29 +13,6 @@ U32 typeBits(LowerType type) {
 }
 
 /*
- * Whether anything this instruction does could read or write storage.
- *
- * By kind, and deliberately crude - the record below holds one store, so the only question it ever
- * asks is whether the stretch between that store and a load of the same pointer is arithmetic. A
- * `Store` is handled by the walk itself, since a store is both what ends a record and what starts
- * the next one.
- */
-bool touchesStorage(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Load:
-        case LowerInst::Store:
-        case LowerInst::Copy:
-        case LowerInst::SetPattern:
-        case LowerInst::Call:
-        case LowerInst::Intrinsic:
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-/*
  * The value a load of this store's pointer answers, or nothing.
  *
  * Three things have to hold, and each is a way the two can name different bits of one word:
@@ -121,13 +98,21 @@ void forwardStoredValues(LowerBase base, LowerModule& module, LowerFunction& fun
                 continue;
             }
 
-            if(touchesStorage(inst)) {
-                // A load the forwarding above declined still read the word, so the store that wrote
-                // it is one something has observed - and anything else that touches storage ends the
-                // record outright.
-                if(inst->kind == LowerInst::Load) observed = true;
-                else pending = nullptr;
-            }
+            /*
+             * A write may have written this word, which ends the record outright; a read may have
+             * read it, which leaves the record forwardable and only says the store is one something
+             * has observed.
+             *
+             * Asked through the traits rather than by kind, which is what brings the atomics into a
+             * pass that could not see them at all before: an `atomic_rmw` between two stores of one
+             * pointer used to be invisible here, so the first store was deleted as dead although the
+             * update had read it. Reading it as a *read* rather than as a barrier is deliberate -
+             * ordering is what an atomic does for other threads, and this pass reasons about a plain
+             * location no other thread may legally touch, so what matters is only whether the bytes
+             * may have moved.
+             */
+            if(hasLowerTrait(inst, kLowerWrites)) pending = nullptr;
+            else if(hasLowerTrait(inst, kLowerReads)) observed = true;
 
             kept.push(instPtr);
         }

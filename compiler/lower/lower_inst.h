@@ -219,533 +219,195 @@ inline StringView nameForAtomicOp(LowerAtomicOp op) {
     return "add"_v;
 }
 
+/*
+ * What a pass may ask about a *kind* rather than about an instruction - see inst.def, where the
+ * answer for each kind is a column.
+ *
+ * Each of these used to be a switch of its own in one pass or two, and several of them in three or
+ * four that had drifted apart: `writesStorage` was written once in lower_cse.cpp, once in
+ * lower_licm.cpp and once in lower_recover.cpp with a comment saying it had to be the same one, and
+ * the three named different sets. The cost of a switch is never the lines - it is that a kind added
+ * to the IR is silently absent from every one it does not reach, and "absent" reads as `false`.
+ */
+
+// Produces its results and nothing else, so an instance nothing reads may simply go. Not the same
+// claim as `kLowerRepeatable` below and strictly weaker: an `Imm` is pure and is left where it is.
+static constexpr U16 kLowerPure = 1 << 0;
+
+// May be computed again, at another point, or not at all - which is what a hoist, a rematerialization
+// and a common-subexpression unification each need. Implies `kLowerPure`, and is left off everything
+// whose position is a decision an earlier pass took (see `X86Address`) and everything that reads
+// storage somebody else may be writing.
+static constexpr U16 kLowerRepeatable = 1 << 1;
+
+// The operands may be exchanged without changing what is computed. Stated at the kind, so a caller
+// whose target only exchanges some of the types it applies to - a float `add` propagates the NaN
+// payload of a particular side - asks this and then asks about the type.
+static constexpr U16 kLowerCommutative = 1 << 2;
+
+// `(a . b) . c` is `a . (b . c)`, which with the bit above and an identity is what an accumulator
+// may be carried through - see lower_tail.cpp.
+static constexpr U16 kLowerAssociative = 1 << 3;
+
+// May read memory the program can also write.
+static constexpr U16 kLowerReads = 1 << 4;
+
+// May write memory something else can read. Every kind with this also answers `writesStorage`.
+static constexpr U16 kLowerWrites = 1 << 5;
+
+/*
+ * Establishes an ordering edge nothing may be moved across, whatever it does to memory itself.
+ *
+ * The six atomics, and it is a separate bit from the two above rather than a stronger reading of
+ * them because an atomic *load* has it: what an acquire load acquires is the right to see writes
+ * another thread published, so a value carried across one is a value read before the edge and used
+ * after it. A fence has it with no location at all, and a spin hint has it because a load hoisted
+ * out of a polling loop is the one rewrite that turns a spin into a hang.
+ */
+static constexpr U16 kLowerOrdered = 1 << 6;
+
+/*
+ * The allocation carries a trailing array past the struct named in the row, so `sizeof` is not the
+ * whole of it and the instruction cannot be copied flat.
+ *
+ * A phi's source blocks, a shuffle's lane pattern, and the operand lists of a call, a return and an
+ * intrinsic. What this exists to prevent is a pass that copies an instruction wholesale reading the
+ * size from one list and the permission from another - see `lowerInstSize`.
+ */
+static constexpr U16 kLowerVariadic = 1 << 7;
+
+/*
+ * Carries nothing beside its operands and `flags`.
+ *
+ * Which is to say two instructions of this kind, with equal `flags` and equal operands, compute the
+ * same thing - the question lower_merge.cpp asks of two copies of an exit block. A kind without it
+ * has a field of its own that has to be compared by name, or a trailing array that has to be, and
+ * the safe answer for a kind that says nothing is "no".
+ */
+static constexpr U16 kLowerPlain = 1 << 8;
+
+// One of the four dividing operations. What `mayFault` is asked about, and what a peephole checks
+// before pricing a move.
+static constexpr U16 kLowerDivides = 1 << 9;
+
+// May read the machine's flags rather than the condition operand it names - a select or a branch
+// whose comparison a backend folded into it. Nothing may be lifted over a comparison past one.
+static constexpr U16 kLowerUsesFlags = 1 << 10;
+
+/*
+ * Operates on the bits of its operands, with no lane, rounding or NaN semantics of its own.
+ *
+ * Which makes it exact at *every* type whose bits they are, a float and a float vector included -
+ * `v & ~0` is `v` down to a NaN's payload, and `v & 0` is `+0.0`. That is a stronger statement than
+ * `kLowerCommutative` and a different one: a float `add` is commutative in value and this backend
+ * still will not exchange its operands, because `addps` takes a NaN's payload from a particular
+ * side. See `isCommutativeInt` in codegen/x64/transform_address.cpp, which is what asks.
+ */
+static constexpr U16 kLowerBitwise = 1 << 11;
+
+// Only valid in kernel mode. Nothing in the compiler asks - a program that writes one has already
+// been type-checked against a declaration only a kernel build has - but it is a fact about the
+// operation, and the place for it is beside the rest of them.
+static constexpr U16 kLowerPrivileged = 1 << 12;
+
+// A pure computation that carries nothing beside its operands and `flags`, which is what most rows
+// in inst.def are - writing the three out on each of them would bury the ones that differ.
+static constexpr U16 kLowerArith = kLowerPure | kLowerRepeatable | kLowerPlain;
+
+/*
+ * The arity a kind does not have - see the `used` and `created` columns in inst.def.
+ *
+ * A call, a return, a phi, an intrinsic and an x86 address each answer from the instruction rather
+ * than from the kind, and there is no number that would be right for them. `validateLowerInst`
+ * skips the column for these and their own arm checks what the arity is actually held to.
+ */
+static constexpr U8 kAnyArity = 0xff;
+
+struct LowerInstTraits {
+    StringView mnemonic;
+
+    // How large an allocation of this kind is, or 0 for one that carries a trailing array - see
+    // `kLowerVariadic`. Taken from the `Struct` column, so it cannot disagree with the type a
+    // consumer casts to.
+    U16 size;
+
+    U16 flags;
+
+    // How many operands a kind reads and how many values it defines, or `kAnyArity`. Checked once
+    // for every instruction in `validateLowerInst`, which is what took the restatement of it out of
+    // the fourteen arms that opened with one.
+    U8 used, created;
+};
+
+// Indexed by `LowerInst::Kind`, in the order inst.def lists them - which is the order the enum is
+// generated in, so the two cannot come apart.
+extern const LowerInstTraits kLowerInstTraits[];
+
+/*
+ * One place in memory an instruction touches, as the instruction itself states it.
+ *
+ * Where it is and how far it reaches, which between them are what every "could these two be the same
+ * bytes" question is asked of. An instruction names one of these per address it holds: four kinds
+ * name one, a copy names two - its source and its destination - and everything else names none.
+ *
+ * The address is the *slot* rather than a copy of it, for the reason resolve's `placeAt` gives one:
+ * a pass that redirects an access and a pass that reads one are then one declaration, and cannot
+ * come to disagree about which operand of a copy the destination is.
+ *
+ * The extent is `bytes` where the instruction states a width and `count` where an operand holds it -
+ * a copy and a fill of a length computed at run time. Exactly one of the two is set, and a caller
+ * that cannot fold `count` to a constant has an access whose extent it does not know, which is not
+ * the same thing as an access of nothing.
+ */
+struct LowerAccess {
+    LowerPtr<LowerValue>* address = nullptr;
+    U64 bytes = 0;
+    LowerPtr<LowerValue> count = nullptr;
+};
+
 // A single operation that can be performed inside a function block.
 struct LowerInst {
+    /*
+     * The instruction kinds, generated from inst.def - which is where each one is documented and
+     * where its properties are stated. See that file for why the roster and the enum are one list.
+     */
     enum Kind: U8 {
-        /*
-         * Provided values (may still require instructions to generate on some architectures).
-         */
-
-        Arg,     // Defines a function argument (always represented as registers).
-        Global,  // Loads the address of a global value.
-        Fun,     // Loads the address of a static function.
-        Imm,     // Loads an immediate value.
-
-        /*
-         * Generic instruction types generated by lowering from IR.
-         */
-
-        FirstInst,
-        Nop = FirstInst,
-
-        // Unary operations on a single value:
-        FirstUnary,
-        Set = FirstUnary,   // Copies the source into a new value: any
-        Cast,               // Any type to any other type, discarding information if precision is lower.
-        Bitcast,            // Any type to any other type, without changing the actual bits (aside from truncation if needed).
-
-        FirstUnaryArith,
-        Neg = FirstUnaryArith,  // Negates the source: int, float
-        Not,                    // Inverts all bits in source: int
-
-        /*
-         * The bytes of an integer in the opposite order - `bswap`, `rev`, `llvm.bswap`.
-         *
-         * A kind rather than the shift-and-mask tree it can be built from, and a *unary arithmetic*
-         * one rather than an intrinsic. Both halves of that matter. `LowerIntrinsic` means "emit
-         * this operation" and is opaque to everything above the encoder - `writesStorage` in
-         * lower_licm.cpp answers yes to every intrinsic, so a byte swap written as one would be
-         * pinned inside the loop that reads a binary format, which is the only loop that has any.
-         * As a unary it is repeatable, hoistable and CSE-able for nothing, `isUnary` being what
-         * every pass asks.
-         *
-         * **Int32 or Int64, and nothing narrower.** This IR has no 16-bit scalar, so `Bswap` is
-         * always the whole of its register: the 16-bit swap a program can write is expanded above
-         * this seam (see `Value::ByteSwap` in resolve/inst.def and its arm in lower_calc.cpp), and
-         * a backend never has to ask how much of the register the answer is.
-         */
-        Bswap,
-
-        // The square root of a float or of every lane of a vector of them. One kind rather than a
-        // vector one and a scalar one, for the reason the arithmetic above is one kind: what differs
-        // is the operand's type and nothing else.
-        Sqrt,
-
-        /*
-         * The magnitude of every lane - `andps` against a sign mask, `pabsd`, `llvm.fabs`,
-         * `Math.abs`.
-         *
-         * A kind rather than the comparison and the select it can be built from, and the reason is a
-         * *semantic* one rather than a count: every machine instruction that computes a magnitude
-         * clears the sign of a NaN and the expansion preserves it, so a target using its own
-         * instruction and a target expanding the shape answered differently. `Value::Abs` in the
-         * resolve IR is where the language rules on that (the sign of a NaN is unspecified); this is
-         * the same instruction one tier down, and every backend implements it directly.
-         *
-         * A float lane or a *signed* integer one, the resolver having refused the rest.
-         */
-        Abs,
-
-        /*
-         * The two roundings to an integral value - `roundsd`/`roundpd`, `llvm.trunc`/`llvm.round`,
-         * `Math.trunc`/`Math.round`.
-         *
-         * Kinds for `Sqrt`'s reason and not `Abs`'s: the expansions exist and are simply not what
-         * any target does. What makes them two kinds rather than one with a mode is that their tie
-         * rules are decided differently and only one of them is free. `Trunc` is toward zero and
-         * every target spells it in one instruction; `Round` is to nearest with ties **away from
-         * zero**, which SSE4.1 has no encoding for - `roundsd` imm 0 is ties-to-even - so the x64
-         * backend expands it while LLVM and JS name it directly.
-         *
-         * A float lane only. Rounding an integer is the identity and the resolver refuses it.
-         */
-        Trunc,
-        Floor,
-        Ceil,
-        Round,
-        LastUnaryArith = Round,
-        LastUnary = LastUnaryArith,
-
-        FirstBinary,
-
-        // Arithmetic with multiple type support:
-        Add = FirstBinary,  // Add:        int + int, ptr + int, float + float
-        Sub,                // Subtract:   int - int, ptr - int, ptr - ptr, float - float
-        Mul,                // Multiply:   int * int, float * float
-        IMul,               // Signed mul: int * int
-        Div,                // Divide:     int / int, float / float
-        IDiv,               // Signed div: int / int
-        Rem,                // Remainder:  int % int
-        IRem,               // Signed rem: int % int
-
-        // The *top* half of a product twice as wide as its operands: `mulhi a, b` at Int64 is bits
-        // 64..127 of `a * b`. Every machine that has a multiply produces this half beside the low
-        // one and throws it away; it is here because the reciprocal a division by a constant turns
-        // into is exactly that half and nothing else - see lower_strength.h, which is the only
-        // thing that builds one.
-        MulHi,              // Unsigned high multiply: int * int
-        IMulHi,             // Signed high multiply:   int * int
-
-        // Bitwise integer operations (some support int - ptr operation as well):
-        Shl,
-        Shr,
-        Sar,
-
-        /*
-         * The two rotations, which are the shifts' shape and not their semantics: nothing leaves the
-         * value, and what falls off one end comes back at the other.
-         *
-         * **The count is taken modulo the operand's width**, which is the one thing about a rotation
-         * that has to be said here rather than left to a target. It is what x86's `rol`/`ror` do -
-         * the count register is masked to 5 or 6 bits, and for these two that mask *is* the modulus -
-         * and it is what `llvm.fshl`/`llvm.fshr` are defined as. A rotation by the width is therefore
-         * the identity rather than zero, which is where it parts company with `Shl` beside it.
-         *
-         * Placed immediately after `Sar` because `selectForm` indexes its shift table by the
-         * distance from `Shl`; the two are the same group-2 encodings at two more opcode extensions.
-         *
-         * An integer or a vector of integers, on the same terms the shifts are - and a vector one is
-         * a rotation *per lane*, which x86 has only at AVX-512 (`vprold`). `expandVectorRotate` is
-         * the pair of shifts and an `or` everywhere else, and it is a backend's expansion rather than
-         * this IR's because a target that has the instruction should reach it.
-         */
-        Rol,
-        Ror,
-        And,                // int & int, ptr & int
-        Or,                 // int | int, ptr | int
-        Xor,                // int ^ int, ptr ^ int
-
-        /*
-         * The three bit operations that are one instruction on a machine with BMI2 and a sequence
-         * everywhere else - `Core.Bits.bitsUpTo` and `Core.BitPermute`. See the notes in
-         * resolve/inst.def, which is where each one's contract is argued.
-         *
-         * `BitsUpTo` keeps the low `rhs` bits of `lhs` and clears the rest. **The count is read as
-         * an unsigned number and saturates at the type's width**, which is the ruling and is *not*
-         * `bzhi`'s own rule: that instruction reads its count from a byte, so a count of 256 is a
-         * count of zero to it and is a count of "all of them" here. Whoever selects a `bzhi` owes it
-         * the difference - see `expandBitsUpTo` in the x64 backend, which is where it is paid.
-         *
-         * `GatherBits` packs the bits of `lhs` at the set positions of `rhs` down into a contiguous
-         * low field; `ScatterBits` spreads a low field back out into those positions. Total, with no
-         * degenerate case to state.
-         *
-         * Real kinds rather than intrinsics, for `Bswap`'s reason: an intrinsic is opaque to folding,
-         * to CSE and to `lower_licm.cpp` (whose `writesStorage` answers true for every one of them),
-         * so a permutation against a loop-invariant mask written as one would be pinned inside the
-         * loop that reads it. As binaries in the range above they are hoistable and CSE-able for
-         * nothing, `isBinary` being what every pass asks.
-         *
-         * Placed after `Xor` and before `Cmp` deliberately: `selectForm` in the x64 backend indexes
-         * its shift table by the distance from `Shl`, so nothing may be inserted between `Shl` and
-         * `Ror`.
-         */
-        BitsUpTo,
-        GatherBits,
-        ScatterBits,
-
-        /*
-         * The CRC-32C step - `X86.crc32`, and the one binary here that is a named function
-         * rather than an operation on bits.
-         *
-         * `lhs` is the running remainder and `rhs` is the chunk folded into it, both at the
-         * instruction's own width, and the answer is the new remainder in the low thirty-two bits.
-         * The polynomial is Castagnoli's and is not a parameter - see resolve/inst.def, where that
-         * is argued, and `lib/Digest/Crc.yana`, where the IEEE one it is *not* lives.
-         *
-         * A real kind rather than an intrinsic, on `BitsUpTo`'s terms: a checksum over a
-         * loop-invariant word written as an intrinsic would be pinned inside the loop that reads it,
-         * where as a binary in this range it hoists and CSEs for nothing.
-         *
-         * **No backend has to expand it, and no backend other than x86-64 may see it.** SSE4.2 is
-         * inside x86-64-v2 and v2 is the floor, so the one target this reaches always has the
-         * instruction; a target that does not is one `X86.crc32` is not declared on, which is where
-         * the choice is made rather than here.
-         */
-        Crc32,
-
-        // Comparison (supports any two of the same type):
-        Cmp,
-        LastBinary = Cmp,
-
-        // Select from two values based on a condition, without branching.
-        Select,
-
-        // `a * b + c`, at most once rounded. Not a Binary and not a Unary, and the one three-operand
-        // arithmetic kind in this IR - see LowerInstFma.
-        Fma,
-
-        /*
-         * The SHA extension's seven instructions, as two kinds - see resolve/inst.def, where what
-         * each computes is argued.
-         *
-         * **Deliberately not in the binary range above**, and `ShaBinary` is the reason: it carries
-         * an op in `flags` and there are nine of them, so a pass that read it as an ordinary binary
-         * would treat `sha256msg1 a, b` and `sha1msg2 a, b` as one computation. `Cmp` sits in that
-         * range with a field for exactly this reason and gets away with it because every pass that
-         * handles a comparison handles it by name; nothing here should have to remember that.
-         *
-         * Neither has an expansion anywhere. There is no sequence of ordinary instructions that
-         * stands for one of these - what stands for them is a different implementation of the same
-         * digest, which the library chooses in source through `hasShaExtension`.
-         */
-        ShaBinary,
-        Sha256Rounds,
-
-        /*
-         * `vzeroupper` - the vector state reset, written in source as `X86.vzeroupper()`.
-         *
-         * No operands and no result: what it changes is processor state nothing in this IR names.
-         * See `Value::VZeroUpper` in resolve/inst.def for why it is a call a program writes rather
-         * than something the backend inserts at the entry of a `legacyVectors` function.
-         *
-         * It has no expansion, on the SHA instructions' terms and for a different reason: there is
-         * nothing for a target without AVX to do, so a build below that level drops it rather than
-         * standing anything in for it.
-         */
-        VZeroUpper,
-
-        /*
-         * The five vector operations that are not one of the above.
-         *
-         * Everything else a vector does is an instruction that already exists: an add of two
-         * vectors is an `Add`, a comparison is a `Cmp` whose result is a mask, a lane-wise select
-         * is a `Select` whose condition is one, and a lane-count-preserving conversion is a `Cast`
-         * whose result type says what happened. That is most of the operation set, and it is free -
-         * folding, CSE, forwarding and the verifier key on the kind, and an InstBinary over a
-         * vector is an InstBinary. See §3.1 of Implementation-Vector.md.
-         *
-         * The lane index and the shuffle pattern are *fields* rather than operands. Whoever
-         * produced the IR has already rejected a runtime index (Design-Vector §3.3), so nothing
-         * below here has to handle the dynamic case and nothing has to prove an index constant.
-         */
-        FirstVector,
-        VecSplat = FirstVector, // every lane the same scalar
-        VecLane,                // one lane out of a vector
-        VecWithLane,            // a vector with one lane replaced
-        VecShuffle,             // lanes selected from two vectors by a constant pattern
-        VecReduce,              // every lane combined into one scalar
-        LastVector = VecReduce,
-
-        Alloca,
-        Load,
-        Store,
-        Copy,
-        SetPattern,
-
-        /*
-         * The atomics - Analysis-Atomics.md §5.1.
-         *
-         * Instruction kinds rather than intrinsics, and that is the whole of the decision. An
-         * intrinsic is opaque to everything above the encoder: `writesStorage` in lower_licm.cpp
-         * answers yes to every one of them and nothing else answers anything, so an atomic written
-         * as an intrinsic would be a black box that happens to touch memory. What the optimizer
-         * needs to know is finer than that and is exactly what these carry - that a relaxed load
-         * reads and publishes nothing, that a release store writes and orders what came before it,
-         * that a compare-exchange reads and may write, and that a fence constrains accesses it does
-         * not name. The order has to be *in the IR* for any of that to be askable, which is the
-         * same reason `Bswap` stopped being an intrinsic.
-         *
-         * All six are excluded from `isRepeatable`, which is opt-in, so no pass hoists, unifies or
-         * deletes one without being taught to. That is the correct default here: an atomic
-         * operation removed is a synchronization edge removed, and the analysis that proves one
-         * unobservable is the memory model rather than a use count.
-         */
-        FirstAtomic,
-        AtomicLoad = FirstAtomic,
-        AtomicStore,
-        AtomicRmw,
-        AtomicCas,
-
-        // Not attached to a location, which is what separates the two from the four above: a fence
-        // orders accesses it does not name, and a spin hint orders nothing at all and only says
-        // that the loop around it is polling.
-        Fence,
-        SpinHint,
-        LastAtomic = SpinHint,
-
-        Call,
-
-        // Control flow; must not exist in a block instruction list.
-        FirstTerminator,
-        Je = FirstTerminator,
-        Jmp,
-        Ret,
-
-        /*
-         * A block control never leaves the end of - the abort arm of a check, and nothing else
-         * today. See InstUnreachable in resolve/inst.h, which is where the fact is established.
-         *
-         * A terminator rather than a flag on the block, for the reason `Ret` is one: what every walk
-         * below here reads is the *edges*, and having none is the whole of what this says. It
-         * differs from a `Ret` in exactly one thing, which is what it cost to keep spelling it as
-         * one - a return has an epilogue and a `c3`, and this encodes to nothing at all.
-         */
-        Unreachable,
-        LastTerminator = Unreachable,
-
-        Phi,
-
-        /*
-         * Target-specific instructions created by transforms during code generation.
-         */
-
-        // Represents an X86 embedded address calculation, which doesn't require its own register.
-        X86Address,
-
-        // LEA, which can combine some cases of multiply-add into a single instruction.
-        X86Lea,
-
-        // A machine operation named directly rather than described - see LowerIntrinsic below.
-        Intrinsic,
-
-        // Stores one argument into the outgoing argument area, for a call whose convention passes
-        // it there rather than in a register. Created by transformFunction from the convention's
-        // own answer, never written by hand - see insertStackArgs in transform.cpp.
-        X86PushArg,
-
-        /*
-         * The lane-wise minimum or maximum of two vectors - `pminsd`, `pmaxub`, `minps`.
-         *
-         * Backend-private for the reason `LowerReduce::Bits` is: the portable spelling of a minimum
-         * is a comparison and a select (`emitMinMax` in resolve/simd.cpp), which is what every
-         * target that lacks the instruction needs anyway and what LLVM's own selection folds. x86
-         * has the instruction at most lane widths, so the x64 backend recognizes the pair and writes
-         * this in their place - see `selectPackedMinMax` in codegen/x64/transform_constant.cpp.
-         *
-         * **The operand order is the machine's and is load-bearing at a float lane.** `minps a, b`
-         * answers `a < b ? a : b`, which is `b` when either operand is a NaN and `b` when both are
-         * zeros of opposite sign - so exchanging the operands is a different operation, and only an
-         * integer lane may have them swapped (see `isCommutativeInt`). That is exactly the order
-         * `select(a < b, a, b)` states, which is why the recognition is a rewrite rather than a
-         * pattern with a correction after it.
-         */
-        X86MinMax,
-
-        /*
-         * The widening multiply of every *other* 32-bit lane into a 64-bit one - `pmuludq`, `pmuldq`.
-         *
-         * Backend-private on `X86MinMax`'s terms and for a reason none of the others has: this is
-         * not a lane-wise operation at all. It reads the even 32-bit lanes of both operands, ignores
-         * the odd ones and answers half as many lanes twice as wide, which is a shape the portable
-         * IR has no way to write and no reason to - it exists because x86's only 32x32 -> 64 packed
-         * product has it.
-         *
-         * It is what the two multiplies the machine does not have are built out of. A quadword
-         * product is three of these and the shifts and adds of long multiplication
-         * (`expandQuadwordMul` in codegen/x64/transform_expand.cpp); a 32-bit lane's *high* half is two,
-         * one per pair of lanes. Both are the standard sequences and neither is expressible without
-         * naming the instruction, a form being unable to change how many lanes its result has.
-         *
-         * The signedness is the instruction's own rather than the type's, exactly as `X86MinMax`'s
-         * is: `pmuludq` and `pmuldq` differ in how they read the 32-bit lanes they widen, and the
-         * quadword product built out of them wants the *unsigned* one for every partial product
-         * regardless of how the program spelled the multiplication - the low 64 bits of a product
-         * being the same bits either way.
-         */
-        X86MulWide,
-
-        /*
-         * A vector kept where a mask is set and zeroed where it is not - `pand`, `andps`, `pandn`.
-         *
-         * Backend-private for the reason `X86MinMax` above is, and arrived at from the same
-         * direction: the portable spelling is `select(m, v, 0)`, which is what a target whose select
-         * is one instruction wants and what LLVM folds for itself. Here a select is `OpVBlend` -
-         * three instructions and a scratch register at the baseline, `pblendvb` with its mask pinned
-         * to xmm0 at SSE4.1, `vpblendvb` with three register operands under VEX - and every one of
-         * those is more than the single `and` that a zero arm makes it.
-         *
-         * **The zero arm has to go, which is why this is a rewrite and not a form.** A form chosen
-         * for the select would still list the zero as an operand, so the allocator would still hold
-         * a register for it across the loop and still materialize it; what makes this worth doing is
-         * that the operand disappears along with the instruction that built it.
-         *
-         * `complemented` is which arm was the zero. `pand` is the mask kept, `pandn` computes
-         * `~lhs & rhs` and is the mask *dropped* - so the two arms of a select map onto the two
-         * instructions with no negation between them. The operands are stated in the machine's
-         * order, `lhs` being the one the destination is tied to: `and` is commutative and takes the
-         * value first, `andn` is not and takes the mask first.
-         *
-         * A mask lane is all-ones or all-zeros by construction, which is the whole of why this is
-         * exact at a float lane as well: `v & ~0` is `v` including a NaN's payload and both zeroes,
-         * and `v & 0` is `+0.0`, which is what the select's zero arm held.
-         */
-        X86MaskAnd,
-
-        /*
-         * A vector's lanes rearranged by an index held in another *vector* - AVX2's `vpermd` and
-         * `vpermps`.
-         *
-         * Backend-private on `X86MaskAnd`'s terms, and for a sharper reason than either of the two
-         * above it: the portable spelling is `VecShuffle`, whose pattern is part of the instruction,
-         * and this is the one machine where a general pattern is not part of the instruction at all.
-         * Every shuffle AVX2 has works inside each 128-bit half; the one that crosses them takes its
-         * pattern out of a register, which means the pattern has to become a **value** - a pooled
-         * `.rodata` load with a live range and a register of its own - before it can be an operand.
-         * A form cannot do that, because a form does not create operands.
-         *
-         * So `lowerWideLanePermutes` is what turns the one into the other, and what arrives here is
-         * a shuffle that has already had its pattern materialized. `indices` names a source lane per
-         * result lane, as `VecShuffle`'s pattern does, over the **one** source: `vpermd` reads a
-         * single vector, so a cross-half pattern naming both sources is refused rather than lowered.
-         */
-        X86Permute,
-
-        /*
-         * A memory location read, combined with a value, and written back - `add [rdi + rcx*4], edx`.
-         *
-         * Backend-private on the terms `X86MinMax` states, and arrived at from the other direction:
-         * the portable spelling is the three instructions this replaces - a load, an operation and a
-         * store - and there is nothing wrong with them anywhere except on a machine whose ALU writes
-         * its result through the same r/m field it read the operand from. x86's does, at `add`,
-         * `sub`, `and`, `or` and `xor`, and what that removes is not only two of the three
-         * instructions: it removes the *register* the loaded value occupied, in the innermost loop
-         * of every accumulating write.
-         *
-         * **A store rather than an operation, which is why it defines nothing.** The result is in
-         * memory; there is no value here for anything below to read, and an instruction that
-         * produced one would have the allocator hold a register for a number the encoding never
-         * writes. `foldStoreUpdates` in codegen/x64/transform_address.cpp is what recognizes the three, and
-         * the conditions it holds them to are stated there.
-         *
-         * The operand order is the machine's: the location is the destination and the left-hand
-         * side, so a subtraction is `[m] - value` and nothing else. A commutative operation may have
-         * arrived either way round and is folded from both.
-         */
-        X86StoreOp,
-
-        /*
-         * The sign of a narrow value put back into the whole register - `movsx`, `movsxd`.
-         *
-         * Backend-private on `X86StoreOp`'s terms: the portable spelling is the pair
-         * `truncateToWidth` writes (resolve/lower_type.cpp), a left shift and an arithmetic right
-         * shift by the same distance, and there is nothing wrong with it. LLVM folds the pair into a
-         * `sext` for itself and `(x << 16) >> 16` is the idiom a JS engine recognizes, so those two
-         * backends want exactly the two instructions they are given.
-         *
-         * x86 does not. The shifts are two-address (`tiedDef`, see `shift` in codegen/x64/machine_forms_scalar.cpp),
-         * so a source with another reader needs a copy in front of them; they are six bytes and two
-         * uops where `movsx` is three or four bytes and one; and they write the flags, which a
-         * sign-extension standing between a comparison and its branch has no business doing.
-         * `selectSignExtends` in codegen/x64/transform_peephole.cpp recognizes the pair and writes this.
-         *
-         * `sourceBytes` is how much of the operand is read - one, two, or four. It is the
-         * instruction's own rather than the type's for the reason `X86MulWide`'s signedness is: the
-         * operand arrives in a register whose `LowerType` is the register's width, and the narrow
-         * width being extended from is exactly what that type no longer says. Four is `movsxd` and
-         * is only ever reached at a 64-bit result, there being no 32-to-32 encoding of it.
-         */
-        X86Sext,
-
-        /*
-         * A load and a store that reverse the bytes on the way - `movbe`, which is x86-64-v3.
-         *
-         * Backend-private on `X86StoreOp`'s terms, and for the same reason: the portable spelling is
-         * the pair this replaces - a `Load` and a `Bswap`, or a `Bswap` and a `Store` - and there is
-         * nothing wrong with it. LLVM folds that pair into a `movbe` for itself where its target has
-         * one, and JS has no memory to fold into at all, so both of those backends want exactly the
-         * two instructions they were given.
-         *
-         * What the fold buys here is the whole point of the instruction: a value read from a binary
-         * format is byte-reversed on the way out of memory, with no register holding the unreversed
-         * one and no second instruction to reverse it. It is the same trade `foldLoads` makes for
-         * every other operation with an r/m operand, and it needs a kind of its own only because
-         * `bswap` itself has no memory form to be the twin of - the opcode is a different one.
-         *
-         * `getWidth` is the access, 2, 4 or 8 bytes, exactly as a `Load`'s is. There is no sign flag
-         * and no narrower width: a `movbe` is the whole of its register, and a program that reversed
-         * two bytes never reached this - see `Value::ByteSwap` in resolve/inst.def for where a 16-bit
-         * swap is spent. `selectByteSwapMemory` in codegen/x64/transform_address.cpp is what writes
-         * both of these, and the feature test is there rather than here.
-         */
-        X86MovbeLoad,
-        X86MovbeStore,
-
-        /*
-         * `~lhs & rhs` in one instruction - `andn`, which is BMI1.
-         *
-         * Backend-private on `X86Sext`'s terms: the portable spelling is the two instructions this
-         * replaces, a complement and an `and`, and there is nothing wrong with them. LLVM's own
-         * selection folds the pair for a target that has `andn`, and JS has no complement operator
-         * that is not already `^ -1`, so both of those backends want what they were given.
-         *
-         * What this buys on x86 is what `X86Sext` buys and one more thing. `not r/m` is two-address
-         * and writes over the operand it complements, so a mask with a second reader needs a copy in
-         * front of it; the pair is five or six bytes where `andn` is five and one uop; and the `and`
-         * writes the flags where `andn` writes only ZF and SF, which is the difference between
-         * clearing a comparison's window and leaving it open.
-         *
-         * **The operand order is the machine's**, which is the whole reason this is a kind and not a
-         * flag on `And`: `andn` complements its VEX.vvvv operand and nothing else, so which of the
-         * two was written `not` is a fact about the instruction rather than something an operand
-         * order can be relied on to carry. `lhs` is the complemented one, always.
-         *
-         * `selectAndNot` in codegen/x64/transform_peephole.cpp is what recognizes the pair, from
-         * either side of the `and` - the operation is commutative and the complement may have
-         * arrived on either.
-         */
-        X86AndNot,
-
-        /*
-         * The lowest set bit of a word, in the three forms BMI1 has an instruction for.
-         *
-         * `blsr`, `blsi` and `blsmsk` are one opcode at three extensions, and each of them is an
-         * `and`, a `xor` or a negation away from the operand it reads: `x & (x - 1)` clears the
-         * lowest set bit, `x & -x` isolates it, and `x ^ (x - 1)` is the mask up to and including
-         * it. All three are the arithmetic a loop over the set bits of a word is written out of, and
-         * all three are two instructions and a live copy of `x` without them.
-         *
-         * Backend-private on `X86AndNot`'s terms and with the same three gains - one instruction
-         * instead of two, no tie, and the flags left as ZF and CF rather than a full `and`'s worth.
-         * `selectLowestBitOps` in codegen/x64/transform_peephole.cpp recognizes all three.
-         *
-         * A single operand, which is what makes these worth a kind of their own rather than a form:
-         * the `x` the pair names twice is *one* value here, so the copy the two-address `sub` or
-         * `dec` needed goes with the instruction it fed.
-         */
-        X86LowBit,
-        LastInst = X86LowBit,
+#define YANA_LOWER_INST(kind, Struct, mnemonic, used, created, flags) kind,
+#include "inst.def"
+#undef YANA_LOWER_INST
     };
+
+    // The number of kinds, which is what the trait table is checked against - see inst.cpp.
+    static constexpr Size kKindCount =
+#define YANA_LOWER_INST(kind, Struct, mnemonic, used, created, flags) + 1
+#include "inst.def"
+#undef YANA_LOWER_INST
+    ;
+
+    /*
+     * The families, as bounds on that order rather than as enumerators inside it.
+     *
+     * A marker is a fact about where the rows sit rather than a kind of its own, and inst.def has
+     * one row per kind - so these are named here, immediately below the generated list, where the
+     * order they describe is visible. Every one of them is what a predicate below reads: `isUnary`
+     * is a pair of comparisons rather than a switch precisely because the rows are grouped, and
+     * that grouping is why inst.def says a row may be added to the end of a family and never
+     * reordered.
+     */
+    static constexpr Kind FirstInst = Nop;
+    static constexpr Kind FirstUnary = Set;
+    static constexpr Kind FirstUnaryArith = Neg;
+    static constexpr Kind LastUnaryArith = Round;
+    static constexpr Kind LastUnary = LastUnaryArith;
+    static constexpr Kind FirstBinary = Add;
+    static constexpr Kind LastBinary = Cmp;
+    static constexpr Kind FirstVector = VecSplat;
+    static constexpr Kind LastVector = VecReduce;
+    static constexpr Kind FirstAtomic = AtomicLoad;
+    static constexpr Kind LastAtomic = SpinHint;
+    static constexpr Kind FirstTerminator = Je;
+    static constexpr Kind LastTerminator = Unreachable;
+    static constexpr Kind LastInst = X86LowBit;
 
     explicit LowerInst(Kind kind): kind(kind) {}
 
@@ -767,7 +429,116 @@ struct LowerInst {
         auto used = (LowerPtr<LowerValue>*)(created + createdCount);
         return { used, usedCount };
     }
+
+    /*
+     * ## The memory this instruction touches, as the answer a kind that touches none inherits
+     *
+     * Declared here so that "this instruction names no address" is what a struct means by saying
+     * nothing, and overridden - by plain hiding, since none of this is virtual - beside the fields
+     * each one is about. Which operand of a copy is the destination is a fact about `LowerInstCopy`,
+     * and a column in inst.def naming the field would be a second spelling of the struct.
+     *
+     * The point is that a consumer never writes a switch over kinds to ask. `visitLowerInstruction`
+     * turns a kind into its concrete type once, from inst.def, and `lowerInstAccesses` is one loop
+     * over whatever that type declares - so a kind that touches memory reaches every pass that walks
+     * accesses rather than the ones whose switch was updated. Both passes that walk them had their
+     * own list, neither list had the atomics on it, and both then read "an address I do not
+     * understand" as a reason to give up on the function.
+     *
+     * `kAccessCount` is what the flags already say in the coarse form: a kind with an access is a
+     * kind with `kLowerReads` or `kLowerWrites`. The converse does not hold - a call, an intrinsic
+     * and a fence touch storage and name no address - and a pass that walks accesses to account for
+     * everything a function does to memory has to treat that difference as the refusal it is.
+     */
+    static constexpr Size kAccessCount = 0;
+
+    LowerAccess accessAt(Size) { return {}; }
 };
+
+/*
+ * The row for a kind, and the questions asked through it.
+ *
+ * Everything below is one read of one table. The point is not that it is faster than a switch - it
+ * is that adding an instruction is a row in inst.def and nothing else, so a kind cannot be missing
+ * from a pass that was written before it existed.
+ */
+inline const LowerInstTraits& lowerInstTraits(LowerInst::Kind kind) {
+    assertTrue(Size(kind) < LowerInst::kKindCount);
+    return kLowerInstTraits[Size(kind)];
+}
+
+inline const LowerInstTraits& lowerInstTraits(LowerInst* inst) {
+    return lowerInstTraits(inst->kind);
+}
+
+/*
+ * The flags an instruction answers with, which for all but one kind are its row's.
+ *
+ * The exception is `Intrinsic`, whose row cannot say: "emit this operation" covers a population
+ * count and a `clflush`, and one answer for both has to be the pessimistic one. So an intrinsic
+ * carries its own flags in the registry beside its arity (`LowerIntrinsicDesc`) and this reads them
+ * from there - which is what lets a `popcnt` be hoisted out of a loop and a `clflush` retire every
+ * load in scope, where before every intrinsic did the second and none did the first.
+ *
+ * Declared here and defined at the bottom of this file, `LowerInstIntrinsic` being declared between.
+ */
+inline U16 lowerInstFlags(LowerInst* inst);
+
+inline bool hasLowerTrait(LowerInst* inst, U16 trait) {
+    return (lowerInstFlags(inst) & trait) != 0;
+}
+
+// Produces its results and nothing else - see kLowerPure.
+inline bool isPure(LowerInst* inst) {
+    return hasLowerTrait(inst, kLowerPure);
+}
+
+// May be computed again, elsewhere, or not at all - see kLowerRepeatable.
+inline bool isRepeatable(LowerInst* inst) {
+    return hasLowerTrait(inst, kLowerRepeatable);
+}
+
+// Commutative in the sense every pass here needs: the operands may be compared, or exchanged, as a
+// pair rather than in order. A comparison is not one of these - swapping its operands is a different
+// comparison unless the relation is swapped with them, and there is nothing here to swap it against.
+inline bool isCommutative(LowerInst* inst) {
+    return hasLowerTrait(inst, kLowerCommutative);
+}
+
+/*
+ * Whether this may have written storage some earlier load read.
+ *
+ * The whole memory model this tier has, and deliberately the coarsest one: any write retires every
+ * load in scope rather than the loads that could alias it. There is no place information here - a
+ * `Load` names an address that arithmetic produced, and whether two addresses are the same is the
+ * question a pass is being asked rather than one it can answer - so an alias rule would be either
+ * "the same address", which is already the unification test, or a guess.
+ *
+ * The name is "writes storage" and what it is actually asked is "may a load answered from above
+ * this still be answered from above it", which is why every ordered operation says yes including
+ * the atomic load: what an acquire acquires is precisely the right to see writes another thread
+ * published. See kLowerOrdered.
+ */
+inline bool writesStorage(LowerInst* inst) {
+    return hasLowerTrait(inst, kLowerWrites | kLowerOrdered);
+}
+
+// Whether anything this instruction does could read *or* write storage - the same question one
+// answer wider, for the passes that have to see a read as well as a write.
+inline bool touchesStorage(LowerInst* inst) {
+    return hasLowerTrait(inst, kLowerReads | kLowerWrites | kLowerOrdered);
+}
+
+/*
+ * How large an allocation of this kind is, or 0 for a kind that carries a trailing array past its
+ * struct and therefore cannot be copied flat - see kLowerVariadic.
+ *
+ * This and "may this be duplicated at all" used to be two switches in codegen/x64/transform_loop.cpp,
+ * and a kind named in one but not the other was a copy of the wrong number of bytes.
+ */
+inline Size lowerInstSize(LowerInst* inst) {
+    return lowerInstTraits(inst).size;
+}
 
 inline bool isCast(LowerInst* inst) {
     return inst->kind == LowerInst::Cast || inst->kind == LowerInst::Bitcast;
@@ -803,9 +574,9 @@ inline bool isPhi(LowerInst* inst) {
     return inst->kind == LowerInst::Phi;
 }
 
-// One of the six an atomic program is written out of. What a pass asks before deciding it may move
-// something across this instruction - see `writesStorage` in lower_cse.cpp and lower_licm.cpp,
-// which answer yes to every one of them including the load.
+// One of the six an atomic program is written out of. Every one of them carries `kLowerOrdered`, so
+// what a pass asks before deciding it may move something across one is `writesStorage` above; this
+// is for the places that need the family itself, which are the verifier and the backends.
 inline bool isAtomicInst(LowerInst* inst) {
     return inst->kind >= LowerInst::FirstAtomic && inst->kind <= LowerInst::LastAtomic;
 }
@@ -993,6 +764,24 @@ private:
     static constexpr U8 kCmpMask = 0x0f;   // ten comparison kinds, so four bits hold them
     static constexpr U8 kFlagsLive = 0x80;
 };
+
+/*
+ * Whether a computation may fault where it is being moved to.
+ *
+ * One bit on one family, and it is *not* the old "a division can trap" rule this replaces. Every
+ * division `makeDivisionTotal` leaves is total and moves freely - that is most of what defining
+ * `x / 0` bought. The exception is the division that pass left unguarded because a test above it had
+ * already settled the divisor: it cannot fault where it stands and would above the test, so it is
+ * the one computation whose safety is a property of its *position* rather than of its operands.
+ * See LowerInstBinary::kTrustsDivisorTest, which is set nowhere else.
+ *
+ * Nothing else marked `kLowerRepeatable` can fault: a shift count is masked, a float operation
+ * answers a NaN, and a vector operation is lane-wise arithmetic.
+ */
+inline bool mayFault(LowerInst* inst) {
+    if(!hasLowerTrait(inst, kLowerDivides)) return false;
+    return ((LowerInstBinary*)inst)->trustsDivisorTest();
+}
 
 inline Maybe<LowerCmp> decodeOptionalCmp(U8 flags) {
     if(flags & 1) {
@@ -1372,6 +1161,10 @@ struct LowerInstLoad: LowerInstSingle {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> from;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &from, getWidth() }; }
 };
 
 // Stores a value from a register into memory.
@@ -1390,6 +1183,10 @@ struct LowerInstStore: LowerInst {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> to, value;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &to, getWidth() }; }
 };
 
 /*
@@ -1421,6 +1218,10 @@ struct LowerInstX86StoreOp: LowerInst {
 
     // Which of the five, as the binary instruction kind it was folded out of.
     Kind op;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &to, getWidth() }; }
 };
 
 // Copies memory from the source pointer to the target pointer.
@@ -1433,6 +1234,13 @@ struct LowerInstCopy: LowerInst {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> to, from, count;
+
+    static constexpr Size kAccessCount = 2;
+
+    // The destination first, which is the order the operands stand in and the order the printer
+    // emits them. Neither end states a width: what a copy moves is `count` bytes, and a caller that
+    // cannot fold it to a constant knows the address and not the extent.
+    LowerAccess accessAt(Size which) { return { which == 0 ? &to : &from, 0, count }; }
 };
 
 // Copies a pattern byte to the target pointer.
@@ -1452,6 +1260,10 @@ struct LowerInstSetPattern: LowerInst {
     // The declaration order is what used() reports, and the printer emits used() positionally, so
     // it has to match the textual operand order the parser accepts: `setpattern to, count, pattern`.
     LowerPtr<LowerValue> to, count, pattern;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &to, 0, count }; }
 };
 
 /*
@@ -1486,6 +1298,10 @@ struct LowerInstAtomicLoad: LowerInstSingle {
 
     // One of the three `isLoadOrder` admits.
     LowerOrder order;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &from, getWidth() }; }
 };
 
 // An indivisible write of `getWidth()` bytes - `store atomic`, `mov` or `xchg`, `stlr`.
@@ -1504,6 +1320,10 @@ struct LowerInstAtomicStore: LowerInst {
 
     // One of the three `isStoreOrder` admits.
     LowerOrder order;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &to, getWidth() }; }
 };
 
 /*
@@ -1543,6 +1363,10 @@ struct LowerInstAtomicRmw: LowerInstSingle {
 
     // Any of the five: an operation that both reads and writes can carry either half, or neither.
     LowerOrder order;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &to, getWidth() }; }
 };
 
 /*
@@ -1596,6 +1420,10 @@ struct LowerInstAtomicCas: LowerInst {
     // primitive is a load-linked/store-conditional pair, where the strong form costs a loop of its
     // own; on x86 the two lower identically and the flag only stops a caller from assuming.
     bool weak;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &to, getWidth() }; }
 };
 
 /*
@@ -1808,6 +1636,57 @@ struct LowerInstX86MaskAnd: LowerInstSingle {
     LowerPtr<LowerValue> lhs, rhs;
 };
 
+// Represents an address calculation (base + index * scale) + displacement.
+// Used with two different instruction kinds:
+//  - X86Address: purely embedded into whatever instruction uses it (Load/Store) - never
+//    materialized into a register of its own, so its result is always Implicit.
+//  - X86Lea: materializes the computed address into a real register (LEA), e.g. for pointer
+//    arithmetic that doesn't immediately feed a Load/Store.
+struct LowerInstX86Address: LowerInstSingle {
+    LowerInstX86Address(LowerInst::Kind kind, StringId name, LowerPtr<LowerValue> base, LowerPtr<LowerValue> index, U8 scale, U32 displacement):
+        LowerInstSingle(kind, name, LowerType::Pointer),
+        first(base ? base : index), second(base && index ? index : nullptr),
+        displacement(displacement), scale(scale),
+        hasBase(base != nullptr), hasIndex(index != nullptr)
+    {
+        assertTrue(kind == LowerInst::X86Address || kind == LowerInst::X86Lea);
+
+        usedCount = U8((hasBase ? 1 : 0) + (hasIndex ? 1 : 0));
+
+        if(kind == LowerInst::X86Address) {
+            result.flags |= LowerValue::Implicit;
+        }
+    }
+
+    // The operand slots, named by position rather than by role. used() is one contiguous buffer, so
+    // an address with no base - the no-base SIB form, `[index*scale + disp32]` - holds its index in
+    // the first slot: a hole where the absent base would have been is a null operand that every
+    // consumer walking used() would dereference. Read them through base() and index() below.
+    LowerPtr<LowerValue> first, second;
+
+    /*
+     * `[rip + g]` instead of a computed address: a global named in the encoding rather than a
+     * pointer held in a register.
+     *
+     * A field rather than an operand because that is exactly what it is not - the form has nothing
+     * to place, and a `Global` instruction feeding this would be a value the allocator had to find a
+     * register for. Set only where base and index are both absent, since the rip-relative form has
+     * neither field.
+     *
+     * What it buys is one instruction where there were two: a pooled constant read once becomes
+     * `addsd xmm, [rip + k]` rather than a load into a register and an add of it.
+     */
+    LowerPtr<LowerGlobal> symbol = nullptr;
+
+    U32 displacement;
+    U8 scale;
+    bool hasBase;
+    bool hasIndex;
+
+    LowerPtr<LowerValue> base() const { return hasBase ? first : nullptr; }
+    LowerPtr<LowerValue> index() const { return hasIndex ? (hasBase ? second : first) : nullptr; }
+};
+
 /*
  * Intrinsics.
  *
@@ -1969,13 +1848,28 @@ enum class LowerIntrinsic: U16 {
 
 static constexpr Size kLowerIntrinsicCount = Size(LowerIntrinsic::LastIntrinsic) + 1;
 
-// What the IR itself knows about an intrinsic: how it is written, and how many values go in and come
-// out. The arity is here rather than in the target registry because it is what the parser and the
-// validator check, and both run before any target has been chosen.
+/*
+ * What the IR itself knows about an intrinsic: how it is written, how many values go in and come
+ * out, and what it does beyond them.
+ *
+ * The arity is here rather than in the target registry because it is what the parser and the
+ * validator check, and both run before any target has been chosen. The flags are here for a sharper
+ * reason: they are what every optimization pass reads, and the pass runs before a target has been
+ * chosen too. They used to be stated only in codegen/x64/intrinsic.cpp, where nothing read them, and
+ * what every pass at this tier assumed instead was that an intrinsic reads and writes all of memory
+ * - so `popcnt` was pinned inside the loop that called it and `clflush` retired nothing.
+ *
+ * The same `kLower*` bits an instruction row carries, and the ones that mean anything here are
+ * `kLowerPure`, `kLowerRepeatable`, `kLowerReads`, `kLowerWrites`, `kLowerOrdered` and
+ * `kLowerPrivileged`. An intrinsic is never `kLowerPlain` - it carries its identifier past its
+ * operands - and never `kLowerVariadic` in the sense the row means, its operand count being fixed by
+ * this table rather than by the instruction.
+ */
 struct LowerIntrinsicDesc {
     StringView name;
     U8 results;
     U8 args;
+    U16 flags;
 };
 
 const LowerIntrinsicDesc& lowerIntrinsicDesc(LowerIntrinsic id);
@@ -2019,6 +1913,10 @@ struct LowerInstX86MovbeLoad: LowerInstSingle {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> from;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &from, getWidth() }; }
 };
 
 struct LowerInstX86MovbeStore: LowerInst {
@@ -2033,6 +1931,10 @@ struct LowerInstX86MovbeStore: LowerInst {
 
     // Used values must be first after embedded values.
     LowerPtr<LowerValue> to, value;
+
+    static constexpr Size kAccessCount = 1;
+
+    LowerAccess accessAt(Size) { return { &to, getWidth() }; }
 };
 
 struct LowerInstCall: LowerInst {
@@ -2136,6 +2038,62 @@ struct LowerInstPhi: LowerInstSingle {
     // LowerInst::used contains the values to pick from.
     // The list of corresponding blocks is located past the used values list.
 };
+
+/*
+ * One kind turned into its concrete type, and the only place in the lower IR that does it.
+ *
+ * `f` is called with a reference of that type, so what it does with the members below is resolved
+ * statically: a loop over `kAccessCount` is a loop over a constant, and a kind that touches no
+ * memory compiles to nothing at all. Which is what makes this a replacement for the switches rather
+ * than an indirection in front of them - the generated code is the same jump table, and the arms are
+ * whatever `f` is.
+ *
+ * Generated from inst.def, so the case list and the enum are one statement. The trailing call is
+ * unreachable and exists to give the switch a value on every path; a bare `LowerInst` answers with
+ * the defaults, which is the harmless answer to a question about a kind that does not exist.
+ */
+template<class F>
+inline decltype(auto) visitLowerInstruction(LowerInst& inst, F&& f) {
+    switch(inst.kind) {
+#define YANA_LOWER_INST(kind, Struct, mnemonic, used, created, flags) \
+    case LowerInst::kind: return f((Struct&)inst);
+#include "inst.def"
+#undef YANA_LOWER_INST
+    }
+
+    return f(inst);
+}
+
+/*
+ * Where an instruction touches memory, from the instruction's own declaration - see
+ * `LowerInst::accessAt`.
+ *
+ * Writes them into `target` and returns how many. A copy names two, which is the most any kind
+ * names, so `target` needs room for kMaxAccesses.
+ *
+ * An answer of zero is *not* "this instruction leaves memory alone" - ask `touchesStorage` for that.
+ * It is "this instruction names no address I can point at", which a call, an intrinsic and a fence
+ * all answer while doing plenty to memory, and which every caller here has to read as a refusal
+ * rather than as an absence.
+ */
+static constexpr Size kMaxAccesses = 2;
+
+inline Size lowerInstAccesses(LowerInst* inst, LowerAccess* target) {
+    return visitLowerInstruction(*inst, [&](auto& i) -> Size {
+        for(Size n = 0; n < i.kAccessCount; n++) target[n] = i.accessAt(n);
+        return i.kAccessCount;
+    });
+}
+
+// The definition promised beside `hasLowerTrait` - see there for why an intrinsic answers from its
+// own row.
+inline U16 lowerInstFlags(LowerInst* inst) {
+    if(inst->kind == LowerInst::Intrinsic) {
+        return lowerIntrinsicDesc(((LowerInstIntrinsic*)inst)->getIntrinsic()).flags;
+    }
+
+    return lowerInstTraits(inst).flags;
+}
 
 inline LiveSet* Liveness::getBlock(LowerBlock* b) {
     return &blockMap[b->index];

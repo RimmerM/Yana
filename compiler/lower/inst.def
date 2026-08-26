@@ -1,0 +1,610 @@
+/*
+ * The roster of lower-IR instructions - one row per `LowerInst::Kind`, and the only place a kind is
+ * written down.
+ *
+ * `LowerInst::Kind` itself is generated from this file, on the terms resolve/inst.def states for the
+ * tier above: the rows and the enumerators are one list rather than two that agree, so a kind cannot
+ * be added without a row and a row cannot be added without every column below being decided for it.
+ * Everything that used to be a switch over every kind to say one thing about each - the mnemonic,
+ * whether it may be recomputed, whether it touches memory, how large its allocation is - is a column
+ * here instead.
+ *
+ * The x64 backend arrived at the same shape from the other end (see codegen/x64/machine.h): whether
+ * an operand is destructive, what an instruction does to the flags, how wide an immediate it carries
+ * were each a table or a switch of their own, and each was a place two answers could drift apart.
+ * The cost of a switch is never the lines - it is that a kind added to the IR is silently absent
+ * from every switch it does not reach, and "absent" reads as `false` in all of them.
+ *
+ * ## The columns
+ *
+ *  - `kind` is the `LowerInst::Kind` enumerator, and the order of these rows is the order of that
+ *    enum. That order is load-bearing in two places and neither of them is here: the range markers
+ *    below the generated enum (`FirstUnary`, `LastBinary` and the rest) are offsets into it, and
+ *    `selectForm` in the x64 backend indexes its shift table by the distance from `Shl`. A row may
+ *    be added at the end of a family; the rows may not be reordered.
+ *  - `Struct` is the concrete type a `LowerInst` of that kind may be cast to. Several kinds share
+ *    one - the twenty arithmetic kinds are one `LowerInstBinary`, and `X86Address` and `X86Lea` are
+ *    one instruction with two meanings. What the column buys beyond documentation is `sizeof`: it is
+ *    what `lowerInstSize` answers, so a pass that copies an instruction wholesale (loop rotation in
+ *    codegen/x64/transform_loop.cpp) reads the size from the same row that says the kind may be
+ *    copied at all. Those two used to be two switches, and a kind in one but not the other was a
+ *    copy of the wrong number of bytes.
+ *  - `mnemonic` is what the IR dump prints and what the parser reads back. Sixteen kinds refine it
+ *    from their own fields - a signed load, a comparison's relation, which atomic operation, which
+ *    of the four minima - and the refinement is in lower_print.cpp; what is here is the base name.
+ *  - `used` and `created` are how many operands a kind reads and how many values it defines, or
+ *    `kAnyArity` for the six rows whose answer is the instruction's own: a call and a return follow a
+ *    signature, a phi follows its block's predecessors, an intrinsic follows its descriptor, and an
+ *    x86 address holds whichever of base and index it was given. This is *not* `kLowerVariadic`,
+ *    which is about the allocation rather than the operands - a shuffle carries its pattern past a
+ *    fixed two operands, and an address has a variable operand count in a fixed-size struct. The
+ *    column exists because every arm of the lower verifier opened by restating it, so a kind added
+ *    to the IR was checked for arity only where someone remembered to write the check.
+ *  - `flags` is the answer to the questions a pass asks about a *kind* rather than about an
+ *    instruction. Each is documented beside its constant in lower_inst.h; the short version is that
+ *    the memory and ordering bits are what every "may I move this across that" question is asked
+ *    through, and `kLowerPure`/`kLowerRepeatable` are what every "may I delete or recompute this"
+ *    question is asked through.
+ *
+ * What is *not* here is anything an instruction says with its own fields: the width of an access,
+ * the relation of a comparison, the order of an atomic. Those are questions about an instruction and
+ * are answered beside the fields that hold them.
+ */
+
+//              kind           struct                   mnemonic             used       created    flags
+/*
+ * Provided values (may still require instructions to generate on some architectures).
+ */
+
+// Deliberately not `kLowerPure`, which every other row here would have. An argument is not a
+// computation: it cannot be recomputed anywhere, and one that has stopped being read is still an
+// entry in the function's parameter list - so a dead-value sweep that took it at its word would
+// delete the declaration of a register the caller is still passing.
+YANA_LOWER_INST(Arg,           LowerArg,                "arg"_v,             0,         1,        kLowerPlain)  // Defines a function argument (always represented as registers).
+YANA_LOWER_INST(Global,        LowerInstGlobal,         "global"_v,          0,         1,        kLowerPure)  // Loads the address of a global value.
+YANA_LOWER_INST(Fun,           LowerInstFun,            "fun"_v,             0,         1,        kLowerPure)  // Loads the address of a static function.
+YANA_LOWER_INST(Imm,           LowerImm,                "imm"_v,             0,         1,        kLowerPure)  // Loads an immediate value.
+
+/*
+ * Generic instruction types generated by lowering from IR.
+ */
+
+YANA_LOWER_INST(Nop,           LowerInst,               "nop"_v,             0,         0,        kLowerPure | kLowerPlain)
+
+// Unary operations on a single value:
+YANA_LOWER_INST(Set,           LowerInstUnary,          "set"_v,             1,         1,        kLowerArith)  // Copies the source into a new value: any
+YANA_LOWER_INST(Cast,          LowerInstCast,           "cast"_v,            1,         1,        kLowerArith)  // Any type to any other type, discarding information if precision is lower.
+YANA_LOWER_INST(Bitcast,       LowerInstUnary,          "bitcast"_v,         1,         1,        kLowerArith)  // Any type to any other type, without changing the actual bits (aside from truncation if needed).
+
+YANA_LOWER_INST(Neg,           LowerInstUnary,          "neg"_v,             1,         1,        kLowerArith)  // Negates the source: int, float
+YANA_LOWER_INST(Not,           LowerInstUnary,          "not"_v,             1,         1,        kLowerArith | kLowerBitwise)  // Inverts all bits in source: int
+
+/*
+ * The bytes of an integer in the opposite order - `bswap`, `rev`, `llvm.bswap`.
+ *
+ * A kind rather than the shift-and-mask tree it can be built from, and a *unary arithmetic*
+ * one rather than an intrinsic. Both halves of that matter. As a unary it is repeatable,
+ * hoistable and CSE-able for nothing, `isUnary` being what every pass asks, and the folding
+ * below reaches it as ordinary arithmetic.
+ *
+ * The argument used to be sharper than it is: an intrinsic was opaque to everything above the
+ * encoder, `writesStorage` answering yes to all of them, so a byte swap written as one would
+ * have been pinned inside the loop that reads a binary format. An intrinsic states its own
+ * effects now (`LowerIntrinsicDesc`), so that half has become a matter of one row - but only
+ * this half. What an intrinsic still cannot be is *folded*: nothing turns `bswap` of a
+ * constant into a constant without knowing what the operation means.
+ *
+ * **Int32 or Int64, and nothing narrower.** This IR has no 16-bit scalar, so `Bswap` is
+ * always the whole of its register: the 16-bit swap a program can write is expanded above
+ * this seam (see `Value::ByteSwap` in resolve/inst.def and its arm in lower_calc.cpp), and
+ * a backend never has to ask how much of the register the answer is.
+ */
+YANA_LOWER_INST(Bswap,         LowerInstUnary,          "bswap"_v,           1,         1,        kLowerArith)
+
+// The square root of a float or of every lane of a vector of them. One kind rather than a
+// vector one and a scalar one, for the reason the arithmetic above is one kind: what differs
+// is the operand's type and nothing else.
+YANA_LOWER_INST(Sqrt,          LowerInstUnary,          "sqrt"_v,            1,         1,        kLowerArith)
+
+/*
+ * The magnitude of every lane - `andps` against a sign mask, `pabsd`, `llvm.fabs`,
+ * `Math.abs`.
+ *
+ * A kind rather than the comparison and the select it can be built from, and the reason is a
+ * *semantic* one rather than a count: every machine instruction that computes a magnitude
+ * clears the sign of a NaN and the expansion preserves it, so a target using its own
+ * instruction and a target expanding the shape answered differently. `Value::Abs` in the
+ * resolve IR is where the language rules on that (the sign of a NaN is unspecified); this is
+ * the same instruction one tier down, and every backend implements it directly.
+ *
+ * A float lane or a *signed* integer one, the resolver having refused the rest.
+ */
+YANA_LOWER_INST(Abs,           LowerInstUnary,          "abs"_v,             1,         1,        kLowerArith)
+
+/*
+ * The two roundings to an integral value - `roundsd`/`roundpd`, `llvm.trunc`/`llvm.round`,
+ * `Math.trunc`/`Math.round`.
+ *
+ * Kinds for `Sqrt`'s reason and not `Abs`'s: the expansions exist and are simply not what
+ * any target does. What makes them two kinds rather than one with a mode is that their tie
+ * rules are decided differently and only one of them is free. `Trunc` is toward zero and
+ * every target spells it in one instruction; `Round` is to nearest with ties **away from
+ * zero**, which SSE4.1 has no encoding for - `roundsd` imm 0 is ties-to-even - so the x64
+ * backend expands it while LLVM and JS name it directly.
+ *
+ * A float lane only. Rounding an integer is the identity and the resolver refuses it.
+ */
+YANA_LOWER_INST(Trunc,         LowerInstUnary,          "trunc"_v,           1,         1,        kLowerArith)
+YANA_LOWER_INST(Floor,         LowerInstUnary,          "floor"_v,           1,         1,        kLowerArith)
+YANA_LOWER_INST(Ceil,          LowerInstUnary,          "ceil"_v,            1,         1,        kLowerArith)
+YANA_LOWER_INST(Round,         LowerInstUnary,          "round"_v,           1,         1,        kLowerArith)
+
+
+// Arithmetic with multiple type support:
+YANA_LOWER_INST(Add,           LowerInstBinary,         "add"_v,             2,         1,        kLowerArith | kLowerCommutative | kLowerAssociative)  // Add:        int + int, ptr + int, float + float
+YANA_LOWER_INST(Sub,           LowerInstBinary,         "sub"_v,             2,         1,        kLowerArith)  // Subtract:   int - int, ptr - int, ptr - ptr, float - float
+YANA_LOWER_INST(Mul,           LowerInstBinary,         "mul"_v,             2,         1,        kLowerArith | kLowerCommutative | kLowerAssociative)  // Multiply:   int * int, float * float
+YANA_LOWER_INST(IMul,          LowerInstBinary,         "imul"_v,            2,         1,        kLowerArith | kLowerCommutative | kLowerAssociative)  // Signed mul: int * int
+/*
+ * The four dividing operations, and `kLowerRepeatable` on each of them used to need a paragraph
+ * defending it: the machine raises on a zero divisor and on `INT_MIN / -1`, so they could trap where
+ * nothing else marked repeatable could.
+ *
+ * They no longer can. `makeDivisionTotal` in lower_divide.cpp runs in front of every reader of that
+ * bit and leaves a division that faults on nothing, which is what makes these ordinary members of
+ * the set rather than tolerated ones - and what lets lower_licm.cpp *move* one, which no argument
+ * about dominance could have justified.
+ *
+ * `kLowerDivides` is the exception to that, read off one bit of one instruction rather than off the
+ * kind: a division the same pass left unguarded because a test above it had already settled the
+ * divisor cannot fault where it stands and would above the test. See `mayFault`, whose whole content
+ * this is.
+ */
+YANA_LOWER_INST(Div,           LowerInstBinary,         "div"_v,             2,         1,        kLowerArith | kLowerDivides)  // Divide:     int / int, float / float
+YANA_LOWER_INST(IDiv,          LowerInstBinary,         "idiv"_v,            2,         1,        kLowerArith | kLowerDivides)  // Signed div: int / int
+YANA_LOWER_INST(Rem,           LowerInstBinary,         "rem"_v,             2,         1,        kLowerArith | kLowerDivides)  // Remainder:  int % int
+YANA_LOWER_INST(IRem,          LowerInstBinary,         "irem"_v,            2,         1,        kLowerArith | kLowerDivides)  // Signed rem: int % int
+
+// The *top* half of a product twice as wide as its operands: `mulhi a, b` at Int64 is bits
+// 64..127 of `a * b`. Every machine that has a multiply produces this half beside the low
+// one and throws it away; it is here because the reciprocal a division by a constant turns
+// into is exactly that half and nothing else - see lower_strength.h, which is the only
+// thing that builds one.
+YANA_LOWER_INST(MulHi,         LowerInstBinary,         "mulhi"_v,           2,         1,        kLowerArith | kLowerCommutative)  // Unsigned high multiply: int * int
+YANA_LOWER_INST(IMulHi,        LowerInstBinary,         "imulhi"_v,          2,         1,        kLowerArith | kLowerCommutative)  // Signed high multiply:   int * int
+
+// Bitwise integer operations (some support int - ptr operation as well):
+YANA_LOWER_INST(Shl,           LowerInstBinary,         "shl"_v,             2,         1,        kLowerArith)
+YANA_LOWER_INST(Shr,           LowerInstBinary,         "shr"_v,             2,         1,        kLowerArith)
+YANA_LOWER_INST(Sar,           LowerInstBinary,         "sar"_v,             2,         1,        kLowerArith)
+
+/*
+ * The two rotations, which are the shifts' shape and not their semantics: nothing leaves the
+ * value, and what falls off one end comes back at the other.
+ *
+ * **The count is taken modulo the operand's width**, which is the one thing about a rotation
+ * that has to be said here rather than left to a target. It is what x86's `rol`/`ror` do -
+ * the count register is masked to 5 or 6 bits, and for these two that mask *is* the modulus -
+ * and it is what `llvm.fshl`/`llvm.fshr` are defined as. A rotation by the width is therefore
+ * the identity rather than zero, which is where it parts company with `Shl` beside it.
+ *
+ * Placed immediately after `Sar` because `selectForm` indexes its shift table by the
+ * distance from `Shl`; the two are the same group-2 encodings at two more opcode extensions.
+ *
+ * An integer or a vector of integers, on the same terms the shifts are - and a vector one is
+ * a rotation *per lane*, which x86 has only at AVX-512 (`vprold`). `expandVectorRotate` is
+ * the pair of shifts and an `or` everywhere else, and it is a backend's expansion rather than
+ * this IR's because a target that has the instruction should reach it.
+ */
+YANA_LOWER_INST(Rol,           LowerInstBinary,         "rol"_v,             2,         1,        kLowerArith)
+YANA_LOWER_INST(Ror,           LowerInstBinary,         "ror"_v,             2,         1,        kLowerArith)
+YANA_LOWER_INST(And,           LowerInstBinary,         "and"_v,             2,         1,        kLowerArith | kLowerCommutative | kLowerAssociative | kLowerBitwise)  // int & int, ptr & int
+YANA_LOWER_INST(Or,            LowerInstBinary,         "or"_v,              2,         1,        kLowerArith | kLowerCommutative | kLowerAssociative | kLowerBitwise)  // int | int, ptr | int
+YANA_LOWER_INST(Xor,           LowerInstBinary,         "xor"_v,             2,         1,        kLowerArith | kLowerCommutative | kLowerAssociative | kLowerBitwise)  // int ^ int, ptr ^ int
+
+/*
+ * The three bit operations that are one instruction on a machine with BMI2 and a sequence
+ * everywhere else - `Core.Bits.bitsUpTo` and `Core.BitPermute`. See the notes in
+ * resolve/inst.def, which is where each one's contract is argued.
+ *
+ * `BitsUpTo` keeps the low `rhs` bits of `lhs` and clears the rest. **The count is read as
+ * an unsigned number and saturates at the type's width**, which is the ruling and is *not*
+ * `bzhi`'s own rule: that instruction reads its count from a byte, so a count of 256 is a
+ * count of zero to it and is a count of "all of them" here. Whoever selects a `bzhi` owes it
+ * the difference - see `expandBitsUpTo` in the x64 backend, which is where it is paid.
+ *
+ * `GatherBits` packs the bits of `lhs` at the set positions of `rhs` down into a contiguous
+ * low field; `ScatterBits` spreads a low field back out into those positions. Total, with no
+ * degenerate case to state.
+ *
+ * Real kinds rather than intrinsics, for `Bswap`'s reason: an intrinsic is opaque to folding
+ * and reaches nothing that walks a binary's operands, so a permutation against a
+ * loop-invariant mask written as one would fold nothing and be recognized by nothing. As
+ * binaries in the range above they are hoistable, foldable and CSE-able for nothing,
+ * `isBinary` being what every pass asks.
+ *
+ * Placed after `Xor` and before `Cmp` deliberately: `selectForm` in the x64 backend indexes
+ * its shift table by the distance from `Shl`, so nothing may be inserted between `Shl` and
+ * `Ror`.
+ */
+YANA_LOWER_INST(BitsUpTo,      LowerInstBinary,         "bitsupto"_v,        2,         1,        kLowerArith)
+YANA_LOWER_INST(GatherBits,    LowerInstBinary,         "gatherbits"_v,      2,         1,        kLowerArith)
+YANA_LOWER_INST(ScatterBits,   LowerInstBinary,         "scatterbits"_v,     2,         1,        kLowerArith)
+
+/*
+ * The CRC-32C step - `X86.crc32`, and the one binary here that is a named function
+ * rather than an operation on bits.
+ *
+ * `lhs` is the running remainder and `rhs` is the chunk folded into it, both at the
+ * instruction's own width, and the answer is the new remainder in the low thirty-two bits.
+ * The polynomial is Castagnoli's and is not a parameter - see resolve/inst.def, where that
+ * is argued, and `lib/Digest/Crc.yana`, where the IEEE one it is *not* lives.
+ *
+ * A real kind rather than an intrinsic, on `BitsUpTo`'s terms: a checksum over a
+ * loop-invariant word written as an intrinsic would be pinned inside the loop that reads it,
+ * where as a binary in this range it hoists and CSEs for nothing.
+ *
+ * **No backend has to expand it, and no backend other than x86-64 may see it.** SSE4.2 is
+ * inside x86-64-v2 and v2 is the floor, so the one target this reaches always has the
+ * instruction; a target that does not is one `X86.crc32` is not declared on, which is where
+ * the choice is made rather than here.
+ */
+YANA_LOWER_INST(Crc32,         LowerInstBinary,         "crc32"_v,           2,         1,        kLowerArith)
+
+// Comparison (supports any two of the same type):
+YANA_LOWER_INST(Cmp,           LowerInstCmp,            "cmp"_v,             2,         1,        kLowerArith)
+
+// Select from two values based on a condition, without branching.
+YANA_LOWER_INST(Select,        LowerInstSelect,         "select"_v,          3,         1,        kLowerArith | kLowerUsesFlags)
+
+// `a * b + c`, at most once rounded. Not a Binary and not a Unary, and the one three-operand
+// arithmetic kind in this IR - see LowerInstFma.
+YANA_LOWER_INST(Fma,           LowerInstFma,            "fma"_v,             3,         1,        kLowerArith)
+
+/*
+ * The SHA extension's seven instructions, as two kinds - see resolve/inst.def, where what
+ * each computes is argued.
+ *
+ * **Deliberately not in the binary range above**, and `ShaBinary` is the reason: it carries
+ * an op in `flags` and there are nine of them, so a pass that read it as an ordinary binary
+ * would treat `sha256msg1 a, b` and `sha1msg2 a, b` as one computation. `Cmp` sits in that
+ * range with a field for exactly this reason and gets away with it because every pass that
+ * handles a comparison handles it by name; nothing here should have to remember that.
+ *
+ * Neither has an expansion anywhere. There is no sequence of ordinary instructions that
+ * stands for one of these - what stands for them is a different implementation of the same
+ * digest, which the library chooses in source through `hasShaExtension`.
+ */
+YANA_LOWER_INST(ShaBinary,     LowerInstShaBinary,      "sha"_v,             2,         1,        kLowerArith)
+YANA_LOWER_INST(Sha256Rounds,  LowerInstSha256Rounds,   "sha256rnds2"_v,     3,         1,        kLowerArith)
+
+/*
+ * `vzeroupper` - the vector state reset, written in source as `X86.vzeroupper()`.
+ *
+ * No operands and no result: what it changes is processor state nothing in this IR names.
+ * See `Value::VZeroUpper` in resolve/inst.def for why it is a call a program writes rather
+ * than something the backend inserts at the entry of a `legacyVectors` function.
+ *
+ * It has no expansion, on the SHA instructions' terms and for a different reason: there is
+ * nothing for a target without AVX to do, so a build below that level drops it rather than
+ * standing anything in for it.
+ */
+// Not pure, having no result and an effect on processor state that nothing in this IR names, so
+// there is nothing for a dead-value sweep to notice about it. Plain, since it carries nothing at all.
+YANA_LOWER_INST(VZeroUpper,    LowerInstVZeroUpper,     "vzeroupper"_v,      0,         0,        kLowerPlain)
+
+/*
+ * The five vector operations that are not one of the above.
+ *
+ * Everything else a vector does is an instruction that already exists: an add of two
+ * vectors is an `Add`, a comparison is a `Cmp` whose result is a mask, a lane-wise select
+ * is a `Select` whose condition is one, and a lane-count-preserving conversion is a `Cast`
+ * whose result type says what happened. That is most of the operation set, and it is free -
+ * folding, CSE, forwarding and the verifier key on the kind, and an InstBinary over a
+ * vector is an InstBinary. See §3.1 of Implementation-Vector.md.
+ *
+ * The lane index and the shuffle pattern are *fields* rather than operands. Whoever
+ * produced the IR has already rejected a runtime index (Design-Vector §3.3), so nothing
+ * below here has to handle the dynamic case and nothing has to prove an index constant.
+ */
+YANA_LOWER_INST(VecSplat,      LowerInstVecSplat,       "vsplat"_v,          1,         1,        kLowerArith)  // every lane the same scalar
+YANA_LOWER_INST(VecLane,       LowerInstVecLane,        "vlane"_v,           1,         1,        kLowerArith)  // one lane out of a vector
+YANA_LOWER_INST(VecWithLane,   LowerInstVecLane,        "vwithlane"_v,       2,         1,        kLowerArith)  // a vector with one lane replaced
+YANA_LOWER_INST(VecShuffle,    LowerInstVecShuffle,     "vshuffle"_v,        2,         1,        kLowerPure | kLowerRepeatable | kLowerVariadic)  // lanes selected from two vectors by a constant pattern
+YANA_LOWER_INST(VecReduce,     LowerInstVecReduce,      "vreduce"_v,         1,         1,        kLowerArith)  // every lane combined into one scalar
+
+// No flags at all, and each absence is a decision. Not pure: it reserves frame space, and a second
+// copy is a second piece of storage rather than the same answer computed twice. Not touching memory:
+// it produces an address and reads nothing through it. Not plain: the alignment is a field past its
+// operands, so two allocas with equal operands are not the same allocation.
+YANA_LOWER_INST(Alloca,        LowerInstAlloca,         "alloca"_v,          1,         1,        0)
+YANA_LOWER_INST(Load,          LowerInstLoad,           "load"_v,            1,         1,        kLowerPlain | kLowerReads)
+YANA_LOWER_INST(Store,         LowerInstStore,          "store"_v,           2,         0,        kLowerPlain | kLowerWrites)
+YANA_LOWER_INST(Copy,          LowerInstCopy,           "copy"_v,            3,         0,        kLowerPlain | kLowerReads | kLowerWrites)
+YANA_LOWER_INST(SetPattern,    LowerInstSetPattern,     "setpattern"_v,      3,         0,        kLowerPlain | kLowerWrites)
+
+/*
+ * The atomics - Analysis-Atomics.md §5.1.
+ *
+ * Instruction kinds rather than intrinsics, and that is the whole of the decision. An
+ * intrinsic states four bits about itself and nothing more, so an atomic written as one
+ * would be a black box that reads, writes and orders. What the optimizer needs to know is
+ * finer than that and is exactly what these carry - that a relaxed load
+ * reads and publishes nothing, that a release store writes and orders what came before it,
+ * that a compare-exchange reads and may write, and that a fence constrains accesses it does
+ * not name. The order has to be *in the IR* for any of that to be askable, which is the
+ * same reason `Bswap` stopped being an intrinsic.
+ *
+ * All six are excluded from `isRepeatable`, which is opt-in, so no pass hoists, unifies or
+ * deletes one without being taught to. That is the correct default here: an atomic
+ * operation removed is a synchronization edge removed, and the analysis that proves one
+ * unobservable is the memory model rather than a use count.
+ */
+YANA_LOWER_INST(AtomicLoad,    LowerInstAtomicLoad,     "atomic_load"_v,     1,         1,        kLowerReads | kLowerOrdered)
+YANA_LOWER_INST(AtomicStore,   LowerInstAtomicStore,    "atomic_store"_v,    2,         0,        kLowerWrites | kLowerOrdered)
+YANA_LOWER_INST(AtomicRmw,     LowerInstAtomicRmw,      "atomic_rmw"_v,      2,         1,        kLowerReads | kLowerWrites | kLowerOrdered)
+YANA_LOWER_INST(AtomicCas,     LowerInstAtomicCas,      "atomic_cas"_v,      3,         2,        kLowerReads | kLowerWrites | kLowerOrdered)
+
+// Not attached to a location, which is what separates the two from the four above: a fence
+// orders accesses it does not name, and a spin hint orders nothing at all and only says
+// that the loop around it is polling.
+YANA_LOWER_INST(Fence,         LowerInstFence,          "fence"_v,           0,         0,        kLowerOrdered)
+YANA_LOWER_INST(SpinHint,      LowerInstSpinHint,       "spinhint"_v,        0,         0,        kLowerPlain | kLowerOrdered)
+
+YANA_LOWER_INST(Call,          LowerInstCall,           "call"_v,            kAnyArity, kAnyArity, kLowerPlain | kLowerVariadic | kLowerReads | kLowerWrites)
+
+// Control flow; must not exist in a block instruction list.
+YANA_LOWER_INST(Je,            LowerInstJe,             "je"_v,              1,         0,        kLowerUsesFlags)
+// Not plain: the block it jumps to is a field rather than an operand, so two of them are the same
+// instruction only when that agrees - which is what lower_merge.cpp compares by hand.
+YANA_LOWER_INST(Jmp,           LowerInstJmp,            "jmp"_v,             0,         0,        0)
+YANA_LOWER_INST(Ret,           LowerInstRet,            "ret"_v,             kAnyArity, 0,        kLowerPlain | kLowerVariadic)
+
+/*
+ * A block control never leaves the end of - the abort arm of a check, and nothing else
+ * today. See InstUnreachable in resolve/inst.h, which is where the fact is established.
+ *
+ * A terminator rather than a flag on the block, for the reason `Ret` is one: what every walk
+ * below here reads is the *edges*, and having none is the whole of what this says. It
+ * differs from a `Ret` in exactly one thing, which is what it cost to keep spelling it as
+ * one - a return has an epilogue and a `c3`, and this encodes to nothing at all.
+ */
+YANA_LOWER_INST(Unreachable,   LowerInstUnreachable,    "unreachable"_v,     0,         0,        kLowerPlain)
+
+YANA_LOWER_INST(Phi,           LowerInstPhi,            "phi"_v,             kAnyArity, 1,        kLowerPure | kLowerVariadic)
+
+/*
+ * Target-specific instructions created by transforms during code generation.
+ */
+
+/*
+ * Represents an X86 embedded address calculation, which doesn't require its own register, and the
+ * `lea` that materializes one - which can combine some cases of multiply-add into one instruction.
+ *
+ * Pure and **not** `kLowerRepeatable`, which is the one pair of rows where the two come apart on
+ * purpose. Both compute an address out of their operands and nothing else, so one nothing reads may
+ * go; but where an `X86Address` stands *is* the fold - it is selected data, chosen because the
+ * instruction below it can name the answer in its own encoding - and a pass that moved or unified
+ * one would be undoing a decision rather than repeating a computation.
+ */
+YANA_LOWER_INST(X86Address,    LowerInstX86Address,     "x86_addr"_v,        kAnyArity, 1,        kLowerPure)
+YANA_LOWER_INST(X86Lea,        LowerInstX86Address,     "x86_lea"_v,         kAnyArity, 1,        kLowerPure)
+
+/*
+ * A machine operation named directly rather than described - see LowerIntrinsic in lower_inst.h.
+ *
+ * The one row whose flags are not the answer. "Emit this operation" covers a population count and a
+ * `clflush`, so a single row for all of them has to be the pessimistic one - which is what this is,
+ * and what everything assumed before there was anywhere better to look. `lowerInstFlags` reads an
+ * intrinsic's own row in `LowerIntrinsicDesc` instead; these flags are what is left for a reader
+ * that asks the kind directly, and being the safe answer is the whole of their content.
+ *
+ * The mnemonic is never printed either: an intrinsic is named by its registry entry.
+ */
+YANA_LOWER_INST(Intrinsic,     LowerInstIntrinsic,      "intrinsic"_v,       kAnyArity, kAnyArity, kLowerVariadic | kLowerReads | kLowerWrites)
+
+// Stores one argument into the outgoing argument area, for a call whose convention passes
+// it there rather than in a register. Created by transformFunction from the convention's
+// own answer, never written by hand - see insertStackArgs in transform.cpp.
+YANA_LOWER_INST(X86PushArg,    LowerInstX86PushArg,     "x86_pusharg"_v,     1,         1,        kLowerWrites)
+
+/*
+ * The lane-wise minimum or maximum of two vectors - `pminsd`, `pmaxub`, `minps`.
+ *
+ * Backend-private for the reason `LowerReduce::Bits` is: the portable spelling of a minimum
+ * is a comparison and a select (`emitMinMax` in resolve/simd.cpp), which is what every
+ * target that lacks the instruction needs anyway and what LLVM's own selection folds. x86
+ * has the instruction at most lane widths, so the x64 backend recognizes the pair and writes
+ * this in their place - see `selectPackedMinMax` in codegen/x64/transform_constant.cpp.
+ *
+ * **The operand order is the machine's and is load-bearing at a float lane.** `minps a, b`
+ * answers `a < b ? a : b`, which is `b` when either operand is a NaN and `b` when both are
+ * zeros of opposite sign - so exchanging the operands is a different operation, and only an
+ * integer lane may have them swapped (see `isCommutativeInt`). That is exactly the order
+ * `select(a < b, a, b)` states, which is why the recognition is a rewrite rather than a
+ * pattern with a correction after it.
+ */
+YANA_LOWER_INST(X86MinMax,     LowerInstX86MinMax,      "x86_vminmax"_v,     2,         1,        kLowerArith)
+
+/*
+ * The widening multiply of every *other* 32-bit lane into a 64-bit one - `pmuludq`, `pmuldq`.
+ *
+ * Backend-private on `X86MinMax`'s terms and for a reason none of the others has: this is
+ * not a lane-wise operation at all. It reads the even 32-bit lanes of both operands, ignores
+ * the odd ones and answers half as many lanes twice as wide, which is a shape the portable
+ * IR has no way to write and no reason to - it exists because x86's only 32x32 -> 64 packed
+ * product has it.
+ *
+ * It is what the two multiplies the machine does not have are built out of. A quadword
+ * product is three of these and the shifts and adds of long multiplication
+ * (`expandQuadwordMul` in codegen/x64/transform_expand.cpp); a 32-bit lane's *high* half is two,
+ * one per pair of lanes. Both are the standard sequences and neither is expressible without
+ * naming the instruction, a form being unable to change how many lanes its result has.
+ *
+ * The signedness is the instruction's own rather than the type's, exactly as `X86MinMax`'s
+ * is: `pmuludq` and `pmuldq` differ in how they read the 32-bit lanes they widen, and the
+ * quadword product built out of them wants the *unsigned* one for every partial product
+ * regardless of how the program spelled the multiplication - the low 64 bits of a product
+ * being the same bits either way.
+ */
+YANA_LOWER_INST(X86MulWide,    LowerInstX86MulWide,     "x86_mulwide"_v,     2,         1,        kLowerArith)
+
+/*
+ * A vector kept where a mask is set and zeroed where it is not - `pand`, `andps`, `pandn`.
+ *
+ * Backend-private for the reason `X86MinMax` above is, and arrived at from the same
+ * direction: the portable spelling is `select(m, v, 0)`, which is what a target whose select
+ * is one instruction wants and what LLVM folds for itself. Here a select is `OpVBlend` -
+ * three instructions and a scratch register at the baseline, `pblendvb` with its mask pinned
+ * to xmm0 at SSE4.1, `vpblendvb` with three register operands under VEX - and every one of
+ * those is more than the single `and` that a zero arm makes it.
+ *
+ * **The zero arm has to go, which is why this is a rewrite and not a form.** A form chosen
+ * for the select would still list the zero as an operand, so the allocator would still hold
+ * a register for it across the loop and still materialize it; what makes this worth doing is
+ * that the operand disappears along with the instruction that built it.
+ *
+ * `complemented` is which arm was the zero. `pand` is the mask kept, `pandn` computes
+ * `~lhs & rhs` and is the mask *dropped* - so the two arms of a select map onto the two
+ * instructions with no negation between them. The operands are stated in the machine's
+ * order, `lhs` being the one the destination is tied to: `and` is commutative and takes the
+ * value first, `andn` is not and takes the mask first.
+ *
+ * A mask lane is all-ones or all-zeros by construction, which is the whole of why this is
+ * exact at a float lane as well: `v & ~0` is `v` including a NaN's payload and both zeroes,
+ * and `v & 0` is `+0.0`, which is what the select's zero arm held.
+ */
+YANA_LOWER_INST(X86MaskAnd,    LowerInstX86MaskAnd,     "x86_maskand"_v,     2,         1,        kLowerArith | kLowerBitwise)
+
+/*
+ * A vector's lanes rearranged by an index held in another *vector* - AVX2's `vpermd` and
+ * `vpermps`.
+ *
+ * Backend-private on `X86MaskAnd`'s terms, and for a sharper reason than either of the two
+ * above it: the portable spelling is `VecShuffle`, whose pattern is part of the instruction,
+ * and this is the one machine where a general pattern is not part of the instruction at all.
+ * Every shuffle AVX2 has works inside each 128-bit half; the one that crosses them takes its
+ * pattern out of a register, which means the pattern has to become a **value** - a pooled
+ * `.rodata` load with a live range and a register of its own - before it can be an operand.
+ * A form cannot do that, because a form does not create operands.
+ *
+ * So `lowerWideLanePermutes` is what turns the one into the other, and what arrives here is
+ * a shuffle that has already had its pattern materialized. `indices` names a source lane per
+ * result lane, as `VecShuffle`'s pattern does, over the **one** source: `vpermd` reads a
+ * single vector, so a cross-half pattern naming both sources is refused rather than lowered.
+ */
+YANA_LOWER_INST(X86Permute,    LowerInstX86Permute,     "x86_permute"_v,     2,         1,        kLowerArith)
+
+/*
+ * A memory location read, combined with a value, and written back - `add [rdi + rcx*4], edx`.
+ *
+ * Backend-private on the terms `X86MinMax` states, and arrived at from the other direction:
+ * the portable spelling is the three instructions this replaces - a load, an operation and a
+ * store - and there is nothing wrong with them anywhere except on a machine whose ALU writes
+ * its result through the same r/m field it read the operand from. x86's does, at `add`,
+ * `sub`, `and`, `or` and `xor`, and what that removes is not only two of the three
+ * instructions: it removes the *register* the loaded value occupied, in the innermost loop
+ * of every accumulating write.
+ *
+ * **A store rather than an operation, which is why it defines nothing.** The result is in
+ * memory; there is no value here for anything below to read, and an instruction that
+ * produced one would have the allocator hold a register for a number the encoding never
+ * writes. `foldStoreUpdates` in codegen/x64/transform_address.cpp is what recognizes the three, and
+ * the conditions it holds them to are stated there.
+ *
+ * The operand order is the machine's: the location is the destination and the left-hand
+ * side, so a subtraction is `[m] - value` and nothing else. A commutative operation may have
+ * arrived either way round and is folded from both.
+ */
+YANA_LOWER_INST(X86StoreOp,    LowerInstX86StoreOp,     "x86_storeop"_v,     2,         0,        kLowerReads | kLowerWrites)
+
+/*
+ * The sign of a narrow value put back into the whole register - `movsx`, `movsxd`.
+ *
+ * Backend-private on `X86StoreOp`'s terms: the portable spelling is the pair
+ * `truncateToWidth` writes (resolve/lower_type.cpp), a left shift and an arithmetic right
+ * shift by the same distance, and there is nothing wrong with it. LLVM folds the pair into a
+ * `sext` for itself and `(x << 16) >> 16` is the idiom a JS engine recognizes, so those two
+ * backends want exactly the two instructions they are given.
+ *
+ * x86 does not. The shifts are two-address (`tiedDef`, see `shift` in codegen/x64/machine_forms_scalar.cpp),
+ * so a source with another reader needs a copy in front of them; they are six bytes and two
+ * uops where `movsx` is three or four bytes and one; and they write the flags, which a
+ * sign-extension standing between a comparison and its branch has no business doing.
+ * `selectSignExtends` in codegen/x64/transform_peephole.cpp recognizes the pair and writes this.
+ *
+ * `sourceBytes` is how much of the operand is read - one, two, or four. It is the
+ * instruction's own rather than the type's for the reason `X86MulWide`'s signedness is: the
+ * operand arrives in a register whose `LowerType` is the register's width, and the narrow
+ * width being extended from is exactly what that type no longer says. Four is `movsxd` and
+ * is only ever reached at a 64-bit result, there being no 32-to-32 encoding of it.
+ */
+YANA_LOWER_INST(X86Sext,       LowerInstX86Sext,        "x86_sext"_v,        1,         1,        kLowerArith)
+
+/*
+ * A load and a store that reverse the bytes on the way - `movbe`, which is x86-64-v3.
+ *
+ * Backend-private on `X86StoreOp`'s terms, and for the same reason: the portable spelling is
+ * the pair this replaces - a `Load` and a `Bswap`, or a `Bswap` and a `Store` - and there is
+ * nothing wrong with it. LLVM folds that pair into a `movbe` for itself where its target has
+ * one, and JS has no memory to fold into at all, so both of those backends want exactly the
+ * two instructions they were given.
+ *
+ * What the fold buys here is the whole point of the instruction: a value read from a binary
+ * format is byte-reversed on the way out of memory, with no register holding the unreversed
+ * one and no second instruction to reverse it. It is the same trade `foldLoads` makes for
+ * every other operation with an r/m operand, and it needs a kind of its own only because
+ * `bswap` itself has no memory form to be the twin of - the opcode is a different one.
+ *
+ * `getWidth` is the access, 2, 4 or 8 bytes, exactly as a `Load`'s is. There is no sign flag
+ * and no narrower width: a `movbe` is the whole of its register, and a program that reversed
+ * two bytes never reached this - see `Value::ByteSwap` in resolve/inst.def for where a 16-bit
+ * swap is spent. `selectByteSwapMemory` in codegen/x64/transform_address.cpp is what writes
+ * both of these, and the feature test is there rather than here.
+ */
+YANA_LOWER_INST(X86MovbeLoad,  LowerInstX86MovbeLoad,   "x86_movbe_load"_v,  1,         1,        kLowerPlain | kLowerReads)
+YANA_LOWER_INST(X86MovbeStore, LowerInstX86MovbeStore,  "x86_movbe_store"_v, 2,         0,        kLowerPlain | kLowerWrites)
+
+/*
+ * `~lhs & rhs` in one instruction - `andn`, which is BMI1.
+ *
+ * Backend-private on `X86Sext`'s terms: the portable spelling is the two instructions this
+ * replaces, a complement and an `and`, and there is nothing wrong with them. LLVM's own
+ * selection folds the pair for a target that has `andn`, and JS has no complement operator
+ * that is not already `^ -1`, so both of those backends want what they were given.
+ *
+ * What this buys on x86 is what `X86Sext` buys and one more thing. `not r/m` is two-address
+ * and writes over the operand it complements, so a mask with a second reader needs a copy in
+ * front of it; the pair is five or six bytes where `andn` is five and one uop; and the `and`
+ * writes the flags where `andn` writes only ZF and SF, which is the difference between
+ * clearing a comparison's window and leaving it open.
+ *
+ * **The operand order is the machine's**, which is the whole reason this is a kind and not a
+ * flag on `And`: `andn` complements its VEX.vvvv operand and nothing else, so which of the
+ * two was written `not` is a fact about the instruction rather than something an operand
+ * order can be relied on to carry. `lhs` is the complemented one, always.
+ *
+ * `selectAndNot` in codegen/x64/transform_peephole.cpp is what recognizes the pair, from
+ * either side of the `and` - the operation is commutative and the complement may have
+ * arrived on either.
+ */
+YANA_LOWER_INST(X86AndNot,     LowerInstX86AndNot,      "x86_andnot"_v,      2,         1,        kLowerArith)
+
+/*
+ * The lowest set bit of a word, in the three forms BMI1 has an instruction for.
+ *
+ * `blsr`, `blsi` and `blsmsk` are one opcode at three extensions, and each of them is an
+ * `and`, a `xor` or a negation away from the operand it reads: `x & (x - 1)` clears the
+ * lowest set bit, `x & -x` isolates it, and `x ^ (x - 1)` is the mask up to and including
+ * it. All three are the arithmetic a loop over the set bits of a word is written out of, and
+ * all three are two instructions and a live copy of `x` without them.
+ *
+ * Backend-private on `X86AndNot`'s terms and with the same three gains - one instruction
+ * instead of two, no tie, and the flags left as ZF and CF rather than a full `and`'s worth.
+ * `selectLowestBitOps` in codegen/x64/transform_peephole.cpp recognizes all three.
+ *
+ * A single operand, which is what makes these worth a kind of their own rather than a form:
+ * the `x` the pair names twice is *one* value here, so the copy the two-address `sub` or
+ * `dec` needed goes with the instruction it fed.
+ */
+YANA_LOWER_INST(X86LowBit,     LowerInstX86LowBit,      "x86_lowbit"_v,      1,         1,        kLowerArith)

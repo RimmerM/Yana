@@ -1376,17 +1376,6 @@ struct IntrinsicOperandRule {
     U64 maxImmediate = 0;
 };
 
-// What an intrinsic does that its operands do not say. None of these are consulted by the allocator
-// - every register effect is in the form - but the scheduling and folding a mid-level pass will do
-// needs them stated, and stating them is free at the point the intrinsic is added rather than
-// archaeology afterwards.
-struct IntrinsicEffects {
-    bool readsMemory = false;
-    bool writesMemory = false;
-    bool ordered = false;     // must not be moved across another ordered operation
-    bool privileged = false;  // only valid in kernel mode
-};
-
 struct IntrinsicDescriptor {
     LowerIntrinsic id = LowerIntrinsic::Popcnt;
     FeatureSet requiredFeatures = kFeatureBaseline;
@@ -1398,7 +1387,11 @@ struct IntrinsicDescriptor {
     Array<IntrinsicOperandRule> operands;
     Array<IntrinsicOperandRule> results;
 
-    IntrinsicEffects effects;
+    // What the intrinsic does beyond its operands - whether it reads or writes memory, whether it
+    // orders, whether it is privileged - is *not* here. It was, and nothing read it: those are
+    // questions a mid-level pass asks, and a mid-level pass has no target. They live in
+    // LowerIntrinsicDesc (lower/lower_inst.h) with the arity, which is where `writesStorage` and
+    // `isRepeatable` find them.
     bool defined = false;
 };
 

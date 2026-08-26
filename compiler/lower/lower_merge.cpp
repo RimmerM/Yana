@@ -87,26 +87,28 @@ static bool sameExitOperand(LowerBase base, LowerBlock* left, LowerBlock* right,
  * Whether everything an instruction carries beside its operands is compared by `kind`, `flags` and
  * the types of its results.
  *
- * An allow-list rather than a list of exclusions, because the failure mode of getting it wrong is a
- * miscompile and the failure mode of being too strict is a merge that does not happen. A kind added
- * to the IR later is refused here until somebody says what makes two of them the same.
+ * `kLowerPlain` is that question asked at the kind, and the safe answer for a kind that says nothing
+ * is "no" - the failure mode of getting it wrong is a miscompile, and the failure mode of being too
+ * strict is a merge that does not happen. It used to be an allow-list here, which had drifted: an
+ * `abs` and a `vzeroupper` were both refused for no reason but not having been added to it.
  *
  * What `flags` covers is worth naming, since it is doing most of the work: a cast's two signedness
  * bits, a comparison's test, a load's or a store's width and signedness, a call's convention, a
  * block operation's chosen encoding. Every one of those is a way two instructions of one kind
  * produce different numbers out of the same operands.
  *
- * Three kinds carry something `flags` does not, and each of them is compared by that field outright:
- * an `Imm`'s stored word, and the target of a `Fun` or a `Global`. All three are usually reached
- * through `sameExitOperand` instead, since a constant lowered from the resolve IR is built in the
- * entry block rather than in an arm - but a `Fun` is *not*: the address of a called function is
+ * Three kinds carry something `flags` does not and are compared by that field outright: an `Imm`'s
+ * stored word, and the target of a `Fun` or a `Global`. All three are usually reached through
+ * `sameExitOperand` instead, since a constant lowered from the resolve IR is built in the entry
+ * block rather than in an arm - but a `Fun` is *not*: the address of a called function is
  * materialized in the block that calls it, so an exit block whose whole content is a teardown call
  * holds one, and refusing the kind refused every such block.
  *
- * **`Alloca` is the refusal that is a decision rather than an omission.** Two copies of an exit that
- * each allocate are two distinct pieces of storage and only one of them ever runs, so unifying them
- * would be sound - but a frame slot is the one thing here whose identity outlives the block, and no
- * exit block allocates in any program this compiler emits.
+ * **`Alloca` falls out as a refusal rather than being named as one**, and it is worth saying that
+ * the answer is the one that was wanted: it carries an alignment past its operands, so it is not
+ * plain - and two copies of an exit that each allocate are two distinct pieces of storage of which
+ * only one ever runs. Unifying them would in fact be sound, a frame slot being the one thing here
+ * whose identity outlives the block; no exit block allocates in any program this compiler emits.
  */
 static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
     switch(inst->kind) {
@@ -118,77 +120,7 @@ static bool sameCarriedData(LowerInst* inst, LowerInst* other) {
         case LowerInst::Global:
             return ((LowerInstGlobal*)inst)->target == ((LowerInstGlobal*)other)->target;
         default:
-            break;
-    }
-
-    switch(inst->kind) {
-        case LowerInst::Nop:
-        case LowerInst::Set:
-        case LowerInst::Cast:
-        case LowerInst::Bitcast:
-        case LowerInst::Neg:
-        case LowerInst::Not:
-        case LowerInst::Add:
-        case LowerInst::Sub:
-        case LowerInst::Mul:
-        case LowerInst::IMul:
-        case LowerInst::Div:
-        case LowerInst::IDiv:
-        case LowerInst::Rem:
-        case LowerInst::IRem:
-        case LowerInst::MulHi:
-        case LowerInst::IMulHi:
-        case LowerInst::Shl:
-        case LowerInst::Shr:
-        case LowerInst::Sar:
-        case LowerInst::Rol:
-        case LowerInst::Ror:
-        case LowerInst::And:
-        case LowerInst::Or:
-        case LowerInst::Xor:
-        case LowerInst::BitsUpTo:
-        case LowerInst::GatherBits:
-        case LowerInst::ScatterBits:
-        case LowerInst::Crc32:
-        case LowerInst::Cmp:
-        case LowerInst::Select:
-
-        // The byte reversal, which carries nothing beside its operand either.
-        case LowerInst::Bswap:
-
-        // Both floating-point kinds, which carry nothing beside their operands - so two of them in
-        // two copies of a block are the same computation exactly when their operands are, which is
-        // what the caller compares next.
-        case LowerInst::Sqrt:
-        case LowerInst::Trunc:
-        case LowerInst::Floor:
-        case LowerInst::Ceil:
-        case LowerInst::Round:
-        case LowerInst::Fma:
-
-        // `ShaBinary` carries its instruction in `flags`, which the caller compares beside this -
-        // which is exactly why the op lives there rather than past the operands. See the note on
-        // `VecShuffle` below, which is the same question answered the other way.
-        case LowerInst::ShaBinary:
-        case LowerInst::Sha256Rounds:
-
-        // Four of the five vector kinds. `VecShuffle` is deliberately not one of them: its pattern
-        // is stored past its operands rather than in `flags`, so two of them that pick different
-        // lanes out of the same pair of vectors would compare the same here.
-        case LowerInst::VecSplat:
-        case LowerInst::VecLane:
-        case LowerInst::VecWithLane:
-        case LowerInst::VecReduce:
-        case LowerInst::Load:
-        case LowerInst::Store:
-        case LowerInst::Copy:
-        case LowerInst::SetPattern:
-        case LowerInst::Call:
-        case LowerInst::Ret:
-        case LowerInst::Unreachable:
-            return true;
-        default:
-            return false;
+            return hasLowerTrait(inst, kLowerPlain);
     }
 }
 

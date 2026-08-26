@@ -13,84 +13,18 @@ Maybe<U64> constantOf(LowerBase base, LowerPtr<LowerValue> value) {
 }
 
 /*
- * Whether running this instruction can read or write memory.
+ * How far one access reaches, as a number this pass can use.
  *
- * A whitelist of the kinds that provably cannot, rather than a list of the ones that can, so that an
- * instruction kind added later is answered "yes" and costs a rewrite rather than correctness. The
- * whole of what this pass does rests on knowing everything that could observe a destination it has
- * begun writing into, which is the one question a wrong default would answer silently.
+ * The instruction states its own extent - see `LowerInst::accessAt` - as a width where it has one
+ * and as an operand where the length is computed. Zero is the answer for a length that is not a
+ * constant, and every use of it below is a refusal: an access whose extent is unknown is one that
+ * cannot be shown to land inside the allocation.
  */
-bool touchesMemory(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Arg:
-        case LowerInst::Global:
-        case LowerInst::Fun:
-        case LowerInst::Imm:
-        case LowerInst::Nop:
-        case LowerInst::Select:
-        case LowerInst::Alloca:
-        case LowerInst::Phi:
-        case LowerInst::VecSplat:
-        case LowerInst::VecLane:
-        case LowerInst::VecWithLane:
-        case LowerInst::VecShuffle:
-        case LowerInst::VecReduce:
+U64 accessBytes(LowerBase base, const LowerAccess& access) {
+    if(!access.count) return access.bytes;
 
-        // `Fma` is neither unary nor binary, so the fallback below answers *yes* for it - which is
-        // this function's stated design (a new kind touches memory until it says otherwise) and is
-        // wrong here. `Sqrt` reaches the fallback correctly, being a Unary.
-        case LowerInst::Fma:
-
-        // The SHA rounds, here for `Fma`'s reason: `Sha256Rounds` has three operands and is neither
-        // unary nor binary, so the fallback would answer *yes* for it. `ShaBinary` is a binary and
-        // would reach the fallback correctly; it is named beside its sibling so that the two are not
-        // separated by a rule neither of them states.
-        case LowerInst::ShaBinary:
-        case LowerInst::Sha256Rounds:
-            return false;
-        default:
-            return !isUnary(inst) && !isBinary(inst) && !isCast(inst);
-    }
-}
-
-/*
- * One memory access, taken apart: where it goes, and how much of it.
- *
- * The four kinds that name an address name one each, except a copy, which names two - so an access
- * is a (kind, end) pair rather than an instruction, and everything below asks about accesses rather
- * than about instructions. `bytes` is zero where the extent is not a constant, which is a copy or a
- * fill of a length computed at run time and is refused wherever it appears.
- */
-struct Access {
-    LowerPtr<LowerValue> address = nullptr;
-    U64 bytes = 0;
-};
-
-Access accessAt(LowerBase base, LowerInst* inst, Size which) {
-    auto extent = [&](LowerPtr<LowerValue> count) {
-        auto value = constantOf(base, count);
-        return value ? value.unwrap() : U64(0);
-    };
-
-    switch(inst->kind) {
-        case LowerInst::Load:
-            if(which > 0) return {};
-            return { ((LowerInstLoad*)inst)->from, ((LowerInstLoad*)inst)->getWidth() };
-        case LowerInst::Store:
-            if(which > 0) return {};
-            return { ((LowerInstStore*)inst)->to, ((LowerInstStore*)inst)->getWidth() };
-        case LowerInst::SetPattern:
-            if(which > 0) return {};
-            return { ((LowerInstSetPattern*)inst)->to, extent(((LowerInstSetPattern*)inst)->count) };
-        case LowerInst::Copy:
-            if(which > 1) return {};
-            return {
-                which == 0 ? ((LowerInstCopy*)inst)->to : ((LowerInstCopy*)inst)->from,
-                extent(((LowerInstCopy*)inst)->count),
-            };
-        default:
-            return {};
-    }
+    auto value = constantOf(base, access.count);
+    return value ? value.unwrap() : U64(0);
 }
 
 /*
@@ -102,8 +36,9 @@ Access accessAt(LowerBase base, LowerInst* inst, Size which) {
  * be able to redirect in full, and the allocation an unrelated access resolves to, which only has to
  * be shown to be nobody else's.
  *
- * Three uses are accounted for. An access *through* it - a load, a store, a fill, a copy at either
- * end - is what the storage is for; a constant offset from it is a further address, and is followed.
+ * Three uses are accounted for. An access *through* it - a load, a store, an atomic, a fill, a copy
+ * at either end, whatever else declares one - is what the storage is for; a constant offset from it
+ * is a further address, and is followed.
  * Everything else is the address leaving, and is the answer "no": as a call argument, as a value
  * stored into memory, as a copy's byte count, as an operand of arithmetic that is not a constant
  * offset, as a phi alternative, as the operand of a terminator.
@@ -165,12 +100,14 @@ bool walkAddress(LowerBase base, LowerValue* address, U64 size, U64 offset, bool
         auto used = user->used();
         auto named = Size(0);
 
-        for(Size which = 0;; which++) {
-            auto access = accessAt(base, user, which);
-            if(!access.address) break;
-            if(access.address != self) continue;
+        LowerAccess accesses[kMaxAccesses];
+        auto count = lowerInstAccesses(user, accesses);
 
-            if(access.bytes == 0 || access.bytes > size - offset) return false;
+        for(Size which = 0; which < count; which++) {
+            if(*accesses[which].address != self) continue;
+
+            auto bytes = accessBytes(base, accesses[which]);
+            if(bytes == 0 || bytes > size - offset) return false;
             named++;
         }
 
@@ -262,10 +199,11 @@ bool addressHiddenBefore(LowerBase base, LowerBlock& block, HashMap<U32, U32>& p
         auto used = user->used();
         auto named = Size(0);
 
-        for(Size which = 0;; which++) {
-            auto access = accessAt(base, user, which);
-            if(!access.address) break;
-            if(access.address == self) named++;
+        LowerAccess accesses[kMaxAccesses];
+        auto count = lowerInstAccesses(user, accesses);
+
+        for(Size which = 0; which < count; which++) {
+            if(*accesses[which].address == self) named++;
         }
 
         auto positions = Size(0);
@@ -609,7 +547,7 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
 
     for(auto i = first; i < Size(here.unwrap()); i++) {
         auto inst = base[block.instructions.get(base, i)];
-        if(!touchesMemory(inst)) continue;
+        if(!touchesStorage(inst)) continue;
 
         // A call the temporary is handed to is one of the writes being moved rather than something
         // that could reach the destination - which is what the check above has just established for
@@ -620,12 +558,12 @@ bool tryForward(LowerBase base, LowerFunction& fun, LowerBlock& block, HashMap<U
         // since lifting it above `first` is the rewrite. It is the only call that leaves this way.
         if(movesAllocator && inst == definition) continue;
 
-        auto known = false;
-        for(Size which = 0;; which++) {
-            auto access = accessAt(base, inst, which);
-            if(!access.address) break;
+        LowerAccess accesses[kMaxAccesses];
+        auto count = lowerInstAccesses(inst, accesses);
 
-            auto owner = allocationBase(base, access.address);
+        auto known = false;
+        for(Size which = 0; which < count; which++) {
+            auto owner = allocationBase(base, *accesses[which].address);
             if(!owner) return false;
 
             if(destinationBase) {

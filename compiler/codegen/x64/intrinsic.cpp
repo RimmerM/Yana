@@ -306,7 +306,6 @@ void addIntrinsics(MachineTarget& target) {
         b.desc.operands.push(integer32Rule());
         for(Size i = 0; i < 4; i++) b.desc.results.push(integer32Rule());
 
-        b.desc.effects.ordered = true; // a serializing instruction, which is half of what it is for
     }
 
     {
@@ -326,7 +325,6 @@ void addIntrinsics(MachineTarget& target) {
 
         b.desc.results.push(integer32Rule());
         b.desc.results.push(integer32Rule());
-        b.desc.effects.ordered = true;
     }
 
     {
@@ -346,7 +344,6 @@ void addIntrinsics(MachineTarget& target) {
         };
 
         b.desc.results.push(integer64Rule());
-        b.desc.effects.ordered = true;
     }
 
     /*
@@ -370,9 +367,6 @@ void addIntrinsics(MachineTarget& target) {
                 .width = OperationWidth::Fixed32,
             };
 
-            b.desc.effects.ordered = true;
-            b.desc.effects.readsMemory = reads;
-            b.desc.effects.writesMemory = writes;
         };
 
         // The three group-15 forms, which differ only in the byte after the opcode.
@@ -392,7 +386,6 @@ void addIntrinsics(MachineTarget& target) {
             .width = OperationWidth::Fixed32,
         };
 
-        b.desc.effects.ordered = true;
     }
 
     /*
@@ -455,9 +448,6 @@ void addIntrinsics(MachineTarget& target) {
         for(Size i = 0; i < 6; i++) b.desc.operands.push(integer64Rule());
         b.desc.results.push(integer64Rule());
 
-        b.desc.effects.ordered = true;
-        b.desc.effects.readsMemory = true;
-        b.desc.effects.writesMemory = true;
     }
 
     /*
@@ -474,7 +464,7 @@ void addIntrinsics(MachineTarget& target) {
 
     {
         auto cacheOp = [&](LowerIntrinsic id, StringView formName, U8 opcode, U8 extension,
-                           IntrinsicEffects effects, FeatureSet features = kFeatureBaseline)
+                           FeatureSet features = kFeatureBaseline)
         {
             auto b = add(id, formName, features);
             b.form.uses.push(address());
@@ -486,27 +476,18 @@ void addIntrinsics(MachineTarget& target) {
             };
 
             b.desc.operands.push(pointerRule());
-            b.desc.effects = effects;
         };
 
-        // PREFETCHT0 (0f 18 /1) and PREFETCHNTA (0f 18 /0) read a line towards the processor and
-        // have no architectural effect whatever - which is why neither is `ordered`: moving one, or
-        // dropping it, changes how fast the program runs and nothing else. That is the contrast the
-        // three below are worth reading against.
-        cacheOp(LowerIntrinsic::Prefetch, "prefetcht0 [address]"_v, 0x18, 1,
-            IntrinsicEffects { .readsMemory = true });
-        cacheOp(LowerIntrinsic::PrefetchNta, "prefetchnta [address]"_v, 0x18, 0,
-            IntrinsicEffects { .readsMemory = true });
-
-        // CLFLUSH (0f ae /7) writes the line back and evicts it from every cache in the coherence
-        // domain, which is a store as far as anything reasoning about memory is concerned.
-        cacheOp(LowerIntrinsic::Clflush, "clflush [address]"_v, 0xae, 7,
-            IntrinsicEffects { .readsMemory = true, .writesMemory = true, .ordered = true });
-
-        // INVLPG (0f 01 /7) drops one page's translation. It writes no memory but changes what every
-        // later access to that page means, so it is ordered against all of them.
-        cacheOp(LowerIntrinsic::Invlpg, "invlpg [address]"_v, 0x01, 7,
-            IntrinsicEffects { .writesMemory = true, .ordered = true, .privileged = true });
+        // What each of these does to memory is stated in lower/lower.cpp beside its arity, which is
+        // where a pass reads it: PREFETCHT0 (0f 18 /1) and PREFETCHNTA (0f 18 /0) read a line
+        // towards the processor and are not `ordered`, since moving one or dropping it changes how
+        // fast the program runs and nothing else; CLFLUSH (0f ae /7) is a store as far as anything
+        // reasoning about memory is concerned; and INVLPG (0f 01 /7) writes no memory but changes
+        // what every later access to its page means.
+        cacheOp(LowerIntrinsic::Prefetch, "prefetcht0 [address]"_v, 0x18, 1);
+        cacheOp(LowerIntrinsic::PrefetchNta, "prefetchnta [address]"_v, 0x18, 0);
+        cacheOp(LowerIntrinsic::Clflush, "clflush [address]"_v, 0xae, 7);
+        cacheOp(LowerIntrinsic::Invlpg, "invlpg [address]"_v, 0x01, 7);
     }
 
     /*
@@ -527,8 +508,6 @@ void addIntrinsics(MachineTarget& target) {
                 .width = OperationWidth::Fixed32,
             };
 
-            b.desc.effects.ordered = true;
-            b.desc.effects.privileged = true;
         };
 
         systemOp(LowerIntrinsic::Hlt, "hlt"_v, 0xf4, 0, 0);
@@ -561,8 +540,6 @@ void addIntrinsics(MachineTarget& target) {
         b.desc.operands.push(integer32Rule());
         b.desc.results.push(integer32Rule());
         b.desc.results.push(integer32Rule());
-        b.desc.effects.ordered = true;
-        b.desc.effects.privileged = true;
     }
 
     {
@@ -579,8 +556,6 @@ void addIntrinsics(MachineTarget& target) {
         };
 
         for(Size i = 0; i < 3; i++) b.desc.operands.push(integer32Rule());
-        b.desc.effects.ordered = true;
-        b.desc.effects.privileged = true;
     }
 
     {
@@ -600,7 +575,6 @@ void addIntrinsics(MachineTarget& target) {
         b.desc.operands.push(integer32Rule());
         b.desc.results.push(integer32Rule());
         b.desc.results.push(integer32Rule());
-        b.desc.effects.ordered = true;
     }
 
     /*
@@ -631,8 +605,6 @@ void addIntrinsics(MachineTarget& target) {
             if(in) b.desc.results.push(integer32Rule());
             else b.desc.operands.push(integer32Rule());
 
-            b.desc.effects.ordered = true;
-            b.desc.effects.privileged = true;
         };
 
         // IN eax, dx (ed) and OUT dx, eax (ef), at the width the IR's own integers are.
@@ -656,8 +628,6 @@ void addIntrinsics(MachineTarget& target) {
 
         b.desc.operands.push(integer32Rule());
         b.desc.results.push(integer32Rule());
-        b.desc.effects.ordered = true;
-        b.desc.effects.privileged = true;
     }
 
     /*
@@ -709,8 +679,6 @@ void addIntrinsics(MachineTarget& target) {
             if(cr.write) b.desc.operands.push(integer64Rule());
             else b.desc.results.push(integer64Rule());
 
-            b.desc.effects.ordered = true;
-            b.desc.effects.privileged = true;
         }
     }
 }

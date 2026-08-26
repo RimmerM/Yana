@@ -196,136 +196,48 @@ static StringView nameForCast(LowerBase base, const LowerInstCast& inst) {
     }
 }
 
+/*
+ * The mnemonic an instruction prints as.
+ *
+ * The base name is the row in inst.def, which is what makes a new kind printable and parseable
+ * without a case of its own - this used to be a switch over every kind, and a kind missing from it
+ * hit an assertion at the point somebody dumped the IR. What is left is the sixteen kinds that
+ * *refine* the base name from their own fields, in the arrangement resolve/print.cpp uses one tier
+ * up: which comparison, which atomic operation, which of the four minima.
+ *
+ * A refinement is written here rather than as more rows because the alternatives are one operation.
+ * `loads` and `load` are the same instruction at two signednesses, and two rows would mean two kinds
+ * every pass had to know were one.
+ */
 StringView nameForInst(LowerBase base, LowerInst& inst) {
     switch(inst.kind) {
-        case LowerInst::Arg:
-            return "arg"_v;
-        case LowerInst::Global:
-            return "global"_v;
-        case LowerInst::Fun:
-            return "fun"_v;
-        case LowerInst::Imm:
-            return "imm"_v;
-        case LowerInst::Nop:
-            return "nop"_v;
-        case LowerInst::VZeroUpper:
-            return "vzeroupper"_v;
         case LowerInst::Cast:
             return nameForCast(base, (LowerInstCast&)inst);
-        case LowerInst::Bitcast:
-            return "bitcast"_v;
-        case LowerInst::Set:
-            return "set"_v;
-        case LowerInst::Neg:
-            return "neg"_v;
-        case LowerInst::Not:
-            return "not"_v;
-        case LowerInst::Bswap:
-            return "bswap"_v;
-        case LowerInst::Abs:
-            return "abs"_v;
-        case LowerInst::Sqrt:
-            return "sqrt"_v;
-        case LowerInst::Trunc:
-            return "trunc"_v;
-        case LowerInst::Floor:
-            return "floor"_v;
-        case LowerInst::Ceil:
-            return "ceil"_v;
-        case LowerInst::Round:
-            return "round"_v;
-        case LowerInst::Fma:
-            return "fma"_v;
+
         // The nine two-operand SHA instructions print as themselves rather than as `sha` plus a
         // field, so that a `.lower` fixture reads the way the disassembly does.
         case LowerInst::ShaBinary:
             return nameOfLowerSha(((LowerInstShaBinary*)&inst)->getSha());
-        case LowerInst::Sha256Rounds:
-            return "sha256rnds2"_v;
-        case LowerInst::Add:
-            return "add"_v;
-        case LowerInst::Sub:
-            return "sub"_v;
-        case LowerInst::Mul:
-            return "mul"_v;
-        case LowerInst::IMul:
-            return "imul"_v;
-        case LowerInst::Div:
-            return "div"_v;
-        case LowerInst::IDiv:
-            return "idiv"_v;
-        case LowerInst::Rem:
-            return "rem"_v;
-        case LowerInst::IRem:
-            return "irem"_v;
-        case LowerInst::MulHi:
-            return "mulhi"_v;
-        case LowerInst::IMulHi:
-            return "imulhi"_v;
-        case LowerInst::Shl:
-            return "shl"_v;
-        case LowerInst::Shr:
-            return "shr"_v;
-        case LowerInst::Sar:
-            return "sar"_v;
-        case LowerInst::Rol:
-            return "rol"_v;
-        case LowerInst::Ror:
-            return "ror"_v;
-        case LowerInst::And:
-            return "and"_v;
-        case LowerInst::Or:
-            return "or"_v;
-        case LowerInst::Xor:
-            return "xor"_v;
-        case LowerInst::BitsUpTo:
-            return "bitsupto"_v;
-        case LowerInst::GatherBits:
-            return "gatherbits"_v;
-        case LowerInst::ScatterBits:
-            return "scatterbits"_v;
-        case LowerInst::Crc32:
-            return "crc32"_v;
         case LowerInst::Cmp:
             return nameForCmp(((LowerInstCmp&)inst).getCmp());
-        case LowerInst::Select:
-            return "select"_v;
-        case LowerInst::VecSplat:
-            return "vsplat"_v;
-        case LowerInst::VecLane:
-            return "vlane"_v;
-        case LowerInst::VecWithLane:
-            return "vwithlane"_v;
-        case LowerInst::VecShuffle:
-            return "vshuffle"_v;
         case LowerInst::VecReduce:
             return nameForReduce(((LowerInstVecReduce&)inst).getReduce());
-        case LowerInst::Alloca:
-            return "alloca"_v;
         case LowerInst::Load:
             if(((LowerInstLoad&)inst).isOverread()) return "loadx"_v;
             return ((LowerInstLoad&)inst).isSigned() ? "loads"_v : "load"_v;
-        case LowerInst::Store:
-            return "store"_v;
-        case LowerInst::Copy:
-            return "copy"_v;
-        case LowerInst::SetPattern:
-            return "setpattern"_v;
 
         /*
-         * The atomics, whose order is written out in full below rather than encoded in the name -
-         * Analysis-Atomics.md §5.5. A dump containing `atomic_load %p, 4, acquire` is what an audit
-         * of a synchronization protocol has to read, and five names per operation would be thirty
-         * spellings of six instructions.
+         * The atomics, whose order is written out in full beside the instruction rather than encoded
+         * in the name - Analysis-Atomics.md §5.5. A dump containing `atomic_load %p, 4, acquire` is
+         * what an audit of a synchronization protocol has to read, and five names per operation
+         * would be thirty spellings of six instructions.
          *
-         * The read-modify-write is the exception and carries its operation in the name, because
-         * that *is* which instruction it is rather than how strong it is: `atomic_add` and
-         * `atomic_xchg` are two operations, where `acquire` and `release` are one operation twice.
+         * The read-modify-write is the exception and carries its operation in the name, because that
+         * *is* which instruction it is rather than how strong it is: `atomic_add` and `atomic_xchg`
+         * are two operations, where `acquire` and `release` are one operation twice.
          */
         case LowerInst::AtomicLoad:
             return ((LowerInstAtomicLoad&)inst).isSigned() ? "atomic_loads"_v : "atomic_load"_v;
-        case LowerInst::AtomicStore:
-            return "atomic_store"_v;
         case LowerInst::AtomicRmw:
             switch(((LowerInstAtomicRmw&)inst).op) {
                 case LowerAtomicOp::Exchange: return "atomic_xchg"_v;
@@ -336,21 +248,21 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
                 case LowerAtomicOp::Xor:      return "atomic_xor"_v;
             }
             return "atomic_add"_v;
+
         // Two mnemonics and not four: a compare-exchange always carries both of its orders here, so
         // what the name still has to say is only whether a spurious failure is permitted. See
         // LowerInstAtomicCas, where §3.5's derivation is argued to belong to the library.
         case LowerInst::AtomicCas:
             return ((LowerInstAtomicCas&)inst).weak ? "atomic_cas_weak"_v : "atomic_cas"_v;
-        case LowerInst::Fence:
-            return "fence"_v;
-        case LowerInst::SpinHint:
-            return "spinhint"_v;
-        case LowerInst::X86PushArg:
-            return "x86_pusharg"_v;
+        case LowerInst::Call:
+            return nameForCall(((LowerInstCall&)inst).getCallType());
+        case LowerInst::Intrinsic:
+            return lowerIntrinsicDesc(((LowerInstIntrinsic&)inst).getIntrinsic()).name;
         case LowerInst::X86MinMax:
             return nameForMinMax(((LowerInstX86MinMax&)inst).getMinMax());
         case LowerInst::X86MulWide:
             return ((LowerInstX86MulWide&)inst).isSignedLanes() ? "x86_imulwide"_v : "x86_mulwide"_v;
+
         // Named by the width read rather than by the width written: the result's type is printed
         // beside it already, and what this instruction carries that the type does not is the other
         // end - see LowerInst::X86Sext.
@@ -362,8 +274,7 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             }
         case LowerInst::X86MaskAnd:
             return ((LowerInstX86MaskAnd&)inst).isComplemented() ? "x86_maskandn"_v : "x86_maskand"_v;
-        case LowerInst::X86AndNot:
-            return "x86_andnot"_v;
+
         // Named for the answer, the way the enum is - see LowerX86LowBit.
         case LowerInst::X86LowBit:
             switch(((LowerInstX86LowBit&)inst).getLowBit()) {
@@ -371,36 +282,11 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
                 case LowerX86LowBit::Isolate: return "x86_lowbit_isolate"_v;
                 default:                      return "x86_lowbit_mask"_v;
             }
-        case LowerInst::X86Permute:
-            return "x86_permute"_v;
         case LowerInst::X86StoreOp:
             return nameForStoreOp(((LowerInstX86StoreOp&)inst).getOp());
-        case LowerInst::X86MovbeLoad:
-            return "x86_movbe_load"_v;
-        case LowerInst::X86MovbeStore:
-            return "x86_movbe_store"_v;
-        case LowerInst::Call:
-            return nameForCall(((LowerInstCall&)inst).getCallType());
-        case LowerInst::Je:
-            return "je"_v;
-        case LowerInst::Jmp:
-            return "jmp"_v;
-        case LowerInst::Ret:
-            return "ret"_v;
-        case LowerInst::Unreachable:
-            return "unreachable"_v;
-        case LowerInst::Phi:
-            return "phi"_v;
-        case LowerInst::X86Address:
-            return "x86_addr"_v;
-        case LowerInst::X86Lea:
-            return "x86_lea"_v;
-        case LowerInst::Intrinsic:
-            return lowerIntrinsicDesc(((LowerInstIntrinsic&)inst).getIntrinsic()).name;
+        default:
+            return lowerInstTraits(inst.kind).mnemonic;
     }
-
-    assertTrue(false);
-    return ""_v;
 }
 
 StringView nameForType(LowerType type) {

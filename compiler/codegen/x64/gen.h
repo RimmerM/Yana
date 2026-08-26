@@ -1649,56 +1649,10 @@ struct AsmModule {
     void resolveRelocations(LowerGlobal* anchor);
 };
 
-// Represents an address calculation (base + index * scale) + displacement.
-// Used with two different instruction kinds:
-//  - X86Address: purely embedded into whatever instruction uses it (Load/Store) - never
-//    materialized into a register of its own, so its result is always Implicit.
-//  - X86Lea: materializes the computed address into a real register (LEA), e.g. for pointer
-//    arithmetic that doesn't immediately feed a Load/Store.
-struct LowerInstX86Address: LowerInstSingle {
-    LowerInstX86Address(LowerInst::Kind kind, StringId name, LowerPtr<LowerValue> base, LowerPtr<LowerValue> index, U8 scale, U32 displacement):
-        LowerInstSingle(kind, name, LowerType::Pointer),
-        first(base ? base : index), second(base && index ? index : nullptr),
-        displacement(displacement), scale(scale),
-        hasBase(base != nullptr), hasIndex(index != nullptr)
-    {
-        assertTrue(kind == LowerInst::X86Address || kind == LowerInst::X86Lea);
+// LowerInstX86Address - the backend's own address calculation - is declared beside the other
+// backend-private instruction kinds in lower/lower_inst.h, which is where inst.def's `Struct` column
+// has to be able to see it.
 
-        usedCount = U8((hasBase ? 1 : 0) + (hasIndex ? 1 : 0));
-
-        if(kind == LowerInst::X86Address) {
-            result.flags |= LowerValue::Implicit;
-        }
-    }
-
-    // The operand slots, named by position rather than by role. used() is one contiguous buffer, so
-    // an address with no base - the no-base SIB form, `[index*scale + disp32]` - holds its index in
-    // the first slot: a hole where the absent base would have been is a null operand that every
-    // consumer walking used() would dereference. Read them through base() and index() below.
-    LowerPtr<LowerValue> first, second;
-
-    /*
-     * `[rip + g]` instead of a computed address: a global named in the encoding rather than a
-     * pointer held in a register.
-     *
-     * A field rather than an operand because that is exactly what it is not - the form has nothing
-     * to place, and a `Global` instruction feeding this would be a value the allocator had to find a
-     * register for. Set only where base and index are both absent, since the rip-relative form has
-     * neither field.
-     *
-     * What it buys is one instruction where there were two: a pooled constant read once becomes
-     * `addsd xmm, [rip + k]` rather than a load into a register and an add of it.
-     */
-    LowerPtr<LowerGlobal> symbol = nullptr;
-
-    U32 displacement;
-    U8 scale;
-    bool hasBase;
-    bool hasIndex;
-
-    LowerPtr<LowerValue> base() const { return hasBase ? first : nullptr; }
-    LowerPtr<LowerValue> index() const { return hasIndex ? (hasBase ? second : first) : nullptr; }
-};
 
 // Runs the target transform pipeline over `fun` in place - see the pipeline table at the bottom of
 // transform.cpp for the passes and the order. `ctx` is only used to name the function in the

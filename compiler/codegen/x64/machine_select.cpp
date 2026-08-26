@@ -256,7 +256,8 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
          * sequential load is `mov` and a relaxed or release store is `mov`, because x86 already
          * orders load-load and store-store and the acquire and release halves therefore cost no
          * instruction at all; what has to be preserved is the *motion* constraint, and that lives
-         * above selection in the lower IR, where `writesStorage` answers yes to every atomic.
+         * above selection in the lower IR, where every atomic carries `kLowerOrdered` and so answers
+         * yes to `writesStorage`.
          *
          * A sequential store is the exception and is not here, because `expandAtomics` has already
          * turned it into an exchange - see there for why it is not a `mov` and a fence.
@@ -799,8 +800,22 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
         case LowerInst::Sar:
         case LowerInst::Rol:
         case LowerInst::Ror: {
-            // Indexed by the distance from `Shl`, which is why the two rotations sit immediately
-            // after `Sar` in the kind enum and why the note on them there says so.
+            /*
+             * Indexed by the distance from `Shl`, which is why the two rotations sit immediately
+             * after `Sar` in the kind enum and why the note on them there says so.
+             *
+             * inst.def states that rows may be appended to a family and never reordered, and this
+             * is the one place in the compiler that depends on it - so the dependency is written as
+             * an assertion here rather than left as a rule someone has to have read. A row moved
+             * between `Shl` and `Ror` selects the wrong encoding for a shift, which is a wrong
+             * answer rather than a crash.
+             */
+            static_assert(LowerInst::Shr == LowerInst::Shl + 1 &&
+                          LowerInst::Sar == LowerInst::Shl + 2 &&
+                          LowerInst::Rol == LowerInst::Shl + 3 &&
+                          LowerInst::Ror == LowerInst::Shl + 4,
+                          "the shift forms are indexed by the distance from Shl - see lower/inst.def");
+
             static const struct { MachineFormId imm, one, cl; } shifts[] = {
                 { FormShlImm, FormShlOne, FormShlCl },
                 { FormShrImm, FormShrOne, FormShrCl },

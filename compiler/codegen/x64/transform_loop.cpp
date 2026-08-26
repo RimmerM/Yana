@@ -71,59 +71,32 @@
 // error against the two jumps it removes.
 static constexpr Size kMaxRotatedHeader = 4;
 
-// Whether the header's copy of this instruction may also be made in the preheader.
-//
-// Every kind here computes one value from its operands and reads nothing that the block it moves
-// into cannot supply. A store, a call or a `copy` is excluded because duplicating it duplicates an
-// effect - even though it would run the same number of times, the second copy is code that has to
-// be kept in step with the first - and an `alloca` because a second one is a second allocation.
+/*
+ * Whether the header's copy of this instruction may also be made in the preheader.
+ *
+ * The claim is that it computes its results from its operands and reads nothing the block it moves
+ * into cannot supply, so a second copy is the same answer rather than a second effect. That is
+ * `kLowerPure` plus a read of memory, which is what lets a `Load` in - the preheader dominates the
+ * header, so the bytes are the ones the header would have read.
+ *
+ * A store, a call or a `copy` is excluded because duplicating it duplicates an effect even though it
+ * would run the same number of times; an `alloca` because a second one is a second allocation; and a
+ * division that trusts a test above it because the preheader is above that test. `lowerInstSize`
+ * carries the rest of the condition: a kind whose allocation runs past its struct cannot be copied
+ * flat, and the two used to be separate switches that a kind could be in one of.
+ */
 static bool isRotatableHeaderInst(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Imm:
-        case LowerInst::Global:
-        case LowerInst::Fun:
-        case LowerInst::Set:
-        case LowerInst::Cast:
-        case LowerInst::Bitcast:
-        case LowerInst::Neg:
-        case LowerInst::Not:
-        case LowerInst::Add:
-        case LowerInst::Sub:
-        case LowerInst::Mul:
-        case LowerInst::IMul:
-        case LowerInst::MulHi:
-        case LowerInst::IMulHi:
-        case LowerInst::Shl:
-        case LowerInst::Shr:
-        case LowerInst::Sar:
-        case LowerInst::And:
-        case LowerInst::Or:
-        case LowerInst::Xor:
-        case LowerInst::Cmp:
-        case LowerInst::Select:
-        case LowerInst::Load:
-            return true;
-        default:
-            return false;
-    }
+    if(lowerInstSize(inst) == 0) return false;
+    if(mayFault(inst)) return false;
+    if(!isPure(inst) && !hasLowerTrait(inst, kLowerReads)) return false;
+
+    return !hasLowerTrait(inst, kLowerWrites | kLowerOrdered);
 }
 
-// How much storage one of the kinds above occupies. Each of them is a fixed-shape allocation - the
-// created value and the operand pointers are members rather than a trailing array - so the copy
-// below can be a flat one, and every field an instruction carries comes across without this having
-// to know which fields those are.
-static Size rotatedInstSize(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Imm:    return sizeof(LowerImm);
-        case LowerInst::Global: return sizeof(LowerInstGlobal);
-        case LowerInst::Fun:    return sizeof(LowerInstFun);
-        case LowerInst::Cast:   return sizeof(LowerInstCast);
-        case LowerInst::Cmp:    return sizeof(LowerInstCmp);
-        case LowerInst::Select: return sizeof(LowerInstSelect);
-        case LowerInst::Load:   return sizeof(LowerInstLoad);
-        default:                return isUnary(inst) ? sizeof(LowerInstUnary) : sizeof(LowerInstBinary);
-    }
-}
+// How much storage one of the kinds above occupies, which is `sizeof` its row's struct - see
+// `lowerInstSize`. Each of them is a fixed-shape allocation, the created value and the operand
+// pointers being members rather than a trailing array, so the copy below can be a flat one and every
+// field an instruction carries comes across without this having to know which fields those are.
 
 // A second copy of one header instruction, detached: it belongs to no block and nothing reads it
 // yet, and its operands still name what the original's did until the caller remaps them.
@@ -132,7 +105,7 @@ static Size rotatedInstSize(LowerInst* inst) {
 // copy inherited - a list whose entries name the *original's* readers - and drops the source name
 // with it, so the two copies do not both claim to be `%i`.
 static LowerInst* cloneHeaderInst(Region<LowerRegion>& arena, LowerInst* inst) {
-    auto size = rotatedInstSize(inst);
+    auto size = lowerInstSize(inst);
     auto clone = (LowerInst*)arena.alloc(size);
     copyMem(inst, clone, size);
 

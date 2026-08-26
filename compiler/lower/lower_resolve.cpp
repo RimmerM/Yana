@@ -195,6 +195,35 @@ InstResolver handleBinary() {
 }
 
 /*
+ * Registering a resolver under the name its kind is printed as.
+ *
+ * The mnemonic comes from the kind's row rather than from a literal here, which is what makes a row
+ * in inst.def the one place an instruction's name is written: the printer reads the same field, so a
+ * name changed in one place cannot stop round-tripping through the other.
+ *
+ * `addKind` is the general form and takes whatever resolver the kind needs; `addUnary` and
+ * `addBinary` are it with the shared handler filled in, which between them is most of the roster.
+ * What is *not* registered through any of these is every name the text format spells differently
+ * from the kind - a cast's four, a comparison's twelve, a load's three, the atomics' orders, the
+ * ten reductions, the eight SHA operations, a call's seven conventions. Those are refinements of one
+ * kind into several names, so there is no row to read them from and they are written out below.
+ */
+template<LowerInst::Kind kind>
+void addKind(HashMap<StringId, InstResolver>& set, InstResolver resolver) {
+    set.add(Context::nameHash(lowerInstTraits(kind).mnemonic), resolver);
+}
+
+template<LowerInst::Kind kind>
+void addUnary(HashMap<StringId, InstResolver>& set) {
+    addKind<kind>(set, handleUnary<kind>());
+}
+
+template<LowerInst::Kind kind>
+void addBinary(HashMap<StringId, InstResolver>& set) {
+    addKind<kind>(set, handleBinary<kind>());
+}
+
+/*
  * The SHA extension's two shapes, so that what the printer writes can be read back.
  *
  * Two resolvers rather than one because the arity differs: `sha256rnds2` names three vectors and the
@@ -445,7 +474,7 @@ InstResolver handleReduce() {
 }
 
 static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSet) {
-    instructionSet.add(Context::nameHash("vsplat"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::VecSplat>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
         assertArgCount(ast.args, 1);
 
@@ -465,7 +494,7 @@ static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSe
             getResultName(result), type.unwrap(), from - base)));
     });
 
-    instructionSet.add(Context::nameHash("vlane"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::VecLane>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
         assertArgCount(ast.args, 2);
 
@@ -479,7 +508,7 @@ static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSe
             getResultName(result), type, from - base, lane)));
     });
 
-    instructionSet.add(Context::nameHash("vwithlane"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::VecWithLane>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
         assertArgCount(ast.args, 3);
 
@@ -494,7 +523,7 @@ static void addVectorInstructions(HashMap<StringId, InstResolver>& instructionSe
             getResultName(result), type, from - base, lane, value - base)));
     });
 
-    instructionSet.add(Context::nameHash("vshuffle"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::VecShuffle>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
 
         if(ast.args.size() < 3) {
@@ -628,11 +657,11 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
      * so their type is unknown until then.
      */
 
-    instructionSet.add(Context::nameHash("imm"_v), handleImplicit<LowerInst::Imm>());
-    instructionSet.add(Context::nameHash("fun"_v), handleImplicit<LowerInst::Fun>());
-    instructionSet.add(Context::nameHash("global"_v), handleImplicit<LowerInst::Global>());
+    addKind<LowerInst::Imm>(instructionSet, handleImplicit<LowerInst::Imm>());
+    addKind<LowerInst::Fun>(instructionSet, handleImplicit<LowerInst::Fun>());
+    addKind<LowerInst::Global>(instructionSet, handleImplicit<LowerInst::Global>());
 
-    instructionSet.add(Context::nameHash("nop"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Nop>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 0);
 
@@ -641,7 +670,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
     // `vzeroupper` - `nop`'s shape, and here so that a `.lower` fixture can round-trip one: the
     // printer emits the name, so the parser has to accept it or a golden could not be regenerated.
-    instructionSet.add(Context::nameHash("vzeroupper"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::VZeroUpper>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 0);
 
@@ -652,23 +681,23 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("sext"_v), handleCast<true, true>());
     instructionSet.add(Context::nameHash("ftoi"_v), handleCast<false, true>());
     instructionSet.add(Context::nameHash("itof"_v), handleCast<true, false>());
-    instructionSet.add(Context::nameHash("bitcast"_v), handleUnary<LowerInst::Bitcast>());
+    addUnary<LowerInst::Bitcast>(instructionSet);
 
-    instructionSet.add(Context::nameHash("set"_v), handleUnary<LowerInst::Set>());
-    instructionSet.add(Context::nameHash("neg"_v), handleUnary<LowerInst::Neg>());
-    instructionSet.add(Context::nameHash("not"_v), handleUnary<LowerInst::Not>());
-    instructionSet.add(Context::nameHash("bswap"_v), handleUnary<LowerInst::Bswap>());
-    instructionSet.add(Context::nameHash("sqrt"_v), handleUnary<LowerInst::Sqrt>());
-    instructionSet.add(Context::nameHash("abs"_v), handleUnary<LowerInst::Abs>());
-    instructionSet.add(Context::nameHash("trunc"_v), handleUnary<LowerInst::Trunc>());
-    instructionSet.add(Context::nameHash("floor"_v), handleUnary<LowerInst::Floor>());
-    instructionSet.add(Context::nameHash("ceil"_v), handleUnary<LowerInst::Ceil>());
-    instructionSet.add(Context::nameHash("round"_v), handleUnary<LowerInst::Round>());
+    addUnary<LowerInst::Set>(instructionSet);
+    addUnary<LowerInst::Neg>(instructionSet);
+    addUnary<LowerInst::Not>(instructionSet);
+    addUnary<LowerInst::Bswap>(instructionSet);
+    addUnary<LowerInst::Sqrt>(instructionSet);
+    addUnary<LowerInst::Abs>(instructionSet);
+    addUnary<LowerInst::Trunc>(instructionSet);
+    addUnary<LowerInst::Floor>(instructionSet);
+    addUnary<LowerInst::Ceil>(instructionSet);
+    addUnary<LowerInst::Round>(instructionSet);
 
     // The one three-operand arithmetic instruction, so the one that cannot borrow a handler. Its
     // result type is the operands' - all three and the result are one type, which validateFma
     // checks - so the text does not have to state it and states it only where it differs.
-    instructionSet.add(Context::nameHash("fma"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Fma>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
         assertArgCount(ast.args, 3);
 
@@ -684,28 +713,28 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
             getResultName(result), type, a - base, b - base, c - base)));
     });
 
-    instructionSet.add(Context::nameHash("add"_v), handleBinary<LowerInst::Add>());
-    instructionSet.add(Context::nameHash("sub"_v), handleBinary<LowerInst::Sub>());
-    instructionSet.add(Context::nameHash("mul"_v), handleBinary<LowerInst::Mul>());
-    instructionSet.add(Context::nameHash("imul"_v), handleBinary<LowerInst::IMul>());
-    instructionSet.add(Context::nameHash("div"_v), handleBinary<LowerInst::Div>());
-    instructionSet.add(Context::nameHash("idiv"_v), handleBinary<LowerInst::IDiv>());
-    instructionSet.add(Context::nameHash("rem"_v), handleBinary<LowerInst::Rem>());
-    instructionSet.add(Context::nameHash("irem"_v), handleBinary<LowerInst::IRem>());
-    instructionSet.add(Context::nameHash("mulhi"_v), handleBinary<LowerInst::MulHi>());
-    instructionSet.add(Context::nameHash("imulhi"_v), handleBinary<LowerInst::IMulHi>());
-    instructionSet.add(Context::nameHash("shl"_v), handleBinary<LowerInst::Shl>());
-    instructionSet.add(Context::nameHash("shr"_v), handleBinary<LowerInst::Shr>());
-    instructionSet.add(Context::nameHash("sar"_v), handleBinary<LowerInst::Sar>());
-    instructionSet.add(Context::nameHash("rol"_v), handleBinary<LowerInst::Rol>());
-    instructionSet.add(Context::nameHash("ror"_v), handleBinary<LowerInst::Ror>());
-    instructionSet.add(Context::nameHash("and"_v), handleBinary<LowerInst::And>());
-    instructionSet.add(Context::nameHash("or"_v), handleBinary<LowerInst::Or>());
-    instructionSet.add(Context::nameHash("xor"_v), handleBinary<LowerInst::Xor>());
-    instructionSet.add(Context::nameHash("bitsupto"_v), handleBinary<LowerInst::BitsUpTo>());
-    instructionSet.add(Context::nameHash("gatherbits"_v), handleBinary<LowerInst::GatherBits>());
-    instructionSet.add(Context::nameHash("scatterbits"_v), handleBinary<LowerInst::ScatterBits>());
-    instructionSet.add(Context::nameHash("crc32"_v), handleBinary<LowerInst::Crc32>());
+    addBinary<LowerInst::Add>(instructionSet);
+    addBinary<LowerInst::Sub>(instructionSet);
+    addBinary<LowerInst::Mul>(instructionSet);
+    addBinary<LowerInst::IMul>(instructionSet);
+    addBinary<LowerInst::Div>(instructionSet);
+    addBinary<LowerInst::IDiv>(instructionSet);
+    addBinary<LowerInst::Rem>(instructionSet);
+    addBinary<LowerInst::IRem>(instructionSet);
+    addBinary<LowerInst::MulHi>(instructionSet);
+    addBinary<LowerInst::IMulHi>(instructionSet);
+    addBinary<LowerInst::Shl>(instructionSet);
+    addBinary<LowerInst::Shr>(instructionSet);
+    addBinary<LowerInst::Sar>(instructionSet);
+    addBinary<LowerInst::Rol>(instructionSet);
+    addBinary<LowerInst::Ror>(instructionSet);
+    addBinary<LowerInst::And>(instructionSet);
+    addBinary<LowerInst::Or>(instructionSet);
+    addBinary<LowerInst::Xor>(instructionSet);
+    addBinary<LowerInst::BitsUpTo>(instructionSet);
+    addBinary<LowerInst::GatherBits>(instructionSet);
+    addBinary<LowerInst::ScatterBits>(instructionSet);
+    addBinary<LowerInst::Crc32>(instructionSet);
 
     // The SHA extension, under the names the printer writes - see nameOfLowerSha.
     instructionSet.add(Context::nameHash("sha1msg1"_v), handleSha<LowerSha::Sha1Msg1>());
@@ -732,7 +761,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("cmp_ilt"_v), handleCmp<LowerCmp::ilt>());
     instructionSet.add(Context::nameHash("cmp_ile"_v), handleCmp<LowerCmp::ile>());
 
-    instructionSet.add(Context::nameHash("select"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Select>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
         assertArgCount(ast.args, 3);
 
@@ -744,7 +773,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
     // `alloca %bytes, alignment`. The alignment is optional in the text format and defaults to 8,
     // which is what a scalar or a pointer needs - anything wanting more says so.
-    instructionSet.add(Context::nameHash("alloca"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Alloca>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
 
         if(ast.args.size() != 1 && ast.args.size() != 2) {
@@ -772,14 +801,14 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
     addVectorInstructions(instructionSet);
 
-    instructionSet.add(Context::nameHash("load"_v), handleLoad<false, false>());
+    addKind<LowerInst::Load>(instructionSet, handleLoad<false, false>());
     instructionSet.add(Context::nameHash("loads"_v), handleLoad<true, false>());
 
     // A load that deliberately reads past the end of what it names - see isOverreadLoad. Unsigned
     // only: it is what a vector loop's last iteration does, and a vector load has no sign.
     instructionSet.add(Context::nameHash("loadx"_v), handleLoad<false, true>());
 
-    instructionSet.add(Context::nameHash("store"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Store>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 3);
 
@@ -803,10 +832,10 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
      * shape a load and an alloca already read: operands first, then what the instruction knows
      * about itself. A fence has no operands at all and is therefore just its order.
      */
-    instructionSet.add(Context::nameHash("atomic_load"_v), handleAtomicLoad<false>());
+    addKind<LowerInst::AtomicLoad>(instructionSet, handleAtomicLoad<false>());
     instructionSet.add(Context::nameHash("atomic_loads"_v), handleAtomicLoad<true>());
 
-    instructionSet.add(Context::nameHash("atomic_store"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::AtomicStore>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 4);
 
@@ -829,7 +858,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     instructionSet.add(Context::nameHash("atomic_cas"_v), handleAtomicCas<false>());
     instructionSet.add(Context::nameHash("atomic_cas_weak"_v), handleAtomicCas<true>());
 
-    instructionSet.add(Context::nameHash("fence"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Fence>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 1);
 
@@ -837,14 +866,14 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstFence(order)));
     });
 
-    instructionSet.add(Context::nameHash("spinhint"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::SpinHint>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 0);
 
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSpinHint()));
     });
 
-    instructionSet.add(Context::nameHash("copy"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Copy>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 3);
 
@@ -855,7 +884,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstCopy(to - base, from - base, count - base)));
     });
 
-    instructionSet.add(Context::nameHash("setpattern"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::SetPattern>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 3);
 
@@ -870,7 +899,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
     // convention's answer, not the author's, and transformFunction derives the stores from it (see
     // insertStackArgs in codegen/x64/transform.cpp). A hand-written one could disagree with the
     // convention, and the callee would read its arguments from somewhere the caller never wrote.
-    instructionSet.add(Context::nameHash("call"_v), handleCall<kDefaultCallType>());
+    addKind<LowerInst::Call>(instructionSet, handleCall<kDefaultCallType>());
     instructionSet.add(Context::nameHash("call_sysv"_v), handleCall<LowerCallType::Sysv>());
     instructionSet.add(Context::nameHash("call_win64"_v), handleCall<LowerCallType::Win64>());
     instructionSet.add(Context::nameHash("call_simple"_v), handleCall<LowerCallType::Simple>());
@@ -884,7 +913,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         instructionSet.add(Context::nameHash(lowerIntrinsicDesc(LowerIntrinsic(i)).name), handleIntrinsic);
     }
 
-    instructionSet.add(Context::nameHash("je"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Je>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 3);
         assertOnlyTerminator();
@@ -907,7 +936,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, je));
     });
 
-    instructionSet.add(Context::nameHash("jmp"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Jmp>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 1);
         assertOnlyTerminator();
@@ -916,7 +945,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstJmp(lhs - base)));
     });
 
-    instructionSet.add(Context::nameHash("ret"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Ret>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertOnlyTerminator();
 
@@ -935,7 +964,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
 
     // The end of a block control never leaves. No operands, since there is nothing to return and
     // nowhere to go - see LowerInstUnreachable.
-    instructionSet.add(Context::nameHash("unreachable"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Unreachable>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 0);
         assertArgCount(ast.args, 0);
         assertOnlyTerminator();
@@ -943,7 +972,7 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstUnreachable()));
     });
 
-    instructionSet.add(Context::nameHash("phi"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+    addKind<LowerInst::Phi>(instructionSet, [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
         assertResultCount(ast.results, 1);
 
         // Phis can use locals from blocks that don't exist yet, so they are stored in a queue,

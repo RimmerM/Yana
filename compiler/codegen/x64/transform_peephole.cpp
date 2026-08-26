@@ -710,40 +710,29 @@ static Maybe<Size> flagsWindowEnd(LowerBase base, LowerInstCmp* cmp, Size index)
     return Just(end);
 }
 
-// Whether this instruction can be computed before the comparison rather than after it.
-//
-// Only a value computed in registers from registers qualifies: it reads and writes no memory, so
-// moving it above the loads and stores that share the window changes nothing, and it cannot fault,
-// so it cannot change what has run when something else does. That rules out a call, whose flag
-// clobber is not movable at all, and the divisions, which fault and are far too expensive for their
-// position to be what a window costs.
-//
-// A comparison is left out deliberately. Lifting one above another only exchanges which of the two
-// windows the clobber sits in, and the one it moves into is the one already being fixed.
+/*
+ * Whether this instruction can be computed before the comparison rather than after it.
+ *
+ * Only a value computed in registers from registers qualifies: it reads and writes no memory, so
+ * moving it above the loads and stores that share the window changes nothing, and it cannot fault,
+ * so it cannot change what has run when something else does. `kLowerPure` with no memory bit is that
+ * statement, which rules out a call and a load; `kLowerDivides` rules out the divisions, which are
+ * far too expensive for their position to be what a window costs.
+ *
+ * A comparison is left out deliberately, and it is the one exclusion that is a policy rather than a
+ * fact: lifting one above another only exchanges which of the two windows the clobber sits in, and
+ * the one it moves into is the one already being fixed.
+ *
+ * `kLowerUsesFlags` is the other refusal worth naming. A select whose comparison a peephole already
+ * folded into it *reads* the flags where it stands, so moving it above a comparison moves it out of
+ * the window it was reading - which is the exact failure this pass exists to avoid, arrived at from
+ * the other side.
+ */
 static bool canHoistOverCompare(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Imm:
-        case LowerInst::Set:
-        case LowerInst::Cast:
-        case LowerInst::Bitcast:
-        case LowerInst::Neg:
-        case LowerInst::Not:
-        case LowerInst::Add:
-        case LowerInst::Sub:
-        case LowerInst::Mul:
-        case LowerInst::IMul:
-        case LowerInst::MulHi:
-        case LowerInst::IMulHi:
-        case LowerInst::Shl:
-        case LowerInst::Shr:
-        case LowerInst::Sar:
-        case LowerInst::And:
-        case LowerInst::Or:
-        case LowerInst::Xor:
-            return true;
-        default:
-            return false;
-    }
+    if(inst->kind == LowerInst::Cmp) return false;
+    if(!isPure(inst) || mayFault(inst)) return false;
+
+    return !hasLowerTrait(inst, kLowerReads | kLowerWrites | kLowerOrdered | kLowerDivides | kLowerUsesFlags);
 }
 
 // Empties the window of everything that writes the flags, by lifting each such instruction above the

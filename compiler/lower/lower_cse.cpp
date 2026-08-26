@@ -93,19 +93,6 @@ bool sameOperand(LowerBase base, LowerPtr<LowerValue> first, LowerPtr<LowerValue
     return sameComputation(base, left, right, assumed, depth + 1);
 }
 
-// Commutative in the sense this pass needs: the operands may be compared as a pair rather than in
-// order. A comparison is not one of these - swapping its operands is a different comparison unless
-// the test is swapped with them, and there is nothing here to swap it against.
-bool isCommutative(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Add: case LowerInst::Mul: case LowerInst::IMul:
-        case LowerInst::And: case LowerInst::Or:  case LowerInst::Xor:
-            return true;
-        default:
-            return false;
-    }
-}
-
 /*
  * Whether two repeatable instructions compute the same thing.
  *
@@ -151,6 +138,12 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b,
 {
     if(a->kind != b->kind) return false;
 
+    // One result each, which everything below assumes: the types are read through `created()` as a
+    // single value, and the operands of a kind with two of them are not where a single's are. No
+    // kind with two is repeatable - a compare-exchange is the only one - so this refuses nothing
+    // that could have been unified.
+    if(a->createdCount != 1 || b->createdCount != 1) return false;
+
     auto left = ((LowerInstSingle*)a)->created().ptr;
     auto right = ((LowerInstSingle*)b)->created().ptr;
     if(!sameLoadedClass(a->kind, left->type, right->type)) return false;
@@ -195,6 +188,15 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b,
         if(selectA->flags != selectB->flags) return false;
         return same(selectA->lhs, selectB->lhs) && same(selectA->rhs, selectB->rhs) &&
                same(selectA->cmp, selectB->cmp);
+    }
+
+    // Which intrinsic it is, which is a member past the operands rather than `flags` - so nothing
+    // the fallback below compares tells `clz_width %x` and `cttz_width %x` apart, and they are one
+    // kind with one operand and two different answers.
+    if(a->kind == LowerInst::Intrinsic) {
+        auto x = (LowerInstIntrinsic*)a;
+        auto y = (LowerInstIntrinsic*)b;
+        if(x->getIntrinsic() != y->getIntrinsic()) return false;
     }
 
     if(a->kind == LowerInst::Cmp) {
@@ -254,18 +256,39 @@ bool sameComputation(LowerBase base, LowerInst* a, LowerInst* b,
         return same(x->state, y->state) && same(x->feed, y->feed) && same(x->keys, y->keys);
     }
 
-    if(isUnary(a) || isCast(a)) {
-        return same(((LowerInstUnary*)a)->from, ((LowerInstUnary*)b)->from);
-    }
+    /*
+     * Everything else, compared by what it carries: `flags`, and then its operands in order - with
+     * the one exchange a commutative operation admits.
+     *
+     * `kLowerPlain` is what makes this a fallback rather than a trap, and the reason it is a trait
+     * rather than a list is that the list is what went wrong. This used to end by casting whatever
+     * arrived to `LowerInstBinary` and comparing two operands, so a kind with one operand and a
+     * field of its own - an intrinsic - was read as a binary whose second operand was whatever
+     * followed it in memory, and two different intrinsics over one value unified. A kind that
+     * carries something this cannot see now says so in its row and is refused.
+     *
+     * Walked through `used()` rather than through named fields for the same reason: an arity is
+     * something the instruction states, and reading it off the kind is what had to be got right
+     * once per kind.
+     */
+    if(!hasLowerTrait(a, kLowerPlain) && a->kind != LowerInst::Intrinsic) return false;
+    if(a->flags != b->flags) return false;
 
-    auto binaryA = (LowerInstBinary*)a;
-    auto binaryB = (LowerInstBinary*)b;
+    auto usedA = a->used();
+    auto usedB = b->used();
+    if(usedA.length != usedB.length) return false;
 
-    if(isCommutative(a) && same(binaryA->lhs, binaryB->rhs) && same(binaryA->rhs, binaryB->lhs)) {
+    if(isCommutative(a) && usedA.length == 2
+        && same(usedA[0], usedB[1]) && same(usedA[1], usedB[0]))
+    {
         return true;
     }
 
-    return same(binaryA->lhs, binaryB->lhs) && same(binaryA->rhs, binaryB->rhs);
+    for(Size i = 0; i < usedA.length; i++) {
+        if(!same(usedA[i], usedB[i])) return false;
+    }
+
+    return true;
 }
 
 /*
@@ -303,56 +326,6 @@ bool answerableAcrossBlocks(LowerInst* inst) {
 bool costsARegister(LowerInst* inst) {
     if(inst->kind != LowerInst::Call) return false;
     return ((LowerInstCall*)inst)->getCallType() != LowerCallType::Syscall;
-}
-
-/*
- * Whether this may have written storage some earlier load read.
- *
- * The whole memory model this pass has, and it is deliberately the coarsest one: any write retires
- * every load in scope rather than the loads that could alias it. There is no place information at
- * this tier - a `Load` names an address that arithmetic produced, and two addresses are the same
- * question this pass is being asked rather than one it can answer - so an alias rule here would be
- * either "the same address" (which is already the unification test) or a guess.
- *
- * A call retires them because a callee may write anything it was handed, and a *syscall* does too,
- * which is the one place this and `costsARegister` disagree: the kernel keeping its argument
- * registers says nothing about what it does to memory, and `read` into a buffer is a write. It costs
- * nothing here - the syscall that sits between every check and the one below it is an abort arm, a
- * block with no successors, so it is never on a path between two loads.
- */
-bool writesStorage(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Store:
-        case LowerInst::Copy:
-        case LowerInst::SetPattern:
-        case LowerInst::Call:
-            return true;
-
-        /*
-         * Every atomic, and the load and the spin hint included - see LowerInst::FirstAtomic.
-         *
-         * The name is "writes storage" and what it is actually asked is "may a load answered from
-         * above this still be answered from above it", so an acquire *load* has to say yes: what it
-         * acquires is precisely the right to see writes another thread published, and a value this
-         * pass carried across it is a value read before the edge and used after it. A fence says yes
-         * for the same reason with no location of its own, which is the whole of what a fence is.
-         *
-         * `SpinHint` establishes no edge and could answer no. It answers yes because the loop it
-         * sits in is polling, and a load hoisted out of a polling loop is the one rewrite that turns
-         * a spin into a hang - the guarantee that the reload happens is not the memory model's here
-         * but this predicate's, and paying one unhoisted load per spin loop is not a cost worth
-         * measuring.
-         */
-        case LowerInst::AtomicLoad:
-        case LowerInst::AtomicStore:
-        case LowerInst::AtomicRmw:
-        case LowerInst::AtomicCas:
-        case LowerInst::Fence:
-        case LowerInst::SpinHint:
-            return true;
-        default:
-            return false;
-    }
 }
 
 /*

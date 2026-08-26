@@ -271,11 +271,6 @@ static bool validateAbs(Diagnostics* diagnostics, LowerBase base, LowerInstUnary
 static bool validateFma(Diagnostics* diagnostics, LowerBase base, LowerInstFma* inst) {
     if(!validateFloatOnly(diagnostics, inst->result.type, inst)) return false;
 
-    if(inst->usedCount != 3) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     // All three and the result are one type. There is no widening here and no mixed precision: what
     // the operation promises is a single rounding of one expression, which says nothing useful if
     // the operands had to be converted to reach each other first.
@@ -298,16 +293,9 @@ static bool validateFma(Diagnostics* diagnostics, LowerBase base, LowerInstFma* 
  * resolve verifier is where "four 32-bit lanes" is checked, being the last stage at which a language
  * type is still visible; what is left here is that nothing has converted on the way down.
  */
-static bool validateSha(Diagnostics* diagnostics, LowerBase base, LowerInst* inst) {
-    auto wanted = inst->kind == LowerInst::Sha256Rounds ? 3u : 2u;
-
-    if(((LowerInstSingle*)inst)->usedCount != wanted) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
-    for(auto offset: ((LowerInstSingle*)inst)->used()) {
-        if(base[offset]->type != ((LowerInstSingle*)inst)->result.type) {
+static bool validateSha(Diagnostics* diagnostics, LowerBase base, LowerInstSingle* inst) {
+    for(auto offset: inst->used()) {
+        if(base[offset]->type != inst->result.type) {
             diagnostics->error("inconsistent argument types to operation"_v, inst->source);
             return false;
         }
@@ -327,7 +315,7 @@ static bool validateSet(Diagnostics* diagnostics, LowerBase base, LowerInstUnary
 
 static bool validateRet(Diagnostics* diagnostics, LowerBase base, LowerInstRet* inst) {
     auto f = base[base[inst->block]->fun];
-    if(inst->createdCount != 0 || inst->usedCount != f->returnTypes.size()) {
+    if(inst->usedCount != f->returnTypes.size()) {
         diagnostics->error("incorrect number of values returned from function"_v, inst->source);
         return false;
     }
@@ -509,18 +497,7 @@ static bool validateCall(Diagnostics* diagnostics, LowerBase base, LowerInstCall
     return true;
 }
 
-static bool validateBinaryBase(Diagnostics* diagnostics, LowerInstBinary* inst) {
-    if(inst->usedCount != 2 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
-    return true;
-}
-
 static bool validateArith(Diagnostics* diagnostics, LowerBase base, LowerInstBinary* inst, bool allowFloat) {
-    if(!validateBinaryBase(diagnostics, inst)) return false;
-
     auto l = base[inst->lhs]->type;
     auto r = base[inst->rhs]->type;
     auto valid = l == r && l == inst->result.type;
@@ -545,8 +522,6 @@ static bool validateArith(Diagnostics* diagnostics, LowerBase base, LowerInstBin
 }
 
 static bool validateAdd(Diagnostics* diagnostics, LowerBase base, LowerInstBinary* inst) {
-    if(!validateBinaryBase(diagnostics, inst)) return false;
-
     auto l = base[inst->lhs]->type;
     auto r = base[inst->rhs]->type;
     auto result = inst->result.type;
@@ -569,8 +544,6 @@ static bool validateAdd(Diagnostics* diagnostics, LowerBase base, LowerInstBinar
 }
 
 static bool validateSub(Diagnostics* diagnostics, LowerBase base, LowerInstBinary* inst) {
-    if(!validateBinaryBase(diagnostics, inst)) return false;
-
     auto l = base[inst->lhs]->type;
     auto r = base[inst->rhs]->type;
     auto result = inst->result.type;
@@ -593,8 +566,6 @@ static bool validateSub(Diagnostics* diagnostics, LowerBase base, LowerInstBinar
 }
 
 static bool validateBit(Diagnostics* diagnostics, LowerBase base, LowerInstBinary* inst) {
-    if(!validateBinaryBase(diagnostics, inst)) return false;
-
     auto l = base[inst->lhs]->type;
     auto r = base[inst->rhs]->type;
     auto result = inst->result.type;
@@ -621,8 +592,6 @@ static bool validateBit(Diagnostics* diagnostics, LowerBase base, LowerInstBinar
 }
 
 static bool validateShift(Diagnostics* diagnostics, LowerBase base, LowerInstBinary* inst) {
-    if(!validateBinaryBase(diagnostics, inst)) return false;
-
     auto l = base[inst->lhs]->type;
     auto r = base[inst->rhs]->type;
 
@@ -640,11 +609,6 @@ static bool validateShift(Diagnostics* diagnostics, LowerBase base, LowerInstBin
 }
 
 static bool validateCmp(Diagnostics* diagnostics, LowerBase base, LowerInstCmp* inst) {
-    if(inst->usedCount != 2 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     auto l = base[inst->lhs]->type;
     auto r = base[inst->rhs]->type;
 
@@ -683,11 +647,6 @@ static bool validateCmp(Diagnostics* diagnostics, LowerBase base, LowerInstCmp* 
 }
 
 static bool validateSelect(Diagnostics* diagnostics, LowerBase base, LowerInstSelect* inst) {
-    if(inst->usedCount != 3 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     auto cmp = base[inst->cmp]->type;
     auto lhs = base[inst->lhs]->type;
 
@@ -723,11 +682,6 @@ static bool validateSelect(Diagnostics* diagnostics, LowerBase base, LowerInstSe
 }
 
 static bool validateAlloca(Diagnostics* diagnostics, LowerBase base, LowerInstAlloca* inst) {
-    if(inst->usedCount != 1 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(inst->result.type != LowerType::Pointer) {
         diagnostics->error("incorrect result type for operation"_v, inst->source);
         return false;
@@ -749,11 +703,6 @@ static bool validateAlloca(Diagnostics* diagnostics, LowerBase base, LowerInstAl
 }
 
 static bool validateLoad(Diagnostics* diagnostics, LowerBase base, LowerInstLoad* inst) {
-    if(inst->usedCount != 1 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->from]->type != LowerType::Pointer) {
         diagnostics->error("load address must be a pointer"_v, inst->source);
         return false;
@@ -813,11 +762,6 @@ static bool validateLoad(Diagnostics* diagnostics, LowerBase base, LowerInstLoad
 }
 
 static bool validateStore(Diagnostics* diagnostics, LowerBase base, LowerInstStore* inst) {
-    if(inst->usedCount != 2 || inst->createdCount != 0) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->to]->type != LowerType::Pointer) {
         diagnostics->error("store address must be a pointer"_v, inst->source);
         return false;
@@ -874,11 +818,6 @@ static bool validateAtomicWidth(Diagnostics* diagnostics, U32 width, LocationId 
 }
 
 static bool validateAtomicLoad(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicLoad* inst) {
-    if(inst->usedCount != 1 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->from]->type != LowerType::Pointer) {
         diagnostics->error("atomic load address must be a pointer"_v, inst->source);
         return false;
@@ -901,11 +840,6 @@ static bool validateAtomicLoad(Diagnostics* diagnostics, LowerBase base, LowerIn
 }
 
 static bool validateAtomicStore(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicStore* inst) {
-    if(inst->usedCount != 2 || inst->createdCount != 0) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->to]->type != LowerType::Pointer) {
         diagnostics->error("atomic store address must be a pointer"_v, inst->source);
         return false;
@@ -925,11 +859,6 @@ static bool validateAtomicStore(Diagnostics* diagnostics, LowerBase base, LowerI
 }
 
 static bool validateAtomicRmw(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicRmw* inst) {
-    if(inst->usedCount != 2 || inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->to]->type != LowerType::Pointer) {
         diagnostics->error("atomic address must be a pointer"_v, inst->source);
         return false;
@@ -959,11 +888,6 @@ static bool validateAtomicRmw(Diagnostics* diagnostics, LowerBase base, LowerIns
 }
 
 static bool validateAtomicCas(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicCas* inst) {
-    if(inst->usedCount != 3 || inst->createdCount != 2) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->to]->type != LowerType::Pointer) {
         diagnostics->error("atomic address must be a pointer"_v, inst->source);
         return false;
@@ -1004,11 +928,6 @@ static bool validateAtomicCas(Diagnostics* diagnostics, LowerBase base, LowerIns
 }
 
 static bool validateFence(Diagnostics* diagnostics, LowerInstFence* inst) {
-    if(inst->usedCount != 0 || inst->createdCount != 0) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     // There is no relaxed fence - see `isFenceOrder`. An instruction whose entire content is an
     // ordering edge, carrying the order that adds none, is a written statement that does nothing,
     // and accepting one would mean every backend has to have an arm that emits nothing.
@@ -1021,11 +940,6 @@ static bool validateFence(Diagnostics* diagnostics, LowerInstFence* inst) {
 }
 
 static bool validateCopy(Diagnostics* diagnostics, LowerBase base, LowerInstCopy* inst) {
-    if(inst->usedCount != 3 || inst->createdCount != 0) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->to]->type != LowerType::Pointer || base[inst->from]->type != LowerType::Pointer) {
         diagnostics->error("copy source and destination must be pointers"_v, inst->source);
         return false;
@@ -1040,11 +954,6 @@ static bool validateCopy(Diagnostics* diagnostics, LowerBase base, LowerInstCopy
 }
 
 static bool validateSetPattern(Diagnostics* diagnostics, LowerBase base, LowerInstSetPattern* inst) {
-    if(inst->usedCount != 3 || inst->createdCount != 0) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     if(base[inst->to]->type != LowerType::Pointer) {
         diagnostics->error("pattern target must be a pointer"_v, inst->source);
         return false;
@@ -1067,20 +976,10 @@ static bool validateSetPattern(Diagnostics* diagnostics, LowerBase base, LowerIn
  * one that would read a neighbouring register or fold into a wrong encoding rather than fault.
  */
 static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerInst* inst) {
-    if(inst->createdCount != 1) {
-        diagnostics->error("incorrect arguments to operation"_v, inst->source);
-        return false;
-    }
-
     switch(inst->kind) {
         case LowerInst::VecSplat: {
             auto splat = (LowerInstVecSplat*)inst;
             auto result = splat->result.type;
-
-            if(inst->usedCount != 1) {
-                diagnostics->error("incorrect arguments to operation"_v, inst->source);
-                return false;
-            }
 
             if(!isVectorLike(result)) {
                 diagnostics->error("vsplat produces a vector"_v, inst->source);
@@ -1100,11 +999,6 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
             auto lane = (LowerInstVecLane*)inst;
             auto source = base[lane->from]->type;
             auto isWrite = inst->kind == LowerInst::VecWithLane;
-
-            if(inst->usedCount != (isWrite ? 2u : 1u)) {
-                diagnostics->error("incorrect arguments to operation"_v, inst->source);
-                return false;
-            }
 
             if(!isVectorLike(source)) {
                 diagnostics->error("a lane can only be taken from a vector"_v, inst->source);
@@ -1135,11 +1029,6 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
             auto right = base[shuffle->right]->type;
             auto result = shuffle->result.type;
 
-            if(inst->usedCount != 2) {
-                diagnostics->error("incorrect arguments to operation"_v, inst->source);
-                return false;
-            }
-
             if(!isVectorLike(left) || left != right) {
                 diagnostics->error("a shuffle selects from two vectors of one type"_v, inst->source);
                 return false;
@@ -1166,11 +1055,6 @@ static bool validateVectorInst(Diagnostics* diagnostics, LowerBase base, LowerIn
         case LowerInst::VecReduce: {
             auto reduce = (LowerInstVecReduce*)inst;
             auto source = base[reduce->from]->type;
-
-            if(inst->usedCount != 1) {
-                diagnostics->error("incorrect arguments to operation"_v, inst->source);
-                return false;
-            }
 
             if(!isVectorLike(source)) {
                 diagnostics->error("a reduction combines the lanes of a vector"_v, inst->source);
@@ -1253,6 +1137,26 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
 
     if(base[inst->block] != block) {
         diagnostics->error("instruction has incorrect block back reference"_v, inst->source);
+        return false;
+    }
+
+    /*
+     * The arity, once, from the kind's row - see the `used` and `created` columns in inst.def.
+     *
+     * Fourteen arms below opened with a restatement of this, which made it a check a kind got only
+     * if whoever added it wrote one; the six rows that answer `kAnyArity` are the ones with nothing
+     * to state here, and each of those is held to its own rule further down - a call and a return
+     * to the signature, a phi to its predecessors, an intrinsic to its descriptor.
+     */
+    auto& traits = lowerInstTraits(inst->kind);
+
+    if(traits.used != kAnyArity && inst->usedCount != traits.used) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    if(traits.created != kAnyArity && inst->createdCount != traits.created) {
+        diagnostics->error("incorrect results from operation"_v, inst->source);
         return false;
     }
 
@@ -1362,7 +1266,7 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateFma(diagnostics, base, (LowerInstFma*)inst);
         case LowerInst::ShaBinary:
         case LowerInst::Sha256Rounds:
-            return validateSha(diagnostics, base, inst);
+            return validateSha(diagnostics, base, (LowerInstSingle*)inst);
         case LowerInst::Add:
             return validateAdd(diagnostics, base, (LowerInstBinary*)inst);
         case LowerInst::Sub:

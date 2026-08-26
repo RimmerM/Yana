@@ -1602,62 +1602,6 @@ void foldFunctionConstants(LowerBase base, LowerModule& module, LowerFunction& f
     }
 }
 
-bool isRepeatable(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Set:
-        case LowerInst::Cast:  case LowerInst::Bitcast:
-        case LowerInst::Neg:   case LowerInst::Not:
-        case LowerInst::Add:   case LowerInst::Sub:
-        case LowerInst::Mul:   case LowerInst::IMul:
-        case LowerInst::Div:   case LowerInst::IDiv:
-        case LowerInst::Rem:   case LowerInst::IRem:
-        case LowerInst::MulHi: case LowerInst::IMulHi:
-        case LowerInst::Shl:   case LowerInst::Shr: case LowerInst::Sar:
-        case LowerInst::Rol:   case LowerInst::Ror:
-        case LowerInst::And:   case LowerInst::Or:  case LowerInst::Xor:
-        case LowerInst::BitsUpTo:
-        case LowerInst::GatherBits: case LowerInst::ScatterBits:
-        case LowerInst::Crc32:
-        case LowerInst::Cmp:
-        case LowerInst::Select:
-
-        // A pure function of one operand, and the reason it is a kind rather than an intrinsic:
-        // this list is what an intrinsic is not on.
-        case LowerInst::Bswap:
-
-        // The two floating-point operations, which are pure functions of their operands exactly as
-        // the arithmetic above is. `Sqrt` needs nothing else - it is a Unary and every pass that
-        // asks about one reaches it through `isUnary`. `Fma` is a third arity and had to be told to
-        // each of them by name; see `sameComputation`, which would otherwise have read it as a
-        // binary and compared two operands at the wrong offsets.
-        case LowerInst::Sqrt:
-        case LowerInst::Trunc:
-        case LowerInst::Floor:
-        case LowerInst::Ceil:
-        case LowerInst::Round:
-        case LowerInst::Fma:
-
-        // The SHA rounds, on the same terms: each is a pure function of its operands and of the
-        // instruction it is, so a loop-invariant one - the round constants a compression loop reads
-        // are exactly that - may be hoisted and a repeated one removed.
-        case LowerInst::ShaBinary:
-        case LowerInst::Sha256Rounds:
-
-        // All five, and for the same reason the arithmetic above is here: each is a pure function of
-        // its operands and of the fields it carries. It is what lets a splat of a loop-invariant
-        // scalar be hoisted out of the loop, which is §3.4's highest-value vector optimization and
-        // is free - the existing passes do it once the instruction says it may be repeated.
-        case LowerInst::VecSplat:
-        case LowerInst::VecLane:
-        case LowerInst::VecWithLane:
-        case LowerInst::VecShuffle:
-        case LowerInst::VecReduce:
-            return true;
-        default:
-            return false;
-    }
-}
-
 bool removeDeadValues(LowerBase base, Region<LowerRegion>& arena, LowerFunction& fun) {
     auto changed = true;
     auto dropped = false;

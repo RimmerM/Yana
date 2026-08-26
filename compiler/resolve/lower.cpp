@@ -773,7 +773,7 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
         // for them - see lower_divide.h. Behind the strength reduction and its fold, so that a
         // divisor still standing here is a runtime value or the one literal worth guarding, and in
         // front of everything below because what it leaves is a division that cannot fault: that is
-        // the premise `mayFault` in lower_licm.cpp now rests on, and the reason a division may be
+        // the premise `mayFault` in lower/lower_inst.h now rests on, and the reason a division may be
         // hoisted at all. A correctness pass rather than an optimization - it is not behind a level.
         //
         // With a fold behind it for the reason the pair above has one: it emits comparisons and

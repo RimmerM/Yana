@@ -34,55 +34,6 @@ Address addressOf(LowerBase base, LowerValue* value) {
     return result;
 }
 
-// Whether an instruction may write storage a hoisted read could see. Asked of the whole loop rather
-// than of a pair of addresses - see lower_licm.h for why the crude answer is the one taken here.
-bool writesStorage(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Store:
-        case LowerInst::Copy:
-        case LowerInst::SetPattern:
-        case LowerInst::Call:
-        case LowerInst::Intrinsic:
-            return true;
-
-        // Every atomic, for the reasons the same predicate in lower_cse.cpp gives: an acquire load
-        // is an edge a hoisted read would cross, and the spin hint is what stops a polling loop's
-        // reload from being lifted out of it.
-        case LowerInst::AtomicLoad:
-        case LowerInst::AtomicStore:
-        case LowerInst::AtomicRmw:
-        case LowerInst::AtomicCas:
-        case LowerInst::Fence:
-        case LowerInst::SpinHint:
-            return true;
-        default:
-            return false;
-    }
-}
-
-/*
- * Whether a computation may fault where it is being moved to.
- *
- * One bit on one kind, and it is *not* the old "a division can trap" rule this replaces. Every
- * division `makeDivisionTotal` leaves is total and hoists freely - that is most of what defining
- * `x / 0` bought. The exception is the division that pass left unguarded because a test above it had
- * already settled the divisor: it cannot fault where it stands and would above the test, so it is
- * the one computation whose safety is a property of its *position* rather than of its operands.
- * See LowerInstBinary::kTrustsDivisorTest, which is set nowhere else.
- *
- * Nothing else in `isRepeatable` can fault: a shift count is masked, a float operation answers a
- * NaN, and a vector operation is lane-wise arithmetic.
- */
-bool mayFault(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Div: case LowerInst::IDiv:
-        case LowerInst::Rem: case LowerInst::IRem:
-            return ((LowerInstBinary*)inst)->trustsDivisorTest();
-        default:
-            return false;
-    }
-}
-
 /*
  * Whether moving this computation buys anything, which is a narrower question than whether it may be
  * moved - and the one that decides whether this pass is worth having. Measured rather than reasoned:
@@ -117,27 +68,19 @@ bool worthHoisting(LowerInst* inst) {
     return ((LowerInstSingle*)inst)->result.type != LowerType::Pointer;
 }
 
-// How far an instruction reaches past its own base address, for the two kinds that touch memory.
-// Zero for everything else, which is what makes the search below a filter rather than a switch.
-//
-// An overreading load answers zero, which takes it out of the search entirely - see the comment in
-// `safeToSpeculate` on why it may not vouch for anything. It is not a load whose *own* extent is
-// unknown; it is one whose extent is deliberately past the object, and both readers here would take
-// it for a statement about how large the object is.
-U64 accessExtent(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Load:  return ((LowerInstLoad*)inst)->isOverread() ? 0 : ((LowerInstLoad*)inst)->getWidth();
-        case LowerInst::Store: return ((LowerInstStore*)inst)->getWidth();
-        default:               return 0;
-    }
-}
-
-LowerValue* accessAddress(LowerBase base, LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Load:  return base[((LowerInstLoad*)inst)->from];
-        case LowerInst::Store: return base[((LowerInstStore*)inst)->to];
-        default:               return nullptr;
-    }
+/*
+ * How far an access vouches past its own base address, which is not quite how far it reaches.
+ *
+ * The extent is the instruction's - see `LowerInst::accessAt` - and what is here is the one thing
+ * this pass does not take at face value. An overreading load answers zero, which takes it out of the
+ * search entirely: it is not a load whose *own* extent is unknown, it is one whose extent is
+ * deliberately past the object, and a reader here would take it for a statement about how large the
+ * object is. A copy or a fill answers zero for the ordinary reason - its length is an operand, and
+ * this pass has no constant for it.
+ */
+U64 vouchedExtent(LowerInst* inst, const LowerAccess& access) {
+    if(inst->kind == LowerInst::Load && ((LowerInstLoad*)inst)->isOverread()) return 0;
+    return access.bytes;
 }
 
 /*
@@ -146,10 +89,11 @@ LowerValue* accessAddress(LowerBase base, LowerInst* inst) {
  * Two answers, both about the address rather than about the loop - see lower_licm.h. The second is
  * stated as "the object extends at least this far from its base", which is what a dominating access
  * at a further offset says: an access at `%p + 12` of four bytes is a statement that `%p` names
- * sixteen bytes, and `%p + 0` of eight is inside them.
+ * sixteen bytes, and `%p + 0` of eight is inside them. A write vouches as readily as a read, and an
+ * atomic as readily as a plain one: what makes the statement is that the bytes were touched.
  *
  * An overreading load says the opposite of that and is excluded from both sides of the search by
- * `accessExtent` answering zero for one. Its whole content is that it reads past the object on
+ * `vouchedExtent` answering zero for one. Its whole content is that it reads past the object on
  * purpose, so reading it as a claim about the object's size is the one way this rule can be wrong.
  */
 bool safeToSpeculate(LowerBase base, LowerFunction& fun, const DominatorTree& dominators,
@@ -172,16 +116,18 @@ bool safeToSpeculate(LowerBase base, LowerFunction& fun, const DominatorTree& do
         for(auto instPtr: block->instructions.contents(base)) {
             auto user = base[instPtr];
 
-            auto width = accessExtent(user);
-            if(!width) continue;
+            LowerAccess accesses[kMaxAccesses];
+            auto count = lowerInstAccesses(user, accesses);
 
-            auto at = accessAddress(base, user);
-            if(!at) continue;
+            for(Size which = 0; which < count; which++) {
+                auto width = vouchedExtent(user, accesses[which]);
+                if(!width) continue;
 
-            auto other = addressOf(base, at);
-            if(other.value != address.value) continue;
+                auto other = addressOf(base, base[*accesses[which].address]);
+                if(other.value != address.value) continue;
 
-            if(other.offset + width >= address.offset + extent) return true;
+                if(other.offset + width >= address.offset + extent) return true;
+            }
         }
     }
 

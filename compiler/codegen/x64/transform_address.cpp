@@ -481,7 +481,7 @@ void foldLeas(LowerBase base, LowerFunction& fun) {
  *  - **Nothing between the load and its reader may write memory.** Where the two are adjacent that is
  *    free, and it is all this asked for at first. Lifting it is §3.1.2's sink: the load is moved down
  *    to its reader rather than the reader moved up, so what has to hold is the same thing
- *    `foldStoreUpdates` asks of the same stretch - `mayWriteMemory` over every instruction between,
+ *    `foldStoreUpdates` asks of the same stretch - `writesStorage` over every instruction between,
  *    with a call not on the whitelist. The load's *address* travels with it, since an X86Address has
  *    to stand immediately in front of whatever dereferences it, and that is what needs the address to
  *    have no other reader: one left behind would be reading a value defined below it.
@@ -502,47 +502,15 @@ void foldLeas(LowerBase base, LowerFunction& fun) {
 /*
  * Whether running this instruction can write memory.
  *
- * A whitelist of the kinds that provably cannot, on the terms `touchesMemory` in lower_forward.cpp
- * states: a kind added later is answered "yes" and costs a rewrite rather than correctness. It is
- * the *write* half of that question rather than the whole of it, which is what lets a load stand
- * between the two accesses being fused - and one always does, `b[k]` being read in the same
- * expression.
+ * `writesStorage` in lower_inst.h, which is the same question the mid-level passes ask and is now
+ * asked through the same rows: it is the *write* half of "touches memory" rather than the whole of
+ * it, which is what lets a load stand between the two accesses being fused - and one always does,
+ * `b[k]` being read in the same expression.
+ *
+ * Ordered operations answer yes although some of them write nothing. A plain load sunk across an
+ * acquire is a read moved to the wrong side of the edge it was meant to be after, which is the same
+ * reason `writesStorage` includes them for every other reader.
  */
-static bool mayWriteMemory(LowerInst* inst) {
-    switch(inst->kind) {
-        case LowerInst::Arg:
-        case LowerInst::Global:
-        case LowerInst::Fun:
-        case LowerInst::Imm:
-        case LowerInst::Nop:
-        case LowerInst::Select:
-        case LowerInst::Alloca:
-        case LowerInst::Phi:
-        case LowerInst::VecSplat:
-        case LowerInst::VecLane:
-        case LowerInst::VecWithLane:
-        case LowerInst::VecShuffle:
-        case LowerInst::VecReduce:
-        case LowerInst::Load:
-        case LowerInst::X86Address:
-        case LowerInst::X86Lea:
-        case LowerInst::X86MinMax:
-        case LowerInst::X86MaskAnd:
-        case LowerInst::X86Permute:
-
-        // `Fma` is neither unary nor binary, so the fallback would answer *yes* for it - which is
-        // the rule this is written to and is wrong here, an FMA being arithmetic like any other.
-        case LowerInst::Fma:
-
-        // The SHA rounds, for the same reason: `Sha256Rounds` has three operands and would reach the
-        // fallback, and neither of the two touches memory.
-        case LowerInst::ShaBinary:
-        case LowerInst::Sha256Rounds:
-            return false;
-        default:
-            return !isUnary(inst) && !isBinary(inst) && !isCast(inst);
-    }
-}
 
 /*
  * How far above its reader a load may stand and still be folded into it.
@@ -597,38 +565,30 @@ static bool isCommutativeInt(LowerInst* inst) {
         return relation == LowerCmp::eq || relation == LowerCmp::neq;
     }
 
-    if(!isBinary(inst)) return false;
+    if(!isBinary(inst) || !isCommutative(inst)) return false;
     auto type = ((LowerInstBinary*)inst)->result.type;
 
-    switch(inst->kind) {
-        /*
-         * The bitwise three, at every type whose bits they are - a vector and a mask included, and
-         * a *float* vector included, which is the one that matters here: an absolute value is an
-         * `and` against a sign mask over `f32x8`, and with the operands as written the mask stands
-         * where the encoding's address goes. Exchanging is what puts the value being measured there
-         * instead, so the loop's own load folds and the loop-invariant mask keeps its register.
-         *
-         * A float `and` is commutative in the way that matters here, and in a way a float `add` is
-         * not: what these do is to bits, so there is no rounding and no NaN payload to be taken from
-         * one side rather than the other.
-         */
-        case LowerInst::And:
-        case LowerInst::Or:
-        case LowerInst::Xor:
-            return isIntLike(type) || isVectorLike(type);
-
-        // The arithmetic, at integer lanes alone. A float add and a float multiply are exchangeable
-        // in value, and this backend does not exchange them: `addps` takes the payload of a NaN from
-        // its destination, so which operand is which is visible in a way it is not for the three
-        // above.
-        case LowerInst::Add:
-        case LowerInst::Mul:
-        case LowerInst::IMul:
-            return isIntLike(type) || isIntVector(type);
-
-        default:
-            return false;
-    }
+    /*
+     * Which leaves the type, and the two answers differ.
+     *
+     * **The bitwise three exchange at every type whose bits they are** - a vector and a mask
+     * included, and a *float* vector included, which is the one that matters here: an absolute value
+     * is an `and` against a sign mask over `f32x8`, and with the operands as written the mask stands
+     * where the encoding's address goes. Exchanging is what puts the value being measured there
+     * instead, so the loop's own load folds and the loop-invariant mask keeps its register. A float
+     * `and` is commutative in the way that matters, and in a way a float `add` is not: what these do
+     * is to bits, so there is no rounding and no NaN payload to be taken from one side or the other.
+     *
+     * **The arithmetic exchanges at integer lanes alone.** A float add and a float multiply are
+     * exchangeable in value, and this backend does not exchange them: `addps` takes the payload of a
+     * NaN from its destination, so which operand is which is visible in a way it is not above.
+     *
+     * The high multiplies are the one pair this now admits that the list it replaces did not, and it
+     * costs nothing: `mulhi` is commutative, but `mul r/m` reads one operand out of a fixed register,
+     * so its memory twin is refused by `hasFixedOperands` in `tryFoldLoad` before this is ever asked.
+     */
+    if(hasLowerTrait(inst, kLowerBitwise)) return isIntLike(type) || isVectorLike(type);
+    return isIntLike(type) || isIntVector(type);
 }
 
 // Whether this form requires an operand in a particular register, which is the copy a folded address
@@ -672,7 +632,7 @@ static Maybe<Size> tryFoldLoadOperand(LowerBase base, LowerFunction& fun, LowerB
         loadAt--;
         auto above = base[block->instructions.get(base, loadAt)];
         if(above == (LowerInst*)load) break;
-        if(mayWriteMemory(above)) return Nothing();
+        if(writesStorage(above)) return Nothing();
     }
 
     // Whether this is a *sink* rather than the adjacent fold §3.1.2 started as, which is the one
@@ -912,7 +872,7 @@ void foldLoads(LowerBase base, LowerFunction& fun) {
  *    removing one.
  *  - **Nothing between them writes memory.** The load is being moved across whatever lies between
  *    it and the store, so anything that could change what it would read is a refusal.
- *    `mayWriteMemory` is the whitelist, and a call is not on it.
+ *    `writesStorage` answers yes for a call, so a call between the three is refused.
  *  - **The location is the left-hand side of a subtraction.** `[m] - v` is what the machine
  *    performs; `v - [m]` is a different number. The four commutative ones are folded from either
  *    side.
@@ -941,7 +901,7 @@ static bool spanCannotWrite(LowerBase base, LowerBlock* block, Size from, Size t
     auto list = block->instructions.contents(base);
 
     for(Size i = from; i < to && i < list.size(); i++) {
-        if(mayWriteMemory(base[list[i]])) return false;
+        if(writesStorage(base[list[i]])) return false;
     }
 
     return true;

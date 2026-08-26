@@ -50,9 +50,9 @@
  *
  * **This is the one thing here that is not a property of the operands.** Such a division cannot fault
  * where it stands and would above the test, so it carries `LowerInstBinary::kTrustsDivisorTest` and
- * `mayFault` in lower_licm.cpp refuses to hoist it. Getting that wrong is a hoist into a preheader
+ * `mayFault` in lower_inst.h refuses to hoist it. Getting that wrong is a hoist into a preheader
  * the test does not reach, which is a SIGFPE and not a wrong answer - so the bit is set in exactly
- * the two places the zero half is skipped, and read in exactly one.
+ * the two places the zero half is skipped, and read only through that predicate.
  *
  * The walk is four steps of immediate predecessors rather than a dominator query, because there is
  * no dominator tree built at this point in the pipeline and both shapes above put the proof in the

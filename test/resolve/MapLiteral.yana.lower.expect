@@ -1220,64 +1220,64 @@ indexFind(String, Int)<complex>(%self: Ptr, %key: Ptr, %h: Int): Long {
     %empty = vsplat 128: i8x16
     %v_7 = and %h, %v_5: Int
     %v_8 = sext %v_7: Long
-    jmp b_9
+    %v_9 = add %self, 16: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    %v_11 = load %self, 8: Ptr
+    jmp b_12
   }
 
-  b_9 {
-    %v_10 = phi [b_0, %v_8], [b_11, %v_12]: Long
-    %v_13 = phi [b_0, 0], [b_11, %v_14]: Long
-    %v_15 = cmp_ile %v_13, %mask: Int
-    je %v_15, b_16, b_17
+  b_12 {
+    %v_13 = phi [b_0, %v_8], [b_14, %v_15]: Long
+    %v_16 = phi [b_0, 0], [b_14, %v_17]: Long
+    %v_18 = cmp_ile %v_16, %mask: Int
+    je %v_18, b_19, b_20
   }
 
-  b_17 {
+  b_20 {
     ret 18446744073709551615
   }
 
-  b_16 {
-    %v_18 = add %self, 16: Ptr
-    %v_19 = load %v_18, 8: Ptr
-    %v_20 = add %v_19, %v_10: Ptr
-    %group = load %v_20, 16: i8x16
-    %v_21 = cmp_eq %group, %tag: m8x16
-    %v_22 = vreduce_bits %v_21: Int
-    jmp b_23
+  b_19 {
+    %v_21 = add %v_10, %v_13: Ptr
+    %group = load %v_21, 16: i8x16
+    %v_22 = cmp_eq %group, %tag: m8x16
+    %v_23 = vreduce_bits %v_22: Int
+    jmp b_24
   }
 
-  b_23 {
-    %v_24 = phi [b_16, %v_22], [b_25, %v_26]: Int
-    %v_27 = cmp_neq %v_24, 0: Int
-    je %v_27, b_28, b_29
+  b_24 {
+    %v_25 = phi [b_19, %v_23], [b_26, %v_27]: Int
+    %v_28 = cmp_neq %v_25, 0: Int
+    je %v_28, b_29, b_30
+  }
+
+  b_30 {
+    %v_31 = cmp_eq %group, %empty: m8x16
+    %v_32 = vreduce_bits %v_31: Int
+    %v_33 = cmp_neq %v_32, 0: Int
+    je %v_33, b_20, b_14
+  }
+
+  b_14 {
+    %v_17 = add %v_16, 16: Long
+    %v_34 = add %v_13, %v_17: Long
+    %v_15 = and %v_34, %mask: Long
+    jmp b_12
   }
 
   b_29 {
-    %v_30 = cmp_eq %group, %empty: m8x16
-    %v_31 = vreduce_bits %v_30: Int
-    %v_32 = cmp_neq %v_31, 0: Int
-    je %v_32, b_17, b_11
-  }
-
-  b_11 {
-    %v_14 = add %v_13, 16: Long
-    %v_33 = add %v_10, %v_14: Long
-    %v_12 = and %v_33, %mask: Long
-    jmp b_9
-  }
-
-  b_28 {
-    %v_34 = cttz_width %v_24: Int
-    %v_35 = sext %v_34: Long
-    %v_36 = add %v_10, %v_35: Long
-    %slot = and %v_36, %mask: Long
-    %v_37 = add %mask, 17: Long
-    %v_38 = add %v_19, %v_37: Ptr
-    %v_39 = shl %slot, 2: Long
-    %v_40 = add %v_38, %v_39: Ptr
-    %v_41 = load %v_40, 4: Int
-    %v_42 = cast %v_41: Long
-    %v_43 = load %self, 8: Ptr
-    %v_44 = imul %v_42, 24: Long
-    %v_45 = add %v_43, %v_44: Ptr
+    %v_35 = cttz_width %v_25: Int
+    %v_36 = sext %v_35: Long
+    %v_37 = add %v_13, %v_36: Long
+    %slot = and %v_37, %mask: Long
+    %v_38 = add %mask, 17: Long
+    %v_39 = add %v_10, %v_38: Ptr
+    %v_40 = shl %slot, 2: Long
+    %v_41 = add %v_39, %v_40: Ptr
+    %v_42 = load %v_41, 4: Int
+    %v_43 = cast %v_42: Long
+    %v_44 = imul %v_43, 24: Long
+    %v_45 = add %v_11, %v_44: Ptr
     %v_46 = add %v_45, 12: Ptr
     %v_47 = load %v_46, 4: Int
     %v_48 = sext %v_47: Long
@@ -1285,7 +1285,7 @@ indexFind(String, Int)<complex>(%self: Ptr, %key: Ptr, %h: Int): Long {
     %v_50 = load %v_49, 4: Int
     %v_51 = sext %v_50: Long
     %v_52 = cmp_neq %v_48, %v_51: Int
-    je %v_52, b_25, b_53
+    je %v_52, b_26, b_53
   }
 
   b_53 {
@@ -1306,7 +1306,7 @@ indexFind(String, Int)<complex>(%self: Ptr, %key: Ptr, %h: Int): Long {
     %v_65 = add %v_55, %v_57: Ptr
     %v_66 = load %v_65, 1: Int
     %v_67 = cmp_neq %v_64, %v_66: Int
-    je %v_67, b_25, b_58
+    je %v_67, b_26, b_58
   }
 
   b_58 {
@@ -1314,14 +1314,14 @@ indexFind(String, Int)<complex>(%self: Ptr, %key: Ptr, %h: Int): Long {
     jmp b_56
   }
 
-  b_25 {
-    %v_68 = sub %v_24, 1: Int
-    %v_26 = and %v_24, %v_68: Int
-    jmp b_23
+  b_26 {
+    %v_68 = sub %v_25, 1: Int
+    %v_27 = and %v_25, %v_68: Int
+    jmp b_24
   }
 
   b_62 {
-    ret %v_42
+    ret %v_43
   }
 }
 
