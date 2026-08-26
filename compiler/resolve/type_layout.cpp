@@ -565,6 +565,19 @@ static ValueWidth valueWidthAt(GlobalBase base, TypePtr type, U32 depth, IntWidt
             auto bits = U32(laneStride(base, vector->content, widths) * 8 * constValue(base, vector->count));
             return ValueWidth { bits, bits };
         }
+        case Type::Atomic:
+            /*
+             * An atomic is never narrow, and its own arm rather than the `default` for the reason
+             * the vector above has one: the two would answer the same today and stop agreeing the
+             * moment something changed.
+             *
+             * Being narrow is what admits a value into a co-packed word and gives a `&` of it a
+             * shift. An atomic must be in neither position - a neighbour sharing its word would be
+             * read and written by the same locked access, so a program updating the neighbour would
+             * be updating the atomic - which is Analysis-Atomics.md §3.1's "regardless of how an
+             * ordinary `Bool` is packed into another record".
+             */
+            return {};
         default:
             return {};
     }

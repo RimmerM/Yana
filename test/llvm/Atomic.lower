@@ -1,0 +1,79 @@
+# The atomics through the LLVM backend - Analysis-Atomics.md §5.2.
+#
+# The mapping is direct: `load atomic`, `store atomic`, `atomicrmw`, `cmpxchg` and `fence`, with the
+# five orders spelled `monotonic`, `acquire`, `release`, `acq_rel` and `seq_cst`. What this fixture
+# exists to pin is the two places it is not just a builder call.
+#
+# **The alignment.** Every atomic access states one, and it is the access width. LLVM lowers an
+# atomic whose stated alignment is below its width through a runtime call that takes a lock, so a
+# `align 1` here - which is what every non-atomic access in these fixtures carries - would silently
+# be the one thing §3.2's always-lock-free promise forbids.
+#
+# **The narrow widths.** A one- or two-byte atomic operates on `i8` or `i16` while the value lives
+# in a 32-bit register, so the operand is truncated on the way in and the result extended on the way
+# out. That round trip is visible below and is the reason `atomic_loads` exists as a spelling.
+
+# Load and store at every width and every order each admits.
+loadStore(%p: Ptr, %v: Int, %w: Long) {
+    {
+        %l1 = atomic_load %p, 1, relaxed: Int
+        %l2 = atomic_loads %p, 2, acquire: Int
+        %l4 = atomic_load %p, 4, seq_cst: Int
+        %l8 = atomic_load %p, 8, acquire: Long
+
+        atomic_store %p, %v, 1, relaxed
+        atomic_store %p, %v, 4, release
+        atomic_store %p, %v, 4, seq_cst
+        atomic_store %p, %w, 8, release
+        ret
+    }
+}
+
+# A pointer at the full width stays a pointer across an exchange, which is what keeps its provenance
+# in LLVM's own analysis rather than laundering it through an integer.
+pointerExchange(%p: Ptr, %q: Ptr): Ptr {
+    {
+        %old = atomic_xchg %p, %q, 8, acq_rel: Ptr
+        ret %old
+    }
+}
+
+# All six read-modify-writes. Each answers the value from before the update.
+update(%p: Ptr, %v: Int, %w: Long): Int {
+    {
+        %x = atomic_xchg %p, %v, 4, seq_cst: Int
+        %a = atomic_add %p, %v, 4, relaxed: Int
+        %s = atomic_sub %p, %v, 4, acq_rel: Int
+        %n = atomic_and %p, %v, 4, acquire: Int
+        %o = atomic_or %p, %v, 4, release: Int
+        %e = atomic_xor %p, %v, 4, seq_cst: Int
+        %b = atomic_add %p, %w, 8, relaxed: Long
+
+        # A narrow update: the operand truncates to i8 and the answer widens back.
+        %narrow = atomic_add %p, %v, 1, relaxed: Int
+        ret %a
+    }
+}
+
+# Both compare forms. `cmpxchg` answers `{ ty, i1 }`; the flag is read out of it rather than
+# reconstructed by comparing, which is what the weak form makes necessary - see LowerInstAtomicCas.
+compare(%p: Ptr, %e: Int, %d: Int): Int {
+    {
+        %c1, %ok1 = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+        %c2, %ok2 = atomic_cas_weak %p, %e, %d, 4, release, relaxed: Int, Int
+        %c3, %ok3 = atomic_cas %p, %e, %d, 4, seq_cst, seq_cst: Int, Int
+        ret %c1
+    }
+}
+
+# The four fences, and the spin hint - which is `llvm.x86.sse2.pause` and deliberately not a fence.
+fences() {
+    {
+        fence acquire
+        fence release
+        fence acq_rel
+        fence seq_cst
+        spinhint
+        ret
+    }
+}

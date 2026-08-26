@@ -2668,6 +2668,26 @@ ModulePtr<Value> ExprResolver::emitErasedCall(ModulePtr<Function> callee, Buffer
  * which. The type arguments are therefore handed to the intrinsic through the substituted result
  * type, which is all any of them needs.
  */
+/*
+ * Whether two places name the same storage, for the sink check below.
+ *
+ * The *root* only, and deliberately: an emitter may sink a converted or projected form of what it
+ * was handed - emitExchange sinks `convert(args[1], ...)` - and what the check is asking is whether
+ * the caller's storage was consumed, not whether the emitter passed the argument on unaltered.
+ */
+static bool sameRoot(const Place& a, const Place& b) {
+    if(a.root != b.root) return false;
+
+    switch(a.root) {
+        case PlaceRoot::Local: return a.local == b.local;
+        case PlaceRoot::Global: return a.global == b.global;
+        case PlaceRoot::Pointer:
+        case PlaceRoot::Borrow: return a.pointer == b.pointer;
+    }
+
+    return false;
+}
+
 ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffer<TypePtr> typeArgs,
                                                Buffer<ResolvedArg> args, LocationId source,
                                                StringId resultName) {
@@ -2679,6 +2699,19 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
     // emitted. `swap(&h.a, &h.b)` on two co-packed fields commits both, in order.
     auto mark = packedMark();
     ModulePtr<Value> result = nullptr;
+
+    /*
+     * The record the `->` check below reads - see `sunkPlaces` in expr.h for what it is for.
+     *
+     * The previous value of the flag is restored rather than cleared, because an emitter may expand
+     * a second intrinsic inside itself: `convert` reaches one, and a nested expansion truncating the
+     * list back to its own mark is what keeps the outer one's sinks visible to the outer check.
+     */
+#if defined(_DEBUG) || defined(DEBUG)
+    auto sinkMark = sunkPlaces.size();
+    auto wasRecording = recordingSinks;
+    recordingSinks = true;
+#endif
 
     if(generic->deferredIntrinsic) {
         // The declared type of each deferred parameter, at the types this call decided. It is what
@@ -2697,6 +2730,47 @@ ModulePtr<Value> ExprResolver::expandIntrinsic(ModulePtr<Function> callee, Buffe
     }
 
     flushPackedBorrows(mark);
+
+    /*
+     * And the check: a parameter this callee declares `->` on must have had its storage sunk while
+     * the emitter ran.
+     *
+     * It is the same shape of invariant as verifyLocals' untracked-droppable check and it exists for
+     * the same reason - a producer that forgets one line leaves a program that consumes one value
+     * twice with nothing to say about it. `intoValue` forgot exactly this: `->self` was declared,
+     * expandIntrinsic applied nothing, and `intoValue(c)` twice compiled.
+     *
+     * Only where the argument names a place. A value that is not storage - a literal, a call's
+     * result in a register - has nothing for a handover to take over, which is the same condition
+     * `sinkValue` returns early on.
+     */
+#if defined(_DEBUG) || defined(DEBUG)
+    recordingSinks = wasRecording;
+
+    if(!context.diagnostics.errorCount()) {
+        for(Size i = 0; i < generic->args.size() && i < args.size(); i++) {
+            auto declared = local[generic->args.get(local, i)];
+            if(declared->convention != ast::BindType::Sink) continue;
+            if(!args[i].value) continue;
+
+            auto place = findPlace(args[i].value);
+            if(!place) continue;
+
+            auto sunk = false;
+            for(Size s = sinkMark; s < sunkPlaces.size(); s++) {
+                if(sameRoot(sunkPlaces[s], place.unwrap())) { sunk = true; break; }
+            }
+
+            if(!sunk) {
+                context.diagnostics.error("internal error: %@ declares `->` on argument %@ and its intrinsic did not sink it - the caller's storage is never moved out of, so the value can be consumed again"_v,
+                                          source, context.findName(generic->name), U32(i + 1));
+            }
+        }
+    }
+
+    sunkPlaces.resize(sinkMark);
+#endif
+
     return result;
 }
 

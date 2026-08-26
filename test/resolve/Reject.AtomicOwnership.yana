@@ -1,0 +1,106 @@
+{-
+   What an atomic's *ownership* refuses - Analysis-Atomics.md §3.1.
+
+   `Reject.Atomic.yana` beside this is about the surface: which types may go in one, which orders
+   fit which operation, that there is no field access. This file is about the one property those
+   rules rest on, which is that an `Atomic(a)` is a **location** and a program may hold exactly one
+   name for it. Every rule here is a consequence of that single sentence, and the accepting side is
+   `AtomicOwnership.yana`, which is the same property seen from its other side.
+
+   The reason it is a file of its own is that none of this is checked by the atomic code at all. An
+   atomic is not `Copy`, so consuming one is a move and using it afterwards is a use after move -
+   which is the ordinary ownership machinery answering an ordinary question. What makes it worth
+   pinning is that the machinery got it wrong twice, in two unrelated places, and in both cases what
+   the wrongness looked like was a program that compiled:
+
+     - `intoValue` declared `->self` and its emitter did not apply it, because expandIntrinsic
+       applies no argument conventions. Nothing marked the caller's storage moved out of, so
+       `intoValue(c)` twice read one location twice.
+     - `transferFrom` recorded a hand-over only for a type that *needs teardown*, teardown having
+       been the only way to be non-copyable until this type existed. An atomic releases nothing, so
+       `Holder {flag: c}` copied it into the record and left `c` usable beside it.
+
+   Both are the same failure from the outside - two names for one atomic - and it is the failure the
+   whole module exists to prevent: two threads synchronizing through two locations are not
+   synchronizing at all, and nothing about the program says so.
+
+   One line and one diagnostic each, on the terms `Reject.Atomic.yana` states.
+-}
+
+import Atomic
+import Native
+
+data Holder = Holder {flag: Atomic(Int), tag: Int}
+
+fn consumes(->c: Atomic(Int)) -> Int = intoValue(c)
+fn shared(c: 'Atomic(Int)) -> Int = c.load(LoadRelaxed)
+
+-- Consumed twice. `intoValue` takes `->self`, so the first one is the last use there is.
+fn twice() -> Int:
+    let c = atomic(1)
+    return intoValue(c) + intoValue(c)
+
+-- Read after being consumed. The operations take a *borrow*, and there is nothing left to borrow.
+fn loadAfterConsume() -> Int:
+    let c = atomic(1)
+    let v = intoValue(c)
+    return v + c.load(LoadRelaxed)
+
+-- Written after being consumed, which is the same rule from the mutating side: interior mutation
+-- through a shared borrow is still a borrow, and the value it would name is gone.
+fn storeAfterConsume() -> Int:
+    let c = atomic(1)
+    let v = intoValue(c)
+    Atomic.store(c, 2, StoreRelaxed)
+    return v
+
+-- Handed to a `->` parameter and then used. The callee took over the location.
+fn passThenUse() -> Int:
+    let c = atomic(1)
+    let v = consumes(c)
+    return v + c.load(LoadRelaxed)
+
+-- Rebound by `let ->`, which is the same hand-over written as a binding.
+fn rebindThenUse() -> Int:
+    let c = atomic(1)
+    let ->d = c
+    return intoValue(d) + intoValue(c)
+
+{-
+   Built into a record, and then used.
+
+   This is the case `transferFrom` used to admit, and the one worth the most attention: nothing here
+   is a call, so there is no convention to forget - the construction *is* the hand-over. An atomic
+   that reached a field and stayed reachable under its old name would be two locations that a reader
+   of either would call "the" flag.
+-}
+fn wrapThenUse() -> Int:
+    let c = atomic(1)
+    let h = Holder {flag: c, tag: 0}
+    return shared(h.flag) + c.load(LoadRelaxed)
+
+-- The same through a container, whose element is a hand-over for the same reason a field is.
+fn pushThenUse() -> Int:
+    let &xs = [] :: Array(Atomic(Int))
+    let c = atomic(1)
+    push(xs, c)
+    return c.load(LoadRelaxed)
+
+{-
+   Taking the atomic *out* of a record and leaving the rest.
+
+   Refused as a partial move rather than as anything about atomics, and it belongs here anyway: it
+   is what a program reaches for when it wants the teardown path off a structure that holds one, and
+   the answer is that the whole value is what moves. See Implementation-Containers.md's open
+   questions, where per-field drop flags are what would change this.
+-}
+fn consumeField(->h: Holder) -> Int:
+    return intoValue(h.flag) + h.tag
+
+-- Every function above is reached, so that the ownership pass sees the bodies as well as the
+-- declarations - `Reject.Atomic.yana` says why.
+fn main() -> Int:
+    storeAfterConsume()
+
+    return twice() + loadAfterConsume() + passThenUse() + rebindThenUse() +
+        wrapThenUse() + pushThenUse()

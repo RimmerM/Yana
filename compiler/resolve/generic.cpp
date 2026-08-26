@@ -1137,6 +1137,28 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             result = cloned;
             break;
         }
+        case Value::Atomic: {
+            auto& atomic = (InstAtomic&)inst;
+            auto cloned = resolver.create<InstAtomic>(inst.source, inst.name, type, atomic.kind, atomic.order);
+
+            cloned->failure = atomic.failure;
+            cloned->weak = atomic.weak;
+
+            for(auto arg: atomic.args.contents(clone.local)) {
+                cloned->args.push(clone.module.arena, cloneValue(clone, arg));
+            }
+
+            resolver.append(cloned);
+            result = cloned;
+            break;
+        }
+        case Value::AtomicOk: {
+            auto cloned = resolver.create<InstAtomicOk>(inst.source, inst.name, type,
+                                                        cloneValue(clone, ((InstAtomicOk&)inst).cas));
+            resolver.append(cloned);
+            result = cloned;
+            break;
+        }
         case Value::Cast:
         case Value::Bitcast:
         case Value::Neg:

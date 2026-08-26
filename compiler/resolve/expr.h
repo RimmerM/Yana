@@ -1797,6 +1797,44 @@ struct ExprResolver {
     // value unchanged, decided by the source's ownership classification. See expr_construct.cpp.
     ModulePtr<Value> sinkValue(ModulePtr<Value> value, LocationId source);
 
+    /*
+     * Which storage `sinkValue` has consumed while an intrinsic was expanding.
+     *
+     * `expandIntrinsic` applies no argument conventions - it hands the emitter the values and the
+     * emitter applies whatever its operation needs - so a `->` position is a handover only if the
+     * emitter performed one. Nothing used to check that it had, and the omission is silent in
+     * exactly the way that matters: the caller's storage is never marked moved out of, so the
+     * program consumes one value twice and no pass has anything to object to.
+     *
+     * This is the record the check reads. Assertion builds only, on verify.h's terms and for its
+     * reason: every finding says the compiler is wrong rather than the program, so it is spent
+     * where somebody is reading. `recordingSinks` keeps the list bounded by one expansion instead
+     * of by the whole body - expandIntrinsic is the only thing that ever sets it.
+     */
+#if defined(_DEBUG) || defined(DEBUG)
+    Array<Place> sunkPlaces;
+    bool recordingSinks = false;
+
+    void recordSink(Place place) { if(recordingSinks) sunkPlaces.push(place); }
+
+    /*
+     * The other way an emitter hands storage over, and the reason this is not just `sinkValue`.
+     *
+     * `write` emits an Init or an Assign naming the value it stores, and analyzeEffects reads that
+     * as a transfer out of whatever place the value came from - see its Init case, which ends in
+     * `transferFrom(write.value)`. So `store(p, v)` consumes `v` without any InstMove existing, and
+     * a check that looked only for sinkValue would call every correct emitter broken.
+     *
+     * Those two are the whole list today. An emitter handing over by some third mechanism will make
+     * this report, which is the right outcome: the mechanism has to be added here *and* to
+     * analyzeEffects, and the two lists disagreeing is the bug this exists to find.
+     */
+    void recordTransfer(ModulePtr<Value> value);
+#else
+    void recordSink(Place) {}
+    void recordTransfer(ModulePtr<Value>) {}
+#endif
+
     // The value a `return` hands over, which is the move half of sinkValue and not its copy half.
     // See expr_construct.cpp for why returning has to say so in the IR.
     ModulePtr<Value> returnValue(ModulePtr<Value> value, LocationId source);

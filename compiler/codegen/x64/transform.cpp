@@ -502,6 +502,15 @@ static const TransformPass kTransformPipeline[] = {
     { "expandBitScans"_v,              expandBitScans,              0 },
 
     /*
+     * Anywhere above selection, and here because it belongs beside the other expansions that turn a
+     * semantic instruction into the target's own. It reads and writes only atomics, and no pass in
+     * this table touches one: every fold, peephole and fold-into-address is written against `Load`,
+     * `Store` and the arithmetic kinds by name, so nothing above can have rewritten what this looks
+     * for and nothing below is confused by what it leaves.
+     */
+    { "expandAtomics"_v,               expandAtomics,               0 },
+
+    /*
      * Beside `expandBitScans` and for its reasons: what it produces is ordinary integer arithmetic
      * and an ordinary select, so it needs only to be above the pass that rewrites a select and above
      * every fold that would be worth running over what it emits.

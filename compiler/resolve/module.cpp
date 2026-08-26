@@ -9,10 +9,12 @@
  */
 
 #include "module_internal.h"
+#include "atomic.h"
 #include "../compiler/stage.h"
 #include "analyze.h"
 #include "const.h"
 #include "core.h"
+#include "atomic.h"
 #include "expr.h"
 #include "generic.h"
 #include "host.h"
@@ -602,6 +604,20 @@ void definePrelude(Program& program) {
     auto nativeGroup = parsePreludeGroup(program, "Native"_v);
 
     /*
+     * And `Atomic` - Analysis-Atomics.md §3.
+     *
+     * A prelude module rather than an ordinary library one, and the reason is the intrinsic hook:
+     * every operation it declares is a machine instruction, so each needs `attachIntrinsic` to have
+     * run against a declared signature, and the third hook below is the only point where that
+     * happens. It is not implicitly imported - `Program::core` is what drives that - so a program
+     * still writes `import Atomic` and one that does not is unaffected by its existence.
+     *
+     * What it costs every compile is parsing one small file. What the alternative would have cost is
+     * a second hook mechanism for library modules, which nothing else wants yet.
+     */
+    auto atomicGroup = parsePreludeGroup(program, "Atomic"_v, false);
+
+    /*
      * A library that could not be read is where a compilation stops.
      *
      * Reported above rather than here - what this adds is that the reports are the *end* of the
@@ -620,7 +636,25 @@ void definePrelude(Program& program) {
     program.core = core;
     program.native = native;
 
-    Module* prelude[] = { core, native };
+    /*
+     * Core and Native always; `Atomic` only where the target has one.
+     *
+     * Its one file is `Atomic.native.yana`, so on a JS build the selector leaves the module with no
+     * files at all and `parsePreludeGroup` answers nothing - which is not a missing library but a
+     * module that does not exist for this target (§5.4). A JS program writing `import Atomic` is
+     * then told there is no such module, which is the accurate report; the alternative was to fail
+     * every JS compile because a native-only module could not be read.
+     */
+    Module* preludeStorage[3] = { core, native, nullptr };
+    Size preludeCount = 2;
+
+    Module* atomic = nullptr;
+    if(atomicGroup) {
+        atomic = addEmbeddedModule(program, *atomicGroup);
+        preludeStorage[preludeCount++] = atomic;
+    }
+
+    Buffer<Module*> prelude { preludeStorage, preludeCount };
 
     // Which form a call site takes has to be the same answer for every call site in one compilation,
     // so the prelude is built under the setting the program will be - see resolveProgram, which sets
@@ -660,6 +694,13 @@ void definePrelude(Program& program) {
     definePreludeContainers(program, *core);
     definePreludeNativeText(program, *native);
     definePreludeText(program, *core);
+    if(atomic) {
+        definePreludeAtomic(program, *atomic);
+
+        // And the one atomic declaration that is Native's - see definePreludeNativeAtomic. It is
+        // guarded by the same question because its signature names `Atomic(a)`.
+        definePreludeNativeAtomic(program, *native);
+    }
 
     for(auto module: prelude) eachFile(*module, passInstances);
 

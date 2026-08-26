@@ -425,6 +425,259 @@ void MachineFormBuilder::registerMemoryAndControlForms() {
      * them as it runs.
      */
 
+    /*
+     * The atomics - Analysis-Atomics.md §5.3.
+     *
+     * `xchg r, [m]` first, which is `0x87 /r` with the register in ModRM.reg and the location in
+     * r/m - the store's shape with a result added. Two things about it are worth writing down.
+     *
+     * **The lock prefix is not written and is not missing.** `xchg` with a memory operand is locked
+     * whether or not the byte is there, which is a property of the instruction rather than of this
+     * encoding; every other locked form below states its prefix.
+     *
+     * **The result is tied to the value operand**, because that is what the instruction does: the
+     * register it names ends up holding what the location held. So the allocator sees a destructive
+     * two-address operation, and a caller whose value is still live afterwards pays the copy that
+     * makes it one - which is the truth about the machine rather than a modelling choice.
+     */
+
+    auto exchange = [&](MachineFormId id, StringView formName, U8 opcode, U8 prefix, OperationWidth width) {
+        auto& form = add(id, OpXchg, formName);
+        form.uses.push(address());
+        form.uses.push(anyReg());
+        form.defs.push(tiedDef(1));
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = opcode,
+            .prefix = prefix,
+            .regField = useRef(1),
+            .width = width,
+        };
+
+        return &form;
+    };
+
+    exchange(FormXchg8, "xchg r8, byte [address]"_v, 0x86, 0,
+             OperationWidth::Fixed32)->encoding.byteRegField = true;
+    exchange(FormXchg16, "xchg r16, word [address]"_v, 0x87, 0x66, OperationWidth::Fixed32);
+    exchange(FormXchg32, "xchg r32, dword [address]"_v, 0x87, 0, OperationWidth::Fixed32);
+    exchange(FormXchg64, "xchg r64, qword [address]"_v, 0x87, 0, OperationWidth::Fixed64);
+
+    /*
+     * And `lock cmpxchg [m], r` - see OpCmpXchg, where the missing `setcc` is argued.
+     *
+     * rax is a fixed use *and* a fixed def, which is the shape a division already has: the value
+     * compared has to be in it on the way in, and the value read is in it on the way out whichever
+     * path the instruction took. The allocator therefore moves the expected value in and the
+     * previous value out, and both moves are real - a compare-exchange in a retry loop pays them
+     * once per attempt, which is what every implementation of one on this architecture pays.
+     *
+     * The flags are a **clobber** rather than a definition. `resultInFlags` would say that they
+     * describe the result, and what they describe is something else: ZF is the exchange's success,
+     * and the sign and carry flags come from a subtraction against a value the program never named.
+     * The comparison `expandAtomics` writes is what a branch reads, and that comparison sets the
+     * flags itself.
+     */
+
+    auto compareExchange = [&](MachineFormId id, StringView formName, U8 opcode, U8 prefix,
+                               OperationWidth width)
+    {
+        auto& form = add(id, OpCmpXchg, formName);
+        form.uses.push(address());
+        form.uses.push(fixedReg(IntRegister::rax));
+        form.uses.push(anyReg());
+
+        auto previous = def();
+        previous.kind = OperandConstraintKind::FixedRegister;
+        previous.fixedReg = gpr(IntRegister::rax);
+        form.defs.push(previous);
+
+        /*
+         * And the success flag, which occupies **nothing**.
+         *
+         * The IR instruction has two results and this machine instruction produces one. The second
+         * is ZF, and `expandAtomics` has already written the comparison that stands in for it and
+         * pointed every reader at that - so what is left here is a definition nothing reads and
+         * nothing writes, which is exactly what `noDef` says.
+         *
+         * Saying it matters rather than being tidy. Left unstated, the operand fell past the end of
+         * this list and was treated as unconstrained, so the allocator gave it a register - and the
+         * register it gave was rax, which is where the value read is. `compareNarrow` in
+         * test/x64/Atomic.lower is the case that caught it, and only under `build-assert`: the
+         * machine verifier is what reports "operand p1 is read from rax, which holds o1".
+         */
+        form.defs.push(noDef());
+
+        form.flagsEffect = FlagsEffect::Clobber;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = opcode, .escape = 0x0f, .prefix = prefix,
+            .regField = useRef(2),
+            .width = width,
+            .lockPrefix = true,
+        };
+
+        return &form;
+    };
+
+    compareExchange(FormCmpXchg8, "lock cmpxchg byte [address], r8"_v, 0xb0, 0,
+                    OperationWidth::Fixed32)->encoding.byteRegField = true;
+    compareExchange(FormCmpXchg16, "lock cmpxchg word [address], r16"_v, 0xb1, 0x66, OperationWidth::Fixed32);
+    compareExchange(FormCmpXchg32, "lock cmpxchg dword [address], r32"_v, 0xb1, 0, OperationWidth::Fixed32);
+    compareExchange(FormCmpXchg64, "lock cmpxchg qword [address], r64"_v, 0xb1, 0, OperationWidth::Fixed64);
+
+    /*
+     * `lock xadd [m], r` - the fetch-and-add, and the one arithmetic update whose previous value
+     * the architecture hands back. `0f c1 /r`, with the register in ModRM.reg exactly as the
+     * exchange has it, and the same tied result for the same reason: the register carrying the
+     * addend in is the register carrying the old value out.
+     *
+     * The lock prefix *is* written here, where `xchg`'s is not. `xchg` is locked implicitly and this
+     * is not: without the byte it is a perfectly good non-atomic read-modify-write, which is exactly
+     * the failure that would never show up in a single-threaded test.
+     */
+    auto exchangeAdd = [&](MachineFormId id, StringView formName, U8 opcode, U8 prefix,
+                           OperationWidth width)
+    {
+        auto& form = add(id, OpXAdd, formName);
+        form.uses.push(address());
+        form.uses.push(anyReg());
+        form.defs.push(tiedDef(1));
+        form.flagsEffect = FlagsEffect::Clobber;
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::LoadStore,
+            .opcode = opcode, .escape = 0x0f, .prefix = prefix,
+            .regField = useRef(1),
+            .width = width,
+            .lockPrefix = true,
+        };
+
+        return &form;
+    };
+
+    exchangeAdd(FormXAdd8, "lock xadd byte [address], r8"_v, 0xc0, 0,
+                OperationWidth::Fixed32)->encoding.byteRegField = true;
+    exchangeAdd(FormXAdd16, "lock xadd word [address], r16"_v, 0xc1, 0x66, OperationWidth::Fixed32);
+    exchangeAdd(FormXAdd32, "lock xadd dword [address], r32"_v, 0xc1, 0, OperationWidth::Fixed32);
+    exchangeAdd(FormXAdd64, "lock xadd qword [address], r64"_v, 0xc1, 0, OperationWidth::Fixed64);
+
+    /*
+     * And the five locked in-place updates - see OpLockAdd.
+     *
+     * Shaped exactly like the `storeUpdate` block above and encoded by the same family, with two
+     * differences that are both about what the operation *is* rather than about how it is written.
+     *
+     * **The result occupies nothing rather than not existing.** `X86StoreOp` has no result at all;
+     * an atomic read-modify-write always has one, and these forms are taken precisely when nobody
+     * reads it. So the def is stated as `noDef` and `expandAtomics` marks the value implicit - the
+     * pair FormCmpXchg's flag already needed, and for the reason written there: an unstated def is
+     * an unconstrained one, and the allocator gives an unconstrained def a register.
+     *
+     * **The flags are a clobber.** The arithmetic is the same arithmetic, but it is performed on a
+     * location another thread may write immediately afterwards, so a comparison folded into one of
+     * these would be answering a question about a value nobody holds.
+     *
+     * There are no immediate forms. A group-1 immediate encoding is available and correct, and what
+     * is missing is a caller: an operand reaching here is `amount` or `mask` from the library's own
+     * signature, and `selectStoreUpdates` - the pass that embeds a constant into the ordinary
+     * in-place update - is written against `X86StoreOp` and never sees one of these.
+     */
+    auto lockUpdate = [&](MachineOpcodeId opcode, MachineFormId first, const StringView (&names)[4],
+                          U8 rmRegOp)
+    {
+        auto row = [&](MachineFormId id, StringView formName, U8 op, U8 prefix,
+                       OperationWidth width)
+        {
+            auto& form = add(id, opcode, formName);
+            form.uses.push(address());
+            form.uses.push(anyReg());
+            form.defs.push(noDef());
+            form.flagsEffect = FlagsEffect::Clobber;
+            form.encoding = EncodingDescriptor {
+                .family = EncodingFamily::LoadStore,
+                .opcode = op,
+                .prefix = prefix,
+                .regField = useRef(1),
+                .width = width,
+                .lockPrefix = true,
+            };
+
+            return &form;
+        };
+
+        row(MachineFormId(first + 0), names[0], U8(rmRegOp - 1), 0,
+            OperationWidth::Fixed32)->encoding.byteRegField = true;
+        row(MachineFormId(first + 1), names[1], rmRegOp, 0x66, OperationWidth::Fixed32);
+        row(MachineFormId(first + 2), names[2], rmRegOp, 0, OperationWidth::Fixed32);
+        row(MachineFormId(first + 3), names[3], rmRegOp, 0, OperationWidth::Fixed64);
+    };
+
+    static const StringView lockAddNames[4] = {
+        "lock add byte [address], r"_v, "lock add word [address], r"_v,
+        "lock add dword [address], r"_v, "lock add qword [address], r"_v,
+    };
+    static const StringView lockSubNames[4] = {
+        "lock sub byte [address], r"_v, "lock sub word [address], r"_v,
+        "lock sub dword [address], r"_v, "lock sub qword [address], r"_v,
+    };
+    static const StringView lockAndNames[4] = {
+        "lock and byte [address], r"_v, "lock and word [address], r"_v,
+        "lock and dword [address], r"_v, "lock and qword [address], r"_v,
+    };
+    static const StringView lockOrNames[4] = {
+        "lock or byte [address], r"_v, "lock or word [address], r"_v,
+        "lock or dword [address], r"_v, "lock or qword [address], r"_v,
+    };
+    static const StringView lockXorNames[4] = {
+        "lock xor byte [address], r"_v, "lock xor word [address], r"_v,
+        "lock xor dword [address], r"_v, "lock xor qword [address], r"_v,
+    };
+
+    lockUpdate(OpLockAdd, FormLockAdd8, lockAddNames, 0x01);
+    lockUpdate(OpLockSub, FormLockSub8, lockSubNames, 0x29);
+    lockUpdate(OpLockAnd, FormLockAnd8, lockAndNames, 0x21);
+    lockUpdate(OpLockOr,  FormLockOr8,  lockOrNames,  0x09);
+    lockUpdate(OpLockXor, FormLockXor8, lockXorNames, 0x31);
+
+    /*
+     * The fence, at the two shapes it has on this architecture - see OpFence.
+     *
+     * `mfence` is group 15's `0f ae /6` in its no-operand spelling, which is the whole instruction:
+     * no ModRM operand is encoded and the byte after the opcode is fixed. It is written here rather
+     * than taken from the `MFence` intrinsic because a fence that the program wrote as an ordering
+     * *and* one it wrote as `X86.mfence()` are two different statements, and only the first of them
+     * has an order to read.
+     *
+     * The other form encodes nothing at all, which is the correct encoding of an acquire or release
+     * fence on a machine that already orders everything they order. It is still an instruction - see
+     * OpFence for what would be lost by deleting it.
+     */
+    {
+        auto& form = add(FormMFence, OpFence, "mfence"_v);
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Opcode,
+            .opcode = 0xae, .opcodeAlt = 0xf0, .escape = 0x0f,
+            .width = OperationWidth::Fixed32,
+        };
+    }
+
+    {
+        auto& form = add(FormFenceNone, OpFence, "fence"_v);
+        form.encoding = EncodingDescriptor { .family = EncodingFamily::None };
+    }
+
+    // PAUSE (f3 90) is `rep nop`: architecturally nothing, and a hint to the processor that the loop
+    // around it is polling. It writes no register and reads none, so the whole of it is the prefix
+    // and the opcode.
+    {
+        auto& form = add(FormSpinHint, OpSpinHint, "pause"_v);
+        form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Opcode,
+            .opcode = 0x90, .prefix = 0xf3,
+            .width = OperationWidth::Fixed32,
+        };
+    }
+
     {
         auto& form = add(FormBlockCopyRep, OpBlockCopy, "rep movsb"_v);
         form.uses.push(fixedReg(IntRegister::rdi));

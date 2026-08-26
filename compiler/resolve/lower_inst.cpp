@@ -89,7 +89,11 @@ void mapResult(LowerContext& lower, ModulePtr<Value> from, LowerInst* instructio
     instruction->source = value.source;
 
     if(!isUnit(lower.global, value.type)) {
-        assertTrue(instruction->createdCount == 1);
+        // At least one, rather than exactly one. A resolve `Value` is one value and every lower
+        // instruction produced from one used to answer with one - until the compare-exchange, which
+        // answers two: the value read and whether the store happened. Result zero is what the
+        // resolve instruction *is*, and the second is claimed by the `AtomicOk` that names it.
+        assertTrue(instruction->createdCount >= 1);
         lower.values.add(from, instruction->created().ptr - lower.lower);
     }
 }
@@ -174,6 +178,12 @@ static InstGroup instGroup(Value::Kind kind) {
         case Value::TypeMetric:
         case Value::TableSlot:
         case Value::Native:
+
+        // The atomics. A computation rather than a storage operation, on the same terms `Native`'s
+        // block copy is one: what makes an instruction "storage" here is that it names a *place*,
+        // and an atomic names an address it was handed - see `atomicAddress`, which is what took it.
+        case Value::Atomic:
+        case Value::AtomicOk:
         case Value::Cast:
         case Value::Bitcast:
         case Value::Neg:

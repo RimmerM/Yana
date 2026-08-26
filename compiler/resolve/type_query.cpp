@@ -82,6 +82,9 @@ void genVariablesIn(GlobalBase base, TypePtr type, U64& mask) {
             genVariablesIn(base, vector->count, mask);
             break;
         }
+        case Type::Atomic:
+            genVariablesIn(base, ((AtomicType*)base[type])->content, mask);
+            break;
         case Type::Borrow:
             genVariablesIn(base, ((BorrowType*)base[type])->to, mask);
             break;
@@ -446,6 +449,7 @@ bool isDirectType(GlobalBase base, TypePtr type) {
        value->kind == Type::Borrow || value->kind == Type::Vector) {
         return true;
     }
+
 
     return value->kind == Type::Record && ((RecordType*)value)->layout == RecordType::Enum;
 }

@@ -2015,3 +2015,278 @@ void expandBitOperations(Context&, LowerBase base, LowerFunction& fun) {
         }
     }
 }
+
+/*
+ * The atomics this backend performs as a different instruction than the one the IR names.
+ *
+ * ## A sequential store is an exchange
+ *
+ * x86 orders store-store and load-load already, so a relaxed store and a release store are both a
+ * plain `mov` - Analysis-Atomics.md §5.3. A *sequential* one is not, and the reason is the one
+ * ordering the architecture does not give: a store may be reordered past a later load from a
+ * different location, which is exactly the store-buffer shape §4.4's counterexample is about. A
+ * sequential store is the operation that has to answer that shape, so it needs a barrier.
+ *
+ * `xchg` is the barrier and the store at once. The alternative - `mov` followed by `mfence` - is two
+ * instructions where this is one, and is slower on every microarchitecture this backend targets.
+ *
+ * Written as a rewrite of the IR rather than as a second form of the store, because the two
+ * instructions genuinely differ in what the register allocator has to know: `xchg` leaves the value
+ * register holding what the location held, so it is destructive in an operand a `mov` only reads. A
+ * form cannot say that about an instruction whose IR shape has no result. Rewriting it into the
+ * exchange that it *is* says it once, in the one place that already means it.
+ *
+ * The result is read by nobody and that is correct rather than wasteful. Nothing removes it - an
+ * atomic is not `isRepeatable` - and what it costs is a register that dies at the instruction it
+ * was defined by, which the allocator handles as it handles any other short live range.
+ *
+ * ## A compare-exchange's success flag is a comparison
+ *
+ * The IR instruction has two results, and only one of them is a register on this architecture:
+ * `lock cmpxchg` leaves the value it read in rax and its success in ZF. Nothing above a backend can
+ * read a flag, so the flag has to become a value - and on x86 it already is one, because
+ * `previous == expected` is *exactly* the success condition. The instruction stores when the two
+ * are equal and never fails spuriously, so the weak form is the same instruction and the same
+ * comparison.
+ *
+ * So the comparison is written here and every reader of the flag is pointed at it. That is cheaper
+ * than the `setcc` it replaces wherever a branch follows - which is every retry loop - because the
+ * flags folding below this then removes the comparison and branches on what `cmpxchg` left in ZF.
+ * Where no branch follows it is one `cmp` and one `setcc`, which is what the materialization would
+ * have cost anyway.
+ *
+ * It also removes the one thing the two-result form could not express here: a definition nothing
+ * reads is given no home, so a success flag left as a second def of the machine instruction had to
+ * be written into whichever register that rendered as - and the register it rendered as was rax.
+ *
+ * ## A fetch operation is one of four shapes
+ *
+ * Analysis-Atomics.md's §5.3 table, and what decides between its rows is whether the value from
+ * **before** the update is read. x86 has a locked in-place form of all five arithmetic updates, and
+ * hands back the previous value from exactly one of them.
+ *
+ *   the result is not read      `lock add`, `lock sub`, `lock and`, `lock or`, `lock xor`
+ *   fetchAdd, result read       `lock xadd`
+ *   fetchSub, result read       a negation and `lock xadd`
+ *   fetchAnd/Or/Xor, read       the compare-exchange loop below
+ *
+ * The first row is the one selection could not have chosen for itself, and is why this pass looks at
+ * the result's readers at all: the operation is the same operation either way, and only the use list
+ * says which of the two encodings can express it. The value is marked implicit there for
+ * FormCmpXchg's reason - an unstated def is an unconstrained one, and the allocator gives an
+ * unconstrained def a register.
+ *
+ * The last row is a loop, and there is no way around it. The architecture has no instruction that
+ * both performs a bitwise update and answers what was there, so every implementation of one is a
+ * compare-exchange that reads, computes and tries, and goes round again when somebody else won.
+ * Writing it here rather than in the library is what keeps `fetchOr` one operation in the IR: LLVM
+ * lowers the same instruction natively and rather better, and a loop written above the backend would
+ * be a loop on both.
+ */
+
+// Which ordinary binary operation a bitwise fetch performs on the value it read.
+static LowerInst::Kind binaryKindForAtomicOp(LowerAtomicOp op) {
+    switch(op) {
+        case LowerAtomicOp::And: return LowerInst::And;
+        case LowerAtomicOp::Or:  return LowerInst::Or;
+        default:                 return LowerInst::Xor;
+    }
+}
+
+/*
+ * The compare-exchange loop a bitwise fetch whose result is read has to be.
+ *
+ *     block:  %seen = atomic_load %p, w, failure
+ *             jmp loop
+ *     loop:   %expected = phi [%seen, block], [%previous, loop]
+ *             %desired = <op> %expected, %v
+ *             %previous, %ok = atomic_cas_weak %p, %expected, %desired, w, success, failure
+ *             je %ok, after, loop
+ *     after:  ...
+ *
+ * `%previous` is what the operation answers, and it needs no phi in `after`: `loop` is the only
+ * predecessor of `after`, so the definition reaching it is the last attempt's - which is the winning
+ * one, since no other attempt leaves.
+ *
+ * Built out of ordinary IR for the reason at the top of this file. Every instruction in it is one
+ * the allocator, the folds and the encoder already handle, and the `cmp` that ends it is the same
+ * one the compare-exchange fixup below writes - so the branch reads what `lock cmpxchg` left in ZF
+ * and the comparison itself disappears.
+ *
+ * The speculative first read carries the *failure* order, which is what a losing attempt performs; a
+ * winning one performs the requested order at the exchange. Every attempt after the first reads the
+ * location through the compare-exchange itself, which is why the phi carries a value rather than the
+ * loop re-loading at its head.
+ *
+ * The weak form is used because a spurious failure costs one more turn round a loop that is already
+ * a loop. On x86 there is none to permit; on a load-linked machine there would be, and the strong
+ * form there is this same loop with another inside it.
+ */
+static void expandFetchLoop(LowerBase base, LowerFunction& fun, LowerBlock* block, Size at,
+                            LowerInstAtomicRmw* rmw)
+{
+    auto& arena = fun.arena;
+    auto& module = *fun.module;
+
+    auto type = rmw->result.type;
+    auto width = rmw->getWidth();
+    auto success = rmw->order;
+    auto failure = failureOrderFor(success);
+
+    // Read out before the instruction goes. Both stay valid as offsets: what `removeInst` drops is
+    // the *use* entries, and every instruction built below registers its own.
+    auto to = rmw->to;
+    auto amount = rmw->value;
+    auto kind = binaryKindForAtomicOp(rmw->op);
+
+    // Everything below the operation moves into a block of its own, which is where the loop lands
+    // once it wins. The operation itself is the last instruction left above the cut, and goes.
+    auto after = splitBlockAfter(base, fun, block, at);
+    removeInst(base, (LowerInst*)rmw);
+
+    auto loop = new (arena) LowerBlock(block->fun, StringId(), BlockIndex(fun.blocks.size()));
+    fun.blocks.push(arena, loop - base);
+    loop->source = block->source;
+
+    auto seen = new (arena) LowerInstAtomicLoad(to, StringId(), type, width, false, failure);
+    block->addInst(base, (LowerInst*)seen);
+    jmp(base, module, *block, loop);
+
+    /*
+     * The phi is built detached and added last - see `makePhi`. One of its two alternatives is the
+     * compare-exchange's own result, which does not exist until the instruction reading the phi has
+     * been built, so filling it in is the last thing that happens rather than the first.
+     *
+     * Adding it last is safe because a phi is not in the instruction list at all: `addInst` puts it
+     * in the block's phi list, where the order carries nothing.
+     */
+    auto expected = makePhi(arena, type, 2);
+
+    auto desired = new (arena) LowerInstBinary(
+        StringId(), type, (&expected->result) - base, amount, kind);
+    loop->addInst(base, (LowerInst*)desired);
+
+    auto cas = new (arena) LowerInstAtomicCas(
+        StringId(), StringId(), type, to, (&expected->result) - base, (&desired->result) - base,
+        width, true, success, failure);
+    loop->addInst(base, (LowerInst*)cas);
+
+    // The winning arm first, which is the order `je` names its two blocks in - and the losing arm is
+    // the loop itself, which is what makes `loop` its own predecessor.
+    je(base, module, *loop, &cas->exchanged, after, loop);
+
+    expected->used().ptr[0] = (&seen->result) - base;
+    expected->sources().ptr[0] = block - base;
+    expected->used().ptr[1] = (&cas->previous) - base;
+    expected->sources().ptr[1] = loop - base;
+    loop->addInst(base, (LowerInst*)expected);
+
+    replaceAllUses(base, &rmw->result, &cas->previous);
+}
+
+void expandAtomics(Context&, LowerBase base, LowerFunction& fun) {
+    // By index rather than over a snapshot: the fetch loops below append blocks, and the list they
+    // append to is the one being walked. A block created here is visited in its turn and holds
+    // nothing this pass rewrites, which costs one empty visit each.
+    for(Size b = 0; b < fun.blocks.size(); b++) {
+        auto block = base[fun.blocks.get(base, b)];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::AtomicStore) continue;
+
+            auto store = (LowerInstAtomicStore*)inst;
+            if(store->order != LowerOrder::Sequential) continue;
+
+            auto value = base[store->value];
+            auto exchange = new (fun.arena) LowerInstAtomicRmw(
+                store->to, store->value, StringId(), value->type, store->getWidth(),
+                LowerAtomicOp::Exchange, LowerOrder::Sequential);
+
+            insertInstAt(base, block, i, exchange);
+            removeInst(base, inst);
+        }
+
+        /*
+         * And the read-modify-writes, in the same walk. The exchange above is not one of them - it
+         * is already the instruction the machine has - and neither is one whose result nobody reads,
+         * which is the locked in-place form and needs only the mark saying its result has no home.
+         */
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::AtomicRmw) continue;
+
+            auto rmw = (LowerInstAtomicRmw*)inst;
+            if(rmw->op == LowerAtomicOp::Exchange) continue;
+
+            if(rmw->result.uses.isEmpty()) {
+                rmw->result.flags |= LowerValue::Implicit;
+                continue;
+            }
+
+            if(rmw->op == LowerAtomicOp::Add) continue;
+
+            /*
+             * A subtraction whose result is read becomes the addition it is. There is no `xsub`, and
+             * negating the amount is one instruction against the loop the alternative would be - so
+             * this is the whole of `fetchSub`'s cost over `fetchAdd`'s, and it is paid outside the
+             * operation rather than inside it.
+             */
+            if(rmw->op == LowerAtomicOp::Sub) {
+                Expansion e { base, fun, block, i };
+                auto negated = e.emit(new (fun.arena) LowerInstUnary(
+                    LowerInst::Neg, StringId(), rmw->result.type, rmw->value));
+
+                // Past what was added: `i` still has to name the instruction being rewritten, which
+                // the negation above has pushed down.
+                i = e.at;
+
+                setOperand(base, fun.arena, (LowerInst*)rmw, rmw->value, negated);
+                rmw->op = LowerAtomicOp::Add;
+                continue;
+            }
+
+            // And the three with no instruction of their own, which is the loop. It cuts the block
+            // in two, so nothing below this point is in `block` any more.
+            expandFetchLoop(base, fun, block, i, rmw);
+            break;
+        }
+    }
+
+    // The compare-exchange fixup, over every block - the ones the loops above created included,
+    // whose compare-exchange needs it exactly as much as one the program wrote.
+    for(Size b = 0; b < fun.blocks.size(); b++) {
+        auto block = base[fun.blocks.get(base, b)];
+
+        for(Size i = 0; i < block->instructions.size(); i++) {
+            auto inst = base[block->instructions.get(base, i)];
+            if(inst->kind != LowerInst::AtomicCas) continue;
+
+            auto cas = (LowerInstAtomicCas*)inst;
+
+            if(!cas->exchanged.uses.isEmpty()) {
+                // Immediately after the compare-exchange, which is where a flags-based lowering
+                // would have had to put it too: what it compares is the value just produced.
+                auto compared = new (fun.arena) LowerInstCmp(
+                    StringId(), (&cas->previous) - base, cas->expected, LowerCmp::eq,
+                    cas->exchanged.type);
+
+                insertInstAt(base, block, i + 1, compared);
+                replaceAllUses(base, &cas->exchanged, &compared->result);
+            }
+
+            /*
+             * And the flag is marked implicit, which is what stops the allocator giving it a
+             * register - see LowerValue::Implicit and `noDef()` on FormCmpXchg.
+             *
+             * Unconditionally, because it never has one on this target: every reader has just been
+             * pointed at the comparison above, and a reader that did not exist needed nothing. Left
+             * unmarked, the allocator placed it anyway and placed it in **rax**, which is where the
+             * value read is - so the compare-exchange answered its own success flag as its previous
+             * value. `compareNarrow` in test/x64/Atomic.lower is the case, and only `build-assert`
+             * reports it: `checkFormOperands` is a debug-build check.
+             */
+            cas->exchanged.flags |= LowerValue::Implicit;
+        }
+    }
+}

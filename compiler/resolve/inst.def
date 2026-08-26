@@ -56,6 +56,41 @@ YANA_INST(Address,      InstAddress,     "addressof"_v,   kInstResult)
 YANA_INST(TypeMetric,   InstTypeMetric,  "sizeof"_v,      kInstResult | kInstPure)
 YANA_INST(TableSlot,    InstTableSlot,   "tableslot"_v,   kInstResult | kInstPure)
 YANA_INST(Native,       InstNative,      "native"_v,      kInstResult)
+
+/*
+ * The atomics - Analysis-Atomics.md §5.1, and one kind for all six of them.
+ *
+ * `InstNative`'s reasoning applies without change: a fixed operation, a flat argument list, and a
+ * meaning that is the machine's rather than the language's. Six kinds would be six cases in every
+ * switch to say the same thing six times, and what tells them apart - which operation, and how
+ * strongly it orders - is what `InstAtomic`'s own fields carry.
+ *
+ * **Not `kInstPure`, not even the load.** Purity here means "may be computed again, or not computed
+ * at all", and an atomic load may be neither: computing it again is a second read that may see a
+ * different value, and not computing it is a synchronization edge removed. That is the same answer
+ * the lower IR gives by leaving all six off `isRepeatable`.
+ *
+ * `kInstResult` although two of them produce nothing. The flag is a property of the *kind* and the
+ * kind is shared, exactly as `Native` shares one with `HostThrow`; what a store and a fence produce
+ * is the unit type, and `verifyFunction`'s rule is about whether a result may be named rather than
+ * about whether one exists.
+ */
+YANA_INST(Atomic,       InstAtomic,      "atomic"_v,      kInstResult)
+
+/*
+ * Whether the compare-exchange this names actually stored - Analysis-Atomics.md §3.4.
+ *
+ * A second instruction reading a second result, because a resolve `Value` is one value and a
+ * compare-exchange answers two. It carries no operands of its own: what it is is a *selector* on the
+ * instruction it points at, and `lower_calc` answers it with `created[1]` of the lower instruction
+ * that `Atomic` already produced.
+ *
+ * The flag cannot be reconstructed by comparing, which is the whole reason this exists. For the
+ * strong form `previous == expected` would do, and that is exactly what the x64 backend derives one
+ * tier down; the weak form may fail spuriously, answering the value it was handed and *not* having
+ * stored, and a caller that compared would read that as a win.
+ */
+YANA_INST(AtomicOk,     InstAtomicOk,    "atomicok"_v,    kInstResult)
 YANA_INST(Cast,         InstUnary,       "cast"_v,        kInstResult | kInstPure)
 // The same bits read as another type, which `Cast` cannot say for every pair it relates: a `Cast`
 // from `Float` to `I32` is a numeric conversion and this is the reinterpretation, and nothing but

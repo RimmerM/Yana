@@ -1,0 +1,81 @@
+target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+define fastcc void @loadStore(ptr %p, i32 %v, i64 %w) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = load atomic i8, ptr %p monotonic, align 1
+  %l1 = zext i8 %2 to i32
+  %3 = load atomic i16, ptr %p acquire, align 2
+  %l2 = sext i16 %3 to i32
+  %l4 = load atomic i32, ptr %p seq_cst, align 4
+  %l8 = load atomic i64, ptr %p acquire, align 8
+  %4 = trunc i32 %v to i8
+  store atomic i8 %4, ptr %p monotonic, align 1
+  store atomic i32 %v, ptr %p release, align 4
+  store atomic i32 %v, ptr %p seq_cst, align 4
+  store atomic i64 %w, ptr %p release, align 8
+  ret void
+}
+
+define fastcc ptr @pointerExchange(ptr %p, ptr %q) {
+  br label %1
+
+1:                                                ; preds = %0
+  %old = atomicrmw xchg ptr %p, %q acq_rel, align 8
+  ret ptr %old
+}
+
+define fastcc i32 @update(ptr %p, i32 %v, i64 %w) {
+  br label %1
+
+1:                                                ; preds = %0
+  %x = atomicrmw xchg ptr %p, i32 %v seq_cst, align 4
+  %a = atomicrmw add ptr %p, i32 %v monotonic, align 4
+  %s = atomicrmw sub ptr %p, i32 %v acq_rel, align 4
+  %n = atomicrmw and ptr %p, i32 %v acquire, align 4
+  %o = atomicrmw or ptr %p, i32 %v release, align 4
+  %e = atomicrmw xor ptr %p, i32 %v seq_cst, align 4
+  %b = atomicrmw add ptr %p, i64 %w monotonic, align 8
+  %2 = trunc i32 %v to i8
+  %3 = atomicrmw add ptr %p, i8 %2 monotonic, align 1
+  %narrow = zext i8 %3 to i32
+  ret i32 %a
+}
+
+define fastcc i32 @compare(ptr %p, i32 %e, i32 %d) {
+  br label %1
+
+1:                                                ; preds = %0
+  %2 = cmpxchg ptr %p, i32 %e, i32 %d acq_rel acquire, align 4
+  %c1 = extractvalue { i32, i1 } %2, 0
+  %3 = extractvalue { i32, i1 } %2, 1
+  %ok1 = zext i1 %3 to i32
+  %4 = cmpxchg weak ptr %p, i32 %e, i32 %d release monotonic, align 4
+  %c2 = extractvalue { i32, i1 } %4, 0
+  %5 = extractvalue { i32, i1 } %4, 1
+  %ok2 = zext i1 %5 to i32
+  %6 = cmpxchg ptr %p, i32 %e, i32 %d seq_cst seq_cst, align 4
+  %c3 = extractvalue { i32, i1 } %6, 0
+  %7 = extractvalue { i32, i1 } %6, 1
+  %ok3 = zext i1 %7 to i32
+  ret i32 %c1
+}
+
+define fastcc void @fences() {
+  br label %1
+
+1:                                                ; preds = %0
+  fence acquire
+  fence release
+  fence acq_rel
+  fence seq_cst
+  call void @llvm.x86.sse2.pause()
+  ret void
+}
+
+; Function Attrs: nounwind
+declare void @llvm.x86.sse2.pause() #0
+
+attributes #0 = { nounwind }

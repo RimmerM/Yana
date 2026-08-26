@@ -841,6 +841,185 @@ static bool validateStore(Diagnostics* diagnostics, LowerBase base, LowerInstSto
     return true;
 }
 
+/*
+ * The atomics - Analysis-Atomics.md §5.5, "the optimizer verification checks".
+ *
+ * Three things are checked of every one of them, and each is a rewrite that would otherwise be
+ * silent. That the order is one the operation admits, which is what the library's four ordering
+ * types say at the surface and what has to be re-said here because this IR has one enum. That the
+ * width is one a target can perform indivisibly, which is where the always-lock-free promise of
+ * §3.2 is actually enforced - a 16-byte "atomic" would otherwise reach a backend and become a
+ * libcall around a lock. And that the address is a pointer, as for any other access.
+ *
+ * Alignment is deliberately *not* checked here. It is a property of the address rather than of the
+ * instruction, and this IR has no expression for "this pointer is 8-aligned"; §3.7 makes it a
+ * contract the caller of `Native.atomicAt` signs, and safe `Atomic(a)` storage satisfies it by
+ * construction because the classifier chose the layout.
+ */
+
+// The widths every admitted target performs indivisibly at the x86-64-v2 floor. Not a power-of-two
+// test: 16 is a power of two and is `cmpxchg16b`, which §5.3 defers with `AtomicPair` until the
+// allocator can express its fixed register pairs.
+static bool isAtomicWidth(U32 width) {
+    return width == 1 || width == 2 || width == 4 || width == 8;
+}
+
+static bool validateAtomicWidth(Diagnostics* diagnostics, U32 width, LocationId source) {
+    if(!isAtomicWidth(width)) {
+        diagnostics->error("no target performs an atomic access of this width"_v, source);
+        return false;
+    }
+
+    return true;
+}
+
+static bool validateAtomicLoad(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicLoad* inst) {
+    if(inst->usedCount != 1 || inst->createdCount != 1) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    if(base[inst->from]->type != LowerType::Pointer) {
+        diagnostics->error("atomic load address must be a pointer"_v, inst->source);
+        return false;
+    }
+
+    // Integers and pointers only, on all four location operations. A float would need the
+    // comparison in a compare-exchange to rule on NaNs and on whether equality is numeric or
+    // bitwise, and a vector has no width a machine exchanges - §3.2 excludes both.
+    if(!isIntLike(inst->result.type)) {
+        diagnostics->error("an atomic operates on an integer or a pointer"_v, inst->source);
+        return false;
+    }
+
+    if(!isLoadOrder(inst->order)) {
+        diagnostics->error("an atomic load takes relaxed, acquire or seq_cst"_v, inst->source);
+        return false;
+    }
+
+    return validateAtomicWidth(diagnostics, inst->getWidth(), inst->source);
+}
+
+static bool validateAtomicStore(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicStore* inst) {
+    if(inst->usedCount != 2 || inst->createdCount != 0) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    if(base[inst->to]->type != LowerType::Pointer) {
+        diagnostics->error("atomic store address must be a pointer"_v, inst->source);
+        return false;
+    }
+
+    if(!isIntLike(base[inst->value]->type)) {
+        diagnostics->error("an atomic operates on an integer or a pointer"_v, inst->source);
+        return false;
+    }
+
+    if(!isStoreOrder(inst->order)) {
+        diagnostics->error("an atomic store takes relaxed, release or seq_cst"_v, inst->source);
+        return false;
+    }
+
+    return validateAtomicWidth(diagnostics, inst->getWidth(), inst->source);
+}
+
+static bool validateAtomicRmw(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicRmw* inst) {
+    if(inst->usedCount != 2 || inst->createdCount != 1) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    if(base[inst->to]->type != LowerType::Pointer) {
+        diagnostics->error("atomic address must be a pointer"_v, inst->source);
+        return false;
+    }
+
+    // The previous value and the operand are the same type, which is what makes the result usable
+    // as the next iteration's expected value without a cast in between.
+    if(!isIntLike(inst->result.type) || base[inst->value]->type != inst->result.type) {
+        diagnostics->error("an atomic update answers the type it operates on"_v, inst->source);
+        return false;
+    }
+
+    // Arithmetic and bitwise operations on a pointer are `AtomicInteger`'s, and §3.2 admits a
+    // pointer for load, store, exchange and compare only: adding to an address atomically is a
+    // provenance question this IR has no answer for.
+    if(inst->result.type == LowerType::Pointer && inst->op != LowerAtomicOp::Exchange) {
+        diagnostics->error("only an exchange updates an atomic pointer"_v, inst->source);
+        return false;
+    }
+
+    if(!isUpdateOrder(inst->order)) {
+        diagnostics->error("invalid order for an atomic update"_v, inst->source);
+        return false;
+    }
+
+    return validateAtomicWidth(diagnostics, inst->getWidth(), inst->source);
+}
+
+static bool validateAtomicCas(Diagnostics* diagnostics, LowerBase base, LowerInstAtomicCas* inst) {
+    if(inst->usedCount != 3 || inst->createdCount != 2) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    if(base[inst->to]->type != LowerType::Pointer) {
+        diagnostics->error("atomic address must be a pointer"_v, inst->source);
+        return false;
+    }
+
+    if(!isIntLike(inst->previous.type)) {
+        diagnostics->error("an atomic operates on an integer or a pointer"_v, inst->source);
+        return false;
+    }
+
+    // All three of the compared value, the desired value and the answer are one type. A comparison
+    // between two widths is the one way a compare-exchange can be wrong in a way no test finds:
+    // it succeeds against the bits that happen to match.
+    if(base[inst->expected]->type != inst->previous.type || base[inst->desired]->type != inst->previous.type) {
+        diagnostics->error("a compare-exchange compares, stores and answers one type"_v, inst->source);
+        return false;
+    }
+
+    if(!isInt(inst->exchanged.type)) {
+        diagnostics->error("the exchanged flag of a compare-exchange must be an integer"_v, inst->source);
+        return false;
+    }
+
+    if(!isUpdateOrder(inst->success)) {
+        diagnostics->error("invalid success order for a compare-exchange"_v, inst->source);
+        return false;
+    }
+
+    // §3.5's table, and the reason it is checked rather than derived: the two-order form reaches
+    // this instruction with a failure order its caller chose, and a failure path that synchronized
+    // more than the successful one is the one pair no target implements.
+    if(!isLegalFailureOrder(inst->success, inst->failure)) {
+        diagnostics->error("the failure order of a compare-exchange may not be stronger than its success order"_v, inst->source);
+        return false;
+    }
+
+    return validateAtomicWidth(diagnostics, inst->getWidth(), inst->source);
+}
+
+static bool validateFence(Diagnostics* diagnostics, LowerInstFence* inst) {
+    if(inst->usedCount != 0 || inst->createdCount != 0) {
+        diagnostics->error("incorrect arguments to operation"_v, inst->source);
+        return false;
+    }
+
+    // There is no relaxed fence - see `isFenceOrder`. An instruction whose entire content is an
+    // ordering edge, carrying the order that adds none, is a written statement that does nothing,
+    // and accepting one would mean every backend has to have an arm that emits nothing.
+    if(!isFenceOrder(inst->order)) {
+        diagnostics->error("a fence takes acquire, release, acq_rel or seq_cst"_v, inst->source);
+        return false;
+    }
+
+    return true;
+}
+
 static bool validateCopy(Diagnostics* diagnostics, LowerBase base, LowerInstCopy* inst) {
     if(inst->usedCount != 3 || inst->createdCount != 0) {
         diagnostics->error("incorrect arguments to operation"_v, inst->source);
@@ -1238,6 +1417,21 @@ bool validateLowerInst(Diagnostics* diagnostics, LowerBase base, LowerBlock* blo
             return validateCopy(diagnostics, base, (LowerInstCopy*)inst);
         case LowerInst::SetPattern:
             return validateSetPattern(diagnostics, base, (LowerInstSetPattern*)inst);
+        case LowerInst::AtomicLoad:
+            return validateAtomicLoad(diagnostics, base, (LowerInstAtomicLoad*)inst);
+        case LowerInst::AtomicStore:
+            return validateAtomicStore(diagnostics, base, (LowerInstAtomicStore*)inst);
+        case LowerInst::AtomicRmw:
+            return validateAtomicRmw(diagnostics, base, (LowerInstAtomicRmw*)inst);
+        case LowerInst::AtomicCas:
+            return validateAtomicCas(diagnostics, base, (LowerInstAtomicCas*)inst);
+        case LowerInst::Fence:
+            return validateFence(diagnostics, (LowerInstFence*)inst);
+
+        // Nothing to check: no operands, no result, no fields. It is the one atomic kind that
+        // carries no order, because it establishes no edge - see LowerInstSpinHint.
+        case LowerInst::SpinHint:
+            return true;
         case LowerInst::Call:
             return validateCall(diagnostics, base, (LowerInstCall*)inst);
         case LowerInst::Je:

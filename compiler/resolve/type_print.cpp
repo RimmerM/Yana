@@ -121,6 +121,13 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             target << ')';
             return;
         }
+        case Type::Atomic:
+            // `Atomic(a)`, which is the whole of it: there is no count and no second parameter, and
+            // an order is written on an operation rather than on a location.
+            target << "Atomic(";
+            describeType(context, base, ((AtomicType*)base[type])->content, target);
+            target << ')';
+            return;
         case Type::Borrow: {
             // Both spellings are source forms now, and each says its own capability: `&T` is the
             // exclusive writable reference and `'T` the shared one - Analysis-Borrows.md §3.2.

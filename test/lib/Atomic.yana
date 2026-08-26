@@ -1,0 +1,444 @@
+{-
+   What the atomic operations *compute* - Analysis-Atomics.md §3.4 and §5.3.
+
+   `resolve/Atomic.yana` pins the IR each of these lowers to and `x64/Atomic.lower` pins the bytes.
+   Neither of those runs anything, and on this backend most of §5.3's table is not the instruction
+   the IR names: a sequential store is an exchange, a subtraction whose result is read is the
+   addition of a negation, and a bitwise update whose result is read is a compare-exchange **loop**
+   built out of blocks the source never wrote. A loop that spins forever and one that answers the
+   value from after the update instead of before it both pass a golden that was generated from them.
+
+   So this file runs them. Every assertion below is a number, and the numbers are the ones the
+   operation is defined to answer rather than the ones it happened to.
+
+   One thread, which is not a limitation of what is being checked here. What an atomic operation
+   promises under contention is indivisibility and ordering, and neither is something a single
+   thread can observe - so what is checkable is the *value* half of the definition, which is the half
+   the lowering can get wrong. The loop above runs one iteration here and the same instructions on
+   every one of them.
+
+   Native only, like the module: there is no `Atomic.yana.js` because there is no `Atomic.js.yana`.
+-}
+
+import Atomic
+import Native
+
+-- `store` and `exchange` are declared by `Native` too, so both are written qualified - see
+-- `resolve/Atomic.yana`, where the same collision is explained.
+
+-- A structure holding one, for `ownership` at the bottom. A second field beside it deliberately:
+-- what makes the field case worth checking is that the atomic is *part* of something, so a record
+-- with nothing else in it would not be the shape a program actually builds.
+data Holder = Holder {flag: Atomic(Int), tag: Int}
+
+{-
+   Construction, consumption and the three basic operations.
+
+   `atomic` and `intoValue` are the same bits read under the other type and emit no atomic
+   instruction at all, so what this checks of them is that the value survives the round trip - in
+   both directions, and past every operation in between.
+
+   The sequential store is the one that is not the instruction it says: `expandAtomics` rewrites it
+   into an exchange, whose result nothing reads. A rewrite that lost the value would show up here
+   and nowhere else in the suite.
+-}
+fn basics() -> {}:
+    let c = atomic(0)
+    assert(c.load(LoadRelaxed) == 0)
+
+    Atomic.store(c, 7, StoreRelease)
+    assert(c.load(LoadAcquire) == 7)
+
+    Atomic.store(c, 11, StoreSequential)
+    assert(c.load(LoadSequential) == 11)
+
+    assert(Atomic.exchange(c, 9, UpdateAcquireRelease) == 11)
+    assert(c.load(LoadRelaxed) == 9)
+    assert(intoValue(c) == 9)
+
+{-
+   The two arithmetic updates, which answer the value from **before** the update.
+
+   Both halves of each are here. Where the previous value is read, `fetchAdd` is `lock xadd` and
+   `fetchSub` is a negation in front of one; where it is not, both are the locked in-place form and
+   the only evidence they ran at all is what the location holds afterwards. So each is called both
+   ways and the location is read between them.
+
+   The subtraction is the one worth being exact about: negating the amount and adding is the same
+   operation only if the negation is of the *amount* and not of the result, and the two differ in
+   everything this asserts.
+-}
+fn arithmetic() -> {}:
+    let c = atomic(1)
+
+    assert(c.fetchAdd(4, UpdateRelaxed) == 1)
+    assert(c.load(LoadRelaxed) == 5)
+
+    assert(c.fetchSub(2, UpdateAcquire) == 5)
+    assert(c.load(LoadRelaxed) == 3)
+
+    -- And the same two with nobody reading the answer.
+    c.fetchAdd(10, UpdateRelease)
+    assert(c.load(LoadRelaxed) == 13)
+
+    c.fetchSub(3, UpdateSequential)
+    assert(c.load(LoadRelaxed) == 10)
+
+-- Wrapping at the stored width, which is what §3.4 says the two of them do. A `U8` at 250 plus 10 is
+-- 4, and the answer is still the value from before.
+fn wrapping() -> {}:
+    let c = atomic(250 :: U8)
+
+    assert(c.fetchAdd(10, UpdateRelaxed) == 250)
+    assert(c.load(LoadRelaxed) == 4)
+
+    assert(c.fetchSub(10, UpdateRelaxed) == 4)
+    assert(c.load(LoadRelaxed) == 250)
+
+{-
+   The three bitwise updates, which is the row of §5.3 that has no instruction.
+
+   x86 has a locked `and`, `or` and `xor` that update a location and answer nothing, and nothing at
+   all that both updates and hands back what was there. So a `fetchAnd` whose result is read becomes
+   a compare-exchange loop: read, compute, try, and go round again when somebody else won. What the
+   loop has to get right is that it answers the value it *read* rather than the one it stored, and
+   that it leaves after one attempt when nothing is competing with it.
+
+   Read and discarded are separate calls again, since they are separate instructions.
+-}
+fn bitwise() -> {}:
+    let c = atomic(0b1111 :: U32)
+
+    assert(c.fetchAnd(0b1010, UpdateRelease) == 0b1111)
+    assert(c.load(LoadRelaxed) == 0b1010)
+
+    assert(c.fetchOr(0b0101, UpdateAcquireRelease) == 0b1010)
+    assert(c.load(LoadRelaxed) == 0b1111)
+
+    assert(c.fetchXor(0b0110, UpdateSequential) == 0b1111)
+    assert(c.load(LoadRelaxed) == 0b1001)
+
+    c.fetchAnd(0b1000, UpdateRelaxed)
+    assert(c.load(LoadRelaxed) == 0b1000)
+
+    c.fetchOr(0b0011, UpdateRelaxed)
+    assert(c.load(LoadRelaxed) == 0b1011)
+
+    c.fetchXor(0b1111, UpdateRelaxed)
+    assert(c.load(LoadRelaxed) == 0b0100)
+
+{-
+   The same three at every width the family admits.
+
+   The loop's comparison is what the narrow widths are here for. `lock cmpxchg` with a one-byte
+   operand writes AL and leaves the rest of the register alone, and the comparison standing in for
+   its success flag is 32 bits wide - so the loop terminates only because the bits above the byte
+   hold the expected value on both sides. That is an argument about the allocator's copies, and this
+   is what turns it into a test: a loop that got it wrong would not answer a wrong number, it would
+   not answer at all.
+-}
+fn widths() -> {}:
+    let byte = atomic(0b1111 :: U8)
+    assert(byte.fetchAnd(0b0110, UpdateRelaxed) == 0b1111)
+    assert(byte.load(LoadRelaxed) == 0b0110)
+
+    let half = atomic(0xF0F0 :: U16)
+    assert(half.fetchXor(0xFFFF, UpdateAcquire) == 0xF0F0)
+    assert(half.load(LoadRelaxed) == 0x0F0F)
+
+    let word = atomic(0x0000FFFF :: U32)
+    assert(word.fetchOr(0xFFFF0000, UpdateRelease) == 0x0000FFFF)
+    assert(word.load(LoadRelaxed) == 0xFFFFFFFF)
+
+    let long = atomic(0x00000000FFFFFFFF :: I64)
+    assert(long.fetchAnd(0x00000000FF00FF00, UpdateSequential) == 0x00000000FFFFFFFF)
+    assert(long.load(LoadRelaxed) == 0x00000000FF00FF00)
+
+{-
+   The signed narrow types, which are the case none of the above reaches.
+
+   An unsigned value narrower than a register is held masked and a signed one **sign-extended**, and
+   an atomic update answers neither for free: the register comes back holding the location's low
+   bytes over whatever the instruction left above them - the addend's own high bits after a
+   `lock xadd`, the expected value's after a `lock cmpxchg`. For an unsigned type those happen to be
+   zero often enough that a wrong lowering passes; for a signed one they are ones as soon as anything
+   is negative, and every assertion below is an equality against a negative number for that reason.
+
+   `-5 + -1` is `-6`, and the previous value is `-5`. A register that came back as 0xFFFFFFFB where
+   the value is 0xFB compares equal to neither.
+-}
+fn signedNarrow() -> {}:
+    let zero = 0 :: I8
+    let c = atomic(zero - 5)
+
+    assert(c.fetchAdd(zero - 1, UpdateRelease) == zero - 5)
+    assert(c.load(LoadRelaxed) == zero - 6)
+
+    assert(c.fetchSub(zero - 2, UpdateAcquire) == zero - 6)
+    assert(c.load(LoadRelaxed) == zero - 4)
+
+    -- The bitwise loop at a signed byte, whose comparison is what closes it.
+    assert(c.fetchAnd(zero - 1, UpdateSequential) == zero - 4)
+    assert(c.load(LoadRelaxed) == zero - 4)
+
+    assert(c.fetchXor(zero - 1, UpdateRelaxed) == zero - 4)
+    assert(c.load(LoadRelaxed) == 3)
+
+    -- And the compare-exchange, whose failing arm hands back the value that was there - which is
+    -- where the expected value's sign extension is standing in the register the answer arrives in.
+    let d = atomic(zero - 100)
+
+    match d.compareExchange(zero - 99, 7, UpdateAcquireRelease):
+        Exchanged -> assert(False)
+        Unchanged(->actual) -> assert(actual == zero - 100)
+
+    match d.compareExchange(zero - 100, zero - 101, UpdateAcquireRelease):
+        Exchanged -> {}
+        Unchanged(->_) -> assert(False)
+
+    assert(d.load(LoadAcquire) == zero - 101)
+
+    -- The signed half-word, whose normalization is the same pair at a different distance.
+    let wide = 0 :: I16
+    let h = atomic(wide - 1000)
+    assert(h.fetchAdd(wide - 1, UpdateRelaxed) == wide - 1000)
+    assert(h.load(LoadRelaxed) == wide - 1001)
+
+{-
+   Compare-exchange, both outcomes.
+
+   The failing one is the half a single call cannot check: it has to answer `Unchanged` carrying
+   what was actually there, and leave the location alone. Losing the observed value is what would
+   stop a retry loop from ever making progress, and answering `Exchanged` when nothing was stored is
+   what would make one corrupt.
+-}
+fn compare() -> {}:
+    let c = atomic(5)
+
+    -- The comparison fails: nothing is stored and the value that was there comes back.
+    match c.compareExchange(4, 99, UpdateAcquireRelease):
+        Exchanged -> assert(False)
+        Unchanged(->actual) -> assert(actual == 5)
+
+    assert(c.load(LoadRelaxed) == 5)
+
+    -- And succeeds.
+    match c.compareExchange(5, 6, UpdateAcquireRelease):
+        Exchanged -> {}
+        Unchanged(->_) -> assert(False)
+
+    assert(c.load(LoadRelaxed) == 6)
+
+    -- The weak form, which on this target is the same instruction - so it succeeds here too, and a
+    -- spurious failure would be a target that has one rather than a defect.
+    match c.compareExchangeWeak(6, 7, UpdateRelease):
+        Exchanged -> {}
+        Unchanged(->_) -> {}
+
+    -- `Advanced`'s two-order spelling, whose failure order is stated rather than derived.
+    match Advanced.compareExchange(c, 7, 8, UpdateSequential, LoadAcquire):
+        Exchanged -> assert(c.load(LoadRelaxed) == 8)
+        Unchanged(->actual) -> assert(actual == 7)
+
+{-
+   A retry loop written the way an algorithm writes one, which is what the compare-exchange surface
+   exists for: the failed attempt's observed value becomes the next attempt's expectation.
+
+   Uncontended, so it wins first time - and the loop is here for the shape rather than for the
+   contention. What it checks is that the answer feeds back in without a second read of the location,
+   which is the property §3.4 fixes and the reason `Unchanged` carries a value at all.
+-}
+fn retry() -> {}:
+    let c = atomic(10)
+    let &expected = c.load(LoadRelaxed)
+    let &turns = 0
+
+    while True:
+        turns = turns + 1
+        match c.compareExchangeWeak(expected, expected * 2, UpdateAcquireRelease):
+            Exchanged -> break
+            Unchanged(->actual) -> expected = actual
+
+    assert(c.load(LoadAcquire) == 20)
+    assert(turns == 1)
+
+{-
+   A payload-free enumeration in an atomic - the case a mutex's state word is, and the reason the
+   family admits any of them rather than `Bool` alone.
+
+   The storage is the enumeration's own tag rounded up to a power of two, so `State` is a byte and
+   `Code` is two. What that has to preserve is constructor identity through an exchange and through a
+   comparison, which is what a bitwise compare over a tag word is exactly.
+-}
+data State = Idle | Locked | Contended
+data Code = @value(0) Ok | @value(1000) Retry | @value(60000) Fatal
+
+fn enums() -> {}:
+    let state = atomic(Idle)
+
+    match state.compareExchange(Idle, Locked, UpdateAcquire):
+        Exchanged -> {}
+        Unchanged(->_) -> assert(False)
+
+    assert(state.load(LoadAcquire) == Locked)
+
+    -- The contended path, where the expectation is wrong and the constructor that was there comes
+    -- back rather than the one that was asked for.
+    match state.compareExchange(Idle, Contended, UpdateAcquire):
+        Exchanged -> assert(False)
+        Unchanged(->actual) -> assert(actual == Locked)
+
+    assert(Atomic.exchange(state, Idle, UpdateSequential) == Locked)
+    assert(intoValue(state) == Idle)
+
+    -- And the two-byte one, whose pinned numbers are far enough apart that a byte would lose them.
+    let code = atomic(Ok)
+    Atomic.store(code, Retry, StoreRelease)
+    assert(code.load(LoadAcquire) == Retry)
+    assert(Atomic.exchange(code, Fatal, UpdateAcquireRelease) == Retry)
+    assert(code.load(LoadRelaxed) == Fatal)
+
+-- A flag, which is the enumeration `Bool` already is - and a pointer, which is the family's other
+-- member and the one a lock-free structure actually swings.
+fn flagsAndPointers(p: %U8) -> {}:
+    let flag = atomic(False)
+    assert(Atomic.exchange(flag, True, UpdateAcquireRelease) == False)
+    assert(flag.load(LoadAcquire) == True)
+
+    let empty = null() :: %U8
+    let address = atomic(empty)
+    Atomic.store(address, p, StoreRelease)
+    assert(Atomic.exchange(address, empty, UpdateAcquireRelease) == p)
+    assert(intoValue(address) == empty)
+
+{-
+   A fence and a spin hint, which compute nothing.
+
+   Neither is asserted about, because there is nothing about either that one thread can observe -
+   §3.6 says as much of the spin hint in so many words. What this checks is the one thing that can
+   go wrong with an instruction whose whole content is its effect on other instructions: that it
+   emits something the processor accepts, and that the accesses around it still happen.
+-}
+fn ordering() -> {}:
+    let c = atomic(0)
+
+    Atomic.store(c, 1, StoreRelaxed)
+    fence(FenceRelease)
+    assert(c.load(LoadRelaxed) == 1)
+
+    fence(FenceAcquire)
+    fence(FenceAcquireRelease)
+    fence(FenceSequential)
+    spinHint()
+
+    assert(intoValue(c) == 1)
+
+{-
+   `Native.atomicAt` - §3.7, the unchecked entrance.
+
+   A view of bytes this file owns rather than of a mapping, because what is being checked is the
+   *view*: that the operations reach the location the pointer named, that what an ordinary read of
+   those bytes sees afterwards is what the atomic wrote, and that the two directions agree. A memory
+   mapping would test the operating system.
+
+   The four promises §3.7 lists are kept here by construction. The storage outlives every borrow
+   taken of it, `U32` is naturally aligned inside a `U32` slot, the bytes are initialized before the
+   first view, and nothing else touches them while a view is live.
+
+   `intoValue` is deliberately absent: it consumes an atomic, and a view owns nothing to consume.
+-}
+fn viewed() -> {}:
+    let &storage = 0 :: U32
+    let p = bitcast(addressOf(storage)) :: %U8
+    let view = Native.atomicAt(p) :: 'Atomic(U32)
+
+    Atomic.store(view, 7, StoreRelease)
+    assert(view.load(LoadAcquire) == 7)
+
+    -- What the location holds, read the ordinary way. The view is the same bytes and not a copy of
+    -- them, which is the whole of what the operation claims.
+    assert(storage == 7)
+
+    assert(view.fetchAdd(5, UpdateRelaxed) == 7)
+    assert(storage == 12)
+
+    -- And the other direction: a plain write is what the next atomic read sees.
+    storage = 100
+    assert(view.load(LoadAcquire) == 100)
+
+    match view.compareExchange(100, 101, UpdateAcquireRelease):
+        Exchanged -> {}
+        Unchanged(->_) -> assert(False)
+
+    assert(storage == 101)
+
+-- Two views of one location, which is the case the whole surface exists for: an atomic is the one
+-- thing many holders may mutate at once, so `atomicAt` answers a *shared* borrow and two of them
+-- coexist. Their updates accumulate on the location rather than on either of them.
+fn shared() -> {}:
+    let &storage = 0 :: U32
+    let p = bitcast(addressOf(storage)) :: %U8
+
+    let first = Native.atomicAt(p) :: 'Atomic(U32)
+    let second = Native.atomicAt(p) :: 'Atomic(U32)
+
+    first.fetchAdd(3, UpdateRelaxed)
+    second.fetchAdd(4, UpdateRelaxed)
+
+    assert(first.load(LoadRelaxed) == 7)
+    assert(second.load(LoadRelaxed) == 7)
+    assert(storage == 7)
+
+{-
+   That a borrow and a field are the **same location**, and not a copy of one.
+
+   `resolve/AtomicOwnership.yana` pins which of these the compiler admits and
+   `resolve/Reject.AtomicOwnership.yana` which it refuses, and neither can see what is being checked
+   here: an atomic that were quietly duplicated on its way into a shared loan or a record field would
+   pass both of those files and every ordering assertion above it. What it would fail is this - the
+   writes would land in one location and the reads in another.
+
+   Which is not a hypothetical shape. Recording a hand-over only for a type that needs teardown left
+   `Holder {flag: c}` copying the atomic into the field, and what that produces is exactly two
+   counters that a reader of either would call the counter.
+-}
+fn viaLoan(c: 'Atomic(Int)) -> {}:
+    c.fetchAdd(5, UpdateRelaxed)
+
+fn ownership() -> {}:
+    let c = atomic(1)
+
+    -- Through a shared loan, twice, with the original read in between and afterwards. One location
+    -- or three is the whole question, and only the first answers 11.
+    viaLoan(c)
+    assert(c.load(LoadRelaxed) == 6)
+
+    viaLoan(c)
+    assert(c.load(LoadRelaxed) == 11)
+
+    -- And through a field, after the atomic has been moved into one. The record owns it now, so
+    -- what the loan reaches has to be the storage the constructor took over rather than a copy of
+    -- the bytes it was built from.
+    let h = Holder {flag: c, tag: 2}
+    viaLoan(h.flag)
+
+    -- And not `intoValue(h.flag)`, which is a partial move and refused - the whole record is what
+    -- moves. `resolve/Reject.AtomicOwnership.yana` is where that is pinned.
+    assert(h.flag.load(LoadRelaxed) == 16)
+
+fn main() -> Int:
+    basics()
+    arithmetic()
+    wrapping()
+    bitwise()
+    widths()
+    signedNarrow()
+    compare()
+    retry()
+    enums()
+    flagsAndPointers(null())
+    ordering()
+    viewed()
+    shared()
+    ownership()
+    return 0

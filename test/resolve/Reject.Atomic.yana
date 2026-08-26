@@ -1,0 +1,106 @@
+{-
+   What the atomic surface refuses - Analysis-Atomics.md §6's first list.
+
+   The accepting side is `Atomic.yana` beside this, and the two are one property seen from its two
+   sides: a check that admitted everything would pass that file alone. Each case below is one line
+   and one diagnostic, because a fixture whose cases cascade tells you the first thing that went
+   wrong and nothing about the rest.
+
+   The rules being checked are not one rule. Three of them are the *type's* - it is not `Copy`, its
+   content is not a field, and only §3.2's family may go in it - and three are the *operations'* -
+   an order must typecheck against the operation it is given to, it must be written at the call site,
+   and a compare-exchange's two orders must be a legal pair. They are together here because a program
+   meets them together.
+-}
+
+import Atomic
+import Native
+
+{-
+   §3.1: never `Copy`, which is the property the whole module rests on.
+
+   A copied atomic is a second location, and two threads synchronizing through two locations are not
+   synchronizing. So there is no instance, and asking for one through a constraint is where a program
+   finds that out - which is also the shape a container asks in: `Copy(Array(a))` holds only where
+   `Copy(a)` does, so an `Array(Atomic(Int))` cannot be copied either, by the same refusal.
+-}
+fn (Copy(a)) needsCopy(x: 'a) -> Int = 1
+
+fn copied() -> Int:
+    let c = atomic(1)
+    return needsCopy(c)
+
+{-
+   §3.2: the family, and what is outside it.
+
+   A float has no lock-free compare-exchange story worth the name at every width, and a `String` owns
+   storage - an indivisible exchange of a value that owns something is an indivisible exchange of a
+   *pointer* plus an ownership transfer nothing performs. The refusal is of the type rather than of
+   the operation, which is what makes it one message at the declaration instead of one per use.
+-}
+fn floating() -> {}:
+    let c = atomic(1.5)
+    return
+
+fn owning() -> {}:
+    let c = atomic("text")
+    return
+
+-- §3.3: the four ordering types exist so that this does not typecheck. `store` takes a `StoreOrder`
+-- and `LoadAcquire` is a `LoadOrder`, which is a different type and not a weaker spelling of one.
+fn wrongOrderType() -> {}:
+    let c = atomic(0)
+    Atomic.store(c, 1, LoadAcquire)
+    return
+
+fn loadTakesALoadOrder() -> Int:
+    let c = atomic(0)
+    return c.load(StoreRelease)
+
+fn fenceHasNoRelaxed() -> {}:
+    fence(UpdateRelaxed)
+    return
+
+{-
+   §3.3: an order must be written at the call site.
+
+   Not because a runtime order is hard to implement - it is a switch - but because it is not useful
+   state: the order decides which instructions are generated and which motions the optimizer may
+   perform, so a program selecting one from data has an ordering decision it thinks it is making and
+   is not. Requiring the constant is also what guarantees good code in an unoptimized build.
+-}
+fn runtimeOrder(pick: Bool) -> Int:
+    let c = atomic(0)
+    let order = if pick: LoadAcquire else: LoadRelaxed
+    return c.load(order)
+
+{-
+   §3.5: the failure order may not be stronger than the success order.
+
+   A compare-exchange whose *loss* published more than its win is something no algorithm wants and no
+   target implements without the strong form. `UpdateRelease` performs no acquire on either path, so
+   an acquiring failure is asking for an edge the successful path does not have.
+-}
+fn illegalPair() -> Int:
+    let c = atomic(0)
+
+    match Advanced.compareExchange(c, 0, 1, UpdateRelease, LoadAcquire):
+        Exchanged -> return 1
+        Unchanged(->actual) -> return actual
+
+-- §8: there is no field access. `Atomic(a)` is opaque, and the operations above are the whole of
+-- what reaches the value inside it - which is what makes every atomic access visible in the source
+-- that performs it.
+fn field() -> Int:
+    let c = atomic(0)
+    return c.value
+
+-- Every function above is reached, so that the ownership pass sees the bodies as well as the
+-- declarations: a rule about what a *value* may do is checked in the body that does it.
+fn main() -> Int:
+    floating()
+    owning()
+    wrongOrderType()
+    fenceHasNoRelaxed()
+
+    return copied() + loadTakesALoadOrder() + runtimeOrder(True) + illegalPair() + field()

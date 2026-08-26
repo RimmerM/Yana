@@ -44,6 +44,17 @@ bool writesStorage(LowerInst* inst) {
         case LowerInst::Call:
         case LowerInst::Intrinsic:
             return true;
+
+        // Every atomic, for the reasons the same predicate in lower_cse.cpp gives: an acquire load
+        // is an edge a hoisted read would cross, and the spin hint is what stops a polling loop's
+        // reload from being lifted out of it.
+        case LowerInst::AtomicLoad:
+        case LowerInst::AtomicStore:
+        case LowerInst::AtomicRmw:
+        case LowerInst::AtomicCas:
+        case LowerInst::Fence:
+        case LowerInst::SpinHint:
+            return true;
         default:
             return false;
     }

@@ -567,6 +567,26 @@ enum: MachineFormId {
     FormStoreXor8, FormStoreXor16, FormStoreXor32, FormStoreXor64,
     FormStoreXor32Imm, FormStoreXor64Imm,
 
+    // The atomics - see OpXchg and OpCmpXchg. One form per access width on each, because the width
+    // is the operand size and a byte one needs the REX that names spl/bpl/sil/dil, exactly as the
+    // ordinary stores above do.
+    FormXchg8, FormXchg16, FormXchg32, FormXchg64,
+    FormCmpXchg8, FormCmpXchg16, FormCmpXchg32, FormCmpXchg64,
+    FormXAdd8, FormXAdd16, FormXAdd32, FormXAdd64,
+
+    // And the five locked in-place updates - see OpLockAdd. Four widths each, in the same order, so
+    // that the operation picks the block and the width picks the row within it.
+    FormLockAdd8, FormLockAdd16, FormLockAdd32, FormLockAdd64,
+    FormLockSub8, FormLockSub16, FormLockSub32, FormLockSub64,
+    FormLockAnd8, FormLockAnd16, FormLockAnd32, FormLockAnd64,
+    FormLockOr8, FormLockOr16, FormLockOr32, FormLockOr64,
+    FormLockXor8, FormLockXor16, FormLockXor32, FormLockXor64,
+
+    // The two a fence is - see OpFence - and the spin hint.
+    FormMFence,
+    FormFenceNone,
+    FormSpinHint,
+
     FormBlockCopyRep,
     FormBlockSetRep,
 

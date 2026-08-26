@@ -1,0 +1,377 @@
+
+loads<complex>(%p: Ptr): Int {
+  b_0 {
+    %a = atomic_load %p, 4, relaxed: Int
+    %b = atomic_load %p, 4, acquire: Int
+    %c = atomic_load %p, 4, seq_cst: Int
+    %d = atomic_load %p, 8, acquire: Long
+    %e = atomic_loads %p, 1, relaxed: Int
+    %f = atomic_load %p, 2, acquire: Int
+    ret %a
+  }
+}
+
+stores<complex>(%p: Ptr, %v: Int, %w: Long) {
+  b_0 {
+    atomic_store %p, %v, 4, relaxed
+    atomic_store %p, %v, 4, release
+    atomic_store %p, %w, 8, release
+    atomic_store %p, 1, 4, release
+    atomic_store %p, %v, 2, relaxed
+    atomic_store %p, %v, 1, release
+    ret 
+  }
+}
+
+sequentialStore<complex>(%p: Ptr, %v: Int, %w: Long) {
+  b_0 {
+    atomic_store %p, %v, 4, seq_cst
+    atomic_store %p, %w, 8, seq_cst
+    ret 
+  }
+}
+
+exchange<complex>(%p: Ptr, %v: Int, %q: Ptr): Int {
+  b_0 {
+    %old = atomic_xchg %p, %v, 4, acq_rel: Int
+    %ptr = atomic_xchg %p, %q, 8, seq_cst: Ptr
+    %narrow = atomic_xchg %p, %v, 1, relaxed: Int
+    %half = atomic_xchg %p, %v, 2, relaxed: Int
+    ret %old
+  }
+}
+
+compare<complex>(%p: Ptr, %e: Int, %d: Int): Int {
+  b_0 {
+    %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+    ret %prev
+  }
+}
+
+compareWeak<complex>(%p: Ptr, %e: Long, %d: Long): Long {
+  b_0 {
+    %prev, %ok = atomic_cas_weak %p, %e, %d, 8, seq_cst, seq_cst: Long, Int
+    ret %prev
+  }
+}
+
+compareNarrow<complex>(%p: Ptr, %e: Int, %d: Int): Int {
+  b_0 {
+    %p1, %o1 = atomic_cas %p, %e, %d, 1, relaxed, relaxed: Int, Int
+    %p2, %o2 = atomic_cas %p, %e, %d, 2, acquire, acquire: Int, Int
+    ret %p1
+  }
+}
+
+compareBranch<complex>(%p: Ptr, %e: Int, %d: Int): Int {
+  b_0 {
+    %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+    je %ok, then, else
+  }
+
+  then {
+    ret %prev
+  }
+
+  else {
+    ret %e
+  }
+}
+
+fetchDiscard<complex>(%p: Ptr, %v: Int, %w: Long) {
+  b_0 {
+    %a = atomic_add %p, %v, 4, relaxed: Int
+    %b = atomic_sub %p, %v, 4, seq_cst: Int
+    %c = atomic_and %p, %v, 4, acquire: Int
+    %d = atomic_or %p, %v, 4, release: Int
+    %e = atomic_xor %p, %w, 8, acq_rel: Long
+    ret 
+  }
+}
+
+fetchDiscardNarrow<complex>(%p: Ptr, %v: Int) {
+  b_0 {
+    %a = atomic_add %p, %v, 1, relaxed: Int
+    %b = atomic_or %p, %v, 2, seq_cst: Int
+    ret 
+  }
+}
+
+fetchAdd<complex>(%p: Ptr, %v: Int, %w: Long): Int {
+  b_0 {
+    %a = atomic_add %p, %v, 4, acq_rel: Int
+    %b = atomic_add %p, %w, 8, seq_cst: Long
+    %c = atomic_add %p, %v, 2, relaxed: Int
+    ret %a
+  }
+}
+
+fetchSub<complex>(%p: Ptr, %v: Int): Int {
+  b_0 {
+    %a = atomic_sub %p, %v, 4, acq_rel: Int
+    ret %a
+  }
+}
+
+fetchOr<complex>(%p: Ptr, %v: Int): Int {
+  b_0 {
+    %a = atomic_or %p, %v, 4, acq_rel: Int
+    ret %a
+  }
+}
+
+fetchAndTail<complex>(%p: Ptr, %v: Long, %q: Ptr): Long {
+  b_0 {
+    %a = atomic_and %p, %v, 8, seq_cst: Long
+    %b = atomic_load %q, 8, acquire: Long
+    %c = add %a, %b: Long
+    ret %c
+  }
+}
+
+fetchTwice<complex>(%p: Ptr, %q: Ptr, %v: Int): Int {
+  b_0 {
+    %a = atomic_xor %p, %v, 4, relaxed: Int
+    %b = atomic_or %q, %a, 4, acquire: Int
+    ret %b
+  }
+}
+
+fences<complex>() {
+  b_0 {
+    fence acquire
+    fence release
+    fence acq_rel
+    fence seq_cst
+    ret 
+  }
+}
+
+spin<complex>() {
+  b_0 {
+    spinhint 
+    spinhint 
+    ret 
+  }
+}
+
+fetchNarrow<complex>(%p: Ptr, %v: Int): Int {
+  b_0 {
+    %a = atomic_and %p, %v, 1, acquire: Int
+    %b = atomic_xor %p, %v, 2, relaxed: Int
+    ret %a
+  }
+}
+
+
+--- codegen: loads ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_load uses=[rdi] creates=[rax]  => 8b07
+  atomic_load uses=[rdi] creates=[rcx]  => 8b0f
+  atomic_load uses=[rdi] creates=[rcx]  => 8b0f
+  atomic_load uses=[rdi] creates=[rcx]  => 488b0f
+  atomic_loads uses=[rdi] creates=[rcx]  => 0fbe0f
+  atomic_load uses=[rdi] creates=[rdi]  => 0fb73f
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: stores ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_store uses=[rdi, rsi] creates=[]  => 8937
+  atomic_store uses=[rdi, rsi] creates=[]  => 8937
+  atomic_store uses=[rdi, rdx] creates=[]  => 488917
+  imm uses=[] creates=[-]  => 
+  atomic_store uses=[rdi, -] creates=[]  => c70701000000
+  atomic_store uses=[rdi, rsi] creates=[]  => 668937
+  atomic_store uses=[rdi, rsi] creates=[]  => 408837
+  ret uses=[] creates=[]  => c3
+
+--- codegen: sequentialStore ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_xchg uses=[rdi, rsi] creates=[rsi]  => 8737
+  atomic_xchg uses=[rdi, rdx] creates=[rdx]  => 488717
+  ret uses=[] creates=[]  => c3
+
+--- codegen: exchange ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_xchg uses=[rdi, rax] creates=[rax] pre=[rsi->rax]  => 8bc68707
+  atomic_xchg uses=[rdi, rdx] creates=[rdx]  => 488717
+  atomic_xchg uses=[rdi, rcx] creates=[rcx] pre=[rsi->rcx]  => 8bce860f
+  atomic_xchg uses=[rdi, rsi] creates=[rsi]  => 668737
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: compare ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 8bc6
+block #1:
+  atomic_cas uses=[rdi, rax, rdx] creates=[rax, -]  => f00fb117
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: compareWeak ---
+block #0:
+  jmp uses=[] creates=[] pre=[rsi->rax]  => 488bc6
+block #1:
+  atomic_cas_weak uses=[rdi, rax, rdx] creates=[rax, -]  => f0480fb117
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: compareNarrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_cas uses=[rdi, rax, rdx] creates=[rax, -] pre=[rsi->rax] post=[rax->rcx]  => 8bc6f00fb0178bc8
+  atomic_cas uses=[rdi, rax, rdx] creates=[rax, -] pre=[rsi->rax]  => 8bc6f0660fb117
+  ret uses=[rax] creates=[] pre=[rcx->rax]  => 8bc1c3
+
+--- codegen: compareBranch ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_cas uses=[rdi, rax, rdx] creates=[rax, -] pre=[rsi->rax]  => 8bc6f00fb117
+  cmp_eq uses=[rax, rsi] creates=[-]  => 39f0
+  je uses=[-] creates=[]  => 7403
+block else:
+  ret uses=[rax] creates=[] pre=[rsi->rax]  => 8bc6c3
+block then:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: fetchDiscard ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_add uses=[rdi, rsi] creates=[-]  => f00137
+  atomic_sub uses=[rdi, rsi] creates=[-]  => f02937
+  atomic_and uses=[rdi, rsi] creates=[-]  => f02137
+  atomic_or uses=[rdi, rsi] creates=[-]  => f00937
+  atomic_xor uses=[rdi, rdx] creates=[-]  => f0483117
+  ret uses=[] creates=[]  => c3
+
+--- codegen: fetchDiscardNarrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_add uses=[rdi, rsi] creates=[-]  => f0400037
+  atomic_or uses=[rdi, rsi] creates=[-]  => f0660937
+  ret uses=[] creates=[]  => c3
+
+--- codegen: fetchAdd ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_add uses=[rdi, rax] creates=[rax] pre=[rsi->rax]  => 8bc6f00fc107
+  atomic_add uses=[rdi, rdx] creates=[-]  => f0480117
+  atomic_add uses=[rdi, rsi] creates=[-]  => f0660137
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: fetchSub ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  neg uses=[rsi] creates=[rsi]  => f7de
+  atomic_add uses=[rdi, rax] creates=[rax] pre=[rsi->rax]  => 8bc6f00fc107
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: fetchOr ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_load uses=[rdi] creates=[rcx]  => 8b0f
+  jmp uses=[] creates=[]  => 
+  align  => 6666666666660f1f840000000000
+block #2:
+  or uses=[rdx, rsi] creates=[rdx] pre=[rcx->rdx]  => 8bd109f2
+  atomic_cas_weak uses=[rdi, rax, rdx] creates=[rax, -] pre=[rcx->rax]  => 8bc1f00fb117
+  cmp_eq uses=[rax, rcx] creates=[-]  => 39c8
+  je uses=[-] creates=[]  => 7404
+block #3:
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 8bc8ebee
+block #4:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: fetchAndTail ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_load uses=[rdi] creates=[rcx]  => 488b0f
+  jmp uses=[] creates=[]  => 
+  align  => 666666666666660f1f8400000000006666666666660f1f840000000000
+block #2:
+  and uses=[r8, rsi] creates=[r8] pre=[rcx->r8]  => 4c8bc14921f0
+  atomic_cas_weak uses=[rdi, rax, r8] creates=[rax, -] pre=[rcx->rax]  => 488bc1f04c0fb107
+  cmp_eq uses=[rax, rcx] creates=[-]  => 4839c8
+  je uses=[-] creates=[]  => 7405
+block #3:
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 488bc8ebe8
+block #4:
+  atomic_load uses=[rdx] creates=[rdx]  => 488b12
+  add uses=[rax, rdx] creates=[rax]  => 4801d0
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: fetchTwice ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_load uses=[rdi] creates=[rcx]  => 8b0f
+  jmp uses=[] creates=[]  => 
+block #2:
+  xor uses=[r8, rdx] creates=[r8] pre=[rcx->r8]  => 448bc14131d0
+  atomic_cas_weak uses=[rdi, rax, r8] creates=[rax, -] pre=[rcx->rax] post=[rax->r8]  => 8bc1f0440fb107448bc0
+  cmp_eq uses=[r8, rcx] creates=[-]  => 4139c8
+  je uses=[-] creates=[]  => 7405
+block #3:
+  jmp uses=[] creates=[] pre=[r8->rcx]  => 418bc8ebe6
+block #4:
+  atomic_load uses=[rsi] creates=[rcx]  => 8b0e
+  jmp uses=[] creates=[]  => 
+  align  => 6690
+block #5:
+  or uses=[rdx, r8] creates=[rdx] pre=[rcx->rdx]  => 8bd14409c2
+  atomic_cas_weak uses=[rsi, rax, rdx] creates=[rax, -] pre=[rcx->rax]  => 8bc1f00fb116
+  cmp_eq uses=[rax, rcx] creates=[-]  => 39c8
+  je uses=[-] creates=[]  => 7404
+block #6:
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 8bc8ebed
+block #7:
+  ret uses=[rax] creates=[]  => c3
+
+--- codegen: fences ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  fence uses=[] creates=[]  => 
+  fence uses=[] creates=[]  => 
+  fence uses=[] creates=[]  => 
+  fence uses=[] creates=[]  => 0faef0
+  ret uses=[] creates=[]  => c3
+
+--- codegen: spin ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  spinhint uses=[] creates=[]  => f390
+  spinhint uses=[] creates=[]  => f390
+  ret uses=[] creates=[]  => c3
+
+--- codegen: fetchNarrow ---
+block #0:
+  jmp uses=[] creates=[]  => 
+block #1:
+  atomic_load uses=[rdi] creates=[rcx]  => 0fb60f
+  jmp uses=[] creates=[]  => 
+  align  => 66666666660f1f840000000000
+block #2:
+  and uses=[rdx, rsi] creates=[rdx] pre=[rcx->rdx]  => 8bd121f2
+  atomic_cas_weak uses=[rdi, rax, rdx] creates=[rax, -] pre=[rcx->rax]  => 8bc1f00fb017
+  cmp_eq uses=[rax, rcx] creates=[-]  => 39c8
+  je uses=[-] creates=[]  => 7404
+block #3:
+  jmp uses=[] creates=[] pre=[rax->rcx]  => 8bc8ebee
+block #4:
+  atomic_xor uses=[rdi, rsi] creates=[-]  => f0663137
+  ret uses=[rax] creates=[]  => c3

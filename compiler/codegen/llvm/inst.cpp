@@ -1084,6 +1084,133 @@ static void genStore(FunGen& f, LowerInstStore& inst) {
     f.builder.CreateAlignedStore(value, to, kUnknownAlign);
 }
 
+/*
+ * Atomics - Analysis-Atomics.md §5.2, whose mapping is direct and whose two subtleties are here.
+ *
+ * **The alignment is stated, and it is the access width.** Every other memory instruction this
+ * backend emits passes `kUnknownAlign`, because an under-stated alignment is only ever a missed
+ * optimization. An atomic is the one place that is untrue: LLVM lowers an atomic access whose
+ * stated alignment is below its width by calling into a runtime that takes a lock, which would
+ * quietly break the always-lock-free promise of §3.2. The width is the right value to state because
+ * it is what the alignment contract *is* - safe `Atomic(a)` storage is laid out to it by
+ * construction, and `Native.atomicAt` makes it a condition the caller signs (§3.7).
+ *
+ * **An atomic operand is an integer of exactly the access width.** LLVM will not perform an atomic
+ * operation on a type narrower than the access, so a one-byte atomic on a value held in a 32-bit
+ * register has to be truncated on the way in and widened on the way out - which is the same narrow
+ * access rule `genLoad` and `genStore` above already implement, applied to a value that has to
+ * round-trip rather than only be written.
+ */
+
+static llvm::AtomicOrdering orderingOf(LowerOrder order) {
+    switch(order) {
+        case LowerOrder::Relaxed:        return llvm::AtomicOrdering::Monotonic;
+        case LowerOrder::Acquire:        return llvm::AtomicOrdering::Acquire;
+        case LowerOrder::Release:        return llvm::AtomicOrdering::Release;
+        case LowerOrder::AcquireRelease: return llvm::AtomicOrdering::AcquireRelease;
+        case LowerOrder::Sequential:     return llvm::AtomicOrdering::SequentiallyConsistent;
+    }
+
+    return llvm::AtomicOrdering::SequentiallyConsistent;
+}
+
+// The value an atomic operation is performed on: an integer of exactly the access width, whatever
+// register type it arrived in. A pointer at the full width stays a pointer, which is what lets LLVM
+// keep its provenance across an exchange.
+static llvm::Value* atomicOperand(FunGen& f, llvm::Value* value, LowerType type, U32 width) {
+    if(isPtr(type)) {
+        if(width == 8) return value;
+        return f.builder.CreatePtrToInt(value, intTypeOfWidth(f.gen, width));
+    }
+
+    return f.builder.CreateIntCast(value, intTypeOfWidth(f.gen, width), false);
+}
+
+// And the reverse, putting what the operation answered back into the register type the result was
+// declared with - sign-extending only where the access said to.
+static llvm::Value* atomicResult(FunGen& f, llvm::Value* value, LowerType type, bool isSigned, llvm::StringRef name) {
+    auto target = typeOf(f.gen, type);
+    if(value->getType() == target) {
+        if(!name.empty()) value->setName(name);
+        return value;
+    }
+
+    if(isPtr(type)) return f.builder.CreateIntToPtr(value, target, name);
+    return f.builder.CreateIntCast(value, target, isSigned, name);
+}
+
+static void genAtomicLoad(FunGen& f, LowerInstAtomicLoad& inst) {
+    auto width = inst.getWidth();
+    auto result = inst.result.type;
+    auto native = isPtr(result) && width == 8;
+    auto type = native ? typeOf(f.gen, result) : (llvm::Type*)intTypeOfWidth(f.gen, width);
+
+    auto load = f.builder.CreateAlignedLoad(type, use(f, inst, inst.from), llvm::Align(width));
+    load->setAtomic(orderingOf(inst.order));
+
+    f.define(inst.result, atomicResult(f, load, result, inst.isSigned(), nameOf(f, inst.result)));
+}
+
+static void genAtomicStore(FunGen& f, LowerInstAtomicStore& inst) {
+    auto width = inst.getWidth();
+    auto value = atomicOperand(f, use(f, inst, inst.value), f.base[inst.value]->type, width);
+
+    auto store = f.builder.CreateAlignedStore(value, use(f, inst, inst.to), llvm::Align(width));
+    store->setAtomic(orderingOf(inst.order));
+}
+
+static void genAtomicRmw(FunGen& f, LowerInstAtomicRmw& inst) {
+    auto width = inst.getWidth();
+    auto result = inst.result.type;
+    auto value = atomicOperand(f, use(f, inst, inst.value), f.base[inst.value]->type, width);
+
+    llvm::AtomicRMWInst::BinOp op;
+    switch(inst.op) {
+        case LowerAtomicOp::Exchange: op = llvm::AtomicRMWInst::Xchg; break;
+        case LowerAtomicOp::Add:      op = llvm::AtomicRMWInst::Add;  break;
+        case LowerAtomicOp::Sub:      op = llvm::AtomicRMWInst::Sub;  break;
+        case LowerAtomicOp::And:      op = llvm::AtomicRMWInst::And;  break;
+        case LowerAtomicOp::Or:       op = llvm::AtomicRMWInst::Or;   break;
+        case LowerAtomicOp::Xor:      op = llvm::AtomicRMWInst::Xor;  break;
+    }
+
+    auto rmw = f.builder.CreateAtomicRMW(op, use(f, inst, inst.to), value,
+                                         llvm::MaybeAlign(width), orderingOf(inst.order));
+
+    f.define(inst.result, atomicResult(f, rmw, result, false, nameOf(f, inst.result)));
+}
+
+static void genAtomicCas(FunGen& f, LowerInstAtomicCas& inst) {
+    auto width = inst.getWidth();
+    auto type = inst.previous.type;
+    auto expected = atomicOperand(f, use(f, inst, inst.expected), f.base[inst.expected]->type, width);
+    auto desired = atomicOperand(f, use(f, inst, inst.desired), f.base[inst.desired]->type, width);
+
+    auto cas = f.builder.CreateAtomicCmpXchg(use(f, inst, inst.to), expected, desired,
+                                             llvm::MaybeAlign(width),
+                                             orderingOf(inst.success), orderingOf(inst.failure));
+    cas->setWeak(inst.weak);
+
+    // `cmpxchg` answers `{ ty, i1 }`: the value read on either path, and whether the store happened.
+    // The second is read out rather than reconstructed by comparing, which is the whole reason this
+    // instruction has two results - see LowerInstAtomicCas.
+    f.define(inst.previous, atomicResult(f, f.builder.CreateExtractValue(cas, 0), type, false, nameOf(f, inst.previous)));
+    f.define(inst.exchanged, f.builder.CreateIntCast(
+        f.builder.CreateExtractValue(cas, 1), typeOf(f.gen, inst.exchanged.type), false, nameOf(f, inst.exchanged)));
+}
+
+static void genFence(FunGen& f, LowerInstFence& inst) {
+    f.builder.CreateFence(orderingOf(inst.order));
+}
+
+// `pause`, through the intrinsic rather than as inline assembly, for the reason intrinsic.cpp gives
+// for the fences: LLVM knows what it does, and what it knows is that it is not a barrier - so it
+// costs the optimizer nothing where inline assembly would be an opaque clobber in a loop that is
+// otherwise the tightest one a program has.
+static void genSpinHint(FunGen& f) {
+    f.builder.CreateIntrinsic(llvm::Intrinsic::x86_sse2_pause, {}, {});
+}
+
 static void genCopy(FunGen& f, LowerInstCopy& inst) {
     f.builder.CreateMemCpy(use(f, inst, inst.to), kUnknownAlign,
                            use(f, inst, inst.from), kUnknownAlign,
@@ -1311,6 +1438,24 @@ void genInst(FunGen& f, LowerInst& inst) {
             break;
         case LowerInst::SetPattern:
             genSetPattern(f, (LowerInstSetPattern&)inst);
+            break;
+        case LowerInst::AtomicLoad:
+            genAtomicLoad(f, (LowerInstAtomicLoad&)inst);
+            break;
+        case LowerInst::AtomicStore:
+            genAtomicStore(f, (LowerInstAtomicStore&)inst);
+            break;
+        case LowerInst::AtomicRmw:
+            genAtomicRmw(f, (LowerInstAtomicRmw&)inst);
+            break;
+        case LowerInst::AtomicCas:
+            genAtomicCas(f, (LowerInstAtomicCas&)inst);
+            break;
+        case LowerInst::Fence:
+            genFence(f, (LowerInstFence&)inst);
+            break;
+        case LowerInst::SpinHint:
+            genSpinHint(f);
             break;
         case LowerInst::Call:
             genCall(f, (LowerInstCall&)inst);

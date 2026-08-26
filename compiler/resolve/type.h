@@ -279,6 +279,24 @@ struct Type {
         Vector,
 
         /*
+         * `Atomic(a)` - Analysis-Atomics.md §3.1, and a kind rather than a declaration.
+         *
+         * A one-field record is what it looks like and is the one thing it cannot be. Structural
+         * classification would make `Atomic(Int)` `TrivialCopy`, since its member is - and a value
+         * two threads share that copies on every read is not an atomic at all. The current module
+         * rules would also expose its constructor, so `Atomic(counter)` could be built from a value
+         * rather than only through `atomic`.
+         *
+         * Its ownership is therefore stated rather than computed (see `ownershipOfAtomic`), which is
+         * a compiler fact and stays one even after abstract types make the constructor half
+         * ordinary library machinery.
+         *
+         * What it holds is one of the family §3.2 admits - an integer, a `Bool`, or a pointer - and
+         * that is checked where the type is built, not here. See AtomicType.
+         */
+        Atomic,
+
+        /*
          * A number in a position a type is written - Implementation-Const-Generics.md §2.1.
          *
          * The `4` of `[Int *4]` and of `Vec(Float, 4)`. It is a Type so that a count and a *const
@@ -735,6 +753,24 @@ struct BorrowType: Type {
  * to `[a]`; there are no fields and no per-lane projection, so no place walk is ever asked about a
  * lane. Reading one is an instruction (`VecLane`), which is a boundary stage 3 holds.
  */
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1.
+ *
+ * Interned on the content the way a pointer is interned on its target, so the `Atomic(Int)` two
+ * modules write is one TypePtr and `sameType` stays pointer equality.
+ *
+ * There is no second field and there is deliberately nothing else here. The width and the alignment
+ * are the content's, which `Repr` answers; the *orders* an operation carries are properties of the
+ * operation and not of the location, which is what keeps one `Atomic(Int)` usable by a relaxed
+ * counter and a sequential flag in the same program.
+ */
+struct AtomicType: Type {
+    explicit AtomicType(TypePtr content): Type(Type::Atomic), content(content) {}
+
+    // One of the family §3.2 admits, or a type variable awaiting substitution.
+    TypePtr content;
+};
+
 struct VectorType: Type {
     VectorType(TypePtr content, TypePtr count, bool isMask):
         Type(Type::Vector), content(content), count(count), isMask(isMask) {}
@@ -1679,6 +1715,20 @@ struct CoreClasses {
     GlobalPtr<TypeClass> trivialSink = nullptr;
 
     /*
+     * The two closed classifications of `Atomic` - Analysis-Atomics.md §3.2.
+     *
+     * Here beside the implicit classes rather than in a table of the module's own, because what
+     * makes them work is the same mechanism: `structuralInstance` answers them from the *shape* of
+     * the type, and `module_class.cpp` refuses a hand-written instance of either. Class spelling so
+     * that a generic signature can constrain them; not an open extension point, because every
+     * admitted width has to be one a target performs indivisibly and a library cannot promise that.
+     *
+     * Null on a JS build, where the module's file is not read at all.
+     */
+    GlobalPtr<TypeClass> atomicValue = nullptr;
+    GlobalPtr<TypeClass> atomicInteger = nullptr;
+
+    /*
      * The two container classes - Implementation-Containers.md §5. Collections' rather than Core's,
      * because a container is written over `Native` and Core cannot name it.
      *
@@ -1962,6 +2012,24 @@ TypePtr resolveVectorType(Module& module, TypePtr content, U32 lanes, bool isMas
 
 // The same, for a count that may be a variable. Null is the natural form, exactly as zero is above.
 TypePtr resolveVectorType(Module& module, TypePtr content, TypePtr count, bool isMask, LocationId source);
+
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1 and §3.2.
+ *
+ * Interned on the content, and the one place the admitted family is enforced: an element outside
+ * what §3.2 lists is reported here and answers the error type, so nothing downstream has to ask
+ * whether a target could perform the access. A generic element defers the check to substitution,
+ * exactly as a vector's lane does.
+ */
+TypePtr resolveAtomicType(Module& module, TypePtr content, LocationId source);
+
+// Whether `Atomic(a)` admits this element - the `AtomicValue(a)` family of §3.2. The integers, the
+// target-word ones, any payload-free enumeration (`Bool` among them), and a raw pointer.
+bool isAtomicValue(GlobalBase base, TypePtr type);
+
+// The subset of them `AtomicInteger(a)` admits, which is the same list without the enumerations and
+// without a pointer: the arithmetic and bitwise updates of §3.4 apply to a number and nothing else.
+bool isAtomicInteger(GlobalBase base, TypePtr type);
 
 /*
  * A number in a count position - Implementation-Const-Generics.md §2.1.

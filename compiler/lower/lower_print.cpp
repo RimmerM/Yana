@@ -311,6 +311,40 @@ StringView nameForInst(LowerBase base, LowerInst& inst) {
             return "copy"_v;
         case LowerInst::SetPattern:
             return "setpattern"_v;
+
+        /*
+         * The atomics, whose order is written out in full below rather than encoded in the name -
+         * Analysis-Atomics.md §5.5. A dump containing `atomic_load %p, 4, acquire` is what an audit
+         * of a synchronization protocol has to read, and five names per operation would be thirty
+         * spellings of six instructions.
+         *
+         * The read-modify-write is the exception and carries its operation in the name, because
+         * that *is* which instruction it is rather than how strong it is: `atomic_add` and
+         * `atomic_xchg` are two operations, where `acquire` and `release` are one operation twice.
+         */
+        case LowerInst::AtomicLoad:
+            return ((LowerInstAtomicLoad&)inst).isSigned() ? "atomic_loads"_v : "atomic_load"_v;
+        case LowerInst::AtomicStore:
+            return "atomic_store"_v;
+        case LowerInst::AtomicRmw:
+            switch(((LowerInstAtomicRmw&)inst).op) {
+                case LowerAtomicOp::Exchange: return "atomic_xchg"_v;
+                case LowerAtomicOp::Add:      return "atomic_add"_v;
+                case LowerAtomicOp::Sub:      return "atomic_sub"_v;
+                case LowerAtomicOp::And:      return "atomic_and"_v;
+                case LowerAtomicOp::Or:       return "atomic_or"_v;
+                case LowerAtomicOp::Xor:      return "atomic_xor"_v;
+            }
+            return "atomic_add"_v;
+        // Two mnemonics and not four: a compare-exchange always carries both of its orders here, so
+        // what the name still has to say is only whether a spurious failure is permitted. See
+        // LowerInstAtomicCas, where §3.5's derivation is argued to belong to the library.
+        case LowerInst::AtomicCas:
+            return ((LowerInstAtomicCas&)inst).weak ? "atomic_cas_weak"_v : "atomic_cas"_v;
+        case LowerInst::Fence:
+            return "fence"_v;
+        case LowerInst::SpinHint:
+            return "spinhint"_v;
         case LowerInst::X86PushArg:
             return "x86_pusharg"_v;
         case LowerInst::X86MinMax:
@@ -689,6 +723,38 @@ void printInst(Net::Writer& writer, Context& context, LowerBase base, LowerInst&
         } else if(inst.kind == LowerInst::Alloca) {
             writer.writeString(", "_v);
             printInt(writer, ((LowerInstAlloca&)inst).alignment);
+        } else if(inst.kind == LowerInst::AtomicLoad) {
+            // Width then order, which is the trailing-field order every instruction above uses and
+            // the order the parser reads them back in.
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstAtomicLoad&)inst).getWidth());
+            writer.writeString(", "_v);
+            writer.writeString(nameForOrder(((LowerInstAtomicLoad&)inst).order));
+        } else if(inst.kind == LowerInst::AtomicStore) {
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstAtomicStore&)inst).getWidth());
+            writer.writeString(", "_v);
+            writer.writeString(nameForOrder(((LowerInstAtomicStore&)inst).order));
+        } else if(inst.kind == LowerInst::AtomicRmw) {
+            writer.writeString(", "_v);
+            printInt(writer, ((LowerInstAtomicRmw&)inst).getWidth());
+            writer.writeString(", "_v);
+            writer.writeString(nameForOrder(((LowerInstAtomicRmw&)inst).order));
+        } else if(inst.kind == LowerInst::AtomicCas) {
+            // Both orders always, and never the derived one left implicit. A reader of a dump
+            // should not have to apply §3.5's projection in their head to know what the failure
+            // path does, and the two-order form would otherwise print the same as the one-order.
+            auto& cas = (LowerInstAtomicCas&)inst;
+            writer.writeString(", "_v);
+            printInt(writer, cas.getWidth());
+            writer.writeString(", "_v);
+            writer.writeString(nameForOrder(cas.success));
+            writer.writeString(", "_v);
+            writer.writeString(nameForOrder(cas.failure));
+        } else if(inst.kind == LowerInst::Fence) {
+            // No leading comma: a fence names no location, so the order is its first and only
+            // operand-position field and the loop above wrote nothing before it.
+            writer.writeString(nameForOrder(((LowerInstFence&)inst).order));
         } else if(inst.kind == LowerInst::VecLane || inst.kind == LowerInst::VecWithLane) {
             // The lane index is a field rather than an operand, so it comes after every operand the
             // loop above printed: `vlane %v, 3` and `vwithlane %v, %x, 3`. Same for the shuffle's

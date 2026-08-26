@@ -327,6 +327,29 @@ bool writesStorage(LowerInst* inst) {
         case LowerInst::SetPattern:
         case LowerInst::Call:
             return true;
+
+        /*
+         * Every atomic, and the load and the spin hint included - see LowerInst::FirstAtomic.
+         *
+         * The name is "writes storage" and what it is actually asked is "may a load answered from
+         * above this still be answered from above it", so an acquire *load* has to say yes: what it
+         * acquires is precisely the right to see writes another thread published, and a value this
+         * pass carried across it is a value read before the edge and used after it. A fence says yes
+         * for the same reason with no location of its own, which is the whole of what a fence is.
+         *
+         * `SpinHint` establishes no edge and could answer no. It answers yes because the loop it
+         * sits in is polling, and a load hoisted out of a polling loop is the one rewrite that turns
+         * a spin into a hang - the guarantee that the reload happens is not the memory model's here
+         * but this predicate's, and paying one unhoisted load per spin loop is not a cost worth
+         * measuring.
+         */
+        case LowerInst::AtomicLoad:
+        case LowerInst::AtomicStore:
+        case LowerInst::AtomicRmw:
+        case LowerInst::AtomicCas:
+        case LowerInst::Fence:
+        case LowerInst::SpinHint:
+            return true;
         default:
             return false;
     }

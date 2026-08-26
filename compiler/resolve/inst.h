@@ -1329,6 +1329,106 @@ struct InstNative: Inst {
     template<class F> void mapOperandFields(ModuleBase base, F&& f) { mapValueList(base, args, f); }
 };
 
+/*
+ * The atomics - Analysis-Atomics.md §5.1. See `Value::Atomic` in inst.def for why there is one kind.
+ *
+ * The two enumerations below mirror `LowerOrder` and `LowerAtomicOp` one tier down, and mirroring
+ * them is deliberate rather than an omission: this header sits above the lower IR and may not name
+ * it, and the translation in lower_calc.cpp is one switch each. What that buys is that a change to
+ * the lower IR's encoding cannot silently change what a resolved program means.
+ */
+
+// How much of the rest of memory an operation orders - §3.3. The library's four ordering *types*
+// exist so that `store(x, LoadAcquire)` does not typecheck; by the time an operation reaches the IR
+// the pairing is settled, and what is left is the one fact every consumer reads.
+enum class AtomicOrder: U8 {
+    Relaxed,
+    Acquire,
+    Release,
+    AcquireRelease,
+    Sequential,
+};
+
+// Which of the six - §5.1's list. The read-modify-writes are one shape and are told apart by which
+// arithmetic they perform, which is why they are rows here rather than a second field.
+enum class AtomicKind: U8 {
+    Load,
+    Store,
+
+    FirstUpdate,
+    Exchange = FirstUpdate,
+    Add,
+    Sub,
+    And,
+    Or,
+    Xor,
+    LastUpdate = Xor,
+
+    // Strong and weak, told apart by `weak` rather than by a row: they are one instruction on every
+    // target this compiles for, and what differs is only what a caller may assume - see InstAtomicOk.
+    Compare,
+
+    Fence,
+    SpinHint,
+};
+
+inline bool isAtomicUpdate(AtomicKind kind) {
+    return kind >= AtomicKind::FirstUpdate && kind <= AtomicKind::LastUpdate;
+}
+
+// Which operations name a location, and so have an address operand and a width. A fence orders
+// accesses it does not name and a spin hint orders nothing at all.
+inline bool isAtomicAccess(AtomicKind kind) {
+    return kind != AtomicKind::Fence && kind != AtomicKind::SpinHint;
+}
+
+struct InstAtomic: Inst {
+    InstAtomic(ModulePtr<Block> block, TypePtr type, AtomicKind kind, AtomicOrder order):
+        Inst(Value::Atomic, block, type), kind(kind), order(order), failure(order) {}
+
+    /*
+     * The operands, positionally by kind:
+     *
+     *   Load                   (address)
+     *   Store                  (address, value)
+     *   Exchange, Add ... Xor  (address, value)
+     *   Compare                (address, expected, desired)
+     *   Fence, SpinHint        ()
+     *
+     * The address is the `Atomic(a)` itself rather than a pointer to it: an atomic is a memory type,
+     * so what a body holds of one is already its storage.
+     */
+    ModuleList<ModulePtr<Value>, false> args;
+
+    AtomicKind kind;
+
+    // What the operation performs; for a compare-exchange, what the *successful* one performs.
+    AtomicOrder order;
+
+    // And what a failed comparison performs - §3.5. Equal to `order` for everything else, so that
+    // no reader has to ask which kind it is holding before reading it. The library's plain form
+    // derives this through §3.5's projection and `Advanced`'s states it.
+    AtomicOrder failure;
+
+    // Whether a spurious failure is permitted - the `compareExchangeWeak` of §3.4. Only meaningful
+    // on `Compare`.
+    bool weak = false;
+
+    template<class F> void mapOperandFields(ModuleBase base, F&& f) { mapValueList(base, args, f); }
+};
+
+// The second result of a compare-exchange - see `Value::AtomicOk` in inst.def. `cas` is the
+// `InstAtomic` it selects from, and is an operand so that every walk which keeps a producer alive
+// for its reader keeps that one alive for this.
+struct InstAtomicOk: Inst {
+    InstAtomicOk(ModulePtr<Block> block, TypePtr type, ModulePtr<Value> cas):
+        Inst(Value::AtomicOk, block, type), cas(cas) {}
+
+    ModulePtr<Value> cas;
+
+    template<class F> void mapOperandFields(ModuleBase, F&& f) { cas = f(cas); }
+};
+
 struct InstUnary: Inst {
     InstUnary(ModulePtr<Block> block, TypePtr type, Kind kind, ModulePtr<Value> from):
         Inst(kind, block, type), from(from) {}

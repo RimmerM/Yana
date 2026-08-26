@@ -1,0 +1,223 @@
+{-
+  Atomic - the substrate a concurrency library is built out of, and not a concurrency model.
+
+  Analysis-Atomics.md §3, and doc/spec/concurrency.md for the memory model the operations here are
+  written against. What this module supplies is indivisible access to one location and the ordering
+  edges that make one thread's writes visible to another. What it does not supply is threads, a
+  scheduler, a mutex or a channel: those belong above it, and every one of them is written in terms
+  of what is here.
+
+  § Why a dedicated type
+
+  An atomic is a *location*, not a value. `Atomic(a)` is opaque storage whose only construction is
+  `atomic` and whose only access is one of the operations below, which is what makes every atomic
+  access visible in the source that performs it. The alternatives - a field marked `atomic`, or a
+  set of raw-pointer intrinsics - each hide one half of that: the first lets ordinary field syntax
+  conceal an ordering, and the second makes the safe surface unsafe. See §8.
+
+  It is never `Copy` and has no `TrivialCopy`, which is the property the whole module rests on: a
+  copied atomic is a second location, and two threads synchronizing through two locations are not
+  synchronizing. It *is* `TrivialSink`, so it may be moved while exclusively owned - owning it
+  exclusively is a proof that nobody is sharing it.
+
+  § Native only, and why that is the file name rather than an attribute
+
+  The whole module is native, so the *file* says so once. JavaScript has no worker or shared-buffer
+  model in this compiler and no operation that hands a value to one, so an implementation over
+  ordinary objects would be a single-threaded facsimile that conceals a portability error (§5.4).
+
+  `@platform(native)` on every declaration would say the same thing thirty times, and a reader
+  adding the thirty-first would have to notice. The file selector is right here for the reason it is
+  wrong in `Native/Intrinsic/X86.yana` - there, some declarations are baseline and some need a
+  feature, so a selector on the file would hide the ones that belong everywhere. Here there is
+  nothing that belongs anywhere else.
+
+  If workers are designed later, the same declarations may be supplied by an `Atomic.js.yana` over
+  `SharedArrayBuffer` for the widths the host guarantees - which is the ordinary target rule, the
+  semantics staying the same while only the lowering differs. On a JS build today this file is not
+  read at all, so the module is empty and every name in it is unknown.
+-}
+module Atomic
+
+{-
+  The family `Atomic(a)` admits, and the arithmetic subset of it - §3.2.
+
+  Class spelling so that a generic signature can constrain them, and closed compiler
+  classifications like `TrivialCopy` rather than open extension points: the list is the integers, any
+  payload-free enumeration (`Bool` among them), and a raw pointer, and it is closed because every
+  admitted operation is **always lock-free**. That is a stronger contract than C++'s sometimes-lock-free generic, and the only way
+  to keep it is to refuse the widths a target would have to synthesize with a library lock.
+
+  Lock-free is not wait-free. A load or a native fetch instruction completes in a bounded number of
+  its own steps; an operation synthesized as a compare-exchange loop may lose repeatedly to other
+  threads. What is guaranteed is system-wide progress and no hidden lock, allocation or scheduler
+  call - not fairness for any one caller.
+
+  There is no `isLockFree` query, because a program cannot usefully branch around the mutex used to
+  implement its mutex.
+-}
+pub class (TrivialCopy(a)) AtomicValue(a)
+pub class (AtomicValue(a), Integral(a)) AtomicInteger(a)
+
+{-
+  The four ordering types - §3.3.
+
+  The repetition is deliberate and is the whole design. `store(x, LoadAcquire)` does not typecheck,
+  and there is no relaxed fence that exists only to do nothing, so a diagnostic can say "store takes
+  `StoreOrder`; use `StoreRelaxed`, `StoreRelease` or `StoreSequential`" without teaching a matrix.
+
+  An ordering argument must be a compile-time constant. Passing one through a generic helper stays
+  possible where the compiler specializes that helper, but selecting an order from runtime data is
+  an error: an order changes the generated instructions and the optimizer's constraints, so it is
+  not useful runtime state - and requiring it to be constant is what guarantees good code in an
+  unoptimized build.
+
+  There is no default. What each order means, in the words a code review needs:
+
+    relaxed          only this location's own modification order; it publishes no other memory
+    release          effects sequenced before this become visible to a matching acquire
+    acquire          after observing a matching release, what it published is visible after this
+    acquire-release  both halves, for a read-modify-write
+    sequential       both halves as applicable, plus one total order over all sequential operations
+
+  "Matching" is not "using the same address at some point": the acquire must observe the release's
+  value, or a value in its release sequence. A load is not promised to read the newest wall-clock
+  value; that phrase has no portable meaning.
+-}
+pub data LoadOrder = LoadRelaxed | LoadAcquire | LoadSequential
+pub data StoreOrder = StoreRelaxed | StoreRelease | StoreSequential
+
+pub data UpdateOrder =
+  UpdateRelaxed | UpdateAcquire | UpdateRelease | UpdateAcquireRelease | UpdateSequential
+
+pub data FenceOrder =
+  FenceAcquire | FenceRelease | FenceAcquireRelease | FenceSequential
+
+{-
+  What a compare-exchange answers - §3.4.
+
+  `Exchanged` exactly when the old value equalled `expected` and `desired` was stored; otherwise
+  `Unchanged` carrying what was actually there. Neither form mutates its expected argument and
+  neither loses the observed value on failure, which is what lets a retry loop feed the answer
+  straight back in as the next attempt's expectation.
+-}
+pub data ExchangeResult(a) = Exchanged | Unchanged(a)
+
+{-
+  Construction and consumption - §3.1.
+
+  An atomic is not implicitly zeroed. `atomic(0)` is already explicit, works for pointers and flags
+  alike, and avoids a second initialization rule for generic storage.
+
+  `intoValue` needs no atomic instruction at all: owning the value proves there is no outstanding
+  borrow and therefore no concurrent accessor. It is the clean teardown path for a containing
+  structure, and the way a test inspects a private atomic after every worker has joined.
+-}
+pub fn (AtomicValue(a)) atomic(initial: a) -> Atomic(a)
+pub fn (AtomicValue(a)) intoValue(->self: Atomic(a)) -> a
+
+{-
+  The basic operations - §3.4.
+
+  `self` is an *immutable borrow*, which is the default convention here and is the one controlled
+  form of interior mutation the language has: many threads may hold that borrow at once, and the
+  only mutation it enables is one of the operations here. It creates no `&Atomic(a)` and no `&a`.
+-}
+pub fn (AtomicValue(a)) load(self: Atomic(a), order: LoadOrder) -> a
+pub fn (AtomicValue(a)) store(self: Atomic(a), desired: a, order: StoreOrder) -> {}
+pub fn (AtomicValue(a)) exchange(self: Atomic(a), desired: a, order: UpdateOrder) -> a
+
+{-
+  Compare and exchange - §3.4 and §3.5.
+
+  `compareExchange` is **strong**: it answers `Unchanged` only when the value it read differed from
+  `expected`. `compareExchangeWeak` may answer `Unchanged(expected)` spuriously, and exists for
+  retry loops on load-linked/store-conditional machines where the strong form costs a loop of its
+  own; on x86 the two lower identically and the flag only stops a caller from assuming otherwise.
+
+  Neither form solves ABA. A word that changed from A to B and back to A compares equal to A, so the
+  algorithm has to make that harmless or carry a generation in the compared state - which is one
+  real caller for a future `AtomicPair`, and is also why the language's slot handles carry one.
+
+  The failed comparison's order is derived from the requested one by dropping the release half,
+  which has nothing to order on a path that performs no write:
+
+    UpdateRelaxed          relaxed         UpdateAcquireRelease   acquire
+    UpdateAcquire          acquire         UpdateSequential       sequential
+    UpdateRelease          relaxed
+
+  That covers the pairs an algorithm normally wants - release/relaxed and acquire-release/acquire -
+  without asking every caller two questions. An algorithm that specifically needs a weaker failure
+  path writes `Advanced.compareExchange` below.
+-}
+pub fn (AtomicValue(a)) compareExchange(
+  self: Atomic(a), expected: a, desired: a, order: UpdateOrder
+) -> ExchangeResult(a)
+
+pub fn (AtomicValue(a)) compareExchangeWeak(
+  self: Atomic(a), expected: a, desired: a, order: UpdateOrder
+) -> ExchangeResult(a)
+
+{-
+  The explicit two-order forms - §3.5.
+
+  The compiler rejects a failure order stronger than the success order, a failure path that
+  synchronized more than the successful one being something no target implements. The legal pairs:
+
+    relaxed          relaxed
+    acquire          relaxed, acquire
+    release          relaxed
+    acquire-release  relaxed, acquire
+    sequential       relaxed, acquire, sequential
+
+  Putting these behind a longer qualified name is not a judgment that they are unsafe. It says only
+  that the extra degree of freedom belongs in code whose algorithm and benchmark justify it.
+-}
+pub fn (AtomicValue(a)) Advanced.compareExchange(
+  self: Atomic(a), expected: a, desired: a, success: UpdateOrder, failure: LoadOrder
+) -> ExchangeResult(a)
+
+pub fn (AtomicValue(a)) Advanced.compareExchangeWeak(
+  self: Atomic(a), expected: a, desired: a, success: UpdateOrder, failure: LoadOrder
+) -> ExchangeResult(a)
+
+{-
+  The fetch operations - §3.4.
+
+  Every one answers the value from *before* the update. The `fetch` prefix says so, matches what x86
+  and LLVM naturally return, and keeps the family consistent. Addition and subtraction wrap at the
+  stored width.
+
+  There are deliberately no operator overloads. `counter += 1` looking ordinary while being shared,
+  atomic and ordered by an invisible default would violate all three of this surface's goals at once.
+
+  `fetchNand`, floating updates, min/max and the saturating updates wait for a demonstrated caller;
+  each can be added without changing the storage or the memory model. What is here is what mutexes,
+  counters, flags, reference state and bitsets actually need.
+-}
+pub fn (AtomicInteger(a)) fetchAdd(self: Atomic(a), amount: a, order: UpdateOrder) -> a
+pub fn (AtomicInteger(a)) fetchSub(self: Atomic(a), amount: a, order: UpdateOrder) -> a
+pub fn (AtomicInteger(a)) fetchAnd(self: Atomic(a), mask: a, order: UpdateOrder) -> a
+pub fn (AtomicInteger(a)) fetchOr(self: Atomic(a), mask: a, order: UpdateOrder) -> a
+pub fn (AtomicInteger(a)) fetchXor(self: Atomic(a), mask: a, order: UpdateOrder) -> a
+
+{-
+  Fences and spinning - §3.6.
+
+  `fence` orders accesses but is attached to no location. It does not by itself synchronize two
+  threads: the surrounding atomic operations still have to establish the relation, and a fence
+  between two plain accesses orders nothing that was racing anyway. Its main caller today is the
+  last-release path of a reclamation algorithm.
+
+  `spinHint` says the loop containing it is polling. It emits x86 `pause`, AArch64 `yield`, or
+  nothing where a target has no useful hint. It is neither a compiler fence nor a memory fence and
+  establishes no happens-before edge: a program whose correctness changes when every `spinHint` is
+  deleted was already wrong.
+
+  There is no compiler-only fence. Using one correctly needs a language model for signals or
+  interrupt handlers that this language does not have, and adding it now would invite its incorrect
+  use for memory-mapped I/O - where volatile device access and architecture-specific barriers are
+  the actual requirement.
+-}
+pub fn fence(order: FenceOrder) -> {}
+pub fn spinHint() -> {}

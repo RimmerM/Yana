@@ -1642,6 +1642,9 @@ struct Emitter {
         auto& e = form.encoding;
         assertTrue(regs.hasAddress); // a memory access with no address resolved for it
 
+        // Ahead of everything, including the mandatory prefix and REX - see EncodingDescriptor.
+        if(e.lockPrefix) to.buffer.writeByte(0xf0);
+
         auto regField = e.regField.isNone() ? e.extension : reg(field(regs, e.regField));
 
         /*

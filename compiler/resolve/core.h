@@ -81,4 +81,6 @@ ast::ModuleGroup* findLibraryModule(Program& program, StringId name);
  * A broken installation rather than a broken program, so it is said in those terms and names the
  * flag that fixes it.
  */
-ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name);
+// `required` is off for a module that exists only on some targets - see the definition, where
+// `Atomic` is the one.
+ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name, bool required = true);

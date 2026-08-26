@@ -374,6 +374,9 @@ void ReprTable::compute(TypePtr type, Repr& into) {
         case Type::Vector:
             computeVector(*(VectorType*)value, into);
             break;
+        case Type::Atomic:
+            computeAtomic(*(AtomicType*)value, into);
+            break;
         case Type::String:
             computeString(type, into);
             break;
@@ -480,6 +483,21 @@ void ReprTable::hostNiche(TypePtr type, Repr& into) {
 
             break;
         }
+
+        case Type::Atomic:
+            /*
+             * An atomic publishes no niche, and this is the one refusal on this list that is about
+             * *correctness* rather than about cost.
+             *
+             * A niche is a bit pattern the value never holds, spent to distinguish an enclosing
+             * `Maybe`'s absent case. An atomic's content is written by other threads, so what
+             * patterns it holds is not a property this compiler knows: a `Ptr` it admits is
+             * ordinarily never null, and an atomic pointer published as null by a reclaiming thread
+             * is the normal state of every algorithm that uses one. Folding `Maybe(Atomic(Ptr(a)))`
+             * into the pointer would make that store spell `Nothing`.
+             */
+            into.niche = Niche {};
+            return;
 
         case Type::Vector:
             // A vector has no niche on any target and declines here for the same reason it declines
@@ -733,6 +751,38 @@ void ReprTable::computeFixedArray(ArrayType& array, Repr& into) {
  * one to over-allocate, for a load that is one cycle faster on parts where it is faster at all;
  * `@align(n)` is the way a declaration asks for more (stage 8.4).
  */
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1.
+ *
+ * The content's size, at **its own size as the alignment** rather than the content's. Those differ
+ * for exactly the types that matter here: an `I64` field inside a record is 8-aligned already on
+ * this target, but nothing in the language guarantees that in general, and an atomic access below
+ * its natural alignment is not atomic at all - it is two accesses on either side of a cache-line
+ * boundary, which is the one failure mode that never reproduces in a test.
+ *
+ * So the alignment is stated here, at the type, and every user of it inherits it: a record holding
+ * an `Atomic(I64)` is 8-aligned because its field is, an array of them is strided to it, and the
+ * LLVM backend passes the same number as the access alignment (§5.2). That is what makes the
+ * always-lock-free promise of §3.2 a fact about storage rather than a hope about layout.
+ *
+ * `Bool` is the case that shows this is not just the content's Repr with a bigger alignment: §3.1
+ * fixes `Atomic(Bool)` at one byte holding zero or one, whatever the packing rules would do to an
+ * ordinary `Bool` inside a record. An atomic is never co-packed with a neighbour - `scalarBits`
+ * stays zero - because a neighbour sharing its word would be written by the same locked access.
+ */
+void ReprTable::computeAtomic(AtomicType& atomic, Repr& into) {
+    auto& content = of(atomic.content);
+
+    // Rounded up to a power of two, which is what makes an enumeration admissible: a payload-free
+    // sum is a tag word sized to its constructor count, and while every such word today is already
+    // 1, 2 or 4 bytes, the *access* has to be a width a machine performs indivisibly whatever the
+    // tag rule later becomes. An integer and a pointer round to themselves.
+    auto size = max(content.size, 1u);
+    into.size = Math::isPowerOf2(size) ? size : U32(1) << (Math::findLastBit(size) + 1);
+    into.align = into.size;
+    into.stride = into.size;
+}
+
 void ReprTable::computeVector(VectorType& vector, Repr& into) {
     auto stride = laneStride(global, vector.content, target.integers);
 

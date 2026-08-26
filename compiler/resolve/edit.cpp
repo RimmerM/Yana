@@ -80,6 +80,15 @@ void IrEditor::recordUses(Inst* inst) {
         case Value::Native:
             for(auto arg: ((InstNative*)inst)->args.contents(base)) addUse(arg, inst);
             break;
+        case Value::Atomic:
+            for(auto arg: ((InstAtomic*)inst)->args.contents(base)) addUse(arg, inst);
+            break;
+
+        // Its one operand is the compare-exchange it selects a result from - see InstAtomicOk. It
+        // is a use like any other, which is what keeps the two from being separated.
+        case Value::AtomicOk:
+            addUse(((InstAtomicOk*)inst)->cas, inst);
+            break;
         case Value::Aggregate: {
             auto aggregate = (InstAggregate*)inst;
             eachAggregateComponent(base, *aggregate,

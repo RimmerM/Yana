@@ -1,0 +1,103 @@
+{-
+   What an atomic's ownership *admits* - Analysis-Atomics.md §3.1 and §3.4.
+
+   The other side of `Reject.AtomicOwnership.yana`, and the half that would be missing if the rules
+   were merely strict: a check that refused everything would pass that file alone. What is pinned
+   here is that the one controlled form of interior mutation the language has actually works, and
+   works through every shape a program holds an atomic in.
+
+   The whole of that rule is in the declarations: the operations take `self: Atomic(a)`, an
+   *immutable* borrow, and mutate through it. So an atomic is the one type whose value may be
+   changed through a name that is not `&`, and everything below follows from that - a shared loan
+   may be duplicated, so any number of holders may operate on one atomic at once, which is the
+   situation the type exists for and would be useless without.
+
+   `intoValue` is the exception in the other direction, and the reason the file has both halves:
+   consuming is the one operation that needs to know nobody else is looking, so it takes `->self`
+   and the ownership rules do the proving. Native only, like the module.
+-}
+
+import Atomic
+import Native
+
+data Holder = Holder {flag: Atomic(Int), tag: Int}
+
+-- Mutation through an immutable binding. There is no `let &` here and none is wanted: what makes
+-- the write legal is the operation's own signature, not the binding's capability.
+fn immutableBinding() -> Int:
+    let c = atomic(0)
+
+    Atomic.store(c, 7, StoreRelease)
+    return c.load(LoadAcquire) + Atomic.exchange(c, 9, UpdateAcquireRelease)
+
+-- The same through a shared loan, which is what a caller hands over when it keeps the atomic.
+fn throughShared(c: 'Atomic(Int)) -> Int:
+    Atomic.store(c, 1, StoreRelease)
+    return c.load(LoadAcquire)
+
+{-
+   Two shared loans of one atomic, alive at once.
+
+   This is the property the type is for, stated as small as it can be stated. Nothing here is a
+   second location: both names are borrows of the one `c`, which is exactly what an exclusive `&`
+   would have refused and exactly what two threads sharing a counter need.
+-}
+fn twoLoans() -> Int:
+    let c = atomic(0)
+    return throughShared(c) + throughShared(c)
+
+-- The same atomic in both positions of one call, which is the same rule with the two loans made
+-- simultaneous rather than merely overlapping.
+fn bothArguments(a: 'Atomic(Int), b: 'Atomic(Int)) -> Int =
+    a.load(LoadRelaxed) + b.load(LoadRelaxed)
+
+fn sameTwice() -> Int:
+    let c = atomic(3)
+    return bothArguments(c, c)
+
+-- An atomic field of a record held immutably. The record promises nothing may be written through
+-- it; the atomic inside it is not a counter-example, because what is written is written through the
+-- atomic's own borrow and not through the record's.
+fn fieldOfImmutable(h: 'Holder) -> Int:
+    Atomic.store(h.flag, 1, StoreRelease)
+    return h.flag.load(LoadAcquire) + h.tag
+
+fn holderCase() -> Int:
+    let h = Holder {flag: atomic(4), tag: 5}
+    return fieldOfImmutable(h)
+
+{-
+   Two elements of one array of atomics, borrowed at the same time.
+
+   Worth pinning because the container rule next door reads the other way: two *element* borrows of
+   one container are refused, since each is exclusive and two exclusive borrows of one container are
+   what the rule is about. These are shared, so the objection does not arise - and the same element
+   twice is admitted for the same reason, which is the line below.
+-}
+fn twoElements() -> Int:
+    let &xs = [atomic(1), atomic(2)] :: Array(Atomic(Int))
+    return bothArguments(xs[0], xs[1]) + bothArguments(xs[0], xs[0])
+
+-- An atomic leaving the frame that built it. Nothing about the type stops it moving: what a sharer
+-- holds is a borrow, so owning the value is itself the proof that no sharer exists.
+fn produce() -> Atomic(Int):
+    let c = atomic(7)
+    return c
+
+-- And moved into a structure, which is the same hand-over written as a field. `c` is gone after it,
+-- which is what `Reject.AtomicOwnership.yana` checks from its side.
+fn intoRecord() -> Int:
+    let c = atomic(8)
+    let h = Holder {flag: c, tag: 1}
+
+    return h.flag.load(LoadRelaxed) + h.tag
+
+-- Consumption, at the end of the atomic's life and after every sharer is gone. No atomic
+-- instruction is emitted for it at all - owning the value is the whole of the proof.
+fn consume() -> Int:
+    let c = produce()
+    return intoValue(c)
+
+fn main() -> Int:
+    return immutableBinding() + twoLoans() + sameTwice() + holderCase() +
+        twoElements() + intoRecord() + consume()

@@ -377,6 +377,99 @@ enum : MachineOpcodeId {
     OpStoreAnd,
     OpStoreOr,
     OpStoreXor,
+    /*
+     * The atomics - Analysis-Atomics.md §5.3.
+     *
+     * Three opcodes for six lower instructions, because at the x86-64-v2 floor half of the table is
+     * an instruction this backend already has. A relaxed, acquire or sequential *load* is `mov`, and
+     * a relaxed or release *store* is `mov`: x86's own model already orders loads with loads and
+     * stores with stores, so the acquire and release halves cost no instruction and the only thing
+     * that has to be preserved is the motion constraint, which lives above selection in the lower
+     * IR. Those two therefore select `OpLoad` and `OpStore` and appear here not at all.
+     *
+     * What is left is the three shapes the ordinary instruction set does not have.
+     */
+
+    // `xchg r, [m]`, which is what an exchange is and what a *sequential store* becomes - the one
+    // store x86 does not perform with a `mov`, since a plain store may be reordered past a later
+    // load and a locked one may not. Its lock prefix is implicit: `xchg` with a memory operand is
+    // locked whether or not the byte is written, which is why this is one opcode rather than a
+    // locked form of something else. See `expandAtomics`, which is what turns the store into one.
+    OpXchg,
+
+    /*
+     * `lock cmpxchg [m], r`, whose one result here is the value it read.
+     *
+     * The IR instruction has two - the value read and whether the store happened - and only the
+     * first of them is a register on this architecture: the second is ZF. It is *not* materialized
+     * with a `setcc`, and the reason is that on x86 it does not have to be. `lock cmpxchg` stores
+     * exactly when the value it read equalled the value it compared, and it never fails spuriously,
+     * so the success flag is `previous == expected` - an ordinary comparison of two values the
+     * program already has. `expandAtomics` writes that comparison and points the flag's readers at
+     * it, which costs nothing where a branch follows, because the existing flags folding then
+     * removes the comparison and branches on what the `cmpxchg` already left in ZF.
+     *
+     * The weak form is the same instruction. A spurious failure is something a load-linked machine
+     * has and this one does not, so the flag permitting it constrains callers and not the encoding.
+     */
+    OpCmpXchg,
+
+    /*
+     * `lock xadd [m], r` - the fetch-and-add, and the only one of the five arithmetic updates whose
+     * previous value the architecture hands back.
+     *
+     * Its result is tied to the value operand for `OpXchg`'s reason and with the same consequence:
+     * the register holding the addend is the register the old value arrives in.
+     *
+     * `fetchSub` reaches this too. There is no `xsub`, and there does not need to be one - a
+     * subtraction is the addition of a negation, and `expandAtomics` writes the negation where the
+     * result is read. Where it is not read, `OpLockSub` below is one instruction rather than two.
+     */
+    OpXAdd,
+
+    /*
+     * The five locked in-place updates - `lock add [m], r` and its four siblings.
+     *
+     * Shaped exactly like `OpStoreAdd` and encoded by the same family; what makes them a separate
+     * row is the prefix and the *reason* for it, which is not an optimization of a load-modify-store
+     * but the whole content of the operation. They are taken when the previous value is **not read**,
+     * which is the shape a statistics counter and a flag being set have, and they save the register
+     * the old value would otherwise arrive in.
+     *
+     * `and`, `or` and `xor` have no other form here. Where their result *is* read, x86 offers
+     * nothing to select and `expandAtomics` writes the compare-exchange loop that every
+     * implementation of one on this architecture is.
+     *
+     * Their flags are a clobber rather than a definition, where `OpStoreAdd`'s are a result. The
+     * arithmetic is the same arithmetic, but what it is performed on is a location another thread
+     * may write between this instruction and any test of the flags - so a comparison folded into one
+     * of these would be answering a question about a value nobody holds.
+     */
+    OpLockAdd,
+    OpLockSub,
+    OpLockAnd,
+    OpLockOr,
+    OpLockXor,
+
+    /*
+     * A fence, which at two of its four orders is `mfence` and at the other two is nothing at all.
+     *
+     * x86 orders load-load, load-store and store-store in hardware, so an acquire, release or
+     * acquire-release fence has no instruction to emit - and it still has to be *here*, occupying a
+     * form that encodes zero bytes, because what it constrains is this backend's own motion. Deleted
+     * at selection it would stop separating the accesses around it, and `selectMemorySources` would
+     * sink a load through it.
+     *
+     * The sequential order is the one x86 does not give: a store followed by a load from another
+     * location may be reordered, and `mfence` is what forbids it.
+     */
+    OpFence,
+
+    // `pause`, which is architecturally `rep nop`. See LowerInst::SpinHint - it is an instruction
+    // rather than an intrinsic so that it is excluded from motion by the same predicate as the five
+    // above, and this is the opcode that costs.
+    OpSpinHint,
+
     OpBlockCopy,
     OpBlockSet,
     OpCall,
@@ -977,6 +1070,19 @@ struct EncodingDescriptor {
     // Materializes the flags into the instruction's first result afterwards - `setcc` and a
     // zero-extension - for a comparison whose result could not be left in the flags.
     bool materializeFlags = false;
+
+    /*
+     * `0xf0`, written ahead of every other prefix - Analysis-Atomics.md §5.3.
+     *
+     * A flag rather than a value in `prefix`, because it is not one of those: the mandatory prefix
+     * is part of what an opcode *means* on this architecture and goes immediately before REX, while
+     * LOCK is a statement about the bus that goes in front of the whole encoding including any
+     * mandatory prefix. A 16-bit locked compare-exchange writes both, in that order.
+     *
+     * Only `cmpxchg` sets it today. `xchg` with a memory operand locks itself, and the read-modify-
+     * writes that will want it are §7 stage 5.
+     */
+    bool lockPrefix = false;
 
     /*
      * The encoding ends in a one-byte *predicate* taken from the selected condition.

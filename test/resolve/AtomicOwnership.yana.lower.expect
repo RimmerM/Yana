@@ -1,0 +1,120 @@
+@image$base = []
+
+immutableBinding<complex>(): Int {
+  b_0 {
+    %c = alloca 4, 4: Ptr
+    store %c, 0, 4
+    atomic_store %c, 7, 4, release
+    %v_1 = atomic_loads %c, 4, acquire: Int
+    %v_2 = atomic_xchg %c, 9, 4, acq_rel: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+throughShared<complex>(%c: Ptr): Int {
+  b_0 {
+    atomic_store %c, 1, 4, release
+    %v_1 = atomic_loads %c, 4, acquire: Int
+    ret %v_1
+  }
+}
+
+bothArguments<complex>(%a: Ptr, %b: Ptr): Int {
+  b_0 {
+    %v_1 = atomic_loads %a, 4, relaxed: Int
+    %v_2 = atomic_loads %b, 4, relaxed: Int
+    %v_3 = add %v_1, %v_2: Int
+    ret %v_3
+  }
+}
+
+fieldOfImmutable<complex>(%h: Ptr): Int {
+  b_0 {
+    atomic_store %h, 1, 4, release
+    %v_1 = atomic_loads %h, 4, acquire: Int
+    %v_2 = add %h, 4: Ptr
+    %v_3 = loads %v_2, 4: Int
+    %v_4 = add %v_1, %v_3: Int
+    ret %v_4
+  }
+}
+
+intoRecord<complex>(): Int {
+  b_0 {
+    %c = alloca 4, 4: Ptr
+    store %c, 8, 4
+    %h = alloca 8, 4: Ptr
+    copy %h, %c, 4
+    %v_1 = add %h, 4: Ptr
+    %v_2 = imm 1: Int
+    store %v_1, %v_2, 4
+    %v_3 = atomic_loads %h, 4, relaxed: Int
+    %v_4 = add %v_3, %v_2: Int
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex immutableBinding: Int
+    %c = alloca 4, 4: Ptr
+    store %c, 0, 4
+    %v_2 = call_complex throughShared, %c: Int
+    %v_3 = call_complex throughShared, %c: Int
+    %v_4 = add %v_2, %v_3: Int
+    %v_5 = add %v_1, %v_4: Int
+    %c = alloca 4, 4: Ptr
+    store %c, 3, 4
+    %v_6 = call_complex bothArguments, %c, %c: Int
+    %v_7 = add %v_5, %v_6: Int
+    %h = alloca 8, 4: Ptr
+    %v_8 = alloca 4, 4: Ptr
+    store %v_8, 4, 4
+    copy %h, %v_8, 4
+    %v_9 = add %h, 4: Ptr
+    store %v_9, 5, 4
+    %v_10 = call_complex fieldOfImmutable, %h: Int
+    %v_11 = add %v_7, %v_10: Int
+    %v_12 = alloca 4, 4: Ptr
+    store %v_12, 1, 4
+    %v_13 = alloca 4, 4: Ptr
+    store %v_13, 2, 4
+    %v_14 = alloca 4, 8: Ptr
+    %v_15 = alloca 8, 4: Ptr
+    %v_16 = load %v_14, 4: Int
+    store %v_14, 2, 4
+    copy %v_15, %v_12, 4
+    %v_17 = add %v_15, 4: Ptr
+    copy %v_17, %v_13, 4
+    %v_18 = call_complex bothArguments, %v_15, %v_17: Int
+    %v_19 = call_complex bothArguments, %v_15, %v_15: Int
+    jmp b_20
+  }
+
+  b_21 {
+    %v_22 = cmp_ilt %v_23, 2: Int
+    je %v_22, b_20, b_24
+  }
+
+  b_24 {
+    %v_25 = add %v_18, %v_19: Int
+    %v_26 = add %v_11, %v_25: Int
+    %v_27 = call_complex intoRecord: Int
+    %v_28 = add %v_26, %v_27: Int
+    %c = alloca 4, 4: Ptr
+    store %c, 7, 4
+    %v_29 = alloca 4, 4: Ptr
+    copy %v_29, %c, 4
+    %v_30 = loads %v_29, 4: Int
+    %v_31 = add %v_28, %v_30: Int
+    ret %v_31
+  }
+
+  b_20 {
+    %v_32 = phi [b_21, %v_23], [b_0, 0]: Int
+    %v_23 = add %v_32, 1: Int
+    jmp b_21
+  }
+}
+

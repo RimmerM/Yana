@@ -405,7 +405,8 @@ static TypePtr resolveNamed(Module& module, StringId name, LocationId source) {
         // The two constructors with no declaration behind them, and only where nothing is declared
         // under the name - see resolveApp. Written bare they are the same mistake a bare generic
         // record is, and the message is the one that names it.
-        if(name == module.program.vecTypeName || name == module.program.maskTypeName) {
+        if(name == module.program.vecTypeName || name == module.program.maskTypeName
+           || name == module.program.atomicTypeName) {
             module.context.diagnostics.error("type %@ requires type arguments"_v, source,
                                              module.context.findName(name));
             return module.scalar.error;
@@ -482,6 +483,35 @@ static Maybe<TypePtr> resolveVectorApp(Module& module, const ast::AppType& app, 
     }
 
     return Just(resolveVectorType(module, args[0], args[1], isMask, source));
+}
+
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1.
+ *
+ * The third constructor with no declaration behind it, recognized on exactly `Vec`'s terms and by
+ * the same path. It is simpler than the vector by one parameter and by every rule that follows from
+ * one: there is no count, so no argument is a number, no default is filled in, and the arity message
+ * is the general one `applyGenDefaults` gives.
+ */
+static Maybe<TypePtr> resolveAtomicApp(Module& module, const ast::AppType& app, GenEnv* env,
+                                       LocationId source) {
+    auto& program = module.program;
+    if(app.base.name != program.atomicTypeName) return Nothing();
+
+    TypeList args;
+    auto index = Size(0);
+
+    auto appArgs = app.args;
+    for(auto arg: appArgs.contents(module.parse)) {
+        args.push(resolveAppArg(module, program.atomicGen, index++, arg, env));
+    }
+
+    if(!applyGenDefaults(module, program.atomicGen, args)) {
+        module.context.diagnostics.error("Atomic takes exactly one type argument - `Atomic(Int)`"_v, source);
+        return Just(module.scalar.error);
+    }
+
+    return Just(resolveAtomicType(module, args[0], source));
 }
 
 /*
@@ -716,6 +746,7 @@ static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, 
 
     if(!alias && !type) {
         if(auto vector = resolveVectorApp(module, app, env, source)) return vector.unwrap();
+        if(auto atomic = resolveAtomicApp(module, app, env, source)) return atomic.unwrap();
 
         module.context.diagnostics.error("unknown type %@"_v, source, module.context.findName(app.base.name));
         return module.scalar.error;

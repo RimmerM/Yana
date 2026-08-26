@@ -123,6 +123,32 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
              */
             break;
 
+        case Type::Atomic:
+            /*
+             * Analysis-Atomics.md §3.1's four properties, stated rather than folded - and stating
+             * them is the whole reason `Atomic(a)` is a kind and not a one-field record.
+             *
+             * **Never TrivialCopy**, where every content it admits is. That is the inversion no
+             * structural rule can produce: a member that duplicates freely gives its container the
+             * same freedom, and here the container is precisely the thing that must not duplicate.
+             * A copied atomic is a second location, and two threads synchronizing through two
+             * locations are not synchronizing.
+             *
+             * **TrivialSink**, so it may be relocated while exclusively owned. Owning it exclusively
+             * is a proof that no borrow is outstanding, and a borrow is what a sharer holds - so
+             * there is no concurrent accessor for the move to race with. This is also what makes an
+             * atomic a legal field of a record that is itself moved.
+             *
+             * **No teardown of either half.** Every admitted content is trivial, so there is nothing
+             * to release and nothing to run; region eligibility follows from `drop == None`.
+             *
+             * Not `@pinned`, deliberately: what prevents a move is the borrow that sharing creates,
+             * which the ownership rules already enforce, and pinning it would additionally forbid
+             * the moves that are safe.
+             */
+            result.trivialCopy = false;
+            break;
+
         case Type::String:
             /*
              * Implementation-String.md part 2's table, as the two entries that are not the Repr.

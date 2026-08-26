@@ -32,6 +32,40 @@ static LowerInst* signExtendNarrow(LowerContext& lower, LowerBlock& block, Lower
     return truncateToWidth(lower, block, result, type, lowered, name);
 }
 
+/*
+ * The two atomic enumerations across the seam - Analysis-Atomics.md §5.1.
+ *
+ * `AtomicOrder` and `LowerOrder` have the same five members in the same order, and translating them
+ * with a switch rather than a cast is the point: resolve/inst.h sits above the lower IR and may not
+ * name it, so the two are declared separately, and a change to either encoding has to be made here
+ * before it can change what a resolved program means.
+ */
+static LowerOrder lowerOrderOf(AtomicOrder order) {
+    switch(order) {
+        case AtomicOrder::Relaxed:        return LowerOrder::Relaxed;
+        case AtomicOrder::Acquire:        return LowerOrder::Acquire;
+        case AtomicOrder::Release:        return LowerOrder::Release;
+        case AtomicOrder::AcquireRelease: return LowerOrder::AcquireRelease;
+        case AtomicOrder::Sequential:     return LowerOrder::Sequential;
+    }
+
+    return LowerOrder::Sequential;
+}
+
+static LowerAtomicOp lowerAtomicOpOf(AtomicKind kind) {
+    switch(kind) {
+        case AtomicKind::Exchange: return LowerAtomicOp::Exchange;
+        case AtomicKind::Add:      return LowerAtomicOp::Add;
+        case AtomicKind::Sub:      return LowerAtomicOp::Sub;
+        case AtomicKind::And:      return LowerAtomicOp::And;
+        case AtomicKind::Or:       return LowerAtomicOp::Or;
+        case AtomicKind::Xor:      return LowerAtomicOp::Xor;
+        default:
+            assertTrue("this atomic kind is not a read-modify-write" == nullptr);
+            return LowerAtomicOp::Exchange;
+    }
+}
+
 // See lowerStorageInst for what a null return means.
 LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instruction,
                             ModulePtr<Value> instValue, Function* function) {
@@ -144,6 +178,132 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
 
             break;
         }
+        /*
+         * The atomics - Analysis-Atomics.md §5.1.
+         *
+         * A direct translation, and the interesting part is what does *not* happen on the way. The
+         * order travels across unchanged and is neither strengthened nor weakened: an x86 locked
+         * update is a full barrier whatever the IR says, and promoting a relaxed one here would make
+         * the same program behave differently on a target whose instruction is not, as well as
+         * forbidding motion that is legal (§5.3).
+         *
+         * The width is the *content's* stride rather than the atomic's own, and the two are the same
+         * number by construction - `computeAtomic` sets the size from the content and the alignment
+         * from the size. Reading it from the content is what keeps the lower instruction's width the
+         * access width rather than a padded one.
+         *
+         * The address is `args[0]` and is already an address: an `Atomic(a)` is not a direct type,
+         * so what a body holds of one is its storage, which is what `mappedValue` hands back.
+         */
+        case Value::Atomic: {
+            auto& atomic = (InstAtomic&)instruction;
+            SmallArray<LowerPtr<LowerValue>, 4> args;
+            for(auto arg: atomic.args.contents(lower.local)) args.push(mappedValue(lower, arg));
+
+            auto order = lowerOrderOf(atomic.order);
+
+            if(atomic.kind == AtomicKind::Fence) {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstFence(order));
+                break;
+            }
+
+            if(atomic.kind == AtomicKind::SpinHint) {
+                result = block.addInst(lower.lower, new (lower.to.arena) LowerInstSpinHint());
+                break;
+            }
+
+            // Every access names a *pointer to* an `Atomic(a)` first - see `atomicAddress` one tier
+            // up, where taking the address is argued - and its content is what the access is wide.
+            auto address = lower.local[atomic.args.get(lower.local, 0)]->type;
+            auto content = ((AtomicType*)lower.global[pointeeType(lower.global, address)])->content;
+            auto width = lower.repr.of(content).size;
+
+            /*
+             * Whether the answer has to be put back through the narrow-integer normalization.
+             *
+             * A location narrower than a register arrives in one, and what the bits above it hold is
+             * **not** part of the value. `lock xadd byte [m], r8` writes the low byte of the register
+             * it names and leaves the operand's own high bits standing; `lock cmpxchg` at a byte
+             * leaves the *expected* value's; and LLVM widens an `i8` result with a cast that has to
+             * be told which way. Every one of those answers a register that is not the normalized
+             * form this IR keeps a narrow value in - so the result ends with the same mask or
+             * sign-extension every other narrow producer ends with, and the four spellings collapse
+             * into one. See truncateToWidth, and `wrapping` in test/lib/Atomic.yana, which is the
+             * case that found this: `U8` at 250 minus 10 came back as 0xFFFFFF04.
+             *
+             * The load is not among them. It states its signedness on the instruction itself and
+             * both backends widen it as they read it, which is one instruction rather than two.
+             */
+            auto narrow = atomic.kind != AtomicKind::Load
+                       && narrowerThanRegister(lower, instruction.type);
+
+            // The name goes on whatever ends up being the value the program named, which is the
+            // normalization where there is one.
+            auto resultName = narrow ? StringId() : instruction.name;
+
+            switch(atomic.kind) {
+                case AtomicKind::Load:
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAtomicLoad(
+                        args[0], instruction.name, lowerType(lower, instruction.type), width,
+                        signedType(lower.global, instruction.type), order));
+                    break;
+
+                case AtomicKind::Store:
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAtomicStore(
+                        args[0], args[1], width, order));
+                    break;
+
+                case AtomicKind::Compare: {
+                    // Two results, and the second is claimed by the `AtomicOk` that names this
+                    // instruction rather than produced here - see InstAtomicOk.
+                    auto type = lowerType(lower, instruction.type);
+                    auto inst = (LowerInstAtomicCas*)lower.to.arena.alloc(sizeof(LowerInstAtomicCas));
+                    new (inst) LowerInstAtomicCas(resultName, StringId(), type,
+                                                  args[0], args[1], args[2], width, atomic.weak,
+                                                  order, lowerOrderOf(atomic.failure));
+
+                    result = block.addInst(lower.lower, inst);
+                    break;
+                }
+
+                default:
+                    result = block.addInst(lower.lower, new (lower.to.arena) LowerInstAtomicRmw(
+                        args[0], args[1], resultName, lowerType(lower, instruction.type),
+                        width, lowerAtomicOpOf(atomic.kind), order));
+                    break;
+            }
+
+            if(narrow) {
+                result = truncateToWidth(lower, block, result, instruction.type,
+                                         lowerType(lower, instruction.type), instruction.name);
+            }
+
+            break;
+        }
+
+        /*
+         * The compare-exchange's second result, taken off the instruction that already produced it.
+         * Nothing is emitted: this is a *selector*, and what it selects is a value the lower IR has
+         * been holding since its producer was translated.
+         *
+         * The walk is what the normalization above costs. Where the compared type is narrower than
+         * its register, what the compare-exchange's own value maps to is the mask or the shift pair
+         * standing in front of it rather than the instruction itself - and the flag lives on the
+         * instruction. Each step of that chain reads its predecessor as its first operand, which is
+         * what makes following operand zero the way back to the producer.
+         */
+        case Value::AtomicOk: {
+            auto value = lower.lower[mappedValue(lower, ((InstAtomicOk&)instruction).cas)];
+
+            while(value->inst()->kind != LowerInst::AtomicCas) {
+                value = lower.lower[value->inst()->used()[0]];
+            }
+
+            auto cas = (LowerInstAtomicCas*)value->inst();
+            lower.values.add(instValue, (&cas->exchanged) - lower.lower);
+            return nullptr;
+        }
+
         /*
          * `bitcast(x)` - the same bits under another type, and the one conversion that says so.
          *

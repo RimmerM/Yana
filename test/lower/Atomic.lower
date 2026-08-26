@@ -1,0 +1,60 @@
+# Every atomic instruction kind at every order it admits - Analysis-Atomics.md §5.1 and §6.
+#
+# This fixture is the shared IR alone: it says nothing about what any backend emits, and its
+# purpose is that the parser, the printer and the verifier agree on one program. What it pins is
+# the order vocabulary, the width field, and the derived failure order of both compare forms.
+atomics(%p: Ptr, %v: Int, %w: Long, %e: Int, %d: Int): Int {
+    {
+        # Loads take the three orders `isLoadOrder` admits, at all four widths.
+        %l1 = atomic_load %p, 1, relaxed: Int
+        %l2 = atomic_load %p, 2, acquire: Int
+        %l4 = atomic_load %p, 4, seq_cst: Int
+        %l8 = atomic_load %p, 8, acquire: Long
+        %ls = atomic_loads %p, 2, relaxed: Int
+
+        # Stores take the three `isStoreOrder` admits.
+        atomic_store %p, %v, 4, relaxed
+        atomic_store %p, %v, 4, release
+        atomic_store %p, %v, 4, seq_cst
+        atomic_store %p, %w, 8, release
+
+        # A read-modify-write takes all five, and its result is the value from before the update.
+        %x1 = atomic_xchg %p, %v, 4, relaxed: Int
+        %x2 = atomic_xchg %p, %v, 4, acquire: Int
+        %x3 = atomic_xchg %p, %v, 4, release: Int
+        %x4 = atomic_xchg %p, %v, 4, acq_rel: Int
+        %x5 = atomic_xchg %p, %v, 4, seq_cst: Int
+
+        %a1 = atomic_add %p, %v, 4, relaxed: Int
+        %a2 = atomic_sub %p, %v, 4, acq_rel: Int
+        %a3 = atomic_and %p, %v, 4, acquire: Int
+        %a4 = atomic_or %p, %v, 4, release: Int
+        %a5 = atomic_xor %p, %v, 4, seq_cst: Int
+        %a6 = atomic_add %p, %w, 8, relaxed: Long
+
+        # A compare-exchange states both orders. The first five are the pairs `failureOrderFor`
+        # derives from each success order, which is what the library's plain form produces.
+        %c1, %ok1 = atomic_cas %p, %e, %d, 4, relaxed, relaxed: Int, Int
+        %c2, %ok2 = atomic_cas %p, %e, %d, 4, acquire, acquire: Int, Int
+        %c3, %ok3 = atomic_cas %p, %e, %d, 4, release, relaxed: Int, Int
+        %c4, %ok4 = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+        %c5, %ok5 = atomic_cas %p, %e, %d, 4, seq_cst, seq_cst: Int, Int
+        %c6, %ok6 = atomic_cas_weak %p, %e, %d, 4, acq_rel, acquire: Int, Int
+
+        # And these are pairs the derivation would not have chosen, which is what `Advanced` exists
+        # to write. Each is legal under `isLegalFailureOrder`: never stronger than the success order.
+        %c7, %ok7 = atomic_cas %p, %e, %d, 4, acq_rel, relaxed: Int, Int
+        %c8, %ok8 = atomic_cas %p, %e, %d, 4, seq_cst, acquire: Int, Int
+        %c9, %ok9 = atomic_cas_weak %p, %e, %d, 4, acquire, relaxed: Int, Int
+
+        # A fence names no location, so its order is the whole of it. There is no relaxed fence.
+        fence acquire
+        fence release
+        fence acq_rel
+        fence seq_cst
+
+        spinhint
+
+        ret %l4
+    }
+}

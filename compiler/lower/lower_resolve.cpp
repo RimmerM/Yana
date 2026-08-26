@@ -285,6 +285,130 @@ InstResolver handleLoad() {
 }
 
 /*
+ * The atomics - see LowerInst::FirstAtomic.
+ *
+ * An order arrives as a bare identifier, which the argument parser hands over as a `Label`. That is
+ * the same argument kind a function name uses, so it deliberately does *not* go through
+ * `findValue`: resolving `acquire` as a value would look for a function of that name and report an
+ * unknown one. It is a field, read here exactly as a load's byte count is.
+ *
+ * The spellings are LLVM's rather than the library's - `seq_cst` and not `LoadSequential` - because
+ * a `.lower` file is read beside the backend output it produces, and one vocabulary across the two
+ * is worth more than agreement with a surface the file cannot mention anyway.
+ */
+static Maybe<LowerOrder> orderArgument(LowerResolve& resolve, LowerInstAst& ast, const LowerArgAst& arg) {
+    if(arg.kind != LowerArgAst::Label) {
+        resolve.diag.error("expected a memory order"_v, ast.source);
+        return Nothing();
+    }
+
+    if(arg.id == Context::nameHash("relaxed"_v)) return Just(LowerOrder::Relaxed);
+    if(arg.id == Context::nameHash("acquire"_v)) return Just(LowerOrder::Acquire);
+    if(arg.id == Context::nameHash("release"_v)) return Just(LowerOrder::Release);
+    if(arg.id == Context::nameHash("acq_rel"_v)) return Just(LowerOrder::AcquireRelease);
+    if(arg.id == Context::nameHash("seq_cst"_v)) return Just(LowerOrder::Sequential);
+
+    resolve.diag.error("unknown memory order %@; expected one of relaxed, acquire, release, acq_rel, seq_cst"_v,
+                       ast.source, resolve.context.findName(arg.id));
+    return Nothing();
+}
+
+// The byte count an atomic access carries, read exactly as a load's is. Held to a power of two here
+// so that a malformed width cannot reach `makeMemoryFlags`, which encodes its logarithm; every
+// further restriction - which widths a target can perform atomically at all - is the verifier's.
+static U32 atomicWidthArgument(LowerResolve& resolve, LowerInstAst& ast, const LowerArgAst& arg) {
+    if(!arg.isInt() || arg.i == 0 || (arg.i & (arg.i - 1)) != 0) {
+        resolve.diag.error("expected a power-of-two byte count for an atomic access"_v, ast.source);
+        return 4;
+    }
+
+    return U32(arg.i);
+}
+
+template<bool signExtend>
+InstResolver handleAtomicLoad() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 3);
+
+        auto from = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto width = atomicWidthArgument(resolve, ast, ast.args[1]);
+        auto order = tryMaybe(orderArgument(resolve, ast, ast.args[2]), return Nothing());
+
+        auto result = ast.results[0];
+        auto type = getResultType(result);
+
+        if(!type) {
+            resolve.diag.error("unknown result type for atomic load"_v, ast.source);
+            type = justType(LowerType::Int32);
+        }
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAtomicLoad(
+            from - base, getResultName(result), type.unwrap(), width, signExtend, order)));
+    };
+}
+
+template<LowerAtomicOp op>
+InstResolver handleAtomicRmw() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 1);
+        assertArgCount(ast.args, 4);
+
+        auto to = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto value = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto width = atomicWidthArgument(resolve, ast, ast.args[2]);
+        auto order = tryMaybe(orderArgument(resolve, ast, ast.args[3]), return Nothing());
+
+        auto result = ast.results[0];
+        auto type = getResultType(result);
+
+        // The previous value has the operand's type unless the text says otherwise - there is only
+        // one type it could have, a read-modify-write answering what it read.
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAtomicRmw(
+            to - base, value - base, getResultName(result),
+            type ? type.unwrap() : base[value - base]->type, width, op, order)));
+    };
+}
+
+/*
+ * Compare-exchange, whose text form states both orders always.
+ *
+ * There is deliberately no one-order spelling that derives the second. §3.5's projection is a rule
+ * about what a *caller* may leave unsaid, and both of the library forms - the plain one and
+ * `Advanced`'s - arrive here with two orders already chosen; a text form that could also derive one
+ * would be a third source of the same fact. It also means a dump round-trips and that reading the
+ * failure path off one does not require applying a table in your head.
+ */
+template<bool weak>
+InstResolver handleAtomicCas() {
+    return [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 2);
+        assertArgCount(ast.args, 6);
+
+        auto to = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto expected = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto desired = tryMaybe(findValue(resolve, base, block, ast.args[2], ast.source), return Nothing());
+        auto width = atomicWidthArgument(resolve, ast, ast.args[3]);
+        auto success = tryMaybe(orderArgument(resolve, ast, ast.args[4]), return Nothing());
+        auto failure = tryMaybe(orderArgument(resolve, ast, ast.args[5]), return Nothing());
+
+        auto previous = ast.results[0];
+        auto exchanged = ast.results[1];
+        auto previousType = getResultType(previous);
+        auto exchangedType = getResultType(exchanged);
+
+        auto inst = (LowerInstAtomicCas*)resolve.moduleArena.alloc(sizeof(LowerInstAtomicCas));
+        new (inst) LowerInstAtomicCas(
+            getResultName(previous), getResultName(exchanged),
+            previousType ? previousType.unwrap() : base[expected - base]->type,
+            to - base, expected - base, desired - base, width, weak, success, failure,
+            exchangedType ? exchangedType.unwrap() : LowerType::Int32);
+
+        return Just(block.addInst(base, inst));
+    };
+}
+
+/*
  * The vector instructions.
  *
  * The lane index and the shuffle pattern are fields rather than operands, so they are read out of
@@ -669,6 +793,55 @@ LowerResolve::LowerResolve(Diagnostics& diag, Context& context, Region<LowerRegi
         }
 
         return Just(block.addInst(base, new (resolve.moduleArena) LowerInstStore(to - base, from - base, size.i)));
+    });
+
+    /*
+     * The atomics. `atomic_load %p, 4, acquire`, `atomic_store %p, %v, 4, release`,
+     * `atomic_add %p, %v, 4, relaxed`, `%old, %ok = atomic_cas %p, %e, %d, 4, acq_rel`.
+     *
+     * The width and the order are trailing fields on every one of them, in that order, which is the
+     * shape a load and an alloca already read: operands first, then what the instruction knows
+     * about itself. A fence has no operands at all and is therefore just its order.
+     */
+    instructionSet.add(Context::nameHash("atomic_load"_v), handleAtomicLoad<false>());
+    instructionSet.add(Context::nameHash("atomic_loads"_v), handleAtomicLoad<true>());
+
+    instructionSet.add(Context::nameHash("atomic_store"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 4);
+
+        auto to = tryMaybe(findValue(resolve, base, block, ast.args[0], ast.source), return Nothing());
+        auto value = tryMaybe(findValue(resolve, base, block, ast.args[1], ast.source), return Nothing());
+        auto width = atomicWidthArgument(resolve, ast, ast.args[2]);
+        auto order = tryMaybe(orderArgument(resolve, ast, ast.args[3]), return Nothing());
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstAtomicStore(
+            to - base, value - base, width, order)));
+    });
+
+    instructionSet.add(Context::nameHash("atomic_xchg"_v), handleAtomicRmw<LowerAtomicOp::Exchange>());
+    instructionSet.add(Context::nameHash("atomic_add"_v), handleAtomicRmw<LowerAtomicOp::Add>());
+    instructionSet.add(Context::nameHash("atomic_sub"_v), handleAtomicRmw<LowerAtomicOp::Sub>());
+    instructionSet.add(Context::nameHash("atomic_and"_v), handleAtomicRmw<LowerAtomicOp::And>());
+    instructionSet.add(Context::nameHash("atomic_or"_v), handleAtomicRmw<LowerAtomicOp::Or>());
+    instructionSet.add(Context::nameHash("atomic_xor"_v), handleAtomicRmw<LowerAtomicOp::Xor>());
+
+    instructionSet.add(Context::nameHash("atomic_cas"_v), handleAtomicCas<false>());
+    instructionSet.add(Context::nameHash("atomic_cas_weak"_v), handleAtomicCas<true>());
+
+    instructionSet.add(Context::nameHash("fence"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 1);
+
+        auto order = tryMaybe(orderArgument(resolve, ast, ast.args[0]), return Nothing());
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstFence(order)));
+    });
+
+    instructionSet.add(Context::nameHash("spinhint"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {
+        assertResultCount(ast.results, 0);
+        assertArgCount(ast.args, 0);
+
+        return Just(block.addInst(base, new (resolve.moduleArena) LowerInstSpinHint()));
     });
 
     instructionSet.add(Context::nameHash("copy"_v), [](LowerResolve& resolve, LowerBase base, LowerBlock& block, LowerInstAst& ast) -> Maybe<LowerInst*> {

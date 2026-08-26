@@ -312,9 +312,27 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
  * same storage is released twice - which for `Pair {left: makeBuffer(32), ...}` would be a double
  * free of the buffer the field now owns.
  *
- * Only droppable types transfer. For everything else the write is a copy of bytes nobody is
- * responsible for, and saying it moved would make the source unusable for no reason.
+ * Only types the program may not simply duplicate transfer. For everything else the write is a copy
+ * of bytes nobody is responsible for, and saying it moved would make the source unusable for no
+ * reason.
+ *
+ * That is two questions and it used to be asked as one. A droppable type is the case the paragraph
+ * above is about, and for a long time it was the only way to be non-copyable - so `needsTeardown`
+ * stood in for both. `Atomic(a)` is the first type that separates them: it releases nothing, every
+ * content it admits being trivial, and it is deliberately not `TrivialCopy` because a copied atomic
+ * is a *second location* and two threads synchronizing through two locations are not synchronizing.
+ * Asked only about teardown, this recorded no transfer for one - so `Holder {flag: c}` duplicated
+ * the atomic into the record and left `c` live and usable beside it, silently, which is the whole
+ * of what §3.1 exists to prevent.
  */
+static bool transfersOwnership(Analysis& analysis, TypePtr type) {
+    if(needsTeardown(analysis.module, type)) return true;
+
+    // Asked of the context rather than of the type, on sinkValue's terms: an unconstrained `a` is
+    // non-TrivialCopy inside the body that names it however a caller later substitutes it.
+    return !ownershipIn(analysis.module, functionGen(analysis.global, analysis.function), type).trivialCopy;
+}
+
 static void transferFrom(Analysis& analysis, Effects& effects, ModulePtr<Value> value) {
     auto root = backingLocal(analysis, value);
     if(root == maxLimit<U32>) return;
@@ -324,7 +342,7 @@ static void transferFrom(Analysis& analysis, Effects& effects, ModulePtr<Value> 
     useSlot(analysis, effects, root);
 
     auto type = analysis.function.localAt(analysis.local, root).type;
-    if(needsTeardown(analysis.module, type)) effects.moves.push(root);
+    if(transfersOwnership(analysis, type)) effects.moves.push(root);
 }
 
 /*
@@ -358,7 +376,7 @@ static void transferFromArgument(Analysis& analysis, Effects& effects, ModulePtr
             useSlot(analysis, effects, place.local);
 
             auto type = analysis.function.localAt(analysis.local, place.local).type;
-            if(needsTeardown(analysis.module, type)) effects.moves.push(place.local);
+            if(transfersOwnership(analysis, type)) effects.moves.push(place.local);
             return;
         }
     }
@@ -614,6 +632,17 @@ static void deriveEffects(Analysis& analysis) {
                     useValue(analysis, effects, arg);
                 }
 
+                break;
+
+            case Value::Atomic:
+                for(auto arg: ((InstAtomic&)instruction).args.contents(local)) {
+                    useValue(analysis, effects, arg);
+                }
+
+                break;
+
+            case Value::AtomicOk:
+                useValue(analysis, effects, ((InstAtomicOk&)instruction).cas);
                 break;
 
             case Value::Call: {

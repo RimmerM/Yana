@@ -248,6 +248,49 @@ MachineOpcodeId opcodeFor(LowerBase base, LowerInst* inst) {
         case LowerInst::Intrinsic:
             return machineTarget().intrinsic(((LowerInstIntrinsic*)inst)->getIntrinsic()).opcode;
         case LowerInst::X86PushArg: return OpPushArg;
+
+        /*
+         * The atomics - Analysis-Atomics.md §5.3.
+         *
+         * Half of the table is an instruction this backend already had. A relaxed, acquire or
+         * sequential load is `mov` and a relaxed or release store is `mov`, because x86 already
+         * orders load-load and store-store and the acquire and release halves therefore cost no
+         * instruction at all; what has to be preserved is the *motion* constraint, and that lives
+         * above selection in the lower IR, where `writesStorage` answers yes to every atomic.
+         *
+         * A sequential store is the exception and is not here, because `expandAtomics` has already
+         * turned it into an exchange - see there for why it is not a `mov` and a fence.
+         */
+        case LowerInst::AtomicLoad:  return OpLoad;
+        case LowerInst::AtomicStore: return OpStore;
+        case LowerInst::AtomicCas:   return OpCmpXchg;
+
+        /*
+         * And the read-modify-writes, where which instruction this is depends on whether the value
+         * from before the update is **read**.
+         *
+         * Where it is not - a statistics counter, a flag being set - the locked in-place update is
+         * one instruction that names one register. Where it is, only the addition hands it back, and
+         * `expandAtomics` has already dealt with the other two cases: a subtraction whose result is
+         * read arrives here as an addition of a negation, and an `and`, `or` or `xor` whose result
+         * is read never arrives at all, having become the compare-exchange loop it has to be.
+         */
+        case LowerInst::AtomicRmw: {
+            auto rmw = (LowerInstAtomicRmw*)inst;
+            if(rmw->op == LowerAtomicOp::Exchange) return OpXchg;
+
+            auto reads = rmw->result.uses.isNotEmpty();
+            switch(rmw->op) {
+                case LowerAtomicOp::Add: return reads ? OpXAdd : OpLockAdd;
+                case LowerAtomicOp::Sub: assertTrue(!reads); return OpLockSub;
+                case LowerAtomicOp::And: assertTrue(!reads); return OpLockAnd;
+                case LowerAtomicOp::Or:  assertTrue(!reads); return OpLockOr;
+                default:                 assertTrue(!reads); return OpLockXor;
+            }
+        }
+
+        case LowerInst::Fence:    return OpFence;
+        case LowerInst::SpinHint: return OpSpinHint;
     }
 
     assertTrue("no machine opcode for this instruction" == nullptr);
@@ -858,6 +901,90 @@ static MachineFormId selectFormForTarget(LowerBase base, LowerInst* inst) {
                 default: return FormStore64;
             }
         }
+
+        /*
+         * The atomics, whose forms are the ordinary ones at three of the four kinds.
+         *
+         * An atomic load and store are only ever an integer or a pointer - the verifier has refused
+         * everything else - so neither has the vector and float branches the ordinary pair above
+         * carries, and what is left is the width and, for a load, the signedness.
+         *
+         * A store of a *constant* deliberately still takes the immediate form. `mov [m], imm32` is
+         * one access of the width it names and is therefore as indivisible as the register form; it
+         * saves the register the constant would otherwise be held in, which in a release store at
+         * the end of a publication is a register held across everything the store is publishing.
+         */
+        case LowerInst::AtomicLoad: {
+            auto load = (LowerInstAtomicLoad*)inst;
+            auto isSigned = load->isSigned();
+
+            switch(load->getWidth()) {
+                case 1: return isSigned ? FormLoad8S : FormLoad8;
+                case 2: return isSigned ? FormLoad16S : FormLoad16;
+                case 4: return isSigned && is64Bit(load->result.type) ? FormLoad32S : FormLoad32;
+                default: return FormLoad64;
+            }
+        }
+
+        case LowerInst::AtomicStore: {
+            auto store = (LowerInstAtomicStore*)inst;
+
+            if(isImm(base[store->value]) &&
+               fitsImmediate(ImmediateWidth::Imm32, embeddedValue(base, store->value)))
+            {
+                switch(store->getWidth()) {
+                    case 1: return FormStore8Imm;
+                    case 2: return FormStore16Imm;
+                    case 4: return FormStore32Imm;
+                    default: return FormStore64Imm;
+                }
+            }
+
+            switch(store->getWidth()) {
+                case 1: return FormStore8;
+                case 2: return FormStore16;
+                case 4: return FormStore32;
+                default: return FormStore64;
+            }
+        }
+
+        /*
+         * The read-modify-writes, whose four forms per row sit in width order - so the operation and
+         * whether its result is read pick the row, and the width picks the entry within it.
+         */
+        case LowerInst::AtomicRmw: {
+            auto rmw = (LowerInstAtomicRmw*)inst;
+            auto width = rmw->getWidth();
+            auto at = width == 1 ? 0 : width == 2 ? 1 : width == 4 ? 2 : 3;
+
+            auto first = [&] {
+                switch(rmw->op) {
+                    case LowerAtomicOp::Exchange: return FormXchg8;
+                    case LowerAtomicOp::Add: return rmw->result.uses.isNotEmpty() ? FormXAdd8 : FormLockAdd8;
+                    case LowerAtomicOp::Sub: return FormLockSub8;
+                    case LowerAtomicOp::And: return FormLockAnd8;
+                    case LowerAtomicOp::Or:  return FormLockOr8;
+                    default:                 return FormLockXor8;
+                }
+            }();
+
+            return MachineFormId(first + at);
+        }
+
+        // A fence emits `mfence` at the one order x86 does not already give, and nothing at the
+        // three it does - see OpFence for why the nothing is still an instruction.
+        case LowerInst::Fence:
+            return ((LowerInstFence*)inst)->order == LowerOrder::Sequential ? FormMFence : FormFenceNone;
+
+        case LowerInst::SpinHint: return FormSpinHint;
+
+        case LowerInst::AtomicCas:
+            switch(((LowerInstAtomicCas*)inst)->getWidth()) {
+                case 1: return FormCmpXchg8;
+                case 2: return FormCmpXchg16;
+                case 4: return FormCmpXchg32;
+                default: return FormCmpXchg64;
+            }
 
         /*
          * The in-place update, whose six forms sit contiguously per operation - so the operation

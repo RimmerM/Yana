@@ -198,6 +198,52 @@ inline LowerInst* load(LowerBase base, LowerModule& module, LowerBlock& block, L
     return block.addInst(base, new (module.arena) LowerInstLoad(from - base, name, type, width, signExtend));
 }
 
+/*
+ * The atomics - see LowerInst::FirstAtomic.
+ *
+ * None of them folds. `foldBinary` above has an answer for `x + 0` because an addition of zero is
+ * the same value; an atomic addition of zero is a read of the location and a publication of
+ * everything sequenced before it, and the two are not the same instruction. Every simplification
+ * that applies here is a memory-model argument rather than an algebraic one, so the builders are
+ * plain constructors and the passes that would rewrite them are opted out by `isRepeatable`.
+ */
+
+inline LowerInst* atomicLoad(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* from,
+                             U32 width, bool signExtend, LowerType type, LowerOrder order, StringId name) {
+    return block.addInst(base, new (module.arena) LowerInstAtomicLoad(from - base, name, type, width, signExtend, order));
+}
+
+inline LowerInst* atomicStore(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* to,
+                              LowerValue* value, U32 width, LowerOrder order) {
+    return block.addInst(base, new (module.arena) LowerInstAtomicStore(to - base, value - base, width, order));
+}
+
+inline LowerInst* atomicRmw(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* to,
+                            LowerValue* value, U32 width, LowerAtomicOp op, LowerOrder order,
+                            LowerType type, StringId name) {
+    return block.addInst(base, new (module.arena) LowerInstAtomicRmw(to - base, value - base, name, type, width, op, order));
+}
+
+// The failure order is stated rather than derived here. `failureOrderFor` is what the one-order
+// library form applies on the way in; a builder that applied it again would silently correct a
+// caller that meant the two-order form, and the verifier could then never catch one.
+inline LowerInst* atomicCas(LowerBase base, LowerModule& module, LowerBlock& block, LowerValue* to,
+                            LowerValue* expected, LowerValue* desired, U32 width, bool weak,
+                            LowerOrder success, LowerOrder failure, LowerType type,
+                            StringId previousName, StringId exchangedName) {
+    return block.addInst(base, new (module.arena) LowerInstAtomicCas(
+        previousName, exchangedName, type, to - base, expected - base, desired - base,
+        width, weak, success, failure));
+}
+
+inline LowerInst* fence(LowerBase base, LowerModule& module, LowerBlock& block, LowerOrder order) {
+    return block.addInst(base, new (module.arena) LowerInstFence(order));
+}
+
+inline LowerInst* spinHint(LowerBase base, LowerModule& module, LowerBlock& block) {
+    return block.addInst(base, new (module.arena) LowerInstSpinHint());
+}
+
 template<class Prepare>
 inline LowerInst* call(LowerBase base, LowerModule& module, LowerBlock& block, Size createdCount, Size usedCount, LowerCallType callType, Prepare&& prepare) {
     auto embeddedSize = sizeof(LowerValue) * createdCount + sizeof(LowerPtr<LowerValue>) * usedCount;

@@ -240,3 +240,70 @@ void moveInstToEndOf(LowerBase base, LowerInst* inst, LowerBlock* into) {
     inst->block = into - base;
     into->instructions.push(base[into->fun]->arena, inst - base);
 }
+
+/*
+ * One block cut in two after the instruction at `at`.
+ *
+ * `splitEdge` above puts an empty block on an edge that already exists; this makes an edge that did
+ * not, which is what an expansion needs when the sequence it writes contains a branch. Everything
+ * below the cut - the remaining instructions in order, and the terminator with the outgoing edges it
+ * owns - moves into the new block, and `block` is left with none, for the caller to end with the
+ * jump into whatever it is building.
+ *
+ * The three records of an edge all move together, which is the whole of the work: the successor's
+ * `incoming` entry, and any phi in the successor naming the predecessor by block. A self-loop is
+ * included in that rather than being a case - the edge back into `block` now leaves the tail, and
+ * rewriting the entry that names the predecessor is what says so.
+ *
+ * Values are not touched. Every instruction that moved keeps its readers and everything it read, and
+ * a value defined above the cut still dominates its uses below it as long as the caller's new blocks
+ * lie on every path between them - which is the caller's obligation and not something this can check.
+ */
+LowerBlock* splitBlockAfter(LowerBase base, LowerFunction& fun, LowerBlock* block, Size at) {
+    auto& arena = fun.arena;
+    auto tail = new (arena) LowerBlock(block->fun, StringId(), BlockIndex(fun.blocks.size()));
+    fun.blocks.push(arena, tail - base);
+    tail->source = block->source;
+
+    // Repeatedly the one directly below the cut, so the order is preserved without an intermediate.
+    while(block->instructions.size() > at + 1) {
+        auto inst = base[block->instructions.get(base, at + 1)];
+        block->instructions.remove(base, at + 1);
+        inst->block = tail - base;
+        tail->instructions.push(arena, inst - base);
+    }
+
+    assertTrue(block->terminator != nullptr); // a block with no terminator has no bottom half to cut off
+    auto terminator = base[block->terminator];
+    terminator->block = tail - base;
+    tail->terminator = block->terminator;
+    block->terminator = nullptr;
+
+    tail->outgoing[0] = block->outgoing[0];
+    tail->outgoing[1] = block->outgoing[1];
+    block->outgoing[0] = nullptr;
+    block->outgoing[1] = nullptr;
+
+    auto blockOffset = block - base;
+
+    for(auto successor: tail->outgoing) {
+        if(!successor) continue;
+        auto to = base[successor];
+
+        for(Size i = 0; i < to->incoming.size(); i++) {
+            if(to->incoming.get(base, i) == blockOffset) {
+                to->incoming.set(base, i, tail - base);
+                break;
+            }
+        }
+
+        for(auto p: to->phis.contents(base)) {
+            auto sources = base[p]->sources();
+            for(Size i = 0; i < sources.size(); i++) {
+                if(sources.ptr[i] == blockOffset) sources.ptr[i] = tail - base;
+            }
+        }
+    }
+
+    return tail;
+}

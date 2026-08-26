@@ -376,6 +376,11 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
                                      substituteType(module, vector->count, args, source),
                                      vector->isMask, source);
         }
+        case Type::Atomic:
+            // Where §3.2's family check is spent, for the reason a vector's lane check is spent
+            // here: `Atomic(a)` inside a generic body admitted its content unexamined, and this is
+            // the first point at which there is a content to examine.
+            return resolveAtomicType(module, substituteType(module, ((AtomicType*)global[type])->content, args, source), source);
         case Type::Borrow: {
             auto borrow = (BorrowType*)global[type];
             return resolveBorrowType(module, substituteType(module, borrow->to, args, source), borrow->mut,
@@ -539,6 +544,12 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
 
             return matchType(global, patternVector->content, concreteVector->content, bindings, rebind);
         }
+        // One child and nothing else to compare - the shape a pointer match has. An
+        // `instance Show(Atomic(a))` is what would reach here, and there is no such instance today:
+        // the type has no operation that is not a call into the `Atomic` module.
+        case Type::Atomic:
+            return matchType(global, ((AtomicType*)global[pattern])->content,
+                             ((AtomicType*)global[concrete])->content, bindings, rebind);
         case Type::Fun: {
             auto patternFun = (FunType*)global[pattern];
             auto concreteFun = (FunType*)global[concrete];
@@ -739,6 +750,122 @@ TypePtr resolveFixedArrayType(Module& module, TypePtr content, TypePtr count, Lo
     type->generic = isGeneric(base, content) || isGeneric(base, count);
 
     module.program.fixedArrayTypes.push(module.types, type - base);
+    return (Type*)type - base;
+}
+
+/*
+ * The family `Atomic(a)` admits - Analysis-Atomics.md §3.2.
+ *
+ * A closed list, and closed is the point: every admitted operation is **always lock-free**, which is
+ * a stronger contract than C++'s sometimes-lock-free generic and is only keepable by refusing the
+ * widths a target would have to synthesize with a library lock. So this answers for the integers,
+ * for `Bool`, and for a raw pointer, and for nothing else.
+ *
+ * What it refuses and why, each of which is a decision rather than an omission:
+ *
+ *   floats     a compare-exchange would have to rule on NaNs and on whether equality is numeric or
+ *              bitwise, which is semantics no current caller needs.
+ *   WideInt    its language meaning is "the widest integer that stays a host `number`", which is not
+ *              an atomic machine width on any target. `CodeUnit` is abstract for the same reason.
+ *   records    layout equality, padding, niches and future representation changes must not silently
+ *              become synchronization ABI.
+ *   references an atomic swap cannot decide who owns or reclaims the old target.
+ *
+ * A two-word value is missing from that list because it is deferred rather than refused: §5.3 wants
+ * `AtomicPair` once the allocator can express `cmpxchg16b`'s fixed register pairs.
+ */
+bool isAtomicValue(GlobalBase base, TypePtr type) {
+    if(!type) return false;
+    auto t = base[type];
+
+    /*
+     * A payload-free sum, which is where this departs from §3.2 as written.
+     *
+     * That section admits `Bool` and refuses "arbitrary records and enums", on the grounds that
+     * layout equality, padding, niches and future representation changes must not silently become
+     * synchronization ABI. Every one of those hazards is real and none of them is present here.
+     *
+     *   padding      a payload-free sum has none. It is one tag word, so a bitwise comparison in a
+     *                compare-exchange is constructor equality exactly - which is the property that
+     *                makes an aggregate unsafe to compare and this safe.
+     *   niches       a niche is spent by a *container* folding its tag into a member's spare
+     *                patterns. An atomic is never a member of one that way: `valueWidth` refuses to
+     *                call it narrow, so nothing co-packs it and nothing folds through it.
+     *   renumbering  the constructor values could change between compilations - and they could for
+     *                `Bool` too, which §3.2 admits anyway. §3.7 already states that none of this
+     *                promises a C `_Atomic` ABI; what an atomic synchronizes is one program.
+     *
+     * What it buys is the case §7 stage 7 is built around. A mutex's state word is
+     * `Idle | Locked | Contended`, and a state machine driven by compare-exchange is the reason to
+     * have compare-exchange. Refusing the enum would mean storing an `Int` and converting at every
+     * access, which is the *same bits* with the type checking turned off.
+     *
+     * `Bool` needs no case of its own because it is one of these: two payload-free constructors in
+     * one byte, which is §3.1's "one byte containing zero or one" arrived at by the general rule.
+     */
+    if(t->kind == Type::Record) return ((RecordType*)t)->layout == RecordType::Enum;
+
+
+    // A raw pointer, for load, store, exchange and compare only. The arithmetic subset below
+    // excludes it, which is what stops an address being incremented atomically - a provenance
+    // question this IR has no answer for.
+    if(t->kind == Type::Ptr) return true;
+    if(t->kind != Type::Int) return false;
+
+    auto i = (IntType*)t;
+
+    /*
+     * The target-word integers are admitted and the abstract *narrow* one is not, and the asymmetry
+     * is real. `Size` is a machine word on every target this compiles for, so the access width is
+     * whatever that target's word is and is always one the machine performs indivisibly; `CodeUnit`
+     * is eight bits or sixteen, and while both of those are atomic widths, a program that stored one
+     * would have an ABI that changed shape per target for no gain.
+     */
+    if(i->target == TargetInt::CodeUnit) return false;
+    if(i->target == TargetInt::Word) return true;
+
+    // And the `@bits(n)` refinements: `WideInt` is the one this rejects, and it is rejected by its
+    // width rather than by its name - a 53-bit value is not a machine access.
+    switch(i->bits) {
+        case 1: case 8: case 16: case 32: case 64: return true;
+        default: return false;
+    }
+}
+
+// `AtomicInteger(a)` - the arithmetic and bitwise subset. `Bool` is out because incrementing a flag
+// is not an operation, and a pointer is out for the provenance reason above.
+bool isAtomicInteger(GlobalBase base, TypePtr type) {
+    if(!isAtomicValue(base, type)) return false;
+
+    auto t = base[type];
+    if(t->kind != Type::Int) return false;
+    return ((IntType*)t)->bits != 1;
+}
+
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1.
+ *
+ * Interned on the content, and the one place §3.2's family is enforced. A generic content defers
+ * that check to substitution exactly as a vector's lane does, and what is kept in the meantime is
+ * what was written - so `Atomic(a)` inside a generic body is one type and stays one.
+ */
+TypePtr resolveAtomicType(Module& module, TypePtr content, LocationId source) {
+    auto base = *module.types;
+    if(!content || base[content]->kind == Type::Error) return module.scalar.error;
+
+    if(!isGeneric(base, content) && !isAtomicValue(base, content)) {
+        module.context.diagnostics.error("an atomic holds an integer, an enumeration with no payload, or a raw pointer"_v, source);
+        return module.scalar.error;
+    }
+
+    for(auto atomic: module.program.atomicTypes.contents(base)) {
+        if(base[atomic]->content == content) return (Type*)base[atomic] - base;
+    }
+
+    auto type = new (module.types) AtomicType(content);
+    type->generic = isGeneric(base, content);
+
+    module.program.atomicTypes.push(module.types, type - base);
     return (Type*)type - base;
 }
 

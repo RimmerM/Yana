@@ -117,12 +117,15 @@ ast::ModuleGroup* findLibraryModule(Program& program, StringId name) {
  * different: both missing is a library that was not found, and one missing is a library that is
  * incomplete, and only the second identifies itself.
  */
-ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name) {
+ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name, bool required) {
     auto& context = program.context;
     auto id = context.addQualifiedName(name.ptr, name.length);
     auto group = parseLibraryGroup(program, id, true);
 
-    if(!group) {
+    // A module every target has, absent, is a broken library and is reported. One that exists only
+    // on some targets is a different thing: `Atomic` has a single `.native.yana` file, so on a JS
+    // build the selector leaves it with none and the module simply does not exist there (§5.4).
+    if(!group && required) {
         context.diagnostics.error("cannot read the standard library module %@ - looked in %@. Pass -lib with the directory holding Core/Core.yana, or set YANA_LIB."_v,
                                   nullptr, toString(name), context.library.directory(context));
     }
@@ -621,6 +624,32 @@ void definePreludeTypes(Program& program, Module& core, TypeList& widthTypes) {
         count->constType = program.scalar.int_;
         count->def = constType(*module, 0, program.scalar.int_);
         env->types.push(module->types, count - *module->types);
+    }
+
+    /*
+     * `Atomic(a)` - Analysis-Atomics.md §3.1.
+     *
+     * A third constructor with no declaration, beside `Vec` and `Mask` and for a different reason:
+     * what an `Atomic(Int)` *is* could be written down perfectly well, and what cannot be written is
+     * that it is not `TrivialCopy` while its content is. So the name is interned here, `resolveApp`
+     * recognizes it after the ordinary lookup - a program declaring its own `Atomic` shadows it -
+     * and `foldOwnership` states the four properties §3.1 lists.
+     *
+     * In Core rather than in the `Atomic` module, because a name a *type* resolves by has to be
+     * reachable from every module that names the type, and module-scoped type constructors with no
+     * declaration are not something the lookup path has. What the `Atomic` module holds is every
+     * operation, and each of those is `@platform(native)`.
+     */
+    program.atomicTypeName = context.addQualifiedName("Atomic", 6, 1);
+
+    {
+        auto env = new (module->types) GenEnv(GenEnv::Record);
+        program.atomicGen = env - *module->types;
+        env->module = module;
+        env->defaultsResolved = true;
+
+        auto content = new (module->types) GenType(program.atomicGen, context.addUnqualifiedName("a", 1), 0);
+        env->types.push(module->types, content - *module->types);
     }
 
     program.scalar.signedLanes[0] = coreType(*module, "I8"_v);

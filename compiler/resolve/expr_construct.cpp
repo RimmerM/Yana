@@ -614,6 +614,7 @@ void ExprResolver::buildAggregate(Place place, TypePtr element, Buffer<ModulePtr
         auto value = convert(values[i], element, source);
         if(!value) continue;
 
+        recordTransfer(value);
         aggregate->components.push(module.arena, AggregateComponent {
             Projection { ProjectionKind::Index, 0, makeInt(source, indexType, i) }, value });
     }
@@ -774,6 +775,13 @@ Maybe<Place> ExprResolver::boxOf(const Place& place) {
     return Just(prefixOf(count - 1));
 }
 
+#if defined(_DEBUG) || defined(DEBUG)
+void ExprResolver::recordTransfer(ModulePtr<Value> value) {
+    if(!recordingSinks || !value) return;
+    if(auto place = findPlace(value)) sunkPlaces.push(place.unwrap());
+}
+#endif
+
 void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source, Value::Kind kind) {
     if(isUnit(global, placeType(place))) return;
 
@@ -794,6 +802,10 @@ void ExprResolver::write(Place place, ModulePtr<Value> value, LocationId source,
     if(kind == Value::Init) {
         if(auto box = boxOf(place)) createBox(box.unwrap(), placeType(place), source);
     }
+
+    // The hand-over this write performs, for expandIntrinsic's `->` check - see expr.h. Recorded
+    // where analyzeEffects reads it from, so that the two cannot drift apart silently.
+    recordTransfer(value);
 
     emit<InstInit>(source, StringId(), module.scalar.unit, place, value, kind);
 }
@@ -1110,6 +1122,11 @@ ModulePtr<Value> ExprResolver::sinkValue(ModulePtr<Value> value, LocationId sour
     auto type = valueType(value);
     auto place = findPlace(value);
     if(!place) return value;
+
+    // For expandIntrinsic's check that a declared `->` position was actually sunk - see expr.h.
+    // Recorded here rather than at the two emitting branches below, so that what it answers is
+    // "was this storage sunk at all" and not a second copy of the decision those branches make.
+    recordSink(place.unwrap());
 
     // Asked of the *context* rather than of the type, because a type variable's answer belongs to
     // the signature that introduced it: an unconstrained `a` is non-TrivialCopy inside this body

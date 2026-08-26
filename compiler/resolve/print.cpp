@@ -254,6 +254,24 @@ static StringView instructionName(Value& value, GlobalBase global) {
                 case TypeMetricKind::ByteOrder: return "byteorder"_v;
             }
             break;
+        // The atomics, whose mnemonic is which operation it is - the order is written beside the
+        // operands below, because five names per operation would be thirty spellings of six
+        // instructions. See nameForInst in lower_print.cpp, which draws the same line.
+        case Value::Atomic:
+            switch(((InstAtomic&)value).kind) {
+                case AtomicKind::Load:     return "atomicload"_v;
+                case AtomicKind::Store:    return "atomicstore"_v;
+                case AtomicKind::Exchange: return "atomicxchg"_v;
+                case AtomicKind::Add:      return "atomicadd"_v;
+                case AtomicKind::Sub:      return "atomicsub"_v;
+                case AtomicKind::And:      return "atomicand"_v;
+                case AtomicKind::Or:       return "atomicor"_v;
+                case AtomicKind::Xor:      return "atomicxor"_v;
+                case AtomicKind::Compare:  return ((InstAtomic&)value).weak ? "atomiccasweak"_v : "atomiccas"_v;
+                case AtomicKind::Fence:    return "fence"_v;
+                case AtomicKind::SpinHint: return "spinhint"_v;
+            }
+            break;
         case Value::Native:
             switch(((InstNative&)value).op) {
                 case NativeOp::CopyMemory: return "copymemory"_v;
@@ -462,6 +480,45 @@ static void printInstruction(ResolvePrint& print, Inst& inst) {
 
             break;
         }
+        case Value::Atomic: {
+            auto& atomic = (InstAtomic&)inst;
+            Size index = 0;
+
+            for(auto arg: atomic.args.contents(print.local)) {
+                print.writer.writeString(index++ ? ", "_v : " "_v);
+                printValue(print, *print.local[arg]);
+            }
+
+            // The order after the operands, which is where the lower IR writes it too. Both orders
+            // on a compare-exchange, always - §3.5's projection is a rule about what a caller may
+            // leave unsaid, and a dump should say what the failure path does rather than what it
+            // can be computed to do.
+            auto orderName = [](AtomicOrder order) {
+                switch(order) {
+                    case AtomicOrder::Relaxed:        return "relaxed"_v;
+                    case AtomicOrder::Acquire:        return "acquire"_v;
+                    case AtomicOrder::Release:        return "release"_v;
+                    case AtomicOrder::AcquireRelease: return "acq_rel"_v;
+                    case AtomicOrder::Sequential:     return "seq_cst"_v;
+                }
+
+                return "relaxed"_v;
+            };
+
+            print.writer.writeString(index ? ", "_v : " "_v);
+            print.writer.writeString(orderName(atomic.order));
+
+            if(atomic.kind == AtomicKind::Compare) {
+                print.writer.writeString(", "_v);
+                print.writer.writeString(orderName(atomic.failure));
+            }
+
+            break;
+        }
+        case Value::AtomicOk:
+            print.writer.writeByte(' ');
+            printValue(print, *print.local[((InstAtomicOk&)inst).cas]);
+            break;
         case Value::Cast:
         case Value::Bitcast:
         case Value::Neg:

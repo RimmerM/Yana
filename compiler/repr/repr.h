@@ -638,6 +638,9 @@ private:
     bool computeInlineContainer(TupType& tuple, Repr& into);
     void computeFixedArray(ArrayType& array, Repr& into);
     void computeVector(VectorType& vector, Repr& into);
+
+    // `Atomic(a)` - the content's size, aligned to that size. See the definition.
+    void computeAtomic(AtomicType& atomic, Repr& into);
     void computeString(TypePtr type, Repr& into);
     bool foldNiche(RecordType& record, Repr& into);
     bool scalarizeSum(RecordType& record, Repr& into, U32 payloadSize, U32 payloadAlign);

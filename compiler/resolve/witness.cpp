@@ -1264,6 +1264,8 @@ static bool erasedVectorIn(GlobalBase global, TypePtr type) {
             return true;
         case Type::Array:
             return erasedVectorIn(global, ((ArrayType*)global[type])->content);
+        case Type::Atomic:
+            return erasedVectorIn(global, ((AtomicType*)global[type])->content);
         case Type::Ptr:
             return erasedVectorIn(global, ((PtrType*)global[type])->to);
         case Type::Borrow:

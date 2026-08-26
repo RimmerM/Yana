@@ -1,0 +1,457 @@
+let image$base: () = <none>
+
+fn basics() -> Int {
+  b0:
+    %c = alloc : Atomic(Int)
+    %v3 = addressof %local0 : %Atomic(Int)
+    %v4 = bitcast %v3 : %Int
+    assign [%v4], 0
+    %v9 = addressof %local0 : %Atomic(Int)
+    atomicstore %v9, 7, release
+    %v12 = addressof %local0 : %Atomic(Int)
+    %seen = atomicload %v12, acquire : Int
+    %v17 = addressof %local0 : %Atomic(Int)
+    %previous = atomicxchg %v17, 9, acq_rel : Int
+    %v19 = add %seen, %previous : Int
+    %c = move %local0 : Atomic(Int)
+    %v21 = alloc : Atomic(Int)
+    init %local1, %c
+    %v23 = addressof %local1 : %Atomic(Int)
+    %v24 = bitcast %v23 : %Int
+    %v25 = load [%v24] : Int
+    %v26 = add %v19, %v25 : Int
+    ret %v26
+}
+
+fn counters() -> Int {
+  b0:
+    %c = alloc : Atomic(Int)
+    %v3 = addressof %local0 : %Atomic(Int)
+    %v4 = bitcast %v3 : %Int
+    assign [%v4], 1
+    %v9 = addressof %local0 : %Atomic(Int)
+    %a = atomicadd %v9, 4, relaxed : Int
+    %v14 = addressof %local0 : %Atomic(Int)
+    %s = atomicsub %v14, 2, acquire : Int
+    %v19 = addressof %local0 : %Atomic(Int)
+    %n = atomicand %v19, 255, release : Int
+    %v24 = addressof %local0 : %Atomic(Int)
+    %o = atomicor %v24, 16, acq_rel : Int
+    %v29 = addressof %local0 : %Atomic(Int)
+    %x = atomicxor %v29, 1, seq_cst : Int
+    %v31 = add %a, %s : Int
+    %v32 = add %v31, %n : Int
+    %v33 = add %v32, %o : Int
+    %v34 = add %v33, %x : Int
+    ret %v34
+}
+
+fn compare() -> Int {
+  b0:
+    %c = alloc : Atomic(Int)
+    %v3 = addressof %local0 : %Atomic(Int)
+    %v4 = bitcast %v3 : %Int
+    assign [%v4], 5
+    %v12 = addressof %local0 : %Atomic(Int)
+    %v11 = atomiccas %v12, 5, 6, acq_rel, acquire : Int
+    %v13 = atomicok %v11 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = alloc : ExchangeResult(Int)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b2:
+    %v18 = alloc : ExchangeResult(Int)
+    aggregate %local2.discriminant = 1, %local2@Unchanged = %v11
+    jmp b3
+
+  b3:
+    %v23 = phi [b1, %v15], [b2, %v18] : ExchangeResult(Int)
+    %v24 = load %local3.discriminant : Int
+    %v26 = cmp_eq %v24, 0 : Bool
+    je %v26, b5, b4
+
+  b4:
+    %actual = load %local3@Unchanged : Int
+    ret %actual
+
+  b5:
+    ret 1
+}
+
+fn retry() -> Int {
+  b0:
+    %c = alloc : Atomic(Int)
+    %v3 = addressof %local0 : %Atomic(Int)
+    %v4 = bitcast %v3 : %Int
+    assign [%v4], 0
+    %v12 = addressof %local0 : %Atomic(Int)
+    %v11 = atomiccasweak %v12, 0, 1, release, relaxed : Int
+    %v13 = atomicok %v11 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = alloc : ExchangeResult(Int)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b2:
+    %v18 = alloc : ExchangeResult(Int)
+    aggregate %local2.discriminant = 1, %local2@Unchanged = %v11
+    jmp b3
+
+  b3:
+    %v23 = phi [b1, %v15], [b2, %v18] : ExchangeResult(Int)
+    %v24 = load %local3.discriminant : Int
+    %v26 = cmp_eq %v24, 0 : Bool
+    je %v26, b5, b4
+
+  b4:
+    %v28 = load %local3@Unchanged : Int
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v38 = addressof %local0 : %Atomic(Int)
+    %v37 = atomiccas %v38, 1, 2, seq_cst, acquire : Int
+    %v39 = atomicok %v37 : Bool
+    je %v39, b7, b8
+
+  b7:
+    %v41 = alloc : ExchangeResult(Int)
+    init %local4.discriminant, 0
+    jmp b9
+
+  b8:
+    %v44 = alloc : ExchangeResult(Int)
+    aggregate %local5.discriminant = 1, %local5@Unchanged = %v37
+    jmp b9
+
+  b9:
+    %v49 = phi [b7, %v41], [b8, %v44] : ExchangeResult(Int)
+    %v50 = load %local6.discriminant : Int
+    %v52 = cmp_eq %v50, 0 : Bool
+    je %v52, b11, b10
+
+  b10:
+    %actual = load %local6@Unchanged : Int
+    ret %actual
+
+  b11:
+    ret 2
+}
+
+fn ordering() -> Int {
+  b0:
+    %c = alloc : Atomic(Int)
+    %v3 = addressof %local0 : %Atomic(Int)
+    %v4 = bitcast %v3 : %Int
+    assign [%v4], 0
+    %v9 = addressof %local0 : %Atomic(Int)
+    atomicstore %v9, 1, relaxed
+    fence release
+    spinhint relaxed
+    %v15 = addressof %local0 : %Atomic(Int)
+    %v16 = atomicload %v15, relaxed : Int
+    ret %v16
+}
+
+fn widths(%p: %U8) -> Long {
+  b0:
+    %byte = alloc : Atomic(U8)
+    %v3 = addressof %local0 : %Atomic(U8)
+    %v4 = bitcast %v3 : %U8
+    assign [%v4], 1
+    %half = alloc : Atomic(U16)
+    %v8 = addressof %local1 : %Atomic(U16)
+    %v9 = bitcast %v8 : %U16
+    assign [%v9], 2
+    %word = alloc : Atomic(U32)
+    %v13 = addressof %local2 : %Atomic(U32)
+    %v14 = bitcast %v13 : %U32
+    assign [%v14], 3
+    %long = alloc : Atomic(I64)
+    %v18 = addressof %local3 : %Atomic(I64)
+    %v19 = bitcast %v18 : %I64
+    assign [%v19], 4
+    %flag = alloc : Atomic(Bool)
+    %v23 = addressof %local4 : %Atomic(Bool)
+    %v24 = bitcast %v23 : %Bool
+    assign [%v24], True
+    %address = alloc : Atomic(%U8)
+    %v27 = addressof %local5 : %Atomic(%U8)
+    %v28 = bitcast %v27 : %%U8
+    assign [%v28], %p
+    %v33 = addressof %local0 : %Atomic(U8)
+    atomicstore %v33, 9, release
+    %v38 = addressof %local1 : %Atomic(U16)
+    atomicstore %v38, 9, release
+    %v43 = addressof %local2 : %Atomic(U32)
+    atomicstore %v43, 9, release
+    %v47 = addressof %local4 : %Atomic(Bool)
+    atomicstore %v47, False, release
+    %v50 = addressof %local5 : %Atomic(%U8)
+    %v51 = atomicxchg %v50, %p, acq_rel : %U8
+    %v55 = addressof %local3 : %Atomic(I64)
+    %v56 = atomicadd %v55, 1, relaxed : I64
+    %v57 = cast %v56 : Long
+    ret %v57
+}
+
+fn lock() -> State {
+  b0:
+    %state = alloc : Atomic(State)
+    %v2 = addressof %local0 : %Atomic(State)
+    %v3 = bitcast %v2 : %State
+    assign [%v3], Idle
+    %v9 = addressof %local0 : %Atomic(State)
+    %v8 = atomiccas %v9, Idle, Locked, acquire, acquire : State
+    %v10 = atomicok %v8 : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v12 = alloc : ExchangeResult(State)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b2:
+    %v15 = alloc : ExchangeResult(State)
+    aggregate %local2.discriminant = 1, %local2@Unchanged = %v8
+    jmp b3
+
+  b3:
+    %v20 = phi [b1, %v12], [b2, %v15] : ExchangeResult(State)
+    %v21 = load %local3.discriminant : Int
+    %v23 = cmp_eq %v21, 0 : Bool
+    je %v23, b5, b4
+
+  b4:
+    %actual = load %local3@Unchanged : State
+    ret %actual
+
+  b5:
+    ret Locked
+}
+
+fn classify() -> Code {
+  b0:
+    %c = alloc : Atomic(Code)
+    %v2 = addressof %local0 : %Atomic(Code)
+    %v3 = bitcast %v2 : %Code
+    assign [%v3], Ok
+    %v7 = addressof %local0 : %Atomic(Code)
+    atomicstore %v7, 1000, relaxed
+    %v11 = addressof %local0 : %Atomic(Code)
+    %previous = atomicxchg %v11, 60000, acq_rel : Code
+    %v17 = addressof %local0 : %Atomic(Code)
+    %v16 = atomiccas %v17, 60000, Ok, seq_cst, seq_cst : Code
+    %v18 = atomicok %v16 : Bool
+    je %v18, b1, b2
+
+  b1:
+    %v20 = alloc : ExchangeResult(Code)
+    init %local1.discriminant, 0
+    jmp b3
+
+  b2:
+    %v23 = alloc : ExchangeResult(Code)
+    aggregate %local2.discriminant = 1, %local2@Unchanged = %v16
+    jmp b3
+
+  b3:
+    %v28 = phi [b1, %v20], [b2, %v23] : ExchangeResult(Code)
+    %v29 = load %local3.discriminant : Int
+    %v31 = cmp_eq %v29, 0 : Bool
+    je %v31, b5, b4
+
+  b4:
+    %actual = load %local3@Unchanged : Code
+    ret %actual
+
+  b5:
+    ret %previous
+}
+
+fn wide() -> Wide {
+  b0:
+    %w = alloc : Atomic(Wide)
+    %v2 = addressof %local0 : %Atomic(Wide)
+    %v3 = bitcast %v2 : %Wide
+    assign [%v3], Low
+    %v7 = addressof %local0 : %Atomic(Wide)
+    %v8 = atomicxchg %v7, 4000000000, relaxed : Wide
+    %v10 = addressof %local0 : %Atomic(Wide)
+    %v11 = atomicload %v10, acquire : Wide
+    ret %v11
+}
+
+fn narrow() -> Long {
+  b0:
+    %byte = alloc : Atomic(U8)
+    %v3 = addressof %local0 : %Atomic(U8)
+    %v4 = bitcast %v3 : %U8
+    assign [%v4], 250
+    %half = alloc : Atomic(U16)
+    %v8 = addressof %local1 : %Atomic(U16)
+    %v9 = bitcast %v8 : %U16
+    assign [%v9], 1000
+    %v13 = sub %zero, 5 : I8
+    %signed = alloc : Atomic(I8)
+    %v15 = addressof %local2 : %Atomic(I8)
+    %v16 = bitcast %v15 : %I8
+    assign [%v16], %v13
+    %v21 = addressof %local0 : %Atomic(U8)
+    %a = atomicsub %v21, 10, relaxed : U8
+    %v26 = addressof %local1 : %Atomic(U16)
+    %b = atomicxor %v26, 61680, acquire : U16
+    %v30 = sub %zero, 1 : I8
+    %v32 = addressof %local2 : %Atomic(I8)
+    %c = atomicadd %v32, %v30, release : I8
+    %v36 = sub %zero, 6 : I8
+    %v39 = sub %zero, 7 : I8
+    %v42 = addressof %local2 : %Atomic(I8)
+    %v41 = atomiccas %v42, %v36, %v39, seq_cst, seq_cst : I8
+    %v43 = atomicok %v41 : Bool
+    je %v43, b1, b2
+
+  b1:
+    %v45 = alloc : ExchangeResult(I8)
+    init %local3.discriminant, 0
+    jmp b3
+
+  b2:
+    %v48 = alloc : ExchangeResult(I8)
+    aggregate %local4.discriminant = 1, %local4@Unchanged = %v41
+    jmp b3
+
+  b3:
+    %v53 = phi [b1, %v45], [b2, %v48] : ExchangeResult(I8)
+    %v54 = load %local5.discriminant : Int
+    %v56 = cmp_eq %v54, 0 : Bool
+    je %v56, b5, b4
+
+  b4:
+    %actual = load %local5@Unchanged : I8
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %d = phi [b5, %zero], [b4, %actual] : I8
+    %v62 = cast %a : I64
+    %v63 = cast %b : I64
+    %v64 = add %v62, %v63 : I64
+    %v65 = cast %c : I64
+    %v66 = add %v64, %v65 : I64
+    %v67 = cast %d : I64
+    %v68 = add %v66, %v67 : I64
+    %v69 = cast %v68 : Long
+    ret %v69
+}
+
+fn viewed(%p: %U8) -> Int {
+  b0:
+    %v1 = bitcast %p : %Atomic(Int)
+    %v2 = borrow [%v1] : 'Atomic(Int)
+    %v3 = bitcast %p : %Atomic(Int)
+    %v4 = borrow [%v3] : 'Atomic(Int)
+    %v5 = load [%v2] : Atomic(Int)
+    %v9 = addressof [%v2] : %Atomic(Int)
+    atomicstore %v9, 1, release
+    %v11 = load [%v4] : Atomic(Int)
+    %v15 = addressof [%v4] : %Atomic(Int)
+    %bumped = atomicadd %v15, 2, acq_rel : Int
+    %v17 = load [%v2] : Atomic(Int)
+    %v19 = addressof [%v2] : %Atomic(Int)
+    %v20 = atomicload %v19, acquire : Int
+    %v21 = add %bumped, %v20 : Int
+    ret %v21
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = bitcast 0 : %U8
+    %v2 = call widths, %v1 : Long
+    %v5 = cmp_gt %v2, 0 : Bool
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %widthSum = phi [b1, 1], [b2, 0] : Int
+    %v14 = call lock : State
+    %v16 = cmp_eq %v14, Locked : Bool
+    je %v16, b4, b5
+
+  b4:
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %locked = phi [b4, 1], [b5, 0] : Int
+    %v25 = call classify : Code
+    %v27 = cmp_eq %v25, 1000 : Bool
+    je %v27, b7, b8
+
+  b7:
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %retried = phi [b7, 1], [b8, 0] : Int
+    %v36 = call wide : Wide
+    %v38 = cmp_eq %v36, 4000000000 : Bool
+    je %v38, b10, b11
+
+  b10:
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %high = phi [b10, 1], [b11, 0] : Int
+    %v47 = call narrow : Long
+    %v50 = cmp_gt %v47, 0 : Bool
+    je %v50, b13, b14
+
+  b13:
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %narrowed = phi [b13, 1], [b14, 0] : Int
+    %v60 = bitcast 0 : %U8
+    %seen = call viewed, %v60 : Int
+    %v62 = call basics : Int
+    %v63 = call counters : Int
+    %v64 = add %v62, %v63 : Int
+    %v65 = call compare : Int
+    %v66 = add %v64, %v65 : Int
+    %v67 = call retry : Int
+    %v68 = add %v66, %v67 : Int
+    %v69 = call ordering : Int
+    %v70 = add %v68, %v69 : Int
+    %v71 = add %v70, %widthSum : Int
+    %v72 = add %v71, %locked : Int
+    %v73 = add %v72, %retried : Int
+    %v74 = add %v73, %high : Int
+    %v75 = add %v74, %narrowed : Int
+    %v76 = add %v75, %seen : Int
+    ret %v76
+}

@@ -74,6 +74,10 @@ void replaceAllUses(LowerBase base, LowerValue* from, LowerValue* to);
 // Moves an instruction to just above `into`'s terminator.
 void moveInstToEndOf(LowerBase base, LowerInst* inst, LowerBlock* into);
 
+// Cuts `block` in two after the instruction at `at`, and answers the new block holding everything
+// below the cut. `block` is left with no terminator, for the caller to give it one.
+LowerBlock* splitBlockAfter(LowerBase base, LowerFunction& fun, LowerBlock* block, Size at);
+
 // Where an instruction sits in its own block, or nothing if it is not in one.
 Maybe<Size> positionOf(LowerBase base, LowerBlock* block, LowerInst* inst);
 
@@ -294,6 +298,10 @@ void expandRoundAway(Context&, LowerBase base, LowerFunction& fun);
 // note on the pass.
 void dropUnsupportedVectorResets(Context&, LowerBase base, LowerFunction& fun);
 void expandBitScans(Context&, LowerBase base, LowerFunction& fun);
+
+// The atomics whose x86 instruction is not the one the IR names - see the definition, where the
+// sequential store's rewrite into an exchange is argued.
+void expandAtomics(Context&, LowerBase base, LowerFunction& fun);
 
 // The three operations BMI2 has an instruction for and the floor does not - `bitsUpTo` and the two
 // directions of a bit permutation. See the header above the pass.

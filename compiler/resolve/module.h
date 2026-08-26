@@ -1134,6 +1134,12 @@ struct Program {
     // same shape the fixed array above is interned in, and for the same reason.
     GlobalList<GlobalPtr<VectorType>> vectorTypes;
 
+    // `Atomic(a)`, interned on its content alone - Analysis-Atomics.md §3.1. The same shape the two
+    // above are interned in, and there is nothing else to key on: an atomic's width and alignment
+    // are its content's, and the ordering is a property of each operation rather than of the
+    // location.
+    GlobalList<GlobalPtr<AtomicType>> atomicTypes;
+
     // The numbers written in the count positions above - Implementation-Const-Generics.md §2.1.
     // Interned on the value and the type it is a value of, so that the count in `[Int *4]` and the
     // one in `Vec(Float, 4)` are one TypePtr and a count position compares by pointer.
@@ -1157,6 +1163,24 @@ struct Program {
      */
     StringId vecTypeName {};
     StringId maskTypeName {};
+
+    /*
+     * And `Atomic`, on exactly the same terms - Analysis-Atomics.md §3.1.
+     *
+     * A third constructor with no declaration behind it, for a different reason than the two above:
+     * what an `Atomic(Int)` *is* is perfectly writable, and what cannot be written is that it is not
+     * `TrivialCopy` while its content is. `resolveApp` compares against this after the ordinary
+     * lookup, so a program that declares its own `Atomic` shadows it.
+     *
+     * Interned by `definePreludeTypes` and null until it has run. Native only: the `Atomic` module
+     * declares every operation `@platform(native)`, so a JS build resolves the type and finds
+     * nothing that operates on it - see §5.4.
+     */
+    StringId atomicTypeName {};
+
+    // The parameter list it is applied through - `(a)`. Built beside `vectorGen` and for its
+    // reason: the arity rule and the message an arity mistake gives are the general ones.
+    GlobalPtr<GenEnv> atomicGen = nullptr;
 
     /*
      * The parameter list both of them are applied through - `(a, n: Int = 0)`.

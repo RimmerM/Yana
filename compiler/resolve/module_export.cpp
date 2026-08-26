@@ -94,6 +94,7 @@ static TypePtr privateTypeIn(GlobalBase global, TypePtr type) {
             if(auto found = privateTypeIn(global, vector->count)) return found;
             return privateTypeIn(global, vector->content);
         }
+        case Type::Atomic: return privateTypeIn(global, ((AtomicType*)global[type])->content);
         case Type::Borrow: return privateTypeIn(global, ((BorrowType*)global[type])->to);
         case Type::Fun: {
             auto function = (FunType*)global[type];

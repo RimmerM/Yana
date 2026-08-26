@@ -164,6 +164,23 @@ MachineTarget::MachineTarget() {
     name(OpStoreAnd, "storeand"_v);
     name(OpStoreOr, "storeor"_v);
     name(OpStoreXor, "storexor"_v);
+
+    /*
+     * The atomics. Every one of them writes the flags at every form it has except the two that
+     * encode no arithmetic at all, and none of them lets a comparison be folded into it - see
+     * OpLockAdd, where the difference from the five above is argued.
+     */
+    name(OpXchg, "xchg"_v);
+    name(OpCmpXchg, "cmpxchg"_v);
+    name(OpXAdd, "xadd"_v);
+    name(OpLockAdd, "lockadd"_v);
+    name(OpLockSub, "locksub"_v);
+    name(OpLockAnd, "lockand"_v);
+    name(OpLockOr, "lockor"_v);
+    name(OpLockXor, "lockxor"_v);
+    name(OpFence, "fence"_v);
+    name(OpSpinHint, "spinhint"_v);
+
     name(OpBlockCopy, "blockcopy"_v);
     name(OpBlockSet, "blockset"_v);
     name(OpCall, "call"_v);

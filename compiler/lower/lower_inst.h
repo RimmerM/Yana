@@ -53,6 +53,172 @@ inline LowerCmp negatedCmp(LowerCmp cmp) {
     return cmp;
 }
 
+/*
+ * How much of the rest of memory an atomic operation orders - Analysis-Atomics.md §3.3.
+ *
+ * One enum here where the library has four types. `LoadOrder`, `StoreOrder`, `UpdateOrder` and
+ * `FenceOrder` exist so that `store(x, LoadAcquire)` does not typecheck, which is a statement about
+ * what a *caller* may write; by the time an operation reaches this IR the pairing has already been
+ * decided and what is left is the one fact every consumer reads, which is how strong the edge is.
+ * Four enums here would mean four switches in every backend agreeing on five cases.
+ *
+ * The subset each instruction admits is therefore a verifier rule rather than a type - see
+ * `isLoadOrder` and the three below it, and `validateAtomicLoad` and its neighbours in
+ * lower_validate.cpp, which is where a `atomic_store %p, %v, 4, acquire` is refused.
+ *
+ * No `consume`. C++ has never had an implementation that did not promote it to `acquire`, and its
+ * dependency-tracking rule is a whole second aliasing discipline for one algorithm shape.
+ */
+enum class LowerOrder: U8 {
+    // Only this location's own modification order. Publishes nothing else.
+    Relaxed,
+
+    // After observing a matching release, whatever that release published is visible from here on.
+    Acquire,
+
+    // What is sequenced before this becomes visible to a matching acquire.
+    Release,
+
+    // Both halves. A read-modify-write only: there is no load that releases and no store that
+    // acquires, which is what `isLoadOrder` and `isStoreOrder` say.
+    AcquireRelease,
+
+    // Both halves as applicable, plus membership of the one total order every sequential operation
+    // in the program shares. The only order that gives the store-buffer counterexample in §4.4 an
+    // answer, and the only one that costs an instruction on x86 where the others do not.
+    Sequential,
+};
+
+inline StringView nameForOrder(LowerOrder order) {
+    switch(order) {
+        case LowerOrder::Relaxed:        return "relaxed"_v;
+        case LowerOrder::Acquire:        return "acquire"_v;
+        case LowerOrder::Release:        return "release"_v;
+        case LowerOrder::AcquireRelease: return "acq_rel"_v;
+        case LowerOrder::Sequential:     return "seq_cst"_v;
+    }
+
+    return "relaxed"_v;
+}
+
+// Whether this order has an acquire half - true of `Acquire`, `AcquireRelease` and `Sequential`.
+// What a backend asks when deciding whether a barrier is needed after the access.
+inline bool isAcquireOrder(LowerOrder order) {
+    return order == LowerOrder::Acquire || order == LowerOrder::AcquireRelease
+        || order == LowerOrder::Sequential;
+}
+
+// Whether this order has a release half. The mirror of the above, and asked before the access.
+inline bool isReleaseOrder(LowerOrder order) {
+    return order == LowerOrder::Release || order == LowerOrder::AcquireRelease
+        || order == LowerOrder::Sequential;
+}
+
+// The three a load may carry. A load performs no write, so `Release` and `AcquireRelease` would be
+// ordering an effect that does not exist.
+inline bool isLoadOrder(LowerOrder order) {
+    return order == LowerOrder::Relaxed || order == LowerOrder::Acquire
+        || order == LowerOrder::Sequential;
+}
+
+// The three a store may carry, for the reason above read the other way round.
+inline bool isStoreOrder(LowerOrder order) {
+    return order == LowerOrder::Relaxed || order == LowerOrder::Release
+        || order == LowerOrder::Sequential;
+}
+
+// A read-modify-write admits all five: it both reads and writes, so either half is meaningful and
+// so is neither.
+inline bool isUpdateOrder(LowerOrder) {
+    return true;
+}
+
+// A fence admits four. There is no relaxed fence: an operation whose entire content is an ordering
+// edge, carrying the order that adds no edge, is a written statement that does nothing.
+inline bool isFenceOrder(LowerOrder order) {
+    return order != LowerOrder::Relaxed;
+}
+
+/*
+ * The order the failed comparison of a compare-exchange performs - Analysis-Atomics.md §3.5.
+ *
+ * A failure performs no write, so a release half has nothing to order and is dropped; everything
+ * else is carried across. This is the same projection C++ uses for its one-order overload, and it
+ * is here rather than in the library because the two-order form in `Advanced` reaches the same
+ * instruction and the verifier has to hold both to one rule.
+ */
+inline LowerOrder failureOrderFor(LowerOrder success) {
+    switch(success) {
+        case LowerOrder::Relaxed:        return LowerOrder::Relaxed;
+        case LowerOrder::Acquire:        return LowerOrder::Acquire;
+        case LowerOrder::Release:        return LowerOrder::Relaxed;
+        case LowerOrder::AcquireRelease: return LowerOrder::Acquire;
+        case LowerOrder::Sequential:     return LowerOrder::Sequential;
+    }
+
+    return LowerOrder::Relaxed;
+}
+
+/*
+ * Whether an explicitly stated failure order is legal beside this success order - §3.5's table.
+ *
+ * The rule is that the failure order may not be stronger than the success order, where "stronger"
+ * is the ordering `relaxed < acquire < sequential` on the three a load may carry. A failure path
+ * that synchronized more than the successful one would be a compare-exchange whose *loss* published
+ * more than its win, which no algorithm wants and no target implements without the strong form.
+ */
+inline bool isLegalFailureOrder(LowerOrder success, LowerOrder failure) {
+    if(!isLoadOrder(failure)) return false;
+
+    switch(success) {
+        case LowerOrder::Relaxed:
+            return failure == LowerOrder::Relaxed;
+        case LowerOrder::Acquire:
+        case LowerOrder::AcquireRelease:
+            return failure == LowerOrder::Relaxed || failure == LowerOrder::Acquire;
+        case LowerOrder::Release:
+            return failure == LowerOrder::Relaxed;
+        case LowerOrder::Sequential:
+            return true;
+    }
+
+    return false;
+}
+
+/*
+ * Which read-modify-write an `AtomicRmw` performs - Analysis-Atomics.md §3.4.
+ *
+ * Six rather than the five fetch operations, because an exchange is the same instruction with the
+ * old value simply discarded on the way in: `xchg` and `lock xadd` differ in the opcode and in
+ * nothing else the IR carries, and LLVM spells both `atomicrmw`. Keeping them one kind is what lets
+ * every pass ask "does this write the location" once.
+ *
+ * Named for the operation and not for the instruction, in the naming `LowerMinMax` uses: `Sub` is
+ * `lock xadd` of a negated operand on x86 and `atomicrmw sub` on LLVM, and neither spelling belongs
+ * in the shared IR.
+ */
+enum class LowerAtomicOp: U8 {
+    Exchange,
+    Add,
+    Sub,
+    And,
+    Or,
+    Xor,
+};
+
+inline StringView nameForAtomicOp(LowerAtomicOp op) {
+    switch(op) {
+        case LowerAtomicOp::Exchange: return "xchg"_v;
+        case LowerAtomicOp::Add:      return "add"_v;
+        case LowerAtomicOp::Sub:      return "sub"_v;
+        case LowerAtomicOp::And:      return "and"_v;
+        case LowerAtomicOp::Or:       return "or"_v;
+        case LowerAtomicOp::Xor:      return "xor"_v;
+    }
+
+    return "add"_v;
+}
+
 // A single operation that can be performed inside a function block.
 struct LowerInst {
     enum Kind: U8 {
@@ -306,6 +472,37 @@ struct LowerInst {
         Store,
         Copy,
         SetPattern,
+
+        /*
+         * The atomics - Analysis-Atomics.md §5.1.
+         *
+         * Instruction kinds rather than intrinsics, and that is the whole of the decision. An
+         * intrinsic is opaque to everything above the encoder: `writesStorage` in lower_licm.cpp
+         * answers yes to every one of them and nothing else answers anything, so an atomic written
+         * as an intrinsic would be a black box that happens to touch memory. What the optimizer
+         * needs to know is finer than that and is exactly what these carry - that a relaxed load
+         * reads and publishes nothing, that a release store writes and orders what came before it,
+         * that a compare-exchange reads and may write, and that a fence constrains accesses it does
+         * not name. The order has to be *in the IR* for any of that to be askable, which is the
+         * same reason `Bswap` stopped being an intrinsic.
+         *
+         * All six are excluded from `isRepeatable`, which is opt-in, so no pass hoists, unifies or
+         * deletes one without being taught to. That is the correct default here: an atomic
+         * operation removed is a synchronization edge removed, and the analysis that proves one
+         * unobservable is the memory model rather than a use count.
+         */
+        FirstAtomic,
+        AtomicLoad = FirstAtomic,
+        AtomicStore,
+        AtomicRmw,
+        AtomicCas,
+
+        // Not attached to a location, which is what separates the two from the four above: a fence
+        // orders accesses it does not name, and a spin hint orders nothing at all and only says
+        // that the loop around it is polling.
+        Fence,
+        SpinHint,
+        LastAtomic = SpinHint,
 
         Call,
 
@@ -604,6 +801,13 @@ inline bool isVectorInst(LowerInst* inst) {
 
 inline bool isPhi(LowerInst* inst) {
     return inst->kind == LowerInst::Phi;
+}
+
+// One of the six an atomic program is written out of. What a pass asks before deciding it may move
+// something across this instruction - see `writesStorage` in lower_cse.cpp and lower_licm.cpp,
+// which answer yes to every one of them including the load.
+inline bool isAtomicInst(LowerInst* inst) {
+    return inst->kind >= LowerInst::FirstAtomic && inst->kind <= LowerInst::LastAtomic;
 }
 
 struct LowerInstSingle: LowerInst {
@@ -1248,6 +1452,177 @@ struct LowerInstSetPattern: LowerInst {
     // The declaration order is what used() reports, and the printer emits used() positionally, so
     // it has to match the textual operand order the parser accepts: `setpattern to, count, pattern`.
     LowerPtr<LowerValue> to, count, pattern;
+};
+
+/*
+ * Atomics - Analysis-Atomics.md §5.1. See LowerInst::FirstAtomic for why they are kinds.
+ *
+ * All four location operations carry their width in `flags` through `makeMemoryFlags`, which is the
+ * same encoding `Load` and `Store` use and is read back with `getWidth`. The width is the access,
+ * not the register: a narrow atomic touches exactly its declared one or two bytes and the result is
+ * extended afterwards under the ordinary narrow-integer rule.
+ *
+ * The order is a member rather than more bits of `flags`, and it comes *after* the used pointers.
+ * That placement is load-bearing rather than stylistic: `created()` and `used()` read the bytes
+ * immediately following the header positionally, so anything declared between the base class and
+ * the last operand would be read as an operand.
+ */
+
+// An indivisible read of `getWidth()` bytes - `load atomic`, `mov`, `ldar`.
+struct LowerInstAtomicLoad: LowerInstSingle {
+    LowerInstAtomicLoad(LowerPtr<LowerValue> from, StringId name, LowerType type, U32 width,
+                        bool isSigned, LowerOrder order):
+        LowerInstSingle(AtomicLoad, name, type), from(from), order(order)
+    {
+        usedCount = 1;
+        flags = makeMemoryFlags(width, isSigned);
+    }
+
+    U32 getWidth() const { return getMemoryWidth(flags); }
+    bool isSigned() const { return isSignedLoad(flags); }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> from;
+
+    // One of the three `isLoadOrder` admits.
+    LowerOrder order;
+};
+
+// An indivisible write of `getWidth()` bytes - `store atomic`, `mov` or `xchg`, `stlr`.
+struct LowerInstAtomicStore: LowerInst {
+    LowerInstAtomicStore(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, U32 width, LowerOrder order):
+        LowerInst(AtomicStore), to(to), value(value), order(order)
+    {
+        usedCount = 2;
+        flags = makeMemoryFlags(width, false);
+    }
+
+    U32 getWidth() const { return getMemoryWidth(flags); }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> to, value;
+
+    // One of the three `isStoreOrder` admits.
+    LowerOrder order;
+};
+
+/*
+ * A location read, combined with a value and written back, indivisibly - `atomicrmw`, `lock xadd`.
+ *
+ * The result is the value from *before* the update, which is what §3.4 fixes and what both x86 and
+ * LLVM hand back without a second instruction. An exchange is the same instruction with `op` set to
+ * `Exchange`, the previous value simply being the whole of what it answers.
+ *
+ * **No sign flag, where the load has one.** A narrow signed update - `Atomic(I8).fetchAdd` - answers
+ * a value that has to be sign-extended into its register, and that extension is written as an
+ * ordinary `Cast` after the instruction rather than as a bit on it. The load carries the flag
+ * because `Load` does and the two have to read alike; a read-modify-write has no such twin, and
+ * three more mnemonics to spell the signed halves of `add`, `sub`, `and`, `or` and `xor` would buy
+ * an instruction that both backends fold away.
+ *
+ * Nothing may promote a weaker order to a stronger one here even where the target's instruction is
+ * physically stronger. A locked RMW on x86 is a full barrier whatever `order` says, and rewriting a
+ * relaxed one to sequential in the IR would make the same program behave differently on AArch64 and
+ * would forbid motion that is legal - see §5.3.
+ */
+struct LowerInstAtomicRmw: LowerInstSingle {
+    LowerInstAtomicRmw(LowerPtr<LowerValue> to, LowerPtr<LowerValue> value, StringId name,
+                       LowerType type, U32 width, LowerAtomicOp op, LowerOrder order):
+        LowerInstSingle(AtomicRmw, name, type), to(to), value(value), op(op), order(order)
+    {
+        usedCount = 2;
+        flags = makeMemoryFlags(width, false);
+    }
+
+    U32 getWidth() const { return getMemoryWidth(flags); }
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> to, value;
+
+    LowerAtomicOp op;
+
+    // Any of the five: an operation that both reads and writes can carry either half, or neither.
+    LowerOrder order;
+};
+
+/*
+ * Compare and exchange - `cmpxchg`, `lock cmpxchg`, the `ldaxr`/`stlxr` pair.
+ *
+ * **Two results, and the second is not `previous == expected`.** For the strong form it would be,
+ * which is why this looked like one result for a while. The weak form is the one that makes it two:
+ * it may fail spuriously, answering the value it was handed and *not* having stored, and a caller
+ * that reconstructed success by comparing would read that as a win. So the flag is carried
+ * separately, which is also the shape LLVM's `cmpxchg` returns and the shape x86 leaves in ZF.
+ *
+ * `previous` is always the value read, on both paths. Neither form mutates its expected operand and
+ * neither loses the observed value on failure - §3.4.
+ *
+ * Both orders are always stored. `success` is what the exchange performs when it stores; `failure`
+ * is what the comparison performs when it does not, and is held to `isLegalFailureOrder`.
+ *
+ * §3.5's derivation is *not* applied here. It is a rule about what a caller may leave unsaid, and
+ * the library's one-order form runs it through `failureOrderFor` on the way in; both that form and
+ * `Advanced`'s two-order one therefore reach this instruction with the pair already chosen. Leaving
+ * the derivation out means this IR has one shape, the verifier has one rule, and a dump says what
+ * the failure path does rather than what it can be computed to do.
+ */
+struct LowerInstAtomicCas: LowerInst {
+    LowerInstAtomicCas(StringId previousName, StringId exchangedName, LowerType type,
+                       LowerPtr<LowerValue> to, LowerPtr<LowerValue> expected,
+                       LowerPtr<LowerValue> desired, U32 width, bool weak,
+                       LowerOrder success, LowerOrder failure, LowerType flagType = LowerType::Int32):
+        LowerInst(AtomicCas),
+        previous(this, type, previousName), exchanged(this, flagType, exchangedName),
+        to(to), expected(expected), desired(desired),
+        success(success), failure(failure), weak(weak)
+    {
+        createdCount = 2;
+        usedCount = 3;
+        flags = makeMemoryFlags(width, false);
+    }
+
+    U32 getWidth() const { return getMemoryWidth(flags); }
+
+    // Embedded values must be first after the base class, and in this order: `created()` reads them
+    // positionally, so `previous` is result 0 and `exchanged` is result 1 everywhere.
+    LowerValue previous, exchanged;
+
+    // Used values must be first after embedded values.
+    LowerPtr<LowerValue> to, expected, desired;
+
+    LowerOrder success, failure;
+
+    // Whether a spurious failure is permitted. The form for a retry loop on a machine whose
+    // primitive is a load-linked/store-conditional pair, where the strong form costs a loop of its
+    // own; on x86 the two lower identically and the flag only stops a caller from assuming.
+    bool weak;
+};
+
+/*
+ * An ordering edge attached to no location - `fence`, `mfence`, `dmb`.
+ *
+ * It does not by itself synchronize two threads: the surrounding atomic operations still have to
+ * establish the relation, and a fence between two plain accesses orders nothing that was racing
+ * anyway. What it does is let a release be spelled apart from the store it publishes, which is the
+ * shape a reclamation algorithm's last-release path needs.
+ */
+struct LowerInstFence: LowerInst {
+    explicit LowerInstFence(LowerOrder order): LowerInst(Fence), order(order) {}
+
+    // One of the four `isFenceOrder` admits.
+    LowerOrder order;
+};
+
+/*
+ * That the loop containing this is polling - `pause`, `yield`, or nothing.
+ *
+ * Neither a compiler fence nor a memory fence, and it establishes no happens-before edge: a program
+ * whose correctness changes when every `SpinHint` is deleted was already wrong. It is an
+ * instruction rather than an intrinsic only so that it sits beside the five above it and is
+ * excluded from motion by the same predicate; what it costs a backend is one opcode.
+ */
+struct LowerInstSpinHint: LowerInst {
+    LowerInstSpinHint(): LowerInst(SpinHint) {}
 };
 
 // Stores one argument into the outgoing argument area, for a call whose convention passes it on the

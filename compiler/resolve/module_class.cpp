@@ -189,6 +189,8 @@ bool mentionsVariable(GlobalBase global, TypePtr type, U16 index) {
             return mentionsVariable(global, vector->content, index) ||
                    mentionsVariable(global, vector->count, index);
         }
+        case Type::Atomic:
+            return mentionsVariable(global, ((AtomicType*)global[type])->content, index);
         case Type::Tup: {
             auto tuple = (TupType*)global[type];
 

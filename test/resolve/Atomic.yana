@@ -1,0 +1,183 @@
+import Atomic
+import Native
+
+-- `store` and `exchange` are declared by `Native` as well, so a file importing both writes
+-- `Atomic.store` and `Atomic.exchange`. That is the ordinary qualified form rather than anything
+-- special about this module, and it is written out here because a program building a lock-free
+-- structure imports both of these and will meet it.
+
+-- Construction, consumption and the three basic operations - Analysis-Atomics.md §3.1 and §3.4.
+--
+-- `atomic` and `intoValue` emit no atomic instruction at all: both are the same bits read under the
+-- other type, which is sound in each direction for an ownership reason rather than a layout one.
+-- Constructing, nothing can be sharing the location yet; consuming, owning the value proves nobody
+-- is. Everything between them is an ordering edge that has to survive to the backend.
+fn basics() -> Int:
+    let c = atomic(0)
+
+    Atomic.store(c, 7, StoreRelease)
+    let seen = c.load(LoadAcquire)
+    let previous = Atomic.exchange(c, 9, UpdateAcquireRelease)
+
+    return seen + previous + intoValue(c)
+
+-- The five fetch operations, each answering the value from before the update.
+fn counters() -> Int:
+    let c = atomic(1)
+
+    let a = c.fetchAdd(4, UpdateRelaxed)
+    let s = c.fetchSub(2, UpdateAcquire)
+    let n = c.fetchAnd(255, UpdateRelease)
+    let o = c.fetchOr(16, UpdateAcquireRelease)
+    let x = c.fetchXor(1, UpdateSequential)
+
+    return a + s + n + o + x
+
+-- Compare-exchange, whose answer is an enumeration rather than a pair: the flag is read out of the
+-- instruction rather than reconstructed by comparing, which is what the weak form makes necessary.
+fn compare() -> Int:
+    let c = atomic(5)
+
+    match c.compareExchange(5, 6, UpdateAcquireRelease):
+        Exchanged -> return 1
+        Unchanged(->actual) -> return actual
+
+-- The weak form, and `Advanced`'s two-order spelling. Both pairs below are legal under §3.5: a
+-- failure order is never stronger than the success order it sits beside.
+fn retry() -> Int:
+    let c = atomic(0)
+
+    match c.compareExchangeWeak(0, 1, UpdateRelease):
+        Exchanged -> {}
+        Unchanged(->_) -> {}
+
+    match Advanced.compareExchange(c, 1, 2, UpdateSequential, LoadAcquire):
+        Exchanged -> return 2
+        Unchanged(->actual) -> return actual
+
+-- A fence orders accesses it does not name; a spin hint orders nothing at all.
+fn ordering() -> Int:
+    let c = atomic(0)
+
+    Atomic.store(c, 1, StoreRelaxed)
+    fence(FenceRelease)
+    spinHint()
+
+    return c.load(LoadRelaxed)
+
+-- Every width the family admits, and a pointer - §3.2.
+fn widths(p: %U8) -> Long:
+    let byte = atomic(1 :: U8)
+    let half = atomic(2 :: U16)
+    let word = atomic(3 :: U32)
+    let long = atomic(4 :: I64)
+    let flag = atomic(True)
+    let address = atomic(p)
+
+    Atomic.store(byte, 9, StoreRelease)
+    Atomic.store(half, 9, StoreRelease)
+    Atomic.store(word, 9, StoreRelease)
+    Atomic.store(flag, False, StoreRelease)
+    Atomic.exchange(address, p, UpdateAcquireRelease)
+
+    return long.fetchAdd(1, UpdateRelaxed)
+
+-- A custom enumeration in an atomic - the case a mutex's state word is, and the reason the family
+-- admits any payload-free sum rather than `Bool` alone. A state machine driven by compare-exchange
+-- is what compare-exchange is for, and storing an `Int` and converting at every access would be the
+-- same bits with the type checking turned off.
+data State = Idle | Locked | Contended
+
+fn lock() -> State:
+    let state = atomic(Idle)
+
+    match state.compareExchange(Idle, Locked, UpdateAcquire):
+        Exchanged -> return Locked
+        Unchanged(->actual) -> return actual
+
+-- An enumeration whose pinned values are far apart, so its tag needs more than a byte. The access
+-- width is the enumeration's own storage rounded up to a power of two, which is what keeps every
+-- admitted width one a machine performs indivisibly - see computeAtomic.
+data Code = @value(0) Ok | @value(1000) Retry | @value(60000) Fatal
+
+fn classify() -> Code:
+    let c = atomic(Ok)
+
+    Atomic.store(c, Retry, StoreRelaxed)
+    let previous = Atomic.exchange(c, Fatal, UpdateAcquireRelease)
+
+    match c.compareExchange(Fatal, Ok, UpdateSequential):
+        Exchanged -> return previous
+        Unchanged(->actual) -> return actual
+
+-- And one whose tag is a whole word, which is where a payload-free sum stops being narrow.
+data Wide = @value(0) Low | @value(4000000000) High
+
+fn wide() -> Wide:
+    let w = atomic(Low)
+    Atomic.exchange(w, High, UpdateRelaxed)
+    return w.load(LoadAcquire)
+
+{-
+   An update at a width narrower than a register, whose answer is *read* - which is where the value
+   and the register stop agreeing.
+
+   A location of one or two bytes arrives in a four-byte register, and what the bits above it hold is
+   not part of the value: `lock xadd byte [m], r8` writes the low byte and leaves the addend's own
+   high bits standing, `lock cmpxchg` at a byte leaves the expected value's, and LLVM widens an `i8`
+   with a cast that has to be told which way. So the answer ends with the same normalization every
+   other narrow producer ends with - a mask below, and the shift pair for the signed one, which is
+   what the golden pins.
+
+   Both signednesses, because they are different instructions: an unsigned narrow value is held
+   masked and a signed one sign-extended, and the second cannot be reached by masking.
+-}
+fn narrow() -> Long:
+    let zero = 0 :: I8
+    let byte = atomic(250 :: U8)
+    let half = atomic(1000 :: U16)
+    let signed = atomic(zero - 5)
+
+    let a = byte.fetchSub(10, UpdateRelaxed)
+    let b = half.fetchXor(0xF0F0, UpdateAcquire)
+    let c = signed.fetchAdd(zero - 1, UpdateRelease)
+
+    let d = match signed.compareExchange(zero - 6, zero - 7, UpdateSequential):
+        Exchanged -> zero
+        Unchanged(->actual) -> actual
+
+    return (a :: I64) + (b :: I64) + (c :: I64) + (d :: I64)
+
+{-
+   `Native.atomicAt` - §3.7, the unchecked entrance.
+
+   Two instructions and neither of them atomic: the byte address is re-read at `%Atomic(a)`, which
+   moves nothing because the two pointers are one address named at two types, and the memory it names
+   is borrowed. Everything after that is the ordinary surface, which is the point of it - the unsafe
+   entrance reuses the semantics rather than defining a second set.
+
+   Two views of one location, because the borrow it answers is *shared*: an atomic is the one thing
+   many holders may mutate at once, and a rule that refused the second view would refuse the case the
+   operation exists for.
+-}
+fn viewed(p: %U8) -> Int:
+    let view = Native.atomicAt(p) :: 'Atomic(Int)
+    let other = Native.atomicAt(p) :: 'Atomic(Int)
+
+    Atomic.store(view, 1, StoreRelease)
+    let bumped = other.fetchAdd(2, UpdateAcquireRelease)
+
+    return bumped + view.load(LoadAcquire)
+
+-- Every function above is called, so that the lower golden below pins each one: a program has one
+-- root, and an unreferenced function is dead code wherever it was written.
+fn main() -> Int:
+    let widthSum = if widths(null()) > 0: 1 else: 0
+    let locked = if lock() == Locked: 1 else: 0
+    let retried = if classify() == Retry: 1 else: 0
+    let high = if wide() == High: 1 else: 0
+    let narrowed = if narrow() > 0: 1 else: 0
+    let seen = viewed(null())
+
+    return basics() + counters() + compare() + retry() + ordering()
+         + widthSum + locked + retried + high + narrowed + seen

@@ -1,0 +1,46 @@
+{-
+   The unsafe entrance to `Atomic`, and why it is here rather than there.
+
+   Dedicated `Atomic(a)` storage is right for safe code and insufficient for everything whose address
+   and layout are imposed from outside: a memory-mapped file, a shared-memory ABI, a device ring, a
+   kernel structure. This is the one operation that turns bytes at an address into an atomic, and it
+   is in **Native** because that is where the language keeps what it cannot check - a program reaching
+   for this writes `import Native` and says so at every call site.
+
+   The file is `.native.yana` because `Atomic(a)`'s operations are, and there is no point admitting a
+   view on a target that has nothing to do with it.
+-}
+import Atomic
+
+{-
+  Existing storage, and the one unchecked way in - Analysis-Atomics.md §3.7.
+
+  A **view** of the bytes at an address - not a new atomic, not an allocation, and not a copy.
+  Everything in `Atomic` then applies to the borrow it answers, so there is one semantic surface and
+  one lowering rather than a second family of pointer intrinsics.
+
+  What the caller promises, none of which anything checks:
+
+    1. the address is valid for the whole of the view's lifetime;
+    2. it carries `Atomic(a)`'s alignment, which is the access width;
+    3. the bytes there are an initialized `a`; and
+    4. every concurrent access to those bytes uses an atomic view of the same width.
+
+  The fourth is the one that is easy to lose. Two views of different widths over overlapping bytes
+  are not atomic with respect to each other on any target, and neither is an atomic view beside a
+  plain read of the same location - which is a data race in the model's own terms, whatever the
+  hardware happens to do with it.
+
+  `return address` is what roots the result: the borrow's extent is the pointer's, so the ordinary
+  borrow rules apply to it from here on and nothing about it is special except how it was obtained.
+  That is `borrow` above with the type fixed, and deliberately so.
+
+  **Atomic access is not volatile access.** The optimizer may remove an atomic operation wherever the
+  memory model proves it unobservable; a volatile device access says the access *itself* is the
+  observable event. A location needing both wants a future operation that says both, not this one and
+  a hope that the first implies the second.
+
+  **And atomic visibility is not durability.** A release store has ordered CPU memory; it has not
+  flushed a cache line, issued a device barrier, or made anything survive power loss.
+-}
+pub fn (AtomicValue(a)) atomicAt(return address: %U8) -> 'Atomic(a)
