@@ -1,0 +1,452 @@
+import Native
+
+{-
+   Sorting a container - Analysis-Library.md §3.5 and Part 6 item 4.
+
+   Four names over one algorithm written twice. `sort` and `sortBy` reorder a container in place;
+   `sorted` and `sortedBy` leave it alone and answer a new `Array(a)`. The `By` half takes the
+   comparison as a closure and the other half takes it from `Ord(a)`, which is the only difference
+   between them and the reason there are four rather than two.
+
+   **Not stable.** Two elements that compare equal may come out in either order, and no caller may
+   depend on which - the partition below exchanges across the range, so equal keys are separated by
+   design and restoring their order would cost the O(n) scratch this has none of. What a caller that
+   needs stability writes is a comparison that breaks its own ties, which is what a stable sort would
+   have been doing for it anyway and is cheaper here than everywhere.
+-}
+
+{-
+   Why the four take the container and not a `[a]` - and it is the closure that decides it.
+
+   The obvious signature is `sort(&xs: [a])`, the way `secureRandom` and `File.write` take theirs:
+   the conversion at the call already turns an owner into the window, so one declaration serves the
+   array, the slice, and any container of the program's own with a `Contiguous` instance. It works
+   for `sort` and it cannot work for `sortBy`, for a reason that is entirely about the *caller*:
+
+     - The conversion builds the descriptor in the caller's frame, and Local::viewOf records it as a
+       view of the caller's own array.
+     - A call through a function value is an `InstCallDyn`, and its arguments are assumed retained -
+       a function type says nothing about whether the callee keeps what it was handed, so escape
+       analysis cannot say it does not. See the note in resolve/analyze.cpp.
+     - So `sortBy` retained its window, the caller's descriptor escaped, and checkEscapingViews
+       reported "this borrow of xs outlives the frame that owns it" at *every* call site that owned
+       the container it was sorting. Which is every real one.
+
+   **That half has since stopped being true**, and the signature is still right. `InstCallDyn` reads
+   the function type's contract now, so a callback's operands are call-bounded and `sortBy(&xs: [a],
+   before)` compiles and runs - it was written and measured before this paragraph was rewritten. The
+   reason it went back is a different one the note above never gave: **a container of the program's
+   own reaches a `[a]` parameter only if the conversion knows how to build the window**, and
+   `convertToMutableArgument` knows the two owners the language has - `Array(a)` and `[a *n]` - not a
+   user type with a `Contiguous` instance. So `Contiguous(c, a)` does *not* accept exactly what `[a]`
+   accepts; it accepts strictly more, and the difference is every container outside this library.
+
+   Taking `&xs: c` also keeps the descriptor on this side of the call, which is what mattered when
+   the paragraph above did.
+
+   The two `Ord` halves would compile either way and are written the same way regardless, because
+   four functions that do the same thing should not have two signatures.
+-}
+
+{-
+   The algorithm, and why it is here twice.
+
+   An introsort: median-of-three quicksort, insertion sort under a small range, and heapsort when the
+   recursion goes deeper than a good pivot ever needs. That last part is what makes the O(n log n)
+   worst case true rather than typical - median-of-three has adversarial inputs, and a standard
+   library's sort is the one function most likely to be handed data someone else chose.
+
+   **Every element movement is a `swap` of two subscripts.** No pivot is copied, no element is
+   lifted into a temporary, and nothing is written that would need `TrivialCopy(a)`: the pivot is
+   *parked* at
+   `low` and compared against in place, which is the whole reason the partition below is Hoare's
+   rather than Lomuto's. So `sort` works on an `Array(String)` and on any other element type that
+   owns something, which is the case a sort exists for.
+
+   **Written twice rather than once over a comparison class**, and the reason has changed since this
+   was decided. The class is
+
+       class Precedes(t, a):
+           fn precedes(self: t, left: a, right: a) -> Bool
+
+   with an instance for `Ord` and one holding a closure, which is one algorithm and static dispatch
+   at both. It used not to compile - "this implements a class function, so it cannot keep left
+   beyond the call", because a generic body cannot see which implementation runs, takes the
+   declaration's word that a borrowed argument's extent is the call, and calling a *function value*
+   with one was exactly what that word forbade. **That is no longer true.** `InstCallDyn` reads the
+   function type's contract now (Analysis-Borrows.md §8.4), the closure instance compiles, and the
+   whole engine was rewritten over the class and put back.
+
+   What it is blocked on now is one line: `ByFunction {before: before}`. The order has to be a
+   *value* the engine is handed, so the closure instance has to hold the caller's comparator, and
+   there are three ways to hold one and none of them is available:
+
+   - **`->before`**, which compiles and consumes it. That is a change to the public API for the sake
+     of an internal refactor - the caller loses a comparator it may want to sort twice with - and it
+     cascades, since `sortedBy` would have to consume its own to pass it on.
+   - **`copy(before)`**: there is no `Copy` instance for a function value, and there should not be a
+     naive one - copying a capturing closure copies an environment somebody owns.
+   - **a borrowed field**, `data ByFunction(a) {before: cmp'((a, a) -> Bool)}`, which is the right
+     answer and is §4.7's stored loan exactly. Two things stop it, and both are about *function*
+     values rather than about loans: a group cannot be bound at an expression site, so there is no
+     way to write the constructor, and a `'((a, a) -> Bool)` is not callable - "this expression is
+     not callable". Analysis-Borrows.md §5.3 is where the second one lives.
+
+   So the duplication stays, and what it is waiting for is a loan slot that reaches a closure rather
+   than anything about comparison. Five small bodies twice is what that is worth meanwhile;
+   `Reduce.yana` beside this makes the same trade six times over.
+-}
+
+{-
+   What these now accept, and used not to: a fixed array.
+
+   `[a *n]` had no `Contiguous` instance, and the reason was not about sorting - a parametric
+   instance of an `iter fn` could not have its continuation result inferred with specialization
+   declined, so the instance compiled in one build and not the other. Everywhere else that cost
+   nothing, because a fixed array reaches a `[a]` parameter through the conversion at the call; here
+   there was no `[a]` parameter to reach, for the reason at the top of this file, so `sort(fixed)`
+   was the one place it showed - and it was rejected badly, with "internal: a generic call was
+   deferred outside a generic function" rather than a sentence about a missing instance.
+
+   The instance is there now and `sort(fixed)` compiles - see the note beside `Length([a *n])` in
+   `Container.yana`, and `test/resolve/FixedContainer.yana`, which sorts one in both builds.
+-}
+
+-- Under this many elements a range is insertion-sorted rather than partitioned. Twelve is where
+-- `test/bench/programs/Sort.yana` put it and there is no reason for this to disagree with the
+-- program that measures it.
+let smallRange = 12 :: Size
+
+{-
+   Insertion sort, which is the whole of the answer for a short range and the tail of it for a long
+   one.
+
+   Swapping down rather than opening a hole and closing it. The hole form is one move per shifted
+   element against a swap's three, and it needs the moved element to live somewhere while the shift
+   runs - which is a duplicate for an `Int` and an owned value with no place to be for a `String`.
+   A `swap` of two subscripts is what both element types can do, so it is what this does.
+-}
+fn (Ord(a)) insertionRange(&xs: [a], low: Size, high: Size) -> {}:
+    let &i = low + 1
+
+    while i <= high:
+        let &j = i
+        while j > low && xs[j] < xs[j - 1]:
+            swap(xs[j], xs[j - 1])
+            j = j - 1
+
+        i = i + 1
+
+{-
+   Hoare's partition, with the median of three parked at `low`.
+
+   The pivot stays where it is and every comparison reads it out of the container, which is what
+   makes this work for an element that cannot be copied - and it costs nothing, because `xs[low]` is
+   a load the same address every time and is exactly what a register would hold.
+
+   Median of three and not the first element: a range that is already sorted is the input a
+   first-element pivot turns into O(n²), and it is the input a program most often has. The three
+   comparisons that order low, mid and high are also the three that leave `high` holding something
+   not below the pivot, which is what lets the scan below stop at `high` rather than testing an index
+   against the end at every step.
+
+   **Both inner scans are guarded against running off the range, and the guards are not redundant.**
+   `xs[low]` is the pivot, so `xs[low] < xs[low]` is false and the descending scan stops at `low` on
+   its own - for a comparison that is a strict weak order. A caller's `before` need not be one: an
+   inconsistent comparison is a bug in the caller, and what it should produce is a wrongly ordered
+   container rather than a walk off the front of the array. So the guards stay, and they cost one
+   already-loaded comparison per step of a loop that is doing a call's worth of work anyway.
+-}
+fn (Ord(a)) partitionRange(&xs: [a], low: Size, high: Size) -> Size:
+    let mid = low + (high - low) / 2
+    if xs[mid] < xs[low] then swap(xs[mid], xs[low])
+    if xs[high] < xs[low] then swap(xs[high], xs[low])
+    if xs[high] < xs[mid] then swap(xs[high], xs[mid])
+    swap(xs[mid], xs[low])
+
+    let &i = low
+    let &j = high + 1
+    let &crossed = False
+
+    while !crossed:
+        i = i + 1
+        while i < high && xs[i] < xs[low]:
+            i = i + 1
+
+        j = j - 1
+        while j > low && xs[low] < xs[j]:
+            j = j - 1
+
+        if i >= j then crossed = True
+        else swap(xs[i], xs[j])
+
+    swap(xs[low], xs[j])
+    return j
+
+{-
+   Heapsort, which runs only when the pivots were bad enough to have earned it.
+
+   A sift-down heap over the range, built bottom-up and then drained from the back. Every movement is
+   a swap for the reason everything here is, and the whole of it is in place - which is what makes it
+   the right fallback rather than a merge sort, whose scratch this would have to allocate at the
+   moment a program is already going badly.
+
+   `child` is `low + 2*(parent - low) + 1` said without the multiply, because the range does not
+   start at zero and the arithmetic that assumes it does is the one bug this shape reliably has.
+-}
+fn (Ord(a)) siftDown(&xs: [a], low: Size, root: Size, high: Size) -> {}:
+    let &parent = root
+    let &settled = False
+
+    while !settled:
+        let child = parent + (parent - low) + 1
+
+        if child > high then settled = True
+        else:
+            let &best = child
+            if child < high && xs[child] < xs[child + 1] then best = child + 1
+
+            if xs[parent] < xs[best]:
+                swap(xs[parent], xs[best])
+                parent = best
+            else settled = True
+
+fn (Ord(a)) heapRange(&xs: [a], low: Size, high: Size) -> {}:
+    let &start = low + (high - low - 1) / 2
+    while start >= low:
+        siftDown(xs, low, start, high)
+        start = start - 1
+
+    let &end = high
+    while end > low:
+        swap(xs[low], xs[end])
+        end = end - 1
+        siftDown(xs, low, low, end)
+
+{-
+   The driver: partition, recurse into the smaller side, and loop on the larger.
+
+   Which way round that goes is what bounds the *stack* rather than the running time. The recursive
+   call always covers at most half the range, so the depth is at most log₂(n) whatever the pivots do,
+   and the side that could be the whole range minus one is the one this loop takes rather than the
+   one it calls. Recursing into both would be correct and would put a bad partition's whole depth on
+   the stack; the alternative to this loop is the explicit stack `test/bench/programs/Sort.yana` has,
+   and an explicit stack is an allocation. That program's own note says a body taking `&xs: [Int]`
+   and passing it to itself is rejected, which is why it has one - that is no longer true, and this
+   function is the counterexample.
+
+   `budget` is what bounds the running time, and it is separate for that reason: a depth that keeps
+   halving is the good case and it exhausts a budget of `2·bitWidth(n)` only when the partitions have
+   been lopsided for longer than chance explains. Reaching zero hands the rest to `heapRange`.
+
+   `at - 1` where `at` may be `low` and `low` may be zero: `Size` is signed on both targets, so what
+   that produces is -1 and what -1 does is fail `high - low >= smallRange` and then be a range
+   `insertionRange` walks zero times. The same is true of the empty container the caller passes as
+   `sortRange(window, 0, -1)`. There is no unsigned wrap to guard here and no guard for one.
+-}
+fn (Ord(a)) sortRange(&xs: [a], first: Size, last: Size, depth: Int) -> {}:
+    let &low = first
+    let &high = last
+    let &budget = depth
+
+    while high - low >= smallRange:
+        if budget <= 0:
+            heapRange(xs, low, high)
+            return
+
+        budget = budget - 1
+        let at = partitionRange(xs, low, high)
+
+        if at - low < high - at:
+            sortRange(xs, low, at - 1, budget)
+            low = at + 1
+        else:
+            sortRange(xs, at + 1, high, budget)
+            high = at - 1
+
+    insertionRange(xs, low, high)
+
+-- The same six, with the comparison supplied at the call. Every line is the `Ord` body above with
+-- `xs[p] < xs[q]` written `before(xs[p], xs[q])`; the note at the top of this file is why that is a
+-- copy rather than a parameter.
+fn insertionRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> {}:
+    let &i = low + 1
+
+    while i <= high:
+        let &j = i
+        while j > low && before(xs[j], xs[j - 1]):
+            swap(xs[j], xs[j - 1])
+            j = j - 1
+
+        i = i + 1
+
+fn partitionRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> Size:
+    let mid = low + (high - low) / 2
+    if before(xs[mid], xs[low]) then swap(xs[mid], xs[low])
+    if before(xs[high], xs[low]) then swap(xs[high], xs[low])
+    if before(xs[high], xs[mid]) then swap(xs[high], xs[mid])
+    swap(xs[mid], xs[low])
+
+    let &i = low
+    let &j = high + 1
+    let &crossed = False
+
+    while !crossed:
+        i = i + 1
+        while i < high && before(xs[i], xs[low]):
+            i = i + 1
+
+        j = j - 1
+        while j > low && before(xs[low], xs[j]):
+            j = j - 1
+
+        if i >= j then crossed = True
+        else swap(xs[i], xs[j])
+
+    swap(xs[low], xs[j])
+    return j
+
+fn siftDownBy(&xs: [a], before: (a, a) -> Bool, low: Size, root: Size, high: Size) -> {}:
+    let &parent = root
+    let &settled = False
+
+    while !settled:
+        let child = parent + (parent - low) + 1
+
+        if child > high then settled = True
+        else:
+            let &best = child
+            if child < high && before(xs[child], xs[child + 1]) then best = child + 1
+
+            if before(xs[parent], xs[best]):
+                swap(xs[parent], xs[best])
+                parent = best
+            else settled = True
+
+fn heapRangeBy(&xs: [a], before: (a, a) -> Bool, low: Size, high: Size) -> {}:
+    let &start = low + (high - low - 1) / 2
+    while start >= low:
+        siftDownBy(xs, before, low, start, high)
+        start = start - 1
+
+    let &end = high
+    while end > low:
+        swap(xs[low], xs[end])
+        end = end - 1
+        siftDownBy(xs, before, low, low, end)
+
+fn sortRangeBy(&xs: [a], before: (a, a) -> Bool, first: Size, last: Size, depth: Int) -> {}:
+    let &low = first
+    let &high = last
+    let &budget = depth
+
+    while high - low >= smallRange:
+        if budget <= 0:
+            heapRangeBy(xs, before, low, high)
+            return
+
+        budget = budget - 1
+        let at = partitionRangeBy(xs, before, low, high)
+
+        if at - low < high - at:
+            sortRangeBy(xs, before, low, at - 1, budget)
+            low = at + 1
+        else:
+            sortRangeBy(xs, before, at + 1, high, budget)
+            high = at - 1
+
+    insertionRangeBy(xs, before, low, high)
+
+-- The budget the driver starts with: twice the number of bits it takes to write the length, which is
+-- 2·⌊log₂ n⌋ + 2 and is introsort's published depth limit plus the two `bitWidth` rounds up by. A
+-- perfectly balanced quicksort uses ⌊log₂ n⌋ of it, so what the rest absorbs is ordinary bad luck
+-- rather than an adversary.
+fn recursionBudget(count: Size) -> Int = 2 * (truncate(bitWidth(count)) :: Int)
+
+{-
+   Sorting in place, ascending by `Ord(a)`.
+
+   `elements` and not a `[a]` parameter - the note at the top of this file is why, and it is worth
+   reading before changing this signature, because the version that reads better does not compile
+   for `sortBy`.
+-}
+pub fn (Writable(c, a), Ord(a)) sort(&xs: c) -> {}:
+    let &window = elementsMut(xs)
+    let count = length(window)
+
+    sortRange(window, 0, count - 1, recursionBudget(count))
+
+{-
+   The same, with the order supplied at the call.
+
+   `before(left, right)` answers whether `left` comes first, which is `<` and not `compare`: three
+   answers would have two of them discarded at every comparison in the loop, and a caller holding an
+   `Ordering` writes `compare(l, r) == LT`. Read the pair as "sort with this `<` instead of the
+   class's", which is exactly what it is.
+
+   What the comparison has to be is a strict weak order - irreflexive, and consistent about ties.
+   One that is not produces a container in some order and nothing worse: the scans in
+   `partitionRangeBy` are bounded by the range rather than by the comparison, which is the one thing
+   this file spends instructions on to defend.
+-}
+pub fn (Writable(c, a)) sortBy(&xs: c, before: (a, a) -> Bool) -> {}:
+    let &window = elementsMut(xs)
+    let count = length(window)
+
+    sortRangeBy(window, before, 0, count - 1, recursionBudget(count))
+
+{-
+   A new container, in order, with the argument left as it was.
+
+   Over `Chunked` rather than `Contiguous`, and that is not an oversight: what this reads is
+   elements, and a container that keeps them in runs can supply those without promising a single
+   buffer address. The sort itself still runs on the `Array(a)` this builds, which is contiguous by
+   construction.
+
+   **`Copy(a)`, which `sort` does not ask for.** Copying every element is what "leave the argument
+   alone" means, and `Copy` is what says a value can be duplicated at all.
+
+   It was `TrivialCopy(a)` on the reasoning that `Copy` is the authored escape hatch for a type that
+   can be duplicated but not bitwise, so asking for it would exclude `Int` rather than include
+   `String`. That stopped being true when `Copy` gained its blanket instance over `TrivialCopy`:
+   every trivially copyable type is `Copy` now, so this constraint is strictly the weaker of the two
+   and `sorted(names)` for an `Array(String)` is what it buys. `Array.yana` states the same
+   preference for the same reason at `Append(Array(a))`.
+
+   The element read is `copy(chunk[i])` in `collected` below rather than a bare `chunk[i]`, which is
+   what the wider constraint costs and is one call that folds to nothing for a scalar.
+-}
+pub fn (Chunked(c, a), Ord(a), Copy(a)) sorted(xs: c) -> Array(a):
+    let &out = collected(xs)
+    sort(out)
+    return out
+
+-- And the same with the order supplied at the call. `sortedBy` needs no `Ord(a)`, which is the one
+-- thing it has that `sorted` does not: a container of something with no order at all can still be
+-- put in one by a caller that knows what the order is.
+pub fn (Chunked(c, a), Copy(a)) sortedBy(xs: c, before: (a, a) -> Bool) -> Array(a):
+    let &out = collected(xs)
+    sortBy(out, before)
+    return out
+
+{-
+   The copy both of those start from.
+
+   One `push` per element rather than a block copy, because a chunk's element type is `a` and a
+   contiguous run of them is a fact about *this* container rather than about containers. `reserve` is
+   not called in front of it for the same reason: `Chunked` promises no total, so the count is not
+   known until the walk is over, and asking each chunk for its length twice to find out costs more
+   than the doublings do.
+
+   Not `pub`: it is `sorted`'s first half and answers an `Array(a)` in the argument's own order,
+   which is a `collect` and belongs beside the iteration protocol rather than in a file about
+   ordering. `items` has landed there and this reads through it; what has not is the `collect` this
+   would then be a call to.
+-}
+fn (Chunked(c, a), Copy(a)) collected(xs: c) -> Array(a):
+    let &out = [] :: [a]
+
+    for v in items(xs):
+        push(out, copy(v))
+
+    return out

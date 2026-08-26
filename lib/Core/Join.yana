@@ -1,0 +1,115 @@
+{-
+   Folding a container into one value with `++` - `Core.yana`'s `Append` and `Monoid`, used.
+
+   Four functions and no new class. Three of them take the parts as `[m]` - a *window*, which every
+   contiguous container converts to at the call - so they are available on an `Array`, on a slice of
+   one, and on anything else that reaches `convertSlice`.
+
+   **A window and not `Chunked(c, m)`, which is the one place this file differs from `Reduce.yana`.**
+   That file walks a container to *read* it and takes the protocol, so a container keeping its
+   elements in pieces is covered. These four walk it to *accumulate*, and the reason is now cost
+   rather than capability.
+
+   Two things used to rule the protocol out and neither still does. `chunks` is an `iter fn`, so the
+   loop body is a continuation and every outer local it touches is captured by reference, and
+   `acc = acc ++ part` through one of those was refused outright - which cost an `exchange` per part
+   and would have dragged `Monoid` into even `appendAll`, since an exchange needs a value to leave
+   behind. That is allowed now wherever a value is written back before the borrow is released; see
+   test/lib/BorrowUpdate.yana. And a body constrained by a class whose member is an `iter fn` was
+   said to have no erased form - *"concat cannot be given an environment"*. It does; both shapes were
+   compiled through the forced-generic build and both answer correctly.
+
+   What is left is that a window is cheaper and nothing needs the generality. The loop is a `while`
+   in this frame, the accumulator is an ordinary owned local, and no environment is built - where
+   `chunks` costs a closure per fold that the generic build cannot specialize away. What it gives up
+   is a container that is not contiguous, and there is not one. `Chunked` becomes the right shape
+   here the day there is, and it is now a change of one loop rather than a change of what the
+   language permits.
+
+   **The accumulator is consumed and the parts are copied**, which is the whole cost model and is
+   worth stating once here rather than at each function. `++` takes both operands by `->`, so the
+   accumulator is handed on from step to step and its storage is reused - that is what makes a fold
+   linear rather than quadratic. A container hands out *views* of what it holds, though, so a part
+   has to be duplicated before it can be given away, and `Copy(m)` is that duplicate. It is not
+   overhead this convention introduced: the bytes have to reach the result somehow, and a borrowing
+   `++` would have copied both the part and the accumulator instead of only the part.
+
+   A caller who owns the parts and does not want them afterwards writes the loop with `++` directly,
+   where each part is moved rather than copied. That is a real difference for an `Array(String)` and
+   no difference at all for an `Array(Int)`, whose copy is its bytes.
+
+   `empty()` selects on the expected type, the way `fromInt` does, so the ascription on the
+   accumulator is what says which instance a fold starts from.
+-}
+
+{-
+   The fold with the seed given, which is what `Append` alone can state.
+
+   No `Monoid` here, because nothing in this body needs an answer for "no parts": the seed *is* that
+   answer, and a caller who has one has already made the decision the identity would have made. So
+   this is the primitive and `concat` below is written in terms of it - which is also the honest
+   place to point a type with no empty value, since a rope or a non-empty list can join into a seed
+   and cannot produce one.
+
+   `appendAll(builder, more)` continues building in the seed's own storage rather than starting a
+   second one: the seed is `->`, and `let &->` is what binds a moved value to a name that may then be
+   written through.
+-}
+pub fn (Chunked(c, m), Append(m), Copy(m)) appendAll(->seed: m, parts: c) -> m:
+    let &->acc = seed
+
+    for v in items(parts):
+        acc = acc ++ copy(v)
+
+    return acc
+
+-- Every part joined, in order, starting from the identity. `concat(["ab", "cd"])` is `"abcd"`, and
+-- an empty container answers `empty()` - which is the case that needs an identity at all, and the
+-- reason `Monoid` is a class rather than a comment on `Append`.
+pub fn (Chunked(c, m), Monoid(m), Copy(m)) concat(parts: c) -> m = appendAll(empty() :: m, parts)
+
+{-
+   The same, with a separator between adjacent parts and not around the outside.
+
+   `n` parts take `n - 1` separators, so something has to distinguish "before every part" from
+   "between them". A flag and not an index, because `items` yields elements and not positions -
+   there is no `i` to compare against zero. A test on the accumulator's emptiness would need `Eq(m)`
+   and would be wrong anyway, since a genuinely empty first part is not the same thing as no first
+   part.
+
+   The separator is borrowed and copied per gap, because it is used more than once and `++` consumes
+   what it is given. A caller passing a literal pays that copy `n - 1` times, which is what joining
+   with a separator costs anywhere that does not intern it.
+-}
+pub fn (Chunked(c, m), Monoid(m), Copy(m)) joinWith(parts: c, separator: m) -> m:
+    let &->acc = empty() :: m
+    let &first = True
+
+    for v in items(parts):
+        if first then first = False else acc = acc ++ copy(separator)
+        acc = acc ++ copy(v)
+
+    return acc
+
+{-
+   One value joined to itself `times` times - the operation a `Monoid` has that a bare `Append` does
+   not, because zero repetitions is the identity.
+
+   A negative count is zero repetitions rather than a check, on the same terms as `slice`'s clamping:
+   there is nothing a negative number of copies could mean, and the total answer is the useful one.
+
+   Linear and not the halving a general `stimes` uses. Doubling would be `log(n)` *joins* rather than
+   `n`, but each join copies its right operand, so the bytes moved are the same either way and the
+   accumulator's own storage is never copied under this convention. What halving would buy is fewer
+   calls, and what it would cost is a copy of the accumulator at each step - which is the trade the
+   consuming `++` exists to refuse.
+-}
+pub fn (Monoid(m), Copy(m)) repeated(value: m, times: Int) -> m:
+    let &->acc = empty() :: m
+    let &i = 0 :: Int
+
+    while i < times:
+        acc = acc ++ copy(value)
+        i = i + 1
+
+    return acc
