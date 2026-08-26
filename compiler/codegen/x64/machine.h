@@ -802,6 +802,17 @@ enum class PseudoKind: U8 {
     // neither an epilogue to run nor a `ret` to run it before.
     NoReturn,
 
+    /*
+     * `clone`, and the child's entry sequence behind it - see LowerIntrinsic::CloneThread.
+     *
+     * The one pseudo here that emits a *branch*, and it has to: the system call returns twice, into
+     * one thread that carries on and one that has a fresh stack pointer and nothing else of its own.
+     * The child's half is thirteen bytes of straight line and never comes back, so the branch over
+     * it needs no label and no relaxation - which is why this is an encoder rather than two blocks
+     * the layout would have had to be told about.
+     */
+    CloneThread,
+
     // `vzeroupper` - three fixed bytes and no operands, which is `Nop`'s shape. A pseudo rather than
     // an `EncodingFamily::Opcode` row because that family writes a legacy prefix, a REX and an
     // escape, and this instruction's prefix is a VEX one - and because the bytes are already written

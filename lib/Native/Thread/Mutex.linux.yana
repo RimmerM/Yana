@@ -1,0 +1,127 @@
+{-
+   A blocking mutex - the first thing parking buys, and the shape everything else here follows.
+
+   `Atomic.SpinLock` beside this answers "cannot make progress" with "try again"; this one answers it
+   with "stop", which is the whole difference and the whole reason it needs a kernel. A waiter costs
+   nothing while it waits, and a critical section may be as long as it likes.
+
+   § Three states, not two
+
+   The word is `0` unlocked, `1` locked with nobody waiting, and `2` locked with **somebody
+   possibly waiting**. The third state is what makes the uncontended release free: an unlock that
+   sees `1` knows there is nobody to wake, so it is one atomic instruction and no system call. Only
+   a release from `2` calls the kernel, and only a lock that has actually failed writes `2`.
+
+   "Possibly" is doing real work in that sentence. The state can say `2` when the last waiter has
+   already gone, so an unlock sometimes wakes nobody - a wasted system call, and the price of never
+   *missing* a wake. The reverse mistake is a lock held with a waiter asleep on it forever, and no
+   amount of cleverness in the fast path is worth risking it.
+
+   This is Drepper's "Futexes Are Tricky" mutex, which is the one every implementation converged on.
+
+   § The orderings
+
+   Acquire on the compare-exchange that takes the lock, release on the update that gives it back:
+   what a lock owes its user is that the critical sections do not overlap and that each one sees the
+   last. Sequential consistency would add a total order over every sequential operation in the
+   program, which mutual exclusion does not need.
+-}
+import Native
+import Atomic
+import Native.Thread.Linux
+
+let unlocked = 0 :: U32
+let locked = 1 :: U32
+let contended = 2 :: U32
+
+-- How many times to try before asking the kernel. A critical section that is already over by the
+-- time a waiter has spun a few dozen times costs nothing to wait for, and a system call is a
+-- thousand cycles - so the spin is not an optimization of the slow path but the thing that keeps
+-- most contended acquisitions out of it. Past this the answer stopped being "wait a little longer".
+let spinAttempts = 40 :: Int
+
+pub data Mutex {state: Atomic(U32)}
+
+pub fn mutex() -> Mutex = Mutex {state: atomic(unlocked)}
+
+{-
+   The instance - `Atomic/Lock.native.yana` declares the class and its scoped form.
+
+   Every body below was a `pub fn` of this file and is unchanged. `withMutex` is gone: it was
+   `withLock` under a second name, forced by the two locks having had to keep their operations
+   apart, and the class removes the reason for it.
+-}
+instance Lock(Mutex):
+    {-
+       One attempt, and the whole of the uncontended path.
+
+       A compare-exchange from `unlocked` to `locked` and nothing else: it must not write `contended`,
+       because a lock taken with no contention has to be releasable without a system call.
+    -}
+    fn tryLock(self: Mutex) -> Bool =
+        match self.state.compareExchange(unlocked, locked, UpdateAcquire):
+            Exchanged -> True
+            Unchanged(->_) -> False
+
+    {-
+       The lock.
+
+       The loop is the delicate part and is worth reading as three separate claims.
+
+       **The exchange to `contended`, not a store.** Announcing "somebody is waiting" has to *read* what
+       was there: if the lock was released in between, the exchange answers `unlocked` and this thread
+       has just taken it - which is why the loop tests the exchange's answer rather than assuming it
+       failed. A store would have overwritten a free lock with `2` and left it held by nobody.
+
+       **The park expects `contended` and nothing else.** By the time it parks, the word says `2`, and
+       that is what it hands the kernel. Anything that changed it - a release, another waiter - makes the
+       kernel refuse to park and this thread look again, which is exactly the lost-wakeup race closed.
+
+       **The word stays `contended` after this thread wins.** It was `2` when the exchange took it, and
+       this thread leaves it that way: it does not know whether other waiters remain, and guessing `1`
+       would lose a wake. The unlock pays a possibly-wasted system call for that, which is the trade the
+       third state exists to make.
+    -}
+    fn lock(self: Mutex) -> {}:
+        if self.tryLock(): return
+
+        -- A short spin before the first system call, on a plain read: the lock word is another thread's
+        -- to write, so a read-only wait leaves the line shared and generates no traffic.
+        let &attempts = 0
+
+        while attempts < spinAttempts:
+            if self.state.load(LoadRelaxed) == unlocked:
+                if self.tryLock(): return
+
+            spinHint()
+            attempts = attempts + 1
+
+        while True:
+            let previous = self.state.exchange(contended, UpdateAcquire)
+            if previous == unlocked: return
+
+            futexWait(self.state, contended)
+
+    {-
+       The release, which is one instruction when nobody is waiting.
+
+       The exchange reads and writes at once because both answers matter: `unlocked` is what the next
+       acquirer sees, and what was there is what says whether to call the kernel. A store followed by a
+       load would let a waiter arrive in between and be missed.
+
+       **Release is what publishes the critical section.** Every write made while holding the lock is
+       ordered before this, and the next acquirer's compare-exchange sees them. Weakening it to relaxed
+       would leave a mutex that excludes correctly and publishes nothing.
+    -}
+    fn unlock(self: Mutex) -> {}:
+        let previous = self.state.exchange(unlocked, UpdateRelease)
+
+        -- `1` means nobody had reached the point of writing `2`, so there is nobody to wake and this
+        -- release costs one instruction. Only the contended state pays for a system call.
+        if previous == contended:
+            futexWake(self.state, 1)
+
+    -- Whether the lock is held, right now, by somebody. Relaxed and therefore advisory in the way every
+    -- unsynchronized observation is: deciding whether to lock from it is the check-then-act race
+    -- `tryLock` exists to prevent.
+    fn isHeld(self: Mutex) -> Bool = self.state.load(LoadRelaxed) != unlocked

@@ -1,0 +1,81 @@
+{-
+   Mutual exclusion, as one interface - Analysis-Atomics.md §7.
+
+   Two types in this library exclude, and they are the same operation with different answers to one
+   question: what to do when the lock is already held. A `SpinLock` tries again; a `Mutex` stops.
+   Everything else about them - that `lock` waits until it holds it, that `unlock` publishes what was
+   written under it, that `tryLock` decides and acts in one step, that `isHeld` is advisory - is the
+   same statement about both, and a caller that only needs exclusion should not have to care which it
+   was handed.
+
+   So it is a class rather than two families of identically named functions. That is not only tidier:
+   two `lock`s declared as plain functions are two plain functions of one name, and a file importing
+   both modules could not call either - which is exactly the state this replaces, and it is the state
+   any *third* lock would have put us back into.
+
+   § What is deliberately not here
+
+   **Nothing about waiting.** A `Condition` takes a `Mutex` and not a `Lock(a)`, because releasing
+   the lock and blocking has to be one step the waiter's kernel primitive knows about - a spin lock
+   has nothing to release *to*, and a condition over one would spin holding nothing.
+
+   **No reader/writer form.** `RwMutex` has two of everything and is not this interface with more
+   methods on it; a reader lock and a writer lock are two locks that share a word.
+
+   **No fairness or reentrancy promise**, because neither implementation makes one. A class is a
+   statement about what its methods mean, and "some instance might be fair" is not a meaning a
+   caller can use.
+
+   § Choosing between them
+
+   The class makes a data structure able to be *parameterised* by its lock, which is the reason to
+   have it - a bucketed map wants one lock per bucket and its author, not this library, knows which.
+   It also makes it easy to write the wrong one, so: a `SpinLock` is right only when the critical
+   section is shorter than a context switch and the holder cannot be descheduled inside it. Anything
+   that allocates, takes another lock, or calls into the operating system wants the `Mutex`.
+-}
+import Native
+
+pub class Lock(a):
+  -- One attempt, which never waits. Answers whether this thread now holds it, and is the only one
+  -- of these that can be asked without committing to anything.
+  fn tryLock(self: a) -> Bool
+
+  -- Waits until it holds it. How it waits is the whole difference between the instances.
+  fn lock(self: a) -> {}
+
+  -- Releases it. Unlocking a lock this thread does not hold is a program error and is not checked
+  -- by either instance.
+  fn unlock(self: a) -> {}
+
+  -- Whether anybody holds it, right now. **Advisory**: the answer is stale by the time it is read,
+  -- and deciding to lock from it is the check-then-act race `tryLock` exists to prevent.
+  fn isHeld(self: a) -> Bool
+
+{-
+   The scoped form, written once over the class rather than once per instance.
+
+   A `lens` is what makes the release automatic: the block below the call is the critical section and
+   the unlock runs on the way out of it, including a `return` that leaves the enclosing function from
+   inside. That needs no destructor and nothing written at either site.
+
+   One generic body rather than a class member, for two reasons worth keeping apart - a class member
+   *can* carry a default in general, which is how `Eq` supplies `!=` in terms of `==`.
+
+   A class `lens fn` has no call site today: it is declarable, and calling one is refused, because a
+   lens call reaches its implementation by name and a class function is not one. That is the reason
+   that will go away.
+
+   The one that will not: a `lens fn` member is the one kind that may not carry a default, since the
+   continuation it hands over to would be a type variable the class head does not declare. So even
+   once class lenses are callable, a member here would be these three lines in every instance - a
+   promise each new lock had to keep by copying it. Written once over the class, a new instance gets
+   the scoped form for nothing and cannot get it wrong.
+
+   The explicit pair stays public because a lock taken in one function and released in another is a
+   real algorithm rather than a mistake.
+-}
+pub lens fn (Lock(a)) withLock(self: a) -> {}:
+    lock(self)
+    yield {}
+    unlock(self)

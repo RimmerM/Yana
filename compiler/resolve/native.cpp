@@ -327,6 +327,38 @@ static ModulePtr<Value> emitNewRun(ExprResolver& resolver, Buffer<ModulePtr<Valu
     return run;
 }
 
+/*
+ * `cloneThread(flags, stackTop, entry, argument, threadId)`, whose third argument is a **function**
+ * and reaches the backend as the two words one is.
+ *
+ * A Yana function value is a code pointer and an environment - see FunValueLayout - and the thread
+ * needs both: the code is what it calls and the environment is what that code's first parameter is.
+ * Splitting it here rather than in the declaration is what lets the entry be an ordinary function
+ * of the language, closure included, instead of a raw pointer the source would have had to produce.
+ *
+ * The two loads are ordinary reads of the value's own storage and happen in the *parent*, before
+ * anything is cloned. What crosses to the child is two words on its stack.
+ */
+static ModulePtr<Value> emitCloneThread(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
+                                        LocationId source, StringId name) {
+    auto entry = resolver.materialize(args[2], source);
+    auto code = resolver.load(resolver.project(entry, ProjectionKind::Field, FunValueLayout::kCode), source);
+    auto env = resolver.load(resolver.project(entry, ProjectionKind::Field, FunValueLayout::kEnv), source);
+
+    auto instruction = resolver.create<InstNative>(source, name, type, NativeOp::CloneThread);
+    auto& arena = resolver.module.arena;
+
+    instruction->args.push(arena, args[0]);   // flags
+    instruction->args.push(arena, args[1]);   // the top of the child's stack
+    instruction->args.push(arena, code);
+    instruction->args.push(arena, args[3]);   // the argument
+    instruction->args.push(arena, args[4]);   // where the kernel clears the thread id
+    instruction->args.push(arena, env);
+
+    resolver.append(instruction);
+    return resolver.ref(instruction);
+}
+
 template<NativeOp op>
 static ModulePtr<Value> emitNativeOp(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                      LocationId source, StringId name) {
@@ -485,6 +517,26 @@ static void attachPointerIntrinsics(Module& module) {
         };
 
         for(auto& name: syscalls) attachIntrinsic(module, name, emitNativeOp<NativeOp::Syscall>);
+
+        /*
+         * And the one operation that is a system call and could not be written as one - see
+         * NativeOp::CloneThread.
+         *
+         * Selected more narrowly than the seven above, and not on the same question at all. A
+         * syscall is an instruction every kernel-having target has; this is a *hardcoded sequence*
+         * - one kernel's `clone` with one architecture's registers, an x64 pseudo here and an
+         * x86-64 inline-asm block under LLVM - so what it needs is not "a kernel" but this kernel
+         * on this machine. Its declaration says the same thing in the only place a reader will look
+         * for it, which is the file name: `Native/Clone.linux.x64.yana`.
+         *
+         * The two have to agree, because a name the file did not declare is what `attachIntrinsic`
+         * reports as an internal error - correctly. A mac or arm64 build reads no such file, and
+         * this is the condition under which it does.
+         */
+        auto& settings = module.context.settings;
+        if(settings.target == TargetType::Linux && settings.arch == TargetArch::X64) {
+            attachIntrinsic(module, "cloneThread"_v, emitCloneThread);
+        }
     }
 }
 

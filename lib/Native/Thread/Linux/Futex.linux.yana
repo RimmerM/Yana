@@ -1,0 +1,155 @@
+{-
+   The futex, which is the whole of what Linux gives a user-space synchronization primitive.
+
+   Module `Native.Thread.Linux`, and a module of its own rather than a file of `Native.Thread`
+   because of what separates them: everything above this is an algorithm - a state word, a compare,
+   a decision to wait - and every one of those algorithms is the same on any kernel that can block a
+   thread and wake it again. This is the part that is Linux's, and a port is a sibling of this
+   directory rather than an edit to anything above it.
+
+   § What a futex is, in one paragraph
+
+   "Fast userspace mutex", and the name describes the design rather than the operation: the *fast*
+   path never enters the kernel at all. A lock word is an ordinary atomic that a thread reads,
+   compares and writes with ordinary instructions, and the kernel is called only when that fails and
+   the thread has to stop. `FUTEX_WAIT` is "put me to sleep on this address, unless the word has
+   already changed"; `FUTEX_WAKE` is "start up to n of whoever is sleeping there".
+
+   The `unless` is the entire point and is what nothing in user space can do for itself. Between a
+   waiter reading the word and deciding to sleep, and the waiter actually sleeping, the waker may
+   have changed the word and looked for someone to wake - and found nobody. The waiter would then
+   sleep on a condition that has already been satisfied, forever. `FUTEX_WAIT` closes that race by
+   performing the comparison **inside the kernel, under the lock that the queue for that address is
+   protected by**, so a wake that arrives in the window is serialized against the enqueue.
+
+   § Private
+
+   Every operation here is the `PRIVATE` form, which tells the kernel that no other process shares
+   the address - so it may key its queue by the address's virtual value instead of resolving the
+   page's identity, which is the difference between a hash and a page-table walk. A futex over
+   memory shared with another process needs the shared form, and it is deliberately not here: it is
+   a different contract, `Native.atomicAt` is where such memory comes from, and neither is something
+   to reach by accident.
+-}
+import Native
+
+{-
+   Which futex operation, as a type - the same shape the call numbers next door became.
+
+   The call *number* is not here: `SysFutex` is one of `Native.Linux`'s, because 202 is a fact about
+   this kernel on this architecture rather than a fact about futexes, and it varies in the two
+   dimensions that file's name states. These are the other half - what to ask the call for - and they
+   are the same on every Linux there is, which is why the two halves live apart.
+
+   FUTEX_PRIVATE_FLAG (128) is folded into the first pair rather than or'd at each call, so what a
+   position takes is one operation and not an operation plus a flag a caller may forget. The shared
+   pair is the same two operations without it, for a word the kernel itself writes: the thread-id
+   slot that `CLONE_CHILD_CLEARTID` clears is woken by the kernel's own path, which does not take
+   the private flag - so a joiner waiting on it has to be waiting the same way.
+-}
+data FutexOp
+  = @value(0)   WaitShared
+  | @value(1)   WakeShared
+  | @value(128) WaitPrivate
+  | @value(129) WakePrivate
+
+fn opOf(op: FutexOp) -> USize = truncate(valueOf(op)) :: USize
+
+{-
+   The address of the word, as the kernel's argument register.
+
+   Here rather than at each caller, and here rather than in `Thread.linux.yana` where a `wordAddress`
+   used to sit: what the two casts express is that *this* interface is addressed rather than typed,
+   which is a fact about the futex call and about nothing above it. An `Atomic(U32)` is exactly a
+   `U32`'s bytes at a `U32`'s alignment - `computeAtomic` says so - so this moves nothing and reads
+   nothing.
+
+   The borrow is what keeps it honest: the address is the storage the caller is lending, and it is
+   good for exactly as long as that borrow. Taking `'Atomic(U32)` rather than `%U32` is also what
+   stops a caller reaching the word any other way - the plain load that a `%U32` invited is the bug
+   `join` had.
+-}
+fn addressWord(word: 'Atomic(U32)) -> USize = bitcast(addressOf(word)) :: USize
+
+{-
+   The kernel's own answers, which are the negated errno and not an error flag - the convention every
+   call in `Native/Linux.x64.yana` follows, and for its reason: this file knows one kernel's numbers
+   and nothing about what a program wants them to mean.
+
+   Only three can come back from a wait that was asked for correctly. `EAGAIN` means the word did not
+   hold what the caller said it did, which is not a failure but the *answer* - somebody changed it
+   first, so there is nothing to wait for. `EINTR` means a signal arrived. Everything else is a
+   caller that passed an address it does not own or an operation the kernel does not have.
+-}
+pub let errAgain = 11 :: Size
+pub let errInterrupted = 4 :: Size
+pub let errTimedOut = 110 :: Size
+
+{-
+   `futexWait(address, expected)` - sleep on `address` unless it has stopped holding `expected`.
+
+   Zero when the thread was woken, and a negated errno otherwise. A **spurious return is normal** and
+   is not an error: a signal, a wake meant for somebody else, and a value that changed between the
+   caller's read and the kernel's all come back here, so every caller of this is a loop that re-reads
+   its own state rather than a call that trusts the answer.
+
+   The comparison is against a 32-bit word whatever the caller's type is, which is what the kernel
+   reads and the reason every state word in this module is a `U32`.
+-}
+pub fn futexWait(word: 'Atomic(U32), expected: U32) -> Size =
+    syscall4(numberOf(SysFutex), addressWord(word), opOf(WaitPrivate),
+             widen(expected) :: USize, 0)
+
+-- The same, giving up after `nanoseconds`. The kernel takes a `timespec` - two words, seconds then
+-- nanoseconds - which is why this takes an address rather than a number: the storage has to outlive
+-- the call and belongs to the caller.
+pub fn futexWaitUntil(word: 'Atomic(U32), expected: U32, timespec: %U8) -> Size =
+    syscall4(numberOf(SysFutex), addressWord(word), opOf(WaitPrivate),
+             widen(expected) :: USize, bitcast(timespec) :: USize)
+
+-- `futexWake(address, count)` - start up to `count` of the threads sleeping on `address`, and answer
+-- how many were actually started. Waking nobody is the ordinary case on an uncontended release and
+-- costs one system call, which is why every caller of this asks whether anyone can be waiting first.
+pub fn futexWake(word: 'Atomic(U32), count: Size) -> Size =
+    syscall3(numberOf(SysFutex), addressWord(word), opOf(WakePrivate),
+             bitcast(count) :: USize)
+
+-- The shared pair, for the thread-id word only - see `futexWaitShared` above.
+pub fn futexWaitTid(word: 'Atomic(U32), expected: U32) -> Size =
+    syscall4(numberOf(SysFutex), addressWord(word), opOf(WaitShared),
+             widen(expected) :: USize, 0)
+
+pub fn futexWakeTid(word: 'Atomic(U32), count: Size) -> Size =
+    syscall3(numberOf(SysFutex), addressWord(word), opOf(WakeShared),
+             bitcast(count) :: USize)
+
+{-
+   The clone flags that make a **thread** rather than a process, and one more that makes it joinable.
+
+   `CLONE_VM` shares the address space, which is what makes it a thread at all; `CLONE_FS`,
+   `CLONE_FILES` and `CLONE_SYSVSEM` share the working directory, the descriptor table and the
+   semaphore adjustments; `CLONE_SIGHAND` shares the signal handlers and `CLONE_THREAD` puts the new
+   task in the same thread group, so it shares the process id and does not become a child to be
+   waited on.
+
+   `CLONE_PARENT_SETTID` and `CLONE_CHILD_CLEARTID` are the two that are not about sharing, and they
+   come as a pair over **one word**: the kernel writes the new thread's identifier into it before the
+   thread starts, and zeroes it - waking anybody sleeping on it - after the thread has finished with
+   its stack. That is what makes joining both possible and safe, and neither half works alone.
+
+   Without the first, the word holds whatever the mapping started as. A joiner reads the zero, decides
+   the thread has already ended, and gives back a stack the thread is still running on - a
+   use-after-free whose visibility depends on scheduling. Without the second there is nothing to wait
+   for, and a thread that published its own completion would still be executing its exit on the stack
+   about to be unmapped.
+
+   One constant and not two `or`ed together at the use, which is a wart worth knowing about rather
+   than a preference: `|` separates a pattern's alternatives, so `let flags = a | b` binds `a` and
+   reports `b` as an unreachable alternative - a warning, and a program that silently asked for a
+   different set of flags. Nothing here is worth spelling twice, so the whole set is written once.
+
+     0x00100 CLONE_VM        0x00800 CLONE_SIGHAND   0x100000 CLONE_PARENT_SETTID
+     0x00200 CLONE_FS        0x10000 CLONE_THREAD    0x200000 CLONE_CHILD_CLEARTID
+     0x00400 CLONE_FILES     0x40000 CLONE_SYSVSEM
+-}
+pub let cloneThreadFlags = 0x350F00 :: Size

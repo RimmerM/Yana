@@ -64,6 +64,11 @@ static const LowerIntrinsicDesc kIntrinsics[kLowerIntrinsicCount] = {
     [Size(LowerIntrinsic::WriteCr0)] = { "writecr0"_v, 0, 1 },
     [Size(LowerIntrinsic::WriteCr3)] = { "writecr3"_v, 0, 1 },
     [Size(LowerIntrinsic::WriteCr4)] = { "writecr4"_v, 0, 1 },
+
+    // Flags, the top of the child's stack, the two words of the function it runs, its argument, and
+    // where the kernel is to clear the thread id - and the identifier, or a negated errno, back.
+    // See the registry.
+    [Size(LowerIntrinsic::CloneThread)] = { "clonethread"_v, 1, 6 },
 };
 
 const LowerIntrinsicDesc& lowerIntrinsicDesc(LowerIntrinsic id) {

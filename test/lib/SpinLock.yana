@@ -17,13 +17,13 @@ import Atomic
 -- is read here rather than acted on: this file is checking what the state *was*.
 fn explicit() -> {}:
     let cell = spinLock()
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
 
-    lock(cell)
-    assert(isHeld(cell))
+    cell.lock()
+    assert(cell.isHeld())
 
-    unlock(cell)
-    assert(!isHeld(cell))
+    cell.unlock()
+    assert(!cell.isHeld())
 
 {-
    `tryLock` answers, rather than waiting.
@@ -36,17 +36,17 @@ fn explicit() -> {}:
 fn attempted() -> {}:
     let cell = spinLock()
 
-    assert(tryLock(cell))
-    assert(isHeld(cell))
+    assert(cell.tryLock())
+    assert(cell.isHeld())
 
     -- Held by us, so this fails and leaves the lock exactly as it was.
-    assert(!tryLock(cell))
-    assert(isHeld(cell))
+    assert(!cell.tryLock())
+    assert(cell.isHeld())
 
-    unlock(cell)
-    assert(tryLock(cell))
-    unlock(cell)
-    assert(!isHeld(cell))
+    cell.unlock()
+    assert(cell.tryLock())
+    cell.unlock()
+    assert(!cell.isHeld())
 
 -- Lock and release repeatedly, so the exchange is exercised from both states rather than once from
 -- each. A `tryLock` that left the word set on failure would pass every case above and fail here on
@@ -56,10 +56,10 @@ fn repeated() -> {}:
     let &turns = 0
 
     while turns < 100:
-        lock(cell)
-        assert(isHeld(cell))
-        unlock(cell)
-        assert(!isHeld(cell))
+        cell.lock()
+        assert(cell.isHeld())
+        cell.unlock()
+        assert(!cell.isHeld())
         turns = turns + 1
 
 {-
@@ -70,15 +70,15 @@ fn repeated() -> {}:
 -}
 fn scoped() -> Int:
     let cell = spinLock()
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
 
     let answer = held(cell)
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
     return answer
 
 fn held(cell: SpinLock) -> Int:
-    withLock(cell)
-    assert(isHeld(cell))
+    cell.withLock()
+    assert(cell.isHeld())
     return 7
 
 {-
@@ -89,7 +89,7 @@ fn held(cell: SpinLock) -> Int:
    pass either way. What makes it a real case is `escaping` below it.
 -}
 fn early(cell: SpinLock, quit: Bool) -> Int:
-    withLock(cell)
+    cell.withLock()
     if quit then return 1
     return 2
 
@@ -97,10 +97,10 @@ fn leaving() -> {}:
     let cell = spinLock()
 
     assert(early(cell, True) == 1)
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
 
     assert(early(cell, False) == 2)
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
 
 {-
    Leaving a *loop* that is inside the critical section, and then leaving the function from inside
@@ -118,7 +118,7 @@ fn escaping(cell: SpinLock) -> Int:
     let &sum = 0
     let &i = 0
 
-    withLock(cell)
+    cell.withLock()
 
     while i < 10:
         sum = sum + i
@@ -130,7 +130,7 @@ fn escaping(cell: SpinLock) -> Int:
 fn released() -> Int:
     let cell = spinLock()
     let answer = escaping(cell)
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
     return answer
 
 {-
@@ -144,18 +144,18 @@ fn nested() -> {}:
     let outer = spinLock()
     let inner = spinLock()
 
-    withLock(outer)
-    assert(isHeld(outer))
-    assert(!isHeld(inner))
+    outer.withLock()
+    assert(outer.isHeld())
+    assert(!inner.isHeld())
 
-    withLock(inner)
-    assert(isHeld(outer))
-    assert(isHeld(inner))
+    inner.withLock()
+    assert(outer.isHeld())
+    assert(inner.isHeld())
 
 fn nesting() -> {}:
     let cell = spinLock()
     nested()
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
 
 -- A lock protecting something, which is the shape every real caller has: the critical section reads
 -- and writes storage that the lock is the only thing serializing access to.
@@ -165,11 +165,11 @@ fn guarding() -> Int:
     let &i = 0
 
     while i < 50:
-        withLock(cell)
+        cell.withLock()
         total = total + i
         i = i + 1
 
-    assert(!isHeld(cell))
+    assert(!cell.isHeld())
     return total
 
 fn main() -> Int:

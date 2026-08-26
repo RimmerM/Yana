@@ -183,11 +183,12 @@ ModulePtr<Global> findGlobal(Module& module, StringId name, LocationId source) {
     return found ? *found : nullptr;
 }
 
-ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence) {
+ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence,
+                                 bool report) {
     auto found = search<ModulePtr<Function>>(module.context, module, name, source, [](Module& in, NameRef reference) -> ModulePtr<Function> {
         auto function = in.functions.get(reference.rest());
         return function ? function.unwrap() : nullptr;
-    });
+    }, report);
 
     /*
      * Recorded here even though a call site may go on to select a class function instead - §1.2's

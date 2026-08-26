@@ -1,0 +1,47 @@
+{-
+   Starting a thread, at the level where it is a machine operation.
+
+   Beside `syscall0`..`syscall6` in spirit and in a file of its own because of what it is not: every
+   one of those returns once, into the frame that made it. This one **returns twice** - once in the
+   thread that called it, with the new thread's identifier, and once in the new thread, with a stack
+   pointer of its own and the caller's every other register.
+
+   That is why it cannot be written as `syscall5(clone, ...)` and a branch. A system call is emitted
+   inline, so the code after it is the enclosing function's own - and in the new thread that code
+   addresses locals at offsets into a stack nothing has written, through a frame pointer that still
+   points into a frame belonging to a thread now running somewhere else. The new thread has to reach
+   its entry function before it touches memory at all, out of registers and out of the stack the
+   caller prepared for it. Every C library writes this one in assembly for the same reason.
+
+   `Native.Thread` is what a program should use. This is the primitive under it, and using it
+   directly means keeping every promise below.
+-}
+
+{-
+   `cloneThread(flags, stackTop, entry, argument, threadId)` - the identifier, or a negated errno.
+
+   What the caller owes it:
+
+    - **`stackTop` is one past the highest byte of the new thread's stack, and is sixteen-byte
+      aligned.** The thread grows downwards from there, and System V's alignment at a function's
+      first instruction is derived from that address; an odd one gives a thread whose every spill is
+      misaligned. Two words directly below it are used to hand the entry and the argument across and
+      are not the thread's to keep.
+
+    - **The storage lives at least as long as the thread does.** Nothing here owns it, nothing frees
+      it, and the thread is still running when this returns.
+
+    - **`entry` is an ordinary function of the language**, taking one pointer and returning nothing,
+      and a closure is admitted as readily as a top-level one - both of its words cross to the new
+      thread. It is called with `argument`, and when it returns the thread ends: `exit` and not
+      `exit_group`, so the process carries on.
+
+    - **`threadId` is a `%U32` the kernel clears when the thread ends**, and wakes a futex on, where
+      the flags ask it to. It is what makes joining possible and is otherwise ignored.
+
+    - **`flags` are the kernel's own**, and this knows none of them. `Native.Thread` states the set
+      that makes a thread rather than a process.
+-}
+pub fn cloneThread(
+  flags: Size, stackTop: %U8, entry: (%U8) -> {}, argument: %U8, threadId: %U32
+) -> Size

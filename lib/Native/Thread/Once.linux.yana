@@ -1,0 +1,77 @@
+{-
+   `Once` - run this exactly once, and make everyone else wait for it.
+
+   The smallest thing that needs parking and the one that most obviously does: lazy initialization
+   without it is either a lock around every read, or a race in which two threads both build the
+   thing. What `Once` promises is that the initializer runs one time, that every caller returns only
+   after it has finished, and that what it wrote is visible to all of them.
+
+   § Three states
+
+   `0` nobody has started, `1` somebody is running it, `2` it is done. The fast path is a single
+   **acquire load** answering `2`, which is one instruction and no branch worth predicting - and it
+   has to be acquire rather than relaxed, because what the caller is about to read is whatever the
+   initializer wrote. That edge is the whole point: a relaxed load here would let a caller see "done"
+   and then read uninitialized storage, which is the exact bug lazy initialization is famous for.
+
+   The runner publishes with a release store and wakes everybody, because they are all waiting for
+   the same event and all of them can proceed.
+-}
+import Native
+import Atomic
+import Native.Thread.Linux
+
+let notStarted = 0 :: U32
+let running = 1 :: U32
+let finished = 2 :: U32
+
+pub data Once {state: Atomic(U32)}
+
+pub fn once() -> Once = Once {state: atomic(notStarted)}
+
+-- Whether it has finished. The acquire is not decoration: a caller that reads this and then reads
+-- what the initializer wrote needs the edge, and one that only wants a diagnostic pays nothing for
+-- it on this architecture.
+pub fn hasRun(self: Once) -> Bool = self.state.load(LoadAcquire) == finished
+
+{-
+   `callOnce(self, body)` - run `body` if nobody has, and wait if somebody is.
+
+   Three paths and each of them is short. The first caller takes the state from `notStarted` to
+   `running`, runs the body, publishes `finished` and wakes whoever gathered. A later caller sees
+   `finished` on the fast load and returns. A caller that arrives while the body is running parks on
+   the word until it changes, then re-reads - which is a loop rather than a single wait because a
+   park may return for reasons that have nothing to do with this.
+
+   **Nothing is unwound if the body fails.** Yana has no unwinding, so a body that stops the process
+   stops it; a body that returns is a body that ran. There is deliberately no "poisoned" state to
+   observe, because there is no failure for it to record.
+
+   A higher-order function rather than a lens, because a lens always continues into the block below
+   it and this must **not** - the whole point is that the second caller does not run the body. That
+   is a skipping lens, which needs a `Try` instance to say where the skip goes, and a body-taking
+   function says the same thing with nothing to explain.
+-}
+pub fn callOnce(self: Once, body: () -> {}) -> {}:
+    if self.state.load(LoadAcquire) == finished: return
+
+    match self.state.compareExchange(notStarted, running, UpdateAcquire):
+        Exchanged -> runAndPublish(self, body)
+        Unchanged(->_) -> awaitFinished(self)
+
+fn runAndPublish(self: Once, body: () -> {}) -> {}:
+    body()
+
+    -- Release, so that everything the body wrote is visible to every caller that observes this - and
+    -- the wake comes after, because a waiter that starts before the store would find `running` and
+    -- park again.
+    self.state.store(finished, StoreRelease)
+    futexWake(self.state, 0x7FFFFFFF)
+
+fn awaitFinished(self: Once) -> {}:
+    while True:
+        let observed = self.state.load(LoadAcquire)
+        if observed == finished: break
+
+        futexWait(self.state, observed)
+

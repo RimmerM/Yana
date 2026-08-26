@@ -636,19 +636,38 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
     auto& application = *parse[call.app];
     auto& calleeExpr = unwrapNested(application.callee);
 
-    // By name and by declaration, since a binding of lens function type is reached through the
-    // erased callback ABI Implementation-Generics.md still lists as open.
-    if(calleeExpr.kind != ast::Expr::Var || findBinding(calleeExpr.var)) return false;
+    /*
+     * Which name this statement calls, and what it wrote to the left of it - the same decision a
+     * `for` source makes, and now literally the same code. See NamedCallee in expr.h.
+     *
+     * Both spellings are one rule: `withLock(l)` names the lens directly and `l.withLock()` is
+     * Design.md's dot-call form, which is `withLock(l)` and therefore just as much a named lens.
+     * Only the first was accepted here, and nothing had recorded that as a decision - so
+     * `l.withLock()` fell through to an ordinary call, came up one argument short, and was told to
+     * write itself as a statement of its own, which is what it was.
+     *
+     * A binding of lens function type is deliberately still not this: one is reached through the
+     * erased callback ABI Implementation-Generics.md lists as open, and `namedCallee` declines a
+     * name a binding shadows for that reason.
+     */
+    NamedCallee named;
+    if(!namedCallee(calleeExpr, ast::FunKind::Lens, named, false)) return false;
 
-    // Looked up at the call and recorded against the *name*, which is the same split every ordinary
-    // call keeps - see findFunction. Recording it against the whole application puts the callee on a
-    // span the arguments are inside, so a cursor in one of them walks outwards and finds it.
-    auto callee = findFunction(module, calleeExpr.var, call.source, calleeExpr.source);
+    /*
+     * Looked up at the call and recorded against the *name*, which is the same split every ordinary
+     * call keeps - see findFunction. Recording it against the whole application puts the callee on a
+     * span the arguments are inside, so a cursor in one of them walks outwards and finds it.
+     *
+     * The plain half only, which is what `namedCallee` was told: a class `lens fn` has no call site
+     * yet and the ordinary path reports that in terms the author can act on.
+     */
+    auto callee = findFunction(module, named.name, call.source, named.nameSource);
     if(!callee || local[callee]->funKind != ast::FunKind::Lens) return false;
 
     auto target = local[callee];
     auto source = call.source;
     auto arguments = application.args;
+    auto leading = named.leading();
 
     /*
      * The written arguments have to reach every parameter but the continuation - which is the same
@@ -657,11 +676,15 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
      * legal and is what a call site reaches for when the rest of the block is not what it wants to
      * run, so a list this cannot normalize is handed back rather than reported on.
      */
+    // The receiver's own entry is empty, because a receiver is positional by construction - it is
+    // written to the left of the name and there is nowhere to put one. See resolveNamedCall.
     ArgNames names;
+    if(leading) names.push(StringId());
     collectArgNames(arguments, names);
 
     ArgMapping mapping;
-    if(!mapArguments(callee, toBuffer(names), arguments.size(), 1, calleeExpr.var, source, false, mapping)) {
+    if(!mapArguments(callee, toBuffer(names), arguments.size() + leading, 1, named.name, source,
+                     false, mapping)) {
         return false;
     }
 
@@ -688,8 +711,11 @@ bool ExprResolver::resolveLensStatement(ast::ParseList<ast::Expr> block, Size in
         return true;
     }
 
+    // The receiver is already resolved - resolving is emission, so there is no resolving a second
+    // time - and is pushed here rather than by `resolveHandedArguments` for exactly that reason.
     ArgList handed;
-    resolveHandedArguments(callee, &mapping, arguments, handed);
+    if(leading) handed.push(named.receiver);
+    resolveHandedArguments(callee, &mapping, arguments, handed, leading);
 
     // The call is this statement, and the rest of the block is its continuation - so stopping here
     // means the block below is resolved as itself rather than lifted, which is the same thing every

@@ -2812,6 +2812,76 @@ struct Emitter {
                 to.buffer.writeByte(0x05);
                 break;
 
+            /*
+             * `clone`, and the child's entry sequence - see PseudoKind::CloneThread.
+             *
+             *     mov  [rsi - 24], r9       the environment, where the child will pop it
+             *     mov  [rsi - 16], r8       the argument, likewise
+             *     mov  [rsi - 8],  rdx      and the code
+             *     lea  rsi, [rsi - 24]      which is the stack the child starts on
+             *     mov  rdx, r10            parent_tid: the same word as child_tid
+             *     xor  r8d, r8d             tls: nothing
+             *     mov  eax, 56              SYS_clone
+             *     syscall
+             *     test rax, rax
+             *     jnz  parent
+             *     pop  rdi                  the child, on its own stack: the environment
+             *     pop  rsi                  the argument
+             *     pop  rax                  and the code
+             *     call rax
+             *     xor  edi, edi             it returned, so this thread is done
+             *     mov  eax, 60              SYS_exit - this thread, not the process
+             *     syscall
+             *   parent:
+             *
+             * **`parent_tid` is the same word as `child_tid`**, which is what makes the identifier
+             * usable at all. `CLONE_CHILD_CLEARTID` only ever *clears* it; without
+             * `CLONE_PARENT_SETTID` writing the identifier in first, a joiner reads the zero the
+             * mapping started as, concludes the thread has ended, and gives back a stack the thread
+             * is still running on. One word serves both because the kernel writes it before the
+             * child starts and clears it after the child has finished with its stack.
+             *
+             * The two register arguments the call is made with are the **internal** convention's
+             * first two, which is what a function value's code word takes: the environment and then
+             * the declared argument. A top-level function reaches this through the thunk that gives
+             * it one, so there is one shape here rather than two.
+             *
+             * **The alignment is the child's stack top, and it has to be sixteen.** Three pops leave
+             * `rsp` at that top and the `call` then pushes eight, which is System V's own state at a
+             * function's first instruction. A caller handing over an odd address gets a thread whose
+             * every vector spill is misaligned, so `createThread` rounds it down before it arrives.
+             *
+             * The branch is a `jnz` over fourteen bytes and needs no label: the child's half never
+             * falls out of the bottom, so nothing after this can be reached from it.
+             */
+            case PseudoKind::CloneThread: {
+                auto& out = to.buffer;
+
+                out.writeByte(0x4c); out.writeByte(0x89); out.writeByte(0x4e); out.writeByte(0xe8);
+                out.writeByte(0x4c); out.writeByte(0x89); out.writeByte(0x46); out.writeByte(0xf0);
+                out.writeByte(0x48); out.writeByte(0x89); out.writeByte(0x56); out.writeByte(0xf8);
+                out.writeByte(0x48); out.writeByte(0x8d); out.writeByte(0x76); out.writeByte(0xe8);
+                out.writeByte(0x4c); out.writeByte(0x89); out.writeByte(0xd2);
+                out.writeByte(0x45); out.writeByte(0x31); out.writeByte(0xc0);
+
+                out.writeByte(0xb8);
+                out.writeByte(56); out.writeByte(0); out.writeByte(0); out.writeByte(0);
+                out.writeByte(0x0f); out.writeByte(0x05);
+
+                out.writeByte(0x48); out.writeByte(0x85); out.writeByte(0xc0);
+                out.writeByte(0x75); out.writeByte(14);
+
+                out.writeByte(0x5f);
+                out.writeByte(0x5e);
+                out.writeByte(0x58);
+                out.writeByte(0xff); out.writeByte(0xd0);
+                out.writeByte(0x31); out.writeByte(0xff);
+                out.writeByte(0xb8);
+                out.writeByte(60); out.writeByte(0); out.writeByte(0); out.writeByte(0);
+                out.writeByte(0x0f); out.writeByte(0x05);
+                break;
+            }
+
             case PseudoKind::Return:
                 // After the terminator's own moves, which have already placed the return values in
                 // the registers the convention returns them in. Those and the saved registers are

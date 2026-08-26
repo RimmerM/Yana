@@ -396,6 +396,71 @@ void addIntrinsics(MachineTarget& target) {
     }
 
     /*
+     * Starting a thread - `clone`, and the child's entry behind it.
+     *
+     * The one entry in this file that is not an instruction, and the reason it cannot be a library
+     * function is what the system call does rather than how it is spelled: **it returns twice**. The
+     * parent comes back with the child's identifier; the child comes back with `rax` zero, a stack
+     * pointer of its own, and the parent's every other register. Whatever the compiler generated for
+     * the enclosing frame is therefore valid in exactly one of the two - a spilled local is at an
+     * `rsp` offset into memory the child has never written, and `rbp` still points into a frame that
+     * belongs to a thread now running somewhere else.
+     *
+     * So the child has to reach its entry function *before it touches memory*, out of registers and
+     * the stack the parent prepared for it. That is why every C library writes this one in assembly,
+     * and it is the whole of what this pseudo is.
+     *
+     * The operands are the system call's own, in its own registers, with the exceptions that make it
+     * work: `rdx` and `r9` carry the two words of the **function** the thread is to run rather than
+     * the parent-id pointer and the tls, `r8` carries its **argument**, and all three are written
+     * onto the child's stack before the call. `r8` is read there and zeroed immediately after, which
+     * is why the kernel's `tls` and this can share it - and why `rcx` cannot be used, being a
+     * register the system call takes for itself. The kernel's `parent_tid` and `tls` are then zeroed
+     * here, because nothing needs them and the caller has no register left to put them in.
+     *
+     * Two words and not one, because what a Yana function *is* is a code pointer and an environment
+     * - see FunValueLayout. Handing both across is what lets the thread run a closure rather than
+     * only a top-level function, and costs one more word on the child's stack.
+     *
+     * `r10` is passed through untouched: it is the kernel's `child_tid`, which with
+     * `CLONE_CHILD_CLEARTID` is what makes joining possible - the kernel clears that word and wakes
+     * a futex on it when the thread ends.
+     */
+    {
+        auto b = add(LowerIntrinsic::CloneThread, "clone (with entry)"_v, kFeatureBaseline);
+        b.form.uses.push(fixedReg(IntRegister::rdi));   // flags
+        b.form.uses.push(fixedReg(IntRegister::rsi));   // the top of the child's stack
+        b.form.uses.push(fixedReg(IntRegister::rdx));   // the code word of the function it runs
+        b.form.uses.push(fixedReg(IntRegister::r8));    // the argument that function is given
+        b.form.uses.push(fixedReg(IntRegister::r10));   // where the kernel clears the thread id
+        b.form.uses.push(fixedReg(IntRegister::r9));    // that function's environment word
+        b.form.defs.push(fixedDef(IntRegister::rax));
+
+        // What the sequence writes without naming: the system call takes rcx and r11 for itself, and
+        // the child's half of the branch runs on registers the parent will never look at again.
+        b.form.clobbers.add(gpr(IntRegister::rcx));
+        b.form.clobbers.add(gpr(IntRegister::r11));
+        b.form.clobbers.add(gpr(IntRegister::rdx));
+        b.form.clobbers.add(gpr(IntRegister::rsi));
+        b.form.clobbers.add(gpr(IntRegister::rdi));
+        b.form.flagsEffect = FlagsEffect::Clobber;
+
+        b.form.encoding = EncodingDescriptor {
+            .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::CloneThread,
+        };
+
+        // Words, every one of them, and `integer64Rule` is what says so: an address here is a value
+        // the sequence *writes down* rather than one an encoding reads through, which is what
+        // `pointerRule` would have claimed - see validateIntrinsics.
+        for(Size i = 0; i < 6; i++) b.desc.operands.push(integer64Rule());
+        b.desc.results.push(integer64Rule());
+
+        b.desc.effects.ordered = true;
+        b.desc.effects.readsMemory = true;
+        b.desc.effects.writesMemory = true;
+    }
+
+    /*
      * Cache and translation control.
      *
      * Each of these takes the address it operates on and nothing else, which makes them the first

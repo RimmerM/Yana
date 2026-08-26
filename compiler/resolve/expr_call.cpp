@@ -1663,6 +1663,67 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
  * name with at most one answer, and two visible ones are already an ambiguity at every call site
  * that names it, dot or not. See Design.md's R1.
  */
+/*
+ * The shared front half of a `for` source and a lens statement - see NamedCallee in expr.h for why
+ * these two need one and an ordinary call does not.
+ *
+ * This was written twice. The `for` loop had it, correct and commented; the lens statement had half
+ * of it - a plain name only - and the missing half was not a decision anybody had recorded. What
+ * that cost was `c.withLock()`, refused with a message telling its author to write the call as a
+ * statement of its own, which is what they had written.
+ */
+bool ExprResolver::namedCallee(const ast::Expr& calleeExpr, ast::FunKind kind, NamedCallee& out,
+                               bool classMembers) {
+    if(calleeExpr.kind == ast::Expr::Var && !findBinding(calleeExpr.var)) {
+        out.name = calleeExpr.var;
+        out.nameSource = calleeExpr.source;
+        return true;
+    }
+
+    if(calleeExpr.kind != ast::Expr::Field) return false;
+
+    auto& field = *parse[calleeExpr.field];
+    auto& selected = field.field;
+
+    if(selected.kind != ast::Expr::Var || isCursorSentinel(context, selected.var)) return false;
+
+    /*
+     * Whether anything of this name is declared as `kind` at all, asked with no occurrence recorded
+     * and before the receiver exists. Both halves are asked, because a class member is as much a
+     * name as a plain function is - and the plain half alone is what let a `lens fn` of a class have
+     * no call site.
+     */
+    auto declaredAs = [&](StringId candidate) {
+        auto plain = findFunction(module, candidate, selected.source, kNullLocation, false);
+        if(plain && local[plain]->funKind == kind) return true;
+
+        if(!classMembers) return false;
+
+        ClassFunList found;
+        findClassFunctions(module, candidate, selected.source, found);
+
+        for(auto& entry: found) {
+            auto declared = global[entry.typeClass]->functions.get(global, entry.index);
+            if(declared.fun && local[declared.fun]->funKind == kind) return true;
+        }
+
+        return false;
+    };
+
+    if(!declaredAs(selected.var)) return false;
+
+    out.receiver = resolve(field.target);
+    if(!out.receiver || global[valueType(out.receiver)]->kind == Type::Error) return false;
+
+    // A field of function type is a value, and a value is not this form - only a name that is *not*
+    // a field of the receiver is a dot-call. See resolveDotCall, whose choice this repeats.
+    if(hasFieldNamed(valueType(out.receiver), selected.var)) return false;
+
+    out.name = selected.var;
+    out.nameSource = selected.source;
+    return true;
+}
+
 ModulePtr<Value> ExprResolver::resolveDotCall(const ast::Expr& expr, const ast::AppExpr& call,
                                               const ast::FieldExpr& field, TypePtr target,
                                               bool convertResult) {

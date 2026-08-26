@@ -156,6 +156,27 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
                     break;
                 }
 
+                /*
+                 * Starting a thread, which becomes the backend's own intrinsic rather than a call.
+                 *
+                 * Five operands in, one out, in the order the declaration writes them - the whole of
+                 * the mapping, because everything that makes this operation what it is lives in the
+                 * encoder. See LowerIntrinsic::CloneThread.
+                 */
+                case NativeOp::CloneThread: {
+                    auto type = lowerType(lower, instruction.type);
+                    auto inst = (LowerInstIntrinsic*)lower.to.arena.alloc(
+                        sizeof(LowerInstIntrinsic) + sizeof(LowerValue) +
+                        sizeof(LowerPtr<LowerValue>) * args.size());
+
+                    new (inst) LowerInstIntrinsic(LowerIntrinsic::CloneThread, 1, args.size());
+                    for(Size i = 0; i < args.size(); i++) inst->used().ptr[i] = args[i];
+                    new (inst->created().ptr) LowerValue(inst, type, instruction.name);
+
+                    result = block.addInst(lower.lower, (LowerInst*)inst);
+                    break;
+                }
+
                 case NativeOp::HostCall:
                 case NativeOp::HostField:
                 case NativeOp::HostArray:

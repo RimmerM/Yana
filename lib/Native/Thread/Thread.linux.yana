@@ -1,0 +1,164 @@
+{-
+   Threads, and the parking primitive everything else in this module is built on.
+
+   Module `Native.Thread`. Under `Native` because every promise here is one the compiler cannot
+   check, and named apart from it because a program that wants a mutex does not want the pointer
+   arithmetic - `import Native.Thread` is the thing a caller writes, and it says what it is reaching
+   for.
+
+   § These are the raw, thread-specific primitives
+
+   Everything here blocks an **operating-system thread**. That is the right primitive for a program
+   whose concurrency is threads, and the wrong one for a program whose concurrency is fibers: a fiber
+   that blocks its thread blocks every other fiber pinned to that thread's event loop. The
+   fiber-aware forms will be the default ones and will not need this import; these will stay, under
+   this name, for the code that means a thread.
+
+   § What is not safe yet
+
+   **The runtime is not thread-safe.** The heap is a global free list with no lock in front of it, so
+   two threads allocating at once corrupt it - which means a thread body may not build a container,
+   a string, or anything else that reaches the allocator. Integers, atomics, and storage the parent
+   allocated before starting the thread are all fine. This is a fact about the runtime rather than
+   about this module, and it is what a thread-safe allocator has to fix before any of this is usable
+   for real work.
+
+   There is also no thread-local storage: the new thread inherits the parent's, because nothing here
+   sets up a new one.
+
+   § Linux only, for now
+
+   The whole file is `.linux.yana`, and the futex it is written over is `Native.Thread.Linux`. The
+   split is where the port goes: everything here except `parkThread`, `unparkOne` and `unparkAll` is
+   an algorithm any kernel that can block a thread supports.
+-}
+import Native
+import Atomic
+import Native.Thread.Linux
+
+{-
+   `parkThread(word, expected)` - stop this thread on `word`, unless it has stopped holding
+   `expected`.
+
+   The primitive, and the one operation in this module that could not be written in the language. It
+   answers **nothing about why it returned**, and that is deliberate: a return means only "look
+   again". A signal, a wake meant for another waiter, and a word that changed before the kernel read
+   it are all indistinguishable to a correct caller, because a correct caller re-reads its own state.
+   Every use of it in this module is inside a loop that does.
+
+   What makes it a primitive rather than a convenience is the comparison, which happens **inside the
+   kernel** under the queue's own lock. A thread that read the word, decided to wait, and then called
+   a plain "sleep on this address" could be overtaken by a waker in between - the waker changes the
+   word, looks for sleepers, finds none, and the waiter then sleeps on a condition that has already
+   been satisfied. Passing the expectation in is what closes that window, and nothing in user space
+   can close it for itself.
+-}
+pub fn parkThread(word: Atomic(U32), expected: U32) -> {}:
+    futexWait(word, expected)
+
+-- Start one waiter, if there is one. Answers whether anybody was actually started, which callers use
+-- only for diagnostics: a release that wakes nobody is the ordinary uncontended case.
+pub fn unparkOne(word: Atomic(U32)) -> Bool = futexWake(word, 1) > 0
+
+-- Start every waiter, and answer how many. The right form when what changed makes progress possible
+-- for all of them - a broadcast, a latch reaching zero, a write lock being released to readers.
+pub fn unparkAll(word: Atomic(U32)) -> Size = futexWake(word, 0x7FFFFFFF)
+
+{-
+   A running thread, and the storage it is running on.
+
+   One mapping holds both, which is what makes a thread one system call to start and one to give
+   back. The first page is the control block - the word the kernel clears when the thread ends - and
+   everything above it is the stack, growing down towards that page.
+
+   **There is no guard page.** A thread that overflows its stack runs into its own control block and
+   then off the bottom of the mapping, and only the second of those faults. Sizing the stack for the
+   work is the caller's job, and 64 KiB is a great deal for anything this module can currently run.
+-}
+pub data Thread {region: %U8, size: Size, id: Size}
+
+{-
+   Where the kernel clears the thread's identifier, which is the first word of the control page.
+
+   **As an atomic, and that is not decoration.** Another thread writes this word - the kernel does,
+   from the exiting thread's own path - so every read of it is a read of memory this thread does not
+   control. A plain load says the opposite: it is a load of ordinary memory, and an ordinary load in
+   a loop whose body writes nothing the load depends on is one the optimizer may hoist out of the
+   loop entirely. `join` was written that way, and what that compiles to at any optimization level
+   willing to hoist it is a spin on a value read once, forever.
+
+   `atomicAt` is exactly the operation for this: the word already exists, this is a *view* of it at
+   the type that says how it may be read, and the borrow it hands back is rooted in the pointer so
+   the ordinary rules apply to it. It is also what `parkThread` next door already takes, so the
+   waiting and the reading now agree about what this word is.
+-}
+fn threadIdWord(return self: Thread) -> 'Atomic(U32) = atomicAt(self.region)
+
+{-
+   `createThread(entry, argument, stackBytes)` - a running thread, or `Nothing`.
+
+   `entry` is an ordinary function of the language and a closure is admitted: both words of it cross
+   to the new thread, which is what `cloneThread` is careful about. It is handed `argument` and
+   nothing else, and when it returns the thread ends.
+
+   **Nothing here owns `argument`.** It is a raw address, the thread reads it for as long as it
+   likes, and keeping whatever it points at alive is the caller's problem - as is every other promise
+   in this module.
+
+   The stack is rounded up to a whole number of pages and the mapping carries the control page on
+   top of it, so a caller asking for 64 KiB gets 64 KiB of stack.
+-}
+pub fn createThread(entry: (%U8) -> {}, argument: %U8, stackBytes: USize) -> Maybe(Thread):
+    -- `alignUp` rather than the divide-multiply this used to write out, and `pageBytes` rather than
+    -- the 4096 it repeated twice. The arithmetic is a mask on an unsigned word and a pair of shifts
+    -- with sign fixups on a signed one, which is most of why `stackBytes` is `USize`: a stack size
+    -- is a count of bytes and has no sign to carry.
+    -- The control page sits under the stack - see above - so the mapping is the rounded stack
+    -- plus one more page.
+    let size = alignUp(stackBytes, pageBytes) + pageBytes
+
+    -- The same number as a signed word, once: the rounding above is unsigned because a byte count
+    -- has no sign to carry, and everything below takes the width the language's pointer arithmetic
+    -- and `mapMemory` are written in.
+    let mapped = bitcast(size) :: Size
+
+    let region = mapMemory(mapped)
+    if isNull(region) then return Nothing
+
+    -- One past the highest byte, which is where the child's stack starts and is page-aligned by
+    -- construction - `cloneThread` needs sixteen and mmap gives four thousand and ninety-six.
+    let top = region + mapped
+    let id = cloneThread(cloneThreadFlags, top, entry, argument, bitcast(region) :: %U32)
+
+    if id <= 0:
+        unmapMemory(region, mapped)
+        return Nothing
+
+    return Just(Thread {region: region, size: mapped, id: id})
+
+{-
+   `join(thread)` - wait for it to end, and give its stack back.
+
+   The wait is on the word `CLONE_CHILD_CLEARTID` clears, and that is not an implementation detail
+   but the whole reason joining is safe: the kernel clears it **after** the thread has stopped using
+   its stack. A thread that published "I am done" itself would still be executing its own exit on the
+   stack the joiner is about to unmap.
+
+   The word is read before each wait rather than once, because the thread may have ended between the
+   two - which is exactly the race `parkThread`'s expectation closes, asked here of a word the kernel
+   writes instead of one this module does.
+
+   Consumes the `Thread`, because what it answers is that there is no longer one.
+-}
+pub fn join(->self: Thread) -> {}:
+    while True:
+        let observed = threadIdWord(self).load(LoadAcquire)
+        if observed == 0: break
+
+        futexWaitTid(threadIdWord(self), observed)
+
+    unmapMemory(self.region, self.size)
+
+-- Whether the thread has ended, without waiting. Advisory in the way every unsynchronized
+-- observation is: a `False` may be stale by the time it is read.
+pub fn hasEnded(self: Thread) -> Bool = threadIdWord(self).load(LoadAcquire) == 0

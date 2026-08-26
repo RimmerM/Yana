@@ -1,0 +1,176 @@
+{-
+   A reader/writer mutex - many readers, or one writer.
+
+   Worth having exactly where the read side dominates and the critical sections are long enough to
+   pay for the extra state: a configuration map read on every request and written once a minute, a
+   routing table, a cache index. For anything short or write-heavy a plain `Mutex` is faster, because
+   a reader/writer lock's read path is still an atomic read-modify-write on one shared line and it
+   has strictly more of them.
+
+   § One word
+
+       bit 31        a writer holds it
+       bit 30        a writer is waiting
+       bits 0..29    how many readers hold it
+
+   Both halves in one word so that a reader's acquisition is a single compare-exchange - the
+   alternative, a count and a flag in separate words, cannot be read consistently without a third
+   thing to serialize them.
+
+   § Writers are preferred, and that is a choice
+
+   A reader will not take the lock while bit 30 is set. Without that, a stream of readers can hold
+   the count above zero forever and a writer never runs - reader starvation is not a theoretical risk
+   here, it is what a read-dominated workload *does*. The cost is that a writer's announcement stalls
+   readers that would otherwise have proceeded, which is the trade this makes deliberately.
+
+   It is not fair in any stronger sense: among writers, and among readers once a writer has gone,
+   whoever the kernel starts first wins. A FIFO reader/writer lock needs a queue, and a queue is a
+   different type.
+
+   § Everyone waits on the same word
+
+   One futex address, so a release wakes readers and writers alike and each re-checks. That is a
+   thundering herd on a wide release, and the alternative - two addresses, so a write unlock can wake
+   only readers - costs a second cache line and an argument about which to wake first. This is the
+   simple version; the measurement that would justify the other one does not exist yet.
+-}
+import Native
+import Atomic
+import Native.Thread.Linux
+
+let writerHeld = 0x80000000 :: U32
+let writerWaiting = 0x40000000 :: U32
+let readerMask = 0x3FFFFFFF :: U32
+
+-- What a reader may not proceed past: the lock being held for writing, or a writer having announced
+-- itself. Both in one constant because a reader tests them together and never separately.
+let readerBlocked = 0xC0000000 :: U32
+
+pub data RwMutex {state: Atomic(U32)}
+
+pub fn rwMutex() -> RwMutex = RwMutex {state: atomic(0 :: U32)}
+
+-- How many readers hold it, right now. Advisory, like every unsynchronized observation.
+pub fn readerCount(self: RwMutex) -> U32 = self.state.load(LoadRelaxed) `and` readerMask
+
+{-
+   One read attempt, which never blocks.
+
+   The compare-exchange carries the whole observed word rather than just the count, which is what
+   makes it a single step: a reader that incremented only the low bits could do so between a writer
+   setting bit 31 and that writer noticing, and would then be inside a lock somebody else holds.
+-}
+pub fn tryLockRead(self: RwMutex) -> Bool:
+    let &observed = self.state.load(LoadRelaxed)
+
+    while (observed `and` readerBlocked) == 0:
+        match self.state.compareExchange(observed, observed + 1, UpdateAcquire):
+            Exchanged -> return True
+            Unchanged(->actual) -> observed = actual
+
+    return False
+
+-- Take it for reading, waiting while a writer holds it or has announced itself. The expectation
+-- handed to the kernel is the word that made this thread wait, so a release changing anything at all
+-- makes it look again.
+pub fn lockRead(self: RwMutex) -> {}:
+    while !tryLockRead(self):
+        let observed = self.state.load(LoadRelaxed)
+        if (observed `and` readerBlocked) != 0:
+            futexWait(self.state, observed)
+
+{-
+   Give a read lock back.
+
+   The decrement has to answer what was there, because only the **last** reader out has anything to
+   wake - and only if a writer is waiting. Every other reader's release is one atomic instruction and
+   no system call, which is what makes the read path worth having at all.
+-}
+pub fn unlockRead(self: RwMutex) -> {}:
+    let previous = self.state.fetchSub(1, UpdateRelease)
+
+    if (previous `and` readerMask) == 1 && (previous `and` writerWaiting) != 0:
+        futexWake(self.state, 0x7FFFFFFF)
+
+{-
+   One write attempt, which takes the lock only when the word is **completely** free - no writer, no
+   announced writer, and no readers.
+
+   Barging past an announced writer would be correct and would undo the preference the announcement
+   exists to create, so the public attempt declines. `takeWrite` below is the one that does not, and
+   it is private for exactly that reason: the only caller entitled to ignore the bit is a writer that
+   is itself waiting behind it.
+-}
+pub fn tryLockWrite(self: RwMutex) -> Bool =
+    match self.state.compareExchange(0, writerHeld, UpdateAcquire):
+        Exchanged -> True
+        Unchanged(->_) -> False
+
+-- Take it from a word that has neither a holder nor a reader, whatever its announcement bit says.
+-- Taking it clears that bit, and any other queued writer announces itself again.
+fn takeWrite(self: RwMutex, observed: U32) -> Bool =
+    match self.state.compareExchange(observed, writerHeld, UpdateAcquire):
+        Exchanged -> True
+        Unchanged(->_) -> False
+
+{-
+   Take it for writing.
+
+   Three cases per turn, and the first is the one that took a deadlock to get right. A writer that
+   cannot take the lock announces itself by setting bit 30, which stops new readers so the readers
+   already inside can drain. But the bit is part of the word, so a writer that then re-tries
+   `tryLockWrite` - which demands **zero** - can never succeed: it is blocked by its own
+   announcement, and so is every other writer, forever. Nothing else in the lock is wrong and it
+   still hangs.
+
+   So the attempt here is against "no holder and no readers" rather than against zero, and the
+   announcement bit is simply overwritten by the acquisition. That is also why `takeWrite` is not
+   `tryLockWrite`: the public form must not barge past an announcement, and this one *is* the
+   announcement.
+
+   Setting the bit is a compare-exchange rather than a bitwise `or` because the word may have become
+   free in between, and this thread would rather take the lock than say it wants it.
+
+   The park's expectation is the word with the bit set, which is what the word is after the
+   announcement - so a release, a reader leaving, or another writer arriving all make the kernel
+   refuse and this thread look again.
+-}
+pub fn lockWrite(self: RwMutex) -> {}:
+    while True:
+        let observed = self.state.load(LoadRelaxed)
+
+        if (observed `and` writerHeld) == 0 && (observed `and` readerMask) == 0:
+            if takeWrite(self, observed): return
+        else:
+            if (observed `and` writerWaiting) == 0:
+                self.state.compareExchange(observed, observed `or` writerWaiting, UpdateRelaxed)
+            else:
+                futexWait(self.state, observed)
+
+{-
+   Give a write lock back, to everybody.
+
+   The store is to **zero**, which clears the waiting bit along with the held one - so a writer still
+   queued has to announce itself again. That is deliberate: leaving the bit set would keep readers out
+   on behalf of a writer that may have given up, and re-announcing costs one compare-exchange in a
+   path that is about to make a system call anyway.
+
+   Everyone is woken, because a write release makes progress possible for every reader at once and
+   for one writer. Which of them wins is the kernel's to decide, and the losers re-check.
+-}
+pub fn unlockWrite(self: RwMutex) -> {}:
+    self.state.store(0, StoreRelease)
+    futexWake(self.state, 0x7FFFFFFF)
+
+-- The two scoped forms, which is what almost every caller should write. Lenses for `withLock`'s
+-- reason: the release runs on every way out of the block, including a `return` from inside it.
+pub lens fn withRead(self: RwMutex) -> {}:
+    lockRead(self)
+    yield {}
+    unlockRead(self)
+
+pub lens fn withWrite(self: RwMutex) -> {}:
+    lockWrite(self)
+    yield {}
+    unlockWrite(self)

@@ -1531,6 +1531,51 @@ struct ExprResolver {
     bool resolveLensStatement(ast::ParseList<ast::Expr> block, Size index, bool used,
                               ModulePtr<Value>& result);
 
+    /*
+     * What a callee expression names, for the two call sites that have to know *before* they resolve
+     * anything - a `for` loop's source and a lens statement.
+     *
+     * An ordinary call is committed by the time it looks: `resolveCall` has already decided this is
+     * a call, so `resolveDotCall` resolves the receiver and asks afterwards. These two have not
+     * decided. A block statement is a lens call only if it names a lens, and a `for` source is an
+     * iterator call only if it names an iterator - and the alternative in each case is an ordinary
+     * expression that must be resolved from the top, so anything emitted while looking would be
+     * emitted twice.
+     *
+     * The way out is that `funKind` is a property of the *declaration* and not of the receiver's
+     * type. So the name is asked first, against `kind`, and the receiver is resolved only once
+     * something of that name and kind is known to exist. `upTo(n).twice()` names no iterator, so its
+     * receiver is left alone and the caller's own diagnostic stands.
+     *
+     * Answers false where the callee is not a name at all - an adaptor chain, a value of function
+     * type - which is the caller's own case to report.
+     */
+    struct NamedCallee {
+        // Braced: an uninitialized StringId is what `!name` would read - see diagnostics.h.
+        StringId name {};
+        LocationId nameSource = kNullLocation;
+
+        // The dot-call's argument 0, resolved only where the name matched. Null for the plain form,
+        // and null for a name that turned out to be a *field* of the receiver holding a callable.
+        ModulePtr<Value> receiver = nullptr;
+
+        Size leading() const { return receiver ? Size(1) : Size(0); }
+    };
+
+    /*
+     * `classMembers` says whether a class member of that kind counts as "something of this name
+     * exists", and the two callers genuinely differ. A `for` loop dispatches to one - `Container`'s
+     * `iter fn chunks` is a class member and loops over it work. A lens statement does not yet: a
+     * class `lens fn` is declarable and has no call site (see the diagnostic that says so), so
+     * counting one here would resolve the receiver, find no plain lens to hand it to, and have
+     * nowhere to put what it had already emitted.
+     *
+     * It is a flag rather than two functions because the difference is one line and the day the
+     * lens statement grows the dispatch a loop already has, the flag is what goes.
+     */
+    bool namedCallee(const ast::Expr& calleeExpr, ast::FunKind kind, NamedCallee& out,
+                     bool classMembers = true);
+
     // What the call site does with the value the continuation produced, which is Analysis-Lens.md
     // §5.1's three shapes and nothing else. Reached by both kinds of lens: a transparent one holds
     // the call's own result, and a skipping one holds what came out of its wrapper.

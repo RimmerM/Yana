@@ -144,7 +144,8 @@ struct NameRef {
  * in what order, and what is done about two answers are this function's business.
  */
 template<class T, class Find>
-Found<T> search(Context& context, Module& module, StringId name, LocationId source, Find&& find) {
+Found<T> search(Context& context, Module& module, StringId name, LocationId source, Find&& find,
+                bool report = true) {
     auto identifier = &context.find(name);
     Found<T> result;
 
@@ -222,8 +223,19 @@ Found<T> search(Context& context, Module& module, StringId name, LocationId sour
         if(!exportedSymbol(*import.module, value)) continue;
 
         if(result.found && result.module != import.module) {
-            context.diagnostics.error("ambiguous name %@ - it is visible through more than one import"_v,
-                                      source, context.findName(name));
+            /*
+             * `report` is false where the caller is asking whether a name exists at all rather than
+             * deciding a call - see namedCallee, which probes a dot-call's name before it will
+             * resolve the receiver. An ambiguity is not an answer to that question: if two are
+             * visible and either is the kind being looked for, the answer is yes, and reporting here
+             * would produce the diagnostic *before* the receiver has had its say about which one is
+             * meant. That is the bug the dot-call precedence fix removed, and probing put it back.
+             */
+            if(report) {
+                context.diagnostics.error("ambiguous name %@ - it is visible through more than one import"_v,
+                                          source, context.findName(name));
+            }
+
             return result;
         }
 
@@ -317,7 +329,9 @@ StringId findTypeMethod(Module& module, TypePtr receiver, StringId name);
  * has none - it is `kNullLocation` there, which records nothing. The three-argument form is the
  * ordinary case, where the name is written at the place it is resolved from.
  */
-ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence);
+// `report` is false for a probe that only asks whether the name exists - see search.
+ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source, LocationId occurrence,
+                                 bool report = true);
 
 inline ModulePtr<Function> findFunction(Module& module, StringId name, LocationId source) {
     return findFunction(module, name, source, source);

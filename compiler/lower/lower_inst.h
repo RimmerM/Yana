@@ -1953,7 +1953,18 @@ enum class LowerIntrinsic: U16 {
     WriteCr3,
     WriteCr4,
 
-    LastIntrinsic = WriteCr4,
+    /*
+     * Starting a thread, which is the one intrinsic here that is not an instruction.
+     *
+     * It is several - a system call, a branch, and the child's whole entry sequence - and it is an
+     * intrinsic rather than a library function because none of it can be written above a backend.
+     * The child begins with its own stack pointer and the *parent's* every other register, so any
+     * code the compiler generated for the enclosing frame reads the wrong frame in it; the entry has
+     * to be reached before the child touches memory at all. See PseudoKind::CloneThread.
+     */
+    CloneThread,
+
+    LastIntrinsic = CloneThread,
 };
 
 static constexpr Size kLowerIntrinsicCount = Size(LowerIntrinsic::LastIntrinsic) + 1;

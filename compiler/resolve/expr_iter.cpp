@@ -53,66 +53,24 @@ ModulePtr<Function> ExprResolver::findLoopIterator(const ast::ForExpr& loop, con
      *
      * Two spellings reach the same rule: `f(as)` names the iterator directly, and `x.f(as)` is
      * Design.md's dot-call form, which is `f(x, as)` and therefore just as much a named `iter fn`.
-     * The receiver becomes argument 0 exactly as it does in an ordinary call - see resolveDotCall,
-     * whose choice this repeats, and which is why the field half is asked first here too.
+     * The receiver becomes argument 0 exactly as it does in an ordinary call.
      *
-     * This is what `xs.filtered(p)` needs, and it is worth being precise about which half of the
-     * old rejection it removes: a *single stage* is now an ordinary named call and works. A chain -
-     * `xs.filter(p).map(f)` - still does not, because its outer receiver is an iterator travelling
-     * as a value, which is the erased callback ABI and is unaffected by anything here. The test
-     * below now says which of the two was written rather than reporting the second reason for both.
+     * `namedCallee` is that decision, and it is shared with the lens statement rather than written
+     * here - see expr.h, and expr_call.cpp for why these two ask before resolving where an ordinary
+     * call resolves before asking.
+     *
+     * It is worth being precise about which half of the old rejection the dot form removes: a
+     * *single stage* is an ordinary named call and works. A chain - `xs.filter(p).map(f)` - still
+     * does not, because its outer receiver is an iterator travelling as a value, which is the
+     * erased callback ABI and is unaffected by anything here. The test below says which of the two
+     * was written rather than reporting the second reason for both.
      */
-    // Braced: `StringId name;` is uninitialized - see diagnostics.h. The empty one is what `!name`
-    // below tests, and an optimized build is where reading the other kind crashes.
-    StringId name {};
-    LocationId nameSource = kNullLocation;
-    ModulePtr<Value> receiver = nullptr;
+    NamedCallee callee_;
+    namedCallee(calleeExpr, ast::FunKind::Iter, callee_);
 
-    if(calleeExpr.kind == ast::Expr::Var && !findBinding(calleeExpr.var)) {
-        name = calleeExpr.var;
-        nameSource = calleeExpr.source;
-    } else if(calleeExpr.kind == ast::Expr::Field) {
-        auto& field = *parse[calleeExpr.field];
-        auto& selected = field.field;
-
-        /*
-         * Whether an iterator of this name exists at all, asked *before* the receiver is resolved
-         * and with no occurrence recorded.
-         *
-         * The order is the whole point. `upTo(n).twice()` names nothing, and resolving its receiver
-         * to find that out reports "upTo is an iterator, so this call has no body - write it as the
-         * source of a `for` loop", which is precisely what the author did write. So the name is
-         * asked first: no iterator of it means this was never a dot-call, the receiver is left
-         * alone, and the adaptor-chain message below is the one that stands.
-         */
-        auto iteratorNamed = [&](StringId candidate) {
-            auto plain = findFunction(module, candidate, selected.source, kNullLocation);
-            if(plain && local[plain]->funKind == ast::FunKind::Iter) return true;
-
-            ClassFunList found;
-            findClassFunctions(module, candidate, selected.source, found);
-
-            for(auto& entry: found) {
-                auto declared = global[entry.typeClass]->functions.get(global, entry.index);
-                if(declared.fun && local[declared.fun]->funKind == ast::FunKind::Iter) return true;
-            }
-
-            return false;
-        };
-
-        if(selected.kind == ast::Expr::Var && !isCursorSentinel(context, selected.var) &&
-           iteratorNamed(selected.var)) {
-            receiver = resolve(field.target);
-            if(!receiver || global[valueType(receiver)]->kind == Type::Error) return nullptr;
-
-            // A field of function type is a value, and a value is the case below. Only a name that
-            // is *not* a field of the receiver is the dot-call form.
-            if(!hasFieldNamed(valueType(receiver), selected.var)) {
-                name = selected.var;
-                nameSource = selected.source;
-            }
-        }
-    }
+    auto name = callee_.name;
+    auto nameSource = callee_.nameSource;
+    auto receiver = callee_.receiver;
 
     if(!name) {
         // `xs.filter(p).map(f)` lands here, since the callee of the outer call is not a name: an

@@ -24,9 +24,13 @@
    place a call's number is produced and therefore the one place such a mode would print from.
 
    The set is what this library calls and not the kernel's whole table, which is three hundred long
-   and mostly about facilities nothing here has. A module that needs one more adds it here, where a
-   call number belongs: it is a fact about *this kernel on this architecture*, which is what this
-   file is.
+   and mostly about facilities nothing here has. A module that needs one more adds it here, and
+   `SysFutex` is the example worth stating: it would sit perfectly comfortably beside the futex
+   operations in `Thread/Linux/Futex.linux.yana`, and it does not belong there. A call number is not
+   a fact about futexes - it is a fact about *this kernel on this architecture*, which is what this
+   file is, and it varies in the two dimensions the file name states rather than in the one that
+   module has. Everything else about a futex - which operation, which flags, what the answers mean -
+   is genuinely that module's.
 -}
 pub data Syscall
   = @value(0)   SysRead
@@ -49,6 +53,7 @@ pub data Syscall
   | @value(83)  SysMakeDirectory
   | @value(84)  SysRemoveDirectory
   | @value(87)  SysUnlink
+  | @value(202) SysFutex
   | @value(217) SysDirectoryEntries
   | @value(228) SysClockTime
   | @value(318) SysGetRandom

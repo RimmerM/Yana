@@ -1,0 +1,86 @@
+{-
+   A counting semaphore - permits, taken and given back.
+
+   The most general of the blocking primitives and the one the others are special cases of: a mutex
+   is a semaphore that starts at one, and a latch is one nobody gives back to. What it is actually
+   good for is bounding something - the number of threads inside a stage, the number of buffers in
+   flight, the depth of a queue.
+
+   § The count is the whole state
+
+   One `U32`, holding the permits available. `acquire` takes one when there is one and parks on zero
+   otherwise; `release` gives one back and starts a waiter. There is no separate waiter count and no
+   flag, which means a `release` cannot tell whether anybody is waiting and always calls the kernel.
+
+   That is a deliberate trade against the mutex beside this, which keeps a third state precisely to
+   avoid the call. A semaphore's release is not usually the hot path a mutex's unlock is - what it
+   guards is a *bound*, so the interesting case is the one where somebody is waiting - and the state
+   that would avoid the call cannot be a bit in the count without shrinking it. If a caller measures
+   otherwise, the fix is a waiter count in a second word rather than a cleverer use of this one.
+
+   § The orderings
+
+   Acquire on the update that takes a permit, release on the one that gives it back - the same pair
+   as a mutex and for the same reason: what a permit protects has to be visible to whoever gets it.
+-}
+import Native
+import Atomic
+import Native.Thread.Linux
+
+pub data Semaphore {count: Atomic(U32)}
+
+pub fn semaphore(permits: U32) -> Semaphore = Semaphore {count: atomic(permits)}
+
+-- How many permits are available, right now. Advisory: the answer is stale by the time it is read,
+-- and deciding to acquire from it is the check-then-act race `tryAcquire` exists to prevent.
+pub fn available(self: Semaphore) -> U32 = self.count.load(LoadRelaxed)
+
+{-
+   One attempt, which never blocks.
+
+   The loop is the compare-exchange retry every lock-free decrement is: the read and the write have
+   to be one step, and a failure means somebody else moved the count - so this re-reads what they
+   left rather than starting again from a stale value, which is what `Unchanged` carrying the
+   observed value is for.
+-}
+pub fn tryAcquire(self: Semaphore) -> Bool:
+    let &observed = self.count.load(LoadRelaxed)
+
+    while observed > 0:
+        match self.count.compareExchange(observed, observed - 1, UpdateAcquire):
+            Exchanged -> return True
+            Unchanged(->actual) -> observed = actual
+
+    return False
+
+{-
+   Take a permit, waiting for one.
+
+   Park on **zero** and nothing else, which is the one subtlety: the expectation handed to the kernel
+   has to be the value that made this thread decide to wait, and that value is zero by construction -
+   the loop only reaches the park when the count it read was zero. A release that arrives in between
+   changes the word, the kernel refuses to park, and this thread looks again.
+-}
+pub fn acquire(self: Semaphore) -> {}:
+    while !tryAcquire(self):
+        futexWait(self.count, 0)
+
+{-
+   Give a permit back, and start one waiter.
+
+   One waiter and not all of them: a permit admits exactly one thread, so waking the rest would be a
+   thundering herd in which every woken thread but one finds the count already zero and parks again.
+
+   The wake follows the increment, because a waiter started before the count changed would find zero
+   and park - which is correct but wasted, and on a busy semaphore the waste is every release.
+-}
+pub fn release(self: Semaphore) -> {}:
+    self.count.fetchAdd(1, UpdateRelease)
+    futexWake(self.count, 1)
+
+-- The scoped form: a permit for the block below, given back on the way out - including a `return`
+-- that leaves the enclosing function from inside it. See `Atomic.withLock` for why it is a lens.
+pub lens fn withPermit(self: Semaphore) -> {}:
+    acquire(self)
+    yield {}
+    release(self)

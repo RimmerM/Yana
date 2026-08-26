@@ -1,0 +1,92 @@
+{-
+   A condition variable - wait until somebody says the world has changed.
+
+   The primitive for "this thread cannot proceed until a *predicate* becomes true", where the
+   predicate is over state a mutex protects and is too complicated to be a word. A semaphore counts;
+   a condition says nothing at all about what changed, which is why every wait is inside a loop that
+   re-checks.
+
+   § Why it needs the mutex
+
+   The classic race, and the reason `wait` takes the lock rather than the caller releasing it first:
+
+     1. the waiter, holding the lock, finds the predicate false;
+     2. it releases the lock and prepares to wait;
+     3. the notifier takes the lock, makes the predicate true, and notifies - and nobody is waiting;
+     4. the waiter waits, on something that already happened.
+
+   `wait` closes it by reading a **sequence number** before releasing the lock, and handing that
+   number to the kernel as its expectation. A notifier that arrives in the window has already
+   incremented the sequence, so the kernel refuses to park and the waiter goes round again. The
+   number never means anything by itself; what it is for is to have changed.
+
+   § Every wait is a loop, and that is not a caveat
+
+       m.withLock()
+       while !ready(shared):
+           wait(c, m)
+
+   A `wait` may return without any notification at all - a signal, a wake meant for another waiter, a
+   sequence that moved for an unrelated reason - and there is deliberately no attempt to filter those
+   out. A caller that re-checks its own predicate is correct under all of them; one that trusts a
+   single return is wrong even under a perfect implementation, because a third thread may have taken
+   the state back between the notify and the wake.
+
+   § What is not here
+
+   `notifyAll` wakes every waiter, and all but one of them will immediately contend for the mutex and
+   go back to sleep - the thundering herd. Linux has `FUTEX_REQUEUE` for exactly this, which moves
+   waiters from the condition's queue onto the mutex's without waking them. It is not here because it
+   needs the mutex's own word and its three states to line up with what the kernel expects, and that
+   is a correctness argument to make with measurements rather than one to guess at.
+
+   There is no timed wait yet, and no `waitUntil` over a predicate.
+-}
+import Native
+import Atomic
+import Native.Thread.Linux
+
+pub data Condition {sequence: Atomic(U32)}
+
+pub fn condition() -> Condition = Condition {sequence: atomic(0 :: U32)}
+
+{-
+   `wait(self, held)` - release the mutex, wait, and take it again.
+
+   The caller must hold `held`, and holds it again on return. Between those two the lock is *not*
+   held, which is the whole point and the reason the predicate has to be re-read afterwards.
+
+   The order of the three steps is the entire correctness argument. Reading the sequence **before**
+   releasing the lock is what makes the expectation meaningful: any notifier that could have run
+   since must have taken the lock, so it ran after this read and its increment is visible to the
+   kernel's comparison. Releasing before parking is what lets a notifier run at all.
+-}
+pub fn wait(self: Condition, held: Mutex) -> {}:
+    let observed = self.sequence.load(LoadAcquire)
+
+    held.unlock()
+    futexWait(self.sequence, observed)
+    held.lock()
+
+{-
+   Start one waiter.
+
+   The increment has to come first and has to be an atomic read-modify-write: it is what makes a
+   parked waiter's expectation stale, and what makes a waiter that has *not* parked yet fail to. A
+   store would lose a concurrent notifier's increment and leave a waiter parked on a number that
+   never changes again.
+
+   Release, because what the waiter is about to look at is whatever this thread changed under the
+   lock. The lock's own release orders that too, and stating it here as well costs nothing on this
+   architecture and one line of reasoning less at the call site.
+-}
+pub fn notifyOne(self: Condition) -> {}:
+    self.sequence.fetchAdd(1, UpdateRelease)
+    futexWake(self.sequence, 1)
+
+-- Start every waiter. The right form when what changed can let more than one of them through, and
+-- the honest form when the code does not know - a missed wakeup is a hang and a spurious one is a
+-- loop iteration.
+pub fn notifyAll(self: Condition) -> {}:
+    self.sequence.fetchAdd(1, UpdateRelease)
+    futexWake(self.sequence, 0x7FFFFFFF)

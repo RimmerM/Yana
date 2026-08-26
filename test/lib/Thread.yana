@@ -1,0 +1,136 @@
+{-
+   What `Native.Thread` does, checked by actually running threads.
+
+   Every other concurrency fixture in this suite is single-threaded and says so, because until now
+   there was nothing to start. This one starts threads, so the properties it checks are the ones that
+   were previously unreachable: that a thread runs, that what it publishes with a release store is
+   what the parent acquires, that a join waits, and that parking and unparking put a thread to sleep
+   and start it again.
+
+   **Nothing here allocates inside a thread.** The heap is a global free list with no lock in front
+   of it, so every thread body below works on atomics and integers only - which is a fact about the
+   runtime rather than about this fixture, and is the first thing a thread-safe allocator would
+   change. It is also why the threads are held on the stack by recursion rather than in an array.
+-}
+
+import Native
+import Native.Thread
+import Atomic
+
+let stackBytes = 65536 :: USize
+
+let &ran = atomic(0 :: U32)
+let &counter = atomic(0 :: U32)
+let &gate = atomic(0 :: U32)
+let &seen = atomic(0 :: U32)
+
+fn nothing() -> %U8 = null()
+
+-- One thread, which runs and publishes. The parent acquires what it released, which is the whole of
+-- what an atomic is for and the first time this suite has been able to check it.
+fn worker(argument: %U8) -> {}:
+    ran.store(1, StoreRelease)
+
+fn joinAndCheck(->t: Thread) -> {}:
+    join(t)
+    assert(ran.load(LoadAcquire) == 1)
+
+fn oneThread() -> {}:
+    ran.store(0, StoreRelaxed)
+
+    match createThread(worker, nothing(), stackBytes):
+        Nothing -> assert(False)
+        Just(->t) -> joinAndCheck(t)
+
+{-
+   Many threads onto one counter, which is what an atomic read-modify-write exists for.
+
+   `fetchAdd` under contention is the case a single-threaded fixture cannot reach at all: a
+   load-add-store would lose updates here and the total would come out below the target, while the
+   indivisible form cannot. Eight threads and a thousand increments each is enough for the difference
+   to be certain rather than likely.
+
+   Every thread is started before any is joined - the recursion starts the rest from inside the frame
+   holding this one - so they genuinely overlap.
+-}
+fn adder(argument: %U8) -> {}:
+    let &i = 0 :: U32
+
+    while i < 1000:
+        counter.fetchAdd(1, UpdateRelaxed)
+        i = i + 1
+
+fn startAdders(remaining: Size) -> {}:
+    if remaining == 0: return
+
+    match createThread(adder, nothing(), stackBytes):
+        Nothing -> assert(False)
+        Just(->t) -> nestAdders(t, remaining)
+
+fn nestAdders(->t: Thread, remaining: Size) -> {}:
+    startAdders(remaining - 1)
+    join(t)
+
+fn contended() -> {}:
+    counter.store(0, StoreRelaxed)
+    startAdders(8)
+    assert(counter.load(LoadAcquire) == 8000)
+
+{-
+   Parking and unparking, which is the primitive the rest of the module is built on.
+
+   The thread parks on a word the parent then changes and wakes. What makes this a real check rather
+   than a sleep is the *order*: the parent waits until the child has recorded that it is about to
+   park, so the wake is not simply racing ahead of the wait - and the child loops on its own state
+   rather than trusting the return, which is what every caller of `parkThread` has to do.
+-}
+fn parker(argument: %U8) -> {}:
+    seen.store(1, StoreRelease)
+
+    while gate.load(LoadAcquire) == 0:
+        parkThread(gate, 0)
+
+    seen.store(2, StoreRelease)
+
+fn releaseAndJoin(->t: Thread) -> {}:
+    -- Wait until it is in the loop, so the release below is the thing that frees it.
+    while seen.load(LoadAcquire) == 0:
+        spinHint()
+
+    gate.store(1, StoreRelease)
+    unparkAll(gate)
+
+    join(t)
+    assert(seen.load(LoadAcquire) == 2)
+
+fn parking() -> {}:
+    gate.store(0, StoreRelaxed)
+    seen.store(0, StoreRelaxed)
+
+    match createThread(parker, nothing(), stackBytes):
+        Nothing -> assert(False)
+        Just(->t) -> releaseAndJoin(t)
+
+-- A thread that has already ended, which `join` must answer immediately rather than wait on. The
+-- word the kernel clears is what says so, and reading it before waiting is what makes this fast
+-- rather than a wake that has to arrive.
+fn waitThenJoin(->t: Thread) -> {}:
+    while ran.load(LoadAcquire) != 1:
+        spinHint()
+
+    join(t)
+    assert(ran.load(LoadAcquire) == 1)
+
+fn alreadyEnded() -> {}:
+    ran.store(0, StoreRelaxed)
+
+    match createThread(worker, nothing(), stackBytes):
+        Nothing -> assert(False)
+        Just(->t) -> waitThenJoin(t)
+
+fn main() -> Int:
+    oneThread()
+    contended()
+    parking()
+    alreadyEnded()
+    return 0

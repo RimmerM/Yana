@@ -293,6 +293,76 @@ bool genIntrinsic(FunGen& f, LowerInstIntrinsic& inst) {
         case LowerIntrinsic::WriteCr4:
             genSingleOperand(f, inst, "mov $0, %cr4", "r,~{memory}");
             return true;
+
+        /*
+         * Starting a thread - the same sequence the x64 backend encodes by hand, written as inline
+         * assembly for the reason the system call above it is: the callee is the kernel, and what
+         * comes back is two threads rather than a value.
+         *
+         * It has to be one asm block and not a call around a smaller one, because the whole point is
+         * that no compiler-generated instruction may stand between the system call and the child's
+         * first `pop` - see PseudoKind::CloneThread. An asm block is opaque to LLVM, so nothing is
+         * scheduled into the middle of this one.
+         *
+         * The operands are named by register rather than left to the allocator, because three of
+         * them are the kernel's own positions and the other two are read back off the child's stack
+         * in an order this text fixes.
+         */
+        case LowerIntrinsic::CloneThread: {
+            auto used = inst.used();
+            auto word = llvm::Type::getInt64Ty(f.gen.llvm);
+
+            llvm::SmallVector<llvm::Value*, 6> args;
+            llvm::SmallVector<llvm::Type*, 6> argTypes;
+
+            // In the order the constraint string names them: flags, stack top, code, argument,
+            // thread id, environment.
+            static const char* kConstraints =
+                "={rax},{rdi},{rsi},{rdx},{r8},{r10},{r9}"
+                ",~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}";
+
+            for(Size i = 0; i < 6; i++) {
+                auto value = f.use(used[i]);
+                if(value->getType()->isPointerTy()) value = f.builder.CreatePtrToInt(value, word);
+                else if(value->getType() != word) value = f.builder.CreateIntCast(value, word, true);
+
+                args.push_back(value);
+                argTypes.push_back(word);
+            }
+
+            auto text =
+                "movq %r9, -24(%rsi)\n\t"
+                "movq %r8, -16(%rsi)\n\t"
+                "movq %rdx, -8(%rsi)\n\t"
+                "leaq -24(%rsi), %rsi\n\t"
+                "movq %r10, %rdx\n\t"
+                "xorl %r8d, %r8d\n\t"
+                "movl $$56, %eax\n\t"
+                "syscall\n\t"
+                "testq %rax, %rax\n\t"
+                "jnz 1f\n\t"
+                "popq %rdi\n\t"
+                "popq %rsi\n\t"
+                "popq %rax\n\t"
+                "call *%rax\n\t"
+                "xorl %edi, %edi\n\t"
+                "movl $$60, %eax\n\t"
+                "syscall\n\t"
+                "1:";
+
+            auto assembly = llvm::InlineAsm::get(llvm::FunctionType::get(word, argTypes, false),
+                                                 text, kConstraints, true);
+
+            llvm::Value* result = f.builder.CreateCall(assembly, args);
+            auto created = inst.created();
+
+            if(created.length == 1 && created[0].type != LowerType::Int64) {
+                result = f.builder.CreateIntCast(result, typeOf(f.gen, created[0].type), true);
+            }
+
+            defineResults(f, inst, result);
+            return true;
+        }
     }
 
     f.context.diagnostics.error("llvm: unknown intrinsic"_v, inst.source);

@@ -1179,6 +1179,16 @@ enum class NativeOp: U8 {
     Syscall,
 
     /*
+     * cloneThread(flags, stackTop, entry, argument, threadId).
+     *
+     * Here beside the system call and not among the machine instructions, for the reason this whole
+     * enum exists: a fixed operation, a flat argument list, and a meaning nothing else in the IR
+     * shares. What it *is* belongs to the backend - see LowerIntrinsic::CloneThread, where why it
+     * cannot be a library function over `syscall5` is argued.
+     */
+    CloneThread,
+
+    /*
      * The host - Implementation-Containers.md §14.1.
      *
      * The back half of an FFI without its front half: an operation whose meaning belongs to the
