@@ -249,6 +249,21 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
                 target << ") ";
             }
 
+            /*
+             * And a slice's capability, for the same reason and a sharper one - §4.5.
+             *
+             * `&[T]` and `Flat(T)` are two types with one name, so a diagnostic about the difference
+             * read "cannot convert Flat(Int) to Flat(Int)" until this was here. Written as the sigil
+             * rather than as an attribute because that is what the author wrote and what they have
+             * to change.
+             */
+            if(record->sliceMut) target << '&';
+
+            if(record->sliceLoan != kNoLoan) {
+                target.appendValue(U32(record->sliceLoan));
+                target << '\'';
+            }
+
             target << context.findName(record->name);
 
             if(record->instanceArgs.isNotEmpty()) {

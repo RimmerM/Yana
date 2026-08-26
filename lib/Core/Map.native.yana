@@ -89,8 +89,9 @@ fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {} =
    real one: every index reaching these came out of the index run or out of a walk below the count,
    so the test would be one this map has already made.
 
-   `return self` is what roots the borrow in the map, and the pointer arithmetic underneath is
-   unchecked by construction on the terms every other container in this file is written on.
+   The tick on `self`'s type is what roots the borrow in the map - Analysis-Borrows.md §8.3 - and
+   the pointer arithmetic underneath is unchecked by construction on the terms every other container
+   in this file is written on.
 
    Written as the field of an entry borrow natively rather than as `borrow(addressOf(entry.key))`,
    and the difference is a target: taking an *address* of storage that is not a whole local is the
@@ -98,7 +99,7 @@ fn appendPair(&self: Map(k, v), ->key: k, ->value: v) -> {} =
    through it would reach nobody. A *borrow* of the same place is not - it is the narrow reference
    that backend already builds, which names the slot rather than copying it.
 -}
-fn keyAt(return self: Map(k, v), at: Size) -> 'k =
+fn keyAt(self: 'Map(k, v), at: Size) -> 'k =
     borrow(self.entries.run.items + at).key
 
 {-
@@ -111,10 +112,10 @@ fn keyAt(return self: Map(k, v), at: Size) -> 'k =
    backend already builds, which names the slot rather than copying it. So this is one body for both
    targets and the other spelling is one for neither.
 -}
-fn valueAt(return self: Map(k, v), at: Size) -> 'v =
+fn valueAt(self: 'Map(k, v), at: Size) -> 'v =
     borrow(self.entries.run.items + at).value
 
-fn valueAtMut(return &self: Map(k, v), at: Size) -> &v =
+fn valueAtMut(&self: 'Map(k, v), at: Size) -> &v =
     borrowMut(self.entries.run.items + at).value
 
 {-

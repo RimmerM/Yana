@@ -1355,11 +1355,32 @@ void checkReturnRoots(Analysis& analysis) {
      * question "is this local root reached through a borrow, or is it the owned half" is one
      * provenance deliberately does not keep an answer to. Analysis-Borrows.md §2.4 and §6.6 are
      * where the replacement is - a loan slot on the semantic type, which knows the path each
-     * reference sits at - and this comment is the marker for what that work has to close.
+     * reference sits at.
+     *
+     * **The type answers the half that matters, without provenance becoming field-sensitive.** A
+     * local root is ambiguous only where the result could legitimately have one, and it could only
+     * where the result *owns* something in this frame - the array half of `Mixed`, whose storage
+     * goes with the result and whose root is not a mistake. A result that owns nothing has no such
+     * half: every root it has is reached through a reference, so a local one is the mistake with no
+     * second reading. `Pair(&Int, &Int)` is exactly that shape and is §2.4's own example.
+     *
+     * `needsTeardown` is the question asked, because owning something in this frame and having to
+     * release it are the same fact. What is still not reached is a result that owns *and* refers -
+     * `data Mixed {view: &[Int], owned: [Int]}` built here and handed back - and that one needs the
+     * path each reference sits at, which is §6.6's.
+     *
+     * `containsBareBorrow` rather than `containsBorrowLike`, and the reason is the sentence above
+     * about checkEscapingViews: a record holding a *slice* of this frame's container is already
+     * reported there, by a message that names the container. This arm takes the half that has no
+     * descriptor slot to name, which is the half that comment says nothing else asks about.
      */
-    if(summary.invalidRoot && isBorrowLike(analysis.module, function.returnType)) {
+    auto ownsNothing = containsBareBorrow(analysis.module, function.returnType) &&
+                       !needsTeardown(analysis.module, function.returnType);
+
+    if(summary.invalidRoot &&
+       (isBorrowLike(analysis.module, function.returnType) || ownsNothing)) {
         report(analysis,
-               "a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument marked `return`"_v,
+               "a borrow returned from this function is rooted in storage the caller does not own - it must come from an argument, and the argument's type must say which loan it hands back"_v,
                source);
     }
 
@@ -1379,7 +1400,7 @@ void checkReturnRoots(Analysis& analysis) {
             report(analysis,
                    pointerResult
                        ? "a pointer returned from this function is rooted in %@, which the signature did not mark `return`"_v
-                       : "a borrow returned from this function is rooted in %@, which the signature did not mark `return`"_v,
+                       : "a borrow returned from this function is rooted in %@, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it"_v,
                    arg->source, analysis.context.findName(arg->name));
         }
 
@@ -1620,4 +1641,267 @@ void checkLoanExtents(Analysis& analysis) {
     }
 
     checkDeclaredExtents(analysis);
+}
+
+/*
+ * A reference placed into storage that never said it would hold one - Analysis-Borrows.md §8.2's
+ * body-side half, and §7.4.
+ *
+ * The declaration side has been built for a while: a signature says which of its arguments a loan
+ * may outlive the call through, `settleLoanCandidates` decides whether the result is one of them,
+ * and `checkDeclaredExtents` holds an implementation to what its class promised. All of that is
+ * about the *boundary*. Nothing asked what a body does in between, and the two facts a reference
+ * type carries - that the storage is somebody else's, and which of the signature's relationships
+ * it is in - were therefore checkable only where the value crossed back out through a result.
+ *
+ * There are two other ways out, and both were open:
+ *
+ *   - into a **global**, which §7.4 says may hold an owned value or program-lifetime storage and
+ *     nothing else. `gLoose.held = localWindow` compiled, and what the global then named was a
+ *     frame that had returned.
+ *   - into **storage the caller passed in**, which is §4.7's contract. That one has a spelling -
+ *     `remember(&store: Store(kept'), value: kept'Cell)` - and the caller is held to it by
+ *     `checkLoanExtents`. What was missing is the other end: that the body may put in `store.held`
+ *     only a reference that really is in group `kept`, rather than a frame local or an argument in
+ *     no group at all.
+ *
+ * One rule covers both, and it is the destination that states it: **the storage a reference is
+ * placed into decides how long that reference must be good for.** This frame's own storage asks for
+ * nothing - `checkBorrows` and `checkLoanExtents` already bound it. A global asks for
+ * program lifetime. A destination reached through an argument asks for that argument's group,
+ * which the type at the end of the path has to publish and the incoming value has to be in.
+ *
+ * Field-insensitivity is what keeps this from being stated once and for all: provenance says a
+ * value may name argument 2 and local 5, not which member of it does. So the rule is asked of the
+ * *store*, where the destination is one place and the source is one value, and the return keeps its
+ * own check.
+ */
+
+// What one destination demands of a reference written into it.
+enum class LoanDestination: U8 {
+    // This frame's own storage, which nothing here has an opinion about.
+    Frame,
+
+    // A global, which per §7.4 takes program-lifetime storage and owned values only.
+    Global,
+
+    // Storage reached through an argument, which takes that argument's group.
+    Argument,
+
+    // A raw pointer's target, which is outside the model by construction - see §2.7.
+    Untracked,
+};
+
+struct LoanDemand {
+    LoanDestination kind = LoanDestination::Frame;
+
+    // The argument the path is rooted in, for LoanDestination::Argument.
+    U16 argument = 0;
+    LoanGroup group = kNoLoan;
+
+    // Whether the type at the end of the path publishes a slot - a field written `kept'Cell`. A
+    // destination that does not is one no caller could have been told about.
+    bool slot = false;
+};
+
+// The argument a local backs, or null for an ordinary frame slot. A parameter with a slot of its
+// own is what a `&` argument and a memory-typed one both have, and it is the only way a store's
+// destination can be storage this frame does not own.
+static Arg* argumentOfLocal(Analysis& analysis, U32 slot) {
+    for(auto argPointer: analysis.function.args.contents(analysis.local)) {
+        if(backingLocal(analysis, (ModulePtr<Value>)argPointer) == slot) {
+            return analysis.local[argPointer];
+        }
+    }
+
+    return nullptr;
+}
+
+// The loan group a type publishes, whichever of the two shapes a reference has - see §4.5 for why
+// a slice is the second one rather than a special case of the first.
+static LoanGroup publishedGroup(Analysis& analysis, TypePtr type) {
+    if(!type) return kNoLoan;
+    if(analysis.global[type]->kind == Type::Borrow) return ((BorrowType*)analysis.global[type])->loan;
+
+    return sliceLoanGroup(analysis.global, type);
+}
+
+static LoanDemand demandOf(Analysis& analysis, const Place& place) {
+    LoanDemand demand;
+
+    switch(place.root) {
+        case PlaceRoot::Global:
+            demand.kind = LoanDestination::Global;
+            return demand;
+
+        case PlaceRoot::Pointer:
+            demand.kind = LoanDestination::Untracked;
+            return demand;
+
+        case PlaceRoot::Borrow:
+            /*
+             * A borrow root is the storage it names, so the demand is that storage's. Resolved by
+             * walking back to the place the borrow was taken of, which is the same chain
+             * `borrowedSlot` follows and is how a `&` argument reaches its own slot.
+             */
+            if(auto borrow = analysis.local[place.pointer]) {
+                if(borrow->kind == Value::Borrow) {
+                    return demandOf(analysis, ((InstBorrow&)*borrow).place);
+                }
+            }
+
+            demand.kind = LoanDestination::Untracked;
+            return demand;
+
+        case PlaceRoot::Local:
+            break;
+    }
+
+    auto argument = argumentOfLocal(analysis, place.local);
+    if(!argument) return demand;
+
+    demand.kind = LoanDestination::Argument;
+    demand.argument = argument->index;
+    demand.group = argument->loan;
+
+    // What the path arrives at, which is where the slot is written. `Store {held: kept'Cell}` puts
+    // it on the field, so the type of `store.held` is what publishes it - not `Store` itself, which
+    // is exactly the type `Store` and deliberately carries nothing (§8.2).
+    walkPlace(analysis.module, analysis.function, place, [&](const PlaceStep& step) {
+        if(!step.broken) demand.slot = publishedGroup(analysis, step.type) != kNoLoan;
+        return !step.broken;
+    });
+
+    return demand;
+}
+
+void checkLoanDestinations(Analysis& analysis) {
+    /*
+     * Only where nothing more specific has already been said about this body.
+     *
+     * A class implementation that stores a borrowed parameter into a global breaks two rules at
+     * once - it keeps what it was lent, which is what its class promised it would not, and it puts
+     * a loan somewhere a loan cannot go - and the first of those is the one worth printing: it
+     * names the parameter, names the declaration and says what `->` would do about it. This one
+     * would restate the same store in the more general terms. Same reasoning as the rewrite guard
+     * in analyze.cpp: a second round of diagnostics about the first round's mistake is noise.
+     */
+    if(!analysis.ok) return;
+
+    auto& function = analysis.function;
+
+    for(Size at = 0; at < analysis.instructionCount; at++) {
+        auto pointer = analysis.order[at];
+        auto& instruction = *analysis.local[pointer];
+        if(instruction.kind != Value::Init && instruction.kind != Value::Assign) continue;
+
+        auto& init = (InstInit&)instruction;
+        if(!init.value) continue;
+
+        // Only a value that can name storage at all, which keeps every arithmetic store and every
+        // owned handover out of this entirely.
+        auto type = analysis.local[init.value]->type;
+        if(!containsBorrowLike(analysis.module, type) && !isBorrow(analysis.global, type)) continue;
+
+        auto demand = demandOf(analysis, init.place);
+        if(demand.kind == LoanDestination::Frame || demand.kind == LoanDestination::Untracked) {
+            continue;
+        }
+
+        ScratchProvenance held(analysis);
+        transferredProvenance(analysis, init.value, *held);
+
+        /*
+         * A frame root, and *not* a descriptor's own slot.
+         *
+         * computeProvenance deliberately adds the slot a stored reference sat in to its owner's
+         * contents - see storedReference there, which is what carries `Local::viewOf` to
+         * checkEscapingViews. For this question that edge is noise: what a window *names* is
+         * already in the set through its own contents, and the slot it was built in is this frame's
+         * by construction. Reading it as a frame root reported every program that ever put a
+         * program-lifetime window in a global, `Loose {held: gArr}` included.
+         *
+         * An argument arrives in a slot of its own too, and that slot is not this frame's storage
+         * either - it is the caller's, which is a different demand and is answered below.
+         */
+        auto fromFrame = false;
+        auto fromCaller = held->args != 0;
+
+        held->locals.forEach([&](Size slot) {
+            if(argumentOfLocal(analysis, (U32)slot)) { fromCaller = true; return; }
+
+            auto type = analysis.function.localAt(analysis.local, (U32)slot).type;
+            if(type && isBorrowLike(analysis.module, type)) return;
+
+            fromFrame = true;
+        });
+        if(demand.kind == LoanDestination::Global) {
+            /*
+             * §7.4: a global holds an owned value, or a reference to storage that lives as long as
+             * the program, and nothing else.
+             *
+             * Only the caller's half is reported, and the asymmetry is measured rather than
+             * cautious. A reference to *this frame's* storage written into a global is already
+             * answered: analyze_escape.cpp reads the write, finds the destination's roots outlive
+             * the frame, and marks what was written escaping - so the storage is heap-allocated and
+             * never released, which is what `let &sink = Holder {view: [0], at: 0}` needs and is
+             * exactly "a root classified as program-lifetime". The cost of that answer is a leak
+             * rather than a dangle, and the leak is §8.9's question, not this one's.
+             *
+             * A reference the **caller** lent has no such answer. The storage is not this frame's
+             * to promote, the loan ends when the call does, and nothing else asks - so this store
+             * compiled, and what the global then named was a frame that had returned.
+             */
+            if(fromCaller) {
+                report(analysis,
+                       "a global cannot hold a reference the caller lent to this call - the loan ends when the call does, and the global does not. Give the global the value itself, or a reference to storage that lives as long as the program"_v,
+                       instruction.source);
+            }
+
+            continue;
+        }
+
+        /*
+         * A destination the caller keeps, filled with something this frame owns.
+         *
+         * Reported even though escape promotion would keep the storage alive, because what is wrong
+         * here is not the lifetime but the contract: `remember(&store: Store(kept'), value:
+         * kept'Cell)` tells the caller that what `store` ends up holding is a loan of `value`, and
+         * the caller's own check - checkLoanExtents - is stated in exactly those terms. A body that
+         * puts something else in is not unsafe, it is untrue, and a contract nothing holds the body
+         * to is a contract the caller cannot rely on.
+         */
+        if(fromFrame) {
+            report(analysis,
+                   "this installs a reference to storage this frame owns into a destination the caller keeps - what the signature promised the caller would find there is a loan of one of its own arguments"_v,
+                   instruction.source);
+            continue;
+        }
+
+        if(!held->args) continue;
+
+        /*
+         * The group, which is the half a `return` marker cannot state: what outlives the call is
+         * not the result but what was put in the destination, so what has to agree is the
+         * destination's group and the source's - see §4.7.
+         *
+         * A destination with no slot is the case §8.2 said was refused by the return-root check
+         * instead of by a message about the slot. It has one now.
+         */
+        for(auto argPointer: function.args.contents(analysis.local)) {
+            auto arg = analysis.local[argPointer];
+            if(!(held->args & rootBit(arg->index))) continue;
+            if(arg->index == demand.argument) continue;
+
+            if(!demand.slot || demand.group == kNoLoan) {
+                report(analysis,
+                       "%@ is a reference the caller lent to this call, and this stores it in a destination whose type does not say it holds one - write the field's own loan group on it, so that the caller knows what it is keeping"_v,
+                       instruction.source, analysis.context.findName(arg->name));
+            } else if(arg->loan != demand.group) {
+                report(analysis,
+                       "%@ is not in the loan group this destination holds - the two have to name one relationship for the caller to be checked against it"_v,
+                       instruction.source, analysis.context.findName(arg->name));
+            }
+        }
+    }
 }

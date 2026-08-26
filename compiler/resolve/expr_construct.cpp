@@ -282,12 +282,60 @@ Place ExprResolver::placeFor(ModulePtr<Value> value, LocationId source) {
     return Place::inLocal(maxLimit<U32>);
 }
 
-// Whether this place may be written through. A local says so with the convention of the binding
-// that owns it, a global with `let &`, and the memory a raw pointer names is always writable -
-// Design.md's Pointers section, which is also why an immutable binding holding one can still root
-// a write. A borrow of a place is exactly a write capability handed to someone else, so a mutable
-// borrow asks this same question.
+/*
+ * Whether this place may be written through.
+ *
+ * Two axes, and Analysis-Borrows.md §2.5 is that they had collapsed into one. A *binding's* access
+ * to its own slot is the convention it was declared with - `let &`, a `&` parameter, `let &` on a
+ * global - and the memory a raw pointer names is always writable, per Design.md's Pointers section,
+ * which is why an immutable binding holding one can still root a write. But a *value* can carry a
+ * write capability of its own, and where it does, that is the answer: a borrow is exactly a write
+ * capability handed to someone else, and so is an exclusive window.
+ *
+ * The rule below is the separation, stated once: **a path takes its capability from the innermost
+ * reference it crosses, and from the root binding only when it crosses none.** A stored window is
+ * the case where the two disagree in both directions - `data Cursor {buf: &[Int]}` may be written
+ * through from an immutable binding, because the descriptor is the capability, and
+ * `data View {buf: '[Int]}` may not be written through from a mutable one, because `&v` is
+ * exclusive access to `v` and says nothing about storage `v` merely points at.
+ *
+ * A field has no convention to carry this, which is why the type has to: `sliceCapabilityType` is
+ * §4.5's bit, and this is the one place that spends it.
+ */
+/*
+ * Whether the reason a place is not writable is the window stored in it rather than the binding
+ * holding it - the one case where "declare it with `let &`" is not the fix, and would look like the
+ * fix for as long as the diagnostic says so. See isWritablePlace, whose second answer this is.
+ */
+bool ExprResolver::isStoredSharedWindow(const Place& place) {
+    auto projections = place.projections;
+    if(!projections.size()) return false;
+
+    auto type = placeType(place);
+    return type && sliceElement(module, type) && !ownedElement(module, type) &&
+           !isMutableSlice(global, type);
+}
+
 bool ExprResolver::isWritablePlace(const Place& place) {
+    /*
+     * A window the path *arrived at*, rather than one the root happens to be.
+     *
+     * `place.projections` being non-empty is what separates the two: with no projection this is the
+     * binding's own slot, and there the convention speaks - `&xs: [Int]` is an exclusive window
+     * because the caller proved it, and folding that onto the type would fork every slice signature
+     * in the library for a fact the convention already carries (see SliceCapability.yana).
+     *
+     * An owner is deliberately not this. `data Holder {items: Array(Int)}` holds its elements, so
+     * `&h` really is exclusive access to them and convertSlice asks the root exactly as before.
+     */
+    auto projections = place.projections;
+    if(projections.size()) {
+        auto type = placeType(place);
+        if(type && sliceElement(module, type) && !ownedElement(module, type)) {
+            return isMutableSlice(global, type);
+        }
+    }
+
     switch(place.root) {
         case PlaceRoot::Local:
             return place.local < function.localCount() &&
@@ -830,6 +878,47 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
                            source, loaned);
     }
 
+    /*
+     * And a container of the program's own, through its `Writable` instance.
+     *
+     * `convert()` grants the read-only half of this and has since §5: a `Contiguous` container
+     * reaching a `xs: [T]` parameter is one call to `elements`, and the note there says it is the
+     * only implicit conversion into a slice a program can grant itself. This is the same grant at
+     * the same position with the sigil on it, and it has to be a *different* class member rather
+     * than the same one promoted: `elements` hands back what its signature says, a shared view, and
+     * a conversion may not widen one - that is the rule §2.3 removed `applyReturnRootMutability`
+     * for, and this argument position is where it would otherwise come back.
+     *
+     * `elementsMut` is therefore declared `&self: 'c` and returns `&Flat(a)`, so the exclusive
+     * window is the *instance's* promise and the loan is rooted in the container by the class's own
+     * group. What arrives here is the descriptor that call produced, borrowed out of the temporary
+     * it landed in - the same shape the owner arm above hands over, and for the same reason: what
+     * the callee gets is `{base, length}` with write access and no way to grow it.
+     */
+    if(sliceElement(module, expected) && !ownedElement(module, held) &&
+       contiguousElement(module, held) == sliceElement(module, expected)) {
+        auto window = resolveBorrowType(module, expected, true);
+        auto exclusive = sliceCapabilityType(module, expected, true, kNoLoan);
+
+        if(auto converted = emitConversion(module.coreClasses.writable,
+                                           context.addUnqualifiedName("elementsMut", 11), value,
+                                           exclusive, source)) {
+            return borrowPlace(placeFor(converted, source), window, source, loaned);
+        }
+    }
+
+    /*
+     * An exclusive window at a `&` parameter written plainly.
+     *
+     * `&xs: [T]` folds to the Ref convention over the plain `Flat(T)`, so a value that says `&[T]`
+     * in its *type* - what `sliceMut` and `elementsMut` hand back - is the same descriptor with the
+     * same capability said twice. Nothing to convert and nothing to borrow again: the place it
+     * occupies is what gets lent, exactly as it would for a value the caller wrote plainly.
+     */
+    if(held && expected && unrefined(global, held) == expected && isMutableSlice(global, held)) {
+        held = expected;
+    }
+
     auto refined = held && expected && global[held]->kind == Type::Int &&
                    global[expected]->kind == Type::Int &&
                    canonicalType(global, held) == canonicalType(global, expected);
@@ -840,6 +929,21 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
     refined = refined || (inlineRefinement(module, held) && unrefined(global, held) == expected);
 
     if(!sameType(held, expected) && !refined) {
+        /*
+         * The container that has the read half and not the write half, which is the one mismatch
+         * here with a specific answer rather than a general one. `xs: [T]` accepts it and `&xs: [T]`
+         * does not, and what the author adds is an instance rather than a cast.
+         */
+        if(sliceElement(module, expected) &&
+           contiguousElement(module, held) == sliceElement(module, expected)) {
+            context.diagnostics.error("%@ is `Contiguous` and not `Writable`, so it can be passed where `[%@]` is read but not where one is written - `elements` promises a buffer address to read and says nothing about writing through it. Declare `instance Writable(%@, %@)` with `elementsMut`, or take the parameter without `&`"_v,
+                                      source, describeType(context, global, held),
+                                      describeType(context, global, sliceElement(module, expected)),
+                                      describeType(context, global, held),
+                                      describeType(context, global, sliceElement(module, expected)));
+            return nullptr;
+        }
+
         context.diagnostics.error("a `&` argument must have exactly type %@, but this is %@ - a conversion would borrow a temporary"_v,
                                   source, describeType(context, global, expected),
                                   describeType(context, global, held));
@@ -862,8 +966,14 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
      * ends it, so the message says which of the two axes each spelling sets.
      */
     if(!isWritablePlace(place.unwrap())) {
-        context.diagnostics.error("a `&` argument must name mutable storage - declare it with `let &`, or with `let &->` where the binding also has to take its value out of a place that keeps a name for it"_v,
-                                  source);
+        if(isStoredSharedWindow(place.unwrap())) {
+            context.diagnostics.error("this is a shared window, so it cannot be lent exclusively - it names storage that is somebody else's, and `let &` on whatever holds it would only make *that* writable. Declare the field `&[T]`, or take the owner with `&` where the window is made"_v,
+                                      source);
+        } else {
+            context.diagnostics.error("a `&` argument must name mutable storage - declare it with `let &`, or with `let &->` where the binding also has to take its value out of a place that keeps a name for it"_v,
+                                      source);
+        }
+
         return nullptr;
     }
 
@@ -1192,6 +1302,8 @@ bool ExprResolver::fillTuple(Place place, TupType& tuple, ast::ParseList<ast::Tu
 
         if(values[index] && !isMemoryType(global, expected)) {
             values[index] = convert(values[index], expected, arg.value.source);
+        } else {
+            values[index] = convertSliceCapability(values[index], expected, arg.value.source);
         }
     }
 
@@ -1546,7 +1658,7 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
             for(Size i = 0; i < inferredValues.size() && i < tuple.fields.size(); i++) {
                 auto expected = tuple.fields.get(global, i).type;
                 values.push(isMemoryType(global, expected)
-                    ? inferredValues[i]
+                    ? convertSliceCapability(inferredValues[i], expected, expr.source)
                     : convert(inferredValues[i], expected, expr.source));
             }
 
@@ -1560,8 +1672,9 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
                 }
             }
         } else {
-            writePayload(isMemoryType(global, content) ? inferredValues[0]
-                                                       : convert(inferredValues[0], content, expr.source));
+            writePayload(isMemoryType(global, content)
+                ? convertSliceCapability(inferredValues[0], content, expr.source)
+                : convert(inferredValues[0], content, expr.source));
         }
     } else if(global[content]->kind == Type::Tup) {
         // Defaults are read from the declaration rather than from `record`, which may be an
@@ -1576,7 +1689,11 @@ ModulePtr<Value> ExprResolver::resolveConstruct(const ast::Expr& expr, const ast
         context.diagnostics.error("constructor requires one positional argument"_v, expr.source);
     } else {
         auto value = resolve(args[0].value, content);
-        if(value && !isMemoryType(global, content)) value = convert(value, content, args[0].value.source);
+        if(value && !isMemoryType(global, content)) {
+            value = convert(value, content, args[0].value.source);
+        } else {
+            value = convertSliceCapability(value, content, args[0].value.source);
+        }
 
         writePayload(value);
     }

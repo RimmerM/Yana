@@ -1,0 +1,54 @@
+import Native
+
+{-
+   The capability is in the value, not in the binding - Analysis-Borrows.md §2.5.
+
+   `let &x` says the binding may write the storage named by `x`. That was the *only* thing anything
+   read, and it is the wrong question in both directions once a reference can be stored:
+
+   1. A stored **exclusive** window may be written through from an immutable binding. `&c` would be
+      exclusive access to the `Cursor` itself - to the two words of the descriptor - and writing an
+      element is not writing those. What authorizes it is the field's own type.
+   2. A stored **shared** window may not be written through from a mutable one, for the same reason
+      read the other way: `&v` is exclusive access to `v`, and says nothing about storage `v` merely
+      points at. Reject.ValueCapability.yana is that half.
+
+   A field is where the two come apart, because a field has no convention. A *parameter* keeps
+   taking it from the convention - `&xs: [Int]` is an exclusive window because the caller proved it -
+   and folding that onto the type instead would fork every slice signature in the library for a fact
+   the convention already carries.
+
+   An owner is deliberately not this. `data Holder {items: Array(Int)}` holds its elements, so `&h`
+   really is exclusive access to them and the root decides exactly as before.
+-}
+
+data Cursor {buf: &[Int], at: Int}
+data View {buf: '[Int], at: Int}
+data Holder {items: Array(Int)}
+
+-- 1. An exclusive window in an immutable binding. Nothing about `c` is writable; `c.buf` is.
+fn bump(c: Cursor) -> {}:
+    c.buf[c.at] = c.buf[c.at] + 1
+
+-- The owner half, unchanged: the record holds the elements, so the binding is what says so.
+fn fill(&h: Holder) -> {}:
+    h.items[0] = 7
+
+-- Weakening is free, and this is where it is spent: a shared view built over an exclusive window.
+fn peek(c: Cursor) -> Int:
+    let v = View {buf: c.buf, at: c.at}
+    return v.buf[v.at]
+
+fn main() -> I64:
+    let &owned = [10, 20, 30] :: Array(Int)
+
+    let c = Cursor {buf: owned, at: 1}
+    bump(c)
+    if owned[1] != 21 then return -1
+    if peek(c) != 21 then return -2
+
+    let &h = Holder {items: [1, 2] :: Array(Int)}
+    fill(h)
+    if h.items[0] != 7 then return -3
+
+    return (owned[0] + owned[2]) :: I64

@@ -1047,6 +1047,10 @@ struct ExprResolver {
     ModulePtr<Value> convertSlice(ModulePtr<Value> value, TypePtr from, TypePtr target, LocationId source,
                                   bool mut = false);
 
+    // The capability half of that, for a destination filled in place rather than converted into -
+    // see the definition, and Analysis-Borrows.md §4.5.
+    ModulePtr<Value> convertSliceCapability(ModulePtr<Value> value, TypePtr expected, LocationId source);
+
     // The same conversion where a container is a host array rather than storage - see the definition
     // and Implementation-Containers.md §14. Reached from convertSlice once the loan is taken, so
     // that the two targets differ in what the descriptor holds and in nothing above it.
@@ -1753,6 +1757,7 @@ struct ExprResolver {
     Maybe<Place> findPlace(ModulePtr<Value> value);
     Place placeFor(ModulePtr<Value> value, LocationId source);
     bool isWritablePlace(const Place& place);
+    bool isStoredSharedWindow(const Place& place);
 
     // The value passed for a `&` parameter: a mutable borrow of whatever storage the argument
     // named. Null, after reporting, when the argument names none or names storage that may not be

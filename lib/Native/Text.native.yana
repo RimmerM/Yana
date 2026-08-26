@@ -42,16 +42,16 @@ pub data StringData {bytes: Array(CodeUnit)}
    A **borrow in and a borrow out**, which is the whole of why this is sound. Returning an
    `Array(CodeUnit)` by value would hand back a second owner of one run and the frame would release it
    twice; returning a borrow of one hands back a *view*, rooted in the string by the ordinary
-   `return` marker, so the borrow checker gives it the string's extent and nothing about ownership
-   moves. It is the same shape `values(self: Flat(a))` has and the same shape `convertSlice` builds,
+   loan group on `self`'s type, so the borrow checker gives it the string's extent and nothing about
+   ownership moves. It is the same shape `values(self: Flat(a))` has and the same shape `convertSlice` builds,
    and it costs nothing at run time: the two types occupy the same bytes with the same layout, by
    construction, since `computeString` asks this record for the string's Repr.
 
    `@platform(native)` and no JS twin. A host string has no run to hand out, so every function
    written in terms of this one is native-only and its JS sibling is written against `Host` instead.
 -}
-pub fn stringData(return self: String) -> 'StringData
-pub fn stringDataMut(return &self: String) -> &StringData
+pub fn stringData(self: 'String) -> 'StringData
+pub fn stringDataMut(&self: 'String) -> &StringData
 
 {-
    The other direction, and the only one that makes a string out of nothing.
@@ -82,6 +82,13 @@ pub fn stringFromData(->value: StringData) -> String
 
    `capacity` is the byte length rather than zero, because the bytes really are there to be read -
    this is what lets a literal be indexed and compared without the run ever being touched.
+
+   **Deliberately not `@inline`, and the measurement is why.** Copying this body into every literal
+   is what would put `ownsHeap` in front of the teardown that tests it - see Analysis-Borrows.md
+   §8.9 - and over `test/resolve` it is **+445 lines of lowered IR and three more `Reclaim(String)`
+   calls, for nothing**: the construction inlines, the *teardown* does not, so the program pays for
+   both. The teardown is the half that has to move, and `inlineTeardown`'s budget is measured and
+   deliberate - see the note there recording 0.933x on `Matrix` when it was exempt.
 -}
 pub fn stringLiteral(bytes: %CodeUnit, length: Int) -> String =
     stringFromData(StringData {bytes: Array {

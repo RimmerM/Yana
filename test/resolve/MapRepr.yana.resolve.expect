@@ -255,27 +255,27 @@ fn bitfield(U32)(%value: U32, %start: U32, %count: U32) -> U32 {
     ret %v4
 }
 
-fn find(Int, Int)(%self: Map(Int, Int), %key: Int) -> Maybe('Int) {
+fn find(Int, Int)(%self: 'Map(Int, Int), %key: Int) -> Maybe('Int) {
   b0:
     %v2 = call hashKey(Int), %key : U32
+    %self = load [%self] : Map(Int, Int)
     %at = call findEntry(Int, Int), %self, %key, %v2 : Size
-    %v5 = cmp_lt %at, 0 : Bool
-    je %v5, b1, b2
+    %v6 = cmp_lt %at, 0 : Bool
+    je %v6, b1, b2
 
   b1:
-    %v7 = alloc : Maybe('Int)
-    init %local2.discriminant, 0
-    ret %v7
+    %v8 = alloc : Maybe('Int)
+    init %local1.discriminant, 0
+    ret %v8
 
   b2:
     jmp b3
 
   b3:
-    %v12 = alloc : Maybe('Int)
-    %v13 = borrow %self : 'Map(Int, Int)
-    %v14 = call valueAt(Int, Int), %v13, %at : 'Int
-    aggregate %local3.discriminant = 1, %local3@Just = %v14
-    ret %v12
+    %v13 = alloc : Maybe('Int)
+    %v14 = call valueAt(Int, Int), %self, %at : 'Int
+    aggregate %local2.discriminant = 1, %local2@Just = %v14
+    ret %v13
 }
 
 fn hashKey(Int)(%key: Int) -> U32 {
@@ -356,11 +356,11 @@ fn keyEquals(Int, Int)(%self: Map(Int, Int), %at: Size, %key: Int) -> Bool {
     ret %v6
 }
 
-fn keyAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> 'Int {
+fn keyAt(Int, Int)(%self: 'Map(Int, Int), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Int)
     %v5 = strideof Entry(Int, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Int)
@@ -502,11 +502,11 @@ fn indexSlots(Int, Int)(%self: Map(Int, Int)) -> Size {
     ret %v4
 }
 
-fn valueAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> 'Int {
+fn valueAt(Int, Int)(%self: 'Map(Int, Int), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Int)
     %v5 = strideof Entry(Int, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Int)
@@ -516,27 +516,27 @@ fn valueAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> 'Int {
     ret %v10
 }
 
-fn find(String, Int)(%self: Map(String, Int), %key: String) -> Maybe('Int) {
+fn find(String, Int)(%self: 'Map(String, Int), %key: String) -> Maybe('Int) {
   b0:
     %v2 = call hashKey(String), %key : U32
+    %self = load [%self] : Map(String, Int)
     %at = call findEntry(String, Int), %self, %key, %v2 : Size
-    %v5 = cmp_lt %at, 0 : Bool
-    je %v5, b1, b2
+    %v6 = cmp_lt %at, 0 : Bool
+    je %v6, b1, b2
 
   b1:
-    %v7 = alloc : Maybe('Int)
-    init %local2.discriminant, 0
-    ret %v7
+    %v8 = alloc : Maybe('Int)
+    init %local1.discriminant, 0
+    ret %v8
 
   b2:
     jmp b3
 
   b3:
-    %v12 = alloc : Maybe('Int)
-    %v13 = borrow %self : 'Map(String, Int)
-    %v14 = call valueAt(Int, String), %v13, %at : 'Int
-    aggregate %local3.discriminant = 1, %local3@Just = %v14
-    ret %v12
+    %v13 = alloc : Maybe('Int)
+    %v14 = call valueAt(Int, String), %self, %at : 'Int
+    aggregate %local2.discriminant = 1, %local2@Just = %v14
+    ret %v13
 }
 
 fn hashKey(String)(%key: String) -> U32 {
@@ -617,11 +617,11 @@ fn keyEquals(String, Int)(%self: Map(String, Int), %at: Size, %key: String) -> B
     ret %v6
 }
 
-fn keyAt(String, Int)(%self: Map(String, Int), %at: Size) -> 'String {
+fn keyAt(String, Int)(%self: 'Map(String, Int), %at: Size) -> 'String {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(String, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(String, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(String, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(String, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(String, Int)
     %v5 = strideof Entry(String, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Int)
@@ -763,11 +763,11 @@ fn indexSlots(String, Int)(%self: Map(String, Int)) -> Size {
     ret %v4
 }
 
-fn valueAt(Int, String)(%self: Map(String, Int), %at: Size) -> 'Int {
+fn valueAt(Int, String)(%self: 'Map(String, Int), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(String, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(String, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(String, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(String, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(String, Int)
     %v5 = strideof Entry(String, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Int)
@@ -3107,8 +3107,8 @@ fn touchInt(%m: Map(Int, Int)) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v6 = borrow %m : 'Map(Int, Int)
-    %v7 = call find(Int, Int), %v6, 1 : Maybe('Int)
+    %v5 = borrow %m : 'Map(Int, Int)
+    %v7 = call find(Int, Int), %v5, 1 : Maybe('Int)
     %v8 = load %local2.discriminant : Int
     %v10 = cmp_eq %v8, 1 : Bool
     je %v10, b2, b1

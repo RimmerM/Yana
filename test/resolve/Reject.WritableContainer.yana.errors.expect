@@ -1,0 +1,2 @@
+25:4: error: ReadOnly(Int) is `Contiguous` and not `Writable`, so it can be passed where `[Int]` is read but not where one is written - `elements` promises a buffer address to read and says nothing about writing through it. Declare `instance Writable(ReadOnly(Int), Int)` with `elementsMut`, or take the parameter without `&`
+29:4: error: no instance of Writable for (ReadOnly(Int)), required by sort - the class is what would decide the rest of this call's type arguments, so there is nothing left to infer them from

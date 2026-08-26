@@ -145,7 +145,7 @@ instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
    Two functions and not three. `get`/`getMut` rather than `get`/`set`/`modify`, because an
    assignment *through* a returned mutable borrow already is `modify` - `resolvePlace` roots the
    write at the borrow `getMut` handed back - and a container, unlike a property, always has a
-   borrow to hand out. The `return` markers are what make that checked: the result points into
+   borrow to hand out. The loan groups are what make that checked: the result points into
    whatever `self` points into, so the container stays borrowed for as long as the element is, and
    writing to the container while an element borrow is live is rejected by the ordinary rule
    rather than by anything written here.
@@ -153,6 +153,14 @@ instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
    `get` takes `self` and `getMut` takes `&self`, which is Implementation-Containers.md §4.1's
    split: reading needs no exclusivity and writing does, and `xs[i] = v` on an immutable binding is
    rejected for that reason rather than by a second class.
+
+   **Two spellings of one group, and `get` keeps the older one on purpose.** `&self: 'c` is the
+   general form: the sigil carries the capability, the tick carries the group, and the reference
+   folds into the convention so the parameter is exactly what `return &self: c` made it. `get`
+   cannot say the same thing, because a *shared* reference does not fold - `self: 'c` would be a
+   reference-valued parameter rather than the same one annotated, and this class has instances at
+   `%a`, `Array(a)` and `Flat(a)` where that is either the wrong type or no borrow at all. So it
+   stays on `return` until those two types can carry a group. Analysis-Borrows.md §7.1 and §4.8.
 
    What this class deliberately does *not* cover is a container whose elements are computed rather
    than stored - there is nothing to point at, so there is no borrow to return. That is the case a
@@ -162,7 +170,7 @@ instance Rewrap(Outcome(a, e), b, Outcome(b, e)):
 -}
 pub class Index(c -> k, v):
   fn get(return self: c, index: k) -> 'v
-  fn getMut(return &self: c, index: k) -> &v
+  fn getMut(&self: 'c, index: k) -> &v
 
 -- The default in each head is what an integer or decimal literal settles to when nothing in the
 -- program says otherwise: `1 + 1` writes neither class, so there is no argument position for a

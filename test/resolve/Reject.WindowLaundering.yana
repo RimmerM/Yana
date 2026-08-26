@@ -1,0 +1,36 @@
+import Native
+
+{-
+   A shared window bound exclusively - Analysis-Borrows.md §2.5, the binding half.
+
+   Every step of this used to compile, and each one is individually right, which is why it survived:
+
+       fn launder(xs: Array(Int)) -> {}:
+           let &w = elements(xs)
+           w[0] = 9
+
+   `elements` hands back a shared view rooted in `xs`; the descriptor it returns is a temporary
+   *this* frame owns; and `let &` over a value the statement built is an ordinary owning binding. So
+   the `&` was about the two words of the descriptor, and the write went straight through them into
+   the caller's array - which this function was handed **immutably**.
+
+   A window is the one type where owning the value and being allowed to write through it are
+   different questions, and §4.5's capability bit is what lets the difference be stated rather than
+   guessed: `elements` returns `Flat(a)` and `elementsMut` returns `&Flat(a)`, so the binding asks
+   the value instead of concluding from the fact that it owns the descriptor.
+
+   `lib/Core/Sort.yana` was doing exactly this - `let &window = elements(xs)` - which is why `sort`
+   now asks for `Writable(c, a)` rather than `Contiguous(c, a)`.
+-}
+
+fn laundersOwner(xs: Array(Int)) -> {}:
+    let &w = elements(xs)
+    w[0] = 9
+
+-- The same through a subslice, which is where the pair `slice`/`sliceMut` comes from: a subslice is
+-- as writable as what it was taken of, and one signature cannot say that.
+fn laundersSubslice(xs: Array(Int)) -> {}:
+    let &part = slice(elements(xs), 0, 1)
+    part[0] = 9
+
+fn main() -> Int = 0

@@ -514,11 +514,11 @@ fn hashAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> U32 {
     ret %v5
 }
 
-fn keyAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> 'Int {
+fn keyAt(Int, Int)(%self: 'Map(Int, Int), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Int)
     %v5 = strideof Entry(Int, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Int)
@@ -1093,11 +1093,11 @@ fn pairs(Int, Int, ())(%self: Map(Int, Int), %body: (value$: Entry('Int, 'Int)) 
     jmp b1
 }
 
-fn valueAt(Int, Int)(%self: Map(Int, Int), %at: Size) -> 'Int {
+fn valueAt(Int, Int)(%self: 'Map(Int, Int), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Int)
     %v5 = strideof Entry(Int, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Int)
@@ -1372,11 +1372,11 @@ fn hashAt(String, Int)(%self: Map(String, Int), %at: Size) -> U32 {
     ret %v5
 }
 
-fn keyAt(String, Int)(%self: Map(String, Int), %at: Size) -> 'String {
+fn keyAt(String, Int)(%self: 'Map(String, Int), %at: Size) -> 'String {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(String, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(String, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(String, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(String, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(String, Int)
     %v5 = strideof Entry(String, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Int)
@@ -1916,11 +1916,11 @@ fn Index(Map(k, v), k, v).get(String, Int)(%self: Map(String, Int), %key: String
     ret %v8
 }
 
-fn valueAt(Int, String)(%self: Map(String, Int), %at: Size) -> 'Int {
+fn valueAt(Int, String)(%self: 'Map(String, Int), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(String, Int))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Int))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(String, Int)
+    %v2 = load [%self]@Map.entries : Array(Entry(String, Int))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(String, Int))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(String, Int)
     %v5 = strideof Entry(String, Int) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Int)
@@ -2178,11 +2178,11 @@ fn hashAt(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size) -> U32 {
     ret %v5
 }
 
-fn keyAt(Int, Array(Int))(%self: Map(Int, Array(Int)), %at: Size) -> 'Int {
+fn keyAt(Int, Array(Int))(%self: 'Map(Int, Array(Int)), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Array(Int)))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Array(Int)))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Array(Int))
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Array(Int)))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Array(Int)))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Array(Int))
     %v5 = strideof Entry(Int, Array(Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Array(Int))
@@ -2743,11 +2743,11 @@ fn pairs(Int, Array(Int), ())(%self: Map(Int, Array(Int)), %body: (value$: Entry
     jmp b1
 }
 
-fn valueAt(Array(Int), Int)(%self: Map(Int, Array(Int)), %at: Size) -> 'Array(Int) {
+fn valueAt(Array(Int), Int)(%self: 'Map(Int, Array(Int)), %at: Size) -> 'Array(Int) {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Array(Int)))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Array(Int)))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Array(Int))
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Array(Int)))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Array(Int)))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Array(Int))
     %v5 = strideof Entry(Int, Array(Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Array(Int))
@@ -3005,11 +3005,11 @@ fn hashAt(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size) -> U32 
     ret %v5
 }
 
-fn keyAt(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int)), %at: Size) -> 'Int {
+fn keyAt(Int, Map(Int, Int))(%self: 'Map(Int, Map(Int, Int)), %at: Size) -> 'Int {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Map(Int, Int)))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Map(Int, Int)))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Map(Int, Int))
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Map(Int, Int)))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Map(Int, Int)))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Map(Int, Int))
     %v5 = strideof Entry(Int, Map(Int, Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Map(Int, Int))
@@ -3540,11 +3540,11 @@ fn Index(Map(k, v), k, v).get(Int, Map(Int, Int))(%self: Map(Int, Map(Int, Int))
     ret %v8
 }
 
-fn valueAt(Map(Int, Int), Int)(%self: Map(Int, Map(Int, Int)), %at: Size) -> 'Map(Int, Int) {
+fn valueAt(Map(Int, Int), Int)(%self: 'Map(Int, Map(Int, Int)), %at: Size) -> 'Map(Int, Int) {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(Int, Map(Int, Int)))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(Int, Map(Int, Int)))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(Int, Map(Int, Int))
+    %v2 = load [%self]@Map.entries : Array(Entry(Int, Map(Int, Int)))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(Int, Map(Int, Int)))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(Int, Map(Int, Int))
     %v5 = strideof Entry(Int, Map(Int, Int)) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(Int, Map(Int, Int))

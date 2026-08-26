@@ -1,0 +1,57 @@
+import Native
+
+{-
+   A container of the program's own, passed where a slice is *written* - Implementation-Containers.md
+   §5, and the `Writable` class beside `Contiguous`.
+
+   The read half has existed since §5: `Contiguous` promises a buffer address, so a container reaches
+   `fn f(xs: [a])` through one call to `elements`, which is the only implicit conversion into a slice
+   a program can grant itself. `fn f(&xs: [a])` was refused, and not by oversight - `elements` hands
+   back a **shared** view and a conversion may not widen one, which is the rule
+   Analysis-Borrows.md §2.3 removed `applyReturnRootMutability` for.
+
+   `Writable` is the write half as a promise of its own. `elementsMut(&self: 'c) -> &Flat(a)` puts
+   the exclusive window in the *instance's* signature, so nothing is promoted at the argument
+   position: the container is exclusively borrowed for as long as the window lives, and the loan is
+   rooted in it by the class's group. `Reject.WritableContainer.yana` is what a container that
+   implements only the read half gets, and it is a different diagnostic rather than the general one.
+-}
+
+data Bag(a) {items: Array(a)}
+
+instance Length(Bag(a)):
+    fn length(self: Bag(a)) -> Size = length(self.items)
+
+instance Contiguous(Bag(a), a):
+    fn elements(return self: Bag(a)) -> Flat(a) = elements(self.items)
+
+instance Chunked(Bag(a), a):
+    iter fn chunks(self: Bag(a)) -> Flat(a) = yield elements(self)
+
+-- One line: the conversion at the return position builds the exclusive descriptor over the
+-- exclusive borrow `&self` already is.
+instance Writable(Bag(a), a):
+    fn elementsMut(&self: Bag(a)) -> &Flat(a) = self.items
+
+fn readsOnly(xs: [Int]) -> Int = xs[0]
+
+fn writesOne(&xs: [Int]) -> {}:
+    xs[0] = 9
+
+fn main() -> I64:
+    let &b = Bag {items: [1, 2, 3] :: Array(Int)}
+
+    if readsOnly(b) != 1 then return -1
+
+    writesOne(b)
+    if b.items[0] != 9 then return -2
+
+    -- And everything else written against a written slice, `sort` included.
+    sort(b)
+
+    -- The built-in owners take the same route and always could, which is what makes this one rule
+    -- rather than a special case for user types.
+    let &owned = [5, 4] :: Array(Int)
+    writesOne(owned)
+
+    return (b.items[0] * 100 + b.items[1] * 10 + b.items[2] + owned[0]) :: I64

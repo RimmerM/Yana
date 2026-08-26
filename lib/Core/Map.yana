@@ -358,13 +358,13 @@ pub fn (Hash(k)) containsKey(self: Map(k, v), key: k) -> Bool =
    learned to walk out of a direct aggregate into the call that produced it, the map was dropped at
    the call and the borrow read storage that had been handed back.
 -}
-pub fn (Hash(k)) find(return self: Map(k, v), key: k) -> Maybe('v):
+pub fn (Hash(k)) find(self: 'Map(k, v), key: k) -> Maybe('v):
     let at = findEntry(self, key, hashKey(key))
     if at < 0 then return Nothing
 
     return Just(valueAt(self, at))
 
-pub fn (Hash(k)) findMut(return &self: Map(k, v), key: k) -> Maybe(&v):
+pub fn (Hash(k)) findMut(&self: 'Map(k, v), key: k) -> Maybe(&v):
     let at = findEntry(self, key, hashKey(key))
     if at < 0 then return Nothing
 
@@ -438,7 +438,7 @@ instance (Hash(k)) Index(Map(k, v), k, v):
 
         return valueAt(self, at)
 
-    fn getMut(return &self: Map(k, v), key: k) -> &v:
+    fn getMut(&self: 'Map(k, v), key: k) -> &v:
         let at = findEntry(self, key, hashKey(key))
         checkCondition(at < 0)
 

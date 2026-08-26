@@ -234,6 +234,71 @@ TypePtr refineContainerType(Module& module, TypePtr plain, U32 inlineSlots, U32 
     return (Type*)instance - global;
 }
 
+/*
+ * A slice with a capability and a group on it - Analysis-Borrows.md §4.5, and RecordType::sliceLoan.
+ *
+ * The same sibling mechanism `refineContainerType` uses, minus the only thing that made that one
+ * expensive. A Repr refinement re-interns each constructor's content tuple, because the whole of
+ * what it changes is where the fields sit; a capability sibling changes *nothing* about the bytes -
+ * a shared window and an exclusive one are the same pointer and the same length - so the plain
+ * instantiation's constructors are shared rather than copied through `resolveTupleType`. Every
+ * layout, Repr and ownership answer is therefore the plain one's by construction rather than by
+ * agreement.
+ *
+ * A shared slice in no group is the plain type and is returned unchanged, which is what keeps this
+ * off every path that does not write a capability: `xs: [T]`, `convertSlice`, the intrinsics and the
+ * solver all go on interning exactly one `Flat(T)`.
+ */
+TypePtr sliceCapabilityType(Module& module, TypePtr plain, bool mut, LoanGroup loan) {
+    auto global = *module.types;
+    if(!mut && loan == kNoLoan) return plain;
+    if(!plain || global[plain]->kind != Type::Record) return plain;
+
+    auto record = (RecordType*)global[plain];
+
+    // A capability written on a capability is the inner one's - `&'[T]` cannot be spelled, but
+    // substitution and alias expansion can both arrive here twice.
+    if(record->isSliceCapability()) {
+        record = (RecordType*)global[record->canonical];
+        plain = (Type*)record - global;
+    }
+
+    auto pointer = record->instanceOf;
+    if(!pointer) return plain;
+
+    auto declaration = (RecordType*)global[pointer];
+
+    for(auto existing: declaration->instances.contents(global)) {
+        auto instance = (RecordType*)global[existing];
+        if(instance->canonical != record - global) continue;
+        if(instance->sliceMut != mut || instance->sliceLoan != loan) continue;
+        if(instance->inlineSlots || instance->capacityBound) continue;
+
+        return (Type*)instance - global;
+    }
+
+    auto instance = new (module.types) RecordType(declaration->name);
+    instance->instanceOf = pointer;
+    instance->qualified = declaration->qualified;
+    instance->generic = record->generic;
+    instance->canonical = record - global;
+    instance->sliceMut = mut;
+    instance->sliceLoan = loan;
+
+    for(auto arg: record->instanceArgs.contents(global)) instance->instanceArgs.push(module.types, arg);
+    for(Size i = 0; i < record->constructors.size(); i++) {
+        instance->constructors.push(module.types, record->constructors.get(global, i));
+    }
+
+    instance->layout = record->layout;
+    instance->pinned = record->pinned;
+    instance->definitionReady = record->definitionReady;
+    instance->layoutBroken = record->layoutBroken;
+
+    declaration->instances.push(module.types, instance - global);
+    return (Type*)instance - global;
+}
+
 TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, LocationId source) {
     auto global = *module.types;
     if(!type || !isGeneric(global, type)) return type;
@@ -252,7 +317,24 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
                 substituted.push(substituteType(module, arg, args, source));
             }
 
-            return instantiateRecord(module, record->instanceOf, toBuffer(substituted), source);
+            auto instance = instantiateRecord(module, record->instanceOf, toBuffer(substituted), source);
+
+            /*
+             * A slice's capability survives substitution, for the reason the field indirection below
+             * does: it is a property of *this* type rather than of what its arguments turned out to
+             * be - Analysis-Borrows.md §4.5.
+             *
+             * `instantiateRecord` answers the plain instantiation, which is right for every other
+             * record and silently wrong for a capability sibling. A class member declaring
+             * `-> &Flat(a)` specialized to `Flat(Int)`, so the class promised an exclusive window
+             * and every instance was compared against a shared one: "elementsMut returns &Flat(a)
+             * here but Flat(a) in class Writable", with both sides written identically.
+             */
+            if(record->isSliceCapability()) {
+                return sliceCapabilityType(module, instance, record->sliceMut, record->sliceLoan);
+            }
+
+            return instance;
         }
         case Type::Tup: {
             auto tuple = (TupType*)global[type];

@@ -1,0 +1,28 @@
+import Native
+
+-- What a slice's capability refuses - Analysis-Borrows.md §4.5, and SliceCapability.yana for the
+-- half that is accepted.
+--
+-- Weakening is free: an exclusive window is the same pointer and the same length, so giving up the
+-- write costs nothing and is allowed anywhere. Widening is not, and the reason is not a missing
+-- conversion - it is that there is nothing to build one out of. A shared window was made over a
+-- shared borrow of its owner, other views of that owner may be live, and no later step can make
+-- that borrow exclusive after the fact.
+
+data View {buf: '[Int], at: Int}
+data Cursor {buf: &[Int], at: Int}
+
+-- The window is shared, and storing it where an exclusive one is wanted would hand out a write to
+-- storage `v` is still watching.
+fn widenStored(v: View) -> Int:
+    let c = Cursor {buf: v.buf, at: v.at}
+    return c.buf[0]
+
+-- And from an owner this frame only reads. `Cursor` asks for an exclusive borrow of it, which is
+-- what an immutable binding does not have to give.
+fn widenOwner() -> Int:
+    let owned = [1, 2] :: Array(Int)
+    let c = Cursor {buf: owned, at: 0}
+    return c.buf[0]
+
+fn main() -> Int = widenOwner()

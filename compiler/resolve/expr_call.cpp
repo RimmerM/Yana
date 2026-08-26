@@ -3045,7 +3045,44 @@ ModulePtr<Value> ExprResolver::emitGenericCall(ModulePtr<Function> callee, Buffe
 
     auto env = functionGen(global, function);
     if(!env) {
-        context.diagnostics.error("internal: a generic call was deferred outside a generic function"_v, source);
+        /*
+         * A concrete call site whose callee still has an open type argument, and no enclosing
+         * signature for the requirement to be passed up to.
+         *
+         * This read "internal:" and was reachable from ordinary source, which is the part worth
+         * fixing: `sort(r)` for a container with a `Contiguous` instance and no `Writable` one gets
+         * here, because `Writable(c -> a)` is what would have decided `a` and there is no instance
+         * to decide it from. `Sort.yana`'s own note called this out as "rejected badly" when a fixed
+         * array reached it for the same reason.
+         *
+         * What the caller can act on is the class it did not satisfy, so that is what is named -
+         * and the argument that is still open beside it, since a variable no instance bound is the
+         * observable half of the same fact.
+         */
+        for(auto constraint: calleeEnv->classes.contents(global)) {
+            if(!constraint.typeClass) continue;
+
+            auto unresolved = false;
+            SmallArray<TypePtr, 4> classArgs;
+
+            for(auto arg: constraint.args.contents(global)) {
+                auto bound = substituteType(module, arg, toBuffer(bindings), source);
+                unresolved = unresolved || isGeneric(global, bound);
+                classArgs.push(bound);
+            }
+
+            if(!unresolved) continue;
+
+            context.diagnostics.error("no instance of %@ for (%@), required by %@ - the class is what would decide the rest of this call's type arguments, so there is nothing left to infer them from"_v,
+                                      source,
+                                      context.findName(global[constraint.typeClass]->name),
+                                      describeType(context, global, classArgs.size() ? classArgs[0] : nullptr),
+                                      context.findName(generic->name));
+            return nullptr;
+        }
+
+        context.diagnostics.error("cannot infer the type arguments of %@ at this call - nothing here decides them and there is no enclosing signature to carry the requirement"_v,
+                                  source, context.findName(generic->name));
         return nullptr;
     }
 

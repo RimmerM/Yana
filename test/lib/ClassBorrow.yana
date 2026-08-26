@@ -17,13 +17,13 @@ data Adder {total: Int}
 
 pub class Eater(d):
   fn newEater() -> d
-  fn eat(&self: d, from: &[U8]) -> {}
+  fn eat(&self: d, from: '[U8]) -> {}
   fn total(self: d) -> Int
 
 instance Eater(Adder):
     fn newEater() -> Adder = Adder {total: 0}
 
-    fn eat(&self: Adder, from: &[U8]) -> {}:
+    fn eat(&self: Adder, from: '[U8]) -> {}:
         let &i = 0 :: Size
         while i < length(from):
             self.total = self.total + (from[i] :: Int)

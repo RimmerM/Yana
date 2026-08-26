@@ -1,11 +1,11 @@
 9:0: error: the loan group this result is in has no parameter in it - a labelled group says the result is a loan of that group's arguments, and this one has none, so the result is rooted in nothing. Put the label on the parameter the result borrows from
 13:0: error: the loan group this result is in has no parameter in it - a labelled group says the result is a loan of that group's arguments, and this one has none, so the result is rooted in nothing. Put the label on the parameter the result borrows from
 18:14: error: a loan group can only be written inside a declaration - it names one of that signature's loan relationships, and there is no signature here for it to belong to
-22:0: error: a function returning a borrow must mark the argument it is rooted in with `return`
-30:0: error: a function returning a borrow must mark the argument it is rooted in with `return`
+22:0: error: a function returning a borrow must say which argument it is rooted in - write a leading `'` on that parameter's type
+30:0: error: a function returning a borrow must say which argument it is rooted in - write a leading `'` on that parameter's type
 36:15: error: this parameter states its loan group twice - `return` means the signature's one anonymous group, and the tick on the type names a group of its own. Write the group on the type and drop the `return`
 47:0: error: this result is a reference and does not say which loan group it is in, and this signature has more than one - so nothing says which argument it borrows from. Write the group on the result, as in `-> &src'T`
-22:13: error: a borrow returned from this function is rooted in a, which the signature did not mark `return`
-30:11: error: a borrow returned from this function is rooted in c, which the signature did not mark `return`
+22:13: error: a borrow returned from this function is rooted in a, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it
+30:11: error: a borrow returned from this function is rooted in c, which the signature did not put in a loan group - write a leading `'` on that parameter's type, so that the caller is told the result is rooted in it
 59:4: error: this use conflicts with a mutable borrow of the same storage, which is exclusive while it is live
 57:18: message: the borrow it conflicts with is here

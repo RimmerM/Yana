@@ -32,7 +32,7 @@ fn computed() -> {}:
    **A count is part of the parameter's type**, so the wrong one is a type error rather than a read
    past the end.
 
-   That is the whole of what a fixed-array parameter buys over the `&[Int]` it would otherwise
+   That is the whole of what a fixed-array parameter buys over the `'[Int]` it would otherwise
    become: two slices of different lengths are one type, and a callee written against one of them
    finds out at run time. `bindingType` in resolve/type_ast.cpp is where the count is kept.
 -}

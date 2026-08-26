@@ -1,0 +1,1221 @@
+table closure$Core.continuation$1([Int *3], Int, ()) before Core.continuation$1([Int *3], Int, ()) {
+  .0 teardown$none
+}
+
+let image$base: () = <none>
+
+table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$18([Int *3]) before ResolveTest.continuation$18([Int *3]) {
+  .0 teardown$none
+}
+
+fn recursionBudget(%count: Size) -> Int {
+  b0:
+    %v3 = sizeof Size : Size
+    %v4 = shl %v3, 3 : Size
+    %v5 = clz %count : Size
+    %v6 = sub %v4, %v5 : Size
+    %v7 = cast %v6 : Int
+    %v9 = mul 2, %v7 : Int
+    ret %v9
+}
+
+fn checkFailed() -> () {
+  b0:
+    call abortProcess
+    ret
+}
+
+fn checkCondition(%failed: Bool) -> () {
+  b0:
+    je %failed, b1, b2
+
+  b1:
+    call checkFailed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn teardown$none(%value: %()) -> () {
+  b0:
+    ret
+}
+
+fn items([Int *3], Int, ())(%self: [Int *3], %body: (value$: 'Int) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v2 = alloc : {body: '(value$: 'Int) -> Outcome((), ())}
+    %v3 = borrow %body : '(value$: 'Int) -> Outcome((), ())
+    init %local2.body, %v3
+    %v5 = addressof %local2 : %()
+    %v6 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
+    %v7 = symbol Core.continuation$1([Int *3], Int, ()) : %()
+    init %local3.code, %v7
+    init %local3.env, %v5
+    %v10 = call Chunked([a *n], a).chunks(3, Int, Outcome((), ())), %self, %v6 : Outcome((), Outcome((), ()))
+    %v11 = load %local4.discriminant : Int
+    %v13 = cmp_eq %v11, 1 : Bool
+    je %v13, b1, b2
+
+  b1:
+    %v15 = move %local4@Exit : Outcome((), ())
+    ret %v15
+
+  b2:
+    %v17 = alloc : Outcome((), ())
+    init %local5.discriminant, 0
+    ret %v17
+}
+
+fn Core.continuation$1([Int *3], Int, ())(%env: %{body: '(value$: 'Int) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v2 = load %value$@Flat.length : Size
+    %i = alloc : Size
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Size
+    %v8 = cmp_lt %v7, %v2 : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = alloc : Outcome((), Outcome((), ()))
+    init %local3.discriminant, 0
+    ret %v10
+
+  b3:
+    %v14 = load [%env].body : '(value$: 'Int) -> Outcome((), ())
+    %v15 = load [%v14] : (value$: 'Int) -> Outcome((), ())
+    %v16 = load %i : Size
+    %v17 = borrow %value$ : 'Flat(Int)
+    %v18 = load [%v17]@Flat.length : Size
+    %v19 = cast %v16 : USize
+    %v20 = cast %v18 : USize
+    %v21 = cmp_ge %v19, %v20 : Bool
+    call checkCondition, %v21
+    %v23 = load [%v17]@Flat.items : %Int
+    %v24 = strideof Int : Long
+    %v25 = mul %v16, %v24 : Long
+    %v26 = add %v23, %v25 : %Int
+    %v27 = borrow [%v26] : 'Int
+    %v28 = load [%v27] : Int
+    %v29 = borrow [%v27] : 'Int
+    %v30 = calldyn %v15, %v29 : Outcome((), ())
+    %v31 = load %local2.discriminant : Int
+    %v33 = cmp_eq %v31, 1 : Bool
+    je %v33, b4, b5
+
+  b4:
+    %v35 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local4.discriminant = 1, %local4@Exit = %v30
+    ret %v35
+
+  b5:
+    %v39 = load %i : Size
+    %v41 = add %v39, 1 : Size
+    assign %i, %v41
+    jmp b1
+}
+
+fn Chunked([a *n], a).chunks(3, Int, Outcome((), ()))(%self: [Int *3], %body: (value$: Flat(Int)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v2 = borrow %self : '[Int *3]
+    %v3 = call Contiguous([a *n], a).elements(3, Int), %v2 : Flat(Int)
+    %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
+    %v5 = load %local3.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret %v4
+
+  b2:
+    %v10 = alloc : Outcome((), Outcome((), ()))
+    init %local4.discriminant, 0
+    ret %v10
+}
+
+fn Contiguous([a *n], a).elements(3, Int)(%self: [Int *3]) -> Flat(Int) {
+  b0:
+    %v1 = countof 3 : Int
+    %v2 = cast %v1 : Size
+    %v3 = borrow %self : '[Int *3]
+    %self = alloc : Flat(Int)
+    %v5 = addressof [%v3] : %Int
+    init %self@Flat.items, %v5
+    %v7 = countof 3 : Size
+    init %self@Flat.length, %v7
+    %v10 = borrow %self : 'Flat(Int)
+    %v11 = call unclampedSlice(Int), %v10, 0, %v2 : Flat(Int)
+    ret %v11
+}
+
+fn unclampedSlice(Int)(%self: Flat(Int), %from: Size, %count: Size) -> Flat(Int) {
+  b0:
+    %v3 = alloc : Flat(Int)
+    %v4 = load %self@Flat.items : %Int
+    %v5 = strideof Int : Size
+    %v6 = mul %from, %v5 : Size
+    %v7 = add %v4, %v6 : %Int
+    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    ret %v3
+}
+
+fn sort([Int *3], Int)(%xs: [Int *3]) -> () {
+  b0:
+    %v1 = load %xs : [Int *3]
+    %v2 = borrow_mut %xs : &[Int *3]
+    %v3 = call Writable([a *n], a).elementsMut(3, Int), %v2 : &Flat(Int)
+    %window = alloc : Flat(Int)
+    init %window, %v3
+    %v6 = load %window : Flat(Int)
+    %v7 = load %window@Flat.length : Size
+    %v8 = load %window : Flat(Int)
+    %v10 = sub %v7, 1 : Size
+    %v11 = call recursionBudget, %v7 : Int
+    %v13 = borrow_mut %window : &Flat(Int)
+    call sortRange(Int), %v13, 0, %v10, %v11
+    ret
+}
+
+fn Writable([a *n], a).elementsMut(3, Int)(%self: [Int *3]) -> &Flat(Int) {
+  b0:
+    %v1 = load %self : [Int *3]
+    %v2 = borrow_mut %self : &[Int *3]
+    %v3 = alloc : &Flat(Int)
+    %v4 = addressof [%v2] : %Int
+    init %local1@Flat.items, %v4
+    %v6 = countof 3 : Size
+    init %local1@Flat.length, %v6
+    ret %v3
+}
+
+fn sortRange(Int)(%xs: Flat(Int), %first: Size, %last: Size, %depth: Int) -> () {
+  b0:
+    %low = alloc : Size
+    init %low, %first
+    %high = alloc : Size
+    init %high, %last
+    %budget = alloc : Int
+    init %budget, %depth
+    jmp b1
+
+  b1:
+    %v11 = load %high : Size
+    %v12 = load %low : Size
+    %v13 = sub %v11, %v12 : Size
+    %v15 = cmp_ge %v13, 12 : Bool
+    je %v15, b3, b2
+
+  b2:
+    %v17 = load %xs : Flat(Int)
+    %v18 = load %low : Size
+    %v19 = load %high : Size
+    %v20 = borrow_mut %xs : &Flat(Int)
+    call insertionRange(Int), %v20, %v18, %v19
+    ret
+
+  b3:
+    %v23 = load %budget : Int
+    %v25 = cmp_le %v23, 0 : Bool
+    je %v25, b4, b5
+
+  b4:
+    %v27 = load %xs : Flat(Int)
+    %v28 = load %low : Size
+    %v29 = load %high : Size
+    %v30 = borrow_mut %xs : &Flat(Int)
+    call heapRange(Int), %v30, %v28, %v29
+    ret
+
+  b5:
+    jmp b6
+
+  b6:
+    %v34 = load %budget : Int
+    %v36 = sub %v34, 1 : Int
+    assign %budget, %v36
+    %v38 = load %xs : Flat(Int)
+    %v39 = load %low : Size
+    %v40 = load %high : Size
+    %v41 = borrow_mut %xs : &Flat(Int)
+    %at = call partitionRange(Int), %v41, %v39, %v40 : Size
+    %v43 = load %low : Size
+    %v44 = sub %at, %v43 : Size
+    %v45 = load %high : Size
+    %v46 = sub %v45, %at : Size
+    %v47 = cmp_lt %v44, %v46 : Bool
+    je %v47, b7, b8
+
+  b7:
+    %v49 = load %xs : Flat(Int)
+    %v50 = load %low : Size
+    %v52 = sub %at, 1 : Size
+    %v53 = load %budget : Int
+    %v54 = borrow_mut %xs : &Flat(Int)
+    call sortRange(Int), %v54, %v50, %v52, %v53
+    %v57 = add %at, 1 : Size
+    assign %low, %v57
+    jmp b9
+
+  b8:
+    %v60 = load %xs : Flat(Int)
+    %v62 = add %at, 1 : Size
+    %v63 = load %high : Size
+    %v64 = load %budget : Int
+    %v65 = borrow_mut %xs : &Flat(Int)
+    call sortRange(Int), %v65, %v62, %v63, %v64
+    %v68 = sub %at, 1 : Size
+    assign %high, %v68
+    jmp b9
+
+  b9:
+    jmp b1
+}
+
+fn insertionRange(Int)(%xs: Flat(Int), %low: Size, %high: Size) -> () {
+  b0:
+    %v5 = add %low, 1 : Size
+    %i = alloc : Size
+    init %i, %v5
+    jmp b1
+
+  b1:
+    %v9 = load %i : Size
+    %v10 = cmp_le %v9, %high : Bool
+    je %v10, b3, b2
+
+  b2:
+    ret
+
+  b3:
+    %v13 = load %i : Size
+    %j = alloc : Size
+    init %j, %v13
+    jmp b4
+
+  b4:
+    %v17 = load %j : Size
+    %v18 = cmp_gt %v17, %low : Bool
+    je %v18, b6, b7
+
+  b5:
+    %v20 = load %i : Size
+    %v22 = add %v20, 1 : Size
+    assign %i, %v22
+    jmp b1
+
+  b6:
+    %v25 = load %xs : Flat(Int)
+    %v26 = load %j : Size
+    %v27 = borrow %xs : 'Flat(Int)
+    %v28 = load [%v27]@Flat.length : Size
+    %v29 = cast %v26 : USize
+    %v30 = cast %v28 : USize
+    %v31 = cmp_ge %v29, %v30 : Bool
+    call checkCondition, %v31
+    %v33 = load [%v27]@Flat.items : %Int
+    %v34 = strideof Int : Long
+    %v35 = mul %v26, %v34 : Long
+    %v36 = add %v33, %v35 : %Int
+    %v37 = borrow [%v36] : 'Int
+    %v38 = load [%v37] : Int
+    %v39 = load %xs : Flat(Int)
+    %v40 = load %j : Size
+    %v42 = sub %v40, 1 : Size
+    %v43 = borrow %xs : 'Flat(Int)
+    %v44 = load [%v43]@Flat.length : Size
+    %v45 = cast %v42 : USize
+    %v46 = cast %v44 : USize
+    %v47 = cmp_ge %v45, %v46 : Bool
+    call checkCondition, %v47
+    %v49 = load [%v43]@Flat.items : %Int
+    %v50 = strideof Int : Long
+    %v51 = mul %v42, %v50 : Long
+    %v52 = add %v49, %v51 : %Int
+    %v53 = borrow [%v52] : 'Int
+    %v54 = load [%v53] : Int
+    %v55 = cmp_lt %v38, %v54 : Bool
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v3 = phi [b6, %v55], [b7, False] : Bool
+    je %v3, b9, b5
+
+  b9:
+    %v59 = load %xs : Flat(Int)
+    %v60 = load %j : Size
+    %v61 = borrow_mut %xs : &Flat(Int)
+    %v62 = load [%v61]@Flat.length : Size
+    %v63 = cast %v60 : USize
+    %v64 = cast %v62 : USize
+    %v65 = cmp_ge %v63, %v64 : Bool
+    call checkCondition, %v65
+    %v67 = load [%v61]@Flat.items : %Int
+    %v68 = strideof Int : Long
+    %v69 = mul %v60, %v68 : Long
+    %v70 = add %v67, %v69 : %Int
+    %v71 = borrow_mut [%v70] : &Int
+    %v72 = load %xs : Flat(Int)
+    %v73 = load %j : Size
+    %v75 = sub %v73, 1 : Size
+    %v76 = borrow_mut %xs : &Flat(Int)
+    %v77 = load [%v76]@Flat.length : Size
+    %v78 = cast %v75 : USize
+    %v79 = cast %v77 : USize
+    %v80 = cmp_ge %v78, %v79 : Bool
+    call checkCondition, %v80
+    %v82 = load [%v76]@Flat.items : %Int
+    %v83 = strideof Int : Long
+    %v84 = mul %v75, %v83 : Long
+    %v85 = add %v82, %v84 : %Int
+    %v86 = borrow_mut [%v85] : &Int
+    swap [%v71], [%v86]
+    %v88 = load %j : Size
+    %v90 = sub %v88, 1 : Size
+    assign %j, %v90
+    jmp b4
+}
+
+fn heapRange(Int)(%xs: Flat(Int), %low: Size, %high: Size) -> () {
+  b0:
+    %v3 = sub %high, %low : Size
+    %v5 = sub %v3, 1 : Size
+    %v7 = div %v5, 2 : Size
+    %v8 = add %low, %v7 : Size
+    %start = alloc : Size
+    init %start, %v8
+    jmp b1
+
+  b1:
+    %v12 = load %start : Size
+    %v13 = cmp_ge %v12, %low : Bool
+    je %v13, b3, b2
+
+  b2:
+    %end = alloc : Size
+    init %end, %high
+    jmp b4
+
+  b3:
+    %v18 = load %xs : Flat(Int)
+    %v19 = load %start : Size
+    %v20 = borrow_mut %xs : &Flat(Int)
+    call siftDown(Int), %v20, %low, %v19, %high
+    %v22 = load %start : Size
+    %v24 = sub %v22, 1 : Size
+    assign %start, %v24
+    jmp b1
+
+  b4:
+    %v27 = load %end : Size
+    %v28 = cmp_gt %v27, %low : Bool
+    je %v28, b6, b5
+
+  b5:
+    ret
+
+  b6:
+    %v31 = load %xs : Flat(Int)
+    %v32 = borrow_mut %xs : &Flat(Int)
+    %v33 = load [%v32]@Flat.length : Size
+    %v34 = cast %low : USize
+    %v35 = cast %v33 : USize
+    %v36 = cmp_ge %v34, %v35 : Bool
+    call checkCondition, %v36
+    %v38 = load [%v32]@Flat.items : %Int
+    %v39 = strideof Int : Long
+    %v40 = mul %low, %v39 : Long
+    %v41 = add %v38, %v40 : %Int
+    %v42 = borrow_mut [%v41] : &Int
+    %v43 = load %xs : Flat(Int)
+    %v44 = load %end : Size
+    %v45 = borrow_mut %xs : &Flat(Int)
+    %v46 = load [%v45]@Flat.length : Size
+    %v47 = cast %v44 : USize
+    %v48 = cast %v46 : USize
+    %v49 = cmp_ge %v47, %v48 : Bool
+    call checkCondition, %v49
+    %v51 = load [%v45]@Flat.items : %Int
+    %v52 = strideof Int : Long
+    %v53 = mul %v44, %v52 : Long
+    %v54 = add %v51, %v53 : %Int
+    %v55 = borrow_mut [%v54] : &Int
+    swap [%v42], [%v55]
+    %v57 = load %end : Size
+    %v59 = sub %v57, 1 : Size
+    assign %end, %v59
+    %v61 = load %xs : Flat(Int)
+    %v62 = load %end : Size
+    %v63 = borrow_mut %xs : &Flat(Int)
+    call siftDown(Int), %v63, %low, %low, %v62
+    jmp b4
+}
+
+fn siftDown(Int)(%xs: Flat(Int), %low: Size, %root: Size, %high: Size) -> () {
+  b0:
+    %parent = alloc : Size
+    init %parent, %root
+    %settled = alloc : Bool
+    init %settled, False
+    jmp b1
+
+  b1:
+    %v11 = load %settled : Bool
+    %v13 = xor %v11, True : Bool
+    je %v13, b3, b2
+
+  b2:
+    ret
+
+  b3:
+    %v16 = load %parent : Size
+    %v17 = load %parent : Size
+    %v18 = sub %v17, %low : Size
+    %v19 = add %v16, %v18 : Size
+    %child = add %v19, 1 : Size
+    %v22 = cmp_gt %child, %high : Bool
+    je %v22, b4, b5
+
+  b4:
+    assign %settled, True
+    jmp b15
+
+  b5:
+    %best = alloc : Size
+    init %best, %child
+    %v29 = cmp_lt %child, %high : Bool
+    je %v29, b6, b7
+
+  b6:
+    %v31 = load %xs : Flat(Int)
+    %v32 = borrow %xs : 'Flat(Int)
+    %v33 = load [%v32]@Flat.length : Size
+    %v34 = cast %child : USize
+    %v35 = cast %v33 : USize
+    %v36 = cmp_ge %v34, %v35 : Bool
+    call checkCondition, %v36
+    %v38 = load [%v32]@Flat.items : %Int
+    %v39 = strideof Int : Long
+    %v40 = mul %child, %v39 : Long
+    %v41 = add %v38, %v40 : %Int
+    %v42 = borrow [%v41] : 'Int
+    %v43 = load [%v42] : Int
+    %v44 = load %xs : Flat(Int)
+    %v46 = add %child, 1 : Size
+    %v47 = borrow %xs : 'Flat(Int)
+    %v48 = load [%v47]@Flat.length : Size
+    %v49 = cast %v46 : USize
+    %v50 = cast %v48 : USize
+    %v51 = cmp_ge %v49, %v50 : Bool
+    call checkCondition, %v51
+    %v53 = load [%v47]@Flat.items : %Int
+    %v54 = strideof Int : Long
+    %v55 = mul %v46, %v54 : Long
+    %v56 = add %v53, %v55 : %Int
+    %v57 = borrow [%v56] : 'Int
+    %v58 = load [%v57] : Int
+    %v59 = cmp_lt %v43, %v58 : Bool
+    jmp b8
+
+  b7:
+    jmp b8
+
+  b8:
+    %v4 = phi [b6, %v59], [b7, False] : Bool
+    je %v4, b9, b10
+
+  b9:
+    %v64 = add %child, 1 : Size
+    assign %best, %v64
+    jmp b11
+
+  b10:
+    jmp b11
+
+  b11:
+    %v68 = load %xs : Flat(Int)
+    %v69 = load %parent : Size
+    %v70 = borrow %xs : 'Flat(Int)
+    %v71 = load [%v70]@Flat.length : Size
+    %v72 = cast %v69 : USize
+    %v73 = cast %v71 : USize
+    %v74 = cmp_ge %v72, %v73 : Bool
+    call checkCondition, %v74
+    %v76 = load [%v70]@Flat.items : %Int
+    %v77 = strideof Int : Long
+    %v78 = mul %v69, %v77 : Long
+    %v79 = add %v76, %v78 : %Int
+    %v80 = borrow [%v79] : 'Int
+    %v81 = load [%v80] : Int
+    %v82 = load %xs : Flat(Int)
+    %v83 = load %best : Size
+    %v84 = borrow %xs : 'Flat(Int)
+    %v85 = load [%v84]@Flat.length : Size
+    %v86 = cast %v83 : USize
+    %v87 = cast %v85 : USize
+    %v88 = cmp_ge %v86, %v87 : Bool
+    call checkCondition, %v88
+    %v90 = load [%v84]@Flat.items : %Int
+    %v91 = strideof Int : Long
+    %v92 = mul %v83, %v91 : Long
+    %v93 = add %v90, %v92 : %Int
+    %v94 = borrow [%v93] : 'Int
+    %v95 = load [%v94] : Int
+    %v96 = cmp_lt %v81, %v95 : Bool
+    je %v96, b12, b13
+
+  b12:
+    %v98 = load %xs : Flat(Int)
+    %v99 = load %parent : Size
+    %v100 = borrow_mut %xs : &Flat(Int)
+    %v101 = load [%v100]@Flat.length : Size
+    %v102 = cast %v99 : USize
+    %v103 = cast %v101 : USize
+    %v104 = cmp_ge %v102, %v103 : Bool
+    call checkCondition, %v104
+    %v106 = load [%v100]@Flat.items : %Int
+    %v107 = strideof Int : Long
+    %v108 = mul %v99, %v107 : Long
+    %v109 = add %v106, %v108 : %Int
+    %v110 = borrow_mut [%v109] : &Int
+    %v111 = load %xs : Flat(Int)
+    %v112 = load %best : Size
+    %v113 = borrow_mut %xs : &Flat(Int)
+    %v114 = load [%v113]@Flat.length : Size
+    %v115 = cast %v112 : USize
+    %v116 = cast %v114 : USize
+    %v117 = cmp_ge %v115, %v116 : Bool
+    call checkCondition, %v117
+    %v119 = load [%v113]@Flat.items : %Int
+    %v120 = strideof Int : Long
+    %v121 = mul %v112, %v120 : Long
+    %v122 = add %v119, %v121 : %Int
+    %v123 = borrow_mut [%v122] : &Int
+    swap [%v110], [%v123]
+    %v125 = load %best : Size
+    assign %parent, %v125
+    jmp b14
+
+  b13:
+    assign %settled, True
+    jmp b14
+
+  b14:
+    jmp b15
+
+  b15:
+    jmp b1
+}
+
+fn partitionRange(Int)(%xs: Flat(Int), %low: Size, %high: Size) -> Size {
+  b0:
+    %v5 = sub %high, %low : Size
+    %v7 = div %v5, 2 : Size
+    %mid = add %low, %v7 : Size
+    %v9 = load %xs : Flat(Int)
+    %v10 = borrow %xs : 'Flat(Int)
+    %v11 = load [%v10]@Flat.length : Size
+    %v12 = cast %mid : USize
+    %v13 = cast %v11 : USize
+    %v14 = cmp_ge %v12, %v13 : Bool
+    call checkCondition, %v14
+    %v16 = load [%v10]@Flat.items : %Int
+    %v17 = strideof Int : Long
+    %v18 = mul %mid, %v17 : Long
+    %v19 = add %v16, %v18 : %Int
+    %v20 = borrow [%v19] : 'Int
+    %v21 = load [%v20] : Int
+    %v22 = load %xs : Flat(Int)
+    %v23 = borrow %xs : 'Flat(Int)
+    %v24 = load [%v23]@Flat.length : Size
+    %v25 = cast %low : USize
+    %v26 = cast %v24 : USize
+    %v27 = cmp_ge %v25, %v26 : Bool
+    call checkCondition, %v27
+    %v29 = load [%v23]@Flat.items : %Int
+    %v30 = strideof Int : Long
+    %v31 = mul %low, %v30 : Long
+    %v32 = add %v29, %v31 : %Int
+    %v33 = borrow [%v32] : 'Int
+    %v34 = load [%v33] : Int
+    %v35 = cmp_lt %v21, %v34 : Bool
+    je %v35, b1, b2
+
+  b1:
+    %v37 = load %xs : Flat(Int)
+    %v38 = borrow_mut %xs : &Flat(Int)
+    %v39 = load [%v38]@Flat.length : Size
+    %v40 = cast %mid : USize
+    %v41 = cast %v39 : USize
+    %v42 = cmp_ge %v40, %v41 : Bool
+    call checkCondition, %v42
+    %v44 = load [%v38]@Flat.items : %Int
+    %v45 = strideof Int : Long
+    %v46 = mul %mid, %v45 : Long
+    %v47 = add %v44, %v46 : %Int
+    %v48 = borrow_mut [%v47] : &Int
+    %v49 = load %xs : Flat(Int)
+    %v50 = borrow_mut %xs : &Flat(Int)
+    %v51 = load [%v50]@Flat.length : Size
+    %v52 = cast %low : USize
+    %v53 = cast %v51 : USize
+    %v54 = cmp_ge %v52, %v53 : Bool
+    call checkCondition, %v54
+    %v56 = load [%v50]@Flat.items : %Int
+    %v57 = strideof Int : Long
+    %v58 = mul %low, %v57 : Long
+    %v59 = add %v56, %v58 : %Int
+    %v60 = borrow_mut [%v59] : &Int
+    swap [%v48], [%v60]
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v64 = load %xs : Flat(Int)
+    %v65 = borrow %xs : 'Flat(Int)
+    %v66 = load [%v65]@Flat.length : Size
+    %v67 = cast %high : USize
+    %v68 = cast %v66 : USize
+    %v69 = cmp_ge %v67, %v68 : Bool
+    call checkCondition, %v69
+    %v71 = load [%v65]@Flat.items : %Int
+    %v72 = strideof Int : Long
+    %v73 = mul %high, %v72 : Long
+    %v74 = add %v71, %v73 : %Int
+    %v75 = borrow [%v74] : 'Int
+    %v76 = load [%v75] : Int
+    %v77 = load %xs : Flat(Int)
+    %v78 = borrow %xs : 'Flat(Int)
+    %v79 = load [%v78]@Flat.length : Size
+    %v80 = cast %low : USize
+    %v81 = cast %v79 : USize
+    %v82 = cmp_ge %v80, %v81 : Bool
+    call checkCondition, %v82
+    %v84 = load [%v78]@Flat.items : %Int
+    %v85 = strideof Int : Long
+    %v86 = mul %low, %v85 : Long
+    %v87 = add %v84, %v86 : %Int
+    %v88 = borrow [%v87] : 'Int
+    %v89 = load [%v88] : Int
+    %v90 = cmp_lt %v76, %v89 : Bool
+    je %v90, b4, b5
+
+  b4:
+    %v92 = load %xs : Flat(Int)
+    %v93 = borrow_mut %xs : &Flat(Int)
+    %v94 = load [%v93]@Flat.length : Size
+    %v95 = cast %high : USize
+    %v96 = cast %v94 : USize
+    %v97 = cmp_ge %v95, %v96 : Bool
+    call checkCondition, %v97
+    %v99 = load [%v93]@Flat.items : %Int
+    %v100 = strideof Int : Long
+    %v101 = mul %high, %v100 : Long
+    %v102 = add %v99, %v101 : %Int
+    %v103 = borrow_mut [%v102] : &Int
+    %v104 = load %xs : Flat(Int)
+    %v105 = borrow_mut %xs : &Flat(Int)
+    %v106 = load [%v105]@Flat.length : Size
+    %v107 = cast %low : USize
+    %v108 = cast %v106 : USize
+    %v109 = cmp_ge %v107, %v108 : Bool
+    call checkCondition, %v109
+    %v111 = load [%v105]@Flat.items : %Int
+    %v112 = strideof Int : Long
+    %v113 = mul %low, %v112 : Long
+    %v114 = add %v111, %v113 : %Int
+    %v115 = borrow_mut [%v114] : &Int
+    swap [%v103], [%v115]
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v119 = load %xs : Flat(Int)
+    %v120 = borrow %xs : 'Flat(Int)
+    %v121 = load [%v120]@Flat.length : Size
+    %v122 = cast %high : USize
+    %v123 = cast %v121 : USize
+    %v124 = cmp_ge %v122, %v123 : Bool
+    call checkCondition, %v124
+    %v126 = load [%v120]@Flat.items : %Int
+    %v127 = strideof Int : Long
+    %v128 = mul %high, %v127 : Long
+    %v129 = add %v126, %v128 : %Int
+    %v130 = borrow [%v129] : 'Int
+    %v131 = load [%v130] : Int
+    %v132 = load %xs : Flat(Int)
+    %v133 = borrow %xs : 'Flat(Int)
+    %v134 = load [%v133]@Flat.length : Size
+    %v135 = cast %mid : USize
+    %v136 = cast %v134 : USize
+    %v137 = cmp_ge %v135, %v136 : Bool
+    call checkCondition, %v137
+    %v139 = load [%v133]@Flat.items : %Int
+    %v140 = strideof Int : Long
+    %v141 = mul %mid, %v140 : Long
+    %v142 = add %v139, %v141 : %Int
+    %v143 = borrow [%v142] : 'Int
+    %v144 = load [%v143] : Int
+    %v145 = cmp_lt %v131, %v144 : Bool
+    je %v145, b7, b8
+
+  b7:
+    %v147 = load %xs : Flat(Int)
+    %v148 = borrow_mut %xs : &Flat(Int)
+    %v149 = load [%v148]@Flat.length : Size
+    %v150 = cast %high : USize
+    %v151 = cast %v149 : USize
+    %v152 = cmp_ge %v150, %v151 : Bool
+    call checkCondition, %v152
+    %v154 = load [%v148]@Flat.items : %Int
+    %v155 = strideof Int : Long
+    %v156 = mul %high, %v155 : Long
+    %v157 = add %v154, %v156 : %Int
+    %v158 = borrow_mut [%v157] : &Int
+    %v159 = load %xs : Flat(Int)
+    %v160 = borrow_mut %xs : &Flat(Int)
+    %v161 = load [%v160]@Flat.length : Size
+    %v162 = cast %mid : USize
+    %v163 = cast %v161 : USize
+    %v164 = cmp_ge %v162, %v163 : Bool
+    call checkCondition, %v164
+    %v166 = load [%v160]@Flat.items : %Int
+    %v167 = strideof Int : Long
+    %v168 = mul %mid, %v167 : Long
+    %v169 = add %v166, %v168 : %Int
+    %v170 = borrow_mut [%v169] : &Int
+    swap [%v158], [%v170]
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v174 = load %xs : Flat(Int)
+    %v175 = borrow_mut %xs : &Flat(Int)
+    %v176 = load [%v175]@Flat.length : Size
+    %v177 = cast %mid : USize
+    %v178 = cast %v176 : USize
+    %v179 = cmp_ge %v177, %v178 : Bool
+    call checkCondition, %v179
+    %v181 = load [%v175]@Flat.items : %Int
+    %v182 = strideof Int : Long
+    %v183 = mul %mid, %v182 : Long
+    %v184 = add %v181, %v183 : %Int
+    %v185 = borrow_mut [%v184] : &Int
+    %v186 = load %xs : Flat(Int)
+    %v187 = borrow_mut %xs : &Flat(Int)
+    %v188 = load [%v187]@Flat.length : Size
+    %v189 = cast %low : USize
+    %v190 = cast %v188 : USize
+    %v191 = cmp_ge %v189, %v190 : Bool
+    call checkCondition, %v191
+    %v193 = load [%v187]@Flat.items : %Int
+    %v194 = strideof Int : Long
+    %v195 = mul %low, %v194 : Long
+    %v196 = add %v193, %v195 : %Int
+    %v197 = borrow_mut [%v196] : &Int
+    swap [%v185], [%v197]
+    %i = alloc : Size
+    init %i, %low
+    %v202 = add %high, 1 : Size
+    %j = alloc : Size
+    init %j, %v202
+    %crossed = alloc : Bool
+    init %crossed, False
+    jmp b10
+
+  b10:
+    %v209 = load %crossed : Bool
+    %v211 = xor %v209, True : Bool
+    je %v211, b12, b11
+
+  b11:
+    %v213 = load %xs : Flat(Int)
+    %v214 = borrow_mut %xs : &Flat(Int)
+    %v215 = load [%v214]@Flat.length : Size
+    %v216 = cast %low : USize
+    %v217 = cast %v215 : USize
+    %v218 = cmp_ge %v216, %v217 : Bool
+    call checkCondition, %v218
+    %v220 = load [%v214]@Flat.items : %Int
+    %v221 = strideof Int : Long
+    %v222 = mul %low, %v221 : Long
+    %v223 = add %v220, %v222 : %Int
+    %v224 = borrow_mut [%v223] : &Int
+    %v225 = load %xs : Flat(Int)
+    %v226 = load %j : Size
+    %v227 = borrow_mut %xs : &Flat(Int)
+    %v228 = load [%v227]@Flat.length : Size
+    %v229 = cast %v226 : USize
+    %v230 = cast %v228 : USize
+    %v231 = cmp_ge %v229, %v230 : Bool
+    call checkCondition, %v231
+    %v233 = load [%v227]@Flat.items : %Int
+    %v234 = strideof Int : Long
+    %v235 = mul %v226, %v234 : Long
+    %v236 = add %v233, %v235 : %Int
+    %v237 = borrow_mut [%v236] : &Int
+    swap [%v224], [%v237]
+    %v239 = load %j : Size
+    ret %v239
+
+  b12:
+    %v241 = load %i : Size
+    %v243 = add %v241, 1 : Size
+    assign %i, %v243
+    jmp b13
+
+  b13:
+    %v246 = load %i : Size
+    %v247 = cmp_lt %v246, %high : Bool
+    je %v247, b15, b16
+
+  b14:
+    %v249 = load %j : Size
+    %v251 = sub %v249, 1 : Size
+    assign %j, %v251
+    jmp b19
+
+  b15:
+    %v254 = load %xs : Flat(Int)
+    %v255 = load %i : Size
+    %v256 = borrow %xs : 'Flat(Int)
+    %v257 = load [%v256]@Flat.length : Size
+    %v258 = cast %v255 : USize
+    %v259 = cast %v257 : USize
+    %v260 = cmp_ge %v258, %v259 : Bool
+    call checkCondition, %v260
+    %v262 = load [%v256]@Flat.items : %Int
+    %v263 = strideof Int : Long
+    %v264 = mul %v255, %v263 : Long
+    %v265 = add %v262, %v264 : %Int
+    %v266 = borrow [%v265] : 'Int
+    %v267 = load [%v266] : Int
+    %v268 = load %xs : Flat(Int)
+    %v269 = borrow %xs : 'Flat(Int)
+    %v270 = load [%v269]@Flat.length : Size
+    %v271 = cast %low : USize
+    %v272 = cast %v270 : USize
+    %v273 = cmp_ge %v271, %v272 : Bool
+    call checkCondition, %v273
+    %v275 = load [%v269]@Flat.items : %Int
+    %v276 = strideof Int : Long
+    %v277 = mul %low, %v276 : Long
+    %v278 = add %v275, %v277 : %Int
+    %v279 = borrow [%v278] : 'Int
+    %v280 = load [%v279] : Int
+    %v281 = cmp_lt %v267, %v280 : Bool
+    jmp b17
+
+  b16:
+    jmp b17
+
+  b17:
+    %v3 = phi [b15, %v281], [b16, False] : Bool
+    je %v3, b18, b14
+
+  b18:
+    %v285 = load %i : Size
+    %v287 = add %v285, 1 : Size
+    assign %i, %v287
+    jmp b13
+
+  b19:
+    %v290 = load %j : Size
+    %v291 = cmp_gt %v290, %low : Bool
+    je %v291, b21, b22
+
+  b20:
+    %v293 = load %i : Size
+    %v294 = load %j : Size
+    %v295 = cmp_ge %v293, %v294 : Bool
+    je %v295, b25, b26
+
+  b21:
+    %v297 = load %xs : Flat(Int)
+    %v298 = borrow %xs : 'Flat(Int)
+    %v299 = load [%v298]@Flat.length : Size
+    %v300 = cast %low : USize
+    %v301 = cast %v299 : USize
+    %v302 = cmp_ge %v300, %v301 : Bool
+    call checkCondition, %v302
+    %v304 = load [%v298]@Flat.items : %Int
+    %v305 = strideof Int : Long
+    %v306 = mul %low, %v305 : Long
+    %v307 = add %v304, %v306 : %Int
+    %v308 = borrow [%v307] : 'Int
+    %v309 = load [%v308] : Int
+    %v310 = load %xs : Flat(Int)
+    %v311 = load %j : Size
+    %v312 = borrow %xs : 'Flat(Int)
+    %v313 = load [%v312]@Flat.length : Size
+    %v314 = cast %v311 : USize
+    %v315 = cast %v313 : USize
+    %v316 = cmp_ge %v314, %v315 : Bool
+    call checkCondition, %v316
+    %v318 = load [%v312]@Flat.items : %Int
+    %v319 = strideof Int : Long
+    %v320 = mul %v311, %v319 : Long
+    %v321 = add %v318, %v320 : %Int
+    %v322 = borrow [%v321] : 'Int
+    %v323 = load [%v322] : Int
+    %v324 = cmp_lt %v309, %v323 : Bool
+    jmp b23
+
+  b22:
+    jmp b23
+
+  b23:
+    %v4 = phi [b21, %v324], [b22, False] : Bool
+    je %v4, b24, b20
+
+  b24:
+    %v328 = load %j : Size
+    %v330 = sub %v328, 1 : Size
+    assign %j, %v330
+    jmp b19
+
+  b25:
+    assign %crossed, True
+    jmp b27
+
+  b26:
+    %v336 = load %xs : Flat(Int)
+    %v337 = load %i : Size
+    %v338 = borrow_mut %xs : &Flat(Int)
+    %v339 = load [%v338]@Flat.length : Size
+    %v340 = cast %v337 : USize
+    %v341 = cast %v339 : USize
+    %v342 = cmp_ge %v340, %v341 : Bool
+    call checkCondition, %v342
+    %v344 = load [%v338]@Flat.items : %Int
+    %v345 = strideof Int : Long
+    %v346 = mul %v337, %v345 : Long
+    %v347 = add %v344, %v346 : %Int
+    %v348 = borrow_mut [%v347] : &Int
+    %v349 = load %xs : Flat(Int)
+    %v350 = load %j : Size
+    %v351 = borrow_mut %xs : &Flat(Int)
+    %v352 = load [%v351]@Flat.length : Size
+    %v353 = cast %v350 : USize
+    %v354 = cast %v352 : USize
+    %v355 = cmp_ge %v353, %v354 : Bool
+    call checkCondition, %v355
+    %v357 = load [%v351]@Flat.items : %Int
+    %v358 = strideof Int : Long
+    %v359 = mul %v350, %v358 : Long
+    %v360 = add %v357, %v359 : %Int
+    %v361 = borrow_mut [%v360] : &Int
+    swap [%v348], [%v361]
+    jmp b27
+
+  b27:
+    jmp b10
+}
+
+fn exitProcess(%status: Size) -> () {
+  b0:
+    %v2 = syscall 60, %status : Size
+    ret
+}
+
+fn abortProcess() -> () {
+  b0:
+    call exitProcess, 134
+    ret
+}
+
+(Chunked(c, Int), Length(Flat(Int)), Index(Flat(Int), Size, Int)) fn total(%xs: c) -> Int {
+  schema {
+    #0 type c
+    #1 type {sum: &Int}
+    #2 class Chunked(c, Int)
+    #3 class Length(Flat(Int))
+    #4 class Index(Flat(Int), Size, Int)
+  }
+
+  b0:
+    %sum = alloc : Int
+    init %sum, 0
+    %v5 = alloc : {sum: &Int}
+    %v6 = borrow_mut %sum : &Int
+    init %local2.sum, %v6
+    %v8 = addressof %local2 : %()
+    %v9 = alloc : (value$: 'Int) -> Outcome((), ())
+    %v10 = symbol ResolveTest.continuation$18 : %()
+    init %local3.code, %v10
+    init %local3.env, %v8
+    %v13 = gencall items(c, Int, ()), %xs, %v9 : Outcome((), ())
+    %v14 = load %sum : Int
+    ret %v14
+}
+
+fn main() -> I64 {
+  b0:
+    %v3 = alloc : [Int *3]
+    aggregate %fixed[0] = 4, %fixed[1] = 5, %fixed[2] = 6
+    %v8 = load %fixed : [Int *3]
+    %v9 = call total([Int *3]), %v8 : Int
+    %v12 = cmp_ne %v9, 15 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v16 = neg 1 : I64
+    ret %v16
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = load %fixed : [Int *3]
+    %v20 = borrow %fixed : '[Int *3]
+    %v21 = call Contiguous([a *n], a).elements(3, Int), %v20 : Flat(Int)
+    %seen = load %local1@Flat.length : Size
+    %v25 = cmp_ne %seen, 3 : Bool
+    je %v25, b4, b5
+
+  b4:
+    %v29 = neg 2 : I64
+    ret %v29
+
+  b5:
+    jmp b6
+
+  b6:
+    %v35 = alloc : [Int *3]
+    aggregate %unsorted[0] = 3, %unsorted[1] = 1, %unsorted[2] = 2
+    %v40 = load %unsorted : [Int *3]
+    %v41 = borrow_mut %unsorted : &[Int *3]
+    call sort([Int *3], Int), %v41
+    %v43 = load %unsorted : [Int *3]
+    %v45 = borrow %unsorted : '[Int *3]
+    %v46 = alloc : Flat(Int)
+    %v47 = addressof [%v45] : %Int
+    init %local3@Flat.items, %v47
+    %v49 = countof 3 : Size
+    init %local3@Flat.length, %v49
+    %v52 = borrow %local3 : 'Flat(Int)
+    %v53 = load [%v52]@Flat.length : Size
+    %v54 = cast 0 : USize
+    %v55 = cast %v53 : USize
+    %v56 = cmp_ge %v54, %v55 : Bool
+    call checkCondition, %v56
+    %v58 = load [%v52]@Flat.items : %Int
+    %v59 = strideof Int : Long
+    %v60 = mul 0, %v59 : Long
+    %v61 = add %v58, %v60 : %Int
+    %v62 = borrow [%v61] : 'Int
+    %v63 = load [%v62] : Int
+    %v66 = mul %v63, 100 : Int
+    %v67 = load %unsorted : [Int *3]
+    %v69 = borrow %unsorted : '[Int *3]
+    %v70 = alloc : Flat(Int)
+    %v71 = addressof [%v69] : %Int
+    init %local4@Flat.items, %v71
+    %v73 = countof 3 : Size
+    init %local4@Flat.length, %v73
+    %v76 = borrow %local4 : 'Flat(Int)
+    %v77 = load [%v76]@Flat.length : Size
+    %v78 = cast 1 : USize
+    %v79 = cast %v77 : USize
+    %v80 = cmp_ge %v78, %v79 : Bool
+    call checkCondition, %v80
+    %v82 = load [%v76]@Flat.items : %Int
+    %v83 = strideof Int : Long
+    %v84 = mul 1, %v83 : Long
+    %v85 = add %v82, %v84 : %Int
+    %v86 = borrow [%v85] : 'Int
+    %v87 = load [%v86] : Int
+    %v90 = mul %v87, 10 : Int
+    %v91 = add %v66, %v90 : Int
+    %v92 = load %unsorted : [Int *3]
+    %v94 = borrow %unsorted : '[Int *3]
+    %v95 = alloc : Flat(Int)
+    %v96 = addressof [%v94] : %Int
+    init %local5@Flat.items, %v96
+    %v98 = countof 3 : Size
+    init %local5@Flat.length, %v98
+    %v101 = borrow %local5 : 'Flat(Int)
+    %v102 = load [%v101]@Flat.length : Size
+    %v103 = cast 2 : USize
+    %v104 = cast %v102 : USize
+    %v105 = cmp_ge %v103, %v104 : Bool
+    call checkCondition, %v105
+    %v107 = load [%v101]@Flat.items : %Int
+    %v108 = strideof Int : Long
+    %v109 = mul 2, %v108 : Long
+    %v110 = add %v107, %v109 : %Int
+    %v111 = borrow [%v110] : 'Int
+    %v112 = load [%v111] : Int
+    %v113 = add %v91, %v112 : Int
+    %v114 = cast %v113 : I64
+    ret %v114
+}
+
+(Chunked(c, Int), Length(Flat(Int)), Index(Flat(Int), Size, Int)) fn ResolveTest.continuation$18(%env: %{sum: &Int}, %value$: 'Int) -> Outcome((), ()) {
+  schema {
+    #0 type c
+    #1 type {sum: &Int}
+    #2 class Chunked(c, Int)
+    #3 class Length(Flat(Int))
+    #4 class Index(Flat(Int), Size, Int)
+  }
+
+  b0:
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
+    %v4 = load [%v3] : Int
+    %value$ = load [%value$] : Int
+    %v6 = add %v4, %value$ : Int
+    assign [%v2], %v6
+    %v8 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v8
+}
+
+fn total([Int *3])(%xs: [Int *3]) -> Int {
+  b0:
+    %sum = alloc : Int
+    init %sum, 0
+    %v4 = alloc : {sum: &Int}
+    %v5 = borrow_mut %sum : &Int
+    init %local2.sum, %v5
+    %v7 = addressof %local2 : %()
+    %v8 = alloc : (value$: 'Int) -> Outcome((), ())
+    %v9 = symbol ResolveTest.continuation$18([Int *3]) : %()
+    init %local3.code, %v9
+    init %local3.env, %v7
+    %v12 = call items([Int *3], Int, ()), %xs, %v8 : Outcome((), ())
+    %v13 = load %sum : Int
+    ret %v13
+}
+
+fn ResolveTest.continuation$18([Int *3])(%env: %{sum: &Int}, %value$: 'Int) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].sum : &Int
+    %v3 = load [%env].sum : &Int
+    %v4 = load [%v3] : Int
+    %value$ = load [%value$] : Int
+    %v6 = add %v4, %value$ : Int
+    assign [%v2], %v6
+    %v8 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v8
+}

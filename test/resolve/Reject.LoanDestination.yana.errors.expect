@@ -1,0 +1,4 @@
+33:4: error: this installs a reference to storage this frame owns into a destination the caller keeps - what the signature promised the caller would find there is a loan of one of its own arguments
+38:4: error: other is not in the loan group this destination holds - the two have to name one relationship for the caller to be checked against it
+46:4: error: value is a reference the caller lent to this call, and this stores it in a destination whose type does not say it holds one - write the field's own loan group on it, so that the caller knows what it is keeping
+51:4: error: a global cannot hold a reference the caller lent to this call - the loan ends when the call does, and the global does not. Give the global the value itself, or a reference to storage that lives as long as the program

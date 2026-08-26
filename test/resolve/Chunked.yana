@@ -27,7 +27,7 @@ fn threeChunks(x: Int) -> Chunks =
    element teardown an array of arrays still waits on. The shape a caller sees is the same.
 -}
 instance Chunked(Chunks, Int):
-    iter fn chunks(self: Chunks) -> &[Int]:
+    iter fn chunks(self: Chunks) -> '[Int]:
         yield self.a
         if self.used > 1:
             yield self.b
@@ -40,10 +40,10 @@ instance Chunked(Chunks, Int):
 data Ring {items: [Int]}
 
 instance Contiguous(Ring, Int):
-    fn elements(return self: Ring) -> &[Int] = elements(self.items)
+    fn elements(return self: Ring) -> '[Int] = elements(self.items)
 
 instance Chunked(Ring, Int):
-    iter fn chunks(self: Ring) -> &[Int] = yield elements(self)
+    iter fn chunks(self: Ring) -> '[Int] = yield elements(self)
 
 -- The element iterator every loop below goes through once it has a chunk. Written over `[a]`,
 -- which is what a chunk is.

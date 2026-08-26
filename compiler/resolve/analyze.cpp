@@ -218,6 +218,7 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     checkBorrows(analysis);
     checkReturnRoots(analysis);
     checkLoanExtents(analysis);
+    checkLoanDestinations(analysis);
 
     replaceContents(result.locals, analysis.tracked);
     for(Size l = 0; l < analysis.localCount; l++) {

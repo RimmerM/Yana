@@ -1,0 +1,80 @@
+import Native
+
+{-
+   `&self: 'T` and `&self: T` are one declaration, and a class implementation may write either.
+
+   Analysis-Borrows.md §8.2: the capability comes from the sigil on the name and the group from the
+   tick on the type, so `&x: src'T` and `x: &src'T` fold to the same convention, type and group.
+   The fold happens in bindingType and only where it has somewhere to put the group - and the
+   instance-conformance check used to call it without one, so a class member whose signature had
+   been folded was compared against an implementation whose identical spelling had not:
+
+       argument self has type 'Boxed(a) here but Boxed(a) in class Peek
+
+   Both spellings are written below for that reason. `poke` states the tick on both sides, `swap`
+   states it on the class and leaves it off the implementation, and the two have to be the same
+   contract - which is what the last case asserts by holding a `&` from one across a call to the
+   other.
+
+   The shared member is here beside them because it is the case that does *not* fold: `self: 'c`
+   stays a reference type, since BindType has `Ref` for an exclusive borrow and nothing for a shared
+   one that is not also pass-by-value. So `peek` is a reference-valued parameter and `poke` is a
+   borrow convention, and both root their result in the signature's anonymous group with no `return`
+   written anywhere.
+-}
+
+data Boxed(a) {value: a, tag: Int}
+
+class Peek(c -> v):
+  fn peek(self: 'c) -> 'v
+  fn poke(&self: 'c) -> &v
+  fn swap(&self: 'c, ->other: v) -> &v
+
+instance Peek(Boxed(a), a):
+    fn peek(self: 'Boxed(a)) -> 'a = self.value
+
+    -- The tick written on both sides.
+    fn poke(&self: 'Boxed(a)) -> &a = self.value
+
+    -- And left off, which is the same declaration.
+    fn swap(&self: Boxed(a), ->other: a) -> &a:
+        self.value = other
+        return self.value
+
+-- A shared loan out of the class, read and finished with before the exclusive one is taken.
+fn readThenWrite(&b: Boxed(Int)) -> Int:
+    let seen = peek(b)
+    let kept = seen + 0
+
+    let &slot = poke(b)
+    slot = slot + 1
+
+    return kept
+
+-- The two spellings meeting: `swap` is declared without the tick and its result is held across a
+-- call to `poke`, which is declared with one. If they were different contracts this would either be
+-- accepted with the loans unrelated or refused for the wrong reason.
+fn heldAcross(&b: Boxed(Int)) -> Int:
+    let &first = swap(b, 10)
+    first = first + 5
+    let after = first
+
+    let &second = poke(b)
+    second = second + 1
+
+    return after
+
+fn main() -> I64:
+    let &b = Boxed {value: 3 :: Int, tag: 7}
+
+    let seen = readThenWrite(b)
+    -- 3 read, then 4 stored.
+    if seen != 3 then return -1
+    if b.value != 4 then return -2
+
+    let held = heldAcross(b)
+    -- 10 written, 15 stored, then 16.
+    if held != 15 then return -3
+    if b.value != 16 then return -4
+
+    return (b.value + b.tag) :: I64

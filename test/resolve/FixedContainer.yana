@@ -1,0 +1,39 @@
+import Native
+
+{-
+   `[a *n]` as an ordinary container.
+
+   `Chunked` and `Contiguous` used to be missing for the fixed array, and the note in
+   `lib/Core/Container.yana` said why: `Chunked`'s member is an `iter fn`, and a *parametric*
+   instance of one - which this is, the count being a variable - could not have its continuation
+   result inferred when the body selecting it was compiled with specialization declined. So the pair
+   compiled in a specialized build and failed in the erased one.
+
+   It no longer does, and this fixture is the assertion: every driver runs it twice, once with each
+   concrete generic call site specialized and once forced through the erased ABI, and both have to
+   answer the same number.
+
+   What it buys is everything written against a container rather than against an array - `items`,
+   the folds in `Reduce.yana`, `concat` and `joinWith` in `Join.yana`, and `sort`, which
+   `lib/Core/Sort.yana` singled out as the one thing a fixed array could not reach.
+-}
+
+fn (Chunked(c, Int)) total(xs: c) -> Int:
+    let &sum = 0
+    for v in items(xs):
+        sum = sum + v
+
+    return sum
+
+fn main() -> I64:
+    let &fixed = [4, 5, 6] :: [Int *3]
+    if total(fixed) != 15 then return -1
+
+    -- The window an owner converts to, taken of a fixed array by the ordinary conversion.
+    let seen = length(elements(fixed))
+    if seen != 3 then return -2
+
+    let &unsorted = [3, 1, 2] :: [Int *3]
+    sort(unsorted)
+
+    return (unsorted[0] * 100 + unsorted[1] * 10 + unsorted[2]) :: I64

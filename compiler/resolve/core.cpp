@@ -700,6 +700,7 @@ void definePreludeLookups(Program& program, Module& core) {
     // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
     program.coreClasses.contiguous = classNamed(*module, "Contiguous"_v);
     program.coreClasses.chunked = classNamed(*module, "Chunked"_v);
+    program.coreClasses.writable = classNamed(*module, "Writable"_v);
     program.coreClasses.indexInsert = classNamed(*module, "IndexInsert"_v);
 
     if(auto outcome = findType(*module, Context::nameHash("Outcome"_v), kNullLocation)) {

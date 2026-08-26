@@ -531,10 +531,19 @@ void resolveInstance(Module& module, ast::Decl& decl) {
                  * `instance (n: Int) Sized([Int *n])` writes `xs: [Int *n]` for the fixed array
                  * itself, which slicing would forget the count of. Insisting on one reading rejects
                  * the other, so a written type that matches either is what was meant.
+                 *
+                 * The group is asked for and thrown away, and it has to be asked for: bindingType
+                 * folds `&self: 'T` into the `Ref` convention only when it has somewhere to put the
+                 * group, so without this the instance keeps a reference type where the class - whose
+                 * signature went through the same call with a group - folded it away. The two are
+                 * the same declaration, and comparing them has to see them that way. Which group it
+                 * is has no meaning here: an instance member's contract is the class's, and the
+                 * groups on it were settled when the class signature was resolved.
                  */
                 auto written = resolveType(module, *module.parse[declared.type], gen);
                 if(!sameType(written, expectedDeclared)) {
-                    auto bound = bindingType(module, *module.parse[declared.type], declared.bind, gen);
+                    LoanGroup boundGroup = kNoLoan;
+                    auto bound = bindingType(module, *module.parse[declared.type], declared.bind, gen, &boundGroup);
                     if(sameType(bound, expectedDeclared)) written = bound;
                 }
 

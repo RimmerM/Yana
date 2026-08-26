@@ -944,11 +944,11 @@ fn hashAt(String, Held)(%self: Map(String, Held), %at: Size) -> U32 {
     ret %v5
 }
 
-fn keyAt(String, Held)(%self: Map(String, Held), %at: Size) -> 'String {
+fn keyAt(String, Held)(%self: 'Map(String, Held), %at: Size) -> 'String {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(String, Held))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Held))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(String, Held)
+    %v2 = load [%self]@Map.entries : Array(Entry(String, Held))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(String, Held))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(String, Held)
     %v5 = strideof Entry(String, Held) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Held)
@@ -1488,34 +1488,34 @@ fn Length(Map(k, v)).length(String, Held)(%self: Map(String, Held)) -> Size {
     ret %v1
 }
 
-fn find(String, Held)(%self: Map(String, Held), %key: String) -> Maybe('Held) {
+fn find(String, Held)(%self: 'Map(String, Held), %key: String) -> Maybe('Held) {
   b0:
     %v2 = call hashKey(String), %key : U32
+    %self = load [%self] : Map(String, Held)
     %at = call findEntry(String, Held), %self, %key, %v2 : Size
-    %v5 = cmp_lt %at, 0 : Bool
-    je %v5, b1, b2
+    %v6 = cmp_lt %at, 0 : Bool
+    je %v6, b1, b2
 
   b1:
-    %v7 = alloc : Maybe('Held)
-    init %local2.discriminant, 0
-    ret %v7
+    %v8 = alloc : Maybe('Held)
+    init %local1.discriminant, 0
+    ret %v8
 
   b2:
     jmp b3
 
   b3:
-    %v12 = alloc : Maybe('Held)
-    %v13 = borrow %self : 'Map(String, Held)
-    %v14 = call valueAt(Held, String), %v13, %at : 'Held
-    aggregate %local3.discriminant = 1, %local3@Just = %v14
-    ret %v12
+    %v13 = alloc : Maybe('Held)
+    %v14 = call valueAt(Held, String), %self, %at : 'Held
+    aggregate %local2.discriminant = 1, %local2@Just = %v14
+    ret %v13
 }
 
-fn valueAt(Held, String)(%self: Map(String, Held), %at: Size) -> 'Held {
+fn valueAt(Held, String)(%self: 'Map(String, Held), %at: Size) -> 'Held {
   b0:
-    %v2 = load %self@Map.entries : Array(Entry(String, Held))
-    %v3 = load %self@Map.entries@Array.run : Run(Entry(String, Held))
-    %v4 = load %self@Map.entries@Array.run@Run.items : %Entry(String, Held)
+    %v2 = load [%self]@Map.entries : Array(Entry(String, Held))
+    %v3 = load [%self]@Map.entries@Array.run : Run(Entry(String, Held))
+    %v4 = load [%self]@Map.entries@Array.run@Run.items : %Entry(String, Held)
     %v5 = strideof Entry(String, Held) : Size
     %v6 = mul %at, %v5 : Size
     %v7 = add %v4, %v6 : %Entry(String, Held)

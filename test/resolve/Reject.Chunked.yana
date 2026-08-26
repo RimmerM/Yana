@@ -3,7 +3,7 @@
 data Chunks {a: [Int], b: [Int]}
 
 instance Chunked(Chunks, Int):
-    iter fn chunks(self: Chunks) -> &[Int]:
+    iter fn chunks(self: Chunks) -> '[Int]:
         yield self.a
         yield self.b
 
@@ -33,7 +33,7 @@ fn passChunkedGeneric(cs: Chunks) -> Int = count(cs)
 data Ring {items: [Int]}
 
 instance Contiguous(Ring, Int):
-    fn elements(return self: Ring) -> &[Int] = elements(self.items)
+    fn elements(return self: Ring) -> '[Int] = elements(self.items)
 
 -- A class member declared `iter fn` is run by a `for` loop, so calling one as an ordinary function
 -- reaches a signature that has no continuation to be given.
@@ -46,13 +46,13 @@ fn callDirectly(cs: Chunks) -> Int:
 data Pair {a: [Int]}
 
 instance Chunked(Pair, Int):
-    fn chunks(self: Pair) -> &[Int] = elements(self.a)
+    fn chunks(self: Pair) -> '[Int] = elements(self.a)
 
 {-
    And a class cannot write such a body itself, which is why `Contiguous` has no `chunks` default:
    the continuation it hands over to is a type variable, and a class's variables are its head's.
 -}
 class Walked(c -> a):
-  iter fn walk(self: c) -> &[a] = yield elements(self)
+  iter fn walk(self: c) -> '[a] = yield elements(self)
 
 fn main() -> Int = passChunked(Chunks {a: [1], b: [2]})

@@ -1,0 +1,53 @@
+import Native
+
+{-
+   The body-side half of §4.7's contract - Analysis-Borrows.md §8.2, and §7.4.
+
+   `Reject.LoanSlot.yana` is the *caller's* end: a signature says the destination ends up holding a
+   loan of the source, and the caller is held to it. This is the other end. The declaration side had
+   been built for a while, and all of it was about the boundary - what a signature says, whether the
+   result is in a group, what a class implementation promised. Nothing asked what the body did in
+   between, so the two facts a reference type carries were checkable only where the value crossed
+   back out through a result.
+
+   There are two other ways out. One rule covers both, and it is the destination that states it:
+   **the storage a reference is placed into decides how long that reference has to be good for.**
+   This frame's own storage asks for nothing, and `checkBorrows` already bounds it.
+-}
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+data Loose {held: '[Int]}
+
+let &gArr = [1, 2, 3] :: Array(Int)
+
+-- The control, and the reason the global rule is about the *caller's* half only: a window of
+-- another global is program-lifetime, and this goes on compiling.
+let &gLoose = Loose {held: gArr}
+
+-- Storage this frame owns, in a destination the caller keeps. Not unsafe - escape analysis would
+-- promote `tmp` and leak it - but untrue: what the signature told the caller it would find in
+-- `store.held` is a loan of one of its own arguments.
+fn stashLocal(&store: Store(kept')) -> {}:
+    let &tmp = Cell {value: 1}
+    store.held = tmp
+
+-- An argument in no group at all, in a destination that publishes one. Nothing relates `other` to
+-- anything the caller can check, so the loan the caller is left holding names nothing.
+fn stashUngrouped(&store: Store(kept'), other: 'Cell) -> {}:
+    store.held = other
+
+-- A destination whose type publishes no slot. `Bare` holds a reference and never says whose, so
+-- there is nothing for a caller to be checked against - which §8.2 lists as the case that used to be
+-- refused by the return-root check instead of by a message about the slot.
+data Bare {held: 'Cell}
+
+fn stashNoSlot(&bare: Bare, value: kept'Cell) -> {}:
+    bare.held = value
+
+-- §7.4: the storage is not this frame's to promote, the loan ends when the call does, and the
+-- global does not.
+fn stashArgument(xs: '[Int]) -> {}:
+    gLoose.held = xs
+
+fn main() -> Int = gLoose.held[0]

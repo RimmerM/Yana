@@ -693,6 +693,11 @@ void checkReturnRoots(Analysis& analysis);
 // reasons - see the comment on the definition, and Analysis-Borrows.md §8.4 for what replaces it.
 void checkLoanExtents(Analysis& analysis);
 
+// A reference placed into storage that never said it would hold one - a global (§7.4), or a
+// destination the caller passed in whose type publishes no loan slot or a different group (§4.7).
+// The body-side half of the contract checkLoanExtents holds the *caller* to.
+void checkLoanDestinations(Analysis& analysis);
+
 /*
  * Drop placement and the rewrite (analyze_drop.cpp).
  */

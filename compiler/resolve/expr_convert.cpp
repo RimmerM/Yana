@@ -534,6 +534,40 @@ ModulePtr<Value> ExprResolver::convertSliceJs(ModulePtr<Value> value, const Plac
  * ownership graph - so a slice *stored* past the loan is not caught. That is Native's documented
  * seam and not a new one; see analyze.cpp's note on places rooted in a raw pointer.
  */
+/*
+ * The capability half of a slice conversion, asked where a whole conversion is not - §4.5.
+ *
+ * A memory-typed destination is filled in place: `fillTuple` resolves the field's expression *at*
+ * the field's type and then writes it, without calling convert(), because for a record or an array
+ * the value was built in the destination's own storage and a second conversion would copy it. That
+ * is right about the bytes and was silent about the one thing a slice adds - two types over one
+ * layout - so a shared window stored into a `&[T]` field went in unchallenged, and a write through
+ * it would then reach a place some other view is still watching.
+ *
+ * So the two directions are asked here and nowhere else. Giving up the write is free and is the
+ * value unchanged; taking one is refused, because there is nothing to build it out of - the
+ * descriptor was made over a shared borrow of the owner, and no later conversion can make that
+ * borrow exclusive after the fact.
+ */
+ModulePtr<Value> ExprResolver::convertSliceCapability(ModulePtr<Value> value, TypePtr expected,
+                                                      LocationId source) {
+    if(!value || !expected) return value;
+
+    auto held = valueType(value);
+    if(!sliceElement(module, expected) || !sliceElement(module, held)) return value;
+    if(unrefined(global, held) != unrefined(global, expected)) return value;
+    if(isMutableSlice(global, held) == isMutableSlice(global, expected)) return value;
+
+    if(isMutableSlice(global, expected)) {
+        context.diagnostics.error("cannot store %@ where %@ is wanted - an exclusive window has to be built from an exclusive borrow of the owner, and this one was not. Take the owner with `&` where the window is made"_v,
+                                  source, describeType(context, global, held),
+                                  describeType(context, global, expected));
+        return value;
+    }
+
+    return value;
+}
+
 ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from, TypePtr target,
                                             LocationId source, bool mut) {
     auto element = sliceElement(module, target);
@@ -757,7 +791,51 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
         }
     }
 
-    if(auto sliced = convertSlice(value, from, target, source)) return sliced;
+    /*
+     * An exclusive window where a shared one is wanted - Analysis-Borrows.md §4.5.
+     *
+     * `&[T]` and `[T]` are the same pointer and the same length and differ only in what may be done
+     * through them, so giving up the write is free and is the one direction that is sound. It is the
+     * slice's spelling of what `&T` to `'T` is for a direct reference, and it is why a `data Cursor
+     * {buf: &[U8]}` can still be read by every function that takes a plain window.
+     *
+     * Before `convertSlice`, because that one asks `sliceOf` and would answer for this pair too -
+     * and its answer is a *conversion* where this is a retype: an owner becoming a window builds a
+     * descriptor, and a window losing its capability builds nothing at all.
+     */
+    if(unrefined(global, from) == target && isMutableSlice(global, from)) return value;
+
+    /*
+     * And the other direction, which is sound exactly where the place says it is.
+     *
+     * A `&xs: [T]` parameter is an exclusive window and its *type* has forgotten it: the fold put
+     * the capability on the convention, which is what keeps one interned `Flat(T)` and one set of
+     * library signatures. So a body that has to hand the window on at its declared capability -
+     * `fn elementsMut(&self: Flat(a)) -> &Flat(a) = self`, the identity instance of `Writable` - has
+     * a value whose bytes are exactly right and whose type says less than the frame knows.
+     *
+     * `isWritablePlace` is what it knows, and it is §2.5's rule read in the other direction: the
+     * innermost reference the path crosses decides, so a Ref-convention slot and a `&[T]` field both
+     * answer yes and a shared window in a record answers no. That makes this a *retype* rather than
+     * a promotion - the capability is being read off the place it was already recorded on, not
+     * invented from the fact that some root happens to be mutable, which is what §2.3 removed.
+     */
+    if(unrefined(global, target) == from && isMutableSlice(global, target)) {
+        if(auto place = findPlace(value)) {
+            if(isWritablePlace(place.unwrap())) return value;
+        }
+    }
+
+    /*
+     * And an owner becoming one, at whichever capability the destination asks for.
+     *
+     * `mut` used to be false here always, which was right while there was one slice type: the
+     * exclusive window was reached only through `borrowArgument`, and a field could not ask for one.
+     * Now it can, and passing the target's capability through is the whole of what makes
+     * `data Cursor {buf: &[U8]}` sound - the descriptor is built over an exclusive borrow of the
+     * owner, so the place has to be writable and no second view of it may be live.
+     */
+    if(auto sliced = convertSlice(value, from, target, source, isMutableSlice(global, target))) return sliced;
 
     /*
      * A container of the program's own, reaching `[T]` through its `Contiguous` instance -
@@ -773,7 +851,11 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
     if(auto element = sliceElement(module, target)) {
         auto contiguous = contiguousElement(module, from);
 
-        if(contiguous && sameType(contiguous, element)) {
+        // Not to an exclusive window. `elements` hands back what its own signature says, which is a
+        // shared view, and a conversion may not promote one - that is the same rule that stopped
+        // `applyReturnRootMutability` promoting a result from its roots (§2.3), arriving at the one
+        // place a slice could still be widened silently.
+        if(contiguous && sameType(contiguous, element) && !isMutableSlice(global, target)) {
             auto converted = emitConversion(module.coreClasses.contiguous,
                                             context.addUnqualifiedName("elements", 8), value, target, source);
             if(converted) return converted;

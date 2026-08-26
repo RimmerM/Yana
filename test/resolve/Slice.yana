@@ -37,9 +37,10 @@ fn middle(xs: [Int]) -> Int = total(xs[1..3])
 {-
    A stored slice - §4.2.
 
-   `&[T]` in *type* position is a slice, because a field has only a type and `&` on a type resolves
-   immutable. `[T]` in the same position would be an owned array, which is the other half of the same
-   table: a field's default is ownership, and a binding's is a borrow.
+   `'[T]` in *type* position is a shared slice, because a field has only a type and a tick on a type
+   is the shared window. `[T]` in the same position would be an owned array, which is the other half
+   of the same table: a field's default is ownership, and a binding's is a borrow. `&[T]` is the
+   third row and the exclusive window - see SliceCapability.yana, and Analysis-Borrows.md §4.5.
 
    This is the shape zero-copy parsing is written in - Design-Memory §5.3's
    `data Parser {input: 'String, pos: Int}` with an array in it - and it needs no lifetime parameter

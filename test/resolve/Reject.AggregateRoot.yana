@@ -1,0 +1,42 @@
+import Native
+
+{-
+   §2.4's own example, which the document names as the first thing a loan slot on the type should be
+   measured against:
+
+       fn escaping() -> Pair(&Int, &Int):
+           let &a = 3 :: Int
+           let &b = 4 :: Int
+           return make(a, b)
+
+   `checkReturnRoots` asked its "rooted in storage the caller does not own" question only of a result
+   that *is* a reference, and the reason was field-insensitivity: provenance says a value may name
+   local 5, not which member of it does, and a record holding an owned array alongside a borrow has
+   local roots for the array that are not a mistake.
+
+   The type answers the half that matters without provenance becoming field-sensitive. A local root
+   is ambiguous only where the result could legitimately have one, and it could only where the result
+   *owns* something in this frame. A result that owns nothing has no such half: every root it has is
+   reached through a reference, so a local one is the mistake with no second reading.
+
+   What is still not reached is a result that owns *and* refers - and that one wants the path each
+   reference sits at, which is §6.6's.
+-}
+
+data Pair(a, b) {fst: a, snd: b}
+
+fn make(x: g'Int, y: g'Int) -> Pair(g'Int, g'Int) = Pair {fst: x, snd: y}
+
+fn escaping() -> Pair(g'Int, g'Int):
+    let &a = 3 :: Int
+    let &b = 4 :: Int
+    return make(a, b)
+
+-- The control, which is the whole point of the group: rooted in arguments the signature declared.
+fn declared(a: g'Int, b: g'Int) -> Pair(g'Int, g'Int) = make(a, b)
+
+fn main() -> Int:
+    let &x = 1 :: Int
+    let &y = 2 :: Int
+    let p = declared(x, y)
+    return p.fst + p.snd

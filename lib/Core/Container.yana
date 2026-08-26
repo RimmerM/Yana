@@ -92,6 +92,38 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
   fn elements(return self: c) -> Flat(a)
 
 {-
+   And the writable half, which is a second promise rather than a second spelling of the first.
+
+   `Contiguous` says this container has a buffer address, and `convert` spends that at an argument
+   position: a container of the program's own reaches `fn f(xs: [a])` through one call to
+   `elements`, which is the only implicit conversion into a slice a program can grant itself. What
+   it did *not* reach was `fn f(&xs: [a])`, and the reason was not an oversight - `elements` hands
+   back what its signature says, a **shared** view, and a conversion may not widen one. That is the
+   rule Analysis-Borrows.md §2.3 removed `applyReturnRootMutability` for, and an argument position
+   is exactly where it would have come back.
+
+   So the write is a member of its own, on a class of its own, and both halves of that matter:
+
+   - **A member of its own** so that the exclusive window is the *instance's* promise. `elementsMut`
+     is declared `&self: 'c` and returns `&Flat(a)`, so the caller's container is exclusively
+     borrowed for as long as the window lives and the loan is rooted in it by the class's group.
+     Nothing is promoted anywhere.
+   - **A class of its own** so that a container may promise one and not the other, which §7.1 makes
+     the same argument for with `Index.get` and `Index.getMut`: a type with stable read-only storage
+     can hand out an address to read and has no business promising one to write. A container that
+     implements only `Contiguous` is passable where `[a]` is read and refused where one is written,
+     with a diagnostic that names this class.
+
+   `&Flat(a)` in the result is what made this declarable at all, and it is new: until §4.5 gave the
+   slice descriptor's type somewhere to carry its capability, `-> &Flat(a)` *was* `-> Flat(a)` and
+   the class could not say what it wanted. The `Array` and `[a *n]` instances are one word each -
+   the conversion at the return position builds the exclusive descriptor over the exclusive borrow
+   `&self` already is - and `Flat(a)`'s is the identity, since a window already is one.
+-}
+pub class (Contiguous(c, a)) Writable(c -> a):
+  fn elementsMut(&self: 'c) -> &Flat(a)
+
+{-
    The two instances the library itself supplies, which is §5's "the standard library adopts it in
    the same change": every container that exists is one of these, so a signature written against
    `Chunked` accepts everything a `[a]` one does.
@@ -118,7 +150,13 @@ instance Chunked(Array(a), a):
     iter fn chunks(self: Array(a)) -> Flat(a) = yield elements(self)
 
 instance Contiguous(Flat(a), a):
-    fn elements(return self: Flat(a)) -> Flat(a) = self
+    fn elements(self: 'Flat(a)) -> Flat(a) = self
+
+instance Writable(Array(a), a):
+    fn elementsMut(&self: Array(a)) -> &Flat(a) = self
+
+instance Writable(Flat(a), a):
+    fn elementsMut(&self: Flat(a)) -> &Flat(a) = self
 
 instance Chunked(Flat(a), a):
     iter fn chunks(self: Flat(a)) -> Flat(a) = yield elements(self)
@@ -160,21 +198,38 @@ pub iter fn (Chunked(c, a)) items(self: c) -> 'a:
    a generic body constrained on `Length(c)` asks, and the answer costs nothing: a fixed array stores
    no count, so what every other container here loads is a constant.
 
-   **`Chunked` and `Contiguous` are deliberately not here beside it**, and the reason is a compiler
-   limitation rather than a decision about containers. `Chunked`'s member is an `iter fn`, and a
-   *parametric* instance of one - which this would be, the count being a variable - cannot have its
-   continuation result inferred when the body that selects it is compiled with specialization
-   declined: "cannot infer type argument $r of Chunked([a *n], a).chunks". So the two compile in a
-   specialized build and fail in the erased one. What wanted them is `Digest`'s result type in
-   `lib/Digest/`, and what it does instead is name the *width* in the class head - `Digest(d -> n:
-   Int)`, so `finish` answers `[U8 *n]` and a generic body has both the bytes, by the conversion at
-   the call, and the count, as a value.
-
    `(n: Int)` is the context and `a` is introduced by the head, which is the instance form const
    generics landed with - see `Sized` in test/resolve/ConstGeneric.yana.
+
+   **`Chunked` and `Contiguous` beside it were absent, and the reason has since gone away.** The
+   note that stood here said a compiler limitation rather than a decision about containers:
+   `Chunked`'s member is an `iter fn`, and a *parametric* instance of one - which this is, the count
+   being a variable - could not have its continuation result inferred when the body that selects it
+   was compiled with specialization declined, so the pair compiled in a specialized build and failed
+   in the erased one with "cannot infer type argument $r of Chunked([a *n], a).chunks".
+
+   Re-tested rather than repeated, which is the only way that claim was ever going to stop being
+   true: `test/resolve/FixedContainer.yana` runs both forms and both answer the same number. What it
+   buys is every function written against a container rather than against an array - `items`, the
+   folds in `Reduce.yana`, `concat` and `joinWith` in `Join.yana`, and `sort`, which `Sort.yana`
+   singled out as the one thing a fixed array could not reach.
+
+   Nothing changes for `Digest`, whose result type wanted these and names the *width* in the class
+   head instead - `Digest(d -> n: Int)`, so `finish` answers `[U8 *n]` and a generic body has both
+   the bytes, by the conversion at the call, and the count, as a value. That is the better signature
+   independently of this.
 -}
 instance (n: Int) Length([a *n]):
     fn length(self: [a *n]) -> Size = n :: Size
+
+instance (n: Int) Contiguous([a *n], a):
+    fn elements(return self: [a *n]) -> Flat(a) = unclampedSlice(self, 0, n :: Size)
+
+instance (n: Int) Chunked([a *n], a):
+    iter fn chunks(self: [a *n]) -> Flat(a) = yield elements(self)
+
+instance (n: Int) Writable([a *n], a):
+    fn elementsMut(&self: [a *n]) -> &Flat(a) = self
 
 {-
    Reading a whole vector out of a chunk, and writing one back - Implementation-Vector.md §12's "a

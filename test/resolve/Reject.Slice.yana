@@ -12,12 +12,12 @@ data Cursor {items: '[Int], at: Int}
 
 -- Returning a view of this frame's own array. The array is released when this function returns, and
 -- the caller would be handed a descriptor pointing into freed storage.
-fn escapeDirect() -> &[Int]:
+fn escapeDirect() -> '[Int]:
     let xs = [1, 2, 3]
     return xs
 
 -- The same thing with a record in front of it. Storing a slice does not launder it: what escapes is
--- still a view of `xs`, and `data Cursor {items: &[Int]}` is exactly the shape that makes it easy to
+-- still a view of `xs`, and `data Cursor {items: '[Int]}` is exactly the shape that makes it easy to
 -- write by accident.
 fn escapeStored() -> Cursor:
     let xs = [1, 2, 3]
@@ -26,7 +26,7 @@ fn escapeStored() -> Cursor:
 -- A view of an argument is fine to *make* and not to hand back unannounced: the signature is the
 -- contract, so the caller has to be told which argument the result is rooted in. `return xs` is the
 -- fix, and it is the same fix a `&Int` result needs.
-fn escapeUndeclared(xs: [Int]) -> &[Int] = slice(xs, 0, 1)
+fn escapeUndeclared(xs: [Int]) -> '[Int] = slice(xs, 0, 1)
 
 -- A closure that outlives the frame that built it cannot hold a reference into it, and a captured
 -- slice is a captured reference however the capture convention was chosen. Design-Memory §8's rule,

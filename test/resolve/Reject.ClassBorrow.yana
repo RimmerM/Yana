@@ -16,22 +16,22 @@ data Holder {view: '[Int], at: Int}
 let &sink = Holder {view: [0], at: 0}
 
 pub class Keep(c):
-  fn keepGlobally(&self: c, xs: &[Int]) -> {}
-  fn keepInside(&self: c, xs: &[Int]) -> {}
-  fn readOnly(&self: c, xs: &[Int]) -> Int
+  fn keepGlobally(&self: c, xs: '[Int]) -> {}
+  fn keepInside(&self: c, xs: '[Int]) -> {}
+  fn readOnly(&self: c, xs: '[Int]) -> Int
 
 data Box {n: Int, held: Holder}
 
 instance Keep(Box):
     -- Into a global, which outlives every frame there is.
-    fn keepGlobally(&self: Box, xs: &[Int]) -> {}:
+    fn keepGlobally(&self: Box, xs: '[Int]) -> {}:
         sink.view = xs
 
     -- And into storage the caller passed in, which outlives this frame for the same reason.
-    fn keepInside(&self: Box, xs: &[Int]) -> {}:
+    fn keepInside(&self: Box, xs: '[Int]) -> {}:
         self.held.view = xs
 
     -- The control: reading through the borrow is what a borrow is for, and is not reported.
-    fn readOnly(&self: Box, xs: &[Int]) -> Int = xs[0] + self.n
+    fn readOnly(&self: Box, xs: '[Int]) -> Int = xs[0] + self.n
 
 fn main() -> Int = 0

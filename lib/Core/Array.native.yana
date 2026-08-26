@@ -125,7 +125,7 @@ pub fn push(&self: Array(a), ->item: a) -> {}:
 
 
 -- The window `slice` makes, with the clamping taken out - `Array.yana` is where the reason is.
-fn unclampedSlice(return self: Flat(a), from: Size, count: Size) -> Flat(a) =
+fn unclampedSlice(self: 'Flat(a), from: Size, count: Size) -> Flat(a) =
     Flat {items: self.items + from, length: count}
 
 {-
@@ -140,7 +140,24 @@ fn unclampedSlice(return self: Flat(a), from: Size, count: Size) -> Flat(a) =
    is a borrow whose representation is a record, and the marker is what makes the checker treat it as
    one - without it this function is rejected for handing back a view of its own argument.
 -}
-pub fn slice(return self: Flat(a), from: Size, to: Size) -> Flat(a):
+pub fn slice(self: 'Flat(a), from: Size, to: Size) -> Flat(a):
+    let &start = from :: Size
+    if start < 0 then start = 0
+    if start > self.length then start = self.length
+
+    let &end = to :: Size
+    if end < start then end = start
+    if end > self.length then end = self.length
+
+    return Flat {items: self.items + start, length: end - start}
+
+-- The same window, at the capability the caller already had - Analysis-Borrows.md §4.5.
+--
+-- A subslice is as writable as what it was taken of, and there is no way to say *that* in one
+-- signature: a function is written at one capability, so the pair here is `get`/`getMut` again, for
+-- the same reason and with the same shape. `&self` is what makes it sound - the caller's window is
+-- exclusively borrowed for as long as this one lives, so no second view of the same elements exists.
+pub fn sliceMut(&self: 'Flat(a), from: Size, to: Size) -> &Flat(a):
     let &start = from :: Size
     if start < 0 then start = 0
     if start > self.length then start = self.length

@@ -1,0 +1,31 @@
+import Native
+
+-- A container that promises only the read half - WritableContainer.yana for the half that works.
+--
+-- `Contiguous` is a promise about an address to *read* through, and a type may have stable
+-- read-only storage and no business promising one to write. So the two are separate classes, and a
+-- container reaching a `&` position without the second one is refused by name rather than by the
+-- general "a conversion would borrow a temporary".
+
+data ReadOnly(a) {items: Array(a)}
+
+instance Length(ReadOnly(a)):
+    fn length(self: ReadOnly(a)) -> Size = length(self.items)
+
+instance Contiguous(ReadOnly(a), a):
+    fn elements(return self: ReadOnly(a)) -> Flat(a) = elements(self.items)
+
+instance Chunked(ReadOnly(a), a):
+    iter fn chunks(self: ReadOnly(a)) -> Flat(a) = yield elements(self)
+
+fn writesOne(&xs: [Int]) -> {}:
+    xs[0] = 9
+
+fn missingInstance(&r: ReadOnly(Int)) -> {}:
+    writesOne(r)
+
+-- And `sort`, which reaches the same position through `Contiguous(c, a)` and its own `&xs: c`.
+fn missingForSort(&r: ReadOnly(Int)) -> {}:
+    sort(r)
+
+fn main() -> Int = 0

@@ -1,0 +1,27 @@
+import Native
+
+-- What §2.5's separation refuses, and ValueCapability.yana for the half it now allows.
+--
+-- The rule is one sentence: a path takes its capability from the innermost reference it crosses,
+-- and from the root binding only when it crosses none. Every case below is a binding whose
+-- convention says yes and a value whose type says no.
+
+data View {buf: '[Int], at: Int}
+data Cell {value: Int}
+
+-- A shared window in a mutable record. `&v` is exclusive access to `v` - to the two words of the
+-- descriptor - and says nothing about the elements, which some other view may be reading.
+fn writeSharedWindow(&v: View) -> {}:
+    v.buf[v.at] = 9
+
+-- The same statement about a shared reference held in a binding. This one compiled: the binding is
+-- immutable, so nothing but the reference could have authorized the write, and nothing read it.
+fn writeSharedReference(c: 'Cell) -> {}:
+    c.value = 9
+
+-- And a shared window taken of an owner this frame only reads, which is where one comes from.
+fn writeReadOnlyOwner(xs: Array(Int)) -> {}:
+    let v = View {buf: xs, at: 0}
+    v.buf[0] = 9
+
+fn main() -> Int = 0

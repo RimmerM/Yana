@@ -1489,6 +1489,34 @@ struct RecordType: Type {
     U32 capacityBound = 0;
     GlobalPtr<RecordType> canonical = nullptr;
 
+    /*
+     * A slice's capability and loan group - Analysis-Borrows.md §4.5.
+     *
+     * A slice descriptor holds an address into someone else's storage, so it is a reference whatever
+     * its physical shape is, and a shared one and an exclusive one differ exactly as `'T` and `&T`
+     * do. It had nowhere to carry that: `'[T]` and `&[T]` both reached the plain `Flat(T)`, because
+     * `sliceOf` reads a borrow of a container as that container's window and the borrow's two facts
+     * went with the wrapper. The exclusive spelling was accepted and silently meant the shared one,
+     * and a slice parameter could not be in a loan group at all - which is why every array and slice
+     * receiver in `lib/` still writes `return` where a record receiver writes a tick (§8.3).
+     *
+     * They ride the same sibling mechanism a Repr refinement does, and for a stronger reason: a
+     * capability sibling has not only the same fields but the same *layout*, so its constructors are
+     * shared with the plain one rather than re-interned. `canonical` names the plain slice, which is
+     * what keeps this invisible to dispatch - `matchType` compares `instanceOf` and `instanceArgs`,
+     * and a sibling leaves both alone, so `instance Index(Flat(a), Size, a)` answers for all three
+     * forms with no change to instance selection.
+     *
+     * What is *not* invisible is `sameType`, which is pointer equality: a signature that says `&[T]`
+     * does not accept a `'[T]`, and that is the whole point. `convertSliceCapability` is the one
+     * direction that is allowed, and it is free.
+     */
+    LoanGroup sliceLoan = kNoLoan;
+    bool sliceMut = false;
+
+    // A shared slice in no group *is* the plain type, so a sibling exists only where one of the two
+    // says something - which is what makes this exact rather than a guess from the other fields.
+    bool isSliceCapability() const { return canonical != nullptr && (sliceMut || sliceLoan != kNoLoan); }
     bool isRefined() const { return canonical != nullptr; }
 
     Layout layout = Multi;
@@ -1662,6 +1690,18 @@ struct CoreClasses {
      */
     GlobalPtr<TypeClass> contiguous = nullptr;
     GlobalPtr<TypeClass> chunked = nullptr;
+
+    /*
+     * And the writable half of `Contiguous`, known by name for exactly the reason `Contiguous` is:
+     * a `&xs: [a]` argument position has nothing to select a conversion from, so the resolver asks
+     * for one by name.
+     *
+     * It is a second class rather than a second member of `Contiguous` because it is a second
+     * *promise*, and §7.1 makes the same argument for `Index`: a container with stable read-only
+     * storage can hand out a buffer address to read and has no business promising one to write. A
+     * computed container promises neither.
+     */
+    GlobalPtr<TypeClass> writable = nullptr;
 
     // What `"a{x}b"` dispatches through - Implementation-Storage.md part 7. Known by name for the
     // same reason `Try` is: a hole's `show` and `showBound` are selected by the compiler from the
@@ -2010,6 +2050,15 @@ TypePtr refineContainerType(Module& module, TypePtr plain, U32 inlineSlots, U32 
 RecordType* inlineRefinement(Module& module, TypePtr type);
 TypePtr unrefined(GlobalBase base, TypePtr type);
 
+// The slice `plain` with a capability and a loan group on it - RecordType::sliceLoan. A shared slice
+// in no group is `plain` itself, so this is a no-op everywhere a capability is not written.
+TypePtr sliceCapabilityType(Module& module, TypePtr plain, bool mut, LoanGroup loan);
+
+// The two facts back off a slice type, for the consumers that read one and not the other. A type
+// that is not a capability sibling answers `false` and `kNoLoan`, which is what a plain slice means.
+bool isMutableSlice(GlobalBase base, TypePtr type);
+LoanGroup sliceLoanGroup(GlobalBase base, TypePtr type);
+
 // Whether this is Collections' growable array - an instantiation of it, or the generic declaration
 // itself, which is what a signature written `Array(a)` resolves to. Asked where a diagnostic has to
 // tell a growable *parameter* apart from any other record, since only the operations that grow name
@@ -2042,6 +2091,17 @@ bool isBorrowLike(Module& module, TypePtr type);
  * itself is finite in the answers it can give and the bound is what makes that true of the walk.
  */
 bool containsBorrowLike(Module& module, TypePtr type);
+
+/*
+ * The same walk, stopping at `&T` and not at a slice.
+ *
+ * The division is a division of *labour*, not of meaning. A slice of this frame's container leaving
+ * the frame is reported by checkEscapingViews, which asks about the descriptor's own slot and so
+ * says which container and why; a record holding a plain `&T` has no descriptor slot to ask about,
+ * and that is the case checkReturnRoots has to answer for itself. Asking the broader question in
+ * both places would print two diagnostics for every stored slice.
+ */
+bool containsBareBorrow(Module& module, TypePtr type);
 
 // Fills in the constructors of every instantiation that was created before the declaration it
 // came from had been read. Runs once per module after its data declarations are complete.

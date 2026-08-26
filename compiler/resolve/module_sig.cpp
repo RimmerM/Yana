@@ -74,7 +74,7 @@ void applyReturnRoots(Module& module, Function& function, LocationId source) {
     if(!isBorrow(*module.types, function.returnType)) return;
 
     if(!function.returnRoots && !function.returnRootWritten) {
-        module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
+        module.context.diagnostics.error("a function returning a borrow must say which argument it is rooted in - write a leading `'` on that parameter's type"_v,
                                          source);
         return;
     }

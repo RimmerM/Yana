@@ -1,0 +1,73 @@
+import Native
+
+{-
+   A shared window and an exclusive one are two types - Analysis-Borrows.md §4.5.
+
+   A slice descriptor holds an address into someone else's storage, so it is a reference whatever its
+   physical shape is. It had nowhere to say which kind: `'[T]` and `&[T]` both reached the plain
+   `Flat(T)`, because `sliceOf` reads a borrow of a container as that container's window and the two
+   facts on the wrapper - the capability and the loan group - went with it. The exclusive spelling
+   was accepted and silently meant the shared one.
+
+   Three things this pins, and the third is the one that was unsound rather than merely absent:
+
+   1. **The group survives.** `firstOf` writes a tick and no `return`, and its result is rooted in
+      `xs` - which is §8.2's rule reaching a slice for the first time: a reference type says the
+      storage is somebody else's, and the result says whether the loan outlives the call.
+   2. **The capability is a type.** `data Cursor {buf: &[Int]}` is a stored *mutable* window, which
+      Implementation-Containers.md §4.2 lists as having no spelling.
+   3. **Weakening is free and widening is refused.** Giving up the write is the same descriptor, so
+      an exclusive window goes wherever a shared one is wanted. The other direction is
+      `Reject.SliceCapability.yana`.
+
+   `'[T]` with no label is deliberately still the plain `Flat(T)` rather than a fourth type: it is
+   what `[T]` in a parameter already means, and giving it a type of its own would split every
+   signature in the library in two. What the bare tick adds is the group.
+-}
+
+-- The group, with nothing written on the parameter but its type.
+fn firstOf(xs: '[Int]) -> 'Int = xs[0]
+
+-- The two spellings of the exclusive parameter, which fold to one declaration the way `&x: T` and
+-- `x: &T` do: the capability moves to the convention, and the window is passed by value either way.
+fn bumpBinding(&xs: [Int]) -> {}:
+    xs[0] = xs[0] + 1
+
+fn bumpType(xs: &[Int]) -> {}:
+    xs[1] = xs[1] + 1
+
+data View {buf: '[Int], at: Int}
+data Cursor {buf: &[Int], at: Int}
+
+fn readView(v: View) -> Int = v.buf[v.at]
+
+-- An exclusive window where a shared one is wanted. The descriptor is the same pointer and the same
+-- length; what is given up is the write.
+fn readCursor(c: Cursor) -> Int = readView(View {buf: c.buf, at: c.at})
+
+fn writeCursor(&c: Cursor) -> {}:
+    c.buf[c.at] = 100
+
+fn main() -> I64:
+    let &owned = [3, 1, 2] :: Array(Int)
+
+    let borrowed = firstOf(owned)
+    let seen = borrowed + 0
+    if seen != 3 then return -1
+
+    bumpBinding(owned)
+    bumpType(owned)
+    if owned[0] != 4 then return -2
+    if owned[1] != 2 then return -3
+
+    -- The stored windows, each built over the borrow its own capability asks for.
+    let v = View {buf: owned, at: 2}
+    if readView(v) != 2 then return -4
+
+    let &c = Cursor {buf: owned, at: 0}
+    if readCursor(c) != 4 then return -5
+
+    writeCursor(c)
+    if c.buf[0] != 100 then return -6
+
+    return (owned[1] + owned[2]) :: I64

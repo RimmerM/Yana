@@ -61,6 +61,39 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
         }
 
         /*
+         * A shared window cannot be bound exclusively - Analysis-Borrows.md §2.5, the binding half.
+         *
+         * `let &w = elements(xs)` used to compile and then let `w[0] = 9` through, for a `xs` this
+         * frame only reads. Every step is individually right, which is why it survived: `elements`
+         * hands back a shared view rooted in `xs`, the descriptor it returns is a temporary *this*
+         * frame owns, and `let &` over a value the statement built is an ordinary owning binding. So
+         * the `&` was about the two words of the descriptor and the write went through them into
+         * somebody else's buffer.
+         *
+         * A window is the one type where owning the value and being allowed to write through it are
+         * different questions, and §4.5's capability bit is what lets the difference be *stated*:
+         * `elementsMut` returns `&Flat(a)` and `elements` returns `Flat(a)`, so the binding can ask
+         * the value rather than guess from the fact that it owns the descriptor.
+         *
+         * An owner is deliberately not this - `let &xs = [1, 2] :: Array(Int)` owns its elements -
+         * and neither is a record holding a window, which §2.5's field rule already covers.
+         */
+        if(mutable_) {
+            auto held = valueType(value);
+
+            if(held && sliceElement(module, held) && !ownedElement(module, held) &&
+               !isMutableSlice(global, held)) {
+                context.diagnostics.error("cannot bind a shared window with `let &` - it names storage somebody else owns, and `&` here would only make this frame's copy of the descriptor writable. Take the window from `elementsMut`, or from a `&` borrow of the container"_v,
+                                          decl.pat.source);
+
+                // Bound anyway, as the shared window it is. Skipping the declaration would leave
+                // every later mention of the name reported as unknown, which buries the one
+                // diagnostic that says what to change.
+                mutable_ = false;
+            }
+        }
+
+        /*
          * The three things a binding can be, in the order that decides them.
          *
          * A value that is already a borrow binds as one. A value that *names* storage this frame
@@ -355,6 +388,22 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
 
         slot.name = name;
         slot.convention = ast::BindType::Ref;
+
+        /*
+         * The fold, applied to a binding - Analysis-Borrows.md §4.5.
+         *
+         * A `&` *parameter* written `xs: &[T]` folds to the Ref convention over the plain window,
+         * and a binding has the same two axes: this slot is already exclusive by its convention, so
+         * keeping the sibling on its type would say it twice and would leak into everything that
+         * reads the slot's type. `sort(middle)` is where that showed - inference bound the container
+         * variable to `&Flat(Int)` rather than to `Flat(Int)`, and the instance it then wanted did
+         * not exist.
+         *
+         * Safe by construction here rather than by inspection: the check above has already refused
+         * a shared window, so the capability the convention now carries is the one the value had.
+         */
+        if(isMutableSlice(global, slot.type)) slot.type = unrefined(global, slot.type);
+
         function.locals.set(local, index, slot);
 
         Binding adoptedBinding { name, slot.value, index };
@@ -364,7 +413,10 @@ void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value>
         return;
     }
 
+    // The same fold for a binding that allocates rather than adopting - see above.
     auto type = valueType(value);
+    if(isMutableSlice(global, type)) type = unrefined(global, type);
+
     auto storage = allocate(type, declaration.pat.source, name, ast::BindType::Ref);
     auto place = placeFor(storage, declaration.pat.source);
 
@@ -412,6 +464,22 @@ Maybe<Place> ExprResolver::resolvePlace(const ast::Expr& astExpr, bool through) 
                     }
 
                     if(isBorrow(global, valueType(binding->value))) {
+                        /*
+                         * The value's capability, not the binding's - Analysis-Borrows.md §2.5.
+                         *
+                         * `fn f(c: 'Cell) -> {}: c.value = 9` used to compile. The binding is
+                         * immutable, so this arm is the only way the write got a place at all, and
+                         * it handed one over without reading the one bit that decides: `'Cell` is a
+                         * shared reference and `&Cell` is not. An exclusive borrow held here goes on
+                         * rooting the write, which is the half of the separation that is a
+                         * relaxation rather than a fix - the binding was never what authorized it.
+                         */
+                        if(!((BorrowType*)global[valueType(binding->value)])->mut) {
+                            context.diagnostics.error("cannot write through %@ - it holds a shared reference, which names storage somebody else may also be reading. Take the reference with `&` where it is made"_v,
+                                                      expr.source, context.findName(expr.var));
+                            return Nothing();
+                        }
+
                         return Just(Place::inBorrow(binding->value));
                     }
 

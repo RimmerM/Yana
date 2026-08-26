@@ -229,6 +229,28 @@ TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType& bin
         *loan = borrow->loan != kNoLoan ? borrow->loan : kCandidateLoan;
     }
 
+    /*
+     * And the same two facts off a slice - `xs: '[T]`, `&xs: [T]`, `xs: &[T]`.
+     *
+     * A slice descriptor is a reference the way a `&T` is, so a parameter written with one is held
+     * to the same split as every other parameter: the capability goes on the *convention* and the
+     * group goes on the Arg, and the type the parameter gets is the plain window. That is not a
+     * weaker answer than keeping the sibling - it is the same answer `x: &T` gets, and it is what
+     * keeps the ABI a pointer and a length rather than an address of them.
+     *
+     * The sibling survives where there is no convention to carry it, which is a field (§7.3's
+     * `data Parser {input: '[U8]}`) and a result. That is the whole of the asymmetry, and it is the
+     * one a record field already has: `&x: T` is a convention and `data F {x: &T}` is a type.
+     */
+    if(loan && base[type]->kind == Type::Record && ((RecordType*)base[type])->isSliceCapability()) {
+        auto record = (RecordType*)base[type];
+
+        if(record->sliceMut || bind == ast::BindType::Ref) bind = ast::BindType::Ref;
+
+        *loan = record->sliceLoan != kNoLoan ? record->sliceLoan : kCandidateLoan;
+        type = (Type*)base[record->canonical] - base;
+    }
+
     if(bind == ast::BindType::Sink) return type;
     if(written.kind != ast::Type::Arr) return type;
 
@@ -354,7 +376,7 @@ static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEn
     auto result = resolveType(module, type.ret, env);
 
     if(isBorrow(*module.types, result) && !roots && !written) {
-        module.context.diagnostics.error("a function type returning a borrow must mark the argument it is rooted in with `return`"_v,
+        module.context.diagnostics.error("a function type returning a borrow must say which argument it is rooted in - write a leading `'` on that parameter's type"_v,
                                          source);
     }
 
@@ -1281,7 +1303,7 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env, LoanGrou
         case ast::Type::Shared: {
             auto to = resolveType(module, *module.parse[type.ref.to], env);
             auto mut = type.kind == ast::Type::Borrow;
-            auto loan = resolveLoanGroup(module, env, type.ref.group, type.source);
+            auto group = resolveLoanGroup(module, env, type.ref.group, type.source);
 
             /*
              * `'[T]` is a slice - Implementation-Containers.md §4.2.
@@ -1292,14 +1314,33 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env, LoanGrou
              * `data Parser {input: 'String, pos: Int}` with an array in it - and it is tracked by
              * ordinary last-use liveness with no lifetime parameter on the record.
              *
-             * `&[T]` reaches the same type, and that is a representation gap rather than a ruling:
-             * §4.5 wants a shared and an exclusive slice to differ in capability exactly as direct
-             * references do, and a slice descriptor has nowhere to carry the bit yet. Until it does,
-             * the exclusive spelling is accepted and silently means the shared one.
+             * `&[T]` is the exclusive one, and the two are different types - §4.5, and
+             * RecordType::sliceLoan. They were not: a slice descriptor had nowhere to carry the bit,
+             * so `sliceOf` read the borrow as the window and both facts on the wrapper - the
+             * capability and the group - went with it. The exclusive spelling was accepted and
+             * silently meant the shared one, and a slice parameter could not join a loan group at
+             * all, which is why every array and slice receiver in `lib/` still writes `return`.
+             *
+             * The sibling carries both, so `&[T]` and `v'[T]` are types of their own over one
+             * layout. Nothing below resolve can tell them apart, which is the point: a window is a
+             * pointer and a length whatever it is allowed to do with them.
+             *
+             * **`'[T]` with no label is deliberately not one of them**, and this is the case that
+             * decides how much of the language this change touches. A shared window in no group is
+             * what `[T]` in a parameter already means and what `Flat(T)` already is, and giving it a
+             * second type would split every signature in the library in two - `elements` returning
+             * one, `slice` taking the other, and a conversion between them at every call. So what a
+             * bare tick adds is not a type: it is the *group*, and the group travels out through
+             * `loan` the way a nominal type's slot binding does. §8.2's rule then applies unchanged -
+             * eligibility from the parameter, and the result decides whether the loan outlives the
+             * call.
              */
-            if(auto slice = sliceOf(module, to)) return slice;
+            if(auto slice = sliceOf(module, to)) {
+                if(loan && !mut && group == kNoLoan) *loan = kCandidateLoan;
+                return sliceCapabilityType(module, slice, mut, group);
+            }
 
-            return resolveBorrowType(module, to, mut, loan);
+            return resolveBorrowType(module, to, mut, group);
         }
         case ast::Type::Fun:
             return resolveFunTypeAst(module, *module.parse[type.fun], env, type.source);
