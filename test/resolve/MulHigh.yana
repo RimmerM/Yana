@@ -1,0 +1,91 @@
+import Native
+
+{-
+   Constant folding for `mulhi`, checked against the instruction itself.
+
+   `mulHigh` is the one primitive `Core.Hash` mixes through and one of the two `Ryu` multiplies by a
+   table entry, and it had no arm in `foldBinary` until now - so a hash of a literal key, or a
+   specialization that made the table entry constant, kept a `mul`/`imul` pair that answered a number
+   the compiler already had.
+
+   The assertion is *not* the return value on its own. Every left-hand side below is a fold - both
+   operands are literals, so the optimizer answers the whole call - and every right-hand side is the
+   same product through `@noinline` arguments, which no pass can see into and every target computes
+   with its own `mul r/m64`. So each case compares the compiler's arithmetic against the machine's,
+   in one program, and a wrong fold cannot agree with itself. The third column pins both against a
+   number worked out by hand.
+
+   The cases are chosen around the carry, which is the only thing the schoolbook expansion in
+   `multiplyWide` can get wrong: `wide` overflows the middle column, `boundary` is the product that
+   is exactly one bit into the high half, and `saturated` is the pair whose 128-bit product has every
+   bit of both halves set but the lowest.
+
+   Only unsigned and only at 64 bits, because that is the only `mulhi` the language can spell -
+   `Native.mulHigh` takes two `U64` (see Pointer.native.yana) and nothing else builds one. The signed
+   and narrow paths exist in the fold for the lower IR's `IMulHi`, and have no source to reach them.
+
+   Each case contributes a distinct power of two and `main` is 511 when they all pass.
+-}
+
+@noinline fn opaque(x: U64) -> U64 = x
+
+fn check(folded: U64, computed: U64, expected: U64, weight: Int) -> Int =
+    if folded == computed && folded == expected then weight else 0
+
+-- An ordinary pair, with both halves of both operands set.
+fn typical() -> Int =
+    check(mulHigh(16045690984503098046, 81985529216486895),
+          mulHigh(opaque(16045690984503098046), opaque(81985529216486895)),
+          71314182153347101, 1)
+
+-- The largest product there is, whose high half is one short of the maximum.
+fn saturated() -> Int =
+    check(mulHigh(18446744073709551615, 18446744073709551615),
+          mulHigh(opaque(18446744073709551615), opaque(18446744073709551615)),
+          18446744073709551614, 2)
+
+-- Two half-words, whose product is exactly one bit short of the high half.
+fn halves() -> Int =
+    check(mulHigh(4294967295, 4294967295),
+          mulHigh(opaque(4294967295), opaque(4294967295)),
+          0, 4)
+
+-- And one bit further, which is the first product with anything in the high half at all.
+fn boundary() -> Int =
+    check(mulHigh(4294967296, 4294967296),
+          mulHigh(opaque(4294967296), opaque(4294967296)),
+          1, 8)
+
+-- The carry out of the low half, which is what a doubled maximum is entirely made of.
+fn carry() -> Int =
+    check(mulHigh(18446744073709551615, 2),
+          mulHigh(opaque(18446744073709551615), opaque(2)),
+          1, 16)
+
+-- The top bit alone, doubled into the high half and nothing else.
+fn top() -> Int =
+    check(mulHigh(9223372036854775808, 2),
+          mulHigh(opaque(9223372036854775808), opaque(2)),
+          1, 32)
+
+-- A pair whose middle column overflows into the high word.
+fn wide() -> Int =
+    check(mulHigh(18446744073709551614, 18446744069414584321),
+          mulHigh(opaque(18446744073709551614), opaque(18446744069414584321)),
+          18446744069414584319, 64) +
+    check(mulHigh(4294967297, 18446744073709551615),
+          mulHigh(opaque(4294967297), opaque(18446744073709551615)),
+          4294967296, 128)
+
+{-
+   The one identity `mulhi` has, and the one it does not.
+
+   Multiplying by zero answers zero at either signedness. Multiplying by *one* does not answer the
+   operand - the high half of `x * 1` is zero - which is why `foldBinary`'s `mulhi` arm is not a copy
+   of its `mul` arm.
+-}
+fn identities() -> Int =
+    check(mulHigh(opaque(16045690984503098046), 0), 0, 0, 256)
+
+fn main() -> Int =
+    typical() + saturated() + halves() + boundary() + carry() + top() + wide() + identities()

@@ -265,6 +265,59 @@ struct Folder {
      * and the next round of the fixed point reads it here in the one form. Removing the seven mirrors
      * changed nothing in any of the 82 fixtures, which is what a canonical form is supposed to mean.
      */
+    /*
+     * The top half of a product, at the operands' own width - `Value::MulHi`.
+     *
+     * Written out in 32-bit pieces rather than reached for through `__int128`, for the reason the
+     * MSVC branch of CMakeLists exists: it is not a type this project may assume, and a 64-bit
+     * `mulhi` is exactly the case where the product does not fit in anything C++ guarantees. The
+     * pieces are the schoolbook four partial products, which is what every target's instruction does
+     * in hardware.
+     *
+     * Signedness is applied as a correction to the unsigned answer rather than as a second
+     * algorithm: the unsigned 128-bit product of two bit patterns differs from the signed one by
+     * `2^64 * b` for a negative `a` and by `2^64 * a` for a negative `b`, so subtracting each where
+     * its sign bit is set turns one into the other. The operands arrive at 64 bits already
+     * sign-extended for a signed type and zero-extended for an unsigned one (`narrowToWidth`), which
+     * is what makes the correction read the right bit.
+     */
+    static void multiplyWide(U64 a, U64 b, bool isSigned, U64& high, U64& low) {
+        auto aLow = a & 0xffffffffu, aHigh = a >> 32;
+        auto bLow = b & 0xffffffffu, bHigh = b >> 32;
+
+        auto ll = aLow * bLow;
+        auto lh = aLow * bHigh;
+        auto hl = aHigh * bLow;
+        auto hh = aHigh * bHigh;
+
+        // The carry out of the low half, added in 32-bit columns so that nothing here overflows.
+        auto middle = (ll >> 32) + (lh & 0xffffffffu) + (hl & 0xffffffffu);
+
+        low = (ll & 0xffffffffu) | (middle << 32);
+        high = hh + (lh >> 32) + (hl >> 32) + (middle >> 32);
+
+        if(!isSigned) return;
+
+        if(a >> 63) high -= b;
+        if(b >> 63) high -= a;
+    }
+
+    /*
+     * That product's bits `[bits, 2 * bits)`, which is what the instruction answers.
+     *
+     * One expression for every width, because the two halves are already the right two: at 64 bits
+     * the answer *is* the high word, and below that it straddles the boundary and is shifted out of
+     * the pair. `wrap` narrows and re-extends it at the end, so a 32-bit signed `mulhi` comes back
+     * sign-extended exactly as `imul`'s `edx` would be read.
+     */
+    static U64 multiplyHigh(U64 a, U64 b, const IntFacts& facts) {
+        U64 high = 0, low = 0;
+        multiplyWide(a, b, facts.isSigned, high, low);
+
+        if(facts.bits >= 64) return high;
+        return (low >> facts.bits) | (high << (64 - facts.bits));
+    }
+
     ModulePtr<Value> foldBinary(InstBinary& instruction, const IntFacts& facts) {
         U64 lhs = 0, rhs = 0;
         auto known = operands(instruction, lhs, rhs);
@@ -285,6 +338,20 @@ struct Folder {
             case Value::Mul:
                 if(known) return wrap(lhs * rhs);
                 if(isConstantValue(instruction.rhs, 1)) return instruction.lhs;
+                if(isConstantValue(instruction.rhs, 0)) return zero();
+                break;
+
+            /*
+             * The two identities `mulhi` has, and they are not `mul`'s.
+             *
+             * Multiplying by one is not one of them: the top half of `x * 1` is zero for an unsigned
+             * type and `x`'s sign for a signed one, not `x`. Multiplying by *zero* is, and it is the
+             * same zero at both signednesses. What is left is the constant pair, which is the case
+             * this exists for - `Core.Hash` mixes through a `mulhi` against a literal odd word, and
+             * `Ryu`'s two are against table entries a specialization makes constant.
+             */
+            case Value::MulHi:
+                if(known) return wrap(multiplyHigh(lhs, rhs, facts));
                 if(isConstantValue(instruction.rhs, 0)) return zero();
                 break;
             case Value::Div:
