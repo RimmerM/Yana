@@ -165,6 +165,46 @@ static bool borrowedParameter(ExprResolver& resolver, const Binding& binding) {
     return (bool)resolver.findPlace(binding.value);
 }
 
+/*
+ * A local of the enclosing function, reached from a *continuation*.
+ *
+ * The same argument `borrowedParameter` above makes, about the other half of the frame. A lambda may
+ * outlive the frame it captured from, so a local it names has to be taken out of that frame and
+ * owned; a lifted continuation may not - it runs strictly inside the call that built it, which is
+ * Implementation-Lens.md's bounded-continuation contract - so the local is alive for the whole of it
+ * and a reference to it is enough.
+ *
+ * Taking it by ownership instead was not merely wasteful, it was **contradictory** wherever the
+ * lens's own argument was that same local:
+ *
+ *     let xs = [1, 2, 3]
+ *     overArray(xs)          -- error: this value has been moved out of and cannot be used again
+ *     return length(xs)
+ *
+ * The environment is initialized before the call, so the capture moved `xs` out and the argument
+ * then read it. There is no ordering that rescues that - moving first invalidates the argument, and
+ * borrowing first leaves a borrow live across a move - so the capture has to be the reference it can
+ * afford to be. Reproduced with no atomic in sight; `Atomic.SpinLock`'s `withLock` is what met it.
+ *
+ * What it costs is a continuation that *consumes* a captured local, which now needs the local to be
+ * handed to the lens or declared `&`. That is the direction this file already leans, and the frame
+ * the value belongs to still owns it - which is the honest reading of "the rest of the enclosing
+ * function" anyway.
+ */
+static bool continuationLocal(ExprResolver& resolver, const Binding& binding) {
+    if(binding.captured || binding.borrow) return false;
+
+    // Storage in the enclosing frame, which is what a reference needs, and reached by either of the
+    // two routes a binding has to one - the slot it was declared with, or the value it holds. A
+    // binding with neither is a value in a register, and a copy of one is what the classification
+    // below decides anyway, correctly and for free.
+    if(binding.local != maxLimit<U32>) {
+        return !resolver.function.localAt(resolver.local, binding.local).borrowed;
+    }
+
+    return binding.value && (bool)resolver.findPlace(binding.value);
+}
+
 Place ExprResolver::placeOf(const Binding& binding, LocationId source) {
     if(!binding.captured) return binding.place();
 
@@ -248,7 +288,8 @@ Binding* ExprResolver::captureBinding(StringId name, LocationId source) {
     if(writableBinding(*enclosing, *outer)) {
         capture.convention = ast::BindType::Ref;
         capture.byReference = true;
-    } else if((inContinuation && borrowedParameter(*enclosing, *outer)) ||
+    } else if((inContinuation && (borrowedParameter(*enclosing, *outer) ||
+                                  continuationLocal(*enclosing, *outer))) ||
               borrowedBinding(*enclosing, *outer)) {
         capture.convention = ast::BindType::Borrow;
         capture.byReference = true;

@@ -1,0 +1,210 @@
+{-
+  A spin lock - the one form of mutual exclusion that is made of atomics and nothing else.
+
+  `Atomic.native.yana` says that a mutex belongs above this module, and that is still true of the
+  mutex a program will eventually want: one that stops burning the processor when it cannot make
+  progress has to hand the processor back, and handing it back is a scheduler operation. This one
+  never does. It is two atomic operations and a loop, so it has no dependency on anything the
+  concurrency library will later supply, and it is here for that reason rather than as the beginning
+  of a lock collection.
+
+  § What it is for, and what it is not
+
+  A spin lock is right when the critical section is **shorter than a context switch** and the holder
+  cannot realistically be descheduled inside it: a few field updates, a free-list push, two words
+  that have to move together. It is wrong for anything that allocates, takes another lock, calls
+  into the operating system, or runs for an unbounded number of steps.
+
+  The failure mode is not slowness, it is a cliff. A waiter burns a whole timeslice at full power
+  while the holder is not running, and on a machine with more runnable waiters than cores that is the
+  ordinary case rather than the unlucky one. So the rule a reader should take away is: **hold it for
+  a bounded, tiny number of instructions, or use something else.** When the scheduler's parking
+  operation exists, the something else will be a mutex that spins briefly and then parks - and it
+  will be built out of `tryLock` and `unlock` below.
+
+  § It is not reentrant
+
+  Locking one this thread already holds deadlocks immediately, with no diagnostic: the loop simply
+  never leaves. Detecting it means knowing *which* thread holds the lock, which means a thread
+  identity to compare and a word to keep it in - a different type with a different cost. A recursive
+  lock is also, usually, a design that has not decided who owns what.
+
+  § Explicit first, scoped second
+
+  `lock` and `unlock` are the primitive and are public, because a lock whose acquisition and release
+  are in different functions is a real algorithm rather than a mistake - a hand-off, a state machine
+  that acquires on entry to one state and releases on leaving another. `withLock` below is the form
+  almost every caller should write instead, and it is a lens rather than a higher-order function, so
+  the release runs on the early `return` out of the critical section too.
+
+  A linear guard - a value that *is* the held lock and cannot be dropped without releasing it - is
+  the third form and is not here. It wants a type the compiler refuses to discard, which is a
+  language feature this module should consume rather than motivate; that and the real mutexes go
+  together, later.
+
+  § Native only, for `Atomic`'s reason
+
+  There is no worker or shared-buffer model on the JavaScript target, so there is nothing for two
+  holders of this to be.
+-}
+module Atomic
+
+{-
+  The lock word - §3.2's flag case, and one byte.
+
+  `Atomic(Bool)` rather than `Atomic(U32)` because that is what the storage means: held or not, and
+  nothing else. A payload-free enumeration in an atomic is exactly the family §3.2 admits, and `Bool`
+  is one. A fair lock or one that counts waiters needs a word to keep a ticket or a count in, and
+  that is a **different type** rather than this one widened - what differs is the operations, not the
+  field.
+
+  There is no padding to a cache line, which is a decision rather than an oversight. A lock sharing a
+  line with the data it protects is the common case and usually the right one: what a waiter does
+  immediately after acquiring is read that data, so it wanted the line anyway. What it costs is that
+  the holder's writes to neighbouring fields invalidate every waiter's copy of the lock line, so the
+  spin below re-fetches instead of hitting its own cache. A caller with an array of locks, or with
+  one lock beside data written by threads that are not contending for it, wants the padding - and
+  gets it by putting the lock in a record that states it, which costs nothing to anyone else.
+-}
+pub data SpinLock {state: Atomic(Bool)}
+
+-- An unheld lock. Not implicitly zeroed, for `atomic`'s reason: one initialization rule is better
+-- than two, and a lock that started out held would be a strange thing to write by omission.
+pub fn spinLock() -> SpinLock = SpinLock {state: atomic(False)}
+
+{-
+  One attempt, which is one instruction - `xchg` on x86.
+
+  The exchange is the whole of it. Writing `True` unconditionally and reading what was there answers
+  "did I take it" in a single indivisible step, where a load followed by a store would let two
+  threads both read `False` and both proceed. `compareExchange` would serve as well and costs the
+  same instruction here; the exchange asks the simpler question, and has no spurious failure for a
+  caller wanting a definite answer to worry about.
+
+  **Acquire on the way in.** Everything the previous holder published before releasing becomes
+  visible to this thread once this answers `True`. That edge is the whole point of the primitive, and
+  it is attached to the *successful* acquisition: a failed `tryLock` synchronizes with nothing, which
+  is right - it observed the lock held and learned nothing about what the holder had done.
+
+  Acquire and not sequential. A total order over this operation and every other sequential one in the
+  program is not what mutual exclusion needs: what a lock owes its user is that the critical sections
+  do not overlap and that each one sees the last, and that is exactly acquire-release.
+-}
+pub fn tryLock(self: SpinLock) -> Bool = exchange(self.state, True, UpdateAcquire) == False
+
+{-
+  Where the backoff stops doubling - see `lock`.
+
+  Small on purpose. Sixty-four hints is on the order of a few thousand cycles on current x86, which
+  is already past the point where a critical section this type is protecting should have finished:
+  the cap is not a tuning parameter so much as the place where the answer stopped being "wait longer"
+  and became "this is the wrong primitive".
+-}
+let maxSpinHints = 64 :: Int
+
+{-
+  The lock, which is test-and-test-and-**set**.
+
+  The structure is the point, because the obvious loop is substantially worse:
+
+      while exchange(state, True) {}          -- the obvious one, and quadratic under contention
+
+  Every waiter there performs a locked read-modify-write on every turn, and a locked
+  read-modify-write takes the cache line **exclusively**. So `n` waiters produce `n` line transfers
+  per iteration, each one invalidating the other `n - 1` copies - and the holder, who needs that same
+  line to release, is competing with all of them. The traffic grows with the square of the waiters
+  and the critical section gets *longer* the more contention there is.
+
+  What is below tries once and, on failure, drops into a loop that only **reads**. A read leaves the
+  line shared, so every waiter spins against its own cache and generates no traffic at all until the
+  release invalidates them; only then does anyone attempt an exchange again. That is the difference
+  between a lock that degrades gracefully and one that collapses.
+
+  `spinHint` is in the read loop for two reasons that are both about the machine rather than the
+  algorithm. It stops the processor speculating a long run of loads that a store from another core is
+  about to invalidate - which costs a full pipeline flush at the memory-order violation on x86 - and
+  it hands the pipeline to the other thread of an SMT core, which may well be the holder.
+
+  ## The backoff, and why it is bounded
+
+  A flat hint loop is a correct lock and a poor citizen: when the line arrives every waiter re-reads
+  and re-attempts at once, so a release is followed by a thundering herd of exchanges of which
+  exactly one wins. Doubling the hints between reads spreads that out, and costs an uncontended
+  caller nothing - it never enters this loop at all, and the first pass through it hints once.
+
+  **There is no fairness.** A thread arriving while the lock is free takes it ahead of one that has
+  been spinning, and nothing bounds how often that can happen. That is the ordinary trade for a fast
+  uncontended path: a ticket lock or an MCS queue is FIFO and pays an atomic increment and a second
+  cache line on every acquisition. If starvation is a real risk here, the critical section is too long
+  for this type.
+-}
+pub fn lock(self: SpinLock) -> {}:
+    let &hints = 1
+
+    while !tryLock(self):
+        -- Reads only, until the lock looks free. This loop establishes no ordering and `spinHint` is
+        -- not a fence: the acquire edge comes from the exchange above that finally wins.
+        while self.state.load(LoadRelaxed):
+            let &i = 0
+
+            while i < hints:
+                spinHint()
+                i = i + 1
+
+            if hints < maxSpinHints then hints = hints * 2
+
+{-
+  The release, which is one ordinary store.
+
+  A release store and not an exchange, because nothing has to be read: while the lock is held its
+  holder is the only thread that may write this word, so there is no race to resolve and no answer to
+  want. On x86 that is a plain `mov` - the architecture already orders it behind every write the
+  critical section made - which is why a correct unlock costs nothing at all on this machine.
+
+  **Release is what publishes the critical section.** Every write made while holding the lock is
+  ordered before this store, and the next acquirer's `tryLock` sees them. Weakening it to relaxed
+  would leave a lock that excludes correctly and publishes nothing, which is the kind of defect that
+  looks like working code.
+
+  Unlocking a lock this thread does not hold is a program error and is not checked. The check is a
+  relaxed load on the release path of every critical section in the program, to catch a mistake a
+  `withLock` caller cannot make at all - so `isHeld` is offered below instead, for a test or an
+  assertion that decides to pay for it.
+-}
+pub fn unlock(self: SpinLock) -> {}:
+    store(self.state, False, StoreRelease)
+
+{-
+  Whether the lock is held, right now, by somebody.
+
+  Relaxed, and therefore **advisory**: the answer is already stale by the time it is returned, and
+  using it to decide whether to lock is the check-then-act race the primitive exists to prevent -
+  that is `tryLock`, which decides and acts in one step. What this is for is an assertion in a test,
+  a debugger's view, and a diagnostic that wants to say what the program's state was.
+-}
+pub fn isHeld(self: SpinLock) -> Bool = self.state.load(LoadRelaxed)
+
+{-
+  The scoped form, and the one almost every caller should write:
+
+      withLock(cell)
+      cell.count = cell.count + 1        -- held here, released after the last line of the block
+
+  A **lens**, so the block below the call is the critical section and the release is not a line
+  anybody has to remember. What that buys over a higher-order function taking a body is stated in
+  doc/spec/lenses.md under "Leaving through a lens": a `return` out of the critical section still
+  runs the code after the `yield`, and so does a `break` or a `continue` out of an enclosing loop.
+  The continuation reports how it left and the lens's cleanup runs on both paths. Both halves compile
+  away where the call is visible, which is every direct call to this.
+
+  Transparent rather than skipping - it yields `{}` and always continues - so the call site needs no
+  fallback and reads as a statement.
+
+  What it cannot do is hand a borrow of the protected data back out past the block, and that is
+  correct rather than a limitation: a reference outliving the critical section would be a reference
+  to data the next holder is free to change.
+-}
+pub lens fn withLock(self: SpinLock) -> {}:
+    lock(self)
+    yield {}
+    unlock(self)

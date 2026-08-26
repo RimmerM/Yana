@@ -1,0 +1,184 @@
+{-
+   What the spin lock computes - lib/Atomic/SpinLock.native.yana.
+
+   One thread, which bounds what is checkable here exactly as it does in `Atomic.yana` beside this.
+   Mutual exclusion under contention is not observable from one thread; what is observable is the
+   *state machine* - that an acquisition takes the lock, that a second attempt on a held lock fails
+   rather than succeeding or hanging, that a release frees it, and that the lens releases on every
+   way out of its block including the ones a higher-order function would have missed.
+
+   Every one of those is a defect a golden fixture would not catch, because a lock that never
+   releases and one that releases twice both print the same IR.
+-}
+
+import Atomic
+
+-- The explicit pair, and the observation function. `isHeld` is relaxed and advisory, which is why it
+-- is read here rather than acted on: this file is checking what the state *was*.
+fn explicit() -> {}:
+    let cell = spinLock()
+    assert(!isHeld(cell))
+
+    lock(cell)
+    assert(isHeld(cell))
+
+    unlock(cell)
+    assert(!isHeld(cell))
+
+{-
+   `tryLock` answers, rather than waiting.
+
+   The second attempt is the case worth being exact about: on a lock this thread already holds,
+   `tryLock` must answer `False`. A `lock` there would deadlock - the loop has nothing to wait for,
+   since the only thread that could release it is the one spinning - and that is the whole difference
+   between the two functions.
+-}
+fn attempted() -> {}:
+    let cell = spinLock()
+
+    assert(tryLock(cell))
+    assert(isHeld(cell))
+
+    -- Held by us, so this fails and leaves the lock exactly as it was.
+    assert(!tryLock(cell))
+    assert(isHeld(cell))
+
+    unlock(cell)
+    assert(tryLock(cell))
+    unlock(cell)
+    assert(!isHeld(cell))
+
+-- Lock and release repeatedly, so the exchange is exercised from both states rather than once from
+-- each. A `tryLock` that left the word set on failure would pass every case above and fail here on
+-- the second turn.
+fn repeated() -> {}:
+    let cell = spinLock()
+    let &turns = 0
+
+    while turns < 100:
+        lock(cell)
+        assert(isHeld(cell))
+        unlock(cell)
+        assert(!isHeld(cell))
+        turns = turns + 1
+
+{-
+   The lens, on the ordinary path.
+
+   The block below the call is the critical section, and the release runs after its last line. What
+   is asserted is both halves: held inside, free after.
+-}
+fn scoped() -> Int:
+    let cell = spinLock()
+    assert(!isHeld(cell))
+
+    let answer = held(cell)
+    assert(!isHeld(cell))
+    return answer
+
+fn held(cell: SpinLock) -> Int:
+    withLock(cell)
+    assert(isHeld(cell))
+    return 7
+
+{-
+   And on the leaving path, which is the reason it is a lens rather than a function taking a body.
+
+   `early` returns from inside the critical section. A higher-order `withLock(cell, body)` would run
+   `body`, take its early return as the lambda's own, and still reach its `unlock` - so this would
+   pass either way. What makes it a real case is `escaping` below it.
+-}
+fn early(cell: SpinLock, quit: Bool) -> Int:
+    withLock(cell)
+    if quit then return 1
+    return 2
+
+fn leaving() -> {}:
+    let cell = spinLock()
+
+    assert(early(cell, True) == 1)
+    assert(!isHeld(cell))
+
+    assert(early(cell, False) == 2)
+    assert(!isHeld(cell))
+
+{-
+   Leaving a *loop* that is inside the critical section, and then leaving the function from inside
+   it - which is the shape a body-taking function cannot express.
+
+   `return` from inside the loop leaves through the lens's frame, so the code after the `yield` runs
+   on the way out. A lens that passed the departure on without running its own tail would leave the
+   lock held here and nowhere else, and `released` below is what notices.
+
+   `break` out of a loop that *encloses* the lens call is the other half of this and is refused
+   today: "`break` and `continue` cannot cross a lens call yet". Only `return` carries the exit
+   signal past a lens, which is what this is written on.
+-}
+fn escaping(cell: SpinLock) -> Int:
+    let &sum = 0
+    let &i = 0
+
+    withLock(cell)
+
+    while i < 10:
+        sum = sum + i
+        i = i + 1
+        if sum > 6: return sum
+
+    return sum
+
+fn released() -> Int:
+    let cell = spinLock()
+    let answer = escaping(cell)
+    assert(!isHeld(cell))
+    return answer
+
+{-
+   Nested locks, which is what a program with two of them does.
+
+   Not one lock taken twice - that deadlocks, and is documented as doing so. Two separate locks held
+   at once, released in the reverse order, which is what the lens's nesting gives for free: the inner
+   block ends first, so the inner lock is released first.
+-}
+fn nested() -> {}:
+    let outer = spinLock()
+    let inner = spinLock()
+
+    withLock(outer)
+    assert(isHeld(outer))
+    assert(!isHeld(inner))
+
+    withLock(inner)
+    assert(isHeld(outer))
+    assert(isHeld(inner))
+
+fn nesting() -> {}:
+    let cell = spinLock()
+    nested()
+    assert(!isHeld(cell))
+
+-- A lock protecting something, which is the shape every real caller has: the critical section reads
+-- and writes storage that the lock is the only thing serializing access to.
+fn guarding() -> Int:
+    let cell = spinLock()
+    let &total = 0
+    let &i = 0
+
+    while i < 50:
+        withLock(cell)
+        total = total + i
+        i = i + 1
+
+    assert(!isHeld(cell))
+    return total
+
+fn main() -> Int:
+    explicit()
+    attempted()
+    repeated()
+    assert(scoped() == 7)
+    leaving()
+    assert(released() == 10)
+    nesting()
+    assert(guarding() == 1225)
+    return 0
