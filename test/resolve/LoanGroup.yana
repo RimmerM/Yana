@@ -1,0 +1,89 @@
+-- Two independent loan relationships in one signature - Analysis-Borrows.md §4.2 and §8.2.
+--
+-- Every signature in `lib/` has exactly one, which is why §4.8 measures the library as needing no
+-- labels at all: a label exists to *split* a signature's group, never to name it. What splitting
+-- one buys is here, and it is the difference between `keepsBoth` and `keepsLeft`.
+--
+-- **The group is written in the type**, which is where a group is written in every other position,
+-- and nothing about it appears in the name area: that area is the binding convention and the name,
+-- and it is kept clear so that argument patterns can have it. `return` is the one marker left there
+-- and is allowed to be one because it is a keyword, so it can never be mistaken for a pattern;
+-- §8.3 is its migration.
+--
+-- **`&x: T` and `x: &T` are one parameter and one type.** They were two - same effect, same ABI,
+-- different FunTypes, so a function value written one way could not be passed where the other was
+-- expected - and an exclusive reference in a parameter's type is now folded into the convention.
+-- The group survives the fold, so `&a: l'Cell` and `a: &l'Cell` are the same declaration and this
+-- fixture writes the first. A *shared* `'T` does not fold, and the reason is in bindingType: there
+-- is no convention for a shared borrow that is not also pass-by-value, and pass-by-value on a
+-- scalar is a copy.
+--
+-- **A reference type says the storage is somebody else's**, which is why an argument that was
+-- copied and stored locally can never carry a tick. `x: Int` is a copy in a register; `x: 'Int` is
+-- a reference to the caller's Int. That is what makes a reference parameter eligible to root a
+-- result at all, and it is a fact about *ownership*.
+--
+-- **Whether the loan outlives the call is a second fact, and the result decides it.**
+-- `fn mutate(f: &Flags) -> Int` takes a reference to the caller's storage and its loan still ends
+-- with the call, because there is no loan in the result for it to outlive into - see
+-- Contain.Borrow.yana, which writes through `f` after that call. So an unlabelled reference
+-- parameter joins the anonymous group exactly when the result carries a loan, and every such
+-- parameter joins the *same* group rather than one each: §4.8 rule 1, and what a conservative
+-- `return` group already did. A label is what splits it.
+
+data Cell {value: Int}
+
+-- One group, with two parameters in it. A caller must hold *both* arguments borrowed until the
+-- result's last use, because the body may have returned either - which is what a conservative
+-- `return` group already does, and is why §4.8 rule 1 makes an unlabelled marker mean one group
+-- rather than one group per parameter.
+fn keepsBoth(&a: g'Cell, &b: g'Cell) -> &g'Cell = if a.value > b.value then a else b
+
+-- The same signature in the spelling the whole library still uses. `return` is the one loan marker
+-- left in the name area, and it stays there because it is a *keyword*: it cannot collide with an
+-- argument pattern, which is what the rest of that area is being kept free for. It means §4.8 rule
+-- 1's anonymous group, and §8.3 is its migration.
+fn keepsBothMarked(return &a: Cell, return &b: Cell) -> &Cell = if a.value > b.value then a else b
+
+-- Two groups. The result is in `l` alone, so a caller holds `a` borrowed until the result's last
+-- use and is free to write through `b` immediately - which is what `main` does below.
+fn keepsLeft(&a: l'Cell, &b: r'Cell) -> &l'Cell = a
+
+-- The same relationship on the shared side, and with the result in the *second* parameter's group,
+-- so that nothing here depends on a group's members being in order or on the first one winning.
+fn keepsRight(left: l'Cell, right: r'Cell) -> r'Cell = right
+
+-- And through a function value, which is what having the group on the *type* is for. A caller
+-- reaching a function this way has only the type to read, so a contract that survived a direct call
+-- and evaporated here would be worse than no contract - §8.4's premise, and the reason FunArg
+-- carries the group rather than the declaration alone. `second` is writable inside `viaValue`
+-- exactly as it is at a direct call.
+fn viaValue(f: (&a: l'Cell, &b: r'Cell) -> &l'Cell) -> Int:
+    let &first = Cell {value: 3}
+    let &second = Cell {value: 4}
+    let &picked = f(first, second)
+    second.value = 7
+    return picked.value + second.value
+
+fn main() -> Int:
+    let &first = Cell {value: 3}
+    let &second = Cell {value: 4}
+
+    -- `picked` is a loan of `first` and of nothing else, so `second` is writable while it lives.
+    let &picked = keepsLeft(first, second)
+    second.value = 7
+    picked.value = picked.value + second.value
+
+    let &third = Cell {value: 1}
+    let &fourth = Cell {value: 2}
+
+    -- And here the free one is the *first* argument, which one group would have kept borrowed.
+    let chosen = keepsRight(third, fourth)
+    third.value = 9
+
+    -- And the `return` spelling reaches the same contract: one group, both arguments in it.
+    let &fifth = Cell {value: 6}
+    let &sixth = Cell {value: 8}
+    let &larger = keepsBothMarked(fifth, sixth)
+
+    return picked.value + chosen.value + third.value + larger.value + viaValue(keepsLeft)

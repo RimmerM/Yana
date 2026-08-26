@@ -121,15 +121,34 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             target << ')';
             return;
         }
-        case Type::Borrow:
+        case Type::Borrow: {
             // Both spellings are source forms now, and each says its own capability: `&T` is the
             // exclusive writable reference and `'T` the shared one - Analysis-Borrows.md §3.2.
             // There was one written form and a printed `&mut T` that no program could type, because
             // what made a result exclusive was the group it was rooted in rather than anything on
             // the result itself.
-            target << (((BorrowType*)base[type])->mut ? "&" : "'");
-            describeType(context, base, ((BorrowType*)base[type])->to, target);
+            auto borrow = (BorrowType*)base[type];
+
+            /*
+             * The loan group, printed as its index and only where a label put it past the anonymous
+             * one - §4.2 and §4.8 rule 1.
+             *
+             * A number rather than the written label, because the label is deliberately not in the
+             * type: a group is signature-local, so two signatures writing `src'` share nothing and
+             * a name reaching the type would suggest they did. What a reader needs here is which of
+             * *this* signature's relationships the reference is in, and the index is that.
+             *
+             * Nothing is printed for the anonymous group, which keeps every type in `lib/` printing
+             * exactly as it did.
+             */
+            if(borrow->mut) target << '&';
+            // appendValue, not `<<` - see the note at Type::Int, which is this same trap.
+            if(borrow->loan > kAnonymousLoan) target.appendValue(U32(borrow->loan - 1));
+            if(!borrow->mut || borrow->loan > kAnonymousLoan) target << '\'';
+
+            describeType(context, base, borrow->to, target);
             return;
+        }
         case Type::Float:
             target << (((FloatType*)base[type])->width == FloatType::Float ? "Float" : "Double");
             return;
@@ -185,9 +204,17 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             for(auto arg: function->args.contents(base)) {
                 if(index++) target << ", ";
                 if(arg.lazy) target << "@lazy ";
-                if(arg.returnRoot) target << "return ";
                 if(arg.convention == ast::BindType::Ref) target << '&';
                 else if(arg.convention == ast::BindType::Sink) target << "->";
+
+                // The loan marker, in the position it is written in - the capability outside the
+                // group, because `&'` is one lexeme and `'&` is one symbol run. `return` was the
+                // old spelling of the anonymous case and §8.3 is why it is no longer printed.
+                if(arg.returnRoot()) {
+                    if(arg.loan > kAnonymousLoan) target.appendValue(U32(arg.loan - 1));
+                    target << "' ";
+                }
+
                 if(arg.name) target << context.findName(arg.name) << ": ";
 
                 describeType(context, base, arg.type, target);

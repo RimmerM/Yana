@@ -604,7 +604,7 @@ void Verifier::verifyArgs() {
          */
         if(stage == VerifyStage::Resolved) continue;
 
-        if(arg->returnRoot && i < 64 && !(function.summary.declaredRoots & (U64(1) << i))) {
+        if(arg->returnRoot() && i < 64 && !(function.summary.declaredRoots & (U64(1) << i))) {
             fail(arg->source, "argument %@ is a return root and is not in the declared group"_v, U32(i));
         }
     }

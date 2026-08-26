@@ -1667,6 +1667,23 @@ bool Parser::parseReturnRoot() {
     return maybe(Token::kwReturn).isJust();
 }
 
+StringId Parser::parseLoanLabel() {
+    if(token.type != Token::VarID) return StringId();
+
+    SaveLexer save(lexer);
+    auto savedToken = token;
+    auto label = token.data.id;
+    eat();
+
+    if(maybe(Token::opQuote)) return label;
+
+    save.restore();
+    token = savedToken;
+    return StringId();
+}
+
+
+
 // `@lazy` is written outermost, before the `return` marker and the binding convention. It is the
 // one attribute with a meaning in parameter position, so an `@` here is either it or a mistake -
 // which is why this consumes the name rather than going through parseAttributes and leaving a list
@@ -2230,6 +2247,17 @@ ast::Type Parser::parseType() {
             auto name = token.data.id;
             eat();
 
+            // `v'a` and `v'`, which this position has to read for itself: the branch below is
+            // parseAType's duplicated here so that a full type may leave off the parentheses an
+            // application would otherwise need, and a rule added to one of the two and not the
+            // other is a form that parses in a field and not in an alias. See parseAType.
+            if(isVar && maybe(Token::opQuote)) {
+                if(!startsType()) return makeType(Loan, name, name, location, attributes);
+
+                auto type = parseAType(location, nullptr);
+                return makeType(Shared, ref, (ast::Type::RefPayload { heap(type), name }), type.source, attributes);
+            }
+
             auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);
             ast::ParseList<ast::Type> app;
 
@@ -2283,6 +2311,31 @@ ast::Type Parser::parseType() {
     }
 }
 
+/*
+ * The lookahead `v'a` and `v'` are told apart by - see the Loan arm of parseAType.
+ *
+ * Enumerated from parseAType's own branches rather than by exclusion, so that a token added there
+ * and not here reads as `v'` followed by a parse error rather than silently changing what an
+ * existing `v'a` means. `%` and `*` are VarSym rather than reserved lexemes, which is why they are
+ * tested by identity here exactly as they are there.
+ */
+bool Parser::startsType() const {
+    switch(token.type) {
+        case Token::ConID:
+        case Token::VarID:
+        case Token::BraceL:
+        case Token::BracketL:
+        case Token::ParenL:
+        case Token::opAmp:
+        case Token::opQuote:
+            return true;
+        case Token::VarSym:
+            return token.data.id == checkedRefId || token.data.id == rawPtrId;
+        default:
+            return false;
+    }
+}
+
 ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::AttrList> attributes) {
     if(maybe(Token::VarSym, [&](Token& t) { return t.data.id == checkedRefId; })) {
         auto type = parseAType(location, nullptr);
@@ -2291,15 +2344,33 @@ ast::Type Parser::parseAType(const WithLocation& location, ast::ParsePtr<ast::At
         auto type = parseAType(location, nullptr);
         return makeType(Ptr, to, heap(type), type.source, attributes);
     } else if(maybe(Token::opAmp)) {
+        // `&a` and `&v'a`. The capability sits outside the group because it must: `&'` is one
+        // lexeme and `'&` is one symbol run, so there is nowhere else for the label to go.
+        auto group = parseLoanLabel();
         auto type = parseAType(location, nullptr);
-        return makeType(Borrow, to, heap(type), type.source, attributes);
+        return makeType(Borrow, ref, (ast::Type::RefPayload { heap(type), group }), type.source, attributes);
     } else if(maybe(Token::opQuote)) {
         auto type = parseAType(location, nullptr);
-        return makeType(Shared, to, heap(type), type.source, attributes);
+        return makeType(Shared, ref, (ast::Type::RefPayload { heap(type), StringId() }), type.source, attributes);
     } else if(token.type == Token::ConID || token.type == Token::VarID) {
         auto isVar = token.type == Token::VarID;
         auto name = token.data.id;
         eat();
+
+        /*
+         * `v'a` and `v'` - a labelled reference, and a bare loan group.
+         *
+         * One token of lookahead past the tick separates them, and it never overlaps: nothing that
+         * can begin a type also ends an argument list. A bare group is only meaningful where a slot
+         * is being filled, so it is produced here and refused by resolveType everywhere else - the
+         * same division `Kind::Lit` is under.
+         */
+        if(isVar && maybe(Token::opQuote)) {
+            if(!startsType()) return makeType(Loan, name, name, location, attributes);
+
+            auto type = parseAType(location, nullptr);
+            return makeType(Shared, ref, (ast::Type::RefPayload { heap(type), name }), type.source, attributes);
+        }
 
         auto base = isVar ? makeType(Gen, name, name, location, nullptr) : makeType(Con, name, name, location, nullptr);
 

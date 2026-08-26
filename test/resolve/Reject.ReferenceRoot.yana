@@ -8,17 +8,25 @@
 -- should have failed never ran. See Provenance::args and arrivesAsCopy.
 --
 -- ReferenceRoot.yana is the accepting half: the same signatures with the markers written.
+--
+-- The reference cases are written with **tickless** parameters, and that follows from the
+-- loan-group rule rather than from taste: a tick on a parameter's type is itself the declaration
+-- that the storage is the caller's (Analysis-Borrows.md §3.1 and §8.2), so `x: 'Int` is a declared
+-- root and there is no way left to write an undeclared one. `x: Cell` is §3.1's ordinary parameter
+-- and a reference reached through it is what these return. A `%T` keeps carrying itself, because a
+-- raw pointer is outside the ownership model and has no tick to declare anything with.
 
 import Native
 
 data Pair(a, b) {first: a, second: b}
+data Cell {value: Int}
 
 -- Repackaging into a generic aggregate does not launder the references it carries. Both arguments
 -- are roots of the result, and neither is declared.
-fn pairOf(x: 'Int, y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
+fn pairOf(x: Cell, y: Cell) -> Pair('Int, 'Int) = Pair {first: x.value, second: y.value}
 
 -- The same one level down, where the result is a reference rather than a record holding two.
-fn firstOf(x: 'Int, y: 'Int) -> 'Int = x
+fn firstOf(x: Cell, y: Cell) -> 'Int = x.value
 
 -- A pointer handed straight back. Address arithmetic on it is the same answer: `p + 1` stays inside
 -- whatever `p` named.
@@ -27,6 +35,6 @@ fn passThrough(p: %U8) -> %U8 = p
 fn offsetOf(p: %U8) -> %U8 = p + (1 :: Size)
 
 -- And a reference reached through a nested type, so the result is not itself borrow-shaped.
-fn maybeOf(x: 'Int) -> Maybe('Int) = Just(x)
+fn maybeOf(x: Cell) -> Maybe('Int) = Just(x.value)
 
 fn main() -> Int = 0

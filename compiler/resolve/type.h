@@ -40,6 +40,46 @@ struct TypeClass;
 using TypePtr = GlobalPtr<Type>;
 
 /*
+ * Which loan relationship a borrow belongs to - Analysis-Borrows.md §4.1 and §8.2.
+ *
+ * A signature's loans are partitioned into *groups*, and a group is the whole of what one loan
+ * relationship is: every parameter in it is borrowed until the last use of every result in it. §8.2
+ * asks only for equality/origin groups in a first implementation - there are no written outlives
+ * relations between two groups, and two groups of one signature constrain each other in nothing.
+ *
+ * `kNoLoan` is a parameter whose loan ends with the call, which is §3.1's default and the answer
+ * for almost every parameter in the library. `kAnonymousLoan` is §4.8 rule 1: an unlabelled marker
+ * means *the* group, one per signature, and it is what every `return` marker written today means.
+ * Labels (§4.2) allocate 2 upward in the order they first occur in the signature, and exist only to
+ * *split* the anonymous group where one coarse group would reject a program worth accepting.
+ *
+ * A small integer rather than a name because a group is signature-local: two functions writing
+ * `'src` share nothing, and nothing outside a signature can refer to one of its groups. The name is
+ * kept for diagnostics on the declaration and does not reach the type.
+ *
+ * The cap is what a `U64` mask holds, which is the same cap `returnRoots` and `Summary::declaredRoots`
+ * already put on the *argument* count. A signature past it is reported rather than silently
+ * collapsed - an ungrouped loan believed to be grouped is the unsound direction.
+ */
+using LoanGroup = U8;
+
+constexpr LoanGroup kNoLoan = 0;
+constexpr LoanGroup kAnonymousLoan = 1;
+constexpr LoanGroup kMaxLoanGroup = 63;
+
+/*
+ * A parameter whose type is an unlabelled reference, before the result has been read.
+ *
+ * Such a parameter refers to the caller's storage - that is what a reference type says - but only a
+ * result that carries a loan makes it a *root*, so which of `kAnonymousLoan` and `kNoLoan` it ends
+ * up as cannot be known while the parameter is being resolved. This is the value it holds in
+ * between; `resolveSignature` spends it and nothing outside a signature's own resolution ever sees
+ * one. Deliberately out of the group range so that a leak is a wrong answer rather than a plausible
+ * group.
+ */
+constexpr LoanGroup kCandidateLoan = 255;
+
+/*
  * A list of type arguments: what a generic call inferred, what a class's variables were bound to,
  * what an instance head resolved its own variables to.
  *
@@ -636,10 +676,25 @@ struct PtrType: Type {
  * borrow has no members, cannot be matched on, and `.` on one always means a field of its target.
  */
 struct BorrowType: Type {
-    BorrowType(TypePtr to, bool mut):
-        Type(Type::Borrow), to(to), mut(mut) {}
+    BorrowType(TypePtr to, bool mut, LoanGroup loan):
+        Type(Type::Borrow), to(to), loan(loan), mut(mut) {}
 
     TypePtr to;
+
+    /*
+     * Which of the signature's loan relationships this reference is in - see LoanGroup.
+     *
+     * Part of the interning key, so `&Int` in one group and `&Int` in another are two types. That
+     * is what a group is *for*: §4.2's `both` returns two references that are usable independently,
+     * and two independently usable references that intern to one type are one reference as far as
+     * every consumer is concerned.
+     *
+     * `kNoLoan` everywhere a reference is not part of a published contract - a local binding, a
+     * temporary, an inferred initializer - which is most of them. §8.2's "keep group identity out
+     * of runtime layout" is why nothing below resolve reads this: a reference is an address at
+     * every width, whatever group it came from.
+     */
+    LoanGroup loan;
 
     // Exclusive while live. Immutable borrows of one place coexist with any number of others.
     bool mut;
@@ -757,11 +812,21 @@ struct ConstType: Type {
  * `name` is deliberately *not* part of identity. `(a: Int) -> Int` and `(Int) -> Int` are one type;
  * the name exists for diagnostics and for printing a signature back the way it was written.
  */
+
 struct FunArg {
+    // Whether a loan of this argument may outlive the call - the `return` marker's question, and
+    // the one almost every reader asks. Which group it is in is the finer question, and only
+    // provenance and signature conformance ask it.
+    bool returnRoot() const { return loan != kNoLoan; }
+
     TypePtr type = nullptr;
     StringId name {};
     ast::BindType convention = ast::BindType::Borrow;
-    bool returnRoot = false;
+
+    // See LoanGroup. Part of the type's identity for exactly the reason the convention is: a caller
+    // reaching this function through a value has only the type to read, and two signatures that
+    // group their loans differently accept different calls.
+    LoanGroup loan = kNoLoan;
 
     // The `@lazy` marker. `type` stays the argument's declared type for the same reason a `&`
     // parameter's does - what travels is a nullary thunk over the caller's frame, and that is a
@@ -808,10 +873,21 @@ struct FunType: Type {
      */
     ast::BindType resultBind = ast::BindType::Borrow;
 
-    // The argument indices whose `returnRoot` bit is set, as a mask - the single return-root group
-    // Implementation-IR.md part 3 gives one function type. Kept alongside the args so that a caller
-    // composing provenance through a call reads one word rather than walking the list.
+    /*
+     * The argument indices in *some* loan group, as a mask.
+     *
+     * Kept alongside the args so that a caller composing provenance through a call reads one word
+     * rather than walking the list. It answers the coarse question - "may a loan of argument i
+     * outlive this call" - and it went on meaning exactly that when §8.2 turned the one group into
+     * several: what changed is that a reader who needs to know *which* group compares
+     * `args[i].loan`, and every reader who only needed the bit was already right.
+     */
     U64 returnRoots = 0;
+
+    // The highest group any argument or the result is in, so that a walk over groups is bounded
+    // without one. `kNoLoan` for a signature with no loans at all, and `kAnonymousLoan` for every
+    // signature written before §4.2's labels existed - which is all of `lib/`, per §4.8.
+    LoanGroup loanGroups = kNoLoan;
 };
 
 struct FloatType: Type {
@@ -1278,6 +1354,22 @@ struct GenEnv {
     // Empty once `defaults` has moved them onto the variables, which is where every reader looks.
     GlobalList<GenDefault> writtenDefaults;
 
+    /*
+     * The loan labels this declaration wrote, in order of first occurrence - Analysis-Borrows.md
+     * §4.2's "a signature-local name introduced by its occurrence, in the same spirit as an implicit
+     * generic name".
+     *
+     * Here rather than in a table of its own precisely because of that likeness: `types` above is
+     * the same list for type variables, filled by the same rule, and a label and a variable are
+     * introduced by writing them and are meaningful only inside one declaration. A label's index in
+     * this list plus 2 is its LoanGroup - 0 and 1 being no loan and the anonymous one - so nothing
+     * has to be renumbered when a label turns out to be the only group a signature has.
+     *
+     * Empty for every declaration in `lib/`, which §4.8's count is the reason for: a label exists to
+     * split the anonymous group and no library signature has two loan relationships to keep apart.
+     */
+    GlobalList<StringId> loans;
+
     // Where this context was declared: what the names in a default mean, and where a diagnostic
     // about one belongs. Mirrors TypeAlias::module and is set for the same reason.
     Module* module = nullptr;
@@ -1608,7 +1700,11 @@ struct CoreClasses {
  * name in a declaration resolve to that declaration's own type variable rather than being an
  * error. A null env means no type variable is in scope.
  */
-TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr);
+// `loan`, where given, receives a loan group written at the *top level* of this type - a reference's
+// own group (`src'T`), or one bound to a nominal type's slot (`Store(kept', a)`). Only the top level
+// writes it: the recursion passes null down, because a group nested inside an argument belongs to
+// that argument and not to what is being asked about here.
+TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env = nullptr, LoanGroup* loan = nullptr);
 
 /*
  * The type of `value :: [T *_]` - the count read off the literal the ascription is written at.
@@ -1691,7 +1787,7 @@ inline TypePtr boxedStep(Module& module, TypePtr type, bool boxed) {
 }
 
 // The borrow type `&to`, interned per target type and mutability.
-TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut);
+TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut, LoanGroup loan = kNoLoan);
 
 // The function type these arguments, result and kind name, interned on all three. Every argument's
 // convention and `return` marker is part of the key - see FunArg.
@@ -1734,7 +1830,13 @@ TypePtr instantiateRecord(Module& module, GlobalPtr<RecordType> record, Buffer<T
 // position: `[T]` in a binding is a slice. See the definition for which positions keep the owner.
 // Shared by a declaration's signature and by a written function type, so that a contract means the
 // same thing in both places.
-TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind, GenEnv* env);
+// `loan`, where given, receives the loan group written on the type - `&a: l'Cell` - and the
+// reference is stripped, so the parameter's type is the pointee. See the definition for why the
+// group goes here and the convention stays on the name.
+// `bind` is adjusted where the written type carries the capability - `x: &T` is `&x: T`, and this is
+// where the two become one type. `loan`, where given, receives a loan group written at the top level.
+TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType& bind, GenEnv* env,
+                    LoanGroup* loan = nullptr);
 
 TypePtr arrayElement(Module& module, TypePtr type);
 TypePtr sliceElement(Module& module, TypePtr type);

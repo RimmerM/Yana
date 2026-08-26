@@ -965,17 +965,30 @@ private:
                     removeLevel();
                     break;
                 case Type::Borrow:
-                    stream.writeString("BorrowType "_v);
+                case Type::Shared: {
+                    stream.writeString(type.kind == Type::Borrow ? "BorrowType "_v : "SharedType "_v);
+
+                    // The loan group, where one was written - Analysis-Borrows.md §4.2. Absent
+                    // rather than printed empty for the anonymous group, which is every reference
+                    // in `lib/` and so every reference in almost every fixture.
+                    if(type.ref.group) {
+                        auto group = context.find(type.ref.group);
+                        stream.writeBytes((const Byte*)group.text, group.textLength);
+                        stream.writeString("' "_v);
+                    }
+
                     makeLevel();
-                    toString(*base[type.to], true);
+                    toString(*base[type.ref.to], true);
                     removeLevel();
                     break;
-                case Type::Shared:
-                    stream.writeString("SharedType "_v);
-                    makeLevel();
-                    toString(*base[type.to], true);
-                    removeLevel();
+                }
+                case Type::Loan: {
+                    stream.writeString("LoanGroup "_v);
+                    auto name = context.find(type.name);
+                    stream.writeBytes((const Byte*)name.text, name.textLength);
+                    stream.writeString("'"_v);
                     break;
+                }
                 case Type::Gen: {
                     stream.writeString("GenType "_v);
                     auto name = context.find(type.name);

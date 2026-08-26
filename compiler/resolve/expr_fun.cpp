@@ -387,7 +387,7 @@ static ModulePtr<Function> functionThunk(Module& module, ModulePtr<Function> cal
         auto declared = (*module.arena)[argPointer];
         auto forwarded = function->addArg(module, declared->name, declared->type, source);
         forwarded->convention = declared->convention;
-        forwarded->returnRoot = declared->returnRoot;
+        forwarded->loan = declared->loan;
         args.push((ModulePtr<Value>)(forwarded - *module.arena));
     }
 
@@ -444,7 +444,7 @@ ModulePtr<Value> ExprResolver::functionValue(ModulePtr<Function> callee, Locatio
             return nullptr;
         }
 
-        args.push(FunArg { declared->type, declared->name, declared->convention, declared->returnRoot });
+        args.push(FunArg { declared->type, declared->name, declared->convention, declared->loan });
     }
 
     auto type = resolveFunType(module, toBuffer(args), requireReturnType(module, *target, source),
@@ -495,7 +495,7 @@ ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer
         auto declared = signature->args.get(global, i);
 
         if(declared.convention == ast::BindType::Ref) {
-            converted.push(borrowArgument(args[i], declared.type, source, declared.returnRoot));
+            converted.push(borrowArgument(args[i], declared.type, source, declared.returnRoot()));
             continue;
         }
 
@@ -504,7 +504,7 @@ ModulePtr<Value> ExprResolver::emitDynamicCall(ModulePtr<Value> callable, Buffer
 
         // The loan a `return` argument creates has to outlive the call, exactly as it does for a
         // direct one - the marker is part of the type precisely so that this is possible here.
-        if(declared.returnRoot && value) {
+        if(declared.returnRoot() && value) {
             if(auto argPlace = findPlace(value)) {
                 value = borrowPlace(argPlace.unwrap(), resolveBorrowType(module, declared.type, false),
                                     source, true);
@@ -617,17 +617,19 @@ ModulePtr<Value> ExprResolver::resolveFun(const ast::Expr& expr, const ast::FunE
 
         auto declared = lambda->addArg(module, arg.name, argType, arg.source);
         declared->convention = arg.bind;
-        declared->returnRoot = arg.returnRoot;
+
+        // §4.8 rule 1's anonymous group - see the same assignment in resolveSignature.
+        declared->loan = arg.returnRoot ? kAnonymousLoan : kNoLoan;
 
         if(arg.returnRoot) {
             if(checkReturnRoot(module, argType, arg.bind, index, arg.source)) {
                 roots++;
             } else {
-                declared->returnRoot = false;
+                declared->loan = kNoLoan;
             }
         }
 
-        signature.push(FunArg { argType, arg.name, arg.bind, declared->returnRoot });
+        signature.push(FunArg { argType, arg.name, arg.bind, declared->loan });
         index++;
     }
 

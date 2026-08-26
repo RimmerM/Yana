@@ -1,0 +1,40 @@
+-- What §4.7's contract rejects - a loan installed in a caller-owned destination, and the caller
+-- then treating it as if the call had ended it.
+--
+-- Returning a reference is only one way a loan can outlive a call. A function can also install one
+-- in storage the caller passed in, and then there is no result for the loan to be bounded by:
+-- bounding it by the *call* is exactly wrong, because the whole point of the signature is that the
+-- destination holds a reference to the source afterwards. What bounds it is the destination.
+
+data Cell {value: Int}
+data Store {held: kept'Cell}
+
+fn remember(&store: Store(kept'), value: kept'Cell) -> {}:
+    store.held = value
+
+-- The source is installed in `box`, so writing through it while `box` still lives is two writers of
+-- one place - exactly as it would be through a reference the call had returned.
+fn writesThroughInstalled() -> Int:
+    let &seed = Cell {value: 0}
+    let &box = Store {held: seed}
+    let &source = Cell {value: 7}
+
+    remember(box, source)
+    source.value = 9
+
+    return box.held.value
+
+-- And the control, which must go on being accepted: once `box` is finished with, the loan is over
+-- and the source is writable again.
+fn writesAfterDestination() -> Int:
+    let &seed = Cell {value: 0}
+    let &box = Store {held: seed}
+    let &source = Cell {value: 7}
+
+    remember(box, source)
+    let read = box.held.value
+
+    source.value = 9
+    return read + source.value
+
+fn main() -> Int = writesThroughInstalled() + writesAfterDestination()

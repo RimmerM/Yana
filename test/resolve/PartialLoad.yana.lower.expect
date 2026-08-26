@@ -24,80 +24,6 @@ recovered<complex>(%box: Ptr, %grow: Int): Int {
   }
 }
 
-bothArmsWrite<complex>(%box: Ptr, %which: Int): Int {
-  b_0 {
-    %v_1 = loads %box, 4: Int
-    %v_2 = cmp_ilt %v_1, 100: Int
-    %v_3 = and %v_2, %which: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    %v_6 = add %v_1, 1: Int
-    store %box, %v_6, 4
-    jmp b_7
-  }
-
-  b_5 {
-    %v_8 = add %v_1, 2: Int
-    store %box, %v_8, 4
-    jmp b_7
-  }
-
-  b_7 {
-    %v_9 = loads %box, 4: Int
-    ret %v_9
-  }
-}
-
-neitherArmWrites<complex>(%box: Ptr, %which: Int): Int {
-  b_0 {
-    %v_1 = loads %box, 4: Int
-    %v_2 = cmp_ilt %v_1, 100: Int
-    %v_3 = and %v_2, %which: Int
-    je %v_3, b_4, b_5
-  }
-
-  b_4 {
-    jmp b_6
-  }
-
-  b_5 {
-    jmp b_6
-  }
-
-  b_6 {
-    %v_7 = phi [b_4, 1], [b_5, 2]: Int
-    %v_8 = add %v_1, %v_7: Int
-    ret %v_8
-  }
-}
-
-chained<complex>(%box: Ptr, %grow: Int): Int {
-  b_0 {
-    %v_1 = loads %box, 4: Int
-    %v_2 = and %v_1, 1023: Int
-    %v_3 = imul %v_2, 3: Int
-    %v_4 = cmp_igt %v_3, 100: Int
-    %v_5 = and %v_4, %grow: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    store %box, 7, 4
-    jmp b_8
-  }
-
-  b_7 {
-    jmp b_8
-  }
-
-  b_8 {
-    %v_9 = phi [b_7, %v_3], [b_6, 21]: Int
-    ret %v_9
-  }
-}
-
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
@@ -109,178 +35,33 @@ main<complex>(): Int {
     je %v_4, b_5, b_6
   }
 
-  b_5 {
-    ret 18446744073709551615
-  }
-
   b_6 {
-    jmp b_7
-  }
-
-  b_7 {
-    %v_8 = alloca 8, 4: Ptr
-    store %v_8, 5, 4
-    %v_9 = add %v_8, 4: Ptr
-    store %v_9, 0, 4
-    %v_10 = call_complex recovered, %v_8, 0: Int
-    %v_11 = cmp_neq %v_10, 5: Int
-    je %v_11, b_12, b_13
+    %v_7 = alloca 8, 4: Ptr
+    store %v_7, 5, 4
+    %v_8 = add %v_7, 4: Ptr
+    store %v_8, 0, 4
+    %v_9 = call_complex recovered, %v_7, 0: Int
+    %v_10 = cmp_neq %v_9, 5: Int
+    je %v_10, b_11, b_12
   }
 
   b_12 {
+    %v_13 = alloca 8, 4: Ptr
+    store %v_13, 500, 4
+    %v_14 = add %v_13, 4: Ptr
+    store %v_14, 0, 4
+    %v_15 = call_complex recovered, %v_13, 1: Int
+    %v_16 = cmp_neq %v_15, 500: Int
+    %v_17 = select %v_16, 18446744073709551613, 0: Int
+    ret %v_17
+  }
+
+  b_11 {
     ret 18446744073709551614
   }
 
-  b_13 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = alloca 8, 4: Ptr
-    store %v_15, 500, 4
-    %v_16 = add %v_15, 4: Ptr
-    store %v_16, 0, 4
-    %v_17 = call_complex recovered, %v_15, 1: Int
-    %v_18 = cmp_neq %v_17, 500: Int
-    je %v_18, b_19, b_20
-  }
-
-  b_19 {
-    ret 18446744073709551613
-  }
-
-  b_20 {
-    jmp b_21
-  }
-
-  b_21 {
-    %v_22 = alloca 8, 4: Ptr
-    store %v_22, 5, 4
-    %v_23 = add %v_22, 4: Ptr
-    store %v_23, 0, 4
-    %v_24 = call_complex bothArmsWrite, %v_22, 1: Int
-    %v_25 = cmp_neq %v_24, 6: Int
-    je %v_25, b_26, b_27
-  }
-
-  b_26 {
-    ret 18446744073709551612
-  }
-
-  b_27 {
-    jmp b_28
-  }
-
-  b_28 {
-    %v_29 = alloca 8, 4: Ptr
-    store %v_29, 5, 4
-    %v_30 = add %v_29, 4: Ptr
-    store %v_30, 0, 4
-    %v_31 = call_complex bothArmsWrite, %v_29, 0: Int
-    %v_32 = cmp_neq %v_31, 7: Int
-    je %v_32, b_33, b_34
-  }
-
-  b_33 {
-    ret 18446744073709551611
-  }
-
-  b_34 {
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = alloca 8, 4: Ptr
-    store %v_36, 5, 4
-    %v_37 = add %v_36, 4: Ptr
-    store %v_37, 0, 4
-    %v_38 = call_complex neitherArmWrites, %v_36, 1: Int
-    %v_39 = cmp_neq %v_38, 6: Int
-    je %v_39, b_40, b_41
-  }
-
-  b_40 {
-    ret 18446744073709551610
-  }
-
-  b_41 {
-    jmp b_42
-  }
-
-  b_42 {
-    %v_43 = alloca 8, 4: Ptr
-    store %v_43, 5, 4
-    %v_44 = add %v_43, 4: Ptr
-    store %v_44, 0, 4
-    %v_45 = call_complex neitherArmWrites, %v_43, 0: Int
-    %v_46 = cmp_neq %v_45, 7: Int
-    je %v_46, b_47, b_48
-  }
-
-  b_47 {
-    ret 18446744073709551609
-  }
-
-  b_48 {
-    jmp b_49
-  }
-
-  b_49 {
-    %v_50 = alloca 8, 4: Ptr
-    store %v_50, 50, 4
-    %v_51 = add %v_50, 4: Ptr
-    store %v_51, 0, 4
-    %v_52 = call_complex chained, %v_50, 1: Int
-    %v_53 = cmp_neq %v_52, 21: Int
-    je %v_53, b_54, b_55
-  }
-
-  b_54 {
-    ret 18446744073709551608
-  }
-
-  b_55 {
-    jmp b_56
-  }
-
-  b_56 {
-    %v_57 = alloca 8, 4: Ptr
-    store %v_57, 5, 4
-    %v_58 = add %v_57, 4: Ptr
-    store %v_58, 0, 4
-    %v_59 = call_complex chained, %v_57, 1: Int
-    %v_60 = cmp_neq %v_59, 15: Int
-    je %v_60, b_61, b_62
-  }
-
-  b_61 {
-    ret 18446744073709551607
-  }
-
-  b_62 {
-    jmp b_63
-  }
-
-  b_63 {
-    %v_64 = alloca 8, 4: Ptr
-    store %v_64, 50, 4
-    %v_65 = add %v_64, 4: Ptr
-    store %v_65, 0, 4
-    %v_66 = call_complex chained, %v_64, 0: Int
-    %v_67 = cmp_neq %v_66, 150: Int
-    je %v_67, b_68, b_69
-  }
-
-  b_68 {
-    ret 18446744073709551606
-  }
-
-  b_69 {
-    jmp b_70
-  }
-
-  b_70 {
-    ret 0
+  b_5 {
+    ret 18446744073709551615
   }
 }
 

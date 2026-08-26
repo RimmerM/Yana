@@ -9,15 +9,15 @@ import Native
 
 data Pair(a, b) {first: a, second: b}
 
-fn pairOf(return x: 'Int, return y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
+fn pairOf(x: 'Int, y: 'Int) -> Pair('Int, 'Int) = Pair {first: x, second: y}
 
-fn firstOf(return x: 'Int, y: 'Int) -> 'Int = x
+fn firstOf(x: 'Int, y: 'Int) -> 'Int = x
 
 fn passThrough(return p: %U8) -> %U8 = p
 
 fn offsetOf(return p: %U8) -> %U8 = p + (1 :: Size)
 
-fn maybeOf(return x: 'Int) -> Maybe('Int) = Just(x)
+fn maybeOf(x: 'Int) -> Maybe('Int) = Just(x)
 
 -- And the caller side, so that the group is spent as well as declared: each result's last use is
 -- inside the extent of the storage it names.

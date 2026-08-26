@@ -178,7 +178,7 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
             return;
         }
 
-        if(last->convention != ast::BindType::Borrow || last->returnRoot) {
+        if(last->convention != ast::BindType::Borrow || last->returnRoot()) {
             context.diagnostics.error("a lens's continuation parameter cannot carry `&`, `->` or `return` - it is called, not stored, and its extent is the call"_v,
                                       last->source);
         }

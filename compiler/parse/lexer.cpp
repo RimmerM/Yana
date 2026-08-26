@@ -308,9 +308,10 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
         } else if(*p == '&') {
             token.type = Token::opAmp;
         } else if(*p == '\'') {
-            // The shared loan marker. A run it is part of is an ordinary VarSym, the same rule every
-            // other entry in tokens.def is read under - which is what leaves `&'` free to become one
-            // reserved lexeme when named loan groups arrive.
+            // The shared reference sigil, and the tail of a loan group's `label'`. A run it is part
+            // of is an ordinary VarSym, the same rule every other entry in tokens.def is read under
+            // - so `&'` is not a token, and it does not need to be: a group is written *inside* the
+            // capability (`&label'T`), never outside it.
             token.type = Token::opQuote;
         } else if(*p == '?') {
             // Only a `?` alone: a run it is part of - `??`, `<?>` - is still an ordinary VarSym, the
@@ -334,7 +335,7 @@ void Lexer::parseSymbol(Token& token, const char** start, U32* length, bool allo
             // leaves the function. A run rule that made them the same token sequence would make
             // the commoner of the two the one nobody can write.
             token.type = Token::opQuestionDot;
-        }  else if(*p == '<' && p[1] == '-') {
+        } else if(*p == '<' && p[1] == '-') {
             // This is the reserved arrow-left operator.
             token.type = Token::opArrowL;
         } else if(*p == '-' && p[1] == '>') {

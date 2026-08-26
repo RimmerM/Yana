@@ -1,0 +1,31 @@
+-- A type that holds someone else's storage, and the signature that installs into one -
+-- Analysis-Borrows.md §4.3 and §4.7.
+--
+-- §4.3: a field names its own loan origin, and the labels are collected from the field types into
+-- the type's slots. There is no `data Store(kept', a)` header to write - a slot is not a type
+-- parameter, has no runtime existence and takes no descriptor, so writing one after the name would
+-- make a lifetime look like one.
+--
+-- §4.7: returning a reference is only one way a loan can outlive a call. A function can also
+-- install one in a caller-owned destination, and this is the contract for that: the destination
+-- type exposes a slot, the incoming parameter is assigned to that slot's group, and the caller
+-- proves the owner of the value stays valid for as long as it keeps the destination.
+
+data Cell {value: Int}
+
+-- The slot, named by the field that needs it.
+data Store {held: kept'Cell}
+
+-- The binding, at the use. `Store(kept')` is exactly the type `Store` - the same interning, the same
+-- layout, the same instance selection - and what the argument adds is a fact about this *parameter*:
+-- it is in the group `kept`, and so is `value`. §8.2's "keep group identity out of runtime layout
+-- and ordinary nominal dispatch" is what makes that the right place for it.
+fn remember(&store: Store(kept'), value: kept'Cell) -> {}:
+    store.held = value
+
+fn main() -> Int:
+    let &source = Cell {value: 7}
+    let &box = Store {held: source}
+
+    remember(box, source)
+    return box.held.value

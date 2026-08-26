@@ -89,6 +89,34 @@ alias X = Pair('Int, &Int)
 -- apart and neither can a reader.
 alias X = Pair('a, 'b)
 
+-- The channel §9.3 settled on: the group carries a *trailing* tick, so `v'a` is a reference in
+-- group `v` and `v'` alone is the group itself - Analysis-Borrows.md §4.2 and §4.7. The two are one
+-- token of lookahead apart and nothing that can begin a type also ends an argument list, which is
+-- what makes the pair unambiguous where the leading form above is not.
+alias X = src'Int
+alias X = src'[Int]
+alias X = src'(&Int)
+alias X = Maybe(src'Int)
+alias X = Pair(left'Int, right'Int)
+
+-- The capability sits outside the group, and there is no `&'`: a group is written *inside* the
+-- capability, so `&Int` and `&src'Int` are the two forms and `&'Int` is not one. A bare tick is the
+-- shared sigil, which is what `&` already replaces.
+alias X = &src'Int
+alias X = Maybe(&src'Int)
+
+-- Nesting, which needs no rule of its own once a reference is one atom.
+alias X = src'(dst'Int)
+alias X = Pair(src'Int, &src'Int)
+
+-- And the group itself, which is what the lookahead is for - §4.7's `Store(kept', a)`. It is a type
+-- *argument* and never a type, so the parser produces it here and the resolver refuses it anywhere
+-- a slot was not declared, which is exactly the division a const-generic count is under.
+alias X = Store(kept')
+alias X = Store(kept', a)
+alias X = Store(a, kept')
+alias X = Store(kept', kept'a)
+
 -- RefType (checked reference).
 alias X = *X
 alias X = *[Int]

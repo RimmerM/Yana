@@ -1791,7 +1791,7 @@ void ExprResolver::prepareArguments(ModulePtr<Function> callee, Buffer<ResolvedA
         auto expected = substituted(declared->type, typeArgs, source);
 
         if(declared->isMutableBorrow()) {
-            out.push(borrowArgument(args[i].value, expected, source, declared->returnRoot));
+            out.push(borrowArgument(args[i].value, expected, source, declared->returnRoot()));
             continue;
         }
 
@@ -1824,7 +1824,7 @@ void ExprResolver::prepareArguments(ModulePtr<Function> callee, Buffer<ResolvedA
          * a copy is what the return-root check calls invalid - so no loan is the right answer as
          * well as the working one.
          */
-        if(declared->returnRoot && value && isMemoryType(global, expected)) {
+        if(declared->returnRoot() && value && isMemoryType(global, expected)) {
             if(auto place = findPlace(value)) {
                 value = borrowPlace(place.unwrap(), resolveBorrowType(module, expected, false),
                                     source, true);

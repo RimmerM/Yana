@@ -86,7 +86,10 @@ static StringId declaringFile(Module& module, TypePtr type) {
     if(value->kind != Type::Record) return StringId();
 
     auto record = (RecordType*)value;
-    if(record->instanceOf || record->gen) return StringId();
+    // `generic` and not `gen`: every record has a loan-slot environment now - Analysis-Borrows.md
+    // §4.3 - and only one with type variables in it is a generic declaration. A slot is not a type
+    // parameter and does not make a declaration one.
+    if(record->instanceOf || record->generic) return StringId();
     if(record->source == kNullLocation) return StringId();
 
     auto location = module.context.getLocation(record->source);

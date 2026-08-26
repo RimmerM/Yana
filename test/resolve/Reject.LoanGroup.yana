@@ -1,0 +1,60 @@
+-- What splitting a signature's loan groups rejects - Analysis-Borrows.md §4.2 and §8.2.
+-- Each function is one rule.
+
+data Cell {value: Int}
+
+-- A result in a group no parameter is in. The old count - "is anything marked" - passes, because
+-- both parameters carry a marker; what it cannot see is that neither carries *this* one, so the
+-- result is a loan of nothing.
+fn emptyGroup(a: l'Cell, b: r'Cell) -> x'Cell = a
+
+-- The same with one parameter, which is the shape a typo takes: the group on the result is not the
+-- group on the parameter, and nothing else in the signature says so.
+fn mistyped(a: src'Cell) -> dst'Cell = a
+
+-- A loan group written in an alias. §4.3 gives a `data` declaration a slot to bind a label to; an
+-- alias has none, so a label here would be numbered in the alias's own environment and collide with
+-- the groups of whichever signature used it.
+alias Loose = src'Cell
+
+-- Resolved on use, so the alias needs one. The two errors after the group's are the cascade: with
+-- the group refused the result is an ordinary `'Cell`, which nothing in the signature roots.
+fn usesLoose(a: Cell) -> Loose = a
+
+-- A record *is* allowed to name its field origins - that is §4.3, and `LoanSlot.yana` is where it
+-- is exercised. What is still refused is a use that does not bind the slot: the field's group is
+-- numbered in the record's own environment, so a signature reading it without a binding would be
+-- reading an index that means something else there.
+data Cursor(a) {at: src'Cell, tag: a}
+
+fn unbound(c: Cursor(Int)) -> src'Cell = c.at
+
+-- The group stated twice. `return` means the signature's one anonymous group and the tick on the
+-- type names a group of its own, so one of the two would have to win silently. The bare `'` marker
+-- that used to be writable here is gone: the name area holds the binding convention and the name
+-- and nothing else, so that argument patterns can have it.
+fn statedTwice(return a: src'Cell) -> src'Cell = a
+
+-- (`&a: src'Cell` used to be refused here as a capability written twice. It is now the canonical
+-- spelling - the sigil carries the capability and the tick carries the group, each axis written
+-- once - and it means the same declaration as `a: &src'Cell`, since an exclusive reference in a
+-- parameter's type folds into the convention. See LoanGroup.yana.)
+
+-- A result reference that names no group, where the signature has more than one. `-> &Cell` is a
+-- complete contract while there is one relationship to be in - it is what the whole library writes
+-- - and says nothing at all once there are two. §4.8 rule 5's safe form: where the count is not
+-- one the rule does not apply and the signature is rejected, because the alternative is picking.
+fn underSpecified(a: &l'Cell, b: &r'Cell) -> &Cell = a
+
+-- And the loan the groups keep apart is still a loan: `keeps` says the result is rooted in `a`, so
+-- writing through `a` while the result lives is two writers of one place, exactly as it is when
+-- there is one group. Splitting says which arguments are free, not that any of them are.
+fn keeps(a: &l'Cell, b: &r'Cell) -> &l'Cell = a
+
+fn writesThroughRoot() -> Int:
+    let &first = Cell {value: 1}
+    let &second = Cell {value: 2}
+    let &picked = keeps(first, second)
+
+    first.value = 5
+    return picked.value

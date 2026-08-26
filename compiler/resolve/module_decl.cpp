@@ -365,6 +365,20 @@ static RecordType* declareRecordType(Module& module, ast::SimpleType& type, ast:
     if(variables.isNotEmpty() || constraints.isNotEmpty()) {
         record->gen = prepareGenEnv(module, GenEnv::Record, variables, constraints);
         record->generic = (*module.types)[record->gen]->types.isNotEmpty();
+    } else {
+        /*
+         * A record with no type variables still needs somewhere to number its loan slots -
+         * Analysis-Borrows.md §4.3, where a field names its own origin and the labels are collected
+         * from the field types.
+         *
+         * An empty environment rather than a null one, so that `data Parser {input: src'Node}` has
+         * the same place to introduce `src` into that a generic declaration does. `generic` stays
+         * false, because a slot is not a type parameter: it has no runtime existence, takes no
+         * descriptor and is not part of what an instantiation is made of - which is §8.2's "keep
+         * group identity out of runtime layout and ordinary nominal dispatch", and is why one is
+         * not written after the type's name.
+         */
+        record->gen = prepareGenEnv(module, GenEnv::Record, variables, constraints);
     }
 
     return record;

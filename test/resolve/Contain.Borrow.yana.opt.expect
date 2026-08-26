@@ -579,9 +579,9 @@ fn resize(Int)(%self: Run(Int), %wanted: Size) -> Bool {
     ret True
 }
 
-fn mutate(%f: &Flags) -> Int {
+fn mutate(%f: Flags) -> Int {
   b0:
-    assign [%f]@Flags.read, True
+    assign %f@Flags.read, True
     ret 0
 }
 

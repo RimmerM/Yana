@@ -3,7 +3,14 @@
 -- NestedBorrow.yana is the accepting half. Both halves are about the same relation: a record that
 -- holds a reference is a reference, however many records are wrapped around it and however many
 -- calls it travelled through, and the signature has to say which argument keeps it alive.
+--
+-- The undeclared side is written with **tickless** parameters, and that is a consequence of the
+-- loan-group rule rather than a preference: a tick on a parameter's type is itself the declaration
+-- that the storage is the caller's (Analysis-Borrows.md §3.1 and §8.2), so `n: 'Int` cannot be an
+-- undeclared root - there is no way left to write one. `n: Cell` is §3.1's ordinary parameter,
+-- whose loan ends with the call, and a reference reached through it is what these return.
 
+data Cell {value: Int}
 data L1 {r: 'Int}
 data L2 {a: L1}
 data L3 {a: L2}
@@ -14,20 +21,20 @@ data L5 {a: L4}
 -- the Record and the Tup its constructor holds - so the reference in `L5` sat one level past the
 -- bound. `checkReturnRoots` asked "does the result contain a borrow", was told no, and returned
 -- before asking anything else. Every one of these is reported now.
-fn wrap1(n: 'Int) -> L1 = L1 {r: n}
-fn wrap5(n: 'Int, inner: L4) -> L5 = L5 {a: inner}
+fn wrap1(n: Cell) -> L1 = L1 {r: n.value}
+fn wrap5(n: Cell, inner: L4) -> L5 = L5 {a: inner}
 
 -- **Composition through a call.** A result of memory type lands in a slot of its own, and only a
 -- *borrow-like* result had the callee's declared group joined into that slot. A record holding a
 -- reference is not borrow-like, so the group stopped crossing the call at the first aggregate that
 -- wrapped it: `deep2` below reads `deep1`'s result and used to look rooted in nothing.
-fn deep1(return n: 'Int) -> L1 = L1 {r: n}
+fn deep1(n: 'Int) -> L1 = L1 {r: n}
 
-fn deep2(n: 'Int) -> L2 = L2 {a: deep1(n)}
+fn deep2(n: Cell) -> L2 = L2 {a: deep1(n.value)}
 
 -- The same through two calls, so the relation is transitive rather than one level deep.
-fn deep3(return n: 'Int) -> L2 = L2 {a: deep1(n)}
+fn deep3(n: 'Int) -> L2 = L2 {a: deep1(n)}
 
-fn deep4(n: 'Int) -> L3 = L3 {a: deep3(n)}
+fn deep4(n: Cell) -> L3 = L3 {a: deep3(n.value)}
 
 fn main() -> Int = 0

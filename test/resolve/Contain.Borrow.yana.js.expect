@@ -16,8 +16,8 @@ function growJsArray_Int(self, wanted) {
 }
 
 // ResolveTest
-function mutate(f) {
-  f.$o[f.$k] = $b1u$set(f.$o[f.$k], f.$s, 1);
+function mutate(f$o, f$k, f$s) {
+  f$o[f$k] = $b1u$set(f$o[f$k], f$s, 1);
   return 0;
 }
 
@@ -63,7 +63,7 @@ function fill(n) {
 
 function main() {
   var v5 = { $v: 2 };
-  return ((mutate({ $o: v5, $k: "$v", $s: 1 }) + 10 | 0) + (v5.$v & 1 ? 100 : 200) | 0) + fill(3) | 0;
+  return ((mutate(v5, "$v", 1) + 10 | 0) + (v5.$v & 1 ? 100 : 200) | 0) + fill(3) | 0;
 }
 
 // bit ranges of a word wider than the host's operators - see codegen/js/place.cpp

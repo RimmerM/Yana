@@ -90,7 +90,7 @@ ModulePtr<Function> resolveClassDefault(Module& module, TypeClass& typeClass, as
         auto arg = (*module.arena)[argPointer];
         auto copied = function->addArg(module, arg->name, arg->type, arg->source);
         copied->convention = arg->convention;
-        copied->returnRoot = arg->returnRoot;
+        copied->loan = arg->loan;
         copied->lazyType = arg->lazyType;
     }
 

@@ -261,7 +261,7 @@ static ModulePtr<Function> generateInstanceFunction(Module& module, TypeClass& t
         auto created = function->addArg(module, declared->name,
                                         substituteType(module, declared->type, args, kNullLocation), kNullLocation);
         created->convention = declared->convention;
-        created->returnRoot = declared->returnRoot;
+        created->loan = declared->loan;
 
         if(declared->isLazy()) {
             created->lazyType = substituteType(module, declared->lazyType, args, kNullLocation);

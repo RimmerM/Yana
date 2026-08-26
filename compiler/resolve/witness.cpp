@@ -644,7 +644,7 @@ static ModulePtr<Function> erasedThunkFor(Module& module, GlobalPtr<TypeClass> t
         if(declared->isMutableBorrow()) {
             auto created = function->addArg(module, declared->name, concrete, source);
             created->convention = declared->convention;
-            created->returnRoot = declared->returnRoot;
+            created->loan = declared->loan;
 
             function->addLocal(module, concrete, declared->name, (ModulePtr<Value>)(created - local),
                                ast::BindType::Ref, true);

@@ -317,6 +317,9 @@ struct AnalysisScratch {
     LocalSet transferred;
     LocalSet releasesStorage;
 
+    // Where each root first escaped - see Analysis::escapeSite.
+    Array<ModulePtr<Inst>> escapeSite;
+
     ProvenanceList values;
     ProvenanceList contents;
 
@@ -456,6 +459,27 @@ struct Analysis {
      */
     LocalSet& outlives;
     LocalSet& escaped;
+
+    /*
+     * The instruction that put each root into `escaped`, or null for a root that is not in it.
+     *
+     * Analysis-Borrows.md §8.4 asks that an implementation retaining a loan its signature forbids
+     * be reported at "the storing instruction and the parameter declaration". The parameter is what
+     * `checkDeclaredExtents` had, and it is the half that says what the promise was; this is the
+     * half that says where it was broken, and without it the diagnostic names a signature and
+     * leaves the reader to find the write.
+     *
+     * *First*, not last, and the fixpoint is why: escapeRound runs to convergence, so a later round
+     * re-reaches a root through whatever else happens to name it, and the last writer is an
+     * arbitrary member of that set. The first is the seed - the instruction that made the fact true
+     * when it was not - which is the one worth pointing at. `markEscaped` therefore writes only on
+     * the transition, alongside the `changed` it already reports.
+     *
+     * Null is a real answer and not a missing case: `outlives` starts with every parameter set and
+     * escape closes over containment, so a root can be escaped by inheritance from a root that
+     * escaped elsewhere. A caller must print the parameter alone rather than assume a site.
+     */
+    Array<ModulePtr<Inst>>& escapeSite;
 
     /*
      * The part of `escaped` that something else now *owns*.

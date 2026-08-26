@@ -275,7 +275,7 @@ bool continuationSignature(ExprResolver& resolver, Module& module, ModulePtr<Fun
             type = substituted;
         }
 
-        out.push(FunArg { type, declared.name, declared.convention, declared.returnRoot });
+        out.push(FunArg { type, declared.name, declared.convention, declared.returnRoot() });
     }
 
     return true;

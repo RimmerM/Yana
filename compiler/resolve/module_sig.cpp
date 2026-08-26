@@ -8,7 +8,9 @@
  * compiles against.
  */
 
+#include <cstdio>
 #include "module_internal.h"
+#include "type_internal.h"
 #include "analyze.h"
 #include "const.h"
 #include "core.h"
@@ -34,13 +36,99 @@
  * Split out of resolveSignature() because an inferred result reaches it a pass later, once the body
  * has said what the type is - the rule is the same either way, only the timing differs.
  */
+/*
+ * Which of the unlabelled reference parameters are roots, which the *result* decides.
+ *
+ * A parameter whose type is a reference refers to the caller's storage - that is what a reference
+ * type says - and only a result that carries a loan makes it a root of one. `fn mutate(f: &Flags)
+ * -> Int` is the case: its parameter is the caller's and its loan still ends with the call, because
+ * there is no loan in the result for it to outlive into. So the two facts are kept apart, and this
+ * is where the second one is settled - the first point that has both the parameters and the result.
+ *
+ * Every unlabelled candidate joins one group rather than getting one each, which is §4.8 rule 1 and
+ * is what a conservative `return` group already did. It never picks between candidates, so rule 5's
+ * failure mode is not reachable from here: where the coarse group is too coarse, a label splits it.
+ *
+ * A *labelled* parameter is untouched. Writing a label is an explicit statement about a group, and
+ * it is checked against the result separately - see the empty-group case below.
+ */
+static void settleLoanCandidates(Module& module, Function& function) {
+    auto local = *module.arena;
+    auto carries = isBorrow(*module.types, function.returnType) ||
+                   containsBorrowLike(module, function.returnType);
+
+    auto roots = false;
+
+    for(auto argPointer: function.args.contents(local)) {
+        auto arg = local[argPointer];
+        if(arg->loan == kCandidateLoan) arg->loan = carries ? kAnonymousLoan : kNoLoan;
+        if(arg->loan != kNoLoan) roots = true;
+    }
+
+    if(roots) function.returnRoots = true;
+}
+
 void applyReturnRoots(Module& module, Function& function, LocationId source) {
+    settleLoanCandidates(module, function);
+
     if(!isBorrow(*module.types, function.returnType)) return;
 
     if(!function.returnRoots && !function.returnRootWritten) {
         module.context.diagnostics.error("a function returning a borrow must mark the argument it is rooted in with `return`"_v,
                                          source);
+        return;
     }
+
+    /*
+     * And the same rule once more, per group - Analysis-Borrows.md §4.2.
+     *
+     * The count above answers "is anything marked", which was the whole question while a signature
+     * had one group: a marked parameter and a borrowed result were necessarily in it. A label
+     * splits the group, and then a result can name a relationship that has no parameter in it -
+     * `fn f(l' a: Cell) -> r'Cell` passes the count and is rooted in nothing at all.
+     *
+     * Reported here rather than left to the borrow checker because it is a fact about the
+     * *signature*: every caller compiles against a contract that cannot be satisfied, and the body
+     * that would violate it may be in another module. The empty group is the diagnostic, and it is
+     * a better one than the frame-borrow error the body would eventually produce.
+     */
+    auto global = *module.types;
+    auto result = global[function.returnType];
+    auto group = result->kind == Type::Borrow ? ((BorrowType*)result)->loan : kNoLoan;
+
+    /*
+     * A result reference that names no group, in a signature that has more than one.
+     *
+     * `-> &Cell` is a complete contract while a signature has one loan relationship: the reference
+     * is in it, because there is nothing else for it to be in, and that is what every signature in
+     * `lib/` writes. What it cannot say is *which* of two, and the honest answer to that is not a
+     * guess - this is §4.8 rule 5 in its safe form, which is safe for exactly one reason: where the
+     * count is not one the rule does not apply and the signature is rejected. It never picks.
+     *
+     * Without this the result silently means every group at once, so a caller holds both arguments
+     * borrowed and the author is told about a borrow conflict at some call site rather than about
+     * the signature that caused it. That is the "a reference that is not a reference to anything"
+     * incoherence read from the other end: a signature that declared two candidates has to say
+     * which, and until it does there is no contract to compile a caller against.
+     */
+    if(group == kNoLoan) {
+        for(auto argPointer: function.args.contents(*module.arena)) {
+            if((*module.arena)[argPointer]->loan <= kAnonymousLoan) continue;
+
+            module.context.diagnostics.error("this result is a reference and does not say which loan group it is in, and this signature has more than one - so nothing says which argument it borrows from. Write the group on the result, as in `-> &src'T`"_v,
+                                             source);
+            return;
+        }
+
+        return;
+    }
+
+    for(auto argPointer: function.args.contents(*module.arena)) {
+        if((*module.arena)[argPointer]->loan == group) return;
+    }
+
+    module.context.diagnostics.error("the loan group this result is in has no parameter in it - a labelled group says the result is a loan of that group's arguments, and this one has none, so the result is rooted in nothing. Put the label on the parameter the result borrows from"_v,
+                                     source);
 }
 
 TypePtr requireReturnType(Module& module, Function& function, LocationId source) {
@@ -91,7 +179,7 @@ TypePtr requireReturnType(Module& module, Function& function, LocationId source)
 static void resolveArgumentDefault(Module& module, Arg& declared, const ast::Expr& expr, LocationId source) {
     auto global = *module.types;
 
-    if(declared.returnRoot) {
+    if(declared.returnRoot()) {
         module.context.diagnostics.error("a `return` parameter cannot have a default value - the marker says a borrow in the result may be rooted in this argument, and a call site that leaves it out has no storage of its own for the result to stay live in"_v,
                                          source);
         return;
@@ -184,7 +272,10 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
             }
         }
 
-        auto type = bindingType(module, *module.parse[arg.type], arg.bind, env);
+        // The loan group is written on the *type* - `&a: l'Cell` - and bindingType strips the
+        // reference and hands it back here. See its definition, and §4.2.
+        LoanGroup typeGroup = kNoLoan;
+        auto type = bindingType(module, *module.parse[arg.type], arg.bind, env, &typeGroup);
         auto lazy = arg.lazy && checkLazyArgument(module, arg.bind, arg.returnRoot, arg.source);
 
         /*
@@ -217,7 +308,24 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
         auto declared = function->addArg(module, arg.name, lazy ? resolveThunkType(module, type) : type,
                                          arg.source);
         declared->convention = arg.bind;
-        declared->returnRoot = arg.returnRoot;
+
+        /*
+         * The group, from whichever of the two places said it.
+         *
+         * A group on the type is the general spelling (§4.2) and says which relationship this
+         * parameter is in. The bare marker - `' self: c`, or `return` before it - has nowhere else
+         * to go, because `self`'s written type is the pointee and carries no reference to hang a
+         * group on; it means §4.8 rule 1's anonymous group, which is every marked parameter in
+         * `lib/`. Writing both is refused below rather than silently resolved one way.
+         */
+        declared->loan = typeGroup != kNoLoan ? typeGroup
+                       : arg.returnRoot       ? kAnonymousLoan
+                                              : kNoLoan;
+
+        if(typeGroup != kNoLoan && arg.returnRoot) {
+            module.context.diagnostics.error("this parameter states its loan group twice - `return` means the signature's one anonymous group, and the tick on the type names a group of its own. Write the group on the type and drop the `return`"_v,
+                                             arg.source);
+        }
 
         if(lazy) {
             declared->lazyType = type;
@@ -235,14 +343,15 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
         }
 
         // What may carry the marker is one rule shared with a written function type - see
-        // checkReturnRoot, which is where it and its diagnostics live.
-        if(arg.returnRoot) {
+        // checkReturnRoot, which is where it and its diagnostics live. A group on the type says the
+        // same thing about the same parameter, so it is held to the same rule.
+        if(arg.returnRoot || typeGroup != kNoLoan) {
             written++;
 
             if(checkReturnRoot(module, type, arg.bind, index, arg.source)) {
                 roots++;
             } else {
-                declared->returnRoot = false;
+                declared->loan = kNoLoan;
             }
         }
 

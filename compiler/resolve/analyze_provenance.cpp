@@ -122,6 +122,37 @@ FunctionSummary* summaryOf(Analysis& analysis, ModulePtr<Function> callee) {
     return summary.ready && !summary.opaque ? &summary : nullptr;
 }
 
+/*
+ * The loan group a result is in, or `kNoLoan` where reading it would not narrow anything.
+ *
+ * Analysis-Borrows.md §4.2: a signature's groups exist to say that two results carry loans of
+ * *different* parameters, so a result in one group is related to that group's members and to
+ * nothing else. This is the query that spends them, and the only one below resolve that does - a
+ * group has no runtime meaning (§8.2), so nothing after this reads it.
+ *
+ * Only a result that *is* a reference answers. A result that merely contains one - `Maybe('v)`, a
+ * record of two - is field-insensitive here exactly as provenance is everywhere else, and the
+ * honest answer for it is the one that was always given: every group at once. That keeps §4.2's
+ * `both` correct rather than precise, and precision for it needs the same slot map §6.6 wants.
+ *
+ * `kNoLoan` therefore means "join every group", not "join none". A signature with one group - which
+ * is every signature in `lib/`, per §4.8 - reaches the same set either way, which is what makes
+ * this a narrowing of the new case and not a change to any existing one.
+ */
+static LoanGroup resultLoanGroup(Analysis& analysis, TypePtr result) {
+    if(!result) return kNoLoan;
+
+    auto type = analysis.global[result];
+    return type->kind == Type::Borrow ? ((BorrowType*)type)->loan : kNoLoan;
+}
+
+// Whether one argument's loan is part of what a result in `group` may refer to. An argument in no
+// group cannot root anything; past that, `kNoLoan` on the result is the "cannot tell" above.
+static bool rootsResult(LoanGroup arg, LoanGroup group) {
+    if(arg == kNoLoan) return false;
+    return group == kNoLoan || arg == group;
+}
+
 // What a call's result may refer to, composed from the callee's declared return-root group. A
 // borrow coming out of a call is related to every member of that group at once, which is
 // Design.md's deliberate conservatism: the callee may have returned any of them.
@@ -138,10 +169,16 @@ static void callResultProvenance(Analysis& analysis, ModulePtr<Function> callee,
     }
 
     if(summary->resultBound == StorageBound::Arguments) {
+        auto declared = analysis.local[callee];
+        auto group = resultLoanGroup(analysis, type);
         U16 index = 0;
+
         for(auto arg: args.contents(analysis.local)) {
             if(summary->declaredRoots & (U64(1) << min(U16(63), index))) {
-                joinProvenance(into, provenanceOf(analysis, arg));
+                auto parameter = index < declared->args.size()
+                    ? analysis.local[declared->args.get(analysis.local, index)]->loan : kNoLoan;
+
+                if(rootsResult(parameter, group)) joinProvenance(into, provenanceOf(analysis, arg));
             }
 
             index++;
@@ -174,10 +211,14 @@ static void dynamicResultProvenance(Analysis& analysis, InstCallDyn& call, Prove
         return;
     }
 
+    auto group = resultLoanGroup(analysis, call.type);
     U16 index = 0;
+
     for(auto arg: call.args.contents(analysis.local)) {
         if(signature->returnRoots & (U64(1) << min(U16(63), index))) {
-            joinProvenance(into, provenanceOf(analysis, arg));
+            if(rootsResult(signature->args.get(analysis.global, index).loan, group)) {
+                joinProvenance(into, provenanceOf(analysis, arg));
+            }
         }
 
         index++;

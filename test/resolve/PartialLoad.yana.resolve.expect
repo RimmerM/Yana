@@ -1,18 +1,19 @@
 let image$base: () = <none>
 
-fn opaque(%box: &Box, %to: Int) -> () {
+fn opaque(%box: Box, %to: Int) -> () {
   b0:
-    assign [%box]@Box.value, %to
+    assign %box@Box.value, %to
     ret
 }
 
-fn recovered(%box: &Box, %grow: Bool) -> Int {
+fn recovered(%box: Box, %grow: Bool) -> Int {
   b0:
     %total = alloc : Int
     init %total, 0
-    %v5 = load [%box]@Box.value : Int
-    %v8 = cmp_lt %v5, 100 : Bool
-    je %v8, b1, b2
+    %v5 = load %box : Box
+    %v6 = load %box@Box.value : Int
+    %v9 = cmp_lt %v6, 100 : Bool
+    je %v9, b1, b2
 
   b1:
     jmp b3
@@ -21,32 +22,37 @@ fn recovered(%box: &Box, %grow: Bool) -> Int {
     jmp b3
 
   b3:
-    %v13 = phi [b1, %grow], [b2, False] : Bool
-    je %v13, b4, b5
+    %v14 = phi [b1, %grow], [b2, False] : Bool
+    je %v14, b4, b5
 
   b4:
-    %v15 = load [%box]@Box.value : Int
-    %v18 = add %v15, 1000 : Int
-    call opaque, %box, %v18
+    %v16 = load %box : Box
+    %v17 = load %box : Box
+    %v18 = load %box@Box.value : Int
+    %v21 = add %v18, 1000 : Int
+    %v22 = borrow_mut %box : &Box
+    call opaque, %v22, %v21
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v22 = load %total : Int
-    %v23 = load [%box]@Box.value : Int
-    %v24 = add %v22, %v23 : Int
-    assign %total, %v24
     %v26 = load %total : Int
-    ret %v26
+    %v27 = load %box : Box
+    %v28 = load %box@Box.value : Int
+    %v29 = add %v26, %v28 : Int
+    assign %total, %v29
+    %v31 = load %total : Int
+    ret %v31
 }
 
-fn bothArmsWrite(%box: &Box, %which: Bool) -> Int {
+fn bothArmsWrite(%box: Box, %which: Bool) -> Int {
   b0:
-    %v2 = load [%box]@Box.value : Int
-    %v5 = cmp_lt %v2, 100 : Bool
-    je %v5, b1, b2
+    %v2 = load %box : Box
+    %v3 = load %box@Box.value : Int
+    %v6 = cmp_lt %v3, 100 : Bool
+    je %v6, b1, b2
 
   b1:
     jmp b3
@@ -55,33 +61,41 @@ fn bothArmsWrite(%box: &Box, %which: Bool) -> Int {
     jmp b3
 
   b3:
-    %v10 = phi [b1, %which], [b2, False] : Bool
-    je %v10, b4, b5
+    %v11 = phi [b1, %which], [b2, False] : Bool
+    je %v11, b4, b5
 
   b4:
-    %v12 = load [%box]@Box.value : Int
-    %v15 = add %v12, 1 : Int
-    call opaque, %box, %v15
+    %v13 = load %box : Box
+    %v14 = load %box : Box
+    %v15 = load %box@Box.value : Int
+    %v18 = add %v15, 1 : Int
+    %v19 = borrow_mut %box : &Box
+    call opaque, %v19, %v18
     jmp b6
 
   b5:
-    %v17 = load [%box]@Box.value : Int
-    %v20 = add %v17, 2 : Int
-    call opaque, %box, %v20
+    %v21 = load %box : Box
+    %v22 = load %box : Box
+    %v23 = load %box@Box.value : Int
+    %v26 = add %v23, 2 : Int
+    %v27 = borrow_mut %box : &Box
+    call opaque, %v27, %v26
     jmp b6
 
   b6:
-    %v24 = load [%box]@Box.value : Int
-    ret %v24
+    %v31 = load %box : Box
+    %v32 = load %box@Box.value : Int
+    ret %v32
 }
 
-fn neitherArmWrites(%box: &Box, %which: Bool) -> Int {
+fn neitherArmWrites(%box: Box, %which: Bool) -> Int {
   b0:
     %side = alloc : Int
     init %side, 0
-    %v5 = load [%box]@Box.value : Int
-    %v8 = cmp_lt %v5, 100 : Bool
-    je %v8, b1, b2
+    %v5 = load %box : Box
+    %v6 = load %box@Box.value : Int
+    %v9 = cmp_lt %v6, 100 : Bool
+    je %v9, b1, b2
 
   b1:
     jmp b3
@@ -90,8 +104,8 @@ fn neitherArmWrites(%box: &Box, %which: Bool) -> Int {
     jmp b3
 
   b3:
-    %v13 = phi [b1, %which], [b2, False] : Bool
-    je %v13, b4, b5
+    %v14 = phi [b1, %which], [b2, False] : Bool
+    je %v14, b4, b5
 
   b4:
     assign %side, 1
@@ -102,19 +116,21 @@ fn neitherArmWrites(%box: &Box, %which: Bool) -> Int {
     jmp b6
 
   b6:
-    %v21 = load [%box]@Box.value : Int
-    %v22 = load %side : Int
-    %v23 = add %v21, %v22 : Int
-    ret %v23
+    %v22 = load %box : Box
+    %v23 = load %box@Box.value : Int
+    %v24 = load %side : Int
+    %v25 = add %v23, %v24 : Int
+    ret %v25
 }
 
-fn chained(%box: &Box, %grow: Bool) -> Int {
+fn chained(%box: Box, %grow: Bool) -> Int {
   b0:
-    %v2 = load [%box]@Box.value : Int
-    %v5 = and %v2, 1023 : Int
-    %v8 = mul %v5, 3 : Int
-    %v11 = cmp_gt %v8, 100 : Bool
-    je %v11, b1, b2
+    %v2 = load %box : Box
+    %v3 = load %box@Box.value : Int
+    %v6 = and %v3, 1023 : Int
+    %v9 = mul %v6, 3 : Int
+    %v12 = cmp_gt %v9, 100 : Bool
+    je %v12, b1, b2
 
   b1:
     jmp b3
@@ -123,21 +139,24 @@ fn chained(%box: &Box, %grow: Bool) -> Int {
     jmp b3
 
   b3:
-    %v16 = phi [b1, %grow], [b2, False] : Bool
-    je %v16, b4, b5
+    %v17 = phi [b1, %grow], [b2, False] : Bool
+    je %v17, b4, b5
 
   b4:
-    call opaque, %box, 7
+    %v19 = load %box : Box
+    %v21 = borrow_mut %box : &Box
+    call opaque, %v21, 7
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v22 = load [%box]@Box.value : Int
-    %v25 = and %v22, 1023 : Int
-    %v28 = mul %v25, 3 : Int
-    ret %v28
+    %v25 = load %box : Box
+    %v26 = load %box@Box.value : Int
+    %v29 = and %v26, 1023 : Int
+    %v32 = mul %v29, 3 : Int
+    ret %v32
 }
 
 fn main() -> Int {
@@ -145,8 +164,8 @@ fn main() -> Int {
     %v0 = alloc : Box
     aggregate %a@Box.value = 5, %a@Box.other = 0
     %v4 = load %a : Box
-    %v5 = borrow_mut %a : &Box
-    %v7 = call recovered, %v5, True : Int
+    %v6 = borrow_mut %a : &Box
+    %v7 = call recovered, %v6, True : Int
     %v10 = cmp_ne %v7, 1005 : Bool
     je %v10, b1, b2
 
@@ -161,8 +180,8 @@ fn main() -> Int {
     %v17 = alloc : Box
     aggregate %b@Box.value = 5, %b@Box.other = 0
     %v21 = load %b : Box
-    %v22 = borrow_mut %b : &Box
-    %v24 = call recovered, %v22, False : Int
+    %v23 = borrow_mut %b : &Box
+    %v24 = call recovered, %v23, False : Int
     %v27 = cmp_ne %v24, 5 : Bool
     je %v27, b4, b5
 
@@ -177,8 +196,8 @@ fn main() -> Int {
     %v34 = alloc : Box
     aggregate %c@Box.value = 500, %c@Box.other = 0
     %v38 = load %c : Box
-    %v39 = borrow_mut %c : &Box
-    %v41 = call recovered, %v39, True : Int
+    %v40 = borrow_mut %c : &Box
+    %v41 = call recovered, %v40, True : Int
     %v44 = cmp_ne %v41, 500 : Bool
     je %v44, b7, b8
 
@@ -193,8 +212,8 @@ fn main() -> Int {
     %v51 = alloc : Box
     aggregate %d@Box.value = 5, %d@Box.other = 0
     %v55 = load %d : Box
-    %v56 = borrow_mut %d : &Box
-    %v58 = call bothArmsWrite, %v56, True : Int
+    %v57 = borrow_mut %d : &Box
+    %v58 = call bothArmsWrite, %v57, True : Int
     %v61 = cmp_ne %v58, 6 : Bool
     je %v61, b10, b11
 
@@ -209,8 +228,8 @@ fn main() -> Int {
     %v68 = alloc : Box
     aggregate %e@Box.value = 5, %e@Box.other = 0
     %v72 = load %e : Box
-    %v73 = borrow_mut %e : &Box
-    %v75 = call bothArmsWrite, %v73, False : Int
+    %v74 = borrow_mut %e : &Box
+    %v75 = call bothArmsWrite, %v74, False : Int
     %v78 = cmp_ne %v75, 7 : Bool
     je %v78, b13, b14
 
@@ -225,8 +244,8 @@ fn main() -> Int {
     %v85 = alloc : Box
     aggregate %f@Box.value = 5, %f@Box.other = 0
     %v89 = load %f : Box
-    %v90 = borrow_mut %f : &Box
-    %v92 = call neitherArmWrites, %v90, True : Int
+    %v91 = borrow_mut %f : &Box
+    %v92 = call neitherArmWrites, %v91, True : Int
     %v95 = cmp_ne %v92, 6 : Bool
     je %v95, b16, b17
 
@@ -241,8 +260,8 @@ fn main() -> Int {
     %v102 = alloc : Box
     aggregate %g@Box.value = 5, %g@Box.other = 0
     %v106 = load %g : Box
-    %v107 = borrow_mut %g : &Box
-    %v109 = call neitherArmWrites, %v107, False : Int
+    %v108 = borrow_mut %g : &Box
+    %v109 = call neitherArmWrites, %v108, False : Int
     %v112 = cmp_ne %v109, 7 : Bool
     je %v112, b19, b20
 
@@ -257,8 +276,8 @@ fn main() -> Int {
     %v119 = alloc : Box
     aggregate %h@Box.value = 50, %h@Box.other = 0
     %v123 = load %h : Box
-    %v124 = borrow_mut %h : &Box
-    %v126 = call chained, %v124, True : Int
+    %v125 = borrow_mut %h : &Box
+    %v126 = call chained, %v125, True : Int
     %v129 = cmp_ne %v126, 21 : Bool
     je %v129, b22, b23
 
@@ -273,8 +292,8 @@ fn main() -> Int {
     %v136 = alloc : Box
     aggregate %i@Box.value = 5, %i@Box.other = 0
     %v140 = load %i : Box
-    %v141 = borrow_mut %i : &Box
-    %v143 = call chained, %v141, True : Int
+    %v142 = borrow_mut %i : &Box
+    %v143 = call chained, %v142, True : Int
     %v146 = cmp_ne %v143, 15 : Bool
     je %v146, b25, b26
 
@@ -289,8 +308,8 @@ fn main() -> Int {
     %v153 = alloc : Box
     aggregate %j@Box.value = 50, %j@Box.other = 0
     %v157 = load %j : Box
-    %v158 = borrow_mut %j : &Box
-    %v160 = call chained, %v158, False : Int
+    %v159 = borrow_mut %j : &Box
+    %v160 = call chained, %v159, False : Int
     %v163 = cmp_ne %v160, 150 : Bool
     je %v163, b28, b29
 

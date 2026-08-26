@@ -585,7 +585,7 @@ void resolveInstance(Module& module, ast::Decl& decl) {
             auto implArg = function->addArg(module, declared.name ? declared.name : classArg->name,
                                             expectedType, declared.source);
             implArg->convention = classArg->convention;
-            implArg->returnRoot = classArg->returnRoot;
+            implArg->loan = classArg->loan;
             if(classArg->isLazy()) implArg->lazyType = expectedDeclared;
         }
 

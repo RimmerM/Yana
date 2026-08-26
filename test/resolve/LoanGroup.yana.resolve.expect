@@ -1,0 +1,147 @@
+let image$base: () = <none>
+
+fn keepsBoth(%a: Cell, %b: Cell) -> &1'Cell {
+  b0:
+    %v2 = load %a : Cell
+    %v3 = load %a@Cell.value : Int
+    %v4 = load %b : Cell
+    %v5 = load %b@Cell.value : Int
+    %v6 = cmp_gt %v3, %v5 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = load %a : Cell
+    %v9 = borrow_mut %a : &1'Cell
+    jmp b3
+
+  b2:
+    %v10 = load %b : Cell
+    %v11 = borrow_mut %b : &1'Cell
+    jmp b3
+
+  b3:
+    %v14 = phi [b1, %v9], [b2, %v11] : &1'Cell
+    ret %v14
+}
+
+fn keepsBothMarked(%a: Cell, %b: Cell) -> &Cell {
+  b0:
+    %v2 = load %a : Cell
+    %v3 = load %a@Cell.value : Int
+    %v4 = load %b : Cell
+    %v5 = load %b@Cell.value : Int
+    %v6 = cmp_gt %v3, %v5 : Bool
+    je %v6, b1, b2
+
+  b1:
+    %v8 = load %a : Cell
+    %v9 = borrow_mut %a : &Cell
+    jmp b3
+
+  b2:
+    %v10 = load %b : Cell
+    %v11 = borrow_mut %b : &Cell
+    jmp b3
+
+  b3:
+    %v14 = phi [b1, %v9], [b2, %v11] : &Cell
+    ret %v14
+}
+
+fn keepsLeft(%a: Cell, %b: Cell) -> &1'Cell {
+  b0:
+    %v2 = load %a : Cell
+    %v3 = borrow_mut %a : &1'Cell
+    ret %v3
+}
+
+fn keepsRight(%left: 2'Cell, %right: 1'Cell) -> 1'Cell {
+  b0:
+    ret %right
+}
+
+fn viaValue(%f: (&1' a: Cell, &2' b: Cell) -> &1'Cell) -> Int {
+  b0:
+    %v1 = alloc : Cell
+    aggregate %first@Cell.value = 3
+    %v4 = alloc : Cell
+    aggregate %second@Cell.value = 4
+    %v7 = load %first : Cell
+    %v8 = load %second : Cell
+    %v9 = borrow_mut %first : &Cell
+    %v10 = borrow_mut %second : &Cell
+    %v11 = calldyn %f, %v9, %v10 : &1'Cell
+    assign %second@Cell.value, 7
+    %v14 = load [%v11] : Cell
+    %v15 = load [%v11]@Cell.value : Int
+    %v16 = load %second : Cell
+    %v17 = load %second@Cell.value : Int
+    %v18 = add %v15, %v17 : Int
+    ret %v18
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Cell
+    aggregate %first@Cell.value = 3
+    %v3 = alloc : Cell
+    aggregate %second@Cell.value = 4
+    %v6 = load %first : Cell
+    %v7 = load %second : Cell
+    %v8 = borrow_mut %first : &Cell
+    %v9 = borrow_mut %second : &Cell
+    %v10 = call keepsLeft, %v8, %v9 : &1'Cell
+    assign %second@Cell.value, 7
+    %v13 = load [%v10] : Cell
+    %v14 = load [%v10]@Cell.value : Int
+    %v15 = load %second : Cell
+    %v16 = load %second@Cell.value : Int
+    %v17 = add %v14, %v16 : Int
+    assign [%v10]@Cell.value, %v17
+    %v19 = alloc : Cell
+    aggregate %third@Cell.value = 1
+    %v22 = alloc : Cell
+    aggregate %fourth@Cell.value = 2
+    %v25 = load %third : Cell
+    %v26 = borrow %third : 2'Cell
+    %v27 = load %fourth : Cell
+    %v28 = borrow %fourth : 1'Cell
+    %v29 = call keepsRight, %v26, %v28 : 1'Cell
+    assign %third@Cell.value, 9
+    %v32 = alloc : Cell
+    aggregate %fifth@Cell.value = 6
+    %v35 = alloc : Cell
+    aggregate %sixth@Cell.value = 8
+    %v38 = load %fifth : Cell
+    %v39 = load %sixth : Cell
+    %v40 = borrow_mut %fifth : &Cell
+    %v41 = borrow_mut %sixth : &Cell
+    %v42 = call keepsBothMarked, %v40, %v41 : &Cell
+    %v43 = load [%v10] : Cell
+    %v44 = load [%v10]@Cell.value : Int
+    %v45 = load [%v29] : Cell
+    %v46 = load [%v29]@Cell.value : Int
+    %v47 = add %v44, %v46 : Int
+    %v48 = load %third : Cell
+    %v49 = load %third@Cell.value : Int
+    %v50 = add %v47, %v49 : Int
+    %v51 = load [%v42] : Cell
+    %v52 = load [%v42]@Cell.value : Int
+    %v53 = add %v50, %v52 : Int
+    %v54 = alloc : (&1' a: Cell, &2' b: Cell) -> &1'Cell
+    %v55 = symbol funvalue$keepsLeft : %()
+    init %local6.code, %v55
+    %v58 = cast 0 : %()
+    init %local6.env, %v58
+    %v60 = call viaValue, %v54 : Int
+    %v61 = add %v53, %v60 : Int
+    ret %v61
+}
+
+fn funvalue$keepsLeft(%env: %(), %a: Cell, %b: Cell) -> &1'Cell {
+  b0:
+    %v3 = borrow_mut %a : &Cell
+    %v4 = borrow_mut %b : &Cell
+    %v5 = call keepsLeft, %v3, %v4 : &1'Cell
+    ret %v5
+}

@@ -316,7 +316,7 @@ bool argumentCanFlatten(OptContext& opt, Function& function, Size index) {
      * Declining it meant a `Flat` was allocated by the caller *to be passed*, taken apart by nobody,
      * and rebuilt to be returned - Implementation-Simplification.md §16's first paragraph.
      */
-    if(arg->returnRoot && summary.namesStorage) return false;
+    if(arg->returnRoot() && summary.namesStorage) return false;
 
     auto type = arg->type;
     if(!isMemoryType(opt.global, type)) return false;

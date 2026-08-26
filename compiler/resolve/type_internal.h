@@ -33,3 +33,9 @@
 // rather than null for exactly that reason.
 TypePtr errorType(Module& module, LocationId source, StringView message);
 
+// A written loan label, as a group index, introducing it into `env` if this is its first occurrence.
+// `unlabelled` is what no label means here, which differs between a parameter marker and a type -
+// see the definition.
+LoanGroup resolveLoanGroup(Module& module, GenEnv* env, StringId label, LocationId source,
+                           LoanGroup unlabelled = kNoLoan);
+

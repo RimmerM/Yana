@@ -70,7 +70,7 @@ bool deriveSummary(Analysis& analysis) {
         auto slot = backingLocal(analysis, (ModulePtr<Value>)argPointer);
 
         ArgSummary updated;
-        updated.returnRoot = arg->returnRoot;
+        updated.returnRoot = arg->returnRoot();
 
         if(slot != maxLimit<U32>) {
             updated.requirements = analysis.demand[slot];
@@ -82,7 +82,7 @@ bool deriveSummary(Analysis& analysis) {
         // this body turns out to do with it. The signature is the contract, not the body.
         if(arg->isMutableBorrow()) updated.requirements.mutation = MutationDemand::Writable;
 
-        if(arg->returnRoot) declared |= rootBit(index);
+        if(arg->returnRoot()) declared |= rootBit(index);
 
         if(!(summary.args.get(analysis.local, index) == updated)) {
             summary.args.set(analysis.local, index, updated);

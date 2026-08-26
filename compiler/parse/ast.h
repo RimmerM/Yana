@@ -153,6 +153,21 @@ struct Type {
          * still letting the one constructor that needs a number take one.
          */
         Lit,
+
+        /*
+         * A loan group written where a type argument is - `Store(kept', a)`, §4.7 and §9.3.
+         *
+         * A kind of its own for the same reason `Lit` is one: the position takes a type, and this
+         * is the one thing written there that is not one. A *bare* positional group cannot work -
+         * `Store('kept)` already parses as `Store` applied to a shared reference to the variable
+         * `kept`, which `test/parser/Type.yana` pins - so the trailing tick is what says the
+         * argument fills a slot rather than a type parameter.
+         *
+         * `name` is the group's label. Like `Lit`, it is deliberately not accepted as a type:
+         * resolveType reports it, and the only readers are the two positions that are asking for a
+         * slot rather than for a type.
+         */
+        Loan,
     };
 
     struct MapPayload {
@@ -165,9 +180,27 @@ struct Type {
         ParsePtr<Expr> length;
     };
 
+    /*
+     * `Kind::Borrow` and `Kind::Shared` - the reference, and the loan group it was written in.
+     *
+     * `to` is first so that it aliases the union's bare `to`, which is what every reader of a
+     * reference's target already uses and what keeps this from touching them. `group` is null for
+     * the signature's one anonymous group, which is Analysis-Borrows.md §4.8 rule 1 and every
+     * reference written in `lib/`.
+     *
+     * A name here and an index in the semantic type: a group is signature-local (see LoanGroup), so
+     * the name exists to match one occurrence against another within one signature and to say which
+     * one a diagnostic is about, and nothing outside the signature can refer to it.
+     */
+    struct RefPayload {
+        ParsePtr<Type> to;
+        StringId group;
+    };
+
     union {
         StringId name;
         ParsePtr<Type> to;
+        struct RefPayload ref;
         ParsePtr<FunType> fun;
         ParsePtr<AppType> app;
 
@@ -419,9 +452,11 @@ struct Arg {
     ParsePtr<Expr> def;     // nullable
     BindType bind;
 
-    // Set by the `return` marker: borrows in the function's result may be rooted in this
-    // argument. All marked arguments of one signature form a single return-root group, and
-    // the group is part of the function's type rather than of this declaration.
+    // Set by the `return` marker and by the `'` that replaces it: borrows in the function's result
+    // may be rooted in this argument, in the signature's one anonymous group. A *labelled* group is
+    // written on the parameter's type instead - `&a: src'T` - because that is where a group is
+    // written everywhere else; see Parser::ArgBinding. The group is part of the function's type
+    // rather than of this declaration.
     bool returnRoot = false;
 
     // Set by the `@lazy` marker: the argument is not evaluated at the call site, and reading the

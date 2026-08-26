@@ -393,9 +393,10 @@ inline void mapValueList(ModuleBase base, ModuleList<ModulePtr<Value>, false>& v
  * That is why `&T` exists as a type only where a borrow has to survive being handed to someone -
  * a result and the binding that receives one - rather than everywhere a parameter can appear.
  *
- * `returnRoot` is the `return` marker: a declaration that a borrow in the result may be rooted in
- * this argument. What it means for the caller is in FunctionSummary; what it means here is that
- * the loan created for this argument lasts until the last use of the result.
+ * `loan` is the `return` marker generalized - Analysis-Borrows.md §8.2. It is the loan group a
+ * borrow of this argument belongs to, or `kNoLoan` for §3.1's default, where the loan ends with the
+ * call. What a group means for the caller is in FunctionSummary; what it means here is that the
+ * loan created for this argument lasts until the last use of every result in the same group.
  *
  * `lazyType` is the `@lazy` marker, and it is the one place where the parameter's *declared* type
  * and the type of what arrives genuinely differ. What arrives is a nullary thunk over the caller's
@@ -418,6 +419,10 @@ struct Arg: Value {
     bool isLazy() const { return lazyType != nullptr; }
     bool hasDefault() const { return defaultValue != nullptr; }
 
+    // Whether a loan of this parameter may outlive the call. See LoanGroup for which group it is in
+    // and why almost every reader wants only the bit.
+    bool returnRoot() const { return loan != kNoLoan; }
+
     // The type this parameter has in the signature, which is `type` for all but a `@lazy` one.
     TypePtr declaredType() const { return lazyType ? lazyType : type; }
 
@@ -425,7 +430,11 @@ struct Arg: Value {
     TypePtr lazyType = nullptr;
     ModulePtr<ConstValue> defaultValue = nullptr;
     ast::BindType convention = ast::BindType::Borrow;
-    bool returnRoot = false;
+
+    // See LoanGroup. Written from the declaration's label and copied into the FunArg this parameter
+    // publishes, so a signature groups its loans the same way whether it is read from the
+    // declaration or through a function value.
+    LoanGroup loan = kNoLoan;
 };
 
 struct ConstInt: Value {

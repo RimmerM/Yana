@@ -68,6 +68,27 @@ struct Parser: BasicParser<Lexer, Token> {
 
     ast::BindType parseBindType();
 
+    /*
+     * `label'` in type-argument position, or in a type, with one token of lookahead past the
+     * VarID that is otherwise a type variable. Null when there is no label here.
+     *
+     * Type position only, deliberately. A loan group is written on a *type* - Analysis-Borrows.md
+     * §4.2 - and nothing about it appears before the parameter's name. The name area is the binding
+     * convention and the name, and it stays that way so it remains free for argument patterns: a
+     * tick there would be a type-level name in the one part of a declaration that holds no types,
+     * and telling `label'` from the parameter's own name needs lookahead into the very space a
+     * pattern would want.
+     *
+     * `return` is the one marker left in the name area. It is a keyword, so it cannot collide with a
+     * pattern, and it is §8.3's compatibility spelling for the anonymous group - which is what every
+     * signature in `lib/` still writes.
+     */
+    StringId parseLoanLabel();
+
+    // Whether the current token can begin a type - the one token of lookahead that separates `v'a`
+    // from `v'`. Kept beside parseAType, whose branches are what it enumerates.
+    bool startsType() const;
+
     // `-> ->T` on a result - see the definition, and Analysis-Language.md §3a.
     ast::BindType parseResultBind();
     bool parseReturnRoot();

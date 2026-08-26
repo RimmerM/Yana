@@ -31,6 +31,7 @@ Analysis::Analysis(Module& module, Function& function):
     liveIn(scratch.liveIn), liveOut(scratch.liveOut), values(scratch.values),
     contents(scratch.contents), outlives(scratch.outlives), escaped(scratch.escaped),
     transferred(scratch.transferred), releasesStorage(scratch.releasesStorage),
+    escapeSite(scratch.escapeSite),
     stateBefore(scratch.stateBefore), borrowStateBefore(scratch.borrowStateBefore),
     borrowSlots(scratch.borrowSlots), order(scratch.order), blockRanges(scratch.blockRanges),
     effects(scratch.effects), tracked(scratch.tracked), demand(scratch.demand),
@@ -560,11 +561,11 @@ static bool seedSummaries(Program& program, Array<ModulePtr<Function>>& newly) {
             for(auto argPointer: function->args.contents(base)) {
                 auto arg = base[argPointer];
                 ArgSummary seeded;
-                seeded.returnRoot = arg->returnRoot;
+                seeded.returnRoot = arg->returnRoot();
                 if(arg->isMutableBorrow()) seeded.requirements.mutation = MutationDemand::Writable;
 
                 summary.args.set(base, index, seeded);
-                if(arg->returnRoot) summary.declaredRoots |= rootBit(index);
+                if(arg->returnRoot()) summary.declaredRoots |= rootBit(index);
 
                 index++;
             }

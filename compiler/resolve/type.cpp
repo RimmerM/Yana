@@ -296,7 +296,8 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
         }
         case Type::Borrow: {
             auto borrow = (BorrowType*)global[type];
-            return resolveBorrowType(module, substituteType(module, borrow->to, args, source), borrow->mut);
+            return resolveBorrowType(module, substituteType(module, borrow->to, args, source), borrow->mut,
+                                     borrow->loan);
         }
         case Type::Fun: {
             auto function = (FunType*)global[type];
@@ -304,7 +305,7 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
 
             for(auto arg: function->args.contents(global)) {
                 substituted.push(FunArg {
-                    substituteType(module, arg.type, args, source), arg.name, arg.convention, arg.returnRoot,
+                    substituteType(module, arg.type, args, source), arg.name, arg.convention, arg.loan,
                     arg.lazy,
                 });
             }
@@ -855,18 +856,19 @@ TypePtr resolvePointerType(Module& module, TypePtr to) {
     return (Type*)type - base;
 }
 
-// Borrows are interned the way pointers are, on their target and on the one bit that distinguishes
-// an exclusive borrow from a shared one.
-TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut) {
+// Borrows are interned the way pointers are: on their target, on the one bit that distinguishes an
+// exclusive borrow from a shared one, and on the loan group - see BorrowType::loan for why a group
+// belongs in the key rather than beside it.
+TypePtr resolveBorrowType(Module& module, TypePtr to, bool mut, LoanGroup loan) {
     auto base = *module.types;
     if(!to) return module.scalar.error;
 
     for(auto pointer: module.program.borrowTypes.contents(base)) {
         auto borrow = base[pointer];
-        if(borrow->to == to && borrow->mut == mut) return (Type*)borrow - base;
+        if(borrow->to == to && borrow->mut == mut && borrow->loan == loan) return (Type*)borrow - base;
     }
 
-    auto type = new (module.types) BorrowType(to, mut);
+    auto type = new (module.types) BorrowType(to, mut, loan);
     type->generic = isGeneric(base, to);
 
     module.program.borrowTypes.push(module.types, type - base);
@@ -899,7 +901,7 @@ TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast:
         for(Size i = 0; i < args.length; i++) {
             auto existing = candidate->args.get(base, i);
             if(existing.type != args[i].type || existing.convention != args[i].convention ||
-               existing.returnRoot != args[i].returnRoot || existing.lazy != args[i].lazy) {
+               existing.loan != args[i].loan || existing.lazy != args[i].lazy) {
                 equal = false;
                 break;
             }
@@ -916,7 +918,8 @@ TypePtr resolveFunType(Module& module, Buffer<FunArg> args, TypePtr result, ast:
 
     for(Size i = 0; i < args.length; i++) {
         type->args.push(module.types, args[i]);
-        if(args[i].returnRoot && i < 64) type->returnRoots |= U64(1) << i;
+        if(args[i].returnRoot() && i < 64) type->returnRoots |= U64(1) << i;
+        if(args[i].loan > type->loanGroups) type->loanGroups = args[i].loan;
         if(isGeneric(base, args[i].type)) type->generic = true;
     }
 

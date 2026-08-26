@@ -153,16 +153,167 @@ static TypePtr resolveTupleAst(Module& module, const ast::Type& type, GenEnv* en
  * reaching it is rejected by the ordinary conversion rule with a diagnostic naming why - see
  * convertType.
  */
-TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType bind, GenEnv* env) {
-    auto type = resolveType(module, written, env);
+TypePtr bindingType(Module& module, const ast::Type& written, ast::BindType& bind, GenEnv* env,
+                    LoanGroup* loan) {
+    /*
+     * The group this parameter is in, from whichever way its type said so.
+     *
+     * Two spellings reach the same place. A reference names its own group - `a: src'Cell` - and a
+     * nominal type binds one to its slot - `&store: Store(kept', a)`, which is §4.7's signature and
+     * the thing a result-only `return` scheme cannot express: what outlives the call is not the
+     * result but something installed in storage the caller passed in. Both mean "this parameter is
+     * in that group", so both are one field on the Arg.
+     */
+    auto type = resolveType(module, written, env, loan);
+
+    /*
+     * A loan group written on the parameter's type, which is where a group is written everywhere
+     * else - Analysis-Borrows.md §4.2 and §8.2.
+     *
+     * `fn pick(&a: l'Cell, &b: r'Cell) -> &l'Cell`. The convention stays on the *name*, because a
+     * convention is a property of the parameter rather than of what it refers to - `&a: Cell` takes
+     * an exclusive borrow of a Cell, not a value of type `&Cell`, and the two are different
+     * parameters today. What the tick adds is the group, so the capability comes from the sigil on
+     * the name and the extent from the tick on the type, which is §3.2's two orthogonal axes each
+     * written once.
+     *
+     * The reference is therefore *stripped*: `l'Cell` names a Cell in group `l`, and the parameter's
+     * type is the Cell. Without stripping the parameter would have a reference type and a borrow
+     * convention at once, which is two different parameters described in one declaration.
+     *
+     * Only a *labelled* one. An unlabelled `x: 'Int` has meant a reference-value parameter since
+     * before groups existed - see BorrowPair.yana, where a pair of them is built into the result -
+     * and quietly turning every one of those into a borrow-convention parameter is a change to
+     * programs that say nothing about groups. Writing a label is the explicit act; §8.3's migration
+     * is where the unlabelled spelling is settled.
+     */
+    auto base = *module.types;
+
+    if(loan && base[type]->kind == Type::Borrow) {
+        auto borrow = (BorrowType*)base[type];
+
+        /*
+         * `&x: T` and `x: &T` are one parameter, and this is where they become one type.
+         *
+         * They were two. Both produce the same effect, the same behaviour and the same ABI - an
+         * aggregate parameter arrives as an address either way, and so does a `&` scalar - and they
+         * differed only in the IR's spelling of a projection, `a@Cell.value` against
+         * `[%a]@Cell.value`. What made the difference observable was interning: two FunTypes, so a
+         * function value written one way could not be passed where the other was expected. That is a
+         * wart with nothing behind it, so the exclusive reference in a parameter's type is folded
+         * into the `Ref` convention here and the two spellings mean one thing.
+         *
+         * The group survives the fold, which is what un-refuses `&x: src'T`: the capability moves to
+         * the convention and the group stays a fact about the parameter, so both `x: &src'T` and
+         * `&x: src'T` are the same declaration. That is the consistency the name-position spelling
+         * of a plain `&x: Int` was already promising.
+         *
+         * A `&` on the *name* folds a shared reference too, and wins: `&x: src'T` is the exclusive
+         * loan in group `src`, spelled the way a plain `&x: Int` is. The tick is carrying the group
+         * there and the sigil is carrying the capability, which is each axis written once - and it
+         * is the same declaration as `x: &src'T`, since both fold to the same convention, type and
+         * group.
+         *
+         * What does *not* fold is a shared reference with no sigil, and the reason is concrete
+         * rather than stylistic: `BindType` has `Ref` for an exclusive borrow and nothing for a
+         * shared one that is not also pass-by-value, and pass-by-value on a scalar is a **copy** -
+         * `x: Int` compiles to `ret %n`. Folding `x: 'Int` would turn a reference to the caller's
+         * Int into the frame's own copy. So `x: 'T` stays a reference type, and that is the one
+         * asymmetry left in a parameter declaration and the only one with a reason under it.
+         */
+        if(borrow->mut || bind == ast::BindType::Ref) {
+            bind = ast::BindType::Ref;
+            type = borrow->to;
+        }
+
+        *loan = borrow->loan != kNoLoan ? borrow->loan : kCandidateLoan;
+    }
+
     if(bind == ast::BindType::Sink) return type;
     if(written.kind != ast::Type::Arr) return type;
 
-    auto base = *module.types;
     if(base[type]->kind == Type::Array) return type;
 
     auto slice = sliceOf(module, type);
     return slice ? slice : type;
+}
+
+/*
+ * A written loan label, as a group index - Analysis-Borrows.md §4.2 and §8.2.
+ *
+ * Introduced by occurrence, exactly as an implicit type variable is: the first time a signature
+ * writes `src'`, `src'` becomes a group, and every later occurrence in that signature is the same
+ * one. GenEnv::loans is where they live and why.
+ *
+ * No label is never a *fresh* group - that is §4.8 rule 1, and the whole of why the library needs no
+ * labels: two marked parameters are two members of one group, not two groups. Which group an
+ * unlabelled occurrence means depends on where it was written, which is what `unlabelled` is:
+ *
+ * - On a **parameter marker** it is `kAnonymousLoan`, the signature's one group. So
+ *   `choose(' left: T, ' right: T) -> 'T` keeps both borrowed until the result's last use, which is
+ *   what a conservative `return` group already does.
+ * - In a **type** it is `kNoLoan`, meaning the type names no group rather than naming the anonymous
+ *   one. A reference type is written in many places that are not contracts at all - a local, a
+ *   field, a temporary - and it has to keep meaning what it meant there. Consumers read `kNoLoan`
+ *   on a result as "every group", which is the conservative answer and the one given before groups
+ *   existed.
+ *
+ * A label written where there is no declaration to be local to has nowhere to be introduced. That
+ * is reported rather than quietly made anonymous: silently merging two groups the author wrote
+ * apart is the direction that accepts a program the contract forbids.
+ */
+LoanGroup resolveLoanGroup(Module& module, GenEnv* env, StringId label, LocationId source, LoanGroup unlabelled) {
+    if(!label) return unlabelled;
+
+    if(!env) {
+        module.context.diagnostics.error("a loan group can only be written inside a declaration - it names one of that signature's loan relationships, and there is no signature here for it to belong to"_v,
+                                         source);
+        return kAnonymousLoan;
+    }
+
+    /*
+     * A group is numbered per declaration, so it may only be written where the declaration has
+     * parameters for it to relate.
+     *
+     * Without this an alias is the hole: `alias Held = src'Cell` numbers `src` in the *alias's*
+     * env, and a signature using `Held` numbers its own labels in its own - so the two collide at
+     * whichever index each reached first, and a result would silently be in a group it never named.
+     * A record has the same shape and the same hole.
+     *
+     * Both are §4.3's case, and they are refused rather than approximated because §4.3 is not built:
+     * a type collecting loan slots from its fields is what gives a label in one of these a meaning,
+     * and until it does there is nothing for it to mean. The message says so rather than describing
+     * a rule the reader cannot look up.
+     */
+    /*
+     * An alias has no binding channel - Analysis-Borrows.md §4.3 gives one to a `data` declaration
+     * and not to an alias, and without one a label here numbers into the alias's own environment and
+     * collides with the groups of whichever signature used it. A record is the case §4.3 *is* about
+     * and is allowed below.
+     */
+    if(env->kind == GenEnv::Alias) {
+        module.context.diagnostics.error("a loan group cannot be written in an alias - a group is numbered per declaration, so one written here would collide with the groups of whatever signature used the alias, and an alias has no slot to bind it to. Write the group on the `data` declaration, or on the function that hands the reference back"_v,
+                                         source);
+        return kAnonymousLoan;
+    }
+
+    auto base = *module.types;
+    U32 index = 0;
+
+    for(auto existing: env->loans.contents(base)) {
+        if(existing == label) return LoanGroup(index + 2);
+        index++;
+    }
+
+    // Past what a `U64` group mask holds. Reported rather than wrapped, and answered with the
+    // anonymous group, so that the signature still resolves and the diagnostic is the only outcome.
+    if(index + 2 > kMaxLoanGroup) {
+        module.context.diagnostics.error("a signature can have at most %@ loan groups"_v, source, kMaxLoanGroup - 1);
+        return kAnonymousLoan;
+    }
+
+    env->loans.push(module.types, label);
+    return LoanGroup(index + 2);
 }
 
 static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEnv* env, LocationId source) {
@@ -176,16 +327,22 @@ static TypePtr resolveFunTypeAst(Module& module, const ast::FunType& type, GenEn
 
     for(auto declared: declaredArgs.contents(parseBase)) {
         FunArg arg;
-        arg.type = bindingType(module, declared.type, declared.bind, env);
+
+        // A written function type groups its loans exactly as a declaration does - the group on the
+        // type, the marker where the type has no reference to carry one. Both spellings have to
+        // reach the same FunArg, because a caller reaching a function through a value has only this
+        // to read and a contract that changed at the abstraction boundary would be worse than none.
+        LoanGroup typeGroup = kNoLoan;
+        arg.type = bindingType(module, declared.type, declared.bind, env, &typeGroup);
         arg.name = declared.name;
         arg.convention = declared.bind;
         arg.lazy = declared.lazy && checkLazyArgument(module, declared.bind, declared.returnRoot, source);
 
-        if(declared.returnRoot) {
+        if(declared.returnRoot || typeGroup != kNoLoan) {
             written++;
 
             if(checkReturnRoot(module, arg.type, declared.bind, index, source)) {
-                arg.returnRoot = true;
+                arg.loan = typeGroup != kNoLoan ? typeGroup : kAnonymousLoan;
                 roots++;
             }
         }
@@ -513,7 +670,8 @@ bool applyGenDefaults(Module& module, GlobalPtr<GenEnv> declared, TypeList& args
     return true;
 }
 
-static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, LocationId source) {
+static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, LocationId source,
+                          LoanGroup* loan) {
     auto global = *module.types;
 
     if(app.base.kind != ast::Type::Con) {
@@ -560,11 +718,44 @@ static TypePtr resolveApp(Module& module, const ast::AppType& app, GenEnv* env, 
         declared = global[((RecordType*)global[type])->base(global)]->gen;
     }
 
+    /*
+     * The arguments, with a loan group taken out of the list rather than resolved into it -
+     * Analysis-Borrows.md §4.7 and §9.3.
+     *
+     * `Store(kept', a)` binds the declaration's loan *slot* to the group `kept`, and the type it
+     * produces is exactly `Store(a)`: the same interning, the same layout, the same instance
+     * selection. That is §8.2's "keep group identity out of runtime layout and ordinary nominal
+     * dispatch" taken literally - two `Store(Int)`s that differ only in which of the caller's loan
+     * relationships they hold are one type, and what differs is a fact about the *parameter*, which
+     * is where it is recorded.
+     *
+     * So a loan argument does not occupy a type-parameter position and does not count towards
+     * arity. `Store(kept', a)` and `Store(a)` both apply one type argument, which is what makes
+     * §4.8 rule 4's "a nominal type's single slot unifies from context" possible: the binding may
+     * be left out wherever it can be inferred, and adding one never changes what else must be
+     * written.
+     */
     TypeList args;
     auto appArgs = app.args;
     auto index = Size(0);
 
     for(auto arg: appArgs.contents(module.parse)) {
+        if(arg.kind == ast::Type::Loan) {
+            auto group = resolveLoanGroup(module, env, arg.name, arg.source);
+
+            if(!loan) {
+                module.context.diagnostics.error("a loan group can only be bound to a type's slot where the type says which loan it holds - a parameter's type, or a result's. Here there is nothing for the binding to be a fact about"_v,
+                                                 arg.source);
+            } else if(*loan != kNoLoan) {
+                module.context.diagnostics.error("this type binds more than one loan group, and a type has one slot in this version - Analysis-Borrows.md §4.3's several independent field origins are not built"_v,
+                                                 arg.source);
+            } else {
+                *loan = group;
+            }
+
+            continue;
+        }
+
         args.push(resolveAppArg(module, declared, index++, arg, env));
     }
 
@@ -943,7 +1134,7 @@ static TypePtr resolveContainerRefinement(Module& module, TypePtr plain, bool ha
     return refineContainerType(module, plain, inlineSlots, capacityBound, source);
 }
 
-TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
+TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env, LoanGroup* loan) {
     /*
      * Anything reaching here still carrying `@box` is one written somewhere a field is not, since
      * resolveTupleAst strips the attribute off the fields it consumed.
@@ -1026,7 +1217,7 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             return (Type*)(*module.types)[found] - *module.types;
         }
         case ast::Type::App:
-            return resolveApp(module, *module.parse[type.app], env, type.source);
+            return resolveApp(module, *module.parse[type.app], env, type.source, loan);
         case ast::Type::Tup:
             return resolveTupleAst(module, type, env);
         case ast::Type::Ptr:
@@ -1088,8 +1279,9 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
          */
         case ast::Type::Borrow:
         case ast::Type::Shared: {
-            auto to = resolveType(module, *module.parse[type.to], env);
+            auto to = resolveType(module, *module.parse[type.ref.to], env);
             auto mut = type.kind == ast::Type::Borrow;
+            auto loan = resolveLoanGroup(module, env, type.ref.group, type.source);
 
             /*
              * `'[T]` is a slice - Implementation-Containers.md §4.2.
@@ -1107,7 +1299,7 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
              */
             if(auto slice = sliceOf(module, to)) return slice;
 
-            return resolveBorrowType(module, to, mut);
+            return resolveBorrowType(module, to, mut, loan);
         }
         case ast::Type::Fun:
             return resolveFunTypeAst(module, *module.parse[type.fun], env, type.source);
@@ -1116,6 +1308,11 @@ TypePtr resolveType(Module& module, const ast::Type& type, GenEnv* env) {
             // see ast::Type::Lit. Everywhere else it is this, which is a better message than the
             // parse error it replaced, and is what stops the form being const generics by accident.
             return errorType(module, type.source, "a number is not a type - a number is a type argument only where the declaration declared a const parameter there"_v);
+        case ast::Type::Loan:
+            // Under exactly the same division, and for the same reason - the grammar accepts `v'`
+            // where a type argument is so that `Store(kept', a)` parses, and this is what it means
+            // anywhere else. See ast::Type::Loan.
+            return errorType(module, type.source, "a loan group is not a type - a trailing tick is a type argument only where the declaration declared a loan slot there"_v);
         default:
             return errorType(module, type.source, "type is not available in this milestone"_v);
     }

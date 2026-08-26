@@ -1,0 +1,26 @@
+let image$base: () = <none>
+
+fn remember(%store: Store, %value: 1'Cell) -> () {
+  b0:
+    assign %store@Store.held, %value
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Cell
+    aggregate %source@Cell.value = 7
+    %v3 = alloc : Store
+    %v4 = load %source : Cell
+    %v5 = borrow %source : 1'Cell
+    aggregate %box@Store.held = %v5
+    %v7 = load %box : Store
+    %v8 = load %source : Cell
+    %v9 = borrow %source : 1'Cell
+    %v10 = borrow_mut %box : &Store
+    call remember, %v10, %v9
+    %v12 = load %box : Store
+    %v13 = load %box@Store.held : 1'Cell
+    %v14 = load [%v13]@Cell.value : Int
+    ret %v14
+}

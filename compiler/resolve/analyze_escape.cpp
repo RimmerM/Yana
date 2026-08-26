@@ -21,7 +21,9 @@ enum class Escape: U8 {
     Referenced,
 };
 
-static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind) {
+// `site` is the instruction doing the escaping, recorded for the roots this call is the first to
+// mark - see Analysis::escapeSite. Null where the caller has no one instruction to blame.
+static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind, ModulePtr<Inst> site = nullptr) {
     auto changed = false;
 
     // Over what the provenance holds rather than over the frame's locals - see IndexSet::forEach.
@@ -29,6 +31,10 @@ static bool markEscaped(Analysis& analysis, const Provenance& roots, Escape kind
         if(analysis.escaped.add(l)) {
             analysis.outlives.set(l, true);
             changed = true;
+
+            // On the transition only, which is what makes this the *first* site rather than the
+            // last one a fixpoint round happened to reach it through.
+            if(site && l < analysis.escapeSite.size()) analysis.escapeSite[l] = site;
         }
 
         // One root can be both, and being owned elsewhere is the stronger statement: a value handed
@@ -159,7 +165,7 @@ static bool escapeRound(Analysis& analysis) {
                     leaving->locals.set(l, false);
                 }
 
-                changed = markEscaped(analysis, *leaving, Escape::Owned) || changed;
+                changed = markEscaped(analysis, *leaving, Escape::Owned, analysis.order[i]) || changed;
                 break;
             }
 
@@ -210,7 +216,7 @@ static bool escapeRound(Analysis& analysis) {
                      */
                     roots->locals.forEach([&](Size l) { written->locals.set(l, false); });
 
-                    changed = markEscaped(analysis, *written, Escape::Owned) || changed;
+                    changed = markEscaped(analysis, *written, Escape::Owned, analysis.order[i]) || changed;
                 }
 
                 break;
@@ -240,7 +246,7 @@ static bool escapeRound(Analysis& analysis) {
                                            [&](const AggregateComponent& component, Size) {
                         ScratchProvenance written(analysis);
                         transferredProvenance(analysis, component.value, *written);
-                        changed = markEscaped(analysis, *written, Escape::Owned) || changed;
+                        changed = markEscaped(analysis, *written, Escape::Owned, analysis.order[i]) || changed;
                     });
                 }
 
@@ -260,7 +266,7 @@ static bool escapeRound(Analysis& analysis) {
                     if(retained) {
                         ScratchProvenance leaving(analysis);
                         handedOver(analysis, arg, *leaving);
-                        changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
+                        changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg), analysis.order[i]) || changed;
                     }
 
                     index++;
@@ -347,7 +353,7 @@ static bool escapeRound(Analysis& analysis) {
 
                     ScratchProvenance leaving(analysis);
                     handedOver(analysis, arg, *leaving);
-                    changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
+                    changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg), analysis.order[i]) || changed;
                 }
 
                 break;
@@ -396,7 +402,7 @@ static bool escapeRound(Analysis& analysis) {
                     if(retained) {
                         ScratchProvenance leaving(analysis);
                         handedOver(analysis, arg, *leaving);
-                        changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;
+                        changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg), analysis.order[i]) || changed;
                     }
 
                     index++;
@@ -443,6 +449,12 @@ void computeOutliving(Analysis& analysis) {
     analysis.outlives.reset(analysis.localCount);
     analysis.escaped.reset(analysis.localCount);
     analysis.transferred.reset(analysis.localCount);
+
+    // `push` in a loop rather than `resize`, which is what analyze_demand.cpp does with `demand`
+    // for the same reason: ArrayT::resize reads its data pointer before it reserves, so growing an
+    // array whose capacity is zero placement-news through a stale one.
+    analysis.escapeSite.clear();
+    for(Size l = 0; l < analysis.localCount; l++) analysis.escapeSite.push(nullptr);
 
     // A parameter's storage is the caller's and already outlives this frame. It is set in
     // `outlives` and not in `escaped`, because nothing here proved anything about it.

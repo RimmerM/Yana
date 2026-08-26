@@ -421,27 +421,150 @@ static void computeExtent(Analysis& analysis, ModulePtr<Inst> pointer, BorrowExt
              * value reads it off the signature, which is the same contract in the two places it can
              * be written down - and the reason FunArg carries the marker at all. A chain of
              * selectors keeps the original root borrowed for the whole chain either way.
+             *
+             * Which group, and not merely whether there is one - Analysis-Borrows.md §4.2. A
+             * signature that split its loans said that a result in one group is a loan of that
+             * group's members and of nothing else, so stretching every marked argument's extent to
+             * this result would be reading the contract and then ignoring half of it. `resultGroup`
+             * is `kNoLoan` where the result is not itself a reference, and that means "every group"
+             * rather than "none" - the same field-insensitivity, and the same answer, as
+             * dynamicResultProvenance.
              */
             U64 roots = 0;
+            LoanGroup argumentGroups[64];
+            bool argumentDestination[64];
+            auto groupsKnown = false;
 
             if(instruction.kind == Value::Call) {
                 auto summary = summaryOf(analysis, ((InstCall&)instruction).callee);
-                if(summary) roots = summary->declaredRoots;
+
+                if(summary) {
+                    roots = summary->declaredRoots;
+
+                    auto declared = analysis.local[((InstCall&)instruction).callee];
+                    U16 index = 0;
+
+                    for(auto argPointer: declared->args.contents(analysis.local)) {
+                        if(index >= 64) break;
+
+                        auto declaredArg = analysis.local[argPointer];
+                        argumentDestination[index] = declaredArg->isMutableBorrow();
+                        argumentGroups[index++] = declaredArg->loan;
+                    }
+
+                    for(auto i = index; i < 64; i++) {
+                        argumentGroups[i] = kNoLoan;
+                        argumentDestination[i] = false;
+                    }
+
+                    groupsKnown = true;
+                }
             } else if(instruction.kind == Value::CallDyn) {
                 auto signature = ((InstCallDyn&)instruction).signature;
+
                 if(signature && analysis.global[signature]->kind == Type::Fun) {
-                    roots = ((FunType*)analysis.global[signature])->returnRoots;
+                    auto type = (FunType*)analysis.global[signature];
+                    roots = type->returnRoots;
+
+                    U16 index = 0;
+                    for(; index < type->args.size() && index < 64; index++) {
+                        auto declaredArg = type->args.get(analysis.global, index);
+                        argumentGroups[index] = declaredArg.loan;
+                        argumentDestination[index] = declaredArg.convention == ast::BindType::Ref;
+                    }
+
+                    for(auto i = index; i < 64; i++) {
+                        argumentGroups[i] = kNoLoan;
+                        argumentDestination[i] = false;
+                    }
+
+                    groupsKnown = true;
                 }
             }
 
             if(!roots) continue;
+
+            auto resultType = analysis.local[(ModulePtr<Value>)user]->type;
+            auto resultGroup = resultType && analysis.global[resultType]->kind == Type::Borrow
+                ? ((BorrowType*)analysis.global[resultType])->loan : kNoLoan;
 
             U16 position = 0;
             auto args = instruction.kind == Value::Call ? &((InstCall&)instruction).args
                                                         : &((InstCallDyn&)instruction).args;
 
             for(auto arg: args->contents(analysis.local)) {
-                if(arg == value && (roots & rootBit(position))) pending.push((ModulePtr<Value>)user);
+                auto inGroup = !groupsKnown || resultGroup == kNoLoan || position >= 64 ||
+                               argumentGroups[position] == resultGroup;
+
+                if(arg != value || !(roots & rootBit(position))) {
+                    position++;
+                    continue;
+                }
+
+                if(inGroup) pending.push((ModulePtr<Value>)user);
+
+                /*
+                 * And to the other arguments in the same group - Analysis-Borrows.md §4.7.
+                 *
+                 * Returning a reference is only one way a loan can outlive a call. A function can
+                 * also install one in a caller-owned destination:
+                 *
+                 *     fn remember(&store: Store(kept'), value: kept'Cell) -> {}
+                 *
+                 * There is no result here for the loan to be bounded by, and bounding it by the
+                 * call is exactly wrong - the whole point of the signature is that what `store`
+                 * holds afterwards is a reference to `value`. What bounds it is the *destination*,
+                 * so the loan runs to the last use of every other argument in its group, which is
+                 * the same relation a result in the group already had.
+                 *
+                 * Into a **destination** only, which is the asymmetry §4.7 is about and not a
+                 * refinement of it. `pick(x, y, flag) -> &T` has two co-members of one group and
+                 * neither installs into the other - they are both *sources*, and the result is the
+                 * destination, which the arm above already covers. Extending between them would
+                 * make `x`'s loan cover `y`'s extent and reject reading `y` afterwards, which
+                 * `DropAssignBorrow.yana` does and should go on doing. So the loan flows from a
+                 * source to a `&` destination and nowhere else.
+                 *
+                 * The group is what keeps even that from being every `&` argument:
+                 * `remember(box, source)` extends `source`'s loan over `box`'s uses and over
+                 * nothing else, and a parameter outside the group is unaffected. A signature that
+                 * wanted two independent destinations splits them with labels (§4.2).
+                 */
+                if(groupsKnown && position < 64 && argumentGroups[position] != kNoLoan &&
+                   !argumentDestination[position]) {
+                    U16 other = 0;
+
+                    for(auto peer: args->contents(analysis.local)) {
+                        if(other == position || other >= 64 || !argumentDestination[other] ||
+                           argumentGroups[other] != argumentGroups[position]) {
+                            other++;
+                            continue;
+                        }
+
+                        /*
+                         * The peer's *root local*, and not the peer.
+                         *
+                         * What is passed at a destination position is a borrow built for the call,
+                         * and that temporary dies with the call - extending over it would add
+                         * nothing and the loan would still end where it started. What has to stay
+                         * borrowed is the storage the destination names, so the walk continues from
+                         * the local the argument was borrowed out of, and the loan runs as far as
+                         * that local's own last use.
+                         */
+                        auto& borrowed = *analysis.local[peer];
+                        auto root = borrowed.kind == Value::Borrow
+                            ? rootLocal(analysis, ((InstBorrow&)borrowed).place)
+                            : backingLocal(analysis, peer);
+
+                        if(root == maxLimit<U32>) { other++; continue; }
+
+                        auto slot = analysis.function.localAt(analysis.local, root);
+                        if(slot.value) pending.push(slot.value);
+
+                        other++;
+                    }
+                }
+
                 position++;
             }
         }
@@ -1287,6 +1410,23 @@ static void checkDeclaredExtents(Analysis& analysis) {
             report(analysis, "this implements a class function, so it cannot keep %@ beyond the call - a call in a generic body cannot see which implementation runs, and takes the declaration's word that a borrowed argument's extent is the call. Declare the parameter `->` if the body has to store what it is given"_v,
                    arg->source, analysis.context.findName(arg->name));
         }
+
+        /*
+         * And where it was kept - Analysis-Borrows.md §8.4's "the storing instruction and the
+         * parameter declaration".
+         *
+         * The error above is on the declaration, which is where the promise is and so where the fix
+         * usually goes; on its own it leaves a reader to find the write in a body that may have
+         * several candidates and whose escape closed over containment. `escapeSite` is the
+         * instruction that made the fact true, and a note is the right shape for it: it is the
+         * evidence rather than a second thing wrong.
+         *
+         * Null is a real answer and is why this is conditional - a parameter can be escaped by
+         * inheritance through a root something else marked, and pointing at that root's instruction
+         * would name a line the reader cannot act on.
+         */
+        auto site = slot < analysis.escapeSite.size() ? analysis.escapeSite[slot] : nullptr;
+        if(site) note(analysis, "it is kept here"_v, analysis.local[site]->source);
     }
 }
 
