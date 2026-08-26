@@ -504,7 +504,7 @@ fn main() -> Int {
     %v64 = cast 0 : %()
     init %local8.env, %v64
     %j = call run, %v60 : Int
-    %counter = alloc heap : Int
+    %counter = alloc : Int
     init %counter, 100
     %v70 = alloc : (&Int) -> ()
     %v71 = symbol ResolveTest.lambda$24 : %()
@@ -522,7 +522,6 @@ fn main() -> Int {
     %v84 = add %v83, %i : Int
     %v85 = add %v84, %j : Int
     %v86 = load %counter : Int
-    drop_derived %counter release
     %v87 = add %v85, %v86 : Int
     ret %v87
 }

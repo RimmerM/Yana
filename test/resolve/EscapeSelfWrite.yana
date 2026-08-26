@@ -1,0 +1,55 @@
+-- Writing back into a `&` parameter is not letting it escape.
+--
+-- Compiled with specialization declined (see the `.generic` marker), because the false positive this
+-- pins only exists in the erased form: a call whose callee the body cannot see conservatively
+-- carries every argument's provenance into its result, so the value written back below is rooted in
+-- `self`. Specialize the same source and the call becomes a known one whose result carries only what
+-- it really came from, and nothing here reproduces.
+--
+-- The shape is `growJsArray` in `lib/Core/Array.js.yana`, which does `self.items = hostGrow(
+-- self.items, wide)`, and it is mirrored rather than approximated. Three correct answers used to
+-- compose into one wrong one: the destination is rooted in `self`, the value is rooted in `self`,
+-- and `self` is a parameter and so outlives this frame - therefore `self` escaped. Nothing new
+-- becomes reachable in that write; a root reached through *itself* was as reachable before it as
+-- after.
+--
+-- Two details of the mirror are load-bearing, and both were found by writing the fixture wrong
+-- first:
+--
+--  * **`advance` takes its argument by borrow, not `->`.** A handover of a part of `self` marks
+--    `self` escaped through the *call*, which is a separate false positive with a separate cause -
+--    so a `->` here would keep reporting after the fix and pin nothing.
+--  * **`advance` is a class function.** What produces the conservative root is having no summary to
+--    read: an ordinary generic function has a body that was resolved before the call was deferred,
+--    so its result carries only what it came from. A deferred class dispatch names the class
+--    signature, which has no body - the same case `hostGrow` is in by having no body at all.
+--
+-- Asserted through `.explain.expect`, which is the only dump that reads a *generic* body's summary:
+-- the ownership dump prints specializations, and the specialization never had the bug. The row to
+-- watch is `retains` on `step`, which must be `none`.
+--
+-- What this cost was not the one function. `growJsArray` reported that it kept `self`, `reserve`
+-- inherited that from calling it and `push` inherited it from `reserve`, so one write took the whole
+-- container API with it.
+
+-- Native only, and `import Native` for the same reason LazyPointer.yana needs both: `%a` has no host
+-- representation, so there would be nothing to emit on the managed target.
+import Native
+
+data Cursor(a) {at: %a}
+
+class Advance(a):
+  fn advance(return p: %a) -> %a
+
+instance Advance(Int):
+  fn advance(return p: %Int) = p
+
+-- The write. `self.at` is replaced by something derived from `self.at`, which is one value's
+-- lifetime through a borrow rather than two overlapping ones.
+fn (Advance(a)) step(&self: Cursor(a)) -> {}:
+    self.at = advance(self.at)
+
+fn main() -> Int:
+    let &cursor = Cursor {at: null()} :: Cursor(Int)
+    step(cursor)
+    return 0

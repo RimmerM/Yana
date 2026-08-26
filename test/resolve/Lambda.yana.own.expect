@@ -65,9 +65,9 @@ fn apply {
 
 fn runOn {
   arg f readonly
-  arg target writable retained
+  arg target writable
   %f: (&Int) -> () borrowed droppable readonly live [0, 3)
-  %target: Int borrowed unknown escapes live [0, 3)
+  %target: Int borrowed unknown live [0, 3)
 }
 
 fn twice {
@@ -104,7 +104,7 @@ fn main {
   %local6: (Int) -> Int droppable readonly live [31, 37)
   %local7: (Int) -> Int droppable readonly live [38, 44)
   %local8: (->Array(Int)) -> Int droppable readonly live [44, 50)
-  %counter: Int droppable writable escapes heap live [50, 68)
+  %counter: Int writable live [50, 68)
   %local10: (&Int) -> () droppable readonly live [52, 60)
 }
 

@@ -730,18 +730,21 @@ bool runProgramOwnership(Program& program) {
  * **The checked reference rungs.** `Ref` and `RegionPtr` classify conservatively in ownershipOf()
  * and are not constructible yet, so nothing exercises them.
  *
- * **An InstCallDyn's arguments are assumed retained**, since there is no callee to have a summary.
- * That is the same answer an opaque direct call gets, and it has the same consequence: a root handed
- * to a function value goes to the heap. What it no longer costs is a leak - the retention is
- * classified as a reference kept rather than as ownership handed over, so the frame still releases
- * the storage - and what it no longer discards is the signature: the declared `return` group is read
- * for the result's provenance and for the extent of the loans the arguments create, because those
- * are contracts the function *type* states and FunArg carries them for exactly this position.
+ * **An InstCallDyn's arguments are read off its signature**, which is what this paragraph used to
+ * say could not be done. The claim was that a function type cannot state retention - `(Int) -> Int`
+ * says nothing about whether the callee keeps what it was given - and that a marker on FunArg was
+ * what would narrow it. The marker was already there and pointing the other way: the default is that
+ * a borrow's extent is the call, so `->` is what says otherwise and a type carrying conventions
+ * carries the contract. See the CallDyn arm of escapeRound.
  *
- * The remaining half is retention itself, which a function type cannot state: `(Int) -> Int` says
- * nothing about whether the callee keeps what it was given, so every argument is assumed kept. A
- * marker on FunArg saying otherwise is what would narrow it, and it would have to be checked in
- * every lambda and thunk that becomes a value of that type.
+ * **What is not yet discharged is the obligation that makes it true.** A lambda whose body stores a
+ * borrowed parameter is currently accepted and would now be believed by every caller reaching it
+ * through a value. Class implementations are held to exactly this rule and nothing else is - see
+ * checkDeclaredExtents, which is where the check generalizes to every function. Until it does, this
+ * is a contract the callee is trusted for rather than one it is checked against, and that is a
+ * narrower gap than the old assumption but a real one. Analysis-Borrows.md §8.4.
+ *
+ * A `yield` stays exempt for a reason the signature does not state; escapeRound says which.
  *
  * **A retained root is still heap-placed.** Since the frame both allocates and releases it, the
  * heap buys nothing over the frame here: what the retention says is that a *reference* may outlive

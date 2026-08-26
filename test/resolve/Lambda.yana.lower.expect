@@ -306,7 +306,7 @@ main<complex>(): Int {
     %v_25 = add %v_19, 12: Ptr
     store %v_25, 3, 4
     %v_26 = call_complex funvalue$consume, %v_18, %v_19: Int
-    %counter = call_complex allocateHeap, 4: Ptr
+    %counter = alloca 4, 4: Ptr
     store %counter, 100, 4
     %v_27 = bitcast 0: Ptr
     call_complex ResolveTest.lambda$24, %v_27, %counter
@@ -318,7 +318,6 @@ main<complex>(): Int {
     %v_33 = add %v_32, %v_17: Int
     %v_34 = add %v_33, %v_26: Int
     %v_35 = loads %counter, 4: Int
-    call_complex freeHeap, %counter
     %v_36 = add %v_34, %v_35: Int
     ret %v_36
   }

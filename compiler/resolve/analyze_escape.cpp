@@ -179,6 +179,37 @@ static bool escapeRound(Analysis& analysis) {
                 if(escaping) {
                     ScratchProvenance written(analysis);
                     transferredProvenance(analysis, write.value, *written);
+
+                    /*
+                     * A root does not escape into storage it already roots.
+                     *
+                     * `self.items = hostGrow(self.items, wide)` in `growJsArray` is the shape, and
+                     * every part of it is ordinary: the destination is rooted in `self`, the value
+                     * is rooted in `self` because an erased `hostGrow` is a GenCall and a GenCall's
+                     * result conservatively carries all of its arguments, and `self` is a parameter
+                     * so it outlives this frame. Three correct answers compose into the wrong one -
+                     * that a container escapes by being grown.
+                     *
+                     * Nothing new becomes reachable in that write. Escape asks whether storage is
+                     * reachable through a root that outlives the frame, and a root reached through
+                     * *itself* was as reachable before the write as after; the destination's own
+                     * roots are therefore removed rather than the write skipped, so a write that
+                     * mixes roots still reports the ones that are genuinely arriving. `p.x = q`
+                     * keeps `q`, `p.next = p` keeps nothing, and `self.items = other.items` keeps
+                     * `other`.
+                     *
+                     * This is the escape half of the observation Analysis-Borrows.md's reinit case
+                     * makes about the borrow checker: emptying storage through a `&` and filling it
+                     * again is one value's lifetime, not two overlapping ones.
+                     *
+                     * Worth knowing what it was costing, since the seed was one library function
+                     * and the damage was not: `growJsArray` reported that it kept `self`, `reserve`
+                     * inherited that through its call to it, and `push` inherited it from `reserve`
+                     * - so the answer climbed the whole container API from one write, exactly the
+                     * way assumedRetained above describes the same climb from a different seed.
+                     */
+                    roots->locals.forEach([&](Size l) { written->locals.set(l, false); });
+
                     changed = markEscaped(analysis, *written, Escape::Owned) || changed;
                 }
 
@@ -240,37 +271,80 @@ static bool escapeRound(Analysis& analysis) {
 
             case Value::CallDyn: {
                 /*
-                 * Same reasoning as GenCall, and for a stronger reason: there is no callee at all to
-                 * have a summary, so everything handed over is assumed kept.
+                 * The same question a direct call asks, asked of the *type* instead of a body.
                  *
-                 * Assumed *kept*, though, and not assumed given away - which is the whole of what
-                 * argumentEscape decides, and the difference between a root this frame still has to
-                 * release and one it must not. A function value's arguments are the sharpest case
-                 * for it precisely because nothing here can prove anything about them.
+                 * There is no callee to have a summary, and for a long time that was read as "so
+                 * assume everything is kept". It is the wrong reading, and assumedRetained above
+                 * already says why for the other callee with no body: a declaration is a contract
+                 * and not an absence of one. A borrow's extent is the call everywhere else in the
+                 * language, so a body is what it takes to contradict it - and a function value has
+                 * no body to do the contradicting.
+                 *
+                 * What states the contract here is FunType, which interns each argument's
+                 * convention and `return` marker precisely so that a caller holding nothing but the
+                 * type can read them - see emitDynamicCall, which converts every argument by the
+                 * same declarations. So this is assumedRetained's rule over a FunArg rather than
+                 * over an Arg, and the two now answer alike for every callee whose body is out of
+                 * reach. Analysis-Borrows.md §5.1 and §8.4.
+                 *
+                 * Retention is the last fact that was decided by which *call form* was written
+                 * rather than by what was declared, which is what §6.7's test is for: replacing a
+                 * named call with an equivalent function value no longer changes which programs are
+                 * legal. What it still changes is how well they compile, which is where a
+                 * whole-program summary belongs.
+                 *
+                 * Measured on the way in, since both were worth knowing:
+                 *
+                 *  - It is what lets a callback take a borrow at all. Every one of the six
+                 *    functions in lib/Core/Sort.yana reported that it kept `xs`, for no reason but
+                 *    that the comparison reaches it through a function value; so did every lambda
+                 *    over a borrowed local. Twelve sites in lib/ and test/, none of them real.
+                 *  - The storage follows. A local handed to a function value was heap-placed
+                 *    because it was believed to outlive the call, so `Lambda.yana` allocated a
+                 *    counter it immediately freed; it is an alloca now.
+                 *
+                 * A signature that is absent or is not a function type has no contract to read - a
+                 * teardown the compiler calls through a descriptor is the case - and the
+                 * conservative answer stands there, exactly as it does in dynamicResultProvenance.
+                 * Costs nothing measurable: making that fallback permissive too moved no site.
+                 *
+                 * One call form is still not covered by any of this, and the block below says which.
                  */
                 auto& call = (InstCallDyn&)instruction;
 
                 /*
-                 * Except a `yield`, where the language answers the question the type could not.
+                 * Except a `yield`, which the contract above cannot state.
                  *
-                 * A continuation parameter is declared with the default convention and no `return`
-                 * marker - synthesized that way for the `yield` form, and rejected outright
-                 * otherwise: "it is called, not stored, and its extent is the call". So the value
-                 * handed over is a borrow bounded by this instruction, and what the continuation
-                 * body does with it is bounded by the ordinary borrow check the way every other
-                 * borrowed parameter's use is. Nothing here has to know which continuation it is.
+                 * What exempts it is the continuation's *extent* rather than its convention, and
+                 * the two came apart the moment the convention started being read: a `-> ->T`
+                 * iterator declares its continuation parameter `Sink`, so the rule above answers
+                 * "retained" for it and is right about the ownership and wrong about the lifetime.
+                 * The value really is handed over, and the continuation it is handed to runs
+                 * strictly inside this call - Implementation-Lens.md's bounded-continuation
+                 * contract - so nothing leaves the frame and there is nothing to place elsewhere.
                  *
-                 * This is a fact about the *declaration* rather than about a body, which is what
-                 * makes it statable without a summary - and why it does not generalize to a
-                 * function value that merely happens to declare a borrow. There, retention is a
-                 * body fact and a borrowed parameter can genuinely escape; see deriveSummary,
-                 * where `retained` is exactly `escaped[slot]`.
-                 *
-                 * See InstCallDyn::handover for what assuming otherwise cost.
+                 * Deleting this in favour of the signature (it looked redundant, since an ordinary
+                 * `yield`'s continuation is declared with the default convention) moved
+                 * `IterHandover.yana` from an alloca to allocateHeap and pulled the whole heap
+                 * allocator into the fixture. That is the measurement that says the flag is a fact
+                 * of its own; see InstCallDyn::handover for the one it was added for.
                  */
                 if(call.handover) break;
 
+                auto signature = call.signature && analysis.global[call.signature]->kind == Type::Fun
+                    ? (FunType*)analysis.global[call.signature] : nullptr;
+
+                U16 index = 0;
                 for(auto arg: call.args.contents(analysis.local)) {
+                    auto retained = true;
+                    if(signature && index < signature->args.size()) {
+                        retained = signature->args.get(analysis.global, index).convention
+                                       == ast::BindType::Sink;
+                    }
+
+                    index++;
+                    if(!retained) continue;
+
                     ScratchProvenance leaving(analysis);
                     handedOver(analysis, arg, *leaving);
                     changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg)) || changed;

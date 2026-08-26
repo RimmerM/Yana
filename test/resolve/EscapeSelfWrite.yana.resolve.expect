@@ -1,0 +1,40 @@
+let image$base: () = <none>
+
+(Advance(a)) fn step(%self: Cursor(a)) -> () {
+  schema {
+    #0 type a
+    #1 class Advance(a)
+  }
+
+  b0:
+    %v1 = load %self : Cursor(a)
+    %v2 = load %self@Cursor.at : %a
+    %v3 = gencall Advance(a).advance, %v2 : %a
+    assign %self@Cursor.at, %v3
+    ret
+}
+
+fn main() -> Int {
+  b0:
+    %v0 = alloc : Cursor(Int)
+    %v2 = bitcast 0 : %Int
+    aggregate %cursor@Cursor.at = %v2
+    %v4 = load %cursor : Cursor(Int)
+    %v5 = borrow_mut %cursor : &Cursor(Int)
+    call step(Int), %v5
+    ret 0
+}
+
+fn Advance(Int).advance(%p: %Int) -> %Int {
+  b0:
+    ret %p
+}
+
+fn step(Int)(%self: Cursor(Int)) -> () {
+  b0:
+    %v1 = load %self : Cursor(Int)
+    %v2 = load %self@Cursor.at : %Int
+    %v3 = call Advance(Int).advance, %v2 : %Int
+    assign %self@Cursor.at, %v3
+    ret
+}
