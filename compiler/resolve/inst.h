@@ -265,17 +265,65 @@ struct Place {
  *
  * Each of these used to be a switch of its own somewhere, and the cost of that is not the lines: a
  * kind added to the IR is silently absent from every one it does not reach, and "absent" reads as
- * `false` in all four - not a terminator, not a constant, not pure, no result. Three of those are
- * the safe answer and one is not.
+ * `false` in every one of them. For most that is the safe answer and for one it is not.
  */
-static constexpr U8 kInstResult = 1 << 0;
-static constexpr U8 kInstConstant = 1 << 1;
-static constexpr U8 kInstPure = 1 << 2;
-static constexpr U8 kInstTerminator = 1 << 3;
+static constexpr U16 kInstResult = 1 << 0;
+static constexpr U16 kInstConstant = 1 << 1;
+static constexpr U16 kInstPure = 1 << 2;
+static constexpr U16 kInstTerminator = 1 << 3;
+
+/*
+ * The first two operands may be exchanged without changing what is computed.
+ *
+ * *First two* rather than *the two*, which is what lets an `fma` carry it: its product commutes and
+ * its addend is not one of the pair. Every other kind with this has exactly two operands, so the two
+ * readings coincide there.
+ *
+ * Stated at the kind, so a caller whose target only exchanges some of the types the kind applies to
+ * asks this and then asks about the type - the same split `kLowerCommutative` draws one tier down.
+ */
+static constexpr U16 kInstCommutative = 1 << 4;
+
+// `(a . b) . c` is `a . (b . c)`, which is what `reassociate` needs and `commute` does not - and the
+// reason the two are separate bits rather than one. `mulhi` is commutative and is not this.
+static constexpr U16 kInstAssociative = 1 << 5;
+
+/*
+ * Transfers control to a function at run time, which is what decides whether the body holding one
+ * needs a frame.
+ *
+ * `Drop` is on it and is the one that does not look like a call: it runs a teardown, and a caller
+ * holding one is no more a leaf than one holding a `call`. `Native` is not - a host node lowers to
+ * an instruction on this target and to an operator on the other.
+ */
+static constexpr U16 kInstCall = 1 << 6;
+
+/*
+ * Numbers slots of the generic environment of the function that contains it, so it means nothing
+ * anywhere else.
+ *
+ * `GenCall` alone: `fill.forwarded`, `classSlot` and `classPath` are slot numbers in the *enclosing*
+ * function's schema, and a copy of one into another body would read some other schema's slots. That
+ * is what makes a graft of such a body a miscompile rather than a missing feature, and it is a fact
+ * about the kind rather than a rule the inliner keeps - see `clonableKind`.
+ */
+static constexpr U16 kInstGeneric = 1 << 7;
+
+/*
+ * May only stand where it was first written, because nothing above the backend orders anything
+ * against it.
+ *
+ * `VZeroUpper` alone, and it is a fact that has to be argued rather than noticed: it has no
+ * operands, no result and no state, so it reads as the most obviously movable kind in the IR. What
+ * makes it un-movable is *where* it may stand - the top of a function, where there is nothing yet to
+ * order - and a pass that copied one into the middle of another body would reset a register half a
+ * live vector was in. See `Value::VZeroUpper` in inst.def, and `clonableKind` in opt_inline.cpp.
+ */
+static constexpr U16 kInstAnchored = 1 << 8;
 
 struct InstructionTraits {
     StringView mnemonic;
-    U8 flags;
+    U16 flags;
 };
 
 // Indexed by `Value::Kind`, in the order inst.def lists them - which is the order the enum is
@@ -322,6 +370,9 @@ struct Value {
      *    subset of the above and is spelled separately for that reason - see `eachTransferOperand`.
      *  - `kSuccessorCount` / `successorAt` are the edges a terminator makes, as slots for the same
      *    reason the places are.
+     *  - `sameExtra` is everything this instruction carries that is *not* an operand - a comparison,
+     *    a lane, a shuffle pattern, which metric - compared against another of the same kind. See
+     *    `sameExtraState` below for why the default declines rather than accepts.
      */
     static constexpr Size kPlaceCount = 0;
     static constexpr Size kSuccessorCount = 0;
@@ -331,6 +382,21 @@ struct Value {
 
     template<class F> void mapOperandFields(ModuleBase, F&&) {}
     template<class F> void eachTransferField(ModuleBase, F&&) {}
+
+    /*
+     * The default is *no*, and it is the only trait member here whose default is the refusal rather
+     * than the empty answer.
+     *
+     * "Two of these with equal operands compute the same thing" is the claim CSE acts on, and a
+     * struct that has not made it is a struct whose own fields have not been looked at. Declining
+     * costs an unification; accepting by omission would unify two instructions that differ in a
+     * field nothing compared, which is a miscompile.
+     *
+     * Declared per *struct* rather than per kind, which is the whole point of it being here: the
+     * twelve unary kinds are one `InstUnary`, so a thirteenth added to inst.def inherits the answer
+     * instead of being silently absent from a switch that names the other twelve.
+     */
+    bool sameExtra(const Value&) const { return false; }
 
     /*
      * Everything that reads this value, one entry per naming - an instruction that reads it twice is
@@ -437,11 +503,30 @@ struct Arg: Value {
     LoanGroup loan = kNoLoan;
 };
 
+/*
+ * Two floats that are the same *value*, which for a constant means the same bits.
+ *
+ * `-0.0 == 0.0` and `NaN != NaN` are both true of the numbers and neither is true of the constants:
+ * one of those pairs is two values that compare equal and the other is one value that does not.
+ */
+template<class T>
+inline bool sameFloatBits(T a, T b) {
+    union { T value; U8 bytes[sizeof(T)]; } left { a }, right { b };
+
+    for(Size i = 0; i < sizeof(T); i++) {
+        if(left.bytes[i] != right.bytes[i]) return false;
+    }
+
+    return true;
+}
+
 struct ConstInt: Value {
     ConstInt(ModulePtr<Block> block, TypePtr type, U64 value):
         Value(Value::ConstInt, block, type), value(value) {}
 
     U64 value;
+
+    bool sameExtra(const ConstInt& other) const { return value == other.value; }
 };
 
 struct ConstFloat: Value {
@@ -449,6 +534,11 @@ struct ConstFloat: Value {
         Value(Value::ConstFloat, block, type), value(value) {}
 
     F32 value;
+
+    // The stored bits rather than the number, which is what keeps the two floating cases honest:
+    // `-0.0` and `0.0` compare equal and are not the same value, and a NaN compares equal to nothing
+    // including itself.
+    bool sameExtra(const ConstFloat& other) const { return sameFloatBits(value, other.value); }
 };
 
 struct ConstDouble: Value {
@@ -456,6 +546,9 @@ struct ConstDouble: Value {
         Value(Value::ConstDouble, block, type), value(value) {}
 
     F64 value;
+
+    // The bits, for the reason `ConstFloat` states.
+    bool sameExtra(const ConstDouble& other) const { return sameFloatBits(value, other.value); }
 };
 
 /*
@@ -477,6 +570,8 @@ struct ConstString: Value {
         Value(Value::ConstString, block, type), text(text) {}
 
     StringId text;
+
+    bool sameExtra(const ConstString& other) const { return text == other.text; }
 };
 
 // Every instruction takes its block and its result type as its first two constructor arguments,
@@ -1122,6 +1217,10 @@ struct InstTypeMetric: Inst {
     // The type being measured, which is not `type` - the result is an integer.
     TypePtr of;
     TypeMetricKind metric;
+
+    bool sameExtra(const InstTypeMetric& other) const {
+        return of == other.of && metric == other.metric;
+    }
 };
 
 /*
@@ -1154,6 +1253,8 @@ struct InstTableSlot: Inst {
     U16 slot;
 
     template<class F> void mapOperandFields(ModuleBase, F&& f) { table = f(table); }
+
+    bool sameExtra(const InstTableSlot& other) const { return slot == other.slot; }
 };
 
 /*
@@ -1446,6 +1547,10 @@ struct InstUnary: Inst {
     ModulePtr<Value> from;
 
     template<class F> void mapOperandFields(ModuleBase, F&& f) { from = f(from); }
+
+    // Nothing beside the operand: which of the twelve unary kinds it is, is the kind. This is the
+    // arm a thirteenth inherits instead of being absent from.
+    bool sameExtra(const InstUnary&) const { return true; }
 };
 
 struct InstBinary: Inst {
@@ -1459,6 +1564,8 @@ struct InstBinary: Inst {
         lhs = f(lhs);
         rhs = f(rhs);
     }
+
+    bool sameExtra(const InstBinary&) const { return true; }
 };
 
 enum class CompareOp: U8 {
@@ -1475,6 +1582,9 @@ struct InstCmp: InstBinary {
         InstBinary(block, type, Value::Cmp, lhs, rhs), cmp(cmp) {}
 
     CompareOp cmp;
+
+    // Hides `InstBinary`'s, which would answer for a field it does not know about.
+    bool sameExtra(const InstCmp& other) const { return cmp == other.cmp; }
 };
 
 /*
@@ -1513,6 +1623,8 @@ struct InstSelect: Inst {
         whenTrue = f(whenTrue);
         whenFalse = f(whenFalse);
     }
+
+    bool sameExtra(const InstSelect&) const { return true; }
 };
 
 /*
@@ -1531,6 +1643,8 @@ struct InstFma: Inst {
         b = f(b);
         c = f(c);
     }
+
+    bool sameExtra(const InstFma&) const { return true; }
 };
 
 /*
@@ -1604,6 +1718,8 @@ struct InstVecSplat: Inst {
     ModulePtr<Value> from;
 
     template<class F> void mapOperandFields(ModuleBase, F&& f) { from = f(from); }
+
+    bool sameExtra(const InstVecSplat&) const { return true; }
 };
 
 /*
@@ -1635,6 +1751,8 @@ struct InstVecLane: Inst {
         from = f(from);
         if(value) value = f(value);
     }
+
+    bool sameExtra(const InstVecLane& other) const { return lane == other.lane; }
 };
 
 /*
@@ -1660,6 +1778,16 @@ struct InstVecShuffle: Inst {
     template<class F> void mapOperandFields(ModuleBase, F&& f) {
         left = f(left);
         right = f(right);
+    }
+
+    bool sameExtra(const InstVecShuffle& other) const {
+        if(pattern.size() != other.pattern.size()) return false;
+
+        for(Size i = 0; i < pattern.size(); i++) {
+            if(pattern[i] != other.pattern[i]) return false;
+        }
+
+        return true;
     }
 };
 
@@ -1720,6 +1848,10 @@ struct InstShaBinary: Inst {
         lhs = f(lhs);
         rhs = f(rhs);
     }
+
+    // The *op* is part of the identity: two of these over one pair of vectors are the same
+    // computation only if they are the same instruction.
+    bool sameExtra(const InstShaBinary& other) const { return op == other.op; }
 };
 
 // `sha256rnds2` - the one SHA instruction with three operands, and the only reason this is a
@@ -1736,6 +1868,9 @@ struct InstSha256Rounds: Inst {
         feed = f(feed);
         keys = f(keys);
     }
+
+    // Three operands in fixed positions, and nothing commutes about any of them.
+    bool sameExtra(const InstSha256Rounds&) const { return true; }
 };
 
 // Every lane combined into one scalar, in the pairwise order Design-Vector §4.5 states. `type` is
@@ -1748,6 +1883,8 @@ struct InstVecReduce: Inst {
     ReduceOp reduce;
 
     template<class F> void mapOperandFields(ModuleBase, F&& f) { from = f(from); }
+
+    bool sameExtra(const InstVecReduce& other) const { return reduce == other.reduce; }
 };
 
 /*
@@ -1767,6 +1904,10 @@ struct InstSymbol: Inst {
     // Exactly one of the two is set.
     ModulePtr<Function> callee;
     ModulePtr<Global> global;
+
+    bool sameExtra(const InstSymbol& other) const {
+        return callee == other.callee && global == other.global;
+    }
 };
 
 struct InstCall: Inst {
@@ -2091,6 +2232,33 @@ inline bool producesValue(const Value& value) {
     return (instructionTraits(value.kind).flags & kInstResult) != 0;
 }
 
+// The first two operands may be exchanged - see `kInstCommutative`, which is where the "first two"
+// rather than "the two" is argued.
+inline bool isCommutativeValue(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstCommutative) != 0;
+}
+
+// `(a . b) . c` is `a . (b . c)`, which is a strictly stronger claim than the one above.
+inline bool isAssociativeValue(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstAssociative) != 0;
+}
+
+// Transfers control to a function at run time, teardowns included - see `kInstCall`.
+inline bool performsCall(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstCall) != 0;
+}
+
+// Means nothing outside the body whose generic environment its slot numbers belong to - see
+// `kInstGeneric`, and `clonableKind` in opt_inline.cpp, which is the one thing that asks.
+inline bool isGenericBound(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstGeneric) != 0;
+}
+
+// Belongs where it was written and nowhere else - see `kInstAnchored`.
+inline bool isAnchored(const Value& value) {
+    return (instructionTraits(value.kind).flags & kInstAnchored) != 0;
+}
+
 /*
  * The places one instruction names, as storage a transform may write back into.
  *
@@ -2228,6 +2396,38 @@ inline void eachOperand(ModuleBase base, Value& instruction, F&& f) {
     mapOperands(base, instruction, [&](ModulePtr<Value> operand) {
         if(operand) f(operand);
         return operand;
+    });
+}
+
+/*
+ * The same list, collected, for the one caller that needs it *positionally* rather than one at a
+ * time: comparing two instructions operand for operand.
+ *
+ * Nulls are kept, because position is what is being compared - a `VecLane`'s absent `value` is
+ * operand one of both sides or of neither. Four inline covers every kind but a call, and a call is
+ * not something this is asked about.
+ */
+using OperandList = SmallArray<ModulePtr<Value>, 4>;
+
+inline void instructionOperands(ModuleBase base, Value& instruction, OperandList& target) {
+    mapOperands(base, instruction, [&](ModulePtr<Value> operand) {
+        target.push(operand);
+        return operand;
+    });
+}
+
+/*
+ * Whether two instructions of one kind agree on everything that is not an operand.
+ *
+ * The struct's own answer, reached the way every other trait is - see `Value::sameExtra`, which is
+ * where the default's refusal is argued. The cast is what `visitInstruction` has already
+ * established: the two kinds are equal, so both are the struct inst.def names for that kind.
+ */
+inline bool sameExtraState(Value& a, Value& b) {
+    if(a.kind != b.kind) return false;
+
+    return visitInstruction(a, [&](auto& inst) {
+        return inst.sameExtra((decltype(inst))b);
     });
 }
 

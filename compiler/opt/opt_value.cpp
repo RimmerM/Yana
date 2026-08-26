@@ -52,9 +52,9 @@ namespace {
  * location - so the two `4`s in `xs[i] = xs[i] + 1` are two values, and comparing operands by
  * identity alone says the two `mul %i, 4`s under them are two computations.
  *
- * The comparison is on the stored representation rather than on the number, which is what keeps the
- * two floating cases honest: `-0.0` and `0.0` compare equal as doubles and are not the same value,
- * and a NaN compares equal to nothing including itself.
+ * What "one number" means for a float is the stored bits, and that is `sameExtra`'s business rather
+ * than this one's - see `sameFloatBits` in resolve/inst.h, which is declared beside the field it
+ * compares.
  */
 bool sameOperand(OptContext& opt, ModulePtr<Value> first, ModulePtr<Value> second) {
     if(first == second) return true;
@@ -62,17 +62,8 @@ bool sameOperand(OptContext& opt, ModulePtr<Value> first, ModulePtr<Value> secon
 
     auto& a = *opt.local[first];
     auto& b = *opt.local[second];
-    if(a.kind != b.kind || a.type != b.type) return false;
 
-    // The stored bits of a float, which is what "the same constant" means for one - see above.
-    auto bitsOf = [](F64 value) { union { F64 f; U64 bits; } punned = { value }; return punned.bits; };
-
-    switch(a.kind) {
-        case Value::ConstInt:    return ((ConstInt&)a).value == ((ConstInt&)b).value;
-        case Value::ConstFloat:  return bitsOf(((ConstFloat&)a).value) == bitsOf(((ConstFloat&)b).value);
-        case Value::ConstDouble: return bitsOf(((ConstDouble&)a).value) == bitsOf(((ConstDouble&)b).value);
-        default:                 return false;
-    }
+    return isConstant(a) && a.kind == b.kind && a.type == b.type && sameExtraState(a, b);
 }
 
 /*
@@ -82,134 +73,73 @@ bool sameOperand(OptContext& opt, ModulePtr<Value> first, ModulePtr<Value> secon
  * rather than a congruence: two instructions with equal-but-distinct operands are left alone, and
  * the fixed point catches them on the next round once the operands themselves have been unified.
  *
- * Everything a kind carries beside its operands has to be compared here. A kind whose extra state is
- * not listed would have two instructions declared equal on their operands alone - which is why the
- * default is to decline rather than to accept.
+ * ## Why there is no switch here any more
+ *
+ * There was one, with an arm per kind, and it had the failure mode every such switch has: a kind
+ * absent from it fell to a `default` that declined, so a pure computation nobody had thought to list
+ * was simply never unified. `mulhi` and `tableslot` were both in that position - the second is every
+ * witness dispatch in a generic body, re-read once per call.
+ *
+ * The three questions the switch was answering are each answered where the answer belongs:
+ *
+ *  - *which operands does this instruction have* is `instructionOperands`, which is the trait walk
+ *    every other pass already uses - so a kind reaches this the moment it declares its operands;
+ *  - *what does it carry beside them* is `sameExtra`, declared next to those fields, whose default is
+ *    to decline. That is what keeps the omission safe: a struct nobody has looked at is not unified,
+ *    and a *kind* added to a struct that has been looked at is unified correctly with no edit here;
+ *  - *may the operands be exchanged* is `kInstCommutative` in inst.def.
  */
 bool sameComputation(OptContext& opt, Value& a, Value& b) {
     if(a.kind != b.kind || a.type != b.type) return false;
 
-    auto same = [&](ModulePtr<Value> x, ModulePtr<Value> y) { return sameOperand(opt, x, y); };
+    /*
+     * The compiler's own check, which is not pure and is idempotent - see the header. Its one
+     * operand decides it completely: `isCheckCall` has already established that the callee reads
+     * that flag and touches nothing else.
+     *
+     * By identity rather than through `sameOperand`, and this is the one place that matters: a check
+     * whose flag folded to a constant is a check that already knows its answer, and
+     * `isDischargedCheck` removes the `false` one outright rather than pairing two of them up.
+     */
+    if(a.kind == Value::Call) {
+        if(!isCheckCall(opt, ((InstCall&)a).callee)) return false;
+        if(!isCheckCall(opt, ((InstCall&)b).callee)) return false;
+        if(((InstCall&)a).args.size() != 1 || ((InstCall&)b).args.size() != 1) return false;
 
-    switch(a.kind) {
-        case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
-        case Value::ByteSwap:
-        case Value::CountBits: case Value::LeadingZeros: case Value::TrailingZeros:
-        case Value::Sqrt: case Value::Abs:
-        case Value::Trunc: case Value::Floor: case Value::Ceil: case Value::Round:
-            return same(((InstUnary&)a).from, ((InstUnary&)b).from);
-
-        // Three operands and no state beside them. Commutative in `a` and `b` alone: the product is,
-        // and the addend is not one of the pair.
-        case Value::Fma: {
-            auto& x = (InstFma&)a;
-            auto& y = (InstFma&)b;
-
-            return same(x.c, y.c)
-                && ((same(x.a, y.a) && same(x.b, y.b)) || (same(x.a, y.b) && same(x.b, y.a)));
-        }
-        // The SHA rounds: three operands in fixed positions, and nothing commutes about any of them.
-        case Value::Sha256Rounds: {
-            auto& x = (InstSha256Rounds&)a;
-            auto& y = (InstSha256Rounds&)b;
-
-            return same(x.state, y.state) && same(x.feed, y.feed) && same(x.keys, y.keys);
-        }
-        // And the two-operand ones, where the *op* is part of the identity: two of these over one
-        // pair of vectors are the same computation only if they are the same instruction.
-        case Value::ShaBinary: {
-            auto& x = (InstShaBinary&)a;
-            auto& y = (InstShaBinary&)b;
-
-            return x.op == y.op && same(x.lhs, y.lhs) && same(x.rhs, y.rhs);
-        }
-        // Commutative, so the operands are compared as a pair rather than in order. The folder
-        // already moves a constant to the right, which settles the common case before this is
-        // asked; this is what catches `x + y` against a `y + x` neither of whose operands is one.
-        case Value::Add: case Value::Mul:
-        case Value::And: case Value::Or: case Value::Xor:
-            if(same(((InstBinary&)a).lhs, ((InstBinary&)b).rhs) &&
-               same(((InstBinary&)a).rhs, ((InstBinary&)b).lhs)) {
-                return true;
-            }
-            [[fallthrough]];
-        case Value::Sub: case Value::Div: case Value::Rem:
-        case Value::Shl: case Value::Shr: case Value::Sar:
-        case Value::Rol: case Value::Ror:
-        // The three bit operations, here and not above: `bitsUpTo` takes a value and a count, and a
-        // permutation takes a value and a mask. Neither pair may be exchanged.
-        // `crc32` joins them: its accumulator and its chunk are not the same thing either.
-        case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32:
-            return same(((InstBinary&)a).lhs, ((InstBinary&)b).lhs) &&
-                   same(((InstBinary&)a).rhs, ((InstBinary&)b).rhs);
-        case Value::Cmp:
-            return same(((InstCmp&)a).lhs, ((InstCmp&)b).lhs) &&
-                   same(((InstCmp&)a).rhs, ((InstCmp&)b).rhs) &&
-                   ((InstCmp&)a).cmp == ((InstCmp&)b).cmp;
-        // Not commutative in any useful sense: swapping the arms is only the same instruction with
-        // the condition inverted, and there is no inversion to compare against here.
-        case Value::Select:
-            return same(((InstSelect&)a).cond, ((InstSelect&)b).cond) &&
-                   same(((InstSelect&)a).whenTrue, ((InstSelect&)b).whenTrue) &&
-                   same(((InstSelect&)a).whenFalse, ((InstSelect&)b).whenFalse);
-        /*
-         * The vector kinds. Every one of them carries state beside its operands - a lane index, a
-         * shuffle pattern, which reduction - and this is the switch where a kind whose extra state
-         * went uncompared would have two different instructions declared equal.
-         *
-         * `isRepeatable` already answers yes for all five, from the purity column in inst.def, so
-         * they were CSE candidates the moment they existed and the arm below is what makes that
-         * sound rather than what makes it happen.
-         */
-        case Value::VecSplat:
-            return same(((InstVecSplat&)a).from, ((InstVecSplat&)b).from);
-        case Value::VecLane:
-        case Value::VecWithLane:
-            return same(((InstVecLane&)a).from, ((InstVecLane&)b).from) &&
-                   same(((InstVecLane&)a).value, ((InstVecLane&)b).value) &&
-                   ((InstVecLane&)a).lane == ((InstVecLane&)b).lane;
-        case Value::VecShuffle: {
-            auto& first = (InstVecShuffle&)a;
-            auto& second = (InstVecShuffle&)b;
-
-            if(!same(first.left, second.left) || !same(first.right, second.right)) return false;
-            if(first.pattern.size() != second.pattern.size()) return false;
-
-            for(Size i = 0; i < first.pattern.size(); i++) {
-                if(first.pattern[i] != second.pattern[i]) return false;
-            }
-
-            return true;
-        }
-        case Value::VecReduce:
-            return same(((InstVecReduce&)a).from, ((InstVecReduce&)b).from) &&
-                   ((InstVecReduce&)a).reduce == ((InstVecReduce&)b).reduce;
-        case Value::TypeMetric:
-            return ((InstTypeMetric&)a).of == ((InstTypeMetric&)b).of &&
-                   ((InstTypeMetric&)a).metric == ((InstTypeMetric&)b).metric;
-        case Value::Symbol:
-            return ((InstSymbol&)a).callee == ((InstSymbol&)b).callee &&
-                   ((InstSymbol&)a).global == ((InstSymbol&)b).global;
-
-        /*
-         * And the compiler's own check, which is not pure and is idempotent - see the header. Its
-         * one operand decides it completely: `isCheckCall` has already established that the callee
-         * reads that flag and touches nothing else.
-         *
-         * By identity rather than through `sameOperand`, and this is the one place that matters: a
-         * check whose flag folded to a constant is a check that already knows its answer, and
-         * `isDischargedCheck` removes the `false` one outright rather than pairing two of them up.
-         */
-        case Value::Call:
-            if(!isCheckCall(opt, ((InstCall&)a).callee)) return false;
-            if(!isCheckCall(opt, ((InstCall&)b).callee)) return false;
-            if(((InstCall&)a).args.size() != 1 || ((InstCall&)b).args.size() != 1) return false;
-
-            return ((InstCall&)a).args.get(opt.local, 0) == ((InstCall&)b).args.get(opt.local, 0);
-
-        default:
-            return false;
+        return ((InstCall&)a).args.get(opt.local, 0) == ((InstCall&)b).args.get(opt.local, 0);
     }
+
+    // Everything else this may be asked about has to be a value the optimizer is free to compute
+    // once, which is exactly the purity column.
+    if(!isPureValue(a) || !sameExtraState(a, b)) return false;
+
+    OperandList left, right;
+    instructionOperands(opt.local, a, left);
+    instructionOperands(opt.local, b, right);
+    if(left.size() != right.size()) return false;
+
+    auto ordered = true;
+    for(Size i = 0; i < left.size() && ordered; i++) {
+        ordered = sameOperand(opt, left[i], right[i]);
+    }
+
+    if(ordered) return true;
+
+    /*
+     * The one exchange a commutative operation admits, on its first two operands - see
+     * `kInstCommutative`, and `InstFma`, which is why it is the first two rather than the only two.
+     *
+     * The folder already moves a constant to the right, which settles the common case before this is
+     * asked; this is what catches `x + y` against a `y + x` neither of whose operands is one.
+     */
+    if(!isCommutativeValue(a) || left.size() < 2) return false;
+    if(!sameOperand(opt, left[0], right[1]) || !sameOperand(opt, left[1], right[0])) return false;
+
+    for(Size i = 2; i < left.size(); i++) {
+        if(!sameOperand(opt, left[i], right[i])) return false;
+    }
+
+    return true;
 }
 
 /*

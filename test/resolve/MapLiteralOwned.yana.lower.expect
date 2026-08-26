@@ -31,20 +31,6 @@ indexSlotsFor<complex>(%wanted: Long): Long {
   }
 }
 
-foldWide<complex>(%value: Long): Int {
-  b_0 {
-    %lhs = xor %value, 2685821657736338717: Long
-    %rhs = imm 6364136223846793005: Long
-    %v_1 = mul %lhs, %rhs: Long
-    %v_2 = mulhi %lhs, %rhs: Long
-    %mixed = xor %v_1, %v_2: Long
-    %v_3 = shr %mixed, 32: Long
-    %v_4 = xor %mixed, %v_3: Long
-    %v_5 = cast %v_4: Int
-    ret %v_5
-  }
-}
-
 pushUnsigned<complex>(%value: Long, %to: Ptr) {
   b_0 {
     %v_1 = alloca 20, 1: Ptr
@@ -542,91 +528,98 @@ indexRebuild(String, Held)<complex>(%self: Ptr, %slots: Long) {
     %v_3 = add %v_1, %v_2: Long
     %v_4 = add %self, 16: Ptr
     %grown = call_complex resize(U8), %v_4, %v_3: Int
-    je %grown, b_5, b_6
-  }
-
-  b_5 {
-    %v_7 = sub %slots, 1: Long
-    %v_8 = cast %v_7: Int
-    %v_9 = and %v_8, 1073741823: Int
-    %v_10 = add %self, 32: Ptr
-    %v_11 = load %v_10, 8: Long
-    %v_12 = cast %v_9: Long
-    %v_13 = shl %v_12, 32: Long
-    %v_14 = and %v_11, 13835058059577131007: Long
-    %v_15 = or %v_14, %v_13: Long
-    store %v_10, %v_15, 8
-    %v_16 = add %self, 16: Ptr
-    %v_17 = load %v_16, 8: Ptr
-    %v_18 = cast %v_9: Long
-    %v_19 = add %v_18, 17: Long
-    setpattern %v_17, %v_19, 128
-    %v_20 = load %v_10, 8: Long
-    %v_21 = and %v_20, 18446744072635809792: Long
-    store %v_10, %v_21, 8
-    %v_22 = add %self, 12: Ptr
-    %v_23 = load %v_22, 4: Int
-    %v_24 = cast %v_23: Long
-    jmp b_25
-  }
-
-  b_25 {
-    %v_26 = phi [b_5, 0], [b_27, %v_28]: Long
-    %v_29 = cmp_ilt %v_26, %v_24: Int
-    je %v_29, b_30, b_31
-  }
-
-  b_31 {
-    ret 
-  }
-
-  b_30 {
-    %v_32 = load %self, 8: Ptr
-    %v_33 = imul %v_26, 24: Long
-    %v_34 = add %v_32, %v_33: Ptr
-    %v_35 = add %v_34, 12: Ptr
-    %v_36 = load %v_35, 4: Int
-    %v_37 = sext %v_36: Long
-    %v_38 = cast %v_36: Long
-    %v_39 = shl %v_38, 32: Long
-    %v_40 = or %v_39, 2166136261: Long
-    %v_41 = call_complex foldWide, %v_40: Int
-    %v_42 = load %v_34, 8: Ptr
-    jmp b_43
-  }
-
-  b_43 {
-    %v_44 = phi [b_30, %v_41], [b_45, %v_46]: Int
-    %v_47 = phi [b_30, 0], [b_45, %v_48]: Long
-    %v_49 = cmp_ilt %v_47, %v_37: Int
-    je %v_49, b_45, b_27
-  }
-
-  b_27 {
-    %v_50 = shr %v_44, 16: Int
-    %v_51 = xor %v_44, %v_50: Int
-    %v_52 = mul %v_51, 2246822507: Int
-    %v_53 = shr %v_52, 13: Int
-    %v_54 = xor %v_52, %v_53: Int
-    %v_55 = mul %v_54, 3266489909: Int
-    %v_56 = shr %v_55, 16: Int
-    %v_57 = xor %v_55, %v_56: Int
-    call_complex indexPlace(String, Held), %self, %v_26, %v_57
-    %v_28 = add %v_26, 1: Long
-    jmp b_25
-  }
-
-  b_45 {
-    %v_58 = add %v_42, %v_47: Ptr
-    %v_59 = load %v_58, 1: Int
-    %v_60 = xor %v_44, %v_59: Int
-    %v_46 = mul %v_60, 16777619: Int
-    %v_48 = add %v_47, 1: Long
-    jmp b_43
+    %v_5 = imm 6364136223846793005: Long
+    je %grown, b_6, b_7
   }
 
   b_6 {
-    %v_61 = syscall 60, 134: Long
+    %v_8 = sub %slots, 1: Long
+    %v_9 = cast %v_8: Int
+    %v_10 = and %v_9, 1073741823: Int
+    %v_11 = add %self, 32: Ptr
+    %v_12 = load %v_11, 8: Long
+    %v_13 = cast %v_10: Long
+    %v_14 = shl %v_13, 32: Long
+    %v_15 = and %v_12, 13835058059577131007: Long
+    %v_16 = or %v_15, %v_14: Long
+    store %v_11, %v_16, 8
+    %v_17 = add %self, 16: Ptr
+    %v_18 = load %v_17, 8: Ptr
+    %v_19 = cast %v_10: Long
+    %v_20 = add %v_19, 17: Long
+    setpattern %v_18, %v_20, 128
+    %v_21 = load %v_11, 8: Long
+    %v_22 = and %v_21, 18446744072635809792: Long
+    store %v_11, %v_22, 8
+    %v_23 = add %self, 12: Ptr
+    %v_24 = load %v_23, 4: Int
+    %v_25 = cast %v_24: Long
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = phi [b_6, 0], [b_28, %v_29]: Long
+    %v_30 = cmp_ilt %v_27, %v_25: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_32 {
+    ret 
+  }
+
+  b_31 {
+    %v_33 = load %self, 8: Ptr
+    %v_34 = imul %v_27, 24: Long
+    %v_35 = add %v_33, %v_34: Ptr
+    %v_36 = add %v_35, 12: Ptr
+    %v_37 = load %v_36, 4: Int
+    %v_38 = sext %v_37: Long
+    %v_39 = cast %v_37: Long
+    %v_40 = shl %v_39, 32: Long
+    %v_41 = or %v_40, 2166136261: Long
+    %lhs = xor %v_41, 2685821657736338717: Long
+    %v_42 = mul %lhs, %v_5: Long
+    %v_43 = mulhi %lhs, %v_5: Long
+    %mixed = xor %v_42, %v_43: Long
+    %v_44 = shr %mixed, 32: Long
+    %v_45 = xor %mixed, %v_44: Long
+    %v_46 = cast %v_45: Int
+    %v_47 = load %v_35, 8: Ptr
+    jmp b_48
+  }
+
+  b_48 {
+    %v_49 = phi [b_31, %v_46], [b_50, %v_51]: Int
+    %v_52 = phi [b_31, 0], [b_50, %v_53]: Long
+    %v_54 = cmp_ilt %v_52, %v_38: Int
+    je %v_54, b_50, b_28
+  }
+
+  b_28 {
+    %v_55 = shr %v_49, 16: Int
+    %v_56 = xor %v_49, %v_55: Int
+    %v_57 = mul %v_56, 2246822507: Int
+    %v_58 = shr %v_57, 13: Int
+    %v_59 = xor %v_57, %v_58: Int
+    %v_60 = mul %v_59, 3266489909: Int
+    %v_61 = shr %v_60, 16: Int
+    %v_62 = xor %v_60, %v_61: Int
+    call_complex indexPlace(String, Held), %self, %v_27, %v_62
+    %v_29 = add %v_27, 1: Long
+    jmp b_26
+  }
+
+  b_50 {
+    %v_63 = add %v_47, %v_52: Ptr
+    %v_64 = load %v_63, 1: Int
+    %v_65 = xor %v_49, %v_64: Int
+    %v_51 = mul %v_65, 16777619: Int
+    %v_53 = add %v_52, 1: Long
+    jmp b_48
+  }
+
+  b_7 {
+    %v_66 = syscall 60, 134: Long
     unreachable 
   }
 }
@@ -639,37 +632,44 @@ hashKey(String)<complex>(%key: Ptr): Int {
     %v_4 = cast %v_2: Long
     %v_5 = shl %v_4, 32: Long
     %v_6 = or %v_5, 2166136261: Long
-    %v_7 = call_complex foldWide, %v_6: Int
-    %v_8 = load %key, 8: Ptr
-    jmp b_9
+    %lhs = xor %v_6, 2685821657736338717: Long
+    %v_7 = imm 6364136223846793005: Long
+    %v_8 = mul %lhs, %v_7: Long
+    %v_9 = mulhi %lhs, %v_7: Long
+    %mixed = xor %v_8, %v_9: Long
+    %v_10 = shr %mixed, 32: Long
+    %v_11 = xor %mixed, %v_10: Long
+    %v_12 = cast %v_11: Int
+    %v_13 = load %key, 8: Ptr
+    jmp b_14
   }
 
-  b_9 {
-    %v_10 = phi [b_0, %v_7], [b_11, %v_12]: Int
-    %v_13 = phi [b_0, 0], [b_11, %v_14]: Long
-    %v_15 = cmp_ilt %v_13, %v_3: Int
-    je %v_15, b_11, b_16
+  b_14 {
+    %v_15 = phi [b_0, %v_12], [b_16, %v_17]: Int
+    %v_18 = phi [b_0, 0], [b_16, %v_19]: Long
+    %v_20 = cmp_ilt %v_18, %v_3: Int
+    je %v_20, b_16, b_21
+  }
+
+  b_21 {
+    %v_22 = shr %v_15, 16: Int
+    %v_23 = xor %v_15, %v_22: Int
+    %v_24 = mul %v_23, 2246822507: Int
+    %v_25 = shr %v_24, 13: Int
+    %v_26 = xor %v_24, %v_25: Int
+    %v_27 = mul %v_26, 3266489909: Int
+    %v_28 = shr %v_27, 16: Int
+    %v_29 = xor %v_27, %v_28: Int
+    ret %v_29
   }
 
   b_16 {
-    %v_17 = shr %v_10, 16: Int
-    %v_18 = xor %v_10, %v_17: Int
-    %v_19 = mul %v_18, 2246822507: Int
-    %v_20 = shr %v_19, 13: Int
-    %v_21 = xor %v_19, %v_20: Int
-    %v_22 = mul %v_21, 3266489909: Int
-    %v_23 = shr %v_22, 16: Int
-    %v_24 = xor %v_22, %v_23: Int
-    ret %v_24
-  }
-
-  b_11 {
-    %v_25 = add %v_8, %v_13: Ptr
-    %v_26 = load %v_25, 1: Int
-    %v_27 = xor %v_10, %v_26: Int
-    %v_12 = mul %v_27, 16777619: Int
-    %v_14 = add %v_13, 1: Long
-    jmp b_9
+    %v_30 = add %v_13, %v_18: Ptr
+    %v_31 = load %v_30, 1: Int
+    %v_32 = xor %v_15, %v_31: Int
+    %v_17 = mul %v_32, 16777619: Int
+    %v_19 = add %v_18, 1: Long
+    jmp b_14
   }
 }
 

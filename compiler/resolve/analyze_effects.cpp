@@ -246,6 +246,19 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
                 reach(place.pointer);
             }
+        } else if(produced.kind == Value::Select) {
+            /*
+             * Either arm of a select, on the same terms as the cast below: which reference this is
+             * is what the condition decided, and what either of them refers into is unchanged by
+             * being chosen. `analyze_provenance` joins the two arms at its own `Select` arm.
+             *
+             * Reachable here because `settle` runs a full optimizer round on a callee before a site
+             * is judged against it, so a body this analysis sees can already hold the collapsed form
+             * of `if c then &a else &b`.
+             */
+            auto& select = (InstSelect&)produced;
+            reach(select.whenTrue);
+            reach(select.whenFalse);
         } else if(produced.kind == Value::Cast || produced.kind == Value::Bitcast) {
             /*
              * A cast of a reference is the same address written differently, so it carries the same
@@ -405,19 +418,6 @@ static void deriveEffects(Analysis& analysis) {
         }
 
         switch(instruction.kind) {
-            case Value::Alloc:
-                // Allocating creates storage and puts nothing in it. What makes a slot owned is
-                // the Init that follows, which is why `let x = e` is two instructions.
-                //
-                // A run's length is read here, though, and saying so is what keeps whatever computed
-                // it live up to this point - see InstAlloc::extent.
-                useValue(analysis, effects, ((InstAlloc&)instruction).extent);
-                break;
-
-            case Value::LoadPlace:
-                useRoot(analysis, effects, ((InstLoadPlace&)instruction).place);
-                break;
-
             case Value::Init:
             case Value::Assign: {
                 auto& write = (InstInit&)instruction;
@@ -496,33 +496,12 @@ static void deriveEffects(Analysis& analysis) {
                 break;
             }
 
-            case Value::Borrow:
-                useRoot(analysis, effects, ((InstBorrow&)instruction).place);
-                break;
-
             case Value::Move: {
                 auto& moved = (InstMove&)instruction;
                 useRoot(analysis, effects, moved.place);
 
                 auto root = rootLocal(analysis, moved.place);
                 if(root != maxLimit<U32>) effects.moves.push(root);
-                break;
-            }
-
-            /*
-             * Both places are read and both are written, and the state of neither changes. So both
-             * are uses and neither is a def, a move or an init - the whole of what makes these two
-             * the operations that need no lattice.
-             *
-             * A use is not nothing, though: it is what keeps the old contents live up to here, which
-             * is what stops the last-use rule dropping a value that this instruction is about to
-             * hand somewhere else. It is also what makes reading a moved-out slot through one of
-             * these the use-after-move it is.
-             */
-            case Value::Swap: {
-                auto& swap = (InstSwap&)instruction;
-                useRoot(analysis, effects, swap.a);
-                useRoot(analysis, effects, swap.b);
                 break;
             }
 
@@ -535,115 +514,6 @@ static void deriveEffects(Analysis& analysis) {
                 transferFrom(analysis, effects, exchange.value);
                 break;
             }
-
-            case Value::Copy:
-                useRoot(analysis, effects, ((InstCopy&)instruction).place);
-                break;
-
-            case Value::Drop:
-                useRoot(analysis, effects, ((InstDrop&)instruction).place);
-                break;
-
-            case Value::Address:
-                useRoot(analysis, effects, ((InstAddress&)instruction).place);
-                break;
-
-            case Value::Cast:
-            case Value::Bitcast:
-            case Value::Neg:
-            case Value::Not:
-            case Value::ByteSwap:
-            case Value::CountBits:
-            case Value::LeadingZeros:
-            case Value::TrailingZeros:
-            case Value::Sqrt:
-            case Value::Abs:
-            case Value::Trunc:
-            case Value::Floor:
-            case Value::Ceil:
-            case Value::Round:
-                useValue(analysis, effects, ((InstUnary&)instruction).from);
-                break;
-
-            case Value::Fma:
-                useValue(analysis, effects, ((InstFma&)instruction).a);
-                useValue(analysis, effects, ((InstFma&)instruction).b);
-                useValue(analysis, effects, ((InstFma&)instruction).c);
-                break;
-
-            case Value::Sha256Rounds:
-                useValue(analysis, effects, ((InstSha256Rounds&)instruction).state);
-                useValue(analysis, effects, ((InstSha256Rounds&)instruction).feed);
-                useValue(analysis, effects, ((InstSha256Rounds&)instruction).keys);
-                break;
-
-            case Value::ShaBinary:
-                useValue(analysis, effects, ((InstShaBinary&)instruction).lhs);
-                useValue(analysis, effects, ((InstShaBinary&)instruction).rhs);
-                break;
-
-            case Value::Add:
-            case Value::Sub:
-            case Value::Mul:
-            case Value::MulHi:
-            case Value::Div:
-            case Value::Rem:
-            case Value::Shl:
-            case Value::Shr:
-            case Value::Sar:
-            case Value::Rol:
-            case Value::Ror:
-            case Value::And:
-            case Value::Or:
-            case Value::BitsUpTo:
-            case Value::GatherBits:
-            case Value::ScatterBits:
-            case Value::Crc32:
-            case Value::Xor:
-            case Value::Cmp:
-                useValue(analysis, effects, ((InstBinary&)instruction).lhs);
-                useValue(analysis, effects, ((InstBinary&)instruction).rhs);
-                break;
-
-            // The vector kinds, whose operands are lanes and vectors and are read the way every
-            // other computation's are: used, never handed over. A vector is TrivialCopy, so there is
-            // no ownership in one for any of these to move.
-            case Value::VecSplat:
-                useValue(analysis, effects, ((InstVecSplat&)instruction).from);
-                break;
-
-            case Value::VecLane:
-            case Value::VecWithLane:
-                useValue(analysis, effects, ((InstVecLane&)instruction).from);
-                useValue(analysis, effects, ((InstVecLane&)instruction).value);
-                break;
-
-            case Value::VecShuffle:
-                useValue(analysis, effects, ((InstVecShuffle&)instruction).left);
-                useValue(analysis, effects, ((InstVecShuffle&)instruction).right);
-                break;
-
-            case Value::VecReduce:
-                useValue(analysis, effects, ((InstVecReduce&)instruction).from);
-                break;
-
-            case Value::Native:
-                for(auto arg: ((InstNative&)instruction).args.contents(local)) {
-                    useValue(analysis, effects, arg);
-                }
-
-                break;
-
-            case Value::Atomic:
-                for(auto arg: ((InstAtomic&)instruction).args.contents(local)) {
-                    useValue(analysis, effects, arg);
-                }
-
-                break;
-
-            case Value::AtomicOk:
-                useValue(analysis, effects, ((InstAtomicOk&)instruction).cas);
-                break;
 
             case Value::Call: {
                 /*
@@ -679,17 +549,6 @@ static void deriveEffects(Analysis& analysis) {
                     position++;
                 }
 
-                break;
-            }
-
-            case Value::CallDyn: {
-                // The callee's code and environment are read out of the function value, which is
-                // what keeps the value itself alive across the call it is used by.
-                auto& call = (InstCallDyn&)instruction;
-                useValue(analysis, effects, call.callable);
-                useValue(analysis, effects, call.address);
-
-                for(auto arg: call.args.contents(local)) useValue(analysis, effects, arg);
                 break;
             }
 
@@ -731,17 +590,45 @@ static void deriveEffects(Analysis& analysis) {
                 break;
             }
 
-            case Value::Je:
-                useValue(analysis, effects, ((InstJe&)instruction).cond);
-                break;
-
             case Value::Ret:
                 // Returning hands ownership to the caller. Without this the value would be dropped
                 // on the way out and the caller handed released storage.
                 transferFrom(analysis, effects, ((InstRet&)instruction).value);
                 break;
 
+            /*
+             * A phi's operands are *not* used at the phi - see `attributePhiEdges`, which attributes
+             * each of them to the end of the predecessor it arrives from instead. Named here so that
+             * it stays out of the walk below, where it would be exactly the false use-after-move
+             * that pass exists to avoid.
+             */
+            case Value::Phi:
+                break;
+
+            /*
+             * Everything that only reads what it names, which is most of the IR: the loads, the
+             * borrows, the computations, the two block operations, the atomics, the dynamic call and
+             * the branch.
+             *
+             * The trait walk rather than an arm apiece. Those arms were the operand list of each
+             * kind written out a second time, which is how `select` and `tableslot` came to have no
+             * arm at all: neither existed when the switch was written, and "absent" reads here as
+             * "reads nothing", so a witness slot's table was dead at the instruction that loaded it.
+             *
+             * The two halves are `useRoot` split in two, and together they are exactly it: the slot a
+             * place is rooted in comes from `eachPlace`, and the value a borrow- or pointer-rooted
+             * one starts at is an operand like any other, so `eachOperand` yields it. What is left
+             * over is each kind's own operands.
+             */
             default:
+                eachPlace(instruction, [&](const Place& place) {
+                    useSlot(analysis, effects, rootLocal(analysis, place));
+                });
+
+                eachOperand(local, instruction, [&](ModulePtr<Value> operand) {
+                    useValue(analysis, effects, operand);
+                });
+
                 break;
         }
 

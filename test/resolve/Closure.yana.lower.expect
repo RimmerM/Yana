@@ -252,27 +252,30 @@ main<complex>(): Int {
   b_0 {
     %v_1 = call_complex allocateHeap, 4: Ptr
     store %v_1, 5, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.lambda$18, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = load %v_2, 8: Ptr
-    %b = call_complex %v_4, %v_1, 20: Int
-    call_complex reclaimKnown$(Int) -> Int, %v_2
-    %v_5 = call_complex allocateHeap, 8: Ptr
-    store %v_5, 3, 4
-    %v_6 = add %v_5, 4: Ptr
-    store %v_6, 4, 4
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, ResolveTest.lambda$19, 8
-    %v_8 = add %v_7, 8: Ptr
-    store %v_8, %v_5, 8
-    %v_9 = load %v_7, 8: Ptr
-    %c = call_complex %v_9, %v_5, 10: Int
-    call_complex reclaimKnown$(Int) -> Int, %v_7
-    %v_10 = add %b, 18: Int
-    %v_11 = add %v_10, %c: Int
-    ret %v_11
+    %v_2 = bitcast ResolveTest.lambda$18: Long
+    %v_3 = sub %v_2, 4: Long
+    %v_4 = bitcast %v_3: Ptr
+    %v_5 = loads %v_4, 4: Int
+    %v_6 = sext %v_5: Long
+    %v_7 = add %v_6, @image$base: Ptr
+    call_complex %v_7, %v_1
+    %v_8 = call_complex allocateHeap, 8: Ptr
+    store %v_8, 3, 4
+    %v_9 = add %v_8, 4: Ptr
+    %v_10 = imm 4: Int
+    store %v_9, %v_10, 4
+    %v_11 = loads %v_8, 4: Int
+    %v_12 = imul %v_11, 10: Int
+    %v_13 = add %v_12, %v_10: Int
+    %v_14 = bitcast ResolveTest.lambda$19: Long
+    %v_15 = sub %v_14, 4: Long
+    %v_16 = bitcast %v_15: Ptr
+    %v_17 = loads %v_16, 4: Int
+    %v_18 = sext %v_17: Long
+    %v_19 = add %v_18, @image$base: Ptr
+    call_complex %v_19, %v_8
+    %v_20 = add 43, %v_13: Int
+    ret %v_20
   }
 }
 
@@ -307,22 +310,6 @@ closureRelease${amount: Int}<complex>(%env: Ptr) {
 closureRelease${scale: Int, offset: Int}<complex>(%env: Ptr) {
   b_0 {
     call_complex freeHeap, %env
-    ret 
-  }
-}
-
-reclaimKnown$(Int) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = load %value, 8: Ptr
-    %v_4 = bitcast %v_3: Long
-    %v_5 = sub %v_4, 4: Long
-    %v_6 = bitcast %v_5: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
-    %v_9 = add %v_8, @image$base: Ptr
-    call_complex %v_9, %v_2
     ret 
   }
 }

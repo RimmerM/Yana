@@ -1008,37 +1008,21 @@ static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId
  * so a read of storage this body has emptied looked like a read of a perfectly good environment
  * pointer. This is what asks the second lattice the same question the first one is asked.
  *
- * An unprojected `Init` or `Assign` is left out because it is the *fill*, and filling a slot that
- * was moved out of is the point. A projected one is a read: it writes one field and leaves the
- * rest, so the rest had better still be there.
+ * `eachPlace` with one exception, rather than the ten-arm switch this was: every kind that names a
+ * place names it here, so a kind that gains one reaches this check without an edit.
+ *
+ * The exception is the fill. An unprojected `Init` or `Assign` is what *puts* something in the slot,
+ * and filling a slot that was moved out of is the point; a projected one writes one field and leaves
+ * the rest, so the rest had better still be there.
  */
 template<class F>
 static void eachReadPlace(Inst& instruction, F&& visit) {
-    switch(instruction.kind) {
-        case Value::LoadPlace: visit(((InstLoadPlace&)instruction).place); break;
-        case Value::Aggregate: visit(((InstAggregate&)instruction).place); break;
-        case Value::Borrow:    visit(((InstBorrow&)instruction).place); break;
-        case Value::Move:      visit(((InstMove&)instruction).place); break;
-        case Value::Exchange:  visit(((InstExchange&)instruction).place); break;
-        case Value::Copy:      visit(((InstCopy&)instruction).place); break;
-        case Value::Drop:      visit(((InstDrop&)instruction).place); break;
-        case Value::Address:   visit(((InstAddress&)instruction).place); break;
-
-        case Value::Swap:
-            visit(((InstSwap&)instruction).a);
-            visit(((InstSwap&)instruction).b);
-            break;
-
-        case Value::Init:
-        case Value::Assign: {
-            auto& write = (InstInit&)instruction;
-            auto projections = write.place.projections;
-            if(projections.isNotEmpty()) visit(write.place);
-            break;
-        }
-
-        default: break;
+    if(instruction.kind == Value::Init || instruction.kind == Value::Assign) {
+        auto& write = (InstInit&)instruction;
+        if(write.place.projections.isEmpty()) return;
     }
+
+    eachPlace(instruction, visit);
 }
 
 /*

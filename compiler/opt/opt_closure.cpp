@@ -508,11 +508,20 @@ bool devirtualizeClosureDrop(OptContext& opt, Block& block, Size index, InstDrop
      * drop is one traversal serving both halves, and rewriting the two independently would have
      * broken that identity and run the walk twice. There is no identity left to preserve.
      *
-     * Answered `false` rather than `true`, because the drop has not been taken. `dischargeDrop`
-     * expands it in the ordinary way from here, and what it expands is now one call shorter.
+     * Answered `false` rather than `true`, because the drop has not been taken. Whoever asked
+     * expands it in the ordinary way from here - `dischargeDrop`, or `inlineTeardown`, which asks
+     * this first so that what it copies is the body without the branch - and what they expand is now
+     * one call shorter.
+     *
+     * Only where the answer actually changes, because there are two askers and the first of them
+     * runs inside a fixpoint: reporting a rewrite for a drop already holding the known form would be
+     * a round of work per round for a body nothing is doing anything to.
      */
     if(drop.teardown) {
-        drop.teardown = funTeardownKnownHeader(*opt.module, type, drop.source);
+        auto known = funTeardownKnownHeader(*opt.module, type, drop.source);
+        if(known == drop.teardown) return false;
+
+        drop.teardown = known;
     }
 
     opt.changed = true;

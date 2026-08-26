@@ -349,6 +349,23 @@ static bool flowRound(Analysis& analysis) {
 
                     break;
 
+                /*
+                 * Either arm, which is the same join a phi of the two would make - and it has to be
+                 * here for the same reason: `let p = if c then &a else &b` is a diamond until
+                 * `convertSelects` collapses it, and a body reaching this analysis can already hold
+                 * the collapsed form. `settle` runs the whole optimizer round on a callee before the
+                 * inliner judges a site against it, and the inliner is what runs `reselectStorage`.
+                 *
+                 * The condition contributes nothing: it decides which reference this is, not what
+                 * either of them refers to.
+                 */
+                case Value::Select: {
+                    auto& select = (InstSelect&)instruction;
+                    joinProvenance(*produced, provenanceOf(analysis, select.whenTrue));
+                    joinProvenance(*produced, provenanceOf(analysis, select.whenFalse));
+                    break;
+                }
+
                 case Value::Call: {
                     auto& call = (InstCall&)instruction;
                     callResultProvenance(analysis, call.callee, call.args, instruction.type, *part);

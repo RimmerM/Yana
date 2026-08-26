@@ -4,7 +4,7 @@
  *
  * `Value::Kind` itself is generated from this file, which is what makes the rows and the enumerators
  * one list rather than two that agree: a kind cannot be added without a row, and a row cannot be
- * added without the four things below being decided for it. Everything that used to be a switch over
+ * added without the columns below being decided for it. Everything that used to be a switch over
  * every opcode to say one thing about each - the mnemonic, whether it ends a block, whether it may be
  * recomputed - is a column here instead.
  *
@@ -24,7 +24,7 @@
  *  - `mnemonic` is what the IR dump prints. Five kinds refine it from their own fields (a mutable
  *    borrow, a derived drop, the metric, the native operation, the comparison); the refinement is in
  *    print.cpp, and what is here is the base name.
- *  - `flags` is the four-bit answer to the questions a pass asks about a kind rather than about an
+ *  - `flags` is the answer to the questions a pass asks about a kind rather than about an
  *    instruction:
  *      - `kInstResult` - defines a value another instruction may name. Its absence is checkable, and
  *        `verifyFunction` checks it: nothing may read a store, a drop or a terminator.
@@ -33,6 +33,18 @@
  *        absence is a decision an earlier pass took, everything that reads storage someone else may
  *        be writing, and every call.
  *      - `kInstTerminator` - ends its block. The edges it makes are declared as successor slots.
+ *      - `kInstCommutative` / `kInstAssociative` - the two algebraic facts the folder and CSE act
+ *        on. Two bits and not one: `mulhi` is the first and not the second.
+ *      - `kInstCall` - transfers control to a function at run time, which is what decides whether
+ *        the body holding one needs a frame.
+ *      - `kInstGeneric` - numbers slots of its own function's generic environment, so a copy of one
+ *        into another body would read another schema's slots.
+ *      - `kInstAnchored` - may only stand where it was written, because nothing above the backend
+ *        orders anything against it.
+ *
+ *    Each of the last four used to be a list of case labels in compiler/opt, and each of those lists
+ *    had a kind missing from it: `mulhi` commuted for neither the folder nor CSE, and an atomic and
+ *    a table slot each made the function holding one un-inlinable.
  */
 
 //        kind          struct           mnemonic         flags
@@ -51,7 +63,7 @@ YANA_INST(Move,         InstMove,        "move"_v,        kInstResult)
 YANA_INST(Swap,         InstSwap,        "swap"_v,        0)
 YANA_INST(Exchange,     InstExchange,    "exchange"_v,    kInstResult)
 YANA_INST(Copy,         InstCopy,        "copy"_v,        kInstResult)
-YANA_INST(Drop,         InstDrop,        "drop"_v,        0)
+YANA_INST(Drop,         InstDrop,        "drop"_v,        kInstCall)
 YANA_INST(Address,      InstAddress,     "addressof"_v,   kInstResult)
 YANA_INST(TypeMetric,   InstTypeMetric,  "sizeof"_v,      kInstResult | kInstPure)
 YANA_INST(TableSlot,    InstTableSlot,   "tableslot"_v,   kInstResult | kInstPure)
@@ -167,7 +179,7 @@ YANA_INST(TrailingZeros,InstUnary,       "ctz"_v,         kInstResult | kInstPur
  * question about rounding that no machine instruction answers.
  */
 YANA_INST(Sqrt,         InstUnary,       "sqrt"_v,        kInstResult | kInstPure)
-YANA_INST(Fma,          InstFma,         "fma"_v,         kInstResult | kInstPure)
+YANA_INST(Fma,          InstFma,         "fma"_v,         kInstResult | kInstPure | kInstCommutative)
 /*
  * The magnitude, which is a kind rather than the three instructions it can be built from.
  *
@@ -224,9 +236,9 @@ YANA_INST(Trunc,        InstUnary,       "trunc"_v,       kInstResult | kInstPur
 YANA_INST(Floor,        InstUnary,       "floor"_v,       kInstResult | kInstPure)
 YANA_INST(Ceil,         InstUnary,       "ceil"_v,        kInstResult | kInstPure)
 YANA_INST(Round,        InstUnary,       "round"_v,       kInstResult | kInstPure)
-YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure)
+YANA_INST(Add,          InstBinary,      "add"_v,         kInstResult | kInstPure | kInstCommutative | kInstAssociative)
 YANA_INST(Sub,          InstBinary,      "sub"_v,         kInstResult | kInstPure)
-YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPure)
+YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPure | kInstCommutative | kInstAssociative)
 /*
  * The top half of a product twice as wide as its operands - Implementation-Map.md §3.1's one new
  * primitive, and the only thing the multiply-fold that hashes a key needs that the language could
@@ -240,7 +252,7 @@ YANA_INST(Mul,          InstBinary,      "mul"_v,         kInstResult | kInstPur
  *
  * Signedness is the operand type's, exactly as `Mul`'s choice between `IMul` and `Mul` is.
  */
-YANA_INST(MulHi,        InstBinary,      "mulhi"_v,       kInstResult | kInstPure)
+YANA_INST(MulHi,        InstBinary,      "mulhi"_v,       kInstResult | kInstPure | kInstCommutative)
 /*
  * Division and remainder, and the two divisors the language answers for rather than the machine.
  *
@@ -315,9 +327,9 @@ YANA_INST(Sar,          InstBinary,      "sar"_v,         kInstResult | kInstPur
  */
 YANA_INST(Rol,          InstBinary,      "rol"_v,         kInstResult | kInstPure)
 YANA_INST(Ror,          InstBinary,      "ror"_v,         kInstResult | kInstPure)
-YANA_INST(And,          InstBinary,      "and"_v,         kInstResult | kInstPure)
-YANA_INST(Or,           InstBinary,      "or"_v,          kInstResult | kInstPure)
-YANA_INST(Xor,          InstBinary,      "xor"_v,         kInstResult | kInstPure)
+YANA_INST(And,          InstBinary,      "and"_v,         kInstResult | kInstPure | kInstCommutative | kInstAssociative)
+YANA_INST(Or,           InstBinary,      "or"_v,          kInstResult | kInstPure | kInstCommutative | kInstAssociative)
+YANA_INST(Xor,          InstBinary,      "xor"_v,         kInstResult | kInstPure | kInstCommutative | kInstAssociative)
 /*
  * The low `count` bits of a value, with everything above them cleared - `Core.Bits.bitsUpTo`.
  *
@@ -442,7 +454,7 @@ YANA_INST(Sha256Rounds, InstSha256Rounds, "sha256rnds2"_v, kInstResult | kInstPu
  * memory operation, so nothing above the backend orders anything against it - which is correct at
  * the only place it may be written, the top of a function, where there is nothing yet to order.
  */
-YANA_INST(VZeroUpper,   InstVZeroUpper,  "vzeroupper"_v,  0)
+YANA_INST(VZeroUpper,   InstVZeroUpper,  "vzeroupper"_v,  kInstAnchored)
 YANA_INST(Cmp,          InstCmp,         "cmp"_v,         kInstResult | kInstPure)
 // Pure because both of its arms are: a select is only ever built out of values that may be computed
 // unconditionally, so there is nothing in one that recomputing could repeat and nothing that not
@@ -474,9 +486,9 @@ YANA_INST(VecWithLane,  InstVecLane,     "vwithlane"_v,   kInstResult | kInstPur
 YANA_INST(VecShuffle,   InstVecShuffle,  "vshuffle"_v,    kInstResult | kInstPure)
 YANA_INST(VecReduce,    InstVecReduce,   "vreduce"_v,     kInstResult | kInstPure)
 YANA_INST(Symbol,       InstSymbol,      "symbol"_v,      kInstResult | kInstPure)
-YANA_INST(Call,         InstCall,        "call"_v,        kInstResult)
-YANA_INST(CallDyn,      InstCallDyn,     "calldyn"_v,     kInstResult)
-YANA_INST(GenCall,      InstGenCall,     "gencall"_v,     kInstResult)
+YANA_INST(Call,         InstCall,        "call"_v,        kInstResult | kInstCall)
+YANA_INST(CallDyn,      InstCallDyn,     "calldyn"_v,     kInstResult | kInstCall)
+YANA_INST(GenCall,      InstGenCall,     "gencall"_v,     kInstResult | kInstCall | kInstGeneric)
 YANA_INST(Je,           InstJe,          "je"_v,          kInstTerminator)
 YANA_INST(Jmp,          InstJmp,         "jmp"_v,         kInstTerminator)
 YANA_INST(Ret,          InstRet,         "ret"_v,         kInstTerminator)

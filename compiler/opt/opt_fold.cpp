@@ -598,13 +598,9 @@ struct Folder {
      * for this instruction, which is what makes swapping two fields the whole of the rewrite.
      */
     bool commute(InstBinary& instruction) {
-        switch(instruction.kind) {
-            case Value::Add: case Value::Mul:
-            case Value::And: case Value::Or: case Value::Xor:
-                break;
-            default:
-                return false;
-        }
+        // The column rather than a list of case labels - see `kInstCommutative` in resolve/inst.def.
+        // `mulhi` is what the list was missing.
+        if(!isCommutativeValue(instruction)) return false;
 
         if(!constantValueOf(opt, instruction.lhs)) return false;
         if(constantValueOf(opt, instruction.rhs)) return false;
@@ -635,13 +631,9 @@ struct Folder {
      * field is one `and` against a literal per field, and nine of them are one mask.
      */
     bool reassociate(ModulePtr<Inst> pointer, InstBinary& instruction, const IntFacts& facts) {
-        switch(instruction.kind) {
-            case Value::Add: case Value::Mul:
-            case Value::And: case Value::Or: case Value::Xor:
-                break;
-            default:
-                return false;
-        }
+        // The stronger of the two columns, and the reason there are two: `mulhi` may exchange its
+        // operands and `(a mulhi b) mulhi c` is not `a mulhi (b mulhi c)`.
+        if(!isAssociativeValue(instruction)) return false;
 
         auto outer = constantValueOf(opt, instruction.rhs);
         if(!outer) return false;
@@ -653,13 +645,21 @@ struct Folder {
         auto middle = constantValueOf(opt, inner.rhs);
         if(!middle) return false;
 
+        /*
+         * The one thing this still has to know per kind: what combining the two constants *is*.
+         *
+         * Named rather than defaulted, so that a sixth kind marked `kInstAssociative` declines the
+         * rewrite here instead of silently being read as an `xor` - which is what the arm this
+         * replaces would have done.
+         */
         U64 combined = 0;
         switch(instruction.kind) {
             case Value::Add: combined = middle.unwrap() + outer.unwrap(); break;
             case Value::Mul: combined = middle.unwrap() * outer.unwrap(); break;
             case Value::And: combined = middle.unwrap() & outer.unwrap(); break;
             case Value::Or:  combined = middle.unwrap() | outer.unwrap(); break;
-            default:         combined = middle.unwrap() ^ outer.unwrap(); break;
+            case Value::Xor: combined = middle.unwrap() ^ outer.unwrap(); break;
+            default:         return false;
         }
 
         auto value = makeConstant(opt, instruction, instruction.type, narrowToWidth(combined, facts));
@@ -1353,7 +1353,13 @@ struct Folder {
             case Value::LeadingZeros:
             case Value::TrailingZeros:
                 return foldUnary((InstUnary&)instruction, facts.unwrap());
-            case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
+            // `mulhi` is on the list for the two rewrites below rather than for `foldBinary`, which
+            // has no arm for it: the top half of a 64-bit product is not a number this compiler can
+            // compute in a `U64`. What it does have is `kInstCommutative`, so a constant operand
+            // belongs on the right like every other - which is what lets CSE see two spellings of
+            // one multiply-high as one.
+            case Value::Add: case Value::Sub: case Value::Mul: case Value::MulHi:
+            case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor: {

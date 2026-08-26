@@ -838,34 +838,30 @@ struct Inliner {
     /*
      * Whether cloning this instruction into another function is something this pass knows how to do.
      *
-     * An allow-list rather than a deny-list, and the header comment says why the ownership four are
-     * out. The rest is what is left: computation, storage, reads, writes, borrows and calls.
+     * ## Two exclusions, both of them columns
      *
-     * `Native` and `CallDyn` were declined not because they are unsound but because each carries
-     * state - an intrinsic's operation and arguments, a signature - that had to be copied correctly
-     * and was not exercised by anything this inlined. It is now: a host node's arguments are *uses*
-     * and it owns nothing (see resolve/host.cpp), so copying `op`, `method` and the argument list is
-     * the whole of it - and `length(xs)`, one `.length` read behind a permanent call, is what that
-     * makes reachable.
+     * This was an allow-list of forty-odd case labels, and it had the failure mode an allow-list
+     * always has: a kind nobody added to it was refused, and refusing *one* instruction refuses the
+     * whole function that holds it. `mulhi`, `tableslot` and both atomics were in that position -
+     * which meant no body in lib/Sync could be inlined into anything, and that a witness dispatch
+     * kept every generic accessor behind a call.
      *
-     * `VZeroUpper` stays out, and it is the one exclusion here that has to be argued rather than
-     * noticed: it has no operands, no result and no state to copy, so it reads as the most obviously
-     * clonable kind in the IR and is the one a later hand is most likely to add. What makes it
-     * un-clonable is not the instruction but *where* it may stand. See `Value::VZeroUpper` in
-     * inst.def: nothing above the backend orders anything against it, and that is correct only
-     * because the sole place it may be written is the top of a function, where there is nothing yet
-     * to order. A graft is exactly what falsifies that - the reset would land mid-body in a caller
-     * that has been computing, where a wide vector may be live across it and would be silently
-     * truncated. Reported by `checkLegacyVectorEncoding` in codegen/x64/machine_vector.cpp if it
-     * came from a type, and not reported at all if it came from a block copy, which is a second
-     * reason for the decision to be made here.
+     * What is left is two facts, and neither of them is a fact about this pass:
      *
-     * `GenCall` stays out, and for a reason that is not "not exercised yet": `fill.forwarded`,
-     * `classSlot` and `classPath` are slot numbers in the *enclosing function's* generic
-     * environment, and the enclosing function is exactly what a graft changes. A copy of one into
-     * another body would read some other schema's slots, which is a miscompile rather than a
-     * missing feature. It only ever appears in a generic body, so what would have to be checked
-     * first is that both schemas agree.
+     *  - `kInstGeneric` - a `GenCall`'s `fill.forwarded`, `classSlot` and `classPath` are slot
+     *    numbers in the *enclosing function's* generic environment, and the enclosing function is
+     *    exactly what a graft changes. A copy of one into another body would read some other
+     *    schema's slots, which is a miscompile rather than a missing feature.
+     *  - `kInstAnchored` - a `vzeroupper` may only stand at the top of a function, where there is
+     *    nothing yet to order it against. A graft is exactly what falsifies that: the reset would
+     *    land mid-body in a caller that has been computing, where a wide vector may be live across
+     *    it and would be silently truncated. Reported by `checkLegacyVectorEncoding` in
+     *    codegen/x64/machine_vector.cpp if it came from a type, and not reported at all if it came
+     *    from a block copy, which is a second reason for the decision to be made here.
+     *
+     * Everything else is computation, storage, reads, writes, borrows and calls, and
+     * `cloneInstruction` owes an arm for each - which is what its `default` asserts rather than
+     * declines, so that the two lists cannot come apart silently.
      *
      * ## The ownership four are all in
      *
@@ -892,49 +888,8 @@ struct Inliner {
      * a move out of a `&` parameter before this stage runs, and a `->` parameter is declined at the
      * site below - and `movesLocal` is the belt that says so in this pass rather than in two others.
      */
-    bool clonableKind(Value::Kind kind) {
-        switch(kind) {
-            case Value::Alloc: case Value::LoadPlace: case Value::Init: case Value::Assign:
-            // An array literal, which is one instruction rather than one per element - see
-            // InstAggregate. Leaving it out made every function holding a literal un-inlinable,
-            // which is how `Array.escaping` stopped folding to its constant.
-            case Value::Aggregate:
-            case Value::Borrow: case Value::Copy: case Value::Move:
-            case Value::Drop: case Value::Swap: case Value::Exchange:
-            case Value::Address:
-            case Value::TypeMetric: case Value::Symbol:
-            case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
-            case Value::ByteSwap:
-            case Value::CountBits: case Value::LeadingZeros: case Value::TrailingZeros:
-            case Value::Sqrt: case Value::Abs: case Value::Fma:
-            case Value::Trunc: case Value::Floor:
-            case Value::Ceil: case Value::Round:
-            case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
-            case Value::Shl: case Value::Shr: case Value::Sar:
-            case Value::Rol: case Value::Ror:
-            case Value::And: case Value::Or: case Value::Xor: case Value::Cmp:
-            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32:
-            case Value::ShaBinary: case Value::Sha256Rounds:
-            // A callee this stage already if-converted. `settle` runs the whole round on a callee
-            // before a site is judged against it, so a body reaching here can hold one - and a
-            // select is an ordinary pure computation with no decision copied along with it.
-            case Value::Select:
-            /*
-             * The vector kinds - Implementation-Vector.md §3.4's third item.
-             *
-             * Admitted so that a vector body can be inlined at all, and each costs one instruction
-             * below like every other pure computation. Costing one by its *byte width* would make
-             * every kernel look expensive and none of them would inline - which is the opposite of
-             * what a vector kernel wants, since they are small and hot and inlining them is most of
-             * the benefit.
-             */
-            case Value::VecSplat: case Value::VecLane: case Value::VecWithLane:
-            case Value::VecShuffle: case Value::VecReduce:
-            case Value::Call: case Value::Native: case Value::CallDyn:
-                return true;
-            default:
-                return false;
-        }
+    bool clonableKind(Value& instruction) {
+        return !isGenericBound(instruction) && !isAnchored(instruction);
     }
 
     /*
@@ -979,24 +934,6 @@ struct Inliner {
 
             default:
                 return 1;
-        }
-    }
-
-    /*
-     * Whether an instruction of this kind is a call at run time, which is what decides whether the
-     * function containing it needs a frame - see `InlinePolicy::leafCaller`.
-     *
-     * `Drop` is on the list and is the one that does not look like a call: it runs a teardown, which
-     * is a function, and a caller holding one is no more a leaf than one holding a `call`. `Native`
-     * is not on it - a host node lowers to an instruction on this target and to an operator on the
-     * other - and neither is anything else in `clonableKind`, all of which are computation.
-     */
-    static bool performsCall(Value::Kind kind) {
-        switch(kind) {
-            case Value::Call: case Value::CallDyn: case Value::GenCall: case Value::Drop:
-                return true;
-            default:
-                return false;
         }
     }
 
@@ -1397,11 +1334,11 @@ struct Inliner {
 
             for(auto instructionPointer: block->instructions(opt.local)) {
                 auto& instruction = *opt.local[instructionPointer];
-                if(!clonableKind(instruction.kind)) return Nothing();
+                if(!clonableKind(instruction)) return Nothing();
 
                 // Whether the copy brings a call in with it - see `InlinePolicy::leafCaller`, which
                 // is the one term that is about the caller's frame rather than about either body.
-                if(performsCall(instruction.kind)) candidate.callFree = false;
+                if(performsCall(instruction)) candidate.callFree = false;
 
                 // And how many of them are indirect, which is what `policy.chainedCall` prices.
                 // Counted here rather than walked for, because this is already the walk of every
@@ -1774,7 +1711,7 @@ struct Inliner {
             auto block = opt.local[blockPointer];
 
             for(auto pointer: block->instructions(opt.local)) {
-                if(!performsCall(opt.local[pointer]->kind)) continue;
+                if(!performsCall(*opt.local[pointer])) continue;
                 if(++calls > 1) return false;
             }
         }
@@ -2491,7 +2428,8 @@ struct Inliner {
                 return (Inst*)createInst<InstVecReduce>(module, function, into, source, name, type,
                                                         value(reduce.from), reduce.reduce);
             }
-            case Value::Add: case Value::Sub: case Value::Mul: case Value::Div: case Value::Rem:
+            case Value::Add: case Value::Sub: case Value::Mul: case Value::MulHi:
+            case Value::Div: case Value::Rem:
             case Value::Shl: case Value::Shr: case Value::Sar:
             case Value::Rol: case Value::Ror:
             case Value::And: case Value::Or: case Value::Xor:
@@ -2528,6 +2466,45 @@ struct Inliner {
 
                 return (Inst*)cloned;
             }
+            // The address in one slot of a compiler-built table. `slot` is a numbering witness.h
+            // owns rather than anything of the callee's, so it travels as it stands.
+            case Value::TableSlot: {
+                auto& read = (InstTableSlot&)instruction;
+                return (Inst*)createInst<InstTableSlot>(module, function, into, source, name, type,
+                                                        value(read.table), read.slot);
+            }
+
+            /*
+             * The atomics, copied with the three fields that say what they mean - which operation,
+             * how strongly it orders, and how strongly a failed comparison does.
+             *
+             * Sound on `Native`'s terms: a fixed operation over a flat argument list, running once
+             * per call in the caller exactly as it did in the callee. What an atomic orders is other
+             * threads' writes, and a graft moves neither the instruction relative to its own body
+             * nor any of them relative to it.
+             */
+            case Value::Atomic: {
+                auto& atomic = (InstAtomic&)instruction;
+                auto cloned = createInst<InstAtomic>(module, function, into, source, name, type,
+                                                     atomic.kind, atomic.order);
+
+                for(auto argument: atomic.args.contents(opt.local)) {
+                    cloned->args.push(opt.program.arena, value(argument));
+                }
+
+                cloned->failure = atomic.failure;
+                cloned->weak = atomic.weak;
+                return (Inst*)cloned;
+            }
+
+            // Its one operand is the compare-exchange it selects the second result of, so the value
+            // map is the whole of what keeps the two together.
+            case Value::AtomicOk: {
+                auto& ok = (InstAtomicOk&)instruction;
+                return (Inst*)createInst<InstAtomicOk>(module, function, into, source, name, type,
+                                                       value(ok.cas));
+            }
+
             case Value::CallDyn: {
                 // The same as a direct call plus the two operands that stand in for the callee, and
                 // a signature - a global type, which is the same handle in either function.
@@ -2546,7 +2523,16 @@ struct Inliner {
                 return (Inst*)cloned;
             }
             default:
-                // `describe` refused every other kind before this call site was ever considered.
+                /*
+                 * A kind `clonableKind` admitted and this switch has no arm for.
+                 *
+                 * Asserted rather than declined, because the two used to be two hand-written lists
+                 * that had to agree and now are not: `clonableKind` is two columns, so the only way
+                 * to reach here is to add a kind to inst.def and stop. The straight-line splice can
+                 * still back out on a null - it has emitted nothing yet - and the block-copying one
+                 * cannot, which is why the assertion is here rather than only there.
+                 */
+                assertTrue("instruction kind with no graft" == nullptr);
                 return nullptr;
         }
     }
@@ -2946,7 +2932,7 @@ struct Inliner {
         absorbed.add(U32(currentFunction()), U32(candidate.pointer));
 
         for(auto entry: cloneScratch.values.entries()) {
-            if(performsCall(opt.local[ModulePtr<Value>(entry.value)]->kind)) {
+            if(performsCall(*opt.local[ModulePtr<Value>(entry.value)])) {
                 collapsed.add(entry.value, true);
             }
         }
@@ -3335,6 +3321,29 @@ struct Inliner {
         auto& dropped = (InstDrop&)*opt.local[pointer];
 
         if(dropped.releaseStorage) return false;
+
+        /*
+         * The closure-header proof first, and it has to be first.
+         *
+         * `devirtualizeClosureDrop` is what turns a function type's general teardown into the
+         * interned one *without* the "is there a header at all" branch, by proving at this site that
+         * every lambda able to reach the drop has one. It used to run only in `dischargeOwnership`,
+         * behind this pass - which was harmless while this path could not fire, because a teardown
+         * reads its header through a `tableslot` and `clonableKind` refused one.
+         *
+         * With `tableslot` admitted, the graft below started winning the race and copying the
+         * *general* body in, branch and all - and the proof was then gone, because it is keyed on
+         * the `Drop` this is about to remove. Six closure fixtures traded a call to a branchless
+         * helper for an inlined body with a branch that cannot fire.
+         *
+         * Asking here settles it: the proof is applied, and what the graft copies is the specialized
+         * body. It also lets the two cases that delete the drop outright - a program where no
+         * function value carries a teardown, and a site where the value provably has none - happen
+         * before any budget is spent copying a body that was about to go. `true` means the drop is
+         * gone, which is the same answer a graft gives and what the caller's walk expects; no block
+         * was added, so `grafted` stays as it is.
+         */
+        if(devirtualizeClosureDrop(opt, block, index, dropped)) return true;
 
         auto callee = dropped.teardown;
         if(!callee) return false;
@@ -3763,6 +3772,8 @@ void inlineCalls(OptContext& opt) {
     addressTaken(opt, inliner.taken);
     findRecursion(opt, inliner.recursive, inliner.cycle);
 
+    Array<ModulePtr<Function>> order;
+
     for(Size round = 0; round < kMaxInlineRounds; round++) {
         /*
          * Which functions the program can still reach, asked again before anything is counted
@@ -3783,10 +3794,24 @@ void inlineCalls(OptContext& opt) {
 
         auto inlined = false;
 
+        /*
+         * The list is copied before it is walked, because a graft can *add* to it: `inlineTeardown`
+         * asks `devirtualizeClosureDrop` first, and that generates the header-free form of a
+         * function type's teardown the first time a site proves it may have one -
+         * `addAnonymousFunction` registers it in the module's function order. Walking the live list
+         * while appending to it is a dangling read the moment it grows, which is the same copy
+         * `dischargeOwnership` makes for the same call.
+         *
+         * Nothing is lost by not visiting what was added this round: the glue holds one `CallDyn`
+         * and there is nothing to inline into it, and the next round reads the order afresh.
+         */
         for(auto module: opt.program.modules) {
             opt.module = module;
 
-            for(auto pointer: module->functionOrder.contents(opt.local)) {
+            order.clear();
+            for(auto pointer: module->functionOrder.contents(opt.local)) order.push(pointer);
+
+            for(auto pointer: order) {
                 auto function = opt.local[pointer];
                 if(function->signature || function->blocks.isEmpty()) continue;
 

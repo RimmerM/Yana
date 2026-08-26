@@ -18,7 +18,13 @@ static_assert(sizeof(kInstructionTraits) / sizeof(InstructionTraits) == Value::k
 
 #define YANA_INST(kind, Struct, mnemonic, flags) \
     static_assert(Struct::kPlaceCount <= kMaxPlaces, "an instruction names at most kMaxPlaces places"); \
-    static_assert(Struct::kSuccessorCount <= kMaxSuccessors, "a terminator has at most kMaxSuccessors arms");
+    static_assert(Struct::kSuccessorCount <= kMaxSuccessors, "a terminator has at most kMaxSuccessors arms"); \
+    static_assert(!((flags) & kInstAssociative) || ((flags) & kInstCommutative), \
+                  "an associative kind is commutative - see kInstCommutative"); \
+    static_assert(!((flags) & (kInstCommutative | kInstAssociative)) || ((flags) & kInstPure), \
+                  "only a pure kind may be rearranged by its algebra"); \
+    static_assert(!((flags) & kInstCall) || !((flags) & kInstPure), \
+                  "a call is not something the optimizer may leave out");
 #include "inst.def"
 #undef YANA_INST
 

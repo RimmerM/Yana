@@ -251,48 +251,49 @@ freeHeap<complex>(%allocation: Ptr) {
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = call_complex allocateHeap, 4: Ptr
-    store %v_1, 7, 4
-    %v_2 = alloca 16, 8: Ptr
-    store %v_2, ResolveTest.lambda$18, 8
-    %v_3 = add %v_2, 8: Ptr
-    store %v_3, %v_1, 8
-    %v_4 = load %v_2, 8: Ptr
-    %a = call_complex %v_4, %v_1: Int
-    call_complex reclaimKnown$() -> Int, %v_2
-    %v_5 = loads @dropCalls, 4: Int
-    %v_6 = cmp_neq %v_5, 1: Int
-    je %v_6, b_7, b_8
+    %v_1 = imm 7: Int
+    %v_2 = call_complex allocateHeap, 4: Ptr
+    store %v_2, %v_1, 4
+    %v_3 = bitcast ResolveTest.lambda$18: Long
+    %v_4 = sub %v_3, 4: Long
+    %v_5 = bitcast %v_4: Ptr
+    %v_6 = loads %v_5, 4: Int
+    %v_7 = sext %v_6: Long
+    %v_8 = add %v_7, @image$base: Ptr
+    call_complex %v_8, %v_2
+    %v_9 = loads @dropCalls, 4: Int
+    %v_10 = cmp_neq %v_9, 1: Int
+    je %v_10, b_11, b_12
   }
 
-  b_7 {
+  b_11 {
     ret 18446744073709551615
   }
 
-  b_8 {
-    jmp b_9
-  }
-
-  b_9 {
-    %v_10 = bitcast 0: Ptr
-    %b = call_complex ResolveTest.lambda$19, %v_10: Int
-    %v_11 = loads @dropCalls, 4: Int
-    %v_12 = cmp_neq %v_11, 1: Int
-    je %v_12, b_13, b_14
+  b_12 {
+    jmp b_13
   }
 
   b_13 {
+    %v_14 = bitcast 0: Ptr
+    %b = call_complex ResolveTest.lambda$19, %v_14: Int
+    %v_15 = loads @dropCalls, 4: Int
+    %v_16 = cmp_neq %v_15, 1: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
     ret 18446744073709551614
   }
 
-  b_14 {
-    jmp b_15
+  b_18 {
+    jmp b_19
   }
 
-  b_15 {
-    %v_16 = add %a, %b: Int
-    %v_17 = add %v_16, %v_11: Int
-    ret %v_17
+  b_19 {
+    %v_20 = add %v_1, %b: Int
+    %v_21 = add %v_20, %v_15: Int
+    ret %v_21
   }
 }
 
@@ -316,22 +317,6 @@ closureRelease${g: Guard}<complex>(%env: Ptr) {
     %v_2 = add %v_1, 1: Int
     store @dropCalls, %v_2, 4
     call_complex freeHeap, %env
-    ret 
-  }
-}
-
-reclaimKnown$() -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = load %value, 8: Ptr
-    %v_4 = bitcast %v_3: Long
-    %v_5 = sub %v_4, 4: Long
-    %v_6 = bitcast %v_5: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
-    %v_9 = add %v_8, @image$base: Ptr
-    call_complex %v_9, %v_2
     ret 
   }
 }

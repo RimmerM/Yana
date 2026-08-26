@@ -33,7 +33,16 @@ either<complex>(%pick: Int, %id: Int): Int {
     %v_12 = load %f, 8: Ptr
     %v_13 = load %v_11, 8: Ptr
     %v_14 = call_complex %v_12, %v_13, 10: Int
-    call_complex reclaimKnown$(x: Int) -> Int, %f
+    %v_15 = add %f, 8: Ptr
+    %v_16 = load %v_15, 8: Ptr
+    %v_17 = load %f, 8: Ptr
+    %v_18 = bitcast %v_17: Long
+    %v_19 = sub %v_18, 4: Long
+    %v_20 = bitcast %v_19: Ptr
+    %v_21 = loads %v_20, 4: Int
+    %v_22 = sext %v_21: Long
+    %v_23 = add %v_22, @image$base: Ptr
+    call_complex %v_23, %v_16
     ret %v_14
   }
 }
@@ -81,22 +90,6 @@ drop${g: Guard}$1<complex>(%value: Ptr) {
     %v_1 = loads @dropCalls, 4: Int
     %v_2 = add %v_1, 1: Int
     store @dropCalls, %v_2, 4
-    ret 
-  }
-}
-
-reclaimKnown$(x: Int) -> Int<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 8: Ptr
-    %v_3 = load %value, 8: Ptr
-    %v_4 = bitcast %v_3: Long
-    %v_5 = sub %v_4, 4: Long
-    %v_6 = bitcast %v_5: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
-    %v_9 = add %v_8, @image$base: Ptr
-    call_complex %v_9, %v_2
     ret 
   }
 }
