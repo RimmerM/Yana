@@ -1,0 +1,106 @@
+import Native
+
+{-
+   ------------------------------------------------------------------------------------------
+   xxHash32 - Yann Collet's, and the fast one.
+   ------------------------------------------------------------------------------------------
+
+   Four independent accumulators over sixteen-byte stripes, which is why it is two and a half times
+   Murmur3 on the same data: Murmur's chain is one multiply-rotate-multiply deep per four bytes and
+   every step depends on the last, where these four run beside each other and the processor issues
+   them together. A sixty-four-byte block is four stripes.
+
+   The short-input path is a rule of the algorithm rather than an optimization: a message under
+   sixteen bytes never enters the accumulators at all and starts from `seed + prime5`, so the
+   accumulator merge is skipped and the answer is not what a zero-length stripe run would have
+   produced.
+-}
+pub data XxHash32 {v1: U32, v2: U32, v3: U32, v4: U32, seed: U32}
+
+let xxPrime1 = 2654435761 :: U32
+let xxPrime2 = 2246822519 :: U32
+let xxPrime3 = 3266489917 :: U32
+let xxPrime4 = 668265263 :: U32
+let xxPrime5 = 374761393 :: U32
+
+pub fn newXxHash32() -> XxHash32 = seededXxHash32(0)
+
+pub fn seededXxHash32(seed: U32) -> XxHash32 =
+    XxHash32 {v1: seed + xxPrime1 + xxPrime2, v2: seed + xxPrime2, v3: seed,
+              v4: seed - xxPrime1, seed: seed}
+
+fn xxRound(accumulator: U32, lane: U32) -> U32 = ((accumulator + lane * xxPrime2) `rol` 13) * xxPrime1
+
+instance Block(XxHash32):
+  fn compressBlocks(&self: XxHash32, from: Flat(U8), at: Size, blocks: Size) -> {}:
+      let &v1 = self.v1
+      let &v2 = self.v2
+      let &v3 = self.v3
+      let &v4 = self.v4
+      let &i = at
+      let stop = at + blocks * 64
+
+      while i < stop:
+          v1 = xxRound(v1, readLittleU32(from, i))
+          v2 = xxRound(v2, readLittleU32(from, i + 4))
+          v3 = xxRound(v3, readLittleU32(from, i + 8))
+          v4 = xxRound(v4, readLittleU32(from, i + 12))
+          i = i + 16
+
+      self.v1 = v1
+      self.v2 = v2
+      self.v3 = v3
+      self.v4 = v4
+
+pub alias XxHash = Blocks(XxHash32)
+
+instance Digest(Blocks(XxHash32), 4):
+  fn newDigest() -> Blocks(XxHash32) = newBlocks(newXxHash32())
+
+  fn update(&self: Blocks(XxHash32), from: Flat(U8)) -> {} = absorb(self, from)
+
+  fn finish(->self: Blocks(XxHash32)) -> Fingerprint:
+      let &running = self
+      let used = running.used
+      let &i = 0 :: Size
+
+      -- Whole stripes still in the buffer. There can be up to three, since a fourth would have been
+      -- a full block and would already have been compressed.
+      while i + 16 <= used:
+          running.state.v1 = xxRound(running.state.v1, readLittleU32(running.block, i))
+          running.state.v2 = xxRound(running.state.v2, readLittleU32(running.block, i + 4))
+          running.state.v3 = xxRound(running.state.v3, readLittleU32(running.block, i + 8))
+          running.state.v4 = xxRound(running.state.v4, readLittleU32(running.block, i + 12))
+          i = i + 16
+
+      let &h = if running.total >= 16
+               then ((running.state.v1 `rol` 1) + (running.state.v2 `rol` 7)) +
+                    ((running.state.v3 `rol` 12) + (running.state.v4 `rol` 18))
+               else running.state.seed + xxPrime5
+
+      h = h + (truncate(running.total) :: U32)
+
+      while i + 4 <= used:
+          h = ((h + readLittleU32(running.block, i) * xxPrime3) `rol` 17) * xxPrime4
+          i = i + 4
+
+      while i < used:
+          h = ((h + (running.block[i] :: U32) * xxPrime5) `rol` 11) * xxPrime1
+          i = i + 1
+
+      -- The avalanche. Not `mix32`: the shifts and the two constants are xxHash's own, and a digest
+      -- that finalized with somebody else's would not be xxHash32.
+      h = (h `xor` (h `shr` 15)) * xxPrime2
+      h = (h `xor` (h `shr` 13)) * xxPrime3
+      return bytesOfU32(h `xor` (h `shr` 16))
+
+pub fn xxHash32Of(from: Flat(U8)) -> Fingerprint:
+    let &state = newDigest() :: XxHash
+    update(state, from)
+    return finish(state)
+
+pub fn xxHash32ValueOf(from: Flat(U8)) -> U32 = valueOfBytes(xxHash32Of(from))
+
+-- The four bytes read back as the number they were, for the two hashes above whose callers want a
+-- number. Big-endian, which is what `bytesOfU32` wrote, and the exact inverse of it.
+pub fn valueOfBytes(value: [U8 *4]) -> U32 = readBigU32(value, 0)

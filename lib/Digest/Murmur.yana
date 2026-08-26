@@ -1,0 +1,76 @@
+import Native
+
+{-
+   ------------------------------------------------------------------------------------------
+   Murmur3-32 - Austin Appleby's, the x86 32-bit variant.
+   ------------------------------------------------------------------------------------------
+
+   Four-byte blocks, so a sixty-four-byte buffer is sixteen of them and the loop below is the whole
+   algorithm bar its tail. The two constants and the three distances are the specification's.
+-}
+pub data Murmur3 {h: U32}
+
+pub fn newMurmur3() -> Murmur3 = Murmur3 {h: 0}
+pub fn seededMurmur3(seed: U32) -> Murmur3 = Murmur3 {h: seed}
+
+fn murmurMix(k: U32) -> U32 = ((k * 3432918353) `rol` 15) * 461845907
+
+fn murmurStep(h: U32, k: U32) -> U32 = ((h `xor` murmurMix(k)) `rol` 13) * 5 + 3864292196
+
+instance Block(Murmur3):
+  fn compressBlocks(&self: Murmur3, from: Flat(U8), at: Size, blocks: Size) -> {}:
+      let &h = self.h
+      let &i = at
+      let stop = at + blocks * 64
+
+      while i < stop:
+          h = murmurStep(h, readLittleU32(from, i))
+          i = i + 4
+
+      self.h = h
+
+pub alias MurmurHash = Blocks(Murmur3)
+
+instance Digest(Blocks(Murmur3), 4):
+  fn newDigest() -> Blocks(Murmur3) = newBlocks(newMurmur3())
+
+  fn update(&self: Blocks(Murmur3), from: Flat(U8)) -> {} = absorb(self, from)
+
+  {-
+     The tail, which is where Murmur3 differs from every block digest above it.
+
+     Whole four-byte groups left in the buffer go through the same step the bulk loop does; the one
+     to three bytes past them are assembled into a partial word, mixed once and folded in without a
+     rotation. Then the message length is folded in and the whole is finalized with `mix32` - which
+     is `Core.Hash`'s finalizer and is murmur3's own `fmix32`, so this is the one place the two hash
+     families in this library share a function rather than resembling each other.
+  -}
+  fn finish(->self: Blocks(Murmur3)) -> Fingerprint:
+      let &running = self
+      let &h = running.state.h
+      let used = running.used
+      let &i = 0 :: Size
+
+      while i + 4 <= used:
+          h = murmurStep(h, readLittleU32(running.block, i))
+          i = i + 4
+
+      if i < used:
+          let &k = 0 :: U32
+          let &shift = 0 :: U32
+
+          while i < used:
+              k = k `or` ((running.block[i] :: U32) `shl` shift)
+              shift = shift + 8
+              i = i + 1
+
+          h = h `xor` murmurMix(k)
+
+      return bytesOfU32(mix32(h `xor` (truncate(running.total) :: U32)))
+
+pub fn murmur3Of(from: Flat(U8)) -> Fingerprint:
+    let &state = newDigest() :: MurmurHash
+    update(state, from)
+    return finish(state)
+
+pub fn murmur3ValueOf(from: Flat(U8)) -> U32 = valueOfBytes(murmur3Of(from))

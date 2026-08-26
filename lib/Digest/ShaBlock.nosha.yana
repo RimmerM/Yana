@@ -1,0 +1,30 @@
+import Native
+
+{-
+   The SHA-1 and SHA-256 compressions, on a target that has no instructions for them.
+
+   Two one-line functions, and the file they are in is the whole mechanism: `nosha` is the half of
+   the selector that answers for every target `Hardware.sha.yana` does not - a JavaScript build, a
+   machine that is not x86-64, and an x86-64 build that did not claim the extension. Exactly one of
+   the two files is read, so exactly one definition of each of these names exists.
+
+   **Why a file and not an `if`.** A compile-time predicate would leave the untaken arm resolved,
+   and resolved IR reaches a backend in any build with the optimizer off - which is every fixture in
+   this tree, compiled a second time that way on purpose. The backend would then be handed
+   instructions its target cannot encode. What the selector drops was never resolved.
+
+   See `Native/Intrinsic/X86.yana`, where the same argument is made from the other side, and `targetSelector`,
+   where the pair of names is declared.
+-}
+
+pub fn sha256CompressBlocks(&h: [U32 *8], from: Flat(U8), at: Size, blocks: Size) -> {}:
+    let &i = 0 :: Size
+    while i < blocks:
+        sha256Compress(h, from, at + i * 64)
+        i = i + 1
+
+pub fn sha1CompressBlocks(&h: [U32 *5], from: Flat(U8), at: Size, blocks: Size) -> {}:
+    let &i = 0 :: Size
+    while i < blocks:
+        sha1Compress(h, from, at + i * 64)
+        i = i + 1

@@ -1,0 +1,275 @@
+import Native
+
+{-
+   Whirlpool's compression, over sixteen 32-bit halves - the form for a target with no 64-bit
+   register.
+
+   See `Whirlpool.yana` for the table, the state, and the argument that the round function carries
+   nowhere. This file is that argument spent: every lane is a `(hi, lo)` pair of `U32`, and the three
+   operations the round needs each split.
+
+   **`xor`** is elementwise, so it is two of them.
+
+   **The byte selection** is a shift and a mask on one half. The eight bytes a lane contributes are
+   its top byte down to its bottom, which is four out of `hi` and four out of `lo` - so where the
+   64-bit form writes `(x shr 56) and 255` this writes `hi shr 24`, and the four low ones read `lo`.
+
+   **The rotation** is a funnel shift. `ror` by `d` for `0 < d < 32` takes each half from both:
+   `(hi shr d) or (lo shl (32 - d))` is the new high half and the same with the halves exchanged is
+   the new low one. `ror 32` is the exchange itself, and `ror (32 + e)` is `ror e` composed with it -
+   which is why `rorHi` and `rorLo` below are one pair of functions rather than seven, and why every
+   distance Whirlpool uses (8, 16, 24, 32, 40, 48, 56) is covered by `e` in {8, 16, 24}.
+
+   **What this file does not do is convert per block.** `compressBlocks` splits the state on the way
+   in and rejoins it on the way out, so the sixteen wide operations that costs are paid once per
+   *call* - and a call is a whole run of blocks, since that is the shape `Block` declares for exactly
+   this kind of reason. A 4 KB buffer is sixty-four blocks and sixteen splits.
+-}
+
+{-
+   The table, halved.
+
+   The same 256 constants `Whirlpool.yana` carries as `I64`, written out as their two halves so that
+   this file touches no wide value to read one. They are the specification's and do not change, which
+   is what makes two spellings the right trade here: deriving them at run time costs a mutable global
+   of 2 KB, a guard on the one function that reads it, and a fill nothing else needs - to save
+   editing a table that nobody edits.
+
+   `test/lib/DigestWhirlpool.yana` is what holds the two spellings to each other, since a wrong half
+   is a wrong digest on the first vector.
+-}
+let circulantHi = [
+    404250648, 589532195, 3334881222, 3907553256, 2273781383, 3099122360, 16843777, 1330585935,
+    909563958, 2795938470, 3537006546, 4126536693, 2038036857, 1869586799, 2442231441, 1381127506,
+    1616944480, 3166489276, 2610648731, 2391671438, 2745415331, 202125324, 2071720315, 892720181,
+    488469533, 3772819424, 3621223383, 3267506114, 774813742, 1263219019, 4278116350, 1465336151,
+    353719317, 2004337015, 926407735, 3857036261, 2678015647, 4042319856, 1246377290, 3671740378,
+    1482194264, 3385394121, 690594857, 168437770, 2981232305, 2694888096, 1802219883, 2240097925,
+    3183333053, 1566402909, 269500432, 4109694964, 3419081675, 1044314174, 84218885, 1734836583,
+    3840194532, 656907303, 1094785345, 2341148299, 2812782247, 2105403773, 2509598357, 3638052824,
+    4227582971, 4008615918, 2088562044, 1717994854, 3722269661, 387406871, 1195835719, 2661171870,
+    3402239946, 757969965, 3217016511, 117906439, 2913832621, 1515877722, 2206414467, 859032627,
+    1667469667, 33687554, 2863305386, 1903286641, 3368552392, 421094425, 1229535561, 3654894553,
+    4076007410, 3823348707, 1532719451, 2290621064, 2593804954, 640063526, 842188850, 2964388528,
+    3924394985, 252656655, 3587535829, 2155887232, 3200172734, 3452769229, 875876404, 1212693832,
+    4294958079, 2054878586, 2425387664, 1600086367, 539000864, 1751694696, 437938202, 2930672302,
+    3031755444, 1414810964, 2475914899, 572688418, 1684311396, 4059161585, 1936970099, 303187986,
+    1077943616, 134750216, 3284347843, 3974928364, 3688582107, 2711731873, 2374831757, 1027470397,
+    2543281815, 0, 3486456783, 724282411, 1987495286, 2189570690, 3604381654, 454781979,
+    3048599221, 2947516079, 1785378154, 1347444048, 1162152261, 4092849139, 808501296, 4025457647,
+    1061157951, 1431652693, 2728571554, 3941240810, 1701153125, 3132805818, 791657519, 3233818560,
+    3739115486, 471625756, 4261270525, 1296902477, 2459071122, 1970653557, 101062662, 2324304522,
+    2998071986, 3873882086, 235812878, 522157087, 1650627938, 3570694100, 2829621928, 2526438038,
+    4193895417, 3318035397, 623219749, 1499035993, 2223254148, 1920128370, 960095289, 1280060748,
+    1583244638, 2021195128, 943251512, 2357987980, 3520160721, 2779098789, 3806506978, 1633786209,
+    3014915763, 555844641, 2627488412, 505313310, 1128468803, 3351722951, 4244428796, 67375108,
+    1364285777, 2576965273, 1835903341, 218969101, 4210741242, 3755957215, 2122245502, 606375972,
+    993782843, 2880149163, 3469615054, 286344209, 2408515215, 1313744206, 3082282679, 3958082539,
+    1010626620, 2172731009, 2492754580, 4160224247, 3115966137, 320031763, 741126188, 3553848275,
+    3890723815, 1852745070, 3301193668, 50531331, 1448494422, 1145310532, 2139087231, 2846465705,
+    707438634, 3149649595, 3250660289, 1397969235, 3705427932, 185281547, 2644332189, 1819061612,
+    825345073, 1953811828, 4143382518, 1178993990, 2896988844, 2307464841, 336875540, 3789661153,
+    370563094, 976939066, 1768536425, 151593993, 1886444912, 3065438902, 3503318992, 3991770093,
+    3435927500, 1111627074, 2560121496, 2762255012, 673751080, 1549561180, 4177053688, 2256937606
+] :: [U32 *256]
+
+let circulantLo = [
+    3229102296, 95372838, 2130284984, 326094331, 1285624779, 2841799953, 134545929, 1114545677,
+    2918083739, 1493455359, 3736975628, 4211537678, 4018205334, 1607392816, 4243537773, 2852627704,
+    670941255, 2306237749, 2899127095, 76284298, 1897225170, 1614551148, 4287297156, 3051448960,
+    3899210485, 1397218739, 4138513185, 1592629660, 1838570563, 1652201001, 2736906589, 2182524629,
+    2822843069, 2679566056, 2783669906, 2069288862, 2363040531, 3541564707, 1786745888, 2660608324,
+    4196774050, 113938383, 1435325052, 1344410714, 3780083536, 1763335625, 2145048084, 1554716633,
+    2171823932, 3526670991, 2152734864, 4077122823, 381717469, 3989208275, 672205357, 535219832,
+    1934874007, 633032194, 844661363, 748489639, 1359041526, 3482647218, 3707451209, 2392829270,
+    2335239024, 594657741, 3348232379, 400804977, 2794366843, 3091934895, 38178373, 2229018906,
+    516262356, 1972984408, 2440651566, 941297215, 19089324, 3928994992, 1823808495, 2248107702,
+    1072875100, 269091858, 959990163, 2947080926, 248483270, 3363648209, 1919980091, 2258284383,
+    3273521457, 1263066024, 3794450105, 881987004, 2764581182, 767446027, 2381997247, 3913973081,
+    459984882, 2016616055, 3869685555, 1958354420, 2575065383, 652117995, 3185862793, 2054524978,
+    2871321428, 4153406605, 4108991844, 3258891933, 497041469, 1742065679, 3497145546, 422330807,
+    3378410877, 2585372878, 3974445951, 229262383, 132761699, 3675455274, 3215124172, 2421826690,
+    979206266, 1076367432, 1458084757, 863749599, 2526063437, 1629446080, 478349201, 4123622088,
+    3438359387, 0, 919897081, 1166497390, 2545151201, 1689262566, 4272533800, 3631691459,
+    3243997044, 287916990, 2011157533, 3121455338, 307006039, 3407412024, 2649776301, 729072580,
+    3854794458, 2451352263, 2031114715, 57002473, 267176554, 3110627587, 1704156746, 1323801998,
+    3196166496, 3765188860, 3140413254, 1382324767, 3839900022, 2411522810, 807275574, 613943726,
+    4181752139, 1666830725, 1882594430, 4167253735, 938984533, 4003706170, 691162497, 3304337746,
+    2604330850, 1727436707, 900811280, 4062229163, 1420694992, 3081233605, 3588059884, 1516345366,
+    3392912532, 3884314783, 3721949413, 344327576, 3333603095, 1091262436, 1129175457, 804831822,
+    4047862594, 363151924, 2497062152, 4033232110, 575833697, 1996264369, 3005998415, 538183716,
+    2986910435, 3167170341, 1338300962, 1748572773, 2201348473, 3062145897, 3617324201, 1035225113,
+    3319232254, 826100634, 1053917680, 2287280793, 210305923, 1248566276, 3511776102, 190893024,
+    4258035905, 2092900349, 3573429568, 3943494428, 2707910424, 2556372619, 2107398225, 3602430725,
+    1801245580, 1472977977, 1861457322, 403637787, 2316545244, 441026654, 3751739040, 557272968,
+    1300386919, 2976738058, 1189257095, 2718082801, 2928387442, 1478956627, 2631083777, 1203886123,
+    2515886756, 2277107955, 3809079573, 172198988, 153503141, 1016532917, 2688821428, 1531109306,
+    2957913254, 3453121783, 1875956230, 1210913345, 2813190359, 3646189935, 3468147998, 998164438,
+    786138594, 710378600, 3032624428, 1225676269, 1569214581, 3660691590, 2470440299, 1151603138
+] :: [U32 *256]
+
+let roundConstantsHi = [
+    404997864, 916902645, 1622973326, 501274562, 360134629,
+    1489578250, 3176993012, 3827777931, 4226710630, 3391995655
+] :: [U32 *10]
+
+let roundConstantsLo = [
+    2276983119, 2037354834, 2735504181, 776732247, 2683325146,
+    2980080517, 3409839463, 2810025432, 3709290398, 2908390195
+] :: [U32 *10]
+
+{-
+   The new high and low halves of `(hi, lo)` rotated right by `d`, for `0 < d < 32`.
+
+   **Not `ror`, and it is not an oversight.** `Core.Bits`' `rol` and `ror` rotate a word within
+   itself; what a 64-bit rotation becomes over a pair is a *funnel* shift, which takes each result
+   word from both operands - so `ror` on each half separately would be a different function, and
+   there is no primitive for this one. `shrd` is exactly it on x86 and a 32-bit backend is free to
+   recognize the shape, which is the other reason to write it as these two lines rather than inline.
+
+   Every rotation in the round function is one of these, or one of these with the two results
+   exchanged.
+-}
+fn rorHi(hi: U32, lo: U32, d: U32) -> U32 = (hi `shr` d) `or` (lo `shl` (32 - d))
+fn rorLo(hi: U32, lo: U32, d: U32) -> U32 = (lo `shr` d) `or` (hi `shl` (32 - d))
+
+{-
+   One lane of one round, as a pair.
+
+   The eight terms are the eight of `whirlpoolLane` in the other file, in the same order and reading
+   the same bytes of the same lanes. Each is accumulated into `accHi`/`accLo` rather than written as
+   one expression, because the pair form has no single expression to be: what the 64-bit version says
+   with `xor` this says twice.
+
+   The four terms rotated by 32 or more take `rorLo`/`rorHi` the other way round, which is the
+   exchange composed into the funnel shift - see the note at the head of this file.
+-}
+fn whirlpoolLaneHalves(hi: Flat(U32), lo: Flat(U32), n: Size, keyHi: U32, keyLo: U32,
+                       &outHi: Flat(U32), &outLo: Flat(U32), at: Size) -> {}:
+    let s0 = truncate(hi[n] `shr` 24) :: Size
+    let &accHi = circulantHi[s0]
+    let &accLo = circulantLo[s0]
+
+    let s1 = truncate((hi[(n + 7) `and` 7] `shr` 16) `and` 255) :: Size
+    accHi = accHi `xor` rorHi(circulantHi[s1], circulantLo[s1], 8)
+    accLo = accLo `xor` rorLo(circulantHi[s1], circulantLo[s1], 8)
+
+    let s2 = truncate((hi[(n + 6) `and` 7] `shr` 8) `and` 255) :: Size
+    accHi = accHi `xor` rorHi(circulantHi[s2], circulantLo[s2], 16)
+    accLo = accLo `xor` rorLo(circulantHi[s2], circulantLo[s2], 16)
+
+    let s3 = truncate(hi[(n + 5) `and` 7] `and` 255) :: Size
+    accHi = accHi `xor` rorHi(circulantHi[s3], circulantLo[s3], 24)
+    accLo = accLo `xor` rorLo(circulantHi[s3], circulantLo[s3], 24)
+
+    -- `ror 32` is the exchange and nothing else.
+    let s4 = truncate(lo[(n + 4) `and` 7] `shr` 24) :: Size
+    accHi = accHi `xor` circulantLo[s4]
+    accLo = accLo `xor` circulantHi[s4]
+
+    let s5 = truncate((lo[(n + 3) `and` 7] `shr` 16) `and` 255) :: Size
+    accHi = accHi `xor` rorLo(circulantHi[s5], circulantLo[s5], 8)
+    accLo = accLo `xor` rorHi(circulantHi[s5], circulantLo[s5], 8)
+
+    let s6 = truncate((lo[(n + 2) `and` 7] `shr` 8) `and` 255) :: Size
+    accHi = accHi `xor` rorLo(circulantHi[s6], circulantLo[s6], 16)
+    accLo = accLo `xor` rorHi(circulantHi[s6], circulantLo[s6], 16)
+
+    let s7 = truncate(lo[(n + 1) `and` 7] `and` 255) :: Size
+    accHi = accHi `xor` rorLo(circulantHi[s7], circulantLo[s7], 24)
+    accLo = accLo `xor` rorHi(circulantHi[s7], circulantLo[s7], 24)
+
+    outHi[at] = accHi `xor` keyHi
+    outLo[at] = accLo `xor` keyLo
+
+{-
+   The compression, one block, over halves.
+
+   Line for line the other file's `whirlpoolCompress` with every lane doubled: the same ten rounds,
+   the same key schedule advanced beside the state, and the same Miyaguchi-Preneel fold at the end.
+-}
+fn compressHalves(&stateHi: [U32 *8], &stateLo: [U32 *8], from: Flat(U8), at: Size) -> {}:
+    let &blockHi = [0] :: [U32 *8]
+    let &blockLo = [0] :: [U32 *8]
+    let &keyHi = [0] :: [U32 *8]
+    let &keyLo = [0] :: [U32 *8]
+    let &workHi = [0] :: [U32 *8]
+    let &workLo = [0] :: [U32 *8]
+    let &nextHi = [0] :: [U32 *8]
+    let &nextLo = [0] :: [U32 *8]
+
+    let &i = 0 :: Size
+    while i < 8:
+        blockHi[i] = readBigU32(from, at + i * 8)
+        blockLo[i] = readBigU32(from, at + i * 8 + 4)
+        keyHi[i] = stateHi[i]
+        keyLo[i] = stateLo[i]
+        workHi[i] = blockHi[i] `xor` keyHi[i]
+        workLo[i] = blockLo[i] `xor` keyLo[i]
+        i = i + 1
+
+    let &r = 0 :: Size
+    while r < 10:
+        whirlpoolLaneHalves(keyHi, keyLo, 0, roundConstantsHi[r], roundConstantsLo[r],
+                            nextHi, nextLo, 0)
+
+        let &j = 1 :: Size
+        while j < 8:
+            whirlpoolLaneHalves(keyHi, keyLo, j, 0, 0, nextHi, nextLo, j)
+            j = j + 1
+
+        j = 0
+        while j < 8:
+            keyHi[j] = nextHi[j]
+            keyLo[j] = nextLo[j]
+            j = j + 1
+
+        j = 0
+        while j < 8:
+            whirlpoolLaneHalves(workHi, workLo, j, keyHi[j], keyLo[j], nextHi, nextLo, j)
+            j = j + 1
+
+        j = 0
+        while j < 8:
+            workHi[j] = nextHi[j]
+            workLo[j] = nextLo[j]
+            j = j + 1
+
+        r = r + 1
+
+    i = 0
+    while i < 8:
+        stateHi[i] = stateHi[i] `xor` (workHi[i] `xor` blockHi[i])
+        stateLo[i] = stateLo[i] `xor` (workLo[i] `xor` blockLo[i])
+        i = i + 1
+
+{-
+   The instance, and the one place a wide value is touched at all.
+
+   The state stays `[I64 *8]` - that is the type `Whirlpool.yana` declares, the type the padding and
+   the `Digest` instance are written against, and the type `finish` writes out with `writeBigU64` -
+   so this splits it on the way in and rejoins it on the way out. Sixteen wide operations per call,
+   against a run of blocks; the alternative, a state of halves, would have made the state type itself
+   platform-selected and dragged the record, the padding and the result with it.
+-}
+instance Block(WhirlpoolState):
+  fn compressBlocks(&self: WhirlpoolState, from: Flat(U8), at: Size, blocks: Size) -> {}:
+      let &stateHi = [0] :: [U32 *8]
+      let &stateLo = [0] :: [U32 *8]
+
+      let &i = 0 :: Size
+      while i < 8:
+          let word = bitcast(self.h[i]) :: U64
+          stateHi[i] = truncate(word `shr` 32)
+          stateLo[i] = truncate(word)
+          i = i + 1
+
+      let &b = 0 :: Size
+      while b < blocks:
+          compressHalves(stateHi, stateLo, from, at + b * 64)
+          b = b + 1
+
+      i = 0
+      while i < 8:
+          self.h[i] = bitcast(((stateHi[i] :: U64) `shl` 32) `or` (stateLo[i] :: U64)) :: I64
+          i = i + 1

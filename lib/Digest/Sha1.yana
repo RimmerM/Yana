@@ -1,0 +1,156 @@
+import Native
+
+{-
+   SHA-1 - FIPS 180-4.
+
+   -- Legacy. SHA-1 has been collision-broken since 2017 and must not be chosen for anything whose
+   -- security depends on it; `Sha256` is the replacement. It stays because two things a program has
+   -- to interoperate with are made of it and neither is going to change: **MySQL's
+   -- `mysql_native_password` handshake** is `SHA1(scramble || SHA1(SHA1(password)))`, so a client
+   -- that cannot compute SHA-1 cannot log in at all, and **git** names every object by it.
+
+   Eighty rounds over five working variables, and the same two changes the rest of this module
+   makes: the variables do not move - five rounds of the permutation return every name to where it
+   started, so the loops run five at a time with the names rotated in the source - and the message
+   schedule is a sixteen-word *ring* rather than an eighty-word array.
+
+   The ring is worth it here where it was not worth it in SHA-256, and the reason is the schedule
+   itself: SHA-1's is one `xor` tree and a rotation, so recomputing a word costs about what loading
+   it costs, and sixty-four words of frame and their stores go away. `and 15` is the masking, which
+   folds to a constant offset in the unrolled group for four of the five reads and does not for the
+   fifth.
+-}
+
+pub data Sha1State {h: [U32 *5]}
+
+pub fn newSha1State() -> Sha1State =
+    Sha1State {h: [1732584193, 4023233417, 2562383102, 271733878, 3285377520]}
+
+{-
+   The compression function.
+
+   The four round constants are the four `let`s below rather than a table: each covers twenty
+   rounds, so the loop that uses one uses it twenty times and a table read would be a load per round
+   for a value the instruction stream can hold as an immediate.
+-}
+pub fn sha1Compress(&h: [U32 *5], from: Flat(U8), at: Size) -> {}:
+    let &w = [0] :: [U32 *16]
+
+    let &i = 0 :: Size
+    while i < 16:
+        w[i] = readBigU32(from, at + i * 4)
+        i = i + 1
+
+    let &a = h[0]
+    let &b = h[1]
+    let &c = h[2]
+    let &d = h[3]
+    let &e = h[4]
+
+    {-
+       Eighty rounds as sixteen groups of five, and one group that is not like the others.
+
+       The cycle of the permutation is five and eighty is a multiple of it, so every group renames
+       rather than moves. What does not line up is where the *schedule* starts extending: rounds 0
+       through 15 read the block as it was loaded and rounds 16 onward read a word this recomputes,
+       and 16 is not a multiple of 5. So the fourth group is written out with its one direct read and
+       its four extended ones, and every other group is uniform.
+    -}
+    let &j = 0 :: Size
+    while j < 15:
+        sha1Step(a, b, c, d, e, sha1Select(b, c, d), 1518500249, w[j])
+        sha1Step(e, a, b, c, d, sha1Select(a, b, c), 1518500249, w[j + 1])
+        sha1Step(d, e, a, b, c, sha1Select(e, a, b), 1518500249, w[j + 2])
+        sha1Step(c, d, e, a, b, sha1Select(d, e, a), 1518500249, w[j + 3])
+        sha1Step(b, c, d, e, a, sha1Select(c, d, e), 1518500249, w[j + 4])
+        j = j + 5
+
+    sha1Step(a, b, c, d, e, sha1Select(b, c, d), 1518500249, w[15])
+    sha1Step(e, a, b, c, d, sha1Select(a, b, c), 1518500249, extend(w, 16))
+    sha1Step(d, e, a, b, c, sha1Select(e, a, b), 1518500249, extend(w, 17))
+    sha1Step(c, d, e, a, b, sha1Select(d, e, a), 1518500249, extend(w, 18))
+    sha1Step(b, c, d, e, a, sha1Select(c, d, e), 1518500249, extend(w, 19))
+
+    let &n = 20 :: Size
+    while n < 40:
+        sha1Step(a, b, c, d, e, sha1Parity(b, c, d), 1859775393, extend(w, n))
+        sha1Step(e, a, b, c, d, sha1Parity(a, b, c), 1859775393, extend(w, n + 1))
+        sha1Step(d, e, a, b, c, sha1Parity(e, a, b), 1859775393, extend(w, n + 2))
+        sha1Step(c, d, e, a, b, sha1Parity(d, e, a), 1859775393, extend(w, n + 3))
+        sha1Step(b, c, d, e, a, sha1Parity(c, d, e), 1859775393, extend(w, n + 4))
+        n = n + 5
+
+    while n < 60:
+        sha1Step(a, b, c, d, e, sha1Majority(b, c, d), 2400959708, extend(w, n))
+        sha1Step(e, a, b, c, d, sha1Majority(a, b, c), 2400959708, extend(w, n + 1))
+        sha1Step(d, e, a, b, c, sha1Majority(e, a, b), 2400959708, extend(w, n + 2))
+        sha1Step(c, d, e, a, b, sha1Majority(d, e, a), 2400959708, extend(w, n + 3))
+        sha1Step(b, c, d, e, a, sha1Majority(c, d, e), 2400959708, extend(w, n + 4))
+        n = n + 5
+
+    while n < 80:
+        sha1Step(a, b, c, d, e, sha1Parity(b, c, d), 3395469782, extend(w, n))
+        sha1Step(e, a, b, c, d, sha1Parity(a, b, c), 3395469782, extend(w, n + 1))
+        sha1Step(d, e, a, b, c, sha1Parity(e, a, b), 3395469782, extend(w, n + 2))
+        sha1Step(c, d, e, a, b, sha1Parity(d, e, a), 3395469782, extend(w, n + 3))
+        sha1Step(b, c, d, e, a, sha1Parity(c, d, e), 3395469782, extend(w, n + 4))
+        n = n + 5
+
+    h[0] = h[0] + a
+    h[1] = h[1] + b
+    h[2] = h[2] + c
+    h[3] = h[3] + d
+    h[4] = h[4] + e
+
+{-
+   One round, in the form that writes two variables and reads five.
+
+   `e` takes the whole sum and `b` is rotated in place, which is FIPS 180-4 §6.1.2 step 3 with the
+   renaming removed. The caller supplies `f` already computed, because which function it is depends
+   on which twenty rounds this is and that is the loop's business rather than the round's.
+-}
+fn sha1Step(a: U32, &b: U32, c: U32, d: U32, &e: U32, f: U32, k: U32, w: U32) -> {}:
+    e = ((a `rol` 5) + f) + ((e + k) + w)
+    b = b `rol` 30
+
+-- The schedule, extended in place. `w[n and 15]` is both the word being replaced and one of the
+-- four inputs, which is what makes sixteen words enough.
+fn extend(&w: Flat(U32), n: Size) -> U32:
+    let slot = n `and` 15
+    let mixed = ((w[slot] `xor` w[(n + 2) `and` 15]) `xor` w[(n + 8) `and` 15]) `xor` w[(n + 13) `and` 15]
+    let next = mixed `rol` 1
+    w[slot] = next
+    return next
+
+fn sha1Select(x: U32, y: U32, z: U32) -> U32 = z `xor` (x `and` (y `xor` z))
+fn sha1Parity(x: U32, y: U32, z: U32) -> U32 = (x `xor` y) `xor` z
+fn sha1Majority(x: U32, y: U32, z: U32) -> U32 = (x `and` y) `or` (z `and` (x `or` y))
+
+instance Block(Sha1State):
+  fn compressBlocks(&self: Sha1State, from: Flat(U8), at: Size, blocks: Size) -> {} =
+      sha1CompressBlocks(self.h, from, at, blocks)
+
+instance Padded(Sha1State):
+  fn lengthBytes(self: Sha1State) -> Size = 8
+  fn writeMessageLength(self: Sha1State, &to: Flat(U8), at: Size, bytes: Size) -> {} =
+      writeBigLength(to, at, bytes)
+
+pub alias Sha1 = Blocks(Sha1State)
+
+pub alias Sha1Digest = [U8 *20]
+
+instance Digest(Blocks(Sha1State), 20):
+  fn newDigest() -> Blocks(Sha1State) = newBlocks(newSha1State())
+
+  fn update(&self: Blocks(Sha1State), from: Flat(U8)) -> {} = absorb(self, from)
+
+  fn finish(->self: Blocks(Sha1State)) -> Sha1Digest:
+      let &running = self
+      padFinal(running)
+      return bigU32Digest(running.state.h)
+
+pub fn sha1Of(from: Flat(U8)) -> Sha1Digest:
+    let &state = newDigest() :: Sha1
+    update(state, from)
+    return finish(state)
+

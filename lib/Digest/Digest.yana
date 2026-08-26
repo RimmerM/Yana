@@ -1,0 +1,464 @@
+import Native
+
+{-
+   ==========================================================================================
+   The message digests.
+   ==========================================================================================
+
+   **One class and one wrapper** serve five algorithms with an identical eight-method surface, and
+   `Hmac` is a namespace of functions per digest *constrained* on that class - so a type missing a
+   member is a diagnostic where the instance is written rather than where a template was
+   instantiated.
+
+   What is in the module and why each is here:
+
+    | `Crc32` / `Crc32C`      | not a digest at all - a checksum, and the one every archive format wants |
+    | `Md5`                   | obsolete for collision resistance and *not* for compatibility - it is what a `Content-MD5`, an RPM header and half the world's file manifests are |
+    | `Sha1`                  | the same argument, and one more: MySQL's `mysql_native_password` handshake is `SHA1(SHA1(SHA1(password)))`, and a client that cannot compute it cannot log in |
+    | `Sha224` / `Sha256`     | the one to reach for when there is a choice |
+    | `Whirlpool`             | no live consumer - a table and forty lines, kept because dropping it costs more to reverse than keeping it, and the one digest here written twice |
+    | `Murmur3` / `XxHash32`  | non-cryptographic, for the caller who wants a 32-bit fingerprint and not a promise |
+
+   "Legacy" describes what a *new* protocol should choose, not what a library may drop: MD5, SHA-1
+   and Whirlpool each carry a `-- Legacy` line saying what they are still for and what to use
+   instead.
+
+   -------------------------------------------------------------------------------------------
+   The class
+
+   **The dependency runs from the state to its width, and the width is a number** - `n` is 32 for
+   SHA-256. So `finish` answers `[U8 *n]`, and a body constrained on the class has both the bytes,
+   through the conversion every fixed array gets at a call, and the count, as an ordinary value.
+
+   That is what makes the class usable from a *generic* body, which is the whole of why the width is
+   in the head rather than a result type `h` standing for `[U8 *32]`. With an opaque `h` neither
+   question could be asked: `Digest(d -> h)` runs from the state to the result, so a function taking
+   an `h` has nothing to select an instance from, and the module carried a second spelling of
+   `finish` routed through `d` - `finishInto(->self: d, &pad: [U8 *64]) -> Size` - implemented
+   identically in all nine instances so that `Hmac.of` could reach a digest's bytes at all.
+
+   `class (Contiguous(h, U8)) Digest(d -> h)` is the other way to have closed it and does not work:
+   it fails in a build with specialization declined, and the note beside `Length([a *n])` in
+   `Core/Container.yana` says why. Naming the width needs no instance at all.
+
+   `finish` takes `->self` deliberately: a digest state is *spent* by finalizing, and leaving a
+   reusable-looking object behind is a trap.
+-}
+pub class Digest(d -> n: Int):
+  fn newDigest() -> d
+  fn update(&self: d, from: Flat(U8)) -> {}
+  fn finish(->self: d) -> [U8 *n]
+
+{-
+   The result widths, as types.
+
+   Each is written once and used everywhere the width is a *type* - `finish`'s result, the one-shot
+   function's, `Hmac`'s. The number stays written in exactly one place per digest, the instance head,
+   which is the one position that takes a count rather than a type; before this it was `[U8 *32]` in
+   five places per digest with nothing relating them, and the two SHA-2 widths sit within a few lines
+   of each other.
+
+   `Fingerprint` is one name for the four thirty-two-bit results rather than four names for one
+   width, because that is what they are: `crc32`, `crc32c`, `murmur3` and `xxHash32` all answer "a
+   32-bit fingerprint and not a promise", and a caller storing one has no reason to care which
+   produced it. The cryptographic digests get a name each, because a `Sha256Digest` where a
+   `Sha1Digest` was meant is a mistake worth a type error.
+-}
+pub alias Fingerprint = [U8 *4]
+
+{-
+   Sixty-four bytes, as a type rather than as a buffer somebody passes a length with.
+
+   `[U8 *64]` is one pointer at a call and a compile-time sixty-four inside the callee, so the loop
+   below has no length to load and its bound folds; a `Flat(U8)` would carry a second word saying
+   what the type already says, and would let a caller hand over a buffer of a different size for
+   these to run off the end of.
+
+   What it is *not* is a way around the borrow rule. A fixed array handed to a class function is a
+   borrow like any other and the callee may not keep it - see `assumedRetained` in
+   compiler/resolve/analyze_escape.cpp - which is what `Hmac.of` relies on to hand `update` a view of
+   this pad.
+
+   Sixty-four because that is a block of every digest in this module and is also at least as wide as
+   any of their results - `Whirlpool`'s sixty-four is the largest - so one buffer serves both of the
+   two things HMAC needs one for.
+-}
+pub fn newPad() -> [U8 *64] = [0]
+
+-- The pad's bytes exclusive-or'd with a constant. `0x36` builds the inner pad and `0x36 ^ 0x5c`
+-- turns it into the outer one, which is why there is one function and not two.
+pub fn xorPad(&pad: [U8 *64], with: U8) -> {}:
+    let &i = 0 :: Size
+    while i < 64:
+        pad[i] = pad[i] `xor` with
+        i = i + 1
+
+-- The key into the pad, leaving the rest of it zero - which is the zero extension the specification
+-- asks for, already there because `newPad` made it.
+pub fn copyIntoPad(&pad: [U8 *64], from: Flat(U8)) -> {}:
+    copyBytes(pad, 0, from, 0, length(from))
+
+{-
+   One-shot hashing is a function per digest, written out beside each digest, rather than one
+   function over the class. **The dependency runs `d -> n`**, so a result can never select a state
+   type: `digestOf(bytes) :: Sha256Digest` has nothing to bind `d` from, and the width alone could
+   not decide it even if it did - `Fingerprint` is four digests' result. `Hmac.of` below is the same
+   problem answered the other way, with the state arriving as an argument, and either answer is one
+   line per digest; these are the ones where the line is the whole function.
+-}
+
+{-
+   ------------------------------------------------------------------------------------------
+   Reading and writing the machine words a digest is made of.
+   ------------------------------------------------------------------------------------------
+
+   `readBigU32` and its seven siblings are **Core's**, beside `loadVector` in `Core/Container.yana`,
+   and were this file's until the compiler had an answer for them on both targets. What lives here
+   now is only the pair a digest's padding wants, which is a byte *count* laid out as a bit count and
+   is not a word transfer at all.
+
+   The move is not a tidying. Every format that is not text is made of these, so the natural home is
+   the container library rather than the first caller - and the cost at each end is a target question
+   neither of which portable source can state: natively a load and a `movbe`, and on JS a `DataView`
+   accessor through a view built once per array. See that file, and `NativeOp::HostWordRead` for the
+   JS measurements.
+
+   What this file gained by the move is the 64-bit pair on JS, which `getBigUint64` answers in a
+   single call. Whirlpool no longer needs it: its JS implementation reads two 32-bit words instead,
+   for the reason `Whirlpool.yana` gives.
+-}
+
+{-
+   The 64-bit length field, as the two 32-bit halves the padding actually wants.
+
+   A byte count reaches its bit count by three shifts and nothing wider: the low word is `bytes shl
+   3` truncated and the high word is `bytes shr 29`. `Size` is 64 bits natively and 32 on JS, so the
+   high word is always zero there - which is correct, since a JS host array cannot hold 512 MB of
+   message in the first place.
+-}
+pub fn writeBigLength(&to: Flat(U8), at: Size, bytes: Size) -> {}:
+    writeBigU32(to, at, truncate(bytes `shr` 29) :: U32)
+    writeBigU32(to, at + 4, truncate(bytes `shl` 3) :: U32)
+
+pub fn writeLittleLength(&to: Flat(U8), at: Size, bytes: Size) -> {}:
+    writeLittleU32(to, at, truncate(bytes `shl` 3) :: U32)
+    writeLittleU32(to, at + 4, truncate(bytes `shr` 29) :: U32)
+
+{-
+   ------------------------------------------------------------------------------------------
+   The block machinery - what four of the six digests share.
+   ------------------------------------------------------------------------------------------
+
+   **Every block digest in this module has a sixty-four-byte block** - MD5, SHA-1, SHA-256 and
+   Whirlpool all do - so the buffer below is `[U8 *64]` rather than a const parameter. The one thing
+   that does vary, how many bytes of trailing length the padding writes (eight for the SHA family
+   and MD5, thirty-two for Whirlpool), is a member of the class rather than a shape.
+
+   `Blocks(c)` is a *wrapper* and not a superclass: a class function returning `&self.field` cannot
+   be assigned through, because only `Index.getMut` is wired into a place expression, so a shared
+   buffer reached through an accessor would be readable and not writable. Wrapping the algorithm
+   state instead puts the buffer in a record this module owns, where an ordinary field assignment
+   reaches it.
+-}
+pub class Block(c):
+  {-
+     `blocks` blocks of sixty-four bytes each, starting at `at`, folded into the state. The *only*
+     thing an algorithm has to write, and where all of the time goes.
+
+     **A run of blocks and not one block**, because a hardware compression has a *setup*: the SHA
+     extension wants the eight working words in two vector registers, in an order that is not the
+     order they are stored in, so a per-block member would pay that conversion once per block where
+     this pays it once per call. See `Digest/Hardware.sha.yana`.
+
+     For the four portable compressions it makes no difference.
+
+     A caller that has one block passes one, which is what `padFinal` does.
+  -}
+  fn compressBlocks(&self: c, from: Flat(U8), at: Size, blocks: Size) -> {}
+
+{-
+   And the padding rule, which is a class of its own rather than two more members of `Block`.
+
+   The split lets the non-cryptographic hashes below use the buffering without pretending to have a
+   padding: Murmur3 and xxHash32 read their tail bytes directly and finalize with the message
+   length, so `lengthBytes` and `writeMessageLength` would be two members they answer with values
+   nothing reads. The four Merkle-Damgård digests join this and the two others do not, and
+   `padFinal` below is constrained on it, which is where the difference is enforced.
+-}
+pub class (Block(c)) Padded(c):
+  -- How many trailing bytes the padding spends on the message length. Eight everywhere except
+  -- Whirlpool, which states a 256-bit length and uses thirty-two.
+  fn lengthBytes(self: c) -> Size
+
+  {-
+     The length field itself, written into the padded block.
+
+     Which end the bytes go is the algorithm's - MD5 says little and the others say big - so this
+     writes the field rather than answering a number and letting the caller guess.
+
+     **It is handed a byte count and not a bit count**, which is a JS decision: the specifications
+     all state a 64-bit count of *bits*, and a `U64` on that target is a `bigint` and off the
+     arithmetic path entirely (see `Hash(Double)` in `Core/Hash.yana` for the same argument). Every
+     implementation below wants the two halves separately anyway - it writes two 32-bit words - and
+     `bytes shl 3` and `bytes shr 29` are those two halves in the `Size` domain, which is an ordinary
+     integer on both targets.
+  -}
+  fn writeMessageLength(self: c, &to: Flat(U8), at: Size, bytes: Size) -> {}
+
+pub data Blocks(c) {state: c, block: [U8 *64], used: Size, total: Size}
+
+{-
+   One constructor for all seven, and the one rule about it that is JavaScript's.
+
+   **A fresh block buffer is the fill literal `[0]`**, and not a global constant: a fixed array is a
+   host array on JS, and copying a global one into a record field emits the global itself rather
+   than a copy, so every digest in a program would share one sixty-four-byte buffer. A fill literal
+   is a fresh array at every site on both targets - natively `lowerUniformFill` collapses it into
+   one block set.
+
+   This used to be written out at each of the seven `newDigest` bodies, because the owned argument
+   to a generic constructor was dropped on JS - the emitted call was `newBlocks({})` and the digest
+   folded over a state of no words at all, so every answer was zeros. That is fixed, and the shared
+   form is byte-identical in the emitted JavaScript. `test/resolve/JsGenericAggregate.yana` is the
+   reduced shape it was found at and holds it fixed: a record generic in one parameter, a concrete
+   record with a fixed-array field passed into it by an owning function, compiled through the erased
+   ABI and run on both targets.
+-}
+pub fn newBlocks(->state: c) -> Blocks(c) = Blocks {state: state, block: [0], used: 0, total: 0}
+
+{-
+   Absorbing input - the loop every `update` is, written once.
+
+   Three phases and the middle one is the one that matters: whole blocks are compressed **straight
+   out of the caller's buffer**, so a one-shot hash of a megabyte copies nothing at all - where an
+   implementation that buffers every block first makes a second pass over the whole message.
+
+   The other two phases are the partial block at each end. A digest fed a byte at a time therefore
+   costs one copy per byte and one compression per sixty-four, which is the shape a streaming caller
+   wants and is what the buffer exists for.
+-}
+pub fn (Block(c)) absorb(&self: Blocks(c), from: Flat(U8)) -> {}:
+    let n = length(from)
+    let &at = 0 :: Size
+
+    self.total = self.total + n
+
+    -- Top up a block already part-filled. If it does not fill, there is nothing else to do: the
+    -- whole of this input is now in the buffer.
+    if self.used != 0:
+        let want = 64 - self.used
+        let take = if n < want then n else want
+
+        copyBytes(self.block, self.used, from, 0, take)
+        self.used = self.used + take
+        at = take
+
+        if self.used < 64 then return {}
+
+        compressBlocks(self.state, self.block, 0, 1)
+        self.used = 0
+
+    -- The bulk, read where the caller put it, in one call rather than one call per block: what a
+    -- hardware compression does once per call it would otherwise do once per block.
+    if at + 64 <= n:
+        let whole = (n - at) / 64
+        compressBlocks(self.state, from, at, whole)
+        at = at + whole * 64
+
+    -- And the tail, kept for the next call or for the padding.
+    if at < n:
+        copyBytes(self.block, 0, from, at, n - at)
+        self.used = n - at
+
+{-
+   Padding, and the one place a digest's shape shows through.
+
+   `0x80`, then zeros, then the message length - which is the Merkle-Damgård padding all four of
+   these share. The length field is the class's to write and its width is the class's to state, so
+   Whirlpool's thirty-two bytes need no special case here: what changes is where the zeros stop.
+
+   The count is in *bits* and is taken modulo 2^64 by the type, which is what every one of these
+   specifications says to do.
+-}
+pub fn (Padded(c)) padFinal(&self: Blocks(c)) -> {}:
+    let bytes = self.total
+    let tail = lengthBytes(self.state)
+
+    self.block[self.used] = 128
+    self.used = self.used + 1
+
+    -- No room left for the length in this block, so it is filled with zeros and compressed first.
+    if self.used + tail > 64:
+        zeroBytes(self.block, self.used, 64 - self.used)
+        compressBlocks(self.state, self.block, 0, 1)
+        self.used = 0
+
+    zeroBytes(self.block, self.used, 64 - tail - self.used)
+    writeMessageLength(self.state, self.block, 64 - tail, bytes)
+    compressBlocks(self.state, self.block, 0, 1)
+    self.used = 0
+
+{-
+   The state words, as the digest they spell - the second half of every `finish` in this module, and
+   the half that was written out three times.
+
+   **Two counts and neither of them is a number here**: `w` is how many words the state holds and `n`
+   how many bytes the digest is, and the two are not the same question - SHA-224 carries eight words
+   and answers twenty-eight bytes, so the loop stops at the *digest's* width and the last word is
+   half spent. `n` is bound by the expected type, which is the result of the `finish` that calls
+   this; nothing else decides it, and nothing else has to.
+
+   Big-endian and 32-bit because that is what SHA-1, SHA-224 and SHA-256 are. MD5 writes the same
+   shape little-endian and Whirlpool writes eight 64-bit words, and both keep their own loop rather
+   than turning this into a function with a mode: one caller each, and an endianness argument would
+   be read at every call to save four lines at one of them.
+-}
+pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
+    let &out = [0] :: [U8 *n]
+    let width = n :: Size
+
+    let &i = 0 :: Size
+    while i * 4 < width:
+        writeBigU32(out, i * 4, h[i])
+        i = i + 1
+
+    return out
+
+{-
+   The two byte loops, which are here rather than in `Native` because of what they take.
+
+   `copyMemory` wants two addresses and a JS build has none, and both of these run over at most
+   sixty-four bytes - so a call into the block ladder would cost more in dispatch than the loop
+   costs outright. Written this way they are also the same source on both targets.
+-}
+pub fn copyBytes(&to: Flat(U8), toAt: Size, from: Flat(U8), fromAt: Size, count: Size) -> {}:
+    let &i = 0 :: Size
+    while i < count:
+        to[toAt + i] = from[fromAt + i]
+        i = i + 1
+
+pub fn zeroBytes(&to: Flat(U8), at: Size, count: Size) -> {}:
+    let &i = 0 :: Size
+    while i < count:
+        to[at + i] = 0
+        i = i + 1
+
+{-
+   ------------------------------------------------------------------------------------------
+   Hexadecimal, which is what a digest is nearly always turned into.
+   ------------------------------------------------------------------------------------------
+
+   One function over `Flat(U8)` rather than one per digest, and reached by the conversion at the call
+   rather than by a constraint: a `Sha256Digest` becomes a slice where it is written, so `hexOf` needs
+   to say nothing about widths and nothing about containers.
+
+   Lower case, because every protocol that compares digest text as a string - a `Content-MD5`
+   header, a `.sha256` sidecar file, git - writes it that way.
+-}
+pub fn pushHex(bytes: Flat(U8), &to: String) -> {}:
+    let n = length(bytes)
+    let &i = 0 :: Size
+
+    String.reserve(to, length(to) + n * 2)
+
+    while i < n:
+        let byte = bytes[i] :: Int
+        String.pushUnit(to, hexUnit(byte `shr` 4))
+        String.pushUnit(to, hexUnit(byte `and` 15))
+        i = i + 1
+
+pub fn hexOf(bytes: Flat(U8)) -> String:
+    let &text = String.ofCapacity(length(bytes) * 2)
+    pushHex(bytes, text)
+    return text
+
+-- `0`-`9` then `a`-`f`, as arithmetic rather than as a table: the branch is one `cmp` and a `cmov`
+-- and a table would be a load and a bounds check the compiler cannot remove.
+fn hexUnit(nibble: Int) -> Int = if nibble < 10 then 48 + nibble else 87 + nibble
+
+{-
+   ------------------------------------------------------------------------------------------
+   HMAC - RFC 2104, once.
+   ------------------------------------------------------------------------------------------
+
+   `H((K ^ opad) || H((K ^ ipad) || message))`, written once over the class, with a name per digest
+   in front of it.
+
+   **The names are a namespace rather than a prefix** - `Hmac.sha1` where four spellings of
+   `hmacSha1` used to be. A namespace and not a module (doc/spec/modules.md): these four are a thin
+   face over `Hmac.of` and share every one of its internals, so a module would charge them a `pub`
+   boundary with nothing behind it and charge every caller a second import to reach a name
+   `import Digest` already brings. What the prefix buys is the reading - `Hmac.sha1(key, message)`
+   beside `digestOf(bytes) :: Sha1` says which of the two a call is.
+
+   **The state is the argument, because `d -> n` runs the wrong way for a result to select one.**
+   `Hmac.of(key, message) :: Sha256Digest` has nothing to bind `d` from - and `Fingerprint` is four
+   digests' result here, so the dependency could not be turned round either. So the digest arrives as
+   a value whose type says which one it is, which is `HMac<Sha256>` said in the one place Yana has to
+   say it, and the four names below are what a caller actually writes.
+
+   **What a generic body may hand a class function** is the reason this was four bodies until the
+   borrow rule was stated: a deferred class dispatch has no summary, and assuming every argument was
+   kept meant `update(inner, message)` marked the caller's slice as outliving the frame. What stands
+   in for the missing summary now is the signature - a borrow's extent is the call unless a body says
+   otherwise - and `checkClassBorrows` holds every implementation of `update` to it. See
+   `assumedRetained` in `compiler/resolve/analyze_escape.cpp`.
+
+   **The class's width is what makes it generic.** `finish` answers `[U8 *n]` and `n` is a number
+   this body has, so the inner digest is copied into the pad here rather than through a second class
+   member that existed only to be routed by `d`. When the result was an opaque `h`, neither its bytes
+   nor its length were reachable - `Contiguous(h, U8)` is the instance that cannot be written, for
+   the reason the note beside `Length([a *n])` in `Core/Container.yana` gives - and `finishInto` was
+   nine copies of the three lines that closed it.
+
+   **The outer pad goes in before the inner digest comes out**, which is the one thing about the
+   order that is not the specification's: the two pads differ by `0x36 ^ 0x5c`, so the second is the
+   first flipped rather than the key expanded again - and once the outer digest has read it, the
+   buffer is free for the inner digest to be finished into. That is what keeps this to one
+   sixty-four-byte pad instead of two.
+
+   A key longer than a block is replaced by its own digest, which is the specification's rule and
+   the one place HMAC hashes three times instead of twice. It goes straight into the pad, whose
+   remaining bytes are already the zeros the extension wants.
+
+   `Hmac.whirlpool` is the widest of them and the one whose digest exactly fills the pad, which is
+   the case `newPad`'s sixty-four was chosen for.
+-}
+pub fn (Digest(d, n)) Hmac.of(->state: d, key: Flat(U8), message: Flat(U8)) -> [U8 *n]:
+    let &pad = newPad()
+    let width = n :: Size
+
+    if length(key) <= 64:
+        copyIntoPad(pad, key)
+    else:
+        let &folding = newDigest() :: d
+        update(folding, key)
+        copyBytes(pad, 0, finish(folding), 0, width)
+
+    let &inner = state
+    xorPad(pad, 54)
+    update(inner, pad)
+    update(inner, message)
+
+    let &outer = newDigest() :: d
+    xorPad(pad, 106)
+    update(outer, pad)
+
+    copyBytes(pad, 0, finish(inner), 0, width)
+    update(outer, pad[0..truncate(width) :: Int])
+    return finish(outer)
+
+pub fn Hmac.md5(key: Flat(U8), message: Flat(U8)) -> Md5Digest =
+    Hmac.of(newDigest() :: Md5, key, message)
+
+pub fn Hmac.sha1(key: Flat(U8), message: Flat(U8)) -> Sha1Digest =
+    Hmac.of(newDigest() :: Sha1, key, message)
+
+pub fn Hmac.sha224(key: Flat(U8), message: Flat(U8)) -> Sha224Digest =
+    Hmac.of(newDigest() :: Sha224, key, message)
+
+pub fn Hmac.whirlpool(key: Flat(U8), message: Flat(U8)) -> WhirlpoolDigest =
+    Hmac.of(newDigest() :: Whirlpool, key, message)
+
+pub fn Hmac.sha256(key: Flat(U8), message: Flat(U8)) -> Sha256Digest =
+    Hmac.of(newDigest() :: Sha256, key, message)

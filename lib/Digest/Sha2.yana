@@ -1,0 +1,225 @@
+import Native
+
+{-
+   SHA-224 and SHA-256 - FIPS 180-4.
+
+   The one to reach for when there is a choice, and the one algorithm in this module with a machine
+   instruction behind it: `Sha256.native.yana` beside this file is the same compression written over
+   `sha256rnds2`, and `compressBlock` below picks between the two.
+
+   **Two departures from the reference and both are speed.**
+
+   *The eight working variables do not move.* The reference loop assigns `h = g; g = f; ...` at the
+   end of every round, which is fifty-six register copies per block that exist only to renumber
+   what a round is written in terms of. Eight rounds of this permutation return the names to where
+   they started, so the loop below runs **eight rounds per iteration with the names rotated in the
+   source** and copies nothing.
+
+   *The message schedule is read a word at a time and not a byte at a time.* `readBigU32` is one
+   unaligned load and one `bswap` natively - one `movbe` at v3 - against four byte reads and shifts.
+
+   SHA-224 is SHA-256 with a different initial state and a truncated output, which is exactly how it
+   is written here: one compression, two instances.
+-}
+
+-- The round constants - the first thirty-two bits of the fractional parts of the cube roots of the
+-- first sixty-four primes, which is FIPS 180-4 §4.2.2 and is a table rather than a computation
+-- because that is what the specification is.
+let roundConstants = [
+    1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221,
+    3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580,
+    3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986,
+    2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895,
+    666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037,
+    2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344,
+    430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779,
+    1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298
+] :: [U32 *64]
+
+pub data Sha256State {h: [U32 *8]}
+pub data Sha224State {h: [U32 *8]}
+
+-- The two initial states - FIPS 180-4 §5.3.2 and §5.3.3. SHA-256's is the fractional parts of the
+-- square roots of the first eight primes; SHA-224's is a different set entirely, which is what stops
+-- a SHA-224 digest from being a prefix of the SHA-256 one over the same message.
+pub fn newSha256State() -> Sha256State = Sha256State {h: [
+    1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225
+]}
+
+pub fn newSha224State() -> Sha224State = Sha224State {h: [
+    3238371032, 914150663, 812702999, 4144912697, 4290775857, 1750603025, 1694076839, 3204075428
+]}
+
+{-
+   The compression function, and the two shapes it is written in.
+
+   `w` is the whole sixty-four-word schedule rather than a sixteen-word ring, which is 256 bytes of
+   frame and one fewer masked index per round; the ring form was written and is slower here, because
+   `j and 15` is an operation this backend keeps and the array is small enough to sit in L1 forever.
+
+   The round body is a function rather than a macro-shaped repetition, and it is *the* thing that has
+   to inline: sixty-four calls that did not would be sixty-four frames. It takes `d` and `h` by
+   mutable borrow because those are the two variables a round writes, which is the pair the
+   permutation is built around.
+-}
+pub fn sha256Compress(&h: [U32 *8], from: Flat(U8), at: Size) -> {}:
+    let &w = [0] :: [U32 *64]
+
+    let &i = 0 :: Size
+    while i < 16:
+        w[i] = readBigU32(from, at + i * 4)
+        i = i + 1
+
+    while i < 64:
+        let s0 = smallSigma0(w[i - 15])
+        let s1 = smallSigma1(w[i - 2])
+        w[i] = w[i - 16] + s0 + w[i - 7] + s1
+        i = i + 1
+
+    let &a = h[0]
+    let &b = h[1]
+    let &c = h[2]
+    let &d = h[3]
+    let &e = h[4]
+    let &f = h[5]
+    let &g = h[6]
+    let &hh = h[7]
+
+    let &j = 0 :: Size
+    while j < 64:
+        {-
+           Eight rounds with the names rotated one place each, which is the permutation the
+           reference performs with assignments. After the eighth every name is back where it
+           started, which is why the group is eight and not one.
+
+           **Written out rather than called**, which is measured rather than preferred: a round was
+           a five-line function and the inliner declines it, so a call apiece is sixty-four call
+           sequences per sixty-four bytes. Folding it in is **1.08x** here - small, and the same
+           change is 1.8x on Whirlpool's table read, where the helper is called twenty times as
+           often. See `test/bench/hash/findings.md`.
+        -}
+        let t0 = hh + bigSigma1(e) + sha2Choose(e, f, g) + roundConstants[j + 0] + w[j + 0]
+        d = d + t0
+        hh = t0 + bigSigma0(a) + sha2Majority(a, b, c)
+        let t1 = g + bigSigma1(d) + sha2Choose(d, e, f) + roundConstants[j + 1] + w[j + 1]
+        c = c + t1
+        g = t1 + bigSigma0(hh) + sha2Majority(hh, a, b)
+        let t2 = f + bigSigma1(c) + sha2Choose(c, d, e) + roundConstants[j + 2] + w[j + 2]
+        b = b + t2
+        f = t2 + bigSigma0(g) + sha2Majority(g, hh, a)
+        let t3 = e + bigSigma1(b) + sha2Choose(b, c, d) + roundConstants[j + 3] + w[j + 3]
+        a = a + t3
+        e = t3 + bigSigma0(f) + sha2Majority(f, g, hh)
+        let t4 = d + bigSigma1(a) + sha2Choose(a, b, c) + roundConstants[j + 4] + w[j + 4]
+        hh = hh + t4
+        d = t4 + bigSigma0(e) + sha2Majority(e, f, g)
+        let t5 = c + bigSigma1(hh) + sha2Choose(hh, a, b) + roundConstants[j + 5] + w[j + 5]
+        g = g + t5
+        c = t5 + bigSigma0(d) + sha2Majority(d, e, f)
+        let t6 = b + bigSigma1(g) + sha2Choose(g, hh, a) + roundConstants[j + 6] + w[j + 6]
+        f = f + t6
+        b = t6 + bigSigma0(c) + sha2Majority(c, d, e)
+        let t7 = a + bigSigma1(f) + sha2Choose(f, g, hh) + roundConstants[j + 7] + w[j + 7]
+        e = e + t7
+        a = t7 + bigSigma0(b) + sha2Majority(b, c, d)
+        j = j + 8
+    h[0] = h[0] + a
+    h[1] = h[1] + b
+    h[2] = h[2] + c
+    h[3] = h[3] + d
+    h[4] = h[4] + e
+    h[5] = h[5] + f
+    h[6] = h[6] + g
+    h[7] = h[7] + hh
+
+fn bigSigma0(x: U32) -> U32 = ((x `ror` 2) `xor` (x `ror` 13)) `xor` (x `ror` 22)
+fn bigSigma1(x: U32) -> U32 = ((x `ror` 6) `xor` (x `ror` 11)) `xor` (x `ror` 25)
+fn smallSigma0(x: U32) -> U32 = ((x `ror` 7) `xor` (x `ror` 18)) `xor` (x `shr` 3)
+fn smallSigma1(x: U32) -> U32 = ((x `ror` 17) `xor` (x `ror` 19)) `xor` (x `shr` 10)
+
+-- `Ch` and `Maj`, in the two-operation forms rather than the three the specification writes. Both
+-- are identities over bits: `g xor (e and (f xor g))` selects, and `(a and b) or (c and (a or b))`
+-- is the majority. One operation each is worth having sixty-four times per block.
+fn sha2Choose(e: U32, f: U32, g: U32) -> U32 = g `xor` (e `and` (f `xor` g))
+fn sha2Majority(a: U32, b: U32, c: U32) -> U32 = (a `and` b) `or` (c `and` (a `or` b))
+
+
+instance Block(Sha256State):
+  fn compressBlocks(&self: Sha256State, from: Flat(U8), at: Size, blocks: Size) -> {} =
+      sha256CompressBlocks(self.h, from, at, blocks)
+
+instance Padded(Sha256State):
+  fn lengthBytes(self: Sha256State) -> Size = 8
+  fn writeMessageLength(self: Sha256State, &to: Flat(U8), at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
+
+instance Block(Sha224State):
+  fn compressBlocks(&self: Sha224State, from: Flat(U8), at: Size, blocks: Size) -> {} =
+      sha256CompressBlocks(self.h, from, at, blocks)
+
+instance Padded(Sha224State):
+  fn lengthBytes(self: Sha224State) -> Size = 8
+  fn writeMessageLength(self: Sha224State, &to: Flat(U8), at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
+
+{-
+   The two digests.
+
+   **`Sha224State` is a second record and not a second initial value**, and that is the language
+   deciding rather than the algorithms: an instance is selected by a type, so two digests that
+   differ in their result width have to be two types. What they share is the compression function
+   above, which takes the eight-word state as a mutable slice for exactly this reason - the two
+   records hold the same eight words and there is one copy of the sixty-four rounds.
+
+   SHA-224 is not a truncation of SHA-256: its initial state is a different set of constants
+   entirely, which is what stops one digest from being a prefix of the other over the same message.
+   The truncation is only of the *output*, and it drops `h[7]` rather than the last four bytes of
+   the whole - which is the same thing here and is worth saying, because it is not for SHA-512/224.
+-}
+pub alias Sha256 = Blocks(Sha256State)
+pub alias Sha224 = Blocks(Sha224State)
+
+{-
+   The two digests, as types.
+
+   Written once each and used everywhere the width is a *type* - `finish`'s result, the one-shot
+   function's, `Hmac`'s. The number itself is written in one place, the instance head below, which is
+   the one position that takes a count rather than a type.
+
+   SHA-224 is the reason this is worth a name rather than four spellings of `[U8 *28]`: it is
+   SHA-256's state truncated, so twenty-eight and thirty-two appear within a few lines of each other
+   and swapping them is a mistake nothing else would catch.
+-}
+pub alias Sha256Digest = [U8 *32]
+pub alias Sha224Digest = [U8 *28]
+
+instance Digest(Blocks(Sha256State), 32):
+  fn newDigest() -> Blocks(Sha256State) = newBlocks(newSha256State())
+
+  fn update(&self: Blocks(Sha256State), from: Flat(U8)) -> {} = absorb(self, from)
+
+  fn finish(->self: Blocks(Sha256State)) -> Sha256Digest:
+      let &running = self
+      padFinal(running)
+      return bigU32Digest(running.state.h)
+
+instance Digest(Blocks(Sha224State), 28):
+  fn newDigest() -> Blocks(Sha224State) = newBlocks(newSha224State())
+
+  fn update(&self: Blocks(Sha224State), from: Flat(U8)) -> {} = absorb(self, from)
+
+  -- Seven of the eight words the state carries, which `bigU32Digest` gets from the result width
+  -- rather than from the state's - see the note there.
+  fn finish(->self: Blocks(Sha224State)) -> Sha224Digest:
+      let &running = self
+      padFinal(running)
+      return bigU32Digest(running.state.h)
+
+pub fn sha256Of(from: Flat(U8)) -> Sha256Digest:
+    let &state = newDigest() :: Sha256
+    update(state, from)
+    return finish(state)
+pub fn sha224Of(from: Flat(U8)) -> Sha224Digest:
+    let &state = newDigest() :: Sha224
+    update(state, from)
+    return finish(state)
+
+

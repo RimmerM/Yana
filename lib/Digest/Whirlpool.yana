@@ -1,0 +1,109 @@
+import Native
+
+{-
+   Whirlpool - the ISO/IEC 10118-3 hash.
+
+   -- Legacy, and legacy in a different sense from MD5 and SHA-1: nothing is *wrong* with Whirlpool,
+   -- it is simply not what anything speaks. It has no live consumer in reach, no machine support on
+   -- any x86, and no format in common use that names it. `Sha256` is what to reach for.
+
+   It is here because dropping a working implementation is a decision nobody can reverse without
+   writing it again, and what it costs is one table and forty lines.
+
+   **One table and not eight.** The reference implementations carry `C0` through `C7`, which is 16 KB
+   of table; the circulant structure means `Ck[x]` is `C0[x]` rotated right by `8k`, so one 2 KB
+   table and a rotation is the same function. The trade is eight rotations per lane per round
+   against 14 KB more table and the L1 pressure that comes with it.
+
+   The table is `I64` and read through `bitcast`, which is `Float/Ryu.native.yana`'s trick and is
+   there for the same reason: more than half of these values have their top bit set, an integer
+   literal is read at `Long`, and written unsigned they would not fit. The `bitcast` per read folds
+   to nothing.
+
+   ------------------------------------------------------------------------------------------
+   Two compressions, and what decides which
+
+   The round function is `xor`, `and`, `shr` and `ror` and **nothing else** - every shift and rotate
+   distance is a literal multiple of eight, and no operation carries. So the eight lanes are 64 bits
+   of *data* rather than 64-bit arithmetic, and a pair of `U32`s holds one of them exactly: a
+   byte-aligned rotation of a carry-free word is a funnel shift of the two halves, and every `xor`
+   splits.
+
+   That is why there are two. `Whirlpool.native.yana` is the eight-lane `U64` form, which is what a
+   machine with 64-bit registers wants. `Whirlpool.js.yana` is the same function over halves, which
+   is what a target whose `U64` is a `bigint` wants: **4.7 s against 1.2 s for 256 KB on Node 24**,
+   which is 23x the cost of SHA-256 on that target against 6x. A native 32-bit target would want the
+   halves form for the same reason and selects it the same way.
+
+   The remaining 6x is not the representation. With `-no-checks` the halves form is 0.74 s, so about
+   two fifths of what is left is the bounds check on each of the eight arrays a round indexes, and
+   the rest is a lane call this backend does not inline - hand-written JavaScript of the same loop is
+   19x faster than the `bigint` one where this is 3.8x. Both are ordinary backend work rather than
+   anything about the digest.
+
+   **Everything either of them needs is here**, which is what keeps the two to one function each: the
+   table, the state, the padding rule and the `Digest` instance are written once, and the split into
+   halves happens at the `compressBlocks` boundary rather than inside it - once per call, over a run
+   of blocks, so the sixteen `bigint` operations it costs there are amortized over a whole buffer
+   rather than paid per block.
+-}
+
+pub data WhirlpoolState {h: [I64 *8]}
+
+pub fn newWhirlpoolState() -> WhirlpoolState = WhirlpoolState {h: [0, 0, 0, 0, 0, 0, 0, 0]}
+
+{-
+   The table, read as the unsigned lane it is.
+
+   **Written out at each of its eight uses below rather than called**, which is the one thing in this
+   file that is shaped by the compiler rather than by the algorithm: the inliner declines it, and a
+   Whirlpool block is 1280 of these - so a call apiece is 1280 call sequences per sixty-four bytes,
+   against the eight loads and the arithmetic the round actually is. It is worth 4.1x.
+
+   `circulantAt` is what it would be called; the expression is `bitcast(circulant[tableSlot(x)]) :: U64`,
+   and `tableSlot` is the masked truncation the fixed array is indexed by.
+-}
+{-
+   Whirlpool's padding, which is the one in this module that is not eight bytes of length.
+
+   The specification states a **256-bit** message length, so the trailing field is thirty-two bytes
+   of which this writes twenty-four zeros and eight of count - a message long enough to need the
+   upper twenty-four is one no machine will hash. That is the whole reason `lengthBytes` is a class
+   member rather than a constant.
+-}
+instance Padded(WhirlpoolState):
+  fn lengthBytes(self: WhirlpoolState) -> Size = 32
+
+  fn writeMessageLength(self: WhirlpoolState, &to: Flat(U8), at: Size, bytes: Size) -> {}:
+      zeroBytes(to, at, 24)
+      writeBigLength(to, at + 24, bytes)
+
+pub alias Whirlpool = Blocks(WhirlpoolState)
+
+pub alias WhirlpoolDigest = [U8 *64]
+
+instance Digest(Blocks(WhirlpoolState), 64):
+  fn newDigest() -> Blocks(WhirlpoolState) = newBlocks(newWhirlpoolState())
+
+  fn update(&self: Blocks(WhirlpoolState), from: Flat(U8)) -> {} = absorb(self, from)
+
+  -- Eight 64-bit words rather than `bigU32Digest`'s thirty-two-bit ones, which is the whole of why
+  -- this keeps its own loop.
+  fn finish(->self: Blocks(WhirlpoolState)) -> WhirlpoolDigest:
+      let &running = self
+      padFinal(running)
+
+      let &out = [0] :: WhirlpoolDigest
+      let &i = 0 :: Size
+      -- One store per word. This was the two 32-bit halves written separately, which is what a
+      -- `writeBigU32` was for before Core had the 64-bit pair beside it.
+      while i < 8:
+          writeBigU64(out, i * 8, bitcast(running.state.h[i]) :: U64)
+          i = i + 1
+
+      return out
+
+pub fn whirlpoolOf(from: Flat(U8)) -> WhirlpoolDigest:
+    let &state = newDigest() :: Whirlpool
+    update(state, from)
+    return finish(state)

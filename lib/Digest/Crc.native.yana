@@ -1,0 +1,65 @@
+import Native
+
+{-
+   The Castagnoli checksum over the `crc32` instruction - SSE4.2, and therefore x86-64-v2, and
+   therefore this backend's floor.
+
+   There is no feature test and no fallback path here, and that is the point of the floor:
+   `kFeatureBaseline` *is* v2 (see `codegen/x64/target.h`), so a native build of this compiler
+   already requires SSE4.2 and a `crc32` form is always selectable. The table in `Crc.yana` is the
+   JS implementation and the reference this is checked against, not a tier below this one.
+
+   Eight bytes at a time through the 64-bit form and the remainder a byte at a time. The 64-bit
+   `crc32` reads a `U64` and answers a value in the low thirty-two bits of a 64-bit register, which
+   is why `X86.crc32` takes and answers what it does - see `lib/Native/Intrinsic/X86.yana`.
+
+   **The dependency chain is one instruction long per eight bytes**, which is what separates this
+   from the table: `crc32` on Intel has a latency of three cycles and a throughput of one per cycle,
+   so a single chained stream runs at eight bytes per three cycles - about 8 GB/s at 3 GHz - and the
+   three-way interleaved form that reaches the throughput limit needs the polynomial-multiply
+   constants to recombine the streams. That is a `pclmulqdq` scheme, which is outside this backend's
+   feature set; the single stream is what is here and it is already an order of magnitude past the
+   table.
+
+   **The word read is `Core`'s `readLittleU64` and not a raw load written here**, bounds check
+   included. That check is five instructions the loop would not otherwise have and it is measured at
+   nothing - 24.0 ms against 23.9 ms over 200 MiB, which is inside the run-to-run spread - because
+   the loop is bound by the three-cycle `crc32` chain and the compare has an idle port to run on.
+   A latency-bound loop is exactly where a safe read is free, and a hand-written `*(bitcast(...))`
+   would be a second copy of `Core/Container.yana`'s reader with the check taken out of it.
+-}
+pub fn crc32cUpdate(value: U32, from: Flat(U8), at: Size, count: Size) -> U32:
+    let &crc = value
+    let &i = at
+    let stop = at + count
+    let bulk = stop - 8
+
+    while i <= bulk:
+        crc = crcWide(crc, readLittleU64(from, i))
+        i = i + 8
+
+    while i < stop:
+        crc = crcByte(crc, from[i])
+        i = i + 1
+
+    return crc
+
+{-
+   The two folds the loop above is written in terms of - the instruction, and the table it falls back
+   to for a tail.
+
+   The remainder is thirty-two bits and the chunk is sixty-four, so `crcWide` widens and truncates
+   around the call - and neither conversion survives: the 64-bit `crc32` reads its remainder from the
+   low half of the destination and writes a zero-extended answer, so what the two conversions
+   describe is what the instruction already does.
+
+   **The tail is the table and not a narrower instruction.** The machine has `crc32 r32, r/m8`; the
+   lower IR has no scalar below `Int32`, so nothing above the backend can say that a chunk is one
+   byte wide, and a form that could not be told apart from the 32-bit one is a form nobody can
+   select. What that costs is at most seven table lookups per message and nothing per block - see
+   `lib/Native/Intrinsic/X86.yana`, where the width set is argued.
+-}
+fn crcWide(value: U32, word: U64) -> U32 = truncate(X86.crc32(widen(value) :: U64, word)) :: U32
+
+fn crcByte(value: U32, byte: U8) -> U32 =
+    (value `shr` 8) `xor` crcCastagnoliTable[truncate((value `xor` (byte :: U32)) `and` 255) :: Size]

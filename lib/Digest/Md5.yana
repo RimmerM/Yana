@@ -1,0 +1,155 @@
+import Native
+
+{-
+   MD5 - RFC 1321.
+
+   -- Legacy. MD5 is broken for collision resistance and has been since 2004; nothing new should
+   -- choose it, and `Sha256` is what to reach for instead. It is here because a library exists to
+   -- speak the protocols that already exist, and MD5 is what a `Content-MD5` header, an RPM package
+   -- header, an APT `Packages` file and most of the world's published file manifests are made of.
+
+   **The four working variables do not move**, on SHA-256's argument: the reference assigns
+   `a = d; d = c; c = b; b = temp` at the end of every round, and four rounds of that permutation
+   return the names to where they started - so the loops below run four rounds per iteration with
+   the names rotated in the source and copy nothing.
+
+   The message index and the rotation distance are *computed* rather than read from the
+   sixty-four-entry tables the reference carries, because both are affine in the round number and
+   fold to constants once the group loop is unrolled: `5j + 1`, `3j + 5` and `7j` masked to four bits
+   are the three index schedules, and the four distances of a group are literals.
+-}
+
+-- The additive constants - `floor(2^32 * abs(sin(i + 1)))`, which RFC 1321 states as a table and
+-- which is a table here for the same reason: there is no `sin` in a constant expression and the
+-- values are what the specification is, not how they were produced.
+let sineConstants = [
+    3614090360, 3905402710, 606105819, 3250441966, 4118548399, 1200080426, 2821735955, 4249261313,
+    1770035416, 2336552879, 4294925233, 2304563134, 1804603682, 4254626195, 2792965006, 1236535329,
+    4129170786, 3225465664, 643717713, 3921069994, 3593408605, 38016083, 3634488961, 3889429448,
+    568446438, 3275163606, 4107603335, 1163531501, 2850285829, 4243563512, 1735328473, 2368359562,
+    4294588738, 2272392833, 1839030562, 4259657740, 2763975236, 1272893353, 4139469664, 3200236656,
+    681279174, 3936430074, 3572445317, 76029189, 3654602809, 3873151461, 530742520, 3299628645,
+    4096336452, 1126891415, 2878612391, 4237533241, 1700485571, 2399980690, 4293915773, 2240044497,
+    1873313359, 4264355552, 2734768916, 1309151649, 4149444226, 3174756917, 718787259, 3951481745
+] :: [U32 *64]
+
+pub data Md5State {h: [U32 *4]}
+
+pub fn newMd5State() -> Md5State = Md5State {h: [1732584193, 4023233417, 2562383102, 271733878]}
+
+{-
+   The compression function.
+
+   Sixteen little-endian words in, four groups of sixteen rounds, and the state added back. Nothing
+   about it is unusual except what is *not* there: no shift table, no index table, and no shuffling
+   of the four accumulators.
+-}
+pub fn md5Compress(&h: [U32 *4], from: Flat(U8), at: Size) -> {}:
+    let &w = [0] :: [U32 *16]
+
+    let &i = 0 :: Size
+    while i < 16:
+        w[i] = readLittleU32(from, at + i * 4)
+        i = i + 1
+
+    let &a = h[0]
+    let &b = h[1]
+    let &c = h[2]
+    let &d = h[3]
+
+    -- Round 1: the selection function, message words in order, distances 7/12/17/22.
+    let &j = 0 :: Size
+    while j < 16:
+        md5Step(a, b, md5Select1(b, c, d), w[j], sineConstants[j], 7)
+        md5Step(d, a, md5Select1(a, b, c), w[j + 1], sineConstants[j + 1], 12)
+        md5Step(c, d, md5Select1(d, a, b), w[j + 2], sineConstants[j + 2], 17)
+        md5Step(b, c, md5Select1(c, d, a), w[j + 3], sineConstants[j + 3], 22)
+        j = j + 4
+
+    -- Round 2: the same selection with the operands rolled one place, index `5j + 1`, 5/9/14/20.
+    j = 0
+    while j < 16:
+        md5Step(a, b, md5Select2(b, c, d), w[(5 * j + 1) `and` 15], sineConstants[16 + j], 5)
+        md5Step(d, a, md5Select2(a, b, c), w[(5 * j + 6) `and` 15], sineConstants[17 + j], 9)
+        md5Step(c, d, md5Select2(d, a, b), w[(5 * j + 11) `and` 15], sineConstants[18 + j], 14)
+        md5Step(b, c, md5Select2(c, d, a), w[(5 * j) `and` 15], sineConstants[19 + j], 20)
+        j = j + 4
+
+    -- Round 3: the parity, index `3j + 5`, 4/11/16/23.
+    j = 0
+    while j < 16:
+        md5Step(a, b, md5Parity(b, c, d), w[(3 * j + 5) `and` 15], sineConstants[32 + j], 4)
+        md5Step(d, a, md5Parity(a, b, c), w[(3 * j + 8) `and` 15], sineConstants[33 + j], 11)
+        md5Step(c, d, md5Parity(d, a, b), w[(3 * j + 11) `and` 15], sineConstants[34 + j], 16)
+        md5Step(b, c, md5Parity(c, d, a), w[(3 * j + 14) `and` 15], sineConstants[35 + j], 23)
+        j = j + 4
+
+    -- Round 4: the last function, index `7j`, 6/10/15/21.
+    j = 0
+    while j < 16:
+        md5Step(a, b, md5Notate(b, c, d), w[(7 * j) `and` 15], sineConstants[48 + j], 6)
+        md5Step(d, a, md5Notate(a, b, c), w[(7 * j + 7) `and` 15], sineConstants[49 + j], 10)
+        md5Step(c, d, md5Notate(d, a, b), w[(7 * j + 14) `and` 15], sineConstants[50 + j], 15)
+        md5Step(b, c, md5Notate(c, d, a), w[(7 * j + 21) `and` 15], sineConstants[51 + j], 21)
+        j = j + 4
+
+    h[0] = h[0] + a
+    h[1] = h[1] + b
+    h[2] = h[2] + c
+    h[3] = h[3] + d
+
+-- One step. The only variable it writes is the first, which is what makes the rotation a renaming.
+fn md5Step(&a: U32, b: U32, f: U32, m: U32, k: U32, distance: U32) -> {}:
+    a = b + (((a + f) + (m + k)) `rol` distance)
+
+-- The four round functions. `select1` and `select2` are written as a selection rather than as the
+-- specification's `(x and y) or (not x and z)`: one `xor` pair against an `and`, an `or` and a
+-- complement, sixty-four times a block.
+fn md5Select1(x: U32, y: U32, z: U32) -> U32 = z `xor` (x `and` (y `xor` z))
+fn md5Select2(x: U32, y: U32, z: U32) -> U32 = y `xor` (z `and` (x `xor` y))
+fn md5Parity(x: U32, y: U32, z: U32) -> U32 = (x `xor` y) `xor` z
+fn md5Notate(x: U32, y: U32, z: U32) -> U32 = y `xor` (x `or` not(z))
+
+instance Block(Md5State):
+  fn compressBlocks(&self: Md5State, from: Flat(U8), at: Size, blocks: Size) -> {}:
+      let &i = 0 :: Size
+      while i < blocks:
+          md5Compress(self.h, from, at + i * 64)
+          i = i + 1
+
+instance Padded(Md5State):
+  fn lengthBytes(self: Md5State) -> Size = 8
+
+  -- The one digest here whose length field is little-endian, which is the same order its message
+  -- words are read in and is the whole of what makes MD5 different from the SHA family at this seam.
+  fn writeMessageLength(self: Md5State, &to: Flat(U8), at: Size, bytes: Size) -> {} =
+      writeLittleLength(to, at, bytes)
+
+pub alias Md5 = Blocks(Md5State)
+
+pub alias Md5Digest = [U8 *16]
+
+instance Digest(Blocks(Md5State), 16):
+  fn newDigest() -> Blocks(Md5State) = newBlocks(newMd5State())
+
+  fn update(&self: Blocks(Md5State), from: Flat(U8)) -> {} = absorb(self, from)
+
+  -- The loop `bigU32Digest` is, little-endian - MD5's one departure from the SHA family here, and
+  -- the reason that helper is not written with an endianness argument.
+  fn finish(->self: Blocks(Md5State)) -> Md5Digest:
+      let &running = self
+      padFinal(running)
+
+      let &out = [0] :: Md5Digest
+      let &i = 0 :: Size
+      while i < 4:
+          writeLittleU32(out, i * 4, running.state.h[i])
+          i = i + 1
+
+      return out
+
+pub fn md5Of(from: Flat(U8)) -> Md5Digest:
+    let &state = newDigest() :: Md5
+    update(state, from)
+    return finish(state)
+

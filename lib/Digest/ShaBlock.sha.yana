@@ -1,0 +1,494 @@
+import Native
+
+{-
+   SHA-1 and SHA-256 over the SHA extension instructions - `Native/Intrinsic/X86.yana`'s seven, and the
+   reason they were added.
+
+   **The whole file exists only where the target has them.** `sha` and `nosha` are a partition of
+   every target this compiler describes, `Hardware.nosha.yana` is the other half, and each defines
+   the same two names - so a caller writes `sha256CompressBlocks` and never asks which. See
+   `targetSelector`, and the note at the top of `Native/Intrinsic/X86.yana` for why this is a file rather
+   than a compile-time `if`.
+
+   What it buys, measured: `test/bench/hash/findings.md`. The instruction sequence is Intel's own,
+   by way of Jeffrey Walton's public-domain reference implementations, which is also what
+   `benchmark/hash-native/` times the C side against - so the two sides of that comparison are the
+   same algorithm and the difference is the compiler.
+
+   ------------------------------------------------------------------------------------------------
+   Three things this port does differently from the C, and each is forced
+
+   **The state conversion is per *call* and not per block**, which is what `Block.compressBlocks`
+   takes a run of blocks for. The instructions want the eight working words as two vectors in an
+   order that is not the order they are stored in - `{F,E,B,A}` and `{H,G,D,C}` - and building those
+   costs eight lane inserts. Once per megabyte is nothing; once per sixty-four bytes would be a
+   third of the work.
+
+   ~~**The conversion is lane inserts and not shuffles.**~~ It was eight of them each way, because
+   two of the three patterns the C uses had no portable spelling. `Core.shuffle2` is that spelling,
+   so each state vector is now one `shufps` off a pair of loads and one off a pair of stores. It was
+   never where the time went - the conversion is per *call*, which is the paragraph above - and it
+   was where the reading went: the comment explaining the long way was longer than the short way.
+
+   ~~**The message is byte-swapped arithmetically and not with `pshufb`.**~~ It was, in six lane
+   operations, because this backend had no general byte shuffle: `pshufb` takes its pattern from a
+   vector rather than an immediate, and a vector pattern is a `.rodata` entry. Both halves of that
+   have since changed - the pool is open to vectors and SSSE3 is inside the x86-64-v2 floor - so
+   `Core.shuffle` reaches the instruction and `swapWordBytes` is one of it. See Design-Swizzle §13.
+-}
+
+{-
+   Sixteen bytes as four big-endian words.
+
+   `vectorAt` and not `loadVector`: the count has to be four whatever the target's natural width is,
+   and only the raw-address form takes one. The load is unaligned, which is what `movdqu` is for and
+   what every message in this module is.
+-}
+@x86_legacy_sse
+fn loadBigWords(from: Flat(U8), at: Size) -> Vec(U32, 4) = swapWordBytes(loadWords(from, at))
+
+{-
+   The same sixteen bytes byte-reversed *and* lane-reversed, which is what SHA-1 reads.
+
+   One shuffle and not two. `reverse(swapWordBytes(v))` is a byte permutation composed with a lane
+   permutation, and the composition of two permutations is a permutation - so the two steps the note
+   at the top calls "the same reversal seen at two widths" are one pattern, and it is the pattern
+   that reverses all sixteen bytes.
+-}
+@x86_legacy_sse
+fn loadReversedWords(from: Flat(U8), at: Size) -> Vec(U32, 4) =
+    bitcast(shuffle(bitcast(loadWords(from, at)) :: Vec(U8, 16),
+                    [15,14,13,12, 11,10,9,8, 7,6,5,4, 3,2,1,0])) :: Vec(U32, 4)
+
+-- The raw sixteen bytes, in the order they are stored. The address is `%U8` and the load is of
+-- words, so the pointer is reinterpreted rather than the vector: a `Vec(U8, 16)` and a
+-- `Vec(U32, 4)` are one register, but only one of them has the lanes the callers above want.
+@x86_legacy_sse
+fn loadWords(from: Flat(U8), at: Size) -> Vec(U32, 4) =
+    vectorAt(bitcast(from.items + at) :: %U32) :: Vec(U32, 4)
+
+{-
+   Each word's bytes reversed, which is the whole of reading a big-endian message on a little-endian
+   machine. One `pshufb` - see the note at the top, and Design-Swizzle §13.4.
+
+   The two bitcasts are what make it a *byte* shuffle: a `Vec(U32, 4)` and a `Vec(U8, 16)` are one
+   register and differ only in what a lane is, and only the second has lanes a byte pattern can name.
+   Both are free - a bitcast between two vectors of one width moves no bits.
+
+   **The pattern is written at each of the two call sites rather than passed to a shared helper**,
+   and that is forced twice over. A `[Int *16]` *parameter* is a `Flat(Int)` - `bindingType` turns
+   every fixed-array parameter into a slice, which is exactly "forget the count" - so a helper could
+   not state the result's width; and `shuffle` reads its pattern out of the literal that carried it,
+   so a pattern arriving as a parameter is not a constant this resolver can see at all. Both say the
+   same thing: a lane pattern is part of the operation, not an argument to it.
+-}
+@x86_legacy_sse
+fn swapWordBytes(words: Vec(U32, 4)) -> Vec(U32, 4) =
+    bitcast(shuffle(bitcast(words) :: Vec(U8, 16),
+                    [3,2,1,0, 7,6,5,4, 11,10,9,8, 15,14,13,12])) :: Vec(U32, 4)
+
+-- Four round constants as a vector. The table is `Sha2.yana`'s and is read here because the module
+-- is one; `vectorAt` for `loadBigWords`' reason - the width is four and not the target's.
+@x86_legacy_sse
+fn constantsAt(group: Size) -> Vec(U32, 4) = wordsAt(roundConstants, group * 4)
+
+-- Four words at a word offset. A function rather than the expression above it because the table is a
+-- `[U32 *64]` and only a *call* converts one to a slice - `Contiguous` has no instance for a fixed
+-- array, and the note beside `Length([a *n])` in `Core/Container.yana` is why.
+@x86_legacy_sse
+fn wordsAt(from: Flat(U32), at: Size) -> Vec(U32, 4) = vectorAt(from.items + at) :: Vec(U32, 4)
+
+-- And back. `setVectorAt` for `vectorAt`'s reason: the count is four and not the target's natural
+-- one, and only the raw-address form takes a written count.
+@x86_legacy_sse
+fn setWordsAt(to: Flat(U32), at: Size, value: Vec(U32, 4)) -> {} = setVectorAt(to.items + at, value)
+
+-- Four zero words, which SHA-1's `E` and its carry are built out of by `withLane` - the state
+-- vectors that come whole out of memory are shuffles now, and this is what is left. A function
+-- rather than a global: a declaration's initializer is a constant expression, and `zero()` is an
+-- intrinsic.
+@x86_legacy_sse
+fn zeroWords() -> Vec(U32, 4) = zero() :: Vec(U32, 4)
+
+{-
+   ------------------------------------------------------------------------------------------------
+   SHA-256
+   ------------------------------------------------------------------------------------------------
+
+   Sixty-four rounds as sixteen groups of four, and `sha256rnds2` performs two of them - so a group
+   is two of those, with the second reading the *upper* two words of the same key vector. That is
+   what `rotate(keys, 2)` is: only lanes zero and one are read, so bringing lanes two and three down
+   is the whole of what the reference's `shuffle(MSG, 0x0E)` does here.
+-}
+{-
+   **The three markers, and why each one is on this declaration.**
+
+   `@x86_legacy_sse` says that no instruction in this body carries a vector prefix. The SHA extension
+   has no VEX spelling in the architecture, so without it this loop would cross between prefixed and
+   unprefixed encodings every few instructions - which costs 140x on the part it was measured on. It
+   is on every function in this file for that reason, helpers included: the crossing is between two
+   *instructions*, so a compression loop calling a four-instruction helper crosses twice per call
+   however the loop itself is encoded.
+
+   `X86.vzeroupper()` clears the state on the way in, which is what stops a caller's dirty upper half
+   reaching the legacy instructions below. It is safe here for a reason the backend checks rather
+   than one this file asserts: the instruction zeroes bits 128 and up, and
+   `checkLegacyVectorEncoding` rejects a wide vector value anywhere in a function that calls it. A
+   `Vec(U32, 4)` is an xmm and is untouched, which is why the helpers below can take one.
+
+   `@convention(sysv)` is what makes that safety a *guarantee* rather than an observation. The
+   backend checks the condition either way - a function calling the intrinsic may not be entered
+   under a convention that preserves vector registers - and `Complex`, which this would get by
+   default, happens to satisfy it today by clobbering all sixteen. That is a fact about the current
+   internal convention and not a promise: the backend is entitled to start preserving some of them if
+   that allocates better, and this declaration should not be what silently breaks when it does.
+   System V's vector file is caller-saved *by the psABI*, so naming it here is a promise that
+   outlives any decision this compiler makes about its own conventions.
+
+   Not `@convention(clobber)`, which an earlier version had. It keeps nothing at all, so the *caller*
+   must preserve everything live across the call - five `push`/`pop` pairs at every one, worth about
+   2 ns on a short digest - and it buys nothing over `sysv` here.
+
+   `@noinline` is load-bearing rather than a hint, and is written out rather than implied by either
+   of the others. The convention and the reset describe a *call boundary*: the caller spills its wide
+   values, control enters with the vector state clean, and every instruction inside is legacy. Inlined
+   there is no boundary to place any of that at, the caller's `ymm` writes land beside the SHA
+   instructions again, and the ~160 ns per call that this arrangement removes comes straight back.
+   `test/bench/shamix/` measures exactly that, and is what catches it if any of the three is dropped.
+-}
+@noinline
+@convention(sysv)
+@x86_legacy_sse
+pub fn sha256CompressBlocks(&h: [U32 *8], from: Flat(U8), at: Size, blocks: Size) -> {}:
+    -- Before anything else, and only here rather than in the helpers below: this function takes no
+    -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
+    -- one, which is why the state change is a call the author places and not something the attribute
+    -- above implies.
+    X86.vzeroupper()
+
+    {-
+       `{F, E, B, A}` and `{H, G, D, C}` - the order the instruction wants, which is neither the
+       order the specification names nor the order the state is stored in.
+
+       One `shufps` each. The eight stored words are two loads, and every lane of either result comes
+       from the same half of one of them, which is exactly the shape that instruction has: two lanes
+       from the first operand and two from the second.
+
+       **`efgh` is written first because that is the machine's operand order**, not because it reads
+       better. `shufps` takes result lanes 0 and 1 from its first operand, and lanes 0 and 1 here are
+       `F` and `E` - so the pattern is stated against `{efgh, abcd}` and `narrowShuffleChoice`
+       recognizes it. Written the other way round it is the same permutation and no instruction, the
+       matcher having no reason to try the operands swapped.
+    -}
+    let abcd = wordsAt(h, 0)
+    let efgh = wordsAt(h, 4)
+
+    let &state0 = shuffle2(efgh, abcd, [1, 0, 5, 4])
+    let &state1 = shuffle2(efgh, abcd, [3, 2, 7, 6])
+
+    let &block = at
+    let stop = at + blocks * 64
+
+    while block < stop:
+        let entry0 = state0
+        let entry1 = state1
+
+        let &w0 = loadBigWords(from, block)
+        let &w1 = loadBigWords(from, block + 16)
+        let &w2 = loadBigWords(from, block + 32)
+        let &w3 = loadBigWords(from, block + 48)
+
+        -- Rounds 0-15. The schedule is the message itself here, so the only extension work is the
+        -- first half of it - `sha256msg1` on each pair as soon as both are loaded.
+        roundGroup(state0, state1, w0 + constantsAt(0))
+        roundGroup(state0, state1, w1 + constantsAt(1))
+        w0 = X86.sha256Message1(w0, w1)
+        roundGroup(state0, state1, w2 + constantsAt(2))
+        w1 = X86.sha256Message1(w1, w2)
+
+        let keys3 = w3 + constantsAt(3)
+        state1 = X86.sha256Rounds(state1, state0, keys3)
+        w0 = X86.sha256Message2(w0 + alignLanes(w3, w2, 1), w3)
+        state0 = X86.sha256Rounds(state0, state1, rotate(keys3, 2))
+        w2 = X86.sha256Message1(w2, w3)
+
+        -- Rounds 16-51: nine groups of the general shape, with the four message registers rotating
+        -- one place each time.
+        scheduleGroup(state0, state1, constantsAt(4), w0, w1, w3)
+        scheduleGroup(state0, state1, constantsAt(5), w1, w2, w0)
+        scheduleGroup(state0, state1, constantsAt(6), w2, w3, w1)
+        scheduleGroup(state0, state1, constantsAt(7), w3, w0, w2)
+        scheduleGroup(state0, state1, constantsAt(8), w0, w1, w3)
+        scheduleGroup(state0, state1, constantsAt(9), w1, w2, w0)
+        scheduleGroup(state0, state1, constantsAt(10), w2, w3, w1)
+        scheduleGroup(state0, state1, constantsAt(11), w3, w0, w2)
+        scheduleGroup(state0, state1, constantsAt(12), w0, w1, w3)
+
+        -- Rounds 52-59: the last two groups that still extend the schedule, but whose results
+        -- nothing reads again - so the `sha256msg1` half is dropped.
+        let keys13 = w1 + constantsAt(13)
+        state1 = X86.sha256Rounds(state1, state0, keys13)
+        w2 = X86.sha256Message2(w2 + alignLanes(w1, w0, 1), w1)
+        state0 = X86.sha256Rounds(state0, state1, rotate(keys13, 2))
+
+        let keys14 = w2 + constantsAt(14)
+        state1 = X86.sha256Rounds(state1, state0, keys14)
+        w3 = X86.sha256Message2(w3 + alignLanes(w2, w1, 1), w2)
+        state0 = X86.sha256Rounds(state0, state1, rotate(keys14, 2))
+
+        -- Rounds 60-63, with no schedule left to build.
+        roundGroup(state0, state1, w3 + constantsAt(15))
+
+        state0 = state0 + entry0
+        state1 = state1 + entry1
+        block = block + 64
+
+    -- The inverse of the two shuffles above, and the same one instruction each: `{A, B, C, D}` is
+    -- `state0`'s top half over `state1`'s, and `{E, F, G, H}` is the two low halves the same way.
+    setWordsAt(h, 0, shuffle2(state0, state1, [3, 2, 7, 6]))
+    setWordsAt(h, 4, shuffle2(state0, state1, [1, 0, 5, 4]))
+
+-- Four rounds: two instructions, the second reading the key vector's upper half.
+@x86_legacy_sse
+fn roundGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), keys: Vec(U32, 4)) -> {}:
+    state1 = X86.sha256Rounds(state1, state0, keys)
+    state0 = X86.sha256Rounds(state0, state1, rotate(keys, 2))
+
+{-
+   Four rounds and the schedule step that goes with them.
+
+   `w[i] = sigma1(w[i-2]) + w[i-7] + sigma0(w[i-15]) + w[i-16]` over four words at once, split the
+   way the two instructions split it: `sha256msg1` does the `sigma0` term, `sha256msg2` does the
+   `sigma1` term and the carry between adjacent results, and the `w[i-7]` term is the `alignLanes`
+   in the middle - a window of four words starting one word into the pair, which is exactly the
+   seven-back offset once the registers are counted.
+
+   `older` is read twice and written once, so its old value is taken first: the window and the
+   `sigma0` step both want the value that was there when the group started.
+-}
+@x86_legacy_sse
+fn scheduleGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), constants: Vec(U32, 4),
+                 current: Vec(U32, 4), &accumulator: Vec(U32, 4), &older: Vec(U32, 4)) -> {}:
+    let keys = current + constants
+    let previous = older
+
+    state1 = X86.sha256Rounds(state1, state0, keys)
+    accumulator = X86.sha256Message2(accumulator + alignLanes(current, previous, 1), current)
+    older = X86.sha256Message1(previous, current)
+    state0 = X86.sha256Rounds(state0, state1, rotate(keys, 2))
+
+{-
+   ------------------------------------------------------------------------------------------------
+   SHA-1
+   ------------------------------------------------------------------------------------------------
+
+   Eighty rounds as twenty groups of four, and `sha1rnds4` performs four - so a group is one of
+   those, plus the schedule step that feeds the group four ahead of it.
+
+   **`E` does not live with the other four working variables.** SHA-1 has five and a register holds
+   four, so `abcd` carries `A` through `D` (in reverse lane order, which is what the instruction
+   wants) and `e` carries `E` alone in the top lane. `X86.sha1NextE` is what adds it into the next
+   group's starting value; the alternation of `e` and `next` below is that value being computed one
+   group ahead, which is the whole reason two of them are needed.
+
+   **The message is byte-reversed *and* lane-reversed**, which is one `pshufb` in the C and is one
+   here too - `loadReversedWords`. It follows from `abcd` being held reversed: everything in this
+   algorithm is in the opposite lane order from SHA-256's, and the two reversals are the same
+   reversal seen at two widths, which is why they compose into a single pattern.
+-}
+{-
+   **The three markers, and why each one is on this declaration.**
+
+   `@x86_legacy_sse` says that no instruction in this body carries a vector prefix. The SHA extension
+   has no VEX spelling in the architecture, so without it this loop would cross between prefixed and
+   unprefixed encodings every few instructions - which costs 140x on the part it was measured on. It
+   is on every function in this file for that reason, helpers included: the crossing is between two
+   *instructions*, so a compression loop calling a four-instruction helper crosses twice per call
+   however the loop itself is encoded.
+
+   `X86.vzeroupper()` clears the state on the way in, which is what stops a caller's dirty upper half
+   reaching the legacy instructions below. It is safe here for a reason the backend checks rather
+   than one this file asserts: the instruction zeroes bits 128 and up, and
+   `checkLegacyVectorEncoding` rejects a wide vector value anywhere in a function that calls it. A
+   `Vec(U32, 4)` is an xmm and is untouched, which is why the helpers below can take one.
+
+   `@convention(sysv)` is what makes that safety a *guarantee* rather than an observation. The
+   backend checks the condition either way - a function calling the intrinsic may not be entered
+   under a convention that preserves vector registers - and `Complex`, which this would get by
+   default, happens to satisfy it today by clobbering all sixteen. That is a fact about the current
+   internal convention and not a promise: the backend is entitled to start preserving some of them if
+   that allocates better, and this declaration should not be what silently breaks when it does.
+   System V's vector file is caller-saved *by the psABI*, so naming it here is a promise that
+   outlives any decision this compiler makes about its own conventions.
+
+   Not `@convention(clobber)`, which an earlier version had. It keeps nothing at all, so the *caller*
+   must preserve everything live across the call - five `push`/`pop` pairs at every one, worth about
+   2 ns on a short digest - and it buys nothing over `sysv` here.
+
+   `@noinline` is load-bearing rather than a hint, and is written out rather than implied by either
+   of the others. The convention and the reset describe a *call boundary*: the caller spills its wide
+   values, control enters with the vector state clean, and every instruction inside is legacy. Inlined
+   there is no boundary to place any of that at, the caller's `ymm` writes land beside the SHA
+   instructions again, and the ~160 ns per call that this arrangement removes comes straight back.
+   `test/bench/shamix/` measures exactly that, and is what catches it if any of the three is dropped.
+-}
+@noinline
+@convention(sysv)
+@x86_legacy_sse
+pub fn sha1CompressBlocks(&h: [U32 *5], from: Flat(U8), at: Size, blocks: Size) -> {}:
+    -- Before anything else, and only here rather than in the helpers below: this function takes no
+    -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
+    -- one, which is why the state change is a call the author places and not something the attribute
+    -- above implies.
+    X86.vzeroupper()
+
+    -- `{D, C, B, A}`, and `E` alone in the top lane. The four are one load and one `pshufd`, the
+    -- reversal being the named pattern it is; `E` is a fifth word with no vector to come out of, so
+    -- it stays the single lane insert it always was.
+    let &abcd = reverse(wordsAt(h, 0))
+    let &e = withLane(zeroWords(), 3, h[4])
+
+    let &block = at
+    let stop = at + blocks * 64
+
+    while block < stop:
+        let entryAbcd = abcd
+        let entryE = e
+        let &next = zeroWords()
+
+        let &w0 = loadReversedWords(from, block)
+        let &w1 = loadReversedWords(from, block + 16)
+        let &w2 = loadReversedWords(from, block + 32)
+        let &w3 = loadReversedWords(from, block + 48)
+
+        -- Rounds 0-15. The first group *adds* the message into `E` where every group after it uses
+        -- `X86.sha1NextE`, because there is no previous group's `A` to rotate in yet.
+        e = e + w0
+        next = abcd
+        abcd = X86.sha1Rounds(abcd, e, 0)
+
+        sha1Step0(abcd, next, e, w1)
+        w0 = X86.sha1Message1(w0, w1)
+
+        sha1Step0(abcd, e, next, w2)
+        w1 = X86.sha1Message1(w1, w2)
+        w0 = w0 `xor` w2
+
+        sha1Step0(abcd, next, e, w3)
+        w0 = X86.sha1Message2(w0, w3)
+        w2 = X86.sha1Message1(w2, w3)
+        w1 = w1 `xor` w3
+
+        -- Rounds 16-79. Every group is the same three-instruction schedule step and one `sha1rnds4`,
+        -- with the four message registers rotating one place and the round function changing every
+        -- five groups. The last three groups have nothing left to schedule.
+        sha1Step0(abcd, e, next, w0)
+        sha1Schedule(w1, w2, w3, w0)
+
+        sha1Step1(abcd, next, e, w1)
+        sha1Schedule(w2, w3, w0, w1)
+
+        sha1Step1(abcd, e, next, w2)
+        sha1Schedule(w3, w0, w1, w2)
+
+        sha1Step1(abcd, next, e, w3)
+        sha1Schedule(w0, w1, w2, w3)
+
+        sha1Step1(abcd, e, next, w0)
+        sha1Schedule(w1, w2, w3, w0)
+
+        sha1Step1(abcd, next, e, w1)
+        sha1Schedule(w2, w3, w0, w1)
+
+        sha1Step2(abcd, e, next, w2)
+        sha1Schedule(w3, w0, w1, w2)
+
+        sha1Step2(abcd, next, e, w3)
+        sha1Schedule(w0, w1, w2, w3)
+
+        sha1Step2(abcd, e, next, w0)
+        sha1Schedule(w1, w2, w3, w0)
+
+        sha1Step2(abcd, next, e, w1)
+        sha1Schedule(w2, w3, w0, w1)
+
+        sha1Step2(abcd, e, next, w2)
+        sha1Schedule(w3, w0, w1, w2)
+
+        sha1Step3(abcd, next, e, w3)
+        sha1Schedule(w0, w1, w2, w3)
+
+        sha1Step3(abcd, e, next, w0)
+        sha1Schedule(w1, w2, w3, w0)
+
+        -- The tail, where the schedule runs out one piece at a time: no `sha1msg1` here, none of
+        -- either in the group after it, and nothing at all in the last two.
+        sha1Step3(abcd, next, e, w1)
+        w2 = X86.sha1Message2(w2, w1)
+        w3 = w3 `xor` w1
+
+        sha1Step3(abcd, e, next, w2)
+        w3 = X86.sha1Message2(w3, w2)
+
+        sha1Step3(abcd, next, e, w3)
+
+        -- `e` holds the working state as it stood before the last group's four rounds, which is
+        -- where the block's own `E` ends up: `X86.sha1NextE` against the value this block started from
+        -- is the addition the specification makes at the end of every block.
+        e = X86.sha1NextE(e, entryE)
+        abcd = abcd + entryAbcd
+        block = block + 64
+
+    setWordsAt(h, 0, reverse(abcd))
+    h[4] = lane(e, 3)
+
+{-
+   One group of four rounds, in four copies that differ only in the round function.
+
+   Four functions and not one with a parameter, and that is the language rather than a preference:
+   the group number is `sha1rnds4`'s trailing byte, so it has to be a literal where the intrinsic
+   is written - a parameter carrying it would be a value, and there is no value the instruction can
+   take. See `emitSha1Rounds` in resolve/simd.cpp, which is where that is checked.
+
+   `carry` is where this group's `A` is kept for the group after it, and `e` is what the group
+   before it left. The caller alternates the two arguments, which is the whole of what the two
+   registers are for.
+-}
+@x86_legacy_sse
+fn sha1Step0(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+    e = X86.sha1NextE(e, message)
+    carry = abcd
+    abcd = X86.sha1Rounds(abcd, e, 0)
+
+@x86_legacy_sse
+fn sha1Step1(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+    e = X86.sha1NextE(e, message)
+    carry = abcd
+    abcd = X86.sha1Rounds(abcd, e, 1)
+
+@x86_legacy_sse
+fn sha1Step2(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+    e = X86.sha1NextE(e, message)
+    carry = abcd
+    abcd = X86.sha1Rounds(abcd, e, 2)
+
+@x86_legacy_sse
+fn sha1Step3(&abcd: Vec(U32, 4), &e: Vec(U32, 4), &carry: Vec(U32, 4), message: Vec(U32, 4)) -> {}:
+    e = X86.sha1NextE(e, message)
+    carry = abcd
+    abcd = X86.sha1Rounds(abcd, e, 3)
+
+{-
+   The schedule, four words ahead.
+
+   `w[i] = rol(w[i-3] xor w[i-8] xor w[i-14] xor w[i-16], 1)` over four words at once, split three
+   ways: `sha1msg1` does the two furthest-back terms, the `xor` does the middle one, and `sha1msg2`
+   does the nearest one and the rotation - and the carry between adjacent results, which is the part
+   that cannot be written as four independent words at all.
+-}
+@x86_legacy_sse
+fn sha1Schedule(&nearest: Vec(U32, 4), &middle: Vec(U32, 4), &furthest: Vec(U32, 4),
+                current: Vec(U32, 4)) -> {}:
+    nearest = X86.sha1Message2(nearest, current)
+    furthest = X86.sha1Message1(furthest, current)
+    middle = middle `xor` current
