@@ -114,6 +114,7 @@ set(RESOLVE_SOURCE_FILES
     resolve/explain.h
     resolve/explain.cpp
     resolve/builder.h
+    resolve/clone.h
     resolve/solve.h
     resolve/solve.cpp
     resolve/expr.h

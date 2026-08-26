@@ -2,6 +2,7 @@
 
 #include "opt.h"
 #include "../resolve/builder.h"
+#include "../resolve/clone.h"
 #include "../resolve/place.h"
 #include "../resolve/verify.h"
 #include "../resolve/analyze.h"

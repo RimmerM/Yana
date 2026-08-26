@@ -2193,6 +2193,35 @@ struct Inliner {
         return result;
     }
 
+    /*
+     * What `cloneComputation` needs of a graft - see clone.h, where the four hooks are argued.
+     *
+     * Three of them are the identity, and that is the point of the split: a graft happens *after*
+     * every type in either body is settled, so nothing is substituted and a callee named by a
+     * `Symbol` is the same function it was. Only the values move, and only because the callee's are
+     * being renamed into the caller's numbering.
+     *
+     * Nothing is appended. `spliceStraightLine` collects the whole run and inserts it in one call,
+     * and the block-copying path pushes each into the block it is building, so a copy that appended
+     * itself would land in the caller's *current* block instead.
+     */
+    struct GraftClone {
+        Inliner& inliner;
+        Clone& clone;
+        Module& module;
+        Function& function;
+        Block& block;
+
+        GraftClone(Inliner& owner, Clone& state, Block& into):
+            inliner(owner), clone(state), module(*owner.opt.module), function(*owner.opt.function),
+            block(into) {}
+
+        ModulePtr<Value> value(ModulePtr<Value> operand) { return inliner.mapValue(clone, operand); }
+        TypePtr type(TypePtr from) { return from; }
+        ModulePtr<Function> callee(ModulePtr<Function> from) { return from; }
+        void placed(Inst*) {}
+    };
+
     Inst* cloneInstruction(Clone& clone, Candidate& candidate, Block& into, Value& instruction) {
         auto& module = *opt.module;
         auto& function = *opt.function;
@@ -2346,98 +2375,6 @@ struct Inliner {
                                                                 : clone.locals[exchange.local];
                 return (Inst*)cloned;
             }
-            case Value::TypeMetric: {
-                auto& metric = (InstTypeMetric&)instruction;
-                return (Inst*)createInst<InstTypeMetric>(module, function, into, source, name, type,
-                                                         metric.of, metric.metric);
-            }
-            case Value::Symbol: {
-                auto& symbol = (InstSymbol&)instruction;
-                return (Inst*)createInst<InstSymbol>(module, function, into, source, name, type,
-                                                     symbol.callee, symbol.global);
-            }
-            case Value::Cast: case Value::Bitcast: case Value::Neg: case Value::Not:
-            case Value::ByteSwap:
-            case Value::CountBits: case Value::LeadingZeros: case Value::TrailingZeros:
-            case Value::Sqrt: case Value::Abs:
-            case Value::Trunc: case Value::Floor:
-            case Value::Ceil: case Value::Round: {
-                auto& unary = (InstUnary&)instruction;
-                return (Inst*)createInst<InstUnary>(module, function, into, source, name, type,
-                                                    instruction.kind, value(unary.from));
-            }
-            // Three operands, so not the arm above: reading it as a Unary would clone the first
-            // operand and drop the other two, which is a use nobody records and two values nothing
-            // reads. The one kind in this switch with an arity of its own.
-            case Value::Fma: {
-                auto& fma = (InstFma&)instruction;
-                return (Inst*)createInst<InstFma>(module, function, into, source, name, type,
-                                                  value(fma.a), value(fma.b), value(fma.c));
-            }
-            // The two SHA kinds, here for `Fma`'s reason: one has three operands and the other has
-            // two and a field, so neither can be read as a Binary.
-            case Value::Sha256Rounds: {
-                auto& rounds = (InstSha256Rounds&)instruction;
-                return (Inst*)createInst<InstSha256Rounds>(module, function, into, source, name, type,
-                                                           value(rounds.state), value(rounds.feed),
-                                                           value(rounds.keys));
-            }
-            case Value::ShaBinary: {
-                auto& sha = (InstShaBinary&)instruction;
-                return (Inst*)createInst<InstShaBinary>(module, function, into, source, name, type,
-                                                        value(sha.lhs), value(sha.rhs), sha.op);
-            }
-            case Value::Select: {
-                auto& select = (InstSelect&)instruction;
-                return (Inst*)createInst<InstSelect>(module, function, into, source, name, type,
-                                                     value(select.cond), value(select.whenTrue),
-                                                     value(select.whenFalse));
-            }
-            case Value::Cmp: {
-                auto& compare = (InstCmp&)instruction;
-                return (Inst*)createInst<InstCmp>(module, function, into, source, name, type,
-                                                  value(compare.lhs), value(compare.rhs), compare.cmp);
-            }
-            // The vector kinds, copied into the caller. Admitted to `clonableKind` above, so a body
-            // reaching here can hold one and this is what builds it.
-            case Value::VecSplat: {
-                auto& splat = (InstVecSplat&)instruction;
-                return (Inst*)createInst<InstVecSplat>(module, function, into, source, name, type,
-                                                       value(splat.from));
-            }
-            case Value::VecLane: {
-                auto& lane = (InstVecLane&)instruction;
-                return (Inst*)createInst<InstVecLane>(module, function, into, source, name, type,
-                                                      value(lane.from), lane.lane);
-            }
-            case Value::VecWithLane: {
-                auto& lane = (InstVecLane&)instruction;
-                return (Inst*)createInst<InstVecLane>(module, function, into, source, name, type,
-                                                      value(lane.from), lane.lane, value(lane.value));
-            }
-            case Value::VecShuffle: {
-                auto& shuffle = (InstVecShuffle&)instruction;
-                auto cloned = createInst<InstVecShuffle>(module, function, into, source, name, type,
-                                                         value(shuffle.left), value(shuffle.right));
-
-                for(auto entry: shuffle.pattern) cloned->pattern.push(entry);
-                return (Inst*)cloned;
-            }
-            case Value::VecReduce: {
-                auto& reduce = (InstVecReduce&)instruction;
-                return (Inst*)createInst<InstVecReduce>(module, function, into, source, name, type,
-                                                        value(reduce.from), reduce.reduce);
-            }
-            case Value::Add: case Value::Sub: case Value::Mul: case Value::MulHi:
-            case Value::Div: case Value::Rem:
-            case Value::Shl: case Value::Shr: case Value::Sar:
-            case Value::Rol: case Value::Ror:
-            case Value::And: case Value::Or: case Value::Xor:
-            case Value::BitsUpTo: case Value::GatherBits: case Value::ScatterBits: case Value::Crc32: {
-                auto& binary = (InstBinary&)instruction;
-                return (Inst*)createInst<InstBinary>(module, function, into, source, name, type,
-                                                     instruction.kind, value(binary.lhs), value(binary.rhs));
-            }
             case Value::Call: {
                 auto& inner = (InstCall&)instruction;
                 auto cloned = createInst<InstCall>(module, function, into, source, name, type,
@@ -2450,61 +2387,6 @@ struct Inliner {
                 cloned->local = inner.local == maxLimit<U32> ? maxLimit<U32> : clone.locals[inner.local];
                 return (Inst*)cloned;
             }
-            case Value::Native: {
-                /*
-                 * A host node, which owns nothing: `op` and `method` are what to emit and the
-                 * argument list is uses, so there is no state here that means anything about the
-                 * function it sits in. It has no result local either - a host value is a value.
-                 */
-                auto& native = (InstNative&)instruction;
-                auto cloned = createInst<InstNative>(module, function, into, source, name, type,
-                                                     native.op, native.method);
-
-                for(auto argument: native.args.contents(opt.local)) {
-                    cloned->args.push(opt.program.arena, value(argument));
-                }
-
-                return (Inst*)cloned;
-            }
-            // The address in one slot of a compiler-built table. `slot` is a numbering witness.h
-            // owns rather than anything of the callee's, so it travels as it stands.
-            case Value::TableSlot: {
-                auto& read = (InstTableSlot&)instruction;
-                return (Inst*)createInst<InstTableSlot>(module, function, into, source, name, type,
-                                                        value(read.table), read.slot);
-            }
-
-            /*
-             * The atomics, copied with the three fields that say what they mean - which operation,
-             * how strongly it orders, and how strongly a failed comparison does.
-             *
-             * Sound on `Native`'s terms: a fixed operation over a flat argument list, running once
-             * per call in the caller exactly as it did in the callee. What an atomic orders is other
-             * threads' writes, and a graft moves neither the instruction relative to its own body
-             * nor any of them relative to it.
-             */
-            case Value::Atomic: {
-                auto& atomic = (InstAtomic&)instruction;
-                auto cloned = createInst<InstAtomic>(module, function, into, source, name, type,
-                                                     atomic.kind, atomic.order);
-
-                for(auto argument: atomic.args.contents(opt.local)) {
-                    cloned->args.push(opt.program.arena, value(argument));
-                }
-
-                cloned->failure = atomic.failure;
-                cloned->weak = atomic.weak;
-                return (Inst*)cloned;
-            }
-
-            // Its one operand is the compare-exchange it selects the second result of, so the value
-            // map is the whole of what keeps the two together.
-            case Value::AtomicOk: {
-                auto& ok = (InstAtomicOk&)instruction;
-                return (Inst*)createInst<InstAtomicOk>(module, function, into, source, name, type,
-                                                       value(ok.cas));
-            }
-
             case Value::CallDyn: {
                 // The same as a direct call plus the two operands that stand in for the callee, and
                 // a signature - a global type, which is the same handle in either function.
@@ -2522,18 +2404,27 @@ struct Inliner {
                                                               : clone.locals[dynamic.local];
                 return (Inst*)cloned;
             }
-            default:
-                /*
-                 * A kind `clonableKind` admitted and this switch has no arm for.
-                 *
-                 * Asserted rather than declined, because the two used to be two hand-written lists
-                 * that had to agree and now are not: `clonableKind` is two columns, so the only way
-                 * to reach here is to add a kind to inst.def and stop. The straight-line splice can
-                 * still back out on a null - it has emitted nothing yet - and the block-copying one
-                 * cannot, which is why the assertion is here rather than only there.
-                 */
-                assertTrue("instruction kind with no graft" == nullptr);
-                return nullptr;
+            /*
+             * Everything whose copy is the instruction with its operands renamed, which is most of
+             * the IR - see cloneComputation in clone.h, and `GraftClone` above for what a graft
+             * supplies it with. The arms above are the ones that are *not* that: the allocations and
+             * the writes, which re-root a place at the caller's storage, the ownership four, the
+             * calls, which carry a result local to renumber, and the terminators, which are the next
+             * function down.
+             *
+             * A null here is a kind `clonableKind` admitted and neither this switch nor that list
+             * has an arm for. Asserted rather than declined, because `clonableKind` is two columns
+             * now: the only way to reach it is to add a kind to inst.def and stop. The straight-line
+             * splice can still back out on the null - it has emitted nothing yet - and the
+             * block-copying one cannot, which is why the assertion is here rather than only there.
+             */
+            default: {
+                GraftClone policy(*this, clone, into);
+                auto copied = cloneComputation(policy, instruction);
+
+                assertTrue(copied != nullptr);
+                return copied;
+            }
         }
     }
 

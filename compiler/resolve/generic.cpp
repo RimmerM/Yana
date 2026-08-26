@@ -1,4 +1,5 @@
 #include "generic.h"
+#include "clone.h"
 #include "expr.h"
 #include "witness.h"
 #include "name.h"
@@ -872,6 +873,35 @@ static ModulePtr<Function> cloneLiftedCallee(Clone& clone, ModulePtr<Function> c
     return specialized - local;
 }
 
+/*
+ * What `cloneComputation` needs of a specialization - see clone.h, where the four hooks are argued.
+ *
+ * Every one of them is the substitution: the types become the arguments', the values become their
+ * clones, and a lifted callee named by a `Symbol` becomes the clone made under these bindings. The
+ * copy is appended as it is built, because this is a resolver writing a body forwards.
+ */
+struct SpecializeClone {
+    Clone& clone;
+    Module& module;
+    Function& function;
+    Block& block;
+
+    explicit SpecializeClone(Clone& owner):
+        clone(owner), module(owner.module), function(owner.resolver.function),
+        block(owner.resolver.block()) {}
+
+    ModulePtr<Value> value(ModulePtr<Value> operand) { return cloneValue(clone, operand); }
+    TypePtr type(TypePtr from) { return cloneType(clone, from); }
+    /*
+     * The one symbol a specialization may not share: a continuation lifted out of *this* body names
+     * this body's type variables, so it gets a clone of its own under the same bindings. Everything
+     * else - a named function, a global, a lifted body of some other function - is the same symbol
+     * in every specialization, and `cloneLiftedCallee` answers it unchanged.
+     */
+    ModulePtr<Function> callee(ModulePtr<Function> from) { return cloneLiftedCallee(clone, from); }
+    void placed(Inst* inst) { clone.resolver.append(inst); }
+};
+
 static void cloneInstruction(Clone& clone, Inst& inst) {
     auto pointer = (ModulePtr<Value>)(&inst - clone.local);
     auto type = cloneType(clone, inst.type);
@@ -1114,157 +1144,6 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             result = resolver.emit<InstAddress>(inst.source, inst.name, type,
                                                 clonePlace(clone, ((InstAddress&)inst).place));
             break;
-        case Value::TypeMetric: {
-            // The measured type is substituted like any other, which is what turns `sizeOf(x)` in a
-            // generic body from a load out of the descriptor into a constant in the specialization.
-            auto& metric = (InstTypeMetric&)inst;
-            result = resolver.emit<InstTypeMetric>(inst.source, inst.name, type,
-                                                   cloneType(clone, metric.of), metric.metric);
-            break;
-        }
-        case Value::Native: {
-            auto& native = (InstNative&)inst;
-            auto cloned = resolver.create<InstNative>(inst.source, inst.name, type, native.op,
-                                                      native.method);
-
-            cloned->relocates = native.relocates;
-
-            for(auto arg: native.args.contents(clone.local)) {
-                cloned->args.push(clone.module.arena, cloneValue(clone, arg));
-            }
-
-            resolver.append(cloned);
-            result = cloned;
-            break;
-        }
-        case Value::Atomic: {
-            auto& atomic = (InstAtomic&)inst;
-            auto cloned = resolver.create<InstAtomic>(inst.source, inst.name, type, atomic.kind, atomic.order);
-
-            cloned->failure = atomic.failure;
-            cloned->weak = atomic.weak;
-
-            for(auto arg: atomic.args.contents(clone.local)) {
-                cloned->args.push(clone.module.arena, cloneValue(clone, arg));
-            }
-
-            resolver.append(cloned);
-            result = cloned;
-            break;
-        }
-        case Value::AtomicOk: {
-            auto cloned = resolver.create<InstAtomicOk>(inst.source, inst.name, type,
-                                                        cloneValue(clone, ((InstAtomicOk&)inst).cas));
-            resolver.append(cloned);
-            result = cloned;
-            break;
-        }
-        case Value::Cast:
-        case Value::Bitcast:
-        case Value::Neg:
-        case Value::Not:
-        case Value::ByteSwap:
-        case Value::CountBits:
-        case Value::LeadingZeros:
-        case Value::TrailingZeros:
-        case Value::Sqrt:
-        case Value::Abs:
-        case Value::Trunc:
-        case Value::Floor:
-        case Value::Ceil:
-        case Value::Round:
-            result = resolver.emit<InstUnary>(inst.source, inst.name, type, inst.kind,
-                                              cloneValue(clone, ((InstUnary&)inst).from));
-            break;
-        case Value::Fma:
-            result = resolver.emit<InstFma>(inst.source, inst.name, type,
-                                            cloneValue(clone, ((InstFma&)inst).a),
-                                            cloneValue(clone, ((InstFma&)inst).b),
-                                            cloneValue(clone, ((InstFma&)inst).c));
-            break;
-        case Value::Sha256Rounds:
-            result = resolver.emit<InstSha256Rounds>(inst.source, inst.name, type,
-                                                     cloneValue(clone, ((InstSha256Rounds&)inst).state),
-                                                     cloneValue(clone, ((InstSha256Rounds&)inst).feed),
-                                                     cloneValue(clone, ((InstSha256Rounds&)inst).keys));
-            break;
-        case Value::ShaBinary:
-            result = resolver.emit<InstShaBinary>(inst.source, inst.name, type,
-                                                  cloneValue(clone, ((InstShaBinary&)inst).lhs),
-                                                  cloneValue(clone, ((InstShaBinary&)inst).rhs),
-                                                  ((InstShaBinary&)inst).op);
-            break;
-        case Value::Add:
-        case Value::Sub:
-        case Value::Mul:
-        case Value::MulHi:
-        case Value::Div:
-        case Value::Rem:
-        case Value::Shl:
-        case Value::Shr:
-        case Value::Sar:
-        case Value::Rol:
-        case Value::Ror:
-        case Value::And:
-        case Value::Or:
-        case Value::Xor:
-        case Value::BitsUpTo:
-        case Value::GatherBits:
-        case Value::ScatterBits:
-        case Value::Crc32: {
-            auto& binary = (InstBinary&)inst;
-            result = resolver.emit<InstBinary>(inst.source, inst.name, type, inst.kind,
-                                               cloneValue(clone, binary.lhs), cloneValue(clone, binary.rhs));
-            break;
-        }
-        case Value::Cmp: {
-            auto& compare = (InstCmp&)inst;
-            result = resolver.emit<InstCmp>(inst.source, inst.name, type, cloneValue(clone, compare.lhs),
-                                            cloneValue(clone, compare.rhs), compare.cmp);
-            break;
-        }
-        /*
-         * The vector kinds, cloned like every other computation.
-         *
-         * `type` is already the substituted one, which is what carries the whole of the natural
-         * form's deferral through specialization: a `Vec(a)` in the generic body has no lane count,
-         * and the clone of an instruction over it is an instruction over the resolved vector because
-         * `cloneType` resolved it. Nothing here has to know that happened.
-         */
-        case Value::VecSplat:
-            result = resolver.emit<InstVecSplat>(inst.source, inst.name, type,
-                                                 cloneValue(clone, ((InstVecSplat&)inst).from));
-            break;
-        case Value::VecLane: {
-            auto& lane = (InstVecLane&)inst;
-            result = resolver.emit<InstVecLane>(inst.source, inst.name, type,
-                                                cloneValue(clone, lane.from), lane.lane);
-            break;
-        }
-        case Value::VecWithLane: {
-            auto& lane = (InstVecLane&)inst;
-            result = resolver.emit<InstVecLane>(inst.source, inst.name, type,
-                                                cloneValue(clone, lane.from), lane.lane,
-                                                cloneValue(clone, lane.value));
-            break;
-        }
-        case Value::VecShuffle: {
-            auto& shuffle = (InstVecShuffle&)inst;
-            auto cloned = resolver.create<InstVecShuffle>(inst.source, inst.name, type,
-                                                          cloneValue(clone, shuffle.left),
-                                                          cloneValue(clone, shuffle.right));
-
-            for(auto entry: shuffle.pattern) cloned->pattern.push(entry);
-            resolver.append(cloned);
-            result = cloned;
-            break;
-        }
-        case Value::VecReduce: {
-            auto& reduce = (InstVecReduce&)inst;
-            result = resolver.emit<InstVecReduce>(inst.source, inst.name, type,
-                                                  cloneValue(clone, reduce.from), reduce.reduce);
-            break;
-        }
         case Value::Call: {
             auto& call = (InstCall&)inst;
             ArgList args;
@@ -1278,17 +1157,6 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
             }
 
             return;
-        }
-        case Value::Symbol: {
-            auto& symbol = (InstSymbol&)inst;
-
-            // The one symbol a specialization may not share: a continuation lifted out of *this*
-            // body names this body's type variables, so it gets a clone of its own under the same
-            // bindings. Everything else - a named function, a global, a lifted body of some other
-            // function - is the same symbol in every specialization.
-            result = resolver.emit<InstSymbol>(inst.source, inst.name, type,
-                                               cloneLiftedCallee(clone, symbol.callee), symbol.global);
-            break;
         }
         case Value::CallDyn: {
             /*
@@ -1356,9 +1224,29 @@ static void cloneInstruction(Clone& clone, Inst& inst) {
              * that specializes such a body anyway is exactly this case.
              */
             return;
-        default:
-            clone.context.diagnostics.error("internal: this instruction cannot be specialized"_v, inst.source);
-            return;
+
+        /*
+         * Everything whose copy is the instruction with its operands and types substituted, which is
+         * most of the IR - see cloneComputation in clone.h, which is the same list the inliner's
+         * graft reaches through its own policy.
+         *
+         * The arms above this one are the ones a *specialization* does something to beyond copying:
+         * a move of unit relocates nothing, an aggregate can lose elements, a call is re-resolved
+         * against the concrete arguments, a drop is left to the pass that will analyze this body.
+         * What is below is the part that was written out here a second time and had drifted from it.
+         */
+        default: {
+            SpecializeClone policy(clone);
+            result = cloneComputation(policy, inst);
+
+            if(!result) {
+                clone.context.diagnostics.error("internal: this instruction cannot be specialized"_v,
+                                                inst.source);
+                return;
+            }
+
+            break;
+        }
     }
 
     if(result) {
