@@ -322,6 +322,121 @@ Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value) {
     return storageOf(opt, value);
 }
 
+// The storage a reference names, whichever of the two shapes it is. `pointeeType` answers for `%T`
+// only, and what a borrow root holds is a `'T` or a `&T` - see BorrowType, which keeps the same `to`.
+static TypePtr referenced(GlobalBase base, TypePtr type) {
+    if(!type) return nullptr;
+    if(isBorrow(base, type)) return ((BorrowType*)base[type])->to;
+
+    return pointeeType(base, type);
+}
+
+/*
+ * Whether a projection path means the same bytes read against either of two types.
+ *
+ * Asked of a reinterpretation and not of an assignment, so it is a question about *layout* and never
+ * about what the two types are called. A path is a list of (kind, index) steps, and what turns one
+ * into an offset is the field table - so two representations with the same fields at the same
+ * offsets, in the same order and at the same types, cannot disagree about where any path lands.
+ *
+ * Equal `size` alone is not enough and that is the whole reason this exists: `{Int, Long}` and
+ * `{Long, Int}` are one size and field zero is a different four bytes in each.
+ *
+ * The field types are compared by identity rather than recursed into, which is what makes this cheap
+ * and is also exact: two lists that agree pointwise agree at every depth, because whatever the tenth
+ * step of a path means it means it against the same type on both sides.
+ */
+static bool sameLayout(OptContext& opt, TypePtr first, TypePtr second) {
+    if(!first || !second) return false;
+
+    /*
+     * A `String` is its content, which is a layout fact and not a resemblance. `computeString` copies
+     * `size`, `align` and `stride` off `StringData` and stops - it builds no field list of its own,
+     * because there is nothing there but the content - so comparing the two Reprs directly would
+     * find one field list and one empty one and answer no. Asking about the content is asking the
+     * same question of the table entry that actually describes the bytes.
+     */
+    auto unwrap = [&](TypePtr type) {
+        if(type && opt.global[type]->kind == Type::String) {
+            if(auto content = ((StringType*)opt.global[type])->content) return content;
+        }
+
+        return type;
+    };
+
+    first = unwrap(first);
+    second = unwrap(second);
+    if(first == second) return true;
+
+    auto& a = opt.repr.of(first);
+    auto& b = opt.repr.of(second);
+
+    if(a.opaque || b.opaque) return false;
+    if(a.size != b.size || a.align != b.align || a.stride != b.stride) return false;
+    if(a.scalarBits != b.scalarBits) return false;
+    if(a.discriminant != b.discriminant) return false;
+    if(a.payloadOffset != b.payloadOffset || a.discriminantBytes != b.discriminantBytes) return false;
+    if(a.discriminantBitOffset != b.discriminantBitOffset) return false;
+    if(a.discriminantBits != b.discriminantBits) return false;
+    if(a.fields.size() != b.fields.size()) return false;
+
+    for(Size i = 0; i < a.fields.size(); i++) {
+        auto& left = a.fields[i];
+        auto& right = b.fields[i];
+
+        if(left.type != right.type || left.offset != right.offset) return false;
+        if(left.wordBytes != right.wordBytes || left.bitOffset != right.bitOffset) return false;
+        if(left.bitWidth != right.bitWidth || left.boxed != right.boxed) return false;
+    }
+
+    return true;
+}
+
+// See opt_pass.h, which is where the three conditions and the reason for each are written down.
+Place resolvedRoot(OptContext& opt, const Place& place) {
+    if(place.root != PlaceRoot::Borrow || !place.pointer) return place;
+
+    auto value = place.pointer;
+    auto held = referenced(opt.global, opt.local[value]->type);
+    if(!held) return place;
+
+    // The frame's own width as a cycle guard rather than as a limit - a chain with no cycle in it
+    // visits each value once, so reaching this is a rewrite having built one.
+    for(Size step = 0; value && step <= opt.function->localCount(); step++) {
+        auto& produced = *opt.local[value];
+
+        if(produced.kind == Value::Cast || produced.kind == Value::Bitcast) {
+            auto from = ((InstUnary&)produced).from;
+            if(!from) return place;
+
+            // Both ends a reference, and to storage laid out the same way. Either failing means the
+            // path stops meaning what it meant, so the walk stops instead.
+            if(!isBorrow(opt.global, opt.local[from]->type)) return place;
+
+            auto source = referenced(opt.global, opt.local[from]->type);
+            if(!sameLayout(opt, source, held)) return place;
+
+            held = source;
+            value = from;
+            continue;
+        }
+
+        if(produced.kind != Value::Borrow) return place;
+
+        auto& borrowed = (InstBorrow&)produced;
+        if(borrowed.place.root != PlaceRoot::Local) return place;
+        if(borrowed.place.projections.isNotEmpty()) return place;
+
+        auto resolved = place;
+        resolved.root = PlaceRoot::Local;
+        resolved.local = borrowed.place.local;
+        resolved.pointer = nullptr;
+        return resolved;
+    }
+
+    return place;
+}
+
 Fields fieldsOf(OptContext& opt, TypePtr type) {
     if(!type) return {};
 

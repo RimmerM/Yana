@@ -558,6 +558,69 @@ void Verifier::verifyLocals() {
     };
 
     eachValue(pairing);
+
+    /*
+     * And the half of the same relation that says a value *must* fill a slot.
+     *
+     * The ownership passes reach a value's storage exactly two ways - `backingLocal` off
+     * `Value::slot` and `findPlace` off the same field - so a droppable value that fills no slot is
+     * not tracked *at all*. Not tracked conservatively, not tracked pessimistically: `sinkValue`
+     * finds no place to move out of and returns the value unchanged, `checkMoves` has no state to
+     * transition, and the drop pass has nothing to release. What that looks like from the outside is
+     * a program that consumes one allocation twice with no diagnostic.
+     *
+     * It is a real defect this caught rather than a hypothetical one. `resolveString` built the
+     * literal's `String` and forgot the `addLocal` every other call of memory type does, so
+     * `let c = "text"` bound a name to storage nothing owned and `consume(c) + consume(c)` compiled
+     * to two consumers of one run. The literal's run is borrowed, so what was released twice was
+     * nothing - but the omission is one line at a producer, and the next producer to make it would
+     * be a double free rather than a no-op. Which is why this is a check and not a comment: a value
+     * kind that needs a slot and did not get one is a compiler bug that has to surface where it was
+     * made.
+     *
+     * Four kinds are exempt, and each of them names storage rather than creating any:
+     *
+     *  - `LoadPlace` *is* its place - findPlace answers with the place it named, which is what keeps
+     *    a field of a field one projection path.
+     *  - `Move` is the hand-over itself. What it produces belongs to whatever receives it, and
+     *    giving it a slot here would be this frame claiming a value it has just given away.
+     *  - `Cast` and `Bitcast` rename their operand's bits. The storage is the operand's, and it is
+     *    the operand that has to answer for it.
+     *
+     * At `Resolved` only. Below that stage the relation is deliberately not one-to-one - see the
+     * header - and `inlineCalls`, SROA and promotion all leave values whose storage a slot no longer
+     * describes because there is no longer any storage.
+     */
+    if(stage != VerifyStage::Resolved) return;
+
+    auto tracked = [&](ModulePtr<Value> valuePointer) {
+        auto& value = *local[valuePointer];
+        if(value.slot != maxLimit<U32>) return;
+        if(!value.type || !producesValue(value) || isConstant(value)) return;
+
+        switch(value.kind) {
+            case Value::LoadPlace:
+            case Value::Move:
+            case Value::Cast:
+            case Value::Bitcast:
+                return;
+            case Value::Arg:
+                // A `@lazy` parameter is a thunk over the *caller's* frame, and expr_body gives it
+                // no local on purpose: there is nothing to load from until the force has happened,
+                // and this frame never owned the closure to begin with.
+                if(((Arg&)value).isLazy()) return;
+                break;
+            default:
+                break;
+        }
+
+        if(!isMemoryType(global, value.type) || !needsTeardown(module, value.type)) return;
+
+        fail(value.source, "%%@ (%@) produces %@, which owns storage, and fills no slot - nothing tracks it"_v,
+             value.id, instructionTraits(value.kind).mnemonic, describeType(context, global, value.type));
+    };
+
+    eachValue(tracked);
 }
 
 /*

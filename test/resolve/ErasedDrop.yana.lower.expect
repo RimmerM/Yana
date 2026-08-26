@@ -167,30 +167,30 @@ Append(String).++<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
     %v_2 = add %rhs, 12: Ptr
     %v_3 = load %v_2, 4: Int
     %v_4 = sext %v_3: Long
-    %out = alloca 16, 8: Ptr
-    copy %out, %lhs, 16
-    %v_5 = load %rhs, 8: Ptr
-    call_complex String.appendUnits, %out, %v_5, %v_4
-    %v_6 = add %rhs, 8: Ptr
-    %v_7 = load %v_6, 4: Long
-    %v_8 = shr %v_7, 30: Long
-    %v_9 = cast %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    jmp b_13
-  }
-
-  b_11 {
-    %v_14 = load %rhs, 8: Ptr
-    call_complex freeHeap, %v_14
-    jmp b_13
+    %v_5 = alloca 16, 8: Ptr
+    copy %v_5, %lhs, 16
+    %v_6 = load %rhs, 8: Ptr
+    call_complex String.appendUnits, %v_5, %v_6, %v_4
+    %v_7 = add %rhs, 8: Ptr
+    %v_8 = load %v_7, 4: Long
+    %v_9 = shr %v_8, 30: Long
+    %v_10 = cast %v_9: Int
+    %v_11 = cmp_eq %v_10, 1: Int
+    je %v_11, b_12, b_13
   }
 
   b_13 {
-    copy %v_0, %out, 16
+    jmp b_14
+  }
+
+  b_12 {
+    %v_15 = load %rhs, 8: Ptr
+    call_complex freeHeap, %v_15
+    jmp b_14
+  }
+
+  b_14 {
+    copy %v_0, %v_5, 16
     ret 
   }
 }
@@ -1412,6 +1412,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_81, @ResolveTest.string$3, 6
     %v_82 = call_complex Eq(String).!=, %v_75, %v_81: Int
     call_complex Reclaim(String).reclaim, %v_75
+    call_complex Reclaim(String).reclaim, %v_81
     je %v_82, b_83, b_84
   }
 
@@ -1420,10 +1421,12 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_85, @ResolveTest.string$4, 2
     %v_86 = alloca 16, 8: Ptr
     call_complex repeated, @genEnv$repeated(String), %v_86, %v_85, 3
+    call_complex Reclaim(String).reclaim, %v_85
     %v_87 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_87, @ResolveTest.string$5, 6
     %v_88 = call_complex Eq(String).!=, %v_86, %v_87: Int
     call_complex Reclaim(String).reclaim, %v_86
+    call_complex Reclaim(String).reclaim, %v_87
     je %v_88, b_89, b_90
   }
 

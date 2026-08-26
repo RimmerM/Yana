@@ -470,6 +470,7 @@ fn Show(Bool).show(%value: Bool, %to: String) -> () {
     %v6 = call stringLiteral, %v4, 4 : String
     %v7 = borrow_mut %to : &String
     call String.push, %v7, %v6
+    drop %local1 via Reclaim(String).reclaim
     jmp b3
 
   b2:
@@ -478,6 +479,7 @@ fn Show(Bool).show(%value: Bool, %to: String) -> () {
     %v12 = call stringLiteral, %v10, 5 : String
     %v13 = borrow_mut %to : &String
     call String.push, %v13, %v12
+    drop %local2 via Reclaim(String).reclaim
     jmp b3
 
   b3:
@@ -1636,6 +1638,7 @@ fn plain() -> Int {
     %v0 = symbol ResolveTest.string$0 : %CodeUnit
     %v2 = call stringLiteral, %v0, 13 : String
     %v3 = call Length(String).length, %v2 : Size
+    drop %local0 via Reclaim(String).reclaim
     %v4 = cast %v3 : Int
     ret %v4
 }
@@ -1652,6 +1655,7 @@ fn oneInt() -> Int {
     %v11 = call stringLiteral, %v9, 4 : String
     %v12 = borrow_mut %local1 : &String
     call String.push, %v12, %v11
+    drop %local2 via Reclaim(String).reclaim
     %v14 = borrow_mut %local1 : &String
     call Show(Int).show, 42, %v14
     %text = load %local1 : String
@@ -1673,12 +1677,14 @@ fn oneIntText() -> Int {
     %v11 = call stringLiteral, %v9, 2 : String
     %v12 = borrow_mut %local1 : &String
     call String.push, %v12, %v11
+    drop %local2 via Reclaim(String).reclaim
     %v14 = borrow_mut %local1 : &String
     call Show(Int).show, 7, %v14
     %v16 = symbol ResolveTest.string$3 : %CodeUnit
     %v18 = call stringLiteral, %v16, 1 : String
     %v19 = borrow_mut %local1 : &String
     call String.push, %v19, %v18
+    drop %local3 via Reclaim(String).reclaim
     %text = load %local1 : String
     %total = alloc : Int
     init %total, 0
@@ -1768,16 +1774,18 @@ fn oneString() -> Int {
     %v6 = add 6, %v5 : Size
     %v7 = call String.ofCapacity, %v6 : String
     %v8 = alloc : String
-    init %local1, %v7
+    init %local2, %v7
     %v10 = symbol ResolveTest.string$5 : %CodeUnit
     %v12 = call stringLiteral, %v10, 6 : String
-    %v13 = borrow_mut %local1 : &String
+    %v13 = borrow_mut %local2 : &String
     call String.push, %v13, %v12
-    %v15 = borrow_mut %local1 : &String
+    drop %local3 via Reclaim(String).reclaim
+    %v15 = borrow_mut %local2 : &String
     call Show(String).show, %inner, %v15
-    %text = load %local1 : String
+    drop %local0 via Reclaim(String).reclaim
+    %text = load %local2 : String
     %v18 = call Length(String).length, %text : Size
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     %v19 = cast %v18 : Int
     ret %v19
 }
@@ -1800,30 +1808,34 @@ fn mixed() -> Int {
     %v19 = add %v16, %v18 : Size
     %v20 = call String.ofCapacity, %v19 : String
     %v21 = alloc : String
-    init %local1, %v20
-    %v23 = borrow_mut %local1 : &String
+    init %local2, %v20
+    %v23 = borrow_mut %local2 : &String
     call Show(String).show, %name, %v23
     %v25 = symbol ResolveTest.string$7 : %CodeUnit
     %v27 = call stringLiteral, %v25, 1 : String
-    %v28 = borrow_mut %local1 : &String
+    %v28 = borrow_mut %local2 : &String
     call String.push, %v28, %v27
-    %v30 = borrow_mut %local1 : &String
+    drop %local3 via Reclaim(String).reclaim
+    %v30 = borrow_mut %local2 : &String
     call Show(Int).show, 12, %v30
     %v32 = symbol ResolveTest.string$8 : %CodeUnit
     %v34 = call stringLiteral, %v32, 1 : String
-    %v35 = borrow_mut %local1 : &String
+    %v35 = borrow_mut %local2 : &String
     call String.push, %v35, %v34
-    %v37 = borrow_mut %local1 : &String
+    drop %local4 via Reclaim(String).reclaim
+    %v37 = borrow_mut %local2 : &String
     call Show(String).show, %name, %v37
+    drop %local0 via Reclaim(String).reclaim
     %v39 = symbol ResolveTest.string$9 : %CodeUnit
     %v41 = call stringLiteral, %v39, 1 : String
-    %v42 = borrow_mut %local1 : &String
+    %v42 = borrow_mut %local2 : &String
     call String.push, %v42, %v41
-    %v44 = borrow_mut %local1 : &String
+    drop %local5 via Reclaim(String).reclaim
+    %v44 = borrow_mut %local2 : &String
     call Show(Int).show, 345, %v44
-    %text = load %local1 : String
+    %text = load %local2 : String
     %v47 = call Length(String).length, %text : Size
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     %v48 = cast %v47 : Int
     ret %v48
 }
@@ -1863,6 +1875,7 @@ fn boolean() -> Int {
     %v16 = call stringLiteral, %v14, 1 : String
     %v17 = borrow_mut %local1 : &String
     call String.push, %v17, %v16
+    drop %local2 via Reclaim(String).reclaim
     %v19 = borrow_mut %local1 : &String
     call Show(Bool).show, False, %v19
     %text = load %local1 : String
@@ -1901,6 +1914,7 @@ fn inLoop() -> Int {
     %v22 = call stringLiteral, %v20, 10 : String
     %v23 = borrow_mut %local3 : &String
     call String.push, %v23, %v22
+    drop %local4 via Reclaim(String).reclaim
     %v25 = borrow_mut %local3 : &String
     call Show(Int).show, %v12, %v25
     %text = load %local3 : String
@@ -1972,25 +1986,29 @@ fn printed() -> Int {
     %v11 = add %v8, %v10 : Size
     %v12 = call String.ofCapacity, %v11 : String
     %v13 = alloc : String
-    init %local1, %v12
+    init %local2, %v12
     %v15 = symbol ResolveTest.string$13 : %CodeUnit
     %v17 = call stringLiteral, %v15, 1 : String
-    %v18 = borrow_mut %local1 : &String
+    %v18 = borrow_mut %local2 : &String
     call String.push, %v18, %v17
-    %v20 = borrow_mut %local1 : &String
+    drop %local3 via Reclaim(String).reclaim
+    %v20 = borrow_mut %local2 : &String
     call Show(String).show, %name, %v20
+    drop %local0 via Reclaim(String).reclaim
     %v22 = symbol ResolveTest.string$14 : %CodeUnit
     %v24 = call stringLiteral, %v22, 5 : String
-    %v25 = borrow_mut %local1 : &String
+    %v25 = borrow_mut %local2 : &String
     call String.push, %v25, %v24
-    %v27 = borrow_mut %local1 : &String
+    drop %local4 via Reclaim(String).reclaim
+    %v27 = borrow_mut %local2 : &String
     call Show(Int).show, 2, %v27
     %v29 = symbol ResolveTest.string$15 : %CodeUnit
     %v31 = call stringLiteral, %v29, 8 : String
-    %v32 = borrow_mut %local1 : &String
+    %v32 = borrow_mut %local2 : &String
     call String.push, %v32, %v31
-    %v34 = load %local1 : String
+    drop %local5 via Reclaim(String).reclaim
+    %v34 = load %local2 : String
     call print, %v34
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     ret 0
 }

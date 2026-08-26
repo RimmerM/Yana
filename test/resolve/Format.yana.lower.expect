@@ -210,6 +210,68 @@ String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
   }
 }
 
+Show(Bool).show<complex>(%value: Int, %to: Ptr) {
+  b_0 {
+    je %value, b_1, b_2
+  }
+
+  b_2 {
+    %v_3 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_3, @Core.string$6, 5
+    call_complex String.push, %to, %v_3
+    %v_4 = add %v_3, 8: Ptr
+    %v_5 = load %v_4, 4: Long
+    %v_6 = shr %v_5, 30: Long
+    %v_7 = cast %v_6: Int
+    %v_8 = cmp_eq %v_7, 1: Int
+    je %v_8, b_9, b_10
+  }
+
+  b_10 {
+    jmp b_11
+  }
+
+  b_9 {
+    %v_12 = load %v_3, 8: Ptr
+    call_complex freeHeap, %v_12
+    jmp b_11
+  }
+
+  b_11 {
+    jmp b_13
+  }
+
+  b_1 {
+    %v_14 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_14, @Core.string$5, 4
+    call_complex String.push, %to, %v_14
+    %v_15 = add %v_14, 8: Ptr
+    %v_16 = load %v_15, 4: Long
+    %v_17 = shr %v_16, 30: Long
+    %v_18 = cast %v_17: Int
+    %v_19 = cmp_eq %v_18, 1: Int
+    je %v_19, b_20, b_21
+  }
+
+  b_21 {
+    jmp b_22
+  }
+
+  b_20 {
+    %v_23 = load %v_14, 8: Ptr
+    call_complex freeHeap, %v_23
+    jmp b_22
+  }
+
+  b_22 {
+    jmp b_13
+  }
+
+  b_13 {
+    ret 
+  }
+}
+
 Show(Int).show<complex>(%value: Int, %to: Ptr) {
   b_0 {
     %v_1 = sext %value: Long
@@ -231,15 +293,6 @@ Show(Int).show<complex>(%value: Int, %to: Ptr) {
 
   b_5 {
     ret 
-  }
-}
-
-Length(String).length<complex>(%self: Ptr): Long {
-  b_0 {
-    %v_1 = add %self, 12: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = sext %v_2: Long
-    ret %v_3
   }
 }
 
@@ -941,10 +994,12 @@ oneIntText<complex>(): Int {
     %v_2 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_2, @ResolveTest.string$2, 2
     call_complex String.push, %v_1, %v_2
+    call_complex Reclaim(String).reclaim, %v_2
     call_complex Show(Int).show, 7, %v_1
     %v_3 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_3, @ResolveTest.string$3, 1
     call_complex String.push, %v_1, %v_3
+    call_complex Reclaim(String).reclaim, %v_3
     %v_4 = add %v_1, 12: Ptr
     %v_5 = load %v_4, 4: Int
     %v_6 = cmp_neq %v_5, 4: Int
@@ -1041,13 +1096,15 @@ main<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_1, @ResolveTest.string$0, 13
-    %v_2 = call_complex Length(String).length, %v_1: Long
-    %v_3 = cast %v_2: Int
+    %v_2 = add %v_1, 12: Ptr
+    %v_3 = load %v_2, 4: Int
+    call_complex Reclaim(String).reclaim, %v_1
     %v_4 = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %v_4, 15
     %v_5 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_5, @ResolveTest.string$1, 4
     call_complex String.push, %v_4, %v_5
+    call_complex Reclaim(String).reclaim, %v_5
     call_complex Show(Int).show, 42, %v_4
     %v_6 = add %v_4, 12: Ptr
     %v_7 = load %v_6, 4: Int
@@ -1066,7 +1123,9 @@ main<complex>(): Int {
     %v_16 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_16, @ResolveTest.string$5, 6
     call_complex String.push, %v_15, %v_16
+    call_complex Reclaim(String).reclaim, %v_16
     call_complex String.push, %v_15, %inner
+    call_complex Reclaim(String).reclaim, %inner
     %v_17 = add %v_15, 12: Ptr
     %v_18 = load %v_17, 4: Int
     call_complex Reclaim(String).reclaim, %v_15
@@ -1085,14 +1144,18 @@ main<complex>(): Int {
     %v_27 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_27, @ResolveTest.string$7, 1
     call_complex String.push, %v_26, %v_27
+    call_complex Reclaim(String).reclaim, %v_27
     call_complex Show(Int).show, 12, %v_26
     %v_28 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_28, @ResolveTest.string$8, 1
     call_complex String.push, %v_26, %v_28
+    call_complex Reclaim(String).reclaim, %v_28
     call_complex String.push, %v_26, %name
+    call_complex Reclaim(String).reclaim, %name
     %v_29 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_29, @ResolveTest.string$9, 1
     call_complex String.push, %v_26, %v_29
+    call_complex Reclaim(String).reclaim, %v_29
     call_complex Show(Int).show, 345, %v_26
     %v_30 = add %v_26, 12: Ptr
     %v_31 = load %v_30, 4: Int
@@ -1107,75 +1170,77 @@ main<complex>(): Int {
     %v_36 = add %v_32, %v_35: Int
     %v_37 = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %v_37, 11
+    call_complex Show(Bool).show, 1, %v_37
     %v_38 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_38, @Core.string$5, 4
+    call_complex stringLiteral, %v_38, @ResolveTest.string$10, 1
     call_complex String.push, %v_37, %v_38
-    %v_39 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_39, @ResolveTest.string$10, 1
-    call_complex String.push, %v_37, %v_39
-    %v_40 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_40, @Core.string$6, 5
-    call_complex String.push, %v_37, %v_40
-    %v_41 = add %v_37, 12: Ptr
-    %v_42 = load %v_41, 4: Int
+    call_complex Reclaim(String).reclaim, %v_38
+    call_complex Show(Bool).show, 0, %v_37
+    %v_39 = add %v_37, 12: Ptr
+    %v_40 = load %v_39, 4: Int
     call_complex Reclaim(String).reclaim, %v_37
-    %v_43 = add %v_36, %v_42: Int
-    jmp b_44
+    %v_41 = add %v_36, %v_40: Int
+    jmp b_42
   }
 
-  b_45 {
-    %v_46 = cmp_ilt %v_47, 100: Int
-    je %v_46, b_44, b_48
+  b_43 {
+    %v_44 = cmp_ilt %v_45, 100: Int
+    je %v_44, b_42, b_46
   }
 
-  b_48 {
-    %v_49 = add %v_43, %v_50: Int
+  b_46 {
+    %v_47 = add %v_41, %v_48: Int
     %name = alloca 16, 8: Ptr
     call_complex stringLiteral, %name, @ResolveTest.string$12, 6
-    %v_51 = add %name, 12: Ptr
-    %v_52 = load %v_51, 4: Int
-    %v_53 = sext %v_52: Long
-    %v_54 = add %v_53, 25: Long
+    %v_49 = add %name, 12: Ptr
+    %v_50 = load %v_49, 4: Int
+    %v_51 = sext %v_50: Long
+    %v_52 = add %v_51, 25: Long
+    %v_53 = alloca 16, 8: Ptr
+    call_complex String.ofCapacity, %v_53, %v_52
+    %v_54 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_54, @ResolveTest.string$13, 1
+    call_complex String.push, %v_53, %v_54
+    call_complex Reclaim(String).reclaim, %v_54
+    call_complex String.push, %v_53, %name
+    call_complex Reclaim(String).reclaim, %name
     %v_55 = alloca 16, 8: Ptr
-    call_complex String.ofCapacity, %v_55, %v_54
-    %v_56 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_56, @ResolveTest.string$13, 1
-    call_complex String.push, %v_55, %v_56
-    call_complex String.push, %v_55, %name
-    %v_57 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_57, @ResolveTest.string$14, 5
-    call_complex String.push, %v_55, %v_57
-    call_complex Show(Int).show, 2, %v_55
-    %v_58 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_58, @ResolveTest.string$15, 8
-    call_complex String.push, %v_55, %v_58
-    %v_59 = load %v_55, 8: Ptr
-    %v_60 = add %v_55, 12: Ptr
-    %v_61 = load %v_60, 4: Int
-    %v_62 = sext %v_61: Long
-    %v_63 = bitcast %v_59: Long
-    %v_64 = syscall 1, 1, %v_63, %v_62: Long
+    call_complex stringLiteral, %v_55, @ResolveTest.string$14, 5
+    call_complex String.push, %v_53, %v_55
     call_complex Reclaim(String).reclaim, %v_55
-    ret %v_49
+    call_complex Show(Int).show, 2, %v_53
+    %v_56 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_56, @ResolveTest.string$15, 8
+    call_complex String.push, %v_53, %v_56
+    call_complex Reclaim(String).reclaim, %v_56
+    %v_57 = load %v_53, 8: Ptr
+    %v_58 = add %v_53, 12: Ptr
+    %v_59 = load %v_58, 4: Int
+    %v_60 = sext %v_59: Long
+    %v_61 = bitcast %v_57: Long
+    %v_62 = syscall 1, 1, %v_61, %v_60: Long
+    call_complex Reclaim(String).reclaim, %v_53
+    ret %v_47
   }
 
-  b_44 {
-    %v_65 = phi [b_45, %v_50], [b_0, 0]: Int
-    %v_66 = phi [b_45, %v_47], [b_0, 0]: Int
+  b_42 {
+    %v_63 = phi [b_43, %v_48], [b_0, 0]: Int
+    %v_64 = phi [b_43, %v_45], [b_0, 0]: Int
+    %v_65 = alloca 16, 8: Ptr
+    call_complex String.ofCapacity, %v_65, 21
+    %v_66 = alloca 16, 8: Ptr
+    copy %v_66, %v_65, 16
     %v_67 = alloca 16, 8: Ptr
-    call_complex String.ofCapacity, %v_67, 21
-    %v_68 = alloca 16, 8: Ptr
-    copy %v_68, %v_67, 16
-    %v_69 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_69, @ResolveTest.string$11, 10
-    call_complex String.push, %v_68, %v_69
-    call_complex Show(Int).show, %v_66, %v_68
-    %v_70 = add %v_68, 12: Ptr
-    %v_71 = load %v_70, 4: Int
-    call_complex Reclaim(String).reclaim, %v_68
-    %v_50 = add %v_65, %v_71: Int
-    %v_47 = add %v_66, 1: Int
-    jmp b_45
+    call_complex stringLiteral, %v_67, @ResolveTest.string$11, 10
+    call_complex String.push, %v_66, %v_67
+    call_complex Reclaim(String).reclaim, %v_67
+    call_complex Show(Int).show, %v_64, %v_66
+    %v_68 = add %v_66, 12: Ptr
+    %v_69 = load %v_68, 4: Int
+    call_complex Reclaim(String).reclaim, %v_66
+    %v_48 = add %v_63, %v_69: Int
+    %v_45 = add %v_64, 1: Int
+    jmp b_43
   }
 }
 

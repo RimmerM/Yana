@@ -1,0 +1,81 @@
+-- The accepting half of Reject.OwnedAlias.yana - what a second name for storage *is*.
+--
+-- **A `let` never makes a second name that can consume storage.** Where the initializer names
+-- storage rather than producing it, the binding is a loan of that storage - shared by default,
+-- exclusive under `&` - and `->` stays the one spelling that moves. So `let d = c` is legal, says
+-- what it looks like it says, and the thing it cannot do is the thing that used to be a double free.
+
+data Box {s: String}
+
+fn consume(->s: String) -> Int = 1
+
+fn make() -> String = "text"
+
+fn setTo(&self: String, to: String) -> {}:
+    self = copy(to)
+    return
+
+-- **The loan.** Both names read the one allocation; the owner is still `c`, and consuming it after
+-- the loan's last use is an ordinary consume.
+fn shared() -> Int:
+    let c = make()
+    let d = c
+    let n = length(c) + length(d)
+    return truncate(n) :: Int + consume(c)
+
+-- `&` is the other axis and not a second way to spell `->`: what it adds is the write, and what it
+-- writes is `c`'s storage.
+fn exclusive() -> Int:
+    let &c = make()
+    let &d = c
+    setTo(d, "other")
+    return truncate(length(c)) :: Int
+
+-- **The two spellings that move.** `->` hands the value over and the source is unusable afterwards;
+-- `copy` duplicates it and both names own one allocation each.
+fn handedOver() -> Int:
+    let c = make()
+    let ->d = c
+    return consume(d)
+
+fn duplicated() -> Int:
+    let c = make()
+    let d = copy(c)
+    return consume(c) + consume(d)
+
+-- A temporary the initializer built. There is no other name for it, so the binding *is* the name -
+-- which is what a `let` is for, and what `fresh` in `loanOfNamedStorage` tells apart from the cases
+-- above. It is a count rather than an analysis: a slot below the mark existed before this
+-- initializer ran.
+fn temporary() -> Int:
+    let c = make()
+    return consume(c)
+
+fn literal() -> Int:
+    let c = "text"
+    return consume(c)
+
+-- One projection down is the same rule. The loan is of the field, so writing the *other* field
+-- through the record is not a conflict with it.
+fn field() -> Size:
+    let &b = Box {s: make()}
+    let d = b.s
+    return length(d)
+
+-- An ordinary parameter names the caller's storage - Analysis-Borrows.md §3.1 - so the source name
+-- could not consume it either, and a second name for it adds no capability to loan away.
+fn fromParameter(s: String) -> Int:
+    let t = s
+    return consume(copy(t))
+
+fn fromParameterField(b: Box) -> Int:
+    let t = b.s
+    return consume(copy(t))
+
+-- A scalar is TrivialCopy, so a second name is a second value and there is nothing to be about.
+fn scalar() -> Int:
+    let a = 3
+    let b = a
+    return a + b
+
+fn main() -> Int = 0

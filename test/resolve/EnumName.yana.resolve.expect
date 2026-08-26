@@ -176,6 +176,7 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     %v5 = symbol Core.string$63 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     %v8 = call Eq(String).==, %name, %v7 : Bool
+    drop %local1 via Reclaim(String).reclaim
     je %v8, b3, b4
 
   b2:
@@ -185,18 +186,19 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
   b3:
     %v11 = bitcast 0 : Colour
     %v12 = alloc : Maybe(Colour)
-    aggregate %local1.discriminant = 1, %local1@Just = %v11
+    aggregate %local2.discriminant = 1, %local2@Just = %v11
     jmp b13
 
   b4:
     %v15 = alloc : Maybe(Colour)
-    init %local2.discriminant, 0
+    init %local3.discriminant, 0
     jmp b13
 
   b5:
     %v21 = symbol Core.string$64 : %CodeUnit
     %v23 = call stringLiteral, %v21, 5 : String
     %v24 = call Eq(String).==, %name, %v23 : Bool
+    drop %local4 via Reclaim(String).reclaim
     je %v24, b7, b8
 
   b6:
@@ -206,34 +208,35 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
   b7:
     %v27 = bitcast 1 : Colour
     %v28 = alloc : Maybe(Colour)
-    aggregate %local3.discriminant = 1, %local3@Just = %v27
+    aggregate %local5.discriminant = 1, %local5@Just = %v27
     jmp b13
 
   b8:
     %v31 = alloc : Maybe(Colour)
-    init %local4.discriminant, 0
+    init %local6.discriminant, 0
     jmp b13
 
   b9:
     %v37 = symbol Core.string$65 : %CodeUnit
     %v39 = call stringLiteral, %v37, 4 : String
     %v40 = call Eq(String).==, %name, %v39 : Bool
+    drop %local7 via Reclaim(String).reclaim
     je %v40, b11, b12
 
   b10:
     %v50 = alloc : Maybe(Colour)
-    init %local7.discriminant, 0
+    init %local10.discriminant, 0
     jmp b13
 
   b11:
     %v43 = bitcast 2 : Colour
     %v44 = alloc : Maybe(Colour)
-    aggregate %local5.discriminant = 1, %local5@Just = %v43
+    aggregate %local8.discriminant = 1, %local8@Just = %v43
     jmp b13
 
   b12:
     %v47 = alloc : Maybe(Colour)
-    init %local6.discriminant, 0
+    init %local9.discriminant, 0
     jmp b13
 
   b13:
@@ -302,6 +305,7 @@ fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
     %v5 = symbol Core.string$74 : %CodeUnit
     %v7 = call stringLiteral, %v5, 3 : String
     %v8 = call Eq(String).==, %name, %v7 : Bool
+    drop %local1 via Reclaim(String).reclaim
     je %v8, b3, b4
 
   b2:
@@ -311,34 +315,35 @@ fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
   b3:
     %v11 = bitcast 0 : Pair(Int)
     %v12 = alloc : Maybe(Pair(Int))
-    aggregate %local1.discriminant = 1, %local1@Just = %v11
+    aggregate %local2.discriminant = 1, %local2@Just = %v11
     jmp b9
 
   b4:
     %v15 = alloc : Maybe(Pair(Int))
-    init %local2.discriminant, 0
+    init %local3.discriminant, 0
     jmp b9
 
   b5:
     %v21 = symbol Core.string$75 : %CodeUnit
     %v23 = call stringLiteral, %v21, 4 : String
     %v24 = call Eq(String).==, %name, %v23 : Bool
+    drop %local4 via Reclaim(String).reclaim
     je %v24, b7, b8
 
   b6:
     %v34 = alloc : Maybe(Pair(Int))
-    init %local5.discriminant, 0
+    init %local7.discriminant, 0
     jmp b9
 
   b7:
     %v27 = bitcast 1 : Pair(Int)
     %v28 = alloc : Maybe(Pair(Int))
-    aggregate %local3.discriminant = 1, %local3@Just = %v27
+    aggregate %local5.discriminant = 1, %local5@Just = %v27
     jmp b9
 
   b8:
     %v31 = alloc : Maybe(Pair(Int))
-    init %local4.discriminant, 0
+    init %local6.discriminant, 0
     jmp b9
 
   b9:
@@ -471,6 +476,7 @@ fn main() -> Int {
     %v4 = call stringLiteral, %v2, 5 : String
     %v5 = call Eq(String).!=, %v1, %v4 : Bool
     drop %local0 via Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     je %v5, b1, b2
 
   b1:
@@ -484,7 +490,8 @@ fn main() -> Int {
     %v12 = symbol ResolveTest.string$1 : %CodeUnit
     %v14 = call stringLiteral, %v12, 7 : String
     %v15 = call Eq(String).!=, %v11, %v14 : Bool
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     je %v15, b4, b5
 
   b4:
@@ -497,7 +504,8 @@ fn main() -> Int {
     %v20 = symbol ResolveTest.string$2 : %CodeUnit
     %v22 = call stringLiteral, %v20, 4 : String
     %found = call colourOfName, %v22 : Maybe(Colour)
-    %v24 = load %local2.discriminant : Int
+    drop %local4 via Reclaim(String).reclaim
+    %v24 = load %local5.discriminant : Int
     %v26 = cmp_eq %v24, 0 : Bool
     je %v26, b8, b7
 
@@ -511,7 +519,8 @@ fn main() -> Int {
     %v31 = symbol ResolveTest.string$3 : %CodeUnit
     %v33 = call stringLiteral, %v31, 6 : String
     %missing = call colourOfName, %v33 : Maybe(Colour)
-    %v35 = load %local3.discriminant : Int
+    drop %local6 via Reclaim(String).reclaim
+    %v35 = load %local7.discriminant : Int
     %v37 = cmp_eq %v35, 1 : Bool
     je %v37, b11, b10
 
@@ -519,14 +528,15 @@ fn main() -> Int {
     jmp b12
 
   b11:
-    %v39 = load %local3@Just : Colour
+    %v39 = load %local7@Just : Colour
     ret 4
 
   b12:
     %v43 = symbol ResolveTest.string$4 : %CodeUnit
     %v45 = call stringLiteral, %v43, 4 : String
     %v46 = call colourOfName, %v45 : Maybe(Colour)
-    %v47 = load %local4.discriminant : Int
+    drop %local8 via Reclaim(String).reclaim
+    %v47 = load %local9.discriminant : Int
     %v49 = cmp_eq %v47, 1 : Bool
     je %v49, b14, b13
 
@@ -534,7 +544,7 @@ fn main() -> Int {
     jmp b15
 
   b14:
-    %v51 = load %local4@Just : Colour
+    %v51 = load %local9@Just : Colour
     ret 5
 
   b15:
@@ -542,7 +552,8 @@ fn main() -> Int {
     %v57 = symbol ResolveTest.string$5 : %CodeUnit
     %v59 = call stringLiteral, %v57, 3 : String
     %v60 = call Eq(String).!=, %v56, %v59 : Bool
-    drop %local5 via Reclaim(String).reclaim
+    drop %local10 via Reclaim(String).reclaim
+    drop %local11 via Reclaim(String).reclaim
     je %v60, b16, b17
 
   b16:
@@ -555,7 +566,8 @@ fn main() -> Int {
     %v65 = symbol ResolveTest.string$6 : %CodeUnit
     %v67 = call stringLiteral, %v65, 4 : String
     %v68 = call instantiatedOfName, %v67 : Maybe(Pair(Int))
-    %v69 = load %local6.discriminant : Int
+    drop %local12 via Reclaim(String).reclaim
+    %v69 = load %local13.discriminant : Int
     %v71 = cmp_eq %v69, 0 : Bool
     je %v71, b20, b19
 
@@ -569,7 +581,8 @@ fn main() -> Int {
     %v76 = symbol ResolveTest.string$7 : %CodeUnit
     %v78 = call stringLiteral, %v76, 3 : String
     %v79 = call instantiatedOfName, %v78 : Maybe(Pair(Int))
-    %v80 = load %local7.discriminant : Int
+    drop %local14 via Reclaim(String).reclaim
+    %v80 = load %local15.discriminant : Int
     %v82 = cmp_eq %v80, 1 : Bool
     je %v82, b23, b22
 
@@ -577,14 +590,15 @@ fn main() -> Int {
     jmp b24
 
   b23:
-    %v84 = load %local7@Just : Pair(Int)
+    %v84 = load %local15@Just : Pair(Int)
     ret 8
 
   b24:
     %v88 = symbol ResolveTest.string$8 : %CodeUnit
     %v90 = call stringLiteral, %v88, 3 : String
     %v91 = call colourOfName, %v90 : Maybe(Colour)
-    %v92 = load %local8.discriminant : Int
+    drop %local16 via Reclaim(String).reclaim
+    %v92 = load %local17.discriminant : Int
     %v94 = cmp_eq %v92, 1 : Bool
     je %v94, b26, b25
 
@@ -592,7 +606,7 @@ fn main() -> Int {
     jmp b27
 
   b26:
-    %c = load %local8@Just : Colour
+    %c = load %local17@Just : Colour
     %v98 = cast %c : I64
     %v99 = cast %v98 : Int
     %v101 = add 10, %v99 : Int

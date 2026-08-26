@@ -3137,7 +3137,8 @@ fn touchString(%m: Map(String, Int)) -> Int {
     %v6 = call stringLiteral, %v4, 1 : String
     %v7 = borrow %m : 'Map(String, Int)
     %v8 = call find(String, Int), %v7, %v6 : Maybe('Int)
-    %v9 = load %local2.discriminant : Int
+    drop %local2 via Reclaim(String).reclaim
+    %v9 = load %local3.discriminant : Int
     %v11 = cmp_eq %v9, 1 : Bool
     je %v11, b2, b1
 
@@ -3147,7 +3148,7 @@ fn touchString(%m: Map(String, Int)) -> Int {
     jmp b3
 
   b2:
-    %v = load %local2@Just : 'Int
+    %v = load %local3@Just : 'Int
     %v = load [%v] : Int
     assign %n, %v
     jmp b3
@@ -3172,15 +3173,16 @@ fn main() -> Int {
     %v14 = symbol ResolveTest.string$1 : %CodeUnit
     %v16 = call stringLiteral, %v14, 1 : String
     %v19 = borrow_mut %b : &Map(String, Int)
-    %v20 = call insert(String, Int), %v19, %v16, 6 : Maybe(Int)
-    %v21 = load %a : Map(Int, Int)
-    %v22 = call touchInt, %v21 : Int
+    %v20 = move %local5 : String
+    %v21 = call insert(String, Int), %v19, %v20, 6 : Maybe(Int)
+    %v22 = load %a : Map(Int, Int)
+    %v23 = call touchInt, %v22 : Int
     drop_derived %a via reclaim$Map(Int, Int)
-    %v23 = load %b : Map(String, Int)
-    %v24 = call touchString, %v23 : Int
+    %v24 = load %b : Map(String, Int)
+    %v25 = call touchString, %v24 : Int
     drop_derived %b via reclaim$Map(String, Int)
-    %v25 = add %v22, %v24 : Int
-    ret %v25
+    %v26 = add %v23, %v25 : Int
+    ret %v26
 }
 
 fn reclaim$Map(Int, Int)(%value: Map(Int, Int)) -> () {

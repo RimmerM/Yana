@@ -2893,6 +2893,7 @@ fn key(%n: Int) -> String {
     %v8 = call stringLiteral, %v6, 2 : String
     %v9 = borrow_mut %s : &String
     call String.push, %v9, %v8
+    drop %local2 via Reclaim(String).reclaim
     %v11 = load %s : String
     %v12 = borrow_mut %s : &String
     call Show(Int).show, %n, %v12

@@ -926,6 +926,51 @@ struct ExprResolver {
      */
     bool movableTemporary(ModulePtr<Value> value, U32 fresh);
 
+    /*
+     * `let d = c` - a second name for storage the program already had a name for.
+     *
+     * **A `let` never makes a second name that can consume storage.** Where the initializer *names*
+     * storage rather than producing it, what the binding gets is a loan of that storage - shared by
+     * default, exclusive under `&` - and `->` stays the one spelling that moves. That is the reading
+     * Design.md and doc/spec/ownership.md always stated ("the value lives until the last use of
+     * either"), and it became implementable when `'T` and `&T` did: the loan is an ordinary
+     * `InstBorrow`, so its extent is the one `checkLoanExtents` already enforces for every other
+     * borrow in the language.
+     *
+     * It is not a style rule. A plain `let` over a whole value used to emit no instruction at all -
+     * the name was recorded against the value the initializer produced, so `c` and `d` were one
+     * value with two spellings - and three separate defects came out of that one omission:
+     *
+     *   `consume(c) + consume(d)` handed one allocation to two consumers, because the second move
+     *   is the one the *first* already made and there was no second thing to move.
+     *
+     *   `let &d = c` did not alias at all: it allocated, initialized from `c`, and `transferFrom`
+     *   marked `c` moved - a handover with no `->` written anywhere, which is the axis confusion
+     *   `&->` exists to prevent.
+     *
+     *   `let d = xs[0]` followed by `xs[0] = ...` compiled clean and read the overwritten element.
+     *   The same program with the loan written out - `let d = borrowIt(xs[0])` - is refused by the
+     *   extent check, which is the whole argument for making this shape build a real borrow rather
+     *   than for refusing it: the machinery was already correct and the alias was invisible to it.
+     *
+     * `fresh` is the same mark `adoptableLocal` and `movableTemporary` read, and it is what
+     * separates naming from producing: storage at or above it was built while resolving this
+     * initializer, so it is a temporary nothing else names and binding it *is* what a `let` is for.
+     *
+     * Whole-value bindings only, and only a name. A pattern that takes a value apart binds parts and
+     * a part cannot be consumed at all, so there is no capability for this to be about; `let _ = c`
+     * binds nothing and so is not a second name. A TrivialCopy type is exempt for the reason it is
+     * exempt everywhere else - the second name is a second value.
+     *
+     * Returns the loan to bind, or null where this is not that shape.
+     */
+    ModulePtr<Value> loanOfNamedStorage(const ast::VarDecl& declaration, ModulePtr<Value> value,
+                                        U32 fresh, bool mutable_);
+
+    // Why a refused integer conversion is refused, where one side's width is the target's own -
+    // see the implementation in expr_convert.cpp, which is where the case and its reason live.
+    void explainAbstractWidth(TypePtr from, TypePtr target, LocationId source);
+
     // A name for a borrow someone else's storage backs, rather than for a slot of this frame.
     void bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> value, bool mutable_);
 

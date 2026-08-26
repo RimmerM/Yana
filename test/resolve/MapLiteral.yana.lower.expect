@@ -4177,11 +4177,13 @@ main<complex>(): Int {
     %v_181 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_181, @ResolveTest.string$2, 1
     %v_182 = call_complex Index(Map(k, v), k, v).get(String, Int), %two, %v_181: Ptr
+    call_complex Reclaim(String).reclaim, %v_181
     %v_183 = loads %v_182, 4: Int
     %v_184 = add %v_180, %v_183: Int
     %v_185 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_185, @ResolveTest.string$3, 1
     %v_186 = call_complex Index(Map(k, v), k, v).get(String, Int), %two, %v_185: Ptr
+    call_complex Reclaim(String).reclaim, %v_185
     %v_187 = loads %v_186, 4: Int
     %v_188 = add %two, 12: Ptr
     %v_189 = load %v_188, 4: Int

@@ -191,9 +191,18 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     computeOwnership(analysis);
     computeBorrowOwnership(analysis);
 
-    // The interprocedural half, in the order each part needs the one before it: which storage every
-    // value refers to, what has to outlive the frame, what each root's representation must do, and
-    // finally what all of that says to a caller.
+    /*
+     * The interprocedural half, in the order each part needs the one before it: which storage every
+     * value refers to, what has to outlive the frame, what each root's representation must do, and
+     * finally what all of that says to a caller.
+     *
+     * It stays *after* liveness, and the reordering that would have moved it in front was built and
+     * put back. Nothing about the ordering forbids it - this pass reads `analysis.order` and nothing
+     * else, which is why `reselectStorage` runs it with `numberFunction` alone - but the reason for
+     * moving it was to let `useValue` read provenance instead of recomputing it, and that turned out
+     * not to be the same relation. See the note there, which is where the 249-fixture demonstration
+     * of why lives.
+     */
     computeProvenance(analysis);
     computeOutliving(analysis);
     computeDemand(analysis);

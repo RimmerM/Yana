@@ -836,9 +836,11 @@ main<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_1, @ResolveTest.string$0, 2
     %v_2 = call_complex withAnd, %v_1, 2, %out: Int
+    call_complex Reclaim(String).reclaim, %v_1
     %v_3 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_3, @ResolveTest.string$1, 2
     %v_4 = call_complex withAnd, %v_3, 2, %out: Int
+    call_complex Reclaim(String).reclaim, %v_3
     %v_5 = add %v_2, %v_4: Int
     %v_6 = add %out, 12: Ptr
     %v_7 = load %v_6, 4: Int

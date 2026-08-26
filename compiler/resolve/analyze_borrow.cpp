@@ -95,6 +95,51 @@ static void markLiveOut(Analysis& analysis, BorrowExtent& extent, U32 stop,
 }
 
 /*
+ * The slot a borrow-rooted place ultimately names, where the chain stays inside this frame.
+ *
+ * `Place::inBorrow(p)` says "the storage `p` refers to", and `p` is very often an `InstBorrow` this
+ * body made a moment earlier - a `&` argument, a re-borrow of a loan, a `let &d = c`. Following that
+ * one hop answers which local it was a borrow *of*, and two different locals are two different
+ * pieces of storage whatever the paths into them look like.
+ *
+ * Answering `maxLimit` for everything else is what keeps this a narrowing rather than a second
+ * aliasing rule: a chain that leaves the frame - a borrow of a pointer, a borrow that came in as an
+ * argument - is exactly as unknown as it was, and the caller falls back to what it did before.
+ *
+ * The bound is the frame's own width for `useSlot`'s reason: a chain with no cycle visits each
+ * borrow once, so reaching it means a rewrite built one.
+ */
+static U32 borrowedSlot(Analysis& analysis, Place place) {
+    auto bound = analysis.localCount;
+    auto root = maxLimit<U32>;
+
+    for(Size step = 0; step <= bound; step++) {
+        if(place.root == PlaceRoot::Local) { root = place.local; break; }
+        if(place.root != PlaceRoot::Borrow || !place.pointer) return maxLimit<U32>;
+
+        auto& produced = *analysis.local[place.pointer];
+        if(produced.kind != Value::Borrow) return maxLimit<U32>;
+
+        place = ((InstBorrow&)produced).place;
+    }
+
+    /*
+     * And on down `Local::viewOf`, which is the second half of "which storage is this" and the half
+     * a slot answers rather than a place. A `[T *n]` element reaches its borrow through a `Flat`
+     * descriptor built at the call, so `fa[0]` and `fa[1]` are rooted in two *different* locals and
+     * are one container all the same - which is what Reject.Exchange's `fixedArray` asserts and what
+     * stopping at the slot would have quietly stopped reporting.
+     */
+    for(Size step = 0; root != maxLimit<U32> && step <= bound; step++) {
+        auto next = analysis.function.localAt(analysis.local, root).viewOf;
+        if(next == maxLimit<U32>) break;
+        root = next;
+    }
+
+    return root;
+}
+
+/*
  * Do two places name storage that can overlap?
  *
  * Same root, and one projection path a prefix of the other. `x.a` and `x.b` are disjoint, `x` and
@@ -105,8 +150,26 @@ static void markLiveOut(Analysis& analysis, BorrowExtent& extent, U32 stop,
  * cannot name, so from there on the two are assumed to overlap. And places rooted in raw pointers
  * never conflict with anything, including each other: `%T` carries no aliasing information by
  * construction, and reporting on it would be inventing a rule the language says it does not have.
+ *
+ * A borrow root is neither of those and used to be treated as neither: the three tests below name
+ * Pointer, Local and Global, so two borrow-rooted places fell straight through to the projection
+ * walk, which compares nothing about the *roots* and answers "prefix" for two empty paths. Every
+ * pair of borrows in a frame therefore overlapped. That was unreachable from ordinary source while
+ * the only borrow-rooted places were the ones `swap` and `exchange` build, and became reachable the
+ * moment `let &d = c` started binding a loan - `eat(eater, own[1..3])` reported the call as a write
+ * conflicting with its own second argument. The two are resolved to their slots instead, and two
+ * different slots are two different pieces of storage.
  */
-static bool placesOverlap(ModuleBase base, Place lhs, Place rhs) {
+static bool placesOverlap(Analysis& analysis, Place lhs, Place rhs) {
+    auto base = analysis.local;
+
+    if(lhs.root == PlaceRoot::Borrow || rhs.root == PlaceRoot::Borrow) {
+        auto left = borrowedSlot(analysis, lhs);
+        auto right = borrowedSlot(analysis, rhs);
+
+        if(left != maxLimit<U32> && right != maxLimit<U32> && left != right) return false;
+    }
+
     if(lhs.root != rhs.root) return false;
     if(lhs.root == PlaceRoot::Pointer) return false;
     if(lhs.root == PlaceRoot::Local && lhs.local != rhs.local) return false;
@@ -227,7 +290,7 @@ static bool sameContainer(Analysis& analysis, const Place& lhs, const Place& rhs
     auto right = containerReach(analysis, rhs);
     if(!right.found || left.local != right.local) return false;
 
-    return placesOverlap(analysis.local, left.field, right.field);
+    return placesOverlap(analysis, left.field, right.field);
 }
 
 /*
@@ -616,7 +679,7 @@ void checkBorrows(Analysis& analysis) {
 
                 auto overlaps = false;
                 for(Size p = 0; p < touched; p++) {
-                    overlaps = overlaps || placesOverlap(analysis.local, borrowed.place, places[p]);
+                    overlaps = overlaps || placesOverlap(analysis, borrowed.place, places[p]);
                 }
 
                 /*
@@ -1073,7 +1136,7 @@ void checkMoves(Analysis& analysis) {
 
             if(borrowed.borrowed) {
                 if(!borrowed.emptiable) {
-                    report(analysis, "cannot take ownership of borrowed storage - a `&` binding never owns what it refers to"_v,
+                    report(analysis, "cannot take ownership of borrowed storage - a borrow never owns what it refers to, so hand the value over with `->` or duplicate it with `copy`"_v,
                            instruction.source);
                     continue;
                 }

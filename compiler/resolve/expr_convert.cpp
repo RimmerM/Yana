@@ -682,6 +682,53 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
     return storage;
 }
 
+/*
+ * Why a conversion that looks free was refused, where one side's width is the *target's*.
+ *
+ * `let n: Size = someU32` is the case, and the refusal is correct and surprising in the same
+ * breath: on the only native machine there is, `Size` is a signed 64-bit integer and a `U32` fits
+ * it twice over. What decides the ladder is not that machine but the *bound* - `Size` is whatever
+ * word the target picked, so the language guarantees it 32 bits, and a signed 32 holds 31 positive
+ * ones. A `U32` needs 32. The refusal is what stops the same source being correct here and lossy on
+ * a JavaScript build, which is the one thing an abstract width exists to prevent.
+ *
+ * So the message above is true and answers the wrong question, and the note answers the one that was
+ * asked. It names `USize` first because that is nearly always the right destination: it is the same
+ * target word read unsigned, so every `U32` fits it on every target and no conversion is written at
+ * all. `truncate` stays the answer where a *signed index* is genuinely what was wanted.
+ *
+ * Only where an abstract width is involved. Between two fixed widths the ordinary message already
+ * says everything - a `U64` does not fit an `I32` on any machine, and nobody is surprised.
+ */
+void ExprResolver::explainAbstractWidth(TypePtr from, TypePtr target, LocationId source) {
+    if(!from || !target) return;
+    if(global[from]->kind != Type::Int || global[target]->kind != Type::Int) return;
+
+    auto& source_ = *(IntType*)global[from];
+    auto& wanted = *(IntType*)global[target];
+    if(wanted.target == TargetInt::None) return;
+    if(source_.target != TargetInt::None) return;
+
+    // The pair this is about: it fits the *widest* the target may be and not the narrowest, which
+    // is exactly the gap between "works on my machine" and "works". A source that fits neither is
+    // an ordinary narrowing and needs no explaining.
+    IntType widest = wanted;
+    widest.bits = wanted.maxBits();
+    widest.target = TargetInt::None;
+
+    if(!integerRangeFits(source_, widest)) return;
+
+    auto positive = U32(wanted.minBits()) - (wanted.isSigned ? 1u : 0u);
+
+    context.diagnostics.message(Diagnostics::MessageLevel,
+                                "%@ is the width the *target* picks, so what the language guarantees is %@ bits%@ - %@ of them for a positive value, and %@ needs %@. `USize` is the same word read unsigned and holds every %@ on every target; `truncate(x) :: %@` is the low bits where a signed index really is what was wanted"_v,
+                                source, describeType(context, global, target), wanted.minBits(),
+                                wanted.isSigned ? " and signed"_v : ""_v, positive,
+                                describeType(context, global, from), source_.maxBits(),
+                                describeType(context, global, from),
+                                describeType(context, global, target));
+}
+
 ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
     if(!value || !target) return value;
 
@@ -774,6 +821,7 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
                                       describeType(context, global, target));
         }
 
+        explainAbstractWidth(from, target, source);
         return value;
     }
 

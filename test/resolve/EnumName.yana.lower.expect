@@ -111,6 +111,7 @@ Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
     %v_8 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_8, @Core.string$63, 3
     %v_9 = call_complex Eq(String).==, %name, %v_8: Int
+    call_complex Reclaim(String).reclaim, %v_8
     je %v_9, b_10, b_11
   }
 
@@ -135,6 +136,7 @@ Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
     %v_18 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_18, @Core.string$64, 5
     %v_19 = call_complex Eq(String).==, %name, %v_18: Int
+    call_complex Reclaim(String).reclaim, %v_18
     je %v_19, b_20, b_21
   }
 
@@ -159,6 +161,7 @@ Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
     %v_27 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_27, @Core.string$65, 4
     %v_28 = call_complex Eq(String).==, %name, %v_27: Int
+    call_complex Reclaim(String).reclaim, %v_27
     je %v_28, b_29, b_30
   }
 
@@ -255,6 +258,7 @@ instantiatedOfName<complex>(%v_0: Ptr, %s: Ptr) {
     %v_14 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_14, @Core.string$75, 4
     %v_15 = call_complex Eq(String).==, %s, %v_14: Int
+    call_complex Reclaim(String).reclaim, %v_14
     je %v_15, b_16, b_17
   }
 
@@ -274,6 +278,7 @@ instantiatedOfName<complex>(%v_0: Ptr, %s: Ptr) {
     %v_20 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_20, @Core.string$74, 3
     %v_21 = call_complex Eq(String).==, %s, %v_20: Int
+    call_complex Reclaim(String).reclaim, %v_20
     je %v_21, b_22, b_23
   }
 
@@ -305,6 +310,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_2, @ResolveTest.string$0, 5
     %v_3 = call_complex Eq(String).==, %v_1, %v_2: Int
     call_complex Reclaim(String).reclaim, %v_1
+    call_complex Reclaim(String).reclaim, %v_2
     je %v_3, b_4, b_5
   }
 
@@ -315,6 +321,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_7, @ResolveTest.string$1, 7
     %v_8 = call_complex Eq(String).==, %v_6, %v_7: Int
     call_complex Reclaim(String).reclaim, %v_6
+    call_complex Reclaim(String).reclaim, %v_7
     je %v_8, b_9, b_10
   }
 
@@ -323,6 +330,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_11, @ResolveTest.string$2, 4
     %v_12 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_12, %v_11
+    call_complex Reclaim(String).reclaim, %v_11
     %v_13 = load %v_12, 1: Long
     %v_14 = cmp_le %v_13, 2: Int
     je %v_14, b_15, b_16
@@ -333,6 +341,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_17, @ResolveTest.string$3, 6
     %v_18 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_18, %v_17
+    call_complex Reclaim(String).reclaim, %v_17
     %v_19 = load %v_18, 1: Long
     %v_20 = cmp_le %v_19, 2: Int
     je %v_20, b_21, b_22
@@ -343,6 +352,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_23, @ResolveTest.string$4, 4
     %v_24 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_24, %v_23
+    call_complex Reclaim(String).reclaim, %v_23
     %v_25 = load %v_24, 1: Long
     %v_26 = cmp_le %v_25, 2: Int
     je %v_26, b_27, b_28
@@ -355,6 +365,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_30, @ResolveTest.string$5, 3
     %v_31 = call_complex Eq(String).==, %v_29, %v_30: Int
     call_complex Reclaim(String).reclaim, %v_29
+    call_complex Reclaim(String).reclaim, %v_30
     je %v_31, b_32, b_33
   }
 
@@ -363,6 +374,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_34, @ResolveTest.string$6, 4
     %v_35 = alloca 1, 1: Ptr
     call_complex instantiatedOfName, %v_35, %v_34
+    call_complex Reclaim(String).reclaim, %v_34
     %v_36 = load %v_35, 1: Long
     %v_37 = cmp_le %v_36, 1: Int
     je %v_37, b_38, b_39
@@ -373,6 +385,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_40, @ResolveTest.string$7, 3
     %v_41 = alloca 1, 1: Ptr
     call_complex instantiatedOfName, %v_41, %v_40
+    call_complex Reclaim(String).reclaim, %v_40
     %v_42 = load %v_41, 1: Long
     %v_43 = cmp_le %v_42, 1: Int
     je %v_43, b_44, b_45
@@ -383,6 +396,7 @@ main<complex>(): Int {
     call_complex stringLiteral, %v_46, @ResolveTest.string$8, 3
     %v_47 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_47, %v_46
+    call_complex Reclaim(String).reclaim, %v_46
     %v_48 = load %v_47, 1: Long
     %v_49 = cmp_le %v_48, 2: Int
     %c = load %v_47, 1: Int

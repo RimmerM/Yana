@@ -9,18 +9,14 @@ data Held {value: Run(U8)}
 data Pair {first: Held, second: Held}
 data Box = Filled(Held) | Empty
 
--- Part of a value, out of a place that keeps its own name. A slot half given away needs a drop flag
--- per field, which the state lattice does not have - so this is not a missing sigil, it is a move
--- that cannot be represented at all.
-fn fromNamedLocal(n: Size) -> Size:
-    let p = Pair {first: Held {value: newRun(n)}, second: Held {value: newRun(n)}}
-    let &taken = p.first
-    return taken.value.capacity :: Size
-
--- The same out of storage this frame only borrows. No sigil helps here - what is missing is on the
--- signature, since the caller goes on owning what it lent.
+-- Out of storage this frame only borrows, with `&->` written on it. No sigil helps here - what is
+-- missing is on the *signature*, since the caller goes on owning what it lent.
+--
+-- Without the `->` this is not a move at all: `let &taken = p.first` binds an exclusive loan of the
+-- field, which is what BindAxes.yana's `fieldOfNamedLocal` writes and is legal wherever the field is
+-- writable. The refusal is about taking the value *out*, and the sigil is what asks for that.
 fn fromBorrowedArgument(p: Pair) -> Size:
-    let &taken = p.first
+    let &->taken = p.first
     return taken.value.capacity :: Size
 
 -- `&` alone in a pattern, which establishes nothing about the pivot to be exclusive about. `&->`

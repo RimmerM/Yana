@@ -5956,117 +5956,121 @@ fn main() -> Int {
     %v569 = call stringLiteral, %v567, 1 : String
     %v571 = symbol ResolveTest.string$1 : %CodeUnit
     %v573 = call stringLiteral, %v571, 1 : String
-    %two = call pair(String, Int), %v569, 1, %v573, 2 : Map(String, Int)
+    %v577 = move %local26 : String
+    %v578 = move %local27 : String
+    %two = call pair(String, Int), %v577, 1, %v578, 2 : Map(String, Int)
     %none = call emptyOf(Int, Int) : Map(Int, Int)
-    %v581 = borrow %local25 : 'Map(Int, Int)
-    %v582 = call Index(Map(k, v), k, v).get(Int, Int), %v581, 1 : 'Int
-    %v583 = load [%v582] : Int
+    %v583 = borrow %local25 : 'Map(Int, Int)
+    %v584 = call Index(Map(k, v), k, v).get(Int, Int), %v583, 1 : 'Int
+    %v585 = load [%v584] : Int
     drop_derived %local25 via reclaim$Map(Int, Int)
-    %v584 = symbol ResolveTest.string$2 : %CodeUnit
-    %v586 = call stringLiteral, %v584, 1 : String
-    %v587 = borrow %local26 : 'Map(String, Int)
-    %v588 = call Index(Map(k, v), k, v).get(String, Int), %v587, %v586 : 'Int
-    %v589 = load [%v588] : Int
-    %v590 = add %v583, %v589 : Int
-    %v591 = symbol ResolveTest.string$3 : %CodeUnit
-    %v593 = call stringLiteral, %v591, 1 : String
-    %v594 = borrow %local26 : 'Map(String, Int)
-    %v595 = call Index(Map(k, v), k, v).get(String, Int), %v594, %v593 : 'Int
-    %v596 = load [%v595] : Int
-    drop_derived %local26 via reclaim$Map(String, Int)
-    %v597 = add %v590, %v596 : Int
-    %v598 = call Length(Map(k, v)).length(Int, Int), %none : Size
-    drop_derived %local27 via reclaim$Map(Int, Int)
-    %v599 = cast %v598 : Int
-    %v600 = add %v597, %v599 : Int
-    %v603 = cmp_ne %v600, 13 : Bool
-    je %v603, b64, b65
+    %v586 = symbol ResolveTest.string$2 : %CodeUnit
+    %v588 = call stringLiteral, %v586, 1 : String
+    %v589 = borrow %local28 : 'Map(String, Int)
+    %v590 = call Index(Map(k, v), k, v).get(String, Int), %v589, %v588 : 'Int
+    drop %local30 via Reclaim(String).reclaim
+    %v591 = load [%v590] : Int
+    %v592 = add %v585, %v591 : Int
+    %v593 = symbol ResolveTest.string$3 : %CodeUnit
+    %v595 = call stringLiteral, %v593, 1 : String
+    %v596 = borrow %local28 : 'Map(String, Int)
+    %v597 = call Index(Map(k, v), k, v).get(String, Int), %v596, %v595 : 'Int
+    drop %local31 via Reclaim(String).reclaim
+    %v598 = load [%v597] : Int
+    drop_derived %local28 via reclaim$Map(String, Int)
+    %v599 = add %v592, %v598 : Int
+    %v600 = call Length(Map(k, v)).length(Int, Int), %none : Size
+    drop_derived %local29 via reclaim$Map(Int, Int)
+    %v601 = cast %v600 : Int
+    %v602 = add %v599, %v601 : Int
+    %v605 = cmp_ne %v602, 13 : Bool
+    je %v605, b64, b65
 
   b64:
-    %v609 = sub 0, 20 : Int
-    ret %v609
+    %v611 = sub 0, 20 : Int
+    ret %v611
 
   b65:
     jmp b66
 
   b66:
-    %v615 = alloc : Array(Int)
-    %v618 = alloc *2 heap escaping : Int
-    %v619 = addressof %local29 : %Int
-    init %local28@Array.run@Run.items, %v619
-    init %local28@Array.run@Run.capacity, 2
-    init %local28@Array.run@Run.ownsHeap, 1
-    aggregate [%v619][0] = 10, [%v619][1] = 11
-    init %local28@Array.length, 2
-    %v630 = alloc : Array(Int)
-    %v633 = alloc *1 heap escaping : Int
-    %v634 = addressof %local31 : %Int
-    init %local30@Array.run@Run.items, %v634
-    init %local30@Array.run@Run.capacity, 1
-    init %local30@Array.run@Run.ownsHeap, 1
-    aggregate [%v634][0] = 20
-    init %local30@Array.length, 1
-    %v643 = call newMap(Int, Array(Int)), 2 : Map(Int, Array(Int))
+    %v617 = alloc : Array(Int)
+    %v620 = alloc *2 heap escaping : Int
+    %v621 = addressof %local33 : %Int
+    init %local32@Array.run@Run.items, %v621
+    init %local32@Array.run@Run.capacity, 2
+    init %local32@Array.run@Run.ownsHeap, 1
+    aggregate [%v621][0] = 10, [%v621][1] = 11
+    init %local32@Array.length, 2
+    %v632 = alloc : Array(Int)
+    %v635 = alloc *1 heap escaping : Int
+    %v636 = addressof %local35 : %Int
+    init %local34@Array.run@Run.items, %v636
+    init %local34@Array.run@Run.capacity, 1
+    init %local34@Array.run@Run.ownsHeap, 1
+    aggregate [%v636][0] = 20
+    init %local34@Array.length, 1
+    %v645 = call newMap(Int, Array(Int)), 2 : Map(Int, Array(Int))
     %lists = alloc : Map(Int, Array(Int))
-    init %local33, %v643
-    %v646 = load %local33 : Map(Int, Array(Int))
-    %v647 = borrow_mut %local33 : &Map(Int, Array(Int))
-    %v648 = move %local28 : Array(Int)
-    call IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int)), %v647, 1, %v648
-    %v650 = load %local33 : Map(Int, Array(Int))
-    %v651 = borrow_mut %local33 : &Map(Int, Array(Int))
-    %v652 = move %local30 : Array(Int)
-    call IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int)), %v651, 2, %v652
+    init %local37, %v645
+    %v648 = load %local37 : Map(Int, Array(Int))
+    %v649 = borrow_mut %local37 : &Map(Int, Array(Int))
+    %v650 = move %local32 : Array(Int)
+    call IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int)), %v649, 1, %v650
+    %v652 = load %local37 : Map(Int, Array(Int))
+    %v653 = borrow_mut %local37 : &Map(Int, Array(Int))
+    %v654 = move %local34 : Array(Int)
+    call IndexInsert(Map(k, v), k, v).insertAt(Int, Array(Int)), %v653, 2, %v654
     %elements = alloc : Int
     init %elements, 0
-    %v657 = alloc : {elements: &Int}
-    %v658 = borrow_mut %elements : &Int
-    init %local35.elements, %v658
-    %v660 = addressof %local35 : %()
-    %v661 = alloc : (value$: Entry('Int, 'Array(Int))) -> Outcome((), ())
-    %v662 = symbol ResolveTest.continuation$20 : %()
-    init %local36.code, %v662
-    init %local36.env, %v660
-    %v665 = call pairs(Int, Array(Int), ()), %lists, %v661 : Outcome((), ())
-    drop_derived %local33 via reclaim$Map(Int, Array(Int))
-    %v666 = load %elements : Int
-    %v669 = cmp_ne %v666, 3 : Bool
-    je %v669, b67, b68
+    %v659 = alloc : {elements: &Int}
+    %v660 = borrow_mut %elements : &Int
+    init %local39.elements, %v660
+    %v662 = addressof %local39 : %()
+    %v663 = alloc : (value$: Entry('Int, 'Array(Int))) -> Outcome((), ())
+    %v664 = symbol ResolveTest.continuation$20 : %()
+    init %local40.code, %v664
+    init %local40.env, %v662
+    %v667 = call pairs(Int, Array(Int), ()), %lists, %v663 : Outcome((), ())
+    drop_derived %local37 via reclaim$Map(Int, Array(Int))
+    %v668 = load %elements : Int
+    %v671 = cmp_ne %v668, 3 : Bool
+    je %v671, b67, b68
 
   b67:
-    %v675 = sub 0, 21 : Int
-    ret %v675
+    %v677 = sub 0, 21 : Int
+    ret %v677
 
   b68:
     jmp b69
 
   b69:
-    %v682 = call newMap(Int, Int), 1 : Map(Int, Int)
-    %v683 = alloc : Map(Int, Int)
-    init %local39, %v682
-    %v685 = load %local39 : Map(Int, Int)
-    %v686 = borrow_mut %local39 : &Map(Int, Int)
-    call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v686, 2, 3
-    %v689 = call newMap(Int, Map(Int, Int)), 1 : Map(Int, Map(Int, Int))
+    %v684 = call newMap(Int, Int), 1 : Map(Int, Int)
+    %v685 = alloc : Map(Int, Int)
+    init %local43, %v684
+    %v687 = load %local43 : Map(Int, Int)
+    %v688 = borrow_mut %local43 : &Map(Int, Int)
+    call IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v688, 2, 3
+    %v691 = call newMap(Int, Map(Int, Int)), 1 : Map(Int, Map(Int, Int))
     %nested = alloc : Map(Int, Map(Int, Int))
-    init %local41, %v689
-    %v692 = load %local41 : Map(Int, Map(Int, Int))
-    %v693 = borrow_mut %local41 : &Map(Int, Map(Int, Int))
-    %v694 = move %local39 : Map(Int, Int)
-    call IndexInsert(Map(k, v), k, v).insertAt(Int, Map(Int, Int)), %v693, 1, %v694
-    %v698 = borrow %local41 : 'Map(Int, Map(Int, Int))
-    %v699 = call Index(Map(k, v), k, v).get(Int, Map(Int, Int)), %v698, 1 : 'Map(Int, Int)
-    %v700 = load [%v699] : Map(Int, Int)
-    %v703 = borrow [%v699] : 'Map(Int, Int)
-    %v704 = call Index(Map(k, v), k, v).get(Int, Int), %v703, 2 : 'Int
-    %v705 = load [%v704] : Int
-    drop_derived %local41 via reclaim$Map(Int, Map(Int, Int))
-    %v708 = cmp_ne %v705, 3 : Bool
-    je %v708, b70, b71
+    init %local45, %v691
+    %v694 = load %local45 : Map(Int, Map(Int, Int))
+    %v695 = borrow_mut %local45 : &Map(Int, Map(Int, Int))
+    %v696 = move %local43 : Map(Int, Int)
+    call IndexInsert(Map(k, v), k, v).insertAt(Int, Map(Int, Int)), %v695, 1, %v696
+    %v700 = borrow %local45 : 'Map(Int, Map(Int, Int))
+    %v701 = call Index(Map(k, v), k, v).get(Int, Map(Int, Int)), %v700, 1 : 'Map(Int, Int)
+    %v702 = load [%v701] : Map(Int, Int)
+    %v705 = borrow [%v701] : 'Map(Int, Int)
+    %v706 = call Index(Map(k, v), k, v).get(Int, Int), %v705, 2 : 'Int
+    %v707 = load [%v706] : Int
+    drop_derived %local45 via reclaim$Map(Int, Map(Int, Int))
+    %v710 = cmp_ne %v707, 3 : Bool
+    je %v710, b70, b71
 
   b70:
-    %v714 = sub 0, 22 : Int
-    ret %v714
+    %v716 = sub 0, 22 : Int
+    ret %v716
 
   b71:
     jmp b72

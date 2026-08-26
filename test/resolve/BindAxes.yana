@@ -8,6 +8,7 @@
 import Native
 
 data Held {value: Run(U8)}
+data Pair {first: Held, second: Held}
 data Box = Filled(Held) | Empty
 
 fn make(ok: Bool, n: Size) -> Result(I64, Held):
@@ -47,6 +48,21 @@ fn viaNamedPlace(->b: Box, n: Size) -> Size = match b:
         setName(taken, n)
         return slotCount(taken)
     Empty: return 0
+
+{-
+   And what `&` alone does over a place that keeps its own name, which is the other half of the same
+   boundary: it binds an **exclusive loan** of that place rather than moving out of it.
+
+   `p.first` goes on belonging to `p`, `taken` may be written through for as long as it is live, and
+   nothing is half given away - which is what used to make this a refusal. The move out of a named
+   place is still `&->`, and Reject.BindAxes.yana is where taking one out of storage this frame only
+   borrows is refused.
+-}
+fn fieldOfNamedLocal(n: Size) -> Size:
+    let &p = Pair {first: Held {value: newRun(n)}, second: Held {value: newRun(n)}}
+    let &taken = p.first
+    setName(taken, n + 1)
+    return taken.value.capacity :: Size
 
 -- The same in a pattern. `&` alone is refused there because matching establishes no exclusive access
 -- to the pivot; `&->` claims nothing about the pivot, since what it names is the storage the move

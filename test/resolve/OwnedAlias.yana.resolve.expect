@@ -1,0 +1,149 @@
+let image$base: () = <none>
+
+let ResolveTest.string$0: String = "text"
+
+let ResolveTest.string$1: String = "other"
+
+let ResolveTest.string$2: String = "text"
+
+fn consume(%s: String) -> Int {
+  b0:
+    drop %s via Reclaim(String).reclaim
+    ret 1
+}
+
+fn make() -> String {
+  b0:
+    %v0 = symbol ResolveTest.string$0 : %CodeUnit
+    %v2 = call stringLiteral, %v0, 4 : String
+    ret %v2
+}
+
+fn setTo(%self: String, %to: String) -> () {
+  b0:
+    %v2 = call Copy(String).copy, %to : String
+    drop %self via Reclaim(String).reclaim
+    assign %self, %v2
+    ret
+}
+
+fn shared() -> Int {
+  b0:
+    %c = call make : String
+    %v1 = borrow %local0 : 'String
+    %v2 = call Length(String).length, %c : Size
+    %v3 = load [%v1] : String
+    %v4 = call Length(String).length, %v3 : Size
+    drop %local0 via Reclaim(String).reclaim
+    %n = add %v2, %v4 : Size
+    %v6 = cast %n : Int
+    ret %v6
+}
+
+fn exclusive() -> Int {
+  b0:
+    %v0 = call make : String
+    %c = alloc : String
+    init %c, %v0
+    %v3 = load %c : String
+    %v4 = borrow_mut %c : &String
+    %v5 = load [%v4] : String
+    %v6 = symbol ResolveTest.string$1 : %CodeUnit
+    %v8 = call stringLiteral, %v6, 5 : String
+    %v9 = borrow_mut [%v4] : &String
+    call setTo, %v9, %v8
+    drop %local2 via Reclaim(String).reclaim
+    %v11 = load %c : String
+    %v12 = call Length(String).length, %v11 : Size
+    drop %c via Reclaim(String).reclaim
+    %v13 = cast %v12 : Int
+    ret %v13
+}
+
+fn handedOver() -> Int {
+  b0:
+    %c = call make : String
+    %c = move %local0 : String
+    %d = alloc : String
+    init %local1, %c
+    %d = move %local1 : String
+    %v5 = call consume, %d : Int
+    ret %v5
+}
+
+fn duplicated() -> Int {
+  b0:
+    %c = call make : String
+    %d = call Copy(String).copy, %c : String
+    %c = move %local0 : String
+    %v3 = call consume, %c : Int
+    %d = move %local1 : String
+    %v5 = call consume, %d : Int
+    %v6 = add %v3, %v5 : Int
+    ret %v6
+}
+
+fn temporary() -> Int {
+  b0:
+    %c = call make : String
+    %c = move %local0 : String
+    %v2 = call consume, %c : Int
+    ret %v2
+}
+
+fn literal() -> Int {
+  b0:
+    %v0 = symbol ResolveTest.string$2 : %CodeUnit
+    %c = call stringLiteral, %v0, 4 : String
+    %c = move %local0 : String
+    %v4 = call consume, %c : Int
+    ret %v4
+}
+
+fn field() -> Size {
+  b0:
+    %v0 = alloc : Box
+    %v1 = call make : String
+    aggregate %b@Box.s = %v1
+    %v3 = load %b : Box
+    %v4 = load %b@Box.s : String
+    %v5 = borrow %b@Box.s : 'String
+    %v6 = load [%v5] : String
+    %v7 = call Length(String).length, %v6 : Size
+    drop_derived %b via reclaim$Box
+    ret %v7
+}
+
+fn fromParameter(%s: String) -> Int {
+  b0:
+    %v1 = call Copy(String).copy, %s : String
+    %v2 = move %local1 : String
+    %v3 = call consume, %v2 : Int
+    ret %v3
+}
+
+fn fromParameterField(%b: Box) -> Int {
+  b0:
+    %t = load %b@Box.s : String
+    %v2 = call Copy(String).copy, %t : String
+    %v3 = move %local1 : String
+    %v4 = call consume, %v3 : Int
+    ret %v4
+}
+
+fn scalar() -> Int {
+  b0:
+    %v2 = add %a, %a : Int
+    ret %v2
+}
+
+fn main() -> Int {
+  b0:
+    ret 0
+}
+
+fn reclaim$Box(%value: Box) -> () {
+  b0:
+    drop %value@Box.s via Reclaim(String).reclaim
+    ret
+}

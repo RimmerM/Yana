@@ -1,0 +1,28 @@
+-- Conversions into `Size`, and the one that is refused for a reason the machine in front of you
+-- does not show - Analysis-Modules.md Move 2.
+--
+-- `Size` is the *target's* index word, so what resolve reasons with is a bound rather than a number:
+-- at least 32 bits, at most 64, and signed. A `U32` therefore does not widen into one, because on a
+-- 32-bit target the 31 positive bits a signed `Size` guarantees are one short - and that is true on
+-- a JavaScript build today, where `Size` is a signed `Int`. Accepting it would make the same source
+-- correct here and lossy there, which is the one thing an abstract width exists to prevent.
+--
+-- The note beside each error is what says so, since the error itself ("would lose precision") is
+-- surprising on the only native machine there is, where a `U32` fits a `Size` twice over.
+
+import Native
+
+fn takesSize(n: Size) -> Size = n
+fn takesUnsigned(n: USize) -> USize = n
+
+-- Refused: implicitly, at an argument.
+fn implicitly(a: U32) -> Size = takesSize(a)
+
+-- Refused: ascribed. `::` may widen and does not narrow.
+fn ascribed(a: U32) -> Size = a :: Size
+
+-- Not this: a `U64` fits no `Size` on any target, so the ordinary message says everything and the
+-- note stays quiet.
+fn wider(a: U64) -> Size = a :: Size
+
+fn main() -> Int = 0

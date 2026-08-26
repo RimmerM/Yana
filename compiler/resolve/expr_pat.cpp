@@ -1236,10 +1236,28 @@ void ExprResolver::resolveBinding(const ast::VarDecl& declaration, ModulePtr<Val
     patterns.reserve(U32(alternatives.size()));
     for(auto alternative: alternatives) patterns.push(alternative.pat);
 
+    /*
+     * An always-matching pattern with alternatives written after it, which is an **error** and not
+     * the warning it used to be.
+     *
+     * Two things make it one. The alternative is not merely unreachable - it is never *resolved*,
+     * because this arm returns before the loop below, so `let flags = a | undefinedName(zzz)`
+     * compiled clean with one warning about the wrong thing. And an alternative that could run has
+     * to leave the block for good, which an ordinary expression does not, so there is no reading of
+     * this shape that a correct program has: whichever half the author meant, the other half is
+     * wrong. `bindMutable` already reports the same shape as an error for `let &`; this is the two
+     * paths saying one thing.
+     *
+     * The message leads with `or` because that is overwhelmingly what was meant. `|` is a reserved
+     * operator - it separates a pattern's alternatives, a `data` declaration's constructors and a
+     * record update's source - so `a | b` is *never* a bitwise or, and `let flags = a | b` bound
+     * `flags` to `a` and dropped `b` on the floor. What reached the kernel was a flag word missing
+     * its top two bits, behind a warning about unreachable code.
+     */
     if(space.add(declaration.pat)) {
         if(alternatives.size()) {
-            context.diagnostics.warning("this pattern always matches, so its alternatives are unreachable"_v,
-                                        declaration.pat.source);
+            context.diagnostics.error("this pattern always matches, so the `|` after the initializer can never run - if this was meant as a bitwise or, write ``a `or` b``; after a `let` initializer `|` introduces the alternatives that only a pattern which can *fail* needs"_v,
+                                      declaration.pat.source);
         }
 
         resolvePattern(declaration.pat, value, nullptr);

@@ -122,17 +122,6 @@ pushUnsigned<complex>(%value: Long, %to: Ptr) {
   }
 }
 
-String.push<complex>(%self: Ptr, %other: Ptr) {
-  b_0 {
-    %v_1 = load %other, 8: Ptr
-    %v_2 = add %other, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = sext %v_3: Long
-    call_complex String.appendUnits, %self, %v_1, %v_4
-    ret 
-  }
-}
-
 String.appendUnits<complex>(%self: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ile %count, 0: Int
@@ -186,30 +175,30 @@ Append(String).++<complex>(%v_0: Ptr, %lhs: Ptr, %rhs: Ptr) {
     %v_2 = add %rhs, 12: Ptr
     %v_3 = load %v_2, 4: Int
     %v_4 = sext %v_3: Long
-    %out = alloca 16, 8: Ptr
-    copy %out, %lhs, 16
-    %v_5 = load %rhs, 8: Ptr
-    call_complex String.appendUnits, %out, %v_5, %v_4
-    %v_6 = add %rhs, 8: Ptr
-    %v_7 = load %v_6, 4: Long
-    %v_8 = shr %v_7, 30: Long
-    %v_9 = cast %v_8: Int
-    %v_10 = cmp_eq %v_9, 1: Int
-    je %v_10, b_11, b_12
-  }
-
-  b_12 {
-    jmp b_13
-  }
-
-  b_11 {
-    %v_14 = load %rhs, 8: Ptr
-    call_complex freeHeap, %v_14
-    jmp b_13
+    %v_5 = alloca 16, 8: Ptr
+    copy %v_5, %lhs, 16
+    %v_6 = load %rhs, 8: Ptr
+    call_complex String.appendUnits, %v_5, %v_6, %v_4
+    %v_7 = add %rhs, 8: Ptr
+    %v_8 = load %v_7, 4: Long
+    %v_9 = shr %v_8, 30: Long
+    %v_10 = cast %v_9: Int
+    %v_11 = cmp_eq %v_10, 1: Int
+    je %v_11, b_12, b_13
   }
 
   b_13 {
-    copy %v_0, %out, 16
+    jmp b_14
+  }
+
+  b_12 {
+    %v_15 = load %rhs, 8: Ptr
+    call_complex freeHeap, %v_15
+    jmp b_14
+  }
+
+  b_14 {
+    copy %v_0, %v_5, 16
     ret 
   }
 }
@@ -920,25 +909,30 @@ tagged<complex>(%v_0: Ptr, %n: Int) {
     store %v_8, 0, 4
     %v_9 = alloca 16, 8: Ptr
     call_complex stringLiteral, %v_9, @ResolveTest.string$0, 2
-    call_complex String.push, %v_5, %v_9
-    %v_10 = sext %n: Long
-    %v_11 = cmp_ilt %v_10, 0: Int
-    je %v_11, b_12, b_13
+    %v_10 = load %v_9, 8: Ptr
+    %v_11 = add %v_9, 12: Ptr
+    %v_12 = load %v_11, 4: Int
+    %v_13 = sext %v_12: Long
+    call_complex String.appendUnits, %v_5, %v_10, %v_13
+    call_complex Reclaim(String).reclaim, %v_9
+    %v_14 = sext %n: Long
+    %v_15 = cmp_ilt %v_14, 0: Int
+    je %v_15, b_16, b_17
   }
 
-  b_13 {
-    call_complex pushUnsigned, %v_10, %v_5
-    jmp b_14
+  b_17 {
+    call_complex pushUnsigned, %v_14, %v_5
+    jmp b_18
   }
 
-  b_12 {
+  b_16 {
     call_complex push(CodeUnit), %v_5, 45
-    %v_15 = sub 0, %v_10: Long
-    call_complex pushUnsigned, %v_15, %v_5
-    jmp b_14
+    %v_19 = sub 0, %v_14: Long
+    call_complex pushUnsigned, %v_19, %v_5
+    jmp b_18
   }
 
-  b_14 {
+  b_18 {
     copy %v_0, %v_5, 16
     ret 
   }

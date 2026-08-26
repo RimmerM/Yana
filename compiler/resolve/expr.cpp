@@ -575,7 +575,26 @@ ModulePtr<Value> ExprResolver::resolveString(LocationId source, StringId text) {
     call->args.push(module.arena, length);
     append(call);
 
-    return ref(call);
+    auto result = ref(call);
+
+    /*
+     * The slot, on the same terms as any other call of memory type - `emitCall` writes this line
+     * and this one did not, which is the whole of how a literal came to be untracked.
+     *
+     * A value with no slot is invisible to the ownership passes: `backingLocal` answers with the
+     * slot a value fills, `findPlace` with the place it occupies, and both of them answer nothing
+     * for a value that occupies none. So `let c = "text"` bound a name to a droppable `String` that
+     * `sinkValue` could not move out of and `checkMoves` had no state for, and `consume(c) +
+     * consume(c)` passed the same storage to two consumers with no diagnostic. The literal's run is
+     * borrowed, so what it released twice was nothing - but the shape is general, and the same
+     * omission on a producer that allocates is a double free. `verifyLocals` now refuses an untracked
+     * droppable value outright, which is what keeps the next producer from re-introducing it.
+     */
+    if(isMemoryType(global, module.scalar.string_)) {
+        call->local = function.addLocal(module, module.scalar.string_, StringId(), result);
+    }
+
+    return result;
 }
 
 /*

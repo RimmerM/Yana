@@ -1,0 +1,24 @@
+@image$base = []
+@ResolveTest.string$0 = [104, 101, 108, 108, 111]
+
+litLen<complex>(%n: Long): Long {
+  b_0 {
+    %v_1 = global @ResolveTest.string$0: Ptr
+    %v_2 = alloca 4, 8: Ptr
+    %v_3 = load %v_2, 4: Int
+    store %v_2, 5, 4
+    %v_4 = add %n, 5: Long
+    ret %v_4
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %v_1 = call_complex litLen, 3: Long
+    %v_2 = call_complex litLen, 4: Long
+    %v_3 = add %v_1, %v_2: Long
+    %v_4 = cast %v_3: Int
+    ret %v_4
+  }
+}
+

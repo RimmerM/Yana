@@ -330,7 +330,13 @@ static bool addressesSeparate(OptContext& opt, const Place& a, const Place& b) {
            right.offset + I64(rightExtent) <= left.offset;
 }
 
-bool placesMayAlias(OptContext& opt, const Place& a, const Place& b) {
+bool placesMayAlias(OptContext& opt, const Place& first, const Place& second) {
+    // Through the borrows this frame made, first - see `resolvedRoot`. A borrow of a whole local is
+    // that local, so the two rules below about a `Local` root reach it too, and `f(&a.x, &b.y)` stops
+    // being two places nothing can separate.
+    auto a = resolvedRoot(opt, first);
+    auto b = resolvedRoot(opt, second);
+
     /*
      * Two raw pointers, which are separable exactly as far as arithmetic over one base goes - see
      * `addressesSeparate`. Where they are the same address the paths decide, which is what makes
@@ -357,7 +363,14 @@ bool placesMayAlias(OptContext& opt, const Place& a, const Place& b) {
     return pathsMayOverlap(opt, a, b);
 }
 
-bool samePlace(OptContext& opt, const Place& first, const Place& second) {
+bool samePlace(OptContext& opt, const Place& outerFirst, const Place& outerSecond) {
+    // The same normalization `placesMayAlias` applies, and for the same reason: `[borrow %L]@path`
+    // and `%L@path` are one piece of storage, and a store written the second way is what answers a
+    // load written the first. That is every read of a field out of a local an inlined callee left
+    // behind, which is where a string literal's placement flag used to stop being known.
+    auto first = resolvedRoot(opt, outerFirst);
+    auto second = resolvedRoot(opt, outerSecond);
+
     if(first.root != second.root) return false;
     if(first.root == PlaceRoot::Local && first.local != second.local) return false;
     if(first.root == PlaceRoot::Global && first.global != second.global) return false;
@@ -409,15 +422,47 @@ bool holdsLoadableValue(OptContext& opt, TypePtr type) {
  * differently, which is why it is a question about a kind rather than a member of either.
  */
 bool writesUnknownStorage(OptContext& opt, Value& instruction) {
+    /*
+     * Everything that computes rather than accesses, answered by the column instead of by a case per
+     * kind. `kInstPure` means "may be computed again, or not computed at all", and nothing that
+     * writes storage can be either of those.
+     *
+     * The default here is *yes*, so every kind not named below used to forget the whole table - and
+     * `Cast` is one of them. That is not a hypothetical cost: a field read off a local an inlined
+     * callee left behind is `cast (borrow %L)` and then a load, so the cast between the two threw
+     * away everything known about `%L` one instruction before the load that wanted it. Every string
+     * literal in the language went through exactly that shape.
+     */
+    if(isPureValue(instruction)) return false;
+
     switch(instruction.kind) {
-        // Pure computation, and storage that has just come into existence with nothing in it.
+        // Storage that has just come into existence with nothing in it.
         case Value::Alloc:
             return false;
 
-        // Reads. `Copy` reads its place and writes storage of its own that nothing else names yet,
-        // and `Borrow` of an immutable place cannot be written through.
+        /*
+         * Reads. `Copy` reads its place and writes storage of its own that nothing else names yet,
+         * and `Borrow` of an immutable place cannot be written through.
+         *
+         * `Move` belongs with them and used to fall to the default, which is why it is spelled out
+         * rather than added to the list. It writes **neither** end. Not the destination - the
+         * consumer's `Init`, `Assign`, `Aggregate` or `Ret` is what puts the value somewhere, and
+         * each of those is modelled here already. And not the source: a relocation is the bytes,
+         * always, since the authored `Sink` was removed, so `lower.cpp` copies *out* of the place
+         * and leaves it as it stands. What a move does to the source is make it **dead**, which is a
+         * fact in the ownership lattice rather than a store, and a slot nothing may read again is
+         * one no stale entry can be read out of. Re-initializing it - Design.md's emptied-and-filled
+         * borrow - is an `Init` and goes through `remember` like any other.
+         *
+         * Answering `true` here cost the whole table at every hand-over. `forgetExposed` runs on a
+         * clobber, so `let ->j = i` forgot everything known about `i` one instruction before the
+         * `init` that would have inherited it - which is why a value built by a helper and handed
+         * back was opaque, and why a string literal's `Reclaim` could not fold a placement flag
+         * written as a constant four instructions earlier.
+         */
         case Value::LoadPlace:
         case Value::Copy:
+        case Value::Move:
             return false;
 
         case Value::Borrow:
@@ -989,10 +1034,20 @@ struct Forwarder {
      *
      * Three conditions, and each rules out one way of the copy not being a copy:
      *
-     *  - **the value is not a `Move`.** Which of Design-Memory §4.1's two relocations a write
-     *    performs is decided by the value rather than by the type - see `relocate` in lower.cpp - and
-     *    only a move runs a `Sink`. Everything else is a block copy natively and a reference
-     *    assignment on JS, and the facts survive both;
+     *  - **the value is not a `Move`.** The reason this was written for is gone and the guard is
+     *    still here, which is worth saying rather than leaving to be rediscovered: it read "only a
+     *    move runs a `Sink`", and there is no authored `Sink` any more - a relocation is the bytes,
+     *    always, and `InstMove` carries no function to run where `InstCopy::copy` does. What a move
+     *    hands the destination is exactly what a block copy would, so the facts would survive it.
+     *
+     *    Lifting it on its own buys nothing, which is why it stays until the rest is in place.
+     *    `noteCopy` never reaches here for a move at all - a move fills no slot, so `storageOf`'s two
+     *    answers both miss it - and giving it the move's own place still finds `known` *empty* at the
+     *    hand-over, so there is nothing left to inherit by then. The chain that wants this is a
+     *    string literal: `stringLiteral` inlines to three allocations, two aggregate copies and a
+     *    move into the caller's slot, and its `Reclaim` therefore cannot fold a placement test whose
+     *    constant was written four instructions earlier. An array literal, whose chain has no move in
+     *    it, folds to nothing at all. See Analysis-Borrows.md for the three steps that shape needs;
      *  - **the source is a place**, since otherwise there is nothing for the paths to be relative to;
      *  - **nothing took the source local's address**, which is what lets the inherited entries
      *    outlive a call. `unaddressed` is the same list `pointerSafe` reads, for a second
@@ -1056,15 +1111,37 @@ struct Forwarder {
         if(!type || !isMemoryType(opt.global, type)) return;
 
         auto source = storageOf(opt, value);
+
+        /*
+         * And the one value `storageOf` cannot answer for. A `move` fills no slot - it *is* the
+         * hand-over, which is why `verifyLocals` exempts it - so neither of `storageOf`'s two
+         * answers, a load's place and the slot a value fills, reaches it. The place a move names is
+         * the source it relocates out of, and it is on the instruction.
+         */
+        if(!source && opt.local[value]->kind == Value::Move) {
+            source = Just(((InstMove&)*opt.local[value]).place);
+        }
+
         if(!source) return;
 
         markRead(source.unwrap());
 
-        if(opt.local[value]->kind == Value::Move) return;
         if(source.unwrap().root != PlaceRoot::Local) return;
         if(source.unwrap().local >= unaddressed.size() || !unaddressed[source.unwrap().local]) return;
 
         inheritCopy(destination, source.unwrap());
+
+        /*
+         * A move inherits the contents and stops there, and that is the whole difference between the
+         * two.
+         *
+         * What `inheritCopy` just claimed holds for either: a relocation is the bytes, so every path
+         * inside the destination holds what the same path inside the source held. What does *not*
+         * hold for a move is the fact below. Two names do not now reach one set of contents - the
+         * source is dead from here, and recording them as sharing storage would offer
+         * `sharedStorage` a name that may not be read again.
+         */
+        if(opt.local[value]->kind == Value::Move) return;
 
         // And the whole of it, which `inheritCopy` deliberately skips: the fact is not what the
         // storage contains but that two names now reach the same contents, which is what
@@ -1476,6 +1553,20 @@ struct Forwarder {
                          * survive is this call, because the callee holds the storage for as long as
                          * it runs and may write it. Forgetting here is what pays for admitting it
                          * there: exposure that ends is exposure the pass has to end somewhere.
+                         *
+                         * **The by-value half was tried and put back**, so that the next reader does
+                         * not spend the afternoon on it. `eachAddressedLocal`'s own note draws the
+                         * line - a memory-typed argument passed by the default convention is a
+                         * shared loan for the call, so the callee may read it and not write it,
+                         * which is why `promotePlaces` and `eliminateCommonValues` already forward
+                         * across one. Dropping the `eachHandedLocal` call here is therefore sound
+                         * for the language as it stands, and measured **zero** over `test/resolve`:
+                         * the fact it would have preserved is blocked further down by the packed
+                         * `:unit32` rewrite - see Analysis-Borrows.md §8.9 - so nothing reads it
+                         * yet. And it is not free of risk. Interior mutability breaks it, and an
+                         * `Atomic(a)` is mutated through a *shared* borrow by design; a third reader
+                         * of an assumption two passes already make, for nothing measured, is the
+                         * wrong trade until §8.9's other half lands.
                          */
                         auto forget = [&](U32 local) {
                             auto place = Place::inLocal(local);
@@ -1522,6 +1613,10 @@ static void computeUnaddressed(OptContext& opt, IndexSet& unaddressed) {
                     // The stores a construction is, said once - see InstAggregate. It names a place
                     // and hands out no address, which is the whole question here.
                     case Value::Aggregate:
+                    // And the relocation, on exactly `Copy`'s terms: it names a place, reads the
+                    // bytes out of it and hands out no address. See `writesUnknownStorage`, which is
+                    // the same classification asked for the other consequence.
+                    case Value::Move:
                         break;
                     default:
                         ok = false;

@@ -277,20 +277,21 @@ fn Length(String).length(%self: String) -> Size {
 fn Append(String).++(%lhs: String, %rhs: String) -> String {
   b0:
     %rightLength = call Length(String).length, %rhs : Size
-    %out = alloc : String
+    %lhs = move %lhs : String
+    %v4 = alloc : String
     init %out, %lhs
-    %v5 = load %out : String
-    %v6 = borrow %rhs : 'String
-    %v7 = cast %v6 : 'StringData
-    %v8 = load [%v7]@StringData.bytes : Array(CodeUnit)
-    %v9 = load [%v7]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v10 = load [%v7]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v11 = borrow_mut %out : &String
-    call String.appendUnits, %v11, %v10, %rightLength
+    %v6 = load %out : String
+    %v7 = borrow %rhs : 'String
+    %v8 = cast %v7 : 'StringData
+    %v9 = load [%v8]@StringData.bytes : Array(CodeUnit)
+    %v10 = load [%v8]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v11 = load [%v8]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v12 = borrow_mut %out : &String
+    call String.appendUnits, %v12, %v11, %rightLength
     drop %rhs via Reclaim(String).reclaim
-    %v13 = load %out : String
-    %v14 = move %out : String
-    ret %v14
+    %v14 = load %out : String
+    %v15 = move %out : String
+    ret %v15
 }
 
 fn Monoid(String).empty() -> String {
@@ -2176,18 +2177,19 @@ fn main() -> Int {
     %v133 = call stringLiteral, %v131, 2 : String
     %v134 = alloc : Array(String)
     %v137 = alloc *3 : String
-    %v138 = addressof %local10 : %String
-    init %local9@Array.run@Run.items, %v138
-    init %local9@Array.run@Run.capacity, 3
-    init %local9@Array.run@Run.ownsHeap, 0
+    %v138 = addressof %local13 : %String
+    init %local12@Array.run@Run.items, %v138
+    init %local12@Array.run@Run.capacity, 3
+    init %local12@Array.run@Run.ownsHeap, 0
     aggregate [%v138][0] = %v127, [%v138][1] = %v130, [%v138][2] = %v133
-    init %local9@Array.length, 3
+    init %local12@Array.length, 3
     %v148 = call concat(Array(String), String), %v134 : String
-    drop %local9 via Reclaim(Array(a)).reclaim(String)
+    drop %local12 via Reclaim(Array(a)).reclaim(String)
     %v149 = symbol ResolveTest.string$3 : %CodeUnit
     %v151 = call stringLiteral, %v149, 6 : String
     %v152 = call Eq(String).!=, %v148, %v151 : Bool
-    drop %local11 via Reclaim(String).reclaim
+    drop %local14 via Reclaim(String).reclaim
+    drop %local15 via Reclaim(String).reclaim
     je %v152, b25, b26
 
   b25:
@@ -2201,10 +2203,12 @@ fn main() -> Int {
     %v159 = symbol ResolveTest.string$4 : %CodeUnit
     %v161 = call stringLiteral, %v159, 2 : String
     %v164 = gencall env genEnv$repeated(String) repeated(String), %v161, 3 : String
+    drop %local16 via Reclaim(String).reclaim
     %v165 = symbol ResolveTest.string$5 : %CodeUnit
     %v167 = call stringLiteral, %v165, 6 : String
     %v168 = call Eq(String).!=, %v164, %v167 : Bool
-    drop %local12 via Reclaim(String).reclaim
+    drop %local17 via Reclaim(String).reclaim
+    drop %local18 via Reclaim(String).reclaim
     je %v168, b28, b29
 
   b28:

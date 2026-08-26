@@ -278,57 +278,6 @@ findEntry(Int, Int)<complex>(%self: Ptr, %key: Int, %h: Int): Long {
   }
 }
 
-find(String, Int)<complex>(%v_0: Ptr, %self: Ptr, %key: Ptr) {
-  b_1 {
-    %v_2 = add %key, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = sext %v_3: Long
-    %v_5 = cast %v_3: Long
-    %v_6 = shl %v_5, 32: Long
-    %v_7 = or %v_6, 2166136261: Long
-    %v_8 = call_complex foldWide, %v_7: Int
-    %v_9 = load %key, 8: Ptr
-    jmp b_10
-  }
-
-  b_10 {
-    %v_11 = phi [b_1, %v_8], [b_12, %v_13]: Int
-    %v_14 = phi [b_1, 0], [b_12, %v_15]: Long
-    %v_16 = cmp_ilt %v_14, %v_4: Int
-    je %v_16, b_12, b_17
-  }
-
-  b_17 {
-    %v_18 = call_complex mix32, %v_11: Int
-    %at = call_complex findEntry(String, Int), %self, %key, %v_18: Long
-    %v_19 = cmp_ilt %at, 0: Int
-    je %v_19, b_20, b_21
-  }
-
-  b_21 {
-    %v_22 = load %self, 8: Ptr
-    %v_23 = imul %at, 24: Long
-    %v_24 = add %v_22, %v_23: Ptr
-    %v_25 = add %v_24, 16: Ptr
-    store %v_0, %v_25, 8
-    ret 
-  }
-
-  b_20 {
-    store %v_0, 0, 8
-    ret 
-  }
-
-  b_12 {
-    %v_26 = add %v_9, %v_14: Ptr
-    %v_27 = load %v_26, 1: Int
-    %v_28 = xor %v_11, %v_27: Int
-    %v_13 = mul %v_28, 16777619: Int
-    %v_15 = add %v_14, 1: Long
-    jmp b_10
-  }
-}
-
 hashKey(String)<complex>(%key: Ptr): Int {
   b_0 {
     %v_1 = add %key, 12: Ptr
@@ -2005,6 +1954,82 @@ Reclaim(Run(a)).reclaim(U8)<complex>(%value: Ptr) {
   }
 }
 
+touchString<complex>(%m: Ptr): Int {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    call_complex stringLiteral, %v_1, @ResolveTest.string$0, 1
+    %v_2 = alloca 8, 8: Ptr
+    %v_3 = add %v_1, 12: Ptr
+    %v_4 = load %v_3, 4: Int
+    %v_5 = sext %v_4: Long
+    %v_6 = cast %v_4: Long
+    %v_7 = shl %v_6, 32: Long
+    %v_8 = or %v_7, 2166136261: Long
+    %v_9 = call_complex foldWide, %v_8: Int
+    %v_10 = load %v_1, 8: Ptr
+    jmp b_11
+  }
+
+  b_11 {
+    %v_12 = phi [b_0, %v_9], [b_13, %v_14]: Int
+    %v_15 = phi [b_0, 0], [b_13, %v_16]: Long
+    %v_17 = cmp_ilt %v_15, %v_5: Int
+    je %v_17, b_13, b_18
+  }
+
+  b_18 {
+    %v_19 = call_complex mix32, %v_12: Int
+    %at = call_complex findEntry(String, Int), %m, %v_1, %v_19: Long
+    %v_20 = cmp_ilt %at, 0: Int
+    je %v_20, b_21, b_22
+  }
+
+  b_22 {
+    %v_23 = load %m, 8: Ptr
+    %v_24 = imul %at, 24: Long
+    %v_25 = add %v_23, %v_24: Ptr
+    %v_26 = add %v_25, 16: Ptr
+    store %v_2, %v_26, 8
+    jmp b_27
+  }
+
+  b_21 {
+    store %v_2, 0, 8
+    jmp b_27
+  }
+
+  b_27 {
+    call_complex Reclaim(String).reclaim, %v_1
+    %v_28 = load %v_2, 8: Long
+    %v_29 = cmp_neq %v_28, 0: Int
+    je %v_29, b_30, b_31
+  }
+
+  b_31 {
+    jmp b_32
+  }
+
+  b_30 {
+    %v = bitcast %v_28: Ptr
+    %v = loads %v, 4: Int
+    jmp b_32
+  }
+
+  b_32 {
+    %v_33 = phi [b_31, 18446744073709551615], [b_30, %v]: Int
+    ret %v_33
+  }
+
+  b_13 {
+    %v_34 = add %v_10, %v_15: Ptr
+    %v_35 = load %v_34, 1: Int
+    %v_36 = xor %v_12, %v_35: Int
+    %v_14 = mul %v_36, 16777619: Int
+    %v_16 = add %v_15, 1: Long
+    jmp b_11
+  }
+}
+
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 40, 8: Ptr
@@ -2239,73 +2264,52 @@ main<complex>(): Int {
   b_112 {
     %v_113 = add %a, 16: Ptr
     call_complex Reclaim(Run(a)).reclaim(U8), %v_113
-    %v_114 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_114, @ResolveTest.string$0, 1
-    %v_115 = alloca 8, 8: Ptr
-    call_complex find(String, Int), %v_115, %b, %v_114
-    %v_116 = load %v_115, 8: Long
-    %v_117 = cmp_neq %v_116, 0: Int
-    je %v_117, b_118, b_119
-  }
-
-  b_119 {
-    jmp b_120
+    %v_114 = call_complex touchString, %b: Int
+    %v_115 = add %b, 12: Ptr
+    %v_116 = load %v_115, 4: Int
+    %v_117 = load %b, 8: Ptr
+    jmp b_118
   }
 
   b_118 {
-    %v = bitcast %v_116: Ptr
-    %v = loads %v, 4: Int
-    jmp b_120
-  }
-
-  b_120 {
-    %v_121 = phi [b_119, 18446744073709551615], [b_118, %v]: Int
-    %v_122 = add %b, 12: Ptr
-    %v_123 = load %v_122, 4: Int
-    %v_124 = sext %v_123: Long
-    jmp b_125
+    %v_119 = phi [b_112, 0], [b_120, %v_121]: Int
+    %v_122 = phi [b_112, %v_117], [b_120, %v_123]: Ptr
+    %v_124 = cmp_ilt %v_119, %v_116: Int
+    je %v_124, b_120, b_125
   }
 
   b_125 {
-    %v_126 = phi [b_120, 0], [b_127, %v_128]: Long
-    %v_129 = cmp_ilt %v_126, %v_124: Int
-    je %v_129, b_127, b_130
+    %v_126 = add %b, 8: Ptr
+    %v_127 = load %v_126, 4: Int
+    %v_128 = shr %v_127, 30: Int
+    %v_129 = cmp_eq %v_128, 1: Int
+    je %v_129, b_130, b_131
+  }
+
+  b_131 {
+    jmp b_132
   }
 
   b_130 {
-    %v_131 = add %b, 8: Ptr
-    %v_132 = load %v_131, 4: Int
-    %v_133 = shr %v_132, 30: Int
-    %v_134 = cmp_eq %v_133, 1: Int
-    je %v_134, b_135, b_136
+    %v_133 = load %b, 8: Ptr
+    call_complex freeHeap, %v_133
+    jmp b_132
   }
 
-  b_136 {
-    jmp b_137
+  b_132 {
+    %v_134 = add %b, 16: Ptr
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_134
+    %v_135 = add %v_96, %v_114: Int
+    ret %v_135
   }
 
-  b_135 {
-    %v_138 = load %b, 8: Ptr
-    call_complex freeHeap, %v_138
-    jmp b_137
-  }
-
-  b_137 {
-    %v_139 = add %b, 16: Ptr
-    call_complex Reclaim(Run(a)).reclaim(U8), %v_139
-    %v_140 = add %v_96, %v_121: Int
-    ret %v_140
-  }
-
-  b_127 {
-    %v_141 = load %b, 8: Ptr
-    %v_142 = imul %v_126, 24: Long
-    %v_143 = add %v_141, %v_142: Ptr
+  b_120 {
     %doomed = alloca 20, 8: Ptr
-    copy %doomed, %v_143, 20
+    copy %doomed, %v_122, 20
     call_complex Reclaim(String).reclaim, %doomed
-    %v_128 = add %v_126, 1: Long
-    jmp b_125
+    %v_121 = add %v_119, 1: Int
+    %v_123 = add %v_122, 24: Ptr
+    jmp b_118
   }
 
   b_102 {

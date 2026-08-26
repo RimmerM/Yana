@@ -1,0 +1,28 @@
+-- `|` after a `let` initializer, where the pattern cannot fail.
+--
+-- The one shape in the language where a reserved operator produced a **silently wrong answer**.
+-- `|` separates a pattern's alternatives, so `let flags = a | b` parses as "bind `flags` to `a`,
+-- and here is what to do if that pattern fails" - it never fails, `b` is dropped without ever being
+-- resolved, and the program computes `a`. What that cost was a flag word reaching a syscall with
+-- its top two bits missing, behind a warning about unreachable code.
+--
+-- Bitwise or is ``a `or` b``. `|` is reserved and cannot be a user operator, so there is no reading
+-- of `a | b` in expression position that is arithmetic.
+
+fn main() -> Int:
+    let a = 1
+    let b = 2
+
+    -- The bitwise-or mistake itself.
+    let flags = a | b
+
+    -- And the same where the alternative would not even resolve, which is what makes this an error
+    -- rather than a warning: this arm returns before the alternatives are looked at, so nothing in
+    -- there is ever type-checked.
+    let other = a | noSuchFunction(zzz)
+
+    -- A refutable pattern is what the form is for, and it needs an alternative that leaves the
+    -- block. An ordinary expression does not, so this shape is wrong from both ends at once.
+    let Just(v) = Just(a) | 42
+
+    return flags + other + v

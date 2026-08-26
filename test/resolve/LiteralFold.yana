@@ -1,0 +1,25 @@
+-- What a string literal costs once nothing has to test where its bytes live.
+--
+-- A literal's run is `runBorrowed` - `stringLiteral` writes the constant, `Native/Run.native.yana`'s
+-- `releaseRun` tests it, and the test is the whole of `Reclaim(String)`. So the teardown is provably
+-- no instructions at all, and for a long time it was emitted anyway: the constant was written into a
+-- `Run`, copied into an `Array`, copied into a `StringData`, **moved** into the caller's `String`
+-- slot, and read back through a `borrow` and a `cast`. Four of those five steps were places
+-- `opt_place.cpp` stopped carrying what it knew - see Analysis-Borrows.md §8.9.
+--
+-- `.opt.expect` is what this asserts and it is the point of the fixture: `length(s)` folds to the
+-- literal's own count, and after the construction there is **no borrow, no cast, no load, no
+-- placement test, no branch and no `freeHeap`**. An array literal has always optimized this way; the
+-- string is the shape that could not reach it.
+--
+-- Native only. On JS a literal is a host string and the host collector owns the bytes, so there is
+-- no placement flag for any of this to be about.
+
+fn litLen(n: Size) -> Size:
+    let s = "hello"
+    return length(s) + n
+
+-- The same one level out, so that what is asserted is the fold rather than one function's shape.
+fn twice(n: Size) -> Size = litLen(n) + litLen(n + 1)
+
+fn main() -> Int = truncate(twice(3)) :: Int

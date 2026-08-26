@@ -488,19 +488,61 @@ fn viaNamedPlace(%b: Box, %n: Size) -> Size {
     %v7 = move %b@Filled : Held
     %held = alloc : Held
     init %local1, %v7
-    %taken = alloc : Held
-    init %taken, %held
-    %v12 = load %taken : Held
-    %v13 = borrow_mut %taken : &Held
-    call setName, %v13, %n
-    %v15 = load %taken : Held
-    %v16 = call slotCount, %v15 : Size
-    drop_derived %taken via reclaim$Held
-    ret %v16
+    %v10 = borrow_mut %local1 : &Held
+    %v11 = load [%v10] : Held
+    %v12 = borrow_mut [%v10] : &Held
+    call setName, %v12, %n
+    %v14 = load [%v10] : Held
+    %v15 = call slotCount, %v14 : Size
+    drop_derived %local1 via reclaim$Held
+    ret %v15
 
   b3:
     drop_derived %b via reclaim$Box
     jmp b1
+}
+
+fn fieldOfNamedLocal(%n: Size) -> Size {
+  b0:
+    %v1 = alloc : Pair
+    %v2 = alloc : Held
+    %v3 = alloc : Run(U8)
+    %v4 = cast %n : Long
+    %v5 = alloc *%v4 heap escaping : U8
+    %v6 = addressof %local3 : %U8
+    %v8 = cast %n : U32
+    %v10 = and %v8, 1073741823 : U32
+    %v11 = cast %v10 : @bits(30) U32
+    init %local2@Run.items, %v6
+    init %local2@Run.capacity, %v11
+    init %local2@Run.ownsHeap, 1
+    aggregate %local1@Held.value = %v3
+    %v16 = alloc : Held
+    %v17 = alloc : Run(U8)
+    %v18 = cast %n : Long
+    %v19 = alloc *%v18 heap escaping : U8
+    %v20 = addressof %local6 : %U8
+    %v22 = cast %n : U32
+    %v24 = and %v22, 1073741823 : U32
+    %v25 = cast %v24 : @bits(30) U32
+    init %local5@Run.items, %v20
+    init %local5@Run.capacity, %v25
+    init %local5@Run.ownsHeap, 1
+    aggregate %local4@Held.value = %v17
+    aggregate %p@Pair.first = %v2, %p@Pair.second = %v16
+    %v31 = load %p : Pair
+    %v32 = load %p@Pair.first : Held
+    %v33 = borrow_mut %p@Pair.first : &Held
+    %v34 = load [%v33] : Held
+    %v37 = add %n, 1 : Size
+    %v38 = borrow_mut [%v33] : &Held
+    call setName, %v38, %v37
+    %v40 = load [%v33] : Held
+    %v41 = load [%v33]@Held.value : Run(U8)
+    %v42 = load [%v33]@Held.value@Run.capacity : @bits(30) U32
+    drop_derived %p via reclaim$Pair
+    %v43 = cast %v42 : Size
+    ret %v43
 }
 
 fn viaPattern(%b: Box, %n: Size) -> Size {
@@ -566,4 +608,11 @@ fn reclaim$Box(%value: Box) -> () {
 
   b3:
     jmp b1
+}
+
+fn reclaim$Pair(%value: Pair) -> () {
+  b0:
+    drop_derived %value@Pair.first via reclaim$Held
+    drop_derived %value@Pair.second via reclaim$Held
+    ret
 }

@@ -1,0 +1,59 @@
+-- A second name for storage that owns something, and what it may not do.
+--
+-- OwnedAlias.yana is the accepting half. The rule both files pin: where the initializer *names*
+-- storage rather than producing it, the binding is a **loan** of that storage - so a second name
+-- never gains the capability to release it, and the two things a program might have meant instead
+-- are written out, `let ->d` to hand the value over or `copy` to duplicate it.
+--
+-- The hole this closes was a **double free in safe code**, and it was one line missing at a producer
+-- rather than anything about the checks. A plain `let` over a whole value used to emit no
+-- instruction at all: the name was recorded against the value the initializer produced, so `c` and
+-- `d` were one value with two spellings. Everything that then decides whether a consume is legal -
+-- `sinkValue`, `checkMoves`, the drop pass - reaches a value's storage through the slot it fills, so
+-- a value that fills none was not tracked pessimistically but not tracked at all.
+
+fn consume(->s: String) -> Int = 1
+
+-- **Consuming through the loan.** `d` refers to `c`'s storage and never owned it.
+fn throughTheLoan() -> Int:
+    let c = "text"
+    let d = c
+    return consume(d)
+
+-- **Consuming the owner while the loan is live**, which is the same fact from the other side and is
+-- the one the extent check answers.
+fn ownerWhileLoaned() -> Int:
+    let c = "text"
+    let d = c
+    let n = consume(c)
+    return n + (truncate(length(d)) :: Int)
+
+-- The same where the initializer is a call rather than a literal, so that the rule is about the
+-- binding and not about how the value was made.
+fn make() -> String = "text"
+
+fn fromCall() -> Int:
+    let c = make()
+    let d = c
+    return consume(d)
+
+-- A `->` parameter is the one parameter this frame owns - the caller recorded the handover as an
+-- InstMove - so a second name for it is a loan like any other.
+fn fromSink(->s: String) -> Int:
+    let t = s
+    return consume(t)
+
+-- **Consuming the one name twice**, which is the shape the missing slot hid. `let c = "text"` used
+-- to bind a name to storage nothing owned, and this compiled to two consumers of one allocation
+-- with no diagnostic at all - including the read-after-consume below, which is the same fact seen
+-- from the other side.
+fn consumedTwice() -> Int:
+    let c = "text"
+    return consume(c) + consume(c)
+
+fn readAfterConsume() -> Int:
+    let c = "text"
+    let n = consume(c)
+    return n + consume(c)
+
+fn main() -> Int = 0

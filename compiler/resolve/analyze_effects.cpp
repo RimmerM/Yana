@@ -40,11 +40,17 @@ U32 rootLocal(Analysis& analysis, const Place& place) {
  * One slot read, and everything that slot is a view of - see Local::viewOf.
  *
  * A slice is live storage that belongs to somebody else, so reading it reads the array it was taken
- * from. Walking the chain rather than one step covers a subslice of a slice; the depth bound is
- * against a cycle a rewrite could introduce, since nothing in the resolver builds one.
+ * from. Walking the chain rather than one step covers a subslice of a slice.
+ *
+ * The bound is the frame's own width, and that is the difference between a guard and a cap. A chain
+ * with no cycle in it visits each slot at most once, so `localCount` steps cannot be reached by a
+ * well-formed frame and reaching them means a rewrite built a cycle - while a *fixed* bound is a
+ * limit the program can hit, and hitting it drops a slot out of `uses` silently. What that costs is
+ * not a missed optimization: a root that is not used is a root the drop pass releases early, which
+ * is a use-after-free in a body whose only distinction was being a few slices deeper than the last.
  */
 static void useSlot(Analysis& analysis, Effects& effects, U32 root) {
-    for(auto depth = 0; root != maxLimit<U32> && depth < 8; depth++) {
+    for(Size depth = 0; root != maxLimit<U32> && depth <= analysis.localCount; depth++) {
         effects.uses.push(root);
         root = analysis.function.localAt(analysis.local, root).viewOf;
     }
@@ -82,35 +88,77 @@ U32 backingLocal(Analysis& analysis, ModulePtr<Value> value) {
     return slot;
 }
 
-// Reading a value that is the contents of a slot is a use of that slot. Aggregates travel through
-// the IR as the value that produced them rather than as a load, so without this an owned record
-// passed to a call would look dead at the point it was created.
+/*
+ * Reading a value that is the contents of a slot is a use of that slot.
+ *
+ * Aggregates travel through the IR as the value that produced them rather than as a load, so without
+ * this an owned record passed to a call would look dead at the point it was created.
+ *
+ * ## Why this is not `analyze_provenance.cpp`, which was tried
+ *
+ * Analysis-Borrows.md §8.8 named these two as one relation computed twice, and the merge is written
+ * up there as the large remaining item. It was built, and it does not hold: **provenance and this are
+ * different relations, and they part company at a hand-over.**
+ *
+ * Provenance answers *which storage may this value refer to*, and its `Move` arm rightly says the
+ * moved value refers to the source's slot - the relocation is the bytes, so it does. This answers
+ * *which slots does a use of this value read*, and after a move the source slot is **gone**: reading
+ * the moved value is not a read of the place it came out of. Substituting one for the other made
+ * `let &->out = lhs` in `Array.native.yana`'s `joinedArrays` report `lhs has been moved out of and
+ * cannot be used again` at every later use of `out`, and took 249 fixtures with it.
+ *
+ * The safety argument in §8.8 was half right and the half it missed is the half that matters.
+ * Over-approximating is harmless for *liveness* - a slot live longer is a drop placed later - but
+ * `effects.uses` is also what `checkMoves` reads, and there an extra use is a false diagnostic rather
+ * than a missed optimization. `Exchange` is the same shape for the same reason.
+ *
+ * What the two *do* share is every arm that does not cross a hand-over, and the fixpoint has four of
+ * those this walk has not: `Phi`, `CallDyn`, `GenCall` and `Native`. Adding `Phi` was tried, on the
+ * grounds that a merge crosses no hand-over and a use after the join is a use of every arm's roots.
+ * It is **not** here, because no program could be written that needed it: `let b = if c then
+ * borrowIt(x) else borrowIt(y)` answers correctly without it, and what it cost over the corpus was
+ * 24 more lines of lowered IR for a hole nothing could reach. The other three are the same question
+ * and are open on the same terms - an arm goes in when a body needs it, not because the fixpoint next
+ * door has one.
+ *
+ * ## Using a borrow is using what it borrows
+ *
+ * `f(&xs)` reads `xs` at the call and not only where the borrow was created, which is the whole of
+ * what a borrow *is* - and without saying so, a local whose last mention is the borrow instruction
+ * looks dead one instruction later, so the drop pass is entitled to release it while the callee
+ * still holds the address.
+ *
+ * Two steps, and the second is why one is not enough. A borrow may be taken of a borrow - what
+ * convertBorrow's weakening of a mutable one produces - and a call may hand one *back*, which is
+ * exactly what the `return` marker declares. `xs[i]` is both at once: a borrow of the array, a
+ * call to `get` that returns a borrow rooted in it, and then a read of the element. The array is
+ * read at that last point, and the marker is the only thing that says so.
+ *
+ * This is the same walk lastUseOf makes for exclusivity, over the same two rules. It is not
+ * shared because the two answer different questions - that one is per borrow and produces an
+ * extent, this one is per use and produces a set - and folding them together would make the
+ * borrow checker's extent depend on the liveness it is not allowed to consult.
+ *
+ * Deduplicated on the way in rather than bounded on the way out. A `pending` that may hold the same
+ * value twice is a worklist whose length is the *walk* rather than the graph, and a diamond - two
+ * reads of one borrow, joined - doubles it at every level. The cap that used to stand here was
+ * therefore a limit an ordinary body could reach, and past it the walk stopped without saying so,
+ * which reads to the drop pass as "this root is not used here" and places the release before the last
+ * read through it.
+ */
 static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> value) {
     useSlot(analysis, effects, backingLocal(analysis, value));
 
-    /*
-     * Using a borrow is using what it borrows.
-     *
-     * `f(&xs)` reads `xs` at the call and not only where the borrow was created, which is the whole
-     * of what a borrow *is* - and without saying so, a local whose last mention is the borrow
-     * instruction looks dead one instruction later, so the drop pass is entitled to release it while
-     * the callee still holds the address.
-     *
-     * Two steps, and the second is why one is not enough. A borrow may be taken of a borrow - what
-     * convertBorrow's weakening of a mutable one produces - and a call may hand one *back*, which is
-     * exactly what the `return` marker declares. `xs[i]` is both at once: a borrow of the array, a
-     * call to `get` that returns a borrow rooted in it, and then a read of the element. The array is
-     * read at that last point, and the marker is the only thing that says so.
-     *
-     * This is the same walk lastUseOf makes for exclusivity, over the same two rules. It is not
-     * shared because the two answer different questions - that one is per borrow and produces an
-     * extent, this one is per use and produces a set - and folding them together would make the
-     * borrow checker's extent depend on the liveness it is not allowed to consult.
-     */
     SmallArray<ModulePtr<Value>, 8> pending;
-    pending.push(value);
+    auto reach = [&](ModulePtr<Value> next) {
+        if(!next) return;
+        for(auto seen: pending) { if(seen == next) return; }
+        pending.push(next);
+    };
 
-    for(Size i = 0; i < pending.size() && i < 32; i++) {
+    reach(value);
+
+    for(Size i = 0; i < pending.size(); i++) {
         auto current = pending[i];
         if(!current) continue;
 
@@ -125,7 +173,7 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             useSlot(analysis, effects, rootLocal(analysis, place));
 
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
-                pending.push(place.pointer);
+                reach(place.pointer);
             }
         } else if(produced.kind == Value::LoadPlace &&
                   containsBorrowLike(analysis.module, produced.type) &&
@@ -152,10 +200,10 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             useSlot(analysis, effects, root);
 
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
-                pending.push(place.pointer);
+                reach(place.pointer);
             } else if(root != maxLimit<U32>) {
                 auto slot = analysis.function.localAt(analysis.local, root);
-                if(slot.value) pending.push(slot.value);
+                if(slot.value) reach(slot.value);
             }
         } else if(produced.kind == Value::LoadPlace && isMemoryType(analysis.global, produced.type)) {
             /*
@@ -171,7 +219,7 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             useSlot(analysis, effects, rootLocal(analysis, place));
 
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
-                pending.push(place.pointer);
+                reach(place.pointer);
             }
         } else if(produced.kind == Value::LoadPlace && isPointer(analysis.global, produced.type)) {
             /*
@@ -196,21 +244,20 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             useSlot(analysis, effects, rootLocal(analysis, place));
 
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
-                pending.push(place.pointer);
+                reach(place.pointer);
             }
         } else if(produced.kind == Value::Cast || produced.kind == Value::Bitcast) {
             /*
              * A cast of a reference is the same address written differently, so it carries the same
-             * roots - which analyze_provenance says at its own `Cast` arm in the same words, and
-             * this walk did not.
+             * roots - which analyze_provenance says at its own `Cast` arm in the same words.
              *
-             * What it cost: `stringData(s)` is a `borrow` of the string and a `cast` of that borrow
-             * to `'StringData`, so a read through the result is a `LoadPlace` rooted in the *cast*.
-             * The walk pushed the cast, found no arm for it, and stopped - so a `->` parameter whose
-             * only mention was that borrow looked dead one instruction later, and the drop pass
+             * What its absence cost: `stringData(s)` is a `borrow` of the string and a `cast` of that
+             * borrow to `'StringData`, so a read through the result is a `LoadPlace` rooted in the
+             * *cast*. The walk pushed the cast, found no arm for it, and stopped - so a `->` parameter
+             * whose only mention was that borrow looked dead one instruction later, and the drop pass
              * released its run between the cast and the load through it. `"a" ++ copy("b")` answered
-             * `"aa"`: the freed run was handed straight back to the accumulator's own growth, and
-             * the append read the bytes it had just written there.
+             * `"aa"`: the freed run was handed straight back to the accumulator's own growth, and the
+             * append read the bytes it had just written there.
              *
              * Asked of the *operand* rather than of the result, because both directions are real:
              * `cast %borrow : 'StringData` narrows one reference to another, and
@@ -219,7 +266,7 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
              * test is a filter on work rather than on correctness.
              */
             auto from = ((InstUnary&)produced).from;
-            if(from && refersToStorage(analysis, analysis.local[from]->type)) pending.push(from);
+            if(from && refersToStorage(analysis, analysis.local[from]->type)) reach(from);
         } else if((produced.kind == Value::Add || produced.kind == Value::Sub) &&
                   isPointer(analysis.global, produced.type)) {
             /*
@@ -235,7 +282,7 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
 
             for(auto operand: { binary.lhs, binary.rhs }) {
                 if(operand && isPointer(analysis.global, analysis.local[operand]->type)) {
-                    pending.push(operand);
+                    reach(operand);
                 }
             }
         } else if(produced.kind == Value::Call) {
@@ -248,7 +295,7 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
             for(auto arg: call.args.contents(analysis.local)) {
                 if(summary->declaredRoots & rootBit(position)) {
                     useSlot(analysis, effects, backingLocal(analysis, arg));
-                    pending.push(arg);
+                    reach(arg);
                 }
 
                 position++;

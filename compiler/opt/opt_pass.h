@@ -355,6 +355,40 @@ Maybe<Place> storageOf(OptContext& opt, ModulePtr<Value> value);
 Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value);
 
 /*
+ * A place's root, resolved through the borrows this frame made - "which storage does this name".
+ *
+ * `Place::inBorrow(b)` says "the storage `b` refers to", and very often `b` is an `InstBorrow` a few
+ * instructions above it, of a whole local of this frame. The place is then that local's, and every
+ * pass comparing places wants to know: a load written `[borrow %L]@path` and a store written
+ * `%L@path` are one piece of storage, and before this nothing in `compiler/opt` could say so, since
+ * `samePlace` refuses two different roots outright and `placesMayAlias` answers "may" for any borrow
+ * at all.
+ *
+ * This is the fourth implementation of a relation `analyze_provenance.cpp` computes properly - see
+ * Analysis-Borrows.md §8.8, which counts the others. It is deliberately the *structural* half of it
+ * and not a fixpoint: it follows what the instructions say and stops the moment they stop saying it,
+ * so what it does not resolve stays exactly as unknown as it was.
+ *
+ * Three conditions, and each rules out a way of the borrow not naming that local:
+ *
+ *  - **a whole local**, with no path of its own. A borrow of `%L@Foo.bar` would need its path
+ *    prepended to the place's, which is a composition rather than a substitution;
+ *  - **borrow types throughout the cast chain.** `Cast` and `Bitcast` rename a reference's bits and
+ *    leave its address alone, which is what `analyze_provenance` says at its own `Cast` arm - so the
+ *    storage is unchanged and only the type the path is read against moves;
+ *  - **and that type keeps the same size.** What a path *means* depends on the type it is relative
+ *    to, so a reinterpretation to a differently-shaped pointee would make two identical paths two
+ *    different byte ranges. Equal repr size is the cheap form of "the same shape", and it is what
+ *    the one seam this exists for satisfies: `String` is a primitive laid out field-for-field as
+ *    `StringData` (see `computeString`), so `cast (borrow %s) : 'StringData` is one address named at
+ *    two types.
+ *
+ * Returns the place unchanged where any of those fails, which is what keeps every caller's behaviour
+ * a narrowing of what it did before.
+ */
+Place resolvedRoot(OptContext& opt, const Place& place);
+
+/*
  * The fields of an aggregate a pass is willing to take apart, and how a place names one.
  *
  * `constructor` is the `Downcast` a record's field path begins with - `%p@Point.x` is a downcast to

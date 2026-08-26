@@ -60,8 +60,26 @@ ModulePtr<Value> ExprResolver::resolveDecl(ast::ParseList<ast::VarDecl> declarat
             if(!value) continue;
         }
 
+        /*
+         * The three things a binding can be, in the order that decides them.
+         *
+         * A value that is already a borrow binds as one. A value that *names* storage this frame
+         * owns binds a loan of it - see `loanOfNamedStorage`, which is where the rule and the three
+         * defects it closes are written down. Everything else is a value this statement produced,
+         * and the binding owns it.
+         *
+         * Not reached after a sink. `->` is the spelling that says the second name takes ownership,
+         * so the branch above has already turned the value into a Move and there is nothing left
+         * here to loan.
+         */
+        auto loan = (decl.bind == ast::BindType::Sink || decl.sink)
+            ? ModulePtr<Value>(nullptr)
+            : loanOfNamedStorage(decl, value, fresh, mutable_);
+
         if(isBorrow(global, valueType(value))) {
             bindBorrow(decl, value, mutable_);
+        } else if(loan) {
+            bindBorrow(decl, loan, mutable_);
         } else if(mutable_) {
             bindMutable(decl, value, fresh);
         } else {
@@ -257,6 +275,56 @@ bool ExprResolver::movableTemporary(ModulePtr<Value> value, U32 fresh) {
     }
 
     return true;
+}
+
+ModulePtr<Value> ExprResolver::loanOfNamedStorage(const ast::VarDecl& declaration,
+                                                  ModulePtr<Value> value, U32 fresh, bool mutable_) {
+    if(!value) return nullptr;
+    if(declaration.pat.kind != ast::Pat::Var || declaration.pat.asVar) return nullptr;
+
+    // Asked of the context on the same terms sinkValue asks it: an unconstrained type variable is
+    // not TrivialCopy inside this body however a caller substitutes it, so a generic body has to
+    // say which of the two it meant just as a concrete one does.
+    auto type = valueType(value);
+    auto ownership = ownershipIn(module, functionGen(global, function), type);
+    if(ownership.trivialCopy) return nullptr;
+
+    auto found = findPlace(value);
+    if(!found) return nullptr;
+
+    auto place = found.unwrap();
+    if(place.root != PlaceRoot::Local) return nullptr;
+    if(place.local >= function.localCount()) return nullptr;
+    if(place.local >= fresh) return nullptr;
+
+    /*
+     * A slot whose name could not have consumed it either.
+     *
+     * A borrowed slot is somebody else's storage - a parameter's, a closure's captured environment -
+     * so the source name is already a loan in everything but its type, and a second name for it can
+     * consume no more than the first could. Loaning it again would be correct and would say nothing
+     * new, at the cost of changing the type of every `let d = someParameter` in the library. The
+     * capability is what this rule is about, so a slot with none is where it stops.
+     *
+     * §2.5's gap is the reason this reads the slot rather than the type: the *binding's* access to
+     * its slot and the capability carried in the value are two axes, and only the first is recorded
+     * here today. When they separate, this test becomes "can the source name consume it" asked of
+     * the value, and these three lines go away.
+     */
+    auto slot = function.localAt(local, place.local);
+    if(slot.borrowed || slot.closureEnv) return nullptr;
+    if(slot.value && local[slot.value]->kind == Value::Arg && slot.convention != ast::BindType::Sink) {
+        return nullptr;
+    }
+
+    /*
+     * Loaned, on the terms a `return` parameter is loaned: this borrow outlives the statement that
+     * made it, so a place that would need a materialized temporary cannot serve one - everything
+     * written through the temporary after the write-back would land in storage nobody reads again.
+     * A `@bits` field and a `@layout(js)` field are the two shapes that reach it, and both report
+     * here rather than compiling into a lost update.
+     */
+    return borrowPlace(place, resolveBorrowType(module, type, mutable_), declaration.pat.source, true);
 }
 
 void ExprResolver::bindMutable(const ast::VarDecl& declaration, ModulePtr<Value> value, U32 fresh) {

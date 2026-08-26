@@ -1394,6 +1394,7 @@ fn main() -> Int {
     %v12 = load %out : String
     %v13 = borrow_mut %out : &String
     %v14 = call withAnd, %v10, 2, %v13 : Int
+    drop %local3 via Reclaim(String).reclaim
     %v15 = add %v7, %v14 : Int
     assign %total, %v15
     %v17 = load %total : Int
@@ -1402,6 +1403,7 @@ fn main() -> Int {
     %v22 = load %out : String
     %v23 = borrow_mut %out : &String
     %v24 = call withAnd, %v20, 2, %v23 : Int
+    drop %local4 via Reclaim(String).reclaim
     %v25 = add %v17, %v24 : Int
     assign %total, %v25
     %v27 = load %total : Int

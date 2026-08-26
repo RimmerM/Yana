@@ -461,20 +461,55 @@ viaNamedPlace<complex>(%b: Ptr, %n: Long): Long {
     %v_6 = add %b, 8: Ptr
     %held = alloca 12, 8: Ptr
     copy %held, %v_6, 12
-    %taken = alloca 12, 8: Ptr
-    copy %taken, %held, 12
-    call_complex setName, %taken, %n
-    %v_7 = add %taken, 8: Ptr
+    call_complex setName, %held, %n
+    %v_7 = add %held, 8: Ptr
     %v_8 = load %v_7, 4: Int
     %v_9 = and %v_8, 1073741823: Int
     %v_10 = cast %v_9: Long
-    call_complex Reclaim(Run(a)).reclaim(U8), %taken
+    call_complex Reclaim(Run(a)).reclaim(U8), %held
     ret %v_10
   }
 
   b_4 {
     call_complex reclaim$Box, %b
     jmp b_5
+  }
+}
+
+fieldOfNamedLocal<complex>(%n: Long): Long {
+  b_0 {
+    %v_1 = alloca 28, 8: Ptr
+    %v_2 = alloca 4, 8: Ptr
+    %v_3 = call_complex allocateHeap, %n: Ptr
+    %v_4 = cast %n: Int
+    %v_5 = and %v_4, 1073741823: Int
+    %v_6 = load %v_2, 4: Int
+    %v_7 = or %v_5, 1073741824: Int
+    store %v_2, %v_7, 4
+    %v_8 = alloca 4, 8: Ptr
+    %v_9 = call_complex allocateHeap, %n: Ptr
+    %v_10 = load %v_8, 4: Int
+    %v_11 = or %v_5, 1073741824: Int
+    store %v_8, %v_11, 4
+    store %v_1, %v_3, 8
+    %v_12 = add %v_1, 8: Ptr
+    %v_13 = load %v_2, 4: Int
+    store %v_12, %v_13, 4
+    %v_14 = add %v_1, 16: Ptr
+    store %v_14, %v_9, 8
+    %v_15 = add %v_1, 24: Ptr
+    %v_16 = load %v_8, 4: Int
+    store %v_15, %v_16, 4
+    %v_17 = add %n, 1: Long
+    call_complex setName, %v_1, %v_17
+    %v_18 = add %v_1, 8: Ptr
+    %v_19 = load %v_18, 4: Int
+    %v_20 = and %v_19, 1073741823: Int
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_1
+    %v_21 = add %v_1, 16: Ptr
+    call_complex Reclaim(Run(a)).reclaim(U8), %v_21
+    %v_22 = cast %v_20: Long
+    ret %v_22
   }
 }
 

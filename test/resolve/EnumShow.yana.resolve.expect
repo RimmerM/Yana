@@ -356,7 +356,7 @@ fn Show(Colour).show(%value: Colour, %to: String) -> () {
     %v21 = phi [b1, %v8], [b3, %v14], [b4, %v17] : String
     %v22 = borrow_mut %to : &String
     call String.push, %v22, %v21
-    drop %local1 via Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     ret
 }
 
@@ -396,7 +396,7 @@ fn Show(Whence).show(%value: Whence, %to: String) -> () {
     %v21 = phi [b1, %v8], [b3, %v14], [b4, %v17] : String
     %v22 = borrow_mut %to : &String
     call String.push, %v22, %v21
-    drop %local1 via Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     ret
 }
 
@@ -1405,6 +1405,7 @@ fn main() -> Int {
     %v4 = call stringLiteral, %v2, 5 : String
     %v5 = call Eq(String).!=, %v1, %v4 : Bool
     drop %local0 via Reclaim(String).reclaim
+    drop %local1 via Reclaim(String).reclaim
     je %v5, b1, b2
 
   b1:
@@ -1419,14 +1420,15 @@ fn main() -> Int {
     %v14 = add 0, %v13 : Size
     %v15 = call String.ofCapacity, %v14 : String
     %v16 = alloc : String
-    init %local2, %v15
-    %v18 = borrow_mut %local2 : &String
+    init %local3, %v15
+    %v18 = borrow_mut %local3 : &String
     call Show(Whence).show, FromCurrent, %v18
-    %v20 = load %local2 : String
+    %v20 = load %local3 : String
     %v21 = symbol ResolveTest.string$1 : %CodeUnit
     %v23 = call stringLiteral, %v21, 11 : String
     %v24 = call Eq(String).!=, %v20, %v23 : Bool
-    drop %local2 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     je %v24, b4, b5
 
   b4:
@@ -1441,14 +1443,15 @@ fn main() -> Int {
     %v33 = add 0, %v32 : Size
     %v34 = call String.ofCapacity, %v33 : String
     %v35 = alloc : String
-    init %local4, %v34
-    %v37 = borrow_mut %local4 : &String
+    init %local6, %v34
+    %v37 = borrow_mut %local6 : &String
     call Show(Mood).show, Happy, %v37
-    %v39 = load %local4 : String
+    %v39 = load %local6 : String
     %v40 = symbol ResolveTest.string$2 : %CodeUnit
     %v42 = call stringLiteral, %v40, 2 : String
     %v43 = call Eq(String).!=, %v39, %v42 : Bool
-    drop %local4 via Reclaim(String).reclaim
+    drop %local6 via Reclaim(String).reclaim
+    drop %local7 via Reclaim(String).reclaim
     je %v43, b7, b8
 
   b7:
@@ -1459,7 +1462,7 @@ fn main() -> Int {
 
   b9:
     %bound = call Show(Colour).showBound, Blue : Maybe(Size)
-    %v50 = load %local5.discriminant : Int
+    %v50 = load %local8.discriminant : Int
     %v52 = cmp_eq %v50, 1 : Bool
     je %v52, b11, b10
 
@@ -1467,10 +1470,10 @@ fn main() -> Int {
     jmp b12
 
   b11:
-    %n = load %local5@Just : Size
+    %n = load %local8@Just : Size
     %v56 = call describe, Red : String
     %v57 = call Length(String).length, %v56 : Size
-    drop %local6 via Reclaim(String).reclaim
+    drop %local9 via Reclaim(String).reclaim
     %v58 = add %n, %v57 : Size
     %v59 = cast %v58 : Int
     jmp b12
@@ -1501,7 +1504,7 @@ fn Show(Mood).show(%value: Mood, %to: String) -> () {
     %v15 = phi [b2, %v9], [b1, %v12] : String
     %v16 = borrow_mut %to : &String
     call String.push, %v16, %v15
-    drop %local1 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     ret
 }
 

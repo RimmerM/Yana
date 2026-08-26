@@ -155,20 +155,21 @@ fn Length(String).length(%self: String) -> Size {
 fn Append(String).++(%lhs: String, %rhs: String) -> String {
   b0:
     %rightLength = call Length(String).length, %rhs : Size
-    %out = alloc : String
+    %lhs = move %lhs : String
+    %v4 = alloc : String
     init %out, %lhs
-    %v5 = load %out : String
-    %v6 = borrow %rhs : 'String
-    %v7 = cast %v6 : 'StringData
-    %v8 = load [%v7]@StringData.bytes : Array(CodeUnit)
-    %v9 = load [%v7]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v10 = load [%v7]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v11 = borrow_mut %out : &String
-    call String.appendUnits, %v11, %v10, %rightLength
+    %v6 = load %out : String
+    %v7 = borrow %rhs : 'String
+    %v8 = cast %v7 : 'StringData
+    %v9 = load [%v8]@StringData.bytes : Array(CodeUnit)
+    %v10 = load [%v8]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v11 = load [%v8]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v12 = borrow_mut %out : &String
+    call String.appendUnits, %v12, %v11, %rightLength
     drop %rhs via Reclaim(String).reclaim
-    %v13 = load %out : String
-    %v14 = move %out : String
-    ret %v14
+    %v14 = load %out : String
+    %v15 = move %out : String
+    ret %v15
 }
 
 fn Eq(String).==(%self: String, %other: String) -> Bool {
@@ -1563,153 +1564,167 @@ fn main() -> Int {
     %v2 = call stringLiteral, %v0, 2 : String
     %v3 = symbol ResolveTest.string$1 : %CodeUnit
     %v5 = call stringLiteral, %v3, 2 : String
-    %two = call joined, %v2, %v5 : String
-    %v7 = symbol ResolveTest.string$2 : %CodeUnit
-    %v9 = call stringLiteral, %v7, 4 : String
-    %v10 = call Eq(String).!=, %two, %v9 : Bool
-    drop %local0 via Reclaim(String).reclaim
-    je %v10, b1, b2
+    %v6 = move %local0 : String
+    %v7 = move %local1 : String
+    %two = call joined, %v6, %v7 : String
+    %v9 = symbol ResolveTest.string$2 : %CodeUnit
+    %v11 = call stringLiteral, %v9, 4 : String
+    %v12 = call Eq(String).!=, %two, %v11 : Bool
+    drop %local2 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
+    je %v12, b1, b2
 
   b1:
-    %v14 = neg 1 : Int
-    ret %v14
+    %v16 = neg 1 : Int
+    ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v17 = symbol ResolveTest.string$3 : %CodeUnit
-    %v19 = call stringLiteral, %v17, 1 : String
-    %v20 = symbol ResolveTest.string$4 : %CodeUnit
-    %v22 = call stringLiteral, %v20, 2 : String
-    %v23 = symbol ResolveTest.string$5 : %CodeUnit
-    %v25 = call stringLiteral, %v23, 3 : String
-    %three = call threeParts, %v19, %v22, %v25 : String
-    %v27 = symbol ResolveTest.string$6 : %CodeUnit
-    %v29 = call stringLiteral, %v27, 6 : String
-    %v30 = call Eq(String).!=, %three, %v29 : Bool
-    je %v30, b13, b5
+    %v19 = symbol ResolveTest.string$3 : %CodeUnit
+    %v21 = call stringLiteral, %v19, 1 : String
+    %v22 = symbol ResolveTest.string$4 : %CodeUnit
+    %v24 = call stringLiteral, %v22, 2 : String
+    %v25 = symbol ResolveTest.string$5 : %CodeUnit
+    %v27 = call stringLiteral, %v25, 3 : String
+    %v28 = move %local4 : String
+    %v29 = move %local5 : String
+    %v30 = move %local6 : String
+    %three = call threeParts, %v28, %v29, %v30 : String
+    %v32 = symbol ResolveTest.string$6 : %CodeUnit
+    %v34 = call stringLiteral, %v32, 6 : String
+    %v35 = call Eq(String).!=, %three, %v34 : Bool
+    drop %local8 via Reclaim(String).reclaim
+    je %v35, b13, b5
 
   b4:
-    %v34 = neg 2 : Int
-    ret %v34
+    %v39 = neg 2 : Int
+    ret %v39
 
   b5:
     jmp b6
 
   b6:
-    %v37 = alloc : Array(String)
-    %v40 = alloc *0 : String
-    %v41 = addressof %local3 : %String
-    init %out@Array.run@Run.items, %v41
+    %v42 = alloc : Array(String)
+    %v45 = alloc *0 : String
+    %v46 = addressof %local10 : %String
+    init %out@Array.run@Run.items, %v46
     init %out@Array.run@Run.capacity, 0
     init %out@Array.run@Run.ownsHeap, 0
     init %out@Array.length, 0
-    %v47 = load %out : Array(String)
-    %v48 = symbol ResolveTest.string$7 : %CodeUnit
-    %v50 = call stringLiteral, %v48, 1 : String
-    %v51 = symbol ResolveTest.string$8 : %CodeUnit
-    %v53 = call stringLiteral, %v51, 1 : String
-    %v54 = call joined, %v50, %v53 : String
-    %v55 = borrow_mut %out : &Array(String)
-    %v56 = move %local4 : String
-    call push(String), %v55, %v56
-    %v58 = load %out : Array(String)
-    %v59 = symbol ResolveTest.string$9 : %CodeUnit
-    %v61 = call stringLiteral, %v59, 1 : String
-    %v62 = symbol ResolveTest.string$10 : %CodeUnit
-    %v64 = call stringLiteral, %v62, 1 : String
-    %v65 = symbol ResolveTest.string$11 : %CodeUnit
-    %v67 = call stringLiteral, %v65, 1 : String
-    %v68 = call threeParts, %v61, %v64, %v67 : String
-    %v69 = borrow_mut %out : &Array(String)
-    %v70 = move %local5 : String
-    call push(String), %v69, %v70
-    %v72 = load %out : Array(String)
-    %v75 = borrow %out : 'Array(String)
-    %v76 = load [%v75]@Array.length : @bits(30) U32
-    %v77 = cast 0 : USize
-    %v78 = cast %v76 : USize
-    %v79 = cmp_ge %v77, %v78 : Bool
-    call checkCondition, %v79
-    %v81 = load [%v75]@Array.run@Run.items : %String
-    %v82 = strideof String : Long
-    %v83 = mul 0, %v82 : Long
-    %v84 = add %v81, %v83 : %String
-    %v85 = borrow [%v84] : 'String
-    %v86 = load [%v85] : String
-    %v87 = symbol ResolveTest.string$12 : %CodeUnit
-    %v89 = call stringLiteral, %v87, 2 : String
-    %v90 = call Eq(String).!=, %v86, %v89 : Bool
-    je %v90, b14, b8
+    %v52 = load %out : Array(String)
+    %v53 = symbol ResolveTest.string$7 : %CodeUnit
+    %v55 = call stringLiteral, %v53, 1 : String
+    %v56 = symbol ResolveTest.string$8 : %CodeUnit
+    %v58 = call stringLiteral, %v56, 1 : String
+    %v59 = move %local11 : String
+    %v60 = move %local12 : String
+    %v61 = call joined, %v59, %v60 : String
+    %v62 = borrow_mut %out : &Array(String)
+    %v63 = move %local13 : String
+    call push(String), %v62, %v63
+    %v65 = load %out : Array(String)
+    %v66 = symbol ResolveTest.string$9 : %CodeUnit
+    %v68 = call stringLiteral, %v66, 1 : String
+    %v69 = symbol ResolveTest.string$10 : %CodeUnit
+    %v71 = call stringLiteral, %v69, 1 : String
+    %v72 = symbol ResolveTest.string$11 : %CodeUnit
+    %v74 = call stringLiteral, %v72, 1 : String
+    %v75 = move %local14 : String
+    %v76 = move %local15 : String
+    %v77 = move %local16 : String
+    %v78 = call threeParts, %v75, %v76, %v77 : String
+    %v79 = borrow_mut %out : &Array(String)
+    %v80 = move %local17 : String
+    call push(String), %v79, %v80
+    %v82 = load %out : Array(String)
+    %v85 = borrow %out : 'Array(String)
+    %v86 = load [%v85]@Array.length : @bits(30) U32
+    %v87 = cast 0 : USize
+    %v88 = cast %v86 : USize
+    %v89 = cmp_ge %v87, %v88 : Bool
+    call checkCondition, %v89
+    %v91 = load [%v85]@Array.run@Run.items : %String
+    %v92 = strideof String : Long
+    %v93 = mul 0, %v92 : Long
+    %v94 = add %v91, %v93 : %String
+    %v95 = borrow [%v94] : 'String
+    %v96 = load [%v95] : String
+    %v97 = symbol ResolveTest.string$12 : %CodeUnit
+    %v99 = call stringLiteral, %v97, 2 : String
+    %v100 = call Eq(String).!=, %v96, %v99 : Bool
+    drop %local18 via Reclaim(String).reclaim
+    je %v100, b14, b8
 
   b7:
-    %v94 = neg 3 : Int
-    ret %v94
+    %v104 = neg 3 : Int
+    ret %v104
 
   b8:
     jmp b9
 
   b9:
-    %v97 = load %out : Array(String)
-    %v100 = borrow %out : 'Array(String)
-    %v101 = load [%v100]@Array.length : @bits(30) U32
-    %v102 = cast 1 : USize
-    %v103 = cast %v101 : USize
-    %v104 = cmp_ge %v102, %v103 : Bool
-    call checkCondition, %v104
-    %v106 = load [%v100]@Array.run@Run.items : %String
-    %v107 = strideof String : Long
-    %v108 = mul 1, %v107 : Long
-    %v109 = add %v106, %v108 : %String
-    %v110 = borrow [%v109] : 'String
-    %v111 = load [%v110] : String
-    %v112 = symbol ResolveTest.string$13 : %CodeUnit
-    %v114 = call stringLiteral, %v112, 3 : String
-    %v115 = call Eq(String).!=, %v111, %v114 : Bool
-    je %v115, b15, b11
+    %v107 = load %out : Array(String)
+    %v110 = borrow %out : 'Array(String)
+    %v111 = load [%v110]@Array.length : @bits(30) U32
+    %v112 = cast 1 : USize
+    %v113 = cast %v111 : USize
+    %v114 = cmp_ge %v112, %v113 : Bool
+    call checkCondition, %v114
+    %v116 = load [%v110]@Array.run@Run.items : %String
+    %v117 = strideof String : Long
+    %v118 = mul 1, %v117 : Long
+    %v119 = add %v116, %v118 : %String
+    %v120 = borrow [%v119] : 'String
+    %v121 = load [%v120] : String
+    %v122 = symbol ResolveTest.string$13 : %CodeUnit
+    %v124 = call stringLiteral, %v122, 3 : String
+    %v125 = call Eq(String).!=, %v121, %v124 : Bool
+    drop %local19 via Reclaim(String).reclaim
+    je %v125, b15, b11
 
   b10:
-    %v119 = neg 4 : Int
-    ret %v119
+    %v129 = neg 4 : Int
+    ret %v129
 
   b11:
     jmp b12
 
   b12:
-    %v122 = call Length(String).length, %three : Size
-    drop %local1 via Reclaim(String).reclaim
-    %v123 = cast %v122 : Int
-    %v124 = load %out : Array(String)
-    %v127 = borrow %out : 'Array(String)
-    %v128 = load [%v127]@Array.length : @bits(30) U32
-    %v129 = cast 1 : USize
-    %v130 = cast %v128 : USize
-    %v131 = cmp_ge %v129, %v130 : Bool
-    call checkCondition, %v131
-    %v133 = load [%v127]@Array.run@Run.items : %String
-    %v134 = strideof String : Long
-    %v135 = mul 1, %v134 : Long
-    %v136 = add %v133, %v135 : %String
-    %v137 = borrow [%v136] : 'String
-    %v138 = load [%v137] : String
-    %v139 = call Length(String).length, %v138 : Size
+    %v132 = call Length(String).length, %three : Size
+    drop %local7 via Reclaim(String).reclaim
+    %v133 = cast %v132 : Int
+    %v134 = load %out : Array(String)
+    %v137 = borrow %out : 'Array(String)
+    %v138 = load [%v137]@Array.length : @bits(30) U32
+    %v139 = cast 1 : USize
+    %v140 = cast %v138 : USize
+    %v141 = cmp_ge %v139, %v140 : Bool
+    call checkCondition, %v141
+    %v143 = load [%v137]@Array.run@Run.items : %String
+    %v144 = strideof String : Long
+    %v145 = mul 1, %v144 : Long
+    %v146 = add %v143, %v145 : %String
+    %v147 = borrow [%v146] : 'String
+    %v148 = load [%v147] : String
+    %v149 = call Length(String).length, %v148 : Size
     drop %out via Reclaim(Array(a)).reclaim(String)
-    %v140 = cast %v139 : Int
-    %v141 = add %v123, %v140 : Int
-    ret %v141
+    %v150 = cast %v149 : Int
+    %v151 = add %v133, %v150 : Int
+    ret %v151
 
   b13:
-    drop %local1 via Reclaim(String).reclaim
+    drop %local7 via Reclaim(String).reclaim
     jmp b4
 
   b14:
-    drop %local1 via Reclaim(String).reclaim
+    drop %local7 via Reclaim(String).reclaim
     drop %out via Reclaim(Array(a)).reclaim(String)
     jmp b7
 
   b15:
-    drop %local1 via Reclaim(String).reclaim
+    drop %local7 via Reclaim(String).reclaim
     drop %out via Reclaim(Array(a)).reclaim(String)
     jmp b10
 }

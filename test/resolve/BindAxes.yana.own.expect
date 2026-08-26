@@ -104,8 +104,18 @@ fn viaNamedPlace {
   arg b readonly
   arg n readonly
   %b: Box droppable readonly live [0, 3) [4, 6)
-  %local1: Held droppable readonly live [6, 10)
-  %taken: Held droppable writable live [8, 15)
+  %local1: Held droppable writable live [6, 14)
+}
+
+fn fieldOfNamedLocal {
+  arg n readonly
+  %p: Pair droppable writable live [0, 36)
+  %local1: Held droppable readonly live [1, 26)
+  %local2: Run(U8) droppable readonly live [2, 13)
+  %local3: U8 writable addressed heap live [4, 10)
+  %local4: Held droppable readonly live [13, 26)
+  %local5: Run(U8) droppable readonly live [14, 25)
+  %local6: U8 writable addressed heap live [16, 22)
 }
 
 fn viaPattern {
@@ -128,4 +138,9 @@ fn reclaim$Held {
 fn reclaim$Box {
   arg value readonly
   %value: Box borrowed droppable readonly live [0, 3) [4, 5)
+}
+
+fn reclaim$Pair {
+  arg value readonly
+  %value: Pair borrowed droppable readonly live [0, 2)
 }
