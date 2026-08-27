@@ -47,15 +47,17 @@ enum class Builtin: U8 {
     commandLineEnvironment,
 
     /*
-     * The target's mapping granularity, as a compile-time constant.
+     * The target's mapping granularity, as a compile-time constant - `Native/Memory.native.yana`.
      *
-     * **No library declaration claims this one yet**, and that is deliberate: whether a page is a
-     * number the compiler states or one the kernel is asked for at startup is a decision about the
-     * library rather than about this table. The role is here because the second kind of link has to
-     * be reachable from somewhere to be worth having, and because this is the candidate it was
-     * written for - `lib/Native/Linux.x64.yana`'s `pageBytes` and `lib/Native/Heap.native.yana`'s
-     * `heapGuardSize` are the same 4096 written twice, and the second one is in a file that is
-     * selected on `native` and therefore has no platform to be right about.
+     * **A lower bound and not the page the kernel is running with**: what is stated here is the
+     * smallest granularity the target guarantees, which is what a mapping may be rounded up to and
+     * what a tail guard may be sized from. Both stay correct when the kernel's page is larger, since
+     * the kernel rounds the mapping again. A caller that needs the exact number asks the kernel for
+     * it - `systemPageBytes`, out of the auxiliary vector - and that is a different question.
+     *
+     * It replaced the same 4096 written in two library files, one of which was
+     * `Heap.native.yana`'s: a statement about a kernel made by a file selected on `native`, which
+     * has no platform to be right about.
      */
     pageBytes,
 };

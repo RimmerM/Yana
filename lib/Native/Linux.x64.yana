@@ -45,8 +45,14 @@ pub data Syscall
   | @value(11)  SysMunmap
   | @value(17)  SysReadAt
   | @value(18)  SysWriteAt
+  | @value(22)  SysPipe
+  | @value(33)  SysDuplicate
   | @value(39)  SysProcessId
+  | @value(57)  SysFork
+  | @value(59)  SysExec
   | @value(60)  SysExit
+  | @value(61)  SysWait
+  | @value(62)  SysKill
   | @value(74)  SysSync
   | @value(77)  SysTruncate
   | @value(82)  SysRename
@@ -79,16 +85,6 @@ pub fn numberOf(call: Syscall) -> USize =
 -- them would be an enumeration of the combinations somebody happened to write down.
 let protReadWrite = 3 :: USize
 let mapPrivateAnonymous = 34 :: USize
-
-{-
-   The page, which is the unit every mapping here is rounded to.
-
-   4096 on x86-64, and stated once here rather than at each caller for the reason every other number
-   in this file is here: it is a fact about one kernel on one architecture, and `Thread.linux.yana`
-   computing it for itself was that file knowing something it has no way to be right about. An arm64
-   port sets it to its own page and nothing above this changes.
--}
-pub let pageBytes = 4096 :: USize
 
 -- Maps `size` bytes of zeroed, readable and writable address space, or null if the kernel
 -- refused. mmap reports failure as a small negative value rather than as an error flag, which is
@@ -478,15 +474,86 @@ pub fn processId() -> Size = syscall0(numberOf(SysProcessId))
 
 pub fn exitProcess(status: Size) -> {}:
     syscall1(numberOf(SysExit), bitcast(status) :: USize)
+
+{-
+   ==========================================================================================
+   Processes - Design-Test.md §11.2's F4.
+   ==========================================================================================
+
+   The five calls a harness is made of, and nothing above them: a fork, an exec, a wait, a pipe and
+   a signal. What each one *means* - how an argument vector is built, which end of a pipe the child
+   keeps, what a status word decodes to - is `Process.yana`'s, on the line this whole file draws:
+   here is the kernel's number and the kernel's answer, and every interpretation is somewhere else.
+
+   **The order matters and is the caller's to get right.** Everything a child needs has to exist
+   before the fork, because between the fork and the exec a child may do only what is
+   async-signal-safe: `duplicateHandle`, `closeFile`, `execProcess` and `exitProcess`, and nothing
+   that allocates. `Process.yana` is where that sequence is written once.
+-}
+
+{-
+   `fork` - 0 in the child, the child's identifier in the parent, and a negated errno on failure.
+
+   `fork` rather than `clone` or `posix_spawn`, and the argument is what the two alternatives cost.
+   `clone` is the same call with a flag word this has no use for, and `posix_spawn` is libc's, which
+   is not something this library has. What fork gives up is a guarantee about a *threaded* parent,
+   and the answer to that is the rule above: the child does nothing between the two calls.
+-}
+pub fn forkProcess() -> Size = syscall0(numberOf(SysFork))
+
+{-
+   `execve` - replaces this process, so it answers only when it fails.
+
+   `arguments` and `environment` are NUL-terminated arrays of NUL-terminated byte strings, and the
+   first argument is conventionally the program's own name. Nothing here builds one: an array of
+   pointers into strings that have to outlive it is exactly the lifetime the caller is holding, and
+   a helper here would take a `[String]` this file cannot name.
+-}
+pub fn execProcess(path: %U8, arguments: Ptr(Ptr(U8)), environment: Ptr(Ptr(U8))) -> Size =
+    syscall3(numberOf(SysExec), bitcast(path) :: USize, bitcast(arguments) :: USize,
+             bitcast(environment) :: USize)
+
+{-
+   `wait4` - the child's status word, written through `into`.
+
+   The status is not the exit code: it is the packed word `waitpid` reports, and what it decodes to
+   is `Process.yana`'s. Bounded by the identifier rather than by -1, so that waiting for one child
+   does not reap another the caller has not asked about yet.
+-}
+pub fn waitProcess(process: Size, into: %Int, options: USize) -> Size =
+    syscall4(numberOf(SysWait), bitcast(process) :: USize, bitcast(into) :: USize, options, 0)
+
+pub let waitNonBlocking = 1 :: USize
+
+{-
+   `pipe` - two descriptors written into a two-element array, read end first.
+
+   The raw form, taking the address of the pair rather than answering them: the kernel writes two
+   `int`s and there is nothing here to build a record out of them with. `Process.yana` reads them
+   back and gives each one a `File` that owns it.
+-}
+pub fn makePipe(into: %Int) -> Size = syscall1(numberOf(SysPipe), bitcast(into) :: USize)
+
+-- `dup2` - what a child does to put a pipe end on descriptor 0, 1 or 2 before it execs. One of the
+-- four calls that are safe between a fork and an exec.
+pub fn duplicateHandle(from: Size, to: Size) -> Size =
+    syscall2(numberOf(SysDuplicate), bitcast(from) :: USize, bitcast(to) :: USize)
+
+-- `kill`. A timeout is what wants it, which is the harness's own reason for existing: a case that
+-- hangs has to be stopped and attributed rather than taking the run down with it.
+pub fn signalProcess(process: Size, signal: Int) -> Size =
+    syscall2(numberOf(SysKill), bitcast(process) :: USize, bitcast(signal :: Size) :: USize)
+
 {-
    ==========================================================================================
    The command line and the environment - the other half of F4.
    ==========================================================================================
 
    **The kernel hands these to the process on its stack and to nothing else**, so the only place
-   they can be read is the entry stub - which is a hand-written sequence in the amd64 backend and a
-   C `main` in the LLVM one. Both write these three globals before the program's own entry runs, and
-   both are the same three facts however differently they came by them.
+   they can be read is the entry stub - a hand-written sequence of bytes in the amd64 backend, and
+   the LLVM backend's own `_start` in the other. Both write these three globals before the program's
+   own entry runs, both read them off the same stack the kernel left, and both take the numbers they
+   align and exit with from `compiler/codegen/entry.h`.
 
    That sidesteps rather than fixes "the entry point cannot take arguments yet", which is the honest
    description: `main` still takes none, and what a program reads instead is a global that was filled
@@ -511,3 +578,78 @@ pub let &commandLineValues = 0 :: Ptr(Ptr(U8))
 
 @builtin(commandLineEnvironment)
 pub let &commandLineEnvironment = 0 :: Ptr(Ptr(U8))
+
+{-
+   ==========================================================================================
+   The auxiliary vector.
+   ==========================================================================================
+
+   **The third thing the kernel leaves on the stack**, after the arguments and the environment: a
+   list of (type, value) word pairs terminated by a type of zero, saying what the machine and the
+   process are. Nobody passes a pointer to it - it simply *follows the environment's null
+   terminator*, which is why nothing in the compiler had to be taught about it. `commandLineEnvironment`
+   is where the environment begins, the walk below finds where it ends, and the vector is what is
+   after that.
+
+   **That is why this is a library function and not a fourth `@builtin` role.** A role would have had
+   the entry stub scan the environment to find the end of it - the same loop, written twice in
+   assembly instead of once here, to save a walk of about fifty words that happens when something
+   asks. What the compiler has to supply is what a program cannot work out; this is not that.
+
+   Both backends reach it identically: the amd64 entry stub computes the environment pointer from the
+   initial stack pointer, and the LLVM one is handed the same pointer as `main`'s third parameter.
+
+   The types are `AT_*` from the kernel's `auxv.h`, and only the ones something here asks for are
+   named - an unknown type is skipped by the walk rather than being a name this file has to have.
+-}
+pub let atNull = 0 :: USize
+pub let atPageSize = 6 :: USize
+pub let atClockTick = 17 :: USize
+pub let atSecure = 23 :: USize
+pub let atRandom = 25 :: USize
+pub let atHwCap = 16 :: USize
+pub let atHwCap2 = 26 :: USize
+
+{-
+   One entry of it, by type.
+
+   `Nothing` where the kernel did not supply that type, where the environment pointer was never
+   filled - a build in which nothing reads it, see above - and where the walk would run off a vector
+   that is not there. A caller that has a sensible answer without the kernel's should use it: this is
+   a question about the machine, and the machine is entitled not to say.
+
+   The walk is linear over a vector of about twenty entries and is not cached. What reads this reads
+   it once at startup, and a cache would be a global to initialize before the thing it exists for.
+-}
+pub fn auxiliaryValue(kind: USize) -> Maybe(USize):
+    let &at = commandLineEnvironment
+    if isNull(at) then return Nothing
+
+    -- Past the environment: its own null terminator is what the vector begins after.
+    while (bitcast(*at) :: USize) != 0:
+        at = at + 1
+
+    let &entry = bitcast(at + 1) :: Ptr(USize)
+
+    while *entry != atNull:
+        if *entry == kind then return Just(*(entry + 1))
+        entry = entry + 2
+
+    return Nothing
+
+{-
+   The page the kernel is actually using, as opposed to the one the compiler stated.
+
+   `pageBytes` is a compile-time lower bound and is the right answer for rounding a mapping up or
+   sizing a tail guard - see its declaration. This is the exact number, and it is what a caller that
+   means to `mprotect` a page, or to report one, has to ask for. On this target the two are the same
+   4096 and there is nothing to choose between them; on a kernel built for 16K or 64K pages they are
+   not, and the difference is only visible from here.
+
+   Falls back to `pageBytes` where the vector has no `AT_PAGESZ`, which is the honest answer rather
+   than a zero: the bound is still true when the exact number cannot be had.
+-}
+pub fn systemPageBytes() -> Size:
+    match auxiliaryValue(atPageSize):
+        Just(page) -> return bitcast(page) :: Size
+        Nothing -> return pageBytes

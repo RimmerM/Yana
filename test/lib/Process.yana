@@ -1,0 +1,185 @@
+{-
+   `Process` and `Environment` - Design-Test.md §11.2's F4, over real processes.
+
+   The second fixture in this suite with effects outside its own process, and the rules `File.yana`
+   states apply here for the same reason: it runs beside itself, and it runs three times in one tree.
+   Neither costs anything here, because a spawned `/bin/echo` leaves nothing behind and a signal is
+   sent only to a child this fixture made.
+
+   **Native only - there is no `.js` marker beside it and there will not be one.** That is §11.2's
+   own ruling rather than an omission: `Test.Harness` is native, the JavaScript target gets the
+   runner, and orchestration happens in a native parent that spawns `node`. A `process.argv` shim
+   here would be a second answer to a question the design settles in the other direction.
+
+   What each stage asserts, it asserts with `assert`, and each answers its own small number so that a
+   stage which never ran is visible as a missing summand rather than as a silent pass.
+
+   **The `/bin` programs this reaches are the three every POSIX system has** - `echo`, `true` and
+   `sleep` - and each is used for the one property it has and nothing else: `echo` writes a known
+   number of bytes, `true` exits zero, and `sleep` is still running when a signal arrives.
+
+   **Two results here are discarded rather than matched, and it is a workaround.** `signal`'s and
+   `close`'s are `Result(FileError, {})`, and *matching* one in a function the optimizer inlines it
+   into produces a phi whose alternatives have two different widths - the lower-IR validator refuses
+   the program with "inconsistent types between phi alternatives" and no location. The defect is in
+   the lowering of an aggregate whose discriminant co-packs with its payload and has nothing to do
+   with processes: `match removeFile(p): Ok(_) -> 0; Err(e) -> 1` is a complete reproduction against
+   the library as it stands, and `-inline none` compiles it. What the two calls here are for is
+   asserted through their *effect* - the child was signalled, the pipe reached its end - which is the
+   stronger claim anyway. Restore the matches when that is fixed.
+-}
+
+import Native
+import File
+import Process
+import Environment
+
+{-
+   Spawn, wait, and the status a child reported.
+
+   `/bin/true` exits 0 and `/bin/false` exits 1, which is the whole of what this stage needs: a
+   status is a number the parent reads back, and two different numbers are what say it was read
+   rather than assumed.
+-}
+fn statuses() -> Int:
+    match spawn("/bin/true", [] :: [String]):
+        Ok(child) -> assert(exitedWith(child, 0))
+        Err(e) -> assert(False)
+
+    match spawn("/bin/false", [] :: [String]):
+        Ok(child) -> assert(exitedWith(child, 1))
+        Err(e) -> assert(False)
+
+    return 1
+
+-- The status of a finished child, as a plain number. Written as a helper rather than inline because
+-- the two-deep pattern `Ok(Exited(n))` reaches a defect in the inliner - see the note at the bottom.
+fn exitedWith(child: Process, expected: Int) -> Bool:
+    match waitFor(child):
+        Err(e) -> return False
+        Ok(->status) -> return match status:
+            Exited(code) -> code == expected
+            Signalled(n) -> False
+
+{-
+   A child that does not stop on its own, stopped.
+
+   The status a killed process reports is the *signal* and not a number it exited with, which is the
+   distinction `Exit` exists to keep: a shell folds the two together by adding 128, and a harness
+   that has to say "this case crashed" rather than "this case answered 137" cannot.
+-}
+fn signals() -> Int:
+    match spawn("/bin/sleep", ["30"]):
+        Err(e) -> assert(False)
+        Ok(child):
+            signal(child, killSignal)
+            assert(wasSignalled(child, killSignal))
+
+    return 2
+
+fn wasSignalled(child: Process, expected: Int) -> Bool:
+    match waitFor(child):
+        Err(e) -> return False
+        Ok(->status) -> return match status:
+            Exited(code) -> False
+            Signalled(n) -> n == expected
+
+{-
+   A pipe, and a child's output read back through it.
+
+   The parent's own copy of the write end has to be closed after the fork or the read never sees an
+   end of file - the child is not the only holder, and a pipe is open while any descriptor for its
+   write end is. That is the one thing about pipes a caller has to get right, and it is why `newPipe`
+   hands back two `File`s that own their ends rather than two numbers.
+-}
+fn pipes() -> Int:
+    match newPipe():
+        Err(e) -> assert(False)
+        Ok(&->pipe):
+            let target = Redirect {input: Nothing,
+                                   output: Just(borrowFile(pipe.writeEnd.handle)),
+                                   errors: Nothing}
+
+            match spawnWith("/bin/echo", ["captured"], target):
+                Err(e) -> assert(False)
+                Ok(child):
+                    close(pipe.writeEnd)
+
+                    let &buffer = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U8]
+
+                    match readInto(pipe.readEnd, buffer):
+                        Err(e) -> assert(False)
+                        -- "captured" and the newline `echo` adds.
+                        Ok(n) -> assert(n == (9 :: Size))
+
+                    assert(exitedWith(child, 0))
+
+    return 4
+
+{-
+   The command line, which the entry stub left in three globals before this program started.
+
+   **Two drivers run this file and only one of them is a process**, which is what the shape below is
+   about. `YanaLibTest` JITs `main` into its own address space and runs it in a forked child, so
+   there is no `_start` and no C `main` and therefore nothing ever filled those globals - which the
+   module documents as "zero arguments" rather than as an error. `YanaElfTest` compiles the same
+   fixture to a real executable and runs it, where the stub did run.
+
+   So what is asserted unconditionally is what holds either way: the two ways of reading the vector
+   agree, and past the end is `Nothing` rather than a trap. The *content* is asserted where there is
+   content, which is exactly the ELF driver - `count > 0` is the test for "this is a process", and it
+   is a better one than a flag would be because it is the same fact the assertions are about.
+-}
+fn commandLine() -> Int:
+    let count = argumentCount()
+
+    let all = arguments()
+    assert(length(all) == count)
+
+    -- Past the end is `Nothing` rather than a trap, which is what makes a loop that got the count
+    -- wrong report instead of reading somebody else's memory.
+    assert(isNothing(argument(count)))
+
+    if count > (0 :: Size):
+        -- A real process, so position 0 is the program's own name on every platform this compiles
+        -- for and the vector was genuinely read off the stack.
+        match argument(0):
+            Just(name) -> assert(length(name) > (0 :: Size))
+            Nothing -> assert(False)
+
+    return 8
+
+{-
+   The environment, read through the same vector.
+
+   The exactness of the match is what is asserted in both settings: a name is followed by `=`, so a
+   longer name beginning with the same letters is a different variable and an unset one is `Nothing`
+   rather than an empty string. `PATH` is checked where there is an environment at all, on the same
+   argument the count makes above - it is the one variable a process running under a shell always
+   has, so its absence there would mean the walk found nothing rather than that it is unset.
+-}
+fn environment() -> Int:
+    assert(isNothing(variable("YANA_DEFINITELY_NOT_SET_XYZ")))
+
+    if argumentCount() > (0 :: Size):
+        match variable("PATH"):
+            Just(path) -> assert(length(path) > (0 :: Size))
+            Nothing -> assert(False)
+
+    return 16
+
+fn isNothing(value: Maybe(a)) -> Bool = match value:
+    Just(_) -> False
+    Nothing -> True
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    total = total + statuses()
+    total = total + signals()
+    total = total + pipes()
+    total = total + commandLine()
+    total = total + environment()
+
+    assert(total == 31)
+    return 0

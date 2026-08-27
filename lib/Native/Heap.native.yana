@@ -56,7 +56,6 @@ pub let heapClassCount = 32 :: Size
    and because a page is more than any vector width there will ever be. Regions double, so the
    amortized cost of this over a program's whole heap is zero.
 -}
-pub let heapGuardSize = 4096 :: Size
 
 pub let &heapNext = 0 :: %U8
 pub let &heapLimit = 0 :: %U8
@@ -68,7 +67,7 @@ pub let &heapFree = 0 :: Ptr(Ptr(U8))
 pub let &heapRegionNext = 0 :: Size
 
 fn initHeap() -> {}:
-    let region = mapMemory(heapRegionSize + heapGuardSize)
+    let region = mapMemory(heapRegionSize + pageBytes)
     if isNull(region) then return
 
     let table = heapClassCount * 8
@@ -102,14 +101,14 @@ fn growHeap(needed: Size) -> Bool:
     let &size = heapRegionNext :: Size
     if size < needed then size = needed
 
-    let &region = mapMemory(size + heapGuardSize) :: %U8
+    let &region = mapMemory(size + pageBytes) :: %U8
 
     if isNull(region):
         let least = if needed > heapRegionSize then needed else heapRegionSize
         if least >= size then return False
 
         size = least
-        region = mapMemory(size + heapGuardSize)
+        region = mapMemory(size + pageBytes)
         if isNull(region) then return False
 
     heapNext = region

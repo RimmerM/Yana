@@ -115,7 +115,10 @@ pub fn createThread(entry: (%U8) -> {}, argument: %U8, stackBytes: USize) -> May
     -- is a count of bytes and has no sign to carry.
     -- The control page sits under the stack - see above - so the mapping is the rounded stack
     -- plus one more page.
-    let size = alignUp(stackBytes, pageBytes) + pageBytes
+    -- The page as an unsigned word, which is the one place it is wanted in that sign - see the
+    -- declaration in `Memory.native.yana`. A constant either way, so the conversion is not one.
+    let page = bitcast(pageBytes) :: USize
+    let size = alignUp(stackBytes, page) + page
 
     -- The same number as a signed word, once: the rounding above is unsigned because a byte count
     -- has no sign to carry, and everything below takes the width the language's pointer arithmetic

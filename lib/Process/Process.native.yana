@@ -1,0 +1,229 @@
+{-
+   ==========================================================================================
+   `Process` - spawning, waiting, pipes and signals - Design-Test.md §11.2's F4.
+   ==========================================================================================
+
+   What a harness is made of. §11.2's row says it plainly - "no spawn, no wait, no pipe, no `kill`" -
+   and every one of those is what stands between the runner of §4 and the harness of §6: sharding,
+   `-isolate`, crash attribution and timeouts are all one process watching another.
+
+   **`.native.yana`, so this module does not exist on JavaScript**, which is §11.2's own ruling:
+   `Test.Harness` is native, the JavaScript target gets the *runner* - in-process cases, sections,
+   the report stream through `console` - and orchestration happens in a native parent that spawns
+   `node`. Saying that outright is better than a `Process` module that is half a lie on one target.
+
+   **The one rule everything here obeys**: between a fork and an exec, a child may do only what is
+   async-signal-safe. It may not allocate, and it may not run a teardown - the heap it shares with
+   its parent is a copy of a heap some other thread of the parent may have been in the middle of.
+   So every allocation a child needs is made *before* the fork, in the parent, and `spawnWith` below
+   is the one place that sequence is written.
+-}
+
+import Native
+import File
+
+{-
+   A child, by identifier.
+
+   Not `Drop`, deliberately. A process is not storage and dropping the handle must not do anything to
+   it: a parent that goes out of scope without waiting leaves a zombie, which is a fact about the
+   program and one the type system has no business hiding by reaping it at a scope end. `waitFor` is
+   the only thing that reaps, and forgetting it is visible in `ps` rather than silently repaired.
+-}
+pub data Process {id: Size}
+
+-- Which end is which. A pipe is two descriptors and their names are the whole of what a caller has to
+-- get right, so they are named rather than positional.
+pub data Pipe {readEnd: File, writeEnd: File}
+
+{-
+   How a child's three standard descriptors are set up.
+
+   `Nothing` means "the parent's own", which is what a test runner wants for a case it is not
+   capturing: the child writes straight to the terminal and nothing has to be pumped. A `File` means
+   that descriptor, duplicated onto 0, 1 or 2 in the child - which is what the write end of a pipe is
+   for.
+
+   Three fields rather than an enum per descriptor, because the three are independent: capturing
+   output while leaving errors on the terminal is an ordinary thing to want.
+-}
+pub data Redirect {input: Maybe(File), output: Maybe(File), errors: Maybe(File)}
+
+pub fn inherited() -> Redirect = Redirect {input: Nothing, output: Nothing, errors: Nothing}
+
+{-
+   What a finished child answered.
+
+   The two cases the kernel's status word distinguishes, kept apart rather than folded into one
+   number - which is `YanaElfTest`'s constraint said in a type. A process exit status carries eight
+   bits and a signal is not one of them, so "exited with 134" and "was killed by SIGABRT" are
+   different facts that the shell convention of adding 128 conflates.
+-}
+pub data Exit = Exited(Int) | Signalled(Int)
+
+{-
+   Starting one.
+
+   The sequence, and every allocation in it is the parent's:
+
+     1. the path and each argument are copied with a NUL appended;
+     2. the vector of pointers into those copies is built, NUL-terminated;
+     3. `forkProcess`;
+     4. in the child - and only these four calls - the redirections are duplicated into place, the
+        exec happens, and a failed exec exits rather than returning into a copy of the parent's
+        program;
+     5. in the parent, the identifier.
+
+   `arguments` is what the child sees *after* its own name: the vector's first entry is the path, on
+   the C convention, and a caller that wanted to lie about `argv[0]` has no way to here. That is
+   deliberate - the one use for it is disguising a process, and a test harness has none.
+-}
+pub fn spawn(path: String, arguments: [String]) -> Result(FileError, Process) =
+    spawnWith(path, arguments, inherited())
+
+pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(FileError, Process):
+    {-
+       Every string the child will read, terminated, and kept alive until after the exec.
+
+       `terminated` is `File.yana`'s rule applied here: a kernel string is NUL-terminated bytes and a
+       `String` is a run and a live prefix, so what the kernel gets is a copy. The copies live in
+       `held`, whose extent covers the fork - which is what makes the pointers below point at
+       something.
+    -}
+    let &held = [terminated(path)] :: [String]
+    let &i = 0 :: Size
+
+    while i < length(arguments):
+        push(held, terminated(arguments[i]))
+        i = i + 1
+
+    -- The vector itself: one pointer per entry and a null to end it, which is what `execve` reads.
+    let &vector = [] :: [%U8]
+    let &j = 0 :: Size
+
+    while j < length(held):
+        push(vector, bytesOf(held[j]))
+        j = j + 1
+
+    push(vector, null() :: %U8)
+
+    let child = forkProcess()
+    if child < 0 then return Err(errorOf(0 - child))
+
+    if child == 0:
+        -- The child, and only what is safe here. Nothing below allocates, nothing runs a teardown,
+        -- and the last line does not come back.
+        redirectTo(into.input, 0)
+        redirectTo(into.output, 1)
+        redirectTo(into.errors, 2)
+
+        execProcess(bytesOf(held[0]), vectorBase(vector), commandLineEnvironment)
+
+        -- Only reachable when the exec failed. 127 is what a shell reports for a command it could
+        -- not run, which is the number a parent already knows how to read.
+        exitProcess(127)
+
+    return Ok(Process {id: child})
+
+-- One descriptor put in place, or left alone. `Nothing` is the parent's own, inherited across the
+-- fork with nothing to do.
+fn redirectTo(file: Maybe(File), to: Size) -> {} = match file:
+    Just(file) -> duplicateHandle(file.handle, to)
+    Nothing -> {}
+
+{-
+   Waiting for one, and what it answered.
+
+   Blocking. A timeout is `signal` plus a second wait, and it is the harness's to compose rather than
+   a parameter here: what a runner does when a case hangs - kill it, attribute the case, go on - is a
+   policy, and a `waitFor(timeout)` that returned `Nothing` would be that policy with the reporting
+   left out.
+-}
+pub fn waitFor(self: Process) -> Result(FileError, Exit):
+    let &status = 0 :: Int
+    let answer = waitProcess(self.id, addressOf(status), 0)
+
+    if answer < 0 then return Err(errorOf(0 - answer))
+    return Ok(decodeStatus(status))
+
+{-
+   Whether it has finished, without blocking.
+
+   `Nothing` is "still running", which is what `WNOHANG` answers with a zero identifier. The
+   distinction between that and an error is the whole reason this is not `waitFor` with a flag.
+-}
+pub fn finished(self: Process) -> Result(FileError, Maybe(Exit)):
+    let &status = 0 :: Int
+    let answer = waitProcess(self.id, addressOf(status), waitNonBlocking)
+
+    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer == 0 then return Ok(Nothing)
+
+    return Ok(Just(decodeStatus(status)))
+
+{-
+   The kernel's status word, decoded - the one piece of bit-twiddling in this file.
+
+   The low seven bits are the terminating signal and are zero for an ordinary exit; the next eight
+   are the status a process reported. That is the layout `waitpid` has always had, and the reason it
+   is written here rather than in the platform file is the line that file draws: there is the
+   kernel's number and the kernel's answer, and every interpretation of one is somewhere else.
+-}
+fn decodeStatus(status: Int) -> Exit:
+    let signal = status `and` 127
+    if signal != 0 then return Signalled(signal)
+
+    return Exited((status `shr` 8) `and` 255)
+
+-- A signal, by number. What a timeout sends, and the reason `kill` is in F4's list at all: a case
+-- that hangs has to be stopped and attributed rather than taking the run down with it.
+pub fn signal(self: Process, number: Int) -> Result(FileError, {}) =
+    checkedUnit(signalProcess(self.id, number))
+
+-- A kernel answer that carries nothing but whether it worked, as a `Result`. `File.yana` has the
+-- same three lines and they stay separate: what a module reports out of a raw answer is the module's,
+-- and sharing one would put `Process`'s failures into `File`'s vocabulary by declaration rather than
+-- by decision.
+fn checkedUnit(answer: Size) -> Result(FileError, {}):
+    if answer < 0 then return Err(errorOf(0 - answer))
+    return Ok({})
+
+pub let terminateSignal = 15 :: Int
+pub let killSignal = 9 :: Int
+
+{-
+   A pipe, as two `File`s that own their ends.
+
+   Owning is the point: a parent that captures a child's output has to close the *write* end after
+   the fork or the read never sees an end of file, and a `File`'s own teardown is what makes that a
+   scope rather than a rule to remember.
+-}
+pub fn newPipe() -> Result(FileError, Pipe):
+    let &ends = [0, 0] :: [Int]
+    let answer = makePipe(intBase(ends))
+
+    if answer < 0 then return Err(errorOf(0 - answer))
+    return Ok(Pipe {readEnd: adoptFile(ends[0] :: Size), writeEnd: adoptFile(ends[1] :: Size)})
+
+{-
+   ==========================================================================================
+   The three pointer helpers, which are the only place this file reaches past a value.
+   ==========================================================================================
+
+   Each takes its subject with `return`, which is `File.yana`'s rule and is the whole reason that
+   file has no layer of one-line syscall wrappers: a raw pointer carries provenance exactly as a
+   borrow does, and an undeclared signature is accepted in silence and then releases what the pointer
+   points at before the call that reads through it. The marker is what places the drop after the call.
+-}
+fn bytesOf(return text: String) -> %U8 = bitcast(values(stringData(text).bytes)) :: %U8
+
+fn vectorBase(return items: [%U8]) -> Ptr(Ptr(U8)) = bitcast(values(items)) :: Ptr(Ptr(U8))
+
+fn intBase(return items: [Int]) -> %Int = values(items)
+
+fn terminated(text: String) -> String:
+    let &copy = String.ofCapacity(length(text) + 1)
+    String.push(copy, text)
+    String.pushUnit(copy, 0)
+
+    return copy

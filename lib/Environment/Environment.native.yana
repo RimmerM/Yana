@@ -9,8 +9,9 @@
    names.
 
    **The kernel hands these to the process on its stack and to nothing else.** So the values are read
-   by the *entry stub* - hand-written bytes in the amd64 backend, a C `main` in the LLVM one - into
-   three globals of `Native`, and everything here reads those. That sidesteps rather than fixes "the
+   by the *entry stub* - hand-written bytes in the amd64 backend, eleven lines of assembly in the
+   module the LLVM one hands to the linker - into three globals of `Native`, and everything here
+   reads those. That sidesteps rather than fixes "the
    entry point cannot take arguments yet", which is the honest description of it: `main` still takes
    none, and what a program reads instead is a global filled before it started.
 

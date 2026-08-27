@@ -11,31 +11,40 @@
    constant is for: the compiler put a target's answer where the source wrote nothing, and the
    answer is the shape a mapping granularity has.
 
-   **The declaration below is this fixture's own.** No library file claims `pageBytes` today - see
-   the note on the role - so this is the one declaration in the program that fills it. If the library
-   takes the role, this fixture stops compiling with "the role pageBytes is already filled", which is
-   the check working: one declaration fills a role. Delete the four lines below it and read the
-   library's instead.
+   The declaration is the library's - `pageBytes` in `Native/Memory.native.yana`. This fixture wrote
+   its own for as long as nothing claimed the role, and stopped being able to the moment the library
+   did: "the role pageBytes is already filled" is one of the six things `@builtin` refuses, and one
+   declaration filling a role is the point of it.
 -}
 import Native
 
-@builtin(pageBytes)
-let page = 0 :: USize
-
 fn main() -> Int:
-    -- Not the zero it was written as, which is the whole statement: nothing in this file put a
-    -- number here, and every use of it below reads what the compiler decided.
-    assert(page != (0 :: USize))
+    let page = pageBytes
+
+    -- Not the zero the declaration was written as, which is the whole statement: no line of the
+    -- library put a number there, and every use below reads what the compiler decided.
+    assert(page != (0 :: Size))
 
     -- A page, and the shape of one. 4096 is the floor rather than the value - the role is defined as
     -- the smallest granularity the target guarantees, and a target whose kernel maps in 16K units
     -- answers 16384 here without a line of this changing.
-    assert(page >= (4096 :: USize))
+    assert(page >= (4096 :: Size))
     assert(isPowerOf2(page))
 
     -- And it is a constant, not storage: `alignUp` over it is a mask against a literal by the time
     -- anything runs. What can be asserted from inside the language is that it behaves as one.
     assert(alignUp(page + 1, page) == page + page)
     assert(alignUp(page, page) == page)
+
+    -- The kernel's own answer, which is the other half of the pair - `pageBytes` is the bound the
+    -- compiler states and this is the number the process is running with. They agree on this target,
+    -- and what holds on every target is that the bound is not larger than the truth.
+    --
+    -- Zero arguments means no entry stub ran and there is no vector to walk - the in-process driver,
+    -- see Process.yana - and the fallback is `pageBytes` itself, which is why this asserts the
+    -- relation rather than the number.
+    let system = systemPageBytes()
+    assert(system >= page)
+    assert(isPowerOf2(system))
 
     return 0

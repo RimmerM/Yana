@@ -8,6 +8,34 @@
 -}
 
 {-
+   The page - the unit every mapping in this library is rounded to.
+
+   **The compiler supplies it** - `@builtin(pageBytes)`, and the zero below is what the declaration
+   is written as rather than what it holds. It used to be a `4096` in `Linux.x64.yana`, which was a
+   fact about one kernel on one architecture written in the file that is allowed to know such things;
+   the trouble was that `Heap.native.yana` needed the same number and could not see that file, so it
+   wrote its own 4096 - in a file selected on `native`, which has no platform to be right about.
+
+   **It is a lower bound and every use here has to stay correct under that reading.** What the
+   compiler states is the smallest granularity the target guarantees, not the page the kernel is
+   running with: on x86-64 those are the same 4096 and there is nothing to distinguish, and on an
+   arm64 kernel built for 16K or 64K pages the bound is smaller than the page. Rounding a mapping up
+   to less than the kernel's unit leaves the kernel to round it again, and asking for one extra page
+   as a tail guard gets at least one whole page of slack whichever unit the mapping is rounded in -
+   so both uses are right either way.
+
+   A program that needs the *exact* page - one that means to `mprotect` a guard rather than map past
+   it, or to report the number - asks the kernel instead, through `auxiliaryValue(atPageSize)`. That
+   is a different question with a different answer and deliberately a different name.
+
+   `Size` and not `USize`, because the mapping calls and the heap's arithmetic are written in the
+   signed word and they are the callers there are. `createThread` rounds an unsigned stack size with
+   it and converts once, which is the one place the other sign is wanted.
+-}
+@builtin(pageBytes)
+pub let pageBytes = 0 :: Size
+
+{-
    The fill, and the block copy the machine has an instruction for.
 
    Neither checks that the regions are distinct or that either is large enough. `blockCopy` is the
