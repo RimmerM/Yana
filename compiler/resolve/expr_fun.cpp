@@ -774,6 +774,19 @@ ModulePtr<Value> ExprResolver::force(const Deferred& deferred, TypePtr expected,
         return resolvePrecedence(*resume.chain, operandIndex, operatorIndex, resume.minimumPrecedence, expected);
     }
 
+    /*
+     * A `@lazy` parameter's own default - F3, and the third form that costs nothing.
+     *
+     * Built *here*, in the block that is forcing it, rather than at the call site that left the
+     * position out: a constant has no evaluation to defer, so the only thing that matters about it
+     * is which function's frame the storage it becomes belongs to. Materializing it in the caller
+     * and letting the thunk return it is what produced a program lowering refused.
+     */
+    if(deferred.constant) {
+        auto value = constantValue(deferred.constant, source);
+        return expected ? convert(value, expected, source) : value;
+    }
+
     // The closure a callee that could not see the argument was handed. Calling it is the force, and
     // this is the one place a `@lazy` parameter costs an indirect call.
     if(deferred.thunk) {
@@ -837,7 +850,37 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
         }
     }
 
-    if(functionGen(global, function)) {
+    /*
+     * A generic body may not build one - with one exception, and the exception is the whole of why
+     * `check(x)` is callable from a generic function at all.
+     *
+     * The objection is that the lifted function is a separate declaration that cloning does not
+     * reach, so every specialization would share one body built at whatever types the generic
+     * happened to name. A **constant** default has no such body: it captures nothing, it names no
+     * variable of the caller's, and when its type is concrete there is nothing in it that a
+     * specialization could have wanted differently. So the one thunk is the right thunk for every
+     * instantiation, which is what `type->generic` is asked here.
+     *
+     * The case is `fn check(held: Bool, @lazy note: String = "")` called from a generic body, and it
+     * is not a corner: an assertion is exactly the thing a generic function wants to make.
+     */
+    /*
+     * A constant default, built once for the whole program - see Program::constantThunks.
+     *
+     * Before the type check below, because the answer does not depend on this call: what makes the
+     * sharing correct is that the thunk captures nothing and its body is a constant of a concrete
+     * type, which is the same fact the generic exemption rests on.
+     */
+    auto concreteConstant = deferred.constant && type && !global[type]->generic;
+
+    if(concreteConstant) {
+        if(auto found = module.program.constantThunks.get(U32(deferred.constant))) {
+            return makeFunValue(resolveThunkType(module, type), found.unwrap(), nullptr, source,
+                                StringId());
+        }
+    }
+
+    if(functionGen(global, function) && !concreteConstant) {
         context.diagnostics.error("a `@lazy` argument inside a generic function is not available yet unless the callee can be seen through - the thunk would have to be specialized alongside its caller"_v,
                                   source);
         return nullptr;
@@ -893,7 +936,15 @@ ModulePtr<Value> ExprResolver::makeThunk(const Deferred& deferred, TypePtr type,
     }
 
     auto funType = resolveThunkType(module, type);
-    if(body.captures.isEmpty()) return makeFunValue(funType, lambda - local, nullptr, source, StringId());
+
+    if(body.captures.isEmpty()) {
+        // Interned only where it was worth building once - a constant default. Anything else is a
+        // thunk over *this* call's expression, and two call sites writing the same text are still
+        // two arguments.
+        if(concreteConstant) *module.program.constantThunks.add(U32(deferred.constant)).value = lambda - local;
+
+        return makeFunValue(funType, lambda - local, nullptr, source, StringId());
+    }
 
     auto envType = (Type*)envTuple - global;
     checkTypeAcyclic(module, envType, source);

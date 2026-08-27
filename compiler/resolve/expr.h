@@ -168,7 +168,12 @@ struct DeferredChain {
  *    `@lazy` parameter holds;
  *  - `value`, an argument that was already evaluated before anything knew the position was lazy.
  *    Not a promise broken: it is only reached where a value is all there is, and forcing it is
- *    reading what is already there.
+ *    reading what is already there;
+ *  - `constant`, a `@lazy` parameter's own default - F3. It is the one form that is *not* a value
+ *    yet on purpose: a constant materializes into whatever block forces it, and a default built in
+ *    the caller's frame would be a value of the caller's function that the thunk's body then names.
+ *    That is not a subtlety - it is what the first `check(x)` with a defaulted message compiled to,
+ *    and lowering refused it as "instruction uses value from wrong function".
  *
  * The first two are the whole point. A callee that can see the argument - an intrinsic, and
  * therefore `&&` on a Bool - emits it into the block where it is needed, so short-circuiting is a
@@ -179,13 +184,14 @@ struct Deferred {
     const DeferredChain* chain = nullptr;
     ModulePtr<Value> thunk = nullptr;
     ModulePtr<Value> value = nullptr;
+    ModulePtr<ConstValue> constant = nullptr;
 
     // The type the parameter declared, filled in once the callee is known - or, for a parameter
     // whose type this argument is what decides, what the argument turned out to produce. The two
     // are the same answer: see inferDeferredArguments in expr_call.cpp.
     TypePtr type = nullptr;
 
-    bool isSet() const { return expr || chain || thunk || value; }
+    bool isSet() const { return expr || chain || thunk || value || constant; }
 };
 
 /*

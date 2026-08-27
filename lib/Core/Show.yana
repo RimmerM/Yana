@@ -137,6 +137,29 @@ instance Show(Long):
     fn showBound(value: Long) -> Maybe(Size) = Just(20)
 
 {-
+   `Size` and `USize`, which are the two numbers a program that says nothing about widths still ends
+   up holding: `length` answers one and every byte count is the other.
+
+   Their absence was a real gap rather than a decision - `print("{length(xs)}")` reported that `Size`
+   has no instance while `print("{length(xs) :: Int}")` two characters away compiled - and it is the
+   one an assertion runs into first, since `checkEqual(length(out), 6)` is the most ordinary claim a
+   test makes. Analysis-Modules.md's Move 2 made both of these *primitives* whose width the target
+   answers rather than names for `I64`/`U64`, which is what makes an instance of each possible at
+   all: before that they were the same type as `Long` and would have overlapped it.
+
+   The bound is twenty either way. `Size` is at most `-9223372036854775808` and `USize` at most
+   `18446744073709551615`, both of which are twenty units, and a target whose words are narrower
+   spends a bound it did not need rather than a truncation it cannot detect.
+-}
+instance Show(Size):
+    fn show(value: Size, &to: String) -> {} = showSigned(widen(value) :: Long, to)
+    fn showBound(value: Size) -> Maybe(Size) = Just(20)
+
+instance Show(USize):
+    fn show(value: USize, &to: String) -> {} = pushUnsigned(widen(value) :: U64, to)
+    fn showBound(value: USize) -> Maybe(Size) = Just(20)
+
+{-
    A string shows as itself, and its bound is a *runtime* value - which is the row that makes the
    point about `showBound`'s constant-ness not being in the type.
 

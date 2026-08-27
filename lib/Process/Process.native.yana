@@ -46,10 +46,18 @@ pub data Pipe {readEnd: File, writeEnd: File}
 
    Three fields rather than an enum per descriptor, because the three are independent: capturing
    output while leaving errors on the terminal is an ordinary thing to want.
--}
-pub data Redirect {input: Maybe(File), output: Maybe(File), errors: Maybe(File)}
 
-pub fn inherited() -> Redirect = Redirect {input: Nothing, output: Nothing, errors: Nothing}
+   **And a fourth, which is descriptor 3 and is not standard.** Design-Test.md §5.2 puts a test
+   runner's report stream on 3 exactly so that it is not on the same descriptor as what the program
+   under test prints, and the only place a child's 3 can be set is here - in the four calls between
+   the fork and the exec. Naming it `report` rather than `extra` says what the number is for: a
+   general "any descriptor" facility would be a list and a loop in the child, which is more code in
+   the one place where nothing may allocate.
+-}
+pub data Redirect {input: Maybe(File), output: Maybe(File), errors: Maybe(File), report: Maybe(File)}
+
+pub fn inherited() -> Redirect =
+    Redirect {input: Nothing, output: Nothing, errors: Nothing, report: Nothing}
 
 {-
    What a finished child answered.
@@ -77,6 +85,17 @@ pub data Exit = Exited(Int) | Signalled(Int)
    `arguments` is what the child sees *after* its own name: the vector's first entry is the path, on
    the C convention, and a caller that wanted to lie about `argv[0]` has no way to here. That is
    deliberate - the one use for it is disguising a process, and a test harness has none.
+-}
+{-
+   **A descriptor in a `Redirect` does not keep its file alive**, and a caller has to.
+
+   `Just(borrowFile(f.handle))` is how one of these is filled, and it goes through a number: the
+   record holds a `File` that owns nothing, so nothing tells the ownership pass that `f` has to
+   outlive the spawn. A value whose last use has gone past is dropped there rather than at the end of
+   its scope, and a dropped `File` is a closed descriptor - so an `f` whose last mention is the
+   `.handle` inside this record is *already shut* by the time the child duplicates it, and the child
+   silently gets the parent's own descriptor instead. Mention the owner after the spawn - closing it
+   is the natural thing to do with it - and the window closes with it.
 -}
 pub fn spawn(path: String, arguments: [String]) -> Result(FileError, Process) =
     spawnWith(path, arguments, inherited())
@@ -116,6 +135,7 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
         redirectTo(into.input, 0)
         redirectTo(into.output, 1)
         redirectTo(into.errors, 2)
+        redirectTo(into.report, 3)
 
         execProcess(bytesOf(held[0]), vectorBase(vector), commandLineEnvironment)
 

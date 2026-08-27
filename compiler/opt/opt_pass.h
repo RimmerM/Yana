@@ -252,9 +252,15 @@ inline void eachAddressedLocal(OptContext& opt, Value& instruction, F&& f) {
  * Two passes ask, and they ask for opposite halves of the same fact - that the callee reads a flag
  * and touches nothing else. `clobbers` uses it to keep the storage it is tracking across one, and
  * `isDischargedCheck` uses it to remove the call outright once the flag has folded to `false`.
+ *
+ * **Both forms**, and leaving the second one out was measurable rather than theoretical: with
+ * `-check-locations` selecting `checkConditionAt` and only `checkCondition` recognized here, every
+ * fold this gates stopped happening. A program of two hundred subscripts at constant indices went
+ * from 117 bytes of `.text` - every check proved and removed - to 10,805, which is what the flag
+ * looked like it cost until the second half of this line existed.
  */
 inline bool isCheckCall(OptContext& opt, ModulePtr<Function> callee) {
-    return callee && callee == opt.program.checkCondition;
+    return callee && (callee == opt.program.checkCondition || callee == opt.program.checkConditionAt);
 }
 
 /*

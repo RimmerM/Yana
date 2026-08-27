@@ -43,6 +43,7 @@ struct Flag {
         printIr,
         noOptimize,
         noChecks,
+        checkLocations,
         explainAll,
         noProject,
         test,
@@ -77,6 +78,7 @@ Flag flagTable[] = {
     { "print-ir"_v, 0, Flag::printIr },
     { "no-opt"_v, 0, Flag::noOptimize },
     { "no-checks"_v, 0, Flag::noChecks },
+    { "check-locations"_v, 0, Flag::checkLocations },
     { "explain-all"_v, 0, Flag::explainAll },
     { "no-project"_v, 0, Flag::noProject },
     { "test"_v, 0, Flag::test },
@@ -763,6 +765,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::noOptimize:
                 settings.optimizeIr = false;
+                return true;
+            case Flag::checkLocations:
+                settings.checkLocations = true;
                 return true;
             case Flag::noChecks:
                 settings.checks = false;

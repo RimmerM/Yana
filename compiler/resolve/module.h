@@ -1253,6 +1253,23 @@ struct Program {
     // see closureReleaseFor. Only the environment types that turned out to need one are in here.
     HashMap<U32, ModulePtr<Function>> closureRelease;
 
+    /*
+     * The thunk a `@lazy` parameter's **constant** default is wrapped in - see makeThunk.
+     *
+     * Interned per default, because there is exactly one right answer per default and building it
+     * per call site is one anonymous function per *assertion*: `check(x)` defaults its `@lazy`
+     * message, so a fixture with twenty-one checks in it carried twenty-one identical functions
+     * returning `""`. Nothing distinguishes them - a constant thunk captures nothing, names nothing
+     * of the caller's, and at a concrete type is the same body for every specialization, which is
+     * the same argument that lets one be built inside a generic body at all.
+     *
+     * Keyed by the constant, which is unique program-wide: the module arena belongs to the program,
+     * so a `ModulePtr` from one module means the same thing read from another. The function lands in
+     * whichever module reached the default first and every later call site names it there, exactly
+     * as a call from a user module to a Core function already does.
+     */
+    HashMap<U32, ModulePtr<Function>> constantThunks;
+
     // The teardown a type with nothing to run gets, so that a descriptor's lifecycle slots are
     // always callable - see emptyTeardown.
     ModulePtr<Function> emptyTeardown = nullptr;
@@ -1478,6 +1495,13 @@ struct Program {
      * ExprResolver::emitCheck. Null when the checks are off, which is what makes them cost nothing.
      */
     ModulePtr<Function> checkCondition = nullptr;
+
+    /*
+     * The same, with the site's module, line and column as three more arguments - the declaration
+     * `-check-locations` selects. Null in a build whose `Core` does not declare one, which is what
+     * keeps the flag from being a hard dependency on a library version.
+     */
+    ModulePtr<Function> checkConditionAt = nullptr;
 
     /*
      * Native's `stringLiteral` - the two words that describe a constant's bytes.

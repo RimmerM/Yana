@@ -17,19 +17,26 @@
  * of to a call some later pass would have to inline. Nothing about the call site knows this: it
  * selects a Num instance exactly as it would for a user-defined type.
  *
- * The four hooks below are what the compiler supplies, in the two positions it can supply them
- * from - Analysis-Modules.md §2.4. `definePreludeTypes` runs before any of Core's source is read,
- * because the five primitives and the fixed-width family are what its declarations are written in
- * terms of; the other three run once every file of Core *and* Native has been through the
- * declaration passes, because each needs a class, a record or a signature that some file of either
- * declares. Nothing needs a position in between, which is why the prelude is one pass sequence with
- * a hook at each end rather than six modules in dependency order.
+ * The hooks below are what the compiler supplies - Analysis-Modules.md §2.4. `definePreludeTypes`
+ * runs before any of Core's source is read, because the five primitives and the fixed-width family
+ * are what its declarations are written in terms of; the rest run once every file of Core *and*
+ * Native has been through the passes each of them needs, because each needs a class, a record or a
+ * signature that some file of either declares.
+ *
+ * One of them sits *inside* the declaration passes rather than between them and the next stage.
+ * `definePreludeContainerTypes` is what gives `[T]` and `[K: V]` a meaning, and a file of the
+ * prelude may write one in a record of its own - so it goes between `passDeclare`, which is what
+ * registers the name it looks up, and `passDefine`, which is what may need the spelling.
  */
 void definePreludeTypes(Program& program, Module& core, TypeList& widthTypes);
 
+/// `[T]` and `[K: V]` - the two records a spelling names, looked up between `passDeclare` and
+/// `passDefine` so that a file of the prelude may use either in a record of its own.
+void definePreludeContainerTypes(Program& program, Module& core);
+
 /// The declarations the compiler itself names - the classes the language's syntax is written in
-/// terms of, the exit signal a continuation reports with, and the two container records. Lookups
-/// only, so it runs early enough for the signature passes to see what they record.
+/// terms of, and the exit signal a continuation reports with. Lookups only, so it runs early enough
+/// for the signature passes to see what they record.
 void definePreludeLookups(Program& program, Module& core);
 
 /// Core's own instances - the numeric tower, the conversion ladders, the bit families, and the

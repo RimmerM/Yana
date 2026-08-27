@@ -704,27 +704,6 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.bitcast = classNamed(*module, "Bitcast"_v);
     program.coreClasses.lanewise = classNamed(*module, "Lanewise"_v);
 
-    // The exit signal's carrier. Its constructors are found by name rather than assumed to be
-    // declared in this order, since the order is a detail of the source above and this is emitted
-    // code that has no declaration to read.
-    /*
-     * Before the bodies, not after them.
-     *
-     * `Program::arrayType` is what makes `Array(a)` recognizable *as* the growable array - it is
-     * what `sliceOf` asks, so it is what decides whether the ordinary conversion to a slice exists.
-     * Setting it afterwards meant `Core/Array.yana` alone could not use its own container:
-     * `elements`, whose whole body is `slice(self, 0, self.length)`, saw `Array(a)` as an unrelated
-     * record and reported that it does not fit `Flat(a)`.
-     */
-    auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
-    if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
-
-    // The map, on the same terms - Implementation-Map.md §7. One name for both platform rows: the
-    // `@platform` selection has already run over the declarations, so whichever of the two `Map`
-    // declarations this target kept is the one the literal instantiates.
-    auto map = module->namedTypes.get(context.addQualifiedName("Map", 3, 1));
-    if(map) program.mapType = (RecordType*)(*program.types)[map.unwrap()] - *program.types;
-
     // §5's two, looked up here for the reason Core's are looked up where they are declared: what
     // asks for them is the resolver rather than a name a program wrote. See CoreClasses.
     program.coreClasses.contiguous = classNamed(*module, "Contiguous"_v);
@@ -732,6 +711,9 @@ void definePreludeLookups(Program& program, Module& core) {
     program.coreClasses.writable = classNamed(*module, "Writable"_v);
     program.coreClasses.indexInsert = classNamed(*module, "IndexInsert"_v);
 
+    // The exit signal's carrier. Its constructors are found by name rather than assumed to be
+    // declared in this order, since the order is a detail of the source above and this is emitted
+    // code that has no declaration to read.
     if(auto outcome = findType(*module, Context::nameHash("Outcome"_v), kNullLocation)) {
         program.outcomeType = (RecordType*)(*program.types)[outcome] - *program.types;
 
@@ -743,6 +725,42 @@ void definePreludeLookups(Program& program, Module& core) {
             program.outcomeExit = exit.unwrap().index;
         }
     }
+}
+
+/*
+ * The two records a *spelling* names - `[T]` and `[K: V]` - looked up between `passDeclare` and
+ * `passDefine`, and that position is the whole of this function.
+ *
+ * They used to sit in `definePreludeLookups` with everything else the compiler names, which runs
+ * after `passDefine`. That is late enough for every ordinary module, whose definitions are resolved
+ * long afterwards, and one pass too late for a file of the prelude itself: `data Row {xs: [Int]}` in
+ * a file of Core was "arrays are not available in this module", because `Program::arrayType` was
+ * still null when Core's own records were being defined. `declareRecordType` is what registers the
+ * name, and it runs in `passDeclare` - so the earliest correct point is between the two, and that is
+ * here.
+ *
+ * Instantiating a record whose contents are not defined yet is already supported and is not what
+ * this risks: `instantiateRecord` registers the instance and defers it to `pendingInstances` when
+ * the declaration is not `definitionReady`, which is the same path a mutually recursive pair of
+ * ordinary modules takes. What the position buys is that the *spelling* has a meaning while the
+ * prelude is still being defined.
+ *
+ * `Program::arrayType` is also what makes `Array(a)` recognizable *as* the growable array - it is
+ * what `sliceOf` asks, so it decides whether the ordinary conversion to a slice exists - and moving
+ * it earlier keeps the property that ruling depended on: it is set before any body is resolved.
+ */
+void definePreludeContainerTypes(Program& program, Module& core) {
+    auto& context = program.context;
+    auto module = &core;
+
+    auto array = module->namedTypes.get(context.addQualifiedName("Array", 5, 1));
+    if(array) program.arrayType = (RecordType*)(*program.types)[array.unwrap()] - *program.types;
+
+    // The map, on the same terms - Implementation-Map.md §7. One name for both platform rows: the
+    // `@platform` selection has already run over the declarations, so whichever of the two `Map`
+    // declarations this target kept is the one the literal instantiates.
+    auto map = module->namedTypes.get(context.addQualifiedName("Map", 3, 1));
+    if(map) program.mapType = (RecordType*)(*program.types)[map.unwrap()] - *program.types;
 }
 
 /*
@@ -1002,6 +1020,12 @@ void definePreludeContainers(Program& program, Module& core) {
     auto found = module->functions.get(context.addUnqualifiedName("checkCondition", 14));
     program.checkCondition = found ? found.unwrap() : nullptr;
 
+    // And the located form, which `-check-locations` selects instead - see `emitCheck`. Found the
+    // same way and kept beside it rather than replacing it, because which of the two a check calls
+    // is a decision per *build* and both declarations exist in every one.
+    auto located = module->functions.get(context.addUnqualifiedName("checkConditionAt", 16));
+    program.checkConditionAt = located ? located.unwrap() : nullptr;
+
     /*
      * And the arm it branches to, marked as one control does not come back out of.
      *
@@ -1015,6 +1039,9 @@ void definePreludeContainers(Program& program, Module& core) {
      */
     auto failed = module->functions.get(context.addUnqualifiedName("checkFailed", 11));
     if(failed) (*module->arena)[failed.unwrap()]->noReturn = true;
+
+    auto failedAt = module->functions.get(context.addUnqualifiedName("checkFailedAt", 13));
+    if(failedAt) (*module->arena)[failedAt.unwrap()]->noReturn = true;
 
     // After `arrayType` above, and before this module's own bodies below - several of which
     // subscript, and would reach an instance that does not exist yet.

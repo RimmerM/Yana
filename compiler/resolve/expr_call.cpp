@@ -353,6 +353,23 @@ void ExprResolver::materializeDefaults(ModulePtr<Function> signature, LocationId
             continue;
         }
 
+        /*
+         * A `@lazy` parameter's default stays a *constant* until something forces it - F3.
+         *
+         * Every other position becomes a value here, and this one may not: a thunk is a function of
+         * its own, so a constant materialized in the caller's frame is storage the thunk's body
+         * would then be naming across a function boundary. Handing the constant on instead means
+         * `force` builds it wherever the argument turns out to run - inside the thunk for an opaque
+         * callee, and in the branch that uses it for an intrinsic that sees through the call, which
+         * is the same answer the written form gets.
+         */
+        if(parameter->isLazy()) {
+            Deferred promise;
+            promise.constant = parameter->defaultValue;
+            args[i] = ResolvedArg::deferred(promise);
+            continue;
+        }
+
         args[i] = constantValue(parameter->defaultValue, source);
     }
 }

@@ -33,6 +33,64 @@ import Native
 @platform(js) fn checkFailed() -> {} = hostFail()
 
 {-
+   The same stop, saying where it was - `-check-locations`.
+
+   A second declaration rather than three more parameters on the one above, and that is the whole
+   design of the switch: a build without the flag emits calls to `checkCondition`, which has no
+   location to carry and no printing behind it, so a program that does not ask pays nothing at all -
+   not an argument, not a constant, not a byte of the format machinery. `Program::checkConditionAt`
+   is how the compiler finds this one, on the same terms it finds the other.
+
+   **The guard is what makes printing safe here.** The comment above says a `checkFailed` that
+   formatted would recurse, and it would: the format path allocates a string, and a string is a run
+   with a bounds check of its own. One global says a check has already failed, and a second failure
+   reached while reporting the first goes straight to the stop. That is one branch on a path that
+   ends the process.
+-}
+let &reporting = False
+
+{-
+   **The file arrives as a pointer and a length, not as a `String`, and that is the whole cost of the
+   feature.**
+
+   A native `String` is a two-word descriptor passed by *address*, so a literal one in an argument
+   position is sixteen bytes copied into a stack slot **at the call** - which is before the branch,
+   on the path every check takes when it holds. Measured on a loop whose bounds check cannot be
+   proved away: 30.8 ms became 41.2 ms, a **34%** cost on the passing path, for a message only a
+   failing one ever reads. With the same three arguments as scalars it is 30.5 ms, which is the
+   plain build to within the noise - the line and column are immediates the register allocator puts
+   in the cold arm, and nothing at all lands on the hot one.
+
+   So the two words are passed as two words and the descriptor is rebuilt here, where it is free:
+   this body runs once per process and the process is ending. `stringLiteral` is the same
+   constructor a written literal goes through.
+-}
+@platform(native) fn checkFailedAt(file: %CodeUnit, fileLength: Int, line: Int, column: Int) -> {}:
+    if reporting then abortProcess()
+    reporting = True
+    print("check failed at {stringLiteral(file, fileLength)}:{line}:{column}\n")
+    abortProcess()
+
+-- On JavaScript a string *is* a host value rather than a descriptor with an address, so passing one
+-- costs a register and the pointer form has nothing to buy. The two targets take different arguments
+-- for that reason, and `emitCheck` builds whichever this build declared.
+@platform(js) fn checkFailedAt(file: String, line: Int, column: Int) -> {}:
+    if reporting then hostFail()
+    reporting = True
+    print("check failed at {file}:{line}:{column}\n")
+    hostFail()
+
+-- One located check, with its branch inside it, for the same reason `checkCondition` has one: a
+-- subscript is expanded inside whatever expression contains it, and a branch emitted there splits a
+-- block underneath a construct that had already decided which blocks it owns.
+@platform(native) pub fn checkConditionAt(failed: Bool, file: %CodeUnit, fileLength: Int,
+                                          line: Int, column: Int) -> {}:
+    if failed then checkFailedAt(file, fileLength, line, column)
+
+@platform(js) pub fn checkConditionAt(failed: Bool, file: String, line: Int, column: Int) -> {}:
+    if failed then checkFailedAt(file, line, column)
+
+{-
    One check, with its branch inside it.
 
    The compiler emits a *call* to this rather than the `if` itself, and that is the whole reason it

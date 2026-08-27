@@ -653,16 +653,59 @@ void definePrelude(Program& program) {
      * then told there is no such module, which is the accurate report; the alternative was to fail
      * every JS compile because a native-only module could not be read.
      */
-    Module* preludeStorage[3] = { core, native, nullptr };
-    Size preludeCount = 2;
+    SmallArray<Module*, 8> preludeStorage;
+    preludeStorage.push(core);
+    preludeStorage.push(native);
 
     Module* atomic = nullptr;
     if(atomicGroup) {
         atomic = addEmbeddedModule(program, *atomicGroup);
-        preludeStorage[preludeCount++] = atomic;
+        preludeStorage.push(atomic);
     }
 
-    Buffer<Module*> prelude { preludeStorage, preludeCount };
+    /*
+     * And whatever a prelude module's own files import - the prelude's import closure rather than
+     * the three modules named above.
+     *
+     * The three are pre-resolved: `definePrelude` runs the whole declaration sequence over them
+     * before `discoverModules` has walked anything, and `discoverModules` then skips a module that
+     * is already `Resolved`. So a file of Core naming *any* module outside the prelude was a
+     * `cannot find module` - not because a cycle was refused, which it no longer is, but because
+     * nothing ever looked for it and Core's passes had all finished by the time anything did.
+     *
+     * The closure is what lifts that. A module a prelude file imports joins the prelude and goes
+     * through the same pass-by-pass sequence with it, which is exactly the treatment §2.2 gives a
+     * cycle in the ordinary graph: every module's `passDeclare` happens before any module's
+     * `passFunctionSignatures`, so the two directions of the edge see each other.
+     *
+     * **It costs nothing when nothing uses it.** Core, Native and Atomic import only each other, so
+     * the closure is empty in every build that is not selecting extra files into them - which today
+     * means every build without `-test`. What it buys is `lib/Core/*.test.yana`: a test file is a
+     * file of its module (Design-Test.md §3.1), so a test for Core has to be able to `import Test`,
+     * and `Test` sits on `Math`, `File` and `Process`, all of which sit on Core.
+     */
+    auto baseCount = preludeStorage.size();
+
+    for(Size i = 0; i < preludeStorage.size(); i++) {
+        auto module = preludeStorage[i];
+
+        for(auto file: module->files) {
+            for(auto imported: file->imports.contents(module->parse)) {
+                if(imported.from == module->name) continue;
+                if(program.findModule(imported.from)) continue;
+
+                auto group = findLibraryModule(program, imported.from);
+
+                // Silent, exactly as `discoverModules` is: `resolveImports` reports a name nothing
+                // answered against the import that wrote it, which is where it is readable.
+                if(!group) continue;
+
+                preludeStorage.push(addEmbeddedModule(program, *group));
+            }
+        }
+    }
+
+    Buffer<Module*> prelude { preludeStorage.pointer(), preludeStorage.size() };
 
     // Which form a call site takes has to be the same answer for every call site in one compilation,
     // so the prelude is built under the setting the program will be - see resolveProgram, which sets
@@ -673,18 +716,48 @@ void definePrelude(Program& program) {
     for(auto module: prelude) module->declState = Module::DeclState::Resolving;
     for(auto module: prelude) resolveImports(*module);
 
-    for(auto module: prelude) eachFile(*module, passFixities);
-    for(auto module: prelude) eachFile(*module, passDeclare);
-    for(auto module: prelude) eachFile(*module, passDefine);
-    for(auto module: prelude) eachFile(*module, passFieldDefaults);
+    /*
+     * The declaration passes run over the compiler's own three first and the joined ones after the
+     * second hook, which is the one place the prelude cannot be a flat list.
+     *
+     * `definePreludeLookups` is what makes `[T]` *mean* `Array(T)`: it reads the record Core has by
+     * then declared into `Program::arrayType`, and the array spelling is an error until it has. So
+     * Core's own `passDefine` has to come before the hook and a joined module's has to come after
+     * it - `data ChildReport {lines: [String]}` in `Test` is exactly a definition that needs the
+     * hook to have run, and it is the diagnostic a flat list produced.
+     *
+     * Everything from `passLayoutCycles` down is the flat list again, so the two halves still see
+     * each other in every pass where a cycle needs them to.
+     */
+    Buffer<Module*> compilerPrelude { preludeStorage.pointer(), baseCount };
+    Buffer<Module*> joinedPrelude { preludeStorage.pointer() + baseCount, preludeStorage.size() - baseCount };
 
-    for(auto module: prelude) completePendingInstances(*module);
+    for(auto module: compilerPrelude) eachFile(*module, passFixities);
+    for(auto module: compilerPrelude) eachFile(*module, passDeclare);
+
+    // The one hook inside the declaration passes: `[T]` and `[K: V]` name records that `passDeclare`
+    // has just registered and that `passDefine` may write - `data Row {xs: [Int]}` in a file of Core
+    // was "arrays are not available in this module" while this sat with the rest of the lookups
+    // below. See definePreludeContainerTypes for why the position is safe.
+    definePreludeContainerTypes(program, *core);
+
+    for(auto module: compilerPrelude) eachFile(*module, passDefine);
+    for(auto module: compilerPrelude) eachFile(*module, passFieldDefaults);
+
+    for(auto module: compilerPrelude) completePendingInstances(*module);
 
     // The second hook: the declarations the compiler itself names. Between `passDefine` and the
     // signature passes because those need what it records - an `iter fn` signature is rewritten
     // around `Outcome`, and a `[T]` parameter becomes a `Flat(T)`.
     definePreludeLookups(program, *core);
     definePreludeNativeTypes(program, *native);
+
+    for(auto module: joinedPrelude) eachFile(*module, passFixities);
+    for(auto module: joinedPrelude) eachFile(*module, passDeclare);
+    for(auto module: joinedPrelude) eachFile(*module, passDefine);
+    for(auto module: joinedPrelude) eachFile(*module, passFieldDefaults);
+
+    for(auto module: joinedPrelude) completePendingInstances(*module);
 
     for(auto module: prelude) eachFile(*module, passLayoutCycles);
     for(auto module: prelude) eachFile(*module, passGlobals);

@@ -310,6 +310,22 @@ struct CompileSettings {
     bool checks = true;
 
     /*
+     * Whether an inserted check says *where* it was - `-check-locations`.
+     *
+     * A check that does not hold stops the process and says nothing at all today, which is the whole
+     * of what a bounds failure tells you: status 134, and a core file if you kept one. With this,
+     * every check site carries its module, line and column, and `checkFailed` prints them before it
+     * stops.
+     *
+     * A switch and not the default, because it is paid for per *site*: three constants have to be
+     * materialized on the way to a call that used to be a bare `jmp`, so every subscript in the
+     * program grows some cold code, and the printing pulls the formatting path into a binary that
+     * may never print. Off is what ships and on is what a debug build wants - see the measurement in
+     * Design-Test.md's staging note.
+     */
+    bool checkLocations = false;
+
+    /*
      * Whether this is a test build - Design-Test.md §11.2's F1.
      *
      * A flag and not a mode, because `-mode` already answers *which output* and a test build needs

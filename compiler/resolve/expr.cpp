@@ -20,8 +20,75 @@ void ExprResolver::terminate(Inst* inst) {
     current = nullptr;
 }
 
+/*
+ * One inserted check - a subscript's bounds test, a `@bits` store's range test, a division by zero.
+ *
+ * Two shapes, and which one is emitted is a property of the build rather than of the site.
+ * `checkCondition(failed)` is the default and carries nothing: what a program that stops on one says
+ * is its exit status. `-check-locations` selects `checkConditionAt`, which takes the site's module,
+ * line and column as three constants and prints them before it stops.
+ *
+ * The constants are built here rather than by a `@caller` fill, because there is no call site to
+ * omit an argument at: this call *is* the compiler's, so what F2 does for a written call is done
+ * directly. `resolveString` over the module name is the same string every check in a file names, so
+ * it costs one constant global per module however many checks there are; the two numbers are
+ * immediates.
+ */
 void ExprResolver::emitCheck(ModulePtr<Value> failed, LocationId source) {
     if(!failed || !checksEnabled()) return;
+
+    /*
+     * And the string constructor has to exist, which is not a formality: a native string literal is
+     * built through `Core.stringLiteral`, and that is bound when `Native`'s intrinsics are attached.
+     * A check emitted while the prelude itself is still being resolved is earlier than that, so those
+     * few sites take the unlocated form rather than reporting an internal error - which is what the
+     * first version of this did, twice, before any program had been compiled at all.
+     */
+    auto canName = isJsMode(context.settings.mode) || module.program.stringLiteral;
+
+    if(context.settings.checkLocations && module.program.checkConditionAt && canName) {
+        auto node = context.diagnostics.sourceNode(source);
+        auto where = node ? node->sourceModule : StringId();
+        auto line = makeInt(source, module.scalar.int_, node ? node->sourceStart.line + 1 : 0);
+        auto column = makeInt(source, module.scalar.int_, node ? node->sourceStart.column : 0);
+
+        if(isJsMode(context.settings.mode)) {
+            // A host string is a value rather than a descriptor with an address, so the ordinary
+            // literal is already the cheap form here.
+            ResolvedArg located[] = { failed, resolveString(source, where), line, column };
+            emitDirectCall(module.program.checkConditionAt, { located, 4 }, source);
+            return;
+        }
+
+        /*
+         * The bytes and their length as two scalars - see the note above `checkFailedAt`.
+         *
+         * A `String` in this position is a two-word descriptor passed by address, so a literal one
+         * is sixteen bytes stored into a stack slot *at the call*, which is on the path a check that
+         * holds takes. That measured at 34% of a loop whose bounds check cannot be folded away. The
+         * blob is the same global `resolveString` would have pointed at; what is different is that
+         * its address and its length travel as immediates the register allocator can leave in the
+         * arm that stops.
+         */
+        auto text = context.findName(where);
+        auto blob = stringLiteralBytes(module, where, source);
+        if(!blob) return;
+
+        auto pointerType = local[local[module.program.checkConditionAt]->args.get(local, 1)]->declaredType();
+        auto address = ref(emit<InstSymbol>(source, StringId(), pointerType, nullptr,
+                                            blob - *module.arena));
+
+        ResolvedArg located[] = {
+            failed,
+            address,
+            makeInt(source, module.scalar.int_, text.size()),
+            line,
+            column,
+        };
+
+        emitDirectCall(module.program.checkConditionAt, { located, 5 }, source);
+        return;
+    }
 
     ResolvedArg condition[] = { failed };
     emitDirectCall(module.program.checkCondition, { condition, 1 }, source);
