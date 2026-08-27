@@ -73,14 +73,14 @@ main<complex>(): Int {
     %v_30 = select %v_29, 4, 0: Int
     %v_31 = add %v_15, %v_30: Int
     %v_32 = call_complex opaque, 0: Int
-    %v_33 = imul %v_32, 18446744073709551615: Int
+    %v_33 = neg %v_32: Int
     %v_34 = cmp_eq %v_33, 0: Int
     je %v_34, b_35, b_36
   }
 
   b_35 {
     %v_37 = call_complex opaque, 4: Int
-    %v_38 = imul %v_37, 18446744073709551615: Int
+    %v_38 = neg %v_37: Int
     %v_39 = cmp_eq %v_38, 4294967292: Int
     je %v_39, b_40, b_36
   }
@@ -91,7 +91,7 @@ main<complex>(): Int {
 
   b_40 {
     %v_42 = call_complex opaque, 2: Int
-    %v_43 = imul %v_42, 18446744073709551615: Int
+    %v_43 = neg %v_42: Int
     %v_44 = cmp_eq %v_43, 4294967294: Int
     jmp b_41
   }

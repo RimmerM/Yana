@@ -329,10 +329,27 @@ LowerValue* reduce(Reducer& r, LowerInstBinary* inst) {
     auto sd = signedValue(d, bits);
 
     switch(inst->kind) {
+        /*
+         * A shift where the multiplier is a power of two, and the same shift negated where it is a
+         * negative one - of which -1 is the case where the shift is nothing at all and only the
+         * negation is left.
+         *
+         * The sign is read out of the two's-complement pattern rather than off the instruction: the
+         * low half of a product is the same bits whichever way the operands are read, so `mul` by
+         * `2^bits - 2^k` and `imul` by `-2^k` are one case and not two. Nothing here overflows into
+         * a different answer than the multiply gave - a negation wraps exactly as the product does,
+         * including on the type's lowest value.
+         */
         case LowerInst::Mul:
-        case LowerInst::IMul:
+        case LowerInst::IMul: {
             if(auto shift = powerOfTwo(d)) return r.opImm(LowerInst::Shl, x, shift.unwrap(), name);
+
+            auto magnitude = (U64(0) - d) & maskOf(bits);
+            if(magnitude == 1) return r.neg(x, name);
+            if(auto shift = powerOfTwo(magnitude)) return r.neg(r.opImm(LowerInst::Shl, x, shift.unwrap()), name);
+
             return nullptr;
+        }
 
         case LowerInst::Div:
             if(d < 2) return nullptr;
