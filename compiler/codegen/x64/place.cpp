@@ -2854,10 +2854,31 @@ static void splitAroundClusters(Placer& a, const Array<LiveId>& candidates) {
             // instruction: the load would have to go in the previous block's terminator.
             if(first.defines || first.index <= span.firstIndex || promoted(first)) { i++; continue; }
 
-            // ... as is a definition at this instruction or the one before it. The load joins the
-            // previous instruction's parallel copy, which would then both read the slot and be the
-            // copy carrying a freshly defined member into it.
-            if(i > 0 && reads[i - 1].defines && reads[i - 1].index + 1 >= first.index) { i++; continue; }
+            /*
+             * ... as is a definition at this instruction or the one before it. The load joins the
+             * previous instruction's parallel copy, which would then both read the slot and be the
+             * copy carrying a freshly defined member into it.
+             *
+             * **Every entry back to that instruction is asked**, and not only the one immediately
+             * before this. An instruction that reads the web twice contributes two entries at one
+             * index - `add %a, %a`, which is what doubling a value lowers to - so asking the
+             * previous entry alone stepped over the definition's and let the second read open a
+             * window at the very instruction after it.
+             *
+             * What that produced was silent. The parallel copy behind the defining instruction then
+             * held two transfers, the result to its home and the home into the window's register,
+             * and a set containing both is a *cycle*: it sequences as a swap, and the window's
+             * register is loaded with whatever the slot held before the definition. A call
+             * returning a Double followed by two uses of the result is the whole of the shape, and
+             * only the vector bank reaches it - the general forms are two-address and reload at
+             * each use.
+             */
+            bool definedNear = false;
+            for(Size k = i; k-- > 0 && reads[k].index + 1 >= first.index;) {
+                if(reads[k].defines) { definedNear = true; break; }
+            }
+
+            if(definedNear) { i++; continue; }
 
             auto lo = first.index;
             auto stretchFrom = beforeInst(lo) - 1;

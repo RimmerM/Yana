@@ -1,0 +1,55 @@
+{-
+   Floating-point negation under VEX, where the operand is *not* the destination.
+
+   # extensions: v3
+
+   `FloatNeg.yana` beside this asserts what the negation answers; what it cannot assert is the
+   three-operand encoding, for two reasons that compound. It names no level, so it is compiled at v2
+   and reaches the legacy two-address form alone (test/directives.h) - and every negation in it
+   consumes its operand, so even at v3 the allocator has no reason to put the source and the
+   destination in different registers, and a form that read the destination for both would still
+   answer correctly.
+
+   So every case here keeps the operand live past the negation. `vxorpd xmm1, xmm0, [mask]` is then
+   what has to be emitted, and a form that named `xmm1` in `VEX.vvvv` reads a register nothing has
+   written yet.
+
+   The fault this exists for is in the *derivation*: `dropTie` puts the destination wherever the
+   legacy encoding did not have it, and a pseudo that declared no field at all read as the shape
+   whose ModRM.reg holds an opcode extension - the packed shifts - where a negation is the shape
+   that holds its destination there. See `floatNeg` in machine_forms_scalar.cpp, and §70 of
+   test/bench/findings.md for the other half of the same afternoon.
+
+   Each case contributes a distinct power of two and `main` is 255 when they all pass.
+-}
+
+@noinline fn opaque(x: Double) -> Double = x
+@noinline fn opaqueF(x: Float) -> Float = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+fn main() -> Int:
+    -- The two widths, which are two forms: `vxorps` against a four-lane mask and `vxorpd` against a
+    -- two-lane one. Both operands are read again below, which is what denies the negation its
+    -- operand's register.
+    let wide = opaque(2.5)
+    let negated = -wide
+
+    let narrow = opaqueF(1.5)
+    let negatedF = -narrow
+
+    -- Negative zero, which is the case that says the mask is a mask: `0 - 0.0` is `+0.0` and would
+    -- pass every line above.
+    let zero = opaque(0.0)
+    let negatedZero = -zero
+
+    -- And a negation of a negation with both ends live, so that neither of the two can be answered
+    -- by the register the other left behind.
+    let source = opaque(3.25)
+    let once = -source
+    let twice = -once
+
+    return check(negated == 0.0 - 2.5, 1) + check(wide == 2.5, 2) +
+        check(negatedF == 0.0 - 1.5, 4) + check(narrow == 1.5, 8) +
+        check((1.0 :: Double) / negatedZero < 0.0, 16) + check(zero == 0.0, 32) +
+        check(twice == 3.25, 64) + check(once == 0.0 - 3.25, 128)

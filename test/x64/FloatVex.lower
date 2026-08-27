@@ -84,6 +84,25 @@ negate(%a: Double, %b: Float): Double {
     }
 }
 
+# And the same negation with its operand still live afterwards, which is the case that says *which
+# field* holds the destination. Every source above is consumed by the negation that reads it, so the
+# allocator gives the pseudo its operand's register and a twin naming the destination in vvvv writes
+# the same bytes as one naming the source there. Here it cannot: `%a` and `%b` are read again, so
+# `vxorpd` names one register in vvvv and another in ModRM.reg. See §70.2 of test/bench/findings.md,
+# which is what those bytes were wrong about.
+negateLive(%a: Double, %b: Float): Double {
+    {
+        %n = neg %a: Double
+        %m = neg %b: Float
+        %w = cast %m: Double
+        %s = add %n, %w: Double
+        %t = add %s, %a: Double
+        %u = cast %b: Double
+        %r = add %t, %u: Double
+        ret %r
+    }
+}
+
 # Positive zero at both widths, which is the one constant with an encoding of its own: `vxorps`
 # rather than `xorps`, with the source named in vvvv because the prefix no longer implies it. Added
 # to and multiplied by an argument so that neither is folded away and both survive to be emitted.

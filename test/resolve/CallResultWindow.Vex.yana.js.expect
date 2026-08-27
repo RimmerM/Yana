@@ -1,0 +1,18 @@
+"use strict";
+// ResolveTest
+function opaque(x) {
+  return x;
+}
+
+function barrier(x) {
+  return x;
+}
+
+function main() {
+  var first = opaque(-0.5);
+  var opened = barrier(0);
+  var v50 = first === -0.5 ? 1 : 0;
+  var a = opaque(7.25);
+  return v50 + (a * 2 === 14.5 ? 2 : 0) + (a + 1 === 8.25 ? 4 : 0) + (a === 7.25 ? 8 : 0) + (barrier(barrier(barrier(opened))) === 0 ? 16 : 0);
+}
+main();

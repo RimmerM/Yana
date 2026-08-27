@@ -1,0 +1,63 @@
+{-
+   A call's `Double` result, read more than once, with the web's home in the frame.
+
+   # extensions: v3
+
+   This is the allocator's §5.9 - a *cluster window*, the register a web with no home register steps
+   into over one stretch of one block. The rule that makes such a window free is that the home never
+   stops holding the value, and it rests on no member of the web being **defined** at the window's
+   first instruction or the one before it: the load into the window's register joins the parallel
+   copy behind that instruction, and behind a definition that copy is already carrying the result to
+   its home. A set holding both transfers is a cycle, so it sequences as a *swap* - the window's
+   register is loaded with whatever the slot held before the definition, and the arithmetic answers
+   from a value that has been dead for several instructions.
+
+   Three things have to be true at once for a placement to reach it, and they are what this fixture
+   arranges rather than what it asserts:
+
+   - the web's home is a frame slot, which is what `barrier` below is for. A `Double` live across a
+     call has no callee-saved register to live in - the convention preserves none of the vector file
+     - so a value read after one is in the frame;
+   - the definition is the instruction immediately before the window, which is what a call result
+     read by the next instruction is;
+   - **the first reading instruction reads the web twice.** `a * 2.0` lowers to `add a, a`, which
+     contributes two entries at one index, and the barrier that steps over a definition read only
+     the entry directly before it. Stepping over the first of the two left the second free to open
+     the window at the very instruction the definition guard had just refused.
+
+   Only the vector bank reaches it. The same program over `Int` has a callee-saved register to keep
+   the value in and never asks for a window at all, and the legacy two-address forms reload their
+   operand from the slot at each use where the VEX three-operand ones let it stay in a register -
+   which is why this is compiled at v3 and why v2 was green throughout.
+
+   `first` is what makes the wrong answer a *number* rather than whatever the frame happened to hold:
+   it is a different double, live across a call, and dead by the time `a` is defined, so it is the
+   value the swap brings back. Recorded in test/bench/findings.md §70.
+
+   Each case contributes a distinct power of two and `main` is 31 when they all pass, so a failure
+   names itself in binary.
+-}
+
+@noinline fn opaque(x: Double) -> Double = x
+
+-- A call the values below have to live across, and the one thing this asserts about it is that its
+-- own answer survives: it is what denies `a` a register for its whole life.
+@noinline fn barrier(x: Int) -> Int = x
+
+fn check(condition: Bool, weight: Int) -> Int = if condition then weight else 0
+
+fn main() -> Int:
+    let first = opaque(-0.5)
+    let opened = barrier(0)
+    let firstOk = check(first == -0.5, 1)
+
+    -- The shape itself: a result defined here, read twice by the next instruction and once by the
+    -- one after it, and read again past the calls below - which is what puts its home in the frame.
+    let a = opaque(7.25)
+    let doubled = a * 2.0
+    let raised = a + 1.0
+
+    let held = barrier(barrier(barrier(opened)))
+
+    return firstOk + check(doubled == 14.5, 2) + check(raised == 8.25, 4) +
+        check(a == 7.25, 8) + check(held == 0, 16)

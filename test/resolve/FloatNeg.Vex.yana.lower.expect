@@ -1,0 +1,52 @@
+@image$base = []
+
+opaque<complex>(%x: Double): Double {
+  b_0 {
+    ret %x
+  }
+}
+
+opaqueF<complex>(%x: Float): Float {
+  b_0 {
+    ret %x
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %wide = call_complex opaque, 2.5: Double
+    %negated = neg %wide: Double
+    %narrow = call_complex opaqueF, 1.5: Float
+    %negatedF = neg %narrow: Float
+    %zero = call_complex opaque, 0: Double
+    %negatedZero = neg %zero: Double
+    %source = call_complex opaque, 3.25: Double
+    %once = neg %source: Double
+    %twice = neg %once: Double
+    %v_1 = cmp_eq %negated, -2.5: Int
+    %v_2 = cmp_eq %wide, 2.5: Int
+    %v_3 = select %v_2, 2, 0: Int
+    %v_4 = add %v_1, %v_3: Int
+    %v_5 = cmp_eq %negatedF, -1.5: Int
+    %v_6 = select %v_5, 4, 0: Int
+    %v_7 = add %v_4, %v_6: Int
+    %v_8 = cmp_eq %narrow, 1.5: Int
+    %v_9 = select %v_8, 8, 0: Int
+    %v_10 = add %v_7, %v_9: Int
+    %v_11 = div 1, %negatedZero: Double
+    %v_12 = cmp_lt %v_11, 0: Int
+    %v_13 = select %v_12, 16, 0: Int
+    %v_14 = add %v_10, %v_13: Int
+    %v_15 = cmp_eq %zero, 0: Int
+    %v_16 = select %v_15, 32, 0: Int
+    %v_17 = add %v_14, %v_16: Int
+    %v_18 = cmp_eq %twice, 3.25: Int
+    %v_19 = select %v_18, 64, 0: Int
+    %v_20 = add %v_17, %v_19: Int
+    %v_21 = cmp_eq %once, -3.25: Int
+    %v_22 = select %v_21, 128, 0: Int
+    %v_23 = add %v_20, %v_22: Int
+    ret %v_23
+  }
+}
+

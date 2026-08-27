@@ -1,0 +1,21 @@
+"use strict";
+// ResolveTest
+function opaque(x) {
+  return x;
+}
+
+function opaqueF(x) {
+  return x;
+}
+
+function main() {
+  var wide = opaque(2.5);
+  var negated = -wide;
+  var narrow = opaqueF(1.5);
+  var negatedF = Math.fround(-narrow);
+  var zero = opaque(0);
+  var negatedZero = -zero;
+  var once = -opaque(3.25);
+  return (negated === -2.5 ? 1 : 0) + (wide === 2.5 ? 2 : 0) + (negatedF === -1.5 ? 4 : 0) + (narrow === 1.5 ? 8 : 0) + (1 / negatedZero < 0 ? 16 : 0) + (zero === 0 ? 32 : 0) + (-once === 3.25 ? 64 : 0) + (once === -3.25 ? 128 : 0);
+}
+main();

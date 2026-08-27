@@ -1,0 +1,69 @@
+let image$base: () = <none>
+
+fn opaque(%x: Double) -> Double {
+  b0:
+    ret %x
+}
+
+fn opaqueF(%x: Float) -> Float {
+  b0:
+    ret %x
+}
+
+fn check(%condition: Bool, %weight: Int) -> Int {
+  b0:
+    je %condition, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v6 = phi [b1, %weight], [b2, 0] : Int
+    ret %v6
+}
+
+fn main() -> Int {
+  b0:
+    %wide = call opaque, 2.5 : Double
+    %negated = neg %wide : Double
+    %narrow = call opaqueF, 1.5 : Float
+    %negatedF = neg %narrow : Float
+    %zero = call opaque, 0 : Double
+    %negatedZero = neg %zero : Double
+    %source = call opaque, 3.25 : Double
+    %once = neg %source : Double
+    %twice = neg %once : Double
+    %v17 = sub 0, 2.5 : Float
+    %v18 = cast %v17 : Double
+    %v19 = cmp_eq %negated, %v18 : Bool
+    %v21 = call check, %v19, 1 : Int
+    %v24 = cmp_eq %wide, 2.5 : Bool
+    %v26 = call check, %v24, 2 : Int
+    %v27 = add %v21, %v26 : Int
+    %v32 = sub 0, 1.5 : Float
+    %v33 = cmp_eq %negatedF, %v32 : Bool
+    %v35 = call check, %v33, 4 : Int
+    %v36 = add %v27, %v35 : Int
+    %v39 = cmp_eq %narrow, 1.5 : Bool
+    %v41 = call check, %v39, 8 : Int
+    %v42 = add %v36, %v41 : Int
+    %v44 = div 1, %negatedZero : Double
+    %v47 = cmp_lt %v44, 0 : Bool
+    %v49 = call check, %v47, 16 : Int
+    %v50 = add %v42, %v49 : Int
+    %v53 = cmp_eq %zero, 0 : Bool
+    %v55 = call check, %v53, 32 : Int
+    %v56 = add %v50, %v55 : Int
+    %v59 = cmp_eq %twice, 3.25 : Bool
+    %v61 = call check, %v59, 64 : Int
+    %v62 = add %v56, %v61 : Int
+    %v67 = sub 0, 3.25 : Float
+    %v68 = cast %v67 : Double
+    %v69 = cmp_eq %once, %v68 : Bool
+    %v71 = call check, %v69, 128 : Int
+    %v72 = add %v62, %v71 : Int
+    ret %v72
+}

@@ -1005,6 +1005,17 @@ void MachineFormBuilder::registerScalarForms() {
         form.defs.push(tiedDef(0, cls));
         form.encoding = EncodingDescriptor {
             .family = EncodingFamily::Pseudo, .pseudo = PseudoKind::FloatNeg,
+
+            // **The destination is in ModRM.reg**, which the emitter below writes itself and which
+            // nothing else here reads - so this states a shape rather than naming a field anything
+            // encodes from. `dropTie` is what reads it, and it is the difference between the two
+            // places VEX can put a destination: `op reg, r/m` keeps it in ModRM.reg and gives `vvvv`
+            // the source the tie used to double as, where a form with an *extension* in ModRM.reg
+            // has only `vvvv` left to name the destination in. Left unsaid, this pseudo read as the
+            // second and its VEX twin named the destination in `vvvv` twice over - `vxorpd xmm1,
+            // xmm1, [mask]` for a negation whose operand was in xmm0.
+            .regField = defRef(0),
+
             .width = width,
         };
     };
