@@ -456,10 +456,12 @@ static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& mo
     /*
      * An executable is placed at a known address and a shared library is not, and the difference is
      * not only about how code addresses itself: a compiler-built table holds the address of a
-     * function, and prefix data holds two of them in front of the entry point (see
-     * ClosureHeaderLayout). Those are absolute addresses in the IR's model, and in a position-
-     * independent executable each one becomes a relocation the loader applies at run time - which
-     * for the ones in prefix data means writing into a page of code, and so a text relocation.
+     * function, and a closure header holds one in front of the entry point as prefix data (see
+     * ClosureHeaderLayout). A slot is a 32-bit offset from the image anchor, which this backend
+     * places at zero - see anchorAtZero, and the reason it has to - so what an object file carries
+     * is an absolute 32-bit address. In a position-independent executable that is a relocation the
+     * loader applies at run time, and for the one in prefix data it is a write into a page of code,
+     * and so a text relocation.
      *
      * So an executable is built the way its own tables are written: statically placed, with every
      * address resolved by the linker. A shared library has no such option and will need the tables

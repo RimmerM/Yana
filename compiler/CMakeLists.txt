@@ -247,6 +247,7 @@ target_link_libraries(YanaLower PUBLIC YanaCore)
 target_link_libraries(YanaResolve PUBLIC YanaLower)
 
 set(LLVM_SOURCE_FILES
+    codegen/entry.h
     codegen/llvm/gen.h
     codegen/llvm/build.h
     codegen/llvm/gen.cpp
@@ -327,6 +328,7 @@ set(X64_SOURCE_FILES
     codegen/x64/verify.cpp
     codegen/x64/frame.cpp
     codegen/x64/constraint.cpp
+    codegen/entry.h
     codegen/x64/emit.h
     codegen/x64/emit.cpp
     codegen/x64/x64_util.h

@@ -1,7 +1,9 @@
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
-@"image$base" = constant [0 x i8] zeroinitializer, align 8
+module asm "\09.set \22image$base\22, 0"
+
+@"image$base" = external constant [0 x i8], align 8
 @heapFree = global [8 x i8] zeroinitializer, align 8
 
 define fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %value) {
@@ -279,22 +281,22 @@ define fastcc i32 @main() {
   store i32 7, ptr %38, align 1
   br label %39
 
-39:                                               ; preds = %133, %8
-  %40 = phi i32 [ 0, %8 ], [ %137, %133 ]
+39:                                               ; preds = %135, %8
+  %40 = phi i32 [ 0, %8 ], [ %139, %135 ]
   %41 = add i32 %40, 4
   %42 = icmp sle i32 %41, 7
   %43 = zext i1 %42 to i32
-  br i1 %42, label %133, label %44
+  br i1 %42, label %135, label %44
 
 44:                                               ; preds = %39
   %45 = sext i32 %40 to i64
   br label %46
 
-46:                                               ; preds = %127, %44
-  %47 = phi i64 [ %45, %44 ], [ %130, %127 ]
+46:                                               ; preds = %129, %44
+  %47 = phi i64 [ %45, %44 ], [ %132, %129 ]
   %48 = icmp slt i64 %47, 7
   %49 = zext i1 %48 to i32
-  br i1 %48, label %124, label %50
+  br i1 %48, label %126, label %50
 
 50:                                               ; preds = %46
   %51 = load ptr, ptr %ints, align 1
@@ -323,13 +325,13 @@ define fastcc i32 @main() {
   %67 = load ptr, ptr %ys, align 1
   br label %68
 
-68:                                               ; preds = %115, %50
-  %69 = phi <4 x float> [ zeroinitializer, %50 ], [ %122, %115 ]
-  %70 = phi i32 [ 0, %50 ], [ %123, %115 ]
+68:                                               ; preds = %116, %50
+  %69 = phi <4 x float> [ zeroinitializer, %50 ], [ %124, %116 ]
+  %70 = phi i32 [ 0, %50 ], [ %125, %116 ]
   %71 = add i32 %70, 4
   %72 = icmp sle i32 %71, %66
   %73 = zext i1 %72 to i32
-  br i1 %72, label %115, label %74
+  br i1 %72, label %116, label %74
 
 74:                                               ; preds = %68
   %75 = icmp slt i32 %70, %66
@@ -337,7 +339,7 @@ define fastcc i32 @main() {
   br i1 %75, label %78, label %77
 
 77:                                               ; preds = %74
-  br label %88
+  br label %89
 
 78:                                               ; preds = %74
   %79 = sub i32 %66, %70
@@ -352,75 +354,77 @@ define fastcc i32 @main() {
   %85 = getelementptr i8, ptr %67, i64 %82
   %86 = load <4 x float>, ptr %85, align 1
   %y = select <4 x i1> %80, <4 x float> %86, <4 x float> zeroinitializer
-  %87 = call <4 x float> @llvm.fma.v4f32(<4 x float> %x, <4 x float> %y, <4 x float> %69)
-  br label %88
+  %87 = fmul <4 x float> %x, %y
+  %88 = fadd <4 x float> %87, %69
+  br label %89
 
-88:                                               ; preds = %78, %77
-  %89 = phi <4 x float> [ %69, %77 ], [ %87, %78 ]
-  %90 = shufflevector <4 x float> %89, <4 x float> poison, <2 x i32> <i32 0, i32 2>
-  %91 = shufflevector <4 x float> %89, <4 x float> poison, <2 x i32> <i32 1, i32 3>
-  %92 = fadd <2 x float> %90, %91
-  %93 = shufflevector <2 x float> %92, <2 x float> poison, <1 x i32> zeroinitializer
-  %94 = shufflevector <2 x float> %92, <2 x float> poison, <1 x i32> <i32 1>
-  %95 = fadd <1 x float> %93, %94
-  %96 = extractelement <1 x float> %95, i64 0
+89:                                               ; preds = %78, %77
+  %90 = phi <4 x float> [ %69, %77 ], [ %88, %78 ]
+  %91 = shufflevector <4 x float> %90, <4 x float> poison, <2 x i32> <i32 0, i32 2>
+  %92 = shufflevector <4 x float> %90, <4 x float> poison, <2 x i32> <i32 1, i32 3>
+  %93 = fadd <2 x float> %91, %92
+  %94 = shufflevector <2 x float> %93, <2 x float> poison, <1 x i32> zeroinitializer
+  %95 = shufflevector <2 x float> %93, <2 x float> poison, <1 x i32> <i32 1>
+  %96 = fadd <1 x float> %94, %95
+  %97 = extractelement <1 x float> %96, i64 0
   call fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %xs)
   call fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %ys)
-  %97 = fcmp oeq float %96, 3.000000e+01
-  %98 = zext i1 %97 to i32
-  %99 = select i1 %97, i32 30, i32 0
-  %100 = mul i32 %99, 100
-  %101 = add i32 %63, %100
-  %102 = load ptr, ptr %ints, align 1
-  %103 = getelementptr i8, ptr %ints, i64 12
-  %104 = load i32, ptr %103, align 1
-  %105 = zext i32 %104 to i64
-  %106 = call fastcc i32 @indexOf(ptr %102, i64 %105, i32 8)
+  %98 = fcmp oeq float %97, 3.000000e+01
+  %99 = zext i1 %98 to i32
+  %100 = select i1 %98, i32 30, i32 0
+  %101 = mul i32 %100, 100
+  %102 = add i32 %63, %101
+  %103 = load ptr, ptr %ints, align 1
+  %104 = getelementptr i8, ptr %ints, i64 12
+  %105 = load i32, ptr %104, align 1
+  %106 = zext i32 %105 to i64
+  %107 = call fastcc i32 @indexOf(ptr %103, i64 %106, i32 8)
   call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %ints)
-  %107 = mul i32 %106, 10
-  %108 = add i32 %101, %107
-  %109 = load ptr, ptr %4, align 1
-  %110 = getelementptr i8, ptr %4, i64 12
-  %111 = load i32, ptr %110, align 1
-  %112 = zext i32 %111 to i64
-  %113 = call fastcc i32 @sumInts(ptr %109, i64 %112)
+  %108 = mul i32 %107, 10
+  %109 = add i32 %102, %108
+  %110 = load ptr, ptr %4, align 1
+  %111 = getelementptr i8, ptr %4, i64 12
+  %112 = load i32, ptr %111, align 1
+  %113 = zext i32 %112 to i64
+  %114 = call fastcc i32 @sumInts(ptr %110, i64 %113)
   call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %4)
-  %114 = add i32 %108, %113
-  ret i32 %114
+  %115 = add i32 %109, %114
+  ret i32 %115
 
-115:                                              ; preds = %68
-  %116 = sext i32 %70 to i64
-  %117 = shl i64 %116, 2
-  %118 = getelementptr i8, ptr %64, i64 %117
-  %119 = load <4 x float>, ptr %118, align 1
-  %120 = getelementptr i8, ptr %67, i64 %117
-  %121 = load <4 x float>, ptr %120, align 1
-  %122 = call <4 x float> @llvm.fma.v4f32(<4 x float> %119, <4 x float> %121, <4 x float> %69)
-  %123 = add i32 %70, 4
+116:                                              ; preds = %68
+  %117 = sext i32 %70 to i64
+  %118 = shl i64 %117, 2
+  %119 = getelementptr i8, ptr %64, i64 %118
+  %120 = load <4 x float>, ptr %119, align 1
+  %121 = getelementptr i8, ptr %67, i64 %118
+  %122 = load <4 x float>, ptr %121, align 1
+  %123 = fmul <4 x float> %120, %122
+  %124 = fadd <4 x float> %123, %69
+  %125 = add i32 %70, 4
   br label %68
 
-124:                                              ; preds = %46
-  %125 = icmp uge i64 %47, 7
-  %126 = zext i1 %125 to i32
-  br i1 %125, label %131, label %127
+126:                                              ; preds = %46
+  %127 = icmp uge i64 %47, 7
+  %128 = zext i1 %127 to i32
+  br i1 %127, label %133, label %129
 
-127:                                              ; preds = %124
-  %128 = shl i64 %47, 2
-  %129 = getelementptr i8, ptr %3, i64 %128
-  store i32 3, ptr %129, align 1
-  %130 = add i64 %47, 1
+129:                                              ; preds = %126
+  %130 = shl i64 %47, 2
+  %131 = getelementptr i8, ptr %3, i64 %130
+  store i32 3, ptr %131, align 1
+  %132 = add i64 %47, 1
   br label %46
 
-131:                                              ; preds = %124
-  %132 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
+133:                                              ; preds = %126
+  %134 = call i64 asm sideeffect "syscall", "={rax},{rax},{rdi},~{rcx},~{r11},~{memory},~{dirflag},~{fpsr},~{flags}"(i64 60, i64 134)
   unreachable
 
-133:                                              ; preds = %39
-  %134 = sext i32 %40 to i64
-  %135 = shl i64 %134, 2
-  %136 = getelementptr i8, ptr %3, i64 %135
-  store <4 x i32> <i32 3, i32 3, i32 3, i32 3>, ptr %136, align 1
-  %137 = add i32 %40, 4
+135:                                              ; preds = %39
+  %136 = sext i32 %40 to i64
+  %137 = shl i64 %136, 2
+  %138 = getelementptr i8, ptr %3, i64 %137
+  store <4 x i32> <i32 3, i32 3, i32 3, i32 3>, ptr %138, align 1
+  %139 = add i32 %40, 4
   br label %39
 }
 
@@ -435,9 +439,6 @@ declare i32 @llvm.cttz.i32(i32, i1 immarg) #1
 
 ; Function Attrs: argmemonly nocallback nofree nounwind willreturn writeonly
 declare void @llvm.memset.p0.i64(ptr nocapture writeonly, i8, i64, i1 immarg) #2
-
-; Function Attrs: nocallback nofree nosync nounwind readnone speculatable willreturn
-declare <4 x float> @llvm.fma.v4f32(<4 x float>, <4 x float>, <4 x float>) #1
 
 attributes #0 = { nocallback nofree nosync nounwind readnone willreturn }
 attributes #1 = { nocallback nofree nosync nounwind readnone speculatable willreturn }

@@ -170,25 +170,65 @@ static llvm::StringRef toRef(StringView view) {
  * A global's contents are bytes and a list of addresses to write into them, which is the flat-buffer
  * spelling of a relocation - see LowerDataRelocation. LLVM says the same thing with a constant that
  * *contains* the address, so this splits the bytes at each relocation site and rebuilds them as a
- * packed struct of byte arrays and pointers. Packed because the offsets are the point: a witness
+ * packed struct of byte arrays and address cells. Packed because the offsets are the point: a witness
  * table's slot is at the offset the lowering computed, and a struct LLVM is free to pad is not.
+ *
+ * **A site is not always a pointer.** LowerDataRelocation has two kinds and they are different
+ * widths: a compiler-built table's slot is four bytes holding `target - &anchor` (repr/table.h),
+ * and a source constant's pointer is the target's own width and absolute. Emitting the first as a
+ * pointer is not a slower spelling of the same thing - it is eight bytes where the reader expects
+ * four, so the reader gets half of somebody's address and the four bytes after the slot are eaten.
  *
  * Built twice per global. A table naming a function is a forward reference as often as not - and
  * naming *itself* is what a recursive type descriptor does - so the first pass builds the same
- * shape with null addresses, which is what the variable is declared as, and the second fills them
- * in once everything in the module exists. Both walk this one function, so the type the variable
- * was declared with and the type of what is stored into it cannot drift apart.
+ * shape with empty cells, which is what the variable is declared as, and the second fills them in
+ * once everything in the module exists. Both walk this one function, so the type the variable was
+ * declared with and the type of what is stored into it cannot drift apart - which is also why the
+ * width a cell occupies is decided from the relocation rather than from what went into it.
  */
 static llvm::Constant* byteChunk(Gen& gen, const Byte* bytes, Size length) {
     return llvm::ConstantDataArray::get(gen.llvm, llvm::ArrayRef<uint8_t>((const uint8_t*)bytes, length));
 }
 
+/*
+ * A table slot: `target - &anchor`, as a signed 32-bit number.
+ *
+ * Stated as a constant expression rather than computed, because it cannot be computed here - the
+ * two labels are placed by the linker. Both operands are `ptrtoint` to the cell's own width, which
+ * is the form the assembler recognizes: each lowers to a symbol reference, and the difference of
+ * two symbols in one image is a link-time constant needing no relocation at load time. A `trunc`
+ * of a 64-bit subtraction says the same thing and is not guaranteed to survive lowering.
+ */
+static llvm::Constant* anchorSlot(Gen& gen, LowerGlobal& global, llvm::Constant* address) {
+    auto cell = llvm::Type::getInt32Ty(gen.llvm);
+    auto anchor = gen.globalOf(gen.lower.imageAnchor);
+
+    // A slot with no anchor to measure from would be an offset from zero, which is a wrong address
+    // rather than a missing one - the same thing the other backend asserts about.
+    if(!anchor) {
+        gen.context.diagnostics.error("llvm: global %@ holds a table slot, but the module has no image anchor"_v,
+                                      &global.source, gen.context.findName(global.name));
+        return llvm::ConstantInt::get(cell, 0);
+    }
+
+    return llvm::ConstantExpr::getSub(llvm::ConstantExpr::getPtrToInt(address, cell),
+                                      llvm::ConstantExpr::getPtrToInt(anchor, cell));
+}
+
 static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve) {
     auto contents = global.initialContents;
 
-    // Each site as the address that goes into it. Resolved before being sorted so that what is
-    // sorted is a pair of numbers rather than the IR's own record of the relocation.
-    llvm::SmallVector<std::pair<U32, llvm::Constant*>, 8> sites;
+    // Each site as the cell that goes into it, and how many bytes of `contents` that cell stands
+    // for. Resolved before being sorted so that what is sorted is a pair of numbers rather than the
+    // IR's own record of the relocation.
+    struct Site {
+        U32 offset;
+        U32 width;
+        llvm::Constant* cell;
+    };
+
+    llvm::SmallVector<Site, 8> sites;
+    auto pointerBytes = U32(gen.module.getDataLayout().getPointerSize());
 
     for(auto relocation: global.relocations.contents(gen.base)) {
         llvm::Constant* address = nullptr;
@@ -207,7 +247,15 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
             address = llvm::ConstantPointerNull::get(llvm::Type::getInt8PtrTy(gen.llvm));
         }
 
-        sites.push_back({ relocation.offset, address });
+        if(!relocation.anchorRelative) {
+            sites.push_back({ relocation.offset, pointerBytes, address });
+        } else {
+            auto cell = llvm::Type::getInt32Ty(gen.llvm);
+            sites.push_back({
+                relocation.offset, U32(cell->getIntegerBitWidth() / 8),
+                resolve ? anchorSlot(gen, global, address) : llvm::Constant::getNullValue(cell)
+            });
+        }
     }
 
     if(sites.empty()) {
@@ -215,20 +263,18 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
         return byteChunk(gen, contents.ptr, contents.length);
     }
 
-    llvm::sort(sites, [](const std::pair<U32, llvm::Constant*>& a, const std::pair<U32, llvm::Constant*>& b) {
-        return a.first < b.first;
-    });
+    llvm::sort(sites, [](const Site& a, const Site& b) { return a.offset < b.offset; });
 
     llvm::SmallVector<llvm::Constant*, 8> fields;
     Size at = 0;
 
     for(auto& site: sites) {
-        if(site.first > at) {
-            fields.push_back(byteChunk(gen, contents.ptr + at, site.first - at));
+        if(site.offset > at) {
+            fields.push_back(byteChunk(gen, contents.ptr + at, site.offset - at));
         }
 
-        fields.push_back(site.second);
-        at = site.first + 8;
+        fields.push_back(site.cell);
+        at = site.offset + site.width;
     }
 
     if(at < contents.length) {
@@ -238,10 +284,43 @@ static llvm::Constant* initializerOf(Gen& gen, LowerGlobal& global, bool resolve
     return llvm::ConstantStruct::getAnon(gen.llvm, fields, true);
 }
 
+/*
+ * Where the image anchor is, and why this backend has to place it itself.
+ *
+ * A table slot holds `target - &anchor` (repr/table.h), which the other backend simply subtracts:
+ * it assembles the whole image into one buffer and both offsets are in hand. Here the two ends are
+ * placed by the linker, so the slot has to be a *relocation*, and ELF has none that means "the
+ * distance between these two symbols". MC folds such a difference only when both ends sit in one
+ * section whose layout it knows - and they never do: a slot names a function, in `.text`, while the
+ * anchor is constant data. Leaving it to MC is the error `Cannot represent a difference across
+ * sections`, and there is nowhere to move the anchor to that fixes it, because a global LLVM emits
+ * cannot join `.text` (an explicit section on read-only data gets its own `.text` variant instead).
+ *
+ * So on ELF the anchor is *defined here, at absolute zero*, and a slot is the target's own address
+ * with nothing subtracted - one relocation, of the ordinary kind. Which makes the reader's `add`
+ * onto the anchor an add of zero, and leaves both halves saying exactly what repr/table.h says they
+ * say. It is correct for the same reason the rest of this backend's addressing is: an executable
+ * built statically and not position-independent (see createMachine), whose every address fits in the
+ * 32 bits a slot has. A shared library needs relative tables, which is a change to the lowering.
+ *
+ * Not on Mach-O, which has `X86_64_RELOC_SUBTRACTOR` and states the difference directly.
+ */
+static bool anchorAtZero(Gen& gen) {
+    return gen.context.settings.format == ExecutableFormat::ELF;
+}
+
 static llvm::GlobalVariable* declareGlobal(Gen& gen, LowerGlobal& global) {
-    auto initializer = initializerOf(gen, global, false);
+    auto here = &global - gen.base;
+    auto zeroAnchor = here == gen.lower.imageAnchor && anchorAtZero(gen);
+
+    // Declared and not defined: what stands where this names is an absolute symbol the assembler is
+    // told about below, and a definition here would be a second one, in a section, at an address.
+    auto initializer = zeroAnchor ? nullptr : initializerOf(gen, global, false);
+    auto type = zeroAnchor ? (llvm::Type*)llvm::ArrayType::get(llvm::Type::getInt8Ty(gen.llvm), 0)
+                           : initializer->getType();
+
     auto variable = new llvm::GlobalVariable(
-        gen.module, initializer->getType(), !global.mut,
+        gen.module, type, !global.mut,
         llvm::GlobalValue::ExternalLinkage, initializer, nameOf(gen.context, global.name)
     );
 
@@ -249,7 +328,14 @@ static llvm::GlobalVariable* declareGlobal(Gen& gen, LowerGlobal& global) {
     // them is laid out for: a slot holding an address has to be aligned to be atomically readable,
     // and nothing in the lower IR asks for more than a word.
     variable->setAlignment(llvm::Align(8));
-    gen.globals.add((&global - gen.base).offset, variable);
+
+    if(zeroAnchor) {
+        char line[256];
+        auto length = format(toBuffer(line), String("\t.set \"%@\", 0\n"), gen.context.findName(global.name));
+        gen.module.appendModuleInlineAsm(llvm::StringRef(line, length));
+    }
+
+    gen.globals.add(here.offset, variable);
     return variable;
 }
 
@@ -374,9 +460,13 @@ Ptr<llvm::Module> genModule(llvm::LLVMContext& llvm, Context& context, LowerModu
     for(auto g: module.globalOrder) declareGlobal(gen, *base[g]);
     for(auto f: module.functionOrder) declareFunction(gen, *base[f]);
 
-    // Now that everything has a name, what the constant tables hold can be filled in.
+    // Now that everything has a name, what the constant tables hold can be filled in. The anchor is
+    // skipped where it is a declaration rather than a definition - see anchorAtZero.
     for(auto g: module.globalOrder) {
-        gen.globalOf(g)->setInitializer(initializerOf(gen, *base[g], true));
+        auto variable = gen.globalOf(g);
+        if(variable->isDeclaration()) continue;
+
+        variable->setInitializer(initializerOf(gen, *base[g], true));
     }
 
     // Prefix data is emitted immediately in front of the entry point, which is what LLVM calls it

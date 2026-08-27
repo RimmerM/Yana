@@ -278,16 +278,33 @@ static void genUnary(FunGen& f, LowerInstUnary& inst) {
 /*
  * `a * b + c`, at most once rounded.
  *
- * `llvm.fma` is the intrinsic that *means* one rounding, so this is the one place the two backends
- * do not have to agree about a feature level: LLVM lowers it to the machine's fused instruction
- * where there is one and to a libm call or the two operations where there is not, and either way it
- * is the operation the IR asked for. The x64 backend makes the same choice one level lower, in
- * `expandFusedMultiplyAdd`.
+ * `llvm.fma` is the intrinsic that *means* exactly one rounding - which is more than the language
+ * asks for. Design-Vector §3.3 makes `fma` a *permission* to fuse rather than a promise, so on a
+ * target with no fusing instruction the two operations at two roundings are not an approximation of
+ * what was written but the other thing it always allowed. `expandFusedMultiplyAdd` is the other
+ * backend saying the same sentence one level lower.
+ *
+ * The difference matters here because LLVM keeps its promise the only way left to it: below the
+ * feature level it emits a call to `fmaf`, and a program that brings its own `_start` has no libm to
+ * answer it. That was a link error naming a symbol nothing in the language asked for.
  */
+static bool hasFusedMultiplyAdd(const CompileSettings& settings) {
+    // Every AArch64 has `fmadd`; on x86-64 the instruction arrives with v3, which is exactly when
+    // `featuresOf` names `fma` to the target machine.
+    if(settings.arch == TargetArch::ARM64) return true;
+
+    return settings.extensions.level >= TargetExtensions::V3;
+}
+
 static void genFma(FunGen& f, LowerInstFma& inst) {
     auto a = use(f, inst, inst.a);
     auto b = use(f, inst, inst.b);
     auto c = use(f, inst, inst.c);
+
+    if(!hasFusedMultiplyAdd(f.context.settings)) {
+        f.define(inst.result, f.builder.CreateFAdd(f.builder.CreateFMul(a, b), c, nameOf(f, inst.result)));
+        return;
+    }
 
     f.define(inst.result, f.builder.CreateIntrinsic(llvm::Intrinsic::fma, { a->getType() },
                                                     { a, b, c }, nullptr, nameOf(f, inst.result)));
