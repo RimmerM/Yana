@@ -179,6 +179,23 @@ TypePtr requireReturnType(Module& module, Function& function, LocationId source)
 static void resolveArgumentDefault(Module& module, Arg& declared, const ast::Expr& expr, LocationId source) {
     auto global = *module.types;
 
+    /*
+     * A `@lazy` parameter's default is a constant of what it *promised*, not of the thunk it arrives
+     * as - Design-Test.md §11.1's F3.
+     *
+     * The rule used to be that a `@lazy` parameter could have no default at all, on the grounds that
+     * "the default would be one more expression the call site did not write and the callee may not
+     * run". That objection is about expressions and there are none here: every default in this
+     * language is `evaluateConstant`'s answer, so what a call site that leaves the position out gets
+     * is a constant wrapped in a thunk - nothing to run, nothing to observe if it is not forced, and
+     * no order for it to be evaluated in.
+     *
+     * What it buys is one declaration instead of two names. `check(condition, @lazy message: String
+     * = "")` is one function; without the default it is `check` and `checkWith`, differing in a
+     * parameter that is absent in the common case.
+     */
+    auto promised = declared.isLazy() ? declared.lazyType : declared.type;
+
     if(declared.returnRoot()) {
         module.context.diagnostics.error("a `return` parameter cannot have a default value - the marker says a borrow in the result may be rooted in this argument, and a call site that leaves it out has no storage of its own for the result to stay live in"_v,
                                          source);
@@ -191,15 +208,15 @@ static void resolveArgumentDefault(Module& module, Arg& declared, const ast::Exp
         return;
     }
 
-    if(isGeneric(global, declared.type)) {
+    if(isGeneric(global, promised)) {
         module.context.diagnostics.error("a parameter declared as a type variable cannot have a default value - a default is a constant of the parameter's type, and which type this one has is what each call site decides"_v,
                                          source);
         return;
     }
 
-    if(global[declared.type]->kind == Type::Error) return;
+    if(global[promised]->kind == Type::Error) return;
 
-    auto constant = evaluateConstant(module, expr, declared.type, "a default argument"_v, false);
+    auto constant = evaluateConstant(module, expr, promised, "a default argument"_v, false);
     if(constant) declared.defaultValue = constant;
 }
 
@@ -335,12 +352,12 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
             module.program.lazyNames.add(name);
         }
 
-        if(lazy && arg.def) {
-            module.context.diagnostics.error("a `@lazy` parameter cannot have a default value - the default would be one more expression the call site did not write and the callee may not run"_v,
-                                             arg.source);
-        } else if(arg.def) {
-            resolveArgumentDefault(module, *declared, *module.parse[arg.def], arg.source);
-        }
+        // A `@lazy` position's default is read at the promised type rather than at the thunk's, and
+        // is otherwise an ordinary one - see resolveArgumentDefault, and F3 for why the rule that
+        // refused one outright was vacuous.
+        if(arg.def) resolveArgumentDefault(module, *declared, *module.parse[arg.def], arg.source);
+
+        if(arg.caller) callerMarkers.push(CallerMarker { index, arg.callerSource, arg.source });
 
         // What may carry the marker is one rule shared with a written function type - see
         // checkReturnRoot, which is where it and its diagnostics live. A group on the type says the

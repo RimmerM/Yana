@@ -91,6 +91,23 @@ fn once(flag: Bool, @lazy value: Int) -> Int:
 
     return 0
 
+{-
+   A constant default in a `@lazy` position - Design-Test.md §11.1's F3.
+
+   A call that leaves it out is handed a thunk over a constant, which is what makes the rule that
+   refused this vacuous: there was never an expression for the call site not to have written. What is
+   asserted is both halves - the value is right when the default is forced, and `effects` is unmoved
+   when it is not, which is the same at-most-once property every other case here checks.
+
+   The default is read at the promised type. `2` is a constant `Int`; the thunk is what the parameter
+   *arrives* as and nobody writes a constant of one.
+-}
+fn defaulted(flag: Bool, @lazy value: Int = 2) -> Int:
+    if flag:
+        return value + 1
+
+    return 0
+
 fn main() -> Int:
     let &score = 0
 
@@ -107,9 +124,14 @@ fn main() -> Int:
     if once(True, bumpValue()) == 8: score = score + 1024
     if maskSkips() == 0: score = score + 2048
     if maskRuns() == 3: score = score + 4096
+    if defaulted(True) == 3: score = score + 8192
+    if defaulted(False) == 0: score = score + 16384
+    if defaulted(True, bumpValue()) == 8: score = score + 32768
+    if defaulted(False, bumpValue()) == 0: score = score + 65536
 
-    -- Five arguments ran and no more: `andRuns`'s, `orRuns`'s, the `??` that had nothing to unwrap,
-    -- the one `once` that read its parameter, and the `Mask` instance's. Everything else was
-    -- skipped, and the tail of this number is what says so - `819105` and `819109` are the same
-    -- score and different programs.
+    -- Six arguments ran and no more: `andRuns`'s, `orRuns`'s, the `??` that had nothing to unwrap,
+    -- the one `once` that read its parameter, the `Mask` instance's, and the one `defaulted` that
+    -- was given an argument *and* read it. Everything else was skipped - the two calls that took
+    -- the default among them, which run nothing at all - and the tail of this number is what says
+    -- so: `13107106` and `13107110` are the same score and different programs.
     return score * 100 + effects

@@ -64,8 +64,19 @@ fn returnDefault(return self: Box = 1) -> Int = self.value
 fn mutableDefault(&slot: Int = 1) -> Int = slot
 fn (Num(a)) genericDefault(x: a = 1) -> Int = 0
 
--- A `@lazy` parameter cannot either, for a fourth reason: the default would be one more expression
--- the call site did not write and the callee may not run.
+{-
+   A `@lazy` parameter *can*, and this is the case that says so - Design-Test.md §11.1's F3.
+
+   It could not until the objection was read back: "the default would be one more expression the call
+   site did not write and the callee may not run". There are no expressions here. Every default in
+   this language is `evaluateConstant`'s answer, so what a call site that leaves the position out is
+   given is a constant in a thunk - nothing to run, and nothing to observe if it is never forced.
+
+   The default is read at the *promised* type rather than at the thunk's, which is the only thing the
+   position changes: `2` is a constant `Int` and not a constant `{} -> Int`. The non-constant case is
+   refused by the same rule as every other default, which is the first line of this file's expected
+   errors and not a rule of its own.
+-}
 fn lazyDefault(x: Int, @lazy y: Int = 2) -> Int = x
 
 -- A loop's iterator, where the count message is about the arguments written before the body - and

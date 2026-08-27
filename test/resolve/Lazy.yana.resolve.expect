@@ -257,6 +257,22 @@ fn once(%flag: Bool, %value: () -> Int) -> Int {
     ret 0
 }
 
+fn defaulted(%flag: Bool, %value: () -> Int) -> Int {
+  b0:
+    je %flag, b1, b2
+
+  b1:
+    %v3 = calldyn %value : Int
+    %v6 = add %v3, 1 : Int
+    ret %v6
+
+  b2:
+    jmp b3
+
+  b3:
+    ret 0
+}
+
 fn main() -> Int {
   b0:
     %score = alloc : Int
@@ -457,11 +473,87 @@ fn main() -> Int {
     jmp b39
 
   b39:
-    %v174 = load %score : Int
-    %v177 = mul %v174, 100 : Int
-    %v178 = load effects : Int
-    %v179 = add %v177, %v178 : Int
-    ret %v179
+    %v176 = alloc : () -> Int
+    %v177 = symbol ResolveTest.deferred$23 : %()
+    init %local7.code, %v177
+    %v180 = cast 0 : %()
+    init %local7.env, %v180
+    %v182 = call defaulted, True, %v176 : Int
+    %v185 = cmp_eq %v182, 3 : Bool
+    je %v185, b40, b41
+
+  b40:
+    %v187 = load %score : Int
+    %v190 = add %v187, 8192 : Int
+    assign %score, %v190
+    jmp b42
+
+  b41:
+    jmp b42
+
+  b42:
+    %v196 = alloc : () -> Int
+    %v197 = symbol ResolveTest.deferred$24 : %()
+    init %local8.code, %v197
+    %v200 = cast 0 : %()
+    init %local8.env, %v200
+    %v202 = call defaulted, False, %v196 : Int
+    %v205 = cmp_eq %v202, 0 : Bool
+    je %v205, b43, b44
+
+  b43:
+    %v207 = load %score : Int
+    %v210 = add %v207, 16384 : Int
+    assign %score, %v210
+    jmp b45
+
+  b44:
+    jmp b45
+
+  b45:
+    %v215 = alloc : () -> Int
+    %v216 = symbol ResolveTest.deferred$25 : %()
+    init %local9.code, %v216
+    %v219 = cast 0 : %()
+    init %local9.env, %v219
+    %v221 = call defaulted, True, %v215 : Int
+    %v224 = cmp_eq %v221, 8 : Bool
+    je %v224, b46, b47
+
+  b46:
+    %v226 = load %score : Int
+    %v229 = add %v226, 32768 : Int
+    assign %score, %v229
+    jmp b48
+
+  b47:
+    jmp b48
+
+  b48:
+    %v234 = alloc : () -> Int
+    %v235 = symbol ResolveTest.deferred$26 : %()
+    init %local10.code, %v235
+    %v238 = cast 0 : %()
+    init %local10.env, %v238
+    %v240 = call defaulted, False, %v234 : Int
+    %v243 = cmp_eq %v240, 0 : Bool
+    je %v243, b49, b50
+
+  b49:
+    %v245 = load %score : Int
+    %v248 = add %v245, 65536 : Int
+    assign %score, %v248
+    jmp b51
+
+  b50:
+    jmp b51
+
+  b51:
+    %v252 = load %score : Int
+    %v255 = mul %v252, 100 : Int
+    %v256 = load effects : Int
+    %v257 = add %v255, %v256 : Int
+    ret %v257
 }
 
 fn Bitwise(Mask).and(%lhs: Mask, %rhs: Mask) -> Mask {
@@ -528,6 +620,28 @@ fn ResolveTest.deferred$21(%env: %{}) -> Int {
 }
 
 fn ResolveTest.deferred$22(%env: %{}) -> Int {
+  b0:
+    %v1 = call bumpValue : Int
+    ret %v1
+}
+
+fn ResolveTest.deferred$23(%env: %{}) -> Int {
+  b0:
+    ret 2
+}
+
+fn ResolveTest.deferred$24(%env: %{}) -> Int {
+  b0:
+    ret 2
+}
+
+fn ResolveTest.deferred$25(%env: %{}) -> Int {
+  b0:
+    %v1 = call bumpValue : Int
+    ret %v1
+}
+
+fn ResolveTest.deferred$26(%env: %{}) -> Int {
   b0:
     %v1 = call bumpValue : Int
     ret %v1
