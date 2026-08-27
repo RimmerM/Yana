@@ -59,7 +59,9 @@ pub data FileError = Unknown | NotFound | Corrupt | AccessDenied | NoMemory | No
    The wildcard is the honest half of the answer either way: the kernel has two hundred numbers and
    `Errno` names nineteen, so `errnoOf` is partial and anything it declines is `Unknown`.
 -}
-fn errorOf(code: Size) -> FileError = match errnoOf(code):
+-- `pub` because `Process` reports the same failures out of the same kernel answers, and a second
+-- errno table beside this one is exactly the drift this file exists to prevent.
+pub fn errorOf(code: Size) -> FileError = match errnoOf(code):
     Just(NoEntry) -> NotFound
     Just(PermissionDenied) -> AccessDenied
     Just(NotPermitted) -> AccessDenied

@@ -921,6 +921,188 @@ void checkGlobalTeardown(Module& module) {
     }
 }
 
+/*
+ * `@builtin(role)` - the source half of compiler/compiler/builtin.h.
+ *
+ * Read here, as the global is declared, because everything the check needs is in hand exactly once:
+ * the attribute as it was written, the type the initializer settled on, and whether `&` was there.
+ * What is recorded is the *declaration*, not its name - which is the whole point, since a name is
+ * what the two backends used to hold and what nothing could keep them honest about.
+ *
+ * Five things are refused, and each of them was reachable before this existed:
+ *
+ *   - a role this compiler has no row for, which is a typo that would otherwise silently link
+ *     nothing;
+ *   - two declarations claiming one role, which would leave whichever was read last in the table
+ *     and the other one never written to;
+ *   - a `let` that declares several names carrying one of these, since the attribute is written
+ *     before the whole statement and there would be no saying which name it meant;
+ *   - a written role on immutable storage, or a supplied one on `&`, since the two kinds differ in
+ *     exactly that;
+ *   - a declaration whose type is not the shape the compiler is about to store into.
+ *
+ * A `@builtin` on anything that is not a global is refused too, one pass over - see
+ * checkBuiltinPlacement.
+ */
+static bool builtinShapeMatches(Module& module, BuiltinShape shape, TypePtr type) {
+    if(!type) return false;
+
+    auto global = *module.types;
+    auto canonical = canonicalType(global, type);
+
+    switch(shape) {
+        case BuiltinShape::Word: {
+            if(global[canonical]->kind != Type::Int) return false;
+
+            // The *word* class rather than any integer: what a backend stores here is a whole
+            // register, and `U8` would be one byte of storage taking eight bytes of it.
+            return ((IntType*)global[canonical])->width == IntType::Word;
+        }
+
+        case BuiltinShape::Address:
+            return global[canonical]->kind == Type::Ptr;
+    }
+
+    return false;
+}
+
+static StringView builtinShapeName(BuiltinShape shape) {
+    return shape == BuiltinShape::Word ? "a machine word - `Size` or `USize`"_v
+                                       : "a pointer"_v;
+}
+
+void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_, Size declaredNames) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return;
+
+    auto& context = module.context;
+    auto& program = module.program;
+    auto builtinName = context.addUnqualifiedName("builtin", 7);
+    auto claimed = false;
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name != builtinName) continue;
+
+        if(attribute.args.size() != 1) {
+            context.diagnostics.error("`@builtin` takes one role - `@builtin(commandLineCount)`. This compiler knows: %@"_v,
+                                      attribute.source, builtinRoleList());
+            continue;
+        }
+
+        auto argument = attribute.args.get(module.parse, 0).value;
+        if(argument.kind != ast::Expr::Var) {
+            context.diagnostics.error("a `@builtin` role is a bare name. This compiler knows: %@"_v,
+                                      argument.source, builtinRoleList());
+            continue;
+        }
+
+        auto written = context.findName(argument.var);
+        auto found = findBuiltin(StringView { written.text(), written.size() });
+
+        if(!found) {
+            context.diagnostics.error("%@ is not a role this compiler has - it knows: %@"_v,
+                                      argument.source, written, builtinRoleList());
+            continue;
+        }
+
+        auto role = found.unwrap();
+        auto& definition = builtinDef(role);
+
+        if(claimed) {
+            context.diagnostics.error("a declaration fills one role - %@ is a second"_v,
+                                      attribute.source, written);
+            continue;
+        }
+
+        claimed = true;
+
+        if(declaredNames > 1) {
+            context.diagnostics.error("`@builtin` is written before the whole `let` and names one declaration - give %@ a `let` of its own"_v,
+                                      attribute.source, written);
+            continue;
+        }
+
+        if(auto existing = program.builtins[Size(role)]) {
+            auto other = (*module.arena)[existing];
+            context.diagnostics.error("the role %@ is already filled, by %@ in module %@ - one declaration fills a role, or the compiler would write to whichever was read last"_v,
+                                      argument.source, written, context.findName(other->name),
+                                      context.findName(other->module->name));
+            continue;
+        }
+
+        if(definition.kind == BuiltinKind::Written && !global_.mut) {
+            context.diagnostics.error("%@ is storage the compiler writes before the program starts - declare it `&`"_v,
+                                      argument.source, written);
+            continue;
+        }
+
+        if(definition.kind == BuiltinKind::Supplied && global_.mut) {
+            context.diagnostics.error("%@ is a constant the compiler supplies - declare it without `&`, since nothing may assign to it"_v,
+                                      argument.source, written);
+            continue;
+        }
+
+        if(!builtinShapeMatches(module, definition.shape, global_.type)) {
+            context.diagnostics.error("%@ has to be declared as %@"_v, argument.source, written,
+                                      builtinShapeName(definition.shape));
+            continue;
+        }
+
+        /*
+         * A supplied role's value, over the zero the declaration was written as.
+         *
+         * The zero is required rather than accepted: what the compiler puts here depends on the
+         * target, so a number written in the source would be right for one build and a lie in every
+         * other - and it is the kind of lie a reader believes, because it is spelled exactly like
+         * every other constant in the file.
+         */
+        if(definition.kind == BuiltinKind::Supplied) {
+            auto supplied = builtinValue(context.settings, role);
+
+            if(!supplied) {
+                context.diagnostics.error("this target has no %@ for the compiler to supply"_v,
+                                          argument.source, written);
+                continue;
+            }
+
+            auto constant = global_.initial ? (*module.arena)[global_.initial] : nullptr;
+
+            if(!constant || constant->kind != ConstKind::Scalar || constant->bits != 0) {
+                context.diagnostics.error("%@ is written as the zero of its type - the compiler is what decides its value, and a number here would be right for one target only"_v,
+                                          argument.source, written);
+                continue;
+            }
+
+            constant->bits = supplied.unwrap();
+        }
+
+        program.builtins[Size(role)] = &global_ - *module.arena;
+    }
+}
+
+/*
+ * The same attribute, everywhere it cannot mean anything.
+ *
+ * A `@builtin` on a function or a record is not a half-working link - there is nothing for it to
+ * link, since every role is storage. Left unread it would be a word in the source that looks like it
+ * does something, which is the state `commandLineCount` was in before any of this: something written
+ * down that nothing checks.
+ */
+void checkBuiltinPlacement(Module& module, const ast::Decl& decl) {
+    auto attributes = decl.attributes;
+    if(attributes.isEmpty()) return;
+
+    auto& context = module.context;
+    auto builtinName = context.addUnqualifiedName("builtin", 7);
+
+    for(auto attribute: attributes.contents(module.parse)) {
+        if(attribute.name != builtinName) continue;
+
+        context.diagnostics.error("`@builtin` is written on a global - every role the compiler fills or supplies is storage"_v,
+                                  attribute.source);
+    }
+}
+
 void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {
     auto parse = module.parse;
     auto& context = module.context;
@@ -1023,6 +1205,11 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
         global_->mut = declaration.bind == ast::BindType::Ref;
         global_->dynamic = notConstant;
         global_->exported = decl.exported;
+
+        // After the type and the constant, both of which the checks read - and after `mut`, which is
+        // half of what distinguishes the two kinds of role.
+        readBuiltinAttribute(module, decl, *global_, decl.stmt.decl.size());
+
         declared(global_ - *module.arena);
     }
 

@@ -31,6 +31,47 @@ static llvm::StringRef toRef(StringView view) {
 }
 
 /*
+ * The command line, into the globals the library declares for it - Design-Test.md §11.2's F4.
+ *
+ * `main`'s three parameters, in the order compiler/compiler/builtin.h states the roles in, which is
+ * why this is a loop rather than three stores. Which global each one lands in is what the library
+ * said with `@builtin` and not a name written here; the lowered module is what carries the answer,
+ * and the name is read back off it only because an LLVM module is addressed by name.
+ *
+ * A role no declaration claimed, or one whose global nothing in the program reaches, is skipped: an
+ * unreached global was never emitted, and there is nothing to store into. The amd64 backend reads
+ * the same three facts off the initial stack pointer and fills the same three globals - see
+ * genCommandLine there.
+ */
+static void storeCommandLine(Context& context, llvm::Module& module, LowerModule& lowered,
+                             llvm::Function* main, llvm::IRBuilder<>& builder) {
+    auto base = *lowered.arena;
+
+    for(Size i = 0; i < kCommandLineGlobals; i++) {
+        auto declared = lowered.builtin(base, Builtin(i));
+        if(!declared) continue;
+
+        auto global = module.getNamedGlobal(nameOf(context, declared->name));
+        if(!global) continue;
+
+        llvm::Value* value = main->getArg(unsigned(i));
+
+        /*
+         * `argc` is a C `int` and the global holds a `Size`, so the count widens - and it widens to
+         * the *pointer* width rather than to the global's declared type, because a global's LLVM type
+         * is the shape of its initial bytes rather than the scalar it holds. A `Size` initialized to
+         * zero is eight zero bytes, which arrives here as `[8 x i8]`, and `sext i32 to [8 x i8]` is
+         * what asking the wrong question looks like.
+         */
+        if(Builtin(i) == Builtin::commandLineCount) {
+            value = builder.CreateSExt(value, llvm::Type::getInt64Ty(module.getContext()));
+        }
+
+        builder.CreateStore(value, global);
+    }
+}
+
+/*
  * The entry point.
  *
  * A Yana `main` is compiled under the compiler's own calling convention like every other function,
@@ -38,8 +79,8 @@ static llvm::StringRef toRef(StringView view) {
  * lowered entry keeps its convention and gets a wrapper, rather than being given the C convention
  * and made to differ from every call site that already exists in the module.
  */
-bool addNativeEntry(Context& context, llvm::Module& module, StringId entryName) {
-    auto name = context.findName(entryName);
+bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered) {
+    auto name = context.findName(lowered.entry);
     auto entry = module.getFunction(toRef(name));
 
     if(!entry) {
@@ -71,11 +112,32 @@ bool addNativeEntry(Context& context, llvm::Module& module, StringId entryName) 
      */
     if(auto occupied = module.getFunction("main")) occupied->setName("yana.main");
 
-    auto main = llvm::Function::Create(llvm::FunctionType::get(word, false),
+    /*
+     * `int main(int argc, char** argv, char** envp)` - the three-argument form, for F4.
+     *
+     * POSIX's third parameter rather than `environ`, and taking all three whether or not this
+     * program reads any of them: a C `main` may declare fewer than it is passed, so the arguments
+     * cost nothing where they are unused, and declaring them here is what gives storeCommandLine
+     * anything to read. One parameter per command-line role in compiler/compiler/builtin.h, in that
+     * order - which is the correspondence storeCommandLine indexes by, and the assertion below is it
+     * said out loud.
+     */
+    auto pointer = llvm::PointerType::getUnqual(llvm);
+    llvm::Type* mainArgs[] = { word, pointer, pointer };
+
+    static_assert(sizeof(mainArgs) / sizeof(*mainArgs) == kCommandLineGlobals,
+                  "`main`'s parameters are what the command-line globals are stored from");
+
+    auto main = llvm::Function::Create(llvm::FunctionType::get(word, mainArgs, false),
                                        llvm::Function::ExternalLinkage, "main", module);
     main->setCallingConv(llvm::CallingConv::C);
 
     llvm::IRBuilder<> builder(llvm::BasicBlock::Create(llvm, "", main));
+
+    // Before the entry is called, because the entry is where the program's own top level runs and a
+    // global read from there has to already hold what it will hold for the rest of the run.
+    storeCommandLine(context, module, lowered, main, builder);
+
     auto call = builder.CreateCall(entry, {});
     call->setCallingConv(entry->getCallingConv());
 

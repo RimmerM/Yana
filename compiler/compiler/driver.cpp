@@ -163,7 +163,7 @@ static Ptr<llvm::Module> genNative(llvm::LLVMContext& llvm, Context& context, Pr
     auto module = llvmgen::genModule(llvm, context, *lowered);
     if(context.diagnostics.errorCount()) return nullptr;
 
-    if(!llvmgen::addNativeEntry(context, *module, lowered->entry)) return nullptr;
+    if(!llvmgen::addNativeEntry(context, *module, *lowered)) return nullptr;
     if(!llvmgen::verifyGenModule(context, *module)) return nullptr;
 
     llvmgen::optimizeModule(context, *module, context.settings.optimization);

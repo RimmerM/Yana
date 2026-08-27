@@ -365,6 +365,10 @@ static void passDeclare(Module& module, ast::Module& ast) {
         // The one pass that reports: every declaration passes through it, and it is the first.
         if(!platformEnabled(module, decl, true)) continue;
 
+        // For the same reason, and once: `@builtin` is a statement about storage, so every other
+        // kind of declaration carrying one is reported here rather than ignored there.
+        if(decl.kind != ast::Decl::Stmt) checkBuiltinPlacement(module, decl);
+
         switch(decl.kind) {
             case ast::Decl::Data:
                 declareRecord(module, decl);

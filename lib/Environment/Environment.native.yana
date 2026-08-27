@@ -1,0 +1,114 @@
+{-
+   ==========================================================================================
+   `Environment` - the command line and the environment - Design-Test.md §11.2's F4.
+   ==========================================================================================
+
+   The half of F4 that is not about spawning: reading what this process was started with. A test
+   binary needs it for `-filter`, `-shard`, `-isolate` and every other switch §6 gives the runner,
+   and nothing in the language could reach it - "no way to read the command line" is the gap that row
+   names.
+
+   **The kernel hands these to the process on its stack and to nothing else.** So the values are read
+   by the *entry stub* - hand-written bytes in the amd64 backend, a C `main` in the LLVM one - into
+   three globals of `Native`, and everything here reads those. That sidesteps rather than fixes "the
+   entry point cannot take arguments yet", which is the honest description of it: `main` still takes
+   none, and what a program reads instead is a global filled before it started.
+
+   **A vector is NUL-terminated and so is each of its strings**, which is the C convention: the count
+   for the arguments comes from the kernel, and the environment's end is a null pointer. Each string
+   is copied out on the way, because a `String` over the kernel's own bytes would be a run this
+   program does not own and cannot resize.
+
+   **`.native.yana`, so on JavaScript this module does not exist**, on the terms §11.2's F4 note
+   gives: the JS target gets the runner and not the harness, and orchestration happens in a native
+   parent that spawns `node`. A `process.argv` wrapper here would be a second answer to a question
+   the design settles in the other direction, and half a `Process` module on one target is exactly
+   the lie that note is written against.
+-}
+
+import Native
+
+{-
+   How many arguments this process was given, including the program's own name at position 0.
+
+   Zero in a build whose stub wrote nothing, which is every build where nothing reads these globals
+   at all: a global nothing reaches is not emitted, and the stub then has nowhere to store into. That
+   is not a case to guard against - a program that never asks cannot observe the difference.
+-}
+pub fn argumentCount() -> Size = commandLineCount
+
+{-
+   One argument, by position, copied out of the kernel's own bytes.
+
+   `Nothing` past the end rather than a trap: the count is the caller's to check, and this is the
+   answer that composes with a loop that got it wrong.
+-}
+pub fn argument(index: Size) -> Maybe(String):
+    if index >= commandLineCount then return Nothing
+    return Just(stringAt(*(commandLineValues + index)))
+
+-- Every argument, in order. One array and one string per argument, which is what a caller that is
+-- about to parse them wants and is why this is not an iterator over the vector.
+pub fn arguments() -> [String]:
+    let count = commandLineCount
+    let &all = [] :: [String]
+    let &i = 0 :: Size
+
+    while i < count:
+        push(all, stringAt(*(commandLineValues + i)))
+        i = i + 1
+
+    return all
+
+{-
+   One environment variable, by name.
+
+   A linear walk of the vector rather than a map built once, and the reason is what this is for: a
+   program reads two or three of these at startup and never again, so a map would be an allocation
+   and a hash of every variable to answer a question asked three times.
+
+   The comparison runs against the kernel's bytes directly rather than against a `String` copy of
+   each entry, which is the difference between one allocation for the answer and one per variable in
+   the environment. It is also what makes the match exact: the name has to be followed by `=`, so
+   `PATHEXT` does not answer for `PATH`.
+-}
+pub fn variable(name: String) -> Maybe(String):
+    let &at = commandLineEnvironment
+    if isNull(at) then return Nothing
+
+    while (bitcast(*at) :: USize) != 0:
+        match matchVariable(*at, name):
+            Just(->value) -> return Just(value)
+            Nothing -> {}
+
+        at = at + 1
+
+    return Nothing
+
+-- Whether one `NAME=value` entry is this name's, and its value if it is.
+fn matchVariable(entry: %U8, name: String) -> Maybe(String):
+    let count = length(name)
+    let &i = 0 :: Size
+
+    while i < count:
+        if *(entry + i) != (truncate(String.unit(name, i)) :: U8) then return Nothing
+        i = i + 1
+
+    if *(entry + count) != (61 :: U8) then return Nothing
+    return Just(stringAt(entry + count + 1))
+
+{-
+   The bytes at a pointer, up to a NUL, as a `String` this program owns.
+
+   The length is found first and the copy made once, rather than pushing a unit at a time: a growable
+   string reserves geometrically, so appending `n` units is `log n` reallocations where one
+   measurement and one `String.ofCapacity` is none.
+-}
+fn stringAt(text: %U8) -> String:
+    let &count = 0 :: Size
+    while *(text + count) != (0 :: U8): count = count + 1
+
+    let &copy = String.ofCapacity(count)
+    String.appendUnits(copy, bitcast(text) :: %CodeUnit, count)
+
+    return copy

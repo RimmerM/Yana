@@ -478,3 +478,36 @@ pub fn processId() -> Size = syscall0(numberOf(SysProcessId))
 
 pub fn exitProcess(status: Size) -> {}:
     syscall1(numberOf(SysExit), bitcast(status) :: USize)
+{-
+   ==========================================================================================
+   The command line and the environment - the other half of F4.
+   ==========================================================================================
+
+   **The kernel hands these to the process on its stack and to nothing else**, so the only place
+   they can be read is the entry stub - which is a hand-written sequence in the amd64 backend and a
+   C `main` in the LLVM one. Both write these three globals before the program's own entry runs, and
+   both are the same three facts however differently they came by them.
+
+   That sidesteps rather than fixes "the entry point cannot take arguments yet", which is the honest
+   description: `main` still takes none, and what a program reads instead is a global that was filled
+   before it started. Making the entry take them is a change to what an entry *is* on both backends
+   and is a larger thing than the harness needs.
+
+   Zero and null in a build whose stub did not write them - which is every build where nothing reads
+   them, since a global nothing reaches is not emitted and the stub has nothing to store into.
+   `Environment.yana` reads that as "no arguments", which is what it is.
+
+   **`@builtin(role)` is what links each of these to the compiler**, and the role is the compiler's
+   name rather than this one: the three declarations below can be renamed, moved to another file or
+   made private without the entry sequence noticing, and a role the compiler does not have is
+   reported where it is written. The roles are listed in `compiler/compiler/builtin.h`, which is the
+   only place they are written down.
+-}
+@builtin(commandLineCount)
+pub let &commandLineCount = 0 :: Size
+
+@builtin(commandLineValues)
+pub let &commandLineValues = 0 :: Ptr(Ptr(U8))
+
+@builtin(commandLineEnvironment)
+pub let &commandLineEnvironment = 0 :: Ptr(Ptr(U8))

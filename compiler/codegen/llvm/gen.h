@@ -48,7 +48,11 @@ void printModule(Net::Writer& writer, llvm::Module& module);
 // Gives the module a C-callable `main` that calls the lowered entry point and returns its result as
 // the process exit status. The lowered entry keeps its own convention and is renamed out of the way;
 // see the comment on the definition for why a wrapper rather than a convention change.
-bool addNativeEntry(Context& context, llvm::Module& module, StringId entryName);
+//
+// The lowered module rather than just the entry's name, because the wrapper also fills the globals
+// the library declared for the command line - which it finds through `LowerModule::builtins` and
+// not by a name spelled here. See compiler/compiler/builtin.h.
+bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered);
 
 // Runs LLVM's default optimization pipeline at the given level (0-3) over the module.
 void optimizeModule(Context& context, llvm::Module& module, U32 level);

@@ -1,0 +1,41 @@
+{-
+   `@builtin(role)` - the link between a library declaration and the compiler.
+
+   Two kinds of declaration carry one, and this fixture is about the second: a *supplied* constant,
+   whose value the compiler decides from the target and writes over the zero the declaration is
+   written as. The first kind - storage the compiler *writes* before the program starts - is the
+   command line, and `Process.yana` is where that one is asserted, because the only way to see it is
+   to be a process.
+
+   `compiler/compiler/builtin.h` is the list of roles. What is asserted here is what a supplied
+   constant is for: the compiler put a target's answer where the source wrote nothing, and the
+   answer is the shape a mapping granularity has.
+
+   **The declaration below is this fixture's own.** No library file claims `pageBytes` today - see
+   the note on the role - so this is the one declaration in the program that fills it. If the library
+   takes the role, this fixture stops compiling with "the role pageBytes is already filled", which is
+   the check working: one declaration fills a role. Delete the four lines below it and read the
+   library's instead.
+-}
+import Native
+
+@builtin(pageBytes)
+let page = 0 :: USize
+
+fn main() -> Int:
+    -- Not the zero it was written as, which is the whole statement: nothing in this file put a
+    -- number here, and every use of it below reads what the compiler decided.
+    assert(page != (0 :: USize))
+
+    -- A page, and the shape of one. 4096 is the floor rather than the value - the role is defined as
+    -- the smallest granularity the target guarantees, and a target whose kernel maps in 16K units
+    -- answers 16384 here without a line of this changing.
+    assert(page >= (4096 :: USize))
+    assert(isPowerOf2(page))
+
+    -- And it is a constant, not storage: `alignUp` over it is a mask against a literal by the time
+    -- anything runs. What can be asserted from inside the language is that it behaves as one.
+    assert(alignUp(page + 1, page) == page + page)
+    assert(alignUp(page, page) == page)
+
+    return 0

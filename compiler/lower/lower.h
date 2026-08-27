@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../compiler/context.h"
+#include "../compiler/builtin.h"
 #include "../util/container.h"
 #include "convention.h"
 
@@ -937,6 +938,24 @@ struct LowerModule {
     // Null for a program with no tables, and on a target whose tables hold references rather than
     // offsets; a backend that finds relocations to write and no anchor has a real inconsistency.
     LowerPtr<LowerGlobal> imageAnchor = nullptr;
+
+    /*
+     * The globals the compiler itself fills - `compiler/compiler/builtin.h`, indexed by `Builtin`.
+     *
+     * Carried across rather than looked up by name, which is the point of the whole mechanism: what
+     * a backend needs is the lowered global, the name it happens to have is the library's, and
+     * lowerProgram is the one place both halves are in hand.
+     *
+     * Null for a role no declaration claimed *and* for one whose global nothing in the program
+     * reaches - the second is the ordinary case, since a global nothing reads is never emitted, and
+     * a backend that writes nothing into it is right rather than broken.
+     */
+    LowerPtr<LowerGlobal> builtins[kBuiltinCount] = {};
+
+    LowerGlobal* builtin(LowerBase base, Builtin which) const {
+        auto found = builtins[Size(which)];
+        return found ? base[found] : nullptr;
+    }
 
     StringId name {};
 

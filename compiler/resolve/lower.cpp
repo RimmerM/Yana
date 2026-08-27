@@ -487,8 +487,13 @@ Ptr<LowerModule> lowerProgram(Context& context, Program& program) {
             auto target = lowerGlobal(globalPointer);
 
             // Carried across rather than looked up by name later: what the backend needs is the
-            // lowered global, and this is the one place both halves of it are in hand.
+            // lowered global, and this is the one place both halves of it are in hand. The same
+            // sentence is what `@builtin` made true of the library's own - see builtin.h.
             if(globalPointer == lower.from.imageAnchor) result->imageAnchor = target - lower.lower;
+
+            for(Size role = 0; role < kBuiltinCount; role++) {
+                if(globalPointer == lower.from.builtins[role]) result->builtins[role] = target - lower.lower;
+            }
 
             /*
              * The list holds exactly the map's values, in the order the names first appeared.

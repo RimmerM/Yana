@@ -439,6 +439,36 @@ inline U32 targetVectorBytes(const CompileSettings& settings) {
 }
 
 /*
+ * The smallest unit the target's kernel maps memory in - the number a mapping is rounded up to, and
+ * the guard `lib/Native/Heap.native.yana` puts after a region.
+ *
+ * **A lower bound rather than the exact page**, and every use of it has to stay correct under that
+ * reading. On x86-64 Linux 4096 is the psABI's and there is nothing to be a bound about; on arm64 a
+ * kernel is built for 4K, 16K or 64K pages and the value is not knowable until the program runs. The
+ * uses the library has are both safe under a bound: rounding a mapping up to less than the kernel's
+ * page leaves the kernel to round it again, and mapping one extra page as a tail guard gets at least
+ * that much slack whichever page the kernel is using.
+ *
+ * The exact page is a *runtime* fact and the kernel already hands it to a fresh process, in the
+ * auxiliary vector the entry stub walks past on its way to the environment. A library that needs the
+ * real number - one that wants to `mprotect` a guard, or to report it - should read it there rather
+ * than widen this. See Builtin::pageBytes.
+ *
+ * Not the same number as an executable's segment alignment, which is what `kElfPageSize` is: that
+ * one is a promise made to a *loader* about the file, and the two are only equal by convention on
+ * x86-64. They are deliberately not written in terms of each other.
+ */
+inline U32 targetPageBytes(const CompileSettings& settings) {
+    // A JavaScript program maps nothing and has no answer to give.
+    if(isJsMode(settings.mode)) return 0;
+
+    // 16K on Apple silicon, which is the one target here whose page is fixed and is not 4096.
+    if(settings.arch == TargetArch::ARM64 && settings.target == TargetType::MacOS) return 16384;
+
+    return 4096;
+}
+
+/*
  * Whether the local backend can produce an executable for the target these settings name.
  *
  * One statement of the list, read twice and for two different questions: `applyDefaults` asks it to

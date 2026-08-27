@@ -25,6 +25,69 @@
 static constexpr U32 kSysExitGroup = 231;
 
 /*
+ * The command line, out of the stack the kernel handed over - Design-Test.md §11.2's F4.
+ *
+ * A fresh process is given its arguments *on the stack* and nowhere else: `[rsp]` is the count, the
+ * vector begins at `rsp+8` and is terminated by a null, and the environment follows it. That layout
+ * lasts exactly as long as the stack pointer does, so this runs before the entry stub touches it and
+ * leaves the three globals holding what a program can go on to read at any point in its life.
+ *
+ *   mov rcx, [rsp]              argc
+ *   lea rax, [rsp+8]            argv
+ *   lea rax, [rsp+rcx*8+16]     envp - past the vector and its null terminator
+ *
+ * Which globals those are is `@builtin` - compiler/compiler/builtin.h - and not a name written here:
+ * the library says which of its declarations fills each role, resolve records it and lowering hands
+ * it over. Only the ones this program actually reaches are written, which is what keeps a binary
+ * that never asks about its arguments exactly the size it was. The LLVM path takes the same three
+ * facts off `main`'s parameters instead - see addNativeEntry.
+ */
+
+// `mov [rip+disp32], reg` for one of the two registers this stub stores from. The relocation is the
+// ordinary global one, so the displacement is patched by the same pass that patches every other.
+static void storeToGlobal(AsmModule& to, LowerGlobal* global, U8 modrm) {
+    if(!global) return;
+
+    to.buffer.writeByte(0x48); to.buffer.writeByte(0x89); to.buffer.writeByte(modrm);
+    to.addRelocation(global);
+}
+
+static void genCommandLine(AsmModule& to, LowerBase base, LowerModule& module) {
+    auto count = module.builtin(base, Builtin::commandLineCount);
+    auto values = module.builtin(base, Builtin::commandLineValues);
+    auto environment = module.builtin(base, Builtin::commandLineEnvironment);
+
+    auto& out = to.buffer;
+
+    /*
+     * The count, where anything wants it - and the environment is one of those things, since where
+     * the vector ends is what says where the environment begins.
+     *
+     * Each of the three is written only where this program reaches that global, and none of them
+     * implies another: a program that asks only for `argv` gets two instructions and does not load a
+     * count nothing will read.
+     */
+    if(count || environment) {
+        out.writeByte(0x48); out.writeByte(0x8b);
+        out.writeByte(0x0c); out.writeByte(0x24);             // mov rcx, [rsp]
+
+        storeToGlobal(to, count, 0x0d);                       // mov [rip+d], rcx
+    }
+
+    if(values) {
+        out.writeByte(0x48); out.writeByte(0x8d); out.writeByte(0x44);
+        out.writeByte(0x24); out.writeByte(0x08);             // lea rax, [rsp+8]
+        storeToGlobal(to, values, 0x05);                      // mov [rip+d], rax
+    }
+
+    if(environment) {
+        out.writeByte(0x48); out.writeByte(0x8d); out.writeByte(0x44);
+        out.writeByte(0xcc); out.writeByte(0x10);             // lea rax, [rsp+rcx*8+16]
+        storeToGlobal(to, environment, 0x05);                 // mov [rip+d], rax
+    }
+}
+
+/*
  * The process entry point.
  *
  * Written as bytes rather than built as a LowerFunction and put through the pipeline, because it is
@@ -36,8 +99,8 @@ static constexpr U32 kSysExitGroup = 231;
  * What it does:
  *
  *   xor ebp, ebp        the outermost frame has no caller - a stack walk stops here
- *   and rsp, -16        the kernel hands over an aligned stack; this keeps it aligned if it did not
- *   sub rsp, 64         the tail-read guarantee, for the outermost frame only - see below
+ *   <the command line>  read off the stack while it is still the kernel's - genCommandLine
+ *   and rsp, -64        aligned to a vector, which is the tail-read guarantee as well - see below
  *   call <entry>        the program, under its own convention
  *   mov edi, eax        the status it answered, which the convention returns in rax
  *   mov eax, 231        __NR_exit_group
@@ -48,7 +111,7 @@ static constexpr U32 kSysExitGroup = 231;
  * can report - the same thing C says about `main`. A program that answers nothing exits zero, which
  * is why the status is cleared rather than read out of a register the entry never wrote.
  */
-static U32 genProcessEntry(AsmModule& to, LowerFunction& entry) {
+static U32 genProcessEntry(AsmModule& to, LowerBase base, LowerModule& module, LowerFunction& entry) {
     auto& out = to.buffer;
 
     // Aligned, and padded with a trapping byte rather than a zero: `add [rax], al` is what a run of
@@ -57,25 +120,33 @@ static U32 genProcessEntry(AsmModule& to, LowerFunction& entry) {
     auto start = U32(out.offset());
 
     out.writeByte(0x31); out.writeByte(0xed);                 // xor ebp, ebp
-    out.writeByte(0x48); out.writeByte(0x83);
-    out.writeByte(0xe4); out.writeByte(0xf0);                 // and rsp, -16
+
+    // First, because it reads a layout that only exists while `rsp` is the one the kernel set.
+    genCommandLine(to, base, module);
 
     /*
-     * The stack's half of the tail-read guarantee - Implementation-Vector.md §8.2.
+     * The stack, aligned to a vector - which is its half of the tail-read guarantee as well,
+     * Implementation-Vector.md §8.2.
      *
      * A local may be read up to a vector's width past its end, and inside the call graph that costs
      * nothing: every frame has its caller's above it, so the bytes past the highest local are the
-     * caller's own. The outermost frame is the one that has no caller, and the initial stack pointer
-     * can be at the top of the stack's mapping - so this reserves a vector's width above it, once,
-     * and every frame below inherits the property.
+     * caller's own. The outermost frame is the one with no caller - and what sits above *it* is the
+     * block the kernel wrote there before the process began: the count, the two vectors, the
+     * auxiliary vector and the strings they point into, which is hundreds of mapped bytes and is
+     * exactly the property the frames below inherit. So there is nothing to reserve here; rounding
+     * `rsp` *down* is the whole of what the outermost frame needs.
      *
-     * `kMaxVectorBytes` rather than the target's own width: it is the language's ceiling, it is a
-     * multiple of 16 so the alignment just established survives, and 64 bytes of a stack that is
-     * megabytes is not a cost worth being exact about. The LLVM path needs no equivalent, because
-     * there the program is entered from the C startup code and *its* frame is what sits above.
+     * `kMaxVectorBytes` rather than the target's own width: it is the language's ceiling, a frame
+     * aligned for a 64-byte vector is aligned for every narrower one, the sixteen the local
+     * convention wants divides it, and the at most 63 bytes it costs is a stack that is megabytes.
+     * The LLVM path needs no equivalent, because there the program is entered from the C startup
+     * code and *its* frame is what sits above.
      */
+    static_assert(kMaxVectorBytes % 16 == 0 && kMaxVectorBytes <= 128,
+                  "the entry stub aligns with a sign-extended imm8, and the convention below it wants sixteen");
+
     out.writeByte(0x48); out.writeByte(0x83);
-    out.writeByte(0xec); out.writeByte(Byte(kMaxVectorBytes)); // sub rsp, 64
+    out.writeByte(0xe4); out.writeByte(Byte(-I32(kMaxVectorBytes))); // and rsp, -64
 
     // The relocation writes the placeholder displacement itself, and resolveRelocations patches it
     // once the entry's offset is known - which it already is, but going through the same mechanism
@@ -190,7 +261,7 @@ bool genX64Executable(Context& context, LowerModule& module, const String& path)
     // rather than a diagnostic. transformFunction reports the cases it cannot build a frame for.
     if(context.diagnostics.errorCount()) return false;
 
-    auto startOffset = genProcessEntry(assembly, *entry);
+    auto startOffset = genProcessEntry(assembly, base, module, *entry);
     image.symbols.push(ElfSymbol { .name = String("_start"), .offset = startOffset,
                                    .size = U32(assembly.buffer.offset()) - startOffset, .function = true });
 

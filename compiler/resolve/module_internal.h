@@ -55,6 +55,16 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
 // The teardown a global's type promises and never gets - see module_decl.cpp. Asked over the whole
 // module once its bodies exist, since that is when what a type owes is settled.
 void checkGlobalTeardown(Module& module);
+
+/*
+ * `@builtin(role)` - compiler/compiler/builtin.h, and the two halves of reading one.
+ *
+ * The first is asked of a global as it is declared and is what fills `Program::builtins`. The second
+ * is asked of every declaration that is *not* a global, because the attribute means nothing on one
+ * and an attribute that means nothing is exactly the silence this mechanism exists to remove.
+ */
+void readBuiltinAttribute(Module& module, const ast::Decl& decl, Global& global_, Size declaredNames);
+void checkBuiltinPlacement(Module& module, const ast::Decl& decl);
 void readInlineAttribute(Module& module, const ast::Decl& decl, Function& function);
 
 // `@convention(name)` and `@x86_legacy_sse`, read off the same declaration and by the same rules -
