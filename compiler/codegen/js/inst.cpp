@@ -32,6 +32,24 @@ void define(Gen& g, ModulePtr<Value> pointer, JsPtr<Expr> value) {
         return;
     }
 
+    /*
+     * A value that is a boxed local's storage, wrapped where it comes into existence - see
+     * prepareLocals, which is where the two halves of this are argued.
+     *
+     * The box is what the local *is* from here on: the value is registered as `box.$v`, so a read of
+     * the local and a reference to it name one slot rather than a snapshot and the storage it was
+     * taken from. Registering the box itself would break the other half - unlike a parameter, whose
+     * every read is a load of its local, a call's result is also an ordinary value with uses of its
+     * own, and those want what it computed.
+     */
+    if(auto found = g.boxedStorage.get(U32(pointer))) {
+        auto box = declare(g, valueName(g, source), boxOf(g, value));
+
+        g.localBoxes.add(found.unwrap(), box);
+        g.values.add(U32(pointer), field(g, box, g.boxField));
+        return;
+    }
+
     g.values.add(U32(pointer), declare(g, valueName(g, source), value));
 }
 

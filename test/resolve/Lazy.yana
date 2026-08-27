@@ -101,6 +101,12 @@ fn once(flag: Bool, @lazy value: Int) -> Int:
 
    The default is read at the promised type. `2` is a constant `Int`; the thunk is what the parameter
    *arrives* as and nobody writes a constant of one.
+
+   **And the two call sites that take it share one thunk** - `deferred$23` in the golden, named
+   twice. A constant default has exactly one right closure: it captures nothing, names nothing of
+   the caller's, and at a concrete type is the same body for every specialization. Building one per
+   call site is what it used to do, and it cost one anonymous function per *assertion* in a suite
+   whose `check` defaults its message. See Program::constantThunks.
 -}
 fn defaulted(flag: Bool, @lazy value: Int = 2) -> Int:
     if flag:

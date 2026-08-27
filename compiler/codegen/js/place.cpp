@@ -656,9 +656,30 @@ TypePtr walkJsPlace(Gen& g, const Place& place, JsPtr<Expr>* expr, Size limit = 
                  */
                 rootRef = refPartsOf(g, root.value);
                 *expr = rootRef.owner;
+            } else if(auto box = g.localBoxes.get(place.local)) {
+                // A local whose box was built at its defining value rather than at an allocation -
+                // see prepareLocals. Named here rather than re-derived, because what `useValue`
+                // answers for that value is already the `box.$v` this would otherwise append to.
+                *expr = field(g, box.unwrap(), g.boxField);
             } else {
                 *expr = useValue(g, root.value);
                 if(place.local < g.boxed.size() && g.boxed[place.local]) {
+                    /*
+                     * A boxed local nothing built a box for - see prepareLocals, where `boxless` is
+                     * the complement of the four places that build one.
+                     *
+                     * Reported rather than emitted. What this line would otherwise produce is `v.$v`
+                     * over a bare value, which reads back `undefined` and takes every reference made
+                     * from it with it - and none of that fails here, so the report would come from
+                     * whatever eventually read the reference, in another function, on one target.
+                     * Both boxing rules this file has were added after exactly that, so the gap is
+                     * worth a diagnostic rather than the assumption that there is no gap left.
+                     */
+                    if(place.local < g.boxless.size() && g.boxless[place.local]) {
+                        g.context.diagnostics.error("the JS target cannot make a reference to this local - it is stored as a box and nothing built one, which is the gap Implementation-Simplification.md B describes"_v,
+                                                    g.local[root.value]->source);
+                    }
+
                     *expr = field(g, *expr, g.boxField);
                 }
             }
@@ -1715,6 +1736,10 @@ Maybe<JsPtr<Expr>> erasedStorageOf(Gen& g, const Place& place) {
 
     auto root = g.function->localAt(g.local, place.local);
     if(root.borrowed) return Nothing();
+
+    // The box a local built at its defining value, for the same reason the walk names it there: what
+    // `useValue` answers for that value is the slot inside the box rather than the box.
+    if(auto box = g.localBoxes.get(place.local)) return Just(box.unwrap());
 
     return Just(useValue(g, root.value));
 }

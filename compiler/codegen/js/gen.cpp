@@ -324,6 +324,8 @@ static I32 localSlotOf(Gen& g, Function& function, ModulePtr<Value> value);
 
 void prepareLocals(Gen& g, Function& function) {
     g.aliasBorrows.reset();
+    g.boxedStorage.reset();
+    g.localBoxes.reset();
     g.boxed.reset(function.localCount());
 
     // Every value that is a name for one local's storage, and which local that is.
@@ -460,6 +462,66 @@ void prepareLocals(Gen& g, Function& function) {
 
     for(auto entry: aliases.entries()) {
         if(!g.boxed[entry.value]) g.aliasBorrows.add(entry.key);
+    }
+
+    /*
+     * And the boxed locals with nothing to build their box.
+     *
+     * Every rule above decides that a local *is* boxed; only `genAlloc` ever builds one, so a boxed
+     * local whose storage is not an allocation had its box read back off a value nobody built. The
+     * walk emitted `v.$v` over a bare `var` and every reference to it named `undefined` - silently,
+     * because a reference is three values and none of them is checked where it is made.
+     *
+     * `let text = render()` is the shape: the local's storage *is* the call's result, so there is no
+     * `alloca` anywhere in the body, and a `String` is a host primitive here rather than an object -
+     * so borrowing that local boxes it. Capturing one into a lens continuation is a borrow that
+     * leaves the expression, which is what forces the box.
+     *
+     * Parameters are excluded because they have their own answer, which the boxing loop at the top
+     * of `genFunction` gives: their storage is settled by the calling convention before this body is
+     * looked at, and boxing one here as well would box it twice.
+     *
+     * What is recorded is the defining value rather than the local, because `define` is where the
+     * box has to be built - a value's box cannot be declared before the value exists, which is the
+     * one thing that separates this case from the parameter one.
+     */
+    for(Size i = 0; i < function.localCount(); i++) {
+        if(i >= g.boxed.size() || !g.boxed[i]) continue;
+
+        auto slot = function.localAt(g.local, i);
+        if(!slot.value || slot.borrowed || isParameter[i]) continue;
+        if(g.local[slot.value]->kind == Value::Alloc) continue;
+
+        g.boxedStorage.add(U32(slot.value), U32(i));
+    }
+
+    /*
+     * And what neither of those two reaches, which is what `boxless` is for.
+     *
+     * Stated as the complement rather than as its own rule, so that it cannot drift from the two it
+     * is the complement of: a local this frame owns is boxed, and either `genAlloc` builds its box
+     * or the loop above does.
+     *
+     * **Locals this frame owns, and not parameters** - the same boundary the boxing rules draw, and
+     * for the same reason. A parameter's form is the calling convention's answer rather than this
+     * pass's, and it is not one mechanism but several: a `&` parameter's box is the caller's, a
+     * `String` is boxed by `genFunction`'s loop, and a niche-folded carrier is an *object* whose
+     * `$v` the walk's unbox step reads as the payload rather than a box at all. Asking here which of
+     * those applies would be this file's third copy of a decision the two ends already make
+     * separately, and the first draft of this reported `unwrapOr(m: Maybe(a))` - which is the third
+     * case, working exactly as intended.
+     */
+    g.boxless.reset(function.localCount());
+
+    for(Size i = 0; i < function.localCount(); i++) {
+        if(i >= g.boxed.size() || !g.boxed[i] || isParameter[i]) continue;
+
+        auto slot = function.localAt(g.local, i);
+        if(slot.borrowed) continue;
+        if(slot.value && g.local[slot.value]->kind == Value::Alloc) continue;
+        if(slot.value && g.boxedStorage.get(U32(slot.value))) continue;
+
+        g.boxless.set(i, true);
     }
 }
 

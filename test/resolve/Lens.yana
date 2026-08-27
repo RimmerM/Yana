@@ -106,6 +106,30 @@ fn inLoop(n: Int) -> Int:
 
     return total
 
+-- A captured local whose storage is a **call result** rather than an allocation.
+--
+-- `let text = made()` binds the local straight to what the call answered, so no `alloca` appears in
+-- the body at all - and on the JavaScript target a `String` is a host primitive rather than an
+-- object, so a reference to that local has to name a box. Nothing built one: only an allocation did,
+-- so the reference was read back off a bare `var` and the continuation saw `undefined`. Silently,
+-- because a reference there is three values and none of them is checked where it is made.
+--
+-- Every part of the shape is load-bearing, which is why this is written out rather than folded into
+-- a case above. The `let` has to be immutable - a `let &` allocates, and its box was always built.
+-- The read has to be *under* the lens call, since a read above it is not a capture and never asks
+-- for the reference. And the type has to be one this target holds as a value rather than an object.
+--
+-- **The unoptimized build is what asserts this**, and the `.js.expect` beside this file does not:
+-- the optimizer folds the call, the local and the box away to the constant this answers, so the
+-- optimized JavaScript never has the shape to get wrong. What catches it is the driver comparing the
+-- two builds' answers - unoptimized returned 809 against optimized 814 while the box was missing.
+fn made() -> String = "abc"
+
+fn capturedCallResult() -> Int:
+    let text = made()
+    let n = plusOne(4)
+    return if text == "abc" then n else 0
+
 fn main() -> Int:
     log = 0
     let a = cleanupRan()      -- 1 + 11 = 12
@@ -120,5 +144,6 @@ fn main() -> Int:
     let g = nested()          -- 1 + 1 = 2
     log = 0
     let h = inLoop(3)         -- 1 + 12 + 23 = 36
+    let k = capturedCallResult()  -- 5
 
-    return a + b + c + d + e + f + g + h + j
+    return a + b + c + d + e + f + g + h + j + k

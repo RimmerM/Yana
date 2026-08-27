@@ -1,5 +1,48 @@
+fn String.unit {
+  arg self readonly
+  arg index readonly
+  %self: String borrowed droppable readonly live [0, 9)
+}
+
+fn Length(String).length {
+  arg self readonly
+  %self: String borrowed droppable readonly live [0, 4)
+}
+
+fn Eq(String).== {
+  arg self readonly
+  arg other readonly
+  %self: String borrowed droppable readonly live [0, 4) [5, 12) [13, 19) [20, 25)
+  %other: String borrowed droppable readonly live [0, 4) [5, 12) [13, 19) [20, 25)
+  %i: Size writable live [6, 12) [13, 19) [20, 25)
+}
+
+fn Reclaim(String).reclaim {
+  arg value readonly
+  %value: String borrowed droppable readonly live [0, 5)
+}
+
 fn teardown$none {
   arg value readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn releaseRun(CodeUnit) {
+  arg self readonly
+  %self: Run(CodeUnit) borrowed droppable readonly live [0, 8)
 }
 
 fn bound {
@@ -44,6 +87,16 @@ fn inLoop {
   %total: Int writable live [2, 9) [10, 23)
   %local2: {total: &Int} closure writable addressed live [13, 21)
   %local3: (value$: Int) -> () droppable readonly live [17, 22)
+}
+
+fn made {
+  %local0: String droppable readonly live [0, 2)
+}
+
+fn capturedCallResult {
+  %local0: String droppable readonly live [0, 4)
+  %local1: {text: 'String} closure writable addressed live [1, 9)
+  %local2: (value$: Int) -> Int droppable readonly live [5, 10)
 }
 
 fn main {
@@ -170,4 +223,10 @@ fn logged(()) {
   %body: (value$: Int) -> () borrowed droppable readonly live [0, 5)
   %local1: () readonly live [4, 9)
   %local2: () readonly live never
+}
+
+fn ResolveTest.continuation$29 {
+  arg env readonly
+  arg n readonly
+  %local0: String droppable readonly live [2, 4)
 }

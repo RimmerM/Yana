@@ -1,5 +1,7 @@
 let image$base: () = <none>
 
+let &heapFree: %%U8 = 0
+
 let &log: Int = 0
 
 table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
@@ -10,8 +12,169 @@ table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
   .0 teardown$none
 }
 
+let ResolveTest.string$0: String = "abc"
+
+let ResolveTest.literal$1: String = "abc" {StringData(Array(Run(&ResolveTest.string$0, 3, 0), 3))}
+
+let ResolveTest.string$2: String = "abc"
+
+let ResolveTest.literal$3: String = "abc" {StringData(Array(Run(&ResolveTest.string$2, 3, 0), 3))}
+
+table closure$ResolveTest.continuation$29 before ResolveTest.continuation$29 {
+  .0 teardown$none
+}
+
+fn String.unit(%self: String, %index: Size) -> Int {
+  b0:
+    %v2 = borrow %self : 'String
+    %v3 = cast %v2 : 'StringData
+    %v4 = load [%v3]@StringData.bytes : Array(CodeUnit)
+    %v5 = load [%v3]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v6 = load [%v3]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v7 = strideof CodeUnit : Size
+    %v8 = mul %index, %v7 : Size
+    %v9 = add %v6, %v8 : %CodeUnit
+    %v10 = load [%v9] : CodeUnit
+    %v11 = cast %v10 : Int
+    ret %v11
+}
+
+fn Length(String).length(%self: String) -> Size {
+  b0:
+    %v1 = borrow %self : 'String
+    %v2 = cast %v1 : 'StringData
+    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
+    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
+    %units = cast %v4 : Int
+    %v6 = cast %units : Size
+    ret %v6
+}
+
+fn Eq(String).==(%self: String, %other: String) -> Bool {
+  b0:
+    %count = call Length(String).length, %self : Size
+    %v3 = call Length(String).length, %other : Size
+    %v4 = cmp_ne %count, %v3 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret False
+
+  b2:
+    jmp b3
+
+  b3:
+    %i = alloc : Size
+    init %i, 0
+    jmp b4
+
+  b4:
+    %v13 = load %i : Size
+    %v14 = cmp_lt %v13, %count : Bool
+    je %v14, b6, b5
+
+  b5:
+    ret True
+
+  b6:
+    %v16 = load %i : Size
+    %v17 = call String.unit, %self, %v16 : Int
+    %v18 = load %i : Size
+    %v19 = call String.unit, %other, %v18 : Int
+    %v20 = cmp_ne %v17, %v19 : Bool
+    je %v20, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v25 = load %i : Size
+    %v28 = add %v25, 1 : Size
+    assign %i, %v28
+    jmp b4
+}
+
+fn Reclaim(String).reclaim(%value: String) -> () {
+  b0:
+    %v1 = borrow %value : 'String
+    %v2 = cast %v1 : 'StringData
+    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
+    %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
+    call releaseRun(CodeUnit), %v4
+    ret
+}
+
 fn teardown$none(%value: %()) -> () {
   b0:
+    ret
+}
+
+fn freeListHead(%sizeClass: Size) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %CodeUnit
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
     ret
 }
 
@@ -239,6 +402,28 @@ fn inLoop(%n: Int) -> Int {
     jmp b1
 }
 
+fn made() -> String {
+  b0:
+    %v0 = copy ResolveTest.literal$1 : String
+    ret %v0
+}
+
+fn capturedCallResult() -> Int {
+  b0:
+    %text = call made : String
+    %v2 = alloc : {text: 'String}
+    %v3 = borrow %local0 : 'String
+    init %local1.text, %v3
+    drop %local0 via Reclaim(String).reclaim
+    %v5 = addressof %local1 : %()
+    %v6 = alloc : (value$: Int) -> Int
+    %v7 = symbol ResolveTest.continuation$29 : %()
+    init %local2.code, %v7
+    init %local2.env, %v5
+    %v10 = call plusOne(Int), 4, %v6 : Int
+    ret %v10
+}
+
 fn main() -> Int {
   b0:
     assign log, 0
@@ -254,15 +439,17 @@ fn main() -> Int {
     %g = call nested : Int
     assign log, 0
     %h = call inLoop, 3 : Int
-    %v18 = add %a, %b : Int
-    %v19 = add %v18, %c : Int
-    %v20 = add %v19, %d : Int
-    %v21 = add %v20, %e : Int
-    %v22 = add %v21, %f : Int
-    %v23 = add %v22, %g : Int
-    %v24 = add %v23, %h : Int
-    %v25 = add %v24, %j : Int
-    ret %v25
+    %k = call capturedCallResult : Int
+    %v19 = add %a, %b : Int
+    %v20 = add %v19, %c : Int
+    %v21 = add %v20, %d : Int
+    %v22 = add %v21, %e : Int
+    %v23 = add %v22, %f : Int
+    %v24 = add %v23, %g : Int
+    %v25 = add %v24, %h : Int
+    %v26 = add %v25, %j : Int
+    %v27 = add %v26, %k : Int
+    ret %v27
 }
 
 fn ResolveTest.continuation$18(%env: %{}, %value$: Int) -> Int {
@@ -449,4 +636,24 @@ fn logged(())(%body: (value$: Int) -> ()) -> () {
     %v9 = add %v7, 10 : Int
     assign log, %v9
     ret %v6
+}
+
+fn ResolveTest.continuation$29(%env: %{text: 'String}, %n: Int) -> Int {
+  b0:
+    %v2 = load [%env].text : 'String
+    %v3 = load [%v2] : String
+    %v4 = copy ResolveTest.literal$3 : String
+    %v5 = call Eq(String).==, %v3, %v4 : Bool
+    drop %local0 via Reclaim(String).reclaim
+    je %v5, b1, b2
+
+  b1:
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b1, %n], [b2, 0] : Int
+    ret %v10
 }

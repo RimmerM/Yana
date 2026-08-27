@@ -582,6 +582,40 @@ struct Gen {
     IndexSet boxed;
 
     /*
+     * The boxed locals whose storage is a *value* rather than an `alloca`, and the box each one got.
+     *
+     * `genAlloc` is what builds a box, so a boxed local with no allocation had none built and the
+     * reference the walk made named `v.$v` over a bare value - see prepareLocals, which sets the two
+     * of these together. `let text = render()` binds the local straight to the call's result, and a
+     * `String` is a primitive here, so borrowing that local is exactly the shape with no allocation
+     * to hang a box off.
+     *
+     * `boxedStorage` maps the defining value to the local it is the storage of, which is what
+     * `define` asks before it declares one; `localBoxes` maps that local to the box, which is what
+     * the place walk names instead of re-deriving it from the value. The value itself is registered
+     * as `box.$v`, so a read of the local and a write through the reference reach one slot - the
+     * copy-with-write-back refIsTriple exists to have removed is not what this is.
+     */
+    HashMap<U32, U32> boxedStorage;
+    HashMap<U32, JsPtr<Expr>> localBoxes;
+
+    /*
+     * The boxed locals nothing above builds a box for, which is the residue of the rule this file
+     * states: `g.boxed` says a local is *stored* as a box, and four places build one - `genAlloc`
+     * for an allocation, `define` for the value storage beside it, `genFunction`'s parameter loop,
+     * and the caller of a `&` parameter. A local this set names is boxed and has none of the four,
+     * so the walk would emit `v.$v` over a bare value and every reference to it would name
+     * `undefined`.
+     *
+     * Recorded so that it can be *reported*. Two of the four builders were added after a silent
+     * miscompile of exactly this shape, and what made both expensive to find is that nothing failed
+     * where the mistake was: a reference here is three values, none of them is checked where it is
+     * made, and the `undefined` surfaces in whatever reads it. A diagnostic naming the local is the
+     * whole difference between that and a compile error at the declaration.
+     */
+    IndexSet boxless;
+
+    /*
      * Which locals an `InstAggregate` builds whole, by local index - see prepareBuiltLocals.
      *
      * The allocation of one is declared holding *nothing*, because the value it would otherwise hold
