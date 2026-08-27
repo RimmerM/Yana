@@ -302,6 +302,80 @@ static ModulePtr<Value> buildTestCase(ExprResolver& resolver, const TestCaseShap
 }
 
 /*
+ * A test file's `let`s, resolved into a function of the file's own module, called by the entry
+ * before any case runs - Design-Test.md §3.1 and §11.2's F5.
+ *
+ * **A function per file rather than statements in the entry**, for two reasons that are the same
+ * reason. A test file's globals belong to *its* module, so their initializers have to be resolved in
+ * that module's scope and under that file's imports - and the entry lives in the root, which is
+ * usually neither. And a function is what the reachability walk already understands: the entry calls
+ * these, so they are roots exactly as `main` is, with nothing here to teach it.
+ *
+ * **The order is stated rather than invented.** Modules in the order the program collected them,
+ * files within a module in path order, statements within a file in written order. The first two are
+ * the order every declaration pass already runs in - `Module::files` is path-ordered for exactly
+ * this kind of reason - and the third is the only order a top level has ever had. What is
+ * deliberately *not* claimed is that two test files may depend on each other's globals: the pending
+ * list below spans all of them, so a read of a global whose file has not run yet is reported instead
+ * of loading the zeroes.
+ */
+static void resolveTestFileInitializers(Program& program, ExprResolver& entry, PendingGlobals& pending) {
+    auto& context = program.context;
+    auto local = *program.arena;
+    auto initName = context.addUnqualifiedName("testInit$", 9);
+
+    for(auto module: program.modules) {
+        if(module->testTopLevel.isEmpty()) continue;
+
+        collectPendingGlobals(*module, module->testTopLevel, pending);
+    }
+
+    for(auto module: program.modules) {
+        if(module->testTopLevel.isEmpty()) continue;
+
+        for(U32 file = 0; file < module->files.size(); file++) {
+            // The file's first statement, which is both the test for "this file has any" and the
+            // location a diagnostic about the synthesized function should land on.
+            auto source = kNullLocation;
+
+            for(auto statement: module->testTopLevel.contents(local)) {
+                auto written = module->parse[statement.decl]->source;
+                if(module->fileOf(written) != file) continue;
+
+                source = written;
+                break;
+            }
+
+            if(source == kNullLocation) continue;
+
+            auto function = addAnonymousFunction(*module, initName, source);
+            function->returnType = module->scalar.unit;
+
+            {
+                FileScope scope(*module, U16(file));
+                ExprResolver resolver(context, *module, *function);
+
+                resolver.uninitialized = &pending;
+                resolveTopLevelStatements(resolver, module->testTopLevel, file);
+                resolver.uninitialized = nullptr;
+
+                if(!resolver.current) continue;
+                resolver.terminate(resolver.emit<InstRet>(source, StringId(), module->scalar.unit, nullptr));
+            }
+
+            if(!entry.current) return;
+            entry.emitDirectCall(function - local, {}, source);
+        }
+    }
+
+    for(auto module: program.modules) {
+        if(module->testTopLevel.isEmpty()) continue;
+
+        settleTopLevelTypes(*module, module->testTopLevel);
+    }
+}
+
+/*
  * The entry of a test build - Design-Test.md §11.2's F1, and §3.3's third rule.
  *
  * One array of `Test.Case` and one call. It is synthesized for exactly the reason the top-level
@@ -347,6 +421,19 @@ void resolveTestEntry(Program& program) {
     // Ahead of the cases, exactly as it runs ahead of `main` - a test that reads a global
     // initialized at startup needs it initialized. See resolveRootTopLevel.
     resolveRootTopLevel(resolver);
+    if(!resolver.current) return;
+
+    /*
+     * And then the test files' own, in every module that has one - the root's included, since a
+     * `.test.yana` file there is a test file like any other and its `let`s are initializers rather
+     * than part of the program's written start.
+     *
+     * After the root's top level rather than before it: a test file is a file of a module that
+     * already exists, so anything the program initializes at startup is initialized by the time one
+     * of these runs, and the dependency cannot go the other way.
+     */
+    PendingGlobals pendingTests;
+    resolveTestFileInitializers(program, resolver, pendingTests);
     if(!resolver.current) return;
 
     ValueList cases;

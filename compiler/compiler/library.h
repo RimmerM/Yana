@@ -42,6 +42,10 @@ struct Context;
 struct LibraryFile {
     StringId name;
     bool inDirectory;
+
+    // Whether a `test` segment was among the selectors - Design-Test.md §3.1. Carried from the walk
+    // to `ast::Module::test`, which is where everything else asks.
+    bool test = false;
 };
 
 struct LibrarySource {

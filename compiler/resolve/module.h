@@ -1052,6 +1052,20 @@ struct Module {
     ModuleList<TopLevelStmt, false> topLevel;
 
     /*
+     * The `let`s a `.test.yana` file of this module declares - Design-Test.md §3.1, and §11.2's F5.
+     *
+     * A second list rather than entries in the one above, because the two are different things that
+     * happen to share a shape. `topLevel` is *the program's start*: it is one file's, it may hold
+     * arbitrary statements, and its order is the order the author wrote. This is a set of
+     * initializers, one group per test file, run before the cases by `resolveTestEntry` and existing
+     * only in a build where that entry exists at all.
+     *
+     * Grouped by file because the declaration passes run over `files` one at a time, so the pushes
+     * arrive that way; `fileOf` recovers which is which rather than a field here repeating it.
+     */
+    ModuleList<TopLevelStmt, false> testTopLevel;
+
+    /*
      * How far this module's declarations have got.
      *
      * What it used to be for was rejecting a cycle: a module was interned before its declarations

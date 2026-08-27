@@ -2444,6 +2444,15 @@ Function* addAnonymousFunction(Module& module, StringId name, LocationId source)
  * Every entry runs it and runs it first, which is what makes the entry a program start rather than
  * a call to `main`: an ordinary build calls `main` after it, and a test build runs its cases.
  */
+/*
+ * The whole of a top-level sequence, rather than one file's - see resolveTopLevelStatements.
+ * `Module::topLevel` is one file's by construction; `Module::testTopLevel` is not.
+ */
+static const U32 kEveryFile = 0xFFFFFFFF;
+
+void collectPendingGlobals(Module& module, ModuleList<TopLevelStmt, false>& list, PendingGlobals& pending);
+void settleTopLevelTypes(Module& module, ModuleList<TopLevelStmt, false>& list);
+void resolveTopLevelStatements(ExprResolver& resolver, ModuleList<TopLevelStmt, false>& list, U32 onlyFile);
 void resolveRootTopLevel(ExprResolver& resolver);
 
 // What storage a place names, and what that storage holds after its projections are followed, are

@@ -427,11 +427,16 @@ ModulePtr<Value> ExprResolver::foldConstantRead(const Place& place, LocationId s
  * A global is in scope for the whole module from the first line, so a top-level statement naming one
  * declared further down is an ordinary use-before-init - the same mistake the ownership pass reports
  * for a local, reported here because a global has no state row in any frame to report it from.
+ *
+ * Two sequences reach this now, which is why the report names the order rather than the direction:
+ * the program's start, where "further down" is the whole of it, and a test file's initializers,
+ * where the global that has not run yet may be in another file entirely - see
+ * resolveTestFileInitializers, whose pending list deliberately spans all of them.
  */
 bool ExprResolver::initializedGlobal(ModulePtr<Global> global_, LocationId source) {
     if(!uninitialized || !uninitialized->containsValue(global_)) return true;
 
-    context.diagnostics.error("%@ is read before its initializer runs - a module's top level runs in the order it is written, and this global is declared further down"_v,
+    context.diagnostics.error("%@ is read before its initializer runs - the program's start runs in written order and each test file's `let`s run after it in path order, and this global's initializer has not had its turn"_v,
                               source, context.findName(local[global_]->name));
     return false;
 }

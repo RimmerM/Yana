@@ -188,12 +188,18 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
         // Every segment after the first is a target selector. An unknown one is reported and the
         // file is left out: a name that is not a selector cannot be a name of anything else here,
         // and compiling it into every target would be the one outcome nothing would notice.
+        auto isTest = false;
+
         for(Size i = 0, from = 0; i <= stem.length; i++) {
             if(i < stem.length && stem.ptr[i] != '.') continue;
 
             if(from > 0) {
                 auto selector = StringView { stem.ptr + from, i - from };
                 auto answer = targetSelector(walk.context.settings, selector);
+
+                // Kept as the walk goes past, since this is the last place the file's base name is
+                // in hand - see ast::Module::test.
+                if(selector == "test"_v) isTest = true;
 
                 if(answer == TargetSelector::Unknown) {
                     walk.context.diagnostics.error("%@ in the standard library names %@, which is not a target - a file name selects a target with `native`, `js`, an operating system, an architecture, an x86-64 level or an instruction-set extension"_v,
@@ -212,7 +218,7 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
         auto id = walk.context.addQualifiedName(name.text(), name.size());
 
         walk.library.record(id, formatPath("%@/%@"_v, walk.path, fileName));
-        walk.result.push(LibraryFile { id, walk.inDirectory });
+        walk.result.push(LibraryFile { id, walk.inDirectory, isTest });
     }, &walk);
 
     // After the listing rather than during it, since the callback is inside the directory handle.

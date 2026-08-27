@@ -1103,11 +1103,56 @@ void checkBuiltinPlacement(Module& module, const ast::Decl& decl) {
     }
 }
 
+/*
+ * Whether this declaration is in a `.test.yana` file of the module - Design-Test.md §3.1.
+ *
+ * The file its own location names, which is the ground truth for which file a declaration belongs
+ * to and the same question `resolveFunctionBody` asks to scope a body's imports.
+ */
+static bool inTestFile(Module& module, LocationId source) {
+    auto file = module.fileOf(source);
+    return file < module.files.size() && module.files[file]->test;
+}
+
 void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> pointer) {
     auto parse = module.parse;
     auto& context = module.context;
 
+    /*
+     * A test file's `let` may be initialized by code, on the same terms the root module's is.
+     *
+     * The rule was never about being the root - it is about whether there is a program point at
+     * which the initializer runs, and a test build has one: `resolveTestEntry` runs the top level
+     * ahead of the cases exactly as the ordinary entry runs it ahead of `main`. What the root has
+     * that a library module does not is *an entry at all*, and under `-test` every module with a
+     * test file in it does too.
+     *
+     * Two things keep that from widening into library semantics. A test file is selected in and out
+     * as a **unit**, so in a build without `-test` the global does not exist and neither does the
+     * code that would have initialized it - the invariant "a dynamic global exists only where
+     * something runs its initializer" holds exactly rather than by argument. And only a `let` is
+     * admitted here, never a bare statement: the program's start stays one file's, in one module,
+     * in written order, which is what `checkModuleTopLevel` still enforces.
+     */
+    auto testFile = context.settings.test && inTestFile(module, decl.source);
+    auto startup = module.root || testFile;
+
     if(decl.stmt.kind != ast::Expr::Decl) {
+        /*
+         * A test file gets initializers, not a second program start - so a bare statement is refused
+         * there even when the module around it is the root.
+         *
+         * Two files' statement sequences would need an order between them, and the only order this
+         * compiler states is the one written inside a single file. That is the same answer
+         * `checkModuleTopLevel` gives two ordinary files, said one declaration earlier because the
+         * test file is exempt from that check for the `let`s it is exempt for.
+         */
+        if(testFile) {
+            context.diagnostics.error("only a `let` declaration can appear at a test file's module level - its declarations are initialized before the cases run, but a program's start is one file's statements in written order and a test file is not that file"_v,
+                                      decl.source);
+            return;
+        }
+
         if(!module.root) {
             context.diagnostics.error("only a `let` declaration can appear at module level - a statement has to run at some point in a program's startup, and only the module being compiled has one"_v,
                                       decl.source);
@@ -1171,7 +1216,7 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
         auto notConstant = false;
         auto constant = evaluateConstant(module, *parse[declaration.content], nullptr,
                                          "a global's initializer"_v, true,
-                                         module.root ? &notConstant : nullptr);
+                                         startup ? &notConstant : nullptr);
 
         if(!constant && !notConstant) {
             declared(nullptr);
@@ -1186,7 +1231,7 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
          * the entry sequence can build perfectly well.
          */
         if(constant && !constantHasStaticForm(*module.types, *module.arena, constant)) {
-            if(!module.root) {
+            if(!startup) {
                 context.diagnostics.error("a global's initializer holds a value reached through an indirection - a recursive type keeps its payload behind an owning pointer, and static storage has nothing for one to point at"_v,
                                           declaration.content ? parse[declaration.content]->source
                                                               : declaration.pat.source);
@@ -1215,5 +1260,9 @@ void declareGlobal(Module& module, ast::Decl& decl, ast::ParsePtr<ast::Decl> poi
 
     // By value, not by move: what the list holds is a region pointer and two counts, so the copy is
     // the same eight bytes either way and the elements it names do not move.
-    if(module.root) module.topLevel.push(module.arena, statement);
+    //
+    // The root's own goes in the program's start; a test file's goes in the list the test entry
+    // runs, which is a different sequence with a different order rule - see Module::testTopLevel.
+    if(testFile) module.testTopLevel.push(module.arena, statement);
+    else if(module.root) module.topLevel.push(module.arena, statement);
 }

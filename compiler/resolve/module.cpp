@@ -555,6 +555,18 @@ static void checkModuleTopLevel(Module& module) {
     ast::Module* found = nullptr;
 
     for(auto file: module.files) {
+        /*
+         * A test file is not in this argument at all - Design-Test.md §3.1.
+         *
+         * What it may write at module level is `let` and nothing else (declareGlobal refuses the
+         * rest), and those are initializers rather than the program's start: they run before the
+         * cases, grouped per file, and no statement sequence competes with the one this check is
+         * protecting. So a root module keeps exactly one file of top-level statements whatever its
+         * tests write, and a library module's test file is not measured against a file that has
+         * none.
+         */
+        if(file->test) continue;
+
         // The first one, which is what the report points at: a file has no location of its own, and
         // the statement is the thing that has to move.
         auto statement = kNullLocation;

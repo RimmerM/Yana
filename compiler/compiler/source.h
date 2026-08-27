@@ -39,6 +39,10 @@ struct SourceEntry {
 
     Ptr<ast::Module> ast;
 
+    // Whether the file's name carried the `test` selector, kept from the walk that read it and
+    // copied onto the AST by `FileProvider::parse` - see ast::Module::test.
+    bool test = false;
+
     // How much of `id` names the file's directory: the text up to its last segment. Zero for a file
     // sitting directly in a compile root, whose directory is the root and is named by `root`.
     U32 directoryLength = 0;

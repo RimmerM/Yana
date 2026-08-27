@@ -213,6 +213,7 @@ ast::Module* FileProvider::parse(SourceEntry& entry) {
     Lexer lexer(*context, context->diagnostics, StringView { entry.text.get(), entry.length }, entry.name);
     Parser parser(*context, lexer, entry.name);
     entry.ast = Ptr(new ast::Module(parser.parseModule()));
+    entry.ast->test = entry.test;
 
     return entry.ast.get();
 }
@@ -277,14 +278,20 @@ static bool isYanaSource(const String& path, Size& extensionLength) {
  * vocabulary already decided elsewhere: `Map.test.yana` is a file of its module under `-test` and is
  * not read at all without it.
  */
-static bool selectsFile(const CompileSettings& settings, const char* name, Size length) {
+static bool selectsFile(const CompileSettings& settings, const char* name, Size length, bool& isTest) {
     Size from = 0;
 
     for(Size i = 0; i <= length; i++) {
         if(i < length && name[i] != '.') continue;
 
-        if(from > 0 && targetSelector(settings, StringView { name + from, i - from }) == TargetSelector::Excluded) {
-            return false;
+        if(from > 0) {
+            auto selector = StringView { name + from, i - from };
+            if(targetSelector(settings, selector) == TargetSelector::Excluded) return false;
+
+            // The one selector anything downstream asks about again, and this is the last place the
+            // base name exists to ask: the identifier built below upper-cases every segment, so
+            // `test` is not spelled `test` in it. See ast::Module::test.
+            if(selector == "test"_v) isTest = true;
         }
 
         from = i + 1;
@@ -320,13 +327,15 @@ static void mapFile(ModuleMap& map, U32 rootIndex, const String& file) {
      * as selectors. The walk that found the file is what still knows which is which, and this runs
      * before the identifier is built for exactly that reason.
      */
+    auto isTest = false;
+
     if(map.settings) {
         auto base = findLast(file, '/');
         if(!base) base = findLast(file, '\\');
         base = base ? base + 1 : file.text();
 
         auto stem = file.text() + file.size() - extensionLength - 1;
-        if(stem > base && !selectsFile(*map.settings, base, Size(stem - base))) return;
+        if(stem > base && !selectsFile(*map.settings, base, Size(stem - base), isTest)) return;
     }
 
     // Only compile files that are actually inside the root directory.
@@ -441,6 +450,8 @@ static void mapFile(ModuleMap& map, U32 rootIndex, const String& file) {
     map.entries.push(SourceEntry {
         StringView { pathBuffer, file.size() }, id, directoryLength, rootIndex, ::move(buffer)
     });
+
+    map.entries[map.entries.size() - 1].test = isTest;
 }
 
 static Result<void, String> mapDirectory(ModuleMap& map, U32 rootIndex, const String& dir) {

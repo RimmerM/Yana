@@ -395,24 +395,62 @@ static void initializeGlobal(ExprResolver& resolver, ModulePtr<Global> pointer,
  * after this; a test build's runs its cases instead - see resolveTestEntry, where §3.3's rule is
  * about `main` and not about what the program does before it.
  */
-void resolveRootTopLevel(ExprResolver& resolver) {
+/*
+ * Every dynamic global a top-level sequence will initialize, so that a read of one before its own
+ * statement runs is the report it is rather than a load of the zeroes - see
+ * `ExprResolver::initializedGlobal`, which drains the list as each initializer resolves.
+ *
+ * One list per *sequence* and not per function, which is what lets the test entry hand a single one
+ * to a file's initializers and to the next file's after it: what makes a read wrong is that the
+ * statement which fills the global has not run yet, and that question spans the files.
+ */
+void collectPendingGlobals(Module& module, ModuleList<TopLevelStmt, false>& list, PendingGlobals& pending) {
+    auto local = *module.arena;
+
+    for(auto statement: list.contents(local)) {
+        for(auto global_: statement.globals.contents(local)) {
+            if(global_ && local[global_]->dynamic) pending.push(global_);
+        }
+    }
+}
+
+/*
+ * Every dynamic global has a type by now, or is given the error type here.
+ *
+ * The sweep rather than trusting the loop above, because what the loop guarantees is that each
+ * initializer was *reached* - and a statement that leaves no reachable code after it stops the
+ * sequence where it is. A global left typeless would be read by whichever body names it next,
+ * which is a crash rather than the report that already happened.
+ */
+void settleTopLevelTypes(Module& module, ModuleList<TopLevelStmt, false>& list) {
+    auto local = *module.arena;
+
+    for(auto statement: list.contents(local)) {
+        for(auto global_: statement.globals.contents(local)) {
+            if(!global_ || local[global_]->type) continue;
+            local[global_]->type = module.scalar.error;
+        }
+    }
+}
+
+/*
+ * One top-level sequence, emitted into a function that is already being built.
+ *
+ * `onlyFile` is `kEveryFile` for the program's start, which is one file's statements anyway, and a
+ * file index for a test file's initializers - Module::testTopLevel holds several files' and each
+ * gets a function of its own, so that each runs under its own imports. The caller owns the pending
+ * list and the type sweep, because both span more of the sequence than one call does.
+ */
+void resolveTopLevelStatements(ExprResolver& resolver, ModuleList<TopLevelStmt, false>& list, U32 onlyFile) {
     auto& module = resolver.module;
     auto parse = module.parse;
     auto local = *module.arena;
 
-    PendingGlobals uninitialized;
-    for(auto statement: module.topLevel.contents(local)) {
-        for(auto global_: statement.globals.contents(local)) {
-            if(global_ && local[global_]->dynamic) uninitialized.push(global_);
-        }
-    }
-
-    resolver.uninitialized = &uninitialized;
-
-    for(auto statement: module.topLevel.contents(local)) {
+    for(auto statement: list.contents(local)) {
         if(!resolver.current) break;
 
         auto& decl = *parse[statement.decl];
+        if(onlyFile != kEveryFile && module.fileOf(decl.source) != onlyFile) continue;
 
         if(decl.stmt.kind != ast::Expr::Decl) {
             // An ordinary statement, resolved for its effect. Nothing consumes its value - a top
@@ -440,21 +478,17 @@ void resolveRootTopLevel(ExprResolver& resolver) {
             initializeGlobal(resolver, global_, declaration);
         }
     }
+}
 
-    /*
-     * Every dynamic global has a type by now, or is given the error type here.
-     *
-     * The sweep rather than trusting the loop above, because what the loop guarantees is that each
-     * initializer was *reached* - and a statement that leaves no reachable code after it stops the
-     * sequence where it is. A global left typeless would be read by whichever body names it next,
-     * which is a crash rather than the report that already happened.
-     */
-    for(auto statement: module.topLevel.contents(local)) {
-        for(auto global_: statement.globals.contents(local)) {
-            if(!global_ || local[global_]->type) continue;
-            local[global_]->type = module.scalar.error;
-        }
-    }
+void resolveRootTopLevel(ExprResolver& resolver) {
+    auto& module = resolver.module;
+
+    PendingGlobals uninitialized;
+    collectPendingGlobals(module, module.topLevel, uninitialized);
+
+    resolver.uninitialized = &uninitialized;
+    resolveTopLevelStatements(resolver, module.topLevel, kEveryFile);
+    settleTopLevelTypes(module, module.topLevel);
 
     // The list is this frame's, and nothing after the top level reads a global before it is
     // initialized - there is nothing after the top level that reads one at all.

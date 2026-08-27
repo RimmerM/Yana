@@ -94,6 +94,8 @@ ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name, bool allowS
         auto ast = parseLibrarySource(context, file.name, allowSignatures);
         if(!ast) continue;
 
+        ast->test = file.test;
+
         program.embeddedAsts.push(ast);
         if(joinsModule(name, file, *ast)) group->files.push(ast);
     }

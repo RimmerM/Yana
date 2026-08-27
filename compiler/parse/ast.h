@@ -954,6 +954,20 @@ struct Module {
 
     Membership membership = Membership::Directory;
 
+    /*
+     * Whether the file's name carried the `test` selector - Design-Test.md §3.1.
+     *
+     * Recorded rather than re-derived, because by the time anything here could ask, the answer is
+     * gone: the two walks that decide it are the only things that see the file's *base name*, and
+     * `mapFile` upper-cases each segment of the identifier on the way past, so a `test` segment is
+     * not even spelled the same afterwards.
+     *
+     * What reads it is the top level - `checkModuleTopLevel` and `declareGlobal`, which admit a
+     * dynamic global here on the same terms the root module gets one, and `resolveTestEntry`, which
+     * is what runs it.
+     */
+    bool test = false;
+
     // The name written in `module M`, or none. Checked against the file's path by whoever built the
     // module map, since it is the only thing that knows where the file is.
     StringId joins {};
