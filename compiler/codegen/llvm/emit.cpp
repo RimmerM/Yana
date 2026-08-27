@@ -1,4 +1,5 @@
 #include "build.h"
+#include "../entry.h"
 
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/MC/TargetRegistry.h>
@@ -69,6 +70,124 @@ static void storeCommandLine(Context& context, llvm::Module& module, LowerModule
 
         builder.CreateStore(value, global);
     }
+}
+
+/*
+ * Whether this target starts itself.
+ *
+ * An amd64 ELF program does: the entry sequence below is eleven instructions of the architecture's
+ * own assembly, and everything under it - the allocator, the file system, the clock - is already
+ * written over raw system calls. Everything else keeps the C handshake, which is a real fallback
+ * rather than a hypothetical one: a Mach-O or PE object is linked by a toolchain whose startup code
+ * is the platform's, and this backend has no `_start` for either.
+ */
+static bool startsItself(const CompileSettings& settings) {
+    return settings.format == ExecutableFormat::ELF && settings.arch == TargetArch::X64;
+}
+
+/*
+ * The process entry, as assembly in the module - and why an LLVM-compiled program had a C runtime
+ * inside it until it existed.
+ *
+ * A Yana program's runtime is Yana: `mapMemory` is `mmap`, `File` is `openat` and `write`, the clock
+ * is `clock_gettime`, and the local backend produces an executable with no libraries in it at all.
+ * The LLVM path was linking `cc -no-pie`, which is `crt1.o` plus `libc.so.6` plus the dynamic
+ * loader, for exactly two things: somebody to call `main`, and `memcpy`. The program's own code
+ * needed none of it - `nm -u` over the whole `test/resolve` corpus, compiled through this backend,
+ * named one undefined symbol and it was `memcpy`.
+ *
+ * That is worth removing on its own terms - a 16096-byte hello world became 9512, statically linked,
+ * with no interpreter and no relocation to apply at startup - but the reason it is *here* is the
+ * entry point: the two backends now write the same sequence, from the same constants in
+ * codegen/entry.h, instead of one of them writing it and the other asking a C runtime to.
+ *
+ * What the assembly is:
+ *
+ *   xor ebp, ebp                the outermost frame has no caller - a stack walk stops here
+ *   mov rdi, [rsp]              argc, while the stack is still the one the kernel handed over
+ *   lea rsi, [rsp+8]            argv
+ *   lea rdx, [rsp+rdi*8+16]     envp - past the vector and its null terminator
+ *   and rsp, -64                aligned to a vector; see kEntryStackAlignment
+ *   call main                   the wrapper below, which fills the globals and runs the program
+ *   mov edi, eax                the status it answered
+ *   mov eax, 231                __NR_exit_group
+ *   syscall
+ *   hlt                         unreachable; a fault is better than running into what follows
+ *
+ * The three registers are the C convention's first three arguments, so the wrapper this calls is
+ * exactly the `main` the platform's startup code would have called - which is what keeps this a
+ * change of *who calls it* rather than a second entry sequence with its own rules about the roles.
+ *
+ * `memcpy`, `memmove` and `memset` are here because they are the three libcalls an LLVM memory
+ * intrinsic may become, and nothing else in the program is going to define them. `rep movsb` is the
+ * same instruction the local backend emits for `blockCopy` and is what the library's own ladder
+ * calls above `width * 48` bytes; below that the ladder never reaches a libcall at all, because
+ * `copyMemory` is written in Yana. A `memcmp` or `bcmp` - which LLVM can form out of a comparison
+ * loop, and did not once in the corpus - is deliberately absent: a link error naming it is a better
+ * outcome than a slow one nobody measured.
+ */
+static void addProcessEntry(llvm::Module& module) {
+    char text[4096];
+    auto length = format(toBuffer(text), String(
+        "\t.text\n"
+        "\t.globl _start\n"
+        "\t.type _start,@function\n"
+        "_start:\n"
+        "\txorl %ebp, %ebp\n"
+        "\tmovq (%rsp), %rdi\n"
+        "\tleaq 8(%rsp), %rsi\n"
+        "\tleaq 16(%rsp,%rdi,8), %rdx\n"
+        "\tandq $-%@, %rsp\n"
+        "\tcall main\n"
+        "\tmovl %eax, %edi\n"
+        "\tmovl $%@, %eax\n"
+        "\tsyscall\n"
+        "\thlt\n"
+
+        "\t.globl memcpy\n"
+        "\t.type memcpy,@function\n"
+        "memcpy:\n"
+        "\tmovq %rdi, %rax\n"
+        "\tmovq %rdx, %rcx\n"
+        "\trep movsb\n"
+        "\tret\n"
+
+        "\t.globl memmove\n"
+        "\t.type memmove,@function\n"
+        "memmove:\n"
+        "\tmovq %rdi, %rax\n"
+        "\tmovq %rdx, %rcx\n"
+        "\tcmpq %rsi, %rdi\n"
+        "\tjbe 1f\n"
+        "\tleaq (%rsi,%rdx), %r8\n"
+        "\tcmpq %r8, %rdi\n"
+        "\tjae 1f\n"
+        "\tleaq -1(%rdi,%rdx), %rdi\n"
+        "\tleaq -1(%rsi,%rdx), %rsi\n"
+        "\tstd\n"
+        "\trep movsb\n"
+        "\tcld\n"
+        "\tret\n"
+        "1:\n"
+        "\trep movsb\n"
+        "\tret\n"
+
+        "\t.globl memset\n"
+        "\t.type memset,@function\n"
+        "memset:\n"
+        "\tmovq %rdi, %r8\n"
+        "\tmovl %esi, %eax\n"
+        "\tmovq %rdx, %rcx\n"
+        "\trep stosb\n"
+        "\tmovq %r8, %rax\n"
+        "\tret\n"
+
+        // Without it the linker marks the stack executable and says so, because an object with
+        // assembly in it and no such note is one it cannot prove otherwise about.
+        "\t.section .note.GNU-stack,\"\",@progbits\n"
+    ), kEntryStackAlignment, kSysExitGroup);
+
+    module.appendModuleInlineAsm(llvm::StringRef(text, length));
 }
 
 /*
@@ -188,6 +307,10 @@ bool addNativeEntry(Context& context, llvm::Module& module, LowerModule& lowered
         if(global.isDeclaration()) continue;
         global.setLinkage(llvm::GlobalValue::InternalLinkage);
     }
+
+    // And `main` stops being the C runtime's business, where this target has no C runtime. The
+    // wrapper above is unchanged and still external - what changes is who calls it.
+    if(startsItself(context.settings)) addProcessEntry(module);
 
     return true;
 }
@@ -448,11 +571,24 @@ bool writeObjectFile(Context& context, llvm::Module& module, const String& path)
  * restate.
  */
 bool linkExecutable(Context& context, const String& objectPath, const String& outputPath) {
-    // Not a position-independent executable, because the code was generated as one that is not -
-    // see createMachine. The two have to agree: absolute addresses in a PIE are relocations the
-    // loader has to apply, and the ones inside prefix data are relocations against code.
+    /*
+     * Not a position-independent executable, because the code was generated as one that is not - see
+     * createMachine. The two have to agree: absolute addresses in a PIE are relocations the loader
+     * has to apply, and the ones inside prefix data are relocations against code.
+     *
+     * And nothing of the C runtime where the module brought its own `_start` - see addProcessEntry.
+     * `-nostdlib` drops `crt1.o` and `libc`, `-static` drops the interpreter with them, and what is
+     * left is a file the kernel maps and jumps into, which is what the other backend produces
+     * directly. The link is still `cc` rather than `ld` because the driver is what knows where the
+     * linker is.
+     */
+    auto freestanding = startsItself(context.settings);
+
     char command[4096];
-    auto length = format(toBuffer(command), String("cc -no-pie -o \"%@\" \"%@\""), outputPath, objectPath);
+    auto length = format(toBuffer(command),
+                         freestanding ? String("cc -nostdlib -static -no-pie -o \"%@\" \"%@\"")
+                                      : String("cc -no-pie -o \"%@\" \"%@\""),
+                         outputPath, objectPath);
 
     if(length >= sizeof(command) - 1) {
         context.diagnostics.error("llvm: the link command is too long"_v, nullptr);

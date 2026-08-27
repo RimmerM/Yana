@@ -1,5 +1,6 @@
 #include "emit.h"
 #include "../elf/elf.h"
+#include "../entry.h"
 
 /*
  * From a lowered module to a file that runs.
@@ -19,10 +20,6 @@
  * it was written, and step 6 is last because it is the only one that needs to know where the image
  * will be mapped.
  */
-
-// The system call that ends a process, and the register the local conventions return in - see
-// kComplexResults in constraint.cpp. Both are amd64 Linux facts rather than choices.
-static constexpr U32 kSysExitGroup = 231;
 
 /*
  * The command line, out of the stack the kernel handed over - Design-Test.md §11.2's F4.
@@ -136,17 +133,12 @@ static U32 genProcessEntry(AsmModule& to, LowerBase base, LowerModule& module, L
      * exactly the property the frames below inherit. So there is nothing to reserve here; rounding
      * `rsp` *down* is the whole of what the outermost frame needs.
      *
-     * `kMaxVectorBytes` rather than the target's own width: it is the language's ceiling, a frame
-     * aligned for a 64-byte vector is aligned for every narrower one, the sixteen the local
-     * convention wants divides it, and the at most 63 bytes it costs is a stack that is megabytes.
-     * The LLVM path needs no equivalent, because there the program is entered from the C startup
-     * code and *its* frame is what sits above.
+     * `kEntryStackAlignment` rather than the target's own vector width, and it is in
+     * `codegen/entry.h` rather than here because the LLVM path's own entry writes the same number -
+     * see the assembly in addNativeEntry. The argument for the value is on the constant.
      */
-    static_assert(kMaxVectorBytes % 16 == 0 && kMaxVectorBytes <= 128,
-                  "the entry stub aligns with a sign-extended imm8, and the convention below it wants sixteen");
-
     out.writeByte(0x48); out.writeByte(0x83);
-    out.writeByte(0xe4); out.writeByte(Byte(-I32(kMaxVectorBytes))); // and rsp, -64
+    out.writeByte(0xe4); out.writeByte(Byte(-I32(kEntryStackAlignment))); // and rsp, -64
 
     // The relocation writes the placeholder displacement itself, and resolveRelocations patches it
     // once the entry's offset is known - which it already is, but going through the same mechanism
