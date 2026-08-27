@@ -28,18 +28,18 @@ fn branched(%a: Int) -> Int {
 fn partial(%a: Int) -> Int {
   b0:
     %v7 = cmp_gt %a, 0 : Bool
-    %v25 = select %v7 ? 30 : 2 : Int
-    %v17 = add %v25, 1 : Int
+    %v20 = select %v7 ? 30 : 2 : Int
+    %v17 = add %v20, 1 : Int
     ret %v17
 }
 
 fn merged(%a: Int) -> Int {
   b0:
     %v7 = cmp_gt %a, 0 : Bool
-    %v39 = select %v7 ? 10 : 0 : Int
+    %v29 = select %v7 ? 10 : 0 : Int
     %v15 = cmp_gt %a, 5 : Bool
-    %v41 = select %v15 ? 20 : %v39 : Int
-    %v25 = add %v41, 7 : Int
+    %v31 = select %v15 ? 20 : %v29 : Int
+    %v25 = add %v31, 7 : Int
     ret %v25
 }
 
@@ -115,8 +115,8 @@ fn escaped(%a: Int) -> Int {
   b0:
     %v6 = cmp_gt %a, 0 : Bool
     %v21 = add %a, 1 : Int
-    %v29 = select %v6 ? %v21 : %a : Int
-    %v17 = add %v29, 1 : Int
+    %v24 = select %v6 ? %v21 : %a : Int
+    %v17 = add %v24, 1 : Int
     ret %v17
 }
 

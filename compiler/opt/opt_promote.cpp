@@ -32,13 +32,21 @@
  *
  * ## The algorithm
  *
- * lower_promote.cpp's, over places instead of allocas, and the same deliberate simplification: rather
- * than compute an iterated dominance frontier, place a phi in *every* block the place is known to
- * arrive already written, then delete the ones whose alternatives all agree. The two produce the same
- * IR, and "known to arrive written" is a plain forward AND-dataflow that has to be computed anyway -
- * it is what decides that every alternative of a phi exists, and that no read is of storage nothing
- * ever put anything in. It is solved from the *optimistic* end, which is the one place this departs
- * from that file and the reason it can do anything about a loop at all - see `computeAvailability`.
+ * lower_promote.cpp's, over places instead of allocas. Rather than compute an iterated dominance
+ * frontier it reads what a block carries in off its predecessors, which the block list being in
+ * reverse postorder is what makes possible: one predecessor, or several that agree, is that value
+ * directly, and only a disagreement or a predecessor not yet visited - a back edge, so a loop header
+ * - is a phi. "Known to arrive written" is a plain forward AND-dataflow that has to be computed
+ * anyway - it is what decides that every alternative of a phi exists, and that no read is of storage
+ * nothing ever put anything in. It is solved from the *optimistic* end, which is the one place this
+ * departs from that file and the reason it can do anything about a loop at all - see
+ * `computeAvailability`.
+ *
+ * Both files used to place a phi in *every* block the storage arrives already written into and let
+ * the trivial-phi sweep take back the ones whose alternatives agreed. That is the same answer by a
+ * route whose cost is the number of candidates times the number of blocks, and on an inlined body
+ * with 480 candidates over 1,801 blocks it was 437,360 phis to reach a few hundred - see the note
+ * above the placement below.
  *
  * A read of a place that has *not* been written on every path is not merely unforwarded: it makes the
  * place unpromotable altogether, because a phi placed above it would have an edge with no value to
@@ -73,8 +81,10 @@ struct Candidate {
     Place place;
     TypePtr type = nullptr;
 
-    IndexSet stores;    // whether the block writes the place at all
-    IndexSet available; // whether every path into the block has written it
+    // Which column of the per-block availability table answers for this place - see `surveyPlaces`,
+    // which holds one row per block over the numbering the candidates had before any were dropped.
+    U32 column = 0;
+
     ValueList entry;
     ValueList exit;
 
@@ -88,6 +98,20 @@ struct Candidate {
     // Whether any block writes the place. The same fact as a non-empty `stores`, recorded while the
     // survey is walking rather than scanned back out of the set afterwards.
     bool written = false;
+};
+
+/*
+ * One phi this pass placed, the block it belongs to and the candidate it carries.
+ *
+ * Kept beside the phi rather than looked back out of `Candidate::entry`, because that array no longer
+ * names a phi everywhere it holds a value: a block whose predecessors all hand it the same thing
+ * carries that value in directly and has nothing to fill in. So the fill below walks the phis that
+ * were placed instead of the blocks that have a value, and `removeTrivialPhis` walks the same list.
+ */
+struct PlacedPhi {
+    ModulePtr<InstPhi> phi = nullptr;
+    ModulePtr<Block> block = nullptr;
+    U32 candidate = 0;
 };
 
 bool isWrite(const Value& instruction) {
@@ -126,12 +150,63 @@ void eachWrittenPlace(OptContext& opt, Value& instruction, F&& f) {
                          [&](Place place, ModulePtr<Value> value, Size) { f(place, value); });
 }
 
-Size candidateOf(OptContext& opt, Array<Candidate>& candidates, const Place& place) {
-    for(Size i = 0; i < candidates.size(); i++) {
-        if(samePlace(opt, candidates[i].place, place)) return i;
+/*
+ * The candidates rooted in each local, as a chain per local.
+ *
+ * Every question this pass asks of a place - is it one of the candidates, does it overlap one, does
+ * an instruction reach one - is a question only about candidates rooted in the *same local*, because
+ * a place rooted in a different one is different storage by construction and containment has already
+ * ruled out anything that could alias across it. So the list to walk is that local's, and a scan of
+ * all of them is a scan of everything that cannot possibly match.
+ *
+ * That scan is what the survey and the rewrite both used to do, once per place per instruction, with
+ * a `samePlace` call at each step. On a body with hundreds of candidates it was the whole cost of
+ * the pass, and it is a walk whose answer is settled before it starts.
+ */
+struct CandidateIndex {
+    // Local -> the first candidate rooted in it, and one link per candidate after that. A chain
+    // rather than a list per local because the number of locals grows with the body and the number
+    // of candidates does not: most locals have none, and this allocates nothing for those.
+    HashMap<U32, U32> first;
+    Array<U32> next;
+
+    void build(Array<Candidate>& candidates) {
+        first.clear();
+        next.clear();
+
+        for(Size i = 0; i < candidates.size(); i++) {
+            auto& place = candidates[i].place;
+            next.push(maxLimit<U32>);
+
+            if(place.root != PlaceRoot::Local) continue;
+
+            auto found = first.getValue(place.local);
+            if(found) next[i] = found.unwrap();
+
+            first.add(place.local, U32(i));
+        }
     }
 
-    return maxLimit<Size>;
+    // Every candidate rooted in this local, most recently added first.
+    template<class F>
+    void eachIn(U32 local, F&& f) const {
+        auto found = first.getValue(local);
+        if(!found) return;
+
+        for(auto at = found.unwrap(); at != maxLimit<U32>; at = next[at]) f(Size(at));
+    }
+};
+
+Size candidateOf(OptContext& opt, const CandidateIndex& byLocal, Array<Candidate>& candidates,
+                 const Place& place) {
+    if(place.root != PlaceRoot::Local) return maxLimit<Size>;
+
+    auto answer = maxLimit<Size>;
+    byLocal.eachIn(place.local, [&](Size i) {
+        if(answer == maxLimit<Size> && samePlace(opt, candidates[i].place, place)) answer = i;
+    });
+
+    return answer;
 }
 
 /*
@@ -157,7 +232,8 @@ Size candidateOf(OptContext& opt, Array<Candidate>& candidates, const Place& pla
  * one away is what lets opt_scalar.cpp remove the record. That is the whole point of the pass, and
  * the case this declines was never part of it.
  */
-void collectCandidates(OptContext& opt, const IndexSet& contained, Array<Candidate>& into) {
+void collectCandidates(OptContext& opt, const IndexSet& contained, Array<Candidate>& into,
+                       CandidateIndex& byLocal) {
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         for(auto pointer: opt.local[blockPointer]->instructions(opt.local)) {
             auto instruction = opt.local[pointer];
@@ -167,36 +243,98 @@ void collectCandidates(OptContext& opt, const IndexSet& contained, Array<Candida
             if(load.place.projections.isEmpty()) continue;
             if(!holdsLoadableValue(opt, load.type)) continue;
             if(!staysInFrame(opt, contained, load.place)) continue;
-            if(candidateOf(opt, into, load.place) != maxLimit<Size>) continue;
+            if(candidateOf(opt, byLocal, into, load.place) != maxLimit<Size>) continue;
 
             Candidate candidate;
             candidate.place = load.place;
             candidate.type = load.type;
             candidate.read = (ModulePtr<Value>)pointer;
             into.push(::move(candidate));
+
+            // Linked in as it is added, so that the duplicate test above stays a walk of this
+            // local's candidates rather than of every candidate found so far.
+            byLocal.next.push(maxLimit<U32>);
+
+            auto head = byLocal.first.getValue(load.place.local);
+            if(head) byLocal.next[into.size() - 1] = head.unwrap();
+
+            byLocal.first.add(load.place.local, U32(into.size() - 1));
         }
     }
 }
 
 /*
- * Which blocks write the place, and whether anything else in the function may reach it.
+ * The whole survey, over one walk of the function rather than one walk per candidate.
+ *
+ * Three answers used to be computed per candidate, and each of them costs a walk of something the
+ * size of the function: the blocks that write the place, the availability fixpoint over the CFG, and
+ * the check that nothing reads the place before anything wrote it. A body with a candidate per field
+ * therefore paid the function's size twice over, and an inlined test case of 32,000 instructions
+ * with 480 candidates spent 0.9s here. Held per *block* instead - one bit per candidate in a row per
+ * block - all three fall out of a single pass, and the dataflow moves a word of candidates at a time
+ * rather than a set per candidate.
+ *
+ * ## What can reach the storage
  *
  * "Anything else" is a much shorter list than it would be for arbitrary storage, and that is the
  * whole value of the containment proof: a place rooted in a pointer or a borrow cannot name a
  * contained local, a call cannot reach one, and a place rooted in a *different* local is different
- * storage by construction. So the only thing that can disturb this place is another access rooted in
- * the same local, and the only one that disturbs it is a write to an overlapping path.
+ * storage by construction. So the only thing that can disturb a place is another access rooted in
+ * the same local, and the only one that disturbs it is a write to an overlapping path - which is why
+ * the walk below asks `byLocal` for the candidates to consider rather than considering them all.
  *
  * The type has to be the same at every access for the same reason a phi's alternatives do: what
  * replaces the reads is one value, and one value has one type. Reading a place at two types is not
  * something the resolver emits - a projection has the field's type - but a `Unit` path introduced by
  * the packing expansion is a reading of storage rather than of a field, and this is what would
  * notice if two of those ever disagreed.
+ *
+ * ## Where the place is known to hold something
+ *
+ * A forward must-analysis - `in[b] = AND over predecessors of out[p]`, `out[b] = in[b] || writes` -
+ * and the greatest fixpoint of it rather than the least, which is the one distinction in this file
+ * that changes what the pass can do rather than how fast it does it.
+ *
+ * Starting every block at "written" and letting the iteration take that away is what lets a place
+ * written *before* a loop be available *inside* it. The other direction cannot: a header's
+ * availability depends on the back edge, the back edge's on the header, and from the pessimistic end
+ * that circle has nothing to break it, so the answer converges to "unwritten" for a place the loop
+ * merely reads. Which is precisely the case worth having - a record built before a loop and read in
+ * its body is what an inlined constructor leaves behind.
+ *
+ * It is still a *must* answer for every block control can reach, because the entry starts at what it
+ * writes and nothing else has a way in. A cycle nothing reaches is the one place the optimistic start
+ * would assert something unfounded, and it is excluded rather than reasoned about.
+ *
+ * An unreachable *predecessor* of a reachable block still denies it a phi, since its `out` stays
+ * zero. That is the conservative answer and the convenient one: an alternative arriving over an edge
+ * nothing takes is still an alternative the phi would have to name.
+ *
+ * ## And the reads
+ *
+ * Whether every read of a place follows something that wrote it. The one thing that can still
+ * disqualify a place at this point, and it disqualifies it completely: a value cannot carry what was
+ * never put in it. Rejecting one candidate says nothing about any other - every question here is
+ * asked of one place, and a read of a rejected one is an ordinary read rather than an event in
+ * another's dataflow - so nothing is recomputed afterwards.
  */
-bool surveyCandidate(OptContext& opt, Candidate& candidate) {
-    candidate.stores.reset(opt.function->blocks.size());
+void surveyPlaces(OptContext& opt, Array<Candidate>& candidates, const CandidateIndex& byLocal,
+                  const IndexSet& reachable, IndexSetList& available, IndexSet& usable,
+                  IndexSet& readsAreWritten) {
+    auto blockCount = opt.function->blocks.size();
+    auto count = candidates.size();
 
-    auto usable = true;
+    usable.reset(count);
+    usable.fill();
+
+    // Kept apart from `usable`, because the two failures have different answers: a place read before
+    // anything wrote it may still be one nothing writes at all, and `fillUnwritten` has a value for
+    // that. A place the survey itself declined has none.
+    readsAreWritten.reset(count);
+    readsAreWritten.fill();
+
+    IndexSetList stores;
+    stores.reset(blockCount, count);
 
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
@@ -207,45 +345,49 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
 
             auto visit = [&](const Place& place, ModulePtr<Value> stored) {
                 if(place.root != PlaceRoot::Local) return;
-                if(place.local != candidate.place.local) return;
 
-                if(samePlace(opt, place, candidate.place)) {
-                    if(!written) {
-                        // One value replaces every read, and one value has one type - so a read of
-                        // this storage at another type is not something to answer, whatever produced
-                        // it. See `collectCandidates`, which took the type from the first one.
-                        if(instruction->kind == Value::LoadPlace &&
-                           instruction->type != candidate.type) usable = false;
+                byLocal.eachIn(place.local, [&](Size which) {
+                    auto& candidate = candidates[which];
 
+                    if(samePlace(opt, place, candidate.place)) {
+                        if(!written) {
+                            // One value replaces every read, and one value has one type - so a read
+                            // of this storage at another type is not something to answer, whatever
+                            // produced it. See `collectCandidates`, which took the type from the
+                            // first one.
+                            if(instruction->kind == Value::LoadPlace &&
+                               instruction->type != candidate.type) usable.set(which, false);
+
+                            return;
+                        }
+
+                        if(opt.local[stored]->type != candidate.type) usable.set(which, false);
+
+                        stores[block->index].set(which, true);
+                        candidate.written = true;
                         return;
                     }
 
-                    if(opt.local[stored]->type != candidate.type) usable = false;
+                    if(!pathsMayOverlap(opt, place, candidate.place)) return;
+                    if(!isRead(*instruction)) { usable.set(which, false); return; }
 
-                    candidate.stores.set(block->index, true);
-                    candidate.written = true;
-                    return;
-                }
-
-                if(!pathsMayOverlap(opt, place, candidate.place)) return;
-                if(!isRead(*instruction)) { usable = false; return; }
-
-                /*
-                 * A read of an aggregate is the one read that may not be one.
-                 *
-                 * `LoadPlace` of a memory type does not answer with the storage's contents - there is
-                 * no value of that shape to answer with - so what its result stands for is the
-                 * storage itself, and anything that consumes one may be writing through it. The
-                 * resolver does not build that shape today: an aggregate handed to a call or written
-                 * whole is the `Alloc` itself as an operand, which containment already declines, and
-                 * the whole-record load in front of every field access is read by nothing and removed
-                 * by `isDeadRead`. So this costs nothing now and is what would notice if that ever
-                 * stopped being true.
-                 */
-                if(instruction->kind != Value::LoadPlace) return;
-                if(!holdsLoadableValue(opt, instruction->type) && instruction->useCount() != 0) {
-                    usable = false;
-                }
+                    /*
+                     * A read of an aggregate is the one read that may not be one.
+                     *
+                     * `LoadPlace` of a memory type does not answer with the storage's contents -
+                     * there is no value of that shape to answer with - so what its result stands for
+                     * is the storage itself, and anything that consumes one may be writing through
+                     * it. The resolver does not build that shape today: an aggregate handed to a
+                     * call or written whole is the `Alloc` itself as an operand, which containment
+                     * already declines, and the whole-record load in front of every field access is
+                     * read by nothing and removed by `isDeadRead`. So this costs nothing now and is
+                     * what would notice if that ever stopped being true.
+                     */
+                    if(instruction->kind != Value::LoadPlace) return;
+                    if(!holdsLoadableValue(opt, instruction->type) && instruction->useCount() != 0) {
+                        usable.set(which, false);
+                    }
+                });
             };
 
             /*
@@ -278,45 +420,21 @@ bool surveyCandidate(OptContext& opt, Candidate& candidate) {
              * which is exactly the storage this pass has no business holding in registers.
              */
             eachAddressedLocal(opt, *instruction, [&](U32 local) {
-                if(local == candidate.place.local) usable = false;
+                byLocal.eachIn(local, [&](Size which) { usable.set(which, false); });
             });
-
-            if(!usable) return false;
         }
     }
 
-    return true;
-}
+    IndexSetList out;
+    available.reset(blockCount, count);
+    out.reset(blockCount, count);
 
-/*
- * Where the place is known to hold something.
- *
- * A forward must-analysis - `in[b] = AND over predecessors of out[p]`, `out[b] = in[b] || writes` -
- * and the greatest fixpoint of it rather than the least, which is the one distinction in this file
- * that changes what the pass can do rather than how fast it does it.
- *
- * Starting every block at "written" and letting the iteration take that away is what lets a place
- * written *before* a loop be available *inside* it. The other direction cannot: a header's
- * availability depends on the back edge, the back edge's on the header, and from the pessimistic end
- * that circle has nothing to break it, so the answer converges to "unwritten" for a place the loop
- * merely reads. Which is precisely the case worth having - a record built before a loop and read in
- * its body is what an inlined constructor leaves behind.
- *
- * It is still a *must* answer for every block control can reach, because the entry starts at what it
- * writes and nothing else has a way in. A cycle nothing reaches is the one place the optimistic start
- * would assert something unfounded, and it is excluded rather than reasoned about.
- *
- * An unreachable *predecessor* of a reachable block still denies it a phi, since its `out` stays
- * zero. That is the conservative answer and the convenient one: an alternative arriving over an edge
- * nothing takes is still an alternative the phi would have to name.
- */
-void computeAvailability(OptContext& opt, Candidate& candidate, const IndexSet& reachable) {
-    auto count = opt.function->blocks.size();
+    for(Size i = 0; i < blockCount; i++) {
+        if(reachable[i]) out[i].fill();
+    }
 
-    candidate.available.reset(count);
-
-    ScratchSet out(opt.sets, count);
-    out->copyFrom(reachable);
+    IndexSet incoming;
+    incoming.reset(count);
 
     auto changed = true;
     while(changed) {
@@ -326,58 +444,57 @@ void computeAvailability(OptContext& opt, Candidate& candidate, const IndexSet& 
             auto block = opt.local[blockPointer];
             if(!reachable[block->index]) continue;
 
-            auto incoming = block->incoming(opt.local);
+            auto firstEdge = true;
+            for(auto predecessor: block->incoming(opt.local)) {
+                auto& row = out[opt.local[predecessor]->index];
 
-            auto in = incoming.size() != 0;
-            for(auto predecessor: incoming) {
-                if(!(*out)[opt.local[predecessor]->index]) { in = false; break; }
+                if(firstEdge) { incoming.copyFrom(row); firstEdge = false; }
+                else incoming.intersectWith(row);
             }
 
-            if(candidate.available[block->index] != in) {
-                candidate.available.set(block->index, in);
+            if(firstEdge) incoming.reset(count);
+
+            if(!available[block->index].equals(incoming)) {
+                available[block->index].copyFrom(incoming);
                 changed = true;
             }
 
-            auto leaves = in || candidate.stores[block->index];
-            if((*out)[block->index] != leaves) {
-                out->set(block->index, leaves);
+            incoming.unionWith(stores[block->index]);
+
+            if(!out[block->index].equals(incoming)) {
+                out[block->index].copyFrom(incoming);
                 changed = true;
             }
         }
     }
-}
 
-// Whether every read of the place follows something that wrote it. The one thing that can still
-// disqualify a place at this point, and it disqualifies it completely: a value cannot carry what was
-// never put in it.
-bool readsAreWritten(OptContext& opt, Candidate& candidate, const IndexSet& reachable) {
+    IndexSet written;
+
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
         if(!reachable[block->index]) continue;
 
-        U8 written = candidate.available[block->index];
+        written.copyFrom(available[block->index]);
 
         for(auto pointer: block->instructions(opt.local)) {
             auto instruction = opt.local[pointer];
 
             if(instruction->kind == Value::Aggregate) {
                 eachWrittenPlace(opt, *instruction, [&](const Place& place, ModulePtr<Value>) {
-                    if(samePlace(opt, place, candidate.place)) written = 1;
+                    auto which = candidateOf(opt, byLocal, candidates, place);
+                    if(which != maxLimit<Size>) written.set(which, true);
                 });
             } else {
                 eachPlace(*instruction, [&](const Place& place) {
-                    if(!samePlace(opt, place, candidate.place)) return;
+                    auto which = candidateOf(opt, byLocal, candidates, place);
+                    if(which == maxLimit<Size>) return;
 
-                    if(isWrite(*instruction)) written = 1;
-                    else if(!written) written = 2;
+                    if(isWrite(*instruction)) written.set(which, true);
+                    else if(!written[which]) readsAreWritten.set(which, false);
                 });
             }
-
-            if(written == 2) return false;
         }
     }
-
-    return true;
 }
 
 /*
@@ -443,7 +560,8 @@ bool fillUnwritten(OptContext& opt, Candidate& candidate) {
  * The writes stay where they are, so this walks the list rather than rebuilding it - the only
  * instruction it removes is a load whose readers have all been pointed elsewhere.
  */
-void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
+void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates,
+                  const CandidateIndex& byLocal) {
     ValueList current;
     for(auto& candidate: candidates) current.push(candidate.entry[block.index]);
 
@@ -452,7 +570,8 @@ void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
         auto instruction = opt.local[pointer];
 
         if(instruction->kind == Value::LoadPlace) {
-            auto which = candidateOf(opt, candidates, ((InstLoadPlace&)*instruction).place);
+            auto which = candidateOf(opt, byLocal, candidates,
+                                     ((InstLoadPlace&)*instruction).place);
             if(which == maxLimit<Size>) continue;
 
             // Reading a place that holds nothing is what `readsAreWritten` declines a candidate for,
@@ -465,7 +584,7 @@ void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
             i--;
         } else {
             eachWrittenPlace(opt, *instruction, [&](const Place& place, ModulePtr<Value> stored) {
-                auto which = candidateOf(opt, candidates, place);
+                auto which = candidateOf(opt, byLocal, candidates, place);
                 if(which != maxLimit<Size>) current[which] = stored;
             });
         }
@@ -478,48 +597,77 @@ void rewriteBlock(OptContext& opt, Block& block, Array<Candidate>& candidates) {
  * The phis that say nothing, removed.
  *
  * Two shapes, and they are worth keeping apart. A phi nothing reads is deleted outright and is not a
- * change to the function - this pass places one in every block the place reaches, so most of them are
- * that. A phi whose alternatives all agree *is* a change, because something reads it and now reads
- * the value directly instead; a self-reference does not count as an alternative, which is what
- * collapses a loop-carried phi whose body never writes the place.
+ * change to the function. A phi whose alternatives all agree *is* a change, because something reads
+ * it and now reads the value directly instead; a self-reference does not count as an alternative,
+ * which is what collapses a loop-carried phi whose body never writes the place.
  *
- * Iterated, because removing one can make the next one trivial - which is how a chain of maximal phis
- * down a straight-line region collapses to nothing.
+ * A worklist rather than a sweep repeated until nothing changes. Removing a phi can only make two
+ * other things removable - a phi that *read* it may now be trivial, and a phi it read may now have
+ * no readers left - so those are what goes back on the list. The sweep this replaces rescanned every
+ * surviving phi to find them, once per removal, and shifted the array down by one on top of that;
+ * both are linear in the number of phis and both ran per phi.
  */
-void removeTrivialPhis(OptContext& opt, Array<ModulePtr<InstPhi>>& phis) {
-    auto changed = true;
+void removeTrivialPhis(OptContext& opt, Array<PlacedPhi>& placed) {
+    // Which entry a phi is, so that one reached through a use list or an alternative can be put back
+    // on the worklist. Only phis this pass placed are in it: any other phi's alternatives were
+    // already whatever they were, and removing one of these cannot have changed them.
+    HashMap<U32, U32> byPhi;
+    for(Size i = 0; i < placed.size(); i++) byPhi.add(U32(placed[i].phi), U32(i));
 
-    while(changed) {
-        changed = false;
+    IndexSet gone;
+    gone.reset(placed.size());
 
-        for(Size at = 0; at < phis.size(); at++) {
-            auto pointer = phis[at];
-            auto phi = opt.local[pointer];
+    Array<U32> work;
+    for(Size i = placed.size(); i > 0; i--) work.push(U32(i - 1));
 
-            if(phi->useCount() == 0) {
-                opt.ir().erasePhi(pointer);
-                phis.remove(at--);
-                changed = true;
-                continue;
+    while(work.size()) {
+        auto at = Size(work.pop().unwrap());
+        if(gone[at]) continue;
+
+        auto pointer = placed[at].phi;
+        auto phi = opt.local[pointer];
+
+        // Everything the removal could disturb, collected before it does: the edit below moves both
+        // the use list and the alternatives.
+        SmallArray<U32, 8> woken;
+        auto wake = [&](U32 value) {
+            auto found = byPhi.getValue(value);
+            if(found) woken.push(found.unwrap());
+        };
+
+        auto finish = [&]() {
+            gone.set(at, true);
+            for(auto index: woken) {
+                if(!gone[index]) work.push(index);
             }
+        };
 
-            ModulePtr<Value> only = nullptr;
-            auto trivial = true;
+        if(phi->useCount() == 0) {
+            for(auto input: phi->inputs.contents(opt.local)) wake(U32(input.value));
 
-            for(auto input: phi->inputs.contents(opt.local)) {
-                if(input.value == (ModulePtr<Value>)pointer) continue;
-
-                if(!only) only = input.value;
-                else if(only != input.value) { trivial = false; break; }
-            }
-
-            if(!trivial || !only) continue;
-
-            opt.ir().replaceValue((ModulePtr<Value>)pointer, only);
             opt.ir().erasePhi(pointer);
-            phis.remove(at--);
-            changed = true;
+            finish();
+            continue;
         }
+
+        ModulePtr<Value> only = nullptr;
+        auto trivial = true;
+
+        for(auto input: phi->inputs.contents(opt.local)) {
+            if(input.value == (ModulePtr<Value>)pointer) continue;
+
+            if(!only) only = input.value;
+            else if(only != input.value) { trivial = false; break; }
+        }
+
+        if(!trivial || !only) continue;
+
+        for(auto userPointer: ((Value*)phi)->uses(opt.local)) wake(U32(userPointer));
+        for(auto input: phi->inputs.contents(opt.local)) wake(U32(input.value));
+
+        opt.ir().replaceValue((ModulePtr<Value>)pointer, only);
+        opt.ir().erasePhi(pointer);
+        finish();
     }
 }
 
@@ -531,21 +679,39 @@ void promotePlaces(OptContext& opt) {
     auto& contained = containmentOf(opt);
     auto& reachable = reachableOf(opt);
 
+    CandidateIndex byLocal;
+
     Array<Candidate> found;
-    collectCandidates(opt, contained, found);
+    collectCandidates(opt, contained, found, byLocal);
     if(found.isEmpty()) return;
 
+    /*
+     * `available` is over the numbering the candidates had while the survey ran, and stays that way:
+     * dropping one does not disturb the columns of the others, so each survivor carries the column
+     * it had rather than the table being rebuilt around it - see `Candidate::column`.
+     */
+    IndexSetList available;
+    IndexSet usable, readsAreWritten;
+    surveyPlaces(opt, found, byLocal, reachable, available, usable, readsAreWritten);
+
     Array<Candidate> candidates;
-    for(auto& candidate: found) {
-        if(!surveyCandidate(opt, candidate)) continue;
+    for(Size i = 0; i < found.size(); i++) {
+        if(!usable[i]) continue;
 
-        computeAvailability(opt, candidate, reachable);
-        if(!readsAreWritten(opt, candidate, reachable) && !fillUnwritten(opt, candidate)) continue;
+        // A place read before anything wrote it is declined unless nothing writes it at all, which
+        // is a shape with an answer of its own - see `fillUnwritten`.
+        if(!readsAreWritten[i] && !fillUnwritten(opt, found[i])) continue;
 
-        candidates.push(::move(candidate));
+        found[i].column = U32(i);
+        candidates.push(::move(found[i]));
     }
 
     if(candidates.isEmpty()) return;
+
+    // Rebuilt over the survivors, because the rewrite below looks a place up in it and the numbering
+    // it was filled in with was the one the survey ran over. `column` is what still carries the old
+    // one, and it is the only thing that reads the table.
+    byLocal.build(candidates);
 
     auto count = opt.function->blocks.size();
     for(auto& candidate: candidates) {
@@ -556,17 +722,38 @@ void promotePlaces(OptContext& opt) {
     }
 
     /*
-     * A phi wherever the place arrives already written, which is every block a value has to be merged
-     * into and a good many where it does not - see `removeTrivialPhis`.
+     * A phi only where the predecessors disagree, which is what a phi is for.
+     *
+     * The block list is in reverse postorder - the invariant `reorderBlocksInRpo` restores and
+     * `lowerProgram` reads - so by the time a block is reached its predecessors have already said
+     * what they leave the place holding, and the usual answer to "what does this block carry in" is
+     * simply that value. Only a genuine disagreement between two predecessors, and a predecessor
+     * that has not been visited, needs an instruction to merge them.
+     *
+     * Nothing here *depends* on the order being reverse postorder: a predecessor that has not been
+     * settled yet is one this declines to read, so a list in some other order costs phis rather than
+     * correctness. Forwarding a settled one is sound because it dominates - every path to this block
+     * runs through one of the predecessors, each of those is dominated by the value's definition, so
+     * the block is too.
      *
      * Built detached. `IrEditor::append` is what records a phi's alternatives as uses, so it may not
      * happen until they exist, and they are what the blocks below turn out to hold.
      */
-    Array<ModulePtr<InstPhi>> phis;
+    ScratchSet settled(opt.sets, count);
+
+    Array<PlacedPhi> placed;
+
     for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
         auto block = opt.local[blockPointer];
 
-        for(auto& candidate: candidates) {
+        // Reachable blocks only. A load in code nothing runs has no value to be given - the analysis
+        // above deliberately said nothing about such a block - and leaving it alone leaves the local
+        // it reads alive, which is the right outcome for storage only dead code names.
+        if(!reachable[block->index]) continue;
+
+        for(Size i = 0; i < candidates.size(); i++) {
+            auto& candidate = candidates[i];
+
             // A place nothing writes needs no phi anywhere: every block holds the same constant and
             // there is nothing for a join to choose between.
             if(candidate.initial) {
@@ -574,48 +761,61 @@ void promotePlaces(OptContext& opt) {
                 continue;
             }
 
-            if(!candidate.available[block->index]) continue;
+            if(!available[block->index][candidate.column]) continue;
+
+            ModulePtr<Value> only = nullptr;
+            auto agreed = true;
+
+            for(auto predecessor: block->incoming(opt.local)) {
+                auto pred = opt.local[predecessor];
+                if(!(*settled)[pred->index]) { agreed = false; break; }
+
+                auto value = candidate.exit[pred->index];
+                if(!value) { agreed = false; break; }
+
+                if(!only) only = value;
+                else if(only != value) { agreed = false; break; }
+            }
+
+            // Availability is the statement that every predecessor left something here, so the null
+            // above is unreachable; it is tested rather than asserted because what a wrong answer
+            // would cost is a phi rather than a value nothing wrote.
+            if(agreed && only) {
+                candidate.entry[block->index] = only;
+                continue;
+            }
 
             auto phi = createInst<InstPhi>(*opt.module, *opt.function, *block, block->source, StringId(),
                                            candidate.type);
 
             candidate.entry[block->index] = (ModulePtr<Value>)(phi - opt.local);
+            placed.push(PlacedPhi { (ModulePtr<InstPhi>)(phi - opt.local), blockPointer, U32(i) });
         }
-    }
 
-    // Reachable blocks only. A load in code nothing runs has no value to be given - the analysis
-    // above deliberately said nothing about such a block - and leaving it alone leaves the local it
-    // reads alive, which is the right outcome for storage only dead code names.
-    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
-        auto block = opt.local[blockPointer];
-        if(reachable[block->index]) rewriteBlock(opt, *block, candidates);
+        rewriteBlock(opt, *block, candidates, byLocal);
+        settled->set(block->index, true);
     }
 
     // The alternatives, now that every block has said what it leaves the place holding. One per
     // incoming edge and in that order, because that is the order a phi's inputs are matched against
     // predecessors in - resolve/lower.cpp maps the block, and codegen/js/flow.cpp emits the copy on
     // the edge itself.
-    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
-        auto block = opt.local[blockPointer];
+    for(auto& entry: placed) {
+        auto phi = (InstPhi*)opt.local[entry.phi];
+        auto block = opt.local[entry.block];
+        auto& candidate = candidates[entry.candidate];
 
-        for(auto& candidate: candidates) {
-            if(candidate.initial || !candidate.available[block->index]) continue;
+        for(auto predecessor: block->incoming(opt.local)) {
+            auto value = candidate.exit[opt.local[predecessor]->index];
 
-            auto phi = (InstPhi*)opt.local[candidate.entry[block->index]];
-
-            for(auto predecessor: block->incoming(opt.local)) {
-                auto value = candidate.exit[opt.local[predecessor]->index];
-
-                // Availability is exactly the statement that this is not null: every predecessor
-                // either wrote the place itself or was carrying it in through a phi of its own.
-                assertTrue(value != nullptr);
-                phi->inputs.push(opt.program.arena, PhiInput { predecessor, value });
-            }
-
-            opt.ir().append(*block, phi);
-            phis.push((ModulePtr<InstPhi>)(phi - opt.local));
+            // Availability is exactly the statement that this is not null: every predecessor
+            // either wrote the place itself or was carrying it in through a phi of its own.
+            assertTrue(value != nullptr);
+            phi->inputs.push(opt.program.arena, PhiInput { predecessor, value });
         }
+
+        opt.ir().append(*block, phi);
     }
 
-    removeTrivialPhis(opt, phis);
+    removeTrivialPhis(opt, placed);
 }

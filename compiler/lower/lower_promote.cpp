@@ -6,10 +6,16 @@
  * Promotion, as the textbook algorithm with one deliberate simplification.
  *
  * The standard construction places a phi exactly where a slot's definitions meet - the iterated
- * dominance frontier of the blocks that write it. This places one in *every* block the slot is known
- * to be live into, and then deletes the ones whose alternatives all agree. The two produce the same
- * IR; this one needs no dominance frontier and no dominator-tree walk, and the functions it runs over
- * are small enough that the difference is not measurable.
+ * dominance frontier of the blocks that write it. This walks the blocks in reverse postorder
+ * instead, so that what a block carries in is already known from its predecessors: one of them, or
+ * several that agree, is that value directly, and only a disagreement or an unvisited predecessor -
+ * a back edge, so a loop header - is a phi. The two produce the same IR, and this one needs no
+ * dominance frontier and no dominator-tree walk.
+ *
+ * It used to place one in *every* block the slot arrives already written into and delete the ones
+ * whose alternatives agreed afterwards, which is the same answer by a route whose cost is the number
+ * of slots times the number of blocks. See the note above `promoteStackSlots`, where a single
+ * inlined body made that product 818,460.
  *
  * What it does need is to know where a phi would have nothing to say. A slot that has not been
  * written on every path into a block has no value to carry there, so "written on every path" is a
@@ -32,11 +38,28 @@ struct Slot {
     U32 width = 0;
     LowerType type = LowerType::Int64;
 
+    // Which candidate this was while the survey ran, and therefore which column of its
+    // availability answers for this slot - see `surveySlots`, which keeps that table per block
+    // rather than per slot and so is not renumbered when a slot is dropped.
+    U32 candidate = 0;
+
     // Per block, indexed by LowerBlock::index.
-    IndexSet stores;          // whether the block writes the slot at all
-    IndexSet available;       // whether every path into the block has written it
     Array<LowerPtr<LowerValue>> entry;   // the phi carrying it in, where one was placed
     Array<LowerPtr<LowerValue>> exit;    // what it holds on the way out, or null
+};
+
+/*
+ * One phi this pass placed, the block it belongs to and the slot it carries.
+ *
+ * Kept beside the phi rather than looked back out of `Slot::entry`, because that array no longer
+ * names a phi everywhere it holds a value: a block whose predecessors all hand it the same thing
+ * carries that value in directly and has nothing to fill in. So the fill below walks the phis that
+ * were placed instead of the blocks that have a value, and `removeTrivialPhis` walks the same list.
+ */
+struct PlacedPhi {
+    LowerPtr<LowerInstPhi> phi = nullptr;
+    LowerPtr<LowerBlock> block = nullptr;
+    U32 slot = 0;
 };
 
 /*
@@ -252,14 +275,40 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
     reconcileCopiedSlots(base, fun, into, index);
 }
 
+// Which slot an instruction reads and which it writes - a copy out of one and into another does
+// both, of two different slots, so the two questions are asked separately rather than as a kind.
+// `maxLimit<Size>` for an instruction that does neither, which is most of them.
+Size readSlot(HashMap<U32, U32>& index, LowerInst* inst) {
+    if(inst->kind == LowerInst::Load) return slotOf(index, ((LowerInstLoad*)inst)->from);
+    if(inst->kind == LowerInst::Copy) return slotOf(index, ((LowerInstCopy*)inst)->from);
+    return maxLimit<Size>;
+}
+
+Size writtenSlot(HashMap<U32, U32>& index, LowerInst* inst) {
+    if(inst->kind == LowerInst::Store) return slotOf(index, ((LowerInstStore*)inst)->to);
+    if(inst->kind == LowerInst::Copy) return slotOf(index, ((LowerInstCopy*)inst)->to);
+    return maxLimit<Size>;
+}
+
 /*
- * Where the slot is known to hold something.
+ * Where every slot is known to hold something, and which slots are still worth promoting - the whole
+ * survey, over one walk of the function rather than one walk per slot.
  *
- * A forward must-analysis, `in[b] = AND over predecessors of out[p]` and `out[b] = in[b] || writes`,
- * solved from the *optimistic* end: every block starts "written" and the fixpoint takes away the ones
- * that are not. A block nothing jumps to - the entry, and anything unreachable - has no predecessors
- * and so is denied on the first pass, which is what makes an unreachable predecessor deny a phi
- * rather than leave it an alternative that does not exist.
+ * The transpose is the point. Each of the three answers below used to be computed per slot, and each
+ * of them costs a walk of something the size of the function: the blocks that write it, the
+ * availability fixpoint over the CFG, and the check that nothing reads it before anything wrote it.
+ * A body with a slot per line therefore paid the function's size twice over, and an inlined test
+ * case of 34,000 instructions with 1,320 slots spent 0.7s here. Held per *block* instead - one bit
+ * per slot in a row per block - all three fall out of a single pass, and the dataflow is a word of
+ * slots at a time rather than a set per slot.
+ *
+ * ## The dataflow
+ *
+ * `in[b] = AND over predecessors of out[p]` and `out[b] = in[b] || writes`, solved from the
+ * *optimistic* end: every block starts "written" and the fixpoint takes away the ones that are not.
+ * A block nothing jumps to - the entry, and anything unreachable - has no predecessors and so is
+ * denied on the first pass, which is what makes an unreachable predecessor deny a phi rather than
+ * leave it an alternative that does not exist.
  *
  * The direction matters, and starting from the pessimistic end is wrong rather than conservative. An
  * `in` that is the AND over predecessors cannot become true inside a loop unless it was already true
@@ -269,20 +318,49 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
  * it, and both stayed in memory. One loop deep happened to work - there the latch is the body, and
  * the body writes what it carries - which is why this went unnoticed. The greatest fixpoint is the
  * answer a must-analysis wants and the optimistic start is what reaches it.
+ *
+ * ## What can still disqualify a slot
+ *
+ * A read of storage nothing has written on every path into it, and that is the only thing left at
+ * this point - a register cannot hold what was never put in it. It disqualifies the slot completely
+ * rather than leaving the read unanswered, and it is decided per slot out of the same walk that
+ * carries every other slot's state, since "written by here" is a bit in a row like the rest.
+ *
+ * Rejecting one slot says nothing about any other: every question here is asked of one address, and
+ * a load of a rejected slot is an ordinary load rather than an event in another slot's dataflow. So
+ * the answers computed for the survivors stand as they are and none of this is redone.
  */
-void computeAvailability(LowerBase base, LowerFunction& fun, Slot& slot) {
-    auto count = fun.blocks.size();
+void surveySlots(LowerBase base, LowerFunction& fun, HashMap<U32, U32>& index,
+                 Array<Slot>& candidates, IndexSetList& available, IndexSet& usable) {
+    auto blockCount = fun.blocks.size();
+    auto slotCount = candidates.size();
 
-    slot.available.reset(count);
+    usable.reset(slotCount);
+    usable.fill();
 
-    IndexSet out;
-    out.reset(count);
+    IndexSetList stores;
+    stores.reset(blockCount, slotCount);
 
     for(auto blockPtr: fun.blocks.contents(base)) {
-        auto index = base[blockPtr]->index;
-        slot.available.set(index, true);
-        out.set(index, true);
+        auto block = base[blockPtr];
+
+        for(auto instPtr: block->instructions.contents(base)) {
+            auto which = writtenSlot(index, base[instPtr]);
+            if(which != maxLimit<Size>) stores[block->index].set(which, true);
+        }
     }
+
+    IndexSetList out;
+    available.reset(blockCount, slotCount);
+    out.reset(blockCount, slotCount);
+
+    for(Size i = 0; i < blockCount; i++) {
+        available[i].fill();
+        out[i].fill();
+    }
+
+    IndexSet incoming;
+    incoming.reset(slotCount);
 
     auto changed = true;
     while(changed) {
@@ -290,73 +368,46 @@ void computeAvailability(LowerBase base, LowerFunction& fun, Slot& slot) {
 
         for(auto blockPtr: fun.blocks.contents(base)) {
             auto block = base[blockPtr];
-            auto incoming = block->incoming.contents(base);
+            auto edges = block->incoming.size();
 
-            auto in = incoming.size() != 0;
-            for(auto predPtr: incoming) {
-                if(!out[base[predPtr]->index]) { in = false; break; }
+            if(edges == 0) incoming.reset(slotCount);
+            else {
+                incoming.copyFrom(out[base[block->incoming.get(base, 0)]->index]);
+                for(Size i = 1; i < edges; i++) {
+                    incoming.intersectWith(out[base[block->incoming.get(base, i)]->index]);
+                }
             }
 
-            if(slot.available[block->index] != in) {
-                slot.available.set(block->index, in);
+            if(!available[block->index].equals(incoming)) {
+                available[block->index].copyFrom(incoming);
                 changed = true;
             }
 
-            auto exit = in || slot.stores[block->index];
-            if(out[block->index] != exit) {
-                out.set(block->index, exit);
+            incoming.unionWith(stores[block->index]);
+
+            if(!out[block->index].equals(incoming)) {
+                out[block->index].copyFrom(incoming);
                 changed = true;
             }
         }
     }
-}
 
-// Whether an instruction reads the slot, writes it, or both - a copy out of one and into another does
-// both, of two different slots, so the two questions are asked separately rather than as a kind.
-bool reads(HashMap<U32, U32>& index, LowerInst* inst, Size which) {
-    if(inst->kind == LowerInst::Load) return slotOf(index, ((LowerInstLoad*)inst)->from) == which;
-    if(inst->kind == LowerInst::Copy) return slotOf(index, ((LowerInstCopy*)inst)->from) == which;
-    return false;
-}
-
-bool writes(HashMap<U32, U32>& index, LowerInst* inst, Size which) {
-    if(inst->kind == LowerInst::Store) return slotOf(index, ((LowerInstStore*)inst)->to) == which;
-    if(inst->kind == LowerInst::Copy) return slotOf(index, ((LowerInstCopy*)inst)->to) == which;
-    return false;
-}
-
-// Which blocks write the slot, and whether any block reads it before anything has written it. The
-// second is the only thing that can still disqualify a slot at this point, and it disqualifies it
-// completely: a register cannot hold what was never put in it.
-bool surveySlot(LowerBase base, LowerFunction& fun, HashMap<U32, U32>& index, Size which, Slot& slot) {
-    slot.stores.reset(fun.blocks.size());
+    IndexSet written;
 
     for(auto blockPtr: fun.blocks.contents(base)) {
         auto block = base[blockPtr];
-
-        for(auto instPtr: block->instructions.contents(base)) {
-            if(!writes(index, base[instPtr], which)) continue;
-
-            slot.stores.set(block->index, true);
-            break;
-        }
-    }
-
-    computeAvailability(base, fun, slot);
-
-    for(auto blockPtr: fun.blocks.contents(base)) {
-        auto block = base[blockPtr];
-        U8 written = slot.available[block->index];
+        written.copyFrom(available[block->index]);
 
         for(auto instPtr: block->instructions.contents(base)) {
             auto inst = base[instPtr];
 
-            if(reads(index, inst, which) && !written) return false;
-            if(writes(index, inst, which)) written = 1;
+            auto read = readSlot(index, inst);
+            if(read != maxLimit<Size> && !written[read]) usable.set(read, false);
+
+            auto write = writtenSlot(index, inst);
+            if(write != maxLimit<Size>) written.set(write, true);
         }
     }
-
-    return true;
 }
 
 /*
@@ -548,46 +599,77 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
  *
  * Its own value is not an answer - a loop-carried phi whose only other alternative is one value is
  * that value - so self-references are ignored, and what is left has to be a single value for the phi
- * to be redundant. Iterated, because removing one can make the next one trivial, which is how a chain
- * of maximal phis down a straight-line region collapses.
+ * to be redundant.
+ *
+ * A worklist rather than a sweep repeated until nothing changes, and the difference is the whole
+ * cost of this function. Removing a phi can only make one of *its own readers* trivial, so the
+ * readers are what goes back on the list; the sweep it replaces rescanned every surviving phi to
+ * find them, once per removal, and shifted the array down by one on top of that. Both are linear in
+ * the number of phis and both ran per phi, which is where a body large enough to have thousands
+ * spent effectively all of its compile time - see the note above `promoteStackSlots`.
  */
-void removeTrivialPhis(LowerBase base, Region<LowerRegion>& arena, Array<LowerPtr<LowerInstPhi>>& phis) {
-    auto changed = true;
+void removeTrivialPhis(LowerBase base, Region<LowerRegion>& arena, Array<PlacedPhi>& placed) {
+    // Which entry a phi's result is, so that a reader found through the use list can be put back on
+    // the worklist. Only phis this pass placed are in it; a phi from anywhere else reading one of
+    // these is not something removing it can make trivial, since its alternatives were already
+    // whatever they were.
+    HashMap<U32, U32> byResult;
+    for(Size i = 0; i < placed.size(); i++) {
+        auto result = ((LowerInstSingle*)base[placed[i].phi])->created().ptr - base;
+        byResult.add(U32(result), U32(i));
+    }
 
-    while(changed) {
-        changed = false;
+    IndexSet gone;
+    gone.reset(placed.size());
 
-        for(Size at = 0; at < phis.size(); at++) {
-            auto phi = base[phis[at]];
-            auto result = ((LowerInstSingle*)phi)->created().ptr;
-            auto operands = phi->used();
+    Array<U32> work;
+    for(Size i = placed.size(); i > 0; i--) work.push(U32(i - 1));
 
-            LowerPtr<LowerValue> only = nullptr;
-            auto trivial = true;
+    while(work.size()) {
+        auto at = Size(work.pop().unwrap());
+        if(gone[at]) continue;
 
-            for(Size i = 0; i < operands.length; i++) {
-                auto value = operands.ptr[i];
-                if(base[value] == result) continue;
+        auto phi = base[placed[at].phi];
+        auto result = ((LowerInstSingle*)phi)->created().ptr;
+        auto operands = phi->used();
 
-                if(!only) only = value;
-                else if(only != value) { trivial = false; break; }
+        LowerPtr<LowerValue> only = nullptr;
+        auto trivial = true;
+
+        for(Size i = 0; i < operands.length; i++) {
+            auto value = operands.ptr[i];
+            if(base[value] == result) continue;
+
+            if(!only) only = value;
+            else if(only != value) { trivial = false; break; }
+        }
+
+        if(!trivial || !only) continue;
+
+        // The readers, collected before the replacement moves them off this value's use list.
+        SmallArray<U32, 8> readers;
+        for(auto userPtr: result->uses.contents(base)) {
+            auto user = base[userPtr];
+            if(user->kind != LowerInst::Phi) continue;
+
+            auto found = byResult.getValue(U32(((LowerInstSingle*)user)->created().ptr - base));
+            if(found) readers.push(found.unwrap());
+        }
+
+        auto block = base[phi->block];
+        detach(base, (LowerInst*)phi);
+        replaceUses(base, arena, result - base, only);
+
+        for(Size i = 0; i < block->phis.size(); i++) {
+            if(base[block->phis.get(base, i)] == phi) {
+                block->phis.remove(base, i);
+                break;
             }
+        }
 
-            if(!trivial || !only) continue;
-
-            auto block = base[phi->block];
-            detach(base, (LowerInst*)phi);
-            replaceUses(base, arena, result - base, only);
-
-            for(Size i = 0; i < block->phis.size(); i++) {
-                if(base[block->phis.get(base, i)] == phi) {
-                    block->phis.remove(base, i);
-                    break;
-                }
-            }
-
-            phis.remove(at--);
-            changed = true;
+        gone.set(at, true);
+        for(auto reader: readers) {
+            if(!gone[reader]) work.push(reader);
         }
     }
 }
@@ -596,6 +678,16 @@ void removeTrivialPhis(LowerBase base, Region<LowerRegion>& arena, Array<LowerPt
 
 void promoteStackSlots(LowerBase base, LowerFunction& fun) {
     auto& module = *fun.module;
+
+    /*
+     * The traversal order the placement below wants, taken first because taking it renumbers.
+     *
+     * `buildPostorder` writes each block's position in the list back into `index` on its way past,
+     * and every set in this pass - `stores`, `available` - is indexed by that number. Asking for the
+     * order before any of them is built is what keeps the two agreeing; the alternative is a pass
+     * whose correctness rests on the block list having been renumbered by somebody else.
+     */
+    auto postorder = fun.buildPostorder(base);
 
     HashMap<U32, U32> index;
     Array<Slot> candidates;
@@ -606,10 +698,21 @@ void promoteStackSlots(LowerBase base, LowerFunction& fun) {
      * The survey can reject a slot, and rejecting one changes what the others may be: a load of a
      * rejected slot is an ordinary load again, and the index has to stop claiming its address. So the
      * accepted set is rebuilt rather than filtered in place, and the index with it.
+     *
+     * `available` is not rebuilt with it. It is a row per block over the *candidate* numbering, which
+     * a rejection does not disturb, so each surviving slot carries the column it had - see
+     * `Slot::candidate`.
      */
+    IndexSetList available;
+    IndexSet usable;
+    surveySlots(base, fun, index, candidates, available, usable);
+
     Array<Slot> slots;
     for(Size i = 0; i < candidates.size(); i++) {
-        if(surveySlot(base, fun, index, i, candidates[i])) slots.push(::move(candidates[i]));
+        if(!usable[i]) continue;
+
+        candidates[i].candidate = U32(i);
+        slots.push(::move(candidates[i]));
     }
 
     if(slots.isEmpty()) return;
@@ -617,9 +720,6 @@ void promoteStackSlots(LowerBase base, LowerFunction& fun) {
     index.clear();
     for(Size i = 0; i < slots.size(); i++) index.add(U32(slots[i].address), U32(i));
 
-    // A phi wherever the slot arrives already written, which is every block a value has to be merged
-    // into and a good many where it does not - see removeTrivialPhis.
-    Array<LowerPtr<LowerInstPhi>> phis;
     for(auto& slot: slots) {
         for(Size i = 0; i < fun.blocks.size(); i++) {
             slot.entry.push(nullptr);
@@ -627,20 +727,93 @@ void promoteStackSlots(LowerBase base, LowerFunction& fun) {
         }
     }
 
-    for(auto blockPtr: fun.blocks.contents(base)) {
-        auto block = base[blockPtr];
+    /*
+     * A phi only where the predecessors disagree, which is what a phi is for.
+     *
+     * This used to place one in *every* block a slot arrives already written into and let
+     * `removeTrivialPhis` take back the ones whose alternatives all agree - the simplification the
+     * header comment describes, on the grounds that the functions this runs over are small. That
+     * holds until one of them is not. The phi count is the product of two numbers that both grow
+     * with the body, so an inlined test case of 34,000 instructions had 1,320 slots over 1,242
+     * blocks and this built **818,460 phis** to delete all but a handful of them again. Building
+     * them cost 22 ms; taking them back cost fourteen seconds, and was the whole of the quartic
+     * term - see test/bench/findings.md §63.
+     *
+     * What replaces it needs no dominance frontier either. Walking the blocks in reverse postorder
+     * means a block's predecessors have already said what they leave the slot holding, so the answer
+     * to "what does this block carry in" is usually there to be read: one predecessor, or several
+     * that agree, is that value and no instruction at all. Only a genuine disagreement, and a
+     * predecessor not yet visited - which is a back edge, so a loop header - gets a phi.
+     *
+     * That is the same set of phis the sweep left behind, arrived at without making the others
+     * first. `removeTrivialPhis` still runs, and one shape still reaches it in bulk: a loop header
+     * has a predecessor the walk has not been to, so it gets a phi whether or not anything in the
+     * loop writes the slot, and only the back edge's value can say which. That leaves a phi per slot
+     * per loop header - a product again, one term of which is much smaller. Removing it is what the
+     * iterated dominance frontier would do, since a slot with no store inside the loop is not in it;
+     * it is not done here because what it would cost is a dominance frontier per function against a
+     * term that is now a sixth of the pass rather than all of it.
+     *
+     * Forwarding a predecessor's value is only sound because it dominates: every path to this block
+     * runs through one of the predecessors, each of those is dominated by the value's definition, so
+     * the block is too. That is the standard argument for the construction and it is why the
+     * agreement has to be over *all* the incoming edges rather than over the ones already visited.
+     */
+    auto blockList = fun.blocks.contents(base);
 
-        for(auto& slot: slots) {
-            if(!slot.available[block->index]) continue;
+    // Whether a block has been rewritten, and therefore whether `exit` says anything about it. Not
+    // the same question as "earlier in the walk": a block nothing reaches is not in the postorder at
+    // all, and is visited afterwards with nothing assumed about its predecessors.
+    IndexSet settled;
+    settled.reset(fun.blocks.size());
+
+    Array<PlacedPhi> placed;
+
+    auto enter = [&](LowerBlock* block, bool ordered) {
+        for(Size i = 0; i < slots.size(); i++) {
+            auto& slot = slots[i];
+            if(!available[block->index][slot.candidate]) continue;
+
+            LowerPtr<LowerValue> only = nullptr;
+            auto agreed = ordered;
+
+            if(ordered) {
+                for(auto predPtr: block->incoming.contents(base)) {
+                    auto pred = base[predPtr];
+                    if(!settled[pred->index]) { agreed = false; break; }
+
+                    auto value = slot.exit[pred->index];
+                    if(!value) { agreed = false; break; }
+
+                    if(!only) only = value;
+                    else if(only != value) { agreed = false; break; }
+                }
+            }
+
+            // Availability is the statement that every predecessor left something here, so the null
+            // above is unreachable; it is tested rather than asserted because what a wrong answer
+            // would cost is a phi rather than a value nothing wrote.
+            if(agreed && only) {
+                slot.entry[block->index] = only;
+                continue;
+            }
 
             auto phi = makePhi(module, *block, slot.type);
             slot.entry[block->index] = ((LowerInstSingle*)phi)->created().ptr - base;
-            phis.push(phi - base);
+            placed.push(PlacedPhi { phi - base, block - base, U32(i) });
         }
-    }
 
-    for(auto blockPtr: fun.blocks.contents(base)) {
-        rewriteBlock(base, module, *base[blockPtr], slots, index);
+        rewriteBlock(base, module, *block, slots, index);
+        settled.set(block->index, true);
+    };
+
+    for(Size i = postorder.size(); i > 0; i--) enter(base[blockList[postorder[i - 1]]], true);
+
+    // And then whatever the traversal did not reach. Such a block still holds accesses to storage
+    // that is about to go, so it is rewritten like any other - what it is not is a block whose
+    // predecessors say anything, so it takes the phi it would have had before.
+    for(auto blockPtr: blockList) {
+        if(!settled[base[blockPtr]->index]) enter(base[blockPtr], false);
     }
 
     // Nothing may still be holding the address of storage that no longer exists. An instruction left
@@ -651,27 +824,23 @@ void promoteStackSlots(LowerBase base, LowerFunction& fun) {
 
     // The alternatives, now that every block has said what it holds on the way out, and the phis
     // themselves - adding one is what puts it in its block and registers those alternatives as uses.
-    for(auto blockPtr: fun.blocks.contents(base)) {
-        auto block = base[blockPtr];
+    for(auto& entry: placed) {
+        auto phi = base[entry.phi];
+        auto block = base[entry.block];
+        auto& slot = slots[entry.slot];
 
-        for(auto& slot: slots) {
-            auto entry = slot.entry[block->index];
-            if(!entry) continue;
+        auto operands = phi->used();
+        auto sources = phi->sources();
 
-            auto phi = (LowerInstPhi*)base[entry]->inst();
-            auto operands = phi->used();
-            auto sources = phi->sources();
-
-            Size at = 0;
-            for(auto predPtr: block->incoming.contents(base)) {
-                operands.ptr[at] = slot.exit[base[predPtr]->index];
-                sources.ptr[at] = predPtr;
-                at++;
-            }
-
-            block->addInst(base, (LowerInst*)phi);
+        Size at = 0;
+        for(auto predPtr: block->incoming.contents(base)) {
+            operands.ptr[at] = slot.exit[base[predPtr]->index];
+            sources.ptr[at] = predPtr;
+            at++;
         }
+
+        block->addInst(base, (LowerInst*)phi);
     }
 
-    removeTrivialPhis(base, module.arena, phis);
+    removeTrivialPhis(base, module.arena, placed);
 }
