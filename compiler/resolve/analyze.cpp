@@ -32,7 +32,8 @@ Analysis::Analysis(Module& module, Function& function):
     contents(scratch.contents), outlives(scratch.outlives), escaped(scratch.escaped),
     transferred(scratch.transferred), releasesStorage(scratch.releasesStorage),
     escapeSite(scratch.escapeSite),
-    stateBefore(scratch.stateBefore), borrowStateBefore(scratch.borrowStateBefore),
+    stateBefore(scratch.stateBefore), lastUseMoves(scratch.lastUseMoves),
+    borrowStateBefore(scratch.borrowStateBefore),
     borrowSlots(scratch.borrowSlots), order(scratch.order), blockRanges(scratch.blockRanges),
     effects(scratch.effects), tracked(scratch.tracked), demand(scratch.demand),
     indexOf(scratch.indexOf) {
@@ -188,6 +189,11 @@ static bool analyzeFunction(Module& module, Function& function, OwnershipResult&
     analysis.stateBefore.reset(analysis.instructionCount, analysis.localCount, OwnState::Uninitialized);
 
     computeLiveness(analysis);
+
+    // Between the two deliberately: it reads liveness, and what it writes is an ownership effect.
+    // See computeLastUseMoves.
+    computeLastUseMoves(analysis);
+
     computeOwnership(analysis);
     computeBorrowOwnership(analysis);
 

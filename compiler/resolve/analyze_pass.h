@@ -312,6 +312,12 @@ struct AnalysisScratch {
     // is not one of the three above.
     IndexSet reportedUse;
 
+    // Which departing operands are moves because the name they read is dead afterwards - see
+    // computeLastUseMoves. Over *value* ids rather than over locals or instruction indices, which
+    // is what lets the operand itself be the key at both the pass that decides and the check that
+    // reads the decision.
+    IndexSet lastUseMoves;
+
     LocalSet outlives;
     LocalSet escaped;
     LocalSet transferred;
@@ -430,6 +436,18 @@ struct Analysis {
 
     // Ownership state before each instruction, one row per instruction index.
     ArrayList<OwnState>& stateBefore;
+
+    /*
+     * The departures that are moves rather than copies because nothing reads the name again -
+     * Design-Test.md §11.1's P3, keyed by the operand's value id.
+     *
+     * Decided in one pass so that the two things that have to agree cannot drift: `checkTransfer`
+     * has to *not report* exactly the operands `computeLastUseMoves` marked moved, and the ownership
+     * lattice has to see a move for exactly those and no others. The pair used to be one rule
+     * written twice - see the three-drops bug above checkTransfer, which is what a disagreement of
+     * this shape looks like.
+     */
+    IndexSet& lastUseMoves;
 
     // And the same for borrowed storage, whose rows are one per interned slot rather than one per
     // local. Empty for every function that never moves out of a borrow, which is almost all of them.
@@ -575,6 +593,18 @@ void buildRanges(Analysis& analysis, OwnershipResult& result);
 // only keeps liveness at each block's two ends, and both the drop placer and the range builder
 // recover it inside a block by replaying exactly this.
 void applyBackward(Analysis& analysis, Size first, Size end, LocalSet& live);
+
+/*
+ * Which departing operands are moves because the name they read is never read again -
+ * Design-Test.md §11.1's P3.
+ *
+ * Between liveness and the ownership lattice because that is the only place it can be: it needs
+ * liveness, and what it produces is a move the lattice has to see. The *use* those operands make of
+ * their slot is recorded earlier, by `transferFrom`, which is what keeps this from being circular -
+ * a departure reads the value whether or not it turns out to take it, so liveness does not depend
+ * on the answer this gives.
+ */
+void computeLastUseMoves(Analysis& analysis);
 
 /*
  * The ownership lattice (analyze_own.cpp).

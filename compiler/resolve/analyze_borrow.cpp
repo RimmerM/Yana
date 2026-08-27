@@ -844,6 +844,30 @@ static TransferSource transferSource(Analysis& analysis, ModulePtr<Value> value)
 }
 
 /*
+ * Where a slot handed on at `from` is read again, for the note beside P3's diagnostic.
+ *
+ * Forwards through the numbering from the departure, which is the reading order for everything but a
+ * back edge - and a use reached only round a loop answers `kNullLocation`, which prints the error
+ * with no note rather than pointing at a line above the one it is about. A guess would be worse than
+ * silence here: the whole purpose of the note is to name the use the reader has to find.
+ */
+static LocationId nextUseAfter(Analysis& analysis, U32 root, Size from) {
+    if(root == maxLimit<U32>) return kNullLocation;
+
+    for(auto i = from + 1; i < analysis.instructionCount; i++) {
+        auto& effects = analysis.effects[i];
+
+        auto reads = false;
+        for(auto use: effects.uses) reads = reads || use == root;
+        for(auto overwritten: effects.overwrites) reads = reads || overwritten == root;
+
+        if(reads) return analysis.local[analysis.order[i]]->source;
+    }
+
+    return kNullLocation;
+}
+
+/*
  * Ownership leaving the frame through a value that was never moved out of anything.
  *
  * The four points where ownership departs - a write into another place, an exchange, a return, and a
@@ -879,8 +903,22 @@ static TransferSource transferSource(Analysis& analysis, ModulePtr<Value> value)
  * only difference that was ever load-bearing - whether there is a *place* the reader can be pointed
  * at - and it decides which advice is printed rather than whether anything is.
  */
-static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId source) {
+static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId source, Size at) {
     if(!value) return;
+
+    /*
+     * A departure `computeLastUseMoves` already decided is a move - Design-Test.md §11.1's P3.
+     *
+     * Ahead of everything below because it is not an exemption from those rules but an answer to the
+     * question they ask: this frame owns the value, the name it read is never read again, and the
+     * ownership lattice has been told the slot is empty from here on. There is nothing left for a
+     * copy check to be about.
+     *
+     * The decision is read rather than re-derived. It is the same rule twice otherwise - one copy
+     * here and one in the pass that writes the effect - and the two would then be free to disagree
+     * about which departures move, which is the failure mode this whole file is written against.
+     */
+    if(analysis.lastUseMoves[analysis.local[value]->id]) return;
 
     auto from = transferSource(analysis, value);
 
@@ -961,20 +999,28 @@ static void checkTransfer(Analysis& analysis, ModulePtr<Value> value, LocationId
     auto& place = *from.place;
 
     /*
-     * The whole slot, written into another place. `b = a` and nothing else.
+     * The whole slot, handed on - and reached only where the name is read again below, because a
+     * last use is now the move it looks like (P3, and the check at the top of this function).
      *
-     * Separated from the payload case below because the answer is different, and the difference is
-     * that there is no `->` to write here. `->` goes on a *binding* - `let ->b = a` - and a plain
-     * assignment has no binding to put it on: overwriting `b` has to release what `b` held and take
-     * what `a` held in one step, which is a move-assign the language does not spell. So the two
-     * things that do exist are what this names, and it does not invent a third.
+     * So the message is about the *later* use and not about the departure, which is the whole of
+     * what changed here: the line the reader is looking at is fine, and what makes it a copy is
+     * something further down. Both are named, because a rule that depends on liveness is a rule
+     * whose second half is invisible - adding a use below can turn a working move into an error at
+     * a line the author did not touch, and pointing only at the departure leaves them hunting for
+     * the use that caused it.
      *
-     * `Copy` is deliberately not suggested by name: it is authored per type and most droppable
-     * types do not have one, so naming it would send readers looking for something usually absent.
+     * **`Copy` is named now, where it deliberately was not.** The objection was that it is authored
+     * per type and most droppable types do not have one, so naming it would send readers looking for
+     * something usually absent. The blanket `instance (TrivialCopy(a)) Copy(a)` overtook that, along
+     * with instances for `String`, `Array`, `Map`, `Entry`, `Maybe`, `Result` and `Outcome`, so
+     * `copy()` is the right word and is usually present.
      */
     if(place.projections.isEmpty()) {
-        report(analysis, "this copies the bytes of a value with a teardown into another place, so both names would run it - bind it with `let ->` to move it instead, or use `swap` or `exchange` to write into a place that already holds one"_v,
+        report(analysis, "this hands on a value with a teardown out of a name that is read again below, so both names would run it - write `copy()` here to duplicate it deliberately, or let this be the last use of the name and it is a move"_v,
                source);
+
+        auto later = nextUseAfter(analysis, from.local, at);
+        if(later != kNullLocation) note(analysis, "the name is read again here"_v, later);
         return;
     }
 
@@ -1029,8 +1075,12 @@ static void eachReadPlace(Inst& instruction, F&& visit) {
  * Use after move, and the moves that cannot be represented at all.
  */
 void checkMoves(Analysis& analysis) {
+    // `at` is the departure's index, which the note beside P3's diagnostic needs to look forward
+    // from - see nextUseAfter. Set by the loop below before each instruction's operands are walked.
+    Size at = 0;
+
     auto transfer = [&](ModulePtr<Value> value, LocationId source) {
-        checkTransfer(analysis, value, source);
+        checkTransfer(analysis, value, source, at);
     };
 
     /*
@@ -1088,6 +1138,7 @@ void checkMoves(Analysis& analysis) {
          * the instruction order like everything else. Two loops meant the enumeration had to name
          * which points belonged to which, and naming it once is the whole of eachTransferOperand.
          */
+        at = i;
         eachTransferOperand(analysis.local, instruction, transfer);
 
         if(instruction.kind == Value::Move) {

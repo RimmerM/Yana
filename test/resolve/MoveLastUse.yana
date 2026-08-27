@@ -1,0 +1,105 @@
+{-
+   A read of a whole owned local in a sink position is a *move* when the local is dead afterwards -
+   Design-Test.md §11.1's P3.
+
+   The rule has no syntax of its own, which is the point: `Failure {claim: claim}` used to be refused
+   and the reader had to write `exchange(claim, "")` or restructure the binding, and each of those is
+   longer than the thing it stands in for. The departure points are exactly the ones
+   `eachTransferOperand` walks, so this file has one function per point rather than one per type.
+
+   **What is asserted is the number of teardowns**, because that is the whole of what the rule
+   changes. Every case here builds one `Held` and hands it on, so exactly one drop must run for it:
+   two is the bug the check that this replaces existed to prevent, and zero is the leak the other
+   direction. `dropped` accumulates each object's own `n`, so a missing drop and a doubled one are
+   different numbers rather than both being "not two".
+
+   The rejecting half - the same shapes with the name read again below - is
+   `resolve/Reject.Alias.yana`, and the two are worth reading together: what separates them is
+   liveness and nothing else.
+
+   **There is no moved-from state.** After the move the local is simply not there: nothing observes
+   an emptied husk, no teardown runs on one, and nothing has to be written to make it safe to leave -
+   which is why none of these functions has a line after the departure.
+-}
+
+let &dropped = 0 :: Int
+
+data Held {n: Int}
+
+instance Drop(Held):
+    fn drop(->self: Held) -> {}:
+        dropped = dropped + self.n
+
+data Pair {left: Held, right: Int}
+
+{-
+   A record-literal field, which is §11.1's own example.
+
+   Nothing in this file's bodies reads `dropped`, and that is deliberate rather than terse: a teardown
+   runs somewhere between a body's last instruction and its `ret`, so a body that read the counter and
+   wrote it back would store a value it computed *before* the drop and lose what the drop added. Every
+   assertion here is therefore made from `main`, after the call has returned.
+-}
+fn intoLiteral() -> {}:
+    let &a = Held {n: 1}
+    let pair = Pair {left: a, right: 0}
+
+-- A constructor payload, which is the same departure through a different constructor.
+fn intoPayload() -> {}:
+    let &a = Held {n: 2}
+    let held = Just(a)
+
+-- An array element. The literal owns its elements, so the array's teardown is what runs this one.
+fn intoArray() -> {}:
+    let &a = Held {n: 4}
+    let xs = [a]
+
+{-
+   An assignment, which is the case that has no `->` to be written on it at all.
+
+   `->` goes on a *binding* and a plain assignment has none, so before P3 the only spellings were
+   `swap` and `exchange` - and `exchange` on an object-typed place returns an alias on JavaScript and
+   the write that follows destroys the value that was read. A language whose ordinary move is spelled
+   with a defective instruction is one bad field away from a silent miscompile, which is the argument
+   for this case more than the convenience is.
+
+   Two drops here and not one: `b` holds something when the assignment overwrites it, and releasing
+   that is what an assignment has always owed. 8 for `b`'s own object and 16 for `a`'s, run once,
+   under `b`'s name.
+-}
+fn assigned() -> {}:
+    let &a = Held {n: 16}
+    let &b = Held {n: 8}
+
+    b = a
+
+-- Into a field of something else, where the field's old contents are what the write owes a drop for.
+fn intoField() -> {}:
+    let &a = Held {n: 64}
+    let &pair = Pair {left: Held {n: 32}, right: 0}
+
+    pair.left = a
+
+{-
+   Moved down one arm and live down the other, which is what the drop flag exists for.
+
+   The value departs on the `True` path and is still this frame's on the `False` one, so no single
+   point in the body is the place its teardown belongs. `128` either way is the assertion: once
+   through the constructor's own teardown, once through this frame's.
+-}
+fn branched(flag: Bool) -> {}:
+    let &a = Held {n: 128}
+
+    if flag:
+        let pair = Pair {left: a, right: 0}
+
+fn main() -> Int:
+    intoLiteral()      -- 1
+    intoPayload()      -- 2
+    intoArray()        -- 4
+    assigned()         -- 8 + 16
+    intoField()        -- 32 + 64
+    branched(True)     -- 128
+    branched(False)    -- 128
+
+    return dropped     -- 383

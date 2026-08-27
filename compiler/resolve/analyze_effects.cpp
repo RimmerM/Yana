@@ -346,9 +346,52 @@ static bool transfersOwnership(Analysis& analysis, TypePtr type) {
     return !ownershipIn(analysis.module, functionGen(analysis.global, analysis.function), type).trivialCopy;
 }
 
+/*
+ * The slot a departing operand reads out of, where it reads a whole one - Design-Test.md §11.1's P3.
+ *
+ * `backingLocal` cannot answer this: it matches a slot whose *defining value* is the operand, which
+ * is true of a call result or a construction and false of a load. So `Failure {claim: claim}` handed
+ * ownership on out of a named local and nothing above recorded that the local had been read there at
+ * all - the last thing that touched it was the load, several instructions earlier.
+ *
+ * `maxLimit<U32>` for everything else, which includes a projected load. A projection is a partial
+ * move and checkMoves rejects rather than represents one, so there is nothing here for it to be the
+ * whole of.
+ */
+static U32 departingSlot(Analysis& analysis, ModulePtr<Value> value) {
+    if(!value || analysis.local[value]->kind != Value::LoadPlace) return maxLimit<U32>;
+
+    auto& place = ((InstLoadPlace&)*analysis.local[value]).place;
+    if(place.root != PlaceRoot::Local || place.projections.size() != 0) return maxLimit<U32>;
+
+    return place.local < analysis.localCount ? place.local : maxLimit<U32>;
+}
+
 static void transferFrom(Analysis& analysis, Effects& effects, ModulePtr<Value> value) {
     auto root = backingLocal(analysis, value);
-    if(root == maxLimit<U32>) return;
+
+    /*
+     * A read of a whole slot, which is a *use* of it here whatever else it turns out to be.
+     *
+     * Recorded unconditionally and with no move beside it, and the two halves of that are what make
+     * P3 land in the right order. The use has to exist before liveness runs, because a departure
+     * that takes the value has to be inside the value's live range or the drop placer releases it
+     * above the line that hands it on. Whether it *is* a move is a question about liveness, so it
+     * cannot be answered here at all - see computeLastUseMoves, which answers it afterwards and
+     * pushes the move then.
+     */
+    if(root == maxLimit<U32>) {
+        auto departing = departingSlot(analysis, value);
+        if(departing == maxLimit<U32>) return;
+
+        // Only where ownership could travel. A trivially copyable scalar read into a record field is
+        // a copy under every rule there is, so extending its live range to the write would be a
+        // change to the printed ranges of nearly every function in the tree that decided nothing.
+        auto type = analysis.function.localAt(analysis.local, departing).type;
+        if(transfersOwnership(analysis, type)) useSlot(analysis, effects, departing);
+
+        return;
+    }
 
     // Through the view chain, like every other read: writing a slice into a record reads the array
     // the slice is a view of, so the array stays live to that point. See Local::viewOf.
@@ -708,4 +751,73 @@ void computeEffects(Analysis& analysis) {
     deriveEffects(analysis);
     extendBorrowUses(analysis);
     attributePhiEdges(analysis);
+}
+
+/*
+ * The last-use move - Design-Test.md §11.1's P3.
+ *
+ *     let &claim = "expected {expected}, got {actual}"
+ *     record(Failure {site: at, claim: claim, detail: ""})
+ *
+ * A read of a whole owned local in a sink position is a move when the local is dead afterwards. Sink
+ * positions are exactly the departure points `eachTransferOperand` walks - a record-literal field, an
+ * array or tuple element, a `return`, an exchange, a phi input, the right side of an initializing
+ * `let` - and "dead afterwards" is what liveness already computes.
+ *
+ * The effect is the one the neighbouring case in `transferFrom` already has, extended from a value
+ * that has no name to a value that has one and does not need it any more. **There is no moved-from
+ * state**: after the move the local is simply not there, nothing observes an emptied husk, and no
+ * teardown runs on one - which is why the example needs no line after the constructor where C++
+ * needs `std::move` *and* a destructor that tolerates the result.
+ *
+ * Moved on one path and live on another is a drop flag, which the lattice already builds: this
+ * writes a `Moved` into the effects and the join does the rest. That machinery was previously
+ * reachable only through the spellings this replaces.
+ *
+ * What it deletes is `exchange(x, empty)` as a move idiom, which matters more than the syntax:
+ * `exchange` on an object-typed place returns an alias on JavaScript and the write that follows
+ * destroys the value that was read. A language whose ordinary move is spelled with a defective
+ * instruction is one bad `Array` field away from a silent miscompile.
+ *
+ * The cost, stated where it is paid: whether a departure is a move or an error now depends on
+ * liveness, so adding a use later in a function can turn a working move into an error at a line the
+ * author did not touch. That is Rust's model and it is the right trade - and it is why the
+ * diagnostic checkTransfer prints for the other half of this rule names *both* the departure and the
+ * later use, since the second one is otherwise invisible.
+ */
+void computeLastUseMoves(Analysis& analysis) {
+    analysis.lastUseMoves.reset(analysis.function.valueCounter);
+
+    auto& live = analysis.scratch.work;
+
+    for(Size b = 0; b < analysis.blockCount(); b++) {
+        auto range = analysis.blockRanges[b];
+        if(range.end == range.first) continue;
+
+        live.copyFrom(analysis.liveOut[b]);
+
+        // Backwards, so that `live` is the set over the gap *following* the instruction being looked
+        // at - which is exactly "afterwards". The step is applyBackward's, one instruction at a time.
+        for(Size i = range.end; i > range.first; i--) {
+            auto& instruction = *analysis.local[analysis.order[i - 1]];
+
+            eachTransferOperand(analysis.local, instruction, [&](ModulePtr<Value> operand, LocationId) {
+                auto root = departingSlot(analysis, operand);
+                if(root == maxLimit<U32> || live[root]) return;
+
+                // Only a slot this frame owns. Handing on out of borrowed storage or out of a global
+                // is a different rule and a different diagnostic - checkTransfer's, which reaches
+                // those before it reaches this.
+                if(!analysis.tracked[root].owned) return;
+
+                auto type = analysis.function.localAt(analysis.local, root).type;
+                if(!transfersOwnership(analysis, type)) return;
+
+                analysis.lastUseMoves.set(analysis.local[operand]->id, true);
+                analysis.effects[i - 1].moves.push(root);
+            });
+
+            applyBackward(analysis, i - 1, i, live);
+        }
+    }
 }

@@ -1,0 +1,244 @@
+let image$base: () = <none>
+
+let &heapFree: %%U8 = 0
+
+let &dropped: Int = 0
+
+fn Reclaim(Array(a)).reclaim(Held)(%value: Array(Held)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(Held)
+    call releaseRun(Held), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(Held)
+    %v14 = load %value@Array.run@Run.items : %Held
+    %v15 = load %i : Int
+    %v16 = cast %v15 : Size
+    %v17 = strideof Held : Size
+    %v18 = mul %v16, %v17 : Size
+    %v19 = add %v14, %v18 : %Held
+    %v20 = load [%v19] : Held
+    %v21 = move %local2 : Held
+    %doomed = alloc : Held
+    init %local3, %v21
+    drop %local3 via Drop(Held).drop
+    %v24 = load %i : Int
+    %v26 = add %v24, 1 : Int
+    assign %i, %v26
+    jmp b1
+}
+
+fn freeListHead(%sizeClass: Size) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = strideof %U8 : Size
+    %v3 = mul %sizeClass, %v2 : Size
+    %v4 = add %v1, %v3 : %%U8
+    %v5 = load [%v4] : %U8
+    ret %v5
+}
+
+fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
+  b0:
+    %v2 = load heapFree : %%U8
+    %v3 = strideof %U8 : Size
+    %v4 = mul %sizeClass, %v3 : Size
+    %v5 = add %v2, %v4 : %%U8
+    assign [%v5], %block
+    ret
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v9 = strideof U8 : Size
+    %v10 = mul 8, %v9 : Size
+    %v11 = sub %allocation, %v10 : %U8
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
+    %v14 = bitcast %allocation : %%U8
+    %v15 = call freeListHead, %sizeClass : %U8
+    assign [%v14], %v15
+    call setFreeListHead, %sizeClass, %allocation
+    ret
+}
+
+fn releaseRun(Held)(%self: Run(Held)) -> () {
+  b0:
+    %v1 = load %self@Run.ownsHeap : @bits(2) U32
+    %v2 = cast %v1 : U32
+    %v4 = cast 1 : U32
+    %v5 = cmp_eq %v2, %v4 : Bool
+    je %v5, b1, b2
+
+  b1:
+    %v7 = load %self@Run.items : %Held
+    %v8 = bitcast %v7 : %U8
+    call freeHeap, %v8
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn intoLiteral() -> () {
+  b0:
+    %v0 = alloc : Held
+    aggregate %a@Held.n = 1
+    %pair = alloc : Pair
+    %v4 = load %a : Held
+    aggregate %local1@Pair.left = %v4, %local1@Pair.right = 0
+    drop_derived %local1 via drop$Pair
+    ret
+}
+
+fn intoPayload() -> () {
+  b0:
+    %v0 = alloc : Held
+    aggregate %a@Held.n = 2
+    %v3 = load %a : Held
+    %held = alloc : Maybe(Held)
+    aggregate %local1.discriminant = 1, %local1@Just = %v3
+    drop_derived %local1 via drop$Maybe(Held)
+    ret
+}
+
+fn intoArray() -> () {
+  b0:
+    %v0 = alloc : Held
+    aggregate %a@Held.n = 4
+    %v3 = load %a : Held
+    %xs = alloc : Array(Held)
+    %v7 = alloc *1 : Held
+    %v8 = addressof %local2 : %Held
+    init %local1@Array.run@Run.items, %v8
+    init %local1@Array.run@Run.capacity, 1
+    init %local1@Array.run@Run.ownsHeap, 0
+    aggregate [%v8][0] = %v3
+    init %local1@Array.length, 1
+    drop %local1 via Reclaim(Array(a)).reclaim(Held)
+    ret
+}
+
+fn assigned() -> () {
+  b0:
+    %v0 = alloc : Held
+    aggregate %a@Held.n = 16
+    %v3 = alloc : Held
+    aggregate %b@Held.n = 8
+    %v6 = load %a : Held
+    drop %b via Drop(Held).drop
+    assign %b, %v6
+    drop %b via Drop(Held).drop
+    ret
+}
+
+fn intoField() -> () {
+  b0:
+    %v0 = alloc : Held
+    aggregate %a@Held.n = 64
+    %v3 = alloc : Pair
+    %v4 = alloc : Held
+    aggregate %local2@Held.n = 32
+    aggregate %pair@Pair.left = %v4, %pair@Pair.right = 0
+    %v9 = load %a : Held
+    drop %pair@Pair.left via Drop(Held).drop
+    assign %pair@Pair.left, %v9
+    drop_derived %pair via drop$Pair
+    ret
+}
+
+fn branched(%flag: Bool) -> () {
+  b0:
+    %v1 = alloc : Held
+    aggregate %a@Held.n = 128
+    je %flag, b1, b4
+
+  b1:
+    %pair = alloc : Pair
+    %v6 = load %a : Held
+    aggregate %local1@Pair.left = %v6, %local1@Pair.right = 0
+    drop_derived %local1 via drop$Pair
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    ret
+
+  b4:
+    drop %a via Drop(Held).drop
+    jmp b2
+}
+
+fn main() -> Int {
+  b0:
+    call intoLiteral
+    call intoPayload
+    call intoArray
+    call assigned
+    call intoField
+    call branched, True
+    call branched, False
+    %v9 = load dropped : Int
+    ret %v9
+}
+
+fn Drop(Held).drop(%self: Held) -> () {
+  b0:
+    %v1 = load dropped : Int
+    %v2 = load %self@Held.n : Int
+    %v3 = add %v1, %v2 : Int
+    assign dropped, %v3
+    ret
+}
+
+fn drop$Pair(%value: Pair) -> () {
+  b0:
+    drop %value@Pair.left via Drop(Held).drop
+    ret
+}
+
+fn drop$Maybe(Held)(%value: Maybe(Held)) -> () {
+  b0:
+    %v1 = load %value.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b3
+
+  b1:
+    ret
+
+  b2:
+    drop %value@Just via Drop(Held).drop
+    jmp b1
+
+  b3:
+    jmp b1
+}
