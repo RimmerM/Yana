@@ -1,0 +1,22 @@
+{-
+   A test file of a *library* module - Design-Test.md §3.1, and §11.2's F5.
+
+   The two `let &`s below are the whole fixture. Neither initializer is a constant, so each is a
+   global that only a program point can fill, and a module that is not the root had none until a
+   test build's entry started running these ahead of the cases - see `resolveTestFileInitializers`.
+   `doubled` being reachable unqualified is the other half of the claim: the initializer is resolved
+   in *this* module and under this file's imports, not in the root that holds the entry.
+-}
+import Atomic
+import Test
+
+let &ticket = atomic(0 :: U32)
+let &twice = doubled(3)
+
+@test fn libraryTestFileGlobals() -> {}:
+    -- Filled before any case ran, by the entry rather than by anything written here.
+    check(ticket.load(LoadAcquire) == 0)
+    check(twice == 6)
+
+    ticket.store(9, StoreRelease)
+    check(ticket.load(LoadAcquire) == 9)

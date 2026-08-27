@@ -1,0 +1,26 @@
+{-
+   Snapshots on JavaScript, which there is no store for - Design-Test.md §11.2's F4 note.
+
+   `lib/File.yana` is written in terms of Native's platform file and a JS build has no descriptors,
+   so there is no filesystem on this target and nothing here pretends there is one. What `snapshot`
+   does instead is **skip, loudly**: the call is counted, a `skip` line goes on the report stream and
+   the case neither passes nor fails on it. That is ruling 4 applied to the target rather than to the
+   file - an assertion that did not happen must say so - and it is the same answer `@test(aborts)`
+   gets here.
+
+   Making this work is a `HostMember` per `fs` call plus the declarations, which is the mechanism
+   `Native/Host.js.yana` already has; it is not written because nothing has asked for it yet, and a
+   half-implemented one would be the lie that file's note is written against.
+-}
+
+pub fn snapshotStoreAvailable() -> Bool = False
+
+pub fn readSnapshotFile(root: String, file: String) -> Maybe(String) = Nothing
+
+pub fn writeSnapshotFile(root: String, file: String, text: String) -> Maybe(String) =
+    Just("this target has no filesystem")
+
+pub fn removeSnapshotFile(root: String, file: String) -> Maybe(String) =
+    Just("this target has no filesystem")
+
+pub fn snapshotFileNames(root: String) -> [String] = []

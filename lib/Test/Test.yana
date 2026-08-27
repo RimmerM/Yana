@@ -1,25 +1,26 @@
 {-
    ==========================================================================================
-   `Test` - the runner's own vocabulary, as far as Design-Test.md §11 needs it.
+   `Test` - the runner - Design-Test.md §4.1, §5 and §6.
    ==========================================================================================
 
-   **This is F1's half of the library and not the framework.** Design-Test.md stages the vocabulary
-   as Phase 0 - `check`/`require` in both moods, sections, snapshots, `agree`, `forAll` - and §11 is
-   the *compiler* work those are written against. What is here is exactly what the synthesized entry
-   names and nothing more: the four types a `Case` is made of, and the function the entry hands its
-   cases to. Everything else in §4 belongs to Phase 0 and is deliberately absent rather than sketched.
+   The four types a `Case` is made of, and the function the synthesized entry hands its cases to.
+   `Case`'s five fields are the contract between the compiler and this module - `resolveTestEntry`
+   fills them by position and says so where it reads the shape - so the record's *shape* may not
+   move without the compiler moving with it. Everything else here is the library's.
 
-   The shapes are §4.1's, unchanged:
-
-       pub data Site {file: String, line: U32, column: U32, function: String}
-       pub data Failure {site: Site, claim: String, detail: String}
-       pub type Test = Result(Failure, {})
-       pub data Case {name: String, moduleName: String, site: Site, aborts: Bool, body: () -> Test}
+   The shapes are §4.1's, with one rename: the field is `moduleName`, because `module` is a reserved
+   word and `data Case {module: String}` does not parse.
 
    `Site`'s strings are constants. A string literal is a borrowed run over a constant global and its
    teardown is nothing at all, so a `Site` costs some constant data and no runtime work - which is
    what makes it free to put one on every case and, through `@caller`, on every assertion.
+
+   The vocabulary a test is *written* in is in the files beside this one: `Check.yana` is §4.2 and
+   §4.3, `Section.yana` is §4.5, `Report.yana` is §5.1 and §5.2, and `Harness.yana` is §5.3's third
+   tier and §6.
 -}
+
+import Native
 
 {-
    Where something is, filled by the compiler.
@@ -53,54 +54,231 @@ pub alias Test = Result(Failure, {})
 -}
 pub data Case {name: String, moduleName: String, site: Site, aborts: Bool, body: () -> Test}
 
-{-
-   The runner - what the synthesized entry calls, and the program's status.
+-- What a report line and a `--only` name a case by. The module and the declaration, which is unique
+-- by construction: two `@test`s of one name in one module do not compile.
+pub fn qualifiedName(self: Case) -> String = "{self.moduleName}.{self.name}"
 
-   Deliberately the plainest thing that reports: one line per case on the way past, a count at the
-   end, and 0 or 1. The report *stream* §5 specifies, the sharding of §6 and the harness of §11.2's
-   F4 all sit above this and none of them is what F1 is about.
+{-
+   ==========================================================================================
+   The runner
+   ==========================================================================================
+
+   `runMain` is what the synthesized entry calls and what the program's status is. Three things
+   happen here and each is a section of the design:
+
+    1. the command line decides *which* cases run and *where* - §5.3's three isolation tiers and
+       §6's sharding, which are one mechanism: `--isolate` is `--shard i/n` with `n` the number of
+       cases, and both are this binary re-executing itself;
+    2. each case that runs in this process is bracketed by a `begin` and an `end` on the report
+       stream, which is what makes a crash attributable at no cost - §5.2;
+    3. the count is printed and the status is 0 or 1.
 
    **A run that discovered no cases is a failure**, which is `test/README.md`'s empty-corpus guard
    said in the new framework's terms: a driver that verified nothing must not be mistaken for one
-   that verified everything, and a test binary that ran zero cases is exactly that mistake.
+   that verified everything, and a test binary that ran zero cases is exactly that mistake. So is a
+   `--filter` that matched nothing, unless `--allow-empty` says otherwise.
 -}
 pub fn runMain(cases: [Case]) -> Int:
-    -- As an `Int`, because that is the width `Show` covers and a count of cases is not a `Size`
-    -- question. `length` answers the container width; the report reads a number.
-    let count = truncate(length(cases)) :: Int
+    let options = readOptions(runnerArguments())
 
-    if count == 0:
+    if length(options.complaint) > (0 :: Size):
+        print("{options.complaint}\n")
+        return 2
+
+    if length(cases) == (0 :: Size):
         print("no tests: a build that discovered no cases is a failure, not a pass\n")
         return 1
 
-    let &failed = 0 :: Int
-    let &i = 0 :: Int
+    -- Read once, before any case runs, so that a snapshot written from a helper five frames down
+    -- still lands where the run was told to put it - see Golden.yana.
+    configureSnapshots(options)
 
-    while i < count:
-        let case = cases[i :: Size]
+    -- Refused rather than quietly ignored. `--isolate` is what a suite with global state, or a suite
+    -- that crashes, is run with, and a green run under a flag that did nothing is worse than a red
+    -- one. An `@test(aborts)` case is the softer case and is skipped - see below.
+    if (options.isolate || options.jobs > 1) && !harnessAvailable():
+        print("this target has no harness, so --isolate and --jobs have nothing to spawn\n")
+        return 2
+
+    let &selected = [] :: [Size]
+    let &ordinal = 0 :: Int
+    let &i = 0 :: Size
+
+    while i < length(cases):
+        if selects(options, cases[i].qualifiedName()):
+            -- The shard is applied to the *filtered* ordinal, so that four shards of a filtered run
+            -- still divide that run's work between them rather than three of them idling.
+            if options.shards <= 1 || ordinal % options.shards == options.shard then push(selected, i)
+            ordinal = ordinal + 1
+
         i = i + 1
 
-        -- `aborts` cases need a child process to run in and a status to read back, which is F4's
-        -- harness. Reported as skipped rather than run here, because running one in-process would
-        -- take the whole suite down with it.
-        if case.aborts:
-            print("skip {case.moduleName}.{case.name} (@test(aborts) needs the harness)\n")
-        else:
-            match case.body():
-                Ok(_):
-                    print("pass {case.moduleName}.{case.name}\n")
+    if options.list:
+        let &j = 0 :: Size
+        while j < length(selected):
+            print("{cases[selected[j]].qualifiedName()}\n")
+            j = j + 1
 
-                Err(failure):
-                    failed = failed + 1
-                    print("FAIL {case.moduleName}.{case.name}\n")
-                    print("  {failure.site.file}:{failure.site.line}:{failure.site.column} {failure.claim}\n")
-
-                    if length(failure.detail) != (0 :: Size):
-                        print("  {failure.detail}\n")
-
-    if failed == 0:
-        print("{count} passed\n")
         return 0
 
-    print("{failed} of {count} failed\n")
+    if length(selected) == (0 :: Size) && !options.allowEmpty:
+        print("no tests matched, which is a failure rather than a pass - pass --allow-empty if it is not\n")
+        return 1
+
+    return runSelected(cases, selected, options)
+
+{-
+   The selected cases, run wherever they belong.
+
+   Three destinations, and which one a case reaches is decided per case rather than per run:
+
+    - a `@test(aborts)` case always goes to a child, whatever the run's default is, because its
+      verdict *is* the child's status and there is nothing to catch in-process;
+    - every case goes to a child under `--isolate`;
+    - everything else runs here, in order, in this process.
+
+   A run that asked for children on a target with no harness says so and fails, rather than running
+   the cases in-process and reporting a pass: `--isolate` is what a suite with global state or a
+   suite that crashes is run with, and quietly declining it would answer a question nobody asked.
+-}
+fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
+    if options.jobs > 1 && length(options.only) == (0 :: Size) then return runShards(cases, options)
+
+    {-
+       **A process whose report has a channel of its own prints nothing else.**
+
+       Descriptor 3 being open means something started this process in order to read its report, and
+       that something is what reports for a human - so saying it here as well is how the first
+       isolated run printed every failure once per process, and how a driver that JITs a fixture and
+       forks got a summary line per build. A binary run at a terminal has no 3, and prints.
+
+       `--only` is the same fact from the other side: it is what the harness re-executes with, and a
+       run narrowed to one case is a child whatever its descriptors say.
+    -}
+    let silent = length(options.only) > (0 :: Size) || reportIsPrivate()
+
+    {-
+       Whether this process is the one a child was asked for.
+
+       Separate from `silent`, and the two were one for a while: a *shard* is silent - the parent
+       reads its stream - and a shard still has to be able to isolate its own cases. What may never
+       spawn again is a run narrowed to a single case, because that is what `runChild` re-executes
+       with and an `@test(aborts)` case would otherwise ask for a child whose first act is to ask
+       for a child. That is not a hypothetical: it is a fork bomb, and it is what the first version
+       of this line was.
+    -}
+    let isOneCase = length(options.only) > (0 :: Size)
+
+    let &failedCases = 0 :: Int
+    let &skippedCases = 0 :: Int
+    let &ranCases = 0 :: Int
+    let &j = 0 :: Size
+
+    while j < length(selected):
+        let case = cases[selected[j]]
+        let name = case.qualifiedName()
+        let index = truncate(selected[j]) :: Int
+        j = j + 1
+        ranCases = ranCases + 1
+
+        if case.aborts && !harnessAvailable():
+            {-
+               An expected abort with nowhere to run - the JavaScript target, per §11.2's F4 note.
+
+               Skipped and counted as skipped, rather than failed. The case is fine; this target
+               cannot ask the question, and a suite that went red on every `@test(aborts)` because
+               of where it was run would be reporting the runner rather than the library.
+            -}
+            skippedCases = skippedCases + 1
+            reportLine("skip {index} {name} - @test(aborts) needs a harness and this target has none\n")
+            if options.verbose && !silent then print("skip {name}\n")
+        else if (case.aborts || options.isolate) && !isOneCase:
+            {-
+               A case run in a child is still bracketed *here*.
+
+               The child writes its own stream into its own file and the parent reads it, so the
+               `begin` and `end` a reader of *this* process's stream sees would otherwise be missing
+               for exactly the cases that were isolated - and a shard whose report is short by its
+               isolated cases is a shard whose count does not add up. The verdict is the child's; the
+               two lines around it are this process's.
+            -}
+            beginCase(index, name)
+            let started = monotonicNanos()
+            let verdict = runChild(name, case.aborts, options)
+            let elapsed = monotonicNanos() - started
+
+            match verdict:
+                Ok(->note) -> if options.verbose then print("pass {name}{note}\n")
+
+                Err(->why):
+                    recordAt(case.site, why, "")
+                    failedCases = failedCases + 1
+                    if !silent then print("FAIL {name}: {why}\n")
+
+            endCase(if currentFailures() == 0 then "pass" else "fail", elapsed)
+        else:
+            beginCase(index, name)
+            let started = monotonicNanos()
+
+            {-
+               An `Err` the body handed back, reported only when nothing else was.
+
+               A `require…` records its failure *and* answers `Err`, so the stream already has the
+               line - with its section labels, at the moment it happened - and saying it again here
+               would double every early return. What this catches is the other `Err`: a `?` on a
+               `File` call that failed, which nothing recorded because nothing in this library was
+               involved.
+            -}
+            match case.body():
+                Ok(_) -> {}
+                Err(failure) -> if currentFailures() == 0 then record(failure)
+
+            let elapsed = monotonicNanos() - started
+            let lost = currentFailures()
+            endCase(if lost == 0 then "pass" else "fail", elapsed)
+
+            if lost == 0:
+                if options.verbose && !silent then print("pass {name}\n")
+            else:
+                failedCases = failedCases + 1
+                if !silent then print("FAIL {name}: {lost} of its claims did not hold\n")
+
+    {-
+       §7's ruling 3, asked only of a run that reached everything.
+
+       A filtered run, a shard, and a run whose cases went to children have each reached some of the
+       snapshots by construction, so calling the rest stale would be reporting the *selection*. A
+       stale one fails the run, on the empty-corpus guard's argument: a golden nothing compares
+       against is indistinguishable from one that passes.
+    -}
+    let whole = length(selected) == length(cases) && !options.isolate && options.jobs <= 1
+    let stale = reviewSnapshots(whole)
+    if stale > 0 && !silent:
+        let word = if stale == 1 then "snapshot is" else "snapshots are"
+        print("{stale} {word} stale - no test compared against them. `--update --prune` deletes them\n")
+
+    if silent || options.quiet then return if failedCases == 0 && stale == 0 then 0 else 1
+
+    {-
+       Written as a statement rather than as `if … then "" else "…"`.
+
+       The conditional form is refused - *"this value may have been moved out of on some paths
+       reaching here"* - because one arm is a string literal and the other an owned string, and the
+       merge of the two is a value the ownership pass will not take. Worth knowing rather than
+       working around silently: it is a real limitation of a conditional *expression* over a
+       droppable type, and it has nothing to do with tests.
+    -}
+    let &tail = "" :: String
+    if skippedCases > 0 then tail ++= ", {skippedCases} skipped"
+    tail ++= snapshotSummary()
+
+    if failedCases == 0 && stale == 0:
+        print("{ranCases - skippedCases} passed{tail}\n")
+        return 0
+
+    if failedCases == 0:
+        print("{ranCases - skippedCases} passed{tail}, but the run is a failure while a snapshot is stale\n")
+        return 1
+
+    print("{failedCases} of {ranCases} failed{tail}\n")
     return 1

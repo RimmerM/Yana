@@ -1,0 +1,47 @@
+{-
+   ==========================================================================================
+   Sections - Design-Test.md §4.5.
+   ==========================================================================================
+
+   A label on the iteration, so that a failure inside a table-driven test names the row:
+
+       let &i = 0 :: Size
+       while i < length(cases):
+           section(cases[i])
+           checkEqual(decode(encode(cases[i])), cases[i])
+           i = i + 1
+
+   No parameterized-test attribute, and no `beforeEach`. A table is a loop, and what a loop needs is
+   this and nothing else.
+
+   **A `lens`**, which is what makes it free: a function that hands control to a continuation exactly
+   once, sharing the caller's stack. After inlining it is ordinary control flow - there is no
+   closure, no allocation, and no capture rule to think about. Sections nest.
+
+   > **One difference from §4.5, and it is the language's rather than this design's.** The section
+   > gets no indented block: a lens call's continuation is *the rest of the enclosing block*, so
+   > `section(label)` scopes to the end of the loop body it is written in rather than to a block
+   > under it. That is the same shape `withLock` has, it is what every other lens in this tree reads
+   > like, and the alternative would be a block form the parser does not have.
+
+   The labels are one joined `String` rather than a stack of them, for the reason Report.yana gives:
+   a global's initializer needs a constant form, and `""` is one where `[] :: [String]` is not. The
+   join is what a report line wants anyway, and the restore is the saved copy - one allocation per
+   entered section, which is a cost a table of a hundred rows pays a hundred times and nothing else
+   pays at all.
+-}
+
+pub let &sectionLabels = "" :: String
+
+pub lens fn section(label: String) -> {}:
+    let saved = copy(sectionLabels)
+
+    if length(sectionLabels) > (0 :: Size) then sectionLabels ++= " / "
+    sectionLabels ++= "{label}"
+
+    yield {}
+
+    -- On the way out, whatever happened inside. A `return` from the middle of a section is an early
+    -- exit from the *test*, and a lens's leaving path is exactly what runs on one - which is the
+    -- reason this is a lens rather than a function taking a body.
+    sectionLabels = saved

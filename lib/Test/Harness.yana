@@ -1,0 +1,121 @@
+{-
+   ==========================================================================================
+   Reading a child's report - Design-Test.md §5.2 and §5.3.
+   ==========================================================================================
+
+   The parsing half of the harness, which is the same on every target because the stream is text.
+   The spawning half is `Harness.native.yana`, and the target that has no `Process` module gets
+   `Harness.js.yana`, which declines rather than pretending.
+
+   **What a parent learns from the stream is more than the exit status carries**, and that is the
+   whole reason the stream exists. A status is eight bits and says only that the child stopped. The
+   report says which case it was in when it did: a `begin` whose `end` never arrived names the case
+   that crashed, with no second process, no ptrace and no debugger. `test/README.md` describes
+   today's opposite - "the log ends after a passing fixture and the process is simply gone".
+-}
+
+{-
+   What a child's report and its status came to, together.
+
+   `unfinished` is the field the whole design turns on: it is the case that was open when the stream
+   stopped, and it is empty for a child that finished its report properly. A crashed child has one,
+   a timed-out child has one, and a child that failed honestly has none.
+-}
+pub data ChildReport {
+    ran: Int,
+    failedCases: Int,
+    failedClaims: Int,
+    unfinished: String,
+    failedNames: [String],
+    lines: [String]
+}
+
+pub fn emptyReport() -> ChildReport =
+    ChildReport {ran: 0, failedCases: 0, failedClaims: 0, unfinished: "", failedNames: [], lines: []}
+
+{-
+   The stream, read line by line.
+
+   Line-oriented on purpose - §5.2 - so a truncated last line is one line lost rather than the whole
+   report. Anything this does not recognize is kept in `lines` rather than dropped: a child is free
+   to write to the same stream, and a report reader that silently discarded what it did not
+   understand would hide exactly the message somebody added for a human to read.
+-}
+pub fn readReport(text: String) -> ChildReport:
+    let &report = emptyReport()
+    let &open = "" :: String
+    let &start = 0 :: Size
+    let count = length(text)
+    let &i = 0 :: Size
+
+    while i <= count:
+        if i == count || text.unit(i) == 10:
+            if i > start:
+                let line = sliceOfText(text, start, i)
+
+                {-
+                   The three line kinds, and the two different numbers they carry.
+
+                   A `fail` is one claim that did not hold and an `end … fail` is one *case* that
+                   did, and a reader that added them together would say "2 of its claims did not
+                   hold" for a case with one failure. They are counted apart because they answer
+                   different questions: the claims are what a report line says, and the cases are
+                   what a suite's status is.
+                -}
+                if beginsWith(line, "begin "):
+                    open = nameOfBegin(line)
+                    report.ran = report.ran + 1
+                else if beginsWith(line, "fail  "):
+                    report.failedClaims = report.failedClaims + 1
+                else if beginsWith(line, "end   "):
+                    -- The name comes off the `begin` this closes, because an `end` line carries the
+                    -- ordinal and not the name. That is what makes the parent able to say *which*
+                    -- of a shard's cases failed rather than only how many.
+                    if containsText(line, " fail "):
+                        report.failedCases = report.failedCases + 1
+                        push(report.failedNames, copy(open))
+
+                    open = ""
+                else:
+                    push(report.lines, copy(line))
+
+            start = i + 1
+
+        i = i + 1
+
+    report.unfinished = open
+    return report
+
+-- `begin <ordinal> <name>`, of which the name is the third word.
+fn nameOfBegin(line: String) -> String:
+    let &at = 6 :: Size
+    while at < length(line) && line.unit(at) != 32:
+        at = at + 1
+
+    while at < length(line) && line.unit(at) == 32:
+        at = at + 1
+
+    return sliceOfText(line, at, length(line))
+
+fn beginsWith(text: String, prefix: String) -> Bool:
+    if length(prefix) > length(text) then return False
+
+    let &i = 0 :: Size
+    while i < length(prefix):
+        if text.unit(i) != prefix.unit(i) then return False
+        i = i + 1
+
+    return True
+
+-- Part of a string, rebuilt. There is no portable slice of a `String` - a native one is a run and a
+-- host one is a primitive - so this is a copy, which is what a report reader wants anyway: the line
+-- outlives the buffer it was read out of.
+pub fn sliceOfText(text: String, from: Size, to: Size) -> String:
+    let &out = String.ofCapacity(to - from)
+    let &i = from
+
+    while i < to:
+        out.pushUnit(text.unit(i))
+        i = i + 1
+
+    return out

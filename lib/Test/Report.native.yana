@@ -1,0 +1,52 @@
+{-
+   Where the stream goes, natively - Design-Test.md §5.2.
+
+   **Descriptor 3 when it is open, and standard error otherwise.** Both halves of that matter. A
+   harness that spawned this process opens 3 for it and gets the report on a channel of its own, so
+   a case's own `print` and the runner's report never interleave into one stream that then has to be
+   picked apart. A binary run by hand has no 3, and the report is still worth having - stderr rather
+   than stdout, so that a run whose output is being read for something else still says what it did.
+
+   Whether 3 is open is asked with a **zero-length write**, which is the one question this can ask
+   without an `fcntl` the library does not have: the kernel checks the descriptor before it checks
+   the count, so an open 3 answers 0 and a closed one answers `EBADF`. Asked once and remembered,
+   because it is a property of the process rather than of the line.
+
+   Written through `File` rather than through `writeFile` directly, so that the short-write loop is
+   the one `File` already has an opinion about and the byte pointer of a `String` stays inside the
+   module that owns that question - see the note above `bytesOf` in File.yana.
+-}
+
+import File
+
+-- 0 for "not asked yet", which is the one descriptor this can never answer: a runner whose report
+-- went to standard input would be writing into what it reads. Constant, so this is an initializer a
+-- library module's global may have.
+let &stream = 0 :: Size
+
+fn reportStream() -> Size:
+    if stream != (0 :: Size) then return stream
+
+    -- The probe. A count of zero writes nothing on a descriptor that is open and reports on one
+    -- that is not, so this costs one syscall and never disturbs the stream it is asking about.
+    let &probe = borrowFile(3)
+    stream = if probe.writeText("") is Ok(_) then 3 else 2
+    return stream
+
+{-
+   Whether the stream has a channel of its own.
+
+   True when descriptor 3 was open, which means something *started* this process to read its report -
+   and that is the whole of what the runner needs to decide whether to print anything for a human as
+   well. A child says nothing; the parent that is reading the stream is what reports. A binary run at
+   a terminal has no 3, prints its failures and its count, and still writes the stream to standard
+   error so that a crash is attributable.
+-}
+pub fn reportIsPrivate() -> Bool = reportStream() == (3 :: Size)
+
+-- One line, unbuffered and on its own descriptor. A failed write is dropped rather than reported:
+-- there is nowhere left to report it to, and a runner that stopped the suite because its own report
+-- could not be delivered would turn a closed pipe into a failed test run.
+pub fn reportLine(text: String) -> {}:
+    let &out = borrowFile(reportStream())
+    out.writeText(text)

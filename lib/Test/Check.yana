@@ -1,0 +1,328 @@
+{-
+   ==========================================================================================
+   The assertions - Design-Test.md §4.2 and §4.3.
+   ==========================================================================================
+
+   **Two moods, and they differ in one thing: whether the test continues.**
+
+    - `check…` records the failure and answers `{}`. The test runs on, which is the default because
+      a test that reports one failure of four wastes three runs.
+    - `require…` answers `Test`, so `?` ends the test at the first thing that did not hold. This is
+      for a precondition whose failure makes everything after it noise - a length before an index,
+      an `Ok` before its payload.
+
+   There is no third mood and no unwinding. A test that must stop the process is `@test(aborts)`,
+   which is a property of a whole test rather than of an expression - §5.3.
+
+   **Every one of these is the same four lines**, and that is the argument §11.1 makes for fixing the
+   three limitations before writing this file rather than around it:
+
+       fn (Eq(a), Show(a)) checkEqual(actual: a, expected: a, @caller ->at: Site) -> {}:
+           if actual == expected then return
+           record(Failure {site: at, claim: "expected {expected}, got {actual}", detail: ""})
+           return
+
+   The interpolation resolves `Show` through the constraint set (P1), so the message is one format
+   that sizes its buffer in one addition rather than four `show` calls into a hand-made sink; and the
+   claim is handed to the constructor by name (P3) rather than prised out with `exchange`. Written
+   against the tree before those landed, the same three lines were nine.
+
+   **`@caller` is what makes an assertion able to say where it is** - F2. A location parameter is
+   filled by the compiler at every call that leaves it out, and *only* there: a helper that passes
+   its own `at:` on explicitly reports its caller's line, which is `#[track_caller]` obtained for
+   free because "a position no argument reached is filled by its default" is already how defaults
+   work.
+
+       fn checkPositive(n: Int, @caller ->at: Site) -> {}:
+           check(n > 0, "not positive", at: at)
+
+   **`check` reports the text and no values; `checkEqual` reports both values.** That split is §12's
+   ruling and it costs one word at the call site. Decomposing `check(a == b)` into its operands would
+   mean the compiler rewriting an expression the author wrote, and the pair of names is a better
+   trade than a rewrite rule.
+-}
+
+import Math
+
+{-
+   The bare claim, and the one assertion that reads the source.
+
+   Three compiler-filled positions and one the author may write:
+
+    - `note` is `@lazy`, so a rich message costs nothing on the passing path - verified: with
+      `expensive(n)` as the note of a passing assertion and `expensive(n + 1)` as the note of a
+      failing one, only the second ever runs. Its default is a constant, which is F3;
+    - `text` is the source of whatever expression reached `held`, so `check(length(xs) == 3)`
+      reports `length(xs) == 3` with no macro system and no argument the author wrote;
+    - `at` is where the call is.
+
+   The text goes in the claim rather than beside it, because a claim with no values in it *is* the
+   expression: "check failed: length(xs) == 3" is the whole report, and a `checkEqual` two lines
+   below says the values instead.
+-}
+pub fn check(held: Bool, @lazy note: String = "",
+             @caller(source: held) text: String, @caller ->at: Site) -> {}:
+    if held then return
+    record(Failure {site: at, claim: claimOf(text), detail: note})
+
+pub fn requireTrue(held: Bool, @lazy note: String = "",
+                   @caller(source: held) text: String, @caller ->at: Site) -> Test:
+    if held then return Ok({})
+    return failing(Failure {site: at, claim: claimOf(text), detail: note})
+
+-- What a bare claim says when the compiler could not name the expression - a call the compiler
+-- synthesized, or a `held` that was itself defaulted. "check failed" alone is worse than useless,
+-- so the site is what the report has and the claim says so rather than showing an empty backtick.
+fn claimOf(text: String) -> String:
+    if length(text) == (0 :: Size) then return "check failed"
+    return "check failed: {text}"
+
+{-
+   The two values, which is what `check` gives up and this buys.
+
+   `Eq(a)` decides and `Show(a)` reports, and neither is a constraint on what a test may assert
+   about: a type the program compares is one it can be asked about here, and a type it cannot show
+   is one `check` still covers.
+-}
+pub fn (Eq(a), Show(a)) checkEqual(actual: a, expected: a, @caller ->at: Site) -> {}:
+    if actual == expected then return
+    record(Failure {site: at, claim: "expected {expected}, got {actual}", detail: ""})
+
+pub fn (Eq(a), Show(a)) requireEqual(actual: a, expected: a, @caller ->at: Site) -> Test:
+    if actual == expected then return Ok({})
+    return failing(Failure {site: at, claim: "expected {expected}, got {actual}", detail: ""})
+
+pub fn (Eq(a), Show(a)) checkNotEqual(actual: a, unexpected: a, @caller ->at: Site) -> {}:
+    if actual != unexpected then return
+    record(Failure {site: at, claim: "expected anything but {unexpected}", detail: ""})
+
+pub fn (Eq(a), Show(a)) requireNotEqual(actual: a, unexpected: a, @caller ->at: Site) -> Test:
+    if actual != unexpected then return Ok({})
+    return failing(Failure {site: at, claim: "expected anything but {unexpected}", detail: ""})
+
+-- The four orderings. One `Ord` comparison each, and the message names the relation that was
+-- expected rather than the one that held - which is what a reader is checking against the source.
+pub fn (Ord(a), Show(a)) checkLess(actual: a, limit: a, @caller ->at: Site) -> {}:
+    if actual < limit then return
+    record(Failure {site: at, claim: "expected {actual} < {limit}", detail: ""})
+
+pub fn (Ord(a), Show(a)) requireLess(actual: a, limit: a, @caller ->at: Site) -> Test:
+    if actual < limit then return Ok({})
+    return failing(Failure {site: at, claim: "expected {actual} < {limit}", detail: ""})
+
+pub fn (Ord(a), Show(a)) checkAtMost(actual: a, limit: a, @caller ->at: Site) -> {}:
+    if actual <= limit then return
+    record(Failure {site: at, claim: "expected {actual} <= {limit}", detail: ""})
+
+pub fn (Ord(a), Show(a)) requireAtMost(actual: a, limit: a, @caller ->at: Site) -> Test:
+    if actual <= limit then return Ok({})
+    return failing(Failure {site: at, claim: "expected {actual} <= {limit}", detail: ""})
+
+pub fn (Ord(a), Show(a)) checkGreater(actual: a, limit: a, @caller ->at: Site) -> {}:
+    if actual > limit then return
+    record(Failure {site: at, claim: "expected {actual} > {limit}", detail: ""})
+
+pub fn (Ord(a), Show(a)) requireGreater(actual: a, limit: a, @caller ->at: Site) -> Test:
+    if actual > limit then return Ok({})
+    return failing(Failure {site: at, claim: "expected {actual} > {limit}", detail: ""})
+
+pub fn (Ord(a), Show(a)) checkAtLeast(actual: a, limit: a, @caller ->at: Site) -> {}:
+    if actual >= limit then return
+    record(Failure {site: at, claim: "expected {actual} >= {limit}", detail: ""})
+
+pub fn (Ord(a), Show(a)) requireAtLeast(actual: a, limit: a, @caller ->at: Site) -> Test:
+    if actual >= limit then return Ok({})
+    return failing(Failure {site: at, claim: "expected {actual} >= {limit}", detail: ""})
+
+{-
+   Floating point, where equality is the wrong question.
+
+   `Real(a)` rather than one instance per width, which is what that class is for: `abs` and the
+   comparison are its members, so this is one body for `Float` and `Double` both. The tolerance is
+   the caller's and has no default - a number this file chose would be wrong for every unit that is
+   not the one it was chosen in, and an assertion whose tolerance is invisible is one nobody checks.
+-}
+pub fn (Real(a, m), Show(a)) checkNear(actual: a, expected: a, tolerance: a, @caller ->at: Site) -> {}:
+    if nearEnough(actual, expected, tolerance) then return
+    record(Failure {site: at, claim: nearClaim(actual, expected, tolerance), detail: ""})
+
+pub fn (Real(a, m), Show(a)) requireNear(actual: a, expected: a, tolerance: a, @caller ->at: Site) -> Test:
+    if nearEnough(actual, expected, tolerance) then return Ok({})
+    return failing(Failure {site: at, claim: nearClaim(actual, expected, tolerance), detail: ""})
+
+fn (Real(a, m)) nearEnough(actual: a, expected: a, tolerance: a) -> Bool =
+    abs(actual - expected) <= tolerance
+
+fn (Real(a, m), Show(a)) nearClaim(actual: a, expected: a, tolerance: a) -> String =
+    "expected {expected} within {tolerance}, got {actual}"
+
+{-
+   `Maybe` and `Result`, which are the two shapes a library answer arrives in.
+
+   Each says what it found rather than only that it was the wrong constructor, which is what makes
+   `checkOk` worth writing over `check(r is Ok(_))`: the reason an operation failed is the whole of
+   what a reader wants from the line, and it is what the bare form throws away.
+-}
+pub fn (Show(a)) checkJust(value: Maybe(a), @caller ->at: Site) -> {}:
+    if value is Just(_) then return
+    record(Failure {site: at, claim: "expected Just, got Nothing", detail: ""})
+
+pub fn (Show(a)) requireJust(value: Maybe(a), @caller ->at: Site) -> Test:
+    if value is Just(_) then return Ok({})
+    return failing(Failure {site: at, claim: "expected Just, got Nothing", detail: ""})
+
+pub fn (Show(a)) checkNothing(value: Maybe(a), @caller ->at: Site) -> {}:
+    if value is Nothing then return
+    record(Failure {site: at, claim: "expected Nothing, got {value}", detail: ""})
+
+pub fn (Show(a)) requireNothing(value: Maybe(a), @caller ->at: Site) -> Test:
+    if value is Nothing then return Ok({})
+    return failing(Failure {site: at, claim: "expected Nothing, got {value}", detail: ""})
+
+pub fn (Show(e), Show(a)) checkOk(value: Result(e, a), @caller ->at: Site) -> {}:
+    match value:
+        Ok(_) -> {}
+        Err(reason) -> record(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
+
+pub fn (Show(e), Show(a)) requireOk(value: Result(e, a), @caller ->at: Site) -> Test:
+    match value:
+        Ok(_) -> return Ok({})
+        Err(reason) -> return failing(Failure {site: at, claim: "expected Ok, got Err({reason})", detail: ""})
+
+pub fn (Show(e), Show(a)) checkErr(value: Result(e, a), @caller ->at: Site) -> {}:
+    match value:
+        Ok(inner) -> record(Failure {site: at, claim: "expected Err, got Ok({inner})", detail: ""})
+        Err(_) -> {}
+
+pub fn (Show(e), Show(a)) requireErr(value: Result(e, a), @caller ->at: Site) -> Test:
+    match value:
+        Ok(inner) -> return failing(Failure {site: at, claim: "expected Err, got Ok({inner})", detail: ""})
+        Err(_) -> return Ok({})
+
+{-
+   Containers.
+
+   `Chunked` and not `Contiguous`, on the rule that class states: a function that only reads elements
+   asks for the weaker one, and after specialization there is no dispatch either way. So a `Map`, a
+   chunked container of the program's own and an `[a]` are all assertable about here.
+
+   `checkOrdered` and `checkPermutes` are the generalization of the five claims `test/lib/Sort.yana`
+   states by hand, and they are worth naming for the reason that file gives: **a sort that dropped an
+   element or duplicated one passes every ordering check there is**, so the multiset has to be
+   checked separately. That is not special to sorting.
+-}
+pub fn (Length(c)) checkEmpty(container: c, @caller ->at: Site) -> {}:
+    let count = length(container)
+    if count == (0 :: Size) then return
+    record(Failure {site: at, claim: "expected an empty container, got {count} elements", detail: ""})
+
+pub fn (Length(c)) requireEmpty(container: c, @caller ->at: Site) -> Test:
+    let count = length(container)
+    if count == (0 :: Size) then return Ok({})
+    return failing(Failure {site: at, claim: "expected an empty container, got {count} elements", detail: ""})
+
+pub fn (Chunked(c, a), Eq(a), Show(a)) checkContains(container: c, element: a, @caller ->at: Site) -> {}:
+    if contains(container, element) then return
+    record(Failure {site: at, claim: "expected the container to hold {element}", detail: ""})
+
+pub fn (Chunked(c, a), Eq(a), Show(a)) requireContains(container: c, element: a, @caller ->at: Site) -> Test:
+    if contains(container, element) then return Ok({})
+    return failing(Failure {site: at, claim: "expected the container to hold {element}", detail: ""})
+
+{-
+   In order, checked by walking rather than by naming the elements.
+
+   The first pair out of order is what the report names, because "not sorted" of a three-hundred
+   element array is a sentence nobody can act on and "element 41 is 9, element 42 is 4" is the whole
+   answer.
+-}
+pub fn (Contiguous(c, a), Ord(a), Show(a)) checkOrdered(container: c, @caller ->at: Site) -> {}:
+    match disorderedAt(container):
+        Nothing -> {}
+        Just(index) -> record(Failure {site: at, claim: orderClaim(container, index), detail: ""})
+
+pub fn (Contiguous(c, a), Ord(a), Show(a)) requireOrdered(container: c, @caller ->at: Site) -> Test:
+    match disorderedAt(container):
+        Nothing -> return Ok({})
+        Just(index) -> return failing(Failure {site: at, claim: orderClaim(container, index), detail: ""})
+
+fn (Contiguous(c, a), Ord(a)) disorderedAt(container: c) -> Maybe(Size):
+    let items = elements(container)
+    let &i = 1 :: Size
+
+    while i < length(items):
+        if items[i] < items[i - 1] then return Just(i)
+        i = i + 1
+
+    return Nothing
+
+fn (Contiguous(c, a), Ord(a), Show(a)) orderClaim(container: c, index: Size) -> String:
+    let items = elements(container)
+    return "expected ascending order: element {index - 1} is {items[index - 1]} and element {index} is {items[index]}"
+
+{-
+   The same elements, however they were rearranged.
+
+   O(n²) and deliberately so: this is an assertion rather than an algorithm, and a hash-based version
+   would need `Hash(a)` where this needs only `Eq(a)` - which would make the check unavailable for
+   exactly the element types a sort is most interesting on. A test that needs it over a hundred
+   thousand elements should say so and write its own.
+
+   Each element of the original is matched against an unclaimed position of the result, so a
+   duplicate in one and not the other is caught: the count is checked first and the marks are what
+   make "the same three elements" different from "one of them three times".
+-}
+pub fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) checkPermutes(actual: c, original: d, @caller ->at: Site) -> {}:
+    match permutationFailure(actual, original):
+        Nothing -> {}
+        Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})
+
+pub fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) requirePermutes(actual: c, original: d, @caller ->at: Site) -> Test:
+    match permutationFailure(actual, original):
+        Nothing -> return Ok({})
+        Just(->claim) -> return failing(Failure {site: at, claim: claim, detail: ""})
+
+fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) permutationFailure(actual: c, original: d) -> Maybe(String):
+    let left = elements(actual)
+    let right = elements(original)
+
+    if length(left) != length(right):
+        return Just("expected a permutation of {length(right)} elements, got {length(left)}")
+
+    let &claimed = [] :: [Bool]
+    let &i = 0 :: Size
+
+    while i < length(left):
+        push(claimed, False)
+        i = i + 1
+
+    let &j = 0 :: Size
+
+    while j < length(right):
+        let &found = False
+        let &k = 0 :: Size
+
+        while k < length(left):
+            if !claimed[k] && left[k] == right[j]:
+                claimed[k] = True
+                found = True
+                k = length(left)
+            else:
+                k = k + 1
+
+        if !found then return Just("expected a permutation: element {j} of the original is not in the result")
+        j = j + 1
+
+    return Nothing
+
+{-
+   What a `require…` hands back.
+
+   Recorded *and* returned, which is one fact reported once in each of the two places that read it:
+   the stream gets the line - with its section labels, at the moment it happened - and the caller
+   gets the `Err` that `?` turns into an early return. The runner knows not to say it twice, because
+   it can see that the case's failure count moved.
+-}
+fn failing(->failure: Failure) -> Test:
+    record(failure)
+    return Err(failure)

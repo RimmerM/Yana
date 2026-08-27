@@ -1,0 +1,92 @@
+{-
+   ==========================================================================================
+   The report stream, and where a failure goes - Design-Test.md §5.1 and §5.2.
+   ==========================================================================================
+
+   One line per event, textual, written as it happens:
+
+       begin 17 Map.duplicate_insert
+       fail  17 Map.test:41:5  expected 1, got 2
+       end   17 fail 214000
+
+   **Line-oriented and unbuffered, for one reason:** a case that takes the process down loses one
+   line rather than the whole report. A binary framing would lose everything after the truncation,
+   and losing the report of a run that crashed is losing the only thing worth having. It is also
+   what makes crash attribution free - §5.3's middle tier is a `begin` with no `end`, and naming the
+   case that died needs no second process, no ptrace and no debugger.
+
+   **The recorder is a global rather than a parameter**, which is §5.1's ruling. Threading a
+   `&Report` through every assertion would put it in every *helper's* signature too, and the
+   exclusivity rule then forbids a helper holding that borrow across a nested call that also wants
+   it. There is one runner in a process, so nothing is being hidden.
+
+   And the state is scalars, which is not a preference: a global's initializer has to have a
+   constant form, so `let &failures = [] :: [Failure]` does not compile in a library module - only
+   the root's top level may hold one. That turns out to be the better shape anyway. A failure is
+   *written* where it happens rather than accumulated and printed at the end, which is exactly what
+   makes the stream survive a case that never returns.
+-}
+
+import Native
+
+-- Which case is being reported, and how many claims did not hold - the whole of the runner's state.
+-- `caseFailures` is reset per case and `totalFailures` is not, so the summary and the per-case
+-- verdict are two counters rather than one counter and a list.
+let &ordinal = 0 :: Int
+let &caseFailures = 0 :: Int
+let &totalFailures = 0 :: Int
+let &caseName = "" :: String
+
+{-
+   One claim that did not hold, written to the stream and counted.
+
+   Public, because a user-written assertion is an ordinary function that ends in this - which is what
+   §4.3's "every assertion in the library has this shape" means in practice. The `check…` family
+   below is nothing but a condition and a call to this.
+-}
+pub fn record(failure: Failure) -> {}:
+    recordAt(failure.site, failure.claim, failure.detail)
+
+{-
+   The same, from the pieces rather than from the record.
+
+   The harness needs this: a case it ran in a child has a verdict and a `Site` that belongs to the
+   `Case`, and building a `Failure` out of them would mean *owning* copies of two strings that are
+   already there. Nothing about a report line needs the record - it needs four fields to read.
+-}
+pub fn recordAt(site: Site, claim: String, detail: String) -> {}:
+    caseFailures = caseFailures + 1
+    totalFailures = totalFailures + 1
+
+    let &line = "fail  {ordinal} {site.file}:{site.line}:{site.column}"
+    if length(sectionLabels) > (0 :: Size) then line ++= "  [{sectionLabels}]"
+    line ++= "  {claim}\n"
+    if length(detail) > (0 :: Size) then line ++= "      {detail}\n"
+
+    reportLine(line)
+
+-- How many claims the case being run has already lost. What `require…` reads to decide whether it
+-- has anything to add, and what the runner reads to decide the verdict.
+pub fn currentFailures() -> Int = caseFailures
+
+pub fn totalFailureCount() -> Int = totalFailures
+
+{-
+   The two lines that bracket a case.
+
+   `begin` carries the ordinal and the qualified name; `end` carries the verdict and how long the
+   case took, in nanoseconds. The ordinal is what ties the three line kinds together and is what a
+   parent reads: a `begin` whose `end` never arrived names the case that crashed.
+-}
+pub fn beginCase(index: Int, name: String) -> {}:
+    ordinal = index
+    caseFailures = 0
+    caseName = copy(name)
+    reportLine("begin {index} {name}\n")
+
+pub fn endCase(verdict: String, nanos: I64) -> {}:
+    reportLine("end   {ordinal} {verdict} {bitcast(nanos) :: Long}\n")
+
+-- The name of the case being run, for a report written from outside the case's own body - which is
+-- the harness reporting a child that never came back.
+pub fn currentCase() -> String = copy(caseName)

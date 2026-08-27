@@ -1,0 +1,84 @@
+{-
+   Where a snapshot is kept, natively - Design-Test.md §7.
+
+   Five operations and no policy: the decisions about *when* to read, write, rewrite or delete are
+   `Golden.yana`'s, and what is here is the filesystem underneath them. The split is a file rather
+   than an `@platform` per declaration, on Analysis-Modules.md §2.4's rule - what differs between the
+   targets is which *module* this reads, and an import is a property of a file.
+
+   Every error becomes a sentence rather than a `FileError`, because the only consumer is a report
+   line and the caller has nothing to branch on: a snapshot that could not be written is a failure
+   whatever the reason, and the reason is what the reader needs to see.
+-}
+
+import File
+
+pub fn snapshotStoreAvailable() -> Bool = True
+
+-- `Nothing` for a snapshot that is not there, which is ruling 4's *create*. A directory that does
+-- not exist yet is the same answer: the first run of a new test is what makes both.
+pub fn readSnapshotFile(root: String, file: String) -> Maybe(String) = match readWholeFile(joinPath(root, file)):
+    Ok(->text) -> Just(text)
+    Err(_) -> Nothing
+
+{-
+   The write, with the directory made on the way.
+
+   `createDirectory` is the "make sure it exists" form - it creates parents and treats an existing
+   directory as success - so a snapshot root of `test/__snapshots__/native` costs one call and no
+   check. Answers `Nothing` on success and the reason otherwise, which is the shape the caller wants:
+   there is nothing to hand back.
+-}
+pub fn writeSnapshotFile(root: String, file: String, text: String) -> Maybe(String):
+    match createDirectory(root):
+        Err(reason) -> return Just("could not make {root}: {describeError(reason)}")
+        Ok(_) -> {}
+
+    match writeWholeFile(joinPath(root, file), text):
+        Err(reason) -> return Just(describeError(reason))
+        Ok(_) -> return Nothing
+
+-- Deleting one that is not there is success, not a failure. Both callers are removing something they
+-- are not sure exists - a stale `.actual` beside a snapshot that now matches - and a caller that had
+-- to ask first would be asking the filesystem the same question twice.
+pub fn removeSnapshotFile(root: String, file: String) -> Maybe(String):
+    let path = joinPath(root, file)
+    if !fileExists(path) then return Nothing
+
+    match removeFile(path):
+        Err(reason) -> return Just(describeError(reason))
+        Ok(_) -> return Nothing
+
+{-
+   Every snapshot in the root, for ruling 3's stale scan.
+
+   `.txt` only, so the `.actual` files a failing run leaves beside them are not themselves reported
+   as goldens nothing compared against - they are the *evidence* for a report that already happened.
+   Subdirectories are not descended into: the names are flat by construction, so anything below is
+   something else's.
+
+   A root that does not exist yet is an empty list rather than an error. A tree whose tests have
+   never been run has no stale snapshots in it, which is the true answer.
+-}
+pub fn snapshotFileNames(root: String) -> [String]:
+    let &names = [] :: [String]
+
+    for entry in entries(root):
+        match entry:
+            Err(_) -> {}
+            Ok(found) -> if !found.isDirectory && endsWithText(found.name, ".txt"):
+                push(names, copy(found.name))
+
+    return names
+
+fn endsWithText(text: String, suffix: String) -> Bool:
+    if length(suffix) > length(text) then return False
+
+    let from = length(text) - length(suffix)
+    let &i = 0 :: Size
+
+    while i < length(suffix):
+        if text.unit(from + i) != suffix.unit(i) then return False
+        i = i + 1
+
+    return True

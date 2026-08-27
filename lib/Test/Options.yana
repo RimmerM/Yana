@@ -1,0 +1,222 @@
+{-
+   ==========================================================================================
+   What a test binary was asked to do - Design-Test.md §5.3 and §6.
+   ==========================================================================================
+
+   The switches, and each one is the whole of a section rather than a convenience:
+
+       --list                 print one qualified name per case and stop
+       --filter <text>        only the cases whose qualified name contains this
+       --only <name>          exactly one case, by qualified name - what `--isolate` re-executes as
+       --shard <i>/<n>        the cases whose ordinal is `i` modulo `n` - §6
+       --isolate              one child per case, rather than every case in this process - §5.3
+       --jobs <n>             run `n` shards as children, in parallel - §6
+       --timeout <ms>         kill a case that runs longer than this, and report it as a timeout
+       --allow-empty          a selection that matched nothing is not a failure
+       --update               rewrite a snapshot whose text has changed - §7's rulings 1 and 2
+       --no-update            write nothing, and fail on a snapshot that is missing - what CI passes
+       --prune                with --update, delete the snapshots a full run did not reach
+       --snapshot-dir <path>  where the snapshots live, rather than `__snapshots__`
+       -v                     one line per case on the way past
+       -q                     no summary either
+
+   **A selection that matched nothing is a failure**, which is `test/README.md`'s empty-corpus guard
+   said in the new framework's terms: a driver that verified nothing must not be mistaken for one
+   that verified everything, and `--filter Mpa` matching zero cases is exactly that mistake. It is
+   waived by a flag rather than by silence - `--allow-empty` - so that a shard with nothing in it is
+   still expressible.
+
+   `--shard i/n` is round-robin rather than contiguous, for the reason `test/shard.h` gives: the
+   fixtures are not equal in cost and the expensive ones are not evenly spread through the listing.
+
+   An unrecognized switch is refused rather than ignored. A test harness that quietly did nothing
+   because of a typo in a flag is the failure mode this whole document is about.
+
+   **`--update` and `--no-update` are three states rather than two flags**, which is why the runner
+   reads them into one number. A development run creates a snapshot it has never seen and *fails* on
+   one that changed; `--update` rewrites the change; `--no-update` writes nothing at all and fails on
+   the absence too. Writing them as an independent pair would let a command line say "update and do
+   not update", which is not one of the three.
+-}
+
+pub data Options {
+    list: Bool,
+    filter: String,
+    only: String,
+    shard: Int,
+    shards: Int,
+    isolate: Bool,
+    jobs: Int,
+    timeoutMs: Int,
+    allowEmpty: Bool,
+    update: Bool,
+    noUpdate: Bool,
+    prune: Bool,
+    snapshotDir: String,
+    verbose: Bool,
+    quiet: Bool,
+    complaint: String
+}
+
+pub fn defaultOptions() -> Options = Options {
+    list: False, filter: "", only: "", shard: 0, shards: 1, isolate: False, jobs: 1,
+    timeoutMs: 0, allowEmpty: False, update: False, noUpdate: False, prune: False, snapshotDir: "",
+    verbose: False, quiet: False, complaint: ""
+}
+
+{-
+   The command line, read into the record above.
+
+   `arguments` is everything after the program's own name. A switch that takes a value takes it as
+   the next argument rather than after an `=`, because that is the form every driver in this tree
+   already uses and there is nothing to gain by having two.
+-}
+pub fn readOptions(arguments: [String]) -> Options:
+    let &options = defaultOptions()
+    let &i = 0 :: Size
+
+    while i < length(arguments) && length(options.complaint) == (0 :: Size):
+        let argument = arguments[i]
+        i = i + 1
+
+        if argument == "--list" || argument == "-list":
+            options.list = True
+        else if argument == "--isolate" || argument == "-isolate":
+            options.isolate = True
+        else if argument == "--allow-empty":
+            options.allowEmpty = True
+        else if argument == "--update" || argument == "-update":
+            options.update = True
+        else if argument == "--no-update":
+            options.noUpdate = True
+        else if argument == "--prune":
+            options.prune = True
+        else if argument == "--snapshot-dir":
+            match nextValue(arguments, i, argument):
+                Ok(->value) -> options.snapshotDir = value
+                Err(->why) -> options.complaint = why
+
+            i = i + 1
+        else if argument == "-v" || argument == "--verbose":
+            options.verbose = True
+        else if argument == "-q" || argument == "--quiet":
+            options.quiet = True
+        else if argument == "--filter" || argument == "-filter":
+            match nextValue(arguments, i, argument):
+                Ok(->value) -> options.filter = value
+                Err(->why) -> options.complaint = why
+
+            i = i + 1
+        else if argument == "--only" || argument == "-only":
+            match nextValue(arguments, i, argument):
+                Ok(->value) -> options.only = value
+                Err(->why) -> options.complaint = why
+
+            i = i + 1
+        else if argument == "--shard" || argument == "-shard":
+            match nextValue(arguments, i, argument):
+                Ok(value) -> readShard(options, value)
+                Err(->why) -> options.complaint = why
+
+            i = i + 1
+        else if argument == "--jobs" || argument == "-jobs" || argument == "-j":
+            match nextValue(arguments, i, argument):
+                Ok(value) -> options.jobs = readCount(options, value, argument)
+                Err(->why) -> options.complaint = why
+
+            i = i + 1
+        else if argument == "--timeout":
+            match nextValue(arguments, i, argument):
+                Ok(value) -> options.timeoutMs = readCount(options, value, argument)
+                Err(->why) -> options.complaint = why
+
+            i = i + 1
+        else:
+            -- A bare word is the filter, which is the shorthand every driver in `test/` already
+            -- takes. A word starting with `-` is not: an unrecognized switch is a mistake, and
+            -- taking it for a filter would silently run nothing.
+            if length(argument) > (0 :: Size) && argument.unit(0) == 45:
+                options.complaint = "unknown switch {argument}"
+            else:
+                options.filter = copy(argument)
+
+    -- The three states, checked once rather than per snapshot. A command line that asked for both
+    -- would otherwise take whichever the runner tested first, which is the kind of answer nobody
+    -- can predict from reading the flag.
+    if options.update && options.noUpdate && length(options.complaint) == (0 :: Size):
+        options.complaint = "--update and --no-update ask for opposite things - one rewrites a changed snapshot and the other writes nothing at all"
+
+    if options.prune && !options.update && length(options.complaint) == (0 :: Size):
+        options.complaint = "--prune deletes the snapshots a run did not reach, so it needs --update - a run that writes nothing should not be deleting anything"
+
+    return options
+
+fn nextValue(arguments: [String], at: Size, switch: String) -> Result(String, String):
+    if at >= length(arguments) then return Err("{switch} needs a value after it")
+    return Ok(copy(arguments[at]))
+
+-- `i/n`, which is what `run-tests.sh` already writes and what `shard.h` explains the shape of.
+fn readShard(&options: Options, value: String) -> {}:
+    let &at = 0 :: Size
+
+    match read(value, at) :: Result(ReadError, Int):
+        Err(_) -> options.complaint = "--shard takes <index>/<count>, as in --shard 0/8"
+        Ok(index) -> if at >= length(value) || value.unit(at) != 47:
+            options.complaint = "--shard takes <index>/<count>, as in --shard 0/8"
+        else:
+            at = at + 1
+
+            match read(value, at) :: Result(ReadError, Int):
+                Err(_) -> options.complaint = "--shard takes <index>/<count>, as in --shard 0/8"
+                Ok(count) -> if count <= 0 || index < 0 || index >= count:
+                    options.complaint = "--shard {index}/{count} names no shard - the index is from 0 and the count is above it"
+                else:
+                    options.shard = index
+                    options.shards = count
+
+fn readCount(&options: Options, value: String, switch: String) -> Int:
+    let &at = 0 :: Size
+
+    match read(value, at) :: Result(ReadError, Int):
+        Ok(count) -> if count >= 0 then return count
+
+        Err(_) -> {}
+
+    options.complaint = "{switch} takes a number"
+    return 0
+
+{-
+   Whether one case is in the selection.
+
+   The three filters compose rather than override: `--filter Map --shard 1/4` is the `Map` cases of
+   shard one, and the shard is applied to the *filtered* ordinal so that four shards of a filtered
+   run still divide the work between them.
+-}
+pub fn selects(options: Options, name: String) -> Bool:
+    if length(options.only) > (0 :: Size) then return name == options.only
+    if length(options.filter) == (0 :: Size) then return True
+    return containsText(name, options.filter)
+
+-- One string inside another. Written here because the portable string surface has no `indexOf` -
+-- `hostIndexOf` is the JavaScript host's and `findAscii` answers about a single unit.
+pub fn containsText(haystack: String, needle: String) -> Bool:
+    let inner = length(needle)
+    if inner == (0 :: Size) then return True
+
+    let outer = length(haystack)
+    if inner > outer then return False
+
+    let &start = 0 :: Size
+
+    while start <= outer - inner:
+        let &i = 0 :: Size
+        let &same = True
+
+        while i < inner && same:
+            same = haystack.unit(start + i) == needle.unit(i)
+            i = i + 1
+
+        if same then return True
+        start = start + 1
+
+    return False

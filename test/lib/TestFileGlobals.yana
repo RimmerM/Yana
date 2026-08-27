@@ -1,0 +1,13 @@
+{-
+   A library module carrying a test file of its own - Design-Test.md §3.1.
+
+   Most of what this fixture asserts is not written in it: `modules/GlobalInit.test.yana` holds the
+   case, and it runs here because a test file joins the suite of whatever compiled it. What is here
+   is the other half - that the module's ordinary declarations still work from outside, and that a
+   fixture importing one gets both.
+-}
+import GlobalInit
+import Test
+
+@test fn theModuleItself() -> {}:
+    check(doubled(21) == 42)

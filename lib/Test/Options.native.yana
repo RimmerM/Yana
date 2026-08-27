@@ -1,0 +1,25 @@
+{-
+   The command line, natively - `Environment` is F4's other half.
+
+   A file of its own rather than an `@platform` on the function, on the rule Analysis-Modules.md
+   §2.4 gives: what differs between the targets is which *module* this reads, and an import is a
+   property of a file.
+-}
+
+import Environment
+
+pub fn runnerArguments() -> [String]:
+    let all = arguments()
+    let &mine = [] :: [String]
+    let &i = 1 :: Size
+
+    -- From one, because the vector's first entry is the program's own name.
+    while i < length(all):
+        push(mine, copy(all[i]))
+        i = i + 1
+
+    return mine
+
+-- What `--isolate` re-executes. `Nothing` where the stub wrote no command line at all, which is
+-- every build that never asks - see Environment.native.yana.
+pub fn ownProgram() -> Maybe(String) = argument(0)

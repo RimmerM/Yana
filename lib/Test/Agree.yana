@@ -1,0 +1,159 @@
+{-
+   ==========================================================================================
+   `agree` - the assertion that cannot be regenerated - Design-Test.md §8.
+   ==========================================================================================
+
+   Several independent ways of getting an answer, asserted to get the *same* answer. There is no
+   expected value here, no golden file and nothing to update, and that is the whole point:
+   **neither side of the assertion is a file**, so no regeneration can quietly make it agree with a
+   bad pass. Every other assertion in this library compares something a test computed against
+   something a person wrote down, and a person who writes the wrong thing down twice has a green
+   suite.
+
+   It is the shape of most of the strong assertions this repository already makes - a `moveMemory`
+   against a byte loop, `crc32` the instruction against `crc32` the table, a `Map` against an
+   association list - and of several it does not, which §8 tabulates. Those are all *functions*, and
+   they are what this file covers. The other half of §8's table is separate builds - specialized
+   against forced-generic, amd64 against JavaScript - and those ways are the harness's rather than
+   the runner's: the `Way` list comes from a matrix outside the binary, and what runs here is the
+   same comparison over the answers it collected.
+
+   **The report names the odd one out, not the failure.** "three ways, two agreed - `js` answered 17,
+   `native` and `native-noopt` answered 16" is a sentence somebody can act on; "agreement failed" is
+   not. The groups are printed smallest first for exactly that reason - the minority is the thing
+   being looked for, and putting it at the front means it is the first thing read.
+-}
+
+{-
+   One way of getting the answer.
+
+   `() -> String` rather than a type variable, which is §8's own shape and is a deliberate narrowing.
+   Two ways of computing something may not agree on a *type* - a `Map`'s contents and an association
+   list's are two different types holding the same information - and text is the one thing every
+   answer can be reduced to. It also makes the report printable without a `Show` constraint that
+   half the interesting cases could not satisfy.
+-}
+pub data Way {name: String, run: () -> String}
+
+pub fn agree(label: String, ways: [Way], @caller ->at: Site) -> {}:
+    match disagreementOf(label, ways):
+        Nothing -> {}
+        Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})
+
+pub fn requireAgree(label: String, ways: [Way], @caller ->at: Site) -> Test:
+    match disagreementOf(label, ways):
+        Nothing -> return Ok({})
+        Just(->claim) -> return failing(Failure {site: at, claim: claim, detail: ""})
+
+{-
+   Every way run, and the answers grouped.
+
+   **Fewer than two ways is a failure rather than a pass**, which is `test/README.md`'s empty-corpus
+   guard in the one place it is easiest to trip over: a matrix that produced a single build, or a
+   list a `if` emptied, is an `agree` that holds vacuously. One way agreeing with itself asserts
+   nothing, and something that asserts nothing must not be mistaken for something that asserts
+   everything.
+
+   Grouping is by first appearance rather than by a hash, so it needs no `Hash(String)` and the
+   order the report comes out in is the order the ways were written in. O(n^2) over the number of
+   *ways*, which is three.
+
+   **Public for the reason `snapshotOutcome` is.** A test of what a disagreement reports cannot be
+   written in terms of `agree`, because the assertion would record the failure it was checking for.
+   The predicate and the `record` are separable in every assertion here; in the two the framework
+   tests itself with, the split is reachable.
+-}
+pub fn disagreementOf(label: String, ways: [Way]) -> Maybe(String):
+    let count = length(ways)
+
+    if count < (2 :: Size):
+        return Just("{label}: agree needs at least two ways and got {count} - one way agreeing with itself asserts nothing")
+
+    let &answers = [] :: [String]
+    let &i = 0 :: Size
+
+    while i < count:
+        let way = ways[i]
+        push(answers, way.run())
+        i = i + 1
+
+    -- Each way's group, named by the first way that gave the same answer. A way that is its own
+    -- leader is a group, so the leaders are the distinct answers and nothing has to be deduplicated.
+    let &leader = [] :: [Size]
+    let &j = 0 :: Size
+
+    while j < count:
+        let &found = j
+        let &k = 0 :: Size
+
+        while k < j:
+            if answers[k] == answers[j]:
+                found = k
+                k = j
+            else:
+                k = k + 1
+
+        push(leader, found)
+        j = j + 1
+
+    let &groups = 0 :: Size
+    let &largest = 0 :: Size
+    let &g = 0 :: Size
+
+    while g < count:
+        if leader[g] == g:
+            groups = groups + 1
+            let size = groupSize(leader, g)
+            if size > largest then largest = size
+
+        g = g + 1
+
+    if groups <= (1 :: Size) then return Nothing
+
+    -- Smallest group first, so the odd one out is the first thing in the sentence. Ties keep the
+    -- order the ways were written in, which is what makes the line the same on every run.
+    let &text = "{label}: {count} ways, {largest} agreed"
+    let &size = 1 :: Size
+
+    while size <= count:
+        let &at = 0 :: Size
+
+        while at < count:
+            if leader[at] == at && groupSize(leader, at) == size:
+                text ++= " - {namesOfGroup(ways, leader, at)} answered {answers[at]}"
+
+            at = at + 1
+
+        size = size + 1
+
+    return Just(text)
+
+fn groupSize(leader: [Size], of: Size) -> Size:
+    let &size = 0 :: Size
+    let &i = 0 :: Size
+
+    while i < length(leader):
+        if leader[i] == of then size = size + 1
+        i = i + 1
+
+    return size
+
+-- `a`, `a and b`, `a, b and c` - the English form rather than a comma list, because the line is read
+-- as a sentence and "`native`, `native-noopt` answered 16" is not one.
+fn namesOfGroup(ways: [Way], leader: [Size], of: Size) -> String:
+    let size = groupSize(leader, of)
+    let &text = "" :: String
+    let &shown = 0 :: Size
+    let &i = 0 :: Size
+
+    while i < length(leader):
+        if leader[i] == of:
+            if shown > (0 :: Size):
+                if shown + 1 == size then text ++= " and " else text ++= ", "
+
+            text ++= "`{ways[i].name}`"
+            shown = shown + 1
+
+        i = i + 1
+
+    return text

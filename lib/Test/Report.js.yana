@@ -1,0 +1,38 @@
+{-
+   Where the stream goes on JavaScript - Design-Test.md §5.2, and §11.2's F4 note.
+
+   There is one output here and it is `console`, so the separation the native half buys with
+   descriptor 3 does not exist on this target. That is the same asymmetry the design states outright
+   for the harness: the JavaScript target gets the runner, orchestration happens in a native parent
+   that spawns `node`, and a fake second stream would be a lie about which of the two is which.
+
+   `hostLog` appends a newline of its own, so the trailing one every caller writes is trimmed rather
+   than doubled - the line *is* the unit here, and a blank line between every two of them would make
+   the stream harder to read for no gain.
+-}
+
+import Native
+
+-- There is one output on this target, so the stream never has a channel of its own and the runner
+-- always reports for a human - see the native half, where this is a real question.
+pub fn reportIsPrivate() -> Bool = False
+
+pub fn reportLine(text: String) -> {}:
+    let count = length(text)
+    if count == (0 :: Size) then return
+
+    -- The one code unit this has to look at. Slicing a `String` is not in the portable surface, so
+    -- the trim is a rebuild - which on this target is a host string concatenation and is what every
+    -- other string operation here already is.
+    if text.unit(count - 1) != 10:
+        hostLog(text)
+        return
+
+    let &line = String.ofCapacity(count - 1)
+    let &i = 0 :: Size
+
+    while i < count - 1:
+        line.pushUnit(text.unit(i))
+        i = i + 1
+
+    hostLog(line)

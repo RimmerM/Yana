@@ -47,6 +47,7 @@ pub data Syscall
   | @value(18)  SysWriteAt
   | @value(22)  SysPipe
   | @value(33)  SysDuplicate
+  | @value(35)  SysSleep
   | @value(39)  SysProcessId
   | @value(57)  SysFork
   | @value(59)  SysExec
@@ -436,6 +437,21 @@ pub let clockMonotonic = 1 :: USize
 -- draws. `Native.Clock` is what turns a failure into a fallback.
 pub fn readClock(clock: USize, &into: ClockTime) -> Size =
     syscall2(numberOf(SysClockTime), clock, clockAddress(into))
+
+{-
+   Not running for a while, which is the other thing a `timespec` is for.
+
+   Here because a parent that is waiting for a child needs it: `waitProcess` with `WNOHANG` answers
+   immediately, so a timeout written over it alone is a spin that burns a core for the whole of a
+   test that is doing real work. The interval is the whole of the policy - see Test.Harness, which
+   is this file's one caller.
+
+   The remainder a signal would leave is discarded rather than resumed. This is a poll interval and
+   not a delay anything is timed against, so an early return costs one more turn of a loop that was
+   going to check the clock anyway.
+-}
+pub fn sleepFor(&interval: ClockTime) -> Size =
+    syscall2(numberOf(SysSleep), clockAddress(interval), 0)
 
 {-
    ==========================================================================================

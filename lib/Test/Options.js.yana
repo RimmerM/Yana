@@ -1,0 +1,13 @@
+{-
+   The command line on JavaScript, which there is not one of.
+
+   `process.argv` is deliberately not wrapped here, on the terms Design-Test.md §11.2's F4 note
+   gives: the JavaScript target gets the runner and not the harness, and orchestration happens in a
+   native parent that spawns `node`. A half-`Environment` on this target would be the lie that note
+   is written against, and the selection a JavaScript run needs is the one the parent already made
+   when it decided which script to hand over.
+-}
+
+pub fn runnerArguments() -> [String] = []
+
+pub fn ownProgram() -> Maybe(String) = Nothing

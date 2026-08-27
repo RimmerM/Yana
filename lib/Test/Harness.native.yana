@@ -1,0 +1,332 @@
+{-
+   ==========================================================================================
+   `Test.Harness` - one child per case, and one child per shard - Design-Test.md §5.3 and §6.
+   ==========================================================================================
+
+   **Isolation and parallelism are one mechanism.** `--isolate` is `--shard i/n` with `n` the number
+   of cases, so there is one code path here and it is "re-execute this binary with a narrower
+   selection and read what it says". That is also why the harness needs nothing but `spawn`, `wait`,
+   the command line and a place to put the report - which is exactly F4.
+
+   Three things this buys that an in-process run cannot have:
+
+    - **expected aborts.** `@test(aborts)` runs in a child whatever the run's default is, and the
+      verdict is inverted: the case passes when the child stops with the abort status and fails when
+      it returns normally. That is what makes `assert`, every bounds check and the division rule
+      testable at all - a failed check in an in-process driver kills the driver, which is why
+      `YanaLibTest` forks today;
+    - **crash attribution.** A child that died leaves a `begin` with no `end`, and the parent names
+      the case. Free, because the stream was going to be written anyway;
+    - **timeouts.** A case that runs past the limit is killed, reported as a timeout, and the run
+      continues. Only a parent can do this, and an in-process run should not pretend to.
+
+   > **One deviation from §5.3, and the reason is the timeout.** The design says the child's report
+   > comes back over a *pipe*. It comes back through a **file** here. A pipe would have to be read
+   > while the child runs - 64 KiB of unread report is a child blocked on its own write - and
+   > reading it while also polling for a timeout needs a non-blocking descriptor, which is an
+   > `fcntl` this library does not have. A file has no such limit, is read once the child is gone,
+   > and loses nothing that matters: the property the design asks of the stream is that a *truncated*
+   > report still names the case, and a file truncated by a crash is truncated in exactly the same
+   > place a pipe would have been.
+-}
+
+import Process
+import File
+import Environment
+import Native
+
+{-
+   One case, in a child of its own.
+
+   `Ok` is a pass and carries whatever the parent wants to add to the line - "aborted, as expected".
+   `Err` is a failure and carries the sentence that says why, which is the one thing the parent knows
+   and the child could not say: it is dead.
+-}
+{-
+   Whether this *process* can put a case in a child at all.
+
+   Not a property of the target, which is what it looks like: a harness is this binary re-executing
+   itself, so it needs a path to re-execute - and a program the kernel did not start has none. That
+   is not a hypothetical either. `YanaLibTest` JITs a fixture and calls into it, so no entry stub
+   ran, no command line was written, and `argument(0)` is `Nothing`; the same fixture built as an
+   executable and started by the kernel has one. So the question is asked of the process rather than
+   answered by the target, and a runner with no harness *skips* an `@test(aborts)` case and refuses
+   `--isolate` - two different answers, and both better than pretending.
+-}
+pub fn harnessAvailable() -> Bool = ownProgram() is Just(_)
+
+pub fn runChild(name: String, aborts: Bool, options: Options) -> Result(String, String):
+    match ownProgram():
+        Nothing -> return Err("this build cannot re-execute itself - the command line is empty, so there is no path to spawn")
+        Just(path) -> return runOneChild(path, name, aborts, options)
+
+fn runOneChild(path: String, name: String, aborts: Bool, options: Options) -> Result(String, String):
+    let reportPath = temporaryPath("case")
+
+    -- `--allow-empty`, because a child whose one name matched nothing is a fact the *parent* reports
+    -- against the case it asked for. A child that failed the empty-selection guard would report the
+    -- guard rather than the missing case.
+    let &arguments = ["--only", copy(name), "--allow-empty"]
+    passSnapshotFlags(arguments, options)
+
+    match spawnReporting(path, arguments, reportPath):
+        Err(reason) -> return Err("could not start a child: {describeError(reason)}")
+
+        Ok(child):
+            let outcome = awaitChild(child, options.timeoutMs)
+            let report = collectReport(reportPath)
+            return verdictOf(name, aborts, outcome, report)
+
+{-
+   The shards, all of them at once - §6.
+
+   Each child is this binary with `--shard i/n` and the run's own filter, writing its report where
+   the parent can read it and its human lines straight to the terminal. The parent's answer is the
+   worst of theirs, which is what a suite's status is.
+
+   Round-robin rather than contiguous, and the runner is what applies it - see `runMain`. A shard
+   that dies loses one shard: the parent sees the missing `end`, names the case, and the other
+   children finish. Today a crashed shard is a red run that says nothing.
+-}
+pub fn runShards(cases: [Case], options: Options) -> Int:
+    match ownProgram():
+        Nothing:
+            print("this build cannot re-execute itself, so --jobs has nothing to spawn\n")
+            return 2
+
+        Just(path):
+            let &children = [] :: [Process]
+            let &paths = [] :: [String]
+            let &i = 0 :: Int
+
+            while i < options.jobs:
+                let reportPath = temporaryPath("shard{i}")
+                -- Not `-q`: a shard reports its own failures as they happen, and the parent adds only
+                -- the aggregate and whatever the shard was still inside when it died.
+                let &arguments = ["--shard", "{i}/{options.jobs}", "-q", "--allow-empty"]
+
+                if length(options.filter) > (0 :: Size):
+                    push(arguments, "--filter")
+                    push(arguments, copy(options.filter))
+
+                if options.verbose then push(arguments, "-v")
+                if options.isolate then push(arguments, "--isolate")
+                passSnapshotFlags(arguments, options)
+
+                match spawnReporting(path, arguments, reportPath):
+                    Err(reason):
+                        print("could not start shard {i}: {describeError(reason)}\n")
+                        return 2
+
+                    Ok(child):
+                        push(children, child)
+                        push(paths, reportPath)
+
+                i = i + 1
+
+            let &ran = 0 :: Int
+            let &failed = 0 :: Int
+            let &j = 0 :: Size
+
+            while j < length(children):
+                let outcome = awaitChild(children[j], 0)
+                let report = collectReport(paths[j])
+
+                ran = ran + report.ran
+                failed = failed + report.failedCases
+
+                -- The shard said nothing for a human - its report went to a file of this parent's
+                -- choosing, which is what makes it a child - so the names come from the stream.
+                let &k = 0 :: Size
+                while k < length(report.failedNames):
+                    print("FAIL {report.failedNames[k]}\n")
+                    k = k + 1
+
+                -- The case that was open when the shard stopped, which is the only place this can be
+                -- said. §1.2 is precisely this line not existing.
+                if length(report.unfinished) > (0 :: Size):
+                    failed = failed + 1
+                    print("FAIL {report.unfinished}: the shard running it {describeStop(outcome)}\n")
+                else if outcome.timedOut:
+                    failed = failed + 1
+                    print("FAIL shard {j}: it did not finish inside the timeout\n")
+
+                j = j + 1
+
+            if length(cases) == (0 :: Size) then return 1
+
+            if failed == 0:
+                print("{ran} passed across {options.jobs} shards\n")
+                return 0
+
+            print("{failed} of {ran} failed across {options.jobs} shards\n")
+            return 1
+
+{-
+   The snapshot switches a child inherits - Design-Test.md §7.
+
+   **All of them but `--prune`.** A child reached one case, or one shard, so the snapshots it did not
+   compare against are the ones somebody else's child did - and a child that pruned would delete the
+   whole corpus's goldens on the strength of its own selection. The parent does not prune either
+   while its cases are in children: `runSelected` only asks for the stale scan when the run reached
+   everything in this process, which is the same rule stated from the other end.
+
+   `--snapshot-dir` has to be forwarded even when it was never written, because the parent may have
+   changed its working directory relative to the child's - it has not, today, and a flag that is
+   correct only while that stays true is not worth the saving.
+-}
+fn passSnapshotFlags(&arguments: Array(String), options: Options) -> {}:
+    if options.update then push(arguments, "--update")
+    if options.noUpdate then push(arguments, "--no-update")
+
+    if length(options.snapshotDir) > (0 :: Size):
+        push(arguments, "--snapshot-dir")
+        push(arguments, copy(options.snapshotDir))
+
+{-
+   ==========================================================================================
+   The four things a parent does
+   ==========================================================================================
+-}
+
+-- What a finished child came to, in the terms a verdict is written in. Not `Exit`, because a child
+-- this parent killed is neither of that type's two cases in any way a report should say out loud.
+pub data ChildStop {status: Int, signal: Int, timedOut: Bool, broken: Bool}
+
+{-
+   Spawning one, with descriptor 3 pointed at a file of its own.
+
+   The report file is created here rather than in the child, so that a child that never started - a
+   failed exec, a missing binary - is still distinguishable from one that started and said nothing:
+   the file exists and is empty in the first case and does not exist in the second.
+-}
+fn spawnReporting(path: String, arguments: [String], reportPath: String) -> Result(FileError, Process):
+    let &into = openFile(reportPath, writeAccess(), CreateAlways)?
+    let target = Redirect {input: Nothing, output: Nothing, errors: Nothing,
+                           report: Just(borrowFile(into.handle))}
+
+    let started = spawnWith(path, arguments, target)
+
+    {-
+       **The close is load-bearing and is not tidiness.**
+
+       `borrowFile(into.handle)` makes a `File` out of a *number*, so nothing connects the descriptor
+       in the `Redirect` back to the owner it came from - and a value whose last use has gone past is
+       dropped there rather than at the end of the scope, which for a `File` is the descriptor being
+       closed. Written without this line, `into`'s last use is the `.handle` above, the file is shut
+       before the fork, and the child's `dup2` fails silently: every report came back empty and every
+       isolated case read as "the child ran no case called ...".
+
+       So this both keeps the owner alive across the spawn - which is what makes the child's
+       descriptor 3 real - and hands the parent's own copy back, which it has no further use for.
+    -}
+    close(into)
+    return started
+
+{-
+   Waiting, with or without a limit.
+
+   A timeout of zero is no timeout and blocks, which is the ordinary case and the one that costs
+   nothing. With a limit, the wait is a poll: `finished` is `wait4` with `WNOHANG`, `monotonicNanos`
+   says how long it has been, and the interval between two polls is a millisecond of sleep - which is
+   what keeps a case that is doing real work from being charged a whole core to watch it.
+
+   The kill is `SIGKILL` after `SIGTERM` rather than instead of it: a test binary that installed no
+   handler dies on the first, and one that did gets the chance to say something. Both are followed by
+   a blocking wait, because a killed child still has to be reaped.
+-}
+fn awaitChild(child: Process, timeoutMs: Int) -> ChildStop:
+    if timeoutMs <= 0 then return stopOf(waitFor(child), False)
+
+    -- The parentheses are not decoration: `widen(x) :: I64 * 1000000` reads the multiplication
+    -- into the type annotation, and the limit came out as zero - so every case timed out at once.
+    let limit = (widen(timeoutMs) :: I64) * 1000000
+    let started = monotonicNanos()
+    let &interval = ClockTime {seconds: 0, nanos: 1000000}
+
+    while monotonicNanos() - started < limit:
+        match finished(child):
+            Err(_) -> return ChildStop {status: 0, signal: 0, timedOut: False, broken: True}
+            Ok(Just(->exit)) -> return stopOf(Ok(exit), False)
+            Ok(Nothing) -> sleepFor(interval)
+
+    signal(child, terminateSignal)
+    signal(child, killSignal)
+    return stopOf(waitFor(child), True)
+
+fn stopOf(answer: Result(FileError, Exit), timedOut: Bool) -> ChildStop = match answer:
+    Err(_) -> ChildStop {status: 0, signal: 0, timedOut: timedOut, broken: True}
+    Ok(Exited(status)) -> ChildStop {status: status, signal: 0, timedOut: timedOut, broken: False}
+    Ok(Signalled(number)) -> ChildStop {status: 0, signal: number, timedOut: timedOut, broken: False}
+
+-- The report, read once the child is gone, and the file removed behind it. A report that could not
+-- be read is an empty one rather than an error: the child's *status* is still an answer, and a
+-- parent that refused to report a crash because it also could not read the crash's report would be
+-- losing the one thing it does know.
+fn collectReport(path: String) -> ChildReport:
+    let report = match readWholeFile(path):
+        Ok(text) -> readReport(text)
+        Err(_) -> emptyReport()
+
+    removeFile(path)
+    return report
+
+{-
+   What all of that came to, for one case.
+
+   **The `aborts` verdict is inverted**, which is the whole of §5.3's third row: the case passes when
+   the child stopped the way `checkFailed` stops - status 134 natively, which is what a process
+   killed by `SIGABRT` reports - and fails when it returned normally. A child killed by the signal
+   itself counts too, since whether an abort arrives as a status or as a signal depends on what is
+   between the process and its parent rather than on the program.
+
+   An ordinary case's verdict is the child's own: the failures it recorded, plus the case it was
+   still inside if it never came back.
+-}
+fn verdictOf(name: String, aborts: Bool, stop: ChildStop, report: ChildReport) -> Result(String, String):
+    if stop.broken then return Err("the child could not be waited for")
+    if stop.timedOut then return Err("it did not finish inside the timeout")
+
+    if aborts:
+        if stop.signal == abortSignal || stop.status == abortStatus then return Ok(" (stopped, as expected)")
+        if stop.signal != 0 then return Err("it was expected to abort and was killed by signal {stop.signal} instead")
+        return Err("it was expected to abort and returned {stop.status} instead")
+
+    if length(report.unfinished) > (0 :: Size):
+        return Err("it {describeStop(stop)} while running {report.unfinished}")
+
+    if report.failedClaims > 0 then return Err("{report.failedClaims} of its claims did not hold")
+    if stop.signal != 0 then return Err("it {describeStop(stop)}")
+
+    -- A child that ran nothing is not a pass. `--only` names one case, so an empty report means the
+    -- name reached nothing - a case that was filtered out by something, or a binary that no longer
+    -- has it.
+    if report.ran == 0 then return Err("the child ran no case called {name}")
+    if stop.status != 0 then return Err("it exited with status {stop.status} having reported nothing")
+
+    return Ok("")
+
+fn describeStop(stop: ChildStop) -> String:
+    if stop.timedOut then return "was killed after the timeout"
+    if stop.signal != 0 then return "was killed by signal {stop.signal}"
+    return "exited with status {stop.status}"
+
+-- 134 is what `abortProcess` exits with and 6 is `SIGABRT`, which is the same event seen from the
+-- two sides of a `wait`. Named here rather than written into the comparison, because "134" in a
+-- verdict is the one number in this file that means the library worked exactly as designed.
+let abortStatus = 134 :: Int
+let abortSignal = 6 :: Int
+
+{-
+   Somewhere to put a child's report.
+
+   `TMPDIR` when the environment names one and `/tmp` otherwise, which is the convention every tool
+   on this platform already follows. The process id is in the name so that two harnesses running at
+   once - which is what `run-tests.sh` does - do not read each other's reports.
+-}
+fn temporaryPath(tag: String) -> String:
+    let directory = match variable("TMPDIR"):
+        Just(->named) -> named
+        Nothing -> "/tmp"
+
+    return "{directory}/yana-test-{processId()}-{tag}.report"

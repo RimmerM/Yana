@@ -1,0 +1,375 @@
+{-
+   ==========================================================================================
+   `Test.Golden` - snapshots - Design-Test.md §7.
+   ==========================================================================================
+
+       snapshot("after two inserts", show(m))
+
+   The text is compared against a file, and the file is written by the run that first asked for it.
+   That is the same trade every golden in `test/` makes, and §7's four rulings are all about the ways
+   the current `generate` gets it wrong. Each one is implemented here and each is worth restating,
+   because none of them is what a snapshot library usually does:
+
+    1. **An update rewrites only what the run actually reached.** Nothing here walks the corpus and
+       rewrites it; a snapshot is written by the assertion that compared it, so `--filter Map
+       --update` touches the `Map` snapshots and nothing else. `generate` rewriting all four hundred
+       `.expect` files is why AGENTS.md has to say "copy the directory into `mktemp -d` first".
+    2. **An update says what it wrote, and separates a reorder from a change.** A rewritten snapshot
+       whose lines are the same multiset in a different order is a *reorder*, reported as one and
+       counted apart. Most library reorganizations change goldens only that way, and telling the two
+       apart is the difference between reviewing four files and reviewing four hundred.
+    3. **A snapshot nothing reached in a full run is stale**, reported by name and deleted by
+       `--update --prune`. A golden file that no assertion compares against is the empty-fixture
+       directory again: something that verifies nothing must not look like something that verifies
+       everything.
+    4. **Absence is not "mode off".** A missing snapshot is a *create* in a development run and a
+       *failure* under `--no-update`, which is what CI passes. The two are told apart by a flag and
+       never by a file being empty - `readExpectedRun` treating an empty `.run.expect` as "skip this
+       comparison" while still reporting Pass is the failure mode this ruling exists to forbid.
+
+   > **Two deviations from §7, and both are the tree's rather than the design's.**
+   >
+   > **The directory is a root plus a flat name, not `<directory of at.file>/__snapshots__/`.** A
+   > `@caller` location's `file` is the *module* the call is in - `buildCallerSite` fills it from
+   > `sourceModule` - and no filesystem path reaches the resolver at all, so "beside the test that
+   > wrote it" is not something this can compute. The snapshot lives at
+   > `<root>/<module>.<test>.<name>.txt` with the root defaulting to `__snapshots__` under the
+   > working directory and settable with `--snapshot-dir`. Honouring §7 literally needs a `path`
+   > alongside `file` in the `@caller` vocabulary, which needs `Location` to carry one.
+   >
+   > **The diff does not go in the report stream.** §7 asks for unified text with the first differing
+   > line called out; the stream is line-oriented precisely so that a crash loses one line (§5.2),
+   > and a 40 KB diff in it would defeat that. The report line names the first difference, and the
+   > text that was actually produced is written to `<snapshot>.actual` beside the snapshot - so the
+   > full diff is `diff` away, in whatever tool the reader already has.
+-}
+
+{-
+   The whole of the runner's snapshot state, and every initializer is a constant.
+
+   Report.yana explains why that is not a preference: a library module's global has to have a
+   constant initializer, so a `[String]` of what was reached is not writable here. The reached set is
+   therefore one joined `String`, which is the shape `Section.yana` uses for the same reason. Each
+   entry is stored surrounded by newlines - `\nA.txt\n\nB.txt\n` - so that a search for `\nA.txt\n`
+   cannot match inside `\nBA.txt\n`, which a plain separator would allow.
+-}
+let &snapshotRoot = "__snapshots__" :: String
+let &reachedFiles = "" :: String
+
+let &createdCount = 0 :: Int
+let &changedCount = 0 :: Int
+let &reorderedCount = 0 :: Int
+let &matchedCount = 0 :: Int
+let &skippedCount = 0 :: Int
+
+-- 0 is a development run, 1 is `--update` and 2 is `--no-update`. A number rather than two booleans,
+-- because the three are exclusive and a pair of flags can say something that is not one of them.
+let &updateMode = 0 :: Int
+let &pruneStale = False
+
+{-
+   What the command line asked for, read once by the runner before any case runs.
+
+   Called from `runMain` rather than by each assertion, so a snapshot written from a helper five
+   frames down still lands where the run was told to put it.
+-}
+pub fn configureSnapshots(options: Options) -> {}:
+    if length(options.snapshotDir) > (0 :: Size) then snapshotRoot = copy(options.snapshotDir)
+
+    updateMode = if options.noUpdate then 2 else if options.update then 1 else 0
+    pruneStale = options.prune
+
+{-
+   One snapshot, in both moods - §4.2.
+
+   `check`-shaped by default: a mismatch is recorded and the test runs on, because a case that writes
+   three snapshots and differs in the first should still say what the other two did.
+-}
+pub fn snapshot(name: String, text: String, @caller ->at: Site) -> {}:
+    match snapshotOutcome(name, text, at):
+        Nothing -> {}
+        Just(->claim) -> record(Failure {site: at, claim: claim, detail: ""})
+
+pub fn requireSnapshot(name: String, text: String, @caller ->at: Site) -> Test:
+    match snapshotOutcome(name, text, at):
+        Nothing -> return Ok({})
+        Just(->claim) -> return failing(Failure {site: at, claim: claim, detail: ""})
+
+{-
+   The comparison, and the four things it can decide.
+
+   Read as a table, which is what rulings 1 and 4 come to in code:
+
+   | on disk | development | `--update` | `--no-update` |
+   |---|---|---|---|
+   | the same | pass | pass | pass |
+   | different | **fail** | rewrite, classified | **fail** |
+   | missing | create | create | **fail** |
+
+   The middle cell of the first column is the one worth pointing at: a development run *fails* on a
+   difference rather than quietly rewriting it. Rewriting is what `--update` is for, and a tool that
+   did it by default is one where a wrong answer becomes the expected answer by being run.
+
+   **Public, and it is the framework's own testability that makes it so.** Every assertion in this
+   library is a predicate and a `record`, and the two halves are separable everywhere; here the split
+   has to be *reachable*, because a test of what a mismatching snapshot does cannot be written in
+   terms of `snapshot` - the assertion would record the failure it was checking for, and the case
+   would go red for succeeding. `test/lib/Golden.yana` is written against this.
+-}
+pub fn snapshotOutcome(name: String, text: String, @caller at: Site) -> Maybe(String):
+    let file = snapshotFileName(at, name)
+
+    if !snapshotStoreAvailable():
+        {-
+           A target with no filesystem - §11.2's F4 note, which is the same asymmetry `@test(aborts)`
+           has. Counted and said out loud rather than passed silently: ruling 4 is that no assertion
+           is ever skipped by something being absent, and a skip that nothing reports is exactly
+           that.
+        -}
+        skippedCount = skippedCount + 1
+        reportLine("skip - snapshot {file} needs a filesystem and this target has none\n")
+        return Nothing
+
+    markReached(file)
+
+    match readSnapshotFile(snapshotRoot, file):
+        Nothing:
+            if updateMode == 2:
+                return Just("no snapshot {file} and --no-update forbids creating one - run without it to record what this test produces")
+
+            match writeSnapshotFile(snapshotRoot, file, text):
+                Just(->why) -> return Just("could not write the snapshot {file}: {why}")
+
+                Nothing:
+                    createdCount = createdCount + 1
+                    reportLine("snap  new {file}\n")
+                    return Nothing
+
+        Just(existing):
+            if existing == text:
+                matchedCount = matchedCount + 1
+                removeSnapshotFile(snapshotRoot, "{file}.actual")
+                return Nothing
+
+            if updateMode != 1:
+                {-
+                   The received text, beside the snapshot rather than in the report - see the note at
+                   the top of this file. A failure to write it is not itself a failure: what is being
+                   reported is the mismatch, and a read-only directory should not turn one report
+                   into two.
+                -}
+                writeSnapshotFile(snapshotRoot, "{file}.actual", text)
+                return Just("snapshot {file} does not match - {firstDifference(existing, text)}, and what this run produced is beside it in {file}.actual")
+
+            match writeSnapshotFile(snapshotRoot, file, text):
+                Just(->why) -> return Just("could not rewrite the snapshot {file}: {why}")
+
+                Nothing:
+                    -- Ruling 2. The same lines in a different order is the class most library
+                    -- reorganizations produce, and it is the one a reviewer can skip.
+                    removeSnapshotFile(snapshotRoot, "{file}.actual")
+
+                    if sameLineMultiset(existing, text):
+                        reorderedCount = reorderedCount + 1
+                        reportLine("snap  reorder {file}\n")
+                    else:
+                        changedCount = changedCount + 1
+                        reportLine("snap  changed {file}\n")
+
+                    return Nothing
+
+{-
+   Ruling 3, which can only be asked of a run that reached everything.
+
+   `full` is the runner's answer to "was this the whole corpus, in this process": a filtered run, a
+   shard, and a run whose cases went to children have each reached some of the snapshots by
+   construction, and calling the rest stale would be reporting the selection rather than the tree.
+
+   A stale snapshot **fails the run**. That is the same judgement ruling 3 makes and the same one the
+   empty-corpus guard makes: a golden nothing compares against is indistinguishable, from the
+   outside, from one that passes. `--update --prune` is how it stops being one.
+-}
+pub fn reviewSnapshots(full: Bool) -> Int:
+    if !snapshotStoreAvailable() || !full then return 0
+
+    let files = snapshotFileNames(snapshotRoot)
+    let &stale = 0 :: Int
+    let &i = 0 :: Size
+
+    while i < length(files):
+        let file = files[i]
+        i = i + 1
+
+        if !wasReached(file):
+            if pruneStale && updateMode == 1:
+                match removeSnapshotFile(snapshotRoot, file):
+                    Nothing -> reportLine("snap  pruned {file}\n")
+                    Just(->why) -> reportLine("snap  stale {file} - could not delete it: {why}\n")
+            else:
+                stale = stale + 1
+                reportLine("snap  stale {file} - no test compared against it\n")
+
+    return stale
+
+{-
+   What the run did to the snapshots, for the summary line, and empty when it did nothing to them.
+
+   Written as a statement for the reason Test.yana's own tail is: a conditional whose arms are a
+   literal and an owned string is refused by the ownership pass.
+-}
+pub fn snapshotSummary() -> String:
+    let &text = "" :: String
+
+    if createdCount > 0 then text ++= ", {createdCount} {plural(createdCount)} created"
+    if changedCount > 0 then text ++= ", {changedCount} {plural(changedCount)} changed"
+    if reorderedCount > 0 then text ++= ", {reorderedCount} {plural(reorderedCount)} reordered"
+    if skippedCount > 0 then text ++= ", {skippedCount} {plural(skippedCount)} skipped"
+
+    return text
+
+-- One word, because "1 snapshots created" is the sort of line a reader stops at to work out whether
+-- the tool is confused. Written as a statement rather than as a conditional expression for the
+-- reason Test.yana's own tail is.
+fn plural(count: Int) -> String:
+    if count == 1 then return "snapshot"
+    return "snapshots"
+
+{-
+   ==========================================================================================
+   Names, membership and text
+   ==========================================================================================
+-}
+
+-- `<module>.<test>.<name>.txt` - §7's name with §7's directory unavailable, per the note above. The
+-- module and the test come from the `@caller` location, so two tests of one module writing a
+-- snapshot of the same name are two files rather than one race.
+fn snapshotFileName(at: Site, name: String) -> String = "{at.file}.{at.function}.{portableName(name)}.txt"
+
+{-
+   A snapshot name is prose, and a file name is not.
+
+   Anything that is not a letter, a digit, a dash or an underscore becomes an underscore, so
+   `snapshot("after two inserts", ...)` is `after_two_inserts` and a name with a `/` in it cannot
+   name a directory. Deliberately not a hash: the file is meant to be found by a person reading the
+   test.
+-}
+fn portableName(name: String) -> String:
+    let &out = String.ofCapacity(length(name))
+    let &i = 0 :: Size
+
+    while i < length(name):
+        let unit = name.unit(i)
+        let keep = (unit >= 48 && unit <= 57) || (unit >= 65 && unit <= 90)
+                   || (unit >= 97 && unit <= 122) || unit == 45 || unit == 95
+
+        out.pushUnit(if keep then unit else 95)
+        i = i + 1
+
+    return out
+
+fn markReached(file: String) -> {}:
+    if wasReached(file) then return
+    reachedFiles ++= "\n{file}\n"
+
+fn wasReached(file: String) -> Bool = containsText(reachedFiles, "\n{file}\n")
+
+{-
+   Ruling 2's reorder test: the same lines, however they were arranged.
+
+   A sort would be the obvious way and needs an `Ord` over the lines plus an allocation of both; this
+   is the same O(n^2) claim-each-line walk `checkPermutes` makes, for the same reason - it needs only
+   equality, and a golden with enough lines for that to matter is one whose diff nobody was going to
+   read anyway.
+-}
+fn sameLineMultiset(before: String, after: String) -> Bool:
+    let left = linesOf(before)
+    let right = linesOf(after)
+
+    if length(left) != length(right) then return False
+
+    let &claimed = [] :: [Bool]
+    let &i = 0 :: Size
+
+    while i < length(left):
+        push(claimed, False)
+        i = i + 1
+
+    let &j = 0 :: Size
+
+    while j < length(right):
+        let &found = False
+        let &k = 0 :: Size
+
+        while k < length(left):
+            if !claimed[k] && left[k] == right[j]:
+                claimed[k] = True
+                found = True
+                k = length(left)
+            else:
+                k = k + 1
+
+        if !found then return False
+        j = j + 1
+
+    return True
+
+fn linesOf(text: String) -> [String]:
+    let &lines = [] :: [String]
+    let &at = 0 :: Size
+
+    while at < length(text):
+        push(lines, takeLine(text, at))
+
+    return lines
+
+-- One line, and `at` moved past the newline that ended it. The newline itself is not part of the
+-- line, so a text with a trailing newline has the same lines as one without - which is what makes a
+-- golden whose last line lost its terminator compare as a change of that line rather than of two.
+fn takeLine(text: String, &at: Size) -> String:
+    let &end = at
+
+    while end < length(text) && text.unit(end) != 10:
+        end = end + 1
+
+    let line = sliceOfText(text, at, end)
+    at = if end < length(text) then end + 1 else end
+    return line
+
+{-
+   Where two texts first part company, as one line of report.
+
+   The line number is what a reader needs to open the file at, and the two texts are what tells them
+   whether the change was the one they meant. Both are truncated: a snapshot line can be forty
+   thousand characters and a report line should not be.
+-}
+fn firstDifference(expected: String, actual: String) -> String:
+    let &e = 0 :: Size
+    let &a = 0 :: Size
+    let &number = 1 :: Int
+    let &answer = "" :: String
+
+    while length(answer) == (0 :: Size):
+        let hasExpected = e < length(expected)
+        let hasActual = a < length(actual)
+
+        if !hasExpected && !hasActual:
+            -- Reachable only when the two differ in a trailing newline, which `takeLine` reads as no
+            -- line at all. Worth a sentence of its own rather than a line number nobody can find.
+            answer = "they differ only in whether the text ends with a newline"
+        else if !hasExpected:
+            answer = "line {number}: the snapshot ends and this run had {showText(takeLine(actual, a))}"
+        else if !hasActual:
+            answer = "line {number}: this run ends and the snapshot had {showText(takeLine(expected, e))}"
+        else:
+            let one = takeLine(expected, e)
+            let two = takeLine(actual, a)
+            if one != two then answer = "line {number}: expected {showText(one)}, got {showText(two)}"
+
+        number = number + 1
+
+    return answer
+
+fn showText(line: String) -> String:
+    let limit = 60 :: Size
+    if length(line) <= limit then return "`{line}`"
+    return "`{sliceOfText(line, 0, limit - 3)}...`"

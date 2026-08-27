@@ -1,0 +1,23 @@
+{-
+   The harness on JavaScript, which there is not one of - Design-Test.md §11.2's F4 note.
+
+   The JavaScript target gets the *runner*: in-process cases, sections, and the report stream through
+   `console`. It does not get orchestration, and this file is that said out loud rather than
+   half-implemented. There is no `spawn` here, no `wait`, no `kill` and no command line, so
+   `--isolate`, `--jobs` and `@test(aborts)` are things a native parent does when it decides which
+   script to hand to `node` - which is what the current suite already does through
+   `test/node-harness.js`.
+
+   Declining loudly and not quietly. A `--isolate` that silently ran every case in one process would
+   answer a question nobody asked: isolation is what a suite with global state, or a suite that
+   crashes, is run with, and a green run under a flag that did nothing is worse than a red one.
+-}
+
+pub fn harnessAvailable() -> Bool = False
+
+pub fn runChild(name: String, aborts: Bool, options: Options) -> Result(String, String) =
+    Err("this target has no harness, so {name} cannot be run in a child of its own")
+
+pub fn runShards(cases: [Case], options: Options) -> Int:
+    print("this target has no harness, so --jobs has nothing to spawn - shard from the native parent instead\n")
+    return 2
