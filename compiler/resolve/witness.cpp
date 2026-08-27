@@ -1124,6 +1124,24 @@ static bool fillEnvironment(Module& module, Function& caller, InstGenCall& call,
     return ok;
 }
 
+/*
+ * An `internal:` message, said only where the compiler is the one that failed.
+ *
+ * Both callers below are looking for a witness, and a witness they cannot find is *normally* the
+ * consequence of a diagnostic already reported rather than a fault of their own: a call whose
+ * instance does not exist leaves a requirement nothing can satisfy, and this pass is simply the next
+ * place that notices. Reporting underneath such an error said "internal" about a program that was
+ * merely wrong - `checkEqual` on a `%U8`, whose `Show` is missing, printed the real diagnostic and
+ * then `internal: checkEqual cannot be given an environment in flagsAndPointers` beside it.
+ *
+ * The failure is still a failure, so `ok` is cleared either way and the build stops. What the guard
+ * decides is only whether to accuse the compiler of it, and one already-reported error is enough to
+ * mean "not necessarily".
+ */
+template<class Report> static void reportMissingEnvironment(Module& module, Report&& report) {
+    if(module.context.diagnostics.errorCount() == 0) report();
+}
+
 bool prepareGenericCalls(Program& program) {
     auto local = *program.arena;
     auto global = *program.types;
@@ -1201,8 +1219,10 @@ bool prepareGenericCalls(Program& program) {
                         for(auto step: supers) call.classPath.push(module->arena, step);
 
                         if(call.classSlot == maxLimit<U16>) {
-                            module->context.diagnostics.error("internal: a deferred class call has no witness slot in %@"_v,
-                                                              call.source, module->context.findName(function->name));
+                            reportMissingEnvironment(*module, [&] {
+                                module->context.diagnostics.error("internal: a deferred class call has no witness slot in %@"_v,
+                                                                  call.source, module->context.findName(function->name));
+                            });
                             ok = false;
                         }
 
@@ -1213,10 +1233,12 @@ bool prepareGenericCalls(Program& program) {
                     if(!calleeEnv) continue;
 
                     if(!fillEnvironment(*module, *function, call, *calleeEnv, toBuffer(typeArgs))) {
-                        module->context.diagnostics.error("internal: %@ cannot be given an environment in %@"_v,
-                                                          call.source,
-                                                          module->context.findName(local[call.callee]->name),
-                                                          module->context.findName(function->name));
+                        reportMissingEnvironment(*module, [&] {
+                            module->context.diagnostics.error("internal: %@ cannot be given an environment in %@"_v,
+                                                              call.source,
+                                                              module->context.findName(local[call.callee]->name),
+                                                              module->context.findName(function->name));
+                        });
                         ok = false;
                     }
                 }

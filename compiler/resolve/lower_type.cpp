@@ -75,8 +75,40 @@ LowerType lowerType(LowerContext& lower, TypePtr type) {
     return LowerType::Int32;
 }
 
+/*
+ * Whether a value of this type carries a sign - which decides whether a narrow load sign-extends
+ * into its register and whether a widening cast of one does.
+ *
+ * **A payload-free sum answers its own values' question**, and the case that needs it is
+ * `data Signal = @value(-1) Failed | @value(0) Idle`. Such a sum *is* its discriminant, held at
+ * whatever width its values need, and a declaration that pinned a number below zero is holding a
+ * signed one - so a load of the byte `Failed` occupies has to bring back `-1` and not `255`, and
+ * `valueOf` widening it has to answer what the declaration wrote.
+ *
+ * Answering false here was one defect with two faces, and the wider one was not the enum-specific
+ * code at all: it read wrong through *any* erased boundary, because a generic body loads the value
+ * out of storage sized by the type descriptor while a specialized one had it in a register already
+ * wide enough to hide the question. So `viaGeneric(Failed)` answered 255 where the same call
+ * specialized answered -1 - and 65236 for a two-byte enum, which is the same arithmetic one width
+ * up. See test/bench/findings.md §69.
+ *
+ * The scan is over a payload-free sum's constructor list, which is short, and every other type
+ * leaves at the first test. An enum that pins nothing, or nothing negative, answers false as it
+ * always did and is unchanged in every path.
+ */
 bool signedType(GlobalBase base, TypePtr type) {
-    return base[type]->kind == Type::Int && ((IntType*)base[type])->isSigned;
+    auto value = base[type];
+    if(value->kind == Type::Int) return ((IntType*)value)->isSigned;
+    if(value->kind != Type::Record) return false;
+
+    auto record = (RecordType*)value;
+    if(record->layout != RecordType::Enum) return false;
+
+    for(auto constructor: record->constructors.contents(base)) {
+        if(constructor.value < 0) return true;
+    }
+
+    return false;
 }
 
 /*

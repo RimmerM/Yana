@@ -61,7 +61,7 @@ JsPtr<Expr> constantValue(Gen& g, Value& value) {
              *
              * The signedness is read off the *declaration* rather than off a layout field, and that
              * is the honest place for it: what makes a discriminant signed is a constructor pinning
-             * a negative number, which is the same question `enumCompareType` asks in
+             * a negative number, which is the same question `enumNumberType` asks in
              * resolve/intrinsic.cpp. A sum whose values are all non-negative masks instead, so a
              * `@value(200)` in one byte stays 200.
              */
@@ -79,7 +79,19 @@ JsPtr<Expr> constantValue(Gen& g, Value& value) {
                     if(constructor.value < 0) signedTag = true;
                 }
 
-                if(signedTag && width < 64 && (masked & (U64(1) << (width - 1)))) {
+                if(signedTag && (masked & (U64(1) << (width - 1)))) {
+                    /*
+                     * The widest case is its own line rather than a term in the one below, because
+                     * `mask - masked + 1` is the negation written to avoid overflowing at the width
+                     * it is performed at - and at sixty-four it overflows anyway. Reading the
+                     * pattern back as a signed 64-bit integer is the same answer and needs no
+                     * arithmetic, which is what `width < 64` used to buy by declining to answer:
+                     * `@value(-5000000000)` came out as 1.8446744068709552e19, which is past what a
+                     * `number` holds exactly, so it read back as -4999999488 and named the wrong
+                     * constructor. The narrower widths never showed it because their unsigned
+                     * reading is exact and `BigInt.asIntN` recovered the sign downstream.
+                     */
+                    if(width >= 64) return number(g, F64(I64(bits)));
                     return number(g, -F64((mask - masked) + 1));
                 }
 

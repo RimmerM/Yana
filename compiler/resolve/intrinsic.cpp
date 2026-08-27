@@ -731,12 +731,64 @@ static RecordType* enumHead(GlobalBase global, TypePtr type) {
     return record->layout == RecordType::Enum && record->constructors.size() ? record : nullptr;
 }
 
+/*
+ * The signed integer type an enum's values are *the numbers the declaration wrote* at, or null where
+ * reading them as they stand already gives those numbers.
+ *
+ * Null is the answer for every enum whose values are all non-negative, which is the common case and
+ * the one that costs nothing.
+ *
+ * **A negative `@value` needs the step, and the reason is a rule one level down.** The cast lowering
+ * widens with the sign only between two things it agrees are integers, and a payload-free sum is a
+ * *record* to that test however much it is a number here - so `cast Signal -> I64` in one step zero-
+ * extends whatever `signedType` says, and `@value(-1)` arrives as 4294967295. Going through `Int`
+ * first makes the widening that matters a widening between two integers, which is the one the rule
+ * covers. `I64` instead where the declaration's values need it, which no ABI this has met asks for.
+ *
+ * Everything that turns one of these into a number goes through here - `valueOf`, `nameOf` and the
+ * generated comparisons - which is what it is for. It used to sit under the comparisons and be
+ * reachable only from them, and the two emitters above widened in one step on their own:
+ * `valueOf(Failed)` answered 4294967295 in every build, and `nameOf` compared that against the `-1`
+ * the declaration wrote, missed every arm and fell through to the last constructor, so `Failed`
+ * printed as `Running`. See test/bench/findings.md §69.
+ */
+static TypePtr enumNumberType(ExprResolver& resolver, RecordType& record) {
+    auto& module = resolver.module;
+    auto negative = false;
+    auto wide = false;
+
+    for(auto constructor: record.constructors.contents(resolver.global)) {
+        if(constructor.value < 0) negative = true;
+        if(constructor.value < minLimit<I32> || constructor.value > maxLimit<I32>) wide = true;
+    }
+
+    if(!negative) return nullptr;
+    return wide ? module.scalar.long_ : module.scalar.int_;
+}
+
+// The value at that type, where one is called for. A `Cast` rather than a `Bitcast`: what is wanted
+// is the *number*, so a one-byte `-1` has to arrive as `-1` and not as 255.
+static ModulePtr<Value> enumAsNumber(ExprResolver& resolver, ModulePtr<Value> value, TypePtr at,
+                                     LocationId source) {
+    if(!at) return value;
+    return resolver.ref(resolver.emit<InstUnary>(source, StringId(), at, Value::Cast, value));
+}
+
+// The same, for a caller that has a value and its type rather than the record - every caller outside
+// the comparisons, which already looked the record up to decide what to compare at.
+static ModulePtr<Value> enumSignedNumber(ExprResolver& resolver, ModulePtr<Value> value, TypePtr type,
+                                         LocationId source) {
+    auto record = enumHead(resolver.global, type);
+    return record ? enumAsNumber(resolver, value, enumNumberType(resolver, *record), source) : value;
+}
+
 // `valueOf`: the number, which the value already is. A `Cast` and nothing else, which is the whole
 // of what §5.1 was asking for - the two compares and two selects it replaces were a `match`
 // computing the identity function.
 ModulePtr<Value> emitEnumValue(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                LocationId source, StringId resultName) {
-    return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, Value::Cast, args[0]));
+    auto number = enumSignedNumber(resolver, args[0], resolver.valueType(args[0]), source);
+    return resolver.ref(resolver.emit<InstUnary>(source, resultName, type, Value::Cast, number));
 }
 
 /*
@@ -878,7 +930,11 @@ static ModulePtr<Value> emitEnumNameOf(ExprResolver& resolver, ModulePtr<Value> 
     auto unit = module.scalar.unit;
 
     auto constructors = record.constructors.contents(global);
-    auto number = resolver.ref(resolver.emit<InstUnary>(source, StringId(), long_, Value::Cast, value));
+
+    // Through `enumNumberType` for the reason that function gives: the arms below are the numbers the
+    // declaration wrote, so the value has to arrive as the number it wrote too.
+    auto asNumber = enumAsNumber(resolver, value, enumNumberType(resolver, record), source);
+    auto number = resolver.ref(resolver.emit<InstUnary>(source, StringId(), long_, Value::Cast, asNumber));
 
     BranchArmList arms;
 
@@ -1196,57 +1252,33 @@ ModulePtr<ClassInstance> enumShowInstance(Module& module, GlobalPtr<TypeClass> t
  * two-constructor enum. That is what the `valueOf` route could not do, since the class fixes the
  * width it reports in.
  *
- * **A negative `@value` is the one case that needs a cast**, and it needs one because a bare
- * comparison of two enum values is *unsigned*: `signedOperand` answers a record with false, so
- * `@value(-1)` would sort above everything. The values are signed - `valueOf` sign-extends one, and
- * `data Signal = @value(-1) Failed | @value(0) Idle` means what it says - so where any constructor
- * pins a negative number both operands are widened to a signed integer first. `Int` where the values
- * fit it, which is a `number` on JS and free on every native target; `I64` only for a declaration
- * whose values need it, which no ABI this has met asks for.
+ * **A negative `@value` is the one case that names a type to compare at**, and where the operands
+ * are widened they are widened to a signed integer: `Int` where the values fit it, which is a
+ * `number` on JS and free on every native target; `I64` only for a declaration whose values need it,
+ * which no ABI this has met asks for.
+ *
+ * That widening used to be load-bearing, because `signedOperand` answered a record with false and
+ * `@value(-1)` would otherwise sort above everything. **It is belt-and-braces now**: `signedType`
+ * reads a payload-free sum's own values, so the bare comparison below is already the signed one for
+ * such a declaration. Keeping it costs a cast the folder removes and keeps this emitter honest about
+ * the width it compares at, rather than resting on a predicate two files away. What it never was is
+ * the *whole* fix - a negative sum read wrong through any erased boundary, which no amount of
+ * casting here could reach. See test/bench/findings.md §69.
  *
  * The common case - every enum that pins nothing, and every one whose numbers are all non-negative -
  * has no cast at all and is one instruction.
  */
 namespace {
 
-/*
- * The type two of these are compared *at*, or null where they are compared as they stand.
- *
- * Null is the answer for every enum whose values are all non-negative, which is the common case and
- * the one that costs nothing: the operands are the numbers already and an unsigned comparison of
- * them is their order.
- */
-static TypePtr enumCompareType(ExprResolver& resolver, RecordType& record) {
-    auto& module = resolver.module;
-    auto negative = false;
-    auto wide = false;
-
-    for(auto constructor: record.constructors.contents(resolver.global)) {
-        if(constructor.value < 0) negative = true;
-        if(constructor.value < minLimit<I32> || constructor.value > maxLimit<I32>) wide = true;
-    }
-
-    if(!negative) return nullptr;
-    return wide ? module.scalar.long_ : module.scalar.int_;
-}
-
-// Both operands at that type, where one is called for. A `Cast` rather than a `Bitcast`: what is
-// wanted is the *number*, so a one-byte `-1` has to arrive as `-1` and not as 255.
-static ModulePtr<Value> enumCompareOperand(ExprResolver& resolver, ModulePtr<Value> value, TypePtr at,
-                                           LocationId source) {
-    if(!at) return value;
-    return resolver.ref(resolver.emit<InstUnary>(source, StringId(), at, Value::Cast, value));
-}
-
 template<CompareOp op>
 static ModulePtr<Value> emitEnumCompareOp(ExprResolver& resolver, Buffer<ModulePtr<Value>> args, TypePtr type,
                                           LocationId source, StringId resultName) {
     auto record = enumHead(resolver.global, resolver.valueType(args[0]));
-    auto at = record ? enumCompareType(resolver, *record) : nullptr;
+    auto at = record ? enumNumberType(resolver, *record) : nullptr;
 
     return resolver.ref(resolver.emit<InstCmp>(source, resultName, resolver.module.scalar.bool_,
-                                               enumCompareOperand(resolver, args[0], at, source),
-                                               enumCompareOperand(resolver, args[1], at, source), op));
+                                               enumAsNumber(resolver, args[0], at, source),
+                                               enumAsNumber(resolver, args[1], at, source), op));
 }
 
 /*
@@ -1275,9 +1307,9 @@ static ModulePtr<Value> emitEnumCompare(ExprResolver& resolver, Buffer<ModulePtr
     };
 
     auto operands = enumHead(resolver.global, resolver.valueType(args[0]));
-    auto at = operands ? enumCompareType(resolver, *operands) : nullptr;
-    auto lhs = enumCompareOperand(resolver, args[0], at, source);
-    auto rhs = enumCompareOperand(resolver, args[1], at, source);
+    auto at = operands ? enumNumberType(resolver, *operands) : nullptr;
+    auto lhs = enumAsNumber(resolver, args[0], at, source);
+    auto rhs = enumAsNumber(resolver, args[1], at, source);
 
     auto less = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, lhs, rhs, CompareOp::Lt));
     auto same = resolver.ref(resolver.emit<InstCmp>(source, StringId(), bool_, lhs, rhs, CompareOp::Eq));
