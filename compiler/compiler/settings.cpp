@@ -33,6 +33,7 @@ struct Flag {
         module,
         project,
         library,
+        specialize,
 
         /*
          * Boolean flags.
@@ -72,6 +73,7 @@ Flag flagTable[] = {
     { "module"_v, 1, Flag::module },
     { "project"_v, 1, Flag::project },
     { "lib"_v, 1, Flag::library },
+    { "specialize"_v, 1, Flag::specialize },
 
     { "print-modules"_v, 0, Flag::printModules },
     { "print-ast"_v, 0, Flag::printAst },
@@ -682,6 +684,11 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
             case Flag::library:
                 settings.libraryPath = move(value);
                 return true;
+            case Flag::specialize:
+                if(value == "always") { settings.forceGeneric = false; return true; }
+                if(value == "never") { settings.forceGeneric = true; return true; }
+                error = "Specialization is `always` or `never`.";
+                return false;
             case Flag::mode:
                 settings.explicitMode = true;
                 if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringView), value)) {

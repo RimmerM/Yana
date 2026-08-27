@@ -346,6 +346,16 @@ struct CompileSettings {
      * silently dropped - a test that is not built is the failure mode the whole document is about.
      */
     bool test = false;
+    /*
+     * Whether generic functions are specialized per instantiation, or emitted once and shared -
+     * Program::Specialization.
+     *
+     * A flag because it is a row of the test matrix: §8's `agree` asks whether a library's answer
+     * depends on how it was compiled, and "specialized" against "forced generic" is one of the pairs
+     * it asks about. It was reachable only from inside a C++ driver, which is exactly what stopped
+     * the standard library's suite from being an ordinary program.
+     */
+    bool forceGeneric = false;
 
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.

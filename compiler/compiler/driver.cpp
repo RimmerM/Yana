@@ -368,7 +368,10 @@ int main(int argc, const char** argv) {
         }
     }
 
-    auto program = resolveProgram(context, root->parsed, &provider, Program::Specialization::Always,
+    auto specialization = context.settings.forceGeneric ? Program::Specialization::Generic
+                                                        : Program::Specialization::Always;
+
+    auto program = resolveProgram(context, root->parsed, &provider, specialization,
                                   toBuffer(testRoots));
 
     if(context.settings.printAst) printAsts(context, moduleMap);
