@@ -2,41 +2,23 @@ let image$base: () = <none>
 
 let ResolveTest.string$0: String = "hello"
 
+let ResolveTest.literal$1: String = "hello" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
+
 fn litLen(%n: Size) -> Size {
   b0:
-    %v1 = symbol ResolveTest.string$0 : %CodeUnit
-    %v8 = alloc : StringData
-    %v9 = alloc : Array(CodeUnit)
-    %v10 = alloc : Run(CodeUnit)
-    init %local3@Run.items, %v1
-    %v50 = load %local3@Run.capacity:unit32 : U32
-    %v55 = and %v50, 18446744072635809792 : U32
-    %v56 = or %v55, 5 : U32
-    %v65 = and %v56, 18446744070488326143 : U32
-    init %local3@Run.capacity:unit32, %v65
-    aggregate %local2@Array.run = %v10, %local2@Array.length = 5
-    aggregate %local1@StringData.bytes = %v9
-    %v21 = move %local1 : StringData
-    %v22 = alloc : String
-    init %local0, %v21
-    %v5 = add %n, 5 : Size
-    ret %v5
+    %v3 = add %n, 5 : Size
+    ret %v3
 }
 
 fn twice(%n: Size) -> Size {
   b0:
-    %v1 = call litLen, %n : Size
-    %v4 = add %n, 1 : Size
-    %v5 = call litLen, %v4 : Size
-    %v6 = add %v1, %v5 : Size
+    %v9 = add %n, 5 : Size
+    %v11 = add %n, 6 : Size
+    %v6 = add %v9, %v11 : Size
     ret %v6
 }
 
 fn main() -> Int {
   b0:
-    %v4 = call litLen, 3 : Size
-    %v7 = call litLen, 4 : Size
-    %v8 = add %v4, %v7 : Size
-    %v2 = cast %v8 : Int
-    ret %v2
+    ret 17
 }

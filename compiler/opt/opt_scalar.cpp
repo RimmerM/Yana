@@ -614,6 +614,86 @@ bool eliminateDeadLocal(OptContext& opt, U32 index) {
 }
 
 /*
+ * A duplicate written straight through - `%v = copy Q` then `init P, %v` becoming one copy of Q into
+ * P, with the temporary gone.
+ *
+ * The shape is what a function returning a value it did not build produces: `Monoid(String).empty`
+ * is `copy` of a literal and a `ret`, so the erased thunk around it is that copy into a slot of its
+ * own and then a copy of the slot into the caller's buffer. Sixteen bytes moved twice through
+ * storage nothing else names, and an `alloca` to hold them in between.
+ *
+ * Four things have to hold and each is checked rather than assumed:
+ *
+ *  - **a bitwise duplicate.** An authored `Copy` runs a function to *build* the result, so what it
+ *    left is not what the source holds and there is nothing to read through - see InstCopy::copy;
+ *  - **this write is its only reader**, so nothing else names the storage that goes away;
+ *  - **the write is the very next instruction.** The deferred read happens where the write is rather
+ *    than where the copy was, so anything in between that could write the source would change what
+ *    is read. Adjacency is the cheap form of "nothing in between" and is the shape this occurs in;
+ *  - **the two places do not alias**, since one copy through overlapping storage is not what two
+ *    copies through a temporary did. A place rooted in a *pointer* is one `placesMayAlias` declines
+ *    to say anything about, which would refuse the whole shape - a thunk writes through the
+ *    `%result` its caller handed it. So an immutable global source answers instead: nothing writes
+ *    it, and storage that overlapped it would be a program writing into its own constants.
+ *
+ * **Native only, and that is not a shortcut.** On a managed target an aggregate is a collected
+ * object and `storeInto` writes one by assigning the reference - so the temporary is exactly what
+ * makes a duplicate a duplicate there, and removing it would make the destination a second name for
+ * the source. See `Known::alias` in opt_place.cpp, which is the same fact stated as an invalidation.
+ */
+static bool forwardWholeCopy(OptContext& opt, Block& block, Size index, ModulePtr<Value> value,
+                             const Place* destination) {
+    if(opt.repr.target.family != TargetFamily::Native) return false;
+    if(!value) return false;
+
+    auto& produced = *opt.local[value];
+    if(produced.kind != Value::Copy || produced.useCount() != 1) return false;
+    if(!isMemoryType(opt.global, produced.type)) return false;
+
+    auto& duplicate = (InstCopy&)produced;
+    if(duplicate.copy) return false;
+
+    // `index` is one past the copy for a write, and the instruction count for a terminator - either
+    // way the copy has to be the instruction immediately before the consumer.
+    if(!index || block.instructionAt(opt.local, index - 1) != (ModulePtr<Inst>)value) return false;
+
+    /*
+     * The source has to be storage this frame can account for, which is what makes the overlap
+     * question answerable at all: a local is this frame's own and a caller cannot have handed us a
+     * pointer into it, and an immutable global is storage nothing writes and that no destination can
+     * overlap without the program writing into its own constants. A pointer or a borrow root is
+     * neither, and `placesMayAlias` declines to say anything about one anyway.
+     */
+    auto& source = duplicate.place;
+    if(source.root != PlaceRoot::Local && source.root != PlaceRoot::Global) return false;
+
+    auto constant = source.root == PlaceRoot::Global && source.global &&
+                    !opt.local[source.global]->isWritten();
+
+    if(source.root == PlaceRoot::Global && !constant) return false;
+    if(!constant && destination && placesMayAlias(opt, source, *destination)) return false;
+
+    /*
+     * The read that replaces it, which for a memory type is the other name for the storage rather
+     * than a load of anything - `lowerStore` relocates from whatever address the value maps to, and
+     * a `LoadPlace` of a place maps to that place's own. So what the write becomes is one
+     * `LowerInstCopy` from the source to the destination.
+     */
+    auto read = createInst<InstLoadPlace>(*opt.module, *opt.function, block, duplicate.source,
+                                          produced.name, produced.type, duplicate.place);
+
+    InstList replacement;
+    replacement.push(read);
+    opt.ir().insert(block, index, replacement);
+
+    opt.ir().replaceValue(value, (ModulePtr<Value>)(read - opt.local));
+    opt.ir().eraseInstruction((ModulePtr<Inst>)(&produced - opt.local));
+
+    opt.changed = true;
+    return true;
+}
+
+/*
  * A construction one of whose components is itself a record, taken back apart into its stores.
  *
  * `Nested {inner: Inner {a, b}, extra}` builds the inner record in a temporary and hands the whole of
@@ -710,6 +790,13 @@ void scalarizeLocals(OptContext& opt) {
             if(instruction->kind != Value::Init && instruction->kind != Value::Assign) continue;
 
             auto& write = (InstInit&)*instruction;
+
+            // Ahead of the split, because what it removes is an instruction the split would have
+            // walked into: a duplicate written whole is a copy of storage rather than a value with
+            // fields, and taking it apart field by field is strictly more work than not making it.
+            // The write stays where it is, so the walk does not step back.
+            forwardWholeCopy(opt, *block, i, write.value, &write.place);
+
             if(!splittableDestination(opt, contained, write.place)) continue;
 
             /*
@@ -726,6 +813,27 @@ void scalarizeLocals(OptContext& opt) {
              */
             splitAggregateWrite(opt, *block, i, write);
         }
+    }
+
+    /*
+     * And the same for a value *returned*, which is the other half of the shape.
+     *
+     * A function answering a memory type writes into a buffer its caller handed it, so `ret %v` is a
+     * whole-value write with no place of its own to name - which is why it is asked here rather than
+     * in the walk above, where the destination is a `Place`. `funvalue$one` in SpecializedSink.yana
+     * is what it is about: a lambda answering a literal built the two words in a slot and then copied
+     * the slot into the caller's buffer.
+     *
+     * There is no destination to compare against, and none is wanted: the caller's buffer is storage
+     * this frame does not name, so nothing it could overlap is anything the copy's source could be.
+     */
+    for(auto blockPointer: opt.function->blocks.contents(opt.local)) {
+        auto block = opt.local[blockPointer];
+        auto terminator = block->terminator();
+        if(!terminator || opt.local[terminator]->kind != Value::Ret) continue;
+
+        auto& returned = (InstRet&)*opt.local[terminator];
+        forwardWholeCopy(opt, *block, block->instructionCount(), returned.value, nullptr);
     }
 
     for(U32 i = 0; i < opt.function->localCount(); i++) eliminateDeadLocal(opt, i);

@@ -703,7 +703,7 @@ static TupType* recordFields(GlobalBase global, TypePtr type) {
  * internal error rather than a wrong constant: this file is naming another module's declarations, and
  * the honest failure for that is to say the declaration changed under it.
  */
-static ConstantPtr nativeStringConstant(Module& module, LocationId source, StringId text, StringView what) {
+ConstantPtr nativeStringConstant(Module& module, LocationId source, StringId text, StringView what) {
     auto& context = module.context;
     auto global = *module.types;
 

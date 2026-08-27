@@ -1054,6 +1054,14 @@ struct InstExchange: Inst {
  * Deliberately a different operation from a borrow rather than a special case of one. Emitting a
  * copy is exactly what lets a TrivialCopy read out through a live `&` not count as handing out a
  * second borrow: the result has its own root, so the source's exclusivity is untouched.
+ *
+ * **A null `copy` says the duplicate is the bytes and nothing else - it does not say the type is
+ * TrivialCopy.** It very nearly did, and one thing separates them: a string literal, whose value is
+ * a bitwise duplicate of an immutable global's constant (see `resolveString`). That is sound for the
+ * one reason the constant itself gives - the run is `runBorrowed`, so both names own nothing, the
+ * teardown of either is a test that fails, and a write to either relocates rather than sharing. No
+ * pass may read the null the other way round; what it may read is what it says, which is that these
+ * bytes duplicated are what the result holds.
  */
 struct InstCopy: Inst {
     InstCopy(ModulePtr<Block> block, TypePtr type, Place place):

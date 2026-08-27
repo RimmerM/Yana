@@ -10,7 +10,11 @@ let &heapRegionNext: Size = 0
 
 let ResolveTest.string$0: String = "99"
 
-let ResolveTest.string$1: String = "19"
+let ResolveTest.literal$1: String = "99" {StringData(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
+
+let ResolveTest.string$2: String = "19"
+
+let ResolveTest.literal$3: String = "19" {StringData(Array(Run(&ResolveTest.string$2, 2, 0), 2))}
 
 fn checkFailed() -> () {
   b0:
@@ -529,28 +533,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
 }
 
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
@@ -1402,42 +1384,40 @@ fn main() -> Int {
     %out = alloc : String
     init %out, %v4
     %v7 = load %total : Int
-    %v8 = symbol ResolveTest.string$0 : %CodeUnit
-    %v10 = call stringLiteral, %v8, 2 : String
-    %v12 = load %out : String
-    %v13 = borrow_mut %out : &String
-    %v14 = call withAnd, %v10, 2, %v13 : Int
+    %v8 = copy ResolveTest.literal$1 : String
+    %v10 = load %out : String
+    %v11 = borrow_mut %out : &String
+    %v12 = call withAnd, %v8, 2, %v11 : Int
     drop %local3 via Reclaim(String).reclaim
-    %v15 = add %v7, %v14 : Int
-    assign %total, %v15
-    %v17 = load %total : Int
-    %v18 = symbol ResolveTest.string$1 : %CodeUnit
-    %v20 = call stringLiteral, %v18, 2 : String
-    %v22 = load %out : String
-    %v23 = borrow_mut %out : &String
-    %v24 = call withAnd, %v20, 2, %v23 : Int
+    %v13 = add %v7, %v12 : Int
+    assign %total, %v13
+    %v15 = load %total : Int
+    %v16 = copy ResolveTest.literal$3 : String
+    %v18 = load %out : String
+    %v19 = borrow_mut %out : &String
+    %v20 = call withAnd, %v16, 2, %v19 : Int
     drop %local4 via Reclaim(String).reclaim
-    %v25 = add %v17, %v24 : Int
-    assign %total, %v25
-    %v27 = load %total : Int
-    %v28 = load %out : String
-    %v29 = call Length(String).length, %v28 : Size
+    %v21 = add %v15, %v20 : Int
+    assign %total, %v21
+    %v23 = load %total : Int
+    %v24 = load %out : String
+    %v25 = call Length(String).length, %v24 : Size
     drop %out via Reclaim(String).reclaim
-    %v30 = cast %v29 : Int
-    %v31 = add %v27, %v30 : Int
-    assign %total, %v31
-    %v33 = load %total : Int
-    %v35 = call countUp, 12 : Int
-    %v36 = add %v33, %v35 : Int
-    assign %total, %v36
-    %v38 = load %total : Int
-    %v40 = call countUp, 0 : Int
-    %v41 = add %v38, %v40 : Int
-    assign %total, %v41
-    %v43 = load %total : Int
-    %v45 = call countDown, 15 : Int
-    %v46 = add %v43, %v45 : Int
-    assign %total, %v46
-    %v48 = load %total : Int
-    ret %v48
+    %v26 = cast %v25 : Int
+    %v27 = add %v23, %v26 : Int
+    assign %total, %v27
+    %v29 = load %total : Int
+    %v31 = call countUp, 12 : Int
+    %v32 = add %v29, %v31 : Int
+    assign %total, %v32
+    %v34 = load %total : Int
+    %v36 = call countUp, 0 : Int
+    %v37 = add %v34, %v36 : Int
+    assign %total, %v37
+    %v39 = load %total : Int
+    %v41 = call countDown, 15 : Int
+    %v42 = add %v39, %v41 : Int
+    assign %total, %v42
+    %v44 = load %total : Int
+    ret %v44
 }

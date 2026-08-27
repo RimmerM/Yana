@@ -5,9 +5,13 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @shared = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$0 = [120]
-@ResolveTest.string$1 = [121]
-@ResolveTest.string$2 = [120]
-@ResolveTest.string$3 = [121]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+@ResolveTest.string$2 = [121]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+@ResolveTest.string$4 = [120]
+@ResolveTest.literal$5 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+@ResolveTest.string$6 = [121]
+@ResolveTest.literal$7 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
 
 indexSlotsFor<complex>(%wanted: Long): Long {
   b_0 {
@@ -3022,19 +3026,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = and %length, 1073741823: Int
-    store %v_0, %bytes, 8
-    %v_3 = add %v_0, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, %v_2, 4
-    %v_5 = add %v_0, 12: Ptr
-    store %v_5, %v_2, 4
-    ret 
-  }
-}
-
 copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ige %count, 32: Int
@@ -4160,9 +4151,9 @@ main<complex>(): Int {
     copy %v_167, %v_166, 40
     call_complex IndexInsert(Map(k, v), k, v).insertAt(Int, Int), %v_167, 1, 10
     %v_172 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_172, @ResolveTest.string$0, 1
+    copy %v_172, @ResolveTest.literal$1, 16
     %v_173 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_173, @ResolveTest.string$1, 1
+    copy %v_173, @ResolveTest.literal$3, 16
     %two = alloca 40, 8: Ptr
     call_complex pair(String, Int), %two, %v_172, 1, %v_173, 2
     %v_174 = alloca 40, 8: Ptr
@@ -4182,15 +4173,13 @@ main<complex>(): Int {
     %v_181 = loads %v_180, 4: Int
     call_complex reclaim$Map(Int, Int), %v_167
     %v_182 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_182, @ResolveTest.string$2, 1
+    copy %v_182, @ResolveTest.literal$5, 16
     %v_183 = call_complex Index(Map(k, v), k, v).get(String, Int), %two, %v_182: Ptr
-    call_complex Reclaim(String).reclaim, %v_182
     %v_184 = loads %v_183, 4: Int
     %v_185 = add %v_181, %v_184: Int
     %v_186 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_186, @ResolveTest.string$3, 1
+    copy %v_186, @ResolveTest.literal$7, 16
     %v_187 = call_complex Index(Map(k, v), k, v).get(String, Int), %two, %v_186: Ptr
-    call_complex Reclaim(String).reclaim, %v_186
     %v_188 = loads %v_187, 4: Int
     %v_189 = add %two, 12: Ptr
     %v_190 = load %v_189, 4: Int

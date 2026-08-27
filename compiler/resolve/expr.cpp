@@ -257,8 +257,27 @@ ModulePtr<ConstValue> ExprResolver::constantAt(const Place& place) {
     for(auto projection: path.contents(local)) {
         if(!at) return nullptr;
 
-        auto& value = *local[at];
+        auto value = *local[at];
         auto children = value.children.contents(local);
+
+        /*
+         * A string literal's node is its text *and* the aggregate its static form is, and a path
+         * into one is a path into that aggregate: `computeString` gives a `String` its content's
+         * size and alignment unchanged, so the two are one piece of storage at one offset. This is
+         * the same step `ConstantWriter::write` takes for the same reason.
+         *
+         * Nothing underneath on JS, where a host string is one value - and there the walk stops,
+         * since `children` is empty.
+         */
+        if(value.kind == ConstKind::String) {
+            if(children.size() != 1) return nullptr;
+
+            at = children[0];
+            if(!at) return nullptr;
+
+            value = *local[at];
+            children = value.children.contents(local);
+        }
 
         switch(projection.kind) {
             case ProjectionKind::Field: {
@@ -528,6 +547,43 @@ ModulePtr<Value> ExprResolver::resolveString(LocationId source, StringId text) {
     if(!module.program.stringLiteral) {
         context.diagnostics.error("internal: no string literal constructor for this target"_v, source);
         return nullptr;
+    }
+
+    /*
+     * The literal as a *constant*, in a global of its own, duplicated bitwise into the value.
+     *
+     * The two words are already what a literal is, and writing them as storage rather than building
+     * them costs a block copy instead of a call. What that buys is not the call: it is that the
+     * `ownsHeap` deciding whether the teardown does anything is now a field of an immutable
+     * constant, so `inheritConstant` puts a `0` in front of the test without `stringLiteral` having
+     * to be inlined first. Over 118 call sites past `policy.manyCallSites`, it never was.
+     *
+     * A bitwise duplicate is sound here and nowhere else for a non-`TrivialCopy` type, and the
+     * reason is the constant itself: the run is `runBorrowed`, so both names own nothing, the
+     * teardown of either is a test that fails, and a write to either relocates by copying rather
+     * than sharing. That is Implementation-Containers.md §2's copy-on-write, reached through the
+     * answers it already had.
+     */
+    if(module.scalar.stringContent) {
+        if(auto constant = nativeStringConstant(module, source, text, "a string literal"_v)) {
+            StringBuilder literalName;
+            literalName << context.findName(module.name) << ".literal$";
+            literalName.appendValue(module.stringLiteralCount++);
+
+            auto literal = module.addGlobal(builtName(context, literalName), source);
+            literal->type = module.scalar.string_;
+            literal->initial = constant;
+            literal->used = true;
+            literal->anonymous = true;
+
+            auto duplicate = create<InstCopy>(source, StringId(), module.scalar.string_,
+                                              Place::inGlobal(literal - *module.arena));
+            append(duplicate);
+
+            auto copied = ref(duplicate);
+            duplicate->local = function.addLocal(module, module.scalar.string_, StringId(), copied);
+            return copied;
+        }
     }
 
     // The bytes, as a global of their own - see stringLiteralBytes, which is the one place a

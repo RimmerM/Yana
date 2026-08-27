@@ -1,5 +1,4 @@
 "use strict";
-var corner = { x: 5, y: 6 };
 var cursor = { x: 10, y: 20 };
 var some = 9;
 var none = null;
@@ -9,7 +8,6 @@ var table = new Int32Array([12, 13, 14]);
 var corners = [{ x: 1, y: 1 }, { x: 2, y: 4 }];
 var greeting = "hello";
 var labelled = { name: "world!", id: 15 };
-var flags = 405;
 var packed = { $tag: 0, $p0: 99, $p: 0 };
 var wrapped = { $tag: 1, $p0: 0, $p: 40 };
 
@@ -41,17 +39,14 @@ function boxedValue(b) {
 }
 
 function main() {
-  var score = 1;
-  if ((corner.x + corner.y | 0) === 11) {
-    score = score + 2 | 0;
-  }
+  var score = 3;
   var v37 = cursor.x + 1 | 0;
   cursor.x = v37;
   if ((v37 + cursor.y | 0) === 31) {
     score = score + 4 | 0;
   }
   score = score + 24 | 0;
-  if ((!(some === null) ? some : 0) === 9) {
+  if (!(some === null)) {
     score = score + 32 | 0;
   }
   if ((!(none === null) ? none : 100) === 100) {
@@ -75,10 +70,7 @@ function main() {
   if ((labelled.name.length + 15 | 0) === 21) {
     score = score + 4096 | 0;
   }
-  var bits = (flags & 15) + Math.imul(flags >>> 4 & 15, 16) | 0;
-  if ((flags >>> 8 & 1 ? bits + 256 | 0 : bits) === 405) {
-    score = score + 8192 | 0;
-  }
+  score = score + 8192 | 0;
   if ((boxedValue(packed) + boxedValue(wrapped) | 0) === 139) {
     score = score + 65536 | 0;
   }

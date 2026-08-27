@@ -6,16 +6,27 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$0 = [114, 111, 119, 32]
-@ResolveTest.string$1 = [58, 32, 115, 99, 111, 114, 101, 32]
-@ResolveTest.string$2 = [32, 111, 107]
-@ResolveTest.string$3 = [114, 111, 119, 32]
-@ResolveTest.string$4 = [58, 32, 115, 99, 111, 114, 101, 32]
-@ResolveTest.string$5 = [32, 111, 107]
-@ResolveTest.string$6 = [97, 98]
-@ResolveTest.string$7 = [99, 100, 101]
-@ResolveTest.string$8 = [114, 111, 119, 32]
-@ResolveTest.string$9 = [58, 32, 115, 99, 111, 114, 101, 32]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]
+@ResolveTest.string$2 = [58, 32, 115, 99, 111, 114, 101, 32]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0]
+@ResolveTest.string$4 = [32, 111, 107]
+@ResolveTest.literal$5 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0]
+@ResolveTest.string$6 = [114, 111, 119, 32]
+@ResolveTest.literal$7 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]
+@ResolveTest.string$8 = [58, 32, 115, 99, 111, 114, 101, 32]
+@ResolveTest.literal$9 = [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0]
 @ResolveTest.string$10 = [32, 111, 107]
+@ResolveTest.literal$11 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0]
+@ResolveTest.string$12 = [97, 98]
+@ResolveTest.literal$13 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@ResolveTest.string$14 = [99, 100, 101]
+@ResolveTest.literal$15 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0]
+@ResolveTest.string$16 = [114, 111, 119, 32]
+@ResolveTest.literal$17 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]
+@ResolveTest.string$18 = [58, 32, 115, 99, 111, 114, 101, 32]
+@ResolveTest.literal$19 = [0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 8, 0, 0, 0]
+@ResolveTest.string$20 = [32, 111, 107]
+@ResolveTest.literal$21 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0]
 
 pushUnsigned<complex>(%value: Long, %to: Ptr) {
   b_0 {
@@ -646,19 +657,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = and %length, 1073741823: Int
-    store %v_0, %bytes, 8
-    %v_3 = add %v_0, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, %v_2, 4
-    %v_5 = add %v_0, 12: Ptr
-    store %v_5, %v_2, 4
-    ret 
-  }
-}
-
 copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ige %count, 32: Int
@@ -956,19 +954,16 @@ buildInCallee<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %v_1, 37
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @ResolveTest.string$0, 4
+    copy %v_2, @ResolveTest.literal$1, 16
     call_complex String.push, %v_1, %v_2
-    call_complex Reclaim(String).reclaim, %v_2
     call_complex Show(Int).show, 7, %v_1
     %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @ResolveTest.string$1, 8
+    copy %v_3, @ResolveTest.literal$3, 16
     call_complex String.push, %v_1, %v_3
-    call_complex Reclaim(String).reclaim, %v_3
     call_complex Show(Int).show, 9, %v_1
     %v_4 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_4, @ResolveTest.string$2, 3
+    copy %v_4, @ResolveTest.literal$5, 16
     call_complex String.push, %v_1, %v_4
-    call_complex Reclaim(String).reclaim, %v_4
     %v_5 = add %v_1, 12: Ptr
     %v_6 = load %v_5, 4: Int
     call_complex Reclaim(String).reclaim, %v_1
@@ -981,20 +976,17 @@ buildHere<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %v_1, 37
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @ResolveTest.string$3, 4
+    copy %v_2, @ResolveTest.literal$7, 16
     call_complex String.push, %v_1, %v_2
-    call_complex Reclaim(String).reclaim, %v_2
     %id = imm 7: Int
     call_complex Show(Int).show, %id, %v_1
     %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @ResolveTest.string$4, 8
+    copy %v_3, @ResolveTest.literal$9, 16
     call_complex String.push, %v_1, %v_3
-    call_complex Reclaim(String).reclaim, %v_3
     call_complex Show(Int).show, %id, %v_1
     %v_4 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_4, @ResolveTest.string$5, 3
+    copy %v_4, @ResolveTest.literal$11, 16
     call_complex String.push, %v_1, %v_4
-    call_complex Reclaim(String).reclaim, %v_4
     %v_5 = add %v_1, 12: Ptr
     %v_6 = load %v_5, 4: Int
     call_complex Reclaim(String).reclaim, %v_1
@@ -1005,9 +997,9 @@ buildHere<complex>(): Int {
 concatHere<complex>(): Int {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @ResolveTest.string$6, 2
+    copy %v_1, @ResolveTest.literal$13, 16
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @ResolveTest.string$7, 3
+    copy %v_2, @ResolveTest.literal$15, 16
     %joined = alloca 16, 8: Ptr
     call_complex Append(String).++, %joined, %v_1, %v_2
     %v_3 = add %joined, 12: Ptr
@@ -1022,19 +1014,16 @@ buildUnnamed<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %v_1, 37
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @ResolveTest.string$8, 4
+    copy %v_2, @ResolveTest.literal$17, 16
     call_complex String.push, %v_1, %v_2
-    call_complex Reclaim(String).reclaim, %v_2
     call_complex Show(Int).show, 7, %v_1
     %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @ResolveTest.string$9, 8
+    copy %v_3, @ResolveTest.literal$19, 16
     call_complex String.push, %v_1, %v_3
-    call_complex Reclaim(String).reclaim, %v_3
     call_complex Show(Int).show, 9, %v_1
     %v_4 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_4, @ResolveTest.string$10, 3
+    copy %v_4, @ResolveTest.literal$21, 16
     call_complex String.push, %v_1, %v_4
-    call_complex Reclaim(String).reclaim, %v_4
     %v_5 = add %v_1, 12: Ptr
     %v_6 = load %v_5, 4: Int
     call_complex Reclaim(String).reclaim, %v_1

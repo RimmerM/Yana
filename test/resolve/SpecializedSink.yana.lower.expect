@@ -4,6 +4,7 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$0 = [97, 98]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
 
 push(String)<complex>(%self: Ptr, %item: Ptr) {
   b_0 {
@@ -1063,14 +1064,7 @@ main<complex>(): Int {
 
   b_5 {
     %v_75 = phi [b_6, %v_8], [b_0, 0]: Long
-    %v_76 = alloca 16, 8: Ptr
-    store %v_76, @ResolveTest.string$0, 8
-    %v_77 = add %v_76, 8: Ptr
-    %v_78 = load %v_77, 4: Int
-    store %v_77, 2, 4
-    %v_79 = add %v_76, 12: Ptr
-    store %v_79, 2, 4
-    call_complex push(String), %v_1, %v_76
+    call_complex push(String), %v_1, @ResolveTest.literal$1
     %v_8 = add %v_75, 1: Long
     jmp b_6
   }
@@ -1078,12 +1072,7 @@ main<complex>(): Int {
 
 funvalue$one<complex>(%v_0: Ptr, %env: Ptr, %i: Long) {
   b_1 {
-    store %v_0, @ResolveTest.string$0, 8
-    %v_2 = add %v_0, 8: Ptr
-    %v_3 = load %v_2, 4: Int
-    store %v_2, 2, 4
-    %v_4 = add %v_0, 12: Ptr
-    store %v_4, 2, 4
+    copy %v_0, @ResolveTest.literal$1, 16
     ret 
   }
 }

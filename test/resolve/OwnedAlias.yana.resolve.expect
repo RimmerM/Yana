@@ -2,9 +2,15 @@ let image$base: () = <none>
 
 let ResolveTest.string$0: String = "text"
 
-let ResolveTest.string$1: String = "other"
+let ResolveTest.literal$1: String = "text" {StringData(Array(Run(&ResolveTest.string$0, 4, 0), 4))}
 
-let ResolveTest.string$2: String = "text"
+let ResolveTest.string$2: String = "other"
+
+let ResolveTest.literal$3: String = "other" {StringData(Array(Run(&ResolveTest.string$2, 5, 0), 5))}
+
+let ResolveTest.string$4: String = "text"
+
+let ResolveTest.literal$5: String = "text" {StringData(Array(Run(&ResolveTest.string$4, 4, 0), 4))}
 
 fn consume(%s: String) -> Int {
   b0:
@@ -14,9 +20,8 @@ fn consume(%s: String) -> Int {
 
 fn make() -> String {
   b0:
-    %v0 = symbol ResolveTest.string$0 : %CodeUnit
-    %v2 = call stringLiteral, %v0, 4 : String
-    ret %v2
+    %v0 = copy ResolveTest.literal$1 : String
+    ret %v0
 }
 
 fn setTo(%self: String, %to: String) -> () {
@@ -48,16 +53,15 @@ fn exclusive() -> Int {
     %v3 = load %c : String
     %v4 = borrow_mut %c : &String
     %v5 = load [%v4] : String
-    %v6 = symbol ResolveTest.string$1 : %CodeUnit
-    %v8 = call stringLiteral, %v6, 5 : String
-    %v9 = borrow_mut [%v4] : &String
-    call setTo, %v9, %v8
+    %v6 = copy ResolveTest.literal$3 : String
+    %v7 = borrow_mut [%v4] : &String
+    call setTo, %v7, %v6
     drop %local2 via Reclaim(String).reclaim
-    %v11 = load %c : String
-    %v12 = call Length(String).length, %v11 : Size
+    %v9 = load %c : String
+    %v10 = call Length(String).length, %v9 : Size
     drop %c via Reclaim(String).reclaim
-    %v13 = cast %v12 : Int
-    ret %v13
+    %v11 = cast %v10 : Int
+    ret %v11
 }
 
 fn handedOver() -> Int {
@@ -93,11 +97,10 @@ fn temporary() -> Int {
 
 fn literal() -> Int {
   b0:
-    %v0 = symbol ResolveTest.string$2 : %CodeUnit
-    %c = call stringLiteral, %v0, 4 : String
+    %c = copy ResolveTest.literal$5 : String
     %c = move %local0 : String
-    %v4 = call consume, %c : Int
-    ret %v4
+    %v2 = call consume, %c : Int
+    ret %v2
 }
 
 fn field() -> Size {

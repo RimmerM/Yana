@@ -1,28 +1,54 @@
-let Core.string$108: String = "Red"
+let Core.string$215: String = "Red"
 
-let Core.string$109: String = "Green"
+let Core.literal$216: String = "Red" {StringData(Array(Run(&Core.string$215, 3, 0), 3))}
 
-let Core.string$110: String = "Blue"
+let Core.string$217: String = "Green"
 
-let Core.string$111: String = "Red"
+let Core.literal$218: String = "Green" {StringData(Array(Run(&Core.string$217, 5, 0), 5))}
 
-let Core.string$112: String = "Green"
+let Core.string$219: String = "Blue"
 
-let Core.string$113: String = "Blue"
+let Core.literal$220: String = "Blue" {StringData(Array(Run(&Core.string$219, 4, 0), 4))}
 
-let Core.string$114: String = "FromStart"
+let Core.string$221: String = "Red"
 
-let Core.string$115: String = "FromCurrent"
+let Core.literal$222: String = "Red" {StringData(Array(Run(&Core.string$221, 3, 0), 3))}
 
-let Core.string$116: String = "FromEnd"
+let Core.string$223: String = "Green"
 
-let Core.string$120: String = "Low"
+let Core.literal$224: String = "Green" {StringData(Array(Run(&Core.string$223, 5, 0), 5))}
 
-let Core.string$121: String = "High"
+let Core.string$225: String = "Blue"
 
-let Core.string$122: String = "Low"
+let Core.literal$226: String = "Blue" {StringData(Array(Run(&Core.string$225, 4, 0), 4))}
 
-let Core.string$123: String = "High"
+let Core.string$227: String = "FromStart"
+
+let Core.literal$228: String = "FromStart" {StringData(Array(Run(&Core.string$227, 9, 0), 9))}
+
+let Core.string$229: String = "FromCurrent"
+
+let Core.literal$230: String = "FromCurrent" {StringData(Array(Run(&Core.string$229, 11, 0), 11))}
+
+let Core.string$231: String = "FromEnd"
+
+let Core.literal$232: String = "FromEnd" {StringData(Array(Run(&Core.string$231, 7, 0), 7))}
+
+let Core.string$239: String = "Low"
+
+let Core.literal$240: String = "Low" {StringData(Array(Run(&Core.string$239, 3, 0), 3))}
+
+let Core.string$241: String = "High"
+
+let Core.literal$242: String = "High" {StringData(Array(Run(&Core.string$241, 4, 0), 4))}
+
+let Core.string$243: String = "Low"
+
+let Core.literal$244: String = "Low" {StringData(Array(Run(&Core.string$243, 3, 0), 3))}
+
+let Core.string$245: String = "High"
+
+let Core.literal$246: String = "High" {StringData(Array(Run(&Core.string$245, 4, 0), 4))}
 
 let image$base: () = <none>
 
@@ -30,21 +56,39 @@ let &heapFree: %%U8 = 0
 
 let ResolveTest.string$0: String = "Green"
 
-let ResolveTest.string$1: String = "FromEnd"
+let ResolveTest.literal$1: String = "Green" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
 
-let ResolveTest.string$2: String = "Blue"
+let ResolveTest.string$2: String = "FromEnd"
 
-let ResolveTest.string$3: String = "Purple"
+let ResolveTest.literal$3: String = "FromEnd" {StringData(Array(Run(&ResolveTest.string$2, 7, 0), 7))}
 
-let ResolveTest.string$4: String = "Bleu"
+let ResolveTest.string$4: String = "Blue"
 
-let ResolveTest.string$5: String = "Low"
+let ResolveTest.literal$5: String = "Blue" {StringData(Array(Run(&ResolveTest.string$4, 4, 0), 4))}
 
-let ResolveTest.string$6: String = "High"
+let ResolveTest.string$6: String = "Purple"
 
-let ResolveTest.string$7: String = "Red"
+let ResolveTest.literal$7: String = "Purple" {StringData(Array(Run(&ResolveTest.string$6, 6, 0), 6))}
 
-let ResolveTest.string$8: String = "Red"
+let ResolveTest.string$8: String = "Bleu"
+
+let ResolveTest.literal$9: String = "Bleu" {StringData(Array(Run(&ResolveTest.string$8, 4, 0), 4))}
+
+let ResolveTest.string$10: String = "Low"
+
+let ResolveTest.literal$11: String = "Low" {StringData(Array(Run(&ResolveTest.string$10, 3, 0), 3))}
+
+let ResolveTest.string$12: String = "High"
+
+let ResolveTest.literal$13: String = "High" {StringData(Array(Run(&ResolveTest.string$12, 4, 0), 4))}
+
+let ResolveTest.string$14: String = "Red"
+
+let ResolveTest.literal$15: String = "Red" {StringData(Array(Run(&ResolveTest.string$14, 3, 0), 3))}
+
+let ResolveTest.string$16: String = "Red"
+
+let ResolveTest.literal$17: String = "Red" {StringData(Array(Run(&ResolveTest.string$16, 3, 0), 3))}
 
 fn String.unit(%self: String, %index: Size) -> Int {
   b0:
@@ -143,27 +187,24 @@ fn Enum(Colour).nameOf(%item: Colour) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$108 : %CodeUnit
-    %v7 = call stringLiteral, %v5, 3 : String
+    %v5 = copy Core.literal$216 : String
     jmp b5
 
   b2:
-    %v9 = cmp_eq %v1, 1 : Bool
-    je %v9, b3, b4
+    %v7 = cmp_eq %v1, 1 : Bool
+    je %v7, b3, b4
 
   b3:
-    %v11 = symbol Core.string$109 : %CodeUnit
-    %v13 = call stringLiteral, %v11, 5 : String
+    %v9 = copy Core.literal$218 : String
     jmp b5
 
   b4:
-    %v14 = symbol Core.string$110 : %CodeUnit
-    %v16 = call stringLiteral, %v14, 4 : String
+    %v10 = copy Core.literal$220 : String
     jmp b5
 
   b5:
-    %v20 = phi [b1, %v7], [b3, %v13], [b4, %v16] : String
-    ret %v20
+    %v14 = phi [b1, %v5], [b3, %v9], [b4, %v10] : String
+    ret %v14
 }
 
 fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
@@ -173,75 +214,72 @@ fn Enum(Colour).fromName(%name: String) -> Maybe(Colour) {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$111 : %CodeUnit
-    %v7 = call stringLiteral, %v5, 3 : String
-    %v8 = call Eq(String).==, %name, %v7 : Bool
+    %v5 = copy Core.literal$222 : String
+    %v6 = call Eq(String).==, %name, %v5 : Bool
     drop %local1 via Reclaim(String).reclaim
-    je %v8, b3, b4
+    je %v6, b3, b4
 
   b2:
-    %v19 = cmp_eq %v1, 5 : Bool
-    je %v19, b5, b6
+    %v17 = cmp_eq %v1, 5 : Bool
+    je %v17, b5, b6
 
   b3:
-    %v11 = bitcast 0 : Colour
-    %v12 = alloc : Maybe(Colour)
-    aggregate %local2.discriminant = 1, %local2@Just = %v11
+    %v9 = bitcast 0 : Colour
+    %v10 = alloc : Maybe(Colour)
+    aggregate %local2.discriminant = 1, %local2@Just = %v9
     jmp b13
 
   b4:
-    %v15 = alloc : Maybe(Colour)
+    %v13 = alloc : Maybe(Colour)
     init %local3.discriminant, 0
     jmp b13
 
   b5:
-    %v21 = symbol Core.string$112 : %CodeUnit
-    %v23 = call stringLiteral, %v21, 5 : String
-    %v24 = call Eq(String).==, %name, %v23 : Bool
+    %v19 = copy Core.literal$224 : String
+    %v20 = call Eq(String).==, %name, %v19 : Bool
     drop %local4 via Reclaim(String).reclaim
-    je %v24, b7, b8
+    je %v20, b7, b8
 
   b6:
-    %v35 = cmp_eq %v1, 4 : Bool
-    je %v35, b9, b10
+    %v31 = cmp_eq %v1, 4 : Bool
+    je %v31, b9, b10
 
   b7:
-    %v27 = bitcast 1 : Colour
-    %v28 = alloc : Maybe(Colour)
-    aggregate %local5.discriminant = 1, %local5@Just = %v27
+    %v23 = bitcast 1 : Colour
+    %v24 = alloc : Maybe(Colour)
+    aggregate %local5.discriminant = 1, %local5@Just = %v23
     jmp b13
 
   b8:
-    %v31 = alloc : Maybe(Colour)
+    %v27 = alloc : Maybe(Colour)
     init %local6.discriminant, 0
     jmp b13
 
   b9:
-    %v37 = symbol Core.string$113 : %CodeUnit
-    %v39 = call stringLiteral, %v37, 4 : String
-    %v40 = call Eq(String).==, %name, %v39 : Bool
+    %v33 = copy Core.literal$226 : String
+    %v34 = call Eq(String).==, %name, %v33 : Bool
     drop %local7 via Reclaim(String).reclaim
-    je %v40, b11, b12
+    je %v34, b11, b12
 
   b10:
-    %v50 = alloc : Maybe(Colour)
+    %v44 = alloc : Maybe(Colour)
     init %local10.discriminant, 0
     jmp b13
 
   b11:
-    %v43 = bitcast 2 : Colour
-    %v44 = alloc : Maybe(Colour)
-    aggregate %local8.discriminant = 1, %local8@Just = %v43
+    %v37 = bitcast 2 : Colour
+    %v38 = alloc : Maybe(Colour)
+    aggregate %local8.discriminant = 1, %local8@Just = %v37
     jmp b13
 
   b12:
-    %v47 = alloc : Maybe(Colour)
+    %v41 = alloc : Maybe(Colour)
     init %local9.discriminant, 0
     jmp b13
 
   b13:
-    %v60 = phi [b3, %v12], [b4, %v15], [b7, %v28], [b8, %v31], [b11, %v44], [b12, %v47], [b10, %v50] : Maybe(Colour)
-    ret %v60
+    %v54 = phi [b3, %v10], [b4, %v13], [b7, %v24], [b8, %v27], [b11, %v38], [b12, %v41], [b10, %v44] : Maybe(Colour)
+    ret %v54
 }
 
 fn Enum(Whence).nameOf(%item: Whence) -> String {
@@ -251,27 +289,24 @@ fn Enum(Whence).nameOf(%item: Whence) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$114 : %CodeUnit
-    %v7 = call stringLiteral, %v5, 9 : String
+    %v5 = copy Core.literal$228 : String
     jmp b5
 
   b2:
-    %v9 = cmp_eq %v1, 1 : Bool
-    je %v9, b3, b4
+    %v7 = cmp_eq %v1, 1 : Bool
+    je %v7, b3, b4
 
   b3:
-    %v11 = symbol Core.string$115 : %CodeUnit
-    %v13 = call stringLiteral, %v11, 11 : String
+    %v9 = copy Core.literal$230 : String
     jmp b5
 
   b4:
-    %v14 = symbol Core.string$116 : %CodeUnit
-    %v16 = call stringLiteral, %v14, 7 : String
+    %v10 = copy Core.literal$232 : String
     jmp b5
 
   b5:
-    %v20 = phi [b1, %v7], [b3, %v13], [b4, %v16] : String
-    ret %v20
+    %v14 = phi [b1, %v5], [b3, %v9], [b4, %v10] : String
+    ret %v14
 }
 
 fn Enum(Pair(Int)).nameOf(%item: Pair(Int)) -> String {
@@ -281,18 +316,16 @@ fn Enum(Pair(Int)).nameOf(%item: Pair(Int)) -> String {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$120 : %CodeUnit
-    %v7 = call stringLiteral, %v5, 3 : String
+    %v5 = copy Core.literal$240 : String
     jmp b3
 
   b2:
-    %v8 = symbol Core.string$121 : %CodeUnit
-    %v10 = call stringLiteral, %v8, 4 : String
+    %v6 = copy Core.literal$242 : String
     jmp b3
 
   b3:
-    %v13 = phi [b1, %v7], [b2, %v10] : String
-    ret %v13
+    %v9 = phi [b1, %v5], [b2, %v6] : String
+    ret %v9
 }
 
 fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
@@ -302,53 +335,51 @@ fn Enum(Pair(Int)).fromName(%name: String) -> Maybe(Pair(Int)) {
     je %v3, b1, b2
 
   b1:
-    %v5 = symbol Core.string$122 : %CodeUnit
-    %v7 = call stringLiteral, %v5, 3 : String
-    %v8 = call Eq(String).==, %name, %v7 : Bool
+    %v5 = copy Core.literal$244 : String
+    %v6 = call Eq(String).==, %name, %v5 : Bool
     drop %local1 via Reclaim(String).reclaim
-    je %v8, b3, b4
+    je %v6, b3, b4
 
   b2:
-    %v19 = cmp_eq %v1, 4 : Bool
-    je %v19, b5, b6
+    %v17 = cmp_eq %v1, 4 : Bool
+    je %v17, b5, b6
 
   b3:
-    %v11 = bitcast 0 : Pair(Int)
-    %v12 = alloc : Maybe(Pair(Int))
-    aggregate %local2.discriminant = 1, %local2@Just = %v11
+    %v9 = bitcast 0 : Pair(Int)
+    %v10 = alloc : Maybe(Pair(Int))
+    aggregate %local2.discriminant = 1, %local2@Just = %v9
     jmp b9
 
   b4:
-    %v15 = alloc : Maybe(Pair(Int))
+    %v13 = alloc : Maybe(Pair(Int))
     init %local3.discriminant, 0
     jmp b9
 
   b5:
-    %v21 = symbol Core.string$123 : %CodeUnit
-    %v23 = call stringLiteral, %v21, 4 : String
-    %v24 = call Eq(String).==, %name, %v23 : Bool
+    %v19 = copy Core.literal$246 : String
+    %v20 = call Eq(String).==, %name, %v19 : Bool
     drop %local4 via Reclaim(String).reclaim
-    je %v24, b7, b8
+    je %v20, b7, b8
 
   b6:
-    %v34 = alloc : Maybe(Pair(Int))
+    %v30 = alloc : Maybe(Pair(Int))
     init %local7.discriminant, 0
     jmp b9
 
   b7:
-    %v27 = bitcast 1 : Pair(Int)
-    %v28 = alloc : Maybe(Pair(Int))
-    aggregate %local5.discriminant = 1, %local5@Just = %v27
+    %v23 = bitcast 1 : Pair(Int)
+    %v24 = alloc : Maybe(Pair(Int))
+    aggregate %local5.discriminant = 1, %local5@Just = %v23
     jmp b9
 
   b8:
-    %v31 = alloc : Maybe(Pair(Int))
+    %v27 = alloc : Maybe(Pair(Int))
     init %local6.discriminant, 0
     jmp b9
 
   b9:
-    %v42 = phi [b3, %v12], [b4, %v15], [b7, %v28], [b8, %v31], [b6, %v34] : Maybe(Pair(Int))
-    ret %v42
+    %v38 = phi [b3, %v10], [b4, %v13], [b7, %v24], [b8, %v27], [b6, %v30] : Maybe(Pair(Int))
+    ret %v38
 }
 
 fn freeListHead(%sizeClass: Size) -> %U8 {
@@ -394,28 +425,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
 }
 
 fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
@@ -472,12 +481,11 @@ fn instantiatedOfName(%s: String) -> Maybe(Pair(Int)) {
 fn main() -> Int {
   b0:
     %v1 = call nameOfColour, Green : String
-    %v2 = symbol ResolveTest.string$0 : %CodeUnit
-    %v4 = call stringLiteral, %v2, 5 : String
-    %v5 = call Eq(String).!=, %v1, %v4 : Bool
+    %v2 = copy ResolveTest.literal$1 : String
+    %v3 = call Eq(String).!=, %v1, %v2 : Bool
     drop %local0 via Reclaim(String).reclaim
     drop %local1 via Reclaim(String).reclaim
-    je %v5, b1, b2
+    je %v3, b1, b2
 
   b1:
     ret 1
@@ -486,13 +494,12 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v11 = call whenceName, FromEnd : String
-    %v12 = symbol ResolveTest.string$1 : %CodeUnit
-    %v14 = call stringLiteral, %v12, 7 : String
-    %v15 = call Eq(String).!=, %v11, %v14 : Bool
+    %v9 = call whenceName, FromEnd : String
+    %v10 = copy ResolveTest.literal$3 : String
+    %v11 = call Eq(String).!=, %v9, %v10 : Bool
     drop %local2 via Reclaim(String).reclaim
     drop %local3 via Reclaim(String).reclaim
-    je %v15, b4, b5
+    je %v11, b4, b5
 
   b4:
     ret 2
@@ -501,13 +508,12 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v20 = symbol ResolveTest.string$2 : %CodeUnit
-    %v22 = call stringLiteral, %v20, 4 : String
-    %found = call colourOfName, %v22 : Maybe(Colour)
+    %v16 = copy ResolveTest.literal$5 : String
+    %found = call colourOfName, %v16 : Maybe(Colour)
     drop %local4 via Reclaim(String).reclaim
-    %v24 = load %local5.discriminant : Int
-    %v26 = cmp_eq %v24, 0 : Bool
-    je %v26, b8, b7
+    %v18 = load %local5.discriminant : Int
+    %v20 = cmp_eq %v18, 0 : Bool
+    je %v20, b8, b7
 
   b7:
     jmp b9
@@ -516,45 +522,42 @@ fn main() -> Int {
     ret 3
 
   b9:
-    %v31 = symbol ResolveTest.string$3 : %CodeUnit
-    %v33 = call stringLiteral, %v31, 6 : String
-    %missing = call colourOfName, %v33 : Maybe(Colour)
+    %v25 = copy ResolveTest.literal$7 : String
+    %missing = call colourOfName, %v25 : Maybe(Colour)
     drop %local6 via Reclaim(String).reclaim
-    %v35 = load %local7.discriminant : Int
-    %v37 = cmp_eq %v35, 1 : Bool
-    je %v37, b11, b10
+    %v27 = load %local7.discriminant : Int
+    %v29 = cmp_eq %v27, 1 : Bool
+    je %v29, b11, b10
 
   b10:
     jmp b12
 
   b11:
-    %v39 = load %local7@Just : Colour
+    %v31 = load %local7@Just : Colour
     ret 4
 
   b12:
-    %v43 = symbol ResolveTest.string$4 : %CodeUnit
-    %v45 = call stringLiteral, %v43, 4 : String
-    %v46 = call colourOfName, %v45 : Maybe(Colour)
+    %v35 = copy ResolveTest.literal$9 : String
+    %v36 = call colourOfName, %v35 : Maybe(Colour)
     drop %local8 via Reclaim(String).reclaim
-    %v47 = load %local9.discriminant : Int
-    %v49 = cmp_eq %v47, 1 : Bool
-    je %v49, b14, b13
+    %v37 = load %local9.discriminant : Int
+    %v39 = cmp_eq %v37, 1 : Bool
+    je %v39, b14, b13
 
   b13:
     jmp b15
 
   b14:
-    %v51 = load %local9@Just : Colour
+    %v41 = load %local9@Just : Colour
     ret 5
 
   b15:
-    %v56 = call instantiatedName, Low : String
-    %v57 = symbol ResolveTest.string$5 : %CodeUnit
-    %v59 = call stringLiteral, %v57, 3 : String
-    %v60 = call Eq(String).!=, %v56, %v59 : Bool
+    %v46 = call instantiatedName, Low : String
+    %v47 = copy ResolveTest.literal$11 : String
+    %v48 = call Eq(String).!=, %v46, %v47 : Bool
     drop %local10 via Reclaim(String).reclaim
     drop %local11 via Reclaim(String).reclaim
-    je %v60, b16, b17
+    je %v48, b16, b17
 
   b16:
     ret 6
@@ -563,13 +566,12 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v65 = symbol ResolveTest.string$6 : %CodeUnit
-    %v67 = call stringLiteral, %v65, 4 : String
-    %v68 = call instantiatedOfName, %v67 : Maybe(Pair(Int))
+    %v53 = copy ResolveTest.literal$13 : String
+    %v54 = call instantiatedOfName, %v53 : Maybe(Pair(Int))
     drop %local12 via Reclaim(String).reclaim
-    %v69 = load %local13.discriminant : Int
-    %v71 = cmp_eq %v69, 0 : Bool
-    je %v71, b20, b19
+    %v55 = load %local13.discriminant : Int
+    %v57 = cmp_eq %v55, 0 : Bool
+    je %v57, b20, b19
 
   b19:
     jmp b21
@@ -578,41 +580,39 @@ fn main() -> Int {
     ret 7
 
   b21:
-    %v76 = symbol ResolveTest.string$7 : %CodeUnit
-    %v78 = call stringLiteral, %v76, 3 : String
-    %v79 = call instantiatedOfName, %v78 : Maybe(Pair(Int))
+    %v62 = copy ResolveTest.literal$15 : String
+    %v63 = call instantiatedOfName, %v62 : Maybe(Pair(Int))
     drop %local14 via Reclaim(String).reclaim
-    %v80 = load %local15.discriminant : Int
-    %v82 = cmp_eq %v80, 1 : Bool
-    je %v82, b23, b22
+    %v64 = load %local15.discriminant : Int
+    %v66 = cmp_eq %v64, 1 : Bool
+    je %v66, b23, b22
 
   b22:
     jmp b24
 
   b23:
-    %v84 = load %local15@Just : Pair(Int)
+    %v68 = load %local15@Just : Pair(Int)
     ret 8
 
   b24:
-    %v88 = symbol ResolveTest.string$8 : %CodeUnit
-    %v90 = call stringLiteral, %v88, 3 : String
-    %v91 = call colourOfName, %v90 : Maybe(Colour)
+    %v72 = copy ResolveTest.literal$17 : String
+    %v73 = call colourOfName, %v72 : Maybe(Colour)
     drop %local16 via Reclaim(String).reclaim
-    %v92 = load %local17.discriminant : Int
-    %v94 = cmp_eq %v92, 1 : Bool
-    je %v94, b26, b25
+    %v74 = load %local17.discriminant : Int
+    %v76 = cmp_eq %v74, 1 : Bool
+    je %v76, b26, b25
 
   b25:
     jmp b27
 
   b26:
     %c = load %local17@Just : Colour
-    %v98 = cast %c : I64
-    %v99 = cast %v98 : Int
-    %v101 = add 10, %v99 : Int
+    %v80 = cast %c : I64
+    %v81 = cast %v80 : Int
+    %v83 = add 10, %v81 : Int
     jmp b27
 
   b27:
-    %v105 = phi [b26, %v101], [b25, 9] : Int
-    ret %v105
+    %v87 = phi [b26, %v83], [b25, 9] : Int
+    ret %v87
 }

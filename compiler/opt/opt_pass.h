@@ -390,6 +390,62 @@ Maybe<Place> argumentStorage(OptContext& opt, ModulePtr<Value> value);
 Place resolvedRoot(OptContext& opt, const Place& place);
 
 /*
+ * The constant a read of this place answers, or null - the same walk `ExprResolver::constantAt`
+ * makes, run again here for the reads that only *become* constant after this stage has worked.
+ *
+ * Resolve asks it once, at the point the read is written, and that catches `origin.x` and
+ * `table[2]`. What it cannot catch is everything an optimizer creates: a constructor map's table
+ * read whose index folds to a literal only after the call around it was inlined, a field of a
+ * constant global reached through a borrow the resolver emitted as a whole-value read. Those are
+ * the common shapes and they all arrive after resolution.
+ *
+ * Two things stop the walk, and they are resolve's two. A global **anything writes** has a constant
+ * that says what its storage *started* at and nothing about what a read finds. And a projection this
+ * cannot follow - a `Deref` through a box, a `Property`, an `Index` by something that is not a
+ * literal - answers null rather than guessing.
+ *
+ * The root is resolved first, so a path through a borrow of the global's storage answers as the
+ * direct path would. See resolvedRoot for the three conditions that walk applies.
+ */
+ModulePtr<ConstValue> constantAt(OptContext& opt, const Place& place);
+
+// The node a path reaches inside a constant tree - `constantAt` without the root, for the caller
+// that has the tree in hand rather than a global to read it from.
+ModulePtr<ConstValue> constantThrough(OptContext& opt, ModulePtr<ConstValue> root,
+                                      ModuleList<Projection, false> path);
+
+/*
+ * The constant a local's storage holds *everywhere in this function*, or null - see the
+ * implementation, which is where the three conditions and the reason for each are written down.
+ *
+ * `forwardPlaces` answers the same question per block and loses it at every call, because a local
+ * whose address a callee was given is one a callee may have written. This is the case where that is
+ * over-conservative and provably so, and it is the case a string literal is: filled once from an
+ * immutable global, lent to a comparison, and then read by its own teardown.
+ */
+ModulePtr<ConstValue> constantLocalContents(OptContext& opt, U32 local);
+
+// That constant as a value, for a read of a place rooted in such a local.
+ModulePtr<Value> foldConstantLocal(OptContext& opt, Value& at, const Place& place);
+
+/*
+ * That constant as a *value*, or null where it is not one this may produce.
+ *
+ * **Only a direct-type scalar leaf**, which is resolve's line and is drawn here for its second
+ * reason as well: a memory-typed leaf is storage, so producing it as a value means building one at
+ * every use. The static form already is that value and loading it is one read.
+ *
+ * A pointer is declined on top of that. Resolve spells a pointer constant as a cast of an integer,
+ * which is two instructions where every other leaf is one, and no constant global this reaches holds
+ * an address a fold would be about - a string literal's `items` is a relocation rather than a number.
+ */
+ModulePtr<Value> foldConstantRead(OptContext& opt, Value& at, const Place& place);
+
+// The leaf half of it, for a caller that has walked to the node itself - see `inheritConstant`,
+// which walks a whole tree rather than one path through it.
+ModulePtr<Value> foldConstantLeaf(OptContext& opt, Value& at, ModulePtr<ConstValue> constant);
+
+/*
  * The fields of an aggregate a pass is willing to take apart, and how a place names one.
  *
  * `constructor` is the `Downcast` a record's field path begins with - `%p@Point.x` is a downcast to

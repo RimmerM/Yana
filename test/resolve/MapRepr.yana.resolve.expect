@@ -10,7 +10,11 @@ let &heapRegionNext: Size = 0
 
 let ResolveTest.string$0: String = "a"
 
-let ResolveTest.string$1: String = "a"
+let ResolveTest.literal$1: String = "a" {StringData(Array(Run(&ResolveTest.string$0, 1, 0), 1))}
+
+let ResolveTest.string$2: String = "a"
+
+let ResolveTest.literal$3: String = "a" {StringData(Array(Run(&ResolveTest.string$2, 1, 0), 1))}
 
 fn slotFor(%h: U32, %mask: @bits(30) U32) -> Size {
   b0:
@@ -2137,28 +2141,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
-}
-
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
@@ -3146,18 +3128,17 @@ fn touchString(%m: Map(String, Int)) -> Int {
   b0:
     %n = alloc : Int
     init %n, 0
-    %v4 = symbol ResolveTest.string$0 : %CodeUnit
-    %v6 = call stringLiteral, %v4, 1 : String
-    %v7 = borrow %m : 'Map(String, Int)
-    %v8 = call find(String, Int), %v7, %v6 : Maybe('Int)
+    %v4 = copy ResolveTest.literal$1 : String
+    %v5 = borrow %m : 'Map(String, Int)
+    %v6 = call find(String, Int), %v5, %v4 : Maybe('Int)
     drop %local2 via Reclaim(String).reclaim
-    %v9 = load %local3.discriminant : Int
-    %v11 = cmp_eq %v9, 1 : Bool
-    je %v11, b2, b1
+    %v7 = load %local3.discriminant : Int
+    %v9 = cmp_eq %v7, 1 : Bool
+    je %v9, b2, b1
 
   b1:
-    %v20 = sub 0, 1 : Int
-    assign %n, %v20
+    %v18 = sub 0, 1 : Int
+    assign %n, %v18
     jmp b3
 
   b2:
@@ -3167,8 +3148,8 @@ fn touchString(%m: Map(String, Int)) -> Int {
     jmp b3
 
   b3:
-    %v24 = load %n : Int
-    ret %v24
+    %v22 = load %n : Int
+    ret %v22
 }
 
 fn main() -> Int {
@@ -3183,19 +3164,18 @@ fn main() -> Int {
     %b = alloc : Map(String, Int)
     init %b, %v10
     %v13 = load %b : Map(String, Int)
-    %v14 = symbol ResolveTest.string$1 : %CodeUnit
-    %v16 = call stringLiteral, %v14, 1 : String
-    %v19 = borrow_mut %b : &Map(String, Int)
-    %v20 = move %local5 : String
-    %v21 = call insert(String, Int), %v19, %v20, 6 : Maybe(Int)
-    %v22 = load %a : Map(Int, Int)
-    %v23 = call touchInt, %v22 : Int
+    %v14 = copy ResolveTest.literal$3 : String
+    %v17 = borrow_mut %b : &Map(String, Int)
+    %v18 = move %local5 : String
+    %v19 = call insert(String, Int), %v17, %v18, 6 : Maybe(Int)
+    %v20 = load %a : Map(Int, Int)
+    %v21 = call touchInt, %v20 : Int
     drop_derived %a via reclaim$Map(Int, Int)
-    %v24 = load %b : Map(String, Int)
-    %v25 = call touchString, %v24 : Int
+    %v22 = load %b : Map(String, Int)
+    %v23 = call touchString, %v22 : Int
     drop_derived %b via reclaim$Map(String, Int)
-    %v26 = add %v23, %v25 : Int
-    ret %v26
+    %v24 = add %v21, %v23 : Int
+    ret %v24
 }
 
 fn reclaim$Map(Int, Int)(%value: Map(Int, Int)) -> () {

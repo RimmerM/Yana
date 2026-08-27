@@ -7,9 +7,13 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @tags = [0, 0, 0, 0]
 @ResolveTest.string$0 = [110, 61]
-@ResolveTest.string$1 = [33]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
 @ResolveTest.string$2 = [33]
-@ResolveTest.string$3 = [33]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+@ResolveTest.string$4 = [33]
+@ResolveTest.literal$5 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+@ResolveTest.string$6 = [33]
+@ResolveTest.literal$7 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
 
 pushUnsigned<complex>(%value: Long, %to: Ptr) {
   b_0 {
@@ -589,19 +593,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = and %length, 1073741823: Int
-    store %v_0, %bytes, 8
-    %v_3 = add %v_0, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, %v_2, 4
-    %v_5 = add %v_0, 12: Ptr
-    store %v_5, %v_2, 4
-    ret 
-  }
-}
-
 copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ige %count, 32: Int
@@ -908,31 +899,27 @@ tagged<complex>(%v_0: Ptr, %n: Int) {
     %v_8 = add %v_5, 12: Ptr
     store %v_8, 0, 4
     %v_9 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_9, @ResolveTest.string$0, 2
+    copy %v_9, @ResolveTest.literal$1, 16
     %v_10 = load %v_9, 8: Ptr
-    %v_11 = add %v_9, 12: Ptr
-    %v_12 = load %v_11, 4: Int
-    %v_13 = sext %v_12: Long
-    call_complex String.appendUnits, %v_5, %v_10, %v_13
-    call_complex Reclaim(String).reclaim, %v_9
-    %v_14 = sext %n: Long
-    %v_15 = cmp_ilt %v_14, 0: Int
-    je %v_15, b_16, b_17
+    call_complex String.appendUnits, %v_5, %v_10, 2
+    %v_11 = sext %n: Long
+    %v_12 = cmp_ilt %v_11, 0: Int
+    je %v_12, b_13, b_14
   }
 
-  b_17 {
-    call_complex pushUnsigned, %v_14, %v_5
-    jmp b_18
+  b_14 {
+    call_complex pushUnsigned, %v_11, %v_5
+    jmp b_15
   }
 
-  b_16 {
+  b_13 {
     call_complex push(CodeUnit), %v_5, 45
-    %v_19 = sub 0, %v_14: Long
-    call_complex pushUnsigned, %v_19, %v_5
-    jmp b_18
+    %v_16 = sub 0, %v_11: Long
+    call_complex pushUnsigned, %v_16, %v_5
+    jmp b_15
   }
 
-  b_18 {
+  b_15 {
     copy %v_0, %v_5, 16
     ret 
   }
@@ -943,7 +930,7 @@ built<complex>(%n: Int): Int {
     %text = alloca 16, 8: Ptr
     call_complex tagged, %text, %n
     %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @ResolveTest.string$1, 1
+    copy %v_1, @ResolveTest.literal$3, 16
     %v_2 = alloca 16, 8: Ptr
     call_complex Append(String).++, %v_2, %text, %v_1
     copy %text, %v_2, 16
@@ -964,7 +951,7 @@ inLaterBlock<complex>(%n: Int): Int {
 
   b_2 {
     %v_4 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_4, @ResolveTest.string$2, 1
+    copy %v_4, @ResolveTest.literal$5, 16
     %v_5 = alloca 16, 8: Ptr
     call_complex Append(String).++, %v_5, %text, %v_4
     copy %text, %v_5, 16
@@ -1059,7 +1046,7 @@ main<complex>(): Int {
     %text = alloca 16, 8: Ptr
     copy %text, %v_39, 16
     %v_40 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_40, @ResolveTest.string$3, 1
+    copy %v_40, @ResolveTest.literal$7, 16
     %v_41 = alloca 16, 8: Ptr
     call_complex Append(String).++, %v_41, %text, %v_40
     copy %text, %v_41, 16

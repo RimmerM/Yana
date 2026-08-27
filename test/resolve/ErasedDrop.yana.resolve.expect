@@ -1,4 +1,6 @@
-let Core.string$9: String = <none>
+let Core.string$17: String = <none>
+
+let Core.literal$18: String = "" {StringData(Array(Run(&Core.string$17, 0, 0), 0))}
 
 table closure$Core.continuation$0(Array(String), String) before Core.continuation$0(Array(String), String) {
   .0 teardown$none
@@ -22,15 +24,27 @@ let &live: I64 = 0
 
 let ResolveTest.string$0: String = "ab"
 
-let ResolveTest.string$1: String = "cd"
+let ResolveTest.literal$1: String = "ab" {StringData(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
 
-let ResolveTest.string$2: String = "ef"
+let ResolveTest.string$2: String = "cd"
 
-let ResolveTest.string$3: String = "abcdef"
+let ResolveTest.literal$3: String = "cd" {StringData(Array(Run(&ResolveTest.string$2, 2, 0), 2))}
 
-let ResolveTest.string$4: String = "ab"
+let ResolveTest.string$4: String = "ef"
 
-let ResolveTest.string$5: String = "ababab"
+let ResolveTest.literal$5: String = "ef" {StringData(Array(Run(&ResolveTest.string$4, 2, 0), 2))}
+
+let ResolveTest.string$6: String = "abcdef"
+
+let ResolveTest.literal$7: String = "abcdef" {StringData(Array(Run(&ResolveTest.string$6, 6, 0), 6))}
+
+let ResolveTest.string$8: String = "ab"
+
+let ResolveTest.literal$9: String = "ab" {StringData(Array(Run(&ResolveTest.string$8, 2, 0), 2))}
+
+let ResolveTest.string$10: String = "ababab"
+
+let ResolveTest.literal$11: String = "ababab" {StringData(Array(Run(&ResolveTest.string$10, 6, 0), 6))}
 
 table typeDesc$Counted {
   .0 sizeof Counted
@@ -296,9 +310,8 @@ fn Append(String).++(%lhs: String, %rhs: String) -> String {
 
 fn Monoid(String).empty() -> String {
   b0:
-    %v0 = symbol Core.string$9 : %CodeUnit
-    %v2 = call stringLiteral, %v0, 0 : String
-    ret %v2
+    %v0 = copy Core.literal$18 : String
+    ret %v0
 }
 
 fn Eq(String).==(%self: String, %other: String) -> Bool {
@@ -1151,28 +1164,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
 }
 
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
@@ -2182,63 +2173,57 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v125 = symbol ResolveTest.string$0 : %CodeUnit
-    %v127 = call stringLiteral, %v125, 2 : String
-    %v128 = symbol ResolveTest.string$1 : %CodeUnit
-    %v130 = call stringLiteral, %v128, 2 : String
-    %v131 = symbol ResolveTest.string$2 : %CodeUnit
-    %v133 = call stringLiteral, %v131, 2 : String
-    %v134 = alloc : Array(String)
-    %v137 = alloc *3 : String
-    %v138 = addressof %local13 : %String
-    init %local12@Array.run@Run.items, %v138
+    %v125 = copy ResolveTest.literal$1 : String
+    %v126 = copy ResolveTest.literal$3 : String
+    %v127 = copy ResolveTest.literal$5 : String
+    %v128 = alloc : Array(String)
+    %v131 = alloc *3 : String
+    %v132 = addressof %local13 : %String
+    init %local12@Array.run@Run.items, %v132
     init %local12@Array.run@Run.capacity, 3
     init %local12@Array.run@Run.ownsHeap, 0
-    aggregate [%v138][0] = %v127, [%v138][1] = %v130, [%v138][2] = %v133
+    aggregate [%v132][0] = %v125, [%v132][1] = %v126, [%v132][2] = %v127
     init %local12@Array.length, 3
-    %v148 = call concat(Array(String), String), %v134 : String
+    %v142 = call concat(Array(String), String), %v128 : String
     drop %local12 via Reclaim(Array(a)).reclaim(String)
-    %v149 = symbol ResolveTest.string$3 : %CodeUnit
-    %v151 = call stringLiteral, %v149, 6 : String
-    %v152 = call Eq(String).!=, %v148, %v151 : Bool
+    %v143 = copy ResolveTest.literal$7 : String
+    %v144 = call Eq(String).!=, %v142, %v143 : Bool
     drop %local14 via Reclaim(String).reclaim
     drop %local15 via Reclaim(String).reclaim
-    je %v152, b25, b26
+    je %v144, b25, b26
 
   b25:
-    %v156 = neg 8 : Int
-    ret %v156
+    %v148 = neg 8 : Int
+    ret %v148
 
   b26:
     jmp b27
 
   b27:
-    %v159 = symbol ResolveTest.string$4 : %CodeUnit
-    %v161 = call stringLiteral, %v159, 2 : String
-    %v164 = gencall env genEnv$repeated(String) repeated(String), %v161, 3 : String
+    %v151 = copy ResolveTest.literal$9 : String
+    %v154 = gencall env genEnv$repeated(String) repeated(String), %v151, 3 : String
     drop %local16 via Reclaim(String).reclaim
-    %v165 = symbol ResolveTest.string$5 : %CodeUnit
-    %v167 = call stringLiteral, %v165, 6 : String
-    %v168 = call Eq(String).!=, %v164, %v167 : Bool
+    %v155 = copy ResolveTest.literal$11 : String
+    %v156 = call Eq(String).!=, %v154, %v155 : Bool
     drop %local17 via Reclaim(String).reclaim
     drop %local18 via Reclaim(String).reclaim
-    je %v168, b28, b29
+    je %v156, b28, b29
 
   b28:
-    %v172 = neg 9 : Int
-    ret %v172
+    %v160 = neg 9 : Int
+    ret %v160
 
   b29:
     jmp b30
 
   b30:
-    %v175 = load live : I64
-    %v178 = cmp_ne %v175, 0 : Bool
-    je %v178, b31, b32
+    %v163 = load live : I64
+    %v166 = cmp_ne %v163, 0 : Bool
+    je %v166, b31, b32
 
   b31:
-    %v182 = neg 10 : Int
-    ret %v182
+    %v170 = neg 10 : Int
+    ret %v170
 
   b32:
     jmp b33

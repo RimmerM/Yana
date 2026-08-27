@@ -3208,6 +3208,29 @@ struct Inliner {
      *  - **an erased teardown**, which `describe` already refuses along with every other generic
      *    body: what runs is whatever the caller's descriptor holds, and there is no callee to copy.
      */
+    /*
+     * Whether this teardown, copied in, would fold to nothing - so the budget has nothing to weigh.
+     *
+     * The one shape it is about is a string literal, and the shape is exact rather than a heuristic:
+     * `resolveString` fills the slot with a bitwise duplicate of an immutable global's constant, and
+     * `Reclaim(String)` is a *test* of the `ownsHeap` that constant holds. Inlined, that load folds
+     * (`constantLocalContents` is what answers it, and answers it past the comparison the literal is
+     * lent to on the way here), the test folds, `foldBranches` takes the arm, and what is left of the
+     * body is nothing at all. The call it replaces is two instructions that do nothing at run time.
+     *
+     * It has to be exact, because the budget is the only thing standing between this path and
+     * `Matrix`'s measured 0.933x - a teardown copied into a loop where it had held a call. The proof
+     * is `constantLocalContents`, which is the same rule the fold rests on rather than a second one
+     * that could be more generous than it: a site this admits and that does not fold is a body that
+     * stays, and the two answers agreeing is what stops that from being possible.
+     */
+    bool teardownFoldsAway(const Place& place) {
+        auto path = place.projections;
+        if(place.root != PlaceRoot::Local || path.size()) return false;
+
+        return constantLocalContents(opt, place.local) != nullptr;
+    }
+
     bool inlineTeardown(Block& block, Size index, ModulePtr<Inst> pointer, bool& grafted) {
         auto& dropped = (InstDrop&)*opt.local[pointer];
 
@@ -3270,7 +3293,9 @@ struct Inliner {
          * call, and measured 0.933x for it. A teardown is a callee like any other - the site is a
          * call by the time anything emits it, which is exactly what the budget is denominated in.
          */
-        if(!worthInlining(candidate)) return false;
+        // And the one exemption from it, which is a proof rather than a preference - see
+        // `teardownFoldsAway`, and the paragraph above for why the budget is otherwise absolute.
+        if(!worthInlining(candidate) && !teardownFoldsAway(dropped.place)) return false;
         if(!graft(candidate, block, index, pointer, grafted)) return false;
         recordCollapse(candidate);
 

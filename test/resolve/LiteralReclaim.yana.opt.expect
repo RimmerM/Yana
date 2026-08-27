@@ -1,0 +1,972 @@
+let image$base: () = <none>
+
+let &heapNext: %U8 = 0
+
+let &heapLimit: %U8 = 0
+
+let &heapFree: %%U8 = 0
+
+let &heapRegionNext: Size = 0
+
+let ResolveTest.string$0: String = "green"
+
+let ResolveTest.literal$1: String = "green" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
+
+let ResolveTest.string$2: String = "red"
+
+let ResolveTest.literal$3: String = "red" {StringData(Array(Run(&ResolveTest.string$2, 3, 0), 3))}
+
+let ResolveTest.string$4: String = "green"
+
+let ResolveTest.literal$5: String = "green" {StringData(Array(Run(&ResolveTest.string$4, 5, 0), 5))}
+
+let ResolveTest.string$6: String = "blue"
+
+let ResolveTest.literal$7: String = "blue" {StringData(Array(Run(&ResolveTest.string$6, 4, 0), 4))}
+
+let ResolveTest.string$8: String = "abcd"
+
+let ResolveTest.literal$9: String = "abcd" {StringData(Array(Run(&ResolveTest.string$8, 4, 0), 4))}
+
+let ResolveTest.string$10: String = "ab"
+
+let ResolveTest.literal$11: String = "ab" {StringData(Array(Run(&ResolveTest.string$10, 2, 0), 2))}
+
+let ResolveTest.string$12: String = "cde"
+
+let ResolveTest.literal$13: String = "cde" {StringData(Array(Run(&ResolveTest.string$12, 3, 0), 3))}
+
+let ResolveTest.string$14: String = "green"
+
+let ResolveTest.literal$15: String = "green" {StringData(Array(Run(&ResolveTest.string$14, 5, 0), 5))}
+
+let ResolveTest.string$16: String = "red"
+
+let ResolveTest.literal$17: String = "red" {StringData(Array(Run(&ResolveTest.string$16, 3, 0), 3))}
+
+let ResolveTest.string$18: String = "red"
+
+let ResolveTest.literal$19: String = "red" {StringData(Array(Run(&ResolveTest.string$18, 3, 0), 3))}
+
+let ResolveTest.string$20: String = "green"
+
+let ResolveTest.literal$21: String = "green" {StringData(Array(Run(&ResolveTest.string$20, 5, 0), 5))}
+
+let ResolveTest.string$22: String = "blue"
+
+let ResolveTest.literal$23: String = "blue" {StringData(Array(Run(&ResolveTest.string$22, 4, 0), 4))}
+
+let ResolveTest.string$24: String = "mauve"
+
+let ResolveTest.literal$25: String = "mauve" {StringData(Array(Run(&ResolveTest.string$24, 5, 0), 5))}
+
+fn Append(String).++(%lhs: String, %rhs: String) -> String {
+  b0:
+    %v18 = borrow %rhs : 'String
+    %v19 = cast %v18 : 'StringData
+    %v20 = load [%v19]@StringData.bytes@Array.length : @bits(30) U32
+    %units = cast %v20 : Int
+    %v22 = cast %units : Size
+    %lhs = move %lhs : String
+    %v4 = alloc : String
+    init %out, %lhs
+    %v7 = borrow %rhs : 'String
+    %v8 = cast %v7 : 'StringData
+    %v11 = load [%v8]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v24 = cmp_le %v22, 0 : Bool
+    je %v24, b4, b1
+
+  b1:
+    %v26 = borrow_mut %out : &String
+    %v27 = cast %v26 : &StringData
+    %v28 = load [%v27]@StringData.bytes@Array.length : @bits(30) U32
+    %v29 = cast %v28 : Size
+    %v30 = add %v29, %v22 : Size
+    %v31 = borrow_mut [%v27]@StringData.bytes : &Array(CodeUnit)
+    call reserve(CodeUnit), %v31, %v30
+    %v33 = borrow_mut %out : &String
+    %v34 = cast %v33 : &StringData
+    %v35 = load [%v34]@StringData.bytes@Array.length : @bits(30) U32
+    %v36 = cast %v35 : Size
+    %wanted = add %v36, %v22 : Size
+    %v38 = load [%v34]@StringData.bytes@Array.run@Run.capacity : @bits(30) U32
+    %v39 = cast %v38 : Size
+    %v40 = cmp_lt %v39, %wanted : Bool
+    je %v40, b3, b2
+
+  b2:
+    %v42 = load [%v34]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v43 = add %v42, %v36 : %CodeUnit
+    %v44 = bitcast %v43 : %U8
+    %v45 = bitcast %v11 : %U8
+    %v46 = add %v11, %v22 : %CodeUnit
+    %v47 = bitcast %v46 : %U8
+    %v48 = sub %v47, %v45 : Size
+    call copyMemory, %v44, %v45, %v48
+    %v50 = cast %wanted : U32
+    %v52 = and %v50, 1073741823 : U32
+    %v53 = cast %v52 : @bits(30) U32
+    assign [%v34]@StringData.bytes@Array.length, %v53
+    jmp b5
+
+  b3:
+    %v56 = syscall 60, 134 : Size
+    unreachable
+
+  b4:
+    jmp b5
+
+  b5:
+    %v61 = borrow %rhs : 'String
+    %v62 = cast %v61 : 'StringData
+    %v65 = load [%v62]@StringData.bytes@Array.run@Run.ownsHeap : @bits(2) U32
+    %v66 = cast %v65 : U32
+    %v68 = cmp_eq %v66, 1 : Bool
+    je %v68, b7, b6
+
+  b6:
+    jmp b8
+
+  b7:
+    %v71 = load [%v62]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v72 = bitcast %v71 : %U8
+    call freeHeap, %v72
+    jmp b8
+
+  b8:
+    %v15 = move %out : String
+    ret %v15
+}
+
+fn Eq(String).==(%self: String, %other: String) -> Bool {
+  b0:
+    %v33 = borrow %self : 'String
+    %v34 = cast %v33 : 'StringData
+    %v35 = load [%v34]@StringData.bytes@Array.length : @bits(30) U32
+    %units = cast %v35 : Int
+    %v37 = cast %units : Size
+    %v38 = borrow %other : 'String
+    %v39 = cast %v38 : 'StringData
+    %v40 = load [%v39]@StringData.bytes@Array.length : @bits(30) U32
+    %units = cast %v40 : Int
+    %v42 = cast %units : Size
+    %v4 = cmp_ne %v37, %v42 : Bool
+    je %v4, b1, b2
+
+  b1:
+    ret False
+
+  b2:
+    jmp b3
+
+  b3:
+    %i = alloc : Size
+    init %i, 0
+    jmp b4
+
+  b4:
+    %v13 = load %i : Size
+    %v14 = cmp_lt %v13, %v37 : Bool
+    je %v14, b6, b5
+
+  b5:
+    ret True
+
+  b6:
+    %v16 = load %i : Size
+    %v43 = borrow %self : 'String
+    %v44 = cast %v43 : 'StringData
+    %v45 = load [%v44]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v46 = add %v45, %v16 : %CodeUnit
+    %v47 = load [%v46] : CodeUnit
+    %v48 = cast %v47 : Int
+    %v49 = borrow %other : 'String
+    %v50 = cast %v49 : 'StringData
+    %v51 = load [%v50]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v52 = add %v51, %v16 : %CodeUnit
+    %v53 = load [%v52] : CodeUnit
+    %v54 = cast %v53 : Int
+    %v20 = cmp_ne %v48, %v54 : Bool
+    je %v20, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v25 = load %i : Size
+    %v28 = add %v25, 1 : Size
+    assign %i, %v28
+    jmp b4
+}
+
+fn reserve(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
+  b0:
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v5 = cast %v4 : Size
+    %v6 = cmp_le %wanted, %v5 : Bool
+    je %v6, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = borrow_mut %self : &Array(CodeUnit)
+    call growArray(CodeUnit), %v11, %wanted
+    ret
+}
+
+fn growArray(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
+  b0:
+    %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %room = cast %v4 : Size
+    %v6 = add %room, %room : Size
+    %wide = alloc : Size
+    init %wide, %v6
+    %v10 = cmp_lt %v6, %wanted : Bool
+    je %v10, b1, b2
+
+  b1:
+    assign %wide, %wanted
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v15 = load %wide : Size
+    %v17 = cmp_lt %v15, 4 : Bool
+    je %v17, b4, b5
+
+  b4:
+    assign %wide, 4
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v25 = load %wide : Size
+    %v26 = borrow_mut %self@Array.run : &Run(CodeUnit)
+    %v27 = call resize(CodeUnit), %v26, %v25 : Bool
+    ret
+}
+
+fn mapMemory(%size: Size) -> %U8 {
+  b0:
+    %v11 = bitcast %size : USize
+    %result = syscall 9, 0, %v11, 3, 34, 18446744073709551615, 0 : Size
+    %v18 = cmp_lt %result, 0 : Bool
+    je %v18, b1, b2
+
+  b1:
+    %v21 = bitcast 0 : %U8
+    ret %v21
+
+  b2:
+    jmp b3
+
+  b3:
+    %v24 = bitcast %result : %U8
+    ret %v24
+}
+
+fn growHeap(%needed: Size) -> Bool {
+  b0:
+    %v1 = load heapRegionNext : Size
+    %size = alloc : Size
+    init %size, %v1
+    %v5 = cmp_lt %v1, %needed : Bool
+    je %v5, b1, b2
+
+  b1:
+    assign %size, %needed
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = load %size : Size
+    %v12 = add %v10, 4096 : Size
+    %v13 = call mapMemory, %v12 : %U8
+    %region = alloc : %U8
+    init %region, %v13
+    %v17 = bitcast %v13 : Long
+    %v19 = cmp_eq %v17, 0 : Bool
+    je %v19, b4, b5
+
+  b4:
+    %v22 = cmp_gt %needed, 4194304 : Bool
+    %least = select %v22 ? %needed : 4194304 : Size
+    %v28 = load %size : Size
+    %v29 = cmp_ge %least, %v28 : Bool
+    je %v29, b6, b7
+
+  b5:
+    jmp b10
+
+  b6:
+    ret False
+
+  b7:
+    assign %size, %least
+    %v37 = add %least, 4096 : Size
+    %v38 = call mapMemory, %v37 : %U8
+    assign %region, %v38
+    %v41 = bitcast %v38 : Long
+    %v43 = cmp_eq %v41, 0 : Bool
+    je %v43, b8, b9
+
+  b8:
+    ret False
+
+  b9:
+    jmp b10
+
+  b10:
+    %v50 = load %region : %U8
+    assign heapNext, %v50
+    %v53 = load %size : Size
+    %v56 = add %v50, %v53 : %U8
+    assign heapLimit, %v56
+    %v60 = add %v53, %v53 : Size
+    assign heapRegionNext, %v60
+    ret True
+}
+
+fn allocateHeap(%size: Size) -> %U8 {
+  b0:
+    %v1 = load heapFree : %%U8
+    %v2 = bitcast %v1 : Long
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b2, b1
+
+  b1:
+    jmp b7
+
+  b2:
+    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0 : Size
+    %v81 = cmp_lt %result, 0 : Bool
+    %v83 = bitcast 0 : %U8
+    %v84 = bitcast %result : %U8
+    %region = select %v81 ? %v83 : %v84 : %U8
+    %v86 = bitcast %region : Long
+    %v88 = cmp_eq %v86, 0 : Bool
+    je %v88, b4, b3
+
+  b3:
+    setmemory %region, 0, 256
+    %v93 = bitcast %region : %%U8
+    assign heapFree, %v93
+    %v96 = add %region, 256 : %U8
+    assign heapNext, %v96
+    %v99 = add %region, 4194304 : %U8
+    assign heapLimit, %v99
+    assign heapRegionNext, 8388608
+    jmp b5
+
+  b4:
+    jmp b5
+
+  b5:
+    %v7 = load heapFree : %%U8
+    %v8 = bitcast %v7 : Long
+    %v10 = cmp_eq %v8, 0 : Bool
+    je %v10, b20, b6
+
+  b6:
+    jmp b7
+
+  b7:
+    %v20 = add %size, 8 : Size
+    %size = alloc : Size
+    init %size, 16
+    %sizeClass = alloc : Size
+    init %sizeClass, 0
+    jmp b8
+
+  b8:
+    %v112 = load %size : Size
+    %v113 = cmp_lt %v112, %v20 : Bool
+    je %v113, b19, b9
+
+  b9:
+    %v115 = load %sizeClass : Size
+    %v23 = cmp_ge %v115, 32 : Bool
+    je %v23, b18, b10
+
+  b10:
+    %v125 = load heapFree : %%U8
+    %v127 = mul %v115, 8 : Size
+    %v128 = add %v125, %v127 : %%U8
+    %v129 = load [%v128] : %U8
+    %v30 = bitcast %v129 : Long
+    %v32 = cmp_eq %v30, 0 : Bool
+    %v34 = xor %v32, True : Bool
+    je %v34, b17, b11
+
+  b11:
+    %v136 = shl 16, %v115 : Size
+    %v42 = load heapNext : %U8
+    %v45 = add %v42, %v136 : %U8
+    %v46 = load heapLimit : %U8
+    %v47 = cmp_gt %v45, %v46 : Bool
+    je %v47, b13, b12
+
+  b12:
+    jmp b15
+
+  b13:
+    %v49 = call growHeap, %v136 : Bool
+    %v51 = xor %v49, True : Bool
+    je %v51, b16, b14
+
+  b14:
+    jmp b15
+
+  b15:
+    %block = load heapNext : %U8
+    %v62 = add %block, %v136 : %U8
+    assign heapNext, %v62
+    %v64 = bitcast %block : %Size
+    assign [%v64], %v115
+    %v70 = add %block, 8 : %U8
+    ret %v70
+
+  b16:
+    %v54 = bitcast 0 : %U8
+    ret %v54
+
+  b17:
+    %v36 = bitcast %v129 : %%U8
+    %v37 = load [%v36] : %U8
+    assign [%v128], %v37
+    ret %v129
+
+  b18:
+    %v26 = bitcast 0 : %U8
+    ret %v26
+
+  b19:
+    %v117 = load %size : Size
+    %v118 = add %v117, %v117 : Size
+    assign %size, %v118
+    %v120 = load %sizeClass : Size
+    %v122 = add %v120, 1 : Size
+    assign %sizeClass, %v122
+    jmp b8
+
+  b20:
+    %v13 = bitcast 0 : %U8
+    ret %v13
+}
+
+fn freeHeap(%allocation: %U8) -> () {
+  b0:
+    %v1 = bitcast %allocation : Long
+    %v3 = cmp_eq %v1, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    ret
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = sub %allocation, 8 : %U8
+    %v12 = bitcast %v11 : %Size
+    %sizeClass = load [%v12] : Size
+    %v14 = bitcast %allocation : %%U8
+    %v19 = load heapFree : %%U8
+    %v21 = mul %sizeClass, 8 : Size
+    %v22 = add %v19, %v21 : %%U8
+    %v23 = load [%v22] : %U8
+    assign [%v14], %v23
+    %v24 = load heapFree : %%U8
+    %v27 = add %v24, %v21 : %%U8
+    assign [%v27], %allocation
+    ret
+}
+
+fn copyMemory(%to: %U8, %from: %U8, %count: Size) -> () {
+  b0:
+    %v8 = cmp_ge %count, 32 : Bool
+    je %v8, b12, b1
+
+  b1:
+    %v130 = cmp_ge %count, 8 : Bool
+    je %v130, b8, b2
+
+  b2:
+    %v133 = cmp_ge %count, 2 : Bool
+    je %v133, b5, b3
+
+  b3:
+    %v136 = cmp_ge %count, 1 : Bool
+    je %v136, b4, b11
+
+  b4:
+    %v138 = load [%from] : U8
+    assign [%to], %v138
+    jmp b11
+
+  b5:
+    %v142 = cmp_ge %count, 4 : Bool
+    je %v142, b7, b6
+
+  b6:
+    %v144 = bitcast %from : %U16
+    %low = load [%v144] : U16
+    %v147 = sub %count, 2 : Size
+    %v148 = add %from, %v147 : %U8
+    %v149 = bitcast %v148 : %U16
+    %high = load [%v149] : U16
+    %v151 = bitcast %to : %U16
+    assign [%v151], %low
+    %v153 = add %to, %v147 : %U8
+    %v154 = bitcast %v153 : %U16
+    assign [%v154], %high
+    jmp b11
+
+  b7:
+    %v157 = bitcast %from : %U32
+    %low = load [%v157] : U32
+    %v160 = sub %count, 4 : Size
+    %v161 = add %from, %v160 : %U8
+    %v162 = bitcast %v161 : %U32
+    %high = load [%v162] : U32
+    %v164 = bitcast %to : %U32
+    assign [%v164], %low
+    %v166 = add %to, %v160 : %U8
+    %v167 = bitcast %v166 : %U32
+    assign [%v167], %high
+    jmp b11
+
+  b8:
+    %v171 = cmp_ge %count, 16 : Bool
+    je %v171, b10, b9
+
+  b9:
+    %v173 = bitcast %from : %U64
+    %low = load [%v173] : U64
+    %v176 = sub %count, 8 : Size
+    %v177 = add %from, %v176 : %U8
+    %v178 = bitcast %v177 : %U64
+    %high = load [%v178] : U64
+    %v180 = bitcast %to : %U64
+    assign [%v180], %low
+    %v182 = add %to, %v176 : %U8
+    %v183 = bitcast %v182 : %U64
+    assign [%v183], %high
+    jmp b11
+
+  b10:
+    %v186 = bitcast %from : %Vec(U8)
+    %low = load [%v186] : Vec(U8)
+    %v188 = sub %count, 16 : Size
+    %v189 = add %from, %v188 : %U8
+    %v190 = bitcast %v189 : %Vec(U8)
+    %high = load [%v190] : Vec(U8)
+    %v192 = bitcast %to : %Vec(U8)
+    assign [%v192], %low
+    %v194 = add %to, %v188 : %U8
+    %v195 = bitcast %v194 : %Vec(U8)
+    assign [%v195], %high
+    jmp b11
+
+  b11:
+    ret
+
+  b12:
+    %v13 = cmp_lt %count, 64 : Bool
+    je %v13, b22, b13
+
+  b13:
+    %v21 = cmp_ge %count, 768 : Bool
+    je %v21, b21, b14
+
+  b14:
+    %v63 = sub %count, 16 : Size
+    %v64 = add %from, %v63 : %U8
+    %v65 = bitcast %v64 : %Vec(U8)
+    %tail = load [%v65] : Vec(U8)
+    %at = alloc : Size
+    init %at, 0
+    jmp b15
+
+  b15:
+    %v71 = load %at : Size
+    %v73 = add %v71, 64 : Size
+    %v74 = cmp_le %v73, %count : Bool
+    je %v74, b20, b16
+
+  b16:
+    jmp b17
+
+  b17:
+    %v77 = load %at : Size
+    %v78 = add %v77, 16 : Size
+    %v79 = cmp_le %v78, %count : Bool
+    je %v79, b19, b18
+
+  b18:
+    %v81 = add %to, %v63 : %U8
+    %v82 = bitcast %v81 : %Vec(U8)
+    assign [%v82], %tail
+    ret
+
+  b19:
+    %v85 = load %at : Size
+    %v86 = add %to, %v85 : %U8
+    %v87 = add %from, %v85 : %U8
+    %v88 = bitcast %v87 : %Vec(U8)
+    %v89 = load [%v88] : Vec(U8)
+    %v90 = bitcast %v86 : %Vec(U8)
+    assign [%v90], %v89
+    %v92 = add %v85, 16 : Size
+    assign %at, %v92
+    jmp b17
+
+  b20:
+    %v95 = load %at : Size
+    %v96 = add %from, %v95 : %U8
+    %v97 = bitcast %v96 : %Vec(U8)
+    %a = load [%v97] : Vec(U8)
+    %v100 = add %v96, 16 : %U8
+    %v101 = bitcast %v100 : %Vec(U8)
+    %b = load [%v101] : Vec(U8)
+    %v104 = add %v100, 16 : %U8
+    %v105 = bitcast %v104 : %Vec(U8)
+    %c = load [%v105] : Vec(U8)
+    %v108 = add %v104, 16 : %U8
+    %v109 = bitcast %v108 : %Vec(U8)
+    %d = load [%v109] : Vec(U8)
+    %v111 = add %to, %v95 : %U8
+    %v112 = bitcast %v111 : %Vec(U8)
+    assign [%v112], %a
+    %v115 = add %v111, 16 : %U8
+    %v116 = bitcast %v115 : %Vec(U8)
+    assign [%v116], %b
+    %v119 = add %v115, 16 : %U8
+    %v120 = bitcast %v119 : %Vec(U8)
+    assign [%v120], %c
+    %v123 = add %v119, 16 : %U8
+    %v124 = bitcast %v123 : %Vec(U8)
+    assign [%v124], %d
+    %v126 = add %v95, 64 : Size
+    assign %at, %v126
+    jmp b15
+
+  b21:
+    copymemory %to, %from, %count
+    ret
+
+  b22:
+    %v35 = bitcast %from : %Vec(U8)
+    %a = load [%v35] : Vec(U8)
+    %v38 = add %from, 16 : %U8
+    %v39 = bitcast %v38 : %Vec(U8)
+    %b = load [%v39] : Vec(U8)
+    %v42 = sub %count, 16 : Size
+    %v43 = sub %v42, 16 : Size
+    %v44 = add %from, %v43 : %U8
+    %v45 = bitcast %v44 : %Vec(U8)
+    %c = load [%v45] : Vec(U8)
+    %v47 = add %from, %v42 : %U8
+    %v48 = bitcast %v47 : %Vec(U8)
+    %d = load [%v48] : Vec(U8)
+    %v50 = bitcast %to : %Vec(U8)
+    assign [%v50], %a
+    %v53 = add %to, 16 : %U8
+    %v54 = bitcast %v53 : %Vec(U8)
+    assign [%v54], %b
+    %v56 = add %to, %v43 : %U8
+    %v57 = bitcast %v56 : %Vec(U8)
+    assign [%v57], %c
+    %v59 = add %to, %v42 : %U8
+    %v60 = bitcast %v59 : %Vec(U8)
+    assign [%v60], %d
+    ret
+}
+
+fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
+  b0:
+    %v3 = load %self@Run.capacity : @bits(30) U32
+    %room = cast %v3 : Size
+    %v5 = cmp_le %wanted, %room : Bool
+    je %v5, b1, b2
+
+  b1:
+    ret True
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = load %self@Run.ownsHeap : @bits(2) U32
+    %v12 = cast %v11 : U32
+    %v15 = cmp_eq %v12, 2 : Bool
+    je %v15, b4, b5
+
+  b4:
+    ret False
+
+  b5:
+    jmp b6
+
+  b6:
+    %v21 = cmp_gt %wanted, 1073741823 : Bool
+    je %v21, b7, b8
+
+  b7:
+    ret False
+
+  b8:
+    jmp b9
+
+  b9:
+    %v27 = load %self@Run.items : %CodeUnit
+    %v76 = bitcast %v27 : %U8
+    %v77 = add %v27, %wanted : %CodeUnit
+    %v78 = bitcast %v77 : %U8
+    %v79 = sub %v78, %v76 : Size
+    %v29 = call allocateHeap, %v79 : %U8
+    %fresh = bitcast %v29 : %CodeUnit
+    %v31 = bitcast %fresh : Long
+    %v33 = cmp_eq %v31, 0 : Bool
+    je %v33, b10, b11
+
+  b10:
+    ret False
+
+  b11:
+    jmp b12
+
+  b12:
+    %v39 = cmp_gt %room, 0 : Bool
+    je %v39, b13, b14
+
+  b13:
+    %v41 = bitcast %fresh : %U8
+    %v43 = load %self@Run.items : %CodeUnit
+    %v44 = bitcast %v43 : %U8
+    %v81 = add %v43, %room : %CodeUnit
+    %v82 = bitcast %v81 : %U8
+    %v83 = sub %v82, %v44 : Size
+    call copyMemory, %v41, %v44, %v83
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v52 = load %self@Run.ownsHeap : @bits(2) U32
+    %v53 = cast %v52 : U32
+    %v56 = cmp_eq %v53, 1 : Bool
+    je %v56, b16, b17
+
+  b16:
+    %v59 = load %self@Run.items : %CodeUnit
+    %v60 = bitcast %v59 : %U8
+    call freeHeap, %v60
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    assign %self@Run.items, %fresh
+    %v65 = cast %wanted : U32
+    %v67 = and %v65, 1073741823 : U32
+    %v68 = cast %v67 : @bits(30) U32
+    assign %self@Run.capacity, %v68
+    assign %self@Run.ownsHeap, 1
+    ret True
+}
+
+fn matches(%name: String) -> Bool {
+  b0:
+    %wanted = copy ResolveTest.literal$1 : String
+    %v2 = call Eq(String).==, %name, %wanted : Bool
+    ret %v2
+}
+
+fn classify(%name: String) -> Int {
+  b0:
+    %v1 = copy ResolveTest.literal$3 : String
+    %v2 = call Eq(String).==, %name, %v1 : Bool
+    je %v2, b4, b1
+
+  b1:
+    %v7 = copy ResolveTest.literal$5 : String
+    %v8 = call Eq(String).==, %name, %v7 : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v13 = copy ResolveTest.literal$7 : String
+    %v14 = call Eq(String).==, %name, %v13 : Bool
+    %v75 = select %v14 ? 3 : 0 : Int
+    ret %v75
+
+  b3:
+    ret 2
+
+  b4:
+    ret 1
+}
+
+fn width() -> Int {
+  b0:
+    ret 4
+}
+
+fn grown(%n: Int) -> Int {
+  b0:
+    %v1 = copy ResolveTest.literal$11 : String
+    %text = alloc : String
+    init %text, %v1
+    %v5 = copy ResolveTest.literal$13 : String
+    %v6 = move %text : String
+    %v7 = move %local2 : String
+    %v8 = call Append(String).++, %v6, %v7 : String
+    assign %text, %v8
+    %v16 = borrow %text : 'String
+    %v17 = cast %v16 : 'StringData
+    %v18 = load [%v17]@StringData.bytes@Array.length : @bits(30) U32
+    %units = cast %v18 : Int
+    %v45 = borrow %text : 'String
+    %v46 = cast %v45 : 'StringData
+    %v47 = load [%v46]@StringData.bytes@Array.run@Run.ownsHeap : @bits(2) U32
+    %v48 = cast %v47 : U32
+    %v50 = cmp_eq %v48, 1 : Bool
+    je %v50, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %v53 = load [%v46]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v54 = bitcast %v53 : %U8
+    call freeHeap, %v54
+    jmp b3
+
+  b3:
+    %v13 = add %units, %n : Int
+    ret %v13
+}
+
+fn opaque(%n: Int) -> Int {
+  b0:
+    ret %n
+}
+
+fn main() -> Int {
+  b0:
+    %warm = call grown, 0 : Int
+    %settled = load heapNext : %U8
+    %total = alloc : Int
+    init %total, 0
+    %v12 = alloc : Int
+    init %local1, 0
+    jmp b1
+
+  b1:
+    %i = load %local1 : Int
+    %v16 = cmp_lt %i, 10 : Bool
+    je %v16, b2, b4
+
+  b2:
+    %v17 = load %total : Int
+    %v19 = call opaque, 0 : Int
+    %v20 = call grown, %v19 : Int
+    %v21 = add %v17, %v20 : Int
+    assign %total, %v21
+    %v23 = load %local1 : Int
+    %v24 = sub 10, %v23 : Int
+    %v25 = cmp_le %v24, 1 : Bool
+    je %v25, b4, b3
+
+  b3:
+    %v27 = add %v23, 1 : Int
+    assign %local1, %v27
+    jmp b1
+
+  b4:
+    %v32 = load heapNext : %U8
+    %v33 = cmp_eq %v32, %settled : Bool
+    %v35 = xor %v33, True : Bool
+    je %v35, b18, b5
+
+  b5:
+    %v42 = load %total : Int
+    %v45 = mul %warm, 10 : Int
+    %v46 = cmp_ne %v42, %v45 : Bool
+    je %v46, b17, b6
+
+  b6:
+    %v53 = copy ResolveTest.literal$15 : String
+    %wanted = copy ResolveTest.literal$1 : String
+    %v125 = call Eq(String).==, %v53, %wanted : Bool
+    %v56 = xor %v125, True : Bool
+    je %v56, b16, b7
+
+  b7:
+    %v63 = copy ResolveTest.literal$17 : String
+    %wanted = copy ResolveTest.literal$1 : String
+    %v140 = call Eq(String).==, %v63, %wanted : Bool
+    je %v140, b15, b8
+
+  b8:
+    %v71 = copy ResolveTest.literal$19 : String
+    %v72 = call classify, %v71 : Int
+    %v75 = cmp_ne %v72, 1 : Bool
+    je %v75, b14, b9
+
+  b9:
+    %v82 = copy ResolveTest.literal$21 : String
+    %v83 = call classify, %v82 : Int
+    %v86 = cmp_ne %v83, 2 : Bool
+    je %v86, b13, b10
+
+  b10:
+    %v93 = copy ResolveTest.literal$23 : String
+    %v94 = call classify, %v93 : Int
+    %v97 = cmp_ne %v94, 3 : Bool
+    je %v97, b12, b11
+
+  b11:
+    %v104 = copy ResolveTest.literal$25 : String
+    %v105 = call classify, %v104 : Int
+    %v108 = cmp_ne %v105, 0 : Bool
+    %v116 = add %warm, 4 : Int
+    %v245 = select %v108 ? -8 : %v116 : Int
+    ret %v245
+
+  b12:
+    ret -7
+
+  b13:
+    ret -6
+
+  b14:
+    ret -5
+
+  b15:
+    ret -4
+
+  b16:
+    ret -3
+
+  b17:
+    ret -2
+
+  b18:
+    ret -1
+}

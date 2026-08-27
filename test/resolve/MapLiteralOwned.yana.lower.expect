@@ -7,6 +7,7 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @live = [0, 0, 0, 0]
 @ResolveTest.string$0 = [107, 45]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
 
 indexSlotsFor<complex>(%wanted: Long): Long {
   b_0 {
@@ -1942,34 +1943,28 @@ key<complex>(%v_0: Ptr, %n: Int) {
     store %v_3, 1073741840, 4
     %v_5 = add %s, 12: Ptr
     store %v_5, 0, 4
-    %v_6 = global @ResolveTest.string$0: Ptr
-    %v_7 = alloca 16, 8: Ptr
-    store %v_7, %v_6, 8
-    %v_8 = add %v_7, 8: Ptr
-    %v_9 = load %v_8, 4: Int
-    store %v_8, 2, 4
-    %v_10 = add %v_7, 12: Ptr
-    store %v_10, 2, 4
-    call_complex String.appendUnits, %s, %v_6, 2
-    call_complex Reclaim(String).reclaim, %v_7
-    %v_11 = sext %n: Long
-    %v_12 = cmp_ilt %v_11, 0: Int
-    je %v_12, b_13, b_14
+    %v_6 = alloca 16, 8: Ptr
+    copy %v_6, @ResolveTest.literal$1, 16
+    %v_7 = load %v_6, 8: Ptr
+    call_complex String.appendUnits, %s, %v_7, 2
+    %v_8 = sext %n: Long
+    %v_9 = cmp_ilt %v_8, 0: Int
+    je %v_9, b_10, b_11
   }
 
-  b_14 {
-    call_complex pushUnsigned, %v_11, %s
-    jmp b_15
+  b_11 {
+    call_complex pushUnsigned, %v_8, %s
+    jmp b_12
   }
 
-  b_13 {
+  b_10 {
     call_complex push(CodeUnit), %s, 45
-    %v_16 = sub 0, %v_11: Long
-    call_complex pushUnsigned, %v_16, %s
-    jmp b_15
+    %v_13 = sub 0, %v_8: Long
+    call_complex pushUnsigned, %v_13, %s
+    jmp b_12
   }
 
-  b_15 {
+  b_12 {
     copy %v_0, %s, 16
     ret 
   }

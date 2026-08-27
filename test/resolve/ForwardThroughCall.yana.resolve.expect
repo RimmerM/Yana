@@ -16,11 +16,19 @@ let &tags: Int = 0
 
 let ResolveTest.string$0: String = "n="
 
-let ResolveTest.string$1: String = "!"
+let ResolveTest.literal$1: String = "n=" {StringData(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
 
 let ResolveTest.string$2: String = "!"
 
-let ResolveTest.string$3: String = "!"
+let ResolveTest.literal$3: String = "!" {StringData(Array(Run(&ResolveTest.string$2, 1, 0), 1))}
+
+let ResolveTest.string$4: String = "!"
+
+let ResolveTest.literal$5: String = "!" {StringData(Array(Run(&ResolveTest.string$4, 1, 0), 1))}
+
+let ResolveTest.string$6: String = "!"
+
+let ResolveTest.literal$7: String = "!" {StringData(Array(Run(&ResolveTest.string$6, 1, 0), 1))}
 
 fn pushUnsigned(%value: U64, %to: String) -> () {
   b0:
@@ -903,28 +911,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
-}
-
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
@@ -1574,16 +1560,15 @@ fn tagged(%n: Int) -> String {
     %v10 = call String.ofCapacity, %v9 : String
     %v11 = alloc : String
     init %local1, %v10
-    %v13 = symbol ResolveTest.string$0 : %CodeUnit
-    %v15 = call stringLiteral, %v13, 2 : String
-    %v16 = borrow_mut %local1 : &String
-    call String.push, %v16, %v15
+    %v13 = copy ResolveTest.literal$1 : String
+    %v14 = borrow_mut %local1 : &String
+    call String.push, %v14, %v13
     drop %local2 via Reclaim(String).reclaim
-    %v18 = borrow_mut %local1 : &String
-    call Show(Int).show, %n, %v18
-    %v20 = load %local1 : String
-    %v21 = move %local1 : String
-    ret %v21
+    %v16 = borrow_mut %local1 : &String
+    call Show(Int).show, %n, %v16
+    %v18 = load %local1 : String
+    %v19 = move %local1 : String
+    ret %v19
 }
 
 fn built(%n: Int) -> Int {
@@ -1592,17 +1577,16 @@ fn built(%n: Int) -> Int {
     %text = alloc : String
     init %text, %v1
     %v4 = load %text : String
-    %v5 = symbol ResolveTest.string$1 : %CodeUnit
-    %v7 = call stringLiteral, %v5, 1 : String
-    %v8 = move %text : String
-    %v9 = move %local2 : String
-    %v10 = call Append(String).++, %v8, %v9 : String
-    assign %text, %v10
-    %v12 = load %text : String
-    %v13 = call Length(String).length, %v12 : Size
+    %v5 = copy ResolveTest.literal$3 : String
+    %v6 = move %text : String
+    %v7 = move %local2 : String
+    %v8 = call Append(String).++, %v6, %v7 : String
+    assign %text, %v8
+    %v10 = load %text : String
+    %v11 = call Length(String).length, %v10 : Size
     drop %text via Reclaim(String).reclaim
-    %v14 = cast %v13 : Int
-    ret %v14
+    %v12 = cast %v11 : Int
+    ret %v12
 }
 
 fn inLaterBlock(%n: Int) -> Int {
@@ -1615,23 +1599,22 @@ fn inLaterBlock(%n: Int) -> Int {
 
   b1:
     %v8 = load %text : String
-    %v9 = symbol ResolveTest.string$2 : %CodeUnit
-    %v11 = call stringLiteral, %v9, 1 : String
-    %v12 = move %text : String
-    %v13 = move %local2 : String
-    %v14 = call Append(String).++, %v12, %v13 : String
-    assign %text, %v14
+    %v9 = copy ResolveTest.literal$5 : String
+    %v10 = move %text : String
+    %v11 = move %local2 : String
+    %v12 = call Append(String).++, %v10, %v11 : String
+    assign %text, %v12
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v18 = load %text : String
-    %v19 = call Length(String).length, %v18 : Size
+    %v16 = load %text : String
+    %v17 = call Length(String).length, %v16 : Size
     drop %text via Reclaim(String).reclaim
-    %v20 = cast %v19 : Int
-    ret %v20
+    %v18 = cast %v17 : Int
+    ret %v18
 }
 
 fn inLoop(%n: Int) -> Int {
@@ -1648,8 +1631,8 @@ fn inLoop(%n: Int) -> Int {
     je %v9, b3, b2
 
   b2:
-    %v35 = load %total : Int
-    ret %v35
+    %v33 = load %total : Int
+    ret %v33
 
   b3:
     %v11 = load %i : Int
@@ -1657,22 +1640,21 @@ fn inLoop(%n: Int) -> Int {
     %text = alloc : String
     init %text, %v12
     %v15 = load %text : String
-    %v16 = symbol ResolveTest.string$3 : %CodeUnit
-    %v18 = call stringLiteral, %v16, 1 : String
-    %v19 = move %text : String
-    %v20 = move %local4 : String
-    %v21 = call Append(String).++, %v19, %v20 : String
-    assign %text, %v21
-    %v23 = load %total : Int
-    %v24 = load %text : String
-    %v25 = call Length(String).length, %v24 : Size
+    %v16 = copy ResolveTest.literal$7 : String
+    %v17 = move %text : String
+    %v18 = move %local4 : String
+    %v19 = call Append(String).++, %v17, %v18 : String
+    assign %text, %v19
+    %v21 = load %total : Int
+    %v22 = load %text : String
+    %v23 = call Length(String).length, %v22 : Size
     drop %text via Reclaim(String).reclaim
-    %v26 = cast %v25 : Int
-    %v27 = add %v23, %v26 : Int
-    assign %total, %v27
-    %v29 = load %i : Int
-    %v32 = add %v29, 1 : Int
-    assign %i, %v32
+    %v24 = cast %v23 : Int
+    %v25 = add %v21, %v24 : Int
+    assign %total, %v25
+    %v27 = load %i : Int
+    %v30 = add %v27, 1 : Int
+    assign %i, %v30
     jmp b1
 }
 

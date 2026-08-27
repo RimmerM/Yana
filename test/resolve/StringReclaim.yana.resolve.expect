@@ -14,25 +14,47 @@ let &heapRegionNext: Size = 0
 
 let ResolveTest.string$0: String = "row "
 
-let ResolveTest.string$1: String = ": score "
+let ResolveTest.literal$1: String = "row " {StringData(Array(Run(&ResolveTest.string$0, 4, 0), 4))}
 
-let ResolveTest.string$2: String = " ok"
+let ResolveTest.string$2: String = ": score "
 
-let ResolveTest.string$3: String = "row "
+let ResolveTest.literal$3: String = ": score " {StringData(Array(Run(&ResolveTest.string$2, 8, 0), 8))}
 
-let ResolveTest.string$4: String = ": score "
+let ResolveTest.string$4: String = " ok"
 
-let ResolveTest.string$5: String = " ok"
+let ResolveTest.literal$5: String = " ok" {StringData(Array(Run(&ResolveTest.string$4, 3, 0), 3))}
 
-let ResolveTest.string$6: String = "ab"
+let ResolveTest.string$6: String = "row "
 
-let ResolveTest.string$7: String = "cde"
+let ResolveTest.literal$7: String = "row " {StringData(Array(Run(&ResolveTest.string$6, 4, 0), 4))}
 
-let ResolveTest.string$8: String = "row "
+let ResolveTest.string$8: String = ": score "
 
-let ResolveTest.string$9: String = ": score "
+let ResolveTest.literal$9: String = ": score " {StringData(Array(Run(&ResolveTest.string$8, 8, 0), 8))}
 
 let ResolveTest.string$10: String = " ok"
+
+let ResolveTest.literal$11: String = " ok" {StringData(Array(Run(&ResolveTest.string$10, 3, 0), 3))}
+
+let ResolveTest.string$12: String = "ab"
+
+let ResolveTest.literal$13: String = "ab" {StringData(Array(Run(&ResolveTest.string$12, 2, 0), 2))}
+
+let ResolveTest.string$14: String = "cde"
+
+let ResolveTest.literal$15: String = "cde" {StringData(Array(Run(&ResolveTest.string$14, 3, 0), 3))}
+
+let ResolveTest.string$16: String = "row "
+
+let ResolveTest.literal$17: String = "row " {StringData(Array(Run(&ResolveTest.string$16, 4, 0), 4))}
+
+let ResolveTest.string$18: String = ": score "
+
+let ResolveTest.literal$19: String = ": score " {StringData(Array(Run(&ResolveTest.string$18, 8, 0), 8))}
+
+let ResolveTest.string$20: String = " ok"
+
+let ResolveTest.literal$21: String = " ok" {StringData(Array(Run(&ResolveTest.string$20, 3, 0), 3))}
 
 fn pushUnsigned(%value: U64, %to: String) -> () {
   b0:
@@ -915,28 +937,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
-}
-
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
@@ -1588,28 +1588,25 @@ fn line(%row: Row) -> String {
     %v10 = call String.ofCapacity, %v9 : String
     %v11 = alloc : String
     init %local2, %v10
-    %v13 = symbol ResolveTest.string$0 : %CodeUnit
-    %v15 = call stringLiteral, %v13, 4 : String
-    %v16 = borrow_mut %local2 : &String
-    call String.push, %v16, %v15
+    %v13 = copy ResolveTest.literal$1 : String
+    %v14 = borrow_mut %local2 : &String
+    call String.push, %v14, %v13
     drop %local3 via Reclaim(String).reclaim
-    %v18 = borrow_mut %local2 : &String
-    call Show(Int).show, %v1, %v18
-    %v20 = symbol ResolveTest.string$1 : %CodeUnit
-    %v22 = call stringLiteral, %v20, 8 : String
-    %v23 = borrow_mut %local2 : &String
-    call String.push, %v23, %v22
+    %v16 = borrow_mut %local2 : &String
+    call Show(Int).show, %v1, %v16
+    %v18 = copy ResolveTest.literal$3 : String
+    %v19 = borrow_mut %local2 : &String
+    call String.push, %v19, %v18
     drop %local4 via Reclaim(String).reclaim
-    %v25 = borrow_mut %local2 : &String
-    call Show(Int).show, %v2, %v25
-    %v27 = symbol ResolveTest.string$2 : %CodeUnit
-    %v29 = call stringLiteral, %v27, 3 : String
-    %v30 = borrow_mut %local2 : &String
-    call String.push, %v30, %v29
+    %v21 = borrow_mut %local2 : &String
+    call Show(Int).show, %v2, %v21
+    %v23 = copy ResolveTest.literal$5 : String
+    %v24 = borrow_mut %local2 : &String
+    call String.push, %v24, %v23
     drop %local5 via Reclaim(String).reclaim
-    %v32 = load %local2 : String
-    %v33 = move %local2 : String
-    ret %v33
+    %v26 = load %local2 : String
+    %v27 = move %local2 : String
+    ret %v27
 }
 
 fn buildInCallee() -> Int {
@@ -1634,45 +1631,40 @@ fn buildHere() -> Int {
     %v8 = call String.ofCapacity, %v7 : String
     %v9 = alloc : String
     init %local1, %v8
-    %v11 = symbol ResolveTest.string$3 : %CodeUnit
-    %v13 = call stringLiteral, %v11, 4 : String
-    %v14 = borrow_mut %local1 : &String
-    call String.push, %v14, %v13
+    %v11 = copy ResolveTest.literal$7 : String
+    %v12 = borrow_mut %local1 : &String
+    call String.push, %v12, %v11
     drop %local2 via Reclaim(String).reclaim
-    %v16 = borrow_mut %local1 : &String
-    call Show(Int).show, %id, %v16
-    %v18 = symbol ResolveTest.string$4 : %CodeUnit
-    %v20 = call stringLiteral, %v18, 8 : String
-    %v21 = borrow_mut %local1 : &String
-    call String.push, %v21, %v20
+    %v14 = borrow_mut %local1 : &String
+    call Show(Int).show, %id, %v14
+    %v16 = copy ResolveTest.literal$9 : String
+    %v17 = borrow_mut %local1 : &String
+    call String.push, %v17, %v16
     drop %local3 via Reclaim(String).reclaim
-    %v23 = borrow_mut %local1 : &String
-    call Show(Int).show, %id, %v23
-    %v25 = symbol ResolveTest.string$5 : %CodeUnit
-    %v27 = call stringLiteral, %v25, 3 : String
-    %v28 = borrow_mut %local1 : &String
-    call String.push, %v28, %v27
+    %v19 = borrow_mut %local1 : &String
+    call Show(Int).show, %id, %v19
+    %v21 = copy ResolveTest.literal$11 : String
+    %v22 = borrow_mut %local1 : &String
+    call String.push, %v22, %v21
     drop %local4 via Reclaim(String).reclaim
     %text = load %local1 : String
-    %v31 = call Length(String).length, %text : Size
+    %v25 = call Length(String).length, %text : Size
     drop %local1 via Reclaim(String).reclaim
-    %v32 = cast %v31 : Int
-    ret %v32
+    %v26 = cast %v25 : Int
+    ret %v26
 }
 
 fn concatHere() -> Int {
   b0:
-    %v0 = symbol ResolveTest.string$6 : %CodeUnit
-    %v2 = call stringLiteral, %v0, 2 : String
-    %v3 = symbol ResolveTest.string$7 : %CodeUnit
-    %v5 = call stringLiteral, %v3, 3 : String
-    %v6 = move %local0 : String
-    %v7 = move %local1 : String
-    %joined = call Append(String).++, %v6, %v7 : String
-    %v9 = call Length(String).length, %joined : Size
+    %v0 = copy ResolveTest.literal$13 : String
+    %v1 = copy ResolveTest.literal$15 : String
+    %v2 = move %local0 : String
+    %v3 = move %local1 : String
+    %joined = call Append(String).++, %v2, %v3 : String
+    %v5 = call Length(String).length, %joined : Size
     drop %local2 via Reclaim(String).reclaim
-    %v10 = cast %v9 : Int
-    ret %v10
+    %v6 = cast %v5 : Int
+    ret %v6
 }
 
 fn buildUnnamed() -> Int {
@@ -1686,30 +1678,27 @@ fn buildUnnamed() -> Int {
     %v11 = call String.ofCapacity, %v10 : String
     %v12 = alloc : String
     init %local1, %v11
-    %v14 = symbol ResolveTest.string$8 : %CodeUnit
-    %v16 = call stringLiteral, %v14, 4 : String
-    %v17 = borrow_mut %local1 : &String
-    call String.push, %v17, %v16
+    %v14 = copy ResolveTest.literal$17 : String
+    %v15 = borrow_mut %local1 : &String
+    call String.push, %v15, %v14
     drop %local2 via Reclaim(String).reclaim
-    %v19 = borrow_mut %local1 : &String
-    call Show(Int).show, 7, %v19
-    %v21 = symbol ResolveTest.string$9 : %CodeUnit
-    %v23 = call stringLiteral, %v21, 8 : String
-    %v24 = borrow_mut %local1 : &String
-    call String.push, %v24, %v23
+    %v17 = borrow_mut %local1 : &String
+    call Show(Int).show, 7, %v17
+    %v19 = copy ResolveTest.literal$19 : String
+    %v20 = borrow_mut %local1 : &String
+    call String.push, %v20, %v19
     drop %local3 via Reclaim(String).reclaim
-    %v26 = borrow_mut %local1 : &String
-    call Show(Int).show, 9, %v26
-    %v28 = symbol ResolveTest.string$10 : %CodeUnit
-    %v30 = call stringLiteral, %v28, 3 : String
-    %v31 = borrow_mut %local1 : &String
-    call String.push, %v31, %v30
+    %v22 = borrow_mut %local1 : &String
+    call Show(Int).show, 9, %v22
+    %v24 = copy ResolveTest.literal$21 : String
+    %v25 = borrow_mut %local1 : &String
+    call String.push, %v25, %v24
     drop %local4 via Reclaim(String).reclaim
-    %v33 = load %local1 : String
-    %v34 = call Length(String).length, %v33 : Size
+    %v27 = load %local1 : String
+    %v28 = call Length(String).length, %v27 : Size
     drop %local1 via Reclaim(String).reclaim
-    %v35 = cast %v34 : Int
-    ret %v35
+    %v29 = cast %v28 : Int
+    ret %v29
 }
 
 fn main() -> Int {

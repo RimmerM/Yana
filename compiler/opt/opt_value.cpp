@@ -710,6 +710,32 @@ static bool isDeadRead(OptContext& opt, Value& instruction) {
         return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
     }
 
+    /*
+     * And a *bitwise* duplicate nothing reads, on the same two roots and for the same reason twice
+     * over.
+     *
+     * The read half is the argument above: a local or a global is storage the checker proved is
+     * there, so removing the read cannot remove a fault. The write half is what makes it removable
+     * rather than merely harmless - the destination is this value's own slot, and every place rooted
+     * in a local is recorded as a use of the value that fills it (see `IrEditor::addPlaceUse`), so a
+     * value nothing uses is storage nothing reads, writes or tears down.
+     *
+     * **A null `copy` and nothing else.** An authored `Copy` runs a user function to build the
+     * result, and a function nothing reads the result of is still a function that ran.
+     *
+     * What leaves these behind is a string literal whose value the folder made unnecessary - see
+     * `resolveString`, where a literal is a duplicate of a constant global. `eliminateDeadLocal`
+     * cannot answer one: it wants the slot to be filled by an `Alloc`, and here the duplicate is
+     * both the definition and the write.
+     */
+    if(instruction.kind == Value::Copy) {
+        auto& duplicate = (InstCopy&)instruction;
+        if(duplicate.copy) return false;
+
+        auto& place = duplicate.place;
+        return place.root == PlaceRoot::Local || place.root == PlaceRoot::Global;
+    }
+
     // And a host operation that only reads - see isReadOnlyHostOp, and the fold in opt_fold.cpp
     // that leaves one behind.
     if(instruction.kind == Value::Native) return isReadOnlyHostOp(opt, (InstNative&)instruction);

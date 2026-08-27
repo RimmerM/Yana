@@ -4,7 +4,9 @@ mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$0 = [57, 57]
-@ResolveTest.string$1 = [49, 57]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@ResolveTest.string$2 = [49, 57]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
 
 String.ofCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   b_1 {
@@ -379,19 +381,6 @@ freeHeap<complex>(%allocation: Ptr) {
     %v_11 = load @heapFree, 8: Ptr
     %v_12 = add %v_11, %v_8: Ptr
     store %v_12, %allocation, 8
-    ret 
-  }
-}
-
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = and %length, 1073741823: Int
-    store %v_0, %bytes, 8
-    %v_3 = add %v_0, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, %v_2, 4
-    %v_5 = add %v_0, 12: Ptr
-    store %v_5, %v_2, 4
     ret 
   }
 }
@@ -834,13 +823,11 @@ main<complex>(): Int {
     %out = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %out, 32
     %v_1 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_1, @ResolveTest.string$0, 2
+    copy %v_1, @ResolveTest.literal$1, 16
     %v_2 = call_complex withAnd, %v_1, 2, %out: Int
-    call_complex Reclaim(String).reclaim, %v_1
     %v_3 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_3, @ResolveTest.string$1, 2
+    copy %v_3, @ResolveTest.literal$3, 16
     %v_4 = call_complex withAnd, %v_3, 2, %out: Int
-    call_complex Reclaim(String).reclaim, %v_3
     %v_5 = add %v_2, %v_4: Int
     %v_6 = add %out, 12: Ptr
     %v_7 = load %v_6, 4: Int

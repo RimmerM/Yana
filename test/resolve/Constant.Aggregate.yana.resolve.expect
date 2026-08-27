@@ -40,6 +40,8 @@ let wrapped: Boxed = Wrapped(40)
 
 let ResolveTest.string$2: String = "ok"
 
+let ResolveTest.literal$3: String = "ok" {StringData(Array(Run(&ResolveTest.string$2, 2, 0), 2))}
+
 fn checkFailed() -> () {
   b0:
     call abortProcess
@@ -140,28 +142,6 @@ fn freeHeap(%allocation: %U8) -> () {
     assign [%v14], %v15
     call setFreeListHead, %sizeClass, %allocation
     ret
-}
-
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
 }
 
 fn abortProcess() -> () {
@@ -601,61 +581,60 @@ fn main() -> Int {
     %v289 = alloc : Point
     init %local5@Point.x, 2
     init %local5@Point.y, 3
-    %v294 = symbol ResolveTest.string$2 : %CodeUnit
-    %v296 = call stringLiteral, %v294, 2 : String
-    %v297 = alloc : Shape
+    %v294 = copy ResolveTest.literal$3 : String
+    %v295 = alloc : Shape
     init %local7.discriminant, 1
     init %local7@Rect.w, 2
     init %local7@Rect.h, 5
-    %v304 = alloc : Maybe(Int)
+    %v302 = alloc : Maybe(Int)
     init %local8.discriminant, 1
     init %local8@Just, 4
-    aggregate %local4@Settings.home = %v289, %local4@Settings.label = %v296, %local4@Settings.mode = %v297, %local4@Settings.limit = %v304
-    %v310 = load %local4@Settings.home : Point
-    %v311 = call sum, %v310 : Int
-    %v312 = load %local4@Settings.label : String
-    %v313 = call Length(String).length, %v312 : Size
-    %v314 = cast %v313 : Int
-    %v315 = add %v311, %v314 : Int
-    %v316 = load %local4@Settings.mode : Shape
-    %v317 = call area, %v316 : Int
-    %v318 = add %v315, %v317 : Int
-    %v319 = load %local4@Settings.limit : Maybe(Int)
-    %v321 = call unwrapOr, %v319, 0 : Int
+    aggregate %local4@Settings.home = %v289, %local4@Settings.label = %v294, %local4@Settings.mode = %v295, %local4@Settings.limit = %v302
+    %v308 = load %local4@Settings.home : Point
+    %v309 = call sum, %v308 : Int
+    %v310 = load %local4@Settings.label : String
+    %v311 = call Length(String).length, %v310 : Size
+    %v312 = cast %v311 : Int
+    %v313 = add %v309, %v312 : Int
+    %v314 = load %local4@Settings.mode : Shape
+    %v315 = call area, %v314 : Int
+    %v316 = add %v313, %v315 : Int
+    %v317 = load %local4@Settings.limit : Maybe(Int)
+    %v319 = call unwrapOr, %v317, 0 : Int
     drop_derived %local4 via reclaim$Settings
-    %defaults = add %v318, %v321 : Int
-    %v325 = cmp_eq %defaults, 21 : Bool
-    je %v325, b46, b47
+    %defaults = add %v316, %v319 : Int
+    %v323 = cmp_eq %defaults, 21 : Bool
+    je %v323, b46, b47
 
   b46:
-    %v327 = load %score : Int
-    %v330 = add %v327, 16384 : Int
-    assign %score, %v330
+    %v325 = load %score : Int
+    %v328 = add %v325, 16384 : Int
+    assign %score, %v328
     jmp b48
 
   b47:
     jmp b48
 
   b48:
-    %v335 = alloc : Point
+    %v333 = alloc : Point
     init %local9@Point.x, 6
     init %local9@Point.y, 7
-    %v340 = call scaled, 2, %v335 : Int
-    %v343 = cmp_eq %v340, 26 : Bool
-    je %v343, b49, b50
+    %v338 = call scaled, 2, %v333 : Int
+    %v341 = cmp_eq %v338, 26 : Bool
+    je %v341, b49, b50
 
   b49:
-    %v345 = load %score : Int
-    %v348 = add %v345, 32768 : Int
-    assign %score, %v348
+    %v343 = load %score : Int
+    %v346 = add %v343, 32768 : Int
+    assign %score, %v346
     jmp b51
 
   b50:
     jmp b51
 
   b51:
-    %v352 = load %score : Int
-    ret %v352
+    %v350 = load %score : Int
+    ret %v350
 }
 
 fn reclaim$Settings(%value: Settings) -> () {

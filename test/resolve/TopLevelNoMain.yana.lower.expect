@@ -9,8 +9,11 @@ mut @tally = [0, 0, 0, 0]
 mut @doubled = [0, 0, 0, 0]
 mut @final = [0, 0, 0, 0]
 @ResolveTest.string$0 = [116, 97, 108, 108, 121, 32]
-@ResolveTest.string$1 = [32, 100, 111, 117, 98, 108, 101, 100, 32]
-@ResolveTest.string$2 = [32, 102, 105, 110, 97, 108, 32]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0]
+@ResolveTest.string$2 = [32, 100, 111, 117, 98, 108, 101, 100, 32]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 9, 0, 0, 0]
+@ResolveTest.string$4 = [32, 102, 105, 110, 97, 108, 32]
+@ResolveTest.literal$5 = [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 7, 0, 0, 0]
 
 pushUnsigned<complex>(%value: Long, %to: Ptr) {
   b_0 {
@@ -202,31 +205,6 @@ Show(Int).show<complex>(%value: Int, %to: Ptr) {
   }
 
   b_5 {
-    ret 
-  }
-}
-
-Reclaim(String).reclaim<complex>(%value: Ptr) {
-  b_0 {
-    %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Long
-    %v_3 = shr %v_2, 30: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = cmp_eq %v_4, 1: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_7 {
-    jmp b_8
-  }
-
-  b_6 {
-    %v_9 = load %value, 8: Ptr
-    call_complex freeHeap, %v_9
-    jmp b_8
-  }
-
-  b_8 {
     ret 
   }
 }
@@ -592,19 +570,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = and %length, 1073741823: Int
-    store %v_0, %bytes, 8
-    %v_3 = add %v_0, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, %v_2, 4
-    %v_5 = add %v_0, 12: Ptr
-    store %v_5, %v_2, 4
-    ret 
-  }
-}
-
 copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ige %count, 32: Int
@@ -905,28 +870,25 @@ main$<complex>() {
     store @tally, %v_2, 4
     %v_3 = add %v_1, %v_2: Int
     store @final, %v_3, 4
-    %v_4 = call_complex allocateHeap, 55: Ptr
+    %v_4 = alloca 55, 1: Ptr
     %v_5 = alloca 16, 8: Ptr
     store %v_5, %v_4, 8
     %v_6 = add %v_5, 8: Ptr
     %v_7 = load %v_6, 4: Int
-    store %v_6, 1073741879, 4
+    store %v_6, 55, 4
     %v_8 = add %v_5, 12: Ptr
     store %v_8, 0, 4
     %v_9 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_9, @ResolveTest.string$0, 6
+    copy %v_9, @ResolveTest.literal$1, 16
     call_complex String.push, %v_5, %v_9
-    call_complex Reclaim(String).reclaim, %v_9
     call_complex Show(Int).show, %v_2, %v_5
     %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @ResolveTest.string$1, 9
+    copy %v_10, @ResolveTest.literal$3, 16
     call_complex String.push, %v_5, %v_10
-    call_complex Reclaim(String).reclaim, %v_10
     call_complex Show(Int).show, %v_1, %v_5
     %v_11 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_11, @ResolveTest.string$2, 7
+    copy %v_11, @ResolveTest.literal$5, 16
     call_complex String.push, %v_5, %v_11
-    call_complex Reclaim(String).reclaim, %v_11
     call_complex Show(Int).show, %v_3, %v_5
     %v_12 = load %v_5, 8: Ptr
     %v_13 = add %v_5, 12: Ptr
@@ -934,7 +896,25 @@ main$<complex>() {
     %v_15 = sext %v_14: Long
     %v_16 = bitcast %v_12: Long
     %v_17 = syscall 1, 1, %v_16, %v_15: Long
-    call_complex Reclaim(String).reclaim, %v_5
+    %v_18 = add %v_5, 8: Ptr
+    %v_19 = load %v_18, 4: Long
+    %v_20 = shr %v_19, 30: Long
+    %v_21 = cast %v_20: Int
+    %v_22 = cmp_eq %v_21, 1: Int
+    je %v_22, b_23, b_24
+  }
+
+  b_24 {
+    jmp b_25
+  }
+
+  b_23 {
+    %v_26 = load %v_5, 8: Ptr
+    call_complex freeHeap, %v_26
+    jmp b_25
+  }
+
+  b_25 {
     ret 
   }
 }

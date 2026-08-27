@@ -66,11 +66,16 @@ pub fn stringDataMut(&self: 'String) -> &StringData
 pub fn stringFromData(->value: StringData) -> String
 
 {-
-   What a string literal lowers to - Implementation-String.md part 9.
+   A string, from bytes that already exist - Implementation-String.md part 9.
 
-   The bytes are a constant in the module's data and this is the two words that describe them. It is
-   an ordinary function rather than a compiler-built value because there is nothing compiler-specific
-   left once the bytes exist: resolve emits the global, takes its address, and calls this.
+   The bytes are a constant in the module's data and this is the two words that describe them.
+
+   **A written literal no longer comes through here.** `resolveString` emits the whole value as a
+   constant global and duplicates it bitwise, which is the same two words with the call removed and,
+   more to the point, with the placement flag readable as a constant by whatever tests it - see
+   `LiteralFold.yana`, and `inheritConstant` in opt_place.cpp. What still comes through here is a
+   literal whose *bytes* are chosen at run time: a constructor map's string table holds an address
+   and a length per constructor and builds the value from the pair it read (see resolve/map.h).
 
    **`runBorrowed` is what makes a literal free, and it is also what makes it grow correctly.** The
    run does not own its slots, so `releaseRun` hands nothing back and a literal costs no teardown at
@@ -83,12 +88,12 @@ pub fn stringFromData(->value: StringData) -> String
    `capacity` is the byte length rather than zero, because the bytes really are there to be read -
    this is what lets a literal be indexed and compared without the run ever being touched.
 
-   **Deliberately not `@inline`, and the measurement is why.** Copying this body into every literal
-   is what would put `ownsHeap` in front of the teardown that tests it - see Analysis-Borrows.md
-   §8.9 - and over `test/resolve` it is **+445 lines of lowered IR and three more `Reclaim(String)`
-   calls, for nothing**: the construction inlines, the *teardown* does not, so the program pays for
-   both. The teardown is the half that has to move, and `inlineTeardown`'s budget is measured and
-   deliberate - see the note there recording 0.933x on `Matrix` when it was exempt.
+   **Deliberately not `@inline`, and the measurement is why.** Copying this body into every caller
+   was once the only way to put `ownsHeap` in front of the teardown that tests it - see
+   Analysis-Borrows.md §8.9 - and over `test/resolve` it was **+445 lines of lowered IR and three
+   more `Reclaim(String)` calls, for nothing**: the construction inlined, the *teardown* did not, so
+   the program paid for both. The constant global has since made that route unnecessary for a
+   written literal, and the measurement stands for the callers that remain.
 -}
 pub fn stringLiteral(bytes: %CodeUnit, length: Int) -> String =
     stringFromData(StringData {bytes: Array {

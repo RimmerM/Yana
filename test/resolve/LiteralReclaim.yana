@@ -1,0 +1,87 @@
+import Native
+
+-- The teardown of a string literal, which is nothing, proved to be nothing at the sites it is
+-- written at rather than only where the whole construction happens to inline.
+--
+-- A literal's run is `runBorrowed` and `Reclaim(String)` is a test of that flag, so a literal's
+-- teardown has always been provably empty. Two things stopped it being proved:
+--
+--  1. the flag was *built* by `stringLiteral`, so reading it back as a constant needed that body
+--     inlined - which at 118 call sites it usually was not. A literal is now a bitwise duplicate of
+--     an immutable global holding the two words (`resolveString`), so the flag is a field of a
+--     constant and needs nothing inlined to be read;
+--  2. `forwardPlaces` lost the constant at the first call, because a local a callee was handed the
+--     address of is one a callee may have written. That is right in general and wrong here, and
+--     `constantLocalContents` is the rule that says why: the slot is filled once from an immutable
+--     global, every user of it is a reader, and its type holds no `Atomic` - so a *lend* is a read.
+--
+-- Together those let the inliner take one exemption from its budget: a teardown that will fold to
+-- nothing costs nothing to copy in, and `teardownFoldsAway` asks the same rule the fold rests on
+-- rather than a more generous second one.
+--
+-- The golden IR is half the assertion and the allocator is the other half - the same split
+-- `StringReclaim.yana` makes, and for the same reason: a teardown that never runs produces every
+-- number the program itself asserts, so a *growing* literal has to be measured against the heap.
+--
+-- Native only. On JS a literal is a host string and the host collector owns the bytes.
+
+-- ## The lent literal
+--
+-- The `Enum.fromName` shape, and the one the second point above is about: the literal is compared
+-- against something and then dies. There is a call between the two, and it used to be enough.
+fn matches(name: String) -> Bool:
+    let wanted = "green"
+    return name == wanted
+
+-- Two of them on two paths, so the fold is asserted per site rather than once for a block that
+-- happens to have one literal in it.
+fn classify(name: String) -> Int:
+    if name == "red" then return 1
+    if name == "green" then return 2
+    if name == "blue" then return 3
+    return 0
+
+-- A literal read for its length and nothing else, which needs no call at all - the case that
+-- already folded, kept here so that a change breaking only the harder one is visible as one line.
+fn width() -> Int = truncate(length("abcd")) :: Int
+
+-- ## The literal that stops being one
+--
+-- Appending relocates a borrowed run by allocating and copying, so what this holds at the end owns
+-- its bytes and its teardown is not nothing. Nothing about the rule admits it - the slot is written
+-- after it is filled - and the assertion is the heap rather than the IR: a release that stopped
+-- happening leaves the same answer and a pointer that runs away.
+fn grown(n: Int) -> Int:
+    let &text = "ab"
+    text = text ++ "cde"
+    return (truncate(length(text)) :: Int) + n
+
+@noinline fn opaque(n: Int) -> Int = n
+
+fn main() -> Int:
+    -- Once first, so the region is mapped and the size class this string falls into has been
+    -- reached. Everything measured after this is reuse rather than growth.
+    let warm = grown(0)
+    let settled = heapNext
+
+    -- Ten more of them. `allocateHeap` serves from the free list of a size class when one is there
+    -- and only advances `heapNext` for a genuinely fresh block, so this pointer moves exactly when
+    -- one of the ten was not released.
+    let &total = 0
+    for i in 0..10:
+        total = total + grown(opaque(0))
+
+    if !(heapNext == settled) then return -1
+    if total != warm * 10 then return -2
+
+    if !matches("green") then return -3
+    if matches("red") then return -4
+
+    if classify("red") != 1 then return -5
+    if classify("green") != 2 then return -6
+    if classify("blue") != 3 then return -7
+    if classify("mauve") != 0 then return -8
+
+    -- 5 + 4: the grown length and the literal one, so that a fixture which proved everything by
+    -- building nothing is not one that passes.
+    return warm + width()

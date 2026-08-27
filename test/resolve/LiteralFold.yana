@@ -1,16 +1,24 @@
 -- What a string literal costs once nothing has to test where its bytes live.
 --
--- A literal's run is `runBorrowed` - `stringLiteral` writes the constant, `Native/Run.native.yana`'s
--- `releaseRun` tests it, and the test is the whole of `Reclaim(String)`. So the teardown is provably
--- no instructions at all, and for a long time it was emitted anyway: the constant was written into a
--- `Run`, copied into an `Array`, copied into a `StringData`, **moved** into the caller's `String`
--- slot, and read back through a `borrow` and a `cast`. Four of those five steps were places
--- `opt_place.cpp` stopped carrying what it knew - see Analysis-Borrows.md §8.9.
+-- A literal's run is `runBorrowed` - the constant says so, `Native/Run.native.yana`'s `releaseRun`
+-- tests it, and the test is the whole of `Reclaim(String)`. So the teardown is provably no
+-- instructions at all, and for a long time it was emitted anyway.
+--
+-- **The constant used to have to travel to reach the test, and now it does not.** `stringLiteral`
+-- built the value, so the flag was written into a `Run`, copied into an `Array`, copied into a
+-- `StringData`, moved into the caller's `String` slot and read back through a `borrow` and a `cast`
+-- - four of those five steps being places `opt_place.cpp` stopped carrying what it knew, which is
+-- the account in Analysis-Borrows.md §8.9. And it only worked at all where `stringLiteral` was
+-- *inlined*, which at 118 call sites it usually was not.
+--
+-- A literal is now a bitwise duplicate of an immutable global holding the two words (see
+-- `resolveString`), and `inheritConstant` reads the flag straight off that constant. Nothing has to
+-- inline, nothing has to be forwarded through five steps, and the construction is one block copy
+-- instead of three allocations and two aggregate copies.
 --
 -- `.opt.expect` is what this asserts and it is the point of the fixture: `length(s)` folds to the
--- literal's own count, and after the construction there is **no borrow, no cast, no load, no
--- placement test, no branch and no `freeHeap`**. An array literal has always optimized this way; the
--- string is the shape that could not reach it.
+-- literal's own count, and after the copy there is **no borrow, no cast, no load, no placement test,
+-- no branch and no `freeHeap`**.
 --
 -- Native only. On JS a literal is a host string and the host collector owns the bytes, so there is
 -- no placement flag for any of this to be about.

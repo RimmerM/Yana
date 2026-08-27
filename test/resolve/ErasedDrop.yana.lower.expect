@@ -1,4 +1,5 @@
-@Core.string$9 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@Core.string$17 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@Core.literal$18 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @image$base = []
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -6,11 +7,17 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @live = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$0 = [97, 98]
-@ResolveTest.string$1 = [99, 100]
-@ResolveTest.string$2 = [101, 102]
-@ResolveTest.string$3 = [97, 98, 99, 100, 101, 102]
-@ResolveTest.string$4 = [97, 98]
-@ResolveTest.string$5 = [97, 98, 97, 98, 97, 98]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@ResolveTest.string$2 = [99, 100]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@ResolveTest.string$4 = [101, 102]
+@ResolveTest.literal$5 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@ResolveTest.string$6 = [97, 98, 99, 100, 101, 102]
+@ResolveTest.literal$7 = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0]
+@ResolveTest.string$8 = [97, 98]
+@ResolveTest.literal$9 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@ResolveTest.string$10 = [97, 98, 97, 98, 97, 98]
+@ResolveTest.literal$11 = [0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 6, 0, 0, 0]
 @typeDesc$Counted = [8, 0, 0, 0, 8, 0, 0, 0, 162, 8, 0, 0, 0, 0, 0, 0]
 @genEnv$swallow(Counted) = [0, 0, 0, 0]
 @genEnv$rebind(Counted) = [0, 0, 0, 0]
@@ -795,19 +802,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = and %length, 1073741823: Int
-    store %v_0, %bytes, 8
-    %v_3 = add %v_0, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, %v_2, 4
-    %v_5 = add %v_0, 12: Ptr
-    store %v_5, %v_2, 4
-    ret 
-  }
-}
-
 copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ige %count, 32: Int
@@ -1373,11 +1367,11 @@ main<complex>(): Int {
 
   b_61 {
     %v_62 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_62, @ResolveTest.string$0, 2
+    copy %v_62, @ResolveTest.literal$1, 16
     %v_63 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_63, @ResolveTest.string$1, 2
+    copy %v_63, @ResolveTest.literal$3, 16
     %v_64 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_64, @ResolveTest.string$2, 2
+    copy %v_64, @ResolveTest.literal$5, 16
     %v_65 = alloca 16, 8: Ptr
     %v_66 = alloca 48, 8: Ptr
     store %v_65, %v_66, 8
@@ -1392,69 +1386,60 @@ main<complex>(): Int {
     %v_71 = add %v_65, 12: Ptr
     store %v_71, 3, 4
     %v_72 = alloca 16, 8: Ptr
-    store %v_72, @Core.string$9, 8
-    %v_73 = add %v_72, 8: Ptr
-    store %v_73, 0, 4
-    %v_74 = add %v_72, 12: Ptr
-    store %v_74, 0, 4
-    %v_75 = alloca 16, 8: Ptr
-    call_complex appendAll(Array(String), String), %v_75, %v_72, %v_65
-    jmp b_76
+    call_complex appendAll(Array(String), String), %v_72, @Core.literal$18, %v_65
+    jmp b_73
+  }
+
+  b_74 {
+    %v_75 = cmp_ilt %v_76, 3: Int
+    je %v_75, b_73, b_77
   }
 
   b_77 {
-    %v_78 = cmp_ilt %v_79, 3: Int
-    je %v_78, b_76, b_80
+    %v_78 = alloca 16, 8: Ptr
+    copy %v_78, @ResolveTest.literal$7, 16
+    %v_79 = call_complex Eq(String).!=, %v_72, %v_78: Int
+    call_complex Reclaim(String).reclaim, %v_72
+    je %v_79, b_80, b_81
   }
 
-  b_80 {
-    %v_81 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_81, @ResolveTest.string$3, 6
-    %v_82 = call_complex Eq(String).!=, %v_75, %v_81: Int
-    call_complex Reclaim(String).reclaim, %v_75
-    call_complex Reclaim(String).reclaim, %v_81
-    je %v_82, b_83, b_84
+  b_81 {
+    %v_82 = alloca 16, 8: Ptr
+    copy %v_82, @ResolveTest.literal$9, 16
+    %v_83 = alloca 16, 8: Ptr
+    call_complex repeated, @genEnv$repeated(String), %v_83, %v_82, 3
+    %v_84 = alloca 16, 8: Ptr
+    copy %v_84, @ResolveTest.literal$11, 16
+    %v_85 = call_complex Eq(String).!=, %v_83, %v_84: Int
+    call_complex Reclaim(String).reclaim, %v_83
+    je %v_85, b_86, b_87
   }
 
-  b_84 {
-    %v_85 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_85, @ResolveTest.string$4, 2
-    %v_86 = alloca 16, 8: Ptr
-    call_complex repeated, @genEnv$repeated(String), %v_86, %v_85, 3
-    call_complex Reclaim(String).reclaim, %v_85
-    %v_87 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_87, @ResolveTest.string$5, 6
-    %v_88 = call_complex Eq(String).!=, %v_86, %v_87: Int
-    call_complex Reclaim(String).reclaim, %v_86
-    call_complex Reclaim(String).reclaim, %v_87
-    je %v_88, b_89, b_90
+  b_87 {
+    %v_88 = loads @live, 8: Long
+    %v_89 = cmp_neq %v_88, 0: Int
+    %v_90 = select %v_89, 18446744073709551606, 0: Int
+    ret %v_90
   }
 
-  b_90 {
-    %v_91 = loads @live, 8: Long
-    %v_92 = cmp_neq %v_91, 0: Int
-    %v_93 = select %v_92, 18446744073709551606, 0: Int
-    ret %v_93
-  }
-
-  b_89 {
+  b_86 {
     ret 18446744073709551607
   }
 
-  b_83 {
+  b_80 {
     ret 18446744073709551608
   }
 
-  b_76 {
-    %v_94 = phi [b_77, %v_79], [b_61, 0]: Int
-    %v_95 = sext %v_94: Long
-    %v_96 = shl %v_95, 4: Long
-    %v_97 = add %v_66, %v_96: Ptr
+  b_73 {
+    %v_91 = phi [b_74, %v_76], [b_61, 0]: Int
+    %v_92 = sext %v_91: Long
+    %v_93 = shl %v_92, 4: Long
+    %v_94 = add %v_66, %v_93: Ptr
     %doomed = alloca 16, 8: Ptr
-    copy %doomed, %v_97, 16
+    copy %doomed, %v_94, 16
     call_complex Reclaim(String).reclaim, %doomed
-    %v_79 = add %v_94, 1: Int
-    jmp b_77
+    %v_76 = add %v_91, 1: Int
+    jmp b_74
   }
 
   b_60 {
@@ -1466,45 +1451,45 @@ main<complex>(): Int {
   }
 
   b_43 {
-    %v_98 = add %v_28, 12: Ptr
-    %v_99 = load %v_98, 4: Int
-    %v_100 = sext %v_99: Long
-    jmp b_101
+    %v_95 = add %v_28, 12: Ptr
+    %v_96 = load %v_95, 4: Int
+    %v_97 = sext %v_96: Long
+    jmp b_98
   }
 
-  b_101 {
-    %v_102 = phi [b_43, 0], [b_103, %v_104]: Long
-    %v_105 = cmp_ilt %v_102, %v_100: Int
-    je %v_105, b_103, b_106
-  }
-
-  b_106 {
-    %v_107 = add %v_28, 8: Ptr
-    %v_108 = load %v_107, 4: Int
-    %v_109 = shr %v_108, 30: Int
-    %v_110 = cmp_eq %v_109, 1: Int
-    je %v_110, b_111, b_112
-  }
-
-  b_111 {
-    %v_113 = load %v_28, 8: Ptr
-    call_complex freeHeap, %v_113
-    jmp b_112
-  }
-
-  b_112 {
-    ret 18446744073709551610
+  b_98 {
+    %v_99 = phi [b_43, 0], [b_100, %v_101]: Long
+    %v_102 = cmp_ilt %v_99, %v_97: Int
+    je %v_102, b_100, b_103
   }
 
   b_103 {
-    %v_114 = load %v_28, 8: Ptr
-    %v_115 = shl %v_102, 3: Long
-    %v_116 = add %v_114, %v_115: Ptr
+    %v_104 = add %v_28, 8: Ptr
+    %v_105 = load %v_104, 4: Int
+    %v_106 = shr %v_105, 30: Int
+    %v_107 = cmp_eq %v_106, 1: Int
+    je %v_107, b_108, b_109
+  }
+
+  b_108 {
+    %v_110 = load %v_28, 8: Ptr
+    call_complex freeHeap, %v_110
+    jmp b_109
+  }
+
+  b_109 {
+    ret 18446744073709551610
+  }
+
+  b_100 {
+    %v_111 = load %v_28, 8: Ptr
+    %v_112 = shl %v_99, 3: Long
+    %v_113 = add %v_111, %v_112: Ptr
     %doomed = alloca 8, 8: Ptr
-    copy %doomed, %v_116, 8
+    copy %doomed, %v_113, 8
     call_complex Drop(Counted).drop, %doomed
-    %v_104 = add %v_102, 1: Long
-    jmp b_101
+    %v_101 = add %v_99, 1: Long
+    jmp b_98
   }
 
   b_26 {
@@ -1563,11 +1548,7 @@ teardown$Holder<complex>(%value: Ptr) {
 
 thunk$Monoid(String).empty#0<complex>(%result: Ptr) {
   b_0 {
-    store %result, @Core.string$9, 8
-    %v_1 = add %result, 8: Ptr
-    store %v_1, 0, 4
-    %v_2 = add %result, 12: Ptr
-    store %v_2, 0, 4
+    copy %result, @Core.literal$18, 16
     ret 
   }
 }

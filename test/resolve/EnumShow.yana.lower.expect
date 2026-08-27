@@ -1,16 +1,24 @@
-@Core.string$108 = [82, 101, 100]
-@Core.string$109 = [71, 114, 101, 101, 110]
-@Core.string$110 = [66, 108, 117, 101]
-@Core.string$112 = [70, 114, 111, 109, 67, 117, 114, 114, 101, 110, 116]
+@Core.string$215 = [82, 101, 100]
+@Core.literal$216 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0]
+@Core.string$217 = [71, 114, 101, 101, 110]
+@Core.literal$218 = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
+@Core.string$219 = [66, 108, 117, 101]
+@Core.literal$220 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]
+@Core.string$223 = [70, 114, 111, 109, 67, 117, 114, 114, 101, 110, 116]
+@Core.literal$224 = [0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 11, 0, 0, 0]
 @image$base = []
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$0 = [71, 114, 101, 101, 110]
-@ResolveTest.string$1 = [70, 114, 111, 109, 67, 117, 114, 114, 101, 110, 116]
-@ResolveTest.string$2 = [58, 41]
-@ResolveTest.string$3 = [58, 41]
+@ResolveTest.literal$1 = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
+@ResolveTest.string$2 = [70, 114, 111, 109, 67, 117, 114, 114, 101, 110, 116]
+@ResolveTest.literal$3 = [0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 11, 0, 0, 0]
+@ResolveTest.string$4 = [58, 41]
+@ResolveTest.literal$5 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
+@ResolveTest.string$6 = [58, 41]
+@ResolveTest.literal$7 = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
 
 String.ofCapacity<complex>(%v_0: Ptr, %capacity: Long) {
   b_1 {
@@ -476,19 +484,6 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-stringLiteral<complex>(%v_0: Ptr, %bytes: Ptr, %length: Int) {
-  b_1 {
-    %v_2 = and %length, 1073741823: Int
-    store %v_0, %bytes, 8
-    %v_3 = add %v_0, 8: Ptr
-    %v_4 = load %v_3, 4: Int
-    store %v_3, %v_2, 4
-    %v_5 = add %v_0, 12: Ptr
-    store %v_5, %v_2, 4
-    ret 
-  }
-}
-
 copyMemory<complex>(%to: Ptr, %from: Ptr, %count: Long) {
   b_0 {
     %v_1 = cmp_ige %count, 32: Int
@@ -797,19 +792,19 @@ describe<complex>(%v_0: Ptr, %c: Int) {
 
   b_9 {
     %v_10 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_10, @Core.string$110, 4
+    copy %v_10, @Core.literal$220, 16
     jmp b_11
   }
 
   b_8 {
     %v_12 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_12, @Core.string$109, 5
+    copy %v_12, @Core.literal$218, 16
     jmp b_11
   }
 
   b_5 {
     %v_13 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_13, @Core.string$108, 3
+    copy %v_13, @Core.literal$216, 16
     jmp b_11
   }
 
@@ -827,10 +822,9 @@ main<complex>(): Int {
     %v_1 = alloca 16, 8: Ptr
     call_complex describe, %v_1, 1
     %v_2 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_2, @ResolveTest.string$0, 5
+    copy %v_2, @ResolveTest.literal$1, 16
     %v_3 = call_complex Eq(String).!=, %v_1, %v_2: Int
     call_complex Reclaim(String).reclaim, %v_1
-    call_complex Reclaim(String).reclaim, %v_2
     je %v_3, b_4, b_5
   }
 
@@ -838,14 +832,12 @@ main<complex>(): Int {
     %v_6 = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %v_6, 11
     %v_7 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_7, @Core.string$112, 11
+    copy %v_7, @Core.literal$224, 16
     call_complex String.push, %v_6, %v_7
-    call_complex Reclaim(String).reclaim, %v_7
     %v_8 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_8, @ResolveTest.string$1, 11
+    copy %v_8, @ResolveTest.literal$3, 16
     %v_9 = call_complex Eq(String).!=, %v_6, %v_8: Int
     call_complex Reclaim(String).reclaim, %v_6
-    call_complex Reclaim(String).reclaim, %v_8
     je %v_9, b_10, b_11
   }
 
@@ -853,14 +845,12 @@ main<complex>(): Int {
     %v_12 = alloca 16, 8: Ptr
     call_complex String.ofCapacity, %v_12, 2
     %v_13 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_13, @ResolveTest.string$3, 2
+    copy %v_13, @ResolveTest.literal$7, 16
     call_complex String.push, %v_12, %v_13
-    call_complex Reclaim(String).reclaim, %v_13
     %v_14 = alloca 16, 8: Ptr
-    call_complex stringLiteral, %v_14, @ResolveTest.string$2, 2
+    copy %v_14, @ResolveTest.literal$5, 16
     %v_15 = call_complex Eq(String).!=, %v_12, %v_14: Int
     call_complex Reclaim(String).reclaim, %v_12
-    call_complex Reclaim(String).reclaim, %v_14
     je %v_15, b_16, b_17
   }
 

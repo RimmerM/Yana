@@ -1,5 +1,6 @@
 #include "opt_pass.h"
 #include "../resolve/expr.h"
+#include "../resolve/const.h"
 
 /*
  * Read/write combining over places.
@@ -529,6 +530,16 @@ bool writesUnknownStorage(OptContext& opt, Value& instruction) {
 }
 
 namespace {
+
+/*
+ * How many entries one copy of a constant may add to `known` - see `inheritConstant`.
+ *
+ * `known` is scanned linearly, so a large constant walked leaf by leaf would make every later lookup
+ * in the block pay for storage nothing asked about. Eight covers the shape this exists for - a
+ * string literal is four numbers and an address - and a constant with more in it is a table rather
+ * than a value, which the read side folds one path at a time instead.
+ */
+constexpr U32 kInheritedConstantLeaves = 8;
 
 // What one place is known to hold. A store and a load establish the same fact and are not kept
 // apart: "this place holds %v" is what both a later load and a later store of %v rest on.
@@ -1092,6 +1103,107 @@ struct Forwarder {
         }
     }
 
+    // One place with one more step on the end.
+    Place stepped(const Place& base, Projection step) {
+        Place result;
+        result.root = base.root;
+        result.local = base.local;
+        result.global = base.global;
+        result.pointer = base.pointer;
+
+        auto& head = const_cast<Place&>(base).projections;
+        for(Size i = 0; i < head.size(); i++) {
+            result.projections.push(opt.program.arena, head.get(opt.local, i));
+        }
+
+        result.projections.push(opt.program.arena, step);
+        return result;
+    }
+
+    /*
+     * Everything a *constant* says about storage that was filled from it.
+     *
+     * `inheritCopy` above carries what this block already knew about the source; this is the same
+     * statement where the source is an immutable global, whose contents nothing in the block wrote
+     * and so nothing in the block knows. A constant is a tree, so the walk is over the tree and each
+     * leaf's path is built on the way down - which is `constantAt` read in the other direction, arm
+     * for arm, and the reason the two are worth keeping side by side.
+     *
+     * What it is for is a string literal. `resolveString` fills the caller's slot from a constant
+     * global, and the `ownsHeap` that decides whether the teardown does anything is a field of that
+     * constant - so this is what puts a `0` in front of the test rather than a load. Analysis-Borrows
+     * §8.9 is the account of why that constant used to have to travel four instructions to get there,
+     * and of the four tracking fixes it needed; from a global it does not travel at all.
+     *
+     * Only direct-type scalar leaves, on `foldConstantRead`'s terms: a memory-typed leaf is storage
+     * and producing it as a value means building one. A `[T *n]` is skipped rather than walked - its
+     * step needs an index *value*, and inventing `n` of them to describe storage nothing has asked
+     * about is the one shape where this walk would cost more than it can return.
+     *
+     * `budget` is a bound on the entries one copy may add, since `known` is scanned linearly.
+     */
+    void inheritConstant(Place destination, ModulePtr<ConstValue> constant, Value& at, U32& budget) {
+        if(!constant || !budget) return;
+
+        auto& value = *opt.local[constant];
+        auto children = value.children.contents(opt.local);
+
+        // A string's node is its text and the aggregate its static form is, at the same offset - the
+        // same transparent step `constantAt` takes, and for the same reason.
+        if(value.kind == ConstKind::String) {
+            if(children.size() == 1) inheritConstant(destination, children[0], at, budget);
+            return;
+        }
+
+        if(value.kind == ConstKind::Scalar) {
+            if(auto folded = foldConstantLeaf(opt, at, constant)) {
+                budget--;
+                remember(destination, folded, nullptr);
+            }
+
+            return;
+        }
+
+        if(value.kind == ConstKind::Aggregate) {
+            auto declared = opt.global[value.type];
+            if(declared->kind != Type::Tup) return;
+
+            for(Size i = 0; i < children.size(); i++) {
+                inheritConstant(stepped(destination, Projection { ProjectionKind::Field, U16(i), nullptr }),
+                                children[i], at, budget);
+            }
+
+            return;
+        }
+
+        if(value.kind != ConstKind::Construct) return;
+
+        auto declared = opt.global[value.type];
+        if(declared->kind != Type::Record) return;
+
+        auto& record = *(RecordType*)declared;
+        if(value.index >= record.constructors.size()) return;
+
+        auto constructor = record.constructors.get(opt.global, U16(value.index));
+        if(constructor.boxed) return;
+
+        auto payload = stepped(destination, Projection { ProjectionKind::Downcast, U16(value.index), nullptr });
+        auto content = constructor.content;
+
+        // A tuple content is the constructor's fields; anything else is one payload carried whole -
+        // the same split `constantAt` makes under its own `Downcast`.
+        if(content && opt.global[content]->kind == Type::Tup) {
+            for(Size i = 0; i < children.size(); i++) {
+                inheritConstant(stepped(payload, Projection { ProjectionKind::Field, U16(i), nullptr }),
+                                children[i], at, budget);
+            }
+
+            return;
+        }
+
+        if(children.size() == 1) inheritConstant(payload, children[0], at, budget);
+    }
+
     /*
      * A write of a whole value, which is a *read* of the source as well as a write of the destination.
      *
@@ -1374,6 +1486,36 @@ struct Forwarder {
                             opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
                             break;
                         }
+
+                        /*
+                         * And the same answer from the *program* rather than from this block: a read
+                         * of an immutable global's constant is that constant.
+                         *
+                         * Resolve folds this where it can already, and what is left for here is
+                         * everything an optimizer creates - the index that folded to a literal once
+                         * the call around it was inlined, which is what a constructor map's table
+                         * read is. Placed with the block-local answer rather than in the folder
+                         * because the two say the same thing and the one already in hand is cheaper.
+                         */
+                        if(auto value = foldConstantRead(opt, *instruction, load.place)) {
+                            opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
+                            break;
+                        }
+
+                        /*
+                         * And the same again for a local this function fills from a constant and
+                         * never writes - see `constantLocalContents`.
+                         *
+                         * Asked here as well as of the global, rather than instead of the two
+                         * answers above, because it is the one that survives `forgetExposed`: a
+                         * literal is *lent* to a comparison on its way to the teardown that reads
+                         * its placement flag, and one call is enough to lose a block-local fact.
+                         * Last of the three, since it is also the most expensive to ask.
+                         */
+                        if(auto value = foldConstantLocal(opt, *instruction, load.place)) {
+                            opt.ir().replaceValue((ModulePtr<Value>)pointer, value);
+                            break;
+                        }
                     }
 
                     // And the memory case, which is answered with the other name for the storage
@@ -1465,6 +1607,21 @@ struct Forwarder {
                     markRead(duplicate.place);
 
                     if(duplicate.copy || duplicate.local == maxLimit<U32>) break;
+
+                    /*
+                     * A duplicate of an *immutable global's constant*, which nothing in this block
+                     * wrote and so nothing in it knows - see `inheritConstant`. Ahead of the local
+                     * case rather than beside it, because the source root decides which of the two
+                     * this is and a global is never the other.
+                     */
+                    if(auto constant = constantAt(opt, duplicate.place)) {
+                        auto destination = Place::inLocal(duplicate.local);
+                        auto budget = kInheritedConstantLeaves;
+
+                        forgetAliasing(destination);
+                        inheritConstant(destination, constant, *instruction, budget);
+                        break;
+                    }
 
                     // The same two guards `noteCopy` applies to a source, for the same reasons: the
                     // paths have to be relative to something, and nothing may hold another way in.

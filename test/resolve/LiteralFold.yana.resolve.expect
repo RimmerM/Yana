@@ -4,6 +4,8 @@ let &heapFree: %%U8 = 0
 
 let ResolveTest.string$0: String = "hello"
 
+let ResolveTest.literal$1: String = "hello" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
+
 fn Length(String).length(%self: String) -> Size {
   b0:
     %v1 = borrow %self : 'String
@@ -70,28 +72,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
-}
-
 fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
@@ -115,12 +95,11 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
 
 fn litLen(%n: Size) -> Size {
   b0:
-    %v1 = symbol ResolveTest.string$0 : %CodeUnit
-    %s = call stringLiteral, %v1, 5 : String
-    %v4 = call Length(String).length, %s : Size
+    %s = copy ResolveTest.literal$1 : String
+    %v2 = call Length(String).length, %s : Size
     drop %local0 via Reclaim(String).reclaim
-    %v5 = add %v4, %n : Size
-    ret %v5
+    %v3 = add %v2, %n : Size
+    ret %v3
 }
 
 fn twice(%n: Size) -> Size {

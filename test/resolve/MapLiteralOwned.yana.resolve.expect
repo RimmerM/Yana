@@ -16,6 +16,8 @@ let &live: Int = 0
 
 let ResolveTest.string$0: String = "k-"
 
+let ResolveTest.literal$1: String = "k-" {StringData(Array(Run(&ResolveTest.string$0, 2, 0), 2))}
+
 fn slotFor(%h: U32, %mask: @bits(30) U32) -> Size {
   b0:
     %mask = cast %mask : U32
@@ -1932,28 +1934,6 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
-  b0:
-    %v2 = alloc : StringData
-    %v3 = alloc : Array(CodeUnit)
-    %v4 = alloc : Run(CodeUnit)
-    %v5 = cast %length : U32
-    %v7 = and %v5, 1073741823 : U32
-    %v8 = cast %v7 : @bits(30) U32
-    init %local2@Run.items, %bytes
-    init %local2@Run.capacity, %v8
-    init %local2@Run.ownsHeap, 0
-    %v13 = cast %length : U32
-    %v15 = and %v13, 1073741823 : U32
-    %v16 = cast %v15 : @bits(30) U32
-    aggregate %local1@Array.run = %v4, %local1@Array.length = %v16
-    aggregate %local0@StringData.bytes = %v3
-    %v19 = move %local0 : StringData
-    %v20 = alloc : String
-    init %local3, %v19
-    ret %v20
-}
-
 fn blockShort(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
     %v4 = vsplat 0 : Vec(U8)
@@ -2902,17 +2882,16 @@ fn key(%n: Int) -> String {
     %s = alloc : String
     init %s, %v2
     %v5 = load %s : String
-    %v6 = symbol ResolveTest.string$0 : %CodeUnit
-    %v8 = call stringLiteral, %v6, 2 : String
-    %v9 = borrow_mut %s : &String
-    call String.push, %v9, %v8
+    %v6 = copy ResolveTest.literal$1 : String
+    %v7 = borrow_mut %s : &String
+    call String.push, %v7, %v6
     drop %local2 via Reclaim(String).reclaim
-    %v11 = load %s : String
-    %v12 = borrow_mut %s : &String
-    call Show(Int).show, %n, %v12
-    %v14 = load %s : String
-    %v15 = move %s : String
-    ret %v15
+    %v9 = load %s : String
+    %v10 = borrow_mut %s : &String
+    call Show(Int).show, %n, %v10
+    %v12 = load %s : String
+    %v13 = move %s : String
+    ret %v13
 }
 
 fn take(%m: Map(String, Held)) -> Int {

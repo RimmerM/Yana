@@ -1,195 +1,21 @@
 @image$base = []
-@empty = [0, 0, 0, 0, 0, 0, 0, 0]
-@read = [1, 0, 0, 0, 0, 0, 0, 0]
-@write = [2, 0, 0, 0, 0, 0, 0, 0]
 mut @effects = [0, 0, 0, 0]
 
 main<complex>(): Int {
   b_0 {
-    %value$ = loads @empty, 8: Long
-    %v_1 = cmp_neq %value$, 0: Int
-    je %v_1, b_2, b_3
+    %v_1 = loads @effects, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store @effects, %v_2, 4
+    %v_3 = cmp_neq %v_2, 1: Int
+    je %v_3, b_4, b_5
   }
 
-  b_3 {
-    jmp b_4
-  }
-
-  b_4 {
-    %value$ = loads @read, 8: Long
-    %v_5 = cmp_neq %value$, 0: Int
-    je %v_5, b_6, b_7
-  }
-
-  b_6 {
-    %v_8 = not %value$: Long
-    %v_9 = cmp_neq %v_8, 0: Int
-    je %v_9, b_10, b_11
-  }
-
-  b_10 {
-    %v_12 = not %value$: Long
-    %v_13 = cmp_eq %v_12, %value$: Int
-    je %v_13, b_14, b_15
-  }
-
-  b_15 {
-    %v_16 = cmp_neq %value$, 0: Int
-    je %v_16, b_17, b_18
-  }
-
-  b_17 {
-    %v_19 = loads @effects, 4: Int
-    %v_20 = add %v_19, 1: Int
-    store @effects, %v_20, 4
-    %v_21 = cmp_neq %value$, 0: Int
-    je %v_21, b_22, b_18
-  }
-
-  b_18 {
-    %v_23 = cmp_neq %value$, 0: Int
-    je %v_23, b_24, b_25
-  }
-
-  b_25 {
-    jmp b_26
-  }
-
-  b_24 {
-    %v_27 = loads @effects, 4: Int
-    %v_28 = add %v_27, 1: Int
-    store @effects, %v_28, 4
-    jmp b_29
-  }
-
-  b_29 {
-    %v_30 = cmp_neq %value$, 0: Int
-    je %v_30, b_31, b_32
-  }
-
-  b_32 {
-    %v_33 = loads @effects, 4: Int
-    %v_34 = add %v_33, 1: Int
-    store @effects, %v_34, 4
-    %v_35 = cmp_neq %value$, 0: Int
-    jmp b_36
-  }
-
-  b_31 {
-    jmp b_37
-  }
-
-  b_36 {
-    je %v_35, b_37, b_38
-  }
-
-  b_37 {
-    %v_39 = loads @effects, 4: Int
-    %v_40 = cmp_neq %v_39, 1: Int
-    je %v_40, b_41, b_42
-  }
-
-  b_42 {
-    jmp b_43
-  }
-
-  b_43 {
-    jmp b_44
-  }
-
-  b_44 {
-    jmp b_45
-  }
-
-  b_45 {
-    jmp b_46
-  }
-
-  b_46 {
-    jmp b_47
-  }
-
-  b_47 {
-    jmp b_48
-  }
-
-  b_48 {
-    jmp b_49
-  }
-
-  b_49 {
-    jmp b_50
-  }
-
-  b_50 {
-    %v_51 = cmp_neq %value$, 0: Int
-    %v_52 = cmp_neq %value$, 0: Int
-    %v_53 = cmp_neq %v_51, %v_52: Int
-    je %v_53, b_54, b_55
-  }
-
-  b_54 {
-    %v_56 = cmp_neq %value$, 0: Int
-    %value$ = loads @write, 8: Long
-    %v_57 = cmp_neq %value$, 0: Int
-    %v_58 = cmp_neq %v_56, %v_57: Int
-    je %v_58, b_59, b_60
-  }
-
-  b_60 {
-    %v_61 = or %value$, %value$: Long
-    %v_62 = and %v_61, %value$: Long
-    %v_63 = cmp_eq %v_62, %value$: Int
-    je %v_63, b_64, b_65
-  }
-
-  b_64 {
-    %v_66 = cast %v_61: Int
-    ret %v_66
-  }
-
-  b_65 {
-    ret 13
-  }
-
-  b_59 {
-    ret 36
-  }
-
-  b_55 {
-    ret 35
-  }
-
-  b_41 {
-    ret 12
-  }
-
-  b_38 {
-    ret 11
-  }
-
-  b_26 {
-    ret 10
-  }
-
-  b_22 {
-    ret 9
-  }
-
-  b_14 {
-    ret 5
-  }
-
-  b_11 {
-    ret 4
-  }
-
-  b_7 {
+  b_5 {
     ret 3
   }
 
-  b_2 {
-    ret 1
+  b_4 {
+    ret 12
   }
 }
 

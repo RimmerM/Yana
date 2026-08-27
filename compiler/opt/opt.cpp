@@ -1,4 +1,5 @@
 #include "opt_pass.h"
+#include "../resolve/const.h"
 
 /*
  * The driver, and the questions about types and storage every pass asks.
@@ -435,6 +436,269 @@ Place resolvedRoot(OptContext& opt, const Place& place) {
     }
 
     return place;
+}
+
+/*
+ * The constant a read of a place answers - see opt_pass.h, which is where the reasoning is.
+ *
+ * Deliberately the same case analysis as `ExprResolver::constantAt`, arm for arm. The two answer one
+ * question about one data structure, and a second walk that disagreed with the first would fold a
+ * read here that resolve left alone, or the reverse - either of which is a program whose meaning
+ * depends on whether the optimizer ran.
+ */
+ModulePtr<ConstValue> constantThrough(OptContext& opt, ModulePtr<ConstValue> root,
+                                      ModuleList<Projection, false> path) {
+    auto at = root;
+
+    for(auto projection: path.contents(opt.local)) {
+        if(!at) return nullptr;
+
+        auto value = *opt.local[at];
+        auto children = value.children.contents(opt.local);
+
+        /*
+         * A string literal's node is its text *and* the aggregate its static form is, and a path
+         * into one is a path into that aggregate: `computeString` gives a `String` its content's
+         * size and alignment unchanged, so the two are one piece of storage at one offset. This is
+         * the same step `ConstantWriter::write` takes for the same reason.
+         *
+         * Nothing underneath on JS, where a host string is one value - and there the walk stops,
+         * since `children` is empty.
+         */
+        if(value.kind == ConstKind::String) {
+            if(children.size() != 1) return nullptr;
+
+            at = children[0];
+            if(!at) return nullptr;
+
+            value = *opt.local[at];
+            children = value.children.contents(opt.local);
+        }
+
+        switch(projection.kind) {
+            case ProjectionKind::Field: {
+                // The fields of an aggregate, or of the content tuple a constructor carries - which
+                // is why a `Construct` answers here as well as under its own `Downcast`.
+                if(value.kind != ConstKind::Aggregate && value.kind != ConstKind::Construct) return nullptr;
+                if(projection.index >= children.size()) return nullptr;
+
+                at = children[projection.index];
+                break;
+            }
+            case ProjectionKind::Index: {
+                // Only a literal index. A computed one is a read of storage whichever element it
+                // lands on, and proving what a value is belongs to the passes that do that - by the
+                // time this runs they have, which is the whole reason the walk is worth repeating.
+                if(value.kind != ConstKind::Aggregate || !projection.value) return nullptr;
+                if(opt.local[projection.value]->kind != Value::ConstInt) return nullptr;
+
+                auto index = ((ConstInt*)opt.local[projection.value])->value;
+                if(index >= children.size()) return nullptr;
+
+                at = children[Size(index)];
+                break;
+            }
+            case ProjectionKind::Downcast: {
+                // A downcast to the constructor this constant is not is unreachable code rather than
+                // a value, so it is declined rather than answered.
+                if(value.kind != ConstKind::Construct || projection.index != value.index) return nullptr;
+
+                // A tuple content is *this* node's children, so the step arrives where it started; a
+                // payload carried whole is the one case that reaches a value of its own. The same
+                // split `resolveConstruct` and `initializeFromConstant` make.
+                auto declared = opt.global[value.type];
+                auto record = declared->kind == Type::Record ? (RecordType*)declared : nullptr;
+                if(!record || value.index >= record->constructors.size()) return nullptr;
+
+                auto content = record->constructors.get(opt.global, U16(value.index)).content;
+                if(content && opt.global[content]->kind == Type::Tup) break;
+
+                if(children.size() != 1) return nullptr;
+                at = children[0];
+                break;
+            }
+            default:
+                return nullptr;
+        }
+    }
+
+    return at;
+}
+
+ModulePtr<ConstValue> constantAt(OptContext& opt, const Place& outer) {
+    auto place = resolvedRoot(opt, outer);
+    if(place.root != PlaceRoot::Global || !place.global) return nullptr;
+
+    auto& definition = *opt.local[place.global];
+    if(definition.isWritten() || !definition.initial) return nullptr;
+
+    return constantThrough(opt, definition.initial, place.projections);
+}
+
+ModulePtr<Value> foldConstantLeaf(OptContext& opt, Value& at, ModulePtr<ConstValue> constant) {
+    if(!constant) return nullptr;
+
+    auto& value = *opt.local[constant];
+    if(value.kind != ConstKind::Scalar || !isDirectType(opt.global, value.type)) return nullptr;
+
+    if(isFloat(opt.global, value.type)) {
+        return makeFloatConstant(opt, at, value.type, floatFromBits(opt.global, value.type, value.bits));
+    }
+
+    // See the header: an address is two instructions where every other leaf is one, and nothing this
+    // reaches holds one a fold would be about.
+    if(isPointer(opt.global, value.type)) return nullptr;
+
+    return makeConstant(opt, at, value.type, value.bits);
+}
+
+ModulePtr<Value> foldConstantRead(OptContext& opt, Value& at, const Place& place) {
+    return foldConstantLeaf(opt, at, constantAt(opt, place));
+}
+
+/*
+ * Whether writing this type's storage is something a *shared* lend could do.
+ *
+ * `Atomic(a)` is the whole of it - Analysis-Atomics.md §3.1 - and it is why "a shared borrow cannot
+ * be written through" is a claim about a type rather than about a borrow. A counter two threads
+ * synchronize through is mutated behind a `'`, deliberately, and that is what makes it an atomic
+ * rather than a field.
+ *
+ * Walked structurally with a depth guard, on `narrowValue`'s terms: a type that reaches itself by
+ * inline containment is reported against its declaration but resolution continues, so this can be
+ * asked about one. An indirection is not followed - what is behind a pointer is not this storage,
+ * and a write through one changes nothing a constant here describes.
+ */
+static bool holdsAtomic(GlobalBase global, TypePtr type, U32 depth = 0) {
+    if(!type || depth > 8) return depth > 8;
+
+    auto value = global[type];
+
+    switch(value->kind) {
+        case Type::Atomic:
+            return true;
+
+        case Type::String:
+            return holdsAtomic(global, ((StringType*)value)->content, depth + 1);
+
+        case Type::Array:
+            return holdsAtomic(global, ((ArrayType*)value)->content, depth + 1);
+
+        case Type::Tup: {
+            for(auto field: ((TupType*)value)->fields.contents(global)) {
+                if(!field.boxed && holdsAtomic(global, field.type, depth + 1)) return true;
+            }
+
+            return false;
+        }
+
+        case Type::Record: {
+            for(auto constructor: ((RecordType*)value)->constructors.contents(global)) {
+                if(constructor.boxed) continue;
+                if(holdsAtomic(global, constructor.content, depth + 1)) return true;
+            }
+
+            return false;
+        }
+
+        default:
+            return false;
+    }
+}
+
+/*
+ * The constant a local's storage holds *everywhere in this function*, or null.
+ *
+ * `forwardPlaces` answers the same question per block and loses it at every call, because a local
+ * whose address a callee was given is one a callee may have written - see `forgetExposed`. That is
+ * the right answer about storage in general and the wrong one about this storage, and the difference
+ * is worth a rule of its own: the whole shape here is a string literal, which is filled once from an
+ * immutable global and then *lent* to `Eq(String).==` or `Length(String).length` on the way to the
+ * teardown that reads its placement flag. One call is enough to lose the constant, and there is
+ * always one.
+ *
+ * So this is asked of the function rather than of the block, and what it rests on is that nothing can
+ * write the storage at all:
+ *
+ *  - the slot is filled by a **bitwise duplicate of an immutable global's constant**, which is the
+ *    one instruction that fills it;
+ *  - **every user of it is a reader.** Asked as an allowlist rather than as a list of writers,
+ *    because only one of the two fails safe, and it is complete: every place rooted in a local is
+ *    recorded as a use of the value filling it (`IrEditor::addPlaceUse`), so a user this does not
+ *    admit is a user it refuses;
+ *  - and the type **holds no `Atomic`**, which is what makes "lent to a callee" mean "read by a
+ *    callee". Without that clause the second one would be false of exactly the type interior
+ *    mutability exists for.
+ *
+ * A raw pointer into the storage needs no clause of its own: an address is computed by `Address` and
+ * `Borrow`, and the allowlist admits neither an `Address` nor a mutable `Borrow`.
+ */
+ModulePtr<ConstValue> constantLocalContents(OptContext& opt, U32 index) {
+    if(index >= opt.function->localCount()) return nullptr;
+
+    auto slot = opt.function->localAt(opt.local, index);
+    if(!slot.value || slot.borrowed) return nullptr;
+
+    auto& definition = *opt.local[slot.value];
+    if(definition.kind != Value::Copy) return nullptr;
+
+    auto& duplicate = (InstCopy&)definition;
+    if(duplicate.copy || duplicate.local != index) return nullptr;
+
+    auto constant = constantAt(opt, duplicate.place);
+    if(!constant) return nullptr;
+
+    if(holdsAtomic(opt.global, slot.type)) return nullptr;
+
+    for(auto user: definition.uses(opt.local)) {
+        auto& instruction = *opt.local[user];
+
+        switch(instruction.kind) {
+            // A read of the storage, a duplicate of it, and the teardown - none of which writes.
+            case Value::LoadPlace:
+            case Value::Copy:
+            case Value::Drop:
+                break;
+
+            // A shared borrow is a read; an exclusive one is a write this cannot see through.
+            case Value::Borrow:
+                if(((InstBorrow&)instruction).mut) return nullptr;
+                break;
+
+            /*
+             * A call the value is *lent* to, which is every parameter written without `&` or `->`.
+             * One it is handed *over* to is refused rather than reasoned about: what a transfer means
+             * at a site the value is still read after is a conditional hand-over, and the storage is
+             * then whatever the other path left.
+             */
+            case Value::Call:
+            case Value::GenCall:
+            case Value::CallDyn: {
+                auto transferred = false;
+                eachTransferOperand(opt.local, instruction, [&](ModulePtr<Value> operand, LocationId) {
+                    transferred = transferred || operand == slot.value;
+                });
+
+                if(transferred) return nullptr;
+                break;
+            }
+
+            default:
+                return nullptr;
+        }
+    }
+
+    return constant;
+}
+
+ModulePtr<Value> foldConstantLocal(OptContext& opt, Value& at, const Place& outer) {
+    auto place = resolvedRoot(opt, outer);
+    if(place.root != PlaceRoot::Local) return nullptr;
+
+    auto contents = constantLocalContents(opt, place.local);
+    if(!contents) return nullptr;
+
+    return foldConstantLeaf(opt, at, constantThrough(opt, contents, place.projections));
 }
 
 Fields fieldsOf(OptContext& opt, TypePtr type) {

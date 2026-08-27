@@ -140,6 +140,16 @@ bool constantHasStaticForm(GlobalBase global, ModuleBase local, ConstantPtr cons
  */
 Global* stringLiteralBytes(Module& module, StringId text, LocationId source);
 
+/*
+ * The value a native string literal *is*, written as a constant rather than as a call: the two words
+ * `stringLiteral` builds, over a blob of the decoded bytes.
+ *
+ * Native only - on JS a host string is one value with nothing underneath it. `what` names the
+ * position for the one diagnostic this can produce, which is an internal error about the target's
+ * string layout rather than anything an author wrote.
+ */
+ConstantPtr nativeStringConstant(Module& module, LocationId source, StringId text, StringView what);
+
 // What a construction leaves out of field `field` takes instead, or null where the declaration
 // wrote no default for it. One scan, shared by the expression form and the constant form, so that
 // what a field falls back to cannot depend on which of the two is asking.
