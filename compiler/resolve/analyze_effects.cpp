@@ -686,12 +686,32 @@ static void deriveEffects(Analysis& analysis) {
  * where the load was written - without this, `firstByte(pair.left)` would drop the pair between
  * taking the address of its field and reading through it.
  *
- * One level deep, which is what the resolver produces: placeFor() recovers a place from a load
- * rather than loading again, so chains of these do not arise. The address an `addressOf` hands out
- * is a different matter - a raw pointer can be stored anywhere and outlive any extent this could
- * compute - and is unchecked by construction, which is what `%T` means.
+ * One level deep for the ordinary case, which is what the resolver produces: placeFor() recovers a
+ * place from a load rather than loading again, so chains of these do not arise. The address an
+ * `addressOf` hands out is a different matter - a raw pointer can be stored anywhere and outlive any
+ * extent this could compute - and is unchecked by construction, which is what `%T` means.
+ *
+ * **The exception is a borrow written into storage that carries it onward**, and there the walk has
+ * to follow. A capture reaches its call in three steps - into the environment, the environment's
+ * address into the function value, the function value into the call - so a borrow whose own uses end
+ * at the first of those is live until the last. Stopping at the first is what dropped a `String`
+ * captured by a lens continuation between the capture and the call:
+ *
+ *     let text = made()      -- %local0
+ *     let n = plusOne(4)     -- the rest of the block is the continuation, which reads `text`
+ *
+ * emitted `init %local1.text, %v3` and then `drop %local0` on the next line, because `%v3`'s only
+ * use was that write. The continuation then read freed memory, natively and silently.
+ *
+ * `carriesLoanOnward` is the step, and it is analyze_borrow's - that pass already followed this
+ * chain for the loan extent the conflict checks read, and the two disagreeing is what the defect
+ * was. `seen` is against a cycle rather than against depth: an environment stored into a function
+ * value stored into another environment is a chain, not a loop, but a rewrite could make one.
  */
 static void extendBorrowUses(Analysis& analysis) {
+    SmallArray<ModulePtr<Value>, 16> pending;
+    SmallArray<ModulePtr<Value>, 16> seen;
+
     for(Size i = 0; i < analysis.instructionCount; i++) {
         auto pointer = analysis.order[i];
         auto& instruction = *analysis.local[pointer];
@@ -706,9 +726,75 @@ static void extendBorrowUses(Analysis& analysis) {
         auto root = rootLocal(analysis, place);
         if(root == maxLimit<U32>) continue;
 
-        for(auto user: instruction.uses(analysis.local)) {
-            auto index = analysis.indexOf.get(U32(user));
-            if(index) analysis.effects[index.unwrap()].uses.push(root);
+        pending.clear();
+        seen.clear();
+        pending.push((ModulePtr<Value>)pointer);
+        seen.push((ModulePtr<Value>)pointer);
+
+        while(pending.size()) {
+            auto carrier = pending[pending.size() - 1];
+            pending.pop();
+
+            for(auto user: analysis.local[carrier]->uses(analysis.local)) {
+                auto& use = *analysis.local[user];
+
+                /*
+                 * A phi carries the loan on, and its operands are used on the edges into it rather
+                 * than at the merge - this file's own rule, and the reason `deriveEffects` gives the
+                 * phi an empty arm. Pushing the use at the phi is exactly the false use-after-move
+                 * `attributePhiEdges` exists to avoid, and it is what `let f = if p then one else
+                 * two` over two closures reported when this walk first ignored the distinction.
+                 */
+                if(use.kind == Value::Phi) {
+                    auto& phi = (InstPhi&)use;
+
+                    for(auto input: phi.inputs.contents(analysis.local)) {
+                        if(input.value != carrier || !input.block) continue;
+
+                        auto from = analysis.local[input.block];
+                        if(!from->terminator()) continue;
+
+                        auto edge = analysis.indexOf.get(U32(from->terminator()));
+                        if(edge) analysis.effects[edge.unwrap()].uses.push(root);
+                    }
+                } else if(auto index = analysis.indexOf.get(U32(user))) {
+                    analysis.effects[index.unwrap()].uses.push(root);
+                }
+
+                /*
+                 * And on into whatever the use wrote the carrier into. `Init` into storage that
+                 * carries takes the walk to that storage's own value; an `Address` or `Borrow` *of*
+                 * an environment is the address the function value holds, so the walk continues at
+                 * the result. Both arms are analyze_borrow's, stated the same way round.
+                 */
+                Place carried;
+                auto storedInto = use.kind == Value::Init && firstPlace(use, carried);
+                auto derivedFrom = (use.kind == Value::Address || use.kind == Value::Borrow) &&
+                                   firstPlace(use, carried);
+
+                if(!storedInto && !derivedFrom) continue;
+
+                auto carrierRoot = rootLocal(analysis, carried);
+                if(carrierRoot == maxLimit<U32>) continue;
+
+                auto slot = analysis.function.localAt(analysis.local, carrierRoot);
+
+                ModulePtr<Value> next = nullptr;
+                if(storedInto && carriesLoanOnward(analysis, slot, analysis.local[carrier]->type)) {
+                    next = slot.value;
+                } else if(derivedFrom && slot.closureEnv) {
+                    next = (ModulePtr<Value>)user;
+                }
+
+                if(!next) continue;
+
+                auto known = false;
+                for(auto s: seen) if(s == next) { known = true; break; }
+                if(known) continue;
+
+                seen.push(next);
+                pending.push(next);
+            }
         }
     }
 }

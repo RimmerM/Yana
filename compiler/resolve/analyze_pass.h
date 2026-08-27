@@ -844,6 +844,31 @@ inline U32 viewedRoot(Analysis& analysis, U32 local) {
     return local;
 }
 
+/*
+ * Whether storage a borrow was written into carries that loan onward, so that a use of the storage
+ * is a use of what the borrow names.
+ *
+ * Design-Memory §8: "a by-reference capture is a mutable borrow live for as long as the closure".
+ * The chain a capture takes to reach its call is three steps - the borrow is written into the
+ * environment, the environment's address becomes a word of the function value, and the function
+ * value is what the call receives - and every step of it has to keep the borrowed slot alive.
+ *
+ * `written` is the type of the value being stored, which is the third clause rather than an
+ * afterthought: a *pointer* still names the storage it was read out of, which is how a slice
+ * descriptor carries its loan to the call site it was built for.
+ *
+ * **Shared because two passes ask it and their answers have to agree.** analyze_borrow spends this
+ * edge on a loan's extent, which is what the conflict checks read; analyze_effects spends it on
+ * liveness, which is what drop placement reads. They disagreed: the extent followed the whole chain
+ * and liveness stopped at the borrow's own uses, so a `String` captured by a lens continuation was
+ * dropped between the capture and the call and the continuation read freed memory. The same edge in
+ * two files is what `viewedRoot` above says about the other half of this question.
+ */
+inline bool carriesLoanOnward(Analysis& analysis, const Local& slot, TypePtr written) {
+    return slot.closureEnv || isFunction(analysis.global, slot.type) ||
+           isPointer(analysis.global, written);
+}
+
 // Whether this slot is a parameter's - storage the caller named, which arrives already holding a
 // value and already outlives the frame. Asked by five of the passes and by the summary.
 inline bool isParameterSlot(Analysis& analysis, Size local) {

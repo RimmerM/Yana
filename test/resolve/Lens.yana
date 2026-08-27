@@ -130,6 +130,39 @@ fn capturedCallResult() -> Int:
     let n = plusOne(4)
     return if text == "abc" then n else 0
 
+{-
+   And the same capture over a value with a *heap buffer*, which is the other defect that shape had.
+
+   A borrow written into a closure's environment is live for as long as the closure - Design-Memory
+   §8 - and the chain that makes it so is three steps: the borrow into the environment, the
+   environment's address into the function value, the function value into the call. The loan extent
+   the borrow checker computes followed all three; liveness stopped at the borrow's own uses, which
+   are over at the first. So the drop landed between the capture and the call:
+
+       %v3 = borrow %local0
+       init %local1.text, %v3
+       drop %local0 via Reclaim(String).reclaim   -- here
+       ...
+       %v10 = call plusOne(Int), 4, %v6
+
+   and the continuation read freed memory. Natively and silently: the descriptor still said three
+   bytes, so `length` was right and only the comparison was wrong.
+
+   **Built rather than written, and that is the whole of why this is a second case.** A literal has
+   no buffer to release, so `made` above cannot state this no matter which target runs it - the
+   defect needs something a `drop` actually reclaims. `let &` reproduces it too, so this is not the
+   immutable-`let` shape the case above turns on; the two share a capture and nothing else.
+-}
+fn built() -> String:
+    let &text = "ab" :: String
+    text ++= "c"
+    return text
+
+fn capturedHeapValue() -> Int:
+    let text = built()
+    let n = plusOne(4)
+    return if text == "abc" then n else 0
+
 fn main() -> Int:
     log = 0
     let a = cleanupRan()      -- 1 + 11 = 12
@@ -145,5 +178,6 @@ fn main() -> Int:
     log = 0
     let h = inLoop(3)         -- 1 + 12 + 23 = 36
     let k = capturedCallResult()  -- 5
+    let l = capturedHeapValue()   -- 5
 
-    return a + b + c + d + e + f + g + h + j + k
+    return a + b + c + d + e + f + g + h + j + k + l

@@ -1,12 +1,41 @@
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
+}
+
 fn String.unit {
   arg self readonly
   arg index readonly
   %self: String borrowed droppable readonly live [0, 9)
 }
 
+fn String.reserve {
+  arg self writable resizable
+  arg wanted readonly
+  %self: String borrowed droppable writable resizable live [0, 12)
+}
+
+fn String.appendUnits {
+  arg self writable resizable
+  arg from readonly
+  arg count readonly
+  %self: String borrowed droppable writable resizable live [0, 2) [3, 37)
+}
+
 fn Length(String).length {
   arg self readonly
   %self: String borrowed droppable readonly live [0, 4)
+}
+
+fn Append(String).++ {
+  arg lhs readonly
+  arg rhs readonly
+  result escapes
+  %lhs: String droppable readonly live [0, 2)
+  %rhs: String droppable readonly live [0, 12)
+  %out: String droppable writable resizable live [2, 14)
 }
 
 fn Eq(String).== {
@@ -26,6 +55,59 @@ fn teardown$none {
   arg value readonly
 }
 
+fn reserve(CodeUnit) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Array(CodeUnit) borrowed droppable writable resizable live [0, 6) [7, 11)
+}
+
+fn growArray(CodeUnit) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Array(CodeUnit) borrowed droppable writable resizable live [0, 24)
+  %wide: Size writable live [5, 22)
+}
+
+fn ++=(String) {
+  arg target writable
+  arg amount readonly
+  %target: String borrowed droppable writable live [0, 5)
+  %amount: String droppable readonly live [0, 3)
+  %local2: String droppable readonly live [3, 5)
+  %local3: String droppable readonly live never
+}
+
+fn numberOf {
+  arg call readonly
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn exitProcess {
+  arg status readonly
+}
+
+fn initHeap {
+}
+
+fn growHeap {
+  arg needed readonly
+  %size: Size writable live [1, 27) [28, 38) [39, 51)
+  %region: %U8 writable live [12, 27) [28, 38) [39, 48)
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: Size writable live [0, 8) [10, 18)
+  %sizeClass: Size writable live [2, 9) [10, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
 fn freeListHead {
   arg sizeClass readonly
   result escapes
@@ -36,8 +118,52 @@ fn setFreeListHead {
   arg block readonly
 }
 
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
 fn freeHeap {
   arg allocation readonly
+}
+
+fn blockShort {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockPair {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockAscending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: Size writable live [9, 109) [116, 132)
+}
+
+fn copyMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn abortProcess {
+}
+
+fn resize(CodeUnit) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Run(CodeUnit) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+}
+
+fn byteSpan(CodeUnit) {
+  arg from readonly
+  arg count readonly
 }
 
 fn releaseRun(CodeUnit) {
@@ -85,7 +211,7 @@ fn inLoop {
   arg n readonly
   %i: Int writable live [0, 8) [10, 23)
   %total: Int writable live [2, 9) [10, 23)
-  %local2: {total: &Int} closure writable addressed live [13, 21)
+  %local2: {total: &Int} closure writable addressed live [13, 22)
   %local3: (value$: Int) -> () droppable readonly live [17, 22)
 }
 
@@ -94,8 +220,20 @@ fn made {
 }
 
 fn capturedCallResult {
-  %local0: String droppable readonly live [0, 4)
-  %local1: {text: 'String} closure writable addressed live [1, 9)
+  %local0: String droppable readonly live [0, 10)
+  %local1: {text: 'String} closure writable addressed live [1, 10)
+  %local2: (value$: Int) -> Int droppable readonly live [5, 10)
+}
+
+fn built {
+  %local0: String droppable readonly live [0, 3)
+  %text: String droppable writable live [1, 10)
+  %local2: String droppable readonly live [4, 7)
+}
+
+fn capturedHeapValue {
+  %local0: String droppable readonly live [0, 10)
+  %local1: {text: 'String} closure writable addressed live [1, 10)
   %local2: (value$: Int) -> Int droppable readonly live [5, 10)
 }
 
@@ -156,7 +294,7 @@ fn split(Int) {
 fn ResolveTest.continuation$22 {
   arg env readonly
   arg value$ readonly
-  %local0: {x: Int} closure writable addressed live [0, 7)
+  %local0: {x: Int} closure writable addressed live [0, 8)
   %local1: (value$: Bool) -> Int droppable readonly live [3, 8)
 }
 
@@ -226,6 +364,12 @@ fn logged(()) {
 }
 
 fn ResolveTest.continuation$29 {
+  arg env readonly
+  arg n readonly
+  %local0: String droppable readonly live [2, 4)
+}
+
+fn ResolveTest.continuation$30 {
   arg env readonly
   arg n readonly
   %local0: String droppable readonly live [2, 4)

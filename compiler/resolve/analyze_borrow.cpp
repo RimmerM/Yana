@@ -466,8 +466,8 @@ static void computeExtent(Analysis& analysis, ModulePtr<Inst> pointer, BorrowExt
                     // Into an environment, or into the function value the environment ends up in -
                     // and into anything at all when what is written is one of the aliasing pointers
                     // above, which is how the slice descriptor carries the loan to its call site.
-                    auto carries = slot.closureEnv || isFunction(analysis.global, slot.type) ||
-                                   isPointer(analysis.global, analysis.local[value]->type);
+                    // The rule is `carriesLoanOnward`, shared with the liveness half - see there.
+                    auto carries = carriesLoanOnward(analysis, slot, analysis.local[value]->type);
 
                     if(storedInto && carries && slot.value) pending.push(slot.value);
 
