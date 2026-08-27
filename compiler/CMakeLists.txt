@@ -246,6 +246,10 @@ set(LOWER_SOURCE_FILES
     lower/lower_thread.cpp
 )
 
+# Listed for the same reason resolve/inst.def is, and never compiled on its own: it is #included
+# twice by lower/lower_inst.h - once to generate the enum and once to read the traits.
+set_source_files_properties(lower/inst.def PROPERTIES HEADER_FILE_ONLY TRUE)
+
 add_library(YanaLower ${LOWER_SOURCE_FILES})
 target_link_libraries(YanaLower PUBLIC YanaCore)
 target_link_libraries(YanaResolve PUBLIC YanaLower)

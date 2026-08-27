@@ -1,6 +1,24 @@
 cmake_minimum_required(VERSION 3.3)
 project(Yana)
 
+# A tree with no build type gets no per-configuration flags at all, and CMake says nothing about it.
+# That is not only `-O`: `assertTrue`, the Resolve-IR verifier (`verifyIr`) and `IrEditor`'s order
+# check all hang off `-D_DEBUG`, which the block below attaches to `CMAKE_CXX_FLAGS_DEBUG` - applied
+# only when the build type *is* Debug. The default `build` tree therefore spent its life both
+# unoptimized and unchecked, and a twelve-byte heap overrun in `lowerStorageInst` ran silently in it
+# until someone compiled the same source with assertions, where the verifier named it on the first
+# file.
+#
+# Refused rather than defaulted, for the same reason the append below exists. The failure this file
+# keeps having is a flag that was silently not applied; a quiet default is another one of those.
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(FATAL_ERROR
+        "No CMAKE_BUILD_TYPE given. This project has two trees, and each names one:\n"
+        "  cmake -S . -B build-assert  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG=\"-O2 -g\"\n"
+        "  cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release\n"
+        "See AGENTS.md. Check flags.make afterwards, never the cache.")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 
 if(MSVC)
@@ -9,7 +27,14 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "/std:c++17 /arch:AVX /GR- /EHs")
     set(CMAKE_CXX_FLAGS_DEBUG "/Zi /D_DEBUG /DDEBUG /Od /MDd /Ob0")
 else()
-    set(CMAKE_CXX_FLAGS "-std=c++1z -msse4.2 -mfpmath=sse -fno-rtti")
+    # -Wswitch is the enforcement half of resolve/inst.def: a switch over a kind with no `default:`
+    # is one the compiler will now enumerate the missing arms of, which is what makes "exhaustive"
+    # a property of such a switch rather than an intention. Only that warning, and not -Wall: the
+    # whole tree produces three of these and no other warning class is worth the noise here.
+    #
+    # Where a `default:` is genuinely the answer it still silences this, which is right - the switches
+    # that mean "these kinds, and the rest are none of my business" are saying so.
+    set(CMAKE_CXX_FLAGS "-std=c++1z -msse4.2 -mfpmath=sse -fno-rtti -Wswitch")
 
     # Appended rather than assigned, so that a `-DCMAKE_CXX_FLAGS_DEBUG=...` on the configure line
     # survives.

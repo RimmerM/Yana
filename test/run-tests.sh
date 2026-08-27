@@ -10,18 +10,18 @@
 # The fixture paths in every driver are relative to this directory, so this cds here rather than
 # trusting where it was called from.
 #
-#   ./run-tests.sh              # against ../build, one job per core
+#   ./run-tests.sh              # against ../build-assert, one job per core
 #   JOBS=4 ./run-tests.sh       # four at a time
-#   ./run-tests.sh ../build-assert
+#   ./run-tests.sh ../build-release
 #
-# Passes any further arguments through to every driver, so `./run-tests.sh ../build generate` is a
+# Passes any further arguments through to every driver, so `./run-tests.sh ../build-assert generate` is a
 # whole-suite regenerate - read `git status test/` afterwards, as always.
 
 set -u -o pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
-build="${1:-../build}"
+build="${1:-../build-assert}"
 shift 2>/dev/null || true
 
 jobs="${JOBS:-$(nproc 2>/dev/null || echo 4)}"
@@ -49,9 +49,11 @@ for i in $(seq 0 $((parserJobs - 1))); do
     echo "parser.$i|$build/test/YanaParseTest shard:$i/$parserJobs" >> "$jobfile"
 done
 
-# The library suite: fourteen fixtures, each compiled four or five times and run. Sharded on the
-# same terms the two large drivers are, and never into more shards than there are fixtures.
-libJobs=$((jobs < 14 ? jobs : 14))
+# The library suite: every fixture compiled four or five times and run. Sharded on the same terms the
+# two large drivers are, and never into more shards than there are fixtures - counted rather than
+# written down, because the corpus grows and a stale number here silently caps the parallelism.
+libFixtures=$(find lib -maxdepth 1 -name '*.yana' | wc -l)
+libJobs=$((jobs < libFixtures ? jobs : libFixtures))
 for i in $(seq 0 $((libJobs - 1))); do
     echo "lib.$i|$build/test/YanaLibTest shard:$i/$libJobs" >> "$jobfile"
 done
