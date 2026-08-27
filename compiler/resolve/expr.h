@@ -265,6 +265,34 @@ struct ResolvedArg {
     // declared at is what decides where the argument runs and what it converts to.
     Deferred promise;
 
+    /*
+     * Where the *expression* that filled this position was written, for `@caller(source: p)` - F2.
+     *
+     * The written node and not the resolved value's own source, and the difference is the whole
+     * point: an infix call is emitted at its left operand's location, so `check(a == b)` asked of
+     * the value would answer the text `a`. What has to be recorded is the span the author wrote, and
+     * only the loop that walks the argument list against the parse tree has it.
+     *
+     * Null for every position no source expression reached - a synthesized call's arguments, a
+     * defaulted position - and a `@caller` text fill over one of those is the empty string rather
+     * than a guess.
+     */
+    LocationId written = kNullLocation;
+
+    /*
+     * Replaces the value this position holds, keeping where it was written.
+     *
+     * Plain assignment replaces `written` too, and the two are recorded at different times: the
+     * span is known as soon as the parse node is in hand, and the value not until several steps
+     * later - so a position that is filled, refused and filled again would otherwise lose it. Where
+     * an argument was written is a property of the *position*, not of whatever value settles there.
+     */
+    void fill(ResolvedArg value) {
+        auto where = written;
+        *this = value;
+        written = where;
+    }
+
     ArgResult state = ArgResult::Failed;
 
 private:
@@ -1166,6 +1194,16 @@ struct ExprResolver {
 
     // A string literal, per target - see Implementation-String.md part 9 and ConstString.
     ModulePtr<Value> resolveString(LocationId source, StringId text);
+
+    /*
+     * An `Array(a)` holding exactly these values, with no expression behind them.
+     *
+     * The representation half of an array literal - see the definition. `target` is the expected
+     * type where there is one, which is what carries an `@inline`/`@capacity` refinement; null
+     * builds the ordinary heap-run array.
+     */
+    ModulePtr<Value> buildArrayLiteral(TypePtr element, Buffer<ModulePtr<Value>> elements,
+                                       TypePtr target, LocationId source);
 
     /*
      * `"a{x}b{y}c"` - Implementation-Storage.md part 8.
@@ -2393,6 +2431,14 @@ void ExprResolver::eachFixedElement(const Place& array, TypePtr element, TypePtr
 // Creates a function that is reached through something other than its own name - a class
 // instance's implementation - with a unique name for printing and lowering.
 Function* addAnonymousFunction(Module& module, StringId name, LocationId source);
+
+/*
+ * The root module's top-level statements, emitted into the entry being built - see the definition.
+ *
+ * Every entry runs it and runs it first, which is what makes the entry a program start rather than
+ * a call to `main`: an ordinary build calls `main` after it, and a test build runs its cases.
+ */
+void resolveRootTopLevel(ExprResolver& resolver);
 
 // What storage a place names, and what that storage holds after its projections are followed, are
 // both in resolve/place.h - the one walk every consumer of a Place shares. Free functions rather

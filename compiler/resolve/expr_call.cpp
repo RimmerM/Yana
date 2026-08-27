@@ -1,4 +1,5 @@
 #include "expr.h"
+#include "caller.h"
 #include "solve.h"
 #include "complete.h"
 #include "witness.h"
@@ -336,6 +337,19 @@ void ExprResolver::materializeDefaults(ModulePtr<Function> signature, LocationId
          */
         if(!parameter->hasDefault()) {
             args[i] = ResolvedArg::failed();
+            continue;
+        }
+
+        /*
+         * `@caller` and a written default are the same question to the mapping and different answers
+         * here - see Arg::hasDefault. The fill is built with the *call's* source, which is what F2
+         * shares with every other default: `constantValue` below is handed `source` for the same
+         * reason, so a `Site` is that same path with a different constant rather than a new
+         * mechanism.
+         */
+        if(parameter->caller.isCallerFilled()) {
+            auto filled = ::callerFillValue(*this, *parameter, source, toBuffer(args));
+            args[i] = filled ? ResolvedArg(filled) : ResolvedArg::failed();
             continue;
         }
 
@@ -1612,6 +1626,12 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
         // than by the writing order for that reason.
         auto position = index + leading;
 
+        // Recorded before anything is resolved, and for every position rather than only the ones a
+        // `@caller` text might name: which parameter this argument fills is decided by selection,
+        // several steps below, so the span has to travel with the argument. Every assignment to this
+        // position below goes through `fill`, which is what keeps it. See ResolvedArg::written.
+        args[position].written = arg->value.source;
+
         // A `@lazy` argument is left as written. Not even the expected type is pushed into it here:
         // it is resolved against the parameter type once the callee is known, which is where the
         // force happens and therefore the only place that can convert it.
@@ -1660,11 +1680,11 @@ ModulePtr<Value> ExprResolver::resolveNamedCall(const ast::Expr& expr, StringId 
 
         if(wantsPlace && arg->value.kind == ast::Expr::Sub) {
             auto borrowed = resolveSubscript(arg->value, *parse[arg->value.sub], true);
-            args[position] = borrowed ? ResolvedArg(borrowed) : ResolvedArg::failed();
+            args[position].fill(borrowed ? ResolvedArg(borrowed) : ResolvedArg::failed());
             continue;
         }
 
-        args[position] = resolveArgument(arg->value, expected);
+        args[position].fill(resolveArgument(arg->value, expected));
     }
 
     /*

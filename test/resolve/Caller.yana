@@ -1,0 +1,103 @@
+{-
+   `@caller` parameters - Design-Test.md §11.1's F2.
+
+   A parameter marked `@caller` is filled by the compiler, at every call that leaves it out, with a
+   constant about the *call site*. Two fills: the call's location, and the source text of the
+   expression that reached some other parameter. Between them they are what an assertion needs and no
+   library function can reach - `check(a == b)` sees one `Bool`, and nothing in the library can see
+   where it was written or what the author typed.
+
+   Prior art, merged: C#'s `CallerArgumentExpression` is the text and Rust's `#[track_caller]` is the
+   location. Neither language has both in one mechanism, and neither needs a macro system for it -
+   which is the argument for this being four lines of the compiler rather than forty of a preprocessor.
+
+   **The location record is matched by field name rather than by identity.** The compiler knows
+   nothing about any particular `Site`: it lives in a library and not in `Core`, so what a `@caller`
+   position asks for is a record whose fields are drawn from a fixed vocabulary - `file` and
+   `function` are text, `line` and `column` are numbers - and a declaration takes the subset it wants.
+   `Where` below is the one-field case, and it exists to say that the subset is real.
+
+   Asserted by arithmetic on the filled values rather than by comparing text, because the goldens
+   beside this file already pin the constants and a `String ==` would pass with both sides empty.
+-}
+
+data Site {file: String, line: Int, column: Int, function: String}
+data Where {line: Int}
+
+-- The location, whole. `caller$line` is what this file's own line numbering is asserted against, and
+-- moving a call below changes the answer - which is the property being tested.
+fn lineOf(@caller at: Site) -> Int = at.line
+fn columnOf(@caller at: Site) -> Int = at.column
+fn functionIs(name: String, @caller at: Site) -> Bool = at.function == name
+
+-- A subset of the vocabulary. Nothing requires a declaration to ask for all four.
+fn shortLine(@caller w: Where) -> Int = w.line
+
+-- The text of what reached another parameter, which is the half a library cannot fake.
+fn textOf(held: Bool, @caller(source: held) text: String) -> Int = truncate(length(text)) :: Int
+
+{-
+   A helper that passes its own `Site` on, which is the rule the whole feature rests on.
+
+   A `@caller` parameter may be passed explicitly, by name, and is filled only when omitted - so this
+   reports the line that called *it* rather than the line inside its own body. Without that, every
+   assertion helper anyone writes reports its own body's location, which is the thing
+   `#[track_caller]` exists to fix in Rust and which falls out here because "a parameter no argument
+   reached is filled by its default" is already how defaults work.
+-}
+fn viaHelper(@caller at: Site) -> Int = lineOf(at: at)
+
+-- And the same for the text fill: what reached `held` *here* is the helper's own expression, which is
+-- the honest answer - the helper is what called the assertion.
+fn textViaHelper(n: Int) -> Int = textOf(n > 0)
+
+{-
+   `@caller` is legal on any function, not only on a framework's - including a generic one, where the
+   fill happens at the call site before any specialization exists.
+-}
+fn (Show(a)) describedAt(value: a, @caller at: Site) -> String = "{value}@{at.line}"
+
+fn main() -> Int:
+    let &total = 0 :: Int
+
+    -- The line of the call and not of the declaration. These four are on consecutive lines, so the
+    -- differences are what say the fill is per call rather than per callee.
+    let first = lineOf()
+    let second = lineOf()
+    if second - first != 1 then return 1
+
+    -- Two calls on one line, at different columns. The left one is written first, so its column is
+    -- the smaller and the difference is negative - which is what says the fill is per *call* rather
+    -- than per line.
+    if columnOf() - columnOf() >= 0 then return 2
+
+    if !functionIs("main") then return 3
+    if shortLine() != lineOf() then return 4
+
+    -- The text of the expression, which is `1 == 2` - six units, spanning the whole operand and not
+    -- just the left one. An infix call is *emitted* at its left operand's location, so asking the
+    -- resolved value where it came from would answer `1`; what is recorded is the span the author
+    -- wrote. See ResolvedArg::written.
+    if textOf(1 == 2) != 6 then return 5
+
+    -- Nothing reached the position, so the text is empty rather than a guess.
+    if textOf(True, text: "") != 0 then return 6
+
+    -- The helper reports this line, not the one inside its body.
+    if viaHelper() != lineOf() then return 7
+
+    -- And the text fill inside a helper is the helper's own expression: `n > 0`.
+    if textViaHelper(1) != 5 then return 8
+
+    {-
+       The generic case, asserted without naming a line: the text is `42@` and then whatever line
+       this is, so what is checked is that a line got in there at all and that the two halves are in
+       the right order. Comparing against a literal would make this fixture's answer depend on where
+       in the file it sits, which is a property of the fixture rather than of the feature.
+    -}
+    let described = describedAt(42)
+    if (truncate(length(described)) :: Int) <= 3 then return 9
+    if String.unit(described, 0) != 52 then return 10        -- `4`
+    if String.unit(described, 2) != 64 then return 11        -- `@`
+
+    return total

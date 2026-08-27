@@ -1,5 +1,6 @@
 #pragma once
 
+#include "caller.h"
 #include "type.h"
 
 struct Block;
@@ -483,7 +484,16 @@ struct Arg: Value {
 
     bool isMutableBorrow() const { return convention == ast::BindType::Ref; }
     bool isLazy() const { return lazyType != nullptr; }
-    bool hasDefault() const { return defaultValue != nullptr; }
+
+    /*
+     * Whether a call site may leave this position out.
+     *
+     * A `@caller` parameter may, and that is the whole of what it has in common with a written
+     * default: the mapping asks this question and nothing else about the position, so `check(x)`
+     * reaching `check(held, note, text, at)` needs no rule of its own. What *fills* it differs, and
+     * `materializeDefaults` is where the two part.
+     */
+    bool hasDefault() const { return defaultValue != nullptr || caller.isCallerFilled(); }
 
     // Whether a loan of this parameter may outlive the call. See LoanGroup for which group it is in
     // and why almost every reader wants only the bit.
@@ -496,6 +506,10 @@ struct Arg: Value {
     TypePtr lazyType = nullptr;
     ModulePtr<ConstValue> defaultValue = nullptr;
     ast::BindType convention = ast::BindType::Borrow;
+
+    // `@caller` - the marker and, for the `Source` fill, the parameter whose written expression this
+    // one is the text of. See caller.h, which is the whole of the feature.
+    CallerInfo caller;
 
     // See LoanGroup. Written from the declaration's label and copied into the FunArg this parameter
     // publishes, so a signature groups its loans the same way whether it is read from the

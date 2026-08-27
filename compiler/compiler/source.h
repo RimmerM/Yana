@@ -88,6 +88,15 @@ struct ModuleMap {
     Array<SourceEntry> entries;
     Array<SourceRoot> roots;
 
+    /*
+     * What this compilation is, for the file-name selectors - see `selectsFile` in source.cpp.
+     *
+     * A pointer and nullable, because a map can be built from a bare root path with no settings
+     * anywhere (`buildModuleMap(map, root)`, which the tools use): there is nothing to select
+     * against then, and every file is a file of its module - which is what that overload always did.
+     */
+    const CompileSettings* settings = nullptr;
+
     // Filled by FileProvider::prepare, which is the first point at which a file's module is known.
     Array<ModuleGroup> groups;
 

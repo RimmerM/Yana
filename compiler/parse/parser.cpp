@@ -20,6 +20,8 @@ Parser::Parser(Context& context, Lexer& lexer, StringId moduleName):
     stepId = Context::nameHash("step", 4);
     arraySizeId = Context::nameHash("*", 1);
     lazyId = Context::nameHash("lazy", 4);
+    callerId = Context::nameHash("caller", 6);
+    sourceId = Context::nameHash("source", 6);
 
     // A completion request names one module and one byte of it; every other module in the program
     // is parsed exactly as it always was. See Implementation-Tooling.md §8.2.
@@ -1684,27 +1686,66 @@ StringId Parser::parseLoanLabel() {
 
 
 
-// `@lazy` is written outermost, before the `return` marker and the binding convention. It is the
-// one attribute with a meaning in parameter position, so an `@` here is either it or a mistake -
-// which is why this consumes the name rather than going through parseAttributes and leaving a list
-// nothing downstream would read.
-bool Parser::parseLazy() {
-    if(token.type != Token::opAt) return false;
+/*
+ * The parameter attributes, written outermost - before the `return` marker and the binding
+ * convention.
+ *
+ * Two of them have a meaning here and nothing else does, so an `@` in this position is one of the
+ * two or a mistake - which is why this consumes the names itself rather than going through
+ * parseAttributes and leaving a list nothing downstream would read.
+ *
+ * A loop rather than a single test, because there are two: `@lazy @caller(source: x) note: String`
+ * is a position that is both, and neither order is the one to insist on.
+ */
+Parser::ArgAttributes Parser::parseArgAttributes() {
+    ArgAttributes attributes;
 
-    eat();
-    if(token.type == Token::VarID && token.data.id == lazyId) {
+    while(token.type == Token::opAt) {
         eat();
-        return true;
+
+        if(token.type != Token::VarID || (token.data.id != lazyId && token.data.id != callerId)) {
+            error("`@lazy` and `@caller` are the only attributes a parameter can carry"_v);
+            return attributes;
+        }
+
+        if(token.data.id == lazyId) {
+            eat();
+            attributes.lazy = true;
+            continue;
+        }
+
+        eat();
+        attributes.caller = true;
+
+        // `@caller` alone is the location fill; `@caller(source: p)` is the text of whatever reached
+        // `p`. The keyword is written out because a bare name in there would read as a second kind
+        // of location, and there is room for more fills than these two.
+        if(!maybe(Token::ParenL)) continue;
+
+        if(token.type != Token::VarID || token.data.id != sourceId) {
+            error("`@caller(...)` takes `source: name` - the parameter whose written expression this one is the text of"_v);
+        } else {
+            eat();
+            expect(Token::opColon, "expected `:` after `source`"_v);
+
+            if(token.type == Token::VarID) {
+                attributes.callerSource = token.data.id;
+                eat();
+            } else {
+                error("expected the name of a parameter of this function"_v);
+            }
+        }
+
+        expect(Token::ParenR, "expected `)`"_v);
     }
 
-    error("`@lazy` is the only attribute a parameter can carry"_v);
-    return false;
+    return attributes;
 }
 
 void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
     WithLocation location(*this);
 
-    auto lazy = parseLazy();
+    auto attributes = parseArgAttributes();
     auto returnRoot = parseReturnRoot();
     auto bind = parseBindType();
 
@@ -1730,7 +1771,9 @@ void Parser::parseArg(ast::ParseList<ast::Arg>& list, bool requireType) {
         .def = def,
         .bind = bind,
         .returnRoot = returnRoot,
-        .lazy = lazy,
+        .lazy = attributes.lazy,
+        .caller = attributes.caller,
+        .callerSource = attributes.callerSource,
     });
 }
 
@@ -2145,7 +2188,15 @@ void Parser::parseDeriving(ast::ParseList<ast::Derive>& list) {
 }
 
 void Parser::parseArgDecl(ast::ParseList<ast::ArgDecl>& list) {
-    auto lazy = parseLazy();
+    // A written function type has no call site, so `@caller` says nothing there and is refused -
+    // which is where the two attributes stop being the same list.
+    auto attributes = parseArgAttributes();
+    auto lazy = attributes.lazy;
+
+    if(attributes.caller) {
+        error("`@caller` is a property of a declaration rather than of a function type - what fills the position is the call site, and a value of function type has no declaration for one to be read off"_v);
+    }
+
     auto returnRoot = parseReturnRoot();
     auto bind = parseBindType();
 

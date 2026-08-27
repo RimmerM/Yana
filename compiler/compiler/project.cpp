@@ -237,21 +237,46 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
     if(!directoryOf(project.directory)) project.directory = String(".");
 
     TomlReader reader(text.get(), size);
-    auto inTable = false;
+
+    /*
+     * Which table the reader is inside, and there are exactly two answers this file understands.
+     *
+     * `[test]` is read - its `sources` are the integration-test roots of Design-Test.md §3.4, added
+     * to the compilation only under `-test` - and every other table is skipped without being
+     * understood, which is the tolerance the reader has always had: a project may carry settings for
+     * a tool that is not this one. A `[test]` section was therefore already forward-compatible with
+     * the compiler as it stood, which is why §3.4 could specify one.
+     */
+    enum class Table { None, Test, Other };
+    auto table = Table::None;
 
     while(true) {
         reader.skipSpace(true);
         if(reader.p >= reader.max || reader.hasError()) break;
 
         if(*reader.p == '[') {
+            auto start = ++reader.p;
             while(reader.p < reader.max && *reader.p != ']' && *reader.p != '\n') reader.p++;
             if(reader.p >= reader.max || *reader.p != ']') {
                 reader.fail("unterminated table header"_v);
                 break;
             }
 
+            /*
+             * The name inside the brackets, with the space TOML allows around it taken off:
+             * `[ test ]` is `[test]`, and a section that was meant to be read and silently was not
+             * is the failure mode worth the two loops.
+             */
+            auto nameStart = start;
+            auto nameEnd = reader.p;
+
+            while(nameStart < nameEnd && (*nameStart == ' ' || *nameStart == '\t')) nameStart++;
+            while(nameEnd > nameStart && (nameEnd[-1] == ' ' || nameEnd[-1] == '\t')) nameEnd--;
+
+            auto header = StringView { nameStart, Size(nameEnd - nameStart) };
+            table = header == "test"_v ? Table::Test : Table::Other;
+
             reader.p++;
-            inTable = true;
             continue;
         }
 
@@ -298,7 +323,27 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
         }
 
         if(reader.hasError()) break;
-        if(inTable) continue;
+
+        /*
+         * `[test] sources` - §3.4's integration-test roots.
+         *
+         * Ordinary source roots, read only under `-test`: `test/Api/` is the module `Api`, which
+         * sees `src`'s modules through their `pub` names and their imports and nothing else. That is
+         * the distinction between a unit test and an integration one, drawn by the module system
+         * rather than by an annotation - and both are `@test` functions in the same binary under the
+         * same runner. There is one kind of test.
+         */
+        if(table == Table::Test) {
+            if(key == "sources"_v) {
+                for(auto& value: values) {
+                    project.testSources.push(joinProjectPath(project.directory, value));
+                }
+            }
+
+            continue;
+        }
+
+        if(table != Table::None) continue;
 
         if(key == "root"_v) {
             if(values.size() != 1) {
@@ -386,6 +431,12 @@ ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, Str
 void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
     if(settings.compileObjects.size() == 0) {
         for(auto& source: project.sources) settings.compileObjects.push(source);
+    }
+
+    // The test roots are added rather than substituted: a test build compiles the program *and* the
+    // tests, since a unit test is a file of the module it tests. See ProjectFile::testSources.
+    if(settings.test) {
+        for(auto& source: project.testSources) settings.compileObjects.push(source);
     }
 
     if(settings.rootObjects.size() == 0 && project.root != "") {

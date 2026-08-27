@@ -7,6 +7,7 @@
  */
 
 #include "expr.h"
+#include "test.h"
 #include "complete.h"
 #include "generic.h"
 #include "name.h"
@@ -381,20 +382,23 @@ static void initializeGlobal(ExprResolver& resolver, ModulePtr<Global> pointer,
 }
 
 /*
- * The root module's top level, as the body of one function - Analysis-Initialization.md stage B.
+ * The root module's top level, emitted into an entry that is already being built -
+ * Analysis-Initialization.md stage B.
  *
  * Root-only is the whole of what makes this cheap: there is exactly one module with executable
  * top-level code, so there is no cross-module order to define, no import side effects and no
  * reference analysis to write. What runs here is what was written here, in the order it was
- * written, and `main` - where the module declares one - is called at the end of it.
+ * written.
+ *
+ * Shared by both entries that exist, and neither may leave it out: a global initialized at startup
+ * is part of the program's *state*, and any body may name one. The ordinary entry calls `main`
+ * after this; a test build's runs its cases instead - see resolveTestEntry, where §3.3's rule is
+ * about `main` and not about what the program does before it.
  */
-static void resolveEntryBody(Module& module, Function& function, ModulePtr<Function> main) {
-    auto& context = module.context;
+void resolveRootTopLevel(ExprResolver& resolver) {
+    auto& module = resolver.module;
     auto parse = module.parse;
     auto local = *module.arena;
-    auto source = function.source;
-
-    ExprResolver resolver(context, module, function);
 
     PendingGlobals uninitialized;
     for(auto statement: module.topLevel.contents(local)) {
@@ -438,14 +442,6 @@ static void resolveEntryBody(Module& module, Function& function, ModulePtr<Funct
     }
 
     /*
-     * `main`, last, and its result is the program's status.
-     *
-     * The call is emitted here rather than left to the native wrapper because it is a fact about the
-     * *program* - a program whose top level ran and then called `main` did those two things in that
-     * order on every target - and because it is the only thing that gives the JavaScript output a
-     * program start at all.
-     */
-    /*
      * Every dynamic global has a type by now, or is given the error type here.
      *
      * The sweep rather than trusting the loop above, because what the loop guarantees is that each
@@ -459,6 +455,27 @@ static void resolveEntryBody(Module& module, Function& function, ModulePtr<Funct
             local[global_]->type = module.scalar.error;
         }
     }
+
+    // The list is this frame's, and nothing after the top level reads a global before it is
+    // initialized - there is nothing after the top level that reads one at all.
+    resolver.uninitialized = nullptr;
+}
+
+/*
+ * The ordinary entry: the root module's top level, and then `main`.
+ *
+ * The call is emitted here rather than left to the native wrapper because it is a fact about the
+ * *program* - a program whose top level ran and then called `main` did those two things in that
+ * order on every target - and because it is the only thing that gives the JavaScript output a
+ * program start at all.
+ */
+static void resolveEntryBody(Module& module, Function& function, ModulePtr<Function> main) {
+    auto& context = module.context;
+    auto local = *module.arena;
+    auto source = function.source;
+
+    ExprResolver resolver(context, module, function);
+    resolveRootTopLevel(resolver);
 
     ModulePtr<Value> status = nullptr;
 
@@ -519,6 +536,13 @@ static bool runsAtStartup(Module& module) {
 void resolveProgramEntry(Program& program) {
     auto module = program.root;
     if(!module) return;
+
+    // A test build's entry is the cases and nothing else - see resolveTestEntry, and §3.3's fourth
+    // rule for why a written `main` is not consulted here.
+    if(program.context.settings.test) {
+        resolveTestEntry(program);
+        return;
+    }
 
     auto& context = program.context;
     auto found = module->functions.get(context.addUnqualifiedName("main", 4));

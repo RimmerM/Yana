@@ -266,6 +266,34 @@ static bool isYanaSource(const String& path, Size& extensionLength) {
 }
 
 /*
+ * Whether this compilation selects a project file by its name - Analysis-Modules.md §2.5, and
+ * Design-Test.md §3.1's `test`.
+ *
+ * The same question `walkModuleFiles` asks of a library file, asked of a project one, with one
+ * deliberate difference: a segment that is not a selector at all leaves the file *in*. The library
+ * reports one, on the argument that a library file name is not otherwise dotted - a project's may
+ * well be, and turning every existing `Data.Helpers.yana` into a diagnostic is a change to what
+ * compiles rather than a test-framework feature. What this decides is only what the selector
+ * vocabulary already decided elsewhere: `Map.test.yana` is a file of its module under `-test` and is
+ * not read at all without it.
+ */
+static bool selectsFile(const CompileSettings& settings, const char* name, Size length) {
+    Size from = 0;
+
+    for(Size i = 0; i <= length; i++) {
+        if(i < length && name[i] != '.') continue;
+
+        if(from > 0 && targetSelector(settings, StringView { name + from, i - from }) == TargetSelector::Excluded) {
+            return false;
+        }
+
+        from = i + 1;
+    }
+
+    return true;
+}
+
+/*
  * A path becomes a file identifier, and a directory split.
  *
  * The index-module special case is gone - Analysis-Modules.md §2.1.2. `Data/Map/Map.yana` taking
@@ -283,6 +311,23 @@ static void mapFile(ModuleMap& map, U32 rootIndex, const String& file) {
     // Only compile actual source files.
     Size extensionLength = 0;
     if(!isYanaSource(file, extensionLength)) return;
+
+    /*
+     * The selectors, read off the file's own name rather than off the path.
+     *
+     * The base name only: a *directory* separator and a selector segment are both spelled with a dot
+     * in an identifier, so asking this of the whole path would read `Data/Map/Map.yana`'s directories
+     * as selectors. The walk that found the file is what still knows which is which, and this runs
+     * before the identifier is built for exactly that reason.
+     */
+    if(map.settings) {
+        auto base = findLast(file, '/');
+        if(!base) base = findLast(file, '\\');
+        base = base ? base + 1 : file.text();
+
+        auto stem = file.text() + file.size() - extensionLength - 1;
+        if(stem > base && !selectsFile(*map.settings, base, Size(stem - base))) return;
+    }
 
     // Only compile files that are actually inside the root directory.
     if(root.size() > file.size() || compareMem(root.text(), file.text(), root.size()) != 0) return;
@@ -488,6 +533,10 @@ Result<void, String> buildModuleMap(ModuleMap& map, const String& root) {
 }
 
 Result<void, String> buildModuleMap(ModuleMap& map, const CompileSettings& settings) {
+    // Before the roots are walked, because it is what decides which files the walk keeps - see
+    // selectsFile. A `-add` that names a single file goes through the same test.
+    map.settings = &settings;
+
     for(auto& root: settings.compileObjects) {
         auto result = buildModuleMap(map, root);
         if(result.isErr()) {

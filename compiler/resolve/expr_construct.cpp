@@ -2392,6 +2392,20 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
         return nullptr;
     }
 
+    return buildArrayLiteral(element, toBuffer(values), target, source);
+}
+
+/*
+ * An `Array(a)` holding exactly these values - the half of a literal that is about the *container*
+ * rather than about the syntax.
+ *
+ * Split out because a literal is not the only thing that builds one: the synthesized test entry
+ * (Design-Test.md §11.2's F1) has a list of `Case` values and no expression anywhere to have written
+ * them, exactly as `resolveFormat` has a list of chunks. Everything above this point is about
+ * reading the elements and deciding what they are; everything below is about the representation, and
+ * only the second half is shared.
+ */
+ModulePtr<Value> ExprResolver::buildArrayLiteral(TypePtr element, Buffer<ModulePtr<Value>> values, TypePtr target, LocationId source) {
     /*
      * The refinement the expected type carried, kept rather than resolved away.
      *
@@ -2480,7 +2494,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
          * that owns it - see below.
          */
         auto items = ref(emit<InstNative>(source, StringId(), itemsField, NativeOp::HostArray));
-        buildAggregate(Place::atPointer(items), element, toBuffer(values), module.scalar.size, source);
+        buildAggregate(Place::atPointer(items), element, values, module.scalar.size, source);
 
         initialize(project(place, ProjectionKind::Field, 0), items, source);
 
@@ -2540,7 +2554,7 @@ ModulePtr<Value> ExprResolver::resolveArray(const ast::Expr& expr, ast::ParseLis
      * what `xs[i]` compiles to; what it is *not* any more is `n` decisions. `InstAggregate` rather
      * than `n` initializes, because the slots held nothing and there is one construction here.
      */
-    buildAggregate(Place::atPointer(slots), element, toBuffer(values), module.scalar.long_, source);
+    buildAggregate(Place::atPointer(slots), element, values, module.scalar.long_, source);
 
     initialize(project(place, ProjectionKind::Field, 1), count, source);
     return storage;

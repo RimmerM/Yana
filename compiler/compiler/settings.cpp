@@ -45,6 +45,7 @@ struct Flag {
         noChecks,
         explainAll,
         noProject,
+        test,
     };
 
     StringView name;
@@ -78,6 +79,7 @@ Flag flagTable[] = {
     { "no-checks"_v, 0, Flag::noChecks },
     { "explain-all"_v, 0, Flag::explainAll },
     { "no-project"_v, 0, Flag::noProject },
+    { "test"_v, 0, Flag::test },
 };
 
 // InlineLevel, in declaration order.
@@ -178,6 +180,20 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name) 
 
     if(name == "js"_v) return answer(isJs);
     if(name == "native"_v) return answer(!isJs);
+
+    /*
+     * `test` - Design-Test.md §3.1, and the one selector that names a *mode* rather than a machine.
+     *
+     * A `.test.yana` file is a file of its module, so it sees every declaration of every sibling
+     * unqualified, `pub` or not - which is the whole of what "unit test" means as against
+     * "integration test", obtained with no new concept. And it costs nothing in a shipping build,
+     * because a file this compilation does not select is not read at all.
+     *
+     * It composes with the rest, which is what makes `.test.native.yana` and `.test.v3.yana` the
+     * direct answer to "a test for a path that only exists at v3". Unlike an architecture or a
+     * level, it excludes nothing else: `test` is a claim about what this compilation *is*.
+     */
+    if(name == "test"_v) return answer(settings.test);
 
     for(U32 i = 0; i < sizeof(targetTable) / sizeof(StringView); i++) {
         if(name == targetTable[i]) return answer(!isJs && settings.target == TargetType(i));
@@ -657,6 +673,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::noProject:
                 settings.noProject = true;
+                return true;
+            case Flag::test:
+                settings.test = true;
                 return true;
             case Flag::library:
                 settings.libraryPath = move(value);

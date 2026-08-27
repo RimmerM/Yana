@@ -26,6 +26,16 @@ struct ProjectFile {
     /// `sources = ["src", "lib"]` - already joined onto `directory`.
     Array<Tritium::String> sources;
 
+    /*
+     * `[test] sources = ["test"]` - Design-Test.md §3.4, already joined onto `directory`.
+     *
+     * Read only under `-test`, and then they are ordinary source roots added to the ones above:
+     * `test/Api/` is the module `Api`, which sees `src`'s modules through their `pub` names and
+     * their imports. A *unit* test needs no root of its own - it is a `.test.yana` file of the module
+     * it tests - so these are the integration half and only that.
+     */
+    Array<Tritium::String> testSources;
+
     /// `target = "native"` - which output, and therefore which `@platform` declarations exist.
     /// Nothing when unset. See §5.4: this is the one the server resolves against.
     Maybe<CompileMode> target;

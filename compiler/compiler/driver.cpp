@@ -3,6 +3,7 @@
 #include "../resolve/module.h"
 #include "../resolve/print.h"
 #include "../resolve/explain.h"
+#include "../resolve/test.h"
 #include "../resolve/lower.h"
 #include "../lower/lower_print.h"
 #include "../lower/lower_validate.h"
@@ -349,7 +350,26 @@ int main(int argc, const char** argv) {
     // Everything the root imports is parsed and resolved from here, through the provider. The
     // compilation mode is already in the settings, which matters: `@platform` selects which
     // declarations exist at all, so a JS build and a native build do not share a resolved program.
-    auto program = resolveProgram(context, root->parsed, &provider);
+
+    /*
+     * The modules that hold tests, which nothing imports - see Design-Test.md §3.4.
+     *
+     * A test module is not reached from the program it tests, since the dependency runs the other
+     * way, so a walk from the root alone would compile the program and none of its tests. The list
+     * is the modules that actually declare a `@test` and not every mapped group: a module with none
+     * contributes nothing to a suite, and one that a test module *uses* is reached from it by an
+     * ordinary import like anything else.
+     */
+    Array<ast::ModuleGroup*> testRoots;
+
+    if(context.settings.test) {
+        for(auto& group: moduleMap.groups) {
+            if(moduleDeclaresTests(context, group.parsed)) testRoots.push(&group.parsed);
+        }
+    }
+
+    auto program = resolveProgram(context, root->parsed, &provider, Program::Specialization::Always,
+                                  toBuffer(testRoots));
 
     if(context.settings.printAst) printAsts(context, moduleMap);
 

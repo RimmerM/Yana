@@ -1,6 +1,24 @@
 #include "diagnostics.h"
 #include "library.h"
 
+StringView Diagnostics::sourceText(LocationId where) {
+    auto node = provider.getNode(where);
+    if(!node) return StringView { nullptr, 0 };
+
+    auto source = provider.getSource(node->sourceModule);
+    if(source.length == 0 && library) source = library->loaded(node->sourceModule);
+
+    auto start = node->sourceStart.offset;
+    auto end = node->sourceEnd.offset;
+
+    // A span that runs off the end of the text, or backwards, is a node built from something that
+    // was never parsed from this file - a synthesized declaration, or a location carried across a
+    // reparse. Nothing to quote is the honest answer for it.
+    if(start >= source.length || end > source.length || end <= start) return StringView { nullptr, 0 };
+
+    return StringView { source.ptr + start, end - start };
+}
+
 void CollectDiagnostics::message(Level level, StringView text, const Location* where) {
     Diagnostics::message(level, text, where);
 

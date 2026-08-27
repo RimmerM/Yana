@@ -61,6 +61,10 @@ set(RESOLVE_SOURCE_FILES
     resolve/module_reach.cpp
     resolve/module_derive.cpp
     resolve/module_export.cpp
+    resolve/caller.h
+    resolve/caller.cpp
+    resolve/test.h
+    resolve/test.cpp
     resolve/const.h
     resolve/const.cpp
     resolve/name.h

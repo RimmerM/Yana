@@ -1,0 +1,11 @@
+44:21: error: `@caller` is a property of a declaration rather than of a function type - what fills the position is the call site, and a value of function type has no declaration for one to be read off
+21:10: error: a `@caller` parameter is filled with the call's location, which is a record - declare it as one with fields drawn from `file: String`, `line`, `column` and `function: String`
+24:7: error: a `@caller` parameter is filled with the call's location, which is a record of named fields - declare it as one with fields drawn from `file: String`, `line`, `column` and `function: String`
+27:16: error: a `@caller` location has no whence - what the compiler knows about a call site is `file: String`, `line`, `column` and `function: String`
+28:14: error: field line of a `@caller` location is declared String - `file` and `function` are `String`, and `line` and `column` are integers
+31:16: error: absent is not a parameter of this function, so there is no expression for `@caller(source: absent)` to be the text of
+32:19: error: a `@caller(source: ...)` parameter is the *text* of an expression, so it has to be declared `String`
+33:10: error: `@caller(source: ...)` names this parameter itself - the text it would hold is the text of the position nothing was written at
+36:11: error: a `&` or `return` parameter cannot be `@caller` - the fill is a constant built at the call, and there is no storage of the caller's for it to name
+37:10: error: a `&` or `return` parameter cannot be `@caller` - the fill is a constant built at the call, and there is no storage of the caller's for it to name
+41:25: error: a `@caller` parameter cannot also have a written default - `@caller` *is* what fills it where a call site leaves it out

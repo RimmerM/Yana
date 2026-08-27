@@ -1,0 +1,46 @@
+{-
+   What a `@caller` parameter may not be - Design-Test.md §11.1's F2.
+
+   The fill is a constant the compiler builds at the call, so every rule here is a consequence of one
+   fact: the compiler has to be able to build it, and there is exactly one thing it knows about a call
+   site. That vocabulary - `file` and `function` as text, `line` and `column` as numbers - is matched
+   by field *name* rather than against a particular declaration, because the record it fills lives in
+   a library and not in `Core`. A declaration takes the subset it wants and is told about anything
+   else.
+
+   Each of these declines the marker rather than half-setting it. A `@caller` position that cannot be
+   filled must not become a position every call site may leave out and nothing fills.
+-}
+
+data Site {file: String, line: Int, column: Int, function: String}
+data Whence {file: String, whence: Int}
+data Widths {file: String, line: String}
+data Either = Left(Int) | Right(Int)
+
+-- Not a record at all: there is no single value the location is.
+fn scalar(@caller at: Int) -> Int = at
+
+-- A sum has no one set of fields for the fill to write.
+fn sum(@caller at: Either) -> Int = 0
+
+-- A field outside the vocabulary, and one inside it at the wrong type.
+fn unknownField(@caller at: Whence) -> Int = at.whence
+fn wrongWidth(@caller at: Widths) -> Int = 0
+
+-- The text fill names a parameter of this function, and produces a `String`.
+fn noSuchSource(@caller(source: absent) text: String) -> Int = 0
+fn notText(x: Int, @caller(source: x) text: Int) -> Int = text
+fn itself(@caller(source: text) text: String) -> Int = 0
+
+-- The fill is a value, so there is no storage of the caller's for a `&` or a `return` to name.
+fn mutable(@caller &at: Site) -> Int = at.line
+fn rooted(@caller return at: Site) -> Int = at.line
+
+-- `@caller` *is* what fills a position the call site left out, so a written default is a second
+-- answer to the same question.
+fn alsoDefaulted(x: Int, @caller(source: x) text: String = "") -> Int = 0
+
+-- And a function *type* has no declaration for the fill to be read off.
+fn typed(f: (@caller at: Site) -> Int) -> Int = 0
+
+fn main() -> Int = 0

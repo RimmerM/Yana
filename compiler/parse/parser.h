@@ -92,7 +92,22 @@ struct Parser: BasicParser<Lexer, Token> {
     // `-> ->T` on a result - see the definition, and Analysis-Language.md §3a.
     ast::BindType parseResultBind();
     bool parseReturnRoot();
-    bool parseLazy();
+    /*
+     * The attributes a parameter may carry - `@lazy` and `@caller` - read as a set rather than one
+     * at a time, because there are two of them and they are written in either order.
+     *
+     * A struct rather than a bool and two out-parameters: the three answers are one reading of one
+     * `@...` run, and only `parseArg` wants all of them - `parseArgDecl` refuses `@caller` outright.
+     * `callerSource` is the parameter named by `@caller(source: p)` and 0 for the bare form, which
+     * is what tells the two fills apart. See ast::Arg, which holds the same three.
+     */
+    struct ArgAttributes {
+        bool lazy = false;
+        bool caller = false;
+        StringId callerSource {};
+    };
+
+    ArgAttributes parseArgAttributes();
 
     ast::SimpleType parseSimpleType(bool allowDependency = false);
     ast::Type parseType();
@@ -365,5 +380,9 @@ struct Parser: BasicParser<Lexer, Token> {
     StringId downtoId;
     StringId stepId;
     StringId arraySizeId;
-    StringId lazyId;       // the one attribute with a meaning in parameter position - see parseLazy.
+    // The two attributes with a meaning in parameter position, and the keyword inside the second
+    // one's parentheses - see parseArgAttributes.
+    StringId lazyId;
+    StringId callerId;
+    StringId sourceId;
 };

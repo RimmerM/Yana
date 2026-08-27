@@ -309,6 +309,28 @@ struct CompileSettings {
      */
     bool checks = true;
 
+    /*
+     * Whether this is a test build - Design-Test.md §11.2's F1.
+     *
+     * A flag and not a mode, because `-mode` already answers *which output* and a test build needs
+     * both: `-test -mode exe` is a native test binary and `-test -mode js` is the same suite on
+     * JavaScript. Three things turn on it, and each of them is a rule that already existed pointed
+     * at a new answer:
+     *
+     *  - `.test.yana` files are selected, on the file-selector rule §3.1 gives. One honest widening
+     *    goes with it: the vocabulary becomes "what this compilation is" rather than "which machine
+     *    it is for". `test` excludes nothing else, unlike an architecture or a level.
+     *  - every `@test` declaration is a reachability root, which without this would be dead in `exe`
+     *    mode where the entry is the only root;
+     *  - the entry is synthesized from them, exactly as `resolveProgramEntry` already synthesizes one
+     *    for a root module's top-level statements. A user-written `main` is not the entry and is not
+     *    a root: a test build runs tests.
+     *
+     * A `@test` in a build without it is a diagnostic naming this flag rather than a declaration
+     * silently dropped - a test that is not built is the failure mode the whole document is about.
+     */
+    bool test = false;
+
     bool printModules = false; /// Debug flag: Print a list of modules found in the input.
     bool printAst = false;     /// Debug flag: Create .ast files for each source file.
     bool printIr = false;      /// Debug flag: Create .ir files for each source file.

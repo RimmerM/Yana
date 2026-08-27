@@ -1,0 +1,27 @@
+{-
+   What `@test` may not be, and where it may not be - Design-Test.md §11.2's F1.
+
+   The first of these is the one that matters, and it is the reason the attribute is a diagnostic
+   rather than a no-op outside a test build: **a test the build does not run is worse than one that
+   fails**. §1.4 is the argument, and this repository has paid for it twice. Every fixture in this
+   corpus is compiled without `-test`, so this file is also the assertion that an ordinary build
+   cannot be quietly carrying tests it never runs.
+
+   Every form of the attribute is written out below and every one of them is refused here, which is
+   the point rather than repetition: what is being asserted is that the *attribute* is what a
+   non-test build objects to, and not the shape of any particular declaration. The rest of the
+   contract - no arguments, not generic, a result of `{}` or `Test`, and what `@test(7)` is - can only
+   be reached inside a `-test` build, where this check no longer fires, and is exercised there.
+-}
+
+@test fn plain() -> {} = {}
+
+@test("a display name") fn named() -> {} = {}
+
+@test(aborts) fn stops() -> {} = {}
+
+@test("both", aborts) fn bothForms() -> {} = {}
+
+@test(7) fn notAName() -> {} = {}
+
+fn main() -> Int = 0

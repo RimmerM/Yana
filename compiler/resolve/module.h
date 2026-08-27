@@ -2,6 +2,7 @@
 
 #include "block.h"
 #include "class.h"
+#include "test.h"
 #include "../compiler/builtin.h"
 #include "../lower/convention.h"
 
@@ -1494,7 +1495,34 @@ struct Program {
     ModulePtr<Function> pushString = nullptr;
     ModulePtr<Function> formatBound = nullptr;
 
+    /*
+     * `String.reserve`, and the name `++=` - the two a format written as the right operand of `++=`
+     * needs on top of those, Design-Test.md §11.1's P2.
+     *
+     * A format expression already has a sink and a fresh `String` is merely the case where nothing
+     * else supplied one, so `out ++= "a{x}b"` hands it the string that exists: the summed extent
+     * becomes a reservation on that string rather than an allocation, and the appends run against
+     * the same buffer.
+     *
+     * The name rather than the function, because what is recognized is the *shape* of the written
+     * expression and not a call to be redirected - see resolvePrecedence, which never emits one.
+     * Null in a build whose prelude has no `++=`, where the shape is simply not recognized and the
+     * ordinary function runs.
+     */
+    ModulePtr<Function> reserveString = nullptr;
+    StringId appendAssign = StringId();
+
     Module* core = nullptr;
+
+    /*
+     * The tests of this compilation, and the two `Test` declarations the entry is built out of -
+     * Design-Test.md §11.2's F1. Empty in every build without `-test`.
+     *
+     * A struct of its own, in resolve/test.h, because it is the whole of what the compiler knows
+     * about tests and none of it is anything else's business: what fills it is `readTestAttribute`
+     * and what reads it is `resolveTestEntry`.
+     */
+    TestRegistry tests;
 
     // Core's `Outcome(a, e)`, and which of its two constructors is which. Looked up once rather
     // than by name at each use for the reason the classes above are: the exit signal a continuation
@@ -1583,8 +1611,23 @@ struct Program {
  */
 void markProgramReachable(Program& program, const HashSet<U32>* excluded = nullptr);
 
+/*
+ * `testRoots` names modules that are part of the compilation without anything importing them -
+ * Design-Test.md §3.4, and tests are the only thing that needs it.
+ *
+ * A program is otherwise exactly what its root reaches, and that stays the rule: a test module is
+ * not reached from the program it tests, because the dependency runs the other way. Adding them
+ * here rather than teaching the discovery walk about test roots keeps "what is in this program" one
+ * question with one answer, asked of a list the driver builds.
+ *
+ * Empty in every build without `-test`, and even under `-test` it is only the modules that actually
+ * declare a `@test` - see `moduleDeclaresTests`, which is what keeps a test build from being "every
+ * file the compiler was pointed at, resolved". Everything a listed module imports is reached from
+ * it by the ordinary walk.
+ */
 Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ModuleProvider* provider = nullptr,
-                            Program::Specialization specialization = Program::Specialization::Always);
+                            Program::Specialization specialization = Program::Specialization::Always,
+                            Buffer<ast::ModuleGroup*> testRoots = {});
 
 // A root of one file, which is what every driver that resolves a source string rather than a source
 // tree has. The group is built here so that nothing else has to.

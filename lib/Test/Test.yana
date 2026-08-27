@@ -1,0 +1,106 @@
+{-
+   ==========================================================================================
+   `Test` - the runner's own vocabulary, as far as Design-Test.md §11 needs it.
+   ==========================================================================================
+
+   **This is F1's half of the library and not the framework.** Design-Test.md stages the vocabulary
+   as Phase 0 - `check`/`require` in both moods, sections, snapshots, `agree`, `forAll` - and §11 is
+   the *compiler* work those are written against. What is here is exactly what the synthesized entry
+   names and nothing more: the four types a `Case` is made of, and the function the entry hands its
+   cases to. Everything else in §4 belongs to Phase 0 and is deliberately absent rather than sketched.
+
+   The shapes are §4.1's, unchanged:
+
+       pub data Site {file: String, line: U32, column: U32, function: String}
+       pub data Failure {site: Site, claim: String, detail: String}
+       pub type Test = Result(Failure, {})
+       pub data Case {name: String, moduleName: String, site: Site, aborts: Bool, body: () -> Test}
+
+   `Site`'s strings are constants. A string literal is a borrowed run over a constant global and its
+   teardown is nothing at all, so a `Site` costs some constant data and no runtime work - which is
+   what makes it free to put one on every case and, through `@caller`, on every assertion.
+-}
+
+{-
+   Where something is, filled by the compiler.
+
+   The field *names* are the contract rather than the type: `@caller` matches a location record by
+   name against a fixed vocabulary - `file` and `function` are text, `line` and `column` are numbers -
+   because the compiler knows nothing about this declaration in particular. A test framework that
+   wanted only the line would declare a record with only `line` in it and get one.
+-}
+pub data Site {file: String, line: Int, column: Int, function: String}
+
+-- One claim that did not hold. `detail` is the second line a report gets - a hexdump, a diff - and is
+-- empty for the assertions that have nothing to add.
+pub data Failure {site: Site, claim: String, detail: String}
+
+{-
+   What a case answers.
+
+   `Result` and not a type of its own, so that `?` works on it out of the box: `Core`'s `Try` class
+   already gives `requireEqual(...)?` its meaning, and a test that returns early at the first thing
+   that did not hold is that operator and nothing else.
+-}
+pub alias Test = Result(Failure, {})
+
+{-
+   One case, as the compiler hands it over.
+
+   Everything here is known at the declaration and nothing is discovered at run time, which is the
+   whole argument for the entry being synthesized: a registration list would carry the same five
+   fields and would be missing for whichever test somebody forgot to add to it.
+-}
+pub data Case {name: String, moduleName: String, site: Site, aborts: Bool, body: () -> Test}
+
+{-
+   The runner - what the synthesized entry calls, and the program's status.
+
+   Deliberately the plainest thing that reports: one line per case on the way past, a count at the
+   end, and 0 or 1. The report *stream* §5 specifies, the sharding of §6 and the harness of §11.2's
+   F4 all sit above this and none of them is what F1 is about.
+
+   **A run that discovered no cases is a failure**, which is `test/README.md`'s empty-corpus guard
+   said in the new framework's terms: a driver that verified nothing must not be mistaken for one
+   that verified everything, and a test binary that ran zero cases is exactly that mistake.
+-}
+pub fn runMain(cases: [Case]) -> Int:
+    -- As an `Int`, because that is the width `Show` covers and a count of cases is not a `Size`
+    -- question. `length` answers the container width; the report reads a number.
+    let count = truncate(length(cases)) :: Int
+
+    if count == 0:
+        print("no tests: a build that discovered no cases is a failure, not a pass\n")
+        return 1
+
+    let &failed = 0 :: Int
+    let &i = 0 :: Int
+
+    while i < count:
+        let case = cases[i :: Size]
+        i = i + 1
+
+        -- `aborts` cases need a child process to run in and a status to read back, which is F4's
+        -- harness. Reported as skipped rather than run here, because running one in-process would
+        -- take the whole suite down with it.
+        if case.aborts:
+            print("skip {case.moduleName}.{case.name} (@test(aborts) needs the harness)\n")
+        else:
+            match case.body():
+                Ok(_):
+                    print("pass {case.moduleName}.{case.name}\n")
+
+                Err(failure):
+                    failed = failed + 1
+                    print("FAIL {case.moduleName}.{case.name}\n")
+                    print("  {failure.site.file}:{failure.site.line}:{failure.site.column} {failure.claim}\n")
+
+                    if length(failure.detail) != (0 :: Size):
+                        print("  {failure.detail}\n")
+
+    if failed == 0:
+        print("{count} passed\n")
+        return 0
+
+    print("{failed} of {count} failed\n")
+    return 1

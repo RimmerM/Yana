@@ -463,6 +463,22 @@ struct Arg {
     // parameter inside the callee is what runs it. Part of the function's type, like the two
     // markers above.
     bool lazy = false;
+
+    /*
+     * Set by `@caller` - Design-Test.md §11.1's F2. The compiler fills this position, at every call
+     * that leaves it out, with a constant about the *call site*.
+     *
+     * Two fills, told apart by whether a source parameter was named. `@caller at: Site` is the
+     * call's file, line, column and enclosing function; `@caller(source: p) text: String` is the
+     * source text of the expression that reached parameter `p`. `callerSource` is that name, and 0
+     * for the first form.
+     *
+     * Not part of the function's type, unlike the three markers above: what a `@caller` position
+     * means to a caller is "you may leave this out", which is what a default already means. Nothing
+     * about the *value* the callee receives differs from an ordinary defaulted argument.
+     */
+    bool caller = false;
+    StringId callerSource {};
 };
 
 struct FormatChunk {

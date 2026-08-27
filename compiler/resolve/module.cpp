@@ -9,7 +9,6 @@
  */
 
 #include "module_internal.h"
-#include "atomic.h"
 #include "../compiler/stage.h"
 #include "analyze.h"
 #include "const.h"
@@ -21,6 +20,7 @@
 #include "index.h"
 #include "name.h"
 #include "native.h"
+#include "test.h"
 #include "verify.h"
 #include "witness.h"
 #include "../parse/ast.h"
@@ -497,6 +497,10 @@ static void passFunctionSignatures(Module& module, ast::Module& ast) {
         readConventionAttribute(module, decl, *function);
         readLegacySseAttribute(module, decl, *function);
 
+        // Plain declarations only, on the same terms: what a class member is called through is the
+        // class signature, and a runner has nothing to select an instance with.
+        readTestAttribute(module, decl, *function);
+
         // Here rather than in the declare pass, because a prefix that names a type is only
         // answerable once every type of the module exists - see registerNamespace.
         registerNamespace(module, decl.fun.name, decl.source);
@@ -960,7 +964,7 @@ Ptr<Program> resolveProgram(Context& context, ast::Module& root, ModuleProvider*
 }
 
 Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ModuleProvider* provider,
-                            Program::Specialization specialization) {
+                            Program::Specialization specialization, Buffer<ast::ModuleGroup*> testRoots) {
     auto program = Ptr<Program>(new Program(context));
 
     // Set before anything is resolved, and never after: which form a call site takes has to be the
@@ -977,6 +981,14 @@ Ptr<Program> resolveProgram(Context& context, ast::ModuleGroup& root, ModuleProv
     auto module = program->addModule(root);
     module->root = true;
     program->root = module;
+
+    // Before the walk, so that they are ordinary members of it: what they import is discovered the
+    // same way the root's imports are, and their declarations go through the same passes in the same
+    // order. What each of them pulls in is therefore an ordinary import walk, so a test module's
+    // helpers need no listing of their own. See resolveProgram's declaration.
+    for(auto group: testRoots) {
+        if(group != &root && !program->findModule(group->name)) program->addModule(*group);
+    }
 
     // Every module the root reaches, resolved together and in passes - Analysis-Modules.md §2.2.
     // The prelude above is already Resolved and drops out of the walk.

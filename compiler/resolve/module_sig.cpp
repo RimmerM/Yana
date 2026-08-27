@@ -12,6 +12,7 @@
 #include "module_internal.h"
 #include "type_internal.h"
 #include "analyze.h"
+#include "caller.h"
 #include "const.h"
 #include "core.h"
 #include "expr.h"
@@ -264,6 +265,21 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
     // diagnostic about the same line saying the opposite of the first.
     auto written = 0u;
 
+    /*
+     * The `@caller` positions, resolved after the loop rather than inside it.
+     *
+     * `@caller(source: p)` names a parameter, and a signature may name one written later - nothing
+     * about the fill depends on the order the two appear in. Collected here so the lookup runs once
+     * every parameter exists, which is the only ordering that makes both directions work.
+     */
+    struct CallerMarker {
+        U16 index = 0;
+        StringId source {};
+        LocationId at = kNullLocation;
+    };
+
+    SmallArray<CallerMarker, 2> callerMarkers;
+
     for(auto arg: decl.fun.args.contents(module.parse)) {
         if(!arg.type) {
             module.context.diagnostics.error("function arguments require an explicit type"_v, arg.source);
@@ -373,6 +389,13 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
         }
 
         index++;
+    }
+
+    // Once every parameter exists, so that `@caller(source: p)` finds one written after it - see
+    // CallerMarker.
+    for(auto& marker: callerMarkers) {
+        auto declared = (*module.arena)[function->args.get(*module.arena, marker.index)];
+        resolveCallerFill(module, *function, *declared, marker.source, marker.at);
     }
 
     // Before the return-root check below, because it is what decides what this function returns: a

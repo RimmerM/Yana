@@ -164,6 +164,24 @@ struct Diagnostics {
         errors = 0;
     }
 
+    /*
+     * The source text one node spans - Design-Test.md §11.1's F2.
+     *
+     * Here rather than beside the resolver because the two things it needs are here: which file a
+     * node belongs to and where that file's text is, and the library's text is somewhere the
+     * `SourceProvider` does not answer for - the same pair `message` below has to put together to
+     * quote the line an error is on.
+     *
+     * Empty for a node with no location, one whose module has no text loaded, and one whose span is
+     * degenerate. Every caller is filling a constant, so an empty answer is a `""` rather than a
+     * failure.
+     */
+    StringView sourceText(LocationId where);
+
+    // The node itself, for a caller that wants its file or its line rather than the text it spans -
+    // the other half of what F2's `Site` fill is built from. Null for a node with no location.
+    const Location* sourceNode(LocationId where) { return provider.getNode(where); }
+
 protected:
     SourceProvider& provider;
     U32 warnings = 0;
