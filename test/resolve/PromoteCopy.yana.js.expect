@@ -1,0 +1,64 @@
+"use strict";
+// ResolveTest
+function classify(n) {
+  return n === 1 ? 0 : n === 2 ? 1 : n === 3 ? 2 : 3;
+}
+
+function weight(c) {
+  return (c | 0) + 1 | 0;
+}
+
+function score(n) {
+  var v13 = 0;
+  if (n < 0) {
+    v13 = classify(0 - n | 0);
+  } else {
+    v13 = 4;
+  }
+  return !(v13 <= 3) ? 0 : 1;
+}
+
+function ranked(n) {
+  var v13 = 0;
+  if (n > 10) {
+    v13 = 4;
+  } else {
+    if (n > 0) {
+      v13 = classify(n);
+    } else {
+      v13 = classify(0 - n | 0);
+    }
+  }
+  return !(v13 <= 3) ? 0 : 1;
+}
+
+function removed(n) {
+  var v13 = 0;
+  if (n < 0) {
+    v13 = classify(0 - n | 0);
+  } else {
+    v13 = 4;
+  }
+  return !(v13 <= 3) ? 0 : 1;
+}
+
+function scored(n) {
+  var v11;
+  var v13 = 0;
+  if (n < 0) {
+    v13 = classify(0 - n | 0);
+  } else {
+    v13 = 4;
+  }
+  if (!(v13 <= 3)) {
+    v11 = 0;
+  } else {
+    v11 = weight(v13);
+  }
+  return v11;
+}
+
+function main() {
+  return ((((((((((score(1) + score(-1) | 0) + score(-2) | 0) + score(-3) | 0) + score(-4) | 0) + ranked(50) | 0) + ranked(2) | 0) + ranked(-3) | 0) + removed(4) | 0) + removed(-1) | 0) + Math.imul(scored(-3), 10) | 0) + Math.imul(scored(9), 100) | 0;
+}
+main();

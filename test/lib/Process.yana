@@ -17,16 +17,6 @@
    **The `/bin` programs this reaches are the three every POSIX system has** - `echo`, `true` and
    `sleep` - and each is used for the one property it has and nothing else: `echo` writes a known
    number of bytes, `true` exits zero, and `sleep` is still running when a signal arrives.
-
-   **Two results here are discarded rather than matched, and it is a workaround.** `signal`'s and
-   `close`'s are `Result(FileError, {})`, and *matching* one in a function the optimizer inlines it
-   into produces a phi whose alternatives have two different widths - the lower-IR validator refuses
-   the program with "inconsistent types between phi alternatives" and no location. The defect is in
-   the lowering of an aggregate whose discriminant co-packs with its payload and has nothing to do
-   with processes: `match removeFile(p): Ok(_) -> 0; Err(e) -> 1` is a complete reproduction against
-   the library as it stands, and `-inline none` compiles it. What the two calls here are for is
-   asserted through their *effect* - the child was signalled, the pipe reached its end - which is the
-   stronger claim anyway. Restore the matches when that is fixed.
 -}
 
 import Native
@@ -72,8 +62,9 @@ fn signals() -> Int:
     match spawn("/bin/sleep", ["30"]):
         Err(e) -> assert(False)
         Ok(child):
-            signal(child, killSignal)
-            assert(wasSignalled(child, killSignal))
+            match signal(child, killSignal):
+                Err(e) -> assert(False)
+                Ok(_) -> assert(wasSignalled(child, killSignal))
 
     return 2
 
@@ -103,7 +94,9 @@ fn pipes() -> Int:
             match spawnWith("/bin/echo", ["captured"], target):
                 Err(e) -> assert(False)
                 Ok(child):
-                    close(pipe.writeEnd)
+                    match close(pipe.writeEnd):
+                        Err(e) -> assert(False)
+                        Ok(_) -> assert(True)
 
                     let &buffer = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U8]
 

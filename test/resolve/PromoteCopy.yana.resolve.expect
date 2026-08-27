@@ -1,0 +1,228 @@
+let image$base: () = <none>
+
+fn classify(%n: Int) -> Code {
+  b0:
+    %v3 = cmp_eq %n, 1 : Bool
+    je %v3, b1, b2
+
+  b1:
+    jmp b7
+
+  b2:
+    %v8 = cmp_eq %n, 2 : Bool
+    je %v8, b3, b4
+
+  b3:
+    jmp b7
+
+  b4:
+    %v13 = cmp_eq %n, 3 : Bool
+    je %v13, b5, b6
+
+  b5:
+    jmp b7
+
+  b6:
+    jmp b7
+
+  b7:
+    %v21 = phi [b1, Missing], [b3, Denied], [b5, Busy], [b6, Full] : Code
+    ret %v21
+}
+
+fn weight(%c: Code) -> Int {
+  b0:
+    %v1 = cast %c : Int
+    %v3 = add %v1, 1 : Int
+    ret %v3
+}
+
+fn attempt(%n: Int) -> Outcome {
+  b0:
+    %v3 = cmp_lt %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Outcome
+    %v9 = sub 0, %n : Int
+    %v10 = call classify, %v9 : Code
+    aggregate %local0.discriminant = 0, %local0@Failed = %v10
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = alloc : Outcome
+    init %local1.discriminant, 1
+    ret %v14
+}
+
+fn score(%n: Int) -> Int {
+  b0:
+    %v1 = call attempt, %n : Outcome
+    %v2 = load %local0.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %c = load %local0@Failed : Code
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, 0], [b1, 1] : Int
+    ret %v11
+}
+
+fn triage(%n: Int) -> Outcome {
+  b0:
+    %v3 = cmp_gt %n, 10 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Outcome
+    init %local0.discriminant, 1
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v12 = cmp_gt %n, 0 : Bool
+    je %v12, b4, b5
+
+  b4:
+    %v14 = alloc : Outcome
+    %v16 = call classify, %n : Code
+    aggregate %local1.discriminant = 0, %local1@Failed = %v16
+    ret %v14
+
+  b5:
+    jmp b6
+
+  b6:
+    %v20 = alloc : Outcome
+    %v24 = sub 0, %n : Int
+    %v25 = call classify, %v24 : Code
+    aggregate %local2.discriminant = 0, %local2@Failed = %v25
+    ret %v20
+}
+
+fn ranked(%n: Int) -> Int {
+  b0:
+    %v1 = call triage, %n : Outcome
+    %v2 = load %local0.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %c = load %local0@Failed : Code
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, 0], [b1, 1] : Int
+    ret %v11
+}
+
+fn removeIt(%n: Int) -> Result(Code, ()) {
+  b0:
+    %v3 = cmp_lt %n, 0 : Bool
+    je %v3, b1, b2
+
+  b1:
+    %v5 = alloc : Result(Code, ())
+    %v9 = sub 0, %n : Int
+    %v10 = call classify, %v9 : Code
+    aggregate %local0.discriminant = 0, %local0@Err = %v10
+    ret %v5
+
+  b2:
+    jmp b3
+
+  b3:
+    %v14 = alloc : Result(Code, ())
+    init %local1.discriminant, 1
+    ret %v14
+}
+
+fn removed(%n: Int) -> Int {
+  b0:
+    %v1 = call removeIt, %n : Result(Code, ())
+    %v2 = load %local0.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %e = load %local0@Err : Code
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, 0], [b1, 1] : Int
+    ret %v11
+}
+
+fn scored(%n: Int) -> Int {
+  b0:
+    %v1 = call attempt, %n : Outcome
+    %v2 = load %local0.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %c = load %local0@Failed : Code
+    %v8 = call weight, %c : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v11 = phi [b2, 0], [b1, %v8] : Int
+    ret %v11
+}
+
+fn main() -> Int {
+  b0:
+    %v1 = call score, 1 : Int
+    %v6 = sub 0, 1 : Int
+    %v7 = call score, %v6 : Int
+    %v8 = add %v1, %v7 : Int
+    %v13 = sub 0, 2 : Int
+    %v14 = call score, %v13 : Int
+    %v15 = add %v8, %v14 : Int
+    %v20 = sub 0, 3 : Int
+    %v21 = call score, %v20 : Int
+    %v22 = add %v15, %v21 : Int
+    %v27 = sub 0, 4 : Int
+    %v28 = call score, %v27 : Int
+    %v29 = add %v22, %v28 : Int
+    %v31 = call ranked, 50 : Int
+    %v32 = add %v29, %v31 : Int
+    %v34 = call ranked, 2 : Int
+    %v35 = add %v32, %v34 : Int
+    %v40 = sub 0, 3 : Int
+    %v41 = call ranked, %v40 : Int
+    %v42 = add %v35, %v41 : Int
+    %v44 = call removed, 4 : Int
+    %v45 = add %v42, %v44 : Int
+    %v50 = sub 0, 1 : Int
+    %v51 = call removed, %v50 : Int
+    %v52 = add %v45, %v51 : Int
+    %v57 = sub 0, 3 : Int
+    %v58 = call scored, %v57 : Int
+    %v61 = mul %v58, 10 : Int
+    %v62 = add %v52, %v61 : Int
+    %v64 = call scored, 9 : Int
+    %v67 = mul %v64, 100 : Int
+    %v68 = add %v62, %v67 : Int
+    ret %v68
+}

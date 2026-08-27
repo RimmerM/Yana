@@ -49,6 +49,87 @@ Size slotOf(HashMap<U32, U32>& index, LowerPtr<LowerValue> value) {
 }
 
 /*
+ * Whether a value held in one register can be moved into the other, which is the whole of what a
+ * `copy` between two promoted slots turns into: the same bits, read out of a different register.
+ *
+ * Stated as the set of moves a machine has rather than as a rule about types, because that is what
+ * it is - `validateBitcast` says the same thing from the other side, and the assertions in
+ * `machine_select.cpp` are what a wrong answer here trips.
+ */
+bool carriesInto(LowerType from, LowerType to) {
+    if(from == to) return true;
+
+    // Two vectors are one register read at another lane shape, and no instruction at all - but only
+    // where they are the same register. A mask is its own shape, and a different lane count is a
+    // different number of truth values rather than a renaming.
+    if(isVectorLike(from) || isVectorLike(to)) {
+        if(!isVectorLike(from) || !isVectorLike(to)) return false;
+        if(from.isMask() != to.isMask()) return false;
+        if(from.isMask() && from.laneShift != to.laneShift) return false;
+
+        return from.byteWidth() == to.byteWidth();
+    }
+
+    // Within the integer bank it is a `mov` whatever the two widths are. Across the banks it is
+    // MOVD or MOVQ, and which of the two it is is decided by a width the two ends have to share.
+    if(isIntLike(from) && isIntLike(to)) return true;
+    return registerBits(from) == registerBits(to);
+}
+
+/*
+ * The one constraint a slot's own accesses cannot state, and the one this pass was missing.
+ *
+ * `collectSlots` reads a slot's register type off its loads and its stores, and a `copy` has neither
+ * - it names two addresses and a byte count, and says nothing about what shape either end is read
+ * at. But a copy *between two promoted slots* is a write of the destination's register from the
+ * source's, so the two types meet in the rewrite whether or not either access mentioned the other:
+ * a `Result(FileError, ())` built in two temporaries and copied into one local is the shape, where
+ * the niche constant arrives at the record's width and the callee's own result at its narrower one.
+ * The phi that merged them then had alternatives of two different types, which the validator refuses
+ * - correctly, and with no location, which is the worst way to find out.
+ *
+ * Where the two registers can hold each other the rewrite emits the `bitcast` that moves between
+ * them and both slots are kept. Where they cannot - a float against an integer of another width,
+ * two vectors of different widths - the destination is dropped instead, and the copy goes back to
+ * being the store it always was. Dropping the *destination* rather than the source is arbitrary
+ * between two slots and not between more: a chain of copies is broken wherever it is cut.
+ *
+ * Iterated, because the index every copy is looked up in is rebuilt by a drop.
+ */
+void reconcileCopiedSlots(LowerBase base, LowerFunction& fun, Array<Slot>& slots,
+                          HashMap<U32, U32>& index) {
+    for(;;) {
+        auto reject = maxLimit<Size>;
+
+        for(auto blockPtr: fun.blocks.contents(base)) {
+            for(auto instPtr: base[blockPtr]->instructions.contents(base)) {
+                auto inst = base[instPtr];
+                if(inst->kind != LowerInst::Copy) continue;
+
+                auto copyInst = (LowerInstCopy*)inst;
+                auto to = slotOf(index, copyInst->to);
+                auto from = slotOf(index, copyInst->from);
+
+                if(to == maxLimit<Size> || from == maxLimit<Size>) continue;
+                if(carriesInto(slots[from].type, slots[to].type)) continue;
+
+                reject = to;
+                break;
+            }
+
+            if(reject != maxLimit<Size>) break;
+        }
+
+        if(reject == maxLimit<Size>) return;
+
+        slots.remove(reject);
+
+        index.clear();
+        for(Size i = 0; i < slots.size(); i++) index.add(U32(slots[i].address), U32(i));
+    }
+}
+
+/*
  * The slots worth trying, which are the ones the whole of whose use is a load or a store of the whole
  * thing.
  *
@@ -167,6 +248,8 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
             into.push(::move(slot));
         }
     }
+
+    reconcileCopiedSlots(base, fun, into, index);
 }
 
 /*
@@ -308,6 +391,28 @@ LowerPtr<LowerValue> narrowedTo(LowerBase base, LowerModule& module, LowerBlock&
                                   name)->created().ptr - base;
 }
 
+/*
+ * The value one promoted slot holds, in the register another one's type names.
+ *
+ * The same bits either way - what changes is which register they are read out of - so it is a
+ * `bitcast` and never a `cast`: a `Result(FileError, ())` whose niche constant is a 64-bit literal
+ * and whose payload is a 32-bit call result is one byte of storage read two ways, and converting it
+ * would be converting a number that was never one. `carriesInto` has already answered that a move
+ * between these two registers exists.
+ *
+ * Nothing is masked here for the reason nothing is masked at the copy this replaces: a register
+ * carrying bits above the slot's width still reads back correctly, because every load narrows.
+ */
+LowerPtr<LowerValue> carriedInto(LowerBase base, LowerModule& module, LowerBlock& block,
+                                 LowerPtr<LowerValue> value, LowerType type) {
+    if(base[value]->type == type) return value;
+
+    auto cast = block.addInst(base, new (module.arena) LowerInstUnary(
+        LowerInst::Bitcast, StringId(), type, value));
+
+    return ((LowerInstSingle*)cast)->created().ptr - base;
+}
+
 // A phi with room for one alternative per incoming edge. Built detached, because its alternatives are
 // what the blocks it merges end up holding and none of them is known yet - adding it to the block is
 // what registers those as uses, so that happens once they exist.
@@ -379,8 +484,9 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
         } else if(inst->kind == LowerInst::Copy) {
             /*
              * A copy with a promoted slot on either end, which is a move between a register and
-             * whatever the other end turned out to be: both promoted is an assignment and nothing is
-             * emitted, and one promoted becomes the load or the store the copy was already doing.
+             * whatever the other end turned out to be: both promoted is an assignment, and at most
+             * the `bitcast` that reads one register as the other's type - see carriedInto - while
+             * one promoted becomes the load or the store the copy was already doing.
              *
              * Nothing is masked in either direction. A register that carries bits above the slot's
              * width still reads back correctly, because every *load* of a slot narrows - so the only
@@ -403,7 +509,7 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
                 detach(base, inst);
 
                 if(to != maxLimit<Size> && from != maxLimit<Size>) {
-                    current[to] = current[from];
+                    current[to] = carriedInto(base, module, block, current[from], slots[to].type);
                 } else if(to != maxLimit<Size>) {
                     current[to] = load(base, module, block, base[source], slot.width, false,
                                        slot.type, StringId())->created().ptr - base;

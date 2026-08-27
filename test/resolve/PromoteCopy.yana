@@ -1,0 +1,84 @@
+-- The register type of a slot that is only ever written through a `copy` - `reconcileCopiedSlots`
+-- and `carriedInto` in compiler/lower/lower_promote.cpp.
+--
+-- Promotion reads one register type per slot off that slot's *own* loads and stores, and demands
+-- they all agree: what replaces the slot is one register, and one register has one type. A `copy`
+-- has neither. It names two addresses and a byte count, and says nothing about the shape either end
+-- is read at - so where a copy joins two slots that are *both* promoted, nothing made the two agree
+-- and the destination's phi ended up with an alternative of the source's type. The lower-IR
+-- validator refuses that program, with no location and nothing emitted.
+--
+-- The shape below is what found it, and it is the ordinary one: a sum whose discriminant co-packs
+-- into its payload's niche, built in one temporary per arm and copied into one local. The `Done` arm
+-- is the niche constant, which arrives as an immediate at the *record's* width; the `Failed` arm is
+-- a call's result, which keeps the width the callee returned it in. Two temporaries, two register
+-- types, one destination.
+--
+-- **`classify` and `weight` are `@noinline` because the shape needs a call that stays one**, and the
+-- four consumers are `@noinline` so that each keeps a body of its own to read rather than dissolving
+-- into `main`. What the payload is matters less than that it is narrower than the niche constant:
+-- every `Code` is checked through the discriminant test, including `Full`, which is the value one
+-- below the niche and therefore the one a bitcast that dropped bits would confuse with `Done`.
+
+data Code = Missing | Denied | Busy | Full
+
+data Outcome = Failed(Code) | Done
+
+@noinline fn classify(n: Int) -> Code = if:
+    n == 1 -> Missing
+    n == 2 -> Denied
+    n == 3 -> Busy
+    else -> Full
+
+@noinline fn weight(c: Code) -> Int = match c:
+    Missing -> 1
+    Denied -> 2
+    Busy -> 3
+    Full -> 4
+
+-- Two arms into one join, which is the reported case in full. Written with an early `return` rather
+-- than as one `if` expression, and that is not decoration: the single-expression form is taken by
+-- `splitPhiOfLocals` a tier above (see PhiAggregate.yana), which phis the discriminant and leaves
+-- nothing here to promote. `ranked` below says the same thing about the three-way version.
+fn attempt(n: Int) -> Outcome:
+    if n < 0 then return Failed(classify(0 - n))
+    return Done
+
+@noinline fn score(n: Int) -> Int = match attempt(n):
+    Done -> 0
+    Failed(c) -> 1
+
+-- Three predecessors, two of which carry the narrow value. Nothing about the rule is about there
+-- being two of them, and a phi is where a wrong answer shows.
+fn triage(n: Int) -> Outcome:
+    if n > 10 then return Done
+    if n > 0 then return Failed(classify(n))
+    return Failed(classify(0 - n))
+
+@noinline fn ranked(n: Int) -> Int = match triage(n):
+    Done -> 0
+    Failed(c) -> 1
+
+-- The same shape at the spelling it was reported as: `Result(e, {})` out of a library function,
+-- matched on both arms with neither payload read. `removeFile` was the one that did not compile.
+fn removeIt(n: Int) -> Result(Code, {}):
+    if n < 0 then return Err(classify(0 - n))
+    return Ok({})
+
+@noinline fn removed(n: Int) -> Int = match removeIt(n):
+    Ok(_) -> 0
+    Err(e) -> 1
+
+-- And the contrast, which promotes nothing at all: reading the payload back gives the local a second
+-- load at a second type, and two types on one slot is what makes promotion decline in the first
+-- place - the rule above never gets asked. Kept because the answer must not depend on which of the
+-- two happened.
+@noinline fn scored(n: Int) -> Int = match attempt(n):
+    Done -> 0
+    Failed(c) -> weight(c)
+
+fn main() -> Int =
+    score(1) + score(0 - 1) + score(0 - 2) + score(0 - 3) + score(0 - 4) +
+    ranked(50) + ranked(2) + ranked(0 - 3) +
+    removed(4) + removed(0 - 1) +
+    scored(0 - 3) * 10 + scored(9) * 100
