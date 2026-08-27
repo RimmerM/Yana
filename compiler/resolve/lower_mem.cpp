@@ -320,11 +320,34 @@ LowerInst* lowerStorageInst(LowerContext& lower, LowerBlock& block, Inst& instru
             if(allocation.extent) {
                 bytes = scaleBy(lower, block, slotBytes, mappedValue(lower, allocation.extent));
 
-                // A niche in the *element* would need every slot zeroed rather than the first, which
-                // is a loop rather than a store. Nothing produces one yet - a run's slots are
-                // uninitialized by contract and written whole - so this reports rather than emitting
-                // a zeroing that covers one element out of n.
-                assertTrue(!zeroed);
+                /*
+                 * A niche in the *element* is a niche in every slot, so what the count scales is the
+                 * zeroing as much as the allocation - and a run of no slots has nothing to zero.
+                 *
+                 * Something does produce one, which is what the assertion below used to deny.
+                 * `Column {title: String, align: Align, style: Style}` co-packs its two enums into a
+                 * word whose leftover bits are the niche, so `hasPaddedWord` holds; `newTable` is
+                 * `Table {columns: [], cells: [], ...}`, and an empty array literal is a run of
+                 * *zero* Columns. `scaleBy` floors an empty run at one byte, and this then wrote one
+                 * whole element of zeroes into it - twelve bytes past a sixteen-byte block, twice per
+                 * `newTable`. What that lands on is whatever the allocator put next, which for a
+                 * freed neighbour is its free-list link: the head of a size class became a stack
+                 * address with its low half zeroed, and the crash was the next allocation.
+                 *
+                 * Clamped to the allocation rather than scaled to `n * sizeOf`. The slots past the
+                 * first are still not zeroed, which is the gap the assertion was naming and which is
+                 * not a memory-safety fault - a run's slots are uninitialized by contract and written
+                 * whole. Only the write that leaves the allocation is fixed here.
+                 */
+                if(lower.lower[bytes]->inst()->kind == LowerInst::Imm) {
+                    zeroed = min(zeroed, U32(((LowerImm*)lower.lower[bytes]->inst())->i));
+                }
+
+                // A count this body cannot see is the one case left: `n` slots of stride at least
+                // `sizeOf` hold the element the line above would have zeroed, and only `n == 0` does
+                // not - which no run with a dynamic count is built empty today.
+                assertTrue(!zeroed || lower.lower[bytes]->inst()->kind != LowerInst::Imm
+                                   || zeroed <= U32(((LowerImm*)lower.lower[bytes]->inst())->i));
             }
 
             if(allocation.storage == StorageClass::Heap) {
