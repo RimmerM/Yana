@@ -13,6 +13,7 @@
 -}
 
 infixl 0 +=
+infixl 0 ++=
 infixl 0 -=
 infixl 0 *=
 infixl 0 /=
@@ -376,6 +377,30 @@ pub fn (Num(a)) *=(&target: a, amount: a) -> {}:
 
 pub fn (Num(a)) /=(&target: a, amount: a) -> {}:
     target = target / amount
+
+{-
+   Joining onto something that already exists - the same four lines, over `Append` rather than `Num`.
+
+   `->amount` where the four above take their operand by value, because `++` consumes both of its
+   operands: joining is defined over types that own storage, and the whole reason the operator was
+   given to `Append` alone rather than to `+` is that a join of two owners can adopt one of them
+   (`yana-append-consuming`). Taking the right side by value here would copy it and then consume the
+   copy.
+
+   The body is `target = target ++ amount`, which reads the value out of a `&` and writes one back.
+   That is the ordinary rule now (doc/spec/ownership.md, taking a value out of borrowed storage) and
+   was not when the operator was first wanted - the only way to write it then was as a class member
+   with a per-type in-place body, which would have made `++=` part of `Append`'s contract rather than
+   a function over it. One generic body serves every instance.
+
+   **Its right operand being a format expression is a recognized shape** - Design-Test.md §11.1's P2.
+   `out ++= "a{x}b"` gives the format the string that already exists as its sink, so the summed
+   `showBound` becomes a `reserve` on that string rather than an allocation and no temporary is built
+   at all. It is a recognition and not a new expression form: `out ++= other` is this function, and
+   means the same thing.
+-}
+pub fn (Append(a)) ++=(&target: a, ->amount: a) -> {}:
+    target = target ++ amount
 
 {-
    `!`, `&&` and `||` - the three operators that ask about truth rather than about bits.

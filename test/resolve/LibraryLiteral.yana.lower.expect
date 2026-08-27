@@ -12,8 +12,10 @@
 @Core.literal$12 = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
 @Core.string$13 = [74, 117, 115, 116, 40]
 @Core.literal$14 = [0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 5, 0, 0, 0]
-@Core.string$15 = [78, 111, 116, 104, 105, 110, 103]
-@Core.literal$16 = [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 7, 0, 0, 0]
+@Core.string$15 = [41]
+@Core.literal$16 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]
+@Core.string$17 = [78, 111, 116, 104, 105, 110, 103]
+@Core.literal$18 = [0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 7, 0, 0, 0]
 @image$base = []
 mut @heapNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @heapLimit = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -1302,7 +1304,7 @@ Show(Maybe(a)).show(Int)<complex>(%value: Ptr, %to: Ptr) {
 
   b_4 {
     %v_5 = alloca 16, 8: Ptr
-    copy %v_5, @Core.literal$16, 16
+    copy %v_5, @Core.literal$18, 16
     call_complex String.push, %to, %v_5
     jmp b_6
   }
@@ -1310,28 +1312,36 @@ Show(Maybe(a)).show(Int)<complex>(%value: Ptr, %to: Ptr) {
   b_3 {
     %v_7 = add %value, 4: Ptr
     %inner = loads %v_7, 4: Int
-    %v_8 = alloca 16, 8: Ptr
-    copy %v_8, @Core.literal$14, 16
-    call_complex String.push, %to, %v_8
-    %v_9 = sext %inner: Long
-    %v_10 = cmp_ilt %v_9, 0: Int
-    je %v_10, b_11, b_12
+    %v_8 = add %to, 12: Ptr
+    %v_9 = load %v_8, 4: Int
+    %v_10 = cast %v_9: Long
+    %v_11 = add %v_10, 17: Long
+    call_complex reserve(CodeUnit), %to, %v_11
+    %v_12 = alloca 16, 8: Ptr
+    copy %v_12, @Core.literal$14, 16
+    call_complex String.push, %to, %v_12
+    %v_13 = sext %inner: Long
+    %v_14 = cmp_ilt %v_13, 0: Int
+    je %v_14, b_15, b_16
   }
 
-  b_12 {
-    call_complex pushUnsigned, %v_9, %to
-    jmp b_13
+  b_16 {
+    call_complex pushUnsigned, %v_13, %to
+    jmp b_17
   }
 
-  b_11 {
+  b_15 {
     call_complex push(CodeUnit), %to, 45
-    %v_14 = sub 0, %v_9: Long
-    call_complex pushUnsigned, %v_14, %to
-    jmp b_13
+    %v_18 = sub 0, %v_13: Long
+    call_complex pushUnsigned, %v_18, %to
+    jmp b_17
   }
 
-  b_13 {
-    call_complex push(CodeUnit), %to, 41
+  b_17 {
+    %v_19 = alloca 16, 8: Ptr
+    copy %v_19, @Core.literal$16, 16
+    call_complex String.push, %to, %v_19
+    %v_20 = alloca 1, 1: Ptr
     jmp b_6
   }
 

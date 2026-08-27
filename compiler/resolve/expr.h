@@ -1167,8 +1167,16 @@ struct ExprResolver {
     // A string literal, per target - see Implementation-String.md part 9 and ConstString.
     ModulePtr<Value> resolveString(LocationId source, StringId text);
 
-    // `"a{x}b{y}c"` - Implementation-Storage.md part 8.
-    ModulePtr<Value> resolveFormat(const ast::Expr& expr);
+    /*
+     * `"a{x}b{y}c"` - Implementation-Storage.md part 8.
+     *
+     * `into` is the string the pieces are appended to, and null - the ordinary case - is the one
+     * where nothing supplied one and a fresh `String` of the summed extent is made. A format
+     * expression has always had a sink; what P2 added is that it may be somebody else's, which is
+     * `out ++= "a{x}b"` and is the only caller that passes one. The answer is then unit rather than
+     * the finished string, because the string is the caller's and was never a temporary.
+     */
+    ModulePtr<Value> resolveFormat(const ast::Expr& expr, ModulePtr<Value> into = nullptr);
     // Resolves a condition into a branch. On return, `current` is the block reached when the
     // condition holds - which is where an `is` test's bindings are live - and `onFail` is the
     // block reached when it does not. A caller that already has a block to fail into (a loop's
@@ -1484,6 +1492,26 @@ struct ExprResolver {
 
     ModulePtr<ClassInstance> selectInstance(GlobalPtr<TypeClass> typeClass, Buffer<TypePtr> args,
                                             TypeList& instanceArgs);
+
+    /*
+     * One member of a one-parameter class, called at a type the compiler picked rather than at one a
+     * call site named - which is the whole reason this exists beside `instanceMember`.
+     *
+     * `instanceMember` answers with a *concrete* implementation, and a type variable has none: it has
+     * a witness the enclosing constraint supplies, and reaching that is what an ordinary call does by
+     * ending up at `emitGenericDispatch`. So a synthesized call that asked for the implementation
+     * disagreed with the identical call written by hand, and disagreed only inside a generic body -
+     * which is Design-Test.md §11.1's P1, reported as a missing instance of a class the body
+     * requires.
+     *
+     * Both halves of the ordinary route, and nothing else: still this body's variable is the
+     * dispatch, concrete is the selected instance. `noInstance` separates "there is no instance for
+     * this type" - which is the caller's diagnostic to word, since it knows what the call was for -
+     * from a failure that has already reported.
+     */
+    ModulePtr<Value> emitClassMember(GlobalPtr<TypeClass> typeClass, U16 index, TypePtr subject,
+                                     Buffer<ResolvedArg> args, LocationId source,
+                                     bool* noInstance = nullptr);
 
     /*
      * Function values and closures (expr_fun.cpp).

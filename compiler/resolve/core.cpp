@@ -1062,5 +1062,11 @@ void definePreludeText(Program& program, Module& core) {
     program.newString = findText("String.ofCapacity"_v);
     program.pushString = findText("String.push"_v);
     program.formatBound = findText("formatBound"_v);
+    program.reserveString = findText("String.reserve"_v);
+
+    // The operator's name, interned rather than looked up: what P2 recognizes is the written shape
+    // `place ++= "a{x}b"`, and the function of that name is what every *other* right operand
+    // resolves to. See resolvePrecedence.
+    program.appendAssign = context.addUnqualifiedName("++=", 3);
 }
 

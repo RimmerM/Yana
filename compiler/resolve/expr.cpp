@@ -662,10 +662,11 @@ ModulePtr<Value> ExprResolver::resolveString(LocationId source, StringId text) {
  * That is a placement decision shared with every container rather than something formatting can fix
  * on its own, which is why it is left where the rest of §12 is.
  */
-ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
+ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr, ModulePtr<Value> into) {
     auto& program = module.program;
 
-    if(!program.newString || !program.pushString || !program.formatBound || !program.coreClasses.show) {
+    if(!program.newString || !program.pushString || !program.formatBound || !program.coreClasses.show ||
+       (into && !program.reserveString)) {
         context.diagnostics.error("internal: string formatting is unavailable in this build"_v, expr.source);
         return nullptr;
     }
@@ -715,86 +716,110 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
     for(auto& hole: holes) {
         if(!hole.value) continue;
 
-        auto bound = instanceMember(module, program.coreClasses.show, hole.type, 1, expr.source);
+        /*
+         * `showBound`, reached the way an ordinary call to it would be - see emitClassMember, and
+         * Design-Test.md §11.1's P1 for what asking for the implementation instead cost.
+         *
+         * The hole's type is this body's own variable whenever the format is written in a generic
+         * function, which is where `Show` is *most* worth writing an interpolation in: the whole of
+         * a constrained `show` instance is one of these, and the alternative spelling by hand is
+         * both longer and one allocation per piece.
+         */
+        ResolvedArg measured[] = { ResolvedArg(hole.value) };
+
+        auto missing = false;
+        auto bound = emitClassMember(program.coreClasses.show, 1, hole.type, toBuffer(measured),
+                                     expr.source, &missing);
         if(!bound) {
-            context.diagnostics.error("cannot format a value of type %@ - it has no instance of `Show`, so there is nothing that says what its text is"_v,
-                                      expr.source, describeType(context, global, hole.type));
+            if(missing) {
+                context.diagnostics.error("cannot format a value of type %@ - it has no instance of `Show`, so there is nothing that says what its text is"_v,
+                                          expr.source, describeType(context, global, hole.type));
+            }
+
             return nullptr;
         }
 
-        auto measure = create<InstCall>(expr.source, StringId(), (*module.arena)[bound]->returnType, bound);
-        measure->args.push(module.arena, hole.value);
-        append(measure);
-
         auto units = create<InstCall>(expr.source, StringId(), module.scalar.size, program.formatBound);
-        units->args.push(module.arena, ref(measure));
+        units->args.push(module.arena, bound);
         append(units);
         (*module.arena)[program.formatBound]->used = true;
 
         total = ref(emit<InstBinary>(expr.source, StringId(), module.scalar.size, Value::Add, total, ref(units)));
     }
 
-    // The sink. One allocation, whose extent is whatever the sum turned out to be - see above.
-    auto sizeType = (*module.arena)[(*module.arena)[program.newString]->args.get(*module.arena, 0)]->type;
+    /*
+     * The sink's extent, which is the sum and nothing else - and what happens to it is the only
+     * thing the two forms of a format differ in.
+     *
+     * Without a sink of somebody else's it is an allocation of exactly that size. With one it is a
+     * *reservation* on the string that already exists, which is the same number spent on the same
+     * buffer growth and skips both the allocation and the temporary that would have been copied out
+     * of. See P2 in Design-Test.md §11.1.
+     */
+    auto sinkSignature = into ? program.reserveString : program.newString;
+    auto sizeType = (*module.arena)[(*module.arena)[sinkSignature]->args.get(*module.arena, into ? 1 : 0)]->type;
     auto extent = convert(total, sizeType, expr.source);
     if(!extent) return nullptr;
 
-    (*module.arena)[program.newString]->used = true;
-    auto sink = create<InstCall>(expr.source, StringId(), module.scalar.string_, program.newString);
-    sink->args.push(module.arena, extent);
-    append(sink);
-
-    sink->local = function.addLocal(module, sink->type, StringId(), ref(sink));
+    ModulePtr<Value> sinkValue = nullptr;
 
     /*
-     * The sink's own storage, which is exactly what `let &sink = newStringOfCapacity(n)` compiles to
-     * and is written out here for the same reason that line would have been.
+     * The borrow every append writes through.
      *
-     * Two things need it, and borrowing the call's result directly satisfies neither. The appends
-     * take a `&`, and a borrow is writable only where the place it names is - a call result's local
-     * is not declared mutable. And on JS a `&` of a non-object is the `{$o, $k, $s}` triple
-     * (Implementation-Containers.md §14.1), which needs a *box* to point into: a host string is a
-     * primitive, so `sink[$k] = ...` against a bare one throws rather than writing. A `Ref`-convention
-     * allocation is what makes the backend produce that box, and it is why this is an allocation and
-     * an initialization rather than one instruction fewer.
-     *
-     * The copy is a temporary's, so the optimizer removes it wherever it can adopt the storage - the
-     * same path an array literal's run takes.
+     * Taken once for a sink that was handed in, and once per append for one this expression made.
+     * The difference is what the two are borrowing: an existing string is reached through whatever
+     * property path the caller wrote, and `++=` exists to walk that path once - a `@host` field or a
+     * packed one is a read and a write-back per borrow rather than an address. The allocation below
+     * is a local of this frame, where a borrow is free and a fresh one per append keeps each loan's
+     * extent to the call that uses it.
      */
-    auto storage = allocate(module.scalar.string_, expr.source, StringId(), ast::BindType::Ref);
-    if(!storage) return nullptr;
+    ModulePtr<Value> heldBorrow = nullptr;
 
-    initialize(placeFor(storage, expr.source), ref(sink), expr.source);
-    auto sinkValue = storage;
-
-    /*
-     * Appending, in written order. A `&` argument is a borrow of the sink's own storage, which is
-     * what lets every one of these write into the buffer that was just sized for them.
-     *
-     * `sinkFirst` is not a detail: `pushString(&self: String, other: String)` takes the sink first
-     * and `show(value: a, &to: String)` takes it second, and pushing the two in one order for both
-     * produced a call whose arguments were swapped. The types differ, so it was caught - by the lower
-     * IR validator rather than the resolver, because a `&` argument is an address at that level and
-     * both positions are addresses at this one.
-     */
-    auto appendTo = [&](ModulePtr<Function> callee, ModulePtr<Value> argument, bool sinkFirst) {
-        auto borrowed = borrowArgument(sinkValue, module.scalar.string_, expr.source, false);
-        if(!borrowed) return false;
-
-        (*module.arena)[callee]->used = true;
-        auto call = create<InstCall>(expr.source, StringId(), module.scalar.unit, callee);
-
-        if(sinkFirst) {
-            call->args.push(module.arena, borrowed);
-            call->args.push(module.arena, argument);
-        } else {
-            call->args.push(module.arena, argument);
-            call->args.push(module.arena, borrowed);
-        }
-
-        append(call);
-        return true;
+    auto borrowSink = [&]() {
+        if(!into) return borrowArgument(sinkValue, module.scalar.string_, expr.source, false);
+        return heldBorrow;
     };
+
+    if(into) {
+        heldBorrow = borrowArgument(into, module.scalar.string_, expr.source, false);
+        if(!heldBorrow) return nullptr;
+
+        sinkValue = into;
+
+        (*module.arena)[program.reserveString]->used = true;
+        auto reserve = create<InstCall>(expr.source, StringId(), module.scalar.unit, program.reserveString);
+        reserve->args.push(module.arena, heldBorrow);
+        reserve->args.push(module.arena, extent);
+        append(reserve);
+    } else {
+        (*module.arena)[program.newString]->used = true;
+        auto sink = create<InstCall>(expr.source, StringId(), module.scalar.string_, program.newString);
+        sink->args.push(module.arena, extent);
+        append(sink);
+
+        sink->local = function.addLocal(module, sink->type, StringId(), ref(sink));
+
+        /*
+         * The sink's own storage, which is exactly what `let &sink = newStringOfCapacity(n)` compiles
+         * to and is written out here for the same reason that line would have been.
+         *
+         * Two things need it, and borrowing the call's result directly satisfies neither. The appends
+         * take a `&`, and a borrow is writable only where the place it names is - a call result's
+         * local is not declared mutable. And on JS a `&` of a non-object is the `{$o, $k, $s}` triple
+         * (Implementation-Containers.md §14.1), which needs a *box* to point into: a host string is a
+         * primitive, so `sink[$k] = ...` against a bare one throws rather than writing. A
+         * `Ref`-convention allocation is what makes the backend produce that box, and it is why this
+         * is an allocation and an initialization rather than one instruction fewer.
+         *
+         * The copy is a temporary's, so the optimizer removes it wherever it can adopt the storage -
+         * the same path an array literal's run takes.
+         */
+        auto storage = allocate(module.scalar.string_, expr.source, StringId(), ast::BindType::Ref);
+        if(!storage) return nullptr;
+
+        initialize(placeFor(storage, expr.source), ref(sink), expr.source);
+        sinkValue = storage;
+    }
 
     /*
      * The hole first and the literal second, which is the order the parser records rather than the
@@ -808,21 +833,55 @@ ModulePtr<Value> ExprResolver::resolveFormat(const ast::Expr& expr) {
      */
     for(auto& hole: holes) {
         if(hole.value) {
-            auto writer = instanceMember(module, program.coreClasses.show, hole.type, 0, expr.source);
-            if(!writer) {
-                context.diagnostics.error("cannot format a value of type %@ - it has no instance of `Show`, so there is nothing that says what its text is"_v,
-                                          expr.source, describeType(context, global, hole.type));
+            /*
+             * `show`, at the same type and by the same route as the bound above.
+             *
+             * The sink is second here and first in `pushString` below, and that is not a detail:
+             * `pushString(&self: String, other: String)` takes it first and `show(value: a, &to:
+             * String)` takes it second, and pushing the two in one order for both produced a call
+             * whose arguments were swapped. The types differ, so it was caught - by the lower IR
+             * validator rather than the resolver, because a `&` argument is an address at that level
+             * and both positions are addresses at this one.
+             */
+            auto borrowed = borrowSink();
+            if(!borrowed) return nullptr;
+
+            ResolvedArg written[] = { ResolvedArg(hole.value), ResolvedArg(borrowed) };
+
+            auto missing = false;
+            auto call = emitClassMember(program.coreClasses.show, 0, hole.type, toBuffer(written),
+                                        expr.source, &missing);
+            if(!call) {
+                if(missing) {
+                    context.diagnostics.error("cannot format a value of type %@ - it has no instance of `Show`, so there is nothing that says what its text is"_v,
+                                              expr.source, describeType(context, global, hole.type));
+                }
+
                 return nullptr;
             }
-
-            if(!appendTo(writer, hole.value, false)) return nullptr;
         }
 
         if(hole.hasText) {
             auto literal = resolveString(expr.source, hole.text);
-            if(!literal || !appendTo(program.pushString, literal, true)) return nullptr;
+            if(!literal) return nullptr;
+
+            auto borrowed = borrowSink();
+            if(!borrowed) return nullptr;
+
+            (*module.arena)[program.pushString]->used = true;
+            auto push = create<InstCall>(expr.source, StringId(), module.scalar.unit, program.pushString);
+            push->args.push(module.arena, borrowed);
+            push->args.push(module.arena, literal);
+            append(push);
         }
     }
+
+    /*
+     * A format written into somebody else's string is a *statement*: the string is theirs, the
+     * appends have already happened, and there is nothing here to hand back. `++=` answers unit, so
+     * this is that same answer with no call in front of it.
+     */
+    if(into) return allocate(module.scalar.unit, expr.source);
 
     /*
      * The finished string, read out of the storage it was built in.

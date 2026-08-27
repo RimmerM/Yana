@@ -1047,6 +1047,37 @@ ModulePtr<Value> ExprResolver::resolvePrecedence(InfixChain& chain, Size& operan
             return nullptr;
         }
 
+        /*
+         * `out ++= "a{x}b"` - Design-Test.md §11.1's P2, and the one place a written operator is not
+         * a call at all.
+         *
+         * A format expression already builds into a sink and a fresh `String` is merely the case
+         * where nothing else supplied one, so where the right operand *is* a format the left one is
+         * handed to it: the summed `showBound` becomes a reservation on the string that exists, the
+         * same appends run against the same buffer, and no temporary is made to be joined on and
+         * released.
+         *
+         * A recognition of the shape and not a new expression form. `out ++= someString` and `out
+         * ++= f()` are the ordinary function below and allocate nothing extra anyway, so there is
+         * one spelling and it always means the same thing. Three things have to hold for the shape
+         * to be this one: the operator is `++=`, the operand next in the chain is a format, and the
+         * chain does not continue into it - `out ++= "{x}" ++ y` joins a format to something and is
+         * an ordinary call whose left operand happens to be one.
+         */
+        if(op == module.program.appendAssign && module.program.reserveString && !args[1].isDeferred() &&
+           operandIndex < chain.operands.size() &&
+           chain.operands[operandIndex]->kind == ast::Expr::Format &&
+           (operatorIndex >= chain.operators.size() ||
+            chain.fixities[operatorIndex].precedence < rightRung(fixity))) {
+            if(!lhs) return nullptr;
+
+            auto formatted = resolveFormat(*chain.operands[operandIndex++], lhs);
+            if(!formatted) return nullptr;
+
+            lhs = formatted;
+            continue;
+        }
+
         DeferredChain deferred;
 
         if(args[1].isDeferred()) {
@@ -2645,6 +2676,34 @@ ModulePtr<Value> ExprResolver::emitCall(const OverloadSet& set, Buffer<ResolvedA
     }
 
     return nullptr;
+}
+
+// See the declaration in expr.h for why a synthesized class call may not ask for an implementation.
+ModulePtr<Value> ExprResolver::emitClassMember(GlobalPtr<TypeClass> typeClass, U16 index, TypePtr subject,
+                                               Buffer<ResolvedArg> args, LocationId source,
+                                               bool* noInstance) {
+    if(noInstance) *noInstance = false;
+
+    ClassMatch match;
+    match.typeClass = typeClass;
+    match.index = index;
+    match.args.push(subject);
+
+    /*
+     * Still this body's own variable, so which instance runs is not knowable here and the call is
+     * the deferred one selectCallee's undecided branch builds. `emitGenericDispatch` records the
+     * requirement and asks for the witness slot, exactly as it does for a call the author wrote.
+     */
+    if(isGeneric(global, subject)) return emitGenericDispatch(match, args, source, StringId());
+
+    match.instance = selectInstance(typeClass, toBuffer(match.args), match.instanceArgs);
+
+    if(!match.instance) {
+        if(noInstance) *noInstance = true;
+        return nullptr;
+    }
+
+    return emitInstanceCall(module, match.instance, toBuffer(match.instanceArgs), index, args, source);
 }
 
 /*

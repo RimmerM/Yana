@@ -91,6 +91,88 @@ fn inLoop() -> Int:
 
     return total
 
+{-
+   A format written in a body that is generic in what it formats - Design-Test.md §11.1's P1.
+
+   The two holes are the whole point: `showBound` and `show` here are calls at a type variable, and
+   what answers them is the witness the `Show(a)` constraint supplies rather than an instance
+   selected now. It used to be that only the second half worked - `show(value, to)` written out
+   compiled and `"{value}"` did not - because a format asked for a concrete implementation where
+   every other class call goes through dispatch.
+
+   Two instantiations, one at a type whose bound is a constant and one at a type whose bound is a
+   runtime value, so the sum being part constant and part computed is exercised through the erased
+   path as well as the concrete one.
+-}
+fn (Show(a)) described(value: a) -> String = "<{value}>"
+
+fn generic() -> Int:
+    let number = described(42)
+    let text = described("abc")
+    return truncate(length(number) + length(text)) :: Int    -- "<42>" and "<abc>"
+
+{-
+   The same, one level further out: a generic body whose hole is formatted by a *generic* instance.
+
+   `Show(Maybe(a))` is itself constrained on its element's, so the dispatch here reaches an
+   implementation that dispatches again. It is the shape every container's `Show` has, and it is the
+   one that would break first if the witness reached for the format's holes were not the same one an
+   ordinary call reaches.
+-}
+fn (Show(a)) wrapped(->value: a) -> String = "{Just(value)}"
+
+fn nested() -> Int:
+    let text = wrapped(7)
+    return truncate(length(text)) :: Int                     -- "Just(7)"
+
+{-
+   `++=` with a format on the right - Design-Test.md §11.1's P2, and the shape every `Show` instance
+   in the library is now written in.
+
+   What is asserted here is the *text*, because the shape is not visible from inside the program: the
+   sum becomes a `String.reserve` on the string that already exists rather than a `String.ofCapacity`
+   and there is no temporary to join on, and both spellings produce the same units. The IR beside
+   this file is where the reservation is pinned.
+
+   `appended` mixes the two right-hand sides deliberately - a format, then an ordinary string - since
+   the rule is that one spelling always means the same thing and the ordinary function is what the
+   second one reaches.
+-}
+fn appended() -> Int:
+    let &out = "a"
+    out ++= "b{2}c"
+    out ++= "d"
+    out ++= "{3}"
+    return truncate(length(out)) :: Int              -- "ab2cd3"
+
+fn appendedText() -> Int:
+    let &out = ""
+    let &total = 0 :: Int
+
+    out ++= "x{9}"
+
+    if (truncate(length(out)) :: Int) != 2 then return 0
+    if String.unit(out, 0) == 120 then total = total + 1      -- `x`
+    if String.unit(out, 1) == 57 then total = total + 1       -- `9`
+
+    return total
+
+-- Into a field rather than a local, which is the case `++=` takes one mutable borrow for: the
+-- property path is walked once and every append writes through that one borrow.
+data Buffer = Buffer {text: String}
+
+fn appendedField() -> Int:
+    let &buffer = Buffer {text: "["}
+    buffer.text ++= "{12}]"
+    return truncate(length(buffer.text)) :: Int      -- "[12]"
+
+-- A format joined onto something is an ordinary `++` whose left operand happens to be a format, and
+-- not the recognized shape - the chain continues into the right operand, so `++=` is the function.
+fn appendedJoin() -> Int:
+    let &out = "p"
+    out ++= "{1}" ++ "q"
+    return truncate(length(out)) :: Int              -- "p1q"
+
 fn main() -> Int:
     let &total = 0 :: Int
 
@@ -102,6 +184,12 @@ fn main() -> Int:
     total = total + negative()       -- 11
     total = total + boolean()        -- 10
     total = total + inLoop()         -- 1190: ten of 11 units, ninety of 12
+    total = total + generic()        -- 9: "<42>" and "<abc>"
+    total = total + nested()         -- 7: "Just(7)"
+    total = total + appended()       -- 6: "ab2cd3"
+    total = total + appendedText()   -- 2
+    total = total + appendedField()  -- 4: "[12]"
+    total = total + appendedJoin()   -- 3: "p1q"
     total = total + printed()        -- 0, and one line on stdout
 
     return total

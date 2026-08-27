@@ -43,6 +43,40 @@ fn (Eater(d)) eatBothWays(->state: d, message: '[U8]) -> Int:
     eat(eater, message)
     return total(eater)
 
+{-
+   And the other thing a class implementation may do with a borrow it was lent: empty it and fill it
+   again.
+
+   `to ++= "..."` is `++=` in Core.yana, whose body reads the value out of the `&` and writes one
+   back, so what it hands `++` is the sink's own contents by `->`. That was refused here and nowhere
+   else - a specialized build sees `++`'s body and reads the write-back off it, an erased one sees a
+   class signature and takes `->lhs` at its word, and the answer climbed back out as "this
+   implementation keeps its sink". `handedOver` in analyze_escape.cpp is where the two agree now:
+   what a `->` takes out of borrowed storage is the value, and the slot it left stays behind.
+
+   The assertions are about the value and not only about the build. A borrow this frame was told it
+   had handed away is one nothing writes back into, and a write through a borrow releases what it
+   replaces - so a prefix that survives two appends is the evidence that neither happened.
+-}
+pub class Labelled(t):
+  fn labelInto(value: t, &to: String) -> {}
+
+instance Labelled(Int):
+    fn labelInto(value: Int, &to: String) -> {} = to ++= "int"
+
+instance Labelled(Bool):
+    -- Twice, so that the second append reads storage the first one wrote back.
+    fn labelInto(value: Bool, &to: String) -> {}:
+        to ++= "bool"
+        to ++= "!"
+
+-- The generic half: a body that cannot see which implementation runs, lending it a sink it owns.
+fn (Labelled(t)) labelled(value: t) -> String:
+    let &out = "["
+    labelInto(value, out)
+    out ++= "]"
+    return out
+
 -- And a caller that owns what it lends, which is the position the summary decides.
 fn main() -> Int:
     let &message = [1 :: U8, 2, 3]
@@ -50,5 +84,8 @@ fn main() -> Int:
 
     let fixed = [10 :: U8, 20] :: [U8 *2]
     assert(eatBothWays(newEater() :: Adder, fixed) == 7 + 8 + 9 + 8 + 9 + 10 + 20)
+
+    assert(labelled(0) == "[int]")
+    assert(labelled(True) == "[bool!]")
 
     return 0

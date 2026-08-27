@@ -1589,27 +1589,27 @@ fn main$() -> () {
     %v21 = add %v18, %v20 : Size
     %v22 = call String.ofCapacity, %v21 : String
     %v23 = alloc : String
-    init %local1, %v22
+    init %local4, %v22
     %v25 = copy ResolveTest.literal$1 : String
-    %v26 = borrow_mut %local1 : &String
+    %v26 = borrow_mut %local4 : &String
     call String.push, %v26, %v25
-    drop %local2 via Reclaim(String).reclaim
-    %v28 = borrow_mut %local1 : &String
+    drop %local5 via Reclaim(String).reclaim
+    %v28 = borrow_mut %local4 : &String
     call Show(Int).show, %v9, %v28
     %v30 = copy ResolveTest.literal$3 : String
-    %v31 = borrow_mut %local1 : &String
+    %v31 = borrow_mut %local4 : &String
     call String.push, %v31, %v30
-    drop %local3 via Reclaim(String).reclaim
-    %v33 = borrow_mut %local1 : &String
+    drop %local6 via Reclaim(String).reclaim
+    %v33 = borrow_mut %local4 : &String
     call Show(Int).show, %v10, %v33
     %v35 = copy ResolveTest.literal$5 : String
-    %v36 = borrow_mut %local1 : &String
+    %v36 = borrow_mut %local4 : &String
     call String.push, %v36, %v35
-    drop %local4 via Reclaim(String).reclaim
-    %v38 = borrow_mut %local1 : &String
+    drop %local7 via Reclaim(String).reclaim
+    %v38 = borrow_mut %local4 : &String
     call Show(Int).show, %v11, %v38
-    %v40 = load %local1 : String
+    %v40 = load %local4 : String
     call print, %v40
-    drop %local1 via Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     ret
 }

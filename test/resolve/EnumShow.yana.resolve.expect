@@ -1,26 +1,26 @@
-let Core.string$215: String = "Red"
+let Core.string$241: String = "Red"
 
-let Core.literal$216: String = "Red" {StringData(Array(Run(&Core.string$215, 3, 0), 3))}
+let Core.literal$242: String = "Red" {StringData(Array(Run(&Core.string$241, 3, 0), 3))}
 
-let Core.string$217: String = "Green"
+let Core.string$243: String = "Green"
 
-let Core.literal$218: String = "Green" {StringData(Array(Run(&Core.string$217, 5, 0), 5))}
+let Core.literal$244: String = "Green" {StringData(Array(Run(&Core.string$243, 5, 0), 5))}
 
-let Core.string$219: String = "Blue"
+let Core.string$245: String = "Blue"
 
-let Core.literal$220: String = "Blue" {StringData(Array(Run(&Core.string$219, 4, 0), 4))}
+let Core.literal$246: String = "Blue" {StringData(Array(Run(&Core.string$245, 4, 0), 4))}
 
-let Core.string$221: String = "FromStart"
+let Core.string$247: String = "FromStart"
 
-let Core.literal$222: String = "FromStart" {StringData(Array(Run(&Core.string$221, 9, 0), 9))}
+let Core.literal$248: String = "FromStart" {StringData(Array(Run(&Core.string$247, 9, 0), 9))}
 
-let Core.string$223: String = "FromCurrent"
+let Core.string$249: String = "FromCurrent"
 
-let Core.literal$224: String = "FromCurrent" {StringData(Array(Run(&Core.string$223, 11, 0), 11))}
+let Core.literal$250: String = "FromCurrent" {StringData(Array(Run(&Core.string$249, 11, 0), 11))}
 
-let Core.string$225: String = "FromEnd"
+let Core.string$251: String = "FromEnd"
 
-let Core.literal$226: String = "FromEnd" {StringData(Array(Run(&Core.string$225, 7, 0), 7))}
+let Core.literal$252: String = "FromEnd" {StringData(Array(Run(&Core.string$251, 7, 0), 7))}
 
 let image$base: () = <none>
 
@@ -356,7 +356,7 @@ fn Show(Colour).show(%value: Colour, %to: String) -> () {
     je %v4, b1, b2
 
   b1:
-    %v6 = copy Core.literal$216 : String
+    %v6 = copy Core.literal$242 : String
     jmp b5
 
   b2:
@@ -364,11 +364,11 @@ fn Show(Colour).show(%value: Colour, %to: String) -> () {
     je %v8, b3, b4
 
   b3:
-    %v10 = copy Core.literal$218 : String
+    %v10 = copy Core.literal$244 : String
     jmp b5
 
   b4:
-    %v11 = copy Core.literal$220 : String
+    %v11 = copy Core.literal$246 : String
     jmp b5
 
   b5:
@@ -393,7 +393,7 @@ fn Show(Whence).show(%value: Whence, %to: String) -> () {
     je %v4, b1, b2
 
   b1:
-    %v6 = copy Core.literal$222 : String
+    %v6 = copy Core.literal$248 : String
     jmp b5
 
   b2:
@@ -401,11 +401,11 @@ fn Show(Whence).show(%value: Whence, %to: String) -> () {
     je %v8, b3, b4
 
   b3:
-    %v10 = copy Core.literal$224 : String
+    %v10 = copy Core.literal$250 : String
     jmp b5
 
   b4:
-    %v11 = copy Core.literal$226 : String
+    %v11 = copy Core.literal$252 : String
     jmp b5
 
   b5:
@@ -1397,11 +1397,11 @@ fn describe(%c: Colour) -> String {
     %v4 = add 0, %v3 : Size
     %v5 = call String.ofCapacity, %v4 : String
     %v6 = alloc : String
-    init %local1, %v5
-    %v8 = borrow_mut %local1 : &String
+    init %local2, %v5
+    %v8 = borrow_mut %local2 : &String
     call Show(Colour).show, %c, %v8
-    %v10 = load %local1 : String
-    %v11 = move %local1 : String
+    %v10 = load %local2 : String
+    %v11 = move %local2 : String
     ret %v11
 }
 
@@ -1426,14 +1426,14 @@ fn main() -> Int {
     %v12 = add 0, %v11 : Size
     %v13 = call String.ofCapacity, %v12 : String
     %v14 = alloc : String
-    init %local3, %v13
-    %v16 = borrow_mut %local3 : &String
+    init %local4, %v13
+    %v16 = borrow_mut %local4 : &String
     call Show(Whence).show, FromCurrent, %v16
-    %v18 = load %local3 : String
+    %v18 = load %local4 : String
     %v19 = copy ResolveTest.literal$3 : String
     %v20 = call Eq(String).!=, %v18, %v19 : Bool
-    drop %local3 via Reclaim(String).reclaim
     drop %local4 via Reclaim(String).reclaim
+    drop %local5 via Reclaim(String).reclaim
     je %v20, b4, b5
 
   b4:
@@ -1448,14 +1448,14 @@ fn main() -> Int {
     %v29 = add 0, %v28 : Size
     %v30 = call String.ofCapacity, %v29 : String
     %v31 = alloc : String
-    init %local6, %v30
-    %v33 = borrow_mut %local6 : &String
+    init %local8, %v30
+    %v33 = borrow_mut %local8 : &String
     call Show(Mood).show, Happy, %v33
-    %v35 = load %local6 : String
+    %v35 = load %local8 : String
     %v36 = copy ResolveTest.literal$5 : String
     %v37 = call Eq(String).!=, %v35, %v36 : Bool
-    drop %local6 via Reclaim(String).reclaim
-    drop %local7 via Reclaim(String).reclaim
+    drop %local8 via Reclaim(String).reclaim
+    drop %local9 via Reclaim(String).reclaim
     je %v37, b7, b8
 
   b7:
@@ -1466,7 +1466,7 @@ fn main() -> Int {
 
   b9:
     %bound = call Show(Colour).showBound, Blue : Maybe(Size)
-    %v44 = load %local8.discriminant : Int
+    %v44 = load %local10.discriminant : Int
     %v46 = cmp_eq %v44, 1 : Bool
     je %v46, b11, b10
 
@@ -1474,10 +1474,10 @@ fn main() -> Int {
     jmp b12
 
   b11:
-    %n = load %local8@Just : Size
+    %n = load %local10@Just : Size
     %v50 = call describe, Red : String
     %v51 = call Length(String).length, %v50 : Size
-    drop %local9 via Reclaim(String).reclaim
+    drop %local11 via Reclaim(String).reclaim
     %v52 = add %n, %v51 : Size
     %v53 = cast %v52 : Int
     jmp b12

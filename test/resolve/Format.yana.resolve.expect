@@ -10,6 +10,18 @@ let Core.string$11: String = "False"
 
 let Core.literal$12: String = "False" {StringData(Array(Run(&Core.string$11, 5, 0), 5))}
 
+let Core.string$13: String = "Just("
+
+let Core.literal$14: String = "Just(" {StringData(Array(Run(&Core.string$13, 5, 0), 5))}
+
+let Core.string$15: String = ")"
+
+let Core.literal$16: String = ")" {StringData(Array(Run(&Core.string$15, 1, 0), 1))}
+
+let Core.string$17: String = "Nothing"
+
+let Core.literal$18: String = "Nothing" {StringData(Array(Run(&Core.string$17, 7, 0), 7))}
+
 let image$base: () = <none>
 
 let &heapNext: %U8 = 0
@@ -68,23 +80,75 @@ let ResolveTest.string$22: String = "iteration "
 
 let ResolveTest.literal$23: String = "iteration " {StringData(Array(Run(&ResolveTest.string$22, 10, 0), 10))}
 
-let ResolveTest.string$24: String = "format"
+let ResolveTest.string$24: String = "<"
 
-let ResolveTest.literal$25: String = "format" {StringData(Array(Run(&ResolveTest.string$24, 6, 0), 6))}
+let ResolveTest.literal$25: String = "<" {StringData(Array(Run(&ResolveTest.string$24, 1, 0), 1))}
 
-let ResolveTest.string$26: String = "["
+let ResolveTest.string$26: String = ">"
 
-let ResolveTest.literal$27: String = "[" {StringData(Array(Run(&ResolveTest.string$26, 1, 0), 1))}
+let ResolveTest.literal$27: String = ">" {StringData(Array(Run(&ResolveTest.string$26, 1, 0), 1))}
 
-let ResolveTest.string$28: String = " ran "
+let ResolveTest.string$28: String = "abc"
 
-let ResolveTest.literal$29: String = " ran " {StringData(Array(Run(&ResolveTest.string$28, 5, 0), 5))}
+let ResolveTest.literal$29: String = "abc" {StringData(Array(Run(&ResolveTest.string$28, 3, 0), 3))}
 
-let ResolveTest.string$30: String = " times]
+let ResolveTest.string$30: String = "a"
+
+let ResolveTest.literal$31: String = "a" {StringData(Array(Run(&ResolveTest.string$30, 1, 0), 1))}
+
+let ResolveTest.string$32: String = "b"
+
+let ResolveTest.literal$33: String = "b" {StringData(Array(Run(&ResolveTest.string$32, 1, 0), 1))}
+
+let ResolveTest.string$34: String = "c"
+
+let ResolveTest.literal$35: String = "c" {StringData(Array(Run(&ResolveTest.string$34, 1, 0), 1))}
+
+let ResolveTest.string$36: String = "d"
+
+let ResolveTest.literal$37: String = "d" {StringData(Array(Run(&ResolveTest.string$36, 1, 0), 1))}
+
+let ResolveTest.string$38: String = <none>
+
+let ResolveTest.literal$39: String = "" {StringData(Array(Run(&ResolveTest.string$38, 0, 0), 0))}
+
+let ResolveTest.string$40: String = "x"
+
+let ResolveTest.literal$41: String = "x" {StringData(Array(Run(&ResolveTest.string$40, 1, 0), 1))}
+
+let ResolveTest.string$42: String = "["
+
+let ResolveTest.literal$43: String = "[" {StringData(Array(Run(&ResolveTest.string$42, 1, 0), 1))}
+
+let ResolveTest.string$44: String = "]"
+
+let ResolveTest.literal$45: String = "]" {StringData(Array(Run(&ResolveTest.string$44, 1, 0), 1))}
+
+let ResolveTest.string$46: String = "p"
+
+let ResolveTest.literal$47: String = "p" {StringData(Array(Run(&ResolveTest.string$46, 1, 0), 1))}
+
+let ResolveTest.string$48: String = "q"
+
+let ResolveTest.literal$49: String = "q" {StringData(Array(Run(&ResolveTest.string$48, 1, 0), 1))}
+
+let ResolveTest.string$50: String = "format"
+
+let ResolveTest.literal$51: String = "format" {StringData(Array(Run(&ResolveTest.string$50, 6, 0), 6))}
+
+let ResolveTest.string$52: String = "["
+
+let ResolveTest.literal$53: String = "[" {StringData(Array(Run(&ResolveTest.string$52, 1, 0), 1))}
+
+let ResolveTest.string$54: String = " ran "
+
+let ResolveTest.literal$55: String = " ran " {StringData(Array(Run(&ResolveTest.string$54, 5, 0), 5))}
+
+let ResolveTest.string$56: String = " times]
 "
 
-let ResolveTest.literal$31: String = " times]
-" {StringData(Array(Run(&ResolveTest.string$30, 8, 0), 8))}
+let ResolveTest.literal$57: String = " times]
+" {StringData(Array(Run(&ResolveTest.string$56, 8, 0), 8))}
 
 fn pushUnsigned(%value: U64, %to: String) -> () {
   b0:
@@ -570,6 +634,26 @@ fn Length(String).length(%self: String) -> Size {
     ret %v6
 }
 
+fn Append(String).++(%lhs: String, %rhs: String) -> String {
+  b0:
+    %rightLength = call Length(String).length, %rhs : Size
+    %lhs = move %lhs : String
+    %v4 = alloc : String
+    init %out, %lhs
+    %v6 = load %out : String
+    %v7 = borrow %rhs : 'String
+    %v8 = cast %v7 : 'StringData
+    %v9 = load [%v8]@StringData.bytes : Array(CodeUnit)
+    %v10 = load [%v8]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v11 = load [%v8]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v12 = borrow_mut %out : &String
+    call String.appendUnits, %v12, %v11, %rightLength
+    drop %rhs via Reclaim(String).reclaim
+    %v14 = load %out : String
+    %v15 = move %out : String
+    ret %v15
+}
+
 fn Reclaim(String).reclaim(%value: String) -> () {
   b0:
     %v1 = borrow %value : 'String
@@ -670,6 +754,91 @@ fn push(CodeUnit)(%self: Array(CodeUnit), %item: CodeUnit) -> () {
     %v27 = and %v25, 1073741823 : U32
     %v28 = cast %v27 : @bits(30) U32
     assign %self@Array.length, %v28
+    ret
+}
+
+fn Show(Maybe(a)).showBound(Int)(%value: Maybe(Int)) -> Maybe(Size) {
+  b0:
+    %v3 = load %value.discriminant : Int
+    %v5 = cmp_eq %v3, 1 : Bool
+    je %v5, b2, b1
+
+  b1:
+    %v7 = alloc : Maybe(Size)
+    aggregate %local5.discriminant = 1, %local5@Just = 7
+    jmp b6
+
+  b2:
+    %inner = load %value@Just : Int
+    %v13 = call Show(Int).showBound, %inner : Maybe(Size)
+    %v14 = load %local1.discriminant : Int
+    %v16 = cmp_eq %v14, 1 : Bool
+    je %v16, b4, b3
+
+  b3:
+    %v18 = alloc : Maybe(Size)
+    init %local3.discriminant, 0
+    jmp b5
+
+  b4:
+    %units = load %local1@Just : Size
+    %v23 = alloc : Maybe(Size)
+    %v25 = add %units, 6 : Size
+    aggregate %local2.discriminant = 1, %local2@Just = %v25
+    jmp b5
+
+  b5:
+    %v1 = phi [b4, %v23], [b3, %v18] : Maybe(Size)
+    jmp b6
+
+  b6:
+    %v2 = phi [b5, %v1], [b1, %v7] : Maybe(Size)
+    ret %v2
+}
+
+fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
+  b0:
+    %v2 = load %value.discriminant : Int
+    %v4 = cmp_eq %v2, 1 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %v6 = load %to : String
+    %v7 = copy Core.literal$18 : String
+    %v8 = borrow_mut %to : &String
+    call String.push, %v8, %v7
+    drop %local6 via Reclaim(String).reclaim
+    jmp b3
+
+  b2:
+    %inner = load %value@Just : Int
+    %v12 = load %to : String
+    %v13 = call Show(Int).showBound, %inner : Maybe(Size)
+    %v14 = call formatBound, %v13 : Size
+    %v16 = add 6, %v14 : Size
+    %v17 = borrow_mut %to : &String
+    call String.reserve, %v17, %v16
+    %v19 = copy Core.literal$14 : String
+    call String.push, %v17, %v19
+    drop %local3 via Reclaim(String).reclaim
+    call Show(Int).show, %inner, %v17
+    %v22 = copy Core.literal$16 : String
+    call String.push, %v17, %v22
+    drop %local4 via Reclaim(String).reclaim
+    alloc
+    jmp b3
+
+  b3:
+    ret
+}
+
+fn ++=(String)(%target: String, %amount: String) -> () {
+  b0:
+    %v2 = load %target : String
+    %v3 = move %target : String
+    %amount = move %amount : String
+    %v5 = call Append(String).++, %v3, %amount : String
+    assign %target, %v5
     ret
 }
 
@@ -1678,16 +1847,16 @@ fn oneInt() -> Int {
     %v5 = add 4, %v4 : Size
     %v6 = call String.ofCapacity, %v5 : String
     %v7 = alloc : String
-    init %local1, %v6
+    init %local2, %v6
     %v9 = copy ResolveTest.literal$3 : String
-    %v10 = borrow_mut %local1 : &String
+    %v10 = borrow_mut %local2 : &String
     call String.push, %v10, %v9
-    drop %local2 via Reclaim(String).reclaim
-    %v12 = borrow_mut %local1 : &String
+    drop %local3 via Reclaim(String).reclaim
+    %v12 = borrow_mut %local2 : &String
     call Show(Int).show, 42, %v12
-    %text = load %local1 : String
+    %text = load %local2 : String
     %v15 = call Length(String).length, %text : Size
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     %v16 = cast %v15 : Int
     ret %v16
 }
@@ -1699,18 +1868,18 @@ fn oneIntText() -> Int {
     %v5 = add 3, %v4 : Size
     %v6 = call String.ofCapacity, %v5 : String
     %v7 = alloc : String
-    init %local1, %v6
+    init %local2, %v6
     %v9 = copy ResolveTest.literal$5 : String
-    %v10 = borrow_mut %local1 : &String
+    %v10 = borrow_mut %local2 : &String
     call String.push, %v10, %v9
-    drop %local2 via Reclaim(String).reclaim
-    %v12 = borrow_mut %local1 : &String
+    drop %local3 via Reclaim(String).reclaim
+    %v12 = borrow_mut %local2 : &String
     call Show(Int).show, 7, %v12
     %v14 = copy ResolveTest.literal$7 : String
-    %v15 = borrow_mut %local1 : &String
+    %v15 = borrow_mut %local2 : &String
     call String.push, %v15, %v14
-    drop %local3 via Reclaim(String).reclaim
-    %text = load %local1 : String
+    drop %local4 via Reclaim(String).reclaim
+    %text = load %local2 : String
     %total = alloc : Int
     init %total, 0
     %v21 = call Length(String).length, %text : Size
@@ -1768,7 +1937,7 @@ fn oneIntText() -> Int {
 
   b12:
     %v70 = call String.unit, %text, 3 : Int
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     %v73 = cmp_eq %v70, 33 : Bool
     je %v73, b13, b14
 
@@ -1786,7 +1955,7 @@ fn oneIntText() -> Int {
     ret %v82
 
   b16:
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     jmp b1
 }
 
@@ -1798,17 +1967,17 @@ fn oneString() -> Int {
     %v4 = add 6, %v3 : Size
     %v5 = call String.ofCapacity, %v4 : String
     %v6 = alloc : String
-    init %local2, %v5
+    init %local3, %v5
     %v8 = copy ResolveTest.literal$11 : String
-    %v9 = borrow_mut %local2 : &String
+    %v9 = borrow_mut %local3 : &String
     call String.push, %v9, %v8
-    drop %local3 via Reclaim(String).reclaim
-    %v11 = borrow_mut %local2 : &String
+    drop %local4 via Reclaim(String).reclaim
+    %v11 = borrow_mut %local3 : &String
     call Show(String).show, %inner, %v11
     drop %local0 via Reclaim(String).reclaim
-    %text = load %local2 : String
+    %text = load %local3 : String
     %v14 = call Length(String).length, %text : Size
-    drop %local2 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     %v15 = cast %v14 : Int
     ret %v15
 }
@@ -1830,31 +1999,31 @@ fn mixed() -> Int {
     %v17 = add %v14, %v16 : Size
     %v18 = call String.ofCapacity, %v17 : String
     %v19 = alloc : String
-    init %local2, %v18
-    %v21 = borrow_mut %local2 : &String
+    init %local6, %v18
+    %v21 = borrow_mut %local6 : &String
     call Show(String).show, %name, %v21
     %v23 = copy ResolveTest.literal$15 : String
-    %v24 = borrow_mut %local2 : &String
+    %v24 = borrow_mut %local6 : &String
     call String.push, %v24, %v23
-    drop %local3 via Reclaim(String).reclaim
-    %v26 = borrow_mut %local2 : &String
+    drop %local7 via Reclaim(String).reclaim
+    %v26 = borrow_mut %local6 : &String
     call Show(Int).show, 12, %v26
     %v28 = copy ResolveTest.literal$17 : String
-    %v29 = borrow_mut %local2 : &String
+    %v29 = borrow_mut %local6 : &String
     call String.push, %v29, %v28
-    drop %local4 via Reclaim(String).reclaim
-    %v31 = borrow_mut %local2 : &String
+    drop %local8 via Reclaim(String).reclaim
+    %v31 = borrow_mut %local6 : &String
     call Show(String).show, %name, %v31
     drop %local0 via Reclaim(String).reclaim
     %v33 = copy ResolveTest.literal$19 : String
-    %v34 = borrow_mut %local2 : &String
+    %v34 = borrow_mut %local6 : &String
     call String.push, %v34, %v33
-    drop %local5 via Reclaim(String).reclaim
-    %v36 = borrow_mut %local2 : &String
+    drop %local9 via Reclaim(String).reclaim
+    %v36 = borrow_mut %local6 : &String
     call Show(Int).show, 345, %v36
-    %text = load %local2 : String
+    %text = load %local6 : String
     %v39 = call Length(String).length, %text : Size
-    drop %local2 via Reclaim(String).reclaim
+    drop %local6 via Reclaim(String).reclaim
     %v40 = cast %v39 : Int
     ret %v40
 }
@@ -1867,12 +2036,12 @@ fn negative() -> Int {
     %v6 = add 0, %v5 : Size
     %v7 = call String.ofCapacity, %v6 : String
     %v8 = alloc : String
-    init %local1, %v7
-    %v10 = borrow_mut %local1 : &String
+    init %local2, %v7
+    %v10 = borrow_mut %local2 : &String
     call Show(Int).show, %v2, %v10
-    %text = load %local1 : String
+    %text = load %local2 : String
     %v13 = call Length(String).length, %text : Size
-    drop %local1 via Reclaim(String).reclaim
+    drop %local2 via Reclaim(String).reclaim
     %v14 = cast %v13 : Int
     ret %v14
 }
@@ -1887,18 +2056,18 @@ fn boolean() -> Int {
     %v8 = add %v5, %v7 : Size
     %v9 = call String.ofCapacity, %v8 : String
     %v10 = alloc : String
-    init %local1, %v9
-    %v12 = borrow_mut %local1 : &String
+    init %local3, %v9
+    %v12 = borrow_mut %local3 : &String
     call Show(Bool).show, True, %v12
     %v14 = copy ResolveTest.literal$21 : String
-    %v15 = borrow_mut %local1 : &String
+    %v15 = borrow_mut %local3 : &String
     call String.push, %v15, %v14
-    drop %local2 via Reclaim(String).reclaim
-    %v17 = borrow_mut %local1 : &String
+    drop %local4 via Reclaim(String).reclaim
+    %v17 = borrow_mut %local3 : &String
     call Show(Bool).show, False, %v17
-    %text = load %local1 : String
+    %text = load %local3 : String
     %v20 = call Length(String).length, %text : Size
-    drop %local1 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     %v21 = cast %v20 : Int
     ret %v21
 }
@@ -1927,17 +2096,17 @@ fn inLoop() -> Int {
     %v16 = add 10, %v15 : Size
     %v17 = call String.ofCapacity, %v16 : String
     %v18 = alloc : String
-    init %local3, %v17
+    init %local4, %v17
     %v20 = copy ResolveTest.literal$23 : String
-    %v21 = borrow_mut %local3 : &String
+    %v21 = borrow_mut %local4 : &String
     call String.push, %v21, %v20
-    drop %local4 via Reclaim(String).reclaim
-    %v23 = borrow_mut %local3 : &String
+    drop %local5 via Reclaim(String).reclaim
+    %v23 = borrow_mut %local4 : &String
     call Show(Int).show, %v12, %v23
-    %text = load %local3 : String
+    %text = load %local4 : String
     %v26 = load %total : Int
     %v27 = call Length(String).length, %text : Size
-    drop %local3 via Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     %v28 = cast %v27 : Int
     %v29 = add %v26, %v28 : Int
     assign %total, %v29
@@ -1945,6 +2114,243 @@ fn inLoop() -> Int {
     %v34 = add %v31, 1 : Int
     assign %i, %v34
     jmp b1
+}
+
+(Show(a)) fn described(%value: a) -> String {
+  schema {
+    #0 type a
+    #1 class Show(a)
+  }
+
+  b0:
+    %v2 = gencall Show(a).showBound, %value : Maybe(Size)
+    %v3 = call formatBound, %v2 : Size
+    %v4 = add 2, %v3 : Size
+    %v5 = call String.ofCapacity, %v4 : String
+    %v6 = alloc : String
+    init %local3, %v5
+    %v8 = copy ResolveTest.literal$25 : String
+    %v9 = borrow_mut %local3 : &String
+    call String.push, %v9, %v8
+    %v11 = borrow_mut %local3 : &String
+    gencall Show(a).show, %value, %v11
+    %v13 = copy ResolveTest.literal$27 : String
+    %v14 = borrow_mut %local3 : &String
+    call String.push, %v14, %v13
+    %v16 = load %local3 : String
+    %v17 = move %local3 : String
+    ret %v17
+}
+
+fn generic() -> Int {
+  b0:
+    %number = call described(Int), 42 : String
+    %v3 = copy ResolveTest.literal$29 : String
+    %text = call described(String), %v3 : String
+    drop %local1 via Reclaim(String).reclaim
+    %v5 = call Length(String).length, %number : Size
+    drop %local0 via Reclaim(String).reclaim
+    %v6 = call Length(String).length, %text : Size
+    drop %local2 via Reclaim(String).reclaim
+    %v7 = add %v5, %v6 : Size
+    %v8 = cast %v7 : Int
+    ret %v8
+}
+
+(Show(a), Show(Maybe(a))) fn wrapped(%value: a) -> String {
+  schema {
+    #0 type a
+    #1 type Maybe(a)
+    #2 class Show(a)
+    #3 class Show(Maybe(a))
+  }
+
+  b0:
+    %v1 = alloc : Maybe(a)
+    aggregate %local1.discriminant = 1, %local1@Just = %value
+    %v5 = gencall Show(Maybe(a)).showBound, %v1 : Maybe(Size)
+    %v6 = call formatBound, %v5 : Size
+    %v7 = add 0, %v6 : Size
+    %v8 = call String.ofCapacity, %v7 : String
+    %v9 = alloc : String
+    init %local4, %v8
+    %v11 = borrow_mut %local4 : &String
+    gencall Show(Maybe(a)).show, %v1, %v11
+    %v13 = load %local4 : String
+    %v14 = move %local4 : String
+    ret %v14
+}
+
+fn nested() -> Int {
+  b0:
+    %text = call wrapped(Int), 7 : String
+    %v3 = call Length(String).length, %text : Size
+    drop %local0 via Reclaim(String).reclaim
+    %v4 = cast %v3 : Int
+    ret %v4
+}
+
+fn appended() -> Int {
+  b0:
+    %v0 = copy ResolveTest.literal$31 : String
+    %out = alloc : String
+    init %out, %v0
+    %v3 = load %out : String
+    %v7 = call Show(Int).showBound, 2 : Maybe(Size)
+    %v8 = call formatBound, %v7 : Size
+    %v9 = add 2, %v8 : Size
+    %v10 = borrow_mut %out : &String
+    call String.reserve, %v10, %v9
+    %v12 = copy ResolveTest.literal$33 : String
+    call String.push, %v10, %v12
+    drop %local3 via Reclaim(String).reclaim
+    call Show(Int).show, 2, %v10
+    %v15 = copy ResolveTest.literal$35 : String
+    call String.push, %v10, %v15
+    drop %local4 via Reclaim(String).reclaim
+    alloc
+    %v18 = load %out : String
+    %v19 = copy ResolveTest.literal$37 : String
+    %v20 = borrow_mut %out : &String
+    %v21 = move %local6 : String
+    call ++=(String), %v20, %v21
+    %v23 = load %out : String
+    %v27 = call Show(Int).showBound, 3 : Maybe(Size)
+    %v28 = call formatBound, %v27 : Size
+    %v29 = add 0, %v28 : Size
+    %v30 = borrow_mut %out : &String
+    call String.reserve, %v30, %v29
+    call Show(Int).show, 3, %v30
+    alloc
+    %v34 = load %out : String
+    %v35 = call Length(String).length, %v34 : Size
+    drop %out via Reclaim(String).reclaim
+    %v36 = cast %v35 : Int
+    ret %v36
+}
+
+fn appendedText() -> Int {
+  b0:
+    %v0 = copy ResolveTest.literal$39 : String
+    %out = alloc : String
+    init %out, %v0
+    %total = alloc : Int
+    init %total, 0
+    %v6 = load %out : String
+    %v10 = call Show(Int).showBound, 9 : Maybe(Size)
+    %v11 = call formatBound, %v10 : Size
+    %v12 = add 1, %v11 : Size
+    %v13 = borrow_mut %out : &String
+    call String.reserve, %v13, %v12
+    %v15 = copy ResolveTest.literal$41 : String
+    call String.push, %v13, %v15
+    drop %local4 via Reclaim(String).reclaim
+    call Show(Int).show, 9, %v13
+    alloc
+    %v19 = load %out : String
+    %v20 = call Length(String).length, %v19 : Size
+    %v21 = cast %v20 : Int
+    %v24 = cmp_ne %v21, 2 : Bool
+    je %v24, b10, b2
+
+  b1:
+    ret 0
+
+  b2:
+    jmp b3
+
+  b3:
+    %v29 = load %out : String
+    %v31 = call String.unit, %v29, 0 : Int
+    %v34 = cmp_eq %v31, 120 : Bool
+    je %v34, b4, b5
+
+  b4:
+    %v36 = load %total : Int
+    %v39 = add %v36, 1 : Int
+    assign %total, %v39
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v43 = load %out : String
+    %v45 = call String.unit, %v43, 1 : Int
+    drop %out via Reclaim(String).reclaim
+    %v48 = cmp_eq %v45, 57 : Bool
+    je %v48, b7, b8
+
+  b7:
+    %v50 = load %total : Int
+    %v53 = add %v50, 1 : Int
+    assign %total, %v53
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v57 = load %total : Int
+    ret %v57
+
+  b10:
+    drop %out via Reclaim(String).reclaim
+    jmp b1
+}
+
+fn appendedField() -> Int {
+  b0:
+    %v0 = alloc : Buffer
+    %v1 = copy ResolveTest.literal$43 : String
+    aggregate %buffer@Buffer.text = %v1
+    %v3 = load %buffer : Buffer
+    %v4 = load %buffer@Buffer.text : String
+    %v8 = call Show(Int).showBound, 12 : Maybe(Size)
+    %v9 = call formatBound, %v8 : Size
+    %v10 = add 1, %v9 : Size
+    %v11 = borrow_mut %buffer@Buffer.text : &String
+    call String.reserve, %v11, %v10
+    call Show(Int).show, 12, %v11
+    %v14 = copy ResolveTest.literal$45 : String
+    call String.push, %v11, %v14
+    drop %local3 via Reclaim(String).reclaim
+    alloc
+    %v17 = load %buffer : Buffer
+    %v18 = load %buffer@Buffer.text : String
+    %v19 = call Length(String).length, %v18 : Size
+    drop_derived %buffer via reclaim$Buffer
+    %v20 = cast %v19 : Int
+    ret %v20
+}
+
+fn appendedJoin() -> Int {
+  b0:
+    %v0 = copy ResolveTest.literal$47 : String
+    %out = alloc : String
+    init %out, %v0
+    %v3 = load %out : String
+    %v7 = call Show(Int).showBound, 1 : Maybe(Size)
+    %v8 = call formatBound, %v7 : Size
+    %v9 = add 0, %v8 : Size
+    %v10 = call String.ofCapacity, %v9 : String
+    %v11 = alloc : String
+    init %local4, %v10
+    %v13 = borrow_mut %local4 : &String
+    call Show(Int).show, 1, %v13
+    %v15 = load %local4 : String
+    %v16 = copy ResolveTest.literal$49 : String
+    %v17 = move %local4 : String
+    %v18 = move %local5 : String
+    %v19 = call Append(String).++, %v17, %v18 : String
+    %v20 = borrow_mut %out : &String
+    %v21 = move %local6 : String
+    call ++=(String), %v20, %v21
+    %v23 = load %out : String
+    %v24 = call Length(String).length, %v23 : Size
+    drop %out via Reclaim(String).reclaim
+    %v25 = cast %v24 : Int
+    ret %v25
 }
 
 fn main() -> Int {
@@ -1984,16 +2390,40 @@ fn main() -> Int {
     %v33 = add %v31, %v32 : Int
     assign %total, %v33
     %v35 = load %total : Int
-    %v36 = call printed : Int
+    %v36 = call generic : Int
     %v37 = add %v35, %v36 : Int
     assign %total, %v37
     %v39 = load %total : Int
-    ret %v39
+    %v40 = call nested : Int
+    %v41 = add %v39, %v40 : Int
+    assign %total, %v41
+    %v43 = load %total : Int
+    %v44 = call appended : Int
+    %v45 = add %v43, %v44 : Int
+    assign %total, %v45
+    %v47 = load %total : Int
+    %v48 = call appendedText : Int
+    %v49 = add %v47, %v48 : Int
+    assign %total, %v49
+    %v51 = load %total : Int
+    %v52 = call appendedField : Int
+    %v53 = add %v51, %v52 : Int
+    assign %total, %v53
+    %v55 = load %total : Int
+    %v56 = call appendedJoin : Int
+    %v57 = add %v55, %v56 : Int
+    assign %total, %v57
+    %v59 = load %total : Int
+    %v60 = call printed : Int
+    %v61 = add %v59, %v60 : Int
+    assign %total, %v61
+    %v63 = load %total : Int
+    ret %v63
 }
 
 fn printed() -> Int {
   b0:
-    %name = copy ResolveTest.literal$25 : String
+    %name = copy ResolveTest.literal$51 : String
     %v4 = call Show(String).showBound, %name : Maybe(Size)
     %v5 = call formatBound, %v4 : Size
     %v6 = add 14, %v5 : Size
@@ -2002,26 +2432,95 @@ fn printed() -> Int {
     %v9 = add %v6, %v8 : Size
     %v10 = call String.ofCapacity, %v9 : String
     %v11 = alloc : String
-    init %local2, %v10
-    %v13 = copy ResolveTest.literal$27 : String
-    %v14 = borrow_mut %local2 : &String
+    init %local4, %v10
+    %v13 = copy ResolveTest.literal$53 : String
+    %v14 = borrow_mut %local4 : &String
     call String.push, %v14, %v13
-    drop %local3 via Reclaim(String).reclaim
-    %v16 = borrow_mut %local2 : &String
+    drop %local5 via Reclaim(String).reclaim
+    %v16 = borrow_mut %local4 : &String
     call Show(String).show, %name, %v16
     drop %local0 via Reclaim(String).reclaim
-    %v18 = copy ResolveTest.literal$29 : String
-    %v19 = borrow_mut %local2 : &String
+    %v18 = copy ResolveTest.literal$55 : String
+    %v19 = borrow_mut %local4 : &String
     call String.push, %v19, %v18
-    drop %local4 via Reclaim(String).reclaim
-    %v21 = borrow_mut %local2 : &String
+    drop %local6 via Reclaim(String).reclaim
+    %v21 = borrow_mut %local4 : &String
     call Show(Int).show, 2, %v21
-    %v23 = copy ResolveTest.literal$31 : String
-    %v24 = borrow_mut %local2 : &String
+    %v23 = copy ResolveTest.literal$57 : String
+    %v24 = borrow_mut %local4 : &String
     call String.push, %v24, %v23
-    drop %local5 via Reclaim(String).reclaim
-    %v26 = load %local2 : String
+    drop %local7 via Reclaim(String).reclaim
+    %v26 = load %local4 : String
     call print, %v26
-    drop %local2 via Reclaim(String).reclaim
+    drop %local4 via Reclaim(String).reclaim
     ret 0
+}
+
+fn described(Int)(%value: Int) -> String {
+  b0:
+    %v1 = call Show(Int).showBound, %value : Maybe(Size)
+    %v2 = call formatBound, %v1 : Size
+    %v4 = add 2, %v2 : Size
+    %v5 = call String.ofCapacity, %v4 : String
+    %v6 = alloc : String
+    init %local3, %v5
+    %v8 = copy ResolveTest.literal$25 : String
+    %v9 = borrow_mut %local3 : &String
+    call String.push, %v9, %v8
+    drop %local4 via Reclaim(String).reclaim
+    %v11 = borrow_mut %local3 : &String
+    call Show(Int).show, %value, %v11
+    %v13 = copy ResolveTest.literal$27 : String
+    %v14 = borrow_mut %local3 : &String
+    call String.push, %v14, %v13
+    drop %local5 via Reclaim(String).reclaim
+    %v16 = load %local3 : String
+    %v17 = move %local3 : String
+    ret %v17
+}
+
+fn described(String)(%value: String) -> String {
+  b0:
+    %v1 = call Show(String).showBound, %value : Maybe(Size)
+    %v2 = call formatBound, %v1 : Size
+    %v4 = add 2, %v2 : Size
+    %v5 = call String.ofCapacity, %v4 : String
+    %v6 = alloc : String
+    init %local3, %v5
+    %v8 = copy ResolveTest.literal$25 : String
+    %v9 = borrow_mut %local3 : &String
+    call String.push, %v9, %v8
+    drop %local4 via Reclaim(String).reclaim
+    %v11 = borrow_mut %local3 : &String
+    call Show(String).show, %value, %v11
+    %v13 = copy ResolveTest.literal$27 : String
+    %v14 = borrow_mut %local3 : &String
+    call String.push, %v14, %v13
+    drop %local5 via Reclaim(String).reclaim
+    %v16 = load %local3 : String
+    %v17 = move %local3 : String
+    ret %v17
+}
+
+fn wrapped(Int)(%value: Int) -> String {
+  b0:
+    %v1 = alloc : Maybe(Int)
+    aggregate %local1.discriminant = 1, %local1@Just = %value
+    %v4 = call Show(Maybe(a)).showBound(Int), %v1 : Maybe(Size)
+    %v5 = call formatBound, %v4 : Size
+    %v7 = add 0, %v5 : Size
+    %v8 = call String.ofCapacity, %v7 : String
+    %v9 = alloc : String
+    init %local4, %v8
+    %v11 = borrow_mut %local4 : &String
+    call Show(Maybe(a)).show(Int), %v1, %v11
+    %v13 = load %local4 : String
+    %v14 = move %local4 : String
+    ret %v14
+}
+
+fn reclaim$Buffer(%value: Buffer) -> () {
+  b0:
+    drop %value@Buffer.text via Reclaim(String).reclaim
+    ret
 }

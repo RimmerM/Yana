@@ -1587,25 +1587,25 @@ fn line(%row: Row) -> String {
     %v9 = add %v6, %v8 : Size
     %v10 = call String.ofCapacity, %v9 : String
     %v11 = alloc : String
-    init %local2, %v10
+    init %local4, %v10
     %v13 = copy ResolveTest.literal$1 : String
-    %v14 = borrow_mut %local2 : &String
+    %v14 = borrow_mut %local4 : &String
     call String.push, %v14, %v13
-    drop %local3 via Reclaim(String).reclaim
-    %v16 = borrow_mut %local2 : &String
+    drop %local5 via Reclaim(String).reclaim
+    %v16 = borrow_mut %local4 : &String
     call Show(Int).show, %v1, %v16
     %v18 = copy ResolveTest.literal$3 : String
-    %v19 = borrow_mut %local2 : &String
+    %v19 = borrow_mut %local4 : &String
     call String.push, %v19, %v18
-    drop %local4 via Reclaim(String).reclaim
-    %v21 = borrow_mut %local2 : &String
+    drop %local6 via Reclaim(String).reclaim
+    %v21 = borrow_mut %local4 : &String
     call Show(Int).show, %v2, %v21
     %v23 = copy ResolveTest.literal$5 : String
-    %v24 = borrow_mut %local2 : &String
+    %v24 = borrow_mut %local4 : &String
     call String.push, %v24, %v23
-    drop %local5 via Reclaim(String).reclaim
-    %v26 = load %local2 : String
-    %v27 = move %local2 : String
+    drop %local7 via Reclaim(String).reclaim
+    %v26 = load %local4 : String
+    %v27 = move %local4 : String
     ret %v27
 }
 
@@ -1630,26 +1630,26 @@ fn buildHere() -> Int {
     %v7 = add %v4, %v6 : Size
     %v8 = call String.ofCapacity, %v7 : String
     %v9 = alloc : String
-    init %local1, %v8
+    init %local3, %v8
     %v11 = copy ResolveTest.literal$7 : String
-    %v12 = borrow_mut %local1 : &String
+    %v12 = borrow_mut %local3 : &String
     call String.push, %v12, %v11
-    drop %local2 via Reclaim(String).reclaim
-    %v14 = borrow_mut %local1 : &String
+    drop %local4 via Reclaim(String).reclaim
+    %v14 = borrow_mut %local3 : &String
     call Show(Int).show, %id, %v14
     %v16 = copy ResolveTest.literal$9 : String
-    %v17 = borrow_mut %local1 : &String
+    %v17 = borrow_mut %local3 : &String
     call String.push, %v17, %v16
-    drop %local3 via Reclaim(String).reclaim
-    %v19 = borrow_mut %local1 : &String
+    drop %local5 via Reclaim(String).reclaim
+    %v19 = borrow_mut %local3 : &String
     call Show(Int).show, %id, %v19
     %v21 = copy ResolveTest.literal$11 : String
-    %v22 = borrow_mut %local1 : &String
+    %v22 = borrow_mut %local3 : &String
     call String.push, %v22, %v21
-    drop %local4 via Reclaim(String).reclaim
-    %text = load %local1 : String
+    drop %local6 via Reclaim(String).reclaim
+    %text = load %local3 : String
     %v25 = call Length(String).length, %text : Size
-    drop %local1 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     %v26 = cast %v25 : Int
     ret %v26
 }
@@ -1677,26 +1677,26 @@ fn buildUnnamed() -> Int {
     %v10 = add %v7, %v9 : Size
     %v11 = call String.ofCapacity, %v10 : String
     %v12 = alloc : String
-    init %local1, %v11
+    init %local3, %v11
     %v14 = copy ResolveTest.literal$17 : String
-    %v15 = borrow_mut %local1 : &String
+    %v15 = borrow_mut %local3 : &String
     call String.push, %v15, %v14
-    drop %local2 via Reclaim(String).reclaim
-    %v17 = borrow_mut %local1 : &String
+    drop %local4 via Reclaim(String).reclaim
+    %v17 = borrow_mut %local3 : &String
     call Show(Int).show, 7, %v17
     %v19 = copy ResolveTest.literal$19 : String
-    %v20 = borrow_mut %local1 : &String
+    %v20 = borrow_mut %local3 : &String
     call String.push, %v20, %v19
-    drop %local3 via Reclaim(String).reclaim
-    %v22 = borrow_mut %local1 : &String
+    drop %local5 via Reclaim(String).reclaim
+    %v22 = borrow_mut %local3 : &String
     call Show(Int).show, 9, %v22
     %v24 = copy ResolveTest.literal$21 : String
-    %v25 = borrow_mut %local1 : &String
+    %v25 = borrow_mut %local3 : &String
     call String.push, %v25, %v24
-    drop %local4 via Reclaim(String).reclaim
-    %v27 = load %local1 : String
+    drop %local6 via Reclaim(String).reclaim
+    %v27 = load %local3 : String
     %v28 = call Length(String).length, %v27 : Size
-    drop %local1 via Reclaim(String).reclaim
+    drop %local3 via Reclaim(String).reclaim
     %v29 = cast %v28 : Int
     ret %v29
 }

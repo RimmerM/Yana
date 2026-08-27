@@ -26,9 +26,13 @@ let Core.string$13: String = "Just("
 
 let Core.literal$14: String = "Just(" {StringData(Array(Run(&Core.string$13, 5, 0), 5))}
 
-let Core.string$15: String = "Nothing"
+let Core.string$15: String = ")"
 
-let Core.literal$16: String = "Nothing" {StringData(Array(Run(&Core.string$15, 7, 0), 7))}
+let Core.literal$16: String = ")" {StringData(Array(Run(&Core.string$15, 1, 0), 1))}
+
+let Core.string$17: String = "Nothing"
+
+let Core.literal$18: String = "Nothing" {StringData(Array(Run(&Core.string$17, 7, 0), 7))}
 
 let image$base: () = <none>
 
@@ -373,6 +377,24 @@ fn checkCondition(%failed: Bool) -> () {
 
   b3:
     ret
+}
+
+fn formatBound(%bound: Maybe(Size)) -> Size {
+  b0:
+    %v1 = load %bound.discriminant : Int
+    %v3 = cmp_eq %v1, 1 : Bool
+    je %v3, b2, b1
+
+  b1:
+    jmp b3
+
+  b2:
+    %units = load %bound@Just : Size
+    jmp b3
+
+  b3:
+    %v9 = phi [b2, %units], [b1, 0] : Size
+    ret %v9
 }
 
 fn String.unit(%self: String, %index: Size) -> Int {
@@ -1842,6 +1864,13 @@ fn Show(Int).show(%value: Int, %to: String) -> () {
     ret
 }
 
+fn Show(Int).showBound(%value: Int) -> Maybe(Size) {
+  b0:
+    %v1 = alloc : Maybe(Size)
+    aggregate %local0.discriminant = 1, %local0@Just = 11
+    ret %v1
+}
+
 fn Length(String).length(%self: String) -> Size {
   b0:
     %v1 = borrow %self : 'String
@@ -2046,25 +2075,28 @@ fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
 
   b1:
     %v6 = load %to : String
-    %v7 = copy Core.literal$16 : String
+    %v7 = copy Core.literal$18 : String
     %v8 = borrow_mut %to : &String
     call String.push, %v8, %v7
-    drop %local3 via Reclaim(String).reclaim
+    drop %local6 via Reclaim(String).reclaim
     jmp b3
 
   b2:
     %inner = load %value@Just : Int
     %v12 = load %to : String
-    %v13 = copy Core.literal$14 : String
-    %v14 = borrow_mut %to : &String
-    call String.push, %v14, %v13
-    drop %local2 via Reclaim(String).reclaim
-    %v16 = load %to : String
+    %v13 = call Show(Int).showBound, %inner : Maybe(Size)
+    %v14 = call formatBound, %v13 : Size
+    %v16 = add 6, %v14 : Size
     %v17 = borrow_mut %to : &String
+    call String.reserve, %v17, %v16
+    %v19 = copy Core.literal$14 : String
+    call String.push, %v17, %v19
+    drop %local3 via Reclaim(String).reclaim
     call Show(Int).show, %inner, %v17
-    %v19 = load %to : String
-    %v20 = borrow_mut %to : &String
-    call String.pushUnit, %v20, 41
+    %v22 = copy Core.literal$16 : String
+    call String.push, %v17, %v22
+    drop %local4 via Reclaim(String).reclaim
+    alloc
     jmp b3
 
   b3:

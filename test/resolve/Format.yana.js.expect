@@ -1,4 +1,21 @@
 "use strict";
+// Core
+function String_reserve(self$o, self$k, self$s, wanted) {
+}
+
+function String_push(self$o, self$k, self$s, other) {
+  self$o[self$k] = self$o[self$k] + other;
+}
+
+function Show_Int_show(value, to$o, to$k, to$s) {
+  var v6 = String(value);
+  to$o[to$k] = to$o[to$k] + v6;
+}
+
+function add_add_eq_String(target$o, target$k, target$s, amount) {
+  target$o[target$k] = target$o[target$k] + amount;
+}
+
 // ResolveTest
 function oneIntText() {
   var v7 = "";
@@ -42,39 +59,90 @@ function inLoop() {
   return total;
 }
 
+function appendedText() {
+  var out = "";
+  var total = 0;
+  out = out + "x";
+  out = out + String(9);
+  if (out.length !== 2) {
+    return 0;
+  } else {
+    if (out.charCodeAt(0) === 120) {
+      total = total + 1 | 0;
+    }
+    if (out.charCodeAt(1) === 57) {
+      total = total + 1 | 0;
+    }
+    return total;
+  }
+}
+
 function main() {
-  var v45 = "";
-  v45 = v45 + "n = ";
-  v45 = v45 + String(42);
-  var v13 = (v45.length + 13 | 0) + oneIntText() | 0;
-  var v62 = "";
-  v62 = v62 + "hello ";
-  v62 = v62 + "world";
-  var v17 = v13 + v62.length | 0;
-  var v78 = "";
-  v78 = v78 + "ab";
-  v78 = v78 + "-";
-  v78 = v78 + String(12);
-  v78 = v78 + "-";
-  v78 = v78 + "ab";
-  v78 = v78 + "-";
-  v78 = v78 + String(345);
-  var v21 = v17 + v78.length | 0;
-  var v115 = "";
-  v115 = v115 + String(-2147483648);
-  var v25 = v21 + v115.length | 0;
-  var v128 = "";
-  v128 = v128 + "True";
-  v128 = v128 + "/";
-  v128 = v128 + "False";
-  var v33 = (v25 + v128.length | 0) + inLoop() | 0;
-  var v155 = "";
-  v155 = v155 + "[";
-  v155 = v155 + "format";
-  v155 = v155 + " ran ";
-  v155 = v155 + String(2);
-  v155 = v155 + " times]\n";
-  console.log(v155);
-  return v33;
+  var v69 = "";
+  v69 = v69 + "n = ";
+  v69 = v69 + String(42);
+  var v13 = (v69.length + 13 | 0) + oneIntText() | 0;
+  var v86 = "";
+  v86 = v86 + "hello ";
+  v86 = v86 + "world";
+  var v17 = v13 + v86.length | 0;
+  var v102 = "";
+  v102 = v102 + "ab";
+  v102 = v102 + "-";
+  v102 = v102 + String(12);
+  v102 = v102 + "-";
+  v102 = v102 + "ab";
+  v102 = v102 + "-";
+  v102 = v102 + String(345);
+  var v21 = v17 + v102.length | 0;
+  var v139 = "";
+  v139 = v139 + String(-2147483648);
+  var v25 = v21 + v139.length | 0;
+  var v152 = "";
+  v152 = v152 + "True";
+  v152 = v152 + "/";
+  v152 = v152 + "False";
+  var v33 = (v25 + v152.length | 0) + inLoop() | 0;
+  var v172 = "";
+  v172 = v172 + "<";
+  v172 = v172 + String(42);
+  v172 = v172 + ">";
+  var v191 = "";
+  v191 = v191 + "<";
+  v191 = v191 + "abc";
+  v191 = v191 + ">";
+  var v37 = v33 + (v172.length + v191.length | 0) | 0;
+  var v213 = "";
+  v213 = v213 + "Just(";
+  v213 = v213 + String(7);
+  v213 = v213 + ")";
+  var v41 = v37 + v213.length | 0;
+  var out = { $v: "a" };
+  out.$v = out.$v + "b";
+  var v239 = String(2);
+  out.$v = out.$v + v239;
+  out.$v = out.$v + "c";
+  add_add_eq_String(out, "$v", 1, "d");
+  var v252 = String(3);
+  out.$v = out.$v + v252;
+  var v49 = (v41 + out.$v.length | 0) + appendedText() | 0;
+  var v261 = { $v: "[" };
+  String_reserve(v261, "$v", 1, 12);
+  Show_Int_show(12, v261, "$v", 1);
+  String_push(v261, "$v", 1, "]");
+  var v53 = v49 + v261.$v.length | 0;
+  var out$1 = { $v: "p" };
+  var v281 = "";
+  v281 = v281 + String(1);
+  add_add_eq_String(out$1, "$v", 1, v281 + "q");
+  var v57 = v53 + out$1.$v.length | 0;
+  var v309 = "";
+  v309 = v309 + "[";
+  v309 = v309 + "format";
+  v309 = v309 + " ran ";
+  v309 = v309 + String(2);
+  v309 = v309 + " times]\n";
+  console.log(v309);
+  return v57;
 }
 main();

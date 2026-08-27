@@ -171,11 +171,7 @@ instance Show(String):
 -}
 instance (Show(a)) Show(Maybe(a)):
     fn show(value: Maybe(a), &to: String) -> {} = match value:
-        Just(inner):
-            String.push(to, "Just(")
-            show(inner, to)
-            String.pushUnit(to, 41)
-
+        Just(inner) -> to ++= "Just({inner})"
         Nothing -> String.push(to, "Nothing")
 
     -- `Nothing` in, `Nothing` out: an element that cannot say what it costs makes the option that

@@ -1559,15 +1559,15 @@ fn tagged(%n: Int) -> String {
     %v9 = add 2, %v8 : Size
     %v10 = call String.ofCapacity, %v9 : String
     %v11 = alloc : String
-    init %local1, %v10
+    init %local2, %v10
     %v13 = copy ResolveTest.literal$1 : String
-    %v14 = borrow_mut %local1 : &String
+    %v14 = borrow_mut %local2 : &String
     call String.push, %v14, %v13
-    drop %local2 via Reclaim(String).reclaim
-    %v16 = borrow_mut %local1 : &String
+    drop %local3 via Reclaim(String).reclaim
+    %v16 = borrow_mut %local2 : &String
     call Show(Int).show, %n, %v16
-    %v18 = load %local1 : String
-    %v19 = move %local1 : String
+    %v18 = load %local2 : String
+    %v19 = move %local2 : String
     ret %v19
 }
 
