@@ -1,5 +1,5 @@
 {-
-   Writing a value with a teardown into another place copies its bytes, and both names then run it.
+   Handing a value with a teardown on out of storage that is still going to be read.
 
    `b = a` compiled silently and answered *three* drops for two objects. `checkTransfer` was already
    the place that noticed a silent handover, but it looked only at a *projected* load - the reading
@@ -7,15 +7,23 @@
    contents of". It does not: backingLocal matches a slot whose defining value *is* the operand,
    which is true of a call result and false of a load. So the unprojected case fell between them.
 
-   There is no `->` to write on the right of an assignment - the marker goes on a binding - so the
-   diagnostic names the two operations that do exist rather than inventing a third. `b = ->a` does
-   not parse.
+   **What is refused here is now narrower than it was**, and the difference is Design-Test.md §11.1's
+   P3: a read of a whole owned local in a sink position is a *move* where the local is dead
+   afterwards, so `b = a` with nothing reading `a` again is the move-assign it looks like and is
+   accepted. `resolve/MoveLastUse.yana` is that half. What is left here is the case where the name
+   is read again below, which is the one that would genuinely have run two teardowns - and the
+   diagnostic names both lines, because a rule that depends on liveness is a rule whose second half
+   is otherwise invisible.
+
+   The advice names `copy()`. It deliberately did not until the blanket `instance (TrivialCopy(a))
+   Copy(a)` and the instances beside it made `Copy` something a reader can expect to find.
 
    The borrowed source is the same double free reached without a load at all: an aggregate parameter
    travels as its `Arg`, so `out = v` is `assign %out, %v` with no place for the check above to look
    at. Storing it makes the caller and the destination both run its teardown, so a parameter that is
    handed on has to be taken with `->`. Passing one *as an argument* is untouched - that re-borrows,
-   and an argument is not a departure point.
+   and an argument is not a departure point. Liveness has nothing to say about it: the caller owns
+   the storage whether or not this body reads it again.
 
    `fn identity(v: a) -> a = v` is the same statement in return position: the signature promises the
    caller an `a` it may drop, out of storage the caller lent. The two honest spellings are `->v`,
@@ -30,17 +38,33 @@ instance Drop(Held):
 
 let &n = 0 :: Int
 
-fn assigned() -> {}:
+-- Read again after the assignment, so the assignment is a copy and both names run the teardown.
+fn assigned() -> Int:
     let &a = Held {n: 1}
     let &b = Held {n: 2}
 
     b = a
+    return a.n
 
-fn intoField() -> {}:
+-- The same into a field, and read again through the source rather than through the destination.
+fn intoField() -> Int:
     let &a = Held {n: 1}
     let &pair = Pair {left: Held {n: 2}, right: 0}
 
     pair.left = a
+    return a.n
+
+-- And a constructor payload, which is the shape §11.1's example has. The later use is what makes it
+-- a copy; without it this is the move `MoveLastUse.yana` asserts.
+fn intoLiteral() -> Int:
+    let &a = Held {n: 1}
+    let held = Just(a)
+
+    let inner = match held:
+        Just(h) -> h.n
+        Nothing -> 0
+
+    return a.n + inner
 
 data Pair {left: Held, right: Int}
 

@@ -1,0 +1,42 @@
+{-
+   Emptying a `&` and not filling it again, in the build that could not see it.
+
+   One rule, `doc/spec/ownership.md`'s: ownership may be taken out of storage reached through an
+   exclusive borrow when every path from there to the point the frame gives the borrow up writes a
+   value back. `Reject.Ownership.yana` is where the rule is stated over a concrete body; this is the
+   same rule over an erased one, and until `eachEmptiedPlace` there was no such thing.
+
+   What made them differ was the shape of the hand-over rather than anything about the rule.
+   `sinkValue` puts an `InstMove` in front of a `->` argument, and the borrow lattice's interning
+   scan, its forward walk and `checkMoves` all asked `kind == Value::Move`. A deferred class dispatch
+   has no move to ask about - `emitGenericDispatch` applies no conventions, the callee not being a
+   function that call site reaches - so `eat(s)` below was **rejected specialized and accepted
+   generic**, and which one a program got was an optimization decision.
+
+   The `.generic` marker is the point of the fixture: with specialization declined this body is the
+   only one built, so nothing but the erased check can produce the diagnostic below.
+-}
+class Eat(a):
+  fn eat(->x: a) -> {}
+
+instance Eat(String):
+    fn eat(->x: String) -> {} = {}
+
+-- The rejection. `s` is emptied by the hand-over and no path writes anything back into it.
+fn (Eat(a)) drain(&s: a) -> {} = eat(s)
+
+{-
+   And the control, which is the same hand-over with the write-back the rule asks for - `++=`'s
+   body, one class deeper. It has to be here rather than only in `test/lib`: a check that reports
+   nothing is indistinguishable from a check that is not running unless something beside it fires.
+-}
+class Refill(a):
+  fn refilled(->x: a) -> a
+
+instance Refill(String):
+    fn refilled(->x: String) -> String = x
+
+fn (Refill(a)) cycle(&s: a) -> {}:
+    s = refilled(s)
+
+fn main() -> Int = 0

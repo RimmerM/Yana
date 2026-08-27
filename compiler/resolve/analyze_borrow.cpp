@@ -1141,6 +1141,72 @@ void checkMoves(Analysis& analysis) {
         at = i;
         eachTransferOperand(analysis.local, instruction, transfer);
 
+        /*
+         * A `->` argument out of borrowed storage, which is the same rule the `Move` arm below
+         * imposes on the same storage - only the instruction differs, and only on one path.
+         *
+         * A concrete call has the move: `sinkValue` puts an `InstMove` in front of every `->`
+         * argument that names a place, and the arm below is what sees it. A deferred class dispatch
+         * has none - `emitGenericDispatch` applies no conventions, because the callee is not a
+         * function that call site reaches and lowering adapts each argument to the erased ABI
+         * itself - so `%v = load %target : a` is the whole of the hand-over there. The ownership
+         * lattice was already told (computeEffects' GenCall arm reads the same declaration and
+         * calls transferFromArgument), and the *check* was not, so the obligation to write
+         * something back existed in one build of a body and not the other:
+         *
+         *     fn (Eat(a)) drain(&s: a) -> {} = eat(s)     -- `eat` takes `->x: a`
+         *
+         * was rejected specialized and accepted generic. Nothing shipped that way, since the driver
+         * always specializes and every `lib/` fixture is built both ways - but a rule that holds in
+         * one representation of a body and not in another is not a rule, and which one a call site
+         * gets is an optimization decision.
+         *
+         * Only borrowed storage, deliberately. A `->` argument out of a slot this frame *owns* is
+         * the ordinary hand-over, and everything that has to be said about it - a use afterwards, a
+         * partial move - is said by the loops below off the effects this instruction already
+         * records. What has no other voice is the borrow, whose root stays as initialized as it ever
+         * was however much has been taken out of the storage it names.
+         *
+         * An argument that already is an `InstMove` is left to the arm below, so that a body which
+         * writes the hand-over out states one mistake once.
+         */
+        if(auto arguments = callArguments(instruction)) {
+            U16 position = 0;
+
+            for(auto arg: arguments->contents(analysis.local)) {
+                auto index = position;
+                position++;
+
+                if(!declaredSink(analysis, instruction, index)) continue;
+                if(!arg || analysis.local[arg]->kind == Value::Move) continue;
+
+                auto place = argumentPlace(analysis, arg);
+                if(!place) continue;
+
+                /*
+                 * The obligation only, and deliberately not the refusal the `Move` arm pairs it
+                 * with.
+                 *
+                 * That refusal - "cannot take ownership of borrowed storage" - reports on storage
+                 * the *resolver* decided to move out of, and on this path there was no such
+                 * decision to report: `sinkValue` picks between a move and a copy by the argument's
+                 * ownership, and a deferred dispatch is the one call form where that pick has not
+                 * been made. `Hmac.of` in lib/Digest is the case. Its `let &inner = state` is a loan
+                 * of a `->` parameter, and `finish(inner)` reads as a hand-over out of a borrow in
+                 * the generic body while every instantiation of it emits `copy` - `Blocks(Md5State)`
+                 * is TrivialCopy, so nothing is taken out of anything. Reporting here would reject a
+                 * function on the strength of a decision its concrete forms all make the other way.
+                 *
+                 * What is left is the half that holds however the pick goes: storage this body may
+                 * have emptied has to hold something again before the frame lets go of the
+                 * reference. Where the pick turns out to be a copy the slot was never emptied, the
+                 * state stays Owned, and the release-point loop below has nothing to say.
+                 */
+                auto borrowed = borrowedPlaceOf(analysis, *place);
+                if(borrowed.emptiable) recordEmptied(borrowed, instruction.source);
+            }
+        }
+
         if(instruction.kind == Value::Move) {
             auto& moved = (InstMove&)instruction;
 

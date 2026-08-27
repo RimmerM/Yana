@@ -356,6 +356,88 @@ OwnState borrowedStateAt(Analysis& analysis, Size index, const BorrowedPlace& pl
     return OwnState::Owned;
 }
 
+/*
+ * The place a memory-typed argument names, in the two shapes one arrives in.
+ *
+ * A concrete call writes the hand-over out - `%v = move %target` is what `sinkValue` puts in front
+ * of a `->` argument - and a deferred class dispatch does not: `%v = load %target : a` is the whole
+ * of it there, because `emitGenericDispatch` deliberately applies no conventions, the callee not
+ * being a function that call site reaches. Both name the same storage, and answering it once here is
+ * what keeps the two passes that ask from being written twice and getting one of them wrong.
+ *
+ * Null for everything else, which includes every argument that is a computed value: those name no
+ * storage, so there is nothing for anyone to be asking about.
+ */
+const Place* argumentPlace(Analysis& analysis, ModulePtr<Value> arg) {
+    if(!arg) return nullptr;
+
+    auto& value = *analysis.local[arg];
+
+    if(value.kind == Value::Move) return &((InstMove&)value).place;
+    if(value.kind == Value::LoadPlace) return &((InstLoadPlace&)value).place;
+
+    return nullptr;
+}
+
+/*
+ * Whether the callee declared position `index` as `->`, over the three call forms.
+ *
+ * One reading for all of them, and each is the same declaration seen from a different distance: a
+ * direct call has the function, an erased dispatch has the class signature - a signature is where a
+ * `->` is declared, and a class method's conventions are the class's, so every instance takes the
+ * argument the same way - and a dynamic call has the function *type*, which interns each argument's
+ * convention precisely so that a caller holding nothing else can read it.
+ *
+ * **Unknown is not a sink.** A callee this cannot see through, a position past the last declared
+ * parameter, a `calldyn` with no function type: none of those said the value was handed over, and
+ * both callers use this to stop doing something rather than to start, so the default that errs safe
+ * is the one that keeps the ordinary rule in force. That is the opposite of `assumedRetained`'s, and
+ * deliberately - it answers "might this be kept", which has to guess the other way.
+ */
+bool declaredSink(Analysis& analysis, Inst& instruction, U16 index) {
+    auto sunk = [&](ModulePtr<Function> callee) {
+        if(!callee) return false;
+
+        auto& declared = analysis.local[callee]->args;
+        if(index >= declared.size()) return false;
+
+        return analysis.local[declared.get(analysis.local, index)]->convention == ast::BindType::Sink;
+    };
+
+    switch(instruction.kind) {
+        case Value::Call:
+            return sunk(((InstCall&)instruction).callee);
+
+        case Value::GenCall:
+            return sunk(((InstGenCall&)instruction).callee);
+
+        case Value::CallDyn: {
+            auto signature = ((InstCallDyn&)instruction).signature;
+            if(!signature || analysis.global[signature]->kind != Type::Fun) return false;
+
+            auto& declared = ((FunType*)analysis.global[signature])->args;
+            if(index >= declared.size()) return false;
+
+            return declared.get(analysis.global, index).convention == ast::BindType::Sink;
+        }
+
+        default:
+            return false;
+    }
+}
+
+// The arguments of whichever of the three call forms this is, or nothing for anything else. The
+// three lists are separate fields of three structs and there is no base holding them, which is the
+// only reason this exists.
+ModuleList<ModulePtr<Value>, false>* callArguments(Inst& instruction) {
+    switch(instruction.kind) {
+        case Value::Call: return &((InstCall&)instruction).args;
+        case Value::GenCall: return &((InstGenCall&)instruction).args;
+        case Value::CallDyn: return &((InstCallDyn&)instruction).args;
+        default: return nullptr;
+    }
+}
+
 // The write that fills borrowed storage again. An Init or a whole-slot Assign through the same
 // borrow, which is what `acc = acc ++ part` lowers its second half to.
 static U32 filledSlot(Analysis& analysis, Inst& instruction) {
@@ -372,24 +454,22 @@ void computeBorrowOwnership(Analysis& analysis) {
     /*
      * The interning scan, which is also the test for whether there is anything to do.
      *
-     * Only a move creates a slot. A write through a borrow is what *fills* one, and a body full of
-     * those with no move among them has nothing to prove - which is every function in the library
-     * that assigns through a `&` parameter, and the reason this pass costs them one scan and no
-     * rows at all.
+     * Only a hand-over creates a slot - see eachEmptiedPlace for the two shapes one has. A write
+     * through a borrow is what *fills* one, and a body full of those with none among them has
+     * nothing to prove - which is every function in the library that assigns through a `&`
+     * parameter, and the reason this pass costs them one scan and no rows at all.
      *
      * Droppable only. Storage nobody has to release cannot be double-freed by a hole, so a move out
      * of it and no write back is a read, and reads of borrowed storage are what borrowing is for.
      */
     for(Size i = 0; i < analysis.instructionCount; i++) {
-        auto& instruction = *analysis.local[analysis.order[i]];
-        if(instruction.kind != Value::Move) continue;
+        eachEmptiedPlace(analysis, *analysis.local[analysis.order[i]], [&](const Place& place) {
+            if(!needsTeardown(analysis.module, placeType(analysis.module, analysis.function, place))) {
+                return;
+            }
 
-        auto& moved = (InstMove&)instruction;
-        if(!needsTeardown(analysis.module, placeType(analysis.module, analysis.function, moved.place))) {
-            continue;
-        }
-
-        internBorrowSlot(analysis, moved.place, true);
+            internBorrowSlot(analysis, place, true);
+        });
     }
 
     if(slots.isEmpty()) return;
@@ -434,10 +514,10 @@ void computeBorrowOwnership(Analysis& analysis) {
             // Moves before fills, on the same reading as the lattice above: `acc = acc ++ part`
             // empties the slot and then puts a value back, and the second of the two is what the
             // instruction after it sees.
-            if(instruction.kind == Value::Move) {
-                auto slot = borrowSlotOf(analysis, ((InstMove&)instruction).place);
+            eachEmptiedPlace(analysis, instruction, [&](const Place& place) {
+                auto slot = borrowSlotOf(analysis, place);
                 if(slot != maxLimit<U32>) states[slot] = OwnState::Moved;
-            }
+            });
 
             auto filled = filledSlot(analysis, instruction);
             if(filled != maxLimit<U32>) states[filled] = OwnState::Owned;

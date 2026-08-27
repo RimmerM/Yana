@@ -657,6 +657,64 @@ BorrowedPlace borrowedPlaceOf(Analysis& analysis, const Place& place);
 OwnState borrowedStateAt(Analysis& analysis, Size index, const BorrowedPlace& place);
 
 /*
+ * One call's arguments, read the three ways the IR spells a call - see the definitions in
+ * analyze_own.cpp for what each of them answers and why the defaults are what they are.
+ *
+ * Together they are "which argument named which storage, and did the callee say it was taking it",
+ * which is one question two passes ask: checkMoves imposes the write-back rule on the storage a
+ * `->` empties, and handedOver declines to call that storage escaped.
+ */
+const Place* argumentPlace(Analysis& analysis, ModulePtr<Value> arg);
+bool declaredSink(Analysis& analysis, Inst& instruction, U16 index);
+ModuleList<ModulePtr<Value>, false>* callArguments(Inst& instruction);
+
+/*
+ * Every piece of storage one instruction takes ownership out of, whichever shape the IR gave the
+ * hand-over - and there are two.
+ *
+ * `sinkValue` puts an `InstMove` in front of a `->` argument that names a place, so a concrete call
+ * writes the hand-over out as an instruction of its own. A deferred class dispatch does not, and
+ * says why where it declines to: `emitGenericDispatch` applies no conventions at all, the callee
+ * not being a function that call site reaches. What is left there is the read - `%v = load %target
+ * : a` - and the declaration on the class signature saying it was taken.
+ *
+ * Three things used to ask this and all three asked it as `kind == Value::Move`: the borrow
+ * lattice's interning scan, its forward walk, and checkMoves' record of what has to be written back.
+ * So the write-back rule held in one build of a body and not in the other, which is not a rule -
+ * `fn (Eat(a)) drain(&s: a) -> {} = eat(s)` over a `->` class member was rejected specialized and
+ * accepted generic. Asking it once here is what keeps the three from drifting again.
+ *
+ * A `->` argument that *is* a move is left to its own instruction rather than visited twice: the
+ * move precedes the call in the order, which is also the program point the hand-over happens at.
+ *
+ * No filtering. Whether the storage is droppable, borrowed or emptiable at all is each caller's
+ * question and they ask it differently - the interning scan wants a teardown, checkMoves wants
+ * borrowedPlaceOf's whole answer, and the walk wants only a slot that interning already made.
+ */
+template<class F>
+void eachEmptiedPlace(Analysis& analysis, Inst& instruction, F&& visit) {
+    if(instruction.kind == Value::Move) {
+        visit(((InstMove&)instruction).place);
+        return;
+    }
+
+    auto arguments = callArguments(instruction);
+    if(!arguments) return;
+
+    U16 index = 0;
+
+    for(auto arg: arguments->contents(analysis.local)) {
+        auto position = index;
+        index++;
+
+        if(!arg || analysis.local[arg]->kind == Value::Move) continue;
+        if(!declaredSink(analysis, instruction, position)) continue;
+
+        if(auto place = argumentPlace(analysis, arg)) visit(*place);
+    }
+}
+
+/*
  * Provenance and containment (analyze_provenance.cpp).
  */
 

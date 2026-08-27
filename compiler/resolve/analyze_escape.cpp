@@ -63,6 +63,7 @@ static Escape argumentEscape(Analysis& analysis, ModulePtr<Value> arg) {
     return isMemoryType(analysis.global, analysis.local[arg]->type) ? Escape::Owned : Escape::Referenced;
 }
 
+
 /*
  * What one *argument* hands over.
  *
@@ -75,13 +76,79 @@ static Escape argumentEscape(Analysis& analysis, ModulePtr<Value> arg) {
  *
  * Arguments only. A returned descriptor is bounded by the return-root check instead, and marking its
  * slot here would put every subslice's storage on the heap for nothing.
+ *
+ * `sink` is whether the callee declared this position `->`, which is the one thing the two callers
+ * of this know and it does not - see the rule at the end.
  */
-static void handedOver(Analysis& analysis, ModulePtr<Value> arg, Provenance& into) {
+static void handedOver(Analysis& analysis, ModulePtr<Value> arg, bool sink, Provenance& into) {
     transferredProvenance(analysis, arg, into);
 
     if(arg && isBorrowLike(analysis.module, analysis.local[arg]->type)) {
         joinProvenance(into, provenanceOf(analysis, arg));
     }
+
+    /*
+     * And what a `->` takes out of borrowed storage is the value, never the storage.
+     *
+     * `target = target ++ amount` is the shape - `++=` in Core.yana, one generic body over every
+     * `Append` instance - and in the erased form every part of it is ordinary: `++` is a class
+     * signature, so assumedRetained reads its `->lhs` and answers "kept"; the argument is a read of
+     * `target`; and a memory-typed value *is* its storage, so `contents[target]` is seeded with
+     * `target` itself and what the read produces therefore carries `target`'s own identity. Three
+     * correct answers compose into the wrong one - that a body which appends to its caller's sink
+     * keeps the sink. Analysis-Borrows.md §8.4's second shape.
+     *
+     * What is wrong with it is the first sentence of this function's own comment: an aggregate is
+     * passed as the address of storage **the caller keeps**, and a `->` callee relocates the value
+     * out of it. So the bytes leave, which is what `->` said would happen to them, and the slot
+     * they left does not - there is no reference to it for anything to outlive the call through.
+     * Removing the argument's own roots from what it hands over is what makes that stated intent
+     * true; everything else it carries is untouched, so `give(acc)` where `acc` holds what `other`
+     * lent still keeps `other`, exactly as `p.x = q` keeps `q`.
+     *
+     * It is the argument half of the rule the Init/Assign arm below applies to the write, and the
+     * two are halves of one statement about one program: the read that empties the storage and the
+     * write that fills it again name the same slot, and a root reached through itself was as
+     * reachable before either as after both.
+     *
+     * **Three things narrow it, and each is a case that would otherwise go unreported.**
+     *
+     * `sink` first, because the whole argument above is about what `->` means. A callee that keeps
+     * something derived from a by-value aggregate kept a reference *into* the caller's storage and
+     * this frame has to go on saying so; unknown counts as not a sink, which is why this is a
+     * parameter rather than another reading of `assumedRetained` - that one defaults the other way,
+     * and has to, since it answers the opposite question.
+     *
+     * Then `borrowed`, which is where the seeding is load-bearing and where it is not. For a slot
+     * this frame *owns*, `escaped` and `transferred` are how the frame learns it no longer owes a
+     * drop - removing the seeding outright was tried and `push`'s `->item` lost `retained`, so a
+     * frame that had handed a `Handle` to a container went on believing it owned it. Borrowed
+     * storage owes no drop to begin with, so nothing here is what tells this frame anything.
+     *
+     * And `emptiable` with a state row behind it, rather than `emptiable` alone. A place with
+     * neither index is borrowedPlaceOf's third answer - a type with no teardown, where reading is
+     * not taking - and a slice is one of those. A slice handed to a callee that keeps it is a view
+     * of this frame's container leaving, which is checkEscapingViews' whole subject.
+     *
+     * **Not asked at all on the placement re-run**, which is `demoteOnly` and is the one caller that
+     * reaches this pass without the ownership stage's tables - `reselectStorage` runs three passes
+     * out of the dozen, so `tracked` is empty and borrowedPlaceOf would index past it. Skipping it
+     * there is not an approximation: the roots this removes are storage the frame *borrows*, and
+     * the only thing a placement run decides is where an `alloc` goes. A borrow is never one.
+     */
+    if(!sink || analysis.demoteOnly) return;
+
+    auto place = argumentPlace(analysis, arg);
+    if(!place) return;
+
+    auto borrowed = borrowedPlaceOf(analysis, *place);
+    if(!borrowed.emptiable) return;
+    if(borrowed.local == maxLimit<U32> && borrowed.slot == maxLimit<U32>) return;
+
+    ScratchProvenance emptied(analysis);
+    placeProvenance(analysis, *place, *emptied);
+
+    emptied->locals.forEach([&](Size l) { into.locals.set(l, false); });
 }
 
 /*
@@ -121,6 +188,7 @@ static bool assumedRetained(Analysis& analysis, ModulePtr<Function> callee, U16 
 
     return analysis.local[declared.get(analysis.local, index)]->convention == ast::BindType::Sink;
 }
+
 
 // One round of seeds. Separate from the closure below only so that both can be repeated together:
 // a store into a root that a later instruction turns out to hand away is an escape too, and one
@@ -265,7 +333,7 @@ static bool escapeRound(Analysis& analysis) {
 
                     if(retained) {
                         ScratchProvenance leaving(analysis);
-                        handedOver(analysis, arg, *leaving);
+                        handedOver(analysis, arg, declaredSink(analysis, instruction, index), *leaving);
                         changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg), analysis.order[i]) || changed;
                     }
 
@@ -348,11 +416,12 @@ static bool escapeRound(Analysis& analysis) {
                                        == ast::BindType::Sink;
                     }
 
+                    auto sink = declaredSink(analysis, instruction, index);
                     index++;
                     if(!retained) continue;
 
                     ScratchProvenance leaving(analysis);
-                    handedOver(analysis, arg, *leaving);
+                    handedOver(analysis, arg, sink, *leaving);
                     changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg), analysis.order[i]) || changed;
                 }
 
@@ -401,7 +470,7 @@ static bool escapeRound(Analysis& analysis) {
 
                     if(retained) {
                         ScratchProvenance leaving(analysis);
-                        handedOver(analysis, arg, *leaving);
+                        handedOver(analysis, arg, declaredSink(analysis, instruction, index), *leaving);
                         changed = markEscaped(analysis, *leaving, argumentEscape(analysis, arg), analysis.order[i]) || changed;
                     }
 

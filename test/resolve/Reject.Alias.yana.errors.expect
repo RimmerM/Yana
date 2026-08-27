@@ -1,5 +1,9 @@
-37:4: error: this copies the bytes of a value with a teardown into another place, so both names would run it - bind it with `let ->` to move it instead, or use `swap` or `exchange` to write into a place that already holds one
-43:4: error: this copies the bytes of a value with a teardown into another place, so both names would run it - bind it with `let ->` to move it instead, or use `swap` or `exchange` to write into a place that already holds one
-49:4: error: this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here
-52:41: error: this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here
-55:0: error: this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here
+46:4: error: this hands on a value with a teardown out of a name that is read again below, so both names would run it - write `copy()` here to duplicate it deliberately, or let this be the last use of the name and it is a move
+47:11: message: the name is read again here
+54:4: error: this hands on a value with a teardown out of a name that is read again below, so both names would run it - write `copy()` here to duplicate it deliberately, or let this be the last use of the name and it is a move
+55:11: message: the name is read again here
+61:15: error: this hands on a value with a teardown out of a name that is read again below, so both names would run it - write `copy()` here to duplicate it deliberately, or let this be the last use of the name and it is a move
+67:11: message: the name is read again here
+73:4: error: this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here
+76:41: error: this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here
+79:0: error: this stores a value this frame only borrows, so the caller and this destination would both run its teardown - take it with `->` in the signature to own it here
