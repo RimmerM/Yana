@@ -473,18 +473,53 @@ LowerPtr<LowerValue> narrowedTo(LowerBase base, LowerModule& module, LowerBlock&
 /*
  * The value one promoted slot holds, in the register another one's type names.
  *
- * The same bits either way - what changes is which register they are read out of - so it is a
- * `bitcast` and never a `cast`: a `Result(FileError, ())` whose niche constant is a 64-bit literal
- * and whose payload is a 32-bit call result is one byte of storage read two ways, and converting it
- * would be converting a number that was never one. `carriesInto` has already answered that a move
- * between these two registers exists.
+ * The same bits either way - what changes is which register they are read out of - so outside the
+ * integer bank it is a `bitcast` and never a `cast`: a vector read at another lane shape, or a
+ * float and an integer sharing a width, is one register renamed and converting it would be
+ * converting a number that was never one. `carriesInto` has already answered that a move between
+ * these two registers exists.
  *
  * Nothing is masked here for the reason nothing is masked at the copy this replaces: a register
  * carrying bits above the slot's width still reads back correctly, because every load narrows.
+ *
+ * ## Why a *widening* integer move is a zero extension rather than a rename
+ *
+ * A `Result(FileError, ())` whose niche constant is a 64-bit literal and whose payload is a 32-bit
+ * call result is one byte of storage read two ways, and the wide register it is held in is the
+ * narrow value with something unstated above it. Written as a bitcast, that "something unstated" is
+ * exactly what it says: `knownZeroBits` (lower_fold.h) declines a widening bitcast between two
+ * integers, and rightly, since the bits above the source's width are whatever the register held.
+ *
+ * So the mask `narrowedTo` puts on every load of the slot can never be folded away, however narrow
+ * the value being carried in - and for a one-byte slot holding a folded `Maybe`, that mask stands
+ * between the phi and the discriminant test on every read. `Core/Text.yana`'s `hexValue` is where
+ * this was measured: `and $0xff` on a value whose three incoming edges are 16, `and $0xf` and
+ * `and $0xf`.
+ *
+ * A zero extension says the one further thing that closes it, and says nothing false: the slot's
+ * own `slot.width` bytes are unchanged, so every load reads back what it read back before, and the
+ * bits above them are now stated to be clear rather than left to the register. It is not a numeric
+ * conversion of a value that was never a number - the low bits are carried across unaltered either
+ * way, and what differs is only whether the high ones are described. Nor does it cost an
+ * instruction: a 32-bit write on this machine zeroes the upper half already, which is what
+ * `LowerInstCast::isFree` records below.
+ *
+ * The narrowing direction stays a truncation for the same reason it was a bitcast - the low bits
+ * are the whole of what is wanted - and is spelled as a cast so that the pair reads as one rule.
  */
 LowerPtr<LowerValue> carriedInto(LowerBase base, LowerModule& module, LowerBlock& block,
                                  LowerPtr<LowerValue> value, LowerType type) {
-    if(base[value]->type == type) return value;
+    auto from = base[value]->type;
+    if(from == type) return value;
+
+    if(isInt(from) && isInt(type)) {
+        // Unsigned at both ends: what is being carried is a slot's bits and not a signed quantity,
+        // so a widening move brings in zeroes and a narrowing one keeps the low bits.
+        auto cast = block.addInst(base, new (module.arena) LowerInstCast(
+            StringId(), type, value, false, false));
+
+        return ((LowerInstSingle*)cast)->created().ptr - base;
+    }
 
     auto cast = block.addInst(base, new (module.arena) LowerInstUnary(
         LowerInst::Bitcast, StringId(), type, value));

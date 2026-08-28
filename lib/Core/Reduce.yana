@@ -139,15 +139,22 @@ fn (Chunked(c, a), Eq(a)) occurrencesElements(xs: c, wanted: a) -> Int:
    lane of a mask in three instructions and with no branch, so the iteration that found the element
    is also the one that says where in it - and the running count of live lanes is the position of the
    vector, which is exactly what `vectorsMasked` hands over beside it.
+
+   **`at` is a `Size` and that is worth an instruction per iteration.** Written as an `Int` it is the
+   same sequence as the iterator's own index over a contiguous container - both start at zero and
+   both step by the width - and nothing could see that, because they were different types: the loop
+   carried two counters and a second `add`, and every answer went through a `movslq` on the way out.
+   At the same type they are one register. Measured on `test/bench/text`'s single-unit scan, which is
+   this function under `String.findAscii`.
 -}
 fn (Chunked(c, a), Eq(a), Bitwise(Mask(a))) indexOfVectors(xs: c, wanted: a) -> Maybe(Size):
     let sought = splat(wanted)
-    let &at = 0
+    let &at = 0 :: Size
 
     for {v, live} in vectorsMasked(xs):
         let hits = and(v .== sought, maskUpTo(live) :: Mask(a))
-        if any(hits) then return Just((at + firstSet(hits)) :: Size)
-        at = at + live
+        if any(hits) then return Just(at + (firstSet(hits) :: Size))
+        at = at + (live :: Size)
 
     return Nothing
 

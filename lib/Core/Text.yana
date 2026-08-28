@@ -110,22 +110,30 @@ pub fn isPrintable(unit: Int) -> Bool = unit >= 32 && unit < 127
    its own. That is what keeps `hexValue(u)` composable with the shifts a hexadecimal reader is
    written out of.
 
-   **The layout is free and the code is not yet, and the difference is worth writing down.** Over a
-   64 KiB corpus of five-sixths hexadecimal digits, one call per unit, at v2: the sentinel form is
-   2.99 ns per unit and this one is 3.57. Three things are left, none of them the `Maybe`:
+   **The layout is free and so, now, is the code.** Over a 64 KiB corpus of five-sixths hexadecimal
+   digits at v2, one call per unit, each answer tested and contributed: the sentinel form is 4.58 ns
+   per unit and this one is **4.36**, which is 0.95x over three runs. The `Maybe` is not a tax; it is
+   marginally the cheaper of the two, because `cmp $0xf ; jbe` against the niche is the same shape as
+   `test ; jl` against `-1` while the sentinel additionally holds `0xffffffff` in a register across
+   the loop and sign-extends every `Just` on the way out.
 
-   - the refinement's narrowing store is an `and $0xf` on each of the two `Just` arms, which is
-     `@bits`' own contract and the price of the niche;
-   - the slot's load masks again with `and $0xff`, which is `promoteStackSlots` reproducing a
-     truncation memory used to perform - redundant here, since nothing ever put more than four bits
-     in, and a known-bits pass over lower IR is what would see that;
-   - the `Nothing` arm is a branch where the sentinel's `-1` was a `cmove`, because a constructor is
-     a store and if-conversion runs before it becomes one.
+   That is the second of two backend fixes and neither was about `Maybe`:
 
-   It was 4.05 ns before `promoteStackSlots` learned to hold a slot read at two integer widths - a
-   folded `Maybe` is loaded once as the `Int` its discriminant test compares and again as the payload
-   type, and that disagreement was keeping every one of them in memory. That fix is general and this
-   was only what found it.
+   - `promoteStackSlots` declined any slot whose accesses disagreed about the register type, and a
+     folded `Maybe` is read once as the `Int` its discriminant test compares and again as the payload
+     type - so every one of them was staying in memory. It holds the wider type and converts at each
+     access now;
+   - that conversion was a `bitcast`, which says nothing about the bits above the narrow value's
+     width, so the mask `narrowedTo` puts on every load could never be folded away: `and $0xff`
+     stood between the phi and the discriminant test on every read. A widening integer move is a
+     zero extension now - the same instruction on this machine, and one `knownZeroBits` can see
+     through. See `carriedInto` in compiler/lower/lower_promote.cpp, which states the argument.
+
+   What is left is the refinement's own narrowing store, an `and $0xf` on each of the two `Just`
+   arms. It is `@bits`' contract and the price of the niche, and removing it needs a range analysis
+   rather than a known-bits one - the value is in range because the *branch* above it says the unit
+   was between `0` and `9`, which is a fact `opt_range.cpp` deliberately does not carry. It is not
+   costing anything against the sentinel, so it is a tidiness item rather than a performance one.
 -}
 pub alias HexDigit = @bits(4) U32
 

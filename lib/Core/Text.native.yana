@@ -213,12 +213,24 @@ pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(S
    ------------------------------------------------------------------------------------------
 
    Whether two equal-length windows hold the same units, which is what `startsWith`, `endsWith` and
-   the substring search all end in. Whole blocks under `all`, and the remainder under one masked
-   compare with the lanes past the end forced to agree - so a needle shorter than one vector is a
-   single load, compare and `all` rather than a walk.
+   the substring search all end in. Whole blocks under `all`, and the remainder under one compare of
+   the overreading loads - so a needle shorter than one vector is a single load, compare and
+   movemask rather than a walk.
 
    Both windows are inside runs the language allocated, so both tail reads are covered by
    Design-Vector §5.2 the same way `vectors` is.
+
+   **The tail arm leaves the lanes past the end to disagree and tests the position instead**, which
+   is `compareAsciiCase`'s shape below and was measured there first. `firstSet` answers the *lowest*
+   differing lane, so a difference at or past `count` means every live lane agreed - and the answer
+   is a comparison of two `Size`s rather than a `maskUpTo`, which is `iota .< splat(n)` and so a
+   general register moved into a vector, a broadcast, a pooled `iota`, the bias an unsigned lane
+   comparison needs and the two exclusive-ors that apply it. Eight instructions and three pooled
+   constants replaced by one `cmp`.
+
+   That arm is the whole of `startsWith` at the length it is usually asked at: a sixteen-unit prefix
+   is one iteration of the block loop at v2 and *nothing but* this arm at v3, which is why the row
+   got slower at v3 while every other one got faster.
 -}
 fn unitsEqual(left: Flat(CodeUnit), right: Flat(CodeUnit)) -> Bool:
     let count = length(left)
@@ -231,19 +243,26 @@ fn unitsEqual(left: Flat(CodeUnit), right: Flat(CodeUnit)) -> Bool:
         i = i + width
 
     if i < count:
-        let live = maskUpTo(truncate(count - i) :: Int) :: Mask(CodeUnit)
-        let same = loadVectorTail(left, i) .== loadVectorTail(right, i)
-        return all(or(same, not(live)))
+        let differ = not(loadVectorTail(left, i) .== loadVectorTail(right, i))
+        if any(differ) && i + (firstSet(differ) :: Size) < count then return False
 
     return True
 
--- The length test first, which is what makes the comparison's bound safe as well as what makes the
--- common answer free.
+{-
+   The length test first, which is what makes the comparison's bound safe as well as what makes the
+   common answer free.
+
+   **The prefix is not sliced and the text is**, and the asymmetry is the point: `wanted` *is* the
+   prefix's length, so `slice(allUnits(prefix), 0, wanted)` computes what it was handed and was
+   costing a call to do it - the same identity §2 of `test/bench/text/findings.md` found in the four
+   scans. The text side is a real window and keeps its slice, since what `unitsEqual` reads off its
+   left operand is the count both sides are compared over.
+-}
 pub fn startsWith(text: String, prefix: String) -> Bool:
     let wanted = length(prefix)
     if wanted > length(text) then return False
 
-    return unitsEqual(slice(allUnits(text), 0, wanted), slice(allUnits(prefix), 0, wanted))
+    return unitsEqual(slice(allUnits(text), 0, wanted), allUnits(prefix))
 
 -- And from the other end, on the same terms.
 pub fn endsWith(text: String, suffix: String) -> Bool:
@@ -251,7 +270,7 @@ pub fn endsWith(text: String, suffix: String) -> Bool:
     let count = length(text)
     if wanted > count then return False
 
-    return unitsEqual(slice(allUnits(text), count - wanted, count), slice(allUnits(suffix), 0, wanted))
+    return unitsEqual(slice(allUnits(text), count - wanted, count), allUnits(suffix))
 
 {-
    ------------------------------------------------------------------------------------------
@@ -545,16 +564,19 @@ pub fn equalsAsciiCase(left: String, right: String) -> Bool:
    which is worth saying plainly: the win at a name's length is about a factor of two, and the win at
    a line's length is more than a factor of ten.
 
-   **The lanes past the end are left to disagree and the *position* is tested instead**, which is the
-   one line that differs from `unitsEqual` and is what the tail arm's `at < shared` is. That function
-   asks whether everything agrees, so it has to force the padding into agreement; this one asks where
-   the lowest disagreement is, and a disagreement at or past `shared` means every live lane agreed.
-   So the answer is a comparison of two `Size`s rather than a `maskUpTo` - which is `iota .< splat(n)`
-   and therefore a general register moved into a vector, on an operation whose whole cost is a
-   handful of instructions. Measured both ways: **0.39 ns of the eight-unit row** (3.32 against 2.93)
-   and nothing at all of the sixty-four-unit one, which is four whole registers and never reaches the
-   tail arm. `Tritium::compareCaseString` pays neither, because its `stringSegmentMask` is built in
-   the movemask domain where a tail mask is a shift of an immediate.
+   **The lanes past the end are left to disagree and the *position* is tested instead**, and that is
+   the tail arm's `at < shared`. Forcing the padding into agreement is the other way to write it, and
+   it costs a `maskUpTo` - which is `iota .< splat(n)` and therefore a general register moved into a
+   vector, a broadcast, a pooled `iota`, the bias an unsigned lane comparison needs and the two
+   exclusive-ors that apply it - where this costs one `cmp`, because `firstSet` answers the *lowest*
+   set lane and a disagreement at or past `shared` means every live lane agreed. Measured both ways:
+   **0.39 ns of the eight-unit row** (3.32 against 2.93) and nothing at all of the sixty-four-unit
+   one, which is four whole registers and never reaches the tail arm.
+
+   `unitsEqual` above takes the same shape now and for the same reason; it was the masked form until
+   the measurement here said what that cost, and a sixteen-unit `startsWith` went from 2.55 ns to
+   1.82 with it. `Tritium::compareCaseString` pays neither, because its `stringSegmentMask` is built
+   in the movemask domain where a tail mask is a shift of an immediate.
 -}
 fn foldedUnitOrder(left: String, right: String, at: Size) -> Ordering:
     let a = toLowerUnit(left.unit(at))

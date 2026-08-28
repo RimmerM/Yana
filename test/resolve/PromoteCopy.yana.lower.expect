@@ -32,17 +32,16 @@ score<complex>(%n: Int): Int {
   b_2 {
     %v_5 = sub 0, %n: Int
     %v_6 = call_complex classify, %v_5: Int
-    %v_7 = bitcast %v_6: Long
+    %v_7 = cast %v_6: Long
     jmp b_4
   }
 
   b_4 {
     %v_8 = phi [b_3, 4], [b_2, %v_7]: Long
-    %v_9 = and %v_8, 255: Long
-    %v_10 = cmp_le %v_9, 3: Int
+    %v_9 = cmp_le %v_8, 3: Int
+    %v_10 = select %v_9, 0, 1: Int
     %v_11 = select %v_10, 0, 1: Int
-    %v_12 = select %v_11, 0, 1: Int
-    ret %v_12
+    ret %v_11
   }
 }
 
@@ -60,13 +59,13 @@ ranked<complex>(%n: Int): Int {
   b_6 {
     %v_7 = sub 0, %n: Int
     %v_8 = call_complex classify, %v_7: Int
-    %v_9 = bitcast %v_8: Long
+    %v_9 = cast %v_8: Long
     jmp b_10
   }
 
   b_5 {
     %v_11 = call_complex classify, %n: Int
-    %v_12 = bitcast %v_11: Long
+    %v_12 = cast %v_11: Long
     jmp b_10
   }
 
@@ -76,11 +75,10 @@ ranked<complex>(%n: Int): Int {
 
   b_10 {
     %v_13 = phi [b_6, %v_9], [b_5, %v_12], [b_2, 4]: Long
-    %v_14 = and %v_13, 255: Long
-    %v_15 = cmp_le %v_14, 3: Int
+    %v_14 = cmp_le %v_13, 3: Int
+    %v_15 = select %v_14, 0, 1: Int
     %v_16 = select %v_15, 0, 1: Int
-    %v_17 = select %v_16, 0, 1: Int
-    ret %v_17
+    ret %v_16
   }
 }
 
@@ -97,17 +95,16 @@ removed<complex>(%n: Int): Int {
   b_2 {
     %v_5 = sub 0, %n: Int
     %v_6 = call_complex classify, %v_5: Int
-    %v_7 = bitcast %v_6: Long
+    %v_7 = cast %v_6: Long
     jmp b_4
   }
 
   b_4 {
     %v_8 = phi [b_3, 4], [b_2, %v_7]: Long
-    %v_9 = and %v_8, 255: Long
-    %v_10 = cmp_le %v_9, 3: Int
+    %v_9 = cmp_le %v_8, 3: Int
+    %v_10 = select %v_9, 0, 1: Int
     %v_11 = select %v_10, 0, 1: Int
-    %v_12 = select %v_11, 0, 1: Int
-    ret %v_12
+    ret %v_11
   }
 }
 
@@ -124,31 +121,30 @@ scored<complex>(%n: Int): Int {
   b_2 {
     %v_5 = sub 0, %n: Int
     %v_6 = call_complex classify, %v_5: Int
-    %v_7 = bitcast %v_6: Long
+    %v_7 = cast %v_6: Long
     jmp b_4
   }
 
   b_4 {
     %v_8 = phi [b_3, 4], [b_2, %v_7]: Long
-    %v_9 = and %v_8, 255: Long
-    %v_10 = cmp_le %v_9, 3: Int
-    %v_11 = select %v_10, 0, 1: Int
-    je %v_11, b_12, b_13
-  }
-
-  b_13 {
-    %v_14 = bitcast %v_9: Int
-    %v_15 = call_complex weight, %v_14: Int
-    jmp b_16
+    %v_9 = cmp_le %v_8, 3: Int
+    %v_10 = select %v_9, 0, 1: Int
+    je %v_10, b_11, b_12
   }
 
   b_12 {
-    jmp b_16
+    %v_13 = cast %v_8: Int
+    %v_14 = call_complex weight, %v_13: Int
+    jmp b_15
   }
 
-  b_16 {
-    %v_17 = phi [b_12, 0], [b_13, %v_15]: Int
-    ret %v_17
+  b_11 {
+    jmp b_15
+  }
+
+  b_15 {
+    %v_16 = phi [b_11, 0], [b_12, %v_14]: Int
+    ret %v_16
   }
 }
 
