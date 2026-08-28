@@ -1,0 +1,118 @@
+{-
+   ==========================================================================================
+   Asking the operating system what is on the other end - the one impure function of this module.
+   ==========================================================================================
+
+   Everything in `Terminal.yana` is written against a `Terminal` value; this is where one comes from
+   on a target that has descriptors. A file of its own rather than an `@platform` on the function,
+   on Analysis-Modules.md §2.4's rule: what differs between the targets is which *module* this reads
+   - `Environment` and `Native` - and an import is a property of a file.
+
+   **One system call answers both halves of the question.** There is no `isatty`: the C function is
+   this `ioctl` and a test of whether it failed, because "is this a terminal" is only ever asked in
+   order to do something a terminal does. So `readWindowSize` answers *whether* and *how wide*
+   together, and a redirected stream costs one failed call at startup and nothing after it.
+
+   **The environment overrides the descriptor in one direction and not the other.** `NO_COLOR` and
+   `TERM=dumb` turn colour off on a stream that has it; nothing turns it on for a stream that is not
+   a terminal, because a program whose output is being read by another program must not be sending
+   it escape sequences on the strength of a variable somebody exported years ago. A caller that
+   genuinely wants colour down a pipe - `--color always`, a pager - says so in the field, which is
+   what makes that a decision of the program rather than of this file.
+-}
+
+import Environment
+import Native
+
+{-
+   The standard output and the standard error, as the two streams a program reports on.
+
+   Two functions rather than one taking a descriptor, and the descriptors are deliberately not in
+   the signature: this module's surface is the same on a target that has no such thing, and a
+   `terminalFor(3)` that only one target could answer would be the half-abstraction
+   Design-Test.md §11.2's F4 note is written against.
+
+   **They are asked separately because they are answered separately.** `program > log` leaves the
+   error stream a terminal and the output stream a file, and a program that painted its errors on the
+   strength of its output would be writing sequences into the log.
+-}
+pub fn detectTerminal() -> Terminal = terminalOn(1)
+pub fn detectErrorTerminal() -> Terminal = terminalOn(2)
+
+fn terminalOn(handle: Size) -> Terminal:
+    let &into = WindowSize {}
+    let attached = readWindowSize(handle, into) == (0 :: Size)
+
+    let &out = plainTerminal()
+    out.interactive = attached
+    out.unicode = attached && encodingIsUnicode()
+    out.depth = depthFor(attached)
+
+    -- The kernel's answer where there is one, the environment's where a terminal reported zero -
+    -- which is what a terminal that has not been resized since it was opened by something that did
+    -- not set the size reports - and eighty otherwise. Eighty is not a guess: it is what every
+    -- terminal that cannot say defaults to, and what every tool that has to pick one picks.
+    out.columns = declaredColumns()
+    if attached && into.columns > (0 :: U16) then out.columns = into.columns :: Size
+
+    if attached && into.rows > (0 :: U16) then out.rows = into.rows :: Size
+
+    return out
+
+{-
+   How much colour, given that something is watching.
+
+   `NO_COLOR` is honoured for any value at all, set or empty, which is what no-color.org specifies
+   and is the opposite of the usual convention - the variable exists to be exported once and
+   forgotten, so requiring a particular value in it would defeat what it is for.
+
+   `TERM=dumb` is the other half and is older: it is what Emacs' shell buffer, `M-x compile`, and
+   every editor terminal that cannot interpret a sequence sets. A missing `TERM` on a stream that
+   *is* a terminal is treated as dumb for the same reason - nothing said what it can do.
+
+   Everything else gets the bright sixteen. The distinction this could draw and does not is between
+   a terminal with eight colours and one with sixteen, and there is no reliable way to draw it: the
+   terminfo database says, and reading terminfo is a file format and a search path rather than a
+   variable. Sixteen is right for every emulator anyone runs and wrong for hardware nobody has, and
+   `BasicColor` is in the type for the caller that knows it is talking to the exception.
+-}
+fn depthFor(attached: Bool) -> ColorDepth:
+    if !attached then return NoColor
+    if variable("NO_COLOR") is Just(_) then return NoColor
+
+    let name = variable("TERM") ?? ""
+    if length(name) == (0 :: Size) || name == "dumb" then return NoColor
+
+    return BrightColor
+
+{-
+   Whether the terminal will render what it is sent as UTF-8.
+
+   The locale variables, in the order POSIX resolves them - `LC_ALL` overrides `LC_CTYPE` overrides
+   `LANG` - and the test is for the encoding rather than for a particular spelling of it, because
+   `en_US.UTF-8`, `C.utf8` and `en_GB.UTF8` are all the same answer.
+
+   A terminal whose locale says nothing gets the ASCII glyphs. That is the conservative direction:
+   ASCII on a UTF-8 terminal is a table drawn with `+` and `-`, and UTF-8 on a terminal that is not
+   is a row of replacement characters where the borders should be.
+-}
+fn encodingIsUnicode() -> Bool:
+    let &locale = variable("LC_ALL") ?? ""
+    if length(locale) == (0 :: Size) then locale = variable("LC_CTYPE") ?? ""
+    if length(locale) == (0 :: Size) then locale = variable("LANG") ?? ""
+
+    return String.contains(locale, "UTF-8") || String.contains(locale, "UTF8")
+        || String.contains(locale, "utf-8") || String.contains(locale, "utf8")
+
+-- `COLUMNS`, for the stream that is a terminal and could not say how wide it was, and for the one
+-- that is not a terminal at all - which is where a caller that pipes into `less` sets it.
+fn declaredColumns() -> Size:
+    let text = variable("COLUMNS") ?? ""
+    if length(text) == (0 :: Size) then return 80
+
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Int):
+        Err(_) -> return 80
+        Ok(columns) -> if columns > 0 then return columns :: Size
+
+    return 80

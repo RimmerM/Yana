@@ -74,13 +74,16 @@ pub fn readReport(text: String) -> ChildReport:
     report.unfinished = open
     return report
 
--- `begin <ordinal> <name>`, of which the name is the third word.
+{-
+   `begin <ordinal> <name>`, of which the name is the third word.
+
+   The search starts past `begin ` because that is what got this line here, and the scan for the
+   space after the ordinal is `Core.Text`'s rather than a loop of its own - which is a vector scan
+   and, more to the point, one fewer place that spells out what a space is. What follows it is the
+   name and the rest of the line: a qualified name has no spaces in it, so there is nothing after it
+   to stop before.
+-}
 fn nameOfBegin(line: String) -> String:
-    let &at = 6 :: Size
-    while at < length(line) && line.unit(at) != 32:
-        at = at + 1
-
-    while at < length(line) && line.unit(at) == 32:
-        at = at + 1
-
-    return String.slice(line, at, length(line))
+    match findAscii(line, 32, 6):
+        Nothing -> return ""
+        Just(space) -> return trimStart(String.slice(line, space, length(line)))

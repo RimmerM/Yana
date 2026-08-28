@@ -1,0 +1,70 @@
+{-
+   `@builtin(role)` - the link between a library declaration and the compiler.
+
+   Two kinds of declaration carry one, and this fixture is about the second: a *supplied* constant,
+   whose value the compiler decides from the target and writes over the zero the declaration is
+   written as. The first kind - storage the compiler *writes* before the program starts - is the
+   command line, and `Process.yana` is where that one is asserted, because the only way to see it is
+   to be a process.
+
+   `compiler/compiler/builtin.h` is the list of roles. What is asserted here is what a supplied
+   constant is for: the compiler put a target's answer where the source wrote nothing, and the
+   answer is the shape a mapping granularity has.
+
+   The declaration is the library's - `pageBytes` in `Native/Memory.native.yana`. This fixture wrote
+   its own for as long as nothing claimed the role, and stopped being able to the moment the library
+   did: "the role pageBytes is already filled" is one of the six things `@builtin` refuses, and one
+   declaration filling a role is the point of it.
+
+   `vectorBytes` in `Core/Vector.yana` is the second supplied role and is asserted here beside it,
+   because what is interesting about the two is the same thing: a number no line of the library
+   wrote, which every reader sees as a constant.
+-}
+import Test
+
+@test fn builtinCases() -> {}:
+    let page = pageBytes
+
+    -- Not the zero the declaration was written as, which is the whole statement: no line of the
+    -- library put a number there, and every use below reads what the compiler decided.
+    checkNotEqual(page, (0 :: Size))
+
+    -- A page, and the shape of one. 4096 is the floor rather than the value - the role is defined as
+    -- the smallest granularity the target guarantees, and a target whose kernel maps in 16K units
+    -- answers 16384 here without a line of this changing.
+    checkAtLeast(page, (4096 :: Size))
+    check(isPowerOf2(page))
+
+    -- And it is a constant, not storage: `alignUp` over it is a mask against a literal by the time
+    -- anything runs. What can be asserted from inside the language is that it behaves as one.
+    checkEqual(alignUp(page + 1, page), page + page)
+    checkEqual(alignUp(page, page), page)
+
+    -- The kernel's own answer, which is the other half of the pair - `pageBytes` is the bound the
+    -- compiler states and this is the number the process is running with. They agree on this target,
+    -- and what holds on every target is that the bound is not larger than the truth.
+    --
+    -- Zero arguments means no entry stub ran and there is no vector to walk - the in-process driver,
+    -- see Process.yana - and the fallback is `pageBytes` itself, which is why this asserts the
+    -- relation rather than the number.
+    let system = systemPageBytes()
+    checkAtLeast(system, page)
+    check(isPowerOf2(system))
+
+    {-
+       The register, which is the other supplied role - `Core/Vector.yana`, and the number
+       `Native/Memory.native.yana`'s copy ladder and `Core/Text.native.yana`'s scans are bounded by.
+
+       Sixteen at v2 and thirty-two at v3, so what is asserted is the relation rather than either
+       number: a power of two, at least the sixteen bytes every target this compiles for has, and
+       never past the language's own ceiling of sixty-four.
+    -}
+    let width = vectorBytes
+    checkNotEqual(width, (0 :: Size))
+    check(isPowerOf2(width))
+    checkAtLeast(width, (16 :: Size))
+    checkAtMost(width, (64 :: Size))
+
+    -- And it is the byte vector's lane count, which is the identity every use of it relies on: the
+    -- six copy rungs are written over bytes and reach for a whole register at a time.
+    checkEqual(width, lanes(zero() :: Vec(U8)) :: Size)

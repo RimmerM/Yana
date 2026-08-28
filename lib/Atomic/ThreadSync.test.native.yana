@@ -1,0 +1,388 @@
+{-
+   The five blocking primitives, under real contention.
+
+   What makes this fixture worth more than the single-threaded ones beside it is that every check
+   below fails on a plausible implementation. A mutex that excludes but does not publish, a `Once`
+   whose second caller returns before the first has finished, a semaphore that lets more than its
+   permits through, a reader/writer lock that admits a writer beside a reader - none of those can be
+   caught by one thread, and all of them are caught here.
+
+   The counters are deliberately **not** atomic where the point is exclusion: a `Counter` guarded by
+   a mutex is an ordinary `U32` written by many threads, and if the mutex does not work the answer
+   comes out below the target. An atomic there would hide exactly the defect being looked for.
+
+   Nothing allocates inside a thread - see `Thread.yana` beside this, where the reason is written.
+-}
+
+import Native
+import Native.Thread
+-- `Atomic` for the `Lock` class, which is where `lock`, `unlock`, `tryLock`, `isHeld` and
+-- `withLock` are declared - once, for both the spinning lock and the blocking one. This import used
+-- to carry a `hiding` list naming all five, because each lock declared its own set and a program
+-- using both could not call either; one class is what removed the collision rather than papering
+-- over it, and a file wanting both locks now simply has both.
+import Test
+
+let stackBytes = 65536 :: USize
+let workers = 8 :: Size
+let perWorker = 2000 :: U32
+
+fn nothing() -> %U8 = null()
+
+{-
+   A mutex around an ordinary counter.
+
+   `guarded` is not atomic. Eight threads incrementing it two thousand times each land on exactly
+   sixteen thousand only if the critical sections did not overlap, and a load-add-store that raced
+   would lose updates - so the number is the check.
+-}
+let &lockA = mutex()
+let &guarded = 0 :: U32
+
+fn mutexWorker(argument: %U8) -> {}:
+    let &i = 0 :: U32
+
+    while i < perWorker:
+        lockA.lock()
+        guarded = guarded + 1
+        lockA.unlock()
+        i = i + 1
+
+fn startMutex(remaining: Size) -> {}:
+    if remaining == 0: return
+
+    match createThread(mutexWorker, nothing(), stackBytes):
+        Nothing -> check(False)
+        Just(->t) -> nestMutex(t, remaining)
+
+fn nestMutex(->t: Thread, remaining: Size) -> {}:
+    startMutex(remaining - 1)
+    join(t)
+
+@test fn mutexExcludes() -> {}:
+    guarded = 0
+    check(!lockA.isHeld())
+
+    startMutex(workers)
+
+    checkEqual(guarded, 16000)
+    check(!lockA.isHeld())
+
+{-
+   `Once`, from every thread at the same time.
+
+   Two things are checked and the second is the one a single thread cannot see: that the body ran
+   exactly once, and that **no caller returned before it had finished**. `runs` counts the first;
+   `sawIncomplete` catches the second, by having every caller check the initialized value right after
+   `callOnce` returns.
+-}
+let &startOnce = once()
+let &runs = atomic(0 :: U32)
+let &initialized = 0 :: U32
+let &sawIncomplete = atomic(0 :: U32)
+
+fn initializer() -> {}:
+    runs.fetchAdd(1, UpdateRelaxed)
+
+    -- Long enough that a caller returning early would reliably see the wrong value.
+    let &i = 0 :: U32
+    while i < 20000:
+        initialized = i
+        i = i + 1
+
+    initialized = 12345
+
+fn onceWorker(argument: %U8) -> {}:
+    callOnce(startOnce, initializer)
+    if initialized != 12345: sawIncomplete.fetchAdd(1, UpdateRelaxed)
+
+fn startOnceWorkers(remaining: Size) -> {}:
+    if remaining == 0: return
+
+    match createThread(onceWorker, nothing(), stackBytes):
+        Nothing -> check(False)
+        Just(->t) -> nestOnce(t, remaining)
+
+fn nestOnce(->t: Thread, remaining: Size) -> {}:
+    startOnceWorkers(remaining - 1)
+    join(t)
+
+@test fn onceRunsOnce() -> {}:
+    startOnceWorkers(workers)
+
+    checkEqual(runs.load(LoadAcquire), 1)
+    checkEqual(sawIncomplete.load(LoadAcquire), 0)
+    checkEqual(initialized, 12345)
+    check(hasRun(startOnce))
+
+{-
+   A semaphore bounding how many threads are inside at once.
+
+   `inside` is the count of threads holding a permit, and `peak` is the highest it ever reached. With
+   three permits the peak may not exceed three, whatever the scheduling - which is the property a
+   semaphore exists for and is not observable from one thread. `peak` is itself contended, so it is
+   updated under the same permit that bounds the section.
+-}
+let &permits = semaphore(3)
+let &inside = atomic(0 :: U32)
+let &peak = atomic(0 :: U32)
+
+fn semaphoreWorker(argument: %U8) -> {}:
+    let &rounds = 0 :: U32
+
+    while rounds < 200:
+        acquire(permits)
+
+        let now = inside.fetchAdd(1, UpdateAcquire) + 1
+        recordPeak(now)
+        inside.fetchSub(1, UpdateRelease)
+
+        release(permits)
+        rounds = rounds + 1
+
+fn recordPeak(now: U32) -> {}:
+    let &observed = peak.load(LoadRelaxed)
+
+    while observed < now:
+        match peak.compareExchange(observed, now, UpdateRelaxed):
+            Exchanged -> return
+            Unchanged(->actual) -> observed = actual
+
+fn startSemaphore(remaining: Size) -> {}:
+    if remaining == 0: return
+
+    match createThread(semaphoreWorker, nothing(), stackBytes):
+        Nothing -> check(False)
+        Just(->t) -> nestSemaphore(t, remaining)
+
+fn nestSemaphore(->t: Thread, remaining: Size) -> {}:
+    startSemaphore(remaining - 1)
+    join(t)
+
+@test fn semaphoreBounds() -> {}:
+    startSemaphore(workers)
+
+    checkEqual(inside.load(LoadAcquire), 0)
+    checkGreater(peak.load(LoadAcquire), 0)
+    checkAtMost(peak.load(LoadAcquire), 3)
+    checkEqual(available(permits), 3)
+
+{-
+   A reader/writer lock, checked for the property that distinguishes it from a mutex and the one it
+   shares with one.
+
+   `writersInside` must never exceed one, and `readersInside` must be zero whenever a writer is in -
+   which is what `sawWriterWithReader` records. Readers *may* overlap, and `readerPeak` is there to
+   show that they actually did: a reader/writer lock that serialized its readers would pass every
+   exclusion check and be pointless, so the test asserts it saw more than one at once.
+-}
+let &rw = rwMutex()
+let &readersInside = atomic(0 :: U32)
+let &writersInside = atomic(0 :: U32)
+let &readerPeak = atomic(0 :: U32)
+let &sawWriterWithReader = atomic(0 :: U32)
+let &threadSyncShared = 0 :: U32
+
+-- How long a reader stays alive, which the two phases set differently. Starting a thread costs more
+-- than a few hundred of these rounds do, so a short reader-only phase would have each thread finish
+-- before the next had started - and would measure thread creation rather than overlap.
+let &readerRounds = 400 :: U32
+
+fn rwReader(argument: %U8) -> {}:
+    let &rounds = 0 :: U32
+
+    while rounds < readerRounds:
+        lockRead(rw)
+
+        let now = readersInside.fetchAdd(1, UpdateAcquire) + 1
+        recordReaderPeak(now)
+        if writersInside.load(LoadAcquire) != 0: sawWriterWithReader.fetchAdd(1, UpdateRelaxed)
+
+        readersInside.fetchSub(1, UpdateRelease)
+        unlockRead(rw)
+        rounds = rounds + 1
+
+fn recordReaderPeak(now: U32) -> {}:
+    let &observed = readerPeak.load(LoadRelaxed)
+
+    while observed < now:
+        match readerPeak.compareExchange(observed, now, UpdateRelaxed):
+            Exchanged -> return
+            Unchanged(->actual) -> observed = actual
+
+fn rwWriter(argument: %U8) -> {}:
+    let &rounds = 0 :: U32
+
+    while rounds < 200:
+        lockWrite(rw)
+
+        let now = writersInside.fetchAdd(1, UpdateAcquire) + 1
+        if now != 1: sawWriterWithReader.fetchAdd(1, UpdateRelaxed)
+        if readersInside.load(LoadAcquire) != 0: sawWriterWithReader.fetchAdd(1, UpdateRelaxed)
+
+        threadSyncShared = threadSyncShared + 1
+
+        writersInside.fetchSub(1, UpdateRelease)
+        unlockWrite(rw)
+        rounds = rounds + 1
+
+-- `writersToo` is what makes this two phases rather than one - see `rwMutexExcludes`.
+fn startReaders(remaining: Size, writersToo: Bool) -> {}:
+    if remaining == 0:
+        if writersToo then startWriters(3)
+        return
+
+    match createThread(rwReader, nothing(), stackBytes):
+        Nothing -> check(False)
+        Just(->t) -> nestRw(t, remaining, writersToo)
+
+fn startWriters(remaining: Size) -> {}:
+    if remaining == 0: return
+
+    match createThread(rwWriter, nothing(), stackBytes):
+        Nothing -> check(False)
+        Just(->t) -> nestWriters(t, remaining)
+
+fn nestRw(->t: Thread, remaining: Size, writersToo: Bool) -> {}:
+    startReaders(remaining - 1, writersToo)
+    join(t)
+
+fn nestWriters(->t: Thread, remaining: Size) -> {}:
+    startWriters(remaining - 1)
+    join(t)
+
+{-
+   Two phases, because the two properties want opposite conditions.
+
+   **Readers alone** is where overlap is demonstrated: with nothing announcing a write, five readers
+   share the lock and the peak goes above one. That is the only reason to have this type instead of a
+   mutex, and a lock that quietly serialized its readers would pass every exclusion check.
+
+   **Readers and writers together** is where exclusion is demonstrated. The peak is deliberately not
+   asserted there, and the reason is the design working rather than failing: three writers announcing
+   themselves keep new readers out almost continuously, so the readers go through one at a time. That
+   is writer preference, it is what stops reader starvation, and measuring overlap under it would be
+   measuring the wrong thing.
+-}
+@test fn rwMutexExcludes() -> {}:
+    readerRounds = 200000
+    startReaders(5, False)
+    check(readerPeak.load(LoadAcquire) > 1, "readers overlapped")
+
+    readerRounds = 400
+    threadSyncShared = 0
+    startReaders(5, True)
+
+    check(sawWriterWithReader.load(LoadAcquire) == 0, "exclusion")
+    check(readersInside.load(LoadAcquire) == 0, "readers drained")
+    check(writersInside.load(LoadAcquire) == 0, "writers drained")
+    check(threadSyncShared == 600, "writes counted")
+
+{-
+   A condition variable, used the way one is meant to be: a predicate under a mutex, a loop around
+   the wait, and a notifier that changes the predicate before it notifies.
+
+   The waiter cannot proceed until the parent says so, and the parent does not say so until the
+   waiter has recorded that it is waiting - so the notification is the thing that releases it rather
+   than a race that would have finished anyway.
+-}
+let &lockB = mutex()
+let &signal = condition()
+let &ready = 0 :: U32
+let &waiterArrived = atomic(0 :: U32)
+let &waiterLeft = atomic(0 :: U32)
+
+fn waiter(argument: %U8) -> {}:
+    lockB.lock()
+    waiterArrived.fetchAdd(1, UpdateRelease)
+
+    while ready == 0:
+        wait(signal, lockB)
+
+    waiterLeft.fetchAdd(1, UpdateRelease)
+    lockB.unlock()
+
+fn releaseWaiters(->t: Thread) -> {}:
+    while waiterArrived.load(LoadAcquire) < 1:
+        spinHint()
+
+    lockB.lock()
+    ready = 1
+    notifyAll(signal)
+    lockB.unlock()
+
+    join(t)
+    checkEqual(waiterLeft.load(LoadAcquire), 1)
+
+@test fn conditionSignals() -> {}:
+    ready = 0
+
+    match createThread(waiter, nothing(), stackBytes):
+        Nothing -> check(False)
+        Just(->t) -> releaseWaiters(t)
+
+-- And the scoped forms, which is what a caller writes. One thread each is enough: what they add over
+-- the explicit pair is where the release happens, and that is checked by the state afterwards.
+fn threadSyncScoped() -> {}:
+    guarded = 0
+
+    lockA.withLock()
+    guarded = guarded + 1
+
+@test fn scopedForms() -> {}:
+    threadSyncScoped()
+    check(!lockA.isHeld())
+    checkEqual(guarded, 1)
+
+    scopedRead()
+    checkEqual(readerCount(rw), 0)
+
+    scopedPermit()
+    checkEqual(available(permits), 3)
+
+fn scopedRead() -> {}:
+    rw.withRead()
+    checkEqual(readerCount(rw), 1)
+
+fn scopedPermit() -> {}:
+    permits.withPermit()
+    checkEqual(available(permits), 2)
+
+{-
+   The `Lock` class, which is the point of there being one.
+
+   Two things are checked and only the second needs a running program. The first is that this file
+   compiles at all: `lock`, `unlock`, `tryLock` and `isHeld` are written here against a `SpinLock`
+   and a `Mutex` in the same body, which is what two independent sets of those names made
+   impossible - the import above used to hide five of them.
+
+   The second is that a body generic in the lock really drives both. `oneRound` is written once,
+   knows nothing about how its argument waits, and is called with each - which is the abstraction
+   the class exists for, and what lets a structure be parameterised by the lock its author wants
+   rather than the one this library picked.
+-}
+fn (Lock(a)) oneRound(l: a, counter: Atomic(U32)) -> {}:
+    check(!l.isHeld())
+
+    l.lock()
+    check(l.isHeld())
+    counter.fetchAdd(1, UpdateRelaxed)
+    l.unlock()
+
+    check(!l.isHeld())
+
+    -- And the scoped form, which is the class's own generic lens rather than one per lock.
+    l.withLock()
+    counter.fetchAdd(1, UpdateRelaxed)
+
+@test fn lockClass() -> {}:
+    let counter = atomic(0 :: U32)
+
+    let spin = spinLock()
+    let blocking = mutex()
+
+    oneRound(spin, counter)
+    oneRound(blocking, counter)
+
+    -- Two rounds of two increments each, through two different locks and one generic body.
+    checkEqual(counter.load(LoadAcquire), 4)

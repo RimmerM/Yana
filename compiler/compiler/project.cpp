@@ -247,7 +247,7 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
      * a tool that is not this one. A `[test]` section was therefore already forward-compatible with
      * the compiler as it stood, which is why §3.4 could specify one.
      */
-    enum class Table { None, Test, Other };
+    enum class Table { None, Test, Package, Other };
     auto table = Table::None;
 
     while(true) {
@@ -274,7 +274,9 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
             while(nameEnd > nameStart && (nameEnd[-1] == ' ' || nameEnd[-1] == '\t')) nameEnd--;
 
             auto header = StringView { nameStart, Size(nameEnd - nameStart) };
-            table = header == "test"_v ? Table::Test : Table::Other;
+            if(header == "test"_v) table = Table::Test;
+            else if(header == "package"_v) table = Table::Package;
+            else table = Table::Other;
 
             reader.p++;
             continue;
@@ -333,6 +335,31 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
          * rather than by an annotation - and both are `@test` functions in the same binary under the
          * same runner. There is one kind of test.
          */
+        /*
+         * `[package]` - the boundary this tree draws around itself.
+         *
+         * Two keys and no more, which is the whole of "basic": `name` says which package this is and
+         * `exports` says what a consumer of it may import. Versions, dependency resolution and the
+         * registry are the distribution half and are not here - see ProjectFile::name for why the
+         * boundary is worth having without them.
+         */
+        if(table == Table::Package) {
+            if(key == "name"_v) {
+                if(values.size() != 1) {
+                    reader.fail("a package has one name"_v);
+                    break;
+                }
+                project.name = ::move(values[0]);
+            } else if(key == "exports"_v) {
+                for(auto& value: values) project.exports.push(::move(value));
+            } else {
+                reader.fail(stringView(formatError("unknown key \"%@\" in [package]"_v, toString(key))));
+                break;
+            }
+
+            continue;
+        }
+
         if(table == Table::Test) {
             if(key == "sources"_v) {
                 for(auto& value: values) {
@@ -394,40 +421,6 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
     return Ok(::move(project));
 }
 
-/*
- * Which module the program starts from.
- *
- * A module rather than a file - Analysis-Modules.md §2.1. The usual answer needs no naming and is
- * new: the files sitting directly in the compile root form one module, and that is the program.
- * `-root` is what names another, and is needed only where the compilation was pointed at several
- * roots and so has several candidates.
- */
-ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, String& error) {
-    if(settings.rootObjects.size() > 1) {
-        error = String("a program has one root module. Provide one with -root <module>.");
-        return nullptr;
-    }
-
-    if(settings.rootObjects.size() == 1) {
-        auto root = map.findGroup(settings.rootObjects[0]);
-        if(!root) error = formatError("cannot find root module %@"_v, settings.rootObjects[0]);
-        return root;
-    }
-
-    // The compile root's own module, where there is exactly one of them. Every other module in the
-    // tree is compiled because something imported it, which is why an unreferenced file is not an
-    // error.
-    if(auto root = map.rootGroup()) return root;
-
-    // A single module needs no naming either: it is the program, whatever it is called.
-    if(map.groups.size() == 1) return &map.groups[0];
-
-    error = formatError("%@ modules were found and none was named as the root. "
-                        "Provide one with -root <module>, or as `root` in a yana.toml."_v,
-                        map.groups.size());
-    return nullptr;
-}
-
 void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
     if(settings.compileObjects.size() == 0) {
         for(auto& source: project.sources) settings.compileObjects.push(source);
@@ -438,6 +431,10 @@ void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
     if(settings.test) {
         for(auto& source: project.testSources) settings.compileObjects.push(source);
     }
+
+    // The package this compilation *is*, which is what decides whose test files are selected and
+    // which import checks apply to it - see CompileSettings::package.
+    if(settings.package == "" && project.name != "") settings.package = project.name;
 
     if(settings.rootObjects.size() == 0 && project.root != "") {
         settings.rootObjects.push(project.root);

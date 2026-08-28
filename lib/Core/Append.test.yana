@@ -1,0 +1,127 @@
+{-
+   `++` - `Core.Append`, over the two instances the library writes.
+
+   Four claims, and they are four groups below.
+
+    - **It consumes both operands and hands back one value.** Both are `->`, so the left operand's
+      storage becomes the result's and neither name may be used again - which is what makes a chain
+      linear instead of quadratic, and is asserted here by the *content* coming out right after a
+      handover rather than by trusting the signature.
+    - **Joining something the caller keeps is `copy` and then `++`**, which is the escape hatch the
+      consuming convention costs. `Copy(String)` in String.yana exists for exactly this line.
+    - **The empty cases are the length arithmetic's edges**, and there are three of them: nothing on
+      the left, nothing on the right, and nothing at all.
+    - **`Array(a)` is the second instance**, and the reason it is here at all: `Append` is a class
+      rather than the one plain `++` a program is allowed, so a second instance is what says the
+      first one did not spend the operator.
+
+   The element type is `String` as well as `Int`, which the borrowing version could not do: joining
+   used to duplicate every element and so carried `TrivialCopy(a)`. Moving an element is something
+   every type permits, so `[String] ++ [String]` is now an ordinary sentence - and it is the case
+   where a donor left at its old length would tear every element down twice, so it is the case worth
+   asserting.
+
+   Run on both targets, where a native `++` on a string appends into the left operand's run and the
+   JS one is the host's own `+` over a rope. The answers cannot differ; the costs do, and neither is
+   asserted here.
+-}
+
+import Test
+
+@test fn appendStrings() -> {}:
+    let joined = "ab" ++ "cde"
+    checkEqual(length(joined), 5)
+    checkEqual(joined, "abcde")
+
+    -- A chain, which is left-associative at `+`'s own precedence. Each step hands the previous
+    -- result's storage on, so the intermediate has no name and needs none.
+    checkEqual("a" ++ "b" ++ "c", "abc")
+
+    -- The accumulator shape the convention exists for: one name, reassigned.
+    let &acc = "" :: String
+    let &i = 0 :: Int
+    while i < 5:
+        acc = acc ++ "xy"
+        i = i + 1
+
+    checkEqual(length(acc), 10)
+    checkEqual(acc, "xyxyxyxyxy")
+
+    -- The three empty cases.
+    checkEqual("" ++ "abc", "abc")
+    checkEqual("abc" ++ "", "abc")
+    checkEqual(length("" ++ ""), 0)
+
+-- An operand the caller means to keep, which is the one thing the borrowing version gave away for
+-- free. The copy is written down rather than performed on the way past, and the original is still
+-- readable afterwards - which is what says the copy was a copy.
+@test fn keptOperand() -> {}:
+    let base = "hello"
+    let greeting = copy(base) ++ " there"
+
+    checkEqual(greeting, "hello there")
+    checkEqual(base, "hello")
+    checkEqual(length(base), 5)
+
+    -- And the copy is independent storage rather than a second name for one run: appending to the
+    -- duplicate again leaves the original at the length it had.
+    let more = copy(base) ++ "!"
+    checkEqual(more, "hello!")
+    checkEqual(base, "hello")
+
+fn appendTwice(i: Size) -> Int = (truncate(i) :: Int) * 2
+
+@test fn appendArrays() -> {}:
+    let &joined = newArray(3, appendTwice) ++ newArray(2, appendTwice)   -- [0, 2, 4] ++ [0, 2]
+
+    checkEqual(length(joined), 5)
+    checkEqual(joined[0], 0)
+    checkEqual(joined[2], 4)
+    checkEqual(joined[3], 0)
+    checkEqual(joined[4], 2)
+
+    -- The result is an ordinary array afterwards rather than something fixed at the length it was
+    -- built at: the left operand's run is what it grew out of, and it still grows.
+    push(joined, 7)
+    checkEqual(length(joined), 6)
+    checkEqual(joined[5], 7)
+
+    -- The accumulator shape again, at the second instance.
+    let &acc = [] :: [Int]
+    let &i = 0 :: Int
+    while i < 4:
+        acc = acc ++ [i]
+        i = i + 1
+
+    checkEqual(length(acc), 4)
+    checkEqual(acc[3], 3)
+
+-- The case the element constraint used to exclude. Every element is *moved* into the result, and
+-- the donor is emptied before it dies - so a teardown that ran over the donor's old length would
+-- release each of these strings twice, which is a crash rather than a wrong number.
+@test fn appendOwningElements() -> {}:
+    let &names = ["ab", "cd"] ++ ["ef"]
+
+    checkEqual(length(names), 3)
+    checkEqual(names[0], "ab")
+    checkEqual(names[1], "cd")
+    checkEqual(names[2], "ef")
+
+    push(names, "gh")
+    checkEqual(length(names), 4)
+    checkEqual(names[3], "gh")
+
+    -- One level further in, where a lost handover shows up as a length rather than as a free.
+    let &rows = [["a", "b"], ["c"]] ++ [["d", "e", "f"]]
+    checkEqual(length(rows), 3)
+    checkEqual(length(rows[0]), 2)
+    checkEqual(length(rows[2]), 3)
+    checkEqual(rows[2][2], "f")
+
+@test fn emptyArrays() -> {}:
+    checkEqual(length(newArray(0, appendTwice) ++ newArray(2, appendTwice)), 2)
+    checkEqual(length(newArray(2, appendTwice) ++ newArray(0, appendTwice)), 2)
+    checkEqual(length(newArray(0, appendTwice) ++ newArray(0, appendTwice)), 0)
+
+    let &fromLeft = newArray(0, appendTwice) ++ newArray(2, appendTwice)
+    checkEqual(fromLeft[1], 2)

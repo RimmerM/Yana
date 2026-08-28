@@ -1,6 +1,6 @@
 #pragma once
 
-#include "source.h"
+#include "settings.h"
 
 /*
  * `yana.toml` - what a Yana project is, written down.
@@ -22,6 +22,36 @@ struct ProjectFile {
 
     /// `root = "Main"` - the module whose `main` the program enters through. Empty when unset.
     Tritium::String root;
+
+    /*
+     * `[package] name = "base"` - the package this source tree *is*. Empty for a project that has
+     * not said, which is every program that only consumes packages.
+     *
+     * A package is a boundary and not yet a unit of distribution - Analysis-Modules.md's Part 7 list
+     * defers versions, resolution and registries, and none of what reads this needs them. What it
+     * buys is that two questions stop being answerable only by hardcoding: which modules a consumer
+     * of this tree may import (`exports` below), and whose tests a test build runs. The second is
+     * the one that could not be said at all before - a `.test.yana` file of a library module joined
+     * every consumer's suite, because "is this a test build" was one global answer for every walk.
+     */
+    Tritium::String name;
+
+    /*
+     * `[package] exports = ["Core", "Math", ...]` - the modules a consumer of this package may
+     * import. Everything else in the tree is the package's own business.
+     *
+     * **At module granularity and in the manifest, rather than a second level of `pub`.** Visibility
+     * is one bit (`ast::Decl::exported`) and stays one bit: a per-declaration package level would
+     * put the annotation on the *common* case, since most of a library's declarations exist so the
+     * rest of it can be written. Drawing the line once, at the granularity of the thing you already
+     * import, is what Go's `internal/` and Java's `exports` clause both settled on. The cost is a
+     * leak check rather than a syntax - see `checkExportedSignatures`.
+     *
+     * Empty means "no boundary declared", which is every project that is not a library, and those
+     * export everything. A package that lists nothing and wants to export nothing says so by having
+     * no consumers.
+     */
+    Array<Tritium::String> exports;
 
     /// `sources = ["src", "lib"]` - already joined onto `directory`.
     Array<Tritium::String> sources;
@@ -62,13 +92,6 @@ Result<ProjectFile, Tritium::String> readProjectFile(const Tritium::String& path
 
 /// Fills in the settings the command line left unset. Never overwrites one it set: see above.
 void applyProjectFile(CompileSettings& settings, const ProjectFile& project);
-
-/// The module a program is entered through: the one `-root` or `yana.toml` named, or the only one
-/// there is. Null with `error` set when the answer is not one module.
-///
-/// Shared with the language server for the same reason the module map is: an editor that resolved
-/// from a different root than the build would report a different program's errors.
-ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, Tritium::String& error);
 
 /// Joins two path segments with a separator, unless `relative` is already absolute - in which case
 /// it is returned as it stands, because a project file naming `/opt/yana/lib` means that directory.

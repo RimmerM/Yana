@@ -992,6 +992,16 @@ struct ModuleGroup {
     StringId name;
 
     /*
+     * Whether these files are the standard library's - i.e. of the package `lib/yana.toml` names.
+     *
+     * Set by `parseLibraryGroup`, which is the one thing that reads that tree, so nothing else has
+     * to agree about what "a library module" is. What reads it is the export check: a module of a
+     * package may import its siblings whether or not the manifest exports them, and it is only the
+     * edge *into* the package from outside that a manifest has anything to say about.
+     */
+    bool library = false;
+
+    /*
      * `SmallArray` rather than `Array`, and eight is the ordinary module - see util/README.md.
      *
      * There is one of these per module in the program, and most modules are one file, so an ordinary

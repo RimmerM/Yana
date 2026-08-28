@@ -289,6 +289,8 @@ fn (Contiguous(c, a), Contiguous(d, a), Eq(a)) permutationFailure(actual: c, ori
     if length(left) != length(right):
         return Just("expected a permutation of {length(right)} elements, got {length(left)}")
 
+    -- Built by hand rather than with `newArray`, which takes a lambda: a lambda inside a generic
+    -- function is not available yet, and this function is generic over both containers.
     let &claimed = [] :: [Bool]
     let &i = 0 :: Size
 

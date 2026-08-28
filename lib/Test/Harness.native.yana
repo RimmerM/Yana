@@ -34,6 +34,7 @@ import Process
 import File
 import Environment
 import Native
+import Terminal
 
 {-
    One case, in a child of its own.
@@ -61,7 +62,8 @@ pub fn runChild(name: String, aborts: Bool, options: Options) -> Result(String, 
         Just(path) -> return runOneChild(path, name, aborts, options)
 
 fn runOneChild(path: String, name: String, aborts: Bool, options: Options) -> Result(String, String):
-    let reportPath = temporaryPath("case")
+    let reportPath = temporaryPath("case.report")
+    let errorPath = temporaryPath("case.output")
 
     -- `--allow-empty`, because a child whose one name matched nothing is a fact the *parent* reports
     -- against the case it asked for. A child that failed the empty-selection guard would report the
@@ -69,13 +71,13 @@ fn runOneChild(path: String, name: String, aborts: Bool, options: Options) -> Re
     let &arguments = ["--only", copy(name), "--allow-empty"]
     passSnapshotFlags(arguments, options)
 
-    match spawnReporting(path, arguments, reportPath):
+    match spawnReporting(path, arguments, reportPath, errorPath, True):
         Err(reason) -> return Err("could not start a child: {describeError(reason)}")
 
         Ok(child):
             let outcome = awaitChild(child, options.timeoutMs)
             let report = collectReport(reportPath)
-            return verdictOf(name, aborts, outcome, report)
+            return verdictOf(name, aborts, outcome, report, collectComplaint(errorPath))
 
 {-
    The shards, all of them at once - §6.
@@ -95,12 +97,14 @@ pub fn runShards(cases: [Case], options: Options) -> Int:
             return 2
 
         Just(path):
+            let terminal = consoleTerminal(options)
             let &children = [] :: [Process]
             let &paths = [] :: [String]
-            let &i = 0 :: Int
+            let &errorPaths = [] :: [String]
 
-            while i < options.jobs:
-                let reportPath = temporaryPath("shard{i}")
+            for i in 0 .. options.jobs:
+                let reportPath = temporaryPath("shard{i}.report")
+                let errorPath = temporaryPath("shard{i}.output")
                 -- Not `-q`: a shard reports its own failures as they happen, and the parent adds only
                 -- the aggregate and whatever the shard was still inside when it died.
                 let &arguments = ["--shard", "{i}/{options.jobs}", "-q", "--allow-empty"]
@@ -113,7 +117,7 @@ pub fn runShards(cases: [Case], options: Options) -> Int:
                 if options.isolate then push(arguments, "--isolate")
                 passSnapshotFlags(arguments, options)
 
-                match spawnReporting(path, arguments, reportPath):
+                match spawnReporting(path, arguments, reportPath, errorPath, False):
                     Err(reason):
                         print("could not start shard {i}: {describeError(reason)}\n")
                         return 2
@@ -121,45 +125,54 @@ pub fn runShards(cases: [Case], options: Options) -> Int:
                     Ok(child):
                         push(children, child)
                         push(paths, reportPath)
-
-                i = i + 1
+                        push(errorPaths, errorPath)
 
             let &ran = 0 :: Int
             let &failed = 0 :: Int
-            let &j = 0 :: Size
 
-            while j < length(children):
+            for j in 0 .. length(children):
                 let outcome = awaitChild(children[j], 0)
                 let report = collectReport(paths[j])
+
+                -- A shard's own human lines are `print`, which is standard output and is inherited;
+                -- this is the other channel, which carries what the process said on its way down.
+                let said = collectComplaint(errorPaths[j])
 
                 ran = ran + report.ran
                 failed = failed + report.failedCases
 
                 -- The shard said nothing for a human - its report went to a file of this parent's
                 -- choosing, which is what makes it a child - so the names come from the stream.
-                let &k = 0 :: Size
-                while k < length(report.failedNames):
-                    print("FAIL {report.failedNames[k]}\n")
-                    k = k + 1
+                for failed in items(report.failedNames):
+                    let mark = terminal.paint(boldColored(Red), "FAIL")
+                    print("  {mark} {failed}\n")
 
                 -- The case that was open when the shard stopped, which is the only place this can be
                 -- said. §1.2 is precisely this line not existing.
+                let mark = terminal.paint(boldColored(Red), "FAIL")
+
                 if length(report.unfinished) > (0 :: Size):
                     failed = failed + 1
-                    print("FAIL {report.unfinished}: the shard running it {describeStop(outcome)}\n")
+                    let why = withComplaint("the shard running it {describeStop(outcome)}", said)
+                    print("  {mark} {report.unfinished}: {why}\n")
                 else if outcome.timedOut:
                     failed = failed + 1
-                    print("FAIL shard {j}: it did not finish inside the timeout\n")
-
-                j = j + 1
+                    print("  {mark} shard {j}: it did not finish inside the timeout\n")
 
             if length(cases) == (0 :: Size) then return 1
 
+            let g = terminal.glyphs()
+            let across = terminal.dimmed("across {options.jobs} shards")
+
             if failed == 0:
-                print("{ran} passed across {options.jobs} shards\n")
+                let good = terminal.paint(boldColored(Green), g.pass)
+                let count = terminal.inColor(Green, "{ran} passed")
+                print("  {good}  {count} {across}\n")
                 return 0
 
-            print("{failed} of {ran} failed across {options.jobs} shards\n")
+            let bad = terminal.paint(boldColored(Red), g.fail)
+            let count = terminal.paint(boldColored(Red), "{failed} of {ran} failed")
+            print("  {bad}  {count} {across}\n")
             return 1
 
 {-
@@ -194,15 +207,41 @@ fn passSnapshotFlags(&arguments: Array(String), options: Options) -> {}:
 pub data ChildStop {status: Int, signal: Int, timedOut: Bool, broken: Bool}
 
 {-
-   Spawning one, with descriptor 3 pointed at a file of its own.
+   Spawning one, with descriptor 3 pointed at a file of its own and its standard error at another.
 
    The report file is created here rather than in the child, so that a child that never started - a
    failed exec, a missing binary - is still distinguishable from one that started and said nothing:
    the file exists and is empty in the first case and does not exist in the second.
+
+   **What the child says is caught rather than inherited, and that is what a terminal is for.** A
+   `@test(aborts)` case dies by design, and what a dying child writes - *"assertion failed:
+   arithmetic"*, from `Core`'s own `assert` - went straight onto the parent's screen: into the middle
+   of the line the console was rewriting, unattributed, once per run, for a case that was *passing*.
+   It is the same collision `muteReport` settles for the report stream, and the same answer - one
+   reader for one channel.
+
+   **`silent` is which of the two output channels that covers**, and it is the caller's answer to the
+   question `runSelected` already asks. A child narrowed to one case prints nothing for a human by
+   construction, so both its streams are caught - `assert` writes through `print`, which is standard
+   output, so catching the error stream alone caught nothing at all. A *shard* prints its own
+   failures as they happen and its standard output is that report, so only its error stream is.
+
+   A file of its own rather than the report's, because the two are written by different things and a
+   report is line-oriented: a message with no trailing newline would run into the next `end` line and
+   `readReport` would lose both. What the child said is surfaced by `verdictOf` when the verdict is a
+   failure and dropped when it is not, so the message is now attached to the case it came from
+   instead of being on the screen next to whichever case was running.
 -}
-fn spawnReporting(path: String, arguments: [String], reportPath: String) -> Result(FileError, Process):
+fn spawnReporting(path: String, arguments: [String], reportPath: String, errorPath: String,
+                  silent: Bool) -> Result(FileError, Process):
     let &into = openFile(reportPath, writeAccess(), CreateAlways)?
-    let target = Redirect {input: Nothing, output: Nothing, errors: Nothing,
+    let &complaints = openFile(errorPath, writeAccess(), CreateAlways)?
+
+    let &output = Nothing :: Maybe(File)
+    if silent then output = Just(borrowFile(complaints.handle))
+
+    let target = Redirect {input: Nothing, output: output,
+                           errors: Just(borrowFile(complaints.handle)),
                            report: Just(borrowFile(into.handle))}
 
     let started = spawnWith(path, arguments, target)
@@ -221,6 +260,7 @@ fn spawnReporting(path: String, arguments: [String], reportPath: String) -> Resu
        descriptor 3 real - and hands the parent's own copy back, which it has no further use for.
     -}
     close(into)
+    close(complaints)
     return started
 
 {-
@@ -272,6 +312,25 @@ fn collectReport(path: String) -> ChildReport:
     return report
 
 {-
+   What the child wrote to its standard error, as the one line a verdict can carry.
+
+   The first line and not all of it: this ends up inside a report line, and a child that printed a
+   hundred lines of its own before it died should not turn one failure into a hundred. The rest is
+   not lost in any way that matters - it went where the child was told to put it, and the caller
+   knows the path.
+-}
+fn collectComplaint(path: String) -> String:
+    let &said = match readWholeFile(path):
+        Ok(text) -> trim(text)
+        Err(_) -> ""
+
+    removeFile(path)
+
+    match findAscii(said, 10):
+        Nothing -> return said
+        Just(at) -> return trimEnd(String.slice(said, 0, at))
+
+{-
    What all of that came to, for one case.
 
    **The `aborts` verdict is inverted**, which is the whole of §5.3's third row: the case passes when
@@ -283,28 +342,42 @@ fn collectReport(path: String) -> ChildReport:
    An ordinary case's verdict is the child's own: the failures it recorded, plus the case it was
    still inside if it never came back.
 -}
-fn verdictOf(name: String, aborts: Bool, stop: ChildStop, report: ChildReport) -> Result(String, String):
-    if stop.broken then return Err("the child could not be waited for")
-    if stop.timedOut then return Err("it did not finish inside the timeout")
+fn verdictOf(name: String, aborts: Bool, stop: ChildStop, report: ChildReport, said: String)
+    -> Result(String, String):
+    if stop.broken then return Err(withComplaint("the child could not be waited for", said))
+    if stop.timedOut then return Err(withComplaint("it did not finish inside the timeout", said))
 
     if aborts:
+        -- The expected abort, whose own dying words are not a failure to report - they are what a
+        -- passing case of this kind looks like from outside. See `spawnReporting`.
         if stop.signal == abortSignal || stop.status == abortStatus then return Ok(" (stopped, as expected)")
-        if stop.signal != 0 then return Err("it was expected to abort and was killed by signal {stop.signal} instead")
-        return Err("it was expected to abort and returned {stop.status} instead")
+        if stop.signal != 0 then return Err(withComplaint("it was expected to abort and was killed by signal {stop.signal} instead", said))
+        return Err(withComplaint("it was expected to abort and returned {stop.status} instead", said))
 
     if length(report.unfinished) > (0 :: Size):
-        return Err("it {describeStop(stop)} while running {report.unfinished}")
+        return Err(withComplaint("it {describeStop(stop)} while running {report.unfinished}", said))
 
     if report.failedClaims > 0 then return Err("{report.failedClaims} of its claims did not hold")
-    if stop.signal != 0 then return Err("it {describeStop(stop)}")
+    if stop.signal != 0 then return Err(withComplaint("it {describeStop(stop)}", said))
 
     -- A child that ran nothing is not a pass. `--only` names one case, so an empty report means the
     -- name reached nothing - a case that was filtered out by something, or a binary that no longer
     -- has it.
-    if report.ran == 0 then return Err("the child ran no case called {name}")
-    if stop.status != 0 then return Err("it exited with status {stop.status} having reported nothing")
+    if report.ran == 0 then return Err(withComplaint("the child ran no case called {name}", said))
+    if stop.status != 0 then return Err(withComplaint("it exited with status {stop.status} having reported nothing", said))
 
     return Ok("")
+
+{-
+   A verdict with what the child said on the end of it, and the verdict alone when it said nothing.
+
+   Not on the claim count, which is the one failure the report already explains in full: a child that
+   recorded its own failures has said everything on the stream, and its standard error is then
+   whatever the *case* chose to print rather than anything about why it failed.
+-}
+fn withComplaint(->verdict: String, said: String) -> String:
+    if length(said) == (0 :: Size) then return verdict
+    return "{verdict} - it said: {said}"
 
 fn describeStop(stop: ChildStop) -> String:
     if stop.timedOut then return "was killed after the timeout"
@@ -329,4 +402,6 @@ fn temporaryPath(tag: String) -> String:
         Just(->named) -> named
         Nothing -> "/tmp"
 
-    return "{directory}/yana-test-{processId()}-{tag}.report"
+    -- `joinPath` rather than a separator written here: it is what every other path in this library
+    -- is built with, and it is the one that knows a directory that already ends in one is not two.
+    return joinPath(directory, "yana-test-{processId()}-{tag}")

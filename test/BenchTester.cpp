@@ -385,6 +385,11 @@ static void benchNative(const Fixture& fixture) {
     if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
+
+    // A `lib/` fixture is a suite with a synthesized entry rather than a program with a `main` -
+    // Design-Test.md §11.2's F1. Without this it does not resolve at all, and a fixture that does
+    // not resolve is a compile this benchmark stops half way through and therefore mistimes.
+    context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("Bench", 5);
@@ -454,6 +459,7 @@ static void benchJs(const Fixture& fixture) {
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
     context.settings.mode = CompileMode::JsExecutable;
+    context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("Bench", 5);

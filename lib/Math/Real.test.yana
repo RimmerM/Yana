@@ -1,0 +1,195 @@
+-- `Real(a)` - Analysis-Library.md §2.4's one implementation for a scalar and a vector alike.
+--
+-- What this fixture exists to assert is not that a sine is a sine. It is that **one body serves four
+-- instances**: every function below calls `sin`, `exp`, `log` and the rest at `Float`, at `Double`
+-- and at `Vec(F32)`, and the approximation each of them runs is the same generic body in
+-- `lib/Math.yana` with `Num`, `FromDecimal`, `Lanewise` and `Logic` substituted four ways. A change
+-- that broke the sharing - a kernel that stopped resolving for a vector, an instance that stopped
+-- being selected - fails here rather than in a program.
+--
+-- The tolerances are the honest ones: a `Double` is held to a relative 1e-12 where the
+-- implementation reaches 1e-15 or better, and a `Float` to 3e-6 where it reaches about 1e-7. They
+-- are loose enough that a last-bit difference between two backends is not a failure and tight enough
+-- that a wrong series coefficient is.
+--
+-- Every written decimal here is at most seventeen significant digits, which is what round-trips a
+-- double. Eighteen is silently wrong: the literal reader stops accumulating at seventeen and does
+-- not adjust the exponent for the digits it dropped, so a longer constant reads as a tenth of itself.
+
+import Test
+
+fn nearDouble(got: Double, want: Double) -> Bool:
+    let difference = got - want
+    let size = if difference < 0.0 then 0.0 - difference else difference
+    let scale = if want < 0.0 then 0.0 - want else want
+    return size <= 1.0e-12 * (if scale > 1.0 then scale else 1.0)
+
+fn nearFloat(got: Float, want: Float) -> Bool:
+    let difference = got - want
+    let size = if difference < 0.0 then 0.0 - difference else difference
+    let scale = if want < 0.0 then 0.0 - want else want
+    return size <= 3.0e-6 * (if scale > 1.0 then scale else 1.0)
+
+-- The five an instance supplies, checked directly: everything else in the module is written over
+-- these, so a wrong one here is a wrong answer everywhere rather than in one function.
+@test fn primitives() -> {}:
+    check(nearDouble(trunc(2.7 :: Double), 2.0))
+    check(nearDouble(trunc(0.0 - 2.7 :: Double), 0.0 - 2.0))
+    check(nearDouble(exponentOf(8.0 :: Double), 3.0))
+    check(nearDouble(significandOf(8.0 :: Double), 1.0))
+    check(nearDouble(scaleByExponent(1.0 :: Double, 10.0), 1024.0))
+    check(nearDouble(scaleByExponent(3.0 :: Double, 0.0 - 2.0), 0.75))
+
+    -- The saturating requirement `exp` depends on: an exponent past the type's range answers an
+    -- infinity rather than wrapping back into the middle of it.
+    checkGreater(scaleByExponent(1.0 :: Double, 3000.0), 1.0e308)
+
+@test fn rounding() -> {}:
+    check(nearDouble(floor(2.7 :: Double), 2.0))
+    check(nearDouble(floor(0.0 - 2.1 :: Double), 0.0 - 3.0))
+    check(nearDouble(ceil(2.1 :: Double), 3.0))
+    check(nearDouble(ceil(0.0 - 2.7 :: Double), 0.0 - 2.0))
+
+    -- Half away from zero, which is C's `round` and not the FPU's default even-tie rule.
+    check(nearDouble(round(2.5 :: Double), 3.0))
+    check(nearDouble(round(0.0 - 2.5 :: Double), 0.0 - 3.0))
+
+    -- The largest double below a half, which is not a tie and rounds to zero. It is here because the
+    -- library shape this used to be written as - `trunc(x + copysign(0.5, x))` - answers 1 for it:
+    -- adding a half rounds *up* to exactly 1 before the truncation can look. Every target's own
+    -- rounding answers 0, and that is the difference the instruction bought.
+    check(nearDouble(round(0.49999999999999994 :: Double), 0.0))
+    check(nearDouble(mod(7.0 :: Double, 3.0), 1.0))
+    check(nearDouble(mod(0.0 - 7.0 :: Double, 3.0), 0.0 - 1.0))
+
+@test fn exponentials() -> {}:
+    check(nearDouble(exp(0.0 :: Double), 1.0))
+    check(nearDouble(exp(1.0 :: Double), 2.7182818284590452))
+    check(nearDouble(exp(20.0 :: Double), 485165195.40979028))
+    check(nearDouble(exp(0.0 - 5.0 :: Double), 0.0067379469990854671))
+    check(nearDouble(exp2(10.0 :: Double), 1024.0))
+    check(nearDouble(exp2(0.5 :: Double), 1.4142135623730951))
+
+    -- The overflow guard, which is a comparison on the argument rather than a test of the result.
+    checkGreater(exp(1000.0 :: Double), 1.0e308)
+    checkEqual(exp(0.0 - 1000.0 :: Double), 0.0)
+
+@test fn logarithms() -> {}:
+    check(nearDouble(log(2.7182818284590452 :: Double), 1.0))
+    check(nearDouble(log(1000.0 :: Double), 6.9077552789821371))
+
+    -- Sharing the decomposition rather than the answer is what keeps a power of two exact here;
+    -- written as `log(x) * log2(e)` this is 2.9999999999999996.
+    checkEqual(log2(8.0 :: Double), 3.0)
+    checkEqual(log2(1024.0 :: Double), 10.0)
+    check(nearDouble(log10(1000.0 :: Double), 3.0))
+
+    -- A negative infinity, identified by both halves of what one is: below zero, and with a
+    -- reciprocal of zero. Comparing against a written bound would not do it - `0.0 - 1.0e308` is a
+    -- subexpression of literals, which resolves on its own and takes `default FromDecimal`, and
+    -- 1.0e308 as a `Float` is already an infinity.
+    let atZero = log(0.0 :: Double)
+    check(atZero < 0.0 && 1.0 / atZero == 0.0)
+
+@test fn powers() -> {}:
+    check(nearDouble(pow(2.0 :: Double, 10.0), 1024.0))
+    check(nearDouble(pow(2.0 :: Double, 0.5), 1.4142135623730951))
+
+    -- A negative base is the case the `2 ^ (y * log2 x)` identity does not cover: the sign goes back
+    -- on for a whole odd exponent, stays off for a whole even one, and a fractional one has no real
+    -- answer at all.
+    check(nearDouble(pow(0.0 - 2.0 :: Double, 3.0), 0.0 - 8.0))
+    check(nearDouble(pow(0.0 - 2.0 :: Double, 2.0), 4.0))
+    checkNotEqual(pow(0.0 - 2.0 :: Double, 0.5), pow(0.0 - 2.0 :: Double, 0.5))
+    check(nearDouble(pow(0.0 :: Double, 0.0), 1.0))
+    check(nearDouble(cbrt(27.0 :: Double), 3.0))
+    check(nearDouble(cbrt(0.0 - 27.0 :: Double), 0.0 - 3.0))
+    check(nearDouble(hypot(3.0 :: Double, 4.0), 5.0))
+
+@test fn angles() -> {}:
+    check(nearDouble(sin(1.0 :: Double), 0.84147098480789651))
+    check(nearDouble(cos(1.0 :: Double), 0.54030230586813977))
+    check(nearDouble(sin(3.0 :: Double), 0.14112000805986722))
+    check(nearDouble(cos(3.0 :: Double), 0.0 - 0.98999249660044546))
+    check(nearDouble(tan(1.0 :: Double), 1.5574077246549023))
+
+    -- Reduction past the first quadrant, which is what the six-piece split of pi/2 is for.
+    check(nearDouble(sin(100.0 :: Double), 0.0 - 0.50636564110975879))
+    check(nearDouble(atan(1.0 :: Double), 0.78539816339744831))
+    check(nearDouble(atan2(1.0 :: Double, 0.0 - 1.0), 2.3561944901923449))
+    check(nearDouble(atan2(0.0 - 1.0 :: Double, 0.0), 0.0 - 1.5707963267948966))
+    check(nearDouble(asin(0.5 :: Double), 0.52359877559829887))
+    check(nearDouble(acos(0.5 :: Double), 1.0471975511965977))
+
+    -- The endpoints, which are exact only because `asin` goes through `atan2` and lands on its axis
+    -- case rather than on a division.
+    check(nearDouble(asin(1.0 :: Double), 1.5707963267948966))
+    check(nearDouble(acos(0.0 - 1.0 :: Double), 3.1415926535897932))
+    check(nearDouble(pi(), 3.1415926535897932))
+    check(nearDouble(toRadians(180.0 :: Double), 3.1415926535897932))
+    check(nearDouble(toDegrees(3.1415926535897932 :: Double), 180.0))
+
+-- The same functions at `Float`, which is the second of the four instances and shares every line of
+-- the implementation with the first.
+@test fn atFloat() -> {}:
+    check(nearFloat(exp(1.0 :: Float), 2.7182818))
+    check(nearFloat(log(10.0 :: Float), 2.3025851))
+    check(nearFloat(log2(8.0 :: Float), 3.0))
+    check(nearFloat(sin(1.0 :: Float), 0.84147098))
+    check(nearFloat(cos(1.0 :: Float), 0.54030231))
+    check(nearFloat(tan(0.5 :: Float), 0.54630249))
+    check(nearFloat(atan(1.0 :: Float), 0.78539816))
+    check(nearFloat(asin(0.5 :: Float), 0.52359878))
+    check(nearFloat(pow(2.0 :: Float, 10.0), 1024.0))
+    check(nearFloat(cbrt(27.0 :: Float), 3.0))
+    check(nearFloat(hypot(3.0 :: Float, 4.0), 5.0))
+    check(nearFloat(floor(0.0 - 2.5 :: Float), 0.0 - 3.0))
+
+-- And at the two vector instances, which are the whole point of the exercise: the generic body
+-- reaches `select` through `Lanewise` instead of an `if`, and a written coefficient through a
+-- `FromDecimal` instance generated for the vector - so the lanes run the identical approximation.
+@test fn atVector() -> {}:
+    let one = splat(1.0) :: Vec(F32)
+    let ten = splat(10.0) :: Vec(F32)
+
+    check(nearFloat(lane(exp(one), 0), 2.7182818))
+    check(nearFloat(lane(log(ten), 0), 2.3025851))
+    check(nearFloat(lane(sin(one), 0), 0.84147098))
+    check(nearFloat(lane(cos(one), 0), 0.54030231))
+    check(nearFloat(lane(atan(one), 0), 0.78539816))
+    check(nearFloat(lane(asin(splat(0.5) :: Vec(F32)), 0), 0.52359878))
+    check(nearFloat(lane(pow(splat(2.0) :: Vec(F32), ten), 0), 1024.0))
+    check(nearFloat(lane(cbrt(splat(27.0) :: Vec(F32)), 0), 3.0))
+    check(nearFloat(lane(exp2(splat(0.5) :: Vec(F32)), 0), 1.4142136))
+    check(nearFloat(lane(floor(splat(0.0 - 2.5) :: Vec(F32)), 0), 0.0 - 3.0))
+    check(nearFloat(lane(trunc(splat(2.7) :: Vec(F32)), 0), 2.0))
+
+    -- Every lane, not only the first: a reduction that folded to one lane would pass every line
+    -- above and this is what says the whole register was computed.
+    checkGreater(horizontalSum(sin(one)) / (widen(lanes(one)) :: Float), 0.8414)
+
+    {-
+       And at `Vec(F64)`, which is the fourth instance and the one that used to exist on one target.
+
+       It was `@platform(native)` because its three reinterpreting members are written through
+       `Vec(Long)`, and a 64-bit integer lane was refused on JS - a `bigint` is not a lane, said
+       Design-Vector §7.3. That refusal is gone: the lane is allowed, the vector bitcast goes
+       through a `Float64Array`/`BigInt64Array` pair, and a JS program pays `bigint` arithmetic in
+       those three bodies rather than not compiling.
+
+       So the three that reinterpret are checked *by name* below and not only through a kernel that
+       calls them. `exponentOf` and `significandOf` are the two halves of the bit layout and
+       `scaleByExponent` puts one back; if the wide scratch pair were the narrow one, each would
+       come back a truncated low half and none of the three would be close.
+    -}
+    let oneDouble = splat(1.0 :: Double) :: Vec(F64)
+    let twoAndAHalf = splat(2.5 :: Double) :: Vec(F64)
+
+    check(nearDouble(lane(exponentOf(twoAndAHalf), 0), 1.0))
+    check(nearDouble(lane(significandOf(twoAndAHalf), 0), 1.25))
+    check(nearDouble(lane(scaleByExponent(twoAndAHalf, splat(3.0 :: Double)), 0), 20.0))
+    check(nearDouble(lane(exp(oneDouble), 0), 2.7182818284590452))
+    check(nearDouble(lane(log(splat(10.0 :: Double) :: Vec(F64)), 0), 2.3025850929940457))
+    check(nearDouble(lane(sin(oneDouble), 0), 0.84147098480789651))
+    check(nearDouble(lane(pow(splat(2.0 :: Double) :: Vec(F64), splat(10.0 :: Double)), 0), 1024.0))
+    check(nearDouble(lane(round(twoAndAHalf), 0), 3.0))

@@ -1,0 +1,23 @@
+{-
+   The standard library's own test suite, as a program.
+
+   A test file is a file of the module it tests (Design-Test.md §3.1), so there is nothing here to
+   enumerate: what this module does is *import* every module of `base`, and the library's `.test.yana`
+   files come with them. Selecting them is the package's business rather than this file's - the
+   compilation says `-package base`, `lib/yana.toml` says that is what `base` is called, and the walk
+   over `lib/` then reads test files it would refuse to read for anybody else.
+
+   So the list below is "which modules the suite covers" and nothing more. A module missing from it
+   is a module whose tests do not run, which is the one failure mode worth a comment.
+
+   The modules that exist only on one target are in `Base.native.yana`, by the same file selector the
+   library itself uses - a JavaScript build has no `Atomic` at all, so naming it here would be an
+   unresolved import rather than a suite with a gap in it.
+-}
+import Native
+import Terminal
+import Math
+import Date
+import Random
+import Digest
+import Test

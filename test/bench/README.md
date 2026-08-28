@@ -53,12 +53,14 @@ change once it is known to be one.
 
 ## The block-move corpora
 
-Two, and neither is a comparison against LLVM.
+Three, and none is a comparison against LLVM.
 
-`memmove/` is the **library**: `copyMemory` and `moveMemory` against glibc's `memcpy` and `memmove`
-at forty-nine lengths — the same program written twice, once in Yana and once in C, so that what is
-compared is one call each way. `memmove/findings.md` is its standing result and
-`python3 memmove/run.py --pin 2` reproduces it.
+`memmove/` is the **library**: `copyMemory`, `moveMemory` and `compareMemory` against glibc's
+`memcpy`, `memmove` and `memcmp` at forty-nine lengths — the same program written twice, once in
+Yana and once in C, so that what is compared is one call each way. The comparison row is the one
+that reads rather than writes, and it runs over two regions made equal beforehand so that every
+length is a full scan rather than a measurement of where the contents first part.
+`memmove/findings.md` is its standing result and `python3 memmove/run.py --pin 2` reproduces it.
 
 `blockcopy/` is the **backend**: a constant-size record assignment, which is what reaches
 `expandBlockOperations` and what a compiler-generated aggregate copy is. It is a different question
@@ -66,6 +68,25 @@ from the one above and needs a different program to ask it — `copyMemory` is a
 now, so a constant count folds into *that* ladder rather than into the backend's, and a benchmark
 written over `copyMemory` would measure the wrong one. Six sizes chosen against the ragged-end
 schemes rather than round; `blockcopy/findings.md` is the standing result.
+
+`typecopy/` is the **runtime-sized erased copy under register pressure**: inline `rep movsb` against
+one ABI call to `copyMemory`, with zero, four and eight scalar values live across the operation. It
+answers whether avoiding the call's saved registers and spills repays the string instruction's flat
+startup. `typecopy/findings.md` is the result.
+
+`text/` is the **text library**: `Core/Text.yana`'s search, split, trim and ASCII case tier against
+`Tritium/Core/Text.cpp`, over one generated 64 KiB corpus, with the checksums held equal on both
+sides so that a row is only printed when the two programs computed the same thing. It is the same
+shape as `numbers/` - a Yana program and a C++ one linked against `libTritiumCore.a` - and
+`text/findings.md` is its standing result. `python3 text/run.py --pin 2` reproduces it.
+
+`callconv/` is the **aggregate ABI experiment**: fixed-size results in increasing numbers of GPR,
+xmm and ymm registers against a hidden return buffer; argument-register-first against disjoint-first
+return register orders; opaque objects in vector registers against stack arguments; and recursive
+forwarding deep enough for their stack footprints to leave L1. A separate matrix varies how many
+vector registers are callee-saved against caller liveness and callee demand. It is handwritten
+assembly because these are the conventions being considered rather than conventions the source
+language can express. `callconv/findings.md` is the standing result.
 
 ## Running the program corpus
 

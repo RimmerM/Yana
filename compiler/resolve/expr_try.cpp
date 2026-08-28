@@ -67,6 +67,23 @@ static bool tryShape(Module& module, Function& function, TypePtr carrier, TypeLi
     auto typeClass = module.coreClasses.try_;
     if(!typeClass || !carrier) return false;
 
+    /*
+     * **A reference carries what it names**, which is the same rule `emitClassMember` states and
+     * `bindInto` states before both of them: which instance serves a value is a question about the
+     * value, and a reference has no instances of its own to be a different answer.
+     *
+     * Worth being explicit about what this does *not* decide. `toOutcome(->value: m)` consumes the
+     * carrier, so `m?` over a `'Maybe(String)` is still refused - by the argument conversion, with
+     * *"cannot take ownership of borrowed storage ... duplicate it with `copy`"*, which names the
+     * fix. What it used to say was *"`?` needs 'Maybe(Int) to say which of its cases means carry on,
+     * and it has no `Try` instance"*, which sends a reader looking for an instance that is not
+     * missing. Selection and ownership are two questions and only the second one has an answer here.
+     */
+    auto global = *module.types;
+    if(isBorrow(global, carrier)) {
+        if(auto to = ((BorrowType*)global[carrier])->to) carrier = to;
+    }
+
     TypeList asked;
     asked.push(carrier);
     asked.push(nullptr);

@@ -1,0 +1,133 @@
+{-
+   Taking ownership out of borrowed storage and writing a value back into it.
+
+   `acc = acc ++ part` through a `&` is the shape this is about, and it was refused outright: a move
+   whose place is rooted in a borrow was rejected on sight, with no reference to what the body did
+   next. The rule now asks one program point later. The storage is emptied, something is written
+   back, and only then does the frame let go of the reference - so at every point the caller can
+   observe, the storage holds a value.
+
+   Two things make the window between the two unobservable, and both are properties of this
+   language rather than assumptions. A `&` is exclusive while it is live, so no second reader exists
+   to look into it; and nothing unwinds, so a failed check aborts the process rather than running
+   the owner's teardown over a hole on the way out. Take either away and the rule goes with it.
+
+   The reason it is worth a fixture rather than a paragraph is that the same body has to be accepted
+   in two shapes that look nothing alike underneath. Written against a `&` parameter, `acc` is a
+   local this frame has a slot for and the existing ownership lattice already had a row for it.
+   Written inside a `for`, the loop body is lifted into a continuation and `acc` becomes a field of
+   an environment the continuation is handed a *pointer* to - a place with no local behind it at
+   all, which is the case the second lattice exists for. Adding a `for` to a working function used
+   to turn its remaining lines into a barrage of errors about storage it had not stopped owning.
+
+   Every group below also proves the *value* survived, not only that the program compiled. A write
+   through a borrow releases what it replaces, and if it did that here it would release what the
+   move had already handed away - the double free the old refusal was standing in for. A length is
+   what catches it: a released buffer reused would answer something other than what was appended.
+-}
+
+import Test
+
+data BorrowUpdateHeld {name: String, tally: Array(Int)}
+
+fn borrowUpdateCounted(n: Int) -> Array(Int):
+    let &out = [] :: [Int]
+    let &i = 0
+    while i < n:
+        push(out, i)
+        i = i + 1
+    return out
+
+fn borrowUpdateSize(xs: Array(Int)) -> Int = truncate(length(xs)) :: Int
+fn width(s: String) -> Int = truncate(length(s)) :: Int
+
+iter fn each(xs: [String]) -> 'String:
+    let &i = 0 :: Size
+    while i < length(xs):
+        yield xs[i]
+        i = i + 1
+
+-- The `&` parameter, which is the tier with a local behind it. The move marks the slot, the write
+-- fills it again, and the state that survives to the `ret` is the second of the two.
+fn append(&target: String, ->amount: String) -> {}:
+    target = target ++ amount
+
+@test fn throughAParameter() -> {}:
+    let &->acc = "ab" :: String
+    append(acc, "cd")
+    append(acc, "ef")
+
+    checkEqual(width(acc), 6)
+    checkEqual(acc, "abcdef")
+
+-- The same statement written where the compiler can see both ends of it, rather than across a call.
+fn inTheSameFrame(&acc: String) -> {}:
+    acc = acc ++ "cd"
+
+@test fn withoutACall() -> {}:
+    let &->acc = "ab" :: String
+    inTheSameFrame(acc)
+
+    checkEqual(acc, "abcd")
+
+-- The tier this was really about: a `for` body, where `acc` is a field of a heap environment the
+-- lifted continuation holds a raw pointer to. The two loads of that field have to be recognized as
+-- one piece of storage or the write back looks like a write to something else.
+@test fn overALoop() -> {}:
+    let &->acc = "" :: String
+    let parts = ["ab", "cd", "ef"] :: [String]
+
+    for p in each(parts):
+        acc = acc ++ copy(p)
+
+    checkEqual(width(acc), 6)
+    checkEqual(acc, "abcdef")
+
+-- A container rather than a scalar, so that a released buffer answers a wrong length instead of a
+-- wrong string, and a borrow *of a field* rather than of the whole record.
+--
+-- The borrow is taken at the call site and not inside the callee, which is the pre-existing rule
+-- about partial moves rather than anything to do with this one: `h.tally = h.tally ++ extra` inside
+-- a body holding `&h` moves one member out of a value and leaves the rest, and a slot half given
+-- away needs a drop flag per field. `&h.tally` hands over the member's own storage, and the move is
+-- whole again.
+fn growTally(&tally: Array(Int), ->extra: Array(Int)) -> {}:
+    tally = tally ++ extra
+
+@test fn throughAField() -> {}:
+    let &->h = BorrowUpdateHeld {name: "h", tally: borrowUpdateCounted(3)}
+    growTally(h.tally, borrowUpdateCounted(5))
+
+    checkEqual(borrowUpdateSize(h.tally), 8)
+    checkEqual(h.name, "h")
+
+-- Emptied and filled on both arms of a branch, which is the join the lattice has to get right: the
+-- state reaching the `ret` is Owned from either side, and neither arm owes a drop for what it
+-- overwrites, because there was nothing there to release.
+fn pickOne(&acc: String, longer: Bool) -> {}:
+    let ->old = acc
+    if longer:
+        acc = old ++ "xy"
+    else:
+        acc = old
+
+@test fn acrossABranch() -> {}:
+    let &->a = "ab" :: String
+    let &->b = "ab" :: String
+    pickOne(a, True)
+    pickOne(b, False)
+
+    checkEqual(a, "abxy")
+    checkEqual(b, "ab")
+
+-- Twice through the same borrow with a write between them, which is what a loop body does on its
+-- second iteration and what the double-move check has to let past.
+fn twiceOver(&acc: String) -> {}:
+    acc = acc ++ "cd"
+    acc = acc ++ "ef"
+
+@test fn repeatedly() -> {}:
+    let &->acc = "ab" :: String
+    twiceOver(acc)
+
+    checkEqual(acc, "abcdef")

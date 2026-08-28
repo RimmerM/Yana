@@ -1,0 +1,150 @@
+{-
+   `copy` - `Core.Copy`, over the instances the library writes and the one it does not have to.
+
+   The class is the authored half of Design.md's ownership pair: `TrivialCopy` is the compiler's
+   structural answer and `Copy` is what a type whose bytes are not its whole story writes instead.
+   What is new is that the two are no longer alternatives to a *reader*. `instance (TrivialCopy(a))
+   Copy(a)` beside the class means `Copy(a)` is the one constraint that says "this can be
+   duplicated", so a container can ask it of its elements and get both worlds - and the trivial world
+   costs nothing, because `copyInitFor` prefers the block copy over an authored instance wherever
+   both apply.
+
+   Four groups:
+
+    - **the blanket**, at a scalar and at an aggregate whose members are scalars, where the answer is
+      the value and the duplicate is free;
+    - **`String`**, which owns a run natively and is a host primitive on JS - the one instance whose
+      two bodies do genuinely different things, and the one `a.copy() ++ b` needs;
+    - **`Array(a)`**, at a trivial element and at an owning one, which is what `Copy(a)` on the
+      element buys over `TrivialCopy(a)`;
+    - **the carriers and `Map`**, which are the same question one level in.
+
+   Every group asserts the *source* afterwards as well as the copy. A duplicate that aliased its
+   source produces the right answer out of the copy and the wrong one out of the original, and only
+   reading both can tell the two apart.
+-}
+
+import Test
+
+data CopyPoint {x: Int, y: Int}
+
+@test fn scalars() -> {}:
+    let n = 7
+    checkEqual(copy(n), 7)
+    checkEqual(n, 7)
+
+    -- An aggregate whose members are all trivial is itself trivial, so this is the blanket instance
+    -- at a type with no register form: the duplicate is a `->` binding, which is a real copy of the
+    -- bytes rather than a second name for them.
+    let p = CopyPoint {x: 3, y: 4}
+    let q = copy(p)
+    checkEqual(q.x, 3)
+    checkEqual(q.y, 4)
+    checkEqual(p.x, 3)
+
+@test fn copyStrings() -> {}:
+    let base = "hello"
+    let duplicate = copy(base)
+
+    checkEqual(duplicate, "hello")
+    checkEqual(base, "hello")
+
+    -- Independent storage rather than a second name for one run, which is what appending to the
+    -- copy and reading the original afterwards asserts.
+    let &grown = copy(base)
+    String.push(grown, " there")
+
+    checkEqual(grown, "hello there")
+    checkEqual(base, "hello")
+    checkEqual(length(base), 5)
+
+@test fn copyArrays() -> {}:
+    let xs = [1, 2, 3]
+    let &ys = copy(xs)
+    push(ys, 4)
+
+    checkEqual(length(ys), 4)
+    checkEqual(length(xs), 3)
+    checkEqual(ys[2], 3)
+
+    -- The element that `TrivialCopy(a)` would have excluded. Each element is duplicated through its
+    -- own instance, which for a `String` is a fresh run.
+    let names = ["ab", "cde"]
+    let &copies = copy(names)
+    push(copies, "f")
+
+    checkEqual(length(copies), 3)
+    checkEqual(length(names), 2)
+    checkEqual(copies[1], "cde")
+    checkEqual(names[1], "cde")
+
+    -- And one level in, where the element's own copy is this same instance.
+    let rows = [[1, 2], [3]]
+    let deep = copy(rows)
+    checkEqual(length(deep), 2)
+    checkEqual(length(deep[0]), 2)
+    checkEqual(deep[0][1], 2)
+
+@test fn carriers() -> {}:
+    let some = Just("abc")
+    let other = copy(some)
+
+    checkEqual(lengthOf(other), 3)
+    checkEqual(lengthOf(some), 3)
+
+    let none = Nothing :: Maybe(String)
+    checkEqual(lengthOf(copy(none)), 0)
+
+    -- A payload that is itself trivial reaches the blanket through the carrier's own instance.
+    let number = Just(7)
+    checkEqual(valueOf(copy(number)), 7)
+
+    let ok = Ok("hello") :: Result(Int, String)
+    let same = copy(ok)
+    let got = match same:
+        Ok(v) -> truncate(length(v)) :: Int
+        Err(v) -> 0
+
+    checkEqual(got, 5)
+
+fn lengthOf(m: Maybe(String)) -> Int = match m:
+    Just(v) -> truncate(length(v)) :: Int
+    Nothing -> 0
+
+fn valueOf(m: Maybe(Int)) -> Int = match m:
+    Just(v) -> v
+    Nothing -> 0
+
+{-
+   A map, whose copy is built rather than copied - the entries are appended into a fresh map and the
+   index is rebuilt, because the index is a raw run natively and there is nothing with a `Copy` to
+   copy. `Map.yana` argues it.
+
+   Both worlds again: trivial keys and values, and then a `String` key with an owning value, which is
+   where a shared run would show up as the two maps growing together.
+-}
+@test fn maps() -> {}:
+    let &m = newMap(4) :: Map(Int, Int)
+    insert(m, 1, 10)
+    insert(m, 2, 20)
+
+    let &n = copy(m)
+    insert(n, 3, 30)
+
+    checkEqual(length(m), 2)
+    checkEqual(length(n), 3)
+    checkEqual(m[2], 20)
+    checkEqual(n[2], 20)
+    checkEqual(n[3], 30)
+
+    let &s = newMap(4) :: Map(String, Array(Int))
+    insert(s, copy("a"), [1, 2])
+
+    let &t = copy(s)
+    insert(t, copy("b"), [3])
+
+    checkEqual(length(s), 1)
+    checkEqual(length(t), 2)
+    checkEqual(length(t["a"]), 2)
+    checkEqual(t["a"][1], 2)
+    checkEqual(length(s["a"]), 2)

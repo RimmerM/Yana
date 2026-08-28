@@ -1,0 +1,416 @@
+import Native
+
+{-
+   ==========================================================================================
+   Random numbers - Analysis-Library.md §2.7.
+   ==========================================================================================
+
+   **There is no global seed and no global state**, which is the one design change §2.7 asks for and
+   is the whole of what separates this from the `setRandomSeed`/`random()` pair it ports. A generator
+   is a value: it is created, it is handed about, and two of them in one program are two independent
+   sequences. What that buys is not tidiness - it is that a test using randomness stops depending on
+   what ran before it, and that a benchmark can hold its input fixed while everything around it
+   changes.
+
+       let &rng = newRng(20260824)
+       let roll = between(rng, 1, 7) :: Int
+       let weight = uniform(rng) :: Double
+
+   `&rng` and not `rng`, at every call: drawing a number *is* advancing the generator, so `next` and
+   everything over it take the state mutably. A `let rng = ...` that is then drawn from is a
+   diagnostic rather than a sequence that silently repeats.
+
+   Two classes rather than one, which is §2.7's "range variants beside it" read literally. `Random(a)`
+   is a type that has a uniform value at all, and `Between(a)` is one whose values have a *range* -
+   and the reason they are not one class is `Bool`. There is a uniform `Bool` and there is no such
+   thing as a `Bool` between two others, so a single class would force every instance to write a
+   member that means nothing at half of them.
+
+   **Selection is by result type**, which is `Bounded`'s shape in `Core/Bits.yana` and is there for
+   the same reason: nothing in `uniform(&rng: Rng) -> a` mentions `a` but the answer, so the type
+   comes from the context or from an ascription. `between` does take its `a` from its arguments, so
+   `between(rng, 0, 100)` needs no ascription once the ends are typed.
+-}
+
+{-
+   ==========================================================================================
+   The generator.
+   ==========================================================================================
+
+   **xoshiro128\*\*, four 32-bit lanes** - David Blackman and Sebastiano Vigna's, the 32-bit member of
+   the family whose 64-bit one (`xoshiro256**`) is what the C++ this ports uses. Same structure, same
+   scrambler, a period of 2^128 - 1, and it passes the same test batteries.
+
+   **32 bits and not 64, and that is a portability decision rather than a preference.** A `U64` on
+   JavaScript is a `bigint`, which is off the arithmetic path entirely - the argument
+   `Digest/Whirlpool.native.yana` makes for being native-only, and the reason `Core/Hash.yana` keeps
+   its mixing at 32 bits. A generator is drawn from in a loop, so paying for a heap-allocated integer
+   per draw is the one cost this file cannot absorb. The 32-bit member is a `number` on both targets
+   and one machine word on either, and the sequence it produces is identical on both - which is what
+   lets a fixture assert the numbers rather than assert that they differ.
+
+   What it costs is stated once here: **there is no `Random(U64)` and no `Random(Long)`**. A caller
+   natively wanting sixty-four bits draws twice and assembles them, and pays a conversion this file
+   would otherwise have paid at every draw on the other target.
+
+   Not cryptographic, and nothing here pretends otherwise: a few outputs determine the whole
+   sequence in both directions. `secureRandom` below is the other question, and it is a different
+   function for a reason.
+-}
+pub data Rng {s0: U32, s1: U32, s2: U32, s3: U32}
+
+{-
+   Seeding - SplitMix32, which is the one part of a generator that has to be *unlike* it.
+
+   A seed is usually a small number - a line number, a run index, `1` - and the four lanes of an
+   xoshiro state seeded with three zeros and a small value take thousands of draws to escape the
+   neighbourhood of zero. SplitMix's job is that the four lanes are unrelated to each other and to
+   what was written, so `newRng(1)` and `newRng(2)` are two sequences with nothing in common rather
+   than two views of one.
+
+   The shape is Steele, Lea and Flood's SplitMix - add a fixed increment to a counter, then scramble
+   what came out - and the two multipliers are the 32-bit pair rather than the published 64-bit ones
+   narrowed, since a constant searched for at one width is not a good one at another. Both of them
+   are odd and so is the increment, which is what makes every step of this a bijection: two seeds
+   that differ produce counters that differ, and therefore four lanes that differ, at every one of
+   the four calls.
+
+   The increment is 2^32/phi. Any odd number would do for the argument above; the golden-ratio one is
+   the conventional choice and its bits are well spread, which is what the first shift wants.
+-}
+fn mixSeed(value: U32) -> U32:
+    let &z = value
+
+    z = (z `xor` (z `shr` 16)) * 569420461
+    z = (z `xor` (z `shr` 15)) * 1935289751
+
+    return z `xor` (z `shr` 15)
+
+-- One step of the seed sequence: advance, then scramble. The state advances by the increment and
+-- the *scrambled* value is what leaves, which is what makes four calls give four unrelated lanes.
+fn nextSeed(&from: U32) -> U32:
+    from = from + 2654435769
+    return mixSeed(from)
+
+{-
+   A generator from a seed, and the two facts a caller needs about it.
+
+   **The same seed is the same sequence, on both targets and in every build.** That is the property
+   the whole no-global-state design exists to make available, and it is why the seed is written into
+   the call rather than read from anywhere.
+
+   The seed is an `Int` rather than §2.7's `U64` for the reason the generator is 32-bit: a `Long` on
+   JavaScript is a `bigint`, and a seed that cannot be written as a literal on one target is a
+   portability hole in the one function a test is most likely to call. A wider seed would also buy
+   nothing here - SplitMix expands whatever it is given to the full 128-bit state.
+
+   The all-zero check is the one degenerate state xoshiro has: a state of four zeros generates zeros
+   forever. SplitMix cannot produce it from any seed - the first lane alone is non-zero for every
+   input - so the guard is unreachable rather than defensive, and it is written because "unreachable"
+   is an argument about a constant and the cost is one comparison on a path taken once.
+-}
+pub fn newRng(seed: Int) -> Rng:
+    let &word = bitcast(seed) :: U32
+    let a = nextSeed(word)
+    let b = nextSeed(word)
+    let c = nextSeed(word)
+    let d = nextSeed(word)
+
+    if ((a `or` b) `or` (c `or` d)) == 0 then return Rng {s0: 1, s1: 0, s2: 0, s3: 0}
+
+    return Rng {s0: a, s1: b, s2: c, s3: d}
+
+-- A generator seeded from wherever this machine keeps its unpredictability - `randomSeed` below.
+-- What it is for is a program that wants a different sequence every run; a *test* wants `newRng`
+-- with a number written in the source, and the two names are how the source says which.
+pub fn seededRng() -> Rng = newRng(randomSeed())
+
+{-
+   One draw - the whole of xoshiro128\*\*.
+
+   The result is computed from the state *before* it advances, which is the "\*\*" scrambler: a
+   multiply, a rotation and a second multiply over one lane, so the linear engine underneath is
+   never handed to a caller directly. The two constants are 5 and 9 and the distances are 7, 9 and
+   11; all five are the reference implementation's and none of them is arbitrary.
+
+   Every operation here is a 32-bit one, so this is five exclusive-ors, two rotations, two multiplies
+   and a shift on both targets - and on neither of them is it a call.
+-}
+pub fn next(&self: Rng) -> U32:
+    let result = ((self.s1 * 5) `rol` 7) * 9
+    let t = self.s1 `shl` 9
+
+    let c = self.s2 `xor` self.s0
+    let d = self.s3 `xor` self.s1
+
+    self.s1 = self.s1 `xor` c
+    self.s0 = self.s0 `xor` d
+    self.s2 = c `xor` t
+    self.s3 = d `rol` 11
+
+    return result
+
+{-
+   ==========================================================================================
+   A number below a bound, without a bias.
+   ==========================================================================================
+
+   `rem(next(rng), limit)` is the obvious answer and is wrong wherever `limit` does not divide 2^32:
+   the low `2^32 rem limit` values come up once more often than the rest, which for a limit near
+   2^31 is one value being twice as likely as another. That is invisible at a die roll and is exactly
+   what a shuffle or a sampled benchmark measures.
+
+   So the range is cut to a multiple of `limit` and everything below the cut is drawn again -
+   OpenBSD's `arc4random_uniform`, and the threshold is `2^32 rem limit` written as `rem(0 - limit,
+   limit)` because `0 - limit` at `U32` *is* `2^32 - limit`. The expected number of extra draws is
+   below one for every limit, and the loop is unbounded only in the sense that a coin is: each pass
+   rejects with probability under a half.
+
+   **Lemire's multiply-and-shift is the faster method and is not used**, for this file's recurring
+   reason - it needs a 64-bit multiply, which is a `bigint` on JavaScript. Rejection costs one
+   remainder and a rarely-taken branch and is the same code on both targets.
+
+   A limit of zero answers zero rather than dividing by it. Integer division here is total (a divisor
+   of zero answers zero - `Core/Bits.yana`), so the guard is about saying what the answer *means*
+   rather than about avoiding a trap.
+-}
+fn below32(&rng: Rng, limit: U32) -> U32:
+    if limit == 0 then return 0
+
+    let threshold = rem(0 - limit, limit)
+    let &draw = next(rng)
+
+    while draw < threshold:
+        draw = next(rng)
+
+    return rem(draw, limit)
+
+{-
+   An index into something with `count` elements - the range variant a container wants, and the one
+   that cannot be a class member because `Size` is not a width.
+
+   `Size` is the target's word rather than a fixed number of bits (`compiler/resolve/core.cpp`), so
+   an instance of `Random(Size)` would have to know how many draws a word takes and no portable body
+   can. What a caller actually asks for is an index, so that is what this is: `below(rng, length(xs))`
+   is in range for any non-empty container and answers `0` for an empty one.
+
+   **The draw is one 32-bit one, and a count above `Int`'s range is clamped rather than truncated.**
+   So a container of more than 2^31 - 1 elements is sampled uniformly over its first 2^31 - 1 and
+   never past them - which is a stated limit, where truncating the count would be an index computed
+   from the wrong number and possibly a negative one. Nothing in this program has such a container,
+   and the alternative for one that did is two draws and a 64-bit remainder, which is the `bigint`
+   cost again on every index.
+
+   The clamp compiles away on JavaScript, where `Size` *is* `Int` and the comparison is a constant.
+-}
+pub fn below(&rng: Rng, count: Size) -> Size:
+    if count <= 0 then return 0
+
+    let n = if count > 2147483647 then 2147483647 else truncate(count) :: Int
+    return widen(bitcast(below32(rng, bitcast(n) :: U32)) :: Int) :: Size
+
+{-
+   ==========================================================================================
+   The two classes.
+   ==========================================================================================
+
+   `uniform` is "a value of this type, with every value equally likely", which for an integer width
+   is every bit pattern and for a float is the unit interval. That the two mean different things is
+   deliberate and is the only reading either has a use for: the representable doubles are packed
+   towards zero - the exponent is a logarithm, so as many of them lie between 2^-100 and 2^-99 as
+   between 1 and 2 - so a draw uniform over the *values* would sit near zero and be useful to
+   nobody. A `Double` in `[0, 1)` is what every caller of a random float scales from.
+
+   `between(low, high)` is **half-open**, `[low, high)`, at every instance. That is the convention an
+   index wants - `between(rng, 0, length(xs))` is in range - and having one convention for integers
+   and another for floats is how a library gets an off-by-one that only shows up at the ends. A die
+   is `between(rng, 1, 7)`, which reads as one more thing to remember exactly once.
+
+   `high <= low` answers `low` rather than being an error: an empty range has one sensible value and
+   a `Result` on a draw would be a case at every call site for a mistake the caller can already see.
+-}
+pub class Random(a):
+  fn uniform(&rng: Rng) -> a
+
+pub class (Random(a)) Between(a):
+  fn between(&rng: Rng, low: a, high: a) -> a
+
+-- The natural width - one draw, no conversion and nothing thrown away. Every other integer instance
+-- below is this one narrowed.
+instance Random(U32):
+  fn uniform(&rng: Rng) -> U32 = next(rng)
+
+instance Between(U32):
+  fn between(&rng: Rng, low: U32, high: U32) -> U32:
+      if high <= low then return low
+      return low + below32(rng, high - low)
+
+{-
+   The signed word, and the two subtractions that look like overflow and are the point.
+
+   `high - low` at `Int` wraps where the span exceeds `Int`'s range - `between(rng, minValue(),
+   maxValue())` computes `-1` - and `bitcast` reads that as the unsigned span, which is the number
+   that was wanted. `low + span` wraps back the same way. So the full range is drawable, with no
+   special case for it and no widening to a type this file has decided not to use.
+-}
+instance Random(Int):
+  fn uniform(&rng: Rng) -> Int = bitcast(next(rng)) :: Int
+
+instance Between(Int):
+  fn between(&rng: Rng, low: Int, high: Int) -> Int:
+      if high <= low then return low
+
+      let span = bitcast(high - low) :: U32
+      return low + (bitcast(below32(rng, span)) :: Int)
+
+-- The narrow widths, as the low bits of a draw. The *low* bits and not the high: xoshiro's
+-- scrambler leaves every bit of its output equidistributed, so there is no weak end to avoid here
+-- the way there is in a linear congruential generator.
+instance Random(U8):
+  fn uniform(&rng: Rng) -> U8 = truncate(next(rng)) :: U8
+
+instance Between(U8):
+  fn between(&rng: Rng, low: U8, high: U8) -> U8:
+      if high <= low then return low
+      return low + (truncate(below32(rng, widen(high - low) :: U32)) :: U8)
+
+instance Random(U16):
+  fn uniform(&rng: Rng) -> U16 = truncate(next(rng)) :: U16
+
+instance Between(U16):
+  fn between(&rng: Rng, low: U16, high: U16) -> U16:
+      if high <= low then return low
+      return low + (truncate(below32(rng, widen(high - low) :: U32)) :: U16)
+
+-- One bit. Any bit of the draw would do - the scrambler leaves all thirty-two equidistributed - and
+-- the top one is taken because shifting it down is a shift and nothing else, where a bit out of the
+-- middle is a shift and a mask.
+instance Random(Bool):
+  fn uniform(&rng: Rng) -> Bool = (next(rng) `shr` 31) == 1
+
+{-
+   The floats, and the reason neither of them divides.
+
+   A `Double` in `[0, 1)` wants 53 bits, which is two draws: 27 of the first and 26 of the second,
+   assembled and scaled by 2^-53. A `Float` wants 24, which is one draw shifted down by 8 and scaled
+   by 2^-24. Both scale factors are exact powers of two, so the multiply is exact: the draws are the
+   2^53 (or 2^24) multiples of the last bit, equally spaced and equally likely.
+
+   **Scaling and not dividing**, which is the difference between that and the usual spelling. A
+   division by `2^53 - 1` - "map the whole range onto [0, 1]" - is not exact, does not space the
+   results evenly, and reaches `1.0`, which every caller that scales by a span then has to think
+   about.
+
+   **The high bits, here, and the low bits for the integers above.** The two are equally random; what
+   decides it is that the shift is where the *unwanted* bits go, and a float wants the count of bits
+   it can hold rather than a whole word.
+
+   `truncate` and then `widen`, which is two conversions to reach a float from a `U32`. The
+   conversion ladder relates the eight fixed widths to `Int` and `Long` and relates *those* to the
+   two floating types, so `U32` reaches a `Double` through one of them. `Int` is the one to go
+   through: every value here has already been shifted below 2^27, so the narrowing step cannot lose
+   anything - where `Long` would be exact as well and would be a `bigint` on JavaScript, which is
+   the cost this whole file is arranged to avoid.
+
+   `1.0` is not in the range and cannot be: the largest value is `1 - 2^-53`, because the assembled
+   integer is at most `2^53 - 1`. That is what makes `low + u * (high - low)` safe to write below
+   without a clamp - the result is strictly below `high` for any span a `Double` can hold.
+-}
+instance Random(Double):
+  fn uniform(&rng: Rng) -> Double:
+      let top = widen(truncate(next(rng) `shr` 5) :: Int) :: Double
+      let rest = widen(truncate(next(rng) `shr` 6) :: Int) :: Double
+
+      return (top * 67108864.0 + rest) * 1.1102230246251565e-16
+
+instance Between(Double):
+  fn between(&rng: Rng, low: Double, high: Double) -> Double:
+      if high <= low then return low
+      return low + (uniform(rng) :: Double) * (high - low)
+
+instance Random(Float):
+  fn uniform(&rng: Rng) -> Float =
+      (widen(truncate(next(rng) `shr` 8) :: Int) :: Float) * 5.9604644775390625e-8
+
+instance Between(Float):
+  fn between(&rng: Rng, low: Float, high: Float) -> Float:
+      if high <= low then return low
+      return low + (uniform(rng) :: Float) * (high - low)
+
+{-
+   ==========================================================================================
+   The other question: bytes nobody can predict.
+   ==========================================================================================
+
+   `secureRandom` is not a faster or slower `next` - it is a different guarantee, and the two halves
+   of this file meet in exactly one place, which is `randomSeed`. Everything above is a deterministic
+   function of a seed, which is what makes a test repeatable and is exactly what disqualifies it from
+   choosing a key or a nonce. This asks the operating system instead, and the operating system may
+   say no.
+
+   §2.7 asks for a `Result`, and the error is one case because there is one thing a caller can learn:
+   the bytes were not produced. `Native.Entropy` is what decides that on the target that has a kernel;
+   the other target has no entropy source a library may rely on and says so. The error names the
+   *host* rather than a call, since what a caller does about it is choose a different machine or a
+   different design.
+-}
+pub data RandomError = NoEntropySource
+
+{-
+   The container-to-address step, which is the one thing in this file that is written twice.
+
+   `values` - the only spelling of "where does this slice start" - is native and has no JavaScript
+   counterpart, deliberately: a slice there is a window into a host array and handing back the array
+   would be a read past both ends of what was asked for (`Native/Run.js.yana`). So the step from a
+   `[U8]` to something a system call can be given cannot be written portably, and this is the pair of
+   one-line bodies that §2.5 says an attribute is for. Keeping it here rather than in `Native` is
+   what keeps a container out of that layer's signatures, where every call takes a pointer and a
+   count.
+
+   **The JavaScript answer is a constant `False`, and both of the candidates for something better are
+   refused.** `crypto.getRandomValues` is a Web Crypto name rather than an ECMAScript one - a browser
+   global and a Node one, absent from a bare script context, which is exactly what this project's own
+   JavaScript driver runs. `Clock.js.yana` declines `performance.now()` in the same words and for the
+   same reason: a declaration a host may not have is a program that stops working on it. `Math.random`
+   *is* a real built-in and so is always there, and it is specified to be unpredictable to nobody -
+   answering `True` from it would make `secureRandom` a name that lies on one target, where answering
+   `False` makes it a name that is honest on both.
+-}
+@platform(native)
+fn fillEntropy(&to: [U8]) -> Bool = systemEntropy(values(to), length(to))
+
+@platform(js)
+fn fillEntropy(&to: [U8]) -> Bool = False
+
+pub fn secureRandom(&into: [U8]) -> Result(RandomError, {}):
+    if fillEntropy(into) then return Ok({})
+    return Err(NoEntropySource)
+
+{-
+   A seed for `seededRng`, which is the one caller `secureRandom` has here and the reason a fallback
+   exists at all.
+
+   The kernel's pool first and the clocks when there is none, which is `genRandomSeed`'s own shape
+   and is the path a JavaScript build always takes. Two readings rather than the C++'s one, and they
+   are not redundant: the wall clock separates two runs on different days and is the same in two processes
+   started in the same microsecond, and the monotonic one has an arbitrary base per boot and is what
+   separates those two. Mixing them through SplitMix is what stops the result being "a large number
+   near the current time", which is a seed an attacker guesses and, more to the point here, a seed
+   whose *low* bits barely move between two runs a second apart.
+
+   It answers an `Int` and not a `Result`: there is always an answer, and a caller who needs to know
+   whether it was a good one is asking `secureRandom` rather than this.
+-}
+pub fn randomSeed() -> Int:
+    let &bytes = [0] :: [U8 *4]
+
+    if fillEntropy(bytes):
+        -- The order is arbitrary - what the pool hands over is four bytes with no number in them -
+        -- so this is the one that costs nothing on the machines this runs on. `readLittleU32` is
+        -- one load there and one `DataView` call on JS.
+        return bitcast(readLittleU32(bytes, 0)) :: Int
+
+    let wall = truncate(unixTimeMicros()) :: U32
+    let ticks = truncate(monotonicNanos()) :: U32
+
+    return bitcast(mixSeed(wall `xor` mixSeed(ticks))) :: Int

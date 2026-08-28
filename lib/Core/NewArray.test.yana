@@ -1,0 +1,75 @@
+-- `newArray(count, item)` - the growable array built from a function of the index.
+--
+-- The general form a fill is the special case of. A *fixed* array fills by writing one element at a
+-- type that holds more - `[0] :: [U8 *64]`, which is a literal and therefore a constant - and a
+-- growable one cannot, because nothing in `[Int]` states a count for the literal to spread into. So
+-- the count is an argument here and what fills each slot is a function of the index rather than a
+-- value.
+--
+-- **That difference is the whole of what this fixture asserts.** A builder that took a value would
+-- have to duplicate it and could only ever serve `TrivialCopy` elements; one that calls per index
+-- serves any element at all, and each slot gets a value of its own. So the interesting cases below
+-- are not the integers - they are `newArrayStrings` and `nested`, where the elements own storage, and where
+-- one value repeated would be one allocation with `count` owners and `count` teardowns.
+--
+-- The lambda's argument type is written out because `a` is still open where the lambda is resolved
+-- and the parameter's function type has nothing concrete to hand down. A named function passed
+-- directly, as `newArrayTwice` is, needs no annotation.
+
+import Test
+
+fn newArrayTwice(i: Size) -> Int = (truncate(i) :: Int) * 2
+
+-- The count, and that the index really is the index rather than a constant every slot saw.
+@test fn newArrayCounted() -> {}:
+    let &xs = newArray(6, newArrayTwice)
+    checkEqual(length(xs), 6)
+    checkEqual(xs[0], 0)
+    checkEqual(xs[3], 6)
+    checkEqual(xs[5], 10)
+
+    let &ys = newArray(4, (i: Size) -> 7 :: Int)
+    checkEqual(length(ys), 4)
+    checkEqual(ys[0], 7)
+    checkEqual(ys[3], 7)
+
+-- Zero elements is an array, not a failure: `reserve(0)` and a loop that does not run.
+@test fn newArrayEmpty() -> {}:
+    let &none = newArray(0, newArrayTwice)
+    checkEqual(length(none), 0)
+
+-- It still grows afterwards. `reserve` is a capacity and not a bound, so the array this hands back
+-- is an ordinary one rather than something fixed at the size it was built at.
+@test fn grows() -> {}:
+    let &xs = newArray(3, newArrayTwice)
+    push(xs, 99)
+    checkEqual(length(xs), 4)
+    checkEqual(xs[3], 99)
+
+-- An element that owns storage, which is the case a fill could not serve. Four independent strings,
+-- each of them dropped once when the array is.
+@test fn newArrayStrings() -> {}:
+    let &xs = newArray(4, (i: Size) -> "abc" :: String)
+    checkEqual(length(xs), 4)
+    checkEqual(xs[0], "abc")
+    checkEqual(xs[3], "abc")
+    checkEqual(length(xs[2]), 3)
+
+{-
+   And an element that is itself a container, built at a length that depends on the index.
+
+   This is where "each slot gets a value of its own" stops being a claim and becomes an observation:
+   three rows of three different lengths cannot be one value seen three times, and the rows are
+   `Array(Int)` - which owns a run, so a builder that duplicated one value would have handed three
+   owners one allocation.
+-}
+@test fn nested() -> {}:
+    let &rows = newArray(3, (i: Size) -> newArray(i, newArrayTwice) :: [Int])
+    checkEqual(length(rows), 3)
+
+    checkEqual(length(rows[0]), 0)
+    checkEqual(length(rows[1]), 1)
+    checkEqual(length(rows[2]), 2)
+
+    checkEqual(rows[1][0], 0)
+    checkEqual(rows[2][1], 2)

@@ -102,22 +102,17 @@ pub fn runMain(cases: [Case]) -> Int:
 
     let &selected = [] :: [Size]
     let &ordinal = 0 :: Int
-    let &i = 0 :: Size
 
-    while i < length(cases):
+    for i in 0 .. length(cases):
         if selects(options, cases[i].qualifiedName()):
             -- The shard is applied to the *filtered* ordinal, so that four shards of a filtered run
             -- still divide that run's work between them rather than three of them idling.
             if options.shards <= 1 || ordinal % options.shards == options.shard then push(selected, i)
             ordinal = ordinal + 1
 
-        i = i + 1
-
     if options.list:
-        let &j = 0 :: Size
-        while j < length(selected):
-            print("{cases[selected[j]].qualifiedName()}\n")
-            j = j + 1
+        for at in items(selected):
+            print("{cases[at].qualifiedName()}\n")
 
         return 0
 
@@ -169,17 +164,27 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
     -}
     let isOneCase = length(options.only) > (0 :: Size)
 
-    let &failedCases = 0 :: Int
-    let &skippedCases = 0 :: Int
-    let &ranCases = 0 :: Int
-    let &j = 0 :: Size
+    {-
+       Where this run reports to a person - §5.5 and `Console.yana`.
 
-    while j < length(selected):
+       Built whether or not it will print, and it is `silent` that decides which: a console that is
+       not reporting answers every call at its first line, so the loop below has no second shape and
+       the rule about who prints stays the one sentence above rather than being spread over the ten
+       places that used to test it.
+    -}
+    let title = sharedModule(cases, selected)
+    let &console = openConsole(options, title, length(selected), !silent)
+
+    -- The console keeps the counts a report is made of - it is the thing that prints them. What is
+    -- still counted here is the one number the *status* is made of, which is nobody else's.
+    let &failedCases = 0 :: Int
+
+    for j in 0 .. length(selected):
         let case = cases[selected[j]]
         let name = case.qualifiedName()
         let index = truncate(selected[j]) :: Int
-        j = j + 1
-        ranCases = ranCases + 1
+
+        console.caseBegan(name)
 
         if case.aborts && !harnessAvailable():
             {-
@@ -189,9 +194,9 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
                cannot ask the question, and a suite that went red on every `@test(aborts)` because
                of where it was run would be reporting the runner rather than the library.
             -}
-            skippedCases = skippedCases + 1
-            reportLine("skip {index} {name} - @test(aborts) needs a harness and this target has none\n")
-            if options.verbose && !silent then print("skip {name}\n")
+            let why = "@test(aborts) needs a harness and this target has none"
+            reportLine("skip {index} {name} - {why}\n")
+            console.caseSkipped(name, why)
         else if (case.aborts || options.isolate) && !isOneCase:
             {-
                A case run in a child is still bracketed *here*.
@@ -208,12 +213,12 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
             let elapsed = monotonicNanos() - started
 
             match verdict:
-                Ok(->note) -> if options.verbose then print("pass {name}{note}\n")
+                Ok(->note) -> console.casePassed(name, elapsed, note)
 
                 Err(->why):
                     recordAt(case.site, why, "")
                     failedCases = failedCases + 1
-                    if !silent then print("FAIL {name}: {why}\n")
+                    console.caseFailed(name, elapsed, why)
 
             endCase(if currentFailures() == 0 then "pass" else "fail", elapsed)
         else:
@@ -238,10 +243,10 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
             endCase(if lost == 0 then "pass" else "fail", elapsed)
 
             if lost == 0:
-                if options.verbose && !silent then print("pass {name}\n")
+                console.casePassed(name, elapsed, "")
             else:
                 failedCases = failedCases + 1
-                if !silent then print("FAIL {name}: {lost} of its claims did not hold\n")
+                console.caseFailed(name, elapsed, "{lost} of its claims did not hold")
 
     {-
        §7's ruling 3, asked only of a run that reached everything.
@@ -253,32 +258,14 @@ fn runSelected(cases: [Case], selected: [Size], options: Options) -> Int:
     -}
     let whole = length(selected) == length(cases) && !options.isolate && options.jobs <= 1
     let stale = reviewSnapshots(whole)
-    if stale > 0 && !silent:
-        let word = if stale == 1 then "snapshot is" else "snapshots are"
-        print("{stale} {word} stale - no test compared against them. `--update --prune` deletes them\n")
-
-    if silent || options.quiet then return if failedCases == 0 && stale == 0 then 0 else 1
 
     {-
-       Written as a statement rather than as `if … then "" else "…"`.
+       The run, as one screen - the table, the failures, the counts and the time.
 
-       The conditional form is refused - *"this value may have been moved out of on some paths
-       reaching here"* - because one arm is a string literal and the other an owned string, and the
-       merge of the two is a value the ownership pass will not take. Worth knowing rather than
-       working around silently: it is a real limitation of a conditional *expression* over a
-       droppable type, and it has nothing to do with tests.
+       This is also where the status line is taken back off the screen, whatever else it prints, so
+       a run that is not reporting still leaves the cursor at the margin.
     -}
-    let &tail = "" :: String
-    if skippedCases > 0 then tail ++= ", {skippedCases} skipped"
-    tail ++= snapshotSummary()
+    console.close(stale, snapshotSummary())
 
-    if failedCases == 0 && stale == 0:
-        print("{ranCases - skippedCases} passed{tail}\n")
-        return 0
-
-    if failedCases == 0:
-        print("{ranCases - skippedCases} passed{tail}, but the run is a failure while a snapshot is stale\n")
-        return 1
-
-    print("{failedCases} of {ranCases} failed{tail}\n")
+    if failedCases == 0 && stale == 0 then return 0
     return 1

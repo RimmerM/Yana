@@ -11,12 +11,10 @@ import Environment
 pub fn runnerArguments() -> [String]:
     let all = arguments()
     let &mine = [] :: [String]
-    let &i = 1 :: Size
 
     -- From one, because the vector's first entry is the program's own name.
-    while i < length(all):
+    for i in 1 .. length(all):
         push(mine, copy(all[i]))
-        i = i + 1
 
     return mine
 

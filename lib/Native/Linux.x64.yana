@@ -43,6 +43,7 @@ pub data Syscall
   | @value(8)   SysSeek
   | @value(9)   SysMmap
   | @value(11)  SysMunmap
+  | @value(16)  SysIoctl
   | @value(17)  SysReadAt
   | @value(18)  SysWriteAt
   | @value(22)  SysPipe
@@ -176,6 +177,19 @@ pub alias qualified FileMode = USize deriving (Bitwise, Truth)
 pub fn fileMode(bits: USize) -> FileMode = FileMode(bits)
 pub fn modeShifted(mode: FileMode, by: USize) -> FileMode = FileMode(mode.0 `shl` by)
 
+{-
+   `PATH_MAX` - the longest path this kernel will look at, terminator included.
+
+   A hard limit rather than a convention: a path at or above it comes back `ENAMETOOLONG` from every
+   call below that takes one, whoever allocated the bytes and however long the buffer really was. It
+   is here rather than in `File` for the reason every other number in this file is - it is one
+   kernel's, and a port replaces this file rather than editing that one.
+
+   What reads it is `withPathCString` in `CString.native.yana`, whose comment records why its own
+   buffer is *not* this number.
+-}
+pub let maxPathBytes = 4096 :: Size
+
 pub fn openPath(path: %U8, flags: OpenFlags, mode: FileMode) -> Size =
     syscall3(numberOf(SysOpen), bitcast(path) :: USize, flags.0, mode.0)
 
@@ -220,6 +234,37 @@ pub fn syncFile(handle: Size) -> Size =
 
 pub fn truncateFile(handle: Size, size: I64) -> Size =
     syscall2(numberOf(SysTruncate), bitcast(handle) :: USize, truncate(size) :: USize)
+
+{-
+   ==========================================================================================
+   How large the terminal is, and whether there is one - `Terminal`'s one system call.
+   ==========================================================================================
+
+   `struct winsize`, on `FileStatus`'s pattern and for the same reason: an ABI-fixed layout, so
+   `@layout(c)` is what holds it rather than four offsets somebody keeps in step with a header.
+   Eight bytes, and the two pixel fields are zero on every terminal emulator written since the
+   Sun workstation they were for - named rather than left as a hole, on this file's own rule.
+
+   **This is also how a program asks whether it has a terminal at all.** There is no `isatty` system
+   call: the C function is this `ioctl` (or `TCGETS`) and a test of whether it failed, because the
+   question "is this descriptor a terminal" is only ever asked in order to *do* something a terminal
+   does. Asking it with the call that also answers "how wide" is therefore one syscall for both
+   halves rather than two for one, and `Terminal.native.yana` is the only caller either way.
+-}
+@layout(c)
+pub data WindowSize {rows: U16 = 0, columns: U16 = 0, pixelWidth: U16 = 0, pixelHeight: U16 = 0}
+
+fn windowAddress(&into: WindowSize) -> USize = bitcast(addressOf(into)) :: USize
+
+-- `TIOCGWINSZ`. A constant rather than a member of a `Syscall`-shaped type, on this file's own rule
+-- for `protReadWrite`: an ioctl request is a packed encoding of a direction, a size and a number,
+-- and a set of the ones one caller happens to use is not a type.
+pub let requestWindowSize = 21523 :: USize
+
+-- Zero when the descriptor is a terminal and the record was filled, and the negated errno - which is
+-- `ENOTTY` for a pipe or a file - when it is not.
+pub fn readWindowSize(handle: Size, &into: WindowSize) -> Size =
+    syscall3(numberOf(SysIoctl), bitcast(handle) :: USize, requestWindowSize, windowAddress(into))
 
 {-
    `struct stat`, as the record the kernel fills - Analysis-Language.md §5.2.

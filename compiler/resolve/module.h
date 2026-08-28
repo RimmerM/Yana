@@ -1047,6 +1047,21 @@ struct Module {
     // anything calls them; every other module contributes only what is reached.
     bool root = false;
 
+    /*
+     * A module of a package this compilation is not, which that package's manifest does not export -
+     * see ProjectFile::exports.
+     *
+     * Decided where the module is found, because that is the only place that knows *which* package
+     * answered, and read at the import that named it, because that is where a person can act on it.
+     * False for everything when the library draws no boundary, and false for every module of the
+     * package being compiled - `base` sees all of `base`.
+     */
+    bool packagePrivate = false;
+
+    /// Whether this module's files are the standard library package's - ast::ModuleGroup::library.
+    /// The importer's half of the export check: a package's own modules see all of it.
+    bool fromLibrary = false;
+
     // The statements this module's top level runs, in source order. Non-empty only for the root
     // module - see TopLevelStmt.
     ModuleList<TopLevelStmt, false> topLevel;

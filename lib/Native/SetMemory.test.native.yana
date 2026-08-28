@@ -1,0 +1,76 @@
+{-
+   `setMemory`, and the pattern that is a byte.
+
+   **The bug this exists for.** `setMemory(to, value: U8, count)` fills `count` bytes with `value`,
+   and the amd64 backend used to write a short one out as `mov`s of the register the pattern was in
+   - eight bytes of it at a time, without replicating. So `setMemory(p, 0xAB, 12)` wrote
+
+       AB 00 00 00 00 00 00 00 AB 00 00 00
+
+   and had done since the unrolled encoding was written. Nothing caught it because **nothing in the
+   library ever passes a pattern that is not zero**: every `setMemory` the compiler generates is a
+   zeroing, and zero is the one byte for which replicating is the identity. `rep stosb` was correct
+   throughout, so the same call with a large count answered correctly - which is what a fixture that
+   tested one length would have concluded from.
+
+   So this is a sweep and not a case. It walks every length from nothing to two hundred, which
+   crosses the byte, word, dword, qword and vector rungs and the ceiling above which the fill goes
+   back to being the string instruction, and it checks two things at each:
+
+   - **every byte of the region holds the pattern**, which is what replication is for;
+   - **and nothing above it was touched**, which is what the overlapping ragged end is for - a fill
+     of a length that is not a whole number of steps ends with one more whole-width store placed at
+     `n - W`, and that is only correct because it *stops* at `n`.
+
+   The region is painted with zero before each fill and the pattern is `0xAB`, so a byte the fill
+   failed to write reads as zero rather than as whatever the previous iteration left.
+-}
+
+import Test
+
+let painted = 0xAB :: U8
+let span = 256 :: Size
+
+fn setMemoryFill(buffer: %U8, count: Size, value: U8) -> {}:
+    let &i = 0 :: Size
+    while i < count:
+        store(buffer + i, value)
+        i = i + 1
+
+fn holds(buffer: %U8, at: Size, count: Size, value: U8) -> Int:
+    let &bad = 0 :: Int
+    let &i = 0 :: Size
+    while i < count:
+        if (*(buffer + at + i)) != value then bad = bad + 1
+        i = i + 1
+
+    return bad
+
+@test fn setMemoryCases() -> {}:
+    let buffer = allocateHeap(512)
+    let &bad = 0 :: Int
+    let &count = 0 :: Size
+
+    while count <= 200:
+        setMemoryFill(buffer, span, 0 :: U8)
+        setMemory(buffer, painted, count)
+
+        bad = bad + holds(buffer, 0, count, painted)
+        bad = bad + holds(buffer, count, span - count, 0 :: U8)
+
+        count = count + 1
+
+    {-
+       A negative count is deliberately *not* asserted here, and the reason is worth writing down
+       because `CopyMemory.yana` does assert one.
+
+       `copyMemory` is a body now, and its ladder ends at `count >= 1` - so a count at or below zero
+       falls off the bottom of it and does nothing, which is a property worth pinning. `setMemory` is
+       still the machine's own block operation, and `rep stosb` reads its count as unsigned: a
+       negative one is a fill of the whole address space, which is what this fixture found when it
+       tried. Neither function *promises* anything about a count that is not a length - the
+       declaration says so - so what is asserted here is the contract and not the accident.
+    -}
+
+    freeHeap(buffer)
+    checkEqual(bad, 0)

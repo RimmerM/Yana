@@ -3,6 +3,7 @@
 #include "diagnostics.h"
 
 struct Context;
+struct CompileSettings;
 
 /*
  * The standard library, as files.
@@ -114,8 +115,35 @@ struct LibrarySource {
     /// file system, and a compilation that cannot find its library asks about it for every module.
     const Tritium::String& directory(Context& context);
 
+    /*
+     * The library's own `yana.toml`, read once - its `[package]` name and export list, kept as the
+     * two facts rather than as the file.
+     *
+     * The standard library is a package under the same rules as any other, which is the point of
+     * reading a manifest here rather than hardcoding a name: the two things that used to be special
+     * cases - whose tests these files are, and which of these modules a program may import - are
+     * answered by the same two keys any package writes.
+     *
+     * A library with no manifest exports everything and tests nothing, which is exactly what every
+     * tree looked like before this existed.
+     */
+    void readManifest(Context& context);
+
+    /// Whether this compilation *is* the library's package, and may therefore see its test files and
+    /// its unexported modules. `CompileSettings::package` against the manifest's name; false when
+    /// either is empty, since an unnamed package is nobody's.
+    bool isOwnPackage(Context& context, const CompileSettings& settings);
+
+    /// Whether a module of the library may be imported from outside its package. True when the
+    /// manifest lists it, and true for everything when the manifest lists none.
+    bool exportsModule(Context& context, StringId module);
+
 private:
     Array<Entry> entries;
     Tritium::String root;
     bool searched = false;
+
+    Tritium::String packageName;
+    Array<Tritium::String> packageExports;
+    bool readPackage = false;
 };

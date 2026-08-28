@@ -1,0 +1,247 @@
+{-
+   `Terminal` - what it renders, asserted against a terminal that is not the one this is running on.
+
+   **Every case builds the `Terminal` it wants**, which is the property Terminal.yana's opening note
+   claims for the design and is the reason this fixture can exist at all: a terminal library whose
+   capabilities are read from the environment can only be tested where somebody set the environment
+   up, and this one is a value. `richTerminal()` is a terminal that takes everything and
+   `plainTerminal()` is a stream nobody is watching, and the two are compared against each other
+   here rather than against whatever the driver was started from.
+
+   `detectTerminal` is deliberately not called: it is the one function whose answer is a fact about
+   the machine, and asserting anything about it would be asserting where the suite ran.
+
+   Run on both targets. The Unicode literals are the point of `width` below rather than an accident:
+   `length` answers in each target's own code unit and `displayWidth` answers in columns, so the two
+   agree here where `length` does not.
+-}
+
+import Test
+
+{-
+   Columns, which are neither code units nor characters.
+
+   Three things are subtracted from a unit count and each has a case: an escape sequence occupies no
+   columns, a UTF-8 continuation byte belongs to a character already counted, and a plain ASCII run
+   is its own length. The last two disagree between the targets by construction - a native `String`
+   is bytes and a host one is UTF-16 units - which is what makes this the assertion that says the
+   rule is one rule.
+-}
+@test fn width() -> {}:
+    checkEqual(displayWidth("case"), 4 :: Size)
+    checkEqual(displayWidth(""), 0 :: Size)
+
+    -- Three bytes natively and one unit on JavaScript, and one column on both.
+    checkEqual(displayWidth("─"), 1 :: Size)
+    checkEqual(displayWidth("─────"), 5 :: Size)
+    checkEqual(displayWidth("✓ ok"), 4 :: Size)
+
+    -- What painting adds is invisible to a width, which is what lets a painted cell align with an
+    -- unpainted one.
+    let rich = richTerminal()
+    checkEqual(displayWidth(rich.inColor(Green, "pass")), 4 :: Size)
+    checkEqual(displayWidth(rich.paint(boldColored(Red), "x")), 1 :: Size)
+
+-- Padding is measured in columns for the same reason, and text that is already too wide is answered
+-- rather than cut - the cut is `clipTo`, which the caller asks for.
+@test fn padding() -> {}:
+    checkEqual(displayWidth(padRight("ab", 5)), 5 :: Size)
+    checkEqual(displayWidth(padLeft("ab", 5)), 5 :: Size)
+    checkEqual(displayWidth(padCenter("ab", 6)), 6 :: Size)
+
+    checkEqual(padRight("ab", 5), "ab   ")
+    checkEqual(padLeft("ab", 5), "   ab")
+    checkEqual(padCenter("ab", 6), "  ab  ")
+    checkEqual(padRight("abcdef", 3), "abcdef")
+
+    checkEqual(repeatText("-", 4), "----")
+    checkEqual(repeatText("-", 0), "")
+
+{-
+   Clipping, which is where a naive cut would produce bytes no terminal can render.
+
+   Two claims, and the second is the one worth having: the mark is counted in the width, so what
+   comes back is never wider than what was asked for - including when the cut lands in the middle of
+   a multi-unit character or inside an escape sequence.
+-}
+@test fn clipping() -> {}:
+    checkEqual(clipTo("abcdefgh", 5, "~"), "abcd~")
+    checkEqual(clipTo("abc", 5, "~"), "abc")
+
+    checkEqual(displayWidth(clipTo("──────", 3, "~")), 3 :: Size)
+
+    let rich = richTerminal()
+    let painted = rich.inColor(Green, "abcdefgh")
+    checkAtMost(displayWidth(clipTo(painted, 4, "~")), 4 :: Size)
+
+{-
+   What a stream that takes no colour receives.
+
+   The whole of the fallback, as one claim: `paint` on a plain terminal answers its argument, so a
+   redirected run emits what a terminal would have shown minus the sequences and a call site never
+   asks which it is talking to.
+-}
+@test fn plainTakesNoSequences() -> {}:
+    let plain = plainTerminal()
+
+    checkEqual(plain.paint(boldColored(Red), "fail"), "fail")
+    checkEqual(plain.inColor(Green, "pass"), "pass")
+    checkEqual(plain.bolded("x"), "x")
+    checkEqual(plain.eraseLine(), "")
+    checkEqual(plain.hideCursor(), "")
+    check(!plain.unicode)
+    check(!plain.interactive)
+
+    -- And a terminal that takes colour, whose sequence is the style rather than a fixed string:
+    -- bold is 1, red is 31, and the two arrive in that order separated by a semicolon.
+    let rich = richTerminal()
+    checkEqual(rich.sequenceFor(boldColored(Red)), "1;31")
+    checkEqual(rich.sequenceFor(colored(Green)), "32")
+    checkEqual(rich.sequenceFor(plainStyle()), "")
+
+    -- A bright colour on a stream with only the eight drops to its own base and stays that colour.
+    let &basic = richTerminal()
+    basic.depth = BasicColor
+    checkEqual(basic.sequenceFor(colored(BrightRed)), "31")
+
+{-
+   The ASCII fallback draws the same table in a different alphabet - §5.5.
+
+   Asserted as *the same shape*: the two renderings are compared line by line in columns, so a
+   fallback that quietly changed the layout as well as the characters fails here. That is the claim
+   the fallback is actually making, and comparing the text would only say the characters differ.
+-}
+@test fn tablesAgreeInShape() -> {}:
+    let wide = renderedTable(richTerminal().withoutColor())
+    let flat = renderedTable(plainTerminal())
+
+    let wideLines = linesOf(wide)
+    let flatLines = linesOf(flat)
+
+    checkEqual(length(wideLines), length(flatLines))
+    checkEqual(length(flatLines), 4 :: Size)
+
+    for line in 0 .. length(flatLines):
+        section("line {line}")
+        checkEqual(displayWidth(wideLines[line]), displayWidth(flatLines[line]))
+
+    -- And the fallback is ASCII throughout, which is the property a terminal that cannot render
+    -- Unicode needs and the only one it needs.
+    check(!hasHighUnit(flat))
+    check(hasHighUnit(wide))
+
+-- One table, twice, for the case above. Two columns and two rows, the second right-aligned, which is
+-- enough for every part of the renderer to be reached: the headings, the rule, the padding on both
+-- sides and the row that is one cell short.
+fn renderedTable(terminal: Terminal) -> String:
+    let &table = newTable(terminal, RuleFrame)
+    table.addColumn("test")
+    table.addColumn("time", AlignRight)
+
+    table.add("alpha")
+    table.add("1 ms")
+    table.addStyled("beta", colored(Green))
+    table.add("20 ms")
+
+    return table.render()
+
+{-
+   A boxed table's exact text, which is the one thing here that is pinned rather than compared.
+
+   Worth pinning because every part of it is a decision: one space of padding inside each cell, the
+   corner and join characters, and a rule that spans the content and its padding rather than the
+   margin.
+-}
+@test fn boxedTableText() -> {}:
+    let &table = newTable(plainTerminal(), BoxFrame)
+    table.addColumn("ab")
+    table.addColumn("c", AlignRight)
+    table.add("d")
+    table.add("ef")
+
+    let text = table.render()
+    checkEqual(text, "+----+----+\n| ab |  c |\n+----+----+\n| d  | ef |\n+----+----+\n")
+
+-- A row that is one cell short of the columns still renders, which is what a loop that stopped early
+-- produces and is the only thing a reader of a half-built table wants.
+@test fn shortRowRenders() -> {}:
+    let &table = newTable(plainTerminal(), BareFrame)
+    table.addColumn("a")
+    table.addColumn("b")
+    table.add("one")
+
+    checkEqual(table.rowCount(), 1 :: Size)
+    checkEqual(table.render(), "a    b\none\n")
+
+{-
+   The bar and the wheel, which are the two things a progress line is made of.
+
+   The bar is rounded *down*, so it is full only when the work is - a display that showed a complete
+   bar while something was still running would be the one thing a progress bar must not do. The wheel
+   is asserted as ten distinct frames that repeat, rather than as particular characters.
+-}
+@test fn barAndSpinner() -> {}:
+    let rich = richTerminal()
+
+    checkEqual(displayWidth(rich.bar(0, 10, 20)), 20 :: Size)
+    checkEqual(displayWidth(rich.bar(10, 10, 20)), 20 :: Size)
+    checkEqual(rich.bar(0, 0, 20), "")
+
+    let half = rich.bar(5, 10, 4)
+    checkEqual(half, "██░░")
+
+    -- Nine of ten done is not ten of ten.
+    let nearly = rich.bar(9, 10, 10)
+    checkNotEqual(nearly, rich.bar(10, 10, 10))
+
+    let plain = plainTerminal()
+    checkEqual(plain.bar(2, 4, 4), "##..")
+
+    checkNotEqual(rich.spinner(0), rich.spinner(1))
+    checkEqual(rich.spinner(0), rich.spinner(10))
+    checkEqual(plain.spinner(0), "|")
+    checkEqual(plain.spinner(4), "|")
+
+{-
+   How a duration is written - `Test.Console`'s, which is where the framework's own report reads it.
+
+   Integer arithmetic and not a float, and this is the case that says why: the same nanoseconds
+   produce the same two decimals on both targets, where a division into a `Double` produces
+   `0.09999999999999999` on one of them.
+-}
+@test fn durations() -> {}:
+    checkEqual(durationText(0, True), "")
+    checkEqual(durationText(750, True), "750 ns")
+    checkEqual(durationText(1500, False), "1.50 us")
+    checkEqual(durationText(1500, True), "1.50 µs")
+    checkEqual(durationText(2500000, True), "2.50 ms")
+    checkEqual(durationText(3250000000, True), "3.25 s")
+
+-- Every line of a block indented, which is what puts a case's failures under its name.
+@test fn indenting() -> {}:
+    checkEqual(indented("a\nb\n", "  "), "  a\n  b\n")
+    checkEqual(indented("a", ">"), ">a\n")
+    checkEqual(indented("", "  "), "")
+
+{-
+   ==========================================================================================
+   What the cases above are written in terms of
+   ==========================================================================================
+-}
+
+-- `Core.Text.lines`, collected, which is what a fixture comparing two renderings line by line needs:
+-- an `iter fn` is walked once and this walks two of them together by index. The counting and the
+-- addressing used to be a helper apiece here, and both were the split this replaces.
+fn linesOf(text: String) -> [String]:
+    let &out = [] :: [String]
+    for line in lines(text):
+        push(out, line)
+
+    return out
+
+-- Whether anything here is outside ASCII, which is the whole of what "the fallback is ASCII" means.
+fn hasHighUnit(text: String) -> Bool:
+    for i in 0 .. length(text):
+        if text.unit(i) > 126 then return True
+
+    return False

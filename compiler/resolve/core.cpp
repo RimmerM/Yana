@@ -87,7 +87,7 @@ ast::ModuleGroup* parseLibraryGroup(Program& program, StringId name, bool allowS
     auto files = context.library.files(context, name);
     if(files.isEmpty()) return nullptr;
 
-    auto group = new ast::ModuleGroup { .name = name };
+    auto group = new ast::ModuleGroup { .name = name, .library = true };
     program.embeddedGroups.push(group);
 
     for(auto file: files) {

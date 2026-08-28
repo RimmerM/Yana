@@ -1,0 +1,84 @@
+{-
+   `Hash` and the map's use of it - Implementation-Map.md §3 and §3.1.
+
+   Three separate claims, and the third is the one this file exists for.
+
+   **The class is a fold.** `hash(value, state)` threads a running state, which is what makes a
+   structural hash compose without an ad-hoc combining function: the instance for `MapHashPoint` below folds
+   field by field and is the same shape `deriving (Hash)` will generate.
+
+   **`mix32` is the same function on both targets.** It is `Core`'s and it is arithmetic - five
+   operations, no table, no branch - so it is the one part of the hash that can be asserted as a
+   number in a fixture that runs on both. The map runs it over every instance's answer before
+   splitting the word, which is what makes a cheap instance merely slow instead of quadratic.
+
+   **The two targets compute different hashes, deliberately, and no program can tell.** §3.1's native
+   row is a 64x64 multiply-fold and its JS row is FNV-1a, because the multiply-fold's intermediates
+   leave the Smi range and the same cell measures either 1.10 ns or 7.9 ns depending on which way
+   V8's type feedback fell. What makes that safe is that nothing observable depends on a hash value:
+   iteration is insertion order and never hash order, and the seed is per process. So every assertion
+   below holds on both targets - and every one of them is about a map's *contents* or *order*, never
+   about a hash.
+
+   A hash value therefore appears nowhere below. That is the assertion, not an omission: a fixture
+   that named one would be pinning a target rather than the language.
+-}
+
+import Test
+
+data MapHashPoint {x: Int, y: Int}
+
+instance Eq(MapHashPoint):
+    fn ==(lhs: MapHashPoint, rhs: MapHashPoint) -> Bool = lhs.x == rhs.x && lhs.y == rhs.y
+    fn !=(lhs: MapHashPoint, rhs: MapHashPoint) -> Bool = !(lhs == rhs)
+
+-- The fold, written the way a derived instance would write it: each field into the state the last
+-- one produced, in declaration order.
+instance Hash(MapHashPoint):
+    fn hash(value: MapHashPoint, state: U32) -> U32 = hash(value.y, hash(value.x, state))
+
+@test fn mapHashCases() -> {}:
+    -- `mix32` is portable, so it is the one hash number a fixture may name. 12345 through murmur3's
+    -- finalizer is 3596688052, and the low sixteen bits of that are 51676.
+    checkEqual((truncate(mix32(12345) `and` 65535) :: Int), 51676)
+
+    -- The fold is deterministic and order-sensitive: `MapHashPoint {x: 1, y: 2}` and `MapHashPoint {x: 2, y: 1}`
+    -- fold the same two numbers in the other order, and a fold that ignored the order would answer
+    -- the same for both. Asserted as *inequality*, which is what a fold owes; equality of two
+    -- distinct keys would be legal and merely bad.
+    let a = hashKey(MapHashPoint {x: 1, y: 2})
+    let b = hashKey(MapHashPoint {x: 2, y: 1})
+    checkNotEqual(a, b)
+    checkEqual(a, hashKey(MapHashPoint {x: 1, y: 2}))
+
+    -- And a map keyed by one, which is the whole reason the instance exists. Structural equality is
+    -- what a key is: two `MapHashPoint`s built separately are one key.
+    let &m = emptyMap() :: Map(MapHashPoint, Int)
+    let &i = 0 :: Int
+
+    while i < 40:
+        insert(m, MapHashPoint {x: i, y: i * 2}, i)
+        i = i + 1
+
+    checkEqual((truncate(length(m)) :: Int), 40)
+
+    match find(m, MapHashPoint {x: 7, y: 14}):
+        Just(v) -> checkEqual(v, 7)
+        Nothing -> check(False)
+
+    check(!containsKey(m, MapHashPoint {x: 7, y: 15}))
+
+    -- Re-inserting an equal key replaces rather than appends, which is the `Eq`/`Hash` agreement
+    -- being kept: a hash that disagreed with `==` would find nothing here and grow the map.
+    insert(m, MapHashPoint {x: 7, y: 14}, 70)
+    checkEqual((truncate(length(m)) :: Int), 40)
+
+    -- The order is insertion order on both targets, whatever either of them hashed to.
+    let &first = 0 - 1 :: Int
+    let &last = 0 - 1 :: Int
+    for e in pairs(m):
+        if first < 0 then first = e.key.x
+        last = e.key.x
+
+    checkEqual(first, 0)
+    checkEqual(last, 39)

@@ -1,0 +1,122 @@
+{-
+   `Show` and its bound - Implementation-Storage.md part 7.
+
+   Two separate claims, tested separately because they fail independently:
+
+    - `show` writes the right text. Asserted by formatting into a sink and reading the units back,
+      which is how a fixture with no way to compare strings against a golden gets at the characters.
+    - `showBound` is an *upper* bound on what `show` writes, which is the contract the whole sizing
+      scheme rests on. Asserted as `length(sink) <= bound` rather than against a constant: a bound
+      that is merely generous is legal, and one that is too small is the bug this exists to catch.
+
+   **`Show` is usable generically**, which it was not when this file was written. The one helper
+   below is `fn (Show(a)) shown(value: a) -> Int` formatting into a local sink, where there used to be
+   one copy of those three lines per instance the file could reach - a `&` argument in a generic body
+   did not name storage the callee could write back to, and neither did a `&` parameter of a
+   constrained generic instance. Those were one fault seen from the two sides, and `Show(Maybe(a))`
+   at the bottom of this file is the instance side of the proof.
+
+   Run on both targets. Every literal is ASCII, for the reason `String.yana` gives - `length` answers
+   in each target's native unit and those coincide only there.
+-}
+
+-- One sink, one constraint, every instance this file can reach. A local `let &` is what a `&`
+-- parameter needs, and `a` being a variable rather than a type is the whole of what changed.
+import Test
+
+fn (Show(a)) shown(value: a) -> Int:
+    let &sink = String.ofCapacity(64 :: Size)
+    show(value, sink)
+    return truncate(length(sink)) :: Int
+
+-- The first unit written, which distinguishes "True" from "False" and a sign from a digit without
+-- needing the whole text.
+fn firstShownUnit(value: Int) -> Int:
+    let &sink = String.ofCapacity(64 :: Size)
+    show(value, sink)
+    return String.unit(sink, 0)
+
+-- The bounds, or a sentinel for `Nothing`. `Nothing` is not a failure - it is the honest answer for
+-- a type where measuring costs what formatting costs - so it stays distinguishable from a number.
+fn (Show(a)) bound(value: a) -> Size = match showBound(value):
+    Just(units) -> units
+    Nothing -> -1
+
+{-
+   `Bool` - the simplest instance, and the one whose bound is the *longer* of two constants.
+
+   `showBound` answers 5 for both, which is what makes it an upper bound rather than a length:
+   formatting `True` writes four units into a buffer sized for five, and the unused unit is the price
+   of the bound being a constant that folds.
+-}
+@test fn boolText() -> {}:
+    checkEqual(shown(True), 4)
+    checkEqual(shown(False), 5)
+    checkEqual(firstShownUnit(0), 48)      -- `0`
+
+
+{-
+   The integer path, including the two values a naive implementation gets wrong.
+
+   Zero produces no digits by division, so an implementation looping while the value is non-zero
+   writes nothing at all for it. The most negative value has no positive counterpart, so one that
+   negates first prints that same number's digits forever. Neither failure raises anything - they
+   produce the wrong text - so both are checked by unit count, which catches either.
+-}
+@test fn integerText() -> {}:
+    checkEqual(shown(0), 1)                     -- "0"
+    checkEqual(shown(-5), 2)                    -- "-5"
+    checkEqual(shown(1234), 4)                  -- "1234"
+    checkEqual(shown(-2147483648), 11)          -- Int's most negative
+    checkEqual(firstShownUnit(-5), 45)             -- the sign comes first
+
+
+{-
+   `String` - the row where the bound is a *runtime* value rather than a constant.
+
+   Half of part 7's argument, and `optionText` below is the other half: `Just(11)` for `Int` folds to
+   a literal once the instance method is inlined and `Just(length(s))` here does not, and neither
+   instance had to say which it was. That is what the `Maybe(Size)` shape buys, and it is why a format
+   holding one string and three integers still sizes in one addition.
+-}
+@test fn stringText() -> {}:
+    checkEqual(shown("hello"), 5)
+    checkEqual(bound("hello"), 5)
+    checkEqual(bound(""), 0)
+
+
+{-
+   `Maybe(a)` - the generic instance constrained on its element's, and the shape every container's
+   `Show` has.
+
+   Three claims. The text composes: `Just(5)` is `Just(` and a `5` and a `)`, and the inner `show` is
+   dispatched at a type this instance never named. The bound composes the same way and stays a number
+   when the element's is one - 11 for `Int` plus the six `Just(...)` costs. And it stops being one
+   when the element's does, which is the case that matters: nothing here replaces a `Nothing` with a
+   guess, so an option around an unbounded type is honestly unbounded rather than wrong.
+
+   `Just(Just(1))` is here because the recursion is the point - the instance is selected for its own
+   element, which is what makes this a composition rather than one hand-written case.
+-}
+@test fn optionText() -> {}:
+    checkEqual(shown(Just(5)), 7)                   -- "Just(5)"
+    checkEqual(shown(Nothing :: Maybe(Int)), 7)     -- "Nothing"
+    checkEqual(shown(Just(Just(1))), 13)            -- "Just(Just(1))"
+    checkEqual(bound(Just(5)), 17)                  -- 11 + 6
+    checkEqual(bound(Nothing :: Maybe(Int)), 7)
+    checkEqual(bound(Just("hello")), 11)            -- a runtime bound, still a number
+    checkAtMost(shown(Just(5)), bound(Just(5)))
+
+
+{-
+   The contract itself: `show` writes at most `showBound` units when it is `Just`.
+
+   Checked rather than assumed, because everything downstream depends on it - the format primitive
+   sizes its buffer from these numbers and then appends without re-checking, so an instance that
+   understates its bound is a buffer overrun rather than a wrong string.
+-}
+@test fn contractHolds() -> {}:
+    checkAtMost(shown(0), bound(0))
+    checkAtMost(shown(-2147483648), bound(-2147483648))
+    checkAtMost(shown("hello"), bound("hello"))
+

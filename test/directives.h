@@ -116,6 +116,26 @@ inline void applyChecksDirective(CompileSettings& settings, StringView content) 
 }
 
 /*
+ * `# checks: located`, which is `-check-locations` - CompileSettings::checkLocations.
+ *
+ * Beside `off` rather than in a directive of its own, because the two are the same question asked
+ * three ways: a check that is not there, one that stops with a status, and one that says where it
+ * was. Only the third direction needs saying - a fixture that wrote `located` and one that wrote
+ * nothing would otherwise be the same fixture.
+ */
+inline void applyCheckLocationDirective(CompileSettings& settings, StringView content) {
+    auto directive = "# checks: located"_v;
+    if(content.length < directive.length) return;
+
+    for(Size i = 0; i + directive.length <= content.length; i++) {
+        if(compareMem(content.ptr + i, directive.ptr, directive.length) != 0) continue;
+
+        settings.checkLocations = true;
+        return;
+    }
+}
+
+/*
  * `# inline: none|size|balanced|speed` - CompileSettings::inlining.
  *
  * The size-against-speed knob, and the only one this compiler has. Two things read it and a fixture
@@ -157,5 +177,6 @@ inline void applyInliningDirective(CompileSettings& settings, StringView content
 inline void applyFixtureDirectives(CompileSettings& settings, StringView content) {
     applyExtensionDirective(settings, content);
     applyChecksDirective(settings, content);
+    applyCheckLocationDirective(settings, content);
     applyInliningDirective(settings, content);
 }

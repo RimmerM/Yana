@@ -1,0 +1,306 @@
+{-
+   `Read` - the dual of `Show`, Analysis-Library.md §2.1.
+
+   Four claims:
+
+    - the value is right, for the integer instances and the float ones;
+    - the **cursor** moves exactly as far as what was consumed, and not at all when nothing was;
+    - the failure is in the type rather than in the cursor, which is what separates this from the
+      C++ shape it replaces - there, not advancing *was* the error report;
+    - a value outside the type's range is refused rather than wrapped, which is the difference
+      between `read` at an `I8` and `read` at a `Long` followed by a truncation.
+
+   Run on both targets, and the two are different programs again: natively the conversion is Ryu's
+   inverse over the same table `show` uses, and on JS it is the host's `Number` handed the number the
+   scan produced. The scan itself is shared, which is what keeps the grammar the same.
+-}
+
+import Test
+
+fn readInt(text: String) -> Int:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Int):
+        Ok(value) -> return value
+        Err(_) -> return 0 - 999
+
+fn readDouble(text: String) -> Double:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Double):
+        Ok(value) -> return value
+        Err(_) -> return 0.0 - 999.0
+
+-- Where the cursor ended up, or `-1` where the read failed. The failure has to leave it where it
+-- was, so the two answers are distinguishable and both are checked.
+fn intCursor(text: String) -> Size:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Int):
+        Ok(_) -> return at
+        Err(_) -> return if at == 0 then 0 - 1 else 0 - 2
+
+fn doubleCursor(text: String) -> Size:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Double):
+        Ok(_) -> return at
+        Err(_) -> return if at == 0 then 0 - 1 else 0 - 2
+
+fn readByte(text: String) -> Int:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, I8):
+        Ok(value) -> return value :: Int
+        Err(OutOfRange) -> return 0 - 1
+        Err(_) -> return 0 - 2
+
+-- A `Long` rather than an `Int`, so that a `U32` at its maximum is distinguishable from the `-1`
+-- the refusal answers with: truncating it into an `Int` would make the two the same number.
+fn readCount(text: String) -> Long:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, U32):
+        Ok(value) -> return widen(value) :: Long
+        Err(OutOfRange) -> return 0 - 1
+        Err(_) -> return 0 - 2
+
+fn readLong(text: String) -> Long:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Long):
+        Ok(value) -> return value
+        Err(_) -> return 0 - 999
+
+fn longCursor(text: String) -> Size:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Long):
+        Ok(_) -> return at
+        Err(_) -> return if at == 0 then 0 - 1 else 0 - 2
+
+@test fn floatReadIntegers() -> {}:
+    checkEqual(readInt("0"), 0)
+    checkEqual(readInt("42"), 42)
+    checkEqual(readInt("-42"), 0 - 42)
+    checkEqual(readInt("+42"), 42)
+    checkEqual(readInt("2147483647"), 2147483647)
+    checkEqual(readInt("-2147483648"), (minValue() :: Int))
+    checkEqual(readInt("12abc"), 12)
+
+
+{-
+   Digit runs at every length the vector reader's blocks fall on - Core/Read.yana's `readMagnitude`.
+
+   Natively that body reads eight units at a time out of one vector load, takes at most two such
+   blocks, and hands anything longer than nineteen digits back to the scalar loop. So the lengths that
+   matter are the ones either side of eight, sixteen and nineteen, and the ones where the run *ends*
+   inside a window rather than at the end of the string - a vector load reads past the string and the
+   count is what says how many lanes were ever its own.
+
+   Every one of these is an ordinary read on JS, which is the point of asserting values rather than
+   the path that produced them.
+-}
+@test fn runs() -> {}:
+    let &at = 0 :: Size
+
+    -- Either side of one block, of two, and of the nineteen-digit ceiling.
+    checkEqual(readLong("1234567"), 1234567)
+    checkEqual(readLong("12345678"), 12345678)
+    checkEqual(readLong("123456789"), 123456789)
+    checkEqual(readLong("123456789012345"), 123456789012345)
+    checkEqual(readLong("1234567890123456"), 1234567890123456)
+    checkEqual(readLong("12345678901234567"), 12345678901234567)
+    checkEqual(readLong("999999999999999999"), 999999999999999999)
+    checkEqual(readLong("9223372036854775807"), (maxValue() :: Long))
+    checkEqual(readLong("-9223372036854775808"), (minValue() :: Long))
+
+    -- Leading zeros are places and not digits, so a run far longer than nineteen still names a
+    -- small number - and this is the case a length-based ceiling would refuse.
+    checkEqual(readLong("00000000000000000000042"), 42)
+    checkEqual(readLong("0000000000000000000000000000"), 0)
+
+    -- A run that ends inside the window, at each offset a block boundary can fall on.
+    checkEqual(longCursor("1234567x"), 7)
+    checkEqual(longCursor("12345678x"), 8)
+    checkEqual(longCursor("123456789x"), 9)
+    checkEqual(longCursor("1234567890123456x"), 16)
+    checkEqual(longCursor("12345678901234567x"), 17)
+    checkEqual(longCursor("1234567890123456789x"), 19)
+
+    -- Twenty digits and more, which is where the scalar loop takes over: the first fits a `U64` and
+    -- the second does not, and both have to be read to the end before that can be said.
+    at = 0
+    match read("18446744073709551615", at) :: Result(ReadError, U64):
+        Ok(value) -> check(value == (maxValue() :: U64) && at == 20)
+        Err(_) -> check(False)
+
+    at = 0
+    match read("99999999999999999999999", at) :: Result(ReadError, U64):
+        Ok(_) -> check(False)
+        Err(OutOfRange) -> checkEqual(at, 0)
+        Err(_) -> check(False)
+
+    -- And the same length refused at a narrow type, which is the range check rather than the width
+    -- of the accumulator.
+    checkEqual(readByte("00000000000000000127"), 127)
+    checkEqual(readByte("00000000000000000128"), 0 - 1)
+
+
+{-
+   The range check, which is the whole of what an instance adds to the shared body.
+
+   `-128` at an `I8` is a magnitude of 128, which no positive `I8` holds - so reading the magnitude
+   unsigned and applying the sign afterwards is what makes the most negative value of every width an
+   ordinary input rather than the one that overflows.
+-}
+@test fn ranges() -> {}:
+    checkEqual(readByte("127"), 127)
+    checkEqual(readByte("-128"), 0 - 128)
+    checkEqual(readByte("128"), 0 - 1)
+    checkEqual(readByte("-129"), 0 - 1)
+    checkEqual(readCount("4294967295"), 4294967295)
+    checkEqual(readCount("4294967296"), 0 - 1)
+    checkEqual(readCount("-1"), 0 - 2)              -- unsigned takes no sign at all
+
+
+-- `readRadix`, which is the sixteen `readHex`es of the C++ shape collapsed into an argument.
+@test fn radix() -> {}:
+    let &at = 0 :: Size
+
+    at = 0
+    match readRadix("ff", at, 16):
+        Ok(value) -> checkEqual(value, 255)
+        Err(_) -> check(False)
+
+    at = 0
+    match readRadix("FF", at, 16):
+        Ok(value) -> checkEqual(value, 255)
+        Err(_) -> check(False)
+
+    at = 0
+    match readRadix("-101", at, 2):
+        Ok(value) -> checkEqual(value, 0 - 5)
+        Err(_) -> check(False)
+
+    at = 0
+    match readRadix("zz", at, 36):
+        Ok(value) -> checkEqual(value, 1295)
+        Err(_) -> check(False)
+
+    -- A digit at or above the radix is not one, so the read stops in front of it.
+    at = 0
+    match readRadix("129", at, 8):
+        Ok(value) -> check(value == 10 && at == 2)
+        Err(_) -> check(False)
+
+
+@test fn floats() -> {}:
+    checkEqual(readDouble("1.5"), 1.5)
+    checkEqual(readDouble("-1.5"), 0.0 - 1.5)
+    checkEqual(readDouble("0.1"), 0.1)
+    checkEqual(readDouble("3.5e2"), 350.0)
+    checkEqual(readDouble("3.5E+2"), 350.0)
+    checkEqual(readDouble("35e-1"), 3.5)
+    checkEqual(readDouble(".5"), 0.5)
+    checkEqual(readDouble("5."), 5.0)
+    checkEqual(readDouble("1e400"), 1.0 / 0.0)
+    checkEqual(readDouble("1e-400"), 0.0)
+    checkEqual(readDouble("1.7976931348623157e308"), 1.7976931348623157e308)
+
+    -- The two `show` writes, which have to read back or the pair is not an inverse.
+    let &nan = readDouble("NaN")
+    checkNotEqual(nan, nan)
+    checkEqual(readDouble("Inf"), 1.0 / 0.0)
+    checkEqual(readDouble("-inf"), 0.0 - 1.0 / 0.0)
+
+
+{-
+   The cursor, which is the whole reason this is a `&` parameter rather than a length.
+
+   A read that fails leaves it where it was, so a caller may try one instance and then another with
+   nothing saved; a read that succeeds leaves it on the first unit it did not take, so a caller may
+   carry straight on.
+-}
+@test fn cursors() -> {}:
+    checkEqual(intCursor("42"), 2)
+    checkEqual(intCursor("42abc"), 2)
+    checkEqual(intCursor("abc"), 0 - 1)
+    checkEqual(intCursor(""), 0 - 1)
+    checkEqual(intCursor("-"), 0 - 1)
+    checkEqual(doubleCursor("3.5e2rest"), 5)
+
+    -- An `e` with no digits behind it is not part of the number, so the cursor stops in front of it.
+    checkEqual(doubleCursor("1e"), 1)
+    checkEqual(doubleCursor("1e+"), 1)
+
+
+-- Two reads in a row off one cursor, which is what a parser does and what `?` composes.
+@test fn sequence() -> {}:
+    let text = "12 -7 3.5"
+    let &at = 0 :: Size
+
+    match read(text, at) :: Result(ReadError, Int):
+        Ok(value) -> checkEqual(value, 12)
+        Err(_) -> check(False)
+
+    at = at + 1
+    match read(text, at) :: Result(ReadError, Int):
+        Ok(value) -> checkEqual(value, 0 - 7)
+        Err(_) -> check(False)
+
+    at = at + 1
+    match read(text, at) :: Result(ReadError, Double):
+        Ok(value) -> check(value == 3.5 && at == length(text))
+        Err(_) -> check(False)
+
+
+{-
+   `Read(Float)` reads a double and narrows it, which is exactly rounded rather than nearly so:
+   double rounding is safe when the intermediate carries at least `2p + 2` bits of the target's
+   precision, and 53 is above the 50 a `Float`'s 24 bits ask for.
+-}
+@test fn floatReadNarrow() -> {}:
+    let &at = 0 :: Size
+
+    at = 0
+    match read("0.1", at) :: Result(ReadError, Float):
+        Ok(value) -> checkEqual(value, (0.1 :: Float))
+        Err(_) -> check(False)
+
+    at = 0
+    match read("3.4028235e38", at) :: Result(ReadError, Float):
+        Ok(value) -> checkEqual(value, (3.4028235e38 :: Float))
+        Err(_) -> check(False)
+
+
+{-
+   The widest types, where the range check is against a bound the check itself cannot hold.
+
+   `Long`'s most negative value has no positive counterpart, so the magnitude is read unsigned and
+   the sign applied afterwards - which is what makes `-9223372036854775808` an ordinary input; and
+   `U64`'s maximum is above what any signed intermediate holds, so the unsigned path has to be its
+   own rather than a signed read narrowed.
+-}
+@test fn widest() -> {}:
+    let &at = 0 :: Size
+
+    at = 0
+    match read("9223372036854775807", at) :: Result(ReadError, Long):
+        Ok(value) -> checkEqual(value, (maxValue() :: Long))
+        Err(_) -> check(False)
+
+    at = 0
+    match read("-9223372036854775808", at) :: Result(ReadError, Long):
+        Ok(value) -> checkEqual(value, (minValue() :: Long))
+        Err(_) -> check(False)
+
+    at = 0
+    match read("9223372036854775808", at) :: Result(ReadError, Long):
+        Ok(_) -> check(False)
+        Err(OutOfRange) -> {}
+        Err(_) -> check(False)
+
+    at = 0
+    match read("18446744073709551615", at) :: Result(ReadError, U64):
+        Ok(value) -> checkEqual(value, (maxValue() :: U64))
+        Err(_) -> check(False)
+
+    at = 0
+    match read("18446744073709551616", at) :: Result(ReadError, U64):
+        Ok(_) -> check(False)
+        Err(OutOfRange) -> {}
+        Err(_) -> check(False)
+

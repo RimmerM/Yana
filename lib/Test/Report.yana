@@ -38,6 +38,49 @@ let &totalFailures = 0 :: Int
 let &caseName = "" :: String
 
 {-
+   The same failures, in the shape a person reads - Design-Test.md §5.5.
+
+   Not a second record of what happened: it is the *claims* of the case being run, without the
+   ordinal and the `fail` keyword the stream frames them with, kept because `Test.Console` gathers a
+   run's failures and prints them under the summary rather than as they happen. The stream must do
+   the opposite - write each one at the moment it happens, so that a case which never returns has
+   still said what went wrong - and the two shapes are what the two readers need.
+
+   A `String` global, which a library module may have because `""` is a constant initializer -
+   Section.yana's `sectionLabels` is the same shape for the same reason. It costs one string per
+   *failing* case: a case that holds appends nothing here, and a run with no console reads it never.
+-}
+let &caseDetail = "" :: String
+
+{-
+   Whether the stream has been handed over to something that reports better - Design-Test.md §5.5.
+
+   The native stream goes to descriptor 3 when a parent opened one and to standard error otherwise,
+   and the second half is what this is about. Standard error is *also* where a person watching the
+   run is looking, so a binary run at a terminal wrote `begin 3 Map.insert` into the middle of the
+   line the console was rewriting - two reports of the same events, interleaved, one of them for a
+   reader that is not there.
+
+   So a console that is drawing on a terminal mutes it, and what it replaces is not nothing: the
+   property the stream buys is that a case which takes the process down still names itself, and the
+   progress line names the case that is running and stays on the screen when the process dies. Same
+   guarantee, one reader.
+
+   **Muting is refused while the stream is private**, which is the whole safety of it: descriptor 3
+   being open means something is reading, and a run that silenced a channel somebody was reading
+   would turn a crashed child into one that reported nothing at all. A run with no terminal - a
+   pipe, a redirect, a CI log - is not muted either, because there is no progress line there to have
+   replaced it.
+-}
+let &muted = False
+
+pub fn muteReport() -> {}:
+    if reportIsPrivate() then return
+    muted = True
+
+pub fn reportMuted() -> Bool = muted
+
+{-
    One claim that did not hold, written to the stream and counted.
 
    Public, because a user-written assertion is an ordinary function that ends in this - which is what
@@ -58,10 +101,17 @@ pub fn recordAt(site: Site, claim: String, detail: String) -> {}:
     caseFailures = caseFailures + 1
     totalFailures = totalFailures + 1
 
-    let &line = "fail  {ordinal} {site.file}:{site.line}:{site.column}"
-    if length(sectionLabels) > (0 :: Size) then line ++= "  [{sectionLabels}]"
-    line ++= "  {claim}\n"
+    -- Built once and framed twice: the stream prefixes the ordinal so that a parent can tie the line
+    -- to a `begin`, and the console does not because it is already under the name of the case.
+    let &claimed = "{site.file}:{site.line}:{site.column}"
+    if length(sectionLabels) > (0 :: Size) then claimed ++= "  [{sectionLabels}]"
+    claimed ++= "  {claim}"
+
+    let &line = "fail  {ordinal} {claimed}\n"
     if length(detail) > (0 :: Size) then line ++= "      {detail}\n"
+
+    caseDetail ++= "{claimed}\n"
+    if length(detail) > (0 :: Size) then caseDetail ++= "  {detail}\n"
 
     reportLine(line)
 
@@ -82,6 +132,7 @@ pub fn beginCase(index: Int, name: String) -> {}:
     ordinal = index
     caseFailures = 0
     caseName = copy(name)
+    caseDetail = ""
     reportLine("begin {index} {name}\n")
 
 pub fn endCase(verdict: String, nanos: I64) -> {}:
@@ -90,3 +141,7 @@ pub fn endCase(verdict: String, nanos: I64) -> {}:
 -- The name of the case being run, for a report written from outside the case's own body - which is
 -- the harness reporting a child that never came back.
 pub fn currentCase() -> String = copy(caseName)
+
+-- What the case being run has lost so far, as the lines a person reads. Empty for a case that has
+-- held, which is what lets a reporter ask without first asking whether there is anything to ask for.
+pub fn currentDetail() -> String = copy(caseDetail)

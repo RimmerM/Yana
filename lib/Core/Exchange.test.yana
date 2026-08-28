@@ -1,0 +1,126 @@
+{-
+   `exchange` and `swap` over values whose storage is an object on JavaScript.
+
+   Both operations *relocate*: what comes out is the storage's former contents and what goes in
+   replaces them, with no copy on either target. Native gets that from the machine - the old bytes
+   are memcpy'd into a slot of their own before the place is written, and the two never overlap. The
+   JS target has no slots, so a place rooted in a `&` is a *name* for the object the write is about
+   to fill property by property, and reading it and writing it were the same object: `exchange` gave
+   back the value it had just installed and `swap` performed no swap at all.
+
+   Which is why every check below reads *both* ends. An aliased exchange answers correctly for the
+   place and wrongly for the value taken out of it, so a fixture that looked only at `a` would have
+   passed throughout - and the lengths are chosen distinct and non-zero for the same reason.
+
+   The shapes are several rather than one because each reaches the write by a different route: a
+   local's own storage, a field of a record, a `&` parameter naming another frame's, and - through
+   `Map.insert` - a container's element. Every one of them is also compiled twice, since the
+   optimizer rewrites `exchange` into a `move` out of the place followed by an `assign` into it, and
+   that discharged form is a separate emitter path from the instruction it replaces. It is the form
+   an optimized build actually emits, and it had the same fault.
+-}
+
+import Test
+
+data Pair {left: Array(Int), right: Array(Int)}
+
+fn exchangeCounted(n: Int) -> Array(Int):
+    let &out = [] :: [Int]
+    let &i = 0
+    while i < n:
+        push(out, i)
+        i = i + 1
+    return out
+
+fn exchangeSize(xs: Array(Int)) -> Int = truncate(length(xs)) :: Int
+
+-- A local, which is the shortest shape that reaches the bug at all: `&a` is a mutable borrow of
+-- this frame's own storage, and that is already enough for the place to be a name rather than a slot.
+@test fn exchangeLocal() -> {}:
+    let &a = exchangeCounted(3)
+    let ->old = exchange(a, exchangeCounted(8))
+
+    checkEqual(exchangeSize(old), 3)
+    checkEqual(exchangeSize(a), 8)
+
+-- The same through a field, where the borrow is of a projection rather than of the local.
+@test fn exchangeField() -> {}:
+    let &p = Pair {left: exchangeCounted(3), right: exchangeCounted(5)}
+    let ->old = exchange(p.left, exchangeCounted(8))
+
+    checkEqual(exchangeSize(old), 3)
+    checkEqual(exchangeSize(p.left), 8)
+    checkEqual(exchangeSize(p.right), 5)
+
+-- And through an element, which is the route `Map.insert` takes to hand back a displaced value.
+-- And through a `&` parameter, which is the one place a `&` names storage the frame does not own -
+-- so it is the shape the emitter has least to go on, and the one a container's element arrives in.
+fn replaced(&slot: Array(Int), ->fresh: Array(Int)) -> Array(Int):
+    let ->old = exchange(slot, fresh)
+    return old
+
+@test fn exchangeThroughRef() -> {}:
+    let &a = exchangeCounted(3)
+    let ->old = replaced(a, exchangeCounted(8))
+
+    checkEqual(exchangeSize(old), 3)
+    checkEqual(exchangeSize(a), 8)
+
+-- `swap`, which had the fault twice over: the temporary aliased the first place, and both writes
+-- were assignments to the locals naming the two borrows rather than writes through them.
+@test fn swapLocals() -> {}:
+    let &a = exchangeCounted(3)
+    let &b = exchangeCounted(8)
+    swap(a, b)
+
+    checkEqual(exchangeSize(a), 8)
+    checkEqual(exchangeSize(b), 3)
+
+@test fn swapFields() -> {}:
+    let &p = Pair {left: exchangeCounted(3), right: exchangeCounted(8)}
+    swap(p.left, p.right)
+
+    checkEqual(exchangeSize(p.left), 8)
+    checkEqual(exchangeSize(p.right), 3)
+
+{-
+   The displaced value `Map.insert` hands back, which is this bug reached from the library rather
+   than from the instruction: `insert` over an existing key exchanges the value in place, so on JS it
+   returned the value it had just stored and every caller that looked at the old one was wrong.
+-}
+@test fn mapInsertDisplaces() -> {}:
+    let &m = [:] :: Map(Int, Array(Int))
+    insert(m, 1, exchangeCounted(3))
+
+    let displaced = insert(m, 1, exchangeCounted(8))
+    match displaced:
+        Just(previous) -> checkEqual(exchangeSize(previous), 3)
+        Nothing -> check(False)
+
+    checkEqual(exchangeSize(m[1]), 8)
+    checkEqual(length(m), 1)
+
+{-
+   Two elements of one container, which is the pair every *other* operation is now refused - see
+   `Reject.Exchange.yana`. Nothing here says the two subscripts differ and neither operation needs it
+   said: a swap reads both places before it writes either, so the two naming one place is a no-op
+   rather than a loss, and an exchange has one place to begin with.
+
+   The self-swap is at an index the front end cannot fold, so what runs is the general three-step
+   relocation with both ends at one address rather than anything a constant let it skip.
+-}
+@test fn swapElements() -> {}:
+    let &xs = [exchangeCounted(3), exchangeCounted(8), exchangeCounted(5)]
+
+    swap(xs[0], xs[1])
+    checkEqual(exchangeSize(xs[0]), 8)
+    checkEqual(exchangeSize(xs[1]), 3)
+
+    let i = length(xs) - 3
+    swap(xs[i], xs[i])
+    checkEqual(exchangeSize(xs[0]), 8)
+    checkEqual(exchangeSize(xs[1]), 3)
+
+    let ->old = exchange(xs[2], exchangeCounted(2))
+    checkEqual(exchangeSize(old), 5)
+    checkEqual(exchangeSize(xs[2]), 2)

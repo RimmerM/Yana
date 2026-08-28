@@ -15,6 +15,7 @@
 #include "shard.h"
 #include "directives.h"
 #include "corpus.h"
+#include "report.h"
 
 #if defined(__unix__) || defined(__APPLE__)
 #include <sys/mman.h>
@@ -84,9 +85,39 @@ struct TestProvider: SourceProvider, ModuleProvider {
 
     ~TestProvider() override {
         for(auto& entry: loaded) {
+            // Null for the second file of a module - see `read`, which records one entry per *file*
+            // and hangs the group off the first.
             delete entry.group;
             delete entry.ast;
         }
+    }
+
+    /*
+     * One file of a provided module, parsed and remembered.
+     *
+     * The text is kept because a diagnostic quotes the line it points at long after the parse, which
+     * is what `getSource` answers from - so an entry is per file and not per module, and the group
+     * belongs to whichever entry made it.
+     */
+    ast::Module* read(StringId fileName, const String& path, bool test) {
+        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
+        if(opened.isErr()) return nullptr;
+
+        auto file = opened.moveUnwrapOk();
+        auto size = file.size();
+        Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
+        file.read({ (Byte*)text.get(), size });
+
+        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size }, fileName);
+        Parser parser(*context, lexer, fileName);
+        auto ast = new ast::Module(parser.parseModule());
+
+        // What the library walk records from the file's name, said here instead because these
+        // modules have no directory to walk - see ast::Module::test.
+        ast->test = test;
+
+        loaded.push(Loaded { fileName, ::move(text), size, ast, nullptr });
+        return ast;
     }
 
     StringView getSource(StringId id) override {
@@ -103,7 +134,7 @@ struct TestProvider: SourceProvider, ModuleProvider {
 
     ast::ModuleGroup* getModule(StringId name) override {
         for(auto& entry: loaded) {
-            if(entry.name == name) return entry.group;
+            if(entry.name == name && entry.group) return entry.group;
         }
 
         // `OpenExisting`, which is not a detail: the default mode *creates* the file, so an import
@@ -111,28 +142,50 @@ struct TestProvider: SourceProvider, ModuleProvider {
         // shadows the library one of that name on every run afterwards, since the project's own
         // files are looked at first. That is precisely what a fixture importing `File` or `Math`
         // would hit here, where every import is a library module.
-        auto path = String("lib/modules/") + context->findName(name) + String(".yana");
-        auto opened = File::openFile(path, readAccess(), File::OpenExisting);
-        if(opened.isErr()) return nullptr;
+        auto written = context->findName(name);
+        auto ast = read(name, String("lib/modules/") + written + String(".yana"), false);
+        if(!ast) return nullptr;
 
-        auto file = opened.moveUnwrapOk();
-        auto size = file.size();
-        Ptr<char, HeapDeleter> text { (char*)hAlloc(size) };
-        file.read({ (Byte*)text.get(), size });
-
-        Lexer lexer(*context, context->diagnostics, StringView { text.get(), size }, name);
-        Parser parser(*context, lexer, name);
-        auto ast = new ast::Module(parser.parseModule());
-
-        // A group of one file. These fixtures name a module per file, which is what a file that
-        // wrote `module` would be under the directory rule too - Analysis-Modules.md §2.1.
+        // These fixtures name a module per file, which is what a file that wrote `module` would be
+        // under the directory rule too - Analysis-Modules.md §2.1.
         auto group = new ast::ModuleGroup { .name = name };
         group->files.push(ast);
+        loaded[loaded.size() - 1].group = group;
 
-        loaded.push(Loaded { name, ::move(text), size, ast, group });
+        /*
+         * And its test file, if it has one - Design-Test.md §3.1.
+         *
+         * Under `-test` only, which is the selector rule these two files stand in for: the walk that
+         * would decide it reads a directory, and there is no directory here. This is the only way
+         * the corpus can reach a *library* module holding a test, which is where a dynamic global is
+         * a thing the compiler had to be taught rather than something it already did.
+         */
+        if(context->settings.test) {
+            auto testName = written + String(".test");
+            auto id = context->addQualifiedName(testName.text(), testName.size());
+
+            if(auto tests = read(id, String("lib/modules/") + testName + String(".yana"), true)) {
+                group->files.push(tests);
+            }
+        }
+
         return group;
     }
 };
+
+// `lib/Map.yana` becomes `Map`: the directory and the extension off, and the selector segments left
+// on, which is what makes `CopyMemory.Avx2` name itself rather than colliding with `CopyMemory`.
+static String fixtureName(const String& path) {
+    auto start = path.text();
+    auto end = path.text() + path.size();
+
+    for(auto p = end; p > path.text(); p--) {
+        if(p[-1] == '/') { start = p; break; }
+    }
+
+    if(Size(end - start) > 5 && StringView { end - 5, 5 } == ".yana"_v) end -= 5;
+    return ownedString(StringView { start, Size(end - start) });
+}
 
 static bool fileExists(const String& path) {
     auto info = File::info(path);
@@ -157,6 +210,10 @@ struct RunOutcome {
     int status = 0;
     bool signalled = false;
     bool threw = false;
+
+    // What the report stream said - see report.h. The case it was inside when it stopped, the
+    // claims that did not hold, and the lines themselves.
+    TestReport report;
 };
 
 /*
@@ -235,6 +292,22 @@ static RunOutcome executeMainIsolated(Context& context, Program& resolved, Lower
         return outcome;
     }
 
+    /*
+     * A second pipe, which becomes the child's descriptor 3 - Design-Test.md §5.2.
+     *
+     * That is where `Test.runMain` writes its report when something has opened it, and it is the
+     * reason this driver can now say *which case* a fixture died in rather than only that it did.
+     * Without one the runner falls back to standard error, which would put a `begin` and an `end`
+     * line for every case of every build into this driver's own output.
+     */
+    int report[2];
+    if(pipe(report) != 0) {
+        close(answer[0]);
+        close(answer[1]);
+        munmap(memory, allocationSize);
+        return outcome;
+    }
+
     // Anything this process has buffered is flushed before the fork rather than after it: a child
     // that inherits a half-full stdout buffer prints the parent's last line again on its way out.
     fflush(nullptr);
@@ -243,12 +316,23 @@ static RunOutcome executeMainIsolated(Context& context, Program& resolved, Lower
     if(child < 0) {
         close(answer[0]);
         close(answer[1]);
+        close(report[0]);
+        close(report[1]);
         munmap(memory, allocationSize);
         return outcome;
     }
 
     if(child == 0) {
         close(answer[0]);
+        close(report[0]);
+
+        // The report stream, in the one place it can be put: descriptor 3 of the process that is
+        // about to run the cases. `dup2` and not a library call, because this side of the fork may
+        // not allocate and has nothing of the runner's to talk to.
+        if(report[1] != 3) {
+            dup2(report[1], 3);
+            close(report[1]);
+        }
 
         I64 result;
         if(unitResult) {
@@ -275,6 +359,29 @@ static RunOutcome executeMainIsolated(Context& context, Program& resolved, Lower
     }
 
     close(answer[1]);
+    close(report[1]);
+
+    /*
+     * The report first, to end of file, and only then the answer.
+     *
+     * This order is not arbitrary. The report is written *while* the cases run and the answer once
+     * they are all done, so a parent that blocked on the answer first would leave the report
+     * unread - and a child whose report filled the pipe would then be stuck writing into it while
+     * this side waited for a value it was never going to send. Reading the report first cannot
+     * deadlock the other way round: the answer is eight bytes and a pipe holds them.
+     */
+    String reported;
+
+    for(;;) {
+        char scratch[1024];
+        auto got = ::read(report[0], scratch, sizeof(scratch));
+        if(got <= 0) break;
+
+        reported = reported + String(scratch, Size(got));
+    }
+
+    close(report[0]);
+    readTestReport(reported, outcome.report);
 
     I64 result = 0;
     Size at = 0;
@@ -325,22 +432,29 @@ static RunOutcome executeMainIsolated(Context& context, Program& resolved, Lower
 // fixture say the same thing about the same outcome. `which` names the build - there are three or
 // five of them per fixture and only the message says which one stopped.
 static void reportOutcome(const String& path, StringView which, const RunOutcome& outcome) {
+    // Which case was running when it stopped, where the stream said - Design-Test.md §5.2. Empty for
+    // a run that finished its report, and it is the difference between "the amd64 build stopped" and
+    // "the amd64 build stopped in `Sort.owned`".
+    auto where = outcome.report.unfinished.size()
+        ? Tritium::format(", while running %@", outcome.report.unfinished) : String();
+
     switch(outcome.kind) {
         case RunOutcome::Stopped:
             if(outcome.threw) {
                 // `hostFail` is `throw`, which is the most a script can do - see lib/Host.yana. The
                 // sentence it carried has already been printed beside this.
-                println("Fail (%@): the %@ build threw - a check or an assertion failed.", path, which);
+                println("Fail (%@): the %@ build threw - a check or an assertion failed%@.", path,
+                        which, where);
             } else if(outcome.signalled) {
-                println("Fail (%@): the %@ build was killed by signal %@.", path, which,
-                        outcome.status);
+                println("Fail (%@): the %@ build was killed by signal %@%@.", path, which,
+                        outcome.status, where);
             } else {
                 // 134 is `abortProcess`, which is what a failed `assert` and a failed bounds check
                 // both reach. Named as such, because "exited with 134" is the one status in this
                 // driver that means the fixture worked exactly as designed and the library did not.
-                println("Fail (%@): the %@ build stopped with status %@%@.", path, which,
+                println("Fail (%@): the %@ build stopped with status %@%@%@.", path, which,
                         outcome.status,
-                        outcome.status == 134 ? " - a check or an assertion failed"_v : ""_v);
+                        outcome.status == 134 ? " - a check or an assertion failed"_v : ""_v, where);
             }
             break;
 
@@ -349,8 +463,16 @@ static void reportOutcome(const String& path, StringView which, const RunOutcome
             break;
 
         case RunOutcome::Answered:
-            println("Fail (%@): the %@ build's main answered %@, expected 0.", path,
-                    which, outcome.value);
+            // One is what `runMain` answers for a suite with a failure in it, and the claims it
+            // reported have already been printed by the fixture itself - so the count is what this
+            // adds. Anything else is a runner that could not start, which says so on its own.
+            if(outcome.value == 1 && outcome.report.failedClaims) {
+                println("Fail (%@): the %@ build reported %@ failed claim%@.", path, which,
+                        outcome.report.failedClaims, outcome.report.failedClaims == 1 ? ""_v : "s"_v);
+            } else {
+                println("Fail (%@): the %@ build's runner answered %@, expected 0.", path,
+                        which, outcome.value);
+            }
             break;
     }
 }
@@ -528,7 +650,16 @@ static NodeHarness& nodeHarness() {
 // in a context of its own, and a script that throws is an answer rather than a death.
 static RunOutcome executeJsMain(ByteBuffer emitted) {
     RunOutcome outcome;
-    char buffer[512] = {};
+
+    /*
+     * Big enough for a suite's report, which is what a fixture's output now is.
+     *
+     * There is one output on this target - `console` - so the report stream and whatever the fixture
+     * prints arrive in the same payload, and the answer is its last line. 512 bytes was the whole
+     * buffer while a fixture printed nothing at all; two lines per case would have pushed the answer
+     * out of it and every JavaScript build would have read as Broken.
+     */
+    char buffer[16384] = {};
     Size read = 0;
     auto ok = false;
     auto threw = false;
@@ -541,6 +672,11 @@ static RunOutcome executeJsMain(ByteBuffer emitted) {
 
     ok = nodeHarness().run(emitted, buffer, sizeof(buffer), read, threw);
 #endif
+
+    // The report, off the same payload. There is one output on this target, so the stream and
+    // whatever the fixture printed arrive together - and a line that is not a report line is passed
+    // over, which is what makes reading them out of one buffer work at all.
+    readTestReport(String(buffer, read), outcome.report);
 
     if(!ok) {
         // A throw is the fixture stopping - `hostFail` is `throw`, so this is where a failed
@@ -597,10 +733,34 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
     Context context(diagnostics);
     applyFixtureDirectives(context.settings, source);
     context.settings.optimizeIr = options.optimize;
+
+    /*
+     * A test build - Design-Test.md §11.2's F1, and what this corpus is written against now.
+     *
+     * The fixture has no `main`: it has `@test` declarations, and the entry that runs them is
+     * synthesized. That is the whole of what this flag buys here, since these fixtures are handed to
+     * the parser directly rather than found by a directory walk, so the `.test.yana` half of `-test`
+     * never comes up.
+     */
+    context.settings.test = true;
     if(options.js) context.settings.mode = CompileMode::JsExecutable;
     provider.context = &context;
 
-    auto name = context.addUnqualifiedName("LibTest", 7);
+    /*
+     * The module is named after the fixture rather than "LibTest".
+     *
+     * Because the name is what a report line says. `@caller` fills a `Site` with the module a call
+     * was written in - that is what the compiler knows about a source position - so every fixture
+     * being called the same thing made every failure read `LibTest:53:4`, which locates a line in a
+     * corpus of forty-two files. `Lib.Show:53:4` locates it.
+     *
+     * **Qualified**, and that is not decoration: half this corpus is named after the module it is
+     * about, so `Atomic.yana` compiled as the module `Atomic` reports "a module cannot import
+     * itself" and every name it wanted from the library is then unknown. `Lib.` is what keeps the
+     * fixture's name and the library's apart.
+     */
+    auto stem = String("Lib.") + fixtureName(path);
+    auto name = context.addQualifiedName(stem.text(), stem.size());
     Lexer lexer(context, diagnostics, source, name);
     Parser parser(context, lexer, name);
     auto ast = parser.parseModule();
@@ -645,6 +805,9 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
     if(outcome.kind == RunOutcome::Answered && outcome.value == 0) return true;
 
     reportOutcome(path, options.which, outcome);
+
+    // The claims themselves, with their locations, which the stream carried and nothing else has.
+    if(outcome.report.failures.size()) print("%@", outcome.report.failures);
     return false;
 }
 

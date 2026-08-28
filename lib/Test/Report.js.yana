@@ -17,7 +17,14 @@ import Native
 -- always reports for a human - see the native half, where this is a real question.
 pub fn reportIsPrivate() -> Bool = False
 
+-- And the other side of that: `print` and this are both `console.log`, so a run that reports for a
+-- human and does not mute the stream writes the two reports of §5.5 into one another. Natively they
+-- are two descriptors and the answer is no.
+pub fn reportSharesOutput() -> Bool = True
+
 pub fn reportLine(text: String) -> {}:
+    if reportMuted() then return
+
     let count = length(text)
     if count == (0 :: Size) then return
 

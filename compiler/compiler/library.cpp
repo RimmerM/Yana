@@ -1,4 +1,5 @@
 #include "context.h"
+#include "project.h"
 #include <File.h>
 #include <stdlib.h>
 
@@ -155,9 +156,18 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
         bool inDirectory;
         Array<LibraryFile>& result;
         Array<String> directories;
+        SelectorScope scope;
     };
 
-    Walk walk { context, library, path, qualifier, inDirectory, result, {} };
+    /*
+     * Whose files these are. `Project` when this compilation *is* the library's package, which is
+     * how `base` tests itself, and `Dependency` for every program that merely imports it - see
+     * SelectorScope, where the difference is one selector and the reason it matters.
+     */
+    auto scope = library.isOwnPackage(context, context.settings) ? SelectorScope::Project
+                                                                 : SelectorScope::Dependency;
+
+    Walk walk { context, library, path, qualifier, inDirectory, result, {}, scope };
 
     listDirectory(path, [](void* data, const String& fileName, bool isDirectory) {
         auto& walk = *(Walk*)data;
@@ -195,7 +205,7 @@ static void walkModuleFiles(Context& context, LibrarySource& library, const Stri
 
             if(from > 0) {
                 auto selector = StringView { stem.ptr + from, i - from };
-                auto answer = targetSelector(walk.context.settings, selector);
+                auto answer = targetSelector(walk.context.settings, selector, walk.scope);
 
                 // Kept as the walk goes past, since this is the last place the file's base name is
                 // in hand - see ast::Module::test.
@@ -348,4 +358,55 @@ StringView LibrarySource::loaded(StringId file) const {
     }
 
     return {};
+}
+
+/*
+ * The library's manifest, read once whether or not it is there.
+ *
+ * `readPackage` guards the read and not the answer: a library with no `yana.toml` is a library that
+ * exports everything and tests nothing, which is what every tree looked like before packages
+ * existed, and asking the file system that question once per import would be the same answer at a
+ * syscall apiece.
+ *
+ * Failures are silent here. A malformed manifest is worth reporting, but this is called from the
+ * middle of resolving an import and the report would arrive attached to whichever import happened to
+ * be first; the driver reads the same file through `readProjectFile` when a project names it, which
+ * is where a person can act on the message.
+ */
+void LibrarySource::readManifest(Context& context) {
+    if(readPackage) return;
+    readPackage = true;
+
+    auto& base = directory(context);
+    if(base == "") return;
+
+    auto read = readProjectFile(formatPath("%@/yana.toml"_v, base));
+    if(!read) return;
+
+    auto manifest = read.moveUnwrapOk();
+    packageName = ::move(manifest.name);
+    for(auto& name: manifest.exports) packageExports.push(::move(name));
+}
+
+bool LibrarySource::isOwnPackage(Context& context, const CompileSettings& settings) {
+    readManifest(context);
+
+    // Both empty is not a match. An unnamed package is nobody's, so a program that says nothing
+    // never acquires the library's own privileges by accident.
+    if(packageName == "" || settings.package == "") return false;
+    return packageName == settings.package;
+}
+
+bool LibrarySource::exportsModule(Context& context, StringId module) {
+    readManifest(context);
+
+    // A manifest that lists none draws no boundary - see ProjectFile::exports.
+    if(packageExports.size() == 0) return true;
+
+    auto name = context.findName(module);
+    for(auto& exported: packageExports) {
+        if(exported == name) return true;
+    }
+
+    return false;
 }

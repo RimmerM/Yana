@@ -1,0 +1,202 @@
+{-
+   The message digests - `Digest`, and Analysis-Library.md §3.2.
+
+   **Known answers and one property.** Every digest here is checked against values produced by
+   something else - `sha256sum`, `openssl`, `zlib.crc32`, and the reference implementations of
+   Murmur3-32 and xxHash32 - at five lengths chosen for where they fall against a sixty-four-byte
+   block: nothing, less than a block, one that pads into a second block, one in between, and 768
+   bytes so that the bulk loop runs twelve times. A digest that got the padding wrong passes the
+   short cases and fails the second, which is why the second is there.
+
+   The property is that **streaming and one-shot agree**: a digest fed one byte at a time has to
+   answer what the same bytes hashed in one call answer, at every length. That is what exercises the
+   buffering in `absorb` - the top-up path, the "did not fill" early return, and the tail - and it is
+   the half of this module a known-answer test cannot reach, since every published vector is a
+   one-shot.
+
+   Whirlpool is not here: it is 64-bit arithmetic throughout and therefore native-only, so it has a
+   fixture of its own without the `.js` marker. `DigestSha.yana` beside this one is this file
+   compiled for a target that claims the SHA extension, which is what tests the other of the two
+   compression functions the file selector chooses between - see `Digest/Hardware.sha.yana`.
+-}
+
+import Native
+import Test
+
+{-
+   One `@noinline` helper per algorithm, and the split is about compile time rather than style.
+
+   Inlined into a single body, the forty checks below are **8,929 lines of IR** - a third of the
+   whole program, where nothing else in the corpus exceeds a thousand - and the two passes that
+   promote storage over an inlined body are close to quartic in the size of one function. That made
+   this fixture 1.68s of the library corpus's 7.3s, and `DigestSha.yana` beside it another 1.68s.
+   See test/bench/findings.md §63, which has the measurement and the passes.
+
+   Eight bodies of five checks cost a fraction of one body of forty, and `@noinline` is what keeps
+   them apart afterwards - without it the inliner puts the same body back together and nothing is
+   saved. **Nothing about what is asserted depends on the shape**: the vectors are built once and
+   handed over as the `Flat(U8)` every entry point in `Digest` already takes, and each check keeps a
+   line of its own, so a failure still names both the algorithm and the length. Undo it when the
+   passes are fixed.
+-}
+
+@noinline fn md5Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                        long: Flat(U8)) -> {}:
+    checkEqual(hexOf(md5Of(empty)), "d41d8cd98f00b204e9800998ecf8427e")
+    checkEqual(hexOf(md5Of(abc)), "900150983cd24fb0d6963f7d28e17f72")
+    checkEqual(hexOf(md5Of(twoBlocks)), "8215ef0796a20bcaaae116d3876c664a")
+    checkEqual(hexOf(md5Of(pangram)), "9e107d9d372bb6826bd81d3542a419d6")
+    checkEqual(hexOf(md5Of(long)), "e6899eaaf06fd702f3ed3f988eb19362")
+
+@noinline fn sha1Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                         long: Flat(U8)) -> {}:
+    checkEqual(hexOf(sha1Of(empty)), "da39a3ee5e6b4b0d3255bfef95601890afd80709")
+    checkEqual(hexOf(sha1Of(abc)), "a9993e364706816aba3e25717850c26c9cd0d89d")
+    checkEqual(hexOf(sha1Of(twoBlocks)), "84983e441c3bd26ebaae4aa1f95129e5e54670f1")
+    checkEqual(hexOf(sha1Of(pangram)), "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12")
+    checkEqual(hexOf(sha1Of(long)), "ac2a264c8ec1f4232a40854e8239bc3a697ab1d2")
+
+@noinline fn sha224Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                           long: Flat(U8)) -> {}:
+    checkEqual(hexOf(sha224Of(empty)), "d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f")
+    checkEqual(hexOf(sha224Of(abc)), "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7")
+    checkEqual(hexOf(sha224Of(twoBlocks)), "75388b16512776cc5dba5da1fd890150b0c6455cb4f58b1952522525")
+    checkEqual(hexOf(sha224Of(pangram)), "730e109bd7a8a32b1cb9d9a09aa2325d2430587ddbc0c38bad911525")
+    checkEqual(hexOf(sha224Of(long)), "591b51555cc8c83f6951d9ec73d834d6d17865fecdb543605471a562")
+
+@noinline fn sha256Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                           long: Flat(U8)) -> {}:
+    checkEqual(hexOf(sha256Of(empty)), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+    checkEqual(hexOf(sha256Of(abc)), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    checkEqual(hexOf(sha256Of(twoBlocks)), "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
+    checkEqual(hexOf(sha256Of(pangram)), "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592")
+    checkEqual(hexOf(sha256Of(long)), "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363")
+
+@noinline fn crc32Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                          long: Flat(U8)) -> {}:
+    checkEqual(hexOf(crc32Of(empty)), "00000000")
+    checkEqual(hexOf(crc32Of(abc)), "352441c2")
+    checkEqual(hexOf(crc32Of(twoBlocks)), "171a3f5f")
+    checkEqual(hexOf(crc32Of(pangram)), "414fa339")
+    checkEqual(hexOf(crc32Of(long)), "b0c0df2a")
+
+@noinline fn crc32cAnswers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                           long: Flat(U8)) -> {}:
+    checkEqual(hexOf(crc32cOf(empty)), "00000000")
+    checkEqual(hexOf(crc32cOf(abc)), "364b3fb7")
+    checkEqual(hexOf(crc32cOf(twoBlocks)), "071325f5")
+    checkEqual(hexOf(crc32cOf(pangram)), "22620404")
+    checkEqual(hexOf(crc32cOf(long)), "9fa293b3")
+
+@noinline fn murmur3Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                            long: Flat(U8)) -> {}:
+    checkEqual(hexOf(murmur3Of(empty)), "00000000")
+    checkEqual(hexOf(murmur3Of(abc)), "b3dd93fa")
+    checkEqual(hexOf(murmur3Of(twoBlocks)), "ee925b90")
+    checkEqual(hexOf(murmur3Of(pangram)), "2e4ff723")
+    checkEqual(hexOf(murmur3Of(long)), "30e195a1")
+
+@noinline fn xxHash32Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
+                             long: Flat(U8)) -> {}:
+    checkEqual(hexOf(xxHash32Of(empty)), "02cc5d05")
+    checkEqual(hexOf(xxHash32Of(abc)), "32d153ff")
+    checkEqual(hexOf(xxHash32Of(twoBlocks)), "89ea60c3")
+    checkEqual(hexOf(xxHash32Of(pangram)), "e85ea4de")
+    checkEqual(hexOf(xxHash32Of(long)), "cdb946b1")
+
+@test fn knownAnswers() -> {}:
+    let empty = [] :: [U8 *0]
+    let abc = [97 :: U8, 98, 99] :: [U8 *3]
+    let twoBlocks = [97 :: U8, 98, 99, 100, 98, 99, 100, 101, 99, 100, 101, 102, 100, 101, 102, 103, 101, 102, 103, 104, 102, 103, 104, 105, 103, 104, 105, 106, 104, 105, 106, 107, 105, 106, 107, 108, 106, 107, 108, 109, 107, 108, 109, 110, 108, 109, 110, 111, 109, 110, 111, 112, 110, 111, 112, 113] :: [U8 *56]
+    let pangram = [84 :: U8, 104, 101, 32, 113, 117, 105, 99, 107, 32, 98, 114, 111, 119, 110, 32, 102, 111, 120, 32, 106, 117, 109, 112, 115, 32, 111, 118, 101, 114, 32, 116, 104, 101, 32, 108, 97, 122, 121, 32, 100, 111, 103] :: [U8 *43]
+    let long = [0 :: U8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255] :: [U8 *768]
+
+    -- MD5, SHA-1, SHA-224 and SHA-256, against the system tools of the same names.
+    md5Answers(empty, abc, twoBlocks, pangram, long)
+    sha1Answers(empty, abc, twoBlocks, pangram, long)
+    sha224Answers(empty, abc, twoBlocks, pangram, long)
+    sha256Answers(empty, abc, twoBlocks, pangram, long)
+
+    -- The two checksums, which are two different polynomials and not two spellings of one - a value
+    -- that matched both would mean the table and the instruction had been given the same constants.
+    crc32Answers(empty, abc, twoBlocks, pangram, long)
+    crc32cAnswers(empty, abc, twoBlocks, pangram, long)
+
+    -- And the two non-cryptographic hashes, against their reference implementations.
+    murmur3Answers(empty, abc, twoBlocks, pangram, long)
+    xxHash32Answers(empty, abc, twoBlocks, pangram, long)
+
+{-
+   Streaming against one-shot, at every length from nothing to two blocks and a bit.
+
+   One byte at a time is the worst case for the buffer and the only one that runs every branch of
+   `absorb`: the block never fills on the first call, it fills exactly on the sixty-fourth, and the
+   tail is whatever is left. A digest that mishandled any of the three answers differently from the
+   one-shot below it, which is the whole of what this compares.
+-}
+@test fn streaming() -> {}:
+    let &input = emptyArray() :: Array(U8)
+    let &size = 0 :: Int
+
+    while size <= 130:
+        -- The same bytes twice: once in a single call, and once a byte at a time.
+        let &whole = newDigest() :: Sha256
+        update(whole, input)
+
+        let &piecemeal = newDigest() :: Sha256
+        let &j = 0 :: Int
+
+        while j < size:
+            update(piecemeal, elements(input)[j..j + 1])
+            j = j + 1
+
+        {-
+           Bound rather than nested inside `hexOf`, so that the result type is read off the digest
+           rather than inferred from what `hexOf` wants: `finish` answers the class's `h`, and a
+           `Flat(U8)` in the expected position makes the compiler look for `Digest(Sha256, Flat(U8))`
+           instead - which is not an instance and says so.
+        -}
+        let a = finish(whole)
+        let b = finish(piecemeal)
+        checkEqual(hexOf(a), hexOf(b))
+
+        push(input, truncate(size * 37 + 11) :: U8)
+        size = size + 1
+
+
+{-
+   HMAC - RFC 2104, over three digests and three keys.
+
+   The third key is longer than a block, which is the one case the specification handles differently:
+   the key is replaced by its own digest first, so HMAC calls the hash three times rather than twice.
+   A body that skipped that step passes the first two cases.
+
+   Split the same way and for the same reason as the known answers above - this case was another
+   3,307 lines in one body. Each vector's key and message stay with the checks that read them, which
+   is what makes three helpers the natural cut here rather than one per digest.
+-}
+@noinline fn keyedWithAShortKey() -> {}:
+    let key0 = [107 :: U8, 101, 121] :: [U8 *3]
+    let msg0 = [84 :: U8, 104, 101, 32, 113, 117, 105, 99, 107, 32, 98, 114, 111, 119, 110, 32, 102, 111, 120, 32, 106, 117, 109, 112, 115, 32, 111, 118, 101, 114, 32, 116, 104, 101, 32, 108, 97, 122, 121, 32, 100, 111, 103] :: [U8 *43]
+    checkEqual(hexOf(Hmac.md5(key0, msg0)), "80070713463e7749b90c2dc24911e275")
+    checkEqual(hexOf(Hmac.sha1(key0, msg0)), "de7c9b85b8b78aa6bc8a7a36f70a90701c9db4d9")
+    checkEqual(hexOf(Hmac.sha256(key0, msg0)), "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8")
+
+@noinline fn keyedWithASecondShortKey() -> {}:
+    let key1 = [74 :: U8, 101, 102, 101] :: [U8 *4]
+    let msg1 = [119 :: U8, 104, 97, 116, 32, 100, 111, 32, 121, 97, 32, 119, 97, 110, 116, 32, 102, 111, 114, 32, 110, 111, 116, 104, 105, 110, 103, 63] :: [U8 *28]
+    checkEqual(hexOf(Hmac.md5(key1, msg1)), "750c783e6ab0b503eaa86e310a5db738")
+    checkEqual(hexOf(Hmac.sha1(key1, msg1)), "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79")
+    checkEqual(hexOf(Hmac.sha256(key1, msg1)), "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843")
+
+@noinline fn keyedWithAKeyLongerThanABlock() -> {}:
+    let key2 = [0 :: U8, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199] :: [U8 *200]
+    let msg2 = [97 :: U8, 32, 108, 111, 110, 103, 101, 114, 32, 107, 101, 121, 32, 116, 104, 97, 110, 32, 111, 110, 101, 32, 98, 108, 111, 99, 107, 44, 32, 115, 111, 32, 116, 104, 101, 32, 107, 101, 121, 32, 105, 115, 32, 104, 97, 115, 104, 101, 100, 32, 102, 105, 114, 115, 116] :: [U8 *55]
+    checkEqual(hexOf(Hmac.md5(key2, msg2)), "37ff14437492850392f7af6eb728f1a6")
+    checkEqual(hexOf(Hmac.sha1(key2, msg2)), "a500b95fca58d5f72b87d31021290b3a6a935db0")
+    checkEqual(hexOf(Hmac.sha256(key2, msg2)), "05b184ad0d843b4b515dfe95497bf155be908a26496fd9b4e2488d9569e7023a")
+
+@test fn keyedHashing() -> {}:
+    keyedWithAShortKey()
+    keyedWithASecondShortKey()
+    keyedWithAKeyLongerThanABlock()

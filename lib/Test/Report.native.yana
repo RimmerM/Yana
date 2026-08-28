@@ -44,9 +44,16 @@ fn reportStream() -> Size:
 -}
 pub fn reportIsPrivate() -> Bool = reportStream() == (3 :: Size)
 
+-- Whether the stream lands where `print` does. Never, here: the stream is descriptor 3 or standard
+-- error and `print` is standard output, so the two reports of §5.5 cannot interleave on this target
+-- however the process was started. The JavaScript half has one output and answers otherwise.
+pub fn reportSharesOutput() -> Bool = False
+
 -- One line, unbuffered and on its own descriptor. A failed write is dropped rather than reported:
 -- there is nowhere left to report it to, and a runner that stopped the suite because its own report
 -- could not be delivered would turn a closed pipe into a failed test run.
 pub fn reportLine(text: String) -> {}:
+    if reportMuted() then return
+
     let &out = borrowFile(reportStream())
     out.writeText(text)

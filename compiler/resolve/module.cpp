@@ -182,6 +182,7 @@ Module* addEmbeddedModule(Program& program, ast::ModuleGroup& group) {
 
 Module* Program::addModule(ast::ModuleGroup& group) {
     auto module = ::addModule(*this, group.name);
+    module->fromLibrary = group.library;
     for(auto file: group.files) module->files.push(file);
     return module;
 }
@@ -848,7 +849,21 @@ static void discoverModules(Program& program, ModuleProvider* provider) {
                 if(!source) source = findLibraryModule(program, imported.from);
                 if(!source) continue;
 
-                program.addModule(*source);
+                auto added = program.addModule(*source);
+
+                /*
+                 * Whether the package that answered lets a consumer import this - decided here,
+                 * where what answered is known, and reported at the import, where a person can act
+                 * on it. See Module::packagePrivate.
+                 *
+                 * Not asked at all when this compilation *is* that package: `base` sees all of `base`,
+                 * which is how the library's own modules reach each other and how its tests run.
+                 */
+                auto& context = program.context;
+
+                if(added && added->fromLibrary && !context.library.isOwnPackage(context, context.settings)) {
+                    added->packagePrivate = !context.library.exportsModule(context, imported.from);
+                }
             }
         }
     }

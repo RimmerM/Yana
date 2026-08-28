@@ -58,6 +58,11 @@ for i in $(seq 0 $((libJobs - 1))); do
     echo "lib.$i|$build/test/YanaLibTest shard:$i/$libJobs" >> "$jobfile"
 done
 
+# The standard library's own suite, which is not a driver at all - `lib/**/*.test.yana` are files of
+# the modules they test, so what runs them is the compiler and the runner, over one program. Five
+# builds of it, and each one draws its own report: see run-base.sh.
+echo "base|./run-base.sh $build" >> "$jobfile"
+
 echo "lower|$build/test/YanaLowerTest" >> "$jobfile"
 echo "x64|$build/test/YanaX64Test" >> "$jobfile"
 echo "llvm|$build/test/YanaLlvmTest" >> "$jobfile"

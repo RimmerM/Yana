@@ -17,6 +17,9 @@
        --no-update            write nothing, and fail on a snapshot that is missing - what CI passes
        --prune                with --update, delete the snapshots a full run did not reach
        --snapshot-dir <path>  where the snapshots live, rather than `__snapshots__`
+       --color <when>         `auto`, `always` or `never` - what the report is painted with
+       --ascii                draw the report with no characters a terminal might not have
+       --no-progress          no line that rewrites itself, on a terminal that would take one
        -v                     one line per case on the way past
        -q                     no summary either
 
@@ -29,6 +32,12 @@
    `--shard i/n` is round-robin rather than contiguous, for the reason `test/shard.h` gives: the
    fixtures are not equal in cost and the expensive ones are not evenly spread through the listing.
 
+   **The three presentation switches only ever override the detection downwards, with one exception.**
+   `Test.Console` asks the stream what it is - see Terminal.yana - and a redirected run therefore
+   sends no escape sequences without being asked. `--ascii` and `--no-progress` narrow that further;
+   `--color always` is the one that widens it, and it exists because a program piped into a pager is
+   the case detection provably cannot get right.
+
    An unrecognized switch is refused rather than ignored. A test harness that quietly did nothing
    because of a typo in a flag is the failure mode this whole document is about.
 
@@ -38,6 +47,15 @@
    the absence too. Writing them as an independent pair would let a command line say "update and do
    not update", which is not one of the three.
 -}
+
+{-
+   What `--color` was given, as the three answers rather than as a pair of flags.
+
+   `auto` is the detection - Terminal.yana's - and is what nobody has to write. The other two are the
+   two ways it can be wrong: a pipe into a pager that renders sequences, and a terminal whose colours
+   are unreadable in somebody's theme.
+-}
+pub data ColorChoice = ColorAuto | ColorAlways | ColorNever
 
 pub data Options {
     list: Bool,
@@ -55,13 +73,16 @@ pub data Options {
     snapshotDir: String,
     verbose: Bool,
     quiet: Bool,
+    color: ColorChoice,
+    ascii: Bool,
+    noProgress: Bool,
     complaint: String
 }
 
 pub fn defaultOptions() -> Options = Options {
     list: False, filter: "", only: "", shard: 0, shards: 1, isolate: False, jobs: 1,
     timeoutMs: 0, allowEmpty: False, update: False, noUpdate: False, prune: False, snapshotDir: "",
-    verbose: False, quiet: False, complaint: ""
+    verbose: False, quiet: False, color: ColorAuto, ascii: False, noProgress: False, complaint: ""
 }
 
 {-
@@ -94,6 +115,16 @@ pub fn readOptions(arguments: [String]) -> Options:
         else if argument == "--snapshot-dir":
             match nextValue(arguments, i, argument):
                 Ok(->value) -> options.snapshotDir = value
+                Err(->why) -> options.complaint = why
+
+            i = i + 1
+        else if argument == "--ascii":
+            options.ascii = True
+        else if argument == "--no-progress":
+            options.noProgress = True
+        else if argument == "--color" || argument == "--colour":
+            match nextValue(arguments, i, argument):
+                Ok(value) -> readColor(options, value)
                 Err(->why) -> options.complaint = why
 
             i = i + 1
@@ -150,6 +181,19 @@ pub fn readOptions(arguments: [String]) -> Options:
         options.complaint = "--prune deletes the snapshots a run did not reach, so it needs --update - a run that writes nothing should not be deleting anything"
 
     return options
+
+-- `auto`, `always` or `never`, and nothing else. A value this does not know is refused rather than
+-- taken for `auto`, on the same terms an unrecognized switch is: `--color yes` doing nothing is how
+-- somebody spends an afternoon wondering where the colour went.
+fn readColor(&options: Options, value: String) -> {}:
+    if value == "auto":
+        options.color = ColorAuto
+    else if value == "always" || value == "force":
+        options.color = ColorAlways
+    else if value == "never" || value == "none":
+        options.color = ColorNever
+    else:
+        options.complaint = "--color takes auto, always or never - not {value}"
 
 fn nextValue(arguments: [String], at: Size, switch: String) -> Result(String, String):
     if at >= length(arguments) then return Err("{switch} needs a value after it")

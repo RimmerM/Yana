@@ -1,0 +1,735 @@
+{-
+   ==========================================================================================
+   `Terminal` - what a program may assume about the thing it is printing to.
+   ==========================================================================================
+
+   Colour, cursor control, box drawing, aligned tables and a status line that rewrites itself in
+   place. One module rather than a facility of whatever happens to need it first, because every one
+   of those is the same question asked once - *what is on the other end of this stream?* - and the
+   answer is a value.
+
+   **The answer being a value is the whole design.** A `Terminal` is five scalars: how much colour
+   the stream takes, whether it draws in Unicode, whether a human is watching it, and how large it
+   is. Nothing in this file asks the operating system anything; the one function that does is
+   `detectTerminal`, in the platform file beside it. Three things follow, and each of them is why the
+   split is here rather than at the printing site:
+
+    - **the fallback is not a code path.** A host with no terminal answers `plainTerminal()`, and
+      every function here already handles that value because it is the same function with different
+      numbers in it. There is no `if colour is supported` at a call site, ever;
+    - **it is testable**, which a terminal library otherwise is not. A test builds the `Terminal` it
+      wants to render for and compares the text - see `test/lib/Terminal.yana`, which asserts the
+      Unicode and the ASCII rendering of one table against each other;
+    - **a caller may lie to it.** `--color always` in a program that pipes its output to a pager is
+      the user overriding the detection, and it is a field rather than a switch this module reads.
+
+   **Nothing here writes.** `paint`, `Table.render` and the rest answer strings and the caller prints
+   them, which is what keeps the module free of an opinion about *where* output goes. `Status` is the
+   one exception and has to be: it exists to overwrite what it wrote last.
+
+   The escape sequences are ECMA-48's, which is what every terminal emulator in use speaks and what
+   `TERM=dumb` is the standard way of saying is not there.
+-}
+
+{-
+   ==========================================================================================
+   Colour
+   ==========================================================================================
+-}
+
+{-
+   How much colour a stream takes, as the three answers that differ in what may be *sent*.
+
+   `NoColour` is not a degraded mode: it is a stream that gets no escape sequences at all, which is
+   what a file, a pipe into `grep`, and a terminal whose user set `NO_COLOR` all want. The other two
+   differ by eight colours - the bright half is aixterm's 90-97, which every emulator written since
+   about 1995 has and a hardware VT does not.
+
+   No 256-colour or 24-bit rung. Those are worth having when a program is choosing colours from a
+   gradient; a program that is saying *pass*, *fail* and *skipped* has three colours to choose and
+   would use the same three at any depth, so the rung would be a wider type for no different output.
+-}
+pub data ColorDepth = NoColor | BasicColor | BrightColor
+
+{-
+   The sixteen, carrying the SGR number that selects them as a foreground.
+
+   `@value` rather than a table, on `Syscall`'s argument: a set of `let`s is a set of integers that
+   happen to be spelled with names, and nothing relates them or says what a position holding one will
+   accept. The background code is this plus ten, which is ECMA-48's own arrangement and is why one
+   number per colour is enough for both.
+
+   `DefaultColor` is 39 - *revert to whatever this terminal's default is* - and is not the same as
+   `White`. A program that paints white text is unreadable on the light themes half the world uses;
+   one that leaves the default alone is readable on both, so the default is what everything here
+   falls back to and `White` is a colour somebody asked for.
+-}
+pub data Color
+  = @value(39) DefaultColor
+  | @value(30) Black
+  | @value(31) Red
+  | @value(32) Green
+  | @value(33) Yellow
+  | @value(34) Blue
+  | @value(35) Magenta
+  | @value(36) Cyan
+  | @value(37) White
+  | @value(90) Grey
+  | @value(91) BrightRed
+  | @value(92) BrightGreen
+  | @value(93) BrightYellow
+  | @value(94) BrightBlue
+  | @value(95) BrightMagenta
+  | @value(96) BrightCyan
+  | @value(97) BrightWhite
+
+{-
+   Everything one run of text can be, as a record of scalars.
+
+   A record rather than a list of attributes to apply, because that is what makes a style a *value* a
+   program can name once and use in twenty places - `let failed = Style {foreground: Red, bold:
+   True}` - and what makes `paint` one escape sequence rather than five nested ones. Every field is a
+   scalar, so a `Style` is trivially copyable and costs nothing to pass.
+-}
+pub data Style {
+    foreground: Color = DefaultColor,
+    background: Color = DefaultColor,
+    bold: Bool = False,
+    dim: Bool = False,
+    italic: Bool = False,
+    underline: Bool = False,
+    inverse: Bool = False
+}
+
+pub fn plainStyle() -> Style = Style {}
+pub fn colored(color: Color) -> Style = Style {foreground: color}
+pub fn boldColored(color: Color) -> Style = Style {foreground: color, bold: True}
+pub fn dimStyle() -> Style = Style {dim: True}
+pub fn boldStyle() -> Style = Style {bold: True}
+
+{-
+   ==========================================================================================
+   The terminal itself
+   ==========================================================================================
+
+   Five scalars, and `plainTerminal()` is the one every fallback in this module is written against:
+   no colour, no Unicode, nobody watching, eighty columns. That is what a redirected stream is, what
+   a host with no console is, and what a caller that has not asked gets - so the conservative answer
+   is the *default* rather than something a caller has to remember to select.
+-}
+pub data Terminal {
+    depth: ColorDepth = NoColor,
+    unicode: Bool = False,
+    interactive: Bool = False,
+    columns: Size = 80,
+    rows: Size = 24
+}
+
+pub fn plainTerminal() -> Terminal = Terminal {}
+
+-- Everything on, for a caller that knows better than the detection - `--color always` - and for a
+-- test, which is the other thing that needs to name a terminal that is not the one it is running on.
+pub fn richTerminal() -> Terminal =
+    Terminal {depth: BrightColor, unicode: True, interactive: True, columns: 80, rows: 24}
+
+-- The same stream with the colour taken out, which is what a caller that has decided not to paint
+-- wants: the widths, the Unicode and the in-place rewriting are unaffected, because none of them is
+-- about colour.
+pub fn Terminal.withoutColor(self: Terminal) -> Terminal:
+    let &out = self
+    out.depth = NoColor
+    return out
+
+pub fn Terminal.withoutUnicode(self: Terminal) -> Terminal:
+    let &out = self
+    out.unicode = False
+    return out
+
+pub fn Terminal.quietly(self: Terminal) -> Terminal:
+    let &out = self
+    out.interactive = False
+    return out
+
+{-
+   ==========================================================================================
+   Painting
+   ==========================================================================================
+-}
+
+-- The SGR number for a colour at a depth. A bright colour on a stream that has only the eight drops
+-- to its own base rather than to something nearby, which is the one downgrade that cannot surprise:
+-- `BrightRed` becomes `Red` and stays red.
+fn colorCode(depth: ColorDepth, color: Color) -> Int:
+    let code = truncate(valueOf(color)) :: Int
+    if depth == BrightColor || code < 90 then return code
+    return code - 60
+
+fn addCode(&codes: String, code: Int) -> {}:
+    if length(codes) > (0 :: Size) then codes ++= ";"
+    codes ++= "{code}"
+
+{-
+   The parameters of one `SGR` sequence, without the escape around them.
+
+   Public because a caller that is building a long line - a table row, a progress bar - can send one
+   sequence, write several fields and reset once, where `paint` per field would send two sequences
+   per field. Nothing in this module does that yet; the function is what makes it possible without
+   anybody re-deriving the numbers.
+
+   `Grey` on a stream with only the eight is the one colour that is *not* downgraded by number: bright
+   black is black, which is invisible. It becomes the default colour dimmed, which is what grey is
+   for - a foreground somebody is meant to read past.
+-}
+pub fn Terminal.sequenceFor(self: Terminal, style: Style) -> String:
+    let &codes = "" :: String
+    if self.depth == NoColor then return codes
+
+    let greyed = self.depth == BasicColor && style.foreground == Grey
+
+    if style.bold then addCode(codes, 1)
+    if style.dim || greyed then addCode(codes, 2)
+    if style.italic then addCode(codes, 3)
+    if style.underline then addCode(codes, 4)
+    if style.inverse then addCode(codes, 7)
+
+    if style.foreground != DefaultColor && !greyed then addCode(codes, colorCode(self.depth, style.foreground))
+    if style.background != DefaultColor then addCode(codes, colorCode(self.depth, style.background) + 10)
+
+    return codes
+
+{-
+   One run of text, styled.
+
+   The whole of the fallback is the two lines at the top: a stream that takes no colour, and a style
+   that asked for nothing, both answer the text. So a call site never tests either, and a program
+   whose output is being piped emits byte-for-byte what it would have shown a human minus the
+   sequences.
+
+   `0m` and not the individual off-codes. Resetting the attributes one at a time is what a nested
+   painter needs and this module has no nesting: a painted run is closed before the next one opens,
+   which is also what keeps `displayWidth` able to measure by skipping.
+-}
+pub fn Terminal.paint(self: Terminal, style: Style, text: String) -> String:
+    let codes = self.sequenceFor(style)
+    if length(codes) == (0 :: Size) || length(text) == (0 :: Size) then return copy(text)
+    return "\x1b[{codes}m{text}\x1b[0m"
+
+pub fn Terminal.inColor(self: Terminal, color: Color, text: String) -> String =
+    self.paint(colored(color), text)
+
+pub fn Terminal.bolded(self: Terminal, text: String) -> String = self.paint(boldStyle(), text)
+pub fn Terminal.dimmed(self: Terminal, text: String) -> String = self.paint(dimStyle(), text)
+
+{-
+   ==========================================================================================
+   The cursor, which only an interactive stream has
+   ==========================================================================================
+
+   Each of these is the empty string on a stream nobody is watching, and that is the fallback for the
+   whole of the in-place rewriting: a run whose output is a file writes its lines and never erases
+   one, with no branch anywhere but here.
+-}
+
+-- Back to the start of the line and clear it - `\r` then `EL 2`. The pair rather than `EL` alone,
+-- because erasing without moving leaves the cursor where it was and the next write starts there.
+pub fn Terminal.eraseLine(self: Terminal) -> String:
+    if !self.interactive then return ""
+    return "\r\x1b[2K"
+
+pub fn Terminal.hideCursor(self: Terminal) -> String:
+    if !self.interactive then return ""
+    return "\x1b[?25l"
+
+pub fn Terminal.showCursor(self: Terminal) -> String:
+    if !self.interactive then return ""
+    return "\x1b[?25h"
+
+{-
+   ==========================================================================================
+   How wide a string is
+   ==========================================================================================
+-}
+
+{-
+   A unit that is a continuation of the one before it.
+
+   Two ranges and one rule: `0x80`-`0xBF` is a UTF-8 continuation byte, which is what a native
+   `String` is made of, and `0xDC00`-`0xDFFF` is a UTF-16 low surrogate, which is what a host one is.
+   Neither range can occur on the other target - a native unit is a byte and a host unit above
+   `0xFF` is not a UTF-8 anything - so this is one function rather than a platform pair, and it is
+   the only place in this module that knows the two targets store text differently.
+-}
+fn continues(unit: Int) -> Bool = (unit >= 128 && unit < 192) || (unit >= 56320 && unit < 57344)
+
+-- One escape sequence, stepped over. `\x1b[` … up to a byte in `@`-`~`, which is CSI's own framing;
+-- anything else after the escape is a two-unit sequence. Returns the position after it.
+fn afterEscape(text: String, from: Size) -> Size:
+    let count = length(text)
+    let &i = from
+    if i >= count then return i
+    if text.unit(i) != 91 then return i + 1
+
+    i = i + 1
+    while i < count && text.unit(i) < 64:
+        i = i + 1
+
+    if i < count then i = i + 1
+    return i
+
+{-
+   How many columns a string occupies, which is not how many units it is made of.
+
+   Two things are subtracted from the unit count: the escape sequences, which occupy none, and the
+   continuation units, which belong to a character already counted. That is what makes a *painted*
+   cell align in a table with an unpainted one, and it is the reason every alignment function here
+   measures with this rather than with `length`.
+
+   **A double-width character counts as one**, which is a real limitation and is stated rather than
+   hidden. Getting it right needs the East Asian Width tables, which are a data file larger than this
+   whole module; what it costs is that a table of CJK text is under-padded. Every other alignment -
+   ASCII, accented Latin, box drawing, the arrows and marks below - is exact.
+-}
+pub fn displayWidth(text: String) -> Size:
+    let count = length(text)
+    let &wide = 0 :: Size
+    let &i = 0 :: Size
+
+    while i < count:
+        let unit = text.unit(i)
+        i = i + 1
+
+        if unit == 27:
+            i = afterEscape(text, i)
+        else if !continues(unit):
+            wide = wide + 1
+
+    return wide
+
+{-
+   ==========================================================================================
+   Padding, repetition and clipping
+   ==========================================================================================
+-}
+
+-- `count` copies of `unit`. Sized once, which is what makes a rule across an eighty-column terminal
+-- one allocation rather than eighty.
+pub fn repeatText(unit: String, count: Size) -> String:
+    let &out = String.ofCapacity(length(unit) * count)
+    for _ in 0 .. count:
+        out.push(copy(unit))
+
+    return out
+
+pub fn spaces(count: Size) -> String = repeatText(" ", count)
+
+-- Left-aligned, right-aligned and centred in a field. Text already wider than the field is answered
+-- unchanged rather than cut: a table that silently lost the end of a name would be worse than one
+-- whose column came out wide, and the caller that wants the cut asks for it below.
+pub fn padRight(text: String, width: Size) -> String:
+    let have = displayWidth(text)
+    if have >= width then return copy(text)
+
+    let fill = spaces(width - have)
+    return "{text}{fill}"
+
+pub fn padLeft(text: String, width: Size) -> String:
+    let have = displayWidth(text)
+    if have >= width then return copy(text)
+
+    let fill = spaces(width - have)
+    return "{fill}{text}"
+
+pub fn padCenter(text: String, width: Size) -> String:
+    let have = displayWidth(text)
+    if have >= width then return copy(text)
+
+    let before = spaces((width - have) / 2)
+    let after = spaces(width - have - ((width - have) / 2))
+    return "{before}{text}{after}"
+
+{-
+   The text, cut to `width` columns with `mark` on the end of what was cut.
+
+   Walked a character at a time rather than a unit at a time, which is the whole reason this is not
+   `String.slice`: cutting between the two halves of a code point produces a byte sequence no terminal
+   can render, and cutting inside an escape sequence leaves the rest of the line - and often the rest
+   of the screen - painted. So an escape is copied whole and counted as nothing, and a character's
+   continuation units come with it.
+
+   A reset is appended when something was cut out of styled text, for the same reason: whatever
+   sequence was open at the cut is closed here rather than left running into the next line.
+-}
+pub fn clipTo(text: String, width: Size, mark: String) -> String:
+    if displayWidth(text) <= width then return copy(text)
+
+    let markWidth = displayWidth(mark)
+    if width <= markWidth then return String.slice(mark, 0, length(mark))
+
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    let &shown = 0 :: Size
+    let &styled = False
+    let &i = 0 :: Size
+
+    while i < count && shown < width - markWidth:
+        let start = i
+        let unit = text.unit(i)
+        i = i + 1
+
+        if unit == 27:
+            i = afterEscape(text, i)
+            styled = True
+        else:
+            while i < count && continues(text.unit(i)):
+                i = i + 1
+
+            shown = shown + 1
+
+        out.push(String.slice(text, start, i))
+
+    out.push(copy(mark))
+    if styled then out.push("\x1b[0m")
+    return out
+
+{-
+   ==========================================================================================
+   Glyphs, and the ASCII half of every one of them
+   ==========================================================================================
+
+   The characters this module draws with, as a record chosen once per terminal rather than as a test
+   at each place that draws. That is what makes the ASCII fallback total: `Table.render` never asks
+   whether the terminal has Unicode, it asks the glyphs for a corner, and a terminal that has no
+   Unicode hands back `+`.
+
+   The ASCII set keeps every mark one column wide, so a table drawn either way has the same column
+   widths and the same shape - which is what makes the two comparable in a test, and what stops a
+   fallback from being a different layout as well as a different alphabet.
+-}
+pub data Glyphs {
+    horizontal: String,
+    vertical: String,
+    topLeft: String,
+    topJoin: String,
+    topRight: String,
+    leftJoin: String,
+    cross: String,
+    rightJoin: String,
+    bottomLeft: String,
+    bottomJoin: String,
+    bottomRight: String,
+    pass: String,
+    fail: String,
+    skip: String,
+    bullet: String,
+    arrow: String,
+    barFull: String,
+    barEmpty: String,
+    ellipsis: String
+}
+
+pub fn unicodeGlyphs() -> Glyphs = Glyphs {
+    horizontal: "─", vertical: "│",
+    topLeft: "┌", topJoin: "┬", topRight: "┐",
+    leftJoin: "├", cross: "┼", rightJoin: "┤",
+    bottomLeft: "└", bottomJoin: "┴", bottomRight: "┘",
+    pass: "✓", fail: "✗", skip: "○", bullet: "•", arrow: "→",
+    barFull: "█", barEmpty: "░", ellipsis: "…"
+}
+
+pub fn asciiGlyphs() -> Glyphs = Glyphs {
+    horizontal: "-", vertical: "|",
+    topLeft: "+", topJoin: "+", topRight: "+",
+    leftJoin: "+", cross: "+", rightJoin: "+",
+    bottomLeft: "+", bottomJoin: "+", bottomRight: "+",
+    pass: "+", fail: "x", skip: "o", bullet: "*", arrow: ">",
+    barFull: "#", barEmpty: ".", ellipsis: "~"
+}
+
+pub fn Terminal.glyphs(self: Terminal) -> Glyphs:
+    if self.unicode then return unicodeGlyphs()
+    return asciiGlyphs()
+
+-- The text, cut to fit with this terminal's own mark on it.
+pub fn Terminal.clip(self: Terminal, text: String, width: Size) -> String:
+    let g = self.glyphs()
+    return clipTo(text, width, g.ellipsis)
+
+{-
+   One frame of a spinner, by tick.
+
+   The frames are one string and a unit count rather than an array, because an array of ten literals
+   is ten allocations per call at the one place in a program that is called most often. The Unicode
+   set is the braille wheel every progress display in use has settled on; the ASCII one is the bar
+   spinner that predates it.
+-}
+fn frameOf(frames: String, units: Size, index: Size, count: Size) -> String:
+    let at = (index % count) * units
+    return String.slice(frames, at, at + units)
+
+pub fn Terminal.spinner(self: Terminal, tick: Size) -> String:
+    if self.unicode then return frameOf("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏", 3, tick, 10)
+    return frameOf("|/-\\", 1, tick, 4)
+
+{-
+   A bar `width` columns wide, `done` of `total` filled.
+
+   Rounded down, so a bar is full only when the work is - a display that shows a complete bar while
+   something is still running is the one thing a progress bar must not do.
+-}
+pub fn Terminal.bar(self: Terminal, done: Size, total: Size, width: Size) -> String:
+    if total == (0 :: Size) || width == (0 :: Size) then return ""
+
+    let g = self.glyphs()
+    let &filled = (done * width) / total
+    if filled > width then filled = width
+
+    let head = repeatText(g.barFull, filled)
+    let tail = repeatText(g.barEmpty, width - filled)
+    return "{head}{tail}"
+
+-- A rule across the terminal, or across `width` columns of it.
+pub fn Terminal.rule(self: Terminal, width: Size) -> String:
+    let g = self.glyphs()
+    return repeatText(g.horizontal, width)
+
+{-
+   ==========================================================================================
+   Tables
+   ==========================================================================================
+
+   A table is a terminal, a row of headings, and a flat run of cells - `length(columns)` of them to a
+   row. Flat rather than a run of rows, because the whole of what a caller does with one is append a
+   cell at a time in the order it computed them, and a row is then a fact about position rather than
+   a container somebody has to build and hand over. A last row with fewer cells than columns is
+   padded when it is drawn, so a table built by a loop that stopped early still renders.
+
+   **A cell is stored painted, which is why the table holds a `Terminal`.** `addStyled` asks the
+   terminal for the escape sequence at the moment the cell is added, and what the table keeps is a
+   string. Two things follow. The alignment is unaffected, because `displayWidth` skips the
+   sequences; and a cell needs no type of its own, so there is one less record here than a table
+   usually has and no question about what a cell knows.
+
+   Three frames, and which one to use is a question about what surrounds the table rather than about
+   what is in it. `BoxFrame` is what a result somebody is meant to read as a unit wants; `RuleFrame`
+   - a line under the headings and nothing else - is what a long list wants, because a box around
+   forty rows is forty rows of vertical bars nobody reads; `BareFrame` is columns and spaces, for a
+   table that is being pasted somewhere else.
+-}
+pub data Align = AlignLeft | AlignRight | AlignCenter
+pub data Frame = BoxFrame | RuleFrame | BareFrame
+
+pub data Column {title: String, align: Align}
+
+pub data Table {
+    terminal: Terminal,
+    columns: [Column],
+    cells: [String],
+    frame: Frame,
+    headerStyle: Style,
+    indent: Size
+}
+
+-- An empty table for a terminal. The headings come from `addColumn` rather than from here, because a
+-- caller that builds them in a loop and one that writes four calls want the same function.
+pub fn newTable(terminal: Terminal, frame: Frame = RuleFrame) -> Table =
+    Table {terminal: terminal, columns: [], cells: [], frame: frame,
+           headerStyle: boldStyle(), indent: 0}
+
+pub fn Table.addColumn(&self: Table, ->title: String, align: Align = AlignLeft) -> {}:
+    push(self.columns, Column {title: title, align: align})
+
+{-
+   One cell, appended where the next one goes.
+
+   `add` for the plain case and `addStyled` for the one that carries colour, which is the only
+   difference a cell can have from another. The style is applied here rather than kept, so a cell is
+   a string from this point on - see the note at the top of the section.
+-}
+pub fn Table.add(&self: Table, ->text: String) -> {}:
+    push(self.cells, text)
+
+pub fn Table.addStyled(&self: Table, ->text: String, style: Style) -> {}:
+    push(self.cells, self.terminal.paint(style, text))
+
+pub fn Table.rowCount(self: Table) -> Size:
+    let wide = length(self.columns)
+    if wide == (0 :: Size) then return 0
+    return (length(self.cells) + wide - 1) / wide
+
+-- How wide each column has to be: the widest of its heading and every cell under it, measured in
+-- columns rather than in units so that a painted cell is measured by what it shows.
+fn columnWidths(table: Table) -> [Size]:
+    let wide = length(table.columns)
+    let &widths = [] :: [Size]
+
+    for column in items(table.columns):
+        push(widths, displayWidth(column.title))
+
+    for i in 0 .. length(table.cells):
+        let at = i % wide
+        let have = displayWidth(table.cells[i])
+        if have > widths[at] then widths[at] = have
+
+    return widths
+
+fn alignIn(text: String, width: Size, align: Align) -> String:
+    match align:
+        AlignLeft -> return padRight(text, width)
+        AlignRight -> return padLeft(text, width)
+        AlignCenter -> return padCenter(text, width)
+
+-- One horizontal rule of a box, with the three characters that differ between the top, the middle
+-- and the bottom handed in. Every column is drawn one wider on each side than its content, which is
+-- the padding a boxed cell has.
+fn boxRule(g: Glyphs, widths: [Size], indent: Size, left: String, join: String, right: String) -> String:
+    let &out = spaces(indent)
+    out.push(copy(left))
+
+    for c in 0 .. length(widths):
+        out.push(repeatText(g.horizontal, widths[c] + 2))
+        if c + 1 < length(widths) then out.push(copy(join))
+
+    out.push(copy(right))
+    out.push("\n")
+    return out
+
+{-
+   One row, from a run of cells starting at `from`.
+
+   **An unboxed row is trimmed at the end**, and that is not a nicety: there is nothing beyond the
+   last column to align against, so its padding is trailing whitespace - which a terminal shows as
+   nothing, an editor shows as a diff, and `git` shows as an error. It matters most for the row a
+   half-built table ends with, where the trailing cells are missing rather than short. A boxed row
+   keeps its padding, because there the right-hand border is what the padding is against.
+-}
+fn Table.renderRow(self: Table, widths: [Size], cells: [String], from: Size, g: Glyphs) -> String:
+    let wide = length(self.columns)
+    let boxed = self.frame == BoxFrame
+
+    let &separator = "  " :: String
+    if boxed then separator = " {g.vertical} "
+
+    let &out = spaces(self.indent)
+    if boxed then out.push("{g.vertical} ")
+
+    for c in 0 .. wide:
+        let at = from + c
+
+        let &shown = "" :: String
+        if at < length(cells) then shown = copy(cells[at])
+
+        out.push(alignIn(shown, widths[c], self.columns[c].align))
+        if c + 1 < wide then out.push(copy(separator))
+
+    if boxed:
+        out.push(" {g.vertical}")
+        out.push("\n")
+        return out
+
+    let &line = trimEnd(out)
+    line.push("\n")
+    return line
+
+-- The headings, painted, as a row of cells like any other.
+fn headerRow(table: Table) -> [String]:
+    let &cells = [] :: [String]
+    for column in items(table.columns):
+        push(cells, table.terminal.paint(table.headerStyle, column.title))
+
+    return cells
+
+{-
+   The whole table, as the text to print.
+
+   A table with no columns renders as nothing rather than as an empty box, which is what a caller
+   that built one conditionally wants. A table with columns and no rows still renders its headings:
+   *these are the things that would have been here* is a report, and an empty box is one too.
+-}
+pub fn Table.render(self: Table) -> String:
+    let wide = length(self.columns)
+    if wide == (0 :: Size) then return ""
+
+    let g = self.terminal.glyphs()
+    let widths = columnWidths(self)
+    let &out = "" :: String
+
+    if self.frame == BoxFrame:
+        out.push(boxRule(g, widths, self.indent, g.topLeft, g.topJoin, g.topRight))
+
+    out.push(self.renderRow(widths, headerRow(self), 0, g))
+
+    if self.frame == BoxFrame:
+        out.push(boxRule(g, widths, self.indent, g.leftJoin, g.cross, g.rightJoin))
+    else if self.frame == RuleFrame:
+        -- A rule under the headings and nothing else, spanning exactly what the columns and their
+        -- separators occupy - so it ends where the last column does rather than at the margin.
+        let &span = 0 :: Size
+        for c in 0 .. wide:
+            span = span + widths[c]
+            if c + 1 < wide then span = span + 2
+
+        let line = repeatText(g.horizontal, span)
+        let margin = spaces(self.indent)
+        out.push("{margin}{self.terminal.dimmed(line)}\n")
+
+    for row in 0 .. self.rowCount():
+        out.push(self.renderRow(widths, self.cells, row * wide, g))
+
+    if self.frame == BoxFrame:
+        out.push(boxRule(g, widths, self.indent, g.bottomLeft, g.bottomJoin, g.bottomRight))
+
+    return out
+
+{-
+   ==========================================================================================
+   A line that rewrites itself
+   ==========================================================================================
+
+   The one thing in this module that writes, because it is the one thing that cannot be a string: it
+   exists to overwrite what it wrote last, and what it wrote last is a fact about the stream rather
+   than about the caller.
+
+   **On a stream nobody is watching it does nothing at all** - not "prints a line each time", which
+   is what a progress display redirected to a file usually turns into. A build log with one line per
+   percent is the failure mode this is written against, and the check is one field.
+
+   The line is clipped to the terminal's width, and that is not cosmetic: a line that wraps has two
+   rows on the screen and `\r` returns to the start of the second, so the erase misses the first and
+   the display leaves a trail behind it.
+-}
+pub data Status {terminal: Terminal, showing: Bool, ticks: Size}
+
+pub fn statusOn(terminal: Terminal) -> Status = Status {terminal: terminal, showing: False, ticks: 0}
+
+-- Whether anything this hands it will be seen. A caller that would have to *compute* the line asks
+-- this first; one that has it already does not have to.
+pub fn Status.visible(self: Status) -> Bool = self.terminal.interactive
+
+pub fn Status.update(&self: Status, text: String) -> {}:
+    if !self.terminal.interactive then return
+
+    self.ticks = self.ticks + 1
+
+    -- One column short of the width, because a line that exactly fills the last column wraps on
+    -- terminals that place the cursor before scrolling and does not on those that scroll first.
+    let &room = 1 :: Size
+    if self.terminal.columns > (1 :: Size) then room = self.terminal.columns - 1
+
+    let line = self.terminal.clip(text, room)
+    let erase = self.terminal.eraseLine()
+    print("{erase}{line}")
+
+    self.showing = True
+
+-- What the next spinner frame is, which the caller puts in the line it hands to `update`.
+pub fn Status.spinner(self: Status) -> String = self.terminal.spinner(self.ticks)
+
+-- The line taken back off the screen, so that whatever is printed next starts at the margin. A
+-- status that was never shown clears nothing, which is what makes this safe to call unconditionally
+-- at the end of a run.
+pub fn Status.clear(&self: Status) -> {}:
+    if !self.showing then return
+
+    let erase = self.terminal.eraseLine()
+    print("{erase}")
+    self.showing = False

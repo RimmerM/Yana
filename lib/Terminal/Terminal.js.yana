@@ -1,0 +1,20 @@
+{-
+   ==========================================================================================
+   The same question on a host that has no descriptors - Design-Test.md §11.2's F4 note.
+   ==========================================================================================
+
+   `plainTerminal()`, both times, and that is the whole file.
+
+   **This is a declining answer and not a stub.** The output of a JavaScript build here is
+   `console.log`, which is a line-oriented sink with no cursor, no width and nothing to erase - so
+   there is no terminal to describe, and describing one anyway is how a program ends up writing
+   `\x1b[2K` into somebody's browser console. `process.stdout.isTTY` is deliberately not read for
+   the same reason `Environment` does not wrap `process.argv`: half a platform on one target is the
+   lie that note is written against, and orchestration on this target happens in a native parent.
+
+   Nothing above this has to know. Every function in `Terminal.yana` is written against the value
+   this hands back, so the fallback for the whole module on this target is these two lines.
+-}
+
+pub fn detectTerminal() -> Terminal = plainTerminal()
+pub fn detectErrorTerminal() -> Terminal = plainTerminal()

@@ -32,6 +32,7 @@
 #include "shard.h"
 #include "directives.h"
 #include "corpus.h"
+#include "report.h"
 
 #if defined(__linux__) && defined(__x86_64__)
 #include <sys/wait.h>
@@ -182,7 +183,8 @@ static String fixtureName(const String& path) {
  * Standard output goes to /dev/null: several fixtures print, and their text is not what is being
  * asserted here.
  */
-static Maybe<int> runExecutable(const String& path, bool& wasSignal, int& signalNumber) {
+static Maybe<int> runExecutable(const String& path, bool& wasSignal, int& signalNumber,
+                                TestReport& report) {
     // Copied out and terminated, because a String is a counted pointer and everything below reads
     // until a zero byte.
     char terminated[4096];
@@ -190,9 +192,30 @@ static Maybe<int> runExecutable(const String& path, bool& wasSignal, int& signal
     copy(path.text(), terminated, path.size());
     terminated[path.size()] = 0;
 
+    /*
+     * Descriptor 3, pointed at a file of this run's own - Design-Test.md §5.2, and see report.h.
+     *
+     * A `lib/` fixture is a test binary now, and a test binary writes its report to 3 when something
+     * opens it. Two things follow from opening it here. The stream stops arriving on this driver's
+     * standard error, where it would be two lines per case of every fixture; and a fixture that dies
+     * part way through leaves a `begin` with no `end`, which is how this driver can say *which case*
+     * a program stopped in - the thing only a driver that starts a real process is positioned to
+     * see, and the one it could not say before.
+     *
+     * A file rather than a pipe, for the reason `Test.Harness` gives: the report is written while the
+     * program runs and read once it is gone, and a pipe nobody drains is a program blocked on its
+     * own write.
+     */
+    auto reportPath = path + String(".report");
+    char reportTerminated[4096];
+    if(reportPath.size() >= sizeof(reportTerminated)) return Nothing();
+    copy(reportPath.text(), reportTerminated, reportPath.size());
+    reportTerminated[reportPath.size()] = 0;
+
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
     posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+    posix_spawn_file_actions_addopen(&actions, 3, reportTerminated, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 
     const char* argv[] = { terminated, nullptr };
 
@@ -204,6 +227,20 @@ static Maybe<int> runExecutable(const String& path, bool& wasSignal, int& signal
 
     int status = 0;
     while(waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+
+    // The report, once the child is gone, and the file removed behind it. A report that could not be
+    // read is an empty one: the status is still an answer, and a driver that refused to report a
+    // crash because it also could not read the crash's report would lose the one thing it knows.
+    if(auto opened = File::openFile(reportPath, readAccess(), File::OpenExisting)) {
+        auto file = opened.moveUnwrapOk();
+        auto size = file.size();
+        Ptr<char, HeapDeleter> text { (char*)hAlloc(size ? size : 1) };
+        if(size) file.read({ (Byte*)text.get(), size });
+
+        readTestReport(String(text.get(), size), report);
+    }
+
+    File::remove(reportPath);
 
     if(WIFSIGNALED(status)) {
         wasSignal = true;
@@ -226,10 +263,12 @@ static Maybe<int> runExecutable(const String& path, bool& wasSignal, int& signal
  * `YanaResolveTest`. One with no such file is not a failure - most of that corpus asserts IR rather
  * than behaviour, and this driver has nothing to say about those.
  *
- * A `lib/` fixture names nothing, because its `main` answers 0 and states everything else with
- * `assert` - see the header comment in LibTester.cpp. So the expected status is 0 for every one of
- * them, and a non-zero one is a failed assertion: `checkFailed` is `exitProcess(134)`, and this is
- * the driver where that status arrives as itself rather than having to be arranged.
+ * A `lib/` fixture names nothing, because it is a suite: its cases state what they expect with
+ * `check`, and `Test.runMain` answers 0 when every one of them held - see the header comment in
+ * LibTester.cpp. So the expected status is 0 for every one of them. A 1 is a suite that reported a
+ * failure and a 134 is one that stopped where it stood, which is what a failed bounds check and an
+ * `@test(aborts)` case both do, and this is the driver where those statuses arrive as themselves
+ * rather than having to be arranged.
  */
 static Maybe<I64> expectedStatus(const String& path) {
     if(stringView(path).startsWith("lib/"_v)) return Just(I64(0));
@@ -256,6 +295,11 @@ static bool runTest(const String& path, StringView source, const String& outputD
     context.settings.format = ExecutableFormat::ELF;
     context.settings.target = TargetType::Linux;
     context.settings.arch = TargetArch::X64;
+
+    // A `lib/` fixture is a suite rather than a program - Design-Test.md §11.2's F1. It has no
+    // `main`; it has `@test` declarations and an entry the compiler synthesizes, and this is the
+    // flag that says so. `resolve/` is unchanged and still writes its own.
+    context.settings.test = stringView(path).startsWith("lib/"_v);
 
     auto name = context.addUnqualifiedName("ElfTest", 7);
     Lexer lexer(context, diagnostics, source, name);
@@ -286,10 +330,17 @@ static bool runTest(const String& path, StringView source, const String& outputD
 
     auto wasSignal = false;
     auto signalNumber = 0;
-    auto actual = runExecutable(executable, wasSignal, signalNumber);
+    TestReport report;
+    auto actual = runExecutable(executable, wasSignal, signalNumber, report);
+
+    // Which case it was inside, where the stream said so - see report.h. Empty for a program that
+    // finished its report and for every `resolve/` fixture, which writes no stream at all.
+    auto where = report.unfinished.size()
+        ? Tritium::format(", while running %@", report.unfinished) : String();
 
     if(wasSignal) {
-        println("Fail (%@): %@ was killed by signal %@.", path, executable, signalNumber);
+        println("Fail (%@): %@ was killed by signal %@%@.", path, executable, signalNumber, where);
+        print("%@", report.failures);
         return false;
     }
 
@@ -299,8 +350,9 @@ static bool runTest(const String& path, StringView source, const String& outputD
     }
 
     if(actual.unwrap() != want) {
-        println("Fail (%@): %@ exited with %@, expected %@ (the low byte of %@).",
-                path, executable, actual.unwrap(), want, expected.unwrap());
+        println("Fail (%@): %@ exited with %@, expected %@ (the low byte of %@)%@.",
+                path, executable, actual.unwrap(), want, expected.unwrap(), where);
+        print("%@", report.failures);
         return false;
     }
 

@@ -194,12 +194,8 @@ pub fn reviewSnapshots(full: Bool) -> Int:
 
     let files = snapshotFileNames(snapshotRoot)
     let &stale = 0 :: Int
-    let &i = 0 :: Size
 
-    while i < length(files):
-        let file = files[i]
-        i = i + 1
-
+    for file in items(files):
         if !wasReached(file):
             if pruneStale && updateMode == 1:
                 match removeSnapshotFile(snapshotRoot, file):
@@ -255,15 +251,10 @@ fn snapshotFileName(at: Site, name: String) -> String = "{at.file}.{at.function}
 -}
 fn portableName(name: String) -> String:
     let &out = String.ofCapacity(length(name))
-    let &i = 0 :: Size
 
-    while i < length(name):
+    for i in 0 .. length(name):
         let unit = name.unit(i)
-        let keep = (unit >= 48 && unit <= 57) || (unit >= 65 && unit <= 90)
-                   || (unit >= 97 && unit <= 122) || unit == 45 || unit == 95
-
-        out.pushUnit(if keep then unit else 95)
-        i = i + 1
+        out.pushUnit(if isAlphaNum(unit) || unit == 45 || unit == 95 then unit else 95)
 
     return out
 
@@ -276,10 +267,17 @@ fn wasReached(file: String) -> Bool = String.contains(reachedFiles, "\n{file}\n"
 {-
    Ruling 2's reorder test: the same lines, however they were arranged.
 
-   A sort would be the obvious way and needs an `Ord` over the lines plus an allocation of both; this
-   is the same O(n^2) claim-each-line walk `checkPermutes` makes, for the same reason - it needs only
-   equality, and a golden with enough lines for that to matter is one whose diff nobody was going to
-   read anyway.
+   This is `checkPermutes`' claim about the same kind of container, and it is written out again here
+   rather than being that function, which is not where it should end up. **`permutationFailure` is
+   not callable from a `-specialize never` build**: a body generic over `Contiguous(c, a)` that calls
+   `elements` fails to compile there with *"cannot infer type argument $r of
+   Chunked(Array(a), a).chunks"*, and `test/run-base.sh`'s `generic` row is exactly that build. The
+   hole is latent today only because nothing else instantiates one - `checkPermutes`, `checkOrdered`
+   and their `require` twins have no caller in the corpus - so this is the one line worth leaving:
+   when that is fixed, the body below is `permutationFailure(linesOf(before), linesOf(after)) is
+   Nothing` and nothing else changes.
+
+   Why the walk is O(n^2) and not a sort is argued where the general one lives, in Check.yana.
 -}
 fn sameLineMultiset(before: String, after: String) -> Bool:
     let left = linesOf(before)
@@ -288,15 +286,10 @@ fn sameLineMultiset(before: String, after: String) -> Bool:
     if length(left) != length(right) then return False
 
     let &claimed = [] :: [Bool]
-    let &i = 0 :: Size
-
-    while i < length(left):
+    for i in 0 .. length(left):
         push(claimed, False)
-        i = i + 1
 
-    let &j = 0 :: Size
-
-    while j < length(right):
+    for j in 0 .. length(right):
         let &found = False
         let &k = 0 :: Size
 
@@ -309,31 +302,20 @@ fn sameLineMultiset(before: String, after: String) -> Bool:
                 k = k + 1
 
         if !found then return False
-        j = j + 1
 
     return True
 
+-- `Core.Text.lines` collected, because `permutationFailure` indexes its arguments and an `iter fn`
+-- is walked once. The line ending is not part of a line and a trailing one does not make an empty
+-- last line, both of which this file used to say itself - and `lines` drops a carriage return where
+-- the other convention put one, which the hand-written version did not and which makes a snapshot
+-- written on Windows compare as a reorder rather than as every line having changed.
 fn linesOf(text: String) -> [String]:
-    let &lines = [] :: [String]
-    let &at = 0 :: Size
+    let &out = [] :: [String]
+    for line in lines(text):
+        push(out, line)
 
-    while at < length(text):
-        push(lines, takeLine(text, at))
-
-    return lines
-
--- One line, and `at` moved past the newline that ended it. The newline itself is not part of the
--- line, so a text with a trailing newline has the same lines as one without - which is what makes a
--- golden whose last line lost its terminator compare as a change of that line rather than of two.
-fn takeLine(text: String, &at: Size) -> String:
-    let &end = at
-
-    while end < length(text) && text.unit(end) != 10:
-        end = end + 1
-
-    let line = String.slice(text, at, end)
-    at = if end < length(text) then end + 1 else end
-    return line
+    return out
 
 {-
    Where two texts first part company, as one line of report.
@@ -368,6 +350,25 @@ fn firstDifference(expected: String, actual: String) -> String:
         number = number + 1
 
     return answer
+
+{-
+   One line, and `at` moved past the newline that ended it.
+
+   Not `Core.Text.lines`, and the difference is the cursor: `firstDifference` walks two texts in
+   lockstep and has to be able to stop when one of them runs out, which is a pair of positions rather
+   than a pair of traversals. The newline is not part of the line, so a text with a trailing newline
+   has the same lines as one without - which is what makes a golden whose last line lost its
+   terminator compare as a change of that line rather than of two.
+-}
+fn takeLine(text: String, &at: Size) -> String:
+    let &end = at
+
+    while end < length(text) && text.unit(end) != 10:
+        end = end + 1
+
+    let line = String.slice(text, at, end)
+    at = if end < length(text) then end + 1 else end
+    return line
 
 fn showText(line: String) -> String:
     let limit = 60 :: Size

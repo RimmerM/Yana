@@ -163,3 +163,14 @@ struct FileProvider: ModuleProvider, SourceProvider {
     ModuleMap& moduleMap;
     Context* context = nullptr;
 };
+
+/// The module a program is entered through: the one `-root` or `yana.toml` named, or the only one
+/// there is. Null with `error` set when the answer is not one module.
+///
+/// Here rather than beside the rest of the project-file reading, because `ModuleMap` is this
+/// header's and the manifest reader is in YanaCore - which `LibrarySource` needs it to be, since a
+/// package's own manifest is what says whose test files these are.
+///
+/// Shared with the language server for the same reason the module map is: an editor that resolved
+/// from a different root than the build would report a different program's errors.
+ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, Tritium::String& error);

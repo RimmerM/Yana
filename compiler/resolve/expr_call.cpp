@@ -2721,6 +2721,33 @@ ModulePtr<Value> ExprResolver::emitClassMember(GlobalPtr<TypeClass> typeClass, U
                                                bool* noInstance) {
     if(noInstance) *noInstance = false;
 
+    /*
+     * **A reference is transparent in the subject**, which is `bindInto`'s rule said for the one
+     * position that never reaches it.
+     *
+     * The subject of a synthesized class call is an argument by construction - it is the type of the
+     * value being handed over - and solve.cpp already settles that a borrow handed to a bare
+     * variable binds what it points at rather than the borrow. That rule lives in the argument walk,
+     * and this call site does not walk anything: it puts the value's type straight into
+     * `ClassMatch::args` and asks `selectInstance`. So `"{x}"` inside `for x in items(xs)` reported
+     * *"'String has no instance of Show"* while the identical `show(x)` written by hand compiled -
+     * the same disagreement between a synthesized call and a written one that P1 was, in the other
+     * half of the same function.
+     *
+     * Nothing is lost by reading through. A class is asked *what this value is*, and what a
+     * reference is, is the storage it names; there is no instance a program could write for `'T`
+     * that would not be the instance for `T`, because a reference has no members, cannot be matched
+     * on, and has no operation of its own (see BorrowType). The argument itself is unchanged and
+     * still a reference - `convertBorrow` loads through it against the instance's own parameter,
+     * which is the same step an ordinary call already takes.
+     *
+     * Argument direction only, exactly as in `bindInto`: a *result* `-> 'a` is a signature
+     * deliberately answering a reference, and nothing here is in that position.
+     */
+    if(isBorrow(global, subject)) {
+        if(auto to = ((BorrowType*)global[subject])->to) subject = to;
+    }
+
     ClassMatch match;
     match.typeClass = typeClass;
     match.index = index;

@@ -1,0 +1,37 @@
+# The standard library, as a package.
+#
+# Two keys, which is the whole of what a package is today: which package this tree is, and which of
+# its modules a program that depends on it may import. Versions, dependency resolution and anything
+# resembling a registry are the distribution half and are deliberately not here - Analysis-Modules.md
+# Part 7 defers those, and nothing that reads this file needs them.
+#
+# What the name buys is that `base` can test itself. A `.test.yana` file is selected only by the
+# package it belongs to (Design-Test.md §3.1), so these modules' tests are compiled when the
+# compilation *is* `base` and never when a program merely imports one of them.
+
+[package]
+name = "base"
+
+# Every module a program may name in an `import`.
+#
+# Complete today: everything in this tree is listed, so the boundary refuses nothing yet. That is the
+# honest starting point rather than a shortcoming - the list exists so that making something internal
+# is an edit to one line instead of a language feature, and the first candidate is already visible.
+# `Native/Linux.x64.yana` holds 77 of `Native`'s 221 `pub` declarations and every one of them is a
+# raw syscall; splitting that file into a module of its own and dropping it from this list is what
+# "internal" will mean here, and it needs nothing new to do it.
+exports = [
+    "Core",
+    "Native",
+    "Native.Thread",
+    "Atomic",
+    "Test",
+    "Terminal",
+    "Math",
+    "File",
+    "Date",
+    "Random",
+    "Digest",
+    "Process",
+    "Environment",
+]

@@ -1,0 +1,675 @@
+{-
+   Scalar and vector real-number mathematics - Analysis-Library.md §2.4.
+
+   Tritium's `Math/Math.h` declares each of these twice, once for `F32` and once for `F64`, and then
+   a third time in `sse_mathfun.h` as a separate SIMD implementation. That third copy is the one this
+   module exists in order not to have: a C++ function over `float` cannot also be a function over
+   `__m128`, so the approximations get written twice and drift apart. Everything between the class
+   declaration and the instances here is written **once**, over a type variable, and `Real` is
+   instanced for `Float`, `Double`, `Vec(F32)` and `Vec(F64)` alike.
+
+   What makes that possible is that the three things an approximation needs are all classes:
+   arithmetic is `Num`, a written coefficient is `FromDecimal`, and choosing between two values by a
+   comparison is `Lanewise`'s `select` - which answers a `Bool` for a scalar and a `Mask` for a
+   vector, and is the one operation an `if` could not have served, since a condition wants a `Bool`
+   and a vector comparison does not produce one. `sqrt` is already one intrinsic over both shapes.
+
+   ## What an instance supplies, and what it inherits
+
+   Five members have no default, and every one of them is a question about the *representation*
+   rather than about mathematics: rounding toward zero, reading and writing a binary exponent, and
+   naming an infinity. Those are where 127-and-23 and 1023-and-52 live, and they are the only place
+   in this module where a width is written. The other nineteen members default onto the kernels
+   below, so an instance is five short bodies.
+
+   ## One rule this module is written under
+
+   **A subexpression made only of literals resolves on its own**, and takes `default FromDecimal`,
+   which is `Float`. So inside a body generic in `a` there is no such thing as `(0.0 - 800.0)` - it
+   is a `Float` and the surrounding operator then has nothing that fits. Every literal below
+   therefore sits next to a value of type `a`, every constant is written as a positive magnitude,
+   and a sign lives in the operator in front of it. That is why the polynomials read
+   `c0 - z * (c1 - z * ...)` rather than carrying negative coefficients, and why a threshold is
+   compared against `magnitudeOf(value)` rather than against a negative bound.
+
+   ## Accuracy, stated rather than implied
+
+   Every series here is a **Taylor expansion carried far enough that its truncation error is below a
+   double's last bit** after range reduction - fifteen terms for `exp`, twelve for `log`, ten for
+   `sin`, seventeen for `atan`. A minimax polynomial would reach the same accuracy in about half the
+   terms; none is used because a Remez fit is a program this repository does not have, and a wrong
+   coefficient is a silent wrong answer where a Taylor coefficient is an exact rational anyone can
+   check. They are printed to seventeen digits below, which is what round-trips a double.
+
+   The consequence for the `Float` instances is that they carry a `Double`'s worth of terms for a
+   `Float`'s worth of accuracy. That is the cost §2.4 accepts when it asks for one implementation,
+   and it is a speed cost only - the answer is right at both widths.
+
+   **Argument reduction** for `sin`, `cos` and `tan` splits pi/2 into six pieces of twelve
+   significant bits each, so that the quotient's product with each piece is exact while the quotient
+   fits in twelve bits fewer than the mantissa. That makes the reduction exact for |x| below about
+   6.4e3 in a `Float` and 1.7e12 in a `Double`; past that the result degrades smoothly rather than
+   jumping, and a full Payne-Hanek reduction against a stored pi is what would remove the limit.
+   `exp` splits ln 2 the same way, and its argument is bounded by the exponent range anyway, so it
+   has no such limit.
+
+   ## What is deliberately not here
+
+   `power_precise`, `log10_precise` and `root_precise` - the same function at a second accuracy,
+   selected by name - are §2.4's rejected port: one correct implementation is the answer to the
+   question they were asking. And `floorInt` / `ceilInt` / `roundInt` are conversions with a rounding
+   mode rather than mathematics, so `floor` answers the float it was handed and
+   `truncate(floor(x)) :: Int` is how the integer is asked for.
+-}
+
+{-
+   The class - Analysis-Library.md §2.4's `Real(a)`, with the comparison result as a second
+   parameter.
+
+   `a -> m` because `m` is not free: one value shape has exactly one comparison result, `Bool` for a
+   scalar and `Mask(F32)` for a vector, and the dependency is what lets a kernel constrained on
+   `Real(a, m)` write `select` without any caller ever naming a mask. It is `Lanewise`'s own shape,
+   which is where the type comes from.
+
+   The four superclasses are the whole of what a kernel needs, which is why every function below is
+   written `fn (Real(a, m)) ...` and asks for nothing else: `Num` for the arithmetic, `FromDecimal`
+   for a written coefficient, `Lanewise` for the comparison and the choice, and `Bitwise` for
+   combining two of those choices. Each is reached *through* the superclass list rather than repeated
+   in the kernel's own, and what makes that work is that every name a kernel uses is declared by
+   exactly one class: `+` is `Num`'s alone, joining having `++` (`Core.yana`'s `Append`), so there is
+   nothing for a kernel to have to choose between.
+-}
+pub class (Num(a), FromDecimal(a), Lanewise(a, m), Bitwise(m)) Real(a -> m):
+  -- The four an instance answers. Each is one line of bit arithmetic at the type's own width.
+  --
+  -- `exponentOf` and `significandOf` are the two halves of `x = significand * 2 ^ exponent` with the
+  -- significand in [1, 2), defined for a positive normal argument and for nothing else - every
+  -- caller below guards its own zero and its own negative. `scaleByExponent` is the inverse, and is
+  -- **required to saturate**: an exponent past the type's range answers an infinity or a zero rather
+  -- than wrapping back into the middle of it, which is what lets `exp` overflow correctly.
+  --
+  -- `trunc` is not a fifth: it is a Core intrinsic beside `floor`, `ceil` and `round`, because
+  -- every target has an instruction for it at every float width and an instance would be answering
+  -- a question the machine has already settled. See resolve/inst.def.
+  fn scaleByExponent(value: a, exponent: a) -> a
+  fn exponentOf(value: a) -> a
+  fn significandOf(value: a) -> a
+  fn infinity() -> a
+
+  -- And the sixteen that are the same code for every instance, so they are defaults over the
+  -- kernels below rather than sixteen more bodies per instance. `floor`, `ceil` and `round` are not
+  -- among them: they are Core intrinsics, for `trunc`'s reason.
+  fn mod(lhs: a, rhs: a) -> a = modulusOf(lhs, rhs)
+  fn exp(value: a) -> a = expOf(value)
+  fn exp2(value: a) -> a = exp2Of(value)
+  fn log(value: a) -> a = logOf(value)
+  fn log2(value: a) -> a = log2Of(value)
+  fn log10(value: a) -> a = log10Of(value)
+  fn pow(base: a, exponent: a) -> a = powerOf(base, exponent)
+  fn cbrt(value: a) -> a = cubeRootOf(value)
+  fn hypot(x: a, y: a) -> a = hypotenuseOf(x, y)
+  fn sin(value: a) -> a = sineOf(value)
+  fn cos(value: a) -> a = cosineOf(value)
+  fn tan(value: a) -> a = tangentOf(value)
+  fn asin(value: a) -> a = arcSineOf(value)
+  fn acos(value: a) -> a = arcCosineOf(value)
+  fn atan(value: a) -> a = arcTangentOf(value)
+  fn atan2(y: a, x: a) -> a = arcTangent2Of(y, x)
+
+{-
+   The two constants a caller asks for by name, and the two conversions that are the whole of what
+   `Math.h`'s eight `getRadians` / `getDegrees` overloads were.
+
+   `pi` and `tau` are nullary and selected by the type the result is asked to be, exactly as
+   `Bounded`'s two members are: `let turn = tau() :: Double` and `circle(pi())` both work, and
+   neither needs a second name per width.
+-}
+pub fn (Real(a, m)) pi() -> a = 3.1415926535897932
+pub fn (Real(a, m)) tau() -> a = 6.2831853071795865
+pub fn (Real(a, m)) toRadians(degrees: a) -> a = degrees * 1.7453292519943296e-2
+pub fn (Real(a, m)) toDegrees(radians: a) -> a = radians * 5.7295779513082321e1
+
+{-
+   Four shapes every kernel below needs and no class supplies.
+
+   `magnitudeOf` is `abs` written with `select`, because `abs` is a class member for a scalar and a
+   plain function for a vector and a body generic over both can reach neither. It tests `<= 0` rather
+   than `< 0` for the reason `Signed`'s own body does: the negation of a positive zero is a negative
+   zero, and only negating both zeros gives `+0.0` back for either sign.
+
+   The other three exist because a literal cannot stand alone in a generic body - see the note at the
+   top. `zeroLike` and `notANumberLike` build their value out of the argument's own type, and
+   `signOfOther` is how a written constant reaches `a` at all: it is passed as a bare literal, which
+   *is* pushed down to the parameter's type, and comes back carrying the sign of something typed.
+-}
+fn (Real(a, m)) magnitudeOf(value: a) -> a = select(value .<= 0.0, 0.0 - value, value)
+
+fn (Real(a, m)) signOfOther(size: a, like: a) -> a =
+    select(like .< 0.0, 0.0 - magnitudeOf(size), magnitudeOf(size))
+
+fn (Real(a, m)) zeroLike(value: a) -> a = magnitudeOf(value * 0.0)
+
+-- `infinity` read through an argument. The member itself is nullary and a nullary generic cannot
+-- take its type from an operand position - `x - infinity()` has nothing to select on, and only a
+-- `::` or a return type decides one. This is the return type, so every kernel below asks for the
+-- infinity of something it already holds.
+fn (Real(a, m)) infinityLike(value: a) -> a = infinity()
+
+-- A quiet NaN, built rather than written: there is no decimal literal for one. Zero times an
+-- infinity is NaN under IEEE 754 at every width and on both targets, and `value` is there only to
+-- carry the type.
+fn (Real(a, m)) notANumberLike(value: a) -> a = zeroLike(value) * infinityLike(value)
+
+{-
+   Rounding - all four derived from the one an instance supplies.
+
+   `floor`, `ceil` and `round` were three kernels here and are Core intrinsics now. Each was `trunc`
+   and a correction - a comparison against the original for the first two, so that a value already
+   whole was left alone, and an added half carrying the argument's sign for the third - and each is
+   one machine instruction on every target this compiler has.
+
+   `round`'s rule is the one worth restating where a reader looks for it: half **away from zero**,
+   which is C's `round` and not the even-tie rule an FPU's default mode uses. It is observable at
+   every half - `round(2.5)` is 3 here and 2 under round-half-even - and the ties the argument
+   reductions below take are ties where the reduction is exact either way. The kernel that used to
+   implement it also answered 1 for `0.49999999999999994`, which the instruction does not; see
+   resolve/inst.def.
+-}
+-- The truncated remainder - C's `fmod`, whose sign follows the dividend. One division and one
+-- multiply, exact only while the quotient is: a dividend many orders above the divisor answers
+-- something with the right sign and fewer correct digits, which is the honest cost of not carrying a
+-- multi-word reduction here.
+fn (Real(a, m)) modulusOf(lhs: a, rhs: a) -> a = lhs - trunc(lhs / rhs) * rhs
+
+{-
+   `exp` and `exp2`, which share one series and differ only in how the argument is reduced.
+
+   Both write `x = n + f` with `n` whole and |f| <= 1/2, evaluate `e ^ (f * ln 2)` by its Taylor
+   series, and put the power of two back with `scaleByExponent`. What separates them is that `exp2`'s
+   `f` is exact - a whole number subtracted from the argument - while `exp`'s has to subtract
+   `n * ln 2`, and a single rounded `ln 2` would cost the low bits of the result for a large `n`. So
+   `ln 2` is subtracted in six pieces of twelve significant bits each: every product `n * piece` is
+   then exact, and what is left over is the residual of the split, below 2^-80.
+
+   The overflow guard is a comparison on the argument and not a test of the result, because there is
+   nothing to test - `scaleByExponent` saturates, so the arithmetic already answers an infinity for a
+   large argument. What the guard buys is the *shape* of the answer at the extremes: an exact
+   infinity or an exact zero, rather than whatever a series at a reduced argument times a saturated
+   scale happens to be.
+-}
+fn (Real(a, m)) expSeries(r: a) -> a:
+    let tail = 5.0000000000000000e-1 + r * (1.6666666666666667e-1 + r * (4.1666666666666667e-2 + r *
+        (8.3333333333333333e-3 + r * (1.3888888888888889e-3 + r * (1.9841269841269841e-4 + r *
+        (2.4801587301587302e-5 + r * (2.7557319223985891e-6 + r * (2.7557319223985891e-7 + r *
+        (2.5052108385441719e-8 + r * (2.0876756987868099e-9 + r * (1.6059043836821615e-10 + r *
+        (1.1470745597729725e-11 + r * (7.6471637318198165e-13 + r * 4.7794773323873853e-14)))))))))))))
+    return 1.0 + r + r * r * tail
+
+-- The two ends, shared by `exp` and `exp2`: an infinity above the range and a zero below it.
+fn (Real(a, m)) expSaturated(value: a) -> a =
+    select(value .> 0.0, infinityLike(value), zeroLike(value))
+
+fn (Real(a, m)) expOf(value: a) -> a:
+    let n = round(value * 1.4426950408889634)
+    let r = value - n * 6.9311523437500000e-1 - n * 3.1948089599609375e-5 + n * 1.9044819055125117e-9 +
+        n * 1.7241763572428681e-13 - n * 2.3188373964033726e-17 - n * 2.0944213109842661e-21
+    let core = scaleByExponent(expSeries(r), n)
+    return select(magnitudeOf(value) .> 800.0, expSaturated(value), core)
+
+fn (Real(a, m)) exp2Of(value: a) -> a:
+    let n = round(value)
+    let f = value - n
+    let r = f * 6.9311523437500000e-1 + f * 3.1946184945309417e-5
+    let core = scaleByExponent(expSeries(r), n)
+    return select(magnitudeOf(value) .> 1200.0, expSaturated(value), core)
+
+{-
+   `log`, `log2` and `log10`, sharing one decomposition and one series.
+
+   `x = significand * 2 ^ exponent` puts the significand in [1, 2), and the series then runs on
+   `s = (m - 1) / (m + 1)`, whose logarithm is `2 * atanh s` - an *odd* series, so every second term
+   is absent and twelve coefficients reach as far as twenty-four of a direct expansion would. The
+   significand is first folded into [sqrt(1/2), sqrt(2)) by halving it and carrying one into the
+   exponent, which is what bounds `s` by 0.172 and `s^2` by 0.03.
+
+   `log2` is not `log(x) * log2(e)`, and the difference is visible: written that way `log2(8.0)`
+   answers 2.9999999999999996, because the multiplication rounds a result the decomposition already
+   held exactly. Sharing the *parts* rather than the answer keeps the whole exponent whole, so a
+   power of two comes back exact. `log10` has no such structure to preserve and is the multiplication.
+-}
+fn (Real(a, m)) logExponent(value: a) -> a:
+    let raw = exponentOf(value)
+    return select(significandOf(value) .> 1.4142135623730950, raw + 1.0, raw)
+
+fn (Real(a, m)) logSignificand(value: a) -> a:
+    let raw = significandOf(value)
+    return select(raw .> 1.4142135623730950, raw * 0.5, raw)
+
+fn (Real(a, m)) logSeries(significand: a) -> a:
+    let s = (significand - 1.0) / (significand + 1.0)
+    let z = s * s
+    let tail = 3.3333333333333333e-1 + z * (2.0000000000000000e-1 + z * (1.4285714285714286e-1 + z *
+        (1.1111111111111111e-1 + z * (9.0909090909090909e-2 + z * (7.6923076923076923e-2 + z *
+        (6.6666666666666667e-2 + z * (5.8823529411764706e-2 + z * (5.2631578947368421e-2 + z *
+        (4.7619047619047619e-2 + z * (4.3478260869565217e-2 + z * 4.0000000000000000e-2))))))))))
+    return 2.0 * s + 2.0 * s * z * tail
+
+-- What a non-positive argument answers, shared by all three so that they cannot disagree: a
+-- negative infinity at zero and a NaN below it. `value - infinity()` is how the first is written -
+-- `value` is zero wherever that arm is taken, and it is what gives the infinity its type.
+fn (Real(a, m)) logGuard(value: a, answer: a) -> a:
+    let atZero = value - infinityLike(value)
+    return select(value .> 0.0, answer, select(value .== 0.0, atZero, notANumberLike(value)))
+
+fn (Real(a, m)) logOf(value: a) -> a:
+    let e = logExponent(value)
+    let series = logSeries(logSignificand(value))
+    let answer = series + e * 6.9311523437500000e-1 + e * 3.1946184945309417e-5
+    return logGuard(value, answer)
+
+fn (Real(a, m)) log2Of(value: a) -> a:
+    let e = logExponent(value)
+    let answer = logSeries(logSignificand(value)) * 1.4426950408889634 + e
+    return logGuard(value, answer)
+
+fn (Real(a, m)) log10Of(value: a) -> a = logOf(value) * 4.3429448190325183e-1
+
+{-
+   `pow`, which is `2 ^ (y * log2 x)` plus the cases that identity does not cover.
+
+   The identity is defined only for a positive base, so the power is taken of the magnitude and the
+   sign put back afterwards - and it may be put back only when the exponent is a whole *odd* number,
+   since that is exactly when a negative base gives a negative result. A negative base with a
+   fractional exponent has no real answer and is NaN.
+
+   `y == 0` answers 1 before anything else, including for a zero, a negative and a NaN base, which is
+   IEEE 754's rule and is what a caller writing `x ^ 0` inside a loop expects.
+-}
+fn (Real(a, m)) powerOf(base: a, exponent: a) -> a:
+    let size = exp2Of(exponent * log2Of(magnitudeOf(base)))
+    let whole = trunc(exponent) .== exponent
+    let odd = modulusOf(exponent, 2.0) .!= 0.0
+    let signed = select(odd, 0.0 - size, size)
+    let answer = select(base .< 0.0, select(whole, signed, notANumberLike(base)), size)
+    let atZero = select(exponent .< 0.0, infinityLike(base), zeroLike(base))
+    return select(exponent .== 0.0, 1.0, select(base .== 0.0, atZero, answer))
+
+-- The cube root. The logarithm gives about half the bits and two Newton steps give the rest, which
+-- is cheaper than a series over a range with no useful reduction - and unlike `pow` it is defined
+-- for a negative argument, so the sign is carried around the computation rather than rejected.
+fn (Real(a, m)) cubeRootOf(value: a) -> a:
+    let size = magnitudeOf(value)
+    let guess = exp2Of(log2Of(size) * 3.3333333333333333e-1)
+    let once = guess - (guess - size / (guess * guess)) * 3.3333333333333333e-1
+    let twice = once - (once - size / (once * once)) * 3.3333333333333333e-1
+    return select(value .== 0.0, zeroLike(value), signOfOther(twice, value))
+
+-- The hypotenuse, scaled by the larger operand so that neither the square nor the sum can overflow
+-- for a pair whose answer does not. That is the whole reason it is a function rather than
+-- `sqrt(x*x + y*y)`, which loses a `Float` above 1.8e19 for a result that is perfectly representable.
+fn (Real(a, m)) hypotenuseOf(x: a, y: a) -> a:
+    let ax = magnitudeOf(x)
+    let ay = magnitudeOf(y)
+    let larger = select(ax .> ay, ax, ay)
+    let smaller = select(ax .> ay, ay, ax)
+    let ratio = smaller / larger
+    return select(larger .== 0.0, zeroLike(larger), larger * sqrt(1.0 + ratio * ratio))
+
+{-
+   `sin`, `cos` and `tan`.
+
+   One reduction serves all three: `x = n * (pi/2) + r` with |r| <= pi/4, and which of four things
+   the answer is comes from `n` modulo 4 - `sin r`, `cos r`, `-sin r`, `-cos r`. `cos` is the same
+   table read one quadrant further along, because `cos x` is `sin (x + pi/2)`, so there is one
+   reduction and one pair of series in this module rather than two of each.
+
+   pi/2 is subtracted in six pieces for the reason ln 2 is above, and the limit that produces is the
+   one thing about this family worth knowing before calling it: each piece has twelve significant
+   bits, so `n * piece` is exact while `n` fits in twelve bits fewer than the mantissa. That is |x|
+   below about 6.4e3 for a `Float` and 1.7e12 for a `Double`.
+-}
+fn (Real(a, m)) sineSeries(z: a) -> a:
+    return 1.6666666666666667e-1 - z * (8.3333333333333333e-3 - z * (1.9841269841269841e-4 - z *
+        (2.7557319223985891e-6 - z * (2.5052108385441719e-8 - z * (1.6059043836821615e-10 - z *
+        (7.6471637318198165e-13 - z * (2.8114572543455208e-15 - z * (8.2206352466243297e-18 - z *
+        1.9572941063391261e-20))))))))
+
+fn (Real(a, m)) cosineSeries(z: a) -> a:
+    return 4.1666666666666667e-2 - z * (1.3888888888888889e-3 - z * (2.4801587301587302e-5 - z *
+        (2.7557319223985891e-7 - z * (2.0876756987868099e-9 - z * (1.1470745597729725e-11 - z *
+        (4.7794773323873853e-14 - z * (1.5619206968586226e-16 - z * 4.1103176233121649e-19)))))))
+
+-- The four quadrant answers, chosen by `n` modulo 4. The quadrant arrives as a whole float rather
+-- than an integer because there is no integer type a body generic in `a` could name - and comparing
+-- it against 0, 1 and 2 is exact for anything that came out of `round`.
+fn (Real(a, m)) quadrantOf(quadrant: a, r: a) -> a:
+    let z = r * r
+    let sine = r - r * z * sineSeries(z)
+    let cosine = 1.0 - 0.5 * z + z * z * cosineSeries(z)
+    let upper = select(quadrant .== 2.0, 0.0 - sine, 0.0 - cosine)
+    return select(quadrant .== 0.0, sine, select(quadrant .== 1.0, cosine, upper))
+
+fn (Real(a, m)) reducedAngle(value: a, n: a) -> a =
+    value - n * 1.5708007812500000 + n * 4.4535845518112183e-6 + n * 8.7061380327213556e-10 - n *
+        6.2228000530240024e-14 - n * 5.7208605257555445e-18 - n * 3.2818390803041373e-22
+
+fn (Real(a, m)) quadrantIndex(n: a, offset: a) -> a:
+    let shifted = n + offset
+    return shifted - 4.0 * floor(shifted * 0.25)
+
+fn (Real(a, m)) sineOf(value: a) -> a:
+    let n = round(value * 6.3661977236758134e-1)
+    return quadrantOf(quadrantIndex(n, 0.0), reducedAngle(value, n))
+
+fn (Real(a, m)) cosineOf(value: a) -> a:
+    let n = round(value * 6.3661977236758134e-1)
+    return quadrantOf(quadrantIndex(n, 1.0), reducedAngle(value, n))
+
+-- The tangent as the quotient of one reduction rather than of two calls, which keeps `tan` from
+-- reducing its argument twice. It is unbounded at the odd multiples of pi/2 and answers a very large
+-- number there rather than an infinity, because the reduced angle is not exactly pi/2 and its cosine
+-- is not exactly zero.
+fn (Real(a, m)) tangentOf(value: a) -> a:
+    let n = round(value * 6.3661977236758134e-1)
+    let r = reducedAngle(value, n)
+    return quadrantOf(quadrantIndex(n, 0.0), r) / quadrantOf(quadrantIndex(n, 1.0), r)
+
+{-
+   `atan`, and the three inverses written over it.
+
+   Two reductions before the series, and both are exact identities rather than approximations:
+   `atan x = pi/2 - atan(1/x)` folds everything above 1 down into [0, 1], and
+   `atan x = pi/6 + atan((x*sqrt3 - 1)/(sqrt3 + x))` folds [tan(pi/12), 1] down into [0, tan(pi/12)],
+   which is about 0.268. That bounds the series argument's square by 0.072, where seventeen terms of
+   an odd series are well past a double's last bit; over [0, 1] without the second reduction the same
+   accuracy would need more than a hundred.
+-}
+fn (Real(a, m)) arcTangentSeries(z: a) -> a:
+    return 3.3333333333333333e-1 - z * (2.0000000000000000e-1 - z * (1.4285714285714286e-1 - z *
+        (1.1111111111111111e-1 - z * (9.0909090909090909e-2 - z * (7.6923076923076923e-2 - z *
+        (6.6666666666666667e-2 - z * (5.8823529411764706e-2 - z * (5.2631578947368421e-2 - z *
+        (4.7619047619047619e-2 - z * (4.3478260869565217e-2 - z * (4.0000000000000000e-2 - z *
+        (3.7037037037037037e-2 - z * (3.4482758620689655e-2 - z * (3.2258064516129032e-2 - z *
+        (3.0303030303030303e-2 - z * 2.8571428571428571e-2)))))))))))))))
+
+fn (Real(a, m)) arcTangentCore(u: a) -> a:
+    let z = u * u
+    return u - u * z * arcTangentSeries(z)
+
+fn (Real(a, m)) arcTangentOf(value: a) -> a:
+    let size = magnitudeOf(value)
+    let folded = select(size .> 1.0, 1.0 / size, size)
+    let steep = folded .> 2.6794919243112271e-1
+    let reduced = (folded * 1.7320508075688773 - 1.0) / (folded + 1.7320508075688773)
+    let base = select(steep, 5.2359877559829887e-1, zeroLike(value))
+    let core = base + arcTangentCore(select(steep, reduced, folded))
+    let whole = select(size .> 1.0, 1.5707963267948966 - core, core)
+    return select(value .< 0.0, 0.0 - whole, whole)
+
+-- The two-argument form, which is `atan(y/x)` plus the quadrant the quotient threw away. The axis
+-- case is selected last, so a zero `x` never reaches the division's answer.
+fn (Real(a, m)) arcTangent2Of(y: a, x: a) -> a:
+    let base = arcTangentOf(y / x)
+    let shifted = select(y .< 0.0, base - 3.1415926535897932, base + 3.1415926535897932)
+    let general = select(x .< 0.0, shifted, base)
+    let vertical = select(y .== 0.0, zeroLike(y), signOfOther(1.5707963267948966, y))
+    return select(x .== 0.0, vertical, general)
+
+-- `asin` and `acos` through `atan2`, which is what makes the endpoints exact: at |x| = 1 the second
+-- argument is an exact zero and `atan2` answers pi/2, 0 or pi from its axis case rather than from a
+-- division. The clamp on the radicand is for an argument a rounding pushed just past 1, where
+-- `1 - x*x` is a small negative and the square root would be NaN for a value the caller meant as 1.
+fn (Real(a, m)) arcSineOf(value: a) -> a:
+    let square = 1.0 - value * value
+    return arcTangent2Of(value, sqrt(select(square .< 0.0, zeroLike(square), square)))
+
+fn (Real(a, m)) arcCosineOf(value: a) -> a:
+    let square = 1.0 - value * value
+    return arcTangent2Of(sqrt(select(square .< 0.0, zeroLike(square), square)), value)
+
+{-
+   The four instances, and the only place in this module where a width is written.
+
+   Each is the same five bodies at a different pair of constants - 127 and 23 for a `Float`, 1023 and
+   52 for a `Double` - and the vector pair is the scalar pair with `Vec` around every type. That the
+   two shapes read so nearly alike is the point: nothing above this line had to be written twice, and
+   what is written twice here is bit arithmetic that could not have been shared, since a `Float`'s
+   exponent field is not where a `Double`'s is.
+
+   **The vectors are the natural form**, `Vec(F32)` rather than `Vec(F32, n)`. A `Vec(a)` in a
+   signature means the target's own lane count, which is what a program writing vector code has; an
+   explicitly sized vector selects no instance here, for the reason Implementation-Vector.md §9
+   records - a written count is not yet something `splat` can produce, so a sized head would be one
+   no argument could be built for.
+
+   **`scaleByExponent` applies its exponent in two halves**, and that is what makes it saturate
+   rather than wrap: each half is clamped into the exponent field's own range, so an argument past
+   the range multiplies by two saturated powers and reaches an infinity or a zero by ordinary
+   arithmetic. One half would have wrapped a large exponent back into the middle of the field and
+   answered a finite number for `exp(1000.0)`.
+
+   **The scalar and vector bodies reach the integer domain by different names, and neither is a
+   stylistic choice.** A scalar reinterprets through `I32` and `I64` and converts through `Int` and
+   `Long`, because `defineBitcastLadder` skips the canonical integer types - there is no
+   `Bitcast(Int, Float)` rung - while the conversion ladder relates a float only to `Int` and `Long`.
+   A vector does both through `Vec(Int)` and `Vec(Long)`: a vector `Bitcast` is decided by byte width
+   alone and so needs no `I32`, and going by way of one would emit a packed `Vec(I32)` to `Vec(Int)`
+   cast that the x64 backend refuses - the only packed conversion it keeps in one register is between
+   32-bit integer lanes and float ones, and a same-width integer pair is not that.
+-}
+fn clampFloatExponent(exponent: Float) -> Float = min(max(exponent, 0.0 - 126.0), 127.0)
+
+fn clampDoubleExponent(exponent: Double) -> Double = min(max(exponent, 0.0 - 1022.0), 1023.0)
+
+fn clampVecFloatExponent(exponent: Vec(F32)) -> Vec(F32) =
+    min(max(exponent, splat(0.0 - 126.0)), splat(127.0))
+
+fn clampVecDoubleExponent(exponent: Vec(F64)) -> Vec(F64) =
+    min(max(exponent, splat((0.0 - 1022.0) :: Double)), splat(1023.0 :: Double))
+
+fn powerOfTwoFloat(exponent: Float) -> Float =
+    bitcast(((widen(truncate(exponent) :: Int) :: I32) + 127) `shl` 23) :: Float
+
+{-
+   The `Double` primitives, which are the one family in this module that is `@platform`-split.
+
+   Natively they are the obvious bit arithmetic. On JS they cannot be: a 64-bit integer is a `bigint`
+   there, so `defineBitcastLadder` declines every rung between a `Double` and one - the round trip
+   would be a heap value on one side and a number on the other, which is not a reinterpretation in
+   any useful sense. That takes away `bitcast` for exactly the type a JS number *is*, so the JS
+   bodies are written in arithmetic instead.
+
+   **The *vector* instance is not split this way and this family is**, which looks inconsistent and
+   is not. A vector `Bitcast` is decided by byte width and is generated independently of that
+   ladder, so `Vec(F64)` reaches `Vec(Long)` on both targets and `Real(Vec(F64))` is written on it.
+   The scalar rungs stay declined because these bodies exist: arithmetic that costs a few `number`
+   operations beats a `bigint` round trip.
+
+   Two techniques, neither of them an approximation:
+
+    - **The exponent** comes off by a ladder of five strides - 2^256, 2^64, 2^16, 2^4, 2 - each
+      dividing until the value is under it. Twenty iterations at worst against the 1074 a stride of
+      one would take, and what is left in the value at the end *is* the significand, so one walk
+      answers both members.
+    - **A power of two** is binary exponentiation over the exponent's bits, which is eleven
+      multiplications and no table. `base` reaches an infinity on the squaring after the last bit
+      that is set, and the loop has already ended by then.
+
+   `Real(Float)` needs none of this: the 32-bit `Float`/`I32` bitcast pair *is* generated on both
+   targets, through the scratch typed-array pair codegen/js/inst.cpp emits, because there a bitcast
+   is the only way to see a float's bits at all.
+-}
+@platform(native) fn powerOfTwoDouble(exponent: Double) -> Double =
+    bitcast(((widen(truncate(exponent) :: Long) :: I64) + 1023) `shl` 52) :: Double
+
+@platform(js) fn powerOfTwoDouble(exponent: Double) -> Double:
+    let negative = exponent < 0.0
+    let &n = if negative then 0.0 - exponent else exponent
+    let &base = 2.0 :: Double
+    let &scale = 1.0 :: Double
+
+    while n > 0.0:
+        let half = halfWholeDouble(n)
+        if n - half - half > 0.5 then scale = scale * base
+        base = base * base
+        n = half
+
+    return if negative then 1.0 / scale else scale
+
+-- `floor(n / 2)` for a non-negative whole `n`, which is the one step binary exponentiation needs and
+-- the one place it cannot use `trunc`: this is what `trunc` itself is written in terms of on JS.
+@platform(js) fn halfWholeDouble(value: Double) -> Double:
+    let scaled = value * 0.5
+    let nearest = (scaled + 4503599627370496.0) - 4503599627370496.0
+    return if nearest > scaled then nearest - 1.0 else nearest
+
+@platform(native) fn exponentOfDouble(value: Double) -> Double:
+    let bits = bitcast(value) :: I64
+    return (widen(widen(bitfield(bits, start: 52, count: 11)) :: Long) :: Double) - 1023.0
+
+@platform(native) fn significandOfDouble(value: Double) -> Double =
+    bitcast(((bitcast(value) :: I64) `and` 4503599627370495) `or` 4607182418800017408) :: Double
+
+@platform(native) fn infinityDouble() -> Double = bitcast(9218868437227405312 :: I64) :: Double
+
+-- Overflow, which is the only spelling of an infinity available without a bitcast. The product is
+-- folded at compile time and IEEE 754 says what it folds to.
+@platform(js) fn infinityDouble() -> Double = 1.0e308 * 10.0
+
+-- One stride of the ladder: divide until the value is below `up`, then multiply until it is at
+-- least one, carrying `step` into the exponent each time. The finer strides below tidy up whatever
+-- this one overshot, and the last of them leaves the value in [1, 2).
+@platform(js) fn stripExponent(&value: Double, &exponent: Double, up: Double, step: Double) -> {}:
+    while value >= up:
+        value = value / up
+        exponent = exponent + step
+
+    while value < 1.0:
+        value = value * up
+        exponent = exponent - step
+
+{-
+   The ladder, and the two arguments it has to refuse before running.
+
+   A zero sits in the second loop forever - zero times anything is zero, so it never reaches one -
+   and an infinity sits in the first for the same reason from the other end. Neither is a value this
+   is defined for: `exponentOf` and `significandOf` are documented for a positive normal argument
+   and every caller guards its own zero and its own negative. What makes it worth a test rather than
+   a comment is that the native bodies answer *something* for both - the exponent field of a zero is
+   zero - so the two targets would otherwise disagree by one hanging.
+
+   `value - value != 0.0` is the infinity test, and it catches a NaN as well: a finite number gives
+   zero, and both of the others give a NaN. Testing against a written bound would not do - the
+   largest finite double is above 1e308.
+-}
+@platform(js) fn splitDouble(&value: Double, &exponent: Double) -> {}:
+    if value <= 0.0 || value - value != 0.0 then return
+
+    stripExponent(value, exponent, 1.1579208923731619e77, 256.0)
+    stripExponent(value, exponent, 1.8446744073709552e19, 64.0)
+    stripExponent(value, exponent, 65536.0, 16.0)
+    stripExponent(value, exponent, 16.0, 4.0)
+    stripExponent(value, exponent, 2.0, 1.0)
+
+@platform(js) fn exponentOfDouble(value: Double) -> Double:
+    let &rest = value
+    let &exponent = 0.0 :: Double
+    splitDouble(rest, exponent)
+    return exponent
+
+@platform(js) fn significandOfDouble(value: Double) -> Double:
+    let &rest = value
+    let &exponent = 0.0 :: Double
+    splitDouble(rest, exponent)
+    return rest
+
+fn powerOfTwoVecFloat(exponent: Vec(F32)) -> Vec(F32) =
+    bitcast(((truncate(exponent) :: Vec(Int)) + 127) `shl` 23) :: Vec(F32)
+
+{-
+   The `Vec(F64)` pair, which cannot use a conversion at all and says so here.
+
+   x64 below AVX-512 has no packed conversion between 64-bit integer lanes and double ones - the
+   only packed conversion that keeps one register width is between 32-bit integer lanes and float
+   ones - so `truncate(v) :: Vec(Long)` is refused by the backend rather than being slow. What
+   replaces it is the oldest trick there is: adding 2^52 to a value in [0, 2^52) pushes its fraction
+   off the end of the mantissa under round-to-nearest, and the low 52 bits of what comes back *are*
+   the integer. Reading it the other way is the same identity run backwards.
+
+   Only the double vector needs this. The float vector's conversions are `cvtdq2ps` and `cvttps2dq`
+   and are one instruction each, so it keeps them.
+
+   **The `Vec(F64)` instance is not `@platform(native)`**, though every body below is built on a
+   reinterpretation and a 64-bit lane on JS is a `bigint`. The lane is allowed there
+   (Design-Vector §7.3) and the vector bitcast goes through a `Float64Array`/`BigInt64Array` pair,
+   so all four `Real` instances exist on both targets. What a JS program pays for this one is
+   `bigint` arithmetic in the three bodies below that reinterpret - which is what the scalar code it
+   replaces would cost anyway.
+-}
+fn wholeVecDoubleBits(value: Vec(F64)) -> Vec(Long) =
+    (bitcast(value + 4503599627370496.0) :: Vec(Long)) `and` 4503599627370495
+
+fn vecDoubleFromWholeBits(bits: Vec(Long)) -> Vec(F64) =
+    (bitcast(bits `or` 4841369599423283200) :: Vec(F64)) - 4503599627370496.0
+
+fn powerOfTwoVecDouble(exponent: Vec(F64)) -> Vec(F64) =
+    bitcast(wholeVecDoubleBits(exponent + 1023.0) `shl` 52) :: Vec(F64)
+
+instance Real(Float, Bool):
+    fn scaleByExponent(value: Float, exponent: Float) -> Float:
+        let first = clampFloatExponent(exponent)
+        let second = clampFloatExponent(exponent - first)
+        return value * powerOfTwoFloat(first) * powerOfTwoFloat(second)
+
+    fn exponentOf(value: Float) -> Float:
+        let bits = bitcast(value) :: I32
+        return (widen(widen(bitfield(bits, start: 23, count: 8)) :: Int) :: Float) - 127.0
+
+    fn significandOf(value: Float) -> Float =
+        bitcast(((bitcast(value) :: I32) `and` 8388607) `or` 1065353216) :: Float
+
+    fn infinity() -> Float = bitcast(widen(2139095040) :: I32) :: Float
+
+-- Four of the five delegate, because four of the five are `@platform`-split above and an instance
+-- member is not a place a platform selection may be written: what `@platform` chooses between is two
+-- bodies of one *function*, and a member belongs to whichever instance was selected first.
+instance Real(Double, Bool):
+    fn scaleByExponent(value: Double, exponent: Double) -> Double:
+        let first = clampDoubleExponent(exponent)
+        let second = clampDoubleExponent(exponent - first)
+        return value * powerOfTwoDouble(first) * powerOfTwoDouble(second)
+
+    fn exponentOf(value: Double) -> Double = exponentOfDouble(value)
+    fn significandOf(value: Double) -> Double = significandOfDouble(value)
+    fn infinity() -> Double = infinityDouble()
+
+instance Real(Vec(F32), Mask(F32)):
+    fn scaleByExponent(value: Vec(F32), exponent: Vec(F32)) -> Vec(F32):
+        let first = clampVecFloatExponent(exponent)
+        let second = clampVecFloatExponent(exponent - first)
+        return value * powerOfTwoVecFloat(first) * powerOfTwoVecFloat(second)
+
+    fn exponentOf(value: Vec(F32)) -> Vec(F32):
+        let bits = bitcast(value) :: Vec(Int)
+        return (widen((bits `shr` 23) `and` 255) :: Vec(F32)) - 127.0
+
+    fn significandOf(value: Vec(F32)) -> Vec(F32) =
+        bitcast(((bitcast(value) :: Vec(Int)) `and` 8388607) `or` 1065353216) :: Vec(F32)
+
+    fn infinity() -> Vec(F32) = bitcast(splat(2139095040)) :: Vec(F32)
+
+instance Real(Vec(F64), Mask(F64)):
+    fn scaleByExponent(value: Vec(F64), exponent: Vec(F64)) -> Vec(F64):
+        let first = clampVecDoubleExponent(exponent)
+        let second = clampVecDoubleExponent(exponent - first)
+        return value * powerOfTwoVecDouble(first) * powerOfTwoVecDouble(second)
+
+    fn exponentOf(value: Vec(F64)) -> Vec(F64):
+        let bits = bitcast(value) :: Vec(Long)
+        return vecDoubleFromWholeBits((bits `shr` 52) `and` 2047) - 1023.0
+
+    fn significandOf(value: Vec(F64)) -> Vec(F64) =
+        bitcast(((bitcast(value) :: Vec(Long)) `and` 4503599627370495) `or` 4607182418800017408) :: Vec(F64)
+
+    fn infinity() -> Vec(F64) = bitcast(splat(9218868437227405312 :: Long)) :: Vec(F64)
+

@@ -33,6 +33,7 @@ struct Flag {
         module,
         project,
         library,
+        package,
         specialize,
 
         /*
@@ -73,6 +74,10 @@ Flag flagTable[] = {
     { "module"_v, 1, Flag::module },
     { "project"_v, 1, Flag::project },
     { "lib"_v, 1, Flag::library },
+
+    // The package this compilation is, when there is no `yana.toml` to say - which is every driver
+    // that resolves a source string rather than a tree. See CompileSettings::package.
+    { "package"_v, 1, Flag::package },
     { "specialize"_v, 1, Flag::specialize },
 
     { "print-modules"_v, 0, Flag::printModules },
@@ -178,7 +183,7 @@ static const LevelName levelTable[] = {
  * That is the same answer `@platform(native)` would give, which is what makes the file form a
  * replacement for the attribute rather than a second mechanism beside it.
  */
-TargetSelector targetSelector(const CompileSettings& settings, StringView name) {
+TargetSelector targetSelector(const CompileSettings& settings, StringView name, SelectorScope scope) {
     auto isJs = isJsMode(settings.mode);
     auto answer = [](bool matched) { return matched ? TargetSelector::Matched : TargetSelector::Excluded; };
 
@@ -197,7 +202,20 @@ TargetSelector targetSelector(const CompileSettings& settings, StringView name) 
      * direct answer to "a test for a path that only exists at v3". Unlike an architecture or a
      * level, it excludes nothing else: `test` is a claim about what this compilation *is*.
      */
-    if(name == "test"_v) return answer(settings.test);
+    /*
+     * **And a dependency's test files are never selected**, which is the whole of how a library's
+     * tests stay out of every program written in the language. Before this the answer was
+     * `settings.test` for every walk, so a `.test.yana` file under `lib/` was read into any
+     * consumer's test build: its cases joined their suite, it dragged `Test` and the harness into
+     * their compile - one `Show`-sized test file doubled a small one - and since F5 its top-level
+     * initializers ran in their program. A library test that failed to compile broke every consumer.
+     *
+     * The rule is the one every ecosystem lands on and it is a package rule, not a library one: a
+     * test file belongs to whoever is compiling its package. `LibrarySource::isOwnPackage` is what
+     * lets the standard library still test itself - the walk over `lib/` asks as `Project` when the
+     * compilation *is* `base`, and as `Dependency` otherwise.
+     */
+    if(name == "test"_v) return answer(settings.test && scope == SelectorScope::Project);
 
     for(U32 i = 0; i < sizeof(targetTable) / sizeof(StringView); i++) {
         if(name == targetTable[i]) return answer(!isJs && settings.target == TargetType(i));
@@ -683,6 +701,9 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 return true;
             case Flag::library:
                 settings.libraryPath = move(value);
+                return true;
+            case Flag::package:
+                settings.package = move(value);
                 return true;
             case Flag::specialize:
                 if(value == "always") { settings.forceGeneric = false; return true; }

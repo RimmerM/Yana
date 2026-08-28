@@ -1,0 +1,91 @@
+{-
+   What a generic body may hand a class function.
+
+   A borrow's extent is the call, and a *deferred* dispatch has no body to read that off - so it
+   reads the declaration instead, and `checkClassBorrows` holds every implementation to it. See
+   `assumedRetained` in compiler/resolve/analyze_escape.cpp, and `resolve/Reject.ClassBorrow.yana`
+   for the other half.
+
+   Every line below was rejected before that rule, and only with **specialization declined**: in a
+   specialized build the dispatch is a direct call with a real summary and none of it arises, which
+   is why the shape it blocked - `lib/Digest`'s HMAC - was written out once per digest instead of
+   once over the class. What it asserts is that a slice reaching a class function does not come back
+   marked as outliving the frame, whether the slice is a view of the generic body's own buffer or one
+   its caller lent it.
+-}
+import Test
+
+data Adder {classBorrowTotal: Int}
+
+pub class Eater(d):
+  fn newEater() -> d
+  fn eat(&self: d, from: '[U8]) -> {}
+  fn classBorrowTotal(self: d) -> Int
+
+instance Eater(Adder):
+    fn newEater() -> Adder = Adder {classBorrowTotal: 0}
+
+    fn eat(&self: Adder, from: '[U8]) -> {}:
+        let &i = 0 :: Size
+        while i < length(from):
+            self.classBorrowTotal = self.classBorrowTotal + (from[i] :: Int)
+            i = i + 1
+
+    fn classBorrowTotal(self: Adder) -> Int = self.classBorrowTotal
+
+{-
+   The generic body, doing both things HMAC does: a buffer of its own handed over as a view, and the
+   caller's slice handed straight on.
+-}
+fn (Eater(d)) eatBothWays(->state: d, message: '[U8]) -> Int:
+    let &own = [7 :: U8, 8, 9]
+    let &eater = state
+    eat(eater, own)
+    eat(eater, own[1..3])
+    eat(eater, message)
+    return classBorrowTotal(eater)
+
+{-
+   And the other thing a class implementation may do with a borrow it was lent: empty it and fill it
+   again.
+
+   `to ++= "..."` is `++=` in Core.yana, whose body reads the value out of the `&` and writes one
+   back, so what it hands `++` is the sink's own contents by `->`. That was refused here and nowhere
+   else - a specialized build sees `++`'s body and reads the write-back off it, an erased one sees a
+   class signature and takes `->lhs` at its word, and the answer climbed back out as "this
+   implementation keeps its sink". `handedOver` in analyze_escape.cpp is where the two agree now:
+   what a `->` takes out of borrowed storage is the value, and the slot it left stays behind.
+
+   The assertions are about the value and not only about the build. A borrow this frame was told it
+   had handed away is one nothing writes back into, and a write through a borrow releases what it
+   replaces - so a prefix that survives two appends is the evidence that neither happened.
+-}
+pub class Labelled(t):
+  fn labelInto(value: t, &to: String) -> {}
+
+instance Labelled(Int):
+    fn labelInto(value: Int, &to: String) -> {} = to ++= "int"
+
+instance Labelled(Bool):
+    -- Twice, so that the second append reads storage the first one wrote back.
+    fn labelInto(value: Bool, &to: String) -> {}:
+        to ++= "bool"
+        to ++= "!"
+
+-- The generic half: a body that cannot see which implementation runs, lending it a sink it owns.
+fn (Labelled(t)) labelled(value: t) -> String:
+    let &out = "["
+    labelInto(value, out)
+    out ++= "]"
+    return out
+
+-- And a caller that owns what it lends, which is the position the summary decides.
+@test fn classBorrowCases() -> {}:
+    let &message = [1 :: U8, 2, 3]
+    checkEqual(eatBothWays(newEater() :: Adder, message), 7 + 8 + 9 + 8 + 9 + 1 + 2 + 3)
+
+    let fixed = [10 :: U8, 20] :: [U8 *2]
+    checkEqual(eatBothWays(newEater() :: Adder, fixed), 7 + 8 + 9 + 8 + 9 + 10 + 20)
+
+    checkEqual(labelled(0), "[int]")
+    checkEqual(labelled(True), "[bool!]")

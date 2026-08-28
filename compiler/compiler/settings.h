@@ -346,6 +346,27 @@ struct CompileSettings {
      * silently dropped - a test that is not built is the failure mode the whole document is about.
      */
     bool test = false;
+
+    /*
+     * The package this compilation is - `[package] name` from its own `yana.toml`, or `-package`.
+     *
+     * Empty for a program that has not said, which is every one that only consumes packages. What
+     * reads it is the *dependency* side of two questions that used to have one global answer:
+     *
+     *  - **whose tests run.** `.test.yana` selection is answered per walk now, not per compilation:
+     *    the project's own sources honour `-test`, and a package reached as a dependency never
+     *    does - unless it is this package, which is how the standard library tests itself. Before
+     *    this, a `.test.yana` file under `lib/` joined *every* consumer's suite, ran its cases, and
+     *    since F5 ran its initializers too.
+     *  - **what may be imported.** A dependency's module is importable only if that package's
+     *    manifest exports it - see `ProjectFile::exports` and `moduleIsExported`.
+     *
+     * Compared by name against the library's own manifest rather than by path, because that is the
+     * fact a package has: two trees at different paths that both call themselves `base` are a
+     * configuration mistake, and one tree reached by two paths is not.
+     */
+    Tritium::String package;
+
     /*
      * Whether generic functions are specialized per instantiation, or emitted once and shared -
      * Program::Specialization.
@@ -574,4 +595,18 @@ enum class TargetSelector: U8 {
     Excluded, /// A selector naming some other target.
 };
 
-TargetSelector targetSelector(const CompileSettings& settings, StringView name);
+/*
+ * Which side of a package boundary is asking - Design-Test.md §3.1, and ProjectFile::exports.
+ *
+ * `test` is the only selector that differs between the two, and it differs completely: it names what
+ * a *compilation* is rather than what a machine has, so "is this a test build" is the right question
+ * for the tree being compiled and the wrong one for a package it merely depends on. Everything else
+ * here is a fact about the target and is the same answer whoever asks.
+ */
+enum class SelectorScope {
+    Project,    /// A file of the tree this compilation is - `-add`, or a `yana.toml`'s sources.
+    Dependency, /// A file of a package reached by import. Never a test file of one.
+};
+
+TargetSelector targetSelector(const CompileSettings& settings, StringView name,
+                              SelectorScope scope = SelectorScope::Project);

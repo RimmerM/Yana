@@ -24,6 +24,7 @@
 
 import Native
 import File
+import Test
 
 fn scratchRoot() -> String:
     let &name = String.ofCapacity(40)
@@ -58,10 +59,8 @@ fn run() -> Result(FileError, Int):
     tearDown(root)?
     return Ok(seen)
 
-fn main() -> Int:
+@test fn directoryWalkSpeedCases() -> {}:
     match run():
         -- Three, not five: `entries` drops `.` and `..` - see `isSelfOrParent`.
-        Ok(->v) -> assert(v == 3)
-        Err(->e) -> assert(False)
-
-    return 0
+        Ok(->v) -> checkEqual(v, 3)
+        Err(->e) -> check(False)

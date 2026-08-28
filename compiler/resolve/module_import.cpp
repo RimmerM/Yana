@@ -80,6 +80,20 @@ void resolveImports(Module& module) {
                 continue;
             }
 
+            /*
+             * A module of another package that its manifest does not export - ProjectFile::exports.
+             *
+             * Reported here rather than as "cannot find", because the two are different mistakes
+             * with different fixes: a name nothing answers is a typo or a missing dependency, and
+             * this is a name that exists and is not yours. Saying which it is costs one bool.
+             */
+            if(target->packagePrivate && !module.fromLibrary) {
+                module.context.diagnostics.error("%@ is not exported by its package - it exists, but the package's manifest does not list it, so it is that package's own business rather than part of what it offers"_v,
+                                                 imported.source,
+                                                 module.context.findName(imported.from));
+                continue;
+            }
+
             // Per file, because that is the scope an import is in: two files of one module importing
             // the same thing is two files each naming what it uses, which is the point of §2.1.2.
             auto duplicate = false;

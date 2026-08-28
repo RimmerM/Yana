@@ -1,0 +1,92 @@
+{-
+   `Eq` and `Ord` for a payload-free sum, generated - see `enumEqInstance` in resolve/intrinsic.cpp.
+
+   Behaviour rather than shape, so this is a `lib/` fixture: what these change is that a comparison
+   *exists* without anybody writing one, and that it answers what declaration order says. The IR of
+   the comparison itself is one instruction and is nothing new.
+
+   What they replaced was a line per enum, always the same line - `valueOf(lhs) == valueOf(rhs)` -
+   which was both boilerplate and the wrong answer: `valueOf` reports `I64`, so on JS comparing two
+   weekdays converted both to a `bigint`. `EnumValue.yana` beside this is the `Enum` class itself,
+   which is what `valueOf` is still for.
+-}
+
+import Test
+
+data Colour = Red | Green | Blue
+
+-- Values pinned out of declaration order, which is where the two questions come apart: `EnumCompareSecond` is
+-- declared second and is the *largest*, so an order taken from the declaration list rather than from
+-- the values would disagree here and nowhere else.
+data Pinned = @value(1) EnumCompareFirst | @value(9) EnumCompareSecond | @value(4) EnumCompareThird
+
+-- And a negative one, which is the case the unsigned reading would get wrong. A `@value` below zero
+-- is a number borrowed from a foreign ABI; the order is still the numbers' own.
+data Signal = @value(-1) Failed | @value(0) Idle | @value(1) Running
+
+-- Opaque, so that what is asserted is the comparison and not the constant folder. Every case below
+-- would be answered at compile time otherwise, and a generated instance that only ever existed as a
+-- call-site expansion would have nothing to run.
+@noinline fn hide(c: Colour) -> Colour = c
+@noinline fn hidePinned(p: Pinned) -> Pinned = p
+@noinline fn hideSignal(s: Signal) -> Signal = s
+
+@test fn enumCompareEquality() -> {}:
+    checkEqual(hide(Red), hide(Red))
+    checkNotEqual(hide(Red), hide(Green))
+    check(!(hide(Blue) == hide(Green)))
+
+    -- `!=` has a default written over `==` in the class, and the generated instance supplies only
+    -- `==` - so this is that default reaching a generated member.
+    checkNotEqual(hide(Blue), hide(Red))
+
+@test fn enumCompareOrdering() -> {}:
+    checkLess(hide(Red), hide(Green))
+    checkAtMost(hide(Green), hide(Green))
+    checkGreater(hide(Blue), hide(Red))
+    checkAtLeast(hide(Green), hide(Red))
+    check(!(hide(Blue) < hide(Red)))
+
+    -- `compare`, which is the member the class requires and the only one whose answer is not a
+    -- `Bool`. The four above are emitted as their own comparisons rather than through it.
+    checkEqual(compare(hide(Red), hide(Blue)), LT)
+    checkEqual(compare(hide(Green), hide(Green)), EQ)
+    checkEqual(compare(hide(Blue), hide(Red)), GT)
+
+    -- And `min`/`max`, which keep the class defaults and so are one comparison and a select.
+    checkEqual(max(hide(Red), hide(Blue)), Blue)
+    checkEqual(min(hide(Red), hide(Blue)), Red)
+
+@test fn pinnedOrder() -> {}:
+    -- The values decide, not the declaration list.
+    checkLess(hidePinned(EnumCompareFirst), hidePinned(EnumCompareThird))
+    checkLess(hidePinned(EnumCompareThird), hidePinned(EnumCompareSecond))
+    checkEqual(max(hidePinned(EnumCompareFirst), hidePinned(EnumCompareSecond)), EnumCompareSecond)
+    checkEqual(compare(hidePinned(EnumCompareSecond), hidePinned(EnumCompareThird)), GT)
+
+-- `Signal` is the only enum here with a value below zero, and it was the one that found both halves
+-- of findings.md §69: a negative `@value` read unsigned through every widening, so `valueOf(Failed)`
+-- answered 4294967295 and `Failed` printed as `Running`, and it read unsigned again through any
+-- erased boundary, so the same comparison answered differently in a forced-generic build. Both are
+-- fixed; these are the assertions that could not be written until they were.
+@test fn signalOrder() -> {}:
+    checkLess(hideSignal(Failed), hideSignal(Idle))
+    checkLess(hideSignal(Failed), hideSignal(Running))
+    checkEqual(valueOf(hideSignal(Failed)), 0 - 1 :: I64)
+    checkEqual(nameOf(hideSignal(Failed)), "Failed")
+    checkEqual(min(hideSignal(Running), hideSignal(Failed)), Failed)
+    checkNotEqual(hideSignal(Failed), hideSignal(Running))
+
+{-
+   A declared instance still wins, which is what makes an automatic one safe at all - the hook is
+   consulted only where an instance lookup found nothing. `Bool` is the case that proves it in the
+   library (it is a payload-free sum with a `Show` somebody wrote); this is the same statement for
+   `Eq`, with an instance that deliberately answers the opposite of the generated one.
+-}
+data Odd = A | B
+
+instance Eq(Odd):
+    fn ==(lhs: Odd, rhs: Odd) -> Bool = False
+
+@test fn declaredWins() -> {}:
+    check(!(A == A))

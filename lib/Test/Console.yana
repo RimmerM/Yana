@@ -1,0 +1,590 @@
+{-
+   ==========================================================================================
+   What a run looks like to the person who started it - Design-Test.md §5.5.
+   ==========================================================================================
+
+   The report stream is what a *parent* reads and this is what a *human* reads, and the two are
+   deliberately not the same text. §5.2's stream is line-oriented, unbuffered and written as it
+   happens, because its whole property is that a case which takes the process down still names
+   itself; a human wants the opposite of every one of those things - the cases in a table, the
+   failures gathered at the end, and colour to tell them apart at a glance.
+
+   So this module holds the second one, and the first is untouched. Nothing here is on the path of a
+   run whose report has a channel of its own: a driver's fixture builds a `Console` that reports
+   nothing and every function below returns at its first line - see `openConsole`.
+
+   **Three things a terminal buys that a log cannot, and each is one field of `Terminal`:**
+
+    - *while it runs*, one line that rewrites itself - which case is running, how far in, how long.
+      A crash therefore leaves the name of the case that died on the screen, which is the same
+      property §5.2 buys with a `begin` that has no `end`, obtained here for a human with no second
+      process to read anything;
+    - *when it finishes*, the cases as a table. A column of times is a column somebody scans for the
+      outlier, which a run of `pass Show.boolText` lines is not;
+    - *colour*, which is what makes "1 failed" findable in a screen of green.
+
+   **A table stops being a table somewhere above a screenful, and the run rolls up by module.** §5.5's
+   worked example is a suite of five cases and the table is exactly right for it; the standard
+   library's own suite is two hundred and thirty-four, run eight times over by `test/run-base.sh`, and
+   listing every one of them printed two thousand lines of the word *passed* - which is the same
+   mistake the design refuses in the other direction, a report nobody reads. So above `perCaseLimit`
+   the rows are one per *module* with its counts and its time, which is fifteen lines that answer the
+   question the table was for; the failures underneath are unaffected, because they are the part a
+   reader came for and there are never two hundred of them. `-v` asks for every case whatever the
+   count.
+
+   **And on everything that is not a terminal, none of it happens.** Not "a degraded version": the
+   progress line is not written at all, the table is drawn in ASCII with no escape sequences in it,
+   and what a pipe receives is the same text a terminal would show minus the colour. That is one
+   `Terminal` value doing the deciding rather than a flag tested at each of the twenty places that
+   print - Terminal.yana's opening note is the argument for it.
+-}
+
+import Native
+import Terminal
+
+{-
+   The reporter, and the states it can be in.
+
+   `reporting` is the whole switch: a run whose report is being read by something else builds a
+   console with it false, and every function here begins by testing it. `terse` is `-q` - the
+   failures as they happen and nothing else, which is what a shard is run with because its parent is
+   the thing that reports. `progress` is the in-place line, which needs a terminal *and* a run that
+   is not printing a case per line underneath it. `perCase` is which of the two tables the run ends
+   with - see `perCaseLimit`.
+
+   `painted` is when the progress line was last written, and it is here rather than in `Status`
+   because the clock is: Terminal.yana asks the operating system nothing, which is the property that
+   makes every function in it testable, and this module already reads `monotonicNanos` for the run's
+   own duration.
+-}
+pub data Console {
+    terminal: Terminal,
+    status: Status,
+    results: Table,
+    tallies: [ModuleTally],
+    failures: String,
+    reporting: Bool,
+    terse: Bool,
+    progress: Bool,
+    verbose: Bool,
+    perCase: Bool,
+    ran: Size,
+    passed: Size,
+    failed: Size,
+    skipped: Size,
+    total: Size,
+    started: I64,
+    painted: I64
+}
+
+{-
+   One module's cases, added up - the row of the table a run too long to list draws instead.
+
+   The counts and not the cases: what a reader wants from two hundred rows of *passed* is which
+   module they were in and how long it took, and both of those are three numbers rather than a list.
+   A module that lost nothing is one line; a module that lost something is one line and the failures
+   in full underneath, which is where the detail was going to be read anyway.
+
+   The name is set once, at the push, and only the numbers move after that - which is why they are
+   scalars rather than anything that would have to be re-owned in place.
+-}
+pub data ModuleTally {name: String, passed: Size, failed: Size, skipped: Size, nanos: I64}
+
+{-
+   How many cases a run may have before its table becomes one row per module.
+
+   A fixed number rather than the terminal's height, deliberately: the same run in two windows should
+   print the same report, and a threshold that moved with the window would make the two
+   incomparable. Thirty is about a screen and is comfortably above every suite the design's §5.5
+   example is written for.
+-}
+fn perCaseLimit() -> Size = 30
+
+{-
+   How long the progress line is allowed to stand before it is redrawn - one frame, at sixty hertz.
+
+   Without it the line is rewritten once per *case*, and the standard library's suite runs two
+   hundred and thirty-four of them in eighty milliseconds: three writes a millisecond, which no
+   terminal can draw and which reads as a strobe rather than as progress. What the throttle costs is
+   stated rather than hidden - the name on the line may be up to one frame behind the case that is
+   running, so a case that dies within sixteen milliseconds of the last redraw is attributed to a
+   case slightly before it. Every case slower than a frame is named before it runs, which is the half
+   of §5.5's crash guarantee that was ever load-bearing: a case that hangs is a case that is slow.
+-}
+fn frameNanos() -> I64 = 16000000
+
+{-
+   The terminal a run should report to, which is the detected one with the command line applied.
+
+   The detection answers what the *stream* is and the switches answer what the user wants, in that
+   order, and only the switches can turn something on. `--color always` is the pager case and is the
+   reason the field is a choice rather than a `Bool`: a program that must be told twice - once to
+   turn detection off and once to turn colour on - has a switch nobody can remember.
+-}
+pub fn consoleTerminal(options: Options) -> Terminal:
+    let &terminal = detectTerminal()
+
+    if options.color == ColorNever then terminal = terminal.withoutColor()
+    if options.color == ColorAlways && terminal.depth == NoColor then terminal.depth = BrightColor
+    if options.ascii then terminal = terminal.withoutUnicode()
+    if options.noProgress then terminal = terminal.quietly()
+
+    return terminal
+
+{-
+   The console for a run, and the header it prints.
+
+   `reporting` is the runner's `silent` inverted and is handed in rather than worked out here: what
+   makes a process silent is descriptor 3 and `--only`, which are §5.3's business and not this
+   module's.
+
+   The header names the module when every case in the selection shares one, which is the ordinary
+   case - a test binary is usually one suite - and says only the count when they do not. Naming what
+   is about to run is what makes a run that selected nothing obvious *before* it says so.
+-}
+pub fn openConsole(options: Options, ->title: String, total: Size, reporting: Bool) -> Console:
+    let terminal = consoleTerminal(options)
+
+    if reporting && !options.quiet then announce(terminal, title, total)
+
+    {-
+       The stream and the console are two reports of the same events, and the console takes the
+       channel wherever the two would land in the same place.
+
+       Two ways they can. Natively it is a terminal: the stream has no descriptor of its own, so it
+       goes to standard error, which is also where the person watching is looking. On JavaScript
+       there is only `console.log` and it is *every* run - which is what printed a `begin`/`end` pair
+       around every row of the table in the report `test/run-base.sh` ends with, three hundred lines
+       of a stream written for a reader that was not there.
+
+       Refused where anything else is reading it; see `muteReport`.
+    -}
+    let shared = terminal.interactive || reportSharesOutput()
+    if reporting && shared && !options.quiet then muteReport()
+
+    let &console = Console {
+        terminal: terminal,
+        status: statusOn(terminal),
+        results: newTable(terminal, RuleFrame),
+        tallies: [],
+        failures: "",
+        reporting: reporting,
+        terse: options.quiet,
+        progress: terminal.interactive && !options.verbose && !options.quiet,
+        verbose: options.verbose,
+        -- Decided once, from the count the runner already knows, rather than at the end from what
+        -- arrived: a table whose shape is settled before the first case is one the rows can be
+        -- built straight into.
+        perCase: options.verbose || total <= perCaseLimit(),
+        ran: 0, passed: 0, failed: 0, skipped: 0, total: total,
+        started: monotonicNanos(),
+        painted: 0
+    }
+
+    console.results.addColumn("", AlignCenter)
+    console.results.addColumn("test")
+    console.results.addColumn("time", AlignRight)
+    console.results.addColumn("result")
+
+    return console
+
+{-
+   What is about to run, named before it runs.
+
+   Naming it is what makes a run that selected nothing obvious *before* the count says so, and it is
+   the one line a reader has to compare against what they asked for. A title of nothing - a selection
+   crossing several modules - prints the count alone rather than an arbitrary one of them.
+-}
+fn announce(terminal: Terminal, title: String, total: Size) -> {}:
+    let &word = "tests" :: String
+    if total == (1 :: Size) then word = "test"
+
+    let count = terminal.bolded("{total}")
+
+    if length(title) > (0 :: Size):
+        let named = terminal.paint(boldColored(Cyan), title)
+        print("\n{named}  {count} {word}\n\n")
+    else:
+        print("\nrunning {count} {word}\n\n")
+
+{-
+   The case that is about to run, on the line that rewrites itself.
+
+   The wheel turns once per *redraw*, which is once per frame - see `frameNanos`, which is also where
+   the one thing the throttle costs is written down. It is still a progress display rather than an
+   animation: nothing moves it but a case beginning, so a case that hangs leaves the wheel where it
+   stopped with its own name beside it, which is the crash and hang report.
+
+   The line is not built at all for a frame that is not going to be drawn. That is the point of
+   testing the clock here rather than inside `Status.update`: the formatting, the bar and the clip
+   are most of the cost of a progress display, and skipping the write while still doing them would
+   have saved the terminal and not the run.
+
+   The bar is dropped when the line would not fit rather than truncated, because a truncated bar
+   reads as a full one. The name is what matters and is what survives.
+-}
+pub fn Console.caseBegan(&self: Console, name: String) -> {}:
+    if !self.reporting || !self.progress then return
+
+    -- The first case is always drawn, so a run that is over inside one frame still showed something.
+    let now = monotonicNanos()
+    if self.ran > (0 :: Size) && now - self.painted < frameNanos() then return
+    self.painted = now
+
+    let wheel = self.status.spinner()
+    let counted = "{self.ran + (1 :: Size)}/{self.total}"
+
+    -- Half the width for the bar, at most twenty columns, and none at all on a narrow terminal:
+    -- what the line is for is the name, and everything else gives way to it.
+    let &line = "{wheel}  {counted}  " :: String
+    let used = displayWidth(line) + displayWidth(name)
+
+    if self.terminal.columns > used + (24 :: Size):
+        let bar = self.terminal.bar(self.ran, self.total, 20)
+        let shown = self.terminal.dimmed(bar)
+        line = "{wheel}  {counted}  {shown}  "
+
+    line ++= "{name}"
+    self.status.update(line)
+
+{-
+   A case that held.
+
+   `note` is whatever the runner has to add and is empty for almost every case: the one that carries
+   anything is an `@test(aborts)` that stopped in a child, where *"(stopped, as expected)"* is the
+   difference between a pass and the same case having quietly not run.
+
+-}
+pub fn Console.casePassed(&self: Console, name: String, nanos: I64, note: String) -> {}:
+    self.ran = self.ran + 1
+    self.passed = self.passed + 1
+    if !self.reporting || self.terse then return
+
+    self.tally(name, nanos, PassedCase)
+
+    let g = self.terminal.glyphs()
+    if self.perCase then self.addResult(copy(g.pass), name, nanos, "passed{note}", colored(Green))
+
+    if self.verbose:
+        let mark = self.terminal.inColor(Green, g.pass)
+        let took = self.terminal.dimmed(durationText(nanos, self.terminal.unicode))
+        print("  {mark}  {name}  {took}\n")
+
+{-
+   A case that did not hold, which is the one thing this module prints twice.
+
+   Once in the table, so that the run's shape is one glance, and once underneath in full, because a
+   table cell is not where a location and two values go. The detail comes from the recorder rather
+   than from the runner - Report.yana's `currentDetail` - so a failure says the same thing here that
+   it says on the stream, with the ordinal taken off and the colour put on.
+-}
+pub fn Console.caseFailed(&self: Console, name: String, nanos: I64, why: String) -> {}:
+    self.ran = self.ran + 1
+    self.failed = self.failed + 1
+    if !self.reporting then return
+
+    if self.terse:
+        -- What a shard prints: the name, as it happens, and nothing that would have to be gathered.
+        -- Its parent is what reports.
+        print("FAIL {name}: {why}\n")
+        return
+
+    self.tally(name, nanos, FailedCase)
+
+    let g = self.terminal.glyphs()
+    if self.perCase then self.addResult(copy(g.fail), name, nanos, "failed", boldColored(Red))
+
+    let mark = self.terminal.paint(boldColored(Red), g.fail)
+    let named = self.terminal.bolded(name)
+    self.failures ++= "  {mark}  {named}\n"
+
+    let detail = currentDetail()
+    if length(detail) > (0 :: Size):
+        self.failures ++= indented(detail, "      ")
+    else:
+        let quiet = self.terminal.dimmed(why)
+        self.failures ++= "      {quiet}\n"
+
+    self.failures ++= "\n"
+
+{-
+   A case this target could not ask - an `@test(aborts)` where there is no harness to run it in.
+
+   Counted apart from a pass and from a failure, and shown, which is the whole point: a suite that
+   quietly ran fewer cases here than it ran somewhere else is the empty-corpus mistake in miniature.
+-}
+pub fn Console.caseSkipped(&self: Console, name: String, why: String) -> {}:
+    self.ran = self.ran + 1
+    self.skipped = self.skipped + 1
+    if !self.reporting || self.terse then return
+
+    self.tally(name, 0, SkippedCase)
+
+    let g = self.terminal.glyphs()
+    if self.perCase then self.addResult(copy(g.skip), name, 0, "skipped", colored(Yellow))
+
+    if self.verbose:
+        let mark = self.terminal.inColor(Yellow, g.skip)
+        let quiet = self.terminal.dimmed(why)
+        print("  {mark}  {name}  {quiet}\n")
+
+fn Console.addResult(&self: Console, ->mark: String, name: String, nanos: I64, ->verdict: String,
+                     style: Style) -> {}:
+    self.results.addStyled(mark, style)
+    self.results.add(copy(name))
+
+    self.results.addStyled(durationText(nanos, self.terminal.unicode), dimStyle())
+
+    self.results.addStyled(verdict, style)
+
+{-
+   ==========================================================================================
+   The roll-up, for a run too long to list
+   ==========================================================================================
+-}
+
+-- What a case came to, as the three things a tally counts. A choice rather than three functions,
+-- because every one of them adds the same time to the same row and differs in one field.
+pub data Outcome = PassedCase | FailedCase | SkippedCase
+
+{-
+   One case, added to its module's row.
+
+   The row is found by name rather than by an index the runner would have to carry, and the scan is
+   almost never a scan: the cases arrive in corpus order, so the module a case belongs to is the one
+   the last case belonged to for every case but the first of each module. That is what the test of
+   the last row is - a linear walk of fifteen entries per case would also be free, and this says
+   what the shape of the input actually is.
+-}
+fn Console.tally(&self: Console, name: String, nanos: I64, outcome: Outcome) -> {}:
+    -- `owner` rather than `module`, which is a reserved word - the same rename `Case.moduleName`
+    -- carries, and for the same reason.
+    let owner = moduleOf(name)
+    let count = length(self.tallies)
+    let &at = count
+
+    if count > (0 :: Size) && self.tallies[count - 1].name == owner:
+        at = count - 1
+    else:
+        for i in 0 .. count:
+            if self.tallies[i].name == owner then at = i
+
+    if at == count:
+        push(self.tallies, ModuleTally {name: copy(owner), passed: 0, failed: 0, skipped: 0, nanos: 0})
+
+    self.tallies[at].nanos = self.tallies[at].nanos + nanos
+
+    match outcome:
+        PassedCase -> self.tallies[at].passed = self.tallies[at].passed + 1
+        FailedCase -> self.tallies[at].failed = self.tallies[at].failed + 1
+        SkippedCase -> self.tallies[at].skipped = self.tallies[at].skipped + 1
+
+{-
+   The module half of a qualified name, which is everything before the last dot.
+
+   The last one and not the first: a module name may have dots in it - `Native.Thread` - and a case
+   name may not, because it is a declaration name. So the final dot is the join `qualifiedName` made
+   and there is no ambiguity to resolve. A name with no dot at all is its own module, which is what a
+   caller outside the runner would hand over.
+-}
+fn moduleOf(name: String) -> String:
+    match findLastAscii(name, 46):
+        Just(at) -> return String.slice(name, 0, at)
+        Nothing -> return copy(name)
+
+{-
+   The tallies as the table a long run ends with.
+
+   The same four columns as the per-case table and the same frame, so that the two reports read as
+   one report at two scales rather than as two different tools: a mark, what it is about, how long
+   it took, and what happened.
+-}
+fn Console.moduleTable(self: Console) -> String:
+    if length(self.tallies) == (0 :: Size) then return ""
+
+    let g = self.terminal.glyphs()
+    let &table = newTable(self.terminal, RuleFrame)
+    table.indent = 2
+
+    table.addColumn("", AlignCenter)
+    table.addColumn("module")
+    table.addColumn("time", AlignRight)
+    table.addColumn("result")
+
+    for row in items(self.tallies):
+        if row.failed > (0 :: Size):
+            table.addStyled(copy(g.fail), boldColored(Red))
+        else if row.passed == (0 :: Size) && row.skipped > (0 :: Size):
+            table.addStyled(copy(g.skip), colored(Yellow))
+        else:
+            table.addStyled(copy(g.pass), colored(Green))
+
+        table.add(copy(row.name))
+        table.addStyled(durationText(row.nanos, self.terminal.unicode), dimStyle())
+        table.addStyled(tallyText(row), if row.failed > (0 :: Size) then boldColored(Red) else colored(Green))
+
+    return "{table.render()}\n"
+
+-- One row's counts, with the parts that are zero left out - the same rule the summary line below
+-- follows, and for the same reason: "12 passed, 0 failed, 0 skipped" is three facts where one is
+-- being said.
+fn tallyText(row: ModuleTally) -> String:
+    let &text = "" :: String
+
+    if row.failed > (0 :: Size) then text ++= "{row.failed} failed"
+
+    if row.passed > (0 :: Size):
+        if length(text) > (0 :: Size) then text ++= ", "
+        text ++= "{row.passed} passed"
+
+    if row.skipped > (0 :: Size):
+        if length(text) > (0 :: Size) then text ++= ", "
+        text ++= "{row.skipped} skipped"
+
+    return text
+
+{-
+   The end of the run: the table, the failures in full, and one line that says what happened.
+
+   The order is deliberate and is the opposite of the order the events arrived in. A reader looks at
+   the last line first, so the summary is last; a reader who then wants to know *which* looks up, and
+   the failures are directly above it rather than scrolled off the top among the passes. That is why
+   the failures are gathered here instead of printed as they happen - the one thing the stream must
+   not do, and the one thing a screen must.
+-}
+pub fn Console.close(&self: Console, stale: Int, note: String) -> {}:
+    self.status.clear()
+    if !self.reporting || self.terse then return
+
+    let elapsed = monotonicNanos() - self.started
+
+    {-
+       **The whole report is one write.**
+
+       Natively that is one `write` where it used to be one per row, which is worth having and is not
+       the reason. The reason is the other target: `print` there is `console.log`, which supplies a
+       line ending of its own, so a report printed a line at a time arrives double-spaced - two
+       hundred and thirty-four rows became four hundred and sixty-eight lines, and every blank line
+       in the layout became two. One string printed once has one line ending added to the end of it,
+       which is the one this function was going to write anyway.
+    -}
+    let &out = String.ofCapacity(2048)
+
+    if self.perCase:
+        if self.results.rowCount() > (0 :: Size):
+            self.results.indent = 2
+            out.push("{self.results.render()}\n")
+    else:
+        out.push(self.moduleTable())
+
+    -- Moved rather than copied: this is the last read of the field, and `close` ends the console.
+    if length(self.failures) > (0 :: Size) then out.push(exchange(self.failures, ""))
+
+    -- The counts, in the order they matter: what went wrong, then what did not, then what was not
+    -- asked. A part that is zero is left out rather than printed as a zero, so the ordinary line is
+    -- "12 passed" and the width of the line says something on its own.
+    let &parts = "" :: String
+    if self.failed > (0 :: Size) then parts ++= self.terminal.paint(boldColored(Red), "{self.failed} failed")
+
+    if self.passed > (0 :: Size):
+        if length(parts) > (0 :: Size) then parts ++= ", "
+        parts ++= self.terminal.inColor(Green, "{self.passed} passed")
+
+    if self.skipped > (0 :: Size):
+        if length(parts) > (0 :: Size) then parts ++= ", "
+        parts ++= self.terminal.inColor(Yellow, "{self.skipped} skipped")
+
+    if length(parts) == (0 :: Size) then parts ++= self.terminal.dimmed("nothing ran")
+
+    let took = self.terminal.dimmed("in {durationText(elapsed, self.terminal.unicode)}")
+    let g = self.terminal.glyphs()
+    let mark = self.verdictMark(g)
+
+    out.push("  {mark}  {parts} {took}{note}\n")
+
+    if stale > 0:
+        let word = if stale == 1 then "snapshot is" else "snapshots are"
+        let said = self.terminal.inColor(Yellow, "{stale} {word} stale")
+        out.push("  {said} - no test compared against them. `--update --prune` deletes them\n")
+
+    out.push("\n")
+    print("{out}")
+
+fn Console.verdictMark(self: Console, g: Glyphs) -> String:
+    if self.failed > (0 :: Size) then return self.terminal.paint(boldColored(Red), g.fail)
+    if self.passed == (0 :: Size) then return self.terminal.inColor(Yellow, g.skip)
+    return self.terminal.paint(boldColored(Green), g.pass)
+
+{-
+   The module every selected case belongs to, or nothing when they do not agree.
+
+   What the header names. A test binary is usually one suite, so this is usually the suite's name and
+   is worth saying; a binary that holds several, or a `--filter` that crossed them, gets a count and
+   no name rather than an arbitrary one of them.
+-}
+pub fn sharedModule(cases: [Case], selected: [Size]) -> String:
+    if length(selected) == (0 :: Size) then return ""
+
+    let name = cases[selected[0]].moduleName
+    for i in 1 .. length(selected):
+        if cases[selected[i]].moduleName != name then return ""
+
+    return copy(name)
+
+{-
+   ==========================================================================================
+   The two things a report has to format
+   ==========================================================================================
+-}
+
+{-
+   A duration, in the unit that puts two or three significant digits in front of a reader.
+
+   Integer arithmetic rather than a division into a `Double`, and not for speed: `0.1 ms` printed
+   from a float is `0.09999999999999999` on one of the two targets and `0.1` on the other, and a
+   test framework whose *timings* differ between backends is one whose golden files do. Two decimals
+   from a remainder are the same two decimals everywhere.
+
+   The microsecond sign is `us` where the terminal cannot draw a `µ`, which is the same fallback the
+   glyphs are and is here rather than in `Terminal` because it is a unit rather than a mark.
+-}
+pub fn durationText(nanos: I64, unicode: Bool) -> String:
+    let value = bitcast(nanos) :: Long
+    -- Nothing rather than "0 ns" for a case that was never run, which is what a skipped row wants:
+    -- an empty cell reads as "this did not happen" where a zero reads as "this was instant".
+    if value <= 0 then return ""
+    if value < 1000 then return "{value} ns"
+
+    let &micro = "us" :: String
+    if unicode then micro = "µs"
+
+    if value < 1000000 then return "{fraction(value, 1000)} {micro}"
+    if value < 1000000000 then return "{fraction(value, 1000000)} ms"
+    return "{fraction(value, 1000000000)} s"
+
+-- `value / unit` to two decimal places, without ever building a float. The remainder is scaled by a
+-- hundred before it is divided, so the digits are the ones a reader would get by hand.
+fn fraction(value: Long, unit: Long) -> String:
+    let whole = value / unit
+    let hundredths = ((value % unit) * 100) / unit
+
+    if hundredths < 10 then return "{whole}.0{hundredths}"
+    return "{whole}.{hundredths}"
+
+-- Every line of `text` with `margin` in front of it, which is what puts a recorder's failure lines
+-- under the name of the case they belong to. A trailing newline does not produce an indented empty
+-- line, because a block that ends in one is a block rather than a line that is missing.
+pub fn indented(text: String, margin: String) -> String:
+    let &out = String.ofCapacity(length(text) + length(margin))
+
+    -- `margin` is copied and `line` is not: the first is a borrowed parameter written once per line,
+    -- and the second is what `lines` hands over - an `iter fn` whose yield type is `->String` gives
+    -- the part away, so copying it here was one allocation and one block copy per line for nothing.
+    for line in lines(text):
+        if length(line) > (0 :: Size):
+            out.push(copy(margin))
+            out.push(line)
+            out.push("\n")
+
+    return out
