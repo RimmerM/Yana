@@ -860,6 +860,7 @@ static LocationId nextUseAfter(Analysis& analysis, U32 root, Size from) {
         auto reads = false;
         for(auto use: effects.uses) reads = reads || use == root;
         for(auto overwritten: effects.overwrites) reads = reads || overwritten == root;
+        for(auto joined: effects.joins) reads = reads || joined == root;
 
         if(reads) return analysis.local[analysis.order[i]]->source;
     }

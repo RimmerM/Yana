@@ -96,6 +96,29 @@ struct Effects {
      */
     ArrayF<U32, 1> overwrites;
 
+    /*
+     * Slots kept live by a use that is reached *past a merge* - `overwrites`' rule at a different
+     * instruction, and a list of its own for the same reason.
+     *
+     * `extendBorrowUses` follows a reference from the storage it was taken of to everything that
+     * carries it onward, and where that chain runs through a phi it splits in two. The operands are
+     * attributed to the *edges* they arrive on, which is exact and stays in `uses`. What consumes
+     * the merged value is attributed here, because at that point the pass can no longer say which
+     * arm's root the reference actually came from - only that one of them has to still be alive.
+     *
+     * So this is a use for **liveness and nothing else**, and the precision is the whole reason.
+     * A reference built on one arm goes through storage that does not exist on the other -
+     * `addressOf(v[0])` and `values(v)` both go through the `Flat(a)` a container access builds -
+     * and that temporary is `Uninitialized` on the arm that did not take it. Joined with `Owned`
+     * that is `Maybe`, which the loop over `uses` in analyze_borrow cannot tell apart from a value
+     * moved on one path: `if c then values(buf) else stringBytes(s)` reported "this value may have
+     * been moved out of on some paths reaching here" about a `Flat` nobody wrote down.
+     *
+     * Conservative in the one direction that is safe, which is the same bargain the pointer-load arm
+     * in analyze_effects states: it delays a drop and never moves one earlier.
+     */
+    ArrayF<U32, 2> joins;
+
     // Emptied rather than destroyed, because there is one of these per instruction and the list
     // holding them belongs to the program - see PooledList and AnalysisScratch.
     void clear() {
@@ -104,6 +127,7 @@ struct Effects {
         uses.clear();
         moves.clear();
         overwrites.clear();
+        joins.clear();
     }
 };
 

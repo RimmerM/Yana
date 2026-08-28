@@ -18,6 +18,7 @@ void applyBackward(Analysis& analysis, Size first, Size end, LocalSet& live) {
         for(auto def: effects.defs) live.set(def, false);
         for(auto use: effects.uses) live.set(use, true);
         for(auto overwritten: effects.overwrites) live.set(overwritten, true);
+        for(auto joined: effects.joins) live.set(joined, true);
     }
 }
 
@@ -102,6 +103,7 @@ void buildRanges(Analysis& analysis, OwnershipResult& result) {
                 for(auto def: effects.defs) live.set(def, false);
                 for(auto use: effects.uses) live.set(use, true);
                 for(auto overwritten: effects.overwrites) live.set(overwritten, true);
+                for(auto joined: effects.joins) live.set(joined, true);
                 before.set(range.end - i, live[l]);
             }
 

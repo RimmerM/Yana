@@ -733,7 +733,12 @@ static void deriveEffects(Analysis& analysis) {
  * value stored into another environment is a chain, not a loop, but a rewrite could make one.
  */
 static void extendBorrowUses(Analysis& analysis) {
-    SmallArray<ModulePtr<Value>, 16> pending;
+    // Each step carries whether it was reached past a phi - see `Effects::joins`, which is where
+    // such a step's attribution goes instead of `uses`. Sticky, because a merge does not become
+    // exact again further down the chain.
+    struct Carrier { ModulePtr<Value> value; bool merged; };
+
+    SmallArray<Carrier, 16> pending;
     SmallArray<ModulePtr<Value>, 16> seen;
 
     for(Size i = 0; i < analysis.instructionCount; i++) {
@@ -752,11 +757,19 @@ static void extendBorrowUses(Analysis& analysis) {
 
         pending.clear();
         seen.clear();
-        pending.push((ModulePtr<Value>)pointer);
+        pending.push(Carrier { (ModulePtr<Value>)pointer, false });
         seen.push((ModulePtr<Value>)pointer);
 
+        auto follow = [&](ModulePtr<Value> next, bool merged) {
+            for(auto value: seen) { if(value == next) return; }
+
+            seen.push(next);
+            pending.push(Carrier { next, merged });
+        };
+
         while(pending.size()) {
-            auto carrier = pending[pending.size() - 1];
+            auto carrier = pending[pending.size() - 1].value;
+            auto merged = pending[pending.size() - 1].merged;
             pending.pop();
 
             for(auto user: analysis.local[carrier]->uses(analysis.local)) {
@@ -781,8 +794,82 @@ static void extendBorrowUses(Analysis& analysis) {
                         auto edge = analysis.indexOf.get(U32(from->terminator()));
                         if(edge) analysis.effects[edge.unwrap()].uses.push(root);
                     }
+
+                    /*
+                     * And on past the merge - but only where the phi *carries* a reference rather
+                     * than *moving* an owned value, which is the whole of the difference between
+                     * the two things a phi can do with what this walk is following.
+                     *
+                     * A phi of owned values takes ownership: `let f = if p then one else two` over
+                     * two closures leaves each environment's slot dead on the edge it arrived by,
+                     * and the merged value is what owns one of them afterwards. The edges above are
+                     * the exact statement of that and there is nothing past them to say - which is
+                     * why `ClosurePhiDrop`'s two environments are live for one arm each. Continuing
+                     * would make both live from entry to exit, since a slot live at a merge is live
+                     * back through *every* predecessor, including the one that never built it.
+                     *
+                     * A phi of references owns nothing, and there the edges are not enough: the
+                     * value is read *after* the merge, so the edge attribution alone puts the drop
+                     * at the predecessor's `jmp`, one instruction before the block that reads
+                     * through the reference. `yield if fits then values(buffer) else
+                     * stringBytes(spilled)` in `Native/CString.native.yana` is that case - the root
+                     * has to reach the continuation, and every later user of the merged value is
+                     * attributed at itself by the arm below.
+                     *
+                     * Still not a use *at* the phi either way, which is the distinction this whole
+                     * arm exists for - the merge attributes to its edges and to its consumers, and
+                     * to nothing in between. That is what keeps a temporary built on one arm out of
+                     * the move check: `if c then addressOf(buf[0]) else stringBytes(s)` goes through
+                     * the `Flat(a)` a container access builds, which is `Uninitialized` on the other
+                     * arm, and a use recorded at the merge reported it as "may have been moved out
+                     * of on some paths reaching here" about a value nobody wrote down.
+                     */
+                    if(!transfersOwnership(analysis, use.type)) follow((ModulePtr<Value>)user, true);
                 } else if(auto index = analysis.indexOf.get(U32(user))) {
-                    analysis.effects[index.unwrap()].uses.push(root);
+                    auto& effects = analysis.effects[index.unwrap()];
+                    if(merged) effects.joins.push(root); else effects.uses.push(root);
+                }
+
+                /*
+                 * A call that *declares* it hands the root on, which is the `return` marker read
+                 * from this side - Analysis-Language.md §1, and the same `declaredRoots` bit
+                 * `useValue`'s `Call` arm reads one position at a time.
+                 *
+                 * The walk continues at the call's **result**, because that is what carries the root
+                 * onward: `stringBytes(s)` answers an address into `s`, and every later use of that
+                 * address is a use of `s`. Without this the walk stopped at the call - a call is
+                 * neither an `Init` nor a `Borrow`, so neither arm below took it - and the root got
+                 * no further. Where the next use is an ordinary instruction that cost nothing,
+                 * since `useValue` reaches the same root through the same summary at that
+                 * instruction; where the next use is a **phi** it was the whole difference, because
+                 * `deriveEffects` gives a phi an empty arm on purpose and this walk is the only
+                 * thing that attributes a phi's operands at all.
+                 *
+                 * What it cost: `yield if fits then values(buffer) else stringBytes(spilled)` in
+                 * `Native/CString.native.yana` released `spilled` on the way into the merge, so the
+                 * kernel was handed a free-list header and a path that existed reported `NotFound`.
+                 * Silently, and only for a path long enough to spill.
+                 *
+                 * The position test is against the argument this walk is standing on rather than
+                 * against every rooted position: a call with two rooted arguments carries each of
+                 * them, and each is reached by the pass' own iteration over the one it starts from.
+                 */
+                if(use.kind == Value::Call) {
+                    auto& call = (InstCall&)use;
+                    auto summary = summaryOf(analysis, call.callee);
+
+                    if(summary && summary->declaredRoots) {
+                        U16 position = 0;
+
+                        for(auto arg: call.args.contents(analysis.local)) {
+                            if(arg == carrier && (summary->declaredRoots & rootBit(position))) {
+                                follow((ModulePtr<Value>)user, merged);
+                                break;
+                            }
+
+                            position++;
+                        }
+                    }
                 }
 
                 /*
@@ -798,6 +885,32 @@ static void extendBorrowUses(Analysis& analysis) {
 
                 if(!storedInto && !derivedFrom) continue;
 
+                /*
+                 * A **reborrow** - a borrow taken of the carrier rather than of a slot - refers into
+                 * exactly the storage the carrier does, so the walk continues at it.
+                 *
+                 * It has no root local of its own, which is why this is tested before the lookup
+                 * below rather than as a third arm after it: the place is `Borrow`-rooted, and
+                 * `rootLocal` answers "not a local" for one, so the chain used to end here. That is
+                 * how a *lens* lost a root that the same code in a plain function kept - the
+                 * specialized body reads its parameter back and reborrows it,
+                 *
+                 *     %v17 = borrow %local4 : 'String
+                 *     %v18 = load [%v17] : String
+                 *     %v19 = borrow [%v17] : 'String
+                 *     %v20 = call stringBytes, %v19 : %U8
+                 *
+                 * so the one extra step between the slot and the call was the whole difference.
+                 *
+                 * Exact rather than merged: a reborrow is the same storage in the same block, so it
+                 * carries whatever the step it came from carried and adds no imprecision of its own.
+                 */
+                if(derivedFrom && carried.pointer == carrier &&
+                   (carried.root == PlaceRoot::Borrow || carried.root == PlaceRoot::Pointer)) {
+                    follow((ModulePtr<Value>)user, merged);
+                    continue;
+                }
+
                 auto carrierRoot = rootLocal(analysis, carried);
                 if(carrierRoot == maxLimit<U32>) continue;
 
@@ -810,14 +923,7 @@ static void extendBorrowUses(Analysis& analysis) {
                     next = (ModulePtr<Value>)user;
                 }
 
-                if(!next) continue;
-
-                auto known = false;
-                for(auto s: seen) if(s == next) { known = true; break; }
-                if(known) continue;
-
-                seen.push(next);
-                pending.push(next);
+                if(next) follow(next, merged);
             }
         }
     }

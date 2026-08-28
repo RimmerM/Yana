@@ -1,0 +1,332 @@
+fn checkFailed {
+}
+
+fn checkCondition {
+  arg failed readonly
+}
+
+fn teardown$none {
+  arg value readonly
+}
+
+fn newArray(Int) {
+  arg count readonly
+  arg item readonly
+  result escapes
+  %item: (i: Size) -> Int borrowed droppable readonly live [0, 16) [19, 28)
+  %out: Array(Int) droppable writable resizable live [0, 18) [19, 28)
+  %local2: Int writable addressed escapes heap live [1, 18) [19, 28)
+  %i: Size writable live [10, 16) [19, 28)
+  %local4: Int readonly live [21, 24)
+  %local5: Int readonly live never
+}
+
+fn reserve(Int) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Array(Int) borrowed droppable writable resizable live [0, 6) [7, 11)
+}
+
+fn growArray(Int) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Array(Int) borrowed droppable writable resizable live [0, 24)
+  %wide: Size writable live [5, 22)
+}
+
+fn push(Int) {
+  arg self writable resizable
+  arg item readonly
+  %self: Array(Int) borrowed droppable writable resizable live [0, 25)
+  %item: Int readonly live [0, 20)
+}
+
+fn Contiguous(Array(a), a).elements(Int) {
+  arg self readonly return
+  result arguments
+  %self: Array(Int) borrowed droppable readonly live [0, 11)
+  %self: Flat(Int) readonly live [3, 12)
+  %local2: Flat(Int) readonly live [10, 12)
+  %local3: Flat(Int) readonly live never
+}
+
+fn unclampedSlice(Int) {
+  arg self readonly return
+  arg from readonly
+  arg count readonly
+  result arguments
+  %self: Flat(Int) borrowed readonly live [0, 5)
+  %local1: Flat(Int) readonly live [0, 7)
+}
+
+fn sumVectors(Flat(Int), Int) {
+  arg xs readonly
+  %xs: Flat(Int) borrowed readonly live [0, 12)
+  %acc: Vec(Int) writable live [1, 13)
+  %local2: {acc: &Vec(Int)} closure writable addressed live [3, 12)
+  %local3: (value$: Vec(Int)) -> Outcome((), ()) droppable readonly live [7, 12)
+  %local4: Outcome((), ()) readonly live [11, 12)
+  %local5: Int readonly live [13, 15)
+  %local6: Outcome((), ()) readonly live never
+}
+
+fn Core.continuation$6(Flat(Int), Int) {
+  arg env readonly
+  arg value$ readonly
+  %local0: Outcome((), ()) readonly live [5, 8)
+}
+
+fn vectors(Flat(Int), Int, ()) {
+  arg self readonly
+  arg body readonly
+  %self: Flat(Int) borrowed readonly live [0, 13)
+  %body: (value$: Vec(Int)) -> Outcome((), ()) borrowed droppable readonly live [0, 13)
+  %local2: {width: Size, body: '(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)} closure writable addressed live [2, 13)
+  %local3: (value$: Flat(Int)) -> Outcome((), Outcome((), ())) droppable readonly live [8, 13)
+  %local4: Outcome((), Outcome((), ())) readonly live [12, 17)
+  %local5: Outcome((), ()) readonly live [18, 21)
+  %local6: Outcome((), Outcome((), ())) readonly live never
+}
+
+fn Core.continuation$7(Flat(Int), Int, ()) {
+  arg env readonly
+  arg value$ readonly
+  %value$: Flat(Int) borrowed readonly live [0, 20) [23, 42)
+  %i: Size writable live [3, 20) [23, 41)
+  %local2: Outcome((), ()) readonly live [16, 22)
+  %local3: Outcome((), ()) readonly live [44, 48) [49, 51)
+  %local4: Outcome((), Outcome((), ())) readonly live [53, 56)
+  %local5: Outcome((), Outcome((), ())) readonly live [20, 23)
+  %local6: Outcome((), Outcome((), ())) readonly live [49, 52)
+  %local7: Outcome((), ()) readonly live never
+  %local8: Outcome((), ()) readonly live never
+}
+
+fn loadVector(Int) {
+  arg from readonly
+  arg at readonly
+  %from: Flat(Int) borrowed readonly live [0, 6)
+}
+
+fn loadVectorTail(Int) {
+  arg from readonly
+  arg at readonly
+  %from: Flat(Int) borrowed readonly live [0, 6)
+}
+
+fn Chunked(Flat(a), a).chunks(Int, Outcome((), ())) {
+  arg self readonly
+  arg body readonly
+  %self: Flat(Int) borrowed readonly live [0, 3)
+  %body: (value$: Flat(Int)) -> Outcome((), Outcome((), ())) borrowed droppable readonly live [0, 3)
+  %local2: Flat(Int) unknown live [1, 3)
+  %local3: Outcome((), Outcome((), ())) readonly live [2, 7)
+  %local4: Outcome((), Outcome((), ())) readonly live [7, 10)
+  %local5: Flat(Int) readonly live never
+  %local6: Outcome((), Outcome((), ())) readonly live never
+}
+
+fn Contiguous(Flat(a), a).elements(Int) {
+  arg self readonly return
+  result arguments
+  %self: Flat(Int) borrowed readonly live [0, 1)
+}
+
+fn Reclaim(Array(a)).reclaim(Int) {
+  arg value readonly
+  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: Int writable live [2, 8) [11, 25)
+  %local2: Int readonly live [18, 21)
+  %local3: Int readonly live [19, 21)
+}
+
+fn numberOf {
+  arg call readonly
+}
+
+fn mapMemory {
+  arg size readonly
+}
+
+fn exitProcess {
+  arg status readonly
+}
+
+fn initHeap {
+}
+
+fn growHeap {
+  arg needed readonly
+  %size: Size writable live [1, 27) [28, 38) [39, 51)
+  %region: %U8 writable live [12, 27) [28, 38) [39, 48)
+}
+
+fn heapClassOf {
+  arg total readonly
+  %size: Size writable live [0, 8) [10, 18)
+  %sizeClass: Size writable live [2, 9) [10, 18)
+}
+
+fn heapBlockSize {
+  arg sizeClass readonly
+}
+
+fn freeListHead {
+  arg sizeClass readonly
+  result escapes
+}
+
+fn setFreeListHead {
+  arg sizeClass readonly
+  arg block readonly
+}
+
+fn allocateHeap {
+  arg size readonly
+  result escapes
+}
+
+fn freeHeap {
+  arg allocation readonly
+}
+
+fn blockShort {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockPair {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn blockAscending {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+  %at: Size writable live [7, 107) [114, 130)
+}
+
+fn copyMemory {
+  arg to readonly
+  arg from readonly
+  arg count readonly
+}
+
+fn abortProcess {
+}
+
+fn resize(Int) {
+  arg self writable resizable
+  arg wanted readonly
+  %self: Run(Int) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+}
+
+fn byteSpan(Int) {
+  arg from readonly
+  arg count readonly
+}
+
+fn releaseRun(Int) {
+  arg self readonly
+  %self: Run(Int) borrowed droppable readonly live [0, 8)
+}
+
+fn owned {
+  %local0: (i: Size) -> Int droppable readonly live [0, 6)
+  %local1: Array(Int) droppable readonly live [5, 7)
+}
+
+fn chosen {
+  arg fromFrame readonly
+  %frame: @inline(4) @capacity(4) Array(Int) droppable writable addressed live [0, 16)
+  %local1: Array(Int) droppable readonly live [4, 22)
+  %local2: Array(Int) borrowed droppable readonly live [0, 6) [7, 22)
+  %local3: Flat(Int) readonly live [15, 17)
+  %local4: Flat(Int) readonly live [18, 20)
+  %local5: Flat(Int) readonly live [20, 22)
+}
+
+fn throughALens {
+  arg fromFrame readonly
+  %local0: (value$: Flat(Int)) -> Int droppable readonly live [0, 6)
+}
+
+fn ownedStaysAtItsEdges {
+  arg pick readonly
+  %local0: Guard droppable readonly live [0, 6) [13, 15)
+  %local1: {g: Guard} closure droppable writable addressed live [4, 13)
+  %local2: (x: Int) -> Int droppable readonly live [8, 13)
+  %local3: {g: Guard} closure droppable writable addressed live [13, 22)
+  %local4: (x: Int) -> Int droppable readonly live [17, 22)
+  %local5: (x: Int) -> Int droppable readonly live [22, 24)
+}
+
+fn main {
+}
+
+fn Drop(Guard).drop {
+  arg self readonly
+  %self: Guard borrowed droppable readonly live never
+}
+
+fn ResolveTest.lambda$22 {
+  arg env readonly
+  arg i readonly
+}
+
+fn ResolveTest.continuation$23 {
+  arg env readonly
+  arg value$ readonly
+  %value$: Flat(Int) borrowed readonly live [0, 1)
+}
+
+fn borrowed(Int) {
+  arg fromFrame readonly
+  arg body readonly
+  %body: (value$: Flat(Int)) -> Int borrowed droppable readonly live [0, 26)
+  %frame: @inline(4) @capacity(4) Array(Int) droppable writable addressed live [0, 18)
+  %local2: Array(Int) droppable readonly live [4, 26)
+  %local3: Array(Int) borrowed droppable readonly live [0, 6) [7, 26)
+  %local4: Flat(Int) readonly live [17, 19)
+  %local5: Flat(Int) readonly live [22, 24)
+  %local6: Flat(Int) unknown live [24, 26)
+  %local7: Int readonly live [25, 27)
+  %xs: Array(Int) droppable readonly live never
+  %local9: Flat(Int) readonly live never
+  %local10: Flat(Int) readonly live never
+  %local11: Int readonly live never
+}
+
+fn ResolveTest.lambda$24 {
+  arg env readonly
+  arg x readonly
+}
+
+fn drop${g: Guard} {
+  arg value readonly
+  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+}
+
+fn ResolveTest.lambda$25 {
+  arg env readonly
+  arg x readonly
+}
+
+fn drop${g: Guard} {
+  arg value readonly
+  %value: {g: Guard} borrowed droppable readonly live [0, 1)
+}
+
+fn teardown$@inline(4) @capacity(4) Array(Int) {
+  arg value writable addressed
+  %value: @inline(4) @capacity(4) Array(Int) borrowed droppable writable addressed live [0, 8)
+  %local1: Array(Int) borrowed droppable readonly live [0, 8)
+}
+
+fn teardown$(x: Int) -> Int {
+  arg value unknown retained
+  %value: (x: Int) -> Int borrowed droppable unknown escapes live [0, 11)
+}

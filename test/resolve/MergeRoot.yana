@@ -1,0 +1,92 @@
+{-
+   A reference chosen by a branch, and the drop that has to wait for the merge.
+
+   `if c then p else q` over two references produces a phi, and where either arm is rooted in owned
+   storage that root has to survive past the join - the value is *read* after the merge, so a release
+   on the way into it is a use-after-free. `extendBorrowUses` in analyze_effects.cpp is the pass that
+   says so, and it lost the chain twice over: a `return`-marked call's result was not followed at
+   all, and a phi ended the walk rather than continuing at what consumes the merged value.
+
+   Three shapes, and none of them is redundant.
+
+   - **`chosen`** is the case itself: one arm's window is rooted in a heap array, the other's in a
+     buffer in the frame, and the sum is taken after the merge. `freeHeap` writes its free-list link
+     into the first bytes of the block, so an early release reads back as a pointer where the first
+     elements were - which is why the answer here is a *number* and not only a golden. The release
+     moving is invisible in anything but what the window then reads.
+   - **`throughALens`** is the same chain with one more step in it. A lens's continuation is the rest
+     of the caller's block, and the specialized body reads its parameter back and borrows *that* -
+     `borrow [%v]` rather than `borrow %local` - so the chain runs through a reborrow, which has no
+     root local of its own. That one step is what made a lens fail where the identical code in a
+     plain function was correct.
+   - **`ownedStaysAtItsEdges`** is the case the fix must *not* change. A phi of two owned values
+     moves rather than carries: each closure's environment dies on the edge it arrived by, and
+     following past the merge would make both live from entry to exit instead. It is
+     `ClosurePhiDrop`'s claim restated beside the one that needs the opposite answer, because telling
+     the two apart is the whole of what the fix has to get right.
+-}
+
+-- `Flat(a)` is `Native`'s, and naming it is the only reason this import is here: the lens has to
+-- write its own result type, where every other reference in this fixture is inferred.
+import Native
+
+-- Four elements on the heap, so the run is a block the allocator can hand back and write into.
+fn owned() -> [Int] = newArray(4, (i: Size) -> truncate(i + 1) :: Int)
+
+-- One arm rooted in the frame and one in a heap array nothing else mentions. A refined array holds
+-- its elements in this function's own storage, so the two arms differ in exactly the thing the walk
+-- has to keep straight: which of them has a release to place.
+fn chosen(fromFrame: Bool) -> Int:
+    let &frame = [10, 20, 30, 40] :: @inline(4) @capacity(4) [Int]
+    let xs = owned()
+
+    let window = if fromFrame then elements(frame) else elements(xs)
+    return sum(window)
+
+{-
+   The same merge across a lens boundary, which is the shape the library's `withPathCString` is.
+
+   Two things change and both matter. The continuation is the rest of the *caller's* block, so the
+   array has to outlive a call this body cannot see; and the specialized body reads its parameter
+   back and borrows *that* - `borrow [%v]` rather than `borrow %local` - so the chain from the slot
+   to the merge runs through a reborrow, which has no root local of its own and used to end the walk.
+-}
+lens fn borrowed(fromFrame: Bool) -> Flat(Int):
+    let &frame = [10, 20, 30, 40] :: @inline(4) @capacity(4) [Int]
+    let xs = owned()
+
+    yield if fromFrame then elements(frame) else elements(xs)
+
+fn throughALens(fromFrame: Bool) -> Int:
+    let window = borrowed(fromFrame)
+    return sum(window)
+
+-- Two closures over one droppable capture, merged. Each environment is owned by the arm that built
+-- it and dies on that edge; nothing here may extend either past the join.
+let &dropCalls = 0 :: Int
+
+data Guard {id: Int}
+
+instance Drop(Guard):
+    fn drop(->self: Guard) -> {}:
+        dropCalls = dropCalls + 1
+
+fn ownedStaysAtItsEdges(pick: Int) -> Int:
+    let g = Guard {id: 7}
+    let f = if pick < 1 then (x: Int) -> x + g.id else (x: Int) -> x * g.id
+
+    return f(10)
+
+fn main() -> Int:
+    -- 100 from the frame, 10 from the heap array, and 10 again through the lens. The middle one is
+    -- what answered a free-list link before the merge was followed.
+    let a = chosen(True)
+    let b = chosen(False)
+    let c = throughALens(False)
+
+    -- 17 and 70, and one drop apiece.
+    let d = ownedStaysAtItsEdges(0)
+    let e = ownedStaysAtItsEdges(2)
+
+    -- 100 + 10 + 10 + 17 + 70 + 2 = 209
+    return a + b + c + d + e + dropCalls
