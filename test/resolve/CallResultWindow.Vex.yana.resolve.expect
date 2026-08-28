@@ -27,30 +27,29 @@ fn check(%condition: Bool, %weight: Int) -> Int {
 
 fn main() -> Int {
   b0:
-    %v2 = neg 0.5 : Double
-    %first = call opaque, %v2 : Double
+    %first = call opaque, -0.5 : Double
     %opened = call barrier, 0 : Int
-    %v8 = neg 0.5 : Float
-    %v9 = cast %v8 : Double
-    %v10 = cmp_eq %first, %v9 : Bool
-    %firstOk = call check, %v10, 1 : Int
+    %v6 = neg 0.5 : Float
+    %v7 = cast %v6 : Double
+    %v8 = cmp_eq %first, %v7 : Bool
+    %firstOk = call check, %v8, 1 : Int
     %a = call opaque, 7.25 : Double
     %doubled = mul %a, 2 : Double
     %raised = add %a, 1 : Double
-    %v21 = call barrier, %opened : Int
-    %v22 = call barrier, %v21 : Int
-    %held = call barrier, %v22 : Int
-    %v26 = cmp_eq %doubled, 14.5 : Bool
-    %v28 = call check, %v26, 2 : Int
-    %v29 = add %firstOk, %v28 : Int
-    %v32 = cmp_eq %raised, 8.25 : Bool
-    %v34 = call check, %v32, 4 : Int
-    %v35 = add %v29, %v34 : Int
-    %v38 = cmp_eq %a, 7.25 : Bool
-    %v40 = call check, %v38, 8 : Int
-    %v41 = add %v35, %v40 : Int
-    %v44 = cmp_eq %held, 0 : Bool
-    %v46 = call check, %v44, 16 : Int
-    %v47 = add %v41, %v46 : Int
-    ret %v47
+    %v19 = call barrier, %opened : Int
+    %v20 = call barrier, %v19 : Int
+    %held = call barrier, %v20 : Int
+    %v24 = cmp_eq %doubled, 14.5 : Bool
+    %v26 = call check, %v24, 2 : Int
+    %v27 = add %firstOk, %v26 : Int
+    %v30 = cmp_eq %raised, 8.25 : Bool
+    %v32 = call check, %v30, 4 : Int
+    %v33 = add %v27, %v32 : Int
+    %v36 = cmp_eq %a, 7.25 : Bool
+    %v38 = call check, %v36, 8 : Int
+    %v39 = add %v33, %v38 : Int
+    %v42 = cmp_eq %held, 0 : Bool
+    %v44 = call check, %v42, 16 : Int
+    %v45 = add %v39, %v44 : Int
+    ret %v45
 }

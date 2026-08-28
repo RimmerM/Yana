@@ -16,95 +16,87 @@ fn oneSource() -> Int {
     je %v26, b1, b2
 
   b1:
-    %v30 = neg 1 : Int
-    ret %v30
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v35 = vlane %backwards, 3 : U32
-    %v38 = vlane %derived, 3 : U32
-    %v39 = cmp_ne %v35, %v38 : Bool
-    je %v39, b4, b5
+    %v33 = vlane %backwards, 3 : U32
+    %v36 = vlane %derived, 3 : U32
+    %v37 = cmp_ne %v33, %v36 : Bool
+    je %v37, b4, b5
 
   b4:
-    %v43 = neg 2 : Int
-    ret %v43
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v48 = vlane %backwards, 0 : U32
-    %v51 = cmp_ne %v48, 3 : Bool
-    je %v51, b7, b8
+    %v44 = vlane %backwards, 0 : U32
+    %v47 = cmp_ne %v44, 3 : Bool
+    je %v47, b7, b8
 
   b7:
-    %v55 = neg 3 : Int
-    ret %v55
+    ret -3
 
   b8:
     jmp b9
 
   b9:
     %broadcast = vshuffle %v, %v, 2, 2, 2, 2 : Vec(U32)
-    %v71 = vlane %broadcast, 0 : U32
-    %v74 = cmp_ne %v71, 2 : Bool
-    je %v74, b10, b11
+    %v65 = vlane %broadcast, 0 : U32
+    %v68 = cmp_ne %v65, 2 : Bool
+    je %v68, b10, b11
 
   b10:
-    %v78 = neg 4 : Int
-    ret %v78
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v83 = vlane %broadcast, 3 : U32
-    %v86 = cmp_ne %v83, 2 : Bool
-    je %v86, b13, b14
+    %v75 = vlane %broadcast, 3 : U32
+    %v78 = cmp_ne %v75, 2 : Bool
+    je %v78, b13, b14
 
   b13:
-    %v90 = neg 5 : Int
-    ret %v90
+    ret -5
 
   b14:
     jmp b15
 
   b15:
     %doubled = vshuffle %v, %v, 2, 3, 2, 3 : Vec(U32)
-    %v106 = vlane %doubled, 0 : U32
-    %v109 = cmp_ne %v106, 2 : Bool
-    je %v109, b16, b17
+    %v96 = vlane %doubled, 0 : U32
+    %v99 = cmp_ne %v96, 2 : Bool
+    je %v99, b16, b17
 
   b16:
-    %v113 = neg 6 : Int
-    ret %v113
+    ret -6
 
   b17:
     jmp b18
 
   b18:
-    %v118 = vlane %doubled, 2 : U32
-    %v121 = cmp_ne %v118, 2 : Bool
-    je %v121, b19, b20
+    %v106 = vlane %doubled, 2 : U32
+    %v109 = cmp_ne %v106, 2 : Bool
+    je %v109, b19, b20
 
   b19:
-    %v125 = neg 7 : Int
-    ret %v125
+    ret -7
 
   b20:
     jmp b21
 
   b21:
-    %v130 = vlane %doubled, 3 : U32
-    %v133 = cmp_ne %v130, 3 : Bool
-    je %v133, b22, b23
+    %v116 = vlane %doubled, 3 : U32
+    %v119 = cmp_ne %v116, 3 : Bool
+    je %v119, b22, b23
 
   b22:
-    %v137 = neg 8 : Int
-    ret %v137
+    ret -8
 
   b23:
     jmp b24
@@ -127,44 +119,40 @@ fn twoSources() -> Int {
     je %v27, b1, b2
 
   b1:
-    %v31 = neg 1 : Int
-    ret %v31
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v36 = vlane %mixed, 1 : U32
-    %v39 = cmp_ne %v36, 0 : Bool
-    je %v39, b4, b5
+    %v34 = vlane %mixed, 1 : U32
+    %v37 = cmp_ne %v34, 0 : Bool
+    je %v37, b4, b5
 
   b4:
-    %v43 = neg 2 : Int
-    ret %v43
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v48 = vlane %mixed, 2 : U32
-    %v51 = cmp_ne %v48, 13 : Bool
-    je %v51, b7, b8
+    %v44 = vlane %mixed, 2 : U32
+    %v47 = cmp_ne %v44, 13 : Bool
+    je %v47, b7, b8
 
   b7:
-    %v55 = neg 3 : Int
-    ret %v55
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v60 = vlane %mixed, 3 : U32
-    %v63 = cmp_ne %v60, 12 : Bool
-    je %v63, b10, b11
+    %v54 = vlane %mixed, 3 : U32
+    %v57 = cmp_ne %v54, 12 : Bool
+    je %v57, b10, b11
 
   b10:
-    %v67 = neg 4 : Int
-    ret %v67
+    ret -4
 
   b11:
     jmp b12
@@ -172,39 +160,36 @@ fn twoSources() -> Int {
   b12:
     %window = vshuffle %high, %low, 5, 6, 7, 0 : Vec(U32)
     %derived = vshuffle %high, %low, 5, 6, 7, 0 : Vec(U32)
-    %v86 = vlane %window, 0 : U32
-    %v89 = vlane %derived, 0 : U32
-    %v90 = cmp_ne %v86, %v89 : Bool
-    je %v90, b13, b14
+    %v78 = vlane %window, 0 : U32
+    %v81 = vlane %derived, 0 : U32
+    %v82 = cmp_ne %v78, %v81 : Bool
+    je %v82, b13, b14
 
   b13:
-    %v94 = neg 5 : Int
-    ret %v94
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v99 = vlane %window, 3 : U32
-    %v102 = vlane %derived, 3 : U32
-    %v103 = cmp_ne %v99, %v102 : Bool
-    je %v103, b16, b17
+    %v89 = vlane %window, 3 : U32
+    %v92 = vlane %derived, 3 : U32
+    %v93 = cmp_ne %v89, %v92 : Bool
+    je %v93, b16, b17
 
   b16:
-    %v107 = neg 6 : Int
-    ret %v107
+    ret -6
 
   b17:
     jmp b18
 
   b18:
-    %v112 = vlane %window, 3 : U32
-    %v115 = cmp_ne %v112, 10 : Bool
-    je %v115, b19, b20
+    %v100 = vlane %window, 3 : U32
+    %v103 = cmp_ne %v100, 10 : Bool
+    je %v103, b19, b20
 
   b19:
-    %v119 = neg 7 : Int
-    ret %v119
+    ret -7
 
   b20:
     jmp b21
@@ -237,69 +222,63 @@ fn byteLane() -> Int {
     je %v72, b1, b2
 
   b1:
-    %v76 = neg 1 : Int
-    ret %v76
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v81 = vlane %swapped, 3 : U8
-    %v84 = cmp_ne %v81, 0 : Bool
-    je %v84, b4, b5
+    %v79 = vlane %swapped, 3 : U8
+    %v82 = cmp_ne %v79, 0 : Bool
+    je %v82, b4, b5
 
   b4:
-    %v88 = neg 2 : Int
-    ret %v88
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v93 = vlane %swapped, 4 : U8
-    %v96 = cmp_ne %v93, 7 : Bool
-    je %v96, b7, b8
+    %v89 = vlane %swapped, 4 : U8
+    %v92 = cmp_ne %v89, 7 : Bool
+    je %v92, b7, b8
 
   b7:
-    %v100 = neg 3 : Int
-    ret %v100
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v105 = vlane %swapped, 15 : U8
-    %v108 = cmp_ne %v105, 12 : Bool
-    je %v108, b10, b11
+    %v99 = vlane %swapped, 15 : U8
+    %v102 = cmp_ne %v99, 12 : Bool
+    je %v102, b10, b11
 
   b10:
-    %v112 = neg 4 : Int
-    ret %v112
+    ret -4
 
   b11:
     jmp b12
 
   b12:
     %backwards = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 : Vec(U8)
-    %v118 = vlane %backwards, 0 : U8
-    %v121 = cmp_ne %v118, 15 : Bool
-    je %v121, b13, b14
+    %v110 = vlane %backwards, 0 : U8
+    %v113 = cmp_ne %v110, 15 : Bool
+    je %v113, b13, b14
 
   b13:
-    %v125 = neg 5 : Int
-    ret %v125
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v130 = vlane %backwards, 15 : U8
-    %v133 = cmp_ne %v130, 0 : Bool
-    je %v133, b16, b17
+    %v120 = vlane %backwards, 15 : U8
+    %v123 = cmp_ne %v120, 0 : Bool
+    je %v123, b16, b17
 
   b16:
-    %v137 = neg 6 : Int
-    ret %v137
+    ret -6
 
   b17:
     jmp b18
@@ -320,20 +299,18 @@ fn floatLane() -> Int {
     je %v24, b1, b2
 
   b1:
-    %v28 = neg 1 : Int
-    ret %v28
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v33 = vlane %v, 3 : Float
-    %v36 = cmp_ne %v33, 0 : Bool
-    je %v36, b4, b5
+    %v31 = vlane %v, 3 : Float
+    %v34 = cmp_ne %v31, 0 : Bool
+    je %v34, b4, b5
 
   b4:
-    %v40 = neg 2 : Int
-    ret %v40
+    ret -2
 
   b5:
     jmp b6
@@ -352,47 +329,43 @@ fn runtime(%v: Vec(U32)) -> Int {
     je %v29, b1, b2
 
   b1:
-    %v33 = neg 1 : Int
-    ret %v33
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v38 = vlane %mixed, 0 : U32
-    %v41 = vlane %v, 0 : U32
-    %v42 = cmp_ne %v38, %v41 : Bool
-    je %v42, b4, b5
+    %v36 = vlane %mixed, 0 : U32
+    %v39 = vlane %v, 0 : U32
+    %v40 = cmp_ne %v36, %v39 : Bool
+    je %v40, b4, b5
 
   b4:
-    %v46 = neg 2 : Int
-    ret %v46
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v51 = vlane %mixed, 2 : U32
-    %v54 = vlane %v, 1 : U32
-    %v55 = cmp_ne %v51, %v54 : Bool
-    je %v55, b7, b8
+    %v47 = vlane %mixed, 2 : U32
+    %v50 = vlane %v, 1 : U32
+    %v51 = cmp_ne %v47, %v50 : Bool
+    je %v51, b7, b8
 
   b7:
-    %v59 = neg 3 : Int
-    ret %v59
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v64 = vlane %mixed, 3 : U32
-    %v67 = vlane %v, 0 : U32
-    %v68 = cmp_ne %v64, %v67 : Bool
-    je %v68, b10, b11
+    %v58 = vlane %mixed, 3 : U32
+    %v61 = vlane %v, 0 : U32
+    %v62 = cmp_ne %v58, %v61 : Bool
+    je %v62, b10, b11
 
   b10:
-    %v72 = neg 4 : Int
-    ret %v72
+    ret -4
 
   b11:
     jmp b12

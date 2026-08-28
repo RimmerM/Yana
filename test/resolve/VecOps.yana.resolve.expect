@@ -51,72 +51,66 @@ fn reductions() -> Int {
     je %v6, b1, b2
 
   b1:
-    %v10 = neg 1 : Int
-    ret %v10
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v13 = vreduce_mul %ones : Int
-    %v16 = cmp_ne %v13, 1 : Bool
-    je %v16, b4, b5
+    %v11 = vreduce_mul %ones : Int
+    %v14 = cmp_ne %v11, 1 : Bool
+    je %v14, b4, b5
 
   b4:
-    %v20 = neg 2 : Int
-    ret %v20
+    ret -2
 
   b5:
     jmp b6
 
   b6:
     %sevens = vsplat 7 : Vec(Int)
-    %v26 = vreduce_add %sevens : Int
-    %v29 = mul %count, 7 : Int
-    %v30 = cmp_ne %v26, %v29 : Bool
-    je %v30, b7, b8
+    %v22 = vreduce_add %sevens : Int
+    %v25 = mul %count, 7 : Int
+    %v26 = cmp_ne %v22, %v25 : Bool
+    je %v26, b7, b8
 
   b7:
-    %v34 = neg 3 : Int
-    ret %v34
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v37 = vreduce_min %sevens : Int
-    %v40 = cmp_ne %v37, 7 : Bool
-    je %v40, b10, b11
+    %v31 = vreduce_min %sevens : Int
+    %v34 = cmp_ne %v31, 7 : Bool
+    je %v34, b10, b11
 
   b10:
-    %v44 = neg 4 : Int
-    ret %v44
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v51 = vwithlane %sevens, 9, 0 : Vec(Int)
-    %v52 = vreduce_max %v51 : Int
-    %v55 = cmp_ne %v52, 9 : Bool
-    je %v55, b13, b14
+    %v43 = vwithlane %sevens, 9, 0 : Vec(Int)
+    %v44 = vreduce_max %v43 : Int
+    %v47 = cmp_ne %v44, 9 : Bool
+    je %v47, b13, b14
 
   b13:
-    %v59 = neg 5 : Int
-    ret %v59
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v66 = vwithlane %sevens, 2, 1 : Vec(Int)
-    %v67 = vreduce_min %v66 : Int
-    %v70 = cmp_ne %v67, 2 : Bool
-    je %v70, b16, b17
+    %v56 = vwithlane %sevens, 2, 1 : Vec(Int)
+    %v57 = vreduce_min %v56 : Int
+    %v60 = cmp_ne %v57, 2 : Bool
+    je %v60, b16, b17
 
   b16:
-    %v74 = neg 6 : Int
-    ret %v74
+    ret -6
 
   b17:
     jmp b18
@@ -135,35 +129,32 @@ fn floats() -> Int {
     je %v12, b1, b2
 
   b1:
-    %v16 = neg 1 : Int
-    ret %v16
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v19 = add %a, %b : Vec(Float)
-    %v22 = vlane %v19, 1 : Float
-    %v25 = cmp_ne %v22, 3.5 : Bool
-    je %v25, b4, b5
+    %v17 = add %a, %b : Vec(Float)
+    %v20 = vlane %v17, 1 : Float
+    %v23 = cmp_ne %v20, 3.5 : Bool
+    je %v23, b4, b5
 
   b4:
-    %v29 = neg 2 : Int
-    ret %v29
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v32 = neg %a : Vec(Float)
-    %v35 = vlane %v32, 0 : Float
-    %v38 = neg 1.5 : Float
-    %v39 = cmp_ne %v35, %v38 : Bool
-    je %v39, b7, b8
+    %v28 = neg %a : Vec(Float)
+    %v31 = vlane %v28, 0 : Float
+    %v34 = neg 1.5 : Float
+    %v35 = cmp_ne %v31, %v34 : Bool
+    je %v35, b7, b8
 
   b7:
-    %v43 = neg 3 : Int
-    ret %v43
+    ret -3
 
   b8:
     jmp b9

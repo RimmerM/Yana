@@ -124,11 +124,11 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
     let exp = value.exponent + count - 1
 
     -- Below one, and close enough to write the zeros out.
-    if exp < 0 && (0 - exp) <= fixedPointLimit:
+    if exp < 0 && (-exp) <= fixedPointLimit:
         String.pushUnit(to, 48)
         String.pushUnit(to, 46)
 
-        let &zeros = 0 - exp - 1
+        let &zeros = -exp - 1
         while zeros > 0:
             String.pushUnit(to, 48)
             zeros = zeros - 1
@@ -157,7 +157,7 @@ fn writeShortest(value: Shortest, &to: String) -> {}:
 
     if exp < 0:
         String.pushUnit(to, 45)
-        pushExponent(0 - exp, to)
+        pushExponent(-exp, to)
     else:
         pushExponent(exp, to)
 
@@ -190,7 +190,7 @@ fn writeSpecial(value: Double, &to: String) -> Bool:
     return False
 
 -- The magnitude, which every body below reads after `writeSpecial` has written the sign.
-fn magnitudeOf(value: Double) -> Double = if value < 0.0 then 0.0 - value else value
+fn magnitudeOf(value: Double) -> Double = if value < 0.0 then -value else value
 
 {-
    `Show(Double)` and `Show(Float)` - Implementation-Storage.md part 7's missing rows.
@@ -223,7 +223,7 @@ instance Show(Float):
 
         -- The magnitude at the value's own width, since the decoder reads its bits and the sign is
         -- already written. Widening for the tests above cannot change any of their answers.
-        let magnitude = if value < 0.0 then 0.0 - value else value
+        let magnitude = if value < 0.0 then -value else value
         if magnitude == 0.0 then String.pushUnit(to, 48)
         else writeShortest(floatShortest(magnitude), to)
 
@@ -316,7 +316,7 @@ fn writeScaled(scaled: String, width: Int, decimals: Int, &to: String) -> {}:
         if decimals > 0:
             String.pushUnit(to, 46)
 
-            let &zeros = 0 - whole
+            let &zeros = -whole
             while zeros > 0:
                 String.pushUnit(to, 48)
                 zeros = zeros - 1

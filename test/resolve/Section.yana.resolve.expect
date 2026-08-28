@@ -16,12 +16,11 @@ fn sign(%x: Int) -> Int {
     jmp b5
 
   b4:
-    %v10 = neg 1 : Int
     jmp b5
 
   b5:
-    %v15 = phi [b2, 1], [b4, %v10], [b3, 0] : Int
-    ret %v15
+    %v13 = phi [b2, 1], [b4, -1], [b3, 0] : Int
+    ret %v13
 }
 
 fn clampedTo(%x: Int, %limit: Int) -> Int {
@@ -194,58 +193,53 @@ fn positiveOr(%x: Int, %fallback: Int) -> Int {
 fn main() -> Int {
   b0:
     %v1 = call sign, 5 : Int
-    %v4 = neg 5 : Int
-    %v5 = call sign, %v4 : Int
-    %v6 = add %v1, %v5 : Int
-    %v8 = call sign, 0 : Int
-    %v9 = add %v6, %v8 : Int
-    %v12 = call clampedTo, 20, 10 : Int
-    %v13 = add %v9, %v12 : Int
-    %v16 = call clampedTo, 10, 10 : Int
-    %v17 = add %v13, %v16 : Int
-    %v20 = call clampedTo, 3, 10 : Int
-    %v21 = add %v17, %v20 : Int
-    %v24 = call shadowing, 7, 100 : Int
-    %v25 = add %v21, %v24 : Int
-    %v27 = call doubleIfPositive, 4 : Int
-    %v28 = add %v25, %v27 : Int
-    %v31 = neg 4 : Int
-    %v32 = call doubleIfPositive, %v31 : Int
-    %v33 = add %v28, %v32 : Int
-    %v34 = alloc : Shape
+    %v3 = call sign, -5 : Int
+    %v4 = add %v1, %v3 : Int
+    %v6 = call sign, 0 : Int
+    %v7 = add %v4, %v6 : Int
+    %v10 = call clampedTo, 20, 10 : Int
+    %v11 = add %v7, %v10 : Int
+    %v14 = call clampedTo, 10, 10 : Int
+    %v15 = add %v11, %v14 : Int
+    %v18 = call clampedTo, 3, 10 : Int
+    %v19 = add %v15, %v18 : Int
+    %v22 = call shadowing, 7, 100 : Int
+    %v23 = add %v19, %v22 : Int
+    %v25 = call doubleIfPositive, 4 : Int
+    %v26 = add %v23, %v25 : Int
+    %v28 = call doubleIfPositive, -4 : Int
+    %v29 = add %v26, %v28 : Int
+    %v30 = alloc : Shape
     aggregate %local0.discriminant = 0, %local0@Circle = 20
-    %v38 = call area, %v34 : Int
-    %v39 = add %v33, %v38 : Int
-    %v40 = alloc : Shape
+    %v34 = call area, %v30 : Int
+    %v35 = add %v29, %v34 : Int
+    %v36 = alloc : Shape
     aggregate %local1.discriminant = 0, %local1@Circle = 3
-    %v44 = call area, %v40 : Int
-    %v45 = add %v39, %v44 : Int
-    %v46 = alloc : Shape
+    %v40 = call area, %v36 : Int
+    %v41 = add %v35, %v40 : Int
+    %v42 = alloc : Shape
     aggregate %local2.discriminant = 1, %local2@Square.width = 20, %local2@Square.height = 2
-    %v51 = call area, %v46 : Int
-    %v52 = add %v45, %v51 : Int
-    %v53 = alloc : Shape
+    %v47 = call area, %v42 : Int
+    %v48 = add %v41, %v47 : Int
+    %v49 = alloc : Shape
     aggregate %local3.discriminant = 1, %local3@Square.width = 3, %local3@Square.height = 9
-    %v58 = call area, %v53 : Int
-    %v59 = add %v52, %v58 : Int
-    %v60 = alloc : {Int, Int}
+    %v54 = call area, %v49 : Int
+    %v55 = add %v48, %v54 : Int
+    %v56 = alloc : {Int, Int}
     aggregate %local4.0 = 6, %local4.1 = 6
-    %v64 = call firstIfEqual, %v60 : Int
-    %v65 = add %v59, %v64 : Int
-    %v66 = alloc : {Int, Int}
+    %v60 = call firstIfEqual, %v56 : Int
+    %v61 = add %v55, %v60 : Int
+    %v62 = alloc : {Int, Int}
     aggregate %local5.0 = 1, %local5.1 = 2
-    %v70 = call firstIfEqual, %v66 : Int
-    %v71 = add %v65, %v70 : Int
-    %v73 = call isNearTen, 11 : Int
-    %v74 = add %v71, %v73 : Int
-    %v76 = call isNearTen, 50 : Int
-    %v77 = add %v74, %v76 : Int
-    %v81 = neg 1 : Int
-    %v82 = call positiveOr, 9, %v81 : Int
-    %v83 = add %v77, %v82 : Int
-    %v86 = neg 9 : Int
-    %v89 = neg 1 : Int
-    %v90 = call positiveOr, %v86, %v89 : Int
-    %v91 = add %v83, %v90 : Int
-    ret %v91
+    %v66 = call firstIfEqual, %v62 : Int
+    %v67 = add %v61, %v66 : Int
+    %v69 = call isNearTen, 11 : Int
+    %v70 = add %v67, %v69 : Int
+    %v72 = call isNearTen, 50 : Int
+    %v73 = add %v70, %v72 : Int
+    %v76 = call positiveOr, 9, -1 : Int
+    %v77 = add %v73, %v76 : Int
+    %v80 = call positiveOr, -9, -1 : Int
+    %v81 = add %v77, %v80 : Int
+    ret %v81
 }

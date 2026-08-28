@@ -28,21 +28,19 @@ fn floats() -> Int {
     je %v14, b1, b2
 
   b1:
-    %v18 = neg 1 : Int
-    ret %v18
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v24 = vlane %g, 0 : Float
-    %v26 = div 1, %v24 : Float
-    %v29 = cmp_gt %v26, 0 : Bool
-    je %v29, b4, b5
+    %v22 = vlane %g, 0 : Float
+    %v24 = div 1, %v22 : Float
+    %v27 = cmp_gt %v24, 0 : Bool
+    je %v27, b4, b5
 
   b4:
-    %v33 = neg 2 : Int
-    ret %v33
+    ret -2
 
   b5:
     jmp b6
@@ -50,25 +48,23 @@ fn floats() -> Int {
   b6:
     %d = vsplat 1.5 : Vec(Double)
     %e = vwithlane %d, 4.25, 1 : Vec(Double)
-    %v45 = vlane %e, 0 : Double
-    %v48 = cmp_ne %v45, 1.5 : Bool
-    je %v48, b7, b8
+    %v41 = vlane %e, 0 : Double
+    %v44 = cmp_ne %v41, 1.5 : Bool
+    je %v44, b7, b8
 
   b7:
-    %v52 = neg 3 : Int
-    ret %v52
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v57 = vlane %e, 1 : Double
-    %v60 = cmp_ne %v57, 4.25 : Bool
-    je %v60, b10, b11
+    %v51 = vlane %e, 1 : Double
+    %v54 = cmp_ne %v51, 4.25 : Bool
+    je %v54, b10, b11
 
   b10:
-    %v64 = neg 4 : Int
-    ret %v64
+    ret -4
 
   b11:
     jmp b12
@@ -88,34 +84,31 @@ fn indices() -> Int {
     je %v13, b1, b2
 
   b1:
-    %v17 = neg 1 : Int
-    ret %v17
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v22 = vlane %v, 1 : Int
-    %v25 = cmp_ne %v22, 1 : Bool
-    je %v25, b4, b5
+    %v20 = vlane %v, 1 : Int
+    %v23 = cmp_ne %v20, 1 : Bool
+    je %v23, b4, b5
 
   b4:
-    %v29 = neg 2 : Int
-    ret %v29
+    ret -2
 
   b5:
     jmp b6
 
   b6:
     %r = vshuffle %v, %v, 3, 2, 1, 0 : Vec(Int)
-    %v35 = vlane %r, 0 : Int
-    %v39 = sub 4, 1 : Int
-    %v40 = cmp_ne %v35, %v39 : Bool
-    je %v40, b7, b8
+    %v31 = vlane %r, 0 : Int
+    %v35 = sub 4, 1 : Int
+    %v36 = cmp_ne %v31, %v35 : Bool
+    je %v36, b7, b8
 
   b7:
-    %v44 = neg 3 : Int
-    ret %v44
+    ret -3
 
   b8:
     jmp b9

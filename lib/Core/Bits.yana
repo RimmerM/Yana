@@ -96,6 +96,12 @@ pub class Bounded(a):
    also `+0.0`, so testing `<= 0` and negating is correct for both zeros. simd.cpp's vector `abs`
    makes the same choice for the same reason, and `1.0 / abs(0.0)` is the only portable way to see
    which zero came back.
+
+   **And that is why the two float bodies below subtract where every integer one writes unary `-`.**
+   Unary `-` is a sign flip and not a subtraction - `Neg`, one xor against the sign mask, generated
+   by `defineNum` in resolve/intrinsic.cpp - so `-(+0.0)` is `-0.0`, which is exactly the answer the
+   `<=` was chosen to keep out. `0.0 - x` gives `+0.0` for both zeros. At an integer width the two
+   spellings are the same instruction, so those rows say the shorter thing.
 -}
 pub class (Num(a), Ord(a)) Signed(a):
   fn abs(value: a) -> a
@@ -316,7 +322,7 @@ pub fn (Ord(a)) clamp(->value: a, ->low: a, ->high: a) -> a = min(max(value, low
 -- Which side of zero a value is on, as a value of its own type. `0` for a zero of either sign and
 -- for a NaN, which is the answer a caller multiplying by it wants: it is the only one that keeps
 -- `signum(x) * abs(x)` from inventing a sign the input did not have.
-pub fn (Signed(a)) signum(value: a) -> a = if value > 0 then 1 else if value < 0 then 0 - 1 else 0
+pub fn (Signed(a)) signum(value: a) -> a = if value > 0 then 1 else if value < 0 then -1 else 0
 
 -- Rounding up to a **power of two**, which is the form an allocator and a layout want: one add and
 -- one mask, no division anywhere. `alignment` is required to be a power of two and nothing checks
@@ -340,31 +346,31 @@ pub fn (Integral(a)) roundUpTo(value: a, multiple: a) -> a = ((value + multiple 
    been written as.
 -}
 instance Bounded(I8):
-    fn minValue() -> I8 = 0 - 127 - 1
+    fn minValue() -> I8 = -128
     fn maxValue() -> I8 = 127
 
 instance Bounded(I16):
-    fn minValue() -> I16 = 0 - 32767 - 1
+    fn minValue() -> I16 = -32768
     fn maxValue() -> I16 = 32767
 
 instance Bounded(I32):
-    fn minValue() -> I32 = 0 - 2147483647 - 1
+    fn minValue() -> I32 = -2147483648
     fn maxValue() -> I32 = 2147483647
 
 instance Bounded(I64):
-    fn minValue() -> I64 = 0 - 9223372036854775807 - 1
+    fn minValue() -> I64 = -9223372036854775808
     fn maxValue() -> I64 = 9223372036854775807
 
 instance Bounded(Int):
-    fn minValue() -> Int = 0 - 2147483647 - 1
+    fn minValue() -> Int = -2147483648
     fn maxValue() -> Int = 2147483647
 
 instance Bounded(Long):
-    fn minValue() -> Long = 0 - 9223372036854775807 - 1
+    fn minValue() -> Long = -9223372036854775808
     fn maxValue() -> Long = 9223372036854775807
 
 instance Bounded(WideInt):
-    fn minValue() -> WideInt = 0 - 4503599627370495 - 1
+    fn minValue() -> WideInt = -4503599627370496
     fn maxValue() -> WideInt = 4503599627370495
 
 instance Bounded(U8):
@@ -394,7 +400,7 @@ instance Bounded(U64):
    minimum is the negation of that less one, which is how every signed entry above is written.
 -}
 instance Bounded(Size):
-    fn minValue() -> Size = 0 - (maxValue() :: Size) - 1
+    fn minValue() -> Size = -(maxValue() :: Size) - 1
     fn maxValue() -> Size = bitcast(not(0 :: USize) `shr` 1) :: Size
 
 instance Bounded(USize):
@@ -406,11 +412,11 @@ instance Bounded(CodeUnit):
     fn maxValue() -> CodeUnit = not(0)
 
 instance Bounded(Float):
-    fn minValue() -> Float = 0.0 - 3.4028234663852886e38
+    fn minValue() -> Float = -3.4028234663852886e38
     fn maxValue() -> Float = 3.4028234663852886e38
 
 instance Bounded(Double):
-    fn minValue() -> Double = 0.0 - 1.7976931348623157e308
+    fn minValue() -> Double = -1.7976931348623157e308
     fn maxValue() -> Double = 1.7976931348623157e308
 
 -- `abs` at every signed width. The unsigned types are deliberately absent: the absolute value of a
@@ -418,31 +424,31 @@ instance Bounded(Double):
 -- accept a type that has no negative to take the absolute value *of*.
 
 instance Signed(I8):
-    fn abs(value: I8) -> I8 = if value <= 0 then 0 - value else value
+    fn abs(value: I8) -> I8 = if value <= 0 then -value else value
 
 instance Signed(I16):
-    fn abs(value: I16) -> I16 = if value <= 0 then 0 - value else value
+    fn abs(value: I16) -> I16 = if value <= 0 then -value else value
 
 instance Signed(I32):
-    fn abs(value: I32) -> I32 = if value <= 0 then 0 - value else value
+    fn abs(value: I32) -> I32 = if value <= 0 then -value else value
 
 instance Signed(I64):
-    fn abs(value: I64) -> I64 = if value <= 0 then 0 - value else value
+    fn abs(value: I64) -> I64 = if value <= 0 then -value else value
 
 instance Signed(Int):
-    fn abs(value: Int) -> Int = if value <= 0 then 0 - value else value
+    fn abs(value: Int) -> Int = if value <= 0 then -value else value
 
 instance Signed(Long):
-    fn abs(value: Long) -> Long = if value <= 0 then 0 - value else value
+    fn abs(value: Long) -> Long = if value <= 0 then -value else value
 
 instance Signed(WideInt):
-    fn abs(value: WideInt) -> WideInt = if value <= 0 then 0 - value else value
+    fn abs(value: WideInt) -> WideInt = if value <= 0 then -value else value
 
 -- The target's word, whose signed reading is the one an index is carried at. `USize` and `CodeUnit`
 -- are absent by the rule above rather than by omission: neither has a negative to take an absolute
 -- value of.
 instance Signed(Size):
-    fn abs(value: Size) -> Size = if value <= 0 then 0 - value else value
+    fn abs(value: Size) -> Size = if value <= 0 then -value else value
 
 instance Signed(Float):
     fn abs(value: Float) -> Float = if value <= 0.0 then 0.0 - value else value

@@ -103,21 +103,21 @@ fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
 
 fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %v11 = bitcast %size : USize
-    %result = syscall 9, 0, %v11, 3, 34, 18446744073709551615, 0 : Size
-    %v18 = cmp_lt %result, 0 : Bool
-    je %v18, b1, b2
+    %v6 = bitcast %size : USize
+    %result = syscall 9, 0, %v6, 3, 34, 18446744073709551615, 0 : Size
+    %v13 = cmp_lt %result, 0 : Bool
+    je %v13, b1, b2
 
   b1:
-    %v21 = bitcast 0 : %U8
-    ret %v21
+    %v16 = bitcast 0 : %U8
+    ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v24 = bitcast %result : %U8
-    ret %v24
+    %v19 = bitcast %result : %U8
+    ret %v19
 }
 
 fn growHeap(%needed: Size) -> Bool {

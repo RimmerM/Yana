@@ -1225,6 +1225,41 @@ ModulePtr<Value> ExprResolver::resolvePrefix(const ast::Expr& expr, const ast::P
         return nullptr;
     }
 
+    /*
+     * `-1` is a written negative number, and not a negation applied to a positive one.
+     *
+     * Read as a call it is `negate(1)`, and the `1` in it has to have a type before the call can be
+     * selected - which at a narrow or a wide type is a type it cannot have. `-128` is the case that
+     * names the problem: `128` is not an `I8`, so the operand is reported before the negation that
+     * would have made it one is ever applied, and `-9223372036854775808` is the same failure at the
+     * other end. That is why `Bits.yana` spelled its own bounds `0 - 127 - 1` - a leading `0` is a
+     * literal too, so the whole chain stays unpinned and the *call* is what the return type selects.
+     *
+     * So the sign is folded into the literal here instead, which is what resolvePat already does for
+     * a negative pivot and what the lexer does in most languages. `checkLiteralRange` then asks
+     * about the number that was written rather than about a positive one that was not, and `-128`
+     * is an `I8` because it is one.
+     *
+     * **Only where the target is a primitive number, and only for a literal operand.** Both halves
+     * are about not answering a question that belongs to someone else: with no target there is
+     * nothing to fold *at*, and the ordinary path's default is as good an answer as this would be;
+     * with a target that merely has a `FromInt` instance, `-` is whatever that type declared it to
+     * be, and quietly building the negative literal instead would decide that for it.
+     */
+    if(target && prefix.op.var == module.program.negate && ast::isLiteral(prefix.on) &&
+       (isInteger(global, target) || isFloat(global, target))) {
+        switch(ast::Literal::Kind(prefix.on.kind - ast::Expr::Lit)) {
+            case ast::Literal::Int:
+                return resolveInteger(expr.source, target, prefix.on.lit.i(), true);
+            case ast::Literal::Float:
+                return resolveDecimal(expr.source, target, F64(prefix.on.lit.f), true);
+            case ast::Literal::Double:
+                return resolveDecimal(expr.source, target, prefix.on.lit.d(), true);
+            default:
+                break;
+        }
+    }
+
     OverloadSet set;
     gatherOverloads(prefix.op.var, 1, prefix.op.source, prefix.op.source, set);
 

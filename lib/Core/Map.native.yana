@@ -189,13 +189,13 @@ fn (Hash(k)) indexFind(self: Map(k, v), key: k, h: U32) -> Size:
 
             hits = hits `and` (hits - 1)
 
-        if bits(group .== empty) != 0 then return 0 - 1
+        if bits(group .== empty) != 0 then return -1
 
         step = step + 16
         pos = (pos + step) `and` mask
         visited = visited + 16
 
-    return 0 - 1
+    return -1
 
 fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
     let mask = self.mask :: Size
@@ -216,13 +216,13 @@ fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
 
             hits = hits `and` (hits - 1)
 
-        if bits(group .== empty) != 0 then return 0 - 1
+        if bits(group .== empty) != 0 then return -1
 
         step = step + 16
         pos = (pos + step) `and` mask
         visited = visited + 16
 
-    return 0 - 1
+    return -1
 
 {-
    The first non-full slot of a key's probe sequence - the other half of §4.1.
@@ -249,7 +249,7 @@ fn indexFreeSlot(self: Map(k, v), h: U32) -> Size:
         pos = (pos + step) `and` mask
         visited = visited + 16
 
-    return 0 - 1
+    return -1
 
 {-
    The two accessors that know §1's byte layout, and the only things in this file that read the index

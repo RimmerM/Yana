@@ -1565,6 +1565,16 @@ struct Program {
     ModulePtr<Function> reserveString = nullptr;
     StringId appendAssign = StringId();
 
+    /*
+     * `-`, so that `-1` can be recognized as a written negative number rather than resolved as a
+     * negation applied to a positive one.
+     *
+     * The name and not the function, for `appendAssign`'s reason: what is recognized is the shape of
+     * what was written, and resolvePrefix never emits a call for it. A build whose prelude has no
+     * `-` simply does not recognize the shape.
+     */
+    StringId negate = StringId();
+
     Module* core = nullptr;
 
     /*

@@ -83,19 +83,19 @@ pub fn errorOf(code: Size) -> FileError = match errnoOf(code):
 
 -- A kernel answer as a `Result`: negative is the negated errno, and anything else is the answer.
 fn checked(answer: Size) -> Result(FileError, Size):
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
     return Ok(answer)
 
 -- The same for a call whose answer is a *file offset* rather than a word - `lseek`, and nothing
 -- else. An offset is sixty-four bits on every Linux ABI, so it is the one result here that does not
 -- narrow with the machine; see the note beside `offsetWord` in `Native/Linux.x64.yana`.
 fn checkedOffset(answer: I64) -> Result(FileError, I64):
-    if answer < 0 then return Err(errorOf(truncate(0 - answer) :: Size))
+    if answer < 0 then return Err(errorOf(truncate(-answer) :: Size))
     return Ok(answer)
 
 -- The same for a call whose only answer is whether it worked.
 fn checkedUnit(answer: Size) -> Result(FileError, {}):
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
     return Ok({})
 
 pub fn describeError(error: FileError) -> String = match error:
@@ -366,7 +366,7 @@ pub fn openFile(path: String, access: FileAccess, mode: CreateMode = OpenAlways,
 
     let terminated = withPathCString(path)
     let handle = openPath(terminated, openFlagsOf(access, mode, flags), createAccess(flags))
-    if handle < 0 then return Err(errorOf(0 - handle))
+    if handle < 0 then return Err(errorOf(-handle))
 
     return Ok(adoptFile(handle))
 
@@ -471,7 +471,7 @@ pub fn flush(&self: File) -> Result(FileError, {}) = checkedUnit(syncFile(self.h
 pub fn fileInfo(self: File) -> Result(FileError, FileInfo):
     let &status = FileStatus {}
     let answer = statFile(self.handle, status)
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
 
     return Ok(infoOf(status))
 
@@ -493,7 +493,7 @@ pub fn pathInfo(path: String) -> Result(FileError, FileInfo):
     let &status = FileStatus {}
     let terminated = withPathCString(path)
     let answer = statPath(terminated, status)
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
 
     return Ok(infoOf(status))
 
@@ -503,7 +503,7 @@ pub fn linkInfo(path: String) -> Result(FileError, FileInfo):
     let &status = FileStatus {}
     let terminated = withPathCString(path)
     let answer = statLink(terminated, status)
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
 
     return Ok(infoOf(status))
 
@@ -564,7 +564,7 @@ pub fn copyFile(from: String, to: String, overwrite: Bool = True) -> Result(File
 
     while running:
         let got = readFile(source.handle, slots(buffer), copyBlock)
-        if got < 0 then return Err(errorOf(0 - got))
+        if got < 0 then return Err(errorOf(-got))
 
         if got == 0:
             running = False
@@ -573,7 +573,7 @@ pub fn copyFile(from: String, to: String, overwrite: Bool = True) -> Result(File
 
             while moved < got:
                 let put = writeFile(target.handle, slots(buffer) + moved, got - moved)
-                if put < 0 then return Err(errorOf(0 - put))
+                if put < 0 then return Err(errorOf(-put))
 
                 moved = moved + put
 
@@ -627,7 +627,7 @@ pub fn createDirectory(path: String) -> Result(FileError, {}):
     let answer = makeDirectory(terminated, directoryAccess)
     if answer >= 0 then return Ok({})
 
-    let error = errorOf(0 - answer)
+    let error = errorOf(-answer)
 
     -- Already there is not a failure, which is what makes this the "make sure it exists" operation
     -- rather than a bare `mkdir`. Anything but a missing parent is.
@@ -707,7 +707,7 @@ pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
     -- An `iter fn` ends by running out of values rather than by `return` - the loop's signal is not
     -- something a body names - so every early exit below is a flag this loop reads.
     if handle < 0:
-        yield Err(errorOf(0 - handle))
+        yield Err(errorOf(-handle))
     else:
         let dir = adoptFile(handle)
         let buffer = byteRun(entryBlock)
@@ -722,7 +722,7 @@ pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
             let filled = readDirectoryEntries(dir.handle, base, entryBlock)
 
             if filled < 0:
-                yield Err(errorOf(0 - filled))
+                yield Err(errorOf(-filled))
                 running = False
             else if filled == 0:
                 running = False
@@ -806,7 +806,7 @@ pub fn readWholeFile(path: String) -> Result(FileError, String):
             String.reserve(text, readBlock)
         else:
             let got = readFile(file.handle, bitcast(target.bytes.run.items + total) :: %U8, room)
-            if got < 0 then return Err(errorOf(0 - got))
+            if got < 0 then return Err(errorOf(-got))
 
             total = total + got
 
@@ -833,7 +833,7 @@ fn writeAllText(file: File, text: String) -> Result(FileError, {}):
 
     while written < length(text):
         let put = writeFile(file.handle, stringBytes(text) + written, length(text) - written)
-        if put < 0 then return Err(errorOf(0 - put))
+        if put < 0 then return Err(errorOf(-put))
 
         written = written + put
 

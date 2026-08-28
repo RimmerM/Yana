@@ -1,0 +1,52 @@
+{-
+   A written negative number, at every width where the sign is what makes it representable.
+
+   Each of these is a bound whose magnitude is one past the type's positive range, so it is exactly
+   the case that could not be written before the sign was folded into the literal: `-128` is an `I8`
+   and `128` is not. The right-hand sides build the same number by arithmetic instead, which is the
+   spelling the library used to have to use.
+-}
+
+fn i8Min() -> I8 = -128
+fn i16Min() -> I16 = -32768
+fn i32Min() -> I32 = -2147483648
+fn i64Min() -> I64 = -9223372036854775808
+fn longMin() -> Long = -9223372036854775808
+fn wideMin() -> WideInt = -4503599627370496
+fn sizeAll() -> Size = -1
+fn negZero() -> Double = -0.0
+
+-- The same bounds by arithmetic, which is the spelling the library used to need. Comparing the two
+-- is what says the sign was folded in at the right width rather than merely accepted.
+fn i8MinOld() -> I8 = 0 - 127 - 1
+fn i16MinOld() -> I16 = 0 - 32767 - 1
+fn i32MinOld() -> I32 = 0 - 2147483647 - 1
+fn i64MinOld() -> I64 = 0 - 9223372036854775807 - 1
+fn longMinOld() -> Long = 0 - 9223372036854775807 - 1
+fn wideMinOld() -> WideInt = 0 - 4503599627370495 - 1
+
+@noinline fn takesI8(x: I8) -> Int = x :: Int
+
+fn main() -> Int:
+    let &score = 0
+
+    if i8Min() == i8MinOld() then score = score + 1
+    if i16Min() == i16MinOld() then score = score + 2
+    if i32Min() == i32MinOld() then score = score + 4
+    if i64Min() == i64MinOld() then score = score + 8
+    if longMin() == longMinOld() then score = score + 16
+    if wideMin() == wideMinOld() then score = score + 32
+
+    -- Through a parameter rather than a return, which is the other position a target comes from.
+    if takesI8(-128) == 0 - 128 then score = score + 64
+
+    -- `-0.0` is a number the sign makes reachable at all: it compares equal to zero, and dividing
+    -- into it is the only portable way to see which one came back.
+    if (1.0 :: Double) / negZero() < 0.0 then score = score + 128
+
+    -- An element type, pushed down through the array's own ascription.
+    let a = [-1, -2] :: [I32 *2]
+    if (a[0] :: Int) + (a[1] :: Int) == 0 - 3 then score = score + 256
+    if (sizeAll() :: I64) == 0 - 1 then score = score + 512
+
+    return score

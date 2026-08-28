@@ -847,141 +847,141 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     je %v11, b1, b2
 
   b1:
-    %v15 = sub 0, %exp : Int
-    %v17 = cmp_le %v15, 7 : Bool
+    %v13 = neg %exp : Int
+    %v15 = cmp_le %v13, 7 : Bool
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v21 = phi [b1, %v17], [b2, False] : Bool
-    je %v21, b4, b5
+    %v19 = phi [b1, %v15], [b2, False] : Bool
+    je %v19, b4, b5
 
   b4:
-    %v23 = load %to : String
-    %v25 = borrow_mut %to : &String
-    call String.pushUnit, %v25, 48
-    %v27 = load %to : String
-    %v29 = borrow_mut %to : &String
-    call String.pushUnit, %v29, 46
-    %v33 = sub 0, %exp : Int
-    %v36 = sub %v33, 1 : Int
+    %v21 = load %to : String
+    %v23 = borrow_mut %to : &String
+    call String.pushUnit, %v23, 48
+    %v25 = load %to : String
+    %v27 = borrow_mut %to : &String
+    call String.pushUnit, %v27, 46
+    %v29 = neg %exp : Int
+    %v32 = sub %v29, 1 : Int
     %zeros = alloc : Int
-    init %zeros, %v36
+    init %zeros, %v32
     jmp b6
 
   b5:
     jmp b9
 
   b6:
-    %v40 = load %zeros : Int
-    %v43 = cmp_gt %v40, 0 : Bool
-    je %v43, b8, b7
+    %v36 = load %zeros : Int
+    %v39 = cmp_gt %v36, 0 : Bool
+    je %v39, b8, b7
 
   b7:
-    %v55 = load %value@Shortest.digits : U64
-    %v56 = load %to : String
-    %v57 = borrow_mut %to : &String
-    call pushDecimalDigits, %v55, %count, %count, %v57
+    %v51 = load %value@Shortest.digits : U64
+    %v52 = load %to : String
+    %v53 = borrow_mut %to : &String
+    call pushDecimalDigits, %v51, %count, %count, %v53
     ret
 
   b8:
-    %v45 = load %to : String
-    %v47 = borrow_mut %to : &String
-    call String.pushUnit, %v47, 48
-    %v49 = load %zeros : Int
-    %v52 = sub %v49, 1 : Int
-    assign %zeros, %v52
+    %v41 = load %to : String
+    %v43 = borrow_mut %to : &String
+    call String.pushUnit, %v43, 48
+    %v45 = load %zeros : Int
+    %v48 = sub %v45, 1 : Int
+    assign %zeros, %v48
     jmp b6
 
   b9:
-    %v63 = cmp_ge %exp, 0 : Bool
-    je %v63, b10, b11
+    %v59 = cmp_ge %exp, 0 : Bool
+    je %v59, b10, b11
 
   b10:
-    %v66 = cmp_le %exp, 7 : Bool
+    %v62 = cmp_le %exp, 7 : Bool
     jmp b12
 
   b11:
     jmp b12
 
   b12:
-    %v70 = phi [b10, %v66], [b11, False] : Bool
-    je %v70, b13, b14
+    %v66 = phi [b10, %v62], [b11, False] : Bool
+    je %v66, b13, b14
 
   b13:
-    %v72 = load %value@Shortest.exponent : Int
-    %v75 = cmp_ge %v72, 0 : Bool
-    je %v75, b15, b16
+    %v68 = load %value@Shortest.exponent : Int
+    %v71 = cmp_ge %v68, 0 : Bool
+    je %v71, b15, b16
 
   b14:
     jmp b21
 
   b15:
-    %v77 = load %value@Shortest.digits : U64
-    %v78 = load %to : String
-    %v79 = borrow_mut %to : &String
-    call pushDecimalDigits, %v77, %count, %count, %v79
-    %v81 = load %value@Shortest.exponent : Int
+    %v73 = load %value@Shortest.digits : U64
+    %v74 = load %to : String
+    %v75 = borrow_mut %to : &String
+    call pushDecimalDigits, %v73, %count, %count, %v75
+    %v77 = load %value@Shortest.exponent : Int
     %zeros = alloc : Int
-    init %zeros, %v81
+    init %zeros, %v77
     jmp b17
 
   b16:
-    %v100 = load %value@Shortest.digits : U64
-    %v101 = load %value@Shortest.exponent : Int
-    %v102 = add %count, %v101 : Int
-    %v103 = load %to : String
-    %v104 = borrow_mut %to : &String
-    call pushDecimalDigits, %v100, %count, %v102, %v104
+    %v96 = load %value@Shortest.digits : U64
+    %v97 = load %value@Shortest.exponent : Int
+    %v98 = add %count, %v97 : Int
+    %v99 = load %to : String
+    %v100 = borrow_mut %to : &String
+    call pushDecimalDigits, %v96, %count, %v98, %v100
     jmp b20
 
   b17:
-    %v85 = load %zeros : Int
-    %v88 = cmp_gt %v85, 0 : Bool
-    je %v88, b19, b18
+    %v81 = load %zeros : Int
+    %v84 = cmp_gt %v81, 0 : Bool
+    je %v84, b19, b18
 
   b18:
     jmp b20
 
   b19:
-    %v90 = load %to : String
-    %v92 = borrow_mut %to : &String
-    call String.pushUnit, %v92, 48
-    %v94 = load %zeros : Int
-    %v97 = sub %v94, 1 : Int
-    assign %zeros, %v97
+    %v86 = load %to : String
+    %v88 = borrow_mut %to : &String
+    call String.pushUnit, %v88, 48
+    %v90 = load %zeros : Int
+    %v93 = sub %v90, 1 : Int
+    assign %zeros, %v93
     jmp b17
 
   b20:
     ret
 
   b21:
-    %v110 = load %value@Shortest.digits : U64
-    %v112 = load %to : String
+    %v106 = load %value@Shortest.digits : U64
+    %v108 = load %to : String
+    %v109 = borrow_mut %to : &String
+    call pushDecimalDigits, %v106, %count, 1, %v109
+    %v111 = load %to : String
     %v113 = borrow_mut %to : &String
-    call pushDecimalDigits, %v110, %count, 1, %v113
-    %v115 = load %to : String
-    %v117 = borrow_mut %to : &String
-    call String.pushUnit, %v117, 69
-    %v121 = cmp_lt %exp, 0 : Bool
-    je %v121, b22, b23
+    call String.pushUnit, %v113, 69
+    %v117 = cmp_lt %exp, 0 : Bool
+    je %v117, b22, b23
 
   b22:
-    %v123 = load %to : String
+    %v119 = load %to : String
+    %v121 = borrow_mut %to : &String
+    call String.pushUnit, %v121, 45
+    %v123 = neg %exp : Int
+    %v124 = load %to : String
     %v125 = borrow_mut %to : &String
-    call String.pushUnit, %v125, 45
-    %v129 = sub 0, %exp : Int
-    %v130 = load %to : String
-    %v131 = borrow_mut %to : &String
-    call pushExponent, %v129, %v131
+    call pushExponent, %v123, %v125
     jmp b24
 
   b23:
-    %v133 = load %to : String
-    %v134 = borrow_mut %to : &String
-    call pushExponent, %exp, %v134
+    %v127 = load %to : String
+    %v128 = borrow_mut %to : &String
+    call pushExponent, %exp, %v128
     jmp b24
 
   b24:
@@ -1066,15 +1066,15 @@ fn magnitudeOf(%value: Double) -> Double {
     je %v3, b1, b2
 
   b1:
-    %v7 = sub 0, %value : Double
+    %v5 = neg %value : Double
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b1, %v7], [b2, %value] : Double
-    ret %v10
+    %v8 = phi [b1, %v5], [b2, %value] : Double
+    ret %v8
 }
 
 fn log10Pow2(%e: Int) -> Int {
@@ -1314,11 +1314,11 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     je %v37, b3, b4
 
   b2:
-    %v113 = sub 0, %e2 : Int
-    %v114 = call log10Pow5, %v113 : Int
-    %v117 = sub 0, %e2 : Int
-    %v120 = cmp_gt %v117, 1 : Bool
-    je %v120, b18, b19
+    %v109 = neg %e2 : Int
+    %v110 = call log10Pow5, %v109 : Int
+    %v111 = neg %e2 : Int
+    %v114 = cmp_gt %v111, 1 : Bool
+    je %v114, b18, b19
 
   b3:
     jmp b5
@@ -1332,54 +1332,54 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     %v48 = call pow5Bits, %q : Int
     %v50 = add 125, %v48 : Int
     %k = sub %v50, 1 : Int
-    %v56 = sub 0, %e2 : Int
-    %v57 = add %v56, %q : Int
-    %i = add %v57, %k : Int
+    %v54 = neg %e2 : Int
+    %v55 = add %v54, %q : Int
+    %i = add %v55, %k : Int
     assign %e10, %q
-    %v60 = call mulShiftInv, %mv, %q, %i : U64
-    assign %vr, %v60
-    %v64 = add %mv, 2 : U64
-    %v65 = call mulShiftInv, %v64, %q, %i : U64
-    assign %vp, %v65
-    %v69 = sub %mv, 1 : U64
-    %v70 = sub %v69, %mmShift : U64
-    %v71 = call mulShiftInv, %v70, %q, %i : U64
-    assign %vm, %v71
-    %v75 = cmp_le %q, 21 : Bool
-    je %v75, b6, b7
+    %v58 = call mulShiftInv, %mv, %q, %i : U64
+    assign %vr, %v58
+    %v62 = add %mv, 2 : U64
+    %v63 = call mulShiftInv, %v62, %q, %i : U64
+    assign %vp, %v63
+    %v67 = sub %mv, 1 : U64
+    %v68 = sub %v67, %mmShift : U64
+    %v69 = call mulShiftInv, %v68, %q, %i : U64
+    assign %vm, %v69
+    %v73 = cmp_le %q, 21 : Bool
+    je %v73, b6, b7
 
   b6:
-    %v79 = rem %mv, 5 : U64
-    %v82 = cmp_eq %v79, 0 : Bool
-    je %v82, b8, b9
+    %v77 = rem %mv, 5 : U64
+    %v80 = cmp_eq %v77, 0 : Bool
+    je %v80, b8, b9
 
   b7:
     jmp b17
 
   b8:
-    %v84 = call multipleOfPowerOf5, %mv, %q : Bool
-    assign %valueIsExact, %v84
+    %v82 = call multipleOfPowerOf5, %mv, %q : Bool
+    assign %valueIsExact, %v82
     jmp b16
 
   b9:
     je %acceptBounds, b10, b11
 
   b10:
-    %v89 = sub %mv, 1 : U64
-    %v90 = sub %v89, %mmShift : U64
-    %v91 = call multipleOfPowerOf5, %v90, %q : Bool
-    assign %lowerIsExact, %v91
+    %v87 = sub %mv, 1 : U64
+    %v88 = sub %v87, %mmShift : U64
+    %v89 = call multipleOfPowerOf5, %v88, %q : Bool
+    assign %lowerIsExact, %v89
     jmp b15
 
   b11:
-    %v95 = add %mv, 2 : U64
-    %v96 = call multipleOfPowerOf5, %v95, %q : Bool
-    je %v96, b12, b13
+    %v93 = add %mv, 2 : U64
+    %v94 = call multipleOfPowerOf5, %v93, %q : Bool
+    je %v94, b12, b13
 
   b12:
-    %v98 = load %vp : U64
-    %v101 = sub %v98, 1 : U64
-    assign %vp, %v101
+    %v96 = load %vp : U64
+    %v99 = sub %v96, 1 : U64
+    assign %vp, %v99
     jmp b14
 
   b13:
@@ -1404,52 +1404,52 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b20
 
   b20:
-    %v128 = phi [b18, 1], [b19, 0] : Int
-    %q = sub %v114, %v128 : Int
-    %v132 = sub 0, %e2 : Int
-    %i = sub %v132, %q : Int
-    %v134 = call pow5Bits, %i : Int
-    %k = sub %v134, 125 : Int
+    %v122 = phi [b18, 1], [b19, 0] : Int
+    %q = sub %v110, %v122 : Int
+    %v124 = neg %e2 : Int
+    %i = sub %v124, %q : Int
+    %v126 = call pow5Bits, %i : Int
+    %k = sub %v126, 125 : Int
     %j = sub %q, %k : Int
-    %v139 = add %q, %e2 : Int
-    assign %e10, %v139
-    %v141 = call mulShiftPow5, %mv, %i, %j : U64
-    assign %vr, %v141
-    %v145 = add %mv, 2 : U64
-    %v146 = call mulShiftPow5, %v145, %i, %j : U64
-    assign %vp, %v146
-    %v150 = sub %mv, 1 : U64
-    %v151 = sub %v150, %mmShift : U64
-    %v152 = call mulShiftPow5, %v151, %i, %j : U64
-    assign %vm, %v152
-    %v156 = cmp_le %q, 1 : Bool
-    je %v156, b21, b22
+    %v131 = add %q, %e2 : Int
+    assign %e10, %v131
+    %v133 = call mulShiftPow5, %mv, %i, %j : U64
+    assign %vr, %v133
+    %v137 = add %mv, 2 : U64
+    %v138 = call mulShiftPow5, %v137, %i, %j : U64
+    assign %vp, %v138
+    %v142 = sub %mv, 1 : U64
+    %v143 = sub %v142, %mmShift : U64
+    %v144 = call mulShiftPow5, %v143, %i, %j : U64
+    assign %vm, %v144
+    %v148 = cmp_le %q, 1 : Bool
+    je %v148, b21, b22
 
   b21:
     assign %valueIsExact, True
     je %acceptBounds, b23, b24
 
   b22:
-    %v174 = cmp_lt %q, 63 : Bool
-    je %v174, b26, b27
+    %v166 = cmp_lt %q, 63 : Bool
+    je %v166, b26, b27
 
   b23:
-    %v163 = cmp_eq %mmShift, 1 : Bool
-    assign %lowerIsExact, %v163
+    %v155 = cmp_eq %mmShift, 1 : Bool
+    assign %lowerIsExact, %v155
     jmp b25
 
   b24:
-    %v165 = load %vp : U64
-    %v168 = sub %v165, 1 : U64
-    assign %vp, %v168
+    %v157 = load %vp : U64
+    %v160 = sub %v157, 1 : U64
+    assign %vp, %v160
     jmp b25
 
   b25:
     jmp b29
 
   b26:
-    %v176 = call multipleOfPowerOf2, %mv, %q : Bool
-    assign %valueIsExact, %v176
+    %v168 = call multipleOfPowerOf2, %mv, %q : Bool
+    assign %valueIsExact, %v168
     jmp b28
 
   b27:
@@ -1468,19 +1468,19 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     init %lastRemoved, 0
     %output = alloc : U64
     init %output, 0
-    %v193 = load %lowerIsExact : Bool
-    je %v193, b32, b31
+    %v185 = load %lowerIsExact : Bool
+    je %v185, b32, b31
 
   b31:
-    %v195 = load %valueIsExact : Bool
+    %v187 = load %valueIsExact : Bool
     jmp b33
 
   b32:
     jmp b33
 
   b33:
-    %v199 = phi [b31, %v195], [b32, True] : Bool
-    je %v199, b34, b35
+    %v191 = phi [b31, %v187], [b32, True] : Bool
+    je %v191, b34, b35
 
   b34:
     jmp b36
@@ -1488,27 +1488,27 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
   b35:
     %roundUp = alloc : Bool
     init %roundUp, False
-    %v380 = load %vp : U64
-    %vpHundred = div %v380, 100 : U64
-    %v384 = load %vm : U64
-    %vmHundred = div %v384, 100 : U64
-    %v388 = cmp_gt %vpHundred, %vmHundred : Bool
-    je %v388, b78, b79
+    %v372 = load %vp : U64
+    %vpHundred = div %v372, 100 : U64
+    %v376 = load %vm : U64
+    %vmHundred = div %v376, 100 : U64
+    %v380 = cmp_gt %vpHundred, %vmHundred : Bool
+    je %v380, b78, b79
 
   b36:
     je True, b38, b37
 
   b37:
-    %v262 = load %lowerIsExact : Bool
-    je %v262, b48, b49
+    %v254 = load %lowerIsExact : Bool
+    je %v254, b48, b49
 
   b38:
-    %v204 = load %vp : U64
-    %vpNext = div %v204, 10 : U64
-    %v208 = load %vm : U64
-    %vmNext = div %v208, 10 : U64
-    %v212 = cmp_le %vpNext, %vmNext : Bool
-    je %v212, b39, b40
+    %v196 = load %vp : U64
+    %vpNext = div %v196, 10 : U64
+    %v200 = load %vm : U64
+    %vmNext = div %v200, 10 : U64
+    %v204 = cmp_le %vpNext, %vmNext : Bool
+    je %v204, b39, b40
 
   b39:
     jmp b37
@@ -1517,49 +1517,49 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b41
 
   b41:
-    %v216 = load %vr : U64
-    %vrNext = div %v216, 10 : U64
-    %v220 = load %lowerIsExact : Bool
-    je %v220, b42, b43
+    %v208 = load %vr : U64
+    %vrNext = div %v208, 10 : U64
+    %v212 = load %lowerIsExact : Bool
+    je %v212, b42, b43
 
   b42:
-    %v222 = load %vm : U64
-    %v225 = mul %vmNext, 10 : U64
-    %v226 = sub %v222, %v225 : U64
-    %v229 = cmp_eq %v226, 0 : Bool
+    %v214 = load %vm : U64
+    %v217 = mul %vmNext, 10 : U64
+    %v218 = sub %v214, %v217 : U64
+    %v221 = cmp_eq %v218, 0 : Bool
     jmp b44
 
   b43:
     jmp b44
 
   b44:
-    %v233 = phi [b42, %v229], [b43, False] : Bool
-    assign %lowerIsExact, %v233
-    %v235 = load %valueIsExact : Bool
-    je %v235, b45, b46
+    %v225 = phi [b42, %v221], [b43, False] : Bool
+    assign %lowerIsExact, %v225
+    %v227 = load %valueIsExact : Bool
+    je %v227, b45, b46
 
   b45:
-    %v237 = load %lastRemoved : Int
-    %v240 = cmp_eq %v237, 0 : Bool
+    %v229 = load %lastRemoved : Int
+    %v232 = cmp_eq %v229, 0 : Bool
     jmp b47
 
   b46:
     jmp b47
 
   b47:
-    %v244 = phi [b45, %v240], [b46, False] : Bool
-    assign %valueIsExact, %v244
-    %v246 = load %vr : U64
-    %v249 = mul %vrNext, 10 : U64
-    %v250 = sub %v246, %v249 : U64
-    %v251 = cast %v250 : Int
-    assign %lastRemoved, %v251
+    %v236 = phi [b45, %v232], [b46, False] : Bool
+    assign %valueIsExact, %v236
+    %v238 = load %vr : U64
+    %v241 = mul %vrNext, 10 : U64
+    %v242 = sub %v238, %v241 : U64
+    %v243 = cast %v242 : Int
+    assign %lastRemoved, %v243
     assign %vr, %vrNext
     assign %vp, %vpNext
     assign %vm, %vmNext
-    %v256 = load %removed : Int
-    %v259 = add %v256, 1 : Int
-    assign %removed, %v259
+    %v248 = load %removed : Int
+    %v251 = add %v248, 1 : Int
+    assign %removed, %v251
     jmp b36
 
   b48:
@@ -1575,13 +1575,13 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b59
 
   b52:
-    %v267 = load %vm : U64
-    %vmNext = div %v267, 10 : U64
-    %v271 = load %vm : U64
-    %v274 = mul %vmNext, 10 : U64
-    %v275 = sub %v271, %v274 : U64
-    %v278 = cmp_ne %v275, 0 : Bool
-    je %v278, b53, b54
+    %v259 = load %vm : U64
+    %vmNext = div %v259, 10 : U64
+    %v263 = load %vm : U64
+    %v266 = mul %vmNext, 10 : U64
+    %v267 = sub %v263, %v266 : U64
+    %v270 = cmp_ne %v267, 0 : Bool
+    je %v270, b53, b54
 
   b53:
     jmp b51
@@ -1590,65 +1590,65 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b55
 
   b55:
-    %v282 = load %vp : U64
-    %vpNext = div %v282, 10 : U64
-    %v286 = load %vr : U64
-    %vrNext = div %v286, 10 : U64
-    %v290 = load %valueIsExact : Bool
-    je %v290, b56, b57
+    %v274 = load %vp : U64
+    %vpNext = div %v274, 10 : U64
+    %v278 = load %vr : U64
+    %vrNext = div %v278, 10 : U64
+    %v282 = load %valueIsExact : Bool
+    je %v282, b56, b57
 
   b56:
-    %v292 = load %lastRemoved : Int
-    %v295 = cmp_eq %v292, 0 : Bool
+    %v284 = load %lastRemoved : Int
+    %v287 = cmp_eq %v284, 0 : Bool
     jmp b58
 
   b57:
     jmp b58
 
   b58:
-    %v299 = phi [b56, %v295], [b57, False] : Bool
-    assign %valueIsExact, %v299
-    %v301 = load %vr : U64
-    %v304 = mul %vrNext, 10 : U64
-    %v305 = sub %v301, %v304 : U64
-    %v306 = cast %v305 : Int
-    assign %lastRemoved, %v306
+    %v291 = phi [b56, %v287], [b57, False] : Bool
+    assign %valueIsExact, %v291
+    %v293 = load %vr : U64
+    %v296 = mul %vrNext, 10 : U64
+    %v297 = sub %v293, %v296 : U64
+    %v298 = cast %v297 : Int
+    assign %lastRemoved, %v298
     assign %vr, %vrNext
     assign %vp, %vpNext
     assign %vm, %vmNext
-    %v311 = load %removed : Int
-    %v314 = add %v311, 1 : Int
-    assign %removed, %v314
+    %v303 = load %removed : Int
+    %v306 = add %v303, 1 : Int
+    assign %removed, %v306
     jmp b50
 
   b59:
-    %v319 = load %valueIsExact : Bool
-    je %v319, b60, b61
+    %v311 = load %valueIsExact : Bool
+    je %v311, b60, b61
 
   b60:
-    %v321 = load %lastRemoved : Int
-    %v324 = cmp_eq %v321, 5 : Bool
+    %v313 = load %lastRemoved : Int
+    %v316 = cmp_eq %v313, 5 : Bool
     jmp b62
 
   b61:
     jmp b62
 
   b62:
-    %v328 = phi [b60, %v324], [b61, False] : Bool
-    je %v328, b63, b64
+    %v320 = phi [b60, %v316], [b61, False] : Bool
+    je %v320, b63, b64
 
   b63:
-    %v330 = load %vr : U64
-    %v333 = rem %v330, 2 : U64
-    %v336 = cmp_eq %v333, 0 : Bool
+    %v322 = load %vr : U64
+    %v325 = rem %v322, 2 : U64
+    %v328 = cmp_eq %v325, 0 : Bool
     jmp b65
 
   b64:
     jmp b65
 
   b65:
-    %v340 = phi [b63, %v336], [b64, False] : Bool
-    je %v340, b66, b67
+    %v332 = phi [b63, %v328], [b64, False] : Bool
+    je %v332, b66, b67
 
   b66:
     assign %lastRemoved, 4
@@ -1658,64 +1658,64 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b68
 
   b68:
-    %v346 = load %vr : U64
-    %v347 = load %vm : U64
-    %v348 = cmp_eq %v346, %v347 : Bool
-    je %v348, b69, b70
+    %v338 = load %vr : U64
+    %v339 = load %vm : U64
+    %v340 = cmp_eq %v338, %v339 : Bool
+    je %v340, b69, b70
 
   b69:
-    %v351 = xor %acceptBounds, True : Bool
-    je %v351, b72, b71
+    %v343 = xor %acceptBounds, True : Bool
+    je %v343, b72, b71
 
   b70:
     jmp b74
 
   b71:
-    %v353 = load %lowerIsExact : Bool
-    %v355 = xor %v353, True : Bool
+    %v345 = load %lowerIsExact : Bool
+    %v347 = xor %v345, True : Bool
     jmp b73
 
   b72:
     jmp b73
 
   b73:
-    %v359 = phi [b71, %v355], [b72, True] : Bool
+    %v351 = phi [b71, %v347], [b72, True] : Bool
     jmp b74
 
   b74:
-    %outside = phi [b73, %v359], [b70, False] : Bool
-    %v364 = load %vr : U64
+    %outside = phi [b73, %v351], [b70, False] : Bool
+    %v356 = load %vr : U64
     je %outside, b76, b75
 
   b75:
-    %v366 = load %lastRemoved : Int
-    %v369 = cmp_ge %v366, 5 : Bool
+    %v358 = load %lastRemoved : Int
+    %v361 = cmp_ge %v358, 5 : Bool
     jmp b77
 
   b76:
     jmp b77
 
   b77:
-    %v373 = phi [b75, %v369], [b76, True] : Bool
-    %v374 = call carryOf, %v373 : U64
-    %v375 = add %v364, %v374 : U64
-    assign %output, %v375
+    %v365 = phi [b75, %v361], [b76, True] : Bool
+    %v366 = call carryOf, %v365 : U64
+    %v367 = add %v356, %v366 : U64
+    assign %output, %v367
     jmp b90
 
   b78:
-    %v390 = load %vr : U64
-    %vrHundred = div %v390, 100 : U64
-    %v394 = load %vr : U64
-    %v397 = mul %vrHundred, 100 : U64
-    %v398 = sub %v394, %v397 : U64
-    %v401 = cmp_ge %v398, 50 : Bool
-    assign %roundUp, %v401
+    %v382 = load %vr : U64
+    %vrHundred = div %v382, 100 : U64
+    %v386 = load %vr : U64
+    %v389 = mul %vrHundred, 100 : U64
+    %v390 = sub %v386, %v389 : U64
+    %v393 = cmp_ge %v390, 50 : Bool
+    assign %roundUp, %v393
     assign %vr, %vrHundred
     assign %vp, %vpHundred
     assign %vm, %vmHundred
-    %v406 = load %removed : Int
-    %v409 = add %v406, 2 : Int
-    assign %removed, %v409
+    %v398 = load %removed : Int
+    %v401 = add %v398, 2 : Int
+    assign %removed, %v401
     jmp b80
 
   b79:
@@ -1728,19 +1728,19 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     je True, b83, b82
 
   b82:
-    %v450 = load %vr : U64
-    %v451 = load %vr : U64
-    %v452 = load %vm : U64
-    %v453 = cmp_eq %v451, %v452 : Bool
-    je %v453, b88, b87
+    %v442 = load %vr : U64
+    %v443 = load %vr : U64
+    %v444 = load %vm : U64
+    %v445 = cmp_eq %v443, %v444 : Bool
+    je %v445, b88, b87
 
   b83:
-    %v416 = load %vp : U64
-    %vpNext = div %v416, 10 : U64
-    %v420 = load %vm : U64
-    %vmNext = div %v420, 10 : U64
-    %v424 = cmp_le %vpNext, %vmNext : Bool
-    je %v424, b84, b85
+    %v408 = load %vp : U64
+    %vpNext = div %v408, 10 : U64
+    %v412 = load %vm : U64
+    %vmNext = div %v412, 10 : U64
+    %v416 = cmp_le %vpNext, %vmNext : Bool
+    je %v416, b84, b85
 
   b84:
     jmp b82
@@ -1749,43 +1749,43 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b86
 
   b86:
-    %v428 = load %vr : U64
-    %vrNext = div %v428, 10 : U64
-    %v432 = load %vr : U64
-    %v435 = mul %vrNext, 10 : U64
-    %v436 = sub %v432, %v435 : U64
-    %v439 = cmp_ge %v436, 5 : Bool
-    assign %roundUp, %v439
+    %v420 = load %vr : U64
+    %vrNext = div %v420, 10 : U64
+    %v424 = load %vr : U64
+    %v427 = mul %vrNext, 10 : U64
+    %v428 = sub %v424, %v427 : U64
+    %v431 = cmp_ge %v428, 5 : Bool
+    assign %roundUp, %v431
     assign %vr, %vrNext
     assign %vp, %vpNext
     assign %vm, %vmNext
-    %v444 = load %removed : Int
-    %v447 = add %v444, 1 : Int
-    assign %removed, %v447
+    %v436 = load %removed : Int
+    %v439 = add %v436, 1 : Int
+    assign %removed, %v439
     jmp b81
 
   b87:
-    %v455 = load %roundUp : Bool
+    %v447 = load %roundUp : Bool
     jmp b89
 
   b88:
     jmp b89
 
   b89:
-    %v459 = phi [b87, %v455], [b88, True] : Bool
-    %v460 = call carryOf, %v459 : U64
-    %v461 = add %v450, %v460 : U64
-    assign %output, %v461
+    %v451 = phi [b87, %v447], [b88, True] : Bool
+    %v452 = call carryOf, %v451 : U64
+    %v453 = add %v442, %v452 : U64
+    assign %output, %v453
     jmp b90
 
   b90:
-    %v465 = alloc : Shortest
-    %v466 = load %output : U64
-    %v467 = load %e10 : Int
-    %v468 = load %removed : Int
-    %v469 = add %v467, %v468 : Int
-    aggregate %local10@Shortest.digits = %v466, %local10@Shortest.exponent = %v469
-    ret %v465
+    %v457 = alloc : Shortest
+    %v458 = load %output : U64
+    %v459 = load %e10 : Int
+    %v460 = load %removed : Int
+    %v461 = add %v459, %v460 : Int
+    aggregate %local10@Shortest.digits = %v458, %local10@Shortest.exponent = %v461
+    ret %v457
 }
 
 fn doubleShortest(%value: Double) -> Shortest {
@@ -2113,25 +2113,23 @@ fn numberOf(%call: Syscall) -> USize {
 
 fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %v5 = sub 0, 1 : Int
-    %v6 = cast %v5 : Size
-    %anonymous = bitcast %v6 : USize
-    %v9 = call numberOf, SysMunmap : USize
-    %v11 = bitcast %size : USize
-    %result = syscall %v9, 0, %v11, 3, 34, %anonymous, 0 : Size
-    %v18 = cmp_lt %result, 0 : Bool
-    je %v18, b1, b2
+    %anonymous = bitcast -1 : USize
+    %v4 = call numberOf, SysMunmap : USize
+    %v6 = bitcast %size : USize
+    %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
+    %v13 = cmp_lt %result, 0 : Bool
+    je %v13, b1, b2
 
   b1:
-    %v21 = bitcast 0 : %U8
-    ret %v21
+    %v16 = bitcast 0 : %U8
+    ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v24 = bitcast %result : %U8
-    ret %v24
+    %v19 = bitcast %result : %U8
+    ret %v19
 }
 
 fn exitProcess(%status: Size) -> () {

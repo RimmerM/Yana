@@ -12,125 +12,115 @@ fn main() -> Int {
     je %v12, b1, b2
 
   b1:
-    %v16 = neg 1 : Int
-    ret %v16
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v21 = vlane %high, 4 : Int
-    %v24 = cmp_ne %v21, 3 : Bool
-    je %v24, b4, b5
+    %v19 = vlane %high, 4 : Int
+    %v22 = cmp_ne %v19, 3 : Bool
+    je %v22, b4, b5
 
   b4:
-    %v28 = neg 2 : Int
-    ret %v28
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v33 = vlane %high, 7 : Int
-    %v36 = cmp_ne %v33, 3 : Bool
-    je %v36, b7, b8
+    %v29 = vlane %high, 7 : Int
+    %v32 = cmp_ne %v29, 3 : Bool
+    je %v32, b7, b8
 
   b7:
-    %v40 = neg 3 : Int
-    ret %v40
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v45 = vlane %high, 0 : Int
-    %v48 = cmp_ne %v45, 3 : Bool
-    je %v48, b10, b11
+    %v39 = vlane %high, 0 : Int
+    %v42 = cmp_ne %v39, 3 : Bool
+    je %v42, b10, b11
 
   b10:
-    %v52 = neg 4 : Int
-    ret %v52
+    ret -4
 
   b11:
     jmp b12
 
   b12:
     %low = vwithlane %high, 20, 1 : Vec(Int)
-    %v62 = vlane %low, 1 : Int
-    %v65 = cmp_ne %v62, 20 : Bool
-    je %v65, b13, b14
+    %v54 = vlane %low, 1 : Int
+    %v57 = cmp_ne %v54, 20 : Bool
+    je %v57, b13, b14
 
   b13:
-    %v69 = neg 5 : Int
-    ret %v69
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v74 = vlane %low, 5 : Int
-    %v77 = cmp_ne %v74, 40 : Bool
-    je %v77, b16, b17
+    %v64 = vlane %low, 5 : Int
+    %v67 = cmp_ne %v64, 40 : Bool
+    je %v67, b16, b17
 
   b16:
-    %v81 = neg 6 : Int
-    ret %v81
+    ret -6
 
   b17:
     jmp b18
 
   b18:
-    %v86 = vlane %low, 6 : Int
-    %v89 = cmp_ne %v86, 3 : Bool
-    je %v89, b19, b20
+    %v74 = vlane %low, 6 : Int
+    %v77 = cmp_ne %v74, 3 : Bool
+    je %v77, b19, b20
 
   b19:
-    %v93 = neg 7 : Int
-    ret %v93
+    ret -7
 
   b20:
     jmp b21
 
   b21:
-    %v96 = vreduce_max %low : Int
-    %v99 = cmp_ne %v96, 40 : Bool
-    je %v99, b22, b23
+    %v82 = vreduce_max %low : Int
+    %v85 = cmp_ne %v82, 40 : Bool
+    je %v85, b22, b23
 
   b22:
-    %v103 = neg 8 : Int
-    ret %v103
+    ret -8
 
   b23:
     jmp b24
 
   b24:
-    %v106 = vreduce_min %low : Int
-    %v109 = cmp_ne %v106, 3 : Bool
-    je %v109, b25, b26
+    %v90 = vreduce_min %low : Int
+    %v93 = cmp_ne %v90, 3 : Bool
+    je %v93, b25, b26
 
   b25:
-    %v113 = neg 9 : Int
-    ret %v113
+    ret -9
 
   b26:
     jmp b27
 
   b27:
-    %v116 = vreduce_add %low : Int
-    %v119 = cmp_ne %v116, 78 : Bool
-    je %v119, b28, b29
+    %v98 = vreduce_add %low : Int
+    %v101 = cmp_ne %v98, 78 : Bool
+    je %v101, b28, b29
 
   b28:
-    %v123 = neg 10 : Int
-    ret %v123
+    ret -10
 
   b29:
     jmp b30
 
   b30:
-    %v128 = vlane %low, 5 : Int
-    %v131 = mul %v128, 10 : Int
-    %v134 = vlane %low, 1 : Int
-    %v135 = add %v131, %v134 : Int
-    ret %v135
+    %v108 = vlane %low, 5 : Int
+    %v111 = mul %v108, 10 : Int
+    %v114 = vlane %low, 1 : Int
+    %v115 = add %v111, %v114 : Int
+    ret %v115
 }

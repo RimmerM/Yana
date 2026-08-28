@@ -149,21 +149,20 @@ fn main() -> Int {
     %b = call sometimesLeaves, 5 : Int
     %c = call sometimesLeaves, 200 : Int
     %d = call insideArm, 3 : Int
-    %v12 = neg 1 : Int
-    %e = call insideArm, %v12 : Int
+    %e = call insideArm, -1 : Int
     %f = call leavesWithValue, 9 : Int
     %g = call leavesWithValue, 2 : Int
     %h = call twoDeep, 4 : Int
-    %v20 = add %a, %b : Int
-    %v21 = add %v20, %c : Int
-    %v22 = add %v21, %d : Int
-    %v23 = add %v22, %e : Int
-    %v24 = add %v23, %f : Int
-    %v25 = add %v24, %g : Int
-    %v26 = add %v25, %h : Int
-    %v27 = load log : Int
-    %v28 = add %v26, %v27 : Int
-    ret %v28
+    %v18 = add %a, %b : Int
+    %v19 = add %v18, %c : Int
+    %v20 = add %v19, %d : Int
+    %v21 = add %v20, %e : Int
+    %v22 = add %v21, %f : Int
+    %v23 = add %v22, %g : Int
+    %v24 = add %v23, %h : Int
+    %v25 = load log : Int
+    %v26 = add %v24, %v25 : Int
+    ret %v26
 }
 
 fn ResolveTest.continuation$22(%env: %{x: Int}) -> Int {

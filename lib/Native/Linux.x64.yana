@@ -96,7 +96,7 @@ pub fn mapMemory(size: Size) -> %U8:
     -- and this is the one place the kernel's "no file" is a bit pattern instead of a count. Written
     -- out here because it cannot be a `let` - a global's initializer is a literal, and the all-ones
     -- word of a width no stage above `repr` has is not one.
-    let anonymous = bitcast(0 - 1 :: Size) :: USize
+    let anonymous = bitcast(-1 :: Size) :: USize
     let result = syscall6(numberOf(SysMmap), 0, bitcast(size) :: USize, protReadWrite, mapPrivateAnonymous, anonymous, 0)
     if result < 0 then return null()
 

@@ -475,7 +475,7 @@ fn shortestOf(m2: U64, e2: Int, mmShift: U64) -> Shortest:
     if e2 >= 0:
         let q = log10Pow2(e2) - (if e2 > 3 then 1 else 0)
         let k = 125 + pow5Bits(q) - 1
-        let i = 0 - e2 + q + k
+        let i = -e2 + q + k
 
         e10 = q
         vr = mulShiftInv(mv, q, i)
@@ -492,8 +492,8 @@ fn shortestOf(m2: U64, e2: Int, mmShift: U64) -> Shortest:
             else if multipleOfPowerOf5(mv + 2, q):
                 vp = vp - 1
     else:
-        let q = log10Pow5(0 - e2) - (if (0 - e2) > 1 then 1 else 0)
-        let i = (0 - e2) - q
+        let q = log10Pow5(-e2) - (if (-e2) > 1 then 1 else 0)
+        let i = (-e2) - q
         let k = pow5Bits(i) - 125
         let j = q - k
 

@@ -73,27 +73,27 @@ function idsOf(c) {
 }
 
 function main() {
-  var v18 = { head: 39, tail: { $v: { head: 0, tail: null } } };
-  v18.tail.$v = null;
-  var v17 = { head: 2, tail: { $v: { head: 0, tail: null } } };
-  v17.tail.$v = v18;
+  var v16 = { head: 39, tail: { $v: { head: 0, tail: null } } };
+  v16.tail.$v = null;
+  var v15 = { head: 2, tail: { $v: { head: 0, tail: null } } };
+  v15.tail.$v = v16;
   var xs = { head: 1, tail: { $v: { head: 0, tail: null } } };
-  xs.tail.$v = v17;
-  var v46 = sum(xs);
+  xs.tail.$v = v15;
+  var v44 = sum(xs);
   var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: { $tag: 1, left: null, right: { $tag: 0, left: null, right: null, label: 0, $p: 20 }, label: 5, $p: 0 }, label: 7, $p: 0 };
-  var values = v46 + (total(t) + leftOf(t) | 0) | 0;
+  var values = v44 + (total(t) + leftOf(t) | 0) | 0;
   add_eq_Int(liveNodes, "$v", 1, 1);
   add_eq_Int(liveNodes, "$v", 1, 1);
-  var v97 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
-  v97.rest.$v = null;
+  var v95 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
+  v95.rest.$v = null;
   var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
-  c.rest.$v = v97;
-  var v121 = idsOf(c);
+  c.rest.$v = v95;
+  var v119 = idsOf(c);
   drop$Chain(c);
   if (liveNodes.$v) {
     return -1;
   } else {
-    return values + v121 | 0;
+    return values + v119 | 0;
   }
 }
 

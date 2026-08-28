@@ -76,13 +76,13 @@ pub class Read(a):
    integer read; see §62.3.
 -}
 fn digitValue(unit: Int, radix: Int) -> Int:
-    let &value = 0 - 1
+    let &value = -1
 
     if unit >= 48 && unit <= 57 then value = unit - 48
     else if unit >= 97 && unit <= 122 then value = unit - 97 + 10
     else if unit >= 65 && unit <= 90 then value = unit - 65 + 10
 
-    if value >= radix then return 0 - 1
+    if value >= radix then return -1
     return value
 
 {-
@@ -321,7 +321,7 @@ fn readBounded(text: String, &at: Size, radix: Int, low: Long, high: Long) -> Re
             start = start + 1
 
     -- The largest magnitude either sign admits, which is one larger on the negative side.
-    let limit = if negative then bitcast(0 - low) :: U64 else bitcast(high) :: U64
+    let limit = if negative then bitcast(-low) :: U64 else bitcast(high) :: U64
 
     let &stop = start
     let &magnitude = 0 :: U64
@@ -333,7 +333,7 @@ fn readBounded(text: String, &at: Size, radix: Int, low: Long, high: Long) -> Re
 
     at = stop
     let signed = bitcast(magnitude) :: Long
-    return Ok(if negative then 0 - signed else signed)
+    return Ok(if negative then -signed else signed)
 
 -- An unsigned value in a radix, which takes no sign at all: a `-1` at a `U32` is not a number this
 -- type has and reading it as one is how a wrapped maximum gets into a program.

@@ -196,10 +196,9 @@ fn negated() -> Int {
     aggregate %local0@Cents.value = 7
     %negative = call Num.-(Cents), %value : Cents
     %v4 = alloc : Cents
-    %v7 = neg 7 : Int
-    aggregate %local2@Cents.value = %v7
-    %v9 = call Eq(Cents).==, %negative, %v4 : Bool
-    je %v9, b1, b2
+    aggregate %local2@Cents.value = -7
+    %v7 = call Eq(Cents).==, %negative, %v4 : Bool
+    je %v7, b1, b2
 
   b1:
     ret 128

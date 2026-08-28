@@ -31,19 +31,18 @@ fn maskedTotal(%v: Vec(Int), %limit: Int) -> Int {
     je %v14, b1, b2
 
   b1:
-    %v18 = neg 1 : Int
-    ret %v18
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v21 = vreduce_add %kept : Int
-    %v24 = mul %v21, 10 : Int
-    %v25 = load %live : Mask(Int)
-    %v26 = vreduce_add %v25 : Int
-    %v27 = add %v24, %v26 : Int
-    ret %v27
+    %v19 = vreduce_add %kept : Int
+    %v22 = mul %v19, 10 : Int
+    %v23 = load %live : Mask(Int)
+    %v24 = vreduce_add %v23 : Int
+    %v25 = add %v22, %v24 : Int
+    ret %v25
 }
 
 fn main() -> Int {

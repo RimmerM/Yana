@@ -659,25 +659,23 @@ fn numberOf(%call: Syscall) -> USize {
 
 fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %v5 = sub 0, 1 : Int
-    %v6 = cast %v5 : Size
-    %anonymous = bitcast %v6 : USize
-    %v9 = call numberOf, SysMunmap : USize
-    %v11 = bitcast %size : USize
-    %result = syscall %v9, 0, %v11, 3, 34, %anonymous, 0 : Size
-    %v18 = cmp_lt %result, 0 : Bool
-    je %v18, b1, b2
+    %anonymous = bitcast -1 : USize
+    %v4 = call numberOf, SysMunmap : USize
+    %v6 = bitcast %size : USize
+    %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
+    %v13 = cmp_lt %result, 0 : Bool
+    je %v13, b1, b2
 
   b1:
-    %v21 = bitcast 0 : %U8
-    ret %v21
+    %v16 = bitcast 0 : %U8
+    ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v24 = bitcast %result : %U8
-    ret %v24
+    %v19 = bitcast %result : %U8
+    ret %v19
 }
 
 fn exitProcess(%status: Size) -> () {

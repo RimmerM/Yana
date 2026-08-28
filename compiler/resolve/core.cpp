@@ -1097,5 +1097,6 @@ void definePreludeText(Program& program, Module& core) {
     // `place ++= "a{x}b"`, and the function of that name is what every *other* right operand
     // resolves to. See resolvePrecedence.
     program.appendAssign = context.addUnqualifiedName("++=", 3);
+    program.negate = context.addUnqualifiedName("-", 1);
 }
 

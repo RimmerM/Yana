@@ -479,7 +479,7 @@ writeShortest<complex>(%value$digits: Long, %value$exponent: Int, %to: Ptr) {
     %v_13 = add %value$exponent, %count: Int
     %exp = sub %v_13, 1: Int
     %v_14 = cmp_ilt %exp, 0: Int
-    %v_15 = sub 0, %exp: Int
+    %v_15 = neg %exp: Int
     %v_16 = cmp_ile %v_15, 7: Int
     %v_17 = and %v_14, %v_16: Int
     je %v_17, b_18, b_19
@@ -705,7 +705,7 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
   }
 
   b_9 {
-    %v_10 = sub 0, %e2: Int
+    %v_10 = neg %e2: Int
     %v_11 = imul %v_10, 732923: Int
     %v_12 = shr %v_11, 20: Int
     %v_13 = cmp_igt %v_10, 1: Int
@@ -762,7 +762,7 @@ shortestOf<complex>(%v_0: Ptr, %m2: Long, %e2: Int, %mmShift: Long) {
     %v_41 = shr %v_40, 19: Int
     %v_42 = add %v_41, 126: Int
     %k = sub %v_42, 1: Int
-    %v_43 = sub 0, %e2: Int
+    %v_43 = neg %e2: Int
     %v_44 = add %v_43, %q: Int
     %i = add %v_44, %k: Int
     %v_45 = call_complex mulShiftInv, %mv, %q, %i: Long
@@ -1091,7 +1091,7 @@ Show(Double).show<complex>(%value: Double, %to: Ptr) {
 
   b_15 {
     %v_19 = cmp_lt %value, 0: Int
-    %v_20 = sub 0, %value: Double
+    %v_20 = neg %value: Double
     %v_21 = select %v_19, %v_20, %value: Double
     %v_22 = cmp_eq %v_21, 0: Int
     je %v_22, b_23, b_24

@@ -174,25 +174,23 @@ fn numberOf(%call: Syscall) -> USize {
 
 fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %v5 = sub 0, 1 : Int
-    %v6 = cast %v5 : Size
-    %anonymous = bitcast %v6 : USize
-    %v9 = call numberOf, SysMunmap : USize
-    %v11 = bitcast %size : USize
-    %result = syscall %v9, 0, %v11, 3, 34, %anonymous, 0 : Size
-    %v18 = cmp_lt %result, 0 : Bool
-    je %v18, b1, b2
+    %anonymous = bitcast -1 : USize
+    %v4 = call numberOf, SysMunmap : USize
+    %v6 = bitcast %size : USize
+    %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
+    %v13 = cmp_lt %result, 0 : Bool
+    je %v13, b1, b2
 
   b1:
-    %v21 = bitcast 0 : %U8
-    ret %v21
+    %v16 = bitcast 0 : %U8
+    ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v24 = bitcast %result : %U8
-    ret %v24
+    %v19 = bitcast %result : %U8
+    ret %v19
 }
 
 fn exitProcess(%status: Size) -> () {
@@ -1167,104 +1165,99 @@ fn main() -> Int {
     jmp b1
 
   b4:
-    %v32 = neg 1 : Int
-    ret %v32
+    ret -1
 
   b5:
     jmp b6
 
   b6:
-    %v35 = load %xs : Array(Int)
-    %v38 = borrow %xs : 'Array(Int)
-    %v39 = load [%v38]@Array.length : @bits(30) U32
-    %v40 = cast 0 : USize
-    %v41 = cast %v39 : USize
-    %v42 = cmp_ge %v40, %v41 : Bool
-    call checkCondition, %v42
-    %v44 = load [%v38]@Array.run@Run.items : %Int
-    %v45 = strideof Int : Long
-    %v46 = mul 0, %v45 : Long
-    %v47 = add %v44, %v46 : %Int
-    %v48 = borrow [%v47] : 'Int
-    %v49 = load [%v48] : Int
-    %v52 = cmp_ne %v49, 0 : Bool
-    je %v52, b23, b8
+    %v33 = load %xs : Array(Int)
+    %v36 = borrow %xs : 'Array(Int)
+    %v37 = load [%v36]@Array.length : @bits(30) U32
+    %v38 = cast 0 : USize
+    %v39 = cast %v37 : USize
+    %v40 = cmp_ge %v38, %v39 : Bool
+    call checkCondition, %v40
+    %v42 = load [%v36]@Array.run@Run.items : %Int
+    %v43 = strideof Int : Long
+    %v44 = mul 0, %v43 : Long
+    %v45 = add %v42, %v44 : %Int
+    %v46 = borrow [%v45] : 'Int
+    %v47 = load [%v46] : Int
+    %v50 = cmp_ne %v47, 0 : Bool
+    je %v50, b23, b8
 
   b7:
-    %v56 = neg 2 : Int
-    ret %v56
+    ret -2
 
   b8:
     jmp b9
 
   b9:
-    %v59 = load %xs : Array(Int)
-    %v62 = borrow %xs : 'Array(Int)
-    %v63 = load [%v62]@Array.length : @bits(30) U32
-    %v64 = cast 131071 : USize
-    %v65 = cast %v63 : USize
-    %v66 = cmp_ge %v64, %v65 : Bool
-    call checkCondition, %v66
-    %v68 = load [%v62]@Array.run@Run.items : %Int
-    %v69 = strideof Int : Long
-    %v70 = mul 131071, %v69 : Long
-    %v71 = add %v68, %v70 : %Int
-    %v72 = borrow [%v71] : 'Int
-    %v73 = load [%v72] : Int
-    %v76 = cmp_ne %v73, 131071 : Bool
-    je %v76, b24, b11
+    %v55 = load %xs : Array(Int)
+    %v58 = borrow %xs : 'Array(Int)
+    %v59 = load [%v58]@Array.length : @bits(30) U32
+    %v60 = cast 131071 : USize
+    %v61 = cast %v59 : USize
+    %v62 = cmp_ge %v60, %v61 : Bool
+    call checkCondition, %v62
+    %v64 = load [%v58]@Array.run@Run.items : %Int
+    %v65 = strideof Int : Long
+    %v66 = mul 131071, %v65 : Long
+    %v67 = add %v64, %v66 : %Int
+    %v68 = borrow [%v67] : 'Int
+    %v69 = load [%v68] : Int
+    %v72 = cmp_ne %v69, 131071 : Bool
+    je %v72, b24, b11
 
   b10:
-    %v80 = neg 3 : Int
-    ret %v80
+    ret -3
 
   b11:
     jmp b12
 
   b12:
-    %v83 = load %xs : Array(Int)
-    %v86 = borrow %xs : 'Array(Int)
-    %v87 = load [%v86]@Array.length : @bits(30) U32
-    %v88 = cast 131072 : USize
-    %v89 = cast %v87 : USize
-    %v90 = cmp_ge %v88, %v89 : Bool
-    call checkCondition, %v90
-    %v92 = load [%v86]@Array.run@Run.items : %Int
-    %v93 = strideof Int : Long
-    %v94 = mul 131072, %v93 : Long
-    %v95 = add %v92, %v94 : %Int
-    %v96 = borrow [%v95] : 'Int
-    %v97 = load [%v96] : Int
-    %v100 = cmp_ne %v97, 131072 : Bool
-    je %v100, b25, b14
+    %v77 = load %xs : Array(Int)
+    %v80 = borrow %xs : 'Array(Int)
+    %v81 = load [%v80]@Array.length : @bits(30) U32
+    %v82 = cast 131072 : USize
+    %v83 = cast %v81 : USize
+    %v84 = cmp_ge %v82, %v83 : Bool
+    call checkCondition, %v84
+    %v86 = load [%v80]@Array.run@Run.items : %Int
+    %v87 = strideof Int : Long
+    %v88 = mul 131072, %v87 : Long
+    %v89 = add %v86, %v88 : %Int
+    %v90 = borrow [%v89] : 'Int
+    %v91 = load [%v90] : Int
+    %v94 = cmp_ne %v91, 131072 : Bool
+    je %v94, b25, b14
 
   b13:
-    %v104 = neg 4 : Int
-    ret %v104
+    ret -4
 
   b14:
     jmp b15
 
   b15:
-    %v107 = load %xs : Array(Int)
-    %v110 = borrow %xs : 'Array(Int)
-    %v111 = load [%v110]@Array.length : @bits(30) U32
-    %v112 = cast 199999 : USize
-    %v113 = cast %v111 : USize
-    %v114 = cmp_ge %v112, %v113 : Bool
-    call checkCondition, %v114
-    %v116 = load [%v110]@Array.run@Run.items : %Int
-    %v117 = strideof Int : Long
-    %v118 = mul 199999, %v117 : Long
-    %v119 = add %v116, %v118 : %Int
-    %v120 = borrow [%v119] : 'Int
-    %v121 = load [%v120] : Int
-    %v124 = cmp_ne %v121, 199999 : Bool
-    je %v124, b26, b17
+    %v99 = load %xs : Array(Int)
+    %v102 = borrow %xs : 'Array(Int)
+    %v103 = load [%v102]@Array.length : @bits(30) U32
+    %v104 = cast 199999 : USize
+    %v105 = cast %v103 : USize
+    %v106 = cmp_ge %v104, %v105 : Bool
+    call checkCondition, %v106
+    %v108 = load [%v102]@Array.run@Run.items : %Int
+    %v109 = strideof Int : Long
+    %v110 = mul 199999, %v109 : Long
+    %v111 = add %v108, %v110 : %Int
+    %v112 = borrow [%v111] : 'Int
+    %v113 = load [%v112] : Int
+    %v116 = cmp_ne %v113, 199999 : Bool
+    je %v116, b26, b17
 
   b16:
-    %v128 = neg 5 : Int
-    ret %v128
+    ret -5
 
   b17:
     jmp b18
@@ -1277,36 +1270,36 @@ fn main() -> Int {
     jmp b19
 
   b19:
-    %v138 = load %j : Int
-    %v141 = cmp_lt %v138, 200000 : Bool
-    je %v141, b21, b27
+    %v128 = load %j : Int
+    %v131 = cmp_lt %v128, 200000 : Bool
+    je %v131, b21, b27
 
   b20:
-    %v167 = load %total : Int
-    ret %v167
+    %v157 = load %total : Int
+    ret %v157
 
   b21:
-    %v143 = load %total : Int
-    %v144 = load %xs : Array(Int)
-    %v145 = load %j : Int
-    %v146 = cast %v145 : Size
-    %v147 = borrow %xs : 'Array(Int)
-    %v148 = load [%v147]@Array.length : @bits(30) U32
-    %v149 = cast %v146 : USize
-    %v150 = cast %v148 : USize
-    %v151 = cmp_ge %v149, %v150 : Bool
-    call checkCondition, %v151
-    %v153 = load [%v147]@Array.run@Run.items : %Int
-    %v154 = strideof Int : Long
-    %v155 = mul %v146, %v154 : Long
-    %v156 = add %v153, %v155 : %Int
-    %v157 = borrow [%v156] : 'Int
-    %v158 = load [%v157] : Int
-    %v159 = add %v143, %v158 : Int
-    assign %total, %v159
-    %v161 = load %j : Int
-    %v164 = add %v161, 100 : Int
-    assign %j, %v164
+    %v133 = load %total : Int
+    %v134 = load %xs : Array(Int)
+    %v135 = load %j : Int
+    %v136 = cast %v135 : Size
+    %v137 = borrow %xs : 'Array(Int)
+    %v138 = load [%v137]@Array.length : @bits(30) U32
+    %v139 = cast %v136 : USize
+    %v140 = cast %v138 : USize
+    %v141 = cmp_ge %v139, %v140 : Bool
+    call checkCondition, %v141
+    %v143 = load [%v137]@Array.run@Run.items : %Int
+    %v144 = strideof Int : Long
+    %v145 = mul %v136, %v144 : Long
+    %v146 = add %v143, %v145 : %Int
+    %v147 = borrow [%v146] : 'Int
+    %v148 = load [%v147] : Int
+    %v149 = add %v133, %v148 : Int
+    assign %total, %v149
+    %v151 = load %j : Int
+    %v154 = add %v151, 100 : Int
+    assign %j, %v154
     jmp b19
 
   b22:

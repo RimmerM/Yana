@@ -35,25 +35,23 @@ fn numberOf(%call: Syscall) -> USize {
 
 fn mapMemory(%size: Size) -> %U8 {
   b0:
-    %v5 = sub 0, 1 : Int
-    %v6 = cast %v5 : Size
-    %anonymous = bitcast %v6 : USize
-    %v9 = call numberOf, SysMunmap : USize
-    %v11 = bitcast %size : USize
-    %result = syscall %v9, 0, %v11, 3, 34, %anonymous, 0 : Size
-    %v18 = cmp_lt %result, 0 : Bool
-    je %v18, b1, b2
+    %anonymous = bitcast -1 : USize
+    %v4 = call numberOf, SysMunmap : USize
+    %v6 = bitcast %size : USize
+    %result = syscall %v4, 0, %v6, 3, 34, %anonymous, 0 : Size
+    %v13 = cmp_lt %result, 0 : Bool
+    je %v13, b1, b2
 
   b1:
-    %v21 = bitcast 0 : %U8
-    ret %v21
+    %v16 = bitcast 0 : %U8
+    ret %v16
 
   b2:
     jmp b3
 
   b3:
-    %v24 = bitcast %result : %U8
-    ret %v24
+    %v19 = bitcast %result : %U8
+    ret %v19
 }
 
 fn initHeap() -> () {
@@ -496,113 +494,106 @@ fn main() -> I64 {
     je %v10, b1, b2
 
   b1:
-    %v14 = neg 1 : I64
-    ret %v14
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v17 = load %result : I64
-    %v18 = call derived : I64
-    %v19 = borrow_mut %result : &I64
-    call +=(I64), %v19, %v18
-    %v21 = load liveBuffers : I64
-    %v24 = cmp_ne %v21, 0 : Bool
-    je %v24, b4, b5
+    %v15 = load %result : I64
+    %v16 = call derived : I64
+    %v17 = borrow_mut %result : &I64
+    call +=(I64), %v17, %v16
+    %v19 = load liveBuffers : I64
+    %v22 = cmp_ne %v19, 0 : Bool
+    je %v22, b4, b5
 
   b4:
-    %v28 = neg 2 : I64
-    ret %v28
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v31 = load %result : I64
-    %v33 = call branch, True : I64
-    %v34 = borrow_mut %result : &I64
-    call +=(I64), %v34, %v33
-    %v36 = load liveBuffers : I64
-    %v39 = cmp_ne %v36, 0 : Bool
-    je %v39, b7, b8
+    %v27 = load %result : I64
+    %v29 = call branch, True : I64
+    %v30 = borrow_mut %result : &I64
+    call +=(I64), %v30, %v29
+    %v32 = load liveBuffers : I64
+    %v35 = cmp_ne %v32, 0 : Bool
+    je %v35, b7, b8
 
   b7:
-    %v43 = neg 3 : I64
-    ret %v43
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v46 = load %result : I64
-    %v48 = call branch, False : I64
-    %v49 = borrow_mut %result : &I64
-    call +=(I64), %v49, %v48
-    %v51 = load liveBuffers : I64
-    %v54 = cmp_ne %v51, 0 : Bool
-    je %v54, b10, b11
+    %v40 = load %result : I64
+    %v42 = call branch, False : I64
+    %v43 = borrow_mut %result : &I64
+    call +=(I64), %v43, %v42
+    %v45 = load liveBuffers : I64
+    %v48 = cmp_ne %v45, 0 : Bool
+    je %v48, b10, b11
 
   b10:
-    %v58 = neg 4 : I64
-    ret %v58
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v61 = load %result : I64
-    %v62 = call loop : I64
-    %v63 = borrow_mut %result : &I64
-    call +=(I64), %v63, %v62
-    %v65 = load liveBuffers : I64
-    %v68 = cmp_ne %v65, 0 : Bool
-    je %v68, b13, b14
+    %v53 = load %result : I64
+    %v54 = call loop : I64
+    %v55 = borrow_mut %result : &I64
+    call +=(I64), %v55, %v54
+    %v57 = load liveBuffers : I64
+    %v60 = cmp_ne %v57, 0 : Bool
+    je %v60, b13, b14
 
   b13:
-    %v72 = neg 5 : I64
-    ret %v72
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v75 = load %result : I64
-    %v76 = call rebound : I64
-    %v77 = borrow_mut %result : &I64
-    call +=(I64), %v77, %v76
-    %v79 = load liveBuffers : I64
-    %v82 = cmp_ne %v79, 0 : Bool
-    je %v82, b16, b17
+    %v65 = load %result : I64
+    %v66 = call rebound : I64
+    %v67 = borrow_mut %result : &I64
+    call +=(I64), %v67, %v66
+    %v69 = load liveBuffers : I64
+    %v72 = cmp_ne %v69, 0 : Bool
+    je %v72, b16, b17
 
   b16:
-    %v86 = neg 6 : I64
-    ret %v86
+    ret -6
 
   b17:
     jmp b18
 
   b18:
     %handed = call makeBuffer, 4 : Buffer
-    %v91 = load %result : I64
+    %v79 = load %result : I64
     %handed = move %local1 : Buffer
-    %v93 = call consume, %handed : I64
-    %v94 = borrow_mut %result : &I64
-    call +=(I64), %v94, %v93
-    %v96 = load liveBuffers : I64
-    %v99 = cmp_ne %v96, 0 : Bool
-    je %v99, b19, b20
+    %v81 = call consume, %handed : I64
+    %v82 = borrow_mut %result : &I64
+    call +=(I64), %v82, %v81
+    %v84 = load liveBuffers : I64
+    %v87 = cmp_ne %v84, 0 : Bool
+    je %v87, b19, b20
 
   b19:
-    %v103 = neg 7 : I64
-    ret %v103
+    ret -7
 
   b20:
     jmp b21
 
   b21:
-    %v106 = load %result : I64
-    ret %v106
+    %v92 = load %result : I64
+    ret %v92
 }
 
 fn Drop(Buffer).drop(%value: Buffer) -> () {

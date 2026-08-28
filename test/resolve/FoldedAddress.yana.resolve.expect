@@ -370,142 +370,136 @@ fn main() -> Int {
     je %v3, b1, b2
 
   b1:
-    %v7 = neg 1 : Int
-    ret %v7
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v10 = call twoSize : I64
-    %v13 = cmp_ne %v10, 16 : Bool
-    je %v13, b4, b5
+    %v8 = call twoSize : I64
+    %v11 = cmp_ne %v8, 16 : Bool
+    je %v11, b4, b5
 
   b4:
-    %v17 = neg 2 : Int
-    ret %v17
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v24 = alloc : Array(Int)
-    %v27 = alloc *4 : Int
-    %v28 = addressof %local1 : %Int
-    init %xs@Array.run@Run.items, %v28
+    %v20 = alloc : Array(Int)
+    %v23 = alloc *4 : Int
+    %v24 = addressof %local1 : %Int
+    init %xs@Array.run@Run.items, %v24
     init %xs@Array.run@Run.capacity, 4
     init %xs@Array.run@Run.ownsHeap, 0
-    aggregate [%v28][0] = 1, [%v28][1] = 2, [%v28][2] = 3, [%v28][3] = 4
+    aggregate [%v24][0] = 1, [%v24][1] = 2, [%v24][2] = 3, [%v24][3] = 4
     init %xs@Array.length, 4
-    %v40 = load %xs : Array(Int)
-    %v41 = borrow %xs : 'Array(Int)
-    %v42 = alloc : Flat(Int)
-    %v43 = load [%v41]@Array.run@Run.items : %Int
-    init %local2@Flat.items, %v43
-    %v45 = load [%v41]@Array.length : @bits(30) U32
-    %v46 = cast %v45 : Size
-    init %local2@Flat.length, %v46
-    %v48 = call total, %v42 : Int
-    %v51 = cmp_ne %v48, 10 : Bool
-    je %v51, b19, b8
+    %v36 = load %xs : Array(Int)
+    %v37 = borrow %xs : 'Array(Int)
+    %v38 = alloc : Flat(Int)
+    %v39 = load [%v37]@Array.run@Run.items : %Int
+    init %local2@Flat.items, %v39
+    %v41 = load [%v37]@Array.length : @bits(30) U32
+    %v42 = cast %v41 : Size
+    init %local2@Flat.length, %v42
+    %v44 = call total, %v38 : Int
+    %v47 = cmp_ne %v44, 10 : Bool
+    je %v47, b19, b8
 
   b7:
-    %v55 = neg 3 : Int
-    ret %v55
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v58 = load %xs : Array(Int)
-    %v59 = borrow %xs : 'Array(Int)
-    %v60 = alloc : Flat(Int)
-    %v61 = load [%v59]@Array.run@Run.items : %Int
-    init %local3@Flat.items, %v61
-    %v63 = load [%v59]@Array.length : @bits(30) U32
-    %v64 = cast %v63 : Size
-    init %local3@Flat.length, %v64
-    %v66 = call middle, %v60 : Int
-    %v69 = cmp_ne %v66, 5 : Bool
-    je %v69, b20, b11
+    %v52 = load %xs : Array(Int)
+    %v53 = borrow %xs : 'Array(Int)
+    %v54 = alloc : Flat(Int)
+    %v55 = load [%v53]@Array.run@Run.items : %Int
+    init %local3@Flat.items, %v55
+    %v57 = load [%v53]@Array.length : @bits(30) U32
+    %v58 = cast %v57 : Size
+    init %local3@Flat.length, %v58
+    %v60 = call middle, %v54 : Int
+    %v63 = cmp_ne %v60, 5 : Bool
+    je %v63, b20, b11
 
   b10:
-    %v73 = neg 4 : Int
-    ret %v73
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v76 = load %xs : Array(Int)
-    %v77 = borrow_mut %xs : &Array(Int)
-    %v78 = alloc : Flat(Int)
-    %v79 = load [%v77]@Array.run@Run.items : %Int
-    init %local4@Flat.items, %v79
-    %v81 = load [%v77]@Array.length : @bits(30) U32
-    %v82 = cast %v81 : Size
-    init %local4@Flat.length, %v82
-    %v84 = borrow_mut %local4 : &Flat(Int)
-    call double, %v84
-    %v86 = load %xs : Array(Int)
-    %v87 = borrow %xs : 'Array(Int)
-    %v88 = alloc : Flat(Int)
-    %v89 = load [%v87]@Array.run@Run.items : %Int
-    init %local5@Flat.items, %v89
-    %v91 = load [%v87]@Array.length : @bits(30) U32
-    %v92 = cast %v91 : Size
-    init %local5@Flat.length, %v92
-    %v94 = call total, %v88 : Int
-    %v97 = cmp_ne %v94, 20 : Bool
-    je %v97, b21, b14
+    %v68 = load %xs : Array(Int)
+    %v69 = borrow_mut %xs : &Array(Int)
+    %v70 = alloc : Flat(Int)
+    %v71 = load [%v69]@Array.run@Run.items : %Int
+    init %local4@Flat.items, %v71
+    %v73 = load [%v69]@Array.length : @bits(30) U32
+    %v74 = cast %v73 : Size
+    init %local4@Flat.length, %v74
+    %v76 = borrow_mut %local4 : &Flat(Int)
+    call double, %v76
+    %v78 = load %xs : Array(Int)
+    %v79 = borrow %xs : 'Array(Int)
+    %v80 = alloc : Flat(Int)
+    %v81 = load [%v79]@Array.run@Run.items : %Int
+    init %local5@Flat.items, %v81
+    %v83 = load [%v79]@Array.length : @bits(30) U32
+    %v84 = cast %v83 : Size
+    init %local5@Flat.length, %v84
+    %v86 = call total, %v80 : Int
+    %v89 = cmp_ne %v86, 20 : Bool
+    je %v89, b21, b14
 
   b13:
-    %v101 = neg 5 : Int
-    ret %v101
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v106 = alloc : Array(Int)
-    %v109 = alloc *2 : Int
-    %v110 = addressof %local7 : %Int
-    init %local6@Array.run@Run.items, %v110
+    %v96 = alloc : Array(Int)
+    %v99 = alloc *2 : Int
+    %v100 = addressof %local7 : %Int
+    init %local6@Array.run@Run.items, %v100
     init %local6@Array.run@Run.capacity, 2
     init %local6@Array.run@Run.ownsHeap, 0
-    aggregate [%v110][0] = 7, [%v110][1] = 8
+    aggregate [%v100][0] = 7, [%v100][1] = 8
     init %local6@Array.length, 2
-    %v120 = borrow %local6 : 'Array(Int)
-    %v121 = alloc : Flat(Int)
-    %v122 = load [%v120]@Array.run@Run.items : %Int
-    init %local8@Flat.items, %v122
-    %v124 = load [%v120]@Array.length : @bits(30) U32
-    %v125 = cast %v124 : Size
-    init %local8@Flat.length, %v125
-    %v127 = call total, %v121 : Int
+    %v110 = borrow %local6 : 'Array(Int)
+    %v111 = alloc : Flat(Int)
+    %v112 = load [%v110]@Array.run@Run.items : %Int
+    init %local8@Flat.items, %v112
+    %v114 = load [%v110]@Array.length : @bits(30) U32
+    %v115 = cast %v114 : Size
+    init %local8@Flat.length, %v115
+    %v117 = call total, %v111 : Int
     drop %local6 via Reclaim(Array(a)).reclaim(Int)
-    %v130 = cmp_ne %v127, 15 : Bool
-    je %v130, b22, b17
+    %v120 = cmp_ne %v117, 15 : Bool
+    je %v120, b22, b17
 
   b16:
-    %v134 = neg 6 : Int
-    ret %v134
+    ret -6
 
   b17:
     jmp b18
 
   b18:
-    %v137 = load %xs : Array(Int)
-    %v138 = borrow %xs : 'Array(Int)
-    %v139 = alloc : Flat(Int)
-    %v140 = load [%v138]@Array.run@Run.items : %Int
-    init %local9@Flat.items, %v140
-    %v142 = load [%v138]@Array.length : @bits(30) U32
-    %v143 = cast %v142 : Size
-    init %local9@Flat.length, %v143
-    %v145 = call total, %v139 : Int
+    %v125 = load %xs : Array(Int)
+    %v126 = borrow %xs : 'Array(Int)
+    %v127 = alloc : Flat(Int)
+    %v128 = load [%v126]@Array.run@Run.items : %Int
+    init %local9@Flat.items, %v128
+    %v130 = load [%v126]@Array.length : @bits(30) U32
+    %v131 = cast %v130 : Size
+    init %local9@Flat.length, %v131
+    %v133 = call total, %v127 : Int
     drop %xs via Reclaim(Array(a)).reclaim(Int)
-    ret %v145
+    ret %v133
 
   b19:
     drop %xs via Reclaim(Array(a)).reclaim(Int)

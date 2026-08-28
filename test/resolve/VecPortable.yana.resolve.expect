@@ -14,70 +14,64 @@ fn construction() -> Int {
     je %v15, b1, b2
 
   b1:
-    %v19 = neg 1 : Int
-    ret %v19
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v24 = vlane %empty, 1 : Int
-    %v27 = cmp_ne %v24, 0 : Bool
-    je %v27, b4, b5
+    %v22 = vlane %empty, 1 : Int
+    %v25 = cmp_ne %v22, 0 : Bool
+    je %v25, b4, b5
 
   b4:
-    %v31 = neg 2 : Int
-    ret %v31
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v36 = vlane %indices, 0 : Int
-    %v39 = cmp_ne %v36, 0 : Bool
-    je %v39, b7, b8
+    %v32 = vlane %indices, 0 : Int
+    %v35 = cmp_ne %v32, 0 : Bool
+    je %v35, b7, b8
 
   b7:
-    %v43 = neg 3 : Int
-    ret %v43
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v48 = vlane %indices, 1 : Int
-    %v51 = cmp_ne %v48, 1 : Bool
-    je %v51, b10, b11
+    %v42 = vlane %indices, 1 : Int
+    %v45 = cmp_ne %v42, 1 : Bool
+    je %v45, b10, b11
 
   b10:
-    %v55 = neg 4 : Int
-    ret %v55
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v61 = cmp_lt 4, 2 : Bool
-    je %v61, b13, b14
+    %v53 = cmp_lt 4, 2 : Bool
+    je %v53, b13, b14
 
   b13:
-    %v65 = neg 5 : Int
-    ret %v65
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v68 = vreduce_add %indices : Int
-    %v73 = sub 4, 1 : Int
-    %v74 = mul 4, %v73 : Int
-    %v77 = div %v74, 2 : Int
-    %v78 = cmp_ne %v68, %v77 : Bool
-    je %v78, b16, b17
+    %v58 = vreduce_add %indices : Int
+    %v63 = sub 4, 1 : Int
+    %v64 = mul 4, %v63 : Int
+    %v67 = div %v64, 2 : Int
+    %v68 = cmp_ne %v58, %v67 : Bool
+    je %v68, b16, b17
 
   b16:
-    %v82 = neg 6 : Int
-    ret %v82
+    ret -6
 
   b17:
     jmp b18
@@ -102,71 +96,65 @@ fn arithmetic(%v: Vec(Int)) -> Int {
     je %v20, b1, b2
 
   b1:
-    %v24 = neg 1 : Int
-    ret %v24
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v29 = vlane %upper, 0 : Int
-    %v32 = cmp_ne %v29, 2 : Bool
-    je %v32, b4, b5
+    %v27 = vlane %upper, 0 : Int
+    %v30 = cmp_ne %v27, 2 : Bool
+    je %v30, b4, b5
 
   b4:
-    %v36 = neg 2 : Int
-    ret %v36
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v41 = vlane %lower, 1 : Int
-    %v44 = cmp_ne %v41, 1 : Bool
-    je %v44, b7, b8
+    %v37 = vlane %lower, 1 : Int
+    %v40 = cmp_ne %v37, 1 : Bool
+    je %v40, b7, b8
 
   b7:
-    %v48 = neg 3 : Int
-    ret %v48
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v53 = vlane %upper, 1 : Int
-    %v56 = cmp_ne %v53, 2 : Bool
-    je %v56, b10, b11
+    %v47 = vlane %upper, 1 : Int
+    %v50 = cmp_ne %v47, 2 : Bool
+    je %v50, b10, b11
 
   b10:
-    %v60 = neg 4 : Int
-    ret %v60
+    ret -4
 
   b11:
     jmp b12
 
   b12:
     %negated = sub %empty, %v : Vec(Int)
-    %v64 = abs %negated : Vec(Int)
-    %v67 = vlane %v64, 0 : Int
-    %v70 = cmp_ne %v67, 2 : Bool
-    je %v70, b13, b14
+    %v56 = abs %negated : Vec(Int)
+    %v59 = vlane %v56, 0 : Int
+    %v62 = cmp_ne %v59, 2 : Bool
+    je %v62, b13, b14
 
   b13:
-    %v74 = neg 5 : Int
-    ret %v74
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v77 = abs %v : Vec(Int)
-    %v80 = vlane %v77, 1 : Int
-    %v83 = cmp_ne %v80, 2 : Bool
-    je %v83, b16, b17
+    %v67 = abs %v : Vec(Int)
+    %v70 = vlane %v67, 1 : Int
+    %v73 = cmp_ne %v70, 2 : Bool
+    je %v73, b16, b17
 
   b16:
-    %v87 = neg 6 : Int
-    ret %v87
+    ret -6
 
   b17:
     jmp b18
@@ -186,51 +174,47 @@ fn floats() -> Int {
     je %v12, b1, b2
 
   b1:
-    %v16 = neg 1 : Int
-    ret %v16
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v19 = cmp_lt %a, %zeros : Mask(Float)
-    %v20 = select %v19 ? %a : %zeros : Vec(Float)
-    %v23 = vlane %v20, 0 : Float
-    %v26 = neg 1.5 : Float
-    %v27 = cmp_ne %v23, %v26 : Bool
-    je %v27, b4, b5
+    %v17 = cmp_lt %a, %zeros : Mask(Float)
+    %v18 = select %v17 ? %a : %zeros : Vec(Float)
+    %v21 = vlane %v18, 0 : Float
+    %v24 = neg 1.5 : Float
+    %v25 = cmp_ne %v21, %v24 : Bool
+    je %v25, b4, b5
 
   b4:
-    %v31 = neg 2 : Int
-    ret %v31
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v34 = cmp_gt %a, %zeros : Mask(Float)
-    %v35 = select %v34 ? %a : %zeros : Vec(Float)
-    %v38 = vlane %v35, 1 : Float
-    %v41 = cmp_ne %v38, 0 : Bool
-    je %v41, b7, b8
+    %v30 = cmp_gt %a, %zeros : Mask(Float)
+    %v31 = select %v30 ? %a : %zeros : Vec(Float)
+    %v34 = vlane %v31, 1 : Float
+    %v37 = cmp_ne %v34, 0 : Bool
+    je %v37, b7, b8
 
   b7:
-    %v45 = neg 3 : Int
-    ret %v45
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v49 = abs %zeros : Vec(Float)
-    %v52 = vlane %v49, 0 : Float
-    %v54 = div 1, %v52 : Float
-    %v57 = cmp_lt %v54, 0 : Bool
-    je %v57, b10, b11
+    %v43 = abs %zeros : Vec(Float)
+    %v46 = vlane %v43, 0 : Float
+    %v48 = div 1, %v46 : Float
+    %v51 = cmp_lt %v48, 0 : Bool
+    je %v51, b10, b11
 
   b10:
-    %v61 = neg 4 : Int
-    ret %v61
+    ret -4
 
   b11:
     jmp b12
@@ -252,49 +236,45 @@ fn rearrangement() -> Int {
     je %v16, b1, b2
 
   b1:
-    %v20 = neg 1 : Int
-    ret %v20
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v25 = vlane %backwards, 1 : Int
-    %v28 = sub %width, 2 : Int
-    %v29 = cmp_ne %v25, %v28 : Bool
-    je %v29, b4, b5
+    %v23 = vlane %backwards, 1 : Int
+    %v26 = sub %width, 2 : Int
+    %v27 = cmp_ne %v23, %v26 : Bool
+    je %v27, b4, b5
 
   b4:
-    %v33 = neg 2 : Int
-    ret %v33
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v38 = vshuffle %indices, %indices, 1, 2, 3, 0 : Vec(Int)
-    %v41 = vlane %v38, 0 : Int
-    %v44 = cmp_ne %v41, 1 : Bool
-    je %v44, b7, b8
+    %v34 = vshuffle %indices, %indices, 1, 2, 3, 0 : Vec(Int)
+    %v37 = vlane %v34, 0 : Int
+    %v40 = cmp_ne %v37, 1 : Bool
+    je %v40, b7, b8
 
   b7:
-    %v48 = neg 3 : Int
-    ret %v48
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v53 = neg 1 : Int
-    %v54 = vshuffle %indices, %indices, 3, 0, 1, 2 : Vec(Int)
-    %v57 = vlane %v54, 0 : Int
-    %v60 = sub %width, 1 : Int
-    %v61 = cmp_ne %v57, %v60 : Bool
-    je %v61, b10, b11
+    %v47 = neg 1 : Int
+    %v48 = vshuffle %indices, %indices, 3, 0, 1, 2 : Vec(Int)
+    %v51 = vlane %v48, 0 : Int
+    %v54 = sub %width, 1 : Int
+    %v55 = cmp_ne %v51, %v54 : Bool
+    je %v55, b10, b11
 
   b10:
-    %v65 = neg 4 : Int
-    ret %v65
+    ret -4
 
   b11:
     jmp b12
@@ -303,50 +283,46 @@ fn rearrangement() -> Int {
     %nines = vsplat 9 : Vec(Int)
     %low = vshuffle %indices, %nines, 0, 4, 1, 5 : Vec(Int)
     %high = vshuffle %indices, %nines, 2, 6, 3, 7 : Vec(Int)
-    %v75 = vlane %low, 0 : Int
-    %v78 = cmp_ne %v75, 0 : Bool
-    je %v78, b13, b14
+    %v67 = vlane %low, 0 : Int
+    %v70 = cmp_ne %v67, 0 : Bool
+    je %v70, b13, b14
 
   b13:
-    %v82 = neg 5 : Int
-    ret %v82
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v87 = vlane %low, 1 : Int
-    %v90 = cmp_ne %v87, 9 : Bool
-    je %v90, b16, b17
+    %v77 = vlane %low, 1 : Int
+    %v80 = cmp_ne %v77, 9 : Bool
+    je %v80, b16, b17
 
   b16:
-    %v94 = neg 6 : Int
-    ret %v94
+    ret -6
 
   b17:
     jmp b18
 
   b18:
-    %v99 = vlane %high, 0 : Int
-    %v102 = div %width, 2 : Int
-    %v103 = cmp_ne %v99, %v102 : Bool
-    je %v103, b19, b20
+    %v87 = vlane %high, 0 : Int
+    %v90 = div %width, 2 : Int
+    %v91 = cmp_ne %v87, %v90 : Bool
+    je %v91, b19, b20
 
   b19:
-    %v107 = neg 7 : Int
-    ret %v107
+    ret -7
 
   b20:
     jmp b21
 
   b21:
-    %v112 = vlane %high, 1 : Int
-    %v115 = cmp_ne %v112, 9 : Bool
-    je %v115, b22, b23
+    %v98 = vlane %high, 1 : Int
+    %v101 = cmp_ne %v98, 9 : Bool
+    je %v101, b22, b23
 
   b22:
-    %v119 = neg 8 : Int
-    ret %v119
+    ret -8
 
   b23:
     jmp b24
@@ -366,60 +342,55 @@ fn regrouping(%v: Vec(I32)) -> Int {
     je %v14, b1, b2
 
   b1:
-    %v18 = neg 1 : Int
-    ret %v18
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v23 = vlane %packed, 0 : I16
-    %v26 = cmp_ne %v23, 2 : Bool
-    je %v26, b4, b5
+    %v21 = vlane %packed, 0 : I16
+    %v24 = cmp_ne %v21, 2 : Bool
+    je %v24, b4, b5
 
   b4:
-    %v30 = neg 2 : Int
-    ret %v30
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v34 = vlane %packed, 4 : I16
-    %v37 = cmp_ne %v34, 5 : Bool
-    je %v37, b7, b8
+    %v30 = vlane %packed, 4 : I16
+    %v33 = cmp_ne %v30, 5 : Bool
+    je %v33, b7, b8
 
   b7:
-    %v41 = neg 3 : Int
-    ret %v41
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v44 = vshuffle %packed, %packed, 0, 1, 2, 3 : Vec(I16, 4)
-    %low = cast %v44 : Vec(I32)
-    %v46 = vshuffle %packed, %packed, 4, 5, 6, 7 : Vec(I16, 4)
-    %high = cast %v46 : Vec(I32)
-    %v50 = vlane %low, 0 : I32
-    %v53 = cmp_ne %v50, 2 : Bool
-    je %v53, b10, b11
+    %v38 = vshuffle %packed, %packed, 0, 1, 2, 3 : Vec(I16, 4)
+    %low = cast %v38 : Vec(I32)
+    %v40 = vshuffle %packed, %packed, 4, 5, 6, 7 : Vec(I16, 4)
+    %high = cast %v40 : Vec(I32)
+    %v44 = vlane %low, 0 : I32
+    %v47 = cmp_ne %v44, 2 : Bool
+    je %v47, b10, b11
 
   b10:
-    %v57 = neg 4 : Int
-    ret %v57
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v62 = vlane %high, 0 : I32
-    %v65 = cmp_ne %v62, 5 : Bool
-    je %v65, b13, b14
+    %v54 = vlane %high, 0 : I32
+    %v57 = cmp_ne %v54, 5 : Bool
+    je %v57, b13, b14
 
   b13:
-    %v69 = neg 5 : Int
-    ret %v69
+    ret -5
 
   b14:
     jmp b15

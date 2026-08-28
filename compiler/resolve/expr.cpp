@@ -568,25 +568,42 @@ ModulePtr<Value> ExprResolver::constantValue(ModulePtr<ConstValue> constant, Loc
 // as a float constant rather than as an Int that is then converted. Any other concrete target is
 // an ordinary FromInt instance - which is how a literal reaches a user type - and no target at
 // all leaves a literal variable behind for the surrounding expression to decide.
-ModulePtr<Value> ExprResolver::resolveInteger(LocationId source, TypePtr target, U64 value) {
-    if(target && isFloat(global, target)) return makeFloat(source, target, F64(value));
-
-    if(target && isInteger(global, target)) {
-        checkLiteralRange(source, target, value);
-        return makeInt(source, target, value);
+/*
+ * `negative` is the sign of a number that was *written* with one, carried in rather than folded in -
+ * which is the same shape resolvePat uses for a negative pivot, and for the same reason: the
+ * magnitude and the sign answer questions that the two's complement of the two together cannot.
+ * `checkLiteralRange` is the question - `-128` is a number `I8` holds and `128` is not, and the bits
+ * are identical - so the sign has to survive to the point the type is known, which is here.
+ */
+ModulePtr<Value> ExprResolver::resolveInteger(LocationId source, TypePtr target, U64 value, bool negative) {
+    if(target && isFloat(global, target)) {
+        auto number = F64(value);
+        return makeFloat(source, target, negative ? -number : number);
     }
 
-    auto literal = constant<ConstInt>(source, literalVariable(module.coreClasses.fromInt), value);
+    if(target && isInteger(global, target)) {
+        checkLiteralRange(source, target, value, negative);
+        return makeInt(source, target, negative ? U64(0) - value : value);
+    }
+
+    // Past this point the sign can only be folded in: an unpinned literal is a `ConstInt` and a
+    // `Long` is what `fromInt` is handed, both of which read the number as a signed 64-bit one.
+    auto written = negative ? U64(0) - value : value;
+    auto literal = constant<ConstInt>(source, literalVariable(module.coreClasses.fromInt), written);
     return target ? materializeLiteral(literal, target, source) : literal;
 }
 
 // Decimal syntax means FromDecimal, which no integer type has an instance of - that is what makes
 // `1.5 :: Int` a missing instance rather than a lossy conversion. The parser keeps every decimal
 // literal at F64 precision until a type is picked here.
-ModulePtr<Value> ExprResolver::resolveDecimal(LocationId source, TypePtr target, F64 value) {
-    if(target && isFloat(global, target)) return makeFloat(source, target, value);
+ModulePtr<Value> ExprResolver::resolveDecimal(LocationId source, TypePtr target, F64 value, bool negative) {
+    // On the number rather than on its bits, which is what makes `-0.0` a value this can produce -
+    // resolvePat says the same thing about a pattern, and the two have to agree for `-0.0` to be
+    // matchable against itself.
+    auto number = negative ? -value : value;
+    if(target && isFloat(global, target)) return makeFloat(source, target, number);
 
-    auto literal = constant<ConstDouble>(source, literalVariable(module.coreClasses.fromDecimal), value);
+    auto literal = constant<ConstDouble>(source, literalVariable(module.coreClasses.fromDecimal), number);
     return target ? materializeLiteral(literal, target, source) : literal;
 }
 

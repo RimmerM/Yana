@@ -87,7 +87,7 @@ pub fn cStringLength(from: %U8) -> Size:
 
     let offset = (bitcast(from) :: Size) `and` (width - 1)
     let head = bits(vectorAt(from - offset) .== zeros)
-             `and` not(bitsUpTo(0 - 1, truncate(offset) :: Int))
+             `and` not(bitsUpTo(-1, truncate(offset) :: Int))
 
     if head != 0 then return (trailingZeros(head) :: Size) - offset
 

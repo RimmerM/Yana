@@ -10,86 +10,79 @@ fn comparisons(%a: Vec(Int), %b: Vec(Int)) -> Int {
     je %v5, b1, b2
 
   b1:
-    %v9 = neg 1 : Int
-    ret %v9
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v12 = cmp_le %a, %b : Mask(Int)
-    %v13 = vreduce_and %v12 : Bool
-    %v15 = xor %v13, True : Bool
-    je %v15, b4, b5
+    %v10 = cmp_le %a, %b : Mask(Int)
+    %v11 = vreduce_and %v10 : Bool
+    %v13 = xor %v11, True : Bool
+    je %v13, b4, b5
 
   b4:
-    %v19 = neg 2 : Int
-    ret %v19
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v22 = cmp_gt %b, %a : Mask(Int)
-    %v23 = vreduce_and %v22 : Bool
-    %v25 = xor %v23, True : Bool
-    je %v25, b7, b8
+    %v18 = cmp_gt %b, %a : Mask(Int)
+    %v19 = vreduce_and %v18 : Bool
+    %v21 = xor %v19, True : Bool
+    je %v21, b7, b8
 
   b7:
-    %v29 = neg 3 : Int
-    ret %v29
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v32 = cmp_ge %b, %a : Mask(Int)
-    %v33 = vreduce_and %v32 : Bool
-    %v35 = xor %v33, True : Bool
-    je %v35, b10, b11
+    %v26 = cmp_ge %b, %a : Mask(Int)
+    %v27 = vreduce_and %v26 : Bool
+    %v29 = xor %v27, True : Bool
+    je %v29, b10, b11
 
   b10:
-    %v39 = neg 4 : Int
-    ret %v39
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v42 = cmp_ne %a, %b : Mask(Int)
-    %v43 = vreduce_and %v42 : Bool
-    %v45 = xor %v43, True : Bool
-    je %v45, b13, b14
+    %v34 = cmp_ne %a, %b : Mask(Int)
+    %v35 = vreduce_and %v34 : Bool
+    %v37 = xor %v35, True : Bool
+    je %v37, b13, b14
 
   b13:
-    %v49 = neg 5 : Int
-    ret %v49
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v52 = cmp_eq %a, %b : Mask(Int)
-    %v53 = vreduce_or %v52 : Bool
-    je %v53, b16, b17
+    %v42 = cmp_eq %a, %b : Mask(Int)
+    %v43 = vreduce_or %v42 : Bool
+    je %v43, b16, b17
 
   b16:
-    %v57 = neg 6 : Int
-    ret %v57
+    ret -6
 
   b17:
     jmp b18
 
   b18:
-    %v60 = cmp_gt %a, %b : Mask(Int)
-    %v61 = vreduce_or %v60 : Bool
-    %v63 = xor %v61, True : Bool
-    %v65 = xor %v63, True : Bool
-    je %v65, b19, b20
+    %v48 = cmp_gt %a, %b : Mask(Int)
+    %v49 = vreduce_or %v48 : Bool
+    %v51 = xor %v49, True : Bool
+    %v53 = xor %v51, True : Bool
+    je %v53, b19, b20
 
   b19:
-    %v69 = neg 7 : Int
-    ret %v69
+    ret -7
 
   b20:
     jmp b21
@@ -109,20 +102,18 @@ fn selection(%a: Vec(Int), %b: Vec(Int)) -> Int {
     je %v11, b1, b2
 
   b1:
-    %v15 = neg 1 : Int
-    ret %v15
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v20 = vlane %larger, 1 : Int
-    %v23 = cmp_ne %v20, 4 : Bool
-    je %v23, b4, b5
+    %v18 = vlane %larger, 1 : Int
+    %v21 = cmp_ne %v18, 4 : Bool
+    je %v21, b4, b5
 
   b4:
-    %v27 = neg 2 : Int
-    ret %v27
+    ret -2
 
   b5:
     jmp b6
@@ -141,46 +132,42 @@ fn combining(%a: Vec(Int), %b: Vec(Int)) -> Int {
     je %v7, b1, b2
 
   b1:
-    %v11 = neg 1 : Int
-    ret %v11
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v14 = and %below, %equal : Mask(Int)
-    %v15 = vreduce_or %v14 : Bool
-    je %v15, b4, b5
+    %v12 = and %below, %equal : Mask(Int)
+    %v13 = vreduce_or %v12 : Bool
+    je %v13, b4, b5
 
   b4:
-    %v19 = neg 2 : Int
-    ret %v19
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v22 = xor %below, %equal : Mask(Int)
-    %v23 = vreduce_and %v22 : Bool
-    %v25 = xor %v23, True : Bool
-    je %v25, b7, b8
+    %v18 = xor %below, %equal : Mask(Int)
+    %v19 = vreduce_and %v18 : Bool
+    %v21 = xor %v19, True : Bool
+    je %v21, b7, b8
 
   b7:
-    %v29 = neg 3 : Int
-    ret %v29
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v32 = not %equal : Mask(Int)
-    %v33 = vreduce_and %v32 : Bool
-    %v35 = xor %v33, True : Bool
-    je %v35, b10, b11
+    %v26 = not %equal : Mask(Int)
+    %v27 = vreduce_and %v26 : Bool
+    %v29 = xor %v27, True : Bool
+    je %v29, b10, b11
 
   b10:
-    %v39 = neg 4 : Int
-    ret %v39
+    ret -4
 
   b11:
     jmp b12
@@ -203,20 +190,18 @@ fn counting() -> Int {
     je %v17, b1, b2
 
   b1:
-    %v21 = neg 1 : Int
-    ret %v21
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v24 = vreduce_first %past : Int
-    %v27 = cmp_ne %v24, 1 : Bool
-    je %v27, b4, b5
+    %v22 = vreduce_first %past : Int
+    %v25 = cmp_ne %v22, 1 : Bool
+    je %v25, b4, b5
 
   b4:
-    %v31 = neg 2 : Int
-    ret %v31
+    ret -2
 
   b5:
     jmp b6
@@ -224,50 +209,46 @@ fn counting() -> Int {
   b6:
     %empty = vsplat 0 : Vec(Int)
     %never = cmp_lt %indices, %empty : Mask(Int)
-    %v37 = vreduce_first %never : Int
-    %v39 = cmp_ne %v37, 4 : Bool
-    je %v39, b7, b8
+    %v33 = vreduce_first %never : Int
+    %v35 = cmp_ne %v33, 4 : Bool
+    je %v35, b7, b8
 
   b7:
-    %v43 = neg 3 : Int
-    ret %v43
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v46 = vreduce_add %never : Int
-    %v49 = cmp_ne %v46, 0 : Bool
-    je %v49, b10, b11
+    %v40 = vreduce_add %never : Int
+    %v43 = cmp_ne %v40, 0 : Bool
+    je %v43, b10, b11
 
   b10:
-    %v53 = neg 4 : Int
-    ret %v53
+    ret -4
 
   b11:
     jmp b12
 
   b12:
     %always = cmp_ge %indices, %empty : Mask(Int)
-    %v57 = vreduce_first %always : Int
-    %v60 = cmp_ne %v57, 0 : Bool
-    je %v60, b13, b14
+    %v49 = vreduce_first %always : Int
+    %v52 = cmp_ne %v49, 0 : Bool
+    je %v52, b13, b14
 
   b13:
-    %v64 = neg 5 : Int
-    ret %v64
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v67 = vreduce_add %always : Int
-    %v69 = cmp_ne %v67, 4 : Bool
-    je %v69, b16, b17
+    %v57 = vreduce_add %always : Int
+    %v59 = cmp_ne %v57, 4 : Bool
+    je %v59, b16, b17
 
   b16:
-    %v73 = neg 6 : Int
-    ret %v73
+    ret -6
 
   b17:
     jmp b18
@@ -286,22 +267,20 @@ fn floats() -> Int {
     je %v9, b1, b2
 
   b1:
-    %v13 = neg 1 : Int
-    ret %v13
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v16 = cmp_lt %a, %b : Mask(Float)
-    %v17 = select %v16 ? %a : %b : Vec(Float)
-    %v20 = vlane %v17, 0 : Float
-    %v23 = cmp_ne %v20, 1.5 : Bool
-    je %v23, b4, b5
+    %v14 = cmp_lt %a, %b : Mask(Float)
+    %v15 = select %v14 ? %a : %b : Vec(Float)
+    %v18 = vlane %v15, 0 : Float
+    %v21 = cmp_ne %v18, 1.5 : Bool
+    je %v21, b4, b5
 
   b4:
-    %v27 = neg 2 : Int
-    ret %v27
+    ret -2
 
   b5:
     jmp b6

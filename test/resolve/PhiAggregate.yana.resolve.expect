@@ -183,22 +183,19 @@ fn main() -> Int {
     %v16 = add %v13, %v15 : Int
     %v18 = call product, 5 : Int
     %v19 = add %v16, %v18 : Int
-    %v22 = neg 1 : Int
-    %v23 = call product, %v22 : Int
-    %v24 = add %v19, %v23 : Int
-    %v26 = call whole, True : Int
-    %v27 = add %v24, %v26 : Int
-    %v29 = call whole, False : Int
-    %v30 = add %v27, %v29 : Int
-    %v33 = call guarded, True, 1 : Int
-    %v34 = add %v30, %v33 : Int
-    %v38 = neg 1 : Int
-    %v39 = call guarded, False, %v38 : Int
-    %v40 = add %v34, %v39 : Int
-    %v43 = call late, 7, 1 : Int
+    %v21 = call product, -1 : Int
+    %v22 = add %v19, %v21 : Int
+    %v24 = call whole, True : Int
+    %v25 = add %v22, %v24 : Int
+    %v27 = call whole, False : Int
+    %v28 = add %v25, %v27 : Int
+    %v31 = call guarded, True, 1 : Int
+    %v32 = add %v28, %v31 : Int
+    %v35 = call guarded, False, -1 : Int
+    %v36 = add %v32, %v35 : Int
+    %v39 = call late, 7, 1 : Int
+    %v40 = add %v36, %v39 : Int
+    %v43 = call late, 7, -1 : Int
     %v44 = add %v40, %v43 : Int
-    %v48 = neg 1 : Int
-    %v49 = call late, 7, %v48 : Int
-    %v50 = add %v44, %v49 : Int
-    ret %v50
+    ret %v44
 }

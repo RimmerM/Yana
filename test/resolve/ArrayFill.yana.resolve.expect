@@ -142,35 +142,34 @@ fn filled() -> Int {
 
 fn ones() -> Int {
   b0:
-    %v2 = neg 1 : I32
-    %v3 = alloc : [I32 *8]
-    aggregate %lanes[0] = %v2, %lanes[1] = %v2, %lanes[2] = %v2, %lanes[3] = %v2, %lanes[4] = %v2, %lanes[5] = %v2, %lanes[6] = %v2, %lanes[7] = %v2
-    %v13 = load %lanes : [I32 *8]
-    %v15 = call at, 7 : Size
-    %v16 = borrow %lanes : '[I32 *8]
-    %v17 = alloc : Flat(I32)
-    %v18 = addressof [%v16] : %I32
-    init %local1@Flat.items, %v18
-    %v20 = countof 8 : Size
-    init %local1@Flat.length, %v20
-    %v22 = borrow %local1 : 'Flat(I32)
-    %v23 = load [%v22]@Flat.length : Size
-    %v24 = cast %v15 : USize
-    %v25 = cast %v23 : USize
-    %v26 = cmp_ge %v24, %v25 : Bool
-    call checkCondition, %v26
-    %v28 = load [%v22]@Flat.items : %I32
-    %v29 = strideof I32 : Long
-    %v30 = mul %v15, %v29 : Long
-    %v31 = add %v28, %v30 : %I32
-    %v32 = borrow [%v31] : 'I32
-    %v33 = load [%v32] : I32
-    %v34 = load %lanes : [I32 *8]
-    %v35 = call Length([a *n]).length(8, I32), %v34 : Size
-    %v36 = cast %v35 : Int
-    %v37 = cast %v33 : Int
-    %v38 = add %v37, %v36 : Int
-    ret %v38
+    %v1 = alloc : [I32 *8]
+    aggregate %lanes[0] = -1, %lanes[1] = -1, %lanes[2] = -1, %lanes[3] = -1, %lanes[4] = -1, %lanes[5] = -1, %lanes[6] = -1, %lanes[7] = -1
+    %v11 = load %lanes : [I32 *8]
+    %v13 = call at, 7 : Size
+    %v14 = borrow %lanes : '[I32 *8]
+    %v15 = alloc : Flat(I32)
+    %v16 = addressof [%v14] : %I32
+    init %local1@Flat.items, %v16
+    %v18 = countof 8 : Size
+    init %local1@Flat.length, %v18
+    %v20 = borrow %local1 : 'Flat(I32)
+    %v21 = load [%v20]@Flat.length : Size
+    %v22 = cast %v13 : USize
+    %v23 = cast %v21 : USize
+    %v24 = cmp_ge %v22, %v23 : Bool
+    call checkCondition, %v24
+    %v26 = load [%v20]@Flat.items : %I32
+    %v27 = strideof I32 : Long
+    %v28 = mul %v13, %v27 : Long
+    %v29 = add %v26, %v28 : %I32
+    %v30 = borrow [%v29] : 'I32
+    %v31 = load [%v30] : I32
+    %v32 = load %lanes : [I32 *8]
+    %v33 = call Length([a *n]).length(8, I32), %v32 : Size
+    %v34 = cast %v33 : Int
+    %v35 = cast %v31 : Int
+    %v36 = add %v35, %v34 : Int
+    ret %v36
 }
 
 fn small() -> Int {

@@ -49,8 +49,8 @@ function runtimeW(x, d) {
 }
 
 function main() {
-  var v439;
-  var v464;
+  var v427;
+  var v452;
   var longs = [0n, 1n, 7n, -7n, -9223372036854775808n, -9223372036854775807n, 9223372036854775807n];
   var dLongs = [0n, -1n, 1n, 2n, -2n, 3n, 10n];
   var ints = new Int32Array([0, 1, 7, -7, -2147483648, -2147483647, 2147483647]);
@@ -67,31 +67,31 @@ function main() {
       j = 0;
       L1: for (;;) {
         if (j < 7) {
-          var v179 = longs[i];
-          var v201 = dLongs[j];
-          var v203 = total + okL(v179, v201, BigInt.asIntN(64, $div(v179, v201)), BigInt.asIntN(64, $rem(v179, v201))) | 0;
-          var v225 = ints[i];
-          var v247 = dInts[j];
-          total = v203 + okI(v225, v247, v225 / v247 | 0, $rem(v225, v247) | 0) | 0;
+          var v167 = longs[i];
+          var v189 = dLongs[j];
+          var v191 = total + okL(v167, v189, BigInt.asIntN(64, $div(v167, v189)), BigInt.asIntN(64, $rem(v167, v189))) | 0;
+          var v213 = ints[i];
+          var v235 = dInts[j];
+          total = v191 + okI(v213, v235, v213 / v235 | 0, $rem(v213, v235) | 0) | 0;
           j = j + 1 | 0;
           continue L1;
         }
         break L1;
       }
-      var v279 = longs[i];
-      if (BigInt.asIntN(64, $div(v279, -1n)) === BigInt.asIntN(64, 0n - v279)) {
-        v439 = BigInt.asIntN(64, $rem(v279, -1n)) === 0n ? 1 : 0;
+      var v267 = longs[i];
+      if (BigInt.asIntN(64, $div(v267, -1n)) === BigInt.asIntN(64, 0n - v267)) {
+        v427 = BigInt.asIntN(64, $rem(v267, -1n)) === 0n ? 1 : 0;
       } else {
-        v439 = 0;
+        v427 = 0;
       }
-      var v281 = total + (v439 ? 1 : 0) | 0;
-      var v303 = ints[i];
-      if ((v303 / -1 | 0) === (0 - v303 | 0)) {
-        v464 = ($rem(v303, -1) | 0) === 0 ? 1 : 0;
+      var v269 = total + (v427 ? 1 : 0) | 0;
+      var v291 = ints[i];
+      if ((v291 / -1 | 0) === (0 - v291 | 0)) {
+        v452 = ($rem(v291, -1) | 0) === 0 ? 1 : 0;
       } else {
-        v464 = 0;
+        v452 = 0;
       }
-      total = v281 + (v464 ? 1 : 0) | 0;
+      total = v269 + (v452 ? 1 : 0) | 0;
       i = i + 1 | 0;
       continue L0;
     }

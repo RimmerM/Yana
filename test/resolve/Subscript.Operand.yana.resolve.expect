@@ -398,127 +398,122 @@ fn main() -> Int {
     je %v51, b16, b2
 
   b1:
-    %v55 = neg 1 : Int
-    ret %v55
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v58 = load %xs : Array(Int)
-    %v59 = borrow %xs : 'Array(Int)
-    %v60 = alloc : Flat(Int)
-    %v61 = load [%v59]@Array.run@Run.items : %Int
-    init %local5@Flat.items, %v61
-    %v63 = load [%v59]@Array.length : @bits(30) U32
-    %v64 = cast %v63 : Size
-    init %local5@Flat.length, %v64
-    %v67 = call computed, %v60, 1 : Int
-    %v70 = cmp_ne %v67, 6 : Bool
-    je %v70, b17, b5
+    %v56 = load %xs : Array(Int)
+    %v57 = borrow %xs : 'Array(Int)
+    %v58 = alloc : Flat(Int)
+    %v59 = load [%v57]@Array.run@Run.items : %Int
+    init %local5@Flat.items, %v59
+    %v61 = load [%v57]@Array.length : @bits(30) U32
+    %v62 = cast %v61 : Size
+    init %local5@Flat.length, %v62
+    %v65 = call computed, %v58, 1 : Int
+    %v68 = cmp_ne %v65, 6 : Bool
+    je %v68, b17, b5
 
   b4:
-    %v74 = neg 2 : Int
-    ret %v74
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v77 = load %xs : Array(Int)
-    %v78 = borrow %xs : 'Array(Int)
-    %v79 = alloc : Flat(Int)
-    %v80 = load [%v78]@Array.run@Run.items : %Int
-    init %local6@Flat.items, %v80
-    %v82 = load [%v78]@Array.length : @bits(30) U32
-    %v83 = cast %v82 : Size
-    init %local6@Flat.length, %v83
-    %v85 = load %idx : Array(Int)
-    %v86 = borrow %idx : 'Array(Int)
-    %v87 = alloc : Flat(Int)
-    %v88 = load [%v86]@Array.run@Run.items : %Int
-    init %local7@Flat.items, %v88
-    %v90 = load [%v86]@Array.length : @bits(30) U32
-    %v91 = cast %v90 : Size
-    init %local7@Flat.length, %v91
-    %v93 = call nested, %v79, %v87 : Int
+    %v73 = load %xs : Array(Int)
+    %v74 = borrow %xs : 'Array(Int)
+    %v75 = alloc : Flat(Int)
+    %v76 = load [%v74]@Array.run@Run.items : %Int
+    init %local6@Flat.items, %v76
+    %v78 = load [%v74]@Array.length : @bits(30) U32
+    %v79 = cast %v78 : Size
+    init %local6@Flat.length, %v79
+    %v81 = load %idx : Array(Int)
+    %v82 = borrow %idx : 'Array(Int)
+    %v83 = alloc : Flat(Int)
+    %v84 = load [%v82]@Array.run@Run.items : %Int
+    init %local7@Flat.items, %v84
+    %v86 = load [%v82]@Array.length : @bits(30) U32
+    %v87 = cast %v86 : Size
+    init %local7@Flat.length, %v87
+    %v89 = call nested, %v75, %v83 : Int
     drop %idx via Reclaim(Array(a)).reclaim(Int)
-    %v96 = cmp_ne %v93, 3 : Bool
-    je %v96, b18, b8
+    %v92 = cmp_ne %v89, 3 : Bool
+    je %v92, b18, b8
 
   b7:
-    %v100 = neg 3 : Int
-    ret %v100
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v103 = load %xs : Array(Int)
-    %v104 = borrow %xs : 'Array(Int)
-    %v105 = alloc : Flat(Int)
-    %v106 = load [%v104]@Array.run@Run.items : %Int
-    init %local8@Flat.items, %v106
-    %v108 = load [%v104]@Array.length : @bits(30) U32
-    %v109 = cast %v108 : Size
-    init %local8@Flat.length, %v109
-    %v111 = call total, %v105 : Int
-    %v114 = cmp_ne %v111, 15 : Bool
-    je %v114, b19, b11
+    %v97 = load %xs : Array(Int)
+    %v98 = borrow %xs : 'Array(Int)
+    %v99 = alloc : Flat(Int)
+    %v100 = load [%v98]@Array.run@Run.items : %Int
+    init %local8@Flat.items, %v100
+    %v102 = load [%v98]@Array.length : @bits(30) U32
+    %v103 = cast %v102 : Size
+    init %local8@Flat.length, %v103
+    %v105 = call total, %v99 : Int
+    %v108 = cmp_ne %v105, 15 : Bool
+    je %v108, b19, b11
 
   b10:
-    %v118 = neg 4 : Int
-    ret %v118
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v121 = load %xs : Array(Int)
-    %v124 = borrow %xs : 'Array(Int)
-    %v125 = alloc : Flat(Int)
-    %v126 = load [%v124]@Array.run@Run.items : %Int
-    init %local9@Flat.items, %v126
-    %v128 = load [%v124]@Array.length : @bits(30) U32
-    %v129 = cast %v128 : Size
-    init %local9@Flat.length, %v129
-    %v131 = cast 0 : Size
-    %v132 = cast 5 : Size
-    %v133 = borrow %local9 : 'Flat(Int)
-    %v134 = call slice(Int), %v133, %v131, %v132 : Flat(Int)
-    %v135 = call total, %v134 : Int
-    %v138 = cmp_ne %v135, 15 : Bool
-    je %v138, b20, b14
+    %v113 = load %xs : Array(Int)
+    %v116 = borrow %xs : 'Array(Int)
+    %v117 = alloc : Flat(Int)
+    %v118 = load [%v116]@Array.run@Run.items : %Int
+    init %local9@Flat.items, %v118
+    %v120 = load [%v116]@Array.length : @bits(30) U32
+    %v121 = cast %v120 : Size
+    init %local9@Flat.length, %v121
+    %v123 = cast 0 : Size
+    %v124 = cast 5 : Size
+    %v125 = borrow %local9 : 'Flat(Int)
+    %v126 = call slice(Int), %v125, %v123, %v124 : Flat(Int)
+    %v127 = call total, %v126 : Int
+    %v130 = cmp_ne %v127, 15 : Bool
+    je %v130, b20, b14
 
   b13:
-    %v142 = neg 5 : Int
-    ret %v142
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v145 = load %xs : Array(Int)
-    %v148 = borrow_mut %xs : &Array(Int)
+    %v135 = load %xs : Array(Int)
+    %v138 = borrow_mut %xs : &Array(Int)
+    %v139 = alloc : Flat(Int)
+    %v140 = load [%v138]@Array.run@Run.items : %Int
+    init %local11@Flat.items, %v140
+    %v142 = load [%v138]@Array.length : @bits(30) U32
+    %v143 = cast %v142 : Size
+    init %local11@Flat.length, %v143
+    %v145 = borrow_mut %local11 : &Flat(Int)
+    call writeAt, %v145, 0, 10
+    %v147 = load %xs : Array(Int)
+    %v148 = borrow %xs : 'Array(Int)
     %v149 = alloc : Flat(Int)
     %v150 = load [%v148]@Array.run@Run.items : %Int
-    init %local11@Flat.items, %v150
+    init %local12@Flat.items, %v150
     %v152 = load [%v148]@Array.length : @bits(30) U32
     %v153 = cast %v152 : Size
-    init %local11@Flat.length, %v153
-    %v155 = borrow_mut %local11 : &Flat(Int)
-    call writeAt, %v155, 0, 10
-    %v157 = load %xs : Array(Int)
-    %v158 = borrow %xs : 'Array(Int)
-    %v159 = alloc : Flat(Int)
-    %v160 = load [%v158]@Array.run@Run.items : %Int
-    init %local12@Flat.items, %v160
-    %v162 = load [%v158]@Array.length : @bits(30) U32
-    %v163 = cast %v162 : Size
-    init %local12@Flat.length, %v163
-    %v165 = call total, %v159 : Int
+    init %local12@Flat.length, %v153
+    %v155 = call total, %v149 : Int
     drop %xs via Reclaim(Array(a)).reclaim(Int)
-    ret %v165
+    ret %v155
 
   b16:
     drop %xs via Reclaim(Array(a)).reclaim(Int)

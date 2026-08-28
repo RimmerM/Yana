@@ -406,40 +406,35 @@ fn main() -> Int {
   b0:
     assign log, 0
     %a = call always, 3 : Int
-    %v6 = neg 1 : Int
-    %b = call always, %v6 : Int
+    %b = call always, -1 : Int
     %c = call valued, 4 : Int
-    %v12 = neg 2 : Int
-    %d = call valued, %v12 : Int
+    %d = call valued, -2 : Int
     %e = call mixed, 2 : Int
-    %v18 = neg 3 : Int
-    %f = call mixed, %v18 : Int
+    %f = call mixed, -3 : Int
     %g = call reasoned, 4 : Int
     %h = call reasoned, 20 : Int
-    %v26 = neg 1 : Int
-    %i = call reasoned, %v26 : Int
+    %i = call reasoned, -1 : Int
     %j = call guarded, True : Int
     %k = call guarded, False : Int
     %l = call written, 6 : Int
     %m = call nested, 3 : Int
-    %v38 = neg 1 : Int
-    %n = call nested, %v38 : Int
-    %v40 = add %a, %b : Int
-    %v41 = add %v40, %c : Int
-    %v42 = add %v41, %d : Int
-    %v43 = add %v42, %e : Int
-    %v44 = add %v43, %f : Int
-    %v45 = add %v44, %g : Int
-    %v46 = add %v45, %h : Int
-    %v47 = add %v46, %i : Int
-    %v48 = add %v47, %j : Int
-    %v49 = add %v48, %k : Int
-    %v50 = add %v49, %l : Int
-    %v51 = add %v50, %m : Int
-    %v52 = add %v51, %n : Int
-    %v53 = load log : Int
-    %v54 = add %v52, %v53 : Int
-    ret %v54
+    %n = call nested, -1 : Int
+    %v30 = add %a, %b : Int
+    %v31 = add %v30, %c : Int
+    %v32 = add %v31, %d : Int
+    %v33 = add %v32, %e : Int
+    %v34 = add %v33, %f : Int
+    %v35 = add %v34, %g : Int
+    %v36 = add %v35, %h : Int
+    %v37 = add %v36, %i : Int
+    %v38 = add %v37, %j : Int
+    %v39 = add %v38, %k : Int
+    %v40 = add %v39, %l : Int
+    %v41 = add %v40, %m : Int
+    %v42 = add %v41, %n : Int
+    %v43 = load log : Int
+    %v44 = add %v42, %v43 : Int
+    ret %v44
 }
 
 fn ResolveTest.continuation$22(%env: %{}, %found: Int) -> Int {

@@ -46,60 +46,56 @@ fn main() -> I64 {
     je %v11, b1, b2
 
   b1:
-    %v15 = neg 1 : I64
-    ret %v15
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v18 = load %b : Boxed(Int)
-    %v19 = load %b@Boxed.value : Int
-    %v22 = cmp_ne %v19, 4 : Bool
-    je %v22, b4, b5
+    %v16 = load %b : Boxed(Int)
+    %v17 = load %b@Boxed.value : Int
+    %v20 = cmp_ne %v17, 4 : Bool
+    je %v20, b4, b5
 
   b4:
-    %v26 = neg 2 : I64
-    ret %v26
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v29 = load %b : Boxed(Int)
-    %v30 = borrow_mut %b : &Boxed(Int)
-    %held = call heldAcross, %v30 : Int
-    %v34 = cmp_ne %held, 15 : Bool
-    je %v34, b7, b8
+    %v25 = load %b : Boxed(Int)
+    %v26 = borrow_mut %b : &Boxed(Int)
+    %held = call heldAcross, %v26 : Int
+    %v30 = cmp_ne %held, 15 : Bool
+    je %v30, b7, b8
 
   b7:
-    %v38 = neg 3 : I64
-    ret %v38
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v41 = load %b : Boxed(Int)
-    %v42 = load %b@Boxed.value : Int
-    %v45 = cmp_ne %v42, 16 : Bool
-    je %v45, b10, b11
+    %v35 = load %b : Boxed(Int)
+    %v36 = load %b@Boxed.value : Int
+    %v39 = cmp_ne %v36, 16 : Bool
+    je %v39, b10, b11
 
   b10:
-    %v49 = neg 4 : I64
-    ret %v49
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v52 = load %b : Boxed(Int)
-    %v53 = load %b@Boxed.value : Int
-    %v54 = load %b : Boxed(Int)
-    %v55 = load %b@Boxed.tag : Int
-    %v56 = add %v53, %v55 : Int
-    %v57 = cast %v56 : I64
-    ret %v57
+    %v44 = load %b : Boxed(Int)
+    %v45 = load %b@Boxed.value : Int
+    %v46 = load %b : Boxed(Int)
+    %v47 = load %b@Boxed.tag : Int
+    %v48 = add %v45, %v47 : Int
+    %v49 = cast %v48 : I64
+    ret %v49
 }
 
 fn Peek(Boxed(a), a).peek(%self: 'Boxed(a)) -> 'a {

@@ -1200,8 +1200,8 @@ struct ExprResolver {
         }
     }
     ModulePtr<Value> resolveLiteral(const ast::Expr& expr, TypePtr target);
-    ModulePtr<Value> resolveInteger(LocationId source, TypePtr target, U64 value);
-    ModulePtr<Value> resolveDecimal(LocationId source, TypePtr target, F64 value);
+    ModulePtr<Value> resolveInteger(LocationId source, TypePtr target, U64 value, bool negative = false);
+    ModulePtr<Value> resolveDecimal(LocationId source, TypePtr target, F64 value, bool negative = false);
 
     // A string literal, per target - see Implementation-String.md part 9 and ConstString.
     ModulePtr<Value> resolveString(LocationId source, StringId text);

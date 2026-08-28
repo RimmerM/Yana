@@ -70,123 +70,115 @@ fn main() -> Int {
     je %v23, b1, b2
 
   b1:
-    %v27 = neg 1 : Int
-    ret %v27
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v30 = call atCount, %above, %below : Vec(U32)
-    %v31 = call digits, %v30 : Int
-    %v34 = cmp_ne %v31, 123 : Bool
-    je %v34, b4, b5
+    %v28 = call atCount, %above, %below : Vec(U32)
+    %v29 = call digits, %v28 : Int
+    %v32 = cmp_ne %v29, 123 : Bool
+    je %v32, b4, b5
 
   b4:
-    %v38 = neg 2 : Int
-    ret %v38
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v41 = call byOne, %above, %below : Vec(U32)
-    %v42 = call digits, %v41 : Int
-    %v45 = cmp_ne %v42, 12330 : Bool
-    je %v45, b7, b8
+    %v37 = call byOne, %above, %below : Vec(U32)
+    %v38 = call digits, %v37 : Int
+    %v41 = cmp_ne %v38, 12330 : Bool
+    je %v41, b7, b8
 
   b7:
-    %v49 = neg 3 : Int
-    ret %v49
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v52 = call byTwo, %above, %below : Vec(U32)
-    %v53 = call digits, %v52 : Int
-    %v56 = cmp_ne %v53, 13301 : Bool
-    je %v56, b10, b11
+    %v46 = call byTwo, %above, %below : Vec(U32)
+    %v47 = call digits, %v46 : Int
+    %v50 = cmp_ne %v47, 13301 : Bool
+    je %v50, b10, b11
 
   b10:
-    %v60 = neg 4 : Int
-    ret %v60
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v63 = call byThree, %above, %below : Vec(U32)
-    %v64 = call digits, %v63 : Int
-    %v67 = cmp_ne %v64, 13012 : Bool
-    je %v67, b13, b14
+    %v55 = call byThree, %above, %below : Vec(U32)
+    %v56 = call digits, %v55 : Int
+    %v59 = cmp_ne %v56, 13012 : Bool
+    je %v59, b13, b14
 
   b13:
-    %v71 = neg 5 : Int
-    ret %v71
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v75 = vsplat 7 : Vec(U8)
-    %v77 = vsplat 0 : Vec(U8)
-    %v79 = vwithlane %v77, 1, 1 : Vec(U8)
-    %v81 = vwithlane %v79, 2, 2 : Vec(U8)
-    %v83 = vwithlane %v81, 3, 3 : Vec(U8)
-    %v85 = vwithlane %v83, 4, 4 : Vec(U8)
-    %v87 = vwithlane %v85, 5, 5 : Vec(U8)
-    %v89 = vwithlane %v87, 6, 6 : Vec(U8)
-    %v91 = vwithlane %v89, 7, 7 : Vec(U8)
-    %v93 = vwithlane %v91, 8, 8 : Vec(U8)
-    %v95 = vwithlane %v93, 9, 9 : Vec(U8)
-    %v97 = vwithlane %v95, 10, 10 : Vec(U8)
-    %v99 = vwithlane %v97, 11, 11 : Vec(U8)
-    %v101 = vwithlane %v99, 12, 12 : Vec(U8)
-    %v103 = vwithlane %v101, 13, 13 : Vec(U8)
-    %v105 = vwithlane %v103, 14, 14 : Vec(U8)
-    %v107 = vwithlane %v105, 15, 15 : Vec(U8)
-    %wide = call bytesByFive, %v75, %v107 : Vec(U8)
-    %v111 = vlane %wide, 0 : U8
-    %v112 = cast %v111 : Int
-    %v115 = cmp_ne %v112, 5 : Bool
-    je %v115, b16, b17
+    %v65 = vsplat 7 : Vec(U8)
+    %v67 = vsplat 0 : Vec(U8)
+    %v69 = vwithlane %v67, 1, 1 : Vec(U8)
+    %v71 = vwithlane %v69, 2, 2 : Vec(U8)
+    %v73 = vwithlane %v71, 3, 3 : Vec(U8)
+    %v75 = vwithlane %v73, 4, 4 : Vec(U8)
+    %v77 = vwithlane %v75, 5, 5 : Vec(U8)
+    %v79 = vwithlane %v77, 6, 6 : Vec(U8)
+    %v81 = vwithlane %v79, 7, 7 : Vec(U8)
+    %v83 = vwithlane %v81, 8, 8 : Vec(U8)
+    %v85 = vwithlane %v83, 9, 9 : Vec(U8)
+    %v87 = vwithlane %v85, 10, 10 : Vec(U8)
+    %v89 = vwithlane %v87, 11, 11 : Vec(U8)
+    %v91 = vwithlane %v89, 12, 12 : Vec(U8)
+    %v93 = vwithlane %v91, 13, 13 : Vec(U8)
+    %v95 = vwithlane %v93, 14, 14 : Vec(U8)
+    %v97 = vwithlane %v95, 15, 15 : Vec(U8)
+    %wide = call bytesByFive, %v65, %v97 : Vec(U8)
+    %v101 = vlane %wide, 0 : U8
+    %v102 = cast %v101 : Int
+    %v105 = cmp_ne %v102, 5 : Bool
+    je %v105, b16, b17
 
   b16:
-    %v119 = neg 6 : Int
-    ret %v119
+    ret -6
 
   b17:
     jmp b18
 
   b18:
-    %v124 = vlane %wide, 10 : U8
-    %v125 = cast %v124 : Int
-    %v128 = cmp_ne %v125, 15 : Bool
-    je %v128, b19, b20
+    %v112 = vlane %wide, 10 : U8
+    %v113 = cast %v112 : Int
+    %v116 = cmp_ne %v113, 15 : Bool
+    je %v116, b19, b20
 
   b19:
-    %v132 = neg 7 : Int
-    ret %v132
+    ret -7
 
   b20:
     jmp b21
 
   b21:
-    %v137 = vlane %wide, 11 : U8
-    %v138 = cast %v137 : Int
-    %v141 = cmp_ne %v138, 7 : Bool
-    je %v141, b22, b23
+    %v123 = vlane %wide, 11 : U8
+    %v124 = cast %v123 : Int
+    %v127 = cmp_ne %v124, 7 : Bool
+    je %v127, b22, b23
 
   b22:
-    %v145 = neg 8 : Int
-    ret %v145
+    ret -8
 
   b23:
     jmp b24
 
   b24:
-    %v148 = call byOne, %above, %below : Vec(U32)
-    %v149 = call digits, %v148 : Int
-    ret %v149
+    %v132 = call byOne, %above, %below : Vec(U32)
+    %v133 = call digits, %v132 : Int
+    ret %v133
 }

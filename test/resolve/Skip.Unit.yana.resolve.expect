@@ -147,8 +147,7 @@ fn statementTail(%n: Int) -> Int {
     jmp b6
 
   b3:
-    %v25 = neg 1 : Int
-    assign %seen, %v25
+    assign %seen, -1
     jmp b5
 
   b4:
@@ -158,8 +157,8 @@ fn statementTail(%n: Int) -> Int {
     jmp b6
 
   b6:
-    %v31 = load %seen : Int
-    ret %v31
+    %v29 = load %seen : Int
+    ret %v29
 }
 
 fn returningNothing(%n: Int) -> () {
@@ -213,21 +212,18 @@ fn main() -> Int {
     assign sideEffect, 0
     %a = call loopingOut, 3 : Int
     %b = call statementTail, 5 : Int
-    %v10 = neg 1 : Int
-    %c = call statementTail, %v10 : Int
+    %c = call statementTail, -1 : Int
     call returningNothing, 7
-    %v16 = neg 1 : Int
-    call returningNothing, %v16
+    call returningNothing, -1
     call leavingWithNothing, 2
-    %v22 = neg 1 : Int
-    call leavingWithNothing, %v22
-    %v24 = add %a, %b : Int
-    %v25 = add %v24, %c : Int
-    %v26 = load sideEffect : Int
-    %v27 = add %v25, %v26 : Int
-    %v28 = load log : Int
-    %v29 = add %v27, %v28 : Int
-    ret %v29
+    call leavingWithNothing, -1
+    %v18 = add %a, %b : Int
+    %v19 = add %v18, %c : Int
+    %v20 = load sideEffect : Int
+    %v21 = add %v19, %v20 : Int
+    %v22 = load log : Int
+    %v23 = add %v21, %v22 : Int
+    ret %v23
 }
 
 fn ResolveTest.continuation$22(%env: %{seen: &Int}, %found: Int) -> () {

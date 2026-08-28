@@ -159,51 +159,48 @@ fn classify(%n: Int) -> Int {
     je %v20, b10, b2
 
   b1:
-    %v24 = neg 1 : Int
-    ret %v24
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v29 = cmp_eq %n, 1 : Bool
-    je %v29, b11, b5
+    %v27 = cmp_eq %n, 1 : Bool
+    je %v27, b11, b5
 
   b4:
-    %v33 = neg 2 : Int
-    ret %v33
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v38 = cmp_eq %n, 2 : Bool
-    je %v38, b12, b8
+    %v34 = cmp_eq %n, 2 : Bool
+    je %v34, b12, b8
 
   b7:
-    %v42 = neg 3 : Int
-    ret %v42
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v45 = load %xs : Array(Int)
-    %v48 = borrow %xs : 'Array(Int)
-    %v49 = load [%v48]@Array.length : @bits(30) U32
-    %v50 = cast 0 : USize
-    %v51 = cast %v49 : USize
-    %v52 = cmp_ge %v50, %v51 : Bool
-    call checkCondition, %v52
-    %v54 = load [%v48]@Array.run@Run.items : %Int
-    %v55 = strideof Int : Long
-    %v56 = mul 0, %v55 : Long
-    %v57 = add %v54, %v56 : %Int
-    %v58 = borrow [%v57] : 'Int
-    %v59 = load [%v58] : Int
+    %v39 = load %xs : Array(Int)
+    %v42 = borrow %xs : 'Array(Int)
+    %v43 = load [%v42]@Array.length : @bits(30) U32
+    %v44 = cast 0 : USize
+    %v45 = cast %v43 : USize
+    %v46 = cmp_ge %v44, %v45 : Bool
+    call checkCondition, %v46
+    %v48 = load [%v42]@Array.run@Run.items : %Int
+    %v49 = strideof Int : Long
+    %v50 = mul 0, %v49 : Long
+    %v51 = add %v48, %v50 : %Int
+    %v52 = borrow [%v51] : 'Int
+    %v53 = load [%v52] : Int
     drop %xs via Reclaim(Array(a)).reclaim(Int)
-    %v60 = add %v59, %n : Int
-    ret %v60
+    %v54 = add %v53, %n : Int
+    ret %v54
 
   b10:
     drop %xs via Reclaim(Array(a)).reclaim(Int)

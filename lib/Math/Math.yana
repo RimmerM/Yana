@@ -457,15 +457,15 @@ fn (Real(a, m)) arcCosineOf(value: a) -> a:
    cast that the x64 backend refuses - the only packed conversion it keeps in one register is between
    32-bit integer lanes and float ones, and a same-width integer pair is not that.
 -}
-fn clampFloatExponent(exponent: Float) -> Float = min(max(exponent, 0.0 - 126.0), 127.0)
+fn clampFloatExponent(exponent: Float) -> Float = min(max(exponent, -126.0), 127.0)
 
-fn clampDoubleExponent(exponent: Double) -> Double = min(max(exponent, 0.0 - 1022.0), 1023.0)
+fn clampDoubleExponent(exponent: Double) -> Double = min(max(exponent, -1022.0), 1023.0)
 
 fn clampVecFloatExponent(exponent: Vec(F32)) -> Vec(F32) =
-    min(max(exponent, splat(0.0 - 126.0)), splat(127.0))
+    min(max(exponent, splat(-126.0)), splat(127.0))
 
 fn clampVecDoubleExponent(exponent: Vec(F64)) -> Vec(F64) =
-    min(max(exponent, splat((0.0 - 1022.0) :: Double)), splat(1023.0 :: Double))
+    min(max(exponent, splat(-1022.0 :: Double)), splat(1023.0 :: Double))
 
 fn powerOfTwoFloat(exponent: Float) -> Float =
     bitcast(((widen(truncate(exponent) :: Int) :: I32) + 127) `shl` 23) :: Float
@@ -504,7 +504,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
 
 @platform(js) fn powerOfTwoDouble(exponent: Double) -> Double:
     let negative = exponent < 0.0
-    let &n = if negative then 0.0 - exponent else exponent
+    let &n = if negative then -exponent else exponent
     let &base = 2.0 :: Double
     let &scale = 1.0 :: Double
 

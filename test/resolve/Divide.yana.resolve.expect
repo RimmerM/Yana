@@ -617,22 +617,16 @@ fn main() -> Int {
   b0:
     %minL = shl 1, 63 : Long
     %minI = shl 1, 31 : Int
-    %v13 = neg 7 : Long
-    %v16 = add %minL, 1 : Long
+    %v14 = add %minL, 1 : Long
     %longs = alloc : [Long *7]
-    aggregate %local0[0] = 0, %local0[1] = 1, %local0[2] = 7, %local0[3] = %v13, %local0[4] = %minL, %local0[5] = %v16, %local0[6] = 9223372036854775807
-    %v30 = neg 1 : Long
-    %v35 = neg 2 : Long
+    aggregate %local0[0] = 0, %local0[1] = 1, %local0[2] = 7, %local0[3] = -7, %local0[4] = %minL, %local0[5] = %v14, %local0[6] = 9223372036854775807
     %dLongs = alloc : [Long *7]
-    aggregate %local1[0] = 0, %local1[1] = %v30, %local1[2] = 1, %local1[3] = 2, %local1[4] = %v35, %local1[5] = 3, %local1[6] = 10
-    %v52 = neg 7 : Int
-    %v55 = add %minI, 1 : Int
+    aggregate %local1[0] = 0, %local1[1] = -1, %local1[2] = 1, %local1[3] = 2, %local1[4] = -2, %local1[5] = 3, %local1[6] = 10
+    %v47 = add %minI, 1 : Int
     %ints = alloc : [Int *7]
-    aggregate %local2[0] = 0, %local2[1] = 1, %local2[2] = 7, %local2[3] = %v52, %local2[4] = %minI, %local2[5] = %v55, %local2[6] = 2147483647
-    %v69 = neg 1 : Int
-    %v74 = neg 2 : Int
+    aggregate %local2[0] = 0, %local2[1] = 1, %local2[2] = 7, %local2[3] = -7, %local2[4] = %minI, %local2[5] = %v47, %local2[6] = 2147483647
     %dInts = alloc : [Int *7]
-    aggregate %local3[0] = 0, %local3[1] = %v69, %local3[2] = 1, %local3[3] = 2, %local3[4] = %v74, %local3[5] = 3, %local3[6] = 10
+    aggregate %local3[0] = 0, %local3[1] = -1, %local3[2] = 1, %local3[3] = 2, %local3[4] = -2, %local3[5] = 3, %local3[6] = 10
     %ulongs = alloc : [U64 *5]
     aggregate %local4[0] = 0, %local4[1] = 1, %local4[2] = 7, %local4[3] = 18446744073709551615, %local4[4] = 9223372036854775808
     %dULongs = alloc : [U64 *5]
@@ -650,9 +644,9 @@ fn main() -> Int {
     jmp b1
 
   b1:
-    %v144 = load %i : Int
-    %v147 = cmp_lt %v144, 7 : Bool
-    je %v147, b3, b2
+    %v132 = load %i : Int
+    %v135 = cmp_lt %v132, 7 : Bool
+    je %v135, b3, b2
 
   b2:
     assign %i, 0
@@ -663,269 +657,269 @@ fn main() -> Int {
     jmp b4
 
   b4:
-    %v152 = load %j : Int
-    %v155 = cmp_lt %v152, 7 : Bool
-    je %v155, b6, b5
+    %v140 = load %j : Int
+    %v143 = cmp_lt %v140, 7 : Bool
+    je %v143, b6, b5
 
   b5:
-    %v249 = load %total : Int
-    %v250 = load %i : Int
-    %v251 = borrow %local0 : '[Long *7]
+    %v237 = load %total : Int
+    %v238 = load %i : Int
+    %v239 = borrow %local0 : '[Long *7]
     %longs = alloc : Flat(Long)
-    %v253 = addressof [%v251] : %Long
-    init %longs@Flat.items, %v253
-    %v255 = countof 7 : Size
-    init %longs@Flat.length, %v255
-    %v257 = cast %v250 : Size
-    %v258 = borrow %longs : 'Flat(Long)
-    %v259 = load [%v258]@Flat.length : Size
-    %v260 = cast %v257 : USize
-    %v261 = cast %v259 : USize
-    %v262 = cmp_ge %v260, %v261 : Bool
-    call checkCondition, %v262
-    %v264 = load [%v258]@Flat.items : %Long
-    %v265 = strideof Long : Long
-    %v266 = mul %v257, %v265 : Long
-    %v267 = add %v264, %v266 : %Long
-    %v268 = borrow [%v267] : 'Long
-    %v269 = load [%v268] : Long
-    %v270 = call literalMinusOneL, %v269 : Int
-    %v271 = add %v249, %v270 : Int
-    %v272 = load %i : Int
-    %v273 = borrow %local2 : '[Int *7]
+    %v241 = addressof [%v239] : %Long
+    init %longs@Flat.items, %v241
+    %v243 = countof 7 : Size
+    init %longs@Flat.length, %v243
+    %v245 = cast %v238 : Size
+    %v246 = borrow %longs : 'Flat(Long)
+    %v247 = load [%v246]@Flat.length : Size
+    %v248 = cast %v245 : USize
+    %v249 = cast %v247 : USize
+    %v250 = cmp_ge %v248, %v249 : Bool
+    call checkCondition, %v250
+    %v252 = load [%v246]@Flat.items : %Long
+    %v253 = strideof Long : Long
+    %v254 = mul %v245, %v253 : Long
+    %v255 = add %v252, %v254 : %Long
+    %v256 = borrow [%v255] : 'Long
+    %v257 = load [%v256] : Long
+    %v258 = call literalMinusOneL, %v257 : Int
+    %v259 = add %v237, %v258 : Int
+    %v260 = load %i : Int
+    %v261 = borrow %local2 : '[Int *7]
     %ints = alloc : Flat(Int)
-    %v275 = addressof [%v273] : %Int
-    init %ints@Flat.items, %v275
-    %v277 = countof 7 : Size
-    init %ints@Flat.length, %v277
-    %v279 = cast %v272 : Size
-    %v280 = borrow %ints : 'Flat(Int)
-    %v281 = load [%v280]@Flat.length : Size
-    %v282 = cast %v279 : USize
-    %v283 = cast %v281 : USize
-    %v284 = cmp_ge %v282, %v283 : Bool
-    call checkCondition, %v284
-    %v286 = load [%v280]@Flat.items : %Int
-    %v287 = strideof Int : Long
-    %v288 = mul %v279, %v287 : Long
-    %v289 = add %v286, %v288 : %Int
-    %v290 = borrow [%v289] : 'Int
-    %v291 = load [%v290] : Int
-    %v292 = call literalMinusOneI, %v291 : Int
-    %v293 = add %v271, %v292 : Int
-    assign %total, %v293
-    %v295 = load %i : Int
-    %v298 = add %v295, 1 : Int
-    assign %i, %v298
+    %v263 = addressof [%v261] : %Int
+    init %ints@Flat.items, %v263
+    %v265 = countof 7 : Size
+    init %ints@Flat.length, %v265
+    %v267 = cast %v260 : Size
+    %v268 = borrow %ints : 'Flat(Int)
+    %v269 = load [%v268]@Flat.length : Size
+    %v270 = cast %v267 : USize
+    %v271 = cast %v269 : USize
+    %v272 = cmp_ge %v270, %v271 : Bool
+    call checkCondition, %v272
+    %v274 = load [%v268]@Flat.items : %Int
+    %v275 = strideof Int : Long
+    %v276 = mul %v267, %v275 : Long
+    %v277 = add %v274, %v276 : %Int
+    %v278 = borrow [%v277] : 'Int
+    %v279 = load [%v278] : Int
+    %v280 = call literalMinusOneI, %v279 : Int
+    %v281 = add %v259, %v280 : Int
+    assign %total, %v281
+    %v283 = load %i : Int
+    %v286 = add %v283, 1 : Int
+    assign %i, %v286
     jmp b1
 
   b6:
-    %v157 = load %total : Int
-    %v158 = load %i : Int
-    %v159 = borrow %local0 : '[Long *7]
+    %v145 = load %total : Int
+    %v146 = load %i : Int
+    %v147 = borrow %local0 : '[Long *7]
     %longs = alloc : Flat(Long)
-    %v161 = addressof [%v159] : %Long
-    init %longs@Flat.items, %v161
-    %v163 = countof 7 : Size
-    init %longs@Flat.length, %v163
-    %v165 = cast %v158 : Size
-    %v166 = borrow %longs : 'Flat(Long)
-    %v167 = load [%v166]@Flat.length : Size
-    %v168 = cast %v165 : USize
-    %v169 = cast %v167 : USize
-    %v170 = cmp_ge %v168, %v169 : Bool
-    call checkCondition, %v170
-    %v172 = load [%v166]@Flat.items : %Long
-    %v173 = strideof Long : Long
-    %v174 = mul %v165, %v173 : Long
-    %v175 = add %v172, %v174 : %Long
-    %v176 = borrow [%v175] : 'Long
-    %v177 = load [%v176] : Long
-    %v178 = load %j : Int
-    %v179 = borrow %local1 : '[Long *7]
+    %v149 = addressof [%v147] : %Long
+    init %longs@Flat.items, %v149
+    %v151 = countof 7 : Size
+    init %longs@Flat.length, %v151
+    %v153 = cast %v146 : Size
+    %v154 = borrow %longs : 'Flat(Long)
+    %v155 = load [%v154]@Flat.length : Size
+    %v156 = cast %v153 : USize
+    %v157 = cast %v155 : USize
+    %v158 = cmp_ge %v156, %v157 : Bool
+    call checkCondition, %v158
+    %v160 = load [%v154]@Flat.items : %Long
+    %v161 = strideof Long : Long
+    %v162 = mul %v153, %v161 : Long
+    %v163 = add %v160, %v162 : %Long
+    %v164 = borrow [%v163] : 'Long
+    %v165 = load [%v164] : Long
+    %v166 = load %j : Int
+    %v167 = borrow %local1 : '[Long *7]
     %dLongs = alloc : Flat(Long)
-    %v181 = addressof [%v179] : %Long
-    init %dLongs@Flat.items, %v181
-    %v183 = countof 7 : Size
-    init %dLongs@Flat.length, %v183
-    %v185 = cast %v178 : Size
-    %v186 = borrow %dLongs : 'Flat(Long)
-    %v187 = load [%v186]@Flat.length : Size
-    %v188 = cast %v185 : USize
-    %v189 = cast %v187 : USize
-    %v190 = cmp_ge %v188, %v189 : Bool
-    call checkCondition, %v190
-    %v192 = load [%v186]@Flat.items : %Long
-    %v193 = strideof Long : Long
-    %v194 = mul %v185, %v193 : Long
-    %v195 = add %v192, %v194 : %Long
-    %v196 = borrow [%v195] : 'Long
-    %v197 = load [%v196] : Long
-    %v198 = call runtimeL, %v177, %v197 : Int
-    %v199 = add %v157, %v198 : Int
-    %v200 = load %i : Int
-    %v201 = borrow %local2 : '[Int *7]
+    %v169 = addressof [%v167] : %Long
+    init %dLongs@Flat.items, %v169
+    %v171 = countof 7 : Size
+    init %dLongs@Flat.length, %v171
+    %v173 = cast %v166 : Size
+    %v174 = borrow %dLongs : 'Flat(Long)
+    %v175 = load [%v174]@Flat.length : Size
+    %v176 = cast %v173 : USize
+    %v177 = cast %v175 : USize
+    %v178 = cmp_ge %v176, %v177 : Bool
+    call checkCondition, %v178
+    %v180 = load [%v174]@Flat.items : %Long
+    %v181 = strideof Long : Long
+    %v182 = mul %v173, %v181 : Long
+    %v183 = add %v180, %v182 : %Long
+    %v184 = borrow [%v183] : 'Long
+    %v185 = load [%v184] : Long
+    %v186 = call runtimeL, %v165, %v185 : Int
+    %v187 = add %v145, %v186 : Int
+    %v188 = load %i : Int
+    %v189 = borrow %local2 : '[Int *7]
     %ints = alloc : Flat(Int)
-    %v203 = addressof [%v201] : %Int
-    init %ints@Flat.items, %v203
-    %v205 = countof 7 : Size
-    init %ints@Flat.length, %v205
-    %v207 = cast %v200 : Size
-    %v208 = borrow %ints : 'Flat(Int)
-    %v209 = load [%v208]@Flat.length : Size
-    %v210 = cast %v207 : USize
-    %v211 = cast %v209 : USize
-    %v212 = cmp_ge %v210, %v211 : Bool
-    call checkCondition, %v212
-    %v214 = load [%v208]@Flat.items : %Int
-    %v215 = strideof Int : Long
-    %v216 = mul %v207, %v215 : Long
-    %v217 = add %v214, %v216 : %Int
-    %v218 = borrow [%v217] : 'Int
-    %v219 = load [%v218] : Int
-    %v220 = load %j : Int
-    %v221 = borrow %local3 : '[Int *7]
+    %v191 = addressof [%v189] : %Int
+    init %ints@Flat.items, %v191
+    %v193 = countof 7 : Size
+    init %ints@Flat.length, %v193
+    %v195 = cast %v188 : Size
+    %v196 = borrow %ints : 'Flat(Int)
+    %v197 = load [%v196]@Flat.length : Size
+    %v198 = cast %v195 : USize
+    %v199 = cast %v197 : USize
+    %v200 = cmp_ge %v198, %v199 : Bool
+    call checkCondition, %v200
+    %v202 = load [%v196]@Flat.items : %Int
+    %v203 = strideof Int : Long
+    %v204 = mul %v195, %v203 : Long
+    %v205 = add %v202, %v204 : %Int
+    %v206 = borrow [%v205] : 'Int
+    %v207 = load [%v206] : Int
+    %v208 = load %j : Int
+    %v209 = borrow %local3 : '[Int *7]
     %dInts = alloc : Flat(Int)
-    %v223 = addressof [%v221] : %Int
-    init %dInts@Flat.items, %v223
-    %v225 = countof 7 : Size
-    init %dInts@Flat.length, %v225
-    %v227 = cast %v220 : Size
-    %v228 = borrow %dInts : 'Flat(Int)
-    %v229 = load [%v228]@Flat.length : Size
-    %v230 = cast %v227 : USize
-    %v231 = cast %v229 : USize
-    %v232 = cmp_ge %v230, %v231 : Bool
-    call checkCondition, %v232
-    %v234 = load [%v228]@Flat.items : %Int
-    %v235 = strideof Int : Long
-    %v236 = mul %v227, %v235 : Long
-    %v237 = add %v234, %v236 : %Int
-    %v238 = borrow [%v237] : 'Int
-    %v239 = load [%v238] : Int
-    %v240 = call runtimeI, %v219, %v239 : Int
-    %v241 = add %v199, %v240 : Int
-    assign %total, %v241
-    %v243 = load %j : Int
-    %v246 = add %v243, 1 : Int
-    assign %j, %v246
+    %v211 = addressof [%v209] : %Int
+    init %dInts@Flat.items, %v211
+    %v213 = countof 7 : Size
+    init %dInts@Flat.length, %v213
+    %v215 = cast %v208 : Size
+    %v216 = borrow %dInts : 'Flat(Int)
+    %v217 = load [%v216]@Flat.length : Size
+    %v218 = cast %v215 : USize
+    %v219 = cast %v217 : USize
+    %v220 = cmp_ge %v218, %v219 : Bool
+    call checkCondition, %v220
+    %v222 = load [%v216]@Flat.items : %Int
+    %v223 = strideof Int : Long
+    %v224 = mul %v215, %v223 : Long
+    %v225 = add %v222, %v224 : %Int
+    %v226 = borrow [%v225] : 'Int
+    %v227 = load [%v226] : Int
+    %v228 = call runtimeI, %v207, %v227 : Int
+    %v229 = add %v187, %v228 : Int
+    assign %total, %v229
+    %v231 = load %j : Int
+    %v234 = add %v231, 1 : Int
+    assign %j, %v234
     jmp b4
 
   b7:
-    %v304 = load %i : Int
-    %v307 = cmp_lt %v304, 5 : Bool
-    je %v307, b9, b8
+    %v292 = load %i : Int
+    %v295 = cmp_lt %v292, 5 : Bool
+    je %v295, b9, b8
 
   b8:
-    %v415 = load %total : Int
-    %v416 = call byLiteral : Int
-    %v417 = add %v415, %v416 : Int
-    ret %v417
+    %v403 = load %total : Int
+    %v404 = call byLiteral : Int
+    %v405 = add %v403, %v404 : Int
+    ret %v405
 
   b9:
     assign %j, 0
     jmp b10
 
   b10:
-    %v312 = load %j : Int
-    %v315 = cmp_lt %v312, 5 : Bool
-    je %v315, b12, b11
+    %v300 = load %j : Int
+    %v303 = cmp_lt %v300, 5 : Bool
+    je %v303, b12, b11
 
   b11:
-    %v409 = load %i : Int
-    %v412 = add %v409, 1 : Int
-    assign %i, %v412
+    %v397 = load %i : Int
+    %v400 = add %v397, 1 : Int
+    assign %i, %v400
     jmp b7
 
   b12:
-    %v317 = load %total : Int
-    %v318 = load %i : Int
-    %v319 = borrow %local4 : '[U64 *5]
+    %v305 = load %total : Int
+    %v306 = load %i : Int
+    %v307 = borrow %local4 : '[U64 *5]
     %ulongs = alloc : Flat(U64)
-    %v321 = addressof [%v319] : %U64
-    init %ulongs@Flat.items, %v321
-    %v323 = countof 5 : Size
-    init %ulongs@Flat.length, %v323
-    %v325 = cast %v318 : Size
-    %v326 = borrow %ulongs : 'Flat(U64)
-    %v327 = load [%v326]@Flat.length : Size
-    %v328 = cast %v325 : USize
-    %v329 = cast %v327 : USize
-    %v330 = cmp_ge %v328, %v329 : Bool
-    call checkCondition, %v330
-    %v332 = load [%v326]@Flat.items : %U64
-    %v333 = strideof U64 : Long
-    %v334 = mul %v325, %v333 : Long
-    %v335 = add %v332, %v334 : %U64
-    %v336 = borrow [%v335] : 'U64
-    %v337 = load [%v336] : U64
-    %v338 = load %j : Int
-    %v339 = borrow %local5 : '[U64 *5]
+    %v309 = addressof [%v307] : %U64
+    init %ulongs@Flat.items, %v309
+    %v311 = countof 5 : Size
+    init %ulongs@Flat.length, %v311
+    %v313 = cast %v306 : Size
+    %v314 = borrow %ulongs : 'Flat(U64)
+    %v315 = load [%v314]@Flat.length : Size
+    %v316 = cast %v313 : USize
+    %v317 = cast %v315 : USize
+    %v318 = cmp_ge %v316, %v317 : Bool
+    call checkCondition, %v318
+    %v320 = load [%v314]@Flat.items : %U64
+    %v321 = strideof U64 : Long
+    %v322 = mul %v313, %v321 : Long
+    %v323 = add %v320, %v322 : %U64
+    %v324 = borrow [%v323] : 'U64
+    %v325 = load [%v324] : U64
+    %v326 = load %j : Int
+    %v327 = borrow %local5 : '[U64 *5]
     %dULongs = alloc : Flat(U64)
-    %v341 = addressof [%v339] : %U64
-    init %dULongs@Flat.items, %v341
-    %v343 = countof 5 : Size
-    init %dULongs@Flat.length, %v343
-    %v345 = cast %v338 : Size
-    %v346 = borrow %dULongs : 'Flat(U64)
-    %v347 = load [%v346]@Flat.length : Size
-    %v348 = cast %v345 : USize
-    %v349 = cast %v347 : USize
-    %v350 = cmp_ge %v348, %v349 : Bool
-    call checkCondition, %v350
-    %v352 = load [%v346]@Flat.items : %U64
-    %v353 = strideof U64 : Long
-    %v354 = mul %v345, %v353 : Long
-    %v355 = add %v352, %v354 : %U64
-    %v356 = borrow [%v355] : 'U64
-    %v357 = load [%v356] : U64
-    %v358 = call runtimeU, %v337, %v357 : Int
-    %v359 = add %v317, %v358 : Int
-    %v360 = load %i : Int
-    %v361 = borrow %local6 : '[U32 *5]
+    %v329 = addressof [%v327] : %U64
+    init %dULongs@Flat.items, %v329
+    %v331 = countof 5 : Size
+    init %dULongs@Flat.length, %v331
+    %v333 = cast %v326 : Size
+    %v334 = borrow %dULongs : 'Flat(U64)
+    %v335 = load [%v334]@Flat.length : Size
+    %v336 = cast %v333 : USize
+    %v337 = cast %v335 : USize
+    %v338 = cmp_ge %v336, %v337 : Bool
+    call checkCondition, %v338
+    %v340 = load [%v334]@Flat.items : %U64
+    %v341 = strideof U64 : Long
+    %v342 = mul %v333, %v341 : Long
+    %v343 = add %v340, %v342 : %U64
+    %v344 = borrow [%v343] : 'U64
+    %v345 = load [%v344] : U64
+    %v346 = call runtimeU, %v325, %v345 : Int
+    %v347 = add %v305, %v346 : Int
+    %v348 = load %i : Int
+    %v349 = borrow %local6 : '[U32 *5]
     %uints = alloc : Flat(U32)
-    %v363 = addressof [%v361] : %U32
-    init %uints@Flat.items, %v363
-    %v365 = countof 5 : Size
-    init %uints@Flat.length, %v365
-    %v367 = cast %v360 : Size
-    %v368 = borrow %uints : 'Flat(U32)
-    %v369 = load [%v368]@Flat.length : Size
-    %v370 = cast %v367 : USize
-    %v371 = cast %v369 : USize
-    %v372 = cmp_ge %v370, %v371 : Bool
-    call checkCondition, %v372
-    %v374 = load [%v368]@Flat.items : %U32
-    %v375 = strideof U32 : Long
-    %v376 = mul %v367, %v375 : Long
-    %v377 = add %v374, %v376 : %U32
-    %v378 = borrow [%v377] : 'U32
-    %v379 = load [%v378] : U32
-    %v380 = load %j : Int
-    %v381 = borrow %local7 : '[U32 *5]
+    %v351 = addressof [%v349] : %U32
+    init %uints@Flat.items, %v351
+    %v353 = countof 5 : Size
+    init %uints@Flat.length, %v353
+    %v355 = cast %v348 : Size
+    %v356 = borrow %uints : 'Flat(U32)
+    %v357 = load [%v356]@Flat.length : Size
+    %v358 = cast %v355 : USize
+    %v359 = cast %v357 : USize
+    %v360 = cmp_ge %v358, %v359 : Bool
+    call checkCondition, %v360
+    %v362 = load [%v356]@Flat.items : %U32
+    %v363 = strideof U32 : Long
+    %v364 = mul %v355, %v363 : Long
+    %v365 = add %v362, %v364 : %U32
+    %v366 = borrow [%v365] : 'U32
+    %v367 = load [%v366] : U32
+    %v368 = load %j : Int
+    %v369 = borrow %local7 : '[U32 *5]
     %dUInts = alloc : Flat(U32)
-    %v383 = addressof [%v381] : %U32
-    init %dUInts@Flat.items, %v383
-    %v385 = countof 5 : Size
-    init %dUInts@Flat.length, %v385
-    %v387 = cast %v380 : Size
-    %v388 = borrow %dUInts : 'Flat(U32)
-    %v389 = load [%v388]@Flat.length : Size
-    %v390 = cast %v387 : USize
-    %v391 = cast %v389 : USize
-    %v392 = cmp_ge %v390, %v391 : Bool
-    call checkCondition, %v392
-    %v394 = load [%v388]@Flat.items : %U32
-    %v395 = strideof U32 : Long
-    %v396 = mul %v387, %v395 : Long
-    %v397 = add %v394, %v396 : %U32
-    %v398 = borrow [%v397] : 'U32
-    %v399 = load [%v398] : U32
-    %v400 = call runtimeW, %v379, %v399 : Int
-    %v401 = add %v359, %v400 : Int
-    assign %total, %v401
-    %v403 = load %j : Int
-    %v406 = add %v403, 1 : Int
-    assign %j, %v406
+    %v371 = addressof [%v369] : %U32
+    init %dUInts@Flat.items, %v371
+    %v373 = countof 5 : Size
+    init %dUInts@Flat.length, %v373
+    %v375 = cast %v368 : Size
+    %v376 = borrow %dUInts : 'Flat(U32)
+    %v377 = load [%v376]@Flat.length : Size
+    %v378 = cast %v375 : USize
+    %v379 = cast %v377 : USize
+    %v380 = cmp_ge %v378, %v379 : Bool
+    call checkCondition, %v380
+    %v382 = load [%v376]@Flat.items : %U32
+    %v383 = strideof U32 : Long
+    %v384 = mul %v375, %v383 : Long
+    %v385 = add %v382, %v384 : %U32
+    %v386 = borrow [%v385] : 'U32
+    %v387 = load [%v386] : U32
+    %v388 = call runtimeW, %v367, %v387 : Int
+    %v389 = add %v347, %v388 : Int
+    assign %total, %v389
+    %v391 = load %j : Int
+    %v394 = add %v391, 1 : Int
+    assign %j, %v394
     jmp b10
 }

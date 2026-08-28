@@ -7,60 +7,55 @@ fn scalars() -> Int {
     je %v4, b1, b2
 
   b1:
-    %v8 = neg 1 : Int
-    ret %v8
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v12 = sqrt 2.25 : Double
-    %v15 = cmp_ne %v12, 1.5 : Bool
-    je %v15, b4, b5
+    %v10 = sqrt 2.25 : Double
+    %v13 = cmp_ne %v10, 1.5 : Bool
+    je %v13, b4, b5
 
   b4:
-    %v19 = neg 2 : Int
-    ret %v19
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v27 = fma 2 3 4 : Double
-    %v30 = cmp_ne %v27, 10 : Bool
-    je %v30, b7, b8
+    %v23 = fma 2 3 4 : Double
+    %v26 = cmp_ne %v23, 10 : Bool
+    je %v26, b7, b8
 
   b7:
-    %v34 = neg 3 : Int
-    ret %v34
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v38 = sqrt 6.25 : Float
-    %v41 = cmp_ne %v38, 2.5 : Bool
-    je %v41, b10, b11
+    %v32 = sqrt 6.25 : Float
+    %v35 = cmp_ne %v32, 2.5 : Bool
+    je %v35, b10, b11
 
   b10:
-    %v45 = neg 4 : Int
-    ret %v45
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v53 = sub 0, 0 : Float
-    %v54 = sqrt %v53 : Float
+    %v45 = sub 0, 0 : Float
+    %v46 = sqrt %v45 : Float
+    %v48 = div 1, %v46 : Float
+    %v54 = sub 0, 0 : Float
     %v56 = div 1, %v54 : Float
-    %v62 = sub 0, 0 : Float
-    %v64 = div 1, %v62 : Float
-    %v65 = cmp_ne %v56, %v64 : Bool
-    je %v65, b13, b14
+    %v57 = cmp_ne %v48, %v56 : Bool
+    je %v57, b13, b14
 
   b13:
-    %v69 = neg 5 : Int
-    ret %v69
+    ret -5
 
   b14:
     jmp b15
@@ -78,75 +73,69 @@ fn lanes() -> Int {
     je %v9, b1, b2
 
   b1:
-    %v13 = neg 1 : Int
-    ret %v13
+    ret -1
 
   b2:
     jmp b3
 
   b3:
-    %v16 = vreduce_min %roots : Float
-    %v19 = cmp_ne %v16, 2.5 : Bool
-    je %v19, b4, b5
+    %v14 = vreduce_min %roots : Float
+    %v17 = cmp_ne %v14, 2.5 : Bool
+    je %v17, b4, b5
 
   b4:
-    %v23 = neg 2 : Int
-    ret %v23
+    ret -2
 
   b5:
     jmp b6
 
   b6:
-    %v27 = vsplat 0 : Vec(Float)
-    %v29 = vwithlane %v27, 1, 1 : Vec(Float)
-    %v31 = vwithlane %v29, 2, 2 : Vec(Float)
-    %counted = vwithlane %v31, 3, 3 : Vec(Float)
-    %v36 = vsplat 3 : Vec(Float)
-    %v39 = vsplat 1 : Vec(Float)
-    %scaled = fma %counted %v36 %v39 : Vec(Float)
-    %v43 = vlane %scaled, 0 : Float
-    %v46 = cmp_ne %v43, 1 : Bool
-    je %v46, b7, b8
+    %v23 = vsplat 0 : Vec(Float)
+    %v25 = vwithlane %v23, 1, 1 : Vec(Float)
+    %v27 = vwithlane %v25, 2, 2 : Vec(Float)
+    %counted = vwithlane %v27, 3, 3 : Vec(Float)
+    %v32 = vsplat 3 : Vec(Float)
+    %v35 = vsplat 1 : Vec(Float)
+    %scaled = fma %counted %v32 %v35 : Vec(Float)
+    %v39 = vlane %scaled, 0 : Float
+    %v42 = cmp_ne %v39, 1 : Bool
+    je %v42, b7, b8
 
   b7:
-    %v50 = neg 3 : Int
-    ret %v50
+    ret -3
 
   b8:
     jmp b9
 
   b9:
-    %v55 = vlane %scaled, 1 : Float
-    %v58 = cmp_ne %v55, 4 : Bool
-    je %v58, b10, b11
+    %v49 = vlane %scaled, 1 : Float
+    %v52 = cmp_ne %v49, 4 : Bool
+    je %v52, b10, b11
 
   b10:
-    %v62 = neg 4 : Int
-    ret %v62
+    ret -4
 
   b11:
     jmp b12
 
   b12:
-    %v67 = vlane %scaled, 2 : Float
-    %v70 = cmp_ne %v67, 7 : Bool
-    je %v70, b13, b14
+    %v59 = vlane %scaled, 2 : Float
+    %v62 = cmp_ne %v59, 7 : Bool
+    je %v62, b13, b14
 
   b13:
-    %v74 = neg 5 : Int
-    ret %v74
+    ret -5
 
   b14:
     jmp b15
 
   b15:
-    %v77 = vreduce_add %scaled : Float
-    %v80 = cmp_ne %v77, 22 : Bool
-    je %v80, b16, b17
+    %v67 = vreduce_add %scaled : Float
+    %v70 = cmp_ne %v67, 22 : Bool
+    je %v70, b16, b17
 
   b16:
-    %v84 = neg 6 : Int
-    ret %v84
+    ret -6
 
   b17:
     jmp b18

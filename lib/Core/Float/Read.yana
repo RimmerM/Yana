@@ -170,7 +170,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
             -- An `e` with no digits after it is not part of the number, so the cursor stays in front
             -- of it and `1e` reads as `1`.
             if sawDigit:
-                exponent = if negativeExponent then 0 - value else value
+                exponent = if negativeExponent then -value else value
                 at = probe
 
     if roundUp then mantissa = mantissa + 1
@@ -195,7 +195,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
 
     -- Below 1e-324 there is no float to round to but zero, and above 1e309 none but an infinity.
     -- Both keep the sign, which is what makes `-1e-400` a negative zero.
-    if mantissa == 0 || digits + exponent <= 0 - 324 then return bitcast(sign) :: Double
+    if mantissa == 0 || digits + exponent <= -324 then return bitcast(sign) :: Double
     if digits + exponent >= 310 then return bitcast(sign `or` infinityBits) :: Double
 
     let highest = (truncate(bitWidth(mantissa)) :: Int) - 1
@@ -212,10 +212,10 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
         -- `exponent` and otherwise exactly when the mantissa has that many trailing zero bits.
         exact = e2 < exponent || (e2 - exponent < 64 && multipleOfPowerOf2(mantissa, e2 - exponent))
     else:
-        let power = log2Pow5(0 - exponent)
+        let power = log2Pow5(-exponent)
         e2 = highest + exponent - (power + 1) - 53
-        m2 = mulShiftInv(mantissa, 0 - exponent, e2 - exponent + (power + 1) - 1 + 125)
-        exact = multipleOfPowerOf5(mantissa, 0 - exponent)
+        m2 = mulShiftInv(mantissa, -exponent, e2 - exponent + (power + 1) - 1 + 125)
+        exact = multipleOfPowerOf5(mantissa, -exponent)
 
     let &ieeeExponent = e2 + 1023 + ((truncate(bitWidth(m2)) :: Int) - 1)
     if ieeeExponent < 0 then ieeeExponent = 0
@@ -253,7 +253,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     if scanned.special == 2 then return 0.0 / 0.0
     if scanned.special == 1:
         let infinite = bitcast(infinityBits) :: Double
-        return if scanned.negative then 0.0 - infinite else infinite
+        return if scanned.negative then -infinite else infinite
 
     return convertDouble(scanned.mantissa, scanned.exponent, scanned.digits, scanned.negative)
 
@@ -274,7 +274,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
     if scanned.special == 2 then return 0.0 / 0.0
     if scanned.special == 1:
         let infinite = 1.0 / 0.0
-        return if scanned.negative then 0.0 - infinite else infinite
+        return if scanned.negative then -infinite else infinite
 
     let &digits = String.ofCapacity(32 :: Size)
     pushUnsigned(scanned.mantissa, digits)
@@ -282,7 +282,7 @@ fn scanDecimal(text: String, from: Size) -> Maybe(Scanned):
 
     if scanned.exponent < 0:
         String.pushUnit(digits, 45)
-        pushUnsigned(wideCount(0 - scanned.exponent), digits)
+        pushUnsigned(wideCount(-scanned.exponent), digits)
     else:
         pushUnsigned(wideCount(scanned.exponent), digits)
 

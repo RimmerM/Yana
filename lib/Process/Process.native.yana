@@ -127,7 +127,7 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
     push(vector, null() :: %U8)
 
     let child = forkProcess()
-    if child < 0 then return Err(errorOf(0 - child))
+    if child < 0 then return Err(errorOf(-child))
 
     if child == 0:
         -- The child, and only what is safe here. Nothing below allocates, nothing runs a teardown,
@@ -163,7 +163,7 @@ pub fn waitFor(self: Process) -> Result(FileError, Exit):
     let &status = 0 :: Int
     let answer = waitProcess(self.id, addressOf(status), 0)
 
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
     return Ok(decodeStatus(status))
 
 {-
@@ -176,7 +176,7 @@ pub fn finished(self: Process) -> Result(FileError, Maybe(Exit)):
     let &status = 0 :: Int
     let answer = waitProcess(self.id, addressOf(status), waitNonBlocking)
 
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
     if answer == 0 then return Ok(Nothing)
 
     return Ok(Just(decodeStatus(status)))
@@ -205,7 +205,7 @@ pub fn signal(self: Process, number: Int) -> Result(FileError, {}) =
 -- and sharing one would put `Process`'s failures into `File`'s vocabulary by declaration rather than
 -- by decision.
 fn checkedUnit(answer: Size) -> Result(FileError, {}):
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
     return Ok({})
 
 pub let terminateSignal = 15 :: Int
@@ -222,7 +222,7 @@ pub fn newPipe() -> Result(FileError, Pipe):
     let &ends = [0, 0] :: [Int]
     let answer = makePipe(intBase(ends))
 
-    if answer < 0 then return Err(errorOf(0 - answer))
+    if answer < 0 then return Err(errorOf(-answer))
     return Ok(Pipe {readEnd: adoptFile(ends[0] :: Size), writeEnd: adoptFile(ends[1] :: Size)})
 
 {-

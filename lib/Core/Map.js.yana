@@ -111,13 +111,13 @@ fn (Hash(k)) indexFind(self: Map(k, v), key: k, h: U32) -> Size:
 
     while visited <= mask:
         let at = self.index[slot] :: Size
-        if at == (slotEmpty :: Size) then return 0 - 1
+        if at == (slotEmpty :: Size) then return -1
         if at >= 0 && keyEquals(self, at, key) then return at
 
         slot = (slot + 1) `and` mask
         visited = visited + 1
 
-    return 0 - 1
+    return -1
 
 fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
     let mask = self.mask :: Size
@@ -126,13 +126,13 @@ fn (Hash(k)) indexSlotOf(self: Map(k, v), key: k, h: U32) -> Size:
 
     while visited <= mask:
         let at = self.index[slot] :: Size
-        if at == (slotEmpty :: Size) then return 0 - 1
+        if at == (slotEmpty :: Size) then return -1
         if at >= 0 && keyEquals(self, at, key) then return slot
 
         slot = (slot + 1) `and` mask
         visited = visited + 1
 
-    return 0 - 1
+    return -1
 
 fn indexPlace(&self: Map(k, v), at: Size, h: U32) -> {}:
     let mask = self.mask :: Size

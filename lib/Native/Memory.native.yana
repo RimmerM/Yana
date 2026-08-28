@@ -319,7 +319,7 @@ fn blockDescending(to: %U8, from: %U8, count: Size) -> {}:
 
     -- `count` rounded down to a whole number of registers. The width is a power of two and a
     -- constant, so this is one `and` against a literal rather than a division.
-    let &at = count `and` (0 - width)
+    let &at = count `and` (-width)
 
     while at >= stride:
         at = at - stride
@@ -438,7 +438,7 @@ pub fn moveMemory(to: %U8, from: %U8, count: Size) -> {}:
         -- Disjoint by arithmetic rather than by the caller's word, and long enough that a block
         -- operation's startup is paid back - see the ruling above for why both halves are needed.
         -- This is the only path that is a block operation.
-        let distance = if gap < 0 then 0 - gap else gap
+        let distance = if gap < 0 then -gap else gap
         if distance >= count:
             if count >= width * 48:
                 blockCopy(to, from, count)
