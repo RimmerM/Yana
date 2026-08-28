@@ -475,6 +475,11 @@ struct PlacementScratch {
     Array<U8> regionMembers;
     Array<RegionEntry> regionEntries;
 
+    // And the loop headers a phi of each web sits under - the definitions `reads` above cannot see.
+    // Indexed by web id, and collected in one walk rather than per candidate, since it is a pass
+    // over every block's phi list.
+    ArrayList<BlockIndex, 2> regionPhiLoops;
+
     void reset(Size valueCount) {
         webs.reset(valueCount);
         tieConflicts.reset(valueCount);
@@ -2388,8 +2393,10 @@ static RegSet clusterBlockedAt(Placer& a, U32 index, bool last) {
  * life, or a recipe, which is available everywhere - so it goes on holding the value while the
  * register holds it too, and leaving the region costs nothing at all. That is what `SegmentKind` says
  * and what `leavesFree` reads. The rule that makes it true is that no member of the web may be
- * *defined* anywhere in the region, which is the `defines` gate below. A region whose members are
- * written would need a store on every edge out of it, and that is not this.
+ * *defined* anywhere in the region, which is the `defines` gate below - and a **phi is a definition**
+ * just as an instruction's result is, which is the half `collectWebReads` cannot see and the half
+ * that was missing. A region whose members are written would need a store on every edge out of it,
+ * and that is what `RegionMoved` is.
  *
  * **The register is claimed over the region rather than over the web's life.** Any web reaching here
  * is one no register was free for over the whole of it. `occupyRanges` is what hands out the narrower
@@ -2409,9 +2416,10 @@ static RegSet clusterBlockedAt(Placer& a, U32 index, bool last) {
  * decided re-creates the edge that block was the split of, and every stage downstream of the block
  * list is derived from a list that is final by the time this runs.
  *
- * Exit edges need no such check, because a region is left for free. That is what makes the refusal
- * narrow enough to be worth having: the edges it has to be able to reach are the ones *into* a loop,
- * and a loop is entered from its preheader.
+ * A *cached* region's exit edges need no such check, because it is left for free - which is what keeps
+ * the refusal narrow: the edges it has to be able to reach are the ones *into* a loop, and a loop is
+ * entered from its preheader. A **moved** one carries a store out, so its exit edges are collected
+ * and asked the same question, and it is refused for a critical edge among those too.
  *
  * This runs after `reclaimDisplaced` and before `splitAroundClusters`. Both halves matter, and are
  * §5.9's own reasons read once more: a whole-life register beats any number of regions, so a web must
@@ -2460,6 +2468,44 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
     auto& members = a.scratch.regionMembers;
     auto& entries = a.scratch.regionEntries;
 
+    /*
+     * Which loops hold a phi of each web, which is the half of "something writes the web inside the
+     * region" that `collectWebReads` cannot state.
+     *
+     * **A phi is a definition, and it is not an instruction.** `reads` is built by walking the
+     * instructions of every block, so a web whose only write inside a loop is a phi transfer arrives
+     * here with `defines` false and takes a *cached* region - and a cached region's whole soundness
+     * is that the home never stopped holding the value. `resolvePhis` (legalize.cpp) writes the phi
+     * at `locationOf(result, the successor's entry point)`, which inside a region is the region's
+     * register, so the home stops holding it exactly as an instruction's result would. What that
+     * produced was a loop-carried minimum that stayed at its seed: the register carried every update
+     * and the reader after the loop read the slot, which still held what the preheader put there.
+     *
+     * Recorded for every web rather than for the candidates alone, so that this stays one walk over
+     * the function instead of one per web. The chain outward is the same one the reads take: a phi
+     * inside an inner loop is a phi inside every loop around it.
+     */
+    auto& phiLoops = a.scratch.regionPhiLoops;
+    phiLoops.reset(a.webs.size());
+
+    for(auto offset: blockList) {
+        auto block = a.base[offset];
+
+        for(auto p: block->phis.contents(a.base)) {
+            auto& result = a.base[p]->result;
+            if(isImplicit(&result)) continue;
+
+            auto& into = phiLoops[Size(a.out.webOf[result.liveId()])];
+
+            for(auto h = loops.header[BlockIndex(block->index)]; h != kNullBlock; h = loops.parent[h]) {
+                auto seen = false;
+                for(auto already: into) seen = seen || already == h;
+
+                if(!seen) into.push(h);
+            }
+        }
+    }
+
     for(auto webId: candidates) {
         auto& reads = a.scratch.reads[webId];
         if(reads.size() < 2) continue;
@@ -2490,7 +2536,8 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
                 // A definition inside the region is worth the store it no longer makes - a homeless
                 // web's result is written to a scratch register and carried to its slot behind the
                 // instruction - and it is what makes the region one that has to store back on the way
-                // out. Both, and they are the two halves of the same fact.
+                // out. Both, and they are the two halves of the same fact. The *other* kind of
+                // definition, a phi, is marked below: there is no read here to hang it on.
                 if(read.defines) {
                     region.defines = true;
                     region.benefit += a.scratch.spans[read.span].weight * read.saving;
@@ -2505,6 +2552,19 @@ static void promoteIntoRegions(Placer& a, const Array<LiveId>& candidates, const
                     region.lastBlock = U32(block);
                     region.blocks++;
                 }
+            }
+        }
+
+        // The phi definitions, against the candidates the reads produced. A loop holding a phi of
+        // this web and none of its reads is not a candidate at all, so there is nothing to mark
+        // there - `candidateFor` is deliberately not called, since a region with no benefit is
+        // refused below whatever its kind. No benefit is credited either: a phi transfer into a slot
+        // is a store this saves, but it is a store `computeSpillCosts` never charged for, and
+        // crediting one side of a price the other side does not carry is how a pass takes a region
+        // that does not pay.
+        for(auto header: phiLoops[Size(webId)]) {
+            for(auto& region: regions) {
+                if(region.header == header) region.defines = true;
             }
         }
 

@@ -29,21 +29,26 @@
 # calls in a register and everything else that outlives the call is homeless - which is what puts a
 # web in front of this pass at all.
 #
-# **None of these takes a region, and that is the record this file is here to keep.** Every shape
-# small enough to write by hand is answered by one of the two splits before it, and the reason is
-# structural rather than accidental: §5.8 wins outright wherever a register is free over the web's
-# whole interval, because its window costs a store and a reload *outside* the loop where a region
-# costs a load and the register for the loop's whole length. What is left for a region is the case
-# where no register is free over the whole interval **for a reason that is not a clobber** - which
-# takes more simultaneously-live webs than a legible fixture has - and where one is free over the
-# loop alone. That is a property of a whole function's pressure, and it is reproduced by real
-# programs (21 regions over the ten of `test/bench/programs`, 27 over `test/resolve`) and not by
-# these.
+# **All but the last of these are refused a region, and that is the record this file was written to
+# keep.** Every shape small enough to write by hand is answered by one of the two splits before it,
+# and the reason is structural rather than accidental: §5.8 wins outright wherever a register is free
+# over the web's whole interval, because its window costs a store and a reload *outside* the loop
+# where a region costs a load and the register for the loop's whole length. What is left for a region
+# is the case where no register is free over the whole interval **for a reason that is not a
+# clobber**, and where one is free over the loop alone. That is a property of a whole function's
+# pressure, and it is reproduced by real programs (21 regions over the ten of `test/bench/programs`,
+# 27 over `test/resolve`) rather than by a legible fixture.
 #
-# So what these assert is the machinery rather than the policy: the edge-split blocks the promotion
-# needs, the copies that stand in them, and that the placement of every one of these functions is
-# unchanged by the pass. `verifyPlacement` and `verifyAllocation` are what check a taken region, and
-# they run over every function of both corpora above.
+# So what the first five assert is the machinery rather than the policy: the edge-split blocks the
+# promotion needs, the copies that stand in them, and that the placement of every one of those
+# functions is unchanged by the pass. `verifyPlacement` and `verifyAllocation` are what check a taken
+# region, and they run over every function of both corpora above.
+#
+# `regionPhiMoved` is the exception, and what it cost to build one is why the paragraph above is the
+# record: a nested warm loop holding eight pointers across eight calls, so that the pressure denying
+# the tracked value a whole-life register is pressure and not a clobber, and reads of it that are
+# *stores* rather than arithmetic, so that a register saves a reload instead of an addressing mode.
+# It exists because a miscompile lived in exactly that gap - see the comment above it.
 
 sink<clobber>(%x: I32): I32 {
     { ret %x }
@@ -51,6 +56,10 @@ sink<clobber>(%x: I32): I32 {
 
 callee(%x: I32): I32 {
     { ret %x }
+}
+
+reader(%p: Ptr): I64 {
+    { ret (load %p, 0: I64) }
 }
 
 # The closest a hand-written fixture gets, and what it demonstrates is the paragraph above.
@@ -261,5 +270,119 @@ regionLiveBlocksOnly(%n: I32, %p: Ptr, %t: Ptr): I64 {
 
     exit {
         ret %acc
+    }
+}
+
+# A loop-carried value whose only write inside the region is a **phi**, and the miscompile that was.
+#
+# `%best` is a running minimum: `body` compares, `take` and `keep` merge, and the update is therefore
+# a *phi* rather than an operation. No instruction in the second loop defines the web at all, so
+# `collectWebReads` - which walks instructions - reported no definition and the region was taken as a
+# *cached* one.
+#
+# A cached region is sound only because the home never stops holding the value. `resolvePhis` writes a
+# phi at `locationOf(result, the successor's entry point)`, which inside the region is the register:
+# every update landed there, `leavesFree` suppressed the copy on the way out, and the read after the
+# loop took the slot - which still held what the preheader put in it. A running minimum stayed at its
+# seed for the life of the loop, natively, in a function that had two other loops in it.
+#
+# A phi is a definition, `promoteIntoRegions` counts it as one, and the region is moved. **Block #14
+# is the whole of the difference**: the edge-split block on the way out, holding the store back to
+# stack:1 that a cached region does not make. `lib/Random`'s `widths` is the same shape as a program.
+#
+# The pressure is what the first loop is for, and it has to be a loop with calls in it rather than one
+# call: eight pointers live across eight calls of a *nested* loop outrank `%best` everywhere, so it
+# gets no register over its whole life - and they are dead by the second loop, where one is free.
+# The three reads in the second loop are stores rather than arithmetic for the other half of the same
+# reason: an `add` or a `cmp` takes its operand straight out of the frame, so a register buys those a
+# shorter encoding and the region never pays for itself.
+regionPhiMoved(%n: I32, %p: Ptr): I64 {
+    entry {
+        %zero = cast 0: I64
+        %seed = load %p, 8: I64
+        %c0 = add %p, 8: Ptr
+        %c1 = add %p, 16: Ptr
+        %c2 = add %p, 24: Ptr
+        %c3 = add %p, 32: Ptr
+        %c4 = add %p, 40: Ptr
+        %c5 = add %p, 48: Ptr
+        %c6 = add %p, 56: Ptr
+        %c7 = add %p, 64: Ptr
+        jmp warmHead
+    }
+
+    warmHead {
+        %j = phi [entry, %zero], [warmLatch, %j2]: I64
+        je %n, preloop, warmInner
+    }
+
+    warmInner {
+        %k = phi [warmHead, %zero], [warmStep, %k2]: I64
+        je %n, warmLatch, warmStep
+    }
+
+    warmStep {
+        %d0 = call_complex reader, %c0: I64
+        %d1 = call_complex reader, %c1: I64
+        %d2 = call_complex reader, %c2: I64
+        %d3 = call_complex reader, %c3: I64
+        %d4 = call_complex reader, %c4: I64
+        %d5 = call_complex reader, %c5: I64
+        %d6 = call_complex reader, %c6: I64
+        %d7 = call_complex reader, %c7: I64
+        %e0 = add %d0, %d1: I64
+        %e1 = add %e0, %d2: I64
+        %e2 = add %e1, %d3: I64
+        %e3 = add %e2, %d4: I64
+        %e4 = add %e3, %d5: I64
+        %e5 = add %e4, %d6: I64
+        %e6 = add %e5, %d7: I64
+        store %p, %e6, 8
+        %k2 = add %k, 1L: I64
+        jmp warmInner
+    }
+
+    warmLatch {
+        %j2 = add %j, 1L: I64
+        jmp warmHead
+    }
+
+    preloop {
+        %start = cast 0: I64
+        jmp head
+    }
+
+    head {
+        %i = phi [preloop, %start], [latch, %i2]: I64
+        %best = phi [preloop, %seed], [latch, %best2]: I64
+        je %n, exit, body
+    }
+
+    body {
+        %a = load %c0, 8: I64
+        %lt = cmp_ilt %a, %best: I32
+        je %lt, take, keep
+    }
+
+    keep {
+        store %c1, %best, 8
+        store %c2, %best, 8
+        jmp latch
+    }
+
+    take {
+        jmp latch
+    }
+
+    latch {
+        %best2 = phi [keep, %best], [take, %a]: I64
+        store %c3, %best2, 8
+        %i2 = add %i, 1L: I64
+        jmp head
+    }
+
+    exit {
+        %z = add %best, 1L: I64
+        ret %z
     }
 }

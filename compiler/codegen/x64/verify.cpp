@@ -345,6 +345,58 @@ bool verifyPlacement(Context& ctx, LowerBase base, LowerFunction& fun, Liveness&
         }
     }
 
+    /*
+     * What a segment may have written into it, which is the boundary invariant's other half.
+     *
+     * A Cached or a Region segment is sound only because the home never stops holding the value:
+     * each is entered with a load and left with nothing at all, so a member *defined* while one is
+     * open would be written into the register and read back out of the slot, which still holds
+     * whatever went in. `allowsDefinition` states that, and the two producers keep it by
+     * construction - splitAroundClusters treats a definition as a barrier, promoteIntoRegions takes
+     * a RegionMoved instead. This is where it is checked, because a producer that stopped keeping it
+     * writes code that is right on the path the allocator walked and wrong on the ones it did not.
+     *
+     * **A phi result is asked about too, and it is the half this was written for.** A phi is not an
+     * instruction, so a walk over instructions does not see one; `resolvePhis` writes it at the
+     * block's entry point, which is inside a region segment and is the point asked here. A region
+     * over a loop whose carried value was written only by its phi went undetected until this asked.
+     */
+    {
+        U32 index = 0;
+
+        auto checkDefinition = [&](LiveId id, U32 point) {
+            if(id == kNullLive || Size(id) >= placement.valueCount()) return;
+            if(!placement.homeOf(id).isValid()) return;
+
+            auto segment = placement.webs[placement.webOf[id]].segmentAt(point);
+            if(!segment || segment->allowsDefinition()) return;
+
+            fail("%@: %@ is defined at %@, where it is in %@ over a segment nothing may write into",
+                funName, name(id), point, locationName(segment->location));
+        };
+
+        for(auto offset: fun.blocks.contents(base)) {
+            auto block = base[offset];
+            auto entryPoint = beforeInst(live.getBlock(block)->firstIndex);
+
+            for(auto p: block->phis.contents(base)) {
+                auto& result = base[p]->result;
+                if(!isImplicit(&result)) checkDefinition(result.liveId(), entryPoint);
+            }
+
+            auto onDefining = [&](LowerInst* inst) {
+                for(auto& created: inst->created()) {
+                    if(!isImplicit(&created)) checkDefinition(created.liveId(), beforeInst(index));
+                }
+
+                index++;
+            };
+
+            for(auto i: block->instructions.contents(base)) onDefining(base[i]);
+            onDefining(base[block->terminator]);
+        }
+    }
+
     for(auto offset: fun.blocks.contents(base)) {
         auto from = base[offset];
         auto exitPoint = afterInst(live.getBlock(from)->lastIndex);

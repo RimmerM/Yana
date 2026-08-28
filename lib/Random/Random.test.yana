@@ -154,6 +154,27 @@ let pinnedSeed = 20260824
     checkGreater(tails, 20)
     checkEqual(heads + tails, 100)
 
+    -- The signed narrow width, tracked *here* rather than beside its own case below, because the
+    -- pressure is the point. `lowSigned` is live across three loops that each call into the
+    -- generator, which is more webs across more calls than the x64 allocator has preserved registers
+    -- for - so it gets no register over its whole life, and §5.10's region promotion gives it one
+    -- over this loop alone. Under that promotion the only thing that writes it is the phi the two
+    -- `if`s merge into, a phi was not counted as a definition, and a region nothing defines in is one
+    -- that stores nothing back: every update landed in the register, the frame slot kept the seed,
+    -- and both ends answered 127. This is the shape that says so, and it needs the loops above it.
+    let &lowSigned = 127 :: I8
+    let &highSigned = -128 :: I8
+    let &m = 0 :: Size
+
+    while m < 4000:
+        let signedByte = uniform(rng) :: I8
+        if signedByte < lowSigned then lowSigned = signedByte
+        if signedByte > highSigned then highSigned = signedByte
+        m = m + 1
+
+    checkEqual(lowSigned, -128)
+    checkEqual(highSigned, 127)
+
 @test fn signedWidths() -> {}:
     {-
        The two narrow widths, signed - the pair that made the compiler say something.
@@ -165,12 +186,14 @@ let pinnedSeed = 20260824
        reinterpretation happened - an instance that widened instead would never produce a negative
        number at all.
 
-       **A case of its own rather than the tail of `widths`**, and the reason is worth stating: the
-       same claims written after that case's two tracking loops answer 127 for both ends on a native
-       build, at a shape a JavaScript build gets right. That is a *third* thing, not this one and not
-       the `bitcast` above - a narrow signed local losing its sign under enough pressure in one
-       function - and it reproduces with no `bitcast` in it at all. This case asserts what it says it
-       asserts; that one is written up rather than worked around here.
+       **A case of its own rather than the tail of `widths`**, and it stays one now for a different
+       reason than it was written for. Writing these claims after that case's tracking loops answered
+       127 for both ends on a native build at a shape a JavaScript build got right, which was a
+       *third* thing and not this one: a homeless narrow local promoted into a register over a loop
+       whose only write to it was a phi, and a phi was not counted as a definition. That is fixed -
+       §5.10 of codegen/x64/README.md - and the shape that found it now lives at the end of `widths`,
+       where the pressure that produces it is. What is left here is the `bitcast` above, which needs
+       no pressure at all and is a claim about the instance rather than about the allocator.
     -}
     let &rng = newRng(11)
     let &lowSigned = 127 :: I8
