@@ -104,16 +104,16 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
     {-
        Every string the child will read, terminated, and kept alive until after the exec.
 
-       `terminated` is `File.yana`'s rule applied here: a kernel string is NUL-terminated bytes and a
+       `Native.cString` is `File.yana`'s rule applied here: a kernel string is NUL-terminated bytes and a
        `String` is a run and a live prefix, so what the kernel gets is a copy. The copies live in
        `held`, whose extent covers the fork - which is what makes the pointers below point at
        something.
     -}
-    let &held = [terminated(path)] :: [String]
+    let &held = [cString(path)] :: [String]
     let &i = 0 :: Size
 
     while i < length(arguments):
-        push(held, terminated(arguments[i]))
+        push(held, cString(arguments[i]))
         i = i + 1
 
     -- The vector itself: one pointer per entry and a null to end it, which is what `execve` reads.
@@ -121,7 +121,7 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
     let &j = 0 :: Size
 
     while j < length(held):
-        push(vector, bytesOf(held[j]))
+        push(vector, stringBytes(held[j]))
         j = j + 1
 
     push(vector, null() :: %U8)
@@ -137,7 +137,7 @@ pub fn spawnWith(path: String, arguments: [String], into: Redirect) -> Result(Fi
         redirectTo(into.errors, 2)
         redirectTo(into.report, 3)
 
-        execProcess(bytesOf(held[0]), vectorBase(vector), commandLineEnvironment)
+        execProcess(stringBytes(held[0]), vectorBase(vector), commandLineEnvironment)
 
         -- Only reachable when the exec failed. 127 is what a shell reports for a command it could
         -- not run, which is the number a parent already knows how to read.
@@ -227,23 +227,18 @@ pub fn newPipe() -> Result(FileError, Pipe):
 
 {-
    ==========================================================================================
-   The three pointer helpers, which are the only place this file reaches past a value.
+   The two pointer helpers, which are the only place this file reaches past a value.
    ==========================================================================================
 
    Each takes its subject with `return`, which is `File.yana`'s rule and is the whole reason that
    file has no layer of one-line syscall wrappers: a raw pointer carries provenance exactly as a
    borrow does, and an undeclared signature is accepted in silence and then releases what the pointer
    points at before the call that reads through it. The marker is what places the drop after the call.
--}
-fn bytesOf(return text: String) -> %U8 = bitcast(values(stringData(text).bytes)) :: %U8
 
+   The two that used to be here and are not any more are `bytesOf` and `terminated`, which were the
+   same two functions `File.yana` had, spelled the same way. They are `Native.stringBytes` and
+   `Native.cString` now.
+-}
 fn vectorBase(return items: [%U8]) -> Ptr(Ptr(U8)) = bitcast(values(items)) :: Ptr(Ptr(U8))
 
 fn intBase(return items: [Int]) -> %Int = values(items)
-
-fn terminated(text: String) -> String:
-    let &copy = String.ofCapacity(length(text) + 1)
-    String.push(copy, text)
-    String.pushUnit(copy, 0)
-
-    return copy

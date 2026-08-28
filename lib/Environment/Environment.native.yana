@@ -46,7 +46,7 @@ pub fn argumentCount() -> Size = commandLineCount
 -}
 pub fn argument(index: Size) -> Maybe(String):
     if index >= commandLineCount then return Nothing
-    return Just(stringAt(*(commandLineValues + index)))
+    return Just(stringFromCString(*(commandLineValues + index)))
 
 -- Every argument, in order. One array and one string per argument, which is what a caller that is
 -- about to parse them wants and is why this is not an iterator over the vector.
@@ -56,7 +56,7 @@ pub fn arguments() -> [String]:
     let &i = 0 :: Size
 
     while i < count:
-        push(all, stringAt(*(commandLineValues + i)))
+        push(all, stringFromCString(*(commandLineValues + i)))
         i = i + 1
 
     return all
@@ -96,20 +96,4 @@ fn matchVariable(entry: %U8, name: String) -> Maybe(String):
         i = i + 1
 
     if *(entry + count) != (61 :: U8) then return Nothing
-    return Just(stringAt(entry + count + 1))
-
-{-
-   The bytes at a pointer, up to a NUL, as a `String` this program owns.
-
-   The length is found first and the copy made once, rather than pushing a unit at a time: a growable
-   string reserves geometrically, so appending `n` units is `log n` reallocations where one
-   measurement and one `String.ofCapacity` is none.
--}
-fn stringAt(text: %U8) -> String:
-    let &count = 0 :: Size
-    while *(text + count) != (0 :: U8): count = count + 1
-
-    let &copy = String.ofCapacity(count)
-    String.appendUnits(copy, bitcast(text) :: %CodeUnit, count)
-
-    return copy
+    return Just(stringFromCString(entry + count + 1))

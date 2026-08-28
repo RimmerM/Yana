@@ -1,0 +1,222 @@
+{-
+   `cStringLength`, and the two things a NUL scan has to get right that a bounded scan does not.
+
+   - **Where the terminator is**, at every alignment the address can have and every length the string
+     can have. The loop reads whole aligned vectors, so which lanes of the first one belong to the
+     caller's string is a function of the *address* and not only of the count - and the bytes below
+     it are somebody else's, whose zeroes are not this string's terminator. Every case below paints
+     the whole region zero first and then writes the string into it, so a head mask that cleared the
+     wrong lanes answers before the string starts rather than after it.
+   - **That the loop never reads a page it was not given.** `cStringLength`'s argument is almost
+     always foreign memory - `argv`, the environment, a `getdents64` block - which carries no
+     tail-read guarantee (Design-Vector.md §5.3), and the align-down argument in §5.5 is what makes
+     the reads safe anyway. `terminatorAtPageEnd` is that argument's test: a live page with nothing
+     mapped after it, and a string whose terminator is its very last byte. An unaligned load at the
+     string's own address would fault on every one of those cases; this one may not fault on any.
+-}
+
+import Test
+
+let letter = 65 :: U8
+
+{-
+   Every alignment against every length.
+
+   `at` runs past a vector's width at every level this is built at - sixteen bytes at v2 and
+   thirty-two at v3 - so every residue of the address is covered, and `n` crosses several whole
+   blocks. The region is zeroed before each case, which is what makes the head mask's job visible:
+   with `at` bytes of zero in front of the string, a scan that forgot to clear the lanes below its
+   own address answers a negative length or zero rather than `n`.
+-}
+@test fn lengthAtEveryAlignment() -> {}:
+    let span = 512 :: Size
+    let buffer = allocateHeap(span)
+    let &bad = 0 :: Int
+    let &at = 0 :: Size
+
+    while at < 64:
+        let &n = 0 :: Size
+
+        while n <= 200:
+            setMemory(buffer, 0 :: U8, span)
+            setMemory(buffer + at, letter, n)
+
+            if cStringLength(buffer + at) != n then bad = bad + 1
+            n = n + 1
+
+        at = at + 1
+
+    freeHeap(buffer)
+    checkEqual(bad, 0)
+
+{-
+   The case that is certain rather than unlikely - Design-Vector.md §5.3.
+
+   Two pages are mapped and the second is given back, so the byte after the first page's last one is
+   in no mapping at all. A string is then placed so that its terminator *is* that last byte, at every
+   length from one to two vectors: the align-down loop reads the block the terminator is in and stops
+   there, and no load in it crosses the boundary. A loop that read a vector starting at the string's
+   own address would run into the hole on every case here.
+
+   The mapping is given back a page at a time, which is what leaves the hole where the test needs it.
+-}
+@test fn terminatorAtPageEnd() -> {}:
+    let page = systemPageBytes()
+    let region = mapMemory(page + page)
+    requireTrue(!isNull(region))
+
+    unmapMemory(region + page, page)
+
+    let &bad = 0 :: Int
+    let &n = 1 :: Size
+
+    while n <= 64:
+        let start = region + page - n - 1
+        setMemory(start, letter, n)
+        store(region + page - 1, 0 :: U8)
+
+        if cStringLength(start) != n then bad = bad + 1
+        n = n + 1
+
+    unmapMemory(region, page)
+    checkEqual(bad, 0)
+
+-- An empty C string is a terminator and nothing else, which is the one length the sweep above starts
+-- at and the one a scan written as a do-while would answer one for.
+@test fn emptyCString() -> {}:
+    let buffer = allocateHeap(64)
+    setMemory(buffer, 0 :: U8, 64)
+    checkEqual(cStringLength(buffer), 0)
+    freeHeap(buffer)
+
+{-
+   The round trip, both ways.
+
+   `cString` is the copy with the terminator after it, so its own length counts that terminator and
+   the scan over its bytes does not - the two numbers differ by exactly one, which is the whole of
+   what the conversion is.
+-}
+@test fn conversions() -> {}:
+    let text = "usr/local/share/yana"
+    let terminated = cString(text)
+
+    checkEqual(length(terminated), length(text) + 1)
+    checkEqual(cStringLength(stringBytes(terminated)), length(text))
+    check(stringFromCString(stringBytes(terminated)) == text)
+
+    let empty = cString("")
+    checkEqual(length(empty), 1)
+    checkEqual(cStringLength(stringBytes(empty)), 0)
+    check(stringFromCString(stringBytes(empty)) == "")
+
+-- A string long enough to cross several whole blocks at every level, so that the steady-state loop
+-- runs rather than the head answering on its own.
+@test fn longCString() -> {}:
+    let &text = String.ofCapacity(300)
+    let &i = 0 :: Size
+
+    while i < 300:
+        String.pushUnit(text, 97 + (truncate(i % 26) :: Int))
+        i = i + 1
+
+    let terminated = cString(text)
+    checkEqual(cStringLength(stringBytes(terminated)), 300)
+    check(stringFromCString(stringBytes(terminated)) == text)
+
+{-
+   The path lens, at the two lengths its buffer has an edge at.
+
+   `withPathCString` has no branch in it any more - the buffer holds `maxPathBytes` and a longer path
+   is `pathTooLong`'s answer rather than a second arm - so what is left to pin is the boundary
+   itself, and it is a boundary in *two* numbers that have to agree: the `4096` the refined array is
+   declared with, and `maxPathBytes`, which the const-generic hole keeps from being one number
+   (Implementation-Const-Generics.md §10.8). A path of `maxPathBytes - 1` units is the longest that
+   fits, and it is exactly the case that writes the terminator into the array's last slot - so a
+   buffer declared smaller than `maxPathBytes` overruns its own frame here and nowhere else.
+-}
+fn repeated(count: Size) -> String:
+    let &text = String.ofCapacity(count)
+    let &i = 0 :: Size
+
+    while i < count:
+        String.pushUnit(text, 97 + (truncate(i % 26) :: Int))
+        i = i + 1
+
+    return text
+
+fn pathRoundTrip(path: String) -> Bool:
+    let p = withPathCString(path)
+    return cStringLength(p) == length(path) && stringFromCString(p) == path
+
+@test fn pathBuffer() -> {}:
+    check(pathRoundTrip(""))
+    check(pathRoundTrip("/tmp/yana"))
+    check(pathRoundTrip(repeated(maxPathBytes - 2)))
+    check(pathRoundTrip(repeated(maxPathBytes - 1)))
+
+-- The bound itself, which is what every caller in `File` asks before it asks for a copy. `+ 1` for
+-- the terminator: a path of `maxPathBytes - 1` units fits and one of `maxPathBytes` does not, and
+-- the two cases either side of that are the whole of the contract.
+@test fn pathLengthBound() -> {}:
+    check(!pathTooLong(""))
+    check(!pathTooLong(repeated(maxPathBytes - 1)))
+    check(pathTooLong(repeated(maxPathBytes)))
+    check(pathTooLong(repeated(maxPathBytes + 1)))
+
+{-
+   Two lens calls in one block, which is what `moveFile` writes: the second is a statement of the
+   first one's continuation, so both frames are live and both buffers reach the same expression.
+
+   Two `maxPathBytes` buffers in one frame is also what that costs, which is worth having a case
+   about: they are `alloca`s and not fills, so nesting is a stack offset rather than eight thousand
+   bytes of `rep stos`.
+-}
+@test fn twoPathsAtOnce() -> {}:
+    let from = repeated(40)
+    let to = repeated(3000)
+
+    let source = withPathCString(from)
+    let destination = withPathCString(to)
+
+    checkEqual(cStringLength(source), length(from))
+    checkEqual(cStringLength(destination), length(to))
+    check(stringFromCString(source) == from)
+    check(stringFromCString(destination) == to)
+
+{-
+   The miscompile the first version of this lens was written around, as a case rather than a comment.
+
+   A reference chosen by a branch is rooted in whichever arm produced it, and `extendBorrowUses` in
+   `analyze_effects.cpp` lost that root at the merge: the walk followed a `return`-marked call's
+   result nowhere, and a phi ended it. The copy's `freeHeap` was then placed before the block that
+   read through the pointer, so what came back was the free list's next pointer written over the
+   first eight bytes - `cStringLength` of it answered 6 rather than the string's length.
+
+   Both arms are written here because only one of them is the interesting one and neither is
+   interesting on its own: `held` owns a heap copy on the `spilled` arm and nothing on the other, and
+   it is the *owned* one whose drop moved. `values(buffer)` on the first arm is what makes the merge
+   a merge; a phi with an owned arm and a borrowed one is exactly the shape the fix has to tell apart
+   from a phi of two owned closures, which drops at its edges and must go on doing so.
+-}
+lens fn chosenReference(text: String, inline: Bool) -> %U8:
+    let &buffer = [] :: @inline(64) @capacity(64) [CodeUnit]
+    let spilled = cString(text)
+
+    let base = bitcast(values(buffer)) :: %U8
+
+    if inline:
+        copyMemory(base, stringBytes(text), length(text))
+        store(base + length(text), 0 :: U8)
+
+    yield if inline then base else stringBytes(spilled)
+
+@test fn rootSurvivesAMerge() -> {}:
+    let text = "a-path-of-some-length"
+
+    let fromBuffer = chosenReference(text, True)
+    checkEqual(cStringLength(fromBuffer), length(text))
+    check(stringFromCString(fromBuffer) == text)
+
+    let fromHeap = chosenReference(text, False)
+    checkEqual(cStringLength(fromHeap), length(text))
+    check(stringFromCString(fromHeap) == text)

@@ -1,0 +1,278 @@
+{-
+   ==========================================================================================
+   C strings - the NUL-terminated byte sequence, and the two conversions across it.
+   ==========================================================================================
+
+   The kernel's string type, which is not this language's. A `String` is a run and a live prefix
+   (`Text.native.yana` beside this); a C string is an address whose end is a byte in the data, and
+   nothing that hands one out says how long it is. Every boundary this library has - the file calls'
+   paths, `argv`, the environment, a `getdents64` record's name - crosses between the two, and before
+   this file each of them crossed on its own: three scalar NUL scans, two identical `terminated`
+   copies and two identical `bytesOf` accessors, in four modules.
+
+   What is here is the set:
+
+   | | |
+   | --- | --- |
+   | `cStringLength` | how many bytes precede the terminator - one vector pass |
+   | `stringFromCString` | those bytes, copied into a `String` this program owns |
+   | `stringOfUnits` | the same copy where the caller already knows the count |
+   | `cString` | the other direction: a `String`'s bytes with a terminator after them |
+   | `stringBytes` | the address of a string's bytes, rooted in the string |
+   | `pathTooLong` | whether a path is past what the kernel will look at |
+   | `withPathCString` | the two of those for a path, with the copy in the frame |
+
+   **`stringBytes` is the one that has to be written here rather than at each call site**, and the
+   reason is provenance rather than reuse. `fn bytesOf(text: String) -> %U8` is accepted in silence,
+   and then `openPath(bytesOf(cString(p)), ...)` releases the copy at the accessor call - `freeHeap`
+   writes the free list's next pointer over the first eight bytes - and the kernel is handed a path
+   beginning with eight zero bytes. `return text` (Analysis-Language.md §1) is what places the drop
+   after the call that reads through the pointer, and it has to be said once by a function every
+   caller goes through, because a caller cannot say it about somebody else's signature.
+-}
+
+{-
+   ------------------------------------------------------------------------------------------
+   The scan
+   ------------------------------------------------------------------------------------------
+
+   One vector pass: a lanewise compare against zero and a `firstSet` over the hit mask, which is
+   `findAscii`'s shape in `Core/Text.native.yana` with the unit pinned at the terminator. What is
+   different is the bound - `findAscii` searches a container whose length is known and this one is
+   looking for where the length *is* - and that difference is the whole of why the loop is written
+   over an aligned address rather than over the caller's.
+
+   **The read is aligned down, and that is what makes it safe on memory nobody promised anything
+   about.** Design-Vector.md §5.2's tail-read guarantee covers storage this language allocated, and
+   almost nothing reaching here is: `argv`, the environment and a `getdents64` buffer are the
+   kernel's, and a pointer out of `Native.bitcast` is whoever's. §5.3 names the case that faults
+   rather than merely being unlikely - an object ending exactly at a page boundary with the next page
+   unmapped - and a C string is exactly the shape that meets it, since nothing here knows where the
+   object ends until it has already read.
+
+   §5.5's align-down argument is what closes it, and it needs no guarantee at all: a `width`-aligned
+   load of `width` bytes lies wholly inside one `width`-aligned block, the page size is a multiple of
+   `width` on every target here, so the block is wholly inside one page - and that page holds a byte
+   the caller says is live. The first block holds `from` itself. Every later block is reached only
+   after the one before it turned up no terminator, so the string still runs into it and its first
+   byte is live too. **So no load in this loop can fault, whatever surrounds the string**, and the
+   price is one `and`, one mask and one subtraction, once per call.
+
+   The lanes below `from` in the first block belong to whatever precedes the string, and a zero among
+   them is not this string's terminator - so they are cleared out of the hit mask rather than tested.
+   That is done on the *movemask* rather than on the mask register: `bitsUpTo` is one `bzhi` and the
+   clear is one `andn`, where `not(maskUpTo(offset))` in the lane domain is a splat, an `iota`, a
+   signed compare and an inversion - seven instructions for the same two bits of information, on a
+   path taken once per call.
+
+   Against the scalar loop it replaces - the same `while *(text + count) != 0` this library had
+   written out three times - at v3, in nanoseconds per call over three million:
+
+   | bytes | scalar | this | |
+   | --- | --- | --- | --- |
+   | 7 | 1.27 | 0.38 | 3.3x |
+   | 16 | 2.90 | 0.38 | 7.6x |
+   | 31 | 4.25 | 0.60 | 7.1x |
+   | 64 | 13.52 | 0.92 | 14.7x |
+   | 128 | 25.36 | 1.29 | 19.7x |
+   | 1024 | 115.87 | 7.50 | 15.5x |
+
+   The steady state is four instructions - `vpcmpeqb`, `vpmovmskb`, `test`, `je` - over a vector's
+   width, which is where the ratio at the long end comes from; the short end is the head's arithmetic
+   against a byte-at-a-time loop that has not got going yet.
+-}
+pub fn cStringLength(from: %U8) -> Size:
+    let width = vectorBytes
+    let zeros = zero() :: Vec(U8)
+
+    let offset = (bitcast(from) :: Size) `and` (width - 1)
+    let head = bits(vectorAt(from - offset) .== zeros)
+             `and` not(bitsUpTo(0 - 1, truncate(offset) :: Int))
+
+    if head != 0 then return (trailingZeros(head) :: Size) - offset
+
+    -- Whole aligned blocks from here on. `at` is the offset from `from` of the block being read, so
+    -- the address stays aligned at every step and a hit's answer is a lane index added to it. The
+    -- test is the loop's own condition rather than a `break` inside it, so a block costs one compare,
+    -- one movemask and one branch and the answer is read off the mask that ended the loop.
+    let &at = width - offset
+    let &hits = vectorAt(from + at) .== zeros
+
+    while !any(hits):
+        at = at + width
+        hits = vectorAt(from + at) .== zeros
+
+    return at + (firstSet(hits) :: Size)
+
+{-
+   ------------------------------------------------------------------------------------------
+   Kernel bytes in, a string out
+   ------------------------------------------------------------------------------------------
+
+   The length is found first and the copy made once, rather than pushing a unit at a time: a growable
+   string reserves geometrically, so appending `n` units is `log n` reallocations where one
+   measurement and one `String.ofCapacity` is none.
+
+   A `%CodeUnit` at the copy and a `%U8` in the signature, which is the same address read two ways -
+   what the kernel hands out is bytes, and what a string is made of is this target's encoding units.
+   The reinterpretation is free here and is the line `stringBytes` below crosses in the other
+   direction.
+-}
+pub fn stringFromCString(from: %U8) -> String = stringOfUnits(from, cStringLength(from))
+
+-- The same copy where the length is already known - a `getdents64` name, whose scan its caller has
+-- already paid for to decide whether the entry is `.` or `..`. Public because measuring twice is the
+-- one thing this file exists to stop, and a caller that has the number should be able to say so.
+pub fn stringOfUnits(from: %U8, count: Size) -> String:
+    let &copy = String.ofCapacity(count)
+    String.appendUnits(copy, bitcast(from) :: %CodeUnit, count)
+
+    return copy
+
+{-
+   ------------------------------------------------------------------------------------------
+   A string out, kernel bytes in
+   ------------------------------------------------------------------------------------------
+
+   The terminated copy, and the accessor that hands out its address.
+
+   **Two functions rather than one**, because the copy has to be *somebody's* - a function answering
+   a bare `%U8` would return the address of a run whose only owner was its own frame. So the copy is
+   a value the caller holds and `stringBytes` is a borrow of it, which is what the `return` marker
+   makes the compiler enforce: `openPath(stringBytes(cString(p)), ...)` places the drop of the copy
+   after the call, and a caller who writes the two on separate lines gets the same extent from the
+   binding instead.
+
+   `withPathCString` below is the shape to prefer where the string is a path and the block is one
+   call, and it is written over exactly these two.
+-}
+pub fn cString(text: String) -> String:
+    let &copy = String.ofCapacity(length(text) + 1)
+    String.push(copy, text)
+    String.pushUnit(copy, 0)
+
+    return copy
+
+-- The units as bytes, rooted in the string they came out of. The one place the boundary crosses
+-- between "the encoding's bytes" and "eight-bit numbers", and free on this target.
+pub fn stringBytes(return text: String) -> %U8 = bitcast(stringData(text).bytes.run.items) :: %U8
+
+{-
+   ------------------------------------------------------------------------------------------
+   A path, without the allocation
+   ------------------------------------------------------------------------------------------
+
+   `stringBytes(cString(p))` is a heap block and a free for every path handed to the kernel, and a
+   path is the one string in this library whose length has a *bound*: `maxPathBytes` is `PATH_MAX`,
+   and anything at or above it comes back `NameTooLong` whoever allocated the bytes. So the copy can
+   live in the frame, which is what this is - the block below the call is where the pointer is live,
+   and the lens is what makes that extent the compiler's business rather than the caller's:
+
+       let p = withPathCString(path)
+       let handle = openPath(p, flags, mode)
+
+   **The buffer is `@inline(n) @capacity(n) [CodeUnit]` and not `[CodeUnit *n]`, and that is what
+   makes the whole thing free.** Both hold their elements in the frame; the difference is what
+   *initializing* one costs. A fixed array is a value, so `[0] :: [CodeUnit *4096]` lowers to one
+   `setpattern` of four thousand bytes - paid on every call, whatever the path's length turns out to
+   be - and against `cString` and its `freeHeap` at 13 ns that priced a `maxPathBytes` buffer at
+   19 ns, half again *slower* than the allocation it was replacing. A refined array is a container,
+   so an empty one is `alloca` and a four-byte store of the length, and its slots are never written:
+
+       %v_1 = alloca 4100, 4
+       %v_2 = add %v_1, 4096
+       store %v_2, 0, 4
+
+   That is the whole of the construction at any capacity, so the bound costs nothing and there is no
+   size to trade off - which is why this holds `maxPathBytes` where the fixed array had to settle for
+   256 bytes and a spill above it. Against `stringBytes(cString(p))` and its `freeHeap`, per call:
+
+   | path | heap | this | |
+   | --- | --- | --- | --- |
+   | 47 bytes | 15 ns | 7 ns | 2.1x |
+   | 400 bytes | 21 ns | 11 ns | 1.9x |
+
+   and neither column of the second row exists for the fixed-array version, which spilled to the heap
+   at anything past 256 and was *slower* than the allocation there. Nothing here depends on the
+   path's length except the copy itself.
+
+   **`@inline`/`@capacity` will not go on a `String`** - "`@inline` and `@capacity` refine a growable
+   array - `[T]`" - so the buffer is the array and the units are appended through `Run`'s own slots
+   rather than through `String.push`. That is the one place this file reaches past a container's
+   length, and the note at the copy says why it is sound.
+
+   A lens rather than a function answering a pointer, because a function cannot: the buffer is its
+   own frame's, and the address would be dangling before the caller read it. A lens's frame is live
+   across the block below the call - that is what `withLock` is - so the buffer outlives the syscall,
+   and a `return` from inside the block leaves through it like any other exit.
+
+   **No spill arm, and no branch.** A path at or above `maxPathBytes` cannot be opened by this
+   kernel, so `pathTooLong` is the answer rather than a longer buffer, and `File` asks that question
+   before it asks for a copy - one comparison at the call site against a fallback nobody could reach
+   with a path that works. That is what removes the branch this lens used to need, and with it the
+   phi whose roots the ownership analysis was losing: there is one buffer now, and one address.
+-}
+-- Whether a path is past what the kernel will look at, which is the one thing a caller has to check
+-- before asking for the copy below. `File` turns it into `NameTooLong`, which is what the `open`
+-- would have answered.
+--
+-- `+ 1` for the terminator, which is why this is a function rather than a comparison every caller
+-- writes: `maxPathBytes` counts the terminator and `length` does not, and getting that off by one is
+-- how a path of exactly the limit either fails that should not or overruns the buffer below.
+pub fn pathTooLong(path: String) -> Bool = length(path) + 1 > maxPathBytes
+
+{-
+   The terminated copy of a path, in the caller's frame.
+
+   `values(buffer)` and `copyMemory` rather than `push` per unit: the run's slots are what a kernel
+   path is, and the container's own length is not part of the answer - a C string ends at the
+   terminator, which is the whole difference between the two. Writing into slots above the length and
+   below the capacity is what `String.appendUnits` does one line before it bumps its own count; the
+   difference here is that nothing reads the count afterwards, so there is nothing to bump. The slots
+   are the frame's, `CodeUnit` has no teardown, and the buffer dies with the lens.
+
+   **`pathTooLong` is the caller's obligation**, and this asserts it rather than trusting it: the
+   copy would otherwise write the terminator one byte past a run that refuses to grow. `checkCondition`
+   is what every bounds test in this library is and costs a comparison against a constant.
+-}
+{-
+   **`@noinline`, and it is load-bearing rather than a hint.**
+
+   Two reasons, and the second is the one that made it necessary rather than merely right.
+
+   The buffer is `maxPathBytes` of the *lens's* frame. Splicing this body into a caller moves it into
+   the caller's frame, where it lives for whatever else that function does rather than for the block
+   below the call - and `createDirectory` next door is *self-recursive*, so a copy per level is a
+   copy of the buffer per level. A call whose next instruction is a syscall is not worth that.
+
+   And it is what keeps `-inline speed` from running away. `createDirectory` reaches itself through
+   the continuation this lens's call site lifts, so the call graph's cycle runs
+   `createDirectory -> withPathCString -> continuation$ -> createDirectory`; `findRecursion` in
+   opt_inline.cpp computes that graph **once, before the rounds**, on the argument that inlining
+   creates no cycle - and `collapsesCycle` then admits one other member of the caller's own cycle per
+   round. With the body small enough to take, the rounds do not converge: compiling
+   `test/lib/DirectoryWalkSpeed.yana`, whose whole subject is `-inline speed` over `File`, went from
+   62 MB and 0.5 s to 1.1 GB and a module arena past the 2 GB its block offsets can address, which
+   surfaces as `!(Size(value) & mask)` in `SmallList::set` from `IrEditor::retargetEdge`. That is a
+   compiler defect and not this file's - the attribute is what keeps the corpus green while it
+   stands, and removing it is the way to reproduce it in one step.
+-}
+@noinline
+pub lens fn withPathCString(path: String) -> %U8:
+    -- `4096` written out rather than `maxPathBytes`, because a refined array's bound is a
+    -- const-generic argument and a local is not one - "a count is an integer literal or a const
+    -- parameter", which is the half of Implementation-Const-Generics.md §10.8 still open, and a
+    -- global does not help either, since its own initializer has to be a literal too. `pathBuffer`
+    -- in the test file is what checks the two numbers agree: it round-trips a path of exactly
+    -- `maxPathBytes - 1` units, which is the longest that fits and the first that overruns a buffer
+    -- declared smaller.
+    let &buffer = [] :: @inline(4096) @capacity(4096) [CodeUnit]
+    let count = length(path)
+
+    checkCondition(count + 1 > maxPathBytes)
+
+    let base = bitcast(values(buffer)) :: %U8
+    copyMemory(base, stringBytes(path), count)
+    store(base + count, 0 :: U8)
+
+    yield base

@@ -25,8 +25,8 @@
 -}
 
 import Native
-import File
 import Date
+import Test
 
 fn scratchRoot() -> String:
     let &name = String.ofCapacity(32)
@@ -39,9 +39,9 @@ fn scratchRoot() -> String:
 fn setUp(root: String) -> Result(FileError, Int):
     createDirectory(joinPath(root, "nested/deep"))?
 
-    assert(directoryExists(root))
-    assert(directoryExists(joinPath(root, "nested/deep")))
-    assert(!(fileExists(root)))
+    check(directoryExists(root))
+    check(directoryExists(joinPath(root, "nested/deep")))
+    check(!(fileExists(root)))
 
     -- Already there is not a failure.
     createDirectory(root)?
@@ -54,12 +54,12 @@ fn wholeFile(root: String) -> Result(FileError, Int):
     let path = joinPath(root, "hello.txt")
     writeWholeFile(path, "hello, files")?
 
-    assert(fileExists(path))
-    assert(pathSize(path)? == 12)
+    check(fileExists(path))
+    checkEqual(pathSize(path)?, 12)
 
     let back = readWholeFile(path)?
-    assert(back == "hello, files")
-    assert(length(back) == 12)
+    checkEqual(back, "hello, files")
+    checkEqual(length(back), 12)
 
     return Ok(2)
 
@@ -68,48 +68,48 @@ fn wholeFile(root: String) -> Result(FileError, Int):
 fn handles(root: String) -> Result(FileError, Int):
     let path = joinPath(root, "handle.bin")
     let &empty = closedFile()
-    assert(!(isOpen(empty)))
+    check(!(isOpen(empty)))
 
     -- §2a: `let &` takes the value out of the `?` payload, so a file opened this way is mutable and
     -- every `&self` operation below is reachable from it. `openInto` existed to reach them, and it
     -- is gone.
     let &file = openFile(path, readWriteAccess(), CreateAlways)?
 
-    assert(isOpen(file))
-    assert(writeText(file, "0123456789")? == 10)
-    assert(position(file)? == 10)
-    assert(fileSize(file)? == 10)
+    check(isOpen(file))
+    checkEqual(writeText(file, "0123456789")?, 10)
+    checkEqual(position(file)?, 10)
+    checkEqual(fileSize(file)?, 10)
 
     -- The positional pair does not move the cursor.
     let &buffer = [0 :: U8, 0, 0, 0]
-    assert(readAtInto(file, 3, buffer)? == 4)
-    assert(position(file)? == 10)
-    assert(!(buffer[0] != 51 || buffer[3] != 54))
+    checkEqual(readAtInto(file, 3, buffer)?, 4)
+    checkEqual(position(file)?, 10)
+    check(!(buffer[0] != 51 || buffer[3] != 54))
 
     -- And the sequential pair does.
-    assert(seek(file, 1)? == 1)
-    assert(readInto(file, buffer)? == 4)
-    assert(position(file)? == 5)
-    assert(buffer[0] == 49)
+    checkEqual(seek(file, 1)?, 1)
+    checkEqual(readInto(file, buffer)?, 4)
+    checkEqual(position(file)?, 5)
+    checkEqual(buffer[0], 49)
 
     -- A read that runs into the end answers what was there, and then zero.
-    assert(seek(file, -2, FileEnd)? == 8)
-    assert(readInto(file, buffer)? == 2)
-    assert(readInto(file, buffer)? == 0)
+    checkEqual(seek(file, -2, FileEnd)?, 8)
+    checkEqual(readInto(file, buffer)?, 2)
+    checkEqual(readInto(file, buffer)?, 0)
 
     writeAt(file, 0, buffer)?
     truncateFileTo(file, 4)?
-    assert(fileSize(file)? == 4)
+    checkEqual(fileSize(file)?, 4)
 
     flush(file)?
     close(file)?
-    assert(!(isOpen(file)))
+    check(!(isOpen(file)))
 
     -- Closing twice is not an error, which is what makes the drop this value still owes harmless.
     close(file)?
 
     let back = readWholeFile(path)?
-    assert(back == "8934")
+    checkEqual(back, "8934")
 
     return Ok(3)
 
@@ -126,26 +126,26 @@ fn appending(root: String) -> Result(FileError, Int):
     writeText(file, "two")?
     close(file)?
 
-    assert(readWholeFile(path)? == "onetwo")
+    checkEqual(readWholeFile(path)?, "onetwo")
 
     -- The positional write is the one that does not move a cursor, and there is a cursor here to
     -- watch: `writeTextAt` leaves it where the sequential write above left it.
     let &second = openFile(path, readWriteAccess(), OpenExisting)?
     writeTextAt(second, 3, "TWO")?
-    assert(position(second)? == 0)
+    checkEqual(position(second)?, 0)
 
     close(second)?
-    assert(readWholeFile(path)? == "oneTWO")
+    checkEqual(readWholeFile(path)?, "oneTWO")
 
     -- `linkInfo` is `lstat`, which on a path that is not a link answers what `stat` answers.
     let direct = pathInfo(path)?
     let linked = linkInfo(path)?
-    assert(direct.size == linked.size)
-    assert(!(linked.isLink))
-    assert(!(linked.isDirectory))
+    checkEqual(direct.size, linked.size)
+    check(!(linked.isLink))
+    check(!(linked.isDirectory))
     -- A `Timestamp` now rather than an `I64` of microseconds, so the comparison is against a point
     -- in time rather than against zero - and `epoch()` is the point a bare `0` used to stand for.
-    assert(linked.modifiedTime > epoch())
+    checkGreater(linked.modifiedTime, epoch())
 
     removeFile(path)?
 
@@ -159,17 +159,17 @@ fn moving(root: String) -> Result(FileError, Int):
     let moved = joinPath(root, "nested/moved.txt")
 
     copyFile(source, copied)?
-    assert(readWholeFile(copied)? == "hello, files")
+    checkEqual(readWholeFile(copied)?, "hello, files")
 
     -- Without overwrite, a copy onto a file that is there is refused.
-    assert((copyFile(source, copied, False) is Err(_)))
+    check((copyFile(source, copied, False) is Err(_)))
 
     moveFile(copied, moved)?
-    assert(!(fileExists(copied)))
-    assert(fileExists(moved))
+    check(!(fileExists(copied)))
+    check(fileExists(moved))
 
     removeFile(moved)?
-    assert(!(fileExists(moved)))
+    check(!(fileExists(moved)))
 
     return Ok(4)
 
@@ -187,14 +187,14 @@ fn copyingBlocks(root: String) -> Result(FileError, Int):
         at = at + 1
 
     writeWholeFile(source, text)?
-    assert(pathSize(source)? == 100000)
+    checkEqual(pathSize(source)?, 100000)
 
     copyFile(source, target)?
-    assert(pathSize(target)? == 100000)
+    checkEqual(pathSize(target)?, 100000)
 
     let back = readWholeFile(target)?
-    assert(length(back) == 100000)
-    assert(back == text)
+    checkEqual(length(back), 100000)
+    checkEqual(back, text)
 
     removeFile(source)?
     removeFile(target)?
@@ -220,9 +220,9 @@ fn walking(root: String) -> Result(FileError, Int):
 
         if it.name == "hello.txt" then named = named + 1
 
-    assert(directories == 1)
-    assert(files == 2)
-    assert(named == 1)
+    checkEqual(directories, 1)
+    checkEqual(files, 2)
+    checkEqual(named, 1)
 
     -- `break` out of a traversal two thousand times: the descriptor is closed by the drop rather
     -- than by anything written here, and running out of descriptors is what says it was not. The
@@ -237,7 +237,7 @@ fn walking(root: String) -> Result(FileError, Int):
 
         round = round + 1
 
-    assert(seen == 2000)
+    checkEqual(seen, 2000)
 
     return Ok(5)
 
@@ -246,26 +246,26 @@ fn walking(root: String) -> Result(FileError, Int):
 fn failures(root: String) -> Result(FileError, Int):
     let missing = joinPath(root, "nothing-here")
 
-    assert((pathInfo(missing) is Err(NotFound)))
-    assert((openFile(missing, readAccess(), OpenExisting) is Err(NotFound)))
-    assert((readWholeFile(missing) is Err(NotFound)))
-    assert(!(fileExists(missing)))
-    assert((removeDirectory(root) is Err(InUse)))
+    check((pathInfo(missing) is Err(NotFound)))
+    check((openFile(missing, readAccess(), OpenExisting) is Err(NotFound)))
+    check((readWholeFile(missing) is Err(NotFound)))
+    check(!(fileExists(missing)))
+    check((removeDirectory(root) is Err(InUse)))
 
     -- A directory opens and does not read, which is the kernel's rule rather than one made here.
-    assert((readWholeFile(root) is Err(Unsupported)))
+    check((readWholeFile(root) is Err(Unsupported)))
 
     -- What an error says about itself, in both forms.
     let &text = String.ofCapacity(32)
     show(NotFound, text)
-    assert(text == "NotFound")
-    assert(describeError(NoDiskSpace) == "the disk is full")
+    checkEqual(text, "NotFound")
+    checkEqual(describeError(NoDiskSpace), "the disk is full")
 
     -- The three inherited descriptors are files like any other. Nothing is written to them here;
     -- what is asserted is that they are open, which is the whole of what the constructors claim.
-    assert(isOpen(standardInput()))
-    assert(isOpen(standardOutput()))
-    assert(isOpen(standardError()))
+    check(isOpen(standardInput()))
+    check(isOpen(standardOutput()))
+    check(isOpen(standardError()))
 
     return Ok(6)
 
@@ -280,8 +280,8 @@ fn failures(root: String) -> Result(FileError, Int):
 fn growth() -> Result(FileError, Int):
     match readWholeFile("/proc/self/maps"):
         Ok(text):
-            assert(length(text) != 0)
-            assert(pathSize("/proc/self/maps")? == 0)
+            checkNotEqual(length(text), 0)
+            checkEqual(pathSize("/proc/self/maps")?, 0)
 
         Err(e):
             {}
@@ -302,7 +302,7 @@ fn dropping(root: String) -> Result(FileError, Int):
         total = total + (if isOpen(file) then 1 else 0)
         round = round + 1
 
-    assert(total == 2000)
+    checkEqual(total, 2000)
 
     return Ok(7)
 
@@ -315,7 +315,7 @@ fn tearDown(root: String) -> Result(FileError, Int):
     removeDirectory(joinPath(root, "nested"))?
     removeDirectory(root)?
 
-    assert(!(directoryExists(root)))
+    check(!(directoryExists(root)))
 
     return Ok(8)
 
@@ -353,9 +353,7 @@ fn run() -> Result(FileError, Int):
    having been walked rather than any single check having held - which the assertions inside the
    stages cannot say, since an assertion in a body that never executed reports nothing.
 -}
-fn main() -> Int:
+@test fn fileCases() -> {}:
     match run():
-        Ok(->v) -> assert(v == 66)
-        Err(->e) -> assert(False)
-
-    return 0
+        Ok(->v) -> checkEqual(v, 66)
+        Err(->e) -> check(False)

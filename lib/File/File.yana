@@ -1,5 +1,3 @@
-module
-
 import Native
 import Date
 
@@ -211,34 +209,34 @@ fn openFlagsOf(access: FileAccess, mode: CreateMode, flags: Size) -> OpenFlags:
    ==========================================================================================
 
    A kernel path is a NUL-terminated byte sequence and a `String` is a run and a live prefix, so
-   every call that takes one takes a *copy* with the terminator appended. `terminated` is that copy.
+   every call that takes one takes a *copy* with the terminator appended. **`Native.withPathCString`
+   is that copy**, and it is a lens: the block below the call is where the pointer is live, the
+   bytes are in this frame rather than on the heap for a path of ordinary length, and what does not
+   fit takes the allocation. `CString.native.yana` has the measurement and the size.
 
-   **The address the copy hands out is rooted in the copy, and the signature has to say so.** A raw
-   pointer carries provenance exactly as a borrow does, but nothing *requires* an undeclared
-   signature to state it: `fn bytesOf(text: String) -> %U8` is accepted in silence, and then
-   `openPath(bytesOf(terminated(p)), ...)` releases the copy at the `bytesOf` call, `freeHeap` writes
-   the free list's next pointer over the first eight bytes, and the open asks for a path beginning
-   with eight zero bytes - failing as `NotFound` rather than as a crash.
+   That is what every public function here writes, and the two rules that come with it are why:
 
-   `return text` is that declaration (Analysis-Language.md §1), and it makes the nested form correct
-   by construction: the drop of what `terminated` built is placed after the call that reads through
-   the pointer. It is also why there is no layer of one-line syscall wrappers here - `openAt`,
-   `removeAt`, `renameAt`, `makeDirectoryAt`, `removeDirectoryAt`, `pathInfoIn`, `linkInfoIn` -
-   whose only job would be to make the copy somebody's parameter, and why no public function here
-   may write `bytesOf` itself.
+   **The pointer is live for the block and not past it.** A lens call's continuation is the rest of
+   the enclosing block, so `let p = withPathCString(path)` reads as an ordinary binding and the
+   buffer's extent is the compiler's business. It is also what makes a function whose body was one
+   expression a block of two lines below - a lens has to be called as a statement of some block, and
+   `= checkedUnit(...)` is not one.
+
+   **`pathTooLong` first, and every public entry point here writes it.** The buffer holds exactly
+   what the kernel will look at, so a longer path has no copy to be made of it - and the answer is
+   the one `open` would have given anyway, `ENAMETOOLONG` through `errorOf` to `NoBufferSpace`. One
+   comparison in front of a call that was going to fail is what buys the lens its single branchless
+   arm; the alternative was a spill to the heap that no path this kernel accepts could reach.
+
+   **Nothing here forms the address itself.** `Native.stringBytes` carries `return text`
+   (Analysis-Language.md §1) because a raw pointer carries provenance exactly as a borrow does, and
+   an undeclared signature is accepted in silence: `openPath(bytesOf(terminated(p)), ...)` released
+   the copy at the accessor call, `freeHeap` wrote the free list's next pointer over the first eight
+   bytes, and the open asked for a path beginning with eight zero bytes - failing as `NotFound`
+   rather than as a crash. It is also why there is no layer of one-line syscall wrappers here -
+   `openAt`, `removeAt`, `renameAt`, `makeDirectoryAt`, `removeDirectoryAt`, `pathInfoIn`,
+   `linkInfoIn` - whose only job would be to make the copy somebody's parameter.
 -}
--- The units as bytes, which is what every path and buffer argument below hands the kernel. A
--- string's own element type is `CodeUnit` now (see `StringData`), and the reinterpretation is what
--- says "the encoding's bytes" rather than "eight-bit numbers" - free on this target, and the one
--- place the whole module crosses between the two readings.
-fn bytesOf(return text: String) -> %U8 = bitcast(stringData(text).bytes.run.items) :: %U8
-
-fn terminated(path: String) -> String:
-    let &copy = String.ofCapacity(length(path) + 1)
-    String.push(copy, path)
-    String.pushUnit(copy, 0)
-
-    return copy
 
 -- `dir` and `name` joined by a separator, which is what a directory traversal needs and what a
 -- caller without it builds by hand into a fixed buffer at every site that walks a tree.
@@ -364,7 +362,10 @@ pub fn isOpen(self: File) -> Bool = self.handle >= 0
 -}
 pub fn openFile(path: String, access: FileAccess, mode: CreateMode = OpenAlways,
                 flags: Size = 0) -> Result(FileError, File):
-    let handle = openPath(bytesOf(terminated(path)), openFlagsOf(access, mode, flags), createAccess(flags))
+    if pathTooLong(path) then return Err(NoBufferSpace)
+
+    let terminated = withPathCString(path)
+    let handle = openPath(terminated, openFlagsOf(access, mode, flags), createAccess(flags))
     if handle < 0 then return Err(errorOf(0 - handle))
 
     return Ok(adoptFile(handle))
@@ -414,10 +415,10 @@ pub fn writeAt(self: File, at: I64, from: [U8]) -> Result(FileError, Size) =
 -- The same two for text, which is what a program that writes a line has. The units are the string's
 -- own, so this is bytes natively and there is no encoding step.
 pub fn writeText(&self: File, text: String) -> Result(FileError, Size) =
-    checked(writeFile(self.handle, bytesOf(text), length(text)))
+    checked(writeFile(self.handle, stringBytes(text), length(text)))
 
 pub fn writeTextAt(self: File, at: I64, text: String) -> Result(FileError, Size) =
-    checked(writeFileAt(self.handle, bytesOf(text), length(text), at))
+    checked(writeFileAt(self.handle, stringBytes(text), length(text), at))
 
 {-
    The cursor.
@@ -487,15 +488,21 @@ pub fn fileSize(self: File) -> Result(FileError, I64):
    `lstat` and is the one place the two differ. Everything else here is written over one of them.
 -}
 pub fn pathInfo(path: String) -> Result(FileError, FileInfo):
+    if pathTooLong(path) then return Err(NoBufferSpace)
+
     let &status = FileStatus {}
-    let answer = statPath(bytesOf(terminated(path)), status)
+    let terminated = withPathCString(path)
+    let answer = statPath(terminated, status)
     if answer < 0 then return Err(errorOf(0 - answer))
 
     return Ok(infoOf(status))
 
 pub fn linkInfo(path: String) -> Result(FileError, FileInfo):
+    if pathTooLong(path) then return Err(NoBufferSpace)
+
     let &status = FileStatus {}
-    let answer = statLink(bytesOf(terminated(path)), status)
+    let terminated = withPathCString(path)
+    let answer = statLink(terminated, status)
     if answer < 0 then return Err(errorOf(0 - answer))
 
     return Ok(infoOf(status))
@@ -514,13 +521,24 @@ pub fn directoryExists(path: String) -> Bool = match pathInfo(path):
     Ok(->info) -> info.isDirectory
     Err(_) -> False
 
-pub fn removeFile(path: String) -> Result(FileError, {}) = checkedUnit(removePath(bytesOf(terminated(path))))
+pub fn removeFile(path: String) -> Result(FileError, {}):
+    if pathTooLong(path) then return Err(NoBufferSpace)
+
+    let terminated = withPathCString(path)
+    return checkedUnit(removePath(terminated))
 
 -- Renaming, which is what a move within one file system is. Across file systems the kernel refuses
 -- with `EXDEV` and this answers `Unknown`; a copy and a delete is what such a move is, and making
 -- that decision silently is not this function's to make.
-pub fn moveFile(from: String, to: String) -> Result(FileError, {}) =
-    checkedUnit(renamePath(bytesOf(terminated(from)), bytesOf(terminated(to))))
+pub fn moveFile(from: String, to: String) -> Result(FileError, {}):
+    -- Two lens calls, so two frames are live at once and both buffers reach the one syscall that
+    -- reads them. Nesting is what a lens call in the continuation of another one *is*.
+    if pathTooLong(from) || pathTooLong(to) then return Err(NoBufferSpace)
+
+    let source = withPathCString(from)
+    let destination = withPathCString(to)
+
+    return checkedUnit(renamePath(source, destination))
 
 {-
    Copying, as an open, a loop and two closes.
@@ -603,8 +621,10 @@ fn prefixOf(path: String, count: Size) -> String:
 
 pub fn createDirectory(path: String) -> Result(FileError, {}):
     if length(path) == 0 then return Err(InvalidInput)
+    if pathTooLong(path) then return Err(NoBufferSpace)
 
-    let answer = makeDirectory(bytesOf(terminated(path)), directoryAccess)
+    let terminated = withPathCString(path)
+    let answer = makeDirectory(terminated, directoryAccess)
     if answer >= 0 then return Ok({})
 
     let error = errorOf(0 - answer)
@@ -622,12 +642,16 @@ pub fn createDirectory(path: String) -> Result(FileError, {}):
 
     createDirectory(prefixOf(path, parent))?
 
-    return checkedUnit(makeDirectory(bytesOf(terminated(path)), directoryAccess))
+    let again = withPathCString(path)
+    return checkedUnit(makeDirectory(again, directoryAccess))
 
 -- The directory must be empty, which is the kernel's rule and not this function's: a non-empty one
 -- answers `InUse`.
-pub fn removeDirectory(path: String) -> Result(FileError, {}) =
-    checkedUnit(removeDirectoryPath(bytesOf(terminated(path))))
+pub fn removeDirectory(path: String) -> Result(FileError, {}):
+    if pathTooLong(path) then return Err(NoBufferSpace)
+
+    let terminated = withPathCString(path)
+    return checkedUnit(removeDirectoryPath(terminated))
 
 {-
    What a directory holds - the one shape all three traversals collapse into.
@@ -675,7 +699,10 @@ let entryBlock = 4096 :: Size
    destructor.
 -}
 pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
-    let handle = openPath(bytesOf(terminated(path)), openReadOnly `or` openDirectory, fileMode(0))
+    -- `cString` and not `withPathCString`, which is the one place in this file the lens is the
+    -- wrong shape: its continuation would be the entire directory walk, so the path's buffer would
+    -- sit in the frame for every entry read rather than for the one call that reads it.
+    let handle = openPath(stringBytes(cString(path)), openReadOnly `or` openDirectory, fileMode(0))
 
     -- An `iter fn` ends by running out of values rather than by `return` - the loop's signal is not
     -- something a body names - so every early exit below is a flag this loop reads.
@@ -707,9 +734,14 @@ pub iter fn entries(path: String) -> ->Result(FileError, DirectoryEntry):
                     at = at + ((*record).length :: Size)
 
                     -- A record the kernel has already unlinked, which is what a zero inode means.
-                    if (*record).inode != 0 && !isSelfOrParent(record):
-                        yield Ok(DirectoryEntry {name: nameOf(record),
-                                                 isDirectory: (*record).kind == entryKindByte(EntryDirectory)})
+                    -- The name is measured once and the number serves both readers of it: the `.`
+                    -- and `..` test above, and the copy that becomes the entry's own string.
+                    if (*record).inode != 0:
+                        let count = cStringLength(nameStart(record))
+
+                        if !isSelfOrParent(record, count):
+                            yield Ok(DirectoryEntry {name: stringOfUnits(nameStart(record), count),
+                                                     isDirectory: (*record).kind == entryKindByte(EntryDirectory)})
 
 -- The kernel's own byte for one of `getdents64`'s kinds, which is what the record holds.
 fn entryKindByte(kind: EntryKind) -> U8 = truncate(valueOf(kind)) :: U8
@@ -719,28 +751,16 @@ fn entryKindByte(kind: EntryKind) -> U8 = truncate(valueOf(kind)) :: U8
 -- variable-length record costs.
 fn nameStart(return record: %DirectoryRecord) -> %U8 = (bitcast(record) :: %U8) + entryNameOffset
 
--- The name out of one record: NUL-terminated inside the record, so its length is a scan rather than
--- a field. `d_reclen` covers the padding after it, which is why it cannot be used as the length.
-fn nameLength(record: %DirectoryRecord) -> Size:
-    let from = nameStart(record)
-    let &count = 0 :: Size
+{-
+   `.` and `..`, tested on the record's own bytes rather than on a string this would otherwise
+   allocate for every entry only to throw away.
 
-    while *(from + count) != 0:
-        count = count + 1
-
-    return count
-
-fn nameOf(record: %DirectoryRecord) -> String:
-    let count = nameLength(record)
-    let &name = String.ofCapacity(count)
-    String.appendUnits(name, bitcast(nameStart(record)) :: %CodeUnit, count)
-
-    return name
-
--- `.` and `..`, tested on the record's own bytes rather than on a string this would otherwise
--- allocate for every entry only to throw away.
-fn isSelfOrParent(record: %DirectoryRecord) -> Bool:
-    let count = nameLength(record)
+   **The length is a parameter rather than a scan of its own**, and that is the whole of what this
+   signature is for: the caller has already measured the name to decide how much to copy, and this
+   used to measure it again for every entry the walk yielded. `Native.cStringLength` is one vector
+   pass either way, and two of them is still twice as many as the walk needs.
+-}
+fn isSelfOrParent(record: %DirectoryRecord, count: Size) -> Bool:
     if count > 2 || count == 0 then return False
 
     let from = nameStart(record)
@@ -812,7 +832,7 @@ fn writeAllText(file: File, text: String) -> Result(FileError, {}):
     let &written = 0 :: Size
 
     while written < length(text):
-        let put = writeFile(file.handle, bytesOf(text) + written, length(text) - written)
+        let put = writeFile(file.handle, stringBytes(text) + written, length(text) - written)
         if put < 0 then return Err(errorOf(0 - put))
 
         written = written + put

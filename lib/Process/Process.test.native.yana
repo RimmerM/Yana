@@ -21,8 +21,8 @@
 
 import Native
 import File
-import Process
 import Environment
+import Test
 
 {-
    Spawn, wait, and the status a child reported.
@@ -33,12 +33,12 @@ import Environment
 -}
 fn statuses() -> Int:
     match spawn("/bin/true", [] :: [String]):
-        Ok(child) -> assert(exitedWith(child, 0))
-        Err(e) -> assert(False)
+        Ok(child) -> check(exitedWith(child, 0))
+        Err(e) -> check(False)
 
     match spawn("/bin/false", [] :: [String]):
-        Ok(child) -> assert(exitedWith(child, 1))
-        Err(e) -> assert(False)
+        Ok(child) -> check(exitedWith(child, 1))
+        Err(e) -> check(False)
 
     return 1
 
@@ -60,11 +60,11 @@ fn exitedWith(child: Process, expected: Int) -> Bool:
 -}
 fn signals() -> Int:
     match spawn("/bin/sleep", ["30"]):
-        Err(e) -> assert(False)
+        Err(e) -> check(False)
         Ok(child):
             match signal(child, killSignal):
-                Err(e) -> assert(False)
-                Ok(_) -> assert(wasSignalled(child, killSignal))
+                Err(e) -> check(False)
+                Ok(_) -> check(wasSignalled(child, killSignal))
 
     return 2
 
@@ -85,27 +85,28 @@ fn wasSignalled(child: Process, expected: Int) -> Bool:
 -}
 fn pipes() -> Int:
     match newPipe():
-        Err(e) -> assert(False)
+        Err(e) -> check(False)
         Ok(&->pipe):
             let target = Redirect {input: Nothing,
                                    output: Just(borrowFile(pipe.writeEnd.handle)),
-                                   errors: Nothing}
+                                   errors: Nothing,
+                                   report: Nothing}
 
             match spawnWith("/bin/echo", ["captured"], target):
-                Err(e) -> assert(False)
+                Err(e) -> check(False)
                 Ok(child):
                     match close(pipe.writeEnd):
-                        Err(e) -> assert(False)
-                        Ok(_) -> assert(True)
+                        Err(e) -> check(False)
+                        Ok(_) -> check(True)
 
                     let &buffer = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] :: [U8]
 
                     match readInto(pipe.readEnd, buffer):
-                        Err(e) -> assert(False)
+                        Err(e) -> check(False)
                         -- "captured" and the newline `echo` adds.
-                        Ok(n) -> assert(n == (9 :: Size))
+                        Ok(n) -> checkEqual(n, (9 :: Size))
 
-                    assert(exitedWith(child, 0))
+                    check(exitedWith(child, 0))
 
     return 4
 
@@ -127,18 +128,18 @@ fn commandLine() -> Int:
     let count = argumentCount()
 
     let all = arguments()
-    assert(length(all) == count)
+    checkEqual(length(all), count)
 
     -- Past the end is `Nothing` rather than a trap, which is what makes a loop that got the count
     -- wrong report instead of reading somebody else's memory.
-    assert(isNothing(argument(count)))
+    checkNothing(argument(count))
 
     if count > (0 :: Size):
         -- A real process, so position 0 is the program's own name on every platform this compiles
         -- for and the vector was genuinely read off the stack.
         match argument(0):
-            Just(name) -> assert(length(name) > (0 :: Size))
-            Nothing -> assert(False)
+            Just(name) -> checkGreater(length(name), (0 :: Size))
+            Nothing -> check(False)
 
     return 8
 
@@ -152,12 +153,12 @@ fn commandLine() -> Int:
    has, so its absence there would mean the walk found nothing rather than that it is unset.
 -}
 fn environment() -> Int:
-    assert(isNothing(variable("YANA_DEFINITELY_NOT_SET_XYZ")))
+    checkNothing(variable("YANA_DEFINITELY_NOT_SET_XYZ"))
 
     if argumentCount() > (0 :: Size):
         match variable("PATH"):
-            Just(path) -> assert(length(path) > (0 :: Size))
-            Nothing -> assert(False)
+            Just(path) -> checkGreater(length(path), (0 :: Size))
+            Nothing -> check(False)
 
     return 16
 
@@ -165,7 +166,7 @@ fn isNothing(value: Maybe(a)) -> Bool = match value:
     Just(_) -> False
     Nothing -> True
 
-fn main() -> Int:
+@test fn processCases() -> {}:
     let &total = 0 :: Int
 
     total = total + statuses()
@@ -174,5 +175,4 @@ fn main() -> Int:
     total = total + commandLine()
     total = total + environment()
 
-    assert(total == 31)
-    return 0
+    checkEqual(total, 31)
