@@ -1,0 +1,155 @@
+{-
+   `compareMemory` - the block comparison, and the one of the three that reads rather than writes.
+
+   What has to be proved here is different from `CopyMemory.yana`'s and `MoveMemory.yana`'s, because
+   nothing is written: a wrong answer is the whole of what a bug looks like. Three properties, and
+   each of them has an edge a length or a position can sit on.
+
+   - **The answer is the first differing element's**, wherever in the run it falls. So the sweep
+     plants exactly one difference at *every* position of *every* length, both ways round, and
+     checks the sign. A difference the loop skipped, one the tail arm found in the wrong lane, and
+     one it found in a lane past the end all show up as a wrong sign at one position.
+   - **Nothing past `count` is ever consulted**, which is the whole of what the overreading tail is
+     allowed to get away with. The buffers are painted so that the bytes immediately above every
+     window disagree, and an equal window that answers anything but `EQ` is that read leaking in.
+   - **The order is the element's and not the byte's.** A `U32` run whose first difference is
+     `0x00000006` against `0x01000000` orders one way on a little-endian machine read as bytes and
+     the other read as elements, so that pair pins the definition on any target this compiles for.
+
+   The lengths sweep every count to 200 - which crosses one, two and four registers several times at
+   every level this is built at - and both windows are read at three offsets apiece, since which
+   bytes a wide load straddles is a function of the address and not only of the count.
+-}
+
+import Test
+
+-- Both windows live in one heap block, far enough apart that no length here brings them within a
+-- register of each other, and with room above the second for the tail read to run into.
+let apartBytes = 4096 :: Size
+let overrun = 128 :: Size
+
+fn paintAscending(buffer: %U8, at: Size, first: Size, count: Size) -> {}:
+    let &i = 0 :: Size
+    while i < count:
+        store(buffer + at + i, truncate(first + i) :: U8)
+        i = i + 1
+
+{-
+   One comparison of two `count`-byte windows that agree, except at `differ` if that position is
+   inside them.
+
+   `above` is what makes the second property testable: the byte immediately after each window is set
+   to disagree, so a `compareMemory` that read one lane too far would answer `LT` where this expects
+   `EQ`. It is `0 - 1` on the left window and `0` on the right, which no ascending fill can produce.
+-}
+fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) -> Int:
+    paintAscending(buffer, at, 7, count + overrun)
+    paintAscending(buffer, to, 7, count + overrun)
+
+    if differ >= 0 && differ < count:
+        store(buffer + to + differ, truncate((7 + differ + by) :: Size) :: U8)
+
+    store(buffer + at + count, 255 :: U8)
+    store(buffer + to + count, 0 :: U8)
+
+    let order = compareMemory(buffer + at, buffer + to, count)
+    if order == LT then return 0 - 1
+    if order == GT then return 1
+    return 0
+
+{-
+   The named lengths, one at a time so that a failure says which shape broke.
+
+   Zero and the counts below it are the two ends that are not rungs: an empty comparison is `EQ`
+   whatever the buffers hold, and a negative count - which a subtraction of two lengths can reach -
+   has to answer the same rather than walking backwards.
+-}
+@test fn compareMemoryEdges() -> {}:
+    let buffer = allocateHeap(16384)
+    let right = apartBytes
+
+    checkEqual(ordered(buffer, 0, right, 0, 0, 1), 0)
+    checkEqual(ordered(buffer, 0, right, 0 - 8, 0, 1), 0)
+
+    checkEqual(ordered(buffer, 0, right, 1, 0 - 1, 0), 0)
+    checkEqual(ordered(buffer, 0, right, 1, 0, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 1, 0, 0 - 1), 1)
+
+    -- One below, one at and one above each of the widths this is built for.
+    checkEqual(ordered(buffer, 0, right, 15, 14, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 16, 15, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 17, 16, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 31, 30, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 32, 31, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 33, 32, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 63, 62, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 64, 63, 1), 0 - 1)
+    checkEqual(ordered(buffer, 0, right, 65, 64, 1), 0 - 1)
+
+    -- Equal at each of those lengths, which is where a tail read that ran one lane wide would show.
+    checkEqual(ordered(buffer, 0, right, 15, 0 - 1, 0), 0)
+    checkEqual(ordered(buffer, 0, right, 16, 0 - 1, 0), 0)
+    checkEqual(ordered(buffer, 0, right, 31, 0 - 1, 0), 0)
+    checkEqual(ordered(buffer, 0, right, 32, 0 - 1, 0), 0)
+    checkEqual(ordered(buffer, 0, right, 63, 0 - 1, 0), 0)
+    checkEqual(ordered(buffer, 0, right, 64, 0 - 1, 0), 0)
+    checkEqual(ordered(buffer, 0, right, 200, 0 - 1, 0), 0)
+
+    freeHeap(buffer)
+
+-- Every length to 200, with the one difference walked across every position of each - and then the
+-- same length with no difference at all, which is the case the overread could break.
+@test fn compareMemorySweep() -> {}:
+    let buffer = allocateHeap(16384)
+    let &bad = 0 :: Int
+    let &count = 0 :: Size
+
+    while count <= 200:
+        let left = 3 + (rem(count, 3))
+        let right = apartBytes + (rem(count, 5))
+
+        if ordered(buffer, left, right, count, 0 - 1, 0) != 0 then bad = bad + 1
+
+        let &differ = 0 :: Size
+        while differ < count:
+            if ordered(buffer, left, right, count, differ, 1) != 0 - 1 then bad = bad + 1
+            if ordered(buffer, left, right, count, differ, 0 - 1) != 1 then bad = bad + 1
+            differ = differ + 1
+
+        count = count + 1
+
+    checkEqual(bad, 0)
+    freeHeap(buffer)
+
+{-
+   The element order, which is what makes this one function rather than one per width.
+
+   `memcmp` answers the order of the first differing *byte*; this answers the order of the first
+   differing *element*, and on a little-endian target the two disagree for every element wider than
+   a byte. Read as bytes, `0x00000006` begins `06 00 00 00` and `0x01000000` begins `00 00 00 01`,
+   so a byte comparison calls the first the larger; read as `U32` elements it is plainly the smaller.
+
+   A `Long` is here as well because it is the width where a lane may be wider than the register at
+   the level this is built for - the scalar body has to answer the same thing the vector one does.
+-}
+@test fn compareMemoryElementOrder() -> {}:
+    let low = [1, 2, 3, 4, 5, 6] :: [U32 *6]
+    let high = [1, 2, 3, 4, 5, 16777216] :: [U32 *6]
+
+    check(compareMemory(elements(low).items, elements(high).items, 6) == LT)
+    check(compareMemory(elements(high).items, elements(low).items, 6) == GT)
+    check(compareMemory(elements(low).items, elements(low).items, 6) == EQ)
+
+    let small = [1, 2, 3, 4, 5, 6, 7, 8, 9] :: [Long *9]
+    let large = [1, 2, 3, 4, 5, 6, 7, 8, 72057594037927936] :: [Long *9]
+
+    check(compareMemory(elements(small).items, elements(large).items, 9) == LT)
+    check(compareMemory(elements(large).items, elements(small).items, 9) == GT)
+    check(compareMemory(elements(small).items, elements(small).items, 9) == EQ)
+
+    -- And a signed element, where the order is the sign's and not the representation's.
+    let negative = [0 - 1, 0 - 2] :: [I32 *2]
+    let positive = [1, 2] :: [I32 *2]
+
+    check(compareMemory(elements(negative).items, elements(positive).items, 2) == LT)
+    check(compareMemory(elements(positive).items, elements(negative).items, 2) == GT)

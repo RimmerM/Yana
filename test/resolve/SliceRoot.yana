@@ -1,0 +1,29 @@
+{-
+   A borrow that reaches its root through *two* calls, and the drop that has to wait for it.
+
+   `slice(elements(xs), ...)` is two `return`-marked calls in a row: `elements` hands back a
+   descriptor rooted in the array, the descriptor lands in a slot, and `slice` borrows that slot and
+   hands back a window rooted in the same array. Nothing after that mentions `xs`, so where the drop
+   goes is decided entirely by whether the liveness walk follows the chain through the *slot* - and
+   a slot filled by a call carries its root in the call rather than in a `viewOf` link.
+
+   Both halves are asserted here because neither alone is enough. The golden shows the release below
+   the last read; the run says the numbers are the array's own, which is what a release above them
+   would take away - `freeHeap` writes its free-list link into the first bytes of the block, so an
+   early drop reads a pointer back as the first two elements rather than 1 and 2.
+-}
+
+fn viaTwoCalls() -> Int = sum(slice(elements(newArray(8, (i: Size) -> truncate(i + 1) :: Int)), 0, 8))
+
+-- The same chain with the window named, which is the shape that was always correct: the slot the
+-- descriptor lands in is a local the body mentions again, so its own live range keeps the array.
+fn viaLocal() -> Int:
+    let xs = newArray(8, (i: Size) -> truncate(i + 1) :: Int)
+    let window = slice(elements(xs), 0, 8)
+    return sum(window)
+
+-- And a window over part of it, so the answer differs from the whole and a slice that lost its
+-- bounds rather than its root does not pass by accident.
+fn partial() -> Int = maximum(slice(elements(newArray(8, (i: Size) -> truncate(i + 1) :: Int)), 2, 5), 0)
+
+fn main() -> Int = viaTwoCalls() + viaLocal() + partial()

@@ -672,43 +672,37 @@ main<complex>(): Int {
     %v_38 = add %xs, 12: Ptr
     store %v_38, 6, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
-    %v_39 = loads %v_34, 4: Int
-    %v_40 = add %v_30, 16: Ptr
-    %v_41 = loads %v_40, 4: Int
-    %v_42 = add %v_39, %v_41: Int
     %xs = alloca 16, 8: Ptr
-    %v_43 = alloca 12, 4: Ptr
-    store %xs, %v_43, 8
-    %v_44 = add %xs, 8: Ptr
-    %v_45 = load %v_44, 4: Int
+    %v_39 = alloca 12, 4: Ptr
+    store %xs, %v_39, 8
+    %v_40 = add %xs, 8: Ptr
+    %v_41 = load %v_40, 4: Int
+    store %v_40, 3, 4
+    store %v_39, 7, 4
+    %v_42 = add %v_39, 4: Ptr
+    store %v_42, 8, 4
+    %v_43 = add %v_39, 8: Ptr
+    store %v_43, 9, 4
+    %v_44 = add %xs, 12: Ptr
     store %v_44, 3, 4
-    store %v_43, 7, 4
-    %v_46 = add %v_43, 4: Ptr
-    store %v_46, 8, 4
-    %v_47 = add %v_43, 8: Ptr
-    store %v_47, 9, 4
-    %v_48 = add %xs, 12: Ptr
-    store %v_48, 3, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
     %xs = alloca 16, 8: Ptr
-    %v_49 = alloca 4, 4: Ptr
-    store %xs, %v_49, 8
-    %v_50 = add %xs, 8: Ptr
-    %v_51 = load %v_50, 4: Int
-    store %v_50, 1, 4
-    store %v_49, 42, 4
-    %v_52 = add %xs, 12: Ptr
-    store %v_52, 1, 4
+    %v_45 = alloca 4, 4: Ptr
+    store %xs, %v_45, 8
+    %v_46 = add %xs, 8: Ptr
+    %v_47 = load %v_46, 4: Int
+    store %v_46, 1, 4
+    store %v_45, 42, 4
+    %v_48 = add %xs, 12: Ptr
+    store %v_48, 1, 4
     call_complex Reclaim(Array(a)).reclaim(Int), %xs
-    %v_53 = imul %v_29, 1000: Int
-    %v_54 = imul %v_42, 100: Int
-    %v_55 = add %v_53, %v_54: Int
-    %v_56 = add %v_55, 202: Int
-    ret %v_56
+    %v_49 = imul %v_29, 1000: Int
+    %v_50 = add %v_49, 1002: Int
+    ret %v_50
   }
 
   b_20 {
-    %v_57 = syscall 60, 134: Long
+    %v_51 = syscall 60, 134: Long
     unreachable 
   }
 }

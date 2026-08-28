@@ -488,6 +488,25 @@ fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
     ret
 }
 
+fn Ord(CodeUnit).compare(%lhs: CodeUnit, %rhs: CodeUnit) -> Ordering {
+  b0:
+    %v2 = cmp_eq %lhs, %rhs : Bool
+    je %v2, b1, b2
+
+  b1:
+    ret EQ
+
+  b2:
+    %v6 = cmp_gt %lhs, %rhs : Bool
+    je %v6, b3, b4
+
+  b3:
+    ret GT
+
+  b4:
+    ret LT
+}
+
 fn Show(Int).show(%value: Int, %to: String) -> () {
   b0:
     %v2 = load %to : String
@@ -521,37 +540,19 @@ fn Eq(String).==(%self: String, %other: String) -> Bool {
     jmp b3
 
   b3:
-    %i = alloc : Size
-    init %i, 0
-    jmp b4
-
-  b4:
-    %v13 = load %i : Size
-    %v14 = cmp_lt %v13, %count : Bool
-    je %v14, b6, b5
-
-  b5:
-    ret True
-
-  b6:
-    %v16 = load %i : Size
-    %v17 = call String.unit, %self, %v16 : Int
-    %v18 = load %i : Size
-    %v19 = call String.unit, %other, %v18 : Int
-    %v20 = cmp_ne %v17, %v19 : Bool
-    je %v20, b7, b8
-
-  b7:
-    ret False
-
-  b8:
-    jmp b9
-
-  b9:
-    %v25 = load %i : Size
-    %v28 = add %v25, 1 : Size
-    assign %i, %v28
-    jmp b4
+    %v9 = borrow %self : 'String
+    %v10 = cast %v9 : 'StringData
+    %v11 = load [%v10]@StringData.bytes : Array(CodeUnit)
+    %v12 = load [%v10]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v13 = load [%v10]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v14 = borrow %other : 'String
+    %v15 = cast %v14 : 'StringData
+    %v16 = load [%v15]@StringData.bytes : Array(CodeUnit)
+    %v17 = load [%v15]@StringData.bytes@Array.run : Run(CodeUnit)
+    %v18 = load [%v15]@StringData.bytes@Array.run@Run.items : %CodeUnit
+    %v19 = call compareMemory(CodeUnit), %v13, %v18, %count : Ordering
+    %v21 = cmp_eq %v19, EQ : Bool
+    ret %v21
 }
 
 fn Hash(String).hash(%value: String, %state: U32) -> U32 {
@@ -2664,6 +2665,245 @@ fn byteSpan(CodeUnit)(%from: %CodeUnit, %count: Size) -> Size {
     %v8 = strideof U8 : Size
     %v9 = div %v7, %v8 : Size
     ret %v9
+}
+
+fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) -> Ordering {
+  b0:
+    %v4 = vsplat 0 : Vec(CodeUnit)
+    %width = cast 16 : Size
+    %stride = mul %width, 4 : Size
+    %block = sub %count, %stride : Size
+    %last = sub %count, %width : Size
+    %at = alloc : Size
+    init %at, 0
+    jmp b1
+
+  b1:
+    %v15 = load %at : Size
+    %v16 = cmp_le %v15, %block : Bool
+    je %v16, b3, b2
+
+  b2:
+    jmp b7
+
+  b3:
+    %v19 = load %at : Size
+    %v20 = strideof CodeUnit : Size
+    %v21 = mul %v19, %v20 : Size
+    %v22 = add %left, %v21 : %CodeUnit
+    %v23 = bitcast %v22 : %Vec(CodeUnit)
+    %v24 = load [%v23] : Vec(CodeUnit)
+    %v25 = load %at : Size
+    %v26 = strideof CodeUnit : Size
+    %v27 = mul %v25, %v26 : Size
+    %v28 = add %right, %v27 : %CodeUnit
+    %v29 = bitcast %v28 : %Vec(CodeUnit)
+    %v30 = load [%v29] : Vec(CodeUnit)
+    %first = cmp_eq %v24, %v30 : Mask(CodeUnit)
+    %v32 = load %at : Size
+    %v33 = strideof CodeUnit : Size
+    %v34 = mul %v32, %v33 : Size
+    %v35 = add %left, %v34 : %CodeUnit
+    %v36 = strideof CodeUnit : Size
+    %v37 = mul %width, %v36 : Size
+    %v38 = add %v35, %v37 : %CodeUnit
+    %v39 = bitcast %v38 : %Vec(CodeUnit)
+    %v40 = load [%v39] : Vec(CodeUnit)
+    %v41 = load %at : Size
+    %v42 = strideof CodeUnit : Size
+    %v43 = mul %v41, %v42 : Size
+    %v44 = add %right, %v43 : %CodeUnit
+    %v45 = strideof CodeUnit : Size
+    %v46 = mul %width, %v45 : Size
+    %v47 = add %v44, %v46 : %CodeUnit
+    %v48 = bitcast %v47 : %Vec(CodeUnit)
+    %v49 = load [%v48] : Vec(CodeUnit)
+    %second = cmp_eq %v40, %v49 : Mask(CodeUnit)
+    %v51 = load %at : Size
+    %v52 = strideof CodeUnit : Size
+    %v53 = mul %v51, %v52 : Size
+    %v54 = add %left, %v53 : %CodeUnit
+    %v55 = strideof CodeUnit : Size
+    %v56 = mul %width, %v55 : Size
+    %v57 = add %v54, %v56 : %CodeUnit
+    %v58 = strideof CodeUnit : Size
+    %v59 = mul %width, %v58 : Size
+    %v60 = add %v57, %v59 : %CodeUnit
+    %v61 = bitcast %v60 : %Vec(CodeUnit)
+    %v62 = load [%v61] : Vec(CodeUnit)
+    %v63 = load %at : Size
+    %v64 = strideof CodeUnit : Size
+    %v65 = mul %v63, %v64 : Size
+    %v66 = add %right, %v65 : %CodeUnit
+    %v67 = strideof CodeUnit : Size
+    %v68 = mul %width, %v67 : Size
+    %v69 = add %v66, %v68 : %CodeUnit
+    %v70 = strideof CodeUnit : Size
+    %v71 = mul %width, %v70 : Size
+    %v72 = add %v69, %v71 : %CodeUnit
+    %v73 = bitcast %v72 : %Vec(CodeUnit)
+    %v74 = load [%v73] : Vec(CodeUnit)
+    %third = cmp_eq %v62, %v74 : Mask(CodeUnit)
+    %v76 = load %at : Size
+    %v77 = strideof CodeUnit : Size
+    %v78 = mul %v76, %v77 : Size
+    %v79 = add %left, %v78 : %CodeUnit
+    %v80 = strideof CodeUnit : Size
+    %v81 = mul %width, %v80 : Size
+    %v82 = add %v79, %v81 : %CodeUnit
+    %v83 = strideof CodeUnit : Size
+    %v84 = mul %width, %v83 : Size
+    %v85 = add %v82, %v84 : %CodeUnit
+    %v86 = strideof CodeUnit : Size
+    %v87 = mul %width, %v86 : Size
+    %v88 = add %v85, %v87 : %CodeUnit
+    %v89 = bitcast %v88 : %Vec(CodeUnit)
+    %v90 = load [%v89] : Vec(CodeUnit)
+    %v91 = load %at : Size
+    %v92 = strideof CodeUnit : Size
+    %v93 = mul %v91, %v92 : Size
+    %v94 = add %right, %v93 : %CodeUnit
+    %v95 = strideof CodeUnit : Size
+    %v96 = mul %width, %v95 : Size
+    %v97 = add %v94, %v96 : %CodeUnit
+    %v98 = strideof CodeUnit : Size
+    %v99 = mul %width, %v98 : Size
+    %v100 = add %v97, %v99 : %CodeUnit
+    %v101 = strideof CodeUnit : Size
+    %v102 = mul %width, %v101 : Size
+    %v103 = add %v100, %v102 : %CodeUnit
+    %v104 = bitcast %v103 : %Vec(CodeUnit)
+    %v105 = load [%v104] : Vec(CodeUnit)
+    %fourth = cmp_eq %v90, %v105 : Mask(CodeUnit)
+    %v107 = and %first, %second : Mask(CodeUnit)
+    %v108 = and %third, %fourth : Mask(CodeUnit)
+    %v109 = and %v107, %v108 : Mask(CodeUnit)
+    %v110 = vreduce_and %v109 : Bool
+    %v112 = xor %v110, True : Bool
+    je %v112, b4, b5
+
+  b4:
+    jmp b2
+
+  b5:
+    jmp b6
+
+  b6:
+    %v116 = load %at : Size
+    %v117 = add %v116, %stride : Size
+    assign %at, %v117
+    jmp b1
+
+  b7:
+    %v120 = load %at : Size
+    %v121 = cmp_le %v120, %last : Bool
+    je %v121, b9, b8
+
+  b8:
+    %v123 = load %at : Size
+    %v124 = cmp_lt %v123, %count : Bool
+    je %v124, b13, b14
+
+  b9:
+    %v126 = load %at : Size
+    %v127 = strideof CodeUnit : Size
+    %v128 = mul %v126, %v127 : Size
+    %v129 = add %left, %v128 : %CodeUnit
+    %v130 = bitcast %v129 : %Vec(CodeUnit)
+    %v131 = load [%v130] : Vec(CodeUnit)
+    %v132 = load %at : Size
+    %v133 = strideof CodeUnit : Size
+    %v134 = mul %v132, %v133 : Size
+    %v135 = add %right, %v134 : %CodeUnit
+    %v136 = bitcast %v135 : %Vec(CodeUnit)
+    %v137 = load [%v136] : Vec(CodeUnit)
+    %same = cmp_eq %v131, %v137 : Mask(CodeUnit)
+    %v139 = vreduce_and %same : Bool
+    %v141 = xor %v139, True : Bool
+    je %v141, b10, b11
+
+  b10:
+    %v143 = load %at : Size
+    %v144 = not %same : Mask(CodeUnit)
+    %v145 = vreduce_first %v144 : Int
+    %v146 = cast %v145 : Size
+    %differs = add %v143, %v146 : Size
+    %v148 = strideof CodeUnit : Size
+    %v149 = mul %differs, %v148 : Size
+    %v150 = add %left, %v149 : %CodeUnit
+    %v151 = load [%v150] : CodeUnit
+    %v152 = strideof CodeUnit : Size
+    %v153 = mul %differs, %v152 : Size
+    %v154 = add %right, %v153 : %CodeUnit
+    %v155 = load [%v154] : CodeUnit
+    %v156 = call Ord(CodeUnit).compare, %v151, %v155 : Ordering
+    ret %v156
+
+  b11:
+    jmp b12
+
+  b12:
+    %v159 = load %at : Size
+    %v160 = add %v159, %width : Size
+    assign %at, %v160
+    jmp b7
+
+  b13:
+    %v163 = load %at : Size
+    %v164 = strideof CodeUnit : Size
+    %v165 = mul %v163, %v164 : Size
+    %v166 = add %left, %v165 : %CodeUnit
+    %v167 = bitcast %v166 : %Vec(CodeUnit)
+    %v168 = loadx [%v167] : Vec(CodeUnit)
+    %v169 = load %at : Size
+    %v170 = strideof CodeUnit : Size
+    %v171 = mul %v169, %v170 : Size
+    %v172 = add %right, %v171 : %CodeUnit
+    %v173 = bitcast %v172 : %Vec(CodeUnit)
+    %v174 = loadx [%v173] : Vec(CodeUnit)
+    %same = cmp_eq %v168, %v174 : Mask(CodeUnit)
+    %v176 = vreduce_and %same : Bool
+    %v178 = xor %v176, True : Bool
+    je %v178, b15, b16
+
+  b14:
+    jmp b21
+
+  b15:
+    %v181 = load %at : Size
+    %v182 = not %same : Mask(CodeUnit)
+    %v183 = vreduce_first %v182 : Int
+    %v184 = cast %v183 : Size
+    %differs = add %v181, %v184 : Size
+    %v186 = cmp_lt %differs, %count : Bool
+    je %v186, b17, b18
+
+  b16:
+    jmp b20
+
+  b17:
+    %v189 = strideof CodeUnit : Size
+    %v190 = mul %differs, %v189 : Size
+    %v191 = add %left, %v190 : %CodeUnit
+    %v192 = load [%v191] : CodeUnit
+    %v193 = strideof CodeUnit : Size
+    %v194 = mul %differs, %v193 : Size
+    %v195 = add %right, %v194 : %CodeUnit
+    %v196 = load [%v195] : CodeUnit
+    %v197 = call Ord(CodeUnit).compare, %v192, %v196 : Ordering
+    ret %v197
+
+  b18:
+    jmp b19
+
+  b19:
+    jmp b20
+
+  b20:
+    jmp b21
+
+  b21:
+    ret EQ
 }
 
 fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {

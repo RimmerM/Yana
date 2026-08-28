@@ -1017,6 +1017,7 @@ BULK_PAIR(maximum, "maximumVectors", "maximumElements")
 BULK_PAIR(minimum, "minimumVectors", "minimumElements")
 BULK_PAIR(occurrences, "occurrencesVectors", "occurrencesElements")
 BULK_PAIR(indexOf, "indexOfVectors", "indexOfElements")
+BULK_PAIR(itemsEqual, "itemsEqualVectors", "itemsEqualElements")
 
 #undef BULK_PAIR
 
@@ -1027,6 +1028,7 @@ void defineBulkOperations(Module& collections) {
     attachIntrinsic(collections, "minimum"_v, emitBulk<minimumBodies>);
     attachIntrinsic(collections, "occurrences"_v, emitBulk<occurrencesBodies>);
     attachIntrinsic(collections, "indexOf"_v, emitBulk<indexOfBodies>);
+    attachIntrinsic(collections, "itemsEqual"_v, emitBulk<itemsEqualBodies>);
 }
 
 /*

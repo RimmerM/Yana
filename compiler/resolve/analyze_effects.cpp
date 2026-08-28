@@ -174,6 +174,30 @@ static void useValue(Analysis& analysis, Effects& effects, ModulePtr<Value> valu
 
             if(place.root == PlaceRoot::Borrow || place.root == PlaceRoot::Pointer) {
                 reach(place.pointer);
+            } else {
+                /*
+                 * A borrow of a slot that is *itself* a view, which is what makes a chain of two
+                 * calls carry a root the way one call does.
+                 *
+                 * `sum(slice(elements(xs), 1, 4))` builds the descriptor `elements` returned into a
+                 * slot and then borrows that slot for `slice`, whose own `return self` says the
+                 * result is rooted in it. Marking the slot used is not enough: what keeps `xs` alive
+                 * is the *call* that filled it, and the arm below reads the declared roots off it.
+                 * Without this the array's last use is the `elements` call, and the drop pass
+                 * releases the run between it and the read through the subslice - a use-after-free
+                 * whose only distinction is that the borrow reached its root through two calls
+                 * rather than one.
+                 *
+                 * Guarded on the slot's type holding a borrow, which is the same test the loaded
+                 * form below makes. A slot that owns its contents is the end of the chain and not a
+                 * step in it, and following one would make every call that produced an owned value
+                 * a use of whatever that call borrowed.
+                 */
+                auto root = rootLocal(analysis, place);
+                if(root != maxLimit<U32>) {
+                    auto slot = analysis.function.localAt(analysis.local, root);
+                    if(slot.value && containsBorrowLike(analysis.module, slot.type)) reach(slot.value);
+                }
             }
         } else if(produced.kind == Value::LoadPlace &&
                   containsBorrowLike(analysis.module, produced.type) &&

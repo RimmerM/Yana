@@ -907,6 +907,168 @@ resize(CodeUnit)<complex>(%self: Ptr, %wanted: Long): Int {
   }
 }
 
+compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
+  b_0 {
+    %v_1 = imm 64: Long
+    %block = sub %count, %v_1: Long
+    %v_2 = imm 16: Long
+    %last = sub %count, %v_2: Long
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
+    %v_7 = cmp_ile %v_4, %block: Int
+    je %v_7, b_8, b_9
+  }
+
+  b_9 {
+    jmp b_10
+  }
+
+  b_8 {
+    %v_11 = add %left, %v_4: Ptr
+    %v_12 = load %v_11, 16: i8x16
+    %v_13 = add %right, %v_4: Ptr
+    %v_14 = load %v_13, 16: i8x16
+    %first = cmp_eq %v_12, %v_14: m8x16
+    %v_15 = add %v_11, 16: Ptr
+    %v_16 = load %v_15, 16: i8x16
+    %v_17 = add %v_13, 16: Ptr
+    %v_18 = load %v_17, 16: i8x16
+    %second = cmp_eq %v_16, %v_18: m8x16
+    %v_19 = add %v_11, 32: Ptr
+    %v_20 = load %v_19, 16: i8x16
+    %v_21 = add %v_13, 32: Ptr
+    %v_22 = load %v_21, 16: i8x16
+    %third = cmp_eq %v_20, %v_22: m8x16
+    %v_23 = add %v_11, 48: Ptr
+    %v_24 = load %v_23, 16: i8x16
+    %v_25 = add %v_13, 48: Ptr
+    %v_26 = load %v_25, 16: i8x16
+    %fourth = cmp_eq %v_24, %v_26: m8x16
+    %v_27 = and %first, %second: m8x16
+    %v_28 = and %third, %fourth: m8x16
+    %v_29 = and %v_27, %v_28: m8x16
+    %v_30 = vreduce_and %v_29: Int
+    je %v_30, b_31, b_32
+  }
+
+  b_32 {
+    jmp b_9
+  }
+
+  b_31 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = add %v_4, %v_1: Long
+    jmp b_3
+  }
+
+  b_10 {
+    %v_33 = phi [b_9, %v_4], [b_34, %v_35]: Long
+    %v_36 = cmp_ile %v_33, %last: Int
+    je %v_36, b_37, b_38
+  }
+
+  b_38 {
+    %v_39 = cmp_ilt %v_33, %count: Int
+    je %v_39, b_40, b_41
+  }
+
+  b_37 {
+    %v_42 = add %left, %v_33: Ptr
+    %v_43 = load %v_42, 16: i8x16
+    %v_44 = add %right, %v_33: Ptr
+    %v_45 = load %v_44, 16: i8x16
+    %same = cmp_eq %v_43, %v_45: m8x16
+    %v_46 = vreduce_and %same: Int
+    je %v_46, b_47, b_48
+  }
+
+  b_48 {
+    %v_49 = not %same: m8x16
+    %v_50 = vreduce_first %v_49: Int
+    %v_51 = sext %v_50: Long
+    %differs = add %v_33, %v_51: Long
+    %v_52 = add %left, %differs: Ptr
+    %v_53 = load %v_52, 1: Int
+    %v_54 = add %right, %differs: Ptr
+    %v_55 = load %v_54, 1: Int
+    %v_56 = cmp_eq %v_53, %v_55: Int
+    %v_57 = cmp_gt %v_53, %v_55: Int
+    %v_58 = select %v_57, 2, 0: Int
+    %v_59 = select %v_56, 1, %v_58: Int
+    ret %v_59
+  }
+
+  b_47 {
+    jmp b_34
+  }
+
+  b_34 {
+    %v_35 = add %v_33, %v_2: Long
+    jmp b_10
+  }
+
+  b_40 {
+    %v_60 = add %left, %v_33: Ptr
+    %v_61 = loadx %v_60, 16: i8x16
+    %v_62 = add %right, %v_33: Ptr
+    %v_63 = loadx %v_62, 16: i8x16
+    %same = cmp_eq %v_61, %v_63: m8x16
+    %v_64 = vreduce_and %same: Int
+    je %v_64, b_65, b_66
+  }
+
+  b_41 {
+    jmp b_67
+  }
+
+  b_66 {
+    %v_68 = not %same: m8x16
+    %v_69 = vreduce_first %v_68: Int
+    %v_70 = sext %v_69: Long
+    %differs = add %v_33, %v_70: Long
+    %v_71 = cmp_ilt %differs, %count: Int
+    je %v_71, b_72, b_73
+  }
+
+  b_65 {
+    jmp b_74
+  }
+
+  b_72 {
+    %v_75 = add %left, %differs: Ptr
+    %v_76 = load %v_75, 1: Int
+    %v_77 = add %right, %differs: Ptr
+    %v_78 = load %v_77, 1: Int
+    %v_79 = cmp_eq %v_76, %v_78: Int
+    %v_80 = cmp_gt %v_76, %v_78: Int
+    %v_81 = select %v_80, 2, 0: Int
+    %v_82 = select %v_79, 1, %v_81: Int
+    ret %v_82
+  }
+
+  b_73 {
+    jmp b_83
+  }
+
+  b_83 {
+    jmp b_74
+  }
+
+  b_74 {
+    jmp b_67
+  }
+
+  b_67 {
+    ret 1
+  }
+}
+
 main<complex>(): Int {
   b_0 {
     %v_1 = alloca 40, 8: Ptr
@@ -974,137 +1136,111 @@ main<complex>(): Int {
   b_32 {
     %v_33 = load %v_25, 8: Ptr
     %v_34 = load %v_21, 8: Ptr
-    jmp b_35
-  }
-
-  b_35 {
-    %v_36 = phi [b_32, 0], [b_37, %v_38]: Long
-    %v_39 = cmp_ilt %v_36, %v_28: Int
-    je %v_39, b_40, b_41
-  }
-
-  b_41 {
-    jmp b_42
-  }
-
-  b_40 {
-    %v_43 = add %v_33, %v_36: Ptr
-    %v_44 = load %v_43, 1: Int
-    %v_45 = add %v_34, %v_36: Ptr
-    %v_46 = load %v_45, 1: Int
-    %v_47 = cmp_neq %v_44, %v_46: Int
-    je %v_47, b_48, b_37
-  }
-
-  b_37 {
-    %v_38 = add %v_36, 1: Long
-    jmp b_35
-  }
-
-  b_48 {
-    jmp b_42
+    %v_35 = call_complex compareMemory(CodeUnit), %v_33, %v_34, %v_28: Int
+    %v_36 = cmp_eq %v_35, 1: Int
+    jmp b_37
   }
 
   b_31 {
-    jmp b_42
+    jmp b_37
   }
 
-  b_42 {
-    %v_49 = phi [b_41, 1], [b_48, 0], [b_31, 0]: Int
+  b_37 {
+    %v_38 = phi [b_32, %v_36], [b_31, 0]: Int
     call_complex Reclaim(String).reclaim, %v_22
-    %v_50 = add %v_22, 16: Ptr
-    call_complex Reclaim(String).reclaim, %v_50
-    je %v_49, b_51, b_52
+    %v_39 = add %v_22, 16: Ptr
+    call_complex Reclaim(String).reclaim, %v_39
+    je %v_38, b_40, b_41
   }
 
-  b_51 {
-    %v_53 = alloca 40, 8: Ptr
-    copy %v_53, @ResolveTest.literal$27, 16
-    %v_54 = add %v_53, 32: Ptr
-    store %v_54, 75, 4
-    %v_55 = add %v_53, 36: Ptr
-    store %v_55, 22, 4
-    %v_56 = add %v_53, 16: Ptr
-    copy %v_56, @ResolveTest.literal$29, 16
-    call_complex Reclaim(String).reclaim, %v_53
-    %v_57 = add %v_53, 16: Ptr
+  b_40 {
+    %v_42 = alloca 40, 8: Ptr
+    copy %v_42, @ResolveTest.literal$27, 16
+    %v_43 = add %v_42, 32: Ptr
+    store %v_43, 75, 4
+    %v_44 = add %v_42, 36: Ptr
+    store %v_44, 22, 4
+    %v_45 = add %v_42, 16: Ptr
+    copy %v_45, @ResolveTest.literal$29, 16
+    call_complex Reclaim(String).reclaim, %v_42
+    %v_46 = add %v_42, 16: Ptr
+    call_complex Reclaim(String).reclaim, %v_46
+    %v_47 = alloca 40, 8: Ptr
+    copy %v_47, @ResolveTest.literal$35, 16
+    %v_48 = add %v_47, 32: Ptr
+    store %v_48, 87, 4
+    %v_49 = add %v_47, 36: Ptr
+    store %v_49, 7, 4
+    %v_50 = add %v_47, 16: Ptr
+    copy %v_50, @ResolveTest.literal$37, 16
+    call_complex Reclaim(String).reclaim, %v_47
+    %v_51 = add %v_47, 16: Ptr
+    call_complex Reclaim(String).reclaim, %v_51
+    %v_52 = alloca 40, 8: Ptr
+    copy %v_52, @ResolveTest.literal$39, 16
+    %v_53 = add %v_52, 32: Ptr
+    store %v_53, 87, 4
+    %v_54 = add %v_52, 36: Ptr
+    store %v_54, 22, 4
+    %v_55 = add %v_52, 16: Ptr
+    copy %v_55, @ResolveTest.literal$41, 16
+    call_complex Reclaim(String).reclaim, %v_52
+    %v_56 = add %v_52, 16: Ptr
+    call_complex Reclaim(String).reclaim, %v_56
+    %v_57 = alloca 40, 8: Ptr
+    copy %v_57, @ResolveTest.literal$43, 16
+    %v_58 = add %v_57, 32: Ptr
+    store %v_58, %v_30, 4
+    %v_59 = add %v_57, 36: Ptr
+    store %v_59, 20, 4
+    %v_60 = add %v_57, 16: Ptr
+    copy %v_60, @ResolveTest.literal$45, 16
+    %v_61 = call_complex allocateHeap, 23: Ptr
+    %v_62 = alloca 16, 8: Ptr
+    store %v_62, %v_61, 8
+    %v_63 = add %v_62, 8: Ptr
+    %v_64 = load %v_63, 4: Int
+    store %v_63, 1073741847, 4
+    %v_65 = add %v_62, 12: Ptr
+    store %v_65, 0, 4
+    call_complex Show(Int).show, 42, %v_62
+    %v_66 = alloca 16, 8: Ptr
+    copy %v_66, @ResolveTest.literal$3, 16
+    %v_67 = load %v_66, 8: Ptr
+    call_complex String.appendUnits, %v_62, %v_67, 1
+    call_complex Show(Int).show, %v_30, %v_62
     call_complex Reclaim(String).reclaim, %v_57
-    %v_58 = alloca 40, 8: Ptr
-    copy %v_58, @ResolveTest.literal$35, 16
-    %v_59 = add %v_58, 32: Ptr
-    store %v_59, 87, 4
-    %v_60 = add %v_58, 36: Ptr
-    store %v_60, 7, 4
-    %v_61 = add %v_58, 16: Ptr
-    copy %v_61, @ResolveTest.literal$37, 16
-    call_complex Reclaim(String).reclaim, %v_58
-    %v_62 = add %v_58, 16: Ptr
-    call_complex Reclaim(String).reclaim, %v_62
-    %v_63 = alloca 40, 8: Ptr
-    copy %v_63, @ResolveTest.literal$39, 16
-    %v_64 = add %v_63, 32: Ptr
-    store %v_64, 87, 4
-    %v_65 = add %v_63, 36: Ptr
-    store %v_65, 22, 4
-    %v_66 = add %v_63, 16: Ptr
-    copy %v_66, @ResolveTest.literal$41, 16
-    call_complex Reclaim(String).reclaim, %v_63
-    %v_67 = add %v_63, 16: Ptr
-    call_complex Reclaim(String).reclaim, %v_67
-    %v_68 = alloca 40, 8: Ptr
-    copy %v_68, @ResolveTest.literal$43, 16
-    %v_69 = add %v_68, 32: Ptr
-    store %v_69, %v_30, 4
-    %v_70 = add %v_68, 36: Ptr
-    store %v_70, 20, 4
-    %v_71 = add %v_68, 16: Ptr
-    copy %v_71, @ResolveTest.literal$45, 16
-    %v_72 = call_complex allocateHeap, 23: Ptr
-    %v_73 = alloca 16, 8: Ptr
-    store %v_73, %v_72, 8
-    %v_74 = add %v_73, 8: Ptr
-    %v_75 = load %v_74, 4: Int
-    store %v_74, 1073741847, 4
-    %v_76 = add %v_73, 12: Ptr
-    store %v_76, 0, 4
-    call_complex Show(Int).show, 42, %v_73
-    %v_77 = alloca 16, 8: Ptr
-    copy %v_77, @ResolveTest.literal$3, 16
-    %v_78 = load %v_77, 8: Ptr
-    call_complex String.appendUnits, %v_73, %v_78, 1
-    call_complex Show(Int).show, %v_30, %v_73
+    %v_68 = add %v_57, 16: Ptr
     call_complex Reclaim(String).reclaim, %v_68
-    %v_79 = add %v_68, 16: Ptr
-    call_complex Reclaim(String).reclaim, %v_79
-    %v_80 = add %v_73, 12: Ptr
-    %v_81 = load %v_80, 4: Int
-    %v_82 = cmp_ile %v_81, 3: Int
-    je %v_82, b_83, b_84
+    %v_69 = add %v_62, 12: Ptr
+    %v_70 = load %v_69, 4: Int
+    %v_71 = cmp_ile %v_70, 3: Int
+    je %v_71, b_72, b_73
   }
 
-  b_84 {
-    %v_85 = load %v_73, 8: Ptr
-    %v_86 = load %v_85, 1: Int
-    %v_87 = cmp_neq %v_86, 52: Int
-    je %v_87, b_83, b_88
+  b_73 {
+    %v_74 = load %v_62, 8: Ptr
+    %v_75 = load %v_74, 1: Int
+    %v_76 = cmp_neq %v_75, 52: Int
+    je %v_76, b_72, b_77
   }
 
-  b_88 {
-    %v_89 = add %v_85, 2: Ptr
-    %v_90 = load %v_89, 1: Int
-    call_complex Reclaim(String).reclaim, %v_73
-    %v_91 = cmp_neq %v_90, 64: Int
-    %v_92 = select %v_91, 11, 0: Int
-    ret %v_92
+  b_77 {
+    %v_78 = add %v_74, 2: Ptr
+    %v_79 = load %v_78, 1: Int
+    call_complex Reclaim(String).reclaim, %v_62
+    %v_80 = cmp_neq %v_79, 64: Int
+    %v_81 = select %v_80, 11, 0: Int
+    ret %v_81
   }
 
-  b_83 {
-    %v_93 = phi [b_84, 10], [b_51, 9]: Int
-    call_complex Reclaim(String).reclaim, %v_73
-    ret %v_93
+  b_72 {
+    %v_82 = phi [b_73, 10], [b_40, 9]: Int
+    call_complex Reclaim(String).reclaim, %v_62
+    ret %v_82
   }
 
-  b_52 {
+  b_41 {
     ret 3
   }
 }

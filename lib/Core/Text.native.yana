@@ -213,40 +213,23 @@ pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(S
    ------------------------------------------------------------------------------------------
 
    Whether two equal-length windows hold the same units, which is what `startsWith`, `endsWith` and
-   the substring search all end in. Whole blocks under `all`, and the remainder under one compare of
-   the overreading loads - so a needle shorter than one vector is a single load, compare and
-   movemask rather than a walk.
+   the substring search all end in.
+
+   **The comparison itself is `Native.compareMemory`**, which is that walk with the element type
+   taken out of it - whole registers under `all` and the remainder under one compare of the
+   overreading loads, so a needle shorter than one vector is a single pair of loads, a compare and a
+   movemask rather than a walk. The count is the *left* window's length, which is what makes the
+   asymmetry at `startsWith` below correct.
 
    Both windows are inside runs the language allocated, so both tail reads are covered by
-   Design-Vector §5.2 the same way `vectors` is.
+   Design-Vector §5.2 the same way `vectors` is - which is the guarantee `compareMemory` asks its
+   callers for and is why it takes two addresses rather than two slices.
 
-   **The tail arm leaves the lanes past the end to disagree and tests the position instead**, which
-   is `compareAsciiCase`'s shape below and was measured there first. `firstSet` answers the *lowest*
-   differing lane, so a difference at or past `count` means every live lane agreed - and the answer
-   is a comparison of two `Size`s rather than a `maskUpTo`, which is `iota .< splat(n)` and so a
-   general register moved into a vector, a broadcast, a pooled `iota`, the bias an unsigned lane
-   comparison needs and the two exclusive-ors that apply it. Eight instructions and three pooled
-   constants replaced by one `cmp`.
-
-   That arm is the whole of `startsWith` at the length it is usually asked at: a sixteen-unit prefix
-   is one iteration of the block loop at v2 and *nothing but* this arm at v3, which is why the row
-   got slower at v3 while every other one got faster.
+   An `Ordering` where a `Bool` is wanted costs nothing: the equal answer is the path with no
+   differing lane on it, and the arm that names one is taken at most once per call.
 -}
-fn unitsEqual(left: Flat(CodeUnit), right: Flat(CodeUnit)) -> Bool:
-    let count = length(left)
-    let width = vectorBytes
-    let last = count - width
-    let &i = 0 :: Size
-
-    while i <= last:
-        if !all(loadVector(left, i) .== loadVector(right, i)) then return False
-        i = i + width
-
-    if i < count:
-        let differ = not(loadVectorTail(left, i) .== loadVectorTail(right, i))
-        if any(differ) && i + (firstSet(differ) :: Size) < count then return False
-
-    return True
+fn unitsEqual(left: Flat(CodeUnit), right: Flat(CodeUnit)) -> Bool =
+    compareMemory(left.items, right.items, length(left)) == EQ
 
 {-
    The length test first, which is what makes the comparison's bound safe as well as what makes the

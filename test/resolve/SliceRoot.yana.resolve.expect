@@ -1,3 +1,19 @@
+table closure$Core.continuation$6(Flat(Int), Int) before Core.continuation$6(Flat(Int), Int) {
+  .0 teardown$none
+}
+
+table closure$Core.continuation$7(Flat(Int), Int, ()) before Core.continuation$7(Flat(Int), Int, ()) {
+  .0 teardown$none
+}
+
+table closure$Core.continuation$12(Flat(Int), Int) before Core.continuation$12(Flat(Int), Int) {
+  .0 teardown$none
+}
+
+table closure$Core.continuation$10(Flat(Int), Int, ()) before Core.continuation$10(Flat(Int), Int, ()) {
+  .0 teardown$none
+}
+
 let image$base: () = <none>
 
 let &heapNext: %U8 = 0
@@ -7,58 +23,6 @@ let &heapLimit: %U8 = 0
 let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
-
-let ResolveTest.string$0: String = "green"
-
-let ResolveTest.literal$1: String = "green" {StringData(Array(Run(&ResolveTest.string$0, 5, 0), 5))}
-
-let ResolveTest.string$2: String = "red"
-
-let ResolveTest.literal$3: String = "red" {StringData(Array(Run(&ResolveTest.string$2, 3, 0), 3))}
-
-let ResolveTest.string$4: String = "green"
-
-let ResolveTest.literal$5: String = "green" {StringData(Array(Run(&ResolveTest.string$4, 5, 0), 5))}
-
-let ResolveTest.string$6: String = "blue"
-
-let ResolveTest.literal$7: String = "blue" {StringData(Array(Run(&ResolveTest.string$6, 4, 0), 4))}
-
-let ResolveTest.string$8: String = "abcd"
-
-let ResolveTest.literal$9: String = "abcd" {StringData(Array(Run(&ResolveTest.string$8, 4, 0), 4))}
-
-let ResolveTest.string$10: String = "ab"
-
-let ResolveTest.literal$11: String = "ab" {StringData(Array(Run(&ResolveTest.string$10, 2, 0), 2))}
-
-let ResolveTest.string$12: String = "cde"
-
-let ResolveTest.literal$13: String = "cde" {StringData(Array(Run(&ResolveTest.string$12, 3, 0), 3))}
-
-let ResolveTest.string$14: String = "green"
-
-let ResolveTest.literal$15: String = "green" {StringData(Array(Run(&ResolveTest.string$14, 5, 0), 5))}
-
-let ResolveTest.string$16: String = "red"
-
-let ResolveTest.literal$17: String = "red" {StringData(Array(Run(&ResolveTest.string$16, 3, 0), 3))}
-
-let ResolveTest.string$18: String = "red"
-
-let ResolveTest.literal$19: String = "red" {StringData(Array(Run(&ResolveTest.string$18, 3, 0), 3))}
-
-let ResolveTest.string$20: String = "green"
-
-let ResolveTest.literal$21: String = "green" {StringData(Array(Run(&ResolveTest.string$20, 5, 0), 5))}
-
-let ResolveTest.string$22: String = "blue"
-
-let ResolveTest.literal$23: String = "blue" {StringData(Array(Run(&ResolveTest.string$22, 4, 0), 4))}
-
-let ResolveTest.string$24: String = "mauve"
-
-let ResolveTest.literal$25: String = "mauve" {StringData(Array(Run(&ResolveTest.string$24, 5, 0), 5))}
 
 fn checkFailed() -> () {
   b0:
@@ -81,168 +45,53 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn String.reserve(%self: String, %wanted: Size) -> () {
+fn teardown$none(%value: %()) -> () {
   b0:
-    %v2 = load %self : String
-    %v3 = borrow_mut %self : &String
-    %v4 = cast %v3 : &StringData
-    %v5 = load [%v4] : StringData
-    %v6 = load [%v4]@StringData.bytes : Array(CodeUnit)
-    %v7 = load [%v4] : StringData
-    %v8 = load [%v4]@StringData.bytes : Array(CodeUnit)
-    %v9 = load [%v4]@StringData.bytes@Array.length : @bits(30) U32
-    %v10 = cast %v9 : Size
-    %v11 = add %v10, %wanted : Size
-    %v12 = borrow_mut [%v4]@StringData.bytes : &Array(CodeUnit)
-    call reserve(CodeUnit), %v12, %v11
     ret
 }
 
-fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
+fn newArray(Int)(%count: Size, %item: (i: Size) -> Int) -> Array(Int) {
   b0:
-    %v5 = cmp_le %count, 0 : Bool
-    je %v5, b1, b2
+    %v2 = alloc : Array(Int)
+    %v4 = alloc *0 heap escaping : Int
+    %v6 = addressof %local2 : %Int
+    init %out@Array.run@Run.items, %v6
+    init %out@Array.run@Run.capacity, 0
+    init %out@Array.run@Run.ownsHeap, 1
+    init %out@Array.length, 0
+    %v12 = load %out : Array(Int)
+    %v13 = borrow_mut %out : &Array(Int)
+    call reserve(Int), %v13, %count
+    %i = alloc : Size
+    init %i, 0
+    jmp b1
 
   b1:
-    ret
+    %v19 = load %i : Size
+    %v20 = cmp_lt %v19, %count : Bool
+    je %v20, b3, b2
 
   b2:
-    jmp b3
+    %v22 = load %out : Array(Int)
+    %v23 = move %out : Array(Int)
+    ret %v23
 
   b3:
-    %v9 = load %self : String
-    %v10 = borrow_mut %self : &String
-    call String.reserve, %v10, %count
-    %v12 = load %self : String
-    %v13 = borrow_mut %self : &String
-    %v14 = cast %v13 : &StringData
-    %v15 = load [%v14] : StringData
-    %v16 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v17 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
-    %v18 = cast %v17 : Size
-    %wanted = add %v18, %count : Size
-    %v20 = load [%v14] : StringData
-    %v21 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v22 = load [%v14]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v23 = load [%v14]@StringData.bytes@Array.run@Run.capacity : @bits(30) U32
-    %v24 = cast %v23 : Size
-    %v25 = cmp_lt %v24, %wanted : Bool
-    call checkCondition, %v25
-    %v27 = load [%v14] : StringData
-    %v28 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v29 = load [%v14]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v30 = load [%v14]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v31 = load [%v14] : StringData
-    %v32 = load [%v14]@StringData.bytes : Array(CodeUnit)
-    %v33 = load [%v14]@StringData.bytes@Array.length : @bits(30) U32
-    %v34 = cast %v33 : Size
-    %v35 = strideof CodeUnit : Size
-    %v36 = mul %v34, %v35 : Size
-    %v37 = add %v30, %v36 : %CodeUnit
-    %v38 = bitcast %v37 : %U8
-    %v39 = bitcast %from : %U8
-    %v40 = call byteSpan(CodeUnit), %from, %count : Size
-    call copyMemory, %v38, %v39, %v40
-    %v42 = cast %wanted : U32
-    %v44 = and %v42, 1073741823 : U32
-    %v45 = cast %v44 : @bits(30) U32
-    assign [%v14]@StringData.bytes@Array.length, %v45
-    ret
+    %v25 = load %out : Array(Int)
+    %v26 = load %i : Size
+    %v27 = calldyn %item, %v26 : Int
+    %v28 = borrow_mut %out : &Array(Int)
+    call push(Int), %v28, %v27
+    %v30 = load %i : Size
+    %v32 = add %v30, 1 : Size
+    assign %i, %v32
+    jmp b1
 }
 
-fn Ord(CodeUnit).compare(%lhs: CodeUnit, %rhs: CodeUnit) -> Ordering {
+fn reserve(Int)(%self: Array(Int), %wanted: Size) -> () {
   b0:
-    %v2 = cmp_eq %lhs, %rhs : Bool
-    je %v2, b1, b2
-
-  b1:
-    ret EQ
-
-  b2:
-    %v6 = cmp_gt %lhs, %rhs : Bool
-    je %v6, b3, b4
-
-  b3:
-    ret GT
-
-  b4:
-    ret LT
-}
-
-fn Length(String).length(%self: String) -> Size {
-  b0:
-    %v1 = borrow %self : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
-    %v6 = cast %units : Size
-    ret %v6
-}
-
-fn Append(String).++(%lhs: String, %rhs: String) -> String {
-  b0:
-    %rightLength = call Length(String).length, %rhs : Size
-    %lhs = move %lhs : String
-    %v4 = alloc : String
-    init %out, %lhs
-    %v6 = load %out : String
-    %v7 = borrow %rhs : 'String
-    %v8 = cast %v7 : 'StringData
-    %v9 = load [%v8]@StringData.bytes : Array(CodeUnit)
-    %v10 = load [%v8]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v11 = load [%v8]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v12 = borrow_mut %out : &String
-    call String.appendUnits, %v12, %v11, %rightLength
-    drop %rhs via Reclaim(String).reclaim
-    %v14 = load %out : String
-    %v15 = move %out : String
-    ret %v15
-}
-
-fn Eq(String).==(%self: String, %other: String) -> Bool {
-  b0:
-    %count = call Length(String).length, %self : Size
-    %v3 = call Length(String).length, %other : Size
-    %v4 = cmp_ne %count, %v3 : Bool
-    je %v4, b1, b2
-
-  b1:
-    ret False
-
-  b2:
-    jmp b3
-
-  b3:
-    %v9 = borrow %self : 'String
-    %v10 = cast %v9 : 'StringData
-    %v11 = load [%v10]@StringData.bytes : Array(CodeUnit)
-    %v12 = load [%v10]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v13 = load [%v10]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v14 = borrow %other : 'String
-    %v15 = cast %v14 : 'StringData
-    %v16 = load [%v15]@StringData.bytes : Array(CodeUnit)
-    %v17 = load [%v15]@StringData.bytes@Array.run : Run(CodeUnit)
-    %v18 = load [%v15]@StringData.bytes@Array.run@Run.items : %CodeUnit
-    %v19 = call compareMemory(CodeUnit), %v13, %v18, %count : Ordering
-    %v21 = cmp_eq %v19, EQ : Bool
-    ret %v21
-}
-
-fn Reclaim(String).reclaim(%value: String) -> () {
-  b0:
-    %v1 = borrow %value : 'String
-    %v2 = cast %v1 : 'StringData
-    %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
-    %v4 = load [%v2]@StringData.bytes@Array.run : Run(CodeUnit)
-    call releaseRun(CodeUnit), %v4
-    ret
-}
-
-fn reserve(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
-  b0:
-    %v2 = load %self : Array(CodeUnit)
-    %v3 = load %self@Array.run : Run(CodeUnit)
+    %v2 = load %self : Array(Int)
+    %v3 = load %self@Array.run : Run(Int)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %v5 = cast %v4 : Size
     %v6 = cmp_le %wanted, %v5 : Bool
@@ -255,16 +104,16 @@ fn reserve(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
     jmp b3
 
   b3:
-    %v10 = load %self : Array(CodeUnit)
-    %v11 = borrow_mut %self : &Array(CodeUnit)
-    call growArray(CodeUnit), %v11, %wanted
+    %v10 = load %self : Array(Int)
+    %v11 = borrow_mut %self : &Array(Int)
+    call growArray(Int), %v11, %wanted
     ret
 }
 
-fn growArray(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
+fn growArray(Int)(%self: Array(Int), %wanted: Size) -> () {
   b0:
-    %v2 = load %self : Array(CodeUnit)
-    %v3 = load %self@Array.run : Run(CodeUnit)
+    %v2 = load %self : Array(Int)
+    %v3 = load %self@Array.run : Run(Int)
     %v4 = load %self@Array.run@Run.capacity : @bits(30) U32
     %room = cast %v4 : Size
     %v6 = add %room, %room : Size
@@ -294,12 +143,511 @@ fn growArray(CodeUnit)(%self: Array(CodeUnit), %wanted: Size) -> () {
     jmp b6
 
   b6:
-    %v23 = load %self : Array(CodeUnit)
-    %v24 = load %self@Array.run : Run(CodeUnit)
+    %v23 = load %self : Array(Int)
+    %v24 = load %self@Array.run : Run(Int)
     %v25 = load %wide : Size
-    %v26 = borrow_mut %self@Array.run : &Run(CodeUnit)
-    %v27 = call resize(CodeUnit), %v26, %v25 : Bool
+    %v26 = borrow_mut %self@Array.run : &Run(Int)
+    %v27 = call resize(Int), %v26, %v25 : Bool
     ret
+}
+
+fn push(Int)(%self: Array(Int), %item: Int) -> () {
+  b0:
+    %v2 = load %self : Array(Int)
+    %v3 = load %self@Array.length : @bits(30) U32
+    %count = cast %v3 : Size
+    %v5 = load %self : Array(Int)
+    %v7 = add %count, 1 : Size
+    %v8 = borrow_mut %self : &Array(Int)
+    call reserve(Int), %v8, %v7
+    %v10 = load %self : Array(Int)
+    %v11 = load %self@Array.run : Run(Int)
+    %v12 = load %self@Array.run@Run.capacity : @bits(30) U32
+    %v13 = cast %v12 : Size
+    %v14 = cmp_ge %count, %v13 : Bool
+    call checkCondition, %v14
+    %v16 = load %self : Array(Int)
+    %v17 = load %self@Array.run : Run(Int)
+    %v18 = load %self@Array.run@Run.items : %Int
+    %v19 = strideof Int : Size
+    %v20 = mul %count, %v19 : Size
+    %v21 = add %v18, %v20 : %Int
+    assign [%v21], %item
+    %v24 = add %count, 1 : Size
+    %v25 = cast %v24 : U32
+    %v27 = and %v25, 1073741823 : U32
+    %v28 = cast %v27 : @bits(30) U32
+    assign %self@Array.length, %v28
+    ret
+}
+
+fn Contiguous(Array(a), a).elements(Int)(%self: Array(Int)) -> Flat(Int) {
+  b0:
+    %v1 = load %self@Array.length : @bits(30) U32
+    %v2 = cast %v1 : Size
+    %v3 = borrow %self : 'Array(Int)
+    %self = alloc : Flat(Int)
+    %v5 = load [%v3]@Array.run@Run.items : %Int
+    init %self@Flat.items, %v5
+    %v7 = load [%v3]@Array.length : @bits(30) U32
+    %v8 = cast %v7 : Size
+    init %self@Flat.length, %v8
+    %v11 = borrow %self : 'Flat(Int)
+    %v12 = call unclampedSlice(Int), %v11, 0, %v2 : Flat(Int)
+    ret %v12
+}
+
+fn unclampedSlice(Int)(%self: Flat(Int), %from: Size, %count: Size) -> Flat(Int) {
+  b0:
+    %v3 = alloc : Flat(Int)
+    %v4 = load %self@Flat.items : %Int
+    %v5 = strideof Int : Size
+    %v6 = mul %from, %v5 : Size
+    %v7 = add %v4, %v6 : %Int
+    aggregate %local1@Flat.items = %v7, %local1@Flat.length = %count
+    ret %v3
+}
+
+fn slice(Int)(%self: Flat(Int), %from: Size, %to: Size) -> Flat(Int) {
+  b0:
+    %start = alloc : Size
+    init %start, %from
+    %v5 = load %start : Size
+    %v7 = cmp_lt %v5, 0 : Bool
+    je %v7, b1, b2
+
+  b1:
+    assign %start, 0
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v13 = load %start : Size
+    %v14 = load %self@Flat.length : Size
+    %v15 = cmp_gt %v13, %v14 : Bool
+    je %v15, b4, b5
+
+  b4:
+    %v17 = load %self@Flat.length : Size
+    assign %start, %v17
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %end = alloc : Size
+    init %end, %to
+    %v23 = load %end : Size
+    %v24 = load %start : Size
+    %v25 = cmp_lt %v23, %v24 : Bool
+    je %v25, b7, b8
+
+  b7:
+    %v27 = load %start : Size
+    assign %end, %v27
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v31 = load %end : Size
+    %v32 = load %self@Flat.length : Size
+    %v33 = cmp_gt %v31, %v32 : Bool
+    je %v33, b10, b11
+
+  b10:
+    %v35 = load %self@Flat.length : Size
+    assign %end, %v35
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v39 = alloc : Flat(Int)
+    %v40 = load %self@Flat.items : %Int
+    %v41 = load %start : Size
+    %v42 = strideof Int : Size
+    %v43 = mul %v41, %v42 : Size
+    %v44 = add %v40, %v43 : %Int
+    %v45 = load %end : Size
+    %v46 = load %start : Size
+    %v47 = sub %v45, %v46 : Size
+    aggregate %local3@Flat.items = %v44, %local3@Flat.length = %v47
+    ret %v39
+}
+
+fn sumVectors(Flat(Int), Int)(%xs: Flat(Int)) -> Int {
+  b0:
+    %v2 = vsplat 0 : Vec(Int)
+    %acc = alloc : Vec(Int)
+    init %acc, %v2
+    %v5 = alloc : {acc: &Vec(Int)}
+    %v6 = borrow_mut %acc : &Vec(Int)
+    init %local2.acc, %v6
+    %v8 = addressof %local2 : %()
+    %v9 = alloc : (value$: Vec(Int)) -> Outcome((), ())
+    %v10 = symbol Core.continuation$6(Flat(Int), Int) : %()
+    init %local3.code, %v10
+    init %local3.env, %v8
+    %v13 = call vectors(Flat(Int), Int, ()), %xs, %v9 : Outcome((), ())
+    %v14 = load %acc : Vec(Int)
+    %v15 = vreduce_add %v14 : Int
+    ret %v15
+}
+
+fn Core.continuation$6(Flat(Int), Int)(%env: %{acc: &Vec(Int)}, %value$: Vec(Int)) -> Outcome((), ()) {
+  b0:
+    %v2 = load [%env].acc : &Vec(Int)
+    %v3 = load [%env].acc : &Vec(Int)
+    %v4 = load [%v3] : Vec(Int)
+    %v5 = add %v4, %value$ : Vec(Int)
+    assign [%v2], %v5
+    %v7 = alloc : Outcome((), ())
+    init %local0.discriminant, 0
+    ret %v7
+}
+
+fn vectors(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: Vec(Int)) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %empty = vsplat 0 : Vec(Int)
+    %width = cast 4 : Size
+    %v6 = alloc : {width: Size, body: '(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}
+    init %local2.width, %width
+    %v8 = borrow %body : '(value$: Vec(Int)) -> Outcome((), ())
+    init %local2.body, %v8
+    init %local2.empty, %empty
+    %v11 = addressof %local2 : %()
+    %v12 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
+    %v13 = symbol Core.continuation$7(Flat(Int), Int, ()) : %()
+    init %local3.code, %v13
+    init %local3.env, %v11
+    %v16 = call Chunked(Flat(a), a).chunks(Int, Outcome((), ())), %self, %v12 : Outcome((), Outcome((), ()))
+    %v17 = load %local4.discriminant : Int
+    %v19 = cmp_eq %v17, 1 : Bool
+    je %v19, b1, b2
+
+  b1:
+    %v21 = move %local4@Exit : Outcome((), ())
+    ret %v21
+
+  b2:
+    %v23 = alloc : Outcome((), ())
+    init %local5.discriminant, 0
+    ret %v23
+}
+
+fn Core.continuation$7(Flat(Int), Int, ())(%env: %{width: Size, body: '(value$: Vec(Int)) -> Outcome((), ()), empty: Vec(Int)}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v2 = load %value$@Flat.length : Size
+    %v3 = load [%env].width : Size
+    %last = sub %v2, %v3 : Size
+    %i = alloc : Size
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : Size
+    %v10 = cmp_le %v9, %last : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v12 = load %i : Size
+    %v13 = cmp_lt %v12, %v2 : Bool
+    je %v13, b6, b7
+
+  b3:
+    %v15 = load [%env].body : '(value$: Vec(Int)) -> Outcome((), ())
+    %v16 = load [%v15] : (value$: Vec(Int)) -> Outcome((), ())
+    %v17 = load %i : Size
+    %v18 = call loadVector(Int), %value$, %v17 : Vec(Int)
+    %v19 = calldyn %v16, %v18 : Outcome((), ())
+    %v20 = load %local2.discriminant : Int
+    %v22 = cmp_eq %v20, 1 : Bool
+    je %v22, b4, b5
+
+  b4:
+    %v24 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local5.discriminant = 1, %local5@Exit = %v19
+    ret %v24
+
+  b5:
+    %v28 = load %i : Size
+    %v29 = load [%env].width : Size
+    %v30 = add %v28, %v29 : Size
+    assign %i, %v30
+    jmp b1
+
+  b6:
+    %v33 = load %i : Size
+    %v34 = sub %v2, %v33 : Size
+    %v35 = cast %v34 : Int
+    %v37 = vsplat 0 : Vec(Int)
+    %v39 = vwithlane %v37, 1, 1 : Vec(Int)
+    %v41 = vwithlane %v39, 2, 2 : Vec(Int)
+    %v43 = vwithlane %v41, 3, 3 : Vec(Int)
+    %v44 = cast %v35 : Int
+    %v45 = vsplat %v44 : Vec(Int)
+    %live = cmp_lt %v43, %v45 : Mask(Int)
+    %v47 = load [%env].body : '(value$: Vec(Int)) -> Outcome((), ())
+    %v48 = load [%v47] : (value$: Vec(Int)) -> Outcome((), ())
+    %v49 = load %i : Size
+    %v50 = call loadVectorTail(Int), %value$, %v49 : Vec(Int)
+    %v51 = load [%env].empty : Vec(Int)
+    %v52 = select %live ? %v50 : %v51 : Vec(Int)
+    %v53 = calldyn %v48, %v52 : Outcome((), ())
+    %v54 = load %local3.discriminant : Int
+    %v56 = cmp_eq %v54, 1 : Bool
+    je %v56, b8, b9
+
+  b7:
+    jmp b10
+
+  b8:
+    %v59 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local6.discriminant = 1, %local6@Exit = %v53
+    ret %v59
+
+  b9:
+    jmp b10
+
+  b10:
+    %v64 = alloc : Outcome((), Outcome((), ()))
+    init %local4.discriminant, 0
+    ret %v64
+}
+
+fn loadVector(Int)(%from: Flat(Int), %at: Size) -> Vec(Int) {
+  b0:
+    %v2 = load %from@Flat.items : %Int
+    %v3 = strideof Int : Size
+    %v4 = mul %at, %v3 : Size
+    %v5 = add %v2, %v4 : %Int
+    %v6 = bitcast %v5 : %Vec(Int)
+    %v7 = load [%v6] : Vec(Int)
+    ret %v7
+}
+
+fn loadVectorTail(Int)(%from: Flat(Int), %at: Size) -> Vec(Int) {
+  b0:
+    %v2 = load %from@Flat.items : %Int
+    %v3 = strideof Int : Size
+    %v4 = mul %at, %v3 : Size
+    %v5 = add %v2, %v4 : %Int
+    %v6 = bitcast %v5 : %Vec(Int)
+    %v7 = loadx [%v6] : Vec(Int)
+    ret %v7
+}
+
+fn Chunked(Flat(a), a).chunks(Int, Outcome((), ()))(%self: Flat(Int), %body: (value$: Flat(Int)) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v2 = borrow %self : 'Flat(Int)
+    %v3 = call Contiguous(Flat(a), a).elements(Int), %v2 : Flat(Int)
+    %v4 = calldyn %body, %v3 : Outcome((), Outcome((), ()))
+    %v5 = load %local3.discriminant : Int
+    %v7 = cmp_eq %v5, 1 : Bool
+    je %v7, b1, b2
+
+  b1:
+    ret %v4
+
+  b2:
+    %v10 = alloc : Outcome((), Outcome((), ()))
+    init %local4.discriminant, 0
+    ret %v10
+}
+
+fn Contiguous(Flat(a), a).elements(Int)(%self: Flat(Int)) -> Flat(Int) {
+  b0:
+    ret %self
+}
+
+fn maximumVectors(Flat(Int), Int)(%xs: Flat(Int), %ifEmpty: Int) -> Int {
+  b0:
+    %v2 = vsplat %ifEmpty : Vec(Int)
+    %acc = alloc : Vec(Int)
+    init %acc, %v2
+    %v5 = alloc : {acc: &Vec(Int)}
+    %v6 = borrow_mut %acc : &Vec(Int)
+    init %local3.acc, %v6
+    %v8 = addressof %local3 : %()
+    %v9 = alloc : (value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v10 = symbol Core.continuation$12(Flat(Int), Int) : %()
+    init %local4.code, %v10
+    init %local4.env, %v8
+    %v13 = call vectorsMasked(Flat(Int), Int, ()), %xs, %v9 : Outcome((), ())
+    %v14 = load %acc : Vec(Int)
+    %v15 = vreduce_max %v14 : Int
+    ret %v15
+}
+
+fn Core.continuation$12(Flat(Int), Int)(%env: %{acc: &Vec(Int)}, %value$: {Vec(Int), Int}) -> Outcome((), ()) {
+  b0:
+    %v = load %value$.0 : Vec(Int)
+    %live = load %value$.1 : Int
+    %v4 = load [%env].acc : &Vec(Int)
+    %v5 = load [%env].acc : &Vec(Int)
+    %v6 = load [%v5] : Vec(Int)
+    %v8 = vsplat 0 : Vec(Int)
+    %v10 = vwithlane %v8, 1, 1 : Vec(Int)
+    %v12 = vwithlane %v10, 2, 2 : Vec(Int)
+    %v14 = vwithlane %v12, 3, 3 : Vec(Int)
+    %v15 = cast %live : Int
+    %v16 = vsplat %v15 : Vec(Int)
+    %v17 = cmp_lt %v14, %v16 : Mask(Int)
+    %v18 = load [%env].acc : &Vec(Int)
+    %v19 = load [%v18] : Vec(Int)
+    %v20 = select %v17 ? %v : %v19 : Vec(Int)
+    %v21 = cmp_gt %v6, %v20 : Mask(Int)
+    %v22 = select %v21 ? %v6 : %v20 : Vec(Int)
+    assign [%v4], %v22
+    %v24 = alloc : Outcome((), ())
+    init %local1.discriminant, 0
+    ret %v24
+}
+
+fn vectorsMasked(Flat(Int), Int, ())(%self: Flat(Int), %body: (value$: {Vec(Int), Int}) -> Outcome((), ())) -> Outcome((), ()) {
+  b0:
+    %v3 = vsplat 0 : Vec(Int)
+    %width = cast 4 : Size
+    %v6 = alloc : {width: Size, body: '(value$: {Vec(Int), Int}) -> Outcome((), ())}
+    init %local2.width, %width
+    %v8 = borrow %body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
+    init %local2.body, %v8
+    %v10 = addressof %local2 : %()
+    %v11 = alloc : (value$: Flat(Int)) -> Outcome((), Outcome((), ()))
+    %v12 = symbol Core.continuation$10(Flat(Int), Int, ()) : %()
+    init %local3.code, %v12
+    init %local3.env, %v10
+    %v15 = call Chunked(Flat(a), a).chunks(Int, Outcome((), ())), %self, %v11 : Outcome((), Outcome((), ()))
+    %v16 = load %local4.discriminant : Int
+    %v18 = cmp_eq %v16, 1 : Bool
+    je %v18, b1, b2
+
+  b1:
+    %v20 = move %local4@Exit : Outcome((), ())
+    ret %v20
+
+  b2:
+    %v22 = alloc : Outcome((), ())
+    init %local5.discriminant, 0
+    ret %v22
+}
+
+fn Core.continuation$10(Flat(Int), Int, ())(%env: %{width: Size, body: '(value$: {Vec(Int), Int}) -> Outcome((), ())}, %value$: Flat(Int)) -> Outcome((), Outcome((), ())) {
+  b0:
+    %v2 = load %value$@Flat.length : Size
+    %v3 = load [%env].width : Size
+    %last = sub %v2, %v3 : Size
+    %i = alloc : Size
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v9 = load %i : Size
+    %v10 = cmp_le %v9, %last : Bool
+    je %v10, b3, b2
+
+  b2:
+    %v12 = load %i : Size
+    %v13 = cmp_lt %v12, %v2 : Bool
+    je %v13, b6, b7
+
+  b3:
+    %v15 = load [%env].body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v16 = load [%v15] : (value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v17 = alloc : {Vec(Int), Int}
+    %v18 = load %i : Size
+    %v19 = call loadVector(Int), %value$, %v18 : Vec(Int)
+    %v20 = load [%env].width : Size
+    %v21 = cast %v20 : Int
+    aggregate %local2.0 = %v19, %local2.1 = %v21
+    %v23 = calldyn %v16, %v17 : Outcome((), ())
+    %v24 = load %local3.discriminant : Int
+    %v26 = cmp_eq %v24, 1 : Bool
+    je %v26, b4, b5
+
+  b4:
+    %v28 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local7.discriminant = 1, %local7@Exit = %v23
+    ret %v28
+
+  b5:
+    %v32 = load %i : Size
+    %v33 = load [%env].width : Size
+    %v34 = add %v32, %v33 : Size
+    assign %i, %v34
+    jmp b1
+
+  b6:
+    %v37 = load [%env].body : '(value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v38 = load [%v37] : (value$: {Vec(Int), Int}) -> Outcome((), ())
+    %v39 = alloc : {Vec(Int), Int}
+    %v40 = load %i : Size
+    %v41 = call loadVectorTail(Int), %value$, %v40 : Vec(Int)
+    %v42 = load %i : Size
+    %v43 = sub %v2, %v42 : Size
+    %v44 = cast %v43 : Int
+    aggregate %local4.0 = %v41, %local4.1 = %v44
+    %v46 = calldyn %v38, %v39 : Outcome((), ())
+    %v47 = load %local5.discriminant : Int
+    %v49 = cmp_eq %v47, 1 : Bool
+    je %v49, b8, b9
+
+  b7:
+    jmp b10
+
+  b8:
+    %v52 = alloc : Outcome((), Outcome((), ()))
+    aggregate %local8.discriminant = 1, %local8@Exit = %v46
+    ret %v52
+
+  b9:
+    jmp b10
+
+  b10:
+    %v57 = alloc : Outcome((), Outcome((), ()))
+    init %local6.discriminant, 0
+    ret %v57
+}
+
+fn Reclaim(Array(a)).reclaim(Int)(%value: Array(Int)) -> () {
+  b0:
+    %v1 = load %value@Array.length : @bits(30) U32
+    %count = cast %v1 : Int
+    %i = alloc : Int
+    init %i, 0
+    jmp b1
+
+  b1:
+    %v7 = load %i : Int
+    %v8 = cmp_lt %v7, %count : Bool
+    je %v8, b3, b2
+
+  b2:
+    %v10 = load %value@Array.run : Run(Int)
+    call releaseRun(Int), %v10
+    ret
+
+  b3:
+    %v13 = load %value@Array.run : Run(Int)
+    %v14 = load %value@Array.run@Run.items : %Int
+    %v15 = load %i : Int
+    %v16 = cast %v15 : Size
+    %v17 = strideof Int : Size
+    %v18 = mul %v16, %v17 : Size
+    %v19 = add %v14, %v18 : %Int
+    %v20 = load [%v19] : Int
+    %doomed = alloc : Int
+    init %local3, %v20
+    %v23 = load %i : Int
+    %v25 = add %v23, 1 : Int
+    assign %i, %v25
+    jmp b1
 }
 
 fn numberOf(%call: Syscall) -> USize {
@@ -1127,9 +1475,9 @@ fn abortProcess() -> () {
     ret
 }
 
-fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
+fn resize(Int)(%self: Run(Int), %wanted: Size) -> Bool {
   b0:
-    %v2 = load %self : Run(CodeUnit)
+    %v2 = load %self : Run(Int)
     %v3 = load %self@Run.capacity : @bits(30) U32
     %room = cast %v3 : Size
     %v5 = cmp_le %wanted, %room : Bool
@@ -1142,7 +1490,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     jmp b3
 
   b3:
-    %v10 = load %self : Run(CodeUnit)
+    %v10 = load %self : Run(Int)
     %v11 = load %self@Run.ownsHeap : @bits(2) U32
     %v12 = cast %v11 : U32
     %v14 = cast 2 : U32
@@ -1166,11 +1514,11 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     jmp b9
 
   b9:
-    %v26 = load %self : Run(CodeUnit)
-    %v27 = load %self@Run.items : %CodeUnit
-    %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
+    %v26 = load %self : Run(Int)
+    %v27 = load %self@Run.items : %Int
+    %v28 = call byteSpan(Int), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
-    %fresh = bitcast %v29 : %CodeUnit
+    %fresh = bitcast %v29 : %Int
     %v31 = bitcast %fresh : Long
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
@@ -1187,12 +1535,12 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
 
   b13:
     %v41 = bitcast %fresh : %U8
-    %v42 = load %self : Run(CodeUnit)
-    %v43 = load %self@Run.items : %CodeUnit
+    %v42 = load %self : Run(Int)
+    %v43 = load %self@Run.items : %Int
     %v44 = bitcast %v43 : %U8
-    %v45 = load %self : Run(CodeUnit)
-    %v46 = load %self@Run.items : %CodeUnit
-    %v47 = call byteSpan(CodeUnit), %v46, %room : Size
+    %v45 = load %self : Run(Int)
+    %v46 = load %self@Run.items : %Int
+    %v47 = call byteSpan(Int), %v46, %room : Size
     call copyMemory, %v41, %v44, %v47
     jmp b15
 
@@ -1200,7 +1548,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     jmp b15
 
   b15:
-    %v51 = load %self : Run(CodeUnit)
+    %v51 = load %self : Run(Int)
     %v52 = load %self@Run.ownsHeap : @bits(2) U32
     %v53 = cast %v52 : U32
     %v55 = cast 1 : U32
@@ -1208,8 +1556,8 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     je %v56, b16, b17
 
   b16:
-    %v58 = load %self : Run(CodeUnit)
-    %v59 = load %self@Run.items : %CodeUnit
+    %v58 = load %self : Run(Int)
+    %v59 = load %self@Run.items : %Int
     %v60 = bitcast %v59 : %U8
     call freeHeap, %v60
     jmp b18
@@ -1227,12 +1575,12 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     ret True
 }
 
-fn byteSpan(CodeUnit)(%from: %CodeUnit, %count: Size) -> Size {
+fn byteSpan(Int)(%from: %Int, %count: Size) -> Size {
   b0:
     %v2 = bitcast %from : %U8
-    %v3 = strideof CodeUnit : Size
+    %v3 = strideof Int : Size
     %v4 = mul %count, %v3 : Size
-    %v5 = add %from, %v4 : %CodeUnit
+    %v5 = add %from, %v4 : %Int
     %v6 = bitcast %v5 : %U8
     %v7 = sub %v6, %v2 : Size
     %v8 = strideof U8 : Size
@@ -1240,246 +1588,7 @@ fn byteSpan(CodeUnit)(%from: %CodeUnit, %count: Size) -> Size {
     ret %v9
 }
 
-fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) -> Ordering {
-  b0:
-    %v4 = vsplat 0 : Vec(CodeUnit)
-    %width = cast 16 : Size
-    %stride = mul %width, 4 : Size
-    %block = sub %count, %stride : Size
-    %last = sub %count, %width : Size
-    %at = alloc : Size
-    init %at, 0
-    jmp b1
-
-  b1:
-    %v15 = load %at : Size
-    %v16 = cmp_le %v15, %block : Bool
-    je %v16, b3, b2
-
-  b2:
-    jmp b7
-
-  b3:
-    %v19 = load %at : Size
-    %v20 = strideof CodeUnit : Size
-    %v21 = mul %v19, %v20 : Size
-    %v22 = add %left, %v21 : %CodeUnit
-    %v23 = bitcast %v22 : %Vec(CodeUnit)
-    %v24 = load [%v23] : Vec(CodeUnit)
-    %v25 = load %at : Size
-    %v26 = strideof CodeUnit : Size
-    %v27 = mul %v25, %v26 : Size
-    %v28 = add %right, %v27 : %CodeUnit
-    %v29 = bitcast %v28 : %Vec(CodeUnit)
-    %v30 = load [%v29] : Vec(CodeUnit)
-    %first = cmp_eq %v24, %v30 : Mask(CodeUnit)
-    %v32 = load %at : Size
-    %v33 = strideof CodeUnit : Size
-    %v34 = mul %v32, %v33 : Size
-    %v35 = add %left, %v34 : %CodeUnit
-    %v36 = strideof CodeUnit : Size
-    %v37 = mul %width, %v36 : Size
-    %v38 = add %v35, %v37 : %CodeUnit
-    %v39 = bitcast %v38 : %Vec(CodeUnit)
-    %v40 = load [%v39] : Vec(CodeUnit)
-    %v41 = load %at : Size
-    %v42 = strideof CodeUnit : Size
-    %v43 = mul %v41, %v42 : Size
-    %v44 = add %right, %v43 : %CodeUnit
-    %v45 = strideof CodeUnit : Size
-    %v46 = mul %width, %v45 : Size
-    %v47 = add %v44, %v46 : %CodeUnit
-    %v48 = bitcast %v47 : %Vec(CodeUnit)
-    %v49 = load [%v48] : Vec(CodeUnit)
-    %second = cmp_eq %v40, %v49 : Mask(CodeUnit)
-    %v51 = load %at : Size
-    %v52 = strideof CodeUnit : Size
-    %v53 = mul %v51, %v52 : Size
-    %v54 = add %left, %v53 : %CodeUnit
-    %v55 = strideof CodeUnit : Size
-    %v56 = mul %width, %v55 : Size
-    %v57 = add %v54, %v56 : %CodeUnit
-    %v58 = strideof CodeUnit : Size
-    %v59 = mul %width, %v58 : Size
-    %v60 = add %v57, %v59 : %CodeUnit
-    %v61 = bitcast %v60 : %Vec(CodeUnit)
-    %v62 = load [%v61] : Vec(CodeUnit)
-    %v63 = load %at : Size
-    %v64 = strideof CodeUnit : Size
-    %v65 = mul %v63, %v64 : Size
-    %v66 = add %right, %v65 : %CodeUnit
-    %v67 = strideof CodeUnit : Size
-    %v68 = mul %width, %v67 : Size
-    %v69 = add %v66, %v68 : %CodeUnit
-    %v70 = strideof CodeUnit : Size
-    %v71 = mul %width, %v70 : Size
-    %v72 = add %v69, %v71 : %CodeUnit
-    %v73 = bitcast %v72 : %Vec(CodeUnit)
-    %v74 = load [%v73] : Vec(CodeUnit)
-    %third = cmp_eq %v62, %v74 : Mask(CodeUnit)
-    %v76 = load %at : Size
-    %v77 = strideof CodeUnit : Size
-    %v78 = mul %v76, %v77 : Size
-    %v79 = add %left, %v78 : %CodeUnit
-    %v80 = strideof CodeUnit : Size
-    %v81 = mul %width, %v80 : Size
-    %v82 = add %v79, %v81 : %CodeUnit
-    %v83 = strideof CodeUnit : Size
-    %v84 = mul %width, %v83 : Size
-    %v85 = add %v82, %v84 : %CodeUnit
-    %v86 = strideof CodeUnit : Size
-    %v87 = mul %width, %v86 : Size
-    %v88 = add %v85, %v87 : %CodeUnit
-    %v89 = bitcast %v88 : %Vec(CodeUnit)
-    %v90 = load [%v89] : Vec(CodeUnit)
-    %v91 = load %at : Size
-    %v92 = strideof CodeUnit : Size
-    %v93 = mul %v91, %v92 : Size
-    %v94 = add %right, %v93 : %CodeUnit
-    %v95 = strideof CodeUnit : Size
-    %v96 = mul %width, %v95 : Size
-    %v97 = add %v94, %v96 : %CodeUnit
-    %v98 = strideof CodeUnit : Size
-    %v99 = mul %width, %v98 : Size
-    %v100 = add %v97, %v99 : %CodeUnit
-    %v101 = strideof CodeUnit : Size
-    %v102 = mul %width, %v101 : Size
-    %v103 = add %v100, %v102 : %CodeUnit
-    %v104 = bitcast %v103 : %Vec(CodeUnit)
-    %v105 = load [%v104] : Vec(CodeUnit)
-    %fourth = cmp_eq %v90, %v105 : Mask(CodeUnit)
-    %v107 = and %first, %second : Mask(CodeUnit)
-    %v108 = and %third, %fourth : Mask(CodeUnit)
-    %v109 = and %v107, %v108 : Mask(CodeUnit)
-    %v110 = vreduce_and %v109 : Bool
-    %v112 = xor %v110, True : Bool
-    je %v112, b4, b5
-
-  b4:
-    jmp b2
-
-  b5:
-    jmp b6
-
-  b6:
-    %v116 = load %at : Size
-    %v117 = add %v116, %stride : Size
-    assign %at, %v117
-    jmp b1
-
-  b7:
-    %v120 = load %at : Size
-    %v121 = cmp_le %v120, %last : Bool
-    je %v121, b9, b8
-
-  b8:
-    %v123 = load %at : Size
-    %v124 = cmp_lt %v123, %count : Bool
-    je %v124, b13, b14
-
-  b9:
-    %v126 = load %at : Size
-    %v127 = strideof CodeUnit : Size
-    %v128 = mul %v126, %v127 : Size
-    %v129 = add %left, %v128 : %CodeUnit
-    %v130 = bitcast %v129 : %Vec(CodeUnit)
-    %v131 = load [%v130] : Vec(CodeUnit)
-    %v132 = load %at : Size
-    %v133 = strideof CodeUnit : Size
-    %v134 = mul %v132, %v133 : Size
-    %v135 = add %right, %v134 : %CodeUnit
-    %v136 = bitcast %v135 : %Vec(CodeUnit)
-    %v137 = load [%v136] : Vec(CodeUnit)
-    %same = cmp_eq %v131, %v137 : Mask(CodeUnit)
-    %v139 = vreduce_and %same : Bool
-    %v141 = xor %v139, True : Bool
-    je %v141, b10, b11
-
-  b10:
-    %v143 = load %at : Size
-    %v144 = not %same : Mask(CodeUnit)
-    %v145 = vreduce_first %v144 : Int
-    %v146 = cast %v145 : Size
-    %differs = add %v143, %v146 : Size
-    %v148 = strideof CodeUnit : Size
-    %v149 = mul %differs, %v148 : Size
-    %v150 = add %left, %v149 : %CodeUnit
-    %v151 = load [%v150] : CodeUnit
-    %v152 = strideof CodeUnit : Size
-    %v153 = mul %differs, %v152 : Size
-    %v154 = add %right, %v153 : %CodeUnit
-    %v155 = load [%v154] : CodeUnit
-    %v156 = call Ord(CodeUnit).compare, %v151, %v155 : Ordering
-    ret %v156
-
-  b11:
-    jmp b12
-
-  b12:
-    %v159 = load %at : Size
-    %v160 = add %v159, %width : Size
-    assign %at, %v160
-    jmp b7
-
-  b13:
-    %v163 = load %at : Size
-    %v164 = strideof CodeUnit : Size
-    %v165 = mul %v163, %v164 : Size
-    %v166 = add %left, %v165 : %CodeUnit
-    %v167 = bitcast %v166 : %Vec(CodeUnit)
-    %v168 = loadx [%v167] : Vec(CodeUnit)
-    %v169 = load %at : Size
-    %v170 = strideof CodeUnit : Size
-    %v171 = mul %v169, %v170 : Size
-    %v172 = add %right, %v171 : %CodeUnit
-    %v173 = bitcast %v172 : %Vec(CodeUnit)
-    %v174 = loadx [%v173] : Vec(CodeUnit)
-    %same = cmp_eq %v168, %v174 : Mask(CodeUnit)
-    %v176 = vreduce_and %same : Bool
-    %v178 = xor %v176, True : Bool
-    je %v178, b15, b16
-
-  b14:
-    jmp b21
-
-  b15:
-    %v181 = load %at : Size
-    %v182 = not %same : Mask(CodeUnit)
-    %v183 = vreduce_first %v182 : Int
-    %v184 = cast %v183 : Size
-    %differs = add %v181, %v184 : Size
-    %v186 = cmp_lt %differs, %count : Bool
-    je %v186, b17, b18
-
-  b16:
-    jmp b20
-
-  b17:
-    %v189 = strideof CodeUnit : Size
-    %v190 = mul %differs, %v189 : Size
-    %v191 = add %left, %v190 : %CodeUnit
-    %v192 = load [%v191] : CodeUnit
-    %v193 = strideof CodeUnit : Size
-    %v194 = mul %differs, %v193 : Size
-    %v195 = add %right, %v194 : %CodeUnit
-    %v196 = load [%v195] : CodeUnit
-    %v197 = call Ord(CodeUnit).compare, %v192, %v196 : Ordering
-    ret %v197
-
-  b18:
-    jmp b19
-
-  b19:
-    jmp b20
-
-  b20:
-    jmp b21
-
-  b21:
-    ret EQ
-}
-
-fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
+fn releaseRun(Int)(%self: Run(Int)) -> () {
   b0:
     %v1 = load %self@Run.ownsHeap : @bits(2) U32
     %v2 = cast %v1 : U32
@@ -1488,7 +1597,7 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
     je %v5, b1, b2
 
   b1:
-    %v7 = load %self@Run.items : %CodeUnit
+    %v7 = load %self@Run.items : %Int
     %v8 = bitcast %v7 : %U8
     call freeHeap, %v8
     jmp b3
@@ -1500,233 +1609,84 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
     ret
 }
 
-fn matches(%name: String) -> Bool {
+fn viaTwoCalls() -> Int {
   b0:
-    %wanted = copy ResolveTest.literal$1 : String
-    %v2 = call Eq(String).==, %name, %wanted : Bool
-    drop %local1 via Reclaim(String).reclaim
-    ret %v2
+    %v1 = alloc : (i: Size) -> Int
+    %v2 = symbol ResolveTest.lambda$22 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v8 = call newArray(Int), 8, %v1 : Array(Int)
+    %v9 = borrow %local1 : 'Array(Int)
+    %v10 = call Contiguous(Array(a), a).elements(Int), %v9 : Flat(Int)
+    %v15 = borrow %local2 : 'Flat(Int)
+    %v16 = call slice(Int), %v15, 0, 8 : Flat(Int)
+    %v17 = call sumVectors(Flat(Int), Int), %v16 : Int
+    drop %local1 via Reclaim(Array(a)).reclaim(Int)
+    ret %v17
 }
 
-fn classify(%name: String) -> Int {
+fn viaLocal() -> Int {
   b0:
-    %v1 = copy ResolveTest.literal$3 : String
-    %v2 = call Eq(String).==, %name, %v1 : Bool
-    drop %local1 via Reclaim(String).reclaim
-    je %v2, b1, b2
-
-  b1:
-    ret 1
-
-  b2:
-    jmp b3
-
-  b3:
-    %v7 = copy ResolveTest.literal$5 : String
-    %v8 = call Eq(String).==, %name, %v7 : Bool
-    drop %local2 via Reclaim(String).reclaim
-    je %v8, b4, b5
-
-  b4:
-    ret 2
-
-  b5:
-    jmp b6
-
-  b6:
-    %v13 = copy ResolveTest.literal$7 : String
-    %v14 = call Eq(String).==, %name, %v13 : Bool
-    drop %local3 via Reclaim(String).reclaim
-    je %v14, b7, b8
-
-  b7:
-    ret 3
-
-  b8:
-    jmp b9
-
-  b9:
-    ret 0
+    %v1 = alloc : (i: Size) -> Int
+    %v2 = symbol ResolveTest.lambda$23 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %xs = call newArray(Int), 8, %v1 : Array(Int)
+    %v9 = borrow %local1 : 'Array(Int)
+    %v10 = call Contiguous(Array(a), a).elements(Int), %v9 : Flat(Int)
+    %v15 = borrow %local2 : 'Flat(Int)
+    %window = call slice(Int), %v15, 0, 8 : Flat(Int)
+    %v17 = call sumVectors(Flat(Int), Int), %window : Int
+    drop %local1 via Reclaim(Array(a)).reclaim(Int)
+    ret %v17
 }
 
-fn width() -> Int {
+fn partial() -> Int {
   b0:
-    %v0 = copy ResolveTest.literal$9 : String
-    %v1 = call Length(String).length, %v0 : Size
-    drop %local0 via Reclaim(String).reclaim
-    %v2 = cast %v1 : Int
-    ret %v2
-}
-
-fn grown(%n: Int) -> Int {
-  b0:
-    %v1 = copy ResolveTest.literal$11 : String
-    %text = alloc : String
-    init %text, %v1
-    %v4 = load %text : String
-    %v5 = copy ResolveTest.literal$13 : String
-    %v6 = move %text : String
-    %v7 = move %local2 : String
-    %v8 = call Append(String).++, %v6, %v7 : String
-    assign %text, %v8
-    %v10 = load %text : String
-    %v11 = call Length(String).length, %v10 : Size
-    drop %text via Reclaim(String).reclaim
-    %v12 = cast %v11 : Int
-    %v13 = add %v12, %n : Int
-    ret %v13
-}
-
-fn opaque(%n: Int) -> Int {
-  b0:
-    ret %n
+    %v1 = alloc : (i: Size) -> Int
+    %v2 = symbol ResolveTest.lambda$24 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %v8 = call newArray(Int), 8, %v1 : Array(Int)
+    %v9 = borrow %local1 : 'Array(Int)
+    %v10 = call Contiguous(Array(a), a).elements(Int), %v9 : Flat(Int)
+    %v15 = borrow %local2 : 'Flat(Int)
+    %v16 = call slice(Int), %v15, 2, 5 : Flat(Int)
+    %v19 = call maximumVectors(Flat(Int), Int), %v16, 0 : Int
+    drop %local1 via Reclaim(Array(a)).reclaim(Int)
+    ret %v19
 }
 
 fn main() -> Int {
   b0:
-    %warm = call grown, 0 : Int
-    %settled = load heapNext : %U8
-    %total = alloc : Int
-    init %total, 0
-    %v12 = alloc : Int
-    init %local1, 0
-    jmp b1
+    %v0 = call viaTwoCalls : Int
+    %v1 = call viaLocal : Int
+    %v2 = add %v0, %v1 : Int
+    %v3 = call partial : Int
+    %v4 = add %v2, %v3 : Int
+    ret %v4
+}
 
-  b1:
-    %i = load %local1 : Int
-    %v16 = cmp_lt %i, 10 : Bool
-    je %v16, b2, b5
+fn ResolveTest.lambda$22(%env: %{}, %i: Size) -> Int {
+  b0:
+    %v4 = add %i, 1 : Size
+    %v5 = cast %v4 : Int
+    ret %v5
+}
 
-  b2:
-    %v17 = load %total : Int
-    %v19 = call opaque, 0 : Int
-    %v20 = call grown, %v19 : Int
-    %v21 = add %v17, %v20 : Int
-    assign %total, %v21
-    jmp b3
+fn ResolveTest.lambda$23(%env: %{}, %i: Size) -> Int {
+  b0:
+    %v4 = add %i, 1 : Size
+    %v5 = cast %v4 : Int
+    ret %v5
+}
 
-  b3:
-    %v23 = load %local1 : Int
-    %v24 = sub 10, %v23 : Int
-    %v25 = cmp_le %v24, 1 : Bool
-    je %v25, b5, b4
-
-  b4:
-    %v27 = add %v23, 1 : Int
-    assign %local1, %v27
-    jmp b1
-
-  b5:
-    %v32 = load heapNext : %U8
-    %v33 = cmp_eq %v32, %settled : Bool
-    %v35 = xor %v33, True : Bool
-    je %v35, b6, b7
-
-  b6:
-    %v39 = neg 1 : Int
-    ret %v39
-
-  b7:
-    jmp b8
-
-  b8:
-    %v42 = load %total : Int
-    %v45 = mul %warm, 10 : Int
-    %v46 = cmp_ne %v42, %v45 : Bool
-    je %v46, b9, b10
-
-  b9:
-    %v50 = neg 2 : Int
-    ret %v50
-
-  b10:
-    jmp b11
-
-  b11:
-    %v53 = copy ResolveTest.literal$15 : String
-    %v54 = call matches, %v53 : Bool
-    drop %local2 via Reclaim(String).reclaim
-    %v56 = xor %v54, True : Bool
-    je %v56, b12, b13
-
-  b12:
-    %v60 = neg 3 : Int
-    ret %v60
-
-  b13:
-    jmp b14
-
-  b14:
-    %v63 = copy ResolveTest.literal$17 : String
-    %v64 = call matches, %v63 : Bool
-    drop %local3 via Reclaim(String).reclaim
-    je %v64, b15, b16
-
-  b15:
-    %v68 = neg 4 : Int
-    ret %v68
-
-  b16:
-    jmp b17
-
-  b17:
-    %v71 = copy ResolveTest.literal$19 : String
-    %v72 = call classify, %v71 : Int
-    drop %local4 via Reclaim(String).reclaim
-    %v75 = cmp_ne %v72, 1 : Bool
-    je %v75, b18, b19
-
-  b18:
-    %v79 = neg 5 : Int
-    ret %v79
-
-  b19:
-    jmp b20
-
-  b20:
-    %v82 = copy ResolveTest.literal$21 : String
-    %v83 = call classify, %v82 : Int
-    drop %local5 via Reclaim(String).reclaim
-    %v86 = cmp_ne %v83, 2 : Bool
-    je %v86, b21, b22
-
-  b21:
-    %v90 = neg 6 : Int
-    ret %v90
-
-  b22:
-    jmp b23
-
-  b23:
-    %v93 = copy ResolveTest.literal$23 : String
-    %v94 = call classify, %v93 : Int
-    drop %local6 via Reclaim(String).reclaim
-    %v97 = cmp_ne %v94, 3 : Bool
-    je %v97, b24, b25
-
-  b24:
-    %v101 = neg 7 : Int
-    ret %v101
-
-  b25:
-    jmp b26
-
-  b26:
-    %v104 = copy ResolveTest.literal$25 : String
-    %v105 = call classify, %v104 : Int
-    drop %local7 via Reclaim(String).reclaim
-    %v108 = cmp_ne %v105, 0 : Bool
-    je %v108, b27, b28
-
-  b27:
-    %v112 = neg 8 : Int
-    ret %v112
-
-  b28:
-    jmp b29
-
-  b29:
-    %v115 = call width : Int
-    %v116 = add %warm, %v115 : Int
-    ret %v116
+fn ResolveTest.lambda$24(%env: %{}, %i: Size) -> Int {
+  b0:
+    %v4 = add %i, 1 : Size
+    %v5 = cast %v4 : Int
+    ret %v5
 }

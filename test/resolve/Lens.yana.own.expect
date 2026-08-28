@@ -5,12 +5,6 @@ fn checkCondition {
   arg failed readonly
 }
 
-fn String.unit {
-  arg self readonly
-  arg index readonly
-  %self: String borrowed droppable readonly live [0, 9)
-}
-
 fn String.reserve {
   arg self writable resizable
   arg wanted readonly
@@ -22,6 +16,11 @@ fn String.appendUnits {
   arg from readonly
   arg count readonly
   %self: String borrowed droppable writable resizable live [0, 2) [3, 37)
+}
+
+fn Ord(CodeUnit).compare {
+  arg lhs readonly
+  arg rhs readonly
 }
 
 fn Length(String).length {
@@ -41,9 +40,8 @@ fn Append(String).++ {
 fn Eq(String).== {
   arg self readonly
   arg other readonly
-  %self: String borrowed droppable readonly live [0, 4) [5, 12) [13, 19) [20, 25)
-  %other: String borrowed droppable readonly live [0, 4) [5, 12) [13, 19) [20, 25)
-  %i: Size writable live [6, 12) [13, 19) [20, 25)
+  %self: String borrowed droppable readonly live [0, 4) [5, 17)
+  %other: String borrowed droppable readonly live [0, 4) [5, 17)
 }
 
 fn Reclaim(String).reclaim {
@@ -164,6 +162,17 @@ fn resize(CodeUnit) {
 fn byteSpan(CodeUnit) {
   arg from readonly
   arg count readonly
+}
+
+fn compareMemory(CodeUnit) {
+  arg left readonly
+  arg right readonly
+  arg count readonly
+  %at: Size writable live [5, 135) [149, 170) [171, 172)
+  %local1: CodeUnit readonly live [142, 148)
+  %local2: CodeUnit readonly live [146, 148)
+  %local3: CodeUnit readonly live [182, 188)
+  %local4: CodeUnit readonly live [186, 188)
 }
 
 fn releaseRun(CodeUnit) {

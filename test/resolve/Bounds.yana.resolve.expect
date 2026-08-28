@@ -1575,7 +1575,6 @@ fn sliceEdges() -> Int {
     init %xs@Flat.length, %v31
     %v35 = borrow %xs : 'Flat(Int)
     %window = call slice(Int), %v35, 2, 5 : Flat(Int)
-    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v39 = borrow %local3 : 'Flat(Int)
     %v40 = load [%v39]@Flat.length : Size
     %v41 = cast 0 : USize
@@ -1600,6 +1599,7 @@ fn sliceEdges() -> Int {
     %v62 = add %v59, %v61 : %Int
     %v63 = borrow [%v62] : 'Int
     %v64 = load [%v63] : Int
+    drop %local0 via Reclaim(Array(a)).reclaim(Int)
     %v65 = add %v50, %v64 : Int
     ret %v65
 }

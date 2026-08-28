@@ -132,12 +132,7 @@ instance Monoid(String):
         let count = length(self)
         if count != length(other) then return False
 
-        let &i = 0 :: Size
-        while i < count:
-            if String.unit(self, i) != String.unit(other, i) then return False
-            i = i + 1
-
-        return True
+        return compareMemory(stringData(self).bytes.run.items, stringData(other).bytes.run.items, count) == EQ
 
     fn !=(self: String, other: String) -> Bool = !(self == other)
 
@@ -154,6 +149,11 @@ instance Monoid(String):
    certain BMP ones. Every ASCII comparison - which is the overwhelming majority of what anyone sorts
    - agrees on both. Code that needs guaranteed code-point order calls an explicit
    `compareByCodePoint`, which is part 6's and is not written yet.
+
+   `compareMemory` over the shared prefix and then the two lengths - the same two steps a unit loop
+   is, with the first one vectorized. It answers the order of the first differing *unit*, so the
+   native comparison agrees with `memcmp` because a unit is a byte here and not because bytes are
+   what it compares.
 -}
 @platform(native) instance Ord(String):
     fn compare(self: String, other: String) -> Ordering:
@@ -162,13 +162,8 @@ instance Monoid(String):
         let &shared = leftLength
         if rightLength < shared then shared = rightLength
 
-        let &i = 0 :: Size
-        while i < shared:
-            let left = String.unit(self, i)
-            let right = String.unit(other, i)
-            if left < right then return LT
-            if left > right then return GT
-            i = i + 1
+        let order = compareMemory(stringData(self).bytes.run.items, stringData(other).bytes.run.items, shared)
+        if order != EQ then return order
 
         -- Every shared unit agreed, so the shorter one is the smaller - which is what makes this
         -- lexicographic rather than merely a prefix test.

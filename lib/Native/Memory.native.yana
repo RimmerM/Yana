@@ -455,6 +455,89 @@ pub fn moveMemory(to: %U8, from: %U8, count: Size) -> {}:
     return {}
 
 {-
+   Comparing two runs of memory, which is the third block operation and the one that reads.
+
+   **Element-lexicographic, not byte-lexicographic**, and that is what makes one function serve every
+   element type. `memcmp` answers the order of the first differing *byte*, which is the order of the
+   first differing element only where an element is a byte or the machine is big-endian; this finds
+   the first differing lane and then asks `compare` about the two elements in it, so a `[U32]` and a
+   `[I64]` get the order their own `Ord` states on a little-endian target as well. For `%U8` - the
+   string case, and the only one `memcmp` could have served - the two definitions coincide.
+
+   **Generic in the element and vectorized in it**, on the same terms `Core/Reduce.yana`'s bulk
+   operations are: `Vec(a)` is the target's register read as lanes of `a`, so a comparison of bytes
+   walks thirty-two of them a turn at v3 and a comparison of `I64`s walks four. A caller whose element
+   has no vector on this target does not reach here at all - `itemsEqual` in Core is the declaration
+   that chooses, and this is what its vector half is written over.
+
+   **The tail is one overreading compare and never a loop**, which is the whole reason this is worth
+   writing over a hand-rolled remainder walk. `vectorPast` reads a whole register from a position
+   within a register's width of the end, which Design-Vector §8's tail-read guarantee says is
+   readable; the lanes past the end hold whatever follows and are allowed to disagree, because
+   `firstSet` answers the *lowest* differing lane and a disagreement at or past `count` means every
+   live lane agreed. So a comparison of anything shorter than one register is a load, a load, a
+   compare and a movemask - no walk, no mask constant, and no `maskUpTo`, which is `iota .< splat(n)`
+   and costs eight instructions and three pooled constants where this costs one `cmp`. That is the
+   shape `unitsEqual` in `Core/Text.native.yana` arrived at by measurement; this is that shape with
+   the element type taken out of it, and `unitsEqual` is now one line over this.
+
+   **The caller owes the guarantee, exactly as `vectorPast` says.** Both runs must be storage the
+   language allocated - a heap run, a literal's run, a mapped page - so that a register's width past
+   `count` elements is readable. Every caller in this library hands over a container's own storage,
+   which is what makes that true; a pointer into the middle of a page the caller mapped itself is
+   the case to think about, and the tail-read guarantee is the thing to check.
+
+   **`!all` in the loop and `not` only in the arm that found something.** The steady state is a
+   load, a load, a lanewise compare, a movemask and a branch: `all` is a comparison of the mask's
+   bits against all-set, where `any(not(...))` would be an inversion first. The inversion is what
+   `firstSet` needs and it is computed in the cold arm, where it is one instruction on a path taken
+   at most once per call.
+
+   **Four registers a turn and then one**, which is `blockAscending`'s shape and is worth the same
+   thing here. The single-register loop is eight instructions and *two* branches per register, and
+   the movemask's latency sits between the compare and the test - so it runs at about two cycles a
+   register where the loads could sustain one. Folding four comparisons together with `and` before
+   the movemask amortizes both branches over four registers and is what closes the mid-range against
+   `memcmp`; `test/bench/memmove/findings.md` §10 has the table on both sides of it. Below four
+   registers the block loop's bound is never met and costs one comparison.
+-}
+pub fn (Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a))) compareMemory(left: %a, right: %a, count: Size) -> Ordering:
+    let width = lanes(zero() :: Vec(a)) :: Size
+    let stride = width * 4
+    let block = count - stride
+    let last = count - width
+    let &at = 0 :: Size
+
+    -- Four registers a turn, under one test: `and` of the four comparisons holds exactly where all
+    -- four do, so a hundred and twenty-eight bytes cost one movemask and one branch rather than
+    -- four of each. A block that does not hold falls into the loop below, which re-reads at most
+    -- four registers to say *where* - the one path that pays for the unrolling, and it is taken
+    -- once per call.
+    while at <= block:
+        let first = vectorAt(left + at) .== vectorAt(right + at)
+        let second = vectorAt(left + at + width) .== vectorAt(right + at + width)
+        let third = vectorAt(left + at + width + width) .== vectorAt(right + at + width + width)
+        let fourth = vectorAt(left + at + width + width + width) .== vectorAt(right + at + width + width + width)
+
+        if !all(and(and(first, second), and(third, fourth))) then break
+        at = at + stride
+
+    while at <= last:
+        let same = vectorAt(left + at) .== vectorAt(right + at)
+        if !all(same):
+            let differs = at + (firstSet(not(same)) :: Size)
+            return compare(*(left + differs), *(right + differs))
+        at = at + width
+
+    if at < count:
+        let same = vectorPast(left + at) .== vectorPast(right + at)
+        if !all(same):
+            let differs = at + (firstSet(not(same)) :: Size)
+            if differs < count then return compare(*(left + differs), *(right + differs))
+
+    return EQ
+
+{-
    The system call intrinsic, at each arity a call needs.
 
    Design.md's "Interfacing the OS" builds the OS interface as a thin template over exactly this; the

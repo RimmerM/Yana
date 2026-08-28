@@ -162,6 +162,45 @@ instance Chunked(Flat(a), a):
     iter fn chunks(self: Flat(a)) -> Flat(a) = yield elements(self)
 
 {-
+   ------------------------------------------------------------------------------------------
+   When two containers are equal
+   ------------------------------------------------------------------------------------------
+
+   The same length and the same elements in the same order, which is the only definition a sequence
+   has - and it is one body over `Reduce.yana`'s `itemsEqual`, so a container of a type with a vector
+   on this target compares a register of elements a turn and one of anything else compares them one
+   at a time. Neither instance says which; that is `itemsEqual`'s to decide and it decides it from
+   the element.
+
+   **The length test is first and it is what makes the comparison's bound safe**, exactly as it is on
+   `String`: `itemsEqual` compares `left`'s length in both windows and has no answer for two windows
+   of different sizes.
+
+   Three heads and not one, because there is no class that would let one serve. An `Array(a)`, a
+   `Flat(a)` and an `[a *n]` are three types and instance selection does not convert, so a comparison
+   of two arrays cannot go through the slice's instance the way `xs[i]` goes through the slice's
+   `Index` - which is `Array`'s own note on why its subscript is a second instance rather than a
+   conversion. The bodies are the same line three times and the alternative is a `Contiguous(c, a)`
+   blanket instance, which would claim `Eq` for every container anyone ever writes.
+
+   `Ord` is deliberately absent. Lexicographic order over a container is a decision about what a
+   *shorter* container means and about whether the order is the elements' or something the container
+   states, and nothing in the library asks for one yet.
+-}
+instance (Eq(a)) Eq(Array(a)):
+    fn ==(self: Array(a), other: Array(a)) -> Bool:
+        if length(self) != length(other) then return False
+        return itemsEqual(elements(self), elements(other))
+
+instance (Eq(a)) Eq(Flat(a)):
+    fn ==(self: Flat(a), other: Flat(a)) -> Bool:
+        if length(self) != length(other) then return False
+        return itemsEqual(elements(self), elements(other))
+
+instance (n: Int, Eq(a)) Eq([a *n]):
+    fn ==(self: [a *n], other: [a *n]) -> Bool = itemsEqual(elements(self), elements(other))
+
+{-
    Every element of a container, one at a time - the protocol's other half.
 
    `chunks` is what a container *implements*, because a run of elements is what it can hand over

@@ -182,3 +182,56 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
         at = at + n
 
     return Nothing
+
+{-
+   ------------------------------------------------------------------------------------------
+   Comparing two containers element by element
+   ------------------------------------------------------------------------------------------
+
+   The seventh operation, and the one that takes two windows rather than one - which is why it is
+   written over `Flat(a)` where the six above are written over `Chunked(c, a)`. Two containers of the
+   same type need not be chunked the same way, so there is no lockstep walk of two `chunks`
+   iterators to write; a contiguous window is what both sides of a comparison have to be reduced to
+   before any of this can be a vector loop at all, and `elements` is what reduces them.
+
+   The two implementations are chosen the same way every other pair here is, by whether the element
+   has a vector on this target - so a `[U8]`, a `[I32]` or a `[Double]` is a register a turn and a
+   container of records is the loop it always was.
+
+   **Equal lengths are the caller's**, not this function's: the `Eq` instances below it test that
+   first, and what is compared here is `left`'s length in both windows. A comparison of two windows
+   of different lengths is a question this has no answer for and does not ask.
+-}
+pub fn (Eq(a)) itemsEqual(left: Flat(a), right: Flat(a)) -> Bool
+
+{-
+   Natively this is `Native.compareMemory`, which is the vector walk with the element type taken out
+   of it: whole registers under `all`, and one overreading compare for everything below a register.
+   Both windows are storage the language allocated, so the tail read is Design-Vector §8's and is
+   exactly what that guarantee is for. The `Ordering` it answers costs nothing here - the equal
+   answer is the path with no differing lane on it.
+
+   **On JS the vector half is the element walk**, and this is the one bulk operation where that is
+   the right answer rather than a missing implementation. A host vector is `lanes` values
+   (Design-Vector §7.2), so `loadVector` there builds a sixteen-element array per iteration and
+   `loadVectorTail` does sixteen clamped reads - work every one of the operations above has to do
+   anyway, because each of them visits the whole container. This one **stops at the first
+   difference**, so reading a register's worth ahead of the test is strictly more work than the walk
+   it would replace, and it allocates to do it.
+-}
+@platform(native) fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a)))
+    itemsEqualVectors(left: Flat(a), right: Flat(a)) -> Bool =
+    compareMemory(left.items, right.items, length(left)) == EQ
+
+@platform(js) fn (Eq(a)) itemsEqualVectors(left: Flat(a), right: Flat(a)) -> Bool =
+    itemsEqualElements(left, right)
+
+fn (Eq(a)) itemsEqualElements(left: Flat(a), right: Flat(a)) -> Bool:
+    let count = length(left)
+    let &at = 0 :: Size
+
+    while at < count:
+        if left[at] != right[at] then return False
+        at = at + 1
+
+    return True

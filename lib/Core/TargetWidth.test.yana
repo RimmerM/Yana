@@ -1,0 +1,146 @@
+{-
+   The three types whose width the target answers, as members of the width families -
+   Analysis-Modules.md Move 2.
+
+   `Size`, `USize` and `CodeUnit` are primitives rather than names for a width, so `Show`, `Read`,
+   `Hash`, `Bounded` and `Signed` each need an instance of their own for them. What this file asserts
+   is that those instances exist *and* answer at the width the target chose, which is the one thing a
+   fixture naming a constant could not check: `maxValue() :: Size` is a different number on a
+   thirty-two-bit target and a sixty-four-bit one.
+
+   So nothing below is a literal out of one target's table. Every claim is an identity that holds at
+   either width - the two ends of a signed word are one apart around `-1`, an unsigned maximum is
+   every bit set, a decimal round-trips through `show` and `read`, a `Map` keyed by one finds what
+   was put in it - which is what makes this a test of the language rather than of a machine.
+-}
+
+import Test
+
+-- `show` into a local sink, and how many units it wrote.
+fn (Show(a)) targetWidthUnits(value: a) -> Size:
+    let &sink = String.ofCapacity(64 :: Size)
+    show(value, sink)
+    return length(sink)
+
+-- The bound, or `-1` for a `Nothing` no instance here answers.
+fn (Show(a)) targetWidthBound(value: a) -> Size = match showBound(value):
+    Just(bound) -> bound
+    Nothing -> 0 - 1
+
+-- The text of a value, which is what the round trip below reads back.
+fn (Show(a)) targetWidthText(value: a) -> String:
+    let &sink = String.ofCapacity(64 :: Size)
+    show(value, sink)
+    return sink
+
+-- The readers, each answering a value that no successful read below produces, so that a refusal is
+-- distinguishable from an answer.
+fn targetWidthReadSize(text: String) -> Size:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, Size):
+        Ok(value) -> return value
+        Err(_) -> return 0 - 1
+
+fn targetWidthReadUSize(text: String) -> USize:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, USize):
+        Ok(value) -> return value
+        Err(_) -> return 0
+
+fn targetWidthReadUnit(text: String) -> Int:
+    let &at = 0 :: Size
+    match read(text, at) :: Result(ReadError, CodeUnit):
+        Ok(value) -> return value :: Int
+        Err(_) -> return 0 - 1
+
+@test fn targetWidthShown() -> {}:
+    checkEqual(targetWidthUnits(1234 :: Size), 4)
+    checkEqual(targetWidthUnits(0 - (1234 :: Size)), 5)
+    checkEqual(targetWidthUnits(1234 :: USize), 4)
+    checkEqual(targetWidthUnits(65 :: CodeUnit), 2)
+
+    -- The type `length` answers in, which is the one a program that says nothing about widths
+    -- reaches `Show` through first.
+    checkEqual(targetWidthUnits(length("hello")), 1)
+
+@test fn targetWidthShownBound() -> {}:
+    -- The contract at the widest value each type holds, which is where an instance that understated
+    -- its bound is a buffer overrun rather than a wrong string.
+    checkAtMost(targetWidthUnits(maxValue() :: Size), targetWidthBound(maxValue() :: Size))
+    checkAtMost(targetWidthUnits(minValue() :: Size), targetWidthBound(minValue() :: Size))
+    checkAtMost(targetWidthUnits(maxValue() :: USize), targetWidthBound(maxValue() :: USize))
+    checkAtMost(targetWidthUnits(maxValue() :: CodeUnit), targetWidthBound(maxValue() :: CodeUnit))
+
+@test fn targetWidthBounds() -> {}:
+    -- The two ends of a signed word sum to `-1` at any width, and neither is on the wrong side of
+    -- zero. Written as a sum rather than as `maxValue() + 1`, which is the one arithmetic that wraps.
+    checkEqual((minValue() :: Size) + (maxValue() :: Size), 0 - 1)
+    checkGreater(maxValue() :: Size, 0)
+    checkLess(minValue() :: Size, 0)
+
+    -- The unsigned reading of that same word is every bit of it set.
+    checkEqual(maxValue() :: USize, bitcast(0 - (1 :: Size)) :: USize)
+    checkEqual(minValue() :: USize, 0)
+
+    -- One code unit is eight bits or sixteen, and unsigned either way.
+    checkAtLeast(maxValue() :: CodeUnit, 255)
+    checkEqual(minValue() :: CodeUnit, 0)
+
+@test fn targetWidthAbsolute() -> {}:
+    checkEqual(abs(0 - (5 :: Size)), 5)
+    checkEqual(abs(5 :: Size), 5)
+    checkEqual(abs(0 :: Size), 0)
+
+@test fn targetWidthRead() -> {}:
+    checkEqual(targetWidthReadSize("1234"), 1234)
+    checkEqual(targetWidthReadSize("-1234"), 0 - 1234)
+    checkEqual(targetWidthReadUSize("1234"), 1234)
+    checkEqual(targetWidthReadUnit("65"), 65)
+
+    -- Out of range at a `CodeUnit` on every target, since sixteen bits is the widest one gets.
+    checkEqual(targetWidthReadUnit("65536"), 0 - 1)
+
+@test fn targetWidthRoundTrip() -> {}:
+    -- The range check `read` makes is `Bounded`'s answer, so this is the assertion that pins the two
+    -- against each other: the widest value the type holds is a text that has to read back as itself,
+    -- at whatever width the target chose. A `maxValue` that was wrong in either direction fails here.
+    checkEqual(targetWidthReadSize(targetWidthText(maxValue() :: Size)), maxValue() :: Size)
+    checkEqual(targetWidthReadSize(targetWidthText(minValue() :: Size)), minValue() :: Size)
+    checkEqual(targetWidthReadUSize(targetWidthText(maxValue() :: USize)), maxValue() :: USize)
+
+@test fn targetWidthKeys() -> {}:
+    -- `Hash` folds the target's word, and what a fixture may assert about that is a map's contents
+    -- rather than a number - Implementation-Map.md §3.1, where the two targets compute different
+    -- hashes deliberately and nothing observable depends on which.
+    let &sizes = emptyMap() :: Map(Size, Int)
+    let &i = 0 :: Int
+
+    while i < 40:
+        insert(sizes, i :: Size, i)
+        i = i + 1
+
+    checkEqual((truncate(length(sizes)) :: Int), 40)
+    check(!containsKey(sizes, 40 :: Size))
+
+    match find(sizes, 7 :: Size):
+        Just(v) -> checkEqual(v, 7)
+        Nothing -> check(False)
+
+    -- The unsigned reading at the top of its range, which is the value a `Size` key never reaches
+    -- and the one a byte count can.
+    let &counts = emptyMap() :: Map(USize, Int)
+    insert(counts, maxValue() :: USize, 3)
+
+    match find(counts, maxValue() :: USize):
+        Just(v) -> checkEqual(v, 3)
+        Nothing -> check(False)
+
+    -- And one code unit, whose eight or sixteen bits are a whole draw of the 32-bit fold either way.
+    let &units = emptyMap() :: Map(CodeUnit, Int)
+    insert(units, 65 :: CodeUnit, 1)
+    insert(units, 97 :: CodeUnit, 2)
+    check(!containsKey(units, 98 :: CodeUnit))
+
+    match find(units, 97 :: CodeUnit):
+        Just(v) -> checkEqual(v, 2)
+        Nothing -> check(False)
