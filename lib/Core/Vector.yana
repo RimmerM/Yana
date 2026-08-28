@@ -1,9 +1,11 @@
 {-
    The portable vector set - Design-Vector §3, Implementation-Vector.md §1.4.
 
-   Declarations without bodies, every one of them: what a `Vec(a)` is depends on the target's width,
-   so there is nothing a body could say that `simd.cpp` does not have to say again. See
-   `defineVectorIntrinsics`, which is what attaches them.
+   Declarations without bodies, all but one of them: what a `Vec(a)` is depends on the target's
+   width, so there is nothing a body could say that `simd.cpp` does not have to say again. See
+   `defineVectorIntrinsics`, which is what attaches them. The exception is `vectorBytes`, which is
+   that width itself as a number - a constant the compiler supplies rather than an operation it
+   selects.
 -}
 
 {-
@@ -71,6 +73,31 @@ pub fn (n: Int) horizontalMax(vector: Vec(a, n)) -> a
 pub fn (n: Int = 0) zero() -> Vec(a, n)
 pub fn (n: Int = 0) iota() -> Vec(a, n)
 pub fn (n: Int) lanes(vector: Vec(a, n)) -> Int
+
+{-
+   How many bytes the target's natural vector holds - sixteen at SSE2 and on JavaScript,
+   thirty-two at x86-64's v3.
+
+   **The compiler supplies it** - `@builtin(vectorBytes)`, and the zero below is what the
+   declaration is written as rather than what it holds; `compiler/compiler/builtin.h` is where the
+   role is defined and `targetVectorBytes` is what decides the number.
+
+   It is the register's width and `lanes` is a lane count, which is the whole of the difference
+   between them: `lanes(zero() :: Vec(U8))` and this answer the same number only because a `U8`
+   occupies one byte, and `lanes(zero() :: Vec(CodeUnit))` on JavaScript is eight where this is
+   sixteen. A loop written over *bytes* - a block copy, a byte scan - wants this one; a loop written
+   over lanes of some other type asks the type.
+
+   **The reason it is a global rather than a `lanes` call is that a bound has to be a constant where
+   it is read, and only one of the two is a constant everywhere.** An intrinsic expands to a literal
+   at the call, which is what `lanes` does today; a `Size` this file computed and handed back through
+   a function would be an opaque word on `-no-opt`, and `Native/Memory.native.yana`'s copy ladder
+   turns whole rungs on `width > 32`, so an opaque word there leaves a v3-only transfer in a v2
+   build for the backend to refuse. A supplied builtin is neither: it is an immutable global whose
+   initializer *is* the number, so every reader sees a constant with no pass having run.
+-}
+@builtin(vectorBytes)
+pub let vectorBytes = 0 :: Size
 
 pub fn (n: Int) min(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)
 pub fn (n: Int) max(lhs: Vec(a, n), rhs: Vec(a, n)) -> Vec(a, n)

@@ -60,9 +60,25 @@ enum class Builtin: U8 {
      * has no platform to be right about.
      */
     pageBytes,
+
+    /*
+     * How many bytes the target's natural vector holds - `Core/Vector.yana`.
+     *
+     * The number `targetVectorBytes` decides: sixteen for SSE2, NEON and JavaScript, thirty-two at
+     * x86-64's v3. It is the same fact `lanes(zero() :: Vec(U8))` answers, and that is what it
+     * replaced - seven copies of that expression across `Native/Memory.native.yana` and
+     * `Core/Text.native.yana`, each with a comment beside it saying that the reader wanted a
+     * constant and not a call.
+     *
+     * **A byte count and not a lane count**, because the lane count is a question about a lane type
+     * and this is a question about a register. `Vec(a)`'s lanes are `vectorBytes` divided by what
+     * one `a` occupies, which the language can already work out from the type; what it has no other
+     * way to say is the register's own width as a number a program may compute with.
+     */
+    vectorBytes,
 };
 
-constexpr Size kBuiltinCount = 4;
+constexpr Size kBuiltinCount = 5;
 
 /*
  * How many of them are the command line's, which is the one thing about this order another stage

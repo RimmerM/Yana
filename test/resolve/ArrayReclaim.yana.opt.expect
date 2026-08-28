@@ -341,171 +341,171 @@ fn freeHeap(%allocation: %U8) -> () {
 
 fn copyMemory(%to: %U8, %from: %U8, %count: Size) -> () {
   b0:
-    %v8 = cmp_ge %count, 32 : Bool
-    je %v8, b12, b1
+    %v5 = cmp_ge %count, 32 : Bool
+    je %v5, b12, b1
 
   b1:
-    %v126 = cmp_ge %count, 8 : Bool
-    je %v126, b8, b2
+    %v123 = cmp_ge %count, 8 : Bool
+    je %v123, b8, b2
 
   b2:
-    %v129 = cmp_ge %count, 2 : Bool
-    je %v129, b5, b3
+    %v126 = cmp_ge %count, 2 : Bool
+    je %v126, b5, b3
 
   b3:
-    %v132 = cmp_ge %count, 1 : Bool
-    je %v132, b4, b11
+    %v129 = cmp_ge %count, 1 : Bool
+    je %v129, b4, b11
 
   b4:
-    %v134 = load [%from] : U8
-    assign [%to], %v134
+    %v131 = load [%from] : U8
+    assign [%to], %v131
     jmp b11
 
   b5:
-    %v138 = cmp_ge %count, 4 : Bool
-    je %v138, b7, b6
+    %v135 = cmp_ge %count, 4 : Bool
+    je %v135, b7, b6
 
   b6:
-    %v140 = bitcast %from : %U16
-    %low = load [%v140] : U16
-    %v143 = sub %count, 2 : Size
-    %v144 = add %from, %v143 : %U8
-    %v145 = bitcast %v144 : %U16
-    %high = load [%v145] : U16
-    %v147 = bitcast %to : %U16
-    assign [%v147], %low
-    %v149 = add %to, %v143 : %U8
-    %v150 = bitcast %v149 : %U16
-    assign [%v150], %high
+    %v137 = bitcast %from : %U16
+    %low = load [%v137] : U16
+    %v140 = sub %count, 2 : Size
+    %v141 = add %from, %v140 : %U8
+    %v142 = bitcast %v141 : %U16
+    %high = load [%v142] : U16
+    %v144 = bitcast %to : %U16
+    assign [%v144], %low
+    %v146 = add %to, %v140 : %U8
+    %v147 = bitcast %v146 : %U16
+    assign [%v147], %high
     jmp b11
 
   b7:
-    %v153 = bitcast %from : %U32
-    %low = load [%v153] : U32
-    %v156 = sub %count, 4 : Size
-    %v157 = add %from, %v156 : %U8
-    %v158 = bitcast %v157 : %U32
-    %high = load [%v158] : U32
-    %v160 = bitcast %to : %U32
-    assign [%v160], %low
-    %v162 = add %to, %v156 : %U8
-    %v163 = bitcast %v162 : %U32
-    assign [%v163], %high
+    %v150 = bitcast %from : %U32
+    %low = load [%v150] : U32
+    %v153 = sub %count, 4 : Size
+    %v154 = add %from, %v153 : %U8
+    %v155 = bitcast %v154 : %U32
+    %high = load [%v155] : U32
+    %v157 = bitcast %to : %U32
+    assign [%v157], %low
+    %v159 = add %to, %v153 : %U8
+    %v160 = bitcast %v159 : %U32
+    assign [%v160], %high
     jmp b11
 
   b8:
-    %v167 = cmp_ge %count, 16 : Bool
-    je %v167, b10, b9
+    %v164 = cmp_ge %count, 16 : Bool
+    je %v164, b10, b9
 
   b9:
-    %v169 = bitcast %from : %U64
-    %low = load [%v169] : U64
-    %v172 = sub %count, 8 : Size
-    %v173 = add %from, %v172 : %U8
-    %v174 = bitcast %v173 : %U64
-    %high = load [%v174] : U64
-    %v176 = bitcast %to : %U64
-    assign [%v176], %low
-    %v178 = add %to, %v172 : %U8
-    %v179 = bitcast %v178 : %U64
-    assign [%v179], %high
+    %v166 = bitcast %from : %U64
+    %low = load [%v166] : U64
+    %v169 = sub %count, 8 : Size
+    %v170 = add %from, %v169 : %U8
+    %v171 = bitcast %v170 : %U64
+    %high = load [%v171] : U64
+    %v173 = bitcast %to : %U64
+    assign [%v173], %low
+    %v175 = add %to, %v169 : %U8
+    %v176 = bitcast %v175 : %U64
+    assign [%v176], %high
     jmp b11
 
   b10:
-    %v182 = bitcast %from : %Vec(U8)
-    %low = load [%v182] : Vec(U8)
-    %v184 = sub %count, 16 : Size
-    %v185 = add %from, %v184 : %U8
-    %v186 = bitcast %v185 : %Vec(U8)
-    %high = load [%v186] : Vec(U8)
-    %v188 = bitcast %to : %Vec(U8)
-    assign [%v188], %low
-    %v190 = add %to, %v184 : %U8
-    %v191 = bitcast %v190 : %Vec(U8)
-    assign [%v191], %high
+    %v179 = bitcast %from : %Vec(U8)
+    %low = load [%v179] : Vec(U8)
+    %v181 = sub %count, 16 : Size
+    %v182 = add %from, %v181 : %U8
+    %v183 = bitcast %v182 : %Vec(U8)
+    %high = load [%v183] : Vec(U8)
+    %v185 = bitcast %to : %Vec(U8)
+    assign [%v185], %low
+    %v187 = add %to, %v181 : %U8
+    %v188 = bitcast %v187 : %Vec(U8)
+    assign [%v188], %high
     jmp b11
 
   b11:
     ret
 
   b12:
-    %v13 = cmp_lt %count, 64 : Bool
-    je %v13, b22, b13
+    %v10 = cmp_lt %count, 64 : Bool
+    je %v10, b22, b13
 
   b13:
-    %v21 = cmp_ge %count, 768 : Bool
-    je %v21, b21, b14
+    %v18 = cmp_ge %count, 768 : Bool
+    je %v18, b21, b14
 
   b14:
-    %v59 = sub %count, 16 : Size
-    %v60 = add %from, %v59 : %U8
-    %v61 = bitcast %v60 : %Vec(U8)
-    %tail = load [%v61] : Vec(U8)
+    %v56 = sub %count, 16 : Size
+    %v57 = add %from, %v56 : %U8
+    %v58 = bitcast %v57 : %Vec(U8)
+    %tail = load [%v58] : Vec(U8)
     %at = alloc : Size
     init %at, 0
     jmp b15
 
   b15:
-    %v67 = load %at : Size
-    %v69 = add %v67, 64 : Size
-    %v70 = cmp_le %v69, %count : Bool
-    je %v70, b20, b16
+    %v64 = load %at : Size
+    %v66 = add %v64, 64 : Size
+    %v67 = cmp_le %v66, %count : Bool
+    je %v67, b20, b16
 
   b16:
     jmp b17
 
   b17:
-    %v73 = load %at : Size
-    %v74 = add %v73, 16 : Size
-    %v75 = cmp_le %v74, %count : Bool
-    je %v75, b19, b18
+    %v70 = load %at : Size
+    %v71 = add %v70, 16 : Size
+    %v72 = cmp_le %v71, %count : Bool
+    je %v72, b19, b18
 
   b18:
-    %v77 = add %to, %v59 : %U8
-    %v78 = bitcast %v77 : %Vec(U8)
-    assign [%v78], %tail
+    %v74 = add %to, %v56 : %U8
+    %v75 = bitcast %v74 : %Vec(U8)
+    assign [%v75], %tail
     ret
 
   b19:
-    %v81 = load %at : Size
-    %v82 = add %to, %v81 : %U8
-    %v83 = add %from, %v81 : %U8
-    %v84 = bitcast %v83 : %Vec(U8)
-    %v85 = load [%v84] : Vec(U8)
-    %v86 = bitcast %v82 : %Vec(U8)
-    assign [%v86], %v85
-    %v88 = add %v81, 16 : Size
-    assign %at, %v88
+    %v78 = load %at : Size
+    %v79 = add %to, %v78 : %U8
+    %v80 = add %from, %v78 : %U8
+    %v81 = bitcast %v80 : %Vec(U8)
+    %v82 = load [%v81] : Vec(U8)
+    %v83 = bitcast %v79 : %Vec(U8)
+    assign [%v83], %v82
+    %v85 = add %v78, 16 : Size
+    assign %at, %v85
     jmp b17
 
   b20:
-    %v91 = load %at : Size
-    %v92 = add %from, %v91 : %U8
-    %v93 = bitcast %v92 : %Vec(U8)
-    %a = load [%v93] : Vec(U8)
-    %v96 = add %v92, 16 : %U8
-    %v97 = bitcast %v96 : %Vec(U8)
-    %b = load [%v97] : Vec(U8)
-    %v100 = add %v96, 16 : %U8
-    %v101 = bitcast %v100 : %Vec(U8)
-    %c = load [%v101] : Vec(U8)
-    %v104 = add %v100, 16 : %U8
+    %v88 = load %at : Size
+    %v89 = add %from, %v88 : %U8
+    %v90 = bitcast %v89 : %Vec(U8)
+    %a = load [%v90] : Vec(U8)
+    %v93 = add %v89, 16 : %U8
+    %v94 = bitcast %v93 : %Vec(U8)
+    %b = load [%v94] : Vec(U8)
+    %v97 = add %v93, 16 : %U8
+    %v98 = bitcast %v97 : %Vec(U8)
+    %c = load [%v98] : Vec(U8)
+    %v101 = add %v97, 16 : %U8
+    %v102 = bitcast %v101 : %Vec(U8)
+    %d = load [%v102] : Vec(U8)
+    %v104 = add %to, %v88 : %U8
     %v105 = bitcast %v104 : %Vec(U8)
-    %d = load [%v105] : Vec(U8)
-    %v107 = add %to, %v91 : %U8
-    %v108 = bitcast %v107 : %Vec(U8)
-    assign [%v108], %a
-    %v111 = add %v107, 16 : %U8
-    %v112 = bitcast %v111 : %Vec(U8)
-    assign [%v112], %b
-    %v115 = add %v111, 16 : %U8
-    %v116 = bitcast %v115 : %Vec(U8)
-    assign [%v116], %c
-    %v119 = add %v115, 16 : %U8
-    %v120 = bitcast %v119 : %Vec(U8)
-    assign [%v120], %d
-    %v122 = add %v91, 64 : Size
-    assign %at, %v122
+    assign [%v105], %a
+    %v108 = add %v104, 16 : %U8
+    %v109 = bitcast %v108 : %Vec(U8)
+    assign [%v109], %b
+    %v112 = add %v108, 16 : %U8
+    %v113 = bitcast %v112 : %Vec(U8)
+    assign [%v113], %c
+    %v116 = add %v112, 16 : %U8
+    %v117 = bitcast %v116 : %Vec(U8)
+    assign [%v117], %d
+    %v119 = add %v88, 64 : Size
+    assign %at, %v119
     jmp b15
 
   b21:
@@ -513,30 +513,30 @@ fn copyMemory(%to: %U8, %from: %U8, %count: Size) -> () {
     ret
 
   b22:
-    %v31 = bitcast %from : %Vec(U8)
-    %a = load [%v31] : Vec(U8)
-    %v34 = add %from, 16 : %U8
-    %v35 = bitcast %v34 : %Vec(U8)
-    %b = load [%v35] : Vec(U8)
-    %v38 = sub %count, 16 : Size
-    %v39 = sub %v38, 16 : Size
-    %v40 = add %from, %v39 : %U8
+    %v28 = bitcast %from : %Vec(U8)
+    %a = load [%v28] : Vec(U8)
+    %v31 = add %from, 16 : %U8
+    %v32 = bitcast %v31 : %Vec(U8)
+    %b = load [%v32] : Vec(U8)
+    %v35 = sub %count, 16 : Size
+    %v36 = sub %v35, 16 : Size
+    %v37 = add %from, %v36 : %U8
+    %v38 = bitcast %v37 : %Vec(U8)
+    %c = load [%v38] : Vec(U8)
+    %v40 = add %from, %v35 : %U8
     %v41 = bitcast %v40 : %Vec(U8)
-    %c = load [%v41] : Vec(U8)
-    %v43 = add %from, %v38 : %U8
-    %v44 = bitcast %v43 : %Vec(U8)
-    %d = load [%v44] : Vec(U8)
-    %v46 = bitcast %to : %Vec(U8)
-    assign [%v46], %a
-    %v49 = add %to, 16 : %U8
+    %d = load [%v41] : Vec(U8)
+    %v43 = bitcast %to : %Vec(U8)
+    assign [%v43], %a
+    %v46 = add %to, 16 : %U8
+    %v47 = bitcast %v46 : %Vec(U8)
+    assign [%v47], %b
+    %v49 = add %to, %v36 : %U8
     %v50 = bitcast %v49 : %Vec(U8)
-    assign [%v50], %b
-    %v52 = add %to, %v39 : %U8
+    assign [%v50], %c
+    %v52 = add %to, %v35 : %U8
     %v53 = bitcast %v52 : %Vec(U8)
-    assign [%v53], %c
-    %v55 = add %to, %v38 : %U8
-    %v56 = bitcast %v55 : %Vec(U8)
-    assign [%v56], %d
+    assign [%v53], %d
     ret
 }
 

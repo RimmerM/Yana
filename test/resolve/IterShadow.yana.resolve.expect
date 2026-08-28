@@ -2,11 +2,11 @@ let image$base: () = <none>
 
 let &heapFree: %%U8 = 0
 
-table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
@@ -187,7 +187,7 @@ fn named(%value: Int) -> Int {
     init %local1.value, %value
     %v10 = addressof %local1 : %()
     %v11 = alloc : (value$: Int) -> Outcome((), ())
-    %v12 = symbol ResolveTest.continuation$18 : %()
+    %v12 = symbol ResolveTest.continuation$22 : %()
     init %local2.code, %v12
     init %local2.env, %v10
     %v15 = call upTo(()), 3, %v11 : Outcome((), ())
@@ -205,7 +205,7 @@ fn classMember(%xs: Flat(Int), %value: Int) -> Int {
     init %local2.value, %value
     %v10 = addressof %local2 : %()
     %v11 = alloc : (value$: Flat(Int)) -> Outcome((), ())
-    %v12 = symbol ResolveTest.continuation$19 : %()
+    %v12 = symbol ResolveTest.continuation$23 : %()
     init %local3.code, %v12
     init %local3.env, %v10
     %v15 = call Chunked(Flat(a), a).chunks(Int, ()), %xs, %v11 : Outcome((), ())
@@ -237,7 +237,7 @@ fn main() -> Int {
     ret %v31
 }
 
-fn ResolveTest.continuation$18(%env: %{total: &Int, value: Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &Int, value: Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int
@@ -284,7 +284,7 @@ fn upTo(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((),
     jmp b1
 }
 
-fn ResolveTest.continuation$19(%env: %{total: &Int, value: Int}, %value$: Flat(Int)) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &Int, value: Int}, %value$: Flat(Int)) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].total : &Int
     %v3 = load [%env].total : &Int

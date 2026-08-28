@@ -1,0 +1,396 @@
+import Native
+
+{-
+   ==========================================================================================
+   Text operations - Analysis-Library.md §2.2 and Part 6 item 5, Implementation-String.md part 5.
+   ==========================================================================================
+
+   `String.yana` is what a string *is*; this is what a program does with one. Search, splitting,
+   trimming, the ASCII predicates and the ASCII case tier, plus the two whole-string case
+   conversions - the family Analysis-Library.md §2.2 collapses `Text.h`'s cross product of
+   {`char`, `WChar`, `WChar32`} x {null-terminated, view, buffer} x {const, mutable} down to.
+   There is one code unit, one view type, and `&` is a convention rather than a type, so every axis
+   of that product is already gone and what is left is one function per operation.
+
+   ------------------------------------------------------------------------------------------
+   Three files, and what decides which one a function is written in
+
+   `Text.native.yana` and `Text.js.yana` hold the operations whose two answers *have nothing in
+   common* - Analysis-Modules.md §2.5. That set is exactly the scans: natively a scan is the vector
+   search the bulk operations already have (`indexOf` and `occurrences` over `Chunked(String,
+   CodeUnit)`, sixteen or thirty-two units at a time behind one `firstSet`), and on JS it is
+   `String.prototype.indexOf`, which Implementation-String.md part 5 rules is the right
+   implementation rather than a compromise: a fixed run of units has no room for the cross-engine
+   disagreement the decoding tier has to worry about, and the engine's own C++ beats any
+   `charCodeAt` loop this compiler emits.
+
+   Everything else is here, once, because it is *composed* of those - `trim` is two bounded walks
+   and a slice, `splitOn` is a search in a loop, `String.replace` is a search and two appends. A
+   second copy of one of those per target would be a second chance to disagree about an edge case
+   for no speed at all.
+
+   ------------------------------------------------------------------------------------------
+   Why this tier is ASCII and what that buys
+
+   Nothing below decodes anything, and nothing below has to: **an ASCII unit is self-synchronizing in
+   both UTF-8 and UTF-16** - a value below 0x80 never appears inside the encoding of any other code
+   point in either. So a scan for one ASCII unit, a split on one, a trim against a set of them and a
+   case conversion restricted to `A`-`Z` all mean the same thing in both builds and land on the same
+   indices for ASCII content. That is a real property of both encodings rather than something being
+   leaned on loosely, and it is what lets one signature over `CodeUnit` serve a byte scan natively
+   and a UTF-16 scan on JS.
+
+   The operations that take a *whole string* as the thing looked for - `String.find`, `startsWith`,
+   `endsWith`, `String.contains`, `String.replace` - carry no such restriction and need none: they
+   compare runs of raw units, and encoding is an injective function of content, so they answer the
+   same on both targets for any content at all.
+
+   **The case tier is `A`-`Z` and `a`-`z` and nothing else**, deliberately, and the name of every
+   function that does it says `Ascii`. Unicode case folding changes unit *counts* (German `ß` becomes
+   `SS`) and is locale-sensitive, so a host `toLowerCase()` is not the same function on the two
+   targets and is not this one on either. The Unicode tier is Analysis-Library.md §2.3 and is layered
+   on this without changing it.
+
+   Positions are `Size` and count this target's own units, exactly as `String.unit` and `length` do -
+   the same number on both targets for ASCII content and deliberately not for anything else
+   (Implementation-String.md part 3).
+-}
+
+{-
+   ------------------------------------------------------------------------------------------
+   One unit, classified - Analysis-Library.md §2.2's predicate row.
+   ------------------------------------------------------------------------------------------
+
+   `Int` rather than `CodeUnit`, because `String.unit` answers an `Int` and these exist to be written
+   next to it: `isSpace(text.unit(at))` is the expression they are for. A unit that is not ASCII
+   answers `False` to every one of them bar `isControl`, which is what makes them total rather than
+   partial - there is no unit these are undefined for, so no caller needs a range test in front of
+   one.
+
+   Written as comparisons rather than as a table lookup, which is what the C++ they replace does too:
+   two compares and an `and` beat a load, and the optimizer folds the pair into one unsigned compare
+   where the range is contiguous - `unit - 48 <= 9` is the whole of `isDigit` after
+   `foldRangeCompare`.
+-}
+
+-- Whether it is an ASCII unit at all, which is the one predicate the rest are only meaningful under.
+pub fn isAscii(unit: Int) -> Bool = unit >= 0 && unit < 128
+
+pub fn isDigit(unit: Int) -> Bool = unit >= 48 && unit <= 57
+pub fn isUpper(unit: Int) -> Bool = unit >= 65 && unit <= 90
+pub fn isLower(unit: Int) -> Bool = unit >= 97 && unit <= 122
+pub fn isAlpha(unit: Int) -> Bool = isUpper(unit) || isLower(unit)
+pub fn isAlphaNum(unit: Int) -> Bool = isAlpha(unit) || isDigit(unit)
+
+-- Space, tab, newline, vertical tab, form feed and carriage return - the six `isspace` answers `True`
+-- for in the C locale, and the set `trim` and `words` are written against. 9 to 13 is contiguous, so
+-- this is two comparisons and not six.
+pub fn isSpace(unit: Int) -> Bool = unit == 32 || (unit >= 9 && unit <= 13)
+
+pub fn isControl(unit: Int) -> Bool = (unit >= 0 && unit < 32) || unit == 127
+pub fn isPrintable(unit: Int) -> Bool = unit >= 32 && unit < 127
+
+{-
+   A hexadecimal digit's value, or nothing for a unit that is not one.
+
+   **The four-bit refinement is the whole of why this can be a `Maybe`.** A nibble has sixteen
+   values and `@bits(4) U32`'s natural storage has 256, so `ReprTable::intNiche` donates
+   `[16, 256)` and the folded `Maybe(HexDigit)` is one byte with `Nothing` written as 16 - no tag
+   word, no second register, and a `Just` that is the digit itself. `doc/spec/repr.md` states the
+   donation and `Native/Run.yana`'s `Count` is the same refinement used for the same reason.
+
+   So the sentinel did not go away, it stopped being the *caller's* to know: what `-1` used to say
+   in the return type this says in the constructor, and the number that stands for absence is the
+   layout's business rather than a value in the digit's own range that every reader has to remember
+   to test for. `test/resolve/Niche.yana` is where the donation is asserted, in the layout dump and
+   behaviourally both.
+
+   `@bits(4)` and not sixteen enum constructors: a refinement never participates in dispatch or in
+   pattern matching, so a `Just(v)` binds an ordinary `U32` and arithmetic on it needs no instance of
+   its own. That is what keeps `hexValue(u)` composable with the shifts a hexadecimal reader is
+   written out of.
+
+   **The layout is free and the code is not yet, and the difference is worth writing down.** Over a
+   64 KiB corpus of five-sixths hexadecimal digits, one call per unit, at v2: the sentinel form is
+   2.99 ns per unit and this one is 3.57. Three things are left, none of them the `Maybe`:
+
+   - the refinement's narrowing store is an `and $0xf` on each of the two `Just` arms, which is
+     `@bits`' own contract and the price of the niche;
+   - the slot's load masks again with `and $0xff`, which is `promoteStackSlots` reproducing a
+     truncation memory used to perform - redundant here, since nothing ever put more than four bits
+     in, and a known-bits pass over lower IR is what would see that;
+   - the `Nothing` arm is a branch where the sentinel's `-1` was a `cmove`, because a constructor is
+     a store and if-conversion runs before it becomes one.
+
+   It was 4.05 ns before `promoteStackSlots` learned to hold a slot read at two integer widths - a
+   folded `Maybe` is loaded once as the `Int` its discriminant test compares and again as the payload
+   type, and that disagreement was keeping every one of them in memory. That fix is general and this
+   was only what found it.
+-}
+pub alias HexDigit = @bits(4) U32
+
+pub fn hexValue(unit: Int) -> Maybe(HexDigit):
+    if isDigit(unit) then return Just(truncate(unit - 48) :: HexDigit)
+
+    let lower = toLowerUnit(unit)
+    if lower >= 97 && lower <= 102 then return Just(truncate(lower - 87) :: HexDigit)
+
+    return Nothing
+
+pub fn isHexDigit(unit: Int) -> Bool = hexValue(unit) is Just(_)
+
+-- One unit's case, changed only when it is a letter. The bias is 32 in both directions because the
+-- two ASCII alphabets are exactly that far apart, which is also why the vector forms below are one
+-- masked add rather than a table.
+pub fn toLowerUnit(unit: Int) -> Int = if isUpper(unit) then unit + 32 else unit
+pub fn toUpperUnit(unit: Int) -> Int = if isLower(unit) then unit - 32 else unit
+
+{-
+   ------------------------------------------------------------------------------------------
+   Whether a unit is there at all
+   ------------------------------------------------------------------------------------------
+
+   The search with its answer thrown away, and the one function in the scanning family that is not
+   split: what differs between the targets is what `findAscii` *is*, so this is the same program on
+   both and duplicating it would be duplicating nothing.
+-}
+pub fn containsAscii(self: String, unit: CodeUnit) -> Bool = findAscii(self, unit, 0) is Just(_)
+
+-- And whether a whole needle is, which is `String.find` with its answer thrown away for the same
+-- reason. An empty needle is in every string, including the empty one - the convention every string
+-- library in use has, and the alternative is a special case at every call site.
+pub fn String.contains(haystack: String, needle: String) -> Bool =
+    String.find(haystack, needle, 0) is Just(_)
+
+{-
+   ------------------------------------------------------------------------------------------
+   Trimming - Analysis-Library.md §2.2's third operation.
+   ------------------------------------------------------------------------------------------
+
+   ASCII whitespace off one end or both. One body for both targets and no vectors anywhere, which is
+   a measurement rather than an omission: what a trim walks is the whitespace *run*, which is one or
+   two units in every text anyone trims, and a vector loop over a two-unit walk is the setup with
+   none of the payoff. The scan stops at the first unit that is not whitespace, so the cost is the
+   length of what is removed and not the length of what is kept.
+
+   **The result is a copy**, on the terms `String.slice` states: a native `String` is a run this
+   caller does not own and a host one is a primitive, so a view over part of either is not a value
+   this language has. A caller that wants the *positions* rather than the text asks with
+   `findAsciiNone`, which is what these are written over in spirit and what costs nothing.
+-}
+pub fn trimStart(text: String) -> String:
+    let count = length(text)
+    let &at = 0 :: Size
+    while at < count && isSpace(text.unit(at)):
+        at = at + 1
+
+    return String.slice(text, at, count)
+
+pub fn trimEnd(text: String) -> String:
+    let &end = length(text)
+    while end > (0 :: Size) && isSpace(text.unit(end - 1)):
+        end = end - 1
+
+    return String.slice(text, 0, end)
+
+-- Both ends in one slice rather than two, so that an all-whitespace string is walked once and the
+-- text that survives is copied once.
+pub fn trim(text: String) -> String:
+    let count = length(text)
+    let &at = 0 :: Size
+    while at < count && isSpace(text.unit(at)):
+        at = at + 1
+
+    let &end = count
+    while end > at && isSpace(text.unit(end - 1)):
+        end = end - 1
+
+    return String.slice(text, at, end)
+
+{-
+   ==========================================================================================
+   Splitting - Analysis-Library.md §2.2's "the one that changes shape, and it gets better".
+   ==========================================================================================
+
+   The C++ this replaces is `template<class F> void split(StringView, char on, F&& f)`. A callback
+   cannot `break`, cannot `return` from the enclosing function and cannot be `?`-ed; an `iter fn`
+   *is* a callback with a context pointer, so all three work in the loop body and the traversal is
+   written once.
+
+   **Two spellings of every split, and the difference between them is an allocation.**
+
+   - `spansOn` yields the half-open `{from, to}` of each part and allocates nothing at all. This is
+     the primitive: the search under it is the vector scan, the loop carries two `Size`s, and a
+     caller that only wants to *measure* the parts, or to slice some of them, pays for exactly what
+     it takes.
+   - `splitOn` yields the parts themselves, which is one `String.slice` - one allocation and one
+     block copy - per part.
+
+   Both are here rather than only the second, because the second cannot be built into the first by
+   any optimizer: the copy is observable, since a `String` a loop body keeps outlives the text it
+   came from. Analysis-Library.md §2.2 asks for the parts to be *views* rooted in the source with
+   `Flat(CodeUnit)`, which is the shape the native half could hand over and the JS half cannot - a
+   host string has no addressable units - so the portable answer is the span pair, and `String.slice`
+   is what turns one into text on either target.
+
+   An empty text yields one empty part, and `n` separators yield `n + 1` parts however they are
+   placed. That is what makes `splitOn` and `joinWith` inverses, and it is why nothing here skips an
+   empty part; `words` is the function that does, and it says so in its name.
+-}
+pub iter fn spansOn(text: String, on: CodeUnit) -> {Size, Size}:
+    let count = length(text)
+    let &start = 0 :: Size
+    let &running = True
+
+    while running:
+        match findAscii(text, on, start):
+            Just(at):
+                yield {start, at}
+                start = at + 1
+
+            Nothing:
+                yield {start, count}
+                running = False
+
+pub iter fn splitOn(text: String, on: CodeUnit) -> ->String:
+    for {from, to} in spansOn(text, on):
+        yield String.slice(text, from, to)
+
+-- The same split on a whole separator rather than one unit. The search is `String.find`, so the
+-- separator may be any run of units and an empty one is refused rather than looping forever: a split
+-- on nothing is the whole text, which is the answer that composes with `joinWith`.
+pub iter fn splitOnText(text: String, on: String) -> ->String:
+    let count = length(text)
+    let step = length(on)
+
+    if step == (0 :: Size):
+        yield copy(text)
+    else:
+        let &start = 0 :: Size
+        let &running = True
+
+        while running:
+            match String.find(text, on, start):
+                Just(at):
+                    yield String.slice(text, start, at)
+                    start = at + step
+
+                Nothing:
+                    yield String.slice(text, start, count)
+                    running = False
+
+{-
+   The lines of a text, which is `splitOn` at a newline with the other line ending taken off.
+
+   A trailing carriage return is dropped from each part, so a file written on either convention reads
+   the same - the one place in this file where the operation is not simply a split, and the reason it
+   is worth a name of its own rather than a `splitOn(text, 10)` at every call site.
+
+   **A trailing newline does not produce a last empty line.** `"a\nb\n"` is two lines and not three,
+   and the empty text has no lines at all, which is what every line reader in use answers and what
+   makes `lines` idempotent over a file that ends the way files end. That is the one place `lines`
+   and `splitOn` deliberately differ.
+
+   The test is `from == count`, and only the *last* span can satisfy it: a span starting at the end
+   of the text is the one a trailing separator leaves behind. An empty line in the middle starts
+   before the end and is yielded, which is the half a "skip empty parts" rule would get wrong.
+-}
+pub iter fn lines(text: String) -> ->String:
+    let count = length(text)
+
+    for {from, to} in spansOn(text, 10):
+        if from < count:
+            let &end = to
+            if end > from && text.unit(end - 1) == 13 then end = end - 1
+
+            yield String.slice(text, from, end)
+
+{-
+   The whitespace-separated words of a text, with runs of whitespace collapsed and no empty parts.
+
+   Not `splitOn(text, 32)`: a split yields a part between every pair of adjacent separators, and what
+   a caller asking for words wants from `"a  b"` is two of them rather than three. So this is the
+   *skipping* traversal - a walk to the next non-whitespace unit and then a scan to the whitespace
+   after it - and it yields nothing at all for a text that is entirely whitespace.
+-}
+pub iter fn words(text: String) -> ->String:
+    let count = length(text)
+    let &at = 0 :: Size
+
+    while at < count:
+        while at < count && isSpace(text.unit(at)):
+            at = at + 1
+
+        if at < count:
+            let start = at
+            while at < count && !isSpace(text.unit(at)):
+                at = at + 1
+
+            yield String.slice(text, start, at)
+
+{-
+   ==========================================================================================
+   Case-insensitive ordering - and it is split, so the two halves are in the target files.
+   ==========================================================================================
+
+   `compareAsciiCase` is `Text.native.yana`'s and `Text.js.yana`'s, beside `equalsAsciiCase`, and
+   what is written here is the contract both answer.
+
+   **Lexicographic in the same sense `Ord(String)` is**, over the units with the ASCII case fold
+   applied: the answer is decided by the first position at which the two folded units differ, and by
+   the lengths where there is no such position - the shorter string ordering first when it is a
+   prefix of the longer. That last half is what a unit comparison alone gets wrong in both
+   directions.
+
+   The ordering *at* the differing position is over the folded units read as unsigned, which is
+   `toLowerUnit` on the two `Int`s and not a lane comparison: a byte at or above 0x80 is negative in
+   the signed compare the case fold is written in, and while that is exactly right for deciding
+   whether the fold applies to it, it is exactly wrong for deciding which of two units is larger. So
+   the vector half answers *where* and the scalar comparison answers *which way*, which costs one
+   pair of unit reads on the one iteration that finds a difference.
+
+   The units before that position compare equal folded, and a unit equal to another under the ASCII
+   fold is equal to it under either sign, so nothing about the prefix depends on the reading.
+-}
+
+{-
+   ==========================================================================================
+   Replacing
+   ==========================================================================================
+
+   Every occurrence of `needle` replaced by `replacement`, as a new string.
+
+   One body for both targets, and the host's `replaceAll` is deliberately not under the JS half even
+   though it exists and is engine C++. Its *replacement* argument is not literal text - `$&`, `` $` ``,
+   `$'` and `$$` are substitution patterns in it - so a program replacing text that happens to contain
+   one of those would get a different answer on the two targets. The rule this file is written to is
+   that a host call is taken where the host computes the same function, and that is exactly where it
+   does not.
+
+   The search under the loop still is the host's on JS, which is where the time goes: this is one
+   `String.find` per occurrence plus one block copy per gap between them.
+
+   An empty needle matches nowhere rather than everywhere, which is the choice that keeps this
+   terminating and is what `String.find` already says about one.
+-}
+pub fn String.replace(text: String, needle: String, replacement: String) -> String:
+    let step = length(needle)
+    let count = length(text)
+    if step == (0 :: Size) then return copy(text)
+
+    let &out = String.ofCapacity(count)
+    let &start = 0 :: Size
+    let &running = True
+
+    while running:
+        match String.find(text, needle, start):
+            Just(at):
+                out.push(String.slice(text, start, at))
+                out.push(copy(replacement))
+                start = at + step
+
+            Nothing:
+                out.push(String.slice(text, start, count))
+                running = False
+
+    return out

@@ -1,0 +1,232 @@
+import Native
+
+{-
+   ==========================================================================================
+   The scans, on JS - the host's own search.
+   ==========================================================================================
+
+   `Text.yana` beside this is the tier's documentation and everything both targets share;
+   `Text.native.yana` is the vector answer to the same names.
+
+   There is no `Chunked(String)` instance here and there cannot be one: a host string has no
+   addressable units, so what a native build reaches through a container this build reaches through
+   `String.prototype.indexOf`, `lastIndexOf` and `substring`. Implementation-String.md part 5 rules
+   that this is "legitimate, encouraged" rather than a compromise - searching for a fixed run of units
+   has no room for the cross-engine disagreement the decoding tier has to worry about, and the
+   engine's own C++ beats any `charCodeAt` loop this compiler emits.
+
+   **A host call is taken where the host computes the same function, and nowhere else.** Three of them
+   are not taken here and each is worth naming, because the host has all three:
+
+   - `toLowerCase` / `toUpperCase` are Unicode case folding and locale-sensitive. They change unit
+     counts and they are not the same function as the native build's `A`-`Z` select, so the ASCII tier
+     spells its own loop.
+   - `trim` trims the Unicode whitespace set, which is larger than the six units `isSpace` names.
+     `Text.yana`'s trim is written over `isSpace` and is one body for both targets for that reason.
+   - `startsWith` / `endsWith` return a host boolean, and a `Bool` here is the number 0 or 1
+     (`boolNumber` in codegen/js/type.cpp). The `HostCall` arm does not convert, so a predicate taken
+     from the host would be right in a condition and wrong in a value position - see
+     `Native/Host.js.yana`. `hostSubstring` and `hostStringEq` are the same answer with no such edge:
+     one allocation the length of the prefix, and a comparison the engine stops at the first
+     difference of.
+
+   `-1` for "not found" is the host's answer and is turned into `Nothing` at each call rather than
+   left to leak. The positions are UTF-16 code-unit offsets, which is what `String.unit` and `length`
+   mean by a position on this target.
+-}
+
+-- One unit as a one-unit string, which is what the host's search takes. `String.fromCharCode` is the
+-- only way to build one here, and it is what the whole unit-searching family below is written over.
+fn unitText(unit: CodeUnit) -> String = hostFromCharCode(unit :: Int)
+
+pub fn findAscii(self: String, unit: CodeUnit, from: Size = 0) -> Maybe(Size):
+    let at = hostIndexOf(self, unitText(unit), from)
+    if at < 0 then return Nothing
+
+    return Just(at)
+
+-- The host search stepped along, which is the same C++ scan restarted at each hit. It is a worse
+-- shape than the native mask count and it is still the fastest thing this target has.
+pub fn countAscii(self: String, unit: CodeUnit) -> Int:
+    let needle = unitText(unit)
+    let &total = 0
+    let &from = 0 :: Size
+
+    while from >= 0:
+        let at = hostIndexOf(self, needle, from)
+        if at < 0 then return total
+
+        total = total + 1
+        from = at + 1
+
+    return total
+
+-- `lastIndexOf` takes the position the match may *start* at at the latest, so the whole string is
+-- `length(self)` and not `length(self) - 1`.
+pub fn findLastAscii(self: String, unit: CodeUnit) -> Maybe(Size):
+    let at = hostLastIndexOf(self, unitText(unit), length(self))
+    if at < 0 then return Nothing
+
+    return Just(at)
+
+{-
+   Any of a set of units, as the lowest of one host search per candidate.
+
+   The native half does this in one pass with the candidates in registers; there is no host call that
+   takes a set, so the choice here is between `k` scans of engine C++ and one `charCodeAt` loop with a
+   membership test inside it. The scans win for the candidate counts this is asked about - a delimiter
+   set is two or three units - because the engine's scan is a memchr-class loop and the emitted one is
+   an interpreted property read per unit. It is `O(k*n)` in the worst case and the loop is `O(n)`, so
+   a large set would want the other one; nothing in the library builds one.
+-}
+pub fn findAsciiAny(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
+    let &best = length(self) + 1
+    let &found = False
+
+    for candidate in items(units):
+        let at = hostIndexOf(self, unitText(candidate), from)
+        if at >= 0 && at < best:
+            best = at
+            found = True
+
+    if !found then return Nothing
+
+    return Just(best)
+
+-- And the inverse, which has no host call at all: "not one of these" is not a search the engine
+-- exposes, so this is the `charCodeAt` walk the family otherwise avoids.
+pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
+    let count = length(self)
+    let &i = from
+    if i < (0 :: Size) then i = 0
+    if length(units) == (0 :: Size) then return if i < count then Just(i) else Nothing
+
+    while i < count:
+        if !contains(units, truncate(self.unit(i)) :: CodeUnit) then return Just(i)
+        i = i + 1
+
+    return Nothing
+
+{-
+   ------------------------------------------------------------------------------------------
+   Prefixes, suffixes and whole needles
+   ------------------------------------------------------------------------------------------
+
+   `hostSubstring` and `hostStringEq` rather than the host's own `startsWith`, for the reason the
+   header gives: a host predicate hands back a host boolean and a `Bool` here is a number. The
+   substring is the length of the prefix and the comparison stops at its first differing unit, so what
+   this costs against the host predicate is one short allocation.
+-}
+pub fn startsWith(text: String, prefix: String) -> Bool:
+    let wanted = length(prefix)
+    if wanted > length(text) then return False
+
+    return hostStringEq(hostSubstring(text, 0, wanted), prefix)
+
+pub fn endsWith(text: String, suffix: String) -> Bool:
+    let wanted = length(suffix)
+    let count = length(text)
+    if wanted > count then return False
+
+    return hostStringEq(hostSubstring(text, count - wanted, count), suffix)
+
+-- An empty needle is found at `from`, which is the same convention the native half states and the
+-- same one the host's own `indexOf` has.
+pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Size):
+    let count = length(haystack)
+    let &begin = from
+    if begin < (0 :: Size) then begin = 0
+    if begin > count then begin = count
+    if length(needle) == (0 :: Size) then return Just(begin)
+
+    let at = hostIndexOf(haystack, needle, begin)
+    if at < 0 then return Nothing
+
+    return Just(at)
+
+pub fn String.findLast(haystack: String, needle: String) -> Maybe(Size):
+    let count = length(haystack)
+    if length(needle) == (0 :: Size) then return Just(count)
+
+    let at = hostLastIndexOf(haystack, needle, count)
+    if at < 0 then return Nothing
+
+    return Just(at)
+
+{-
+   ------------------------------------------------------------------------------------------
+   The ASCII case tier, and the ASCII test
+   ------------------------------------------------------------------------------------------
+
+   A `charCodeAt` walk and a `String.fromCharCode` per unit, appended through `String.pushUnit` -
+   which is the host's `+` and therefore a rope, so the chain is linear here rather than quadratic.
+   The host's own case conversion is deliberately not under these names; see the header.
+-}
+pub fn toLowerAscii(text: String) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    let &i = 0 :: Size
+
+    while i < count:
+        out.pushUnit(toLowerUnit(text.unit(i)))
+        i = i + 1
+
+    return out
+
+pub fn toUpperAscii(text: String) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    let &i = 0 :: Size
+
+    while i < count:
+        out.pushUnit(toUpperUnit(text.unit(i)))
+        i = i + 1
+
+    return out
+
+pub fn equalsAsciiCase(left: String, right: String) -> Bool:
+    let count = length(left)
+    if count != length(right) then return False
+
+    let &i = 0 :: Size
+    while i < count:
+        if toLowerUnit(left.unit(i)) != toLowerUnit(right.unit(i)) then return False
+        i = i + 1
+
+    return True
+
+{-
+   Case-insensitive ordering - `Text.yana` states the contract, and here it is the walk it reads as.
+
+   There is no container under a host string to load a vector out of, so the loop that this target
+   *can* write is the one the native half stopped writing: a unit of each operand per position, with
+   the fold applied to both before the comparison. It stops at the first position the two part on,
+   which for the strings a case-insensitive comparison is asked about is near the start.
+-}
+pub fn compareAsciiCase(left: String, right: String) -> Ordering:
+    let leftCount = length(left)
+    let rightCount = length(right)
+    let &shared = leftCount
+    if rightCount < shared then shared = rightCount
+
+    let &i = 0 :: Size
+    while i < shared:
+        let a = toLowerUnit(left.unit(i))
+        let b = toLowerUnit(right.unit(i))
+        if a < b then return LT
+        if a > b then return GT
+        i = i + 1
+
+    if leftCount < rightCount then return LT
+    if leftCount > rightCount then return GT
+    return EQ
+
+pub fn isAllAscii(text: String) -> Bool:
+    let count = length(text)
+    let &i = 0 :: Size
+
+    while i < count:
+        if !isAscii(text.unit(i)) then return False
+        i = i + 1
+
+    return True

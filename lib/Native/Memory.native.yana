@@ -119,14 +119,17 @@ pub fn blockCopy(to: %U8, from: %U8, count: Size) -> {}
    and nothing above them - one dispatch on an operation that costs about a nanosecond. See
    `test/bench/memmove/findings.md` §9.
 
-   **`width` is written out in every one of the six and is not a function**, which is the one thing
-   the split could not share. It is the byte vector's lane count - sixteen at v2, thirty-two at v3,
-   sixty-four at v4 - and it has to be a *constant* where it is read, because `width > 32` and
-   `count < width * 4` are what fold the rungs a given target cannot use out of existence before
-   anything asks whether that target has a 32-byte register. Behind a call it is a constant on an
-   optimized build and an opaque `I64` on `-no-opt`, and what the fold removes at v2 is a
-   `Vec(U8, 32)` load the backend refuses outright. That was not a hypothetical: it is what the
-   shared `blockWidth()` this replaced did to every fixture in the corpus.
+   **`width` is `vectorBytes` and not a function**, which is the one thing the split could not
+   share. It is the register's byte count - sixteen at v2, thirty-two at v3, sixty-four at v4 - and
+   it has to be a *constant* where it is read, because `width > 32` and `count < width * 4` are what
+   fold the rungs a given target cannot use out of existence before anything asks whether that
+   target has a 32-byte register. Behind a **call** it is a constant on an optimized build and an
+   opaque `I64` on `-no-opt`, and what the fold removes at v2 is a `Vec(U8, 32)` load the backend
+   refuses outright. That was not a hypothetical: it is what the shared `blockWidth()` this replaced
+   did to every fixture in the corpus. `Core/Vector.yana`'s `vectorBytes` is a supplied builtin
+   rather than a call - an immutable global whose initializer is the number, which resolve folds
+   into every read of it before any pass has run - so naming it once there costs what writing
+   `lanes(zero() :: Vec(U8))` into all six used to.
 
    `@platform(native)` throughout, and the vector is what forced it: `vectorAt` and `setVectorAt`
    are native-only, and a JS build has no bytes to move in the first place - `Array`'s own `remove`
@@ -148,8 +151,7 @@ pub fn blockCopy(to: %U8, from: %U8, count: Size) -> {}
    to glibc.
 -}
 fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
-    -- The register, as a constant - see the note on `width` above.
-    let width = lanes(zero() :: Vec(U8)) :: Size
+    let width = vectorBytes
 
     if count >= 8:
         if count >= width:
@@ -235,8 +237,7 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
    costs a branch on the long path as well.
 -}
 @inline fn blockPair(to: %U8, from: %U8, count: Size) -> {}:
-    -- The register, as a constant - see the note on `width` above.
-    let width = lanes(zero() :: Vec(U8)) :: Size
+    let width = vectorBytes
 
     let a = vectorAt(from)
     let b = vectorAt(from + width)
@@ -267,8 +268,7 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
    uses four of sixteen costs nothing on any target this compiles for.
 -}
 fn blockAscending(to: %U8, from: %U8, count: Size) -> {}:
-    -- The register, as a constant - see the note on `width` above.
-    let width = lanes(zero() :: Vec(U8)) :: Size
+    let width = vectorBytes
     let stride = width * 4
 
     let tail = vectorAt(from + (count - width))
@@ -311,8 +311,7 @@ fn blockAscending(to: %U8, from: %U8, count: Size) -> {}:
    The one rung `copyMemory` never calls, since a copy has no direction to choose.
 -}
 fn blockDescending(to: %U8, from: %U8, count: Size) -> {}:
-    -- The register, as a constant - see the note on `width` above.
-    let width = lanes(zero() :: Vec(U8)) :: Size
+    let width = vectorBytes
     let stride = width * 4
 
     let head = vectorAt(from)
@@ -362,8 +361,7 @@ fn blockDescending(to: %U8, from: %U8, count: Size) -> {}:
    same thing before it may say it.
 -}
 pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}:
-    -- The register, as a constant - see the note on `width` above.
-    let width = lanes(zero() :: Vec(U8)) :: Size
+    let width = vectorBytes
 
     if count >= width + width:
         if count < width * 4:
@@ -425,8 +423,7 @@ pub fn copyMemory(to: %U8, from: %U8, count: Size) -> {}:
    -}
 -}
 pub fn moveMemory(to: %U8, from: %U8, count: Size) -> {}:
-    -- The register, as a constant - see the note on `width` above.
-    let width = lanes(zero() :: Vec(U8)) :: Size
+    let width = vectorBytes
 
     if count >= width + width:
         if count < width * 4:

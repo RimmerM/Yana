@@ -11,6 +11,11 @@
      instance - so the scan is the vector search the bulk operations already had, and nothing about
      it is string-specific.
 
+   The three live in `Core/Text.yana` with the rest of the text tier that grew around them, and this
+   file is the assertion that the *instance* under them is the vector path rather than a loop:
+   `Text.test.yana` covers the surface, and what is here is one text per lane count, held to the same
+   indices on both targets.
+
    None of this decodes anything, and it does not have to: an ASCII unit is self-synchronizing in
    both UTF-8 and UTF-16 - a value below 0x80 never appears inside the encoding of any other code
    point in either - so the same index means the same position in both builds for ASCII content.
@@ -22,37 +27,37 @@
    point of the ASCII restriction.
 -}
 
-fn main() -> Int:
+import Test
+
+@test fn stringAsciiCases() -> {}:
     let line = "name,age,city"
     let text = "hello, world, and hello again"
 
     -- 44 is a comma. The first one is at index four in either encoding, because everything before it
     -- is ASCII.
     match findAscii(line, 44):
-        Just(at) -> assert(at == 4)
-        Nothing -> assert(False)
+        Just(at) -> checkEqual(at, 4)
+        Nothing -> check(False)
 
-    assert(countAscii(line, 44) == 2)
-    assert(containsAscii(line, 44))
+    checkEqual(countAscii(line, 44), 2)
+    check(containsAscii(line, 44))
 
     -- 33 is `!`, which is not there. The absent case is a `Nothing` rather than a sentinel index.
-    assert(findAscii(line, 33) is Nothing)
-    assert(!containsAscii(line, 33))
+    check(findAscii(line, 33) is Nothing)
+    check(!containsAscii(line, 33))
 
     -- Long enough to leave a tail at every lane count: 29 units against sixteen or thirty-two.
-    assert(countAscii(text, 108) == 5)
+    checkEqual(countAscii(text, 108), 5)
 
     match findAscii(text, 119):
-        Just(w) -> assert(w == 7)
-        Nothing -> assert(False)
+        Just(w) -> checkEqual(w, 7)
+        Nothing -> check(False)
 
     -- The first unit and the last, which are the two indices an off-by-one shows up in.
     match findAscii(text, 104):
-        Just(first) -> assert(first == 0)
-        Nothing -> assert(False)
+        Just(first) -> checkEqual(first, 0)
+        Nothing -> check(False)
 
     match findAscii(text, 110):
-        Just(n) -> assert(n == 15)
-        Nothing -> assert(False)
-
-    return 0
+        Just(n) -> checkEqual(n, 15)
+        Nothing -> check(False)

@@ -1,10 +1,6 @@
 let image$base: () = <none>
 
-table closure$ResolveTest.continuation$20 before ResolveTest.continuation$20 {
-  .0 teardown$none
-}
-
-table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
+table closure$ResolveTest.continuation$24 before ResolveTest.continuation$24 {
   .0 teardown$none
 }
 
@@ -12,15 +8,19 @@ table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$28 before ResolveTest.continuation$28 {
+table closure$ResolveTest.continuation$31 before ResolveTest.continuation$31 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$23(Gate) before ResolveTest.continuation$23(Gate) {
+table closure$ResolveTest.continuation$32 before ResolveTest.continuation$32 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$28(Gate) before ResolveTest.continuation$28(Gate) {
+table closure$ResolveTest.continuation$27(Gate) before ResolveTest.continuation$27(Gate) {
+  .0 teardown$none
+}
+
+table closure$ResolveTest.continuation$32(Gate) before ResolveTest.continuation$32(Gate) {
   .0 teardown$none
 }
 
@@ -89,7 +89,7 @@ fn concrete() -> Int {
     %g = alloc : Gate
     aggregate %local0@Gate.depth = 3
     %v3 = alloc : (value$: Int) -> Int
-    %v4 = symbol ResolveTest.continuation$18 : %()
+    %v4 = symbol ResolveTest.continuation$22 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -102,7 +102,7 @@ fn dotted() -> Int {
     %g = alloc : Gate
     aggregate %local0@Gate.depth = 5
     %v3 = alloc : (value$: Int) -> Int
-    %v4 = symbol ResolveTest.continuation$19 : %()
+    %v4 = symbol ResolveTest.continuation$23 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -123,7 +123,7 @@ fn unitHandover() -> Int {
     init %local2.g, %v9
     %v11 = addressof %local2 : %()
     %v12 = alloc : () -> Int
-    %v13 = symbol ResolveTest.continuation$20 : %()
+    %v13 = symbol ResolveTest.continuation$24 : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call Guard(Gate).hold(Int), %g, %v12 : Int
@@ -138,7 +138,7 @@ fn unitHandover() -> Int {
 
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$21 : %()
+    %v2 = symbol ResolveTest.continuation$25 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -154,7 +154,7 @@ fn unitHandover() -> Int {
 
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$22 : %()
+    %v2 = symbol ResolveTest.continuation$26 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -178,7 +178,7 @@ fn unitHandover() -> Int {
     init %local2.bump, %bump
     %v9 = addressof %local2 : %()
     %v10 = alloc : () -> Int
-    %v11 = symbol ResolveTest.continuation$23 : %()
+    %v11 = symbol ResolveTest.continuation$27 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = gencall Guard(a).hold, %x, %v10 : Int
@@ -193,7 +193,7 @@ fn unitHandover() -> Int {
 
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$24 : %()
+    %v2 = symbol ResolveTest.continuation$28 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -206,7 +206,7 @@ fn inherited() -> Int {
     %g = alloc : Gate
     aggregate %local0@Gate.depth = 6
     %v3 = alloc : (value$: Int) -> Int
-    %v4 = symbol ResolveTest.continuation$25 : %()
+    %v4 = symbol ResolveTest.continuation$29 : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
@@ -222,7 +222,7 @@ fn inherited() -> Int {
 
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$26 : %()
+    %v2 = symbol ResolveTest.continuation$30 : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -241,7 +241,7 @@ fn iterated() -> Int {
     init %local2.t, %v7
     %v9 = addressof %local2 : %()
     %v10 = alloc : (value$: Int) -> Outcome((), ())
-    %v11 = symbol ResolveTest.continuation$27 : %()
+    %v11 = symbol ResolveTest.continuation$31 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call Guard.steps(Gate, ()), %g, %v10 : Outcome((), ())
@@ -264,7 +264,7 @@ fn iterated() -> Int {
     init %local2.t, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$28 : %()
+    %v9 = symbol ResolveTest.continuation$32 : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = gencall Guard(a).steps, %x, %v8 : Outcome((), ())
@@ -327,7 +327,7 @@ fn Guard(Gate).depthOf(%self: Gate, %body: (value$: Int) -> $r) -> $r {
     ret %v3
 }
 
-fn ResolveTest.continuation$18(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$22(%env: %{}, %value$: Int) -> Int {
   b0:
     %v4 = add %value$, 1 : Int
     ret %v4
@@ -340,13 +340,13 @@ fn Guard(Gate).depthOf(Int)(%self: Gate, %body: (value$: Int) -> Int) -> Int {
     ret %v3
 }
 
-fn ResolveTest.continuation$19(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$23(%env: %{}, %value$: Int) -> Int {
   b0:
     %v4 = add %value$, 1 : Int
     ret %v4
 }
 
-fn ResolveTest.continuation$20(%env: %{n: &Int, g: 'Gate}) -> Int {
+fn ResolveTest.continuation$24(%env: %{n: &Int, g: 'Gate}) -> Int {
   b0:
     %v1 = load [%env].n : &Int
     %v2 = load [%env].n : &Int
@@ -367,7 +367,7 @@ fn Guard(Gate).hold(Int)(%self: Gate, %body: () -> Int) -> Int {
     ret %v2
 }
 
-(Guard(a)) fn ResolveTest.continuation$21(%env: %{}, %value$: Int) -> Int {
+(Guard(a)) fn ResolveTest.continuation$25(%env: %{}, %value$: Int) -> Int {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -378,7 +378,7 @@ fn Guard(Gate).hold(Int)(%self: Gate, %body: () -> Int) -> Int {
     ret %v4
 }
 
-(Guard(a)) fn ResolveTest.continuation$22(%env: %{}, %value$: Int) -> Int {
+(Guard(a)) fn ResolveTest.continuation$26(%env: %{}, %value$: Int) -> Int {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -389,7 +389,7 @@ fn Guard(Gate).hold(Int)(%self: Gate, %body: () -> Int) -> Int {
     ret %v4
 }
 
-(Guard(a)) fn ResolveTest.continuation$23(%env: %{n: &Int, bump: Int}) -> Int {
+(Guard(a)) fn ResolveTest.continuation$27(%env: %{n: &Int, bump: Int}) -> Int {
   schema {
     #0 type a
     #1 type {n: &Int, bump: Int}
@@ -408,7 +408,7 @@ fn Guard(Gate).hold(Int)(%self: Gate, %body: () -> Int) -> Int {
     ret %v8
 }
 
-(Guard(a)) fn ResolveTest.continuation$24(%env: %{}, %value$: Int) -> Int {
+(Guard(a)) fn ResolveTest.continuation$28(%env: %{}, %value$: Int) -> Int {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -428,7 +428,7 @@ fn Guard(Gate).hold(Int)(%self: Gate, %body: () -> Int) -> Int {
     ret %value$
 }
 
-fn ResolveTest.continuation$25(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$29(%env: %{}, %value$: Int) -> Int {
   b0:
     ret %value$
 }
@@ -441,7 +441,7 @@ fn Guard.twiceDeep(Gate, Int)(%self: Gate, %body: (value$: Int) -> Int) -> Int {
     ret %v5
 }
 
-(Guard(a)) fn ResolveTest.continuation$26(%env: %{}, %value$: Int) -> Int {
+(Guard(a)) fn ResolveTest.continuation$30(%env: %{}, %value$: Int) -> Int {
   schema {
     #0 type a
     #1 class Guard(a)
@@ -452,7 +452,7 @@ fn Guard.twiceDeep(Gate, Int)(%self: Gate, %body: (value$: Int) -> Int) -> Int {
     ret %v4
 }
 
-fn ResolveTest.continuation$27(%env: %{t: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$31(%env: %{t: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].t : &Int
     %v3 = load [%env].t : &Int
@@ -498,7 +498,7 @@ fn Guard.steps(Gate, ())(%self: Gate, %body: (value$: Int) -> Outcome((), ())) -
     jmp b1
 }
 
-(Guard(a)) fn ResolveTest.continuation$28(%env: %{t: &Int}, %value$: Int) -> Outcome((), ()) {
+(Guard(a)) fn ResolveTest.continuation$32(%env: %{t: &Int}, %value$: Int) -> Outcome((), ()) {
   schema {
     #0 type a
     #1 type {t: &Int}
@@ -520,7 +520,7 @@ fn Guard.steps(Gate, ())(%self: Gate, %body: (value$: Int) -> Outcome((), ())) -
 fn deferred(Gate)(%x: Gate) -> Int {
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$21(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$25(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -528,7 +528,7 @@ fn deferred(Gate)(%x: Gate) -> Int {
     ret %v7
 }
 
-fn ResolveTest.continuation$21(Gate)(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$25(Gate)(%env: %{}, %value$: Int) -> Int {
   b0:
     %v3 = mul %value$, 2 : Int
     ret %v3
@@ -537,7 +537,7 @@ fn ResolveTest.continuation$21(Gate)(%env: %{}, %value$: Int) -> Int {
 fn deferredDot(Gate)(%x: Gate) -> Int {
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$22(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$26(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -545,7 +545,7 @@ fn deferredDot(Gate)(%x: Gate) -> Int {
     ret %v7
 }
 
-fn ResolveTest.continuation$22(Gate)(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$26(Gate)(%env: %{}, %value$: Int) -> Int {
   b0:
     %v3 = mul %value$, 3 : Int
     ret %v3
@@ -561,14 +561,14 @@ fn deferredUnit(Gate)(%x: Gate, %bump: Int) -> Int {
     init %local2.bump, %bump
     %v9 = addressof %local2 : %()
     %v10 = alloc : () -> Int
-    %v11 = symbol ResolveTest.continuation$23(Gate) : %()
+    %v11 = symbol ResolveTest.continuation$27(Gate) : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call Guard(Gate).hold(Int), %x, %v10 : Int
     ret %v14
 }
 
-fn ResolveTest.continuation$23(Gate)(%env: %{n: &Int, bump: Int}) -> Int {
+fn ResolveTest.continuation$27(Gate)(%env: %{n: &Int, bump: Int}) -> Int {
   b0:
     %v1 = load [%env].n : &Int
     %v2 = load [%env].n : &Int
@@ -584,7 +584,7 @@ fn ResolveTest.continuation$23(Gate)(%env: %{n: &Int, bump: Int}) -> Int {
 fn deferredExit(Gate)(%x: Gate) -> Int {
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$24(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$28(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -592,7 +592,7 @@ fn deferredExit(Gate)(%x: Gate) -> Int {
     ret %v7
 }
 
-fn ResolveTest.continuation$24(Gate)(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$28(Gate)(%env: %{}, %value$: Int) -> Int {
   b0:
     %v3 = cmp_gt %value$, 100 : Bool
     je %v3, b1, b2
@@ -610,7 +610,7 @@ fn ResolveTest.continuation$24(Gate)(%env: %{}, %value$: Int) -> Int {
 fn deferredDefault(Gate)(%x: Gate) -> Int {
   b0:
     %v1 = alloc : (value$: Int) -> Int
-    %v2 = symbol ResolveTest.continuation$26(Gate) : %()
+    %v2 = symbol ResolveTest.continuation$30(Gate) : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
@@ -618,7 +618,7 @@ fn deferredDefault(Gate)(%x: Gate) -> Int {
     ret %v7
 }
 
-fn ResolveTest.continuation$26(Gate)(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$30(Gate)(%env: %{}, %value$: Int) -> Int {
   b0:
     %v3 = add %value$, 1 : Int
     ret %v3
@@ -633,7 +633,7 @@ fn deferredIter(Gate)(%x: Gate) -> Int {
     init %local2.t, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$28(Gate) : %()
+    %v9 = symbol ResolveTest.continuation$32(Gate) : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call Guard.steps(Gate, ()), %x, %v8 : Outcome((), ())
@@ -641,7 +641,7 @@ fn deferredIter(Gate)(%x: Gate) -> Int {
     ret %v13
 }
 
-fn ResolveTest.continuation$28(Gate)(%env: %{t: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$32(Gate)(%env: %{t: &Int}, %value$: Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].t : &Int
     %v3 = load [%env].t : &Int

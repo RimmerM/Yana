@@ -148,10 +148,13 @@ pub fn hostWriteU64(self: %U8, index: Size, value: U64, little: Bool) -> {}
    own, and none of them allocates anything Yana has to account for: the collector owns every string
    these produce, which is why `Reclaim(String)` has no JS instance.
 
-   The two that are *not* here are the two a program would expect most. There is no `hostSubstring`
-   and no `hostIndexOf`, because slicing and search are parts 4 and 5 of that document and this
-   change is parts 2, 3 and 8 - the raw tier and concatenation. Adding either is a declaration here
-   and a `HostMember` entry, and nothing else.
+   Every one of them is a `HostMember` entry in resolve/host.cpp and a declaration here, and that is
+   the whole of what adding one costs. **None of them answers a `Bool`**, which is a rule rather than
+   a coincidence: a host predicate hands back a host boolean and a `Bool` on this target is the number
+   0 or 1 (`boolNumber` in codegen/js/type.cpp), and the `HostCall` arm does not convert. So
+   `startsWith` and `endsWith` are *not* here even though the host has both - `Core/Text.js.yana`
+   spells them as a `hostSubstring` and a `hostStringEq`, which is one comparison on a short string
+   and cannot go wrong in a value position.
 -}
 
 -- `self.length`, in UTF-16 code units, which part 3 is explicit is *not* the same number the native
@@ -178,6 +181,27 @@ pub fn hostCharCodeAt(self: String, index: Size) -> Int
    decision the library above it makes.
 -}
 pub fn hostIndexOf(self: String, needle: String, from: Size) -> Size
+
+{-
+   `self.lastIndexOf(needle, from)` - the same search from the other end, and the same `-1`.
+
+   `from` is where the match may *start* at the latest rather than where the scan begins, which is
+   the host's own definition and is what a caller wanting the whole string passes `length(self)` for.
+-}
+pub fn hostLastIndexOf(self: String, needle: String, from: Size) -> Size
+
+{-
+   `self.substring(from, to)` - the units between two positions, as a string of its own.
+
+   Implementation-String.md part 4's slice on this target, and the reason the library's `String.slice`
+   is not a `charCodeAt` loop building a string one unit at a time: that loop is a concatenation per
+   unit, so cutting one line out of a megabyte of text walked the whole rope for every line.
+
+   The host clamps both bounds into `[0, length]` and swaps them if they arrive the wrong way round.
+   `String.slice` clamps first anyway, because the native half has to and the two must answer the
+   same thing.
+-}
+pub fn hostSubstring(self: String, from: Size, to: Size) -> String
 
 {-
    Concatenation and comparison, as the host's own operators - see NativeOp::HostBinary.

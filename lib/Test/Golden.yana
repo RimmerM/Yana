@@ -271,7 +271,7 @@ fn markReached(file: String) -> {}:
     if wasReached(file) then return
     reachedFiles ++= "\n{file}\n"
 
-fn wasReached(file: String) -> Bool = containsText(reachedFiles, "\n{file}\n")
+fn wasReached(file: String) -> Bool = String.contains(reachedFiles, "\n{file}\n")
 
 {-
    Ruling 2's reorder test: the same lines, however they were arranged.
@@ -331,7 +331,7 @@ fn takeLine(text: String, &at: Size) -> String:
     while end < length(text) && text.unit(end) != 10:
         end = end + 1
 
-    let line = sliceOfText(text, at, end)
+    let line = String.slice(text, at, end)
     at = if end < length(text) then end + 1 else end
     return line
 
@@ -372,4 +372,4 @@ fn firstDifference(expected: String, actual: String) -> String:
 fn showText(line: String) -> String:
     let limit = 60 :: Size
     if length(line) <= limit then return "`{line}`"
-    return "`{sliceOfText(line, 0, limit - 3)}...`"
+    return "`{String.slice(line, 0, limit - 3)}...`"

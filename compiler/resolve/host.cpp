@@ -82,6 +82,8 @@ enum class HostMember: U8 {
     CopyWithin,
     CharCodeAt,
     IndexOf,
+    LastIndexOf,
+    Substring,
 
     // `n.toExponential()` - the shortest decimal that reads back as this number, which is what the
     // specification requires of the no-argument form and is exactly what Ryu computes on the other
@@ -129,6 +131,8 @@ StringView hostMemberName(HostMember member) {
         case HostMember::CopyWithin: return "copyWithin"_v;
         case HostMember::CharCodeAt: return "charCodeAt"_v;
         case HostMember::IndexOf: return "indexOf"_v;
+        case HostMember::LastIndexOf: return "lastIndexOf"_v;
+        case HostMember::Substring: return "substring"_v;
         case HostMember::ToExponential: return "toExponential"_v;
         case HostMember::Concat: return "+"_v;
         case HostMember::Equal: return "==="_v;
@@ -374,6 +378,8 @@ void definePreludeHost(Program& program, Module& native) {
     attachIntrinsic(*module, "hostStringLength"_v, emitHostMember<NativeOp::HostField, HostMember::Length>);
     attachIntrinsic(*module, "hostCharCodeAt"_v, emitHostMember<NativeOp::HostCall, HostMember::CharCodeAt>);
     attachIntrinsic(*module, "hostIndexOf"_v, emitHostMember<NativeOp::HostCall, HostMember::IndexOf>);
+    attachIntrinsic(*module, "hostLastIndexOf"_v, emitHostMember<NativeOp::HostCall, HostMember::LastIndexOf>);
+    attachIntrinsic(*module, "hostSubstring"_v, emitHostMember<NativeOp::HostCall, HostMember::Substring>);
     attachIntrinsic(*module, "hostConcat"_v, emitHostMember<NativeOp::HostBinary, HostMember::Concat>);
     attachIntrinsic(*module, "hostStringEq"_v, emitHostMember<NativeOp::HostBinary, HostMember::Equal>);
     attachIntrinsic(*module, "hostStringLt"_v, emitHostMember<NativeOp::HostBinary, HostMember::Less>);

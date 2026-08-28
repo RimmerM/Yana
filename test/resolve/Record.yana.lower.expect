@@ -2,15 +2,11 @@
 
 main<complex>(): Int {
   b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    store %v_1, 3, 1
-    %v_2 = alloca 1, 1: Ptr
-    store %v_2, 0, 1
-    copy %v_2, %v_1, 1
-    %v_3 = load %v_2, 1: Int
+    %v_1 = bitcast 3: Long
+    %v_2 = and %v_1, 255: Long
+    %v_3 = bitcast %v_2: Int
     %v_4 = and %v_3, 18446744073709551611: Int
     %v_5 = or %v_4, 4: Int
-    store %v_2, %v_5, 1
     %v_6 = and %v_5, 1: Int
     %v_7 = shr %v_5, 1: Int
     %v_8 = and %v_7, 1: Int

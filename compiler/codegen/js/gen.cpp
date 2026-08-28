@@ -901,11 +901,23 @@ StmtList genBody(Gen& g, Function& function) {
             auto& arg = *g.local[argPointer];
             auto box = declare(g, valueName(g, arg), boxOf(g, useValue(g, value)));
 
-            // Replaced rather than added: the parameter is already registered as its own variable,
-            // and what every reader wants from here on is the box - the walk adds `.$v` where the
-            // value itself is wanted, exactly as it does for a boxed local.
-            if(auto found = g.values.get(U32(value))) found.unwrap() = box;
-            else g.values.add(U32(value), box);
+            /*
+             * Registered exactly as a boxed local is - the box under `localBoxes` for the place
+             * walk, and `box.$v` as the parameter's *value* - rather than the box under both.
+             *
+             * The walk reaches the same expression either way, since its fallback appends `.$v` to
+             * whatever `useValue` answers. What does not is a use that never goes through the walk:
+             * a by-value parameter of memory type crosses a call as a borrow, and `pushArg` hands
+             * over `useValue` of it, so a boxed one arrived at the callee as `{$v: text}` where the
+             * callee - which did not borrow its own copy and so did not box it - read `text.length`
+             * off it. `for part in splitOn(text, on)` is the shape: the continuation captures
+             * `text`, which boxes it, and `spansOn` beneath it takes the same string by value.
+             */
+            g.localBoxes.add(U32(slot), box);
+            auto contents = field(g, box, g.boxField);
+
+            if(auto found = g.values.get(U32(value))) found.unwrap() = contents;
+            else g.values.add(U32(value), contents);
         }
 
         /*

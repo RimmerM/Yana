@@ -113,43 +113,42 @@ removed<complex>(%n: Int): Int {
 
 scored<complex>(%n: Int): Int {
   b_0 {
-    %v_1 = alloca 1, 1: Ptr
-    %v_2 = cmp_ilt %n, 0: Int
-    je %v_2, b_3, b_4
-  }
-
-  b_4 {
-    store %v_1, 4, 1
-    jmp b_5
+    %v_1 = cmp_ilt %n, 0: Int
+    je %v_1, b_2, b_3
   }
 
   b_3 {
-    %v_6 = sub 0, %n: Int
-    %v_7 = call_complex classify, %v_6: Int
-    store %v_1, %v_7, 1
-    jmp b_5
+    jmp b_4
   }
 
-  b_5 {
-    %v_8 = load %v_1, 1: Long
-    %v_9 = cmp_le %v_8, 3: Int
-    %v_10 = select %v_9, 0, 1: Int
-    je %v_10, b_11, b_12
+  b_2 {
+    %v_5 = sub 0, %n: Int
+    %v_6 = call_complex classify, %v_5: Int
+    %v_7 = bitcast %v_6: Long
+    jmp b_4
+  }
+
+  b_4 {
+    %v_8 = phi [b_3, 4], [b_2, %v_7]: Long
+    %v_9 = and %v_8, 255: Long
+    %v_10 = cmp_le %v_9, 3: Int
+    %v_11 = select %v_10, 0, 1: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_13 {
+    %v_14 = bitcast %v_9: Int
+    %v_15 = call_complex weight, %v_14: Int
+    jmp b_16
   }
 
   b_12 {
-    %c = load %v_1, 1: Int
-    %v_13 = call_complex weight, %c: Int
-    jmp b_14
+    jmp b_16
   }
 
-  b_11 {
-    jmp b_14
-  }
-
-  b_14 {
-    %v_15 = phi [b_11, 0], [b_12, %v_13]: Int
-    ret %v_15
+  b_16 {
+    %v_17 = phi [b_12, 0], [b_13, %v_15]: Int
+    ret %v_17
   }
 }
 

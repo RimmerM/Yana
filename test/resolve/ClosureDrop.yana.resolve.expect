@@ -10,7 +10,7 @@ let &heapRegionNext: Size = 0
 
 let &dropCalls: Int = 0
 
-table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
+table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
   .0 closureRelease${g: Guard}
 }
 
@@ -350,7 +350,7 @@ fn guarded(%id: Int) -> () -> Int {
     init %local1.g, %g
     %v6 = addressof %local1 : %()
     %v7 = alloc : () -> Int
-    %v8 = symbol ResolveTest.lambda$18 : %()
+    %v8 = symbol ResolveTest.lambda$22 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     ret %v7
@@ -359,7 +359,7 @@ fn guarded(%id: Int) -> () -> Int {
 fn plain() -> () -> Int {
   b0:
     %v0 = alloc : () -> Int
-    %v1 = symbol ResolveTest.lambda$19 : %()
+    %v1 = symbol ResolveTest.lambda$23 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
@@ -412,7 +412,7 @@ fn Drop(Guard).drop(%self: Guard) -> () {
     ret
 }
 
-fn ResolveTest.lambda$18(%env: %{g: Guard}) -> Int {
+fn ResolveTest.lambda$22(%env: %{g: Guard}) -> Int {
   b0:
     %v1 = load [%env].g : Guard
     %v2 = load [%env].g@Guard.id : Int
@@ -425,7 +425,7 @@ fn drop${g: Guard}(%value: {g: Guard}) -> () {
     ret
 }
 
-fn ResolveTest.lambda$19(%env: %{}) -> Int {
+fn ResolveTest.lambda$23(%env: %{}) -> Int {
   b0:
     ret 5
 }

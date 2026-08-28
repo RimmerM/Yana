@@ -252,8 +252,36 @@ void collectSlots(LowerBase base, LowerFunction& fun, Array<Slot>& into, HashMap
                     slot.type = type;
                     typed = true;
                 } else if(slot.type != type) {
-                    usable = false;
-                    break;
+                    /*
+                     * Two integer registers over one narrow slot, which is not a disagreement about
+                     * what the storage holds - it is one byte read as a tag and again as a payload.
+                     *
+                     * A folded `Maybe` is the shape: `Maybe(@bits(4) U32)` is a single byte, and the
+                     * `match` over it loads it once as the `Int` the discriminant test compares and
+                     * once as the `U32` the constructor carries. Both are the same eight bits, and
+                     * `carriesInto` already says that moving between two integer registers is a
+                     * `mov` whatever the two widths are - so the slot is held in the wider of the
+                     * two and each access reads it back through the `bitcast` that names the other.
+                     *
+                     * **Only where the slot is narrower than the register that will hold it**, which
+                     * is exactly when every load masks on the way out (see `narrowedTo`). That is
+                     * what makes the wide register's spare bits unobservable, and so what makes a
+                     * store from the narrow one safe without a mask of its own - the same argument
+                     * `carriedInto` makes for a copy between two promoted slots. A slot that fills
+                     * its register is declined, because there nothing narrows and the spare bits
+                     * would be read.
+                     */
+                    // `isInt` and not `isIntLike`: what is being relied on is the integer bank's
+                    // two widths. A pointer would be declined by `promotableSlot` below anyway, and
+                    // saying so here is what makes the argument above cover the accepted cases.
+                    if(!isInt(slot.type) || !isInt(type)) { usable = false; break; }
+
+                    auto wider = registerBits(type) > registerBits(slot.type) ? type : slot.type;
+                    auto narrower = registerBits(type) > registerBits(slot.type) ? slot.type : type;
+
+                    if(width * 8 >= registerBits(narrower)) { usable = false; break; }
+
+                    slot.type = wider;
                 }
             }
 
@@ -528,7 +556,10 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
             auto which = slotOf(index, store->to);
 
             if(which != maxLimit<Size>) {
-                current[which] = store->value;
+                // In the slot's own register, which is the store's own type except where the slot
+                // carries two - see collectSlots. Nothing is masked, for the reason a copy between
+                // two promoted slots masks nothing: every load of a slot this narrow narrows.
+                current[which] = carriedInto(base, module, block, store->value, slots[which].type);
                 detach(base, inst);
                 continue;
             }
@@ -581,8 +612,16 @@ void rewriteBlock(LowerBase base, LowerModule& module, LowerBlock& block, Array<
 
                 detach(base, inst);
 
+                /*
+                 * Narrowed in the register the slot is held in, and then read back in the one this
+                 * load asked for - which is a `bitcast` only where the two differ, and differ only
+                 * where `collectSlots` let a narrow slot carry two integer types.
+                 */
                 auto value = narrowedTo(base, module, block, current[which], slot,
-                                        loadInst->isSigned(), result->name);
+                                        loadInst->isSigned(),
+                                        result->type == slot.type ? result->name : StringId());
+
+                value = carriedInto(base, module, block, value, result->type);
                 replaceUses(base, module.arena, result - base, value);
                 continue;
             }

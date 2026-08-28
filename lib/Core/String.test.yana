@@ -3,7 +3,7 @@
 
    What a literal *is* is a compiler decision and stays in `test/resolve/String.yana` with the golden
    files that show it. What is asserted here is what the functions over one compute: concatenation,
-   appending, equality and order. Both targets, since none of it is a property of either - natively
+   appending, stringEquality and order. Both targets, since none of it is a property of either - natively
    these are loops over UTF-8 bytes in `Text`, and on JS they are the host's own string operations,
    and the two have to answer the same.
 
@@ -16,6 +16,8 @@
 -- The length of a string, as an `Int`, which is the shape every assertion below wants. `length`
 -- answers a `Count` - unsigned, so that a bound check is one comparison - and the language's
 -- literals are signed.
+import Test
+
 fn units(s: String) -> Int = truncate(length(s)) :: Int
 
 {-
@@ -26,65 +28,54 @@ fn units(s: String) -> Int = truncate(length(s)) :: Int
    free happens exactly once is what `Reclaim(String)` being the run's own placement switch buys, and
    it is asserted where the allocator can be counted.
 -}
-fn concatenation() -> {}:
+@test fn concatenation() -> {}:
     let joined = "ab" ++ "cde"
-    assert(units(joined) == 5)
-    assert(String.unit(joined, 0) == 97)      -- `a`
-    assert(String.unit(joined, 4) == 101)     -- `e`
+    checkEqual(units(joined), 5)
+    checkEqual(String.unit(joined, 0), 97)      -- `a`
+    checkEqual(String.unit(joined, 4), 101)     -- `e`
 
     -- Either side empty is the case a length that came out of a miscounted loop gets wrong, and it
     -- is also the one place a concatenation could legitimately hand back one of its arguments.
-    assert(units("" ++ "abc") == 3)
-    assert(units("abc" ++ "") == 3)
-    assert(units("" ++ "") == 0)
-    return
+    checkEqual(units("" ++ "abc"), 3)
+    checkEqual(units("abc" ++ ""), 3)
+    checkEqual(units("" ++ ""), 0)
 
 -- Appending, which is the same bytes reached the other way: `a + b` builds a third string and
 -- `String.push` grows the first. The two have to agree about the result even though only one of them
 -- allocates for it.
-fn appending() -> {}:
+@test fn appending() -> {}:
     let &built = String.ofCapacity(16 :: Size)
     String.push(built, "ab")
     String.push(built, "cde")
 
-    assert(units(built) == 5)
-    assert(built == "abcde")
-    assert(built == "ab" ++ "cde")
-    return
+    checkEqual(units(built), 5)
+    checkEqual(built, "abcde")
+    checkEqual(built, "ab" ++ "cde")
 
 -- Equality is raw unit-wise on both targets, which part 3 argues is never a place they can disagree:
 -- encoding is an injective function of content.
-fn equality() -> {}:
-    assert("abc" == "abc")
-    assert(!("abc" == "abd"))
+@test fn stringEquality() -> {}:
+    checkEqual("abc", "abc")
+    check(!("abc" == "abd"))
 
     -- A prefix is not the string it is a prefix of, which is the comparison an implementation that
     -- stopped at the shorter length gets wrong in both directions.
-    assert(!("ab" == "abc"))
-    assert(!("abc" == "ab"))
-    assert("" == "")
-    assert(!("" == "a"))
-    return
+    check(!("ab" == "abc"))
+    check(!("abc" == "ab"))
+    checkEqual("", "")
+    check(!("" == "a"))
 
 -- Ordering is raw unit-wise lexicographic, again per part 3. All-ASCII, so this is also code-point
 -- order and the two targets agree for a second reason.
-fn ordering() -> {}:
-    assert("abc" < "abd")
-    assert(!("abd" < "abc"))
+@test fn stringOrdering() -> {}:
+    checkLess("abc", "abd")
+    check(!("abd" < "abc"))
 
     -- A prefix orders before what extends it, whatever the units after the prefix are - which is the
     -- half a length comparison alone gets right and a unit comparison alone does not.
-    assert("ab" < "abc")
-    assert(!("abc" < "ab"))
-    assert("" < "a")
+    checkLess("ab", "abc")
+    check(!("abc" < "ab"))
+    checkLess("", "a")
 
-    assert(!("b" < "a"))
-    assert(!("abc" < "abc"))
-    return
-
-fn main() -> Int:
-    concatenation()
-    appending()
-    equality()
-    ordering()
-    return 0
+    check(!("b" < "a"))
+    check(!("abc" < "abc"))

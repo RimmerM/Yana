@@ -196,14 +196,18 @@ U32 parseEscapedLiteral(const char*& p, const char* m, Diag& diag) {
             return 0;
         case 'x':
             // Hexadecimal literal.
-            if(!parseHexit(*p)) {
+            //
+            // `< 0` rather than `!`, because these answer the digit's *value* and a leading `0` is a
+            // digit worth zero - `\x0b` and `\x00` were rejected as "no following hex digits" while
+            // `\x1b` was accepted. `parseIntSequence` below reads the same predicate the same way.
+            if(parseHexit(*p) < 0) {
                 diag.error("\\x used with no following hex digits"_v, nullptr);
                 return ' ';
             }
             return parseIntSequence<16>(p, m, parseHexit, 8, 0xffffffff, diag);
         case 'o':
             // Octal literal.
-            if(!parseOctit(*p)) {
+            if(parseOctit(*p) < 0) {
                 diag.error("\\o used with no following octal digits"_v, nullptr);
                 return ' ';
             }

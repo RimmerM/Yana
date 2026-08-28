@@ -656,7 +656,8 @@ static bool isReadOnlyHostOp(OptContext& opt, InstNative& instruction) {
     if(instruction.op != NativeOp::HostCall) return false;
 
     auto text = stringView(opt.context.findName(instruction.method));
-    return text == "charCodeAt"_v || text == "indexOf"_v;
+    return text == "charCodeAt"_v || text == "indexOf"_v || text == "lastIndexOf"_v ||
+           text == "substring"_v;
 }
 
 /*

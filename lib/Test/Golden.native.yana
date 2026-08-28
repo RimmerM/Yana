@@ -66,19 +66,8 @@ pub fn snapshotFileNames(root: String) -> [String]:
     for entry in entries(root):
         match entry:
             Err(_) -> {}
-            Ok(found) -> if !found.isDirectory && endsWithText(found.name, ".txt"):
+            Ok(found) -> if !found.isDirectory && endsWith(found.name, ".txt"):
                 push(names, copy(found.name))
 
     return names
 
-fn endsWithText(text: String, suffix: String) -> Bool:
-    if length(suffix) > length(text) then return False
-
-    let from = length(text) - length(suffix)
-    let &i = 0 :: Size
-
-    while i < length(suffix):
-        if text.unit(from + i) != suffix.unit(i) then return False
-        i = i + 1
-
-    return True

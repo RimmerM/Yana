@@ -4,11 +4,11 @@ let &log: Int = 0
 
 let &sideEffect: Int = 0
 
-table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$19 before ResolveTest.continuation$19 {
+table closure$ResolveTest.continuation$23 before ResolveTest.continuation$23 {
   .0 teardown$none
 }
 
@@ -100,7 +100,7 @@ fn loopingOut(%n: Int) -> Int {
     init %local2.seen, %v21
     %v23 = addressof %local2 : %()
     %v24 = alloc : (found: Int) -> ()
-    %v25 = symbol ResolveTest.continuation$18 : %()
+    %v25 = symbol ResolveTest.continuation$22 : %()
     init %local3.code, %v25
     init %local3.env, %v23
     %v28 = call findFirst(()), %v19, %v24 : Maybe(())
@@ -133,7 +133,7 @@ fn statementTail(%n: Int) -> Int {
     init %local1.seen, %v9
     %v11 = addressof %local1 : %()
     %v12 = alloc : (found: Int) -> ()
-    %v13 = symbol ResolveTest.continuation$19 : %()
+    %v13 = symbol ResolveTest.continuation$23 : %()
     init %local2.code, %v13
     init %local2.env, %v11
     %v16 = call findFirst(()), %n, %v12 : Maybe(())
@@ -165,7 +165,7 @@ fn statementTail(%n: Int) -> Int {
 fn returningNothing(%n: Int) -> () {
   b0:
     %v1 = alloc : (found: Int) -> ()
-    %v2 = symbol ResolveTest.continuation$20 : %()
+    %v2 = symbol ResolveTest.continuation$24 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -189,7 +189,7 @@ fn returningNothing(%n: Int) -> () {
 fn leavingWithNothing(%n: Int) -> () {
   b0:
     %v1 = alloc : (found: Int) -> ()
-    %v2 = symbol ResolveTest.continuation$21 : %()
+    %v2 = symbol ResolveTest.continuation$25 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
@@ -230,7 +230,7 @@ fn main() -> Int {
     ret %v29
 }
 
-fn ResolveTest.continuation$18(%env: %{seen: &Int}, %found: Int) -> () {
+fn ResolveTest.continuation$22(%env: %{seen: &Int}, %found: Int) -> () {
   b0:
     %v2 = load [%env].seen : &Int
     %v3 = load [%env].seen : &Int
@@ -267,7 +267,7 @@ fn findFirst(())(%n: Int, %body: (found: Int) -> ()) -> Maybe(()) {
     ret %v21
 }
 
-fn ResolveTest.continuation$19(%env: %{seen: &Int}, %found: Int) -> () {
+fn ResolveTest.continuation$23(%env: %{seen: &Int}, %found: Int) -> () {
   b0:
     %v2 = load [%env].seen : &Int
     %v3 = load [%env].seen : &Int
@@ -277,7 +277,7 @@ fn ResolveTest.continuation$19(%env: %{seen: &Int}, %found: Int) -> () {
     ret
 }
 
-fn ResolveTest.continuation$20(%env: %{}, %found: Int) -> () {
+fn ResolveTest.continuation$24(%env: %{}, %found: Int) -> () {
   b0:
     %v2 = load sideEffect : Int
     %v3 = add %v2, %found : Int
@@ -285,7 +285,7 @@ fn ResolveTest.continuation$20(%env: %{}, %found: Int) -> () {
     ret
 }
 
-fn ResolveTest.continuation$21(%env: %{}, %found: Int) -> () {
+fn ResolveTest.continuation$25(%env: %{}, %found: Int) -> () {
   b0:
     %v2 = load sideEffect : Int
     %v5 = mul %found, 10 : Int

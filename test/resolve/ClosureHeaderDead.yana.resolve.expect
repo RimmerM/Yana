@@ -2,11 +2,11 @@ let image$base: () = <none>
 
 let &dropCalls: Int = 0
 
-table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
+table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
   .0 drop${g: Guard}
 }
 
-table closure$ResolveTest.lambda$19 before ResolveTest.lambda$19 {
+table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
   .0 drop${g: Guard}
 }
 
@@ -26,7 +26,7 @@ fn inFrame(%id: Int) -> Int {
     init %local1.g, %g
     %v6 = addressof %local1 : %()
     %f = alloc : (Int) -> Int
-    %v8 = symbol ResolveTest.lambda$18 : %()
+    %v8 = symbol ResolveTest.lambda$22 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v12 = calldyn %f, 10 : Int
@@ -43,7 +43,7 @@ fn handedOff(%id: Int) -> Int {
     init %local1.g, %g
     %v6 = addressof %local1 : %()
     %v7 = alloc : (Int) -> Int
-    %v8 = symbol ResolveTest.lambda$19 : %()
+    %v8 = symbol ResolveTest.lambda$23 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     %v11 = move %local2 : (Int) -> Int
@@ -69,7 +69,7 @@ fn Drop(Guard).drop(%self: Guard) -> () {
     ret
 }
 
-fn ResolveTest.lambda$18(%env: %{g: Guard}, %x: Int) -> Int {
+fn ResolveTest.lambda$22(%env: %{g: Guard}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].g : Guard
     %v3 = load [%env].g@Guard.id : Int
@@ -83,7 +83,7 @@ fn drop${g: Guard}(%value: {g: Guard}) -> () {
     ret
 }
 
-fn ResolveTest.lambda$19(%env: %{g: Guard}, %x: Int) -> Int {
+fn ResolveTest.lambda$23(%env: %{g: Guard}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].g : Guard
     %v3 = load [%env].g@Guard.id : Int

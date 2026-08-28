@@ -12,11 +12,12 @@ const BuiltinDef builtinTable[kBuiltinCount] = {
     { "commandLineEnvironment"_v, BuiltinKind::Written,  BuiltinShape::Address },
 
     { "pageBytes"_v,              BuiltinKind::Supplied, BuiltinShape::Word    },
+    { "vectorBytes"_v,            BuiltinKind::Supplied, BuiltinShape::Word    },
 };
 
 Maybe<Builtin> findBuiltin(StringView name) {
-    // A linear scan of four rows, asked once per `@builtin` attribute in a program. A map of them
-    // would be a hash per lookup to save three comparisons.
+    // A linear scan of five rows, asked once per `@builtin` attribute in a program. A map of them
+    // would be a hash per lookup to save four comparisons.
     for(Size i = 0; i < kBuiltinCount; i++) {
         if(builtinTable[i].role == name) return Just(Builtin(i));
     }
@@ -45,6 +46,14 @@ Maybe<U64> builtinValue(const CompileSettings& settings, Builtin which) {
             auto page = targetPageBytes(settings);
             return page ? Just(U64(page)) : Nothing();
         }
+
+        /*
+         * The register, and every target has one - there is no `? :` here because
+         * `targetVectorBytes` answers sixteen for a target it knows nothing else about, JavaScript
+         * included. A build that could not name a width would be a build with no `Vec(a)` in it,
+         * and the type would be the thing to refuse rather than this.
+         */
+        case Builtin::vectorBytes: return Just(U64(targetVectorBytes(settings)));
 
         /*
          * The written ones have no compile-time value at all, and answering zero for them would be

@@ -195,28 +195,4 @@ fn readCount(&options: Options, value: String, switch: String) -> Int:
 pub fn selects(options: Options, name: String) -> Bool:
     if length(options.only) > (0 :: Size) then return name == options.only
     if length(options.filter) == (0 :: Size) then return True
-    return containsText(name, options.filter)
-
--- One string inside another. Written here because the portable string surface has no `indexOf` -
--- `hostIndexOf` is the JavaScript host's and `findAscii` answers about a single unit.
-pub fn containsText(haystack: String, needle: String) -> Bool:
-    let inner = length(needle)
-    if inner == (0 :: Size) then return True
-
-    let outer = length(haystack)
-    if inner > outer then return False
-
-    let &start = 0 :: Size
-
-    while start <= outer - inner:
-        let &i = 0 :: Size
-        let &same = True
-
-        while i < inner && same:
-            same = haystack.unit(start + i) == needle.unit(i)
-            i = i + 1
-
-        if same then return True
-        start = start + 1
-
-    return False
+    return String.contains(name, options.filter)

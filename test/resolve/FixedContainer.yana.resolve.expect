@@ -4,11 +4,11 @@ table closure$Core.continuation$1([Int *3], Int, ()) before Core.continuation$1(
 
 let image$base: () = <none>
 
-table closure$ResolveTest.continuation$18 before ResolveTest.continuation$18 {
+table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.continuation$18([Int *3]) before ResolveTest.continuation$18([Int *3]) {
+table closure$ResolveTest.continuation$22([Int *3]) before ResolveTest.continuation$22([Int *3]) {
   .0 teardown$none
 }
 
@@ -1068,7 +1068,7 @@ fn abortProcess() -> () {
     init %local2.sum, %v6
     %v8 = addressof %local2 : %()
     %v9 = alloc : (value$: 'Int) -> Outcome((), ())
-    %v10 = symbol ResolveTest.continuation$18 : %()
+    %v10 = symbol ResolveTest.continuation$22 : %()
     init %local3.code, %v10
     init %local3.env, %v8
     %v13 = gencall items(c, Int, ()), %xs, %v9 : Outcome((), ())
@@ -1178,7 +1178,7 @@ fn main() -> I64 {
     ret %v114
 }
 
-(Chunked(c, Int), Length(Flat(Int)), Index(Flat(Int), Size, Int)) fn ResolveTest.continuation$18(%env: %{sum: &Int}, %value$: 'Int) -> Outcome((), ()) {
+(Chunked(c, Int), Length(Flat(Int)), Index(Flat(Int), Size, Int)) fn ResolveTest.continuation$22(%env: %{sum: &Int}, %value$: 'Int) -> Outcome((), ()) {
   schema {
     #0 type c
     #1 type {sum: &Int}
@@ -1208,7 +1208,7 @@ fn total([Int *3])(%xs: [Int *3]) -> Int {
     init %local2.sum, %v5
     %v7 = addressof %local2 : %()
     %v8 = alloc : (value$: 'Int) -> Outcome((), ())
-    %v9 = symbol ResolveTest.continuation$18([Int *3]) : %()
+    %v9 = symbol ResolveTest.continuation$22([Int *3]) : %()
     init %local3.code, %v9
     init %local3.env, %v7
     %v12 = call items([Int *3], Int, ()), %xs, %v8 : Outcome((), ())
@@ -1216,7 +1216,7 @@ fn total([Int *3])(%xs: [Int *3]) -> Int {
     ret %v13
 }
 
-fn ResolveTest.continuation$18([Int *3])(%env: %{sum: &Int}, %value$: 'Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22([Int *3])(%env: %{sum: &Int}, %value$: 'Int) -> Outcome((), ()) {
   b0:
     %v2 = load [%env].sum : &Int
     %v3 = load [%env].sum : &Int

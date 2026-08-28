@@ -183,6 +183,61 @@ instance Monoid(String):
         return EQ
 
 {-
+   ==========================================================================================
+   The units between two positions - Implementation-String.md part 4's slice.
+   ==========================================================================================
+
+   **A copy, and there is no other answer.** A native `String` is a run this caller does not own and a
+   host one is a primitive, so a view over part of either is not a value this language has. That turns
+   out to be what the callers want anyway: a line read out of a buffer outlives the buffer.
+
+   Half-open and clamped rather than checked, on the same terms `unit` reads: `String.slice(text, 0,
+   length(text) + 1)` is the whole string, and an empty range in either order is the empty string.
+   Nothing here can read past the end.
+
+   **Positions are raw units and this does not check that either lands on a code-point boundary.**
+   Cutting between the two halves of one produces a byte sequence nothing downstream can decode, which
+   is a real hazard and is why `Terminal.clipTo` walks characters rather than calling this. The
+   boundary-safe slice is Implementation-String.md part 4's `String.Index` and is not written yet;
+   what makes this safe *today* is the same thing that makes `Core/Text.yana` safe - every position
+   the search family hands back is one an ASCII unit was found at, and an ASCII unit is
+   self-synchronizing in both encodings.
+-}
+@platform(native) pub fn String.slice(text: String, from: Size, to: Size) -> String:
+    let count = length(text)
+    let &start = from
+    if start < (0 :: Size) then start = 0
+
+    let &end = to
+    if end > count then end = count
+    if start >= end then return ""
+
+    -- One block copy rather than a loop over units, which is what makes this the same operation
+    -- `copy` is with an offset on the front.
+    let &out = String.ofCapacity(end - start)
+    String.appendUnits(out, stringData(text).bytes.run.items + start, end - start)
+    return out
+
+{-
+   `self.substring(from, to)` on the host, which is the engine's own copy.
+
+   The unit loop this replaces was a concatenation per unit, so cutting one line out of a text walked
+   the rope once per unit of the line and splitting a file was quadratic in the size of the file. The
+   bounds are clamped here rather than left to the host's own clamping, because the native half has to
+   clamp and the two have to answer the same thing.
+-}
+@platform(js) pub fn String.slice(text: String, from: Size, to: Size) -> String:
+    let count = length(text)
+    let &start = from
+    if start < (0 :: Size) then start = 0
+
+    let &end = to
+    if end > count then end = count
+    if start >= end then return ""
+
+    return hostSubstring(text, start, end)
+
+{-
    Hashing a string - Implementation-Map.md §3 and §3.1.
 
    **One body for both targets**, which is unusual in this file and is the honest state rather

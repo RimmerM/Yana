@@ -8,19 +8,19 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-table closure$ResolveTest.lambda$18 before ResolveTest.lambda$18 {
+table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.lambda$19 before ResolveTest.lambda$19 {
+table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.lambda$20 before ResolveTest.lambda$20 {
+table closure$ResolveTest.lambda$24 before ResolveTest.lambda$24 {
   .0 teardown$none
 }
 
-table closure$ResolveTest.lambda$21 before ResolveTest.lambda$21 {
+table closure$ResolveTest.lambda$25 before ResolveTest.lambda$25 {
   .0 closureRelease${amount: Int}
 }
 
@@ -368,7 +368,7 @@ fn direct(%base: Int) -> Int {
     init %local0.base, %base
     %v3 = addressof %local0 : %()
     %v4 = alloc : (Int) -> Int
-    %v5 = symbol ResolveTest.lambda$18 : %()
+    %v5 = symbol ResolveTest.lambda$22 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     %v9 = call apply, %v4, 1 : Int
@@ -385,7 +385,7 @@ fn either(%pick: Int, %a: Int, %b: Int) -> Int {
     init %local0.a, %a
     %v9 = addressof %local0 : %()
     %v10 = alloc : (Int) -> Int
-    %v11 = symbol ResolveTest.lambda$19 : %()
+    %v11 = symbol ResolveTest.lambda$23 : %()
     init %local1.code, %v11
     init %local1.env, %v9
     jmp b3
@@ -395,7 +395,7 @@ fn either(%pick: Int, %a: Int, %b: Int) -> Int {
     init %local2.b, %b
     %v16 = addressof %local2 : %()
     %v17 = alloc : (Int) -> Int
-    %v18 = symbol ResolveTest.lambda$20 : %()
+    %v18 = symbol ResolveTest.lambda$24 : %()
     init %local3.code, %v18
     init %local3.env, %v16
     jmp b3
@@ -413,7 +413,7 @@ fn escaping(%amount: Int) -> (Int) -> Int {
     init %local0.amount, %amount
     %v3 = addressof %local0 : %()
     %v4 = alloc : (Int) -> Int
-    %v5 = symbol ResolveTest.lambda$21 : %()
+    %v5 = symbol ResolveTest.lambda$25 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     ret %v4
@@ -433,28 +433,28 @@ fn main() -> Int {
     ret %v16
 }
 
-fn ResolveTest.lambda$18(%env: %{base: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$22(%env: %{base: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].base : Int
     %v3 = add %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$19(%env: %{a: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$23(%env: %{a: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].a : Int
     %v3 = add %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$20(%env: %{b: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$24(%env: %{b: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].b : Int
     %v3 = mul %x, %v2 : Int
     ret %v3
 }
 
-fn ResolveTest.lambda$21(%env: %{amount: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$25(%env: %{amount: Int}, %x: Int) -> Int {
   b0:
     %v2 = load [%env].amount : Int
     %v3 = add %x, %v2 : Int

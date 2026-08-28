@@ -204,7 +204,7 @@ U32 laneStride(GlobalBase base, TypePtr type, IntWidths widths) {
     if(value->kind != Type::Int) return 0;
 
     // The target's answer, which is the one place a lane width has to ask. `Vec(CodeUnit)` is what
-    // the ASCII tier scans a string with (`Core/Ascii.native.yana`), so an abstract element type
+    // the ASCII tier scans a string with (`Core/Text.native.yana`), so an abstract element type
     // must produce a lane rather than refuse one - and eight bits natively against sixteen on JS is
     // a different vector, not a wider one. A lane count is target-dependent already, which is why
     // this parameter is not the thing Move 2 was trying to remove.

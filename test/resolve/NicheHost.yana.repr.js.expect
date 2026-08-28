@@ -106,6 +106,8 @@ Result(ReadError, Long): size 16, align 8, stride 16, tag word at 0, payload at 
 
 Result(ReadError, U64): size 16, align 8, stride 16, tag word at 0, payload at 8, niche absent
 
+Maybe(@bits(4) U32): size 1, align 1, stride 1, tag folded into constructor 1's niche from 16 up, niche at 0 width 1, valid 0..16, free 0 below / 239 above
+
 Flat(U8): size 12, align 8, stride 16, niche absent
   .0 at 0: %U8
   .1 at 8: Size
@@ -117,6 +119,10 @@ Maybe(Scanned): size 25, align 8, stride 32, tag folded into constructor 1's abs
   .3 at 16: Int
   .4 at 24: Bool
   .5 at 20: Int
+
+Flat(CodeUnit): size 12, align 8, stride 16, niche absent
+  .0 at 0: %CodeUnit
+  .1 at 8: Size
 
 Maybe(FileKind): size 2, align 2, stride 2, tag folded into constructor 1's niche from 40961 up, niche at 0 width 2, valid 0..40961, free 0 below / 24574 above
 
@@ -143,10 +149,6 @@ Result(ReadError, U8): size 8, align 4, stride 8, tag word at 0, payload at 4, n
 Result(ReadError, Double): size 16, align 8, stride 16, tag word at 0, payload at 8, niche absent
 
 Result(ReadError, Float): size 8, align 4, stride 8, tag word at 0, payload at 4, niche absent
-
-Flat(CodeUnit): size 12, align 8, stride 16, niche absent
-  .0 at 0: %CodeUnit
-  .1 at 8: Size
 
 Point: size 8, align 4, stride 8, niche absent
   .0 at 0: Int

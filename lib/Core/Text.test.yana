@@ -1,0 +1,554 @@
+{-
+   The text tier - Analysis-Library.md §2.2 and Part 6 item 5, Implementation-String.md part 5.
+
+   Search, splitting, trimming, the ASCII predicates and the ASCII case tier. **Every case runs on
+   both targets and asserts the same numbers on both**, which is the whole claim the ASCII restriction
+   buys: an ASCII unit is self-synchronizing in UTF-8 and in UTF-16, so a position found here means
+   the same position there even though one build counts bytes and the other counts UTF-16 units.
+
+   Every literal below is ASCII for that reason - part 3 is explicit that `length` answers in each
+   target's own unit, and a fixture asserting a shared number over non-ASCII content would be
+   asserting something the design does not promise. The two cases that *do* use non-ASCII content -
+   `asciiTest` and the `String.slice` boundary note - assert only properties that hold in both
+   encodings.
+
+   The lengths are chosen to cross a vector boundary in both instruction-set rows the suite runs:
+   sixteen units at v2 and thirty-two at v3, so a text of forty-odd units has whole blocks *and* a
+   tail in either, and a text under sixteen has only a tail. Both paths of every native loop are
+   therefore live in every row.
+-}
+
+import Test
+
+-- A found position as an `Int`, with `-1` for `Nothing`, which is the shape every assertion below
+-- wants: one `checkEqual` per question instead of a `match` with a `check(False)` in its second arm.
+fn found(at: Maybe(Size)) -> Int =
+    match at:
+        Just(position) -> truncate(position) :: Int
+        Nothing -> 0 - 1
+
+-- The parts an iterator yields, joined with a marker no case contains - so one assertion says how
+-- many parts there were, where their boundaries fell and what each held.
+fn joined(parts: [String]) -> String = joinWith(parts, "|")
+
+fn splitParts(text: String, on: CodeUnit) -> String:
+    let &out = [] :: [String]
+
+    for part in splitOn(text, on):
+        push(out, copy(part))
+
+    return joined(out)
+
+fn textParts(text: String, on: String) -> String:
+    let &out = [] :: [String]
+
+    for part in splitOnText(text, on):
+        push(out, copy(part))
+
+    return joined(out)
+
+fn lineParts(text: String) -> String:
+    let &out = [] :: [String]
+
+    for line in lines(text):
+        push(out, copy(line))
+
+    return joined(out)
+
+fn lineCount(text: String) -> Int:
+    let &total = 0
+
+    for line in lines(text):
+        total = total + 1
+
+    return total
+
+fn wordParts(text: String) -> String:
+    let &out = [] :: [String]
+
+    for word in words(text):
+        push(out, copy(word))
+
+    return joined(out)
+
+{-
+   ==========================================================================================
+   One unit, classified
+   ==========================================================================================
+
+   The boundaries are what these are for: `/` and `:` sit either side of the digits, `@` and `[`
+   either side of the upper-case letters, and every predicate has to say no to both of its neighbours.
+-}
+@test fn unitPredicates() -> {}:
+    check(isDigit(48) && isDigit(57))
+    check(!isDigit(47) && !isDigit(58))
+
+    check(isUpper(65) && isUpper(90))
+    check(!isUpper(64) && !isUpper(91))
+
+    check(isLower(97) && isLower(122))
+    check(!isLower(96) && !isLower(123))
+
+    check(isAlpha(65) && isAlpha(122) && !isAlpha(48))
+    check(isAlphaNum(48) && isAlphaNum(65) && !isAlphaNum(45))
+
+    -- The six the C locale calls whitespace, and the two units either side of the contiguous five.
+    check(isSpace(32) && isSpace(9) && isSpace(10) && isSpace(11) && isSpace(12) && isSpace(13))
+    check(!isSpace(8) && !isSpace(14) && !isSpace(33))
+
+    check(isControl(0) && isControl(31) && isControl(127) && !isControl(32) && !isControl(126))
+    check(isPrintable(32) && isPrintable(126) && !isPrintable(31) && !isPrintable(127))
+
+    check(isAscii(0) && isAscii(127) && !isAscii(128) && !isAscii(233))
+
+-- The digit, or the absence of one - a `Maybe` and not a sentinel, so a unit that is not a
+-- hexadecimal digit has no value in the digit's own range standing in for it.
+fn hexOr(unit: Int, missing: Int) -> Int =
+    match hexValue(unit):
+        Just(value) -> value :: Int
+        Nothing -> missing
+
+@test fn unitDigits() -> {}:
+    checkEqual(hexOr(48, 0 - 1), 0)
+    checkEqual(hexOr(57, 0 - 1), 9)
+    checkEqual(hexOr(97, 0 - 1), 10)          -- `a`
+    checkEqual(hexOr(102, 0 - 1), 15)         -- `f`
+    checkEqual(hexOr(65, 0 - 1), 10)          -- `A`
+    checkEqual(hexOr(70, 0 - 1), 15)          -- `F`
+    checkEqual(hexOr(71, 0 - 1), 0 - 1)       -- `G`, which is past the alphabet's hexadecimal run
+    checkEqual(hexOr(47, 0 - 1), 0 - 1)
+
+    check(hexValue(71) is Nothing)
+    check(hexValue(48) is Just(_))
+
+    check(isHexDigit(48) && isHexDigit(102) && isHexDigit(70))
+    check(!isHexDigit(103) && !isHexDigit(71))
+
+
+@test fn unitCase() -> {}:
+    checkEqual(toLowerUnit(65), 97)
+    checkEqual(toLowerUnit(97), 97)
+    checkEqual(toUpperUnit(97), 65)
+    checkEqual(toUpperUnit(65), 65)
+
+    -- Nothing outside the two alphabets moves, which is what makes the whole-string forms below
+    -- safe on units that are part of a multi-unit encoding.
+    checkEqual(toLowerUnit(48), 48)
+    checkEqual(toUpperUnit(48), 48)
+    checkEqual(toLowerUnit(91), 91)
+    checkEqual(toUpperUnit(123), 123)
+    checkEqual(toLowerUnit(200), 200)
+
+{-
+   ==========================================================================================
+   Searching for one unit
+   ==========================================================================================
+-}
+@test fn unitSearch() -> {}:
+    let line = "name,age,city"
+
+    -- 44 is a comma. The first one is at index four in either encoding, because everything before it
+    -- is ASCII.
+    checkEqual(found(findAscii(line, 44)), 4)
+    checkEqual(found(findAscii(line, 44, 5)), 8)
+    checkEqual(found(findAscii(line, 44, 9)), 0 - 1)
+    checkEqual(found(findLastAscii(line, 44)), 8)
+
+    checkEqual(countAscii(line, 44), 2)
+    check(containsAscii(line, 44))
+
+    -- 33 is `!`, which is not there. The absent case is a `Nothing` rather than a sentinel index.
+    checkEqual(found(findAscii(line, 33)), 0 - 1)
+    checkEqual(found(findLastAscii(line, 33)), 0 - 1)
+    check(!containsAscii(line, 33))
+
+    -- The first unit and the last, which are the two indices an off-by-one shows up in.
+    checkEqual(found(findAscii(line, 110)), 0)
+    checkEqual(found(findLastAscii(line, 121)), 12)
+
+    -- An offset past the end and one before the beginning, which are the two ways a resumed search
+    -- is asked something it has to clamp rather than trust.
+    checkEqual(found(findAscii(line, 110, 13)), 0 - 1)
+    checkEqual(found(findAscii(line, 110, 99)), 0 - 1)
+    checkEqual(found(findAscii(line, 110, 0 - 4)), 0)
+
+    checkEqual(found(findAscii("", 44)), 0 - 1)
+    checkEqual(found(findLastAscii("", 44)), 0 - 1)
+    checkEqual(countAscii("", 44), 0)
+
+{-
+   The same three questions over a text long enough to have whole vector blocks *and* a tail in every
+   row the suite runs, with the answers at both ends of it.
+
+   Forty-eight `-` with one `!` planted at 3, 20 and 44: the first is inside the first block at every
+   width, the second is inside the second block at sixteen lanes and the first at thirty-two, and the
+   third is in the tail at both.
+-}
+@test fn unitSearchAcrossBlocks() -> {}:
+    let text = "---!" ++ repeated("-", 16) ++ "!" ++ repeated("-", 23) ++ "!" ++ repeated("-", 3)
+
+    checkEqual(truncate(length(text)) :: Int, 48)
+    checkEqual(found(findAscii(text, 33)), 3)
+    checkEqual(found(findAscii(text, 33, 4)), 20)
+    checkEqual(found(findAscii(text, 33, 21)), 44)
+    checkEqual(found(findAscii(text, 33, 45)), 0 - 1)
+    checkEqual(found(findLastAscii(text, 33)), 44)
+    checkEqual(countAscii(text, 33), 3)
+
+    -- And with nothing in the tail at all, so that the backward walk's head-shorter-than-a-block
+    -- path is the one that answers.
+    let early = "!" ++ repeated("-", 40)
+    checkEqual(found(findLastAscii(early, 33)), 0)
+    checkEqual(found(findAscii(early, 33)), 0)
+
+{-
+   ==========================================================================================
+   Searching for any of a set of units
+   ==========================================================================================
+
+   The delimiter scan. The candidate set is written as a fixed array, which is the spelling that
+   costs nothing: `[a, b] :: [CodeUnit *2]` is a stack value that converts to the `[CodeUnit]` the
+   signature takes, where `[a, b] :: [CodeUnit]` would allocate one per call.
+-}
+@test fn unitSetSearch() -> {}:
+    let punctuation = [44 :: CodeUnit, 59, 58] :: [CodeUnit *3]
+    let line = "one two;three:four,five"
+
+    checkEqual(found(findAsciiAny(line, punctuation)), 7)
+    checkEqual(found(findAsciiAny(line, punctuation, 8)), 13)
+    checkEqual(found(findAsciiAny(line, punctuation, 14)), 18)
+    checkEqual(found(findAsciiAny(line, punctuation, 19)), 0 - 1)
+
+    -- A set of one is the same answer as the single-unit search, which is what makes the two
+    -- interchangeable at a call site that grows a second delimiter later.
+    let comma = [44 :: CodeUnit] :: [CodeUnit *1]
+    checkEqual(found(findAsciiAny(line, comma)), found(findAscii(line, 44)))
+
+    checkEqual(found(findAsciiAny("nothing here", punctuation)), 0 - 1)
+    checkEqual(found(findAsciiAny("", punctuation)), 0 - 1)
+
+    -- An empty set finds nothing, which is what "any of these" has to mean when there are none.
+    checkEqual(found(findAsciiAny(line, [] :: [CodeUnit])), 0 - 1)
+
+@test fn unitSetInverse() -> {}:
+    let spaceAndTab = [32 :: CodeUnit, 9] :: [CodeUnit *2]
+
+    checkEqual(found(findAsciiNone("   \t abc", spaceAndTab)), 5)
+    checkEqual(found(findAsciiNone("abc", spaceAndTab)), 0)
+    checkEqual(found(findAsciiNone("     ", spaceAndTab)), 0 - 1)
+    checkEqual(found(findAsciiNone("  x  ", spaceAndTab, 3)), 0 - 1)
+
+    -- Longer than one vector block, with the first non-member in the tail: the whole-block loop has
+    -- to *not* report the padding lanes past the end as a miss.
+    let padded = repeated(" ", 40) ++ "x"
+    checkEqual(found(findAsciiNone(padded, spaceAndTab)), 40)
+    checkEqual(found(findAsciiNone(repeated(" ", 40), spaceAndTab)), 0 - 1)
+
+    -- An empty set means every unit is a non-member, so the answer is wherever the search started.
+    checkEqual(found(findAsciiNone("abc", [] :: [CodeUnit], 1)), 1)
+
+{-
+   ==========================================================================================
+   Prefixes, suffixes and whole needles
+   ==========================================================================================
+-}
+@test fn prefixesAndSuffixes() -> {}:
+    check(startsWith("begin one", "begin "))
+    check(!startsWith("begin one", "end   "))
+    check(startsWith("abc", "abc"))
+    check(!startsWith("ab", "abc"))
+    check(startsWith("abc", ""))
+    check(startsWith("", ""))
+
+    check(endsWith("report.txt", ".txt"))
+    check(!endsWith("report.txtx", ".txt"))
+    check(endsWith("abc", "abc"))
+    check(!endsWith("bc", "abc"))
+    check(endsWith("abc", ""))
+
+    -- Longer than one vector block on both sides, so the comparison runs whole blocks and then a
+    -- masked tail rather than only the tail.
+    let long = repeated("ab", 30)
+    check(startsWith(long, repeated("ab", 20)))
+    check(endsWith(long, repeated("ab", 20)))
+    check(!startsWith(long, repeated("ab", 19) ++ "ac"))
+
+@test fn needleSearch() -> {}:
+    let text = "hello, world, and hello again"
+
+    checkEqual(found(String.find(text, "hello")), 0)
+    checkEqual(found(String.find(text, "hello", 1)), 18)
+    checkEqual(found(String.find(text, "hello", 19)), 0 - 1)
+    checkEqual(found(String.findLast(text, "hello")), 18)
+
+    checkEqual(found(String.find(text, "world")), 7)
+    checkEqual(found(String.find(text, "gone")), 0 - 1)
+    checkEqual(found(String.findLast(text, "gone")), 0 - 1)
+
+    check(String.contains(text, "world"))
+    check(!String.contains(text, "worlds"))
+
+    -- A needle at the very end, which is the position a search that stopped one short misses, and
+    -- one that runs off the end, which is the position a search that did not check the remaining
+    -- length would read past for.
+    checkEqual(found(String.find(text, "again")), 24)
+    checkEqual(found(String.find(text, "again!")), 0 - 1)
+    checkEqual(found(String.find("abc", "abcd")), 0 - 1)
+
+    -- An empty needle is found at the position asked for, in every string including the empty one -
+    -- the convention every string library has, and the alternative is a special case at every call
+    -- site.
+    checkEqual(found(String.find(text, "")), 0)
+    checkEqual(found(String.find(text, "", 4)), 4)
+    checkEqual(found(String.find("", "")), 0)
+    checkEqual(found(String.findLast(text, "")), 29)
+    check(String.contains(text, ""))
+    check(String.contains("", ""))
+
+{-
+   A needle whose first unit occurs many times before the match, which is the case the first-unit
+   scan exists for and the case a naive loop and this one disagree about the *cost* of rather than
+   the answer.
+-}
+@test fn needleSearchWithFalseStarts() -> {}:
+    let text = repeated("aab", 20) ++ "aaz"
+
+    checkEqual(found(String.find(text, "aaz")), 60)
+    checkEqual(found(String.findLast(text, "aab")), 57)
+    checkEqual(found(String.find(text, "aab", 58)), 0 - 1)
+    checkEqual(found(String.find(text, "ba")), 2)
+
+{-
+   ==========================================================================================
+   Slicing
+   ==========================================================================================
+-}
+@test fn slicing() -> {}:
+    let text = "name,age,city"
+
+    checkEqual(String.slice(text, 0, 4), "name")
+    checkEqual(String.slice(text, 5, 8), "age")
+    checkEqual(String.slice(text, 9, 13), "city")
+    checkEqual(String.slice(text, 0, 13), text)
+
+    -- Clamped rather than checked in both directions, and an empty range in either order is the
+    -- empty string.
+    checkEqual(String.slice(text, 0, 99), text)
+    checkEqual(String.slice(text, 0 - 5, 4), "name")
+    checkEqual(String.slice(text, 8, 8), "")
+    checkEqual(String.slice(text, 9, 4), "")
+    checkEqual(String.slice(text, 20, 30), "")
+    checkEqual(String.slice("", 0, 5), "")
+
+    -- Long enough that the native half is a block copy rather than anything a loop could be mistaken
+    -- for, and the JS half is one `substring`.
+    let long = repeated("0123456789", 8)
+    checkEqual(truncate(length(String.slice(long, 5, 75))) :: Int, 70)
+    checkEqual(String.slice(long, 0, 10), "0123456789")
+
+{-
+   ==========================================================================================
+   Trimming
+   ==========================================================================================
+-}
+@test fn trimming() -> {}:
+    checkEqual(trim("  hello  "), "hello")
+    checkEqual(trimStart("  hello  "), "hello  ")
+    checkEqual(trimEnd("  hello  "), "  hello")
+
+    -- Every unit `isSpace` names, at both ends at once.
+    checkEqual(trim("\t\n\x0b\x0c\r hello \r\x0c\x0b\n\t"), "hello")
+
+    checkEqual(trim("hello"), "hello")
+    checkEqual(trim(""), "")
+    checkEqual(trim("   "), "")
+    checkEqual(trimStart("   "), "")
+    checkEqual(trimEnd("   "), "")
+
+    -- Interior whitespace is not touched, which is the difference between a trim and a squeeze.
+    checkEqual(trim("  a b  "), "a b")
+
+{-
+   ==========================================================================================
+   Splitting
+   ==========================================================================================
+
+   `n` separators yield `n + 1` parts however they are placed, which is what makes `splitOn` and
+   `joinWith` inverses and is why no empty part is skipped.
+-}
+@test fn splittingOnAUnit() -> {}:
+    checkEqual(splitParts("a,b,c", 44), "a|b|c")
+    checkEqual(splitParts("a,,c", 44), "a||c")
+    checkEqual(splitParts(",a,", 44), "|a|")
+    checkEqual(splitParts(",", 44), "|")
+    checkEqual(splitParts("abc", 44), "abc")
+    checkEqual(splitParts("", 44), "")
+
+    -- The spans are the same traversal with the copy taken out, so they have to agree about where
+    -- every boundary is.
+    let &bounds = [] :: [Size]
+    for {from, to} in spansOn("a,,c", 44):
+        push(bounds, from)
+        push(bounds, to)
+
+    checkEqual(truncate(length(bounds)) :: Int, 6)
+    checkEqual(truncate(bounds[0]) :: Int, 0)
+    checkEqual(truncate(bounds[1]) :: Int, 1)
+    checkEqual(truncate(bounds[2]) :: Int, 2)
+    checkEqual(truncate(bounds[3]) :: Int, 2)
+    checkEqual(truncate(bounds[4]) :: Int, 3)
+    checkEqual(truncate(bounds[5]) :: Int, 4)
+
+@test fn splittingOnText() -> {}:
+    checkEqual(textParts("a::b::c", "::"), "a|b|c")
+    checkEqual(textParts("a::::c", "::"), "a||c")
+    checkEqual(textParts("::a", "::"), "|a")
+    checkEqual(textParts("abc", "::"), "abc")
+    checkEqual(textParts("", "::"), "")
+
+    -- A separator whose first unit appears without the rest of it, which is where a split written
+    -- over a unit search rather than a needle search would cut in the wrong place.
+    checkEqual(textParts("a:b::c", "::"), "a:b|c")
+
+    -- An empty separator is the whole text rather than a part per unit, which is the answer that
+    -- terminates and the one that composes with `joinWith`.
+    checkEqual(textParts("abc", ""), "abc")
+
+@test fn splittingIntoLines() -> {}:
+    checkEqual(lineParts("a\nb\nc"), "a|b|c")
+
+    -- A trailing newline does not make a last empty line, which is what makes this idempotent over a
+    -- file that ends the way files end.
+    checkEqual(lineParts("a\nb\n"), "a|b")
+
+    -- An empty line in the middle is a line.
+    checkEqual(lineParts("a\n\nb"), "a||b")
+    checkEqual(lineParts("\na"), "|a")
+
+    -- Both line endings, including the one that would otherwise leave a carriage return on the end
+    -- of every part.
+    checkEqual(lineParts("a\r\nb\r\n"), "a|b")
+    checkEqual(lineParts("a\r\n\r\nb"), "a||b")
+
+    -- The empty text has no lines at all rather than one empty one, which is what a `lines` that
+    -- drops the span after a trailing separator has to answer for the text that is nothing but the
+    -- end of itself.
+    checkEqual(lineParts(""), "")
+    checkEqual(lineCount(""), 0)
+    checkEqual(lineCount("a\nb\n"), 2)
+    checkEqual(lineCount("a\n\nb"), 3)
+    checkEqual(lineCount("\n"), 1)
+    checkEqual(lineParts("one line"), "one line")
+
+@test fn splittingIntoWords() -> {}:
+    checkEqual(wordParts("one two three"), "one|two|three")
+
+    -- Runs of whitespace collapse and the ends produce no empty part, which is the whole difference
+    -- between this and a split.
+    checkEqual(wordParts("  one   two  "), "one|two")
+    checkEqual(wordParts("one\ttwo\nthree"), "one|two|three")
+    checkEqual(wordParts("   "), "")
+    checkEqual(wordParts(""), "")
+    checkEqual(wordParts("one"), "one")
+
+{-
+   ==========================================================================================
+   Replacing
+   ==========================================================================================
+-}
+@test fn replacing() -> {}:
+    checkEqual(String.replace("a,b,c", ",", ";"), "a;b;c")
+    checkEqual(String.replace("hello world", "world", "there"), "hello there")
+    checkEqual(String.replace("aaa", "a", "bb"), "bbbbbb")
+    checkEqual(String.replace("abc", "z", "y"), "abc")
+    checkEqual(String.replace("", "a", "b"), "")
+
+    -- A replacement that contains the needle terminates, because the scan resumes past what was
+    -- written rather than over it.
+    checkEqual(String.replace("aa", "a", "aa"), "aaaa")
+
+    -- Removing rather than replacing, which is the empty-replacement case.
+    checkEqual(String.replace("a-b-c", "-", ""), "abc")
+
+    -- An empty needle is refused rather than matched everywhere, since "found at every position" is
+    -- not something this loop could terminate on.
+    checkEqual(String.replace("abc", "", "-"), "abc")
+
+    -- The `$&` a host `replaceAll` would treat as a substitution pattern, which is exactly why this
+    -- is not written over one.
+    checkEqual(String.replace("x", "x", "$&"), "$&")
+
+{-
+   ==========================================================================================
+   The ASCII case tier
+   ==========================================================================================
+-}
+@test fn wholeStringCase() -> {}:
+    checkEqual(toLowerAscii("Hello, World!"), "hello, world!")
+    checkEqual(toUpperAscii("Hello, World!"), "HELLO, WORLD!")
+
+    checkEqual(toLowerAscii(""), "")
+    checkEqual(toUpperAscii(""), "")
+    checkEqual(toLowerAscii("1234[]\{}"), "1234[]\{}")
+    checkEqual(toUpperAscii("1234[]\{}"), "1234[]\{}")
+
+    -- The units either side of both alphabets, which is where a range test written with the wrong
+    -- comparison changes something it should not: `@`, `[`, a backtick and `{`.
+    checkEqual(toLowerAscii("@[`\{"), "@[`\{")
+    checkEqual(toUpperAscii("@[`\{"), "@[`\{")
+
+    -- Longer than one vector block with letters in the whole-block part and in the tail, so both
+    -- halves of the native loop are asserted.
+    let mixed = repeated("aB", 24) ++ "cD"
+    checkEqual(toLowerAscii(mixed), repeated("ab", 24) ++ "cd")
+    checkEqual(toUpperAscii(mixed), repeated("AB", 24) ++ "CD")
+
+    -- The conversions are inverses over the letters and idempotent everywhere.
+    checkEqual(toLowerAscii(toUpperAscii(mixed)), toLowerAscii(mixed))
+    checkEqual(toUpperAscii(toUpperAscii(mixed)), toUpperAscii(mixed))
+
+@test fn caseInsensitiveComparison() -> {}:
+    check(equalsAsciiCase("Hello", "hELLO"))
+    check(equalsAsciiCase("", ""))
+    check(!equalsAsciiCase("Hello", "Hello "))
+    check(!equalsAsciiCase("Hello", "Hellp"))
+
+    -- A length difference is answered before anything is compared, which is what a case fold that
+    -- could change unit counts would make impossible.
+    check(!equalsAsciiCase("abc", "ab"))
+
+    -- Whole blocks and a tail, with the only difference in the last unit.
+    let left = repeated("Ab", 24) ++ "cD"
+    check(equalsAsciiCase(left, repeated("aB", 24) ++ "Cd"))
+    check(!equalsAsciiCase(left, repeated("aB", 24) ++ "Ce"))
+
+    checkEqual(compareAsciiCase("abc", "ABC"), EQ)
+    checkEqual(compareAsciiCase("abc", "ABD"), LT)
+    checkEqual(compareAsciiCase("ABD", "abc"), GT)
+
+    -- A prefix orders before what extends it, which is the half a unit comparison alone gets wrong.
+    checkEqual(compareAsciiCase("ab", "ABC"), LT)
+    checkEqual(compareAsciiCase("ABC", "ab"), GT)
+    checkEqual(compareAsciiCase("", ""), EQ)
+    checkEqual(compareAsciiCase("", "a"), LT)
+
+{-
+   ==========================================================================================
+   Whether every unit is ASCII
+   ==========================================================================================
+
+   The one case with non-ASCII content in it, and the only property it asserts is the one both
+   encodings agree about: `é` is not an ASCII unit, whether it arrives as two UTF-8 bytes or as one
+   UTF-16 unit.
+-}
+@test fn asciiTest() -> {}:
+    check(isAllAscii(""))
+    check(isAllAscii("plain text 123"))
+    check(isAllAscii("\x00\x7f"))
+
+    check(!isAllAscii("caf\xc3\xa9"))
+    check(!isAllAscii("a" ++ "\xc3\xa9"))
+
+    -- Past the first vector block, so the whole-block loop is what answers rather than the tail.
+    check(isAllAscii(repeated("abcd", 12)))
+    check(!isAllAscii(repeated("abcd", 12) ++ "\xc3\xa9"))

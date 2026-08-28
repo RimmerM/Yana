@@ -1,0 +1,625 @@
+import Native
+
+{-
+   ==========================================================================================
+   The scans, natively - the bulk operations over the string's own units.
+   ==========================================================================================
+
+   `Text.yana` beside this is the tier's documentation and everything both targets share;
+   `Text.js.yana` is the host's answer to the same names. What is here is the set whose two
+   implementations have nothing in common (Analysis-Modules.md §2.5), and natively every one of them
+   is a vector loop over the string's bytes.
+
+   **A string is a container of code units, and saying so is what vectorizes it.** The instance below
+   is that sentence; `indexOf` and `occurrences` over it are already the vector search - a lanewise
+   compare against the splatted unit and a `firstSet` over the hit mask, sixteen or thirty-two units
+   at a time - so the two simplest functions here are one line each and inherit every improvement the
+   bulk operations get.
+
+   The rest walk the units directly rather than through `vectorsMasked`, and the reason is that each
+   of them starts somewhere other than the beginning or ends somewhere other than the end: a search
+   from an offset, a search from the far end, a comparison of two windows at once. `allUnits` is what
+   makes that a container question rather than a pointer question - a `Flat(CodeUnit)` over part of
+   the string, rooted in it, with the vector transfers `Container.yana` declares over one.
+
+   **The tail read is safe and the tail write is not.** `loadVectorTail` overreads by up to a
+   vector's width, which Design-Vector §5.2's guarantee covers for storage the language allocated -
+   and a string's run is exactly that, a literal's included. There is no store counterpart and there
+   must not be, so every loop here that *writes* stops a vector short of the end and finishes its
+   tail one unit at a time.
+-}
+instance Chunked(String, CodeUnit):
+    iter fn chunks(self: String) -> Flat(CodeUnit) = yield elements(stringData(self).bytes)
+
+{-
+   The string's units, as a container - the private primitive every scan below is written over.
+
+   A `Flat(CodeUnit)` over the whole string, rooted in it by the `return` marker, with the vector
+   transfers `Container.yana` declares over one. A scan that wants *part* of the string takes its
+   window out of this with `slice`, **at the call site rather than behind a second function**, and
+   that is a compiler limitation rather than a preference: a borrow that reaches a `return` position
+   through *two* calls - `elements` and then `slice` - loses its root on the way, and the checker
+   refuses the second function with "rooted in storage the caller does not own". One call reaches a
+   return position fine, and a chain of any length is fine in an expression whose result stays local,
+   which is what every use below is.
+
+   **A scan that wants the whole string takes no slice at all**, and four of them used to:
+   `slice(allUnits(text), 0, length(text))` is the identity, and the loops it fed were bounded by
+   their own `count` rather than by the container's length, so the slice was a call that computed
+   what it was handed. `bench/text` prices it at about 1.2 ns per call on the short operations and at
+   28% of `spansOn`'s line walk, which is one `findAscii` per part.
+
+   **`@inline`, and it is worth the measurement rather than the reflex.** This is two loads and a
+   descriptor; left to the inliner's own budget it was a `call` in every scan in this file, with the
+   `Flat` returned through the caller's stack slot. See `loweredUnits` below, which was the same
+   story a second time and is where most of the difference was.
+-}
+@inline fn allUnits(return text: String) -> Flat(CodeUnit) = elements(stringData(text).bytes)
+
+{-
+   ------------------------------------------------------------------------------------------
+   Searching for one unit
+   ------------------------------------------------------------------------------------------
+
+   One vector pass: a lane-wise compare against the splatted unit, and `firstSet` over the hit mask.
+   `from` costs nothing - it is where the window starts, so a search that resumes is the same loop
+   over a shorter container rather than a loop with a test in it.
+-}
+pub fn findAscii(self: String, unit: CodeUnit, from: Size = 0) -> Maybe(Size):
+    let count = length(self)
+    let &begin = from
+    if begin < (0 :: Size) then begin = 0
+    if begin >= count then return Nothing
+
+    match indexOf(slice(allUnits(self), begin, count), unit):
+        Just(at) -> return Just(begin + at)
+        Nothing -> return Nothing
+
+-- The same pass with a mask count instead of a first-set, so a count is one traversal rather than a
+-- search restarted at every hit.
+pub fn countAscii(self: String, unit: CodeUnit) -> Int = occurrences(self, unit)
+
+{-
+   The last one, which is the same compare walked from the far end.
+
+   **The blocks are walked backwards and the lanes inside the hit block forwards**, and that split is
+   what lets this be written with the mask operations that exist. `firstSet` answers the *lowest* set
+   lane and there is no `lastSet`; running one over a reversed vector would need a cross-lane permute
+   this backend does not have at every width. So the vector half answers "is the last unit in this
+   block", which is one `any`, and the block that says yes is re-walked one unit at a time - at most a
+   vector's width of comparisons, once per call.
+
+   The head shorter than one vector is the same walk with no block in front of it, which is what the
+   second loop is.
+-}
+pub fn findLastAscii(self: String, unit: CodeUnit) -> Maybe(Size):
+    let count = length(self)
+    if count <= (0 :: Size) then return Nothing
+
+    let window = allUnits(self)
+    let width = vectorBytes
+    let sought = splat(unit) :: Vec(CodeUnit)
+    let &at = count - width
+
+    while at >= (0 :: Size):
+        if any(loadVector(window, at) .== sought):
+            let &j = at + width - 1
+
+            while j >= at:
+                if window[j] == unit then return Just(j)
+                j = j - 1
+
+        at = at - width
+
+    let &head = at + width
+    while head > (0 :: Size):
+        head = head - 1
+        if window[head] == unit then return Just(head)
+
+    return Nothing
+
+{-
+   ------------------------------------------------------------------------------------------
+   Searching for any of a set of units - `Text.h`'s `findChar(StringView, Buffer<char>)`.
+   ------------------------------------------------------------------------------------------
+
+   The delimiter scan a parser is written over: the next comma *or* newline, the next quote or
+   backslash, the end of a token. The C++ this replaces writes the loop out five times, once per
+   candidate count from one to five, because the splats have to be in registers and a count known at
+   compile time is what puts them there.
+
+   Here it is one loop with the candidates walked inside it, and the trade is explicit: each candidate
+   costs a splat, a compare and an `or` per block instead of a compare and an `or`, so a two-candidate
+   scan does six vector operations per block where the hand-unrolled C++ does four. That is a constant
+   factor on a loop that is still reading a whole vector per iteration, against five copies of a
+   function - and the copies could not take a set decided at run time at all.
+
+   The mask starts empty rather than at the first candidate's compare, which is what `maskUpTo(0)` is:
+   the tail mask at a count of zero is the all-clear mask, and it folds to a constant.
+
+   The tail past the last whole block is walked one unit at a time against the same set, which is
+   `contains` over the candidates - a container operation, and the same one the vector half spells
+   with `or`.
+-}
+pub fn findAsciiAny(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
+    let count = length(self)
+    let &begin = from
+    if begin < (0 :: Size) then begin = 0
+    if begin >= count || length(units) == (0 :: Size) then return Nothing
+
+    let window = slice(allUnits(self), begin, count)
+    let span = length(window)
+    let width = vectorBytes
+    let last = span - width
+    let &i = 0 :: Size
+
+    while i <= last:
+        let block = loadVector(window, i)
+        let &hits = maskUpTo(0) :: Mask(CodeUnit)
+
+        for candidate in items(units):
+            hits = or(hits, block .== (splat(candidate) :: Vec(CodeUnit)))
+
+        if any(hits) then return Just(begin + i + (firstSet(hits) :: Size))
+        i = i + width
+
+    while i < span:
+        if contains(units, window[i]) then return Just(begin + i)
+        i = i + 1
+
+    return Nothing
+
+{-
+   And the inverse - the first unit that is *not* one of them, which is `findCharInverse`.
+
+   The same mask, negated. Nothing about the lanes past the end has to be masked off here because
+   this loop never reads one: it runs over whole blocks only and hands the remainder to the scalar
+   walk, which is the shape every loop in this file that cares about a *miss* has to take. A masked
+   tail would report the padding as a miss, which is exactly the wrong answer for this question.
+-}
+pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(Size):
+    let count = length(self)
+    let &begin = from
+    if begin < (0 :: Size) then begin = 0
+    if begin >= count then return Nothing
+    if length(units) == (0 :: Size) then return Just(begin)
+
+    let window = slice(allUnits(self), begin, count)
+    let span = length(window)
+    let width = vectorBytes
+    let last = span - width
+    let &i = 0 :: Size
+
+    while i <= last:
+        let block = loadVector(window, i)
+        let &hits = maskUpTo(0) :: Mask(CodeUnit)
+
+        for candidate in items(units):
+            hits = or(hits, block .== (splat(candidate) :: Vec(CodeUnit)))
+
+        let misses = not(hits)
+        if any(misses) then return Just(begin + i + (firstSet(misses) :: Size))
+        i = i + width
+
+    while i < span:
+        if !contains(units, window[i]) then return Just(begin + i)
+        i = i + 1
+
+    return Nothing
+
+{-
+   ------------------------------------------------------------------------------------------
+   Comparing two windows
+   ------------------------------------------------------------------------------------------
+
+   Whether two equal-length windows hold the same units, which is what `startsWith`, `endsWith` and
+   the substring search all end in. Whole blocks under `all`, and the remainder under one masked
+   compare with the lanes past the end forced to agree - so a needle shorter than one vector is a
+   single load, compare and `all` rather than a walk.
+
+   Both windows are inside runs the language allocated, so both tail reads are covered by
+   Design-Vector §5.2 the same way `vectors` is.
+-}
+fn unitsEqual(left: Flat(CodeUnit), right: Flat(CodeUnit)) -> Bool:
+    let count = length(left)
+    let width = vectorBytes
+    let last = count - width
+    let &i = 0 :: Size
+
+    while i <= last:
+        if !all(loadVector(left, i) .== loadVector(right, i)) then return False
+        i = i + width
+
+    if i < count:
+        let live = maskUpTo(truncate(count - i) :: Int) :: Mask(CodeUnit)
+        let same = loadVectorTail(left, i) .== loadVectorTail(right, i)
+        return all(or(same, not(live)))
+
+    return True
+
+-- The length test first, which is what makes the comparison's bound safe as well as what makes the
+-- common answer free.
+pub fn startsWith(text: String, prefix: String) -> Bool:
+    let wanted = length(prefix)
+    if wanted > length(text) then return False
+
+    return unitsEqual(slice(allUnits(text), 0, wanted), slice(allUnits(prefix), 0, wanted))
+
+-- And from the other end, on the same terms.
+pub fn endsWith(text: String, suffix: String) -> Bool:
+    let wanted = length(suffix)
+    let count = length(text)
+    if wanted > count then return False
+
+    return unitsEqual(slice(allUnits(text), count - wanted, count), slice(allUnits(suffix), 0, wanted))
+
+{-
+   ------------------------------------------------------------------------------------------
+   Searching for a whole needle
+   ------------------------------------------------------------------------------------------
+
+   **Two units of the needle are tested at once, and that is the whole algorithm.** A block of the
+   text is compared against the needle's first unit and the block starting `inner - 1` units later
+   against its last, and a position can only start a match where both hold. One vector loop, two
+   loads, two compares and an `and` per block, and no preprocessing of the needle at all.
+
+   The alternative - scan for the first unit, verify the rest at each hit - is what `Text.h`'s
+   `findString` does and it is the shape this took first. It is `1/A` of the positions per candidate
+   where the text has `A` distinct units, so a needle beginning with a common letter over a
+   sixteen-letter alphabet re-enters the scan every sixteen units and the re-entry is most of the
+   cost. Testing both ends squares that: **1/A² candidates**, which over the benchmark's corpus is
+   one in two hundred and fifty-six rather than one in sixteen. Measured on `bench/text`, it is the
+   difference between 2.2 GB/s and the rest of this file's throughput.
+
+   A block that survives the filter is re-walked one position at a time, because there is no
+   operation that clears a mask's lowest set lane and so no way to visit a block's candidates in the
+   vector domain. That walk is `width` comparisons and it runs on one block in `A²/width`, so it
+   costs less per unit than the scan it sits inside.
+
+   Boyer-Moore or a two-way search would beat this on a long needle against adversarial text, and
+   the tables they need cost more than the scan they save on the strings this is actually asked
+   about - switches, lines, paths and headers. That is the ruling Analysis-Library.md §2.2 makes for
+   the family, and it is why there is no preprocessing step here to skip when the needle is short.
+
+   **An empty needle is found at `from`**, which is what makes `String.contains(text, "")` true and
+   what every string library in use answers. `String.replace` and `splitOnText` each refuse an empty
+   needle before they reach this, because "found everywhere" is not a thing either of those loops can
+   terminate on.
+
+   Every load is inside the haystack: the last block the loop reads starts `inner - 1` units after
+   the last candidate position, which is `length - width`, so the read ends exactly at the end. That
+   is why the loop is bounded by the number of *candidate positions* rather than by the length.
+-}
+pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Size):
+    let outer = length(haystack)
+    let inner = length(needle)
+
+    let &at = from
+    if at < (0 :: Size) then at = 0
+    if at > outer then at = outer
+    if inner == (0 :: Size) then return Just(at)
+    if at + inner > outer then return Nothing
+
+    let sought = slice(allUnits(needle), 0, inner)
+    let firstUnit = truncate(String.unit(needle, 0)) :: CodeUnit
+    let lastUnit = truncate(String.unit(needle, inner - 1)) :: CodeUnit
+
+    let window = slice(allUnits(haystack), at, outer)
+    let starts = length(window) - inner + 1
+    let width = vectorBytes
+    let last = starts - width
+
+    let firstLane = splat(firstUnit) :: Vec(CodeUnit)
+    let lastLane = splat(lastUnit) :: Vec(CodeUnit)
+    let &i = 0 :: Size
+
+    while i <= last:
+        let heads = loadVector(window, i) .== firstLane
+        let tails = loadVector(window, i + inner - 1) .== lastLane
+
+        if any(and(heads, tails)):
+            let stop = i + width
+            let &j = i
+
+            while j < stop:
+                if window[j] == firstUnit && window[j + inner - 1] == lastUnit:
+                    if unitsEqual(slice(window, j, j + inner), sought) then return Just(at + j)
+
+                j = j + 1
+
+        i = i + width
+
+    while i < starts:
+        if window[i] == firstUnit && window[i + inner - 1] == lastUnit:
+            if unitsEqual(slice(window, i, i + inner), sought) then return Just(at + i)
+
+        i = i + 1
+
+    return Nothing
+
+{-
+   The last occurrence, as one forward pass rather than a backward search.
+
+   Each `String.find` resumes where the previous match ended, so the whole loop reads the text once -
+   the same work a backward scan would do, without a second implementation of the candidate search
+   and its windows. What it costs against a true backward search is the case where the answer is near
+   the end of a long text and there are many matches before it, which is not the shape `endsWith`-like
+   questions have.
+-}
+pub fn String.findLast(haystack: String, needle: String) -> Maybe(Size):
+    let outer = length(haystack)
+    let inner = length(needle)
+    if inner == (0 :: Size) then return Just(outer)
+    if inner > outer then return Nothing
+
+    let &best = Nothing :: Maybe(Size)
+    let &at = 0 :: Size
+    let &running = True
+
+    while running:
+        match String.find(haystack, needle, at):
+            Nothing -> running = False
+
+            Just(hit):
+                best = Just(hit)
+                at = hit + 1
+
+    return best
+
+{-
+   ------------------------------------------------------------------------------------------
+   The ASCII case tier
+   ------------------------------------------------------------------------------------------
+
+   `Text_case_sysv_x64.s` in the C++ is hand-written assembly for exactly this, and here it is a
+   lanewise `select`: the letters are one range, so the test is two compares and an `and`, and the
+   change is one add of the constant 32 the two ASCII alphabets are apart. Nothing decodes, and
+   nothing has to - no unit inside a multi-unit encoding is in `A`-`Z` or `a`-`z` in either UTF-8 or
+   UTF-16.
+
+   **The range test is signed, and that is what makes it two instructions.** A code unit is unsigned,
+   so `unit >= 65 && unit <= 90` over `Vec(CodeUnit)` asks for two *unsigned* byte comparisons, and
+   the only byte comparison this target has is signed - so each of them becomes a bias and a compare.
+   Read as `Vec(I8)` the same test is `> 64 && < 91` with the comparison the machine has, and it is
+   still correct for every unit: a byte above 0x7f is negative read that way, so it fails `> 64` and
+   is left alone, which is exactly what a continuation byte or a UTF-16 high unit must have happen to
+   it.
+
+   **One pass, source to target**, rather than a copy followed by a transform in place. The copy
+   would be `copyMemory`'s ladder and faster per byte than anything a loop here does, but it makes
+   the whole operation read and write the units twice - and measured on `bench/text` that is where
+   the time goes, not in the select.
+
+   The length is set before the loop because the loop *is* what fills the string: `ofCapacity` gives
+   a run and no units, and the store loop needs a destination whose length is already what it will
+   be. Nothing reads the string in between.
+
+   The store loop stops a whole vector short of the end and the remainder goes one unit at a time,
+   because there is no overreading *store*: a write past the end of the run is the destruction of
+   whatever follows it, not a read of unspecified bytes.
+-}
+pub fn toLowerAscii(text: String) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    if count <= (0 :: Size) then return out
+
+    let filled = stringDataMut(out)
+    filled.bytes.length = truncate(count) :: Count
+
+    let source = stringData(text).bytes.run.items
+    let target = filled.bytes.run.items
+    let width = vectorBytes
+    let last = count - width
+
+    let low = splat(64 :: I8) :: Vec(I8)
+    let high = splat(91 :: I8) :: Vec(I8)
+    let bias = splat(32 :: I8) :: Vec(I8)
+    let &i = 0 :: Size
+
+    while i <= last:
+        let block = bitcast(vectorAt(source + i) :: Vec(CodeUnit)) :: Vec(I8)
+        let letters = and(block .> low, block .< high)
+        setVectorAt(target + i, bitcast(select(letters, block + bias, block)) :: Vec(CodeUnit))
+        i = i + width
+
+    while i < count:
+        store(target + i, truncate(toLowerUnit(text.unit(i))) :: CodeUnit)
+        i = i + 1
+
+    return out
+
+pub fn toUpperAscii(text: String) -> String:
+    let count = length(text)
+    let &out = String.ofCapacity(count)
+    if count <= (0 :: Size) then return out
+
+    let filled = stringDataMut(out)
+    filled.bytes.length = truncate(count) :: Count
+
+    let source = stringData(text).bytes.run.items
+    let target = filled.bytes.run.items
+    let width = vectorBytes
+    let last = count - width
+
+    let low = splat(96 :: I8) :: Vec(I8)
+    let high = splat(123 :: I8) :: Vec(I8)
+    let bias = splat(32 :: I8) :: Vec(I8)
+    let &i = 0 :: Size
+
+    while i <= last:
+        let block = bitcast(vectorAt(source + i) :: Vec(CodeUnit)) :: Vec(I8)
+        let letters = and(block .> low, block .< high)
+        setVectorAt(target + i, bitcast(select(letters, block - bias, block)) :: Vec(CodeUnit))
+        i = i + width
+
+    while i < count:
+        store(target + i, truncate(toUpperUnit(text.unit(i))) :: CodeUnit)
+        i = i + 1
+
+    return out
+
+{-
+   Case-insensitive equality, which is the fold above applied to both operands before the compare -
+   `Text.h`'s `equalsCaseString`, and the reason it is worth having as one function is that the
+   alternative is two whole-string allocations at every call site that wanted to ask.
+
+   The length test first, exactly as `Eq(String)` does, and for both of its reasons: it is what makes
+   the loop's bound safe and it is what makes the common answer free. A case fold that changed unit
+   counts could not do that, which is one more thing the ASCII restriction buys.
+-}
+{-
+   The fold itself, over one register - two compares, an `and` and a masked add.
+
+   **`@inline` for the reason `allUnits` carries one**, and here it was most of what the case tier
+   cost: five vector instructions behind a call is a `movups` of the argument into the callee's slot
+   and another of the result back out, twice per block, on a function whose whole body is shorter
+   than its calling sequence. `equalsAsciiCase` over 64 units was 14.4 ns with the call and 6.0 ns
+   without, against Tritium's 4.8 - and the rest of the distance was the identity slice above.
+-}
+@inline fn loweredUnits(block: Vec(I8)) -> Vec(I8):
+    let low = splat(64 :: I8) :: Vec(I8)
+    let high = splat(91 :: I8) :: Vec(I8)
+    let letters = and(block .> low, block .< high)
+
+    return select(letters, block + (splat(32 :: I8) :: Vec(I8)), block)
+
+@inline fn signedUnits(from: Flat(CodeUnit), at: Size) -> Vec(I8) =
+    bitcast(loadVector(from, at)) :: Vec(I8)
+
+-- And the same read past the end, for the block shorter than a register - `loadVectorTail`'s
+-- overread, which Design-Vector §5.2 covers for a string's run. What makes the lanes it reads past
+-- the end harmless is the caller's, and the two callers do it differently: `unitsEqual` masks them
+-- into agreement, `compareAsciiCase` lets them disagree and tests the position it finds.
+@inline fn signedUnitsTail(from: Flat(CodeUnit), at: Size) -> Vec(I8) =
+    bitcast(loadVectorTail(from, at)) :: Vec(I8)
+
+pub fn equalsAsciiCase(left: String, right: String) -> Bool:
+    let count = length(left)
+    if count != length(right) then return False
+
+    let a = allUnits(left)
+    let b = allUnits(right)
+    let width = vectorBytes
+    let last = count - width
+    let &i = 0 :: Size
+
+    while i <= last:
+        if !all(loweredUnits(signedUnits(a, i)) .== loweredUnits(signedUnits(b, i))) then return False
+        i = i + width
+
+    while i < count:
+        if toLowerUnit(left.unit(i)) != toLowerUnit(right.unit(i)) then return False
+        i = i + 1
+
+    return True
+
+{-
+   Case-insensitive *ordering*, which is the same fold asked a harder question: not whether the two
+   agree but where the first place they do not is. `Text.yana` states the contract; this is the
+   vector answer to it.
+
+   **One iteration for every string short enough to be a name**, which is the whole reason this is
+   not the scalar walk it used to be. The comparison a sorted list of identifiers asks for parts on a
+   unit near the start, and the walk that was here read one unit of each operand per position - so
+   eight units of shared prefix were eight loads, eight folds and sixteen branches. The tail read
+   makes the same eight units one overreading load of each, one fold of each, one compare and one
+   `pmovmskb`, because a block shorter than a register is exactly what `loadVectorTail` is for and
+   *every* string under sixteen units is one. The setup that buys it is what `loweredUnits` already
+   needs - two splats for the letter range and one for the bias - and those are three constants the
+   loop does not reload.
+
+   The scalar form's own argument was that a vector one would "fold whole blocks to find the block
+   that differs and then walk it anyway", and that is the part that was wrong: `firstSet` over the
+   difference mask names the position outright and there is no walk. What is re-read at that position
+   is one unit of each operand, once per call.
+
+   Measured on `bench/text`, at v2 and against `Tritium::compareCaseString`, which is the same
+   algorithm in SSE2 intrinsics:
+
+   | operands | scalar walk | here | Tritium |
+   |---|---|---|---|
+   | 8 units, parting at the sixth | 6.24 ns | **2.93 ns** | 2.36 ns |
+   | 64 units, folding equal | 64.98 ns | **4.73 ns** | 5.43 ns |
+
+   The eight-unit row is the one the change was made for and it is the smaller of the two numbers,
+   which is worth saying plainly: the win at a name's length is about a factor of two, and the win at
+   a line's length is more than a factor of ten.
+
+   **The lanes past the end are left to disagree and the *position* is tested instead**, which is the
+   one line that differs from `unitsEqual` and is what the tail arm's `at < shared` is. That function
+   asks whether everything agrees, so it has to force the padding into agreement; this one asks where
+   the lowest disagreement is, and a disagreement at or past `shared` means every live lane agreed.
+   So the answer is a comparison of two `Size`s rather than a `maskUpTo` - which is `iota .< splat(n)`
+   and therefore a general register moved into a vector, on an operation whose whole cost is a
+   handful of instructions. Measured both ways: **0.39 ns of the eight-unit row** (3.32 against 2.93)
+   and nothing at all of the sixty-four-unit one, which is four whole registers and never reaches the
+   tail arm. `Tritium::compareCaseString` pays neither, because its `stringSegmentMask` is built in
+   the movemask domain where a tail mask is a shift of an immediate.
+-}
+fn foldedUnitOrder(left: String, right: String, at: Size) -> Ordering:
+    let a = toLowerUnit(left.unit(at))
+    let b = toLowerUnit(right.unit(at))
+    if a < b then return LT
+    if a > b then return GT
+    return EQ
+
+pub fn compareAsciiCase(left: String, right: String) -> Ordering:
+    let leftCount = length(left)
+    let rightCount = length(right)
+    let &shared = leftCount
+    if rightCount < shared then shared = rightCount
+
+    let a = allUnits(left)
+    let b = allUnits(right)
+    let width = vectorBytes
+    let last = shared - width
+    let &i = 0 :: Size
+
+    while i <= last:
+        let same = loweredUnits(signedUnits(a, i)) .== loweredUnits(signedUnits(b, i))
+        let differ = not(same)
+        if any(differ) then return foldedUnitOrder(left, right, i + (firstSet(differ) :: Size))
+        i = i + width
+
+    if i < shared:
+        let same = loweredUnits(signedUnitsTail(a, i)) .== loweredUnits(signedUnitsTail(b, i))
+        let differ = not(same)
+
+        if any(differ):
+            let at = i + (firstSet(differ) :: Size)
+            if at < shared then return foldedUnitOrder(left, right, at)
+
+    -- No position parted them, so the lengths do - the shorter string is the prefix and orders first.
+    if leftCount < rightCount then return LT
+    if leftCount > rightCount then return GT
+    return EQ
+
+{-
+   ------------------------------------------------------------------------------------------
+   Whether every unit is ASCII
+   ------------------------------------------------------------------------------------------
+
+   `isAllAscii`, and the one predicate here whose whole answer is a mask test: a unit is ASCII exactly
+   when it is below 0x80, so this is one unsigned compare per block and no `firstSet` at all. It is
+   what a caller asks before deciding whether the rest of this file's answers are the whole story
+   about a text.
+-}
+pub fn isAllAscii(text: String) -> Bool:
+    let count = length(text)
+    if count <= (0 :: Size) then return True
+
+    let window = allUnits(text)
+    let width = vectorBytes
+    let last = count - width
+    let limit = splat(127 :: CodeUnit) :: Vec(CodeUnit)
+    let &i = 0 :: Size
+
+    while i <= last:
+        if any(loadVector(window, i) .> limit) then return False
+        i = i + width
+
+    while i < count:
+        if !isAscii(text.unit(i)) then return False
+        i = i + 1
+
+    return True

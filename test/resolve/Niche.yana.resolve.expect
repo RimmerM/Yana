@@ -163,6 +163,55 @@ fn paired() -> Int {
     ret %v9
 }
 
+fn nibbleOr(%m: Maybe(@bits(4) U32), %fallback: Int) -> Int {
+  b0:
+    %v2 = load %m.discriminant : Int
+    %v4 = cmp_eq %v2, 0 : Bool
+    je %v4, b2, b1
+
+  b1:
+    %value = load %m@Just : @bits(4) U32
+    %value = cast %value : Int
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v10 = phi [b2, %fallback], [b1, %value] : Int
+    ret %v10
+}
+
+fn nibbles() -> Int {
+  b0:
+    %v0 = alloc : Maybe(@bits(4) U32)
+    init %local0.discriminant, 0
+    %empty = call nibbleOr, %v0, 1000 : Int
+    %v5 = alloc : Maybe(@bits(4) U32)
+    %v9 = cast 0 : U32
+    %v11 = and %v9, 15 : U32
+    %v12 = cast %v11 : @bits(4) U32
+    aggregate %local1.discriminant = 1, %local1@Just = %v12
+    %zero = call nibbleOr, %v5, 1000 : Int
+    %v16 = alloc : Maybe(@bits(4) U32)
+    %v20 = cast 3 : U32
+    %v22 = and %v20, 15 : U32
+    %v23 = cast %v22 : @bits(4) U32
+    aggregate %local2.discriminant = 1, %local2@Just = %v23
+    %low = call nibbleOr, %v16, 1000 : Int
+    %v27 = alloc : Maybe(@bits(4) U32)
+    %v31 = cast 15 : U32
+    %v33 = and %v31, 15 : U32
+    %v34 = cast %v33 : @bits(4) U32
+    aggregate %local3.discriminant = 1, %local3@Just = %v34
+    %high = call nibbleOr, %v27, 1000 : Int
+    %v38 = add %empty, %zero : Int
+    %v41 = mul %low, 100 : Int
+    %v42 = add %v38, %v41 : Int
+    %v43 = add %v42, %high : Int
+    ret %v43
+}
+
 fn main() -> Int {
   b0:
     %v0 = call roundTrip : Int
@@ -170,5 +219,7 @@ fn main() -> Int {
     %v2 = add %v0, %v1 : Int
     %v3 = call paired : Int
     %v4 = add %v2, %v3 : Int
-    ret %v4
+    %v5 = call nibbles : Int
+    %v6 = add %v4, %v5 : Int
+    ret %v6
 }

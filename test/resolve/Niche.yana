@@ -58,4 +58,31 @@ fn nested() -> Int:
 
 fn paired() -> Int = pairValue(Pair {first: Just(More), second: Nothing})
 
-fn main() -> Int = roundTrip() + nested() + paired()
+{-
+   A bit-width refinement's niche, which is a donation no `data` declaration in this file makes:
+   `@bits(4) U32` reaches 0..15 in storage that holds 256, so `[16, 256)` is free, `Nothing` is
+   written as 16 and `Maybe(Nibble)` is one byte rather than five.
+
+   `Core/Text.yana`'s `hexValue` is what the donation is for. Its answer used to be an `Int` with
+   `-1` standing for "not a hexadecimal digit", which is a sentinel every caller has to remember to
+   test; it is a `Maybe(HexDigit)` now, and this is the layout that makes the two the same code.
+
+   Zero is one of the cases on purpose: it is the value a folded `Nothing` decoded as a `Just` would
+   most easily be mistaken for, and it contributes nothing to the sum, so a wrong decode shows up as
+   the fallback appearing twice.
+-}
+alias Nibble = @bits(4) U32
+
+fn nibbleOr(m: Maybe(Nibble), fallback: Int) -> Int = match m:
+    Nothing -> fallback
+    Just(value) -> value :: Int
+
+fn nibbles() -> Int:
+    let empty = nibbleOr(Nothing, 1000)
+    let zero = nibbleOr(Just(truncate(0) :: Nibble), 1000)
+    let low = nibbleOr(Just(truncate(3) :: Nibble), 1000)
+    let high = nibbleOr(Just(truncate(15) :: Nibble), 1000)
+
+    return empty + zero + low * 100 + high
+
+fn main() -> Int = roundTrip() + nested() + paired() + nibbles()
