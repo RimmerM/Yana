@@ -85,13 +85,49 @@ pub alias Fingerprint = [U8 *4]
 -}
 pub fn newPad() -> [U8 *64] = [0]
 
--- The pad's bytes exclusive-or'd with a constant. `0x36` builds the inner pad and `0x36 ^ 0x5c`
--- turns it into the outer one, which is why there is one function and not two.
+{-
+   The pad's bytes exclusive-or'd with a constant. `0x36` builds the inner pad and `0x36 ^ 0x5c`
+   turns it into the outer one, which is why there is one function and not two.
+
+   **A vector transfer and one written in portable source**, which is the pattern `Core/Reduce.yana`
+   proves and the thing this file was not using: `loadVector` and `storeVector` have bodies on both
+   targets (Implementation-Vector.md §12), so the same lines are `ymm` operations natively and
+   `lanes` element accesses on JS - where the sixty-four-iteration loop they replace was already
+   `lanes` accesses per byte. It is the `for v in vectors(xs)` form that is native-only, because an
+   `iter fn` yielding from inside a `for` captures its continuation and JS has no object to name for
+   one; a straight walk over the transfers needs no continuation and so needs no split.
+
+   **Written out rather than looped, because the count is known and the optimizer will not unroll
+   it.** `lanes` is a compile-time constant, so every test below folds and exactly one arm survives:
+   two `vpxor`/`vmovdqu` pairs at v3, four at v2 and on JS, one at v4, and no branch, no counter and
+   no back edge in any of them. The loop this replaces was emitted as written - two iterations at v3
+   with an `add`, a `cmp` and a `jl` around one useful operation - and it is worth 1.4% of an
+   HMAC-SHA-256 at v2 and 0.4% at v3, measured against this form in
+   `test/bench/hash/findings.md` §3.
+
+   The trailing loop is what makes that a shortcut rather than an assumption: sixty-four is a
+   multiple of every width a target has today and each of them ends at a `return`, so the loop is
+   folded away on all three - but a narrower `Vec(U8)` than sixteen bytes would still be *covered*
+   rather than silently leaving a tail of the pad unmasked.
+-}
 pub fn xorPad(&pad: [U8 *64], with: U8) -> {}:
-    let &i = 0 :: Size
+    let mask = splat(with) :: Vec(U8)
+    let step = lanes(mask) :: Size
+
+    storeVector(pad, 0, xor(loadVector(pad, 0), mask))
+    if step >= 64 then return {}
+
+    storeVector(pad, step, xor(loadVector(pad, step), mask))
+    if step >= 32 then return {}
+
+    storeVector(pad, step * 2, xor(loadVector(pad, step * 2), mask))
+    storeVector(pad, step * 3, xor(loadVector(pad, step * 3), mask))
+    if step >= 16 then return {}
+
+    let &i = step * 4
     while i < 64:
-        pad[i] = pad[i] `xor` with
-        i = i + 1
+        storeVector(pad, i, xor(loadVector(pad, i), mask))
+        i = i + step
 
 -- The key into the pad, leaving the rest of it zero - which is the zero extension the specification
 -- asks for, already there because `newPad` made it.
@@ -325,56 +361,45 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
     return out
 
 {-
-   The two byte loops, which are here rather than in `Native` because of what they take.
+   The two block operations every buffer in this file is filled through.
 
-   `copyMemory` wants two addresses and a JS build has none, and both of these run over at most
-   sixty-four bytes - so a call into the block ladder would cost more in dispatch than the loop
-   costs outright. Written this way they are also the same source on both targets.
+   **They were two byte loops, and the comment that held them there was wrong.** It said a call into
+   the block ladder would cost more in dispatch than the loop costs outright, on the grounds that
+   nothing here runs over more than sixty-four bytes. What that missed is what `copyMemory` *is*:
+   not a call to the machine's block instruction but a ladder whose rungs are register transfers,
+   which at these lengths is the two-load two-store rung and no loop at all - against sixty-four
+   iterations of a bounds-checked subscript pair. `Native/Memory.native.yana` is the ladder and
+   `test/bench/memmove/findings.md` is what each rung measured.
+
+   **Two implementations, because a JS build has no bytes.** `copyMemory` and `setMemory` reach that
+   target only in the shape the relocation glue writes (`blockCopyShape` in codegen/js/type.cpp),
+   which is a whole value and not a counted run - so the loop is what that target has, and it is the
+   loop this pair always was. The split is the one Analysis-Modules.md §2.5 describes and it stays
+   in this file rather than becoming two: five lines apiece, one of them shared.
+
+   **Non-overlapping, which `copyMemory` requires and every caller here already promises**: a block
+   is topped up from the caller's message, a pad is filled from a digest that was just finished, and
+   no two of those are ever the same storage. `moveMemory` is the one that establishes it instead of
+   asking, and nothing here needs to.
 -}
-pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size) -> {}:
+@platform(native) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size,
+                                   count: Size) -> {} =
+    copyMemory(to.items + toAt, from.items + fromAt, count)
+
+@platform(native) pub fn zeroBytes(&to: [U8], at: Size, count: Size) -> {} =
+    setMemory(to.items + at, 0, count)
+
+@platform(js) pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size) -> {}:
     let &i = 0 :: Size
     while i < count:
         to[toAt + i] = from[fromAt + i]
         i = i + 1
 
-pub fn zeroBytes(&to: [U8], at: Size, count: Size) -> {}:
+@platform(js) pub fn zeroBytes(&to: [U8], at: Size, count: Size) -> {}:
     let &i = 0 :: Size
     while i < count:
         to[at + i] = 0
         i = i + 1
-
-{-
-   ------------------------------------------------------------------------------------------
-   Hexadecimal, which is what a digest is nearly always turned into.
-   ------------------------------------------------------------------------------------------
-
-   One function over `Flat(U8)` rather than one per digest, and reached by the conversion at the call
-   rather than by a constraint: a `Sha256Digest` becomes a slice where it is written, so `hexOf` needs
-   to say nothing about widths and nothing about containers.
-
-   Lower case, because every protocol that compares digest text as a string - a `Content-MD5`
-   header, a `.sha256` sidecar file, git - writes it that way.
--}
-pub fn pushHex(bytes: [U8], &to: String) -> {}:
-    let n = length(bytes)
-    let &i = 0 :: Size
-
-    String.reserve(to, length(to) + n * 2)
-
-    while i < n:
-        let byte = bytes[i] :: Int
-        String.pushUnit(to, hexUnit(byte `shr` 4))
-        String.pushUnit(to, hexUnit(byte `and` 15))
-        i = i + 1
-
-pub fn hexOf(bytes: [U8]) -> String:
-    let &text = String.ofCapacity(length(bytes) * 2)
-    pushHex(bytes, text)
-    return text
-
--- `0`-`9` then `a`-`f`, as arithmetic rather than as a table: the branch is one `cmp` and a `cmov`
--- and a table would be a load and a bounds check the compiler cannot remove.
-fn hexUnit(nibble: Int) -> Int = if nibble < 10 then 48 + nibble else 87 + nibble
 
 {-
    ------------------------------------------------------------------------------------------

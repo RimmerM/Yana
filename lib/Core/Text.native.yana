@@ -636,3 +636,73 @@ pub fn isAllAscii(text: String) -> Bool:
         i = i + 1
 
     return True
+
+{-
+   ------------------------------------------------------------------------------------------
+   Bytes as hexadecimal
+   ------------------------------------------------------------------------------------------
+
+   `Text.yana` beside this states what the operation is and why it is lower case; what is here is
+   the block form - sixteen bytes read, thirty-two units written, and no table anywhere.
+
+   **The digit is arithmetic and not a lookup, and that is forced rather than chosen.** A nibble to
+   its digit is the classic `pshufb` of a sixteen-entry table, and `shuffle` in this language takes
+   a *compile-time* pattern (Design-Vector §3.3) - the pattern is a field of the instruction and is
+   read back out of the IR, so there is no operation here whose index vector is computed at run time
+   and a nibble lookup is not expressible. What replaces it is `d + 48` with a further `7` where `d`
+   is above nine, which is one compare and one blend per vector - the same expression `hexUnit`
+   writes as a branch, and cheaper than the load a table would have been anyway.
+
+   **Sixteen lanes, written down, for `interleaveLow`'s reason** - the same one `Core/Read.yana`'s
+   digit scan states: the interleave is one instruction at sixteen lanes on every x86 back to SSE2
+   and there is none at all at thirty-two, because every 256-bit shuffle works inside its own
+   128-bit half. So a build at v3, where `Vec(U8)` means thirty-two lanes, would not compile this.
+   Sixteen is also all it needs: two `punpck`s turn the high and low nibble vectors into the
+   thirty-two output units in their final order, and nothing here scales with the register.
+
+   The write goes into the string's own run rather than through `pushUnit`, which is what the
+   reservation is for: the units are provably in range once the capacity has been checked, so the
+   two stores are stores. `String.appendUnits` makes the same check for the same reason - a reserve
+   the allocator refused is a write past the end of the run and not a lost append.
+-}
+pub fn pushHex(bytes: [U8], &to: String) -> {}:
+    let n = length(bytes)
+    if n <= (0 :: Size) then return {}
+
+    String.reserve(to, n + n)
+
+    let filled = stringDataMut(to)
+    let start = filled.bytes.length :: Size
+    let wanted = start + n + n
+    checkCondition((filled.bytes.run.capacity :: Size) < wanted)
+    filled.bytes.length = truncate(wanted) :: Count
+
+    let source = bytes.items
+    let target = filled.bytes.run.items + start
+
+    let nibble = splat(15 :: U8) :: Vec(U8, 16)
+    let nine = splat(9 :: U8) :: Vec(U8, 16)
+    let digit = splat(48 :: U8) :: Vec(U8, 16)
+    let letter = splat(87 :: U8) :: Vec(U8, 16)
+
+    let &i = 0 :: Size
+    while i + 16 <= n:
+        let block = vectorAt(source + i) :: Vec(U8, 16)
+        let high = (block `shr` (splat(4 :: U8) :: Vec(U8, 16))) `and` nibble
+        let low = block `and` nibble
+        let highText = high + select(high .> nine, letter, digit)
+        let lowText = low + select(low .> nine, letter, digit)
+
+        let low16 = bitcast(interleaveLow(highText, lowText)) :: Vec(CodeUnit, 16)
+        let high16 = bitcast(interleaveHigh(highText, lowText)) :: Vec(CodeUnit, 16)
+        setVectorAt(target + i + i, low16)
+        setVectorAt(target + i + i + 16, high16)
+        i = i + 16
+
+    -- The ragged end, one byte at a time, because there is no overreading *store*: a write past the
+    -- run is the destruction of whatever follows it, where a read past it is §5.2's padding.
+    while i < n:
+        let byte = bytes[i] :: Int
+        store(target + i + i, truncate(hexUnit(byte `shr` 4)) :: CodeUnit)
+        store(target + i + i + 1, truncate(hexUnit(byte `and` 15)) :: CodeUnit)
+        i = i + 1

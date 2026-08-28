@@ -552,3 +552,78 @@ fn hexOr(unit: Int, missing: Int) -> Int =
     -- Past the first vector block, so the whole-block loop is what answers rather than the tail.
     check(isAllAscii(repeated("abcd", 12)))
     check(!isAllAscii(repeated("abcd", 12) ++ "\xc3\xa9"))
+
+{-
+   ==========================================================================================
+   Bytes as hexadecimal
+   ==========================================================================================
+
+   **Every length across the block boundary**, which is what a vectorized writer has to be checked
+   at: the native half writes sixteen bytes a turn and one byte at a time under that, so a length of
+   fifteen exercises only the tail, sixteen only the block, and seventeen both - and the reference
+   answer is the scalar expression the JS half is.
+
+   The nibble order is the one thing a lanewise interleave can get exactly backwards without
+   changing the length or the character set, so the values are chosen to make it visible: `0x0f` and
+   `0xf0` are each other reversed, and so are `0x1a` and `0xa1`.
+-}
+fn hexReference(bytes: [U8]) -> String:
+    let &out = ""
+    let &i = 0 :: Size
+
+    while i < length(bytes):
+        let byte = bytes[i] :: Int
+        out.pushUnit(hexUnit(byte `shr` 4))
+        out.pushUnit(hexUnit(byte `and` 15))
+        i = i + 1
+
+    return out
+
+@test fn hexDigits() -> {}:
+    checkEqual(hexUnit(0), 48)
+    checkEqual(hexUnit(9), 57)
+    checkEqual(hexUnit(10), 97)
+    checkEqual(hexUnit(15), 102)
+
+    -- And the round trip through the reader beside it, which is the pair's only shared claim.
+    let &value = 0
+    while value < 16:
+        checkEqual(hexOr(hexUnit(value), 0 - 1), value)
+        value = value + 1
+
+@test fn hexBytes() -> {}:
+    let &empty = [] :: [U8]
+    checkEqual(hexOf(elements(empty)), "")
+
+    checkEqual(hexOf(elements([0 :: U8, 15, 240, 26, 161, 255])), "000ff01aa1ff")
+
+    -- Every length from nothing to two blocks and a tail, against the scalar answer.
+    let &bytes = [] :: [U8]
+    let &n = 0
+    while n < 40:
+        checkEqual(hexOf(elements(bytes)), hexReference(elements(bytes)))
+        push(bytes, truncate(n * 37 + 11) :: U8)
+        n = n + 1
+
+@test fn hexAppends() -> {}:
+    -- The sink is written into rather than made, so what is already there has to survive - and the
+    -- native half's reservation is against the string's *length*, which is where an off-by-one puts
+    -- the first digit on top of the last unit that was there.
+    let &out = "sha256:"
+    pushHex(elements([222 :: U8, 173, 190, 239]), out)
+    checkEqual(out, "sha256:deadbeef")
+
+    pushHex(elements([1 :: U8]), out)
+    checkEqual(out, "sha256:deadbeef01")
+
+    -- A block-sized append onto a non-empty sink, which is the case where the vector loop and the
+    -- offset it starts at are both live.
+    let &wide = "0x"
+    let &bytes = [] :: [U8]
+    let &n = 0
+    while n < 20:
+        push(bytes, truncate(n * 13 + 7) :: U8)
+        n = n + 1
+
+    pushHex(elements(bytes), wide)
+    checkEqual(wide, "0x" ++ hexReference(elements(bytes)))

@@ -402,3 +402,40 @@ pub fn String.replace(text: String, needle: String, replacement: String) -> Stri
                 running = False
 
     return out
+
+{-
+   ==========================================================================================
+   Bytes as hexadecimal - and it is split, so the two halves are in the target files.
+   ==========================================================================================
+
+   The other direction of `hexValue` above, and the operation every digest, fingerprint and wire
+   dump ends in: a run of bytes written out as two units apiece.
+
+   **It was `Digest`'s own function**, which is where it was first wanted rather than where it
+   belongs - nothing about writing a byte as two digits is a property of a message digest, and a
+   second caller would have had to import one to get it. `Digest.hexOf` is now this one under the
+   name it always had.
+
+   `[U8]` and not a container class, and reached by the conversion at the call: a `Sha256Digest` is
+   a `[U8 *32]` and becomes a slice where it is written, so this says nothing about widths and
+   nothing about containers.
+
+   **Lower case, with no argument to say otherwise.** Every protocol that compares digest text as a
+   string - a `Content-MD5` header, a `.sha256` sidecar, git - writes it that way, and a case flag
+   would be a branch inside the loop paid for by every caller that does not want one. The upper-case
+   form is `toUpperAscii` of this, which is a second pass nobody has asked for yet.
+
+   `pushHex` is the half that is split: natively it is a vector loop into the string's own bytes and
+   on JS it is a `pushUnit` pair per byte, and those two have nothing in common (Analysis-Modules.md
+   §2.5). `hexOf` is that function with the sink made for it, sized exactly, and is one body.
+-}
+pub fn hexOf(bytes: [U8]) -> String:
+    let &text = String.ofCapacity(length(bytes) * 2)
+    pushHex(bytes, text)
+    return text
+
+-- One nibble's digit - `0`-`9` then `a`-`f`, as arithmetic rather than as a table: the branch is
+-- one `cmp` and a `cmov`, and a table would be a load and a bounds check the compiler cannot
+-- remove. It is what the JS half and the native tail are written out of, and the native block form
+-- is this same expression applied lanewise.
+pub fn hexUnit(nibble: Int) -> Int = if nibble < 10 then 48 + nibble else 87 + nibble
