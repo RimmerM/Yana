@@ -142,7 +142,7 @@ function writeSpecial(value, to$o, to$k, to$s) {
   }
 }
 
-function Show_Double_show(value, to$o, to$k, to$s) {
+function Show_F64_show(value, to$o, to$k, to$s) {
   if (!writeSpecial(value, to$o, to$k, to$s)) {
     var v29 = value < 0 ? -value : value;
     if (v29 === 0) {
@@ -219,7 +219,7 @@ function Show_Double_show(value, to$o, to$k, to$s) {
   }
 }
 
-function Show_Maybe_a_show_Int(value, to$o, to$k, to$s) {
+function Show_Maybe_a_show_I32(value, to$o, to$k, to$s) {
   if (!(value === null)) {
     to$o[to$k] = to$o[to$k] + "Just(";
     var v43 = String(value);
@@ -265,13 +265,13 @@ function library() {
   var sink = { $v: "" };
   var v12 = 0 / 0;
   var sink$1 = { $v: "" };
-  Show_Double_show(v12, sink$1, "$v", 1);
+  Show_F64_show(v12, sink$1, "$v", 1);
   if (sink$1.$v === "NaN") {
     total = total + 1 | 0;
   }
   var v27 = 1 / 0;
   var sink$2 = { $v: "" };
-  Show_Double_show(v27, sink$2, "$v", 1);
+  Show_F64_show(v27, sink$2, "$v", 1);
   if (sink$2.$v === "Inf") {
     total = total + 1 | 0;
   }
@@ -285,12 +285,12 @@ function library() {
     total = total + 1 | 0;
   }
   sink.$v = "";
-  Show_Maybe_a_show_Int(null, sink, "$v", 1);
+  Show_Maybe_a_show_I32(null, sink, "$v", 1);
   if (sink.$v === "Nothing") {
     total = total + 1 | 0;
   }
   sink.$v = "";
-  Show_Maybe_a_show_Int(7, sink, "$v", 1);
+  Show_Maybe_a_show_I32(7, sink, "$v", 1);
   if (sink.$v === "Just(7)") {
     total = total + 1 | 0;
   }

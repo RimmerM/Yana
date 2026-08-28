@@ -1,16 +1,16 @@
 let image$base: () = <none>
 
-fn opaque(%x: Double) -> Double {
+fn opaque(%x: F64) -> F64 {
   b0:
     ret %x
 }
 
-fn barrier(%x: Int) -> Int {
+fn barrier(%x: I32) -> I32 {
   b0:
     ret %x
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -21,35 +21,35 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %first = call opaque, -0.5 : Double
-    %opened = call barrier, 0 : Int
-    %v6 = neg 0.5 : Float
-    %v7 = cast %v6 : Double
+    %first = call opaque, -0.5 : F64
+    %opened = call barrier, 0 : I32
+    %v6 = neg 0.5 : F32
+    %v7 = cast %v6 : F64
     %v8 = cmp_eq %first, %v7 : Bool
-    %firstOk = call check, %v8, 1 : Int
-    %a = call opaque, 7.25 : Double
-    %doubled = mul %a, 2 : Double
-    %raised = add %a, 1 : Double
-    %v19 = call barrier, %opened : Int
-    %v20 = call barrier, %v19 : Int
-    %held = call barrier, %v20 : Int
+    %firstOk = call check, %v8, 1 : I32
+    %a = call opaque, 7.25 : F64
+    %doubled = mul %a, 2 : F64
+    %raised = add %a, 1 : F64
+    %v19 = call barrier, %opened : I32
+    %v20 = call barrier, %v19 : I32
+    %held = call barrier, %v20 : I32
     %v24 = cmp_eq %doubled, 14.5 : Bool
-    %v26 = call check, %v24, 2 : Int
-    %v27 = add %firstOk, %v26 : Int
+    %v26 = call check, %v24, 2 : I32
+    %v27 = add %firstOk, %v26 : I32
     %v30 = cmp_eq %raised, 8.25 : Bool
-    %v32 = call check, %v30, 4 : Int
-    %v33 = add %v27, %v32 : Int
+    %v32 = call check, %v30, 4 : I32
+    %v33 = add %v27, %v32 : I32
     %v36 = cmp_eq %a, 7.25 : Bool
-    %v38 = call check, %v36, 8 : Int
-    %v39 = add %v33, %v38 : Int
+    %v38 = call check, %v36, 8 : I32
+    %v39 = add %v33, %v38 : I32
     %v42 = cmp_eq %held, 0 : Bool
-    %v44 = call check, %v42, 16 : Int
-    %v45 = add %v39, %v44 : Int
+    %v44 = call check, %v42, 16 : I32
+    %v45 = add %v39, %v44 : I32
     ret %v45
 }

@@ -1,3 +1,10 @@
+table typeDesc$I32 {
+  .0 sizeof I32
+  .1 strideof I32
+  .2 alignof I32 | 131
+  .3 teardown$none
+}
+
 let image$base: () = <none>
 
 table typeDesc$Handle {
@@ -22,34 +29,27 @@ table genEnv$relocate(Pair) {
   .0 typeDesc$Pair
 }
 
-table typeDesc$Int {
-  .0 sizeof Int
-  .1 strideof Int
-  .2 alignof Int | 131
-  .3 teardown$none
+table witness$Num(I32) {
+  .0 thunk$Num(I32).+#0
+  .1 thunk$Num(I32).-#1
+  .2 thunk$Num(I32).*#2
+  .3 thunk$Num(I32)./#3
+  .4 thunk$Num(I32).-#4
+  .5 witness$FromInt(I32)
 }
 
-table witness$Num(Int) {
-  .0 thunk$Num(Int).+#0
-  .1 thunk$Num(Int).-#1
-  .2 thunk$Num(Int).*#2
-  .3 thunk$Num(Int)./#3
-  .4 thunk$Num(Int).-#4
-  .5 witness$FromInt(Int)
+table witness$FromInt(I32) {
+  .0 thunk$FromInt(I32).fromInt#0
 }
 
-table witness$FromInt(Int) {
-  .0 thunk$FromInt(Int).fromInt#0
+table genEnv$twice(I32) {
+  .0 typeDesc$I32
+  .1 witness$Num(I32)
 }
 
-table genEnv$twice(Int) {
-  .0 typeDesc$Int
-  .1 witness$Num(Int)
-}
-
-table genEnv$numeric(Int) {
-  .0 typeDesc$Int
-  .1 witness$Num(Int)
+table genEnv$numeric(I32) {
+  .0 typeDesc$I32
+  .1 witness$Num(I32)
 }
 
 fn checkFailed() -> () {
@@ -211,64 +211,64 @@ fn main() -> I64 {
     %v41 = add %v38, %v40 : I64
     %v42 = load %local6@Pair.right : I64
     %v43 = add %v41, %v42 : I64
-    %v46 = gencall env genEnv$twice(Int) twice(Int), 19 : Int
+    %v46 = gencall env genEnv$twice(I32) twice(I32), 19 : I32
     %v47 = cast %v46 : I64
     %v48 = add %v43, %v47 : I64
-    %v51 = gencall env genEnv$numeric(Int) numeric(Int), 4 : Int
+    %v51 = gencall env genEnv$numeric(I32) numeric(I32), 4 : I32
     %v52 = cast %v51 : I64
     %v53 = add %v48, %v52 : I64
     ret %v53
 }
 
-fn thunk$Num(Int).+#0(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32).+#0(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = add %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = add %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Num(Int).-#1(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32).-#1(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = sub %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = sub %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Num(Int).*#2(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32).*#2(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = mul %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = mul %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Num(Int)./#3(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32)./#3(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
     %v6 = cmp_eq %v4, 0 : Bool
     call checkCondition, %v6
-    %v8 = div %v3, %v4 : Int
+    %v8 = div %v3, %v4 : I32
     init [%result], %v8
     ret
 }
 
-fn thunk$Num(Int).-#4(%result: %Int, %value: %Int) -> () {
+fn thunk$Num(I32).-#4(%result: %I32, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
-    %v3 = neg %v2 : Int
+    %v2 = load [%value] : I32
+    %v3 = neg %v2 : I32
     init [%result], %v3
     ret
 }
 
-fn thunk$FromInt(Int).fromInt#0(%result: %Int, %value: Long) -> () {
+fn thunk$FromInt(I32).fromInt#0(%result: %I32, %value: I64) -> () {
   b0:
-    %v2 = cast %value : Int
+    %v2 = cast %value : I32
     init [%result], %v2
     ret
 }

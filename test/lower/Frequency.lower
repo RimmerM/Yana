@@ -10,23 +10,23 @@
 # A branch nothing is known about splits evenly. This is the case the analysis must not get clever
 # about: the IR has lost whatever made one arm exceptional, and a data-dependent test looks exactly
 # like a check that never fails.
-neutral(%c: Int): Int {
+neutral(%c: I32): I32 {
     start {
         je %c, left, right
     }
 
     left {
-        %a = cast 1: Int
+        %a = cast 1: I32
         jmp end
     }
 
     right {
-        %b = cast 2: Int
+        %b = cast 2: I32
         jmp end
     }
 
     end {
-        ret (phi [left, %a], [right, %b]: Int)
+        ret (phi [left, %a], [right, %b]: I32)
     }
 }
 
@@ -34,23 +34,23 @@ neutral(%c: Int): Int {
 # is nearly as hot as the branch above it and `right` is nearly cold. `end`, which both arms reach,
 # is back at the frequency of the entry - it prints a hundredth under it because a hundred does not
 # divide the unit frequencies are held in, and the printout truncates rather than rounds.
-hinted(%c: Int): Int {
+hinted(%c: I32): I32 {
     start {
         je %c, [left, 99], [right, 1]
     }
 
     left {
-        %a = cast 1: Int
+        %a = cast 1: I32
         jmp end
     }
 
     right {
-        %b = cast 2: Int
+        %b = cast 2: I32
         jmp end
     }
 
     end {
-        ret (phi [left, %a], [right, %b]: Int)
+        ret (phi [left, %a], [right, %b]: I32)
     }
 }
 
@@ -58,19 +58,19 @@ hinted(%c: Int): Int {
 # than once, so the edge leaving it is taken once where the edge staying in it is taken every
 # iteration but the last: the header and the body come out at the assumed trip count, and `end` -
 # which is left exactly once however long the loop ran - comes back to the entry's frequency.
-loop(%n: Int): Int {
+loop(%n: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [body, %i2]: Int
+        %i = phi [start, %z], [body, %i2]: I32
         je (cmp_ige %i, %n), end, body
     }
 
     body {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -82,29 +82,29 @@ loop(%n: Int): Int {
 # Two nested loops. The multipliers compose, so the inner body is the trip count squared, and each
 # loop's exit lands back at the frequency of the loop that contains it rather than at the frequency
 # of the loop it leaves.
-nested(%n: Int, %m: Int): Int {
+nested(%n: I32, %m: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp outer
     }
 
     outer {
-        %i = phi [start, %z], [outerEnd, %i2]: Int
+        %i = phi [start, %z], [outerEnd, %i2]: I32
         je (cmp_ige %i, %n), done, innerHead
     }
 
     innerHead {
-        %j = phi [outer, %z], [innerBody, %j2]: Int
+        %j = phi [outer, %z], [innerBody, %j2]: I32
         je (cmp_ige %j, %m), outerEnd, innerBody
     }
 
     innerBody {
-        %j2 = add %j, 1: Int
+        %j2 = add %j, 1: I32
         jmp innerHead
     }
 
     outerEnd {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         jmp outer
     }
 
@@ -117,14 +117,14 @@ nested(%n: Int, %m: Int): Int {
 # the loop body does, and the arm it almost never takes has to come out colder than the code outside
 # the loop entirely, or a value live only across the failure path would be weighed as though it were
 # live in the loop.
-coldPathInLoop(%n: Int, %c: Int): Int {
+coldPathInLoop(%n: I32, %c: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [next, %i2]: Int
+        %i = phi [start, %z], [next, %i2]: I32
         je (cmp_ige %i, %n), done, check
     }
 
@@ -133,16 +133,16 @@ coldPathInLoop(%n: Int, %c: Int): Int {
     }
 
     fail {
-        %e = cast 0: Int
+        %e = cast 0: I32
         jmp done
     }
 
     next {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         jmp head
     }
 
     done {
-        ret (phi [head, %i], [fail, %e]: Int)
+        ret (phi [head, %i], [fail, %e]: I32)
     }
 }

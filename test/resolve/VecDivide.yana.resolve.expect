@@ -1,13 +1,13 @@
 let image$base: () = <none>
 
-let &counter: Int = 0
+let &counter: I32 = 0
 
-fn opaque(%n: Int) -> Int {
+fn opaque(%n: I32) -> I32 {
   b0:
-    %v1 = load counter : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load counter : I32
+    %v4 = add %v1, 1 : I32
     assign counter, %v4
-    %v6 = load counter : Int
+    %v6 = load counter : I32
     %v9 = cmp_gt %v6, 1000 : Bool
     je %v9, b1, b2
 
@@ -21,10 +21,10 @@ fn opaque(%n: Int) -> Int {
     ret %n
 }
 
-fn checkBytes(%v: Vec(I8), %expected: Int) -> Int {
+fn checkBytes(%v: Vec(I8), %expected: I32) -> I32 {
   b0:
-    %v2 = bitcast %v : Vec(Int)
-    %v5 = vlane %v2, 0 : Int
+    %v2 = bitcast %v : Vec(I32)
+    %v5 = vlane %v2, 0 : I32
     %v6 = cmp_eq %v5, %expected : Bool
     je %v6, b1, b2
 
@@ -35,27 +35,27 @@ fn checkBytes(%v: Vec(I8), %expected: Int) -> Int {
     jmp b3
 
   b3:
-    %v12 = phi [b1, 1], [b2, 0] : Int
+    %v12 = phi [b1, 1], [b2, 0] : I32
     ret %v12
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %n = alloc : Int
+    %n = alloc : I32
     init %n, 0
-    %a = vsplat 100 : Vec(Int)
-    %v9 = sub 0, 100 : Int
-    %neg = vsplat %v9 : Vec(Int)
-    %v12 = call opaque, 7 : Int
-    %seven = vsplat %v12 : Vec(Int)
-    %v15 = call opaque, 0 : Int
-    %zero = vsplat %v15 : Vec(Int)
-    %v21 = sub 0, 1 : Int
-    %v22 = call opaque, %v21 : Int
-    %minusOne = vsplat %v22 : Vec(Int)
-    %v24 = load %n : Int
-    %v25 = div %a, %seven : Vec(Int)
-    %v28 = vlane %v25, 0 : Int
+    %a = vsplat 100 : Vec(I32)
+    %v9 = sub 0, 100 : I32
+    %neg = vsplat %v9 : Vec(I32)
+    %v12 = call opaque, 7 : I32
+    %seven = vsplat %v12 : Vec(I32)
+    %v15 = call opaque, 0 : I32
+    %zero = vsplat %v15 : Vec(I32)
+    %v21 = sub 0, 1 : I32
+    %v22 = call opaque, %v21 : I32
+    %minusOne = vsplat %v22 : Vec(I32)
+    %v24 = load %n : I32
+    %v25 = div %a, %seven : Vec(I32)
+    %v28 = vlane %v25, 0 : I32
     %v31 = cmp_eq %v28, 14 : Bool
     je %v31, b1, b2
 
@@ -66,12 +66,12 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v39 = phi [b1, 1], [b2, 0] : Int
-    %v40 = add %v24, %v39 : Int
+    %v39 = phi [b1, 1], [b2, 0] : I32
+    %v40 = add %v24, %v39 : I32
     assign %n, %v40
-    %v42 = load %n : Int
-    %v43 = rem %a, %seven : Vec(Int)
-    %v46 = vlane %v43, 1 : Int
+    %v42 = load %n : I32
+    %v43 = rem %a, %seven : Vec(I32)
+    %v46 = vlane %v43, 1 : I32
     %v49 = cmp_eq %v46, 2 : Bool
     je %v49, b4, b5
 
@@ -82,13 +82,13 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v57 = phi [b4, 1], [b5, 0] : Int
-    %v58 = add %v42, %v57 : Int
+    %v57 = phi [b4, 1], [b5, 0] : I32
+    %v58 = add %v42, %v57 : I32
     assign %n, %v58
-    %v60 = load %n : Int
-    %v61 = div %neg, %seven : Vec(Int)
-    %v64 = vlane %v61, 2 : Int
-    %v69 = sub 0, 14 : Int
+    %v60 = load %n : I32
+    %v61 = div %neg, %seven : Vec(I32)
+    %v64 = vlane %v61, 2 : I32
+    %v69 = sub 0, 14 : I32
     %v70 = cmp_eq %v64, %v69 : Bool
     je %v70, b7, b8
 
@@ -99,13 +99,13 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v78 = phi [b7, 1], [b8, 0] : Int
-    %v79 = add %v60, %v78 : Int
+    %v78 = phi [b7, 1], [b8, 0] : I32
+    %v79 = add %v60, %v78 : I32
     assign %n, %v79
-    %v81 = load %n : Int
-    %v82 = rem %neg, %seven : Vec(Int)
-    %v85 = vlane %v82, 3 : Int
-    %v90 = sub 0, 2 : Int
+    %v81 = load %n : I32
+    %v82 = rem %neg, %seven : Vec(I32)
+    %v85 = vlane %v82, 3 : I32
+    %v90 = sub 0, 2 : I32
     %v91 = cmp_eq %v85, %v90 : Bool
     je %v91, b10, b11
 
@@ -116,12 +116,12 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v99 = phi [b10, 1], [b11, 0] : Int
-    %v100 = add %v81, %v99 : Int
+    %v99 = phi [b10, 1], [b11, 0] : I32
+    %v100 = add %v81, %v99 : I32
     assign %n, %v100
-    %v102 = load %n : Int
-    %v103 = div %a, %zero : Vec(Int)
-    %v106 = vlane %v103, 0 : Int
+    %v102 = load %n : I32
+    %v103 = div %a, %zero : Vec(I32)
+    %v106 = vlane %v103, 0 : I32
     %v109 = cmp_eq %v106, 0 : Bool
     je %v109, b13, b14
 
@@ -132,12 +132,12 @@ fn main() -> Int {
     jmp b15
 
   b15:
-    %v117 = phi [b13, 1], [b14, 0] : Int
-    %v118 = add %v102, %v117 : Int
+    %v117 = phi [b13, 1], [b14, 0] : I32
+    %v118 = add %v102, %v117 : I32
     assign %n, %v118
-    %v120 = load %n : Int
-    %v121 = rem %a, %zero : Vec(Int)
-    %v124 = vlane %v121, 0 : Int
+    %v120 = load %n : I32
+    %v121 = rem %a, %zero : Vec(I32)
+    %v124 = vlane %v121, 0 : I32
     %v127 = cmp_eq %v124, 100 : Bool
     je %v127, b16, b17
 
@@ -148,16 +148,16 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v135 = phi [b16, 1], [b17, 0] : Int
-    %v136 = add %v120, %v135 : Int
+    %v135 = phi [b16, 1], [b17, 0] : I32
+    %v136 = add %v120, %v135 : I32
     assign %n, %v136
-    %v141 = shl 1, 31 : Int
-    %v142 = call opaque, %v141 : Int
-    %least = vsplat %v142 : Vec(Int)
-    %v144 = load %n : Int
-    %v145 = div %least, %minusOne : Vec(Int)
-    %v148 = vlane %v145, 0 : Int
-    %v152 = shl 1, 31 : Int
+    %v141 = shl 1, 31 : I32
+    %v142 = call opaque, %v141 : I32
+    %least = vsplat %v142 : Vec(I32)
+    %v144 = load %n : I32
+    %v145 = div %least, %minusOne : Vec(I32)
+    %v148 = vlane %v145, 0 : I32
+    %v152 = shl 1, 31 : I32
     %v153 = cmp_eq %v148, %v152 : Bool
     je %v153, b19, b20
 
@@ -168,12 +168,12 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v161 = phi [b19, 1], [b20, 0] : Int
-    %v162 = add %v144, %v161 : Int
+    %v161 = phi [b19, 1], [b20, 0] : I32
+    %v162 = add %v144, %v161 : I32
     assign %n, %v162
-    %v164 = load %n : Int
-    %v165 = rem %least, %minusOne : Vec(Int)
-    %v168 = vlane %v165, 0 : Int
+    %v164 = load %n : I32
+    %v165 = rem %least, %minusOne : Vec(I32)
+    %v168 = vlane %v165, 0 : I32
     %v171 = cmp_eq %v168, 0 : Bool
     je %v171, b22, b23
 
@@ -184,15 +184,15 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v179 = phi [b22, 1], [b23, 0] : Int
-    %v180 = add %v164, %v179 : Int
+    %v179 = phi [b22, 1], [b23, 0] : I32
+    %v180 = add %v164, %v179 : I32
     assign %n, %v180
-    %v186 = sub 0, 1 : Int
-    %v187 = call opaque, %v186 : Int
+    %v186 = sub 0, 1 : I32
+    %v187 = call opaque, %v186 : I32
     %v188 = bitcast %v187 : U32
     %big = vsplat %v188 : Vec(U32)
-    %v190 = load %n : Int
-    %v192 = call opaque, 3 : Int
+    %v190 = load %n : I32
+    %v192 = call opaque, 3 : I32
     %v193 = bitcast %v192 : U32
     %v194 = vsplat %v193 : Vec(U32)
     %v195 = div %big, %v194 : Vec(U32)
@@ -207,11 +207,11 @@ fn main() -> Int {
     jmp b27
 
   b27:
-    %v209 = phi [b25, 1], [b26, 0] : Int
-    %v210 = add %v190, %v209 : Int
+    %v209 = phi [b25, 1], [b26, 0] : I32
+    %v210 = add %v190, %v209 : I32
     assign %n, %v210
-    %v212 = load %n : Int
-    %v214 = call opaque, 0 : Int
+    %v212 = load %n : I32
+    %v214 = call opaque, 0 : I32
     %v215 = bitcast %v214 : U32
     %v216 = vsplat %v215 : Vec(U32)
     %v217 = rem %big, %v216 : Vec(U32)
@@ -226,18 +226,18 @@ fn main() -> Int {
     jmp b30
 
   b30:
-    %v231 = phi [b28, 1], [b29, 0] : Int
-    %v232 = add %v212, %v231 : Int
+    %v231 = phi [b28, 1], [b29, 0] : I32
+    %v232 = add %v212, %v231 : I32
     assign %n, %v232
-    %q = vsplat 1000000000000 : Vec(Long)
-    %v238 = call opaque, 7 : Int
-    %v239 = cast %v238 : Long
-    %v241 = sub 0, %v239 : Long
-    %e = vsplat %v241 : Vec(Long)
-    %v243 = load %n : Int
-    %v244 = div %q, %e : Vec(Long)
-    %v247 = vlane %v244, 0 : Long
-    %v251 = sub 0, 142857142857 : Long
+    %q = vsplat 1000000000000 : Vec(I64)
+    %v238 = call opaque, 7 : I32
+    %v239 = cast %v238 : I64
+    %v241 = sub 0, %v239 : I64
+    %e = vsplat %v241 : Vec(I64)
+    %v243 = load %n : I32
+    %v244 = div %q, %e : Vec(I64)
+    %v247 = vlane %v244, 0 : I64
+    %v251 = sub 0, 142857142857 : I64
     %v252 = cmp_eq %v247, %v251 : Bool
     je %v252, b31, b32
 
@@ -248,12 +248,12 @@ fn main() -> Int {
     jmp b33
 
   b33:
-    %v260 = phi [b31, 1], [b32, 0] : Int
-    %v261 = add %v243, %v260 : Int
+    %v260 = phi [b31, 1], [b32, 0] : I32
+    %v261 = add %v243, %v260 : I32
     assign %n, %v261
-    %v263 = load %n : Int
-    %v264 = rem %q, %e : Vec(Long)
-    %v267 = vlane %v264, 1 : Long
+    %v263 = load %n : I32
+    %v264 = rem %q, %e : Vec(I64)
+    %v267 = vlane %v264, 1 : I64
     %v270 = cmp_eq %v267, 1 : Bool
     je %v270, b34, b35
 
@@ -264,39 +264,39 @@ fn main() -> Int {
     jmp b36
 
   b36:
-    %v278 = phi [b34, 1], [b35, 0] : Int
-    %v279 = add %v263, %v278 : Int
+    %v278 = phi [b34, 1], [b35, 0] : I32
+    %v279 = add %v263, %v278 : I32
     assign %n, %v279
-    %v285 = sub 0, 1888223487 : Int
-    %v286 = call opaque, %v285 : Int
-    %v287 = vsplat %v286 : Vec(Int)
+    %v285 = sub 0, 1888223487 : I32
+    %v286 = call opaque, %v285 : I32
+    %v287 = vsplat %v286 : Vec(I32)
     %xs = bitcast %v287 : Vec(I8)
-    %v290 = call opaque, 100532231 : Int
-    %v291 = vsplat %v290 : Vec(Int)
+    %v290 = call opaque, 100532231 : I32
+    %v291 = vsplat %v290 : Vec(I32)
     %ds = bitcast %v291 : Vec(I8)
-    %v293 = load %n : Int
+    %v293 = load %n : I32
     %v294 = div %xs, %ds : Vec(I8)
-    %v299 = sub 0, 356057088 : Int
-    %v300 = call checkBytes, %v294, %v299 : Int
-    %v301 = add %v293, %v300 : Int
+    %v299 = sub 0, 356057088 : I32
+    %v300 = call checkBytes, %v294, %v299 : I32
+    %v301 = add %v293, %v300 : I32
     assign %n, %v301
-    %v303 = load %n : Int
+    %v303 = load %n : I32
     %v304 = rem %xs, %ds : Vec(I8)
-    %v309 = sub 0, 50200831 : Int
-    %v310 = call checkBytes, %v304, %v309 : Int
-    %v311 = add %v303, %v310 : Int
+    %v309 = sub 0, 50200831 : I32
+    %v310 = call checkBytes, %v304, %v309 : I32
+    %v311 = add %v303, %v310 : I32
     assign %n, %v311
-    %v317 = sub 0, 1888223487 : Int
-    %v318 = call opaque, %v317 : Int
-    %v319 = vsplat %v318 : Vec(Int)
+    %v317 = sub 0, 1888223487 : I32
+    %v318 = call opaque, %v317 : I32
+    %v319 = vsplat %v318 : Vec(I32)
     %us = bitcast %v319 : Vec(U8)
-    %v322 = call opaque, 100532231 : Int
-    %v323 = vsplat %v322 : Vec(Int)
+    %v322 = call opaque, 100532231 : I32
+    %v323 = vsplat %v322 : Vec(I32)
     %ud = bitcast %v323 : Vec(U8)
-    %v325 = load %n : Int
+    %v325 = load %n : I32
     %v326 = div %us, %ud : Vec(U8)
-    %v327 = bitcast %v326 : Vec(Int)
-    %v330 = vlane %v327, 0 : Int
+    %v327 = bitcast %v326 : Vec(I32)
+    %v330 = vlane %v327, 0 : I32
     %v333 = cmp_eq %v330, 469762048 : Bool
     je %v333, b37, b38
 
@@ -307,13 +307,13 @@ fn main() -> Int {
     jmp b39
 
   b39:
-    %v341 = phi [b37, 1], [b38, 0] : Int
-    %v342 = add %v325, %v341 : Int
+    %v341 = phi [b37, 1], [b38, 0] : I32
+    %v342 = add %v325, %v341 : I32
     assign %n, %v342
-    %v344 = load %n : Int
+    %v344 = load %n : I32
     %v345 = rem %us, %ud : Vec(U8)
-    %v346 = bitcast %v345 : Vec(Int)
-    %v349 = vlane %v346, 0 : Int
+    %v346 = bitcast %v345 : Vec(I32)
+    %v349 = vlane %v346, 0 : I32
     %v352 = cmp_eq %v349, 57933569 : Bool
     je %v352, b40, b41
 
@@ -324,23 +324,23 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v360 = phi [b40, 1], [b41, 0] : Int
-    %v361 = add %v344, %v360 : Int
+    %v360 = phi [b40, 1], [b41, 0] : I32
+    %v361 = add %v344, %v360 : I32
     assign %n, %v361
-    %v367 = sub 0, 2139062144 : Int
-    %v368 = call opaque, %v367 : Int
-    %v369 = vsplat %v368 : Vec(Int)
+    %v367 = sub 0, 2139062144 : I32
+    %v368 = call opaque, %v367 : I32
+    %v369 = vsplat %v368 : Vec(I32)
     %least8 = bitcast %v369 : Vec(I8)
-    %v375 = sub 0, 1 : Int
-    %v376 = call opaque, %v375 : Int
-    %v377 = vsplat %v376 : Vec(Int)
+    %v375 = sub 0, 1 : I32
+    %v376 = call opaque, %v375 : I32
+    %v377 = vsplat %v376 : Vec(I32)
     %allOnes = bitcast %v377 : Vec(I8)
-    %v379 = load %n : Int
+    %v379 = load %n : I32
     %v380 = div %least8, %allOnes : Vec(I8)
-    %v385 = sub 0, 2139062144 : Int
-    %v386 = call checkBytes, %v380, %v385 : Int
-    %v387 = add %v379, %v386 : Int
+    %v385 = sub 0, 2139062144 : I32
+    %v386 = call checkBytes, %v380, %v385 : I32
+    %v387 = add %v379, %v386 : I32
     assign %n, %v387
-    %v389 = load %n : Int
+    %v389 = load %n : I32
     ret %v389
 }

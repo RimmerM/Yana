@@ -1,45 +1,45 @@
 
-search<complex>(%src: Int, %entries: Ptr, %count: Long): Long {
+search<complex>(%src: I32, %entries: Ptr, %count: I64): I64 {
   start {
     # frequency: 1.00
-    %high = sub %count, 1: Long
+    %high = sub %count, 1: I64
     jmp loop_head
   }
 
   loop_head {
     # frequency: 8.00
-    %low3 = phi [start, 0], [lower, %low2], [greater, %low3]: Long
-    %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: Long
-    %v_0 = cmp_ile %low3, %high3: Int
+    %low3 = phi [start, 0], [lower, %low2], [greater, %low3]: I64
+    %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: I64
+    %v_0 = cmp_ile %low3, %high3: I32
     je %v_0, loop, end
   }
 
   loop {
     # frequency: 7.00
-    %v_1 = add %low3, %high3: Long
-    %mid = sar %v_1, 1: Long
-    %v_2 = mul %mid, 8: Long
+    %v_1 = add %low3, %high3: I64
+    %mid = sar %v_1, 1: I64
+    %v_2 = mul %mid, 8: I64
     %v_3 = add %entries, %v_2: Ptr
-    %entry = load %v_3, 4: Int
-    %v_4 = cmp_lt %entry, %src: Int
+    %entry = load %v_3, 4: I32
+    %v_4 = cmp_lt %entry, %src: I32
     je %v_4, lower, check_greater
   }
 
   lower {
     # frequency: 3.50
-    %low2 = add %mid, 1: Long
+    %low2 = add %mid, 1: I64
     jmp loop_head
   }
 
   check_greater {
     # frequency: 3.50
-    %v_5 = cmp_gt %entry, %src: Int
+    %v_5 = cmp_gt %entry, %src: I32
     je %v_5, greater, found
   }
 
   greater {
     # frequency: 3.06
-    %high2 = sub %mid, 2: Long
+    %high2 = sub %mid, 2: I64
     jmp loop_head
   }
 
@@ -50,7 +50,7 @@ search<complex>(%src: Int, %entries: Ptr, %count: Long): Long {
 
   end {
     # frequency: 1.00
-    %v_6 = sub %low3, 1: Long
+    %v_6 = sub %low3, 1: I64
     ret %v_6
   }
 }

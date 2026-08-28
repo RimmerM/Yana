@@ -17,10 +17,10 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn +=(Int)(%target: Int, %amount: Int) -> () {
+fn +=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
@@ -57,7 +57,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -108,7 +108,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -144,7 +144,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -230,14 +230,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -269,7 +269,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -327,7 +327,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -350,22 +350,22 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn levelOf(%d: Diagnostics) -> Int {
+fn levelOf(%d: Diagnostics) -> I32 {
   b0:
-    %v1 = load %d@Diagnostics.level : Int
+    %v1 = load %d@Diagnostics.level : I32
     ret %v1
 }
 
 fn raise(%d: Diagnostics) -> () {
   b0:
     %v1 = load %d : Diagnostics
-    %v2 = load %d@Diagnostics.count : Int
-    %v5 = borrow_mut %d@Diagnostics.count : &Int
-    call +=(Int), %v5, 1
+    %v2 = load %d@Diagnostics.count : I32
+    %v5 = borrow_mut %d@Diagnostics.count : &I32
+    call +=(I32), %v5, 1
     ret
 }
 
-fn mutated() -> Int {
+fn mutated() -> I32 {
   b0:
     %v0 = alloc : Config
     %v2 = alloc : Diagnostics
@@ -381,26 +381,26 @@ fn mutated() -> Int {
     call raise, %v13
     %v15 = load %c : Config
     %v16 = load %c@Config.cold.* : Diagnostics
-    %v17 = load %c@Config.cold.*@Diagnostics.level : Int
-    %v20 = add %v17, 1 : Int
+    %v17 = load %c@Config.cold.*@Diagnostics.level : I32
+    %v20 = add %v17, 1 : I32
     assign %c@Config.cold.*@Diagnostics.level, %v20
     %v22 = load %c : Config
-    %v23 = load %c@Config.hot : Int
-    %v26 = mul %v23, 1000 : Int
+    %v23 = load %c@Config.hot : I32
+    %v26 = mul %v23, 1000 : I32
     %v27 = load %c : Config
     %v28 = load %c@Config.cold.* : Diagnostics
-    %v29 = load %c@Config.cold.*@Diagnostics.count : Int
-    %v32 = mul %v29, 100 : Int
-    %v33 = add %v26, %v32 : Int
+    %v29 = load %c@Config.cold.*@Diagnostics.count : I32
+    %v32 = mul %v29, 100 : I32
+    %v33 = add %v26, %v32 : I32
     %v34 = load %c : Config
     %v35 = load %c@Config.cold.* : Diagnostics
-    %v36 = call levelOf, %v35 : Int
+    %v36 = call levelOf, %v35 : I32
     drop_derived %c via reclaim$Config
-    %v37 = add %v33, %v36 : Int
+    %v37 = add %v33, %v36 : I32
     ret %v37
 }
 
-fn pinnedValue() -> Int {
+fn pinnedValue() -> I32 {
   b0:
     %p = alloc : Pinned
     %v2 = alloc : Diagnostics
@@ -410,32 +410,32 @@ fn pinnedValue() -> Int {
     %v8 = addressof %local2 : %Diagnostics
     init %local0@Pinned.detail, %v8
     init %local0@Pinned.detail.*, %v2
-    %v11 = load %local0@Pinned.tag : Int
-    %v14 = mul %v11, 100 : Int
+    %v11 = load %local0@Pinned.tag : I32
+    %v14 = mul %v11, 100 : I32
     %v15 = load %local0@Pinned.detail.* : Diagnostics
-    %v16 = load %local0@Pinned.detail.*@Diagnostics.count : Int
-    %v19 = mul %v16, 10 : Int
-    %v20 = add %v14, %v19 : Int
+    %v16 = load %local0@Pinned.detail.*@Diagnostics.count : I32
+    %v19 = mul %v16, 10 : I32
+    %v20 = add %v14, %v19 : I32
     %v21 = load %local0@Pinned.detail.* : Diagnostics
-    %v22 = load %local0@Pinned.detail.*@Diagnostics.level : Int
+    %v22 = load %local0@Pinned.detail.*@Diagnostics.level : I32
     drop_derived %local0 via reclaim$Pinned
-    %v23 = add %v20, %v22 : Int
+    %v23 = add %v20, %v22 : I32
     ret %v23
 }
 
-fn levelIn(%c: Config, %body: (value$: Int) -> $r) -> $r {
+fn levelIn(%c: Config, %body: (value$: I32) -> $r) -> $r {
   schema {
     #0 type $r
   }
 
   b0:
     %v2 = load %c@Config.cold.* : Diagnostics
-    %v3 = load %c@Config.cold.*@Diagnostics.level : Int
+    %v3 = load %c@Config.cold.*@Diagnostics.level : I32
     %v4 = calldyn %body, %v3 : $r
     ret %v4
 }
 
-fn throughLens() -> Int {
+fn throughLens() -> I32 {
   b0:
     %v0 = alloc : Config
     %v2 = alloc : Diagnostics
@@ -450,24 +450,24 @@ fn throughLens() -> Int {
     %v13 = borrow_mut %c : &Config
     init %local3.c, %v13
     %v15 = addressof %local3 : %()
-    %v16 = alloc : (value$: Int) -> Int
+    %v16 = alloc : (value$: I32) -> I32
     %v17 = symbol ResolveTest.continuation$22 : %()
     init %local4.code, %v17
     init %local4.env, %v15
-    %v20 = call levelIn(Int), %v11, %v16 : Int
+    %v20 = call levelIn(I32), %v11, %v16 : I32
     drop_derived %c via reclaim$Config
     ret %v20
 }
 
-fn countOf(%h: Holder(())) -> Int {
+fn countOf(%h: Holder(())) -> I32 {
   b0:
-    %v1 = load %h@Holder.n : Int
+    %v1 = load %h@Holder.n : I32
     ret %v1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %m = call mutated : Int
+    %m = call mutated : I32
     %v3 = cmp_ne %m, 3221 : Bool
     je %v3, b1, b2
 
@@ -478,7 +478,7 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %l = call throughLens : Int
+    %l = call throughLens : I32
     %v11 = cmp_ne %l, 46 : Bool
     je %v11, b4, b5
 
@@ -489,27 +489,27 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v16 = add %m, %l : Int
-    %v17 = call pinnedValue : Int
-    %v18 = add %v16, %v17 : Int
+    %v16 = add %m, %l : I32
+    %v17 = call pinnedValue : I32
+    %v18 = add %v16, %v17 : I32
     ret %v18
 }
 
-fn ResolveTest.continuation$22(%env: %{c: &Config}, %value$: Int) -> Int {
+fn ResolveTest.continuation$22(%env: %{c: &Config}, %value$: I32) -> I32 {
   b0:
     %v2 = load [%env].c : &Config
     %v3 = load [%v2] : Config
     %v4 = load [%v2]@Config.cold.* : Diagnostics
-    %v5 = load [%v2]@Config.cold.*@Diagnostics.count : Int
-    %v6 = add %value$, %v5 : Int
+    %v5 = load [%v2]@Config.cold.*@Diagnostics.count : I32
+    %v6 = add %value$, %v5 : I32
     ret %v6
 }
 
-fn levelIn(Int)(%c: Config, %body: (value$: Int) -> Int) -> Int {
+fn levelIn(I32)(%c: Config, %body: (value$: I32) -> I32) -> I32 {
   b0:
     %v2 = load %c@Config.cold.* : Diagnostics
-    %v3 = load %c@Config.cold.*@Diagnostics.level : Int
-    %v4 = calldyn %body, %v3 : Int
+    %v3 = load %c@Config.cold.*@Diagnostics.level : I32
+    %v4 = calldyn %body, %v3 : I32
     ret %v4
 }
 

@@ -9,120 +9,120 @@ mut @fell = [0, 0, 128, 191]
 mut @minimum = [0, 0, 0, 0, 0, 0, 0, 128]
 mut @mask = [255, 255, 255, 255, 255, 255, 255, 255]
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = load @heading, 1: Int
-    %v_2 = shl %v_1, 2: Int
-    %v_3 = shr 33825, %v_2: Int
-    %v_4 = and %v_3, 15: Int
-    %v_5 = add %v_4, 64: Int
-    %v_6 = load @ready, 1: Int
+    %v_1 = load @heading, 1: I32
+    %v_2 = shl %v_1, 2: I32
+    %v_3 = shr 33825, %v_2: I32
+    %v_4 = and %v_3, 15: I32
+    %v_5 = add %v_4, 64: I32
+    %v_6 = load @ready, 1: I32
     je %v_6, b_7, b_8
   }
 
   b_7 {
-    %v_9 = add %v_5, 1024: Int
+    %v_9 = add %v_5, 1024: I32
     jmp b_8
   }
 
   b_8 {
-    %v_10 = phi [b_0, %v_5], [b_7, %v_9]: Int
-    %v_11 = add %v_10, 2048: Int
-    %v_12 = loads @limit, 8: Long
-    %v_13 = cmp_eq 12, %v_12: Int
+    %v_10 = phi [b_0, %v_5], [b_7, %v_9]: I32
+    %v_11 = add %v_10, 2048: I32
+    %v_12 = loads @limit, 8: I64
+    %v_13 = cmp_eq 12, %v_12: I32
     je %v_13, b_14, b_15
   }
 
   b_14 {
-    %v_16 = add %v_11, 4096: Int
+    %v_16 = add %v_11, 4096: I32
     jmp b_15
   }
 
   b_15 {
-    %v_17 = phi [b_8, %v_11], [b_14, %v_16]: Int
-    %v_18 = load @ratio, 4: Float
-    %v_19 = cmp_eq 0.5, %v_18: Int
+    %v_17 = phi [b_8, %v_11], [b_14, %v_16]: I32
+    %v_18 = load @ratio, 4: F32
+    %v_19 = cmp_eq 0.5, %v_18: I32
     je %v_19, b_20, b_21
   }
 
   b_20 {
-    %v_22 = add %v_17, 8192: Int
+    %v_22 = add %v_17, 8192: I32
     jmp b_21
   }
 
   b_21 {
-    %v_23 = phi [b_15, %v_17], [b_20, %v_22]: Int
-    %v_24 = add %v_23, 16384: Int
-    %v_25 = loads @offset, 8: Long
-    %v_26 = cmp_eq %v_25, 18446744073709551615: Int
+    %v_23 = phi [b_15, %v_17], [b_20, %v_22]: I32
+    %v_24 = add %v_23, 16384: I32
+    %v_25 = loads @offset, 8: I64
+    %v_26 = cmp_eq %v_25, 18446744073709551615: I32
     je %v_26, b_27, b_28
   }
 
   b_27 {
-    %v_29 = add %v_24, 32768: Int
+    %v_29 = add %v_24, 32768: I32
     jmp b_28
   }
 
   b_28 {
-    %v_30 = phi [b_21, %v_24], [b_27, %v_29]: Int
-    %v_31 = load @fell, 4: Float
-    %v_32 = cmp_eq %v_31, -1: Int
+    %v_30 = phi [b_21, %v_24], [b_27, %v_29]: I32
+    %v_31 = load @fell, 4: F32
+    %v_32 = cmp_eq %v_31, -1: I32
     je %v_32, b_33, b_34
   }
 
   b_33 {
-    %v_35 = add %v_30, 65536: Int
+    %v_35 = add %v_30, 65536: I32
     jmp b_34
   }
 
   b_34 {
-    %v_36 = phi [b_28, %v_30], [b_33, %v_35]: Int
-    %v_37 = cmp_eq -1, %v_31: Int
+    %v_36 = phi [b_28, %v_30], [b_33, %v_35]: I32
+    %v_37 = cmp_eq -1, %v_31: I32
     je %v_37, b_38, b_39
   }
 
   b_38 {
-    %v_40 = add %v_36, 1048576: Int
+    %v_40 = add %v_36, 1048576: I32
     jmp b_39
   }
 
   b_39 {
-    %v_41 = phi [b_34, %v_36], [b_38, %v_40]: Int
-    %v_42 = load @state, 1: Int
+    %v_41 = phi [b_34, %v_36], [b_38, %v_40]: I32
+    %v_42 = load @state, 1: I32
     je %v_42, b_43, b_44
   }
 
   b_43 {
-    %v_45 = add %v_41, 131072: Int
+    %v_45 = add %v_41, 131072: I32
     jmp b_44
   }
 
   b_44 {
-    %v_46 = phi [b_39, %v_41], [b_43, %v_45]: Int
-    %v_47 = loads @minimum, 8: Long
-    %v_48 = cmp_ilt %v_47, 0: Int
+    %v_46 = phi [b_39, %v_41], [b_43, %v_45]: I32
+    %v_47 = loads @minimum, 8: I64
+    %v_48 = cmp_ilt %v_47, 0: I32
     je %v_48, b_49, b_50
   }
 
   b_49 {
-    %v_51 = add %v_46, 262144: Int
+    %v_51 = add %v_46, 262144: I32
     jmp b_50
   }
 
   b_50 {
-    %v_52 = phi [b_44, %v_46], [b_49, %v_51]: Int
-    %v_53 = load @mask, 8: Long
-    %v_54 = cmp_neq %v_53, 0: Int
+    %v_52 = phi [b_44, %v_46], [b_49, %v_51]: I32
+    %v_53 = load @mask, 8: I64
+    %v_54 = cmp_neq %v_53, 0: I32
     je %v_54, b_55, b_56
   }
 
   b_55 {
-    %v_57 = add %v_52, 524288: Int
+    %v_57 = add %v_52, 524288: I32
     jmp b_56
   }
 
   b_56 {
-    %v_58 = phi [b_50, %v_52], [b_55, %v_57]: Int
+    %v_58 = phi [b_50, %v_52], [b_55, %v_57]: I32
     ret %v_58
   }
 }

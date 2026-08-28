@@ -8,14 +8,14 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-let &live: Int = 0
+let &live: I32 = 0
 
-let &drops: Int = 0
+let &drops: I32 = 0
 
-fn +=(Int)(%target: Int, %amount: Int) -> () {
+fn +=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
@@ -52,7 +52,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -103,7 +103,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -139,7 +139,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -225,14 +225,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -264,7 +264,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -322,7 +322,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -345,28 +345,28 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn guard(%id: Int) -> Guard {
+fn guard(%id: I32) -> Guard {
   b0:
-    %v1 = load live : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load live : I32
+    %v4 = add %v1, 1 : I32
     assign live, %v4
     %v6 = alloc : Guard
     aggregate %local0@Guard.id = %id
     ret %v6
 }
 
-fn consume(%g: Guard) -> Int {
+fn consume(%g: Guard) -> I32 {
   b0:
-    %v1 = load %g@Guard.id : Int
+    %v1 = load %g@Guard.id : I32
     drop %g via Drop(Guard).drop
     ret %v1
 }
 
-fn replaced(%c: Bool) -> Int {
+fn replaced(%c: Bool) -> I32 {
   b0:
     %v18 = alloc : Bool
     init %local3, False
-    %start = load drops : Int
+    %start = load drops : I32
     %v3 = call guard, 1 : Guard
     %g = alloc : Guard
     assign %local3, False
@@ -378,7 +378,7 @@ fn replaced(%c: Bool) -> Int {
     %v7 = load %g : Guard
     %v8 = move %g : Guard
     assign %local3, False
-    %n = call consume, %v8 : Int
+    %n = call consume, %v8 : I32
     jmp b3
 
   b2:
@@ -397,16 +397,16 @@ fn replaced(%c: Bool) -> Int {
     assign %g, %v13
     assign %local3, True
     drop %g via Drop(Guard).drop
-    %v15 = load drops : Int
-    %v16 = sub %v15, %start : Int
+    %v15 = load drops : I32
+    %v16 = sub %v15, %start : I32
     ret %v16
 }
 
-fn maybeReplaced(%c: Bool, %d: Bool) -> Int {
+fn maybeReplaced(%c: Bool, %d: Bool) -> I32 {
   b0:
     %v22 = alloc : Bool
     init %local3, False
-    %start = load drops : Int
+    %start = load drops : I32
     %v4 = call guard, 1 : Guard
     %g = alloc : Guard
     assign %local3, False
@@ -418,7 +418,7 @@ fn maybeReplaced(%c: Bool, %d: Bool) -> Int {
     %v8 = load %g : Guard
     %v9 = move %g : Guard
     assign %local3, False
-    %n = call consume, %v9 : Int
+    %n = call consume, %v9 : I32
     jmp b3
 
   b2:
@@ -446,8 +446,8 @@ fn maybeReplaced(%c: Bool, %d: Bool) -> Int {
     jmp b8
 
   b8:
-    %v19 = load drops : Int
-    %v20 = sub %v19, %start : Int
+    %v19 = load drops : I32
+    %v20 = sub %v19, %start : I32
     ret %v20
 
   b9:
@@ -462,11 +462,11 @@ fn maybeReplaced(%c: Bool, %d: Bool) -> Int {
     jmp b7
 }
 
-fn nested(%c: Bool, %d: Bool) -> Int {
+fn nested(%c: Bool, %d: Bool) -> I32 {
   b0:
     %v22 = alloc : Bool
     init %local3, False
-    %start = load drops : Int
+    %start = load drops : I32
     %v4 = call guard, 1 : Guard
     %g = alloc : Guard
     assign %local3, False
@@ -484,7 +484,7 @@ fn nested(%c: Bool, %d: Bool) -> Int {
     %v9 = load %g : Guard
     %v10 = move %g : Guard
     assign %local3, False
-    %n = call consume, %v10 : Int
+    %n = call consume, %v10 : I32
     jmp b5
 
   b4:
@@ -506,18 +506,18 @@ fn nested(%c: Bool, %d: Bool) -> Int {
     assign %g, %v17
     assign %local3, True
     drop %g via Drop(Guard).drop
-    %v19 = load drops : Int
-    %v20 = sub %v19, %start : Int
+    %v19 = load drops : I32
+    %v20 = sub %v19, %start : I32
     ret %v20
 }
 
-fn pair(%c: Bool) -> Int {
+fn pair(%c: Bool) -> I32 {
   b0:
     %v28 = alloc : Bool
     init %local6, False
     %v29 = alloc : Bool
     init %local7, False
-    %start = load drops : Int
+    %start = load drops : I32
     %v3 = call guard, 1 : Guard
     %x = alloc : Guard
     assign %local6, False
@@ -534,11 +534,11 @@ fn pair(%c: Bool) -> Int {
     %v11 = load %x : Guard
     %v12 = move %x : Guard
     assign %local6, False
-    %a = call consume, %v12 : Int
+    %a = call consume, %v12 : I32
     %v14 = load %y : Guard
     %v15 = move %y : Guard
     assign %local7, False
-    %b = call consume, %v15 : Int
+    %b = call consume, %v15 : I32
     jmp b3
 
   b2:
@@ -569,16 +569,16 @@ fn pair(%c: Bool) -> Int {
     assign %y, %v23
     assign %local7, True
     drop %y via Drop(Guard).drop
-    %v25 = load drops : Int
-    %v26 = sub %v25, %start : Int
+    %v25 = load drops : I32
+    %v26 = sub %v25, %start : I32
     ret %v26
 }
 
-fn heaped(%c: Bool, %d: Bool) -> Int {
+fn heaped(%c: Bool, %d: Bool) -> I32 {
   b0:
     %v22 = alloc : Bool
     init %local3, False
-    %start = load drops : Int
+    %start = load drops : I32
     %v4 = call guard, 1 : Guard
     %g = alloc heap : Guard
     assign %local3, False
@@ -590,7 +590,7 @@ fn heaped(%c: Bool, %d: Bool) -> Int {
     %v8 = load %g : Guard
     %v9 = move %g : Guard
     assign %local3, False
-    %n = call consume, %v9 : Int
+    %n = call consume, %v9 : I32
     jmp b3
 
   b2:
@@ -618,8 +618,8 @@ fn heaped(%c: Bool, %d: Bool) -> Int {
     jmp b8
 
   b8:
-    %v19 = load drops : Int
-    %v20 = sub %v19, %start : Int
+    %v19 = load drops : I32
+    %v20 = sub %v19, %start : I32
     ret %v20
 
   b9:
@@ -635,15 +635,15 @@ fn heaped(%c: Bool, %d: Bool) -> Int {
     jmp b7
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %result = alloc : Int
+    %result = alloc : I32
     init %result, 0
-    %v3 = load %result : Int
-    %v5 = call replaced, True : Int
-    %v6 = borrow_mut %result : &Int
-    call +=(Int), %v6, %v5
-    %v8 = load live : Int
+    %v3 = load %result : I32
+    %v5 = call replaced, True : I32
+    %v6 = borrow_mut %result : &I32
+    call +=(I32), %v6, %v5
+    %v8 = load live : I32
     %v11 = cmp_ne %v8, 0 : Bool
     je %v11, b1, b2
 
@@ -654,11 +654,11 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v16 = load %result : Int
-    %v18 = call replaced, False : Int
-    %v19 = borrow_mut %result : &Int
-    call +=(Int), %v19, %v18
-    %v21 = load live : Int
+    %v16 = load %result : I32
+    %v18 = call replaced, False : I32
+    %v19 = borrow_mut %result : &I32
+    call +=(I32), %v19, %v18
+    %v21 = load live : I32
     %v24 = cmp_ne %v21, 0 : Bool
     je %v24, b4, b5
 
@@ -669,11 +669,11 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v29 = load %result : Int
-    %v32 = call maybeReplaced, False, False : Int
-    %v33 = borrow_mut %result : &Int
-    call +=(Int), %v33, %v32
-    %v35 = load live : Int
+    %v29 = load %result : I32
+    %v32 = call maybeReplaced, False, False : I32
+    %v33 = borrow_mut %result : &I32
+    call +=(I32), %v33, %v32
+    %v35 = load live : I32
     %v38 = cmp_ne %v35, 0 : Bool
     je %v38, b7, b8
 
@@ -684,11 +684,11 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v43 = load %result : Int
-    %v46 = call maybeReplaced, False, True : Int
-    %v47 = borrow_mut %result : &Int
-    call +=(Int), %v47, %v46
-    %v49 = load live : Int
+    %v43 = load %result : I32
+    %v46 = call maybeReplaced, False, True : I32
+    %v47 = borrow_mut %result : &I32
+    call +=(I32), %v47, %v46
+    %v49 = load live : I32
     %v52 = cmp_ne %v49, 0 : Bool
     je %v52, b10, b11
 
@@ -699,11 +699,11 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v57 = load %result : Int
-    %v60 = call maybeReplaced, True, False : Int
-    %v61 = borrow_mut %result : &Int
-    call +=(Int), %v61, %v60
-    %v63 = load live : Int
+    %v57 = load %result : I32
+    %v60 = call maybeReplaced, True, False : I32
+    %v61 = borrow_mut %result : &I32
+    call +=(I32), %v61, %v60
+    %v63 = load live : I32
     %v66 = cmp_ne %v63, 0 : Bool
     je %v66, b13, b14
 
@@ -714,11 +714,11 @@ fn main() -> Int {
     jmp b15
 
   b15:
-    %v71 = load %result : Int
-    %v74 = call maybeReplaced, True, True : Int
-    %v75 = borrow_mut %result : &Int
-    call +=(Int), %v75, %v74
-    %v77 = load live : Int
+    %v71 = load %result : I32
+    %v74 = call maybeReplaced, True, True : I32
+    %v75 = borrow_mut %result : &I32
+    call +=(I32), %v75, %v74
+    %v77 = load live : I32
     %v80 = cmp_ne %v77, 0 : Bool
     je %v80, b16, b17
 
@@ -729,11 +729,11 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v85 = load %result : Int
-    %v88 = call nested, True, True : Int
-    %v89 = borrow_mut %result : &Int
-    call +=(Int), %v89, %v88
-    %v91 = load live : Int
+    %v85 = load %result : I32
+    %v88 = call nested, True, True : I32
+    %v89 = borrow_mut %result : &I32
+    call +=(I32), %v89, %v88
+    %v91 = load live : I32
     %v94 = cmp_ne %v91, 0 : Bool
     je %v94, b19, b20
 
@@ -744,11 +744,11 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v99 = load %result : Int
-    %v102 = call nested, True, False : Int
-    %v103 = borrow_mut %result : &Int
-    call +=(Int), %v103, %v102
-    %v105 = load live : Int
+    %v99 = load %result : I32
+    %v102 = call nested, True, False : I32
+    %v103 = borrow_mut %result : &I32
+    call +=(I32), %v103, %v102
+    %v105 = load live : I32
     %v108 = cmp_ne %v105, 0 : Bool
     je %v108, b22, b23
 
@@ -759,11 +759,11 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v113 = load %result : Int
-    %v116 = call nested, False, True : Int
-    %v117 = borrow_mut %result : &Int
-    call +=(Int), %v117, %v116
-    %v119 = load live : Int
+    %v113 = load %result : I32
+    %v116 = call nested, False, True : I32
+    %v117 = borrow_mut %result : &I32
+    call +=(I32), %v117, %v116
+    %v119 = load live : I32
     %v122 = cmp_ne %v119, 0 : Bool
     je %v122, b25, b26
 
@@ -774,11 +774,11 @@ fn main() -> Int {
     jmp b27
 
   b27:
-    %v127 = load %result : Int
-    %v129 = call pair, True : Int
-    %v130 = borrow_mut %result : &Int
-    call +=(Int), %v130, %v129
-    %v132 = load live : Int
+    %v127 = load %result : I32
+    %v129 = call pair, True : I32
+    %v130 = borrow_mut %result : &I32
+    call +=(I32), %v130, %v129
+    %v132 = load live : I32
     %v135 = cmp_ne %v132, 0 : Bool
     je %v135, b28, b29
 
@@ -789,11 +789,11 @@ fn main() -> Int {
     jmp b30
 
   b30:
-    %v140 = load %result : Int
-    %v142 = call pair, False : Int
-    %v143 = borrow_mut %result : &Int
-    call +=(Int), %v143, %v142
-    %v145 = load live : Int
+    %v140 = load %result : I32
+    %v142 = call pair, False : I32
+    %v143 = borrow_mut %result : &I32
+    call +=(I32), %v143, %v142
+    %v145 = load live : I32
     %v148 = cmp_ne %v145, 0 : Bool
     je %v148, b31, b32
 
@@ -804,11 +804,11 @@ fn main() -> Int {
     jmp b33
 
   b33:
-    %v153 = load %result : Int
-    %v156 = call heaped, False, False : Int
-    %v157 = borrow_mut %result : &Int
-    call +=(Int), %v157, %v156
-    %v159 = load live : Int
+    %v153 = load %result : I32
+    %v156 = call heaped, False, False : I32
+    %v157 = borrow_mut %result : &I32
+    call +=(I32), %v157, %v156
+    %v159 = load live : I32
     %v162 = cmp_ne %v159, 0 : Bool
     je %v162, b34, b35
 
@@ -819,11 +819,11 @@ fn main() -> Int {
     jmp b36
 
   b36:
-    %v167 = load %result : Int
-    %v170 = call heaped, True, False : Int
-    %v171 = borrow_mut %result : &Int
-    call +=(Int), %v171, %v170
-    %v173 = load live : Int
+    %v167 = load %result : I32
+    %v170 = call heaped, True, False : I32
+    %v171 = borrow_mut %result : &I32
+    call +=(I32), %v171, %v170
+    %v173 = load live : I32
     %v176 = cmp_ne %v173, 0 : Bool
     je %v176, b37, b38
 
@@ -834,11 +834,11 @@ fn main() -> Int {
     jmp b39
 
   b39:
-    %v181 = load %result : Int
-    %v184 = call heaped, True, True : Int
-    %v185 = borrow_mut %result : &Int
-    call +=(Int), %v185, %v184
-    %v187 = load live : Int
+    %v181 = load %result : I32
+    %v184 = call heaped, True, True : I32
+    %v185 = borrow_mut %result : &I32
+    call +=(I32), %v185, %v184
+    %v187 = load live : I32
     %v190 = cmp_ne %v187, 0 : Bool
     je %v190, b40, b41
 
@@ -849,8 +849,8 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v195 = load drops : Int
-    %v196 = load %result : Int
+    %v195 = load drops : I32
+    %v196 = load %result : I32
     %v197 = cmp_ne %v195, %v196 : Bool
     je %v197, b43, b44
 
@@ -861,17 +861,17 @@ fn main() -> Int {
     jmp b45
 
   b45:
-    %v202 = load %result : Int
+    %v202 = load %result : I32
     ret %v202
 }
 
 fn Drop(Guard).drop(%self: Guard) -> () {
   b0:
-    %v1 = load live : Int
-    %v4 = sub %v1, 1 : Int
+    %v1 = load live : I32
+    %v4 = sub %v1, 1 : I32
     assign live, %v4
-    %v6 = load drops : Int
-    %v9 = add %v6, 1 : Int
+    %v6 = load drops : I32
+    %v9 = add %v6, 1 : I32
     assign drops, %v9
     ret
 }

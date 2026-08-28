@@ -1,8 +1,8 @@
 "use strict";
 var copyCalls = 0;
-const typeDesc$Int = [teardown$none, moveInit$Int, copyInit$Int];
-const witness$TrivialCopy_Int = [];
-const genEnv$copyInto_Int = [typeDesc$Int, witness$TrivialCopy_Int];
+const typeDesc$I32 = [teardown$none, moveInit$I32, copyInit$I32];
+const witness$TrivialCopy_I32 = [];
+const genEnv$copyInto_I32 = [typeDesc$I32, witness$TrivialCopy_I32];
 const typeDesc$Point = [teardown$none, moveInit$Point, copyInit$Point];
 const witness$TrivialCopy_Point = [];
 const genEnv$copyInto_Point = [typeDesc$Point, witness$TrivialCopy_Point];
@@ -22,7 +22,7 @@ function copyInto(genEnv, slot, from) {
 
 function main() {
   var number = { $v: 0 };
-  copyInto(genEnv$copyInto_Int, number, { $v: 7 });
+  copyInto(genEnv$copyInto_I32, number, { $v: 7 });
   var pair = { x: 3, y: 4 };
   var v12 = { x: 0, y: 0 };
   copyInto(genEnv$copyInto_Point, v12, pair);
@@ -68,11 +68,11 @@ function main() {
   }
 }
 
-function moveInit$Int(to, from) {
+function moveInit$I32(to, from) {
   to.$v = from.$v;
 }
 
-function copyInit$Int(to, from) {
+function copyInit$I32(to, from) {
   to.$v = from.$v;
 }
 

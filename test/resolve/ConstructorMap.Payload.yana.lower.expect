@@ -1,21 +1,21 @@
 @image$base = []
 
-bigCircle<complex>(%s: Ptr): Int {
+bigCircle<complex>(%s: Ptr): I32 {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %s, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_eq %v_1, 0: Int
+    %v_5 = cmp_eq %v_1, 0: I32
     jmp b_6
   }
 
   b_3 {
     %v_7 = add %s, 4: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = cmp_ige %v_8, 100: Int
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = cmp_ige %v_8, 100: I32
     je %v_9, b_10, b_4
   }
 
@@ -24,30 +24,30 @@ bigCircle<complex>(%s: Ptr): Int {
   }
 
   b_6 {
-    %v_11 = phi [b_10, 2], [b_4, %v_5]: Int
+    %v_11 = phi [b_10, 2], [b_4, %v_5]: I32
     ret %v_11
   }
 }
 
-computed<complex>(%s: Ptr): Int {
+computed<complex>(%s: Ptr): I32 {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = shl %v_1, 2: Int
-    %v_3 = shr 335937, %v_2: Int
-    %v_4 = and %v_3, 15: Int
+    %v_1 = loads %s, 4: I32
+    %v_2 = shl %v_1, 2: I32
+    %v_3 = shr 335937, %v_2: I32
+    %v_4 = and %v_3, 15: I32
     ret %v_4
   }
 }
 
-mixed<complex>(%s: Ptr): Int {
+mixed<complex>(%s: Ptr): I32 {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = cmp_eq %v_1, 2: Int
+    %v_1 = loads %s, 4: I32
+    %v_2 = cmp_eq %v_1, 2: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = call_complex computed, %s: Int
+    %v_5 = call_complex computed, %s: I32
     jmp b_6
   }
 
@@ -56,7 +56,7 @@ mixed<complex>(%s: Ptr): Int {
   }
 
   b_6 {
-    %v_7 = phi [b_3, 0], [b_4, %v_5]: Int
+    %v_7 = phi [b_3, 0], [b_4, %v_5]: I32
     ret %v_7
   }
 }
@@ -68,7 +68,7 @@ opaque<complex>(%v_0: Ptr, %s: Ptr) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 12, 4: Ptr
     store %v_1, 0, 4
@@ -76,11 +76,11 @@ main<complex>(): Int {
     store %v_2, 1, 4
     %v_3 = alloca 12, 4: Ptr
     call_complex opaque, %v_3, %v_1
-    %v_4 = loads %v_3, 4: Int
-    %v_5 = shl %v_4, 2: Int
-    %v_6 = shr 335937, %v_5: Int
-    %v_7 = and %v_6, 15: Int
-    %v_8 = cmp_eq %v_7, 1: Int
+    %v_4 = loads %v_3, 4: I32
+    %v_5 = shl %v_4, 2: I32
+    %v_6 = shr 335937, %v_5: I32
+    %v_7 = and %v_6, 15: I32
+    %v_8 = cmp_eq %v_7, 1: I32
     je %v_8, b_9, b_10
   }
 
@@ -89,11 +89,11 @@ main<complex>(): Int {
     store %v_11, 2, 4
     %v_12 = alloca 12, 4: Ptr
     call_complex opaque, %v_12, %v_11
-    %v_13 = loads %v_12, 4: Int
-    %v_14 = shl %v_13, 2: Int
-    %v_15 = shr 335937, %v_14: Int
-    %v_16 = and %v_15, 15: Int
-    %v_17 = cmp_eq %v_16, 0: Int
+    %v_13 = loads %v_12, 4: I32
+    %v_14 = shl %v_13, 2: I32
+    %v_15 = shr 335937, %v_14: I32
+    %v_16 = and %v_15, 15: I32
+    %v_17 = cmp_eq %v_16, 0: I32
     jmp b_18
   }
 
@@ -102,7 +102,7 @@ main<complex>(): Int {
   }
 
   b_18 {
-    %v_19 = phi [b_9, %v_17], [b_10, 0]: Int
+    %v_19 = phi [b_9, %v_17], [b_10, 0]: I32
     %v_20 = alloca 12, 4: Ptr
     store %v_20, 1, 4
     %v_21 = add %v_20, 4: Ptr
@@ -111,11 +111,11 @@ main<complex>(): Int {
     store %v_22, 3, 4
     %v_23 = alloca 12, 4: Ptr
     call_complex opaque, %v_23, %v_20
-    %v_24 = loads %v_23, 4: Int
-    %v_25 = shl %v_24, 2: Int
-    %v_26 = shr 335937, %v_25: Int
-    %v_27 = and %v_26, 15: Int
-    %v_28 = cmp_eq %v_27, 4: Int
+    %v_24 = loads %v_23, 4: I32
+    %v_25 = shl %v_24, 2: I32
+    %v_26 = shr 335937, %v_25: I32
+    %v_27 = and %v_26, 15: I32
+    %v_28 = cmp_eq %v_27, 4: I32
     je %v_28, b_29, b_30
   }
 
@@ -126,11 +126,11 @@ main<complex>(): Int {
     store %v_32, 6, 4
     %v_33 = alloca 12, 4: Ptr
     call_complex opaque, %v_33, %v_31
-    %v_34 = loads %v_33, 4: Int
-    %v_35 = shl %v_34, 2: Int
-    %v_36 = shr 335937, %v_35: Int
-    %v_37 = and %v_36, 15: Int
-    %v_38 = cmp_eq %v_37, 5: Int
+    %v_34 = loads %v_33, 4: I32
+    %v_35 = shl %v_34, 2: I32
+    %v_36 = shr 335937, %v_35: I32
+    %v_37 = and %v_36, 15: I32
+    %v_38 = cmp_eq %v_37, 5: I32
     jmp b_39
   }
 
@@ -139,9 +139,9 @@ main<complex>(): Int {
   }
 
   b_39 {
-    %v_40 = phi [b_29, %v_38], [b_30, 0]: Int
-    %v_41 = select %v_40, 2, 0: Int
-    %v_42 = add %v_19, %v_41: Int
+    %v_40 = phi [b_29, %v_38], [b_30, 0]: I32
+    %v_41 = select %v_40, 2, 0: I32
+    %v_42 = add %v_19, %v_41: I32
     %v_43 = alloca 12, 4: Ptr
     store %v_43, 3, 4
     %v_44 = add %v_43, 4: Ptr
@@ -150,22 +150,22 @@ main<complex>(): Int {
     store %v_45, 1, 4
     %v_46 = alloca 12, 4: Ptr
     call_complex opaque, %v_46, %v_43
-    %v_47 = loads %v_46, 4: Int
-    %v_48 = shl %v_47, 2: Int
-    %v_49 = shr 335937, %v_48: Int
-    %v_50 = and %v_49, 15: Int
-    %v_51 = cmp_eq %v_50, 2: Int
-    %v_52 = select %v_51, 4, 0: Int
-    %v_53 = add %v_42, %v_52: Int
+    %v_47 = loads %v_46, 4: I32
+    %v_48 = shl %v_47, 2: I32
+    %v_49 = shr 335937, %v_48: I32
+    %v_50 = and %v_49, 15: I32
+    %v_51 = cmp_eq %v_50, 2: I32
+    %v_52 = select %v_51, 4, 0: I32
+    %v_53 = add %v_42, %v_52: I32
     %v_54 = alloca 12, 4: Ptr
     store %v_54, 0, 4
     %v_55 = add %v_54, 4: Ptr
     store %v_55, 1, 4
     %v_56 = alloca 12, 4: Ptr
     call_complex opaque, %v_56, %v_54
-    %v_57 = loads %v_56, 4: Int
-    %v_58 = shr 19, %v_57: Int
-    %v_59 = and %v_58, 1: Int
+    %v_57 = loads %v_56, 4: I32
+    %v_58 = shr 19, %v_57: I32
+    %v_59 = and %v_58, 1: I32
     je %v_59, b_60, b_61
   }
 
@@ -178,9 +178,9 @@ main<complex>(): Int {
     store %v_64, 1, 4
     %v_65 = alloca 12, 4: Ptr
     call_complex opaque, %v_65, %v_62
-    %v_66 = loads %v_65, 4: Int
-    %v_67 = shr 19, %v_66: Int
-    %v_68 = and %v_67, 1: Int
+    %v_66 = loads %v_65, 4: I32
+    %v_67 = shr 19, %v_66: I32
+    %v_68 = and %v_67, 1: I32
     jmp b_69
   }
 
@@ -189,18 +189,18 @@ main<complex>(): Int {
   }
 
   b_69 {
-    %v_70 = phi [b_60, %v_68], [b_61, 0]: Int
-    %v_71 = select %v_70, 8, 0: Int
-    %v_72 = add %v_53, %v_71: Int
+    %v_70 = phi [b_60, %v_68], [b_61, 0]: I32
+    %v_71 = select %v_70, 8, 0: I32
+    %v_72 = add %v_53, %v_71: I32
     %v_73 = alloca 12, 4: Ptr
     store %v_73, 4, 4
     %v_74 = add %v_73, 4: Ptr
     store %v_74, 3, 4
     %v_75 = alloca 12, 4: Ptr
     call_complex opaque, %v_75, %v_73
-    %v_76 = loads %v_75, 4: Int
-    %v_77 = shr 19, %v_76: Int
-    %v_78 = and %v_77, 1: Int
+    %v_76 = loads %v_75, 4: I32
+    %v_77 = shr 19, %v_76: I32
+    %v_78 = and %v_77, 1: I32
     je %v_78, b_79, b_80
   }
 
@@ -209,10 +209,10 @@ main<complex>(): Int {
     store %v_81, 2, 4
     %v_82 = alloca 12, 4: Ptr
     call_complex opaque, %v_82, %v_81
-    %v_83 = loads %v_82, 4: Int
-    %v_84 = shr 19, %v_83: Int
-    %v_85 = and %v_84, 1: Int
-    %v_86 = xor %v_85, 1: Int
+    %v_83 = loads %v_82, 4: I32
+    %v_84 = shr 19, %v_83: I32
+    %v_85 = and %v_84, 1: I32
+    %v_86 = xor %v_85, 1: I32
     jmp b_87
   }
 
@@ -221,9 +221,9 @@ main<complex>(): Int {
   }
 
   b_87 {
-    %v_88 = phi [b_79, %v_86], [b_80, 0]: Int
-    %v_89 = select %v_88, 16, 0: Int
-    %v_90 = add %v_72, %v_89: Int
+    %v_88 = phi [b_79, %v_86], [b_80, 0]: I32
+    %v_89 = select %v_88, 16, 0: I32
+    %v_90 = add %v_72, %v_89: I32
     %v_91 = alloca 12, 4: Ptr
     store %v_91, 3, 4
     %v_92 = add %v_91, 4: Ptr
@@ -232,12 +232,12 @@ main<complex>(): Int {
     store %v_93, 1, 4
     %v_94 = alloca 12, 4: Ptr
     call_complex opaque, %v_94, %v_91
-    %v_95 = loads %v_94, 4: Int
-    %v_96 = shr 19, %v_95: Int
-    %v_97 = and %v_96, 1: Int
-    %v_98 = xor %v_97, 1: Int
-    %v_99 = select %v_98, 32, 0: Int
-    %v_100 = add %v_90, %v_99: Int
+    %v_95 = loads %v_94, 4: I32
+    %v_96 = shr 19, %v_95: I32
+    %v_97 = and %v_96, 1: I32
+    %v_98 = xor %v_97, 1: I32
+    %v_99 = select %v_98, 32, 0: I32
+    %v_100 = add %v_90, %v_99: I32
     %v_101 = alloca 12, 4: Ptr
     store %v_101, 3, 4
     %v_102 = add %v_101, 4: Ptr
@@ -246,8 +246,8 @@ main<complex>(): Int {
     store %v_103, 1, 4
     %v_104 = alloca 12, 4: Ptr
     call_complex opaque, %v_104, %v_101
-    %v_105 = loads %v_104, 4: Int
-    %v_106 = cmp_eq %v_105, 3: Int
+    %v_105 = loads %v_104, 4: I32
+    %v_106 = cmp_eq %v_105, 3: I32
     je %v_106, b_107, b_108
   }
 
@@ -258,9 +258,9 @@ main<complex>(): Int {
     store %v_110, 1, 4
     %v_111 = alloca 12, 4: Ptr
     call_complex opaque, %v_111, %v_109
-    %v_112 = loads %v_111, 4: Int
-    %v_113 = cmp_eq %v_112, 3: Int
-    %v_114 = xor %v_113, 1: Int
+    %v_112 = loads %v_111, 4: I32
+    %v_113 = cmp_eq %v_112, 3: I32
+    %v_114 = xor %v_113, 1: I32
     jmp b_115
   }
 
@@ -269,20 +269,20 @@ main<complex>(): Int {
   }
 
   b_115 {
-    %v_116 = phi [b_107, %v_114], [b_108, 0]: Int
-    %v_117 = select %v_116, 64, 0: Int
-    %v_118 = add %v_100, %v_117: Int
+    %v_116 = phi [b_107, %v_114], [b_108, 0]: I32
+    %v_117 = select %v_116, 64, 0: I32
+    %v_118 = add %v_100, %v_117: I32
     %v_119 = alloca 12, 4: Ptr
     store %v_119, 0, 4
     %v_120 = add %v_119, 4: Ptr
     store %v_120, 1, 4
     %v_121 = alloca 12, 4: Ptr
     call_complex opaque, %v_121, %v_119
-    %v_122 = loads %v_121, 4: Int
-    %v_123 = shl %v_122, 1: Int
-    %v_124 = shr 356, %v_123: Int
-    %v_125 = and %v_124, 3: Int
-    %v_126 = cmp_eq %v_125, 0: Int
+    %v_122 = loads %v_121, 4: I32
+    %v_123 = shl %v_122, 1: I32
+    %v_124 = shr 356, %v_123: I32
+    %v_125 = and %v_124, 3: I32
+    %v_126 = cmp_eq %v_125, 0: I32
     je %v_126, b_127, b_128
   }
 
@@ -291,11 +291,11 @@ main<complex>(): Int {
     store %v_129, 2, 4
     %v_130 = alloca 12, 4: Ptr
     call_complex opaque, %v_130, %v_129
-    %v_131 = loads %v_130, 4: Int
-    %v_132 = shl %v_131, 1: Int
-    %v_133 = shr 356, %v_132: Int
-    %v_134 = and %v_133, 3: Int
-    %v_135 = cmp_eq %v_134, 2: Int
+    %v_131 = loads %v_130, 4: I32
+    %v_132 = shl %v_131, 1: I32
+    %v_133 = shr 356, %v_132: I32
+    %v_134 = and %v_133, 3: I32
+    %v_135 = cmp_eq %v_134, 2: I32
     jmp b_136
   }
 
@@ -304,9 +304,9 @@ main<complex>(): Int {
   }
 
   b_136 {
-    %v_137 = phi [b_127, %v_135], [b_128, 0]: Int
-    %v_138 = select %v_137, 128, 0: Int
-    %v_139 = add %v_118, %v_138: Int
+    %v_137 = phi [b_127, %v_135], [b_128, 0]: I32
+    %v_138 = select %v_137, 128, 0: I32
+    %v_139 = add %v_118, %v_138: I32
     %v_140 = alloca 12, 4: Ptr
     store %v_140, 1, 4
     %v_141 = add %v_140, 4: Ptr
@@ -315,11 +315,11 @@ main<complex>(): Int {
     store %v_142, 1, 4
     %v_143 = alloca 12, 4: Ptr
     call_complex opaque, %v_143, %v_140
-    %v_144 = loads %v_143, 4: Int
-    %v_145 = shl %v_144, 1: Int
-    %v_146 = shr 356, %v_145: Int
-    %v_147 = and %v_146, 3: Int
-    %v_148 = cmp_eq %v_147, 1: Int
+    %v_144 = loads %v_143, 4: I32
+    %v_145 = shl %v_144, 1: I32
+    %v_146 = shr 356, %v_145: I32
+    %v_147 = and %v_146, 3: I32
+    %v_148 = cmp_eq %v_147, 1: I32
     je %v_148, b_149, b_150
   }
 
@@ -330,11 +330,11 @@ main<complex>(): Int {
     store %v_152, 3, 4
     %v_153 = alloca 12, 4: Ptr
     call_complex opaque, %v_153, %v_151
-    %v_154 = loads %v_153, 4: Int
-    %v_155 = shl %v_154, 1: Int
-    %v_156 = shr 356, %v_155: Int
-    %v_157 = and %v_156, 3: Int
-    %v_158 = cmp_eq %v_157, 1: Int
+    %v_154 = loads %v_153, 4: I32
+    %v_155 = shl %v_154, 1: I32
+    %v_156 = shr 356, %v_155: I32
+    %v_157 = and %v_156, 3: I32
+    %v_158 = cmp_eq %v_157, 1: I32
     jmp b_159
   }
 
@@ -343,21 +343,21 @@ main<complex>(): Int {
   }
 
   b_159 {
-    %v_160 = phi [b_149, %v_158], [b_150, 0]: Int
-    %v_161 = select %v_160, 256, 0: Int
-    %v_162 = add %v_139, %v_161: Int
+    %v_160 = phi [b_149, %v_158], [b_150, 0]: I32
+    %v_161 = select %v_160, 256, 0: I32
+    %v_162 = add %v_139, %v_161: I32
     %v_163 = alloca 12, 4: Ptr
     store %v_163, 0, 4
     %v_164 = add %v_163, 4: Ptr
     store %v_164, 7, 4
     %v_165 = alloca 12, 4: Ptr
     call_complex opaque, %v_165, %v_163
-    %v_166 = loads %v_165, 4: Int
-    %v_167 = cmp_eq %v_166, 0: Int
+    %v_166 = loads %v_165, 4: I32
+    %v_167 = cmp_eq %v_166, 0: I32
     %v_168 = add %v_165, 4: Ptr
-    %r = loads %v_168, 4: Int
-    %v_169 = select %v_167, %r, 0: Int
-    %v_170 = cmp_eq %v_169, 7: Int
+    %r = loads %v_168, 4: I32
+    %v_169 = select %v_167, %r, 0: I32
+    %v_170 = cmp_eq %v_169, 7: I32
     je %v_170, b_171, b_172
   }
 
@@ -366,12 +366,12 @@ main<complex>(): Int {
     store %v_173, 2, 4
     %v_174 = alloca 12, 4: Ptr
     call_complex opaque, %v_174, %v_173
-    %v_175 = loads %v_174, 4: Int
-    %v_176 = cmp_eq %v_175, 0: Int
+    %v_175 = loads %v_174, 4: I32
+    %v_176 = cmp_eq %v_175, 0: I32
     %v_177 = add %v_174, 4: Ptr
-    %r = loads %v_177, 4: Int
-    %v_178 = select %v_176, %r, 0: Int
-    %v_179 = cmp_eq %v_178, 0: Int
+    %r = loads %v_177, 4: I32
+    %v_178 = select %v_176, %r, 0: I32
+    %v_179 = cmp_eq %v_178, 0: I32
     jmp b_180
   }
 
@@ -380,17 +380,17 @@ main<complex>(): Int {
   }
 
   b_180 {
-    %v_181 = phi [b_171, %v_179], [b_172, 0]: Int
-    %v_182 = select %v_181, 512, 0: Int
-    %v_183 = add %v_162, %v_182: Int
+    %v_181 = phi [b_171, %v_179], [b_172, 0]: I32
+    %v_182 = select %v_181, 512, 0: I32
+    %v_183 = add %v_162, %v_182: I32
     %v_184 = alloca 12, 4: Ptr
     store %v_184, 0, 4
     %v_185 = add %v_184, 4: Ptr
     store %v_185, 200, 4
     %v_186 = alloca 12, 4: Ptr
     call_complex opaque, %v_186, %v_184
-    %v_187 = call_complex bigCircle, %v_186: Int
-    %v_188 = cmp_eq %v_187, 2: Int
+    %v_187 = call_complex bigCircle, %v_186: I32
+    %v_188 = cmp_eq %v_187, 2: I32
     je %v_188, b_189, b_190
   }
 
@@ -401,8 +401,8 @@ main<complex>(): Int {
     store %v_192, 2, 4
     %v_193 = alloca 12, 4: Ptr
     call_complex opaque, %v_193, %v_191
-    %v_194 = call_complex bigCircle, %v_193: Int
-    %v_195 = cmp_eq %v_194, 1: Int
+    %v_194 = call_complex bigCircle, %v_193: I32
+    %v_195 = cmp_eq %v_194, 1: I32
     jmp b_196
   }
 
@@ -411,23 +411,23 @@ main<complex>(): Int {
   }
 
   b_196 {
-    %v_197 = phi [b_189, %v_195], [b_190, 0]: Int
-    %v_198 = select %v_197, 1024, 0: Int
-    %v_199 = add %v_183, %v_198: Int
+    %v_197 = phi [b_189, %v_195], [b_190, 0]: I32
+    %v_198 = select %v_197, 1024, 0: I32
+    %v_199 = add %v_183, %v_198: I32
     %v_200 = alloca 12, 4: Ptr
     store %v_200, 2, 4
     %v_201 = alloca 12, 4: Ptr
     call_complex opaque, %v_201, %v_200
-    %v_202 = call_complex bigCircle, %v_201: Int
-    %v_203 = cmp_eq %v_202, 0: Int
-    %v_204 = select %v_203, 2048, 0: Int
-    %v_205 = add %v_199, %v_204: Int
+    %v_202 = call_complex bigCircle, %v_201: I32
+    %v_203 = cmp_eq %v_202, 0: I32
+    %v_204 = select %v_203, 2048, 0: I32
+    %v_205 = add %v_199, %v_204: I32
     %v_206 = alloca 12, 4: Ptr
     store %v_206, 2, 4
     %v_207 = alloca 12, 4: Ptr
     call_complex opaque, %v_207, %v_206
-    %v_208 = call_complex mixed, %v_207: Int
-    %v_209 = cmp_eq %v_208, 0: Int
+    %v_208 = call_complex mixed, %v_207: I32
+    %v_209 = cmp_eq %v_208, 0: I32
     je %v_209, b_210, b_211
   }
 
@@ -438,8 +438,8 @@ main<complex>(): Int {
     store %v_213, 1, 4
     %v_214 = alloca 12, 4: Ptr
     call_complex opaque, %v_214, %v_212
-    %v_215 = call_complex mixed, %v_214: Int
-    %v_216 = cmp_eq %v_215, 5: Int
+    %v_215 = call_complex mixed, %v_214: I32
+    %v_216 = cmp_eq %v_215, 5: I32
     jmp b_217
   }
 
@@ -448,9 +448,9 @@ main<complex>(): Int {
   }
 
   b_217 {
-    %v_218 = phi [b_210, %v_216], [b_211, 0]: Int
-    %v_219 = select %v_218, 4096, 0: Int
-    %v_220 = add %v_205, %v_219: Int
+    %v_218 = phi [b_210, %v_216], [b_211, 0]: I32
+    %v_219 = select %v_218, 4096, 0: I32
+    %v_220 = add %v_205, %v_219: I32
     ret %v_220
   }
 }

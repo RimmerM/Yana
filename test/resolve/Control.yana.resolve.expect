@@ -1,8 +1,8 @@
 let image$base: () = <none>
 
-fn add(%a: Int, %b: Int) -> Int {
+fn add(%a: I32, %b: I32) -> I32 {
   b0:
-    %v2 = add %a, %b : Int
+    %v2 = add %a, %b : I32
     ret %v2
 }
 
@@ -11,31 +11,31 @@ fn noop() -> () {
     ret
 }
 
-fn local(%value: Int) -> Int {
+fn local(%value: I32) -> I32 {
   b0:
-    %next = add %value, 1 : Int
-    %v6 = mul %next, 2 : Int
+    %next = add %value, 1 : I32
+    %v6 = mul %next, 2 : I32
     ret %v6
 }
 
-fn choose(%a: Int, %b: Int) -> Int {
+fn choose(%a: I32, %b: I32) -> I32 {
   b0:
     %v2 = cmp_gt %a, %b : Bool
     je %v2, b1, b2
 
   b1:
-    %v5 = call add, %a, 1 : Int
+    %v5 = call add, %a, 1 : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v8 = phi [b1, %v5], [b2, %b] : Int
+    %v8 = phi [b1, %v5], [b2, %b] : I32
     ret %v8
 }
 
-fn classify(%value: Int) -> Int {
+fn classify(%value: I32) -> I32 {
   b0:
     %v3 = cmp_lt %value, 0 : Bool
     je %v3, b1, b2
@@ -54,26 +54,26 @@ fn classify(%value: Int) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b1, -1], [b3, 0], [b4, 1] : Int
+    %v15 = phi [b1, -1], [b3, 0], [b4, 1] : I32
     ret %v15
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     call noop
-    %value = call choose, 2, 1 : Int
+    %value = call choose, 2, 1 : I32
     jmp b1
 
   b1:
     je False, b3, b2
 
   b2:
-    %v11 = mul %value, 2 : Int
-    %v13 = call classify, 5 : Int
-    %v14 = add %v11, %v13 : Int
-    %v16 = call local, 0 : Int
-    %v17 = add %v14, %v16 : Int
-    %v20 = sub %v17, 2 : Int
+    %v11 = mul %value, 2 : I32
+    %v13 = call classify, 5 : I32
+    %v14 = add %v11, %v13 : I32
+    %v16 = call local, 0 : I32
+    %v17 = add %v14, %v16 : I32
+    %v20 = sub %v17, 2 : I32
     ret %v20
 
   b3:

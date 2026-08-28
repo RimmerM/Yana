@@ -1,24 +1,24 @@
 @image$base = []
 
-notANumber<complex>(): Double {
+notANumber<complex>(): F64 {
   b_0 {
-    %v_1 = div 0, 0: Double
+    %v_1 = div 0, 0: F64
     ret %v_1
   }
 }
 
-infinite<complex>(): Double {
+infinite<complex>(): F64 {
   b_0 {
-    %v_1 = div 1, 0: Double
+    %v_1 = div 1, 0: F64
     ret %v_1
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex notANumber: Double
-    %v_2 = ftoi %v_1: Int
-    %v_3 = cmp_eq %v_2, 0: Int
+    %v_1 = call_complex notANumber: F64
+    %v_2 = ftoi %v_1: I32
+    %v_3 = cmp_eq %v_2, 0: I32
     je %v_3, b_4, b_5
   }
 
@@ -27,20 +27,20 @@ main<complex>(): Int {
   }
 
   b_4 {
-    %v_7 = call_complex infinite: Double
-    %v_8 = ftoi %v_7: Int
-    %v_9 = cmp_eq %v_8, 2147483647: Int
+    %v_7 = call_complex infinite: F64
+    %v_8 = ftoi %v_7: I32
+    %v_9 = cmp_eq %v_8, 2147483647: I32
     jmp b_6
   }
 
   b_6 {
-    %v_10 = phi [b_4, %v_9], [b_5, 0]: Int
-    %v_11 = select %v_10, 50, 0: Int
-    %v_12 = add %v_11, 100: Int
-    %v_13 = div 1, 0: Double
-    %v_14 = cmp_gt %v_13, 1000000: Int
-    %v_15 = select %v_14, 20, 0: Int
-    %v_16 = add %v_12, %v_15: Int
+    %v_10 = phi [b_4, %v_9], [b_5, 0]: I32
+    %v_11 = select %v_10, 50, 0: I32
+    %v_12 = add %v_11, 100: I32
+    %v_13 = div 1, 0: F64
+    %v_14 = cmp_gt %v_13, 1000000: I32
+    %v_15 = select %v_14, 20, 0: I32
+    %v_16 = add %v_12, %v_15: I32
     ret %v_16
   }
 }

@@ -1,13 +1,13 @@
 let image$base: () = <none>
 
-fn shifts(%a: Vec(Int), %b: Vec(I64)) -> Int {
+fn shifts(%a: Vec(I32), %b: Vec(I64)) -> I32 {
   b0:
-    %v5 = vsplat 3 : Vec(Int)
-    %left = shl %a, %v5 : Vec(Int)
-    %v10 = vsplat 2 : Vec(Int)
-    %right = shr %a, %v10 : Vec(Int)
-    %v15 = vsplat 1 : Vec(Int)
-    %arith = sar %a, %v15 : Vec(Int)
+    %v5 = vsplat 3 : Vec(I32)
+    %left = shl %a, %v5 : Vec(I32)
+    %v10 = vsplat 2 : Vec(I32)
+    %right = shr %a, %v10 : Vec(I32)
+    %v15 = vsplat 1 : Vec(I32)
+    %arith = sar %a, %v15 : Vec(I32)
     %v20 = vsplat 5 : Vec(I64)
     %v21 = shl %b, %v20 : Vec(I64)
     %v25 = vsplat 4 : Vec(I64)
@@ -16,29 +16,29 @@ fn shifts(%a: Vec(Int), %b: Vec(I64)) -> Int {
     %v31 = sub %v30, %b : Vec(I64)
     %v35 = vsplat 1 : Vec(I64)
     %deep = sar %v31, %v35 : Vec(I64)
-    %v39 = vlane %left, 0 : Int
-    %v42 = vlane %right, 1 : Int
-    %v43 = add %v39, %v42 : Int
-    %v46 = vlane %arith, 2 : Int
-    %v47 = add %v43, %v46 : Int
+    %v39 = vlane %left, 0 : I32
+    %v42 = vlane %right, 1 : I32
+    %v43 = add %v39, %v42 : I32
+    %v46 = vlane %arith, 2 : I32
+    %v47 = add %v43, %v46 : I32
     %v50 = vlane %wide, 0 : I64
-    %v51 = cast %v50 : Int
-    %v52 = add %v47, %v51 : Int
+    %v51 = cast %v50 : I32
+    %v52 = add %v47, %v51 : I32
     %v55 = vlane %deep, 0 : I64
-    %v56 = cast %v55 : Int
-    %v57 = add %v52, %v56 : Int
+    %v56 = cast %v55 : I32
+    %v57 = add %v52, %v56 : I32
     ret %v57
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v2 = vsplat 64 : Vec(Int)
-    %v7 = vwithlane %v2, 5, 0 : Vec(Int)
-    %v12 = vwithlane %v7, 100, 1 : Vec(Int)
-    %v18 = sub 0, 32 : Int
-    %a = vwithlane %v12, %v18, 2 : Vec(Int)
+    %v2 = vsplat 64 : Vec(I32)
+    %v7 = vwithlane %v2, 5, 0 : Vec(I32)
+    %v12 = vwithlane %v7, 100, 1 : Vec(I32)
+    %v18 = sub 0, 32 : I32
+    %a = vwithlane %v12, %v18, 2 : Vec(I32)
     %b = vsplat 3 : Vec(I64)
-    %v23 = call shifts, %a, %b : Int
-    %v26 = add %v23, 100 : Int
+    %v23 = call shifts, %a, %b : I32
+    %v26 = add %v23, 100 : I32
     ret %v26
 }

@@ -12,7 +12,7 @@ let ResolveTest.string$4: String = "text"
 
 let ResolveTest.literal$5: String = "text" {StringData(Array(Run(&ResolveTest.string$4, 4, 0), 4))}
 
-fn consume(%s: String) -> Int {
+fn consume(%s: String) -> I32 {
   b0:
     drop %s via Reclaim(String).reclaim
     ret 1
@@ -32,7 +32,7 @@ fn setTo(%self: String, %to: String) -> () {
     ret
 }
 
-fn shared() -> Int {
+fn shared() -> I32 {
   b0:
     %c = call make : String
     %v1 = borrow %local0 : 'String
@@ -41,11 +41,11 @@ fn shared() -> Int {
     %v4 = call Length(String).length, %v3 : Size
     drop %local0 via Reclaim(String).reclaim
     %n = add %v2, %v4 : Size
-    %v6 = cast %n : Int
+    %v6 = cast %n : I32
     ret %v6
 }
 
-fn exclusive() -> Int {
+fn exclusive() -> I32 {
   b0:
     %v0 = call make : String
     %c = alloc : String
@@ -60,46 +60,46 @@ fn exclusive() -> Int {
     %v9 = load %c : String
     %v10 = call Length(String).length, %v9 : Size
     drop %c via Reclaim(String).reclaim
-    %v11 = cast %v10 : Int
+    %v11 = cast %v10 : I32
     ret %v11
 }
 
-fn handedOver() -> Int {
+fn handedOver() -> I32 {
   b0:
     %c = call make : String
     %c = move %local0 : String
     %d = alloc : String
     init %local1, %c
     %d = move %local1 : String
-    %v5 = call consume, %d : Int
+    %v5 = call consume, %d : I32
     ret %v5
 }
 
-fn duplicated() -> Int {
+fn duplicated() -> I32 {
   b0:
     %c = call make : String
     %d = call Copy(String).copy, %c : String
     %c = move %local0 : String
-    %v3 = call consume, %c : Int
+    %v3 = call consume, %c : I32
     %d = move %local1 : String
-    %v5 = call consume, %d : Int
-    %v6 = add %v3, %v5 : Int
+    %v5 = call consume, %d : I32
+    %v6 = add %v3, %v5 : I32
     ret %v6
 }
 
-fn temporary() -> Int {
+fn temporary() -> I32 {
   b0:
     %c = call make : String
     %c = move %local0 : String
-    %v2 = call consume, %c : Int
+    %v2 = call consume, %c : I32
     ret %v2
 }
 
-fn literal() -> Int {
+fn literal() -> I32 {
   b0:
     %c = copy ResolveTest.literal$5 : String
     %c = move %local0 : String
-    %v2 = call consume, %c : Int
+    %v2 = call consume, %c : I32
     ret %v2
 }
 
@@ -117,30 +117,30 @@ fn field() -> Size {
     ret %v7
 }
 
-fn fromParameter(%s: String) -> Int {
+fn fromParameter(%s: String) -> I32 {
   b0:
     %v1 = call Copy(String).copy, %s : String
     %v2 = move %local1 : String
-    %v3 = call consume, %v2 : Int
+    %v3 = call consume, %v2 : I32
     ret %v3
 }
 
-fn fromParameterField(%b: Box) -> Int {
+fn fromParameterField(%b: Box) -> I32 {
   b0:
     %t = load %b@Box.s : String
     %v2 = call Copy(String).copy, %t : String
     %v3 = move %local1 : String
-    %v4 = call consume, %v3 : Int
+    %v4 = call consume, %v3 : I32
     ret %v4
 }
 
-fn scalar() -> Int {
+fn scalar() -> I32 {
   b0:
-    %v2 = add %a, %a : Int
+    %v2 = add %a, %a : I32
     ret %v2
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     ret 0
 }

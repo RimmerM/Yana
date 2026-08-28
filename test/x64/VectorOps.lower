@@ -120,22 +120,22 @@ convert(%w: i32x4, %f: f32x4): f32x4 {
 
 # The square root, at the scalar and the packed width of both lane kinds - one opcode with four
 # mandatory prefixes, and non-destructive at every one of them.
-roots(%f: f32x4, %d: f64x2, %s: Float, %q: Double): f32x4 {
+roots(%f: f32x4, %d: f64x2, %s: F32, %q: F64): f32x4 {
     {
         %rf = sqrt %f: f32x4
         %rd = sqrt %d: f64x2
-        %rs = sqrt %s: Float
-        %rq = sqrt %q: Double
+        %rs = sqrt %s: F32
+        %rq = sqrt %q: F64
         ret %rf
     }
 }
 
 # A fused multiply-add with no FMA3 to fuse it: the multiply and the add it always meant, which
 # Design-Vector §3.3 permits outright. The VEX-encoded form is in VectorFma.lower.
-multiplyAdd(%a: f32x4, %b: f32x4, %c: f32x4, %x: Double, %y: Double, %z: Double): f32x4 {
+multiplyAdd(%a: f32x4, %b: f32x4, %c: f32x4, %x: F64, %y: F64, %z: F64): f32x4 {
     {
         %v = fma %a, %b, %c: f32x4
-        %s = fma %x, %y, %z: Double
+        %s = fma %x, %y, %z: F64
         ret %v
     }
 }
@@ -144,13 +144,13 @@ multiplyAdd(%a: f32x4, %b: f32x4, %c: f32x4, %x: Double, %y: Double, %z: Double)
 # one pairwise operation per level, ending in the lane-zero extract. Written out here because the
 # expansion is what this backend emits and a `vreduce` in a fixture would only assert that the
 # expansion ran.
-reduceSum(%v: f32x4): Float {
+reduceSum(%v: f32x4): F32 {
     {
         %p0 = vshuffle %v, %v, 1, 0, 3, 2: f32x4
         %s0 = add %v, %p0: f32x4
         %p1 = vshuffle %s0, %s0, 2, 3, 0, 1: f32x4
         %s1 = add %s0, %p1: f32x4
-        %r = vlane %s1, 0: Float
+        %r = vlane %s1, 0: F32
         ret %r
     }
 }

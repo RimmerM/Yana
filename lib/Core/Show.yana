@@ -117,44 +117,29 @@ fn showSigned(value: Long, &to: String) -> {}:
         pushUnsigned(bitcast(value) :: U64, to)
 
 {-
-   An `Int`'s own path, which exists for what it costs on each target rather than for what it says.
-
-   Natively it is the widening the instance always did. On JS an `Int` is a `number` and a `Long` is
-   a `bigint`, so `value :: Long` there is a real `BigInt()` conversion in front of a call whose
-   whole body is one `String()` - and handing the host the number it already has removes both.
--}
-@platform(native) fn showSmall(value: Int, &to: String) -> {} = showSigned(value :: Long, to)
-@platform(js) fn showSmall(value: Int, &to: String) -> {} = String.push(to, hostToString(value))
-
--- `-2147483648` is eleven units, which is the widest an `Int` gets.
-instance Show(Int):
-    fn show(value: Int, &to: String) -> {} = showSmall(value, to)
-    fn showBound(value: Int) -> Maybe(Size) = Just(11)
-
--- `-9223372036854775808` is twenty.
-instance Show(Long):
-    fn show(value: Long, &to: String) -> {} = showSigned(value, to)
-    fn showBound(value: Long) -> Maybe(Size) = Just(20)
-
-{-
-   And the sized integers, which is the rest of the ladder.
+   The integers, which is the rest of the ladder.
 
    `Int`, `Long`, `Size` and `USize` are the four a program that says nothing about widths ends up
-   holding. Everything below is a width a program *asked* for - a byte read out of a buffer, a `U32`
-   hash, an `I16` field of a packed record - and it needs an instance for the same reason they do:
-   `U8` and `Int` are one `::` apart, so the type a value already has would otherwise decide whether
-   it could be printed at all.
+   holding - and the first two are `I32` and `I64` below, since Analysis-Spellings.md item 7 made
+   one primitive of each width. Everything else here is a width a program *asked* for - a byte read
+   out of a buffer, a `U32` hash, an `I16` field of a packed record - and it needs an instance for
+   the same reason they do: `U8` and `Int` are one `::` apart, so the type a value already has would
+   otherwise decide whether it could be printed at all.
 
    **Two generic bodies rather than ten**, over the conversion that is already required to exist. The
    ladder generates a `Widen` rung from every integer to the widest of its own sign, so `Widen(a,
    Long)` and `Widen(a, U64)` are exactly the constraints "signed" and "unsigned" spell here, and the
    instance below each one is a call. There is still one decimal-digit loop in this file.
 
-   **The `js` bodies are `showSmall`'s argument, not a repetition of it.** Everything narrower than
-   64 bits is a `number` on that target and `Long`/`U64` are `bigint`, so widening first would put a
-   real `BigInt()` in front of a call whose whole body is one `String()`. `hostToString` is generic,
-   so the host body is one line for all ten rather than one per width. The constraint is carried on
-   the `js` declaration too, unused, so that the two `@platform` bodies have the one signature.
+   The two widest are the exception, and it falls out of that spelling rather than being a case: a
+   type does not widen into itself, so `I64` and `U64` have no rung to the constraint their own
+   bodies would ask for. Each calls the loop directly instead.
+
+   **The `js` bodies are not a repetition of the native ones.** Everything narrower than 64 bits is
+   a `number` on that target and `I64`/`U64` are `bigint`, so widening first would put a real
+   `BigInt()` in front of a call whose whole body is one `String()`. `hostToString` is generic, so
+   the host body is one line for all ten rather than one per width. The constraint is carried on the
+   `js` declaration too, unused, so that the two `@platform` bodies have the one signature.
 -}
 @platform(native) fn (Widen(a, Long)) showFromSigned(value: a, &to: String) -> {} =
     showSigned(widen(value) :: Long, to)
@@ -203,12 +188,11 @@ instance Show(U32):
     fn show(value: U32, &to: String) -> {} = showFromUnsigned(value, to)
     fn showBound(value: U32) -> Maybe(Size) = Just(10)
 
+-- `-9223372036854775808` is twenty units.
 instance Show(I64):
-    fn show(value: I64, &to: String) -> {} = showFromSigned(value, to)
+    fn show(value: I64, &to: String) -> {} = showSigned(value, to)
     fn showBound(value: I64) -> Maybe(Size) = Just(20)
 
--- `U64` is the one the digit loop already takes, so its body is the loop rather than a conversion
--- into it: there is no `Widen(U64, U64)` rung and there is no reason to want one.
 instance Show(U64):
     fn show(value: U64, &to: String) -> {} = pushUnsigned(value, to)
     fn showBound(value: U64) -> Maybe(Size) = Just(20)

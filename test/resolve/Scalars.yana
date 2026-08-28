@@ -62,7 +62,10 @@ fn limits() -> Int:
 fn bytes() -> Int:
     let word = byteSwap(truncate(305419896) :: U32)
     let short = byteSwap(truncate(258) :: U16)
-    let signedWord = byteSwap(widen(1) :: I32)
+    -- The same call twice, which is the assertion: `I32` and the type a bare literal takes are one
+    -- primitive since Analysis-Spellings.md item 7, so a width-named argument and an unnamed one
+    -- reach the same `ByteSwap` instance rather than two that happen to agree.
+    let signedWord = byteSwap(1 :: I32)
     let plain = byteSwap(1)
 
     let original = truncate(123456789) :: U32
@@ -70,7 +73,7 @@ fn bytes() -> Int:
 
     return (if word == 2018915346 then 1 else 0) +
         (if (widen(short) :: Int) == 513 then 1 else 0) * 10 +
-        (if (widen(signedWord) :: Int) == 16777216 then 1 else 0) * 100 +
+        (if signedWord == 16777216 then 1 else 0) * 100 +
         (if plain == 16777216 then 1 else 0) * 1000 +
         roundTrip * 10000
 

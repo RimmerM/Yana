@@ -537,13 +537,13 @@ fn growArray(Signed)(%self: Array(Signed), %wanted: Size) -> () {
 fn Reclaim(Array(a)).reclaim(B1)(%value: Array(B1)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -555,7 +555,7 @@ fn Reclaim(Array(a)).reclaim(B1)(%value: Array(B1)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(B1)
     %v14 = load %value@Array.run@Run.items : %B1
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof B1 : Size
     %v18 = mul %v16, %v17 : Size
@@ -564,8 +564,8 @@ fn Reclaim(Array(a)).reclaim(B1)(%value: Array(B1)) -> () {
     %v21 = move %local2 : B1
     %doomed = alloc : B1
     init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -573,13 +573,13 @@ fn Reclaim(Array(a)).reclaim(B1)(%value: Array(B1)) -> () {
 fn Reclaim(Array(a)).reclaim(B2)(%value: Array(B2)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -591,7 +591,7 @@ fn Reclaim(Array(a)).reclaim(B2)(%value: Array(B2)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(B2)
     %v14 = load %value@Array.run@Run.items : %B2
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof B2 : Size
     %v18 = mul %v16, %v17 : Size
@@ -600,8 +600,8 @@ fn Reclaim(Array(a)).reclaim(B2)(%value: Array(B2)) -> () {
     %v21 = move %local2 : B2
     %doomed = alloc : B2
     init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -609,13 +609,13 @@ fn Reclaim(Array(a)).reclaim(B2)(%value: Array(B2)) -> () {
 fn Reclaim(Array(a)).reclaim(B4)(%value: Array(B4)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -627,7 +627,7 @@ fn Reclaim(Array(a)).reclaim(B4)(%value: Array(B4)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(B4)
     %v14 = load %value@Array.run@Run.items : %B4
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof B4 : Size
     %v18 = mul %v16, %v17 : Size
@@ -636,8 +636,8 @@ fn Reclaim(Array(a)).reclaim(B4)(%value: Array(B4)) -> () {
     %v21 = move %local2 : B4
     %doomed = alloc : B4
     init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -645,13 +645,13 @@ fn Reclaim(Array(a)).reclaim(B4)(%value: Array(B4)) -> () {
 fn Reclaim(Array(a)).reclaim(Gap)(%value: Array(Gap)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -663,7 +663,7 @@ fn Reclaim(Array(a)).reclaim(Gap)(%value: Array(Gap)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(Gap)
     %v14 = load %value@Array.run@Run.items : %Gap
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof Gap : Size
     %v18 = mul %v16, %v17 : Size
@@ -672,8 +672,8 @@ fn Reclaim(Array(a)).reclaim(Gap)(%value: Array(Gap)) -> () {
     %v21 = move %local2 : Gap
     %doomed = alloc : Gap
     init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -681,13 +681,13 @@ fn Reclaim(Array(a)).reclaim(Gap)(%value: Array(Gap)) -> () {
 fn Reclaim(Array(a)).reclaim(Signed)(%value: Array(Signed)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -699,7 +699,7 @@ fn Reclaim(Array(a)).reclaim(Signed)(%value: Array(Signed)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(Signed)
     %v14 = load %value@Array.run@Run.items : %Signed
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof Signed : Size
     %v18 = mul %v16, %v17 : Size
@@ -708,8 +708,8 @@ fn Reclaim(Array(a)).reclaim(Signed)(%value: Array(Signed)) -> () {
     %v21 = move %local2 : Signed
     %doomed = alloc : Signed
     init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -754,7 +754,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -805,7 +805,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -841,7 +841,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -927,14 +927,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -966,7 +966,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -1024,7 +1024,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1591,7 +1591,7 @@ fn resize(B1)(%self: Run(B1), %wanted: Size) -> Bool {
     %v28 = call byteSpan(B1), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %B1
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1714,7 +1714,7 @@ fn resize(B2)(%self: Run(B2), %wanted: Size) -> Bool {
     %v28 = call byteSpan(B2), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %B2
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1837,7 +1837,7 @@ fn resize(B4)(%self: Run(B4), %wanted: Size) -> Bool {
     %v28 = call byteSpan(B4), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %B4
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1960,7 +1960,7 @@ fn resize(Gap)(%self: Run(Gap), %wanted: Size) -> Bool {
     %v28 = call byteSpan(Gap), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %Gap
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -2083,7 +2083,7 @@ fn resize(Signed)(%self: Run(Signed), %wanted: Size) -> Bool {
     %v28 = call byteSpan(Signed), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %Signed
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -2316,8 +2316,8 @@ fn main() -> I64 {
     %v28 = cmp_ge %v26, %v27 : Bool
     call checkCondition, %v28
     %v30 = load [%v24]@Array.run@Run.items : %B1
-    %v31 = strideof B1 : Long
-    %v32 = mul 0, %v31 : Long
+    %v31 = strideof B1 : I64
+    %v32 = mul 0, %v31 : I64
     %v33 = add %v30, %v32 : %B1
     %v34 = borrow [%v33] : 'B1
     %v35 = load [%v34] : B1
@@ -2341,8 +2341,8 @@ fn main() -> I64 {
     %v52 = cmp_ge %v50, %v51 : Bool
     call checkCondition, %v52
     %v54 = load [%v48]@Array.run@Run.items : %B1
-    %v55 = strideof B1 : Long
-    %v56 = mul 0, %v55 : Long
+    %v55 = strideof B1 : I64
+    %v56 = mul 0, %v55 : I64
     %v57 = add %v54, %v56 : %B1
     %v58 = borrow [%v57] : 'B1
     %v59 = load [%v58] : B1
@@ -2366,8 +2366,8 @@ fn main() -> I64 {
     %v76 = cmp_ge %v74, %v75 : Bool
     call checkCondition, %v76
     %v78 = load [%v72]@Array.run@Run.items : %B1
-    %v79 = strideof B1 : Long
-    %v80 = mul 1, %v79 : Long
+    %v79 = strideof B1 : I64
+    %v80 = mul 1, %v79 : I64
     %v81 = add %v78, %v80 : %B1
     %v82 = borrow [%v81] : 'B1
     %v83 = load [%v82] : B1
@@ -2391,8 +2391,8 @@ fn main() -> I64 {
     %v100 = cmp_ge %v98, %v99 : Bool
     call checkCondition, %v100
     %v102 = load [%v96]@Array.run@Run.items : %B1
-    %v103 = strideof B1 : Long
-    %v104 = mul 1, %v103 : Long
+    %v103 = strideof B1 : I64
+    %v104 = mul 1, %v103 : I64
     %v105 = add %v102, %v104 : %B1
     %v106 = borrow [%v105] : 'B1
     %v107 = load [%v106] : B1
@@ -2427,8 +2427,8 @@ fn main() -> I64 {
     %v136 = cmp_ge %v134, %v135 : Bool
     call checkCondition, %v136
     %v138 = load [%v132]@Array.run@Run.items : %B2
-    %v139 = strideof B2 : Long
-    %v140 = mul 0, %v139 : Long
+    %v139 = strideof B2 : I64
+    %v140 = mul 0, %v139 : I64
     %v141 = add %v138, %v140 : %B2
     %v142 = borrow [%v141] : 'B2
     %v143 = load [%v142] : B2
@@ -2452,8 +2452,8 @@ fn main() -> I64 {
     %v160 = cmp_ge %v158, %v159 : Bool
     call checkCondition, %v160
     %v162 = load [%v156]@Array.run@Run.items : %B2
-    %v163 = strideof B2 : Long
-    %v164 = mul 0, %v163 : Long
+    %v163 = strideof B2 : I64
+    %v164 = mul 0, %v163 : I64
     %v165 = add %v162, %v164 : %B2
     %v166 = borrow [%v165] : 'B2
     %v167 = load [%v166] : B2
@@ -2495,8 +2495,8 @@ fn main() -> I64 {
     %v205 = cmp_ge %v203, %v204 : Bool
     call checkCondition, %v205
     %v207 = load [%v201]@Array.run@Run.items : %B4
-    %v208 = strideof B4 : Long
-    %v209 = mul 0, %v208 : Long
+    %v208 = strideof B4 : I64
+    %v209 = mul 0, %v208 : I64
     %v210 = add %v207, %v209 : %B4
     %v211 = borrow [%v210] : 'B4
     %v212 = load [%v211] : B4
@@ -2520,8 +2520,8 @@ fn main() -> I64 {
     %v229 = cmp_ge %v227, %v228 : Bool
     call checkCondition, %v229
     %v231 = load [%v225]@Array.run@Run.items : %B4
-    %v232 = strideof B4 : Long
-    %v233 = mul 0, %v232 : Long
+    %v232 = strideof B4 : I64
+    %v233 = mul 0, %v232 : I64
     %v234 = add %v231, %v233 : %B4
     %v235 = borrow [%v234] : 'B4
     %v236 = load [%v235] : B4
@@ -2545,8 +2545,8 @@ fn main() -> I64 {
     %v253 = cmp_ge %v251, %v252 : Bool
     call checkCondition, %v253
     %v255 = load [%v249]@Array.run@Run.items : %B4
-    %v256 = strideof B4 : Long
-    %v257 = mul 1, %v256 : Long
+    %v256 = strideof B4 : I64
+    %v257 = mul 1, %v256 : I64
     %v258 = add %v255, %v257 : %B4
     %v259 = borrow [%v258] : 'B4
     %v260 = load [%v259] : B4
@@ -2582,8 +2582,8 @@ fn main() -> I64 {
     %v291 = cmp_ge %v289, %v290 : Bool
     call checkCondition, %v291
     %v293 = load [%v287]@Array.run@Run.items : %Gap
-    %v294 = strideof Gap : Long
-    %v295 = mul 0, %v294 : Long
+    %v294 = strideof Gap : I64
+    %v295 = mul 0, %v294 : I64
     %v296 = add %v293, %v295 : %Gap
     %v297 = borrow [%v296] : 'Gap
     %v298 = load [%v297] : Gap
@@ -2607,8 +2607,8 @@ fn main() -> I64 {
     %v315 = cmp_ge %v313, %v314 : Bool
     call checkCondition, %v315
     %v317 = load [%v311]@Array.run@Run.items : %Gap
-    %v318 = strideof Gap : Long
-    %v319 = mul 0, %v318 : Long
+    %v318 = strideof Gap : I64
+    %v319 = mul 0, %v318 : I64
     %v320 = add %v317, %v319 : %Gap
     %v321 = borrow [%v320] : 'Gap
     %v322 = load [%v321] : Gap
@@ -2632,8 +2632,8 @@ fn main() -> I64 {
     %v339 = cmp_ge %v337, %v338 : Bool
     call checkCondition, %v339
     %v341 = load [%v335]@Array.run@Run.items : %Gap
-    %v342 = strideof Gap : Long
-    %v343 = mul 0, %v342 : Long
+    %v342 = strideof Gap : I64
+    %v343 = mul 0, %v342 : I64
     %v344 = add %v341, %v343 : %Gap
     %v345 = borrow [%v344] : 'Gap
     %v346 = load [%v345] : Gap
@@ -2679,17 +2679,16 @@ fn main() -> I64 {
     %v393 = cmp_ge %v391, %v392 : Bool
     call checkCondition, %v393
     %v395 = load [%v389]@Array.run@Run.items : %Signed
-    %v396 = strideof Signed : Long
-    %v397 = mul 0, %v396 : Long
+    %v396 = strideof Signed : I64
+    %v397 = mul 0, %v396 : I64
     %v398 = add %v395, %v397 : %Signed
     %v399 = borrow [%v398] : 'Signed
     %v400 = load [%v399] : Signed
     %v401 = load [%v399]@Signed.hi : @bits(12) I32
-    %v406 = sub 0, 2048 : Int
-    %v407 = cast %v406 : I32
-    %v408 = cast %v401 : I32
-    %v409 = cmp_ne %v408, %v407 : Bool
-    je %v409, b90, b38
+    %v406 = sub 0, 2048 : I32
+    %v407 = cast %v401 : I32
+    %v408 = cmp_ne %v407, %v406 : Bool
+    je %v408, b90, b38
 
   b37:
     ret -13
@@ -2698,23 +2697,23 @@ fn main() -> I64 {
     jmp b39
 
   b39:
-    %v414 = load %e : Array(Signed)
-    %v417 = borrow %e : 'Array(Signed)
-    %v418 = load [%v417]@Array.length : @bits(30) U32
-    %v419 = cast 1 : USize
-    %v420 = cast %v418 : USize
-    %v421 = cmp_ge %v419, %v420 : Bool
-    call checkCondition, %v421
-    %v423 = load [%v417]@Array.run@Run.items : %Signed
-    %v424 = strideof Signed : Long
-    %v425 = mul 1, %v424 : Long
-    %v426 = add %v423, %v425 : %Signed
-    %v427 = borrow [%v426] : 'Signed
-    %v428 = load [%v427] : Signed
-    %v429 = load [%v427]@Signed.hi : @bits(12) I32
-    %v431 = cast %v429 : I32
-    %v432 = cmp_ne %v431, 2047 : Bool
-    je %v432, b91, b41
+    %v413 = load %e : Array(Signed)
+    %v416 = borrow %e : 'Array(Signed)
+    %v417 = load [%v416]@Array.length : @bits(30) U32
+    %v418 = cast 1 : USize
+    %v419 = cast %v417 : USize
+    %v420 = cmp_ge %v418, %v419 : Bool
+    call checkCondition, %v420
+    %v422 = load [%v416]@Array.run@Run.items : %Signed
+    %v423 = strideof Signed : I64
+    %v424 = mul 1, %v423 : I64
+    %v425 = add %v422, %v424 : %Signed
+    %v426 = borrow [%v425] : 'Signed
+    %v427 = load [%v426] : Signed
+    %v428 = load [%v426]@Signed.hi : @bits(12) I32
+    %v430 = cast %v428 : I32
+    %v431 = cmp_ne %v430, 2047 : Bool
+    je %v431, b91, b41
 
   b40:
     ret -14
@@ -2723,24 +2722,24 @@ fn main() -> I64 {
     jmp b42
 
   b42:
-    %v437 = load %e : Array(Signed)
-    %v440 = borrow %e : 'Array(Signed)
-    %v441 = load [%v440]@Array.length : @bits(30) U32
-    %v442 = cast 0 : USize
-    %v443 = cast %v441 : USize
-    %v444 = cmp_ge %v442, %v443 : Bool
-    call checkCondition, %v444
-    %v446 = load [%v440]@Array.run@Run.items : %Signed
-    %v447 = strideof Signed : Long
-    %v448 = mul 0, %v447 : Long
-    %v449 = add %v446, %v448 : %Signed
-    %v450 = borrow [%v449] : 'Signed
-    %v451 = load [%v450] : Signed
-    %v452 = load [%v450]@Signed.lo : @bits(20) U32
+    %v436 = load %e : Array(Signed)
+    %v439 = borrow %e : 'Array(Signed)
+    %v440 = load [%v439]@Array.length : @bits(30) U32
+    %v441 = cast 0 : USize
+    %v442 = cast %v440 : USize
+    %v443 = cmp_ge %v441, %v442 : Bool
+    call checkCondition, %v443
+    %v445 = load [%v439]@Array.run@Run.items : %Signed
+    %v446 = strideof Signed : I64
+    %v447 = mul 0, %v446 : I64
+    %v448 = add %v445, %v447 : %Signed
+    %v449 = borrow [%v448] : 'Signed
+    %v450 = load [%v449] : Signed
+    %v451 = load [%v449]@Signed.lo : @bits(20) U32
     drop %e via Reclaim(Array(a)).reclaim(Signed)
-    %v454 = cast %v452 : U32
-    %v456 = cmp_ne %v454, 1048575 : Bool
-    je %v456, b43, b44
+    %v453 = cast %v451 : U32
+    %v455 = cmp_ne %v453, 1048575 : Bool
+    je %v455, b43, b44
 
   b43:
     ret -15
@@ -2749,17 +2748,17 @@ fn main() -> I64 {
     jmp b45
 
   b45:
-    %v461 = alloc : B1
+    %v460 = alloc : B1
     init %l1@B1.lo, 63
     init %l1@B1.hi, 3
-    %v466 = load %l1 : B1
-    %v467 = borrow_mut %l1 : &B1
-    call pin1, %v467
-    %v469 = load %l1 : B1
-    %v470 = load %l1@B1.hi : @bits(2) U32
-    %v472 = cast %v470 : U32
-    %v474 = cmp_ne %v472, 3 : Bool
-    je %v474, b46, b47
+    %v465 = load %l1 : B1
+    %v466 = borrow_mut %l1 : &B1
+    call pin1, %v466
+    %v468 = load %l1 : B1
+    %v469 = load %l1@B1.hi : @bits(2) U32
+    %v471 = cast %v469 : U32
+    %v473 = cmp_ne %v471, 3 : Bool
+    je %v473, b46, b47
 
   b46:
     ret -16
@@ -2768,11 +2767,11 @@ fn main() -> I64 {
     jmp b48
 
   b48:
-    %v479 = load %l1 : B1
-    %v480 = load %l1@B1.lo : @bits(6) U32
-    %v482 = cast %v480 : U32
-    %v484 = cmp_ne %v482, 63 : Bool
-    je %v484, b49, b50
+    %v478 = load %l1 : B1
+    %v479 = load %l1@B1.lo : @bits(6) U32
+    %v481 = cast %v479 : U32
+    %v483 = cmp_ne %v481, 63 : Bool
+    je %v483, b49, b50
 
   b49:
     ret -17
@@ -2781,17 +2780,17 @@ fn main() -> I64 {
     jmp b51
 
   b51:
-    %v489 = alloc : B4
+    %v488 = alloc : B4
     init %l4@B4.lo, 2147483647
     init %l4@B4.hi, 1
-    %v494 = load %l4 : B4
-    %v495 = borrow_mut %l4 : &B4
-    call pin4, %v495
-    %v497 = load %l4 : B4
-    %v498 = load %l4@B4.hi : @bits(1) U32
-    %v500 = cast %v498 : U32
-    %v502 = cmp_ne %v500, 1 : Bool
-    je %v502, b52, b53
+    %v493 = load %l4 : B4
+    %v494 = borrow_mut %l4 : &B4
+    call pin4, %v494
+    %v496 = load %l4 : B4
+    %v497 = load %l4@B4.hi : @bits(1) U32
+    %v499 = cast %v497 : U32
+    %v501 = cmp_ne %v499, 1 : Bool
+    je %v501, b52, b53
 
   b52:
     ret -18
@@ -2800,11 +2799,11 @@ fn main() -> I64 {
     jmp b54
 
   b54:
-    %v507 = load %l4 : B4
-    %v508 = load %l4@B4.lo : @bits(31) U32
-    %v510 = cast %v508 : U32
-    %v512 = cmp_ne %v510, 2147483647 : Bool
-    je %v512, b55, b56
+    %v506 = load %l4 : B4
+    %v507 = load %l4@B4.lo : @bits(31) U32
+    %v509 = cast %v507 : U32
+    %v511 = cmp_ne %v509, 2147483647 : Bool
+    je %v511, b55, b56
 
   b55:
     ret -19
@@ -2813,18 +2812,18 @@ fn main() -> I64 {
     jmp b57
 
   b57:
-    %v517 = alloc : Gap
+    %v516 = alloc : Gap
     init %gg@Gap.lo, 1023
     init %gg@Gap.mid, 15
     init %gg@Gap.spare, 3
-    %v524 = load %gg : Gap
-    %v525 = borrow_mut %gg : &Gap
-    call pinGap, %v525
-    %v527 = load %gg : Gap
-    %v528 = load %gg@Gap.mid : @bits(4) U32
-    %v530 = cast %v528 : U32
-    %v532 = cmp_ne %v530, 15 : Bool
-    je %v532, b58, b59
+    %v523 = load %gg : Gap
+    %v524 = borrow_mut %gg : &Gap
+    call pinGap, %v524
+    %v526 = load %gg : Gap
+    %v527 = load %gg@Gap.mid : @bits(4) U32
+    %v529 = cast %v527 : U32
+    %v531 = cmp_ne %v529, 15 : Bool
+    je %v531, b58, b59
 
   b58:
     ret -20
@@ -2833,11 +2832,11 @@ fn main() -> I64 {
     jmp b60
 
   b60:
-    %v537 = load %gg : Gap
-    %v538 = load %gg@Gap.lo : @bits(10) U32
-    %v540 = cast %v538 : U32
-    %v542 = cmp_ne %v540, 1023 : Bool
-    je %v542, b61, b62
+    %v536 = load %gg : Gap
+    %v537 = load %gg@Gap.lo : @bits(10) U32
+    %v539 = cast %v537 : U32
+    %v541 = cmp_ne %v539, 1023 : Bool
+    je %v541, b61, b62
 
   b61:
     ret -21
@@ -2846,11 +2845,11 @@ fn main() -> I64 {
     jmp b63
 
   b63:
-    %v547 = load %gg : Gap
-    %v548 = load %gg@Gap.spare : @bits(2) U32
-    %v550 = cast %v548 : U32
-    %v552 = cmp_ne %v550, 3 : Bool
-    je %v552, b64, b65
+    %v546 = load %gg : Gap
+    %v547 = load %gg@Gap.spare : @bits(2) U32
+    %v549 = cast %v547 : U32
+    %v551 = cmp_ne %v549, 3 : Bool
+    je %v551, b64, b65
 
   b64:
     ret -22
@@ -2861,11 +2860,11 @@ fn main() -> I64 {
   b66:
     assign %gg@Gap.mid, 5
     assign %gg@Gap.spare, 1
-    %v561 = load %gg : Gap
-    %v562 = load %gg@Gap.mid : @bits(4) U32
-    %v564 = cast %v562 : U32
-    %v566 = cmp_ne %v564, 5 : Bool
-    je %v566, b67, b68
+    %v560 = load %gg : Gap
+    %v561 = load %gg@Gap.mid : @bits(4) U32
+    %v563 = cast %v561 : U32
+    %v565 = cmp_ne %v563, 5 : Bool
+    je %v565, b67, b68
 
   b67:
     ret -23
@@ -2874,11 +2873,11 @@ fn main() -> I64 {
     jmp b69
 
   b69:
-    %v571 = load %gg : Gap
-    %v572 = load %gg@Gap.lo : @bits(10) U32
-    %v574 = cast %v572 : U32
-    %v576 = cmp_ne %v574, 1023 : Bool
-    je %v576, b70, b71
+    %v570 = load %gg : Gap
+    %v571 = load %gg@Gap.lo : @bits(10) U32
+    %v573 = cast %v571 : U32
+    %v575 = cmp_ne %v573, 1023 : Bool
+    je %v575, b70, b71
 
   b70:
     ret -24
@@ -2887,11 +2886,11 @@ fn main() -> I64 {
     jmp b72
 
   b72:
-    %v581 = load %gg : Gap
-    %v582 = load %gg@Gap.spare : @bits(2) U32
-    %v584 = cast %v582 : U32
-    %v586 = cmp_ne %v584, 1 : Bool
-    je %v586, b73, b74
+    %v580 = load %gg : Gap
+    %v581 = load %gg@Gap.spare : @bits(2) U32
+    %v583 = cast %v581 : U32
+    %v585 = cmp_ne %v583, 1 : Bool
+    je %v585, b73, b74
 
   b73:
     ret -25
@@ -2900,23 +2899,22 @@ fn main() -> I64 {
     jmp b75
 
   b75:
-    %v591 = alloc : Signed
-    %v597 = sub 0, 2048 : I32
-    %v599 = shl %v597, 20 : I32
-    %v601 = sar %v599, 20 : I32
-    %v602 = cast %v601 : @bits(12) I32
+    %v590 = alloc : Signed
+    %v596 = sub 0, 2048 : I32
+    %v598 = shl %v596, 20 : I32
+    %v600 = sar %v598, 20 : I32
+    %v601 = cast %v600 : @bits(12) I32
     init %gs@Signed.lo, 1048575
-    init %gs@Signed.hi, %v602
-    %v605 = load %gs : Signed
-    %v606 = borrow_mut %gs : &Signed
-    call pinSigned, %v606
-    %v608 = load %gs : Signed
-    %v609 = load %gs@Signed.hi : @bits(12) I32
-    %v614 = sub 0, 2048 : Int
-    %v615 = cast %v614 : I32
-    %v616 = cast %v609 : I32
-    %v617 = cmp_ne %v616, %v615 : Bool
-    je %v617, b76, b77
+    init %gs@Signed.hi, %v601
+    %v604 = load %gs : Signed
+    %v605 = borrow_mut %gs : &Signed
+    call pinSigned, %v605
+    %v607 = load %gs : Signed
+    %v608 = load %gs@Signed.hi : @bits(12) I32
+    %v613 = sub 0, 2048 : I32
+    %v614 = cast %v608 : I32
+    %v615 = cmp_ne %v614, %v613 : Bool
+    je %v615, b76, b77
 
   b76:
     ret -26
@@ -2925,11 +2923,11 @@ fn main() -> I64 {
     jmp b78
 
   b78:
-    %v622 = load %gs : Signed
-    %v623 = load %gs@Signed.lo : @bits(20) U32
-    %v625 = cast %v623 : U32
-    %v627 = cmp_ne %v625, 1048575 : Bool
-    je %v627, b79, b80
+    %v620 = load %gs : Signed
+    %v621 = load %gs@Signed.lo : @bits(20) U32
+    %v623 = cast %v621 : U32
+    %v625 = cmp_ne %v623, 1048575 : Bool
+    je %v625, b79, b80
 
   b79:
     ret -27

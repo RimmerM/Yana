@@ -28,23 +28,23 @@
 # the maximum reads it out of memory.
 maskedMax(%p: Ptr, %acc: i32x8): i32x8 {
     {
-        %z = imm 0: Int
+        %z = imm 0: I32
         %i0 = vsplat %z: i32x8
-        %c1 = imm 1: Int
+        %c1 = imm 1: I32
         %i1 = vwithlane %i0, %c1, 1: i32x8
-        %c2 = imm 2: Int
+        %c2 = imm 2: I32
         %i2 = vwithlane %i1, %c2, 2: i32x8
-        %c3 = imm 3: Int
+        %c3 = imm 3: I32
         %i3 = vwithlane %i2, %c3, 3: i32x8
-        %c4 = imm 4: Int
+        %c4 = imm 4: I32
         %i4 = vwithlane %i3, %c4, 4: i32x8
-        %c5 = imm 5: Int
+        %c5 = imm 5: I32
         %i5 = vwithlane %i4, %c5, 5: i32x8
-        %c6 = imm 6: Int
+        %c6 = imm 6: I32
         %i6 = vwithlane %i5, %c6, 6: i32x8
-        %c7 = imm 7: Int
+        %c7 = imm 7: I32
         %iota = vwithlane %i6, %c7, 7: i32x8
-        %n = imm 8: Int
+        %n = imm 8: I32
         %lanes = vsplat %n: i32x8
         %live = cmp_ilt %iota, %lanes: m32x8
         %v = load %p, 32: i32x8
@@ -59,15 +59,15 @@ maskedMax(%p: Ptr, %acc: i32x8): i32x8 {
 # operand, so the first is never computed into anything.
 noneLive(%a: i32x4, %b: i32x4): i32x4 {
     {
-        %z = imm 0: Int
+        %z = imm 0: I32
         %i0 = vsplat %z: i32x4
-        %c1 = imm 1: Int
+        %c1 = imm 1: I32
         %i1 = vwithlane %i0, %c1, 1: i32x4
-        %c2 = imm 2: Int
+        %c2 = imm 2: I32
         %i2 = vwithlane %i1, %c2, 2: i32x4
-        %c3 = imm 3: Int
+        %c3 = imm 3: I32
         %iota = vwithlane %i2, %c3, 3: i32x4
-        %n = imm 0: Int
+        %n = imm 0: I32
         %zero = vsplat %n: i32x4
         %live = cmp_ilt %iota, %zero: m32x4
         %r = select %live, %a, %b: i32x4
@@ -79,15 +79,15 @@ noneLive(%a: i32x4, %b: i32x4): i32x4 {
 # mask or into a shuffle, and neither is a shape anything in the library produces.
 mixed(%a: i32x4, %b: i32x4): i32x4 {
     {
-        %z = imm 0: Int
+        %z = imm 0: I32
         %i0 = vsplat %z: i32x4
-        %c1 = imm 1: Int
+        %c1 = imm 1: I32
         %i1 = vwithlane %i0, %c1, 1: i32x4
-        %c2 = imm 2: Int
+        %c2 = imm 2: I32
         %i2 = vwithlane %i1, %c2, 2: i32x4
-        %c3 = imm 3: Int
+        %c3 = imm 3: I32
         %iota = vwithlane %i2, %c3, 3: i32x4
-        %n = imm 2: Int
+        %n = imm 2: I32
         %half = vsplat %n: i32x4
         %live = cmp_ilt %iota, %half: m32x4
         %r = select %live, %a, %b: i32x4
@@ -97,15 +97,15 @@ mixed(%a: i32x4, %b: i32x4): i32x4 {
 
 # And the real tail mask, whose second operand is a runtime value - the comparison, the blend and the
 # load all stay, which is what the last chunk of every bulk operation is entitled to.
-runtimeMask(%p: Ptr, %acc: i32x4, %live: Int): i32x4 {
+runtimeMask(%p: Ptr, %acc: i32x4, %live: I32): i32x4 {
     {
-        %z = imm 0: Int
+        %z = imm 0: I32
         %i0 = vsplat %z: i32x4
-        %c1 = imm 1: Int
+        %c1 = imm 1: I32
         %i1 = vwithlane %i0, %c1, 1: i32x4
-        %c2 = imm 2: Int
+        %c2 = imm 2: I32
         %i2 = vwithlane %i1, %c2, 2: i32x4
-        %c3 = imm 3: Int
+        %c3 = imm 3: I32
         %iota = vwithlane %i2, %c3, 3: i32x4
         %n = vsplat %live: i32x4
         %m = cmp_ilt %iota, %n: m32x4
@@ -119,9 +119,9 @@ runtimeMask(%p: Ptr, %acc: i32x4, %live: Int): i32x4 {
 # than the numbers: an unordered pair answers false to `lt` in every lane.
 floatConstants(%a: f32x4, %b: f32x4): f32x4 {
     {
-        %o = imm 1.0f: Float
+        %o = imm 1.0f: F32
         %ones = vsplat %o: f32x4
-        %t = imm 2.0f: Float
+        %t = imm 2.0f: F32
         %twos = vsplat %t: f32x4
         %m = cmp_lt %ones, %twos: m32x4
         %r = select %m, %a, %b: f32x4

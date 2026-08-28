@@ -1,20 +1,20 @@
 @image$base = []
 
-tagOf<complex>(%m: Ptr): Int {
+tagOf<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = load %m, 1: Long
-    %v_2 = cmp_le %v_1, 2: Int
+    %v_1 = load %m, 1: I64
+    %v_2 = cmp_le %v_1, 2: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_le %v_1, 2: Int
+    %v_5 = cmp_le %v_1, 2: I32
     je %v_5, b_6, b_7
   }
 
   b_3 {
-    %v_8 = load %m, 1: Int
-    %v_9 = cmp_eq %v_8, 0: Int
+    %v_8 = load %m, 1: I32
+    %v_9 = cmp_eq %v_8, 0: I32
     je %v_9, b_10, b_4
   }
 
@@ -23,13 +23,13 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_7 {
-    %v_12 = cmp_le %v_1, 2: Int
+    %v_12 = cmp_le %v_1, 2: I32
     je %v_12, b_13, b_14
   }
 
   b_6 {
-    %v_15 = load %m, 1: Int
-    %v_16 = cmp_eq %v_15, 1: Int
+    %v_15 = load %m, 1: I32
+    %v_16 = cmp_eq %v_15, 1: I32
     je %v_16, b_17, b_7
   }
 
@@ -42,8 +42,8 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_13 {
-    %v_18 = load %m, 1: Int
-    %v_19 = cmp_eq %v_18, 2: Int
+    %v_18 = load %m, 1: I32
+    %v_19 = cmp_eq %v_18, 2: I32
     je %v_19, b_20, b_14
   }
 
@@ -52,23 +52,23 @@ tagOf<complex>(%m: Ptr): Int {
   }
 
   b_11 {
-    %v_21 = phi [b_10, 1], [b_17, 2], [b_20, 3], [b_14, 0]: Int
+    %v_21 = phi [b_10, 1], [b_17, 2], [b_20, 3], [b_14, 0]: I32
     ret %v_21
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
     store %v_1, 1, 1
-    %v_2 = call_complex tagOf, %v_1: Int
-    %v_3 = imul %v_2, 100: Int
+    %v_2 = call_complex tagOf, %v_1: I32
+    %v_3 = imul %v_2, 100: I32
     %v_4 = alloca 1, 1: Ptr
     store %v_4, 3, 1
-    %v_5 = call_complex tagOf, %v_4: Int
-    %v_6 = imul %v_5, 10: Int
-    %v_7 = add %v_3, %v_6: Int
-    %v_8 = add %v_7, 7: Int
+    %v_5 = call_complex tagOf, %v_4: I32
+    %v_6 = imul %v_5, 10: I32
+    %v_7 = add %v_3, %v_6: I32
+    %v_8 = add %v_7, 7: I32
     ret %v_8
   }
 }

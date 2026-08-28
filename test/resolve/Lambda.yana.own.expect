@@ -1,9 +1,9 @@
-fn Reclaim(Array(a)).reclaim(Int) {
+fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
-  %i: Int writable live [2, 8) [11, 25)
-  %local2: Int readonly live [18, 21)
-  %local3: Int readonly live [19, 21)
+  %value: Array(I32) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: I32 writable live [2, 8) [11, 25)
+  %local2: I32 readonly live [18, 21)
+  %local3: I32 readonly live [19, 21)
 }
 
 fn numberOf {
@@ -52,9 +52,9 @@ fn freeHeap {
   arg allocation readonly
 }
 
-fn releaseRun(Int) {
+fn releaseRun(I32) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 8)
+  %self: Run(I32) borrowed droppable readonly live [0, 8)
 }
 
 fn double {
@@ -64,32 +64,32 @@ fn double {
 fn apply {
   arg f readonly
   arg x readonly
-  %f: (Int) -> Int borrowed droppable readonly live [0, 1)
+  %f: (I32) -> I32 borrowed droppable readonly live [0, 1)
 }
 
 fn runOn {
   arg f readonly
   arg target writable
-  %f: (&Int) -> () borrowed droppable readonly live [0, 3)
-  %target: Int borrowed unknown live [0, 3)
+  %f: (&I32) -> () borrowed droppable readonly live [0, 3)
+  %target: I32 borrowed unknown live [0, 3)
 }
 
 fn twice {
   arg f readonly
   arg x readonly
-  %f: (Int) -> Int borrowed droppable readonly live [0, 2)
+  %f: (I32) -> I32 borrowed droppable readonly live [0, 2)
 }
 
 fn consume {
   arg xs readonly
-  %xs: Array(Int) droppable readonly live [0, 1)
+  %xs: Array(I32) droppable readonly live [0, 1)
 }
 
 fn run {
   arg f readonly
-  %f: (->Array(Int)) -> Int borrowed droppable readonly live [0, 10)
-  %local1: Array(Int) droppable unknown live [0, 9)
-  %local2: Int writable addressed escapes heap live [1, 9)
+  %f: (->Array(I32)) -> I32 borrowed droppable readonly live [0, 10)
+  %local1: Array(I32) droppable unknown live [0, 9)
+  %local2: I32 writable addressed escapes heap live [1, 9)
 }
 
 fn runStep {
@@ -99,17 +99,17 @@ fn runStep {
 }
 
 fn main {
-  %local0: (Int) -> Int droppable readonly live [0, 6)
-  %local1: (Int) -> Int droppable readonly live [6, 12)
-  %local2: (Int) -> Int droppable readonly live [12, 18)
-  %local3: (Int) -> Int droppable readonly live [18, 24)
-  %local4: (Int) -> Int droppable readonly live [24, 30)
+  %local0: (I32) -> I32 droppable readonly live [0, 6)
+  %local1: (I32) -> I32 droppable readonly live [6, 12)
+  %local2: (I32) -> I32 droppable readonly live [12, 18)
+  %local3: (I32) -> I32 droppable readonly live [18, 24)
+  %local4: (I32) -> I32 droppable readonly live [24, 30)
   %local5: Step droppable readonly live [30, 38)
-  %local6: (Int) -> Int droppable readonly live [31, 37)
-  %local7: (Int) -> Int droppable readonly live [38, 44)
-  %local8: (->Array(Int)) -> Int droppable readonly live [44, 50)
-  %counter: Int writable live [50, 68)
-  %local10: (&Int) -> () droppable readonly live [52, 60)
+  %local6: (I32) -> I32 droppable readonly live [31, 37)
+  %local7: (I32) -> I32 droppable readonly live [38, 44)
+  %local8: (->Array(I32)) -> I32 droppable readonly live [44, 50)
+  %counter: I32 writable live [50, 68)
+  %local10: (&I32) -> () droppable readonly live [52, 60)
 }
 
 fn ResolveTest.lambda$22 {
@@ -147,27 +147,27 @@ fn ResolveTest.lambda$27 {
   arg x readonly
 }
 
-fn twiceGeneric(Int) {
+fn twiceGeneric(I32) {
   arg f readonly
   arg x readonly
-  %f: (Int) -> Int borrowed droppable readonly live [0, 2)
-  %x: Int borrowed readonly live [0, 1)
-  %local2: Int readonly live [0, 2)
-  %local3: Int readonly live [1, 3)
-  %local4: Int readonly live never
-  %local5: Int readonly live never
+  %f: (I32) -> I32 borrowed droppable readonly live [0, 2)
+  %x: I32 borrowed readonly live [0, 1)
+  %local2: I32 readonly live [0, 2)
+  %local3: I32 readonly live [1, 3)
+  %local4: I32 readonly live never
+  %local5: I32 readonly live never
 }
 
 fn funvalue$consume {
   arg env readonly
   arg xs readonly
-  %xs: Array(Int) droppable readonly live [0, 1)
+  %xs: Array(I32) droppable readonly live [0, 1)
 }
 
 fn ResolveTest.lambda$28 {
   arg env readonly
   arg t writable
-  %t: Int borrowed writable live [0, 3)
+  %t: I32 borrowed writable live [0, 3)
 }
 
 fn teardown$Step {
@@ -175,7 +175,7 @@ fn teardown$Step {
   %value: Step borrowed droppable readonly live [0, 1)
 }
 
-fn teardown$(Int) -> Int {
+fn teardown$(I32) -> I32 {
   arg value unknown retained
-  %value: (Int) -> Int borrowed droppable unknown escapes live [0, 11)
+  %value: (I32) -> I32 borrowed droppable unknown escapes live [0, 11)
 }

@@ -1,29 +1,29 @@
 
-nested<complex>(%n: Int, %m: Int): Int {
+nested<complex>(%n: I32, %m: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp outer
   }
 
   outer {
-    %i = phi [start, %z], [outerEnd, %i2]: Int
-    %acc = phi [start, %z], [outerEnd, %acc2]: Int
-    %v_0 = cmp_ilt %i, %n: Int
+    %i = phi [start, %z], [outerEnd, %i2]: I32
+    %acc = phi [start, %z], [outerEnd, %acc2]: I32
+    %v_0 = cmp_ilt %i, %n: I32
     je %v_0, inner, done
   }
 
   inner {
-    %j = phi [outer, %z], [inner, %j2]: Int
-    %a = phi [outer, %acc], [inner, %a2]: Int
-    %a2 = add %a, %j: Int
-    %j2 = add %j, 1: Int
-    %v_1 = cmp_ilt %j2, %m: Int
+    %j = phi [outer, %z], [inner, %j2]: I32
+    %a = phi [outer, %acc], [inner, %a2]: I32
+    %a2 = add %a, %j: I32
+    %j2 = add %j, 1: I32
+    %v_1 = cmp_ilt %j2, %m: I32
     je %v_1, inner, outerEnd
   }
 
   outerEnd {
-    %acc2 = phi [inner, %a2]: Int
-    %i2 = add %i, 1: Int
+    %acc2 = phi [inner, %a2]: I32
+    %i2 = add %i, 1: I32
     jmp outer
   }
 
@@ -32,23 +32,23 @@ nested<complex>(%n: Int, %m: Int): Int {
   }
 }
 
-loopCall<complex>(%n: Int): Int {
+loopCall<complex>(%n: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [body, %i2]: Int
-    %s = phi [start, %z], [body, %s2]: Int
-    %v_0 = cmp_ilt %i, %n: Int
+    %i = phi [start, %z], [body, %i2]: I32
+    %s = phi [start, %z], [body, %s2]: I32
+    %v_0 = cmp_ilt %i, %n: I32
     je %v_0, body, out
   }
 
   body {
-    %r = call_complex helper, %i: Int
-    %s2 = add %s, %r: Int
-    %i2 = add %i, 1: Int
+    %r = call_complex helper, %i: I32
+    %s2 = add %s, %r: I32
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -57,7 +57,7 @@ loopCall<complex>(%n: Int): Int {
   }
 }
 
-helper<complex>(%x: Int): Int {
+helper<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }

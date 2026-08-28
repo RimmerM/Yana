@@ -1,74 +1,74 @@
 let image$base: () = <none>
 
-let ResolveTest.map$0: [Int *6] = [1000, 2000, 3500, 4000, 5000, 6000]
+let ResolveTest.map$0: [I32 *6] = [1000, 2000, 3500, 4000, 5000, 6000]
 
-let ResolveTest.map$1: [Double *6] = [4609434218613702656, 4612811918334230528, 4616189618054758400, 4620833955170484224, 4602678819172646912, 4625196817309499392]
+let ResolveTest.map$1: [F64 *6] = [4609434218613702656, 4612811918334230528, 4616189618054758400, 4620833955170484224, 4602678819172646912, 4625196817309499392]
 
-let ResolveTest.map$2: [Double *6] = [0, 0, 0, 0, 9223372036854775808, 0]
+let ResolveTest.map$2: [F64 *6] = [0, 0, 0, 0, 9223372036854775808, 0]
 
-fn budget(%op: Op) -> Int {
+fn budget(%op: Op) -> I32 {
   b0:
     ret 5
 }
 
-fn indexOf(%op: Op) -> Int {
+fn indexOf(%op: Op) -> I32 {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     ret %v1
 }
 
-fn slotOf(%op: Op) -> Int {
+fn slotOf(%op: Op) -> I32 {
   b0:
-    %v1 = cast %op : Int
-    %v3 = mul %v1, 10 : Int
-    %v5 = add %v3, 100 : Int
+    %v1 = cast %op : I32
+    %v3 = mul %v1, 10 : I32
+    %v5 = add %v3, 100 : I32
     ret %v5
 }
 
 fn opposite(%op: Op) -> Op {
   b0:
-    %v1 = cast %op : Int
-    %v3 = mul %v1, -1 : Int
-    %v5 = add %v3, 5 : Int
+    %v1 = cast %op : I32
+    %v3 = mul %v1, -1 : I32
+    %v5 = add %v3, 5 : I32
     %v6 = cast %v5 : Op
     ret %v6
 }
 
-fn arity(%op: Op) -> Int {
+fn arity(%op: Op) -> I32 {
   b0:
-    %v1 = cast %op : Int
-    %v3 = shl %v1, 1 : Int
-    %v5 = shr 2474, %v3 : Int
-    %v7 = and %v5, 3 : Int
+    %v1 = cast %op : I32
+    %v3 = shl %v1, 1 : I32
+    %v5 = shr 2474, %v3 : I32
+    %v7 = and %v5, 3 : I32
     ret %v7
 }
 
-fn code(%op: Op) -> Int {
+fn code(%op: Op) -> I32 {
   b0:
-    %v1 = cast %op : Int
-    %v3 = shl %v1, 2 : Int
-    %v5 = shr 1797, %v3 : Int
-    %v7 = and %v5, 15 : Int
+    %v1 = cast %op : I32
+    %v3 = shl %v1, 2 : I32
+    %v5 = shr 1797, %v3 : I32
+    %v7 = and %v5, 15 : I32
     ret %v7
 }
 
 fn isArithmetic(%op: Op) -> Bool {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     %v3 = cmp_le %v1, 3 : Bool
     ret %v3
 }
 
 fn isLate(%op: Op) -> Bool {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     %v3 = cmp_ge %v1, 4 : Bool
     ret %v3
 }
 
 fn isMiddle(%op: Op) -> Bool {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     %v3 = cmp_ge %v1, 1 : Bool
     %v5 = cmp_le %v1, 3 : Bool
     %v6 = and %v3, %v5 : Bool
@@ -77,62 +77,62 @@ fn isMiddle(%op: Op) -> Bool {
 
 fn isNegate(%op: Op) -> Bool {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     %v3 = cmp_eq %v1, 4 : Bool
     ret %v3
 }
 
 fn isBinary(%op: Op) -> Bool {
   b0:
-    %v1 = cast %op : Int
-    %v3 = shr 47, %v1 : Int
-    %v5 = and %v3, 1 : Int
+    %v1 = cast %op : I32
+    %v3 = shr 47, %v1 : I32
+    %v5 = and %v3, 1 : I32
     %v7 = cmp_ne %v5, 0 : Bool
     ret %v7
 }
 
 fn isCommutative(%op: Op) -> Bool {
   b0:
-    %v1 = cast %op : Int
-    %v3 = shr 37, %v1 : Int
-    %v5 = and %v3, 1 : Int
+    %v1 = cast %op : I32
+    %v3 = shr 37, %v1 : I32
+    %v5 = and %v3, 1 : I32
     %v7 = cmp_ne %v5, 0 : Bool
     ret %v7
 }
 
-fn opcode(%op: Op) -> Int {
+fn opcode(%op: Op) -> I32 {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     %v2 = cast %v1 : Size
-    %v3 = load ResolveTest.map$0[%v2] : Int
+    %v3 = load ResolveTest.map$0[%v2] : I32
     ret %v3
 }
 
-fn weight(%op: Op) -> Double {
+fn weight(%op: Op) -> F64 {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     %v2 = cast %v1 : Size
-    %v3 = load ResolveTest.map$1[%v2] : Double
+    %v3 = load ResolveTest.map$1[%v2] : F64
     ret %v3
 }
 
-fn signedZero(%op: Op) -> Double {
+fn signedZero(%op: Op) -> F64 {
   b0:
-    %v1 = cast %op : Int
+    %v1 = cast %op : I32
     %v2 = cast %v1 : Size
-    %v3 = load ResolveTest.map$2[%v2] : Double
+    %v3 = load ResolveTest.map$2[%v2] : F64
     ret %v3
 }
 
-fn bitValue(%b: Bit) -> Int {
+fn bitValue(%b: Bit) -> I32 {
   b0:
-    %v1 = cast %b : Int
-    %v3 = mul %v1, 900 : Int
-    %v5 = add %v3, 100 : Int
+    %v1 = cast %b : I32
+    %v3 = mul %v1, 900 : I32
+    %v5 = add %v3, 100 : I32
     ret %v5
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -143,7 +143,7 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
@@ -157,26 +157,26 @@ fn opaqueBit(%b: Bit) -> Bit {
     ret %b
 }
 
-fn folded() -> Int {
+fn folded() -> I32 {
   b0:
-    %v1 = call opcode, Mul : Int
-    %v3 = call arity, Neg : Int
-    %v4 = add %v1, %v3 : Int
-    %v6 = call slotOf, Div : Int
-    %v7 = add %v4, %v6 : Int
+    %v1 = call opcode, Mul : I32
+    %v3 = call arity, Neg : I32
+    %v4 = add %v1, %v3 : I32
+    %v6 = call slotOf, Div : I32
+    %v7 = add %v4, %v6 : I32
     ret %v7
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = call opaque, Add : Op
-    %v2 = call budget, %v1 : Int
+    %v2 = call budget, %v1 : I32
     %v5 = cmp_eq %v2, 5 : Bool
     je %v5, b1, b2
 
   b1:
     %v8 = call opaque, Cmp : Op
-    %v9 = call budget, %v8 : Int
+    %v9 = call budget, %v8 : I32
     %v12 = cmp_eq %v9, 5 : Bool
     jmp b3
 
@@ -185,15 +185,15 @@ fn main() -> Int {
 
   b3:
     %v16 = phi [b1, %v12], [b2, False] : Bool
-    %v18 = call check, %v16, 1 : Int
+    %v18 = call check, %v16, 1 : I32
     %v20 = call opaque, Add : Op
-    %v21 = call indexOf, %v20 : Int
+    %v21 = call indexOf, %v20 : I32
     %v24 = cmp_eq %v21, 0 : Bool
     je %v24, b4, b5
 
   b4:
     %v27 = call opaque, Cmp : Op
-    %v28 = call indexOf, %v27 : Int
+    %v28 = call indexOf, %v27 : I32
     %v31 = cmp_eq %v28, 5 : Bool
     jmp b6
 
@@ -206,7 +206,7 @@ fn main() -> Int {
 
   b7:
     %v38 = call opaque, Mul : Op
-    %v39 = call indexOf, %v38 : Int
+    %v39 = call indexOf, %v38 : I32
     %v42 = cmp_eq %v39, 2 : Bool
     jmp b9
 
@@ -215,16 +215,16 @@ fn main() -> Int {
 
   b9:
     %v46 = phi [b7, %v42], [b8, False] : Bool
-    %v48 = call check, %v46, 2 : Int
-    %v49 = add %v18, %v48 : Int
+    %v48 = call check, %v46, 2 : I32
+    %v49 = add %v18, %v48 : I32
     %v51 = call opaque, Add : Op
-    %v52 = call slotOf, %v51 : Int
+    %v52 = call slotOf, %v51 : I32
     %v55 = cmp_eq %v52, 100 : Bool
     je %v55, b10, b11
 
   b10:
     %v58 = call opaque, Cmp : Op
-    %v59 = call slotOf, %v58 : Int
+    %v59 = call slotOf, %v58 : I32
     %v62 = cmp_eq %v59, 150 : Bool
     jmp b12
 
@@ -237,7 +237,7 @@ fn main() -> Int {
 
   b13:
     %v69 = call opaque, Div : Op
-    %v70 = call slotOf, %v69 : Int
+    %v70 = call slotOf, %v69 : I32
     %v73 = cmp_eq %v70, 130 : Bool
     jmp b15
 
@@ -246,8 +246,8 @@ fn main() -> Int {
 
   b15:
     %v77 = phi [b13, %v73], [b14, False] : Bool
-    %v79 = call check, %v77, 4 : Int
-    %v80 = add %v49, %v79 : Int
+    %v79 = call check, %v77, 4 : I32
+    %v80 = add %v49, %v79 : I32
     %v82 = call opaque, Add : Op
     %v83 = call opposite, %v82 : Op
     %v85 = cmp_eq %v83, Cmp : Bool
@@ -277,16 +277,16 @@ fn main() -> Int {
 
   b21:
     %v105 = phi [b19, %v101], [b20, False] : Bool
-    %v107 = call check, %v105, 8 : Int
-    %v108 = add %v80, %v107 : Int
+    %v107 = call check, %v105, 8 : I32
+    %v108 = add %v80, %v107 : I32
     %v110 = call opaque, Add : Op
-    %v111 = call arity, %v110 : Int
+    %v111 = call arity, %v110 : I32
     %v114 = cmp_eq %v111, 2 : Bool
     je %v114, b22, b23
 
   b22:
     %v117 = call opaque, Neg : Op
-    %v118 = call arity, %v117 : Int
+    %v118 = call arity, %v117 : I32
     %v121 = cmp_eq %v118, 1 : Bool
     jmp b24
 
@@ -299,7 +299,7 @@ fn main() -> Int {
 
   b25:
     %v128 = call opaque, Cmp : Op
-    %v129 = call arity, %v128 : Int
+    %v129 = call arity, %v128 : I32
     %v132 = cmp_eq %v129, 2 : Bool
     jmp b27
 
@@ -308,16 +308,16 @@ fn main() -> Int {
 
   b27:
     %v136 = phi [b25, %v132], [b26, False] : Bool
-    %v138 = call check, %v136, 16 : Int
-    %v139 = add %v108, %v138 : Int
+    %v138 = call check, %v136, 16 : I32
+    %v139 = add %v108, %v138 : I32
     %v141 = call opaque, Add : Op
-    %v142 = call code, %v141 : Int
+    %v142 = call code, %v141 : I32
     %v145 = cmp_eq %v142, 5 : Bool
     je %v145, b28, b29
 
   b28:
     %v148 = call opaque, Mul : Op
-    %v149 = call code, %v148 : Int
+    %v149 = call code, %v148 : I32
     %v152 = cmp_eq %v149, 7 : Bool
     jmp b30
 
@@ -330,7 +330,7 @@ fn main() -> Int {
 
   b31:
     %v159 = call opaque, Sub : Op
-    %v160 = call code, %v159 : Int
+    %v160 = call code, %v159 : I32
     %v163 = cmp_eq %v160, 0 : Bool
     jmp b33
 
@@ -343,7 +343,7 @@ fn main() -> Int {
 
   b34:
     %v170 = call opaque, Cmp : Op
-    %v171 = call code, %v170 : Int
+    %v171 = call code, %v170 : I32
     %v174 = cmp_eq %v171, 0 : Bool
     jmp b36
 
@@ -352,8 +352,8 @@ fn main() -> Int {
 
   b36:
     %v178 = phi [b34, %v174], [b35, False] : Bool
-    %v180 = call check, %v178, 32 : Int
-    %v181 = add %v139, %v180 : Int
+    %v180 = call check, %v178, 32 : I32
+    %v181 = add %v139, %v180 : I32
     %v183 = call opaque, Add : Op
     %v184 = call isArithmetic, %v183 : Bool
     je %v184, b37, b38
@@ -394,8 +394,8 @@ fn main() -> Int {
 
   b45:
     %v212 = phi [b43, %v208], [b44, False] : Bool
-    %v214 = call check, %v212, 64 : Int
-    %v215 = add %v181, %v214 : Int
+    %v214 = call check, %v212, 64 : I32
+    %v215 = add %v181, %v214 : I32
     %v217 = call opaque, Neg : Op
     %v218 = call isLate, %v217 : Bool
     je %v218, b46, b47
@@ -436,8 +436,8 @@ fn main() -> Int {
 
   b54:
     %v246 = phi [b52, %v242], [b53, False] : Bool
-    %v248 = call check, %v246, 128 : Int
-    %v249 = add %v215, %v248 : Int
+    %v248 = call check, %v246, 128 : I32
+    %v249 = add %v215, %v248 : I32
     %v251 = call opaque, Sub : Op
     %v252 = call isMiddle, %v251 : Bool
     je %v252, b55, b56
@@ -478,8 +478,8 @@ fn main() -> Int {
 
   b63:
     %v280 = phi [b61, %v276], [b62, False] : Bool
-    %v282 = call check, %v280, 256 : Int
-    %v283 = add %v249, %v282 : Int
+    %v282 = call check, %v280, 256 : I32
+    %v283 = add %v249, %v282 : I32
     %v285 = call opaque, Neg : Op
     %v286 = call isNegate, %v285 : Bool
     je %v286, b64, b65
@@ -508,8 +508,8 @@ fn main() -> Int {
 
   b69:
     %v306 = phi [b67, %v302], [b68, False] : Bool
-    %v308 = call check, %v306, 512 : Int
-    %v309 = add %v283, %v308 : Int
+    %v308 = call check, %v306, 512 : I32
+    %v309 = add %v283, %v308 : I32
     %v311 = call opaque, Add : Op
     %v312 = call isBinary, %v311 : Bool
     je %v312, b70, b71
@@ -537,8 +537,8 @@ fn main() -> Int {
 
   b75:
     %v330 = phi [b73, %v326], [b74, False] : Bool
-    %v332 = call check, %v330, 1024 : Int
-    %v333 = add %v309, %v332 : Int
+    %v332 = call check, %v330, 1024 : I32
+    %v333 = add %v309, %v332 : I32
     %v335 = call opaque, Add : Op
     %v336 = call isCommutative, %v335 : Bool
     je %v336, b76, b77
@@ -578,16 +578,16 @@ fn main() -> Int {
 
   b84:
     %v362 = phi [b82, %v358], [b83, False] : Bool
-    %v364 = call check, %v362, 2048 : Int
-    %v365 = add %v333, %v364 : Int
+    %v364 = call check, %v362, 2048 : I32
+    %v365 = add %v333, %v364 : I32
     %v367 = call opaque, Add : Op
-    %v368 = call opcode, %v367 : Int
+    %v368 = call opcode, %v367 : I32
     %v371 = cmp_eq %v368, 1000 : Bool
     je %v371, b85, b86
 
   b85:
     %v374 = call opaque, Mul : Op
-    %v375 = call opcode, %v374 : Int
+    %v375 = call opcode, %v374 : I32
     %v378 = cmp_eq %v375, 3500 : Bool
     jmp b87
 
@@ -600,7 +600,7 @@ fn main() -> Int {
 
   b88:
     %v385 = call opaque, Cmp : Op
-    %v386 = call opcode, %v385 : Int
+    %v386 = call opcode, %v385 : I32
     %v389 = cmp_eq %v386, 6000 : Bool
     jmp b90
 
@@ -609,16 +609,16 @@ fn main() -> Int {
 
   b90:
     %v393 = phi [b88, %v389], [b89, False] : Bool
-    %v395 = call check, %v393, 4096 : Int
-    %v396 = add %v365, %v395 : Int
+    %v395 = call check, %v393, 4096 : I32
+    %v396 = add %v365, %v395 : I32
     %v398 = call opaque, Add : Op
-    %v399 = call weight, %v398 : Double
+    %v399 = call weight, %v398 : F64
     %v402 = cmp_eq %v399, 1.5 : Bool
     je %v402, b91, b92
 
   b91:
     %v405 = call opaque, Div : Op
-    %v406 = call weight, %v405 : Double
+    %v406 = call weight, %v405 : F64
     %v409 = cmp_eq %v406, 8.25 : Bool
     jmp b93
 
@@ -631,7 +631,7 @@ fn main() -> Int {
 
   b94:
     %v416 = call opaque, Cmp : Op
-    %v417 = call weight, %v416 : Double
+    %v417 = call weight, %v416 : F64
     %v420 = cmp_eq %v417, 16 : Bool
     jmp b96
 
@@ -640,18 +640,18 @@ fn main() -> Int {
 
   b96:
     %v424 = phi [b94, %v420], [b95, False] : Bool
-    %v426 = call check, %v424, 8192 : Int
-    %v427 = add %v396, %v426 : Int
+    %v426 = call check, %v424, 8192 : I32
+    %v427 = add %v396, %v426 : I32
     %v430 = call opaque, Add : Op
-    %v431 = call signedZero, %v430 : Double
-    %v433 = div 1, %v431 : Double
+    %v431 = call signedZero, %v430 : F64
+    %v433 = div 1, %v431 : F64
     %v436 = cmp_gt %v433, 0 : Bool
     je %v436, b97, b98
 
   b97:
     %v440 = call opaque, Neg : Op
-    %v441 = call signedZero, %v440 : Double
-    %v443 = div 1, %v441 : Double
+    %v441 = call signedZero, %v440 : F64
+    %v443 = div 1, %v441 : F64
     %v446 = cmp_lt %v443, 0 : Bool
     jmp b99
 
@@ -660,16 +660,16 @@ fn main() -> Int {
 
   b99:
     %v450 = phi [b97, %v446], [b98, False] : Bool
-    %v452 = call check, %v450, 16384 : Int
-    %v453 = add %v427, %v452 : Int
+    %v452 = call check, %v450, 16384 : I32
+    %v453 = add %v427, %v452 : I32
     %v455 = call opaqueBit, Zero : Bit
-    %v456 = call bitValue, %v455 : Int
+    %v456 = call bitValue, %v455 : I32
     %v459 = cmp_eq %v456, 100 : Bool
     je %v459, b100, b101
 
   b100:
     %v462 = call opaqueBit, One : Bit
-    %v463 = call bitValue, %v462 : Int
+    %v463 = call bitValue, %v462 : I32
     %v466 = cmp_eq %v463, 1000 : Bool
     jmp b102
 
@@ -678,11 +678,11 @@ fn main() -> Int {
 
   b102:
     %v470 = phi [b100, %v466], [b101, False] : Bool
-    %v472 = call check, %v470, 32768 : Int
-    %v473 = add %v453, %v472 : Int
-    %v474 = call folded : Int
+    %v472 = call check, %v470, 32768 : I32
+    %v473 = add %v453, %v472 : I32
+    %v474 = call folded : I32
     %v477 = cmp_eq %v474, 3631 : Bool
-    %v479 = call check, %v477, 65536 : Int
-    %v480 = add %v473, %v479 : Int
+    %v479 = call check, %v477, 65536 : I32
+    %v480 = add %v473, %v479 : I32
     ret %v480
 }

@@ -6,36 +6,36 @@ let &ready: Bool = 0
 
 let &limit: I64 = 12
 
-let &ratio: Float = 1056964608
+let &ratio: F32 = 1056964608
 
 let &link: %U8 = 0
 
 let &offset: I64 = 18446744073709551615
 
-let &state: State(Int) = 1
+let &state: State(I32) = 1
 
-let &fell: Float = 3212836864
+let &fell: F32 = 3212836864
 
 let &minimum: I64 = 9223372036854775808
 
 let &mask: U64 = 18446744073709551615
 
-fn directionValue(%d: Direction) -> Int {
+fn directionValue(%d: Direction) -> I32 {
   b0:
-    %v1 = cast %d : Int
-    %v3 = shl %v1, 2 : Int
-    %v5 = shr 33825, %v3 : Int
-    %v7 = and %v5, 15 : Int
+    %v1 = cast %d : I32
+    %v3 = shl %v1, 2 : I32
+    %v5 = shr 33825, %v3 : I32
+    %v7 = and %v5, 15 : I32
     ret %v7
 }
 
-fn stateValue(%s: State(Int)) -> Int {
+fn stateValue(%s: State(I32)) -> I32 {
   b0:
-    %v1 = cast %s : Int
+    %v1 = cast %s : I32
     ret %v1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %c = alloc : Config
     %v6 = cast 0 : %U8
@@ -48,19 +48,19 @@ fn main() -> Int {
     init %local0@Config.state, On
     init %local0@Config.fell, -1
     %v18 = load heading : Direction
-    %v19 = call directionValue, %v18 : Int
+    %v19 = call directionValue, %v18 : I32
     %v20 = load %local0@Config.heading : Direction
-    %v21 = call directionValue, %v20 : Int
-    %v24 = mul %v21, 16 : Int
-    %v25 = add %v19, %v24 : Int
-    %score = alloc : Int
+    %v21 = call directionValue, %v20 : I32
+    %v24 = mul %v21, 16 : I32
+    %v25 = add %v19, %v24 : I32
+    %score = alloc : I32
     init %score, %v25
     %v28 = load ready : Bool
     je %v28, b1, b2
 
   b1:
-    %v30 = load %score : Int
-    %v33 = add %v30, 1024 : Int
+    %v30 = load %score : I32
+    %v33 = add %v30, 1024 : I32
     assign %score, %v33
     jmp b3
 
@@ -72,8 +72,8 @@ fn main() -> Int {
     je %v37, b4, b5
 
   b4:
-    %v39 = load %score : Int
-    %v42 = add %v39, 2048 : Int
+    %v39 = load %score : I32
+    %v42 = add %v39, 2048 : I32
     assign %score, %v42
     jmp b6
 
@@ -87,8 +87,8 @@ fn main() -> Int {
     je %v48, b7, b8
 
   b7:
-    %v50 = load %score : Int
-    %v53 = add %v50, 4096 : Int
+    %v50 = load %score : I32
+    %v53 = add %v50, 4096 : I32
     assign %score, %v53
     jmp b9
 
@@ -96,14 +96,14 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v57 = load %local0@Config.ratio : Float
-    %v58 = load ratio : Float
+    %v57 = load %local0@Config.ratio : F32
+    %v58 = load ratio : F32
     %v59 = cmp_eq %v57, %v58 : Bool
     je %v59, b10, b11
 
   b10:
-    %v61 = load %score : Int
-    %v64 = add %v61, 8192 : Int
+    %v61 = load %score : I32
+    %v64 = add %v61, 8192 : I32
     assign %score, %v64
     jmp b12
 
@@ -111,14 +111,14 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v68 = load %local0@Config.offset : Int
-    %v71 = neg 3 : Int
+    %v68 = load %local0@Config.offset : I32
+    %v71 = neg 3 : I32
     %v72 = cmp_eq %v68, %v71 : Bool
     je %v72, b13, b14
 
   b13:
-    %v74 = load %score : Int
-    %v77 = add %v74, 16384 : Int
+    %v74 = load %score : I32
+    %v77 = add %v74, 16384 : I32
     assign %score, %v77
     jmp b15
 
@@ -127,14 +127,14 @@ fn main() -> Int {
 
   b15:
     %v81 = load offset : I64
-    %v84 = neg 1 : Int
+    %v84 = neg 1 : I32
     %v85 = cast %v84 : I64
     %v86 = cmp_eq %v81, %v85 : Bool
     je %v86, b16, b17
 
   b16:
-    %v88 = load %score : Int
-    %v91 = add %v88, 32768 : Int
+    %v88 = load %score : I32
+    %v91 = add %v88, 32768 : I32
     assign %score, %v91
     jmp b18
 
@@ -142,14 +142,14 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v95 = load fell : Float
-    %v98 = neg 1 : Float
+    %v95 = load fell : F32
+    %v98 = neg 1 : F32
     %v99 = cmp_eq %v95, %v98 : Bool
     je %v99, b19, b20
 
   b19:
-    %v101 = load %score : Int
-    %v104 = add %v101, 65536 : Int
+    %v101 = load %score : I32
+    %v104 = add %v101, 65536 : I32
     assign %score, %v104
     jmp b21
 
@@ -157,14 +157,14 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v108 = load %local0@Config.fell : Float
-    %v109 = load fell : Float
+    %v108 = load %local0@Config.fell : F32
+    %v109 = load fell : F32
     %v110 = cmp_eq %v108, %v109 : Bool
     je %v110, b22, b23
 
   b22:
-    %v112 = load %score : Int
-    %v115 = add %v112, 1048576 : Int
+    %v112 = load %score : I32
+    %v115 = add %v112, 1048576 : I32
     assign %score, %v115
     jmp b24
 
@@ -172,16 +172,16 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v119 = load state : State(Int)
-    %v120 = call stateValue, %v119 : Int
-    %v121 = load %local0@Config.state : State(Int)
-    %v122 = call stateValue, %v121 : Int
+    %v119 = load state : State(I32)
+    %v120 = call stateValue, %v119 : I32
+    %v121 = load %local0@Config.state : State(I32)
+    %v122 = call stateValue, %v121 : I32
     %v123 = cmp_eq %v120, %v122 : Bool
     je %v123, b25, b26
 
   b25:
-    %v125 = load %score : Int
-    %v128 = add %v125, 131072 : Int
+    %v125 = load %score : I32
+    %v128 = add %v125, 131072 : I32
     assign %score, %v128
     jmp b27
 
@@ -194,8 +194,8 @@ fn main() -> Int {
     je %v135, b28, b29
 
   b28:
-    %v137 = load %score : Int
-    %v140 = add %v137, 262144 : Int
+    %v137 = load %score : I32
+    %v140 = add %v137, 262144 : I32
     assign %score, %v140
     jmp b30
 
@@ -208,8 +208,8 @@ fn main() -> Int {
     je %v147, b31, b32
 
   b31:
-    %v149 = load %score : Int
-    %v152 = add %v149, 524288 : Int
+    %v149 = load %score : I32
+    %v152 = add %v149, 524288 : I32
     assign %score, %v152
     jmp b33
 
@@ -217,6 +217,6 @@ fn main() -> Int {
     jmp b33
 
   b33:
-    %v156 = load %score : Int
+    %v156 = load %score : I32
     ret %v156
 }

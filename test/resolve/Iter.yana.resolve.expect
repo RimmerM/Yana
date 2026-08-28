@@ -1,8 +1,8 @@
 let image$base: () = <none>
 
-let &log: Int = 0
+let &log: I32 = 0
 
-let &visited: Int = 0
+let &visited: I32 = 0
 
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
@@ -73,19 +73,19 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn upTo(%limit: I32, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
   }
 
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %limit : Bool
     je %v7, b3, b2
 
@@ -95,9 +95,9 @@ fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r)
     ret %v22
 
   b3:
-    %v9 = load %i : Int
+    %v9 = load %i : I32
     %v10 = calldyn %body, %v9 : Outcome((), $r)
-    %v11 = load %local2.discriminant : Int
+    %v11 = load %local2.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b4, b5
 
@@ -105,25 +105,25 @@ fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r)
     ret %v10
 
   b5:
-    %v16 = load %i : Int
-    %v19 = add %v16, 1 : Int
+    %v16 = load %i : I32
+    %v19 = add %v16, 1 : I32
     assign %i, %v19
     jmp b1
 }
 
-fn corners(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), $r)) -> Outcome((), $r) {
+fn corners(%n: I32, %body: (value$: {x: I32, y: I32}) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
   }
 
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %n : Bool
     je %v7, b3, b2
 
@@ -133,13 +133,13 @@ fn corners(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), $r)) -> Out
     ret %v28
 
   b3:
-    %v9 = alloc : {x: Int, y: Int}
-    %v10 = load %i : Int
-    %v11 = load %i : Int
-    %v14 = mul %v11, 2 : Int
+    %v9 = alloc : {x: I32, y: I32}
+    %v10 = load %i : I32
+    %v11 = load %i : I32
+    %v14 = mul %v11, 2 : I32
     aggregate %local2.x = %v10, %local2.y = %v14
     %v16 = calldyn %body, %v9 : Outcome((), $r)
-    %v17 = load %local3.discriminant : Int
+    %v17 = load %local3.discriminant : I32
     %v19 = cmp_eq %v17, 1 : Bool
     je %v19, b4, b5
 
@@ -147,8 +147,8 @@ fn corners(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), $r)) -> Out
     ret %v16
 
   b5:
-    %v22 = load %i : Int
-    %v25 = add %v22, 1 : Int
+    %v22 = load %i : I32
+    %v25 = add %v22, 1 : I32
     assign %i, %v25
     jmp b1
 }
@@ -162,7 +162,7 @@ fn twice(%value: a, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
 
   b0:
     %v2 = calldyn %body, %value : Outcome((), $r)
-    %v3 = load %local2.discriminant : Int
+    %v3 = load %local2.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b1, b2
 
@@ -171,7 +171,7 @@ fn twice(%value: a, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
 
   b2:
     %v8 = calldyn %body, %value : Outcome((), $r)
-    %v9 = load %local3.discriminant : Int
+    %v9 = load %local3.discriminant : I32
     %v11 = cmp_eq %v9, 1 : Bool
     je %v11, b3, b4
 
@@ -184,100 +184,100 @@ fn twice(%value: a, %body: (value$: a) -> Outcome((), $r)) -> Outcome((), $r) {
     ret %v14
 }
 
-fn sum(%n: Int) -> Int {
+fn sum(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v4 = alloc : {total: &Int}
-    %v5 = borrow_mut %total : &Int
+    %v4 = alloc : {total: &I32}
+    %v5 = borrow_mut %total : &I32
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v8 = alloc : (value$: I32) -> Outcome((), ())
     %v9 = symbol ResolveTest.continuation$22 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
-    %v13 = load %total : Int
+    %v13 = load %total : I32
     ret %v13
 }
 
-fn odds(%n: Int) -> Int {
+fn odds(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v4 = alloc : {total: &Int}
-    %v5 = borrow_mut %total : &Int
+    %v4 = alloc : {total: &I32}
+    %v5 = borrow_mut %total : &I32
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v8 = alloc : (value$: I32) -> Outcome((), ())
     %v9 = symbol ResolveTest.continuation$23 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
-    %v13 = load %total : Int
+    %v13 = load %total : I32
     ret %v13
 }
 
-fn upToFive(%n: Int) -> Int {
+fn upToFive(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v4 = alloc : {total: &Int}
-    %v5 = borrow_mut %total : &Int
+    %v4 = alloc : {total: &I32}
+    %v5 = borrow_mut %total : &I32
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v8 = alloc : (value$: I32) -> Outcome((), ())
     %v9 = symbol ResolveTest.continuation$24 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
-    %v13 = load %total : Int
+    %v13 = load %total : I32
     ret %v13
 }
 
-fn firstOver(%n: Int, %bound: Int) -> Int {
+fn firstOver(%n: I32, %bound: I32) -> I32 {
   b0:
-    %v2 = alloc : {bound: Int}
+    %v2 = alloc : {bound: I32}
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
-    %v5 = alloc : (value$: Int) -> Outcome((), Int)
+    %v5 = alloc : (value$: I32) -> Outcome((), I32)
     %v6 = symbol ResolveTest.continuation$25 : %()
     init %local1.code, %v6
     init %local1.env, %v4
-    %v9 = call upTo(Int), %n, %v5 : Outcome((), Int)
-    %v10 = load %local2.discriminant : Int
+    %v9 = call upTo(I32), %n, %v5 : Outcome((), I32)
+    %v10 = load %local2.discriminant : I32
     %v12 = cmp_eq %v10, 1 : Bool
     je %v12, b1, b2
 
   b1:
-    %v14 = load %local2@Exit : Int
+    %v14 = load %local2@Exit : I32
     ret %v14
 
   b2:
     ret -1
 }
 
-fn firstOverOrCount(%n: Int, %bound: Int) -> Int {
+fn firstOverOrCount(%n: I32, %bound: I32) -> I32 {
   b0:
-    %seen = alloc : Int
+    %seen = alloc : I32
     init %seen, 0
-    %v5 = alloc : {bound: Int, seen: &Int}
+    %v5 = alloc : {bound: I32, seen: &I32}
     init %local1.bound, %bound
-    %v7 = borrow_mut %seen : &Int
+    %v7 = borrow_mut %seen : &I32
     init %local1.seen, %v7
     %v9 = addressof %local1 : %()
-    %v10 = alloc : (value$: Int) -> Outcome((), Outcome((), Int))
+    %v10 = alloc : (value$: I32) -> Outcome((), Outcome((), I32))
     %v11 = symbol ResolveTest.continuation$26 : %()
     init %local2.code, %v11
     init %local2.env, %v9
-    %v14 = call upTo(Outcome((), Int)), %n, %v10 : Outcome((), Outcome((), Int))
-    %v15 = load %local3.discriminant : Int
+    %v14 = call upTo(Outcome((), I32)), %n, %v10 : Outcome((), Outcome((), I32))
+    %v15 = load %local3.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b1, b2
 
   b1:
-    %v19 = load %local3@Exit : Outcome((), Int)
-    %v20 = load %local3@Exit.discriminant : Int
+    %v19 = load %local3@Exit : Outcome((), I32)
+    %v20 = load %local3@Exit.discriminant : I32
     %v22 = cmp_eq %v20, 1 : Bool
     je %v22, b3, b4
 
@@ -285,67 +285,67 @@ fn firstOverOrCount(%n: Int, %bound: Int) -> Int {
     jmp b5
 
   b3:
-    %v24 = load %local3@Exit@Exit : Int
+    %v24 = load %local3@Exit@Exit : I32
     ret %v24
 
   b4:
     jmp b5
 
   b5:
-    %v28 = load %seen : Int
+    %v28 = load %seen : I32
     ret %v28
 }
 
-fn grid(%rows: Int, %columns: Int) -> Int {
+fn grid(%rows: I32, %columns: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v5 = alloc : {columns: Int, total: &Int}
+    %v5 = alloc : {columns: I32, total: &I32}
     init %local1.columns, %columns
-    %v7 = borrow_mut %total : &Int
+    %v7 = borrow_mut %total : &I32
     init %local1.total, %v7
     %v9 = addressof %local1 : %()
-    %v10 = alloc : (value$: Int) -> Outcome((), ())
+    %v10 = alloc : (value$: I32) -> Outcome((), ())
     %v11 = symbol ResolveTest.continuation$27 : %()
     init %local2.code, %v11
     init %local2.env, %v9
     %v14 = call upTo(()), %rows, %v10 : Outcome((), ())
-    %v15 = load %total : Int
+    %v15 = load %total : I32
     ret %v15
 }
 
-fn corners_(%n: Int) -> Int {
+fn corners_(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v4 = alloc : {total: &Int}
-    %v5 = borrow_mut %total : &Int
+    %v4 = alloc : {total: &I32}
+    %v5 = borrow_mut %total : &I32
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value$: {x: Int, y: Int}) -> Outcome((), ())
+    %v8 = alloc : (value$: {x: I32, y: I32}) -> Outcome((), ())
     %v9 = symbol ResolveTest.continuation$29 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call corners(()), %n, %v8 : Outcome((), ())
-    %v13 = load %total : Int
+    %v13 = load %total : I32
     ret %v13
 }
 
-fn generic() -> Int {
+fn generic() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v5 = alloc : {total: &Int}
-    %v6 = borrow_mut %total : &Int
+    %v5 = alloc : {total: &I32}
+    %v6 = borrow_mut %total : &I32
     init %local1.total, %v6
     %v8 = addressof %local1 : %()
-    %v9 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = alloc : (value$: I32) -> Outcome((), ())
     %v10 = symbol ResolveTest.continuation$30 : %()
     init %local2.code, %v10
     init %local2.env, %v8
-    %v13 = call twice(Int, ()), 7, %v9 : Outcome((), ())
-    %v15 = alloc : {total: &Int}
-    %v16 = borrow_mut %total : &Int
+    %v13 = call twice(I32, ()), 7, %v9 : Outcome((), ())
+    %v15 = alloc : {total: &I32}
+    %v16 = borrow_mut %total : &I32
     init %local4.total, %v16
     %v18 = addressof %local4 : %()
     %v19 = alloc : (value$: Bool) -> Outcome((), ())
@@ -353,43 +353,43 @@ fn generic() -> Int {
     init %local5.code, %v20
     init %local5.env, %v18
     %v23 = call twice(Bool, ()), True, %v19 : Outcome((), ())
-    %v24 = load %total : Int
+    %v24 = load %total : I32
     ret %v24
 }
 
-fn firstOddOver(%n: Int, %bound: Int) -> Int {
+fn firstOddOver(%n: I32, %bound: I32) -> I32 {
   b0:
-    %v2 = alloc : {bound: Int}
+    %v2 = alloc : {bound: I32}
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
-    %v5 = alloc : (value$: Int) -> Outcome((), Int)
+    %v5 = alloc : (value$: I32) -> Outcome((), I32)
     %v6 = symbol ResolveTest.continuation$32 : %()
     init %local1.code, %v6
     init %local1.env, %v4
-    %v9 = call upTo(Int), %n, %v5 : Outcome((), Int)
-    %v10 = load %local2.discriminant : Int
+    %v9 = call upTo(I32), %n, %v5 : Outcome((), I32)
+    %v10 = load %local2.discriminant : I32
     %v12 = cmp_eq %v10, 1 : Bool
     je %v12, b1, b2
 
   b1:
-    %v14 = load %local2@Exit : Int
+    %v14 = load %local2@Exit : I32
     ret %v14
 
   b2:
     ret -1
 }
 
-fn firstPairOver(%n: Int, %bound: Int) -> Pair {
+fn firstPairOver(%n: I32, %bound: I32) -> Pair {
   b0:
-    %v2 = alloc : {bound: Int}
+    %v2 = alloc : {bound: I32}
     init %local0.bound, %bound
     %v4 = addressof %local0 : %()
-    %v5 = alloc : (value$: Int) -> Outcome((), Pair)
+    %v5 = alloc : (value$: I32) -> Outcome((), Pair)
     %v6 = symbol ResolveTest.continuation$33 : %()
     init %local1.code, %v6
     init %local1.env, %v4
     %v9 = call upTo(Pair), %n, %v5 : Outcome((), Pair)
-    %v10 = load %local2.discriminant : Int
+    %v10 = load %local2.discriminant : I32
     %v12 = cmp_eq %v10, 1 : Bool
     je %v12, b1, b2
 
@@ -403,62 +403,62 @@ fn firstPairOver(%n: Int, %bound: Int) -> Pair {
     ret %v16
 }
 
-fn counted(%body: (value$: Int) -> $r) -> $r {
+fn counted(%body: (value$: I32) -> $r) -> $r {
   schema {
     #0 type $r
   }
 
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 1 : I32
     assign log, %v4
-    %v6 = load log : Int
+    %v6 = load log : I32
     %v7 = calldyn %body, %v6 : $r
-    %v8 = load log : Int
-    %v11 = add %v8, 10 : Int
+    %v8 = load log : I32
+    %v11 = add %v8, 10 : I32
     assign log, %v11
     ret %v7
 }
 
-fn withLens(%n: Int) -> Int {
+fn withLens(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v4 = alloc : {total: &Int}
-    %v5 = borrow_mut %total : &Int
+    %v4 = alloc : {total: &I32}
+    %v5 = borrow_mut %total : &I32
     init %local1.total, %v5
     %v7 = addressof %local1 : %()
-    %v8 = alloc : (value$: Int) -> Outcome((), ())
+    %v8 = alloc : (value$: I32) -> Outcome((), ())
     %v9 = symbol ResolveTest.continuation$34 : %()
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call upTo(()), %n, %v8 : Outcome((), ())
-    %v13 = load %total : Int
+    %v13 = load %total : I32
     ret %v13
 }
 
-fn loopInLens(%n: Int) -> Int {
+fn loopInLens(%n: I32) -> I32 {
   b0:
-    %v1 = alloc : {n: Int}
+    %v1 = alloc : {n: I32}
     init %local0.n, %n
     %v3 = addressof %local0 : %()
-    %v4 = alloc : (value$: Int) -> Int
+    %v4 = alloc : (value$: I32) -> I32
     %v5 = symbol ResolveTest.continuation$36 : %()
     init %local1.code, %v5
     init %local1.env, %v3
-    %v8 = call counted(Int), %v4 : Int
+    %v8 = call counted(I32), %v4 : I32
     ret %v8
 }
 
-fn stopAt(%n: Int) -> () {
+fn stopAt(%n: I32) -> () {
   b0:
-    %v1 = alloc : (value$: Int) -> Outcome((), ())
+    %v1 = alloc : (value$: I32) -> Outcome((), ())
     %v2 = symbol ResolveTest.continuation$38 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
     %v7 = call upTo(()), %n, %v1 : Outcome((), ())
-    %v8 = load %local1.discriminant : Int
+    %v8 = load %local1.discriminant : I32
     %v10 = cmp_eq %v8, 1 : Bool
     je %v10, b1, b2
 
@@ -469,65 +469,65 @@ fn stopAt(%n: Int) -> () {
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call sum, 5 : Int
-    %v3 = call odds, 6 : Int
-    %v4 = add %v1, %v3 : Int
-    %v6 = call upToFive, 20 : Int
-    %v7 = add %v4, %v6 : Int
-    %v10 = call firstOver, 10, 6 : Int
-    %v11 = add %v7, %v10 : Int
-    %v14 = call firstOverOrCount, 10, 20 : Int
-    %v15 = add %v11, %v14 : Int
-    %v18 = call grid, 3, 2 : Int
-    %v19 = add %v15, %v18 : Int
-    %v21 = call corners_, 3 : Int
-    %v22 = add %v19, %v21 : Int
-    %v23 = call generic : Int
-    %v24 = add %v22, %v23 : Int
-    %v27 = call firstOddOver, 10, 4 : Int
-    %v28 = add %v24, %v27 : Int
+    %v1 = call sum, 5 : I32
+    %v3 = call odds, 6 : I32
+    %v4 = add %v1, %v3 : I32
+    %v6 = call upToFive, 20 : I32
+    %v7 = add %v4, %v6 : I32
+    %v10 = call firstOver, 10, 6 : I32
+    %v11 = add %v7, %v10 : I32
+    %v14 = call firstOverOrCount, 10, 20 : I32
+    %v15 = add %v11, %v14 : I32
+    %v18 = call grid, 3, 2 : I32
+    %v19 = add %v15, %v18 : I32
+    %v21 = call corners_, 3 : I32
+    %v22 = add %v19, %v21 : I32
+    %v23 = call generic : I32
+    %v24 = add %v22, %v23 : I32
+    %v27 = call firstOddOver, 10, 4 : I32
+    %v28 = add %v24, %v27 : I32
     %v31 = call firstPairOver, 10, 6 : Pair
-    %v32 = load %local0@Pair.b : Int
-    %v33 = add %v28, %v32 : Int
-    %v35 = call withLens, 3 : Int
-    %v36 = add %v33, %v35 : Int
-    %v38 = call loopInLens, 5 : Int
-    %v39 = add %v36, %v38 : Int
-    %v40 = call stopped : Int
-    %v41 = add %v39, %v40 : Int
+    %v32 = load %local0@Pair.b : I32
+    %v33 = add %v28, %v32 : I32
+    %v35 = call withLens, 3 : I32
+    %v36 = add %v33, %v35 : I32
+    %v38 = call loopInLens, 5 : I32
+    %v39 = add %v36, %v38 : I32
+    %v40 = call stopped : I32
+    %v41 = add %v39, %v40 : I32
     ret %v41
 }
 
-fn stopped() -> Int {
+fn stopped() -> I32 {
   b0:
     assign visited, 0
     call stopAt, 10
-    %v4 = load visited : Int
+    %v4 = load visited : I32
     ret %v4
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn upTo(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn upTo(())(%limit: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %limit : Bool
     je %v7, b3, b2
 
@@ -537,9 +537,9 @@ fn upTo(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((),
     ret %v9
 
   b3:
-    %v13 = load %i : Int
+    %v13 = load %i : I32
     %v14 = calldyn %body, %v13 : Outcome((), ())
-    %v15 = load %local2.discriminant : Int
+    %v15 = load %local2.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b4, b5
 
@@ -547,15 +547,15 @@ fn upTo(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((),
     ret %v14
 
   b5:
-    %v20 = load %i : Int
-    %v22 = add %v20, 1 : Int
+    %v20 = load %i : I32
+    %v22 = add %v20, 1 : I32
     assign %i, %v22
     jmp b1
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v4 = rem %value$, 2 : Int
+    %v4 = rem %value$, 2 : I32
     %v7 = cmp_eq %v4, 0 : Bool
     je %v7, b1, b2
 
@@ -568,17 +568,17 @@ fn ResolveTest.continuation$23(%env: %{total: &Int}, %value$: Int) -> Outcome(()
     jmp b3
 
   b3:
-    %v10 = load [%env].total : &Int
-    %v11 = load [%env].total : &Int
-    %v12 = load [%v11] : Int
-    %v13 = add %v12, %value$ : Int
+    %v10 = load [%env].total : &I32
+    %v11 = load [%env].total : &I32
+    %v12 = load [%v11] : I32
+    %v13 = add %v12, %value$ : I32
     assign [%v10], %v13
     %v15 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v15
 }
 
-fn ResolveTest.continuation$24(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$24(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v4 = cmp_gt %value$, 5 : Bool
     je %v4, b1, b2
@@ -592,24 +592,24 @@ fn ResolveTest.continuation$24(%env: %{total: &Int}, %value$: Int) -> Outcome(()
     jmp b3
 
   b3:
-    %v7 = load [%env].total : &Int
-    %v8 = load [%env].total : &Int
-    %v9 = load [%v8] : Int
-    %v10 = add %v9, %value$ : Int
+    %v7 = load [%env].total : &I32
+    %v8 = load [%env].total : &I32
+    %v9 = load [%v8] : I32
+    %v10 = add %v9, %value$ : I32
     assign [%v7], %v10
     %v12 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v12
 }
 
-fn ResolveTest.continuation$25(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$25(%env: %{bound: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
-    %v2 = load [%env].bound : Int
+    %v2 = load [%env].bound : I32
     %v3 = cmp_gt %value$, %v2 : Bool
     je %v3, b1, b2
 
   b1:
-    %v10 = alloc : Outcome((), Int)
+    %v10 = alloc : Outcome((), I32)
     aggregate %local1.discriminant = 1, %local1@Exit = %value$
     ret %v10
 
@@ -617,31 +617,31 @@ fn ResolveTest.continuation$25(%env: %{bound: Int}, %value$: Int) -> Outcome((),
     jmp b3
 
   b3:
-    %v6 = alloc : Outcome((), Int)
+    %v6 = alloc : Outcome((), I32)
     init %local0.discriminant, 0
     ret %v6
 }
 
-fn upTo(Int)(%limit: Int, %body: (value$: Int) -> Outcome((), Int)) -> Outcome((), Int) {
+fn upTo(I32)(%limit: I32, %body: (value$: I32) -> Outcome((), I32)) -> Outcome((), I32) {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %limit : Bool
     je %v7, b3, b2
 
   b2:
-    %v9 = alloc : Outcome((), Int)
+    %v9 = alloc : Outcome((), I32)
     init %local3.discriminant, 0
     ret %v9
 
   b3:
-    %v13 = load %i : Int
-    %v14 = calldyn %body, %v13 : Outcome((), Int)
-    %v15 = load %local2.discriminant : Int
+    %v13 = load %i : I32
+    %v14 = calldyn %body, %v13 : Outcome((), I32)
+    %v15 = load %local2.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b4, b5
 
@@ -649,23 +649,23 @@ fn upTo(Int)(%limit: Int, %body: (value$: Int) -> Outcome((), Int)) -> Outcome((
     ret %v14
 
   b5:
-    %v20 = load %i : Int
-    %v22 = add %v20, 1 : Int
+    %v20 = load %i : I32
+    %v22 = add %v20, 1 : I32
     assign %i, %v22
     jmp b1
 }
 
-fn ResolveTest.continuation$26(%env: %{bound: Int, seen: &Int}, %value$: Int) -> Outcome((), Outcome((), Int)) {
+fn ResolveTest.continuation$26(%env: %{bound: I32, seen: &I32}, %value$: I32) -> Outcome((), Outcome((), I32)) {
   b0:
-    %v2 = load [%env].bound : Int
+    %v2 = load [%env].bound : I32
     %v3 = cmp_gt %value$, %v2 : Bool
     je %v3, b1, b2
 
   b1:
-    %v7 = mul %value$, 100 : Int
-    %v32 = alloc : Outcome((), Int)
+    %v7 = mul %value$, 100 : I32
+    %v32 = alloc : Outcome((), I32)
     aggregate %local3.discriminant = 1, %local3@Exit = %v7
-    %v35 = alloc : Outcome((), Outcome((), Int))
+    %v35 = alloc : Outcome((), Outcome((), I32))
     aggregate %local4.discriminant = 1, %local4@Exit = %v32
     ret %v35
 
@@ -677,9 +677,9 @@ fn ResolveTest.continuation$26(%env: %{bound: Int, seen: &Int}, %value$: Int) ->
     je %v11, b4, b5
 
   b4:
-    %v25 = alloc : Outcome((), Int)
+    %v25 = alloc : Outcome((), I32)
     init %local1.discriminant, 0
-    %v28 = alloc : Outcome((), Outcome((), Int))
+    %v28 = alloc : Outcome((), Outcome((), I32))
     aggregate %local2.discriminant = 1, %local2@Exit = %v25
     ret %v28
 
@@ -687,36 +687,36 @@ fn ResolveTest.continuation$26(%env: %{bound: Int, seen: &Int}, %value$: Int) ->
     jmp b6
 
   b6:
-    %v14 = load [%env].seen : &Int
-    %v15 = load [%env].seen : &Int
-    %v16 = load [%v15] : Int
-    %v19 = add %v16, 1 : Int
+    %v14 = load [%env].seen : &I32
+    %v15 = load [%env].seen : &I32
+    %v16 = load [%v15] : I32
+    %v19 = add %v16, 1 : I32
     assign [%v14], %v19
-    %v21 = alloc : Outcome((), Outcome((), Int))
+    %v21 = alloc : Outcome((), Outcome((), I32))
     init %local0.discriminant, 0
     ret %v21
 }
 
-fn upTo(Outcome((), Int))(%limit: Int, %body: (value$: Int) -> Outcome((), Outcome((), Int))) -> Outcome((), Outcome((), Int)) {
+fn upTo(Outcome((), I32))(%limit: I32, %body: (value$: I32) -> Outcome((), Outcome((), I32))) -> Outcome((), Outcome((), I32)) {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %limit : Bool
     je %v7, b3, b2
 
   b2:
-    %v9 = alloc : Outcome((), Outcome((), Int))
+    %v9 = alloc : Outcome((), Outcome((), I32))
     init %local3.discriminant, 0
     ret %v9
 
   b3:
-    %v13 = load %i : Int
-    %v14 = calldyn %body, %v13 : Outcome((), Outcome((), Int))
-    %v15 = load %local2.discriminant : Int
+    %v13 = load %i : I32
+    %v14 = calldyn %body, %v13 : Outcome((), Outcome((), I32))
+    %v15 = load %local2.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b4, b5
 
@@ -724,22 +724,22 @@ fn upTo(Outcome((), Int))(%limit: Int, %body: (value$: Int) -> Outcome((), Outco
     ret %v14
 
   b5:
-    %v20 = load %i : Int
-    %v22 = add %v20, 1 : Int
+    %v20 = load %i : I32
+    %v22 = add %v20, 1 : I32
     assign %i, %v22
     jmp b1
 }
 
-fn ResolveTest.continuation$27(%env: %{columns: Int, total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$27(%env: %{columns: I32, total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].columns : Int
-    %v3 = alloc : {total: &Int, r: Int}
-    %v4 = load [%env].total : &Int
-    %v5 = borrow_mut [%v4] : &Int
+    %v2 = load [%env].columns : I32
+    %v3 = alloc : {total: &I32, r: I32}
+    %v4 = load [%env].total : &I32
+    %v5 = borrow_mut [%v4] : &I32
     init %local0.total, %v5
     init %local0.r, %value$
     %v8 = addressof %local0 : %()
-    %v9 = alloc : (value$: Int) -> Outcome((), ())
+    %v9 = alloc : (value$: I32) -> Outcome((), ())
     %v10 = symbol ResolveTest.continuation$28 : %()
     init %local1.code, %v10
     init %local1.env, %v8
@@ -749,44 +749,44 @@ fn ResolveTest.continuation$27(%env: %{columns: Int, total: &Int}, %value$: Int)
     ret %v14
 }
 
-fn ResolveTest.continuation$28(%env: %{total: &Int, r: Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$28(%env: %{total: &I32, r: I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = load [%env].r : Int
-    %v8 = mul %v5, 10 : Int
-    %v9 = add %v4, %v8 : Int
-    %v10 = add %v9, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = load [%env].r : I32
+    %v8 = mul %v5, 10 : I32
+    %v9 = add %v4, %v8 : I32
+    %v10 = add %v9, %value$ : I32
     assign [%v2], %v10
     %v12 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v12
 }
 
-fn ResolveTest.continuation$29(%env: %{total: &Int}, %value$: {x: Int, y: Int}) -> Outcome((), ()) {
+fn ResolveTest.continuation$29(%env: %{total: &I32}, %value$: {x: I32, y: I32}) -> Outcome((), ()) {
   b0:
-    %x = load %value$.x : Int
-    %y = load %value$.y : Int
-    %v4 = load [%env].total : &Int
-    %v5 = load [%env].total : &Int
-    %v6 = load [%v5] : Int
-    %v7 = add %v6, %x : Int
-    %v8 = add %v7, %y : Int
+    %x = load %value$.x : I32
+    %y = load %value$.y : I32
+    %v4 = load [%env].total : &I32
+    %v5 = load [%env].total : &I32
+    %v6 = load [%v5] : I32
+    %v7 = add %v6, %x : I32
+    %v8 = add %v7, %y : I32
     assign [%v4], %v8
     %v10 = alloc : Outcome((), ())
     init %local1.discriminant, 0
     ret %v10
 }
 
-fn corners(())(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), ())) -> Outcome((), ()) {
+fn corners(())(%n: I32, %body: (value$: {x: I32, y: I32}) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %n : Bool
     je %v7, b3, b2
 
@@ -796,13 +796,13 @@ fn corners(())(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), ())) ->
     ret %v9
 
   b3:
-    %v13 = alloc : {x: Int, y: Int}
-    %v14 = load %i : Int
-    %v15 = load %i : Int
-    %v17 = mul %v15, 2 : Int
+    %v13 = alloc : {x: I32, y: I32}
+    %v14 = load %i : I32
+    %v15 = load %i : I32
+    %v17 = mul %v15, 2 : I32
     aggregate %local2.x = %v14, %local2.y = %v17
     %v19 = calldyn %body, %v13 : Outcome((), ())
-    %v20 = load %local3.discriminant : Int
+    %v20 = load %local3.discriminant : I32
     %v22 = cmp_eq %v20, 1 : Bool
     je %v22, b4, b5
 
@@ -810,28 +810,28 @@ fn corners(())(%n: Int, %body: (value$: {x: Int, y: Int}) -> Outcome((), ())) ->
     ret %v19
 
   b5:
-    %v25 = load %i : Int
-    %v27 = add %v25, 1 : Int
+    %v25 = load %i : I32
+    %v27 = add %v25, 1 : I32
     assign %i, %v27
     jmp b1
 }
 
-fn ResolveTest.continuation$30(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$30(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn twice(Int, ())(%value: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn twice(I32, ())(%value: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = calldyn %body, %value : Outcome((), ())
-    %v3 = load %local2.discriminant : Int
+    %v3 = load %local2.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b1, b2
 
@@ -840,7 +840,7 @@ fn twice(Int, ())(%value: Int, %body: (value$: Int) -> Outcome((), ())) -> Outco
 
   b2:
     %v8 = calldyn %body, %value : Outcome((), ())
-    %v9 = load %local3.discriminant : Int
+    %v9 = load %local3.discriminant : I32
     %v11 = cmp_eq %v9, 1 : Bool
     je %v11, b3, b4
 
@@ -853,15 +853,15 @@ fn twice(Int, ())(%value: Int, %body: (value$: Int) -> Outcome((), ())) -> Outco
     ret %v14
 }
 
-fn ResolveTest.continuation$31(%env: %{total: &Int}, %value$: Bool) -> Outcome((), ()) {
+fn ResolveTest.continuation$31(%env: %{total: &I32}, %value$: Bool) -> Outcome((), ()) {
   b0:
     je %value$, b1, b2
 
   b1:
-    %v3 = load [%env].total : &Int
-    %v4 = load [%env].total : &Int
-    %v5 = load [%v4] : Int
-    %v8 = add %v5, 1 : Int
+    %v3 = load [%env].total : &I32
+    %v4 = load [%env].total : &I32
+    %v5 = load [%v4] : I32
+    %v8 = add %v5, 1 : I32
     assign [%v3], %v8
     jmp b3
 
@@ -877,7 +877,7 @@ fn ResolveTest.continuation$31(%env: %{total: &Int}, %value$: Bool) -> Outcome((
 fn twice(Bool, ())(%value: Bool, %body: (value$: Bool) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
     %v2 = calldyn %body, %value : Outcome((), ())
-    %v3 = load %local2.discriminant : Int
+    %v3 = load %local2.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b1, b2
 
@@ -886,7 +886,7 @@ fn twice(Bool, ())(%value: Bool, %body: (value$: Bool) -> Outcome((), ())) -> Ou
 
   b2:
     %v8 = calldyn %body, %value : Outcome((), ())
-    %v9 = load %local3.discriminant : Int
+    %v9 = load %local3.discriminant : I32
     %v11 = cmp_eq %v9, 1 : Bool
     je %v11, b3, b4
 
@@ -899,14 +899,14 @@ fn twice(Bool, ())(%value: Bool, %body: (value$: Bool) -> Outcome((), ())) -> Ou
     ret %v14
 }
 
-fn ResolveTest.continuation$32(%env: %{bound: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$32(%env: %{bound: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
-    %v4 = rem %value$, 2 : Int
+    %v4 = rem %value$, 2 : I32
     %v7 = cmp_eq %v4, 0 : Bool
     je %v7, b1, b2
 
   b1:
-    %v18 = alloc : Outcome((), Int)
+    %v18 = alloc : Outcome((), I32)
     init %local1.discriminant, 0
     ret %v18
 
@@ -914,12 +914,12 @@ fn ResolveTest.continuation$32(%env: %{bound: Int}, %value$: Int) -> Outcome((),
     jmp b3
 
   b3:
-    %v10 = load [%env].bound : Int
+    %v10 = load [%env].bound : I32
     %v11 = cmp_gt %value$, %v10 : Bool
     je %v11, b4, b5
 
   b4:
-    %v22 = alloc : Outcome((), Int)
+    %v22 = alloc : Outcome((), I32)
     aggregate %local2.discriminant = 1, %local2@Exit = %value$
     ret %v22
 
@@ -927,20 +927,20 @@ fn ResolveTest.continuation$32(%env: %{bound: Int}, %value$: Int) -> Outcome((),
     jmp b6
 
   b6:
-    %v14 = alloc : Outcome((), Int)
+    %v14 = alloc : Outcome((), I32)
     init %local0.discriminant, 0
     ret %v14
 }
 
-fn ResolveTest.continuation$33(%env: %{bound: Int}, %value$: Int) -> Outcome((), Pair) {
+fn ResolveTest.continuation$33(%env: %{bound: I32}, %value$: I32) -> Outcome((), Pair) {
   b0:
-    %v2 = load [%env].bound : Int
+    %v2 = load [%env].bound : I32
     %v3 = cmp_gt %value$, %v2 : Bool
     je %v3, b1, b2
 
   b1:
     %v5 = alloc : Pair
-    %v8 = mul %value$, 2 : Int
+    %v8 = mul %value$, 2 : I32
     aggregate %local0@Pair.a = %value$, %local0@Pair.b = %v8
     %v15 = alloc : Outcome((), Pair)
     aggregate %local2.discriminant = 1, %local2@Exit = %v5
@@ -955,14 +955,14 @@ fn ResolveTest.continuation$33(%env: %{bound: Int}, %value$: Int) -> Outcome((),
     ret %v11
 }
 
-fn upTo(Pair)(%limit: Int, %body: (value$: Int) -> Outcome((), Pair)) -> Outcome((), Pair) {
+fn upTo(Pair)(%limit: I32, %body: (value$: I32) -> Outcome((), Pair)) -> Outcome((), Pair) {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %limit : Bool
     je %v7, b3, b2
 
@@ -972,9 +972,9 @@ fn upTo(Pair)(%limit: Int, %body: (value$: Int) -> Outcome((), Pair)) -> Outcome
     ret %v9
 
   b3:
-    %v13 = load %i : Int
+    %v13 = load %i : I32
     %v14 = calldyn %body, %v13 : Outcome((), Pair)
-    %v15 = load %local2.discriminant : Int
+    %v15 = load %local2.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b4, b5
 
@@ -982,21 +982,21 @@ fn upTo(Pair)(%limit: Int, %body: (value$: Int) -> Outcome((), Pair)) -> Outcome
     ret %v14
 
   b5:
-    %v20 = load %i : Int
-    %v22 = add %v20, 1 : Int
+    %v20 = load %i : I32
+    %v22 = add %v20, 1 : I32
     assign %i, %v22
     jmp b1
 }
 
-fn ResolveTest.continuation$34(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$34(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = alloc : {total: &Int, x: Int}
-    %v3 = load [%env].total : &Int
-    %v4 = borrow_mut [%v3] : &Int
+    %v2 = alloc : {total: &I32, x: I32}
+    %v3 = load [%env].total : &I32
+    %v4 = borrow_mut [%v3] : &I32
     init %local0.total, %v4
     init %local0.x, %value$
     %v7 = addressof %local0 : %()
-    %v8 = alloc : (value$: Int) -> ()
+    %v8 = alloc : (value$: I32) -> ()
     %v9 = symbol ResolveTest.continuation$35 : %()
     init %local1.code, %v9
     init %local1.env, %v7
@@ -1006,64 +1006,64 @@ fn ResolveTest.continuation$34(%env: %{total: &Int}, %value$: Int) -> Outcome(()
     ret %v13
 }
 
-fn ResolveTest.continuation$35(%env: %{total: &Int, x: Int}, %value$: Int) -> () {
+fn ResolveTest.continuation$35(%env: %{total: &I32, x: I32}, %value$: I32) -> () {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
-    %v6 = load [%env].x : Int
-    %v7 = add %v5, %v6 : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
+    %v6 = load [%env].x : I32
+    %v7 = add %v5, %v6 : I32
     assign [%v2], %v7
     ret
 }
 
-fn counted(())(%body: (value$: Int) -> ()) -> () {
+fn counted(())(%body: (value$: I32) -> ()) -> () {
   b0:
-    %v1 = load log : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v3 = add %v1, 1 : I32
     assign log, %v3
-    %v5 = load log : Int
+    %v5 = load log : I32
     calldyn %body, %v5
-    %v7 = load log : Int
-    %v9 = add %v7, 10 : Int
+    %v7 = load log : I32
+    %v9 = add %v7, 10 : I32
     assign log, %v9
     ret %v6
 }
 
-fn ResolveTest.continuation$36(%env: %{n: Int}, %value$: Int) -> Int {
+fn ResolveTest.continuation$36(%env: %{n: I32}, %value$: I32) -> I32 {
   b0:
-    %v2 = load [%env].n : Int
-    %v3 = alloc : {base: Int}
+    %v2 = load [%env].n : I32
+    %v3 = alloc : {base: I32}
     init %local0.base, %value$
     %v5 = addressof %local0 : %()
-    %v6 = alloc : (value$: Int) -> Outcome((), Int)
+    %v6 = alloc : (value$: I32) -> Outcome((), I32)
     %v7 = symbol ResolveTest.continuation$37 : %()
     init %local1.code, %v7
     init %local1.env, %v5
-    %v10 = call upTo(Int), %v2, %v6 : Outcome((), Int)
-    %v11 = load %local2.discriminant : Int
+    %v10 = call upTo(I32), %v2, %v6 : Outcome((), I32)
+    %v11 = load %local2.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b1, b2
 
   b1:
-    %v15 = load %local2@Exit : Int
+    %v15 = load %local2@Exit : I32
     ret %v15
 
   b2:
     ret %value$
 }
 
-fn ResolveTest.continuation$37(%env: %{base: Int}, %value$: Int) -> Outcome((), Int) {
+fn ResolveTest.continuation$37(%env: %{base: I32}, %value$: I32) -> Outcome((), I32) {
   b0:
     %v4 = cmp_eq %value$, 2 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load [%env].base : Int
-    %v9 = mul %v6, 1000 : Int
-    %v10 = add %v9, %value$ : Int
-    %v16 = alloc : Outcome((), Int)
+    %v6 = load [%env].base : I32
+    %v9 = mul %v6, 1000 : I32
+    %v10 = add %v9, %value$ : I32
+    %v16 = alloc : Outcome((), I32)
     aggregate %local1.discriminant = 1, %local1@Exit = %v10
     ret %v16
 
@@ -1071,25 +1071,25 @@ fn ResolveTest.continuation$37(%env: %{base: Int}, %value$: Int) -> Outcome((), 
     jmp b3
 
   b3:
-    %v12 = alloc : Outcome((), Int)
+    %v12 = alloc : Outcome((), I32)
     init %local0.discriminant, 0
     ret %v12
 }
 
-fn counted(Int)(%body: (value$: Int) -> Int) -> Int {
+fn counted(I32)(%body: (value$: I32) -> I32) -> I32 {
   b0:
-    %v1 = load log : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v3 = add %v1, 1 : I32
     assign log, %v3
-    %v5 = load log : Int
-    %v6 = calldyn %body, %v5 : Int
-    %v7 = load log : Int
-    %v9 = add %v7, 10 : Int
+    %v5 = load log : I32
+    %v6 = calldyn %body, %v5 : I32
+    %v7 = load log : I32
+    %v9 = add %v7, 10 : I32
     assign log, %v9
     ret %v6
 }
 
-fn ResolveTest.continuation$38(%env: %{}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$38(%env: %{}, %value$: I32) -> Outcome((), ()) {
   b0:
     %v4 = cmp_eq %value$, 3 : Bool
     je %v4, b1, b2
@@ -1103,8 +1103,8 @@ fn ResolveTest.continuation$38(%env: %{}, %value$: Int) -> Outcome((), ()) {
     jmp b3
 
   b3:
-    %v7 = load visited : Int
-    %v8 = add %v7, %value$ : Int
+    %v7 = load visited : I32
+    %v8 = add %v7, %value$ : I32
     assign visited, %v8
     %v10 = alloc : Outcome((), ())
     init %local0.discriminant, 0

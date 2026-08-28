@@ -1,25 +1,25 @@
 let image$base: () = <none>
 
-fn floatBits(%x: Float) -> I32 {
+fn floatBits(%x: F32) -> I32 {
   b0:
     %v1 = bitcast %x : I32
     ret %v1
 }
 
-fn bitsFloat(%x: I32) -> Float {
+fn bitsFloat(%x: I32) -> F32 {
   b0:
-    %v1 = bitcast %x : Float
+    %v1 = bitcast %x : F32
     ret %v1
 }
 
-fn roundTrip(%x: Float) -> Float {
+fn roundTrip(%x: F32) -> F32 {
   b0:
     %v1 = call floatBits, %x : I32
-    %v2 = call bitsFloat, %v1 : Float
+    %v2 = call bitsFloat, %v1 : F32
     ret %v2
 }
 
-fn unsignedRead(%x: Int) -> U32 {
+fn unsignedRead(%x: I32) -> U32 {
   b0:
     %v1 = bitcast %x : U32
     ret %v1
@@ -32,40 +32,40 @@ fn doubleBitsKnown() -> Bool {
     ret %v4
 }
 
-fn opaqueFloat(%x: Float) -> Float {
+fn opaqueFloat(%x: F32) -> F32 {
   b0:
     ret %x
 }
 
-fn opaqueInt(%x: Int) -> Int {
+fn opaqueInt(%x: I32) -> I32 {
   b0:
     ret %x
 }
 
-fn opaqueDouble(%x: Double) -> Double {
+fn opaqueDouble(%x: F64) -> F64 {
   b0:
     ret %x
 }
 
 fn doubleBitsEmitted() -> Bool {
   b0:
-    %v1 = call opaqueDouble, 1 : Double
+    %v1 = call opaqueDouble, 1 : F64
     %v2 = bitcast %v1 : I64
     %v5 = cmp_eq %v2, 4607182418800017408 : Bool
     ret %v5
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
     %v5 = call floatBits, 1 : I32
     %v8 = cmp_eq %v5, 1065353216 : Bool
     je %v8, b1, b2
 
   b1:
-    %v10 = load %score : Int
-    %v13 = add %v10, 1 : Int
+    %v10 = load %score : I32
+    %v13 = add %v10, 1 : I32
     assign %score, %v13
     jmp b3
 
@@ -73,13 +73,13 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v18 = call bitsFloat, 1065353216 : Float
+    %v18 = call bitsFloat, 1065353216 : F32
     %v21 = cmp_eq %v18, 1 : Bool
     je %v21, b4, b5
 
   b4:
-    %v23 = load %score : Int
-    %v26 = add %v23, 2 : Int
+    %v23 = load %score : I32
+    %v26 = add %v23, 2 : I32
     assign %score, %v26
     jmp b6
 
@@ -87,14 +87,14 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v31 = call roundTrip, -2.5 : Float
-    %v34 = neg 2.5 : Float
+    %v31 = call roundTrip, -2.5 : F32
+    %v34 = neg 2.5 : F32
     %v35 = cmp_eq %v31, %v34 : Bool
     je %v35, b7, b8
 
   b7:
-    %v37 = load %score : Int
-    %v40 = add %v37, 4 : Int
+    %v37 = load %score : I32
+    %v40 = add %v37, 4 : I32
     assign %score, %v40
     jmp b9
 
@@ -102,15 +102,15 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v48 = sub 0, 1 : Int
+    %v48 = sub 0, 1 : I32
     %v49 = call unsignedRead, %v48 : U32
     %v51 = call unsignedRead, 2147483647 : U32
     %v52 = cmp_gt %v49, %v51 : Bool
     je %v52, b10, b11
 
   b10:
-    %v54 = load %score : Int
-    %v57 = add %v54, 8 : Int
+    %v54 = load %score : I32
+    %v57 = add %v54, 8 : I32
     assign %score, %v57
     jmp b12
 
@@ -123,8 +123,8 @@ fn main() -> Int {
     je %v65, b13, b14
 
   b13:
-    %v67 = load %score : Int
-    %v70 = add %v67, 16 : Int
+    %v67 = load %score : I32
+    %v70 = add %v67, 16 : I32
     assign %score, %v70
     jmp b15
 
@@ -136,8 +136,8 @@ fn main() -> Int {
     je %v74, b16, b17
 
   b16:
-    %v76 = load %score : Int
-    %v79 = add %v76, 32 : Int
+    %v76 = load %score : I32
+    %v79 = add %v76, 32 : I32
     assign %score, %v79
     jmp b18
 
@@ -145,14 +145,14 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v84 = call opaqueFloat, 1 : Float
+    %v84 = call opaqueFloat, 1 : F32
     %v85 = call floatBits, %v84 : I32
     %v88 = cmp_eq %v85, 1065353216 : Bool
     je %v88, b19, b20
 
   b19:
-    %v90 = load %score : Int
-    %v93 = add %v90, 64 : Int
+    %v90 = load %score : I32
+    %v93 = add %v90, 64 : I32
     assign %score, %v93
     jmp b21
 
@@ -160,84 +160,83 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v98 = call opaqueInt, 1065353216 : Int
-    %v99 = cast %v98 : I32
-    %v100 = call bitsFloat, %v99 : Float
-    %v103 = cmp_eq %v100, 1 : Bool
-    je %v103, b22, b23
+    %v98 = call opaqueInt, 1065353216 : I32
+    %v99 = call bitsFloat, %v98 : F32
+    %v102 = cmp_eq %v99, 1 : Bool
+    je %v102, b22, b23
 
   b22:
-    %v105 = load %score : Int
-    %v108 = add %v105, 128 : Int
-    assign %score, %v108
+    %v104 = load %score : I32
+    %v107 = add %v104, 128 : I32
+    assign %score, %v107
     jmp b24
 
   b23:
     jmp b24
 
   b24:
-    %v113 = call opaqueFloat, -2.5 : Float
-    %v114 = call roundTrip, %v113 : Float
-    %v117 = neg 2.5 : Float
-    %v118 = cmp_eq %v114, %v117 : Bool
-    je %v118, b25, b26
+    %v112 = call opaqueFloat, -2.5 : F32
+    %v113 = call roundTrip, %v112 : F32
+    %v116 = neg 2.5 : F32
+    %v117 = cmp_eq %v113, %v116 : Bool
+    je %v117, b25, b26
 
   b25:
-    %v120 = load %score : Int
-    %v123 = add %v120, 256 : Int
-    assign %score, %v123
+    %v119 = load %score : I32
+    %v122 = add %v119, 256 : I32
+    assign %score, %v122
     jmp b27
 
   b26:
     jmp b27
 
   b27:
-    %v131 = sub 0, 1 : Int
-    %v132 = call opaqueInt, %v131 : Int
-    %v133 = call unsignedRead, %v132 : U32
-    %v135 = call opaqueInt, 2147483647 : Int
-    %v136 = call unsignedRead, %v135 : U32
-    %v137 = cmp_gt %v133, %v136 : Bool
-    je %v137, b28, b29
+    %v130 = sub 0, 1 : I32
+    %v131 = call opaqueInt, %v130 : I32
+    %v132 = call unsignedRead, %v131 : U32
+    %v134 = call opaqueInt, 2147483647 : I32
+    %v135 = call unsignedRead, %v134 : U32
+    %v136 = cmp_gt %v132, %v135 : Bool
+    je %v136, b28, b29
 
   b28:
-    %v139 = load %score : Int
-    %v142 = add %v139, 512 : Int
-    assign %score, %v142
+    %v138 = load %score : I32
+    %v141 = add %v138, 512 : I32
+    assign %score, %v141
     jmp b30
 
   b29:
     jmp b30
 
   b30:
-    %v147 = call opaqueInt, 1 : Int
-    %v148 = call unsignedRead, %v147 : U32
-    %v151 = cmp_eq %v148, 1 : Bool
-    je %v151, b31, b32
+    %v146 = call opaqueInt, 1 : I32
+    %v147 = call unsignedRead, %v146 : U32
+    %v150 = cmp_eq %v147, 1 : Bool
+    je %v150, b31, b32
 
   b31:
-    %v153 = load %score : Int
-    %v156 = add %v153, 1024 : Int
-    assign %score, %v156
+    %v152 = load %score : I32
+    %v155 = add %v152, 1024 : I32
+    assign %score, %v155
     jmp b33
 
   b32:
     jmp b33
 
   b33:
-    %v160 = call doubleBitsEmitted : Bool
-    je %v160, b34, b35
+    %v159 = call doubleBitsEmitted : Bool
+    je %v159, b34, b35
 
   b34:
-    %v162 = load %score : Int
-    %v165 = add %v162, 2048 : Int
-    assign %score, %v165
+    %v161 = load %score : I32
+    %v164 = add %v161, 2048 : I32
+    assign %score, %v164
     jmp b36
 
   b35:
     jmp b36
 
   b36:
-    %v169 = load %score : Int
-    ret %v169
+    %v168 = load %score : I32
+    ret %v168
 }

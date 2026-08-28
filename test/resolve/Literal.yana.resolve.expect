@@ -23,22 +23,22 @@ let image$base: () = <none>
     ret %v2
 }
 
-fn incLong() -> Long {
+fn incLong() -> I64 {
   b0:
-    %v2 = call inc(Long), 40 : Long
+    %v2 = call inc(I64), 40 : I64
     ret %v2
 }
 
-fn defaulted() -> Int {
+fn defaulted() -> I32 {
   b0:
-    %v4 = cast %f : Int
-    %v5 = add %i, %v4 : Int
+    %v4 = cast %f : I32
+    %v5 = add %i, %v4 : I32
     ret %v5
 }
 
-fn mixedLiterals() -> Float {
+fn mixedLiterals() -> F32 {
   b0:
-    %v4 = add 1, 2.5 : Float
+    %v4 = add 1, 2.5 : F32
     ret %v4
 }
 
@@ -48,9 +48,9 @@ fn oneMetre() -> Metres {
     ret %v2
 }
 
-fn measure(%distance: Metres) -> Int {
+fn measure(%distance: Metres) -> I32 {
   b0:
-    %v1 = load %distance@Metres.value : Int
+    %v1 = load %distance@Metres.value : I32
     ret %v1
 }
 
@@ -61,25 +61,25 @@ fn isFive(%distance: Metres) -> Bool {
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v2 = call inc(Int), 10 : Int
-    %v5 = call inc(Float), 1.5 : Float
-    %v6 = cast %v5 : Int
-    %v7 = add %v2, %v6 : Int
-    %v8 = call two(Int) : Int
-    %v9 = add %v7, %v8 : Int
-    %v10 = call defaulted : Int
-    %v11 = add %v9, %v10 : Int
-    %v12 = call mixedLiterals : Float
-    %v13 = cast %v12 : Int
-    %v14 = add %v11, %v13 : Int
+    %v2 = call inc(I32), 10 : I32
+    %v5 = call inc(F32), 1.5 : F32
+    %v6 = cast %v5 : I32
+    %v7 = add %v2, %v6 : I32
+    %v8 = call two(I32) : I32
+    %v9 = add %v7, %v8 : I32
+    %v10 = call defaulted : I32
+    %v11 = add %v9, %v10 : I32
+    %v12 = call mixedLiterals : F32
+    %v13 = cast %v12 : I32
+    %v14 = add %v11, %v13 : I32
     %v15 = call oneMetre : Metres
-    %v16 = call measure, %v15 : Int
-    %v17 = add %v14, %v16 : Int
+    %v16 = call measure, %v15 : I32
+    %v17 = add %v14, %v16 : I32
     %v20 = call FromInt(Metres).fromInt, 4 : Metres
-    %v21 = call measure, %v20 : Int
-    %v22 = add %v17, %v21 : Int
+    %v21 = call measure, %v20 : I32
+    %v22 = add %v17, %v21 : I32
     %v23 = alloc : Metres
     aggregate %local2@Metres.value = 5
     %v26 = call isFive, %v23 : Bool
@@ -92,57 +92,57 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v34 = phi [b1, 1], [b2, 0] : Int
-    %v35 = add %v22, %v34 : Int
-    %v36 = call incLong : Long
-    %v37 = cast %v36 : Int
-    %v38 = add %v35, %v37 : Int
+    %v34 = phi [b1, 1], [b2, 0] : I32
+    %v35 = add %v22, %v34 : I32
+    %v36 = call incLong : I64
+    %v37 = cast %v36 : I32
+    %v38 = add %v35, %v37 : I32
     ret %v38
 }
 
-fn FromInt(Metres).fromInt(%value: Long) -> Metres {
+fn FromInt(Metres).fromInt(%value: I64) -> Metres {
   b0:
     %v1 = alloc : Metres
-    %v2 = cast %value : Int
+    %v2 = cast %value : I32
     aggregate %local0@Metres.value = %v2
     ret %v1
 }
 
 fn Eq(Metres).==(%lhs: Metres, %rhs: Metres) -> Bool {
   b0:
-    %v2 = load %lhs@Metres.value : Int
-    %v3 = load %rhs@Metres.value : Int
+    %v2 = load %lhs@Metres.value : I32
+    %v3 = load %rhs@Metres.value : I32
     %v4 = cmp_eq %v2, %v3 : Bool
     ret %v4
 }
 
 fn Eq(Metres).!=(%lhs: Metres, %rhs: Metres) -> Bool {
   b0:
-    %v2 = load %lhs@Metres.value : Int
-    %v3 = load %rhs@Metres.value : Int
+    %v2 = load %lhs@Metres.value : I32
+    %v3 = load %rhs@Metres.value : I32
     %v4 = cmp_ne %v2, %v3 : Bool
     ret %v4
 }
 
-fn inc(Long)(%x: Long) -> Long {
+fn inc(I64)(%x: I64) -> I64 {
   b0:
-    %v3 = add %x, 1 : Long
+    %v3 = add %x, 1 : I64
     ret %v3
 }
 
-fn inc(Int)(%x: Int) -> Int {
+fn inc(I32)(%x: I32) -> I32 {
   b0:
-    %v3 = add %x, 1 : Int
+    %v3 = add %x, 1 : I32
     ret %v3
 }
 
-fn inc(Float)(%x: Float) -> Float {
+fn inc(F32)(%x: F32) -> F32 {
   b0:
-    %v3 = add %x, 1 : Float
+    %v3 = add %x, 1 : F32
     ret %v3
 }
 
-fn two(Int)() -> Int {
+fn two(I32)() -> I32 {
   b0:
     ret 2
 }

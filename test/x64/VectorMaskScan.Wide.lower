@@ -16,15 +16,15 @@
 # A 32-bit lane at this width is *not* this case - eight movemask bits leave twenty-four above them,
 # so it takes the sentinel and `bsf`, which is what `VectorMaskScan.lower` reads at 128 bits.
 
-searchWide(%a: i8x32, %b: i8x32): Int {
+searchWide(%a: i8x32, %b: i8x32): I32 {
     start {
         %m = cmp_eq %a, %b: m8x32
-        %any = vreduce_or %m: Int
+        %any = vreduce_or %m: I32
         je %any, hit, miss
     }
 
     hit {
-        %f = vreduce_first %m: Int
+        %f = vreduce_first %m: I32
         ret %f
     }
 
@@ -35,15 +35,15 @@ searchWide(%a: i8x32, %b: i8x32): Int {
 
 # And the 32-bit lane at the same register width, which leaves room above its eight bits and so is
 # the sentinel sequence after all - `bsf` and `jne`, exactly as at 128 bits.
-searchWideLanes(%a: i32x8, %b: i32x8): Int {
+searchWideLanes(%a: i32x8, %b: i32x8): I32 {
     start {
         %m = cmp_eq %a, %b: m32x8
-        %any = vreduce_or %m: Int
+        %any = vreduce_or %m: I32
         je %any, hit, miss
     }
 
     hit {
-        %f = vreduce_first %m: Int
+        %f = vreduce_first %m: I32
         ret %f
     }
 

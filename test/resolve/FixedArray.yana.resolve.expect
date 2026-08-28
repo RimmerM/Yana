@@ -21,7 +21,7 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn slice(Int)(%self: Flat(Int), %from: Size, %to: Size) -> Flat(Int) {
+fn slice(I32)(%self: Flat(I32), %from: Size, %to: Size) -> Flat(I32) {
   b0:
     %start = alloc : Size
     init %start, %from
@@ -81,12 +81,12 @@ fn slice(Int)(%self: Flat(Int), %from: Size, %to: Size) -> Flat(Int) {
     jmp b12
 
   b12:
-    %v39 = alloc : Flat(Int)
-    %v40 = load %self@Flat.items : %Int
+    %v39 = alloc : Flat(I32)
+    %v40 = load %self@Flat.items : %I32
     %v41 = load %start : Size
-    %v42 = strideof Int : Size
+    %v42 = strideof I32 : Size
     %v43 = mul %v41, %v42 : Size
-    %v44 = add %v40, %v43 : %Int
+    %v44 = add %v40, %v43 : %I32
     %v45 = load %end : Size
     %v46 = load %start : Size
     %v47 = sub %v45, %v46 : Size
@@ -117,9 +117,9 @@ fn abortProcess() -> () {
 
 fn fixedSize() -> I64 {
   b0:
-    %xs = alloc : [Int *4]
+    %xs = alloc : [I32 *4]
     aggregate %local0[0] = 1, %local0[1] = 2, %local0[2] = 3, %local0[3] = 4
-    %v10 = sizeof [Int *4] : Size
+    %v10 = sizeof [I32 *4] : Size
     %v11 = cast %v10 : I64
     ret %v11
 }
@@ -127,69 +127,69 @@ fn fixedSize() -> I64 {
 fn nestedSize() -> I64 {
   b0:
     %q = alloc : Quad
-    %v5 = alloc : [Int *4]
+    %v5 = alloc : [I32 *4]
     aggregate %local1[0] = 1, %local1[1] = 2, %local1[2] = 3, %local1[3] = 4
     aggregate %local0@Quad.values = %v5, %local0@Quad.tag = 0
     %v13 = sizeof Quad : Size
-    %v14 = load %local0@Quad.tag : Int
-    %v15 = sizeof Int : Size
+    %v14 = load %local0@Quad.tag : I32
+    %v15 = sizeof I32 : Size
     %v16 = sub %v13, %v15 : Size
     %v17 = cast %v16 : I64
     ret %v17
 }
 
-fn total(%xs: Flat(Int)) -> Int {
+fn total(%xs: Flat(I32)) -> I32 {
   b0:
-    %sum = alloc : Int
+    %sum = alloc : I32
     init %sum, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
+    %v8 = load %i : I32
     %v9 = load %xs@Flat.length : Size
     %v10 = cast %v8 : Size
     %v11 = cmp_lt %v10, %v9 : Bool
     je %v11, b3, b2
 
   b2:
-    %v36 = load %sum : Int
+    %v36 = load %sum : I32
     ret %v36
 
   b3:
-    %v13 = load %sum : Int
-    %v14 = load %i : Int
+    %v13 = load %sum : I32
+    %v14 = load %i : I32
     %v15 = cast %v14 : Size
-    %v16 = borrow %xs : 'Flat(Int)
+    %v16 = borrow %xs : 'Flat(I32)
     %v17 = load [%v16]@Flat.length : Size
     %v18 = cast %v15 : USize
     %v19 = cast %v17 : USize
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
-    %v22 = load [%v16]@Flat.items : %Int
-    %v23 = strideof Int : Long
-    %v24 = mul %v15, %v23 : Long
-    %v25 = add %v22, %v24 : %Int
-    %v26 = borrow [%v25] : 'Int
-    %v27 = load [%v26] : Int
-    %v28 = add %v13, %v27 : Int
+    %v22 = load [%v16]@Flat.items : %I32
+    %v23 = strideof I32 : I64
+    %v24 = mul %v15, %v23 : I64
+    %v25 = add %v22, %v24 : %I32
+    %v26 = borrow [%v25] : 'I32
+    %v27 = load [%v26] : I32
+    %v28 = add %v13, %v27 : I32
     assign %sum, %v28
-    %v30 = load %i : Int
-    %v33 = add %v30, 1 : Int
+    %v30 = load %i : I32
+    %v33 = add %v30, 1 : I32
     assign %i, %v33
     jmp b1
 }
 
-fn double(%xs: Flat(Int)) -> () {
+fn double(%xs: Flat(I32)) -> () {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v5 = load %i : Int
-    %v6 = load %xs : Flat(Int)
+    %v5 = load %i : I32
+    %v6 = load %xs : Flat(I32)
     %v7 = load %xs@Flat.length : Size
     %v8 = cast %v5 : Size
     %v9 = cmp_lt %v8, %v7 : Bool
@@ -199,144 +199,144 @@ fn double(%xs: Flat(Int)) -> () {
     ret
 
   b3:
-    %v11 = load %xs : Flat(Int)
-    %v12 = load %i : Int
+    %v11 = load %xs : Flat(I32)
+    %v12 = load %i : I32
     %v13 = cast %v12 : Size
-    %v14 = borrow %xs : 'Flat(Int)
+    %v14 = borrow %xs : 'Flat(I32)
     %v15 = load [%v14]@Flat.length : Size
     %v16 = cast %v13 : USize
     %v17 = cast %v15 : USize
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
-    %v20 = load [%v14]@Flat.items : %Int
-    %v21 = strideof Int : Long
-    %v22 = mul %v13, %v21 : Long
-    %v23 = add %v20, %v22 : %Int
-    %v24 = borrow [%v23] : 'Int
-    %value = load [%v24] : Int
-    %v26 = load %xs : Flat(Int)
-    %v27 = load %i : Int
+    %v20 = load [%v14]@Flat.items : %I32
+    %v21 = strideof I32 : I64
+    %v22 = mul %v13, %v21 : I64
+    %v23 = add %v20, %v22 : %I32
+    %v24 = borrow [%v23] : 'I32
+    %value = load [%v24] : I32
+    %v26 = load %xs : Flat(I32)
+    %v27 = load %i : I32
     %v28 = cast %v27 : Size
-    %v29 = borrow_mut %xs : &Flat(Int)
+    %v29 = borrow_mut %xs : &Flat(I32)
     %v30 = load [%v29]@Flat.length : Size
     %v31 = cast %v28 : USize
     %v32 = cast %v30 : USize
     %v33 = cmp_ge %v31, %v32 : Bool
     call checkCondition, %v33
-    %v35 = load [%v29]@Flat.items : %Int
-    %v36 = strideof Int : Long
-    %v37 = mul %v28, %v36 : Long
-    %v38 = add %v35, %v37 : %Int
-    %v39 = borrow_mut [%v38] : &Int
-    %v40 = add %value, %value : Int
+    %v35 = load [%v29]@Flat.items : %I32
+    %v36 = strideof I32 : I64
+    %v37 = mul %v28, %v36 : I64
+    %v38 = add %v35, %v37 : %I32
+    %v39 = borrow_mut [%v38] : &I32
+    %v40 = add %value, %value : I32
     assign [%v39], %v40
-    %v42 = load %i : Int
-    %v45 = add %v42, 1 : Int
+    %v42 = load %i : I32
+    %v45 = add %v42, 1 : I32
     assign %i, %v45
     jmp b1
 }
 
-fn middle(%xs: Flat(Int)) -> Int {
+fn middle(%xs: Flat(I32)) -> I32 {
   b0:
     %v3 = cast 1 : Size
     %v4 = cast 3 : Size
-    %v5 = borrow %xs : 'Flat(Int)
-    %v6 = call slice(Int), %v5, %v3, %v4 : Flat(Int)
-    %v7 = call total, %v6 : Int
+    %v5 = borrow %xs : 'Flat(I32)
+    %v6 = call slice(I32), %v5, %v3, %v4 : Flat(I32)
+    %v7 = call total, %v6 : I32
     ret %v7
 }
 
-fn pairSum(%p: [Int *2]) -> Int {
+fn pairSum(%p: [I32 *2]) -> I32 {
   b0:
-    %v1 = borrow %p : '[Int *2]
-    %p = alloc : Flat(Int)
-    %v3 = addressof [%v1] : %Int
+    %v1 = borrow %p : '[I32 *2]
+    %p = alloc : Flat(I32)
+    %v3 = addressof [%v1] : %I32
     init %p@Flat.items, %v3
     %v5 = countof 2 : Size
     init %p@Flat.length, %v5
-    %v7 = call total, %p : Int
+    %v7 = call total, %p : I32
     ret %v7
 }
 
-fn bump(%p: [Int *2]) -> () {
+fn bump(%p: [I32 *2]) -> () {
   b0:
-    %v1 = load %p : [Int *2]
-    %v3 = borrow_mut %p : &[Int *2]
-    %v4 = alloc : Flat(Int)
-    %v5 = addressof [%v3] : %Int
+    %v1 = load %p : [I32 *2]
+    %v3 = borrow_mut %p : &[I32 *2]
+    %v4 = alloc : Flat(I32)
+    %v5 = addressof [%v3] : %I32
     init %local1@Flat.items, %v5
     %v7 = countof 2 : Size
     init %local1@Flat.length, %v7
-    %v10 = borrow_mut %local1 : &Flat(Int)
+    %v10 = borrow_mut %local1 : &Flat(I32)
     %v11 = load [%v10]@Flat.length : Size
     %v12 = cast 0 : USize
     %v13 = cast %v11 : USize
     %v14 = cmp_ge %v12, %v13 : Bool
     call checkCondition, %v14
-    %v16 = load [%v10]@Flat.items : %Int
-    %v17 = strideof Int : Long
-    %v18 = mul 0, %v17 : Long
-    %v19 = add %v16, %v18 : %Int
-    %v20 = borrow_mut [%v19] : &Int
-    %v21 = load %p : [Int *2]
-    %v23 = borrow %p : '[Int *2]
-    %v24 = alloc : Flat(Int)
-    %v25 = addressof [%v23] : %Int
+    %v16 = load [%v10]@Flat.items : %I32
+    %v17 = strideof I32 : I64
+    %v18 = mul 0, %v17 : I64
+    %v19 = add %v16, %v18 : %I32
+    %v20 = borrow_mut [%v19] : &I32
+    %v21 = load %p : [I32 *2]
+    %v23 = borrow %p : '[I32 *2]
+    %v24 = alloc : Flat(I32)
+    %v25 = addressof [%v23] : %I32
     init %local2@Flat.items, %v25
     %v27 = countof 2 : Size
     init %local2@Flat.length, %v27
-    %v30 = borrow %local2 : 'Flat(Int)
+    %v30 = borrow %local2 : 'Flat(I32)
     %v31 = load [%v30]@Flat.length : Size
     %v32 = cast 0 : USize
     %v33 = cast %v31 : USize
     %v34 = cmp_ge %v32, %v33 : Bool
     call checkCondition, %v34
-    %v36 = load [%v30]@Flat.items : %Int
-    %v37 = strideof Int : Long
-    %v38 = mul 0, %v37 : Long
-    %v39 = add %v36, %v38 : %Int
-    %v40 = borrow [%v39] : 'Int
-    %v41 = load [%v40] : Int
-    %v44 = add %v41, 1 : Int
+    %v36 = load [%v30]@Flat.items : %I32
+    %v37 = strideof I32 : I64
+    %v38 = mul 0, %v37 : I64
+    %v39 = add %v36, %v38 : %I32
+    %v40 = borrow [%v39] : 'I32
+    %v41 = load [%v40] : I32
+    %v44 = add %v41, 1 : I32
     assign [%v20], %v44
-    %v46 = load %p : [Int *2]
-    %v48 = borrow_mut %p : &[Int *2]
-    %v49 = alloc : Flat(Int)
-    %v50 = addressof [%v48] : %Int
+    %v46 = load %p : [I32 *2]
+    %v48 = borrow_mut %p : &[I32 *2]
+    %v49 = alloc : Flat(I32)
+    %v50 = addressof [%v48] : %I32
     init %local3@Flat.items, %v50
     %v52 = countof 2 : Size
     init %local3@Flat.length, %v52
-    %v55 = borrow_mut %local3 : &Flat(Int)
+    %v55 = borrow_mut %local3 : &Flat(I32)
     %v56 = load [%v55]@Flat.length : Size
     %v57 = cast 1 : USize
     %v58 = cast %v56 : USize
     %v59 = cmp_ge %v57, %v58 : Bool
     call checkCondition, %v59
-    %v61 = load [%v55]@Flat.items : %Int
-    %v62 = strideof Int : Long
-    %v63 = mul 1, %v62 : Long
-    %v64 = add %v61, %v63 : %Int
-    %v65 = borrow_mut [%v64] : &Int
-    %v66 = load %p : [Int *2]
-    %v68 = borrow %p : '[Int *2]
-    %v69 = alloc : Flat(Int)
-    %v70 = addressof [%v68] : %Int
+    %v61 = load [%v55]@Flat.items : %I32
+    %v62 = strideof I32 : I64
+    %v63 = mul 1, %v62 : I64
+    %v64 = add %v61, %v63 : %I32
+    %v65 = borrow_mut [%v64] : &I32
+    %v66 = load %p : [I32 *2]
+    %v68 = borrow %p : '[I32 *2]
+    %v69 = alloc : Flat(I32)
+    %v70 = addressof [%v68] : %I32
     init %local4@Flat.items, %v70
     %v72 = countof 2 : Size
     init %local4@Flat.length, %v72
-    %v75 = borrow %local4 : 'Flat(Int)
+    %v75 = borrow %local4 : 'Flat(I32)
     %v76 = load [%v75]@Flat.length : Size
     %v77 = cast 1 : USize
     %v78 = cast %v76 : USize
     %v79 = cmp_ge %v77, %v78 : Bool
     call checkCondition, %v79
-    %v81 = load [%v75]@Flat.items : %Int
-    %v82 = strideof Int : Long
-    %v83 = mul 1, %v82 : Long
-    %v84 = add %v81, %v83 : %Int
-    %v85 = borrow [%v84] : 'Int
-    %v86 = load [%v85] : Int
-    %v89 = add %v86, 1 : Int
+    %v81 = load [%v75]@Flat.items : %I32
+    %v82 = strideof I32 : I64
+    %v83 = mul 1, %v82 : I64
+    %v84 = add %v81, %v83 : %I32
+    %v85 = borrow [%v84] : 'I32
+    %v86 = load [%v85] : I32
+    %v89 = add %v86, 1 : I32
     assign [%v65], %v89
     ret
 }
@@ -380,8 +380,8 @@ fn padRead() -> I64 {
     %v30 = cmp_ge %v28, %v29 : Bool
     call checkCondition, %v30
     %v32 = load [%v26]@Flat.items : %Pad
-    %v33 = strideof Pad : Long
-    %v34 = mul 0, %v33 : Long
+    %v33 = strideof Pad : I64
+    %v34 = mul 0, %v33 : I64
     %v35 = add %v32, %v34 : %Pad
     %v36 = borrow [%v35] : 'Pad
     %v37 = load [%v36] : Pad
@@ -400,8 +400,8 @@ fn padRead() -> I64 {
     %v52 = cmp_ge %v50, %v51 : Bool
     call checkCondition, %v52
     %v54 = load [%v48]@Flat.items : %Pad
-    %v55 = strideof Pad : Long
-    %v56 = mul 1, %v55 : Long
+    %v55 = strideof Pad : I64
+    %v56 = mul 1, %v55 : I64
     %v57 = add %v54, %v56 : %Pad
     %v58 = borrow [%v57] : 'Pad
     %v59 = load [%v58] : Pad
@@ -421,8 +421,8 @@ fn padRead() -> I64 {
     %v75 = cmp_ge %v73, %v74 : Bool
     call checkCondition, %v75
     %v77 = load [%v71]@Flat.items : %Pad
-    %v78 = strideof Pad : Long
-    %v79 = mul 2, %v78 : Long
+    %v78 = strideof Pad : I64
+    %v79 = mul 2, %v78 : I64
     %v80 = add %v77, %v79 : %Pad
     %v81 = borrow [%v80] : 'Pad
     %v82 = load [%v81] : Pad
@@ -433,13 +433,13 @@ fn padRead() -> I64 {
 
 fn emptySize() -> I64 {
   b0:
-    %none = alloc : [Int *0]
-    %v1 = sizeof [Int *0] : Size
+    %none = alloc : [I32 *0]
+    %v1 = sizeof [I32 *0] : Size
     %v2 = cast %v1 : I64
     ret %v2
 }
 
-fn sizeClaims() -> Int {
+fn sizeClaims() -> I32 {
   b0:
     %v0 = call fixedSize : I64
     %v3 = cmp_ne %v0, 16 : Bool
@@ -488,9 +488,9 @@ fn sizeClaims() -> Int {
     ret 0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %claims = call sizeClaims : Int
+    %claims = call sizeClaims : I32
     %v3 = cmp_ne %claims, 0 : Bool
     je %v3, b1, b2
 
@@ -501,16 +501,16 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v11 = alloc : [Int *4]
+    %v11 = alloc : [I32 *4]
     aggregate %xs[0] = 1, %xs[1] = 2, %xs[2] = 3, %xs[3] = 4
-    %v17 = load %xs : [Int *4]
-    %v18 = borrow %xs : '[Int *4]
-    %v19 = alloc : Flat(Int)
-    %v20 = addressof [%v18] : %Int
+    %v17 = load %xs : [I32 *4]
+    %v18 = borrow %xs : '[I32 *4]
+    %v19 = alloc : Flat(I32)
+    %v20 = addressof [%v18] : %I32
     init %local1@Flat.items, %v20
     %v22 = countof 4 : Size
     init %local1@Flat.length, %v22
-    %v24 = call total, %v19 : Int
+    %v24 = call total, %v19 : I32
     %v27 = cmp_ne %v24, 10 : Bool
     je %v27, b4, b5
 
@@ -521,14 +521,14 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v32 = load %xs : [Int *4]
-    %v33 = borrow %xs : '[Int *4]
-    %v34 = alloc : Flat(Int)
-    %v35 = addressof [%v33] : %Int
+    %v32 = load %xs : [I32 *4]
+    %v33 = borrow %xs : '[I32 *4]
+    %v34 = alloc : Flat(I32)
+    %v35 = addressof [%v33] : %I32
     init %local2@Flat.items, %v35
     %v37 = countof 4 : Size
     init %local2@Flat.length, %v37
-    %v39 = call middle, %v34 : Int
+    %v39 = call middle, %v34 : I32
     %v42 = cmp_ne %v39, 5 : Bool
     je %v42, b7, b8
 
@@ -539,23 +539,23 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v47 = load %xs : [Int *4]
-    %v48 = borrow_mut %xs : &[Int *4]
-    %v49 = alloc : Flat(Int)
-    %v50 = addressof [%v48] : %Int
+    %v47 = load %xs : [I32 *4]
+    %v48 = borrow_mut %xs : &[I32 *4]
+    %v49 = alloc : Flat(I32)
+    %v50 = addressof [%v48] : %I32
     init %local3@Flat.items, %v50
     %v52 = countof 4 : Size
     init %local3@Flat.length, %v52
-    %v54 = borrow_mut %local3 : &Flat(Int)
+    %v54 = borrow_mut %local3 : &Flat(I32)
     call double, %v54
-    %v56 = load %xs : [Int *4]
-    %v57 = borrow %xs : '[Int *4]
-    %v58 = alloc : Flat(Int)
-    %v59 = addressof [%v57] : %Int
+    %v56 = load %xs : [I32 *4]
+    %v57 = borrow %xs : '[I32 *4]
+    %v58 = alloc : Flat(I32)
+    %v59 = addressof [%v57] : %I32
     init %local4@Flat.items, %v59
     %v61 = countof 4 : Size
     init %local4@Flat.length, %v61
-    %v63 = call total, %v58 : Int
+    %v63 = call total, %v58 : I32
     %v66 = cmp_ne %v63, 20 : Bool
     je %v66, b10, b11
 
@@ -566,9 +566,9 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v73 = alloc : [Int *2]
+    %v73 = alloc : [I32 *2]
     aggregate %local5[0] = 7, %local5[1] = 8
-    %v77 = call pairSum, %v73 : Int
+    %v77 = call pairSum, %v73 : I32
     %v80 = cmp_ne %v77, 15 : Bool
     je %v80, b13, b14
 
@@ -579,13 +579,13 @@ fn main() -> Int {
     jmp b15
 
   b15:
-    %v87 = alloc : [Int *2]
+    %v87 = alloc : [I32 *2]
     aggregate %pair[0] = 7, %pair[1] = 8
-    %v91 = load %pair : [Int *2]
-    %v92 = borrow_mut %pair : &[Int *2]
+    %v91 = load %pair : [I32 *2]
+    %v92 = borrow_mut %pair : &[I32 *2]
     call bump, %v92
-    %v94 = load %pair : [Int *2]
-    %v95 = call pairSum, %v94 : Int
+    %v94 = load %pair : [I32 *2]
+    %v95 = call pairSum, %v94 : I32
     %v98 = cmp_ne %v95, 17 : Bool
     je %v98, b16, b17
 
@@ -607,13 +607,13 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v111 = load %xs : [Int *4]
-    %v112 = borrow %xs : '[Int *4]
-    %v113 = alloc : Flat(Int)
-    %v114 = addressof [%v112] : %Int
+    %v111 = load %xs : [I32 *4]
+    %v112 = borrow %xs : '[I32 *4]
+    %v113 = alloc : Flat(I32)
+    %v114 = addressof [%v112] : %I32
     init %local7@Flat.items, %v114
     %v116 = countof 4 : Size
     init %local7@Flat.length, %v116
-    %v118 = call total, %v113 : Int
+    %v118 = call total, %v113 : I32
     ret %v118
 }

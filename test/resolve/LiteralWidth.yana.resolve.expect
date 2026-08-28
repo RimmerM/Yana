@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn checkW(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
+fn checkW(%actual: WideInt, %expected: WideInt, %weight: I32) -> I32 {
   b0:
     %v3 = cmp_eq %actual, %expected : Bool
     je %v3, b1, b2
@@ -12,11 +12,11 @@ fn checkW(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, %weight], [b2, 0] : Int
+    %v8 = phi [b1, %weight], [b2, 0] : I32
     ret %v8
 }
 
-fn checkL(%actual: I64, %expected: I64, %weight: Int) -> Int {
+fn checkL(%actual: I64, %expected: I64, %weight: I32) -> I32 {
   b0:
     %v3 = cmp_eq %actual, %expected : Bool
     je %v3, b1, b2
@@ -28,7 +28,7 @@ fn checkL(%actual: I64, %expected: I64, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, %weight], [b2, 0] : Int
+    %v8 = phi [b1, %weight], [b2, 0] : I32
     ret %v8
 }
 
@@ -67,10 +67,10 @@ fn adoptAssign() -> WideInt {
     ret %v9
 }
 
-fn adoptArgument() -> Int {
+fn adoptArgument() -> I32 {
   b0:
     %v4 = or 34359738368, 255 : WideInt
-    %v7 = call checkW, %v4, 34359738623, 32 : Int
+    %v7 = call checkW, %v4, 34359738623, 32 : I32
     ret %v7
 }
 
@@ -111,16 +111,16 @@ fn adoptIf(%flag: Bool) -> WideInt {
     ret %v10
 }
 
-fn concreteWins(%x: Int) -> I64 {
+fn concreteWins(%x: I32) -> I64 {
   b0:
-    %v3 = add %x, 2147483647 : Int
+    %v3 = add %x, 2147483647 : I32
     %v4 = cast %v3 : I64
     ret %v4
 }
 
-fn concreteMul(%x: Int) -> WideInt {
+fn concreteMul(%x: I32) -> WideInt {
   b0:
-    %v1 = mul %x, %x : Int
+    %v1 = mul %x, %x : I32
     %v2 = cast %v1 : WideInt
     ret %v2
 }
@@ -155,7 +155,7 @@ fn castIf(%c: Bool) -> WideInt {
 
 fn castMatch(%c: Bool) -> WideInt {
   b0:
-    %v1 = cast %c : Int
+    %v1 = cast %c : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -171,13 +171,13 @@ fn castMatch(%c: Bool) -> WideInt {
     ret %v13
 }
 
-fn narrowParen(%x: I64) -> Int {
+fn narrowParen(%x: I64) -> I32 {
   b0:
-    %v1 = cast %x : Int
+    %v1 = cast %x : I32
     ret %v1
 }
 
-fn narrowIf(%c: Bool, %x: I64) -> Int {
+fn narrowIf(%c: Bool, %x: I64) -> I32 {
   b0:
     je %c, b1, b2
 
@@ -189,61 +189,61 @@ fn narrowIf(%c: Bool, %x: I64) -> Int {
 
   b3:
     %v7 = phi [b1, %x], [b2, 0] : I64
-    %v8 = cast %v7 : Int
+    %v8 = cast %v7 : I32
     ret %v8
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = call adoptOr : WideInt
-    %v3 = call checkW, %v0, 34359738623, 1 : Int
+    %v3 = call checkW, %v0, 34359738623, 1 : I32
     %v4 = call adoptAdd : WideInt
-    %v7 = call checkW, %v4, 34359738623, 2 : Int
-    %v8 = add %v3, %v7 : Int
+    %v7 = call checkW, %v4, 34359738623, 2 : I32
+    %v8 = add %v3, %v7 : I32
     %v9 = call adoptShl : WideInt
-    %v12 = call checkW, %v9, 1099511627776, 4 : Int
-    %v13 = add %v8, %v12 : Int
+    %v12 = call checkW, %v9, 1099511627776, 4 : I32
+    %v13 = add %v8, %v12 : I32
     %v14 = call adoptChain : WideInt
-    %v17 = call checkW, %v14, 34359742719, 8 : Int
-    %v18 = add %v13, %v17 : Int
+    %v17 = call checkW, %v14, 34359742719, 8 : I32
+    %v18 = add %v13, %v17 : I32
     %v19 = call adoptAssign : WideInt
-    %v22 = call checkW, %v19, 34359738623, 16 : Int
-    %v23 = add %v18, %v22 : Int
-    %v24 = call adoptArgument : Int
-    %v25 = add %v23, %v24 : Int
+    %v22 = call checkW, %v19, 34359738623, 16 : I32
+    %v23 = add %v18, %v22 : I32
+    %v24 = call adoptArgument : I32
+    %v25 = add %v23, %v24 : I32
     %v26 = call adoptField : WideInt
-    %v29 = call checkW, %v26, 34359738623, 64 : Int
-    %v30 = add %v25, %v29 : Int
+    %v29 = call checkW, %v26, 34359738623, 64 : I32
+    %v30 = add %v25, %v29 : I32
     %v31 = call adoptLong : I64
-    %v34 = call checkL, %v31, 6000000000, 128 : Int
-    %v35 = add %v30, %v34 : Int
+    %v34 = call checkL, %v31, 6000000000, 128 : I32
+    %v35 = add %v30, %v34 : I32
     %v36 = call adoptNegative : I64
     %v40 = sub 0, 3000000000 : I64
-    %v42 = call checkL, %v36, %v40, 256 : Int
-    %v43 = add %v35, %v42 : Int
+    %v42 = call checkL, %v36, %v40, 256 : I32
+    %v43 = add %v35, %v42 : I32
     %v45 = call adoptIf, True : WideInt
-    %v48 = call checkW, %v45, 34359738623, 512 : Int
-    %v49 = add %v43, %v48 : Int
+    %v48 = call checkW, %v45, 34359738623, 512 : I32
+    %v49 = add %v43, %v48 : I32
     %v51 = call concreteWins, 1 : I64
     %v55 = sub 0, 2147483648 : I64
-    %v57 = call checkL, %v51, %v55, 1024 : Int
-    %v58 = add %v49, %v57 : Int
+    %v57 = call checkL, %v51, %v55, 1024 : I32
+    %v58 = add %v49, %v57 : I32
     %v60 = call concreteMul, 100000 : WideInt
-    %v63 = call checkW, %v60, 1410065408, 2048 : Int
-    %v64 = add %v58, %v63 : Int
+    %v63 = call checkW, %v60, 1410065408, 2048 : I32
+    %v64 = add %v58, %v63 : I32
     %v65 = call castParen : WideInt
-    %v68 = call checkW, %v65, 34359738623, 4096 : Int
-    %v69 = add %v64, %v68 : Int
+    %v68 = call checkW, %v65, 34359738623, 4096 : I32
+    %v69 = add %v64, %v68 : I32
     %v70 = call castTwice : WideInt
-    %v73 = call checkW, %v70, 34359738623, 8192 : Int
-    %v74 = add %v69, %v73 : Int
+    %v73 = call checkW, %v70, 34359738623, 8192 : I32
+    %v74 = add %v69, %v73 : I32
     %v76 = call castIf, True : WideInt
-    %v79 = call checkW, %v76, 34359738623, 16384 : Int
-    %v80 = add %v74, %v79 : Int
+    %v79 = call checkW, %v76, 34359738623, 16384 : I32
+    %v80 = add %v74, %v79 : I32
     %v82 = call castMatch, True : WideInt
-    %v85 = call checkW, %v82, 34359738623, 32768 : Int
-    %v86 = add %v80, %v85 : Int
-    %v88 = call narrowParen, 4294967301 : Int
+    %v85 = call checkW, %v82, 34359738623, 32768 : I32
+    %v86 = add %v80, %v85 : I32
+    %v88 = call narrowParen, 4294967301 : I32
     %v91 = cmp_eq %v88, 5 : Bool
     je %v91, b1, b2
 
@@ -254,9 +254,9 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v99 = phi [b1, 65536], [b2, 0] : Int
-    %v100 = add %v86, %v99 : Int
-    %v103 = call narrowIf, True, 4294967301 : Int
+    %v99 = phi [b1, 65536], [b2, 0] : I32
+    %v100 = add %v86, %v99 : I32
+    %v103 = call narrowIf, True, 4294967301 : I32
     %v106 = cmp_eq %v103, 5 : Bool
     je %v106, b4, b5
 
@@ -267,7 +267,7 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v114 = phi [b4, 131072], [b5, 0] : Int
-    %v115 = add %v100, %v114 : Int
+    %v114 = phi [b4, 131072], [b5, 0] : I32
+    %v115 = add %v100, %v114 : I32
     ret %v115
 }

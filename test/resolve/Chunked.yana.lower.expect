@@ -7,12 +7,12 @@ teardown$none<complex>(%value: Ptr) {
   }
 }
 
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+Reclaim(Array(a)).reclaim(I32)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
+    %v_2 = load %v_1, 4: I32
+    %v_3 = shr %v_2, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
@@ -29,8 +29,8 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -44,9 +44,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -57,19 +57,19 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-firstOver<complex>(%xs: Ptr, %bound: Int): Int {
+firstOver<complex>(%xs: Ptr, %bound: I32): I32 {
   b_0 {
     %v_1 = load %xs, 8: Ptr
     %v_2 = add %xs, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = cast %v_3: Long
-    %v_5 = sext %v_3: Long
+    %v_3 = load %v_2, 4: I32
+    %v_4 = cast %v_3: I64
+    %v_5 = sext %v_3: I64
     jmp b_6
   }
 
   b_6 {
-    %v_7 = phi [b_0, 0], [b_8, %v_9]: Long
-    %v_10 = cmp_ilt %v_7, %v_5: Int
+    %v_7 = phi [b_0, 0], [b_8, %v_9]: I64
+    %v_10 = cmp_ilt %v_7, %v_5: I32
     je %v_10, b_11, b_12
   }
 
@@ -78,15 +78,15 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_11 {
-    %v_14 = cmp_ge %v_7, %v_4: Int
+    %v_14 = cmp_ge %v_7, %v_4: I32
     je %v_14, b_15, b_16
   }
 
   b_16 {
-    %v_17 = shl %v_7, 2: Long
+    %v_17 = shl %v_7, 2: I64
     %v_18 = add %v_1, %v_17: Ptr
-    %v_19 = loads %v_18, 4: Int
-    %v_20 = cmp_igt %v_19, %bound: Int
+    %v_19 = loads %v_18, 4: I32
+    %v_20 = cmp_igt %v_19, %bound: I32
     je %v_20, b_21, b_22
   }
 
@@ -99,7 +99,7 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_8 {
-    %v_9 = add %v_7, 1: Long
+    %v_9 = add %v_7, 1: I64
     jmp b_6
   }
 
@@ -117,8 +117,8 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
 
   b_25 {
     %v_27 = add %xs, 48: Ptr
-    %v_28 = loads %v_27, 4: Int
-    %v_29 = cmp_igt %v_28, 1: Int
+    %v_28 = loads %v_27, 4: I32
+    %v_29 = cmp_igt %v_28, 1: I32
     je %v_29, b_30, b_31
   }
 
@@ -130,15 +130,15 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
     %v_33 = add %xs, 16: Ptr
     %v_34 = load %v_33, 8: Ptr
     %v_35 = add %xs, 28: Ptr
-    %v_36 = load %v_35, 4: Int
-    %v_37 = cast %v_36: Long
-    %v_38 = sext %v_36: Long
+    %v_36 = load %v_35, 4: I32
+    %v_37 = cast %v_36: I64
+    %v_38 = sext %v_36: I64
     jmp b_39
   }
 
   b_39 {
-    %v_40 = phi [b_30, 0], [b_41, %v_42]: Long
-    %v_43 = cmp_ilt %v_40, %v_38: Int
+    %v_40 = phi [b_30, 0], [b_41, %v_42]: I64
+    %v_43 = cmp_ilt %v_40, %v_38: I32
     je %v_43, b_44, b_45
   }
 
@@ -147,15 +147,15 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_44 {
-    %v_47 = cmp_ge %v_40, %v_37: Int
+    %v_47 = cmp_ge %v_40, %v_37: I32
     je %v_47, b_15, b_48
   }
 
   b_48 {
-    %v_49 = shl %v_40, 2: Long
+    %v_49 = shl %v_40, 2: I64
     %v_50 = add %v_34, %v_49: Ptr
-    %v_51 = loads %v_50, 4: Int
-    %v_52 = cmp_igt %v_51, %bound: Int
+    %v_51 = loads %v_50, 4: I32
+    %v_52 = cmp_igt %v_51, %bound: I32
     je %v_52, b_53, b_54
   }
 
@@ -168,7 +168,7 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_41 {
-    %v_42 = add %v_40, 1: Long
+    %v_42 = add %v_40, 1: I64
     jmp b_39
   }
 
@@ -189,7 +189,7 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_32 {
-    %v_59 = cmp_igt %v_28, 2: Int
+    %v_59 = cmp_igt %v_28, 2: I32
     je %v_59, b_60, b_61
   }
 
@@ -201,15 +201,15 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
     %v_63 = add %xs, 32: Ptr
     %v_64 = load %v_63, 8: Ptr
     %v_65 = add %xs, 44: Ptr
-    %v_66 = load %v_65, 4: Int
-    %v_67 = cast %v_66: Long
-    %v_68 = sext %v_66: Long
+    %v_66 = load %v_65, 4: I32
+    %v_67 = cast %v_66: I64
+    %v_68 = sext %v_66: I64
     jmp b_69
   }
 
   b_69 {
-    %v_70 = phi [b_60, 0], [b_71, %v_72]: Long
-    %v_73 = cmp_ilt %v_70, %v_68: Int
+    %v_70 = phi [b_60, 0], [b_71, %v_72]: I64
+    %v_73 = cmp_ilt %v_70, %v_68: I32
     je %v_73, b_74, b_75
   }
 
@@ -218,15 +218,15 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_74 {
-    %v_77 = cmp_ge %v_70, %v_67: Int
+    %v_77 = cmp_ge %v_70, %v_67: I32
     je %v_77, b_15, b_78
   }
 
   b_78 {
-    %v_79 = shl %v_70, 2: Long
+    %v_79 = shl %v_70, 2: I64
     %v_80 = add %v_64, %v_79: Ptr
-    %v_81 = loads %v_80, 4: Int
-    %v_82 = cmp_igt %v_81, %bound: Int
+    %v_81 = loads %v_80, 4: I32
+    %v_82 = cmp_igt %v_81, %bound: I32
     je %v_82, b_83, b_84
   }
 
@@ -239,7 +239,7 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_71 {
-    %v_72 = add %v_70, 1: Long
+    %v_72 = add %v_70, 1: I64
     jmp b_69
   }
 
@@ -268,7 +268,7 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_15 {
-    %v_90 = syscall 60, 134: Long
+    %v_90 = syscall 60, 134: I64
     unreachable 
   }
 
@@ -281,20 +281,20 @@ firstOver<complex>(%xs: Ptr, %bound: Int): Int {
   }
 
   b_89 {
-    %v_91 = phi [b_62, 0], [b_88, 1], [b_58, 1], [b_26, 1]: Int
-    %v_92 = phi [b_62, 0], [b_88, %v_81], [b_58, %v_51], [b_26, %v_19]: Int
-    %v_93 = select %v_91, %v_92, 18446744073709551615: Int
+    %v_91 = phi [b_62, 0], [b_88, 1], [b_58, 1], [b_26, 1]: I32
+    %v_92 = phi [b_62, 0], [b_88, %v_81], [b_58, %v_51], [b_26, %v_19]: I32
+    %v_93 = select %v_91, %v_92, 18446744073709551615: I32
     ret %v_93
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 52, 8: Ptr
     %v_2 = alloca 8, 4: Ptr
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
+    %v_4 = load %v_3, 4: I32
     store %v_3, 2, 4
     store %v_2, 1, 4
     %v_5 = add %v_2, 4: Ptr
@@ -303,14 +303,14 @@ main<complex>(): Int {
     store %v_6, 2, 4
     %v_7 = alloca 4, 8: Ptr
     %v_8 = alloca 8, 4: Ptr
-    %v_9 = load %v_7, 4: Int
+    %v_9 = load %v_7, 4: I32
     store %v_7, 2, 4
     store %v_8, 3, 4
     %v_10 = add %v_8, 4: Ptr
     store %v_10, 4, 4
     %v_11 = alloca 4, 8: Ptr
     %v_12 = alloca 8, 4: Ptr
-    %v_13 = load %v_11, 4: Int
+    %v_13 = load %v_11, 4: I32
     store %v_11, 2, 4
     store %v_12, 5, 4
     %v_14 = add %v_12, 4: Ptr
@@ -318,14 +318,14 @@ main<complex>(): Int {
     %v_15 = add %v_1, 16: Ptr
     store %v_15, %v_8, 8
     %v_16 = add %v_1, 24: Ptr
-    %v_17 = load %v_7, 4: Int
+    %v_17 = load %v_7, 4: I32
     store %v_16, %v_17, 4
     %v_18 = add %v_1, 28: Ptr
     store %v_18, 2, 4
     %v_19 = add %v_1, 32: Ptr
     store %v_19, %v_12, 8
     %v_20 = add %v_1, 40: Ptr
-    %v_21 = load %v_11, 4: Int
+    %v_21 = load %v_11, 4: I32
     store %v_20, %v_21, 4
     %v_22 = add %v_1, 44: Ptr
     store %v_22, 2, 4
@@ -335,7 +335,7 @@ main<complex>(): Int {
     %v_24 = alloca 12, 4: Ptr
     store %ring, %v_24, 8
     %v_25 = add %ring, 8: Ptr
-    %v_26 = load %v_25, 4: Int
+    %v_26 = load %v_25, 4: I32
     store %v_25, 3, 4
     store %v_24, 10, 4
     %v_27 = add %v_24, 4: Ptr
@@ -348,7 +348,7 @@ main<complex>(): Int {
     %v_30 = alloca 12, 4: Ptr
     store %arr, %v_30, 8
     %v_31 = add %arr, 8: Ptr
-    %v_32 = load %v_31, 4: Int
+    %v_32 = load %v_31, 4: I32
     store %v_31, 3, 4
     store %v_30, 4, 4
     %v_33 = add %v_30, 4: Ptr
@@ -366,57 +366,57 @@ main<complex>(): Int {
     %v_38 = add %v_37, 8: Ptr
     store %v_38, %v_36, 8
     %v_39 = alloca 1, 1: Ptr
-    call_complex Chunked(Chunks, Int).chunks(()), %v_39, %v_1, %v_37
-    %v_40 = loads %total, 4: Int
+    call_complex Chunked(Chunks, I32).chunks(()), %v_39, %v_1, %v_37
+    %v_40 = loads %total, 4: I32
     jmp b_41
   }
 
   b_42 {
-    %v_43 = cmp_ilt %v_44, 3: Int
+    %v_43 = cmp_ilt %v_44, 3: I32
     je %v_43, b_41, b_45
   }
 
   b_45 {
-    %v_46 = add %v_40, %v_47: Int
+    %v_46 = add %v_40, %v_47: I32
     %v_48 = add %arr, 12: Ptr
-    %v_49 = load %v_48, 4: Int
+    %v_49 = load %v_48, 4: I32
     %v_50 = load %arr, 8: Ptr
-    %v_51 = cast %v_49: Long
-    %v_52 = sext %v_49: Long
+    %v_51 = cast %v_49: I64
+    %v_52 = sext %v_49: I64
     jmp b_53
   }
 
   b_53 {
-    %v_54 = phi [b_45, 0], [b_55, %v_56]: Int
-    %v_57 = phi [b_45, 0], [b_55, %v_58]: Long
-    %v_59 = cmp_ilt %v_57, %v_52: Int
+    %v_54 = phi [b_45, 0], [b_55, %v_56]: I32
+    %v_57 = phi [b_45, 0], [b_55, %v_58]: I64
+    %v_59 = cmp_ilt %v_57, %v_52: I32
     je %v_59, b_60, b_61
   }
 
   b_61 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %arr
-    %v_62 = add %v_46, %v_54: Int
+    call_complex Reclaim(Array(a)).reclaim(I32), %arr
+    %v_62 = add %v_46, %v_54: I32
     %v_63 = add %ring, 12: Ptr
-    %v_64 = load %v_63, 4: Int
+    %v_64 = load %v_63, 4: I32
     %v_65 = load %ring, 8: Ptr
-    %v_66 = cast %v_64: Long
-    %v_67 = sext %v_64: Long
+    %v_66 = cast %v_64: I64
+    %v_67 = sext %v_64: I64
     jmp b_68
   }
 
   b_68 {
-    %v_69 = phi [b_61, 0], [b_70, %v_71]: Int
-    %v_72 = phi [b_61, 0], [b_70, %v_73]: Long
-    %v_74 = cmp_ilt %v_72, %v_67: Int
+    %v_69 = phi [b_61, 0], [b_70, %v_71]: I32
+    %v_72 = phi [b_61, 0], [b_70, %v_73]: I64
+    %v_74 = cmp_ilt %v_72, %v_67: I32
     je %v_74, b_75, b_76
   }
 
   b_76 {
-    %v_77 = add %v_62, %v_69: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %ring
-    %v_78 = add %v_77, %v_64: Int
-    %v_79 = call_complex firstOver, %v_1, 3: Int
-    %v_80 = add %v_78, %v_79: Int
+    %v_77 = add %v_62, %v_69: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %ring
+    %v_78 = add %v_77, %v_64: I32
+    %v_79 = call_complex firstOver, %v_1, 3: I32
+    %v_80 = add %v_78, %v_79: I32
     %total = alloca 4, 4: Ptr
     store %total, 0, 4
     %v_81 = alloca 8, 8: Ptr
@@ -426,64 +426,64 @@ main<complex>(): Int {
     %v_83 = add %v_82, 8: Ptr
     store %v_83, %v_81, 8
     %v_84 = alloca 1, 1: Ptr
-    call_complex Chunked(Chunks, Int).chunks(()), %v_84, %v_1, %v_82
-    %v_85 = loads %total, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    call_complex Chunked(Chunks, I32).chunks(()), %v_84, %v_1, %v_82
+    %v_85 = loads %total, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_1
     %v_86 = add %v_1, 16: Ptr
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_86
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_86
     %v_87 = add %v_1, 32: Ptr
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_87
-    %v_88 = add %v_80, %v_85: Int
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_87
+    %v_88 = add %v_80, %v_85: I32
     ret %v_88
   }
 
   b_75 {
-    %v_89 = cmp_ge %v_72, %v_66: Int
+    %v_89 = cmp_ge %v_72, %v_66: I32
     je %v_89, b_90, b_70
   }
 
   b_70 {
-    %v_91 = shl %v_72, 2: Long
+    %v_91 = shl %v_72, 2: I64
     %v_92 = add %v_65, %v_91: Ptr
-    %v_93 = loads %v_92, 4: Int
-    %v_71 = add %v_69, %v_93: Int
-    %v_73 = add %v_72, 1: Long
+    %v_93 = loads %v_92, 4: I32
+    %v_71 = add %v_69, %v_93: I32
+    %v_73 = add %v_72, 1: I64
     jmp b_68
   }
 
   b_90 {
-    %v_94 = syscall 60, 134: Long
+    %v_94 = syscall 60, 134: I64
     unreachable 
   }
 
   b_60 {
-    %v_95 = cmp_ge %v_57, %v_51: Int
+    %v_95 = cmp_ge %v_57, %v_51: I32
     je %v_95, b_90, b_55
   }
 
   b_55 {
-    %v_96 = shl %v_57, 2: Long
+    %v_96 = shl %v_57, 2: I64
     %v_97 = add %v_50, %v_96: Ptr
-    %v_98 = loads %v_97, 4: Int
-    %v_56 = add %v_54, %v_98: Int
-    %v_58 = add %v_57, 1: Long
+    %v_98 = loads %v_97, 4: I32
+    %v_56 = add %v_54, %v_98: I32
+    %v_58 = add %v_57, 1: I64
     jmp b_53
   }
 
   b_41 {
-    %v_99 = phi [b_42, %v_47], [b_0, 0]: Int
-    %v_100 = phi [b_42, %v_44], [b_0, 0]: Int
-    %v_101 = sext %v_100: Long
-    %v_102 = cmp_ge %v_101, 3: Int
+    %v_99 = phi [b_42, %v_47], [b_0, 0]: I32
+    %v_100 = phi [b_42, %v_44], [b_0, 0]: I32
+    %v_101 = sext %v_100: I64
+    %v_102 = cmp_ge %v_101, 3: I32
     je %v_102, b_90, b_103
   }
 
   b_103 {
-    %v_104 = shl %v_101, 2: Long
+    %v_104 = shl %v_101, 2: I64
     %v_105 = add %v_24, %v_104: Ptr
-    %v_106 = loads %v_105, 4: Int
-    %v_47 = add %v_99, %v_106: Int
-    %v_44 = add %v_100, 1: Int
+    %v_106 = loads %v_105, 4: I32
+    %v_47 = add %v_99, %v_106: I32
+    %v_44 = add %v_100, 1: I32
     jmp b_42
   }
 }
@@ -494,15 +494,15 @@ ResolveTest.continuation$22<complex>(%v_0: Ptr, %env: Ptr, %value$: Ptr) {
     %v_2 = load %env, 8: Ptr
     %xs$items = load %value$, 8: Ptr
     %v_3 = add %value$, 8: Ptr
-    %xs$length = loads %v_3, 8: Long
-    %n = cast %xs$length: Int
-    %v_4 = sext %n: Long
+    %xs$length = loads %v_3, 8: I64
+    %n = cast %xs$length: I32
+    %v_4 = sext %n: I64
     jmp b_5
   }
 
   b_5 {
-    %v_6 = phi [b_1, 0], [b_7, %v_8]: Long
-    %v_9 = cmp_ilt %v_6, %v_4: Int
+    %v_6 = phi [b_1, 0], [b_7, %v_8]: I64
+    %v_9 = cmp_ilt %v_6, %v_4: I32
     je %v_9, b_10, b_11
   }
 
@@ -511,13 +511,13 @@ ResolveTest.continuation$22<complex>(%v_0: Ptr, %env: Ptr, %value$: Ptr) {
   }
 
   b_7 {
-    %v_12 = shl %v_6, 2: Long
+    %v_12 = shl %v_6, 2: I64
     %v_13 = add %xs$items, %v_12: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = loads %v_2, 4: Int
-    %v_16 = add %v_15, %v_14: Int
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = loads %v_2, 4: I32
+    %v_16 = add %v_15, %v_14: I32
     store %v_2, %v_16, 4
-    %v_8 = add %v_6, 1: Long
+    %v_8 = add %v_6, 1: I64
     jmp b_5
   }
 
@@ -527,14 +527,14 @@ ResolveTest.continuation$22<complex>(%v_0: Ptr, %env: Ptr, %value$: Ptr) {
   }
 }
 
-Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
+Chunked(Chunks, I32).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
   b_1 {
     %v_2 = alloca 16, 8: Ptr
     %v_3 = load %self, 8: Ptr
     store %v_2, %v_3, 8
     %v_4 = add %self, 12: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = cast %v_5: Long
+    %v_5 = load %v_4, 4: I32
+    %v_6 = cast %v_5: I64
     %v_7 = add %v_2, 8: Ptr
     store %v_7, %v_6, 8
     %v_8 = add %body, 8: Ptr
@@ -542,8 +542,8 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
     %v_10 = load %v_8, 8: Ptr
     %v_11 = alloca 1, 1: Ptr
     call_complex %v_9, %v_11, %v_10, %v_2
-    %v_12 = loads %v_11, 1: Int
-    %v_13 = cmp_eq %v_12, 1: Int
+    %v_12 = loads %v_11, 1: I32
+    %v_13 = cmp_eq %v_12, 1: I32
     je %v_13, b_14, b_15
   }
 
@@ -555,8 +555,8 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
 
   b_15 {
     %v_21 = add %self, 48: Ptr
-    %v_22 = loads %v_21, 4: Int
-    %v_23 = cmp_igt %v_22, 1: Int
+    %v_22 = loads %v_21, 4: I32
+    %v_23 = cmp_igt %v_22, 1: I32
     je %v_23, b_17, b_24
   }
 
@@ -566,8 +566,8 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
     %v_27 = load %v_26, 8: Ptr
     store %v_25, %v_27, 8
     %v_28 = add %self, 28: Ptr
-    %v_29 = load %v_28, 4: Int
-    %v_30 = cast %v_29: Long
+    %v_29 = load %v_28, 4: I32
+    %v_30 = cast %v_29: I64
     %v_31 = add %v_25, 8: Ptr
     store %v_31, %v_30, 8
     %v_32 = add %body, 8: Ptr
@@ -575,8 +575,8 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
     %v_34 = load %v_32, 8: Ptr
     %v_18 = alloca 1, 1: Ptr
     call_complex %v_33, %v_18, %v_34, %v_25
-    %v_35 = loads %v_18, 1: Int
-    %v_36 = cmp_eq %v_35, 1: Int
+    %v_35 = loads %v_18, 1: I32
+    %v_36 = cmp_eq %v_35, 1: I32
     je %v_36, b_14, b_37
   }
 
@@ -590,8 +590,8 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
 
   b_38 {
     %v_39 = add %self, 48: Ptr
-    %v_40 = loads %v_39, 4: Int
-    %v_41 = cmp_igt %v_40, 2: Int
+    %v_40 = loads %v_39, 4: I32
+    %v_41 = cmp_igt %v_40, 2: I32
     je %v_41, b_19, b_42
   }
 
@@ -601,8 +601,8 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
     %v_45 = load %v_44, 8: Ptr
     store %v_43, %v_45, 8
     %v_46 = add %self, 44: Ptr
-    %v_47 = load %v_46, 4: Int
-    %v_48 = cast %v_47: Long
+    %v_47 = load %v_46, 4: I32
+    %v_48 = cast %v_47: I64
     %v_49 = add %v_43, 8: Ptr
     store %v_49, %v_48, 8
     %v_50 = add %body, 8: Ptr
@@ -610,8 +610,8 @@ Chunked(Chunks, Int).chunks(())<complex>(%v_0: Ptr, %self: Ptr, %body: Ptr) {
     %v_52 = load %v_50, 8: Ptr
     %v_20 = alloca 1, 1: Ptr
     call_complex %v_51, %v_20, %v_52, %v_43
-    %v_53 = loads %v_20, 1: Int
-    %v_54 = cmp_eq %v_53, 1: Int
+    %v_53 = loads %v_20, 1: I32
+    %v_54 = cmp_eq %v_53, 1: I32
     je %v_54, b_14, b_55
   }
 
@@ -635,21 +635,21 @@ ResolveTest.continuation$31<complex>(%v_0: Ptr, %env: Ptr, %value$: Ptr) {
     %v_2 = load %env, 8: Ptr
     %xs$items = load %value$, 8: Ptr
     %v_3 = add %value$, 8: Ptr
-    %xs$length = loads %v_3, 8: Long
-    %n = cast %xs$length: Int
-    %v_4 = cmp_ilt 0, %n: Int
+    %xs$length = loads %v_3, 8: I64
+    %n = cast %xs$length: I32
+    %v_4 = cmp_ilt 0, %n: I32
     je %v_4, b_5, b_6
   }
 
   b_5 {
-    %v_7 = cmp_eq %xs$length, 0: Int
+    %v_7 = cmp_eq %xs$length, 0: I32
     je %v_7, b_8, b_9
   }
 
   b_9 {
-    %v_10 = loads %xs$items, 4: Int
-    %v_11 = loads %v_2, 4: Int
-    %v_12 = add %v_11, %v_10: Int
+    %v_10 = loads %xs$items, 4: I32
+    %v_11 = loads %v_2, 4: I32
+    %v_12 = add %v_11, %v_10: I32
     store %v_2, %v_12, 4
     jmp b_6
   }
@@ -660,7 +660,7 @@ ResolveTest.continuation$31<complex>(%v_0: Ptr, %env: Ptr, %value$: Ptr) {
   }
 
   b_8 {
-    %v_13 = syscall 60, 134: Long
+    %v_13 = syscall 60, 134: I64
     unreachable 
   }
 }

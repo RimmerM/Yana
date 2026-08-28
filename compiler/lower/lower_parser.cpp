@@ -10,10 +10,10 @@ LowerParser::LowerParser(Context& context, LowerModule& module, LowerLexer& lexe
 {
     mutId = Context::nameHash("mut", 3);
     ptrId = Context::nameHash("Ptr", 3);
-    i32Id = Context::nameHash("Int", 3);
-    i64Id = Context::nameHash("Long", 4);
-    f32Id = Context::nameHash("Float", 5);
-    f64Id = Context::nameHash("Double", 6);
+    i32Id = Context::nameHash("I32", 3);
+    i64Id = Context::nameHash("I64", 3);
+    f32Id = Context::nameHash("F32", 3);
+    f64Id = Context::nameHash("F64", 3);
 
     eat();
 }

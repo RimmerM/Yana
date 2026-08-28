@@ -21,7 +21,7 @@ table closure$ResolveTest.lambda$24 before ResolveTest.lambda$24 {
 }
 
 table closure$ResolveTest.lambda$25 before ResolveTest.lambda$25 {
-  .0 closureRelease${amount: Int}
+  .0 closureRelease${amount: I32}
 }
 
 fn teardown$none(%value: %()) -> () {
@@ -61,7 +61,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -112,7 +112,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -148,7 +148,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -234,14 +234,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -273,7 +273,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -331,7 +331,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -354,112 +354,112 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn apply(%f: (Int) -> Int, %x: Int) -> Int {
+fn apply(%f: (I32) -> I32, %x: I32) -> I32 {
   b0:
-    %v2 = calldyn %f, %x : Int
+    %v2 = calldyn %f, %x : I32
     ret %v2
 }
 
-fn direct(%base: Int) -> Int {
+fn direct(%base: I32) -> I32 {
   b0:
-    %v1 = alloc : {base: Int}
+    %v1 = alloc : {base: I32}
     init %local0.base, %base
     %v3 = addressof %local0 : %()
-    %v4 = alloc : (Int) -> Int
+    %v4 = alloc : (I32) -> I32
     %v5 = symbol ResolveTest.lambda$22 : %()
     init %local1.code, %v5
     init %local1.env, %v3
-    %v9 = call apply, %v4, 1 : Int
+    %v9 = call apply, %v4, 1 : I32
     ret %v9
 }
 
-fn either(%pick: Int, %a: Int, %b: Int) -> Int {
+fn either(%pick: I32, %a: I32, %b: I32) -> I32 {
   b0:
     %v5 = cmp_lt %pick, 1 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = alloc : {a: Int}
+    %v7 = alloc : {a: I32}
     init %local0.a, %a
     %v9 = addressof %local0 : %()
-    %v10 = alloc : (Int) -> Int
+    %v10 = alloc : (I32) -> I32
     %v11 = symbol ResolveTest.lambda$23 : %()
     init %local1.code, %v11
     init %local1.env, %v9
     jmp b3
 
   b2:
-    %v14 = alloc : {b: Int}
+    %v14 = alloc : {b: I32}
     init %local2.b, %b
     %v16 = addressof %local2 : %()
-    %v17 = alloc : (Int) -> Int
+    %v17 = alloc : (I32) -> I32
     %v18 = symbol ResolveTest.lambda$24 : %()
     init %local3.code, %v18
     init %local3.env, %v16
     jmp b3
 
   b3:
-    %f = phi [b1, %v10], [b2, %v17] : (Int) -> Int
-    %v25 = call apply, %f, 10 : Int
-    drop_derived %local4 via teardown$(Int) -> Int
+    %f = phi [b1, %v10], [b2, %v17] : (I32) -> I32
+    %v25 = call apply, %f, 10 : I32
+    drop_derived %local4 via teardown$(I32) -> I32
     ret %v25
 }
 
-fn escaping(%amount: Int) -> (Int) -> Int {
+fn escaping(%amount: I32) -> (I32) -> I32 {
   b0:
-    %v1 = alloc heap escaping : {amount: Int}
+    %v1 = alloc heap escaping : {amount: I32}
     init %local0.amount, %amount
     %v3 = addressof %local0 : %()
-    %v4 = alloc : (Int) -> Int
+    %v4 = alloc : (I32) -> I32
     %v5 = symbol ResolveTest.lambda$25 : %()
     init %local1.code, %v5
     init %local1.env, %v3
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %a = call direct, 5 : Int
-    %b = call either, 0, 3, 7 : Int
-    %c = call either, 2, 3, 7 : Int
-    %f = call escaping, 100 : (Int) -> Int
-    %d = calldyn %f, 1 : Int
-    drop_derived %local0 via teardown$(Int) -> Int
-    %v14 = add %a, %b : Int
-    %v15 = add %v14, %c : Int
-    %v16 = add %v15, %d : Int
+    %a = call direct, 5 : I32
+    %b = call either, 0, 3, 7 : I32
+    %c = call either, 2, 3, 7 : I32
+    %f = call escaping, 100 : (I32) -> I32
+    %d = calldyn %f, 1 : I32
+    drop_derived %local0 via teardown$(I32) -> I32
+    %v14 = add %a, %b : I32
+    %v15 = add %v14, %c : I32
+    %v16 = add %v15, %d : I32
     ret %v16
 }
 
-fn ResolveTest.lambda$22(%env: %{base: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$22(%env: %{base: I32}, %x: I32) -> I32 {
   b0:
-    %v2 = load [%env].base : Int
-    %v3 = add %x, %v2 : Int
+    %v2 = load [%env].base : I32
+    %v3 = add %x, %v2 : I32
     ret %v3
 }
 
-fn ResolveTest.lambda$23(%env: %{a: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$23(%env: %{a: I32}, %x: I32) -> I32 {
   b0:
-    %v2 = load [%env].a : Int
-    %v3 = add %x, %v2 : Int
+    %v2 = load [%env].a : I32
+    %v3 = add %x, %v2 : I32
     ret %v3
 }
 
-fn ResolveTest.lambda$24(%env: %{b: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$24(%env: %{b: I32}, %x: I32) -> I32 {
   b0:
-    %v2 = load [%env].b : Int
-    %v3 = mul %x, %v2 : Int
+    %v2 = load [%env].b : I32
+    %v3 = mul %x, %v2 : I32
     ret %v3
 }
 
-fn ResolveTest.lambda$25(%env: %{amount: Int}, %x: Int) -> Int {
+fn ResolveTest.lambda$25(%env: %{amount: I32}, %x: I32) -> I32 {
   b0:
-    %v2 = load [%env].amount : Int
-    %v3 = add %x, %v2 : Int
+    %v2 = load [%env].amount : I32
+    %v3 = add %x, %v2 : I32
     ret %v3
 }
 
-fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(I32) -> I32(%value: (I32) -> I32) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -468,9 +468,9 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
   b1:
     %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
     calldyn %v11, %v1
@@ -480,7 +480,7 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
     ret
 }
 
-fn closureRelease${amount: Int}(%env: %{amount: Int}) -> () {
+fn closureRelease${amount: I32}(%env: %{amount: I32}) -> () {
   b0:
     %v1 = cast %env : %U8
     call freeHeap, %v1

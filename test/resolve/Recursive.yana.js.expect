@@ -2,11 +2,11 @@
 var liveNodes = { $v: 0 };
 
 // Core
-function add_eq_Int(target$o, target$k, target$s, amount) {
+function add_eq_I32(target$o, target$k, target$s, amount) {
   target$o[target$k] = target$o[target$k] + amount | 0;
 }
 
-function sub_eq_Int(target$o, target$k, target$s, amount) {
+function sub_eq_I32(target$o, target$k, target$s, amount) {
   target$o[target$k] = target$o[target$k] - amount | 0;
 }
 
@@ -82,8 +82,8 @@ function main() {
   var v44 = sum(xs);
   var t = { $tag: 1, left: { $tag: 0, left: null, right: null, label: 0, $p: 10 }, right: { $tag: 1, left: null, right: { $tag: 0, left: null, right: null, label: 0, $p: 20 }, label: 5, $p: 0 }, label: 7, $p: 0 };
   var values = v44 + (total(t) + leftOf(t) | 0) | 0;
-  add_eq_Int(liveNodes, "$v", 1, 1);
-  add_eq_Int(liveNodes, "$v", 1, 1);
+  add_eq_I32(liveNodes, "$v", 1, 1);
+  add_eq_I32(liveNodes, "$v", 1, 1);
   var v95 = { payload: 5, rest: { $v: { payload: 0, rest: null } } };
   v95.rest.$v = null;
   var c = { payload: 4, rest: { $v: { payload: 0, rest: null } } };
@@ -99,7 +99,7 @@ function main() {
 
 function drop$Chain(value) {
   if (!(value === null)) {
-    sub_eq_Int(liveNodes, "$v", 1, 1);
+    sub_eq_I32(liveNodes, "$v", 1, 1);
     drop$Chain(value.rest.$v);
   }
 }

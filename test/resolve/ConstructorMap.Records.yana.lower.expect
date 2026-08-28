@@ -5,14 +5,14 @@ mut @tokensDropped = [0, 0, 0, 0]
 @ResolveTest.map$2 = [0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0, 4, 0, 0, 0]
 @ResolveTest.map$3 = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0]
 
-tokenOf<complex>(%v_0: Ptr, %c: Int) {
+tokenOf<complex>(%v_0: Ptr, %c: I32) {
   b_1 {
-    %v_2 = cmp_eq %c, 0: Int
+    %v_2 = cmp_eq %c, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_eq %c, 1: Int
+    %v_5 = cmp_eq %c, 1: I32
     je %v_5, b_6, b_7
   }
 
@@ -23,7 +23,7 @@ tokenOf<complex>(%v_0: Ptr, %c: Int) {
   }
 
   b_7 {
-    %v_10 = cmp_eq %c, 2: Int
+    %v_10 = cmp_eq %c, 2: I32
     je %v_10, b_11, b_12
   }
 
@@ -52,31 +52,31 @@ tokenOf<complex>(%v_0: Ptr, %c: Int) {
   }
 }
 
-opaque<complex>(%c: Int): Int {
+opaque<complex>(%c: I32): I32 {
   b_0 {
     ret %c
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex opaque, 0: Int
-    %v_2 = sext %v_1: Long
-    %v_3 = shl %v_2, 3: Long
+    %v_1 = call_complex opaque, 0: I32
+    %v_2 = sext %v_1: I64
+    %v_3 = shl %v_2, 3: I64
     %v_4 = add @ResolveTest.map$0, %v_3: Ptr
-    %v_5 = loads %v_4, 4: Int
-    %v_6 = cmp_eq %v_5, 0: Int
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = cmp_eq %v_5, 0: I32
     je %v_6, b_7, b_8
   }
 
   b_7 {
-    %v_9 = call_complex opaque, 0: Int
-    %v_10 = sext %v_9: Long
-    %v_11 = shl %v_10, 3: Long
+    %v_9 = call_complex opaque, 0: I32
+    %v_10 = sext %v_9: I64
+    %v_11 = shl %v_10, 3: I64
     %v_12 = add @ResolveTest.map$0, %v_11: Ptr
     %v_13 = add %v_12, 4: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = cmp_eq %v_14, 0: Int
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = cmp_eq %v_14, 0: I32
     jmp b_16
   }
 
@@ -85,24 +85,24 @@ main<complex>(): Int {
   }
 
   b_16 {
-    %v_17 = phi [b_7, %v_15], [b_8, 0]: Int
-    %v_18 = call_complex opaque, 3: Int
-    %v_19 = sext %v_18: Long
-    %v_20 = shl %v_19, 3: Long
+    %v_17 = phi [b_7, %v_15], [b_8, 0]: I32
+    %v_18 = call_complex opaque, 3: I32
+    %v_19 = sext %v_18: I64
+    %v_20 = shl %v_19, 3: I64
     %v_21 = add @ResolveTest.map$0, %v_20: Ptr
-    %v_22 = loads %v_21, 4: Int
-    %v_23 = cmp_eq %v_22, 1: Int
+    %v_22 = loads %v_21, 4: I32
+    %v_23 = cmp_eq %v_22, 1: I32
     je %v_23, b_24, b_25
   }
 
   b_24 {
-    %v_26 = call_complex opaque, 3: Int
-    %v_27 = sext %v_26: Long
-    %v_28 = shl %v_27, 3: Long
+    %v_26 = call_complex opaque, 3: I32
+    %v_27 = sext %v_26: I64
+    %v_28 = shl %v_27, 3: I64
     %v_29 = add @ResolveTest.map$0, %v_28: Ptr
     %v_30 = add %v_29, 4: Ptr
-    %v_31 = loads %v_30, 4: Int
-    %v_32 = cmp_eq %v_31, 1: Int
+    %v_31 = loads %v_30, 4: I32
+    %v_32 = cmp_eq %v_31, 1: I32
     jmp b_33
   }
 
@@ -111,26 +111,26 @@ main<complex>(): Int {
   }
 
   b_33 {
-    %v_34 = phi [b_24, %v_32], [b_25, 0]: Int
-    %v_35 = select %v_34, 2, 0: Int
-    %v_36 = add %v_17, %v_35: Int
-    %v_37 = call_complex opaque, 1: Int
-    %v_38 = sext %v_37: Long
-    %v_39 = shl %v_38, 3: Long
+    %v_34 = phi [b_24, %v_32], [b_25, 0]: I32
+    %v_35 = select %v_34, 2, 0: I32
+    %v_36 = add %v_17, %v_35: I32
+    %v_37 = call_complex opaque, 1: I32
+    %v_38 = sext %v_37: I64
+    %v_39 = shl %v_38, 3: I64
     %v_40 = add @ResolveTest.map$0, %v_39: Ptr
-    %v_41 = loads %v_40, 4: Int
-    %v_42 = cmp_eq %v_41, 1: Int
+    %v_41 = loads %v_40, 4: I32
+    %v_42 = cmp_eq %v_41, 1: I32
     je %v_42, b_43, b_44
   }
 
   b_43 {
-    %v_45 = call_complex opaque, 2: Int
-    %v_46 = sext %v_45: Long
-    %v_47 = shl %v_46, 3: Long
+    %v_45 = call_complex opaque, 2: I32
+    %v_46 = sext %v_45: I64
+    %v_47 = shl %v_46, 3: I64
     %v_48 = add @ResolveTest.map$0, %v_47: Ptr
     %v_49 = add %v_48, 4: Ptr
-    %v_50 = loads %v_49, 4: Int
-    %v_51 = cmp_eq %v_50, 1: Int
+    %v_50 = loads %v_49, 4: I32
+    %v_51 = cmp_eq %v_50, 1: I32
     jmp b_52
   }
 
@@ -139,25 +139,25 @@ main<complex>(): Int {
   }
 
   b_52 {
-    %v_53 = phi [b_43, %v_51], [b_44, 0]: Int
-    %v_54 = select %v_53, 4, 0: Int
-    %v_55 = add %v_36, %v_54: Int
-    %v_56 = call_complex opaque, 0: Int
-    %v_57 = sext %v_56: Long
-    %v_58 = mul %v_57, 12: Long
+    %v_53 = phi [b_43, %v_51], [b_44, 0]: I32
+    %v_54 = select %v_53, 4, 0: I32
+    %v_55 = add %v_36, %v_54: I32
+    %v_56 = call_complex opaque, 0: I32
+    %v_57 = sext %v_56: I64
+    %v_58 = mul %v_57, 12: I64
     %v_59 = add @ResolveTest.map$1, %v_58: Ptr
-    %v_60 = loads %v_59, 4: Int
-    %v_61 = cmp_eq %v_60, 0: Int
+    %v_60 = loads %v_59, 4: I32
+    %v_61 = cmp_eq %v_60, 0: I32
     je %v_61, b_62, b_63
   }
 
   b_62 {
-    %v_64 = call_complex opaque, 0: Int
-    %v_65 = sext %v_64: Long
-    %v_66 = mul %v_65, 12: Long
+    %v_64 = call_complex opaque, 0: I32
+    %v_65 = sext %v_64: I64
+    %v_66 = mul %v_65, 12: I64
     %v_67 = add @ResolveTest.map$1, %v_66: Ptr
     %v_68 = add %v_67, 8: Ptr
-    %v_69 = load %v_68, 1: Int
+    %v_69 = load %v_68, 1: I32
     jmp b_70
   }
 
@@ -166,26 +166,26 @@ main<complex>(): Int {
   }
 
   b_70 {
-    %v_71 = phi [b_62, %v_69], [b_63, 0]: Int
-    %v_72 = select %v_71, 8, 0: Int
-    %v_73 = add %v_55, %v_72: Int
-    %v_74 = call_complex opaque, 3: Int
-    %v_75 = sext %v_74: Long
-    %v_76 = mul %v_75, 12: Long
+    %v_71 = phi [b_62, %v_69], [b_63, 0]: I32
+    %v_72 = select %v_71, 8, 0: I32
+    %v_73 = add %v_55, %v_72: I32
+    %v_74 = call_complex opaque, 3: I32
+    %v_75 = sext %v_74: I64
+    %v_76 = mul %v_75, 12: I64
     %v_77 = add @ResolveTest.map$1, %v_76: Ptr
-    %v_78 = loads %v_77, 4: Int
-    %v_79 = cmp_eq %v_78, 3: Int
+    %v_78 = loads %v_77, 4: I32
+    %v_79 = cmp_eq %v_78, 3: I32
     je %v_79, b_80, b_81
   }
 
   b_80 {
-    %v_82 = call_complex opaque, 3: Int
-    %v_83 = sext %v_82: Long
-    %v_84 = mul %v_83, 12: Long
+    %v_82 = call_complex opaque, 3: I32
+    %v_83 = sext %v_82: I64
+    %v_84 = mul %v_83, 12: I64
     %v_85 = add @ResolveTest.map$1, %v_84: Ptr
     %v_86 = add %v_85, 8: Ptr
-    %v_87 = load %v_86, 1: Int
-    %v_88 = xor %v_87, 1: Int
+    %v_87 = load %v_86, 1: I32
+    %v_88 = xor %v_87, 1: I32
     jmp b_89
   }
 
@@ -194,27 +194,27 @@ main<complex>(): Int {
   }
 
   b_89 {
-    %v_90 = phi [b_80, %v_88], [b_81, 0]: Int
-    %v_91 = select %v_90, 16, 0: Int
-    %v_92 = add %v_73, %v_91: Int
-    %v_93 = call_complex opaque, 2: Int
-    %v_94 = sext %v_93: Long
-    %v_95 = mul %v_94, 12: Long
+    %v_90 = phi [b_80, %v_88], [b_81, 0]: I32
+    %v_91 = select %v_90, 16, 0: I32
+    %v_92 = add %v_73, %v_91: I32
+    %v_93 = call_complex opaque, 2: I32
+    %v_94 = sext %v_93: I64
+    %v_95 = mul %v_94, 12: I64
     %v_96 = add @ResolveTest.map$1, %v_95: Ptr
     %v_97 = add %v_96, 4: Ptr
-    %v_98 = load %v_97, 4: Float
-    %v_99 = cmp_eq %v_98, 2.5: Int
+    %v_98 = load %v_97, 4: F32
+    %v_99 = cmp_eq %v_98, 2.5: I32
     je %v_99, b_100, b_101
   }
 
   b_100 {
-    %v_102 = call_complex opaque, 1: Int
-    %v_103 = sext %v_102: Long
-    %v_104 = mul %v_103, 12: Long
+    %v_102 = call_complex opaque, 1: I32
+    %v_103 = sext %v_102: I64
+    %v_104 = mul %v_103, 12: I64
     %v_105 = add @ResolveTest.map$1, %v_104: Ptr
     %v_106 = add %v_105, 4: Ptr
-    %v_107 = load %v_106, 4: Float
-    %v_108 = cmp_eq %v_107, 1.5: Int
+    %v_107 = load %v_106, 4: F32
+    %v_108 = cmp_eq %v_107, 1.5: I32
     jmp b_109
   }
 
@@ -223,26 +223,26 @@ main<complex>(): Int {
   }
 
   b_109 {
-    %v_110 = phi [b_100, %v_108], [b_101, 0]: Int
-    %v_111 = select %v_110, 32, 0: Int
-    %v_112 = add %v_92, %v_111: Int
-    %v_113 = call_complex opaque, 3: Int
-    %v_114 = sext %v_113: Long
-    %v_115 = shl %v_114, 4: Long
+    %v_110 = phi [b_100, %v_108], [b_101, 0]: I32
+    %v_111 = select %v_110, 32, 0: I32
+    %v_112 = add %v_92, %v_111: I32
+    %v_113 = call_complex opaque, 3: I32
+    %v_114 = sext %v_113: I64
+    %v_115 = shl %v_114, 4: I64
     %v_116 = add @ResolveTest.map$2, %v_115: Ptr
-    %v_117 = loads %v_116, 4: Int
-    %v_118 = cmp_eq %v_117, 4: Int
+    %v_117 = loads %v_116, 4: I32
+    %v_118 = cmp_eq %v_117, 4: I32
     je %v_118, b_119, b_120
   }
 
   b_119 {
-    %v_121 = call_complex opaque, 3: Int
-    %v_122 = sext %v_121: Long
-    %v_123 = shl %v_122, 4: Long
+    %v_121 = call_complex opaque, 3: I32
+    %v_122 = sext %v_121: I64
+    %v_123 = shl %v_122, 4: I64
     %v_124 = add @ResolveTest.map$2, %v_123: Ptr
     %v_125 = add %v_124, 4: Ptr
-    %v_126 = loads %v_125, 4: Int
-    %v_127 = cmp_eq %v_126, 4: Int
+    %v_126 = loads %v_125, 4: I32
+    %v_127 = cmp_eq %v_126, 4: I32
     jmp b_128
   }
 
@@ -251,26 +251,26 @@ main<complex>(): Int {
   }
 
   b_128 {
-    %v_129 = phi [b_119, %v_127], [b_120, 0]: Int
-    %v_130 = select %v_129, 64, 0: Int
-    %v_131 = add %v_112, %v_130: Int
-    %v_132 = call_complex opaque, 1: Int
-    %v_133 = sext %v_132: Long
-    %v_134 = shl %v_133, 4: Long
+    %v_129 = phi [b_119, %v_127], [b_120, 0]: I32
+    %v_130 = select %v_129, 64, 0: I32
+    %v_131 = add %v_112, %v_130: I32
+    %v_132 = call_complex opaque, 1: I32
+    %v_133 = sext %v_132: I64
+    %v_134 = shl %v_133, 4: I64
     %v_135 = add @ResolveTest.map$2, %v_134: Ptr
-    %v_136 = loads %v_135, 4: Int
-    %v_137 = cmp_eq %v_136, 4: Int
+    %v_136 = loads %v_135, 4: I32
+    %v_137 = cmp_eq %v_136, 4: I32
     je %v_137, b_138, b_139
   }
 
   b_138 {
-    %v_140 = call_complex opaque, 1: Int
-    %v_141 = sext %v_140: Long
-    %v_142 = shl %v_141, 4: Long
+    %v_140 = call_complex opaque, 1: I32
+    %v_141 = sext %v_140: I64
+    %v_142 = shl %v_141, 4: I64
     %v_143 = add @ResolveTest.map$2, %v_142: Ptr
     %v_144 = add %v_143, 4: Ptr
-    %v_145 = loads %v_144, 4: Int
-    %v_146 = cmp_eq %v_145, 0: Int
+    %v_145 = loads %v_144, 4: I32
+    %v_146 = cmp_eq %v_145, 0: I32
     jmp b_147
   }
 
@@ -279,32 +279,32 @@ main<complex>(): Int {
   }
 
   b_147 {
-    %v_148 = phi [b_138, %v_146], [b_139, 0]: Int
-    %v_149 = select %v_148, 128, 0: Int
-    %v_150 = add %v_131, %v_149: Int
-    %v_151 = call_complex opaque, 0: Int
-    %v_152 = sext %v_151: Long
-    %v_153 = shl %v_152, 4: Long
+    %v_148 = phi [b_138, %v_146], [b_139, 0]: I32
+    %v_149 = select %v_148, 128, 0: I32
+    %v_150 = add %v_131, %v_149: I32
+    %v_151 = call_complex opaque, 0: I32
+    %v_152 = sext %v_151: I64
+    %v_153 = shl %v_152, 4: I64
     %v_154 = add @ResolveTest.map$2, %v_153: Ptr
     %v_155 = add %v_154, 8: Ptr
-    %v_156 = loads %v_155, 4: Int
-    %v_157 = cmp_eq %v_156, 4: Int
-    %v_158 = select %v_157, 256, 0: Int
-    %v_159 = add %v_150, %v_158: Int
-    %v_160 = call_complex opaque, 0: Int
-    %v_161 = sext %v_160: Long
-    %v_162 = shl %v_161, 3: Long
+    %v_156 = loads %v_155, 4: I32
+    %v_157 = cmp_eq %v_156, 4: I32
+    %v_158 = select %v_157, 256, 0: I32
+    %v_159 = add %v_150, %v_158: I32
+    %v_160 = call_complex opaque, 0: I32
+    %v_161 = sext %v_160: I64
+    %v_162 = shl %v_161, 3: I64
     %v_163 = add @ResolveTest.map$3, %v_162: Ptr
-    %v_164 = loads %v_163, 4: Int
-    %v_165 = cmp_eq %v_164, 0: Int
-    %v_166 = select %v_165, 512, 0: Int
-    %v_167 = add %v_159, %v_166: Int
-    %v_168 = call_complex opaque, 2: Int
-    %v_169 = sext %v_168: Long
-    %v_170 = shl %v_169, 3: Long
+    %v_164 = loads %v_163, 4: I32
+    %v_165 = cmp_eq %v_164, 0: I32
+    %v_166 = select %v_165, 512, 0: I32
+    %v_167 = add %v_159, %v_166: I32
+    %v_168 = call_complex opaque, 2: I32
+    %v_169 = sext %v_168: I64
+    %v_170 = shl %v_169, 3: I64
     %v_171 = add @ResolveTest.map$3, %v_170: Ptr
-    %v_172 = loads %v_171, 4: Int
-    %v_173 = cmp_eq %v_172, 1: Int
+    %v_172 = loads %v_171, 4: I32
+    %v_173 = cmp_eq %v_172, 1: I32
     je %v_173, b_174, b_175
   }
 
@@ -314,8 +314,8 @@ main<complex>(): Int {
 
   b_174 {
     %v_177 = add %v_171, 4: Ptr
-    %v_178 = loads %v_177, 4: Int
-    %v_179 = cmp_eq %v_178, 2: Int
+    %v_178 = loads %v_177, 4: I32
+    %v_179 = cmp_eq %v_178, 2: I32
     je %v_179, b_180, b_175
   }
 
@@ -324,32 +324,32 @@ main<complex>(): Int {
   }
 
   b_176 {
-    %v_181 = phi [b_180, 1], [b_175, 0]: Int
-    %v_182 = select %v_181, 1024, 0: Int
-    %v_183 = add %v_167, %v_182: Int
-    %v_184 = call_complex opaque, 0: Int
-    %v_185 = call_complex opaque, 3: Int
-    %v_186 = add %v_183, 2048: Int
-    %v_187 = call_complex opaque, 0: Int
+    %v_181 = phi [b_180, 1], [b_175, 0]: I32
+    %v_182 = select %v_181, 1024, 0: I32
+    %v_183 = add %v_167, %v_182: I32
+    %v_184 = call_complex opaque, 0: I32
+    %v_185 = call_complex opaque, 3: I32
+    %v_186 = add %v_183, 2048: I32
+    %v_187 = call_complex opaque, 0: I32
     %v_188 = alloca 4, 4: Ptr
     call_complex tokenOf, %v_188, %v_187
-    %v_189 = loads %v_188, 4: Int
-    %v_190 = loads @tokensDropped, 4: Int
-    %v_191 = add %v_190, %v_189: Int
+    %v_189 = loads %v_188, 4: I32
+    %v_190 = loads @tokensDropped, 4: I32
+    %v_191 = add %v_190, %v_189: I32
     store @tokensDropped, %v_191, 4
-    %v_192 = cmp_eq %v_189, 10: Int
+    %v_192 = cmp_eq %v_189, 10: I32
     je %v_192, b_193, b_194
   }
 
   b_193 {
-    %v_195 = call_complex opaque, 3: Int
+    %v_195 = call_complex opaque, 3: I32
     %v_196 = alloca 4, 4: Ptr
     call_complex tokenOf, %v_196, %v_195
-    %v_197 = loads %v_196, 4: Int
-    %v_198 = loads @tokensDropped, 4: Int
-    %v_199 = add %v_198, %v_197: Int
+    %v_197 = loads %v_196, 4: I32
+    %v_198 = loads @tokensDropped, 4: I32
+    %v_199 = add %v_198, %v_197: I32
     store @tokensDropped, %v_199, 4
-    %v_200 = cmp_eq %v_197, 40: Int
+    %v_200 = cmp_eq %v_197, 40: I32
     jmp b_201
   }
 
@@ -358,23 +358,23 @@ main<complex>(): Int {
   }
 
   b_201 {
-    %v_202 = phi [b_193, %v_200], [b_194, 0]: Int
-    %v_203 = select %v_202, 4096, 0: Int
-    %v_204 = add %v_186, %v_203: Int
-    %v_205 = call_complex opaque, 0: Int
-    %v_206 = sext %v_205: Long
-    %v_207 = shl %v_206, 3: Long
+    %v_202 = phi [b_193, %v_200], [b_194, 0]: I32
+    %v_203 = select %v_202, 4096, 0: I32
+    %v_204 = add %v_186, %v_203: I32
+    %v_205 = call_complex opaque, 0: I32
+    %v_206 = sext %v_205: I64
+    %v_207 = shl %v_206, 3: I64
     %v_208 = add @ResolveTest.map$0, %v_207: Ptr
-    %v_209 = loads %v_208, 4: Int
-    %v_210 = cmp_neq %v_209, 100: Int
-    %v_211 = cmp_eq %v_205, 1: Int
-    %v_212 = or %v_210, %v_211: Int
-    %v_213 = cmp_eq %v_205, 3: Int
-    %v_214 = or %v_212, %v_213: Int
-    %v_215 = select %v_214, 2, 0: Int
-    %v_216 = cmp_eq %v_215, 2: Int
-    %v_217 = select %v_216, 8192, 0: Int
-    %v_218 = add %v_204, %v_217: Int
+    %v_209 = loads %v_208, 4: I32
+    %v_210 = cmp_neq %v_209, 100: I32
+    %v_211 = cmp_eq %v_205, 1: I32
+    %v_212 = or %v_210, %v_211: I32
+    %v_213 = cmp_eq %v_205, 3: I32
+    %v_214 = or %v_212, %v_213: I32
+    %v_215 = select %v_214, 2, 0: I32
+    %v_216 = cmp_eq %v_215, 2: I32
+    %v_217 = select %v_216, 8192, 0: I32
+    %v_218 = add %v_204, %v_217: I32
     ret %v_218
   }
 }

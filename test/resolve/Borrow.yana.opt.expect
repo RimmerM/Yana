@@ -1,58 +1,58 @@
 let image$base: () = <none>
 
-fn +=(Int)(%target: Int, %amount: Int) -> () {
+fn +=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn bump(%counter: Int, %by: Int) -> () {
+fn bump(%counter: I32, %by: I32) -> () {
   b0:
-    %v2 = load %counter : Int
-    %v3 = add %v2, %by : Int
+    %v2 = load %counter : I32
+    %v3 = add %v2, %by : I32
     assign %counter, %v3
     ret
 }
 
-fn swap(%a: Int, %b: Int) -> () {
+fn swap(%a: I32, %b: I32) -> () {
   b0:
-    %old = load %a : Int
-    %v3 = load %b : Int
+    %old = load %a : I32
+    %v3 = load %b : I32
     assign %a, %v3
     assign %b, %old
     ret
 }
 
-fn moveBy(%p: Point, %dx: Int, %dy: Int) -> () {
+fn moveBy(%p: Point, %dx: I32, %dy: I32) -> () {
   b0:
-    %v5 = borrow_mut %p@Point.x : &Int
-    call +=(Int), %v5, %dx
-    %v9 = borrow_mut %p@Point.y : &Int
-    call +=(Int), %v9, %dy
+    %v5 = borrow_mut %p@Point.x : &I32
+    call +=(I32), %v5, %dx
+    %v9 = borrow_mut %p@Point.y : &I32
+    call +=(I32), %v9, %dy
     ret
 }
 
-fn copyThroughBorrow(%target: Int, %amount: Int) -> () {
+fn copyThroughBorrow(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v28 = alloc : Point
     aggregate %here@Point.x = 10, %here@Point.y = 20
-    %v66 = borrow_mut %here@Point.x : &Int
-    call +=(Int), %v66, 1
-    %v68 = borrow_mut %here@Point.y : &Int
-    call +=(Int), %v68, 2
-    %v47 = load %here@Point.x : Int
-    %v48 = add %v47, 33 : Int
-    %v50 = load %here@Point.y : Int
-    %v51 = add %v48, %v50 : Int
+    %v66 = borrow_mut %here@Point.x : &I32
+    call +=(I32), %v66, 1
+    %v68 = borrow_mut %here@Point.y : &I32
+    call +=(I32), %v68, 2
+    %v47 = load %here@Point.x : I32
+    %v48 = add %v47, 33 : I32
+    %v50 = load %here@Point.y : I32
+    %v51 = add %v48, %v50 : I32
     ret %v51
 }

@@ -15,7 +15,7 @@
 # instruction at all, and this was the last one left.
 
 # A byte and a word splat of a runtime value, at 128 bits.
-splatNarrow(%b: Int, %w: Int): i8x16 {
+splatNarrow(%b: I32, %w: I32): i8x16 {
     {
         %vb = vsplat %b: i8x16
         %vw = vsplat %w: i16x8
@@ -27,7 +27,7 @@ splatNarrow(%b: Int, %w: Int): i8x16 {
 
 # And at 256, where the same instruction fills the whole register - `vpshufd` never could, working
 # inside each 128-bit half.
-splatNarrowWide(%b: Int, %w: Int): i8x32 {
+splatNarrowWide(%b: I32, %w: I32): i8x32 {
     {
         %vb = vsplat %b: i8x32
         %vw = vsplat %w: i16x16
@@ -38,7 +38,7 @@ splatNarrowWide(%b: Int, %w: Int): i8x32 {
 }
 
 # The two wider lanes, which take the same instruction rather than the shuffle they used to.
-splatWide(%d: Int, %q: Long): i32x4 {
+splatWide(%d: I32, %q: I64): i32x4 {
     {
         %vd = vsplat %d: i32x4
         %vq = vsplat %q: i64x2

@@ -2,51 +2,51 @@
 mut @least = [0, 0, 0, 0, 0, 0, 0, 128]
 mut @minusOne = [255, 255, 255, 255, 255, 255, 255, 255]
 
-shapeValue<complex>(%s: Ptr): Int {
+shapeValue<complex>(%s: Ptr): I32 {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %s, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
     %v_5 = add %s, 4: Ptr
-    %r = loads %v_5, 4: Int
-    %v_6 = add %r, 1: Int
+    %r = loads %v_5, 4: I32
+    %v_6 = add %r, 1: I32
     jmp b_7
   }
 
   b_3 {
     %v_8 = add %s, 4: Ptr
-    %width = loads %v_8, 4: Int
+    %width = loads %v_8, 4: I32
     %v_9 = add %s, 8: Ptr
-    %height = loads %v_9, 4: Int
-    %v_10 = imul %width, %height: Int
+    %height = loads %v_9, 4: I32
+    %v_10 = imul %width, %height: I32
     jmp b_7
   }
 
   b_7 {
-    %v_11 = phi [b_3, %v_10], [b_4, %v_6]: Int
+    %v_11 = phi [b_3, %v_10], [b_4, %v_6]: I32
     ret %v_11
   }
 }
 
-area<complex>(%s: Ptr): Int {
+area<complex>(%s: Ptr): I32 {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %s, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_eq %v_1, 0: Int
+    %v_5 = cmp_eq %v_1, 0: I32
     je %v_5, b_6, b_7
   }
 
   b_3 {
     %v_8 = add %s, 4: Ptr
-    %v_9 = loads %v_8, 4: Int
-    %v_10 = cmp_ige %v_9, 11: Int
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = cmp_ige %v_9, 11: I32
     je %v_10, b_11, b_4
   }
 
@@ -55,60 +55,60 @@ area<complex>(%s: Ptr): Int {
   }
 
   b_7 {
-    %v_13 = cmp_eq %v_1, 1: Int
+    %v_13 = cmp_eq %v_1, 1: I32
     je %v_13, b_14, b_15
   }
 
   b_6 {
     %v_16 = add %s, 4: Ptr
-    %r = loads %v_16, 4: Int
+    %r = loads %v_16, 4: I32
     jmp b_12
   }
 
   b_15 {
     %v_17 = add %s, 4: Ptr
-    %w = loads %v_17, 4: Int
+    %w = loads %v_17, 4: I32
     %v_18 = add %s, 8: Ptr
-    %h = loads %v_18, 4: Int
-    %v_19 = imul %w, %h: Int
+    %h = loads %v_18, 4: I32
+    %v_19 = imul %w, %h: I32
     jmp b_12
   }
 
   b_14 {
     %v_20 = add %s, 4: Ptr
-    %v_21 = loads %v_20, 4: Int
-    %v_22 = cmp_ige %v_21, 11: Int
+    %v_21 = loads %v_20, 4: I32
+    %v_22 = cmp_ige %v_21, 11: I32
     je %v_22, b_23, b_15
   }
 
   b_23 {
     %v_24 = add %s, 8: Ptr
-    %h = loads %v_24, 4: Int
-    %v_25 = imul %h, 10: Int
+    %h = loads %v_24, 4: I32
+    %v_25 = imul %h, 10: I32
     jmp b_12
   }
 
   b_12 {
-    %v_26 = phi [b_11, 100], [b_6, %r], [b_23, %v_25], [b_15, %v_19]: Int
+    %v_26 = phi [b_11, 100], [b_6, %r], [b_23, %v_25], [b_15, %v_19]: I32
     ret %v_26
   }
 }
 
-nested<complex>(%m: Ptr): Int {
+nested<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = load %m, 1: Long
-    %v_2 = cmp_le %v_1, 2: Int
+    %v_1 = load %m, 1: I64
+    %v_2 = cmp_le %v_1, 2: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_le %v_1, 2: Int
+    %v_5 = cmp_le %v_1, 2: I32
     je %v_5, b_6, b_7
   }
 
   b_3 {
-    %v_8 = load %m, 1: Int
-    %v_9 = cmp_eq %v_8, 0: Int
+    %v_8 = load %m, 1: I32
+    %v_9 = cmp_eq %v_8, 0: I32
     je %v_9, b_10, b_4
   }
 
@@ -117,13 +117,13 @@ nested<complex>(%m: Ptr): Int {
   }
 
   b_7 {
-    %v_12 = cmp_le %v_1, 2: Int
+    %v_12 = cmp_le %v_1, 2: I32
     je %v_12, b_13, b_14
   }
 
   b_6 {
-    %v_15 = load %m, 1: Int
-    %v_16 = cmp_eq %v_15, 1: Int
+    %v_15 = load %m, 1: I32
+    %v_16 = cmp_eq %v_15, 1: I32
     je %v_16, b_17, b_7
   }
 
@@ -136,8 +136,8 @@ nested<complex>(%m: Ptr): Int {
   }
 
   b_13 {
-    %v_18 = load %m, 1: Int
-    %v_19 = cmp_eq %v_18, 2: Int
+    %v_18 = load %m, 1: I32
+    %v_19 = cmp_eq %v_18, 2: I32
     je %v_19, b_20, b_14
   }
 
@@ -146,27 +146,27 @@ nested<complex>(%m: Ptr): Int {
   }
 
   b_11 {
-    %v_21 = phi [b_10, 1], [b_17, 2], [b_20, 3], [b_14, 0]: Int
+    %v_21 = phi [b_10, 1], [b_17, 2], [b_20, 3], [b_14, 0]: I32
     ret %v_21
   }
 }
 
-pairValue<complex>(%p: Ptr): Int {
+pairValue<complex>(%p: Ptr): I32 {
   b_0 {
-    %v_1 = load %p, 1: Int
-    %v_2 = and %v_1, 3: Int
-    %v_3 = cmp_eq %v_2, 0: Int
+    %v_1 = load %p, 1: I32
+    %v_2 = and %v_1, 3: I32
+    %v_3 = cmp_eq %v_2, 0: I32
     je %v_3, b_4, b_5
   }
 
   b_5 {
-    %v_6 = cmp_eq %v_2, 0: Int
+    %v_6 = cmp_eq %v_2, 0: I32
     je %v_6, b_7, b_8
   }
 
   b_4 {
-    %v_9 = shr %v_1, 2: Int
-    %v_10 = and %v_9, 1: Int
+    %v_9 = shr %v_1, 2: I32
+    %v_10 = and %v_9, 1: I32
     je %v_10, b_11, b_5
   }
 
@@ -175,17 +175,17 @@ pairValue<complex>(%p: Ptr): Int {
   }
 
   b_8 {
-    %v_13 = cmp_eq %v_2, 1: Int
-    %v_14 = shr %v_1, 2: Int
-    %v_15 = and %v_14, 1: Int
-    %v_16 = select %v_15, 3, 4: Int
-    %v_17 = select %v_13, %v_16, 5: Int
+    %v_13 = cmp_eq %v_2, 1: I32
+    %v_14 = shr %v_1, 2: I32
+    %v_15 = and %v_14, 1: I32
+    %v_16 = select %v_15, 3, 4: I32
+    %v_17 = select %v_13, %v_16, 5: I32
     jmp b_12
   }
 
   b_7 {
-    %v_18 = shr %v_1, 2: Int
-    %v_19 = and %v_18, 1: Int
+    %v_18 = shr %v_1, 2: I32
+    %v_19 = and %v_18, 1: I32
     je %v_19, b_8, b_20
   }
 
@@ -194,29 +194,29 @@ pairValue<complex>(%p: Ptr): Int {
   }
 
   b_12 {
-    %v_21 = phi [b_11, 1], [b_20, 2], [b_8, %v_17]: Int
+    %v_21 = phi [b_11, 1], [b_20, 2], [b_8, %v_17]: I32
     ret %v_21
   }
 }
 
-firstOrRest<complex>(%m: Ptr): Int {
+firstOrRest<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = load %m, 1: Long
-    %v_2 = cmp_le %v_1, 2: Int
+    %v_1 = load %m, 1: I64
+    %v_2 = cmp_le %v_1, 2: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_le %v_1, 2: Int
-    %rest = load %m, 1: Int
-    %v_6 = add %rest, 1: Int
-    %v_7 = select %v_5, %v_6, 0: Int
+    %v_5 = cmp_le %v_1, 2: I32
+    %rest = load %m, 1: I32
+    %v_6 = add %rest, 1: I32
+    %v_7 = select %v_5, %v_6, 0: I32
     jmp b_8
   }
 
   b_3 {
-    %v_9 = load %m, 1: Int
-    %v_10 = cmp_eq %v_9, 0: Int
+    %v_9 = load %m, 1: I32
+    %v_10 = cmp_eq %v_9, 0: I32
     je %v_10, b_11, b_4
   }
 
@@ -225,12 +225,12 @@ firstOrRest<complex>(%m: Ptr): Int {
   }
 
   b_8 {
-    %v_12 = phi [b_11, 10], [b_4, %v_7]: Int
+    %v_12 = phi [b_11, 10], [b_4, %v_7]: I32
     ret %v_12
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 12, 4: Ptr
     store %v_1, 1, 4
@@ -238,118 +238,118 @@ main<complex>(): Int {
     store %v_2, 2, 4
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 3, 4
-    %v_4 = call_complex shapeValue, %v_1: Int
-    %v_5 = add %v_4, 6: Int
+    %v_4 = call_complex shapeValue, %v_1: I32
+    %v_5 = add %v_4, 6: I32
     %v_6 = alloca 12, 4: Ptr
     store %v_6, 0, 4
     %v_7 = add %v_6, 4: Ptr
     store %v_7, 4, 4
-    %v_8 = call_complex shapeValue, %v_6: Int
-    %v_9 = add %v_5, %v_8: Int
+    %v_8 = call_complex shapeValue, %v_6: I32
+    %v_9 = add %v_5, %v_8: I32
     %v_10 = alloca 12, 4: Ptr
     store %v_10, 0, 4
     %v_11 = add %v_10, 4: Ptr
     store %v_11, 20, 4
-    %v_12 = call_complex area, %v_10: Int
-    %v_13 = add %v_9, %v_12: Int
+    %v_12 = call_complex area, %v_10: I32
+    %v_13 = add %v_9, %v_12: I32
     %v_14 = alloca 12, 4: Ptr
     store %v_14, 0, 4
     %v_15 = add %v_14, 4: Ptr
     store %v_15, 3, 4
-    %v_16 = call_complex area, %v_14: Int
-    %v_17 = add %v_13, %v_16: Int
+    %v_16 = call_complex area, %v_14: I32
+    %v_17 = add %v_13, %v_16: I32
     %v_18 = alloca 12, 4: Ptr
     store %v_18, 1, 4
     %v_19 = add %v_18, 4: Ptr
     store %v_19, 20, 4
     %v_20 = add %v_18, 8: Ptr
     store %v_20, 2, 4
-    %v_21 = call_complex area, %v_18: Int
-    %v_22 = add %v_17, %v_21: Int
+    %v_21 = call_complex area, %v_18: I32
+    %v_22 = add %v_17, %v_21: I32
     %v_23 = alloca 12, 4: Ptr
     store %v_23, 1, 4
     %v_24 = add %v_23, 4: Ptr
     store %v_24, 3, 4
     %v_25 = add %v_23, 8: Ptr
     store %v_25, 9, 4
-    %v_26 = call_complex area, %v_23: Int
-    %v_27 = add %v_22, %v_26: Int
+    %v_26 = call_complex area, %v_23: I32
+    %v_27 = add %v_22, %v_26: I32
     %v_28 = alloca 1, 1: Ptr
     store %v_28, 0, 1
-    %v_29 = call_complex nested, %v_28: Int
-    %v_30 = add %v_27, %v_29: Int
+    %v_29 = call_complex nested, %v_28: I32
+    %v_30 = add %v_27, %v_29: I32
     %v_31 = alloca 1, 1: Ptr
     store %v_31, 1, 1
-    %v_32 = call_complex nested, %v_31: Int
-    %v_33 = add %v_30, %v_32: Int
+    %v_32 = call_complex nested, %v_31: I32
+    %v_33 = add %v_30, %v_32: I32
     %v_34 = alloca 1, 1: Ptr
     store %v_34, 2, 1
-    %v_35 = call_complex nested, %v_34: Int
-    %v_36 = add %v_33, %v_35: Int
+    %v_35 = call_complex nested, %v_34: I32
+    %v_36 = add %v_33, %v_35: I32
     %v_37 = alloca 1, 1: Ptr
     store %v_37, 3, 1
-    %v_38 = call_complex nested, %v_37: Int
-    %v_39 = add %v_36, %v_38: Int
+    %v_38 = call_complex nested, %v_37: I32
+    %v_39 = add %v_36, %v_38: I32
     %v_40 = alloca 1, 1: Ptr
     store %v_40, 4, 1
-    %v_41 = call_complex pairValue, %v_40: Int
-    %v_42 = add %v_39, %v_41: Int
+    %v_41 = call_complex pairValue, %v_40: I32
+    %v_42 = add %v_39, %v_41: I32
     %v_43 = alloca 1, 1: Ptr
     store %v_43, 0, 1
-    %v_44 = call_complex pairValue, %v_43: Int
-    %v_45 = add %v_42, %v_44: Int
+    %v_44 = call_complex pairValue, %v_43: I32
+    %v_45 = add %v_42, %v_44: I32
     %v_46 = alloca 1, 1: Ptr
     store %v_46, 5, 1
-    %v_47 = call_complex pairValue, %v_46: Int
-    %v_48 = add %v_45, %v_47: Int
+    %v_47 = call_complex pairValue, %v_46: I32
+    %v_48 = add %v_45, %v_47: I32
     %v_49 = alloca 1, 1: Ptr
     store %v_49, 1, 1
-    %v_50 = call_complex pairValue, %v_49: Int
-    %v_51 = add %v_48, %v_50: Int
+    %v_50 = call_complex pairValue, %v_49: I32
+    %v_51 = add %v_48, %v_50: I32
     %v_52 = alloca 1, 1: Ptr
     store %v_52, 6, 1
-    %v_53 = call_complex pairValue, %v_52: Int
-    %v_54 = add %v_51, %v_53: Int
+    %v_53 = call_complex pairValue, %v_52: I32
+    %v_54 = add %v_51, %v_53: I32
     %v_55 = alloca 1, 1: Ptr
     store %v_55, 2, 1
-    %v_56 = call_complex pairValue, %v_55: Int
-    %v_57 = add %v_54, %v_56: Int
+    %v_56 = call_complex pairValue, %v_55: I32
+    %v_57 = add %v_54, %v_56: I32
     %v_58 = alloca 1, 1: Ptr
     store %v_58, 0, 1
-    %v_59 = call_complex firstOrRest, %v_58: Int
-    %v_60 = add %v_57, %v_59: Int
+    %v_59 = call_complex firstOrRest, %v_58: I32
+    %v_60 = add %v_57, %v_59: I32
     %v_61 = alloca 1, 1: Ptr
     store %v_61, 1, 1
-    %v_62 = call_complex firstOrRest, %v_61: Int
-    %v_63 = add %v_60, %v_62: Int
+    %v_62 = call_complex firstOrRest, %v_61: I32
+    %v_63 = add %v_60, %v_62: I32
     %v_64 = alloca 1, 1: Ptr
     store %v_64, 2, 1
-    %v_65 = call_complex firstOrRest, %v_64: Int
-    %v_66 = add %v_63, %v_65: Int
+    %v_65 = call_complex firstOrRest, %v_64: I32
+    %v_66 = add %v_63, %v_65: I32
     %v_67 = alloca 1, 1: Ptr
     store %v_67, 3, 1
-    %v_68 = call_complex firstOrRest, %v_67: Int
-    %v_69 = add %v_66, %v_68: Int
-    %v_70 = add %v_69, 3: Int
-    %v_71 = loads @least, 8: Long
-    %v_72 = cmp_eq %v_71, 9223372036854775808: Int
-    %v_73 = cmp_eq %v_71, 18446744073709551615: Int
-    %v_74 = cmp_eq %v_71, 0: Int
-    %v_75 = select %v_74, 3, 4: Int
-    %v_76 = select %v_73, 2, %v_75: Int
-    %v_77 = select %v_72, 1, %v_76: Int
-    %v_78 = imul %v_77, 1000: Int
-    %v_79 = add %v_70, %v_78: Int
-    %v_80 = loads @minusOne, 8: Long
-    %v_81 = cmp_eq %v_80, 9223372036854775808: Int
-    %v_82 = cmp_eq %v_80, 18446744073709551615: Int
-    %v_83 = cmp_eq %v_80, 0: Int
-    %v_84 = select %v_83, 3, 4: Int
-    %v_85 = select %v_82, 2, %v_84: Int
-    %v_86 = select %v_81, 1, %v_85: Int
-    %v_87 = imul %v_86, 100: Int
-    %v_88 = add %v_79, %v_87: Int
-    %v_89 = add %v_88, 34: Int
+    %v_68 = call_complex firstOrRest, %v_67: I32
+    %v_69 = add %v_66, %v_68: I32
+    %v_70 = add %v_69, 3: I32
+    %v_71 = loads @least, 8: I64
+    %v_72 = cmp_eq %v_71, 9223372036854775808: I32
+    %v_73 = cmp_eq %v_71, 18446744073709551615: I32
+    %v_74 = cmp_eq %v_71, 0: I32
+    %v_75 = select %v_74, 3, 4: I32
+    %v_76 = select %v_73, 2, %v_75: I32
+    %v_77 = select %v_72, 1, %v_76: I32
+    %v_78 = imul %v_77, 1000: I32
+    %v_79 = add %v_70, %v_78: I32
+    %v_80 = loads @minusOne, 8: I64
+    %v_81 = cmp_eq %v_80, 9223372036854775808: I32
+    %v_82 = cmp_eq %v_80, 18446744073709551615: I32
+    %v_83 = cmp_eq %v_80, 0: I32
+    %v_84 = select %v_83, 3, 4: I32
+    %v_85 = select %v_82, 2, %v_84: I32
+    %v_86 = select %v_81, 1, %v_85: I32
+    %v_87 = imul %v_86, 100: I32
+    %v_88 = add %v_79, %v_87: I32
+    %v_89 = add %v_88, 34: I32
     ret %v_89
   }
 }

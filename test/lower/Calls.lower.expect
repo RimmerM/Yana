@@ -2,34 +2,34 @@
 @number = [210, 4, 0, 0, 0, 0, 0, 0]
 @g = [42, 0, 0, 0]
 
-callee<complex>(%x: Int, %y: Int): Int {
+callee<complex>(%x: I32, %y: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-namedRefs<complex>(): Int {
+namedRefs<complex>(): I32 {
   b_0 {
     %f = fun callee: Ptr
-    %v = load @g, 4: Int
+    %v = load @g, 4: I32
     ret %v
   }
 }
 
-manyArgs<complex>(%a: Int, %b: Int): Int {
+manyArgs<complex>(%a: I32, %b: I32): I32 {
   b_0 {
-    %r = call_complex callee, %a, %b: Int
+    %r = call_complex callee, %a, %b: I32
     ret %r
   }
 }
 
-convCalls<complex>(%a: Int, %b: Int) {
+convCalls<complex>(%a: I32, %b: I32) {
   b_0 {
-    %r0 = call_sysv callee, %a, %b: Int
-    %r1 = call_win64 callee, %a, %b: Int
-    %r2 = call_simple callee, %a, %b: Int
-    %r3 = call_complex callee, %a, %b: Int
-    %r4 = call_clobber callee, %a, %b: Int
+    %r0 = call_sysv callee, %a, %b: I32
+    %r1 = call_win64 callee, %a, %b: I32
+    %r2 = call_simple callee, %a, %b: I32
+    %r3 = call_complex callee, %a, %b: I32
+    %r4 = call_clobber callee, %a, %b: I32
     ret 
   }
 }

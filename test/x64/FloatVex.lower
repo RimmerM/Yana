@@ -2,7 +2,7 @@
 #
 # extensions: v3
 #
-# The same functions as Float.lower and FloatMemory.lower, so the two goldens read side by side and
+# The same functions as F32.lower and FloatMemory.lower, so the two goldens read side by side and
 # every difference between them is the encoding and what it makes possible. Three things to look for:
 #
 #   - the arithmetic is three-operand, so the `movaps` that stood in front of every operation whose
@@ -23,63 +23,63 @@
 # legacy write leaves the upper half alone, and which instructions it stands between is a property of
 # the schedule rather than of the constant. See `zero` below.
 
-arith64(%a: Double, %b: Double): Double {
+arith64(%a: F64, %b: F64): F64 {
     {
-        %s = add %a, %b: Double
-        %d = sub %s, %b: Double
-        %m = mul %d, %a: Double
-        %q = div %m, %b: Double
+        %s = add %a, %b: F64
+        %d = sub %s, %b: F64
+        %m = mul %d, %a: F64
+        %q = div %m, %b: F64
         ret %q
     }
 }
 
-arith32(%a: Float, %b: Float): Float {
+arith32(%a: F32, %b: F32): F32 {
     {
-        %s = add %a, %b: Float
-        %d = sub %s, %b: Float
-        %m = mul %d, %a: Float
-        %q = div %m, %b: Float
+        %s = add %a, %b: F32
+        %d = sub %s, %b: F32
+        %m = mul %d, %a: F32
+        %q = div %m, %b: F32
         ret %q
     }
 }
 
 # Every source read twice, so that no operand can be written over and the three-operand form is what
 # keeps this to four instructions. Under the legacy forms each of these carries a copy.
-noReuse(%a: Double, %b: Double): Double {
+noReuse(%a: F64, %b: F64): F64 {
     {
-        %s = add %a, %b: Double
-        %d = sub %a, %b: Double
-        %m = mul %s, %d: Double
-        %q = div %m, %a: Double
+        %s = add %a, %b: F64
+        %d = sub %a, %b: F64
+        %m = mul %s, %d: F64
+        %q = div %m, %a: F64
         ret %q
     }
 }
 
 # The three-byte prefix: the operand the allocator put in one of the upper eight registers cannot be
 # named by the two-byte form, which has no B bit.
-manyLive(%a: Double, %b: Double, %c: Double, %d: Double, %e: Double, %f: Double, %g: Double, %h: Double, %i: Double, %j: Double): Double {
+manyLive(%a: F64, %b: F64, %c: F64, %d: F64, %e: F64, %f: F64, %g: F64, %h: F64, %i: F64, %j: F64): F64 {
     {
-        %ab = add %a, %b: Double
-        %cd = add %c, %d: Double
-        %ef = add %e, %f: Double
-        %gh = add %g, %h: Double
-        %ij = add %i, %j: Double
-        %x = mul %ab, %cd: Double
-        %y = mul %ef, %gh: Double
-        %z = mul %x, %y: Double
-        %r = div %z, %ij: Double
+        %ab = add %a, %b: F64
+        %cd = add %c, %d: F64
+        %ef = add %e, %f: F64
+        %gh = add %g, %h: F64
+        %ij = add %i, %j: F64
+        %x = mul %ab, %cd: F64
+        %y = mul %ef, %gh: F64
+        %z = mul %x, %y: F64
+        %r = div %z, %ij: F64
         ret %r
     }
 }
 
 # Negation, which is the pseudo that also loses its tie: `vxorps xmm, xmm, [rip + signmask]` names
 # its source separately where `xorps` toggled the bit in the destination.
-negate(%a: Double, %b: Float): Double {
+negate(%a: F64, %b: F32): F64 {
     {
-        %n = neg %a: Double
-        %m = neg %b: Float
-        %w = cast %m: Double
-        %r = add %n, %w: Double
+        %n = neg %a: F64
+        %m = neg %b: F32
+        %w = cast %m: F64
+        %r = add %n, %w: F64
         ret %r
     }
 }
@@ -90,15 +90,15 @@ negate(%a: Double, %b: Float): Double {
 # the same bytes as one naming the source there. Here it cannot: `%a` and `%b` are read again, so
 # `vxorpd` names one register in vvvv and another in ModRM.reg. See §70.2 of test/bench/findings.md,
 # which is what those bytes were wrong about.
-negateLive(%a: Double, %b: Float): Double {
+negateLive(%a: F64, %b: F32): F64 {
     {
-        %n = neg %a: Double
-        %m = neg %b: Float
-        %w = cast %m: Double
-        %s = add %n, %w: Double
-        %t = add %s, %a: Double
-        %u = cast %b: Double
-        %r = add %t, %u: Double
+        %n = neg %a: F64
+        %m = neg %b: F32
+        %w = cast %m: F64
+        %s = add %n, %w: F64
+        %t = add %s, %a: F64
+        %u = cast %b: F64
+        %r = add %t, %u: F64
         ret %r
     }
 }
@@ -106,20 +106,20 @@ negateLive(%a: Double, %b: Float): Double {
 # Positive zero at both widths, which is the one constant with an encoding of its own: `vxorps`
 # rather than `xorps`, with the source named in vvvv because the prefix no longer implies it. Added
 # to and multiplied by an argument so that neither is folded away and both survive to be emitted.
-zero(%a: Double, %b: Float): Double {
+zero(%a: F64, %b: F32): F64 {
     {
-        %z = add %a, 0.0: Double
-        %y = mul %b, 0.0F: Float
-        %w = cast %y: Double
-        %r = add %z, %w: Double
+        %z = add %a, 0.0: F64
+        %y = mul %b, 0.0F: F32
+        %w = cast %y: F64
+        %r = add %z, %w: F64
         ret %r
     }
 }
 
 # The comparisons, which have nothing to drop: `vucomisd` is `ucomisd` with a different prefix.
-compare(%a: Double, %b: Double): Int {
+compare(%a: F64, %b: F64): I32 {
     {
-        %c = cmp_gt %a, %b: Int
+        %c = cmp_gt %a, %b: I32
         je %c, then, else
     }
   then {
@@ -130,30 +130,30 @@ compare(%a: Double, %b: Double): Int {
     }
 }
 
-compareValue(%a: Float, %b: Float): Int {
+compareValue(%a: F32, %b: F32): I32 {
     {
-        %c = cmp_lt %a, %b: Int
-        %d = add %c, %c: Int
+        %c = cmp_lt %a, %b: I32
+        %d = add %c, %c: I32
         ret %d
     }
 }
 
 # A load folded into the operation that reads it, which is the memory twin of a VEX form: three
 # operands and an address in the r/m field at once.
-loadFold(%p: Ptr, %a: Double): Double {
+loadFold(%p: Ptr, %a: F64): F64 {
     {
-        %v = load %p, 8: Double
-        %s = add %a, %v: Double
-        %w = load %p, 8: Double
-        %m = mul %s, %w: Double
+        %v = load %p, 8: F64
+        %s = add %a, %v: F64
+        %w = load %p, 8: F64
+        %m = mul %s, %w: F64
         ret %m
     }
 }
 
 # And the transfers on their own, where the address is the whole instruction.
-transfer(%p: Ptr, %q: Ptr): Float {
+transfer(%p: Ptr, %q: Ptr): F32 {
     {
-        %v = load %p, 4: Float
+        %v = load %p, 4: F32
         store %q, %v, 4
         ret %v
     }

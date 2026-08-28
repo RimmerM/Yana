@@ -25,30 +25,30 @@
 # is about infinity rather than size: `Inf - Inf` is a NaN, and every already-integral value takes
 # the other arm.
 
-trunc64(%v: Double): Double {
+trunc64(%v: F64): F64 {
     {
-        %r = trunc %v: Double
+        %r = trunc %v: F64
         ret %r
     }
 }
 
-trunc32(%v: Float): Float {
+trunc32(%v: F32): F32 {
     {
-        %r = trunc %v: Float
+        %r = trunc %v: F32
         ret %r
     }
 }
 
-floor64(%v: Double): Double {
+floor64(%v: F64): F64 {
     {
-        %r = floor %v: Double
+        %r = floor %v: F64
         ret %r
     }
 }
 
-ceil32(%v: Float): Float {
+ceil32(%v: F32): F32 {
     {
-        %r = ceil %v: Float
+        %r = ceil %v: F32
         ret %r
     }
 }
@@ -69,10 +69,10 @@ floorF64x2(%v: f64x2): f64x2 {
     }
 }
 
-# The one that expands. Scalar first, which is the shape `Real(Double).round` reaches.
-round64(%v: Double): Double {
+# The one that expands. Scalar first, which is the shape `Real(F64).round` reaches.
+round64(%v: F64): F64 {
     {
-        %r = round %v: Double
+        %r = round %v: F64
         ret %r
     }
 }

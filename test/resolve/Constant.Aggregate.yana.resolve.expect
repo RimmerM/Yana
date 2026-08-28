@@ -10,17 +10,17 @@ let diagonal: Line = Line(Point(1, 2), Point(3, 5))
 
 let &cursor: Point = Point(10, 20)
 
-let pair: {left: Int, right: Int} = {7, 8}
+let pair: {left: I32, right: I32} = {7, 8}
 
-let some: Maybe(Int) = Just(9)
+let some: Maybe(I32) = Just(9)
 
-let none: Maybe(Int) = Nothing
+let none: Maybe(I32) = Nothing
 
 let boxShape: Shape = Rect(4, 6)
 
 let roundShape: Shape = Circle(11)
 
-let table: [Int *3] = [12, 13, 14]
+let table: [I32 *3] = [12, 13, 14]
 
 let corners: [Point *2] = [Point(1, 1), Point(2, 4)]
 
@@ -69,7 +69,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -121,7 +121,7 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -171,48 +171,48 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
     ret
 }
 
-fn scaled(%by: Int, %base: Point) -> Int {
+fn scaled(%by: I32, %base: Point) -> I32 {
   b0:
-    %v2 = load %base@Point.x : Int
-    %v3 = load %base@Point.y : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = mul %v4, %by : Int
+    %v2 = load %base@Point.x : I32
+    %v3 = load %base@Point.y : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = mul %v4, %by : I32
     ret %v5
 }
 
-fn sum(%p: Point) -> Int {
+fn sum(%p: Point) -> I32 {
   b0:
-    %v1 = load %p@Point.x : Int
-    %v2 = load %p@Point.y : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = load %p@Point.x : I32
+    %v2 = load %p@Point.y : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
-fn area(%s: Shape) -> Int {
+fn area(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v6 = load %s@Rect : {w: Int, h: Int}
-    %w = load %s@Rect.w : Int
-    %h = load %s@Rect.h : Int
-    %v9 = mul %w, %h : Int
+    %v6 = load %s@Rect : {w: I32, h: I32}
+    %w = load %s@Rect.w : I32
+    %h = load %s@Rect.h : I32
+    %v9 = mul %w, %h : I32
     jmp b3
 
   b2:
-    %r = load %s@Circle : Int
+    %r = load %s@Circle : I32
     jmp b3
 
   b3:
-    %v12 = phi [b2, %r], [b1, %v9] : Int
+    %v12 = phi [b2, %r], [b1, %v9] : I32
     ret %v12
 }
 
-fn unwrapOr(%m: Maybe(Int), %fallback: Int) -> Int {
+fn unwrapOr(%m: Maybe(I32), %fallback: I32) -> I32 {
   b0:
-    %v2 = load %m.discriminant : Int
+    %v2 = load %m.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -220,22 +220,22 @@ fn unwrapOr(%m: Maybe(Int), %fallback: Int) -> Int {
     jmp b3
 
   b2:
-    %v = load %m@Just : Int
+    %v = load %m@Just : I32
     jmp b3
 
   b3:
-    %v9 = phi [b2, %v], [b1, %fallback] : Int
+    %v9 = phi [b2, %v], [b1, %fallback] : I32
     ret %v9
 }
 
-fn boxedValue(%b: Boxed) -> Int {
+fn boxedValue(%b: Boxed) -> I32 {
   b0:
-    %v1 = load %b.discriminant : Int
+    %v1 = load %b.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v14 = load %b.discriminant : Int
+    %v14 = load %b.discriminant : I32
     %v16 = cmp_eq %v14, 1 : Bool
     je %v16, b4, b3
 
@@ -243,59 +243,59 @@ fn boxedValue(%b: Boxed) -> Int {
     %v5 = load %b@Packed : {lo: @bits(4) U32, hi: @bits(4) U32}
     %lo = load %b@Packed.lo : @bits(4) U32
     %hi = load %b@Packed.hi : @bits(4) U32
-    %lo = cast %lo : Int
-    %hi = cast %hi : Int
-    %v12 = mul %hi, 16 : Int
-    %v13 = add %lo, %v12 : Int
+    %lo = cast %lo : I32
+    %hi = cast %hi : I32
+    %v12 = mul %hi, 16 : I32
+    %v13 = add %lo, %v12 : I32
     jmp b5
 
   b3:
     jmp b5
 
   b4:
-    %v18 = load %b@Wrapped : {only: Int}
-    %v = load %b@Wrapped.only : Int
+    %v18 = load %b@Wrapped : {only: I32}
+    %v = load %b@Wrapped.only : I32
     jmp b5
 
   b5:
-    %v24 = phi [b2, %v13], [b4, %v], [b3, 0] : Int
+    %v24 = phi [b2, %v13], [b4, %v], [b3, 0] : I32
     ret %v24
 }
 
-fn flagValue(%f: Flags) -> Int {
+fn flagValue(%f: Flags) -> I32 {
   b0:
     %v1 = load %f@Flags.low : @bits(4) U32
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     %v3 = load %f@Flags.high : @bits(4) U32
-    %v4 = cast %v3 : Int
-    %v7 = mul %v4, 16 : Int
-    %bits = add %v2, %v7 : Int
+    %v4 = cast %v3 : I32
+    %v7 = mul %v4, 16 : I32
+    %bits = add %v2, %v7 : I32
     %v9 = load %f@Flags.set : Bool
     je %v9, b1, b2
 
   b1:
-    %v13 = add %bits, 256 : Int
+    %v13 = add %bits, 256 : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v16 = phi [b1, %v13], [b2, %bits] : Int
+    %v16 = phi [b1, %v13], [b2, %bits] : I32
     ret %v16
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
-    %v8 = add 3, 4 : Int
+    %v8 = add 3, 4 : I32
     %v11 = cmp_eq %v8, 7 : Bool
     je %v11, b1, b2
 
   b1:
-    %v13 = load %score : Int
-    %v16 = add %v13, 1 : Int
+    %v13 = load %score : I32
+    %v16 = add %v13, 1 : I32
     assign %score, %v16
     jmp b3
 
@@ -304,13 +304,13 @@ fn main() -> Int {
 
   b3:
     %v20 = load corner : Point
-    %v21 = call sum, %v20 : Int
+    %v21 = call sum, %v20 : I32
     %v24 = cmp_eq %v21, 11 : Bool
     je %v24, b4, b5
 
   b4:
-    %v26 = load %score : Int
-    %v29 = add %v26, 2 : Int
+    %v26 = load %score : I32
+    %v29 = add %v26, 2 : I32
     assign %score, %v29
     jmp b6
 
@@ -318,17 +318,17 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v34 = load cursor@Point.x : Int
-    %v37 = add %v34, 1 : Int
+    %v34 = load cursor@Point.x : I32
+    %v37 = add %v34, 1 : I32
     assign cursor@Point.x, %v37
     %v39 = load cursor : Point
-    %v40 = call sum, %v39 : Int
+    %v40 = call sum, %v39 : I32
     %v43 = cmp_eq %v40, 31 : Bool
     je %v43, b7, b8
 
   b7:
-    %v45 = load %score : Int
-    %v48 = add %v45, 4 : Int
+    %v45 = load %score : I32
+    %v48 = add %v45, 4 : I32
     assign %score, %v48
     jmp b9
 
@@ -338,13 +338,13 @@ fn main() -> Int {
   b9:
     %v53 = load diagonal@Line.from : Point
     %v56 = load diagonal@Line.to : Point
-    %v58 = add 2, 3 : Int
+    %v58 = add 2, 3 : I32
     %v61 = cmp_eq %v58, 5 : Bool
     je %v61, b10, b11
 
   b10:
-    %v63 = load %score : Int
-    %v66 = add %v63, 8 : Int
+    %v63 = load %score : I32
+    %v66 = add %v63, 8 : I32
     assign %score, %v66
     jmp b12
 
@@ -352,13 +352,13 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v74 = add 7, 8 : Int
+    %v74 = add 7, 8 : I32
     %v77 = cmp_eq %v74, 15 : Bool
     je %v77, b13, b14
 
   b13:
-    %v79 = load %score : Int
-    %v82 = add %v79, 16 : Int
+    %v79 = load %score : I32
+    %v82 = add %v79, 16 : I32
     assign %score, %v82
     jmp b15
 
@@ -366,14 +366,14 @@ fn main() -> Int {
     jmp b15
 
   b15:
-    %v86 = load some : Maybe(Int)
-    %v88 = call unwrapOr, %v86, 0 : Int
+    %v86 = load some : Maybe(I32)
+    %v88 = call unwrapOr, %v86, 0 : I32
     %v91 = cmp_eq %v88, 9 : Bool
     je %v91, b16, b17
 
   b16:
-    %v93 = load %score : Int
-    %v96 = add %v93, 32 : Int
+    %v93 = load %score : I32
+    %v96 = add %v93, 32 : I32
     assign %score, %v96
     jmp b18
 
@@ -381,14 +381,14 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v100 = load none : Maybe(Int)
-    %v102 = call unwrapOr, %v100, 100 : Int
+    %v100 = load none : Maybe(I32)
+    %v102 = call unwrapOr, %v100, 100 : I32
     %v105 = cmp_eq %v102, 100 : Bool
     je %v105, b19, b20
 
   b19:
-    %v107 = load %score : Int
-    %v110 = add %v107, 64 : Int
+    %v107 = load %score : I32
+    %v110 = add %v107, 64 : I32
     assign %score, %v110
     jmp b21
 
@@ -397,13 +397,13 @@ fn main() -> Int {
 
   b21:
     %v114 = load boxShape : Shape
-    %v115 = call area, %v114 : Int
+    %v115 = call area, %v114 : I32
     %v118 = cmp_eq %v115, 24 : Bool
     je %v118, b22, b23
 
   b22:
-    %v120 = load %score : Int
-    %v123 = add %v120, 128 : Int
+    %v120 = load %score : I32
+    %v123 = add %v120, 128 : I32
     assign %score, %v123
     jmp b24
 
@@ -412,13 +412,13 @@ fn main() -> Int {
 
   b24:
     %v127 = load roundShape : Shape
-    %v128 = call area, %v127 : Int
+    %v128 = call area, %v127 : I32
     %v131 = cmp_eq %v128, 11 : Bool
     je %v131, b25, b26
 
   b25:
-    %v133 = load %score : Int
-    %v136 = add %v133, 256 : Int
+    %v133 = load %score : I32
+    %v136 = add %v133, 256 : I32
     assign %score, %v136
     jmp b27
 
@@ -426,51 +426,51 @@ fn main() -> Int {
     jmp b27
 
   b27:
-    %v140 = load table : [Int *3]
-    %v142 = borrow table : '[Int *3]
-    %v143 = alloc : Flat(Int)
-    %v144 = addressof [%v142] : %Int
+    %v140 = load table : [I32 *3]
+    %v142 = borrow table : '[I32 *3]
+    %v143 = alloc : Flat(I32)
+    %v144 = addressof [%v142] : %I32
     init %local1@Flat.items, %v144
     %v146 = countof 3 : Size
     init %local1@Flat.length, %v146
-    %v149 = borrow %local1 : 'Flat(Int)
+    %v149 = borrow %local1 : 'Flat(I32)
     %v150 = load [%v149]@Flat.length : Size
     %v151 = cast 0 : USize
     %v152 = cast %v150 : USize
     %v153 = cmp_ge %v151, %v152 : Bool
     call checkCondition, %v153
-    %v155 = load [%v149]@Flat.items : %Int
-    %v156 = strideof Int : Long
-    %v157 = mul 0, %v156 : Long
-    %v158 = add %v155, %v157 : %Int
-    %v159 = borrow [%v158] : 'Int
-    %v160 = load [%v159] : Int
-    %v161 = load table : [Int *3]
-    %v163 = borrow table : '[Int *3]
-    %v164 = alloc : Flat(Int)
-    %v165 = addressof [%v163] : %Int
+    %v155 = load [%v149]@Flat.items : %I32
+    %v156 = strideof I32 : I64
+    %v157 = mul 0, %v156 : I64
+    %v158 = add %v155, %v157 : %I32
+    %v159 = borrow [%v158] : 'I32
+    %v160 = load [%v159] : I32
+    %v161 = load table : [I32 *3]
+    %v163 = borrow table : '[I32 *3]
+    %v164 = alloc : Flat(I32)
+    %v165 = addressof [%v163] : %I32
     init %local2@Flat.items, %v165
     %v167 = countof 3 : Size
     init %local2@Flat.length, %v167
-    %v170 = borrow %local2 : 'Flat(Int)
+    %v170 = borrow %local2 : 'Flat(I32)
     %v171 = load [%v170]@Flat.length : Size
     %v172 = cast 2 : USize
     %v173 = cast %v171 : USize
     %v174 = cmp_ge %v172, %v173 : Bool
     call checkCondition, %v174
-    %v176 = load [%v170]@Flat.items : %Int
-    %v177 = strideof Int : Long
-    %v178 = mul 2, %v177 : Long
-    %v179 = add %v176, %v178 : %Int
-    %v180 = borrow [%v179] : 'Int
-    %v181 = load [%v180] : Int
-    %v182 = add %v160, %v181 : Int
+    %v176 = load [%v170]@Flat.items : %I32
+    %v177 = strideof I32 : I64
+    %v178 = mul 2, %v177 : I64
+    %v179 = add %v176, %v178 : %I32
+    %v180 = borrow [%v179] : 'I32
+    %v181 = load [%v180] : I32
+    %v182 = add %v160, %v181 : I32
     %v185 = cmp_eq %v182, 26 : Bool
     je %v185, b28, b29
 
   b28:
-    %v187 = load %score : Int
-    %v190 = add %v187, 512 : Int
+    %v187 = load %score : I32
+    %v190 = add %v187, 512 : I32
     assign %score, %v190
     jmp b30
 
@@ -492,18 +492,18 @@ fn main() -> Int {
     %v207 = cmp_ge %v205, %v206 : Bool
     call checkCondition, %v207
     %v209 = load [%v203]@Flat.items : %Point
-    %v210 = strideof Point : Long
-    %v211 = mul 1, %v210 : Long
+    %v210 = strideof Point : I64
+    %v211 = mul 1, %v210 : I64
     %v212 = add %v209, %v211 : %Point
     %v213 = borrow [%v212] : 'Point
     %v214 = load [%v213] : Point
-    %v215 = call sum, %v214 : Int
+    %v215 = call sum, %v214 : I32
     %v218 = cmp_eq %v215, 6 : Bool
     je %v218, b31, b32
 
   b31:
-    %v220 = load %score : Int
-    %v223 = add %v220, 1024 : Int
+    %v220 = load %score : I32
+    %v223 = add %v220, 1024 : I32
     assign %score, %v223
     jmp b33
 
@@ -513,13 +513,13 @@ fn main() -> Int {
   b33:
     %v227 = load greeting : String
     %v228 = call Length(String).length, %v227 : Size
-    %v229 = cast %v228 : Int
+    %v229 = cast %v228 : I32
     %v232 = cmp_eq %v229, 5 : Bool
     je %v232, b34, b35
 
   b34:
-    %v234 = load %score : Int
-    %v237 = add %v234, 2048 : Int
+    %v234 = load %score : I32
+    %v237 = add %v234, 2048 : I32
     assign %score, %v237
     jmp b36
 
@@ -529,14 +529,14 @@ fn main() -> Int {
   b36:
     %v242 = load labelled@Tagged.name : String
     %v243 = call Length(String).length, %v242 : Size
-    %v244 = cast %v243 : Int
-    %v247 = add %v244, 15 : Int
+    %v244 = cast %v243 : I32
+    %v247 = add %v244, 15 : I32
     %v250 = cmp_eq %v247, 21 : Bool
     je %v250, b37, b38
 
   b37:
-    %v252 = load %score : Int
-    %v255 = add %v252, 4096 : Int
+    %v252 = load %score : I32
+    %v255 = add %v252, 4096 : I32
     assign %score, %v255
     jmp b39
 
@@ -545,13 +545,13 @@ fn main() -> Int {
 
   b39:
     %v259 = load flags : Flags
-    %v260 = call flagValue, %v259 : Int
+    %v260 = call flagValue, %v259 : I32
     %v263 = cmp_eq %v260, 405 : Bool
     je %v263, b40, b41
 
   b40:
-    %v265 = load %score : Int
-    %v268 = add %v265, 8192 : Int
+    %v265 = load %score : I32
+    %v268 = add %v265, 8192 : I32
     assign %score, %v268
     jmp b42
 
@@ -560,16 +560,16 @@ fn main() -> Int {
 
   b42:
     %v272 = load packed : Boxed
-    %v273 = call boxedValue, %v272 : Int
+    %v273 = call boxedValue, %v272 : I32
     %v274 = load wrapped : Boxed
-    %v275 = call boxedValue, %v274 : Int
-    %v276 = add %v273, %v275 : Int
+    %v275 = call boxedValue, %v274 : I32
+    %v276 = add %v273, %v275 : I32
     %v279 = cmp_eq %v276, 139 : Bool
     je %v279, b43, b44
 
   b43:
-    %v281 = load %score : Int
-    %v284 = add %v281, 65536 : Int
+    %v281 = load %score : I32
+    %v284 = add %v281, 65536 : I32
     assign %score, %v284
     jmp b45
 
@@ -586,29 +586,29 @@ fn main() -> Int {
     init %local7.discriminant, 1
     init %local7@Rect.w, 2
     init %local7@Rect.h, 5
-    %v302 = alloc : Maybe(Int)
+    %v302 = alloc : Maybe(I32)
     init %local8.discriminant, 1
     init %local8@Just, 4
     aggregate %local4@Settings.home = %v289, %local4@Settings.label = %v294, %local4@Settings.mode = %v295, %local4@Settings.limit = %v302
     %v308 = load %local4@Settings.home : Point
-    %v309 = call sum, %v308 : Int
+    %v309 = call sum, %v308 : I32
     %v310 = load %local4@Settings.label : String
     %v311 = call Length(String).length, %v310 : Size
-    %v312 = cast %v311 : Int
-    %v313 = add %v309, %v312 : Int
+    %v312 = cast %v311 : I32
+    %v313 = add %v309, %v312 : I32
     %v314 = load %local4@Settings.mode : Shape
-    %v315 = call area, %v314 : Int
-    %v316 = add %v313, %v315 : Int
-    %v317 = load %local4@Settings.limit : Maybe(Int)
-    %v319 = call unwrapOr, %v317, 0 : Int
+    %v315 = call area, %v314 : I32
+    %v316 = add %v313, %v315 : I32
+    %v317 = load %local4@Settings.limit : Maybe(I32)
+    %v319 = call unwrapOr, %v317, 0 : I32
     drop_derived %local4 via reclaim$Settings
-    %defaults = add %v316, %v319 : Int
+    %defaults = add %v316, %v319 : I32
     %v323 = cmp_eq %defaults, 21 : Bool
     je %v323, b46, b47
 
   b46:
-    %v325 = load %score : Int
-    %v328 = add %v325, 16384 : Int
+    %v325 = load %score : I32
+    %v328 = add %v325, 16384 : I32
     assign %score, %v328
     jmp b48
 
@@ -619,13 +619,13 @@ fn main() -> Int {
     %v333 = alloc : Point
     init %local9@Point.x, 6
     init %local9@Point.y, 7
-    %v338 = call scaled, 2, %v333 : Int
+    %v338 = call scaled, 2, %v333 : I32
     %v341 = cmp_eq %v338, 26 : Bool
     je %v341, b49, b50
 
   b49:
-    %v343 = load %score : Int
-    %v346 = add %v343, 32768 : Int
+    %v343 = load %score : I32
+    %v346 = add %v343, 32768 : I32
     assign %score, %v346
     jmp b51
 
@@ -633,7 +633,7 @@ fn main() -> Int {
     jmp b51
 
   b51:
-    %v350 = load %score : Int
+    %v350 = load %score : I32
     ret %v350
 }
 

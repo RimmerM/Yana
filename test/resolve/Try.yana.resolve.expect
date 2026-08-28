@@ -1,45 +1,45 @@
 let image$base: () = <none>
 
-let &log: Int = 0
+let &log: I32 = 0
 
-let &dropped: Int = 0
+let &dropped: I32 = 0
 
-fn Try(Maybe(a), a, ()).toOutcome(Int)(%value: Maybe(Int)) -> Outcome(Int, ()) {
+fn Try(Maybe(a), a, ()).toOutcome(I32)(%value: Maybe(I32)) -> Outcome(I32, ()) {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
   b1:
-    %v6 = alloc : Outcome(Int, ())
+    %v6 = alloc : Outcome(I32, ())
     init %local3.discriminant, 1
     jmp b3
 
   b2:
-    %v10 = load %value@Just : Int
-    %v11 = move %value@Just : Int
-    %inner = alloc : Int
+    %v10 = load %value@Just : I32
+    %v11 = move %value@Just : I32
+    %inner = alloc : I32
     init %local1, %v11
-    %v14 = alloc : Outcome(Int, ())
-    %inner = load %local1 : Int
+    %v14 = alloc : Outcome(I32, ())
+    %inner = load %local1 : I32
     aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v14], [b1, %v6] : Outcome(Int, ())
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome(I32, ())
     ret %v1
 }
 
-fn Try(Maybe(a), a, ()).fromExit(Int)(%reason: ()) -> Maybe(Int) {
+fn Try(Maybe(a), a, ()).fromExit(I32)(%reason: ()) -> Maybe(I32) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     init %local0.discriminant, 0
     ret %v1
 }
 
 fn Try(Maybe(a), a, ()).toOutcome(Token)(%value: Maybe(Token)) -> Outcome(Token, ()) {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b4
 
@@ -66,54 +66,54 @@ fn Try(Maybe(a), a, ()).toOutcome(Token)(%value: Maybe(Token)) -> Outcome(Token,
     jmp b1
 }
 
-fn Try(Result(e, a), a, e).toOutcome(Int, Int)(%value: Result(Int, Int)) -> Outcome(Int, Int) {
+fn Try(Result(e, a), a, e).toOutcome(I32, I32)(%value: Result(I32, I32)) -> Outcome(I32, I32) {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
   b1:
-    %v6 = load %value@Err : Int
-    %v7 = move %value@Err : Int
-    %reason = alloc : Int
+    %v6 = load %value@Err : I32
+    %v7 = move %value@Err : I32
+    %reason = alloc : I32
     init %local3, %v7
-    %v10 = alloc : Outcome(Int, Int)
-    %reason = load %local3 : Int
+    %v10 = alloc : Outcome(I32, I32)
+    %reason = load %local3 : I32
     aggregate %local4.discriminant = 1, %local4@Exit = %reason
     jmp b3
 
   b2:
-    %v15 = load %value@Ok : Int
-    %v16 = move %value@Ok : Int
-    %inner = alloc : Int
+    %v15 = load %value@Ok : I32
+    %v16 = move %value@Ok : I32
+    %inner = alloc : I32
     init %local1, %v16
-    %v19 = alloc : Outcome(Int, Int)
-    %inner = load %local1 : Int
+    %v19 = alloc : Outcome(I32, I32)
+    %inner = load %local1 : I32
     aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v19], [b1, %v10] : Outcome(Int, Int)
+    %v1 = phi [b2, %v19], [b1, %v10] : Outcome(I32, I32)
     ret %v1
 }
 
-fn Try(Result(e, a), a, e).fromExit(Int, Int)(%reason: Int) -> Result(Int, Int) {
+fn Try(Result(e, a), a, e).fromExit(I32, I32)(%reason: I32) -> Result(I32, I32) {
   b0:
-    %v1 = alloc : Result(Int, Int)
+    %v1 = alloc : Result(I32, I32)
     aggregate %local1.discriminant = 0, %local1@Err = %reason
     ret %v1
 }
 
-fn Try(Result(e, a), a, e).fromExit(Int, Bool)(%reason: Int) -> Result(Int, Bool) {
+fn Try(Result(e, a), a, e).fromExit(I32, Bool)(%reason: I32) -> Result(I32, Bool) {
   b0:
-    %v1 = alloc : Result(Int, Bool)
+    %v1 = alloc : Result(I32, Bool)
     aggregate %local1.discriminant = 0, %local1@Err = %reason
     ret %v1
 }
 
 fn drop$Maybe(Token)(%value: Maybe(Token)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -128,17 +128,17 @@ fn drop$Maybe(Token)(%value: Maybe(Token)) -> () {
     jmp b1
 }
 
-fn parse(%n: Int) -> Maybe(Int) {
+fn parse(%n: I32) -> Maybe(I32) {
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 1 : I32
     assign log, %v4
     %v8 = cmp_gt %n, 0 : Bool
     je %v8, b1, b2
 
   b1:
-    %v10 = alloc : Maybe(Int)
-    %v14 = mul %n, 2 : Int
+    %v10 = alloc : Maybe(I32)
+    %v14 = mul %n, 2 : I32
     aggregate %local0.discriminant = 1, %local0@Just = %v14
     ret %v10
 
@@ -146,21 +146,21 @@ fn parse(%n: Int) -> Maybe(Int) {
     jmp b3
 
   b3:
-    %v18 = alloc : Maybe(Int)
+    %v18 = alloc : Maybe(I32)
     init %local1.discriminant, 0
     ret %v18
 }
 
-fn checked(%n: Int) -> Result(Int, Int) {
+fn checked(%n: I32) -> Result(I32, I32) {
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 10 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 10 : I32
     assign log, %v4
     %v8 = cmp_gt %n, 9 : Bool
     je %v8, b1, b2
 
   b1:
-    %v10 = alloc : Result(Int, Int)
+    %v10 = alloc : Result(I32, I32)
     aggregate %local0.discriminant = 0, %local0@Err = 1
     ret %v10
 
@@ -172,7 +172,7 @@ fn checked(%n: Int) -> Result(Int, Int) {
     je %v18, b4, b5
 
   b4:
-    %v20 = alloc : Result(Int, Int)
+    %v20 = alloc : Result(I32, I32)
     aggregate %local1.discriminant = 0, %local1@Err = 2
     ret %v20
 
@@ -180,113 +180,113 @@ fn checked(%n: Int) -> Result(Int, Int) {
     jmp b6
 
   b6:
-    %v26 = alloc : Result(Int, Int)
+    %v26 = alloc : Result(I32, I32)
     aggregate %local2.discriminant = 1, %local2@Ok = %n
     ret %v26
 }
 
-fn oneStep(%n: Int) -> Maybe(Int) {
+fn oneStep(%n: I32) -> Maybe(I32) {
   b0:
-    %v1 = call parse, %n : Maybe(Int)
-    %v2 = copy %local0 : Maybe(Int)
-    %v3 = call Try(Maybe(a), a, ()).toOutcome(Int), %v2 : Outcome(Int, ())
-    %v4 = load %local2.discriminant : Int
+    %v1 = call parse, %n : Maybe(I32)
+    %v2 = copy %local0 : Maybe(I32)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(I32), %v2 : Outcome(I32, ())
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
   b1:
     alloc
-    %v9 = call Try(Maybe(a), a, ()).fromExit(Int), %v8 : Maybe(Int)
+    %v9 = call Try(Maybe(a), a, ()).fromExit(I32), %v8 : Maybe(I32)
     ret %v9
 
   b2:
-    %v = load %local2@Proceed : Int
-    %v12 = alloc : Maybe(Int)
-    %v16 = add %v, 1 : Int
+    %v = load %local2@Proceed : I32
+    %v12 = alloc : Maybe(I32)
+    %v16 = add %v, 1 : I32
     aggregate %local5.discriminant = 1, %local5@Just = %v16
     ret %v12
 }
 
-fn twoSteps(%n: Int) -> Maybe(Int) {
+fn twoSteps(%n: I32) -> Maybe(I32) {
   b0:
-    %v1 = call parse, %n : Maybe(Int)
-    %v2 = copy %local0 : Maybe(Int)
-    %v3 = call Try(Maybe(a), a, ()).toOutcome(Int), %v2 : Outcome(Int, ())
-    %v4 = load %local2.discriminant : Int
+    %v1 = call parse, %n : Maybe(I32)
+    %v2 = copy %local0 : Maybe(I32)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(I32), %v2 : Outcome(I32, ())
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
   b1:
     alloc
-    %v9 = call Try(Maybe(a), a, ()).fromExit(Int), %v8 : Maybe(Int)
+    %v9 = call Try(Maybe(a), a, ()).fromExit(I32), %v8 : Maybe(I32)
     ret %v9
 
   b2:
-    %a = load %local2@Proceed : Int
-    %v14 = sub %a, 10 : Int
-    %v15 = call parse, %v14 : Maybe(Int)
-    %v16 = copy %local5 : Maybe(Int)
-    %v17 = call Try(Maybe(a), a, ()).toOutcome(Int), %v16 : Outcome(Int, ())
-    %v18 = load %local7.discriminant : Int
+    %a = load %local2@Proceed : I32
+    %v14 = sub %a, 10 : I32
+    %v15 = call parse, %v14 : Maybe(I32)
+    %v16 = copy %local5 : Maybe(I32)
+    %v17 = call Try(Maybe(a), a, ()).toOutcome(I32), %v16 : Outcome(I32, ())
+    %v18 = load %local7.discriminant : I32
     %v20 = cmp_eq %v18, 1 : Bool
     je %v20, b3, b4
 
   b3:
     alloc
-    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
+    %v23 = call Try(Maybe(a), a, ()).fromExit(I32), %v22 : Maybe(I32)
     ret %v23
 
   b4:
-    %b = load %local7@Proceed : Int
-    %v26 = alloc : Maybe(Int)
-    %v28 = add %a, %b : Int
+    %b = load %local7@Proceed : I32
+    %v26 = alloc : Maybe(I32)
+    %v28 = add %a, %b : I32
     aggregate %local10.discriminant = 1, %local10@Just = %v28
     ret %v26
 }
 
-fn add(%a: Int, %b: Int) -> Int {
+fn add(%a: I32, %b: I32) -> I32 {
   b0:
-    %v2 = add %a, %b : Int
+    %v2 = add %a, %b : I32
     ret %v2
 }
 
-fn valuePosition(%x: Int, %y: Int) -> Maybe(Int) {
+fn valuePosition(%x: I32, %y: I32) -> Maybe(I32) {
   b0:
-    %v2 = alloc : Maybe(Int)
-    %v4 = call parse, %x : Maybe(Int)
-    %v5 = copy %local1 : Maybe(Int)
-    %v6 = call Try(Maybe(a), a, ()).toOutcome(Int), %v5 : Outcome(Int, ())
-    %v7 = load %local3.discriminant : Int
+    %v2 = alloc : Maybe(I32)
+    %v4 = call parse, %x : Maybe(I32)
+    %v5 = copy %local1 : Maybe(I32)
+    %v6 = call Try(Maybe(a), a, ()).toOutcome(I32), %v5 : Outcome(I32, ())
+    %v7 = load %local3.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b1, b2
 
   b1:
     alloc
-    %v12 = call Try(Maybe(a), a, ()).fromExit(Int), %v11 : Maybe(Int)
+    %v12 = call Try(Maybe(a), a, ()).fromExit(I32), %v11 : Maybe(I32)
     ret %v12
 
   b2:
-    %v14 = load %local3@Proceed : Int
-    %v15 = call parse, %y : Maybe(Int)
-    %v16 = copy %local6 : Maybe(Int)
-    %v17 = call Try(Maybe(a), a, ()).toOutcome(Int), %v16 : Outcome(Int, ())
-    %v18 = load %local8.discriminant : Int
+    %v14 = load %local3@Proceed : I32
+    %v15 = call parse, %y : Maybe(I32)
+    %v16 = copy %local6 : Maybe(I32)
+    %v17 = call Try(Maybe(a), a, ()).toOutcome(I32), %v16 : Outcome(I32, ())
+    %v18 = load %local8.discriminant : I32
     %v20 = cmp_eq %v18, 1 : Bool
     je %v20, b3, b4
 
   b3:
     alloc
-    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
+    %v23 = call Try(Maybe(a), a, ()).fromExit(I32), %v22 : Maybe(I32)
     ret %v23
 
   b4:
-    %v25 = load %local8@Proceed : Int
-    %v26 = call add, %v14, %v25 : Int
+    %v25 = load %local8@Proceed : I32
+    %v26 = call add, %v14, %v25 : I32
     aggregate %local0.discriminant = 1, %local0@Just = %v26
     ret %v2
 }
 
-fn token(%n: Int) -> Maybe(Token) {
+fn token(%n: I32) -> Maybe(Token) {
   b0:
     %v3 = cmp_gt %n, 0 : Bool
     je %v3, b1, b2
@@ -307,29 +307,29 @@ fn token(%n: Int) -> Maybe(Token) {
     ret %v12
 }
 
-fn combine(%x: Token, %y: Token) -> Int {
+fn combine(%x: Token, %y: Token) -> I32 {
   b0:
-    %v2 = load %x@Token.id : Int
+    %v2 = load %x@Token.id : I32
     drop %x via Drop(Token).drop
-    %v3 = load %y@Token.id : Int
+    %v3 = load %y@Token.id : I32
     drop %y via Drop(Token).drop
-    %v4 = add %v2, %v3 : Int
+    %v4 = add %v2, %v3 : I32
     ret %v4
 }
 
-fn paired(%a: Int, %b: Int) -> Maybe(Int) {
+fn paired(%a: I32, %b: I32) -> Maybe(I32) {
   b0:
-    %v2 = alloc : Maybe(Int)
+    %v2 = alloc : Maybe(I32)
     %v4 = call token, %a : Maybe(Token)
     %v5 = move %local1 : Maybe(Token)
     %v6 = call Try(Maybe(a), a, ()).toOutcome(Token), %v5 : Outcome(Token, ())
-    %v7 = load %local2.discriminant : Int
+    %v7 = load %local2.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b5, b2
 
   b1:
     alloc
-    %v12 = call Try(Maybe(a), a, ()).fromExit(Int), %v11 : Maybe(Int)
+    %v12 = call Try(Maybe(a), a, ()).fromExit(I32), %v11 : Maybe(I32)
     ret %v12
 
   b2:
@@ -337,20 +337,20 @@ fn paired(%a: Int, %b: Int) -> Maybe(Int) {
     %v15 = call token, %b : Maybe(Token)
     %v16 = move %local5 : Maybe(Token)
     %v17 = call Try(Maybe(a), a, ()).toOutcome(Token), %v16 : Outcome(Token, ())
-    %v18 = load %local6.discriminant : Int
+    %v18 = load %local6.discriminant : I32
     %v20 = cmp_eq %v18, 1 : Bool
     je %v20, b6, b4
 
   b3:
     alloc
-    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
+    %v23 = call Try(Maybe(a), a, ()).fromExit(I32), %v22 : Maybe(I32)
     ret %v23
 
   b4:
     %v25 = load %local6@Proceed : Token
     %v26 = move %local2@Proceed : Token
     %v27 = move %local6@Proceed : Token
-    %v28 = call combine, %v26, %v27 : Int
+    %v28 = call combine, %v26, %v27 : I32
     aggregate %local0.discriminant = 1, %local0@Just = %v28
     ret %v2
 
@@ -364,107 +364,107 @@ fn paired(%a: Int, %b: Int) -> Maybe(Int) {
     jmp b3
 }
 
-fn operands(%x: Int, %y: Int) -> Maybe(Int) {
+fn operands(%x: I32, %y: I32) -> Maybe(I32) {
   b0:
-    %v2 = alloc : Maybe(Int)
-    %v4 = call parse, %x : Maybe(Int)
-    %v5 = copy %local1 : Maybe(Int)
-    %v6 = call Try(Maybe(a), a, ()).toOutcome(Int), %v5 : Outcome(Int, ())
-    %v7 = load %local3.discriminant : Int
+    %v2 = alloc : Maybe(I32)
+    %v4 = call parse, %x : Maybe(I32)
+    %v5 = copy %local1 : Maybe(I32)
+    %v6 = call Try(Maybe(a), a, ()).toOutcome(I32), %v5 : Outcome(I32, ())
+    %v7 = load %local3.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b1, b2
 
   b1:
     alloc
-    %v12 = call Try(Maybe(a), a, ()).fromExit(Int), %v11 : Maybe(Int)
+    %v12 = call Try(Maybe(a), a, ()).fromExit(I32), %v11 : Maybe(I32)
     ret %v12
 
   b2:
-    %v14 = load %local3@Proceed : Int
-    %v15 = call parse, %y : Maybe(Int)
-    %v16 = copy %local6 : Maybe(Int)
-    %v17 = call Try(Maybe(a), a, ()).toOutcome(Int), %v16 : Outcome(Int, ())
-    %v18 = load %local8.discriminant : Int
+    %v14 = load %local3@Proceed : I32
+    %v15 = call parse, %y : Maybe(I32)
+    %v16 = copy %local6 : Maybe(I32)
+    %v17 = call Try(Maybe(a), a, ()).toOutcome(I32), %v16 : Outcome(I32, ())
+    %v18 = load %local8.discriminant : I32
     %v20 = cmp_eq %v18, 1 : Bool
     je %v20, b3, b4
 
   b3:
     alloc
-    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
+    %v23 = call Try(Maybe(a), a, ()).fromExit(I32), %v22 : Maybe(I32)
     ret %v23
 
   b4:
-    %v25 = load %local8@Proceed : Int
-    %v26 = add %v14, %v25 : Int
+    %v25 = load %local8@Proceed : I32
+    %v26 = add %v14, %v25 : I32
     aggregate %local0.discriminant = 1, %local0@Just = %v26
     ret %v2
 }
 
-fn reasoned(%n: Int) -> Result(Int, Int) {
+fn reasoned(%n: I32) -> Result(I32, I32) {
   b0:
-    %v1 = call checked, %n : Result(Int, Int)
-    %v2 = copy %local0 : Result(Int, Int)
-    %v3 = call Try(Result(e, a), a, e).toOutcome(Int, Int), %v2 : Outcome(Int, Int)
-    %v4 = load %local2.discriminant : Int
+    %v1 = call checked, %n : Result(I32, I32)
+    %v2 = copy %local0 : Result(I32, I32)
+    %v3 = call Try(Result(e, a), a, e).toOutcome(I32, I32), %v2 : Outcome(I32, I32)
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
   b1:
-    %v8 = load %local2@Exit : Int
-    %v9 = call Try(Result(e, a), a, e).fromExit(Int, Int), %v8 : Result(Int, Int)
+    %v8 = load %local2@Exit : I32
+    %v9 = call Try(Result(e, a), a, e).fromExit(I32, I32), %v8 : Result(I32, I32)
     ret %v9
 
   b2:
-    %v = load %local2@Proceed : Int
-    %v12 = alloc : Result(Int, Int)
-    %v16 = add %v, 100 : Int
+    %v = load %local2@Proceed : I32
+    %v12 = alloc : Result(I32, I32)
+    %v16 = add %v, 100 : I32
     aggregate %local4.discriminant = 1, %local4@Ok = %v16
     ret %v12
 }
 
-fn viaHelper(%n: Int) -> Result(Int, Bool) {
+fn viaHelper(%n: I32) -> Result(I32, Bool) {
   b0:
-    %v1 = call checked, %n : Result(Int, Int)
-    %v2 = copy %local0 : Result(Int, Int)
-    %v3 = call Try(Result(e, a), a, e).toOutcome(Int, Int), %v2 : Outcome(Int, Int)
-    %v4 = load %local2.discriminant : Int
+    %v1 = call checked, %n : Result(I32, I32)
+    %v2 = copy %local0 : Result(I32, I32)
+    %v3 = call Try(Result(e, a), a, e).toOutcome(I32, I32), %v2 : Outcome(I32, I32)
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
   b1:
-    %v8 = load %local2@Exit : Int
-    %v9 = call Try(Result(e, a), a, e).fromExit(Int, Bool), %v8 : Result(Int, Bool)
+    %v8 = load %local2@Exit : I32
+    %v9 = call Try(Result(e, a), a, e).fromExit(I32, Bool), %v8 : Result(I32, Bool)
     ret %v9
 
   b2:
-    %v = load %local2@Proceed : Int
-    %v12 = alloc : Result(Int, Bool)
+    %v = load %local2@Proceed : I32
+    %v12 = alloc : Result(I32, Bool)
     %v16 = cmp_gt %v, 5 : Bool
     aggregate %local4.discriminant = 1, %local4@Ok = %v16
     ret %v12
 }
 
-fn conditional(%n: Int) -> Maybe(Int) {
+fn conditional(%n: I32) -> Maybe(I32) {
   b0:
-    %v1 = call parse, %n : Maybe(Int)
-    %v2 = copy %local0 : Maybe(Int)
-    %v3 = call Try(Maybe(a), a, ()).toOutcome(Int), %v2 : Outcome(Int, ())
-    %v4 = load %local2.discriminant : Int
+    %v1 = call parse, %n : Maybe(I32)
+    %v2 = copy %local0 : Maybe(I32)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome(I32), %v2 : Outcome(I32, ())
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
   b1:
     alloc
-    %v9 = call Try(Maybe(a), a, ()).fromExit(Int), %v8 : Maybe(Int)
+    %v9 = call Try(Maybe(a), a, ()).fromExit(I32), %v8 : Maybe(I32)
     ret %v9
 
   b2:
-    %v11 = load %local2@Proceed : Int
+    %v11 = load %local2@Proceed : I32
     %v14 = cmp_gt %v11, 10 : Bool
     je %v14, b3, b4
 
   b3:
-    %v16 = alloc : Maybe(Int)
+    %v16 = alloc : Maybe(I32)
     aggregate %local5.discriminant = 1, %local5@Just = 1
     ret %v16
 
@@ -472,92 +472,92 @@ fn conditional(%n: Int) -> Maybe(Int) {
     jmp b5
 
   b5:
-    %v22 = alloc : Maybe(Int)
+    %v22 = alloc : Maybe(I32)
     aggregate %local6.discriminant = 1, %local6@Just = 0
     ret %v22
 }
 
-fn looped(%n: Int) -> Maybe(Int) {
+fn looped(%n: I32) -> Maybe(I32) {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v9 = alloc : Int
+    %v9 = alloc : I32
     init %local1, 0
     jmp b1
 
   b1:
-    %i = load %local1 : Int
+    %i = load %local1 : I32
     %v13 = cmp_lt %i, 3 : Bool
     je %v13, b2, b7
 
   b2:
-    %v14 = load %total : Int
-    %v15 = sub %n, %i : Int
-    %v16 = call parse, %v15 : Maybe(Int)
-    %v17 = copy %local2 : Maybe(Int)
-    %v18 = call Try(Maybe(a), a, ()).toOutcome(Int), %v17 : Outcome(Int, ())
-    %v19 = load %local4.discriminant : Int
+    %v14 = load %total : I32
+    %v15 = sub %n, %i : I32
+    %v16 = call parse, %v15 : Maybe(I32)
+    %v17 = copy %local2 : Maybe(I32)
+    %v18 = call Try(Maybe(a), a, ()).toOutcome(I32), %v17 : Outcome(I32, ())
+    %v19 = load %local4.discriminant : I32
     %v21 = cmp_eq %v19, 1 : Bool
     je %v21, b3, b4
 
   b3:
     alloc
-    %v24 = call Try(Maybe(a), a, ()).fromExit(Int), %v23 : Maybe(Int)
+    %v24 = call Try(Maybe(a), a, ()).fromExit(I32), %v23 : Maybe(I32)
     ret %v24
 
   b4:
-    %v26 = load %local4@Proceed : Int
-    %v27 = add %v14, %v26 : Int
+    %v26 = load %local4@Proceed : I32
+    %v27 = add %v14, %v26 : I32
     assign %total, %v27
     jmp b5
 
   b5:
-    %v29 = load %local1 : Int
-    %v30 = sub 3, %v29 : Int
+    %v29 = load %local1 : I32
+    %v30 = sub 3, %v29 : I32
     %v31 = cmp_le %v30, 1 : Bool
     je %v31, b7, b6
 
   b6:
-    %v33 = add %v29, 1 : Int
+    %v33 = add %v29, 1 : I32
     assign %local1, %v33
     jmp b1
 
   b7:
-    %v38 = alloc : Maybe(Int)
-    %v40 = load %total : Int
+    %v38 = alloc : Maybe(I32)
+    %v40 = load %total : I32
     aggregate %local7.discriminant = 1, %local7@Just = %v40
     ret %v38
 }
 
-fn doubled(%x: Int, %body: (value$: Int) -> $r) -> $r {
+fn doubled(%x: I32, %body: (value$: I32) -> $r) -> $r {
   schema {
     #0 type $r
   }
 
   b0:
-    %v2 = load log : Int
-    %v5 = add %v2, 1000 : Int
+    %v2 = load log : I32
+    %v5 = add %v2, 1000 : I32
     assign log, %v5
-    %v9 = mul %x, 2 : Int
+    %v9 = mul %x, 2 : I32
     %v10 = calldyn %body, %v9 : $r
-    %v11 = load log : Int
-    %v14 = add %v11, 10000 : Int
+    %v11 = load log : I32
+    %v14 = add %v11, 10000 : I32
     assign log, %v14
     ret %v10
 }
 
-fn throughLens(%n: Int) -> Maybe(Int) {
+fn throughLens(%n: I32) -> Maybe(I32) {
   b0:
-    %v1 = alloc : (value$: Int) -> Maybe(Int)
+    %v1 = alloc : (value$: I32) -> Maybe(I32)
     %v2 = symbol ResolveTest.continuation$22 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
-    %v7 = call doubled(Maybe(Int)), %n, %v1 : Maybe(Int)
+    %v7 = call doubled(Maybe(I32)), %n, %v1 : Maybe(I32)
     ret %v7
 }
 
-(Try(Maybe(a), a, ())) fn firstPositive(%n: Int, %body: (found: Int) -> a) -> Maybe(a) {
+(Try(Maybe(a), a, ())) fn firstPositive(%n: I32, %body: (found: I32) -> a) -> Maybe(a) {
   schema {
     #0 type a
     #1 type Maybe(a)
@@ -565,10 +565,10 @@ fn throughLens(%n: Int) -> Maybe(Int) {
   }
 
   b0:
-    %v2 = call parse, %n : Maybe(Int)
-    %v3 = copy %local1 : Maybe(Int)
-    %v4 = call Try(Maybe(a), a, ()).toOutcome(Int), %v3 : Outcome(Int, ())
-    %v5 = load %local3.discriminant : Int
+    %v2 = call parse, %n : Maybe(I32)
+    %v3 = copy %local1 : Maybe(I32)
+    %v4 = call Try(Maybe(a), a, ()).toOutcome(I32), %v3 : Outcome(I32, ())
+    %v5 = load %local3.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
     je %v7, b1, b2
 
@@ -578,24 +578,24 @@ fn throughLens(%n: Int) -> Maybe(Int) {
     ret %v9
 
   b2:
-    %v = load %local3@Proceed : Int
+    %v = load %local3@Proceed : I32
     %v13 = alloc : Maybe(a)
     %v15 = calldyn %body, %v : a
     aggregate %local6.discriminant = 1, %local6@Just = %v15
     ret %v13
 }
 
-fn viaSkipping(%n: Int) -> Int {
+fn viaSkipping(%n: I32) -> I32 {
   b0:
-    %v1 = alloc : (found: Int) -> Int
+    %v1 = alloc : (found: I32) -> I32
     %v2 = symbol ResolveTest.continuation$23 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
-    %v7 = call firstPositive(Int), %n, %v1 : Maybe(Int)
-    %v8 = copy %local1 : Maybe(Int)
-    %v9 = call Try(Maybe(a), a, ()).toOutcome(Int), %v8 : Outcome(Int, ())
-    %v10 = load %local3.discriminant : Int
+    %v7 = call firstPositive(I32), %n, %v1 : Maybe(I32)
+    %v8 = copy %local1 : Maybe(I32)
+    %v9 = call Try(Maybe(a), a, ()).toOutcome(I32), %v8 : Outcome(I32, ())
+    %v10 = load %local3.discriminant : I32
     %v12 = cmp_eq %v10, 1 : Bool
     je %v12, b1, b2
 
@@ -603,88 +603,88 @@ fn viaSkipping(%n: Int) -> Int {
     ret 0
 
   b2:
-    %v16 = load %local3@Proceed : Int
+    %v16 = load %local3@Proceed : I32
     ret %v16
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     assign log, 0
-    %a = call oneStep, 3 : Maybe(Int)
-    %b = call oneStep, -1 : Maybe(Int)
-    %c = call twoSteps, 11 : Maybe(Int)
-    %d = call twoSteps, 3 : Maybe(Int)
-    %e = call valuePosition, 1, 2 : Maybe(Int)
-    %f = call valuePosition, 1, -2 : Maybe(Int)
-    %g = call operands, 2, 3 : Maybe(Int)
-    %h = call reasoned, 4 : Result(Int, Int)
-    %i = call reasoned, 20 : Result(Int, Int)
-    %j = call viaHelper, -1 : Result(Int, Bool)
-    %k = call conditional, 6 : Maybe(Int)
-    %l = call looped, 4 : Maybe(Int)
-    %m = call looped, 1 : Maybe(Int)
-    %n = call throughLens, 6 : Maybe(Int)
-    %o = call viaSkipping, 5 : Int
-    %p = call viaSkipping, -5 : Int
+    %a = call oneStep, 3 : Maybe(I32)
+    %b = call oneStep, -1 : Maybe(I32)
+    %c = call twoSteps, 11 : Maybe(I32)
+    %d = call twoSteps, 3 : Maybe(I32)
+    %e = call valuePosition, 1, 2 : Maybe(I32)
+    %f = call valuePosition, 1, -2 : Maybe(I32)
+    %g = call operands, 2, 3 : Maybe(I32)
+    %h = call reasoned, 4 : Result(I32, I32)
+    %i = call reasoned, 20 : Result(I32, I32)
+    %j = call viaHelper, -1 : Result(I32, Bool)
+    %k = call conditional, 6 : Maybe(I32)
+    %l = call looped, 4 : Maybe(I32)
+    %m = call looped, 1 : Maybe(I32)
+    %n = call throughLens, 6 : Maybe(I32)
+    %o = call viaSkipping, 5 : I32
+    %p = call viaSkipping, -5 : I32
     assign dropped, 0
-    %q = call paired, 3, 4 : Maybe(Int)
-    %afterBoth = load dropped : Int
+    %q = call paired, 3, 4 : Maybe(I32)
+    %afterBoth = load dropped : I32
     assign dropped, 0
-    %r = call paired, 3, -1 : Maybe(Int)
-    %afterExit = load dropped : Int
+    %r = call paired, 3, -1 : Maybe(I32)
+    %afterExit = load dropped : I32
     assign dropped, 0
-    %s = call paired, -1, 4 : Maybe(Int)
-    %afterEarly = load dropped : Int
-    %v55 = call unwrap, %a : Int
-    %v56 = call unwrap, %c : Int
-    %v57 = add %v55, %v56 : Int
-    %v58 = call unwrap, %e : Int
-    %v59 = add %v57, %v58 : Int
-    %v60 = call unwrap, %g : Int
-    %v61 = add %v59, %v60 : Int
-    %v62 = call unwrapOk, %h : Int
-    %v63 = add %v61, %v62 : Int
-    %v64 = call unwrap, %k : Int
-    %v65 = add %v63, %v64 : Int
-    %v66 = call unwrap, %l : Int
-    %v67 = add %v65, %v66 : Int
-    %v68 = call unwrap, %n : Int
-    %v69 = add %v67, %v68 : Int
-    %v70 = add %v69, %o : Int
-    %v71 = add %v70, %p : Int
-    %v72 = call unwrap, %q : Int
-    %sum = add %v71, %v72 : Int
-    %v74 = call empty, %b : Int
-    %v75 = call empty, %d : Int
-    %v76 = add %v74, %v75 : Int
-    %v77 = call empty, %f : Int
-    %v78 = add %v76, %v77 : Int
-    %v79 = call empty, %m : Int
-    %v80 = add %v78, %v79 : Int
-    %v81 = call err, %i : Int
-    %v82 = add %v80, %v81 : Int
-    %v83 = call errBool, %j : Int
-    %v84 = add %v82, %v83 : Int
-    %v85 = call empty, %r : Int
-    %v86 = add %v84, %v85 : Int
-    %v87 = call empty, %s : Int
-    %failures = add %v86, %v87 : Int
-    %v91 = mul %failures, 1000 : Int
-    %v92 = add %sum, %v91 : Int
-    %v95 = mul %afterBoth, 100000 : Int
-    %v96 = add %v92, %v95 : Int
-    %v99 = mul %afterExit, 10000000 : Int
-    %v100 = add %v96, %v99 : Int
-    %v103 = mul %afterEarly, 1000000000 : Int
-    %v104 = add %v100, %v103 : Int
-    %v105 = load log : Int
-    %v106 = add %v104, %v105 : Int
+    %s = call paired, -1, 4 : Maybe(I32)
+    %afterEarly = load dropped : I32
+    %v55 = call unwrap, %a : I32
+    %v56 = call unwrap, %c : I32
+    %v57 = add %v55, %v56 : I32
+    %v58 = call unwrap, %e : I32
+    %v59 = add %v57, %v58 : I32
+    %v60 = call unwrap, %g : I32
+    %v61 = add %v59, %v60 : I32
+    %v62 = call unwrapOk, %h : I32
+    %v63 = add %v61, %v62 : I32
+    %v64 = call unwrap, %k : I32
+    %v65 = add %v63, %v64 : I32
+    %v66 = call unwrap, %l : I32
+    %v67 = add %v65, %v66 : I32
+    %v68 = call unwrap, %n : I32
+    %v69 = add %v67, %v68 : I32
+    %v70 = add %v69, %o : I32
+    %v71 = add %v70, %p : I32
+    %v72 = call unwrap, %q : I32
+    %sum = add %v71, %v72 : I32
+    %v74 = call empty, %b : I32
+    %v75 = call empty, %d : I32
+    %v76 = add %v74, %v75 : I32
+    %v77 = call empty, %f : I32
+    %v78 = add %v76, %v77 : I32
+    %v79 = call empty, %m : I32
+    %v80 = add %v78, %v79 : I32
+    %v81 = call err, %i : I32
+    %v82 = add %v80, %v81 : I32
+    %v83 = call errBool, %j : I32
+    %v84 = add %v82, %v83 : I32
+    %v85 = call empty, %r : I32
+    %v86 = add %v84, %v85 : I32
+    %v87 = call empty, %s : I32
+    %failures = add %v86, %v87 : I32
+    %v91 = mul %failures, 1000 : I32
+    %v92 = add %sum, %v91 : I32
+    %v95 = mul %afterBoth, 100000 : I32
+    %v96 = add %v92, %v95 : I32
+    %v99 = mul %afterExit, 10000000 : I32
+    %v100 = add %v96, %v99 : I32
+    %v103 = mul %afterEarly, 1000000000 : I32
+    %v104 = add %v100, %v103 : I32
+    %v105 = load log : I32
+    %v106 = add %v104, %v105 : I32
     ret %v106
 }
 
-fn unwrap(%m: Maybe(Int)) -> Int {
+fn unwrap(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -692,133 +692,133 @@ fn unwrap(%m: Maybe(Int)) -> Int {
     jmp b3
 
   b2:
-    %v = load %m@Just : Int
+    %v = load %m@Just : I32
     jmp b3
 
   b3:
-    %v9 = phi [b2, %v], [b1, 0] : Int
+    %v9 = phi [b2, %v], [b1, 0] : I32
     ret %v9
 }
 
-fn unwrapOk(%r: Result(Int, Int)) -> Int {
+fn unwrapOk(%r: Result(I32, I32)) -> I32 {
   b0:
-    %v1 = load %r.discriminant : Int
+    %v1 = load %r.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
   b1:
-    %v6 = load %r@Err : Int
+    %v6 = load %r@Err : I32
     jmp b3
 
   b2:
-    %v = load %r@Ok : Int
+    %v = load %r@Ok : I32
     jmp b3
 
   b3:
-    %v10 = phi [b2, %v], [b1, 0] : Int
+    %v10 = phi [b2, %v], [b1, 0] : I32
     ret %v10
 }
 
-fn empty(%m: Maybe(Int)) -> Int {
+fn empty(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
-    %v3 = mul %v1, -1 : Int
-    %v5 = add %v3, 1 : Int
+    %v1 = load %m.discriminant : I32
+    %v3 = mul %v1, -1 : I32
+    %v5 = add %v3, 1 : I32
     ret %v5
 }
 
-fn err(%r: Result(Int, Int)) -> Int {
+fn err(%r: Result(I32, I32)) -> I32 {
   b0:
-    %v1 = load %r.discriminant : Int
-    %v3 = mul %v1, -1 : Int
-    %v5 = add %v3, 1 : Int
+    %v1 = load %r.discriminant : I32
+    %v3 = mul %v1, -1 : I32
+    %v5 = add %v3, 1 : I32
     ret %v5
 }
 
-fn errBool(%r: Result(Int, Bool)) -> Int {
+fn errBool(%r: Result(I32, Bool)) -> I32 {
   b0:
-    %v1 = load %r.discriminant : Int
-    %v3 = mul %v1, -1 : Int
-    %v5 = add %v3, 1 : Int
+    %v1 = load %r.discriminant : I32
+    %v3 = mul %v1, -1 : I32
+    %v5 = add %v3, 1 : I32
     ret %v5
 }
 
 fn Drop(Token).drop(%value: Token) -> () {
   b0:
-    %v1 = load dropped : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load dropped : I32
+    %v4 = add %v1, 1 : I32
     assign dropped, %v4
     ret
 }
 
-fn ResolveTest.continuation$22(%env: %{}, %value$: Int) -> Maybe(Int) {
+fn ResolveTest.continuation$22(%env: %{}, %value$: I32) -> Maybe(I32) {
   b0:
-    %v4 = sub %value$, 8 : Int
-    %v5 = call parse, %v4 : Maybe(Int)
-    %v6 = copy %local0 : Maybe(Int)
-    %v7 = call Try(Maybe(a), a, ()).toOutcome(Int), %v6 : Outcome(Int, ())
-    %v8 = load %local2.discriminant : Int
+    %v4 = sub %value$, 8 : I32
+    %v5 = call parse, %v4 : Maybe(I32)
+    %v6 = copy %local0 : Maybe(I32)
+    %v7 = call Try(Maybe(a), a, ()).toOutcome(I32), %v6 : Outcome(I32, ())
+    %v8 = load %local2.discriminant : I32
     %v10 = cmp_eq %v8, 1 : Bool
     je %v10, b1, b2
 
   b1:
     alloc
-    %v13 = call Try(Maybe(a), a, ()).fromExit(Int), %v12 : Maybe(Int)
+    %v13 = call Try(Maybe(a), a, ()).fromExit(I32), %v12 : Maybe(I32)
     ret %v13
 
   b2:
-    %v = load %local2@Proceed : Int
-    %v15 = alloc : Maybe(Int)
-    %v17 = add %v, %value$ : Int
+    %v = load %local2@Proceed : I32
+    %v15 = alloc : Maybe(I32)
+    %v17 = add %v, %value$ : I32
     aggregate %local5.discriminant = 1, %local5@Just = %v17
     ret %v15
 }
 
-fn doubled(Maybe(Int))(%x: Int, %body: (value$: Int) -> Maybe(Int)) -> Maybe(Int) {
+fn doubled(Maybe(I32))(%x: I32, %body: (value$: I32) -> Maybe(I32)) -> Maybe(I32) {
   b0:
-    %v2 = load log : Int
-    %v4 = add %v2, 1000 : Int
+    %v2 = load log : I32
+    %v4 = add %v2, 1000 : I32
     assign log, %v4
-    %v7 = mul %x, 2 : Int
-    %v8 = calldyn %body, %v7 : Maybe(Int)
-    %v9 = load log : Int
-    %v11 = add %v9, 10000 : Int
+    %v7 = mul %x, 2 : I32
+    %v8 = calldyn %body, %v7 : Maybe(I32)
+    %v9 = load log : I32
+    %v11 = add %v9, 10000 : I32
     assign log, %v11
     ret %v8
 }
 
-fn ResolveTest.continuation$23(%env: %{}, %found: Int) -> Int {
+fn ResolveTest.continuation$23(%env: %{}, %found: I32) -> I32 {
   b0:
-    %v4 = add %found, 1 : Int
+    %v4 = add %found, 1 : I32
     ret %v4
 }
 
-fn firstPositive(Int)(%n: Int, %body: (found: Int) -> Int) -> Maybe(Int) {
+fn firstPositive(I32)(%n: I32, %body: (found: I32) -> I32) -> Maybe(I32) {
   b0:
-    %v2 = call parse, %n : Maybe(Int)
-    %v3 = copy %local1 : Maybe(Int)
-    %v4 = copy %local2 : Maybe(Int)
-    %v5 = call Try(Maybe(a), a, ()).toOutcome(Int), %v4 : Outcome(Int, ())
-    %v6 = load %local3.discriminant : Int
+    %v2 = call parse, %n : Maybe(I32)
+    %v3 = copy %local1 : Maybe(I32)
+    %v4 = copy %local2 : Maybe(I32)
+    %v5 = call Try(Maybe(a), a, ()).toOutcome(I32), %v4 : Outcome(I32, ())
+    %v6 = load %local3.discriminant : I32
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b1, b2
 
   b1:
     alloc
-    %v11 = call Try(Maybe(a), a, ()).fromExit(Int), %v10 : Maybe(Int)
+    %v11 = call Try(Maybe(a), a, ()).fromExit(I32), %v10 : Maybe(I32)
     ret %v11
 
   b2:
-    %v = load %local3@Proceed : Int
-    %v14 = alloc : Maybe(Int)
-    %v15 = calldyn %body, %v : Int
+    %v = load %local3@Proceed : I32
+    %v14 = alloc : Maybe(I32)
+    %v15 = calldyn %body, %v : I32
     aggregate %local6.discriminant = 1, %local6@Just = %v15
     ret %v14
 }
 
 fn drop$Outcome(Token, ())(%value: Outcome(Token, ())) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 

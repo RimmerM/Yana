@@ -1,55 +1,55 @@
 
-merged<complex>(%v: Int, %a: Int, %b: Int): Int {
+merged<complex>(%v: I32, %a: I32, %b: I32): I32 {
   b_0 {
-    %cmp = cmp_eq %v, 1: Int
-    %r = select %cmp, %a, %b: Int
+    %cmp = cmp_eq %v, 1: I32
+    %r = select %cmp, %a, %b: I32
     ret %r
   }
 }
 
-hoisted<complex>(%v: Int, %a: Int, %b: Int): Int {
+hoisted<complex>(%v: I32, %a: I32, %b: I32): I32 {
   b_0 {
-    %cmp = cmp_ilt %v, 0: Int
-    %x = add %a, 1: Int
-    %r = select %cmp, %x, %b: Int
+    %cmp = cmp_ilt %v, 0: I32
+    %x = add %a, 1: I32
+    %r = select %cmp, %x, %b: I32
     ret %r
   }
 }
 
-zeroArm<complex>(%p: Ptr, %t: Long): Long {
+zeroArm<complex>(%p: Ptr, %t: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %c = cmp_igt %v, %t: Int
-    %r = select %c, %v, 0: Long
+    %v = load %p, 8: I64
+    %c = cmp_igt %v, %t: I32
+    %r = select %c, %v, 0: I64
     ret %r
   }
 }
 
-materialized<complex>(%v: Int, %p: Ptr, %b: Int): Int {
+materialized<complex>(%v: I32, %p: Ptr, %b: I32): I32 {
   b_0 {
-    %cmp = cmp_ilt %v, 0: Int
-    %l = load %p, 4: Int
-    %x = add %l, 1: Int
-    %r = select %cmp, %x, %b: Int
+    %cmp = cmp_ilt %v, 0: I32
+    %l = load %p, 4: I32
+    %x = add %l, 1: I32
+    %r = select %cmp, %x, %b: I32
     ret %r
   }
 }
 
-crossBlock<complex>(%v: Int, %a: Int, %b: Int): Int {
+crossBlock<complex>(%v: I32, %a: I32, %b: I32): I32 {
   start {
-    %cmp = cmp_ige %v, 10: Int
+    %cmp = cmp_ige %v, 10: I32
     jmp next
   }
 
   next {
-    %r = select %cmp, %a, %b: Int
+    %r = select %cmp, %a, %b: I32
     ret %r
   }
 }
 
-pointerArm<complex>(%raw: Long, %p: Ptr): Ptr {
+pointerArm<complex>(%raw: I64, %p: Ptr): Ptr {
   b_0 {
-    %c = cmp_ilt %raw, 0: Int
+    %c = cmp_ilt %raw, 0: I32
     %zero = bitcast 0: Ptr
     %r = select %c, %zero, %p: Ptr
     ret %r

@@ -1,28 +1,28 @@
 
-leaf<complex>(%x: Int): Int {
+leaf<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-noFrame<complex>(%a: Int, %b: Int): Int {
+noFrame<complex>(%a: I32, %b: I32): I32 {
   b_0 {
-    %s = add %a, %b: Int
+    %s = add %a, %b: I32
     ret %s
   }
 }
 
-saveSeveral<complex>(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+saveSeveral<complex>(%a: I32, %b: I32, %c: I32, %d: I32): I32 {
   b_0 {
-    %r = call_complex leaf, %a: Int
-    %s = add %r, %b: Int
-    %t = add %s, %c: Int
-    %u = add %t, %d: Int
+    %r = call_complex leaf, %a: I32
+    %s = add %r, %b: I32
+    %t = add %s, %c: I32
+    %u = add %t, %d: I32
     ret %u
   }
 }
 
-twoExits<complex>(%a: Int, %c: Int): Int {
+twoExits<complex>(%a: I32, %c: I32): I32 {
   start {
     je %c, slow, quick
   }
@@ -32,29 +32,29 @@ twoExits<complex>(%a: Int, %c: Int): Int {
   }
 
   slow {
-    %r = call_complex leaf, %a: Int
-    %s = add %r, %a: Int
+    %r = call_complex leaf, %a: I32
+    %s = add %r, %a: I32
     ret %s
   }
 }
 
-savedAcrossLoop<complex>(%n: Int, %seed: Int): Int {
+savedAcrossLoop<complex>(%n: I32, %seed: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [body, %i2]: Int
-    %acc = phi [start, %z], [body, %acc2]: Int
-    %v_0 = cmp_ilt %i, %n: Int
+    %i = phi [start, %z], [body, %i2]: I32
+    %acc = phi [start, %z], [body, %acc2]: I32
+    %v_0 = cmp_ilt %i, %n: I32
     je %v_0, body, out
   }
 
   body {
-    %r = call_complex leaf, %seed: Int
-    %acc2 = add %acc, %r: Int
-    %i2 = add %i, 1: Int
+    %r = call_complex leaf, %seed: I32
+    %acc2 = add %acc, %r: I32
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -63,130 +63,130 @@ savedAcrossLoop<complex>(%n: Int, %seed: Int): Int {
   }
 }
 
-locals<complex>(%v: Int): Int {
+locals<complex>(%v: I32): I32 {
   b_0 {
     %a = alloca 8, 8: Ptr
     %b = alloca 32, 8: Ptr
     store %a, %v, 8
     store %b, %v, 8
-    %r = load %a, 8: Int
+    %r = load %a, 8: I32
     ret %r
   }
 }
 
-localsAndCall<complex>(%v: Int): Int {
+localsAndCall<complex>(%v: I32): I32 {
   b_0 {
     %a = alloca 8, 8: Ptr
     store %a, %v, 8
-    %r = call_complex leaf, %v: Int
-    %s = load %a, 8: Int
-    %t = add %r, %s: Int
+    %r = call_complex leaf, %v: I32
+    %s = load %a, 8: I32
+    %t = add %r, %s: I32
     ret %t
   }
 }
 
-dynamicLocal<complex>(%n: Int, %v: Int): Int {
+dynamicLocal<complex>(%n: I32, %v: I32): I32 {
   b_0 {
     %p = alloca %n, 8: Ptr
     store %p, %v, 8
-    %r = load %p, 8: Int
+    %r = load %p, 8: I32
     ret %r
   }
 }
 
-overAlignedLocal<complex>(%v: Int): Int {
+overAlignedLocal<complex>(%v: I32): I32 {
   b_0 {
     %a = alloca 8, 32: Ptr
     store %a, %v, 8
-    %r = load %a, 8: Int
+    %r = load %a, 8: I32
     ret %r
   }
 }
 
-overAlignedDynamicLocal<complex>(%n: Int, %v: Int): Int {
+overAlignedDynamicLocal<complex>(%n: I32, %v: I32): I32 {
   b_0 {
     %p = alloca %n, 64: Ptr
     store %p, %v, 8
-    %r = load %p, 8: Int
+    %r = load %p, 8: I32
     ret %r
   }
 }
 
-stackArg<complex>(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %a7: Int, %a8: Int, %a9: Int): Int {
+stackArg<complex>(%a0: I32, %a1: I32, %a2: I32, %a3: I32, %a4: I32, %a5: I32, %a6: I32, %a7: I32, %a8: I32, %a9: I32): I32 {
   b_0 {
-    %s = add %a8, %a9: Int
-    %t = add %s, %a0: Int
+    %s = add %a8, %a9: I32
+    %t = add %s, %a0: I32
     ret %t
   }
 }
 
-stackArgsAndLocals<complex>(%v: Int): Int {
+stackArgsAndLocals<complex>(%v: I32): I32 {
   b_0 {
     %a = alloca 8, 8: Ptr
     store %a, %v, 8
-    %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: Int
-    %s = load %a, 8: Int
-    %t = add %r, %s: Int
+    %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: I32
+    %s = load %a, 8: I32
+    %t = add %r, %s: I32
     ret %t
   }
 }
 
-stackArgsOnly<complex>(%v: Int): Int {
+stackArgsOnly<complex>(%v: I32): I32 {
   b_0 {
-    %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: Int
+    %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: I32
     ret %r
   }
 }
 
-sysvCallee<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+sysvCallee<sysv>(%a: I32, %b: I32, %c: I32, %d: I32, %e: I32, %f: I32): I32 {
   b_0 {
-    %s = add %a, %f: Int
+    %s = add %a, %f: I32
     ret %s
   }
 }
 
-sysvCaller<sysv>(%a: Int, %b: Int): Int {
+sysvCaller<sysv>(%a: I32, %b: I32): I32 {
   b_0 {
-    %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
-    %s = add %r, %b: Int
+    %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: I32
+    %s = add %r, %b: I32
     ret %s
   }
 }
 
-alignedCallFromWeakerConvention<complex>(%a: Int, %b: Int): Int {
+alignedCallFromWeakerConvention<complex>(%a: I32, %b: I32): I32 {
   b_0 {
-    %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
-    %s = add %r, %b: Int
+    %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: I32
+    %s = add %r, %b: I32
     ret %s
   }
 }
 
-alignedCallWithSpill<complex>(%a: Int): Int {
+alignedCallWithSpill<complex>(%a: I32): I32 {
   b_0 {
-    %v0 = add %a, 1: Int
-    %v1 = add %a, 2: Int
-    %v2 = add %a, 3: Int
-    %v3 = add %a, 4: Int
-    %v4 = add %a, 5: Int
-    %v5 = add %a, 6: Int
-    %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
-    %s0 = add %r, %v0: Int
-    %s1 = add %s0, %v1: Int
-    %s2 = add %s1, %v2: Int
-    %s3 = add %s2, %v3: Int
-    %s4 = add %s3, %v4: Int
-    %s5 = add %s4, %v5: Int
+    %v0 = add %a, 1: I32
+    %v1 = add %a, 2: I32
+    %v2 = add %a, 3: I32
+    %v3 = add %a, 4: I32
+    %v4 = add %a, 5: I32
+    %v5 = add %a, 6: I32
+    %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: I32
+    %s0 = add %r, %v0: I32
+    %s1 = add %s0, %v1: I32
+    %s2 = add %s1, %v2: I32
+    %s3 = add %s2, %v3: I32
+    %s4 = add %s3, %v4: I32
+    %s5 = add %s4, %v5: I32
     ret %s5
   }
 }
 
-hoistedStackArg<complex>(%a: Int): Int {
+hoistedStackArg<complex>(%a: I32): I32 {
   b_0 {
-    %x = add %a, 1: Int
-    %b = add %a, 2: Int
-    %c = add %b, 3: Int
-    %d = add %c, 4: Int
-    %r = call_complex stackArg, %a, %b, %c, %d, %a, %b, %c, %d, %x, %x: Int
+    %x = add %a, 1: I32
+    %b = add %a, 2: I32
+    %c = add %b, 3: I32
+    %d = add %c, 4: I32
+    %r = call_complex stackArg, %a, %b, %c, %d, %a, %b, %c, %d, %x, %x: I32
     ret %r
   }
 }

@@ -28,12 +28,12 @@ fn plainFirst(%plain: U64, %narrow: @bits(53) U64) -> U64 {
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v2 = call narrowFirst, 21, 4000 : U64
-    %v3 = cast %v2 : Int
+    %v3 = cast %v2 : I32
     %v6 = call plainFirst, 300, 5 : U64
-    %v7 = cast %v6 : Int
-    %v8 = add %v3, %v7 : Int
+    %v7 = cast %v6 : I32
+    %v8 = add %v3, %v7 : I32
     ret %v8
 }

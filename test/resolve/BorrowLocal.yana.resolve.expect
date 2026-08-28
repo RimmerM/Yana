@@ -1,45 +1,45 @@
 let image$base: () = <none>
 
-fn addTo(%target: Int, %amount: Int) -> () {
+fn addTo(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn accumulate(%n: Int) -> Int {
+fn accumulate(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v4 = load %total : Int
-    %v5 = add %v4, %n : Int
+    %v4 = load %total : I32
+    %v5 = add %v4, %n : I32
     assign %total, %v5
-    %v7 = load %total : Int
-    %v10 = mul %v7, 2 : Int
+    %v7 = load %total : I32
+    %v10 = mul %v7, 2 : I32
     assign %total, %v10
-    %v12 = load %total : Int
+    %v12 = load %total : I32
     ret %v12
 }
 
-fn shared(%n: Int) -> Int {
+fn shared(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v4 = load %total : Int
-    %v5 = borrow_mut %total : &Int
+    %v4 = load %total : I32
+    %v5 = borrow_mut %total : &I32
     call addTo, %v5, %n
-    %v7 = load %total : Int
-    %v10 = add %v7, 1 : Int
+    %v7 = load %total : I32
+    %v10 = add %v7, 1 : I32
     assign %total, %v10
-    %v12 = load %total : Int
+    %v12 = load %total : I32
     ret %v12
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call accumulate, 5 : Int
-    %v3 = call shared, 5 : Int
-    %v4 = add %v1, %v3 : Int
+    %v1 = call accumulate, 5 : I32
+    %v3 = call shared, 5 : I32
+    %v4 = add %v1, %v3 : I32
     ret %v4
 }

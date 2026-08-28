@@ -1,54 +1,54 @@
 
-firstByte<complex>(%a: i8x16, %b: i8x16): Int {
+firstByte<complex>(%a: i8x16, %b: i8x16): I32 {
   b_0 {
     %m = cmp_eq %a, %b: m8x16
-    %r = vreduce_first %m: Int
+    %r = vreduce_first %m: I32
     ret %r
   }
 }
 
-firstWord<complex>(%a: i32x4, %b: i32x4): Int {
+firstWord<complex>(%a: i32x4, %b: i32x4): I32 {
   b_0 {
     %m = cmp_eq %a, %b: m32x4
-    %r = vreduce_first %m: Int
+    %r = vreduce_first %m: I32
     ret %r
   }
 }
 
-anyLane<complex>(%a: i32x4, %b: i32x4): Int {
+anyLane<complex>(%a: i32x4, %b: i32x4): I32 {
   b_0 {
     %m = cmp_eq %a, %b: m32x4
-    %r = vreduce_or %m: Int
+    %r = vreduce_or %m: I32
     ret %r
   }
 }
 
-allLanes<complex>(%a: i32x4, %b: i32x4): Int {
+allLanes<complex>(%a: i32x4, %b: i32x4): I32 {
   b_0 {
     %m = cmp_eq %a, %b: m32x4
-    %r = vreduce_and %m: Int
+    %r = vreduce_and %m: I32
     ret %r
   }
 }
 
-countLanes<complex>(%a: i32x4, %b: i32x4): Int {
+countLanes<complex>(%a: i32x4, %b: i32x4): I32 {
   b_0 {
     %m = cmp_eq %a, %b: m32x4
-    %r = vreduce_add %m: Int
+    %r = vreduce_add %m: I32
     ret %r
   }
 }
 
-anyThenFirst<complex>(%a: i8x16, %b: i8x16, %at: Int): Int {
+anyThenFirst<complex>(%a: i8x16, %b: i8x16, %at: I32): I32 {
   start {
     %m = cmp_eq %a, %b: m8x16
-    %any = vreduce_or %m: Int
+    %any = vreduce_or %m: I32
     je %any, hit, miss
   }
 
   hit {
-    %first = vreduce_first %m: Int
-    %r = add %at, %first: Int
+    %first = vreduce_first %m: I32
+    %r = add %at, %first: I32
     ret %r
   }
 
@@ -57,7 +57,7 @@ anyThenFirst<complex>(%a: i8x16, %b: i8x16, %at: Int): Int {
   }
 }
 
-phiMask<complex>(%a: i8x16, %b: i8x16, %c: Int): Int {
+phiMask<complex>(%a: i8x16, %b: i8x16, %c: I32): I32 {
   start {
     %p = cmp_eq %a, %b: m8x16
     %q = cmp_gt %a, %b: m8x16
@@ -74,18 +74,18 @@ phiMask<complex>(%a: i8x16, %b: i8x16, %c: Int): Int {
 
   join {
     %m = phi [left, %p], [right, %q]: m8x16
-    %any = vreduce_or %m: Int
-    %first = vreduce_first %m: Int
-    %r = add %first, %any: Int
+    %any = vreduce_or %m: I32
+    %first = vreduce_first %m: I32
+    %r = add %first, %any: I32
     ret %r
   }
 }
 
-noneLanes<complex>(%a: i32x4, %b: i32x4, %x: Int): Int {
+noneLanes<complex>(%a: i32x4, %b: i32x4, %x: I32): I32 {
   start {
     %m = cmp_eq %a, %b: m32x4
-    %any = vreduce_or %m: Int
-    %none = xor %any, 1: Int
+    %any = vreduce_or %m: I32
+    %none = xor %any, 1: I32
     je %none, empty, some
   }
 

@@ -19,21 +19,21 @@
 #
 # The counts differ per function on purpose: one shared count would pass with the wrong operand read.
 
-shl32(%v: i32x4, %n: Int): i32x4 {
+shl32(%v: i32x4, %n: I32): i32x4 {
     {
         %r = shl %v, %n: i32x4
         ret %r
     }
 }
 
-shr16(%v: i16x8, %n: Int): i16x8 {
+shr16(%v: i16x8, %n: I32): i16x8 {
     {
         %r = shr %v, %n: i16x8
         ret %r
     }
 }
 
-sar32(%v: i32x4, %n: Int): i32x4 {
+sar32(%v: i32x4, %n: I32): i32x4 {
     {
         %r = sar %v, %n: i32x4
         ret %r
@@ -42,14 +42,14 @@ sar32(%v: i32x4, %n: Int): i32x4 {
 
 # The quadword, which has the two logical directions and no arithmetic one - and whose count is the
 # lane's own width, so this is the row that reads `movq`.
-shl64(%v: i64x2, %n: Long): i64x2 {
+shl64(%v: i64x2, %n: I64): i64x2 {
     {
         %r = shl %v, %n: i64x2
         ret %r
     }
 }
 
-shr64(%v: i64x2, %n: Long): i64x2 {
+shr64(%v: i64x2, %n: I64): i64x2 {
     {
         %r = shr %v, %n: i64x2
         ret %r
@@ -60,7 +60,7 @@ shr64(%v: i64x2, %n: Long): i64x2 {
 # produces (`Integral(a)` types both operands as `a`). `unwrapVectorShiftCounts` takes the splat off
 # and what is left is the function above - so this must emit the same two instructions and no
 # broadcast at all.
-splatCount(%v: i32x4, %n: Int): i32x4 {
+splatCount(%v: i32x4, %n: I32): i32x4 {
     {
         %c = vsplat %n: i32x4
         %r = shl %v, %c: i32x4

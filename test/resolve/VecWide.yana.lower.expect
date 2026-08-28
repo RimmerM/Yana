@@ -1,15 +1,15 @@
 @image$base = []
 mut @seed = [3, 0, 0, 0]
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = loads @seed, 4: Int
+    %v_1 = loads @seed, 4: I32
     %base = vsplat %v_1: i32x8
     %v_2 = add %base, %base: i32x8
     %v_3 = vsplat 1: i32x8
     %v_4 = shl %base, %v_3: i32x8
-    %v_5 = vlane %v_2, 0: Int
-    %v_6 = cmp_neq %v_5, 6: Int
+    %v_5 = vlane %v_2, 0: I32
+    %v_6 = cmp_neq %v_5, 6: I32
     je %v_6, b_7, b_8
   }
 
@@ -22,8 +22,8 @@ main<complex>(): Int {
   }
 
   b_9 {
-    %v_10 = vlane %v_4, 1: Int
-    %v_11 = cmp_neq %v_10, 6: Int
+    %v_10 = vlane %v_4, 1: I32
+    %v_11 = cmp_neq %v_10, 6: I32
     je %v_11, b_12, b_13
   }
 
@@ -36,10 +36,10 @@ main<complex>(): Int {
   }
 
   b_14 {
-    %lanes = vreduce_add %v_3: Int
+    %lanes = vreduce_add %v_3: I32
     %mixed = vwithlane %base, 10, 0: i32x8
-    %v_15 = vreduce_imax %mixed: Int
-    %v_16 = cmp_neq %v_15, 10: Int
+    %v_15 = vreduce_imax %mixed: I32
+    %v_16 = cmp_neq %v_15, 10: I32
     je %v_16, b_17, b_18
   }
 
@@ -52,8 +52,8 @@ main<complex>(): Int {
   }
 
   b_19 {
-    %v_20 = vreduce_imin %mixed: Int
-    %v_21 = cmp_neq %v_20, 3: Int
+    %v_20 = vreduce_imin %mixed: I32
+    %v_21 = cmp_neq %v_20, 3: I32
     je %v_21, b_22, b_23
   }
 
@@ -70,21 +70,21 @@ main<complex>(): Int {
   }
 
   b_26 {
-    %v_27 = cmp_ilt %v_28, 4: Int
+    %v_27 = cmp_ilt %v_28, 4: I32
     je %v_27, b_25, b_29
   }
 
   b_29 {
-    %v_30 = vlane %v_31, 0: Int
-    %v_32 = cmp_neq %v_30, 15: Int
+    %v_30 = vlane %v_31, 0: I32
+    %v_32 = cmp_neq %v_30, 15: I32
     je %v_32, b_33, b_34
   }
 
   b_25 {
     %v_35 = phi [b_26, %v_31], [b_24, %base]: i32x8
-    %v_36 = phi [b_26, %v_28], [b_24, 0]: Int
+    %v_36 = phi [b_26, %v_28], [b_24, 0]: I32
     %v_31 = add %v_35, %base: i32x8
-    %v_28 = add %v_36, 1: Int
+    %v_28 = add %v_36, 1: I32
     jmp b_26
   }
 
@@ -97,8 +97,8 @@ main<complex>(): Int {
   }
 
   b_37 {
-    %v_38 = vlane %v_31, 1: Int
-    %v_39 = cmp_neq %v_38, 15: Int
+    %v_38 = vlane %v_31, 1: I32
+    %v_39 = cmp_neq %v_38, 15: I32
     je %v_39, b_40, b_41
   }
 
@@ -111,9 +111,9 @@ main<complex>(): Int {
   }
 
   b_42 {
-    %v_43 = vreduce_add %v_31: Int
-    %v_44 = imul %lanes, 15: Int
-    %v_45 = cmp_neq %v_43, %v_44: Int
+    %v_43 = vreduce_add %v_31: I32
+    %v_44 = imul %lanes, 15: I32
+    %v_45 = cmp_neq %v_43, %v_44: I32
     je %v_45, b_46, b_47
   }
 
@@ -127,11 +127,11 @@ main<complex>(): Int {
 
   b_48 {
     %v_49 = add %base, %v_2: i32x8
-    %v_50 = vlane %v_49, 0: Int
+    %v_50 = vlane %v_49, 0: I32
     %v_51 = add %v_4, %v_31: i32x8
-    %v_52 = vlane %v_51, 0: Int
-    %v_53 = add %v_50, %v_52: Int
-    %v_54 = cmp_neq %v_53, 30: Int
+    %v_52 = vlane %v_51, 0: I32
+    %v_53 = add %v_50, %v_52: I32
+    %v_54 = cmp_neq %v_53, 30: I32
     je %v_54, b_55, b_56
   }
 
@@ -145,8 +145,8 @@ main<complex>(): Int {
 
   b_57 {
     %above = cmp_igt %mixed, %base: m32x8
-    %v_58 = vreduce_add %above: Int
-    %v_59 = cmp_neq %v_58, 1: Int
+    %v_58 = vreduce_add %above: I32
+    %v_59 = cmp_neq %v_58, 1: I32
     je %v_59, b_60, b_61
   }
 
@@ -159,7 +159,7 @@ main<complex>(): Int {
   }
 
   b_62 {
-    %v_63 = vreduce_or %above: Int
+    %v_63 = vreduce_or %above: I32
     je %v_63, b_64, b_65
   }
 
@@ -172,7 +172,7 @@ main<complex>(): Int {
   }
 
   b_66 {
-    %v_67 = vreduce_and %above: Int
+    %v_67 = vreduce_and %above: I32
     je %v_67, b_68, b_69
   }
 
@@ -188,8 +188,8 @@ main<complex>(): Int {
     %v_71 = vsplat 7: i32x8
     %v_72 = vsplat 2: i32x8
     %picked = select %above, %v_71, %v_72: i32x8
-    %v_73 = vlane %picked, 0: Int
-    %v_74 = cmp_neq %v_73, 7: Int
+    %v_73 = vlane %picked, 0: I32
+    %v_74 = cmp_neq %v_73, 7: I32
     je %v_74, b_75, b_76
   }
 
@@ -202,8 +202,8 @@ main<complex>(): Int {
   }
 
   b_77 {
-    %v_78 = vlane %picked, 1: Int
-    %v_79 = cmp_neq %v_78, 2: Int
+    %v_78 = vlane %picked, 1: I32
+    %v_79 = cmp_neq %v_78, 2: I32
     je %v_79, b_80, b_81
   }
 
@@ -218,8 +218,8 @@ main<complex>(): Int {
   b_82 {
     %v_83 = vwithlane %base, 10, 1: i32x8
     %v_84 = cmp_igt %v_83, %base: m32x8
-    %v_85 = vreduce_first %v_84: Int
-    %v_86 = cmp_neq %v_85, 1: Int
+    %v_85 = vreduce_first %v_84: I32
+    %v_86 = cmp_neq %v_85, 1: I32
     je %v_86, b_87, b_88
   }
 
@@ -233,8 +233,8 @@ main<complex>(): Int {
 
   b_89 {
     %v_90 = cmp_ilt %mixed, %base: m32x8
-    %v_91 = vreduce_first %v_90: Int
-    %v_92 = cmp_neq %v_91, %lanes: Int
+    %v_91 = vreduce_first %v_90: I32
+    %v_92 = cmp_neq %v_91, %lanes: I32
     je %v_92, b_93, b_94
   }
 
@@ -248,8 +248,8 @@ main<complex>(): Int {
 
   b_95 {
     %v_96 = cmp_ige %mixed, %base: m32x8
-    %v_97 = vreduce_first %v_96: Int
-    %v_98 = cmp_neq %v_97, 0: Int
+    %v_97 = vreduce_first %v_96: I32
+    %v_98 = cmp_neq %v_97, 0: I32
     je %v_98, b_99, b_100
   }
 
@@ -262,12 +262,12 @@ main<complex>(): Int {
   }
 
   b_101 {
-    %v_102 = vlane %v_2, 1: Int
-    %v_103 = imul %v_102, 100: Int
-    %v_104 = vlane %v_4, 0: Int
-    %v_105 = add %v_103, %v_104: Int
-    %v_106 = vlane %mixed, 0: Int
-    %v_107 = add %v_105, %v_106: Int
+    %v_102 = vlane %v_2, 1: I32
+    %v_103 = imul %v_102, 100: I32
+    %v_104 = vlane %v_4, 0: I32
+    %v_105 = add %v_103, %v_104: I32
+    %v_106 = vlane %mixed, 0: I32
+    %v_107 = add %v_105, %v_106: I32
     ret %v_107
   }
 }

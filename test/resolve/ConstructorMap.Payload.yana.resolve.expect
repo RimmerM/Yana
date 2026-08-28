@@ -1,43 +1,43 @@
 let image$base: () = <none>
 
-fn sides(%s: Shape) -> Int {
+fn sides(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
-    %v3 = shl %v1, 2 : Int
-    %v5 = shr 335937, %v3 : Int
-    %v7 = and %v5, 15 : Int
+    %v1 = load %s.discriminant : I32
+    %v3 = shl %v1, 2 : I32
+    %v5 = shr 335937, %v3 : I32
+    %v7 = and %v5, 15 : I32
     ret %v7
 }
 
 fn closed(%s: Shape) -> Bool {
   b0:
-    %v1 = load %s.discriminant : Int
-    %v3 = shr 19, %v1 : Int
-    %v5 = and %v3, 1 : Int
+    %v1 = load %s.discriminant : I32
+    %v3 = shr 19, %v1 : I32
+    %v5 = and %v3, 1 : I32
     %v7 = cmp_ne %v5, 0 : Bool
     ret %v7
 }
 
 fn isSegment(%s: Shape) -> Bool {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 3 : Bool
     ret %v3
 }
 
 fn familyOf(%s: Shape) -> Family {
   b0:
-    %v1 = load %s.discriminant : Int
-    %v3 = shl %v1, 1 : Int
-    %v5 = shr 356, %v3 : Int
-    %v7 = and %v5, 3 : Int
+    %v1 = load %s.discriminant : I32
+    %v3 = shl %v1, 1 : I32
+    %v5 = shr 356, %v3 : I32
+    %v7 = and %v5, 3 : I32
     %v8 = cast %v7 : Family
     ret %v8
 }
 
-fn radius(%s: Shape) -> Int {
+fn radius(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
@@ -45,27 +45,27 @@ fn radius(%s: Shape) -> Int {
     jmp b3
 
   b2:
-    %r = load %s@Circle : Int
+    %r = load %s@Circle : I32
     jmp b3
 
   b3:
-    %v9 = phi [b2, %r], [b1, 0] : Int
+    %v9 = phi [b2, %r], [b1, 0] : I32
     ret %v9
 }
 
-fn bigCircle(%s: Shape) -> Int {
+fn bigCircle(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v10 = load %s.discriminant : Int
+    %v10 = load %s.discriminant : I32
     %v12 = cmp_eq %v10, 0 : Bool
     je %v12, b5, b4
 
   b2:
-    %v5 = load %s@Circle : Int
+    %v5 = load %s@Circle : I32
     %v7 = cmp_ge %v5, 100 : Bool
     je %v7, b3, b1
 
@@ -76,35 +76,35 @@ fn bigCircle(%s: Shape) -> Int {
     jmp b6
 
   b5:
-    %v14 = load %s@Circle : Int
+    %v14 = load %s@Circle : I32
     jmp b6
 
   b6:
-    %v20 = phi [b3, 2], [b5, 1], [b4, 0] : Int
+    %v20 = phi [b3, 2], [b5, 1], [b4, 0] : I32
     ret %v20
 }
 
-fn computed(%s: Shape) -> Int {
+fn computed(%s: Shape) -> I32 {
   b0:
-    %v1 = call sides, %s : Int
+    %v1 = call sides, %s : I32
     ret %v1
 }
 
-fn mixed(%s: Shape) -> Int {
+fn mixed(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 2 : Bool
     je %v3, b2, b1
 
   b1:
-    %v6 = call computed, %s : Int
+    %v6 = call computed, %s : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v9 = phi [b2, 0], [b1, %v6] : Int
+    %v9 = phi [b2, 0], [b1, %v6] : I32
     ret %v9
 }
 
@@ -113,7 +113,7 @@ fn opaque(%s: Shape) -> Shape {
     ret %s
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -124,16 +124,16 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Shape
     aggregate %local0.discriminant = 0, %local0@Circle = 1
     %v4 = call opaque, %v0 : Shape
-    %v5 = call sides, %v4 : Int
+    %v5 = call sides, %v4 : I32
     %v8 = cmp_eq %v5, 1 : Bool
     je %v8, b1, b2
 
@@ -141,7 +141,7 @@ fn main() -> Int {
     %v10 = alloc : Shape
     init %local2.discriminant, 2
     %v13 = call opaque, %v10 : Shape
-    %v14 = call sides, %v13 : Int
+    %v14 = call sides, %v13 : I32
     %v17 = cmp_eq %v14, 0 : Bool
     jmp b3
 
@@ -150,11 +150,11 @@ fn main() -> Int {
 
   b3:
     %v21 = phi [b1, %v17], [b2, False] : Bool
-    %v23 = call check, %v21, 1 : Int
+    %v23 = call check, %v21, 1 : I32
     %v24 = alloc : Shape
     aggregate %local4.discriminant = 1, %local4@Square.width = 2, %local4@Square.height = 3
     %v29 = call opaque, %v24 : Shape
-    %v30 = call sides, %v29 : Int
+    %v30 = call sides, %v29 : I32
     %v33 = cmp_eq %v30, 4 : Bool
     je %v33, b4, b5
 
@@ -162,7 +162,7 @@ fn main() -> Int {
     %v35 = alloc : Shape
     aggregate %local6.discriminant = 4, %local6@Poly = 6
     %v39 = call opaque, %v35 : Shape
-    %v40 = call sides, %v39 : Int
+    %v40 = call sides, %v39 : I32
     %v43 = cmp_eq %v40, 5 : Bool
     jmp b6
 
@@ -171,15 +171,15 @@ fn main() -> Int {
 
   b6:
     %v47 = phi [b4, %v43], [b5, False] : Bool
-    %v49 = call check, %v47, 2 : Int
-    %v50 = add %v23, %v49 : Int
+    %v49 = call check, %v47, 2 : I32
+    %v50 = add %v23, %v49 : I32
     %v51 = alloc : Shape
     aggregate %local8.discriminant = 3, %local8@Segment.from = 0, %local8@Segment.to = 1
     %v56 = call opaque, %v51 : Shape
-    %v57 = call sides, %v56 : Int
+    %v57 = call sides, %v56 : I32
     %v60 = cmp_eq %v57, 2 : Bool
-    %v62 = call check, %v60, 4 : Int
-    %v63 = add %v50, %v62 : Int
+    %v62 = call check, %v60, 4 : I32
+    %v63 = add %v50, %v62 : I32
     %v64 = alloc : Shape
     aggregate %local10.discriminant = 0, %local10@Circle = 1
     %v68 = call opaque, %v64 : Shape
@@ -198,8 +198,8 @@ fn main() -> Int {
 
   b9:
     %v81 = phi [b7, %v77], [b8, False] : Bool
-    %v83 = call check, %v81, 8 : Int
-    %v84 = add %v63, %v83 : Int
+    %v83 = call check, %v81, 8 : I32
+    %v84 = add %v63, %v83 : I32
     %v85 = alloc : Shape
     aggregate %local14.discriminant = 4, %local14@Poly = 3
     %v89 = call opaque, %v85 : Shape
@@ -219,15 +219,15 @@ fn main() -> Int {
 
   b12:
     %v102 = phi [b10, %v98], [b11, False] : Bool
-    %v104 = call check, %v102, 16 : Int
-    %v105 = add %v84, %v104 : Int
+    %v104 = call check, %v102, 16 : I32
+    %v105 = add %v84, %v104 : I32
     %v106 = alloc : Shape
     aggregate %local18.discriminant = 3, %local18@Segment.from = 0, %local18@Segment.to = 1
     %v111 = call opaque, %v106 : Shape
     %v112 = call closed, %v111 : Bool
     %v114 = xor %v112, True : Bool
-    %v116 = call check, %v114, 32 : Int
-    %v117 = add %v105, %v116 : Int
+    %v116 = call check, %v114, 32 : I32
+    %v117 = add %v105, %v116 : I32
     %v118 = alloc : Shape
     aggregate %local20.discriminant = 3, %local20@Segment.from = 0, %local20@Segment.to = 1
     %v123 = call opaque, %v118 : Shape
@@ -247,8 +247,8 @@ fn main() -> Int {
 
   b15:
     %v137 = phi [b13, %v133], [b14, False] : Bool
-    %v139 = call check, %v137, 64 : Int
-    %v140 = add %v117, %v139 : Int
+    %v139 = call check, %v137, 64 : I32
+    %v140 = add %v117, %v139 : I32
     %v141 = alloc : Shape
     aggregate %local24.discriminant = 0, %local24@Circle = 1
     %v145 = call opaque, %v141 : Shape
@@ -269,8 +269,8 @@ fn main() -> Int {
 
   b18:
     %v160 = phi [b16, %v156], [b17, False] : Bool
-    %v162 = call check, %v160, 128 : Int
-    %v163 = add %v140, %v162 : Int
+    %v162 = call check, %v160, 128 : I32
+    %v163 = add %v140, %v162 : I32
     %v164 = alloc : Shape
     aggregate %local28.discriminant = 1, %local28@Square.width = 1, %local28@Square.height = 1
     %v169 = call opaque, %v164 : Shape
@@ -291,12 +291,12 @@ fn main() -> Int {
 
   b21:
     %v185 = phi [b19, %v181], [b20, False] : Bool
-    %v187 = call check, %v185, 256 : Int
-    %v188 = add %v163, %v187 : Int
+    %v187 = call check, %v185, 256 : I32
+    %v188 = add %v163, %v187 : I32
     %v189 = alloc : Shape
     aggregate %local32.discriminant = 0, %local32@Circle = 7
     %v193 = call opaque, %v189 : Shape
-    %v194 = call radius, %v193 : Int
+    %v194 = call radius, %v193 : I32
     %v197 = cmp_eq %v194, 7 : Bool
     je %v197, b22, b23
 
@@ -304,7 +304,7 @@ fn main() -> Int {
     %v199 = alloc : Shape
     init %local34.discriminant, 2
     %v202 = call opaque, %v199 : Shape
-    %v203 = call radius, %v202 : Int
+    %v203 = call radius, %v202 : I32
     %v206 = cmp_eq %v203, 0 : Bool
     jmp b24
 
@@ -313,12 +313,12 @@ fn main() -> Int {
 
   b24:
     %v210 = phi [b22, %v206], [b23, False] : Bool
-    %v212 = call check, %v210, 512 : Int
-    %v213 = add %v188, %v212 : Int
+    %v212 = call check, %v210, 512 : I32
+    %v213 = add %v188, %v212 : I32
     %v214 = alloc : Shape
     aggregate %local36.discriminant = 0, %local36@Circle = 200
     %v218 = call opaque, %v214 : Shape
-    %v219 = call bigCircle, %v218 : Int
+    %v219 = call bigCircle, %v218 : I32
     %v222 = cmp_eq %v219, 2 : Bool
     je %v222, b25, b26
 
@@ -326,7 +326,7 @@ fn main() -> Int {
     %v224 = alloc : Shape
     aggregate %local38.discriminant = 0, %local38@Circle = 2
     %v228 = call opaque, %v224 : Shape
-    %v229 = call bigCircle, %v228 : Int
+    %v229 = call bigCircle, %v228 : I32
     %v232 = cmp_eq %v229, 1 : Bool
     jmp b27
 
@@ -335,19 +335,19 @@ fn main() -> Int {
 
   b27:
     %v236 = phi [b25, %v232], [b26, False] : Bool
-    %v238 = call check, %v236, 1024 : Int
-    %v239 = add %v213, %v238 : Int
+    %v238 = call check, %v236, 1024 : I32
+    %v239 = add %v213, %v238 : I32
     %v240 = alloc : Shape
     init %local40.discriminant, 2
     %v243 = call opaque, %v240 : Shape
-    %v244 = call bigCircle, %v243 : Int
+    %v244 = call bigCircle, %v243 : I32
     %v247 = cmp_eq %v244, 0 : Bool
-    %v249 = call check, %v247, 2048 : Int
-    %v250 = add %v239, %v249 : Int
+    %v249 = call check, %v247, 2048 : I32
+    %v250 = add %v239, %v249 : I32
     %v251 = alloc : Shape
     init %local42.discriminant, 2
     %v254 = call opaque, %v251 : Shape
-    %v255 = call mixed, %v254 : Int
+    %v255 = call mixed, %v254 : I32
     %v258 = cmp_eq %v255, 0 : Bool
     je %v258, b28, b29
 
@@ -355,7 +355,7 @@ fn main() -> Int {
     %v260 = alloc : Shape
     aggregate %local44.discriminant = 4, %local44@Poly = 1
     %v264 = call opaque, %v260 : Shape
-    %v265 = call mixed, %v264 : Int
+    %v265 = call mixed, %v264 : I32
     %v268 = cmp_eq %v265, 5 : Bool
     jmp b30
 
@@ -364,7 +364,7 @@ fn main() -> Int {
 
   b30:
     %v272 = phi [b28, %v268], [b29, False] : Bool
-    %v274 = call check, %v272, 4096 : Int
-    %v275 = add %v250, %v274 : Int
+    %v274 = call check, %v272, 4096 : I32
+    %v275 = add %v250, %v274 : I32
     ret %v275
 }

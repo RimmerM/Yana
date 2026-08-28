@@ -4,7 +4,7 @@ let regionSize: I64 = 4194304
 
 let classCount: I64 = 32
 
-let ratio: Float = 1075838976
+let ratio: F32 = 1075838976
 
 let nowhere: %U8 = 0
 
@@ -37,7 +37,7 @@ fn floatConstant() -> I64 {
 fn pointerConstant() -> I64 {
   b0:
     %v1 = cast 0 : %U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
@@ -90,7 +90,7 @@ fn mutableGlobal() -> I64 {
     ret %v5
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = call integerConstants : I64
     %v1 = call floatConstant : I64
@@ -105,6 +105,6 @@ fn main() -> Int {
     %v10 = add %v8, %v9 : I64
     %v11 = call mutableGlobal : I64
     %total = add %v10, %v11 : I64
-    %v13 = cast %total : Int
+    %v13 = cast %total : I32
     ret %v13
 }

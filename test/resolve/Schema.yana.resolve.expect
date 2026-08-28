@@ -101,40 +101,40 @@ fn pairUp(%x: a, %y: b) -> Pair(a, b) {
     ret %v2
 }
 
-(a.tag: Int) fn tagOf(%value: a) -> Int {
+(a.tag: I32) fn tagOf(%value: a) -> I32 {
   schema {
     #0 type a
-    #1 property a.tag: Int
+    #1 property a.tag: I32
   }
 
   b0:
     ret 7
 }
 
-fn double(%n: Int) -> Int {
+fn double(%n: I32) -> I32 {
   b0:
-    %v3 = mul %n, 2 : Int
+    %v3 = mul %n, 2 : I32
     ret %v3
 }
 
-(double: (Int) -> Int) fn doubled(%value: a) -> Int {
+(double: (I32) -> I32) fn doubled(%value: a) -> I32 {
   schema {
     #0 type a
-    #1 function double: (Int) -> Int
+    #1 function double: (I32) -> I32
   }
 
   b0:
     ret 8
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v2 = call identity(Int), 1 : Int
-    %v7 = call scale(Int), 2, 3 : Int
-    %v8 = add %v2, %v7 : Int
-    %v15 = call smallest(Int), 9, 4, 7 : Int
-    %v16 = add %v8, %v15 : Int
-    %v23 = call bothEqual(Int, Bool), 1, 1, True, True : Bool
+    %v2 = call identity(I32), 1 : I32
+    %v7 = call scale(I32), 2, 3 : I32
+    %v8 = add %v2, %v7 : I32
+    %v15 = call smallest(I32), 9, 4, 7 : I32
+    %v16 = add %v8, %v15 : I32
+    %v23 = call bothEqual(I32, Bool), 1, 1, True, True : Bool
     je %v23, b1, b2
 
   b1:
@@ -144,35 +144,35 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v31 = phi [b1, 5], [b2, 0] : Int
-    %v32 = add %v16, %v31 : Int
-    %v36 = call pairUp(Int, Bool), 20, False : Pair(Int, Bool)
-    %v37 = load %local0@Pair.first : Int
-    %v38 = add %v32, %v37 : Int
+    %v31 = phi [b1, 5], [b2, 0] : I32
+    %v32 = add %v16, %v31 : I32
+    %v36 = call pairUp(I32, Bool), 20, False : Pair(I32, Bool)
+    %v37 = load %local0@Pair.first : I32
+    %v38 = add %v32, %v37 : I32
     %v39 = alloc : Labelled
     aggregate %local1@Labelled.tag = 1, %local1@Labelled.weight = 2
-    %v43 = call tagOf(Labelled), %v39 : Int
-    %v44 = add %v38, %v43 : Int
+    %v43 = call tagOf(Labelled), %v39 : I32
+    %v44 = add %v38, %v43 : I32
     %v45 = alloc : Labelled
     aggregate %local2@Labelled.tag = 1, %local2@Labelled.weight = 2
-    %v49 = call doubled(Labelled), %v45 : Int
-    %v50 = add %v44, %v49 : Int
+    %v49 = call doubled(Labelled), %v45 : I32
+    %v50 = add %v44, %v49 : I32
     ret %v50
 }
 
-fn identity(Int)(%value: Int) -> Int {
+fn identity(I32)(%value: I32) -> I32 {
   b0:
     ret %value
 }
 
-fn scale(Int)(%x: Int, %y: Int) -> Int {
+fn scale(I32)(%x: I32, %y: I32) -> I32 {
   b0:
-    %v2 = mul %x, %y : Int
-    %v3 = add %v2, %x : Int
+    %v2 = mul %x, %y : I32
+    %v3 = add %v2, %x : I32
     ret %v3
 }
 
-fn smallest(Int)(%x: Int, %y: Int, %z: Int) -> Int {
+fn smallest(I32)(%x: I32, %y: I32, %z: I32) -> I32 {
   b0:
     %v6 = cmp_lt %x, %y : Bool
     je %v6, b1, b2
@@ -192,7 +192,7 @@ fn smallest(Int)(%x: Int, %y: Int, %z: Int) -> Int {
     jmp b5
 
   b5:
-    %v3 = phi [b3, %x], [b4, %z] : Int
+    %v3 = phi [b3, %x], [b4, %z] : I32
     jmp b9
 
   b6:
@@ -202,15 +202,15 @@ fn smallest(Int)(%x: Int, %y: Int, %z: Int) -> Int {
     jmp b8
 
   b8:
-    %v4 = phi [b6, %y], [b7, %z] : Int
+    %v4 = phi [b6, %y], [b7, %z] : I32
     jmp b9
 
   b9:
-    %v5 = phi [b5, %v3], [b8, %v4] : Int
+    %v5 = phi [b5, %v3], [b8, %v4] : I32
     ret %v5
 }
 
-fn bothEqual(Int, Bool)(%p: Int, %q: Int, %r: Bool, %s: Bool) -> Bool {
+fn bothEqual(I32, Bool)(%p: I32, %q: I32, %r: Bool, %s: Bool) -> Bool {
   b0:
     %v5 = cmp_eq %p, %q : Bool
     je %v5, b1, b2
@@ -227,19 +227,19 @@ fn bothEqual(Int, Bool)(%p: Int, %q: Int, %r: Bool, %s: Bool) -> Bool {
     ret %v4
 }
 
-fn pairUp(Int, Bool)(%x: Int, %y: Bool) -> Pair(Int, Bool) {
+fn pairUp(I32, Bool)(%x: I32, %y: Bool) -> Pair(I32, Bool) {
   b0:
-    %v2 = alloc : Pair(Int, Bool)
+    %v2 = alloc : Pair(I32, Bool)
     aggregate %local2@Pair.first = %x, %local2@Pair.second = %y
     ret %v2
 }
 
-fn tagOf(Labelled)(%value: Labelled) -> Int {
+fn tagOf(Labelled)(%value: Labelled) -> I32 {
   b0:
     ret 7
 }
 
-fn doubled(Labelled)(%value: Labelled) -> Int {
+fn doubled(Labelled)(%value: Labelled) -> I32 {
   b0:
     ret 8
 }

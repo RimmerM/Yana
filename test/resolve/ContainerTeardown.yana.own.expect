@@ -49,29 +49,29 @@ fn remove(Handle) {
   %local4: Maybe(Handle) droppable readonly live [63, 66)
 }
 
-fn emptyArray(Int) {
-  %local0: Array(Int) droppable readonly live [0, 4)
-  %local1: Run(Int) droppable readonly live [1, 3)
-  %local2: Run(Int) droppable readonly live never
+fn emptyArray(I32) {
+  %local0: Array(I32) droppable readonly live [0, 4)
+  %local1: Run(I32) droppable readonly live [1, 3)
+  %local2: Run(I32) droppable readonly live never
 }
 
-fn push(Int) {
+fn push(I32) {
   arg self writable resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 25)
-  %item: Int readonly live [0, 20)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 25)
+  %item: I32 readonly live [0, 20)
 }
 
-fn reserve(Int) {
+fn reserve(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 6) [7, 11)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 6) [7, 11)
 }
 
-fn growArray(Int) {
+fn growArray(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 24)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 24)
   %wide: Size writable live [5, 22)
 }
 
@@ -86,17 +86,17 @@ fn -=(I64) {
 fn Reclaim(Array(a)).reclaim(Handle) {
   arg value readonly
   %value: Array(Handle) borrowed droppable readonly live [0, 10) [11, 26)
-  %i: Int writable live [2, 8) [11, 26)
+  %i: I32 writable live [2, 8) [11, 26)
   %local2: Handle readonly live [18, 20)
   %local3: Handle droppable readonly live [20, 22)
 }
 
-fn Reclaim(Array(a)).reclaim(Int) {
+fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
-  %i: Int writable live [2, 8) [11, 25)
-  %local2: Int readonly live [18, 21)
-  %local3: Int readonly live [19, 21)
+  %value: Array(I32) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: I32 writable live [2, 8) [11, 25)
+  %local2: I32 readonly live [18, 21)
+  %local3: I32 readonly live [19, 21)
 }
 
 fn numberOf {
@@ -205,17 +205,17 @@ fn byteSpan(Handle) {
   arg count readonly
 }
 
-fn emptyRun(Int) {
-  %local0: Run(Int) droppable readonly live [0, 6)
+fn emptyRun(I32) {
+  %local0: Run(I32) droppable readonly live [0, 6)
 }
 
-fn resize(Int) {
+fn resize(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+  %self: Run(I32) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
-fn byteSpan(Int) {
+fn byteSpan(I32) {
   arg from readonly
   arg count readonly
 }
@@ -225,9 +225,9 @@ fn releaseRun(Handle) {
   %self: Run(Handle) borrowed droppable readonly live [0, 8)
 }
 
-fn releaseRun(Int) {
+fn releaseRun(I32) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 8)
+  %self: Run(I32) borrowed droppable readonly live [0, 8)
 }
 
 fn openHandle {
@@ -261,8 +261,8 @@ fn main {
   %local2: Handle droppable writable live [34, 37)
   %local3: Handle droppable writable live [39, 42)
   %local4: Maybe(Handle) droppable readonly live [45, 46)
-  %local5: Array(Int) droppable readonly live [74, 77)
-  %plain: Array(Int) droppable writable resizable live [75, 85)
+  %local5: Array(I32) droppable readonly live [74, 77)
+  %plain: Array(I32) droppable writable resizable live [75, 85)
 }
 
 fn Drop(Handle).drop {

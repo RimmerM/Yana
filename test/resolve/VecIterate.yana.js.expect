@@ -1,6 +1,6 @@
 "use strict";
 // Core
-function loadVectorTail_Int(from$items, from$length, from$offset, at) {
+function loadVectorTail_I32(from$items, from$length, from$offset, at) {
   var v4 = from$offset + at | 0;
   var v9 = (from$offset + from$length | 0) - 1 | 0;
   var v12 = from$items[v4 > v9 ? v9 : v4];
@@ -12,7 +12,7 @@ function loadVectorTail_Int(from$items, from$length, from$offset, at) {
   return [v12, v18, v24, from$items[v27 > v9 ? v9 : v27]];
 }
 
-function loadVectorTail_Float(from$items, from$length, from$offset, at) {
+function loadVectorTail_F32(from$items, from$length, from$offset, at) {
   var v4 = from$offset + at | 0;
   var v9 = (from$offset + from$length | 0) - 1 | 0;
   var v12 = from$items[v4 > v9 ? v9 : v4];
@@ -44,7 +44,7 @@ function sumInts(xs$items, xs$length, xs$offset) {
     var live$1 = 1 < v87;
     var live$2 = 2 < v87;
     var live$3 = 3 < v87;
-    var v103 = loadVectorTail_Int(xs$items, xs$length, xs$offset, i);
+    var v103 = loadVectorTail_I32(xs$items, xs$length, xs$offset, i);
     acc = [acc[0] + (live$0 ? v103[0] : 0) | 0, acc[1] + (live$1 ? v103[1] : 0) | 0, acc[2] + (live$2 ? v103[2] : 0) | 0, acc[3] + (live$3 ? v103[3] : 0) | 0];
   }
   return (acc[0] + acc[1] | 0) + (acc[2] + acc[3] | 0) | 0;
@@ -72,7 +72,7 @@ function main() {
     break L0;
   }
   if (i < 11) {
-    var v845 = loadVectorTail_Int(v12, 11, 0, i);
+    var v845 = loadVectorTail_I32(v12, 11, 0, i);
     var v847 = 11 - i | 0;
     var v858$0 = 0 < v847;
     var v858$1 = 1 < v847;
@@ -103,7 +103,7 @@ function main() {
     var live$1 = 1 < v230;
     var live$2 = 2 < v230;
     var live$3 = 3 < v230;
-    var v246 = loadVectorTail_Int(v12, 11, 0, i$1);
+    var v246 = loadVectorTail_I32(v12, 11, 0, i$1);
     acc$1 = [acc$1[0] + (live$0 ? v246[0] : 0) | 0, acc$1[1] + (live$1 ? v246[1] : 0) | 0, acc$1[2] + (live$2 ? v246[2] : 0) | 0, acc$1[3] + (live$3 ? v246[3] : 0) | 0];
   }
   if (((acc$1[0] + acc$1[1] | 0) + (acc$1[2] + acc$1[3] | 0) | 0) === 66) {
@@ -124,7 +124,7 @@ function main() {
     break L2;
   }
   if (i$2 < 11) {
-    var v365 = loadVectorTail_Int(v12, 11, 0, i$2);
+    var v365 = loadVectorTail_I32(v12, 11, 0, i$2);
     var v367 = 11 - i$2 | 0;
     var v919$0 = 0 < v367;
     var v919$1 = 1 < v367;
@@ -155,7 +155,7 @@ function main() {
     var live$1$1 = 1 < v497;
     var live$2$1 = 2 < v497;
     var live$3$1 = 3 < v497;
-    var v505 = loadVectorTail_Float(v35, 5, 0, i$3);
+    var v505 = loadVectorTail_F32(v35, 5, 0, i$3);
     acc$3 = [Math.fround(acc$3[0] + (live$0$1 ? v505[0] : 0)), Math.fround(acc$3[1] + (live$1$1 ? v505[1] : 0)), Math.fround(acc$3[2] + (live$2$1 ? v505[2] : 0)), Math.fround(acc$3[3] + (live$3$1 ? v505[3] : 0))];
   }
   if (Math.fround(Math.fround(acc$3[0] + acc$3[1]) + Math.fround(acc$3[2] + acc$3[3])) === 14) {
@@ -176,7 +176,7 @@ function main() {
     break L4;
   }
   if (i$4 < 5) {
-    var v624 = loadVectorTail_Float(v35, 5, 0, i$4);
+    var v624 = loadVectorTail_F32(v35, 5, 0, i$4);
     var v1004 = Math.fround(5 - i$4 | 0);
     var v1006$0 = 0 < v1004;
     var v1006$1 = 1 < v1004;

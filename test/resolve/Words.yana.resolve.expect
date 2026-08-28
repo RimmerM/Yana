@@ -188,7 +188,7 @@ fn writeBigU64(%to: Flat(U8), %at: Size, %value: U64) -> () {
 fn bigEndian(U16)(%value: U16) -> U16 {
   b0:
     %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : Int
+    %v3 = cast %v2 : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -207,7 +207,7 @@ fn bigEndian(U16)(%value: U16) -> U16 {
 fn littleEndian(U16)(%value: U16) -> U16 {
   b0:
     %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : Int
+    %v3 = cast %v2 : I32
     %v5 = cmp_eq %v3, 0 : Bool
     je %v5, b2, b1
 
@@ -226,7 +226,7 @@ fn littleEndian(U16)(%value: U16) -> U16 {
 fn bigEndian(U32)(%value: U32) -> U32 {
   b0:
     %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : Int
+    %v3 = cast %v2 : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -245,7 +245,7 @@ fn bigEndian(U32)(%value: U32) -> U32 {
 fn littleEndian(U32)(%value: U32) -> U32 {
   b0:
     %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : Int
+    %v3 = cast %v2 : I32
     %v5 = cmp_eq %v3, 0 : Bool
     je %v5, b2, b1
 
@@ -264,7 +264,7 @@ fn littleEndian(U32)(%value: U32) -> U32 {
 fn bigEndian(U64)(%value: U64) -> U64 {
   b0:
     %v2 = byteorder Endian : Endian
-    %v3 = cast %v2 : Int
+    %v3 = cast %v2 : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -283,13 +283,13 @@ fn bigEndian(U64)(%value: U64) -> U64 {
 fn Reclaim(Array(a)).reclaim(U8)(%value: Array(U8)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -301,7 +301,7 @@ fn Reclaim(Array(a)).reclaim(U8)(%value: Array(U8)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(U8)
     %v14 = load %value@Array.run@Run.items : %U8
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof U8 : Size
     %v18 = mul %v16, %v17 : Size
@@ -309,8 +309,8 @@ fn Reclaim(Array(a)).reclaim(U8)(%value: Array(U8)) -> () {
     %v20 = load [%v19] : U8
     %doomed = alloc : U8
     init %local3, %v20
-    %v23 = load %i : Int
-    %v25 = add %v23, 1 : Int
+    %v23 = load %i : I32
+    %v25 = add %v23, 1 : I32
     assign %i, %v25
     jmp b1
 }
@@ -352,7 +352,7 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -402,7 +402,7 @@ fn releaseRun(U8)(%self: Run(U8)) -> () {
     ret
 }
 
-fn check(%held: Bool, %bit: Int) -> Int {
+fn check(%held: Bool, %bit: I32) -> I32 {
   b0:
     je %held, b1, b2
 
@@ -413,20 +413,20 @@ fn check(%held: Bool, %bit: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %bit], [b2, 0] : Int
+    %v6 = phi [b1, %bit], [b2, 0] : I32
     ret %v6
 }
 
-fn order() -> Int {
+fn order() -> I32 {
   b0:
     %v0 = byteorder Endian : Endian
     %v2 = cmp_eq %v0, Little : Bool
-    %v4 = call check, %v2, 1 : Int
+    %v4 = call check, %v2, 1 : I32
     %v5 = byteorder Endian : Endian
     %v7 = cmp_eq %v5, Big : Bool
     %v9 = xor %v7, True : Bool
-    %v11 = call check, %v9, 2 : Int
-    %v12 = add %v4, %v11 : Int
+    %v11 = call check, %v9, 2 : I32
+    %v12 = add %v4, %v11 : I32
     ret %v12
 }
 
@@ -445,37 +445,37 @@ fn opaqueU64(%value: U64) -> U64 {
     ret %value
 }
 
-fn conversions() -> Int {
+fn conversions() -> I32 {
   b0:
     %v1 = call opaqueU32, 305419896 : U32
     %v2 = call bigEndian(U32), %v1 : U32
     %v5 = cmp_eq %v2, 2018915346 : Bool
-    %v7 = call check, %v5, 4 : Int
+    %v7 = call check, %v5, 4 : I32
     %v9 = call opaqueU32, 305419896 : U32
     %v10 = call littleEndian(U32), %v9 : U32
     %v13 = cmp_eq %v10, 305419896 : Bool
-    %v15 = call check, %v13, 8 : Int
-    %v16 = add %v7, %v15 : Int
+    %v15 = call check, %v13, 8 : I32
+    %v16 = add %v7, %v15 : I32
     %v18 = call opaqueU32, 305419896 : U32
     %v19 = call bigEndian(U32), %v18 : U32
     %v20 = call bigEndian(U32), %v19 : U32
     %v23 = cmp_eq %v20, 305419896 : Bool
-    %v25 = call check, %v23, 16 : Int
-    %v26 = add %v16, %v25 : Int
+    %v25 = call check, %v23, 16 : I32
+    %v26 = add %v16, %v25 : I32
     %v28 = call opaqueU16, 4660 : U16
     %v29 = call bigEndian(U16), %v28 : U16
     %v32 = cmp_eq %v29, 13330 : Bool
-    %v34 = call check, %v32, 32 : Int
-    %v35 = add %v26, %v34 : Int
+    %v34 = call check, %v32, 32 : I32
+    %v35 = add %v26, %v34 : I32
     %v37 = call opaqueU64, 1 : U64
     %v38 = call bigEndian(U64), %v37 : U64
     %v41 = cmp_eq %v38, 72057594037927936 : Bool
-    %v43 = call check, %v41, 64 : Int
-    %v44 = add %v35, %v43 : Int
+    %v43 = call check, %v41, 64 : I32
+    %v44 = add %v35, %v43 : I32
     ret %v44
 }
 
-fn roundTrip() -> Int {
+fn roundTrip() -> I32 {
   b0:
     %v8 = alloc : Array(U8)
     %v11 = alloc *8 : U8
@@ -515,7 +515,7 @@ fn roundTrip() -> Int {
     init %local4@Flat.length, %v57
     %v60 = call readBigU16, %v53, 0 : U16
     %v63 = cmp_eq %v60, 4660 : Bool
-    %v65 = call check, %v63, 128 : Int
+    %v65 = call check, %v63, 128 : I32
     %v66 = load %bytes : Array(U8)
     %v67 = borrow %bytes : 'Array(U8)
     %v68 = alloc : Flat(U8)
@@ -526,8 +526,8 @@ fn roundTrip() -> Int {
     init %local5@Flat.length, %v72
     %v75 = call readLittleU16, %v68, 2 : U16
     %v78 = cmp_eq %v75, 4660 : Bool
-    %v80 = call check, %v78, 256 : Int
-    %v81 = add %v65, %v80 : Int
+    %v80 = call check, %v78, 256 : I32
+    %v81 = add %v65, %v80 : I32
     %v82 = load %bytes : Array(U8)
     %v83 = borrow %bytes : 'Array(U8)
     %v84 = alloc : Flat(U8)
@@ -538,8 +538,8 @@ fn roundTrip() -> Int {
     init %local6@Flat.length, %v88
     %v91 = call readLittleU16, %v84, 0 : U16
     %v94 = cmp_eq %v91, 13330 : Bool
-    %v96 = call check, %v94, 512 : Int
-    %shorts = add %v81, %v96 : Int
+    %v96 = call check, %v94, 512 : I32
+    %shorts = add %v81, %v96 : I32
     %v98 = load %bytes : Array(U8)
     %v101 = borrow_mut %bytes : &Array(U8)
     %v102 = alloc : Flat(U8)
@@ -561,12 +561,12 @@ fn roundTrip() -> Int {
     %v119 = call readBigU64, %v112, 0 : U64
     drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v122 = cmp_eq %v119, 1311768467463790320 : Bool
-    %wide = call check, %v122, 1024 : Int
-    %v125 = add %shorts, %wide : Int
+    %wide = call check, %v122, 1024 : I32
+    %v125 = add %shorts, %wide : I32
     ret %v125
 }
 
-fn layout() -> Int {
+fn layout() -> I32 {
   b0:
     %v8 = alloc : Array(U8)
     %v11 = alloc *8 : U8
@@ -604,13 +604,13 @@ fn layout() -> Int {
     %v58 = cmp_ge %v56, %v57 : Bool
     call checkCondition, %v58
     %v60 = load [%v54]@Array.run@Run.items : %U8
-    %v61 = strideof U8 : Long
-    %v62 = mul 0, %v61 : Long
+    %v61 = strideof U8 : I64
+    %v62 = mul 0, %v61 : I64
     %v63 = add %v60, %v62 : %U8
     %v64 = borrow [%v63] : 'U8
     %v65 = load [%v64] : U8
     %v68 = cmp_eq %v65, 18 : Bool
-    %v70 = call check, %v68, 2048 : Int
+    %v70 = call check, %v68, 2048 : I32
     %v71 = load %bytes : Array(U8)
     %v74 = borrow %bytes : 'Array(U8)
     %v75 = load [%v74]@Array.length : @bits(30) U32
@@ -619,14 +619,14 @@ fn layout() -> Int {
     %v78 = cmp_ge %v76, %v77 : Bool
     call checkCondition, %v78
     %v80 = load [%v74]@Array.run@Run.items : %U8
-    %v81 = strideof U8 : Long
-    %v82 = mul 3, %v81 : Long
+    %v81 = strideof U8 : I64
+    %v82 = mul 3, %v81 : I64
     %v83 = add %v80, %v82 : %U8
     %v84 = borrow [%v83] : 'U8
     %v85 = load [%v84] : U8
     %v88 = cmp_eq %v85, 120 : Bool
-    %v90 = call check, %v88, 4096 : Int
-    %v91 = add %v70, %v90 : Int
+    %v90 = call check, %v88, 4096 : I32
+    %v91 = add %v70, %v90 : I32
     %v92 = load %bytes : Array(U8)
     %v95 = borrow %bytes : 'Array(U8)
     %v96 = load [%v95]@Array.length : @bits(30) U32
@@ -635,14 +635,14 @@ fn layout() -> Int {
     %v99 = cmp_ge %v97, %v98 : Bool
     call checkCondition, %v99
     %v101 = load [%v95]@Array.run@Run.items : %U8
-    %v102 = strideof U8 : Long
-    %v103 = mul 4, %v102 : Long
+    %v102 = strideof U8 : I64
+    %v103 = mul 4, %v102 : I64
     %v104 = add %v101, %v103 : %U8
     %v105 = borrow [%v104] : 'U8
     %v106 = load [%v105] : U8
     %v109 = cmp_eq %v106, 120 : Bool
-    %v111 = call check, %v109, 8192 : Int
-    %v112 = add %v91, %v111 : Int
+    %v111 = call check, %v109, 8192 : I32
+    %v112 = add %v91, %v111 : I32
     %v113 = load %bytes : Array(U8)
     %v116 = borrow %bytes : 'Array(U8)
     %v117 = load [%v116]@Array.length : @bits(30) U32
@@ -651,14 +651,14 @@ fn layout() -> Int {
     %v120 = cmp_ge %v118, %v119 : Bool
     call checkCondition, %v120
     %v122 = load [%v116]@Array.run@Run.items : %U8
-    %v123 = strideof U8 : Long
-    %v124 = mul 7, %v123 : Long
+    %v123 = strideof U8 : I64
+    %v124 = mul 7, %v123 : I64
     %v125 = add %v122, %v124 : %U8
     %v126 = borrow [%v125] : 'U8
     %v127 = load [%v126] : U8
     %v130 = cmp_eq %v127, 18 : Bool
-    %v132 = call check, %v130, 16384 : Int
-    %ends = add %v112, %v132 : Int
+    %v132 = call check, %v130, 16384 : I32
+    %ends = add %v112, %v132 : I32
     %v134 = load %bytes : Array(U8)
     %v135 = borrow %bytes : 'Array(U8)
     %v136 = alloc : Flat(U8)
@@ -670,12 +670,12 @@ fn layout() -> Int {
     %v143 = call readLittleU32, %v136, 0 : U32
     drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v146 = cmp_eq %v143, 2018915346 : Bool
-    %v148 = call check, %v146, 32768 : Int
-    %v149 = add %ends, %v148 : Int
+    %v148 = call check, %v146, 32768 : I32
+    %v149 = add %ends, %v148 : I32
     ret %v149
 }
 
-fn unaligned() -> Int {
+fn unaligned() -> I32 {
   b0:
     %v8 = alloc : Array(U8)
     %v11 = alloc *8 : U8
@@ -725,7 +725,7 @@ fn unaligned() -> Int {
     init %local5@Flat.length, %v69
     %v72 = call readBigU32, %v65, 1 : U32
     %v75 = cmp_eq %v72, 305419897 : Bool
-    %v77 = call check, %v75, 65536 : Int
+    %v77 = call check, %v75, 65536 : I32
     %v78 = load %bytes : Array(U8)
     %v81 = borrow %bytes : 'Array(U8)
     %v82 = load [%v81]@Array.length : @bits(30) U32
@@ -734,28 +734,28 @@ fn unaligned() -> Int {
     %v85 = cmp_ge %v83, %v84 : Bool
     call checkCondition, %v85
     %v87 = load [%v81]@Array.run@Run.items : %U8
-    %v88 = strideof U8 : Long
-    %v89 = mul 0, %v88 : Long
+    %v88 = strideof U8 : I64
+    %v89 = mul 0, %v88 : I64
     %v90 = add %v87, %v89 : %U8
     %v91 = borrow [%v90] : 'U8
     %v92 = load [%v91] : U8
     drop %bytes via Reclaim(Array(a)).reclaim(U8)
     %v95 = cmp_eq %v92, 0 : Bool
-    %v97 = call check, %v95, 131072 : Int
-    %v98 = add %v77, %v97 : Int
+    %v97 = call check, %v95, 131072 : I32
+    %v98 = add %v77, %v97 : I32
     ret %v98
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call order : Int
-    %v1 = call conversions : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call roundTrip : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call layout : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call unaligned : Int
-    %v8 = add %v6, %v7 : Int
+    %v0 = call order : I32
+    %v1 = call conversions : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call roundTrip : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call layout : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call unaligned : I32
+    %v8 = add %v6, %v7 : I32
     ret %v8
 }

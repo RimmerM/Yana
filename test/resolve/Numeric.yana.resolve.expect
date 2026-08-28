@@ -1,70 +1,70 @@
 let image$base: () = <none>
 
-fn floatDefault() -> Float {
+fn floatDefault() -> F32 {
   b0:
     ret 1.5
 }
 
-fn doubleFromContext() -> Double {
+fn doubleFromContext() -> F64 {
   b0:
     ret 1.5
 }
 
-fn floatFromInteger() -> Float {
+fn floatFromInteger() -> F32 {
   b0:
     ret 2
 }
 
-fn doubleFromInteger() -> Double {
+fn doubleFromInteger() -> F64 {
   b0:
     ret 3
 }
 
-fn ascribedDouble() -> Double {
+fn ascribedDouble() -> F64 {
   b0:
     ret 1.5
 }
 
-fn ascribedFloat() -> Float {
+fn ascribedFloat() -> F32 {
   b0:
     ret 4
 }
 
-fn mixedIf(%c: Bool, %a: Int, %b: Double) -> Double {
+fn mixedIf(%c: Bool, %a: I32, %b: F64) -> F64 {
   b0:
     je %c, b1, b2
 
   b1:
-    %v4 = cast %a : Double
+    %v4 = cast %a : F64
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v = phi [b1, %v4], [b2, %b] : Double
+    %v = phi [b1, %v4], [b2, %b] : F64
     ret %v
 }
 
-fn mixedMultiIf(%c: Bool, %a: Int, %b: Long) -> Long {
+fn mixedMultiIf(%c: Bool, %a: I32, %b: I64) -> I64 {
   b0:
     je %c, b1, b2
 
   b1:
-    %v4 = cast %a : Long
+    %v4 = cast %a : I64
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v = phi [b1, %v4], [b2, %b] : Long
+    %v = phi [b1, %v4], [b2, %b] : I64
     ret %v
 }
 
-fn mixedMatch(%c: Bool, %a: Int, %b: Float) -> Float {
+fn mixedMatch(%c: Bool, %a: I32, %b: F32) -> F32 {
   b0:
-    %v3 = cast %c : Int
+    %v3 = cast %c : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -72,15 +72,15 @@ fn mixedMatch(%c: Bool, %a: Int, %b: Float) -> Float {
     jmp b3
 
   b2:
-    %v7 = cast %a : Float
+    %v7 = cast %a : F32
     jmp b3
 
   b3:
-    %v = phi [b2, %v7], [b1, %b] : Float
+    %v = phi [b2, %v7], [b1, %b] : F32
     ret %v
 }
 
-fn divergingArm(%c: Bool, %a: Int) -> Int {
+fn divergingArm(%c: Bool, %a: I32) -> I32 {
   b0:
     je %c, b1, b2
 
@@ -94,46 +94,46 @@ fn divergingArm(%c: Bool, %a: Int) -> Int {
     ret %a
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call floatDefault : Float
-    %v1 = cast %v0 : Int
-    %v2 = call doubleFromContext : Double
-    %v3 = cast %v2 : Int
-    %v4 = add %v1, %v3 : Int
-    %v5 = call floatFromInteger : Float
-    %v6 = cast %v5 : Int
-    %v7 = add %v4, %v6 : Int
-    %v8 = call doubleFromInteger : Double
-    %v9 = cast %v8 : Int
-    %v10 = add %v7, %v9 : Int
-    %v11 = call ascribedDouble : Double
-    %v12 = cast %v11 : Int
-    %v13 = add %v10, %v12 : Int
-    %v14 = call ascribedFloat : Float
-    %v15 = cast %v14 : Int
-    %v16 = add %v13, %v15 : Int
-    %v20 = call mixedIf, True, 3, 4.5 : Double
-    %v21 = cast %v20 : Int
-    %v22 = add %v16, %v21 : Int
-    %v26 = call mixedIf, False, 3, 4.5 : Double
-    %v27 = cast %v26 : Int
-    %v28 = add %v22, %v27 : Int
-    %v32 = call mixedMultiIf, True, 5, 6 : Long
-    %v33 = cast %v32 : Int
-    %v34 = add %v28, %v33 : Int
-    %v38 = call mixedMultiIf, False, 5, 6 : Long
-    %v39 = cast %v38 : Int
-    %v40 = add %v34, %v39 : Int
-    %v44 = call mixedMatch, True, 8, 9.25 : Float
-    %v45 = cast %v44 : Int
-    %v46 = add %v40, %v45 : Int
-    %v50 = call mixedMatch, False, 8, 9.25 : Float
-    %v51 = cast %v50 : Int
-    %v52 = add %v46, %v51 : Int
-    %v55 = call divergingArm, True, 1 : Int
-    %v56 = add %v52, %v55 : Int
-    %v59 = call divergingArm, False, 2 : Int
-    %v60 = add %v56, %v59 : Int
+    %v0 = call floatDefault : F32
+    %v1 = cast %v0 : I32
+    %v2 = call doubleFromContext : F64
+    %v3 = cast %v2 : I32
+    %v4 = add %v1, %v3 : I32
+    %v5 = call floatFromInteger : F32
+    %v6 = cast %v5 : I32
+    %v7 = add %v4, %v6 : I32
+    %v8 = call doubleFromInteger : F64
+    %v9 = cast %v8 : I32
+    %v10 = add %v7, %v9 : I32
+    %v11 = call ascribedDouble : F64
+    %v12 = cast %v11 : I32
+    %v13 = add %v10, %v12 : I32
+    %v14 = call ascribedFloat : F32
+    %v15 = cast %v14 : I32
+    %v16 = add %v13, %v15 : I32
+    %v20 = call mixedIf, True, 3, 4.5 : F64
+    %v21 = cast %v20 : I32
+    %v22 = add %v16, %v21 : I32
+    %v26 = call mixedIf, False, 3, 4.5 : F64
+    %v27 = cast %v26 : I32
+    %v28 = add %v22, %v27 : I32
+    %v32 = call mixedMultiIf, True, 5, 6 : I64
+    %v33 = cast %v32 : I32
+    %v34 = add %v28, %v33 : I32
+    %v38 = call mixedMultiIf, False, 5, 6 : I64
+    %v39 = cast %v38 : I32
+    %v40 = add %v34, %v39 : I32
+    %v44 = call mixedMatch, True, 8, 9.25 : F32
+    %v45 = cast %v44 : I32
+    %v46 = add %v40, %v45 : I32
+    %v50 = call mixedMatch, False, 8, 9.25 : F32
+    %v51 = cast %v50 : I32
+    %v52 = add %v46, %v51 : I32
+    %v55 = call divergingArm, True, 1 : I32
+    %v56 = add %v52, %v55 : I32
+    %v59 = call divergingArm, False, 2 : I32
+    %v60 = add %v56, %v59 : I32
     ret %v60
 }

@@ -1,16 +1,16 @@
 @image$base = []
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = crc32 4294967295, 81985529216486895: Long
-    %v_2 = cast %v_1: Int
-    %v_3 = cast %v_2: Long
-    %v_4 = crc32 %v_3, 4822678189205111: Long
-    %v_5 = cast %v_4: Int
-    %v_6 = cast %v_2: Long
-    %v_7 = cast %v_5: Long
-    %total = add %v_6, %v_7: Long
-    %v_8 = cmp_neq %v_2, %v_2: Int
+    %v_1 = crc32 4294967295, 81985529216486895: I64
+    %v_2 = cast %v_1: I32
+    %v_3 = cast %v_2: I64
+    %v_4 = crc32 %v_3, 4822678189205111: I64
+    %v_5 = cast %v_4: I32
+    %v_6 = cast %v_2: I64
+    %v_7 = cast %v_5: I64
+    %total = add %v_6, %v_7: I64
+    %v_8 = cmp_neq %v_2, %v_2: I32
     je %v_8, b_9, b_10
   }
 
@@ -23,13 +23,13 @@ main<complex>(): Int {
   }
 
   b_11 {
-    %v_12 = imulhi %total, 2361183241434822607: Long
-    %v_13 = sar %v_12, 7: Long
-    %v_14 = shr %v_13, 63: Long
-    %v_15 = add %v_13, %v_14: Long
-    %v_16 = imul %v_15, 1000: Long
-    %v_17 = sub %total, %v_16: Long
-    %v_18 = cast %v_17: Int
+    %v_12 = imulhi %total, 2361183241434822607: I64
+    %v_13 = sar %v_12, 7: I64
+    %v_14 = shr %v_13, 63: I64
+    %v_15 = add %v_13, %v_14: I64
+    %v_16 = imul %v_15, 1000: I64
+    %v_17 = sub %total, %v_16: I64
+    %v_18 = cast %v_17: I32
     ret %v_18
   }
 }

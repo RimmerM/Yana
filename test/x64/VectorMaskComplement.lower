@@ -21,19 +21,19 @@
 #     and has no complement to remove.
 
 # `all(a != b)`, which is `pcmpeqd` and the bitmap against zero.
-allNotEqual(%a: i32x8, %b: i32x8): Int {
+allNotEqual(%a: i32x8, %b: i32x8): I32 {
     {
         %m = cmp_neq %a, %b: m32x8
-        %r = vreduce_and %m: Int
+        %r = vreduce_and %m: I32
         ret %r
     }
 }
 
 # `any(a <= b)`, which is `pcmpgtd` and the bitmap against the full pattern.
-anyLessEqual(%a: i32x8, %b: i32x8): Int {
+anyLessEqual(%a: i32x8, %b: i32x8): I32 {
     {
         %m = cmp_ile %a, %b: m32x8
-        %r = vreduce_or %m: Int
+        %r = vreduce_or %m: I32
         ret %r
     }
 }
@@ -41,34 +41,34 @@ anyLessEqual(%a: i32x8, %b: i32x8): Int {
 # `count(a >= b)`, where the complement is an instruction - and one scalar instruction against the
 # two vector ones it replaces. `ige` reaches the machine as `ile` by an exchange, so the relation
 # emitted here is `ilt` with the operands as written.
-countGreaterEqual(%a: i32x8, %b: i32x8): Int {
+countGreaterEqual(%a: i32x8, %b: i32x8): I32 {
     {
         %m = cmp_ige %a, %b: m32x8
-        %r = vreduce_add %m: Int
+        %r = vreduce_add %m: I32
         ret %r
     }
 }
 
 # `firstSet(a != b)`, the other consumer that reads the bits themselves.
-firstNotEqual(%a: i32x8, %b: i32x8): Int {
+firstNotEqual(%a: i32x8, %b: i32x8): I32 {
     {
         %m = cmp_neq %a, %b: m32x8
-        %r = vreduce_first %m: Int
+        %r = vreduce_first %m: I32
         ret %r
     }
 }
 
 # Two consumers that each answer for free, which is where this is at its best: one comparison, one
 # movemask, and two comparisons of it against two constants.
-bothFree(%a: i32x8, %b: i32x8): Int {
+bothFree(%a: i32x8, %b: i32x8): I32 {
     entry {
         %m = cmp_ile %a, %b: m32x8
-        %any = vreduce_or %m: Int
+        %any = vreduce_or %m: I32
         je (cmp_neq %any, 0), some, none
     }
 
     some {
-        %all = vreduce_and %m: Int
+        %all = vreduce_and %m: I32
         ret %all
     }
 
@@ -80,15 +80,15 @@ bothFree(%a: i32x8, %b: i32x8): Int {
 # And two that each pay, which is the refusal: the vector complement is paid once however many
 # readers there are, so two scalar ones trade one instruction for two. The `vpcmpeqd`/`vpxor` pair
 # stands.
-bothPay(%a: i32x8, %b: i32x8): Int {
+bothPay(%a: i32x8, %b: i32x8): I32 {
     entry {
         %m = cmp_neq %a, %b: m32x8
-        %c = vreduce_add %m: Int
+        %c = vreduce_add %m: I32
         je (cmp_neq %c, 0), some, none
     }
 
     some {
-        %f = vreduce_first %m: Int
+        %f = vreduce_first %m: I32
         ret %f
     }
 
@@ -99,23 +99,23 @@ bothPay(%a: i32x8, %b: i32x8): Int {
 
 # A mask something other than a reduction reads, which is a mask whose lanes are the value: the
 # select needs the vector the comparison names and rewriting it would answer a different question.
-selected(%a: i32x8, %b: i32x8): Int {
+selected(%a: i32x8, %b: i32x8): I32 {
     {
         %m = cmp_ile %a, %b: m32x8
         %v = select %m, %a, %b: i32x8
-        %r = vreduce_add %m: Int
-        %l = vlane %v, 0: Int
-        %s = add %r, %l: Int
+        %r = vreduce_add %m: I32
+        %l = vlane %v, 0: I32
+        %s = add %r, %l: I32
         ret %s
     }
 }
 
 # A float comparison, which is never one of the three: `cmpps` carries all eight relations in its
 # predicate byte, so the complement is a different byte and not a different instruction.
-floatNotEqual(%a: f32x8, %b: f32x8): Int {
+floatNotEqual(%a: f32x8, %b: f32x8): I32 {
     {
         %m = cmp_neq %a, %b: m32x8
-        %r = vreduce_and %m: Int
+        %r = vreduce_and %m: I32
         ret %r
     }
 }

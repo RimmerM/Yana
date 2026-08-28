@@ -476,7 +476,7 @@ static Maybe<TypePtr> resolveVectorApp(Module& module, const ast::AppType& app, 
          * target did not choose has to be nameable wherever such a vector is. `Native.bits` is the
          * declaration that needed it - a movemask is written over whatever width the group is.
          */
-        module.context.diagnostics.error("%@ takes a lane type, and optionally a lane count - `%@(Float)` for the target\'s natural width, `%@(Float, 4)` for exactly four"_v,
+        module.context.diagnostics.error("%@ takes a lane type, and optionally a lane count - `%@(F32)` for the target\'s natural width, `%@(F32, 4)` for exactly four"_v,
                                          source, module.context.findName(name),
                                          module.context.findName(name), module.context.findName(name));
         return Just(module.scalar.error);

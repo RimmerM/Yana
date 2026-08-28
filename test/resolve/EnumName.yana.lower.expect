@@ -35,15 +35,15 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$16 = [82, 101, 100]
 @ResolveTest.literal$17 = [0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 3, 0, 0, 0]
 
-Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
+Eq(String).==<complex>(%self: Ptr, %other: Ptr): I32 {
   b_0 {
     %v_1 = add %self, 12: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = sext %v_2: Long
+    %v_2 = load %v_1, 4: I32
+    %v_3 = sext %v_2: I64
     %v_4 = add %other, 12: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = sext %v_5: Long
-    %v_7 = cmp_neq %v_3, %v_6: Int
+    %v_5 = load %v_4, 4: I32
+    %v_6 = sext %v_5: I64
+    %v_7 = cmp_neq %v_3, %v_6: I32
     je %v_7, b_8, b_9
   }
 
@@ -58,8 +58,8 @@ Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
   b_10 {
     %v_11 = load %self, 8: Ptr
     %v_12 = load %other, 8: Ptr
-    %v_13 = call_complex compareMemory(CodeUnit), %v_11, %v_12, %v_3: Int
-    %v_14 = cmp_eq %v_13, 1: Int
+    %v_13 = call_complex compareMemory(CodeUnit), %v_11, %v_12, %v_3: I32
+    %v_14 = cmp_eq %v_13, 1: I32
     ret %v_14
   }
 }
@@ -67,10 +67,10 @@ Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
 Reclaim(String).reclaim<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Long
-    %v_3 = shr %v_2, 30: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = cmp_eq %v_4, 1: Int
+    %v_2 = load %v_1, 4: I64
+    %v_3 = shr %v_2, 30: I64
+    %v_4 = cast %v_3: I32
+    %v_5 = cmp_eq %v_4, 1: I32
     je %v_5, b_6, b_7
   }
 
@@ -92,19 +92,19 @@ Reclaim(String).reclaim<complex>(%value: Ptr) {
 Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
   b_1 {
     %v_2 = add %name, 12: Ptr
-    %v_3 = load %v_2, 4: Int
-    %v_4 = sext %v_3: Long
-    %v_5 = cmp_eq %v_4, 3: Int
+    %v_3 = load %v_2, 4: I32
+    %v_4 = sext %v_3: I64
+    %v_5 = cmp_eq %v_4, 3: I32
     je %v_5, b_6, b_7
   }
 
   b_7 {
-    %v_8 = cmp_eq %v_4, 5: Int
+    %v_8 = cmp_eq %v_4, 5: I32
     je %v_8, b_9, b_10
   }
 
   b_10 {
-    %v_11 = cmp_eq %v_4, 4: Int
+    %v_11 = cmp_eq %v_4, 4: I32
     je %v_11, b_12, b_13
   }
 
@@ -117,7 +117,7 @@ Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
   b_12 {
     %v_16 = alloca 16, 8: Ptr
     copy %v_16, @Core.literal$270, 16
-    %v_17 = call_complex Eq(String).==, %name, %v_16: Int
+    %v_17 = call_complex Eq(String).==, %name, %v_16: I32
     je %v_17, b_18, b_19
   }
 
@@ -136,7 +136,7 @@ Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
   b_9 {
     %v_22 = alloca 16, 8: Ptr
     copy %v_22, @Core.literal$268, 16
-    %v_23 = call_complex Eq(String).==, %name, %v_22: Int
+    %v_23 = call_complex Eq(String).==, %name, %v_22: I32
     je %v_23, b_24, b_25
   }
 
@@ -155,7 +155,7 @@ Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
   b_6 {
     %v_28 = alloca 16, 8: Ptr
     copy %v_28, @Core.literal$266, 16
-    %v_29 = call_complex Eq(String).==, %name, %v_28: Int
+    %v_29 = call_complex Eq(String).==, %name, %v_28: I32
     je %v_29, b_30, b_31
   }
 
@@ -180,8 +180,8 @@ Enum(Colour).fromName<complex>(%v_0: Ptr, %name: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -195,9 +195,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -208,18 +208,18 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
+compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: I64): I32 {
   b_0 {
-    %v_1 = imm 64: Long
-    %block = sub %count, %v_1: Long
-    %v_2 = imm 16: Long
-    %last = sub %count, %v_2: Long
+    %v_1 = imm 64: I64
+    %block = sub %count, %v_1: I64
+    %v_2 = imm 16: I64
+    %last = sub %count, %v_2: I64
     jmp b_3
   }
 
   b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
-    %v_7 = cmp_ile %v_4, %block: Int
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: I64
+    %v_7 = cmp_ile %v_4, %block: I32
     je %v_7, b_8, b_9
   }
 
@@ -251,7 +251,7 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
     %v_27 = and %first, %second: m8x16
     %v_28 = and %third, %fourth: m8x16
     %v_29 = and %v_27, %v_28: m8x16
-    %v_30 = vreduce_and %v_29: Int
+    %v_30 = vreduce_and %v_29: I32
     je %v_30, b_31, b_32
   }
 
@@ -264,18 +264,18 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
   }
 
   b_5 {
-    %v_6 = add %v_4, %v_1: Long
+    %v_6 = add %v_4, %v_1: I64
     jmp b_3
   }
 
   b_10 {
-    %v_33 = phi [b_9, %v_4], [b_34, %v_35]: Long
-    %v_36 = cmp_ile %v_33, %last: Int
+    %v_33 = phi [b_9, %v_4], [b_34, %v_35]: I64
+    %v_36 = cmp_ile %v_33, %last: I32
     je %v_36, b_37, b_38
   }
 
   b_38 {
-    %v_39 = cmp_ilt %v_33, %count: Int
+    %v_39 = cmp_ilt %v_33, %count: I32
     je %v_39, b_40, b_41
   }
 
@@ -285,23 +285,23 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
     %v_44 = add %right, %v_33: Ptr
     %v_45 = load %v_44, 16: i8x16
     %same = cmp_eq %v_43, %v_45: m8x16
-    %v_46 = vreduce_and %same: Int
+    %v_46 = vreduce_and %same: I32
     je %v_46, b_47, b_48
   }
 
   b_48 {
     %v_49 = not %same: m8x16
-    %v_50 = vreduce_first %v_49: Int
-    %v_51 = sext %v_50: Long
-    %differs = add %v_33, %v_51: Long
+    %v_50 = vreduce_first %v_49: I32
+    %v_51 = sext %v_50: I64
+    %differs = add %v_33, %v_51: I64
     %v_52 = add %left, %differs: Ptr
-    %v_53 = load %v_52, 1: Int
+    %v_53 = load %v_52, 1: I32
     %v_54 = add %right, %differs: Ptr
-    %v_55 = load %v_54, 1: Int
-    %v_56 = cmp_eq %v_53, %v_55: Int
-    %v_57 = cmp_gt %v_53, %v_55: Int
-    %v_58 = select %v_57, 2, 0: Int
-    %v_59 = select %v_56, 1, %v_58: Int
+    %v_55 = load %v_54, 1: I32
+    %v_56 = cmp_eq %v_53, %v_55: I32
+    %v_57 = cmp_gt %v_53, %v_55: I32
+    %v_58 = select %v_57, 2, 0: I32
+    %v_59 = select %v_56, 1, %v_58: I32
     ret %v_59
   }
 
@@ -310,7 +310,7 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
   }
 
   b_34 {
-    %v_35 = add %v_33, %v_2: Long
+    %v_35 = add %v_33, %v_2: I64
     jmp b_10
   }
 
@@ -320,7 +320,7 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
     %v_62 = add %right, %v_33: Ptr
     %v_63 = loadx %v_62, 16: i8x16
     %same = cmp_eq %v_61, %v_63: m8x16
-    %v_64 = vreduce_and %same: Int
+    %v_64 = vreduce_and %same: I32
     je %v_64, b_65, b_66
   }
 
@@ -330,10 +330,10 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
 
   b_66 {
     %v_68 = not %same: m8x16
-    %v_69 = vreduce_first %v_68: Int
-    %v_70 = sext %v_69: Long
-    %differs = add %v_33, %v_70: Long
-    %v_71 = cmp_ilt %differs, %count: Int
+    %v_69 = vreduce_first %v_68: I32
+    %v_70 = sext %v_69: I64
+    %differs = add %v_33, %v_70: I64
+    %v_71 = cmp_ilt %differs, %count: I32
     je %v_71, b_72, b_73
   }
 
@@ -343,13 +343,13 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
 
   b_72 {
     %v_75 = add %left, %differs: Ptr
-    %v_76 = load %v_75, 1: Int
+    %v_76 = load %v_75, 1: I32
     %v_77 = add %right, %differs: Ptr
-    %v_78 = load %v_77, 1: Int
-    %v_79 = cmp_eq %v_76, %v_78: Int
-    %v_80 = cmp_gt %v_76, %v_78: Int
-    %v_81 = select %v_80, 2, 0: Int
-    %v_82 = select %v_79, 1, %v_81: Int
+    %v_78 = load %v_77, 1: I32
+    %v_79 = cmp_eq %v_76, %v_78: I32
+    %v_80 = cmp_gt %v_76, %v_78: I32
+    %v_81 = select %v_80, 2, 0: I32
+    %v_82 = select %v_79, 1, %v_81: I32
     ret %v_82
   }
 
@@ -374,14 +374,14 @@ instantiatedOfName<complex>(%v_0: Ptr, %s: Ptr) {
   b_1 {
     %v_2 = alloca 1, 1: Ptr
     %v_3 = add %s, 12: Ptr
-    %v_4 = load %v_3, 4: Int
-    %v_5 = sext %v_4: Long
-    %v_6 = cmp_eq %v_5, 3: Int
+    %v_4 = load %v_3, 4: I32
+    %v_5 = sext %v_4: I64
+    %v_6 = cmp_eq %v_5, 3: I32
     je %v_6, b_7, b_8
   }
 
   b_8 {
-    %v_9 = cmp_eq %v_5, 4: Int
+    %v_9 = cmp_eq %v_5, 4: I32
     je %v_9, b_10, b_11
   }
 
@@ -394,7 +394,7 @@ instantiatedOfName<complex>(%v_0: Ptr, %s: Ptr) {
   b_10 {
     %v_14 = alloca 16, 8: Ptr
     copy %v_14, @Core.literal$290, 16
-    %v_15 = call_complex Eq(String).==, %s, %v_14: Int
+    %v_15 = call_complex Eq(String).==, %s, %v_14: I32
     je %v_15, b_16, b_17
   }
 
@@ -413,7 +413,7 @@ instantiatedOfName<complex>(%v_0: Ptr, %s: Ptr) {
   b_7 {
     %v_20 = alloca 16, 8: Ptr
     copy %v_20, @Core.literal$288, 16
-    %v_21 = call_complex Eq(String).==, %s, %v_20: Int
+    %v_21 = call_complex Eq(String).==, %s, %v_20: I32
     je %v_21, b_22, b_23
   }
 
@@ -437,13 +437,13 @@ instantiatedOfName<complex>(%v_0: Ptr, %s: Ptr) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     copy %v_1, @Core.literal$262, 16
     %v_2 = alloca 16, 8: Ptr
     copy %v_2, @ResolveTest.literal$1, 16
-    %v_3 = call_complex Eq(String).==, %v_1, %v_2: Int
+    %v_3 = call_complex Eq(String).==, %v_1, %v_2: I32
     call_complex Reclaim(String).reclaim, %v_1
     je %v_3, b_4, b_5
   }
@@ -453,7 +453,7 @@ main<complex>(): Int {
     copy %v_6, @Core.literal$276, 16
     %v_7 = alloca 16, 8: Ptr
     copy %v_7, @ResolveTest.literal$3, 16
-    %v_8 = call_complex Eq(String).==, %v_6, %v_7: Int
+    %v_8 = call_complex Eq(String).==, %v_6, %v_7: I32
     call_complex Reclaim(String).reclaim, %v_6
     je %v_8, b_9, b_10
   }
@@ -463,8 +463,8 @@ main<complex>(): Int {
     copy %v_11, @ResolveTest.literal$5, 16
     %v_12 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_12, %v_11
-    %v_13 = load %v_12, 1: Long
-    %v_14 = cmp_le %v_13, 2: Int
+    %v_13 = load %v_12, 1: I64
+    %v_14 = cmp_le %v_13, 2: I32
     je %v_14, b_15, b_16
   }
 
@@ -473,8 +473,8 @@ main<complex>(): Int {
     copy %v_17, @ResolveTest.literal$7, 16
     %v_18 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_18, %v_17
-    %v_19 = load %v_18, 1: Long
-    %v_20 = cmp_le %v_19, 2: Int
+    %v_19 = load %v_18, 1: I64
+    %v_20 = cmp_le %v_19, 2: I32
     je %v_20, b_21, b_22
   }
 
@@ -483,8 +483,8 @@ main<complex>(): Int {
     copy %v_23, @ResolveTest.literal$9, 16
     %v_24 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_24, %v_23
-    %v_25 = load %v_24, 1: Long
-    %v_26 = cmp_le %v_25, 2: Int
+    %v_25 = load %v_24, 1: I64
+    %v_26 = cmp_le %v_25, 2: I32
     je %v_26, b_27, b_28
   }
 
@@ -493,7 +493,7 @@ main<complex>(): Int {
     copy %v_29, @Core.literal$284, 16
     %v_30 = alloca 16, 8: Ptr
     copy %v_30, @ResolveTest.literal$11, 16
-    %v_31 = call_complex Eq(String).==, %v_29, %v_30: Int
+    %v_31 = call_complex Eq(String).==, %v_29, %v_30: I32
     call_complex Reclaim(String).reclaim, %v_29
     je %v_31, b_32, b_33
   }
@@ -503,8 +503,8 @@ main<complex>(): Int {
     copy %v_34, @ResolveTest.literal$13, 16
     %v_35 = alloca 1, 1: Ptr
     call_complex instantiatedOfName, %v_35, %v_34
-    %v_36 = load %v_35, 1: Long
-    %v_37 = cmp_le %v_36, 1: Int
+    %v_36 = load %v_35, 1: I64
+    %v_37 = cmp_le %v_36, 1: I32
     je %v_37, b_38, b_39
   }
 
@@ -513,8 +513,8 @@ main<complex>(): Int {
     copy %v_40, @ResolveTest.literal$15, 16
     %v_41 = alloca 1, 1: Ptr
     call_complex instantiatedOfName, %v_41, %v_40
-    %v_42 = load %v_41, 1: Long
-    %v_43 = cmp_le %v_42, 1: Int
+    %v_42 = load %v_41, 1: I64
+    %v_43 = cmp_le %v_42, 1: I32
     je %v_43, b_44, b_45
   }
 
@@ -523,13 +523,13 @@ main<complex>(): Int {
     copy %v_46, @ResolveTest.literal$17, 16
     %v_47 = alloca 1, 1: Ptr
     call_complex Enum(Colour).fromName, %v_47, %v_46
-    %v_48 = load %v_47, 1: Long
-    %v_49 = cmp_le %v_48, 2: Int
-    %c = load %v_47, 1: Int
-    %v_50 = cast %c: Long
-    %v_51 = cast %v_50: Int
-    %v_52 = add %v_51, 10: Int
-    %v_53 = select %v_49, %v_52, 9: Int
+    %v_48 = load %v_47, 1: I64
+    %v_49 = cmp_le %v_48, 2: I32
+    %c = load %v_47, 1: I32
+    %v_50 = cast %c: I64
+    %v_51 = cast %v_50: I32
+    %v_52 = add %v_51, 10: I32
+    %v_53 = select %v_49, %v_52, 9: I32
     ret %v_53
   }
 

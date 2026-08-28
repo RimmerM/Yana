@@ -8,19 +8,19 @@
 # %x is live across both arms; one arm needs rax and rdx for a division, the other does not. If
 # resolving the division relocated %x, the two arms would disagree about where it lives and `end`
 # would read whichever the last-processed arm happened to leave behind.
-diverge(%n: Int, %d: Int, %c: Int): Int {
+diverge(%n: I32, %d: I32, %c: I32): I32 {
     start {
-        %x = add %n, 1: Int
+        %x = add %n, 1: I32
         je %c, a, b
     }
 
     a {
-        %q = div %d, %n: Int
+        %q = div %d, %n: I32
         jmp end
     }
 
     b {
-        %r = add %d, %n: Int
+        %r = add %d, %n: I32
         jmp end
     }
 
@@ -31,46 +31,46 @@ diverge(%n: Int, %d: Int, %c: Int): Int {
 
 # Distinct values feeding phis in both successors of a branch: the two sets of moves belong on
 # different edges and must not both be emitted ahead of the branch.
-critEdge(%n: Int, %m: Int, %c: Int): Int {
+critEdge(%n: I32, %m: I32, %c: I32): I32 {
     start {
         je %c, a, b
     }
 
     a {
-        %p = phi [start, %n]: Int
+        %p = phi [start, %n]: I32
         ret %p
     }
 
     b {
-        %q = phi [start, %m]: Int
+        %q = phi [start, %m]: I32
         ret %q
     }
 }
 
 # `a` is declared before `b` but is only reachable through it, so the declaration order is not a
 # valid walk of the CFG. %x has to survive the block that sits in between.
-outOfOrder(%n: Int): Int {
+outOfOrder(%n: I32): I32 {
     start {
-        %x = add %n, 1: Int
+        %x = add %n, 1: I32
         jmp b
     }
 
     a {
-        %y = add %x, 2: Int
+        %y = add %x, 2: I32
         ret %y
     }
 
     b {
-        %z = add %n, 3: Int
+        %z = add %n, 3: I32
         jmp a
     }
 }
 
 # An early exit whose other arm runs two fixed-register instructions back to back. %keep has to stay
 # put across both, and idiv's result has to leave rax before irem overwrites it.
-earlyExit(%a: Int, %b: Int, %c: Int): Int {
+earlyExit(%a: I32, %b: I32, %c: I32): I32 {
     start {
-        %keep = add %a, 7: Int
+        %keep = add %a, 7: I32
         je (cmp_eq %c, 0), quick, slow
     }
 
@@ -79,10 +79,10 @@ earlyExit(%a: Int, %b: Int, %c: Int): Int {
     }
 
     slow {
-        %d = idiv %a, %b: Int
-        %e = irem %a, %b: Int
-        %f = add %d, %e: Int
-        %g = add %f, %keep: Int
+        %d = idiv %a, %b: I32
+        %e = irem %a, %b: I32
+        %f = add %d, %e: I32
+        %g = add %f, %keep: I32
         ret %g
     }
 }

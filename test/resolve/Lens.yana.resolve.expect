@@ -8,7 +8,7 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-let &log: Int = 0
+let &log: I32 = 0
 
 table closure$ResolveTest.continuation$27 before ResolveTest.continuation$27 {
   .0 teardown$none
@@ -161,7 +161,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -343,7 +343,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -394,7 +394,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -430,7 +430,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -516,14 +516,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -555,7 +555,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -613,7 +613,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1170,7 +1170,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1397,7 +1397,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b10:
     %v143 = load %at : Size
     %v144 = not %same : Mask(CodeUnit)
-    %v145 = vreduce_first %v144 : Int
+    %v145 = vreduce_first %v144 : I32
     %v146 = cast %v145 : Size
     %differs = add %v143, %v146 : Size
     %v148 = strideof CodeUnit : Size
@@ -1444,7 +1444,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b15:
     %v181 = load %at : Size
     %v182 = not %same : Mask(CodeUnit)
-    %v183 = vreduce_first %v182 : Int
+    %v183 = vreduce_first %v182 : I32
     %v184 = cast %v183 : Size
     %differs = add %v181, %v184 : Size
     %v186 = cmp_lt %differs, %count : Bool
@@ -1499,19 +1499,19 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
     ret
 }
 
-fn logged(%body: (value$: Int) -> $r) -> $r {
+fn logged(%body: (value$: I32) -> $r) -> $r {
   schema {
     #0 type $r
   }
 
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 1 : I32
     assign log, %v4
-    %v6 = load log : Int
+    %v6 = load log : I32
     %v7 = calldyn %body, %v6 : $r
-    %v8 = load log : Int
-    %v11 = add %v8, 10 : Int
+    %v8 = load log : I32
+    %v11 = add %v8, 10 : I32
     assign log, %v11
     ret %v7
 }
@@ -1522,35 +1522,35 @@ fn scope(%body: () -> $r) -> $r {
   }
 
   b0:
-    %v1 = load log : Int
-    %v4 = mul %v1, 2 : Int
+    %v1 = load log : I32
+    %v4 = mul %v1, 2 : I32
     assign log, %v4
     %v6 = calldyn %body : $r
-    %v7 = load log : Int
-    %v10 = add %v7, 100 : Int
+    %v7 = load log : I32
+    %v10 = add %v7, 100 : I32
     assign log, %v10
     ret %v6
 }
 
-fn plusOne(%x: Int, %body: (Int) -> a) -> a {
+fn plusOne(%x: I32, %body: (I32) -> a) -> a {
   schema {
     #0 type a
   }
 
   b0:
-    %v4 = add %x, 1 : Int
+    %v4 = add %x, 1 : I32
     %v5 = calldyn %body, %v4 : a
     ret %v5
 }
 
-fn split(%x: Int, %body: (low: Int, high: Int) -> a) -> a {
+fn split(%x: I32, %body: (low: I32, high: I32) -> a) -> a {
   schema {
     #0 type a
   }
 
   b0:
-    %v4 = rem %x, 10 : Int
-    %v7 = div %x, 10 : Int
+    %v4 = rem %x, 10 : I32
+    %v7 = div %x, 10 : I32
     %v8 = calldyn %body, %v4, %v7 : a
     ret %v8
 }
@@ -1562,160 +1562,160 @@ fn twiceOver(%value: a, %body: (value$: a) -> $r) -> $r {
   }
 
   b0:
-    %v2 = load log : Int
-    %v5 = add %v2, 1 : Int
+    %v2 = load log : I32
+    %v5 = add %v2, 1 : I32
     assign log, %v5
     %v7 = calldyn %body, %value : $r
     ret %v7
 }
 
-fn bumped(%c: Counter, %body: (value$: Int) -> $r) -> $r {
+fn bumped(%c: Counter, %body: (value$: I32) -> $r) -> $r {
   schema {
     #0 type $r
   }
 
   b0:
     %v2 = load %c : Counter
-    %v3 = load %c@Counter.value : Int
-    %v6 = add %v3, 1 : Int
+    %v3 = load %c@Counter.value : I32
+    %v6 = add %v3, 1 : I32
     assign %c@Counter.value, %v6
     %v8 = load %c : Counter
-    %v9 = load %c@Counter.value : Int
+    %v9 = load %c@Counter.value : I32
     %v10 = calldyn %body, %v9 : $r
     %v11 = load %c : Counter
-    %v12 = load %c@Counter.value : Int
-    %v15 = add %v12, 10 : Int
+    %v12 = load %c@Counter.value : I32
+    %v15 = add %v12, 10 : I32
     assign %c@Counter.value, %v15
     ret %v10
 }
 
-fn bound() -> Int {
+fn bound() -> I32 {
   b0:
-    %v0 = alloc : (value$: Int) -> Int
+    %v0 = alloc : (value$: I32) -> I32
     %v1 = symbol ResolveTest.continuation$22 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
-    %v6 = call logged(Int), %v0 : Int
+    %v6 = call logged(I32), %v0 : I32
     ret %v6
 }
 
-fn cleanupRan() -> Int {
+fn cleanupRan() -> I32 {
   b0:
-    %seen = call bound : Int
-    %v1 = load log : Int
-    %v2 = add %seen, %v1 : Int
+    %seen = call bound : I32
+    %v1 = load log : I32
+    %v2 = add %seen, %v1 : I32
     ret %v2
 }
 
-fn statement() -> Int {
+fn statement() -> I32 {
   b0:
     assign log, 3
-    %v2 = alloc : () -> Int
+    %v2 = alloc : () -> I32
     %v3 = symbol ResolveTest.continuation$23 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
-    %v8 = call scope(Int), %v2 : Int
+    %v8 = call scope(I32), %v2 : I32
     ret %v8
 }
 
-fn explicit() -> Int {
+fn explicit() -> I32 {
   b0:
-    %v1 = alloc : (value$: Int) -> Int
+    %v1 = alloc : (value$: I32) -> I32
     %v2 = symbol ResolveTest.continuation$24 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
-    %v7 = call plusOne(Int), 9, %v1 : Int
+    %v7 = call plusOne(I32), 9, %v1 : I32
     ret %v7
 }
 
-fn destructured() -> Int {
+fn destructured() -> I32 {
   b0:
-    %v1 = alloc : (low: Int, high: Int) -> Int
+    %v1 = alloc : (low: I32, high: I32) -> I32
     %v2 = symbol ResolveTest.continuation$25 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
-    %v7 = call split(Int), 37, %v1 : Int
+    %v7 = call split(I32), 37, %v1 : I32
     ret %v7
 }
 
-fn generic() -> Int {
+fn generic() -> I32 {
   b0:
-    %v2 = alloc : (value$: Int) -> Int
+    %v2 = alloc : (value$: I32) -> I32
     %v3 = symbol ResolveTest.continuation$26 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
-    %v8 = call twiceOver(Int, Int), 4, %v2 : Int
+    %v8 = call twiceOver(I32, I32), 4, %v2 : I32
     ret %v8
 }
 
-fn borrowed() -> Int {
+fn borrowed() -> I32 {
   b0:
     %v0 = alloc : Counter
     aggregate %c@Counter.value = 5
     %v3 = load %c : Counter
-    %v4 = alloc : (value$: Int) -> Int
+    %v4 = alloc : (value$: I32) -> I32
     %v5 = symbol ResolveTest.continuation$28 : %()
     init %local1.code, %v5
     %v8 = cast 0 : %()
     init %local1.env, %v8
     %v10 = borrow_mut %c : &Counter
-    %v11 = call bumped(Int), %v10, %v4 : Int
+    %v11 = call bumped(I32), %v10, %v4 : I32
     ret %v11
 }
 
-fn written() -> Int {
+fn written() -> I32 {
   b0:
-    %v1 = alloc : (value$: Int) -> Int
+    %v1 = alloc : (value$: I32) -> I32
     %v2 = symbol ResolveTest.lambda$29 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
-    %v8 = call plusOne(Int), 4, %v1 : Int
+    %v8 = call plusOne(I32), 4, %v1 : I32
     ret %v8
 }
 
-fn nested() -> Int {
+fn nested() -> I32 {
   b0:
-    %v0 = alloc : (value$: Int) -> Int
+    %v0 = alloc : (value$: I32) -> I32
     %v1 = symbol ResolveTest.continuation$30 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
     init %local0.env, %v4
-    %v6 = call logged(Int), %v0 : Int
+    %v6 = call logged(I32), %v0 : I32
     ret %v6
 }
 
-fn inLoop(%n: Int) -> Int {
+fn inLoop(%n: I32) -> I32 {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
+    %v8 = load %i : I32
     %v9 = cmp_lt %v8, %n : Bool
     je %v9, b3, b2
 
   b2:
-    %v26 = load %total : Int
+    %v26 = load %total : I32
     ret %v26
 
   b3:
-    %v11 = load %i : Int
-    %v14 = add %v11, 1 : Int
+    %v11 = load %i : I32
+    %v14 = add %v11, 1 : I32
     assign %i, %v14
-    %v16 = alloc : {total: &Int}
-    %v17 = borrow_mut %total : &Int
+    %v16 = alloc : {total: &I32}
+    %v17 = borrow_mut %total : &I32
     init %local2.total, %v17
     %v19 = addressof %local2 : %()
-    %v20 = alloc : (value$: Int) -> ()
+    %v20 = alloc : (value$: I32) -> ()
     %v21 = symbol ResolveTest.continuation$32 : %()
     init %local3.code, %v21
     init %local3.env, %v19
@@ -1729,18 +1729,18 @@ fn made() -> String {
     ret %v0
 }
 
-fn capturedCallResult() -> Int {
+fn capturedCallResult() -> I32 {
   b0:
     %text = call made : String
     %v2 = alloc : {text: 'String}
     %v3 = borrow %local0 : 'String
     init %local1.text, %v3
     %v5 = addressof %local1 : %()
-    %v6 = alloc : (value$: Int) -> Int
+    %v6 = alloc : (value$: I32) -> I32
     %v7 = symbol ResolveTest.continuation$33 : %()
     init %local2.code, %v7
     init %local2.env, %v5
-    %v10 = call plusOne(Int), 4, %v6 : Int
+    %v10 = call plusOne(I32), 4, %v6 : I32
     drop %local0 via Reclaim(String).reclaim
     ret %v10
 }
@@ -1760,239 +1760,239 @@ fn built() -> String {
     ret %v9
 }
 
-fn capturedHeapValue() -> Int {
+fn capturedHeapValue() -> I32 {
   b0:
     %text = call built : String
     %v2 = alloc : {text: 'String}
     %v3 = borrow %local0 : 'String
     init %local1.text, %v3
     %v5 = addressof %local1 : %()
-    %v6 = alloc : (value$: Int) -> Int
+    %v6 = alloc : (value$: I32) -> I32
     %v7 = symbol ResolveTest.continuation$34 : %()
     init %local2.code, %v7
     init %local2.env, %v5
-    %v10 = call plusOne(Int), 4, %v6 : Int
+    %v10 = call plusOne(I32), 4, %v6 : I32
     drop %local0 via Reclaim(String).reclaim
     ret %v10
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     assign log, 0
-    %a = call cleanupRan : Int
+    %a = call cleanupRan : I32
     assign log, 0
-    %b = call statement : Int
-    %c = call explicit : Int
-    %d = call destructured : Int
-    %e = call borrowed : Int
-    %j = call generic : Int
-    %f = call written : Int
+    %b = call statement : I32
+    %c = call explicit : I32
+    %d = call destructured : I32
+    %e = call borrowed : I32
+    %j = call generic : I32
+    %f = call written : I32
     assign log, 0
-    %g = call nested : Int
+    %g = call nested : I32
     assign log, 0
-    %h = call inLoop, 3 : Int
-    %k = call capturedCallResult : Int
-    %l = call capturedHeapValue : Int
-    %v20 = add %a, %b : Int
-    %v21 = add %v20, %c : Int
-    %v22 = add %v21, %d : Int
-    %v23 = add %v22, %e : Int
-    %v24 = add %v23, %f : Int
-    %v25 = add %v24, %g : Int
-    %v26 = add %v25, %h : Int
-    %v27 = add %v26, %j : Int
-    %v28 = add %v27, %k : Int
-    %v29 = add %v28, %l : Int
+    %h = call inLoop, 3 : I32
+    %k = call capturedCallResult : I32
+    %l = call capturedHeapValue : I32
+    %v20 = add %a, %b : I32
+    %v21 = add %v20, %c : I32
+    %v22 = add %v21, %d : I32
+    %v23 = add %v22, %e : I32
+    %v24 = add %v23, %f : I32
+    %v25 = add %v24, %g : I32
+    %v26 = add %v25, %h : I32
+    %v27 = add %v26, %j : I32
+    %v28 = add %v27, %k : I32
+    %v29 = add %v28, %l : I32
     ret %v29
 }
 
-fn ResolveTest.continuation$22(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$22(%env: %{}, %value$: I32) -> I32 {
   b0:
     ret %value$
 }
 
-fn logged(Int)(%body: (value$: Int) -> Int) -> Int {
+fn logged(I32)(%body: (value$: I32) -> I32) -> I32 {
   b0:
-    %v1 = load log : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v3 = add %v1, 1 : I32
     assign log, %v3
-    %v5 = load log : Int
-    %v6 = calldyn %body, %v5 : Int
-    %v7 = load log : Int
-    %v9 = add %v7, 10 : Int
+    %v5 = load log : I32
+    %v6 = calldyn %body, %v5 : I32
+    %v7 = load log : I32
+    %v9 = add %v7, 10 : I32
     assign log, %v9
     ret %v6
 }
 
-fn ResolveTest.continuation$23(%env: %{}) -> Int {
+fn ResolveTest.continuation$23(%env: %{}) -> I32 {
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 1 : I32
     assign log, %v4
-    %v6 = load log : Int
+    %v6 = load log : I32
     ret %v6
 }
 
-fn scope(Int)(%body: () -> Int) -> Int {
+fn scope(I32)(%body: () -> I32) -> I32 {
   b0:
-    %v1 = load log : Int
-    %v3 = mul %v1, 2 : Int
+    %v1 = load log : I32
+    %v3 = mul %v1, 2 : I32
     assign log, %v3
-    %v5 = calldyn %body : Int
-    %v6 = load log : Int
-    %v8 = add %v6, 100 : Int
+    %v5 = calldyn %body : I32
+    %v6 = load log : I32
+    %v8 = add %v6, 100 : I32
     assign log, %v8
     ret %v5
 }
 
-fn ResolveTest.continuation$24(%env: %{}, %n: Int) -> Int {
+fn ResolveTest.continuation$24(%env: %{}, %n: I32) -> I32 {
   b0:
-    %v4 = mul %n, 2 : Int
+    %v4 = mul %n, 2 : I32
     ret %v4
 }
 
-fn plusOne(Int)(%x: Int, %body: (value$: Int) -> Int) -> Int {
+fn plusOne(I32)(%x: I32, %body: (value$: I32) -> I32) -> I32 {
   b0:
-    %v3 = add %x, 1 : Int
-    %v4 = calldyn %body, %v3 : Int
+    %v3 = add %x, 1 : I32
+    %v4 = calldyn %body, %v3 : I32
     ret %v4
 }
 
-fn ResolveTest.continuation$25(%env: %{}, %low: Int, %high: Int) -> Int {
+fn ResolveTest.continuation$25(%env: %{}, %low: I32, %high: I32) -> I32 {
   b0:
-    %v3 = alloc : {low: Int, high: Int}
+    %v3 = alloc : {low: I32, high: I32}
     init %local0.low, %low
     init %local0.high, %high
-    %low = load %local0.low : Int
-    %high = load %local0.high : Int
-    %v10 = mul %low, 100 : Int
-    %v11 = add %v10, %high : Int
+    %low = load %local0.low : I32
+    %high = load %local0.high : I32
+    %v10 = mul %low, 100 : I32
+    %v11 = add %v10, %high : I32
     ret %v11
 }
 
-fn split(Int)(%x: Int, %body: (low: Int, high: Int) -> Int) -> Int {
+fn split(I32)(%x: I32, %body: (low: I32, high: I32) -> I32) -> I32 {
   b0:
-    %v3 = rem %x, 10 : Int
-    %v5 = div %x, 10 : Int
-    %v6 = calldyn %body, %v3, %v5 : Int
+    %v3 = rem %x, 10 : I32
+    %v5 = div %x, 10 : I32
+    %v6 = calldyn %body, %v3, %v5 : I32
     ret %v6
 }
 
-fn ResolveTest.continuation$26(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$26(%env: %{}, %value$: I32) -> I32 {
   b0:
-    %v3 = alloc : {x: Int}
+    %v3 = alloc : {x: I32}
     init %local0.x, %value$
     %v5 = addressof %local0 : %()
-    %v6 = alloc : (value$: Bool) -> Int
+    %v6 = alloc : (value$: Bool) -> I32
     %v7 = symbol ResolveTest.continuation$27 : %()
     init %local1.code, %v7
     init %local1.env, %v5
-    %v10 = call twiceOver(Bool, Int), True, %v6 : Int
+    %v10 = call twiceOver(Bool, I32), True, %v6 : I32
     ret %v10
 }
 
-fn ResolveTest.continuation$27(%env: %{x: Int}, %value$: Bool) -> Int {
+fn ResolveTest.continuation$27(%env: %{x: I32}, %value$: Bool) -> I32 {
   b0:
     je %value$, b1, b2
 
   b1:
-    %v3 = load [%env].x : Int
-    %v6 = mul %v3, 2 : Int
+    %v3 = load [%env].x : I32
+    %v6 = mul %v3, 2 : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b1, %v6], [b2, 0] : Int
+    %v10 = phi [b1, %v6], [b2, 0] : I32
     ret %v10
 }
 
-fn twiceOver(Bool, Int)(%value: Bool, %body: (value$: Bool) -> Int) -> Int {
+fn twiceOver(Bool, I32)(%value: Bool, %body: (value$: Bool) -> I32) -> I32 {
   b0:
-    %v2 = load log : Int
-    %v4 = add %v2, 1 : Int
+    %v2 = load log : I32
+    %v4 = add %v2, 1 : I32
     assign log, %v4
-    %v6 = calldyn %body, %value : Int
+    %v6 = calldyn %body, %value : I32
     ret %v6
 }
 
-fn twiceOver(Int, Int)(%value: Int, %body: (value$: Int) -> Int) -> Int {
+fn twiceOver(I32, I32)(%value: I32, %body: (value$: I32) -> I32) -> I32 {
   b0:
-    %v2 = load log : Int
-    %v4 = add %v2, 1 : Int
+    %v2 = load log : I32
+    %v4 = add %v2, 1 : I32
     assign log, %v4
-    %v6 = calldyn %body, %value : Int
+    %v6 = calldyn %body, %value : I32
     ret %v6
 }
 
-fn ResolveTest.continuation$28(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$28(%env: %{}, %value$: I32) -> I32 {
   b0:
     ret %value$
 }
 
-fn bumped(Int)(%c: Counter, %body: (value$: Int) -> Int) -> Int {
+fn bumped(I32)(%c: Counter, %body: (value$: I32) -> I32) -> I32 {
   b0:
     %v2 = load %c : Counter
-    %v3 = load %c@Counter.value : Int
-    %v5 = add %v3, 1 : Int
+    %v3 = load %c@Counter.value : I32
+    %v5 = add %v3, 1 : I32
     assign %c@Counter.value, %v5
     %v7 = load %c : Counter
-    %v8 = load %c@Counter.value : Int
-    %v9 = calldyn %body, %v8 : Int
+    %v8 = load %c@Counter.value : I32
+    %v9 = calldyn %body, %v8 : I32
     %v10 = load %c : Counter
-    %v11 = load %c@Counter.value : Int
-    %v13 = add %v11, 10 : Int
+    %v11 = load %c@Counter.value : I32
+    %v13 = add %v11, 10 : I32
     assign %c@Counter.value, %v13
     ret %v9
 }
 
-fn ResolveTest.lambda$29(%env: %{}, %n: Int) -> Int {
+fn ResolveTest.lambda$29(%env: %{}, %n: I32) -> I32 {
   b0:
-    %v4 = mul %n, 3 : Int
+    %v4 = mul %n, 3 : I32
     ret %v4
 }
 
-fn ResolveTest.continuation$30(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$30(%env: %{}, %value$: I32) -> I32 {
   b0:
-    %v2 = alloc : (value$: Int) -> Int
+    %v2 = alloc : (value$: I32) -> I32
     %v3 = symbol ResolveTest.continuation$31 : %()
     init %local0.code, %v3
     %v6 = cast 0 : %()
     init %local0.env, %v6
-    %v8 = call plusOne(Int), %value$, %v2 : Int
+    %v8 = call plusOne(I32), %value$, %v2 : I32
     ret %v8
 }
 
-fn ResolveTest.continuation$31(%env: %{}, %b: Int) -> Int {
+fn ResolveTest.continuation$31(%env: %{}, %b: I32) -> I32 {
   b0:
     ret %b
 }
 
-fn ResolveTest.continuation$32(%env: %{total: &Int}, %value$: Int) -> () {
+fn ResolveTest.continuation$32(%env: %{total: &I32}, %value$: I32) -> () {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     ret
 }
 
-fn logged(())(%body: (value$: Int) -> ()) -> () {
+fn logged(())(%body: (value$: I32) -> ()) -> () {
   b0:
-    %v1 = load log : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v3 = add %v1, 1 : I32
     assign log, %v3
-    %v5 = load log : Int
+    %v5 = load log : I32
     calldyn %body, %v5
-    %v7 = load log : Int
-    %v9 = add %v7, 10 : Int
+    %v7 = load log : I32
+    %v9 = add %v7, 10 : I32
     assign log, %v9
     ret %v6
 }
 
-fn ResolveTest.continuation$33(%env: %{text: 'String}, %n: Int) -> Int {
+fn ResolveTest.continuation$33(%env: %{text: 'String}, %n: I32) -> I32 {
   b0:
     %v2 = load [%env].text : 'String
     %v3 = load [%v2] : String
@@ -2008,11 +2008,11 @@ fn ResolveTest.continuation$33(%env: %{text: 'String}, %n: Int) -> Int {
     jmp b3
 
   b3:
-    %v10 = phi [b1, %n], [b2, 0] : Int
+    %v10 = phi [b1, %n], [b2, 0] : I32
     ret %v10
 }
 
-fn ResolveTest.continuation$34(%env: %{text: 'String}, %n: Int) -> Int {
+fn ResolveTest.continuation$34(%env: %{text: 'String}, %n: I32) -> I32 {
   b0:
     %v2 = load [%env].text : 'String
     %v3 = load [%v2] : String
@@ -2028,6 +2028,6 @@ fn ResolveTest.continuation$34(%env: %{text: 'String}, %n: Int) -> Int {
     jmp b3
 
   b3:
-    %v10 = phi [b1, %n], [b2, 0] : Int
+    %v10 = phi [b1, %n], [b2, 0] : I32
     ret %v10
 }

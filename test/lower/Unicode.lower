@@ -1,7 +1,7 @@
 utf32PointToUtf8(%utf32: Ptr, %max: Ptr, %buffer: Ptr): Ptr {
     {
         %p = load %utf32, 8: Ptr
-        %codePoint = load %p, 4: Int
+        %codePoint = load %p, 4: I32
         store %utf32, (add %p, 4), 8
         je (cmp_le %codePoint, 0x7f), isOne, checkTwo
     }

@@ -1,47 +1,47 @@
 let image$base: () = <none>
 
-let &sink: Int = 0
+let &sink: I32 = 0
 
-fn reversed(%v: Vec(Int)) -> Vec(Int) {
+fn reversed(%v: Vec(I32)) -> Vec(I32) {
   b0:
-    %v1 = vshuffle %v, %v, 7, 6, 5, 4, 3, 2, 1, 0 : Vec(Int)
+    %v1 = vshuffle %v, %v, 7, 6, 5, 4, 3, 2, 1, 0 : Vec(I32)
     ret %v1
 }
 
-fn rotated(%v: Vec(Int)) -> Vec(Int) {
+fn rotated(%v: Vec(I32)) -> Vec(I32) {
   b0:
-    %v3 = vshuffle %v, %v, 3, 4, 5, 6, 7, 0, 1, 2 : Vec(Int)
+    %v3 = vshuffle %v, %v, 3, 4, 5, 6, 7, 0, 1, 2 : Vec(I32)
     ret %v3
 }
 
-fn build() -> Vec(Int) {
+fn build() -> Vec(I32) {
   b0:
-    %v1 = vsplat 0 : Vec(Int)
-    %v3 = vwithlane %v1, 1, 1 : Vec(Int)
-    %v5 = vwithlane %v3, 2, 2 : Vec(Int)
-    %v7 = vwithlane %v5, 3, 3 : Vec(Int)
-    %v9 = vwithlane %v7, 4, 4 : Vec(Int)
-    %v11 = vwithlane %v9, 5, 5 : Vec(Int)
-    %v13 = vwithlane %v11, 6, 6 : Vec(Int)
-    %v15 = vwithlane %v13, 7, 7 : Vec(Int)
-    %v18 = vsplat 1 : Vec(Int)
-    %v19 = add %v15, %v18 : Vec(Int)
+    %v1 = vsplat 0 : Vec(I32)
+    %v3 = vwithlane %v1, 1, 1 : Vec(I32)
+    %v5 = vwithlane %v3, 2, 2 : Vec(I32)
+    %v7 = vwithlane %v5, 3, 3 : Vec(I32)
+    %v9 = vwithlane %v7, 4, 4 : Vec(I32)
+    %v11 = vwithlane %v9, 5, 5 : Vec(I32)
+    %v13 = vwithlane %v11, 6, 6 : Vec(I32)
+    %v15 = vwithlane %v13, 7, 7 : Vec(I32)
+    %v18 = vsplat 1 : Vec(I32)
+    %v19 = add %v15, %v18 : Vec(I32)
     ret %v19
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v = call build : Vec(Int)
-    %v1 = call reversed, %v : Vec(Int)
-    %a = vlane %v1, 0 : Int
-    %v5 = call reversed, %v : Vec(Int)
-    %b = vlane %v5, 5 : Int
-    %v9 = call rotated, %v : Vec(Int)
-    %c = vlane %v9, 0 : Int
-    %v13 = call rotated, %v : Vec(Int)
-    %d = vlane %v13, 6 : Int
-    %v17 = add %a, %b : Int
-    %v18 = add %v17, %c : Int
-    %v19 = add %v18, %d : Int
+    %v = call build : Vec(I32)
+    %v1 = call reversed, %v : Vec(I32)
+    %a = vlane %v1, 0 : I32
+    %v5 = call reversed, %v : Vec(I32)
+    %b = vlane %v5, 5 : I32
+    %v9 = call rotated, %v : Vec(I32)
+    %c = vlane %v9, 0 : I32
+    %v13 = call rotated, %v : Vec(I32)
+    %d = vlane %v13, 6 : I32
+    %v17 = add %a, %b : I32
+    %v18 = add %v17, %c : I32
+    %v19 = add %v18, %d : I32
     ret %v19
 }

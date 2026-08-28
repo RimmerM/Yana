@@ -88,7 +88,7 @@ fn orElse(%value: Maybe(a), %fallback: a) -> a {
   }
 
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -131,59 +131,59 @@ fn empty() -> Maybe(a) {
     ret %v0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v2 = call identity(Int), 1 : Int
-    %v6 = alloc : Pair(Bool, Int)
+    %v2 = call identity(I32), 1 : I32
+    %v6 = alloc : Pair(Bool, I32)
     init %local0@Pair.first, True
     init %local0@Pair.second, 20
-    %v9 = call swap(Bool, Int), %v6 : Pair(Int, Bool)
-    %v10 = call leftOf(Int, Bool), %v9 : Int
-    %v11 = add %v2, %v10 : Int
-    %v14 = call twice(Int), 3 : Int
-    %v15 = add %v11, %v14 : Int
-    %v20 = call smaller(Int), 9, 4 : Int
-    %v21 = add %v15, %v20 : Int
-    %v28 = call middle(Int), 30, 8, 12 : Int
-    %v29 = add %v21, %v28 : Int
-    %v32 = call wrap(Int), 5 : Maybe(Int)
-    %v35 = copy %local2 : Maybe(Int)
-    %v36 = call orElse(Int), %v35, 0 : Int
-    %v37 = add %v29, %v36 : Int
-    %v38 = call empty(Int) : Maybe(Int)
-    %v41 = copy %local4 : Maybe(Int)
-    %v42 = call orElse(Int), %v41, 7 : Int
-    %v43 = add %v37, %v42 : Int
+    %v9 = call swap(Bool, I32), %v6 : Pair(I32, Bool)
+    %v10 = call leftOf(I32, Bool), %v9 : I32
+    %v11 = add %v2, %v10 : I32
+    %v14 = call twice(I32), 3 : I32
+    %v15 = add %v11, %v14 : I32
+    %v20 = call smaller(I32), 9, 4 : I32
+    %v21 = add %v15, %v20 : I32
+    %v28 = call middle(I32), 30, 8, 12 : I32
+    %v29 = add %v21, %v28 : I32
+    %v32 = call wrap(I32), 5 : Maybe(I32)
+    %v35 = copy %local2 : Maybe(I32)
+    %v36 = call orElse(I32), %v35, 0 : I32
+    %v37 = add %v29, %v36 : I32
+    %v38 = call empty(I32) : Maybe(I32)
+    %v41 = copy %local4 : Maybe(I32)
+    %v42 = call orElse(I32), %v41, 7 : I32
+    %v43 = add %v37, %v42 : I32
     ret %v43
 }
 
-fn identity(Int)(%value: Int) -> Int {
+fn identity(I32)(%value: I32) -> I32 {
   b0:
     ret %value
 }
 
-fn swap(Bool, Int)(%value: Pair(Bool, Int)) -> Pair(Int, Bool) {
+fn swap(Bool, I32)(%value: Pair(Bool, I32)) -> Pair(I32, Bool) {
   b0:
-    %v1 = alloc : Pair(Int, Bool)
-    %v2 = load %value@Pair.second : Int
+    %v1 = alloc : Pair(I32, Bool)
+    %v2 = load %value@Pair.second : I32
     %v3 = load %value@Pair.first : Bool
     aggregate %local1@Pair.first = %v2, %local1@Pair.second = %v3
     ret %v1
 }
 
-fn leftOf(Int, Bool)(%value: Pair(Int, Bool)) -> Int {
+fn leftOf(I32, Bool)(%value: Pair(I32, Bool)) -> I32 {
   b0:
-    %v1 = load %value@Pair.first : Int
+    %v1 = load %value@Pair.first : I32
     ret %v1
 }
 
-fn twice(Int)(%x: Int) -> Int {
+fn twice(I32)(%x: I32) -> I32 {
   b0:
-    %v1 = add %x, %x : Int
+    %v1 = add %x, %x : I32
     ret %v1
 }
 
-fn smaller(Int)(%x: Int, %y: Int) -> Int {
+fn smaller(I32)(%x: I32, %y: I32) -> I32 {
   b0:
     %v3 = cmp_lt %x, %y : Bool
     je %v3, b1, b2
@@ -195,27 +195,27 @@ fn smaller(Int)(%x: Int, %y: Int) -> Int {
     jmp b3
 
   b3:
-    %v2 = phi [b1, %x], [b2, %y] : Int
+    %v2 = phi [b1, %x], [b2, %y] : I32
     ret %v2
 }
 
-fn middle(Int)(%x: Int, %y: Int, %z: Int) -> Int {
+fn middle(I32)(%x: I32, %y: I32, %z: I32) -> I32 {
   b0:
-    %v3 = call smaller(Int), %x, %y : Int
-    %v4 = call smaller(Int), %v3, %z : Int
+    %v3 = call smaller(I32), %x, %y : I32
+    %v4 = call smaller(I32), %v3, %z : I32
     ret %v4
 }
 
-fn wrap(Int)(%value: Int) -> Maybe(Int) {
+fn wrap(I32)(%value: I32) -> Maybe(I32) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
-fn orElse(Int)(%value: Maybe(Int), %fallback: Int) -> Int {
+fn orElse(I32)(%value: Maybe(I32), %fallback: I32) -> I32 {
   b0:
-    %v3 = load %value.discriminant : Int
+    %v3 = load %value.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -223,21 +223,21 @@ fn orElse(Int)(%value: Maybe(Int), %fallback: Int) -> Int {
     jmp b3
 
   b2:
-    %v8 = load %value@Just : Int
-    %v9 = move %value@Just : Int
-    %inner = alloc : Int
+    %v8 = load %value@Just : I32
+    %v9 = move %value@Just : I32
+    %inner = alloc : I32
     init %local2, %v9
-    %inner = load %local2 : Int
+    %inner = load %local2 : I32
     jmp b3
 
   b3:
-    %v2 = phi [b2, %inner], [b1, %fallback] : Int
+    %v2 = phi [b2, %inner], [b1, %fallback] : I32
     ret %v2
 }
 
-fn empty(Int)() -> Maybe(Int) {
+fn empty(I32)() -> Maybe(I32) {
   b0:
-    %v0 = alloc : Maybe(Int)
+    %v0 = alloc : Maybe(I32)
     init %local0.discriminant, 0
     ret %v0
 }

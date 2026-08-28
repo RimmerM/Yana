@@ -1,47 +1,47 @@
 let image$base: () = <none>
 
-fn readThenWrite(%b: Boxed(Int)) -> Int {
+fn readThenWrite(%b: Boxed(I32)) -> I32 {
   b0:
-    %v1 = load %b : Boxed(Int)
-    %v2 = borrow %b : 'Boxed(Int)
-    %v3 = call Peek(Boxed(a), a).peek(Int), %v2 : 'Int
-    %v4 = load [%v3] : Int
-    %kept = add %v4, 0 : Int
-    %v8 = load %b : Boxed(Int)
-    %v9 = borrow_mut %b : &Boxed(Int)
-    %v10 = call Peek(Boxed(a), a).poke(Int), %v9 : &Int
-    %v11 = load [%v10] : Int
-    %v14 = add %v11, 1 : Int
+    %v1 = load %b : Boxed(I32)
+    %v2 = borrow %b : 'Boxed(I32)
+    %v3 = call Peek(Boxed(a), a).peek(I32), %v2 : 'I32
+    %v4 = load [%v3] : I32
+    %kept = add %v4, 0 : I32
+    %v8 = load %b : Boxed(I32)
+    %v9 = borrow_mut %b : &Boxed(I32)
+    %v10 = call Peek(Boxed(a), a).poke(I32), %v9 : &I32
+    %v11 = load [%v10] : I32
+    %v14 = add %v11, 1 : I32
     assign [%v10], %v14
     ret %kept
 }
 
-fn heldAcross(%b: Boxed(Int)) -> Int {
+fn heldAcross(%b: Boxed(I32)) -> I32 {
   b0:
-    %v1 = load %b : Boxed(Int)
-    %v4 = borrow_mut %b : &Boxed(Int)
-    %v5 = call Peek(Boxed(a), a).swap(Int), %v4, 10 : &Int
-    %v6 = load [%v5] : Int
-    %v9 = add %v6, 5 : Int
+    %v1 = load %b : Boxed(I32)
+    %v4 = borrow_mut %b : &Boxed(I32)
+    %v5 = call Peek(Boxed(a), a).swap(I32), %v4, 10 : &I32
+    %v6 = load [%v5] : I32
+    %v9 = add %v6, 5 : I32
     assign [%v5], %v9
-    %after = load [%v5] : Int
-    %v12 = load %b : Boxed(Int)
-    %v13 = borrow_mut %b : &Boxed(Int)
-    %v14 = call Peek(Boxed(a), a).poke(Int), %v13 : &Int
-    %v15 = load [%v14] : Int
-    %v18 = add %v15, 1 : Int
+    %after = load [%v5] : I32
+    %v12 = load %b : Boxed(I32)
+    %v13 = borrow_mut %b : &Boxed(I32)
+    %v14 = call Peek(Boxed(a), a).poke(I32), %v13 : &I32
+    %v15 = load [%v14] : I32
+    %v18 = add %v15, 1 : I32
     assign [%v14], %v18
     ret %after
 }
 
 fn main() -> I64 {
   b0:
-    %v3 = alloc : Boxed(Int)
+    %v3 = alloc : Boxed(I32)
     init %b@Boxed.value, 3
     init %b@Boxed.tag, 7
-    %v6 = load %b : Boxed(Int)
-    %v7 = borrow_mut %b : &Boxed(Int)
-    %seen = call readThenWrite, %v7 : Int
+    %v6 = load %b : Boxed(I32)
+    %v7 = borrow_mut %b : &Boxed(I32)
+    %seen = call readThenWrite, %v7 : I32
     %v11 = cmp_ne %seen, 3 : Bool
     je %v11, b1, b2
 
@@ -52,8 +52,8 @@ fn main() -> I64 {
     jmp b3
 
   b3:
-    %v16 = load %b : Boxed(Int)
-    %v17 = load %b@Boxed.value : Int
+    %v16 = load %b : Boxed(I32)
+    %v17 = load %b@Boxed.value : I32
     %v20 = cmp_ne %v17, 4 : Bool
     je %v20, b4, b5
 
@@ -64,9 +64,9 @@ fn main() -> I64 {
     jmp b6
 
   b6:
-    %v25 = load %b : Boxed(Int)
-    %v26 = borrow_mut %b : &Boxed(Int)
-    %held = call heldAcross, %v26 : Int
+    %v25 = load %b : Boxed(I32)
+    %v26 = borrow_mut %b : &Boxed(I32)
+    %held = call heldAcross, %v26 : I32
     %v30 = cmp_ne %held, 15 : Bool
     je %v30, b7, b8
 
@@ -77,8 +77,8 @@ fn main() -> I64 {
     jmp b9
 
   b9:
-    %v35 = load %b : Boxed(Int)
-    %v36 = load %b@Boxed.value : Int
+    %v35 = load %b : Boxed(I32)
+    %v36 = load %b@Boxed.value : I32
     %v39 = cmp_ne %v36, 16 : Bool
     je %v39, b10, b11
 
@@ -89,11 +89,11 @@ fn main() -> I64 {
     jmp b12
 
   b12:
-    %v44 = load %b : Boxed(Int)
-    %v45 = load %b@Boxed.value : Int
-    %v46 = load %b : Boxed(Int)
-    %v47 = load %b@Boxed.tag : Int
-    %v48 = add %v45, %v47 : Int
+    %v44 = load %b : Boxed(I32)
+    %v45 = load %b@Boxed.value : I32
+    %v46 = load %b : Boxed(I32)
+    %v47 = load %b@Boxed.tag : I32
+    %v48 = add %v45, %v47 : I32
     %v49 = cast %v48 : I64
     ret %v49
 }
@@ -134,26 +134,26 @@ fn Peek(Boxed(a), a).swap(%self: Boxed(a), %other: a) -> &a {
     ret %v5
 }
 
-fn Peek(Boxed(a), a).peek(Int)(%self: 'Boxed(Int)) -> 'Int {
+fn Peek(Boxed(a), a).peek(I32)(%self: 'Boxed(I32)) -> 'I32 {
   b0:
-    %v1 = load [%self]@Boxed.value : Int
-    %v2 = borrow [%self]@Boxed.value : 'Int
+    %v1 = load [%self]@Boxed.value : I32
+    %v2 = borrow [%self]@Boxed.value : 'I32
     ret %v2
 }
 
-fn Peek(Boxed(a), a).poke(Int)(%self: Boxed(Int)) -> &Int {
+fn Peek(Boxed(a), a).poke(I32)(%self: Boxed(I32)) -> &I32 {
   b0:
-    %v1 = load %self : Boxed(Int)
-    %v2 = load %self@Boxed.value : Int
-    %v3 = borrow_mut %self@Boxed.value : &Int
+    %v1 = load %self : Boxed(I32)
+    %v2 = load %self@Boxed.value : I32
+    %v3 = borrow_mut %self@Boxed.value : &I32
     ret %v3
 }
 
-fn Peek(Boxed(a), a).swap(Int)(%self: Boxed(Int), %other: Int) -> &Int {
+fn Peek(Boxed(a), a).swap(I32)(%self: Boxed(I32), %other: I32) -> &I32 {
   b0:
     assign %self@Boxed.value, %other
-    %v3 = load %self : Boxed(Int)
-    %v4 = load %self@Boxed.value : Int
-    %v5 = borrow_mut %self@Boxed.value : &Int
+    %v3 = load %self : Boxed(I32)
+    %v4 = load %self@Boxed.value : I32
+    %v5 = borrow_mut %self@Boxed.value : &I32
     ret %v5
 }

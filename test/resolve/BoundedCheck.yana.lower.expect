@@ -4,9 +4,9 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 Reclaim(Array(a)).reclaim(I64)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
+    %v_2 = load %v_1, 4: I32
+    %v_3 = shr %v_2, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
@@ -23,8 +23,8 @@ Reclaim(Array(a)).reclaim(I64)<complex>(%value: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -38,9 +38,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -51,15 +51,15 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-sumWords<complex>(%xs$items: Ptr, %xs$length: Long): Long {
+sumWords<complex>(%xs$items: Ptr, %xs$length: I64): I64 {
   b_0 {
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_5, %xs$length: Int
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I64
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: I64
+    %v_7 = cmp_ilt %v_5, %xs$length: I32
     je %v_7, b_8, b_9
   }
 
@@ -72,26 +72,26 @@ sumWords<complex>(%xs$items: Ptr, %xs$length: Long): Long {
   }
 
   b_3 {
-    %v_10 = shl %v_5, 3: Long
+    %v_10 = shl %v_5, 3: I64
     %v_11 = add %xs$items, %v_10: Ptr
-    %v_12 = loads %v_11, 8: Long
-    %v_4 = add %v_2, %v_12: Long
-    %v_6 = add %v_5, 1: Long
+    %v_12 = loads %v_11, 8: I64
+    %v_4 = add %v_2, %v_12: I64
+    %v_6 = add %v_5, 1: I64
     jmp b_1
   }
 }
 
-sumNarrow<complex>(%xs$items: Ptr, %xs$length: Long): Long {
+sumNarrow<complex>(%xs$items: Ptr, %xs$length: I64): I64 {
   b_0 {
-    %n = cast %xs$length: Int
-    %v_1 = sext %n: Long
+    %n = cast %xs$length: I32
+    %v_1 = sext %n: I64
     jmp b_2
   }
 
   b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Long
-    %v_6 = phi [b_0, 0], [b_4, %v_7]: Long
-    %v_8 = cmp_ilt %v_6, %v_1: Int
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: I64
+    %v_6 = phi [b_0, 0], [b_4, %v_7]: I64
+    %v_8 = cmp_ilt %v_6, %v_1: I32
     je %v_8, b_9, b_10
   }
 
@@ -104,24 +104,24 @@ sumNarrow<complex>(%xs$items: Ptr, %xs$length: Long): Long {
   }
 
   b_4 {
-    %v_11 = shl %v_6, 3: Long
+    %v_11 = shl %v_6, 3: I64
     %v_12 = add %xs$items, %v_11: Ptr
-    %v_13 = loads %v_12, 8: Long
-    %v_5 = add %v_3, %v_13: Long
-    %v_7 = add %v_6, 1: Long
+    %v_13 = loads %v_12, 8: I64
+    %v_5 = add %v_3, %v_13: I64
+    %v_7 = add %v_6, 1: I64
     jmp b_2
   }
 }
 
-sumEven<complex>(%xs$items: Ptr, %xs$length: Long): Long {
+sumEven<complex>(%xs$items: Ptr, %xs$length: I64): I64 {
   b_0 {
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_5, %xs$length: Int
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I64
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: I64
+    %v_7 = cmp_ilt %v_5, %xs$length: I32
     je %v_7, b_8, b_9
   }
 
@@ -130,34 +130,34 @@ sumEven<complex>(%xs$items: Ptr, %xs$length: Long): Long {
   }
 
   b_8 {
-    %v_10 = cmp_ge %v_5, %xs$length: Int
+    %v_10 = cmp_ge %v_5, %xs$length: I32
     je %v_10, b_11, b_3
   }
 
   b_3 {
-    %v_12 = shl %v_5, 3: Long
+    %v_12 = shl %v_5, 3: I64
     %v_13 = add %xs$items, %v_12: Ptr
-    %v_14 = loads %v_13, 8: Long
-    %v_4 = add %v_2, %v_14: Long
-    %v_6 = add %v_5, 2: Long
+    %v_14 = loads %v_13, 8: I64
+    %v_4 = add %v_2, %v_14: I64
+    %v_6 = add %v_5, 2: I64
     jmp b_1
   }
 
   b_11 {
-    %v_15 = syscall 60, 134: Long
+    %v_15 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-sumTail<complex>(%xs$items: Ptr, %xs$length: Long): Long {
+sumTail<complex>(%xs$items: Ptr, %xs$length: I64): I64 {
   b_0 {
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
-    %v_5 = phi [b_0, 1], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_5, %xs$length: Int
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I64
+    %v_5 = phi [b_0, 1], [b_3, %v_6]: I64
+    %v_7 = cmp_ilt %v_5, %xs$length: I32
     je %v_7, b_8, b_9
   }
 
@@ -170,25 +170,25 @@ sumTail<complex>(%xs$items: Ptr, %xs$length: Long): Long {
   }
 
   b_3 {
-    %v_10 = shl %v_5, 3: Long
+    %v_10 = shl %v_5, 3: I64
     %v_11 = add %xs$items, %v_10: Ptr
-    %v_12 = loads %v_11, 8: Long
-    %v_4 = add %v_2, %v_12: Long
-    %v_6 = add %v_5, 1: Long
+    %v_12 = loads %v_11, 8: I64
+    %v_4 = add %v_2, %v_12: I64
+    %v_6 = add %v_5, 1: I64
     jmp b_1
   }
 }
 
-sumDown<complex>(%xs$items: Ptr, %xs$length: Long): Long {
+sumDown<complex>(%xs$items: Ptr, %xs$length: I64): I64 {
   b_0 {
-    %v_1 = sub %xs$length, 1: Long
+    %v_1 = sub %xs$length, 1: I64
     jmp b_2
   }
 
   b_2 {
-    %v_3 = phi [b_0, 0], [b_4, %v_5]: Long
-    %v_6 = phi [b_0, %v_1], [b_4, %v_7]: Long
-    %v_8 = cmp_ige %v_6, 0: Int
+    %v_3 = phi [b_0, 0], [b_4, %v_5]: I64
+    %v_6 = phi [b_0, %v_1], [b_4, %v_7]: I64
+    %v_8 = cmp_ige %v_6, 0: I32
     je %v_8, b_9, b_10
   }
 
@@ -197,34 +197,34 @@ sumDown<complex>(%xs$items: Ptr, %xs$length: Long): Long {
   }
 
   b_9 {
-    %v_11 = cmp_ge %v_6, %xs$length: Int
+    %v_11 = cmp_ge %v_6, %xs$length: I32
     je %v_11, b_12, b_4
   }
 
   b_4 {
-    %v_13 = shl %v_6, 3: Long
+    %v_13 = shl %v_6, 3: I64
     %v_14 = add %xs$items, %v_13: Ptr
-    %v_15 = loads %v_14, 8: Long
-    %v_5 = add %v_3, %v_15: Long
-    %v_7 = sub %v_6, 1: Long
+    %v_15 = loads %v_14, 8: I64
+    %v_5 = add %v_3, %v_15: I64
+    %v_7 = sub %v_6, 1: I64
     jmp b_2
   }
 
   b_12 {
-    %v_16 = syscall 60, 134: Long
+    %v_16 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-sumStrided<complex>(%xs$items: Ptr, %xs$length: Long, %n: Long): Long {
+sumStrided<complex>(%xs$items: Ptr, %xs$length: I64, %n: I64): I64 {
   b_0 {
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Long
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Long
-    %v_7 = cmp_ilt %v_5, %n: Int
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I64
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: I64
+    %v_7 = cmp_ilt %v_5, %n: I32
     je %v_7, b_8, b_9
   }
 
@@ -233,33 +233,33 @@ sumStrided<complex>(%xs$items: Ptr, %xs$length: Long, %n: Long): Long {
   }
 
   b_8 {
-    %v_10 = shl %v_5, 1: Long
-    %v_11 = cmp_ge %v_10, %xs$length: Int
+    %v_10 = shl %v_5, 1: I64
+    %v_11 = cmp_ge %v_10, %xs$length: I32
     je %v_11, b_12, b_3
   }
 
   b_3 {
-    %v_13 = shl %v_10, 3: Long
+    %v_13 = shl %v_10, 3: I64
     %v_14 = add %xs$items, %v_13: Ptr
-    %v_15 = loads %v_14, 8: Long
-    %v_4 = add %v_2, %v_15: Long
-    %v_6 = add %v_5, 1: Long
+    %v_15 = loads %v_14, 8: I64
+    %v_4 = add %v_2, %v_15: I64
+    %v_6 = add %v_5, 1: I64
     jmp b_1
   }
 
   b_12 {
-    %v_16 = syscall 60, 134: Long
+    %v_16 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 48, 8: Ptr
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
+    %v_4 = load %v_3, 4: I32
     store %v_3, 6, 4
     store %v_2, 1, 8
     %v_5 = add %v_2, 8: Ptr
@@ -278,7 +278,7 @@ main<complex>(): Int {
     %v_12 = alloca 48, 8: Ptr
     store %v_11, %v_12, 8
     %v_13 = add %v_11, 8: Ptr
-    %v_14 = load %v_13, 4: Int
+    %v_14 = load %v_13, 4: I32
     store %v_13, 6, 4
     store %v_12, 2, 8
     %v_15 = add %v_12, 8: Ptr
@@ -300,9 +300,9 @@ main<complex>(): Int {
     store %v_23, 0, 4
     %v_24 = add %v_21, 12: Ptr
     store %v_24, 0, 4
-    %v_25 = call_complex sumWords, %v_2, 6: Long
-    %v_26 = cmp_eq %v_25, 21: Int
-    %v_27 = imm 6: Long
+    %v_25 = call_complex sumWords, %v_2, 6: I64
+    %v_26 = cmp_eq %v_25, 21: I32
+    %v_27 = imm 6: I64
     je %v_26, b_28, b_29
   }
 
@@ -315,9 +315,9 @@ main<complex>(): Int {
   }
 
   b_30 {
-    %v_31 = phi [b_29, 0], [b_28, 1]: Int
-    %v_32 = call_complex sumNarrow, %v_2, %v_27: Long
-    %v_33 = cmp_eq %v_32, 21: Int
+    %v_31 = phi [b_29, 0], [b_28, 1]: I32
+    %v_32 = call_complex sumNarrow, %v_2, %v_27: I64
+    %v_33 = cmp_eq %v_32, 21: I32
     je %v_33, b_34, b_35
   }
 
@@ -326,27 +326,27 @@ main<complex>(): Int {
   }
 
   b_34 {
-    %v_37 = add %v_31, 1: Int
+    %v_37 = add %v_31, 1: I32
     jmp b_36
   }
 
   b_36 {
-    %v_38 = phi [b_35, %v_31], [b_34, %v_37]: Int
+    %v_38 = phi [b_35, %v_31], [b_34, %v_37]: I32
     %v_39 = load %v_11, 8: Ptr
     %v_40 = add %v_11, 12: Ptr
-    %v_41 = load %v_40, 4: Int
-    %v_42 = cast %v_41: Long
+    %v_41 = load %v_40, 4: I32
+    %v_42 = cast %v_41: I64
     jmp b_43
   }
 
   b_44 {
-    %v_45 = cmp_ilt %v_46, %v_27: Int
+    %v_45 = cmp_ilt %v_46, %v_27: I32
     je %v_45, b_47, b_48
   }
 
   b_48 {
     call_complex Reclaim(Array(a)).reclaim(I64), %v_11
-    %v_49 = cmp_eq %v_50, 42: Int
+    %v_49 = cmp_eq %v_50, 42: I32
     je %v_49, b_51, b_52
   }
 
@@ -355,18 +355,18 @@ main<complex>(): Int {
   }
 
   b_51 {
-    %v_54 = add %v_38, 1: Int
+    %v_54 = add %v_38, 1: I32
     jmp b_53
   }
 
   b_53 {
-    %v_55 = phi [b_52, %v_38], [b_51, %v_54]: Int
+    %v_55 = phi [b_52, %v_38], [b_51, %v_54]: I32
     %v_56 = load %v_1, 8: Ptr
     %v_57 = add %v_1, 12: Ptr
-    %v_58 = load %v_57, 4: Int
-    %v_59 = cast %v_58: Long
-    %v_60 = call_complex sumEven, %v_56, %v_59: Long
-    %v_61 = cmp_eq %v_60, 9: Int
+    %v_58 = load %v_57, 4: I32
+    %v_59 = cast %v_58: I64
+    %v_60 = call_complex sumEven, %v_56, %v_59: I64
+    %v_61 = cmp_eq %v_60, 9: I32
     je %v_61, b_62, b_63
   }
 
@@ -375,14 +375,14 @@ main<complex>(): Int {
   }
 
   b_62 {
-    %v_65 = add %v_55, 1: Int
+    %v_65 = add %v_55, 1: I32
     jmp b_64
   }
 
   b_64 {
-    %v_66 = phi [b_63, %v_55], [b_62, %v_65]: Int
-    %v_67 = call_complex sumTail, %v_56, %v_59: Long
-    %v_68 = cmp_eq %v_67, 20: Int
+    %v_66 = phi [b_63, %v_55], [b_62, %v_65]: I32
+    %v_67 = call_complex sumTail, %v_56, %v_59: I64
+    %v_68 = cmp_eq %v_67, 20: I32
     je %v_68, b_69, b_70
   }
 
@@ -391,14 +391,14 @@ main<complex>(): Int {
   }
 
   b_69 {
-    %v_72 = add %v_66, 1: Int
+    %v_72 = add %v_66, 1: I32
     jmp b_71
   }
 
   b_71 {
-    %v_73 = phi [b_70, %v_66], [b_69, %v_72]: Int
-    %v_74 = call_complex sumDown, %v_56, %v_59: Long
-    %v_75 = cmp_eq %v_74, 21: Int
+    %v_73 = phi [b_70, %v_66], [b_69, %v_72]: I32
+    %v_74 = call_complex sumDown, %v_56, %v_59: I64
+    %v_75 = cmp_eq %v_74, 21: I32
     je %v_75, b_76, b_77
   }
 
@@ -407,14 +407,14 @@ main<complex>(): Int {
   }
 
   b_76 {
-    %v_79 = add %v_73, 1: Int
+    %v_79 = add %v_73, 1: I32
     jmp b_78
   }
 
   b_78 {
-    %v_80 = phi [b_77, %v_73], [b_76, %v_79]: Int
-    %v_81 = call_complex sumStrided, %v_56, %v_59, 3: Long
-    %v_82 = cmp_eq %v_81, 9: Int
+    %v_80 = phi [b_77, %v_73], [b_76, %v_79]: I32
+    %v_81 = call_complex sumStrided, %v_56, %v_59, 3: I64
+    %v_82 = cmp_eq %v_81, 9: I32
     je %v_82, b_83, b_84
   }
 
@@ -423,18 +423,18 @@ main<complex>(): Int {
   }
 
   b_83 {
-    %v_86 = add %v_80, 1: Int
+    %v_86 = add %v_80, 1: I32
     jmp b_85
   }
 
   b_85 {
-    %v_87 = phi [b_84, %v_80], [b_83, %v_86]: Int
+    %v_87 = phi [b_84, %v_80], [b_83, %v_86]: I32
     %v_88 = load %v_21, 8: Ptr
     %v_89 = add %v_21, 12: Ptr
-    %v_90 = load %v_89, 4: Int
-    %v_91 = cast %v_90: Long
-    %v_92 = call_complex sumWords, %v_88, %v_91: Long
-    %v_93 = cmp_eq %v_92, 0: Int
+    %v_90 = load %v_89, 4: I32
+    %v_91 = cast %v_90: I64
+    %v_92 = call_complex sumWords, %v_88, %v_91: I64
+    %v_93 = cmp_eq %v_92, 0: I32
     je %v_93, b_94, b_95
   }
 
@@ -443,14 +443,14 @@ main<complex>(): Int {
   }
 
   b_94 {
-    %v_97 = add %v_87, 1: Int
+    %v_97 = add %v_87, 1: I32
     jmp b_96
   }
 
   b_96 {
-    %v_98 = phi [b_95, %v_87], [b_94, %v_97]: Int
-    %v_99 = call_complex sumNarrow, %v_88, %v_91: Long
-    %v_100 = cmp_eq %v_99, 0: Int
+    %v_98 = phi [b_95, %v_87], [b_94, %v_97]: I32
+    %v_99 = call_complex sumNarrow, %v_88, %v_91: I64
+    %v_100 = cmp_eq %v_99, 0: I32
     je %v_100, b_101, b_102
   }
 
@@ -459,14 +459,14 @@ main<complex>(): Int {
   }
 
   b_101 {
-    %v_104 = add %v_98, 1: Int
+    %v_104 = add %v_98, 1: I32
     jmp b_103
   }
 
   b_103 {
-    %v_105 = phi [b_102, %v_98], [b_101, %v_104]: Int
-    %v_106 = call_complex sumEven, %v_88, %v_91: Long
-    %v_107 = cmp_eq %v_106, 0: Int
+    %v_105 = phi [b_102, %v_98], [b_101, %v_104]: I32
+    %v_106 = call_complex sumEven, %v_88, %v_91: I64
+    %v_107 = cmp_eq %v_106, 0: I32
     je %v_107, b_108, b_109
   }
 
@@ -475,14 +475,14 @@ main<complex>(): Int {
   }
 
   b_108 {
-    %v_111 = add %v_105, 1: Int
+    %v_111 = add %v_105, 1: I32
     jmp b_110
   }
 
   b_110 {
-    %v_112 = phi [b_109, %v_105], [b_108, %v_111]: Int
-    %v_113 = call_complex sumTail, %v_88, %v_91: Long
-    %v_114 = cmp_eq %v_113, 0: Int
+    %v_112 = phi [b_109, %v_105], [b_108, %v_111]: I32
+    %v_113 = call_complex sumTail, %v_88, %v_91: I64
+    %v_114 = cmp_eq %v_113, 0: I32
     je %v_114, b_115, b_116
   }
 
@@ -491,15 +491,15 @@ main<complex>(): Int {
   }
 
   b_115 {
-    %v_118 = add %v_112, 1: Int
+    %v_118 = add %v_112, 1: I32
     jmp b_117
   }
 
   b_117 {
-    %v_119 = phi [b_116, %v_112], [b_115, %v_118]: Int
-    %v_120 = call_complex sumDown, %v_88, %v_91: Long
+    %v_119 = phi [b_116, %v_112], [b_115, %v_118]: I32
+    %v_120 = call_complex sumDown, %v_88, %v_91: I64
     call_complex Reclaim(Array(a)).reclaim(I64), %v_21
-    %v_121 = cmp_eq %v_120, 0: Int
+    %v_121 = cmp_eq %v_120, 0: I32
     je %v_121, b_122, b_123
   }
 
@@ -508,15 +508,15 @@ main<complex>(): Int {
   }
 
   b_122 {
-    %v_125 = add %v_119, 1: Int
+    %v_125 = add %v_119, 1: I32
     jmp b_124
   }
 
   b_124 {
-    %v_126 = phi [b_123, %v_119], [b_122, %v_125]: Int
-    %v_127 = call_complex sumStrided, %v_56, %v_59, 0: Long
+    %v_126 = phi [b_123, %v_119], [b_122, %v_125]: I32
+    %v_127 = call_complex sumStrided, %v_56, %v_59, 0: I64
     call_complex Reclaim(Array(a)).reclaim(I64), %v_1
-    %v_128 = cmp_eq %v_127, 0: Int
+    %v_128 = cmp_eq %v_127, 0: I32
     je %v_128, b_129, b_130
   }
 
@@ -525,24 +525,24 @@ main<complex>(): Int {
   }
 
   b_129 {
-    %v_132 = add %v_126, 1: Int
+    %v_132 = add %v_126, 1: I32
     jmp b_131
   }
 
   b_131 {
-    %v_133 = phi [b_130, %v_126], [b_129, %v_132]: Int
+    %v_133 = phi [b_130, %v_126], [b_129, %v_132]: I32
     %v_134 = alloca 16, 8: Ptr
     %v_135 = alloca 8, 8: Ptr
     store %v_134, %v_135, 8
     %v_136 = add %v_134, 8: Ptr
-    %v_137 = load %v_136, 4: Int
+    %v_137 = load %v_136, 4: I32
     store %v_136, 1, 4
     store %v_135, 9, 8
     %v_138 = add %v_134, 12: Ptr
     store %v_138, 1, 4
-    %v_139 = call_complex sumTail, %v_135, 1: Long
+    %v_139 = call_complex sumTail, %v_135, 1: I64
     call_complex Reclaim(Array(a)).reclaim(I64), %v_134
-    %v_140 = cmp_eq %v_139, 0: Int
+    %v_140 = cmp_eq %v_139, 0: I32
     je %v_140, b_141, b_142
   }
 
@@ -551,42 +551,42 @@ main<complex>(): Int {
   }
 
   b_141 {
-    %v_144 = add %v_133, 1: Int
+    %v_144 = add %v_133, 1: I32
     jmp b_143
   }
 
   b_143 {
-    %v_145 = phi [b_142, %v_133], [b_141, %v_144]: Int
+    %v_145 = phi [b_142, %v_133], [b_141, %v_144]: I32
     ret %v_145
   }
 
   b_47 {
-    %v_146 = cmp_ge %v_46, 6: Int
+    %v_146 = cmp_ge %v_46, 6: I32
     je %v_146, b_147, b_43
   }
 
   b_43 {
-    %v_148 = phi [b_47, %v_50], [b_36, 0]: Long
-    %v_149 = phi [b_47, %v_46], [b_36, 0]: Long
-    %v_150 = shl %v_149, 3: Long
+    %v_148 = phi [b_47, %v_50], [b_36, 0]: I64
+    %v_149 = phi [b_47, %v_46], [b_36, 0]: I64
+    %v_150 = shl %v_149, 3: I64
     %v_151 = add %v_2, %v_150: Ptr
-    %v_152 = loads %v_151, 8: Long
-    %v_153 = cmp_ge %v_149, %v_42: Int
+    %v_152 = loads %v_151, 8: I64
+    %v_153 = cmp_ge %v_149, %v_42: I32
     je %v_153, b_147, b_154
   }
 
   b_154 {
-    %v_155 = shl %v_149, 3: Long
+    %v_155 = shl %v_149, 3: I64
     %v_156 = add %v_39, %v_155: Ptr
-    %v_157 = loads %v_156, 8: Long
-    %v_158 = imul %v_152, %v_157: Long
-    %v_50 = add %v_148, %v_158: Long
-    %v_46 = add %v_149, 1: Long
+    %v_157 = loads %v_156, 8: I64
+    %v_158 = imul %v_152, %v_157: I64
+    %v_50 = add %v_148, %v_158: I64
+    %v_46 = add %v_149, 1: I64
     jmp b_44
   }
 
   b_147 {
-    %v_159 = syscall 60, 134: Long
+    %v_159 = syscall 60, 134: I64
     unreachable 
   }
 }

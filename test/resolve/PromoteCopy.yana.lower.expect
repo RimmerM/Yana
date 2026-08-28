@@ -1,27 +1,27 @@
 @image$base = []
 
-classify<complex>(%n: Int): Int {
+classify<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = cmp_eq %n, 1: Int
-    %v_2 = cmp_eq %n, 2: Int
-    %v_3 = cmp_eq %n, 3: Int
-    %v_4 = select %v_3, 2, 3: Int
-    %v_5 = select %v_2, 1, %v_4: Int
-    %v_6 = select %v_1, 0, %v_5: Int
+    %v_1 = cmp_eq %n, 1: I32
+    %v_2 = cmp_eq %n, 2: I32
+    %v_3 = cmp_eq %n, 3: I32
+    %v_4 = select %v_3, 2, 3: I32
+    %v_5 = select %v_2, 1, %v_4: I32
+    %v_6 = select %v_1, 0, %v_5: I32
     ret %v_6
   }
 }
 
-weight<complex>(%c: Int): Int {
+weight<complex>(%c: I32): I32 {
   b_0 {
-    %v_1 = add %c, 1: Int
+    %v_1 = add %c, 1: I32
     ret %v_1
   }
 }
 
-score<complex>(%n: Int): Int {
+score<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = cmp_ilt %n, 0: Int
+    %v_1 = cmp_ilt %n, 0: I32
     je %v_1, b_2, b_3
   }
 
@@ -30,42 +30,42 @@ score<complex>(%n: Int): Int {
   }
 
   b_2 {
-    %v_5 = sub 0, %n: Int
-    %v_6 = call_complex classify, %v_5: Int
-    %v_7 = cast %v_6: Long
+    %v_5 = sub 0, %n: I32
+    %v_6 = call_complex classify, %v_5: I32
+    %v_7 = cast %v_6: I64
     jmp b_4
   }
 
   b_4 {
-    %v_8 = phi [b_3, 4], [b_2, %v_7]: Long
-    %v_9 = cmp_le %v_8, 3: Int
-    %v_10 = select %v_9, 0, 1: Int
-    %v_11 = select %v_10, 0, 1: Int
+    %v_8 = phi [b_3, 4], [b_2, %v_7]: I64
+    %v_9 = cmp_le %v_8, 3: I32
+    %v_10 = select %v_9, 0, 1: I32
+    %v_11 = select %v_10, 0, 1: I32
     ret %v_11
   }
 }
 
-ranked<complex>(%n: Int): Int {
+ranked<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = cmp_igt %n, 10: Int
+    %v_1 = cmp_igt %n, 10: I32
     je %v_1, b_2, b_3
   }
 
   b_3 {
-    %v_4 = cmp_igt %n, 0: Int
+    %v_4 = cmp_igt %n, 0: I32
     je %v_4, b_5, b_6
   }
 
   b_6 {
-    %v_7 = sub 0, %n: Int
-    %v_8 = call_complex classify, %v_7: Int
-    %v_9 = cast %v_8: Long
+    %v_7 = sub 0, %n: I32
+    %v_8 = call_complex classify, %v_7: I32
+    %v_9 = cast %v_8: I64
     jmp b_10
   }
 
   b_5 {
-    %v_11 = call_complex classify, %n: Int
-    %v_12 = cast %v_11: Long
+    %v_11 = call_complex classify, %n: I32
+    %v_12 = cast %v_11: I64
     jmp b_10
   }
 
@@ -74,17 +74,17 @@ ranked<complex>(%n: Int): Int {
   }
 
   b_10 {
-    %v_13 = phi [b_6, %v_9], [b_5, %v_12], [b_2, 4]: Long
-    %v_14 = cmp_le %v_13, 3: Int
-    %v_15 = select %v_14, 0, 1: Int
-    %v_16 = select %v_15, 0, 1: Int
+    %v_13 = phi [b_6, %v_9], [b_5, %v_12], [b_2, 4]: I64
+    %v_14 = cmp_le %v_13, 3: I32
+    %v_15 = select %v_14, 0, 1: I32
+    %v_16 = select %v_15, 0, 1: I32
     ret %v_16
   }
 }
 
-removed<complex>(%n: Int): Int {
+removed<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = cmp_ilt %n, 0: Int
+    %v_1 = cmp_ilt %n, 0: I32
     je %v_1, b_2, b_3
   }
 
@@ -93,24 +93,24 @@ removed<complex>(%n: Int): Int {
   }
 
   b_2 {
-    %v_5 = sub 0, %n: Int
-    %v_6 = call_complex classify, %v_5: Int
-    %v_7 = cast %v_6: Long
+    %v_5 = sub 0, %n: I32
+    %v_6 = call_complex classify, %v_5: I32
+    %v_7 = cast %v_6: I64
     jmp b_4
   }
 
   b_4 {
-    %v_8 = phi [b_3, 4], [b_2, %v_7]: Long
-    %v_9 = cmp_le %v_8, 3: Int
-    %v_10 = select %v_9, 0, 1: Int
-    %v_11 = select %v_10, 0, 1: Int
+    %v_8 = phi [b_3, 4], [b_2, %v_7]: I64
+    %v_9 = cmp_le %v_8, 3: I32
+    %v_10 = select %v_9, 0, 1: I32
+    %v_11 = select %v_10, 0, 1: I32
     ret %v_11
   }
 }
 
-scored<complex>(%n: Int): Int {
+scored<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = cmp_ilt %n, 0: Int
+    %v_1 = cmp_ilt %n, 0: I32
     je %v_1, b_2, b_3
   }
 
@@ -119,22 +119,22 @@ scored<complex>(%n: Int): Int {
   }
 
   b_2 {
-    %v_5 = sub 0, %n: Int
-    %v_6 = call_complex classify, %v_5: Int
-    %v_7 = cast %v_6: Long
+    %v_5 = sub 0, %n: I32
+    %v_6 = call_complex classify, %v_5: I32
+    %v_7 = cast %v_6: I64
     jmp b_4
   }
 
   b_4 {
-    %v_8 = phi [b_3, 4], [b_2, %v_7]: Long
-    %v_9 = cmp_le %v_8, 3: Int
-    %v_10 = select %v_9, 0, 1: Int
+    %v_8 = phi [b_3, 4], [b_2, %v_7]: I64
+    %v_9 = cmp_le %v_8, 3: I32
+    %v_10 = select %v_9, 0, 1: I32
     je %v_10, b_11, b_12
   }
 
   b_12 {
-    %v_13 = cast %v_8: Int
-    %v_14 = call_complex weight, %v_13: Int
+    %v_13 = cast %v_8: I32
+    %v_14 = call_complex weight, %v_13: I32
     jmp b_15
   }
 
@@ -143,38 +143,38 @@ scored<complex>(%n: Int): Int {
   }
 
   b_15 {
-    %v_16 = phi [b_11, 0], [b_12, %v_14]: Int
+    %v_16 = phi [b_11, 0], [b_12, %v_14]: I32
     ret %v_16
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex score, 1: Int
-    %v_2 = call_complex score, 18446744073709551615: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex score, 18446744073709551614: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = call_complex score, 18446744073709551613: Int
-    %v_7 = add %v_5, %v_6: Int
-    %v_8 = call_complex score, 18446744073709551612: Int
-    %v_9 = add %v_7, %v_8: Int
-    %v_10 = call_complex ranked, 50: Int
-    %v_11 = add %v_9, %v_10: Int
-    %v_12 = call_complex ranked, 2: Int
-    %v_13 = add %v_11, %v_12: Int
-    %v_14 = call_complex ranked, 18446744073709551613: Int
-    %v_15 = add %v_13, %v_14: Int
-    %v_16 = call_complex removed, 4: Int
-    %v_17 = add %v_15, %v_16: Int
-    %v_18 = call_complex removed, 18446744073709551615: Int
-    %v_19 = add %v_17, %v_18: Int
-    %v_20 = call_complex scored, 18446744073709551613: Int
-    %v_21 = imul %v_20, 10: Int
-    %v_22 = add %v_19, %v_21: Int
-    %v_23 = call_complex scored, 9: Int
-    %v_24 = imul %v_23, 100: Int
-    %v_25 = add %v_22, %v_24: Int
+    %v_1 = call_complex score, 1: I32
+    %v_2 = call_complex score, 18446744073709551615: I32
+    %v_3 = add %v_1, %v_2: I32
+    %v_4 = call_complex score, 18446744073709551614: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = call_complex score, 18446744073709551613: I32
+    %v_7 = add %v_5, %v_6: I32
+    %v_8 = call_complex score, 18446744073709551612: I32
+    %v_9 = add %v_7, %v_8: I32
+    %v_10 = call_complex ranked, 50: I32
+    %v_11 = add %v_9, %v_10: I32
+    %v_12 = call_complex ranked, 2: I32
+    %v_13 = add %v_11, %v_12: I32
+    %v_14 = call_complex ranked, 18446744073709551613: I32
+    %v_15 = add %v_13, %v_14: I32
+    %v_16 = call_complex removed, 4: I32
+    %v_17 = add %v_15, %v_16: I32
+    %v_18 = call_complex removed, 18446744073709551615: I32
+    %v_19 = add %v_17, %v_18: I32
+    %v_20 = call_complex scored, 18446744073709551613: I32
+    %v_21 = imul %v_20, 10: I32
+    %v_22 = add %v_19, %v_21: I32
+    %v_23 = call_complex scored, 9: I32
+    %v_24 = imul %v_23, 100: I32
+    %v_25 = add %v_22, %v_24: I32
     ret %v_25
   }
 }

@@ -8,15 +8,15 @@
 
 # The value feeding the phi is also read inside the successor. It cannot be treated as consumed by
 # the phi handoff, or the second read finds a register that has already been handed to something else.
-sourceUsedLater(%n: Int, %lim: Int): Int {
+sourceUsedLater(%n: I32, %lim: I32): I32 {
     start {
-        %x = add %n, 1: Int
+        %x = add %n, 1: I32
         jmp head
     }
 
     head {
-        %p = phi [start, %x], [head, %q]: Int
-        %q = add %p, %x: Int
+        %p = phi [start, %x], [head, %q]: I32
+        %q = add %p, %x: I32
         je (cmp_le %q, %lim), head, end
     }
 
@@ -27,49 +27,49 @@ sourceUsedLater(%n: Int, %lim: Int): Int {
 
 # Two phis in the same block take the same incoming value, so that value is handed off twice over
 # one edge.
-sharedSource(%n: Int): Int {
+sharedSource(%n: I32): I32 {
     start {
-        %x = add %n, 1: Int
+        %x = add %n, 1: I32
         jmp join
     }
 
     join {
-        %p = phi [start, %x]: Int
-        %q = phi [start, %x]: Int
-        %r = add %p, %q: Int
+        %p = phi [start, %x]: I32
+        %q = phi [start, %x]: I32
+        %r = add %p, %q: I32
         ret %r
     }
 }
 
 # Both successors of a branch have a phi fed by the same value. Their moves must not both land on
 # the branch's own terminator, where they would run on either path - the edges get split instead.
-branchedSource(%n: Int, %c: Int): Int {
+branchedSource(%n: I32, %c: I32): I32 {
     start {
-        %x = add %n, 1: Int
+        %x = add %n, 1: I32
         je %c, a, b
     }
 
     a {
-        %p = phi [start, %x]: Int
+        %p = phi [start, %x]: I32
         ret %p
     }
 
     b {
-        %q = phi [start, %x]: Int
+        %q = phi [start, %x]: I32
         ret %q
     }
 }
 
 # Two phis that feed each other across the back edge: the copies at the edge form a permutation
 # cycle, which is emitted as a single exchange rather than a sequence of moves that would clobber.
-swap(%n: Int, %m: Int, %k: Int): Int {
+swap(%n: I32, %m: I32, %k: I32): I32 {
     start {
         jmp head
     }
 
     head {
-        %a = phi [start, %n], [head, %b]: Int
-        %b = phi [start, %m], [head, %a]: Int
+        %a = phi [start, %n], [head, %b]: I32
+        %b = phi [start, %m], [head, %a]: I32
         je (cmp_le %a, %k), head, end
     }
 
@@ -88,27 +88,27 @@ swap(%n: Int, %m: Int, %k: Int): Int {
 #
 # So the merge is refused, and the swap costs its copies. Both phis have to be here: with only one,
 # the operand that would collide is the phi's own web and the copy is an identity.
-tiedSwap(%x: Long, %y: Long, %n: Int): Long {
+tiedSwap(%x: I64, %y: I64, %n: I32): I64 {
     start {
         jmp head
     }
 
     head {
-        %a = phi [start, %x], [body, %b2]: Long
-        %b = phi [start, %y], [body, %a2]: Long
-        %i = phi [start, %n], [body, %i2]: Int
+        %a = phi [start, %x], [body, %b2]: I64
+        %b = phi [start, %y], [body, %a2]: I64
+        %i = phi [start, %n], [body, %i2]: I32
         je (cmp_eq %i, 0), done, body
     }
 
     body {
-        %a2 = add %a, %b: Long
-        %b2 = sub %b, %a: Long
-        %i2 = sub %i, 1: Int
+        %a2 = add %a, %b: I64
+        %b2 = sub %b, %a: I64
+        %i2 = sub %i, 1: I32
         jmp head
     }
 
     done {
-        %r = sub %a, %b: Long
+        %r = sub %a, %b: I64
         ret %r
     }
 }
@@ -128,65 +128,65 @@ tiedSwap(%x: Long, %y: Long, %n: Int): Long {
 # Every part of the shape is load-bearing. `%g` is live across the whole function so that the web
 # cannot have the first register in the order; `%p` takes the register `%a` is vacating, so the
 # first free one is still free when `%q` asks for it - and what `%q` then finds free is the web's.
-tiedNeighbour(%a: Int, %c: Int): Int {
+tiedNeighbour(%a: I32, %c: I32): I32 {
     start {
-        %g = add %a, 7: Int
+        %g = add %a, 7: I32
         je %c, right, left
     }
 
     left {
-        %x = add %g, 1: Int
+        %x = add %g, 1: I32
         jmp join
     }
 
     right {
-        %p = add %a, 2: Int
-        %q = add %g, 3: Int
-        %y = imul %p, %q: Int
+        %p = add %a, 2: I32
+        %q = add %g, 3: I32
+        %y = imul %p, %q: I32
         jmp join
     }
 
     join {
-        %r = phi [left, %x], [right, %y]: Int
-        %z = add %r, %g: Int
+        %r = phi [left, %x], [right, %y]: I32
+        %z = add %r, %g: I32
         ret %z
     }
 }
 
 # A phi threaded through a second diamond, so the value arriving at `end` comes from a phi rather
 # than from an ordinary instruction.
-chain(%x: Int, %c: Int): Int {
+chain(%x: I32, %c: I32): I32 {
     start {
         je %c, l, r
     }
 
     l {
-        %p = add %x, 1: Int
+        %p = add %x, 1: I32
         jmp mid
     }
 
     r {
-        %q = add %x, 2: Int
+        %q = add %x, 2: I32
         jmp mid
     }
 
     mid {
-        %m = phi [l, %p], [r, %q]: Int
+        %m = phi [l, %p], [r, %q]: I32
         je %c, l2, r2
     }
 
     l2 {
-        %s = add %m, 3: Int
+        %s = add %m, 3: I32
         jmp end
     }
 
     r2 {
-        %t = add %m, 4: Int
+        %t = add %m, 4: I32
         jmp end
     }
 
     end {
-        %z = phi [l2, %s], [r2, %t]: Int
+        %z = phi [l2, %s], [r2, %t]: I32
         ret %z
     }
 }
@@ -198,16 +198,16 @@ chain(%x: Int, %c: Int): Int {
 # nothing. What the phi at `end` then asks is the ordinary question - is the *whole* copy web dead
 # wherever `%z` is live - which is why the copies are done first and the phis after. `%d` is read on
 # the far side of the branch so that the web outlives the block it was built in.
-copiedThenPhi(%p: Ptr, %n: Int): Long {
+copiedThenPhi(%p: Ptr, %n: I32): I64 {
     start {
-        %b = bitcast %p: Long
-        %c = bitcast %b: Long
-        %d = add %b, %c: Long
+        %b = bitcast %p: I64
+        %c = bitcast %b: I64
+        %d = add %b, %c: I64
         je %n, hot, cold
     }
 
     hot {
-        %e = add %d, 7L: Long
+        %e = add %d, 7L: I64
         jmp end
     }
 
@@ -216,7 +216,7 @@ copiedThenPhi(%p: Ptr, %n: Int): Long {
     }
 
     end {
-        %z = phi [hot, %e], [cold, %d]: Long
+        %z = phi [hot, %e], [cold, %d]: I64
         ret %z
     }
 }

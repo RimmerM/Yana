@@ -5,12 +5,12 @@ fn checkCondition {
   arg failed readonly
 }
 
-fn +=(Int) {
+fn +=(I32) {
   arg target writable
   arg amount readonly
-  %target: Int borrowed writable live [0, 3)
-  %amount: Int borrowed readonly live [0, 2)
-  %local2: Int readonly live [1, 3)
+  %target: I32 borrowed writable live [0, 3)
+  %amount: I32 borrowed readonly live [0, 2)
+  %local2: I32 readonly live [1, 3)
 }
 
 fn push(Handle) {
@@ -54,18 +54,18 @@ fn slice(Handle) {
   %local3: Flat(Handle) readonly live [34, 45)
 }
 
-fn -=(Int) {
+fn -=(I32) {
   arg target writable
   arg amount readonly
-  %target: Int borrowed writable live [0, 3)
-  %amount: Int borrowed readonly live [0, 2)
-  %local2: Int readonly live [1, 3)
+  %target: I32 borrowed writable live [0, 3)
+  %amount: I32 borrowed readonly live [0, 2)
+  %local2: I32 readonly live [1, 3)
 }
 
 fn Reclaim(Array(a)).reclaim(Handle) {
   arg value readonly
   %value: Array(Handle) borrowed droppable readonly live [0, 10) [11, 26)
-  %i: Int writable live [2, 8) [11, 26)
+  %i: I32 writable live [2, 8) [11, 26)
   %local2: Handle readonly live [18, 20)
   %local3: Handle droppable readonly live [20, 22)
 }
@@ -185,7 +185,7 @@ fn openHandle {
 fn idsOf {
   arg xs readonly
   %xs: Flat(Handle) borrowed readonly live [0, 9) [11, 33)
-  %total: Int writable live [0, 10) [11, 33)
+  %total: I32 writable live [0, 10) [11, 33)
   %i: Size writable live [2, 9) [11, 33)
 }
 
@@ -196,7 +196,7 @@ fn container {
   %local3: Handle droppable writable addressed live [3, 32) [33, 37) [38, 47) [48, 58) [59, 71)
   %local4: Handle droppable writable live [11, 14)
   %local5: Handle droppable readonly live [27, 29)
-  %score: Int writable live [39, 47) [48, 58) [59, 81)
+  %score: I32 writable live [39, 47) [48, 58) [59, 81)
   %local7: Maybe(Handle) droppable readonly live [43, 47) [48, 50)
   %local8: Handle droppable readonly live [50, 53)
   %local9: Flat(Handle) readonly live [62, 69)

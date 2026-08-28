@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
+fn Ord(I32).compare(%lhs: I32, %rhs: I32) -> Ordering {
   b0:
     %v2 = cmp_eq %lhs, %rhs : Bool
     je %v2, b1, b2
@@ -61,40 +61,40 @@ fn Num.-(Cents)(%value: Cents) -> Cents {
     ret %v3
 }
 
-fn Eq.!=(Box(Int))(%lhs: Box(Int), %rhs: Box(Int)) -> Bool {
+fn Eq.!=(Box(I32))(%lhs: Box(I32), %rhs: Box(I32)) -> Bool {
   b0:
-    %v2 = call Eq(Box(a)).==(Int), %lhs, %rhs : Bool
+    %v2 = call Eq(Box(a)).==(I32), %lhs, %rhs : Bool
     %v4 = xor %v2, True : Bool
     ret %v4
 }
 
-(Describe(a)) fn Describe.doubled(%value: a) -> Int {
+(Describe(a)) fn Describe.doubled(%value: a) -> I32 {
   schema {
     #0 type a
     #1 class Describe(a)
   }
 
   b0:
-    %v1 = gencall Describe(a).size, %value : Int
-    %v2 = gencall Describe(a).size, %value : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = gencall Describe(a).size, %value : I32
+    %v2 = gencall Describe(a).size, %value : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
-fn ordered() -> Int {
+fn ordered() -> I32 {
   b0:
     %a = alloc : Metres
     aggregate %local0@Metres.value = 1
     %b = alloc : Metres
     aggregate %local1@Metres.value = 2
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
     %v10 = call Eq.!=(Metres), %a, %b : Bool
     je %v10, b1, b2
 
   b1:
-    %v12 = load %score : Int
-    %v15 = add %v12, 1 : Int
+    %v12 = load %score : I32
+    %v15 = add %v12, 1 : I32
     assign %score, %v15
     jmp b3
 
@@ -106,8 +106,8 @@ fn ordered() -> Int {
     je %v19, b4, b5
 
   b4:
-    %v21 = load %score : Int
-    %v24 = add %v21, 2 : Int
+    %v21 = load %score : I32
+    %v24 = add %v21, 2 : I32
     assign %score, %v24
     jmp b6
 
@@ -119,8 +119,8 @@ fn ordered() -> Int {
     je %v28, b7, b8
 
   b7:
-    %v30 = load %score : Int
-    %v33 = add %v30, 4 : Int
+    %v30 = load %score : I32
+    %v33 = add %v30, 4 : I32
     assign %score, %v33
     jmp b9
 
@@ -132,8 +132,8 @@ fn ordered() -> Int {
     je %v37, b10, b11
 
   b10:
-    %v39 = load %score : Int
-    %v42 = add %v39, 8 : Int
+    %v39 = load %score : I32
+    %v42 = add %v39, 8 : I32
     assign %score, %v42
     jmp b12
 
@@ -145,8 +145,8 @@ fn ordered() -> Int {
     je %v46, b13, b14
 
   b13:
-    %v48 = load %score : Int
-    %v51 = add %v48, 16 : Int
+    %v48 = load %score : I32
+    %v51 = add %v48, 16 : I32
     assign %score, %v51
     jmp b15
 
@@ -158,8 +158,8 @@ fn ordered() -> Int {
     je %v55, b16, b17
 
   b16:
-    %v57 = load %score : Int
-    %v60 = add %v57, 32 : Int
+    %v57 = load %score : I32
+    %v60 = add %v57, 32 : I32
     assign %score, %v60
     jmp b18
 
@@ -167,11 +167,11 @@ fn ordered() -> Int {
     jmp b18
 
   b18:
-    %v64 = load %score : Int
+    %v64 = load %score : I32
     ret %v64
 }
 
-fn overridden() -> Int {
+fn overridden() -> I32 {
   b0:
     %v0 = alloc : Feet
     aggregate %local0@Feet.value = 1
@@ -190,7 +190,7 @@ fn overridden() -> Int {
     ret 0
 }
 
-fn negated() -> Int {
+fn negated() -> I32 {
   b0:
     %value = alloc : Cents
     aggregate %local0@Cents.value = 7
@@ -210,7 +210,7 @@ fn negated() -> Int {
     ret 0
 }
 
-fn flags() -> Int {
+fn flags() -> I32 {
   b0:
     %rw = alloc : Flags
     init %local0@Flags.read, True
@@ -219,15 +219,15 @@ fn flags() -> Int {
     init %local1@Flags.read, True
     init %local1@Flags.write, False
     %inverted = call Bitwise(Flags).not, %r : Flags
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
     %v15 = call Bitwise(Flags).and, %rw, %r : Flags
     %v16 = call Eq(Flags).==, %v15, %r : Bool
     je %v16, b1, b2
 
   b1:
-    %v18 = load %score : Int
-    %v21 = add %v18, 256 : Int
+    %v18 = load %score : I32
+    %v21 = add %v18, 256 : I32
     assign %score, %v21
     jmp b3
 
@@ -240,8 +240,8 @@ fn flags() -> Int {
     je %v26, b4, b5
 
   b4:
-    %v28 = load %score : Int
-    %v31 = add %v28, 512 : Int
+    %v28 = load %score : I32
+    %v31 = add %v28, 512 : I32
     assign %score, %v31
     jmp b6
 
@@ -256,8 +256,8 @@ fn flags() -> Int {
     je %v40, b7, b8
 
   b7:
-    %v42 = load %score : Int
-    %v45 = add %v42, 1024 : Int
+    %v42 = load %score : I32
+    %v45 = add %v42, 1024 : I32
     assign %score, %v45
     jmp b9
 
@@ -265,30 +265,30 @@ fn flags() -> Int {
     jmp b9
 
   b9:
-    %v49 = load %score : Int
+    %v49 = load %score : I32
     ret %v49
 }
 
-fn described() -> Int {
+fn described() -> I32 {
   b0:
     %v0 = alloc : Metres
     aggregate %local0@Metres.value = 1024
-    %v3 = call Describe.doubled(Metres), %v0 : Int
+    %v3 = call Describe.doubled(Metres), %v0 : I32
     ret %v3
 }
 
-fn boxOf(%value: Int) -> Box(Int) {
+fn boxOf(%value: I32) -> Box(I32) {
   b0:
-    %v1 = alloc : Box(Int)
+    %v1 = alloc : Box(I32)
     aggregate %local0@Box.item = %value
     ret %v1
 }
 
-fn boxes() -> Int {
+fn boxes() -> I32 {
   b0:
-    %v1 = call boxOf, 1 : Box(Int)
-    %v3 = call boxOf, 2 : Box(Int)
-    %v4 = call Eq.!=(Box(Int)), %v1, %v3 : Bool
+    %v1 = call boxOf, 1 : Box(I32)
+    %v3 = call boxOf, 2 : Box(I32)
+    %v4 = call Eq.!=(Box(I32)), %v1, %v3 : Bool
     je %v4, b1, b2
 
   b1:
@@ -301,66 +301,66 @@ fn boxes() -> Int {
     ret 0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call ordered : Int
-    %v1 = call overridden : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call negated : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call flags : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call described : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call boxes : Int
-    %v10 = add %v8, %v9 : Int
+    %v0 = call ordered : I32
+    %v1 = call overridden : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call negated : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call flags : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call described : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call boxes : I32
+    %v10 = add %v8, %v9 : I32
     ret %v10
 }
 
 fn Eq(Metres).==(%lhs: Metres, %rhs: Metres) -> Bool {
   b0:
-    %v2 = load %lhs@Metres.value : Int
-    %v3 = load %rhs@Metres.value : Int
+    %v2 = load %lhs@Metres.value : I32
+    %v3 = load %rhs@Metres.value : I32
     %v4 = cmp_eq %v2, %v3 : Bool
     ret %v4
 }
 
 fn Ord(Metres).compare(%lhs: Metres, %rhs: Metres) -> Ordering {
   b0:
-    %v2 = load %lhs@Metres.value : Int
-    %v3 = load %rhs@Metres.value : Int
-    %v4 = call Ord(Int).compare, %v2, %v3 : Ordering
+    %v2 = load %lhs@Metres.value : I32
+    %v3 = load %rhs@Metres.value : I32
+    %v4 = call Ord(I32).compare, %v2, %v3 : Ordering
     ret %v4
 }
 
 fn Eq(Feet).==(%lhs: Feet, %rhs: Feet) -> Bool {
   b0:
-    %v2 = load %lhs@Feet.value : Int
-    %v3 = load %rhs@Feet.value : Int
+    %v2 = load %lhs@Feet.value : I32
+    %v3 = load %rhs@Feet.value : I32
     %v4 = cmp_eq %v2, %v3 : Bool
     ret %v4
 }
 
 fn Eq(Feet).!=(%lhs: Feet, %rhs: Feet) -> Bool {
   b0:
-    %v2 = load %lhs@Feet.value : Int
-    %v3 = load %rhs@Feet.value : Int
+    %v2 = load %lhs@Feet.value : I32
+    %v3 = load %rhs@Feet.value : I32
     %v4 = cmp_ne %v2, %v3 : Bool
     ret %v4
 }
 
-fn FromInt(Cents).fromInt(%value: Long) -> Cents {
+fn FromInt(Cents).fromInt(%value: I64) -> Cents {
   b0:
     %v1 = alloc : Cents
-    %v2 = cast %value : Int
+    %v2 = cast %value : I32
     aggregate %local0@Cents.value = %v2
     ret %v1
 }
 
 fn Eq(Cents).==(%lhs: Cents, %rhs: Cents) -> Bool {
   b0:
-    %v2 = load %lhs@Cents.value : Int
-    %v3 = load %rhs@Cents.value : Int
+    %v2 = load %lhs@Cents.value : I32
+    %v3 = load %rhs@Cents.value : I32
     %v4 = cmp_eq %v2, %v3 : Bool
     ret %v4
 }
@@ -368,9 +368,9 @@ fn Eq(Cents).==(%lhs: Cents, %rhs: Cents) -> Bool {
 fn Num(Cents).+(%lhs: Cents, %rhs: Cents) -> Cents {
   b0:
     %v2 = alloc : Cents
-    %v3 = load %lhs@Cents.value : Int
-    %v4 = load %rhs@Cents.value : Int
-    %v5 = add %v3, %v4 : Int
+    %v3 = load %lhs@Cents.value : I32
+    %v4 = load %rhs@Cents.value : I32
+    %v5 = add %v3, %v4 : I32
     aggregate %local2@Cents.value = %v5
     ret %v2
 }
@@ -378,9 +378,9 @@ fn Num(Cents).+(%lhs: Cents, %rhs: Cents) -> Cents {
 fn Num(Cents).-(%lhs: Cents, %rhs: Cents) -> Cents {
   b0:
     %v2 = alloc : Cents
-    %v3 = load %lhs@Cents.value : Int
-    %v4 = load %rhs@Cents.value : Int
-    %v5 = sub %v3, %v4 : Int
+    %v3 = load %lhs@Cents.value : I32
+    %v4 = load %rhs@Cents.value : I32
+    %v5 = sub %v3, %v4 : I32
     aggregate %local2@Cents.value = %v5
     ret %v2
 }
@@ -388,9 +388,9 @@ fn Num(Cents).-(%lhs: Cents, %rhs: Cents) -> Cents {
 fn Num(Cents).*(%lhs: Cents, %rhs: Cents) -> Cents {
   b0:
     %v2 = alloc : Cents
-    %v3 = load %lhs@Cents.value : Int
-    %v4 = load %rhs@Cents.value : Int
-    %v5 = mul %v3, %v4 : Int
+    %v3 = load %lhs@Cents.value : I32
+    %v4 = load %rhs@Cents.value : I32
+    %v5 = mul %v3, %v4 : I32
     aggregate %local2@Cents.value = %v5
     ret %v2
 }
@@ -398,11 +398,11 @@ fn Num(Cents).*(%lhs: Cents, %rhs: Cents) -> Cents {
 fn Num(Cents)./(%lhs: Cents, %rhs: Cents) -> Cents {
   b0:
     %v2 = alloc : Cents
-    %v3 = load %lhs@Cents.value : Int
-    %v4 = load %rhs@Cents.value : Int
+    %v3 = load %lhs@Cents.value : I32
+    %v4 = load %rhs@Cents.value : I32
     %v6 = cmp_eq %v4, 0 : Bool
     call checkCondition, %v6
-    %v8 = div %v3, %v4 : Int
+    %v8 = div %v3, %v4 : I32
     aggregate %local2@Cents.value = %v8
     ret %v2
 }
@@ -518,9 +518,9 @@ fn Bitwise(Flags).not(%value: Flags) -> Flags {
     ret %v1
 }
 
-fn Describe(Metres).size(%value: Metres) -> Int {
+fn Describe(Metres).size(%value: Metres) -> I32 {
   b0:
-    %v1 = load %value@Metres.value : Int
+    %v1 = load %value@Metres.value : I32
     ret %v1
 }
 
@@ -537,18 +537,18 @@ fn Describe(Metres).size(%value: Metres) -> Int {
     ret %v4
 }
 
-fn Describe.doubled(Metres)(%value: Metres) -> Int {
+fn Describe.doubled(Metres)(%value: Metres) -> I32 {
   b0:
-    %v1 = call Describe(Metres).size, %value : Int
-    %v2 = call Describe(Metres).size, %value : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = call Describe(Metres).size, %value : I32
+    %v2 = call Describe(Metres).size, %value : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
-fn Eq(Box(a)).==(Int)(%lhs: Box(Int), %rhs: Box(Int)) -> Bool {
+fn Eq(Box(a)).==(I32)(%lhs: Box(I32), %rhs: Box(I32)) -> Bool {
   b0:
-    %v2 = load %lhs@Box.item : Int
-    %v3 = load %rhs@Box.item : Int
+    %v2 = load %lhs@Box.item : I32
+    %v3 = load %rhs@Box.item : I32
     %v4 = cmp_eq %v2, %v3 : Bool
     ret %v4
 }

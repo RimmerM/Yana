@@ -9,19 +9,19 @@
 # where the target it is given has one, which is the same fold codegen/x64 writes by hand in
 # `selectByteSwapMemory`. That is the whole reason this is one call here and a pass there.
 
-swap(%a: Int, %b: Long): Int {
+swap(%a: I32, %b: I64): I32 {
     {
-        %s = bswap %a: Int
-        %w = bswap %b: Long
+        %s = bswap %a: I32
+        %w = bswap %b: I64
         ret %s
     }
 }
 
 # A reversal of a value read from memory, which is the shape the fold exists for on both backends.
-swapLoad(%p: Ptr): Long {
+swapLoad(%p: Ptr): I64 {
     {
-        %v = loads %p, 8: Long
-        %s = bswap %v: Long
+        %v = loads %p, 8: I64
+        %s = bswap %v: I64
         ret %s
     }
 }

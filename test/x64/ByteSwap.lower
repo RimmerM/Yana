@@ -15,51 +15,51 @@
 #     is the level that does not have it.
 
 # One reversal, in and out of a register.
-swap32(%a: Int): Int {
+swap32(%a: I32): I32 {
     {
-        %s = bswap %a: Int
+        %s = bswap %a: I32
         ret %s
     }
 }
 
-swap64(%a: Long): Long {
+swap64(%a: I64): I64 {
     {
-        %s = bswap %a: Long
+        %s = bswap %a: I64
         ret %s
     }
 }
 
 # The operand is read again afterwards, so the reversal cannot write over it: a copy stands in front.
-swapAndKeep(%a: Int): Int {
+swapAndKeep(%a: I32): I32 {
     {
-        %s = bswap %a: Int
-        %t = add %s, %a: Int
+        %s = bswap %a: I32
+        %t = add %s, %a: I32
         ret %t
     }
 }
 
 # A value read the other way round out of memory, which is the shape `movbe` exists for. Two
 # instructions here.
-swapLoad(%p: Ptr): Int {
+swapLoad(%p: Ptr): I32 {
     {
-        %v = load %p, 4: Int
-        %s = bswap %v: Int
+        %v = load %p, 4: I32
+        %s = bswap %v: I32
         ret %s
     }
 }
 
-swapLoad64(%p: Ptr): Long {
+swapLoad64(%p: Ptr): I64 {
     {
-        %v = load %p, 8: Long
-        %s = bswap %v: Long
+        %v = load %p, 8: I64
+        %s = bswap %v: I64
         ret %s
     }
 }
 
 # And the same in the other direction.
-swapStore(%p: Ptr, %v: Int) {
+swapStore(%p: Ptr, %v: I32) {
     {
-        %s = bswap %v: Int
+        %s = bswap %v: I32
         store %p, %s, 4
         ret
     }
@@ -68,10 +68,10 @@ swapStore(%p: Ptr, %v: Int) {
 # Two reversals in a row. The IR builder folds this pair away wherever one is *built* - see
 # foldUnaryValue - but a fixture is parsed rather than built, so what the backend is handed here is
 # the pair itself, and what it does with a pair is emit both.
-roundTrip(%a: Int): Int {
+roundTrip(%a: I32): I32 {
     {
-        %s = bswap %a: Int
-        %t = bswap %s: Int
+        %s = bswap %a: I32
+        %t = bswap %s: I32
         ret %t
     }
 }

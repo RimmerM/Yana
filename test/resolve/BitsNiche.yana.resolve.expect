@@ -1,8 +1,8 @@
 let image$base: () = <none>
 
-fn tag(%m: Maybe(Wide)) -> Int {
+fn tag(%m: Maybe(Wide)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -14,7 +14,7 @@ fn tag(%m: Maybe(Wide)) -> Int {
     jmp b3
 
   b3:
-    %v10 = phi [b2, 1], [b1, 0] : Int
+    %v10 = phi [b2, 1], [b1, 0] : I32
     ret %v10
 }
 
@@ -37,7 +37,7 @@ fn setThrough(%x: @bits(13) U32, %v: U32) -> () {
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %n = alloc : U32
     init %n, 0
@@ -49,7 +49,7 @@ fn main() -> Int {
     %v11 = cast %v10 : @bits(13) U32
     aggregate %local2@Wide.only = %v11
     aggregate %local1.discriminant = 1, %local1@Just = %v7
-    %viaCon = call tag, %v5 : Int
+    %viaCon = call tag, %v5 : I32
     %v15 = alloc : Wide
     aggregate %w@Wide.only = 1
     %v18 = load %n : U32
@@ -59,7 +59,7 @@ fn main() -> Int {
     %v23 = alloc : Maybe(Wide)
     %v25 = load %w : Wide
     aggregate %local4.discriminant = 1, %local4@Just = %v25
-    %viaAssign = call tag, %v23 : Int
+    %viaAssign = call tag, %v23 : I32
     %v28 = alloc : Wide
     aggregate %c@Wide.only = 8000
     %v31 = load %c : Wide
@@ -73,7 +73,7 @@ fn main() -> Int {
     %v40 = alloc : Maybe(Wide)
     %v42 = load %c : Wide
     aggregate %local6.discriminant = 1, %local6@Just = %v42
-    %viaCompound = call tag, %v40 : Int
+    %viaCompound = call tag, %v40 : I32
     %v45 = alloc : Wide
     aggregate %b@Wide.only = 1
     %v48 = load %b : Wide
@@ -84,7 +84,7 @@ fn main() -> Int {
     %v53 = alloc : Maybe(Wide)
     %v55 = load %b : Wide
     aggregate %local8.discriminant = 1, %local8@Just = %v55
-    %viaBorrow = call tag, %v53 : Int
+    %viaBorrow = call tag, %v53 : I32
     %v58 = alloc : Pair
     init %p@Pair.a, 1
     init %p@Pair.b, 5
@@ -105,7 +105,7 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %neighbour = phi [b1, 1], [b2, 0] : Int
+    %neighbour = phi [b1, 1], [b2, 0] : I32
     %v82 = alloc : Wide
     aggregate %dst@Wide.only = 1
     %v85 = load %dst : Wide
@@ -119,7 +119,7 @@ fn main() -> Int {
     %v94 = alloc : Maybe(Wide)
     %v96 = load %dst : Wide
     aggregate %local12.discriminant = 1, %local12@Just = %v96
-    %viaErased = call tag, %v94 : Int
+    %viaErased = call tag, %v94 : I32
     %v99 = alloc : Wide
     %v100 = load %n : U32
     %v102 = and %v100, 8191 : U32
@@ -135,12 +135,12 @@ fn main() -> Int {
     %v113 = alloc : Maybe(Wide)
     %v115 = load %x : Wide
     aggregate %local15.discriminant = 1, %local15@Just = %v115
-    %v117 = call tag, %v113 : Int
+    %v117 = call tag, %v113 : I32
     %v118 = alloc : Maybe(Wide)
     %v120 = load %y : Wide
     aggregate %local16.discriminant = 1, %local16@Just = %v120
-    %v122 = call tag, %v118 : Int
-    %v123 = add %v117, %v122 : Int
+    %v122 = call tag, %v118 : I32
+    %v123 = add %v117, %v122 : I32
     %v126 = cmp_eq %v123, 2 : Bool
     je %v126, b4, b5
 
@@ -151,7 +151,7 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %viaSwap = phi [b4, 1], [b5, 0] : Int
+    %viaSwap = phi [b4, 1], [b5, 0] : I32
     %v135 = alloc : Wide
     %v136 = load %n : U32
     %v138 = and %v136, 8191 : U32
@@ -165,21 +165,21 @@ fn main() -> Int {
     %v147 = alloc : Maybe(Wide)
     %v149 = load %q : Wide
     aggregate %local19.discriminant = 1, %local19@Just = %v149
-    %viaField = call tag, %v147 : Int
-    %v154 = mul %viaAssign, 2 : Int
-    %v155 = add %viaCon, %v154 : Int
-    %v158 = mul %viaCompound, 4 : Int
-    %v159 = add %v155, %v158 : Int
-    %v162 = mul %viaBorrow, 8 : Int
-    %v163 = add %v159, %v162 : Int
-    %v166 = mul %neighbour, 16 : Int
-    %v167 = add %v163, %v166 : Int
-    %v170 = mul %viaErased, 32 : Int
-    %v171 = add %v167, %v170 : Int
-    %v174 = mul %viaSwap, 64 : Int
-    %v175 = add %v171, %v174 : Int
-    %v178 = mul %viaField, 128 : Int
-    %v179 = add %v175, %v178 : Int
+    %viaField = call tag, %v147 : I32
+    %v154 = mul %viaAssign, 2 : I32
+    %v155 = add %viaCon, %v154 : I32
+    %v158 = mul %viaCompound, 4 : I32
+    %v159 = add %v155, %v158 : I32
+    %v162 = mul %viaBorrow, 8 : I32
+    %v163 = add %v159, %v162 : I32
+    %v166 = mul %neighbour, 16 : I32
+    %v167 = add %v163, %v166 : I32
+    %v170 = mul %viaErased, 32 : I32
+    %v171 = add %v167, %v170 : I32
+    %v174 = mul %viaSwap, 64 : I32
+    %v175 = add %v171, %v174 : I32
+    %v178 = mul %viaField, 128 : I32
+    %v179 = add %v175, %v178 : I32
     ret %v179
 }
 

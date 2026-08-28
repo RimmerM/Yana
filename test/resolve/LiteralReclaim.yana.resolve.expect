@@ -175,7 +175,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -342,7 +342,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -393,7 +393,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -429,7 +429,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -515,14 +515,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -554,7 +554,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -612,7 +612,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1169,7 +1169,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1396,7 +1396,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b10:
     %v143 = load %at : Size
     %v144 = not %same : Mask(CodeUnit)
-    %v145 = vreduce_first %v144 : Int
+    %v145 = vreduce_first %v144 : I32
     %v146 = cast %v145 : Size
     %differs = add %v143, %v146 : Size
     %v148 = strideof CodeUnit : Size
@@ -1443,7 +1443,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b15:
     %v181 = load %at : Size
     %v182 = not %same : Mask(CodeUnit)
-    %v183 = vreduce_first %v182 : Int
+    %v183 = vreduce_first %v182 : I32
     %v184 = cast %v183 : Size
     %differs = add %v181, %v184 : Size
     %v186 = cmp_lt %differs, %count : Bool
@@ -1506,7 +1506,7 @@ fn matches(%name: String) -> Bool {
     ret %v2
 }
 
-fn classify(%name: String) -> Int {
+fn classify(%name: String) -> I32 {
   b0:
     %v1 = copy ResolveTest.literal$3 : String
     %v2 = call Eq(String).==, %name, %v1 : Bool
@@ -1547,16 +1547,16 @@ fn classify(%name: String) -> Int {
     ret 0
 }
 
-fn width() -> Int {
+fn width() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$9 : String
     %v1 = call Length(String).length, %v0 : Size
     drop %local0 via Reclaim(String).reclaim
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     ret %v2
 }
 
-fn grown(%n: Int) -> Int {
+fn grown(%n: I32) -> I32 {
   b0:
     %v1 = copy ResolveTest.literal$11 : String
     %text = alloc : String
@@ -1570,47 +1570,47 @@ fn grown(%n: Int) -> Int {
     %v10 = load %text : String
     %v11 = call Length(String).length, %v10 : Size
     drop %text via Reclaim(String).reclaim
-    %v12 = cast %v11 : Int
-    %v13 = add %v12, %n : Int
+    %v12 = cast %v11 : I32
+    %v13 = add %v12, %n : I32
     ret %v13
 }
 
-fn opaque(%n: Int) -> Int {
+fn opaque(%n: I32) -> I32 {
   b0:
     ret %n
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %warm = call grown, 0 : Int
+    %warm = call grown, 0 : I32
     %settled = load heapNext : %U8
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v12 = alloc : Int
+    %v12 = alloc : I32
     init %local1, 0
     jmp b1
 
   b1:
-    %i = load %local1 : Int
+    %i = load %local1 : I32
     %v16 = cmp_lt %i, 10 : Bool
     je %v16, b2, b5
 
   b2:
-    %v17 = load %total : Int
-    %v19 = call opaque, 0 : Int
-    %v20 = call grown, %v19 : Int
-    %v21 = add %v17, %v20 : Int
+    %v17 = load %total : I32
+    %v19 = call opaque, 0 : I32
+    %v20 = call grown, %v19 : I32
+    %v21 = add %v17, %v20 : I32
     assign %total, %v21
     jmp b3
 
   b3:
-    %v23 = load %local1 : Int
-    %v24 = sub 10, %v23 : Int
+    %v23 = load %local1 : I32
+    %v24 = sub 10, %v23 : I32
     %v25 = cmp_le %v24, 1 : Bool
     je %v25, b5, b4
 
   b4:
-    %v27 = add %v23, 1 : Int
+    %v27 = add %v23, 1 : I32
     assign %local1, %v27
     jmp b1
 
@@ -1627,8 +1627,8 @@ fn main() -> Int {
     jmp b8
 
   b8:
-    %v40 = load %total : Int
-    %v43 = mul %warm, 10 : Int
+    %v40 = load %total : I32
+    %v43 = mul %warm, 10 : I32
     %v44 = cmp_ne %v40, %v43 : Bool
     je %v44, b9, b10
 
@@ -1665,7 +1665,7 @@ fn main() -> Int {
 
   b17:
     %v63 = copy ResolveTest.literal$19 : String
-    %v64 = call classify, %v63 : Int
+    %v64 = call classify, %v63 : I32
     drop %local4 via Reclaim(String).reclaim
     %v67 = cmp_ne %v64, 1 : Bool
     je %v67, b18, b19
@@ -1678,7 +1678,7 @@ fn main() -> Int {
 
   b20:
     %v72 = copy ResolveTest.literal$21 : String
-    %v73 = call classify, %v72 : Int
+    %v73 = call classify, %v72 : I32
     drop %local5 via Reclaim(String).reclaim
     %v76 = cmp_ne %v73, 2 : Bool
     je %v76, b21, b22
@@ -1691,7 +1691,7 @@ fn main() -> Int {
 
   b23:
     %v81 = copy ResolveTest.literal$23 : String
-    %v82 = call classify, %v81 : Int
+    %v82 = call classify, %v81 : I32
     drop %local6 via Reclaim(String).reclaim
     %v85 = cmp_ne %v82, 3 : Bool
     je %v85, b24, b25
@@ -1704,7 +1704,7 @@ fn main() -> Int {
 
   b26:
     %v90 = copy ResolveTest.literal$25 : String
-    %v91 = call classify, %v90 : Int
+    %v91 = call classify, %v90 : I32
     drop %local7 via Reclaim(String).reclaim
     %v94 = cmp_ne %v91, 0 : Bool
     je %v94, b27, b28
@@ -1716,7 +1716,7 @@ fn main() -> Int {
     jmp b29
 
   b29:
-    %v99 = call width : Int
-    %v100 = add %warm, %v99 : Int
+    %v99 = call width : I32
+    %v100 = add %warm, %v99 : I32
     ret %v100
 }

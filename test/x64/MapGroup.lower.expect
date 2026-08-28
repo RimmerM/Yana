@@ -1,29 +1,29 @@
 
-probeGroup<complex>(%control: Ptr, %pos: Long, %tag: Int): Long {
+probeGroup<complex>(%control: Ptr, %pos: I64, %tag: I32): I64 {
   b_0 {
     %group = load %control, 16: i8x16
     %splat = vsplat %tag: i8x16
     %hits = cmp_eq %group, %splat: m8x16
-    %bits = vreduce_bits %hits: Int
+    %bits = vreduce_bits %hits: I32
     jmp b_1
   }
 
   b_1 {
-    %live = phi [b_0, %bits], [b_2, %next]: Int
-    %any = cmp_neq %live, 0: Int
+    %live = phi [b_0, %bits], [b_2, %next]: I32
+    %any = cmp_neq %live, 0: I32
     je %any, b_3, b_4
   }
 
   b_3 {
-    %lane = cttz %live: Int
-    %wide = sext %lane: Long
-    %slot = add %pos, %wide: Long
+    %lane = cttz %live: I32
+    %wide = sext %lane: I64
+    %slot = add %pos, %wide: I64
     ret %slot
   }
 
   b_2 {
-    %less = sub %live, 1: Int
-    %next = and %live, %less: Int
+    %less = sub %live, 1: I32
+    %next = and %live, %less: I32
     jmp b_1
   }
 
@@ -32,13 +32,13 @@ probeGroup<complex>(%control: Ptr, %pos: Long, %tag: Int): Long {
   }
 }
 
-probeEmpty<complex>(%control: Ptr): Int {
+probeEmpty<complex>(%control: Ptr): I32 {
   b_0 {
     %group = load %control, 16: i8x16
     %empty = vsplat 128: i8x16
     %free = cmp_eq %group, %empty: m8x16
-    %bits = vreduce_bits %free: Int
-    %none = cmp_eq %bits, 0: Int
+    %bits = vreduce_bits %free: I32
+    %none = cmp_eq %bits, 0: I32
     ret %none
   }
 }

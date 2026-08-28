@@ -1,20 +1,20 @@
 
-counted<complex>(%n: Int): Int {
+counted<complex>(%n: I32): I32 {
   entry {
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Int
-    %acc = phi [entry, %zero], [body, %acc2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [entry, %zero], [body, %i2]: I32
+    %acc = phi [entry, %zero], [body, %acc2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, exit, body
   }
 
   body {
-    %acc2 = add %acc, %i: Int
-    %i2 = add %i, 1: Int
+    %acc2 = add %acc, %i: I32
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -23,22 +23,22 @@ counted<complex>(%n: Int): Int {
   }
 }
 
-shift<complex>(%n: Int, %x: Int, %y: Int): Int {
+shift<complex>(%n: I32, %x: I32, %y: I32): I32 {
   entry {
     jmp head
   }
 
   head {
-    %i = phi [entry, %n], [body, %i2]: Int
-    %a = phi [entry, %x], [body, %b]: Int
-    %b = phi [entry, %y], [body, %s]: Int
-    %v_0 = cmp_eq %i, 0: Int
+    %i = phi [entry, %n], [body, %i2]: I32
+    %a = phi [entry, %x], [body, %b]: I32
+    %b = phi [entry, %y], [body, %s]: I32
+    %v_0 = cmp_eq %i, 0: I32
     je %v_0, exit, body
   }
 
   body {
-    %s = add %a, %b: Int
-    %i2 = sub %i, 1: Int
+    %s = add %a, %b: I32
+    %i2 = sub %i, 1: I32
     jmp head
   }
 
@@ -47,16 +47,16 @@ shift<complex>(%n: Int, %x: Int, %y: Int): Int {
   }
 }
 
-diamond<complex>(%n: Int, %c: Int): Int {
+diamond<complex>(%n: I32, %c: I32): I32 {
   entry {
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [rejoin, %i2]: Int
-    %acc = phi [entry, %zero], [rejoin, %acc2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [entry, %zero], [rejoin, %i2]: I32
+    %acc = phi [entry, %zero], [rejoin, %acc2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, exit, body
   }
 
@@ -69,9 +69,9 @@ diamond<complex>(%n: Int, %c: Int): Int {
   }
 
   rejoin {
-    %step = phi [body, 1], [odd, 2]: Int
-    %acc2 = add %acc, %step: Int
-    %i2 = add %i, 1: Int
+    %step = phi [body, 1], [odd, 2]: I32
+    %acc2 = add %acc, %step: I32
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -80,16 +80,16 @@ diamond<complex>(%n: Int, %c: Int): Int {
   }
 }
 
-nested<complex>(%rows: Int, %cols: Int): Int {
+nested<complex>(%rows: I32, %cols: I32): I32 {
   entry {
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     jmp outerHead
   }
 
   outerHead {
-    %r = phi [entry, %zero], [outerLatch, %r2]: Int
-    %acc = phi [entry, %zero], [outerLatch, %acc3]: Int
-    %v_0 = cmp_ige %r, %rows: Int
+    %r = phi [entry, %zero], [outerLatch, %r2]: I32
+    %acc = phi [entry, %zero], [outerLatch, %acc3]: I32
+    %v_0 = cmp_ige %r, %rows: I32
     je %v_0, exit, innerPre
   }
 
@@ -98,21 +98,21 @@ nested<complex>(%rows: Int, %cols: Int): Int {
   }
 
   innerHead {
-    %c = phi [innerPre, %zero], [innerBody, %c2]: Int
-    %acc2 = phi [innerPre, %acc], [innerBody, %acc2i]: Int
-    %v_1 = cmp_ige %c, %cols: Int
+    %c = phi [innerPre, %zero], [innerBody, %c2]: I32
+    %acc2 = phi [innerPre, %acc], [innerBody, %acc2i]: I32
+    %v_1 = cmp_ige %c, %cols: I32
     je %v_1, outerLatch, innerBody
   }
 
   innerBody {
-    %acc2i = add %acc2, %c: Int
-    %c2 = add %c, 1: Int
+    %acc2i = add %acc2, %c: I32
+    %c2 = add %c, 1: I32
     jmp innerHead
   }
 
   outerLatch {
-    %acc3 = phi [innerHead, %acc2]: Int
-    %r2 = add %r, 1: Int
+    %acc3 = phi [innerHead, %acc2]: I32
+    %r2 = add %r, 1: I32
     jmp outerHead
   }
 
@@ -121,15 +121,15 @@ nested<complex>(%rows: Int, %cols: Int): Int {
   }
 }
 
-twoLatches<complex>(%n: Int, %c: Int): Int {
+twoLatches<complex>(%n: I32, %c: I32): I32 {
   entry {
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [left, %l], [right, %r]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [entry, %zero], [left, %l], [right, %r]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, exit, body
   }
 
@@ -138,12 +138,12 @@ twoLatches<complex>(%n: Int, %c: Int): Int {
   }
 
   left {
-    %l = add %i, 1: Int
+    %l = add %i, 1: I32
     jmp head
   }
 
   right {
-    %r = add %i, 2: Int
+    %r = add %i, 2: I32
     jmp head
   }
 
@@ -152,46 +152,46 @@ twoLatches<complex>(%n: Int, %c: Int): Int {
   }
 }
 
-noPreheader<complex>(%n: Int, %c: Int): Int {
+noPreheader<complex>(%n: I32, %c: I32): I32 {
   entry {
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     je %c, exit, head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [entry, %zero], [body, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, exit, body
   }
 
   body {
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     jmp head
   }
 
   exit {
-    %v = phi [entry, %zero], [head, %i]: Int
+    %v = phi [entry, %zero], [head, %i]: I32
     ret %v
   }
 }
 
-headerWork<complex>(%p: Ptr, %n: Int): Int {
+headerWork<complex>(%p: Ptr, %n: I32): I32 {
   entry {
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Int
-    %acc = phi [entry, %zero], [body, %acc2]: Int
-    %q = add %i, 7: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [entry, %zero], [body, %i2]: I32
+    %acc = phi [entry, %zero], [body, %acc2]: I32
+    %q = add %i, 7: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, exit, body
   }
 
   body {
-    %acc2 = add %acc, %q: Int
-    %i2 = add %i, 1: Int
+    %acc2 = add %acc, %q: I32
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -200,20 +200,20 @@ headerWork<complex>(%p: Ptr, %n: Int): Int {
   }
 }
 
-twoExits<complex>(%n: Int, %c: Int): Int {
+twoExits<complex>(%n: I32, %c: I32): I32 {
   entry {
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [entry, %zero], [body, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, exit, body
   }
 
   body {
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     je %c, early, head
   }
 
@@ -222,7 +222,7 @@ twoExits<complex>(%n: Int, %c: Int): Int {
   }
 
   exit {
-    %v = phi [head, %i], [early, %i2]: Int
+    %v = phi [head, %i], [early, %i2]: I32
     ret %v
   }
 }

@@ -1,51 +1,51 @@
 
-win64Callee<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
+win64Callee<win64>(%a: I32, %b: I32, %c: I32, %d: I32, %e: I32): I32 {
   b_0 {
-    %s = add %a, %e: Int
+    %s = add %a, %e: I32
     ret %s
   }
 }
 
-win64Caller<win64>(%x: Int): Int {
+win64Caller<win64>(%x: I32): I32 {
   b_0 {
-    %r = call_win64 win64Callee, %x, %x, %x, %x, %x: Int
+    %r = call_win64 win64Callee, %x, %x, %x, %x, %x: I32
     ret %r
   }
 }
 
-simpleCallee<simple>(%a: Int, %b: Int): Int {
+simpleCallee<simple>(%a: I32, %b: I32): I32 {
   b_0 {
-    %s = add %a, %b: Int
+    %s = add %a, %b: I32
     ret %s
   }
 }
 
-simpleCaller<simple>(%a: Int, %b: Int): Int {
+simpleCaller<simple>(%a: I32, %b: I32): I32 {
   b_0 {
-    %r = call_simple simpleCallee, %a, %b: Int
-    %s = add %r, %b: Int
+    %r = call_simple simpleCallee, %a, %b: I32
+    %s = add %r, %b: I32
     ret %s
   }
 }
 
-clobberCallee<clobber>(%a: Int): Int {
+clobberCallee<clobber>(%a: I32): I32 {
   b_0 {
     ret %a
   }
 }
 
-clobberCaller<clobber>(%a: Int, %b: Int): Int {
+clobberCaller<clobber>(%a: I32, %b: I32): I32 {
   b_0 {
-    %r = call_clobber clobberCallee, %a: Int
-    %s = add %r, %b: Int
+    %r = call_clobber clobberCallee, %a: I32
+    %s = add %r, %b: I32
     ret %s
   }
 }
 
-complexCaller<complex>(%a: Int, %b: Int): Int {
+complexCaller<complex>(%a: I32, %b: I32): I32 {
   b_0 {
-    %r = call_complex clobberCallee, %a: Int
-    %s = add %r, %b: Int
+    %r = call_complex clobberCallee, %a: I32
+    %s = add %r, %b: I32
     ret %s
   }
 }

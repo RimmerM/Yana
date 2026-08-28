@@ -27,7 +27,7 @@ function Try_Maybe_a_a_toOutcome_Leaf(value) {
   return v1;
 }
 
-function Try_Result_e_a_a_e_toOutcome_Int_Node(value) {
+function Try_Result_e_a_a_e_toOutcome_I32_Node(value) {
   var v1;
   if (value.$tag === 1) {
     v1 = { $tag: 0, $p: value.$p };
@@ -37,7 +37,7 @@ function Try_Result_e_a_a_e_toOutcome_Int_Node(value) {
   return v1;
 }
 
-function Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(value) {
+function Try_Maybe_a_a_toOutcome_I32_sub_gt_I32(value) {
   var v1;
   if (!(value === null)) {
     v1 = { $c: value.$c, $e: value.$e };
@@ -107,14 +107,14 @@ function viaResult(n) {
   } else {
     v19 = { $tag: 1, $p: { inner: Math.imul(n, 4), leaf: leafFor(n), id: n } };
   }
-  var v3 = Try_Result_e_a_a_e_toOutcome_Int_Node(v19);
+  var v3 = Try_Result_e_a_a_e_toOutcome_I32_Node(v19);
   if (v3.$tag === 1) {
     var v8 = v3.$p;
-    drop$Outcome_Node_Int(v3);
+    drop$Outcome_Node_I32(v3);
     v15 = { $tag: 0, $p: v8 };
   } else {
     var v10 = v3.$p.id;
-    drop$Outcome_Node_Int(v3);
+    drop$Outcome_Node_I32(v3);
     v15 = { $tag: 1, $p: v10 };
   }
   return v15;
@@ -185,7 +185,7 @@ function called(n) {
   } else {
     v21 = null;
   }
-  var v3 = Try_Maybe_a_a_toOutcome_Int_sub_gt_Int(v21);
+  var v3 = Try_Maybe_a_a_toOutcome_I32_sub_gt_I32(v21);
   if (v3 === null) {
     v16 = null;
   } else {
@@ -242,7 +242,7 @@ function drop$Outcome_Node(value) {
   }
 }
 
-function drop$Outcome_Node_Int(value) {
+function drop$Outcome_Node_I32(value) {
   if (value.$tag === 0) {
     dropped = dropped + 1 | 0;
   }

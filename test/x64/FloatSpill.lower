@@ -3,7 +3,7 @@
 # The vector bank has its own sixteen registers, its own scratch reserve and its own spill slots -
 # and it runs out independently of the general bank, which is the point of the reserve being per
 # bank rather than one pool. A spilled scalar float takes a slot of its own width rather than of the
-# register's, so a Float takes four bytes and a Double eight.
+# register's, so an F32 takes four bytes and an F64 eight.
 #
 # It also differs in one thing the general bank does not have to think about: there is no XCHG for a
 # vector register, so a copy cycle cannot be broken in place and has to go through a scratch one.
@@ -11,42 +11,42 @@
 # Seventeen live doubles against sixteen registers, summed in the reverse of the order they were
 # computed so that none of them can die early. Some end up in the frame, and each is brought back
 # into a scratch register - or read straight out of the slot, where addsd's memory form applies.
-manyLive(%a: Double, %b: Double): Double {
+manyLive(%a: F64, %b: F64): F64 {
     {
-        %v0 = add %a, %b: Double
-        %v1 = mul %a, %v0: Double
-        %v2 = mul %a, %v1: Double
-        %v3 = mul %a, %v2: Double
-        %v4 = mul %a, %v3: Double
-        %v5 = mul %a, %v4: Double
-        %v6 = mul %a, %v5: Double
-        %v7 = mul %a, %v6: Double
-        %v8 = mul %a, %v7: Double
-        %v9 = mul %a, %v8: Double
-        %v10 = mul %a, %v9: Double
-        %v11 = mul %a, %v10: Double
-        %v12 = mul %a, %v11: Double
-        %v13 = mul %a, %v12: Double
-        %v14 = mul %a, %v13: Double
-        %v15 = mul %a, %v14: Double
-        %v16 = mul %a, %v15: Double
+        %v0 = add %a, %b: F64
+        %v1 = mul %a, %v0: F64
+        %v2 = mul %a, %v1: F64
+        %v3 = mul %a, %v2: F64
+        %v4 = mul %a, %v3: F64
+        %v5 = mul %a, %v4: F64
+        %v6 = mul %a, %v5: F64
+        %v7 = mul %a, %v6: F64
+        %v8 = mul %a, %v7: F64
+        %v9 = mul %a, %v8: F64
+        %v10 = mul %a, %v9: F64
+        %v11 = mul %a, %v10: F64
+        %v12 = mul %a, %v11: F64
+        %v13 = mul %a, %v12: F64
+        %v14 = mul %a, %v13: F64
+        %v15 = mul %a, %v14: F64
+        %v16 = mul %a, %v15: F64
 
-        %s16 = add %v16, %v15: Double
-        %s15 = add %s16, %v14: Double
-        %s14 = add %s15, %v13: Double
-        %s13 = add %s14, %v12: Double
-        %s12 = add %s13, %v11: Double
-        %s11 = add %s12, %v10: Double
-        %s10 = add %s11, %v9: Double
-        %s9 = add %s10, %v8: Double
-        %s8 = add %s9, %v7: Double
-        %s7 = add %s8, %v6: Double
-        %s6 = add %s7, %v5: Double
-        %s5 = add %s6, %v4: Double
-        %s4 = add %s5, %v3: Double
-        %s3 = add %s4, %v2: Double
-        %s2 = add %s3, %v1: Double
-        %s1 = add %s2, %v0: Double
+        %s16 = add %v16, %v15: F64
+        %s15 = add %s16, %v14: F64
+        %s14 = add %s15, %v13: F64
+        %s13 = add %s14, %v12: F64
+        %s12 = add %s13, %v11: F64
+        %s11 = add %s12, %v10: F64
+        %s10 = add %s11, %v9: F64
+        %s9 = add %s10, %v8: F64
+        %s8 = add %s9, %v7: F64
+        %s7 = add %s8, %v6: F64
+        %s6 = add %s7, %v5: F64
+        %s5 = add %s6, %v4: F64
+        %s4 = add %s5, %v3: F64
+        %s3 = add %s4, %v2: F64
+        %s2 = add %s3, %v1: F64
+        %s1 = add %s2, %v0: F64
         ret %s1
     }
 }
@@ -54,90 +54,90 @@ manyLive(%a: Double, %b: Double): Double {
 # The same in the narrower class. A scalar float spills at its own width rather than at its
 # register's, so the slots here are four bytes and the traffic is movss - which is the whole reason
 # the two scalar views are classes of their own.
-manyLive32(%a: Float, %b: Float): Float {
+manyLive32(%a: F32, %b: F32): F32 {
     {
-        %v0 = add %a, %b: Float
-        %v1 = mul %a, %v0: Float
-        %v2 = mul %a, %v1: Float
-        %v3 = mul %a, %v2: Float
-        %v4 = mul %a, %v3: Float
-        %v5 = mul %a, %v4: Float
-        %v6 = mul %a, %v5: Float
-        %v7 = mul %a, %v6: Float
-        %v8 = mul %a, %v7: Float
-        %v9 = mul %a, %v8: Float
-        %v10 = mul %a, %v9: Float
-        %v11 = mul %a, %v10: Float
-        %v12 = mul %a, %v11: Float
-        %v13 = mul %a, %v12: Float
-        %v14 = mul %a, %v13: Float
-        %v15 = mul %a, %v14: Float
-        %v16 = mul %a, %v15: Float
+        %v0 = add %a, %b: F32
+        %v1 = mul %a, %v0: F32
+        %v2 = mul %a, %v1: F32
+        %v3 = mul %a, %v2: F32
+        %v4 = mul %a, %v3: F32
+        %v5 = mul %a, %v4: F32
+        %v6 = mul %a, %v5: F32
+        %v7 = mul %a, %v6: F32
+        %v8 = mul %a, %v7: F32
+        %v9 = mul %a, %v8: F32
+        %v10 = mul %a, %v9: F32
+        %v11 = mul %a, %v10: F32
+        %v12 = mul %a, %v11: F32
+        %v13 = mul %a, %v12: F32
+        %v14 = mul %a, %v13: F32
+        %v15 = mul %a, %v14: F32
+        %v16 = mul %a, %v15: F32
 
-        %s16 = add %v16, %v15: Float
-        %s15 = add %s16, %v14: Float
-        %s14 = add %s15, %v13: Float
-        %s13 = add %s14, %v12: Float
-        %s12 = add %s13, %v11: Float
-        %s11 = add %s12, %v10: Float
-        %s10 = add %s11, %v9: Float
-        %s9 = add %s10, %v8: Float
-        %s8 = add %s9, %v7: Float
-        %s7 = add %s8, %v6: Float
-        %s6 = add %s7, %v5: Float
-        %s5 = add %s6, %v4: Float
-        %s4 = add %s5, %v3: Float
-        %s3 = add %s4, %v2: Float
-        %s2 = add %s3, %v1: Float
-        %s1 = add %s2, %v0: Float
+        %s16 = add %v16, %v15: F32
+        %s15 = add %s16, %v14: F32
+        %s14 = add %s15, %v13: F32
+        %s13 = add %s14, %v12: F32
+        %s12 = add %s13, %v11: F32
+        %s11 = add %s12, %v10: F32
+        %s10 = add %s11, %v9: F32
+        %s9 = add %s10, %v8: F32
+        %s8 = add %s9, %v7: F32
+        %s7 = add %s8, %v6: F32
+        %s6 = add %s7, %v5: F32
+        %s5 = add %s6, %v4: F32
+        %s4 = add %s5, %v3: F32
+        %s3 = add %s4, %v2: F32
+        %s2 = add %s3, %v1: F32
+        %s1 = add %s2, %v0: F32
         ret %s1
     }
 }
 
 # Both widths at once, which share the register file and so share the pressure: a function running
 # out of vector registers does so whatever mix of the two put it there.
-mixedWidth(%a: Float, %b: Double): Double {
+mixedWidth(%a: F32, %b: F64): F64 {
     {
-        %f0 = mul %a, %a: Float
-        %f1 = mul %a, %f0: Float
-        %f2 = mul %a, %f1: Float
-        %f3 = mul %a, %f2: Float
-        %f4 = mul %a, %f3: Float
-        %f5 = mul %a, %f4: Float
-        %f6 = mul %a, %f5: Float
-        %f7 = mul %a, %f6: Float
-        %f8 = mul %a, %f7: Float
+        %f0 = mul %a, %a: F32
+        %f1 = mul %a, %f0: F32
+        %f2 = mul %a, %f1: F32
+        %f3 = mul %a, %f2: F32
+        %f4 = mul %a, %f3: F32
+        %f5 = mul %a, %f4: F32
+        %f6 = mul %a, %f5: F32
+        %f7 = mul %a, %f6: F32
+        %f8 = mul %a, %f7: F32
 
-        %d0 = mul %b, %b: Double
-        %d1 = mul %b, %d0: Double
-        %d2 = mul %b, %d1: Double
-        %d3 = mul %b, %d2: Double
-        %d4 = mul %b, %d3: Double
-        %d5 = mul %b, %d4: Double
-        %d6 = mul %b, %d5: Double
-        %d7 = mul %b, %d6: Double
-        %d8 = mul %b, %d7: Double
+        %d0 = mul %b, %b: F64
+        %d1 = mul %b, %d0: F64
+        %d2 = mul %b, %d1: F64
+        %d3 = mul %b, %d2: F64
+        %d4 = mul %b, %d3: F64
+        %d5 = mul %b, %d4: F64
+        %d6 = mul %b, %d5: F64
+        %d7 = mul %b, %d6: F64
+        %d8 = mul %b, %d7: F64
 
-        %g8 = add %f8, %f7: Float
-        %g7 = add %g8, %f6: Float
-        %g6 = add %g7, %f5: Float
-        %g5 = add %g6, %f4: Float
-        %g4 = add %g5, %f3: Float
-        %g3 = add %g4, %f2: Float
-        %g2 = add %g3, %f1: Float
-        %g1 = add %g2, %f0: Float
+        %g8 = add %f8, %f7: F32
+        %g7 = add %g8, %f6: F32
+        %g6 = add %g7, %f5: F32
+        %g5 = add %g6, %f4: F32
+        %g4 = add %g5, %f3: F32
+        %g3 = add %g4, %f2: F32
+        %g2 = add %g3, %f1: F32
+        %g1 = add %g2, %f0: F32
 
-        %e8 = add %d8, %d7: Double
-        %e7 = add %e8, %d6: Double
-        %e6 = add %e7, %d5: Double
-        %e5 = add %e6, %d4: Double
-        %e4 = add %e5, %d3: Double
-        %e3 = add %e4, %d2: Double
-        %e2 = add %e3, %d1: Double
-        %e1 = add %e2, %d0: Double
+        %e8 = add %d8, %d7: F64
+        %e7 = add %e8, %d6: F64
+        %e6 = add %e7, %d5: F64
+        %e5 = add %e6, %d4: F64
+        %e4 = add %e5, %d3: F64
+        %e3 = add %e4, %d2: F64
+        %e2 = add %e3, %d1: F64
+        %e1 = add %e2, %d0: F64
 
-        %w = cast %g1: Double
-        %r = add %w, %e1: Double
+        %w = cast %g1: F64
+        %r = add %w, %e1: F64
         ret %r
     }
 }
@@ -147,19 +147,19 @@ mixedWidth(%a: Float, %b: Double): Double {
 # XCHG - but the vector file has no exchange instruction at all, so the cycle has to be broken by
 # parking one end in a scratch register out of the move pool. That is the whole reason the reserve
 # is per bank rather than one set of registers shared between them.
-cycle(%x: Double, %y: Double, %n: Int): Double {
+cycle(%x: F64, %y: F64, %n: I32): F64 {
   start {
         jmp head
     }
   head {
-        %a = phi [start, %x], [head, %b]: Double
-        %b = phi [start, %y], [head, %a]: Double
-        %i = phi [start, %n], [head, %i2]: Int
-        %i2 = sub %i, 1: Int
+        %a = phi [start, %x], [head, %b]: F64
+        %b = phi [start, %y], [head, %a]: F64
+        %i = phi [start, %n], [head, %i2]: I32
+        %i2 = sub %i, 1: I32
         je (cmp_eq %i, 0), done, head
     }
   done {
-        %r = sub %a, %b: Double
+        %r = sub %a, %b: F64
         ret %r
     }
 }
@@ -167,24 +167,24 @@ cycle(%x: Double, %y: Double, %n: Int): Double {
 # A loop carrying two doubles through destructive arithmetic. The phi that takes its value from a
 # tied result cannot be coalesced with the other operand of that same instruction - see `tiedSwap`
 # in Phi.lower - so the copies stay and the two values change places each iteration.
-swap(%x: Double, %y: Double, %n: Int): Double {
+swap(%x: F64, %y: F64, %n: I32): F64 {
   start {
         jmp head
     }
   head {
-        %a = phi [start, %x], [body, %b2]: Double
-        %b = phi [start, %y], [body, %a2]: Double
-        %i = phi [start, %n], [body, %i2]: Int
+        %a = phi [start, %x], [body, %b2]: F64
+        %b = phi [start, %y], [body, %a2]: F64
+        %i = phi [start, %n], [body, %i2]: I32
         je (cmp_eq %i, 0), done, body
     }
   body {
-        %a2 = add %a, %b: Double
-        %b2 = mul %b, %a: Double
-        %i2 = sub %i, 1: Int
+        %a2 = add %a, %b: F64
+        %b2 = mul %b, %a: F64
+        %i2 = sub %i, 1: I32
         jmp head
     }
   done {
-        %r = sub %a, %b: Double
+        %r = sub %a, %b: F64
         ret %r
     }
 }

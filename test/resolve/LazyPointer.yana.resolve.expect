@@ -1,16 +1,16 @@
 let image$base: () = <none>
 
-let nowhere: %Int = 0
+let nowhere: %I32 = 0
 
-fn guarded(%p: %Int) -> Int {
+fn guarded(%p: %I32) -> I32 {
   b0:
-    %v1 = bitcast %p : Long
+    %v1 = bitcast %p : I64
     %v3 = cmp_eq %v1, 0 : Bool
     %v5 = xor %v3, True : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%p] : Int
+    %v7 = load [%p] : I32
     %v10 = cmp_gt %v7, 0 : Bool
     jmp b3
 
@@ -22,25 +22,25 @@ fn guarded(%p: %Int) -> Int {
     je %v14, b4, b5
 
   b4:
-    %v16 = load [%p] : Int
+    %v16 = load [%p] : I32
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v20 = phi [b4, %v16], [b5, 0] : Int
+    %v20 = phi [b4, %v16], [b5, 0] : I32
     ret %v20
 }
 
-fn defaulted(%p: %Int) -> Int {
+fn defaulted(%p: %I32) -> I32 {
   b0:
-    %v1 = bitcast %p : Long
+    %v1 = bitcast %p : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v5 = load [%p] : Int
+    %v5 = load [%p] : I32
     %v8 = cmp_eq %v5, 0 : Bool
     jmp b3
 
@@ -55,26 +55,26 @@ fn defaulted(%p: %Int) -> Int {
     jmp b6
 
   b5:
-    %v15 = load [%p] : Int
+    %v15 = load [%p] : I32
     jmp b6
 
   b6:
-    %v18 = phi [b4, -1], [b5, %v15] : Int
+    %v18 = phi [b4, -1], [b5, %v15] : I32
     ret %v18
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
-    %v5 = cast 0 : %Int
-    %v6 = call guarded, %v5 : Int
+    %v5 = cast 0 : %I32
+    %v6 = call guarded, %v5 : I32
     %v9 = cmp_eq %v6, 0 : Bool
     je %v9, b1, b2
 
   b1:
-    %v11 = load %score : Int
-    %v14 = add %v11, 1 : Int
+    %v11 = load %score : I32
+    %v14 = add %v11, 1 : I32
     assign %score, %v14
     jmp b3
 
@@ -82,15 +82,15 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v19 = cast 0 : %Int
-    %v20 = call defaulted, %v19 : Int
-    %v23 = neg 1 : Int
+    %v19 = cast 0 : %I32
+    %v20 = call defaulted, %v19 : I32
+    %v23 = neg 1 : I32
     %v24 = cmp_eq %v20, %v23 : Bool
     je %v24, b4, b5
 
   b4:
-    %v26 = load %score : Int
-    %v29 = add %v26, 2 : Int
+    %v26 = load %score : I32
+    %v29 = add %v26, 2 : I32
     assign %score, %v29
     jmp b6
 
@@ -98,19 +98,19 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v34 = alloc : Int
+    %v34 = alloc : I32
     init %local1, %slot
-    %p = addressof %local1 : %Int
-    %v37 = load [%p] : Int
-    %v40 = add %v37, 1 : Int
+    %p = addressof %local1 : %I32
+    %v37 = load [%p] : I32
+    %v40 = add %v37, 1 : I32
     assign [%p], %v40
-    %v42 = call guarded, %p : Int
+    %v42 = call guarded, %p : I32
     %v45 = cmp_eq %v42, 42 : Bool
     je %v45, b7, b8
 
   b7:
-    %v47 = load %score : Int
-    %v50 = add %v47, 4 : Int
+    %v47 = load %score : I32
+    %v50 = add %v47, 4 : I32
     assign %score, %v50
     jmp b9
 
@@ -118,13 +118,13 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v54 = call defaulted, %p : Int
+    %v54 = call defaulted, %p : I32
     %v57 = cmp_eq %v54, 42 : Bool
     je %v57, b10, b11
 
   b10:
-    %v59 = load %score : Int
-    %v62 = add %v59, 8 : Int
+    %v59 = load %score : I32
+    %v62 = add %v59, 8 : I32
     assign %score, %v62
     jmp b12
 
@@ -132,6 +132,6 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v66 = load %score : Int
+    %v66 = load %score : I32
     ret %v66
 }

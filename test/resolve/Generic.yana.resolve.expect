@@ -1,22 +1,22 @@
 let image$base: () = <none>
 
-fn justInt() -> Maybe(Int) {
+fn justInt() -> Maybe(I32) {
   b0:
-    %v0 = alloc : Maybe(Int)
+    %v0 = alloc : Maybe(I32)
     aggregate %local0.discriminant = 1, %local0@Just = 3
     ret %v0
 }
 
-fn nothingInt() -> Maybe(Int) {
+fn nothingInt() -> Maybe(I32) {
   b0:
-    %v0 = alloc : Maybe(Int)
+    %v0 = alloc : Maybe(I32)
     init %local0.discriminant, 0
     ret %v0
 }
 
-fn unwrap(%value: Maybe(Int), %fallback: Int) -> Int {
+fn unwrap(%value: Maybe(I32), %fallback: I32) -> I32 {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -24,17 +24,17 @@ fn unwrap(%value: Maybe(Int), %fallback: Int) -> Int {
     jmp b3
 
   b2:
-    %inner = load %value@Just : Int
+    %inner = load %value@Just : I32
     jmp b3
 
   b3:
-    %v9 = phi [b2, %inner], [b1, %fallback] : Int
+    %v9 = phi [b2, %inner], [b1, %fallback] : I32
     ret %v9
 }
 
-fn unwrapBool(%value: Maybe(Bool)) -> Int {
+fn unwrapBool(%value: Maybe(Bool)) -> I32 {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -52,122 +52,122 @@ fn unwrapBool(%value: Maybe(Bool)) -> Int {
     jmp b5
 
   b5:
-    %v11 = phi [b3, 1], [b4, 0] : Int
+    %v11 = phi [b3, 1], [b4, 0] : I32
     jmp b6
 
   b6:
-    %v15 = phi [b5, %v11], [b1, 2] : Int
+    %v15 = phi [b5, %v11], [b1, 2] : I32
     ret %v15
 }
 
-fn okResult() -> Result(Int, Int) {
+fn okResult() -> Result(I32, I32) {
   b0:
-    %v0 = alloc : Result(Int, Int)
+    %v0 = alloc : Result(I32, I32)
     aggregate %local0.discriminant = 1, %local0@Ok = 11
     ret %v0
 }
 
-fn errResult() -> Result(Int, Int) {
+fn errResult() -> Result(I32, I32) {
   b0:
-    %v0 = alloc : Result(Int, Int)
+    %v0 = alloc : Result(I32, I32)
     aggregate %local0.discriminant = 0, %local0@Err = 4
     ret %v0
 }
 
-fn resultValue(%value: Result(Int, Int)) -> Int {
+fn resultValue(%value: Result(I32, I32)) -> I32 {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
   b1:
-    %code = load %value@Err : Int
-    %v9 = sub 0, %code : Int
+    %code = load %value@Err : I32
+    %v9 = sub 0, %code : I32
     jmp b3
 
   b2:
-    %inner = load %value@Ok : Int
+    %inner = load %value@Ok : I32
     jmp b3
 
   b3:
-    %v12 = phi [b2, %inner], [b1, %v9] : Int
+    %v12 = phi [b2, %inner], [b1, %v9] : I32
     ret %v12
 }
 
-fn unbox(%value: Boxed(Int)) -> Int {
+fn unbox(%value: Boxed(I32)) -> I32 {
   b0:
-    %inner = load %value@Box : Int
+    %inner = load %value@Box : I32
     jmp b1
 
   b1:
     ret %inner
 }
 
-fn labelled() -> Labelled(Int) {
+fn labelled() -> Labelled(I32) {
   b0:
-    %v0 = alloc : Labelled(Int)
-    %v2 = alloc : Maybe(Int)
+    %v0 = alloc : Labelled(I32)
+    %v2 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = 40
     aggregate %local0@Labelled.label = 2, %local0@Labelled.contents = %v2
     ret %v0
 }
 
-fn labelSum(%value: Labelled(Int)) -> Int {
+fn labelSum(%value: Labelled(I32)) -> I32 {
   b0:
-    %v1 = load %value@Labelled.label : Int
-    %v2 = load %value@Labelled.contents : Maybe(Int)
-    %v4 = call unwrap, %v2, 0 : Int
-    %v5 = add %v1, %v4 : Int
+    %v1 = load %value@Labelled.label : I32
+    %v2 = load %value@Labelled.contents : Maybe(I32)
+    %v4 = call unwrap, %v2, 0 : I32
+    %v5 = add %v1, %v4 : I32
     ret %v5
 }
 
-fn ascribedNothing() -> Int {
+fn ascribedNothing() -> I32 {
   b0:
     %n = alloc : Maybe(Bool)
     init %local0.discriminant, 0
-    %v3 = call unwrapBool, %n : Int
+    %v3 = call unwrapBool, %n : I32
     ret %v3
 }
 
-fn ascribedJust() -> Int {
+fn ascribedJust() -> I32 {
   b0:
     %j = alloc : Maybe(Bool)
     aggregate %local0.discriminant = 1, %local0@Just = True
-    %v4 = call unwrapBool, %j : Int
+    %v4 = call unwrapBool, %j : I32
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call ascribedNothing : Int
-    %v1 = call ascribedJust : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call justInt : Maybe(Int)
-    %v5 = call unwrap, %v3, 100 : Int
-    %v6 = add %v2, %v5 : Int
-    %v7 = call nothingInt : Maybe(Int)
-    %v9 = call unwrap, %v7, 5 : Int
-    %v10 = add %v6, %v9 : Int
+    %v0 = call ascribedNothing : I32
+    %v1 = call ascribedJust : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call justInt : Maybe(I32)
+    %v5 = call unwrap, %v3, 100 : I32
+    %v6 = add %v2, %v5 : I32
+    %v7 = call nothingInt : Maybe(I32)
+    %v9 = call unwrap, %v7, 5 : I32
+    %v10 = add %v6, %v9 : I32
     %v11 = alloc : Maybe(Bool)
     aggregate %local2.discriminant = 1, %local2@Just = True
-    %v15 = call unwrapBool, %v11 : Int
-    %v16 = add %v10, %v15 : Int
+    %v15 = call unwrapBool, %v11 : I32
+    %v16 = add %v10, %v15 : I32
     %v17 = alloc : Maybe(Bool)
     init %local3.discriminant, 0
-    %v20 = call unwrapBool, %v17 : Int
-    %v21 = add %v16, %v20 : Int
-    %v22 = call okResult : Result(Int, Int)
-    %v23 = call resultValue, %v22 : Int
-    %v24 = add %v21, %v23 : Int
-    %v25 = call errResult : Result(Int, Int)
-    %v26 = call resultValue, %v25 : Int
-    %v27 = add %v24, %v26 : Int
-    %v28 = alloc : Boxed(Int)
+    %v20 = call unwrapBool, %v17 : I32
+    %v21 = add %v16, %v20 : I32
+    %v22 = call okResult : Result(I32, I32)
+    %v23 = call resultValue, %v22 : I32
+    %v24 = add %v21, %v23 : I32
+    %v25 = call errResult : Result(I32, I32)
+    %v26 = call resultValue, %v25 : I32
+    %v27 = add %v24, %v26 : I32
+    %v28 = alloc : Boxed(I32)
     init %local6@Box, 6
-    %v31 = call unbox, %v28 : Int
-    %v32 = add %v27, %v31 : Int
-    %v33 = call labelled : Labelled(Int)
-    %v34 = call labelSum, %v33 : Int
-    %v35 = add %v32, %v34 : Int
+    %v31 = call unbox, %v28 : I32
+    %v32 = add %v27, %v31 : I32
+    %v33 = call labelled : Labelled(I32)
+    %v34 = call labelSum, %v33 : I32
+    %v35 = add %v32, %v34 : I32
     ret %v35
 }

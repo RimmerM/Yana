@@ -1,48 +1,48 @@
 let image$base: () = <none>
 
-fn bump(%x: Int) -> () {
+fn bump(%x: I32) -> () {
   b0:
-    %v1 = load %x : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load %x : I32
+    %v4 = add %v1, 1 : I32
     assign %x, %v4
     ret
 }
 
-fn sum(%a: Int, %b: Int) -> Int {
+fn sum(%a: I32, %b: I32) -> I32 {
   b0:
-    %v2 = add %a, %b : Int
+    %v2 = add %a, %b : I32
     ret %v2
 }
 
-fn counted(%n: Int) -> Int {
+fn counted(%n: I32) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v10 = load %i : Int
+    %v10 = load %i : I32
     %v11 = cmp_lt %v10, %n : Bool
     je %v11, b3, b2
 
   b2:
-    %v23 = load %total : Int
+    %v23 = load %total : I32
     ret %v23
 
   b3:
-    %v13 = load %total : Int
-    %v14 = load %i : Int
-    %v15 = add %v13, %v14 : Int
+    %v13 = load %total : I32
+    %v14 = load %i : I32
+    %v15 = add %v13, %v14 : I32
     assign %total, %v15
-    %v17 = load %i : Int
-    %v20 = add %v17, 1 : Int
+    %v17 = load %i : I32
+    %v20 = add %v17, 1 : I32
     assign %i, %v20
     jmp b1
 }
 
-fn flagged(%x: Bool) -> Int {
+fn flagged(%x: Bool) -> I32 {
   b0:
     %v1 = alloc : Flags
     init %f@Flags.a, %x
@@ -68,7 +68,7 @@ fn flagged(%x: Bool) -> Int {
     jmp b6
 
   b6:
-    %v19 = phi [b4, 1], [b5, 0] : Int
+    %v19 = phi [b4, 1], [b5, 0] : I32
     %v20 = load %f : Flags
     %v21 = load %f@Flags.b : Bool
     je %v21, b7, b8
@@ -80,12 +80,12 @@ fn flagged(%x: Bool) -> Int {
     jmp b9
 
   b9:
-    %v29 = phi [b7, 2], [b8, 0] : Int
-    %v30 = add %v19, %v29 : Int
+    %v29 = phi [b7, 2], [b8, 0] : I32
+    %v30 = add %v19, %v29 : I32
     ret %v30
 }
 
-fn narrowed() -> Int {
+fn narrowed() -> I32 {
   b0:
     %u = alloc : U8
     init %u, 250
@@ -98,57 +98,57 @@ fn narrowed() -> Int {
     %v14 = add %v11, 10 : I8
     assign %v, %v14
     %v16 = load %u : U8
-    %v17 = cast %v16 : Int
-    %v20 = mul %v17, 1000 : Int
+    %v17 = cast %v16 : I32
+    %v20 = mul %v17, 1000 : I32
     %v21 = load %v : I8
-    %v22 = cast %v21 : Int
-    %v23 = add %v20, %v22 : Int
+    %v22 = cast %v21 : I32
+    %v23 = add %v20, %v22 : I32
     ret %v23
 }
 
-fn borrowed() -> Int {
+fn borrowed() -> I32 {
   b0:
-    %v = alloc : Int
+    %v = alloc : I32
     init %v, 10
-    %v4 = load %v : Int
-    %v5 = borrow_mut %v : &Int
+    %v4 = load %v : I32
+    %v5 = borrow_mut %v : &I32
     call bump, %v5
-    %v7 = load %v : Int
-    %v8 = borrow_mut %v : &Int
+    %v7 = load %v : I32
+    %v8 = borrow_mut %v : &I32
     call bump, %v8
-    %v10 = load %v : Int
+    %v10 = load %v : I32
     ret %v10
 }
 
-fn called() -> Int {
+fn called() -> I32 {
   b0:
-    %a = alloc : Int
+    %a = alloc : I32
     init %a, 3
-    %b = alloc : Int
+    %b = alloc : I32
     init %b, 4
-    %v8 = load %a : Int
-    %v9 = load %b : Int
-    %v10 = add %v8, %v9 : Int
+    %v8 = load %a : I32
+    %v9 = load %b : I32
+    %v10 = add %v8, %v9 : I32
     assign %a, %v10
-    %v12 = load %a : Int
-    %v13 = load %b : Int
-    %v14 = call sum, %v12, %v13 : Int
+    %v12 = load %a : I32
+    %v13 = load %b : I32
+    %v14 = call sum, %v12, %v13 : I32
     ret %v14
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call counted, 5 : Int
-    %v3 = call flagged, True : Int
-    %v6 = mul %v3, 10 : Int
-    %v7 = add %v1, %v6 : Int
-    %v8 = call narrowed : Int
-    %v9 = add %v7, %v8 : Int
-    %v10 = call borrowed : Int
-    %v13 = mul %v10, 100 : Int
-    %v14 = add %v9, %v13 : Int
-    %v15 = call called : Int
-    %v18 = mul %v15, 1000 : Int
-    %v19 = add %v14, %v18 : Int
+    %v1 = call counted, 5 : I32
+    %v3 = call flagged, True : I32
+    %v6 = mul %v3, 10 : I32
+    %v7 = add %v1, %v6 : I32
+    %v8 = call narrowed : I32
+    %v9 = add %v7, %v8 : I32
+    %v10 = call borrowed : I32
+    %v13 = mul %v10, 100 : I32
+    %v14 = add %v9, %v13 : I32
+    %v15 = call called : I32
+    %v18 = mul %v15, 1000 : I32
+    %v19 = add %v14, %v18 : I32
     ret %v19
 }

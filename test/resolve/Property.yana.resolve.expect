@@ -1,91 +1,91 @@
 let image$base: () = <none>
 
-(a.name: Int) fn nameOf(%p: a) -> Int {
+(a.name: I32) fn nameOf(%p: a) -> I32 {
   schema {
     #0 type a
-    #1 property a.name: Int
+    #1 property a.name: I32
   }
 
   b0:
-    %v1 = load %p.name? : Int
+    %v1 = load %p.name? : I32
     ret %v1
 }
 
-(a.name: Int, a.tag: Int) fn labelled(%p: a) -> Int {
+(a.name: I32, a.tag: I32) fn labelled(%p: a) -> I32 {
   schema {
     #0 type a
-    #1 property a.name: Int
-    #2 property a.tag: Int
+    #1 property a.name: I32
+    #2 property a.tag: I32
   }
 
   b0:
-    %v1 = gencall nameOf(a), %p : Int
-    %v4 = mul %v1, 100 : Int
-    %v5 = load %p.tag? : Int
-    %v6 = add %v4, %v5 : Int
+    %v1 = gencall nameOf(a), %p : I32
+    %v4 = mul %v1, 100 : I32
+    %v5 = load %p.tag? : I32
+    %v6 = add %v4, %v5 : I32
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Person
     aggregate %local0@Person.name = 5, %local0@Person.age = 90
-    %people = call nameOf(Person), %v0 : Int
+    %people = call nameOf(Person), %v0 : I32
     %v5 = alloc : Item
     aggregate %local1@Item.name = 2, %local1@Item.cost = 7
-    %items = call nameOf(Item), %v5 : Int
+    %items = call nameOf(Item), %v5 : I32
     %v10 = alloc : Left
     aggregate %local2@Left.name = 1, %local2@Left.tag = 3
-    %left = call labelled(Left), %v10 : Int
+    %left = call labelled(Left), %v10 : I32
     %v15 = alloc : Right
     aggregate %local3@Right.tag = 4, %local3@Right.name = 6
-    %right = call labelled(Right), %v15 : Int
-    %v22 = mul %people, 1000 : Int
-    %v25 = mul %items, 100 : Int
-    %v26 = add %v22, %v25 : Int
-    %v27 = add %v26, %left : Int
-    %v28 = add %v27, %right : Int
+    %right = call labelled(Right), %v15 : I32
+    %v22 = mul %people, 1000 : I32
+    %v25 = mul %items, 100 : I32
+    %v26 = add %v22, %v25 : I32
+    %v27 = add %v26, %left : I32
+    %v28 = add %v27, %right : I32
     ret %v28
 }
 
-fn nameOf(Person)(%p: Person) -> Int {
+fn nameOf(Person)(%p: Person) -> I32 {
   b0:
-    %v1 = load %p@Person.name : Int
+    %v1 = load %p@Person.name : I32
     ret %v1
 }
 
-fn nameOf(Item)(%p: Item) -> Int {
+fn nameOf(Item)(%p: Item) -> I32 {
   b0:
-    %v1 = load %p@Item.name : Int
+    %v1 = load %p@Item.name : I32
     ret %v1
 }
 
-fn labelled(Left)(%p: Left) -> Int {
+fn labelled(Left)(%p: Left) -> I32 {
   b0:
-    %v1 = call nameOf(Left), %p : Int
-    %v3 = mul %v1, 100 : Int
-    %v4 = load %p@Left.tag : Int
-    %v5 = add %v3, %v4 : Int
+    %v1 = call nameOf(Left), %p : I32
+    %v3 = mul %v1, 100 : I32
+    %v4 = load %p@Left.tag : I32
+    %v5 = add %v3, %v4 : I32
     ret %v5
 }
 
-fn nameOf(Left)(%p: Left) -> Int {
+fn nameOf(Left)(%p: Left) -> I32 {
   b0:
-    %v1 = load %p@Left.name : Int
+    %v1 = load %p@Left.name : I32
     ret %v1
 }
 
-fn labelled(Right)(%p: Right) -> Int {
+fn labelled(Right)(%p: Right) -> I32 {
   b0:
-    %v1 = call nameOf(Right), %p : Int
-    %v3 = mul %v1, 100 : Int
-    %v4 = load %p@Right.tag : Int
-    %v5 = add %v3, %v4 : Int
+    %v1 = call nameOf(Right), %p : I32
+    %v3 = mul %v1, 100 : I32
+    %v4 = load %p@Right.tag : I32
+    %v5 = add %v3, %v4 : I32
     ret %v5
 }
 
-fn nameOf(Right)(%p: Right) -> Int {
+fn nameOf(Right)(%p: Right) -> I32 {
   b0:
-    %v1 = load %p@Right.name : Int
+    %v1 = load %p@Right.name : I32
     ret %v1
 }

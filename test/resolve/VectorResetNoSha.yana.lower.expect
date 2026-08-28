@@ -1,29 +1,29 @@
 @image$base = []
 
-resetThenAdd<clobber, x86_legacy_sse>(%lhs: i32x4, %rhs: i32x4): Int {
+resetThenAdd<clobber, x86_legacy_sse>(%lhs: i32x4, %rhs: i32x4): I32 {
   b_0 {
     vzeroupper 
     %v_1 = add %lhs, %rhs: i32x4
-    %v_2 = vlane %v_1, 0: Int
+    %v_2 = vlane %v_1, 0: I32
     ret %v_2
   }
 }
 
-plainReset<complex>(%x: Int): Int {
+plainReset<complex>(%x: I32): I32 {
   b_0 {
     vzeroupper 
-    %v_1 = add %x, 1: Int
+    %v_1 = add %x, 1: I32
     ret %v_1
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %a = vsplat 3: i32x4
     %b = vsplat 4: i32x4
-    %v_1 = call_clobber resetThenAdd, %a, %b: Int
-    %v_2 = call_complex plainReset, 0: Int
-    %v_3 = add %v_1, %v_2: Int
+    %v_1 = call_clobber resetThenAdd, %a, %b: I32
+    %v_2 = call_complex plainReset, 0: I32
+    %v_3 = add %v_1, %v_2: I32
     ret %v_3
   }
 }

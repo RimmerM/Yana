@@ -12,16 +12,16 @@
 # Arguments take the slot of their *position* rather than of their class, so the fifth argument goes
 # on the stack even though only four registers were used - and the caller leaves 32 bytes of shadow
 # space below it, which is why the first stack argument is at offset 32 rather than 0.
-win64Callee<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int): Int {
+win64Callee<win64>(%a: I32, %b: I32, %c: I32, %d: I32, %e: I32): I32 {
     {
-        %s = add %a, %e: Int
+        %s = add %a, %e: I32
         ret %s
     }
 }
 
-win64Caller<win64>(%x: Int): Int {
+win64Caller<win64>(%x: I32): I32 {
     {
-        %r = call_win64 win64Callee, %x, %x, %x, %x, %x: Int
+        %r = call_win64 win64Callee, %x, %x, %x, %x, %x: I32
         ret %r
     }
 }
@@ -29,17 +29,17 @@ win64Caller<win64>(%x: Int): Int {
 # Simple keeps almost everything for the caller: three argument registers and one result, and
 # everything else preserved. A value held across such a call needs no saving, so the caller pays
 # nothing for having made it - which is the whole point of the convention.
-simpleCallee<simple>(%a: Int, %b: Int): Int {
+simpleCallee<simple>(%a: I32, %b: I32): I32 {
     {
-        %s = add %a, %b: Int
+        %s = add %a, %b: I32
         ret %s
     }
 }
 
-simpleCaller<simple>(%a: Int, %b: Int): Int {
+simpleCaller<simple>(%a: I32, %b: I32): I32 {
     {
-        %r = call_simple simpleCallee, %a, %b: Int
-        %s = add %r, %b: Int
+        %r = call_simple simpleCallee, %a, %b: I32
+        %s = add %r, %b: I32
         ret %s
     }
 }
@@ -52,24 +52,24 @@ simpleCaller<simple>(%a: Int, %b: Int): Int {
 # function itself - shows both halves of that at once: %b crosses the call in rbp, and the push and
 # pop that save it are the whole prologue of a convention that otherwise owes its caller nothing.
 # A second value across the same call would have to go to the frame.
-clobberCallee<clobber>(%a: Int): Int {
+clobberCallee<clobber>(%a: I32): I32 {
     { ret %a }
 }
 
-clobberCaller<clobber>(%a: Int, %b: Int): Int {
+clobberCaller<clobber>(%a: I32, %b: I32): I32 {
     {
-        %r = call_clobber clobberCallee, %a: Int
-        %s = add %r, %b: Int
+        %r = call_clobber clobberCallee, %a: I32
+        %s = add %r, %b: I32
         ret %s
     }
 }
 
 # The compiler's own convention, for comparison: eight argument registers, and rbx and r12-r15
 # preserved.
-complexCaller<complex>(%a: Int, %b: Int): Int {
+complexCaller<complex>(%a: I32, %b: I32): I32 {
     {
-        %r = call_complex clobberCallee, %a: Int
-        %s = add %r, %b: Int
+        %r = call_complex clobberCallee, %a: I32
+        %s = add %r, %b: I32
         ret %s
     }
 }

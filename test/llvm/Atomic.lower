@@ -14,12 +14,12 @@
 # out. That round trip is visible below and is the reason `atomic_loads` exists as a spelling.
 
 # Load and store at every width and every order each admits.
-loadStore(%p: Ptr, %v: Int, %w: Long) {
+loadStore(%p: Ptr, %v: I32, %w: I64) {
     {
-        %l1 = atomic_load %p, 1, relaxed: Int
-        %l2 = atomic_loads %p, 2, acquire: Int
-        %l4 = atomic_load %p, 4, seq_cst: Int
-        %l8 = atomic_load %p, 8, acquire: Long
+        %l1 = atomic_load %p, 1, relaxed: I32
+        %l2 = atomic_loads %p, 2, acquire: I32
+        %l4 = atomic_load %p, 4, seq_cst: I32
+        %l8 = atomic_load %p, 8, acquire: I64
 
         atomic_store %p, %v, 1, relaxed
         atomic_store %p, %v, 4, release
@@ -39,29 +39,29 @@ pointerExchange(%p: Ptr, %q: Ptr): Ptr {
 }
 
 # All six read-modify-writes. Each answers the value from before the update.
-update(%p: Ptr, %v: Int, %w: Long): Int {
+update(%p: Ptr, %v: I32, %w: I64): I32 {
     {
-        %x = atomic_xchg %p, %v, 4, seq_cst: Int
-        %a = atomic_add %p, %v, 4, relaxed: Int
-        %s = atomic_sub %p, %v, 4, acq_rel: Int
-        %n = atomic_and %p, %v, 4, acquire: Int
-        %o = atomic_or %p, %v, 4, release: Int
-        %e = atomic_xor %p, %v, 4, seq_cst: Int
-        %b = atomic_add %p, %w, 8, relaxed: Long
+        %x = atomic_xchg %p, %v, 4, seq_cst: I32
+        %a = atomic_add %p, %v, 4, relaxed: I32
+        %s = atomic_sub %p, %v, 4, acq_rel: I32
+        %n = atomic_and %p, %v, 4, acquire: I32
+        %o = atomic_or %p, %v, 4, release: I32
+        %e = atomic_xor %p, %v, 4, seq_cst: I32
+        %b = atomic_add %p, %w, 8, relaxed: I64
 
         # A narrow update: the operand truncates to i8 and the answer widens back.
-        %narrow = atomic_add %p, %v, 1, relaxed: Int
+        %narrow = atomic_add %p, %v, 1, relaxed: I32
         ret %a
     }
 }
 
 # Both compare forms. `cmpxchg` answers `{ ty, i1 }`; the flag is read out of it rather than
 # reconstructed by comparing, which is what the weak form makes necessary - see LowerInstAtomicCas.
-compare(%p: Ptr, %e: Int, %d: Int): Int {
+compare(%p: Ptr, %e: I32, %d: I32): I32 {
     {
-        %c1, %ok1 = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
-        %c2, %ok2 = atomic_cas_weak %p, %e, %d, 4, release, relaxed: Int, Int
-        %c3, %ok3 = atomic_cas %p, %e, %d, 4, seq_cst, seq_cst: Int, Int
+        %c1, %ok1 = atomic_cas %p, %e, %d, 4, acq_rel, acquire: I32, I32
+        %c2, %ok2 = atomic_cas_weak %p, %e, %d, 4, release, relaxed: I32, I32
+        %c3, %ok3 = atomic_cas %p, %e, %d, 4, seq_cst, seq_cst: I32, I32
         ret %c1
     }
 }

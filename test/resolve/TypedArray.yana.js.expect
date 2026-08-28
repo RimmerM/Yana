@@ -6,17 +6,7 @@ function checkCondition(failed) {
   }
 }
 
-function push_Int(self, item) {
-  var count = self.length;
-  var v7 = count + 1;
-  if (v7 > self.items.length) {
-    growJsArray_Int(self, v7);
-  }
-  self.items[count] = item;
-  self.length = v7 & 1073741823;
-}
-
-function growJsArray_Int(self, wanted) {
+function growJsArray_I32(self, wanted) {
   var v3 = self.items;
   var room = v3.length;
   var v5 = room + room | 0;
@@ -29,6 +19,16 @@ function growJsArray_Int(self, wanted) {
   }
   var v25 = $grow(v3, wide);
   self.items = v25;
+}
+
+function push_I32(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_I32(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
 }
 
 function push_U8(self, item) {
@@ -71,7 +71,7 @@ function growJsArray_I8(self, wanted) {
   self.items = v25;
 }
 
-function growJsArray_Float(self, wanted) {
+function growJsArray_F32(self, wanted) {
   var v3 = self.items;
   var room = v3.length;
   var v5 = room + room | 0;
@@ -86,7 +86,7 @@ function growJsArray_Float(self, wanted) {
   self.items = v25;
 }
 
-function growJsArray_Double(self, wanted) {
+function growJsArray_F64(self, wanted) {
   var v3 = self.items;
   var room = v3.length;
   var v5 = room + room | 0;
@@ -125,8 +125,8 @@ function sumInts(xs$items, xs$length, xs$offset) {
 
 function ints() {
   var v3 = { items: new Int32Array([1, 2, 3]), length: 3 };
-  push_Int(v3, 4);
-  push_Int(v3, 5);
+  push_I32(v3, 4);
+  push_I32(v3, 5);
   var count = v3.length;
   if (0 < count) {
     v3.items.copyWithin(0, 1, count);
@@ -187,7 +187,7 @@ function signedBytes() {
 
 function floats() {
   var v3 = { items: new Float32Array([0.5, 0.25, 0.125]), length: 3 };
-  growJsArray_Float(v3, 4);
+  growJsArray_F32(v3, 4);
   v3.items[3] = 0.0625;
   v3.length = 4;
   var total = 0;
@@ -211,7 +211,7 @@ function floats() {
 
 function doubles() {
   var v2 = { items: new Float64Array([1.5, 2.25]), length: 2 };
-  growJsArray_Double(v2, 3);
+  growJsArray_F64(v2, 3);
   v2.items[2] = 4.125;
   var v95 = v2.items;
   v95.copyWithin(1, 2, 3);

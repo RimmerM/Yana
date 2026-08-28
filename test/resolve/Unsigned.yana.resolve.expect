@@ -66,9 +66,9 @@ fn signedDivide(%a: I64, %b: I64) -> I64 {
     ret %v5
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v4 = sub 0, 2 : Int
+    %v4 = sub 0, 2 : I32
     %big = cast %v4 : U64
     %half = call divide, %big, 2 : U64
     %rest = call remainder, %big, 3 : U64
@@ -82,10 +82,10 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %quotientIsPositive = phi [b1, 1], [b2, 0] : Int
+    %quotientIsPositive = phi [b1, 1], [b2, 0] : I32
     %v24 = sub 0, 7 : I64
     %v26 = call signedDivide, %v24, 2 : I64
-    %v31 = sub 0, 3 : Int
+    %v31 = sub 0, 3 : I32
     %v32 = cast %v31 : I64
     %v33 = cmp_eq %v26, %v32 : Bool
     je %v33, b4, b5
@@ -97,9 +97,9 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %signedStillSigned = phi [b4, 10], [b5, 0] : Int
-    %v42 = add %quotientIsPositive, %signedStillSigned : Int
-    %v43 = cast %rest : Int
-    %v44 = add %v42, %v43 : Int
+    %signedStillSigned = phi [b4, 10], [b5, 0] : I32
+    %v42 = add %quotientIsPositive, %signedStillSigned : I32
+    %v43 = cast %rest : I32
+    %v44 = add %v42, %v43 : I32
     ret %v44
 }

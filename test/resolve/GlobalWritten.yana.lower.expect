@@ -4,15 +4,15 @@ mut @counter = [0, 0, 0, 0]
 @ResolveTest.string$0 = [97, 98]
 @greeting = [0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0]
 
-countdown<complex>(%k: Int): Int {
+countdown<complex>(%k: I32): I32 {
   b_0 {
-    %v_1 = phi [b_2, %k], [b_3, %v_4]: Int
-    %v_5 = cmp_ile %v_1, 0: Int
+    %v_1 = phi [b_2, %k], [b_3, %v_4]: I32
+    %v_5 = cmp_ile %v_1, 0: I32
     je %v_5, b_6, b_7
   }
 
   b_6 {
-    %v_8 = loads @dynamic, 4: Int
+    %v_8 = loads @dynamic, 4: I32
     ret %v_8
   }
 
@@ -21,19 +21,19 @@ countdown<complex>(%k: Int): Int {
   }
 
   b_3 {
-    %v_4 = sub %v_1, 1: Int
+    %v_4 = sub %v_1, 1: I32
     jmp b_0
   }
 }
 
-main$<complex>(): Int {
+main$<complex>(): I32 {
   b_0 {
     store @dynamic, 7, 4
-    %v_1 = loads @counter, 4: Int
-    %v_2 = add %v_1, 20: Int
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 20: I32
     store @counter, %v_2, 4
-    %v_3 = call_complex countdown, 3: Int
-    %v_4 = cmp_eq %v_3, 7: Int
+    %v_3 = call_complex countdown, 3: I32
+    %v_4 = cmp_eq %v_3, 7: I32
     je %v_4, b_5, b_6
   }
 
@@ -42,33 +42,33 @@ main$<complex>(): Int {
   }
 
   b_6 {
-    %v_7 = phi [b_0, 0], [b_5, 1]: Int
-    %v_8 = loads @counter, 4: Int
-    %v_9 = cmp_eq %v_8, 20: Int
+    %v_7 = phi [b_0, 0], [b_5, 1]: I32
+    %v_8 = loads @counter, 4: I32
+    %v_9 = cmp_eq %v_8, 20: I32
     je %v_9, b_10, b_11
   }
 
   b_10 {
-    %v_12 = add %v_7, 2: Int
+    %v_12 = add %v_7, 2: I32
     jmp b_11
   }
 
   b_11 {
-    %v_13 = phi [b_6, %v_7], [b_10, %v_12]: Int
-    %v_14 = add %v_13, 4: Int
+    %v_13 = phi [b_6, %v_7], [b_10, %v_12]: I32
+    %v_14 = add %v_13, 4: I32
     %v_15 = add @greeting, 12: Ptr
-    %v_16 = load %v_15, 4: Int
-    %v_17 = cmp_eq %v_16, 2: Int
+    %v_16 = load %v_15, 4: I32
+    %v_17 = cmp_eq %v_16, 2: I32
     je %v_17, b_18, b_19
   }
 
   b_18 {
-    %v_20 = add %v_14, 8: Int
+    %v_20 = add %v_14, 8: I32
     jmp b_19
   }
 
   b_19 {
-    %v_21 = phi [b_11, %v_14], [b_18, %v_20]: Int
+    %v_21 = phi [b_11, %v_14], [b_18, %v_20]: I32
     ret %v_21
   }
 }

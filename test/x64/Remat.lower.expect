@@ -1,132 +1,132 @@
 @table = [0, 4, 0, 0]
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-indirect<complex>(%x: Long): Long {
+indirect<complex>(%x: I64): I64 {
   b_0 {
     ret %x
   }
 }
 
-takePtr<complex>(%p: Ptr, %v: Long): Long {
+takePtr<complex>(%p: Ptr, %v: I64): I64 {
   b_0 {
     ret %v
   }
 }
 
-constantAcrossCall<complex>(%arg: Int, %keep: Long, %other: Long): Long {
+constantAcrossCall<complex>(%arg: I32, %keep: I64, %other: I64): I64 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s1 = add %keep, %other: Long
-    %s2 = add %other, %s1: Long
-    %s3 = add %keep, %s2: Long
-    %s4 = add %other, %s3: Long
-    %s5 = add %keep, %s4: Long
-    %s6 = add %other, %s5: Long
-    %v = add %s6, 81985529216486895: Long
+    %r = call_clobber sink, %arg: I32
+    %s1 = add %keep, %other: I64
+    %s2 = add %other, %s1: I64
+    %s3 = add %keep, %s2: I64
+    %s4 = add %other, %s3: I64
+    %s5 = add %keep, %s4: I64
+    %s6 = add %other, %s5: I64
+    %v = add %s6, 81985529216486895: I64
     ret %v
   }
 }
 
-globalAcrossCall<complex>(%arg: Int, %keep: Long, %other: Long): Long {
+globalAcrossCall<complex>(%arg: I32, %keep: I64, %other: I64): I64 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s1 = add %keep, %other: Long
-    %s2 = add %other, %s1: Long
-    %s3 = add %keep, %s2: Long
-    %s4 = add %other, %s3: Long
-    %s5 = add %keep, %s4: Long
-    %s6 = add %other, %s5: Long
-    %v = load @table, 8: Long
-    %w = add %s6, %v: Long
+    %r = call_clobber sink, %arg: I32
+    %s1 = add %keep, %other: I64
+    %s2 = add %other, %s1: I64
+    %s3 = add %keep, %s2: I64
+    %s4 = add %other, %s3: I64
+    %s5 = add %keep, %s4: I64
+    %s6 = add %other, %s5: I64
+    %v = load @table, 8: I64
+    %w = add %s6, %v: I64
     ret %w
   }
 }
 
-functionAcrossCall<complex>(%arg: Int, %keep: Long, %other: Long): Long {
+functionAcrossCall<complex>(%arg: I32, %keep: I64, %other: I64): I64 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s1 = add %keep, %other: Long
-    %s2 = add %other, %s1: Long
-    %s3 = add %keep, %s2: Long
-    %s4 = add %other, %s3: Long
-    %s5 = add %keep, %s4: Long
-    %s6 = add %other, %s5: Long
-    %v = call_complex takePtr, indirect, %s6: Long
+    %r = call_clobber sink, %arg: I32
+    %s1 = add %keep, %other: I64
+    %s2 = add %other, %s1: I64
+    %s3 = add %keep, %s2: I64
+    %s4 = add %other, %s3: I64
+    %s5 = add %keep, %s4: I64
+    %s6 = add %other, %s5: I64
+    %v = call_complex takePtr, indirect, %s6: I64
     ret %v
   }
 }
 
-localAcrossCall<complex>(%arg: Int, %keep: Long, %other: Long): Long {
+localAcrossCall<complex>(%arg: I32, %keep: I64, %other: I64): I64 {
   b_0 {
     %p = alloca 32, 8: Ptr
-    %r = call_clobber sink, %arg: Int
-    %s1 = add %keep, %other: Long
-    %s2 = add %other, %s1: Long
-    %s3 = add %keep, %s2: Long
-    %s4 = add %other, %s3: Long
-    %s5 = add %keep, %s4: Long
-    %s6 = add %other, %s5: Long
+    %r = call_clobber sink, %arg: I32
+    %s1 = add %keep, %other: I64
+    %s2 = add %other, %s1: I64
+    %s3 = add %keep, %s2: I64
+    %s4 = add %other, %s3: I64
+    %s5 = add %keep, %s4: I64
+    %s6 = add %other, %s5: I64
     store %p, %s6, 8
-    %v = load %p, 8: Long
+    %v = load %p, 8: I64
     ret %v
   }
 }
 
-foldedConstant<complex>(%arg: Int, %keep: Long, %other: Long): Long {
+foldedConstant<complex>(%arg: I32, %keep: I64, %other: I64): I64 {
   b_0 {
-    %k = imm 81985529216486895: Long
-    %r = call_clobber sink, %arg: Int
-    %s1 = add %keep, %other: Long
-    %s2 = add %other, %s1: Long
-    %s3 = add %keep, %s2: Long
-    %s4 = add %other, %s3: Long
-    %s5 = add %keep, %s4: Long
-    %s6 = add %other, %s5: Long
-    %a = add %s6, %k: Long
-    %b = add %a, %k: Long
-    %c = add %b, %k: Long
-    %d = add %c, %k: Long
+    %k = imm 81985529216486895: I64
+    %r = call_clobber sink, %arg: I32
+    %s1 = add %keep, %other: I64
+    %s2 = add %other, %s1: I64
+    %s3 = add %keep, %s2: I64
+    %s4 = add %other, %s3: I64
+    %s5 = add %keep, %s4: I64
+    %s6 = add %other, %s5: I64
+    %a = add %s6, %k: I64
+    %b = add %a, %k: I64
+    %c = add %b, %k: I64
+    %d = add %c, %k: I64
     ret %d
   }
 }
 
-constantUnderPressure<complex>(%a: Long): Long {
+constantUnderPressure<complex>(%a: I64): I64 {
   b_0 {
-    %v0 = add %a, 0: Long
-    %v1 = add %a, 1: Long
-    %v2 = add %a, 2: Long
-    %v3 = add %a, 3: Long
-    %v4 = add %a, 4: Long
-    %v5 = add %a, 5: Long
-    %v6 = add %a, 6: Long
-    %v7 = add %a, 7: Long
-    %v8 = add %a, 8: Long
-    %v9 = add %a, 9: Long
-    %v10 = add %a, 10: Long
-    %v11 = add %a, 11: Long
-    %v12 = add %a, 12: Long
-    %v13 = add %a, 13: Long
-    %v14 = add %a, 14: Long
-    %s14 = add %v14, %v13: Long
-    %s13 = add %s14, %v12: Long
-    %s12 = add %s13, %v11: Long
-    %s11 = add %s12, %v10: Long
-    %s10 = add %s11, %v9: Long
-    %s9 = add %s10, %v8: Long
-    %s8 = add %s9, %v7: Long
-    %s7 = add %s8, %v6: Long
-    %s6 = add %s7, %v5: Long
-    %s5 = add %s6, %v4: Long
-    %s4 = add %s5, %v3: Long
-    %s3 = add %s4, %v2: Long
-    %s2 = add %s3, %v1: Long
-    %s1 = add %s2, %v0: Long
-    %s0 = imul %s1, 81985529216486895: Long
+    %v0 = add %a, 0: I64
+    %v1 = add %a, 1: I64
+    %v2 = add %a, 2: I64
+    %v3 = add %a, 3: I64
+    %v4 = add %a, 4: I64
+    %v5 = add %a, 5: I64
+    %v6 = add %a, 6: I64
+    %v7 = add %a, 7: I64
+    %v8 = add %a, 8: I64
+    %v9 = add %a, 9: I64
+    %v10 = add %a, 10: I64
+    %v11 = add %a, 11: I64
+    %v12 = add %a, 12: I64
+    %v13 = add %a, 13: I64
+    %v14 = add %a, 14: I64
+    %s14 = add %v14, %v13: I64
+    %s13 = add %s14, %v12: I64
+    %s12 = add %s13, %v11: I64
+    %s11 = add %s12, %v10: I64
+    %s10 = add %s11, %v9: I64
+    %s9 = add %s10, %v8: I64
+    %s8 = add %s9, %v7: I64
+    %s7 = add %s8, %v6: I64
+    %s6 = add %s7, %v5: I64
+    %s5 = add %s6, %v4: I64
+    %s4 = add %s5, %v3: I64
+    %s3 = add %s4, %v2: I64
+    %s2 = add %s3, %v1: I64
+    %s1 = add %s2, %v0: I64
+    %s0 = imul %s1, 81985529216486895: I64
     ret %s0
   }
 }

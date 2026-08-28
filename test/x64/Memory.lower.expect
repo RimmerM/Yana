@@ -1,34 +1,34 @@
 mut @g = [42, 0, 0, 0]
 
-loadStore<complex>(%p: Ptr, %v: Int): Int {
+loadStore<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
     store %p, %v, 4
-    %l = load %p, 4: Int
-    %w = add %l, %v: Int
+    %l = load %p, 4: I32
+    %w = add %l, %v: I32
     ret %w
   }
 }
 
-narrow<complex>(%p: Ptr, %v: Int): Int {
+narrow<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
     store %p, %v, 1
     store %p, %v, 2
     store %p, %v, 8
-    %b = load %p, 1: Int
-    %h = loads %p, 2: Int
-    %q = load %p, 8: Long
-    %s = loads %p, 4: Long
-    %t = add %q, %s: Long
-    %c = cast %t: Int
-    %r = add %b, %h: Int
-    %r2 = add %r, %c: Int
+    %b = load %p, 1: I32
+    %h = loads %p, 2: I32
+    %q = load %p, 8: I64
+    %s = loads %p, 4: I64
+    %t = add %q, %s: I64
+    %c = cast %t: I32
+    %r = add %b, %h: I32
+    %r2 = add %r, %c: I32
     ret %r2
   }
 }
 
-globalLoad<complex>(): Int {
+globalLoad<complex>(): I32 {
   b_0 {
-    %gv = load @g, 4: Int
+    %gv = load @g, 4: I32
     ret %gv
   }
 }
@@ -40,9 +40,9 @@ globalStoreImm<complex>() {
   }
 }
 
-globalEscapes<complex>(%v: Int): Int {
+globalEscapes<complex>(%v: I32): I32 {
   b_0 {
-    %r = call_complex loadStore, @g, %v: Int
+    %r = call_complex loadStore, @g, %v: I32
     ret %r
   }
 }
@@ -55,7 +55,7 @@ blockOps<complex>(%dst: Ptr, %src: Ptr) {
   }
 }
 
-blockOpsDynamic<complex>(%dst: Ptr, %src: Ptr, %n: Int, %pat: Int) {
+blockOpsDynamic<complex>(%dst: Ptr, %src: Ptr, %n: I32, %pat: I32) {
   b_0 {
     copy %dst, %src, %n
     setpattern %dst, %n, %pat

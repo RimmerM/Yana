@@ -1,8 +1,8 @@
 let image$base: () = <none>
 
-fn scalars() -> Int {
+fn scalars() -> I32 {
   b0:
-    %v1 = sqrt 16 : Double
+    %v1 = sqrt 16 : F64
     %v4 = cmp_ne %v1, 4 : Bool
     je %v4, b1, b2
 
@@ -13,7 +13,7 @@ fn scalars() -> Int {
     jmp b3
 
   b3:
-    %v10 = sqrt 2.25 : Double
+    %v10 = sqrt 2.25 : F64
     %v13 = cmp_ne %v10, 1.5 : Bool
     je %v13, b4, b5
 
@@ -24,7 +24,7 @@ fn scalars() -> Int {
     jmp b6
 
   b6:
-    %v23 = fma 2 3 4 : Double
+    %v23 = fma 2 3 4 : F64
     %v26 = cmp_ne %v23, 10 : Bool
     je %v26, b7, b8
 
@@ -35,7 +35,7 @@ fn scalars() -> Int {
     jmp b9
 
   b9:
-    %v32 = sqrt 6.25 : Float
+    %v32 = sqrt 6.25 : F32
     %v35 = cmp_ne %v32, 2.5 : Bool
     je %v35, b10, b11
 
@@ -46,11 +46,11 @@ fn scalars() -> Int {
     jmp b12
 
   b12:
-    %v45 = sub 0, 0 : Float
-    %v46 = sqrt %v45 : Float
-    %v48 = div 1, %v46 : Float
-    %v54 = sub 0, 0 : Float
-    %v56 = div 1, %v54 : Float
+    %v45 = sub 0, 0 : F32
+    %v46 = sqrt %v45 : F32
+    %v48 = div 1, %v46 : F32
+    %v54 = sub 0, 0 : F32
+    %v56 = div 1, %v54 : F32
     %v57 = cmp_ne %v48, %v56 : Bool
     je %v57, b13, b14
 
@@ -64,11 +64,11 @@ fn scalars() -> Int {
     ret 0
 }
 
-fn lanes() -> Int {
+fn lanes() -> I32 {
   b0:
-    %squares = vsplat 6.25 : Vec(Float)
-    %roots = sqrt %squares : Vec(Float)
-    %v6 = vlane %roots, 0 : Float
+    %squares = vsplat 6.25 : Vec(F32)
+    %roots = sqrt %squares : Vec(F32)
+    %v6 = vlane %roots, 0 : F32
     %v9 = cmp_ne %v6, 2.5 : Bool
     je %v9, b1, b2
 
@@ -79,7 +79,7 @@ fn lanes() -> Int {
     jmp b3
 
   b3:
-    %v14 = vreduce_min %roots : Float
+    %v14 = vreduce_min %roots : F32
     %v17 = cmp_ne %v14, 2.5 : Bool
     je %v17, b4, b5
 
@@ -90,14 +90,14 @@ fn lanes() -> Int {
     jmp b6
 
   b6:
-    %v23 = vsplat 0 : Vec(Float)
-    %v25 = vwithlane %v23, 1, 1 : Vec(Float)
-    %v27 = vwithlane %v25, 2, 2 : Vec(Float)
-    %counted = vwithlane %v27, 3, 3 : Vec(Float)
-    %v32 = vsplat 3 : Vec(Float)
-    %v35 = vsplat 1 : Vec(Float)
-    %scaled = fma %counted %v32 %v35 : Vec(Float)
-    %v39 = vlane %scaled, 0 : Float
+    %v23 = vsplat 0 : Vec(F32)
+    %v25 = vwithlane %v23, 1, 1 : Vec(F32)
+    %v27 = vwithlane %v25, 2, 2 : Vec(F32)
+    %counted = vwithlane %v27, 3, 3 : Vec(F32)
+    %v32 = vsplat 3 : Vec(F32)
+    %v35 = vsplat 1 : Vec(F32)
+    %scaled = fma %counted %v32 %v35 : Vec(F32)
+    %v39 = vlane %scaled, 0 : F32
     %v42 = cmp_ne %v39, 1 : Bool
     je %v42, b7, b8
 
@@ -108,7 +108,7 @@ fn lanes() -> Int {
     jmp b9
 
   b9:
-    %v49 = vlane %scaled, 1 : Float
+    %v49 = vlane %scaled, 1 : F32
     %v52 = cmp_ne %v49, 4 : Bool
     je %v52, b10, b11
 
@@ -119,7 +119,7 @@ fn lanes() -> Int {
     jmp b12
 
   b12:
-    %v59 = vlane %scaled, 2 : Float
+    %v59 = vlane %scaled, 2 : F32
     %v62 = cmp_ne %v59, 7 : Bool
     je %v62, b13, b14
 
@@ -130,7 +130,7 @@ fn lanes() -> Int {
     jmp b15
 
   b15:
-    %v67 = vreduce_add %scaled : Float
+    %v67 = vreduce_add %scaled : F32
     %v70 = cmp_ne %v67, 22 : Bool
     je %v70, b16, b17
 
@@ -144,27 +144,27 @@ fn lanes() -> Int {
     ret 0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call scalars : Int
+    %v0 = call scalars : I32
     %v3 = cmp_ne %v0, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = call scalars : Int
+    %v5 = call scalars : I32
     ret %v5
 
   b2:
     jmp b3
 
   b3:
-    %v8 = call lanes : Int
+    %v8 = call lanes : I32
     %v11 = cmp_ne %v8, 0 : Bool
     je %v11, b4, b5
 
   b4:
-    %v13 = call lanes : Int
-    %v16 = mul %v13, 10 : Int
+    %v13 = call lanes : I32
+    %v16 = mul %v13, 10 : I32
     ret %v16
 
   b5:

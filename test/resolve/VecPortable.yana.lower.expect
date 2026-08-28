@@ -1,14 +1,14 @@
 @image$base = []
 mut @seed = [2, 0, 0, 0]
 
-construction<complex>(): Int {
+construction<complex>(): I32 {
   b_0 {
     %empty = vsplat 0: i32x4
     %v_1 = vwithlane %empty, 1, 1: i32x4
     %v_2 = vwithlane %v_1, 2, 2: i32x4
     %indices = vwithlane %v_2, 3, 3: i32x4
-    %v_3 = vlane %empty, 0: Int
-    %v_4 = cmp_neq %v_3, 0: Int
+    %v_3 = vlane %empty, 0: I32
+    %v_4 = cmp_neq %v_3, 0: I32
     je %v_4, b_5, b_6
   }
 
@@ -17,8 +17,8 @@ construction<complex>(): Int {
   }
 
   b_6 {
-    %v_7 = vlane %empty, 1: Int
-    %v_8 = cmp_neq %v_7, 0: Int
+    %v_7 = vlane %empty, 1: I32
+    %v_8 = cmp_neq %v_7, 0: I32
     je %v_8, b_9, b_10
   }
 
@@ -27,8 +27,8 @@ construction<complex>(): Int {
   }
 
   b_10 {
-    %v_11 = vlane %indices, 0: Int
-    %v_12 = cmp_neq %v_11, 0: Int
+    %v_11 = vlane %indices, 0: I32
+    %v_12 = cmp_neq %v_11, 0: I32
     je %v_12, b_13, b_14
   }
 
@@ -37,17 +37,17 @@ construction<complex>(): Int {
   }
 
   b_14 {
-    %v_15 = vlane %indices, 1: Int
-    %v_16 = cmp_neq %v_15, 1: Int
-    %v_17 = vreduce_add %indices: Int
-    %v_18 = cmp_neq %v_17, 6: Int
-    %v_19 = select %v_18, 18446744073709551610, 0: Int
-    %v_20 = select %v_16, 18446744073709551612, %v_19: Int
+    %v_15 = vlane %indices, 1: I32
+    %v_16 = cmp_neq %v_15, 1: I32
+    %v_17 = vreduce_add %indices: I32
+    %v_18 = cmp_neq %v_17, 6: I32
+    %v_19 = select %v_18, 18446744073709551610, 0: I32
+    %v_20 = select %v_16, 18446744073709551612, %v_19: I32
     ret %v_20
   }
 }
 
-arithmetic<complex>(%v: i32x4): Int {
+arithmetic<complex>(%v: i32x4): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = vwithlane %v_1, 1, 1: i32x4
@@ -57,8 +57,8 @@ arithmetic<complex>(%v: i32x4): Int {
     %lower = select %v_4, %v, %indices: i32x4
     %v_5 = cmp_igt %v, %indices: m32x4
     %upper = select %v_5, %v, %indices: i32x4
-    %v_6 = vlane %lower, 0: Int
-    %v_7 = cmp_neq %v_6, 0: Int
+    %v_6 = vlane %lower, 0: I32
+    %v_7 = cmp_neq %v_6, 0: I32
     je %v_7, b_8, b_9
   }
 
@@ -71,8 +71,8 @@ arithmetic<complex>(%v: i32x4): Int {
   }
 
   b_10 {
-    %v_11 = vlane %upper, 0: Int
-    %v_12 = cmp_neq %v_11, 2: Int
+    %v_11 = vlane %upper, 0: I32
+    %v_12 = cmp_neq %v_11, 2: I32
     je %v_12, b_13, b_14
   }
 
@@ -85,8 +85,8 @@ arithmetic<complex>(%v: i32x4): Int {
   }
 
   b_15 {
-    %v_16 = vlane %lower, 1: Int
-    %v_17 = cmp_neq %v_16, 1: Int
+    %v_16 = vlane %lower, 1: I32
+    %v_17 = cmp_neq %v_16, 1: I32
     je %v_17, b_18, b_19
   }
 
@@ -99,8 +99,8 @@ arithmetic<complex>(%v: i32x4): Int {
   }
 
   b_20 {
-    %v_21 = vlane %upper, 1: Int
-    %v_22 = cmp_neq %v_21, 2: Int
+    %v_21 = vlane %upper, 1: I32
+    %v_22 = cmp_neq %v_21, 2: I32
     je %v_22, b_23, b_24
   }
 
@@ -115,8 +115,8 @@ arithmetic<complex>(%v: i32x4): Int {
   b_25 {
     %negated = sub %v_1, %v: i32x4
     %v_26 = abs %negated: i32x4
-    %v_27 = vlane %v_26, 0: Int
-    %v_28 = cmp_neq %v_27, 2: Int
+    %v_27 = vlane %v_26, 0: I32
+    %v_28 = cmp_neq %v_27, 2: I32
     je %v_28, b_29, b_30
   }
 
@@ -130,8 +130,8 @@ arithmetic<complex>(%v: i32x4): Int {
 
   b_31 {
     %v_32 = abs %v: i32x4
-    %v_33 = vlane %v_32, 1: Int
-    %v_34 = cmp_neq %v_33, 2: Int
+    %v_33 = vlane %v_32, 1: I32
+    %v_34 = cmp_neq %v_33, 2: I32
     je %v_34, b_35, b_36
   }
 
@@ -148,13 +148,13 @@ arithmetic<complex>(%v: i32x4): Int {
   }
 }
 
-floats<complex>(): Int {
+floats<complex>(): I32 {
   b_0 {
     %a = vsplat -1.5: f32x4
     %zeros = vsplat 0: f32x4
     %v_1 = abs %a: f32x4
-    %v_2 = vlane %v_1, 0: Float
-    %v_3 = cmp_neq %v_2, 1.5: Int
+    %v_2 = vlane %v_1, 0: F32
+    %v_3 = cmp_neq %v_2, 1.5: I32
     je %v_3, b_4, b_5
   }
 
@@ -169,8 +169,8 @@ floats<complex>(): Int {
   b_6 {
     %v_7 = cmp_lt %a, %zeros: m32x4
     %v_8 = select %v_7, %a, %zeros: f32x4
-    %v_9 = vlane %v_8, 0: Float
-    %v_10 = cmp_neq %v_9, -1.5: Int
+    %v_9 = vlane %v_8, 0: F32
+    %v_10 = cmp_neq %v_9, -1.5: I32
     je %v_10, b_11, b_12
   }
 
@@ -185,8 +185,8 @@ floats<complex>(): Int {
   b_13 {
     %v_14 = cmp_gt %a, %zeros: m32x4
     %v_15 = select %v_14, %a, %zeros: f32x4
-    %v_16 = vlane %v_15, 1: Float
-    %v_17 = cmp_neq %v_16, 0: Int
+    %v_16 = vlane %v_15, 1: F32
+    %v_17 = cmp_neq %v_16, 0: I32
     je %v_17, b_18, b_19
   }
 
@@ -200,9 +200,9 @@ floats<complex>(): Int {
 
   b_20 {
     %v_21 = abs %zeros: f32x4
-    %v_22 = vlane %v_21, 0: Float
-    %v_23 = div 1, %v_22: Float
-    %v_24 = cmp_lt %v_23, 0: Int
+    %v_22 = vlane %v_21, 0: F32
+    %v_23 = div 1, %v_22: F32
+    %v_24 = cmp_lt %v_23, 0: I32
     je %v_24, b_25, b_26
   }
 
@@ -219,15 +219,15 @@ floats<complex>(): Int {
   }
 }
 
-rearrangement<complex>(): Int {
+rearrangement<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = vwithlane %v_1, 1, 1: i32x4
     %v_3 = vwithlane %v_2, 2, 2: i32x4
     %indices = vwithlane %v_3, 3, 3: i32x4
     %backwards = vshuffle %indices, %indices, 3, 2, 1, 0: i32x4
-    %v_4 = vlane %backwards, 0: Int
-    %v_5 = cmp_neq %v_4, 3: Int
+    %v_4 = vlane %backwards, 0: I32
+    %v_5 = cmp_neq %v_4, 3: I32
     je %v_5, b_6, b_7
   }
 
@@ -240,8 +240,8 @@ rearrangement<complex>(): Int {
   }
 
   b_8 {
-    %v_9 = vlane %backwards, 1: Int
-    %v_10 = cmp_neq %v_9, 2: Int
+    %v_9 = vlane %backwards, 1: I32
+    %v_10 = cmp_neq %v_9, 2: I32
     je %v_10, b_11, b_12
   }
 
@@ -255,8 +255,8 @@ rearrangement<complex>(): Int {
 
   b_13 {
     %v_14 = vshuffle %indices, %indices, 1, 2, 3, 0: i32x4
-    %v_15 = vlane %v_14, 0: Int
-    %v_16 = cmp_neq %v_15, 1: Int
+    %v_15 = vlane %v_14, 0: I32
+    %v_16 = cmp_neq %v_15, 1: I32
     je %v_16, b_17, b_18
   }
 
@@ -270,8 +270,8 @@ rearrangement<complex>(): Int {
 
   b_19 {
     %v_20 = vshuffle %indices, %indices, 3, 0, 1, 2: i32x4
-    %v_21 = vlane %v_20, 0: Int
-    %v_22 = cmp_neq %v_21, 3: Int
+    %v_21 = vlane %v_20, 0: I32
+    %v_22 = cmp_neq %v_21, 3: I32
     je %v_22, b_23, b_24
   }
 
@@ -287,8 +287,8 @@ rearrangement<complex>(): Int {
     %nines = vsplat 9: i32x4
     %low = vshuffle %indices, %nines, 0, 4, 1, 5: i32x4
     %high = vshuffle %indices, %nines, 2, 6, 3, 7: i32x4
-    %v_26 = vlane %low, 0: Int
-    %v_27 = cmp_neq %v_26, 0: Int
+    %v_26 = vlane %low, 0: I32
+    %v_27 = cmp_neq %v_26, 0: I32
     je %v_27, b_28, b_29
   }
 
@@ -301,8 +301,8 @@ rearrangement<complex>(): Int {
   }
 
   b_30 {
-    %v_31 = vlane %low, 1: Int
-    %v_32 = cmp_neq %v_31, 9: Int
+    %v_31 = vlane %low, 1: I32
+    %v_32 = cmp_neq %v_31, 9: I32
     je %v_32, b_33, b_34
   }
 
@@ -315,8 +315,8 @@ rearrangement<complex>(): Int {
   }
 
   b_35 {
-    %v_36 = vlane %high, 0: Int
-    %v_37 = cmp_neq %v_36, 2: Int
+    %v_36 = vlane %high, 0: I32
+    %v_37 = cmp_neq %v_36, 2: I32
     je %v_37, b_38, b_39
   }
 
@@ -329,8 +329,8 @@ rearrangement<complex>(): Int {
   }
 
   b_40 {
-    %v_41 = vlane %high, 1: Int
-    %v_42 = cmp_neq %v_41, 9: Int
+    %v_41 = vlane %high, 1: I32
+    %v_42 = cmp_neq %v_41, 9: I32
     je %v_42, b_43, b_44
   }
 
@@ -347,18 +347,18 @@ rearrangement<complex>(): Int {
   }
 }
 
-regrouping<complex>(%v: i32x4): Int {
+regrouping<complex>(%v: i32x4): I32 {
   b_0 {
     %other = vwithlane %v, 5, 0: i32x4
     %v_1 = cast %v: i16x4
     %v_2 = cast %other: i16x4
     %packed = vshuffle %v_1, %v_2, 0, 1, 2, 3, 4, 5, 6, 7: i16x8
-    %v_3 = vlane %packed, 0: Int
-    %v_4 = imm 16: Int
-    %v_5 = shl %v_3, %v_4: Int
-    %v_6 = sar %v_5, %v_4: Int
-    %v_7 = cmp_neq %v_6, 2: Int
-    %v_8 = imm 16: Int
+    %v_3 = vlane %packed, 0: I32
+    %v_4 = imm 16: I32
+    %v_5 = shl %v_3, %v_4: I32
+    %v_6 = sar %v_5, %v_4: I32
+    %v_7 = cmp_neq %v_6, 2: I32
+    %v_8 = imm 16: I32
     je %v_7, b_9, b_10
   }
 
@@ -367,10 +367,10 @@ regrouping<complex>(%v: i32x4): Int {
   }
 
   b_10 {
-    %v_11 = vlane %packed, 4: Int
-    %v_12 = shl %v_11, %v_8: Int
-    %v_13 = sar %v_12, %v_8: Int
-    %v_14 = cmp_neq %v_13, 5: Int
+    %v_11 = vlane %packed, 4: I32
+    %v_12 = shl %v_11, %v_8: I32
+    %v_13 = sar %v_12, %v_8: I32
+    %v_14 = cmp_neq %v_13, 5: I32
     je %v_14, b_15, b_16
   }
 
@@ -383,27 +383,27 @@ regrouping<complex>(%v: i32x4): Int {
     %low = cast %v_17: i32x4
     %v_18 = vshuffle %packed, %packed, 4, 5, 6, 7: i16x4
     %high = cast %v_18: i32x4
-    %v_19 = vlane %low, 0: Int
-    %v_20 = cmp_neq %v_19, 2: Int
-    %v_21 = vlane %high, 0: Int
-    %v_22 = cmp_neq %v_21, 5: Int
-    %v_23 = select %v_22, 18446744073709551611, 0: Int
-    %v_24 = select %v_20, 18446744073709551612, %v_23: Int
+    %v_19 = vlane %low, 0: I32
+    %v_20 = cmp_neq %v_19, 2: I32
+    %v_21 = vlane %high, 0: I32
+    %v_22 = cmp_neq %v_21, 5: I32
+    %v_23 = select %v_22, 18446744073709551611, 0: I32
+    %v_24 = select %v_20, 18446744073709551612, %v_23: I32
     ret %v_24
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = loads @seed, 4: Int
+    %v_1 = loads @seed, 4: I32
     %v = vsplat %v_1: i32x4
-    %v_2 = call_complex construction: Int
-    %v_3 = cmp_neq %v_2, 0: Int
+    %v_2 = call_complex construction: I32
+    %v_3 = cmp_neq %v_2, 0: I32
     je %v_3, b_4, b_5
   }
 
   b_4 {
-    %v_6 = call_complex construction: Int
+    %v_6 = call_complex construction: I32
     ret %v_6
   }
 
@@ -412,14 +412,14 @@ main<complex>(): Int {
   }
 
   b_7 {
-    %v_8 = call_complex arithmetic, %v: Int
-    %v_9 = cmp_neq %v_8, 0: Int
+    %v_8 = call_complex arithmetic, %v: I32
+    %v_9 = cmp_neq %v_8, 0: I32
     je %v_9, b_10, b_11
   }
 
   b_10 {
-    %v_12 = call_complex arithmetic, %v: Int
-    %v_13 = imul %v_12, 10: Int
+    %v_12 = call_complex arithmetic, %v: I32
+    %v_13 = imul %v_12, 10: I32
     ret %v_13
   }
 
@@ -428,14 +428,14 @@ main<complex>(): Int {
   }
 
   b_14 {
-    %v_15 = call_complex floats: Int
-    %v_16 = cmp_neq %v_15, 0: Int
+    %v_15 = call_complex floats: I32
+    %v_16 = cmp_neq %v_15, 0: I32
     je %v_16, b_17, b_18
   }
 
   b_17 {
-    %v_19 = call_complex floats: Int
-    %v_20 = imul %v_19, 100: Int
+    %v_19 = call_complex floats: I32
+    %v_20 = imul %v_19, 100: I32
     ret %v_20
   }
 
@@ -444,14 +444,14 @@ main<complex>(): Int {
   }
 
   b_21 {
-    %v_22 = call_complex rearrangement: Int
-    %v_23 = cmp_neq %v_22, 0: Int
+    %v_22 = call_complex rearrangement: I32
+    %v_23 = cmp_neq %v_22, 0: I32
     je %v_23, b_24, b_25
   }
 
   b_24 {
-    %v_26 = call_complex rearrangement: Int
-    %v_27 = imul %v_26, 1000: Int
+    %v_26 = call_complex rearrangement: I32
+    %v_27 = imul %v_26, 1000: I32
     ret %v_27
   }
 
@@ -460,18 +460,18 @@ main<complex>(): Int {
   }
 
   b_28 {
-    %v_29 = loads @seed, 4: Int
+    %v_29 = loads @seed, 4: I32
     %v_30 = vsplat %v_29: i32x4
-    %v_31 = call_complex regrouping, %v_30: Int
-    %v_32 = cmp_neq %v_31, 0: Int
+    %v_31 = call_complex regrouping, %v_30: I32
+    %v_32 = cmp_neq %v_31, 0: I32
     je %v_32, b_33, b_34
   }
 
   b_33 {
-    %v_35 = loads @seed, 4: Int
+    %v_35 = loads @seed, 4: I32
     %v_36 = vsplat %v_35: i32x4
-    %v_37 = call_complex regrouping, %v_36: Int
-    %v_38 = imul %v_37, 10000: Int
+    %v_37 = call_complex regrouping, %v_36: I32
+    %v_38 = imul %v_37, 10000: I32
     ret %v_38
   }
 

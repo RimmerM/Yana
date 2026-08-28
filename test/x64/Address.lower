@@ -8,74 +8,74 @@
 #
 # Read each case as "how many instructions does this memory access cost".
 
-sink<complex>(%p: Ptr): Int {
+sink<complex>(%p: Ptr): I32 {
     { ret 0 }
 }
 
 # The simplest fold: a constant offset becomes the displacement, and the add disappears.
-displacement(%p: Ptr): Int {
+displacement(%p: Ptr): I32 {
     {
         %q = add %p, 16: Ptr
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 }
 
 # Subtraction is the same fold with the sign turned around.
-negativeDisplacement(%p: Ptr): Int {
+negativeDisplacement(%p: Ptr): I32 {
     {
         %q = sub %p, 8: Ptr
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 }
 
 # A register offset becomes the index, unscaled.
-index(%p: Ptr, %i: Long): Int {
+index(%p: Ptr, %i: I64): I32 {
     {
         %q = add %p, %i: Ptr
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 }
 
 # A 64-bit shift by 0-3 is exactly what the SIB byte's scale encodes, so both the shift and the add
 # fold into the access.
-scaledIndex(%p: Ptr, %i: Long): Int {
+scaledIndex(%p: Ptr, %i: I64): I32 {
     {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %q = add %p, %o: Ptr
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 }
 
 # The same through a multiply, which is the more expensive one to fold away: `mul` forces its
 # operand into rax and clobbers rdx, and folding it leaves neither constraint behind.
-multipliedIndex(%p: Ptr, %i: Long): Long {
+multipliedIndex(%p: Ptr, %i: I64): I64 {
     {
-        %o = mul %i, 8L: Long
+        %o = mul %i, 8L: I64
         %q = add %p, %o: Ptr
-        %v = load %q, 8: Long
+        %v = load %q, 8: I64
         ret %v
     }
 }
 
 # Everything at once, built up over two adds: one access, three operands, no arithmetic.
-full(%p: Ptr, %i: Long): Int {
+full(%p: Ptr, %i: I64): I32 {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %a = add %p, %o: Ptr
         %q = add %a, 24: Ptr
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 }
 
 # A store folds its destination the same way a load folds its source.
-storeAddress(%p: Ptr, %i: Long, %v: Int) {
+storeAddress(%p: Ptr, %i: I64, %v: I32) {
     {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %q = add %p, %o: Ptr
         store %q, %v, 4
         ret
@@ -85,12 +85,12 @@ storeAddress(%p: Ptr, %i: Long, %v: Int) {
 # One computation, two accesses. The chain is folded for both users at once and each gets its own
 # x86_addr, which is what lets the add itself go: folding for only one of them would leave the
 # arithmetic behind and repeat it inside the address.
-readModifyWrite(%p: Ptr, %i: Long, %v: Int) {
+readModifyWrite(%p: Ptr, %i: I64, %v: I32) {
     {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %q = add %p, %o: Ptr
-        %old = load %q, 4: Int
-        %new = add %old, %v: Int
+        %old = load %q, 4: I32
+        %new = add %old, %v: I32
         store %q, %new, 4
         ret
     }
@@ -98,11 +98,11 @@ readModifyWrite(%p: Ptr, %i: Long, %v: Int) {
 
 # The address is also passed to a call, so it has to exist in a register regardless. Folding it
 # would compute it twice, so nothing is folded and the access reads the pointer directly.
-escapingAddress(%p: Ptr, %v: Int): Int {
+escapingAddress(%p: Ptr, %v: I32): I32 {
     {
         %q = add %p, 16: Ptr
         store %q, %v, 4
-        %r = call_complex sink, %q: Int
+        %r = call_complex sink, %q: I32
         ret %r
     }
 }
@@ -110,29 +110,29 @@ escapingAddress(%p: Ptr, %v: Int): Int {
 # The shift result feeds two different addresses, and neither is its only use - but between them they
 # are all of them, so it is dead once both have been rewritten. Both take it at scale 4 off the
 # unshifted index, and the shift goes.
-sharedIndex(%p: Ptr, %r: Ptr, %i: Long): Int {
+sharedIndex(%p: Ptr, %r: Ptr, %i: I64): I32 {
     {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %a = add %p, %o: Ptr
         %b = add %r, %o: Ptr
-        %x = load %a, 4: Int
-        %y = load %b, 4: Int
-        %s = add %x, %y: Int
+        %x = load %a, 4: I32
+        %y = load %b, 4: I32
+        %s = add %x, %y: I32
         ret %s
     }
 }
 
 # The two tests compose: the shift is shared between two adds, and one of those is read by more than
 # one access. Three address instructions come out of two adds, and the shift still goes.
-sharedIndexManyUsers(%p: Ptr, %r: Ptr, %i: Long, %v: Long): Long {
+sharedIndexManyUsers(%p: Ptr, %r: Ptr, %i: I64, %v: I64): I64 {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %a = add %p, %o: Ptr
         %b = add %r, %o: Ptr
-        %x = load %a, 8: Long
+        %x = load %a, 8: I64
         store %b, %v, 8
-        %y = load %b, 8: Long
-        %s = add %x, %y: Long
+        %y = load %b, 8: I64
+        %s = add %x, %y: I64
         ret %s
     }
 }
@@ -142,15 +142,15 @@ sharedIndexManyUsers(%p: Ptr, %r: Ptr, %i: Long, %v: Long): Long {
 # is an address and nothing else", which cannot see through the second add and so does not fire. The
 # shift stays materialized and both addresses index it at 1, which is what they did before sharing was
 # taken apart at all. The narrower rule costs this case; folding it would need the users of a user.
-sharedIndexChained(%p: Ptr, %r: Ptr, %i: Long): Int {
+sharedIndexChained(%p: Ptr, %r: Ptr, %i: I64): I32 {
     {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %a = add %p, %o: Ptr
         %b = add %r, %o: Ptr
         %c = add %b, 16: Ptr
-        %x = load %a, 4: Int
-        %y = load %c, 4: Int
-        %s = add %x, %y: Int
+        %x = load %a, 4: I32
+        %y = load %c, 4: I32
+        %s = add %x, %y: I32
         ret %s
     }
 }
@@ -158,14 +158,14 @@ sharedIndexChained(%p: Ptr, %r: Ptr, %i: Long): Int {
 # One of the shift's users is read as a value as well as an address, so that address is not folded at
 # all - which leaves the shift alive whatever the other user does with it. Being shared is only worth
 # taking apart when *every* reader is an address, so this one stays materialized and indexes at 1.
-sharedIndexEscapes(%p: Ptr, %r: Ptr, %i: Long): Int {
+sharedIndexEscapes(%p: Ptr, %r: Ptr, %i: I64): I32 {
     {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %a = add %p, %o: Ptr
         %b = add %r, %o: Ptr
-        %x = load %a, 4: Int
-        %y = call_complex sink, %b: Int
-        %s = add %x, %y: Int
+        %x = load %a, 4: I32
+        %y = call_complex sink, %b: I32
+        %s = add %x, %y: I32
         ret %s
     }
 }
@@ -173,24 +173,24 @@ sharedIndexEscapes(%p: Ptr, %r: Ptr, %i: Long): Int {
 # A 32-bit shift wraps at 32 bits and the address unit does not, so this one is not folded into the
 # scale: an index near the top of its range would come out of the two differently. The shift stays,
 # and its result becomes an unscaled index - which is what the 64-bit add would have read anyway.
-narrowScale(%p: Ptr, %i: Int): Int {
+narrowScale(%p: Ptr, %i: I32): I32 {
     {
-        %o = shl %i, 2: Int
+        %o = shl %i, 2: I32
         %q = add %p, %o: Ptr
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 }
 
 # A frame object reached through an offset. The alloca is still one `lea`, and the element access
 # folds onto its result.
-localElement(%i: Long, %v: Int): Int {
+localElement(%i: I64, %v: I32): I32 {
     {
         %a = alloca 64: Ptr
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %q = add %a, %o: Ptr
         store %q, %v, 4
-        %r = load %q, 4: Int
+        %r = load %q, 4: I32
         ret %r
     }
 }
@@ -198,15 +198,15 @@ localElement(%i: Long, %v: Int): Int {
 # The base is defined in one block and the access happens in another. Folding moves the arithmetic
 # into the block that uses it, so the operands - not the computed pointer - are what stays live
 # across the branch.
-acrossBlocks(%p: Ptr, %i: Long, %c: Int): Int {
+acrossBlocks(%p: Ptr, %i: I64, %c: I32): I32 {
     start {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %q = add %p, %o: Ptr
         je %c, hit, miss
     }
 
     hit {
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 
@@ -231,12 +231,12 @@ storedPointer(%p: Ptr) {
 # stands alone - and the bitcast that turned the computed integer into a pointer goes with the
 # multiply, since between two 64-bit classes it was the same bits in the same register. Three
 # instructions and one access become one access.
-indexOnly(%i: Long): Long {
+indexOnly(%i: I64): I64 {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %p = bitcast %o: Ptr
         %q = add %p, 4096: Ptr
-        %v = load %q, 8: Long
+        %v = load %q, 8: I64
         ret %v
     }
 }
@@ -244,11 +244,11 @@ indexOnly(%i: Long): Long {
 # The same shape at scale 1, which is deliberately not folded: the index register would be the
 # register the base already was, so nothing is saved, and `[reg + disp]` is shorter than the SIB byte
 # and four-byte displacement a base-less address needs.
-unscaledIndexKeepsBase(%i: Long): Long {
+unscaledIndexKeepsBase(%i: I64): I64 {
     {
         %p = bitcast %i: Ptr
         %q = add %p, 4096: Ptr
-        %v = load %q, 8: Long
+        %v = load %q, 8: I64
         ret %v
     }
 }
@@ -256,11 +256,11 @@ unscaledIndexKeepsBase(%i: Long): Long {
 # Two displacements that fit individually and not together. A displacement is sign-extended from 32
 # bits, so the chain stops at the point where the sum stops fitting: the outer add folds and the
 # inner one stays as the base register.
-displacementOverflow(%p: Ptr): Int {
+displacementOverflow(%p: Ptr): I32 {
     {
         %a = add %p, 2147483647: Ptr
         %q = add %a, 2147483647: Ptr
-        %v = load %q, 4: Int
+        %v = load %q, 4: I32
         ret %v
     }
 }

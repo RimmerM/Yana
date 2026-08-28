@@ -1,22 +1,22 @@
 @image$base = []
 
-digits<complex>(%v: i32x4): Int {
+digits<complex>(%v: i32x4): I32 {
   b_0 {
-    %v_1 = vlane %v, 0: Int
-    %v_2 = mul %v_1, 1000: Int
-    %v_3 = vlane %v, 1: Int
-    %v_4 = mul %v_3, 100: Int
-    %v_5 = add %v_2, %v_4: Int
-    %v_6 = vlane %v, 2: Int
-    %v_7 = mul %v_6, 10: Int
-    %v_8 = add %v_5, %v_7: Int
-    %v_9 = vlane %v, 3: Int
-    %v_10 = add %v_8, %v_9: Int
+    %v_1 = vlane %v, 0: I32
+    %v_2 = mul %v_1, 1000: I32
+    %v_3 = vlane %v, 1: I32
+    %v_4 = mul %v_3, 100: I32
+    %v_5 = add %v_2, %v_4: I32
+    %v_6 = vlane %v, 2: I32
+    %v_7 = mul %v_6, 10: I32
+    %v_8 = add %v_5, %v_7: I32
+    %v_9 = vlane %v, 3: I32
+    %v_10 = add %v_8, %v_9: I32
     ret %v_10
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = vwithlane %v_1, 1, 1: i32x4
@@ -25,8 +25,8 @@ main<complex>(): Int {
     %v_4 = vsplat 10: i32x4
     %below = add %above, %v_4: i32x4
     %v_5 = vshuffle %above, %below, 4, 5, 6, 7: i32x4
-    %v_6 = call_complex digits, %v_5: Int
-    %v_7 = cmp_neq %v_6, 11233: Int
+    %v_6 = call_complex digits, %v_5: I32
+    %v_7 = cmp_neq %v_6, 11233: I32
     je %v_7, b_8, b_9
   }
 
@@ -40,8 +40,8 @@ main<complex>(): Int {
 
   b_10 {
     %v_11 = vshuffle %above, %below, 0, 1, 2, 3: i32x4
-    %v_12 = call_complex digits, %v_11: Int
-    %v_13 = cmp_neq %v_12, 123: Int
+    %v_12 = call_complex digits, %v_11: I32
+    %v_13 = cmp_neq %v_12, 123: I32
     je %v_13, b_14, b_15
   }
 
@@ -55,8 +55,8 @@ main<complex>(): Int {
 
   b_16 {
     %v_17 = vshuffle %above, %below, 5, 6, 7, 0: i32x4
-    %v_18 = call_complex digits, %v_17: Int
-    %v_19 = cmp_neq %v_18, 12330: Int
+    %v_18 = call_complex digits, %v_17: I32
+    %v_19 = cmp_neq %v_18, 12330: I32
     je %v_19, b_20, b_21
   }
 
@@ -70,8 +70,8 @@ main<complex>(): Int {
 
   b_22 {
     %v_23 = vshuffle %above, %below, 6, 7, 0, 1: i32x4
-    %v_24 = call_complex digits, %v_23: Int
-    %v_25 = cmp_neq %v_24, 13301: Int
+    %v_24 = call_complex digits, %v_23: I32
+    %v_25 = cmp_neq %v_24, 13301: I32
     je %v_25, b_26, b_27
   }
 
@@ -85,8 +85,8 @@ main<complex>(): Int {
 
   b_28 {
     %v_29 = vshuffle %above, %below, 7, 0, 1, 2: i32x4
-    %v_30 = call_complex digits, %v_29: Int
-    %v_31 = cmp_neq %v_30, 13012: Int
+    %v_30 = call_complex digits, %v_29: I32
+    %v_31 = cmp_neq %v_30, 13012: I32
     je %v_31, b_32, b_33
   }
 
@@ -117,8 +117,8 @@ main<complex>(): Int {
     %v_50 = vwithlane %v_49, 14, 14: i8x16
     %v_51 = vwithlane %v_50, 15, 15: i8x16
     %v_52 = vshuffle %v_35, %v_51, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 1, 2, 3, 4: i8x16
-    %v_53 = vlane %v_52, 0: Int
-    %v_54 = cmp_neq %v_53, 5: Int
+    %v_53 = vlane %v_52, 0: I32
+    %v_54 = cmp_neq %v_53, 5: I32
     je %v_54, b_55, b_56
   }
 
@@ -131,8 +131,8 @@ main<complex>(): Int {
   }
 
   b_57 {
-    %v_58 = vlane %v_52, 10: Int
-    %v_59 = cmp_neq %v_58, 15: Int
+    %v_58 = vlane %v_52, 10: I32
+    %v_59 = cmp_neq %v_58, 15: I32
     je %v_59, b_60, b_61
   }
 
@@ -145,8 +145,8 @@ main<complex>(): Int {
   }
 
   b_62 {
-    %v_63 = vlane %v_52, 11: Int
-    %v_64 = cmp_neq %v_63, 7: Int
+    %v_63 = vlane %v_52, 11: I32
+    %v_64 = cmp_neq %v_63, 7: I32
     je %v_64, b_65, b_66
   }
 
@@ -159,7 +159,7 @@ main<complex>(): Int {
   }
 
   b_67 {
-    %v_68 = call_complex digits, %v_17: Int
+    %v_68 = call_complex digits, %v_17: I32
     ret %v_68
   }
 }

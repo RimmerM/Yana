@@ -294,13 +294,13 @@ StringView nameForType(LowerType type) {
 
     switch(type.lane) {
         case LowerLane::Int32:
-            return "Int"_v;
+            return "I32"_v;
         case LowerLane::Int64:
-            return "Long"_v;
+            return "I64"_v;
         case LowerLane::Float32:
-            return "Float"_v;
+            return "F32"_v;
         case LowerLane::Float64:
-            return "Double"_v;
+            return "F64"_v;
         case LowerLane::Pointer:
             return "Ptr"_v;
         case LowerLane::Int8:

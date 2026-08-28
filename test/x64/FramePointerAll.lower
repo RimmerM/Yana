@@ -5,37 +5,37 @@
 # leaf that has nothing to put in a frame - which is the point: a stack walker can follow the chain
 # out of any function without needing unwind tables.
 
-leafNoFrame(%a: Int, %b: Int): Int {
+leafNoFrame(%a: I32, %b: I32): I32 {
     {
-        %s = add %a, %b: Int
+        %s = add %a, %b: I32
         ret %s
     }
 }
 
-leafWithLocal(%v: Int): Int {
+leafWithLocal(%v: I32): I32 {
     {
         %a = alloca 8: Ptr
         store %a, %v, 8
-        %r = load %a, 8: Int
+        %r = load %a, 8: I32
         ret %r
     }
 }
 
-callerNoFrame(%a: Int, %b: Int): Int {
+callerNoFrame(%a: I32, %b: I32): I32 {
     {
-        %r = call_complex leafNoFrame, %a, %b: Int
-        %s = add %r, %b: Int
+        %r = call_complex leafNoFrame, %a, %b: I32
+        %s = add %r, %b: I32
         ret %s
     }
 }
 
-callerWithLocal(%v: Int): Int {
+callerWithLocal(%v: I32): I32 {
     {
         %a = alloca 8: Ptr
         store %a, %v, 8
-        %r = call_complex leafNoFrame, %v, %v: Int
-        %s = load %a, 8: Int
-        %t = add %r, %s: Int
+        %r = call_complex leafNoFrame, %v, %v: I32
+        %s = load %a, 8: I32
+        %t = add %r, %s: I32
         ret %t
     }
 }

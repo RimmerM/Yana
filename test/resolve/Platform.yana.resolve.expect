@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn backend() -> Int {
+fn backend() -> I32 {
   b0:
     ret 1
 }
@@ -12,46 +12,46 @@ fn emptyStorage() -> Storage {
     ret %v0
 }
 
-fn capacityOf(%s: Storage) -> Int {
+fn capacityOf(%s: Storage) -> I32 {
   b0:
-    %v1 = load %s@Storage.capacity : Int
+    %v1 = load %s@Storage.capacity : I32
     ret %v1
 }
 
-fn shared(%x: Int) -> Int {
+fn shared(%x: I32) -> I32 {
   b0:
-    %v3 = mul %x, 10 : Int
+    %v3 = mul %x, 10 : I32
     ret %v3
 }
 
-fn placement() -> Int {
+fn placement() -> I32 {
   b0:
     ret 10
 }
 
-fn word() -> Int {
+fn word() -> I32 {
   b0:
     ret 8
 }
 
-fn onlyAmd64() -> Int {
+fn onlyAmd64() -> I32 {
   b0:
     ret 3
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %s = call emptyStorage : Storage
-    %v1 = call backend : Int
-    %v2 = call capacityOf, %s : Int
-    %v3 = add %v1, %v2 : Int
-    %v5 = call shared, 4 : Int
-    %v6 = add %v3, %v5 : Int
-    %v7 = call placement : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call word : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call onlyAmd64 : Int
-    %v12 = add %v10, %v11 : Int
+    %v1 = call backend : I32
+    %v2 = call capacityOf, %s : I32
+    %v3 = add %v1, %v2 : I32
+    %v5 = call shared, 4 : I32
+    %v6 = add %v3, %v5 : I32
+    %v7 = call placement : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call word : I32
+    %v10 = add %v8, %v9 : I32
+    %v11 = call onlyAmd64 : I32
+    %v12 = add %v10, %v11 : I32
     ret %v12
 }

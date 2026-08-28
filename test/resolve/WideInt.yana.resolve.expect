@@ -10,7 +10,7 @@ fn mask() -> WideInt {
     ret 1099511627775
 }
 
-fn check(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
+fn check(%actual: WideInt, %expected: WideInt, %weight: I32) -> I32 {
   b0:
     %v3 = cmp_eq %actual, %expected : Bool
     je %v3, b1, b2
@@ -22,133 +22,133 @@ fn check(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, %weight], [b2, 0] : Int
+    %v8 = phi [b1, %weight], [b2, 0] : I32
     ret %v8
 }
 
-fn checkAnd() -> Int {
+fn checkAnd() -> I32 {
   b0:
     %v0 = call high : WideInt
     %v1 = call mask : WideInt
     %v2 = and %v0, %v1 : WideInt
-    %v5 = call check, %v2, 34359738375, 1 : Int
+    %v5 = call check, %v2, 34359738375, 1 : I32
     ret %v5
 }
 
-fn checkOr() -> Int {
+fn checkOr() -> I32 {
   b0:
     %v3 = or 34359738368, 255 : WideInt
-    %v6 = call check, %v3, 34359738623, 2 : Int
+    %v6 = call check, %v3, 34359738623, 2 : I32
     ret %v6
 }
 
-fn checkXor() -> Int {
+fn checkXor() -> I32 {
   b0:
     %v3 = xor 34359738375, 34359738368 : WideInt
-    %v6 = call check, %v3, 7, 4 : Int
+    %v6 = call check, %v3, 7, 4 : I32
     ret %v6
 }
 
-fn checkNotZero() -> Int {
+fn checkNotZero() -> I32 {
   b0:
     %v1 = not 0 : WideInt
     %v6 = sub 0, 1 : WideInt
-    %v8 = call check, %v1, %v6, 8 : Int
+    %v8 = call check, %v1, %v6, 8 : I32
     ret %v8
 }
 
-fn checkNot() -> Int {
+fn checkNot() -> I32 {
   b0:
     %v1 = not 34359738375 : WideInt
     %v5 = sub 0, 34359738376 : WideInt
-    %v7 = call check, %v1, %v5, 16 : Int
+    %v7 = call check, %v1, %v5, 16 : I32
     ret %v7
 }
 
-fn checkShl() -> Int {
+fn checkShl() -> I32 {
   b0:
     %v3 = shl 1048577, 20 : WideInt
-    %v6 = call check, %v3, 1099512676352, 32 : Int
+    %v6 = call check, %v3, 1099512676352, 32 : I32
     ret %v6
 }
 
-fn checkShr() -> Int {
+fn checkShr() -> I32 {
   b0:
     %v3 = shr 1099512676352, 20 : WideInt
-    %v6 = call check, %v3, 1048577, 64 : Int
+    %v6 = call check, %v3, 1048577, 64 : I32
     ret %v6
 }
 
-fn checkShlFar() -> Int {
+fn checkShlFar() -> I32 {
   b0:
     %v3 = shl 3, 33 : WideInt
-    %v6 = call check, %v3, 25769803776, 128 : Int
+    %v6 = call check, %v3, 25769803776, 128 : I32
     ret %v6
 }
 
-fn checkSarNegative() -> Int {
+fn checkSarNegative() -> I32 {
   b0:
     %v3 = sub 0, 1024 : WideInt
     %v6 = sar %v3, 4 : WideInt
     %v10 = sub 0, 64 : WideInt
-    %v12 = call check, %v6, %v10, 256 : Int
+    %v12 = call check, %v6, %v10, 256 : I32
     ret %v12
 }
 
-fn checkSarPositive() -> Int {
+fn checkSarPositive() -> I32 {
   b0:
     %v3 = sar 1099512676352, 20 : WideInt
-    %v6 = call check, %v3, 1048577, 512 : Int
+    %v6 = call check, %v3, 1048577, 512 : I32
     ret %v6
 }
 
-fn checkAddWrap() -> Int {
+fn checkAddWrap() -> I32 {
   b0:
     %v3 = add 4503599627370495, 1 : WideInt
     %v7 = sub 0, 4503599627370495 : WideInt
     %v10 = sub %v7, 1 : WideInt
-    %v12 = call check, %v3, %v10, 1024 : Int
+    %v12 = call check, %v3, %v10, 1024 : I32
     ret %v12
 }
 
-fn checkSubWrap() -> Int {
+fn checkSubWrap() -> I32 {
   b0:
     %v3 = sub 0, 4503599627370495 : WideInt
     %v6 = sub %v3, 1 : WideInt
     %v9 = sub %v6, 1 : WideInt
-    %v12 = call check, %v9, 4503599627370495, 2048 : Int
+    %v12 = call check, %v9, 4503599627370495, 2048 : I32
     ret %v12
 }
 
-fn checkMul() -> Int {
+fn checkMul() -> I32 {
   b0:
     %v3 = mul 1234567, 7654321 : WideInt
-    %v6 = call check, %v3, 9449772114007, 4096 : Int
+    %v6 = call check, %v3, 9449772114007, 4096 : I32
     ret %v6
 }
 
-fn checkMulLimbs() -> Int {
+fn checkMulLimbs() -> I32 {
   b0:
     %v3 = mul 3000000, 1000003 : WideInt
-    %v6 = call check, %v3, 3000009000000, 8192 : Int
+    %v6 = call check, %v3, 3000009000000, 8192 : I32
     ret %v6
 }
 
-fn checkDiv() -> Int {
+fn checkDiv() -> I32 {
   b0:
     %v3 = div 34359738375, 1000 : WideInt
-    %v6 = call check, %v3, 34359738, 16384 : Int
+    %v6 = call check, %v3, 34359738, 16384 : I32
     ret %v6
 }
 
-fn checkRem() -> Int {
+fn checkRem() -> I32 {
   b0:
     %v3 = rem 34359738375, 1000 : WideInt
-    %v6 = call check, %v3, 375, 32768 : Int
+    %v6 = call check, %v3, 375, 32768 : I32
     ret %v6
 }
 
-fn checkCompare() -> Int {
+fn checkCompare() -> I32 {
   b0:
     %v0 = call high : WideInt
     %v1 = call mask : WideInt
@@ -162,53 +162,53 @@ fn checkCompare() -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, 65536], [b2, 0] : Int
+    %v8 = phi [b1, 65536], [b2, 0] : I32
     ret %v8
 }
 
-fn checkLiteralChain() -> Int {
+fn checkLiteralChain() -> I32 {
   b0:
     %v4 = or 34359738368, 255 : WideInt
-    %v7 = call check, %v4, 34359738623, 131072 : Int
+    %v7 = call check, %v4, 34359738623, 131072 : I32
     ret %v7
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call checkAnd : Int
-    %v1 = call checkOr : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call checkXor : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call checkNotZero : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call checkNot : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call checkShl : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call checkShr : Int
-    %v12 = add %v10, %v11 : Int
-    %v13 = call checkShlFar : Int
-    %v14 = add %v12, %v13 : Int
-    %v15 = call checkSarNegative : Int
-    %v16 = add %v14, %v15 : Int
-    %v17 = call checkSarPositive : Int
-    %v18 = add %v16, %v17 : Int
-    %v19 = call checkAddWrap : Int
-    %v20 = add %v18, %v19 : Int
-    %v21 = call checkSubWrap : Int
-    %v22 = add %v20, %v21 : Int
-    %v23 = call checkMul : Int
-    %v24 = add %v22, %v23 : Int
-    %v25 = call checkMulLimbs : Int
-    %v26 = add %v24, %v25 : Int
-    %v27 = call checkDiv : Int
-    %v28 = add %v26, %v27 : Int
-    %v29 = call checkRem : Int
-    %v30 = add %v28, %v29 : Int
-    %v31 = call checkCompare : Int
-    %v32 = add %v30, %v31 : Int
-    %v33 = call checkLiteralChain : Int
-    %v34 = add %v32, %v33 : Int
+    %v0 = call checkAnd : I32
+    %v1 = call checkOr : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call checkXor : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call checkNotZero : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call checkNot : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call checkShl : I32
+    %v10 = add %v8, %v9 : I32
+    %v11 = call checkShr : I32
+    %v12 = add %v10, %v11 : I32
+    %v13 = call checkShlFar : I32
+    %v14 = add %v12, %v13 : I32
+    %v15 = call checkSarNegative : I32
+    %v16 = add %v14, %v15 : I32
+    %v17 = call checkSarPositive : I32
+    %v18 = add %v16, %v17 : I32
+    %v19 = call checkAddWrap : I32
+    %v20 = add %v18, %v19 : I32
+    %v21 = call checkSubWrap : I32
+    %v22 = add %v20, %v21 : I32
+    %v23 = call checkMul : I32
+    %v24 = add %v22, %v23 : I32
+    %v25 = call checkMulLimbs : I32
+    %v26 = add %v24, %v25 : I32
+    %v27 = call checkDiv : I32
+    %v28 = add %v26, %v27 : I32
+    %v29 = call checkRem : I32
+    %v30 = add %v28, %v29 : I32
+    %v31 = call checkCompare : I32
+    %v32 = add %v30, %v31 : I32
+    %v33 = call checkLiteralChain : I32
+    %v34 = add %v32, %v33 : I32
     ret %v34
 }

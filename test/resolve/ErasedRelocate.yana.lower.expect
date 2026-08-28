@@ -12,34 +12,34 @@ teardown$none<complex>(%value: Ptr) {
 
 relocate<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
   b_1 {
-    %v_2 = loads %genEnv, 4: Int
-    %v_3 = sext %v_2: Long
+    %v_2 = loads %genEnv, 4: I32
+    %v_3 = sext %v_2: I64
     %v_4 = add %v_3, @image$base: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = cast %v_5: Long
+    %v_5 = load %v_4, 4: I32
+    %v_6 = cast %v_5: I64
     %y = alloca %v_6, 16: Ptr
     %v_7 = add %v_3, @image$base: Ptr
-    %v_8 = load %v_7, 4: Int
-    %v_9 = cast %v_8: Long
+    %v_8 = load %v_7, 4: I32
+    %v_9 = cast %v_8: I64
     copy %y, %x, %v_9
-    %v_10 = loads %genEnv, 4: Int
-    %v_11 = sext %v_10: Long
+    %v_10 = loads %genEnv, 4: I32
+    %v_11 = sext %v_10: I64
     %v_12 = add %v_11, @image$base: Ptr
-    %v_13 = load %v_12, 4: Int
-    %v_14 = cast %v_13: Long
+    %v_13 = load %v_12, 4: I32
+    %v_14 = cast %v_13: I64
     copy %v_0, %y, %v_14
     ret 
   }
 }
 
-main<complex>(): Long {
+main<complex>(): I64 {
   b_0 {
     %h = alloca 8, 8: Ptr
     store %h, 10, 8
     %moved = alloca 8, 8: Ptr
     call_complex relocate, @genEnv$relocate(Handle), %moved, %h
-    %v_1 = loads %moved, 8: Long
-    %v_2 = cmp_neq %v_1, 10: Int
+    %v_1 = loads %moved, 8: I64
+    %v_2 = cmp_neq %v_1, 10: I32
     je %v_2, b_3, b_4
   }
 
@@ -58,8 +58,8 @@ main<complex>(): Long {
     store %v_6, 5, 8
     %movedPair = alloca 16, 8: Ptr
     call_complex relocate, @genEnv$relocate(Pair), %movedPair, %p
-    %v_7 = loads %movedPair, 8: Long
-    %v_8 = cmp_neq %v_7, 20: Int
+    %v_7 = loads %movedPair, 8: I64
+    %v_8 = cmp_neq %v_7, 20: I32
     je %v_8, b_9, b_10
   }
 
@@ -73,8 +73,8 @@ main<complex>(): Long {
 
   b_11 {
     %v_12 = add %movedPair, 8: Ptr
-    %v_13 = loads %v_12, 8: Long
-    %v_14 = cmp_neq %v_13, 5: Int
+    %v_13 = loads %v_12, 8: I64
+    %v_14 = cmp_neq %v_13, 5: I32
     je %v_14, b_15, b_16
   }
 
@@ -87,9 +87,9 @@ main<complex>(): Long {
   }
 
   b_17 {
-    %v_18 = loads %moved, 8: Long
-    %v_19 = add %v_18, %v_7: Long
-    %v_20 = add %v_19, %v_13: Long
+    %v_18 = loads %moved, 8: I64
+    %v_19 = add %v_18, %v_7: I64
+    %v_20 = add %v_19, %v_13: I64
     ret %v_20
   }
 }

@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn wrap(%v: a, %tag: Int) -> Box(a) {
+fn wrap(%v: a, %tag: I32) -> Box(a) {
   schema {
     #0 type a
     #1 type Box(a)
@@ -12,122 +12,122 @@ fn wrap(%v: a, %tag: Int) -> Box(a) {
     ret %v2
 }
 
-fn tagOf(%b: Box(a)) -> Int {
+fn tagOf(%b: Box(a)) -> I32 {
   schema {
     #0 type a
   }
 
   b0:
-    %v1 = load %b@Box.tag : Int
+    %v1 = load %b@Box.tag : I32
     ret %v1
 }
 
-fn fromResult() -> Int {
+fn fromResult() -> I32 {
   b0:
-    %v4 = call wrap(Long), 1, 1 : Box(Long)
-    %v5 = copy %local0 : Box(Long)
-    %v6 = call tagOf(Long), %v5 : Int
+    %v4 = call wrap(I64), 1, 1 : Box(I64)
+    %v5 = copy %local0 : Box(I64)
+    %v6 = call tagOf(I64), %v5 : I32
     ret %v6
 }
 
-fn literalFirst(%x: a, %ys: Box(a)) -> Int {
+fn literalFirst(%x: a, %ys: Box(a)) -> I32 {
   schema {
     #0 type a
   }
 
   b0:
-    %v2 = load %ys@Box.tag : Int
+    %v2 = load %ys@Box.tag : I32
     ret %v2
 }
 
-fn fromArgument(%b: Box(Long)) -> Int {
+fn fromArgument(%b: Box(I64)) -> I32 {
   b0:
-    %b = copy %b : Box(Long)
-    %v4 = call literalFirst(Long), 1, %b : Int
+    %b = copy %b : Box(I64)
+    %v4 = call literalFirst(I64), 1, %b : I32
     ret %v4
 }
 
-fn literalLast(%ys: Box(a), %x: a) -> Int {
+fn literalLast(%ys: Box(a), %x: a) -> I32 {
   schema {
     #0 type a
   }
 
   b0:
-    %v2 = load %ys@Box.tag : Int
+    %v2 = load %ys@Box.tag : I32
     ret %v2
 }
 
-fn fromArgumentReversed(%b: Box(Long)) -> Int {
+fn fromArgumentReversed(%b: Box(I64)) -> I32 {
   b0:
-    %b = copy %b : Box(Long)
-    %v4 = call literalLast(Long), %b, 1 : Int
+    %b = copy %b : Box(I64)
+    %v4 = call literalLast(I64), %b, 1 : I32
     ret %v4
 }
 
-fn mixedDepth(%x: a, %y: Box(a)) -> Int {
+fn mixedDepth(%x: a, %y: Box(a)) -> I32 {
   schema {
     #0 type a
   }
 
   b0:
-    %v2 = load %y@Box.tag : Int
+    %v2 = load %y@Box.tag : I32
     ret %v2
 }
 
-fn refined(%p: @bits(20) U32, %q: Box(U32)) -> Int {
+fn refined(%p: @bits(20) U32, %q: Box(U32)) -> I32 {
   b0:
     %p = cast %p : U32
     %q = copy %q : Box(U32)
-    %v4 = call mixedDepth(U32), %p, %q : Int
+    %v4 = call mixedDepth(U32), %p, %q : I32
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call fromResult : Int
-    %v6 = call wrap(Long), 2, 7 : Box(Long)
-    %v7 = copy %local0 : Box(Long)
-    %v8 = call fromArgument, %v7 : Int
-    %v9 = add %v1, %v8 : Int
-    %v14 = call wrap(Long), 3, 7 : Box(Long)
-    %v15 = copy %local2 : Box(Long)
-    %v16 = call fromArgumentReversed, %v15 : Int
-    %v17 = add %v9, %v16 : Int
+    %v1 = call fromResult : I32
+    %v6 = call wrap(I64), 2, 7 : Box(I64)
+    %v7 = copy %local0 : Box(I64)
+    %v8 = call fromArgument, %v7 : I32
+    %v9 = add %v1, %v8 : I32
+    %v14 = call wrap(I64), 3, 7 : Box(I64)
+    %v15 = copy %local2 : Box(I64)
+    %v16 = call fromArgumentReversed, %v15 : I32
+    %v17 = add %v9, %v16 : I32
     %v18 = alloc : Box(U32)
     aggregate %local4@Box.value = 5, %local4@Box.tag = 9
     %v22 = copy %local4 : Box(U32)
-    %v23 = call refined, %packed, %v22 : Int
-    %v24 = add %v17, %v23 : Int
+    %v23 = call refined, %packed, %v22 : I32
+    %v24 = add %v17, %v23 : I32
     ret %v24
 }
 
-fn wrap(Long)(%v: Long, %tag: Int) -> Box(Long) {
+fn wrap(I64)(%v: I64, %tag: I32) -> Box(I64) {
   b0:
-    %v2 = alloc : Box(Long)
+    %v2 = alloc : Box(I64)
     aggregate %local1@Box.value = %v, %local1@Box.tag = %tag
     ret %v2
 }
 
-fn tagOf(Long)(%b: Box(Long)) -> Int {
+fn tagOf(I64)(%b: Box(I64)) -> I32 {
   b0:
-    %v1 = load %b@Box.tag : Int
+    %v1 = load %b@Box.tag : I32
     ret %v1
 }
 
-fn literalFirst(Long)(%x: Long, %ys: Box(Long)) -> Int {
+fn literalFirst(I64)(%x: I64, %ys: Box(I64)) -> I32 {
   b0:
-    %v2 = load %ys@Box.tag : Int
+    %v2 = load %ys@Box.tag : I32
     ret %v2
 }
 
-fn literalLast(Long)(%ys: Box(Long), %x: Long) -> Int {
+fn literalLast(I64)(%ys: Box(I64), %x: I64) -> I32 {
   b0:
-    %v2 = load %ys@Box.tag : Int
+    %v2 = load %ys@Box.tag : I32
     ret %v2
 }
 
-fn mixedDepth(U32)(%x: U32, %y: Box(U32)) -> Int {
+fn mixedDepth(U32)(%x: U32, %y: Box(U32)) -> I32 {
   b0:
-    %v2 = load %y@Box.tag : Int
+    %v2 = load %y@Box.tag : I32
     ret %v2
 }

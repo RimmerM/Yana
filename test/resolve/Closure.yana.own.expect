@@ -51,7 +51,7 @@ fn freeHeap {
 fn apply {
   arg f readonly
   arg x readonly
-  %f: (Int) -> Int borrowed droppable readonly live [0, 1)
+  %f: (I32) -> I32 borrowed droppable readonly live [0, 1)
 }
 
 fn applyUnit {
@@ -62,26 +62,26 @@ fn applyUnit {
 fn makeAdder {
   arg amount readonly
   result escapes
-  %local0: {amount: Int} closure writable addressed escapes heap live [0, 8)
-  %local1: (Int) -> Int droppable readonly live [3, 8)
+  %local0: {amount: I32} closure writable addressed escapes heap live [0, 8)
+  %local1: (I32) -> I32 droppable readonly live [3, 8)
 }
 
 fn makeScaler {
   arg scale readonly
   arg offset readonly
   result escapes
-  %local0: {scale: Int, offset: Int} closure writable addressed escapes heap live [0, 9)
-  %local1: (Int) -> Int droppable readonly live [4, 9)
+  %local0: {scale: I32, offset: I32} closure writable addressed escapes heap live [0, 9)
+  %local1: (I32) -> I32 droppable readonly live [4, 9)
 }
 
 fn main {
-  %local0: {base: Int} closure writable addressed live [0, 8)
-  %local1: (Int) -> Int droppable readonly live [3, 8)
-  %total: Int writable live [8, 24)
-  %local3: {total: &Int} closure writable addressed live [10, 19)
+  %local0: {base: I32} closure writable addressed live [0, 8)
+  %local1: (I32) -> I32 droppable readonly live [3, 8)
+  %total: I32 writable live [8, 24)
+  %local3: {total: &I32} closure writable addressed live [10, 19)
   %local4: () -> () droppable readonly live [14, 19)
-  %local5: (Int) -> Int droppable readonly live [19, 21)
-  %local6: (Int) -> Int droppable readonly live [21, 23)
+  %local5: (I32) -> I32 droppable readonly live [19, 21)
+  %local6: (I32) -> I32 droppable readonly live [21, 23)
 }
 
 fn ResolveTest.lambda$22 {
@@ -103,15 +103,15 @@ fn ResolveTest.lambda$25 {
   arg env readonly
 }
 
-fn closureRelease${amount: Int} {
+fn closureRelease${amount: I32} {
   arg env readonly
 }
 
-fn closureRelease${scale: Int, offset: Int} {
+fn closureRelease${scale: I32, offset: I32} {
   arg env readonly
 }
 
-fn teardown$(Int) -> Int {
+fn teardown$(I32) -> I32 {
   arg value unknown retained
-  %value: (Int) -> Int borrowed droppable unknown escapes live [0, 11)
+  %value: (I32) -> I32 borrowed droppable unknown escapes live [0, 11)
 }

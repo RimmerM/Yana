@@ -61,27 +61,27 @@ absLoadFold<complex>(%p: Ptr): f32x4 {
   }
 }
 
-absLoop<complex>(%p: Ptr, %n: Int): f32x4 {
+absLoop<complex>(%p: Ptr, %n: I32): f32x4 {
   start {
     %init = vsplat 0: f32x4
-    %zero = cast 0: Int
+    %zero = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %zero], [body, %next]: Int
+    %i = phi [start, %zero], [body, %next]: I32
     %acc = phi [start, %init], [body, %sum]: f32x4
-    %v_0 = cmp_ilt %i, %n: Int
+    %v_0 = cmp_ilt %i, %n: I32
     je %v_0, body, end
   }
 
   body {
-    %off = mul %i, 16: Int
+    %off = mul %i, 16: I32
     %at = add %p, %off: Ptr
     %v = load %at, 16: f32x4
     %m = abs %v: f32x4
     %sum = add %acc, %m: f32x4
-    %next = add %i, 1: Int
+    %next = add %i, 1: I32
     jmp head
   }
 

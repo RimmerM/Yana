@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn opaqueInt(%x: Int) -> Int {
+fn opaqueInt(%x: I32) -> I32 {
   b0:
     ret %x
 }
@@ -35,7 +35,7 @@ fn opaqueWide(%x: WideInt) -> WideInt {
     ret %x
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -46,169 +46,169 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
-fn word() -> Int {
+fn word() -> I32 {
   b0:
     %v1 = call opaqueU32, 305419896 : U32
     %v4 = rol %v1, 4 : U32
     %v7 = cmp_eq %v4, 591751041 : Bool
-    %v9 = call check, %v7, 1 : Int
+    %v9 = call check, %v7, 1 : I32
     %v11 = call opaqueU32, 305419896 : U32
     %v14 = ror %v11, 4 : U32
     %v17 = cmp_eq %v14, 2166572391 : Bool
-    %v19 = call check, %v17, 2 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 2 : I32
+    %v20 = add %v9, %v19 : I32
     ret %v20
 }
 
-fn wordModulus() -> Int {
+fn wordModulus() -> I32 {
   b0:
     %v1 = call opaqueU32, 305419896 : U32
     %v4 = rol %v1, 32 : U32
     %v7 = cmp_eq %v4, 305419896 : Bool
-    %v9 = call check, %v7, 4 : Int
+    %v9 = call check, %v7, 4 : I32
     %v11 = call opaqueU32, 305419896 : U32
     %v14 = rol %v11, 36 : U32
     %v17 = cmp_eq %v14, 591751041 : Bool
-    %v19 = call check, %v17, 8 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 8 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU32, 305419896 : U32
     %v25 = ror %v22, 0 : U32
     %v28 = cmp_eq %v25, 305419896 : Bool
-    %v30 = call check, %v28, 16 : Int
-    %v31 = add %v20, %v30 : Int
+    %v30 = call check, %v28, 16 : I32
+    %v31 = add %v20, %v30 : I32
     %v33 = call opaqueU32, 305419896 : U32
     %v36 = ror %v33, 64 : U32
     %v39 = cmp_eq %v36, 305419896 : Bool
-    %v41 = call check, %v39, 32 : Int
-    %v42 = add %v31, %v41 : Int
+    %v41 = call check, %v39, 32 : I32
+    %v42 = add %v31, %v41 : I32
     ret %v42
 }
 
-fn wordInverse() -> Int {
+fn wordInverse() -> I32 {
   b0:
     %value = call opaqueU32, 3735928559 : U32
     %v4 = rol %value, 7 : U32
     %v7 = ror %v4, 7 : U32
     %v8 = cmp_eq %v7, %value : Bool
-    %v10 = call check, %v8, 64 : Int
+    %v10 = call check, %v8, 64 : I32
     %v13 = rol %value, 7 : U32
     %v16 = ror %value, 25 : U32
     %v17 = cmp_eq %v13, %v16 : Bool
-    %v19 = call check, %v17, 128 : Int
-    %v20 = add %v10, %v19 : Int
+    %v19 = call check, %v17, 128 : I32
+    %v20 = add %v10, %v19 : I32
     ret %v20
 }
 
-fn wide() -> Int {
+fn wide() -> I32 {
   b0:
     %v1 = call opaqueU64, 81985529216486895 : U64
     %v4 = rol %v1, 8 : U64
     %v7 = cmp_eq %v4, 2541551405711093505 : Bool
-    %v9 = call check, %v7, 256 : Int
+    %v9 = call check, %v7, 256 : I32
     %v11 = call opaqueU64, 81985529216486895 : U64
     %v14 = ror %v11, 8 : U64
     %v17 = cmp_eq %v14, 17222085231038278605 : Bool
-    %v19 = call check, %v17, 512 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 512 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU64, 81985529216486895 : U64
     %v25 = rol %v22, 64 : U64
     %v28 = cmp_eq %v25, 81985529216486895 : Bool
-    %v30 = call check, %v28, 1024 : Int
-    %v31 = add %v20, %v30 : Int
+    %v30 = call check, %v28, 1024 : I32
+    %v31 = add %v20, %v30 : I32
     ret %v31
 }
 
-fn narrow() -> Int {
+fn narrow() -> I32 {
   b0:
     %v1 = call opaqueU8, 180 : U8
     %v4 = rol %v1, 2 : U8
     %v7 = cmp_eq %v4, 210 : Bool
-    %v9 = call check, %v7, 2048 : Int
+    %v9 = call check, %v7, 2048 : I32
     %v11 = call opaqueU8, 180 : U8
     %v14 = ror %v11, 2 : U8
     %v17 = cmp_eq %v14, 45 : Bool
-    %v19 = call check, %v17, 4096 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 4096 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU8, 180 : U8
     %v25 = rol %v22, 8 : U8
     %v28 = cmp_eq %v25, 180 : Bool
-    %v30 = call check, %v28, 8192 : Int
-    %v31 = add %v20, %v30 : Int
+    %v30 = call check, %v28, 8192 : I32
+    %v31 = add %v20, %v30 : I32
     %v33 = call opaqueU16, 258 : U16
     %v36 = rol %v33, 8 : U16
     %v39 = cmp_eq %v36, 513 : Bool
-    %v41 = call check, %v39, 16384 : Int
-    %v42 = add %v31, %v41 : Int
+    %v41 = call check, %v39, 16384 : I32
+    %v42 = add %v31, %v41 : I32
     ret %v42
 }
 
-fn narrowSigned() -> Int {
+fn narrowSigned() -> I32 {
   b0:
     %v2 = cast 32769 : U16
     %v3 = bitcast %v2 : I16
     %value = call opaqueI16, %v3 : I16
     %v7 = rol %value, 1 : I16
-    %v8 = cast %v7 : Int
+    %v8 = cast %v7 : I32
     %v11 = cmp_eq %v8, 3 : Bool
-    %v13 = call check, %v11, 32768 : Int
+    %v13 = call check, %v11, 32768 : I32
     %v16 = ror %value, 1 : I16
     %v19 = rol %value, 15 : I16
     %v20 = cmp_eq %v16, %v19 : Bool
-    %v22 = call check, %v20, 65536 : Int
-    %v23 = add %v13, %v22 : Int
+    %v22 = call check, %v20, 65536 : I32
+    %v23 = add %v13, %v22 : I32
     ret %v23
 }
 
-fn wideNumber() -> Int {
+fn wideNumber() -> I32 {
   b0:
     %value = call opaqueWide, 1 : WideInt
     %v4 = rol %value, 53 : WideInt
     %v7 = cmp_eq %v4, 1 : Bool
-    %v9 = call check, %v7, 131072 : Int
+    %v9 = call check, %v7, 131072 : I32
     %v12 = rol %value, 54 : WideInt
     %v15 = cmp_eq %v12, 2 : Bool
-    %v17 = call check, %v15, 262144 : Int
-    %v18 = add %v9, %v17 : Int
+    %v17 = call check, %v15, 262144 : I32
+    %v18 = add %v9, %v17 : I32
     %v21 = rol %value, 52 : WideInt
     %v24 = rol %v21, 1 : WideInt
     %v27 = cmp_eq %v24, 1 : Bool
-    %v29 = call check, %v27, 524288 : Int
-    %v30 = add %v18, %v29 : Int
+    %v29 = call check, %v27, 524288 : I32
+    %v30 = add %v18, %v29 : I32
     ret %v30
 }
 
-fn folded() -> Int {
+fn folded() -> I32 {
   b0:
     %v3 = rol 305419896, 4 : U32
     %v6 = cmp_eq %v3, 591751041 : Bool
-    %v8 = call check, %v6, 1048576 : Int
+    %v8 = call check, %v6, 1048576 : I32
     %v12 = rol 305419896, 32 : U32
     %v15 = cmp_eq %v12, 305419896 : Bool
-    %v17 = call check, %v15, 2097152 : Int
-    %v18 = add %v8, %v17 : Int
+    %v17 = call check, %v15, 2097152 : I32
+    %v18 = add %v8, %v17 : I32
     ret %v18
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call word : Int
-    %v1 = call wordModulus : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call wordInverse : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call wide : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call narrow : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call narrowSigned : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call wideNumber : Int
-    %v12 = add %v10, %v11 : Int
-    %v13 = call folded : Int
-    %v14 = add %v12, %v13 : Int
+    %v0 = call word : I32
+    %v1 = call wordModulus : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call wordInverse : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call wide : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call narrow : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call narrowSigned : I32
+    %v10 = add %v8, %v9 : I32
+    %v11 = call wideNumber : I32
+    %v12 = add %v10, %v11 : I32
+    %v13 = call folded : I32
+    %v14 = add %v12, %v13 : I32
     ret %v14
 }

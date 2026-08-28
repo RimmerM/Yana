@@ -1,54 +1,54 @@
 
-swap32<complex>(%a: Int): Int {
+swap32<complex>(%a: I32): I32 {
   b_0 {
-    %s = bswap %a: Int
+    %s = bswap %a: I32
     ret %s
   }
 }
 
-swap64<complex>(%a: Long): Long {
+swap64<complex>(%a: I64): I64 {
   b_0 {
-    %s = bswap %a: Long
+    %s = bswap %a: I64
     ret %s
   }
 }
 
-swapAndKeep<complex>(%a: Int): Int {
+swapAndKeep<complex>(%a: I32): I32 {
   b_0 {
-    %s = bswap %a: Int
-    %t = add %s, %a: Int
+    %s = bswap %a: I32
+    %t = add %s, %a: I32
     ret %t
   }
 }
 
-swapLoad<complex>(%p: Ptr): Int {
+swapLoad<complex>(%p: Ptr): I32 {
   b_0 {
-    %v = load %p, 4: Int
-    %s = bswap %v: Int
+    %v = load %p, 4: I32
+    %s = bswap %v: I32
     ret %s
   }
 }
 
-swapLoad64<complex>(%p: Ptr): Long {
+swapLoad64<complex>(%p: Ptr): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = bswap %v: Long
+    %v = load %p, 8: I64
+    %s = bswap %v: I64
     ret %s
   }
 }
 
-swapStore<complex>(%p: Ptr, %v: Int) {
+swapStore<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %s = bswap %v: Int
+    %s = bswap %v: I32
     store %p, %s, 4
     ret 
   }
 }
 
-roundTrip<complex>(%a: Int): Int {
+roundTrip<complex>(%a: I32): I32 {
   b_0 {
-    %s = bswap %a: Int
-    %t = bswap %s: Int
+    %s = bswap %a: I32
+    %t = bswap %s: I32
     ret %t
   }
 }

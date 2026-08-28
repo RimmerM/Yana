@@ -1,7 +1,7 @@
 @image$base = []
 mut @drops = [0, 0, 0, 0]
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %a = alloca 8, 4: Ptr
     store %a, 1, 4
@@ -13,17 +13,17 @@ main<complex>(): Int {
     store %v_2, 4, 4
     call_complex drop$Maybe(Held), %a
     call_complex drop$Maybe(Held), %b
-    %v_3 = loads @drops, 4: Int
-    %v_4 = imul %v_3, 10: Int
-    %v_5 = add %v_4, 14: Int
+    %v_3 = loads @drops, 4: I32
+    %v_4 = imul %v_3, 10: I32
+    %v_5 = add %v_4, 14: I32
     ret %v_5
   }
 }
 
 drop$Maybe(Held)<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %value, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
@@ -32,8 +32,8 @@ drop$Maybe(Held)<complex>(%value: Ptr) {
   }
 
   b_3 {
-    %v_6 = loads @drops, 4: Int
-    %v_7 = add %v_6, 1: Int
+    %v_6 = loads @drops, 4: I32
+    %v_7 = add %v_6, 1: I32
     store @drops, %v_7, 4
     jmp b_5
   }

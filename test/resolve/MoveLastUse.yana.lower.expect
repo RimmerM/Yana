@@ -1,15 +1,15 @@
 @image$base = []
 mut @dropped = [0, 0, 0, 0]
 
-branched<complex>(%flag: Int) {
+branched<complex>(%flag: I32) {
   b_0 {
-    %v_1 = imm 128: Int
+    %v_1 = imm 128: I32
     je %flag, b_2, b_3
   }
 
   b_2 {
-    %v_4 = loads @dropped, 4: Int
-    %v_5 = add %v_4, %v_1: Int
+    %v_4 = loads @dropped, 4: I32
+    %v_5 = add %v_4, %v_1: I32
     store @dropped, %v_5, 4
     jmp b_6
   }
@@ -23,51 +23,51 @@ branched<complex>(%flag: Int) {
   }
 
   b_3 {
-    %v_8 = loads @dropped, 4: Int
-    %v_9 = add %v_8, %v_1: Int
+    %v_8 = loads @dropped, 4: I32
+    %v_9 = add %v_8, %v_1: I32
     store @dropped, %v_9, 4
     jmp b_7
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = loads @dropped, 4: Int
-    %v_2 = add %v_1, 3: Int
+    %v_1 = loads @dropped, 4: I32
+    %v_2 = add %v_1, 3: I32
     store @dropped, %v_2, 4
     %v_3 = alloca 4, 4: Ptr
     store %v_3, 4, 4
     %v_4 = alloca 4, 8: Ptr
-    %v_5 = load %v_4, 4: Int
+    %v_5 = load %v_4, 4: I32
     store %v_4, 1, 4
     jmp b_6
   }
 
   b_7 {
-    %v_8 = cmp_ilt %v_9, 1: Int
+    %v_8 = cmp_ilt %v_9, 1: I32
     je %v_8, b_6, b_10
   }
 
   b_10 {
-    %v_11 = loads @dropped, 4: Int
-    %v_12 = add %v_11, 120: Int
+    %v_11 = loads @dropped, 4: I32
+    %v_12 = add %v_11, 120: I32
     store @dropped, %v_12, 4
     call_complex branched, 1
     call_complex branched, 0
-    %v_13 = loads @dropped, 4: Int
+    %v_13 = loads @dropped, 4: I32
     ret %v_13
   }
 
   b_6 {
-    %v_14 = phi [b_7, %v_9], [b_0, 0]: Int
-    %v_15 = sext %v_14: Long
-    %v_16 = shl %v_15, 2: Long
+    %v_14 = phi [b_7, %v_9], [b_0, 0]: I32
+    %v_15 = sext %v_14: I64
+    %v_16 = shl %v_15, 2: I64
     %v_17 = add %v_3, %v_16: Ptr
-    %v_18 = load %v_17, 4: Int
-    %v_19 = loads @dropped, 4: Int
-    %v_20 = add %v_19, %v_18: Int
+    %v_18 = load %v_17, 4: I32
+    %v_19 = loads @dropped, 4: I32
+    %v_20 = add %v_19, %v_18: I32
     store @dropped, %v_20, 4
-    %v_9 = add %v_14, 1: Int
+    %v_9 = add %v_14, 1: I32
     jmp b_7
   }
 }

@@ -24,24 +24,24 @@ masks<complex>(%a: f32x8, %b: f32x8): f32x8 {
     %both = and %lt, %gt: m32x8
     %inv = not %both: m32x8
     %sel = select %inv, %a, %b: f32x8
-    %any = vreduce_or %inv: Int
-    %all = vreduce_and %inv: Int
-    %count = vreduce_add %inv: Int
-    %first = vreduce_first %inv: Int
+    %any = vreduce_or %inv: I32
+    %all = vreduce_and %inv: I32
+    %count = vreduce_add %inv: I32
+    %first = vreduce_first %inv: I32
     ret %sel
   }
 }
 
-lanes<complex>(%x: Float, %v: f32x8, %w: f32x8): Float {
+lanes<complex>(%x: F32, %v: f32x8, %w: f32x8): F32 {
   b_0 {
     %splat = vsplat %x: f32x8
-    %lane = vlane %v, 3: Float
+    %lane = vlane %v, 3: F32
     %with = vwithlane %v, %x, 5: f32x8
-    %sum = vreduce_add %v: Float
-    %max = vreduce_max %v: Float
+    %sum = vreduce_add %v: F32
+    %max = vreduce_max %v: F32
     %zip = vshuffle %v, %w, 0, 8, 1, 9, 2, 10, 3, 11: f32x8
     %low = vshuffle %v, %v, 0, 1, 2, 3: f32x4
-    %narrow = vreduce_add %low: Float
+    %narrow = vreduce_add %low: F32
     ret %sum
   }
 }

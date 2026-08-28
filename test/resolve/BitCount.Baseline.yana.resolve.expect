@@ -1,11 +1,11 @@
 let image$base: () = <none>
 
-fn opaqueInt(%x: Int) -> Int {
+fn opaqueInt(%x: I32) -> I32 {
   b0:
     ret %x
 }
 
-fn opaqueLong(%x: Long) -> Long {
+fn opaqueLong(%x: I64) -> I64 {
   b0:
     ret %x
 }
@@ -20,7 +20,7 @@ fn opaqueU64(%x: U64) -> U64 {
     ret %x
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -31,100 +31,100 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
-fn word() -> Int {
+fn word() -> I32 {
   b0:
-    %v1 = call opaqueInt, 305419896 : Int
-    %v2 = countbits %v1 : Int
+    %v1 = call opaqueInt, 305419896 : I32
+    %v2 = countbits %v1 : I32
     %v5 = cmp_eq %v2, 13 : Bool
-    %v7 = call check, %v5, 1 : Int
-    %v9 = call opaqueInt, 305419896 : Int
-    %v10 = clz %v9 : Int
+    %v7 = call check, %v5, 1 : I32
+    %v9 = call opaqueInt, 305419896 : I32
+    %v10 = clz %v9 : I32
     %v13 = cmp_eq %v10, 3 : Bool
-    %v15 = call check, %v13, 2 : Int
-    %v16 = add %v7, %v15 : Int
-    %v18 = call opaqueInt, 305419896 : Int
-    %v19 = ctz %v18 : Int
+    %v15 = call check, %v13, 2 : I32
+    %v16 = add %v7, %v15 : I32
+    %v18 = call opaqueInt, 305419896 : I32
+    %v19 = ctz %v18 : I32
     %v22 = cmp_eq %v19, 3 : Bool
-    %v24 = call check, %v22, 4 : Int
-    %v25 = add %v16, %v24 : Int
+    %v24 = call check, %v22, 4 : I32
+    %v25 = add %v16, %v24 : I32
     ret %v25
 }
 
-fn zero() -> Int {
+fn zero() -> I32 {
   b0:
-    %v1 = call opaqueInt, 0 : Int
-    %v2 = countbits %v1 : Int
+    %v1 = call opaqueInt, 0 : I32
+    %v2 = countbits %v1 : I32
     %v5 = cmp_eq %v2, 0 : Bool
-    %v7 = call check, %v5, 8 : Int
-    %v9 = call opaqueInt, 0 : Int
-    %v10 = clz %v9 : Int
+    %v7 = call check, %v5, 8 : I32
+    %v9 = call opaqueInt, 0 : I32
+    %v10 = clz %v9 : I32
     %v13 = cmp_eq %v10, 32 : Bool
-    %v15 = call check, %v13, 16 : Int
-    %v16 = add %v7, %v15 : Int
-    %v18 = call opaqueInt, 0 : Int
-    %v19 = ctz %v18 : Int
+    %v15 = call check, %v13, 16 : I32
+    %v16 = add %v7, %v15 : I32
+    %v18 = call opaqueInt, 0 : I32
+    %v19 = ctz %v18 : I32
     %v22 = cmp_eq %v19, 32 : Bool
-    %v24 = call check, %v22, 32 : Int
-    %v25 = add %v16, %v24 : Int
+    %v24 = call check, %v22, 32 : I32
+    %v25 = add %v16, %v24 : I32
     ret %v25
 }
 
-fn full() -> Int {
+fn full() -> I32 {
   b0:
     %v1 = call opaqueU32, 4294967295 : U32
     %v2 = clz %v1 : U32
     %v5 = cmp_eq %v2, 0 : Bool
-    %v7 = call check, %v5, 64 : Int
+    %v7 = call check, %v5, 64 : I32
     %v9 = call opaqueU32, 2147483648 : U32
     %v10 = ctz %v9 : U32
     %v13 = cmp_eq %v10, 31 : Bool
-    %v15 = call check, %v13, 128 : Int
-    %v16 = add %v7, %v15 : Int
+    %v15 = call check, %v13, 128 : I32
+    %v16 = add %v7, %v15 : I32
     ret %v16
 }
 
-fn wide() -> Int {
+fn wide() -> I32 {
   b0:
-    %v1 = call opaqueLong, 72623859790382856 : Long
-    %v2 = countbits %v1 : Long
+    %v1 = call opaqueLong, 72623859790382856 : I64
+    %v2 = countbits %v1 : I64
     %v5 = cmp_eq %v2, 13 : Bool
-    %v7 = call check, %v5, 256 : Int
-    %v9 = call opaqueLong, 72623859790382856 : Long
-    %v10 = clz %v9 : Long
+    %v7 = call check, %v5, 256 : I32
+    %v9 = call opaqueLong, 72623859790382856 : I64
+    %v10 = clz %v9 : I64
     %v13 = cmp_eq %v10, 7 : Bool
-    %v15 = call check, %v13, 512 : Int
-    %v16 = add %v7, %v15 : Int
+    %v15 = call check, %v13, 512 : I32
+    %v16 = add %v7, %v15 : I32
     ret %v16
 }
 
-fn wideZero() -> Int {
+fn wideZero() -> I32 {
   b0:
     %v1 = call opaqueU64, 0 : U64
     %v2 = clz %v1 : U64
     %v5 = cmp_eq %v2, 64 : Bool
-    %v7 = call check, %v5, 1024 : Int
+    %v7 = call check, %v5, 1024 : I32
     %v9 = call opaqueU64, 0 : U64
     %v10 = ctz %v9 : U64
     %v13 = cmp_eq %v10, 64 : Bool
-    %v15 = call check, %v13, 2048 : Int
-    %v16 = add %v7, %v15 : Int
+    %v15 = call check, %v13, 2048 : I32
+    %v16 = add %v7, %v15 : I32
     ret %v16
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call word : Int
-    %v1 = call zero : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call full : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call wide : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call wideZero : Int
-    %v8 = add %v6, %v7 : Int
+    %v0 = call word : I32
+    %v1 = call zero : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call full : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call wide : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call wideZero : I32
+    %v8 = add %v6, %v7 : I32
     ret %v8
 }

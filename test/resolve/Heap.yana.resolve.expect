@@ -40,7 +40,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -91,7 +91,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -127,7 +127,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -213,14 +213,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -252,7 +252,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -310,7 +310,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -337,12 +337,12 @@ fn distinctBlocks() -> I64 {
   b0:
     %first = call allocateHeap, 32 : %U8
     %second = call allocateHeap, 32 : %U8
-    %v4 = bitcast %first : Long
+    %v4 = bitcast %first : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b2, b1
 
   b1:
-    %v8 = bitcast %second : Long
+    %v8 = bitcast %second : I64
     %v10 = cmp_eq %v8, 0 : Bool
     jmp b3
 
@@ -382,12 +382,12 @@ fn writeAndRead() -> I64 {
     %a = bitcast %v1 : %I64
     %v4 = call allocateHeap, 8 : %U8
     %b = bitcast %v4 : %I64
-    %v6 = bitcast %a : Long
+    %v6 = bitcast %a : I64
     %v8 = cmp_eq %v6, 0 : Bool
     je %v8, b2, b1
 
   b1:
-    %v10 = bitcast %b : Long
+    %v10 = bitcast %b : I64
     %v12 = cmp_eq %v10, 0 : Bool
     jmp b3
 
@@ -449,7 +449,7 @@ fn classesAreSeparate() -> I64 {
     ret 1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = call distinctBlocks : I64
     %v3 = mul %v0, 1000 : I64
@@ -461,6 +461,6 @@ fn main() -> Int {
     %v13 = add %v8, %v12 : I64
     %v14 = call classesAreSeparate : I64
     %total = add %v13, %v14 : I64
-    %v16 = cast %total : Int
+    %v16 = cast %total : I32
     ret %v16
 }

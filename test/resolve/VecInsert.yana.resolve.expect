@@ -1,29 +1,29 @@
 let image$base: () = <none>
 
-fn integers() -> Int {
+fn integers() -> I32 {
   b0:
-    %v = vsplat 5 : Vec(Int)
-    %a = vwithlane %v, 9, 1 : Vec(Int)
-    %b = vwithlane %a, 7, 0 : Vec(Int)
-    %v15 = vlane %b, 0 : Int
-    %v18 = mul %v15, 1000 : Int
-    %v21 = vlane %b, 1 : Int
-    %v24 = mul %v21, 100 : Int
-    %v25 = add %v18, %v24 : Int
-    %v28 = vlane %v, 0 : Int
-    %v31 = mul %v28, 10 : Int
-    %v32 = add %v25, %v31 : Int
-    %v35 = vlane %v, 1 : Int
-    %v36 = add %v32, %v35 : Int
+    %v = vsplat 5 : Vec(I32)
+    %a = vwithlane %v, 9, 1 : Vec(I32)
+    %b = vwithlane %a, 7, 0 : Vec(I32)
+    %v15 = vlane %b, 0 : I32
+    %v18 = mul %v15, 1000 : I32
+    %v21 = vlane %b, 1 : I32
+    %v24 = mul %v21, 100 : I32
+    %v25 = add %v18, %v24 : I32
+    %v28 = vlane %v, 0 : I32
+    %v31 = mul %v28, 10 : I32
+    %v32 = add %v25, %v31 : I32
+    %v35 = vlane %v, 1 : I32
+    %v36 = add %v32, %v35 : I32
     ret %v36
 }
 
-fn floats() -> Int {
+fn floats() -> I32 {
   b0:
-    %f = vsplat 1.5 : Vec(Float)
-    %v6 = neg 0 : Float
-    %g = vwithlane %f, %v6, 0 : Vec(Float)
-    %v11 = vlane %g, 1 : Float
+    %f = vsplat 1.5 : Vec(F32)
+    %v6 = neg 0 : F32
+    %g = vwithlane %f, %v6, 0 : Vec(F32)
+    %v11 = vlane %g, 1 : F32
     %v14 = cmp_ne %v11, 1.5 : Bool
     je %v14, b1, b2
 
@@ -34,8 +34,8 @@ fn floats() -> Int {
     jmp b3
 
   b3:
-    %v22 = vlane %g, 0 : Float
-    %v24 = div 1, %v22 : Float
+    %v22 = vlane %g, 0 : F32
+    %v24 = div 1, %v22 : F32
     %v27 = cmp_gt %v24, 0 : Bool
     je %v27, b4, b5
 
@@ -46,9 +46,9 @@ fn floats() -> Int {
     jmp b6
 
   b6:
-    %d = vsplat 1.5 : Vec(Double)
-    %e = vwithlane %d, 4.25, 1 : Vec(Double)
-    %v41 = vlane %e, 0 : Double
+    %d = vsplat 1.5 : Vec(F64)
+    %e = vwithlane %d, 4.25, 1 : Vec(F64)
+    %v41 = vlane %e, 0 : F64
     %v44 = cmp_ne %v41, 1.5 : Bool
     je %v44, b7, b8
 
@@ -59,7 +59,7 @@ fn floats() -> Int {
     jmp b9
 
   b9:
-    %v51 = vlane %e, 1 : Double
+    %v51 = vlane %e, 1 : F64
     %v54 = cmp_ne %v51, 4.25 : Bool
     je %v54, b10, b11
 
@@ -73,13 +73,13 @@ fn floats() -> Int {
     ret 0
 }
 
-fn indices() -> Int {
+fn indices() -> I32 {
   b0:
-    %v1 = vsplat 0 : Vec(Int)
-    %v3 = vwithlane %v1, 1, 1 : Vec(Int)
-    %v5 = vwithlane %v3, 2, 2 : Vec(Int)
-    %v = vwithlane %v5, 3, 3 : Vec(Int)
-    %v10 = vlane %v, 0 : Int
+    %v1 = vsplat 0 : Vec(I32)
+    %v3 = vwithlane %v1, 1, 1 : Vec(I32)
+    %v5 = vwithlane %v3, 2, 2 : Vec(I32)
+    %v = vwithlane %v5, 3, 3 : Vec(I32)
+    %v10 = vlane %v, 0 : I32
     %v13 = cmp_ne %v10, 0 : Bool
     je %v13, b1, b2
 
@@ -90,7 +90,7 @@ fn indices() -> Int {
     jmp b3
 
   b3:
-    %v20 = vlane %v, 1 : Int
+    %v20 = vlane %v, 1 : I32
     %v23 = cmp_ne %v20, 1 : Bool
     je %v23, b4, b5
 
@@ -101,9 +101,9 @@ fn indices() -> Int {
     jmp b6
 
   b6:
-    %r = vshuffle %v, %v, 3, 2, 1, 0 : Vec(Int)
-    %v31 = vlane %r, 0 : Int
-    %v35 = sub 4, 1 : Int
+    %r = vshuffle %v, %v, 3, 2, 1, 0 : Vec(I32)
+    %v31 = vlane %r, 0 : I32
+    %v35 = sub 4, 1 : I32
     %v36 = cmp_ne %v31, %v35 : Bool
     je %v36, b7, b8
 
@@ -117,34 +117,34 @@ fn indices() -> Int {
     ret 0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call floats : Int
+    %v0 = call floats : I32
     %v3 = cmp_ne %v0, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = call floats : Int
-    %v8 = mul %v5, 10 : Int
+    %v5 = call floats : I32
+    %v8 = mul %v5, 10 : I32
     ret %v8
 
   b2:
     jmp b3
 
   b3:
-    %v11 = call indices : Int
+    %v11 = call indices : I32
     %v14 = cmp_ne %v11, 0 : Bool
     je %v14, b4, b5
 
   b4:
-    %v16 = call indices : Int
-    %v19 = mul %v16, 100 : Int
+    %v16 = call indices : I32
+    %v19 = mul %v16, 100 : I32
     ret %v19
 
   b5:
     jmp b6
 
   b6:
-    %v22 = call integers : Int
+    %v22 = call integers : I32
     ret %v22
 }

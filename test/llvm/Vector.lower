@@ -44,21 +44,21 @@ masks(%a: f32x8, %b: f32x8): f32x8 {
         %both = and %lt, %gt: m32x8
         %inv = not %both: m32x8
         %sel = select %inv, %a, %b: f32x8
-        %any = vreduce_or %inv: Int
-        %all = vreduce_and %inv: Int
-        %count = vreduce_add %inv: Int
+        %any = vreduce_or %inv: I32
+        %all = vreduce_and %inv: I32
+        %count = vreduce_add %inv: I32
         ret %sel
     }
 }
 
 # The five that are not one of the instructions above.
-lanes(%x: Float, %v: f32x8, %w: f32x8): Float {
+lanes(%x: F32, %v: f32x8, %w: f32x8): F32 {
     {
         %splat = vsplat %x: f32x8
-        %lane = vlane %v, 3: Float
+        %lane = vlane %v, 3: F32
         %with = vwithlane %v, %x, 5: f32x8
-        %sum = vreduce_add %v: Float
-        %max = vreduce_max %v: Float
+        %sum = vreduce_add %v: F32
+        %max = vreduce_max %v: F32
 
         # A pattern entry names a lane of the two sources concatenated, so 8..15 is the second one.
         # This is the interleave of the two low halves.
@@ -67,7 +67,7 @@ lanes(%x: Float, %v: f32x8, %w: f32x8): Float {
         # A shuffle may change the lane count but not the lane type: this is the low four lanes of
         # one vector, which is what `packLanes` and the two `unpack`s are built out of.
         %low = vshuffle %v, %v, 0, 1, 2, 3: f32x4
-        %narrow = vreduce_add %low: Float
+        %narrow = vreduce_add %low: F32
         ret %sum
     }
 }
@@ -75,7 +75,7 @@ lanes(%x: Float, %v: f32x8, %w: f32x8): Float {
 # The lane widths that exist only as lanes. A lane narrower than a register is read out into one and
 # written back from one, which is the whole of what `scalarFormOf` says and the only place a lane
 # type and its scalar form differ.
-narrow(%p: Ptr, %n: Int): i8x32 {
+narrow(%p: Ptr, %n: I32): i8x32 {
     {
         %b = load %p, 32: i8x32
         %s = load %p, 32: i16x16
@@ -83,9 +83,9 @@ narrow(%p: Ptr, %n: Int): i8x32 {
         %d = load %p, 32: f64x4
 
         %splat = vsplat %n: i8x32
-        %lane = vlane %b, 7: Int
+        %lane = vlane %b, 7: I32
         %with = vwithlane %b, %n, 9: i8x32
-        %sum = vreduce_add %b: Int
+        %sum = vreduce_add %b: I32
 
         # The tail-read guarantee, spelled. LLVM has no way to be told and needs none: the load names
         # the whole width it reads, and nothing here derives a smaller object from it.
@@ -113,14 +113,14 @@ convert(%f: f32x4, %i: i32x4): f64x4 {
 
 # A vector is a value like any other: it is passed, returned and carried around a loop by a phi.
 # Nothing here is vector-specific and that is the point.
-loop(%v: f32x8, %n: Int): f32x8 {
+loop(%v: f32x8, %n: I32): f32x8 {
     start {
         jmp head
     }
 
     head {
         %acc = phi [start, %v], [body, %next]: f32x8
-        %i = phi [start, 0], [body, %step]: Int
+        %i = phi [start, 0], [body, %step]: I32
         je (cmp_ilt %i, %n), body, exit
     }
 

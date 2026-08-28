@@ -49,16 +49,16 @@ fn guarded {
   result escapes
   %local0: Guard droppable readonly live [0, 4)
   %local1: {g: Guard} closure droppable writable addressed escapes heap live [2, 11)
-  %local2: () -> Int droppable readonly live [6, 11)
+  %local2: () -> I32 droppable readonly live [6, 11)
 }
 
 fn plain {
-  %local0: () -> Int droppable readonly live [0, 6)
+  %local0: () -> I32 droppable readonly live [0, 6)
 }
 
 fn main {
-  %local0: () -> Int droppable readonly live [0, 2)
-  %local1: () -> Int droppable readonly live [7, 9)
+  %local0: () -> I32 droppable readonly live [0, 2)
+  %local1: () -> I32 droppable readonly live [7, 9)
 }
 
 fn Drop(Guard).drop {
@@ -83,7 +83,7 @@ fn closureRelease${g: Guard} {
   arg env readonly
 }
 
-fn teardown$() -> Int {
+fn teardown$() -> I32 {
   arg value unknown retained
-  %value: () -> Int borrowed droppable unknown escapes live [0, 11)
+  %value: () -> I32 borrowed droppable unknown escapes live [0, 11)
 }

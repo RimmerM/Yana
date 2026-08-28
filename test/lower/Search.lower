@@ -1,5 +1,5 @@
 
-search(%src: Int, %entries: Ptr, %count: Long): Long {
+search(%src: I32, %entries: Ptr, %count: I64): I64 {
     start {
         %low = imm 0L
         %high = sub %count, 1L
@@ -7,14 +7,14 @@ search(%src: Int, %entries: Ptr, %count: Long): Long {
     }
 
     loop_head {
-        %low3 = phi [start, %low], [lower, %low2], [greater, %low3]: Long
-        %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: Long
+        %low3 = phi [start, %low], [lower, %low2], [greater, %low3]: I64
+        %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: I64
         je (cmp_ile %low3, %high3), loop, end
     }
 
     loop {
         %mid = sar (add %low3, %high3), 1
-        %entry = load (add %entries, (mul %mid, 8L)), 4: Int
+        %entry = load (add %entries, (mul %mid, 8L)), 4: I32
         je (cmp_lt %entry, %src), lower, check_greater
     }
 

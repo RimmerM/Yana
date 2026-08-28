@@ -45,11 +45,11 @@
 # unchanged by the pass. `verifyPlacement` and `verifyAllocation` are what check a taken region, and
 # they run over every function of both corpora above.
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
     { ret %x }
 }
 
-callee(%x: Int): Int {
+callee(%x: I32): I32 {
     { ret %x }
 }
 
@@ -63,55 +63,55 @@ callee(%x: Int): Int {
 #
 # The call inside the loop is what stops a cluster window from answering instead: it makes every
 # caller-saved register unusable in the body, so the window §5.9 would open has nowhere to open in.
-regionUnderPressure(%n: Int, %p: Ptr): Long {
+regionUnderPressure(%n: I32, %p: Ptr): I64 {
     entry {
-        %zero = cast 0: Long
-        %a0 = load %p, 0: Long
-        %a1 = load %p, 8: Long
-        %a2 = load %p, 16: Long
-        %a3 = load %p, 24: Long
-        %a4 = load %p, 32: Long
-        %a5 = load %p, 40: Long
-        %a6 = load %p, 48: Long
-        %a7 = load %p, 56: Long
-        %a8 = load %p, 64: Long
-        %a9 = load %p, 72: Long
+        %zero = cast 0: I64
+        %a0 = load %p, 0: I64
+        %a1 = load %p, 8: I64
+        %a2 = load %p, 16: I64
+        %a3 = load %p, 24: I64
+        %a4 = load %p, 32: I64
+        %a5 = load %p, 40: I64
+        %a6 = load %p, 48: I64
+        %a7 = load %p, 56: I64
+        %a8 = load %p, 64: I64
+        %a9 = load %p, 72: I64
         %target = load %p, 200: Ptr
-        %r0 = call_complex callee, %n: Int
+        %r0 = call_complex callee, %n: I32
         jmp preloop
     }
 
     preloop {
-        %u0 = add %zero, %a0: Long
-        %u1 = add %u0, %a1: Long
-        %u2 = add %u1, %a2: Long
-        %u3 = add %u2, %a3: Long
-        %u4 = add %u3, %a4: Long
-        %u5 = add %u4, %a5: Long
-        %u6 = add %u5, %a6: Long
-        %u7 = add %u6, %a7: Long
-        %u8 = add %u7, %a8: Long
-        %u9 = add %u8, %a9: Long
+        %u0 = add %zero, %a0: I64
+        %u1 = add %u0, %a1: I64
+        %u2 = add %u1, %a2: I64
+        %u3 = add %u2, %a3: I64
+        %u4 = add %u3, %a4: I64
+        %u5 = add %u4, %a5: I64
+        %u6 = add %u5, %a6: I64
+        %u7 = add %u6, %a7: I64
+        %u8 = add %u7, %a8: I64
+        %u9 = add %u8, %a9: I64
         jmp head
     }
 
     head {
-        %i = phi [preloop, %zero], [body, %i2]: Long
-        %acc = phi [preloop, %u9], [body, %acc2]: Long
+        %i = phi [preloop, %zero], [body, %i2]: I64
+        %acc = phi [preloop, %u9], [body, %acc2]: I64
         je %n, tail, body
     }
 
     body {
-        %w = load %target, 0: Long
-        %r1 = call_complex callee, %n: Int
-        %acc2 = add %acc, %w: Long
-        %i2 = add %i, 1L: Long
+        %w = load %target, 0: I64
+        %r1 = call_complex callee, %n: I32
+        %acc2 = add %acc, %w: I64
+        %i2 = add %i, 1L: I64
         jmp head
     }
 
     tail {
-        %z = load %target, 8: Long
-        %f = add %acc, %z: Long
+        %z = load %target, 8: I64
+        %f = add %acc, %z: I64
         ret %f
     }
 }
@@ -122,35 +122,35 @@ regionUnderPressure(%n: Int, %p: Ptr): Long {
 #
 # The load appears as `pre=[stack:k->rN]` on the preheader's terminator, in the same batch as the phi
 # transfers, and nothing comes back the other way on the exit edge.
-regionCached(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+regionCached(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
     entry {
-        %zero = cast 0: Long
-        %r = call_clobber sink, %n: Int
+        %zero = cast 0: I64
+        %r = call_clobber sink, %n: I32
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [latch, %i2]: Long
-        %acc = phi [entry, %zero], [latch, %acc3]: Long
+        %i = phi [entry, %zero], [latch, %i2]: I64
+        %acc = phi [entry, %zero], [latch, %acc3]: I64
         je %n, exit, first
     }
 
     first {
-        %a = load %p, 8: Long
-        %acc1 = add %acc, %a: Long
+        %a = load %p, 8: I64
+        %acc1 = add %acc, %a: I64
         jmp second
     }
 
     second {
-        %b = load %q, 8: Long
-        %acc2 = add %acc1, %b: Long
+        %b = load %q, 8: I64
+        %acc2 = add %acc1, %b: I64
         jmp latch
     }
 
     latch {
-        %c = load %t, 8: Long
-        %acc3 = add %acc2, %c: Long
-        %i2 = add %i, 1L: Long
+        %c = load %t, 8: I64
+        %acc3 = add %acc2, %c: I64
+        %i2 = add %i, 1L: I64
         jmp head
     }
 
@@ -167,30 +167,30 @@ regionCached(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
 # the edge out. Two instructions outside the loop against two per iteration inside it, which is the
 # trade the whole pass exists for. The store is what makes this a `RegionMoved` rather than a cached
 # one, and it is why the exit edge needs an insertion point of its own.
-regionMoved(%n: Int, %p: Ptr, %q: Ptr): Long {
+regionMoved(%n: I32, %p: Ptr, %q: Ptr): I64 {
     entry {
-        %zero = cast 0: Long
-        %r = call_clobber sink, %n: Int
+        %zero = cast 0: I64
+        %r = call_clobber sink, %n: I32
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Long
-        %acc = phi [entry, %zero], [body, %acc2]: Long
+        %i = phi [entry, %zero], [body, %i2]: I64
+        %acc = phi [entry, %zero], [body, %acc2]: I64
         je %n, exit, body
     }
 
     body {
-        %a = load %p, 8: Long
-        %b = load %q, 8: Long
-        %s = add %a, %b: Long
-        %acc2 = add %acc, %s: Long
-        %i2 = add %i, 1L: Long
+        %a = load %p, 8: I64
+        %b = load %q, 8: I64
+        %s = add %a, %b: I64
+        %acc2 = add %acc, %s: I64
+        %i2 = add %i, 1L: I64
         jmp head
     }
 
     exit {
-        %z = add %acc, 1L: Long
+        %z = add %acc, 1L: I64
         ret %z
     }
 }
@@ -199,29 +199,29 @@ regionMoved(%n: Int, %p: Ptr, %q: Ptr): Long {
 # saves cannot pay for the load that would establish the register - the unweighted comparison, which
 # is the one a region's shape makes hard: its copies stand outside the loop and occupy their bytes
 # whether the loop runs eight times or eight million.
-regionTooThin(%n: Int, %p: Ptr, %q: Ptr): Long {
+regionTooThin(%n: I32, %p: Ptr, %q: Ptr): I64 {
     entry {
-        %zero = cast 0: Long
-        %r = call_clobber sink, %n: Int
-        %g = load %q, 8: Long
+        %zero = cast 0: I64
+        %r = call_clobber sink, %n: I32
+        %g = load %q, 8: I64
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Long
-        %acc = phi [entry, %zero], [body, %acc2]: Long
+        %i = phi [entry, %zero], [body, %i2]: I64
+        %acc = phi [entry, %zero], [body, %acc2]: I64
         je %n, exit, body
     }
 
     body {
-        %a = load %p, 8: Long
-        %acc2 = add %acc, %a: Long
-        %i2 = add %i, 1L: Long
+        %a = load %p, 8: I64
+        %acc2 = add %acc, %a: I64
+        %i2 = add %i, 1L: I64
         jmp head
     }
 
     exit {
-        %z = add %acc, %g: Long
+        %z = add %acc, %g: I64
         ret %z
     }
 }
@@ -230,32 +230,32 @@ regionTooThin(%n: Int, %p: Ptr, %q: Ptr): Long {
 # loop - so the region is `first` alone rather than the whole body, and what the register has to
 # survive is what `first` clobbers rather than what the loop does. Covering the loop entire is what
 # refused 199 of `Matrix`'s candidates before this was narrowed.
-regionLiveBlocksOnly(%n: Int, %p: Ptr, %t: Ptr): Long {
+regionLiveBlocksOnly(%n: I32, %p: Ptr, %t: Ptr): I64 {
     entry {
-        %zero = cast 0: Long
-        %r = call_clobber sink, %n: Int
-        %t1 = load %t, 8: Long
-        %t2 = load %t, 8: Long
-        %tv = add %t1, %t2: Long
+        %zero = cast 0: I64
+        %r = call_clobber sink, %n: I32
+        %t1 = load %t, 8: I64
+        %t2 = load %t, 8: I64
+        %tv = add %t1, %t2: I64
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [latch, %i2]: Long
-        %acc = phi [entry, %zero], [latch, %acc2]: Long
+        %i = phi [entry, %zero], [latch, %i2]: I64
+        %acc = phi [entry, %zero], [latch, %acc2]: I64
         je %n, exit, first
     }
 
     first {
-        %x1 = add %acc, %tv: Long
-        %x2 = add %x1, %tv: Long
+        %x1 = add %acc, %tv: I64
+        %x2 = add %x1, %tv: I64
         jmp latch
     }
 
     latch {
-        %a = load %p, 8: Long
-        %acc2 = add %x2, %a: Long
-        %i2 = add %i, 1L: Long
+        %a = load %p, 8: I64
+        %acc2 = add %x2, %a: I64
+        %i2 = add %i, 1L: I64
         jmp head
     }
 

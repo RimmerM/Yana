@@ -37,7 +37,7 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn String.unit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> I32 {
   b0:
     %v2 = borrow %self : 'String
     %v3 = cast %v2 : 'StringData
@@ -48,7 +48,7 @@ fn String.unit(%self: String, %index: Size) -> Int {
     %v8 = mul %index, %v7 : Size
     %v9 = add %v6, %v8 : %CodeUnit
     %v10 = load [%v9] : CodeUnit
-    %v11 = cast %v10 : Int
+    %v11 = cast %v10 : I32
     ret %v11
 }
 
@@ -57,7 +57,7 @@ fn String.ofCapacity(%capacity: Size) -> String {
     %v1 = alloc : StringData
     %v2 = alloc : Array(CodeUnit)
     %v3 = alloc : Run(CodeUnit)
-    %v4 = cast %capacity : Long
+    %v4 = cast %capacity : I64
     %v5 = alloc *%v4 heap escaping : CodeUnit
     %v6 = addressof %local3 : %CodeUnit
     %v8 = cast %capacity : U32
@@ -74,7 +74,7 @@ fn String.ofCapacity(%capacity: Size) -> String {
     ret %v19
 }
 
-fn String.pushUnit(%self: String, %unit: Int) -> () {
+fn String.pushUnit(%self: String, %unit: I32) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &String
@@ -92,7 +92,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -240,7 +240,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -291,7 +291,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -327,7 +327,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -413,14 +413,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -452,7 +452,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -510,7 +510,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1067,7 +1067,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1157,67 +1157,67 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
     ret
 }
 
-fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
+fn withAnd(%text: String, %keep: I32, %out: String) -> I32 {
   b0:
     %v4 = call String.ofCapacity, 16 : String
     %kept = alloc : String
     init %kept, %v4
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     %v10 = call Length(String).length, %text : Size
-    %count = cast %v10 : Int
+    %count = cast %v10 : I32
     jmp b1
 
   b1:
-    %v13 = load %i : Int
+    %v13 = load %i : I32
     %v14 = cmp_lt %v13, %keep : Bool
     je %v14, b3, b2
 
   b2:
-    %at = alloc : Int
+    %at = alloc : I32
     init %at, %keep
     jmp b7
 
   b3:
     %v16 = load %kept : String
-    %v17 = load %i : Int
+    %v17 = load %i : I32
     %v18 = cmp_lt %v17, %count : Bool
     je %v18, b4, b5
 
   b4:
-    %v20 = load %i : Int
+    %v20 = load %i : I32
     %v21 = cast %v20 : Size
-    %v22 = call String.unit, %text, %v21 : Int
+    %v22 = call String.unit, %text, %v21 : I32
     jmp b6
 
   b5:
     jmp b6
 
   b6:
-    %v26 = phi [b4, %v22], [b5, 57] : Int
+    %v26 = phi [b4, %v22], [b5, 57] : I32
     %v27 = borrow_mut %kept : &String
     call String.pushUnit, %v27, %v26
-    %v29 = load %i : Int
-    %v32 = add %v29, 1 : Int
+    %v29 = load %i : I32
+    %v32 = add %v29, 1 : I32
     assign %i, %v32
     jmp b1
 
   b7:
-    %v38 = load %at : Int
+    %v38 = load %at : I32
     %v41 = cmp_gt %v38, 0 : Bool
     je %v41, b9, b10
 
   b8:
-    %v64 = load %at : Int
+    %v64 = load %at : I32
     %v67 = cmp_eq %v64, 0 : Bool
     je %v67, b22, b14
 
   b9:
     %v43 = load %kept : String
-    %v44 = load %at : Int
-    %v47 = sub %v44, 1 : Int
+    %v44 = load %at : I32
+    %v47 = sub %v44, 1 : I32
     %v48 = cast %v47 : Size
-    %v49 = call String.unit, %v43, %v48 : Int
+    %v49 = call String.unit, %v43, %v48 : I32
     %v52 = cmp_eq %v49, 57 : Bool
     jmp b11
 
@@ -1229,8 +1229,8 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     je %v56, b12, b8
 
   b12:
-    %v58 = load %at : Int
-    %v61 = sub %v58, 1 : Int
+    %v58 = load %at : I32
+    %v61 = sub %v58, 1 : I32
     assign %at, %v61
     jmp b7
 
@@ -1238,7 +1238,7 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     %v69 = load %out : String
     %v71 = borrow_mut %out : &String
     call String.pushUnit, %v71, 49
-    %zeros = alloc : Int
+    %zeros = alloc : I32
     init %zeros, 0
     jmp b15
 
@@ -1246,20 +1246,20 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     jmp b18
 
   b15:
-    %v77 = load %zeros : Int
+    %v77 = load %zeros : I32
     %v78 = cmp_lt %v77, %keep : Bool
     je %v78, b17, b16
 
   b16:
-    %v92 = add %keep, 1 : Int
+    %v92 = add %keep, 1 : I32
     ret %v92
 
   b17:
     %v80 = load %out : String
     %v82 = borrow_mut %out : &String
     call String.pushUnit, %v82, 48
-    %v84 = load %zeros : Int
-    %v87 = add %v84, 1 : Int
+    %v84 = load %zeros : I32
+    %v87 = add %v84, 1 : I32
     assign %zeros, %v87
     jmp b15
 
@@ -1268,24 +1268,24 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     jmp b19
 
   b19:
-    %v98 = load %i : Int
+    %v98 = load %i : I32
     %v99 = cmp_lt %v98, %keep : Bool
     je %v99, b21, b23
 
   b20:
-    %v114 = load %at : Int
+    %v114 = load %at : I32
     ret %v114
 
   b21:
     %v101 = load %out : String
     %v102 = load %kept : String
-    %v103 = load %i : Int
+    %v103 = load %i : I32
     %v104 = cast %v103 : Size
-    %v105 = call String.unit, %v102, %v104 : Int
+    %v105 = call String.unit, %v102, %v104 : I32
     %v106 = borrow_mut %out : &String
     call String.pushUnit, %v106, %v105
-    %v108 = load %i : Int
-    %v111 = add %v108, 1 : Int
+    %v108 = load %i : I32
+    %v111 = add %v108, 1 : I32
     assign %i, %v111
     jmp b19
 
@@ -1298,23 +1298,23 @@ fn withAnd(%text: String, %keep: Int, %out: String) -> Int {
     jmp b20
 }
 
-fn countUp(%start: Int) -> Int {
+fn countUp(%start: I32) -> I32 {
   b0:
-    %value = alloc : Int
+    %value = alloc : I32
     init %value, %start
     jmp b1
 
   b1:
-    %v4 = load %value : Int
+    %v4 = load %value : I32
     %v7 = cmp_ne %v4, 0 : Bool
     je %v7, b3, b4
 
   b2:
-    %v24 = load %value : Int
+    %v24 = load %value : I32
     ret %v24
 
   b3:
-    %v9 = load %value : Int
+    %v9 = load %value : I32
     %v12 = cmp_lt %v9, 100 : Bool
     jmp b5
 
@@ -1326,29 +1326,29 @@ fn countUp(%start: Int) -> Int {
     je %v16, b6, b2
 
   b6:
-    %v18 = load %value : Int
-    %v21 = add %v18, 1 : Int
+    %v18 = load %value : I32
+    %v21 = add %v18, 1 : I32
     assign %value, %v21
     jmp b1
 }
 
-fn countDown(%start: Int) -> Int {
+fn countDown(%start: I32) -> I32 {
   b0:
-    %value = alloc : Int
+    %value = alloc : I32
     init %value, %start
     jmp b1
 
   b1:
-    %v4 = load %value : Int
+    %v4 = load %value : I32
     %v7 = cmp_gt %v4, 10 : Bool
     je %v7, b4, b3
 
   b2:
-    %v24 = load %value : Int
+    %v24 = load %value : I32
     ret %v24
 
   b3:
-    %v9 = load %value : Int
+    %v9 = load %value : I32
     %v12 = cmp_lt %v9, 0 : Bool
     jmp b5
 
@@ -1360,54 +1360,54 @@ fn countDown(%start: Int) -> Int {
     je %v16, b6, b2
 
   b6:
-    %v18 = load %value : Int
-    %v21 = sub %v18, 1 : Int
+    %v18 = load %value : I32
+    %v21 = sub %v18, 1 : I32
     assign %value, %v21
     jmp b1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %v4 = call String.ofCapacity, 32 : String
     %out = alloc : String
     init %out, %v4
-    %v7 = load %total : Int
+    %v7 = load %total : I32
     %v8 = copy ResolveTest.literal$1 : String
     %v10 = load %out : String
     %v11 = borrow_mut %out : &String
-    %v12 = call withAnd, %v8, 2, %v11 : Int
+    %v12 = call withAnd, %v8, 2, %v11 : I32
     drop %local3 via Reclaim(String).reclaim
-    %v13 = add %v7, %v12 : Int
+    %v13 = add %v7, %v12 : I32
     assign %total, %v13
-    %v15 = load %total : Int
+    %v15 = load %total : I32
     %v16 = copy ResolveTest.literal$3 : String
     %v18 = load %out : String
     %v19 = borrow_mut %out : &String
-    %v20 = call withAnd, %v16, 2, %v19 : Int
+    %v20 = call withAnd, %v16, 2, %v19 : I32
     drop %local4 via Reclaim(String).reclaim
-    %v21 = add %v15, %v20 : Int
+    %v21 = add %v15, %v20 : I32
     assign %total, %v21
-    %v23 = load %total : Int
+    %v23 = load %total : I32
     %v24 = load %out : String
     %v25 = call Length(String).length, %v24 : Size
     drop %out via Reclaim(String).reclaim
-    %v26 = cast %v25 : Int
-    %v27 = add %v23, %v26 : Int
+    %v26 = cast %v25 : I32
+    %v27 = add %v23, %v26 : I32
     assign %total, %v27
-    %v29 = load %total : Int
-    %v31 = call countUp, 12 : Int
-    %v32 = add %v29, %v31 : Int
+    %v29 = load %total : I32
+    %v31 = call countUp, 12 : I32
+    %v32 = add %v29, %v31 : I32
     assign %total, %v32
-    %v34 = load %total : Int
-    %v36 = call countUp, 0 : Int
-    %v37 = add %v34, %v36 : Int
+    %v34 = load %total : I32
+    %v36 = call countUp, 0 : I32
+    %v37 = add %v34, %v36 : I32
     assign %total, %v37
-    %v39 = load %total : Int
-    %v41 = call countDown, 15 : Int
-    %v42 = add %v39, %v41 : Int
+    %v39 = load %total : I32
+    %v41 = call countDown, 15 : I32
+    %v42 = add %v39, %v41 : I32
     assign %total, %v42
-    %v44 = load %total : Int
+    %v44 = load %total : I32
     ret %v44
 }

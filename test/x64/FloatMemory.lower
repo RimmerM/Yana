@@ -7,63 +7,63 @@
 
 # A load and a store are the value's own width - nothing extends into a vector register, so there is
 # no narrow form and no signed one.
-loadStore(%p: Ptr, %v: Double): Double {
+loadStore(%p: Ptr, %v: F64): F64 {
     {
         store %p, %v, 8
-        %l = load %p, 8: Double
-        %s = add %l, %v: Double
+        %l = load %p, 8: F64
+        %s = add %l, %v: F64
         ret %s
     }
 }
 
-loadStore32(%p: Ptr, %v: Float): Float {
+loadStore32(%p: Ptr, %v: F32): F32 {
     {
         store %p, %v, 4
-        %l = load %p, 4: Float
-        %s = mul %l, %v: Float
+        %l = load %p, 4: F32
+        %s = mul %l, %v: F32
         ret %s
     }
 }
 
 # A folded addressing mode reaches a float access exactly as it reaches an integer one: the address
 # arithmetic is the pointer bank's whatever the loaded value is.
-indexed(%p: Ptr, %i: Long): Double {
+indexed(%p: Ptr, %i: I64): F64 {
     {
-        %o = mul %i, 8L: Long
+        %o = mul %i, 8L: I64
         %a = add %p, %o: Ptr
-        %l = load %a, 8: Double
+        %l = load %a, 8: F64
         ret %l
     }
 }
 
 # Signed conversions, which are the ones AMD64 has an instruction for. The prefix says which float
 # the conversion works with and REX.W says how wide the integer is.
-convert(%i: Int, %l: Long): Double {
+convert(%i: I32, %l: I64): F64 {
     {
-        %a = itof %i: Double
-        %b = itof %l: Double
-        %c = add %a, %b: Double
+        %a = itof %i: F64
+        %b = itof %l: F64
+        %c = add %a, %b: F64
         ret %c
     }
 }
 
-convert32(%i: Int, %l: Long): Float {
+convert32(%i: I32, %l: I64): F32 {
     {
-        %a = itof %i: Float
-        %b = itof %l: Float
-        %c = sub %a, %b: Float
+        %a = itof %i: F32
+        %b = itof %l: F32
+        %c = sub %a, %b: F32
         ret %c
     }
 }
 
 # The other direction truncates towards zero, which is what a cast to an integer means everywhere
 # else in this compiler.
-truncate(%f: Float, %d: Double): Long {
+truncate(%f: F32, %d: F64): I64 {
     {
-        %a = ftoi %f: Int
-        %b = ftoi %d: Long
-        %w = sext %a: Long
-        %s = add %w, %b: Long
+        %a = ftoi %f: I32
+        %b = ftoi %d: I64
+        %w = sext %a: I64
+        %s = add %w, %b: I64
         ret %s
     }
 }
@@ -72,11 +72,11 @@ truncate(%f: Float, %d: Double): Long {
 # replaces them with a sequence of ones that do - see transform.cpp. The two 32-bit cases are exact
 # without any correction: every u32 fits in an i64, so widening the other side and converting signed
 # is the whole of it.
-unsigned32(%u: Int, %f: Double): Int {
+unsigned32(%u: I32, %f: F64): I32 {
     {
-        %a = cast %u: Double
-        %b = add %a, %f: Double
-        %r = cast %b: Int
+        %a = cast %u: F64
+        %b = add %a, %f: F64
+        %r = cast %b: I32
         ret %r
     }
 }
@@ -85,61 +85,61 @@ unsigned32(%u: Int, %f: Double): Int {
 # bit that falls off, so the rounding still sees it - converted, and doubled back. Going down, a
 # value at or above 2^63 has 2^63 subtracted before the conversion and the bit put back into the
 # integer afterwards. Both compute the two arms and select, rather than branching.
-unsigned64(%u: Long, %f: Double): Long {
+unsigned64(%u: I64, %f: F64): I64 {
     {
-        %a = cast %u: Double
-        %b = add %a, %f: Double
-        %r = cast %b: Long
+        %a = cast %u: F64
+        %b = add %a, %f: F64
+        %r = cast %b: I64
         ret %r
     }
 }
 
-unsigned64Float(%u: Long, %f: Float): Long {
+unsigned64Float(%u: I64, %f: F32): I64 {
     {
-        %a = cast %u: Float
-        %b = mul %a, %f: Float
-        %r = cast %b: Long
+        %a = cast %u: F32
+        %b = mul %a, %f: F32
+        %r = cast %b: I64
         ret %r
     }
 }
 
 # A conversion nothing reads is dead either way, but expanding it first would make ten dead
 # instructions out of one and nothing afterwards would take them out again. So it emits nothing.
-unusedConversion(%u: Long, %v: Long): Long {
+unusedConversion(%u: I64, %v: I64): I64 {
     {
-        %dead = cast %u: Double
-        %r = add %u, %v: Long
+        %dead = cast %u: F64
+        %r = add %u, %v: I64
         ret %r
     }
 }
 
 # Between the two float widths, where the prefix names the source.
-widen(%f: Float, %d: Double): Float {
+widen(%f: F32, %d: F64): F32 {
     {
-        %a = cast %f: Double
-        %b = add %a, %d: Double
-        %c = cast %b: Float
+        %a = cast %f: F64
+        %b = add %a, %d: F64
+        %c = cast %b: F32
         ret %c
     }
 }
 
 # A bitcast crosses the banks without changing a bit, which is MOVD or MOVQ by the width alone.
-bits(%d: Double, %l: Long): Long {
+bits(%d: F64, %l: I64): I64 {
     {
-        %a = bitcast %d: Long
-        %b = bitcast %l: Double
-        %c = bitcast %b: Long
-        %s = add %a, %c: Long
+        %a = bitcast %d: I64
+        %b = bitcast %l: F64
+        %c = bitcast %b: I64
+        %s = add %a, %c: I64
         ret %s
     }
 }
 
-bits32(%f: Float, %i: Int): Int {
+bits32(%f: F32, %i: I32): I32 {
     {
-        %a = bitcast %f: Int
-        %b = bitcast %i: Float
-        %c = bitcast %b: Int
-        %s = add %a, %c: Int
+        %a = bitcast %f: I32
+        %b = bitcast %i: F32
+        %c = bitcast %b: I32
+        %s = add %a, %c: I32
         ret %s
     }
 }

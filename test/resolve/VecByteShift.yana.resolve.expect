@@ -1,13 +1,13 @@
 let image$base: () = <none>
 
-let &counter: Int = 0
+let &counter: I32 = 0
 
 fn opaque(%n: I8) -> I8 {
   b0:
-    %v1 = load counter : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load counter : I32
+    %v4 = add %v1, 1 : I32
     assign counter, %v4
-    %v6 = load counter : Int
+    %v6 = load counter : I32
     %v9 = cmp_gt %v6, 1000 : Bool
     je %v9, b1, b2
 
@@ -23,16 +23,16 @@ fn opaque(%n: I8) -> I8 {
 
 fn pattern() -> Vec(I8) {
   b0:
-    %v4 = sub 0, 1888223487 : Int
-    %v5 = vsplat %v4 : Vec(Int)
+    %v4 = sub 0, 1888223487 : I32
+    %v5 = vsplat %v4 : Vec(I32)
     %v6 = bitcast %v5 : Vec(I8)
     ret %v6
 }
 
-fn check(%v: Vec(I8), %expected: Int) -> Int {
+fn check(%v: Vec(I8), %expected: I32) -> I32 {
   b0:
-    %v2 = bitcast %v : Vec(Int)
-    %v5 = vlane %v2, 0 : Int
+    %v2 = bitcast %v : Vec(I32)
+    %v5 = vlane %v2, 0 : I32
     %v6 = cmp_eq %v5, %expected : Bool
     je %v6, b1, b2
 
@@ -43,68 +43,68 @@ fn check(%v: Vec(I8), %expected: Int) -> Int {
     jmp b3
 
   b3:
-    %v12 = phi [b1, 1], [b2, 0] : Int
+    %v12 = phi [b1, 1], [b2, 0] : I32
     ret %v12
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v = call pattern : Vec(I8)
-    %n = alloc : Int
+    %n = alloc : I32
     init %n, 0
-    %v4 = load %n : Int
+    %v4 = load %n : I32
     %v6 = vsplat 1 : Vec(I8)
     %v7 = shl %v, %v6 : Vec(I8)
-    %v9 = call check, %v7, 518454786 : Int
-    %v10 = add %v4, %v9 : Int
+    %v9 = call check, %v7, 518454786 : I32
+    %v10 = add %v4, %v9 : I32
     assign %n, %v10
-    %v12 = load %n : Int
+    %v12 = load %n : I32
     %v14 = vsplat 3 : Vec(I8)
     %v15 = shr %v, %v14 : Vec(I8)
-    %v17 = call check, %v15, 286138112 : Int
-    %v18 = add %v12, %v17 : Int
+    %v17 = call check, %v15, 286138112 : I32
+    %v18 = add %v12, %v17 : I32
     assign %n, %v18
-    %v20 = load %n : Int
+    %v20 = load %n : I32
     %v22 = vsplat 3 : Vec(I8)
     %v23 = sar %v, %v22 : Vec(I8)
-    %v28 = sub 0, 250675456 : Int
-    %v29 = call check, %v23, %v28 : Int
-    %v30 = add %v20, %v29 : Int
+    %v28 = sub 0, 250675456 : I32
+    %v29 = call check, %v23, %v28 : I32
+    %v30 = add %v20, %v29 : I32
     assign %n, %v30
-    %v32 = load %n : Int
+    %v32 = load %n : I32
     %v34 = vsplat 0 : Vec(I8)
     %v35 = sar %v, %v34 : Vec(I8)
-    %v40 = sub 0, 1888223487 : Int
-    %v41 = call check, %v35, %v40 : Int
-    %v42 = add %v32, %v41 : Int
+    %v40 = sub 0, 1888223487 : I32
+    %v41 = call check, %v35, %v40 : I32
+    %v42 = add %v32, %v41 : I32
     assign %n, %v42
-    %v44 = load %n : Int
+    %v44 = load %n : I32
     %v46 = vsplat 7 : Vec(I8)
     %v47 = sar %v, %v46 : Vec(I8)
-    %v52 = sub 0, 16711936 : Int
-    %v53 = call check, %v47, %v52 : Int
-    %v54 = add %v44, %v53 : Int
+    %v52 = sub 0, 16711936 : I32
+    %v53 = call check, %v47, %v52 : I32
+    %v54 = add %v44, %v53 : I32
     assign %n, %v54
     %k = call opaque, 2 : I8
-    %v58 = load %n : Int
+    %v58 = load %n : I32
     %v59 = vsplat %k : Vec(I8)
     %v60 = shl %v, %v59 : Vec(I8)
-    %v62 = call check, %v60, 1020066820 : Int
-    %v63 = add %v58, %v62 : Int
+    %v62 = call check, %v60, 1020066820 : I32
+    %v63 = add %v58, %v62 : I32
     assign %n, %v63
-    %v65 = load %n : Int
+    %v65 = load %n : I32
     %v66 = vsplat %k : Vec(I8)
     %v67 = shr %v, %v66 : Vec(I8)
-    %v69 = call check, %v67, 589053696 : Int
-    %v70 = add %v65, %v69 : Int
+    %v69 = call check, %v67, 589053696 : I32
+    %v70 = add %v65, %v69 : I32
     assign %n, %v70
-    %v72 = load %n : Int
+    %v72 = load %n : I32
     %v73 = vsplat %k : Vec(I8)
     %v74 = sar %v, %v73 : Vec(I8)
-    %v79 = sub 0, 484638976 : Int
-    %v80 = call check, %v74, %v79 : Int
-    %v81 = add %v72, %v80 : Int
+    %v79 = sub 0, 484638976 : I32
+    %v80 = call check, %v74, %v79 : I32
+    %v81 = add %v72, %v80 : I32
     assign %n, %v81
-    %v83 = load %n : Int
+    %v83 = load %n : I32
     ret %v83
 }

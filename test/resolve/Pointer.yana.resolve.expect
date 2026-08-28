@@ -630,7 +630,7 @@ fn compareAddresses() -> I64 {
 
   b6:
     %v33 = bitcast 0 : %Node
-    %v34 = bitcast %v33 : Long
+    %v34 = bitcast %v33 : I64
     %v36 = cmp_eq %v34, 0 : Bool
     je %v36, b7, b8
 
@@ -644,7 +644,7 @@ fn compareAddresses() -> I64 {
     jmp b9
 
   b9:
-    %v45 = bitcast %base : Long
+    %v45 = bitcast %base : I64
     %v47 = cmp_eq %v45, 0 : Bool
     %v49 = xor %v47, True : Bool
     je %v49, b10, b11
@@ -719,7 +719,7 @@ fn maybePointer() -> I64 {
 
 fn unwrapPointer(%value: Maybe(%U8)) -> I64 {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -728,7 +728,7 @@ fn unwrapPointer(%value: Maybe(%U8)) -> I64 {
 
   b2:
     %p = load %value@Just : %U8
-    %v6 = bitcast %p : Long
+    %v6 = bitcast %p : I64
     %v8 = cmp_eq %v6, 0 : Bool
     je %v8, b3, b4
 
@@ -747,7 +747,7 @@ fn unwrapPointer(%value: Maybe(%U8)) -> I64 {
     ret %v18
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = call roundTrip : I64
     %v1 = call throughField : I64
@@ -766,6 +766,6 @@ fn main() -> Int {
     %v14 = add %v12, %v13 : I64
     %v15 = call maybePointer : I64
     %result = add %v14, %v15 : I64
-    %v17 = cast %result : Int
+    %v17 = cast %result : I32
     ret %v17
 }

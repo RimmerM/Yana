@@ -1,8 +1,8 @@
+@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @image$base = []
 mut @copyCalls = [0, 0, 0, 0]
-@typeDesc$Int = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
-@witness$TrivialCopy(Int) = []
-@genEnv$copyInto(Int) = [0, 0, 0, 0, 0, 0, 0, 0]
+@witness$TrivialCopy(I32) = []
+@genEnv$copyInto(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
 @typeDesc$Point = [8, 0, 0, 0, 8, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @witness$TrivialCopy(Point) = []
 @genEnv$copyInto(Point) = [0, 0, 0, 0, 0, 0, 0, 0]
@@ -18,31 +18,31 @@ teardown$none<complex>(%value: Ptr) {
 
 copyInto<complex>(%genEnv: Ptr, %slot: Ptr, %from: Ptr) {
   b_0 {
-    %v_1 = loads %genEnv, 4: Int
-    %v_2 = sext %v_1: Long
+    %v_1 = loads %genEnv, 4: I32
+    %v_2 = sext %v_1: I64
     %v_3 = add %v_2, @image$base: Ptr
     %v_4 = add %v_3, 12: Ptr
-    %v_5 = loads %v_4, 4: Int
-    %v_6 = sext %v_5: Long
+    %v_5 = loads %v_4, 4: I32
+    %v_6 = sext %v_5: I64
     %v_7 = add %v_6, @image$base: Ptr
     call_complex %v_7, %slot
-    %v_8 = loads %genEnv, 4: Int
-    %v_9 = sext %v_8: Long
+    %v_8 = loads %genEnv, 4: I32
+    %v_9 = sext %v_8: I64
     %v_10 = add %v_9, @image$base: Ptr
-    %v_11 = load %v_10, 4: Int
-    %v_12 = cast %v_11: Long
+    %v_11 = load %v_10, 4: I32
+    %v_12 = cast %v_11: I64
     copy %slot, %from, %v_12
     ret 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %number = alloca 4, 4: Ptr
     store %number, 0, 4
     %v_1 = alloca 4, 4: Ptr
     store %v_1, 7, 4
-    call_complex copyInto, @genEnv$copyInto(Int), %number, %v_1
+    call_complex copyInto, @genEnv$copyInto(I32), %number, %v_1
     %pair = alloca 8, 4: Ptr
     store %pair, 3, 4
     %v_2 = add %pair, 4: Ptr
@@ -52,8 +52,8 @@ main<complex>(): Int {
     %v_4 = add %v_3, 4: Ptr
     store %v_4, 0, 4
     call_complex copyInto, @genEnv$copyInto(Point), %v_3, %pair
-    %v_5 = loads %pair, 4: Int
-    %v_6 = cmp_neq %v_5, 3: Int
+    %v_5 = loads %pair, 4: I32
+    %v_6 = cmp_neq %v_5, 3: I32
     je %v_6, b_7, b_8
   }
 
@@ -89,64 +89,64 @@ main<complex>(): Int {
     %v_22 = add %v_17, 32: Ptr
     store %v_22, 0, 4
     call_complex copyInto, @genEnv$copyInto(Quad), %v_17, %quad
-    %v_23 = loads %v_17, 4: Int
-    %v_24 = cmp_neq %v_23, 10: Int
+    %v_23 = loads %v_17, 4: I32
+    %v_24 = cmp_neq %v_23, 10: I32
     je %v_24, b_25, b_26
   }
 
   b_26 {
     %v_27 = add %v_17, 12: Ptr
-    %v_28 = loads %v_27, 4: Int
-    %v_29 = cmp_neq %v_28, 40: Int
+    %v_28 = loads %v_27, 4: I32
+    %v_29 = cmp_neq %v_28, 40: I32
     je %v_29, b_30, b_31
   }
 
   b_31 {
     %v_32 = add %v_17, 24: Ptr
-    %v_33 = loads %v_32, 4: Int
-    %v_34 = cmp_neq %v_33, 3: Int
+    %v_33 = loads %v_32, 4: I32
+    %v_34 = cmp_neq %v_33, 3: I32
     je %v_34, b_35, b_36
   }
 
   b_36 {
     %v_37 = add %v_17, 32: Ptr
-    %v_38 = loads %v_37, 4: Int
-    %v_39 = cmp_neq %v_38, 5: Int
+    %v_38 = loads %v_37, 4: I32
+    %v_39 = cmp_neq %v_38, 5: I32
     je %v_39, b_40, b_41
   }
 
   b_41 {
     store %v_17, 99, 4
     store %v_32, 99, 4
-    %v_42 = loads %quad, 4: Int
-    %v_43 = cmp_neq %v_42, 10: Int
+    %v_42 = loads %quad, 4: I32
+    %v_43 = cmp_neq %v_42, 10: I32
     je %v_43, b_44, b_45
   }
 
   b_45 {
     %v_46 = add %quad, 24: Ptr
-    %v_47 = loads %v_46, 4: Int
-    %v_48 = cmp_neq %v_47, 3: Int
+    %v_47 = loads %v_46, 4: I32
+    %v_48 = cmp_neq %v_47, 3: I32
     je %v_48, b_49, b_50
   }
 
   b_50 {
-    %v_51 = loads @copyCalls, 4: Int
-    %v_52 = add %v_51, 1: Int
+    %v_51 = loads @copyCalls, 4: I32
+    %v_52 = add %v_51, 1: I32
     store @copyCalls, %v_52, 4
-    %v_53 = cmp_neq %v_52, 1: Int
+    %v_53 = cmp_neq %v_52, 1: I32
     je %v_53, b_54, b_55
   }
 
   b_55 {
-    %v_56 = loads %number, 4: Int
-    %v_57 = loads %v_3, 4: Int
-    %v_58 = add %v_56, %v_57: Int
+    %v_56 = loads %number, 4: I32
+    %v_57 = loads %v_3, 4: I32
+    %v_58 = add %v_56, %v_57: I32
     %v_59 = add %v_3, 4: Ptr
-    %v_60 = loads %v_59, 4: Int
-    %v_61 = add %v_58, %v_60: Int
-    %v_62 = add %v_61, 10: Int
-    %v_63 = add %v_62, %v_52: Int
+    %v_60 = loads %v_59, 4: I32
+    %v_61 = add %v_58, %v_60: I32
+    %v_62 = add %v_61, 10: I32
+    %v_63 = add %v_62, %v_52: I32
     ret %v_63
   }
 

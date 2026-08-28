@@ -1,12 +1,12 @@
 let image$base: () = <none>
 
-fn compressLike(%state: Vec(U32, 4), %message: Vec(U32, 4)) -> Int {
+fn compressLike(%state: Vec(U32, 4), %message: Vec(U32, 4)) -> I32 {
   b0:
     vzeroupper
     %mixed = sha sha256msg1 %state %message : Vec(U32, 4)
     %v4 = add %mixed, %state : Vec(U32, 4)
     %v7 = vlane %v4, 0 : U32
-    %v8 = bitcast %v7 : Int
+    %v8 = bitcast %v7 : I32
     ret %v8
 }
 
@@ -16,30 +16,30 @@ fn helper(%words: Vec(U32, 4)) -> Vec(U32, 4) {
     ret %v1
 }
 
-fn throughHelper(%state: Vec(U32, 4)) -> Int {
+fn throughHelper(%state: Vec(U32, 4)) -> I32 {
   b0:
     vzeroupper
     %v2 = call helper, %state : Vec(U32, 4)
     %v5 = vlane %v2, 0 : U32
-    %v6 = bitcast %v5 : Int
+    %v6 = bitcast %v5 : I32
     ret %v6
 }
 
-fn plainReset(%x: Int) -> Int {
+fn plainReset(%x: I32) -> I32 {
   b0:
     vzeroupper
-    %v4 = add %x, 1 : Int
+    %v4 = add %x, 1 : I32
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %a = vsplat 1 : Vec(U32, 4)
     %b = vsplat 2 : Vec(U32, 4)
-    %v4 = call compressLike, %a, %b : Int
-    %v5 = call throughHelper, %a : Int
-    %v6 = add %v4, %v5 : Int
-    %v8 = call plainReset, 0 : Int
-    %v9 = add %v6, %v8 : Int
+    %v4 = call compressLike, %a, %b : I32
+    %v5 = call throughHelper, %a : I32
+    %v6 = add %v4, %v5 : I32
+    %v8 = call plainReset, 0 : I32
+    %v9 = add %v6, %v8 : I32
     ret %v9
 }

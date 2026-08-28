@@ -10,7 +10,7 @@
 # operand's place with an x86_addr immediately above it. Where a case is deliberately not folded, the
 # load is still there and the property is that it is.
 
-sink<complex>(%p: Ptr): Long {
+sink<complex>(%p: Ptr): I64 {
     { ret 0L }
 }
 
@@ -20,12 +20,12 @@ source<complex>(%p: Ptr): Ptr {
 
 # The plain case. The address folds into an x86_addr as it would for the load, and the add inherits
 # it whole - one instruction where the lowering wrote three.
-foldedAdd(%p: Ptr, %i: Long, %acc: Long): Long {
+foldedAdd(%p: Ptr, %i: I64, %acc: I64): I64 {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %q = add %p, %o: Ptr
-        %v = load %q, 8: Long
-        %s = add %acc, %v: Long
+        %v = load %q, 8: I64
+        %s = add %acc, %v: I64
         ret %s
     }
 }
@@ -33,30 +33,30 @@ foldedAdd(%p: Ptr, %i: Long, %acc: Long): Long {
 # The load in the destructive position. `add r, [m]` computes into the register operand, so the two
 # are exchanged first - which is only legal because addition is commutative, and is what
 # `arr[i] + acc` arrives as.
-exchangedOperands(%p: Ptr, %i: Long, %acc: Long): Long {
+exchangedOperands(%p: Ptr, %i: I64, %acc: I64): I64 {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %q = add %p, %o: Ptr
-        %v = load %q, 8: Long
-        %s = add %v, %acc: Long
+        %v = load %q, 8: I64
+        %s = add %v, %acc: I64
         ret %s
     }
 }
 
 # Subtraction is not commutative, so a load in the destructive position stays a load.
-subtractionKeepsOrder(%p: Ptr, %acc: Long): Long {
+subtractionKeepsOrder(%p: Ptr, %acc: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %s = sub %v, %acc: Long
+        %v = load %p, 8: I64
+        %s = sub %v, %acc: I64
         ret %s
     }
 }
 
 # The right-hand side of a subtraction is the one it can read from memory.
-foldedSubtract(%p: Ptr, %acc: Long): Long {
+foldedSubtract(%p: Ptr, %acc: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %s = sub %acc, %v: Long
+        %v = load %p, 8: I64
+        %s = sub %acc, %v: I64
         ret %s
     }
 }
@@ -64,28 +64,28 @@ foldedSubtract(%p: Ptr, %acc: Long): Long {
 # A pointer that reached the load in a register still gets an x86_addr, because `[reg]` is an
 # addressing mode like any other - and because an operand holding one is how everything downstream
 # recognizes that the fold happened.
-barePointer(%p: Ptr, %acc: Long): Long {
+barePointer(%p: Ptr, %acc: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %s = and %acc, %v: Long
+        %v = load %p, 8: I64
+        %s = and %acc, %v: I64
         ret %s
     }
 }
 
 # The two-operand `imul` has one direction only, so its memory operand is always the right-hand side.
-foldedMultiply(%p: Ptr, %acc: Long): Long {
+foldedMultiply(%p: Ptr, %acc: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %s = imul %acc, %v: Long
+        %v = load %p, 8: I64
+        %s = imul %acc, %v: I64
         ret %s
     }
 }
 
 # A comparison folds its right-hand side and still leaves its own answer in the flags, so the branch
 # below it costs nothing either.
-foldedCompare(%p: Ptr, %x: Long): Long {
+foldedCompare(%p: Ptr, %x: I64): I64 {
     {
-        %v = load %p, 8: Long
+        %v = load %p, 8: I64
         je (cmp_ilt %x, %v), less, notLess
     }
     less { ret 1L }
@@ -93,10 +93,10 @@ foldedCompare(%p: Ptr, %x: Long): Long {
 }
 
 # Scalar SSE has a memory form of every arithmetic operation, and one direction for each.
-foldedFloat(%p: Ptr, %acc: Double): Double {
+foldedFloat(%p: Ptr, %acc: F64): F64 {
     {
-        %v = load %p, 8: Double
-        %s = add %acc, %v: Double
+        %v = load %p, 8: F64
+        %s = add %acc, %v: F64
         ret %s
     }
 }
@@ -104,21 +104,21 @@ foldedFloat(%p: Ptr, %acc: Double): Double {
 # A narrow load extends into its result, and an ALU operand has no room to do that: `add r32, [m]`
 # would read four bytes where the program asked for one. So this is not a form of the addition at
 # all, and the load stays.
-narrowLoadStays(%p: Ptr, %acc: Int): Int {
+narrowLoadStays(%p: Ptr, %acc: I32): I32 {
     {
-        %v = load %p, 1: Int
-        %s = add %acc, %v: Int
+        %v = load %p, 1: I32
+        %s = add %acc, %v: I32
         ret %s
     }
 }
 
 # A load read twice has to exist in a register regardless: folding it would perform the access twice
 # rather than not at all.
-twoReadersStay(%p: Ptr, %acc: Long): Long {
+twoReadersStay(%p: Ptr, %acc: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %s = add %acc, %v: Long
-        %t = add %s, %v: Long
+        %v = load %p, 8: I64
+        %s = add %acc, %v: I64
+        %t = add %s, %v: I64
         ret %t
     }
 }
@@ -126,34 +126,34 @@ twoReadersStay(%p: Ptr, %acc: Long): Long {
 # The load has to be the instruction immediately above its reader. This one is not - the multiply
 # between them was written there - so nothing is folded, and the property is that nothing is: moving
 # the access past an instruction is a question this fold deliberately never has to ask.
-notAdjacentStays(%p: Ptr, %acc: Long, %x: Long): Long {
+notAdjacentStays(%p: Ptr, %acc: I64, %x: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %y = imul %x, %x: Long
-        %s = add %acc, %v: Long
-        %t = add %s, %y: Long
+        %v = load %p, 8: I64
+        %y = imul %x, %x: I64
+        %s = add %acc, %v: I64
+        %t = add %s, %y: I64
         ret %t
     }
 }
 
 # A division reads its dividend out of rax, which is a copy emitted in front of the instruction - and
 # the address's own registers are live into it. So the group-3 shapes are excluded and the load stays.
-divisionStays(%p: Ptr, %acc: Long): Long {
+divisionStays(%p: Ptr, %acc: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %s = div %acc, %v: Long
+        %v = load %p, 8: I64
+        %s = div %acc, %v: I64
         ret %s
     }
 }
 
 # The address escapes to a call, so it exists in a register whatever the load does. The load still
 # folds - it reads the pointer, and the pointer is where it was.
-escapedPointerStillFolds(%p: Ptr, %acc: Long): Long {
+escapedPointerStillFolds(%p: Ptr, %acc: I64): I64 {
     {
-        %v = load %p, 8: Long
-        %s = add %acc, %v: Long
-        %r = call_complex sink, %p: Long
-        %t = add %s, %r: Long
+        %v = load %p, 8: I64
+        %s = add %acc, %v: I64
+        %r = call_complex sink, %p: I64
+        %t = add %s, %r: I64
         ret %t
     }
 }
@@ -170,47 +170,47 @@ escapedPointerStillFolds(%p: Ptr, %acc: Long): Long {
 # offers the addition's result. Without collectTieConflicts knowing about a folded address the copy is
 # `mov rax, rsi` and the add then reads through the value it was about to add. The property is that
 # the register the copy writes is not the one the ModRM byte reads.
-tiedResultAvoidsAddress(%q: Ptr, %acc: Long): Long {
+tiedResultAvoidsAddress(%q: Ptr, %acc: I64): I64 {
     {
         %p = call_complex source, %q: Ptr
-        %v = load %p, 8: Long
-        %s = add %acc, %v: Long
-        %t = add %s, %acc: Long
+        %v = load %p, 8: I64
+        %s = add %acc, %v: I64
+        %t = add %s, %acc: I64
         ret %t
     }
 }
 
 # Two loads, one instruction: only one of them can be the address, and it is the one adjacent to the
 # add. The other keeps its register.
-twoLoadsOneFolds(%p: Ptr, %r: Ptr): Long {
+twoLoadsOneFolds(%p: Ptr, %r: Ptr): I64 {
     {
-        %a = load %p, 8: Long
-        %b = load %r, 8: Long
-        %s = add %a, %b: Long
+        %a = load %p, 8: I64
+        %b = load %r, 8: I64
+        %s = add %a, %b: I64
         ret %s
     }
 }
 
 # The whole point, in the shape the benchmark measures it in: a loop whose body is a load and an
 # accumulate becomes a loop whose body is one instruction and the counter.
-sumArray<sysv>(%p: Ptr, %n: Long): Long {
+sumArray<sysv>(%p: Ptr, %n: I64): I64 {
     entry {
-        %zero = cast 0: Long
+        %zero = cast 0: I64
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Long
-        %acc = phi [entry, %zero], [body, %acc2]: Long
+        %i = phi [entry, %zero], [body, %i2]: I64
+        %acc = phi [entry, %zero], [body, %acc2]: I64
         je (cmp_ige %i, %n), exit, body
     }
 
     body {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %q = add %p, %o: Ptr
-        %v = load %q, 8: Long
-        %acc2 = add %acc, %v: Long
-        %i2 = add %i, 1L: Long
+        %v = load %q, 8: I64
+        %acc2 = add %acc, %v: I64
+        %i2 = add %i, 1L: I64
         jmp head
     }
 

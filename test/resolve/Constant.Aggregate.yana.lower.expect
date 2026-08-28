@@ -18,8 +18,8 @@ mut @cursor = [10, 0, 0, 0, 20, 0, 0, 0]
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -33,9 +33,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -46,53 +46,53 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-area<complex>(%s: Ptr): Int {
+area<complex>(%s: Ptr): I32 {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %s, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
     %v_5 = add %s, 4: Ptr
-    %w = loads %v_5, 4: Int
+    %w = loads %v_5, 4: I32
     %v_6 = add %s, 8: Ptr
-    %h = loads %v_6, 4: Int
-    %v_7 = imul %w, %h: Int
+    %h = loads %v_6, 4: I32
+    %v_7 = imul %w, %h: I32
     jmp b_8
   }
 
   b_3 {
     %v_9 = add %s, 4: Ptr
-    %r = loads %v_9, 4: Int
+    %r = loads %v_9, 4: I32
     jmp b_8
   }
 
   b_8 {
-    %v_10 = phi [b_3, %r], [b_4, %v_7]: Int
+    %v_10 = phi [b_3, %r], [b_4, %v_7]: I32
     ret %v_10
   }
 }
 
-boxedValue<complex>(%b: Ptr): Int {
+boxedValue<complex>(%b: Ptr): I32 {
   b_0 {
-    %v_1 = loads %b, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %b, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_eq %v_1, 1: Int
+    %v_5 = cmp_eq %v_1, 1: I32
     je %v_5, b_6, b_7
   }
 
   b_3 {
     %v_8 = add %b, 4: Ptr
-    %v_9 = load %v_8, 1: Int
-    %v_10 = and %v_9, 15: Int
-    %v_11 = shr %v_9, 4: Int
-    %v_12 = shl %v_11, 4: Int
-    %v_13 = add %v_10, %v_12: Int
+    %v_9 = load %v_8, 1: I32
+    %v_10 = and %v_9, 15: I32
+    %v_11 = shr %v_9, 4: I32
+    %v_12 = shl %v_11, 4: I32
+    %v_13 = add %v_10, %v_12: I32
     jmp b_14
   }
 
@@ -102,25 +102,25 @@ boxedValue<complex>(%b: Ptr): Int {
 
   b_6 {
     %v_15 = add %b, 4: Ptr
-    %v = loads %v_15, 4: Int
+    %v = loads %v_15, 4: I32
     jmp b_14
   }
 
   b_14 {
-    %v_16 = phi [b_3, %v_13], [b_6, %v], [b_7, 0]: Int
+    %v_16 = phi [b_3, %v_13], [b_6, %v], [b_7, 0]: I32
     ret %v_16
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = loads @cursor, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @cursor, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @cursor, %v_2, 4
     %v_3 = add @cursor, 4: Ptr
-    %p$y = loads %v_3, 4: Int
-    %v_4 = add %v_2, %p$y: Int
-    %v_5 = cmp_eq %v_4, 31: Int
+    %p$y = loads %v_3, 4: I32
+    %v_4 = add %v_2, %p$y: I32
+    %v_5 = cmp_eq %v_4, 31: I32
     je %v_5, b_6, b_7
   }
 
@@ -129,133 +129,133 @@ main<complex>(): Int {
   }
 
   b_7 {
-    %v_8 = phi [b_0, 3], [b_6, 7]: Int
-    %v_9 = add %v_8, 24: Int
-    %v_10 = loads @some, 4: Int
-    %v_11 = cmp_eq %v_10, 1: Int
+    %v_8 = phi [b_0, 3], [b_6, 7]: I32
+    %v_9 = add %v_8, 24: I32
+    %v_10 = loads @some, 4: I32
+    %v_11 = cmp_eq %v_10, 1: I32
     je %v_11, b_12, b_13
   }
 
   b_12 {
-    %v_14 = add %v_9, 32: Int
+    %v_14 = add %v_9, 32: I32
     jmp b_13
   }
 
   b_13 {
-    %v_15 = phi [b_7, %v_9], [b_12, %v_14]: Int
-    %v_16 = loads @none, 4: Int
-    %v_17 = cmp_eq %v_16, 1: Int
+    %v_15 = phi [b_7, %v_9], [b_12, %v_14]: I32
+    %v_16 = loads @none, 4: I32
+    %v_17 = cmp_eq %v_16, 1: I32
     %v_18 = add @none, 4: Ptr
-    %v = loads %v_18, 4: Int
-    %v_19 = select %v_17, %v, 100: Int
-    %v_20 = cmp_eq %v_19, 100: Int
+    %v = loads %v_18, 4: I32
+    %v_19 = select %v_17, %v, 100: I32
+    %v_20 = cmp_eq %v_19, 100: I32
     je %v_20, b_21, b_22
   }
 
   b_21 {
-    %v_23 = add %v_15, 64: Int
+    %v_23 = add %v_15, 64: I32
     jmp b_22
   }
 
   b_22 {
-    %v_24 = phi [b_13, %v_15], [b_21, %v_23]: Int
-    %v_25 = call_complex area, @boxShape: Int
-    %v_26 = cmp_eq %v_25, 24: Int
+    %v_24 = phi [b_13, %v_15], [b_21, %v_23]: I32
+    %v_25 = call_complex area, @boxShape: I32
+    %v_26 = cmp_eq %v_25, 24: I32
     je %v_26, b_27, b_28
   }
 
   b_27 {
-    %v_29 = add %v_24, 128: Int
+    %v_29 = add %v_24, 128: I32
     jmp b_28
   }
 
   b_28 {
-    %v_30 = phi [b_22, %v_24], [b_27, %v_29]: Int
-    %v_31 = call_complex area, @roundShape: Int
-    %v_32 = cmp_eq %v_31, 11: Int
+    %v_30 = phi [b_22, %v_24], [b_27, %v_29]: I32
+    %v_31 = call_complex area, @roundShape: I32
+    %v_32 = cmp_eq %v_31, 11: I32
     je %v_32, b_33, b_34
   }
 
   b_33 {
-    %v_35 = add %v_30, 256: Int
+    %v_35 = add %v_30, 256: I32
     jmp b_34
   }
 
   b_34 {
-    %v_36 = phi [b_28, %v_30], [b_33, %v_35]: Int
-    %v_37 = loads @table, 4: Int
+    %v_36 = phi [b_28, %v_30], [b_33, %v_35]: I32
+    %v_37 = loads @table, 4: I32
     %v_38 = add @table, 8: Ptr
-    %v_39 = loads %v_38, 4: Int
-    %v_40 = add %v_37, %v_39: Int
-    %v_41 = cmp_eq %v_40, 26: Int
+    %v_39 = loads %v_38, 4: I32
+    %v_40 = add %v_37, %v_39: I32
+    %v_41 = cmp_eq %v_40, 26: I32
     je %v_41, b_42, b_43
   }
 
   b_42 {
-    %v_44 = add %v_36, 512: Int
+    %v_44 = add %v_36, 512: I32
     jmp b_43
   }
 
   b_43 {
-    %v_45 = phi [b_34, %v_36], [b_42, %v_44]: Int
+    %v_45 = phi [b_34, %v_36], [b_42, %v_44]: I32
     %corners = global @corners: Ptr
     %v_46 = add %corners, 8: Ptr
-    %p$x = loads %v_46, 4: Int
+    %p$x = loads %v_46, 4: I32
     %v_47 = add %corners, 12: Ptr
-    %p$y = loads %v_47, 4: Int
-    %v_48 = add %p$x, %p$y: Int
-    %v_49 = cmp_eq %v_48, 6: Int
+    %p$y = loads %v_47, 4: I32
+    %v_48 = add %p$x, %p$y: I32
+    %v_49 = cmp_eq %v_48, 6: I32
     je %v_49, b_50, b_51
   }
 
   b_50 {
-    %v_52 = add %v_45, 1024: Int
+    %v_52 = add %v_45, 1024: I32
     jmp b_51
   }
 
   b_51 {
-    %v_53 = phi [b_43, %v_45], [b_50, %v_52]: Int
+    %v_53 = phi [b_43, %v_45], [b_50, %v_52]: I32
     %v_54 = add @greeting, 12: Ptr
-    %v_55 = load %v_54, 4: Int
-    %v_56 = cmp_eq %v_55, 5: Int
+    %v_55 = load %v_54, 4: I32
+    %v_56 = cmp_eq %v_55, 5: I32
     je %v_56, b_57, b_58
   }
 
   b_57 {
-    %v_59 = add %v_53, 2048: Int
+    %v_59 = add %v_53, 2048: I32
     jmp b_58
   }
 
   b_58 {
-    %v_60 = phi [b_51, %v_53], [b_57, %v_59]: Int
+    %v_60 = phi [b_51, %v_53], [b_57, %v_59]: I32
     %v_61 = add @labelled, 12: Ptr
-    %v_62 = load %v_61, 4: Int
-    %v_63 = cmp_eq %v_62, 6: Int
+    %v_62 = load %v_61, 4: I32
+    %v_63 = cmp_eq %v_62, 6: I32
     je %v_63, b_64, b_65
   }
 
   b_64 {
-    %v_66 = add %v_60, 4096: Int
+    %v_66 = add %v_60, 4096: I32
     jmp b_65
   }
 
   b_65 {
-    %v_67 = phi [b_58, %v_60], [b_64, %v_66]: Int
-    %v_68 = add %v_67, 8192: Int
-    %v_69 = call_complex boxedValue, @packed: Int
-    %v_70 = call_complex boxedValue, @wrapped: Int
-    %v_71 = add %v_69, %v_70: Int
-    %v_72 = cmp_eq %v_71, 139: Int
+    %v_67 = phi [b_58, %v_60], [b_64, %v_66]: I32
+    %v_68 = add %v_67, 8192: I32
+    %v_69 = call_complex boxedValue, @packed: I32
+    %v_70 = call_complex boxedValue, @wrapped: I32
+    %v_71 = add %v_69, %v_70: I32
+    %v_72 = cmp_eq %v_71, 139: I32
     je %v_72, b_73, b_74
   }
 
   b_73 {
-    %v_75 = add %v_68, 65536: Int
+    %v_75 = add %v_68, 65536: I32
     jmp b_74
   }
 
   b_74 {
-    %v_76 = phi [b_65, %v_68], [b_73, %v_75]: Int
+    %v_76 = phi [b_65, %v_68], [b_73, %v_75]: I32
     %s = alloca 44, 8: Ptr
     %v_77 = alloca 16, 8: Ptr
     copy %v_77, @ResolveTest.literal$3, 16
@@ -277,21 +277,21 @@ main<complex>(): Int {
     %v_85 = add %s, 40: Ptr
     store %v_85, 4, 4
     %v_86 = add %s, 12: Ptr
-    %v_87 = load %v_86, 4: Int
-    %v_88 = add %v_87, 5: Int
-    %v_89 = call_complex area, %v_78: Int
-    %v_90 = add %v_88, %v_89: Int
+    %v_87 = load %v_86, 4: I32
+    %v_88 = add %v_87, 5: I32
+    %v_89 = call_complex area, %v_78: I32
+    %v_90 = add %v_88, %v_89: I32
     %v_91 = add %s, 36: Ptr
-    %v_92 = loads %v_91, 4: Int
-    %v_93 = cmp_eq %v_92, 1: Int
+    %v_92 = loads %v_91, 4: I32
+    %v_93 = cmp_eq %v_92, 1: I32
     %v_94 = add %s, 40: Ptr
-    %v = loads %v_94, 4: Int
-    %v_95 = select %v_93, %v, 0: Int
+    %v = loads %v_94, 4: I32
+    %v_95 = select %v_93, %v, 0: I32
     %v_96 = add %s, 8: Ptr
-    %v_97 = load %v_96, 4: Long
-    %v_98 = shr %v_97, 30: Long
-    %v_99 = cast %v_98: Int
-    %v_100 = cmp_eq %v_99, 1: Int
+    %v_97 = load %v_96, 4: I64
+    %v_98 = shr %v_97, 30: I64
+    %v_99 = cast %v_98: I32
+    %v_100 = cmp_eq %v_99, 1: I32
     je %v_100, b_101, b_102
   }
 
@@ -302,19 +302,19 @@ main<complex>(): Int {
   }
 
   b_102 {
-    %defaults = add %v_90, %v_95: Int
-    %v_104 = cmp_eq %defaults, 21: Int
+    %defaults = add %v_90, %v_95: I32
+    %v_104 = cmp_eq %defaults, 21: I32
     je %v_104, b_105, b_106
   }
 
   b_105 {
-    %v_107 = add %v_76, 16384: Int
+    %v_107 = add %v_76, 16384: I32
     jmp b_106
   }
 
   b_106 {
-    %v_108 = phi [b_102, %v_76], [b_105, %v_107]: Int
-    %v_109 = add %v_108, 32768: Int
+    %v_108 = phi [b_102, %v_76], [b_105, %v_107]: I32
+    %v_109 = add %v_108, 32768: I32
     ret %v_109
   }
 }

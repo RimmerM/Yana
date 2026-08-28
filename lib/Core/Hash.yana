@@ -183,17 +183,11 @@ instance Hash(I16):
 instance Hash(I32):
     fn hash(value: I32, state: U32) -> U32 = hashWord(state, truncate(value) :: U32)
 
-instance Hash(Int):
-    fn hash(value: Int, state: U32) -> U32 = hashWord(state, truncate(value) :: U32)
-
 instance Hash(U64):
     fn hash(value: U64, state: U32) -> U32 = hashWide(state, value)
 
 instance Hash(I64):
     fn hash(value: I64, state: U32) -> U32 = hashWide(state, truncate(value) :: U64)
-
-instance Hash(Long):
-    fn hash(value: Long, state: U32) -> U32 = hashWide(state, truncate(value) :: U64)
 
 {-
    `WideInt` is split by target, and it is split for the reason §3.1 gives about JS arithmetic rather

@@ -1,13 +1,13 @@
 @name = "hello world"
 
-print(%string: Ptr, %length: Long) {
+print(%string: Ptr, %length: I64) {
     {
-        %0 = syscall 1, 1, %string, %length: Int
+        %0 = syscall 1, 1, %string, %length: I32
         ret
     }
 }
 
-printInt(%number: Long) {
+printInt(%number: I64) {
     start {
         %buffer = alloca 32: Ptr
         %string = alloca 32: Ptr
@@ -15,17 +15,17 @@ printInt(%number: Long) {
     }
 
     loop {
-        %n = phi [start, %number], [loop, %2]: Long
+        %n = phi [start, %number], [loop, %2]: I64
         %p = phi [start, %buffer], [loop, %p2]: Ptr
-        %1 = add (cast '0': Long), (rem %n, 10L): Long
+        %1 = add (cast '0': I64), (rem %n, 10L): I64
         store %p, %1, 1
         %p2 = add %p, 1: Ptr
-        %2 = div %n, 10L: Long
-        je (cmp_gt %2, 0L: Int), loop, reverse
+        %2 = div %n, 10L: I64
+        je (cmp_gt %2, 0L: I32), loop, reverse
     }
 
     reverse {
-        %length = sub %p2, %buffer: Long
+        %length = sub %p2, %buffer: I64
         jmp reverse_loop
     }
 
@@ -33,9 +33,9 @@ printInt(%number: Long) {
         %p3 = phi [reverse, %p2], [reverse_loop, %p4]: Ptr
         %b = phi [reverse, %string], [reverse_loop, %b2]: Ptr
         %p4 = sub %p3, 1: Ptr
-        store %b, (load %p4, 1: Int), 1
+        store %b, (load %p4, 1: I32), 1
         %b2 = add %b, 1: Ptr
-        je (cmp_gt %p4, %buffer: Int), reverse_loop, print
+        je (cmp_gt %p4, %buffer: I32), reverse_loop, print
     }
 
     print {
@@ -44,7 +44,7 @@ printInt(%number: Long) {
     }
 }
 
-getCount(): Int {
+getCount(): I32 {
     { ret 10 }
 }
 
@@ -52,17 +52,17 @@ main() {
     start {
         %space = alloca 1: Ptr
         store %space, ' ', 1
-        %count = cast (call getCount: Int): Long
+        %count = cast (call getCount: I32): I64
         jmp loop
     }
 
     loop {
-        %i = phi [start, 0L], [loop, %i2]: Long
+        %i = phi [start, 0L], [loop, %i2]: I64
         call print, @name, 11L
         call print, %space, 1L
         call printInt, %i
-        %i2 = add %i, 1L: Long
-        je (cmp_lt %i2, %count: Int), loop, end
+        %i2 = add %i, 1L: I64
+        je (cmp_lt %i2, %count: I32), loop, end
     }
 
     end {

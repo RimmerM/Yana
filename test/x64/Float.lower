@@ -1,59 +1,59 @@
-# Scalar floating point: every operation the lower IR can express on a Float or a Double, in the
+# Scalar floating point: every operation the lower IR can express on an F32 or an F64, in the
 # forms the register model gives them - one bank over from the integer ones, with the width in the
 # instruction's prefix rather than in a REX bit.
 
-arith64(%a: Double, %b: Double): Double {
+arith64(%a: F64, %b: F64): F64 {
     {
-        %s = add %a, %b: Double
-        %d = sub %s, %b: Double
-        %m = mul %d, %a: Double
-        %q = div %m, %b: Double
+        %s = add %a, %b: F64
+        %d = sub %s, %b: F64
+        %m = mul %d, %a: F64
+        %q = div %m, %b: F64
         ret %q
     }
 }
 
-arith32(%a: Float, %b: Float): Float {
+arith32(%a: F32, %b: F32): F32 {
     {
-        %s = add %a, %b: Float
-        %d = sub %s, %b: Float
-        %m = mul %d, %a: Float
-        %q = div %m, %b: Float
+        %s = add %a, %b: F32
+        %d = sub %s, %b: F32
+        %m = mul %d, %a: F32
+        %q = div %m, %b: F32
         ret %q
     }
 }
 
 # No SSE encoding carries a float as an immediate, so a constant is materialized in a general
 # register and moved across the bank boundary rather than embedded.
-constants(): Double {
+constants(): F64 {
     {
-        %one = add 1.5, 2.25: Double
+        %one = add 1.5, 2.25: F64
         ret %one
     }
 }
 
-constant32(): Float {
+constant32(): F32 {
     {
-        %x = mul 3.5F, 2.0F: Float
+        %x = mul 3.5F, 2.0F: F32
         ret %x
     }
 }
 
 # Negation has no scalar instruction: the sign bit is toggled in a general register.
-negate(%a: Double, %b: Float): Double {
+negate(%a: F64, %b: F32): F64 {
     {
-        %n = neg %a: Double
-        %m = neg %b: Float
-        %w = cast %m: Double
-        %r = add %n, %w: Double
+        %n = neg %a: F64
+        %m = neg %b: F32
+        %w = cast %m: F64
+        %r = add %n, %w: F64
         ret %r
     }
 }
 
 # A comparison folded into the branch that reads it, which is what ucomisd leaving its answer in the
 # integer condition codes is for.
-compare(%a: Double, %b: Double): Int {
+compare(%a: F64, %b: F64): I32 {
     {
-        %c = cmp_gt %a, %b: Int
+        %c = cmp_gt %a, %b: I32
         je %c, then, else
     }
   then {
@@ -71,10 +71,10 @@ compare(%a: Double, %b: Double): Int {
 # operands are therefore exchanged and the comparison rewritten, so what is emitted here is
 # `ucomiss xmm1, xmm0; seta` - the same answer for every pair of numbers, and the right one for a
 # NaN. Nothing downstream knows it happened.
-compareValue(%a: Float, %b: Float): Int {
+compareValue(%a: F32, %b: F32): I32 {
     {
-        %c = cmp_lt %a, %b: Int
-        %d = add %c, %c: Int
+        %c = cmp_lt %a, %b: I32
+        %d = add %c, %c: I32
         ret %d
     }
 }
@@ -84,9 +84,9 @@ compareValue(%a: Float, %b: Float): Int {
 # and then a correction the parity flag skips. That is why this is materialized into a register even
 # though its only use is a branch: the flags cannot carry the answer, so the branch tests the
 # register instead.
-compareEqual(%a: Double, %b: Double): Int {
+compareEqual(%a: F64, %b: F64): I32 {
     {
-        %c = cmp_eq %a, %b: Int
+        %c = cmp_eq %a, %b: I32
         je %c, then, else
     }
   then {
@@ -99,26 +99,26 @@ compareEqual(%a: Double, %b: Double): Int {
 
 # And its opposite, where the correction goes the other way: `a != b` is true for a NaN, since it is
 # the negation of an equality that is false. The setcc answered 0 there, so the correction writes 1.
-compareUnequal(%a: Float, %b: Float): Int {
+compareUnequal(%a: F32, %b: F32): I32 {
     {
-        %c = cmp_neq %a, %b: Int
-        %d = add %c, %c: Int
+        %c = cmp_neq %a, %b: I32
+        %d = add %c, %c: I32
         ret %d
     }
 }
 
 # There is no CMOVcc for a vector register, so a select is a conditional branch over the copy.
-selectFloat(%c: Int, %a: Double, %b: Double): Double {
+selectFloat(%c: I32, %a: F64, %b: F64): F64 {
     {
-        %r = select %c, %a, %b: Double
+        %r = select %c, %a, %b: F64
         ret %r
     }
 }
 
-selectOnCompare(%x: Float, %y: Float): Float {
+selectOnCompare(%x: F32, %y: F32): F32 {
     {
-        %c = cmp_ge %x, %y: Int
-        %r = select %c, %x, %y: Float
+        %c = cmp_ge %x, %y: I32
+        %r = select %c, %x, %y: F32
         ret %r
     }
 }

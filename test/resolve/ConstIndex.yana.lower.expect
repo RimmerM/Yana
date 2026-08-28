@@ -1,12 +1,12 @@
 @image$base = []
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+Reclaim(Array(a)).reclaim(I32)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
+    %v_2 = load %v_1, 4: I32
+    %v_3 = shr %v_2, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
@@ -23,8 +23,8 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -38,9 +38,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -51,13 +51,13 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 16, 4: Ptr
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
+    %v_4 = load %v_3, 4: I32
     store %v_3, 4, 4
     store %v_2, 1, 4
     %v_5 = add %v_2, 4: Ptr
@@ -72,7 +72,7 @@ main<complex>(): Int {
     %v_10 = alloca 8, 4: Ptr
     store %v_9, %v_10, 8
     %v_11 = add %v_9, 8: Ptr
-    %v_12 = load %v_11, 4: Int
+    %v_12 = load %v_11, 4: I32
     store %v_11, 2, 4
     store %v_10, 5, 4
     %v_13 = add %v_10, 4: Ptr
@@ -80,15 +80,15 @@ main<complex>(): Int {
     %v_14 = add %v_9, 12: Ptr
     store %v_14, 2, 4
     store %v_5, 20, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_9
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
     %v_15 = add %v_2, 12: Ptr
-    %v_16 = loads %v_15, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_16 = loads %v_15, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_1
     %v_17 = alloca 16, 8: Ptr
     %v_18 = alloca 12, 4: Ptr
     store %v_17, %v_18, 8
     %v_19 = add %v_17, 8: Ptr
-    %v_20 = load %v_19, 4: Int
+    %v_20 = load %v_19, 4: I32
     store %v_19, 3, 4
     store %v_18, 1, 4
     %v_21 = add %v_18, 4: Ptr
@@ -97,12 +97,12 @@ main<complex>(): Int {
     store %v_22, 30, 4
     %v_23 = add %v_17, 12: Ptr
     store %v_23, 3, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_17
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_17
     %v_24 = alloca 16, 8: Ptr
     %v_25 = alloca 12, 4: Ptr
     store %v_24, %v_25, 8
     %v_26 = add %v_24, 8: Ptr
-    %v_27 = load %v_26, 4: Int
+    %v_27 = load %v_26, 4: I32
     store %v_26, 3, 4
     store %v_25, 4, 4
     %v_28 = add %v_25, 4: Ptr
@@ -111,12 +111,12 @@ main<complex>(): Int {
     store %v_29, 60, 4
     %v_30 = add %v_24, 12: Ptr
     store %v_30, 3, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_24
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_24
     %v_31 = alloca 16, 8: Ptr
     %v_32 = alloca 12, 4: Ptr
     store %v_31, %v_32, 8
     %v_33 = add %v_31, 8: Ptr
-    %v_34 = load %v_33, 4: Int
+    %v_34 = load %v_33, 4: I32
     store %v_33, 3, 4
     store %v_32, 100, 4
     %v_35 = add %v_32, 4: Ptr
@@ -125,8 +125,8 @@ main<complex>(): Int {
     store %v_36, 3, 4
     %v_37 = add %v_31, 12: Ptr
     store %v_37, 3, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_31
-    %v_38 = add %v_16, 222: Int
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_31
+    %v_38 = add %v_16, 222: I32
     ret %v_38
   }
 }

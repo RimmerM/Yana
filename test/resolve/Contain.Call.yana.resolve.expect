@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn score(%f: Flags) -> Int {
+fn score(%f: Flags) -> I32 {
   b0:
     %v1 = load %f@Flags.read : Bool
     je %v1, b1, b2
@@ -12,16 +12,16 @@ fn score(%f: Flags) -> Int {
     jmp b3
 
   b3:
-    %v7 = phi [b1, 10], [b2, 20] : Int
+    %v7 = phi [b1, 10], [b2, 20] : I32
     ret %v7
 }
 
-fn straight() -> Int {
+fn straight() -> I32 {
   b0:
     %f = alloc : Flags
     init %local0@Flags.read, True
     init %local0@Flags.write, False
-    %handed = call score, %f : Int
+    %handed = call score, %f : I32
     %v6 = load %local0@Flags.read : Bool
     je %v6, b1, b2
 
@@ -32,8 +32,8 @@ fn straight() -> Int {
     jmp b3
 
   b3:
-    %before = phi [b1, 1], [b2, 2] : Int
-    %again = call score, %f : Int
+    %before = phi [b1, 1], [b2, 2] : I32
+    %again = call score, %f : I32
     %v16 = load %local0@Flags.write : Bool
     je %v16, b4, b5
 
@@ -44,24 +44,24 @@ fn straight() -> Int {
     jmp b6
 
   b6:
-    %after = phi [b4, 4], [b5, 8] : Int
-    %v25 = add %handed, %before : Int
-    %v26 = add %v25, %again : Int
-    %v27 = add %v26, %after : Int
+    %after = phi [b4, 4], [b5, 8] : I32
+    %v25 = add %handed, %before : I32
+    %v26 = add %v25, %again : I32
+    %v27 = add %v26, %after : I32
     ret %v27
 }
 
-fn branching() -> Int {
+fn branching() -> I32 {
   b0:
     %f = alloc : Flags
     init %local0@Flags.read, False
     init %local0@Flags.write, True
-    %ignored = call score, %f : Int
+    %ignored = call score, %f : I32
     %v6 = load %local0@Flags.write : Bool
     je %v6, b1, b2
 
   b1:
-    %v10 = add %ignored, 100 : Int
+    %v10 = add %ignored, 100 : I32
     ret %v10
 
   b2:
@@ -71,20 +71,20 @@ fn branching() -> Int {
     ret %ignored
 }
 
-fn mutate(%f: Flags) -> Int {
+fn mutate(%f: Flags) -> I32 {
   b0:
     assign %f@Flags.read, True
     ret 0
 }
 
-fn borrowed() -> Int {
+fn borrowed() -> I32 {
   b0:
     %v0 = alloc : Flags
     init %f@Flags.read, False
     init %f@Flags.write, False
     %v5 = load %f : Flags
     %v6 = borrow_mut %f : &Flags
-    %zero = call mutate, %v6 : Int
+    %zero = call mutate, %v6 : I32
     %v8 = load %f : Flags
     %v9 = load %f@Flags.read : Bool
     je %v9, b1, b2
@@ -96,17 +96,17 @@ fn borrowed() -> Int {
     jmp b3
 
   b3:
-    %v17 = phi [b1, 1000], [b2, 2000] : Int
-    %v18 = add %v17, %zero : Int
+    %v17 = phi [b1, 1000], [b2, 2000] : I32
+    %v18 = add %v17, %zero : I32
     ret %v18
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call straight : Int
-    %v1 = call branching : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call borrowed : Int
-    %v4 = add %v2, %v3 : Int
+    %v0 = call straight : I32
+    %v1 = call branching : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call borrowed : I32
+    %v4 = add %v2, %v3 : I32
     ret %v4
 }

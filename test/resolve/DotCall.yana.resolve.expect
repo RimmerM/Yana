@@ -17,31 +17,31 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn scaled(%p: Point, %k: Int) -> Int {
+fn scaled(%p: Point, %k: I32) -> I32 {
   b0:
-    %v2 = load %p@Point.x : Int
-    %v3 = mul %v2, %k : Int
-    %v4 = load %p@Point.y : Int
-    %v5 = add %v3, %v4 : Int
+    %v2 = load %p@Point.x : I32
+    %v3 = mul %v2, %k : I32
+    %v4 = load %p@Point.y : I32
+    %v5 = add %v3, %v4 : I32
     ret %v5
 }
 
-fn bump(%p: Point, %by: Int) -> () {
+fn bump(%p: Point, %by: I32) -> () {
   b0:
     %v2 = load %p : Point
-    %v3 = load %p@Point.x : Int
-    %v4 = add %v3, %by : Int
+    %v3 = load %p@Point.x : I32
+    %v4 = add %v3, %by : I32
     assign %p@Point.x, %v4
     ret
 }
 
-fn offset(%p: Point, %dx: Int, %dy: Int) -> Int {
+fn offset(%p: Point, %dx: I32, %dy: I32) -> I32 {
   b0:
-    %v3 = load %p@Point.x : Int
-    %v4 = add %v3, %dx : Int
-    %v5 = load %p@Point.y : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = add %v6, %dy : Int
+    %v3 = load %p@Point.x : I32
+    %v4 = add %v3, %dx : I32
+    %v5 = load %p@Point.y : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = add %v6, %dy : I32
     ret %v7
 }
 
@@ -56,33 +56,33 @@ fn applyTwice(%v: a, %f: (a) -> a) -> a {
     ret %v3
 }
 
-fn run(%s: Step, %x: Int) -> Int {
+fn run(%s: Step, %x: I32) -> I32 {
   b0:
     ret 1000
 }
 
-fn viaField(%s: Step, %x: Int) -> Int {
+fn viaField(%s: Step, %x: I32) -> I32 {
   b0:
-    %v2 = load %s@Step.run : (Int) -> Int
-    %v3 = calldyn %v2, %x : Int
-    %v4 = load %s@Step.weight : Int
-    %v5 = mul %v3, %v4 : Int
+    %v2 = load %s@Step.run : (I32) -> I32
+    %v3 = calldyn %v2, %x : I32
+    %v4 = load %s@Step.weight : I32
+    %v5 = mul %v3, %v4 : I32
     ret %v5
 }
 
-fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn upTo(%limit: I32, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
   }
 
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %limit : Bool
     je %v7, b3, b2
 
@@ -92,9 +92,9 @@ fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r)
     ret %v22
 
   b3:
-    %v9 = load %i : Int
+    %v9 = load %i : I32
     %v10 = calldyn %body, %v9 : Outcome((), $r)
-    %v11 = load %local2.discriminant : Int
+    %v11 = load %local2.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b4, b5
 
@@ -102,32 +102,32 @@ fn upTo(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r)
     ret %v10
 
   b5:
-    %v16 = load %i : Int
-    %v19 = add %v16, 1 : Int
+    %v16 = load %i : I32
+    %v19 = add %v16, 1 : I32
     assign %i, %v19
     jmp b1
 }
 
-fn evens(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn evens(%limit: I32, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), Outcome((), $r))
-    #2 type {body: '(value$: Int) -> Outcome((), $r)}
-    #3 type (value$: Int) -> Outcome((), Outcome((), $r))
+    #2 type {body: '(value$: I32) -> Outcome((), $r)}
+    #3 type (value$: I32) -> Outcome((), Outcome((), $r))
     #4 type Outcome((), $r)
   }
 
   b0:
-    %v2 = alloc : {body: '(value$: Int) -> Outcome((), $r)}
-    %v3 = borrow %body : '(value$: Int) -> Outcome((), $r)
+    %v2 = alloc : {body: '(value$: I32) -> Outcome((), $r)}
+    %v3 = borrow %body : '(value$: I32) -> Outcome((), $r)
     init %local1.body, %v3
     %v5 = addressof %local1 : %()
-    %v6 = alloc : (value$: Int) -> Outcome((), Outcome((), $r))
+    %v6 = alloc : (value$: I32) -> Outcome((), Outcome((), $r))
     %v7 = symbol ResolveTest.continuation$22 : %()
     init %local2.code, %v7
     init %local2.env, %v5
     %v10 = gencall upTo(Outcome((), $r)), %limit, %v6 : Outcome((), Outcome((), $r))
-    %v11 = load %local3.discriminant : Int
+    %v11 = load %local3.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b1, b2
 
@@ -141,90 +141,90 @@ fn evens(%limit: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r
     ret %v17
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %p = alloc : Point
     aggregate %local0@Point.x = 3, %local0@Point.y = 4
-    %a = call scaled, %p, 2 : Int
-    %b = call offset, %p, 1, 10 : Int
-    %c = call offset, %p, 1, 7 : Int
-    %v13 = call scaled, %p, 2 : Int
-    %v14 = alloc : (Int) -> Int
+    %a = call scaled, %p, 2 : I32
+    %b = call offset, %p, 1, 10 : I32
+    %c = call offset, %p, 1, 7 : I32
+    %v13 = call scaled, %p, 2 : I32
+    %v14 = alloc : (I32) -> I32
     %v15 = symbol ResolveTest.lambda$23 : %()
     init %local1.code, %v15
     %v18 = cast 0 : %()
     init %local1.env, %v18
-    %d = call applyTwice(Int), %v13, %v14 : Int
+    %d = call applyTwice(I32), %v13, %v14 : I32
     %v21 = alloc : Point
     aggregate %q@Point.x = 1, %q@Point.y = 1
     %v25 = load %q : Point
     %v27 = borrow_mut %q : &Point
     call bump, %v27, 5
     %step = alloc : Step
-    %v31 = alloc : (Int) -> Int
+    %v31 = alloc : (I32) -> I32
     %v32 = symbol ResolveTest.lambda$24 : %()
     init %local4.code, %v32
     %v35 = cast 0 : %()
     init %local4.env, %v35
     aggregate %local3@Step.weight = 2, %local3@Step.run = %v31
-    %v38 = load %local3@Step.run : (Int) -> Int
-    %v40 = calldyn %v38, 6 : Int
-    %v41 = load %local3@Step.weight : Int
+    %v38 = load %local3@Step.run : (I32) -> I32
+    %v40 = calldyn %v38, 6 : I32
+    %v41 = load %local3@Step.weight : I32
     drop_derived %local3 via teardown$Step
-    %e = mul %v40, %v41 : Int
-    %f = call Describe(Point).describe, %p : Int
-    %sum = alloc : Int
+    %e = mul %v40, %v41 : I32
+    %f = call Describe(Point).describe, %p : I32
+    %sum = alloc : I32
     init %sum, 0
-    %v48 = alloc : {sum: &Int}
-    %v49 = borrow_mut %sum : &Int
+    %v48 = alloc : {sum: &I32}
+    %v49 = borrow_mut %sum : &I32
     init %local6.sum, %v49
     %v51 = addressof %local6 : %()
-    %v52 = alloc : (value$: Int) -> Outcome((), ())
+    %v52 = alloc : (value$: I32) -> Outcome((), ())
     %v53 = symbol ResolveTest.continuation$25 : %()
     init %local7.code, %v53
     init %local7.env, %v51
     %v57 = call evens(()), 10, %v52 : Outcome((), ())
-    %v58 = add %a, %b : Int
-    %v59 = add %v58, %c : Int
-    %v60 = add %v59, %d : Int
+    %v58 = add %a, %b : I32
+    %v59 = add %v58, %c : I32
+    %v60 = add %v59, %d : I32
     %v61 = load %q : Point
-    %v62 = load %q@Point.x : Int
-    %v63 = add %v60, %v62 : Int
-    %v64 = add %v63, %e : Int
-    %v65 = add %v64, %f : Int
-    %v66 = load %sum : Int
-    %v67 = add %v65, %v66 : Int
+    %v62 = load %q@Point.x : I32
+    %v63 = add %v60, %v62 : I32
+    %v64 = add %v63, %e : I32
+    %v65 = add %v64, %f : I32
+    %v66 = load %sum : I32
+    %v67 = add %v65, %v66 : I32
     ret %v67
 }
 
-fn Describe(Point).describe(%v: Point) -> Int {
+fn Describe(Point).describe(%v: Point) -> I32 {
   b0:
-    %v1 = load %v@Point.x : Int
-    %v4 = mul %v1, 10 : Int
-    %v5 = load %v@Point.y : Int
-    %v6 = add %v4, %v5 : Int
+    %v1 = load %v@Point.x : I32
+    %v4 = mul %v1, 10 : I32
+    %v5 = load %v@Point.y : I32
+    %v6 = add %v4, %v5 : I32
     ret %v6
 }
 
-fn ResolveTest.continuation$22(%env: %{body: '(value$: Int) -> Outcome((), $r)}, %value$: Int) -> Outcome((), Outcome((), $r)) {
+fn ResolveTest.continuation$22(%env: %{body: '(value$: I32) -> Outcome((), $r)}, %value$: I32) -> Outcome((), Outcome((), $r)) {
   schema {
     #0 type $r
     #1 type Outcome((), Outcome((), $r))
-    #2 type {body: '(value$: Int) -> Outcome((), $r)}
-    #3 type (value$: Int) -> Outcome((), Outcome((), $r))
+    #2 type {body: '(value$: I32) -> Outcome((), $r)}
+    #3 type (value$: I32) -> Outcome((), Outcome((), $r))
     #4 type Outcome((), $r)
   }
 
   b0:
-    %v4 = rem %value$, 2 : Int
+    %v4 = rem %value$, 2 : I32
     %v7 = cmp_eq %v4, 0 : Bool
     je %v7, b1, b2
 
   b1:
-    %v9 = load [%env].body : '(value$: Int) -> Outcome((), $r)
-    %v10 = load [%v9] : (value$: Int) -> Outcome((), $r)
+    %v9 = load [%env].body : '(value$: I32) -> Outcome((), $r)
+    %v10 = load [%v9] : (value$: I32) -> Outcome((), $r)
     %v11 = calldyn %v10, %value$ : Outcome((), $r)
-    %v12 = load %local0.discriminant : Int
+    %v12 = load %local0.discriminant : I32
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b4
 
@@ -245,49 +245,49 @@ fn ResolveTest.continuation$22(%env: %{body: '(value$: Int) -> Outcome((), $r)},
     ret %v18
 }
 
-fn ResolveTest.lambda$23(%env: %{}, %v: Int) -> Int {
+fn ResolveTest.lambda$23(%env: %{}, %v: I32) -> I32 {
   b0:
-    %v4 = add %v, 1 : Int
+    %v4 = add %v, 1 : I32
     ret %v4
 }
 
-fn applyTwice(Int)(%v: Int, %f: (Int) -> Int) -> Int {
+fn applyTwice(I32)(%v: I32, %f: (I32) -> I32) -> I32 {
   b0:
-    %v2 = calldyn %f, %v : Int
-    %v3 = calldyn %f, %v2 : Int
+    %v2 = calldyn %f, %v : I32
+    %v3 = calldyn %f, %v2 : I32
     ret %v3
 }
 
-fn ResolveTest.lambda$24(%env: %{}, %x: Int) -> Int {
+fn ResolveTest.lambda$24(%env: %{}, %x: I32) -> I32 {
   b0:
-    %v4 = sub %x, 1 : Int
+    %v4 = sub %x, 1 : I32
     ret %v4
 }
 
-fn ResolveTest.continuation$25(%env: %{sum: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$25(%env: %{sum: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].sum : &Int
-    %v3 = load [%env].sum : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].sum : &I32
+    %v3 = load [%env].sum : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn evens(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn evens(())(%limit: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = alloc : {body: '(value$: Int) -> Outcome((), ())}
-    %v3 = borrow %body : '(value$: Int) -> Outcome((), ())
+    %v2 = alloc : {body: '(value$: I32) -> Outcome((), ())}
+    %v3 = borrow %body : '(value$: I32) -> Outcome((), ())
     init %local1.body, %v3
     %v5 = addressof %local1 : %()
-    %v6 = alloc : (value$: Int) -> Outcome((), Outcome((), ()))
+    %v6 = alloc : (value$: I32) -> Outcome((), Outcome((), ()))
     %v7 = symbol ResolveTest.continuation$22(()) : %()
     init %local2.code, %v7
     init %local2.env, %v5
     %v10 = call upTo(Outcome((), ())), %limit, %v6 : Outcome((), Outcome((), ()))
-    %v11 = load %local3.discriminant : Int
+    %v11 = load %local3.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b1, b2
 
@@ -301,17 +301,17 @@ fn evens(())(%limit: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome(()
     ret %v17
 }
 
-fn ResolveTest.continuation$22(())(%env: %{body: '(value$: Int) -> Outcome((), ())}, %value$: Int) -> Outcome((), Outcome((), ())) {
+fn ResolveTest.continuation$22(())(%env: %{body: '(value$: I32) -> Outcome((), ())}, %value$: I32) -> Outcome((), Outcome((), ())) {
   b0:
-    %v3 = rem %value$, 2 : Int
+    %v3 = rem %value$, 2 : I32
     %v5 = cmp_eq %v3, 0 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = load [%env].body : '(value$: Int) -> Outcome((), ())
-    %v8 = load [%v7] : (value$: Int) -> Outcome((), ())
+    %v7 = load [%env].body : '(value$: I32) -> Outcome((), ())
+    %v8 = load [%v7] : (value$: I32) -> Outcome((), ())
     %v9 = calldyn %v8, %value$ : Outcome((), ())
-    %v10 = load %local0.discriminant : Int
+    %v10 = load %local0.discriminant : I32
     %v12 = cmp_eq %v10, 1 : Bool
     je %v12, b3, b4
 
@@ -332,14 +332,14 @@ fn ResolveTest.continuation$22(())(%env: %{body: '(value$: Int) -> Outcome((), (
     ret %v20
 }
 
-fn upTo(Outcome((), ()))(%limit: Int, %body: (value$: Int) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
+fn upTo(Outcome((), ()))(%limit: I32, %body: (value$: I32) -> Outcome((), Outcome((), ()))) -> Outcome((), Outcome((), ())) {
   b0:
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v6 = load %i : Int
+    %v6 = load %i : I32
     %v7 = cmp_lt %v6, %limit : Bool
     je %v7, b3, b2
 
@@ -349,9 +349,9 @@ fn upTo(Outcome((), ()))(%limit: Int, %body: (value$: Int) -> Outcome((), Outcom
     ret %v9
 
   b3:
-    %v13 = load %i : Int
+    %v13 = load %i : I32
     %v14 = calldyn %body, %v13 : Outcome((), Outcome((), ()))
-    %v15 = load %local2.discriminant : Int
+    %v15 = load %local2.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b4, b5
 
@@ -359,19 +359,19 @@ fn upTo(Outcome((), ()))(%limit: Int, %body: (value$: Int) -> Outcome((), Outcom
     ret %v14
 
   b5:
-    %v20 = load %i : Int
-    %v22 = add %v20, 1 : Int
+    %v20 = load %i : I32
+    %v22 = add %v20, 1 : I32
     assign %i, %v22
     jmp b1
 }
 
 fn teardown$Step(%value: Step) -> () {
   b0:
-    drop_derived %value@Step.run via teardown$(Int) -> Int
+    drop_derived %value@Step.run via teardown$(I32) -> I32
     ret
 }
 
-fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(I32) -> I32(%value: (I32) -> I32) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -380,9 +380,9 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
   b1:
     %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
     calldyn %v11, %v1

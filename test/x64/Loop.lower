@@ -1,18 +1,18 @@
-loop(%count: Int, %add: Int): Int {
+loop(%count: I32, %add: I32): I32 {
     start {
-        %v = cast 0: Int
+        %v = cast 0: I32
         jmp head
     }
 
     head {
-        %v1 = phi [start, %v], [loop, %v2]: Int
-        %count1 = phi [start, %count], [loop, %count2]: Int
+        %v1 = phi [start, %v], [loop, %v2]: I32
+        %count1 = phi [start, %count], [loop, %count2]: I32
         je (cmp_le %count1, 0), loop, end
     }
 
     loop {
-        %count2 = sub %count1, 1: Int
-        %v2 = add %v1, %add: Int
+        %count2 = sub %count1, 1: I32
+        %v2 = add %v1, %add: I32
         jmp head
     }
 

@@ -1,7 +1,7 @@
 # The upper-half question, asked of every kind that answers it - see `isZeroExtended` and
 # `readsLowHalfOnly` in codegen/x64/transform_peephole.cpp.
 #
-# A widening `cast` from Int to Long is `mov eax, eax`, which clears bits 32-63 of its destination -
+# A widening `cast` from I32 to I64 is `mov eax, eax`, which clears bits 32-63 of its destination -
 # and is doing nothing whenever they were clear already. Two rules decide that, and this file is the
 # roster of what each of them knows:
 #
@@ -37,7 +37,7 @@
 #     `test/lib` and `test/resolve`; the fixture is the whole of its test.
 #   - **`keepSetOfArgument` is the one that was wrong.** A `set` claimed to have written a 32-bit
 #     register unconditionally, and a `set` whose source dies is coalesced into nothing at all - so
-#     `set %arg; cast to Long` was two empty encodings and a 64-bit read of a register the System V
+#     `set %arg; cast to I64` was two empty encodings and a 64-bit read of a register the System V
 #     convention describes only the low half of. The rule follows the copy now, which is why
 #     `skipThroughSet` beside it still skips: there the source is clear, so the copy is too.
 #   - **the other controls each emit their move**, and each for a reason of its own: an argument
@@ -49,84 +49,84 @@
 
 # The rotations. `ror r/m32, imm8` writes the whole 32-bit destination exactly as `shl` does, and
 # `rol` is the same instruction with the count taken the other way round.
-skipRotateRight(%x: Int): Long {
+skipRotateRight(%x: I32): I64 {
     {
-        %r = ror %x, 7: Int
-        %w = cast %r: Long
-        %t = add %w, 1L: Long
+        %r = ror %x, 7: I32
+        %w = cast %r: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
-skipRotateLeft(%x: Int): Long {
+skipRotateLeft(%x: I32): I64 {
     {
-        %r = rol %x, 7: Int
-        %w = cast %r: Long
-        %t = add %w, 1L: Long
+        %r = rol %x, 7: I32
+        %w = cast %r: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
 # `bswap r32`, which permutes the four bytes of a 32-bit register and writes all of it.
-skipByteSwap(%x: Int): Long {
+skipByteSwap(%x: I32): I64 {
     {
-        %r = bswap %x: Int
-        %w = cast %r: Long
-        %t = add %w, 1L: Long
+        %r = bswap %x: I32
+        %w = cast %r: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
 # `crc32 r32, r/m32`. The 64-bit form is the one that would not qualify, and the rule reads the
 # result type to tell them apart.
-skipCrc32(%acc: Int, %chunk: Int): Long {
+skipCrc32(%acc: I32, %chunk: I32): I64 {
     {
-        %r = crc32 %acc, %chunk: Int
-        %w = cast %r: Long
-        %t = add %w, 1L: Long
+        %r = crc32 %acc, %chunk: I32
+        %w = cast %r: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
 # The conditional move, whose destination is written on both paths.
-skipSelect(%c: Int, %a: Int, %b: Int): Long {
+skipSelect(%c: I32, %a: I32, %b: I32): I64 {
     {
-        %cmp = cmp_igt %c, 0: Int
-        %s = select %cmp, %a, %b: Int
-        %w = cast %s: Long
-        %t = add %w, 1L: Long
+        %cmp = cmp_igt %c, 0: I32
+        %s = select %cmp, %a, %b: I32
+        %w = cast %s: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
 # A four-byte atomic load, which is a `mov` with an ordering rule attached to it.
-skipAtomicLoad(%p: Ptr): Long {
+skipAtomicLoad(%p: Ptr): I64 {
     {
-        %v = atomic_load %p, 4, acquire: Int
-        %w = cast %v: Long
-        %t = add %w, 1L: Long
+        %v = atomic_load %p, 4, acquire: I32
+        %w = cast %v: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
 # The eight-byte one is a 64-bit load and has nothing to be clear about, so the narrowing below it
 # stands. This is the control for the case above rather than a case of its own.
-keepAtomicLoadWide(%p: Ptr): Long {
+keepAtomicLoadWide(%p: Ptr): I64 {
     {
-        %v = atomic_load %p, 8, acquire: Long
-        %n = cast %v: Int
-        %w = cast %n: Long
-        %t = add %w, 1L: Long
+        %v = atomic_load %p, 8, acquire: I64
+        %n = cast %v: I32
+        %w = cast %n: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
 # A lane out of a vector, which crosses banks as `pextrd r32` - a general register written whole.
-skipVectorLane(%v: i32x4): Long {
+skipVectorLane(%v: i32x4): I64 {
     {
-        %l = vlane %v, 2: Int
-        %w = cast %l: Long
-        %t = add %w, 1L: Long
+        %l = vlane %v, 2: I32
+        %w = cast %l: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
@@ -139,38 +139,38 @@ skipVectorLane(%v: i32x4): Long {
 #
 # Worth nothing measured: over the 280 programs of `test/lib` and `test/resolve` this case changes
 # not one byte, and it is here so that the reasoning is pinned rather than because anything needed it.
-skipPhi(%c: Int, %a: Int, %b: Int): Long {
+skipPhi(%c: I32, %a: I32, %b: I32): I64 {
     start {
         je (cmp_igt %c, 0), left, right
     }
 
     left {
-        %x = add %a, %b: Int
+        %x = add %a, %b: I32
         jmp end
     }
 
     right {
-        %y = mul %a, %b: Int
+        %y = mul %a, %b: I32
         jmp end
     }
 
     end {
-        %p = phi [left, %x], [right, %y]: Int
-        %w = cast %p: Long
-        %t = add %w, 1L: Long
+        %p = phi [left, %x], [right, %y]: I32
+        %w = cast %p: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
 # And the control: one arm carries an argument through unchanged, so the phi is only as clear as
 # that - which is not at all.
-keepPhiOfArgument(%c: Int, %a: Int, %b: Int): Long {
+keepPhiOfArgument(%c: I32, %a: I32, %b: I32): I64 {
     start {
         je (cmp_igt %c, 0), left, right
     }
 
     left {
-        %x = add %a, %b: Int
+        %x = add %a, %b: I32
         jmp end
     }
 
@@ -179,9 +179,9 @@ keepPhiOfArgument(%c: Int, %a: Int, %b: Int): Long {
     }
 
     end {
-        %p = phi [left, %x], [right, %b]: Int
-        %w = cast %p: Long
-        %t = add %w, 1L: Long
+        %p = phi [left, %x], [right, %b]: I32
+        %w = cast %p: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
@@ -190,34 +190,34 @@ keepPhiOfArgument(%c: Int, %a: Int, %b: Int): Long {
 
 # The rotations again, from the other side: the narrowing above them has nothing to clear because
 # `ror r32` reads 32 bits of its operand and no more.
-lowRotate(%x: Long): Int {
+lowRotate(%x: I64): I32 {
     {
-        %n = cast %x: Int
-        %r = ror %n, 7: Int
+        %n = cast %x: I32
+        %r = ror %n, 7: I32
         ret %r
     }
 }
 
-lowRotateLeft(%x: Long): Int {
+lowRotateLeft(%x: I64): I32 {
     {
-        %n = cast %x: Int
-        %r = rol %n, 7: Int
+        %n = cast %x: I32
+        %r = rol %n, 7: I32
         ret %r
     }
 }
 
-lowByteSwap(%x: Long): Int {
+lowByteSwap(%x: I64): I32 {
     {
-        %n = cast %x: Int
-        %r = bswap %n: Int
+        %n = cast %x: I32
+        %r = bswap %n: I32
         ret %r
     }
 }
 
-lowCrc32(%x: Long, %chunk: Int): Int {
+lowCrc32(%x: I64, %chunk: I32): I32 {
     {
-        %n = cast %x: Int
-        %r = crc32 %n, %chunk: Int
+        %n = cast %x: I32
+        %r = crc32 %n, %chunk: I32
         ret %r
     }
 }
@@ -225,11 +225,11 @@ lowCrc32(%x: Long, %chunk: Int): Int {
 # The read-modify-write. `selectStoreUpdates` has already turned the load, the add and the store into
 # one `add [rdi], esi` by the time this is asked, so the rule has to know that instruction and not
 # only the `store` it replaced.
-lowStoreUpdate(%p: Ptr, %x: Long) {
+lowStoreUpdate(%p: Ptr, %x: I64) {
     {
-        %n = cast %x: Int
-        %old = load %p, 4: Int
-        %new = add %old, %n: Int
+        %n = cast %x: I32
+        %old = load %p, 4: I32
+        %new = add %old, %n: I32
         store %p, %new, 4
         ret
     }
@@ -237,11 +237,11 @@ lowStoreUpdate(%p: Ptr, %x: Long) {
 
 # And the sign extension `selectSignExtends` builds out of a shift pair, which reads one byte of its
 # operand - fewer than the 32 bits the rule needs and therefore inside them.
-lowSignExtend(%x: Long): Int {
+lowSignExtend(%x: I64): I32 {
     {
-        %n = cast %x: Int
-        %u = shl %n, 24: Int
-        %d = sar %u, 24: Int
+        %n = cast %x: I32
+        %u = shl %n, 24: I32
+        %d = sar %u, 24: I32
         ret %d
     }
 }
@@ -249,24 +249,24 @@ lowSignExtend(%x: Long): Int {
 # ## The controls
 
 # An argument arrives in a register the System V convention says nothing about above bit 31.
-keepArgumentWidened(%v: Int): Long {
+keepArgumentWidened(%v: I32): I64 {
     {
-        %w = cast %v: Long
-        %t = add %w, 1L: Long
+        %w = cast %v: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
 
-identity(%x: Int): Int {
+identity(%x: I32): I32 {
     { ret %x }
 }
 
 # Nor does anything promise it of a return register.
-keepCallResultWidened(%a: Int): Long {
+keepCallResultWidened(%a: I32): I64 {
     {
-        %r = call_complex identity, %a: Int
-        %w = cast %r: Long
-        %t = add %w, 1L: Long
+        %r = call_complex identity, %a: I32
+        %w = cast %r: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
@@ -278,11 +278,11 @@ keepCallResultWidened(%a: Int): Long {
 # Written as a widening rather than as an ordinary 32-bit use, which is what it was first and what
 # made it no control at all: a narrowed value read only by a 32-bit `add` is skipped by the forwards
 # rule whatever its definition did, so the sar never came into it.
-keepArithmeticShift(%x: Long): Long {
+keepArithmeticShift(%x: I64): I64 {
     {
-        %s = sar %x, 40L: Long
-        %n = cast %s: Int
-        %w = cast %n: Long
+        %s = sar %x, 40L: I64
+        %n = cast %s: I32
+        %w = cast %n: I64
         ret %w
     }
 }
@@ -294,11 +294,11 @@ keepArithmeticShift(%x: Long): Long {
 # `lea` over a register holding whatever the caller left in it.
 #
 # The rule follows the copy now, so this is the source's answer: an argument's, which is no.
-keepSetOfArgument(%v: Int): Long {
+keepSetOfArgument(%v: I32): I64 {
     {
-        %s = set %v: Int
-        %w = cast %s: Long
-        %t = add %w, 1L: Long
+        %s = set %v: I32
+        %w = cast %s: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }
@@ -306,13 +306,13 @@ keepSetOfArgument(%v: Int): Long {
 # And the same copy over something that *is* clear, which is what the corpus has and what following
 # the source rather than refusing outright keeps: the narrowing above the `set` did the clearing, so
 # the widening below it still has nothing to do.
-skipThroughSet(%p: Ptr): Long {
+skipThroughSet(%p: Ptr): I64 {
     {
-        %v = load %p, 8: Long
-        %n = cast %v: Int
-        %s = set %n: Int
-        %w = cast %s: Long
-        %t = add %w, 1L: Long
+        %v = load %p, 8: I64
+        %n = cast %v: I32
+        %s = set %n: I32
+        %w = cast %s: I64
+        %t = add %w, 1L: I64
         ret %t
     }
 }

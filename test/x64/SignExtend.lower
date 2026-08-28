@@ -4,66 +4,66 @@
 # The distance is register-relative, so what a pair says is the width *below* it: 32 - 16 is a
 # 16-bit source in a 32-bit register, 64 - 56 is a byte in a 64-bit one.
 
-sext16(%v: Int): Int {
+sext16(%v: I32): I32 {
     {
-        %u = shl %v, 16: Int
-        %d = sar %u, 16: Int
+        %u = shl %v, 16: I32
+        %d = sar %u, 16: I32
         ret %d
     }
 }
 
-sext8(%v: Int): Int {
+sext8(%v: I32): I32 {
     {
-        %u = shl %v, 24: Int
-        %d = sar %u, 24: Int
+        %u = shl %v, 24: I32
+        %d = sar %u, 24: I32
         ret %d
     }
 }
 
-sext16Long(%v: Long): Long {
+sext16Long(%v: I64): I64 {
     {
-        %u = shl %v, 48L: Long
-        %d = sar %u, 48L: Long
+        %u = shl %v, 48L: I64
+        %d = sar %u, 48L: I64
         ret %d
     }
 }
 
-sext8Long(%v: Long): Long {
+sext8Long(%v: I64): I64 {
     {
-        %u = shl %v, 56L: Long
-        %d = sar %u, 56L: Long
+        %u = shl %v, 56L: I64
+        %d = sar %u, 56L: I64
         ret %d
     }
 }
 
 # 32 into 64, which is `movsxd` and the one width that already had a form - it is reached from here
 # as well because a form belongs to the opcode it was selected for.
-sext32Long(%v: Long): Long {
+sext32Long(%v: I64): I64 {
     {
-        %u = shl %v, 32L: Long
-        %d = sar %u, 32L: Long
+        %u = shl %v, 32L: I64
+        %d = sar %u, 32L: I64
         ret %d
     }
 }
 
 # The source read again below the extension. The shifts are two-address, so this is the shape that
 # needed a `mov` in front of them; `movsx` reads its operand out of a field of its own.
-sourceStillLive(%v: Int): Int {
+sourceStillLive(%v: I32): I32 {
     {
-        %u = shl %v, 16: Int
-        %d = sar %u, 16: Int
-        %r = add %d, %v: Int
+        %u = shl %v, 16: I32
+        %d = sar %u, 16: I32
+        %r = add %d, %v: I32
         ret %r
     }
 }
 
 # The second argument, so that the byte source lands in a register whose low byte has no name
 # without a REX prefix: `movsx eax, sil` and `movsx eax, dh` are otherwise the same three bytes.
-sext8Second(%a: Int, %b: Int): Int {
+sext8Second(%a: I32, %b: I32): I32 {
     {
-        %u = shl %b, 24: Int
-        %d = sar %u, 24: Int
-        %r = add %d, %a: Int
+        %u = shl %b, 24: I32
+        %d = sar %u, 24: I32
+        %r = add %d, %a: I32
         ret %r
     }
 }
@@ -72,27 +72,27 @@ sext8Second(%a: Int, %b: Int): Int {
 #
 # Unequal distances are not an extension of anything; a left shift with a second reader has to stand
 # whatever happens to the right one; and 64 - 40 is 24 bits, which is not a width `movsx` reads.
-keepUnequal(%v: Int): Int {
+keepUnequal(%v: I32): I32 {
     {
-        %u = shl %v, 16: Int
-        %d = sar %u, 15: Int
+        %u = shl %v, 16: I32
+        %d = sar %u, 15: I32
         ret %d
     }
 }
 
-keepShared(%v: Int): Int {
+keepShared(%v: I32): I32 {
     {
-        %u = shl %v, 16: Int
-        %d = sar %u, 16: Int
-        %r = add %d, %u: Int
+        %u = shl %v, 16: I32
+        %d = sar %u, 16: I32
+        %r = add %d, %u: I32
         ret %r
     }
 }
 
-keepPartialByte(%v: Long): Long {
+keepPartialByte(%v: I64): I64 {
     {
-        %u = shl %v, 40L: Long
-        %d = sar %u, 40L: Long
+        %u = shl %v, 40L: I64
+        %d = sar %u, 40L: I64
         ret %d
     }
 }

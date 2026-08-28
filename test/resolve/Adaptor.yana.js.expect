@@ -6,20 +6,7 @@ function checkCondition(failed) {
   }
 }
 
-function remove_Int(self, index) {
-  var count = self.length;
-  if (index >>> 0 >= count) {
-    return null;
-  } else {
-    var v16 = self.items;
-    var v18 = v16[index];
-    v16.copyWithin(index, index + 1 | 0, count);
-    self.length = count - 1 & 1073741823;
-    return v18;
-  }
-}
-
-function growJsArray_Int(self, wanted) {
+function growJsArray_I32(self, wanted) {
   var v3 = self.items;
   var room = v3.length;
   var v5 = room + room | 0;
@@ -34,14 +21,27 @@ function growJsArray_Int(self, wanted) {
   self.items = v25;
 }
 
+function remove_I32(self, index) {
+  var count = self.length;
+  if (index >>> 0 >= count) {
+    return null;
+  } else {
+    var v16 = self.items;
+    var v18 = v16[index];
+    v16.copyWithin(index, index + 1 | 0, count);
+    self.length = count - 1 & 1073741823;
+    return v18;
+  }
+}
+
 // ResolveTest
 function main() {
   var v5 = new Int32Array([1, 2, 3, 4]);
   var v19 = { items: new Int32Array([0, 0, 0, 0]), length: 4 };
-  var v34 = remove_Int(v19, 0);
-  var v39 = remove_Int(v19, 0);
-  var v44 = remove_Int(v19, 0);
-  var v49 = remove_Int(v19, 0);
+  var v34 = remove_I32(v19, 0);
+  var v39 = remove_I32(v19, 0);
+  var v44 = remove_I32(v19, 0);
+  var v49 = remove_I32(v19, 0);
   var i = 0;
   L0: for (;;) {
     if (i < 4) {
@@ -50,7 +50,7 @@ function main() {
       var count = v19.length;
       var v1019 = count + 1;
       if (v1019 > v19.items.length) {
-        growJsArray_Int(v19, v1019);
+        growJsArray_I32(v19, v1019);
       }
       v19.items[count] = v354;
       v19.length = v1019 & 1073741823;

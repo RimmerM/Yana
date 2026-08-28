@@ -1,82 +1,82 @@
 @image$base = []
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = fun ResolveTest.lambda$23: Ptr
     %v_2 = bitcast 0: Ptr
-    %v_3 = call_complex %v_1, %v_2, 10: Int
-    %v_4 = call_complex %v_1, %v_2, %v_3: Int
+    %v_3 = call_complex %v_1, %v_2, 10: I32
+    %v_4 = call_complex %v_1, %v_2, %v_3: I32
     %v_5 = fun ResolveTest.lambda$24: Ptr
     %v_6 = bitcast 0: Ptr
-    %v_7 = call_complex %v_5, %v_6, 6: Int
+    %v_7 = call_complex %v_5, %v_6, 6: I32
     %v_8 = bitcast 0: Ptr
-    %v_9 = cmp_neq %v_6, %v_8: Int
+    %v_9 = cmp_neq %v_6, %v_8: I32
     je %v_9, b_10, b_11
   }
 
   b_10 {
-    %v_12 = bitcast %v_5: Long
-    %v_13 = sub %v_12, 4: Long
+    %v_12 = bitcast %v_5: I64
+    %v_13 = sub %v_12, 4: I64
     %v_14 = bitcast %v_13: Ptr
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = sext %v_15: Long
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = sext %v_15: I64
     %v_17 = add %v_16, @image$base: Ptr
     call_complex %v_17, %v_6
     jmp b_11
   }
 
   b_11 {
-    %e = shl %v_7, 1: Int
+    %e = shl %v_7, 1: I32
     jmp b_18
   }
 
   b_19 {
-    %v_20 = cmp_ilt %v_21, 10: Int
+    %v_20 = cmp_ilt %v_21, 10: I32
     je %v_20, b_18, b_22
   }
 
   b_22 {
-    %v_23 = add %v_4, 49: Int
-    %v_24 = add %v_23, %e: Int
-    %v_25 = add %v_24, 34: Int
-    %v_26 = add %v_25, %v_27: Int
+    %v_23 = add %v_4, 49: I32
+    %v_24 = add %v_23, %e: I32
+    %v_25 = add %v_24, 34: I32
+    %v_26 = add %v_25, %v_27: I32
     ret %v_26
   }
 
   b_18 {
-    %v_28 = phi [b_19, %v_27], [b_11, 0]: Int
-    %v_29 = phi [b_19, %v_21], [b_11, 0]: Int
-    %v_30 = sar %v_29, 31: Int
-    %v_31 = shr %v_30, 31: Int
-    %v_32 = add %v_29, %v_31: Int
-    %v_33 = and %v_32, 4294967294: Int
-    %v_34 = sub %v_29, %v_33: Int
-    %v_35 = cmp_eq %v_34, 0: Int
+    %v_28 = phi [b_19, %v_27], [b_11, 0]: I32
+    %v_29 = phi [b_19, %v_21], [b_11, 0]: I32
+    %v_30 = sar %v_29, 31: I32
+    %v_31 = shr %v_30, 31: I32
+    %v_32 = add %v_29, %v_31: I32
+    %v_33 = and %v_32, 4294967294: I32
+    %v_34 = sub %v_29, %v_33: I32
+    %v_35 = cmp_eq %v_34, 0: I32
     je %v_35, b_36, b_37
   }
 
   b_36 {
-    %v_38 = add %v_28, %v_29: Int
+    %v_38 = add %v_28, %v_29: I32
     jmp b_37
   }
 
   b_37 {
-    %v_27 = phi [b_18, %v_28], [b_36, %v_38]: Int
-    %v_21 = add %v_29, 1: Int
+    %v_27 = phi [b_18, %v_28], [b_36, %v_38]: I32
+    %v_21 = add %v_29, 1: I32
     jmp b_19
   }
 }
 
-ResolveTest.lambda$23<complex>(%env: Ptr, %v: Int): Int {
+ResolveTest.lambda$23<complex>(%env: Ptr, %v: I32): I32 {
   b_0 {
-    %v_1 = add %v, 1: Int
+    %v_1 = add %v, 1: I32
     ret %v_1
   }
 }
 
-ResolveTest.lambda$24<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$24<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = sub %x, 1: Int
+    %v_1 = sub %x, 1: I32
     ret %v_1
   }
 }

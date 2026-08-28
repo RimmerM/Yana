@@ -105,27 +105,27 @@ absLoadFold(%p: Ptr): f32x4 {
 
 # And the same in a loop, which is the shape `test/bench/programs/VecFloat.yana` has: the mask is
 # loaded once before the loop and the body is the load folded into the `and`.
-absLoop(%p: Ptr, %n: Int): f32x4 {
+absLoop(%p: Ptr, %n: I32): f32x4 {
     start {
-        %z = imm 0.0f: Float
+        %z = imm 0.0f: F32
         %init = vsplat %z: f32x4
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %zero], [body, %next]: Int
+        %i = phi [start, %zero], [body, %next]: I32
         %acc = phi [start, %init], [body, %sum]: f32x4
         je (cmp_ilt %i, %n), body, end
     }
 
     body {
-        %off = mul %i, 16: Int
+        %off = mul %i, 16: I32
         %at = add %p, %off: Ptr
         %v = load %at, 16: f32x4
         %m = abs %v: f32x4
         %sum = add %acc, %m: f32x4
-        %next = add %i, 1: Int
+        %next = add %i, 1: I32
         jmp head
     }
 

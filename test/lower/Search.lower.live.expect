@@ -1,50 +1,50 @@
 
-search<complex>(%src: Int, %entries: Ptr, %count: Long): Long {
+search<complex>(%src: I32, %entries: Ptr, %count: I64): I64 {
   start {
     # live-in: %src, %entries, %count
-    %high = sub %count, 1: Long
+    %high = sub %count, 1: I64
     jmp loop_head
     # live-out: %src, %entries, 0, %high
   }
 
   loop_head {
     # live-in: %src, %entries, %low3, %high3
-    %low3 = phi [start, 0], [lower, %low2], [greater, %low3]: Long
-    %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: Long
-    %v_0 = cmp_ile %low3, %high3: Int
+    %low3 = phi [start, 0], [lower, %low2], [greater, %low3]: I64
+    %high3 = phi [start, %high], [greater, %high2], [lower, %high3]: I64
+    %v_0 = cmp_ile %low3, %high3: I32
     je %v_0, loop, end
     # live-out: %src, %entries, %low3, %high3
   }
 
   loop {
     # live-in: %src, %entries, %low3, %high3
-    %v_1 = add %low3, %high3: Long
-    %mid = sar %v_1, 1: Long
-    %v_2 = mul %mid, 8: Long
+    %v_1 = add %low3, %high3: I64
+    %mid = sar %v_1, 1: I64
+    %v_2 = mul %mid, 8: I64
     %v_3 = add %entries, %v_2: Ptr
-    %entry = load %v_3, 4: Int
-    %v_4 = cmp_lt %entry, %src: Int
+    %entry = load %v_3, 4: I32
+    %v_4 = cmp_lt %entry, %src: I32
     je %v_4, lower, check_greater
     # live-out: %src, %entries, %low3, %high3, %mid, %entry
   }
 
   lower {
     # live-in: %src, %entries, %high3, %mid
-    %low2 = add %mid, 1: Long
+    %low2 = add %mid, 1: I64
     jmp loop_head
     # live-out: %src, %entries, %high3, %low2
   }
 
   check_greater {
     # live-in: %src, %entries, %low3, %mid, %entry
-    %v_5 = cmp_gt %entry, %src: Int
+    %v_5 = cmp_gt %entry, %src: I32
     je %v_5, greater, found
     # live-out: %src, %entries, %low3, %mid
   }
 
   greater {
     # live-in: %src, %entries, %low3, %mid
-    %high2 = sub %mid, 2: Long
+    %high2 = sub %mid, 2: I64
     jmp loop_head
     # live-out: %src, %entries, %low3, %high2
   }
@@ -57,7 +57,7 @@ search<complex>(%src: Int, %entries: Ptr, %count: Long): Long {
 
   end {
     # live-in: %low3
-    %v_6 = sub %low3, 1: Long
+    %v_6 = sub %low3, 1: I64
     ret %v_6
     # live-out: 
   }

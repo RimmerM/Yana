@@ -1,13 +1,13 @@
 let image$base: () = <none>
 
-fn tagOf(%m: Maybe(Rank)) -> Int {
+fn tagOf(%m: Maybe(Rank)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v6 = load %m.discriminant : Int
+    %v6 = load %m.discriminant : I32
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b4, b3
 
@@ -15,13 +15,13 @@ fn tagOf(%m: Maybe(Rank)) -> Int {
     jmp b9
 
   b3:
-    %v16 = load %m.discriminant : Int
+    %v16 = load %m.discriminant : I32
     %v18 = cmp_eq %v16, 1 : Bool
     je %v18, b7, b6
 
   b4:
     %v10 = load %m@Just : Rank
-    %v11 = cast %v10 : Int
+    %v11 = cast %v10 : I32
     %v13 = cmp_eq %v11, 0 : Bool
     je %v13, b5, b3
 
@@ -34,7 +34,7 @@ fn tagOf(%m: Maybe(Rank)) -> Int {
 
   b7:
     %v20 = load %m@Just : Rank
-    %v21 = cast %v20 : Int
+    %v21 = cast %v20 : I32
     %v23 = cmp_eq %v21, 1 : Bool
     je %v23, b8, b6
 
@@ -42,18 +42,18 @@ fn tagOf(%m: Maybe(Rank)) -> Int {
     jmp b9
 
   b9:
-    %v32 = phi [b2, 0], [b5, 1], [b8, 2], [b6, 3] : Int
+    %v32 = phi [b2, 0], [b5, 1], [b8, 2], [b6, 3] : I32
     ret %v32
 }
 
-fn depthOf(%m: Maybe(Maybe(Rank))) -> Int {
+fn depthOf(%m: Maybe(Maybe(Rank))) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v6 = load %m.discriminant : Int
+    %v6 = load %m.discriminant : I32
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b4, b3
 
@@ -65,13 +65,13 @@ fn depthOf(%m: Maybe(Maybe(Rank))) -> Int {
     %o = load %m@Just@Just : Rank
     %v19 = alloc : Maybe(Rank)
     aggregate %local1.discriminant = 1, %local1@Just = %o
-    %v22 = call tagOf, %v19 : Int
-    %v24 = add 300, %v22 : Int
+    %v22 = call tagOf, %v19 : I32
+    %v24 = add 300, %v22 : I32
     jmp b6
 
   b4:
     %v10 = load %m@Just : Maybe(Rank)
-    %v11 = load %m@Just.discriminant : Int
+    %v11 = load %m@Just.discriminant : I32
     %v13 = cmp_eq %v11, 0 : Bool
     je %v13, b5, b3
 
@@ -79,79 +79,79 @@ fn depthOf(%m: Maybe(Maybe(Rank))) -> Int {
     jmp b6
 
   b6:
-    %v28 = phi [b2, 100], [b5, 200], [b3, %v24] : Int
+    %v28 = phi [b2, 100], [b5, 200], [b3, %v24] : I32
     ret %v28
 }
 
-fn heldOr(%m: Maybe(&Int), %fallback: Int) -> Int {
+fn heldOr(%m: Maybe(&I32), %fallback: I32) -> I32 {
   b0:
-    %v2 = load %m.discriminant : Int
+    %v2 = load %m.discriminant : I32
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b2, b1
 
   b1:
-    %at = load %m@Just : &Int
-    %at = load [%at] : Int
+    %at = load %m@Just : &I32
+    %at = load [%at] : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b2, %fallback], [b1, %at] : Int
+    %v10 = phi [b2, %fallback], [b1, %at] : I32
     ret %v10
 }
 
-fn pairValue(%p: Pair) -> Int {
+fn pairValue(%p: Pair) -> I32 {
   b0:
     %v1 = load %p@Pair.first : Maybe(Rank)
-    %v2 = call tagOf, %v1 : Int
-    %v5 = mul %v2, 10 : Int
+    %v2 = call tagOf, %v1 : I32
+    %v5 = mul %v2, 10 : I32
     %v6 = load %p@Pair.second : Maybe(Rank)
-    %v7 = call tagOf, %v6 : Int
-    %v8 = add %v5, %v7 : Int
+    %v7 = call tagOf, %v6 : I32
+    %v8 = add %v5, %v7 : I32
     ret %v8
 }
 
-fn roundTrip() -> Int {
+fn roundTrip() -> I32 {
   b0:
     %v0 = alloc : Maybe(Rank)
     init %local0.discriminant, 0
-    %a = call tagOf, %v0 : Int
+    %a = call tagOf, %v0 : I32
     %v4 = alloc : Maybe(Rank)
     aggregate %local1.discriminant = 1, %local1@Just = Less
-    %b = call tagOf, %v4 : Int
+    %b = call tagOf, %v4 : I32
     %v9 = alloc : Maybe(Rank)
     aggregate %local2.discriminant = 1, %local2@Just = More
-    %c = call tagOf, %v9 : Int
-    %v16 = mul %b, 10 : Int
-    %v17 = add %a, %v16 : Int
-    %v20 = mul %c, 100 : Int
-    %v21 = add %v17, %v20 : Int
+    %c = call tagOf, %v9 : I32
+    %v16 = mul %b, 10 : I32
+    %v17 = add %a, %v16 : I32
+    %v20 = mul %c, 100 : I32
+    %v21 = add %v17, %v20 : I32
     ret %v21
 }
 
-fn nested() -> Int {
+fn nested() -> I32 {
   b0:
     %v0 = alloc : Maybe(Maybe(Rank))
     init %local0.discriminant, 0
-    %outer = call depthOf, %v0 : Int
+    %outer = call depthOf, %v0 : I32
     %v4 = alloc : Maybe(Maybe(Rank))
     %v6 = alloc : Maybe(Rank)
     init %local2.discriminant, 0
     aggregate %local1.discriminant = 1, %local1@Just = %v6
-    %middle = call depthOf, %v4 : Int
+    %middle = call depthOf, %v4 : I32
     %v11 = alloc : Maybe(Maybe(Rank))
     %v13 = alloc : Maybe(Rank)
     aggregate %local4.discriminant = 1, %local4@Just = Same
     aggregate %local3.discriminant = 1, %local3@Just = %v13
-    %inner = call depthOf, %v11 : Int
-    %v19 = add %outer, %middle : Int
-    %v20 = add %v19, %inner : Int
+    %inner = call depthOf, %v11 : I32
+    %v19 = add %outer, %middle : I32
+    %v20 = add %v19, %inner : I32
     ret %v20
 }
 
-fn paired() -> Int {
+fn paired() -> I32 {
   b0:
     %v0 = alloc : Pair
     %v1 = alloc : Maybe(Rank)
@@ -159,67 +159,67 @@ fn paired() -> Int {
     %v5 = alloc : Maybe(Rank)
     init %local2.discriminant, 0
     aggregate %local0@Pair.first = %v1, %local0@Pair.second = %v5
-    %v9 = call pairValue, %v0 : Int
+    %v9 = call pairValue, %v0 : I32
     ret %v9
 }
 
-fn nibbleOr(%m: Maybe(@bits(4) U32), %fallback: Int) -> Int {
+fn nibbleOr(%m: Maybe(@bits(4) U32), %fallback: I32) -> I32 {
   b0:
-    %v2 = load %m.discriminant : Int
+    %v2 = load %m.discriminant : I32
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b2, b1
 
   b1:
     %value = load %m@Just : @bits(4) U32
-    %value = cast %value : Int
+    %value = cast %value : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b2, %fallback], [b1, %value] : Int
+    %v10 = phi [b2, %fallback], [b1, %value] : I32
     ret %v10
 }
 
-fn nibbles() -> Int {
+fn nibbles() -> I32 {
   b0:
     %v0 = alloc : Maybe(@bits(4) U32)
     init %local0.discriminant, 0
-    %empty = call nibbleOr, %v0, 1000 : Int
+    %empty = call nibbleOr, %v0, 1000 : I32
     %v5 = alloc : Maybe(@bits(4) U32)
     %v9 = cast 0 : U32
     %v11 = and %v9, 15 : U32
     %v12 = cast %v11 : @bits(4) U32
     aggregate %local1.discriminant = 1, %local1@Just = %v12
-    %zero = call nibbleOr, %v5, 1000 : Int
+    %zero = call nibbleOr, %v5, 1000 : I32
     %v16 = alloc : Maybe(@bits(4) U32)
     %v20 = cast 3 : U32
     %v22 = and %v20, 15 : U32
     %v23 = cast %v22 : @bits(4) U32
     aggregate %local2.discriminant = 1, %local2@Just = %v23
-    %low = call nibbleOr, %v16, 1000 : Int
+    %low = call nibbleOr, %v16, 1000 : I32
     %v27 = alloc : Maybe(@bits(4) U32)
     %v31 = cast 15 : U32
     %v33 = and %v31, 15 : U32
     %v34 = cast %v33 : @bits(4) U32
     aggregate %local3.discriminant = 1, %local3@Just = %v34
-    %high = call nibbleOr, %v27, 1000 : Int
-    %v38 = add %empty, %zero : Int
-    %v41 = mul %low, 100 : Int
-    %v42 = add %v38, %v41 : Int
-    %v43 = add %v42, %high : Int
+    %high = call nibbleOr, %v27, 1000 : I32
+    %v38 = add %empty, %zero : I32
+    %v41 = mul %low, 100 : I32
+    %v42 = add %v38, %v41 : I32
+    %v43 = add %v42, %high : I32
     ret %v43
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call roundTrip : Int
-    %v1 = call nested : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call paired : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call nibbles : Int
-    %v6 = add %v4, %v5 : Int
+    %v0 = call roundTrip : I32
+    %v1 = call nested : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call paired : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call nibbles : I32
+    %v6 = add %v4, %v5 : I32
     ret %v6
 }

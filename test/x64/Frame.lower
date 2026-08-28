@@ -8,35 +8,35 @@
 # has to survive a call ends up in one of those five - which makes a call the cheapest way to force
 # the prologue to do something.
 
-leaf(%x: Int): Int {
+leaf(%x: I32): I32 {
     { ret %x }
 }
 
 # Nothing crosses a call and nothing is clobbered, so no register outside the clobber set is ever
 # written and the prologue is empty. The point of this one is that a function does not pay for a
 # frame it has no use for.
-noFrame(%a: Int, %b: Int): Int {
+noFrame(%a: I32, %b: I32): I32 {
     {
-        %s = add %a, %b: Int
+        %s = add %a, %b: I32
         ret %s
     }
 }
 
 # Four values live across a call, so four callee-saved registers are used and all four have to be
 # saved and restored - in opposite orders, since they go on the stack.
-saveSeveral(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+saveSeveral(%a: I32, %b: I32, %c: I32, %d: I32): I32 {
     {
-        %r = call_complex leaf, %a: Int
-        %s = add %r, %b: Int
-        %t = add %s, %c: Int
-        %u = add %t, %d: Int
+        %r = call_complex leaf, %a: I32
+        %s = add %r, %b: I32
+        %t = add %s, %c: I32
+        %u = add %t, %d: I32
         ret %u
     }
 }
 
 # Two returns, only one of which is on the path that needed the saved register. Both still have to
 # restore it: the caller cannot know which way control went.
-twoExits(%a: Int, %c: Int): Int {
+twoExits(%a: I32, %c: I32): I32 {
     start {
         je %c, slow, quick
     }
@@ -46,30 +46,30 @@ twoExits(%a: Int, %c: Int): Int {
     }
 
     slow {
-        %r = call_complex leaf, %a: Int
-        %s = add %r, %a: Int
+        %r = call_complex leaf, %a: I32
+        %s = add %r, %a: I32
         ret %s
     }
 }
 
 # A saved register held across a loop back edge. The prologue runs once, before the loop, and the
 # epilogue only on the way out.
-savedAcrossLoop(%n: Int, %seed: Int): Int {
+savedAcrossLoop(%n: I32, %seed: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [body, %i2]: Int
-        %acc = phi [start, %z], [body, %acc2]: Int
+        %i = phi [start, %z], [body, %i2]: I32
+        %acc = phi [start, %z], [body, %acc2]: I32
         je (cmp_ilt %i, %n), body, out
     }
 
     body {
-        %r = call_complex leaf, %seed: Int
-        %acc2 = add %acc, %r: Int
-        %i2 = add %i, 1: Int
+        %r = call_complex leaf, %seed: I32
+        %acc2 = add %acc, %r: I32
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -81,26 +81,26 @@ savedAcrossLoop(%n: Int, %seed: Int): Int {
 # A compile-time alloca is a frame object, not a change to the stack pointer: the frame is sized for
 # it in the prologue and the instruction itself is one `lea` of its address. Two of them get
 # distinct, non-overlapping addresses.
-locals(%v: Int): Int {
+locals(%v: I32): I32 {
     {
         %a = alloca 8: Ptr
         %b = alloca 32: Ptr
         store %a, %v, 8
         store %b, %v, 8
-        %r = load %a, 8: Int
+        %r = load %a, 8: I32
         ret %r
     }
 }
 
 # A frame object and a call, but no stack arguments. rsp stays where the prologue left it for the
 # whole body, so the local is addressed through it and no frame pointer is needed.
-localsAndCall(%v: Int): Int {
+localsAndCall(%v: I32): I32 {
     {
         %a = alloca 8: Ptr
         store %a, %v, 8
-        %r = call_complex leaf, %v: Int
-        %s = load %a, 8: Int
-        %t = add %r, %s: Int
+        %r = call_complex leaf, %v: I32
+        %s = load %a, 8: I32
+        %t = add %r, %s: I32
         ret %t
     }
 }
@@ -108,11 +108,11 @@ localsAndCall(%v: Int): Int {
 # A size only known at run time has to move rsp, so this function gets a frame pointer whatever the
 # mode says - nothing else in the frame could be addressed otherwise - and its epilogue recovers rsp
 # from rbp rather than by undoing arithmetic it cannot know.
-dynamicLocal(%n: Int, %v: Int): Int {
+dynamicLocal(%n: I32, %v: I32): I32 {
     {
         %p = alloca %n: Ptr
         store %p, %v, 8
-        %r = load %p, 8: Int
+        %r = load %p, 8: I32
         ret %r
     }
 }
@@ -122,11 +122,11 @@ dynamicLocal(%n: Int, %v: Int): Int {
 # implies. A fixed object gets it from frame layout, which rounds the object up to it and raises the
 # whole frame's alignment to match - so the prologue leaves the local on the boundary and the
 # instruction itself is still one `lea`.
-overAlignedLocal(%v: Int): Int {
+overAlignedLocal(%v: I32): I32 {
     {
         %a = alloca 8, 32: Ptr
         store %a, %v, 8
-        %r = load %a, 8: Int
+        %r = load %a, 8: I32
         ret %r
     }
 }
@@ -135,11 +135,11 @@ overAlignedLocal(%v: Int): Int {
 # rounded-up size *plus* what rounding the address up can cost, and the address is then rounded up
 # inside the region that paid for it - rather than by masking rsp, which would move the outgoing
 # argument area out from under the stack pointer where every callee looks for it.
-overAlignedDynamicLocal(%n: Int, %v: Int): Int {
+overAlignedDynamicLocal(%n: I32, %v: I32): I32 {
     {
         %p = alloca %n, 64: Ptr
         store %p, %v, 8
-        %r = load %p, 8: Int
+        %r = load %p, 8: I32
         ret %r
     }
 }
@@ -148,10 +148,10 @@ overAlignedDynamicLocal(%n: Int, %v: Int): Int {
 # eight bytes apart and at the offsets the convention assigned them - the same offsets the caller
 # wrote to. Each is loaded into a register once on entry and read from there, so no instruction
 # below ever sees a memory operand.
-stackArg(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %a7: Int, %a8: Int, %a9: Int): Int {
+stackArg(%a0: I32, %a1: I32, %a2: I32, %a3: I32, %a4: I32, %a5: I32, %a6: I32, %a7: I32, %a8: I32, %a9: I32): I32 {
     {
-        %s = add %a8, %a9: Int
-        %t = add %s, %a0: Int
+        %s = add %a8, %a9: I32
+        %t = add %s, %a0: I32
         ret %t
     }
 }
@@ -159,13 +159,13 @@ stackArg(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %
 # A frame object *and* a call with stack arguments. The argument area is reserved by the prologue
 # rather than opened around the call, so rsp never moves and the local stays addressable through it:
 # this used to be the second case that forced a frame pointer, and no longer is.
-stackArgsAndLocals(%v: Int): Int {
+stackArgsAndLocals(%v: I32): I32 {
     {
         %a = alloca 8: Ptr
         store %a, %v, 8
-        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: Int
-        %s = load %a, 8: Int
-        %t = add %r, %s: Int
+        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: I32
+        %s = load %a, 8: I32
+        %t = add %r, %s: I32
         ret %t
     }
 }
@@ -173,9 +173,9 @@ stackArgsAndLocals(%v: Int): Int {
 # Stack arguments with nothing else in the frame. The prologue reserves the argument area and the
 # epilogue gives it back, and the stores go straight to [rsp + offset] with no adjustment around the
 # call at all.
-stackArgsOnly(%v: Int): Int {
+stackArgsOnly(%v: I32): I32 {
     {
-        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: Int
+        %r = call_complex stackArg, %v, %v, %v, %v, %v, %v, %v, %v, %v, %v: I32
         ret %r
     }
 }
@@ -183,17 +183,17 @@ stackArgsOnly(%v: Int): Int {
 # System V passes its arguments in different registers and, unlike the compiler's own convention,
 # requires rsp to be 16-byte aligned where a call happens. The frame is padded to put it there - a
 # function declared `<sysv>` may assume its own caller did the same for it.
-sysvCallee<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+sysvCallee<sysv>(%a: I32, %b: I32, %c: I32, %d: I32, %e: I32, %f: I32): I32 {
     {
-        %s = add %a, %f: Int
+        %s = add %a, %f: I32
         ret %s
     }
 }
 
-sysvCaller<sysv>(%a: Int, %b: Int): Int {
+sysvCaller<sysv>(%a: I32, %b: I32): I32 {
     {
-        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
-        %s = add %r, %b: Int
+        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: I32
+        %s = add %r, %b: I32
         ret %s
     }
 }
@@ -202,10 +202,10 @@ sysvCaller<sysv>(%a: Int, %b: Int): Int {
 # preserve an offset from an entry that was never on 16 in the first place - so the prologue aligns rsp
 # itself and takes a frame pointer to find its way back, which is what makes the callee's guarantee
 # real rather than nominal. This used to be rejected outright.
-alignedCallFromWeakerConvention<complex>(%a: Int, %b: Int): Int {
+alignedCallFromWeakerConvention<complex>(%a: I32, %b: I32): I32 {
     {
-        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
-        %s = add %r, %b: Int
+        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: I32
+        %s = add %r, %b: I32
         ret %s
     }
 }
@@ -214,21 +214,21 @@ alignedCallFromWeakerConvention<complex>(%a: Int, %b: Int): Int {
 # rbp is the frame pointer now, so there are four - and what does not fit goes to a spill slot. Those
 # slots go below the mask with everything else, so they are addressed through the aligned rsp rather
 # than through rbp: this is the half of the two-base frame a golden can actually show.
-alignedCallWithSpill<complex>(%a: Int): Int {
+alignedCallWithSpill<complex>(%a: I32): I32 {
     {
-        %v0 = add %a, 1: Int
-        %v1 = add %a, 2: Int
-        %v2 = add %a, 3: Int
-        %v3 = add %a, 4: Int
-        %v4 = add %a, 5: Int
-        %v5 = add %a, 6: Int
-        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: Int
-        %s0 = add %r, %v0: Int
-        %s1 = add %s0, %v1: Int
-        %s2 = add %s1, %v2: Int
-        %s3 = add %s2, %v3: Int
-        %s4 = add %s3, %v4: Int
-        %s5 = add %s4, %v5: Int
+        %v0 = add %a, 1: I32
+        %v1 = add %a, 2: I32
+        %v2 = add %a, 3: I32
+        %v3 = add %a, 4: I32
+        %v4 = add %a, 5: I32
+        %v5 = add %a, 6: I32
+        %r = call_sysv sysvCallee, %a, %a, %a, %a, %a, %a: I32
+        %s0 = add %r, %v0: I32
+        %s1 = add %s0, %v1: I32
+        %s2 = add %s1, %v2: I32
+        %s3 = add %s2, %v3: I32
+        %s4 = add %s3, %v4: I32
+        %s5 = add %s4, %v5: I32
         ret %s5
     }
 }
@@ -237,13 +237,13 @@ alignedCallWithSpill<complex>(%a: Int): Int {
 # which is the point of having it be an instruction: %x is dead from the store onwards, so the eight
 # register arguments computed after it do not have to work around a ninth value sitting in a
 # register. Without the hoist %x would stay live all the way to the call.
-hoistedStackArg(%a: Int): Int {
+hoistedStackArg(%a: I32): I32 {
     {
-        %x = add %a, 1: Int
-        %b = add %a, 2: Int
-        %c = add %b, 3: Int
-        %d = add %c, 4: Int
-        %r = call_complex stackArg, %a, %b, %c, %d, %a, %b, %c, %d, %x, %x: Int
+        %x = add %a, 1: I32
+        %b = add %a, 2: I32
+        %c = add %b, 3: I32
+        %d = add %c, 4: I32
+        %r = call_complex stackArg, %a, %b, %c, %d, %a, %b, %c, %d, %x, %x: I32
         ret %r
     }
 }

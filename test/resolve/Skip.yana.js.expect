@@ -2,7 +2,7 @@
 var log = 0;
 
 // Core
-function Try_Maybe_a_a_toOutcome_Int(value) {
+function Try_Maybe_a_a_toOutcome_I32(value) {
   var v1;
   if (!(value === null)) {
     v1 = value;
@@ -12,7 +12,7 @@ function Try_Maybe_a_a_toOutcome_Int(value) {
   return v1;
 }
 
-function Try_Maybe_a_a_toOutcome_Outcome_Int(value) {
+function Try_Maybe_a_a_toOutcome_Outcome_I32(value) {
   var v1;
   if (value.$tag === 1) {
     v1 = { $tag: 0, $p: value.$p };
@@ -22,7 +22,7 @@ function Try_Maybe_a_a_toOutcome_Outcome_Int(value) {
   return v1;
 }
 
-function Try_Result_e_a_a_e_toOutcome_Int_Int(value) {
+function Try_Result_e_a_a_e_toOutcome_I32_I32(value) {
   var v1;
   if (value.$tag === 1) {
     v1 = { $tag: 0, $p: value.$p };
@@ -43,7 +43,7 @@ function always(n) {
   } else {
     v18 = null;
   }
-  var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
+  var v9 = Try_Maybe_a_a_toOutcome_I32(v18);
   return v9 === null ? 0 : v9;
 }
 
@@ -59,7 +59,7 @@ function valued(n) {
     } else {
       v29 = null;
     }
-    var v13 = Try_Maybe_a_a_toOutcome_Int(v29);
+    var v13 = Try_Maybe_a_a_toOutcome_I32(v29);
     v27 = v13 === null ? 7 : v13;
   } else {
     v27 = 0;
@@ -87,7 +87,7 @@ function mixed(n) {
       } else {
         v40 = { $tag: 0, $p: null };
       }
-      var v18 = Try_Maybe_a_a_toOutcome_Outcome_Int({ $tag: v40.$tag, $p: v40.$p });
+      var v18 = Try_Maybe_a_a_toOutcome_Outcome_I32({ $tag: v40.$tag, $p: v40.$p });
       if (v18.$tag === 1) {
         return 5;
       } else {
@@ -111,7 +111,7 @@ function reasoned(n) {
       v21 = { $tag: 1, $p: ResolveTest_continuation$24(null, n) };
     }
   }
-  var v9 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v21.$tag, $p: v21.$p });
+  var v9 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v21.$tag, $p: v21.$p });
   var v12 = v9.$tag === 1 ? 1 : 0;
   var v17 = Math.imul(v9.$p, 10);
   var v19 = v9.$p;
@@ -126,7 +126,7 @@ function guarded(open) {
     log = log + 1000 | 0;
     v18 = ResolveTest_continuation$25(null);
   }
-  var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
+  var v9 = Try_Maybe_a_a_toOutcome_I32(v18);
   return v9 === null ? 0 : v9;
 }
 
@@ -182,7 +182,7 @@ function ResolveTest_continuation$26(env, value$) {
   } else {
     v22 = null;
   }
-  var v11 = Try_Maybe_a_a_toOutcome_Int(v22);
+  var v11 = Try_Maybe_a_a_toOutcome_I32(v22);
   return v11 === null ? 0 : v11;
 }
 

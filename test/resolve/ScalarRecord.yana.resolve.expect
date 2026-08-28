@@ -18,14 +18,14 @@ fn flip(%x: Bool) -> () {
     ret
 }
 
-fn bump(%x: @bits(4) Int) -> () {
+fn bump(%x: @bits(4) I32) -> () {
   b0:
-    %v1 = load %x : @bits(4) Int
-    %v3 = cast %v1 : Int
-    %v5 = add %v3, 1 : Int
-    %v7 = shl %v5, 28 : Int
-    %v9 = sar %v7, 28 : Int
-    %v10 = cast %v9 : @bits(4) Int
+    %v1 = load %x : @bits(4) I32
+    %v3 = cast %v1 : I32
+    %v5 = add %v3, 1 : I32
+    %v7 = shl %v5, 28 : I32
+    %v9 = sar %v7, 28 : I32
+    %v10 = cast %v9 : @bits(4) I32
     assign %x, %v10
     ret
 }
@@ -44,7 +44,7 @@ fn setBoth(%f: Flags) -> () {
     ret
 }
 
-fn valueOf(%f: Flags) -> Int {
+fn valueOf(%f: Flags) -> I32 {
   b0:
     %v1 = load %f@Flags.a : Bool
     je %v1, b1, b2
@@ -56,7 +56,7 @@ fn valueOf(%f: Flags) -> Int {
     jmp b3
 
   b3:
-    %v9 = phi [b1, 1], [b2, 0] : Int
+    %v9 = phi [b1, 1], [b2, 0] : I32
     %v10 = load %f@Flags.b : Bool
     je %v10, b4, b5
 
@@ -67,12 +67,12 @@ fn valueOf(%f: Flags) -> Int {
     jmp b6
 
   b6:
-    %v18 = phi [b4, 2], [b5, 0] : Int
-    %v19 = add %v9, %v18 : Int
+    %v18 = phi [b4, 2], [b5, 0] : I32
+    %v19 = add %v9, %v18 : I32
     ret %v19
 }
 
-fn nested() -> Int {
+fn nested() -> I32 {
   b0:
     %v0 = alloc : Settings
     %v1 = alloc : Flags
@@ -86,16 +86,16 @@ fn nested() -> Int {
     assign %s@Settings.count, %v14
     %v16 = load %s : Settings
     %v17 = load %s@Settings.flags : Flags
-    %v18 = call valueOf, %v17 : Int
-    %v21 = mul %v18, 10 : Int
+    %v18 = call valueOf, %v17 : I32
+    %v21 = mul %v18, 10 : I32
     %v22 = load %s : Settings
     %v23 = load %s@Settings.count : U32
-    %v24 = cast %v23 : Int
-    %v25 = add %v21, %v24 : Int
+    %v24 = cast %v23 : I32
+    %v25 = add %v21, %v24 : I32
     ret %v25
 }
 
-fn borrowed() -> Int {
+fn borrowed() -> I32 {
   b0:
     %v0 = alloc : Settings
     %v1 = alloc : Flags
@@ -113,11 +113,11 @@ fn borrowed() -> Int {
     call flip, %v15
     %v17 = load %s : Settings
     %v18 = load %s@Settings.flags : Flags
-    %v19 = call valueOf, %v18 : Int
+    %v19 = call valueOf, %v18 : I32
     ret %v19
 }
 
-fn coPacked() -> Int {
+fn coPacked() -> I32 {
   b0:
     %v0 = alloc : Two
     %v1 = alloc : Flags
@@ -138,16 +138,16 @@ fn coPacked() -> Int {
     call setBoth, %v19
     %v21 = load %t : Two
     %v22 = load %t@Two.f : Flags
-    %v23 = call valueOf, %v22 : Int
+    %v23 = call valueOf, %v22 : I32
     %v24 = load %t : Two
     %v25 = load %t@Two.g : Flags
-    %v26 = call valueOf, %v25 : Int
-    %v29 = mul %v26, 10 : Int
-    %v30 = add %v23, %v29 : Int
+    %v26 = call valueOf, %v25 : I32
+    %v29 = mul %v26, 10 : I32
+    %v30 = add %v23, %v29 : I32
     ret %v30
 }
 
-fn composed() -> Int {
+fn composed() -> I32 {
   b0:
     %v0 = alloc : Two
     %v1 = alloc : Flags
@@ -162,16 +162,16 @@ fn composed() -> Int {
     assign %t@Two.g@Flags.b, True
     %v17 = load %t : Two
     %v18 = load %t@Two.f : Flags
-    %v19 = call valueOf, %v18 : Int
+    %v19 = call valueOf, %v18 : I32
     %v20 = load %t : Two
     %v21 = load %t@Two.g : Flags
-    %v22 = call valueOf, %v21 : Int
-    %v25 = mul %v22, 10 : Int
-    %v26 = add %v19, %v25 : Int
+    %v22 = call valueOf, %v21 : I32
+    %v25 = mul %v22, 10 : I32
+    %v26 = add %v19, %v25 : I32
     ret %v26
 }
 
-fn extracted() -> Int {
+fn extracted() -> I32 {
   b0:
     %t = alloc : Two
     %v1 = alloc : Flags
@@ -183,11 +183,11 @@ fn extracted() -> Int {
     init %local0@Two.f, %v1
     init %local0@Two.g, %v6
     %inner = load %local0@Two.g : Flags
-    %v14 = call valueOf, %inner : Int
-    %v17 = mul %v14, 10 : Int
+    %v14 = call valueOf, %inner : I32
+    %v17 = mul %v14, 10 : I32
     %v18 = load %local0@Two.f : Flags
-    %v19 = call valueOf, %v18 : Int
-    %v20 = add %v17, %v19 : Int
+    %v19 = call valueOf, %v18 : I32
+    %v20 = add %v17, %v19 : I32
     ret %v20
 }
 
@@ -199,7 +199,7 @@ fn secondOf(%f: Flags) -> &Bool {
     ret %v3
 }
 
-fn reborrowed() -> Int {
+fn reborrowed() -> I32 {
   b0:
     %v0 = alloc : Two
     %v1 = alloc : Flags
@@ -217,16 +217,16 @@ fn reborrowed() -> Int {
     assign [%v16], True
     %v19 = load %t : Two
     %v20 = load %t@Two.f : Flags
-    %v21 = call valueOf, %v20 : Int
+    %v21 = call valueOf, %v20 : I32
     %v22 = load %t : Two
     %v23 = load %t@Two.g : Flags
-    %v24 = call valueOf, %v23 : Int
-    %v27 = mul %v24, 10 : Int
-    %v28 = add %v21, %v27 : Int
+    %v24 = call valueOf, %v23 : I32
+    %v27 = mul %v24, 10 : I32
+    %v28 = add %v21, %v27 : I32
     ret %v28
 }
 
-fn swapped() -> Int {
+fn swapped() -> I32 {
   b0:
     %v0 = alloc : Two
     %v1 = alloc : Flags
@@ -253,12 +253,12 @@ fn swapped() -> Int {
     %previous = exchange [%v26], True : Bool
     %v28 = load %t : Two
     %v29 = load %t@Two.f : Flags
-    %v30 = call valueOf, %v29 : Int
+    %v30 = call valueOf, %v29 : I32
     %v31 = load %t : Two
     %v32 = load %t@Two.g : Flags
-    %v33 = call valueOf, %v32 : Int
-    %v36 = mul %v33, 10 : Int
-    %v37 = add %v30, %v36 : Int
+    %v33 = call valueOf, %v32 : I32
+    %v36 = mul %v33, 10 : I32
+    %v37 = add %v30, %v36 : I32
     je %previous, b1, b2
 
   b1:
@@ -268,8 +268,8 @@ fn swapped() -> Int {
     jmp b3
 
   b3:
-    %v45 = phi [b1, 100], [b2, 0] : Int
-    %v46 = add %v37, %v45 : Int
+    %v45 = phi [b1, 100], [b2, 0] : I32
+    %v46 = add %v37, %v45 : I32
     ret %v46
 }
 
@@ -288,65 +288,65 @@ fn makePair() -> () {
     ret
 }
 
-fn owned() -> Int {
+fn owned() -> I32 {
   b0:
     call makePair
     %v1 = load dropped : I64
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     ret %v2
 }
 
-fn tagOf(%m: Maybe(Flags)) -> Int {
+fn tagOf(%m: Maybe(Flags)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %f = load %m@Just : Flags
-    %v7 = call valueOf, %f : Int
+    %v7 = call valueOf, %f : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b2, 4], [b1, %v7] : Int
+    %v10 = phi [b2, 4], [b1, %v7] : I32
     ret %v10
 }
 
-fn folded() -> Int {
+fn folded() -> I32 {
   b0:
     %v0 = alloc : Maybe(Flags)
     init %local0.discriminant, 0
-    %empty = call tagOf, %v0 : Int
+    %empty = call tagOf, %v0 : I32
     %v4 = alloc : Maybe(Flags)
     %v6 = alloc : Flags
     init %local2@Flags.a, True
     init %local2@Flags.b, True
     aggregate %local1.discriminant = 1, %local1@Just = %v6
-    %both = call tagOf, %v4 : Int
+    %both = call tagOf, %v4 : I32
     %v13 = alloc : Maybe(Flags)
     %v15 = alloc : Flags
     init %local4@Flags.a, False
     init %local4@Flags.b, True
     aggregate %local3.discriminant = 1, %local3@Just = %v15
-    %one = call tagOf, %v13 : Int
-    %v24 = mul %both, 10 : Int
-    %v25 = add %empty, %v24 : Int
-    %v28 = mul %one, 100 : Int
-    %v29 = add %v25, %v28 : Int
+    %one = call tagOf, %v13 : I32
+    %v24 = mul %both, 10 : I32
+    %v25 = add %empty, %v24 : I32
+    %v28 = mul %one, 100 : I32
+    %v29 = add %v25, %v28 : I32
     ret %v29
 }
 
-fn heldValue(%h: Held) -> Int {
+fn heldValue(%h: Held) -> I32 {
   b0:
-    %v1 = load %h.discriminant : Int
+    %v1 = load %h.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v25 = load %h.discriminant : Int
+    %v25 = load %h.discriminant : I32
     %v27 = cmp_eq %v25, 1 : Bool
     je %v27, b10, b9
 
@@ -363,7 +363,7 @@ fn heldValue(%h: Held) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b3, 1], [b4, 0] : Int
+    %v15 = phi [b3, 1], [b4, 0] : I32
     je %b, b6, b7
 
   b6:
@@ -373,44 +373,44 @@ fn heldValue(%h: Held) -> Int {
     jmp b8
 
   b8:
-    %v23 = phi [b6, 2], [b7, 0] : Int
-    %v24 = add %v15, %v23 : Int
+    %v23 = phi [b6, 2], [b7, 0] : I32
+    %v24 = add %v15, %v23 : I32
     jmp b11
 
   b9:
     jmp b11
 
   b10:
-    %n = load %h@Wide : Int
-    %v32 = mul %n, 10 : Int
+    %n = load %h@Wide : I32
+    %v32 = mul %n, 10 : I32
     jmp b11
 
   b11:
-    %v37 = phi [b8, %v24], [b10, %v32], [b9, 8] : Int
+    %v37 = phi [b8, %v24], [b10, %v32], [b9, 8] : I32
     ret %v37
 }
 
-fn held() -> Int {
+fn held() -> I32 {
   b0:
     %v0 = alloc : Held
     init %local0.discriminant, 0
     init %local0@Both.a, True
     init %local0@Both.b, False
-    %v7 = call heldValue, %v0 : Int
+    %v7 = call heldValue, %v0 : I32
     %v8 = alloc : Held
     aggregate %local1.discriminant = 1, %local1@Wide = 5
-    %v12 = call heldValue, %v8 : Int
-    %v15 = mul %v12, 100 : Int
-    %v16 = add %v7, %v15 : Int
+    %v12 = call heldValue, %v8 : I32
+    %v15 = mul %v12, 100 : I32
+    %v16 = add %v7, %v15 : I32
     %v17 = alloc : Held
     init %local2.discriminant, 2
-    %v20 = call heldValue, %v17 : Int
-    %v23 = mul %v20, 10000 : Int
-    %v24 = add %v16, %v23 : Int
+    %v20 = call heldValue, %v17 : I32
+    %v23 = mul %v20, 10000 : I32
+    %v24 = add %v16, %v23 : I32
     ret %v24
 }
 
-fn reordered() -> Int {
+fn reordered() -> I32 {
   b0:
     %v0 = alloc : Inefficient
     init %i@Inefficient.a, True
@@ -420,16 +420,16 @@ fn reordered() -> Int {
     init %i@Inefficient.e, 40
     init %i@Inefficient.f, 6
     %v13 = load %i : Inefficient
-    %v14 = load %i@Inefficient.d : @bits(4) Int
-    %v16 = cast %v14 : Int
-    %v18 = add %v16, 1 : Int
-    %v20 = shl %v18, 28 : Int
-    %v22 = sar %v20, 28 : Int
-    %v23 = cast %v22 : @bits(4) Int
+    %v14 = load %i@Inefficient.d : @bits(4) I32
+    %v16 = cast %v14 : I32
+    %v18 = add %v16, 1 : I32
+    %v20 = shl %v18, 28 : I32
+    %v22 = sar %v20, 28 : I32
+    %v23 = cast %v22 : @bits(4) I32
     assign %i@Inefficient.d, %v23
     %v25 = load %i : Inefficient
-    %v26 = load %i@Inefficient.f : @bits(4) Int
-    %v27 = borrow_mut %i@Inefficient.f : &@bits(4) Int
+    %v26 = load %i@Inefficient.f : @bits(4) I32
+    %v27 = borrow_mut %i@Inefficient.f : &@bits(4) I32
     call bump, %v27
     %v29 = load %i : Inefficient
     %v30 = load %i@Inefficient.b : U64
@@ -446,50 +446,50 @@ fn reordered() -> Int {
     jmp b3
 
   b3:
-    %v44 = phi [b1, 1], [b2, 0] : Int
+    %v44 = phi [b1, 1], [b2, 0] : I32
     %v45 = load %i : Inefficient
     %v46 = load %i@Inefficient.b : U64
-    %v47 = cast %v46 : Int
-    %v50 = mul %v47, 10 : Int
-    %v51 = add %v44, %v50 : Int
+    %v47 = cast %v46 : I32
+    %v50 = mul %v47, 10 : I32
+    %v51 = add %v44, %v50 : I32
     %v52 = load %i : Inefficient
     %v53 = load %i@Inefficient.c : U8
-    %v54 = cast %v53 : Int
-    %v57 = mul %v54, 100 : Int
-    %v58 = add %v51, %v57 : Int
+    %v54 = cast %v53 : I32
+    %v57 = mul %v54, 100 : I32
+    %v58 = add %v51, %v57 : I32
     %v59 = load %i : Inefficient
-    %v60 = load %i@Inefficient.d : @bits(4) Int
-    %v61 = cast %v60 : Int
-    %v64 = mul %v61, 1000 : Int
-    %v65 = add %v58, %v64 : Int
+    %v60 = load %i@Inefficient.d : @bits(4) I32
+    %v61 = cast %v60 : I32
+    %v64 = mul %v61, 1000 : I32
+    %v65 = add %v58, %v64 : I32
     %v66 = load %i : Inefficient
     %v67 = load %i@Inefficient.e : U32
-    %v68 = cast %v67 : Int
-    %v71 = mul %v68, 10000 : Int
-    %v72 = add %v65, %v71 : Int
+    %v68 = cast %v67 : I32
+    %v71 = mul %v68, 10000 : I32
+    %v72 = add %v65, %v71 : I32
     %v73 = load %i : Inefficient
-    %v74 = load %i@Inefficient.f : @bits(4) Int
-    %v75 = cast %v74 : Int
-    %v78 = mul %v75, 1000000 : Int
-    %v79 = add %v72, %v78 : Int
+    %v74 = load %i@Inefficient.f : @bits(4) I32
+    %v75 = cast %v74 : I32
+    %v78 = mul %v75, 1000000 : I32
+    %v79 = add %v72, %v78 : I32
     ret %v79
 }
 
-fn pinned() -> Int {
+fn pinned() -> I32 {
   b0:
     %v0 = alloc : Pinned
     aggregate %p@Pinned.a = True, %p@Pinned.b = 9, %p@Pinned.c = 3, %p@Pinned.d = 5, %p@Pinned.e = 40, %p@Pinned.f = 6
     %v8 = load %p : Pinned
-    %v9 = load %p@Pinned.d : @bits(4) Int
-    %v11 = cast %v9 : Int
-    %v13 = add %v11, 1 : Int
-    %v15 = shl %v13, 28 : Int
-    %v17 = sar %v15, 28 : Int
-    %v18 = cast %v17 : @bits(4) Int
+    %v9 = load %p@Pinned.d : @bits(4) I32
+    %v11 = cast %v9 : I32
+    %v13 = add %v11, 1 : I32
+    %v15 = shl %v13, 28 : I32
+    %v17 = sar %v15, 28 : I32
+    %v18 = cast %v17 : @bits(4) I32
     assign %p@Pinned.d, %v18
     %v20 = load %p : Pinned
-    %v21 = load %p@Pinned.f : @bits(4) Int
-    %v22 = borrow_mut %p@Pinned.f : &@bits(4) Int
+    %v21 = load %p@Pinned.f : @bits(4) I32
+    %v22 = borrow_mut %p@Pinned.f : &@bits(4) I32
     call bump, %v22
     %v24 = load %p : Pinned
     %v25 = load %p@Pinned.b : U64
@@ -506,54 +506,54 @@ fn pinned() -> Int {
     jmp b3
 
   b3:
-    %v39 = phi [b1, 1], [b2, 0] : Int
+    %v39 = phi [b1, 1], [b2, 0] : I32
     %v40 = load %p : Pinned
     %v41 = load %p@Pinned.b : U64
-    %v42 = cast %v41 : Int
-    %v45 = mul %v42, 10 : Int
-    %v46 = add %v39, %v45 : Int
+    %v42 = cast %v41 : I32
+    %v45 = mul %v42, 10 : I32
+    %v46 = add %v39, %v45 : I32
     %v47 = load %p : Pinned
     %v48 = load %p@Pinned.c : U8
-    %v49 = cast %v48 : Int
-    %v52 = mul %v49, 100 : Int
-    %v53 = add %v46, %v52 : Int
+    %v49 = cast %v48 : I32
+    %v52 = mul %v49, 100 : I32
+    %v53 = add %v46, %v52 : I32
     %v54 = load %p : Pinned
-    %v55 = load %p@Pinned.d : @bits(4) Int
-    %v56 = cast %v55 : Int
-    %v59 = mul %v56, 1000 : Int
-    %v60 = add %v53, %v59 : Int
+    %v55 = load %p@Pinned.d : @bits(4) I32
+    %v56 = cast %v55 : I32
+    %v59 = mul %v56, 1000 : I32
+    %v60 = add %v53, %v59 : I32
     %v61 = load %p : Pinned
     %v62 = load %p@Pinned.e : U32
-    %v63 = cast %v62 : Int
-    %v66 = mul %v63, 10000 : Int
-    %v67 = add %v60, %v66 : Int
+    %v63 = cast %v62 : I32
+    %v66 = mul %v63, 10000 : I32
+    %v67 = add %v60, %v66 : I32
     %v68 = load %p : Pinned
-    %v69 = load %p@Pinned.f : @bits(4) Int
-    %v70 = cast %v69 : Int
-    %v73 = mul %v70, 1000000 : Int
-    %v74 = add %v67, %v73 : Int
+    %v69 = load %p@Pinned.f : @bits(4) I32
+    %v70 = cast %v69 : I32
+    %v73 = mul %v70, 1000000 : I32
+    %v74 = add %v67, %v73 : I32
     ret %v74
 }
 
-fn hostShaped() -> Int {
+fn hostShaped() -> I32 {
   b0:
     %v0 = alloc : HostShaped
     aggregate %p@HostShaped.a = True, %p@HostShaped.b = 9, %p@HostShaped.c = 3, %p@HostShaped.d = 5, %p@HostShaped.e = 40, %p@HostShaped.f = 6
     %v8 = load %p : HostShaped
-    %v9 = load %p@HostShaped.d : @bits(4) Int
-    %v11 = cast %v9 : Int
-    %v13 = add %v11, 1 : Int
-    %v15 = shl %v13, 28 : Int
-    %v17 = sar %v15, 28 : Int
-    %v18 = cast %v17 : @bits(4) Int
+    %v9 = load %p@HostShaped.d : @bits(4) I32
+    %v11 = cast %v9 : I32
+    %v13 = add %v11, 1 : I32
+    %v15 = shl %v13, 28 : I32
+    %v17 = sar %v15, 28 : I32
+    %v18 = cast %v17 : @bits(4) I32
     assign %p@HostShaped.d, %v18
     %v20 = load %p : HostShaped
-    %v21 = load %p@HostShaped.f : @bits(4) Int
-    %v23 = cast %v21 : Int
-    %v25 = add %v23, 1 : Int
-    %v27 = shl %v25, 28 : Int
-    %v29 = sar %v27, 28 : Int
-    %v30 = cast %v29 : @bits(4) Int
+    %v21 = load %p@HostShaped.f : @bits(4) I32
+    %v23 = cast %v21 : I32
+    %v25 = add %v23, 1 : I32
+    %v27 = shl %v25, 28 : I32
+    %v29 = sar %v27, 28 : I32
+    %v30 = cast %v29 : @bits(4) I32
     assign %p@HostShaped.f, %v30
     %v32 = load %p : HostShaped
     %v33 = load %p@HostShaped.b : U64
@@ -570,36 +570,36 @@ fn hostShaped() -> Int {
     jmp b3
 
   b3:
-    %v47 = phi [b1, 1], [b2, 0] : Int
+    %v47 = phi [b1, 1], [b2, 0] : I32
     %v48 = load %p : HostShaped
     %v49 = load %p@HostShaped.b : U64
-    %v50 = cast %v49 : Int
-    %v53 = mul %v50, 10 : Int
-    %v54 = add %v47, %v53 : Int
+    %v50 = cast %v49 : I32
+    %v53 = mul %v50, 10 : I32
+    %v54 = add %v47, %v53 : I32
     %v55 = load %p : HostShaped
     %v56 = load %p@HostShaped.c : U8
-    %v57 = cast %v56 : Int
-    %v60 = mul %v57, 100 : Int
-    %v61 = add %v54, %v60 : Int
+    %v57 = cast %v56 : I32
+    %v60 = mul %v57, 100 : I32
+    %v61 = add %v54, %v60 : I32
     %v62 = load %p : HostShaped
-    %v63 = load %p@HostShaped.d : @bits(4) Int
-    %v64 = cast %v63 : Int
-    %v67 = mul %v64, 1000 : Int
-    %v68 = add %v61, %v67 : Int
+    %v63 = load %p@HostShaped.d : @bits(4) I32
+    %v64 = cast %v63 : I32
+    %v67 = mul %v64, 1000 : I32
+    %v68 = add %v61, %v67 : I32
     %v69 = load %p : HostShaped
     %v70 = load %p@HostShaped.e : U32
-    %v71 = cast %v70 : Int
-    %v74 = mul %v71, 10000 : Int
-    %v75 = add %v68, %v74 : Int
+    %v71 = cast %v70 : I32
+    %v74 = mul %v71, 10000 : I32
+    %v75 = add %v68, %v74 : I32
     %v76 = load %p : HostShaped
-    %v77 = load %p@HostShaped.f : @bits(4) Int
-    %v78 = cast %v77 : Int
-    %v81 = mul %v78, 1000000 : Int
-    %v82 = add %v75, %v81 : Int
+    %v77 = load %p@HostShaped.f : @bits(4) I32
+    %v78 = cast %v77 : I32
+    %v81 = mul %v78, 1000000 : I32
+    %v82 = add %v75, %v81 : I32
     ret %v82
 }
 
-fn hostBorrowed() -> Int {
+fn hostBorrowed() -> I32 {
   b0:
     %v0 = alloc : HostFlags
     aggregate %h@HostFlags.a = True, %h@HostFlags.b = False
@@ -622,7 +622,7 @@ fn hostBorrowed() -> Int {
     jmp b3
 
   b3:
-    %v23 = phi [b1, 1], [b2, 0] : Int
+    %v23 = phi [b1, 1], [b2, 0] : I32
     %v24 = load %h : HostFlags
     %v25 = load %h@HostFlags.b : Bool
     je %v25, b4, b5
@@ -634,40 +634,40 @@ fn hostBorrowed() -> Int {
     jmp b6
 
   b6:
-    %v33 = phi [b4, 2], [b5, 0] : Int
-    %v34 = add %v23, %v33 : Int
+    %v33 = phi [b4, 2], [b5, 0] : I32
+    %v34 = add %v23, %v33 : I32
     ret %v34
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call nested : Int
-    %v1 = call borrowed : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call coPacked : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call composed : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call extracted : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call reborrowed : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call swapped : Int
-    %v12 = add %v10, %v11 : Int
-    %v13 = call owned : Int
-    %v14 = add %v12, %v13 : Int
-    %v15 = call folded : Int
-    %v16 = add %v14, %v15 : Int
-    %v17 = call held : Int
-    %v18 = add %v16, %v17 : Int
-    %v19 = call reordered : Int
-    %v20 = add %v18, %v19 : Int
-    %v21 = call pinned : Int
-    %v22 = add %v20, %v21 : Int
-    %v23 = call hostShaped : Int
-    %v24 = add %v22, %v23 : Int
-    %v25 = call hostBorrowed : Int
-    %v26 = add %v24, %v25 : Int
+    %v0 = call nested : I32
+    %v1 = call borrowed : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call coPacked : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call composed : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call extracted : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call reborrowed : I32
+    %v10 = add %v8, %v9 : I32
+    %v11 = call swapped : I32
+    %v12 = add %v10, %v11 : I32
+    %v13 = call owned : I32
+    %v14 = add %v12, %v13 : I32
+    %v15 = call folded : I32
+    %v16 = add %v14, %v15 : I32
+    %v17 = call held : I32
+    %v18 = add %v16, %v17 : I32
+    %v19 = call reordered : I32
+    %v20 = add %v18, %v19 : I32
+    %v21 = call pinned : I32
+    %v22 = add %v20, %v21 : I32
+    %v23 = call hostShaped : I32
+    %v24 = add %v22, %v23 : I32
+    %v25 = call hostBorrowed : I32
+    %v26 = add %v24, %v25 : I32
     ret %v26
 }
 
@@ -684,7 +684,7 @@ fn Drop(Owned).drop(%value: Owned) -> () {
     jmp b3
 
   b3:
-    %v10 = phi [b1, 1], [b2, 2] : Int
+    %v10 = phi [b1, 1], [b2, 2] : I32
     %v11 = cast %v10 : I64
     %v12 = borrow_mut dropped : &I64
     call +=(I64), %v12, %v11

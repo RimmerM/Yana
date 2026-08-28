@@ -1,35 +1,35 @@
 let image$base: () = <none>
 
-fn widen(%value: Int) -> Long {
+fn widen(%value: I32) -> I64 {
   b0:
-    %v1 = cast %value : Long
+    %v1 = cast %value : I64
     ret %v1
 }
 
-fn longLiteral() -> Long {
+fn longLiteral() -> I64 {
   b0:
     ret 9
 }
 
-fn floatLiteral() -> Float {
+fn floatLiteral() -> F32 {
   b0:
     ret 1.5
 }
 
-fn doubleLiteral() -> Double {
+fn doubleLiteral() -> F64 {
   b0:
     ret 1.5
 }
 
-fn floatProduct(%a: Float, %b: Float) -> Float {
+fn floatProduct(%a: F32, %b: F32) -> F32 {
   b0:
-    %v2 = mul %a, %b : Float
+    %v2 = mul %a, %b : F32
     ret %v2
 }
 
-fn doubleSum(%a: Double, %b: Double) -> Double {
+fn doubleSum(%a: F64, %b: F64) -> F64 {
   b0:
-    %v2 = add %a, %b : Double
+    %v2 = add %a, %b : F64
     ret %v2
 }
 
@@ -48,7 +48,7 @@ fn both(%a: Bool, %b: Bool) -> Bool {
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v2 = call both, True, False : Bool
     je %v2, b1, b2
@@ -57,11 +57,11 @@ fn main() -> Int {
     jmp b3
 
   b2:
-    %v7 = call widen, 7 : Long
-    %v8 = cast %v7 : Int
+    %v7 = call widen, 7 : I64
+    %v8 = cast %v7 : I32
     jmp b3
 
   b3:
-    %v11 = phi [b1, 0], [b2, %v8] : Int
+    %v11 = phi [b1, 0], [b2, %v8] : I32
     ret %v11
 }

@@ -1,23 +1,23 @@
 let image$base: () = <none>
 
-fn counts() -> Vec(Int) {
+fn counts() -> Vec(I32) {
   b0:
-    %v2 = vsplat 0 : Vec(Int)
-    %v7 = vwithlane %v2, 1, 1 : Vec(Int)
-    %v12 = vwithlane %v7, 4, 2 : Vec(Int)
-    %v17 = vwithlane %v12, 31, 3 : Vec(Int)
+    %v2 = vsplat 0 : Vec(I32)
+    %v7 = vwithlane %v2, 1, 1 : Vec(I32)
+    %v12 = vwithlane %v7, 4, 2 : Vec(I32)
+    %v17 = vwithlane %v12, 31, 3 : Vec(I32)
     ret %v17
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %n = alloc : Int
+    %n = alloc : I32
     init %n, 0
-    %by = call counts : Vec(Int)
-    %v = vsplat 256 : Vec(Int)
-    %left = shl %v, %by : Vec(Int)
-    %v7 = load %n : Int
-    %v10 = vlane %left, 0 : Int
+    %by = call counts : Vec(I32)
+    %v = vsplat 256 : Vec(I32)
+    %left = shl %v, %by : Vec(I32)
+    %v7 = load %n : I32
+    %v10 = vlane %left, 0 : I32
     %v13 = cmp_eq %v10, 256 : Bool
     je %v13, b1, b2
 
@@ -28,11 +28,11 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v21 = phi [b1, 1], [b2, 0] : Int
-    %v22 = add %v7, %v21 : Int
+    %v21 = phi [b1, 1], [b2, 0] : I32
+    %v22 = add %v7, %v21 : I32
     assign %n, %v22
-    %v24 = load %n : Int
-    %v27 = vlane %left, 1 : Int
+    %v24 = load %n : I32
+    %v27 = vlane %left, 1 : I32
     %v30 = cmp_eq %v27, 512 : Bool
     je %v30, b4, b5
 
@@ -43,11 +43,11 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v38 = phi [b4, 1], [b5, 0] : Int
-    %v39 = add %v24, %v38 : Int
+    %v38 = phi [b4, 1], [b5, 0] : I32
+    %v39 = add %v24, %v38 : I32
     assign %n, %v39
-    %v41 = load %n : Int
-    %v44 = vlane %left, 2 : Int
+    %v41 = load %n : I32
+    %v44 = vlane %left, 2 : I32
     %v47 = cmp_eq %v44, 4096 : Bool
     je %v47, b7, b8
 
@@ -58,11 +58,11 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v55 = phi [b7, 1], [b8, 0] : Int
-    %v56 = add %v41, %v55 : Int
+    %v55 = phi [b7, 1], [b8, 0] : I32
+    %v56 = add %v41, %v55 : I32
     assign %n, %v56
-    %v58 = load %n : Int
-    %v61 = vlane %left, 3 : Int
+    %v58 = load %n : I32
+    %v61 = vlane %left, 3 : I32
     %v64 = cmp_eq %v61, 0 : Bool
     je %v64, b10, b11
 
@@ -73,16 +73,16 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v72 = phi [b10, 1], [b11, 0] : Int
-    %v73 = add %v58, %v72 : Int
+    %v72 = phi [b10, 1], [b11, 0] : I32
+    %v73 = add %v58, %v72 : I32
     assign %n, %v73
-    %v79 = sub 0, 256 : Int
-    %w = vsplat %v79 : Vec(Int)
-    %logical = shr %w, %by : Vec(Int)
-    %arith = sar %w, %by : Vec(Int)
-    %v83 = load %n : Int
-    %v86 = vlane %logical, 0 : Int
-    %v91 = sub 0, 256 : Int
+    %v79 = sub 0, 256 : I32
+    %w = vsplat %v79 : Vec(I32)
+    %logical = shr %w, %by : Vec(I32)
+    %arith = sar %w, %by : Vec(I32)
+    %v83 = load %n : I32
+    %v86 = vlane %logical, 0 : I32
+    %v91 = sub 0, 256 : I32
     %v92 = cmp_eq %v86, %v91 : Bool
     je %v92, b13, b14
 
@@ -93,11 +93,11 @@ fn main() -> Int {
     jmp b15
 
   b15:
-    %v100 = phi [b13, 1], [b14, 0] : Int
-    %v101 = add %v83, %v100 : Int
+    %v100 = phi [b13, 1], [b14, 0] : I32
+    %v101 = add %v83, %v100 : I32
     assign %n, %v101
-    %v103 = load %n : Int
-    %v106 = vlane %logical, 1 : Int
+    %v103 = load %n : I32
+    %v106 = vlane %logical, 1 : I32
     %v109 = cmp_eq %v106, 2147483520 : Bool
     je %v109, b16, b17
 
@@ -108,11 +108,11 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v117 = phi [b16, 1], [b17, 0] : Int
-    %v118 = add %v103, %v117 : Int
+    %v117 = phi [b16, 1], [b17, 0] : I32
+    %v118 = add %v103, %v117 : I32
     assign %n, %v118
-    %v120 = load %n : Int
-    %v123 = vlane %logical, 2 : Int
+    %v120 = load %n : I32
+    %v123 = vlane %logical, 2 : I32
     %v126 = cmp_eq %v123, 268435440 : Bool
     je %v126, b19, b20
 
@@ -123,11 +123,11 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v134 = phi [b19, 1], [b20, 0] : Int
-    %v135 = add %v120, %v134 : Int
+    %v134 = phi [b19, 1], [b20, 0] : I32
+    %v135 = add %v120, %v134 : I32
     assign %n, %v135
-    %v137 = load %n : Int
-    %v140 = vlane %logical, 3 : Int
+    %v137 = load %n : I32
+    %v140 = vlane %logical, 3 : I32
     %v143 = cmp_eq %v140, 1 : Bool
     je %v143, b22, b23
 
@@ -138,12 +138,12 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v151 = phi [b22, 1], [b23, 0] : Int
-    %v152 = add %v137, %v151 : Int
+    %v151 = phi [b22, 1], [b23, 0] : I32
+    %v152 = add %v137, %v151 : I32
     assign %n, %v152
-    %v154 = load %n : Int
-    %v157 = vlane %arith, 0 : Int
-    %v162 = sub 0, 256 : Int
+    %v154 = load %n : I32
+    %v157 = vlane %arith, 0 : I32
+    %v162 = sub 0, 256 : I32
     %v163 = cmp_eq %v157, %v162 : Bool
     je %v163, b25, b26
 
@@ -154,12 +154,12 @@ fn main() -> Int {
     jmp b27
 
   b27:
-    %v171 = phi [b25, 1], [b26, 0] : Int
-    %v172 = add %v154, %v171 : Int
+    %v171 = phi [b25, 1], [b26, 0] : I32
+    %v172 = add %v154, %v171 : I32
     assign %n, %v172
-    %v174 = load %n : Int
-    %v177 = vlane %arith, 1 : Int
-    %v182 = sub 0, 128 : Int
+    %v174 = load %n : I32
+    %v177 = vlane %arith, 1 : I32
+    %v182 = sub 0, 128 : I32
     %v183 = cmp_eq %v177, %v182 : Bool
     je %v183, b28, b29
 
@@ -170,12 +170,12 @@ fn main() -> Int {
     jmp b30
 
   b30:
-    %v191 = phi [b28, 1], [b29, 0] : Int
-    %v192 = add %v174, %v191 : Int
+    %v191 = phi [b28, 1], [b29, 0] : I32
+    %v192 = add %v174, %v191 : I32
     assign %n, %v192
-    %v194 = load %n : Int
-    %v197 = vlane %arith, 2 : Int
-    %v202 = sub 0, 16 : Int
+    %v194 = load %n : I32
+    %v197 = vlane %arith, 2 : I32
+    %v202 = sub 0, 16 : I32
     %v203 = cmp_eq %v197, %v202 : Bool
     je %v203, b31, b32
 
@@ -186,12 +186,12 @@ fn main() -> Int {
     jmp b33
 
   b33:
-    %v211 = phi [b31, 1], [b32, 0] : Int
-    %v212 = add %v194, %v211 : Int
+    %v211 = phi [b31, 1], [b32, 0] : I32
+    %v212 = add %v194, %v211 : I32
     assign %n, %v212
-    %v214 = load %n : Int
-    %v217 = vlane %arith, 3 : Int
-    %v222 = sub 0, 1 : Int
+    %v214 = load %n : I32
+    %v217 = vlane %arith, 3 : I32
+    %v222 = sub 0, 1 : I32
     %v223 = cmp_eq %v217, %v222 : Bool
     je %v223, b34, b35
 
@@ -202,19 +202,19 @@ fn main() -> Int {
     jmp b36
 
   b36:
-    %v231 = phi [b34, 1], [b35, 0] : Int
-    %v232 = add %v214, %v231 : Int
+    %v231 = phi [b34, 1], [b35, 0] : I32
+    %v232 = add %v214, %v231 : I32
     assign %n, %v232
-    %v238 = sub 0, 65536 : Int
-    %v239 = cast %v238 : Long
-    %q = vsplat %v239 : Vec(Long)
-    %v242 = vsplat 0 : Vec(Long)
-    %qby = vwithlane %v242, 8, 1 : Vec(Long)
-    %qarith = sar %q, %qby : Vec(Long)
-    %v249 = load %n : Int
-    %v252 = vlane %qarith, 0 : Long
-    %v257 = sub 0, 65536 : Int
-    %v258 = cast %v257 : Long
+    %v238 = sub 0, 65536 : I32
+    %v239 = cast %v238 : I64
+    %q = vsplat %v239 : Vec(I64)
+    %v242 = vsplat 0 : Vec(I64)
+    %qby = vwithlane %v242, 8, 1 : Vec(I64)
+    %qarith = sar %q, %qby : Vec(I64)
+    %v249 = load %n : I32
+    %v252 = vlane %qarith, 0 : I64
+    %v257 = sub 0, 65536 : I32
+    %v258 = cast %v257 : I64
     %v259 = cmp_eq %v252, %v258 : Bool
     je %v259, b37, b38
 
@@ -225,13 +225,13 @@ fn main() -> Int {
     jmp b39
 
   b39:
-    %v267 = phi [b37, 1], [b38, 0] : Int
-    %v268 = add %v249, %v267 : Int
+    %v267 = phi [b37, 1], [b38, 0] : I32
+    %v268 = add %v249, %v267 : I32
     assign %n, %v268
-    %v270 = load %n : Int
-    %v273 = vlane %qarith, 1 : Long
-    %v278 = sub 0, 256 : Int
-    %v279 = cast %v278 : Long
+    %v270 = load %n : I32
+    %v273 = vlane %qarith, 1 : I64
+    %v278 = sub 0, 256 : I32
+    %v279 = cast %v278 : I64
     %v280 = cmp_eq %v273, %v279 : Bool
     je %v280, b40, b41
 
@@ -242,19 +242,19 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v288 = phi [b40, 1], [b41, 0] : Int
-    %v289 = add %v270, %v288 : Int
+    %v288 = phi [b40, 1], [b41, 0] : I32
+    %v289 = add %v270, %v288 : I32
     assign %n, %v289
-    %v295 = sub 0, 1888223487 : Int
-    %v296 = vsplat %v295 : Vec(Int)
+    %v295 = sub 0, 1888223487 : I32
+    %v296 = vsplat %v295 : Vec(I32)
     %bytes = bitcast %v296 : Vec(I8)
-    %v300 = vsplat 33686018 : Vec(Int)
+    %v300 = vsplat 33686018 : Vec(I32)
     %bby = bitcast %v300 : Vec(I8)
     %barith = sar %bytes, %bby : Vec(I8)
-    %v303 = load %n : Int
+    %v303 = load %n : I32
     %v306 = vlane %barith, 3 : I8
-    %v307 = cast %v306 : Int
-    %v312 = sub 0, 29 : Int
+    %v307 = cast %v306 : I32
+    %v312 = sub 0, 29 : I32
     %v313 = cmp_eq %v307, %v312 : Bool
     je %v313, b43, b44
 
@@ -265,12 +265,12 @@ fn main() -> Int {
     jmp b45
 
   b45:
-    %v321 = phi [b43, 1], [b44, 0] : Int
-    %v322 = add %v303, %v321 : Int
+    %v321 = phi [b43, 1], [b44, 0] : I32
+    %v322 = add %v303, %v321 : I32
     assign %n, %v322
-    %v324 = load %n : Int
+    %v324 = load %n : I32
     %v327 = vlane %barith, 0 : I8
-    %v328 = cast %v327 : Int
+    %v328 = cast %v327 : I32
     %v331 = cmp_eq %v328, 0 : Bool
     je %v331, b46, b47
 
@@ -281,9 +281,9 @@ fn main() -> Int {
     jmp b48
 
   b48:
-    %v339 = phi [b46, 1], [b47, 0] : Int
-    %v340 = add %v324, %v339 : Int
+    %v339 = phi [b46, 1], [b47, 0] : I32
+    %v340 = add %v324, %v339 : I32
     assign %n, %v340
-    %v342 = load %n : Int
+    %v342 = load %n : I32
     ret %v342
 }

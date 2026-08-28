@@ -1,15 +1,15 @@
 @image$base = []
 
-recovered<complex>(%box: Ptr, %grow: Int): Int {
+recovered<complex>(%box: Ptr, %grow: I32): I32 {
   b_0 {
-    %v_1 = loads %box, 4: Int
-    %v_2 = cmp_ilt %v_1, 100: Int
-    %v_3 = and %v_2, %grow: Int
+    %v_1 = loads %box, 4: I32
+    %v_2 = cmp_ilt %v_1, 100: I32
+    %v_3 = and %v_2, %grow: I32
     je %v_3, b_4, b_5
   }
 
   b_4 {
-    %v_6 = add %v_1, 1000: Int
+    %v_6 = add %v_1, 1000: I32
     store %box, %v_6, 4
     jmp b_7
   }
@@ -19,19 +19,19 @@ recovered<complex>(%box: Ptr, %grow: Int): Int {
   }
 
   b_7 {
-    %v_8 = phi [b_5, %v_1], [b_4, %v_6]: Int
+    %v_8 = phi [b_5, %v_1], [b_4, %v_6]: I32
     ret %v_8
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 5, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 0, 4
-    %v_3 = call_complex recovered, %v_1, 1: Int
-    %v_4 = cmp_neq %v_3, 1005: Int
+    %v_3 = call_complex recovered, %v_1, 1: I32
+    %v_4 = cmp_neq %v_3, 1005: I32
     je %v_4, b_5, b_6
   }
 
@@ -40,8 +40,8 @@ main<complex>(): Int {
     store %v_7, 5, 4
     %v_8 = add %v_7, 4: Ptr
     store %v_8, 0, 4
-    %v_9 = call_complex recovered, %v_7, 0: Int
-    %v_10 = cmp_neq %v_9, 5: Int
+    %v_9 = call_complex recovered, %v_7, 0: I32
+    %v_10 = cmp_neq %v_9, 5: I32
     je %v_10, b_11, b_12
   }
 
@@ -50,9 +50,9 @@ main<complex>(): Int {
     store %v_13, 500, 4
     %v_14 = add %v_13, 4: Ptr
     store %v_14, 0, 4
-    %v_15 = call_complex recovered, %v_13, 1: Int
-    %v_16 = cmp_neq %v_15, 500: Int
-    %v_17 = select %v_16, 18446744073709551613, 0: Int
+    %v_15 = call_complex recovered, %v_13, 1: I32
+    %v_16 = cmp_neq %v_15, 500: I32
+    %v_17 = select %v_16, 18446744073709551613, 0: I32
     ret %v_17
   }
 

@@ -8,17 +8,7 @@ function checkCondition(failed) {
   }
 }
 
-function push_Int(self, item) {
-  var count = self.length;
-  var v7 = count + 1;
-  if (v7 > self.items.length) {
-    growJsArray_Int(self, v7);
-  }
-  self.items[count] = item;
-  self.length = v7 & 1073741823;
-}
-
-function growJsArray_Int(self, wanted) {
+function growJsArray_I32(self, wanted) {
   var v3 = self.items;
   var room = v3.length;
   var v5 = room + room | 0;
@@ -33,6 +23,16 @@ function growJsArray_Int(self, wanted) {
   self.items = v25;
 }
 
+function push_I32(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_I32(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
+}
+
 // ResolveTest
 function collect(xs$items, xs$length, xs$offset) {
   var out = { items: new Int32Array([]), length: 0 };
@@ -42,7 +42,7 @@ function collect(xs$items, xs$length, xs$offset) {
     if (i < xs$length) {
       var v18 = xs$offset + i | 0;
       checkCondition(i >>> 0 >= v21 ? 1 : 0);
-      push_Int(out, xs$items[v18]);
+      push_I32(out, xs$items[v18]);
       i = i + 1 | 0;
       continue L0;
     }
@@ -69,7 +69,7 @@ function main() {
   L0: for (;;) {
     if (i < 4) {
       checkCondition(i >>> 0 >= 4 ? 1 : 0);
-      push_Int(out, v5[i]);
+      push_I32(out, v5[i]);
       i = i + 1 | 0;
       continue L0;
     }
@@ -90,7 +90,7 @@ function main() {
   L1: for (;;) {
     if (i$1 < 4) {
       checkCondition(i$1 >>> 0 >= 4 ? 1 : 0);
-      push_Int(out$1, funvalue$double(null, v5[i$1]));
+      push_I32(out$1, funvalue$double(null, v5[i$1]));
       i$1 = i$1 + 1 | 0;
       continue L1;
     }
@@ -107,7 +107,7 @@ function main() {
   checkCondition(3 >= v177 ? 1 : 0);
   var v228 = v213 + Math.imul(v180[3], 8) | 0;
   total = v228;
-  var d = roundTrip_Int({ items: new Int32Array([5, 6, 7, 8]), length: 4 });
+  var d = roundTrip_I32({ items: new Int32Array([5, 6, 7, 8]), length: 4 });
   var v254 = d.length;
   checkCondition(0 >= v254 ? 1 : 0);
   var v257 = d.items;
@@ -145,7 +145,7 @@ function funvalue$double(env, v) {
   return Math.imul(v, 2);
 }
 
-function roundTrip_Int(xs) {
+function roundTrip_I32(xs) {
   return xs;
 }
 

@@ -2,68 +2,68 @@
 @table = [3, 1, 4, 1, 5, 9, 2, 6]
 @zeroBlock = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-at<complex>(%i: Long): Long {
+at<complex>(%i: I64): I64 {
   b_0 {
     ret %i
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 64, 1: Ptr
     setpattern %v_1, 64, 0
-    %v_2 = call_complex at, 0: Long
-    %v_3 = cmp_ge %v_2, 64: Int
-    %v_4 = imm 7: Int
+    %v_2 = call_complex at, 0: I64
+    %v_3 = cmp_ge %v_2, 64: I32
+    %v_4 = imm 7: I32
     je %v_3, b_5, b_6
   }
 
   b_6 {
     %v_7 = add %v_1, %v_2: Ptr
-    %v_8 = load %v_7, 1: Int
-    %v_9 = call_complex at, 63: Long
-    %v_10 = cmp_ge %v_9, 64: Int
+    %v_8 = load %v_7, 1: I32
+    %v_9 = call_complex at, 63: I64
+    %v_10 = cmp_ge %v_9, 64: I32
     je %v_10, b_5, b_11
   }
 
   b_11 {
     %v_12 = add %v_1, %v_9: Ptr
-    %v_13 = load %v_12, 1: Int
-    %v_14 = add %v_8, %v_13: Int
-    %v_15 = add %v_14, 64: Int
+    %v_13 = load %v_12, 1: I32
+    %v_14 = add %v_8, %v_13: I32
+    %v_15 = add %v_14, 64: I32
     %v_16 = alloca 32, 4: Ptr
     setpattern %v_16, 32, 255
-    %v_17 = call_complex at, 7: Long
-    %v_18 = cmp_ge %v_17, 8: Int
+    %v_17 = call_complex at, 7: I64
+    %v_18 = cmp_ge %v_17, 8: I32
     je %v_18, b_5, b_19
   }
 
   b_19 {
-    %v_20 = shl %v_17, 2: Long
+    %v_20 = shl %v_17, 2: I64
     %v_21 = add %v_16, %v_20: Ptr
-    %v_22 = loads %v_21, 4: Int
-    %v_23 = add %v_22, 8: Int
-    %v_24 = add %v_15, %v_23: Int
+    %v_22 = loads %v_21, 4: I32
+    %v_23 = add %v_22, 8: I32
+    %v_24 = add %v_15, %v_23: I32
     %v_25 = alloca 8, 1: Ptr
     setpattern %v_25, 8, 3
-    %v_26 = call_complex at, 0: Long
-    %v_27 = cmp_ge %v_26, 8: Int
+    %v_26 = call_complex at, 0: I64
+    %v_27 = cmp_ge %v_26, 8: I32
     je %v_27, b_5, b_28
   }
 
   b_28 {
     %v_29 = add %v_25, %v_26: Ptr
-    %v_30 = load %v_29, 1: Int
-    %v_31 = call_complex at, 7: Long
-    %v_32 = cmp_ge %v_31, 8: Int
+    %v_30 = load %v_29, 1: I32
+    %v_31 = call_complex at, 7: I64
+    %v_32 = cmp_ge %v_31, 8: I32
     je %v_32, b_5, b_33
   }
 
   b_33 {
     %v_34 = add %v_25, %v_31: Ptr
-    %v_35 = load %v_34, 1: Int
-    %v_36 = add %v_30, %v_35: Int
-    %v_37 = add %v_24, %v_36: Int
+    %v_35 = load %v_34, 1: I32
+    %v_36 = add %v_30, %v_35: I32
+    %v_37 = add %v_24, %v_36: I32
     %v_38 = alloca 32, 4: Ptr
     store %v_38, %v_4, 4
     %v_39 = add %v_38, 4: Ptr
@@ -80,92 +80,92 @@ main<complex>(): Int {
     store %v_44, %v_4, 4
     %v_45 = add %v_38, 28: Ptr
     store %v_45, %v_4, 4
-    %v_46 = call_complex at, 0: Long
-    %v_47 = cmp_ge %v_46, 8: Int
+    %v_46 = call_complex at, 0: I64
+    %v_47 = cmp_ge %v_46, 8: I32
     je %v_47, b_5, b_48
   }
 
   b_48 {
-    %v_49 = shl %v_46, 2: Long
+    %v_49 = shl %v_46, 2: I64
     %v_50 = add %v_38, %v_49: Ptr
-    %v_51 = loads %v_50, 4: Int
-    %v_52 = call_complex at, 7: Long
-    %v_53 = cmp_ge %v_52, 8: Int
+    %v_51 = loads %v_50, 4: I32
+    %v_52 = call_complex at, 7: I64
+    %v_53 = cmp_ge %v_52, 8: I32
     je %v_53, b_5, b_54
   }
 
   b_54 {
-    %v_55 = shl %v_52, 2: Long
+    %v_55 = shl %v_52, 2: I64
     %v_56 = add %v_38, %v_55: Ptr
-    %v_57 = loads %v_56, 4: Int
-    %v_58 = add %v_51, %v_57: Int
-    %v_59 = add %v_37, %v_58: Int
+    %v_57 = loads %v_56, 4: I32
+    %v_58 = add %v_51, %v_57: I32
+    %v_59 = add %v_37, %v_58: I32
     %v_60 = alloca 32, 1: Ptr
     setpattern %v_60, 32, 0
-    %v_61 = call_complex at, 31: Long
-    %v_62 = cmp_ge %v_61, 32: Int
+    %v_61 = call_complex at, 31: I64
+    %v_62 = cmp_ge %v_61, 32: I32
     je %v_62, b_5, b_63
   }
 
   b_63 {
     %v_64 = add %v_60, %v_61: Ptr
-    %v_65 = load %v_64, 1: Int
-    %v_66 = add %v_59, %v_65: Int
+    %v_65 = load %v_64, 1: I32
+    %v_66 = add %v_59, %v_65: I32
     %v_67 = alloca 12, 4: Ptr
     store %v_67, 10, 4
     %v_68 = add %v_67, 4: Ptr
     store %v_68, 20, 4
     %v_69 = add %v_67, 8: Ptr
     store %v_69, 30, 4
-    %v_70 = call_complex at, 2: Long
-    %v_71 = cmp_ge %v_70, 3: Int
+    %v_70 = call_complex at, 2: I64
+    %v_71 = cmp_ge %v_70, 3: I32
     je %v_71, b_5, b_72
   }
 
   b_72 {
-    %v_73 = shl %v_70, 2: Long
+    %v_73 = shl %v_70, 2: I64
     %v_74 = add %v_67, %v_73: Ptr
-    %v_75 = loads %v_74, 4: Int
-    %v_76 = add %v_75, 3: Int
-    %v_77 = call_complex at, 5: Long
-    %v_78 = cmp_ge %v_77, 8: Int
+    %v_75 = loads %v_74, 4: I32
+    %v_76 = add %v_75, 3: I32
+    %v_77 = call_complex at, 5: I64
+    %v_78 = cmp_ge %v_77, 8: I32
     je %v_78, b_5, b_79
   }
 
   b_79 {
     %v_80 = add @table, %v_77: Ptr
-    %v_81 = load %v_80, 1: Int
-    %v_82 = add %v_76, %v_81: Int
-    %v_83 = add %v_82, 8: Int
-    %v_84 = add %v_66, %v_83: Int
+    %v_81 = load %v_80, 1: I32
+    %v_82 = add %v_76, %v_81: I32
+    %v_83 = add %v_82, 8: I32
+    %v_84 = add %v_66, %v_83: I32
     %v_85 = alloca 4, 4: Ptr
     store %v_85, 42, 4
-    %v_86 = call_complex at, 0: Long
-    %v_87 = cmp_neq %v_86, 0: Int
+    %v_86 = call_complex at, 0: I64
+    %v_87 = cmp_neq %v_86, 0: I32
     je %v_87, b_5, b_88
   }
 
   b_88 {
-    %v_89 = shl %v_86, 2: Long
+    %v_89 = shl %v_86, 2: I64
     %v_90 = add %v_85, %v_89: Ptr
-    %v_91 = loads %v_90, 4: Int
-    %v_92 = add %v_91, 1: Int
-    %v_93 = add %v_84, %v_92: Int
-    %v_94 = call_complex at, 40: Long
-    %v_95 = cmp_ge %v_94, 64: Int
+    %v_91 = loads %v_90, 4: I32
+    %v_92 = add %v_91, 1: I32
+    %v_93 = add %v_84, %v_92: I32
+    %v_94 = call_complex at, 40: I64
+    %v_95 = cmp_ge %v_94, 64: I32
     je %v_95, b_5, b_96
   }
 
   b_96 {
     %v_97 = add @zeroBlock, %v_94: Ptr
-    %v_98 = load %v_97, 1: Int
-    %v_99 = add %v_98, 64: Int
-    %v_100 = add %v_93, %v_99: Int
+    %v_98 = load %v_97, 1: I32
+    %v_99 = add %v_98, 64: I32
+    %v_100 = add %v_93, %v_99: I32
     ret %v_100
   }
 
   b_5 {
-    %v_101 = syscall 60, 134: Long
+    %v_101 = syscall 60, 134: I64
     unreachable 
   }
 }

@@ -63,7 +63,7 @@ sarSixtyThree(%v: i64x2): i64x2 {
 
 # The count that is not a constant. `K` is the sign bit shifted by the same count, so this is the
 # function above with one more `psrlq` in it and a splat rather than a pattern in `.rodata`.
-sarRuntime(%v: i64x2, %n: Long): i64x2 {
+sarRuntime(%v: i64x2, %n: I64): i64x2 {
     {
         %r = sar %v, %n: i64x2
         ret %r
@@ -74,7 +74,7 @@ sarRuntime(%v: i64x2, %n: Long): i64x2 {
 # operands as `a`, so a shift by a runtime count arrives as a shift by a splat of it.
 # `unwrapVectorShiftCounts` runs above this pass and takes the splat off, so this must emit exactly
 # what the function above does.
-sarSplatCount(%v: i64x2, %n: Long): i64x2 {
+sarSplatCount(%v: i64x2, %n: I64): i64x2 {
     {
         %c = vsplat %n: i64x2
         %r = sar %v, %c: i64x2

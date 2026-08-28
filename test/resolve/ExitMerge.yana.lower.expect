@@ -1,12 +1,12 @@
 @image$base = []
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+Reclaim(Array(a)).reclaim(I32)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
+    %v_2 = load %v_1, 4: I32
+    %v_3 = shr %v_2, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
@@ -23,8 +23,8 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -38,9 +38,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -51,9 +51,9 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-parity<complex>(%n: Int, %salt: Int): Int {
+parity<complex>(%n: I32, %salt: I32): I32 {
   b_0 {
-    %v_1 = and %n, 1: Int
+    %v_1 = and %n, 1: I32
     je %v_1, b_2, b_3
   }
 
@@ -66,7 +66,7 @@ parity<complex>(%n: Int, %salt: Int): Int {
   }
 
   b_4 {
-    %v_5 = cmp_igt %salt, 90: Int
+    %v_5 = cmp_igt %salt, 90: I32
     je %v_5, b_6, b_7
   }
 
@@ -83,13 +83,13 @@ parity<complex>(%n: Int, %salt: Int): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     jmp b_1
   }
 
   b_2 {
-    %v_3 = cmp_ilt %v_4, 5: Int
+    %v_3 = cmp_ilt %v_4, 5: I32
     je %v_3, b_1, b_5
   }
 
@@ -98,13 +98,13 @@ main<complex>(): Int {
   }
 
   b_1 {
-    %v_7 = phi [b_2, %v_6], [b_0, 0]: Int
-    %v_8 = phi [b_2, %v_4], [b_0, 0]: Int
+    %v_7 = phi [b_2, %v_6], [b_0, 0]: I32
+    %v_8 = phi [b_2, %v_4], [b_0, 0]: I32
     %v_9 = alloca 16, 8: Ptr
     %v_10 = alloca 12, 4: Ptr
     store %v_9, %v_10, 8
     %v_11 = add %v_9, 8: Ptr
-    %v_12 = load %v_11, 4: Int
+    %v_12 = load %v_11, 4: I32
     store %v_11, 3, 4
     store %v_10, 10, 4
     %v_13 = add %v_10, 4: Ptr
@@ -113,62 +113,62 @@ main<complex>(): Int {
     store %v_14, 30, 4
     %v_15 = add %v_9, 12: Ptr
     store %v_15, 3, 4
-    %v_16 = cmp_eq %v_8, 0: Int
+    %v_16 = cmp_eq %v_8, 0: I32
     je %v_16, b_17, b_18
   }
 
   b_18 {
-    %v_19 = cmp_eq %v_8, 1: Int
+    %v_19 = cmp_eq %v_8, 1: I32
     je %v_19, b_20, b_21
   }
 
   b_21 {
-    %v_22 = cmp_eq %v_8, 2: Int
+    %v_22 = cmp_eq %v_8, 2: I32
     je %v_22, b_23, b_24
   }
 
   b_24 {
     %v_25 = add %v_9, 12: Ptr
-    %v_26 = load %v_25, 4: Int
-    %v_27 = cast %v_26: Long
-    %v_28 = cmp_eq %v_27, 0: Int
+    %v_26 = load %v_25, 4: I32
+    %v_27 = cast %v_26: I64
+    %v_28 = cmp_eq %v_27, 0: I32
     je %v_28, b_29, b_30
   }
 
   b_30 {
     %v_31 = load %v_9, 8: Ptr
-    %v_32 = loads %v_31, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_9
-    %v_33 = add %v_32, %v_8: Int
+    %v_32 = loads %v_31, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
+    %v_33 = add %v_32, %v_8: I32
     jmp b_34
   }
 
   b_29 {
-    %v_35 = syscall 60, 134: Long
+    %v_35 = syscall 60, 134: I64
     unreachable 
   }
 
   b_23 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_9
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
     jmp b_34
   }
 
   b_20 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_9
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
     jmp b_34
   }
 
   b_17 {
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_9
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_9
     jmp b_34
   }
 
   b_34 {
-    %v_36 = phi [b_30, %v_33], [b_23, 18446744073709551613], [b_20, 18446744073709551614], [b_17, 18446744073709551615]: Int
-    %v_37 = add %v_7, %v_36: Int
-    %v_38 = call_complex parity, %v_8, %v_8: Int
-    %v_6 = add %v_37, %v_38: Int
-    %v_4 = add %v_8, 1: Int
+    %v_36 = phi [b_30, %v_33], [b_23, 18446744073709551613], [b_20, 18446744073709551614], [b_17, 18446744073709551615]: I32
+    %v_37 = add %v_7, %v_36: I32
+    %v_38 = call_complex parity, %v_8, %v_8: I32
+    %v_6 = add %v_37, %v_38: I32
+    %v_4 = add %v_8, 1: I32
     jmp b_2
   }
 }

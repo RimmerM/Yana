@@ -38,18 +38,18 @@ fn unpinnedOf(%n: I64) -> Maybe(Unpinned) {
 
 fn isQuota(%e: Errno) -> Bool {
   b0:
-    %v1 = cast %e : Int
+    %v1 = cast %e : I32
     %v3 = cmp_eq %v1, 122 : Bool
     ret %v3
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = call seekBase, FromEnd : I64
     %v3 = call errorNumber, 122 : I64
     %v4 = add %v1, %v3 : I64
     %v6 = call continuedNumber, 12 : I64
     %v7 = add %v4, %v6 : I64
-    %v8 = cast %v7 : Int
+    %v8 = cast %v7 : I32
     ret %v8
 }

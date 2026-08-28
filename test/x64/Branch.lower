@@ -1,20 +1,20 @@
-branch(%v: Int, %out: Int): Int, Int {
+branch(%v: I32, %out: I32): I32, I32 {
     start {
         je (cmp_le %v, 0), a, b
     }
 
     a {
-        %v1 = add %v, 1: Int
+        %v1 = add %v, 1: I32
         jmp end
     }
 
     b {
-        %v2 = mul %v, 2: Int
+        %v2 = mul %v, 2: I32
         jmp end
     }
 
     end {
-        ret (phi [a, %v1], [b, %v2]: Int), %out
+        ret (phi [a, %v1], [b, %v2]: I32), %out
     }
 }
 
@@ -22,11 +22,11 @@ branch(%v: Int, %out: Int): Int, Int {
 # instructions between the comparison and the branch that reads it write the flags, and neither
 # reads anything defined below the comparison, so both are lifted above it and the branch tests the
 # flags rather than a materialized comparison result.
-flagWindow(%v: Int, %w: Int): Int {
+flagWindow(%v: I32, %w: I32): I32 {
     start {
         %cmp = cmp_ilt %v, %w
-        %x = add %v, 1: Int
-        %y = mul %w, 3: Int
+        %x = add %v, 1: I32
+        %y = mul %w, 3: I32
         je %cmp, a, b
     }
 
@@ -48,11 +48,11 @@ flagWindow(%v: Int, %w: Int): Int {
 # left-hand side is dying in, and zeroing that would destroy the operand the comparison is about to
 # read - so the extension stays behind the `setcc` as a `movzx`. `flagWindowLive` below is the other
 # half.
-flagWindowLoad(%v: Int, %w: Int, %p: Ptr): Int {
+flagWindowLoad(%v: I32, %w: I32, %p: Ptr): I32 {
     start {
         %cmp = cmp_ilt %v, %w
-        %l = load %p, 4: Int
-        %x = add %l, 1: Int
+        %l = load %p, 4: I32
+        %x = add %l, 1: I32
         je %cmp, a, b
     }
 
@@ -69,17 +69,17 @@ flagWindowLoad(%v: Int, %w: Int, %p: Ptr): Int {
 # register of its own, and the clearing goes in front of the comparison as `xor r32, r32` - one byte
 # shorter than the `movzx` above, and leaving the `setcc` with no dependency on whatever the register
 # held before.
-flagWindowLive(%v: Int, %w: Int, %p: Ptr): Int {
+flagWindowLive(%v: I32, %w: I32, %p: Ptr): I32 {
     start {
         %cmp = cmp_ilt %v, %w
-        %l = load %p, 4: Int
-        %x = add %l, 1: Int
+        %l = load %p, 4: I32
+        %x = add %l, 1: I32
         je %cmp, a, b
     }
 
     a {
-        %s = add %v, %w: Int
-        %t = add %s, %x: Int
+        %s = add %v, %w: I32
+        %t = add %s, %x: I32
         ret %t
     }
 
@@ -93,7 +93,7 @@ flagWindowLive(%v: Int, %w: Int, %p: Ptr): Int {
 # result therefore keeps a register. The flags are still the comparison's where the branch reads
 # them - `setcc` writes a byte and `movzx` extends it, neither of them touching the flags - so the
 # branch is a bare `jcc` and not the `test r, r` in front of one that `flagWindowLoad` above emits.
-liveBranch(%v: Int, %w: Int): Int {
+liveBranch(%v: I32, %w: I32): I32 {
     start {
         %cmp = cmp_ilt %v, %w
         je %cmp, a, b
@@ -111,10 +111,10 @@ liveBranch(%v: Int, %w: Int): Int {
 # The same shape with a flag writer between the comparison and the branch, which is the half that
 # must decline: the `and` sets the flags the branch would read, and it cannot be lifted above the
 # comparison because it reads the comparison's own result. `test r, r` comes back.
-liveBranchClobbered(%v: Int, %w: Int): Int {
+liveBranchClobbered(%v: I32, %w: I32): I32 {
     start {
         %cmp = cmp_ilt %v, %w
-        %m = and %cmp, 1: Int
+        %m = and %cmp, 1: I32
         je %cmp, a, b
     }
 
@@ -128,16 +128,16 @@ liveBranchClobbered(%v: Int, %w: Int): Int {
 }
 
 # A comparison works at the width of what it compares, not at the width of what it produces: the
-# result of every comparison is an Int, so taking the operand size from it would compare two 64-bit
+# result of every comparison is an I32, so taking the operand size from it would compare two 64-bit
 # values by their low halves alone. Both comparisons here have to carry a REX.W prefix - the
 # register form and the immediate one are encoded by different paths and get the width the same way.
-wideBranch(%v: Long, %w: Long): Long {
+wideBranch(%v: I64, %w: I64): I64 {
     start {
         je (cmp_ilt %v, %w), a, b
     }
 
     a {
-        %s = add %v, %w: Long
+        %s = add %v, %w: I64
         ret %s
     }
 
@@ -150,7 +150,7 @@ wideBranch(%v: Long, %w: Long): Long {
     }
 
     d {
-        %e = sub %v, 1L: Long
+        %e = sub %v, 1L: I64
         ret %e
     }
 }
@@ -166,7 +166,7 @@ wideBranch(%v: Long, %w: Long): Long {
 # Both are also the case relaxation has to get right rather than merely encode: the branch is decided
 # against a layout that every *other* branch in the function is still shrinking, so a fixpoint that
 # stopped after one pass could leave this one short by a byte it no longer has.
-farBranch(%v: Int, %w: Int): Int {
+farBranch(%v: I32, %w: I32): I32 {
     start {
         je (cmp_ilt %v, %w), near, far
     }
@@ -176,26 +176,26 @@ farBranch(%v: Int, %w: Int): Int {
     }
 
     far {
-        %a0 = mul %v, 1000003: Int
-        %a1 = mul %a0, 1000033: Int
-        %a2 = mul %a1, 1000037: Int
-        %a3 = mul %a2, 1000039: Int
-        %a4 = mul %a3, 1000081: Int
-        %a5 = mul %a4, 1000099: Int
-        %a6 = mul %a5, 1000117: Int
-        %a7 = mul %a6, 1000121: Int
-        %a8 = mul %a7, 1000133: Int
-        %a9 = mul %a8, 1000151: Int
-        %b0 = mul %a9, 1000159: Int
-        %b1 = mul %b0, 1000171: Int
-        %b2 = mul %b1, 1000183: Int
-        %b3 = mul %b2, 1000187: Int
-        %b4 = mul %b3, 1000193: Int
-        %b5 = mul %b4, 1000199: Int
-        %b6 = mul %b5, 1000211: Int
-        %b7 = mul %b6, 1000213: Int
-        %b8 = mul %b7, 1000231: Int
-        %b9 = mul %b8, 1000249: Int
+        %a0 = mul %v, 1000003: I32
+        %a1 = mul %a0, 1000033: I32
+        %a2 = mul %a1, 1000037: I32
+        %a3 = mul %a2, 1000039: I32
+        %a4 = mul %a3, 1000081: I32
+        %a5 = mul %a4, 1000099: I32
+        %a6 = mul %a5, 1000117: I32
+        %a7 = mul %a6, 1000121: I32
+        %a8 = mul %a7, 1000133: I32
+        %a9 = mul %a8, 1000151: I32
+        %b0 = mul %a9, 1000159: I32
+        %b1 = mul %b0, 1000171: I32
+        %b2 = mul %b1, 1000183: I32
+        %b3 = mul %b2, 1000187: I32
+        %b4 = mul %b3, 1000193: I32
+        %b5 = mul %b4, 1000199: I32
+        %b6 = mul %b5, 1000211: I32
+        %b7 = mul %b6, 1000213: I32
+        %b8 = mul %b7, 1000231: I32
+        %b9 = mul %b8, 1000249: I32
         je (cmp_ilt %b9, %w), start, near
     }
 }
@@ -210,23 +210,23 @@ farBranch(%v: Int, %w: Int): Int {
 # would have repeated. `first` does not: it is the arm the entry branch falls towards, it carries work
 # of its own, and §7.2.2 measures a jump there as costing more than the six bytes it would save - so
 # it keeps its own copy. All three cases of the rule in one function.
-sharedEpilogue(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+sharedEpilogue(%a: I32, %b: I32, %c: I32, %d: I32): I32 {
     start {
-        %r = call_complex callee2, %a, %b: Int
-        %s = add %r, %a: Int
-        %t = add %b, %c: Int
-        %u = add %c, %d: Int
+        %r = call_complex callee2, %a, %b: I32
+        %s = add %r, %a: I32
+        %t = add %b, %c: I32
+        %u = add %c, %d: I32
         je (cmp_ilt %s, 0), first, rest
     }
 
     first {
-        %p = mul %s, %t: Int
-        %q = add %p, %u: Int
+        %p = mul %s, %t: I32
+        %q = add %p, %u: I32
         ret %q
     }
 
     rest {
-        %w = add %t, %u: Int
+        %w = add %t, %u: I32
         je (cmp_ilt %w, 100), second, third
     }
 
@@ -245,17 +245,17 @@ sharedEpilogue(%a: Int, %b: Int, %c: Int, %d: Int): Int {
 # a block that emits nothing by §3.2.3's own rule, and the `je` that named it names the epilogue
 # instead. No jump is added and no byte is spent on the arm: an existing branch was pointed
 # somewhere else.
-sharedEpilogueBypass(%a: Int, %b: Int, %c: Int, %d: Int): Int {
+sharedEpilogueBypass(%a: I32, %b: I32, %c: I32, %d: I32): I32 {
     start {
-        %r = call_complex callee2, %a, %b: Int
-        %s = add %r, %a: Int
+        %r = call_complex callee2, %a, %b: I32
+        %s = add %r, %a: I32
         je (cmp_ilt %s, 0), exit, more
     }
 
     more {
-        %t = mul %s, %a: Int
-        %u = add %t, %c: Int
-        %v = mul %u, %d: Int
+        %t = mul %s, %a: I32
+        %u = add %t, %c: I32
+        %v = mul %u, %d: I32
         ret %v
     }
 
@@ -273,9 +273,9 @@ sharedEpilogueBypass(%a: Int, %b: Int, %c: Int, %d: Int): Int {
 # branch further in than the last, so the shallowest runs an eighth as often as the function does and
 # a two-byte jump there is worth less than the six bytes of epilogue it saves. Four values live across
 # the call are what make the epilogue worth sharing at all.
-sharedReturnTail(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+sharedReturnTail(%a: I32, %b: I32, %c: I32, %d: I32, %e: I32, %f: I32): I32 {
     start {
-        %r = call_complex callee2, %a, %b: Int
+        %r = call_complex callee2, %a, %b: I32
         je (cmp_ilt %r, 0), deep, one
     }
 
@@ -296,15 +296,15 @@ sharedReturnTail(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
     }
 
     deep {
-        %u = mul %r, %c: Int
+        %u = mul %r, %c: I32
         ret %u
     }
 
     ok {
-        %s = add %r, %c: Int
-        %t = mul %s, %d: Int
-        %v = add %t, %e: Int
-        %w = mul %v, %f: Int
+        %s = add %r, %c: I32
+        %t = mul %s, %d: I32
+        %v = add %t, %e: I32
+        %w = mul %v, %f: I32
         ret %w
     }
 
@@ -321,16 +321,16 @@ sharedReturnTail(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
     }
 }
 
-callee2(%x: Int, %y: Int): Int {
+callee2(%x: I32, %y: I32): I32 {
     { ret %x }
 }
 
 # §3.5.2.2, the signed half. `(a xor b) < 0` is "do these differ in sign", and `xor` clears OF - so
 # `jl` on its result reads SF against a zero OF, which is the sign bit of the result itself. The
 # branch therefore reads the flags the `xor` left and no `test` is emitted in front of it.
-signAfterLogical(%v: Int, %w: Int): Int {
+signAfterLogical(%v: I32, %w: I32): I32 {
     start {
-        %x = xor %v, %w: Int
+        %x = xor %v, %w: I32
         je (cmp_ilt %x, 0), negative, positive
     }
 
@@ -346,9 +346,9 @@ signAfterLogical(%v: Int, %w: Int): Int {
 # And the refusal it is stated against. `sub` sets OF from the *operation*, so `sub a, b ; jl` is
 # `a < b` and not `a - b < 0` - the two differ exactly when the subtraction overflowed. The compare
 # stays, which is what the `test` below the `sub` is.
-signAfterArithmetic(%v: Int, %w: Int): Int {
+signAfterArithmetic(%v: I32, %w: I32): I32 {
     start {
-        %x = sub %v, %w: Int
+        %x = sub %v, %w: I32
         je (cmp_ilt %x, 0), negative, positive
     }
 
@@ -370,9 +370,9 @@ signAfterArithmetic(%v: Int, %w: Int): Int {
 # read whatever ran before the function instead.
 #
 # The addition stays `mov`/`add` and the `je` stays a `jcc` with no `test` in front of it.
-flagsAfterCopiedAdd(%v: Int, %w: Int): Int {
+flagsAfterCopiedAdd(%v: I32, %w: I32): I32 {
     start {
-        %s = add %v, %w: Int
+        %s = add %v, %w: I32
         je (cmp_eq %s, 0), zero, nonzero
     }
 

@@ -26,13 +26,13 @@ fn checkCondition(%failed: Bool) -> () {
 fn Reclaim(Array(a)).reclaim(I64)(%value: Array(I64)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -44,7 +44,7 @@ fn Reclaim(Array(a)).reclaim(I64)(%value: Array(I64)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(I64)
     %v14 = load %value@Array.run@Run.items : %I64
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof I64 : Size
     %v18 = mul %v16, %v17 : Size
@@ -52,8 +52,8 @@ fn Reclaim(Array(a)).reclaim(I64)(%value: Array(I64)) -> () {
     %v20 = load [%v19] : I64
     %doomed = alloc : I64
     init %local3, %v20
-    %v23 = load %i : Int
-    %v25 = add %v23, 1 : Int
+    %v23 = load %i : I32
+    %v25 = add %v23, 1 : I32
     assign %i, %v25
     jmp b1
 }
@@ -95,7 +95,7 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -173,8 +173,8 @@ fn sumWords(%xs: Flat(I64)) -> I64 {
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %I64
-    %v21 = strideof I64 : Long
-    %v22 = mul %v13, %v21 : Long
+    %v21 = strideof I64 : I64
+    %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
     %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
@@ -190,14 +190,14 @@ fn sumNarrow(%xs: Flat(I64)) -> I64 {
   b0:
     %acc = alloc : I64
     init %acc, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     %v7 = load %xs@Flat.length : Size
-    %n = cast %v7 : Int
+    %n = cast %v7 : I32
     jmp b1
 
   b1:
-    %v10 = load %i : Int
+    %v10 = load %i : I32
     %v11 = cmp_lt %v10, %n : Bool
     je %v11, b3, b2
 
@@ -207,7 +207,7 @@ fn sumNarrow(%xs: Flat(I64)) -> I64 {
 
   b3:
     %v13 = load %acc : I64
-    %v14 = load %i : Int
+    %v14 = load %i : I32
     %v15 = cast %v14 : Size
     %v16 = borrow %xs : 'Flat(I64)
     %v17 = load [%v16]@Flat.length : Size
@@ -216,15 +216,15 @@ fn sumNarrow(%xs: Flat(I64)) -> I64 {
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
     %v22 = load [%v16]@Flat.items : %I64
-    %v23 = strideof I64 : Long
-    %v24 = mul %v15, %v23 : Long
+    %v23 = strideof I64 : I64
+    %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %I64
     %v26 = borrow [%v25] : 'I64
     %v27 = load [%v26] : I64
     %v28 = add %v13, %v27 : I64
     assign %acc, %v28
-    %v30 = load %i : Int
-    %v33 = add %v30, 1 : Int
+    %v30 = load %i : I32
+    %v33 = add %v30, 1 : I32
     assign %i, %v33
     jmp b1
 }
@@ -257,8 +257,8 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
     %v19 = cmp_ge %v17, %v18 : Bool
     call checkCondition, %v19
     %v21 = load [%v15]@Flat.items : %I64
-    %v22 = strideof I64 : Long
-    %v23 = mul %v14, %v22 : Long
+    %v22 = strideof I64 : I64
+    %v23 = mul %v14, %v22 : I64
     %v24 = add %v21, %v23 : %I64
     %v25 = borrow [%v24] : 'I64
     %v26 = load [%v25] : I64
@@ -270,8 +270,8 @@ fn dot(%xs: Flat(I64), %ys: Flat(I64)) -> I64 {
     %v32 = cmp_ge %v30, %v31 : Bool
     call checkCondition, %v32
     %v34 = load [%v28]@Flat.items : %I64
-    %v35 = strideof I64 : Long
-    %v36 = mul %v27, %v35 : Long
+    %v35 = strideof I64 : I64
+    %v36 = mul %v27, %v35 : I64
     %v37 = add %v34, %v36 : %I64
     %v38 = borrow [%v37] : 'I64
     %v39 = load [%v38] : I64
@@ -312,8 +312,8 @@ fn sumEven(%xs: Flat(I64)) -> I64 {
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %I64
-    %v21 = strideof I64 : Long
-    %v22 = mul %v13, %v21 : Long
+    %v21 = strideof I64 : I64
+    %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
     %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
@@ -353,8 +353,8 @@ fn sumTail(%xs: Flat(I64)) -> I64 {
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %I64
-    %v21 = strideof I64 : Long
-    %v22 = mul %v13, %v21 : Long
+    %v21 = strideof I64 : I64
+    %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
     %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
@@ -395,8 +395,8 @@ fn sumDown(%xs: Flat(I64)) -> I64 {
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
     %v24 = load [%v18]@Flat.items : %I64
-    %v25 = strideof I64 : Long
-    %v26 = mul %v17, %v25 : Long
+    %v25 = strideof I64 : I64
+    %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %I64
     %v28 = borrow [%v27] : 'I64
     %v29 = load [%v28] : I64
@@ -437,8 +437,8 @@ fn sumStrided(%xs: Flat(I64), %n: I64) -> I64 {
     %v22 = cmp_ge %v20, %v21 : Bool
     call checkCondition, %v22
     %v24 = load [%v18]@Flat.items : %I64
-    %v25 = strideof I64 : Long
-    %v26 = mul %v17, %v25 : Long
+    %v25 = strideof I64 : I64
+    %v26 = mul %v17, %v25 : I64
     %v27 = add %v24, %v26 : %I64
     %v28 = borrow [%v27] : 'I64
     %v29 = load [%v28] : I64
@@ -450,7 +450,7 @@ fn sumStrided(%xs: Flat(I64), %n: I64) -> I64 {
     jmp b1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v6 = alloc : Array(I64)
     %v9 = alloc *6 : I64
@@ -475,7 +475,7 @@ fn main() -> Int {
     init %empty@Array.run@Run.capacity, 0
     init %empty@Array.run@Run.ownsHeap, 0
     init %empty@Array.length, 0
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %v59 = load %words : Array(I64)
     %v60 = borrow %words : 'Array(I64)
@@ -490,8 +490,8 @@ fn main() -> Int {
     je %v70, b1, b2
 
   b1:
-    %v72 = load %total : Int
-    %v75 = add %v72, 1 : Int
+    %v72 = load %total : I32
+    %v75 = add %v72, 1 : I32
     assign %total, %v75
     jmp b3
 
@@ -512,8 +512,8 @@ fn main() -> Int {
     je %v90, b4, b5
 
   b4:
-    %v92 = load %total : Int
-    %v95 = add %v92, 1 : Int
+    %v92 = load %total : I32
+    %v95 = add %v92, 1 : I32
     assign %total, %v95
     jmp b6
 
@@ -543,8 +543,8 @@ fn main() -> Int {
     je %v118, b7, b8
 
   b7:
-    %v120 = load %total : Int
-    %v123 = add %v120, 1 : Int
+    %v120 = load %total : I32
+    %v123 = add %v120, 1 : I32
     assign %total, %v123
     jmp b9
 
@@ -565,8 +565,8 @@ fn main() -> Int {
     je %v138, b10, b11
 
   b10:
-    %v140 = load %total : Int
-    %v143 = add %v140, 1 : Int
+    %v140 = load %total : I32
+    %v143 = add %v140, 1 : I32
     assign %total, %v143
     jmp b12
 
@@ -587,8 +587,8 @@ fn main() -> Int {
     je %v158, b13, b14
 
   b13:
-    %v160 = load %total : Int
-    %v163 = add %v160, 1 : Int
+    %v160 = load %total : I32
+    %v163 = add %v160, 1 : I32
     assign %total, %v163
     jmp b15
 
@@ -609,8 +609,8 @@ fn main() -> Int {
     je %v178, b16, b17
 
   b16:
-    %v180 = load %total : Int
-    %v183 = add %v180, 1 : Int
+    %v180 = load %total : I32
+    %v183 = add %v180, 1 : I32
     assign %total, %v183
     jmp b18
 
@@ -631,8 +631,8 @@ fn main() -> Int {
     je %v199, b19, b20
 
   b19:
-    %v201 = load %total : Int
-    %v204 = add %v201, 1 : Int
+    %v201 = load %total : I32
+    %v204 = add %v201, 1 : I32
     assign %total, %v204
     jmp b21
 
@@ -653,8 +653,8 @@ fn main() -> Int {
     je %v219, b22, b23
 
   b22:
-    %v221 = load %total : Int
-    %v224 = add %v221, 1 : Int
+    %v221 = load %total : I32
+    %v224 = add %v221, 1 : I32
     assign %total, %v224
     jmp b24
 
@@ -675,8 +675,8 @@ fn main() -> Int {
     je %v239, b25, b26
 
   b25:
-    %v241 = load %total : Int
-    %v244 = add %v241, 1 : Int
+    %v241 = load %total : I32
+    %v244 = add %v241, 1 : I32
     assign %total, %v244
     jmp b27
 
@@ -697,8 +697,8 @@ fn main() -> Int {
     je %v259, b28, b29
 
   b28:
-    %v261 = load %total : Int
-    %v264 = add %v261, 1 : Int
+    %v261 = load %total : I32
+    %v264 = add %v261, 1 : I32
     assign %total, %v264
     jmp b30
 
@@ -719,8 +719,8 @@ fn main() -> Int {
     je %v279, b31, b32
 
   b31:
-    %v281 = load %total : Int
-    %v284 = add %v281, 1 : Int
+    %v281 = load %total : I32
+    %v284 = add %v281, 1 : I32
     assign %total, %v284
     jmp b33
 
@@ -742,8 +742,8 @@ fn main() -> Int {
     je %v299, b34, b35
 
   b34:
-    %v301 = load %total : Int
-    %v304 = add %v301, 1 : Int
+    %v301 = load %total : I32
+    %v304 = add %v301, 1 : I32
     assign %total, %v304
     jmp b36
 
@@ -765,8 +765,8 @@ fn main() -> Int {
     je %v320, b37, b38
 
   b37:
-    %v322 = load %total : Int
-    %v325 = add %v322, 1 : Int
+    %v322 = load %total : I32
+    %v325 = add %v322, 1 : I32
     assign %total, %v325
     jmp b39
 
@@ -796,8 +796,8 @@ fn main() -> Int {
     je %v353, b40, b41
 
   b40:
-    %v355 = load %total : Int
-    %v358 = add %v355, 1 : Int
+    %v355 = load %total : I32
+    %v358 = add %v355, 1 : I32
     assign %total, %v358
     jmp b42
 
@@ -805,6 +805,6 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v362 = load %total : Int
+    %v362 = load %total : I32
     ret %v362
 }

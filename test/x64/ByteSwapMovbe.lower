@@ -16,59 +16,59 @@
 #   - `swapAndKeep` is unchanged as well - the load feeding it is read twice, so the access has to
 #     happen anyway.
 
-swap32(%a: Int): Int {
+swap32(%a: I32): I32 {
     {
-        %s = bswap %a: Int
+        %s = bswap %a: I32
         ret %s
     }
 }
 
-swap64(%a: Long): Long {
+swap64(%a: I64): I64 {
     {
-        %s = bswap %a: Long
+        %s = bswap %a: I64
         ret %s
     }
 }
 
-swapLoad(%p: Ptr): Int {
+swapLoad(%p: Ptr): I32 {
     {
-        %v = load %p, 4: Int
-        %s = bswap %v: Int
+        %v = load %p, 4: I32
+        %s = bswap %v: I32
         ret %s
     }
 }
 
-swapLoad64(%p: Ptr): Long {
+swapLoad64(%p: Ptr): I64 {
     {
-        %v = load %p, 8: Long
-        %s = bswap %v: Long
+        %v = load %p, 8: I64
+        %s = bswap %v: I64
         ret %s
     }
 }
 
 # The addressing mode travels with the fold: `base + index*4` is part of the `movbe` rather than an
 # `lea` in front of it.
-swapLoadIndexed(%p: Ptr, %i: Long): Int {
+swapLoadIndexed(%p: Ptr, %i: I64): I32 {
     {
-        %o = shl %i, 2: Long
+        %o = shl %i, 2: I64
         %q = add %p, %o: Ptr
-        %v = load %q, 4: Int
-        %s = bswap %v: Int
+        %v = load %q, 4: I32
+        %s = bswap %v: I32
         ret %s
     }
 }
 
-swapStore(%p: Ptr, %v: Int) {
+swapStore(%p: Ptr, %v: I32) {
     {
-        %s = bswap %v: Int
+        %s = bswap %v: I32
         store %p, %s, 4
         ret
     }
 }
 
-swapStore64(%p: Ptr, %v: Long) {
+swapStore64(%p: Ptr, %v: I64) {
     {
-        %s = bswap %v: Long
+        %s = bswap %v: I64
         store %p, %s, 8
         ret
     }
@@ -76,20 +76,20 @@ swapStore64(%p: Ptr, %v: Long) {
 
 # The load is read twice, so it stays: folding it into the reversal would put the access back for the
 # other reader. This is `foldLoads`' single-reader rule at a different instruction.
-swapLoadShared(%p: Ptr): Int {
+swapLoadShared(%p: Ptr): I32 {
     {
-        %v = load %p, 4: Int
-        %s = bswap %v: Int
-        %t = add %s, %v: Int
+        %v = load %p, 4: I32
+        %s = bswap %v: I32
+        %t = add %s, %v: I32
         ret %t
     }
 }
 
 # A store of a value that is reversed *and* read elsewhere: the reversal stands, and the store is an
 # ordinary one.
-swapStoreShared(%p: Ptr, %v: Int): Int {
+swapStoreShared(%p: Ptr, %v: I32): I32 {
     {
-        %s = bswap %v: Int
+        %s = bswap %v: I32
         store %p, %s, 4
         ret %s
     }
@@ -99,26 +99,26 @@ swapStoreShared(%p: Ptr, %v: Int): Int {
 # the addressing mode it inherits is still the one standing immediately in front of it and the
 # arithmetic in between is untouched - see §3.1.4 of the backend README for why folding upward is
 # what makes that true without a question about the instructions in between.
-swapLoadApart(%p: Ptr, %i: Long, %j: Long): Long {
+swapLoadApart(%p: Ptr, %i: I64, %j: I64): I64 {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %q = add %p, %o: Ptr
-        %v = load %q, 8: Long
-        %k = mul %j, 3L: Long
-        %m = add %k, 7L: Long
-        %s = bswap %v: Long
-        %t = add %s, %m: Long
+        %v = load %q, 8: I64
+        %k = mul %j, 3L: I64
+        %m = add %k, 7L: I64
+        %s = bswap %v: I64
+        %t = add %s, %m: I64
         ret %t
     }
 }
 
 # The store's own address, built the same way: the reversal above it disappears and the `movbe`
 # stands where the store did, directly below the address that serves it.
-swapStoreIndexed(%p: Ptr, %i: Long, %v: Long) {
+swapStoreIndexed(%p: Ptr, %i: I64, %v: I64) {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %q = add %p, %o: Ptr
-        %s = bswap %v: Long
+        %s = bswap %v: I64
         store %q, %s, 8
         ret
     }

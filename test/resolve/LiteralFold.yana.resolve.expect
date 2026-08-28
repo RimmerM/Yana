@@ -12,7 +12,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -49,7 +49,7 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -111,9 +111,9 @@ fn twice(%n: Size) -> Size {
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = call twice, 3 : Size
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     ret %v2
 }

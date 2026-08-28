@@ -1,9 +1,9 @@
 @image$base = []
 mut @dropCalls = [0, 0, 0, 0]
 
-either<complex>(%pick: Int, %id: Int): Int {
+either<complex>(%pick: I32, %id: I32): I32 {
   b_0 {
-    %v_1 = cmp_ilt %pick, 1: Int
+    %v_1 = cmp_ilt %pick, 1: I32
     je %v_1, b_2, b_3
   }
 
@@ -32,63 +32,63 @@ either<complex>(%pick: Int, %id: Int): Int {
     %v_11 = add %f, 8: Ptr
     %v_12 = load %f, 8: Ptr
     %v_13 = load %v_11, 8: Ptr
-    %v_14 = call_complex %v_12, %v_13, 10: Int
+    %v_14 = call_complex %v_12, %v_13, 10: I32
     %v_15 = add %f, 8: Ptr
     %v_16 = load %v_15, 8: Ptr
     %v_17 = load %f, 8: Ptr
-    %v_18 = bitcast %v_17: Long
-    %v_19 = sub %v_18, 4: Long
+    %v_18 = bitcast %v_17: I64
+    %v_19 = sub %v_18, 4: I64
     %v_20 = bitcast %v_19: Ptr
-    %v_21 = loads %v_20, 4: Int
-    %v_22 = sext %v_21: Long
+    %v_21 = loads %v_20, 4: I32
+    %v_22 = sext %v_21: I64
     %v_23 = add %v_22, @image$base: Ptr
     call_complex %v_23, %v_16
     ret %v_14
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %a = call_complex either, 0, 3: Int
-    %b = call_complex either, 2, 5: Int
-    %v_1 = add %a, %b: Int
-    %v_2 = loads @dropCalls, 4: Int
-    %v_3 = add %v_1, %v_2: Int
+    %a = call_complex either, 0, 3: I32
+    %b = call_complex either, 2, 5: I32
+    %v_1 = add %a, %b: I32
+    %v_2 = loads @dropCalls, 4: I32
+    %v_3 = add %v_1, %v_2: I32
     ret %v_3
   }
 }
 
 @closure$ResolveTest.lambda$22 = [0, 0, 0, 0]
-ResolveTest.lambda$22<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$22<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = add %x, %v_1: Int
+    %v_1 = loads %env, 4: I32
+    %v_2 = add %x, %v_1: I32
     ret %v_2
   }
 }
 
 drop${g: Guard}<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = loads @dropCalls, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @dropCalls, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @dropCalls, %v_2, 4
     ret 
   }
 }
 
 @closure$ResolveTest.lambda$23 = [0, 0, 0, 0]
-ResolveTest.lambda$23<complex>(%env: Ptr, %x: Int): Int {
+ResolveTest.lambda$23<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = loads %env, 4: Int
-    %v_2 = imul %x, %v_1: Int
+    %v_1 = loads %env, 4: I32
+    %v_2 = imul %x, %v_1: I32
     ret %v_2
   }
 }
 
 drop${g: Guard}$1<complex>(%value: Ptr) {
   b_0 {
-    %v_1 = loads @dropCalls, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @dropCalls, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @dropCalls, %v_2, 4
     ret 
   }

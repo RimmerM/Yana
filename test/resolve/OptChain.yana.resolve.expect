@@ -1,12 +1,12 @@
 let image$base: () = <none>
 
-let &log: Int = 0
+let &log: I32 = 0
 
-let &dropped: Int = 0
+let &dropped: I32 = 0
 
 fn Try(Maybe(a), a, ()).toOutcome(Node)(%value: Maybe(Node)) -> Outcome(Node, ()) {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b4
 
@@ -33,23 +33,23 @@ fn Try(Maybe(a), a, ()).toOutcome(Node)(%value: Maybe(Node)) -> Outcome(Node, ()
     jmp b1
 }
 
-fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int)(%value: Int) -> Maybe(Int) {
+fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, I32)(%value: I32) -> Maybe(I32) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
-fn Try(Maybe(a), a, ()).fromExit(Int)(%reason: ()) -> Maybe(Int) {
+fn Try(Maybe(a), a, ()).fromExit(I32)(%reason: ()) -> Maybe(I32) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     init %local0.discriminant, 0
     ret %v1
 }
 
 fn Try(Maybe(a), a, ()).toOutcome(Leaf)(%value: Maybe(Leaf)) -> Outcome(Leaf, ()) {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -72,19 +72,19 @@ fn Try(Maybe(a), a, ()).toOutcome(Leaf)(%value: Maybe(Leaf)) -> Outcome(Leaf, ()
     ret %v1
 }
 
-fn Try(Result(e, a), a, e).toOutcome(Int, Node)(%value: Result(Int, Node)) -> Outcome(Node, Int) {
+fn Try(Result(e, a), a, e).toOutcome(I32, Node)(%value: Result(I32, Node)) -> Outcome(Node, I32) {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
   b1:
-    %v6 = load %value@Err : Int
-    %v7 = move %value@Err : Int
-    %reason = alloc : Int
+    %v6 = load %value@Err : I32
+    %v7 = move %value@Err : I32
+    %reason = alloc : I32
     init %local3, %v7
-    %v10 = alloc : Outcome(Node, Int)
-    %reason = load %local3 : Int
+    %v10 = alloc : Outcome(Node, I32)
+    %reason = load %local3 : I32
     aggregate %local4.discriminant = 1, %local4@Exit = %reason
     jmp b3
 
@@ -93,75 +93,75 @@ fn Try(Result(e, a), a, e).toOutcome(Int, Node)(%value: Result(Int, Node)) -> Ou
     %v16 = move %value@Ok : Node
     %inner = alloc : Node
     init %local1, %v16
-    %v19 = alloc : Outcome(Node, Int)
+    %v19 = alloc : Outcome(Node, I32)
     aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v19], [b1, %v10] : Outcome(Node, Int)
+    %v1 = phi [b2, %v19], [b1, %v10] : Outcome(Node, I32)
     ret %v1
 }
 
-fn Rewrap(Result(e, a), b, Result(e, b)).rewrap(Int, Node, Int)(%value: Int) -> Result(Int, Int) {
+fn Rewrap(Result(e, a), b, Result(e, b)).rewrap(I32, Node, I32)(%value: I32) -> Result(I32, I32) {
   b0:
-    %v1 = alloc : Result(Int, Int)
+    %v1 = alloc : Result(I32, I32)
     aggregate %local1.discriminant = 1, %local1@Ok = %value
     ret %v1
 }
 
-fn Try(Result(e, a), a, e).fromExit(Int, Int)(%reason: Int) -> Result(Int, Int) {
+fn Try(Result(e, a), a, e).fromExit(I32, I32)(%reason: I32) -> Result(I32, I32) {
   b0:
-    %v1 = alloc : Result(Int, Int)
+    %v1 = alloc : Result(I32, I32)
     aggregate %local1.discriminant = 0, %local1@Err = %reason
     ret %v1
 }
 
-fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, Int)(%value: Int) -> Maybe(Int) {
+fn Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, I32)(%value: I32) -> Maybe(I32) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
-fn Try(Maybe(a), a, ()).toOutcome((Int) -> Int)(%value: Maybe((Int) -> Int)) -> Outcome((Int) -> Int, ()) {
+fn Try(Maybe(a), a, ()).toOutcome((I32) -> I32)(%value: Maybe((I32) -> I32)) -> Outcome((I32) -> I32, ()) {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b4
 
   b1:
-    %v6 = alloc : Outcome((Int) -> Int, ())
+    %v6 = alloc : Outcome((I32) -> I32, ())
     init %local3.discriminant, 1
     jmp b3
 
   b2:
-    %v10 = load %value@Just : (Int) -> Int
-    %v11 = move %value@Just : (Int) -> Int
-    %inner = alloc : (Int) -> Int
+    %v10 = load %value@Just : (I32) -> I32
+    %v11 = move %value@Just : (I32) -> I32
+    %inner = alloc : (I32) -> I32
     init %local1, %v11
-    %v14 = alloc : Outcome((Int) -> Int, ())
+    %v14 = alloc : Outcome((I32) -> I32, ())
     aggregate %local2.discriminant = 0, %local2@Proceed = %inner
     jmp b3
 
   b3:
-    %v1 = phi [b2, %v14], [b1, %v6] : Outcome((Int) -> Int, ())
+    %v1 = phi [b2, %v14], [b1, %v6] : Outcome((I32) -> I32, ())
     ret %v1
 
   b4:
-    drop_derived %value via teardown$Maybe((Int) -> Int)
+    drop_derived %value via teardown$Maybe((I32) -> I32)
     jmp b1
 }
 
-fn Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int)(%value: Int) -> Maybe(Int) {
+fn Rewrap(Maybe(a), b, Maybe(b)).rewrap((I32) -> I32, I32)(%value: I32) -> Maybe(I32) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = %value
     ret %v1
 }
 
 fn drop$Maybe(Node)(%value: Maybe(Node)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -176,9 +176,9 @@ fn drop$Maybe(Node)(%value: Maybe(Node)) -> () {
     jmp b1
 }
 
-fn teardown$Maybe((Int) -> Int)(%value: Maybe((Int) -> Int)) -> () {
+fn teardown$Maybe((I32) -> I32)(%value: Maybe((I32) -> I32)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -186,14 +186,14 @@ fn teardown$Maybe((Int) -> Int)(%value: Maybe((Int) -> Int)) -> () {
     ret
 
   b2:
-    drop_derived %value@Just via teardown$(Int) -> Int
+    drop_derived %value@Just via teardown$(I32) -> I32
     jmp b1
 
   b3:
     jmp b1
 }
 
-fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(I32) -> I32(%value: (I32) -> I32) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -202,9 +202,9 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
   b1:
     %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
     calldyn %v11, %v1
@@ -214,7 +214,7 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
     ret
 }
 
-fn leafFor(%n: Int) -> Maybe(Leaf) {
+fn leafFor(%n: I32) -> Maybe(Leaf) {
   b0:
     %v3 = cmp_gt %n, 5 : Bool
     je %v3, b1, b2
@@ -222,7 +222,7 @@ fn leafFor(%n: Int) -> Maybe(Leaf) {
   b1:
     %v5 = alloc : Maybe(Leaf)
     %v7 = alloc : Leaf
-    %v10 = mul %n, 3 : Int
+    %v10 = mul %n, 3 : I32
     aggregate %local1@Leaf.value = %v10
     aggregate %local0.discriminant = 1, %local0@Just = %v7
     ret %v5
@@ -236,10 +236,10 @@ fn leafFor(%n: Int) -> Maybe(Leaf) {
     ret %v15
 }
 
-fn node(%n: Int) -> Maybe(Node) {
+fn node(%n: I32) -> Maybe(Node) {
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 1 : I32
     assign log, %v4
     %v8 = cmp_le %n, 0 : Bool
     je %v8, b1, b2
@@ -257,7 +257,7 @@ fn node(%n: Int) -> Maybe(Node) {
     %v17 = alloc : Node
     %v18 = alloc : Inner
     %v19 = alloc : Deep
-    %v22 = mul %n, 2 : Int
+    %v22 = mul %n, 2 : I32
     aggregate %local4@Deep.value = %v22
     aggregate %local3@Inner.deep = %v19
     %v25 = call leafFor, %n : Maybe(Leaf)
@@ -266,16 +266,16 @@ fn node(%n: Int) -> Maybe(Node) {
     ret %v15
 }
 
-fn checked(%n: Int) -> Result(Int, Node) {
+fn checked(%n: I32) -> Result(I32, Node) {
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 10 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 10 : I32
     assign log, %v4
     %v8 = cmp_le %n, 0 : Bool
     je %v8, b1, b2
 
   b1:
-    %v10 = alloc : Result(Int, Node)
+    %v10 = alloc : Result(I32, Node)
     aggregate %local0.discriminant = 0, %local0@Err = %n
     ret %v10
 
@@ -283,11 +283,11 @@ fn checked(%n: Int) -> Result(Int, Node) {
     jmp b3
 
   b3:
-    %v15 = alloc : Result(Int, Node)
+    %v15 = alloc : Result(I32, Node)
     %v17 = alloc : Node
     %v18 = alloc : Inner
     %v19 = alloc : Deep
-    %v22 = mul %n, 4 : Int
+    %v22 = mul %n, 4 : I32
     aggregate %local4@Deep.value = %v22
     aggregate %local3@Inner.deep = %v19
     %v25 = call leafFor, %n : Maybe(Leaf)
@@ -296,31 +296,31 @@ fn checked(%n: Int) -> Result(Int, Node) {
     ret %v15
 }
 
-fn tail(%n: Int) -> Maybe(Int) {
+fn tail(%n: I32) -> Maybe(I32) {
   b0:
     %v1 = call node, %n : Maybe(Node)
     %v2 = move %local0 : Maybe(Node)
     %v3 = call Try(Maybe(a), a, ()).toOutcome(Node), %v2 : Outcome(Node, ())
-    %v4 = load %local1.discriminant : Int
+    %v4 = load %local1.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b4, b2
 
   b1:
     alloc
-    %v14 = call Try(Maybe(a), a, ()).fromExit(Int), %v13 : Maybe(Int)
+    %v14 = call Try(Maybe(a), a, ()).fromExit(I32), %v13 : Maybe(I32)
     jmp b3
 
   b2:
     %v8 = load %local1@Proceed : Node
     %v9 = load %local1@Proceed@Node.inner : Inner
     %v10 = load %local1@Proceed@Node.inner@Inner.deep : Deep
-    %v11 = load %local1@Proceed@Node.inner@Inner.deep@Deep.value : Int
+    %v11 = load %local1@Proceed@Node.inner@Inner.deep@Deep.value : I32
     drop_derived %local1 via drop$Outcome(Node, ())
-    %v12 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v11 : Maybe(Int)
+    %v12 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, I32), %v11 : Maybe(I32)
     jmp b3
 
   b3:
-    %v17 = phi [b2, %v12], [b1, %v14] : Maybe(Int)
+    %v17 = phi [b2, %v12], [b1, %v14] : Maybe(I32)
     ret %v17
 
   b4:
@@ -328,18 +328,18 @@ fn tail(%n: Int) -> Maybe(Int) {
     jmp b1
 }
 
-fn twoChecks(%n: Int) -> Maybe(Int) {
+fn twoChecks(%n: I32) -> Maybe(I32) {
   b0:
     %v1 = call node, %n : Maybe(Node)
     %v2 = move %local0 : Maybe(Node)
     %v3 = call Try(Maybe(a), a, ()).toOutcome(Node), %v2 : Outcome(Node, ())
-    %v4 = load %local1.discriminant : Int
+    %v4 = load %local1.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b6, b2
 
   b1:
     alloc
-    %v20 = call Try(Maybe(a), a, ()).fromExit(Int), %v19 : Maybe(Int)
+    %v20 = call Try(Maybe(a), a, ()).fromExit(I32), %v19 : Maybe(I32)
     jmp b5
 
   b2:
@@ -348,23 +348,23 @@ fn twoChecks(%n: Int) -> Maybe(Int) {
     %v10 = copy %local1@Proceed@Node.leaf : Maybe(Leaf)
     drop_derived %local1 via drop$Outcome(Node, ())
     %v11 = call Try(Maybe(a), a, ()).toOutcome(Leaf), %v10 : Outcome(Leaf, ())
-    %v12 = load %local3.discriminant : Int
+    %v12 = load %local3.discriminant : I32
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b4
 
   b3:
     alloc
-    %v22 = call Try(Maybe(a), a, ()).fromExit(Int), %v21 : Maybe(Int)
+    %v22 = call Try(Maybe(a), a, ()).fromExit(I32), %v21 : Maybe(I32)
     jmp b5
 
   b4:
     %v16 = load %local3@Proceed : Leaf
-    %v17 = load %local3@Proceed@Leaf.value : Int
-    %v18 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v17 : Maybe(Int)
+    %v17 = load %local3@Proceed@Leaf.value : I32
+    %v18 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, I32), %v17 : Maybe(I32)
     jmp b5
 
   b5:
-    %v26 = phi [b4, %v18], [b1, %v20], [b3, %v22] : Maybe(Int)
+    %v26 = phi [b4, %v18], [b1, %v20], [b3, %v22] : Maybe(I32)
     ret %v26
 
   b6:
@@ -372,87 +372,87 @@ fn twoChecks(%n: Int) -> Maybe(Int) {
     jmp b1
 }
 
-fn viaResult(%n: Int) -> Result(Int, Int) {
+fn viaResult(%n: I32) -> Result(I32, I32) {
   b0:
-    %v1 = call checked, %n : Result(Int, Node)
-    %v2 = move %local0 : Result(Int, Node)
-    %v3 = call Try(Result(e, a), a, e).toOutcome(Int, Node), %v2 : Outcome(Node, Int)
-    %v4 = load %local1.discriminant : Int
+    %v1 = call checked, %n : Result(I32, Node)
+    %v2 = move %local0 : Result(I32, Node)
+    %v3 = call Try(Result(e, a), a, e).toOutcome(I32, Node), %v2 : Outcome(Node, I32)
+    %v4 = load %local1.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
   b1:
-    %v8 = load %local1@Exit : Int
-    drop_derived %local1 via drop$Outcome(Node, Int)
-    %v12 = call Try(Result(e, a), a, e).fromExit(Int, Int), %v8 : Result(Int, Int)
+    %v8 = load %local1@Exit : I32
+    drop_derived %local1 via drop$Outcome(Node, I32)
+    %v12 = call Try(Result(e, a), a, e).fromExit(I32, I32), %v8 : Result(I32, I32)
     jmp b3
 
   b2:
     %v9 = load %local1@Proceed : Node
-    %v10 = load %local1@Proceed@Node.id : Int
-    drop_derived %local1 via drop$Outcome(Node, Int)
-    %v11 = call Rewrap(Result(e, a), b, Result(e, b)).rewrap(Int, Node, Int), %v10 : Result(Int, Int)
+    %v10 = load %local1@Proceed@Node.id : I32
+    drop_derived %local1 via drop$Outcome(Node, I32)
+    %v11 = call Rewrap(Result(e, a), b, Result(e, b)).rewrap(I32, Node, I32), %v10 : Result(I32, I32)
     jmp b3
 
   b3:
-    %v15 = phi [b2, %v11], [b1, %v12] : Result(Int, Int)
+    %v15 = phi [b2, %v11], [b1, %v12] : Result(I32, I32)
     ret %v15
 }
 
-fn pick(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
+fn pick(%a: Maybe(I32), %b: Maybe(I32)) -> I32 {
   b0:
-    %v3 = call unwrapOr, %a, 0 : Int
-    %v5 = call unwrapOr, %b, 0 : Int
-    %v8 = mul %v5, 100 : Int
-    %v9 = add %v3, %v8 : Int
+    %v3 = call unwrapOr, %a, 0 : I32
+    %v5 = call unwrapOr, %b, 0 : I32
+    %v8 = mul %v5, 100 : I32
+    %v9 = add %v3, %v8 : I32
     ret %v9
 }
 
-fn inArgument(%a: Int, %b: Int) -> Int {
+fn inArgument(%a: I32, %b: I32) -> I32 {
   b0:
     %v2 = call node, %a : Maybe(Node)
     %v3 = move %local0 : Maybe(Node)
     %v4 = call Try(Maybe(a), a, ()).toOutcome(Node), %v3 : Outcome(Node, ())
-    %v5 = load %local1.discriminant : Int
+    %v5 = load %local1.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
     je %v7, b7, b2
 
   b1:
     alloc
-    %v13 = call Try(Maybe(a), a, ()).fromExit(Int), %v12 : Maybe(Int)
+    %v13 = call Try(Maybe(a), a, ()).fromExit(I32), %v12 : Maybe(I32)
     jmp b3
 
   b2:
     %v9 = load %local1@Proceed : Node
-    %v10 = load %local1@Proceed@Node.id : Int
+    %v10 = load %local1@Proceed@Node.id : I32
     drop_derived %local1 via drop$Outcome(Node, ())
-    %v11 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v10 : Maybe(Int)
+    %v11 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, I32), %v10 : Maybe(I32)
     jmp b3
 
   b3:
-    %v16 = phi [b2, %v11], [b1, %v13] : Maybe(Int)
+    %v16 = phi [b2, %v11], [b1, %v13] : Maybe(I32)
     %v17 = call node, %b : Maybe(Node)
     %v18 = move %local6 : Maybe(Node)
     %v19 = call Try(Maybe(a), a, ()).toOutcome(Node), %v18 : Outcome(Node, ())
-    %v20 = load %local7.discriminant : Int
+    %v20 = load %local7.discriminant : I32
     %v22 = cmp_eq %v20, 1 : Bool
     je %v22, b8, b5
 
   b4:
     alloc
-    %v28 = call Try(Maybe(a), a, ()).fromExit(Int), %v27 : Maybe(Int)
+    %v28 = call Try(Maybe(a), a, ()).fromExit(I32), %v27 : Maybe(I32)
     jmp b6
 
   b5:
     %v24 = load %local7@Proceed : Node
-    %v25 = load %local7@Proceed@Node.id : Int
+    %v25 = load %local7@Proceed@Node.id : I32
     drop_derived %local7 via drop$Outcome(Node, ())
-    %v26 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, Int), %v25 : Maybe(Int)
+    %v26 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Node, I32), %v25 : Maybe(I32)
     jmp b6
 
   b6:
-    %v31 = phi [b5, %v26], [b4, %v28] : Maybe(Int)
-    %v32 = call pick, %v16, %v31 : Int
+    %v31 = phi [b5, %v26], [b4, %v28] : Maybe(I32)
+    %v32 = call pick, %v16, %v31 : I32
     ret %v32
 
   b7:
@@ -464,18 +464,18 @@ fn inArgument(%a: Int, %b: Int) -> Int {
     jmp b4
 }
 
-fn both(%n: Int) -> Maybe(Int) {
+fn both(%n: I32) -> Maybe(I32) {
   b0:
     %v1 = call node, %n : Maybe(Node)
     %v2 = move %local0 : Maybe(Node)
     %v3 = call Try(Maybe(a), a, ()).toOutcome(Node), %v2 : Outcome(Node, ())
-    %v4 = load %local1.discriminant : Int
+    %v4 = load %local1.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b6, b2
 
   b1:
     alloc
-    %v9 = call Try(Maybe(a), a, ()).fromExit(Int), %v8 : Maybe(Int)
+    %v9 = call Try(Maybe(a), a, ()).fromExit(I32), %v8 : Maybe(I32)
     ret %v9
 
   b2:
@@ -484,23 +484,23 @@ fn both(%n: Int) -> Maybe(Int) {
     %v13 = copy %local1@Proceed@Node.leaf : Maybe(Leaf)
     drop_derived %local1 via drop$Outcome(Node, ())
     %v14 = call Try(Maybe(a), a, ()).toOutcome(Leaf), %v13 : Outcome(Leaf, ())
-    %v15 = load %local5.discriminant : Int
+    %v15 = load %local5.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b3, b4
 
   b3:
     alloc
-    %v23 = call Try(Maybe(a), a, ()).fromExit(Int), %v22 : Maybe(Int)
+    %v23 = call Try(Maybe(a), a, ()).fromExit(I32), %v22 : Maybe(I32)
     jmp b5
 
   b4:
     %v19 = load %local5@Proceed : Leaf
-    %v20 = load %local5@Proceed@Leaf.value : Int
-    %v21 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, Int), %v20 : Maybe(Int)
+    %v20 = load %local5@Proceed@Leaf.value : I32
+    %v21 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap(Leaf, I32), %v20 : Maybe(I32)
     jmp b5
 
   b5:
-    %v26 = phi [b4, %v21], [b3, %v23] : Maybe(Int)
+    %v26 = phi [b4, %v21], [b3, %v23] : Maybe(I32)
     ret %v26
 
   b6:
@@ -508,24 +508,24 @@ fn both(%n: Int) -> Maybe(Int) {
     jmp b1
 }
 
-fn parenthesized(%n: Int) -> Maybe(Int) {
+fn parenthesized(%n: I32) -> Maybe(I32) {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     %v3 = call node, %n : Maybe(Node)
     %v4 = move %local1 : Maybe(Node)
     %v5 = call Try(Maybe(a), a, ()).toOutcome(Node), %v4 : Outcome(Node, ())
-    %v6 = load %local2.discriminant : Int
+    %v6 = load %local2.discriminant : I32
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b3, b2
 
   b1:
     alloc
-    %v11 = call Try(Maybe(a), a, ()).fromExit(Int), %v10 : Maybe(Int)
+    %v11 = call Try(Maybe(a), a, ()).fromExit(I32), %v10 : Maybe(I32)
     ret %v11
 
   b2:
     %v13 = load %local2@Proceed : Node
-    %v14 = load %local2@Proceed@Node.id : Int
+    %v14 = load %local2@Proceed@Node.id : I32
     drop_derived %local2 via drop$Outcome(Node, ())
     aggregate %local0.discriminant = 1, %local0@Just = %v14
     ret %v1
@@ -535,20 +535,20 @@ fn parenthesized(%n: Int) -> Maybe(Int) {
     jmp b1
 }
 
-fn twice(%x: Int) -> Int {
+fn twice(%x: I32) -> I32 {
   b0:
-    %v3 = mul %x, 2 : Int
+    %v3 = mul %x, 2 : I32
     ret %v3
 }
 
-fn maybeFn(%n: Int) -> Maybe((Int) -> Int) {
+fn maybeFn(%n: I32) -> Maybe((I32) -> I32) {
   b0:
     %v3 = cmp_gt %n, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = alloc : Maybe((Int) -> Int)
-    %v7 = alloc : (Int) -> Int
+    %v5 = alloc : Maybe((I32) -> I32)
+    %v7 = alloc : (I32) -> I32
     %v8 = symbol funvalue$twice : %()
     init %local1.code, %v8
     %v11 = cast 0 : %()
@@ -560,100 +560,100 @@ fn maybeFn(%n: Int) -> Maybe((Int) -> Int) {
     jmp b3
 
   b3:
-    %v16 = alloc : Maybe((Int) -> Int)
+    %v16 = alloc : Maybe((I32) -> I32)
     init %local2.discriminant, 0
     ret %v16
 }
 
-fn called(%n: Int) -> Maybe(Int) {
+fn called(%n: I32) -> Maybe(I32) {
   b0:
-    %v1 = call maybeFn, %n : Maybe((Int) -> Int)
-    %v2 = move %local0 : Maybe((Int) -> Int)
-    %v3 = call Try(Maybe(a), a, ()).toOutcome((Int) -> Int), %v2 : Outcome((Int) -> Int, ())
-    %v4 = load %local1.discriminant : Int
+    %v1 = call maybeFn, %n : Maybe((I32) -> I32)
+    %v2 = move %local0 : Maybe((I32) -> I32)
+    %v3 = call Try(Maybe(a), a, ()).toOutcome((I32) -> I32), %v2 : Outcome((I32) -> I32, ())
+    %v4 = load %local1.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b4, b2
 
   b1:
     alloc
-    %v13 = call Try(Maybe(a), a, ()).fromExit(Int), %v12 : Maybe(Int)
+    %v13 = call Try(Maybe(a), a, ()).fromExit(I32), %v12 : Maybe(I32)
     jmp b3
 
   b2:
-    %v8 = load %local1@Proceed : (Int) -> Int
-    %v10 = calldyn %v8, 21 : Int
-    drop_derived %local1 via teardown$Outcome((Int) -> Int, ())
-    %v11 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap((Int) -> Int, Int), %v10 : Maybe(Int)
+    %v8 = load %local1@Proceed : (I32) -> I32
+    %v10 = calldyn %v8, 21 : I32
+    drop_derived %local1 via teardown$Outcome((I32) -> I32, ())
+    %v11 = call Rewrap(Maybe(a), b, Maybe(b)).rewrap((I32) -> I32, I32), %v10 : Maybe(I32)
     jmp b3
 
   b3:
-    %v16 = phi [b2, %v11], [b1, %v13] : Maybe(Int)
+    %v16 = phi [b2, %v11], [b1, %v13] : Maybe(I32)
     ret %v16
 
   b4:
-    drop_derived %local1 via teardown$Outcome((Int) -> Int, ())
+    drop_derived %local1 via teardown$Outcome((I32) -> I32, ())
     jmp b1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     assign log, 0
     assign dropped, 0
-    %v5 = call tail, 6 : Maybe(Int)
-    %a = call unwrapOr, %v5, 0 : Int
-    %v9 = call tail, -1 : Maybe(Int)
-    %b = call unwrapOr, %v9, 0 : Int
-    %v13 = call twoChecks, 6 : Maybe(Int)
-    %c = call unwrapOr, %v13, 0 : Int
-    %v17 = call twoChecks, 3 : Maybe(Int)
-    %d = call unwrapOr, %v17, 0 : Int
-    %v21 = call twoChecks, -1 : Maybe(Int)
-    %e = call unwrapOr, %v21, 0 : Int
-    %v25 = call viaResult, 4 : Result(Int, Int)
-    %f = call okOr, %v25, 0 : Int
-    %v29 = call viaResult, -2 : Result(Int, Int)
-    %g = call okOr, %v29, 0 : Int
-    %h = call inArgument, 2, 7 : Int
-    %v36 = call both, 8 : Maybe(Int)
-    %i = call unwrapOr, %v36, 0 : Int
-    %v40 = call both, 2 : Maybe(Int)
-    %j = call unwrapOr, %v40, 0 : Int
-    %v44 = call both, -1 : Maybe(Int)
-    %k = call unwrapOr, %v44, 0 : Int
-    %v48 = call parenthesized, 5 : Maybe(Int)
-    %l = call unwrapOr, %v48, 0 : Int
-    %v52 = call parenthesized, -1 : Maybe(Int)
-    %m = call unwrapOr, %v52, 0 : Int
-    %v56 = call called, 1 : Maybe(Int)
-    %r = call unwrapOr, %v56, 0 : Int
-    %v60 = call called, -1 : Maybe(Int)
-    %s = call unwrapOr, %v60, 0 : Int
-    %v63 = add %a, %b : Int
-    %v64 = add %v63, %c : Int
-    %v65 = add %v64, %d : Int
-    %v66 = add %v65, %e : Int
-    %v67 = add %v66, %f : Int
-    %v68 = add %v67, %g : Int
-    %v69 = add %v68, %h : Int
-    %v70 = add %v69, %i : Int
-    %v71 = add %v70, %j : Int
-    %v72 = add %v71, %k : Int
-    %v73 = add %v72, %l : Int
-    %v74 = add %v73, %m : Int
-    %v75 = add %v74, %r : Int
-    %sum = add %v75, %s : Int
-    %v77 = load dropped : Int
-    %v80 = mul %v77, 1000 : Int
-    %v81 = add %sum, %v80 : Int
-    %v82 = load log : Int
-    %v85 = mul %v82, 100000 : Int
-    %v86 = add %v81, %v85 : Int
+    %v5 = call tail, 6 : Maybe(I32)
+    %a = call unwrapOr, %v5, 0 : I32
+    %v9 = call tail, -1 : Maybe(I32)
+    %b = call unwrapOr, %v9, 0 : I32
+    %v13 = call twoChecks, 6 : Maybe(I32)
+    %c = call unwrapOr, %v13, 0 : I32
+    %v17 = call twoChecks, 3 : Maybe(I32)
+    %d = call unwrapOr, %v17, 0 : I32
+    %v21 = call twoChecks, -1 : Maybe(I32)
+    %e = call unwrapOr, %v21, 0 : I32
+    %v25 = call viaResult, 4 : Result(I32, I32)
+    %f = call okOr, %v25, 0 : I32
+    %v29 = call viaResult, -2 : Result(I32, I32)
+    %g = call okOr, %v29, 0 : I32
+    %h = call inArgument, 2, 7 : I32
+    %v36 = call both, 8 : Maybe(I32)
+    %i = call unwrapOr, %v36, 0 : I32
+    %v40 = call both, 2 : Maybe(I32)
+    %j = call unwrapOr, %v40, 0 : I32
+    %v44 = call both, -1 : Maybe(I32)
+    %k = call unwrapOr, %v44, 0 : I32
+    %v48 = call parenthesized, 5 : Maybe(I32)
+    %l = call unwrapOr, %v48, 0 : I32
+    %v52 = call parenthesized, -1 : Maybe(I32)
+    %m = call unwrapOr, %v52, 0 : I32
+    %v56 = call called, 1 : Maybe(I32)
+    %r = call unwrapOr, %v56, 0 : I32
+    %v60 = call called, -1 : Maybe(I32)
+    %s = call unwrapOr, %v60, 0 : I32
+    %v63 = add %a, %b : I32
+    %v64 = add %v63, %c : I32
+    %v65 = add %v64, %d : I32
+    %v66 = add %v65, %e : I32
+    %v67 = add %v66, %f : I32
+    %v68 = add %v67, %g : I32
+    %v69 = add %v68, %h : I32
+    %v70 = add %v69, %i : I32
+    %v71 = add %v70, %j : I32
+    %v72 = add %v71, %k : I32
+    %v73 = add %v72, %l : I32
+    %v74 = add %v73, %m : I32
+    %v75 = add %v74, %r : I32
+    %sum = add %v75, %s : I32
+    %v77 = load dropped : I32
+    %v80 = mul %v77, 1000 : I32
+    %v81 = add %sum, %v80 : I32
+    %v82 = load log : I32
+    %v85 = mul %v82, 100000 : I32
+    %v86 = add %v81, %v85 : I32
     ret %v86
 }
 
-fn unwrapOr(%m: Maybe(Int), %fallback: Int) -> Int {
+fn unwrapOr(%m: Maybe(I32), %fallback: I32) -> I32 {
   b0:
-    %v2 = load %m.discriminant : Int
+    %v2 = load %m.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -661,50 +661,50 @@ fn unwrapOr(%m: Maybe(Int), %fallback: Int) -> Int {
     jmp b3
 
   b2:
-    %v = load %m@Just : Int
+    %v = load %m@Just : I32
     jmp b3
 
   b3:
-    %v9 = phi [b2, %v], [b1, %fallback] : Int
+    %v9 = phi [b2, %v], [b1, %fallback] : I32
     ret %v9
 }
 
-fn okOr(%r: Result(Int, Int), %fallback: Int) -> Int {
+fn okOr(%r: Result(I32, I32), %fallback: I32) -> I32 {
   b0:
-    %v2 = load %r.discriminant : Int
+    %v2 = load %r.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
   b1:
-    %v7 = load %r@Err : Int
+    %v7 = load %r@Err : I32
     jmp b3
 
   b2:
-    %v = load %r@Ok : Int
+    %v = load %r@Ok : I32
     jmp b3
 
   b3:
-    %v10 = phi [b2, %v], [b1, %fallback] : Int
+    %v10 = phi [b2, %v], [b1, %fallback] : I32
     ret %v10
 }
 
 fn Drop(Node).drop(%value: Node) -> () {
   b0:
-    %v1 = load dropped : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load dropped : I32
+    %v4 = add %v1, 1 : I32
     assign dropped, %v4
     ret
 }
 
-fn funvalue$twice(%env: %(), %x: Int) -> Int {
+fn funvalue$twice(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call twice, %x : Int
+    %v2 = call twice, %x : I32
     ret %v2
 }
 
 fn drop$Outcome(Node, ())(%value: Outcome(Node, ())) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -719,9 +719,9 @@ fn drop$Outcome(Node, ())(%value: Outcome(Node, ())) -> () {
     jmp b1
 }
 
-fn drop$Outcome(Node, Int)(%value: Outcome(Node, Int)) -> () {
+fn drop$Outcome(Node, I32)(%value: Outcome(Node, I32)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -736,9 +736,9 @@ fn drop$Outcome(Node, Int)(%value: Outcome(Node, Int)) -> () {
     jmp b1
 }
 
-fn teardown$Outcome((Int) -> Int, ())(%value: Outcome((Int) -> Int, ())) -> () {
+fn teardown$Outcome((I32) -> I32, ())(%value: Outcome((I32) -> I32, ())) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -746,7 +746,7 @@ fn teardown$Outcome((Int) -> Int, ())(%value: Outcome((Int) -> Int, ())) -> () {
     ret
 
   b2:
-    drop_derived %value@Proceed via teardown$(Int) -> Int
+    drop_derived %value@Proceed via teardown$(I32) -> I32
     jmp b1
 
   b3:

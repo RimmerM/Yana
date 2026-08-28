@@ -10,7 +10,7 @@ retarget<complex>(%slot: Ptr) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 20, 8: Ptr
     %v_2 = bitcast 0: Ptr
@@ -20,46 +20,46 @@ main<complex>(): Int {
     %v_4 = add %v_1, 8: Ptr
     store %v_4, %v_2, 8
     %v_5 = load %v_1, 8: Ptr
-    %v_6 = call_complex %v_5, %v_2, 10: Int
+    %v_6 = call_complex %v_5, %v_2, 10: I32
     call_complex retarget, %v_1
     %v_7 = add %v_1, 8: Ptr
     %v_8 = load %v_1, 8: Ptr
     %v_9 = load %v_7, 8: Ptr
-    %v_10 = call_complex %v_8, %v_9, 10: Int
+    %v_10 = call_complex %v_8, %v_9, 10: I32
     %v_11 = add %v_1, 16: Ptr
-    %v_12 = loads %v_11, 4: Int
-    %after = imul %v_10, %v_12: Int
+    %v_12 = loads %v_11, 4: I32
+    %after = imul %v_10, %v_12: I32
     store %v_11, 4, 4
     store %v_1, funvalue$negate, 8
     %v_13 = bitcast 0: Ptr
     %v_14 = add %v_1, 8: Ptr
     store %v_14, %v_13, 8
     %v_15 = load %v_1, 8: Ptr
-    %v_16 = call_complex %v_15, %v_13, 10: Int
-    %last = shl %v_16, 2: Int
-    %v_17 = add %v_6, %after: Int
-    %v_18 = add %v_17, %last: Int
+    %v_16 = call_complex %v_15, %v_13, 10: I32
+    %last = shl %v_16, 2: I32
+    %v_17 = add %v_6, %after: I32
+    %v_18 = add %v_17, %last: I32
     ret %v_18
   }
 }
 
-funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
+funvalue$triple<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = imul %x, 3: Int
+    %v_1 = imul %x, 3: I32
     ret %v_1
   }
 }
 
-funvalue$negate<complex>(%env: Ptr, %x: Int): Int {
+funvalue$negate<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = sub 0, %x: Int
+    %v_1 = sub 0, %x: I32
     ret %v_1
   }
 }
 
-funvalue$double<complex>(%env: Ptr, %x: Int): Int {
+funvalue$double<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = shl %x, 1: Int
+    %v_1 = shl %x, 1: I32
     ret %v_1
   }
 }

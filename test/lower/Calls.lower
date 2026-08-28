@@ -1,16 +1,16 @@
 @bytes = [1, 2, 3, 255]
-@number = 1234: Long
+@number = 1234: I64
 @g = 42
 
-callee(%x: Int, %y: Int): Int {
+callee(%x: I32, %y: I32): I32 {
     { ret %x }
 }
 
-namedRefs(): Int {
+namedRefs(): I32 {
     {
         %f = fun callee
         %gv = global @g
-        %v = load %gv, 4: Int
+        %v = load %gv, 4: I32
         ret %v
     }
 }
@@ -18,20 +18,20 @@ namedRefs(): Int {
 # Which arguments travel on the stack is the calling convention's answer, so there is nothing to
 # write here: the x64 backend derives the stores from the convention (see insertStackArgs). At this
 # level a call simply names its arguments.
-manyArgs(%a: Int, %b: Int): Int {
+manyArgs(%a: I32, %b: I32): I32 {
     {
-        %r = call callee, %a, %b: Int
+        %r = call callee, %a, %b: I32
         ret %r
     }
 }
 
-convCalls(%a: Int, %b: Int) {
+convCalls(%a: I32, %b: I32) {
     {
-        %r0 = call_sysv callee, %a, %b: Int
-        %r1 = call_win64 callee, %a, %b: Int
-        %r2 = call_simple callee, %a, %b: Int
-        %r3 = call_complex callee, %a, %b: Int
-        %r4 = call_clobber callee, %a, %b: Int
+        %r0 = call_sysv callee, %a, %b: I32
+        %r1 = call_win64 callee, %a, %b: I32
+        %r2 = call_simple callee, %a, %b: I32
+        %r3 = call_complex callee, %a, %b: I32
+        %r4 = call_clobber callee, %a, %b: I32
         ret
     }
 }

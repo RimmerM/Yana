@@ -1,30 +1,30 @@
 
-crcWord<complex>(%acc: Int, %chunk: Int): Int {
+crcWord<complex>(%acc: I32, %chunk: I32): I32 {
   b_0 {
-    %r = crc32 %acc, %chunk: Int
+    %r = crc32 %acc, %chunk: I32
     ret %r
   }
 }
 
-crcWide<complex>(%acc: Long, %chunk: Long): Long {
+crcWide<complex>(%acc: I64, %chunk: I64): I64 {
   b_0 {
-    %r = crc32 %acc, %chunk: Long
+    %r = crc32 %acc, %chunk: I64
     ret %r
   }
 }
 
-crcFromMemory<complex>(%acc: Long, %p: Ptr): Long {
+crcFromMemory<complex>(%acc: I64, %p: Ptr): I64 {
   b_0 {
-    %chunk = load %p, 8: Long
-    %r = crc32 %acc, %chunk: Long
+    %chunk = load %p, 8: I64
+    %r = crc32 %acc, %chunk: I64
     ret %r
   }
 }
 
-crcChain<complex>(%acc: Long, %a: Long, %b: Long): Long {
+crcChain<complex>(%acc: I64, %a: I64, %b: I64): I64 {
   b_0 {
-    %x = crc32 %acc, %a: Long
-    %r = crc32 %x, %b: Long
+    %x = crc32 %acc, %a: I64
+    %r = crc32 %x, %b: I64
     ret %r
   }
 }

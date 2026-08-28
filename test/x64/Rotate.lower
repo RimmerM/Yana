@@ -16,49 +16,49 @@
 #   - nothing here is `lea`. `shl r, 1` is also `x + x` and the address peephole in gen.cpp takes it;
 #     a rotation by one is not an addition and the peephole asks for `OpShl` by name.
 
-rotateLeft(%x: Int): Int {
+rotateLeft(%x: I32): I32 {
     {
-        %r = rol %x, 7: Int
+        %r = rol %x, 7: I32
         ret %r
     }
 }
 
-rotateRight(%x: Int): Int {
+rotateRight(%x: I32): I32 {
     {
-        %r = ror %x, 7: Int
+        %r = ror %x, 7: I32
         ret %r
     }
 }
 
-rotateLeft64(%x: Long): Long {
+rotateLeft64(%x: I64): I64 {
     {
-        %r = rol %x, 7: Long
+        %r = rol %x, 7: I64
         ret %r
     }
 }
 
 # The count in a register, which is cl and only cl.
-rotateByCl(%x: Int, %c: Int): Int {
+rotateByCl(%x: I32, %c: I32): I32 {
     {
-        %r = rol %x, %c: Int
+        %r = rol %x, %c: I32
         ret %r
     }
 }
 
 # The one-byte encoding, which a distance of one has and no other distance does.
-rotateByOne(%x: Int): Int {
+rotateByOne(%x: I32): I32 {
     {
-        %r = ror %x, 1: Int
+        %r = ror %x, 1: I32
         ret %r
     }
 }
 
 # The operand is read again afterwards, so the rotation cannot write over it: a copy stands in front,
 # exactly as one stands in front of a shift whose subject outlives it.
-rotateAndKeep(%x: Int): Int {
+rotateAndKeep(%x: I32): I32 {
     {
-        %r = rol %x, 3: Int
-        %t = add %r, %x: Int
+        %r = rol %x, 3: I32
+        %t = add %r, %x: I32
         ret %t
     }
 }

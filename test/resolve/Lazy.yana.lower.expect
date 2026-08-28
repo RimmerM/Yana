@@ -1,10 +1,10 @@
 @image$base = []
 mut @effects = [0, 0, 0, 0]
 
-??(Int)<complex>(%value: Ptr, %fallback: Ptr): Int {
+??(I32)<complex>(%value: Ptr, %fallback: Ptr): I32 {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %value, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
@@ -12,26 +12,26 @@ mut @effects = [0, 0, 0, 0]
     %v_5 = add %fallback, 8: Ptr
     %v_6 = load %fallback, 8: Ptr
     %v_7 = load %v_5, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7: Int
+    %v_8 = call_complex %v_6, %v_7: I32
     jmp b_9
   }
 
   b_3 {
     %v_10 = add %value, 4: Ptr
-    %v_11 = loads %v_10, 4: Int
+    %v_11 = loads %v_10, 4: I32
     jmp b_9
   }
 
   b_9 {
-    %v_12 = phi [b_3, %v_11], [b_4, %v_8]: Int
+    %v_12 = phi [b_3, %v_11], [b_4, %v_8]: I32
     ret %v_12
   }
 }
 
-bound<complex>(%m: Ptr): Int {
+bound<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %m, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
@@ -41,8 +41,8 @@ bound<complex>(%m: Ptr): Int {
 
   b_3 {
     %v_6 = add %m, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = cmp_eq %v_7, 3: Int
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = cmp_eq %v_7, 3: I32
     je %v_8, b_9, b_4
   }
 
@@ -51,12 +51,12 @@ bound<complex>(%m: Ptr): Int {
   }
 
   b_5 {
-    %v_10 = phi [b_9, 1], [b_4, 0]: Int
+    %v_10 = phi [b_9, 1], [b_4, 0]: I32
     ret %v_10
   }
 }
 
-fallbackSkipped<complex>(%m: Ptr): Int {
+fallbackSkipped<complex>(%m: Ptr): I32 {
   b_0 {
     %m = alloca 8, 4: Ptr
     copy %m, %m, 8
@@ -65,21 +65,21 @@ fallbackSkipped<complex>(%m: Ptr): Int {
     %v_2 = bitcast 0: Ptr
     %v_3 = add %v_1, 8: Ptr
     store %v_3, %v_2, 8
-    %v_4 = call_complex ??(Int), %m, %v_1: Int
+    %v_4 = call_complex ??(I32), %m, %v_1: I32
     ret %v_4
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %v_1, 2: Int
+    %v_1 = loads @effects, 4: I32
+    %v_2 = add %v_1, 2: I32
     store @effects, %v_2, 4
     %v_3 = alloca 8, 4: Ptr
     store %v_3, 1, 4
     %v_4 = add %v_3, 4: Ptr
     store %v_4, 3, 4
-    %v_5 = call_complex bound, %v_3: Int
+    %v_5 = call_complex bound, %v_3: I32
     je %v_5, b_6, b_7
   }
 
@@ -88,122 +88,122 @@ main<complex>(): Int {
   }
 
   b_7 {
-    %v_8 = phi [b_0, 31], [b_6, 63]: Int
+    %v_8 = phi [b_0, 31], [b_6, 63]: I32
     %v_9 = alloca 8, 4: Ptr
     store %v_9, 1, 4
     %v_10 = add %v_9, 4: Ptr
     store %v_10, 4, 4
-    %v_11 = call_complex bound, %v_9: Int
+    %v_11 = call_complex bound, %v_9: I32
     je %v_11, b_12, b_13
   }
 
   b_13 {
-    %v_14 = add %v_8, 64: Int
+    %v_14 = add %v_8, 64: I32
     jmp b_12
   }
 
   b_12 {
-    %v_15 = phi [b_7, %v_8], [b_13, %v_14]: Int
+    %v_15 = phi [b_7, %v_8], [b_13, %v_14]: I32
     %v_16 = alloca 8, 4: Ptr
     store %v_16, 1, 4
     %v_17 = add %v_16, 4: Ptr
     store %v_17, 5, 4
-    %v_18 = call_complex fallbackSkipped, %v_16: Int
-    %v_19 = cmp_eq %v_18, 5: Int
+    %v_18 = call_complex fallbackSkipped, %v_16: I32
+    %v_19 = cmp_eq %v_18, 5: I32
     je %v_19, b_20, b_21
   }
 
   b_20 {
-    %v_22 = add %v_15, 128: Int
+    %v_22 = add %v_15, 128: I32
     jmp b_21
   }
 
   b_21 {
-    %v_23 = phi [b_12, %v_15], [b_20, %v_22]: Int
+    %v_23 = phi [b_12, %v_15], [b_20, %v_22]: I32
     %v_24 = alloca 8, 4: Ptr
     store %v_24, 0, 4
-    %v_25 = call_complex fallbackSkipped, %v_24: Int
-    %v_26 = cmp_eq %v_25, 7: Int
+    %v_25 = call_complex fallbackSkipped, %v_24: I32
+    %v_26 = cmp_eq %v_25, 7: I32
     je %v_26, b_27, b_28
   }
 
   b_27 {
-    %v_29 = add %v_23, 256: Int
+    %v_29 = add %v_23, 256: I32
     jmp b_28
   }
 
   b_28 {
-    %v_30 = phi [b_21, %v_23], [b_27, %v_29]: Int
-    %v_31 = add %v_30, 512: Int
+    %v_30 = phi [b_21, %v_23], [b_27, %v_29]: I32
+    %v_31 = add %v_30, 512: I32
     %v_32 = bitcast 0: Ptr
-    %v_33 = call_complex ResolveTest.deferred$26, %v_32: Int
-    %v_34 = cmp_eq %v_33, 7: Int
+    %v_33 = call_complex ResolveTest.deferred$26, %v_32: I32
+    %v_34 = cmp_eq %v_33, 7: I32
     je %v_34, b_35, b_36
   }
 
   b_35 {
-    %v_37 = add %v_31, 1024: Int
+    %v_37 = add %v_31, 1024: I32
     jmp b_36
   }
 
   b_36 {
-    %v_38 = phi [b_28, %v_31], [b_35, %v_37]: Int
-    %v_39 = add %v_38, 2048: Int
+    %v_38 = phi [b_28, %v_31], [b_35, %v_37]: I32
+    %v_39 = add %v_38, 2048: I32
     %v_40 = bitcast 0: Ptr
     %v_41 = alloca 4, 4: Ptr
     call_complex ResolveTest.deferred$24, %v_41, %v_40
-    %rhs$bits = loads %v_41, 4: Int
-    %v_42 = and %rhs$bits, 7: Int
-    %v_43 = cmp_eq %v_42, 3: Int
+    %rhs$bits = loads %v_41, 4: I32
+    %v_42 = and %rhs$bits, 7: I32
+    %v_43 = cmp_eq %v_42, 3: I32
     je %v_43, b_44, b_45
   }
 
   b_44 {
-    %v_46 = add %v_39, 4096: Int
+    %v_46 = add %v_39, 4096: I32
     jmp b_45
   }
 
   b_45 {
-    %v_47 = phi [b_36, %v_39], [b_44, %v_46]: Int
+    %v_47 = phi [b_36, %v_39], [b_44, %v_46]: I32
     %v_48 = bitcast 0: Ptr
-    %v_49 = call_complex ResolveTest.deferred$27, %v_48: Int
-    %v_50 = cmp_eq %v_49, 2: Int
+    %v_49 = call_complex ResolveTest.deferred$27, %v_48: I32
+    %v_50 = cmp_eq %v_49, 2: I32
     je %v_50, b_51, b_52
   }
 
   b_51 {
-    %v_53 = add %v_47, 8192: Int
+    %v_53 = add %v_47, 8192: I32
     jmp b_52
   }
 
   b_52 {
-    %v_54 = phi [b_45, %v_47], [b_51, %v_53]: Int
-    %v_55 = add %v_54, 16384: Int
+    %v_54 = phi [b_45, %v_47], [b_51, %v_53]: I32
+    %v_55 = add %v_54, 16384: I32
     %v_56 = bitcast 0: Ptr
-    %v_57 = call_complex ResolveTest.deferred$28, %v_56: Int
-    %v_58 = cmp_eq %v_57, 7: Int
+    %v_57 = call_complex ResolveTest.deferred$28, %v_56: I32
+    %v_58 = cmp_eq %v_57, 7: I32
     je %v_58, b_59, b_60
   }
 
   b_59 {
-    %v_61 = add %v_55, 32768: Int
+    %v_61 = add %v_55, 32768: I32
     jmp b_60
   }
 
   b_60 {
-    %v_62 = phi [b_52, %v_55], [b_59, %v_61]: Int
-    %v_63 = add %v_62, 65536: Int
-    %v_64 = imul %v_63, 100: Int
-    %v_65 = loads @effects, 4: Int
-    %v_66 = add %v_64, %v_65: Int
+    %v_62 = phi [b_52, %v_55], [b_59, %v_61]: I32
+    %v_63 = add %v_62, 65536: I32
+    %v_64 = imul %v_63, 100: I32
+    %v_65 = loads @effects, 4: I32
+    %v_66 = add %v_64, %v_65: I32
     ret %v_66
   }
 }
 
-ResolveTest.deferred$22<complex>(%env: Ptr): Int {
+ResolveTest.deferred$22<complex>(%env: Ptr): I32 {
   b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @effects, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @effects, %v_2, 4
     ret 7
   }
@@ -211,33 +211,33 @@ ResolveTest.deferred$22<complex>(%env: Ptr): Int {
 
 ResolveTest.deferred$24<complex>(%v_0: Ptr, %env: Ptr) {
   b_1 {
-    %v_2 = loads @effects, 4: Int
-    %v_3 = add %v_2, 1: Int
+    %v_2 = loads @effects, 4: I32
+    %v_3 = add %v_2, 1: I32
     store @effects, %v_3, 4
     store %v_0, 3, 4
     ret 
   }
 }
 
-ResolveTest.deferred$26<complex>(%env: Ptr): Int {
+ResolveTest.deferred$26<complex>(%env: Ptr): I32 {
   b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @effects, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @effects, %v_2, 4
     ret 7
   }
 }
 
-ResolveTest.deferred$27<complex>(%env: Ptr): Int {
+ResolveTest.deferred$27<complex>(%env: Ptr): I32 {
   b_0 {
     ret 2
   }
 }
 
-ResolveTest.deferred$28<complex>(%env: Ptr): Int {
+ResolveTest.deferred$28<complex>(%env: Ptr): I32 {
   b_0 {
-    %v_1 = loads @effects, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @effects, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @effects, %v_2, 4
     ret 7
   }

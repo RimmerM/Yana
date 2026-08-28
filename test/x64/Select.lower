@@ -5,10 +5,10 @@
 # Flags-producing comparisons: `merged` has nothing between the cmp and its use, so tryMergeCompare
 # folds it into the select's condition code.
 
-merged(%v: Int, %a: Int, %b: Int): Int {
+merged(%v: I32, %a: I32, %b: I32): I32 {
     {
         %cmp = cmp_eq %v, 1
-        %r = select %cmp, %a, %b: Int
+        %r = select %cmp, %a, %b: I32
         ret %r
     }
 }
@@ -16,11 +16,11 @@ merged(%v: Int, %a: Int, %b: Int): Int {
 # The clobber between the comparison and the select does not have to be there: nothing it reads is
 # defined below the comparison, so it is lifted above it - taking the immediate it reads, which is
 # an instruction of its own, along with it - and the comparison merges after all.
-hoisted(%v: Int, %a: Int, %b: Int): Int {
+hoisted(%v: I32, %a: I32, %b: I32): I32 {
     {
         %cmp = cmp_ilt %v, 0
-        %x = add %a, 1: Int
-        %r = select %cmp, %x, %b: Int
+        %x = add %a, 1: I32
+        %r = select %cmp, %x, %b: I32
         ret %r
     }
 }
@@ -28,35 +28,35 @@ hoisted(%v: Int, %a: Int, %b: Int): Int {
 # `select %c, %v, 0` is the shape the zero peephole used to cost a factor of two on: the zero is
 # materialized as `xor r, r` between the comparison and the select that reads it. Here it goes above
 # the comparison and the select becomes a CMOV on the flags.
-zeroArm(%p: Ptr, %t: Long): Long {
+zeroArm(%p: Ptr, %t: I64): I64 {
     {
-        %v = load %p, 8: Long
+        %v = load %p, 8: I64
         %c = cmp_igt %v, %t
-        %r = select %c, %v, 0L: Long
+        %r = select %c, %v, 0L: I64
         ret %r
     }
 }
 
 # And where the clobber genuinely cannot move, the comparison still goes to a register: the add
 # reads a load, and a load's position is not free to change.
-materialized(%v: Int, %p: Ptr, %b: Int): Int {
+materialized(%v: I32, %p: Ptr, %b: I32): I32 {
     {
         %cmp = cmp_ilt %v, 0
-        %l = load %p, 4: Int
-        %x = add %l, 1: Int
-        %r = select %cmp, %x, %b: Int
+        %l = load %p, 4: I32
+        %x = add %l, 1: I32
+        %r = select %cmp, %x, %b: I32
         ret %r
     }
 }
 
-crossBlock(%v: Int, %a: Int, %b: Int): Int {
+crossBlock(%v: I32, %a: I32, %b: I32): I32 {
     start {
         %cmp = cmp_ige %v, 10
         jmp next
     }
 
     next {
-        %r = select %cmp, %a, %b: Int
+        %r = select %cmp, %a, %b: I32
         ret %r
     }
 }
@@ -64,12 +64,12 @@ crossBlock(%v: Int, %a: Int, %b: Int): Int {
 # A pointer is a value a select can hold, and it is the same CMOV at the other width: `mapMemory`
 # answers zero on a failed `mmap` and the region otherwise, which is one `cmovs` where it used to be
 # a branch, two blocks and a phi. The REX.W is the whole difference from `merged` above - a pointer
-# is 64 bits, so the operand size is the one an `Int` select does not take.
+# is 64 bits, so the operand size is the one an `I32` select does not take.
 #
 # What this fixture is really pinning is that a pointer *reaches* here at all: opt_select.cpp's
 # `selectableType` admits `Ptr` and `Borrow` and still declines a record, whose value is the address
 # of its storage rather than a value, so nothing above builds one of those for this to encode.
-pointerArm(%raw: Long, %p: Ptr): Ptr {
+pointerArm(%raw: I64, %p: Ptr): Ptr {
     {
         %c = cmp_ilt %raw, 0L
         %zero = bitcast 0L: Ptr

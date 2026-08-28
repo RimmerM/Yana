@@ -1,29 +1,29 @@
 
-branch<complex>(%v: Int, %out: Int): Int, Int {
+branch<complex>(%v: I32, %out: I32): I32, I32 {
   start {
     # live-in: %v, %out
-    %v_0 = cmp_le %v, 0: Int
+    %v_0 = cmp_le %v, 0: I32
     je %v_0, a, b
     # live-out: %v, %out
   }
 
   a {
     # live-in: %v, %out
-    %v1 = add %v, 1: Int
+    %v1 = add %v, 1: I32
     jmp end
     # live-out: %out, %v1
   }
 
   b {
     # live-in: %v, %out
-    %v2 = mul %v, 2: Int
+    %v2 = mul %v, 2: I32
     jmp end
     # live-out: %out, %v2
   }
 
   end {
     # live-in: %out, %v_1
-    %v_1 = phi [a, %v1], [b, %v2]: Int
+    %v_1 = phi [a, %v1], [b, %v2]: I32
     ret %v_1, %out
     # live-out: 
   }

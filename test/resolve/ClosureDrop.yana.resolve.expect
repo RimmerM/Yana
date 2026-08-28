@@ -8,7 +8,7 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-let &dropCalls: Int = 0
+let &dropCalls: I32 = 0
 
 table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
   .0 closureRelease${g: Guard}
@@ -46,7 +46,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -97,7 +97,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -133,7 +133,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -219,14 +219,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -258,7 +258,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -316,7 +316,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -339,7 +339,7 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn guarded(%id: Int) -> () -> Int {
+fn guarded(%id: I32) -> () -> I32 {
   b0:
     %g = alloc : Guard
     aggregate %local0@Guard.id = %id
@@ -347,16 +347,16 @@ fn guarded(%id: Int) -> () -> Int {
     %g = move %local0 : Guard
     init %local1.g, %g
     %v6 = addressof %local1 : %()
-    %v7 = alloc : () -> Int
+    %v7 = alloc : () -> I32
     %v8 = symbol ResolveTest.lambda$22 : %()
     init %local2.code, %v8
     init %local2.env, %v6
     ret %v7
 }
 
-fn plain() -> () -> Int {
+fn plain() -> () -> I32 {
   b0:
-    %v0 = alloc : () -> Int
+    %v0 = alloc : () -> I32
     %v1 = symbol ResolveTest.lambda$23 : %()
     init %local0.code, %v1
     %v4 = cast 0 : %()
@@ -364,12 +364,12 @@ fn plain() -> () -> Int {
     ret %v0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %f = call guarded, 7 : () -> Int
-    %a = calldyn %f : Int
-    drop_derived %local0 via teardown$() -> Int
-    %v3 = load dropCalls : Int
+    %f = call guarded, 7 : () -> I32
+    %a = calldyn %f : I32
+    drop_derived %local0 via teardown$() -> I32
+    %v3 = load dropCalls : I32
     %v6 = cmp_ne %v3, 1 : Bool
     je %v6, b1, b2
 
@@ -380,10 +380,10 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %p = call plain : () -> Int
-    %b = calldyn %p : Int
-    drop_derived %local1 via teardown$() -> Int
-    %v13 = load dropCalls : Int
+    %p = call plain : () -> I32
+    %b = calldyn %p : I32
+    drop_derived %local1 via teardown$() -> I32
+    %v13 = load dropCalls : I32
     %v16 = cmp_ne %v13, 1 : Bool
     je %v16, b4, b5
 
@@ -394,24 +394,24 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v21 = add %a, %b : Int
-    %v22 = load dropCalls : Int
-    %v23 = add %v21, %v22 : Int
+    %v21 = add %a, %b : I32
+    %v22 = load dropCalls : I32
+    %v23 = add %v21, %v22 : I32
     ret %v23
 }
 
 fn Drop(Guard).drop(%self: Guard) -> () {
   b0:
-    %v1 = load dropCalls : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load dropCalls : I32
+    %v4 = add %v1, 1 : I32
     assign dropCalls, %v4
     ret
 }
 
-fn ResolveTest.lambda$22(%env: %{g: Guard}) -> Int {
+fn ResolveTest.lambda$22(%env: %{g: Guard}) -> I32 {
   b0:
     %v1 = load [%env].g : Guard
-    %v2 = load [%env].g@Guard.id : Int
+    %v2 = load [%env].g@Guard.id : I32
     ret %v2
 }
 
@@ -421,7 +421,7 @@ fn drop${g: Guard}(%value: {g: Guard}) -> () {
     ret
 }
 
-fn ResolveTest.lambda$23(%env: %{}) -> Int {
+fn ResolveTest.lambda$23(%env: %{}) -> I32 {
   b0:
     ret 5
 }
@@ -435,7 +435,7 @@ fn closureRelease${g: Guard}(%env: %{g: Guard}) -> () {
     ret
 }
 
-fn teardown$() -> Int(%value: () -> Int) -> () {
+fn teardown$() -> I32(%value: () -> I32) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -444,9 +444,9 @@ fn teardown$() -> Int(%value: () -> Int) -> () {
 
   b1:
     %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
     calldyn %v11, %v1

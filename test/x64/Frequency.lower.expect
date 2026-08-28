@@ -1,118 +1,118 @@
 
-neutralLayout<complex>(%c: Int, %a: Int): Int {
+neutralLayout<complex>(%c: I32, %a: I32): I32 {
   start {
     je %c, hot, cold
   }
 
   hot {
-    %h = add %a, 1: Int
+    %h = add %a, 1: I32
     jmp end
   }
 
   cold {
-    %l = add %a, 2: Int
+    %l = add %a, 2: I32
     jmp end
   }
 
   end {
-    %v_0 = phi [hot, %h], [cold, %l]: Int
+    %v_0 = phi [hot, %h], [cold, %l]: I32
     ret %v_0
   }
 }
 
-hintedLayout<complex>(%c: Int, %a: Int): Int {
+hintedLayout<complex>(%c: I32, %a: I32): I32 {
   start {
     je %c, [hot, 99], [cold, 1]
   }
 
   hot {
-    %h = add %a, 1: Int
+    %h = add %a, 1: I32
     jmp end
   }
 
   cold {
-    %l = add %a, 2: Int
+    %l = add %a, 2: I32
     jmp end
   }
 
   end {
-    %v_0 = phi [hot, %h], [cold, %l]: Int
+    %v_0 = phi [hot, %h], [cold, %l]: I32
     ret %v_0
   }
 }
 
-neutralSplitLayout<complex>(%c: Int, %a: Int): Int {
+neutralSplitLayout<complex>(%c: I32, %a: I32): I32 {
   start {
-    %x = add %a, 1: Int
+    %x = add %a, 1: I32
     je %c, hot, end
   }
 
   hot {
-    %h = add %x, 2: Int
+    %h = add %x, 2: I32
     jmp end
   }
 
   end {
-    %v_0 = phi [start, %x], [hot, %h]: Int
+    %v_0 = phi [start, %x], [hot, %h]: I32
     ret %v_0
   }
 }
 
-hintedSplitLayout<complex>(%c: Int, %a: Int): Int {
+hintedSplitLayout<complex>(%c: I32, %a: I32): I32 {
   start {
-    %x = add %a, 1: Int
+    %x = add %a, 1: I32
     je %c, [hot, 99], [end, 1]
   }
 
   hot {
-    %h = add %x, 2: Int
+    %h = add %x, 2: I32
     jmp end
   }
 
   end {
-    %v_0 = phi [start, %x], [hot, %h]: Int
+    %v_0 = phi [start, %x], [hot, %h]: I32
     ret %v_0
   }
 }
 
-neutralCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
+neutralCost<complex>(%n: I32, %c: I32, %a: I32, %b: I32): I32 {
   start {
-    %v0 = add %a, 0: Int
-    %v1 = add %a, 1: Int
-    %v2 = add %a, 2: Int
-    %v3 = add %a, 3: Int
-    %v4 = add %b, 4: Int
-    %v5 = add %b, 5: Int
-    %v6 = add %b, 6: Int
-    %v7 = add %b, 7: Int
-    %z = cast 0: Int
+    %v0 = add %a, 0: I32
+    %v1 = add %a, 1: I32
+    %v2 = add %a, 2: I32
+    %v3 = add %a, 3: I32
+    %v4 = add %b, 4: I32
+    %v5 = add %b, 5: I32
+    %v6 = add %b, 6: I32
+    %v7 = add %b, 7: I32
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [join, %i2]: Int
-    %r = call_complex sink, %i: Int
+    %i = phi [start, %z], [join, %i2]: I32
+    %r = call_complex sink, %i: I32
     je %c, common, rare
   }
 
   common {
-    %c0 = add %v0, %v1: Int
-    %c1 = add %c0, %v2: Int
-    %c2 = add %c1, %v3: Int
+    %c0 = add %v0, %v1: I32
+    %c1 = add %c0, %v2: I32
+    %c2 = add %c1, %v3: I32
     jmp join
   }
 
   rare {
-    %r0 = add %v4, %v5: Int
-    %r1 = add %r0, %v6: Int
-    %r2 = add %r1, %v7: Int
+    %r0 = add %v4, %v5: I32
+    %r1 = add %r0, %v6: I32
+    %r2 = add %r1, %v7: I32
     jmp join
   }
 
   join {
-    %s = phi [common, %c2], [rare, %r2]: Int
-    %i2 = add %i, 1: Int
-    %v_0 = cmp_ilt %i2, %n: Int
+    %s = phi [common, %c2], [rare, %r2]: I32
+    %i2 = add %i, 1: I32
+    %v_0 = cmp_ilt %i2, %n: I32
     je %v_0, head, done
   }
 
@@ -121,44 +121,44 @@ neutralCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
   }
 }
 
-hintedCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
+hintedCost<complex>(%n: I32, %c: I32, %a: I32, %b: I32): I32 {
   start {
-    %v0 = add %a, 0: Int
-    %v1 = add %a, 1: Int
-    %v2 = add %a, 2: Int
-    %v3 = add %a, 3: Int
-    %v4 = add %b, 4: Int
-    %v5 = add %b, 5: Int
-    %v6 = add %b, 6: Int
-    %v7 = add %b, 7: Int
-    %z = cast 0: Int
+    %v0 = add %a, 0: I32
+    %v1 = add %a, 1: I32
+    %v2 = add %a, 2: I32
+    %v3 = add %a, 3: I32
+    %v4 = add %b, 4: I32
+    %v5 = add %b, 5: I32
+    %v6 = add %b, 6: I32
+    %v7 = add %b, 7: I32
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [join, %i2]: Int
-    %r = call_complex sink, %i: Int
+    %i = phi [start, %z], [join, %i2]: I32
+    %r = call_complex sink, %i: I32
     je %c, [common, 1000], [rare, 1]
   }
 
   common {
-    %c0 = add %v0, %v1: Int
-    %c1 = add %c0, %v2: Int
-    %c2 = add %c1, %v3: Int
+    %c0 = add %v0, %v1: I32
+    %c1 = add %c0, %v2: I32
+    %c2 = add %c1, %v3: I32
     jmp join
   }
 
   rare {
-    %r0 = add %v4, %v5: Int
-    %r1 = add %r0, %v6: Int
-    %r2 = add %r1, %v7: Int
+    %r0 = add %v4, %v5: I32
+    %r1 = add %r0, %v6: I32
+    %r2 = add %r1, %v7: I32
     jmp join
   }
 
   join {
-    %s = phi [common, %c2], [rare, %r2]: Int
-    %i2 = add %i, 1: Int
-    %v_0 = cmp_ilt %i2, %n: Int
+    %s = phi [common, %c2], [rare, %r2]: I32
+    %i2 = add %i, 1: I32
+    %v_0 = cmp_ilt %i2, %n: I32
     je %v_0, head, done
   }
 
@@ -167,7 +167,7 @@ hintedCost<complex>(%n: Int, %c: Int, %a: Int, %b: Int): Int {
   }
 }
 
-sink<complex>(%v: Int): Int {
+sink<complex>(%v: I32): I32 {
   b_0 {
     ret %v
   }

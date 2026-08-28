@@ -1,52 +1,52 @@
 @image$base = []
 
-score<complex>(%f: Ptr): Int {
+score<complex>(%f: Ptr): I32 {
   b_0 {
-    %v_1 = load %f, 1: Int
-    %v_2 = and %v_1, 1: Int
-    %v_3 = select %v_2, 10, 20: Int
+    %v_1 = load %f, 1: I32
+    %v_2 = and %v_1, 1: I32
+    %v_3 = select %v_2, 10, 20: I32
     ret %v_3
   }
 }
 
-mutate<complex>(%f: Ptr): Int {
+mutate<complex>(%f: Ptr): I32 {
   b_0 {
-    %v_1 = bitcast %f: Long
-    %v_2 = and %v_1, 281474976710655: Long
+    %v_1 = bitcast %f: I64
+    %v_2 = and %v_1, 281474976710655: I64
     %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: Long
-    %v_5 = load %v_3, 1: Long
-    %v_6 = shl 1, %v_4: Long
-    %v_7 = not %v_6: Long
-    %v_8 = and %v_5, %v_7: Long
-    %v_9 = or %v_8, %v_6: Long
+    %v_4 = shr %v_1, 48: I64
+    %v_5 = load %v_3, 1: I64
+    %v_6 = shl 1, %v_4: I64
+    %v_7 = not %v_6: I64
+    %v_8 = and %v_5, %v_7: I64
+    %v_9 = or %v_8, %v_6: I64
     store %v_3, %v_9, 1
     ret 0
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %f = alloca 1, 1: Ptr
     store %f, 1, 1
-    %handed = call_complex score, %f: Int
-    %again = call_complex score, %f: Int
-    %v_1 = add %handed, 1: Int
-    %v_2 = add %v_1, %again: Int
-    %v_3 = add %v_2, 8: Int
+    %handed = call_complex score, %f: I32
+    %again = call_complex score, %f: I32
+    %v_1 = add %handed, 1: I32
+    %v_2 = add %v_1, %again: I32
+    %v_3 = add %v_2, 8: I32
     %f = alloca 1, 1: Ptr
     store %f, 2, 1
-    %ignored = call_complex score, %f: Int
-    %v_4 = add %ignored, 100: Int
-    %v_5 = add %v_3, %v_4: Int
+    %ignored = call_complex score, %f: I32
+    %v_4 = add %ignored, 100: I32
+    %v_5 = add %v_3, %v_4: I32
     %v_6 = alloca 1, 1: Ptr
     store %v_6, 0, 1
-    %zero = call_complex mutate, %v_6: Int
-    %v_7 = load %v_6, 1: Int
-    %v_8 = and %v_7, 1: Int
-    %v_9 = select %v_8, 1000, 2000: Int
-    %v_10 = add %v_9, %zero: Int
-    %v_11 = add %v_5, %v_10: Int
+    %zero = call_complex mutate, %v_6: I32
+    %v_7 = load %v_6, 1: I32
+    %v_8 = and %v_7, 1: I32
+    %v_9 = select %v_8, 1000, 2000: I32
+    %v_10 = add %v_9, %zero: I32
+    %v_11 = add %v_5, %v_10: I32
     ret %v_11
   }
 }

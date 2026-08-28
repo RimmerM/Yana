@@ -12,7 +12,7 @@ let ResolveTest.string$3: String = "violet"
 
 let ResolveTest.string$4: String = "white"
 
-let ResolveTest.map$0: [{%CodeUnit, Int} *5] = [{&ResolveTest.string$0, 3}, {&ResolveTest.string$1, 5}, {&ResolveTest.string$2, 4}, {&ResolveTest.string$3, 6}, {&ResolveTest.string$4, 5}]
+let ResolveTest.map$0: [{%CodeUnit, I32} *5] = [{&ResolveTest.string$0, 3}, {&ResolveTest.string$1, 5}, {&ResolveTest.string$2, 4}, {&ResolveTest.string$3, 6}, {&ResolveTest.string$4, 5}]
 
 let ResolveTest.string$5: String = "warm"
 
@@ -24,7 +24,7 @@ let ResolveTest.string$8: String = "warm"
 
 let ResolveTest.string$9: String = "cool"
 
-let ResolveTest.map$1: [{%CodeUnit, Int} *5] = [{&ResolveTest.string$5, 4}, {&ResolveTest.string$6, 4}, {&ResolveTest.string$7, 4}, {&ResolveTest.string$8, 4}, {&ResolveTest.string$9, 4}]
+let ResolveTest.map$1: [{%CodeUnit, I32} *5] = [{&ResolveTest.string$5, 4}, {&ResolveTest.string$6, 4}, {&ResolveTest.string$7, 4}, {&ResolveTest.string$8, 4}, {&ResolveTest.string$9, 4}]
 
 let ResolveTest.string$10: String = "colour"
 
@@ -44,7 +44,7 @@ let ResolveTest.string$17: String = <none>
 
 let ResolveTest.string$18: String = "+"
 
-let ResolveTest.map$2: [{%CodeUnit, Int} *3] = [{&ResolveTest.string$16, 1}, {&ResolveTest.string$17, 0}, {&ResolveTest.string$18, 1}]
+let ResolveTest.map$2: [{%CodeUnit, I32} *3] = [{&ResolveTest.string$16, 1}, {&ResolveTest.string$17, 0}, {&ResolveTest.string$18, 1}]
 
 let ResolveTest.string$19: String = "red"
 
@@ -139,7 +139,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -205,7 +205,7 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -228,7 +228,7 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn stringLiteral(%bytes: %CodeUnit, %length: Int) -> String {
+fn stringLiteral(%bytes: %CodeUnit, %length: I32) -> String {
   b0:
     %v2 = alloc : StringData
     %v3 = alloc : Array(CodeUnit)
@@ -408,7 +408,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b10:
     %v143 = load %at : Size
     %v144 = not %same : Mask(CodeUnit)
-    %v145 = vreduce_first %v144 : Int
+    %v145 = vreduce_first %v144 : I32
     %v146 = cast %v145 : Size
     %differs = add %v143, %v146 : Size
     %v148 = strideof CodeUnit : Size
@@ -455,7 +455,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b15:
     %v181 = load %at : Size
     %v182 = not %same : Mask(CodeUnit)
-    %v183 = vreduce_first %v182 : Int
+    %v183 = vreduce_first %v182 : I32
     %v184 = cast %v183 : Size
     %differs = add %v181, %v184 : Size
     %v186 = cmp_lt %differs, %count : Bool
@@ -512,20 +512,20 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
 
 fn nameOf(%c: Colour) -> String {
   b0:
-    %v1 = cast %c : Int
+    %v1 = cast %c : I32
     %v2 = cast %v1 : Size
     %v3 = load ResolveTest.map$0[%v2].0 : %CodeUnit
-    %v4 = load ResolveTest.map$0[%v2].1 : Int
+    %v4 = load ResolveTest.map$0[%v2].1 : I32
     %v5 = call stringLiteral, %v3, %v4 : String
     ret %v5
 }
 
 fn warmth(%c: Colour) -> String {
   b0:
-    %v1 = cast %c : Int
+    %v1 = cast %c : I32
     %v2 = cast %v1 : Size
     %v3 = load ResolveTest.map$1[%v2].0 : %CodeUnit
-    %v4 = load ResolveTest.map$1[%v2].1 : Int
+    %v4 = load ResolveTest.map$1[%v2].1 : I32
     %v5 = call stringLiteral, %v3, %v4 : String
     ret %v5
 }
@@ -538,7 +538,7 @@ fn kindOf(%c: Colour) -> String {
 
 fn bitName(%b: Bit) -> String {
   b0:
-    %v1 = cast %b : Int
+    %v1 = cast %b : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
@@ -557,15 +557,15 @@ fn bitName(%b: Bit) -> String {
 
 fn signText(%s: Sign) -> String {
   b0:
-    %v1 = cast %s : Int
+    %v1 = cast %s : I32
     %v2 = cast %v1 : Size
     %v3 = load ResolveTest.map$2[%v2].0 : %CodeUnit
-    %v4 = load ResolveTest.map$2[%v2].1 : Int
+    %v4 = load ResolveTest.map$2[%v2].1 : I32
     %v5 = call stringLiteral, %v3, %v4 : String
     ret %v5
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -576,62 +576,62 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
-fn twice(%c: Colour) -> Int {
+fn twice(%c: Colour) -> I32 {
   b0:
     %first = call nameOf, %c : String
     %second = call nameOf, %c : String
     %v3 = call Eq(String).==, %first, %second : Bool
-    %v5 = call check, %v3, 1 : Int
+    %v5 = call check, %v3, 1 : I32
     %v6 = call Length(String).length, %first : Size
     drop %local0 via Reclaim(String).reclaim
     %v7 = call Length(String).length, %second : Size
     drop %local1 via Reclaim(String).reclaim
     %v8 = cmp_eq %v6, %v7 : Bool
-    %v10 = call check, %v8, 2 : Int
-    %v11 = add %v5, %v10 : Int
+    %v10 = call check, %v8, 2 : I32
+    %v11 = add %v5, %v10 : I32
     ret %v11
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = call nameOf, Red : String
     %v2 = copy ResolveTest.literal$20 : String
     %v3 = call Eq(String).==, %v1, %v2 : Bool
     drop %local0 via Reclaim(String).reclaim
     drop %local1 via Reclaim(String).reclaim
-    %v5 = call check, %v3, 1 : Int
+    %v5 = call check, %v3, 1 : I32
     %v7 = call nameOf, Green : String
     %v8 = copy ResolveTest.literal$22 : String
     %v9 = call Eq(String).==, %v7, %v8 : Bool
     drop %local2 via Reclaim(String).reclaim
     drop %local3 via Reclaim(String).reclaim
-    %v11 = call check, %v9, 2 : Int
-    %v12 = add %v5, %v11 : Int
+    %v11 = call check, %v9, 2 : I32
+    %v12 = add %v5, %v11 : I32
     %v14 = call nameOf, Blue : String
     %v15 = copy ResolveTest.literal$24 : String
     %v16 = call Eq(String).==, %v14, %v15 : Bool
     drop %local4 via Reclaim(String).reclaim
     drop %local5 via Reclaim(String).reclaim
-    %v18 = call check, %v16, 4 : Int
-    %v19 = add %v12, %v18 : Int
+    %v18 = call check, %v16, 4 : I32
+    %v19 = add %v12, %v18 : I32
     %v21 = call nameOf, Violet : String
     %v22 = copy ResolveTest.literal$26 : String
     %v23 = call Eq(String).==, %v21, %v22 : Bool
     drop %local6 via Reclaim(String).reclaim
     drop %local7 via Reclaim(String).reclaim
-    %v25 = call check, %v23, 8 : Int
-    %v26 = add %v19, %v25 : Int
+    %v25 = call check, %v23, 8 : I32
+    %v26 = add %v19, %v25 : I32
     %v28 = call nameOf, White : String
     %v29 = copy ResolveTest.literal$28 : String
     %v30 = call Eq(String).==, %v28, %v29 : Bool
     drop %local8 via Reclaim(String).reclaim
     drop %local9 via Reclaim(String).reclaim
-    %v32 = call check, %v30, 16 : Int
-    %v33 = add %v26, %v32 : Int
+    %v32 = call check, %v30, 16 : I32
+    %v33 = add %v26, %v32 : I32
     %v35 = call warmth, Red : String
     %v36 = copy ResolveTest.literal$30 : String
     %v37 = call Eq(String).==, %v35, %v36 : Bool
@@ -652,8 +652,8 @@ fn main() -> Int {
 
   b3:
     %v46 = phi [b1, %v42], [b2, False] : Bool
-    %v48 = call check, %v46, 32 : Int
-    %v49 = add %v33, %v48 : Int
+    %v48 = call check, %v46, 32 : I32
+    %v49 = add %v33, %v48 : I32
     %v51 = call warmth, Green : String
     %v52 = copy ResolveTest.literal$34 : String
     %v53 = call Eq(String).==, %v51, %v52 : Bool
@@ -689,8 +689,8 @@ fn main() -> Int {
 
   b9:
     %v71 = phi [b7, %v67], [b8, False] : Bool
-    %v73 = call check, %v71, 64 : Int
-    %v74 = add %v49, %v73 : Int
+    %v73 = call check, %v71, 64 : I32
+    %v74 = add %v49, %v73 : I32
     %v76 = call kindOf, Red : String
     %v77 = copy ResolveTest.literal$40 : String
     %v78 = call Eq(String).==, %v76, %v77 : Bool
@@ -711,8 +711,8 @@ fn main() -> Int {
 
   b12:
     %v87 = phi [b10, %v83], [b11, False] : Bool
-    %v89 = call check, %v87, 128 : Int
-    %v90 = add %v74, %v89 : Int
+    %v89 = call check, %v87, 128 : I32
+    %v90 = add %v74, %v89 : I32
     %v92 = call bitName, Zero : String
     %v93 = copy ResolveTest.literal$44 : String
     %v94 = call Eq(String).==, %v92, %v93 : Bool
@@ -733,8 +733,8 @@ fn main() -> Int {
 
   b15:
     %v103 = phi [b13, %v99], [b14, False] : Bool
-    %v105 = call check, %v103, 256 : Int
-    %v106 = add %v90, %v105 : Int
+    %v105 = call check, %v103, 256 : I32
+    %v106 = add %v90, %v105 : I32
     %v108 = call signText, Minus : String
     %v109 = copy ResolveTest.literal$48 : String
     %v110 = call Eq(String).==, %v108, %v109 : Bool
@@ -755,8 +755,8 @@ fn main() -> Int {
 
   b18:
     %v119 = phi [b16, %v115], [b17, False] : Bool
-    %v121 = call check, %v119, 512 : Int
-    %v122 = add %v106, %v121 : Int
+    %v121 = call check, %v119, 512 : I32
+    %v122 = add %v106, %v121 : I32
     %v124 = call signText, Zeroed : String
     %v125 = copy ResolveTest.literal$52 : String
     %v126 = call Eq(String).==, %v124, %v125 : Bool
@@ -776,8 +776,8 @@ fn main() -> Int {
 
   b21:
     %v137 = phi [b19, %v133], [b20, False] : Bool
-    %v139 = call check, %v137, 1024 : Int
-    %v140 = add %v122, %v139 : Int
+    %v139 = call check, %v137, 1024 : I32
+    %v140 = add %v122, %v139 : I32
     %v142 = call nameOf, Violet : String
     %v143 = call Length(String).length, %v142 : Size
     drop %local35 via Reclaim(String).reclaim
@@ -796,11 +796,11 @@ fn main() -> Int {
 
   b24:
     %v157 = phi [b22, %v153], [b23, False] : Bool
-    %v159 = call check, %v157, 2048 : Int
-    %v160 = add %v140, %v159 : Int
-    %v162 = call twice, Green : Int
+    %v159 = call check, %v157, 2048 : I32
+    %v160 = add %v140, %v159 : I32
+    %v162 = call twice, Green : I32
     %v165 = cmp_eq %v162, 3 : Bool
-    %v167 = call check, %v165, 4096 : Int
-    %v168 = add %v160, %v167 : Int
+    %v167 = call check, %v165, 4096 : I32
+    %v168 = add %v160, %v167 : I32
     ret %v168
 }

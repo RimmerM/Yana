@@ -1,18 +1,18 @@
 
-exitDeclaredFirst<complex>(%n: Int): Int {
+exitDeclaredFirst<complex>(%n: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [body, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [body, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, out, body
   }
 
   body {
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -21,20 +21,20 @@ exitDeclaredFirst<complex>(%n: Int): Int {
   }
 }
 
-bodyDeclaredFirst<complex>(%n: Int): Int {
+bodyDeclaredFirst<complex>(%n: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [body, %i2]: Int
-    %v_0 = cmp_ilt %i, %n: Int
+    %i = phi [start, %z], [body, %i2]: I32
+    %v_0 = cmp_ilt %i, %n: I32
     je %v_0, body, out
   }
 
   body {
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -43,15 +43,15 @@ bodyDeclaredFirst<complex>(%n: Int): Int {
   }
 }
 
-twoBackEdges<complex>(%n: Int, %c: Int): Int {
+twoBackEdges<complex>(%n: I32, %c: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [left, %l], [right, %r]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [left, %l], [right, %r]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, out, split
   }
 
@@ -60,12 +60,12 @@ twoBackEdges<complex>(%n: Int, %c: Int): Int {
   }
 
   left {
-    %l = add %i, 1: Int
+    %l = add %i, 1: I32
     jmp head
   }
 
   right {
-    %r = add %i, 2: Int
+    %r = add %i, 2: I32
     jmp head
   }
 
@@ -74,35 +74,35 @@ twoBackEdges<complex>(%n: Int, %c: Int): Int {
   }
 }
 
-nested<complex>(%n: Int, %m: Int): Int {
+nested<complex>(%n: I32, %m: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp outer
   }
 
   outer {
-    %i = phi [start, %z], [outerEnd, %i2]: Int
-    %acc = phi [start, %z], [outerEnd, %acc2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [outerEnd, %i2]: I32
+    %acc = phi [start, %z], [outerEnd, %acc2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, done, innerHead
   }
 
   innerHead {
-    %j = phi [outer, %z], [innerBody, %j2]: Int
-    %a = phi [outer, %acc], [innerBody, %a2]: Int
-    %v_1 = cmp_ige %j, %m: Int
+    %j = phi [outer, %z], [innerBody, %j2]: I32
+    %a = phi [outer, %acc], [innerBody, %a2]: I32
+    %v_1 = cmp_ige %j, %m: I32
     je %v_1, outerEnd, innerBody
   }
 
   innerBody {
-    %a2 = add %a, %j: Int
-    %j2 = add %j, 1: Int
+    %a2 = add %a, %j: I32
+    %j2 = add %j, 1: I32
     jmp innerHead
   }
 
   outerEnd {
-    %acc2 = add %a, 1: Int
-    %i2 = add %i, 1: Int
+    %acc2 = add %a, 1: I32
+    %i2 = add %i, 1: I32
     jmp outer
   }
 
@@ -111,15 +111,15 @@ nested<complex>(%n: Int, %m: Int): Int {
   }
 }
 
-declaredOutOfOrder<complex>(%n: Int): Int {
+declaredOutOfOrder<complex>(%n: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [body, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [body, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, out, body
   }
 
@@ -128,20 +128,20 @@ declaredOutOfOrder<complex>(%n: Int): Int {
   }
 
   body {
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     jmp head
   }
 }
 
-branchInBody<complex>(%n: Int, %c: Int): Int {
+branchInBody<complex>(%n: I32, %c: I32): I32 {
   start {
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
-    %i = phi [start, %z], [join, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [join, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, out, test
   }
 
@@ -150,17 +150,17 @@ branchInBody<complex>(%n: Int, %c: Int): Int {
   }
 
   even {
-    %e = add %i, 2: Int
+    %e = add %i, 2: I32
     jmp join
   }
 
   odd {
-    %o = add %i, 1: Int
+    %o = add %i, 1: I32
     jmp join
   }
 
   join {
-    %i2 = phi [even, %e], [odd, %o]: Int
+    %i2 = phi [even, %e], [odd, %o]: I32
     jmp head
   }
 

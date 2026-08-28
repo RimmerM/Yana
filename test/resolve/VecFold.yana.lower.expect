@@ -2,15 +2,15 @@
 mut @a = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 mut @b = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-sum<complex>(%xs$items: Ptr, %xs$length: Long): i32x8 {
+sum<complex>(%xs$items: Ptr, %xs$length: I64): i32x8 {
   b_0 {
-    %v_1 = cmp_eq %xs$length, 0: Int
+    %v_1 = cmp_eq %xs$length, 0: I32
     je %v_1, b_2, b_3
   }
 
   b_3 {
     %v_4 = load %xs$items, 32: i32x8
-    %v_5 = cmp_ge 1, %xs$length: Int
+    %v_5 = cmp_ge 1, %xs$length: I32
     je %v_5, b_2, b_6
   }
 
@@ -22,20 +22,20 @@ sum<complex>(%xs$items: Ptr, %xs$length: Long): i32x8 {
   }
 
   b_2 {
-    %v_10 = syscall 60, 134: Long
+    %v_10 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-masked<complex>(%xs$items: Ptr, %xs$length: Long): i32x8 {
+masked<complex>(%xs$items: Ptr, %xs$length: I64): i32x8 {
   b_0 {
-    %v_1 = cmp_eq %xs$length, 0: Int
+    %v_1 = cmp_eq %xs$length, 0: I32
     je %v_1, b_2, b_3
   }
 
   b_3 {
     %v_4 = load %xs$items, 32: i32x8
-    %v_5 = cmp_ge 1, %xs$length: Int
+    %v_5 = cmp_ge 1, %xs$length: I32
     je %v_5, b_2, b_6
   }
 
@@ -47,12 +47,12 @@ masked<complex>(%xs$items: Ptr, %xs$length: Long): i32x8 {
   }
 
   b_2 {
-    %v_10 = syscall 60, 134: Long
+    %v_10 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-main$<complex>(): Int {
+main$<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 11: i32x8
     store @a, %v_1, 32
@@ -60,17 +60,17 @@ main$<complex>(): Int {
     store @b, %v_2, 32
     %v_3 = alloca 4, 8: Ptr
     %v_4 = alloca 64, 16: Ptr
-    %v_5 = load %v_3, 4: Int
+    %v_5 = load %v_3, 4: I32
     store %v_3, 2, 4
     store %v_4, %v_1, 32
     %v_6 = add %v_4, 32: Ptr
     store %v_6, %v_2, 32
     %s = call_complex sum, %v_4, 2: i32x8
     %m = call_complex masked, %v_4, 2: i32x8
-    %v_7 = vlane %s, 0: Int
-    %v_8 = imul %v_7, 100: Int
-    %v_9 = vlane %m, 1: Int
-    %v_10 = add %v_8, %v_9: Int
+    %v_7 = vlane %s, 0: I32
+    %v_8 = imul %v_7, 100: I32
+    %v_9 = vlane %m, 1: I32
+    %v_10 = add %v_8, %v_9: I32
     ret %v_10
   }
 }

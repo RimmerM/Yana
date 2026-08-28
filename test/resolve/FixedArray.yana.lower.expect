@@ -1,15 +1,15 @@
 @image$base = []
 
-total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+total<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   b_0 {
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = sext %v_5: Long
-    %v_8 = cmp_ilt %v_7, %xs$length: Int
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: I32
+    %v_7 = sext %v_5: I64
+    %v_8 = cmp_ilt %v_7, %xs$length: I32
     je %v_8, b_9, b_10
   }
 
@@ -18,27 +18,27 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   }
 
   b_9 {
-    %v_11 = sext %v_5: Long
-    %v_12 = cmp_ge %v_11, %xs$length: Int
+    %v_11 = sext %v_5: I64
+    %v_12 = cmp_ge %v_11, %xs$length: I32
     je %v_12, b_13, b_3
   }
 
   b_3 {
-    %v_14 = shl %v_11, 2: Long
+    %v_14 = shl %v_11, 2: I64
     %v_15 = add %xs$items, %v_14: Ptr
-    %v_16 = loads %v_15, 4: Int
-    %v_4 = add %v_2, %v_16: Int
-    %v_6 = add %v_5, 1: Int
+    %v_16 = loads %v_15, 4: I32
+    %v_4 = add %v_2, %v_16: I32
+    %v_6 = add %v_5, 1: I32
     jmp b_1
   }
 
   b_13 {
-    %v_17 = syscall 60, 134: Long
+    %v_17 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %none = alloca 1, 1: Ptr
     %v_1 = alloca 16, 4: Ptr
@@ -49,15 +49,15 @@ main<complex>(): Int {
     store %v_3, 3, 4
     %v_4 = add %v_1, 12: Ptr
     store %v_4, 4, 4
-    %v_5 = call_complex total, %v_1, 4: Int
-    %v_6 = cmp_neq %v_5, 10: Int
+    %v_5 = call_complex total, %v_1, 4: I32
+    %v_6 = cmp_neq %v_5, 10: I32
     je %v_6, b_7, b_8
   }
 
   b_8 {
     %v_9 = add %v_1, 4: Ptr
-    %v_10 = call_complex total, %v_9, 2: Int
-    %v_11 = cmp_neq %v_10, 5: Int
+    %v_10 = call_complex total, %v_9, 2: I32
+    %v_11 = cmp_neq %v_10, 5: I32
     je %v_11, b_12, b_13
   }
 
@@ -66,15 +66,15 @@ main<complex>(): Int {
   }
 
   b_14 {
-    %v_15 = phi [b_13, 0], [b_16, %v_17]: Int
-    %v_18 = sext %v_15: Long
-    %v_19 = cmp_ilt %v_18, 4: Int
+    %v_15 = phi [b_13, 0], [b_16, %v_17]: I32
+    %v_18 = sext %v_15: I64
+    %v_19 = cmp_ilt %v_18, 4: I32
     je %v_19, b_20, b_21
   }
 
   b_21 {
-    %v_22 = call_complex total, %v_1, 4: Int
-    %v_23 = cmp_neq %v_22, 20: Int
+    %v_22 = call_complex total, %v_1, 4: I32
+    %v_23 = cmp_neq %v_22, 20: I32
     je %v_23, b_24, b_25
   }
 
@@ -83,8 +83,8 @@ main<complex>(): Int {
     store %v_26, 7, 4
     %v_27 = add %v_26, 4: Ptr
     store %v_27, 8, 4
-    %v_28 = call_complex total, %v_26, 2: Int
-    %v_29 = cmp_neq %v_28, 15: Int
+    %v_28 = call_complex total, %v_26, 2: I32
+    %v_29 = cmp_neq %v_28, 15: I32
     je %v_29, b_30, b_31
   }
 
@@ -93,14 +93,14 @@ main<complex>(): Int {
     store %v_32, 7, 4
     %v_33 = add %v_32, 4: Ptr
     store %v_33, 8, 4
-    %v_34 = loads %v_32, 4: Int
-    %v_35 = add %v_34, 1: Int
+    %v_34 = loads %v_32, 4: I32
+    %v_35 = add %v_34, 1: I32
     store %v_32, %v_35, 4
-    %v_36 = loads %v_33, 4: Int
-    %v_37 = add %v_36, 1: Int
+    %v_36 = loads %v_33, 4: I32
+    %v_37 = add %v_36, 1: I32
     store %v_33, %v_37, 4
-    %v_38 = call_complex total, %v_32, 2: Int
-    %v_39 = cmp_neq %v_38, 17: Int
+    %v_38 = call_complex total, %v_32, 2: I32
+    %v_39 = cmp_neq %v_38, 17: I32
     je %v_39, b_40, b_41
   }
 
@@ -109,7 +109,7 @@ main<complex>(): Int {
   }
 
   b_42 {
-    %v_43 = call_complex total, %v_1, 4: Int
+    %v_43 = call_complex total, %v_1, 4: I32
     ret %v_43
   }
 
@@ -126,27 +126,27 @@ main<complex>(): Int {
   }
 
   b_20 {
-    %v_44 = sext %v_15: Long
-    %v_45 = cmp_ge %v_44, 4: Int
+    %v_44 = sext %v_15: I64
+    %v_45 = cmp_ge %v_44, 4: I32
     je %v_45, b_46, b_47
   }
 
   b_47 {
-    %v_48 = shl %v_44, 2: Long
+    %v_48 = shl %v_44, 2: I64
     %v_49 = add %v_1, %v_48: Ptr
-    %value = loads %v_49, 4: Int
+    %value = loads %v_49, 4: I32
     jmp b_16
   }
 
   b_16 {
-    %v_50 = add %value, %value: Int
+    %v_50 = add %value, %value: I32
     store %v_49, %v_50, 4
-    %v_17 = add %v_15, 1: Int
+    %v_17 = add %v_15, 1: I32
     jmp b_14
   }
 
   b_46 {
-    %v_51 = syscall 60, 134: Long
+    %v_51 = syscall 60, 134: I64
     unreachable 
   }
 

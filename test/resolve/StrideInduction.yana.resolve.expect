@@ -125,13 +125,13 @@ fn growArray(Cell)(%self: Array(Cell), %wanted: Size) -> () {
 fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -143,7 +143,7 @@ fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(Cell)
     %v14 = load %value@Array.run@Run.items : %Cell
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof Cell : Size
     %v18 = mul %v16, %v17 : Size
@@ -152,8 +152,8 @@ fn Reclaim(Array(a)).reclaim(Cell)(%value: Array(Cell)) -> () {
     %v21 = move %local2 : Cell
     %doomed = alloc : Cell
     init %local3, %v21
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -198,7 +198,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -249,7 +249,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -285,7 +285,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -371,14 +371,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -410,7 +410,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -468,7 +468,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1025,7 +1025,7 @@ fn resize(Cell)(%self: Run(Cell), %wanted: Size) -> Bool {
     %v28 = call byteSpan(Cell), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %Cell
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1115,11 +1115,11 @@ fn releaseRun(Cell)(%self: Run(Cell)) -> () {
     ret
 }
 
-fn strided(%xs: Flat(Cell), %by: Size) -> Int {
+fn strided(%xs: Flat(Cell), %by: Size) -> I32 {
   b0:
     %i = alloc : Size
     init %i, 0
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     jmp b1
 
@@ -1129,11 +1129,11 @@ fn strided(%xs: Flat(Cell), %by: Size) -> Int {
     je %v12, b3, b2
 
   b2:
-    %v50 = load %total : Int
+    %v50 = load %total : I32
     ret %v50
 
   b3:
-    %v14 = load %total : Int
+    %v14 = load %total : I32
     %v15 = load %i : Size
     %v16 = borrow %xs : 'Flat(Cell)
     %v17 = load [%v16]@Flat.length : Size
@@ -1142,13 +1142,13 @@ fn strided(%xs: Flat(Cell), %by: Size) -> Int {
     %v20 = cmp_ge %v18, %v19 : Bool
     call checkCondition, %v20
     %v22 = load [%v16]@Flat.items : %Cell
-    %v23 = strideof Cell : Long
-    %v24 = mul %v15, %v23 : Long
+    %v23 = strideof Cell : I64
+    %v24 = mul %v15, %v23 : I64
     %v25 = add %v22, %v24 : %Cell
     %v26 = borrow [%v25] : 'Cell
     %v27 = load [%v26] : Cell
-    %v28 = load [%v26]@Cell.a : Int
-    %v29 = add %v14, %v28 : Int
+    %v28 = load [%v26]@Cell.a : I32
+    %v29 = add %v14, %v28 : I32
     %v30 = load %i : Size
     %v31 = borrow %xs : 'Flat(Cell)
     %v32 = load [%v31]@Flat.length : Size
@@ -1157,13 +1157,13 @@ fn strided(%xs: Flat(Cell), %by: Size) -> Int {
     %v35 = cmp_ge %v33, %v34 : Bool
     call checkCondition, %v35
     %v37 = load [%v31]@Flat.items : %Cell
-    %v38 = strideof Cell : Long
-    %v39 = mul %v30, %v38 : Long
+    %v38 = strideof Cell : I64
+    %v39 = mul %v30, %v38 : I64
     %v40 = add %v37, %v39 : %Cell
     %v41 = borrow [%v40] : 'Cell
     %v42 = load [%v41] : Cell
-    %v43 = load [%v41]@Cell.e : Int
-    %v44 = add %v29, %v43 : Int
+    %v43 = load [%v41]@Cell.e : I32
+    %v44 = add %v29, %v43 : I32
     assign %total, %v44
     %v46 = load %i : Size
     %v47 = add %v46, %by : Size
@@ -1171,11 +1171,11 @@ fn strided(%xs: Flat(Cell), %by: Size) -> Int {
     jmp b1
 }
 
-fn everyOther(%xs: Flat(Cell)) -> Int {
+fn everyOther(%xs: Flat(Cell)) -> I32 {
   b0:
     %i = alloc : Size
     init %i, 0
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     jmp b1
 
@@ -1185,11 +1185,11 @@ fn everyOther(%xs: Flat(Cell)) -> Int {
     je %v11, b3, b2
 
   b2:
-    %v51 = load %total : Int
+    %v51 = load %total : I32
     ret %v51
 
   b3:
-    %v13 = load %total : Int
+    %v13 = load %total : I32
     %v14 = load %i : Size
     %v15 = borrow %xs : 'Flat(Cell)
     %v16 = load [%v15]@Flat.length : Size
@@ -1198,13 +1198,13 @@ fn everyOther(%xs: Flat(Cell)) -> Int {
     %v19 = cmp_ge %v17, %v18 : Bool
     call checkCondition, %v19
     %v21 = load [%v15]@Flat.items : %Cell
-    %v22 = strideof Cell : Long
-    %v23 = mul %v14, %v22 : Long
+    %v22 = strideof Cell : I64
+    %v23 = mul %v14, %v22 : I64
     %v24 = add %v21, %v23 : %Cell
     %v25 = borrow [%v24] : 'Cell
     %v26 = load [%v25] : Cell
-    %v27 = load [%v25]@Cell.a : Int
-    %v28 = add %v13, %v27 : Int
+    %v27 = load [%v25]@Cell.a : I32
+    %v28 = add %v13, %v27 : I32
     %v29 = load %i : Size
     %v30 = borrow %xs : 'Flat(Cell)
     %v31 = load [%v30]@Flat.length : Size
@@ -1213,13 +1213,13 @@ fn everyOther(%xs: Flat(Cell)) -> Int {
     %v34 = cmp_ge %v32, %v33 : Bool
     call checkCondition, %v34
     %v36 = load [%v30]@Flat.items : %Cell
-    %v37 = strideof Cell : Long
-    %v38 = mul %v29, %v37 : Long
+    %v37 = strideof Cell : I64
+    %v38 = mul %v29, %v37 : I64
     %v39 = add %v36, %v38 : %Cell
     %v40 = borrow [%v39] : 'Cell
     %v41 = load [%v40] : Cell
-    %v42 = load [%v40]@Cell.e : Int
-    %v43 = add %v28, %v42 : Int
+    %v42 = load [%v40]@Cell.e : I32
+    %v43 = add %v28, %v42 : I32
     assign %total, %v43
     %v45 = load %i : Size
     %v48 = add %v45, 2 : Size
@@ -1227,7 +1227,7 @@ fn everyOther(%xs: Flat(Cell)) -> Int {
     jmp b1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Array(Cell)
     %v3 = alloc *0 : Cell
@@ -1236,12 +1236,12 @@ fn main() -> Int {
     init %xs@Array.run@Run.capacity, 0
     init %xs@Array.run@Run.ownsHeap, 0
     init %xs@Array.length, 0
-    %n = alloc : Int
+    %n = alloc : I32
     init %n, 0
     jmp b1
 
   b1:
-    %v14 = load %n : Int
+    %v14 = load %n : I32
     %v17 = cmp_lt %v14, 6 : Bool
     je %v17, b3, b2
 
@@ -1254,22 +1254,22 @@ fn main() -> Int {
     %v45 = load [%v41]@Array.length : @bits(30) U32
     %v46 = cast %v45 : Size
     init %local5@Flat.length, %v46
-    %v49 = call strided, %v42, 2 : Int
+    %v49 = call strided, %v42, 2 : I32
     %v52 = cmp_ne %v49, 66 : Bool
     je %v52, b16, b5
 
   b3:
     %v19 = load %xs : Array(Cell)
     %v20 = alloc : Cell
-    %v21 = load %n : Int
-    %v25 = load %n : Int
-    %v28 = mul %v25, 10 : Int
+    %v21 = load %n : I32
+    %v25 = load %n : I32
+    %v28 = mul %v25, 10 : I32
     aggregate %local3@Cell.a = %v21, %local3@Cell.b = 0, %local3@Cell.c = 0, %local3@Cell.d = 0, %local3@Cell.e = %v28, %local3@Cell.f = 0
     %v31 = borrow_mut %xs : &Array(Cell)
     %v32 = copy %local3 : Cell
     call push(Cell), %v31, %v32
-    %v34 = load %n : Int
-    %v37 = add %v34, 1 : Int
+    %v34 = load %n : I32
+    %v37 = add %v34, 1 : I32
     assign %n, %v37
     jmp b1
 
@@ -1288,7 +1288,7 @@ fn main() -> Int {
     %v62 = load [%v58]@Array.length : @bits(30) U32
     %v63 = cast %v62 : Size
     init %local6@Flat.length, %v63
-    %v65 = call everyOther, %v59 : Int
+    %v65 = call everyOther, %v59 : I32
     %v68 = cmp_ne %v65, 66 : Bool
     je %v68, b17, b8
 
@@ -1307,7 +1307,7 @@ fn main() -> Int {
     %v78 = load [%v74]@Array.length : @bits(30) U32
     %v79 = cast %v78 : Size
     init %local7@Flat.length, %v79
-    %v82 = call strided, %v75, 1 : Int
+    %v82 = call strided, %v75, 1 : I32
     %v85 = cmp_ne %v82, 165 : Bool
     je %v85, b18, b11
 
@@ -1326,7 +1326,7 @@ fn main() -> Int {
     %v95 = load [%v91]@Array.length : @bits(30) U32
     %v96 = cast %v95 : Size
     init %local8@Flat.length, %v96
-    %v99 = call strided, %v92, 9 : Int
+    %v99 = call strided, %v92, 9 : I32
     %v102 = cmp_ne %v99, 0 : Bool
     je %v102, b19, b14
 
@@ -1345,7 +1345,7 @@ fn main() -> Int {
     %v112 = load [%v108]@Array.length : @bits(30) U32
     %v113 = cast %v112 : Size
     init %local9@Flat.length, %v113
-    %v116 = call strided, %v109, 2 : Int
+    %v116 = call strided, %v109, 2 : I32
     %v117 = load %xs : Array(Cell)
     %v118 = borrow %xs : 'Array(Cell)
     %v119 = alloc : Flat(Cell)
@@ -1354,9 +1354,9 @@ fn main() -> Int {
     %v122 = load [%v118]@Array.length : @bits(30) U32
     %v123 = cast %v122 : Size
     init %local10@Flat.length, %v123
-    %v126 = call strided, %v119, 3 : Int
+    %v126 = call strided, %v119, 3 : I32
     drop %xs via Reclaim(Array(a)).reclaim(Cell)
-    %v127 = add %v116, %v126 : Int
+    %v127 = add %v116, %v126 : I32
     ret %v127
 
   b16:

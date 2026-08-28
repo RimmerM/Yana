@@ -448,14 +448,13 @@ fn (Real(a, m)) arcCosineOf(value: a) -> a:
    arithmetic. One half would have wrapped a large exponent back into the middle of the field and
    answered a finite number for `exp(1000.0)`.
 
-   **The scalar and vector bodies reach the integer domain by different names, and neither is a
-   stylistic choice.** A scalar reinterprets through `I32` and `I64` and converts through `Int` and
-   `Long`, because `defineBitcastLadder` skips the canonical integer types - there is no
-   `Bitcast(Int, Float)` rung - while the conversion ladder relates a float only to `Int` and `Long`.
-   A vector does both through `Vec(Int)` and `Vec(Long)`: a vector `Bitcast` is decided by byte width
-   alone and so needs no `I32`, and going by way of one would emit a packed `Vec(I32)` to `Vec(Int)`
-   cast that the x64 backend refuses - the only packed conversion it keeps in one register is between
-   32-bit integer lanes and float ones, and a same-width integer pair is not that.
+   **The scalar bodies reinterpret and convert through one name each**, `I32` beside a `F32` and
+   `I64` beside a `F64`. They used to need two - a reinterpretation went through `I32` because
+   `defineBitcastLadder` skipped the canonical integer types, and a conversion went through `Int`
+   because the ladder related a float to nothing else - so a body that did both laundered a value
+   from one spelling of a 32-bit signed integer into the other in the middle of the expression. That
+   is the pair Analysis-Spellings.md item 7 merged, and these bodies are what it reads like
+   afterwards: five `widen`s that were the identity are simply gone.
 -}
 fn clampFloatExponent(exponent: Float) -> Float = min(max(exponent, -126.0), 127.0)
 
@@ -468,7 +467,7 @@ fn clampVecDoubleExponent(exponent: Vec(F64)) -> Vec(F64) =
     min(max(exponent, splat(-1022.0 :: Double)), splat(1023.0 :: Double))
 
 fn powerOfTwoFloat(exponent: Float) -> Float =
-    bitcast(((widen(truncate(exponent) :: Int) :: I32) + 127) `shl` 23) :: Float
+    bitcast(((truncate(exponent) :: I32) + 127) `shl` 23) :: Float
 
 {-
    The `Double` primitives, which are the one family in this module that is `@platform`-split.
@@ -500,7 +499,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
    is the only way to see a float's bits at all.
 -}
 @platform(native) fn powerOfTwoDouble(exponent: Double) -> Double =
-    bitcast(((widen(truncate(exponent) :: Long) :: I64) + 1023) `shl` 52) :: Double
+    bitcast(((truncate(exponent) :: I64) + 1023) `shl` 52) :: Double
 
 @platform(js) fn powerOfTwoDouble(exponent: Double) -> Double:
     let negative = exponent < 0.0
@@ -525,7 +524,7 @@ fn powerOfTwoFloat(exponent: Float) -> Float =
 
 @platform(native) fn exponentOfDouble(value: Double) -> Double:
     let bits = bitcast(value) :: I64
-    return (widen(widen(bitfield(bits, start: 52, count: 11)) :: Long) :: Double) - 1023.0
+    return (widen(bitfield(bits, start: 52, count: 11)) :: Double) - 1023.0
 
 @platform(native) fn significandOfDouble(value: Double) -> Double =
     bitcast(((bitcast(value) :: I64) `and` 4503599627370495) `or` 4607182418800017408) :: Double
@@ -623,12 +622,12 @@ instance Real(Float, Bool):
 
     fn exponentOf(value: Float) -> Float:
         let bits = bitcast(value) :: I32
-        return (widen(widen(bitfield(bits, start: 23, count: 8)) :: Int) :: Float) - 127.0
+        return (widen(bitfield(bits, start: 23, count: 8)) :: Float) - 127.0
 
     fn significandOf(value: Float) -> Float =
         bitcast(((bitcast(value) :: I32) `and` 8388607) `or` 1065353216) :: Float
 
-    fn infinity() -> Float = bitcast(widen(2139095040) :: I32) :: Float
+    fn infinity() -> Float = bitcast(2139095040 :: I32) :: Float
 
 -- Four of the five delegate, because four of the five are `@platform`-split above and an instance
 -- member is not a place a platform selection may be written: what `@platform` chooses between is two

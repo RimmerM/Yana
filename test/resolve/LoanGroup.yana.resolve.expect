@@ -3,9 +3,9 @@ let image$base: () = <none>
 fn keepsBoth(%a: Cell, %b: Cell) -> &1'Cell {
   b0:
     %v2 = load %a : Cell
-    %v3 = load %a@Cell.value : Int
+    %v3 = load %a@Cell.value : I32
     %v4 = load %b : Cell
-    %v5 = load %b@Cell.value : Int
+    %v5 = load %b@Cell.value : I32
     %v6 = cmp_gt %v3, %v5 : Bool
     je %v6, b1, b2
 
@@ -27,9 +27,9 @@ fn keepsBoth(%a: Cell, %b: Cell) -> &1'Cell {
 fn keepsBothMarked(%a: Cell, %b: Cell) -> &Cell {
   b0:
     %v2 = load %a : Cell
-    %v3 = load %a@Cell.value : Int
+    %v3 = load %a@Cell.value : I32
     %v4 = load %b : Cell
-    %v5 = load %b@Cell.value : Int
+    %v5 = load %b@Cell.value : I32
     %v6 = cmp_gt %v3, %v5 : Bool
     je %v6, b1, b2
 
@@ -60,7 +60,7 @@ fn keepsRight(%left: 2'Cell, %right: 1'Cell) -> 1'Cell {
     ret %right
 }
 
-fn viaValue(%f: (&1' a: Cell, &2' b: Cell) -> &1'Cell) -> Int {
+fn viaValue(%f: (&1' a: Cell, &2' b: Cell) -> &1'Cell) -> I32 {
   b0:
     %v1 = alloc : Cell
     aggregate %first@Cell.value = 3
@@ -73,14 +73,14 @@ fn viaValue(%f: (&1' a: Cell, &2' b: Cell) -> &1'Cell) -> Int {
     %v11 = calldyn %f, %v9, %v10 : &1'Cell
     assign %second@Cell.value, 7
     %v14 = load [%v11] : Cell
-    %v15 = load [%v11]@Cell.value : Int
+    %v15 = load [%v11]@Cell.value : I32
     %v16 = load %second : Cell
-    %v17 = load %second@Cell.value : Int
-    %v18 = add %v15, %v17 : Int
+    %v17 = load %second@Cell.value : I32
+    %v18 = add %v15, %v17 : I32
     ret %v18
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Cell
     aggregate %first@Cell.value = 3
@@ -93,10 +93,10 @@ fn main() -> Int {
     %v10 = call keepsLeft, %v8, %v9 : &1'Cell
     assign %second@Cell.value, 7
     %v13 = load [%v10] : Cell
-    %v14 = load [%v10]@Cell.value : Int
+    %v14 = load [%v10]@Cell.value : I32
     %v15 = load %second : Cell
-    %v16 = load %second@Cell.value : Int
-    %v17 = add %v14, %v16 : Int
+    %v16 = load %second@Cell.value : I32
+    %v17 = add %v14, %v16 : I32
     assign [%v10]@Cell.value, %v17
     %v19 = alloc : Cell
     aggregate %third@Cell.value = 1
@@ -118,23 +118,23 @@ fn main() -> Int {
     %v41 = borrow_mut %sixth : &Cell
     %v42 = call keepsBothMarked, %v40, %v41 : &Cell
     %v43 = load [%v10] : Cell
-    %v44 = load [%v10]@Cell.value : Int
+    %v44 = load [%v10]@Cell.value : I32
     %v45 = load [%v29] : Cell
-    %v46 = load [%v29]@Cell.value : Int
-    %v47 = add %v44, %v46 : Int
+    %v46 = load [%v29]@Cell.value : I32
+    %v47 = add %v44, %v46 : I32
     %v48 = load %third : Cell
-    %v49 = load %third@Cell.value : Int
-    %v50 = add %v47, %v49 : Int
+    %v49 = load %third@Cell.value : I32
+    %v50 = add %v47, %v49 : I32
     %v51 = load [%v42] : Cell
-    %v52 = load [%v42]@Cell.value : Int
-    %v53 = add %v50, %v52 : Int
+    %v52 = load [%v42]@Cell.value : I32
+    %v53 = add %v50, %v52 : I32
     %v54 = alloc : (&1' a: Cell, &2' b: Cell) -> &1'Cell
     %v55 = symbol funvalue$keepsLeft : %()
     init %local6.code, %v55
     %v58 = cast 0 : %()
     init %local6.env, %v58
-    %v60 = call viaValue, %v54 : Int
-    %v61 = add %v53, %v60 : Int
+    %v60 = call viaValue, %v54 : I32
+    %v61 = add %v53, %v60 : I32
     ret %v61
 }
 

@@ -90,21 +90,21 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-(a.name: Int) fn nameOf(%p: a) -> Int {
+(a.name: I32) fn nameOf(%p: a) -> I32 {
   schema {
     #0 type a
-    #1 property a.name: Int
+    #1 property a.name: I32
   }
 
   b0:
-    %v1 = load %p.name? : Int
+    %v1 = load %p.name? : I32
     ret %v1
 }
 
-(a.name: Int) fn rename(%p: a, %to: Int) -> () {
+(a.name: I32) fn rename(%p: a, %to: I32) -> () {
   schema {
     #0 type a
-    #1 property a.name: Int
+    #1 property a.name: I32
   }
 
   b0:
@@ -112,29 +112,29 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-(a.name: Int, a.tag: Int) fn labelled(%p: a) -> Int {
+(a.name: I32, a.tag: I32) fn labelled(%p: a) -> I32 {
   schema {
     #0 type a
-    #1 property a.name: Int
-    #2 property a.tag: Int
+    #1 property a.name: I32
+    #2 property a.tag: I32
   }
 
   b0:
-    %v1 = gencall nameOf(a), %p : Int
-    %v4 = mul %v1, 100 : Int
-    %v5 = load %p.tag? : Int
-    %v6 = add %v4, %v5 : Int
+    %v1 = gencall nameOf(a), %p : I32
+    %v4 = mul %v1, 100 : I32
+    %v5 = load %p.tag? : I32
+    %v6 = add %v4, %v5 : I32
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Person
     aggregate %local0@Person.name = 5, %local0@Person.age = 90
-    %people = gencall env genEnv$nameOf(Person) nameOf(Person), %v0 : Int
+    %people = gencall env genEnv$nameOf(Person) nameOf(Person), %v0 : I32
     %v5 = alloc : Item
     aggregate %local1@Item.name = 2, %local1@Item.cost = 7
-    %items = gencall env genEnv$nameOf(Item) nameOf(Item), %v5 : Int
+    %items = gencall env genEnv$nameOf(Item) nameOf(Item), %v5 : I32
     %v10 = alloc : Person
     aggregate %subject@Person.name = 1, %subject@Person.age = 2
     %v14 = load %subject : Person
@@ -142,102 +142,102 @@ fn main() -> Int {
     gencall env genEnv$rename(Person) rename(Person), %v17, 8
     %v19 = alloc : Left
     aggregate %local3@Left.name = 1, %local3@Left.tag = 3
-    %left = gencall env genEnv$labelled(Left) labelled(Left), %v19 : Int
+    %left = gencall env genEnv$labelled(Left) labelled(Left), %v19 : I32
     %v24 = alloc : Right
     aggregate %local4@Right.tag = 4, %local4@Right.name = 6
-    %right = gencall env genEnv$labelled(Right) labelled(Right), %v24 : Int
-    %v31 = mul %people, 1000 : Int
-    %v34 = mul %items, 100 : Int
-    %v35 = add %v31, %v34 : Int
+    %right = gencall env genEnv$labelled(Right) labelled(Right), %v24 : I32
+    %v31 = mul %people, 1000 : I32
+    %v34 = mul %items, 100 : I32
+    %v35 = add %v31, %v34 : I32
     %v36 = load %subject : Person
-    %v37 = gencall env genEnv$nameOf(Person) nameOf(Person), %v36 : Int
-    %v40 = mul %v37, 10 : Int
-    %v41 = add %v35, %v40 : Int
-    %v42 = add %v41, %left : Int
-    %v43 = add %v42, %right : Int
+    %v37 = gencall env genEnv$nameOf(Person) nameOf(Person), %v36 : I32
+    %v40 = mul %v37, 10 : I32
+    %v41 = add %v35, %v40 : I32
+    %v42 = add %v41, %left : I32
+    %v43 = add %v42, %right : I32
     ret %v43
 }
 
-fn read$Person.name(%owner: %Person, %out: %Int) -> () {
+fn read$Person.name(%owner: %Person, %out: %I32) -> () {
   b0:
-    %v2 = load [%owner]@Person.name : Int
+    %v2 = load [%owner]@Person.name : I32
     init [%out], %v2
     ret
 }
 
-fn set$Person.name(%owner: %Person, %value: %Int) -> () {
+fn set$Person.name(%owner: %Person, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
+    %v2 = load [%value] : I32
     assign [%owner]@Person.name, %v2
     ret
 }
 
-fn read$Item.name(%owner: %Item, %out: %Int) -> () {
+fn read$Item.name(%owner: %Item, %out: %I32) -> () {
   b0:
-    %v2 = load [%owner]@Item.name : Int
+    %v2 = load [%owner]@Item.name : I32
     init [%out], %v2
     ret
 }
 
-fn set$Item.name(%owner: %Item, %value: %Int) -> () {
+fn set$Item.name(%owner: %Item, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
+    %v2 = load [%value] : I32
     assign [%owner]@Item.name, %v2
     ret
 }
 
-fn read$Left.name(%owner: %Left, %out: %Int) -> () {
+fn read$Left.name(%owner: %Left, %out: %I32) -> () {
   b0:
-    %v2 = load [%owner]@Left.name : Int
+    %v2 = load [%owner]@Left.name : I32
     init [%out], %v2
     ret
 }
 
-fn set$Left.name(%owner: %Left, %value: %Int) -> () {
+fn set$Left.name(%owner: %Left, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
+    %v2 = load [%value] : I32
     assign [%owner]@Left.name, %v2
     ret
 }
 
-fn read$Left.tag(%owner: %Left, %out: %Int) -> () {
+fn read$Left.tag(%owner: %Left, %out: %I32) -> () {
   b0:
-    %v2 = load [%owner]@Left.tag : Int
+    %v2 = load [%owner]@Left.tag : I32
     init [%out], %v2
     ret
 }
 
-fn set$Left.tag(%owner: %Left, %value: %Int) -> () {
+fn set$Left.tag(%owner: %Left, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
+    %v2 = load [%value] : I32
     assign [%owner]@Left.tag, %v2
     ret
 }
 
-fn read$Right.name(%owner: %Right, %out: %Int) -> () {
+fn read$Right.name(%owner: %Right, %out: %I32) -> () {
   b0:
-    %v2 = load [%owner]@Right.name : Int
+    %v2 = load [%owner]@Right.name : I32
     init [%out], %v2
     ret
 }
 
-fn set$Right.name(%owner: %Right, %value: %Int) -> () {
+fn set$Right.name(%owner: %Right, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
+    %v2 = load [%value] : I32
     assign [%owner]@Right.name, %v2
     ret
 }
 
-fn read$Right.tag(%owner: %Right, %out: %Int) -> () {
+fn read$Right.tag(%owner: %Right, %out: %I32) -> () {
   b0:
-    %v2 = load [%owner]@Right.tag : Int
+    %v2 = load [%owner]@Right.tag : I32
     init [%out], %v2
     ret
 }
 
-fn set$Right.tag(%owner: %Right, %value: %Int) -> () {
+fn set$Right.tag(%owner: %Right, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
+    %v2 = load [%value] : I32
     assign [%owner]@Right.tag, %v2
     ret
 }

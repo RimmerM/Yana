@@ -3,29 +3,29 @@
 
 # Both levels carry phis, and the inner loop's accumulator is threaded back out to the outer one, so
 # every phi's register has to stay valid across a back edge that is numbered well after it.
-nested(%n: Int, %m: Int): Int {
+nested(%n: I32, %m: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp outer
     }
 
     outer {
-        %i = phi [start, %z], [outerEnd, %i2]: Int
-        %acc = phi [start, %z], [outerEnd, %acc2]: Int
+        %i = phi [start, %z], [outerEnd, %i2]: I32
+        %acc = phi [start, %z], [outerEnd, %acc2]: I32
         je (cmp_ilt %i, %n), inner, done
     }
 
     inner {
-        %j = phi [outer, %z], [inner, %j2]: Int
-        %a = phi [outer, %acc], [inner, %a2]: Int
-        %a2 = add %a, %j: Int
-        %j2 = add %j, 1: Int
+        %j = phi [outer, %z], [inner, %j2]: I32
+        %a = phi [outer, %acc], [inner, %a2]: I32
+        %a2 = add %a, %j: I32
+        %j2 = add %j, 1: I32
         je (cmp_ilt %j2, %m), inner, outerEnd
     }
 
     outerEnd {
-        %acc2 = phi [inner, %a2]: Int
-        %i2 = add %i, 1: Int
+        %acc2 = phi [inner, %a2]: I32
+        %i2 = add %i, 1: I32
         jmp outer
     }
 
@@ -37,22 +37,22 @@ nested(%n: Int, %m: Int): Int {
 # The loop-carried values and the loop bound all cross a call, so none of them can live in a
 # register the calling convention clobbers. This is the shape that decides how many loop-carried
 # values a function can have before the allocator runs out of registers.
-loopCall(%n: Int): Int {
+loopCall(%n: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [body, %i2]: Int
-        %s = phi [start, %z], [body, %s2]: Int
+        %i = phi [start, %z], [body, %i2]: I32
+        %s = phi [start, %z], [body, %s2]: I32
         je (cmp_ilt %i, %n), body, out
     }
 
     body {
-        %r = call_complex helper, %i: Int
-        %s2 = add %s, %r: Int
-        %i2 = add %i, 1: Int
+        %r = call_complex helper, %i: I32
+        %s2 = add %s, %r: I32
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -61,6 +61,6 @@ loopCall(%n: Int): Int {
     }
 }
 
-helper(%x: Int): Int {
+helper(%x: I32): I32 {
     { ret %x }
 }

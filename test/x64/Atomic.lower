@@ -24,21 +24,21 @@
 # previous value, `lock xadd` when somebody does, a negation in front of it for a subtraction, and
 # the compare-exchange loop for the three bitwise operations the architecture cannot answer.
 
-loads(%p: Ptr): Int {
+loads(%p: Ptr): I32 {
     {
-        %a = atomic_load %p, 4, relaxed: Int
-        %b = atomic_load %p, 4, acquire: Int
-        %c = atomic_load %p, 4, seq_cst: Int
-        %d = atomic_load %p, 8, acquire: Long
-        %e = atomic_loads %p, 1, relaxed: Int
-        %f = atomic_load %p, 2, acquire: Int
+        %a = atomic_load %p, 4, relaxed: I32
+        %b = atomic_load %p, 4, acquire: I32
+        %c = atomic_load %p, 4, seq_cst: I32
+        %d = atomic_load %p, 8, acquire: I64
+        %e = atomic_loads %p, 1, relaxed: I32
+        %f = atomic_load %p, 2, acquire: I32
         ret %a
     }
 }
 
 # The two orders that are a plain `mov`, at both widths, and a constant that goes into the encoding
 # rather than into a register.
-stores(%p: Ptr, %v: Int, %w: Long) {
+stores(%p: Ptr, %v: I32, %w: I64) {
     {
         atomic_store %p, %v, 4, relaxed
         atomic_store %p, %v, 4, release
@@ -51,7 +51,7 @@ stores(%p: Ptr, %v: Int, %w: Long) {
 }
 
 # And the one that is not. Both of these become an `xchg` whose result nothing reads.
-sequentialStore(%p: Ptr, %v: Int, %w: Long) {
+sequentialStore(%p: Ptr, %v: I32, %w: I64) {
     {
         atomic_store %p, %v, 4, seq_cst
         atomic_store %p, %w, 8, seq_cst
@@ -61,47 +61,47 @@ sequentialStore(%p: Ptr, %v: Int, %w: Long) {
 
 # The exchange proper, whose result is read - so the value register is destructive and the caller's
 # copy is the allocator's problem rather than the encoding's.
-exchange(%p: Ptr, %v: Int, %q: Ptr): Int {
+exchange(%p: Ptr, %v: I32, %q: Ptr): I32 {
     {
-        %old = atomic_xchg %p, %v, 4, acq_rel: Int
+        %old = atomic_xchg %p, %v, 4, acq_rel: I32
         %ptr = atomic_xchg %p, %q, 8, seq_cst: Ptr
-        %narrow = atomic_xchg %p, %v, 1, relaxed: Int
-        %half = atomic_xchg %p, %v, 2, relaxed: Int
+        %narrow = atomic_xchg %p, %v, 1, relaxed: I32
+        %half = atomic_xchg %p, %v, 2, relaxed: I32
         ret %old
     }
 }
 
-compare(%p: Ptr, %e: Int, %d: Int): Int {
+compare(%p: Ptr, %e: I32, %d: I32): I32 {
     {
-        %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+        %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: I32, I32
         ret %prev
     }
 }
 
 # The weak form, which encodes identically on x86 - there is no spurious failure to permit, so the
 # flag only stops a caller from assuming one cannot happen elsewhere.
-compareWeak(%p: Ptr, %e: Long, %d: Long): Long {
+compareWeak(%p: Ptr, %e: I64, %d: I64): I64 {
     {
-        %prev, %ok = atomic_cas_weak %p, %e, %d, 8, seq_cst, seq_cst: Long, Int
+        %prev, %ok = atomic_cas_weak %p, %e, %d, 8, seq_cst, seq_cst: I64, I32
         ret %prev
     }
 }
 
 # The two narrow widths, which are the same instruction with an operand-size prefix and, at one
 # byte, the REX that names sil rather than dh.
-compareNarrow(%p: Ptr, %e: Int, %d: Int): Int {
+compareNarrow(%p: Ptr, %e: I32, %d: I32): I32 {
     {
-        %p1, %o1 = atomic_cas %p, %e, %d, 1, relaxed, relaxed: Int, Int
-        %p2, %o2 = atomic_cas %p, %e, %d, 2, acquire, acquire: Int, Int
+        %p1, %o1 = atomic_cas %p, %e, %d, 1, relaxed, relaxed: I32, I32
+        %p2, %o2 = atomic_cas %p, %e, %d, 2, acquire, acquire: I32, I32
         ret %p1
     }
 }
 
 # The success flag actually used, which is the shape a retry loop has - and where the comparison
 # standing in for it costs nothing, the branch reading the flags the compare-exchange set.
-compareBranch(%p: Ptr, %e: Int, %d: Int): Int {
+compareBranch(%p: Ptr, %e: I32, %d: I32): I32 {
     {
-        %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+        %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: I32, I32
         je %ok, then, else
     }
 
@@ -118,23 +118,23 @@ compareBranch(%p: Ptr, %e: Int, %d: Int): Int {
 # not have chosen for itself: the instruction is the same instruction either way and only the use
 # list says which encoding can express it. Each is one locked in-place operation naming one register,
 # and the result is given no home at all.
-fetchDiscard(%p: Ptr, %v: Int, %w: Long) {
+fetchDiscard(%p: Ptr, %v: I32, %w: I64) {
     {
-        %a = atomic_add %p, %v, 4, relaxed: Int
-        %b = atomic_sub %p, %v, 4, seq_cst: Int
-        %c = atomic_and %p, %v, 4, acquire: Int
-        %d = atomic_or %p, %v, 4, release: Int
-        %e = atomic_xor %p, %w, 8, acq_rel: Long
+        %a = atomic_add %p, %v, 4, relaxed: I32
+        %b = atomic_sub %p, %v, 4, seq_cst: I32
+        %c = atomic_and %p, %v, 4, acquire: I32
+        %d = atomic_or %p, %v, 4, release: I32
+        %e = atomic_xor %p, %w, 8, acq_rel: I64
         ret
     }
 }
 
 # The narrow widths of the same row, which are the same instruction with an operand-size prefix and,
 # at one byte, the REX that names sil rather than dh.
-fetchDiscardNarrow(%p: Ptr, %v: Int) {
+fetchDiscardNarrow(%p: Ptr, %v: I32) {
     {
-        %a = atomic_add %p, %v, 1, relaxed: Int
-        %b = atomic_or %p, %v, 2, seq_cst: Int
+        %a = atomic_add %p, %v, 1, relaxed: I32
+        %b = atomic_or %p, %v, 2, seq_cst: I32
         ret
     }
 }
@@ -142,11 +142,11 @@ fetchDiscardNarrow(%p: Ptr, %v: Int) {
 # And the one update the architecture hands the previous value back from. `lock xadd` ties its result
 # to the register the addend arrived in, so a caller whose amount is still live afterwards pays the
 # copy that makes it destructive.
-fetchAdd(%p: Ptr, %v: Int, %w: Long): Int {
+fetchAdd(%p: Ptr, %v: I32, %w: I64): I32 {
     {
-        %a = atomic_add %p, %v, 4, acq_rel: Int
-        %b = atomic_add %p, %w, 8, seq_cst: Long
-        %c = atomic_add %p, %v, 2, relaxed: Int
+        %a = atomic_add %p, %v, 4, acq_rel: I32
+        %b = atomic_add %p, %w, 8, seq_cst: I64
+        %c = atomic_add %p, %v, 2, relaxed: I32
         ret %a
     }
 }
@@ -154,9 +154,9 @@ fetchAdd(%p: Ptr, %v: Int, %w: Long): Int {
 # A subtraction whose result is read is the addition of a negation - there is no `xsub`, and this is
 # the whole of what `fetchSub` costs over `fetchAdd`. What appears in the printed IR is an
 # `atomic_add` the source never wrote, over a value the source never named.
-fetchSub(%p: Ptr, %v: Int): Int {
+fetchSub(%p: Ptr, %v: I32): I32 {
     {
-        %a = atomic_sub %p, %v, 4, acq_rel: Int
+        %a = atomic_sub %p, %v, 4, acq_rel: I32
         ret %a
     }
 }
@@ -164,30 +164,30 @@ fetchSub(%p: Ptr, %v: Int): Int {
 # The three the machine cannot answer, which become the compare-exchange loop. The block is cut in
 # two at the operation, the speculative read carries the failure order, and the comparison the flag
 # fixup writes is folded into the branch that closes the loop.
-fetchOr(%p: Ptr, %v: Int): Int {
+fetchOr(%p: Ptr, %v: I32): I32 {
     {
-        %a = atomic_or %p, %v, 4, acq_rel: Int
+        %a = atomic_or %p, %v, 4, acq_rel: I32
         ret %a
     }
 }
 
 # The same at a wide width and with something following it in the block, so that the split has a
 # bottom half with instructions in it rather than only a terminator.
-fetchAndTail(%p: Ptr, %v: Long, %q: Ptr): Long {
+fetchAndTail(%p: Ptr, %v: I64, %q: Ptr): I64 {
     {
-        %a = atomic_and %p, %v, 8, seq_cst: Long
-        %b = atomic_load %q, 8, acquire: Long
-        %c = add %a, %b: Long
+        %a = atomic_and %p, %v, 8, seq_cst: I64
+        %b = atomic_load %q, 8, acquire: I64
+        %c = add %a, %b: I64
         ret %c
     }
 }
 
 # Two loops in one block, which is what makes the walk's bookkeeping worth pinning: the second one
 # cuts a block the first one created.
-fetchTwice(%p: Ptr, %q: Ptr, %v: Int): Int {
+fetchTwice(%p: Ptr, %q: Ptr, %v: I32): I32 {
     {
-        %a = atomic_xor %p, %v, 4, relaxed: Int
-        %b = atomic_or %q, %a, 4, acquire: Int
+        %a = atomic_xor %p, %v, 4, relaxed: I32
+        %b = atomic_or %q, %a, 4, acquire: I32
         ret %b
     }
 }
@@ -220,10 +220,10 @@ spin() {
 # alone - and what the rest of eax holds is the expected value, moved in whole by the allocator. So
 # the 32-bit comparison against the expectation is equal exactly when the byte was, and the loop
 # terminates for the reason it looks like it does.
-fetchNarrow(%p: Ptr, %v: Int): Int {
+fetchNarrow(%p: Ptr, %v: I32): I32 {
     {
-        %a = atomic_and %p, %v, 1, acquire: Int
-        %b = atomic_xor %p, %v, 2, relaxed: Int
+        %a = atomic_and %p, %v, 1, acquire: I32
+        %b = atomic_xor %p, %v, 2, relaxed: I32
         ret %a
     }
 }

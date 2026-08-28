@@ -1,13 +1,13 @@
 let image$base: () = <none>
 
-fn pairOf(%x: 'Int, %y: 'Int) -> Pair('Int, 'Int) {
+fn pairOf(%x: 'I32, %y: 'I32) -> Pair('I32, 'I32) {
   b0:
-    %v2 = alloc : Pair('Int, 'Int)
+    %v2 = alloc : Pair('I32, 'I32)
     aggregate %local0@Pair.first = %x, %local0@Pair.second = %y
     ret %v2
 }
 
-fn firstOf(%x: 'Int, %y: 'Int) -> 'Int {
+fn firstOf(%x: 'I32, %y: 'I32) -> 'I32 {
   b0:
     ret %x
 }
@@ -25,33 +25,33 @@ fn offsetOf(%p: %U8) -> %U8 {
     ret %v4
 }
 
-fn maybeOf(%x: 'Int) -> Maybe('Int) {
+fn maybeOf(%x: 'I32) -> Maybe('I32) {
   b0:
-    %v1 = alloc : Maybe('Int)
+    %v1 = alloc : Maybe('I32)
     aggregate %local0.discriminant = 1, %local0@Just = %x
     ret %v1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %a = alloc : Int
+    %a = alloc : I32
     init %a, 3
-    %b = alloc : Int
+    %b = alloc : I32
     init %b, 4
-    %v6 = load %a : Int
-    %v7 = borrow %a : 'Int
-    %v8 = load %b : Int
-    %v9 = borrow %b : 'Int
-    %p = call pairOf, %v7, %v9 : Pair('Int, 'Int)
-    %v11 = load %a : Int
-    %v12 = borrow %a : 'Int
-    %v13 = load %b : Int
-    %v14 = borrow %b : 'Int
-    %v15 = call firstOf, %v12, %v14 : 'Int
-    %v16 = load %a : Int
-    %v17 = borrow %a : 'Int
-    %m = call maybeOf, %v17 : Maybe('Int)
-    %v19 = load %local3.discriminant : Int
+    %v6 = load %a : I32
+    %v7 = borrow %a : 'I32
+    %v8 = load %b : I32
+    %v9 = borrow %b : 'I32
+    %p = call pairOf, %v7, %v9 : Pair('I32, 'I32)
+    %v11 = load %a : I32
+    %v12 = borrow %a : 'I32
+    %v13 = load %b : I32
+    %v14 = borrow %b : 'I32
+    %v15 = call firstOf, %v12, %v14 : 'I32
+    %v16 = load %a : I32
+    %v17 = borrow %a : 'I32
+    %m = call maybeOf, %v17 : Maybe('I32)
+    %v19 = load %local3.discriminant : I32
     %v21 = cmp_eq %v19, 1 : Bool
     je %v21, b2, b1
 
@@ -59,20 +59,20 @@ fn main() -> Int {
     jmp b3
 
   b2:
-    %v = load %local3@Just : 'Int
-    %v = load [%v] : Int
-    %v27 = add %v, 0 : Int
+    %v = load %local3@Just : 'I32
+    %v = load [%v] : I32
+    %v27 = add %v, 0 : I32
     jmp b3
 
   b3:
-    %seen = phi [b2, %v27], [b1, 0] : Int
-    %v33 = load %local2@Pair.first : 'Int
-    %v34 = load %local2@Pair.second : 'Int
-    %v35 = load [%v33] : Int
-    %v36 = load [%v34] : Int
-    %v37 = add %v35, %v36 : Int
-    %v38 = load [%v15] : Int
-    %v39 = add %v37, %v38 : Int
-    %v40 = add %v39, %seen : Int
+    %seen = phi [b2, %v27], [b1, 0] : I32
+    %v33 = load %local2@Pair.first : 'I32
+    %v34 = load %local2@Pair.second : 'I32
+    %v35 = load [%v33] : I32
+    %v36 = load [%v34] : I32
+    %v37 = add %v35, %v36 : I32
+    %v38 = load [%v15] : I32
+    %v39 = add %v37, %v38 : I32
+    %v40 = add %v39, %seen : I32
     ret %v40
 }

@@ -1,37 +1,37 @@
 let image$base: () = <none>
 
-fn payloadOf(%s: Sum) -> Int {
+fn payloadOf(%s: Sum) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %x = load %s@B : U8
-    %v8 = cast %x : Int
-    %v11 = add %v8, 1000 : Int
+    %v8 = cast %x : I32
+    %v11 = add %v8, 1000 : I32
     jmp b3
 
   b2:
     %x = load %s@A : U8
-    %v6 = cast %x : Int
+    %v6 = cast %x : I32
     jmp b3
 
   b3:
-    %v14 = phi [b2, %v6], [b1, %v11] : Int
+    %v14 = phi [b2, %v6], [b1, %v11] : I32
     ret %v14
 }
 
-fn colourOf(%c: Colour) -> Int {
+fn colourOf(%c: Colour) -> I32 {
   b0:
-    %v1 = load %c.discriminant : Int
+    %v1 = load %c.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %level = load %c@Gray : U8
-    %v21 = cast %level : Int
-    %v24 = mul %v21, 1000 : Int
+    %v21 = cast %level : I32
+    %v24 = mul %v21, 1000 : I32
     jmp b3
 
   b2:
@@ -39,76 +39,76 @@ fn colourOf(%c: Colour) -> Int {
     %red = load %c@R.r : U8
     %green = load %c@R.g : U8
     %blue = load %c@R.b : U8
-    %v9 = cast %red : Int
-    %v10 = cast %green : Int
-    %v13 = mul %v10, 10 : Int
-    %v14 = add %v9, %v13 : Int
-    %v15 = cast %blue : Int
-    %v18 = mul %v15, 100 : Int
-    %v19 = add %v14, %v18 : Int
+    %v9 = cast %red : I32
+    %v10 = cast %green : I32
+    %v13 = mul %v10, 10 : I32
+    %v14 = add %v9, %v13 : I32
+    %v15 = cast %blue : I32
+    %v18 = mul %v15, 100 : I32
+    %v19 = add %v14, %v18 : I32
     jmp b3
 
   b3:
-    %v27 = phi [b2, %v19], [b1, %v24] : Int
+    %v27 = phi [b2, %v19], [b1, %v24] : I32
     ret %v27
 }
 
-fn fiveOf(%f: Five) -> Int {
+fn fiveOf(%f: Five) -> I32 {
   b0:
-    %v1 = load %f.discriminant : Int
+    %v1 = load %f.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v7 = load %f.discriminant : Int
+    %v7 = load %f.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b4, b3
 
   b2:
     %x = load %f@C0 : U8
-    %v6 = cast %x : Int
+    %v6 = cast %x : I32
     jmp b9
 
   b3:
-    %v16 = load %f.discriminant : Int
+    %v16 = load %f.discriminant : I32
     %v18 = cmp_eq %v16, 2 : Bool
     je %v18, b6, b5
 
   b4:
     %x = load %f@C1 : U8
-    %v12 = cast %x : Int
-    %v15 = mul %v12, 10 : Int
+    %v12 = cast %x : I32
+    %v15 = mul %v12, 10 : I32
     jmp b9
 
   b5:
-    %v25 = load %f.discriminant : Int
+    %v25 = load %f.discriminant : I32
     %v27 = cmp_eq %v25, 3 : Bool
     je %v27, b8, b7
 
   b6:
     %x = load %f@C2 : U8
-    %v21 = cast %x : Int
-    %v24 = mul %v21, 100 : Int
+    %v21 = cast %x : I32
+    %v24 = mul %v21, 100 : I32
     jmp b9
 
   b7:
     %x = load %f@C4 : U8
-    %v35 = cast %x : Int
-    %v38 = mul %v35, 10000 : Int
+    %v35 = cast %x : I32
+    %v38 = mul %v35, 10000 : I32
     jmp b9
 
   b8:
     %x = load %f@C3 : U8
-    %v30 = cast %x : Int
-    %v33 = mul %v30, 1000 : Int
+    %v30 = cast %x : I32
+    %v33 = mul %v30, 1000 : I32
     jmp b9
 
   b9:
-    %v44 = phi [b2, %v6], [b4, %v15], [b6, %v24], [b8, %v33], [b7, %v38] : Int
+    %v44 = phi [b2, %v6], [b4, %v15], [b6, %v24], [b8, %v33], [b7, %v38] : I32
     ret %v44
 }
 
-fn flagsValue(%f: Flags) -> Int {
+fn flagsValue(%f: Flags) -> I32 {
   b0:
     %v1 = load %f@Flags.a : Bool
     je %v1, b1, b2
@@ -120,7 +120,7 @@ fn flagsValue(%f: Flags) -> Int {
     jmp b3
 
   b3:
-    %v9 = phi [b1, 1], [b2, 0] : Int
+    %v9 = phi [b1, 1], [b2, 0] : I32
     %v10 = load %f@Flags.b : Bool
     je %v10, b4, b5
 
@@ -131,52 +131,52 @@ fn flagsValue(%f: Flags) -> Int {
     jmp b6
 
   b6:
-    %v18 = phi [b4, 2], [b5, 0] : Int
-    %v19 = add %v9, %v18 : Int
+    %v18 = phi [b4, 2], [b5, 0] : I32
+    %v19 = add %v9, %v18 : I32
     ret %v19
 }
 
-fn taggedOf(%t: Tagged) -> Int {
+fn taggedOf(%t: Tagged) -> I32 {
   b0:
-    %v1 = load %t.discriminant : Int
+    %v1 = load %t.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %f = load %t@Unset : Flags
-    %v8 = call flagsValue, %f : Int
-    %v11 = add %v8, 100 : Int
+    %v8 = call flagsValue, %f : I32
+    %v11 = add %v8, 100 : I32
     jmp b3
 
   b2:
     %f = load %t@Set : Flags
-    %v6 = call flagsValue, %f : Int
+    %v6 = call flagsValue, %f : I32
     jmp b3
 
   b3:
-    %v14 = phi [b2, %v6], [b1, %v11] : Int
+    %v14 = phi [b2, %v6], [b1, %v11] : I32
     ret %v14
 }
 
-fn widthOf(%w: Wide) -> Int {
+fn widthOf(%w: Wide) -> I32 {
   b0:
-    %v1 = load %w.discriminant : Int
+    %v1 = load %w.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %x = load %w@W2 : U32
-    %v8 = cast %x : Int
-    %v11 = mul %v8, 10 : Int
+    %v8 = cast %x : I32
+    %v11 = mul %v8, 10 : I32
     jmp b3
 
   b2:
     %x = load %w@W1 : U32
-    %v6 = cast %x : Int
+    %v6 = cast %x : I32
     jmp b3
 
   b3:
-    %v14 = phi [b2, %v6], [b1, %v11] : Int
+    %v14 = phi [b2, %v6], [b1, %v11] : I32
     ret %v14
 }
 
@@ -188,66 +188,66 @@ fn bump(%x: U8) -> () {
     ret
 }
 
-fn roundTrip() -> Int {
+fn roundTrip() -> I32 {
   b0:
     %v0 = alloc : Sum
     aggregate %local0.discriminant = 0, %local0@A = 7
-    %v4 = call payloadOf, %v0 : Int
+    %v4 = call payloadOf, %v0 : I32
     %v5 = alloc : Sum
     aggregate %local1.discriminant = 1, %local1@B = 9
-    %v9 = call payloadOf, %v5 : Int
-    %v10 = add %v4, %v9 : Int
+    %v9 = call payloadOf, %v5 : I32
+    %v10 = add %v4, %v9 : I32
     ret %v10
 }
 
-fn coloured() -> Int {
+fn coloured() -> I32 {
   b0:
     %v0 = alloc : Colour
     aggregate %local0.discriminant = 0, %local0@R.r = 1, %local0@R.g = 2, %local0@R.b = 3
-    %v6 = call colourOf, %v0 : Int
+    %v6 = call colourOf, %v0 : I32
     %v7 = alloc : Colour
     aggregate %local1.discriminant = 1, %local1@Gray = 4
-    %v11 = call colourOf, %v7 : Int
-    %v12 = add %v6, %v11 : Int
+    %v11 = call colourOf, %v7 : I32
+    %v12 = add %v6, %v11 : I32
     ret %v12
 }
 
-fn counted() -> Int {
+fn counted() -> I32 {
   b0:
     %v0 = alloc : Five
     aggregate %local0.discriminant = 0, %local0@C0 = 1
-    %v4 = call fiveOf, %v0 : Int
+    %v4 = call fiveOf, %v0 : I32
     %v5 = alloc : Five
     aggregate %local1.discriminant = 4, %local1@C4 = 1
-    %v9 = call fiveOf, %v5 : Int
-    %v10 = add %v4, %v9 : Int
+    %v9 = call fiveOf, %v5 : I32
+    %v10 = add %v4, %v9 : I32
     ret %v10
 }
 
-fn packedPayload() -> Int {
+fn packedPayload() -> I32 {
   b0:
     %v0 = alloc : Tagged
     %v2 = alloc : Flags
     init %local1@Flags.a, True
     init %local1@Flags.b, True
     aggregate %local0.discriminant = 0, %local0@Set = %v2
-    %v8 = call taggedOf, %v0 : Int
+    %v8 = call taggedOf, %v0 : I32
     %v9 = alloc : Tagged
     %v11 = alloc : Flags
     init %local3@Flags.a, False
     init %local3@Flags.b, True
     aggregate %local2.discriminant = 1, %local2@Unset = %v11
-    %v17 = call taggedOf, %v9 : Int
-    %v18 = add %v8, %v17 : Int
+    %v17 = call taggedOf, %v9 : I32
+    %v18 = add %v8, %v17 : I32
     ret %v18
 }
 
-fn mutated() -> Int {
+fn mutated() -> I32 {
   b0:
     %v0 = alloc : Sum
     aggregate %s.discriminant = 0, %s@A = 41
     %v4 = load %s : Sum
-    %v5 = load %s.discriminant : Int
+    %v5 = load %s.discriminant : I32
     %v7 = cmp_eq %v5, 0 : Bool
     je %v7, b2, b1
 
@@ -265,88 +265,88 @@ fn mutated() -> Int {
 
   b3:
     %v17 = load %s : Sum
-    %v18 = call payloadOf, %v17 : Int
+    %v18 = call payloadOf, %v17 : I32
     ret %v18
 }
 
-fn copied() -> Int {
+fn copied() -> I32 {
   b0:
     %f = alloc : Flags
     init %local0@Flags.a, True
     init %local0@Flags.b, False
     %t = alloc : Tagged
     aggregate %local1.discriminant = 1, %local1@Unset = %f
-    %v8 = call taggedOf, %t : Int
+    %v8 = call taggedOf, %t : I32
     ret %v8
 }
 
-fn maybeOf(%m: Maybe(Sum)) -> Int {
+fn maybeOf(%m: Maybe(Sum)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %s = load %m@Just : Sum
-    %v7 = call payloadOf, %s : Int
+    %v7 = call payloadOf, %s : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b2, 500], [b1, %v7] : Int
+    %v10 = phi [b2, 500], [b1, %v7] : I32
     ret %v10
 }
 
-fn folded() -> Int {
+fn folded() -> I32 {
   b0:
     %v0 = alloc : Maybe(Sum)
     init %local0.discriminant, 0
-    %v3 = call maybeOf, %v0 : Int
+    %v3 = call maybeOf, %v0 : I32
     %v4 = alloc : Maybe(Sum)
     %v6 = alloc : Sum
     aggregate %local2.discriminant = 0, %local2@A = 2
     aggregate %local1.discriminant = 1, %local1@Just = %v6
-    %v11 = call maybeOf, %v4 : Int
-    %v12 = add %v3, %v11 : Int
+    %v11 = call maybeOf, %v4 : I32
+    %v12 = add %v3, %v11 : I32
     %v13 = alloc : Maybe(Sum)
     %v15 = alloc : Sum
     aggregate %local4.discriminant = 1, %local4@B = 3
     aggregate %local3.discriminant = 1, %local3@Just = %v15
-    %v20 = call maybeOf, %v13 : Int
-    %v21 = add %v12, %v20 : Int
+    %v20 = call maybeOf, %v13 : I32
+    %v21 = add %v12, %v20 : I32
     ret %v21
 }
 
-fn wide() -> Int {
+fn wide() -> I32 {
   b0:
     %v0 = alloc : Wide
     aggregate %local0.discriminant = 0, %local0@W1 = 5
-    %v4 = call widthOf, %v0 : Int
+    %v4 = call widthOf, %v0 : I32
     %v5 = alloc : Wide
     aggregate %local1.discriminant = 1, %local1@W2 = 6
-    %v9 = call widthOf, %v5 : Int
-    %v10 = add %v4, %v9 : Int
+    %v9 = call widthOf, %v5 : I32
+    %v10 = add %v4, %v9 : I32
     ret %v10
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call roundTrip : Int
-    %v1 = call coloured : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call counted : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call packedPayload : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call mutated : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call copied : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call folded : Int
-    %v12 = add %v10, %v11 : Int
-    %v13 = call wide : Int
-    %v14 = add %v12, %v13 : Int
+    %v0 = call roundTrip : I32
+    %v1 = call coloured : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call counted : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call packedPayload : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call mutated : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call copied : I32
+    %v10 = add %v8, %v9 : I32
+    %v11 = call folded : I32
+    %v12 = add %v10, %v11 : I32
+    %v13 = call wide : I32
+    %v14 = add %v12, %v13 : I32
     ret %v14
 }

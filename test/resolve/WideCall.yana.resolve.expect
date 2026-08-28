@@ -1,16 +1,16 @@
 let image$base: () = <none>
 
-let &effects: Int = 0
+let &effects: I32 = 0
 
-fn bump(%mark: Int) -> Int {
+fn bump(%mark: I32) -> I32 {
   b0:
-    %v1 = load effects : Int
-    %v2 = add %v1, %mark : Int
+    %v1 = load effects : I32
+    %v2 = add %v1, %mark : I32
     assign effects, %v2
     ret %mark
 }
 
-fn wide(%tag: a, %p1: Int, %p2: Int, %p3: Int, %p4: Int, %p5: Int, %p6: Int, %p7: Int, %p8: Int, %p9: Int, %p10: Int, %p11: Int, %p12: Int, %p13: Int, %p14: Int, %p15: Int, %p16: Int, %p17: Int, %p18: Int, %p19: Int, %p20: Int, %p21: Int, %p22: Int, %p23: Int, %p24: Int, %p25: Int, %p26: Int, %p27: Int, %p28: Int, %p29: Int, %p30: Int, %p31: Int, %extra: b, %late: () -> Int) -> Int {
+fn wide(%tag: a, %p1: I32, %p2: I32, %p3: I32, %p4: I32, %p5: I32, %p6: I32, %p7: I32, %p8: I32, %p9: I32, %p10: I32, %p11: I32, %p12: I32, %p13: I32, %p14: I32, %p15: I32, %p16: I32, %p17: I32, %p18: I32, %p19: I32, %p20: I32, %p21: I32, %p22: I32, %p23: I32, %p24: I32, %p25: I32, %p26: I32, %p27: I32, %p28: I32, %p29: I32, %p30: I32, %p31: I32, %extra: b, %late: () -> I32) -> I32 {
   schema {
     #0 type a
     #1 type b
@@ -21,78 +21,78 @@ fn wide(%tag: a, %p1: Int, %p2: Int, %p3: Int, %p4: Int, %p5: Int, %p6: Int, %p7
     je %v36, b1, b2
 
   b1:
-    %v38 = calldyn %late : Int
+    %v38 = calldyn %late : I32
     jmp b3
 
   b2:
-    %v39 = add %p1, %p31 : Int
+    %v39 = add %p1, %p31 : I32
     jmp b3
 
   b3:
-    %v42 = phi [b1, %v38], [b2, %v39] : Int
+    %v42 = phi [b1, %v38], [b2, %v39] : I32
     ret %v42
 }
 
-fn call() -> Int {
+fn call() -> I32 {
   b0:
     alloc
-    %v64 = alloc : () -> Int
+    %v64 = alloc : () -> I32
     %v65 = symbol ResolveTest.deferred$22 : %()
     init %local1.code, %v65
     %v68 = cast 0 : %()
     init %local1.env, %v68
-    %v70 = call wide(Bool, ()), True, 7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v63, %v64 : Int
+    %v70 = call wide(Bool, ()), True, 7, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v63, %v64 : I32
     ret %v70
 }
 
-fn callForcing() -> Int {
+fn callForcing() -> I32 {
   b0:
     alloc
-    %v64 = alloc : () -> Int
+    %v64 = alloc : () -> I32
     %v65 = symbol ResolveTest.deferred$23 : %()
     init %local1.code, %v65
     %v68 = cast 0 : %()
     init %local1.env, %v68
-    %v70 = call wide(Bool, ()), True, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v63, %v64 : Int
+    %v70 = call wide(Bool, ()), True, 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, %v63, %v64 : I32
     ret %v70
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %skipped = call call : Int
-    %unskipped = call callForcing : Int
-    %v2 = add %skipped, %unskipped : Int
-    %v3 = load effects : Int
-    %v4 = add %v2, %v3 : Int
+    %skipped = call call : I32
+    %unskipped = call callForcing : I32
+    %v2 = add %skipped, %unskipped : I32
+    %v3 = load effects : I32
+    %v4 = add %v2, %v3 : I32
     ret %v4
 }
 
-fn wide(Bool, ())(%tag: Bool, %p1: Int, %p2: Int, %p3: Int, %p4: Int, %p5: Int, %p6: Int, %p7: Int, %p8: Int, %p9: Int, %p10: Int, %p11: Int, %p12: Int, %p13: Int, %p14: Int, %p15: Int, %p16: Int, %p17: Int, %p18: Int, %p19: Int, %p20: Int, %p21: Int, %p22: Int, %p23: Int, %p24: Int, %p25: Int, %p26: Int, %p27: Int, %p28: Int, %p29: Int, %p30: Int, %p31: Int, %extra: (), %late: () -> Int) -> Int {
+fn wide(Bool, ())(%tag: Bool, %p1: I32, %p2: I32, %p3: I32, %p4: I32, %p5: I32, %p6: I32, %p7: I32, %p8: I32, %p9: I32, %p10: I32, %p11: I32, %p12: I32, %p13: I32, %p14: I32, %p15: I32, %p16: I32, %p17: I32, %p18: I32, %p19: I32, %p20: I32, %p21: I32, %p22: I32, %p23: I32, %p24: I32, %p25: I32, %p26: I32, %p27: I32, %p28: I32, %p29: I32, %p30: I32, %p31: I32, %extra: (), %late: () -> I32) -> I32 {
   b0:
     %v36 = cmp_eq %p1, 0 : Bool
     je %v36, b1, b2
 
   b1:
-    %v38 = calldyn %late : Int
+    %v38 = calldyn %late : I32
     jmp b3
 
   b2:
-    %v40 = add %p1, %p31 : Int
+    %v40 = add %p1, %p31 : I32
     jmp b3
 
   b3:
-    %v34 = phi [b1, %v38], [b2, %v40] : Int
+    %v34 = phi [b1, %v38], [b2, %v40] : I32
     ret %v34
 }
 
-fn ResolveTest.deferred$22(%env: %{}) -> Int {
+fn ResolveTest.deferred$22(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 1 : Int
+    %v2 = call bump, 1 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$23(%env: %{}) -> Int {
+fn ResolveTest.deferred$23(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 4 : Int
+    %v2 = call bump, 4 : I32
     ret %v2
 }

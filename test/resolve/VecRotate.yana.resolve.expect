@@ -1,13 +1,13 @@
 let image$base: () = <none>
 
-let &counter: Int = 0
+let &counter: I32 = 0
 
-fn opaque(%n: Int) -> Int {
+fn opaque(%n: I32) -> I32 {
   b0:
-    %v1 = load counter : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load counter : I32
+    %v4 = add %v1, 1 : I32
     assign counter, %v4
-    %v6 = load counter : Int
+    %v6 = load counter : I32
     %v9 = cmp_gt %v6, 1000 : Bool
     je %v9, b1, b2
 
@@ -23,16 +23,16 @@ fn opaque(%n: Int) -> Int {
 
 fn pattern() -> Vec(I8) {
   b0:
-    %v4 = sub 0, 1888223487 : Int
-    %v5 = vsplat %v4 : Vec(Int)
+    %v4 = sub 0, 1888223487 : I32
+    %v5 = vsplat %v4 : Vec(I32)
     %v6 = bitcast %v5 : Vec(I8)
     ret %v6
 }
 
-fn checkBytes(%v: Vec(I8), %expected: Int) -> Int {
+fn checkBytes(%v: Vec(I8), %expected: I32) -> I32 {
   b0:
-    %v2 = bitcast %v : Vec(Int)
-    %v5 = vlane %v2, 0 : Int
+    %v2 = bitcast %v : Vec(I32)
+    %v5 = vlane %v2, 0 : I32
     %v6 = cmp_eq %v5, %expected : Bool
     je %v6, b1, b2
 
@@ -43,13 +43,13 @@ fn checkBytes(%v: Vec(I8), %expected: Int) -> Int {
     jmp b3
 
   b3:
-    %v12 = phi [b1, 1], [b2, 0] : Int
+    %v12 = phi [b1, 1], [b2, 0] : I32
     ret %v12
 }
 
-fn checkWords(%v: Vec(Int), %expected: Int) -> Int {
+fn checkWords(%v: Vec(I32), %expected: I32) -> I32 {
   b0:
-    %v4 = vlane %v, 0 : Int
+    %v4 = vlane %v, 0 : I32
     %v5 = cmp_eq %v4, %expected : Bool
     je %v5, b1, b2
 
@@ -60,93 +60,93 @@ fn checkWords(%v: Vec(Int), %expected: Int) -> Int {
     jmp b3
 
   b3:
-    %v11 = phi [b1, 1], [b2, 0] : Int
+    %v11 = phi [b1, 1], [b2, 0] : I32
     ret %v11
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %bytes = call pattern : Vec(I8)
-    %words = vsplat 305419896 : Vec(Int)
-    %n = alloc : Int
+    %words = vsplat 305419896 : Vec(I32)
+    %n = alloc : I32
     init %n, 0
-    %v7 = load %n : Int
-    %v10 = vsplat 4 : Vec(Int)
-    %v11 = rol %words, %v10 : Vec(Int)
-    %v13 = call checkWords, %v11, 591751041 : Int
-    %v14 = add %v7, %v13 : Int
+    %v7 = load %n : I32
+    %v10 = vsplat 4 : Vec(I32)
+    %v11 = rol %words, %v10 : Vec(I32)
+    %v13 = call checkWords, %v11, 591751041 : I32
+    %v14 = add %v7, %v13 : I32
     assign %n, %v14
-    %v16 = load %n : Int
-    %v19 = vsplat 4 : Vec(Int)
-    %v20 = ror %words, %v19 : Vec(Int)
-    %v25 = sub 0, 2128394905 : Int
-    %v26 = call checkWords, %v20, %v25 : Int
-    %v27 = add %v16, %v26 : Int
+    %v16 = load %n : I32
+    %v19 = vsplat 4 : Vec(I32)
+    %v20 = ror %words, %v19 : Vec(I32)
+    %v25 = sub 0, 2128394905 : I32
+    %v26 = call checkWords, %v20, %v25 : I32
+    %v27 = add %v16, %v26 : I32
     assign %n, %v27
-    %v29 = load %n : Int
-    %v32 = vsplat 0 : Vec(Int)
-    %v33 = rol %words, %v32 : Vec(Int)
-    %v35 = call checkWords, %v33, 305419896 : Int
-    %v36 = add %v29, %v35 : Int
+    %v29 = load %n : I32
+    %v32 = vsplat 0 : Vec(I32)
+    %v33 = rol %words, %v32 : Vec(I32)
+    %v35 = call checkWords, %v33, 305419896 : I32
+    %v36 = add %v29, %v35 : I32
     assign %n, %v36
-    %v38 = load %n : Int
-    %v41 = vsplat 32 : Vec(Int)
-    %v42 = rol %words, %v41 : Vec(Int)
-    %v44 = call checkWords, %v42, 305419896 : Int
-    %v45 = add %v38, %v44 : Int
+    %v38 = load %n : I32
+    %v41 = vsplat 32 : Vec(I32)
+    %v42 = rol %words, %v41 : Vec(I32)
+    %v44 = call checkWords, %v42, 305419896 : I32
+    %v45 = add %v38, %v44 : I32
     assign %n, %v45
-    %v47 = load %n : Int
-    %v50 = vsplat 0 : Vec(Int)
-    %v51 = ror %words, %v50 : Vec(Int)
-    %v53 = call checkWords, %v51, 305419896 : Int
-    %v54 = add %v47, %v53 : Int
+    %v47 = load %n : I32
+    %v50 = vsplat 0 : Vec(I32)
+    %v51 = ror %words, %v50 : Vec(I32)
+    %v53 = call checkWords, %v51, 305419896 : I32
+    %v54 = add %v47, %v53 : I32
     assign %n, %v54
-    %v56 = load %n : Int
-    %v59 = vsplat 36 : Vec(Int)
-    %v60 = rol %words, %v59 : Vec(Int)
-    %v62 = call checkWords, %v60, 591751041 : Int
-    %v63 = add %v56, %v62 : Int
+    %v56 = load %n : I32
+    %v59 = vsplat 36 : Vec(I32)
+    %v60 = rol %words, %v59 : Vec(I32)
+    %v62 = call checkWords, %v60, 591751041 : I32
+    %v63 = add %v56, %v62 : I32
     assign %n, %v63
-    %v65 = load %n : Int
+    %v65 = load %n : I32
     %v67 = vsplat 1 : Vec(I8)
     %v68 = rol %bytes, %v67 : Vec(I8)
-    %v70 = call checkBytes, %v68, 535232258 : Int
-    %v71 = add %v65, %v70 : Int
+    %v70 = call checkBytes, %v68, 535232258 : I32
+    %v71 = add %v65, %v70 : I32
     assign %n, %v71
-    %v73 = load %n : Int
+    %v73 = load %n : I32
     %v75 = vsplat 3 : Vec(I8)
     %v76 = rol %bytes, %v75 : Vec(I8)
-    %v78 = call checkBytes, %v76, 2090598152 : Int
-    %v79 = add %v73, %v78 : Int
+    %v78 = call checkBytes, %v76, 2090598152 : I32
+    %v79 = add %v73, %v78 : I32
     assign %n, %v79
-    %v81 = load %n : Int
+    %v81 = load %n : I32
     %v83 = vsplat 3 : Vec(I8)
     %v84 = ror %bytes, %v83 : Vec(I8)
-    %v89 = sub 0, 244383968 : Int
-    %v90 = call checkBytes, %v84, %v89 : Int
-    %v91 = add %v81, %v90 : Int
+    %v89 = sub 0, 244383968 : I32
+    %v90 = call checkBytes, %v84, %v89 : I32
+    %v91 = add %v81, %v90 : I32
     assign %n, %v91
-    %v93 = load %n : Int
+    %v93 = load %n : I32
     %v95 = vsplat 8 : Vec(I8)
     %v96 = rol %bytes, %v95 : Vec(I8)
-    %v101 = sub 0, 1888223487 : Int
-    %v102 = call checkBytes, %v96, %v101 : Int
-    %v103 = add %v93, %v102 : Int
+    %v101 = sub 0, 1888223487 : I32
+    %v102 = call checkBytes, %v96, %v101 : I32
+    %v103 = add %v93, %v102 : I32
     assign %n, %v103
-    %k = call opaque, 2 : Int
-    %v107 = load %n : Int
-    %v108 = vsplat %k : Vec(Int)
-    %v109 = rol %words, %v108 : Vec(Int)
-    %v111 = call checkWords, %v109, 1221679584 : Int
-    %v112 = add %v107, %v111 : Int
+    %k = call opaque, 2 : I32
+    %v107 = load %n : I32
+    %v108 = vsplat %k : Vec(I32)
+    %v109 = rol %words, %v108 : Vec(I32)
+    %v111 = call checkWords, %v109, 1221679584 : I32
+    %v112 = add %v107, %v111 : I32
     assign %n, %v112
-    %v114 = load %n : Int
+    %v114 = load %n : I32
     %v115 = cast %k : I8
     %v116 = vsplat %v115 : Vec(I8)
     %v117 = rol %bytes, %v116 : Vec(I8)
-    %v119 = call checkBytes, %v117, 1053687556 : Int
-    %v120 = add %v114, %v119 : Int
+    %v119 = call checkBytes, %v117, 1053687556 : I32
+    %v120 = add %v114, %v119 : I32
     assign %n, %v120
-    %v122 = load %n : Int
+    %v122 = load %n : I32
     ret %v122
 }

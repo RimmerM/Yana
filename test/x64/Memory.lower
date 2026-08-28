@@ -3,36 +3,36 @@
 # read moved across the store - see LowerGlobal::mut and validateGlobalWrites.
 mut @g = 42
 
-loadStore(%p: Ptr, %v: Int): Int {
+loadStore(%p: Ptr, %v: I32): I32 {
     {
         store %p, %v, 4
-        %l = load %p, 4: Int
-        %w = add %l, %v: Int
+        %l = load %p, 4: I32
+        %w = add %l, %v: I32
         ret %w
     }
 }
 
-narrow(%p: Ptr, %v: Int): Int {
+narrow(%p: Ptr, %v: I32): I32 {
     {
         store %p, %v, 1
         store %p, %v, 2
         store %p, %v, 8
-        %b = load %p, 1: Int
-        %h = loads %p, 2: Int
-        %q = load %p, 8: Long
-        %s = loads %p, 4: Long
-        %t = add %q, %s: Long
-        %c = cast %t: Int
-        %r = add %b, %h: Int
-        %r2 = add %r, %c: Int
+        %b = load %p, 1: I32
+        %h = loads %p, 2: I32
+        %q = load %p, 8: I64
+        %s = loads %p, 4: I64
+        %t = add %q, %s: I64
+        %c = cast %t: I32
+        %r = add %b, %h: I32
+        %r2 = add %r, %c: I32
         ret %r2
     }
 }
 
-globalLoad(): Int {
+globalLoad(): I32 {
     {
         %gp = global @g
-        %gv = load %gp, 4: Int
+        %gv = load %gp, 4: I32
         ret %gv
     }
 }
@@ -52,10 +52,10 @@ globalStoreImm() {
 # The same address wanted as a number rather than as a place, which is what keeps the `lea`: a
 # pointer handed to a call has to be in a register, so the whole use is declined rather than the one
 # position - the value is either implicit or it is not.
-globalEscapes(%v: Int): Int {
+globalEscapes(%v: I32): I32 {
     {
         %gp = global @g
-        %r = call_complex loadStore, %gp, %v: Int
+        %r = call_complex loadStore, %gp, %v: I32
         ret %r
     }
 }
@@ -70,7 +70,7 @@ blockOps(%dst: Ptr, %src: Ptr) {
 
 # A count that isn't an immediate can't be unrolled, so these take the `rep movsb`/`rep stosb`
 # encodings instead, which read their operands from fixed registers.
-blockOpsDynamic(%dst: Ptr, %src: Ptr, %n: Int, %pat: Int) {
+blockOpsDynamic(%dst: Ptr, %src: Ptr, %n: I32, %pat: I32) {
     {
         copy %dst, %src, %n
         setpattern %dst, %n, %pat

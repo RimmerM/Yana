@@ -1,26 +1,26 @@
 let image$base: () = <none>
 
-fn seed() -> Int {
+fn seed() -> I32 {
   b0:
     ret 5
 }
 
-fn next(%n: Int) -> Int {
+fn next(%n: I32) -> I32 {
   b0:
-    %v3 = add %n, 1 : Int
+    %v3 = add %n, 1 : I32
     ret %v3
 }
 
-fn barrier(%flag: Bool) -> Int {
+fn barrier(%flag: Bool) -> I32 {
   b0:
-    %v1 = call seed : Int
-    %acc = alloc : Int
+    %v1 = call seed : I32
+    %acc = alloc : I32
     init %acc, %v1
     je %flag, b1, b2
 
   b1:
-    %v5 = load %acc : Int
-    %v6 = call next, %v5 : Int
+    %v5 = load %acc : I32
+    %v6 = call next, %v5 : I32
     assign %acc, %v6
     jmp b3
 
@@ -28,26 +28,26 @@ fn barrier(%flag: Bool) -> Int {
     jmp b3
 
   b3:
-    %held = load %acc : Int
-    %v11 = load %acc : Int
-    %v12 = call next, %v11 : Int
+    %held = load %acc : I32
+    %v11 = load %acc : I32
+    %v12 = call next, %v11 : I32
     assign %acc, %v12
-    %v16 = mul %held, 100 : Int
-    %v17 = load %acc : Int
-    %v18 = add %v16, %v17 : Int
+    %v16 = mul %held, 100 : I32
+    %v17 = load %acc : I32
+    %v18 = add %v16, %v17 : I32
     ret %v18
 }
 
-fn taken(%flag: Bool) -> Int {
+fn taken(%flag: Bool) -> I32 {
   b0:
-    %v1 = call seed : Int
-    %acc = alloc : Int
+    %v1 = call seed : I32
+    %acc = alloc : I32
     init %acc, %v1
     je %flag, b1, b2
 
   b1:
-    %v5 = load %acc : Int
-    %v6 = call next, %v5 : Int
+    %v5 = load %acc : I32
+    %v6 = call next, %v5 : I32
     assign %acc, %v6
     jmp b3
 
@@ -55,22 +55,22 @@ fn taken(%flag: Bool) -> Int {
     jmp b3
 
   b3:
-    %held = load %acc : Int
-    %v13 = mul %held, 100 : Int
-    %v14 = add %v13, %held : Int
-    %v15 = load %acc : Int
-    %v16 = add %v14, %v15 : Int
+    %held = load %acc : I32
+    %v13 = mul %held, 100 : I32
+    %v14 = add %v13, %held : I32
+    %v15 = load %acc : I32
+    %v16 = add %v14, %v15 : I32
     ret %v16
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call barrier, True : Int
-    %v3 = call barrier, False : Int
-    %v6 = mul %v3, 1000 : Int
-    %v7 = add %v1, %v6 : Int
-    %v9 = call taken, True : Int
-    %v12 = mul %v9, 1000000 : Int
-    %v13 = add %v7, %v12 : Int
+    %v1 = call barrier, True : I32
+    %v3 = call barrier, False : I32
+    %v6 = mul %v3, 1000 : I32
+    %v7 = add %v1, %v6 : I32
+    %v9 = call taken, True : I32
+    %v12 = mul %v9, 1000000 : I32
+    %v13 = add %v7, %v12 : I32
     ret %v13
 }

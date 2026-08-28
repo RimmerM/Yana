@@ -22,12 +22,12 @@ fn opaqueU64(%x: U64) -> U64 {
     ret %x
 }
 
-fn opaqueInt(%x: Int) -> Int {
+fn opaqueInt(%x: I32) -> I32 {
   b0:
     ret %x
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -38,45 +38,45 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
-fn low() -> Int {
+fn low() -> I32 {
   b0:
     %v1 = call opaqueU32, 3735928559 : U32
     %v4 = bitsupto %v1, 16 : U32
     %v7 = cmp_eq %v4, 48879 : Bool
-    %v9 = call check, %v7, 1 : Int
+    %v9 = call check, %v7, 1 : I32
     %v11 = call opaqueU32, 3735928559 : U32
     %v14 = bitsupto %v11, 4 : U32
     %v17 = cmp_eq %v14, 15 : Bool
-    %v19 = call check, %v17, 2 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 2 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU32, 3735928559 : U32
     %v25 = bitsupto %v22, 1 : U32
     %v28 = cmp_eq %v25, 1 : Bool
-    %v30 = call check, %v28, 4 : Int
-    %v31 = add %v20, %v30 : Int
+    %v30 = call check, %v28, 4 : I32
+    %v31 = add %v20, %v30 : I32
     ret %v31
 }
 
-fn ends() -> Int {
+fn ends() -> I32 {
   b0:
     %v1 = call opaqueU32, 3735928559 : U32
     %v4 = bitsupto %v1, 0 : U32
     %v7 = cmp_eq %v4, 0 : Bool
-    %v9 = call check, %v7, 8 : Int
+    %v9 = call check, %v7, 8 : I32
     %v11 = call opaqueU32, 3735928559 : U32
     %v14 = bitsupto %v11, 32 : U32
     %v17 = cmp_eq %v14, 3735928559 : Bool
-    %v19 = call check, %v17, 16 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 16 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU32, 3735928559 : U32
     %v25 = bitsupto %v22, 40 : U32
     %v28 = cmp_eq %v25, 3735928559 : Bool
-    %v30 = call check, %v28, 32 : Int
-    %v31 = add %v20, %v30 : Int
+    %v30 = call check, %v28, 32 : I32
+    %v31 = add %v20, %v30 : I32
     %v33 = call opaqueU32, 3735928559 : U32
     %v36 = bitsupto %v33, 200 : U32
     %v39 = cmp_eq %v36, 3735928559 : Bool
@@ -106,22 +106,22 @@ fn ends() -> Int {
 
   b6:
     %v65 = phi [b4, %v61], [b5, False] : Bool
-    %v67 = call check, %v65, 64 : Int
-    %v68 = add %v31, %v67 : Int
+    %v67 = call check, %v65, 64 : I32
+    %v68 = add %v31, %v67 : I32
     ret %v68
 }
 
-fn wide() -> Int {
+fn wide() -> I32 {
   b0:
     %v1 = call opaqueU64, 81985529216486895 : U64
     %v4 = bitsupto %v1, 24 : U64
     %v7 = cmp_eq %v4, 11259375 : Bool
-    %v9 = call check, %v7, 128 : Int
+    %v9 = call check, %v7, 128 : I32
     %v11 = call opaqueU64, 81985529216486895 : U64
     %v14 = bitsupto %v11, 64 : U64
     %v17 = cmp_eq %v14, 81985529216486895 : Bool
-    %v19 = call check, %v17, 256 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 256 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU64, 81985529216486895 : U64
     %v25 = bitsupto %v22, 0 : U64
     %v28 = cmp_eq %v25, 0 : Bool
@@ -138,59 +138,59 @@ fn wide() -> Int {
 
   b3:
     %v41 = phi [b1, %v37], [b2, False] : Bool
-    %v43 = call check, %v41, 512 : Int
-    %v44 = add %v20, %v43 : Int
+    %v43 = call check, %v41, 512 : I32
+    %v44 = add %v20, %v43 : I32
     ret %v44
 }
 
-fn field() -> Int {
+fn field() -> I32 {
   b0:
     %v1 = call opaqueU32, 3735928559 : U32
     %v6 = call bitfield(U32), %v1, 16, 8 : U32
     %v9 = cmp_eq %v6, 173 : Bool
-    %v11 = call check, %v9, 1024 : Int
+    %v11 = call check, %v9, 1024 : I32
     %v13 = call opaqueU32, 3735928559 : U32
     %v18 = call bitfield(U32), %v13, 0, 16 : U32
     %v21 = cmp_eq %v18, 48879 : Bool
-    %v23 = call check, %v21, 2048 : Int
-    %v24 = add %v11, %v23 : Int
+    %v23 = call check, %v21, 2048 : I32
+    %v24 = add %v11, %v23 : I32
     %v26 = call opaqueU32, 3735928559 : U32
     %v31 = call bitfield(U32), %v26, 28, 4 : U32
     %v34 = cmp_eq %v31, 13 : Bool
-    %v36 = call check, %v34, 4096 : Int
-    %v37 = add %v24, %v36 : Int
+    %v36 = call check, %v34, 4096 : I32
+    %v37 = add %v24, %v36 : I32
     ret %v37
 }
 
-fn permute() -> Int {
+fn permute() -> I32 {
   b0:
     %v1 = call opaqueU32, 305419896 : U32
     %v3 = call opaqueU32, 4278255360 : U32
     %v4 = gatherbits %v1, %v3 : U32
     %v7 = cmp_eq %v4, 4694 : Bool
-    %v9 = call check, %v7, 8192 : Int
+    %v9 = call check, %v7, 8192 : I32
     %v11 = call opaqueU32, 4694 : U32
     %v13 = call opaqueU32, 4278255360 : U32
     %v14 = scatterbits %v11, %v13 : U32
     %v17 = cmp_eq %v14, 302011904 : Bool
-    %v19 = call check, %v17, 16384 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 16384 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU32, 3735928559 : U32
     %v24 = call opaqueU32, 65535 : U32
     %v25 = gatherbits %v22, %v24 : U32
     %v28 = cmp_eq %v25, 48879 : Bool
-    %v30 = call check, %v28, 32768 : Int
-    %v31 = add %v20, %v30 : Int
+    %v30 = call check, %v28, 32768 : I32
+    %v31 = add %v20, %v30 : I32
     %v33 = call opaqueU32, 15 : U32
     %v35 = call opaqueU32, 252645135 : U32
     %v36 = scatterbits %v33, %v35 : U32
     %v39 = cmp_eq %v36, 15 : Bool
-    %v41 = call check, %v39, 65536 : Int
-    %v42 = add %v31, %v41 : Int
+    %v41 = call check, %v39, 65536 : I32
+    %v42 = add %v31, %v41 : I32
     ret %v42
 }
 
-fn inverse() -> Int {
+fn inverse() -> I32 {
   b0:
     %value = call opaqueU32, 305419896 : U32
     %mask = call opaqueU32, 4278255360 : U32
@@ -200,45 +200,45 @@ fn inverse() -> Int {
     %v9 = scatterbits %v8, %mask : U32
     %v10 = and %value, %mask : U32
     %v11 = cmp_eq %v9, %v10 : Bool
-    %v13 = call check, %v11, 131072 : Int
+    %v13 = call check, %v11, 131072 : I32
     %v14 = gatherbits %wideValue, %wideMask : U64
     %v15 = scatterbits %v14, %wideMask : U64
     %v16 = and %wideValue, %wideMask : U64
     %v17 = cmp_eq %v15, %v16 : Bool
-    %v19 = call check, %v17, 262144 : Int
-    %v20 = add %v13, %v19 : Int
+    %v19 = call check, %v17, 262144 : I32
+    %v20 = add %v13, %v19 : I32
     ret %v20
 }
 
-fn edges() -> Int {
+fn edges() -> I32 {
   b0:
     %v1 = call opaqueU32, 3735928559 : U32
     %v3 = call opaqueU32, 0 : U32
     %v4 = gatherbits %v1, %v3 : U32
     %v7 = cmp_eq %v4, 0 : Bool
-    %v9 = call check, %v7, 524288 : Int
+    %v9 = call check, %v7, 524288 : I32
     %v11 = call opaqueU32, 3735928559 : U32
     %v13 = call opaqueU32, 0 : U32
     %v14 = scatterbits %v11, %v13 : U32
     %v17 = cmp_eq %v14, 0 : Bool
-    %v19 = call check, %v17, 1048576 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 1048576 : I32
+    %v20 = add %v9, %v19 : I32
     %v22 = call opaqueU32, 3735928559 : U32
     %v24 = call opaqueU32, 4294967295 : U32
     %v25 = gatherbits %v22, %v24 : U32
     %v28 = cmp_eq %v25, 3735928559 : Bool
-    %v30 = call check, %v28, 2097152 : Int
-    %v31 = add %v20, %v30 : Int
+    %v30 = call check, %v28, 2097152 : I32
+    %v31 = add %v20, %v30 : I32
     %v33 = call opaqueU32, 3735928559 : U32
     %v35 = call opaqueU32, 4294967295 : U32
     %v36 = scatterbits %v33, %v35 : U32
     %v39 = cmp_eq %v36, 3735928559 : Bool
-    %v41 = call check, %v39, 4194304 : Int
-    %v42 = add %v31, %v41 : Int
+    %v41 = call check, %v39, 4194304 : I32
+    %v42 = add %v31, %v41 : I32
     ret %v42
 }
 
-fn signed() -> Int {
+fn signed() -> I32 {
   b0:
     %v4 = sub 0, 16777216 : I32
     %byteMask = call opaqueI32, %v4 : I32
@@ -279,21 +279,20 @@ fn signed() -> Int {
     %v49 = sub 0, 1 : I32
     %v50 = call opaqueI32, %v49 : I32
     %v51 = gatherbits %v44, %v50 : I32
-    %v56 = sub 0, 1 : Int
-    %v57 = cast %v51 : Int
-    %v58 = cmp_eq %v57, %v56 : Bool
+    %v56 = sub 0, 1 : I32
+    %v57 = cmp_eq %v51, %v56 : Bool
     jmp b9
 
   b8:
     jmp b9
 
   b9:
-    %v62 = phi [b7, %v58], [b8, False] : Bool
-    %v64 = call check, %v62, 8388608 : Int
-    ret %v64
+    %v61 = phi [b7, %v57], [b8, False] : Bool
+    %v63 = call check, %v61, 8388608 : I32
+    ret %v63
 }
 
-fn widePermute() -> Int {
+fn widePermute() -> I32 {
   b0:
     %v1 = call opaqueU64, 81985529216486895 : U64
     %v3 = call opaqueU64, 71776123356119040 : U64
@@ -313,7 +312,7 @@ fn widePermute() -> Int {
 
   b3:
     %v20 = phi [b1, %v16], [b2, False] : Bool
-    %v22 = call check, %v20, 16777216 : Int
+    %v22 = call check, %v20, 16777216 : I32
     ret %v22
 }
 
@@ -325,25 +324,25 @@ fn morton(%x: U32, %y: U32) -> U32 {
     ret %v8
 }
 
-fn interleave() -> Int {
+fn interleave() -> I32 {
   b0:
     %v1 = call opaqueU32, 43981 : U32
     %v3 = call opaqueU32, 4660 : U32
     %v4 = call morton, %v1, %v3 : U32
     %v7 = cmp_eq %v4, 1179474545 : Bool
-    %v9 = call check, %v7, 33554432 : Int
+    %v9 = call check, %v7, 33554432 : I32
     ret %v9
 }
 
-fn folded() -> Int {
+fn folded() -> I32 {
   b0:
     %v3 = bitsupto 3735928559, 16 : U32
     %v6 = cmp_eq %v3, 48879 : Bool
-    %v8 = call check, %v6, 67108864 : Int
+    %v8 = call check, %v6, 67108864 : I32
     %v14 = call bitfield(U32), 3735928559, 16, 8 : U32
     %v17 = cmp_eq %v14, 173 : Bool
-    %v19 = call check, %v17, 134217728 : Int
-    %v20 = add %v8, %v19 : Int
+    %v19 = call check, %v17, 134217728 : I32
+    %v20 = add %v8, %v19 : I32
     ret %v20
 }
 
@@ -369,46 +368,46 @@ fn folded() -> Int {
     ret %v2
 }
 
-fn generic() -> Int {
+fn generic() -> I32 {
   b0:
     %v1 = call opaqueU32, 3735928559 : U32
     %v4 = call lowVia(U32), %v1, 16 : U32
     %v7 = cmp_eq %v4, 48879 : Bool
-    %v9 = call check, %v7, 268435456 : Int
+    %v9 = call check, %v7, 268435456 : I32
     %v11 = call opaqueU32, 305419896 : U32
     %v13 = call opaqueU32, 4278255360 : U32
     %v14 = call gatherVia(U32), %v11, %v13 : U32
     %v17 = cmp_eq %v14, 4694 : Bool
-    %v19 = call check, %v17, 536870912 : Int
-    %v20 = add %v9, %v19 : Int
+    %v19 = call check, %v17, 536870912 : I32
+    %v20 = add %v9, %v19 : I32
     ret %v20
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call low : Int
-    %v1 = call ends : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call wide : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call field : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call permute : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call inverse : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call edges : Int
-    %v12 = add %v10, %v11 : Int
-    %v13 = call signed : Int
-    %v14 = add %v12, %v13 : Int
-    %v15 = call widePermute : Int
-    %v16 = add %v14, %v15 : Int
-    %v17 = call interleave : Int
-    %v18 = add %v16, %v17 : Int
-    %v19 = call folded : Int
-    %v20 = add %v18, %v19 : Int
-    %v21 = call generic : Int
-    %v22 = add %v20, %v21 : Int
+    %v0 = call low : I32
+    %v1 = call ends : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call wide : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call field : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call permute : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call inverse : I32
+    %v10 = add %v8, %v9 : I32
+    %v11 = call edges : I32
+    %v12 = add %v10, %v11 : I32
+    %v13 = call signed : I32
+    %v14 = add %v12, %v13 : I32
+    %v15 = call widePermute : I32
+    %v16 = add %v14, %v15 : I32
+    %v17 = call interleave : I32
+    %v18 = add %v16, %v17 : I32
+    %v19 = call folded : I32
+    %v20 = add %v18, %v19 : I32
+    %v21 = call generic : I32
+    %v22 = add %v20, %v21 : I32
     ret %v22
 }
 

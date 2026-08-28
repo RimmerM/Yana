@@ -1,10 +1,10 @@
 let image$base: () = <none>
 
-fn wide() -> Int {
+fn wide() -> I32 {
   b0:
-    %v = vsplat 1 : Vec(Long)
-    %a = vwithlane %v, 20015998348988, 1 : Vec(Long)
-    %v8 = vlane %a, 0 : Long
+    %v = vsplat 1 : Vec(I64)
+    %a = vwithlane %v, 20015998348988, 1 : Vec(I64)
+    %v8 = vlane %a, 0 : I64
     %v11 = cmp_ne %v8, 1 : Bool
     je %v11, b1, b2
 
@@ -15,7 +15,7 @@ fn wide() -> Int {
     jmp b3
 
   b3:
-    %v18 = vlane %a, 1 : Long
+    %v18 = vlane %a, 1 : I64
     %v21 = cmp_ne %v18, 20015998348988 : Bool
     je %v21, b4, b5
 
@@ -26,10 +26,10 @@ fn wide() -> Int {
     jmp b6
 
   b6:
-    %b = vwithlane %a, -3, 0 : Vec(Long)
-    %v32 = vlane %b, 0 : Long
-    %v35 = neg 3 : Int
-    %v36 = cast %v35 : Long
+    %b = vwithlane %a, -3, 0 : Vec(I64)
+    %v32 = vlane %b, 0 : I64
+    %v35 = neg 3 : I32
+    %v36 = cast %v35 : I64
     %v37 = cmp_ne %v32, %v36 : Bool
     je %v37, b7, b8
 
@@ -40,7 +40,7 @@ fn wide() -> Int {
     jmp b9
 
   b9:
-    %v44 = vlane %b, 1 : Long
+    %v44 = vlane %b, 1 : I64
     %v47 = cmp_ne %v44, 20015998348988 : Bool
     je %v47, b10, b11
 
@@ -54,24 +54,24 @@ fn wide() -> Int {
     ret 0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call wide : Int
+    %v0 = call wide : I32
     %v3 = cmp_ne %v0, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = call wide : Int
+    %v5 = call wide : I32
     ret %v5
 
   b2:
     jmp b3
 
   b3:
-    %v9 = vsplat 0 : Vec(Long)
-    %v = vwithlane %v9, 20015998348988, 1 : Vec(Long)
-    %v16 = vlane %v, 1 : Long
-    %v19 = rem %v16, 1000003 : Long
-    %v20 = cast %v19 : Int
+    %v9 = vsplat 0 : Vec(I64)
+    %v = vwithlane %v9, 20015998348988, 1 : Vec(I64)
+    %v16 = vlane %v, 1 : I64
+    %v19 = rem %v16, 1000003 : I64
+    %v20 = cast %v19 : I32
     ret %v20
 }

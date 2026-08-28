@@ -1,49 +1,49 @@
 let image$base: () = <none>
 
-fn adopted() -> Int {
+fn adopted() -> I32 {
   b0:
     %v0 = alloc : Cell
     aggregate %c@Cell.v = 1
     assign %c@Cell.v, 41
     %v5 = load %c : Cell
-    %v6 = load %c@Cell.v : Int
+    %v6 = load %c@Cell.v : I32
     ret %v6
 }
 
-fn copied() -> Int {
+fn copied() -> I32 {
   b0:
     %a = alloc : Cell
     aggregate %local0@Cell.v = 1
     %b = alloc : Cell
     init %b, %a
     assign %b@Cell.v, 99
-    %v7 = load %local0@Cell.v : Int
+    %v7 = load %local0@Cell.v : I32
     %v8 = load %b : Cell
-    %v9 = load %b@Cell.v : Int
-    %v10 = add %v7, %v9 : Int
+    %v9 = load %b@Cell.v : I32
+    %v10 = add %v7, %v9 : I32
     ret %v10
 }
 
-fn field() -> Int {
+fn field() -> I32 {
   b0:
     %v0 = alloc : Cell
     aggregate %local0@Cell.v = 7
-    %v3 = load %local0@Cell.v : Int
-    %inner = alloc : Int
+    %v3 = load %local0@Cell.v : I32
+    %inner = alloc : I32
     init %inner, %v3
-    %v6 = load %inner : Int
-    %v9 = add %v6, 1 : Int
+    %v6 = load %inner : I32
+    %v9 = add %v6, 1 : I32
     assign %inner, %v9
-    %v11 = load %inner : Int
+    %v11 = load %inner : I32
     ret %v11
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call adopted : Int
-    %v1 = call copied : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call field : Int
-    %v4 = add %v2, %v3 : Int
+    %v0 = call adopted : I32
+    %v1 = call copied : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call field : I32
+    %v4 = add %v2, %v3 : I32
     ret %v4
 }

@@ -26,10 +26,10 @@
 
 # The lowest set lane of a byte mask, which is the movemask and the scan with no shift between them:
 # one byte of the register is one lane, so a bit index *is* a lane index.
-firstByte(%a: i8x16, %b: i8x16): Int {
+firstByte(%a: i8x16, %b: i8x16): I32 {
     {
         %m = cmp_eq %a, %b: m8x16
-        %r = vreduce_first %m: Int
+        %r = vreduce_first %m: I32
         ret %r
     }
 }
@@ -38,38 +38,38 @@ firstByte(%a: i8x16, %b: i8x16): Int {
 # rather than five: one bit per lane means the scan's answer is already a lane index and there is no
 # shift behind it, and the sentinel moves down to bit 4 - the lane count, where `pmovmskb` would have
 # put it at bit 16, the register's width in bytes.
-firstWord(%a: i32x4, %b: i32x4): Int {
+firstWord(%a: i32x4, %b: i32x4): I32 {
     {
         %m = cmp_eq %a, %b: m32x4
-        %r = vreduce_first %m: Int
+        %r = vreduce_first %m: I32
         ret %r
     }
 }
 
 # `any` and `all`, as values rather than as conditions: both are the comparison materialized, which
 # is a `setcc` and the zero-extension behind it.
-anyLane(%a: i32x4, %b: i32x4): Int {
+anyLane(%a: i32x4, %b: i32x4): I32 {
     {
         %m = cmp_eq %a, %b: m32x4
-        %r = vreduce_or %m: Int
+        %r = vreduce_or %m: I32
         ret %r
     }
 }
 
-allLanes(%a: i32x4, %b: i32x4): Int {
+allLanes(%a: i32x4, %b: i32x4): I32 {
     {
         %m = cmp_eq %a, %b: m32x4
-        %r = vreduce_and %m: Int
+        %r = vreduce_and %m: I32
         ret %r
     }
 }
 
 # How many lanes are set: the population of the movemask, which at a 32-bit lane is the answer -
 # `movmskps` contributed one bit per lane, so there is nothing to divide back out.
-countLanes(%a: i32x4, %b: i32x4): Int {
+countLanes(%a: i32x4, %b: i32x4): I32 {
     {
         %m = cmp_eq %a, %b: m32x4
-        %r = vreduce_add %m: Int
+        %r = vreduce_add %m: I32
         ret %r
     }
 }
@@ -77,16 +77,16 @@ countLanes(%a: i32x4, %b: i32x4): Int {
 # The search: `any` decides the branch and `firstSet` answers on the arm it took. One `pmovmskb`
 # below the `pcmpeqb` that defines the mask, a `test` and a `jne` in the loop, and the scan on the
 # arm - where the two consumers are in two different blocks and neither is where the movemask sits.
-anyThenFirst(%a: i8x16, %b: i8x16, %at: Int): Int {
+anyThenFirst(%a: i8x16, %b: i8x16, %at: I32): I32 {
     start {
         %m = cmp_eq %a, %b: m8x16
-        %any = vreduce_or %m: Int
+        %any = vreduce_or %m: I32
         je %any, hit, miss
     }
 
     hit {
-        %first = vreduce_first %m: Int
-        %r = add %at, %first: Int
+        %first = vreduce_first %m: I32
+        %r = add %at, %first: I32
         ret %r
     }
 
@@ -104,7 +104,7 @@ anyThenFirst(%a: i8x16, %b: i8x16, %at: Int): Int {
 # of one is the entry block's top, which may be a call or a loop away from the consumers, and no
 # vector code this language generates hands a mask in as a parameter. That one keeps a movemask per
 # consumer, which is what all of them had before any of this.
-phiMask(%a: i8x16, %b: i8x16, %c: Int): Int {
+phiMask(%a: i8x16, %b: i8x16, %c: I32): I32 {
     start {
         %p = cmp_eq %a, %b: m8x16
         %q = cmp_gt %a, %b: m8x16
@@ -116,9 +116,9 @@ phiMask(%a: i8x16, %b: i8x16, %c: Int): Int {
 
     join {
         %m = phi [left, %p], [right, %q]: m8x16
-        %any = vreduce_or %m: Int
-        %first = vreduce_first %m: Int
-        %r = add %first, %any: Int
+        %any = vreduce_or %m: I32
+        %first = vreduce_first %m: I32
+        %r = add %first, %any: I32
         ret %r
     }
 }
@@ -127,11 +127,11 @@ phiMask(%a: i8x16, %b: i8x16, %c: Int): Int {
 # arithmetic, and there being nothing above this tier to negate but the value. Left alone that is the
 # whole materialization the comparison exists to avoid (`test ; setne ; xor $1 ; jne`); inverting the
 # comparison instead is exact, since what it answers is a bit.
-noneLanes(%a: i32x4, %b: i32x4, %x: Int): Int {
+noneLanes(%a: i32x4, %b: i32x4, %x: I32): I32 {
     start {
         %m = cmp_eq %a, %b: m32x4
-        %any = vreduce_or %m: Int
-        %none = xor %any, 1: Int
+        %any = vreduce_or %m: I32
+        %none = xor %any, 1: I32
         je %none, empty, some
     }
 

@@ -1,48 +1,48 @@
 let image$base: () = <none>
 
-let &calls: Int = 0
+let &calls: I32 = 0
 
-fn larger(%a: Int, %b: Int) -> Int {
+fn larger(%a: I32, %b: I32) -> I32 {
   b0:
     %v2 = cmp_gt %a, %b : Bool
-    %v8 = select %v2 ? %a : %b : Int
+    %v8 = select %v2 ? %a : %b : I32
     ret %v8
 }
 
-fn sign(%value: Int) -> Int {
+fn sign(%value: I32) -> I32 {
   b0:
     %v3 = cmp_lt %value, 0 : Bool
     %v8 = cmp_eq %value, 0 : Bool
-    %v17 = select %v8 ? 0 : 1 : Int
-    %v19 = select %v3 ? -1 : %v17 : Int
+    %v17 = select %v8 ? 0 : 1 : I32
+    %v19 = select %v3 ? -1 : %v17 : I32
     ret %v19
 }
 
-fn either(%a: Int, %b: Int) -> Int {
+fn either(%a: I32, %b: I32) -> I32 {
   b0:
     %v4 = cmp_gt %a, 0 : Bool
     %v8 = cmp_gt %b, 0 : Bool
     %v24 = or %v4, %v8 : Bool
-    %v22 = select %v24 ? 1 : 0 : Int
+    %v22 = select %v24 ? 1 : 0 : I32
     ret %v22
 }
 
 fn count() -> Bool {
   b0:
-    %v0 = load calls : Int
-    %v3 = add %v0, 1 : Int
+    %v0 = load calls : I32
+    %v3 = add %v0, 1 : I32
     assign calls, %v3
     ret True
 }
 
-fn skipped(%a: Int) -> Int {
+fn skipped(%a: I32) -> I32 {
   b0:
     %v3 = cmp_gt %a, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v17 = load calls : Int
-    %v19 = add %v17, 1 : Int
+    %v17 = load calls : I32
+    %v19 = add %v17, 1 : I32
     assign calls, %v19
     jmp b3
 
@@ -51,81 +51,81 @@ fn skipped(%a: Int) -> Int {
 
   b3:
     %v9 = phi [b1, True], [b2, False] : Bool
-    %v22 = select %v9 ? 1 : 0 : Int
+    %v22 = select %v9 ? 1 : 0 : I32
     ret %v22
 }
 
-fn effects() -> Int {
+fn effects() -> I32 {
   b0:
     assign calls, 1
     ret 6
 }
 
-fn same(%c: Int) -> Int {
+fn same(%c: I32) -> I32 {
   b0:
     ret 7
 }
 
-fn lowered() -> Float {
+fn lowered() -> F32 {
   b0:
     ret -3
 }
 
-fn magnitude(%value: Float) -> Float {
+fn magnitude(%value: F32) -> F32 {
   b0:
     %v3 = cmp_gt %value, 0 : Bool
-    %v7 = sub 0, %value : Float
-    %v12 = select %v3 ? %value : %v7 : Float
+    %v7 = sub 0, %value : F32
+    %v12 = select %v3 ? %value : %v7 : F32
     ret %v12
 }
 
-fn positive() -> Int {
+fn positive() -> I32 {
   b0:
-    %v0 = call lowered : Float
+    %v0 = call lowered : F32
     %v13 = cmp_gt %v0, 0 : Bool
-    %v15 = sub 0, %v0 : Float
-    %v16 = select %v13 ? %v0 : %v15 : Float
+    %v15 = sub 0, %v0 : F32
+    %v16 = select %v13 ? %v0 : %v15 : F32
     %v4 = cmp_gt %v16, 2.5 : Bool
-    %v17 = select %v4 ? 5 : 0 : Int
+    %v17 = select %v4 ? 5 : 0 : I32
     ret %v17
 }
 
-fn smallest(%limit: Int) -> Int {
+fn smallest(%limit: I32) -> I32 {
   b0:
-    %best = alloc : Int
+    %best = alloc : I32
     init %best, 100
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
+    %v8 = load %i : I32
     %v9 = cmp_lt %v8, %limit : Bool
     je %v9, b3, b2
 
   b2:
-    %v32 = load %best : Int
+    %v32 = load %best : I32
     ret %v32
 
   b3:
-    %v12 = load %i : Int
-    %v15 = mul %v12, 3 : Int
-    %candidate = sub 40, %v15 : Int
-    %v18 = load %best : Int
+    %v12 = load %i : I32
+    %v15 = mul %v12, 3 : I32
+    %candidate = sub 40, %v15 : I32
+    %v18 = load %best : I32
     %v19 = cmp_lt %candidate, %v18 : Bool
-    %v34 = select %v19 ? %candidate : %v18 : Int
+    %v34 = select %v19 ? %candidate : %v18 : I32
     assign %best, %v34
-    %v29 = add %v12, 1 : Int
+    %v29 = add %v12, 1 : I32
     assign %i, %v29
     jmp b1
 }
 
-fn zero() -> Int {
+fn zero() -> I32 {
   b0:
     ret 0
 }
 
-fn ratio(%value: Int, %divisor: Int) -> Int {
+fn ratio(%value: I32, %divisor: I32) -> I32 {
   b0:
     %v4 = cmp_ne %divisor, 0 : Bool
     je %v4, b2, b1
@@ -134,64 +134,64 @@ fn ratio(%value: Int, %divisor: Int) -> Int {
     jmp b3
 
   b2:
-    %v9 = div %value, %divisor : Int
+    %v9 = div %value, %divisor : I32
     jmp b3
 
   b3:
-    %v13 = phi [b2, %v9], [b1, 0] : Int
+    %v13 = phi [b2, %v9], [b1, 0] : I32
     ret %v13
 }
 
-fn doubled(%value: Int) -> Int {
+fn doubled(%value: I32) -> I32 {
   b0:
-    %v3 = mul %value, 2 : Int
+    %v3 = mul %value, 2 : I32
     ret %v3
 }
 
-fn guarded(%value: Int) -> Int {
+fn guarded(%value: I32) -> I32 {
   b0:
     %v3 = cmp_gt %value, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = call doubled, %value : Int
+    %v5 = call doubled, %value : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v9 = phi [b1, %v5], [b2, 0] : Int
+    %v9 = phi [b1, %v5], [b2, 0] : I32
     ret %v9
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     assign calls, 1
-    %v133 = call lowered : Float
+    %v133 = call lowered : F32
     %v135 = cmp_gt %v133, 0 : Bool
-    %v137 = sub 0, %v133 : Float
-    %v138 = select %v135 ? %v133 : %v137 : Float
+    %v137 = sub 0, %v133 : F32
+    %v138 = select %v135 ? %v133 : %v137 : F32
     %v140 = cmp_gt %v138, 2.5 : Bool
-    %v143 = select %v140 ? 5 : 0 : Int
-    %v49 = mul %v143, 256 : Int
-    %v50 = add %v49, 1310 : Int
-    %best = alloc : Int
+    %v143 = select %v140 ? 5 : 0 : I32
+    %v49 = mul %v143, 256 : I32
+    %v50 = add %v49, 1310 : I32
+    %best = alloc : I32
     init %best, 100
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v151 = load %i : Int
+    %v151 = load %i : I32
     %v152 = cmp_lt %v151, 5 : Bool
     je %v152, b6, b2
 
   b2:
-    %v154 = load %best : Int
-    %v55 = mul %v154, 512 : Int
-    %v56 = add %v50, %v55 : Int
-    %v58 = call zero : Int
+    %v154 = load %best : I32
+    %v55 = mul %v154, 512 : I32
+    %v56 = add %v50, %v55 : I32
+    %v58 = call zero : I32
     %v171 = cmp_ne %v58, 0 : Bool
     je %v171, b4, b3
 
@@ -199,28 +199,28 @@ fn main() -> Int {
     jmp b5
 
   b4:
-    %v174 = div 10, %v58 : Int
+    %v174 = div 10, %v58 : I32
     jmp b5
 
   b5:
-    %v169 = phi [b4, %v174], [b3, 0] : Int
-    %v62 = mul %v169, 1024 : Int
-    %v63 = add %v56, %v62 : Int
-    %v70 = add %v63, 10240 : Int
-    %v192 = call doubled, 3 : Int
-    %v75 = mul %v192, 4096 : Int
-    %v76 = add %v70, %v75 : Int
+    %v169 = phi [b4, %v174], [b3, 0] : I32
+    %v62 = mul %v169, 1024 : I32
+    %v63 = add %v56, %v62 : I32
+    %v70 = add %v63, 10240 : I32
+    %v192 = call doubled, 3 : I32
+    %v75 = mul %v192, 4096 : I32
+    %v76 = add %v70, %v75 : I32
     ret %v76
 
   b6:
-    %v156 = load %i : Int
-    %v158 = mul %v156, 3 : Int
-    %candidate = sub 40, %v158 : Int
-    %v161 = load %best : Int
+    %v156 = load %i : I32
+    %v158 = mul %v156, 3 : I32
+    %candidate = sub 40, %v158 : I32
+    %v161 = load %best : I32
     %v162 = cmp_lt %candidate, %v161 : Bool
-    %v163 = select %v162 ? %candidate : %v161 : Int
+    %v163 = select %v162 ? %candidate : %v161 : I32
     assign %best, %v163
-    %v166 = add %v156, 1 : Int
+    %v166 = add %v156, 1 : I32
     assign %i, %v166
     jmp b1
 }

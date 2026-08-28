@@ -6,7 +6,7 @@ fn remember(%store: Store, %value: 1'Cell) -> () {
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Cell
     aggregate %source@Cell.value = 7
@@ -21,6 +21,6 @@ fn main() -> Int {
     call remember, %v10, %v9
     %v12 = load %box : Store
     %v13 = load %box@Store.held : 1'Cell
-    %v14 = load [%v13]@Cell.value : Int
+    %v14 = load [%v13]@Cell.value : I32
     ret %v14
 }

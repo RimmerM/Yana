@@ -62,7 +62,7 @@ fn i64Min() -> I64 {
     ret -9223372036854775808
 }
 
-fn longMin() -> Long {
+fn longMin() -> I64 {
   b0:
     ret -9223372036854775808
 }
@@ -77,7 +77,7 @@ fn sizeAll() -> Size {
     ret -1
 }
 
-fn negZero() -> Double {
+fn negZero() -> F64 {
   b0:
     ret -0
 }
@@ -110,10 +110,10 @@ fn i64MinOld() -> I64 {
     ret %v7
 }
 
-fn longMinOld() -> Long {
+fn longMinOld() -> I64 {
   b0:
-    %v4 = sub 0, 9223372036854775807 : Long
-    %v7 = sub %v4, 1 : Long
+    %v4 = sub 0, 9223372036854775807 : I64
+    %v7 = sub %v4, 1 : I64
     ret %v7
 }
 
@@ -124,15 +124,15 @@ fn wideMinOld() -> WideInt {
     ret %v7
 }
 
-fn takesI8(%x: I8) -> Int {
+fn takesI8(%x: I8) -> I32 {
   b0:
-    %v1 = cast %x : Int
+    %v1 = cast %x : I32
     ret %v1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
     %v4 = call i8Min : I8
     %v5 = call i8MinOld : I8
@@ -140,8 +140,8 @@ fn main() -> Int {
     je %v6, b1, b2
 
   b1:
-    %v8 = load %score : Int
-    %v11 = add %v8, 1 : Int
+    %v8 = load %score : I32
+    %v11 = add %v8, 1 : I32
     assign %score, %v11
     jmp b3
 
@@ -155,8 +155,8 @@ fn main() -> Int {
     je %v17, b4, b5
 
   b4:
-    %v19 = load %score : Int
-    %v22 = add %v19, 2 : Int
+    %v19 = load %score : I32
+    %v22 = add %v19, 2 : I32
     assign %score, %v22
     jmp b6
 
@@ -170,8 +170,8 @@ fn main() -> Int {
     je %v28, b7, b8
 
   b7:
-    %v30 = load %score : Int
-    %v33 = add %v30, 4 : Int
+    %v30 = load %score : I32
+    %v33 = add %v30, 4 : I32
     assign %score, %v33
     jmp b9
 
@@ -185,8 +185,8 @@ fn main() -> Int {
     je %v39, b10, b11
 
   b10:
-    %v41 = load %score : Int
-    %v44 = add %v41, 8 : Int
+    %v41 = load %score : I32
+    %v44 = add %v41, 8 : I32
     assign %score, %v44
     jmp b12
 
@@ -194,14 +194,14 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v48 = call longMin : Long
-    %v49 = call longMinOld : Long
+    %v48 = call longMin : I64
+    %v49 = call longMinOld : I64
     %v50 = cmp_eq %v48, %v49 : Bool
     je %v50, b13, b14
 
   b13:
-    %v52 = load %score : Int
-    %v55 = add %v52, 16 : Int
+    %v52 = load %score : I32
+    %v55 = add %v52, 16 : I32
     assign %score, %v55
     jmp b15
 
@@ -215,8 +215,8 @@ fn main() -> Int {
     je %v61, b16, b17
 
   b16:
-    %v63 = load %score : Int
-    %v66 = add %v63, 32 : Int
+    %v63 = load %score : I32
+    %v66 = add %v63, 32 : I32
     assign %score, %v66
     jmp b18
 
@@ -224,14 +224,14 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v71 = call takesI8, -128 : Int
-    %v76 = sub 0, 128 : Int
+    %v71 = call takesI8, -128 : I32
+    %v76 = sub 0, 128 : I32
     %v77 = cmp_eq %v71, %v76 : Bool
     je %v77, b19, b20
 
   b19:
-    %v79 = load %score : Int
-    %v82 = add %v79, 64 : Int
+    %v79 = load %score : I32
+    %v82 = add %v79, 64 : I32
     assign %score, %v82
     jmp b21
 
@@ -239,14 +239,14 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v87 = call negZero : Double
-    %v88 = div 1, %v87 : Double
+    %v87 = call negZero : F64
+    %v88 = div 1, %v87 : F64
     %v91 = cmp_lt %v88, 0 : Bool
     je %v91, b22, b23
 
   b22:
-    %v93 = load %score : Int
-    %v96 = add %v93, 128 : Int
+    %v93 = load %score : I32
+    %v96 = add %v93, 128 : I32
     assign %score, %v96
     jmp b24
 
@@ -269,63 +269,61 @@ fn main() -> Int {
     %v118 = cmp_ge %v116, %v117 : Bool
     call checkCondition, %v118
     %v120 = load [%v114]@Flat.items : %I32
-    %v121 = strideof I32 : Long
-    %v122 = mul 0, %v121 : Long
+    %v121 = strideof I32 : I64
+    %v122 = mul 0, %v121 : I64
     %v123 = add %v120, %v122 : %I32
     %v124 = borrow [%v123] : 'I32
     %v125 = load [%v124] : I32
-    %v126 = cast %v125 : Int
-    %v128 = borrow %local1 : '[I32 *2]
+    %v127 = borrow %local1 : '[I32 *2]
     %a = alloc : Flat(I32)
-    %v130 = addressof [%v128] : %I32
-    init %a@Flat.items, %v130
-    %v132 = countof 2 : Size
-    init %a@Flat.length, %v132
-    %v135 = borrow %a : 'Flat(I32)
-    %v136 = load [%v135]@Flat.length : Size
-    %v137 = cast 1 : USize
-    %v138 = cast %v136 : USize
-    %v139 = cmp_ge %v137, %v138 : Bool
-    call checkCondition, %v139
-    %v141 = load [%v135]@Flat.items : %I32
-    %v142 = strideof I32 : Long
-    %v143 = mul 1, %v142 : Long
-    %v144 = add %v141, %v143 : %I32
-    %v145 = borrow [%v144] : 'I32
-    %v146 = load [%v145] : I32
-    %v147 = cast %v146 : Int
-    %v148 = add %v126, %v147 : Int
-    %v153 = sub 0, 3 : Int
-    %v154 = cmp_eq %v148, %v153 : Bool
-    je %v154, b25, b26
+    %v129 = addressof [%v127] : %I32
+    init %a@Flat.items, %v129
+    %v131 = countof 2 : Size
+    init %a@Flat.length, %v131
+    %v134 = borrow %a : 'Flat(I32)
+    %v135 = load [%v134]@Flat.length : Size
+    %v136 = cast 1 : USize
+    %v137 = cast %v135 : USize
+    %v138 = cmp_ge %v136, %v137 : Bool
+    call checkCondition, %v138
+    %v140 = load [%v134]@Flat.items : %I32
+    %v141 = strideof I32 : I64
+    %v142 = mul 1, %v141 : I64
+    %v143 = add %v140, %v142 : %I32
+    %v144 = borrow [%v143] : 'I32
+    %v145 = load [%v144] : I32
+    %v146 = add %v125, %v145 : I32
+    %v151 = sub 0, 3 : I32
+    %v152 = cmp_eq %v146, %v151 : Bool
+    je %v152, b25, b26
 
   b25:
-    %v156 = load %score : Int
-    %v159 = add %v156, 256 : Int
-    assign %score, %v159
+    %v154 = load %score : I32
+    %v157 = add %v154, 256 : I32
+    assign %score, %v157
     jmp b27
 
   b26:
     jmp b27
 
   b27:
-    %v163 = call sizeAll : Size
-    %v164 = cast %v163 : I64
-    %v169 = sub 0, 1 : Int
-    %v170 = cast %v169 : I64
-    %v171 = cmp_eq %v164, %v170 : Bool
-    je %v171, b28, b29
+    %v161 = call sizeAll : Size
+    %v162 = cast %v161 : I64
+    %v167 = sub 0, 1 : I32
+    %v168 = cast %v167 : I64
+    %v169 = cmp_eq %v162, %v168 : Bool
+    je %v169, b28, b29
 
   b28:
-    %v173 = load %score : Int
-    %v176 = add %v173, 512 : Int
-    assign %score, %v176
+    %v171 = load %score : I32
+    %v174 = add %v171, 512 : I32
+    assign %score, %v174
     jmp b30
 
   b29:
     jmp b30
 
   b30:
-    %v180 = load %score : Int
-    ret %v180
+    %v178 = load %score : I32
+    ret %v178
 }

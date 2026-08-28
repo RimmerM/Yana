@@ -20,7 +20,7 @@ setConstant(%dst: Ptr) {
     }
 }
 
-patternRuntime(%dst: Ptr, %pat: Int) {
+patternRuntime(%dst: Ptr, %pat: I32) {
     {
         setpattern %dst, 4, %pat
         setpattern %dst, 12, %pat
@@ -31,7 +31,7 @@ patternRuntime(%dst: Ptr, %pat: Int) {
 
 # One byte past the ceiling, which is where `rep stosb` starts and where the pattern goes back to
 # being the byte the instruction reads out of al.
-setAboveCeiling(%dst: Ptr, %pat: Int) {
+setAboveCeiling(%dst: Ptr, %pat: I32) {
     {
         setpattern %dst, 65, %pat
         ret

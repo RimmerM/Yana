@@ -1,6 +1,6 @@
 @image$base = []
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
     %byte = alloca 1, 1: Ptr
@@ -20,13 +20,13 @@ main<complex>(): Int {
     atomic_store %word, 9, 4, release
     atomic_store %flag, 0, 1, release
     %v_2 = atomic_xchg %address, %v_1, 8, acq_rel: Ptr
-    %v_3 = atomic_add %long, 1, 8, relaxed: Long
-    %v_4 = cmp_igt %v_3, 0: Int
+    %v_3 = atomic_add %long, 1, 8, relaxed: I64
+    %v_4 = cmp_igt %v_3, 0: I32
     %state = alloca 1, 1: Ptr
     store %state, 0, 1
-    %v_5, %v_6 = atomic_cas %state, 0, 1, 1, acquire, acquire: Int, Int
-    %v_7 = imm 24: Int
-    %v_8 = imm 24: Int
+    %v_5, %v_6 = atomic_cas %state, 0, 1, 1, acquire, acquire: I32, I32
+    %v_7 = imm 24: I32
+    %v_8 = imm 24: I32
     je %v_6, b_9, b_10
   }
 
@@ -44,17 +44,17 @@ main<complex>(): Int {
 
   b_12 {
     %v_14 = phi [b_9, %v_13], [b_10, %v_11]: Ptr
-    %v_15 = load %v_14, 1: Long
-    %v_16 = cmp_le %v_15, 2: Int
-    %v_17 = cmp_eq %v_16, 0: Int
-    %actual = load %v_14, 1: Int
-    %v_18 = select %v_17, 1, %actual: Int
-    %v_19 = cmp_eq %v_18, 1: Int
+    %v_15 = load %v_14, 1: I64
+    %v_16 = cmp_le %v_15, 2: I32
+    %v_17 = cmp_eq %v_16, 0: I32
+    %actual = load %v_14, 1: I32
+    %v_18 = select %v_17, 1, %actual: I32
+    %v_19 = cmp_eq %v_18, 1: I32
     %c = alloca 2, 2: Ptr
     store %c, 0, 2
     atomic_store %c, 1000, 2, relaxed
-    %previous = atomic_xchg %c, 60000, 2, acq_rel: Int
-    %v_20, %v_21 = atomic_cas %c, 60000, 0, 2, seq_cst, seq_cst: Int, Int
+    %previous = atomic_xchg %c, 60000, 2, acq_rel: I32
+    %v_20, %v_21 = atomic_cas %c, 60000, 0, 2, seq_cst, seq_cst: I32, I32
     je %v_21, b_22, b_23
   }
 
@@ -72,33 +72,33 @@ main<complex>(): Int {
 
   b_25 {
     %v_27 = phi [b_22, %v_26], [b_23, %v_24]: Ptr
-    %v_28 = load %v_27, 2: Long
-    %v_29 = cmp_le %v_28, 60000: Int
-    %v_30 = cmp_eq %v_29, 0: Int
-    %actual = load %v_27, 2: Int
-    %v_31 = select %v_30, %previous, %actual: Int
-    %v_32 = cmp_eq %v_31, 1000: Int
+    %v_28 = load %v_27, 2: I64
+    %v_29 = cmp_le %v_28, 60000: I32
+    %v_30 = cmp_eq %v_29, 0: I32
+    %actual = load %v_27, 2: I32
+    %v_31 = select %v_30, %previous, %actual: I32
+    %v_32 = cmp_eq %v_31, 1000: I32
     %w = alloca 4, 4: Ptr
     store %w, 0, 4
-    %v_33 = atomic_xchg %w, 4000000000, 4, relaxed: Int
-    %v_34 = atomic_load %w, 4, acquire: Int
-    %v_35 = cmp_eq %v_34, 4000000000: Int
+    %v_33 = atomic_xchg %w, 4000000000, 4, relaxed: I32
+    %v_34 = atomic_load %w, 4, acquire: I32
+    %v_35 = cmp_eq %v_34, 4000000000: I32
     %byte = alloca 1, 1: Ptr
     store %byte, 250, 1
     %half = alloca 2, 2: Ptr
     store %half, 1000, 2
     %signed = alloca 1, 1: Ptr
     store %signed, 18446744073709551611, 1
-    %v_36 = atomic_sub %byte, 10, 1, relaxed: Int
-    %a = and %v_36, 255: Int
-    %v_37 = atomic_xor %half, 61680, 2, acquire: Int
-    %b = and %v_37, 65535: Int
-    %v_38 = atomic_add %signed, 18446744073709551615, 1, release: Int
-    %v_39 = shl %v_38, %v_7: Int
-    %c = sar %v_39, %v_7: Int
-    %v_40, %v_41 = atomic_cas %signed, 18446744073709551610, 18446744073709551609, 1, seq_cst, seq_cst: Int, Int
-    %v_42 = shl %v_40, %v_8: Int
-    %v_43 = sar %v_42, %v_8: Int
+    %v_36 = atomic_sub %byte, 10, 1, relaxed: I32
+    %a = and %v_36, 255: I32
+    %v_37 = atomic_xor %half, 61680, 2, acquire: I32
+    %b = and %v_37, 65535: I32
+    %v_38 = atomic_add %signed, 18446744073709551615, 1, release: I32
+    %v_39 = shl %v_38, %v_7: I32
+    %c = sar %v_39, %v_7: I32
+    %v_40, %v_41 = atomic_cas %signed, 18446744073709551610, 18446744073709551609, 1, seq_cst, seq_cst: I32, I32
+    %v_42 = shl %v_40, %v_8: I32
+    %v_43 = sar %v_42, %v_8: I32
     je %v_41, b_44, b_45
   }
 
@@ -117,50 +117,50 @@ main<complex>(): Int {
 
   b_47 {
     %v_49 = phi [b_44, %v_48], [b_45, %v_46]: Ptr
-    %v_50 = load %v_49, 2: Long
-    %v_51 = shr %v_50, 8: Long
-    %v_52 = and %v_51, 1: Long
-    %v_53 = cast %v_52: Int
-    %v_54 = cmp_eq %v_53, 0: Int
-    %actual = loads %v_49, 1: Int
-    %d = select %v_54, 0, %actual: Int
-    %v_55 = cast %a: Long
-    %v_56 = cast %b: Long
-    %v_57 = add %v_55, %v_56: Long
-    %v_58 = sext %c: Long
-    %v_59 = add %v_57, %v_58: Long
-    %v_60 = sext %d: Long
-    %v_61 = add %v_59, %v_60: Long
-    %v_62 = cmp_igt %v_61, 0: Int
+    %v_50 = load %v_49, 2: I64
+    %v_51 = shr %v_50, 8: I64
+    %v_52 = and %v_51, 1: I64
+    %v_53 = cast %v_52: I32
+    %v_54 = cmp_eq %v_53, 0: I32
+    %actual = loads %v_49, 1: I32
+    %d = select %v_54, 0, %actual: I32
+    %v_55 = cast %a: I64
+    %v_56 = cast %b: I64
+    %v_57 = add %v_55, %v_56: I64
+    %v_58 = sext %c: I64
+    %v_59 = add %v_57, %v_58: I64
+    %v_60 = sext %d: I64
+    %v_61 = add %v_59, %v_60: I64
+    %v_62 = cmp_igt %v_61, 0: I32
     atomic_store %v_1, 1, 4, release
-    %bumped = atomic_add %v_1, 2, 4, acq_rel: Int
-    %v_63 = atomic_loads %v_1, 4, acquire: Int
-    %v_64 = add %bumped, %v_63: Int
+    %bumped = atomic_add %v_1, 2, 4, acq_rel: I32
+    %v_63 = atomic_loads %v_1, 4, acquire: I32
+    %v_64 = add %bumped, %v_63: I32
     %c = alloca 4, 4: Ptr
     store %c, 0, 4
     atomic_store %c, 7, 4, release
-    %seen = atomic_loads %c, 4, acquire: Int
-    %previous = atomic_xchg %c, 9, 4, acq_rel: Int
-    %v_65 = add %seen, %previous: Int
+    %seen = atomic_loads %c, 4, acquire: I32
+    %previous = atomic_xchg %c, 9, 4, acq_rel: I32
+    %v_65 = add %seen, %previous: I32
     %v_66 = alloca 4, 4: Ptr
     copy %v_66, %c, 4
-    %v_67 = loads %v_66, 4: Int
-    %v_68 = add %v_65, %v_67: Int
+    %v_67 = loads %v_66, 4: I32
+    %v_68 = add %v_65, %v_67: I32
     %c = alloca 4, 4: Ptr
     store %c, 1, 4
-    %a = atomic_add %c, 4, 4, relaxed: Int
-    %s = atomic_sub %c, 2, 4, acquire: Int
-    %n = atomic_and %c, 255, 4, release: Int
-    %o = atomic_or %c, 16, 4, acq_rel: Int
-    %x = atomic_xor %c, 1, 4, seq_cst: Int
-    %v_69 = add %a, %s: Int
-    %v_70 = add %v_69, %n: Int
-    %v_71 = add %v_70, %o: Int
-    %v_72 = add %v_71, %x: Int
-    %v_73 = add %v_68, %v_72: Int
+    %a = atomic_add %c, 4, 4, relaxed: I32
+    %s = atomic_sub %c, 2, 4, acquire: I32
+    %n = atomic_and %c, 255, 4, release: I32
+    %o = atomic_or %c, 16, 4, acq_rel: I32
+    %x = atomic_xor %c, 1, 4, seq_cst: I32
+    %v_69 = add %a, %s: I32
+    %v_70 = add %v_69, %n: I32
+    %v_71 = add %v_70, %o: I32
+    %v_72 = add %v_71, %x: I32
+    %v_73 = add %v_68, %v_72: I32
     %c = alloca 4, 4: Ptr
     store %c, 5, 4
-    %v_74, %v_75 = atomic_cas %c, 5, 6, 4, acq_rel, acquire: Int, Int
+    %v_74, %v_75 = atomic_cas %c, 5, 6, 4, acq_rel, acquire: I32, I32
     je %v_75, b_76, b_77
   }
 
@@ -180,16 +180,16 @@ main<complex>(): Int {
 
   b_80 {
     %v_82 = phi [b_76, %v_81], [b_77, %v_78]: Ptr
-    %v_83 = loads %v_82, 4: Int
-    %v_84 = cmp_eq %v_83, 0: Int
+    %v_83 = loads %v_82, 4: I32
+    %v_84 = cmp_eq %v_83, 0: I32
     %v_85 = add %v_82, 4: Ptr
-    %actual = loads %v_85, 4: Int
-    %v_86 = select %v_84, 1, %actual: Int
-    %v_87 = add %v_73, %v_86: Int
+    %actual = loads %v_85, 4: I32
+    %v_86 = select %v_84, 1, %actual: I32
+    %v_87 = add %v_73, %v_86: I32
     %c = alloca 4, 4: Ptr
     store %c, 0, 4
-    %v_88, %v_89 = atomic_cas_weak %c, 0, 1, 4, release, relaxed: Int, Int
-    %v_90, %v_91 = atomic_cas %c, 1, 2, 4, seq_cst, acquire: Int, Int
+    %v_88, %v_89 = atomic_cas_weak %c, 0, 1, 4, release, relaxed: I32, I32
+    %v_90, %v_91 = atomic_cas %c, 1, 2, 4, seq_cst, acquire: I32, I32
     je %v_91, b_92, b_93
   }
 
@@ -209,25 +209,25 @@ main<complex>(): Int {
 
   b_96 {
     %v_98 = phi [b_92, %v_97], [b_93, %v_94]: Ptr
-    %v_99 = loads %v_98, 4: Int
-    %v_100 = cmp_eq %v_99, 0: Int
+    %v_99 = loads %v_98, 4: I32
+    %v_100 = cmp_eq %v_99, 0: I32
     %v_101 = add %v_98, 4: Ptr
-    %actual = loads %v_101, 4: Int
-    %v_102 = select %v_100, 2, %actual: Int
-    %v_103 = add %v_87, %v_102: Int
+    %actual = loads %v_101, 4: I32
+    %v_102 = select %v_100, 2, %actual: I32
+    %v_103 = add %v_87, %v_102: I32
     %c = alloca 4, 4: Ptr
     store %c, 0, 4
     atomic_store %c, 1, 4, relaxed
     fence release
     spinhint 
-    %v_104 = atomic_loads %c, 4, relaxed: Int
-    %v_105 = add %v_103, %v_104: Int
-    %v_106 = add %v_105, %v_4: Int
-    %v_107 = add %v_106, %v_19: Int
-    %v_108 = add %v_107, %v_32: Int
-    %v_109 = add %v_108, %v_35: Int
-    %v_110 = add %v_109, %v_62: Int
-    %v_111 = add %v_110, %v_64: Int
+    %v_104 = atomic_loads %c, 4, relaxed: I32
+    %v_105 = add %v_103, %v_104: I32
+    %v_106 = add %v_105, %v_4: I32
+    %v_107 = add %v_106, %v_19: I32
+    %v_108 = add %v_107, %v_32: I32
+    %v_109 = add %v_108, %v_35: I32
+    %v_110 = add %v_109, %v_62: I32
+    %v_111 = add %v_110, %v_64: I32
     ret %v_111
   }
 }

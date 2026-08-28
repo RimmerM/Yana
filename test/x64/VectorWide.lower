@@ -44,7 +44,7 @@ arith(%a: i32x8, %b: i32x8, %c: f32x8, %d: f32x8): i32x8 {
 # rather than the same one re-encoded: `vpshufd` works inside each half and cannot reach the upper
 # one at all, so a 256-bit broadcast is `vpbroadcastd`/`vbroadcastss` and AVX2 is where those arrive.
 # The integer lane crosses banks first; the float lane is already where it needs to be.
-broadcast(%n: Int, %x: Float): i32x8 {
+broadcast(%n: I32, %x: F32): i32x8 {
     {
         %v = vsplat %n: i32x8
         %f = vsplat %x: f32x8
@@ -70,7 +70,7 @@ shuffles(%a: i32x8): i32x8 {
 # the crossing, which is what makes the combining order Design-Vector §4.5 states reachable here -
 # the x86 idiom of folding the upper half down gives a different order and different bits for a float
 # sum.
-reduce(%a: f32x8): Float {
+reduce(%a: f32x8): F32 {
     {
         %p0 = vshuffle %a, %a, 1, 0, 3, 2, 5, 4, 7, 6: f32x8
         %s0 = add %a, %p0: f32x8
@@ -78,7 +78,7 @@ reduce(%a: f32x8): Float {
         %s1 = add %s0, %p1: f32x8
         %p2 = vshuffle %s1, %s1, 4, 5, 6, 7, 0, 1, 2, 3: f32x8
         %s2 = add %s1, %p2: f32x8
-        %r = vlane %s2, 0: Float
+        %r = vlane %s2, 0: F32
         ret %r
     }
 }
@@ -90,13 +90,13 @@ reduce(%a: f32x8): Float {
 # put the half back, because `vpinsrd` is a VEX instruction and zeroes everything above the register
 # it writes. Writing a lane of the *low* half in place would therefore clear the upper half of the
 # vector, which is why lane 1 takes the same three instructions lane 5 does.
-lanes(%a: i32x8, %n: Int): Int {
+lanes(%a: i32x8, %n: I32): I32 {
     {
         %high = vwithlane %a, %n, 5: i32x8
         %low = vwithlane %high, %n, 1: i32x8
-        %x = vlane %low, 5: Int
-        %y = vlane %low, 1: Int
-        %r = add %x, %y: Int
+        %x = vlane %low, 5: I32
+        %y = vlane %low, 1: I32
+        %r = add %x, %y: I32
         ret %r
     }
 }
@@ -127,16 +127,16 @@ lanes(%a: i32x8, %n: Int): Int {
 # wrong. See LowerFunction::foreignBoundary.
 #
 # `c5 f8 77` twice below: once in front of the call, once in front of the `ret`.
-foreignSink<sysv, foreign>(%x: Int): Int {
+foreignSink<sysv, foreign>(%x: I32): I32 {
     { ret %x }
 }
 
-crossing<sysv, foreign>(%a: i32x8, %n: Int): Int {
+crossing<sysv, foreign>(%a: i32x8, %n: I32): I32 {
     {
         %v = add %a, %a: i32x8
-        %r = call_sysv foreignSink, %n: Int
-        %l = vlane %v, 0: Int
-        %s = add %r, %l: Int
+        %r = call_sysv foreignSink, %n: I32
+        %l = vlane %v, 0: I32
+        %s = add %r, %l: I32
         ret %s
     }
 }
@@ -147,16 +147,16 @@ crossing<sysv, foreign>(%a: i32x8, %n: Int): Int {
 # Nothing between these two functions differs but the marker, which is what makes the pair the
 # assertion rather than either one alone - and it is the marker rather than the convention, since a
 # `<sysv>` with no `foreign` beside it now owes nothing either.
-internalSink<complex>(%x: Int): Int {
+internalSink<complex>(%x: I32): I32 {
     { ret %x }
 }
 
-internal<complex>(%a: i32x8, %n: Int): Int {
+internal<complex>(%a: i32x8, %n: I32): I32 {
     {
         %v = add %a, %a: i32x8
-        %r = call_complex internalSink, %n: Int
-        %l = vlane %v, 0: Int
-        %s = add %r, %l: Int
+        %r = call_complex internalSink, %n: I32
+        %l = vlane %v, 0: I32
+        %s = add %r, %l: I32
         ret %s
     }
 }
@@ -173,12 +173,12 @@ internal<complex>(%a: i32x8, %n: Int): Int {
 #
 # What it costs when the answer is conservative is three bytes at a boundary that already costs a
 # call. What it cost when it was wrong was silent.
-narrow<sysv, foreign>(%a: i32x4, %n: Int): Int {
+narrow<sysv, foreign>(%a: i32x4, %n: I32): I32 {
     {
         %v = add %a, %a: i32x4
-        %r = call_sysv foreignSink, %n: Int
-        %l = vlane %v, 0: Int
-        %s = add %r, %l: Int
+        %r = call_sysv foreignSink, %n: I32
+        %l = vlane %v, 0: I32
+        %s = add %r, %l: I32
         ret %s
     }
 }
@@ -204,17 +204,17 @@ wideResult<sysv, foreign>(%a: i32x8): i32x8 {
 
 # The argument side of the same rule, and the half of it that is *not* symmetric: the wide value is
 # dead by the time this function returns, so its own `ret` owes one where the call did not.
-wideArgument<sysv, foreign>(%a: i32x8, %n: Int): Int {
+wideArgument<sysv, foreign>(%a: i32x8, %n: I32): I32 {
     {
         %v = add %a, %a: i32x8
-        %r = call_sysv wideSink, %v: Int
+        %r = call_sysv wideSink, %v: I32
         ret %r
     }
 }
 
-wideSink<sysv, foreign>(%a: i32x8): Int {
+wideSink<sysv, foreign>(%a: i32x8): I32 {
     {
-        %l = vlane %a, 0: Int
+        %l = vlane %a, 0: I32
         ret %l
     }
 }
@@ -260,15 +260,15 @@ wideFold(%p: Ptr, %a: i32x8): i32x8 {
 # `vpmovmskb` off a `ymm` answers thirty-two bits, one per byte of the register, so the bit that says
 # "nothing is set" is bit 32 - and an `i32` has no such bit. The `or` and the scan therefore happen at
 # sixty-four, where the movemask's own zero extension is free and the constant is a `movabs`; the
-# truncation back into the `Int` the kind states emits nothing, since a bit scan's answer cannot
+# truncation back into the `I32` the kind states emits nothing, since a bit scan's answer cannot
 # reach past its low byte.
 #
 # The byte lane is the one that fills the word, and it is the string search's own shape. `firstWord`
 # in `VectorMaskBits.lower` is the narrow twin to read this against.
-firstWideByte(%a: i8x32, %b: i8x32): Int {
+firstWideByte(%a: i8x32, %b: i8x32): I32 {
     {
         %m = cmp_eq %a, %b: m8x32
-        %r = vreduce_first %m: Int
+        %r = vreduce_first %m: I32
         ret %r
     }
 }
@@ -277,10 +277,10 @@ firstWideByte(%a: i8x32, %b: i8x32): Int {
 # tier's sequence: one bit per lane is eight bits out of a `ymm`, so there is room for the sentinel
 # at bit 8 and the scan's answer is already a lane index. `vpmovmskb` would have answered thirty-two
 # bits with four per lane, no bit above them to mark, and a `shr $0x2` to divide them back out.
-firstWideWord(%a: i32x8, %b: i32x8): Int {
+firstWideWord(%a: i32x8, %b: i32x8): I32 {
     {
         %m = cmp_eq %a, %b: m32x8
-        %r = vreduce_first %m: Int
+        %r = vreduce_first %m: I32
         ret %r
     }
 }
@@ -288,10 +288,10 @@ firstWideWord(%a: i32x8, %b: i32x8): Int {
 # `all` at a whole 256-bit register, where the pattern every byte-bit set is `0xffffffff` - a
 # constant no immediate carries, until it is read as the `i32` the comparison happens at and is -1.
 # Nine bytes and a register, or three bytes: see the note in `expandMaskBitsReduce`.
-allWide(%a: i8x32, %b: i8x32): Int {
+allWide(%a: i8x32, %b: i8x32): I32 {
     {
         %m = cmp_eq %a, %b: m8x32
-        %r = vreduce_and %m: Int
+        %r = vreduce_and %m: I32
         ret %r
     }
 }

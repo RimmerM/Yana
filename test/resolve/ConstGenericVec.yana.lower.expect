@@ -1,14 +1,14 @@
 @image$base = []
 mut @sink = [0, 0, 0, 0, 0, 0, 0, 0]
 
-quadWidth<complex>(%v: i16x4): Int {
+quadWidth<complex>(%v: i16x4): I32 {
   b_0 {
-    %v_1 = call_complex widthOf(4), %v: Int
+    %v_1 = call_complex widthOf(4), %v: I32
     ret %v_1
   }
 }
 
-main$<complex>(): Int {
+main$<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i16x4
     store @sink, %v_1, 8
@@ -18,23 +18,23 @@ main$<complex>(): Int {
     %v_3 = call_complex sameCount(4), %v, %wide: i16x4
     %summed = call_complex sameCount(4), %v_2, %v_3: i16x4
     store @sink, %wide, 8
-    %v_4 = call_complex widthOf(4), %v: Int
-    %v_5 = call_complex quadWidth, %v: Int
-    %v_6 = add %v_4, %v_5: Int
-    %v_7 = call_complex secondLane(4), %wide: Int
-    %v_8 = add %v_6, %v_7: Int
-    %v_9 = call_complex secondLane(4), %summed: Int
-    %v_10 = add %v_8, %v_9: Int
-    %v_11 = vlane %summed, 2: Int
-    %v_12 = imm 16: Int
-    %v_13 = shl %v_11, %v_12: Int
-    %v_14 = sar %v_13, %v_12: Int
-    %v_15 = add %v_10, %v_14: Int
+    %v_4 = call_complex widthOf(4), %v: I32
+    %v_5 = call_complex quadWidth, %v: I32
+    %v_6 = add %v_4, %v_5: I32
+    %v_7 = call_complex secondLane(4), %wide: I32
+    %v_8 = add %v_6, %v_7: I32
+    %v_9 = call_complex secondLane(4), %summed: I32
+    %v_10 = add %v_8, %v_9: I32
+    %v_11 = vlane %summed, 2: I32
+    %v_12 = imm 16: I32
+    %v_13 = shl %v_11, %v_12: I32
+    %v_14 = sar %v_13, %v_12: I32
+    %v_15 = add %v_10, %v_14: I32
     ret %v_15
   }
 }
 
-widthOf(4)<complex>(%v: i16x4): Int {
+widthOf(4)<complex>(%v: i16x4): I32 {
   b_0 {
     ret 4
   }
@@ -63,12 +63,12 @@ sameCount(4)<complex>(%v: i16x4, %w: i16x4): i16x4 {
   }
 }
 
-secondLane(4)<complex>(%v: i16x4): Int {
+secondLane(4)<complex>(%v: i16x4): I32 {
   b_0 {
-    %v_1 = vlane %v, 1: Int
-    %v_2 = imm 16: Int
-    %v_3 = shl %v_1, %v_2: Int
-    %v_4 = sar %v_3, %v_2: Int
+    %v_1 = vlane %v, 1: I32
+    %v_2 = imm 16: I32
+    %v_3 = shl %v_1, %v_2: I32
+    %v_4 = sar %v_3, %v_2: I32
     ret %v_4
   }
 }

@@ -21,83 +21,83 @@ teardown$none<complex>(%value: Ptr) {
   }
 }
 
-nameOf<complex>(%genEnv: Ptr, %p: Ptr): Int {
+nameOf<complex>(%genEnv: Ptr, %p: Ptr): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     %v_2 = add %genEnv, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = sext %v_3: Long
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
     %v_5 = add %v_4, @image$base: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = sext %v_6: Long
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
     %v_8 = add %v_7, @image$base: Ptr
     call_complex %v_8, %p, %v_1
-    %v_9 = loads %v_1, 4: Int
+    %v_9 = loads %v_1, 4: I32
     ret %v_9
   }
 }
 
-rename<complex>(%genEnv: Ptr, %p: Ptr, %to: Int) {
+rename<complex>(%genEnv: Ptr, %p: Ptr, %to: I32) {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     store %v_1, %to, 4
     %v_2 = add %genEnv, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = sext %v_3: Long
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
     %v_5 = add %v_4, @image$base: Ptr
     %v_6 = add %v_5, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
     %v_9 = add %v_8, @image$base: Ptr
     call_complex %v_9, %p, %v_1
     ret 
   }
 }
 
-labelled<complex>(%genEnv: Ptr, %p: Ptr): Int {
+labelled<complex>(%genEnv: Ptr, %p: Ptr): I32 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
-    %v_2 = loads %genEnv, 4: Int
-    %v_3 = sext %v_2: Long
+    %v_2 = loads %genEnv, 4: I32
+    %v_3 = sext %v_2: I64
     %v_4 = add %v_3, @image$base: Ptr
-    %v_5 = sub %v_4, @image$base: Long
+    %v_5 = sub %v_4, @image$base: I64
     store %v_1, %v_5, 4
     %v_6 = add %genEnv, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
     %v_9 = add %v_8, @image$base: Ptr
     %v_10 = add %v_1, 4: Ptr
-    %v_11 = sub %v_9, @image$base: Long
+    %v_11 = sub %v_9, @image$base: I64
     store %v_10, %v_11, 4
-    %v_12 = call_complex nameOf, %v_1, %p: Int
-    %v_13 = imul %v_12, 100: Int
+    %v_12 = call_complex nameOf, %v_1, %p: I32
+    %v_13 = imul %v_12, 100: I32
     %v_14 = alloca 4, 4: Ptr
     %v_15 = add %genEnv, 8: Ptr
-    %v_16 = loads %v_15, 4: Int
-    %v_17 = sext %v_16: Long
+    %v_16 = loads %v_15, 4: I32
+    %v_17 = sext %v_16: I64
     %v_18 = add %v_17, @image$base: Ptr
-    %v_19 = loads %v_18, 4: Int
-    %v_20 = sext %v_19: Long
+    %v_19 = loads %v_18, 4: I32
+    %v_20 = sext %v_19: I64
     %v_21 = add %v_20, @image$base: Ptr
     call_complex %v_21, %p, %v_14
-    %v_22 = loads %v_14, 4: Int
-    %v_23 = add %v_13, %v_22: Int
+    %v_22 = loads %v_14, 4: I32
+    %v_23 = add %v_13, %v_22: I32
     ret %v_23
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 5, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 90, 4
-    %people = call_complex nameOf, @genEnv$nameOf(Person), %v_1: Int
+    %people = call_complex nameOf, @genEnv$nameOf(Person), %v_1: I32
     %v_3 = alloca 8, 4: Ptr
     store %v_3, 2, 4
     %v_4 = add %v_3, 4: Ptr
     store %v_4, 7, 4
-    %items = call_complex nameOf, @genEnv$nameOf(Item), %v_3: Int
+    %items = call_complex nameOf, @genEnv$nameOf(Item), %v_3: I32
     %v_5 = alloca 8, 4: Ptr
     store %v_5, 1, 4
     %v_6 = add %v_5, 4: Ptr
@@ -107,27 +107,27 @@ main<complex>(): Int {
     store %v_7, 1, 4
     %v_8 = add %v_7, 4: Ptr
     store %v_8, 3, 4
-    %left = call_complex labelled, @genEnv$labelled(Left), %v_7: Int
+    %left = call_complex labelled, @genEnv$labelled(Left), %v_7: I32
     %v_9 = alloca 8, 4: Ptr
     store %v_9, 4, 4
     %v_10 = add %v_9, 4: Ptr
     store %v_10, 6, 4
-    %right = call_complex labelled, @genEnv$labelled(Right), %v_9: Int
-    %v_11 = imul %people, 1000: Int
-    %v_12 = imul %items, 100: Int
-    %v_13 = add %v_11, %v_12: Int
-    %v_14 = call_complex nameOf, @genEnv$nameOf(Person), %v_5: Int
-    %v_15 = imul %v_14, 10: Int
-    %v_16 = add %v_13, %v_15: Int
-    %v_17 = add %v_16, %left: Int
-    %v_18 = add %v_17, %right: Int
+    %right = call_complex labelled, @genEnv$labelled(Right), %v_9: I32
+    %v_11 = imul %people, 1000: I32
+    %v_12 = imul %items, 100: I32
+    %v_13 = add %v_11, %v_12: I32
+    %v_14 = call_complex nameOf, @genEnv$nameOf(Person), %v_5: I32
+    %v_15 = imul %v_14, 10: I32
+    %v_16 = add %v_13, %v_15: I32
+    %v_17 = add %v_16, %left: I32
+    %v_18 = add %v_17, %right: I32
     ret %v_18
   }
 }
 
 read$Person.name<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
-    %v_1 = loads %owner, 4: Int
+    %v_1 = loads %owner, 4: I32
     store %out, %v_1, 4
     ret 
   }
@@ -135,7 +135,7 @@ read$Person.name<complex>(%owner: Ptr, %out: Ptr) {
 
 set$Person.name<complex>(%owner: Ptr, %value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
+    %v_1 = loads %value, 4: I32
     store %owner, %v_1, 4
     ret 
   }
@@ -143,7 +143,7 @@ set$Person.name<complex>(%owner: Ptr, %value: Ptr) {
 
 read$Item.name<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
-    %v_1 = loads %owner, 4: Int
+    %v_1 = loads %owner, 4: I32
     store %out, %v_1, 4
     ret 
   }
@@ -151,7 +151,7 @@ read$Item.name<complex>(%owner: Ptr, %out: Ptr) {
 
 set$Item.name<complex>(%owner: Ptr, %value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
+    %v_1 = loads %value, 4: I32
     store %owner, %v_1, 4
     ret 
   }
@@ -159,7 +159,7 @@ set$Item.name<complex>(%owner: Ptr, %value: Ptr) {
 
 read$Left.name<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
-    %v_1 = loads %owner, 4: Int
+    %v_1 = loads %owner, 4: I32
     store %out, %v_1, 4
     ret 
   }
@@ -167,7 +167,7 @@ read$Left.name<complex>(%owner: Ptr, %out: Ptr) {
 
 set$Left.name<complex>(%owner: Ptr, %value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
+    %v_1 = loads %value, 4: I32
     store %owner, %v_1, 4
     ret 
   }
@@ -176,7 +176,7 @@ set$Left.name<complex>(%owner: Ptr, %value: Ptr) {
 read$Left.tag<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
     %v_1 = add %owner, 4: Ptr
-    %v_2 = loads %v_1, 4: Int
+    %v_2 = loads %v_1, 4: I32
     store %out, %v_2, 4
     ret 
   }
@@ -184,7 +184,7 @@ read$Left.tag<complex>(%owner: Ptr, %out: Ptr) {
 
 set$Left.tag<complex>(%owner: Ptr, %value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
+    %v_1 = loads %value, 4: I32
     %v_2 = add %owner, 4: Ptr
     store %v_2, %v_1, 4
     ret 
@@ -194,7 +194,7 @@ set$Left.tag<complex>(%owner: Ptr, %value: Ptr) {
 read$Right.name<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
     %v_1 = add %owner, 4: Ptr
-    %v_2 = loads %v_1, 4: Int
+    %v_2 = loads %v_1, 4: I32
     store %out, %v_2, 4
     ret 
   }
@@ -202,7 +202,7 @@ read$Right.name<complex>(%owner: Ptr, %out: Ptr) {
 
 set$Right.name<complex>(%owner: Ptr, %value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
+    %v_1 = loads %value, 4: I32
     %v_2 = add %owner, 4: Ptr
     store %v_2, %v_1, 4
     ret 
@@ -211,7 +211,7 @@ set$Right.name<complex>(%owner: Ptr, %value: Ptr) {
 
 read$Right.tag<complex>(%owner: Ptr, %out: Ptr) {
   b_0 {
-    %v_1 = loads %owner, 4: Int
+    %v_1 = loads %owner, 4: I32
     store %out, %v_1, 4
     ret 
   }
@@ -219,7 +219,7 @@ read$Right.tag<complex>(%owner: Ptr, %out: Ptr) {
 
 set$Right.tag<complex>(%owner: Ptr, %value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
+    %v_1 = loads %value, 4: I32
     store %owner, %v_1, 4
     ret 
   }

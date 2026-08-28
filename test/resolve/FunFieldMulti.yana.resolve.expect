@@ -1,137 +1,137 @@
 let image$base: () = <none>
 
-fn double(%x: Int) -> Int {
+fn double(%x: I32) -> I32 {
   b0:
-    %v3 = mul %x, 2 : Int
+    %v3 = mul %x, 2 : I32
     ret %v3
 }
 
-fn triple(%x: Int) -> Int {
+fn triple(%x: I32) -> I32 {
   b0:
-    %v3 = mul %x, 3 : Int
+    %v3 = mul %x, 3 : I32
     ret %v3
 }
 
-fn negate(%x: Int) -> Int {
+fn negate(%x: I32) -> I32 {
   b0:
-    %v3 = sub 0, %x : Int
+    %v3 = sub 0, %x : I32
     ret %v3
 }
 
-fn square(%x: Int) -> Int {
+fn square(%x: I32) -> I32 {
   b0:
-    %v1 = mul %x, %x : Int
+    %v1 = mul %x, %x : I32
     ret %v1
 }
 
-fn retarget(%slot: (Int) -> Int) -> () {
+fn retarget(%slot: (I32) -> I32) -> () {
   b0:
-    %v1 = alloc : (Int) -> Int
+    %v1 = alloc : (I32) -> I32
     %v2 = symbol funvalue$triple : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
-    drop_derived %slot via teardown$(Int) -> Int
+    drop_derived %slot via teardown$(I32) -> I32
     assign %slot, %v1
     ret
 }
 
-fn retargetBoth(%a: (Int) -> Int, %b: (Int) -> Int) -> () {
+fn retargetBoth(%a: (I32) -> I32, %b: (I32) -> I32) -> () {
   b0:
-    %v2 = alloc : (Int) -> Int
+    %v2 = alloc : (I32) -> I32
     %v3 = symbol funvalue$negate : %()
     init %local2.code, %v3
     %v6 = cast 0 : %()
     init %local2.env, %v6
-    drop_derived %a via teardown$(Int) -> Int
+    drop_derived %a via teardown$(I32) -> I32
     assign %a, %v2
-    %v9 = alloc : (Int) -> Int
+    %v9 = alloc : (I32) -> I32
     %v10 = symbol funvalue$square : %()
     init %local3.code, %v10
     %v13 = cast 0 : %()
     init %local3.env, %v13
-    drop_derived %b via teardown$(Int) -> Int
+    drop_derived %b via teardown$(I32) -> I32
     assign %b, %v9
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Handlers
-    %v1 = alloc : (Int) -> Int
+    %v1 = alloc : (I32) -> I32
     %v2 = symbol funvalue$double : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
-    %v7 = alloc : (Int) -> Int
+    %v7 = alloc : (I32) -> I32
     %v8 = symbol funvalue$triple : %()
     init %local2.code, %v8
     %v11 = cast 0 : %()
     init %local2.env, %v11
     aggregate %h@Handlers.first = %v1, %h@Handlers.second = %v7
     %v14 = load %h : Handlers
-    %v15 = load %h@Handlers.first : (Int) -> Int
-    %v17 = calldyn %v15, 10 : Int
+    %v15 = load %h@Handlers.first : (I32) -> I32
+    %v17 = calldyn %v15, 10 : I32
     %v18 = load %h : Handlers
-    %v19 = load %h@Handlers.second : (Int) -> Int
-    %v21 = calldyn %v19, 10 : Int
-    %before = add %v17, %v21 : Int
+    %v19 = load %h@Handlers.second : (I32) -> I32
+    %v21 = calldyn %v19, 10 : I32
+    %before = add %v17, %v21 : I32
     %v23 = load %h : Handlers
-    %v24 = load %h@Handlers.first : (Int) -> Int
-    %v25 = borrow_mut %h@Handlers.first : &(Int) -> Int
+    %v24 = load %h@Handlers.first : (I32) -> I32
+    %v25 = borrow_mut %h@Handlers.first : &(I32) -> I32
     call retarget, %v25
     %v27 = load %h : Handlers
-    %v28 = load %h@Handlers.first : (Int) -> Int
-    %v30 = calldyn %v28, 10 : Int
+    %v28 = load %h@Handlers.first : (I32) -> I32
+    %v30 = calldyn %v28, 10 : I32
     %v31 = load %h : Handlers
-    %v32 = load %h@Handlers.second : (Int) -> Int
-    %v34 = calldyn %v32, 10 : Int
-    %one = add %v30, %v34 : Int
+    %v32 = load %h@Handlers.second : (I32) -> I32
+    %v34 = calldyn %v32, 10 : I32
+    %one = add %v30, %v34 : I32
     %v36 = load %h : Handlers
-    %v37 = load %h@Handlers.first : (Int) -> Int
+    %v37 = load %h@Handlers.first : (I32) -> I32
     %v38 = load %h : Handlers
-    %v39 = load %h@Handlers.second : (Int) -> Int
-    %v40 = borrow_mut %h@Handlers.first : &(Int) -> Int
-    %v41 = borrow_mut %h@Handlers.second : &(Int) -> Int
+    %v39 = load %h@Handlers.second : (I32) -> I32
+    %v40 = borrow_mut %h@Handlers.first : &(I32) -> I32
+    %v41 = borrow_mut %h@Handlers.second : &(I32) -> I32
     call retargetBoth, %v40, %v41
     %v43 = load %h : Handlers
-    %v44 = load %h@Handlers.first : (Int) -> Int
-    %v46 = calldyn %v44, 10 : Int
+    %v44 = load %h@Handlers.first : (I32) -> I32
+    %v46 = calldyn %v44, 10 : I32
     %v47 = load %h : Handlers
-    %v48 = load %h@Handlers.second : (Int) -> Int
-    %v50 = calldyn %v48, 10 : Int
+    %v48 = load %h@Handlers.second : (I32) -> I32
+    %v50 = calldyn %v48, 10 : I32
     drop_derived %h via teardown$Handlers
-    %both = add %v46, %v50 : Int
-    %v52 = add %before, %one : Int
-    %v53 = add %v52, %both : Int
+    %both = add %v46, %v50 : I32
+    %v52 = add %before, %one : I32
+    %v53 = add %v52, %both : I32
     ret %v53
 }
 
-fn funvalue$triple(%env: %(), %x: Int) -> Int {
+fn funvalue$triple(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call triple, %x : Int
+    %v2 = call triple, %x : I32
     ret %v2
 }
 
-fn funvalue$negate(%env: %(), %x: Int) -> Int {
+fn funvalue$negate(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call negate, %x : Int
+    %v2 = call negate, %x : I32
     ret %v2
 }
 
-fn funvalue$square(%env: %(), %x: Int) -> Int {
+fn funvalue$square(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call square, %x : Int
+    %v2 = call square, %x : I32
     ret %v2
 }
 
-fn funvalue$double(%env: %(), %x: Int) -> Int {
+fn funvalue$double(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call double, %x : Int
+    %v2 = call double, %x : I32
     ret %v2
 }
 
-fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(I32) -> I32(%value: (I32) -> I32) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -140,9 +140,9 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
   b1:
     %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
     calldyn %v11, %v1
@@ -154,7 +154,7 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
 fn teardown$Handlers(%value: Handlers) -> () {
   b0:
-    drop_derived %value@Handlers.first via teardown$(Int) -> Int
-    drop_derived %value@Handlers.second via teardown$(Int) -> Int
+    drop_derived %value@Handlers.first via teardown$(I32) -> I32
+    drop_derived %value@Handlers.second via teardown$(I32) -> I32
     ret
 }

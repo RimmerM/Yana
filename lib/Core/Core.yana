@@ -41,6 +41,27 @@ infixl 8 *
 infixl 8 /
 infixl 8 %
 
+{-
+   The names ordinary arithmetic is written in, which are aliases over the width-named primitives
+   the compiler declares - Analysis-Spellings.md items 5 and 7.
+
+   Aliases and not primitives of their own, which is the whole of the item: `Int` used to be a
+   second 32-bit signed type beside `I32`, identical in shape and different in which instances it
+   had, and the difference was observable - only one of the two reached a `Float`. One type per width
+   costs a second name here and deletes a second set of instances, a second conversion ladder and a
+   skip in a third that existed only to keep the two apart.
+
+   Nothing in the compiler knows these names. `Int` is the type a bare integer literal takes and
+   `Float` the type a decimal one takes because `FromInt` and `FromDecimal` say so, in their generic
+   parameter defaults below - which is source, and resolves through these aliases like any other use.
+-}
+pub alias Int = I32
+pub alias Long = I64
+pub alias UInt = U32
+pub alias ULong = U64
+pub alias Float = F32
+pub alias Double = F64
+
 pub data Bool = False | True
 pub data Ordering = LT | EQ | GT
 

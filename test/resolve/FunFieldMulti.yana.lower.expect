@@ -23,7 +23,7 @@ retargetBoth<complex>(%a: Ptr, %b: Ptr) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 32, 8: Ptr
     store %v_1, funvalue$double, 8
@@ -36,66 +36,66 @@ main<complex>(): Int {
     store %v_5, %v_2, 8
     %v_6 = load %v_1, 8: Ptr
     %v_7 = load %v_3, 8: Ptr
-    %v_8 = call_complex %v_6, %v_7, 10: Int
+    %v_8 = call_complex %v_6, %v_7, 10: I32
     %v_9 = add %v_1, 16: Ptr
     %v_10 = add %v_1, 24: Ptr
     %v_11 = load %v_9, 8: Ptr
     %v_12 = load %v_10, 8: Ptr
-    %v_13 = call_complex %v_11, %v_12, 10: Int
-    %before = add %v_8, %v_13: Int
+    %v_13 = call_complex %v_11, %v_12, 10: I32
+    %before = add %v_8, %v_13: I32
     call_complex retarget, %v_1
     %v_14 = add %v_1, 8: Ptr
     %v_15 = load %v_1, 8: Ptr
     %v_16 = load %v_14, 8: Ptr
-    %v_17 = call_complex %v_15, %v_16, 10: Int
+    %v_17 = call_complex %v_15, %v_16, 10: I32
     %v_18 = add %v_1, 16: Ptr
     %v_19 = add %v_1, 24: Ptr
     %v_20 = load %v_18, 8: Ptr
     %v_21 = load %v_19, 8: Ptr
-    %v_22 = call_complex %v_20, %v_21, 10: Int
-    %one = add %v_17, %v_22: Int
+    %v_22 = call_complex %v_20, %v_21, 10: I32
+    %one = add %v_17, %v_22: I32
     %v_23 = add %v_1, 16: Ptr
     call_complex retargetBoth, %v_1, %v_23
     %v_24 = add %v_1, 8: Ptr
     %v_25 = load %v_1, 8: Ptr
     %v_26 = load %v_24, 8: Ptr
-    %v_27 = call_complex %v_25, %v_26, 10: Int
+    %v_27 = call_complex %v_25, %v_26, 10: I32
     %v_28 = add %v_1, 16: Ptr
     %v_29 = add %v_1, 24: Ptr
     %v_30 = load %v_28, 8: Ptr
     %v_31 = load %v_29, 8: Ptr
-    %v_32 = call_complex %v_30, %v_31, 10: Int
-    %both = add %v_27, %v_32: Int
-    %v_33 = add %before, %one: Int
-    %v_34 = add %v_33, %both: Int
+    %v_32 = call_complex %v_30, %v_31, 10: I32
+    %both = add %v_27, %v_32: I32
+    %v_33 = add %before, %one: I32
+    %v_34 = add %v_33, %both: I32
     ret %v_34
   }
 }
 
-funvalue$triple<complex>(%env: Ptr, %x: Int): Int {
+funvalue$triple<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = imul %x, 3: Int
+    %v_1 = imul %x, 3: I32
     ret %v_1
   }
 }
 
-funvalue$negate<complex>(%env: Ptr, %x: Int): Int {
+funvalue$negate<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = sub 0, %x: Int
+    %v_1 = sub 0, %x: I32
     ret %v_1
   }
 }
 
-funvalue$square<complex>(%env: Ptr, %x: Int): Int {
+funvalue$square<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = imul %x, %x: Int
+    %v_1 = imul %x, %x: I32
     ret %v_1
   }
 }
 
-funvalue$double<complex>(%env: Ptr, %x: Int): Int {
+funvalue$double<complex>(%env: Ptr, %x: I32): I32 {
   b_0 {
-    %v_1 = shl %x, 1: Int
+    %v_1 = shl %x, 1: I32
     ret %v_1
   }
 }

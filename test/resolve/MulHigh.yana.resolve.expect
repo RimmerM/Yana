@@ -5,7 +5,7 @@ fn opaque(%x: U64) -> U64 {
     ret %x
 }
 
-fn check(%folded: U64, %computed: U64, %expected: U64, %weight: Int) -> Int {
+fn check(%folded: U64, %computed: U64, %expected: U64, %weight: I32) -> I32 {
   b0:
     %v4 = cmp_eq %folded, %computed : Bool
     je %v4, b1, b2
@@ -28,110 +28,110 @@ fn check(%folded: U64, %computed: U64, %expected: U64, %weight: Int) -> Int {
     jmp b6
 
   b6:
-    %v15 = phi [b4, %weight], [b5, 0] : Int
+    %v15 = phi [b4, %weight], [b5, 0] : I32
     ret %v15
 }
 
-fn typical() -> Int {
+fn typical() -> I32 {
   b0:
     %v2 = mulhi 16045690984503098046, 81985529216486895 : U64
     %v4 = call opaque, 16045690984503098046 : U64
     %v6 = call opaque, 81985529216486895 : U64
     %v7 = mulhi %v4, %v6 : U64
-    %v10 = call check, %v2, %v7, 71314182153347101, 1 : Int
+    %v10 = call check, %v2, %v7, 71314182153347101, 1 : I32
     ret %v10
 }
 
-fn saturated() -> Int {
+fn saturated() -> I32 {
   b0:
     %v2 = mulhi 18446744073709551615, 18446744073709551615 : U64
     %v4 = call opaque, 18446744073709551615 : U64
     %v6 = call opaque, 18446744073709551615 : U64
     %v7 = mulhi %v4, %v6 : U64
-    %v10 = call check, %v2, %v7, 18446744073709551614, 2 : Int
+    %v10 = call check, %v2, %v7, 18446744073709551614, 2 : I32
     ret %v10
 }
 
-fn halves() -> Int {
+fn halves() -> I32 {
   b0:
     %v2 = mulhi 4294967295, 4294967295 : U64
     %v4 = call opaque, 4294967295 : U64
     %v6 = call opaque, 4294967295 : U64
     %v7 = mulhi %v4, %v6 : U64
-    %v10 = call check, %v2, %v7, 0, 4 : Int
+    %v10 = call check, %v2, %v7, 0, 4 : I32
     ret %v10
 }
 
-fn boundary() -> Int {
+fn boundary() -> I32 {
   b0:
     %v2 = mulhi 4294967296, 4294967296 : U64
     %v4 = call opaque, 4294967296 : U64
     %v6 = call opaque, 4294967296 : U64
     %v7 = mulhi %v4, %v6 : U64
-    %v10 = call check, %v2, %v7, 1, 8 : Int
+    %v10 = call check, %v2, %v7, 1, 8 : I32
     ret %v10
 }
 
-fn carry() -> Int {
+fn carry() -> I32 {
   b0:
     %v2 = mulhi 18446744073709551615, 2 : U64
     %v4 = call opaque, 18446744073709551615 : U64
     %v6 = call opaque, 2 : U64
     %v7 = mulhi %v4, %v6 : U64
-    %v10 = call check, %v2, %v7, 1, 16 : Int
+    %v10 = call check, %v2, %v7, 1, 16 : I32
     ret %v10
 }
 
-fn top() -> Int {
+fn top() -> I32 {
   b0:
     %v2 = mulhi 9223372036854775808, 2 : U64
     %v4 = call opaque, 9223372036854775808 : U64
     %v6 = call opaque, 2 : U64
     %v7 = mulhi %v4, %v6 : U64
-    %v10 = call check, %v2, %v7, 1, 32 : Int
+    %v10 = call check, %v2, %v7, 1, 32 : I32
     ret %v10
 }
 
-fn wide() -> Int {
+fn wide() -> I32 {
   b0:
     %v2 = mulhi 18446744073709551614, 18446744069414584321 : U64
     %v4 = call opaque, 18446744073709551614 : U64
     %v6 = call opaque, 18446744069414584321 : U64
     %v7 = mulhi %v4, %v6 : U64
-    %v10 = call check, %v2, %v7, 18446744069414584319, 64 : Int
+    %v10 = call check, %v2, %v7, 18446744069414584319, 64 : I32
     %v13 = mulhi 4294967297, 18446744073709551615 : U64
     %v15 = call opaque, 4294967297 : U64
     %v17 = call opaque, 18446744073709551615 : U64
     %v18 = mulhi %v15, %v17 : U64
-    %v21 = call check, %v13, %v18, 4294967296, 128 : Int
-    %v22 = add %v10, %v21 : Int
+    %v21 = call check, %v13, %v18, 4294967296, 128 : I32
+    %v22 = add %v10, %v21 : I32
     ret %v22
 }
 
-fn identities() -> Int {
+fn identities() -> I32 {
   b0:
     %v1 = call opaque, 16045690984503098046 : U64
     %v3 = mulhi %v1, 0 : U64
-    %v7 = call check, %v3, 0, 0, 256 : Int
+    %v7 = call check, %v3, 0, 0, 256 : I32
     ret %v7
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call typical : Int
-    %v1 = call saturated : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call halves : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call boundary : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = call carry : Int
-    %v8 = add %v6, %v7 : Int
-    %v9 = call top : Int
-    %v10 = add %v8, %v9 : Int
-    %v11 = call wide : Int
-    %v12 = add %v10, %v11 : Int
-    %v13 = call identities : Int
-    %v14 = add %v12, %v13 : Int
+    %v0 = call typical : I32
+    %v1 = call saturated : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call halves : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call boundary : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = call carry : I32
+    %v8 = add %v6, %v7 : I32
+    %v9 = call top : I32
+    %v10 = add %v8, %v9 : I32
+    %v11 = call wide : I32
+    %v12 = add %v10, %v11 : I32
+    %v13 = call identities : I32
+    %v14 = add %v12, %v13 : I32
     ret %v14
 }

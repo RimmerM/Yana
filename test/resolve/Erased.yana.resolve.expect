@@ -1,11 +1,11 @@
-let image$base: () = <none>
-
-table typeDesc$Int {
-  .0 sizeof Int
-  .1 strideof Int
-  .2 alignof Int | 131
+table typeDesc$I32 {
+  .0 sizeof I32
+  .1 strideof I32
+  .2 alignof I32 | 131
   .3 teardown$none
 }
+
+let image$base: () = <none>
 
 table typeDesc$() {
   .0 sizeof ()
@@ -14,17 +14,17 @@ table typeDesc$() {
   .3 teardown$none
 }
 
-table genEnv$pick(Int, ()) {
-  .0 typeDesc$Int
+table genEnv$pick(I32, ()) {
+  .0 typeDesc$I32
   .1 typeDesc$()
 }
 
-table genEnv$identity(Int) {
-  .0 typeDesc$Int
+table genEnv$identity(I32) {
+  .0 typeDesc$I32
 }
 
-table genEnv$firstOf(Int) {
-  .0 typeDesc$Int
+table genEnv$firstOf(I32) {
+  .0 typeDesc$I32
 }
 
 table typeDesc$Bool {
@@ -34,62 +34,62 @@ table typeDesc$Bool {
   .3 teardown$none
 }
 
-table genEnv$pick(Int, Bool) {
-  .0 typeDesc$Int
+table genEnv$pick(I32, Bool) {
+  .0 typeDesc$I32
   .1 typeDesc$Bool
 }
 
-table witness$Num(Int) {
-  .0 thunk$Num(Int).+#0
-  .1 thunk$Num(Int).-#1
-  .2 thunk$Num(Int).*#2
-  .3 thunk$Num(Int)./#3
-  .4 thunk$Num(Int).-#4
-  .5 witness$FromInt(Int)
+table witness$Num(I32) {
+  .0 thunk$Num(I32).+#0
+  .1 thunk$Num(I32).-#1
+  .2 thunk$Num(I32).*#2
+  .3 thunk$Num(I32)./#3
+  .4 thunk$Num(I32).-#4
+  .5 witness$FromInt(I32)
 }
 
-table witness$FromInt(Int) {
-  .0 thunk$FromInt(Int).fromInt#0
+table witness$FromInt(I32) {
+  .0 thunk$FromInt(I32).fromInt#0
 }
 
-table genEnv$twice(Int) {
-  .0 typeDesc$Int
-  .1 witness$Num(Int)
+table genEnv$twice(I32) {
+  .0 typeDesc$I32
+  .1 witness$Num(I32)
 }
 
-table witness$Ord(Int) {
-  .0 thunk$Ord(Int).<#0
-  .1 thunk$Ord(Int).<=#1
-  .2 thunk$Ord(Int).>#2
-  .3 thunk$Ord(Int).>=#3
-  .4 thunk$Ord(Int).compare#4
-  .5 thunk$Ord(Int).min#5
-  .6 thunk$Ord(Int).max#6
-  .7 witness$Eq(Int)
+table witness$Ord(I32) {
+  .0 thunk$Ord(I32).<#0
+  .1 thunk$Ord(I32).<=#1
+  .2 thunk$Ord(I32).>#2
+  .3 thunk$Ord(I32).>=#3
+  .4 thunk$Ord(I32).compare#4
+  .5 thunk$Ord(I32).min#5
+  .6 thunk$Ord(I32).max#6
+  .7 witness$Eq(I32)
 }
 
-table witness$Eq(Int) {
-  .0 thunk$Eq(Int).==#0
-  .1 thunk$Eq(Int).!=#1
+table witness$Eq(I32) {
+  .0 thunk$Eq(I32).==#0
+  .1 thunk$Eq(I32).!=#1
 }
 
-table genEnv$smaller(Int) {
-  .0 typeDesc$Int
-  .1 witness$Ord(Int)
+table genEnv$smaller(I32) {
+  .0 typeDesc$I32
+  .1 witness$Ord(I32)
 }
 
-table genEnv$middle(Int) {
-  .0 typeDesc$Int
-  .1 witness$Ord(Int)
+table genEnv$middle(I32) {
+  .0 typeDesc$I32
+  .1 witness$Ord(I32)
 }
 
-table genEnv$increment(Int) {
-  .0 typeDesc$Int
-  .1 witness$Num(Int)
+table genEnv$increment(I32) {
+  .0 typeDesc$I32
+  .1 witness$Num(I32)
 }
 
-table genEnv$nothingForwarded(Int) {
-  .0 typeDesc$Int
+table genEnv$nothingForwarded(I32) {
+  .0 typeDesc$I32
 }
 
 fn checkFailed() -> () {
@@ -113,7 +113,7 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
+fn Ord(I32).compare(%lhs: I32, %rhs: I32) -> Ordering {
   b0:
     %v2 = cmp_eq %lhs, %rhs : Bool
     je %v2, b1, b2
@@ -137,7 +137,7 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn Ord.min(Int)(%lhs: Int, %rhs: Int) -> Int {
+fn Ord.min(I32)(%lhs: I32, %rhs: I32) -> I32 {
   b0:
     %v3 = cmp_le %lhs, %rhs : Bool
     je %v3, b1, b2
@@ -149,11 +149,11 @@ fn Ord.min(Int)(%lhs: Int, %rhs: Int) -> Int {
     jmp b3
 
   b3:
-    %v2 = phi [b1, %lhs], [b2, %rhs] : Int
+    %v2 = phi [b1, %lhs], [b2, %rhs] : I32
     ret %v2
 }
 
-fn Ord.max(Int)(%lhs: Int, %rhs: Int) -> Int {
+fn Ord.max(I32)(%lhs: I32, %rhs: I32) -> I32 {
   b0:
     %v3 = cmp_ge %rhs, %lhs : Bool
     je %v3, b1, b2
@@ -165,7 +165,7 @@ fn Ord.max(Int)(%lhs: Int, %rhs: Int) -> Int {
     jmp b3
 
   b3:
-    %v2 = phi [b1, %rhs], [b2, %lhs] : Int
+    %v2 = phi [b1, %rhs], [b2, %lhs] : I32
     ret %v2
 }
 
@@ -283,10 +283,10 @@ fn pick(%flag: Bool, %x: a, %y: b) -> b {
     ret %v2
 }
 
-fn carriesNothing() -> Int {
+fn carriesNothing() -> I32 {
   b0:
     alloc
-    %v4 = gencall env genEnv$pick(Int, ()) pick(Int, ()), True, %v2, 3 : Int
+    %v4 = gencall env genEnv$pick(I32, ()) pick(I32, ()), True, %v2, 3 : I32
     ret %v4
 }
 
@@ -301,151 +301,151 @@ fn nothingForwarded(%z: b) -> b {
     ret %v3
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %one = gencall env genEnv$identity(Int) identity(Int), 1 : Int
-    %two = gencall env genEnv$firstOf(Int) firstOf(Int), 2, 99 : Int
-    %three = gencall env genEnv$pick(Int, Bool) pick(Int, Bool), True, False, 3 : Int
-    %v13 = add %one, %two : Int
-    %v14 = add %v13, %three : Int
-    %v17 = gencall env genEnv$twice(Int) twice(Int), 5 : Int
-    %v18 = add %v14, %v17 : Int
-    %v23 = gencall env genEnv$smaller(Int) smaller(Int), 30, 8 : Int
-    %v24 = add %v18, %v23 : Int
-    %v31 = gencall env genEnv$middle(Int) middle(Int), 60, 12, 40 : Int
-    %v32 = add %v24, %v31 : Int
-    %v35 = gencall env genEnv$increment(Int) increment(Int), 19 : Int
-    %v36 = add %v32, %v35 : Int
-    %v37 = call carriesNothing : Int
-    %v38 = add %v36, %v37 : Int
-    %v41 = gencall env genEnv$nothingForwarded(Int) nothingForwarded(Int), 7 : Int
-    %v42 = add %v38, %v41 : Int
+    %one = gencall env genEnv$identity(I32) identity(I32), 1 : I32
+    %two = gencall env genEnv$firstOf(I32) firstOf(I32), 2, 99 : I32
+    %three = gencall env genEnv$pick(I32, Bool) pick(I32, Bool), True, False, 3 : I32
+    %v13 = add %one, %two : I32
+    %v14 = add %v13, %three : I32
+    %v17 = gencall env genEnv$twice(I32) twice(I32), 5 : I32
+    %v18 = add %v14, %v17 : I32
+    %v23 = gencall env genEnv$smaller(I32) smaller(I32), 30, 8 : I32
+    %v24 = add %v18, %v23 : I32
+    %v31 = gencall env genEnv$middle(I32) middle(I32), 60, 12, 40 : I32
+    %v32 = add %v24, %v31 : I32
+    %v35 = gencall env genEnv$increment(I32) increment(I32), 19 : I32
+    %v36 = add %v32, %v35 : I32
+    %v37 = call carriesNothing : I32
+    %v38 = add %v36, %v37 : I32
+    %v41 = gencall env genEnv$nothingForwarded(I32) nothingForwarded(I32), 7 : I32
+    %v42 = add %v38, %v41 : I32
     ret %v42
 }
 
-fn thunk$Num(Int).+#0(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32).+#0(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = add %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = add %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Num(Int).-#1(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32).-#1(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = sub %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = sub %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Num(Int).*#2(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32).*#2(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = mul %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = mul %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Num(Int)./#3(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Num(I32)./#3(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
     %v6 = cmp_eq %v4, 0 : Bool
     call checkCondition, %v6
-    %v8 = div %v3, %v4 : Int
+    %v8 = div %v3, %v4 : I32
     init [%result], %v8
     ret
 }
 
-fn thunk$Num(Int).-#4(%result: %Int, %value: %Int) -> () {
+fn thunk$Num(I32).-#4(%result: %I32, %value: %I32) -> () {
   b0:
-    %v2 = load [%value] : Int
-    %v3 = neg %v2 : Int
+    %v2 = load [%value] : I32
+    %v3 = neg %v2 : I32
     init [%result], %v3
     ret
 }
 
-fn thunk$FromInt(Int).fromInt#0(%result: %Int, %value: Long) -> () {
+fn thunk$FromInt(I32).fromInt#0(%result: %I32, %value: I64) -> () {
   b0:
-    %v2 = cast %value : Int
+    %v2 = cast %value : I32
     init [%result], %v2
     ret
 }
 
-fn thunk$Ord(Int).<#0(%lhs: %Int, %rhs: %Int) -> Bool {
+fn thunk$Ord(I32).<#0(%lhs: %I32, %rhs: %I32) -> Bool {
   b0:
-    %v2 = load [%lhs] : Int
-    %v3 = load [%rhs] : Int
+    %v2 = load [%lhs] : I32
+    %v3 = load [%rhs] : I32
     %v4 = cmp_lt %v2, %v3 : Bool
     ret %v4
 }
 
-fn thunk$Ord(Int).<=#1(%lhs: %Int, %rhs: %Int) -> Bool {
+fn thunk$Ord(I32).<=#1(%lhs: %I32, %rhs: %I32) -> Bool {
   b0:
-    %v2 = load [%lhs] : Int
-    %v3 = load [%rhs] : Int
+    %v2 = load [%lhs] : I32
+    %v3 = load [%rhs] : I32
     %v4 = cmp_le %v2, %v3 : Bool
     ret %v4
 }
 
-fn thunk$Ord(Int).>#2(%lhs: %Int, %rhs: %Int) -> Bool {
+fn thunk$Ord(I32).>#2(%lhs: %I32, %rhs: %I32) -> Bool {
   b0:
-    %v2 = load [%lhs] : Int
-    %v3 = load [%rhs] : Int
+    %v2 = load [%lhs] : I32
+    %v3 = load [%rhs] : I32
     %v4 = cmp_gt %v2, %v3 : Bool
     ret %v4
 }
 
-fn thunk$Ord(Int).>=#3(%lhs: %Int, %rhs: %Int) -> Bool {
+fn thunk$Ord(I32).>=#3(%lhs: %I32, %rhs: %I32) -> Bool {
   b0:
-    %v2 = load [%lhs] : Int
-    %v3 = load [%rhs] : Int
+    %v2 = load [%lhs] : I32
+    %v3 = load [%rhs] : I32
     %v4 = cmp_ge %v2, %v3 : Bool
     ret %v4
 }
 
-fn thunk$Ord(Int).compare#4(%lhs: %Int, %rhs: %Int) -> Ordering {
+fn thunk$Ord(I32).compare#4(%lhs: %I32, %rhs: %I32) -> Ordering {
   b0:
-    %v2 = load [%lhs] : Int
-    %v3 = load [%rhs] : Int
-    %v4 = call Ord(Int).compare, %v2, %v3 : Ordering
+    %v2 = load [%lhs] : I32
+    %v3 = load [%rhs] : I32
+    %v4 = call Ord(I32).compare, %v2, %v3 : Ordering
     ret %v4
 }
 
-fn thunk$Ord(Int).min#5(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Ord(I32).min#5(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = call Ord.min(Int), %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = call Ord.min(I32), %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Ord(Int).max#6(%result: %Int, %lhs: %Int, %rhs: %Int) -> () {
+fn thunk$Ord(I32).max#6(%result: %I32, %lhs: %I32, %rhs: %I32) -> () {
   b0:
-    %v3 = load [%lhs] : Int
-    %v4 = load [%rhs] : Int
-    %v5 = call Ord.max(Int), %v3, %v4 : Int
+    %v3 = load [%lhs] : I32
+    %v4 = load [%rhs] : I32
+    %v5 = call Ord.max(I32), %v3, %v4 : I32
     init [%result], %v5
     ret
 }
 
-fn thunk$Eq(Int).==#0(%lhs: %Int, %rhs: %Int) -> Bool {
+fn thunk$Eq(I32).==#0(%lhs: %I32, %rhs: %I32) -> Bool {
   b0:
-    %v2 = load [%lhs] : Int
-    %v3 = load [%rhs] : Int
+    %v2 = load [%lhs] : I32
+    %v3 = load [%rhs] : I32
     %v4 = cmp_eq %v2, %v3 : Bool
     ret %v4
 }
 
-fn thunk$Eq(Int).!=#1(%lhs: %Int, %rhs: %Int) -> Bool {
+fn thunk$Eq(I32).!=#1(%lhs: %I32, %rhs: %I32) -> Bool {
   b0:
-    %v2 = load [%lhs] : Int
-    %v3 = load [%rhs] : Int
+    %v2 = load [%lhs] : I32
+    %v3 = load [%rhs] : I32
     %v4 = cmp_ne %v2, %v3 : Bool
     ret %v4
 }

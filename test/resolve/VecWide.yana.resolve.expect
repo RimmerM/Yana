@@ -1,37 +1,37 @@
 let image$base: () = <none>
 
-let &seed: Int = 3
+let &seed: I32 = 3
 
-fn doubled(%v: Vec(Int)) -> Vec(Int) {
+fn doubled(%v: Vec(I32)) -> Vec(I32) {
   b0:
-    %v1 = add %v, %v : Vec(Int)
+    %v1 = add %v, %v : Vec(I32)
     ret %v1
 }
 
-fn scaled(%v: Vec(Int), %by: Int) -> Vec(Int) {
+fn scaled(%v: Vec(I32), %by: I32) -> Vec(I32) {
   b0:
-    %v2 = vsplat %by : Vec(Int)
-    %v3 = mul %v, %v2 : Vec(Int)
+    %v2 = vsplat %by : Vec(I32)
+    %v3 = mul %v, %v2 : Vec(I32)
     ret %v3
 }
 
-fn combined(%a: Vec(Int), %b: Vec(Int), %c: Vec(Int), %d: Vec(Int)) -> Int {
+fn combined(%a: Vec(I32), %b: Vec(I32), %c: Vec(I32), %d: Vec(I32)) -> I32 {
   b0:
-    %v4 = add %a, %b : Vec(Int)
-    %v7 = vlane %v4, 0 : Int
-    %v8 = add %c, %d : Vec(Int)
-    %v11 = vlane %v8, 0 : Int
-    %v12 = add %v7, %v11 : Int
+    %v4 = add %a, %b : Vec(I32)
+    %v7 = vlane %v4, 0 : I32
+    %v8 = add %c, %d : Vec(I32)
+    %v11 = vlane %v8, 0 : I32
+    %v12 = add %v7, %v11 : I32
     ret %v12
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = load seed : Int
-    %base = vsplat %v0 : Vec(Int)
-    %twice = call doubled, %base : Vec(Int)
-    %six = call scaled, %base, 2 : Vec(Int)
-    %v7 = vlane %twice, 0 : Int
+    %v0 = load seed : I32
+    %base = vsplat %v0 : Vec(I32)
+    %twice = call doubled, %base : Vec(I32)
+    %six = call scaled, %base, 2 : Vec(I32)
+    %v7 = vlane %twice, 0 : I32
     %v10 = cmp_ne %v7, 6 : Bool
     je %v10, b1, b2
 
@@ -42,7 +42,7 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v17 = vlane %six, 1 : Int
+    %v17 = vlane %six, 1 : I32
     %v20 = cmp_ne %v17, 6 : Bool
     je %v20, b4, b5
 
@@ -53,10 +53,10 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v27 = vsplat 1 : Vec(Int)
-    %lanes = vreduce_add %v27 : Int
-    %mixed = vwithlane %base, 10, 0 : Vec(Int)
-    %v34 = vreduce_max %mixed : Int
+    %v27 = vsplat 1 : Vec(I32)
+    %lanes = vreduce_add %v27 : I32
+    %mixed = vwithlane %base, 10, 0 : Vec(I32)
+    %v34 = vreduce_max %mixed : I32
     %v37 = cmp_ne %v34, 10 : Bool
     je %v37, b7, b8
 
@@ -67,7 +67,7 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v42 = vreduce_min %mixed : Int
+    %v42 = vreduce_min %mixed : I32
     %v45 = cmp_ne %v42, 3 : Bool
     je %v45, b10, b11
 
@@ -78,29 +78,29 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %total = alloc : Vec(Int)
+    %total = alloc : Vec(I32)
     init %total, %base
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b13
 
   b13:
-    %v56 = load %i : Int
+    %v56 = load %i : I32
     %v59 = cmp_lt %v56, 4 : Bool
     je %v59, b15, b14
 
   b14:
-    %v70 = load %total : Vec(Int)
-    %v73 = vlane %v70, 0 : Int
+    %v70 = load %total : Vec(I32)
+    %v73 = vlane %v70, 0 : I32
     %v76 = cmp_ne %v73, 15 : Bool
     je %v76, b16, b17
 
   b15:
-    %v61 = load %total : Vec(Int)
-    %v62 = add %v61, %base : Vec(Int)
+    %v61 = load %total : Vec(I32)
+    %v62 = add %v61, %base : Vec(I32)
     assign %total, %v62
-    %v64 = load %i : Int
-    %v67 = add %v64, 1 : Int
+    %v64 = load %i : I32
+    %v67 = add %v64, 1 : I32
     assign %i, %v67
     jmp b13
 
@@ -111,8 +111,8 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v81 = load %total : Vec(Int)
-    %v84 = vlane %v81, 1 : Int
+    %v81 = load %total : Vec(I32)
+    %v84 = vlane %v81, 1 : I32
     %v87 = cmp_ne %v84, 15 : Bool
     je %v87, b19, b20
 
@@ -123,9 +123,9 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v92 = load %total : Vec(Int)
-    %v93 = vreduce_add %v92 : Int
-    %v96 = mul %lanes, 15 : Int
+    %v92 = load %total : Vec(I32)
+    %v93 = vreduce_add %v92 : I32
+    %v96 = mul %lanes, 15 : I32
     %v97 = cmp_ne %v93, %v96 : Bool
     je %v97, b22, b23
 
@@ -136,11 +136,11 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v102 = load %total : Vec(Int)
-    %v103 = call combined, %base, %twice, %six, %v102 : Int
-    %v108 = add 3, 6 : Int
-    %v111 = add %v108, 6 : Int
-    %v114 = add %v111, 15 : Int
+    %v102 = load %total : Vec(I32)
+    %v103 = call combined, %base, %twice, %six, %v102 : I32
+    %v108 = add 3, 6 : I32
+    %v111 = add %v108, 6 : I32
+    %v114 = add %v111, 15 : I32
     %v115 = cmp_ne %v103, %v114 : Bool
     je %v115, b25, b26
 
@@ -151,8 +151,8 @@ fn main() -> Int {
     jmp b27
 
   b27:
-    %above = cmp_gt %mixed, %base : Mask(Int)
-    %v121 = vreduce_add %above : Int
+    %above = cmp_gt %mixed, %base : Mask(I32)
+    %v121 = vreduce_add %above : I32
     %v124 = cmp_ne %v121, 1 : Bool
     je %v124, b28, b29
 
@@ -184,10 +184,10 @@ fn main() -> Int {
     jmp b36
 
   b36:
-    %v143 = vsplat 7 : Vec(Int)
-    %v146 = vsplat 2 : Vec(Int)
-    %picked = select %above ? %v143 : %v146 : Vec(Int)
-    %v150 = vlane %picked, 0 : Int
+    %v143 = vsplat 7 : Vec(I32)
+    %v146 = vsplat 2 : Vec(I32)
+    %picked = select %above ? %v143 : %v146 : Vec(I32)
+    %v150 = vlane %picked, 0 : I32
     %v153 = cmp_ne %v150, 7 : Bool
     je %v153, b37, b38
 
@@ -198,7 +198,7 @@ fn main() -> Int {
     jmp b39
 
   b39:
-    %v160 = vlane %picked, 1 : Int
+    %v160 = vlane %picked, 1 : I32
     %v163 = cmp_ne %v160, 2 : Bool
     je %v163, b40, b41
 
@@ -209,9 +209,9 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v172 = vwithlane %base, 10, 1 : Vec(Int)
-    %v173 = cmp_gt %v172, %base : Mask(Int)
-    %v174 = vreduce_first %v173 : Int
+    %v172 = vwithlane %base, 10, 1 : Vec(I32)
+    %v173 = cmp_gt %v172, %base : Mask(I32)
+    %v174 = vreduce_first %v173 : I32
     %v177 = cmp_ne %v174, 1 : Bool
     je %v177, b43, b44
 
@@ -222,8 +222,8 @@ fn main() -> Int {
     jmp b45
 
   b45:
-    %v182 = cmp_lt %mixed, %base : Mask(Int)
-    %v183 = vreduce_first %v182 : Int
+    %v182 = cmp_lt %mixed, %base : Mask(I32)
+    %v183 = vreduce_first %v182 : I32
     %v184 = cmp_ne %v183, %lanes : Bool
     je %v184, b46, b47
 
@@ -234,8 +234,8 @@ fn main() -> Int {
     jmp b48
 
   b48:
-    %v189 = cmp_ge %mixed, %base : Mask(Int)
-    %v190 = vreduce_first %v189 : Int
+    %v189 = cmp_ge %mixed, %base : Mask(I32)
+    %v190 = vreduce_first %v189 : I32
     %v193 = cmp_ne %v190, 0 : Bool
     je %v193, b49, b50
 
@@ -246,11 +246,11 @@ fn main() -> Int {
     jmp b51
 
   b51:
-    %v200 = vlane %twice, 1 : Int
-    %v203 = mul %v200, 100 : Int
-    %v206 = vlane %six, 0 : Int
-    %v207 = add %v203, %v206 : Int
-    %v210 = vlane %mixed, 0 : Int
-    %v211 = add %v207, %v210 : Int
+    %v200 = vlane %twice, 1 : I32
+    %v203 = mul %v200, 100 : I32
+    %v206 = vlane %six, 0 : I32
+    %v207 = add %v203, %v206 : I32
+    %v210 = vlane %mixed, 0 : I32
+    %v211 = add %v207, %v210 : I32
     ret %v211
 }

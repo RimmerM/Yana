@@ -9,11 +9,11 @@ function checkCondition(failed) {
   }
 }
 
-function add_eq_Int(target$o, target$k, target$s, amount) {
+function add_eq_I32(target$o, target$k, target$s, amount) {
   target$o[target$k] = target$o[target$k] + amount | 0;
 }
 
-function sub_eq_Int(target$o, target$k, target$s, amount) {
+function sub_eq_I32(target$o, target$k, target$s, amount) {
   target$o[target$k] = target$o[target$k] - amount | 0;
 }
 
@@ -50,14 +50,14 @@ function idsOf(xs$items, xs$length, xs$offset) {
 }
 
 function container() {
-  add_eq_Int(live, "$v", 1, 1);
-  add_eq_Int(live, "$v", 1, 1);
+  add_eq_I32(live, "$v", 1, 1);
+  add_eq_I32(live, "$v", 1, 1);
   var v5 = [1, 2, 3];
-  add_eq_Int(live, "$v", 1, 1);
+  add_eq_I32(live, "$v", 1, 1);
   if (v5.length !== 3) {
     v5.length = 3;
   }
-  add_eq_Int(live, "$v", 1, 1);
+  add_eq_I32(live, "$v", 1, 1);
   Drop_Handle_drop(v5[0]);
   v5[0] = 4;
   if (live.$v !== 3) {
@@ -135,7 +135,7 @@ function main() {
 }
 
 function Drop_Handle_drop(value) {
-  sub_eq_Int(live, "$v", 1, 1);
+  sub_eq_I32(live, "$v", 1, 1);
   closed = closed + value | 0;
 }
 main();

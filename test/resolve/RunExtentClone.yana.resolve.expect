@@ -49,7 +49,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -100,7 +100,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -136,7 +136,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -222,14 +222,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -261,7 +261,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -319,7 +319,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -401,7 +401,7 @@ fn buffers(%count: Size, %unit: Size, %body: (->value$: Size) -> Outcome((), $r)
     %v13 = add %v10, 1 : Size
     %v14 = mul %unit, %v13 : Size
     %run = alloc : Run(U8)
-    %v16 = cast %v14 : Long
+    %v16 = cast %v14 : I64
     %v17 = alloc *%v16 heap escaping : U8
     %v18 = addressof %local3 : %U8
     %v20 = cast %v14 : U32
@@ -422,7 +422,7 @@ fn buffers(%count: Size, %unit: Size, %body: (->value$: Size) -> Outcome((), $r)
     %v41 = call readByte, %base, %last : Size
     %v42 = add %v40, %v41 : Size
     %v43 = calldyn %body, %v42 : Outcome((), $r)
-    %v44 = load %local4.discriminant : Int
+    %v44 = load %local4.discriminant : I32
     %v46 = cmp_eq %v44, 1 : Bool
     je %v46, b4, b5
 
@@ -455,7 +455,7 @@ fn readByte(%base: %U8, %at: Size) -> Size {
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %total = alloc : Size
     init %total, 0
@@ -469,7 +469,7 @@ fn main() -> Int {
     init %local2.env, %v8
     %v13 = call buffers(()), 3, 4, %v9 : Outcome((), ())
     %v14 = load %total : Size
-    %v15 = cast %v14 : Int
+    %v15 = cast %v14 : I32
     ret %v15
 }
 
@@ -506,7 +506,7 @@ fn buffers(())(%count: Size, %unit: Size, %body: (->value$: Size) -> Outcome((),
     %v16 = add %v14, 1 : Size
     %v17 = mul %unit, %v16 : Size
     %run = alloc : Run(U8)
-    %v19 = cast %v17 : Long
+    %v19 = cast %v17 : I64
     %v20 = alloc *%v19 heap escaping : U8
     %v22 = addressof %local3 : %U8
     %v23 = cast %v17 : U32
@@ -530,7 +530,7 @@ fn buffers(())(%count: Size, %unit: Size, %body: (->value$: Size) -> Outcome((),
     drop %local2 via Reclaim(Run(a)).reclaim(U8)
     %v45 = add %v43, %v44 : Size
     %v46 = calldyn %body, %v45 : Outcome((), ())
-    %v47 = load %local4.discriminant : Int
+    %v47 = load %local4.discriminant : I32
     %v49 = cmp_eq %v47, 1 : Bool
     je %v49, b4, b5
 

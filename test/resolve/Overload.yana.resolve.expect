@@ -3,27 +3,27 @@ let image$base: () = <none>
 fn and(%a: Permissions, %b: Permissions) -> Permissions {
   b0:
     %v2 = alloc : Permissions
-    %v3 = load %a@Permissions.bits : Int
-    %v4 = load %b@Permissions.bits : Int
-    %v5 = and %v3, %v4 : Int
+    %v3 = load %a@Permissions.bits : I32
+    %v4 = load %b@Permissions.bits : I32
+    %v5 = and %v3, %v4 : I32
     aggregate %local2@Permissions.bits = %v5
     ret %v2
 }
 
-fn mask(%a: Int, %b: Int) -> Int {
+fn mask(%a: I32, %b: I32) -> I32 {
   b0:
-    %v2 = and %a, %b : Int
+    %v2 = and %a, %b : I32
     ret %v2
 }
 
-fn combined(%a: Int, %b: Int) -> Int {
+fn combined(%a: I32, %b: I32) -> I32 {
   b0:
     %v2 = alloc : Permissions
     aggregate %local0@Permissions.bits = %a
     %v4 = alloc : Permissions
     aggregate %local1@Permissions.bits = %b
     %v6 = call and, %v2, %v4 : Permissions
-    %v7 = load %local2@Permissions.bits : Int
+    %v7 = load %local2@Permissions.bits : I32
     ret %v7
 }
 
@@ -33,9 +33,9 @@ fn bothTrue(%a: Bool, %b: Bool) -> Bool {
     ret %v2
 }
 
-fn maskQualified(%a: Int, %b: Int) -> Int {
+fn maskQualified(%a: I32, %b: I32) -> I32 {
   b0:
-    %v2 = and %a, %b : Int
+    %v2 = and %a, %b : I32
     ret %v2
 }
 
@@ -67,65 +67,65 @@ fn bothQualified(%a: Bool, %b: Bool) -> Bool {
     ret %v2
 }
 
-fn areaQualified(%s: Square) -> Int {
+fn areaQualified(%s: Square) -> I32 {
   b0:
-    %v1 = call Area(Square).size, %s : Int
+    %v1 = call Area(Square).size, %s : I32
     ret %v1
 }
 
-fn volumeQualified(%c: Cube) -> Int {
+fn volumeQualified(%c: Cube) -> I32 {
   b0:
-    %v1 = call Volume(Cube).size, %c : Int
+    %v1 = call Volume(Cube).size, %c : I32
     ret %v1
 }
 
-(Area(a)) fn areaGeneric(%x: a) -> Int {
+(Area(a)) fn areaGeneric(%x: a) -> I32 {
   schema {
     #0 type a
     #1 class Area(a)
   }
 
   b0:
-    %v1 = gencall Area(a).size, %x : Int
+    %v1 = gencall Area(a).size, %x : I32
     ret %v1
 }
 
-(Volume(a)) fn volumeGeneric(%x: a) -> Int {
+(Volume(a)) fn volumeGeneric(%x: a) -> I32 {
   schema {
     #0 type a
     #1 class Volume(a)
   }
 
   b0:
-    %v1 = gencall Volume(a).size, %x : Int
+    %v1 = gencall Volume(a).size, %x : I32
     ret %v1
 }
 
-fn negated(%a: Int) -> Int {
+fn negated(%a: I32) -> I32 {
   b0:
-    %v1 = neg %a : Int
+    %v1 = neg %a : I32
     ret %v1
 }
 
-fn difference(%a: Int, %b: Int) -> Int {
+fn difference(%a: I32, %b: I32) -> I32 {
   b0:
-    %v2 = sub %a, %b : Int
+    %v2 = sub %a, %b : I32
     ret %v2
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v2 = call mask, 6, 3 : Int
-    %v5 = call combined, 6, 3 : Int
-    %v6 = add %v2, %v5 : Int
-    %v9 = call maskQualified, 12, 10 : Int
-    %v10 = add %v6, %v9 : Int
-    %v15 = call maskGeneric(Int), 5, 4 : Int
-    %v16 = add %v10, %v15 : Int
-    %v18 = call negated, 1 : Int
-    %v21 = add %v18, 10 : Int
-    %v23 = call difference, %v21, 2 : Int
-    %v24 = add %v16, %v23 : Int
+    %v2 = call mask, 6, 3 : I32
+    %v5 = call combined, 6, 3 : I32
+    %v6 = add %v2, %v5 : I32
+    %v9 = call maskQualified, 12, 10 : I32
+    %v10 = add %v6, %v9 : I32
+    %v15 = call maskGeneric(I32), 5, 4 : I32
+    %v16 = add %v10, %v15 : I32
+    %v18 = call negated, 1 : I32
+    %v21 = add %v18, 10 : I32
+    %v23 = call difference, %v21, 2 : I32
+    %v24 = add %v16, %v23 : I32
     %v27 = call bothTrue, True, False : Bool
     je %v27, b1, b2
 
@@ -136,8 +136,8 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v35 = phi [b1, 100], [b2, 0] : Int
-    %v36 = add %v24, %v35 : Int
+    %v35 = phi [b1, 100], [b2, 0] : I32
+    %v36 = add %v24, %v35 : I32
     %v39 = call bothQualified, True, True : Bool
     je %v39, b4, b5
 
@@ -148,8 +148,8 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v47 = phi [b4, 1000], [b5, 0] : Int
-    %v48 = add %v36, %v47 : Int
+    %v47 = phi [b4, 1000], [b5, 0] : I32
+    %v48 = add %v36, %v47 : I32
     %v51 = call bothGeneric(Bool), True, False : Bool
     je %v51, b7, b8
 
@@ -160,48 +160,48 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v59 = phi [b7, 10000], [b8, 0] : Int
-    %v60 = add %v48, %v59 : Int
+    %v59 = phi [b7, 10000], [b8, 0] : I32
+    %v60 = add %v48, %v59 : I32
     %v61 = alloc : Square
     aggregate %local0@Square.side = 3
-    %v64 = call areaQualified, %v61 : Int
-    %v65 = add %v60, %v64 : Int
+    %v64 = call areaQualified, %v61 : I32
+    %v65 = add %v60, %v64 : I32
     %v66 = alloc : Cube
     aggregate %local1@Cube.side = 2
-    %v69 = call volumeQualified, %v66 : Int
-    %v70 = add %v65, %v69 : Int
+    %v69 = call volumeQualified, %v66 : I32
+    %v70 = add %v65, %v69 : I32
     %v71 = alloc : Square
     aggregate %local2@Square.side = 4
-    %v74 = call areaGeneric(Square), %v71 : Int
-    %v75 = add %v70, %v74 : Int
+    %v74 = call areaGeneric(Square), %v71 : I32
+    %v75 = add %v70, %v74 : I32
     %v76 = alloc : Cube
     aggregate %local3@Cube.side = 3
-    %v79 = call volumeGeneric(Cube), %v76 : Int
-    %v80 = add %v75, %v79 : Int
+    %v79 = call volumeGeneric(Cube), %v76 : I32
+    %v80 = add %v75, %v79 : I32
     ret %v80
 }
 
-fn Area(Square).size(%value: Square) -> Int {
+fn Area(Square).size(%value: Square) -> I32 {
   b0:
-    %v1 = load %value@Square.side : Int
-    %v2 = load %value@Square.side : Int
-    %v3 = mul %v1, %v2 : Int
+    %v1 = load %value@Square.side : I32
+    %v2 = load %value@Square.side : I32
+    %v3 = mul %v1, %v2 : I32
     ret %v3
 }
 
-fn Volume(Cube).size(%value: Cube) -> Int {
+fn Volume(Cube).size(%value: Cube) -> I32 {
   b0:
-    %v1 = load %value@Cube.side : Int
-    %v2 = load %value@Cube.side : Int
-    %v3 = mul %v1, %v2 : Int
-    %v4 = load %value@Cube.side : Int
-    %v5 = mul %v3, %v4 : Int
+    %v1 = load %value@Cube.side : I32
+    %v2 = load %value@Cube.side : I32
+    %v3 = mul %v1, %v2 : I32
+    %v4 = load %value@Cube.side : I32
+    %v5 = mul %v3, %v4 : I32
     ret %v5
 }
 
-fn maskGeneric(Int)(%x: Int, %y: Int) -> Int {
+fn maskGeneric(I32)(%x: I32, %y: I32) -> I32 {
   b0:
-    %v2 = and %x, %y : Int
+    %v2 = and %x, %y : I32
     ret %v2
 }
 
@@ -211,14 +211,14 @@ fn bothGeneric(Bool)(%x: Bool, %y: Bool) -> Bool {
     ret %v2
 }
 
-fn areaGeneric(Square)(%x: Square) -> Int {
+fn areaGeneric(Square)(%x: Square) -> I32 {
   b0:
-    %v1 = call Area(Square).size, %x : Int
+    %v1 = call Area(Square).size, %x : I32
     ret %v1
 }
 
-fn volumeGeneric(Cube)(%x: Cube) -> Int {
+fn volumeGeneric(Cube)(%x: Cube) -> I32 {
   b0:
-    %v1 = call Volume(Cube).size, %x : Int
+    %v1 = call Volume(Cube).size, %x : I32
     ret %v1
 }

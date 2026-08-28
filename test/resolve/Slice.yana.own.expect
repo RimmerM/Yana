@@ -5,43 +5,43 @@ fn checkCondition {
   arg failed readonly
 }
 
-fn slice(Int) {
+fn slice(I32) {
   arg self readonly return
   arg from readonly
   arg to readonly
   result arguments
-  %self: Flat(Int) borrowed readonly live [0, 40)
+  %self: Flat(I32) borrowed readonly live [0, 40)
   %start: Size writable live [0, 42)
   %end: Size writable live [16, 41)
-  %local3: Flat(Int) readonly live [34, 45)
+  %local3: Flat(I32) readonly live [34, 45)
 }
 
-fn push(Int) {
+fn push(I32) {
   arg self writable resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 25)
-  %item: Int readonly live [0, 20)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 25)
+  %item: I32 readonly live [0, 20)
 }
 
-fn reserve(Int) {
+fn reserve(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 6) [7, 11)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 6) [7, 11)
 }
 
-fn growArray(Int) {
+fn growArray(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 24)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 24)
   %wide: Size writable live [5, 22)
 }
 
-fn Reclaim(Array(a)).reclaim(Int) {
+fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
-  %i: Int writable live [2, 8) [11, 25)
-  %local2: Int readonly live [18, 21)
-  %local3: Int readonly live [19, 21)
+  %value: Array(I32) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: I32 writable live [2, 8) [11, 25)
+  %local2: I32 readonly live [18, 21)
+  %local3: I32 readonly live [19, 21)
 }
 
 fn numberOf {
@@ -122,39 +122,39 @@ fn copyMemory {
 fn abortProcess {
 }
 
-fn resize(Int) {
+fn resize(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+  %self: Run(I32) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
-fn byteSpan(Int) {
+fn byteSpan(I32) {
   arg from readonly
   arg count readonly
 }
 
-fn releaseRun(Int) {
+fn releaseRun(I32) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 8)
+  %self: Run(I32) borrowed droppable readonly live [0, 8)
 }
 
 fn total {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 33)
-  %sum: Int writable live [0, 11) [12, 33)
-  %i: Int writable live [2, 10) [12, 33)
+  %xs: Flat(I32) borrowed readonly live [0, 10) [12, 33)
+  %sum: I32 writable live [0, 11) [12, 33)
+  %i: I32 writable live [2, 10) [12, 33)
 }
 
 fn double {
   arg xs writable
-  %xs: Flat(Int) borrowed writable live [0, 9) [10, 45)
-  %i: Int writable live [0, 9) [10, 45)
+  %xs: Flat(I32) borrowed writable live [0, 9) [10, 45)
+  %i: I32 writable live [0, 9) [10, 45)
 }
 
 fn middle {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 5)
-  %local1: Flat(Int) readonly live [3, 5)
+  %xs: Flat(I32) borrowed readonly live [0, 5)
+  %local1: Flat(I32) readonly live [3, 5)
 }
 
 fn atCursor {
@@ -165,18 +165,18 @@ fn atCursor {
 fn sumFrom {
   arg xs readonly
   arg from readonly
-  %xs: Flat(Int) borrowed readonly live [0, 2)
+  %xs: Flat(I32) borrowed readonly live [0, 2)
   %c: Cursor writable live [0, 13) [15, 25)
-  %sum: Int writable live [2, 14) [15, 25)
+  %sum: I32 writable live [2, 14) [15, 25)
 }
 
 fn main {
-  %xs: Array(Int) droppable writable resizable live [0, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 89)
-  %local1: Int writable addressed live [1, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 82)
-  %local2: Flat(Int) readonly live [10, 17)
-  %local3: Flat(Int) readonly live [23, 30)
-  %local4: Flat(Int) writable live [36, 44)
-  %local5: Flat(Int) readonly live [46, 53)
-  %local6: Flat(Int) readonly live [69, 76)
-  %local7: Flat(Int) readonly live [82, 89)
+  %xs: Array(I32) droppable writable resizable live [0, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 89)
+  %local1: I32 writable addressed live [1, 19) [20, 32) [33, 55) [56, 65) [66, 78) [79, 82)
+  %local2: Flat(I32) readonly live [10, 17)
+  %local3: Flat(I32) readonly live [23, 30)
+  %local4: Flat(I32) writable live [36, 44)
+  %local5: Flat(I32) readonly live [46, 53)
+  %local6: Flat(I32) readonly live [69, 76)
+  %local7: Flat(I32) readonly live [82, 89)
 }

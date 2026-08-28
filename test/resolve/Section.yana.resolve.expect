@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn sign(%x: Int) -> Int {
+fn sign(%x: I32) -> I32 {
   b0:
     %v2 = cmp_gt %x, 0 : Bool
     je %v2, b2, b1
@@ -19,11 +19,11 @@ fn sign(%x: Int) -> Int {
     jmp b5
 
   b5:
-    %v13 = phi [b2, 1], [b4, -1], [b3, 0] : Int
+    %v13 = phi [b2, 1], [b4, -1], [b3, 0] : I32
     ret %v13
 }
 
-fn clampedTo(%x: Int, %limit: Int) -> Int {
+fn clampedTo(%x: I32, %limit: I32) -> I32 {
   b0:
     %v2 = cmp_gt %x, %limit : Bool
     je %v2, b2, b1
@@ -42,20 +42,20 @@ fn clampedTo(%x: Int, %limit: Int) -> Int {
     jmp b5
 
   b5:
-    %v10 = phi [b2, %limit], [b4, 0], [b3, %x] : Int
+    %v10 = phi [b2, %limit], [b4, 0], [b3, %x] : I32
     ret %v10
 }
 
-fn shadowing(%x: Int, %limit: Int) -> Int {
+fn shadowing(%x: I32, %limit: I32) -> I32 {
   b0:
-    %v4 = add %x, 1 : Int
+    %v4 = add %x, 1 : I32
     jmp b1
 
   b1:
     ret %v4
 }
 
-fn doubleIfPositive(%x: Int) -> Int {
+fn doubleIfPositive(%x: I32) -> I32 {
   b0:
     %v2 = cmp_gt %x, 0 : Bool
     je %v2, b2, b1
@@ -64,27 +64,27 @@ fn doubleIfPositive(%x: Int) -> Int {
     jmp b3
 
   b2:
-    %v6 = mul %x, 2 : Int
+    %v6 = mul %x, 2 : I32
     jmp b3
 
   b3:
-    %v9 = phi [b2, %v6], [b1, %x] : Int
+    %v9 = phi [b2, %v6], [b1, %x] : I32
     ret %v9
 }
 
-fn area(%s: Shape) -> Int {
+fn area(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v10 = load %s.discriminant : Int
+    %v10 = load %s.discriminant : I32
     %v12 = cmp_eq %v10, 0 : Bool
     je %v12, b5, b4
 
   b2:
-    %v5 = load %s@Circle : Int
+    %v5 = load %s@Circle : I32
     %v7 = cmp_gt %v5, 10 : Bool
     je %v7, b3, b1
 
@@ -92,65 +92,65 @@ fn area(%s: Shape) -> Int {
     jmp b9
 
   b4:
-    %v15 = load %s.discriminant : Int
+    %v15 = load %s.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b7, b6
 
   b5:
-    %r = load %s@Circle : Int
+    %r = load %s@Circle : I32
     jmp b9
 
   b6:
-    %v28 = load %s@Square : {width: Int, height: Int}
-    %w = load %s@Square.width : Int
-    %v30 = load %s@Square.height : Int
+    %v28 = load %s@Square : {width: I32, height: I32}
+    %w = load %s@Square.width : I32
+    %v30 = load %s@Square.height : I32
     jmp b9
 
   b7:
-    %v19 = load %s@Square : {width: Int, height: Int}
-    %v20 = load %s@Square.width : Int
+    %v19 = load %s@Square : {width: I32, height: I32}
+    %v20 = load %s@Square.width : I32
     %v22 = cmp_gt %v20, 10 : Bool
     je %v22, b8, b6
 
   b8:
-    %h = load %s@Square.height : Int
-    %v27 = add %h, 10 : Int
+    %h = load %s@Square.height : I32
+    %v27 = add %h, 10 : I32
     jmp b9
 
   b9:
-    %v35 = phi [b3, 100], [b5, %r], [b8, %v27], [b6, %w] : Int
+    %v35 = phi [b3, 100], [b5, %r], [b8, %v27], [b6, %w] : I32
     ret %v35
 }
 
-fn firstIfEqual(%p: {Int, Int}) -> Int {
+fn firstIfEqual(%p: {I32, I32}) -> I32 {
   b0:
-    %a = load %p.0 : Int
-    %v2 = load %p.1 : Int
+    %a = load %p.0 : I32
+    %v2 = load %p.1 : I32
     %v3 = cmp_eq %v2, %a : Bool
     je %v3, b2, b1
 
   b1:
-    %a = load %p.0 : Int
-    %b = load %p.1 : Int
-    %v7 = add %a, %b : Int
+    %a = load %p.0 : I32
+    %b = load %p.1 : I32
+    %v7 = add %a, %b : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b2, %a], [b1, %v7] : Int
+    %v10 = phi [b2, %a], [b1, %v7] : I32
     ret %v10
 }
 
-fn near(%a: Int, %b: Int) -> Bool {
+fn near(%a: I32, %b: I32) -> Bool {
   b0:
-    %v2 = sub %a, %b : Int
+    %v2 = sub %a, %b : I32
     %v5 = cmp_lt %v2, 2 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = sub %b, %a : Int
+    %v7 = sub %b, %a : I32
     %v10 = cmp_lt %v7, 2 : Bool
     jmp b3
 
@@ -162,7 +162,7 @@ fn near(%a: Int, %b: Int) -> Bool {
     ret %v14
 }
 
-fn isNearTen(%x: Int) -> Int {
+fn isNearTen(%x: I32) -> I32 {
   b0:
     %v2 = call near, %x, 10 : Bool
     je %v2, b2, b1
@@ -174,11 +174,11 @@ fn isNearTen(%x: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b2, 1], [b1, 0] : Int
+    %v8 = phi [b2, 1], [b1, 0] : I32
     ret %v8
 }
 
-fn positiveOr(%x: Int, %fallback: Int) -> Int {
+fn positiveOr(%x: I32, %fallback: I32) -> I32 {
   b0:
     %v3 = cmp_gt %x, 0 : Bool
     je %v3, b2, b1
@@ -190,56 +190,56 @@ fn positiveOr(%x: Int, %fallback: Int) -> Int {
     ret %x
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call sign, 5 : Int
-    %v3 = call sign, -5 : Int
-    %v4 = add %v1, %v3 : Int
-    %v6 = call sign, 0 : Int
-    %v7 = add %v4, %v6 : Int
-    %v10 = call clampedTo, 20, 10 : Int
-    %v11 = add %v7, %v10 : Int
-    %v14 = call clampedTo, 10, 10 : Int
-    %v15 = add %v11, %v14 : Int
-    %v18 = call clampedTo, 3, 10 : Int
-    %v19 = add %v15, %v18 : Int
-    %v22 = call shadowing, 7, 100 : Int
-    %v23 = add %v19, %v22 : Int
-    %v25 = call doubleIfPositive, 4 : Int
-    %v26 = add %v23, %v25 : Int
-    %v28 = call doubleIfPositive, -4 : Int
-    %v29 = add %v26, %v28 : Int
+    %v1 = call sign, 5 : I32
+    %v3 = call sign, -5 : I32
+    %v4 = add %v1, %v3 : I32
+    %v6 = call sign, 0 : I32
+    %v7 = add %v4, %v6 : I32
+    %v10 = call clampedTo, 20, 10 : I32
+    %v11 = add %v7, %v10 : I32
+    %v14 = call clampedTo, 10, 10 : I32
+    %v15 = add %v11, %v14 : I32
+    %v18 = call clampedTo, 3, 10 : I32
+    %v19 = add %v15, %v18 : I32
+    %v22 = call shadowing, 7, 100 : I32
+    %v23 = add %v19, %v22 : I32
+    %v25 = call doubleIfPositive, 4 : I32
+    %v26 = add %v23, %v25 : I32
+    %v28 = call doubleIfPositive, -4 : I32
+    %v29 = add %v26, %v28 : I32
     %v30 = alloc : Shape
     aggregate %local0.discriminant = 0, %local0@Circle = 20
-    %v34 = call area, %v30 : Int
-    %v35 = add %v29, %v34 : Int
+    %v34 = call area, %v30 : I32
+    %v35 = add %v29, %v34 : I32
     %v36 = alloc : Shape
     aggregate %local1.discriminant = 0, %local1@Circle = 3
-    %v40 = call area, %v36 : Int
-    %v41 = add %v35, %v40 : Int
+    %v40 = call area, %v36 : I32
+    %v41 = add %v35, %v40 : I32
     %v42 = alloc : Shape
     aggregate %local2.discriminant = 1, %local2@Square.width = 20, %local2@Square.height = 2
-    %v47 = call area, %v42 : Int
-    %v48 = add %v41, %v47 : Int
+    %v47 = call area, %v42 : I32
+    %v48 = add %v41, %v47 : I32
     %v49 = alloc : Shape
     aggregate %local3.discriminant = 1, %local3@Square.width = 3, %local3@Square.height = 9
-    %v54 = call area, %v49 : Int
-    %v55 = add %v48, %v54 : Int
-    %v56 = alloc : {Int, Int}
+    %v54 = call area, %v49 : I32
+    %v55 = add %v48, %v54 : I32
+    %v56 = alloc : {I32, I32}
     aggregate %local4.0 = 6, %local4.1 = 6
-    %v60 = call firstIfEqual, %v56 : Int
-    %v61 = add %v55, %v60 : Int
-    %v62 = alloc : {Int, Int}
+    %v60 = call firstIfEqual, %v56 : I32
+    %v61 = add %v55, %v60 : I32
+    %v62 = alloc : {I32, I32}
     aggregate %local5.0 = 1, %local5.1 = 2
-    %v66 = call firstIfEqual, %v62 : Int
-    %v67 = add %v61, %v66 : Int
-    %v69 = call isNearTen, 11 : Int
-    %v70 = add %v67, %v69 : Int
-    %v72 = call isNearTen, 50 : Int
-    %v73 = add %v70, %v72 : Int
-    %v76 = call positiveOr, 9, -1 : Int
-    %v77 = add %v73, %v76 : Int
-    %v80 = call positiveOr, -9, -1 : Int
-    %v81 = add %v77, %v80 : Int
+    %v66 = call firstIfEqual, %v62 : I32
+    %v67 = add %v61, %v66 : I32
+    %v69 = call isNearTen, 11 : I32
+    %v70 = add %v67, %v69 : I32
+    %v72 = call isNearTen, 50 : I32
+    %v73 = add %v70, %v72 : I32
+    %v76 = call positiveOr, 9, -1 : I32
+    %v77 = add %v73, %v76 : I32
+    %v80 = call positiveOr, -9, -1 : I32
+    %v81 = add %v77, %v80 : I32
     ret %v81
 }

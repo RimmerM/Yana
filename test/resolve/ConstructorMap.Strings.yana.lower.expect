@@ -57,15 +57,15 @@ mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.string$51 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 @ResolveTest.literal$52 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
+Eq(String).==<complex>(%self: Ptr, %other: Ptr): I32 {
   b_0 {
     %v_1 = add %self, 12: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = sext %v_2: Long
+    %v_2 = load %v_1, 4: I32
+    %v_3 = sext %v_2: I64
     %v_4 = add %other, 12: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = sext %v_5: Long
-    %v_7 = cmp_neq %v_3, %v_6: Int
+    %v_5 = load %v_4, 4: I32
+    %v_6 = sext %v_5: I64
+    %v_7 = cmp_neq %v_3, %v_6: I32
     je %v_7, b_8, b_9
   }
 
@@ -80,8 +80,8 @@ Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
   b_10 {
     %v_11 = load %self, 8: Ptr
     %v_12 = load %other, 8: Ptr
-    %v_13 = call_complex compareMemory(CodeUnit), %v_11, %v_12, %v_3: Int
-    %v_14 = cmp_eq %v_13, 1: Int
+    %v_13 = call_complex compareMemory(CodeUnit), %v_11, %v_12, %v_3: I32
+    %v_14 = cmp_eq %v_13, 1: I32
     ret %v_14
   }
 }
@@ -89,10 +89,10 @@ Eq(String).==<complex>(%self: Ptr, %other: Ptr): Int {
 Reclaim(String).reclaim<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Long
-    %v_3 = shr %v_2, 30: Long
-    %v_4 = cast %v_3: Int
-    %v_5 = cmp_eq %v_4, 1: Int
+    %v_2 = load %v_1, 4: I64
+    %v_3 = shr %v_2, 30: I64
+    %v_4 = cast %v_3: I32
+    %v_5 = cmp_eq %v_4, 1: I32
     je %v_5, b_6, b_7
   }
 
@@ -113,8 +113,8 @@ Reclaim(String).reclaim<complex>(%value: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -128,9 +128,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -141,18 +141,18 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
+compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: I64): I32 {
   b_0 {
-    %v_1 = imm 64: Long
-    %block = sub %count, %v_1: Long
-    %v_2 = imm 16: Long
-    %last = sub %count, %v_2: Long
+    %v_1 = imm 64: I64
+    %block = sub %count, %v_1: I64
+    %v_2 = imm 16: I64
+    %last = sub %count, %v_2: I64
     jmp b_3
   }
 
   b_3 {
-    %v_4 = phi [b_0, 0], [b_5, %v_6]: Long
-    %v_7 = cmp_ile %v_4, %block: Int
+    %v_4 = phi [b_0, 0], [b_5, %v_6]: I64
+    %v_7 = cmp_ile %v_4, %block: I32
     je %v_7, b_8, b_9
   }
 
@@ -184,7 +184,7 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
     %v_27 = and %first, %second: m8x16
     %v_28 = and %third, %fourth: m8x16
     %v_29 = and %v_27, %v_28: m8x16
-    %v_30 = vreduce_and %v_29: Int
+    %v_30 = vreduce_and %v_29: I32
     je %v_30, b_31, b_32
   }
 
@@ -197,18 +197,18 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
   }
 
   b_5 {
-    %v_6 = add %v_4, %v_1: Long
+    %v_6 = add %v_4, %v_1: I64
     jmp b_3
   }
 
   b_10 {
-    %v_33 = phi [b_9, %v_4], [b_34, %v_35]: Long
-    %v_36 = cmp_ile %v_33, %last: Int
+    %v_33 = phi [b_9, %v_4], [b_34, %v_35]: I64
+    %v_36 = cmp_ile %v_33, %last: I32
     je %v_36, b_37, b_38
   }
 
   b_38 {
-    %v_39 = cmp_ilt %v_33, %count: Int
+    %v_39 = cmp_ilt %v_33, %count: I32
     je %v_39, b_40, b_41
   }
 
@@ -218,23 +218,23 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
     %v_44 = add %right, %v_33: Ptr
     %v_45 = load %v_44, 16: i8x16
     %same = cmp_eq %v_43, %v_45: m8x16
-    %v_46 = vreduce_and %same: Int
+    %v_46 = vreduce_and %same: I32
     je %v_46, b_47, b_48
   }
 
   b_48 {
     %v_49 = not %same: m8x16
-    %v_50 = vreduce_first %v_49: Int
-    %v_51 = sext %v_50: Long
-    %differs = add %v_33, %v_51: Long
+    %v_50 = vreduce_first %v_49: I32
+    %v_51 = sext %v_50: I64
+    %differs = add %v_33, %v_51: I64
     %v_52 = add %left, %differs: Ptr
-    %v_53 = load %v_52, 1: Int
+    %v_53 = load %v_52, 1: I32
     %v_54 = add %right, %differs: Ptr
-    %v_55 = load %v_54, 1: Int
-    %v_56 = cmp_eq %v_53, %v_55: Int
-    %v_57 = cmp_gt %v_53, %v_55: Int
-    %v_58 = select %v_57, 2, 0: Int
-    %v_59 = select %v_56, 1, %v_58: Int
+    %v_55 = load %v_54, 1: I32
+    %v_56 = cmp_eq %v_53, %v_55: I32
+    %v_57 = cmp_gt %v_53, %v_55: I32
+    %v_58 = select %v_57, 2, 0: I32
+    %v_59 = select %v_56, 1, %v_58: I32
     ret %v_59
   }
 
@@ -243,7 +243,7 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
   }
 
   b_34 {
-    %v_35 = add %v_33, %v_2: Long
+    %v_35 = add %v_33, %v_2: I64
     jmp b_10
   }
 
@@ -253,7 +253,7 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
     %v_62 = add %right, %v_33: Ptr
     %v_63 = loadx %v_62, 16: i8x16
     %same = cmp_eq %v_61, %v_63: m8x16
-    %v_64 = vreduce_and %same: Int
+    %v_64 = vreduce_and %same: I32
     je %v_64, b_65, b_66
   }
 
@@ -263,10 +263,10 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
 
   b_66 {
     %v_68 = not %same: m8x16
-    %v_69 = vreduce_first %v_68: Int
-    %v_70 = sext %v_69: Long
-    %differs = add %v_33, %v_70: Long
-    %v_71 = cmp_ilt %differs, %count: Int
+    %v_69 = vreduce_first %v_68: I32
+    %v_70 = sext %v_69: I64
+    %differs = add %v_33, %v_70: I64
+    %v_71 = cmp_ilt %differs, %count: I32
     je %v_71, b_72, b_73
   }
 
@@ -276,13 +276,13 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
 
   b_72 {
     %v_75 = add %left, %differs: Ptr
-    %v_76 = load %v_75, 1: Int
+    %v_76 = load %v_75, 1: I32
     %v_77 = add %right, %differs: Ptr
-    %v_78 = load %v_77, 1: Int
-    %v_79 = cmp_eq %v_76, %v_78: Int
-    %v_80 = cmp_gt %v_76, %v_78: Int
-    %v_81 = select %v_80, 2, 0: Int
-    %v_82 = select %v_79, 1, %v_81: Int
+    %v_78 = load %v_77, 1: I32
+    %v_79 = cmp_eq %v_76, %v_78: I32
+    %v_80 = cmp_gt %v_76, %v_78: I32
+    %v_81 = select %v_80, 2, 0: I32
+    %v_82 = select %v_79, 1, %v_81: I32
     ret %v_82
   }
 
@@ -303,19 +303,19 @@ compareMemory(CodeUnit)<complex>(%left: Ptr, %right: Ptr, %count: Long): Int {
   }
 }
 
-nameOf<complex>(%v_0: Ptr, %c: Int) {
+nameOf<complex>(%v_0: Ptr, %c: I32) {
   b_1 {
-    %v_2 = sext %c: Long
-    %v_3 = shl %v_2, 4: Long
+    %v_2 = sext %c: I64
+    %v_3 = shl %v_2, 4: I64
     %v_4 = add @ResolveTest.map$0, %v_3: Ptr
     %v_5 = load %v_4, 8: Ptr
     %v_6 = add @ResolveTest.map$0, %v_3: Ptr
     %v_7 = add %v_6, 8: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = and %v_8, 1073741823: Int
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = and %v_8, 1073741823: I32
     store %v_0, %v_5, 8
     %v_10 = add %v_0, 8: Ptr
-    %v_11 = load %v_10, 4: Int
+    %v_11 = load %v_10, 4: I32
     store %v_10, %v_9, 4
     %v_12 = add %v_0, 12: Ptr
     store %v_12, %v_9, 4
@@ -323,19 +323,19 @@ nameOf<complex>(%v_0: Ptr, %c: Int) {
   }
 }
 
-warmth<complex>(%v_0: Ptr, %c: Int) {
+warmth<complex>(%v_0: Ptr, %c: I32) {
   b_1 {
-    %v_2 = sext %c: Long
-    %v_3 = shl %v_2, 4: Long
+    %v_2 = sext %c: I64
+    %v_3 = shl %v_2, 4: I64
     %v_4 = add @ResolveTest.map$1, %v_3: Ptr
     %v_5 = load %v_4, 8: Ptr
     %v_6 = add @ResolveTest.map$1, %v_3: Ptr
     %v_7 = add %v_6, 8: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = and %v_8, 1073741823: Int
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = and %v_8, 1073741823: I32
     store %v_0, %v_5, 8
     %v_10 = add %v_0, 8: Ptr
-    %v_11 = load %v_10, 4: Int
+    %v_11 = load %v_10, 4: I32
     store %v_10, %v_9, 4
     %v_12 = add %v_0, 12: Ptr
     store %v_12, %v_9, 4
@@ -343,19 +343,19 @@ warmth<complex>(%v_0: Ptr, %c: Int) {
   }
 }
 
-signText<complex>(%v_0: Ptr, %s: Int) {
+signText<complex>(%v_0: Ptr, %s: I32) {
   b_1 {
-    %v_2 = sext %s: Long
-    %v_3 = shl %v_2, 4: Long
+    %v_2 = sext %s: I64
+    %v_3 = shl %v_2, 4: I64
     %v_4 = add @ResolveTest.map$2, %v_3: Ptr
     %v_5 = load %v_4, 8: Ptr
     %v_6 = add @ResolveTest.map$2, %v_3: Ptr
     %v_7 = add %v_6, 8: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = and %v_8, 1073741823: Int
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = and %v_8, 1073741823: I32
     store %v_0, %v_5, 8
     %v_10 = add %v_0, 8: Ptr
-    %v_11 = load %v_10, 4: Int
+    %v_11 = load %v_10, 4: I32
     store %v_10, %v_9, 4
     %v_12 = add %v_0, 12: Ptr
     store %v_12, %v_9, 4
@@ -363,53 +363,53 @@ signText<complex>(%v_0: Ptr, %s: Int) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     call_complex nameOf, %v_1, 0
     %v_2 = alloca 16, 8: Ptr
     copy %v_2, @ResolveTest.literal$20, 16
-    %v_3 = call_complex Eq(String).==, %v_1, %v_2: Int
+    %v_3 = call_complex Eq(String).==, %v_1, %v_2: I32
     call_complex Reclaim(String).reclaim, %v_1
     %v_4 = alloca 16, 8: Ptr
     call_complex nameOf, %v_4, 1
     %v_5 = alloca 16, 8: Ptr
     copy %v_5, @ResolveTest.literal$22, 16
-    %v_6 = call_complex Eq(String).==, %v_4, %v_5: Int
+    %v_6 = call_complex Eq(String).==, %v_4, %v_5: I32
     call_complex Reclaim(String).reclaim, %v_4
-    %v_7 = select %v_6, 2, 0: Int
-    %v_8 = add %v_3, %v_7: Int
+    %v_7 = select %v_6, 2, 0: I32
+    %v_8 = add %v_3, %v_7: I32
     %v_9 = alloca 16, 8: Ptr
     call_complex nameOf, %v_9, 2
     %v_10 = alloca 16, 8: Ptr
     copy %v_10, @ResolveTest.literal$24, 16
-    %v_11 = call_complex Eq(String).==, %v_9, %v_10: Int
+    %v_11 = call_complex Eq(String).==, %v_9, %v_10: I32
     call_complex Reclaim(String).reclaim, %v_9
-    %v_12 = select %v_11, 4, 0: Int
-    %v_13 = add %v_8, %v_12: Int
+    %v_12 = select %v_11, 4, 0: I32
+    %v_13 = add %v_8, %v_12: I32
     %v_14 = alloca 16, 8: Ptr
     call_complex nameOf, %v_14, 3
     %v_15 = alloca 16, 8: Ptr
     copy %v_15, @ResolveTest.literal$26, 16
-    %v_16 = call_complex Eq(String).==, %v_14, %v_15: Int
+    %v_16 = call_complex Eq(String).==, %v_14, %v_15: I32
     call_complex Reclaim(String).reclaim, %v_14
-    %v_17 = select %v_16, 8, 0: Int
-    %v_18 = add %v_13, %v_17: Int
+    %v_17 = select %v_16, 8, 0: I32
+    %v_18 = add %v_13, %v_17: I32
     %v_19 = alloca 16, 8: Ptr
     call_complex nameOf, %v_19, 4
     %v_20 = alloca 16, 8: Ptr
     copy %v_20, @ResolveTest.literal$28, 16
-    %v_21 = call_complex Eq(String).==, %v_19, %v_20: Int
+    %v_21 = call_complex Eq(String).==, %v_19, %v_20: I32
     call_complex Reclaim(String).reclaim, %v_19
-    %v_22 = select %v_21, 16, 0: Int
-    %v_23 = add %v_18, %v_22: Int
+    %v_22 = select %v_21, 16, 0: I32
+    %v_23 = add %v_18, %v_22: I32
     %v_24 = alloca 16, 8: Ptr
     call_complex warmth, %v_24, 0
     %v_25 = alloca 16, 8: Ptr
     copy %v_25, @ResolveTest.literal$30, 16
-    %v_26 = call_complex Eq(String).==, %v_24, %v_25: Int
+    %v_26 = call_complex Eq(String).==, %v_24, %v_25: I32
     call_complex Reclaim(String).reclaim, %v_24
-    %v_27 = imm 1: Int
+    %v_27 = imm 1: I32
     je %v_26, b_28, b_29
   }
 
@@ -422,20 +422,20 @@ main<complex>(): Int {
     call_complex warmth, %v_31, 3
     %v_32 = alloca 16, 8: Ptr
     copy %v_32, @ResolveTest.literal$32, 16
-    %v_33 = call_complex Eq(String).==, %v_31, %v_32: Int
+    %v_33 = call_complex Eq(String).==, %v_31, %v_32: I32
     call_complex Reclaim(String).reclaim, %v_31
     jmp b_30
   }
 
   b_30 {
-    %v_34 = phi [b_28, %v_33], [b_29, 0]: Int
-    %v_35 = select %v_34, 32, 0: Int
-    %v_36 = add %v_23, %v_35: Int
+    %v_34 = phi [b_28, %v_33], [b_29, 0]: I32
+    %v_35 = select %v_34, 32, 0: I32
+    %v_36 = add %v_23, %v_35: I32
     %v_37 = alloca 16, 8: Ptr
     call_complex warmth, %v_37, 1
     %v_38 = alloca 16, 8: Ptr
     copy %v_38, @ResolveTest.literal$34, 16
-    %v_39 = call_complex Eq(String).==, %v_37, %v_38: Int
+    %v_39 = call_complex Eq(String).==, %v_37, %v_38: I32
     call_complex Reclaim(String).reclaim, %v_37
     je %v_39, b_40, b_41
   }
@@ -445,7 +445,7 @@ main<complex>(): Int {
     call_complex warmth, %v_42, 2
     %v_43 = alloca 16, 8: Ptr
     copy %v_43, @ResolveTest.literal$36, 16
-    %v_44 = call_complex Eq(String).==, %v_42, %v_43: Int
+    %v_44 = call_complex Eq(String).==, %v_42, %v_43: I32
     call_complex Reclaim(String).reclaim, %v_42
     je %v_44, b_45, b_41
   }
@@ -459,19 +459,19 @@ main<complex>(): Int {
     call_complex warmth, %v_47, 4
     %v_48 = alloca 16, 8: Ptr
     copy %v_48, @ResolveTest.literal$38, 16
-    %v_49 = call_complex Eq(String).==, %v_47, %v_48: Int
+    %v_49 = call_complex Eq(String).==, %v_47, %v_48: I32
     call_complex Reclaim(String).reclaim, %v_47
     jmp b_46
   }
 
   b_46 {
-    %v_50 = phi [b_45, %v_49], [b_41, 0]: Int
-    %v_51 = select %v_50, 64, 0: Int
-    %v_52 = add %v_36, %v_51: Int
+    %v_50 = phi [b_45, %v_49], [b_41, 0]: I32
+    %v_51 = select %v_50, 64, 0: I32
+    %v_52 = add %v_36, %v_51: I32
     %ResolveTest.literal$11 = global @ResolveTest.literal$11: Ptr
     %v_53 = alloca 16, 8: Ptr
     copy %v_53, @ResolveTest.literal$40, 16
-    %v_54 = call_complex Eq(String).==, %ResolveTest.literal$11, %v_53: Int
+    %v_54 = call_complex Eq(String).==, %ResolveTest.literal$11, %v_53: I32
     call_complex Reclaim(String).reclaim, %ResolveTest.literal$11
     je %v_54, b_55, b_56
   }
@@ -484,20 +484,20 @@ main<complex>(): Int {
     %ResolveTest.literal$11 = global @ResolveTest.literal$11: Ptr
     %v_58 = alloca 16, 8: Ptr
     copy %v_58, @ResolveTest.literal$42, 16
-    %v_59 = call_complex Eq(String).==, %ResolveTest.literal$11, %v_58: Int
+    %v_59 = call_complex Eq(String).==, %ResolveTest.literal$11, %v_58: I32
     call_complex Reclaim(String).reclaim, %ResolveTest.literal$11
     jmp b_57
   }
 
   b_57 {
-    %v_60 = phi [b_55, %v_59], [b_56, 0]: Int
-    %v_61 = select %v_60, 128, 0: Int
-    %v_62 = add %v_52, %v_61: Int
+    %v_60 = phi [b_55, %v_59], [b_56, 0]: I32
+    %v_61 = select %v_60, 128, 0: I32
+    %v_62 = add %v_52, %v_61: I32
     %v_63 = alloca 16, 8: Ptr
     copy %v_63, @ResolveTest.literal$13, 16
     %v_64 = alloca 16, 8: Ptr
     copy %v_64, @ResolveTest.literal$44, 16
-    %v_65 = call_complex Eq(String).==, %v_63, %v_64: Int
+    %v_65 = call_complex Eq(String).==, %v_63, %v_64: I32
     call_complex Reclaim(String).reclaim, %v_63
     je %v_65, b_66, b_67
   }
@@ -511,20 +511,20 @@ main<complex>(): Int {
     copy %v_69, @ResolveTest.literal$15, 16
     %v_70 = alloca 16, 8: Ptr
     copy %v_70, @ResolveTest.literal$46, 16
-    %v_71 = call_complex Eq(String).==, %v_69, %v_70: Int
+    %v_71 = call_complex Eq(String).==, %v_69, %v_70: I32
     call_complex Reclaim(String).reclaim, %v_69
     jmp b_68
   }
 
   b_68 {
-    %v_72 = phi [b_66, %v_71], [b_67, 0]: Int
-    %v_73 = select %v_72, 256, 0: Int
-    %v_74 = add %v_62, %v_73: Int
+    %v_72 = phi [b_66, %v_71], [b_67, 0]: I32
+    %v_73 = select %v_72, 256, 0: I32
+    %v_74 = add %v_62, %v_73: I32
     %v_75 = alloca 16, 8: Ptr
     call_complex signText, %v_75, 0
     %v_76 = alloca 16, 8: Ptr
     copy %v_76, @ResolveTest.literal$48, 16
-    %v_77 = call_complex Eq(String).==, %v_75, %v_76: Int
+    %v_77 = call_complex Eq(String).==, %v_75, %v_76: I32
     call_complex Reclaim(String).reclaim, %v_75
     je %v_77, b_78, b_79
   }
@@ -538,20 +538,20 @@ main<complex>(): Int {
     call_complex signText, %v_81, 2
     %v_82 = alloca 16, 8: Ptr
     copy %v_82, @ResolveTest.literal$50, 16
-    %v_83 = call_complex Eq(String).==, %v_81, %v_82: Int
+    %v_83 = call_complex Eq(String).==, %v_81, %v_82: I32
     call_complex Reclaim(String).reclaim, %v_81
     jmp b_80
   }
 
   b_80 {
-    %v_84 = phi [b_78, %v_83], [b_79, 0]: Int
-    %v_85 = select %v_84, 512, 0: Int
-    %v_86 = add %v_74, %v_85: Int
+    %v_84 = phi [b_78, %v_83], [b_79, 0]: I32
+    %v_85 = select %v_84, 512, 0: I32
+    %v_86 = add %v_74, %v_85: I32
     %v_87 = alloca 16, 8: Ptr
     call_complex signText, %v_87, 1
     %v_88 = alloca 16, 8: Ptr
     copy %v_88, @ResolveTest.literal$52, 16
-    %v_89 = call_complex Eq(String).==, %v_87, %v_88: Int
+    %v_89 = call_complex Eq(String).==, %v_87, %v_88: I32
     call_complex Reclaim(String).reclaim, %v_87
     je %v_89, b_90, b_91
   }
@@ -564,24 +564,24 @@ main<complex>(): Int {
     %v_93 = alloca 16, 8: Ptr
     call_complex signText, %v_93, 1
     %v_94 = add %v_93, 12: Ptr
-    %v_95 = load %v_94, 4: Int
-    %v_96 = sext %v_95: Long
+    %v_95 = load %v_94, 4: I32
+    %v_96 = sext %v_95: I64
     call_complex Reclaim(String).reclaim, %v_93
-    %v_97 = cmp_eq %v_96, 0: Int
+    %v_97 = cmp_eq %v_96, 0: I32
     jmp b_92
   }
 
   b_92 {
-    %v_98 = phi [b_90, %v_97], [b_91, 0]: Int
-    %v_99 = select %v_98, 1024, 0: Int
-    %v_100 = add %v_86, %v_99: Int
+    %v_98 = phi [b_90, %v_97], [b_91, 0]: I32
+    %v_99 = select %v_98, 1024, 0: I32
+    %v_100 = add %v_86, %v_99: I32
     %v_101 = alloca 16, 8: Ptr
     call_complex nameOf, %v_101, 3
     %v_102 = add %v_101, 12: Ptr
-    %v_103 = load %v_102, 4: Int
-    %v_104 = sext %v_103: Long
+    %v_103 = load %v_102, 4: I32
+    %v_104 = sext %v_103: I64
     call_complex Reclaim(String).reclaim, %v_101
-    %v_105 = cmp_eq %v_104, 6: Int
+    %v_105 = cmp_eq %v_104, 6: I32
     je %v_105, b_106, b_107
   }
 
@@ -593,36 +593,36 @@ main<complex>(): Int {
     %v_109 = alloca 16, 8: Ptr
     call_complex nameOf, %v_109, 0
     %v_110 = add %v_109, 12: Ptr
-    %v_111 = load %v_110, 4: Int
-    %v_112 = sext %v_111: Long
+    %v_111 = load %v_110, 4: I32
+    %v_112 = sext %v_111: I64
     call_complex Reclaim(String).reclaim, %v_109
-    %v_113 = cmp_eq %v_112, 3: Int
+    %v_113 = cmp_eq %v_112, 3: I32
     jmp b_108
   }
 
   b_108 {
-    %v_114 = phi [b_106, %v_113], [b_107, 0]: Int
-    %v_115 = select %v_114, 2048, 0: Int
-    %v_116 = add %v_100, %v_115: Int
+    %v_114 = phi [b_106, %v_113], [b_107, 0]: I32
+    %v_115 = select %v_114, 2048, 0: I32
+    %v_116 = add %v_100, %v_115: I32
     %first = alloca 16, 8: Ptr
     call_complex nameOf, %first, %v_27
     %second = alloca 16, 8: Ptr
     call_complex nameOf, %second, %v_27
-    %v_117 = call_complex Eq(String).==, %first, %second: Int
+    %v_117 = call_complex Eq(String).==, %first, %second: I32
     %v_118 = add %first, 12: Ptr
-    %v_119 = load %v_118, 4: Int
-    %v_120 = sext %v_119: Long
+    %v_119 = load %v_118, 4: I32
+    %v_120 = sext %v_119: I64
     call_complex Reclaim(String).reclaim, %first
     %v_121 = add %second, 12: Ptr
-    %v_122 = load %v_121, 4: Int
-    %v_123 = sext %v_122: Long
+    %v_122 = load %v_121, 4: I32
+    %v_123 = sext %v_122: I64
     call_complex Reclaim(String).reclaim, %second
-    %v_124 = cmp_eq %v_120, %v_123: Int
-    %v_125 = select %v_124, 2, 0: Int
-    %v_126 = add %v_117, %v_125: Int
-    %v_127 = cmp_eq %v_126, 3: Int
-    %v_128 = select %v_127, 4096, 0: Int
-    %v_129 = add %v_116, %v_128: Int
+    %v_124 = cmp_eq %v_120, %v_123: I32
+    %v_125 = select %v_124, 2, 0: I32
+    %v_126 = add %v_117, %v_125: I32
+    %v_127 = cmp_eq %v_126, 3: I32
+    %v_128 = select %v_127, 4096, 0: I32
+    %v_129 = add %v_116, %v_128: I32
     ret %v_129
   }
 }

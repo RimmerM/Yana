@@ -13,16 +13,16 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn walk(%b: Box, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn walk(%b: Box, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
   }
 
   b0:
-    %v2 = load %b@Box.v : Int
+    %v2 = load %b@Box.v : I32
     %v3 = calldyn %body, %v2 : Outcome((), $r)
-    %v4 = load %local2.discriminant : Int
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
@@ -35,46 +35,46 @@ fn walk(%b: Box, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
     ret %v9
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %v3 = alloc : Box
     aggregate %local1@Box.v = 7
-    %v6 = alloc : {total: &Int}
-    %v7 = borrow_mut %total : &Int
+    %v6 = alloc : {total: &I32}
+    %v7 = borrow_mut %total : &I32
     init %local2.total, %v7
     %v9 = addressof %local2 : %()
-    %v10 = alloc : (value$: Int) -> Outcome((), ())
+    %v10 = alloc : (value$: I32) -> Outcome((), ())
     %v11 = symbol ResolveTest.continuation$22 : %()
     init %local3.code, %v11
     init %local3.env, %v9
     %v14 = call walk(()), %v3, %v10 : Outcome((), ())
     %v15 = alloc : Bag
     aggregate %local5@Bag.w = 30
-    %v18 = alloc : {total: &Int}
-    %v19 = borrow_mut %total : &Int
+    %v18 = alloc : {total: &I32}
+    %v19 = borrow_mut %total : &I32
     init %local6.total, %v19
     %v21 = addressof %local6 : %()
-    %v22 = alloc : (value$: Int) -> Outcome((), ())
+    %v22 = alloc : (value$: I32) -> Outcome((), ())
     %v23 = symbol ResolveTest.continuation$23 : %()
     init %local7.code, %v23
     init %local7.env, %v21
     %v26 = call Streamed(Bag).walk(()), %v15, %v22 : Outcome((), ())
-    %v27 = load %total : Int
+    %v27 = load %total : I32
     ret %v27
 }
 
-fn Streamed(Bag).walk(%self: Bag, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn Streamed(Bag).walk(%self: Bag, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
   }
 
   b0:
-    %v2 = load %self@Bag.w : Int
+    %v2 = load %self@Bag.w : I32
     %v3 = calldyn %body, %v2 : Outcome((), $r)
-    %v4 = load %local2.discriminant : Int
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
@@ -87,23 +87,23 @@ fn Streamed(Bag).walk(%self: Bag, %body: (value$: Int) -> Outcome((), $r)) -> Ou
     ret %v9
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn walk(())(%b: Box, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn walk(())(%b: Box, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = load %b@Box.v : Int
+    %v2 = load %b@Box.v : I32
     %v3 = calldyn %body, %v2 : Outcome((), ())
-    %v4 = load %local2.discriminant : Int
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
@@ -116,23 +116,23 @@ fn walk(())(%b: Box, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ())
     ret %v9
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn Streamed(Bag).walk(())(%self: Bag, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn Streamed(Bag).walk(())(%self: Bag, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v2 = load %self@Bag.w : Int
+    %v2 = load %self@Bag.w : I32
     %v3 = calldyn %body, %v2 : Outcome((), ())
-    %v4 = load %local2.discriminant : Int
+    %v4 = load %local2.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 

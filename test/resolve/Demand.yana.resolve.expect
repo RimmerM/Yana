@@ -1,33 +1,33 @@
 let image$base: () = <none>
 
-fn read(%it: Point) -> Int {
+fn read(%it: Point) -> I32 {
   b0:
-    %v1 = load %it@Point.x : Int
-    %v2 = load %it@Point.y : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = load %it@Point.x : I32
+    %v2 = load %it@Point.y : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
 fn bump(%it: Point) -> () {
   b0:
     %v1 = load %it : Point
-    %v2 = load %it@Point.x : Int
-    %v5 = add %v2, 1 : Int
+    %v2 = load %it@Point.x : I32
+    %v5 = add %v2, 1 : I32
     assign %it@Point.x, %v5
     ret
 }
 
-fn onlyRead() -> Int {
+fn onlyRead() -> I32 {
   b0:
     %p = alloc : Point
     aggregate %local0@Point.x = 1, %local0@Point.y = 2
-    %v4 = call read, %p : Int
-    %v5 = call read, %p : Int
-    %v6 = add %v4, %v5 : Int
+    %v4 = call read, %p : I32
+    %v5 = call read, %p : I32
+    %v6 = add %v4, %v5 : I32
     ret %v6
 }
 
-fn mutableOnOneArm(%flag: Bool) -> Int {
+fn mutableOnOneArm(%flag: Bool) -> I32 {
   b0:
     %v1 = alloc : Point
     aggregate %p@Point.x = 1, %p@Point.y = 2
@@ -44,49 +44,49 @@ fn mutableOnOneArm(%flag: Bool) -> Int {
 
   b3:
     %v11 = load %p : Point
-    %v12 = call read, %v11 : Int
+    %v12 = call read, %v11 : I32
     ret %v12
 }
 
-fn copyIsIndependent() -> Int {
+fn copyIsIndependent() -> I32 {
   b0:
     %source = alloc : Point
     aggregate %local0@Point.x = 1, %local0@Point.y = 2
     %v4 = alloc : Point
-    %v5 = load %local0@Point.x : Int
-    %v6 = load %local0@Point.y : Int
+    %v5 = load %local0@Point.x : I32
+    %v6 = load %local0@Point.y : I32
     aggregate %duplicate@Point.x = %v5, %duplicate@Point.y = %v6
     %v8 = load %duplicate : Point
     %v9 = borrow_mut %duplicate : &Point
     call bump, %v9
-    %v11 = call read, %source : Int
+    %v11 = call read, %source : I32
     %v12 = load %duplicate : Point
-    %v13 = call read, %v12 : Int
-    %v14 = add %v11, %v13 : Int
+    %v13 = call read, %v12 : I32
+    %v14 = add %v11, %v13 : I32
     ret %v14
 }
 
-fn addressed() -> Int {
+fn addressed() -> I32 {
   b0:
     %p = alloc : Point
     aggregate %local0@Point.x = 1, %local0@Point.y = 2
     %at = addressof %local0 : %Point
     %v5 = load [%at] : Point
-    %v6 = load [%at]@Point.x : Int
+    %v6 = load [%at]@Point.x : I32
     %v7 = load [%at] : Point
-    %v8 = load [%at]@Point.y : Int
-    %v9 = add %v6, %v8 : Int
+    %v8 = load [%at]@Point.y : I32
+    %v9 = add %v6, %v8 : I32
     ret %v9
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call onlyRead : Int
-    %v2 = call mutableOnOneArm, True : Int
-    %v3 = add %v0, %v2 : Int
-    %v4 = call copyIsIndependent : Int
-    %v5 = add %v3, %v4 : Int
-    %v6 = call addressed : Int
-    %v7 = add %v5, %v6 : Int
+    %v0 = call onlyRead : I32
+    %v2 = call mutableOnOneArm, True : I32
+    %v3 = add %v0, %v2 : I32
+    %v4 = call copyIsIndependent : I32
+    %v5 = add %v3, %v4 : I32
+    %v6 = call addressed : I32
+    %v7 = add %v5, %v6 : I32
     ret %v7
 }

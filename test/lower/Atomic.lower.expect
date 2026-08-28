@@ -1,35 +1,35 @@
 
-atomics<complex>(%p: Ptr, %v: Int, %w: Long, %e: Int, %d: Int): Int {
+atomics<complex>(%p: Ptr, %v: I32, %w: I64, %e: I32, %d: I32): I32 {
   b_0 {
-    %l1 = atomic_load %p, 1, relaxed: Int
-    %l2 = atomic_load %p, 2, acquire: Int
-    %l4 = atomic_load %p, 4, seq_cst: Int
-    %l8 = atomic_load %p, 8, acquire: Long
-    %ls = atomic_loads %p, 2, relaxed: Int
+    %l1 = atomic_load %p, 1, relaxed: I32
+    %l2 = atomic_load %p, 2, acquire: I32
+    %l4 = atomic_load %p, 4, seq_cst: I32
+    %l8 = atomic_load %p, 8, acquire: I64
+    %ls = atomic_loads %p, 2, relaxed: I32
     atomic_store %p, %v, 4, relaxed
     atomic_store %p, %v, 4, release
     atomic_store %p, %v, 4, seq_cst
     atomic_store %p, %w, 8, release
-    %x1 = atomic_xchg %p, %v, 4, relaxed: Int
-    %x2 = atomic_xchg %p, %v, 4, acquire: Int
-    %x3 = atomic_xchg %p, %v, 4, release: Int
-    %x4 = atomic_xchg %p, %v, 4, acq_rel: Int
-    %x5 = atomic_xchg %p, %v, 4, seq_cst: Int
-    %a1 = atomic_add %p, %v, 4, relaxed: Int
-    %a2 = atomic_sub %p, %v, 4, acq_rel: Int
-    %a3 = atomic_and %p, %v, 4, acquire: Int
-    %a4 = atomic_or %p, %v, 4, release: Int
-    %a5 = atomic_xor %p, %v, 4, seq_cst: Int
-    %a6 = atomic_add %p, %w, 8, relaxed: Long
-    %c1, %ok1 = atomic_cas %p, %e, %d, 4, relaxed, relaxed: Int, Int
-    %c2, %ok2 = atomic_cas %p, %e, %d, 4, acquire, acquire: Int, Int
-    %c3, %ok3 = atomic_cas %p, %e, %d, 4, release, relaxed: Int, Int
-    %c4, %ok4 = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
-    %c5, %ok5 = atomic_cas %p, %e, %d, 4, seq_cst, seq_cst: Int, Int
-    %c6, %ok6 = atomic_cas_weak %p, %e, %d, 4, acq_rel, acquire: Int, Int
-    %c7, %ok7 = atomic_cas %p, %e, %d, 4, acq_rel, relaxed: Int, Int
-    %c8, %ok8 = atomic_cas %p, %e, %d, 4, seq_cst, acquire: Int, Int
-    %c9, %ok9 = atomic_cas_weak %p, %e, %d, 4, acquire, relaxed: Int, Int
+    %x1 = atomic_xchg %p, %v, 4, relaxed: I32
+    %x2 = atomic_xchg %p, %v, 4, acquire: I32
+    %x3 = atomic_xchg %p, %v, 4, release: I32
+    %x4 = atomic_xchg %p, %v, 4, acq_rel: I32
+    %x5 = atomic_xchg %p, %v, 4, seq_cst: I32
+    %a1 = atomic_add %p, %v, 4, relaxed: I32
+    %a2 = atomic_sub %p, %v, 4, acq_rel: I32
+    %a3 = atomic_and %p, %v, 4, acquire: I32
+    %a4 = atomic_or %p, %v, 4, release: I32
+    %a5 = atomic_xor %p, %v, 4, seq_cst: I32
+    %a6 = atomic_add %p, %w, 8, relaxed: I64
+    %c1, %ok1 = atomic_cas %p, %e, %d, 4, relaxed, relaxed: I32, I32
+    %c2, %ok2 = atomic_cas %p, %e, %d, 4, acquire, acquire: I32, I32
+    %c3, %ok3 = atomic_cas %p, %e, %d, 4, release, relaxed: I32, I32
+    %c4, %ok4 = atomic_cas %p, %e, %d, 4, acq_rel, acquire: I32, I32
+    %c5, %ok5 = atomic_cas %p, %e, %d, 4, seq_cst, seq_cst: I32, I32
+    %c6, %ok6 = atomic_cas_weak %p, %e, %d, 4, acq_rel, acquire: I32, I32
+    %c7, %ok7 = atomic_cas %p, %e, %d, 4, acq_rel, relaxed: I32, I32
+    %c8, %ok8 = atomic_cas %p, %e, %d, 4, seq_cst, acquire: I32, I32
+    %c9, %ok9 = atomic_cas_weak %p, %e, %d, 4, acquire, relaxed: I32, I32
     fence acquire
     fence release
     fence acq_rel

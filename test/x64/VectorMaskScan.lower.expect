@@ -1,13 +1,13 @@
 
-search<complex>(%a: i8x16, %b: i8x16): Int {
+search<complex>(%a: i8x16, %b: i8x16): I32 {
   start {
     %m = cmp_eq %a, %b: m8x16
-    %any = vreduce_or %m: Int
+    %any = vreduce_or %m: I32
     je %any, hit, miss
   }
 
   hit {
-    %f = vreduce_first %m: Int
+    %f = vreduce_first %m: I32
     ret %f
   }
 
@@ -16,11 +16,11 @@ search<complex>(%a: i8x16, %b: i8x16): Int {
   }
 }
 
-searchInverted<complex>(%a: i8x16, %b: i8x16): Int {
+searchInverted<complex>(%a: i8x16, %b: i8x16): I32 {
   start {
     %m = cmp_eq %a, %b: m8x16
-    %any = vreduce_or %m: Int
-    %none = xor %any, 1: Int
+    %any = vreduce_or %m: I32
+    %none = xor %any, 1: I32
     je %none, miss, hit
   }
 
@@ -29,25 +29,25 @@ searchInverted<complex>(%a: i8x16, %b: i8x16): Int {
   }
 
   hit {
-    %f = vreduce_first %m: Int
+    %f = vreduce_first %m: I32
     ret %f
   }
 }
 
-guarded<complex>(%a: i8x16, %b: i8x16, %n: Int): Int {
+guarded<complex>(%a: i8x16, %b: i8x16, %n: I32): I32 {
   start {
     %m = cmp_eq %a, %b: m8x16
-    %any = vreduce_or %m: Int
+    %any = vreduce_or %m: I32
     je %any, hit, other
   }
 
   other {
-    %v_0 = cmp_ilt %n, 0: Int
+    %v_0 = cmp_ilt %n, 0: I32
     je %v_0, hit, miss
   }
 
   hit {
-    %f = vreduce_first %m: Int
+    %f = vreduce_first %m: I32
     ret %f
   }
 
@@ -56,22 +56,22 @@ guarded<complex>(%a: i8x16, %b: i8x16, %n: Int): Int {
   }
 }
 
-joined<complex>(%a: i8x16, %b: i8x16, %c: i8x16): Int {
+joined<complex>(%a: i8x16, %b: i8x16, %c: i8x16): I32 {
   start {
     %m = cmp_eq %a, %b: m8x16
-    %any = vreduce_or %m: Int
+    %any = vreduce_or %m: I32
     je %any, hit, tail
   }
 
   tail {
     %t = cmp_eq %a, %c: m8x16
-    %anyTail = vreduce_or %t: Int
+    %anyTail = vreduce_or %t: I32
     je %anyTail, hit, miss
   }
 
   hit {
     %j = phi [start, %m], [tail, %t]: m8x16
-    %f = vreduce_first %j: Int
+    %f = vreduce_first %j: I32
     ret %f
   }
 

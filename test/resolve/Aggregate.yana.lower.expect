@@ -1,50 +1,50 @@
 @image$base = []
 
-choiceValue<complex>(%choice: Ptr): Int {
+choiceValue<complex>(%choice: Ptr): I32 {
   b_0 {
-    %v_1 = loads %choice, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %choice, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
     %v_5 = add %choice, 4: Ptr
-    %value = loads %v_5, 4: Int
+    %value = loads %v_5, 4: I32
     %v_6 = add %choice, 8: Ptr
-    %extra = loads %v_6, 4: Int
-    %v_7 = add %value, %extra: Int
+    %extra = loads %v_6, 4: I32
+    %v_7 = add %value, %extra: I32
     jmp b_8
   }
 
   b_3 {
     %v_9 = add %choice, 4: Ptr
-    %value = loads %v_9, 4: Int
+    %value = loads %v_9, 4: I32
     jmp b_8
   }
 
   b_8 {
-    %v_10 = phi [b_3, %value], [b_4, %v_7]: Int
+    %v_10 = phi [b_3, %value], [b_4, %v_7]: I32
     ret %v_10
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 12, 4: Ptr
     store %v_1, 0, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 4, 4
-    %v_3 = call_complex choiceValue, %v_1: Int
-    %v_4 = add %v_3, 5: Int
+    %v_3 = call_complex choiceValue, %v_1: I32
+    %v_4 = add %v_3, 5: I32
     %v_5 = alloca 12, 4: Ptr
     store %v_5, 1, 4
     %v_6 = add %v_5, 4: Ptr
     store %v_6, 2, 4
     %v_7 = add %v_5, 8: Ptr
     store %v_7, 3, 4
-    %v_8 = call_complex choiceValue, %v_5: Int
-    %v_9 = add %v_4, %v_8: Int
-    %v_10 = add %v_9, 29: Int
+    %v_8 = call_complex choiceValue, %v_5: I32
+    %v_9 = add %v_4, %v_8: I32
+    %v_10 = add %v_9, 29: I32
     ret %v_10
   }
 }

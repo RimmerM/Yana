@@ -14,21 +14,21 @@
 # The ordinary counted loop, with the accumulator read after it. `entry` gains the compare, `body`
 # comes first, `head` ends in a backward branch, and the merge of the two values the exit could
 # arrive with is what the last block's phi is.
-counted(%n: Int): Int {
+counted(%n: I32): I32 {
     entry {
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Int
-        %acc = phi [entry, %zero], [body, %acc2]: Int
+        %i = phi [entry, %zero], [body, %i2]: I32
+        %acc = phi [entry, %zero], [body, %acc2]: I32
         je (cmp_ige %i, %n), exit, body
     }
 
     body {
-        %acc2 = add %acc, %i: Int
-        %i2 = add %i, 1: Int
+        %acc2 = add %acc, %i: I32
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -44,21 +44,21 @@ counted(%n: Int): Int {
 # `%b` - that phi has moved - but the *body's* phi for `%b`, read where the latch now sits, which is
 # below the body. The transfer at the end of `head` therefore reads both body phis and writes both,
 # which is a parallel copy rather than two moves.
-shift(%n: Int, %x: Int, %y: Int): Int {
+shift(%n: I32, %x: I32, %y: I32): I32 {
     entry {
         jmp head
     }
 
     head {
-        %i = phi [entry, %n], [body, %i2]: Int
-        %a = phi [entry, %x], [body, %b]: Int
-        %b = phi [entry, %y], [body, %s]: Int
+        %i = phi [entry, %n], [body, %i2]: I32
+        %a = phi [entry, %x], [body, %b]: I32
+        %b = phi [entry, %y], [body, %s]: I32
         je (cmp_eq %i, 0), exit, body
     }
 
     body {
-        %s = add %a, %b: Int
-        %i2 = sub %i, 1: Int
+        %s = add %a, %b: I32
+        %i2 = sub %i, 1: I32
         jmp head
     }
 
@@ -70,15 +70,15 @@ shift(%n: Int, %x: Int, %y: Int): Int {
 # A branch inside the body, so the loop is four blocks and the latch is not the block the header
 # enters. Rotation is stated in terms of the header's successor and the header's predecessor, and
 # neither has to be the same block.
-diamond(%n: Int, %c: Int): Int {
+diamond(%n: I32, %c: I32): I32 {
     entry {
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [rejoin, %i2]: Int
-        %acc = phi [entry, %zero], [rejoin, %acc2]: Int
+        %i = phi [entry, %zero], [rejoin, %i2]: I32
+        %acc = phi [entry, %zero], [rejoin, %acc2]: I32
         je (cmp_ige %i, %n), exit, body
     }
 
@@ -91,9 +91,9 @@ diamond(%n: Int, %c: Int): Int {
     }
 
     rejoin {
-        %step = phi [body, 1], [odd, 2]: Int
-        %acc2 = add %acc, %step: Int
-        %i2 = add %i, 1: Int
+        %step = phi [body, 1], [odd, 2]: I32
+        %acc2 = add %acc, %step: I32
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -105,15 +105,15 @@ diamond(%n: Int, %c: Int): Int {
 # Two loops, the inner one with a preheader of its own, and a phi in the block the inner loop leaves
 # to. Both rotate, and the inner one's rotation runs against a preheader the outer one's rotation
 # has already put a phi into.
-nested(%rows: Int, %cols: Int): Int {
+nested(%rows: I32, %cols: I32): I32 {
     entry {
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         jmp outerHead
     }
 
     outerHead {
-        %r = phi [entry, %zero], [outerLatch, %r2]: Int
-        %acc = phi [entry, %zero], [outerLatch, %acc3]: Int
+        %r = phi [entry, %zero], [outerLatch, %r2]: I32
+        %acc = phi [entry, %zero], [outerLatch, %acc3]: I32
         je (cmp_ige %r, %rows), exit, innerPre
     }
 
@@ -122,20 +122,20 @@ nested(%rows: Int, %cols: Int): Int {
     }
 
     innerHead {
-        %c = phi [innerPre, %zero], [innerBody, %c2]: Int
-        %acc2 = phi [innerPre, %acc], [innerBody, %acc2i]: Int
+        %c = phi [innerPre, %zero], [innerBody, %c2]: I32
+        %acc2 = phi [innerPre, %acc], [innerBody, %acc2i]: I32
         je (cmp_ige %c, %cols), outerLatch, innerBody
     }
 
     innerBody {
-        %acc2i = add %acc2, %c: Int
-        %c2 = add %c, 1: Int
+        %acc2i = add %acc2, %c: I32
+        %c2 = add %c, 1: I32
         jmp innerHead
     }
 
     outerLatch {
-        %acc3 = phi [innerHead, %acc2]: Int
-        %r2 = add %r, 1: Int
+        %acc3 = phi [innerHead, %acc2]: I32
+        %r2 = add %r, 1: I32
         jmp outerHead
     }
 
@@ -146,14 +146,14 @@ nested(%rows: Int, %cols: Int): Int {
 
 # Declined: two latches. Both arms jump back, so there is no single value the rotated header could
 # read for a phi the latch advances, and nothing here duplicates a merge to find one.
-twoLatches(%n: Int, %c: Int): Int {
+twoLatches(%n: I32, %c: I32): I32 {
     entry {
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [left, %l], [right, %r]: Int
+        %i = phi [entry, %zero], [left, %l], [right, %r]: I32
         je (cmp_ige %i, %n), exit, body
     }
 
@@ -162,12 +162,12 @@ twoLatches(%n: Int, %c: Int): Int {
     }
 
     left {
-        %l = add %i, 1: Int
+        %l = add %i, 1: I32
         jmp head
     }
 
     right {
-        %r = add %i, 2: Int
+        %r = add %i, 2: I32
         jmp head
     }
 
@@ -178,46 +178,46 @@ twoLatches(%n: Int, %c: Int): Int {
 
 # Declined: no preheader. The header is entered directly from a conditional branch, so there is no
 # block whose jump can become the guard - and creating one is a different transform.
-noPreheader(%n: Int, %c: Int): Int {
+noPreheader(%n: I32, %c: I32): I32 {
     entry {
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         je %c, exit, head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Int
+        %i = phi [entry, %zero], [body, %i2]: I32
         je (cmp_ige %i, %n), exit, body
     }
 
     body {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         jmp head
     }
 
     exit {
-        %v = phi [entry, %zero], [head, %i]: Int
+        %v = phi [entry, %zero], [head, %i]: I32
         ret %v
     }
 }
 
 # Declined: the header does work that is read outside it. `%q` is computed in the header and added
 # to in the body, so duplicating the header duplicates the work rather than the question.
-headerWork(%p: Ptr, %n: Int): Int {
+headerWork(%p: Ptr, %n: I32): I32 {
     entry {
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Int
-        %acc = phi [entry, %zero], [body, %acc2]: Int
-        %q = add %i, 7: Int
+        %i = phi [entry, %zero], [body, %i2]: I32
+        %acc = phi [entry, %zero], [body, %acc2]: I32
+        %q = add %i, 7: I32
         je (cmp_ige %i, %n), exit, body
     }
 
     body {
-        %acc2 = add %acc, %q: Int
-        %i2 = add %i, 1: Int
+        %acc2 = add %acc, %q: I32
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -228,19 +228,19 @@ headerWork(%p: Ptr, %n: Int): Int {
 
 # Declined: the loop is left from a block that is not the header. A value the header defines would
 # then be read where the header's exit block does not dominate, and there is nowhere to merge it.
-twoExits(%n: Int, %c: Int): Int {
+twoExits(%n: I32, %c: I32): I32 {
     entry {
-        %zero = cast 0: Int
+        %zero = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Int
+        %i = phi [entry, %zero], [body, %i2]: I32
         je (cmp_ige %i, %n), exit, body
     }
 
     body {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         je %c, early, head
     }
 
@@ -249,7 +249,7 @@ twoExits(%n: Int, %c: Int): Int {
     }
 
     exit {
-        %v = phi [head, %i], [early, %i2]: Int
+        %v = phi [head, %i], [early, %i2]: I32
         ret %v
     }
 }

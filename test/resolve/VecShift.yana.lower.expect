@@ -1,6 +1,6 @@
 @image$base = []
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 64: i32x4
     %v_2 = vwithlane %v_1, 5, 0: i32x4
@@ -21,18 +21,18 @@ main<complex>(): Int {
     %v_11 = sub %v_10, %b: i64x2
     %v_12 = vsplat 1: i64x2
     %deep = sar %v_11, %v_12: i64x2
-    %v_13 = vlane %left, 0: Int
-    %v_14 = vlane %right, 1: Int
-    %v_15 = add %v_13, %v_14: Int
-    %v_16 = vlane %arith, 2: Int
-    %v_17 = add %v_15, %v_16: Int
-    %v_18 = vlane %wide, 0: Long
-    %v_19 = cast %v_18: Int
-    %v_20 = add %v_17, %v_19: Int
-    %v_21 = vlane %deep, 0: Long
-    %v_22 = cast %v_21: Int
-    %v_23 = add %v_20, %v_22: Int
-    %v_24 = add %v_23, 100: Int
+    %v_13 = vlane %left, 0: I32
+    %v_14 = vlane %right, 1: I32
+    %v_15 = add %v_13, %v_14: I32
+    %v_16 = vlane %arith, 2: I32
+    %v_17 = add %v_15, %v_16: I32
+    %v_18 = vlane %wide, 0: I64
+    %v_19 = cast %v_18: I32
+    %v_20 = add %v_17, %v_19: I32
+    %v_21 = vlane %deep, 0: I64
+    %v_22 = cast %v_21: I32
+    %v_23 = add %v_20, %v_22: I32
+    %v_24 = add %v_23, 100: I32
     ret %v_24
   }
 }

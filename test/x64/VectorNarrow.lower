@@ -24,7 +24,7 @@
 #
 #   The `and` at the end is not decoration either: a narrow lane leaves this backend zero-extended,
 #   which is the contract a lane read answers by and the one `outOfLane` writes in the LLVM backend.
-#   `count(mask)` reads the answer as a whole `Int`.
+#   `count(mask)` reads the answer as a whole `I32`.
 #
 #   The unsigned comparisons - `biasUnsignedPackedCompares` builds them out of the signed ones by
 #   flipping the top bit of every lane, and the bias is a splat, so it was refused for exactly the
@@ -37,7 +37,7 @@
 
 # A splat of a runtime byte. A constant one never reaches the expansion - `poolVectorConstants` runs
 # first and makes it a `.rodata` load - so this is the shape a search for one byte has.
-splatByte(%b: Int): i8x16 {
+splatByte(%b: I32): i8x16 {
     {
         %v = vsplat %b: i8x16
         ret %v
@@ -45,7 +45,7 @@ splatByte(%b: Int): i8x16 {
 }
 
 # The same at sixteen bits, where the pattern is `0x00010001` and the multiply is the only difference.
-splatWord(%w: Int): i16x8 {
+splatWord(%w: I32): i16x8 {
     {
         %v = vsplat %w: i16x8
         ret %v
@@ -54,9 +54,9 @@ splatWord(%w: Int): i16x8 {
 
 # A sum of sixteen byte lanes: two `pshufd`/`paddb` levels, `movd`, and the last two levels as shifts
 # in a general register.
-sumBytes(%v: i8x16): Int {
+sumBytes(%v: i8x16): I32 {
     {
-        %r = vreduce_add %v: Int
+        %r = vreduce_add %v: I32
         ret %r
     }
 }
@@ -64,9 +64,9 @@ sumBytes(%v: i8x16): Int {
 # An unsigned minimum, which is the shape `firstSet` reaches: the vector levels are a comparison and
 # a select, and the scalar finish cuts the word into its four lanes because a comparison reads the
 # whole register.
-minBytes(%v: i8x16): Int {
+minBytes(%v: i8x16): I32 {
     {
-        %r = vreduce_min %v: Int
+        %r = vreduce_min %v: I32
         ret %r
     }
 }
@@ -89,16 +89,16 @@ belowByte(%a: i8x16, %b: i8x16): m8x16 {
 #
 # Both lane widths, because the zero falls at a different index in each - three for a byte and one
 # for a word - and one of them alone would not say that it is the last piece rather than a number.
-iminBytes(%v: i8x16): Int {
+iminBytes(%v: i8x16): I32 {
     {
-        %r = vreduce_imin %v: Int
+        %r = vreduce_imin %v: I32
         ret %r
     }
 }
 
-iminWords(%v: i16x8): Int {
+iminWords(%v: i16x8): I32 {
     {
-        %r = vreduce_imin %v: Int
+        %r = vreduce_imin %v: I32
         ret %r
     }
 }

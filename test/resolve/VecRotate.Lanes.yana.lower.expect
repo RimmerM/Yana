@@ -1,12 +1,12 @@
 @image$base = []
 mut @counter = [0, 0, 0, 0]
 
-opaque<complex>(%n: Int): Int {
+opaque<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = loads @counter, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @counter, %v_2, 4
-    %v_3 = cmp_igt %v_2, 1000: Int
+    %v_3 = cmp_igt %v_2, 1000: I32
     je %v_3, b_4, b_5
   }
 
@@ -23,49 +23,49 @@ opaque<complex>(%n: Int): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %words = vsplat 305419896: i32x4
     %longs = vsplat 81985529216486895: i64x2
     %v_1 = vsplat 4: i32x4
     %v_2 = rol %words, %v_1: i32x4
-    %v_3 = vlane %v_2, 0: Int
-    %v_4 = cmp_eq %v_3, 591751041: Int
+    %v_3 = vlane %v_2, 0: I32
+    %v_4 = cmp_eq %v_3, 591751041: I32
     %v_5 = ror %words, %v_1: i32x4
-    %v_6 = vlane %v_5, 0: Int
-    %v_7 = cmp_eq %v_6, 18446744071581156711: Int
-    %v_8 = add %v_4, %v_7: Int
+    %v_6 = vlane %v_5, 0: I32
+    %v_7 = cmp_eq %v_6, 18446744071581156711: I32
+    %v_8 = add %v_4, %v_7: I32
     %v_9 = vsplat 0: i32x4
     %v_10 = rol %words, %v_9: i32x4
-    %v_11 = vlane %v_10, 0: Int
-    %v_12 = cmp_eq %v_11, 305419896: Int
-    %v_13 = add %v_8, %v_12: Int
+    %v_11 = vlane %v_10, 0: I32
+    %v_12 = cmp_eq %v_11, 305419896: I32
+    %v_13 = add %v_8, %v_12: I32
     %v_14 = vsplat 32: i32x4
     %v_15 = rol %words, %v_14: i32x4
-    %v_16 = vlane %v_15, 0: Int
-    %v_17 = cmp_eq %v_16, 305419896: Int
-    %v_18 = add %v_13, %v_17: Int
+    %v_16 = vlane %v_15, 0: I32
+    %v_17 = cmp_eq %v_16, 305419896: I32
+    %v_18 = add %v_13, %v_17: I32
     %v_19 = vsplat 36: i32x4
     %v_20 = rol %words, %v_19: i32x4
-    %v_21 = vlane %v_20, 0: Int
-    %v_22 = cmp_eq %v_21, 591751041: Int
-    %v_23 = add %v_18, %v_22: Int
+    %v_21 = vlane %v_20, 0: I32
+    %v_22 = cmp_eq %v_21, 591751041: I32
+    %v_23 = add %v_18, %v_22: I32
     %v_24 = vsplat 8: i64x2
     %v_25 = rol %longs, %v_24: i64x2
-    %v_26 = vlane %v_25, 0: Long
-    %v_27 = cmp_eq %v_26, 2541551405711093505: Int
-    %v_28 = add %v_23, %v_27: Int
+    %v_26 = vlane %v_25, 0: I64
+    %v_27 = cmp_eq %v_26, 2541551405711093505: I32
+    %v_28 = add %v_23, %v_27: I32
     %v_29 = vsplat 64: i64x2
     %v_30 = rol %longs, %v_29: i64x2
-    %v_31 = vlane %v_30, 0: Long
-    %v_32 = cmp_eq %v_31, 81985529216486895: Int
-    %v_33 = add %v_28, %v_32: Int
-    %v_34 = call_complex opaque, 2: Int
+    %v_31 = vlane %v_30, 0: I64
+    %v_32 = cmp_eq %v_31, 81985529216486895: I32
+    %v_33 = add %v_28, %v_32: I32
+    %v_34 = call_complex opaque, 2: I32
     %v_35 = vsplat %v_34: i32x4
     %v_36 = rol %words, %v_35: i32x4
-    %v_37 = vlane %v_36, 0: Int
-    %v_38 = cmp_eq %v_37, 1221679584: Int
-    %v_39 = add %v_33, %v_38: Int
+    %v_37 = vlane %v_36, 0: I32
+    %v_38 = cmp_eq %v_37, 1221679584: I32
+    %v_39 = add %v_33, %v_38: I32
     ret %v_39
   }
 }

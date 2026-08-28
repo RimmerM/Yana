@@ -1,28 +1,28 @@
 @image$base = []
 
-+=(Int)<complex>(%target: Ptr, %amount: Int) {
++=(I32)<complex>(%target: Ptr, %amount: I32) {
   b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %v_1, %amount: Int
+    %v_1 = loads %target, 4: I32
+    %v_2 = add %v_1, %amount: I32
     store %target, %v_2, 4
     ret 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 10, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 20, 4
-    call_complex +=(Int), %v_1, 1
+    call_complex +=(I32), %v_1, 1
     %v_3 = add %v_1, 4: Ptr
-    call_complex +=(Int), %v_3, 2
-    %v_4 = loads %v_1, 4: Int
-    %v_5 = add %v_4, 33: Int
+    call_complex +=(I32), %v_3, 2
+    %v_4 = loads %v_1, 4: I32
+    %v_5 = add %v_4, 33: I32
     %v_6 = add %v_1, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = add %v_5, %v_7: Int
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = add %v_5, %v_7: I32
     ret %v_8
   }
 }

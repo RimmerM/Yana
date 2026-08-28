@@ -1,26 +1,26 @@
 let image$base: () = <none>
 
-fn area1() -> Int {
+fn area1() -> I32 {
   b0:
     %v0 = alloc : Point
     aggregate %local0@Point.x = 3, %local0@Point.y = 4
-    %v4 = call Area(Point).area, %v0 : Int
+    %v4 = call Area(Point).area, %v0 : I32
     ret %v4
 }
 
-fn viaFunction() -> Int {
+fn viaFunction() -> I32 {
   b0:
     %v0 = call origin : Point
     %v2 = call scale, %v0, 2 : Point
-    %v3 = call Area(Point).area, %v2 : Int
+    %v3 = call Area(Point).area, %v2 : I32
     ret %v3
 }
 
-fn area2() -> Int {
+fn area2() -> I32 {
   b0:
     %v0 = alloc : Point
     aggregate %local0@Point.x = 2, %local0@Point.y = 5
-    %v4 = call Area(Point).area, %v0 : Int
+    %v4 = call Area(Point).area, %v0 : I32
     ret %v4
 }
 
@@ -31,83 +31,83 @@ fn qualifiedConstructor() -> Point {
     ret %v0
 }
 
-fn twoAreas() -> Int {
+fn twoAreas() -> I32 {
   b0:
     %v0 = alloc : Point
     aggregate %local0@Point.x = 1, %local0@Point.y = 2
     %v4 = alloc : Point
     aggregate %local1@Point.x = 3, %local1@Point.y = 3
-    %v8 = call totalArea(Point), %v0, %v4 : Int
+    %v8 = call totalArea(Point), %v0, %v4 : I32
     ret %v8
 }
 
-fn squareAreas() -> Int {
+fn squareAreas() -> I32 {
   b0:
     %v0 = alloc : Square
     aggregate %local0@Square.side = 2
-    %v3 = call tripleArea(Square), %v0 : Int
+    %v3 = call tripleArea(Square), %v0 : I32
     ret %v3
 }
 
-fn styles() -> Int {
+fn styles() -> I32 {
   b0:
     %v0 = alloc : Style
     aggregate %local0@Style.filled = False, %local0@Style.weight = 1
-    %v4 = call styleValue, %v0 : Int
+    %v4 = call styleValue, %v0 : I32
     %v5 = alloc : Style
     aggregate %local1@Style.filled = True, %local1@Style.weight = 3
-    %v9 = call styleValue, %v5 : Int
-    %v10 = add %v4, %v9 : Int
+    %v9 = call styleValue, %v5 : I32
+    %v10 = add %v4, %v9 : I32
     ret %v10
 }
 
-fn labelValue() -> Int {
+fn labelValue() -> I32 {
   b0:
     %v0 = alloc : Label
     init %local0@Label, 5
-    %v = load %local0@Label : Int
+    %v = load %local0@Label : I32
     jmp b1
 
   b1:
     ret %v
 }
 
-fn throughPrivate() -> Int {
+fn throughPrivate() -> I32 {
   b0:
     %v0 = alloc : Point
     aggregate %local0@Point.x = 2, %local0@Point.y = 3
-    %v4 = call visibleArea, %v0 : Int
+    %v4 = call visibleArea, %v0 : I32
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call area1 : Int
-    %v1 = call area2 : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call viaFunction : Int
-    %v4 = add %v2, %v3 : Int
+    %v0 = call area1 : I32
+    %v1 = call area2 : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call viaFunction : I32
+    %v4 = add %v2, %v3 : I32
     %v5 = call qualifiedConstructor : Point
-    %v6 = call Area(Point).area, %v5 : Int
-    %v7 = add %v4, %v6 : Int
-    %v8 = call twoAreas : Int
-    %v9 = add %v7, %v8 : Int
-    %v10 = call squareAreas : Int
-    %v11 = add %v9, %v10 : Int
-    %v12 = call styles : Int
-    %v13 = add %v11, %v12 : Int
-    %v14 = call labelValue : Int
-    %v15 = add %v13, %v14 : Int
-    %v16 = call throughPrivate : Int
-    %v17 = add %v15, %v16 : Int
+    %v6 = call Area(Point).area, %v5 : I32
+    %v7 = add %v4, %v6 : I32
+    %v8 = call twoAreas : I32
+    %v9 = add %v7, %v8 : I32
+    %v10 = call squareAreas : I32
+    %v11 = add %v9, %v10 : I32
+    %v12 = call styles : I32
+    %v13 = add %v11, %v12 : I32
+    %v14 = call labelValue : I32
+    %v15 = add %v13, %v14 : I32
+    %v16 = call throughPrivate : I32
+    %v17 = add %v15, %v16 : I32
     ret %v17
 }
 
-fn Area(Square).area(%value: Square) -> Int {
+fn Area(Square).area(%value: Square) -> I32 {
   b0:
-    %v1 = load %value@Square.side : Int
-    %v2 = load %value@Square.side : Int
-    %v3 = mul %v1, %v2 : Int
+    %v1 = load %value@Square.side : I32
+    %v2 = load %value@Square.side : I32
+    %v3 = mul %v1, %v2 : I32
     ret %v3
 }
 
@@ -118,18 +118,18 @@ fn origin() -> Point {
     ret %v0
 }
 
-fn scale(%value: Point, %by: Int) -> Point {
+fn scale(%value: Point, %by: I32) -> Point {
   b0:
     %v2 = alloc : Point
-    %v3 = load %value@Point.x : Int
-    %v4 = mul %v3, %by : Int
-    %v5 = load %value@Point.y : Int
-    %v6 = mul %v5, %by : Int
+    %v3 = load %value@Point.x : I32
+    %v4 = mul %v3, %by : I32
+    %v5 = load %value@Point.y : I32
+    %v6 = mul %v5, %by : I32
     aggregate %local1@Point.x = %v4, %local1@Point.y = %v6
     ret %v2
 }
 
-fn styleValue(%it: Style) -> Int {
+fn styleValue(%it: Style) -> I32 {
   b0:
     %v1 = load %it@Style.filled : Bool
     je %v1, b1, b2
@@ -141,55 +141,55 @@ fn styleValue(%it: Style) -> Int {
     jmp b3
 
   b3:
-    %v9 = phi [b1, 10], [b2, 0] : Int
-    %v10 = load %it@Style.weight : Int
-    %v11 = add %v9, %v10 : Int
+    %v9 = phi [b1, 10], [b2, 0] : I32
+    %v10 = load %it@Style.weight : I32
+    %v11 = add %v9, %v10 : I32
     ret %v11
 }
 
-fn secretArea(%value: Point) -> Int {
+fn secretArea(%value: Point) -> I32 {
   b0:
-    %v1 = load %value@Point.x : Int
-    %v2 = load %value@Point.y : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = load %value@Point.x : I32
+    %v2 = load %value@Point.y : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
-fn visibleArea(%value: Point) -> Int {
+fn visibleArea(%value: Point) -> I32 {
   b0:
-    %v1 = call secretArea, %value : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = call secretArea, %value : I32
+    %v4 = add %v1, 1 : I32
     ret %v4
 }
 
-fn Area(Point).area(%value: Point) -> Int {
+fn Area(Point).area(%value: Point) -> I32 {
   b0:
-    %v1 = load %value@Point.x : Int
-    %v2 = load %value@Point.y : Int
-    %v3 = mul %v1, %v2 : Int
+    %v1 = load %value@Point.x : I32
+    %v2 = load %value@Point.y : I32
+    %v3 = mul %v1, %v2 : I32
     ret %v3
 }
 
-fn totalArea(Point)(%one: Point, %other: Point) -> Int {
+fn totalArea(Point)(%one: Point, %other: Point) -> I32 {
   b0:
-    %v2 = call Area(Point).area, %one : Int
-    %v3 = call Area(Point).area, %other : Int
-    %v4 = add %v2, %v3 : Int
+    %v2 = call Area(Point).area, %one : I32
+    %v3 = call Area(Point).area, %other : I32
+    %v4 = add %v2, %v3 : I32
     ret %v4
 }
 
-fn tripleArea(Square)(%value: Square) -> Int {
+fn tripleArea(Square)(%value: Square) -> I32 {
   b0:
-    %v1 = call totalArea(Square), %value, %value : Int
-    %v2 = call Area(Square).area, %value : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = call totalArea(Square), %value, %value : I32
+    %v2 = call Area(Square).area, %value : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
-fn totalArea(Square)(%one: Square, %other: Square) -> Int {
+fn totalArea(Square)(%one: Square, %other: Square) -> I32 {
   b0:
-    %v2 = call Area(Square).area, %one : Int
-    %v3 = call Area(Square).area, %other : Int
-    %v4 = add %v2, %v3 : Int
+    %v2 = call Area(Square).area, %one : I32
+    %v3 = call Area(Square).area, %other : I32
+    %v4 = add %v2, %v3 : I32
     ret %v4
 }

@@ -14,9 +14,9 @@
 #   - the result read out of `rax`;
 #   - `%keep` alive across the call in a register the psABI says the callee preserves.
 
-indirect(%p: Ptr, %a: Int, %b: Int, %keep: Int): Int {
+indirect(%p: Ptr, %a: I32, %b: I32, %keep: I32): I32 {
     {
-        %r = call_sysv %p, %a, %b: Int
+        %r = call_sysv %p, %a, %b: I32
         %s = add %r, %keep
         ret %s
     }

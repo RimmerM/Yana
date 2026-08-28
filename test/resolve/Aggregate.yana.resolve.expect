@@ -1,10 +1,10 @@
 let image$base: () = <none>
 
-fn sum(%pair: Pair) -> Int {
+fn sum(%pair: Pair) -> I32 {
   b0:
-    %v1 = load %pair@Pair.x : Int
-    %v2 = load %pair@Pair.y : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = load %pair@Pair.x : I32
+    %v2 = load %pair@Pair.y : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
@@ -15,29 +15,29 @@ fn makePair() -> Pair {
     ret %v0
 }
 
-fn choiceValue(%choice: Choice) -> Int {
+fn choiceValue(%choice: Choice) -> I32 {
   b0:
-    %v1 = load %choice.discriminant : Int
+    %v1 = load %choice.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v6 = load %choice@Right : {value: Int, extra: Int}
-    %value = load %choice@Right.value : Int
-    %extra = load %choice@Right.extra : Int
-    %v9 = add %value, %extra : Int
+    %v6 = load %choice@Right : {value: I32, extra: I32}
+    %value = load %choice@Right.value : I32
+    %extra = load %choice@Right.extra : I32
+    %v9 = add %value, %extra : I32
     jmp b3
 
   b2:
-    %value = load %choice@Left : Int
+    %value = load %choice@Left : I32
     jmp b3
 
   b3:
-    %v12 = phi [b2, %value], [b1, %v9] : Int
+    %v12 = phi [b2, %value], [b1, %v9] : I32
     ret %v12
 }
 
-fn classify(%value: Int) -> Int {
+fn classify(%value: I32) -> I32 {
   b0:
     %v2 = cmp_eq %value, 0 : Bool
     je %v2, b2, b1
@@ -58,46 +58,46 @@ fn classify(%value: Int) -> Int {
     jmp b5
 
   b5:
-    %v16 = phi [b2, 0], [b4, 1], [b3, 2] : Int
+    %v16 = phi [b2, 0], [b4, 1], [b3, 2] : I32
     ret %v16
 }
 
-fn tupleValue(%pair: {Int, Int}) -> Int {
+fn tupleValue(%pair: {I32, I32}) -> I32 {
   b0:
-    %left = load %pair.0 : Int
-    %right = load %pair.1 : Int
-    %v3 = add %left, %right : Int
+    %left = load %pair.0 : I32
+    %right = load %pair.1 : I32
+    %v3 = add %left, %right : I32
     ret %v3
 }
 
-fn forwardRecord() -> Int {
+fn forwardRecord() -> I32 {
   b0:
     %v0 = alloc : Early
     %v1 = alloc : Later
     aggregate %local1@Later.value = 6
     aggregate %local0@Early.later = %v1
     %v5 = load %local0@Early.later : Later
-    %v6 = load %local0@Early.later@Later.value : Int
+    %v6 = load %local0@Early.later@Later.value : I32
     ret %v6
 }
 
-fn boolValue(%value: Bool) -> Int {
+fn boolValue(%value: Bool) -> I32 {
   b0:
     %v2 = xor %value, True : Bool
-    %v3 = cast %v2 : Int
+    %v3 = cast %v2 : I32
     ret %v3
 }
 
-fn directionValue(%value: Direction) -> Int {
+fn directionValue(%value: Direction) -> I32 {
   b0:
-    %v1 = cast %value : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = cast %value : I32
+    %v3 = add %v1, 1 : I32
     ret %v3
 }
 
 fn selectedPair(%value: Bool) -> Pair {
   b0:
-    %v1 = cast %value : Int
+    %v1 = cast %value : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -116,40 +116,40 @@ fn selectedPair(%value: Bool) -> Pair {
     ret %v15
 }
 
-fn <+>(%lhs: Int, %rhs: Int) -> Int {
+fn <+>(%lhs: I32, %rhs: I32) -> I32 {
   b0:
-    %v2 = add %lhs, %rhs : Int
+    %v2 = add %lhs, %rhs : I32
     ret %v2
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = call makePair : Pair
-    %v1 = call sum, %v0 : Int
+    %v1 = call sum, %v0 : I32
     %v2 = alloc : Choice
     aggregate %local1.discriminant = 0, %local1@Left = 4
-    %v6 = call choiceValue, %v2 : Int
-    %v7 = add %v1, %v6 : Int
+    %v6 = call choiceValue, %v2 : I32
+    %v7 = add %v1, %v6 : I32
     %v8 = alloc : Choice
     aggregate %local2.discriminant = 1, %local2@Right.value = 2, %local2@Right.extra = 3
-    %v13 = call choiceValue, %v8 : Int
-    %v14 = add %v7, %v13 : Int
-    %v16 = call classify, 7 : Int
-    %v17 = add %v14, %v16 : Int
-    %v18 = alloc : {Int, Int}
+    %v13 = call choiceValue, %v8 : I32
+    %v14 = add %v7, %v13 : I32
+    %v16 = call classify, 7 : I32
+    %v17 = add %v14, %v16 : I32
+    %v18 = alloc : {I32, I32}
     aggregate %local3.0 = 4, %local3.1 = 5
-    %v22 = call tupleValue, %v18 : Int
-    %v23 = add %v17, %v22 : Int
-    %v24 = call forwardRecord : Int
-    %v25 = add %v23, %v24 : Int
-    %v27 = call boolValue, False : Int
-    %v28 = add %v25, %v27 : Int
-    %v30 = call directionValue, South : Int
-    %v31 = add %v28, %v30 : Int
+    %v22 = call tupleValue, %v18 : I32
+    %v23 = add %v17, %v22 : I32
+    %v24 = call forwardRecord : I32
+    %v25 = add %v23, %v24 : I32
+    %v27 = call boolValue, False : I32
+    %v28 = add %v25, %v27 : I32
+    %v30 = call directionValue, South : I32
+    %v31 = add %v28, %v30 : I32
     %v33 = call selectedPair, True : Pair
-    %v34 = call sum, %v33 : Int
-    %v35 = add %v31, %v34 : Int
-    %v40 = call <+>, 1, 2 : Int
-    %v41 = add %v35, %v40 : Int
+    %v34 = call sum, %v33 : I32
+    %v35 = add %v31, %v34 : I32
+    %v40 = call <+>, 1, 2 : I32
+    %v41 = add %v35, %v40 : I32
     ret %v41
 }

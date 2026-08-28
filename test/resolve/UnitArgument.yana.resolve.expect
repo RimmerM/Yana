@@ -5,33 +5,33 @@ fn nothing() -> () {
     ret
 }
 
-fn wrap(%a: Int, %b: Int) -> Int {
+fn wrap(%a: I32, %b: I32) -> I32 {
   b0:
-    %v2 = add %a, %b : Int
+    %v2 = add %a, %b : I32
     ret %v2
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     alloc
-    %literal = call Wrap(()).wrap, %v0 : Int
+    %literal = call Wrap(()).wrap, %v0 : I32
     call nothing
-    %produced = call Wrap(()).wrap, %v2 : Int
-    %ordinary = call Wrap(Int).wrap, 3 : Int
-    %plain = call wrap, 10, 20 : Int
-    %v10 = add %literal, %produced : Int
-    %v11 = add %v10, %ordinary : Int
-    %v12 = add %v11, %plain : Int
+    %produced = call Wrap(()).wrap, %v2 : I32
+    %ordinary = call Wrap(I32).wrap, 3 : I32
+    %plain = call wrap, 10, 20 : I32
+    %v10 = add %literal, %produced : I32
+    %v11 = add %v10, %ordinary : I32
+    %v12 = add %v11, %plain : I32
     ret %v12
 }
 
-fn Wrap(()).wrap(%value: ()) -> Int {
+fn Wrap(()).wrap(%value: ()) -> I32 {
   b0:
     ret 7
 }
 
-fn Wrap(Int).wrap(%value: Int) -> Int {
+fn Wrap(I32).wrap(%value: I32) -> I32 {
   b0:
-    %v3 = add %value, 1 : Int
+    %v3 = add %value, 1 : I32
     ret %v3
 }

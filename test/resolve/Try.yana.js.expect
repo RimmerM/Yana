@@ -3,7 +3,7 @@ var log = 0;
 var dropped = 0;
 
 // Core
-function Try_Maybe_a_a_toOutcome_Int(value) {
+function Try_Maybe_a_a_toOutcome_I32(value) {
   var v1;
   if (!(value === null)) {
     v1 = value;
@@ -27,7 +27,7 @@ function Try_Maybe_a_a_toOutcome_Token(value) {
   return v1;
 }
 
-function Try_Result_e_a_a_e_toOutcome_Int_Int(value) {
+function Try_Result_e_a_a_e_toOutcome_I32_I32(value) {
   var v1;
   if (value.$tag === 1) {
     v1 = { $tag: 0, $p: value.$p };
@@ -48,11 +48,11 @@ function parse(n) {
 }
 
 function twoSteps(n) {
-  var v3 = Try_Maybe_a_a_toOutcome_Int(parse(n));
+  var v3 = Try_Maybe_a_a_toOutcome_I32(parse(n));
   if (v3 === null) {
     return null;
   } else {
-    var v17 = Try_Maybe_a_a_toOutcome_Int(parse(v3 - 10 | 0));
+    var v17 = Try_Maybe_a_a_toOutcome_I32(parse(v3 - 10 | 0));
     if (v17 === null) {
       return null;
     } else {
@@ -63,11 +63,11 @@ function twoSteps(n) {
 
 function valuePosition(x, y) {
   var v2 = null;
-  var v6 = Try_Maybe_a_a_toOutcome_Int(parse(x));
+  var v6 = Try_Maybe_a_a_toOutcome_I32(parse(x));
   if (v6 === null) {
     return null;
   } else {
-    var v17 = Try_Maybe_a_a_toOutcome_Int(parse(y));
+    var v17 = Try_Maybe_a_a_toOutcome_I32(parse(y));
     if (v17 === null) {
       return null;
     } else {
@@ -122,7 +122,7 @@ function looped(n) {
       var i = v9;
       if (i < 3) {
         var v14 = total;
-        var v18 = Try_Maybe_a_a_toOutcome_Int(parse(n - i | 0));
+        var v18 = Try_Maybe_a_a_toOutcome_I32(parse(n - i | 0));
         if (v18 === null) {
           return null;
         } else {
@@ -142,20 +142,20 @@ function looped(n) {
 
 function viaSkipping(n) {
   var v18 = null;
-  var v22 = Try_Maybe_a_a_toOutcome_Int(parse(n));
+  var v22 = Try_Maybe_a_a_toOutcome_I32(parse(n));
   if (v22 === null) {
     v18 = null;
   } else {
     v18 = ResolveTest_continuation$22(null, v22);
   }
-  var v9 = Try_Maybe_a_a_toOutcome_Int(v18);
+  var v9 = Try_Maybe_a_a_toOutcome_I32(v18);
   return v9 === null ? 0 : v9;
 }
 
 function main() {
   var a = null;
   log = 1;
-  var v111 = Try_Maybe_a_a_toOutcome_Int(6);
+  var v111 = Try_Maybe_a_a_toOutcome_I32(6);
   if (v111 === null) {
     a = null;
   } else {
@@ -163,7 +163,7 @@ function main() {
   }
   var b = null;
   log = log + 1 | 0;
-  var v154 = Try_Maybe_a_a_toOutcome_Int(null);
+  var v154 = Try_Maybe_a_a_toOutcome_I32(null);
   if (v154 === null) {
     b = null;
   } else {
@@ -176,12 +176,12 @@ function main() {
   var g = null;
   var v195 = null;
   log = log + 1 | 0;
-  var v198 = Try_Maybe_a_a_toOutcome_Int(4);
+  var v198 = Try_Maybe_a_a_toOutcome_I32(4);
   if (v198 === null) {
     g = null;
   } else {
     log = log + 1 | 0;
-    var v206 = Try_Maybe_a_a_toOutcome_Int(6);
+    var v206 = Try_Maybe_a_a_toOutcome_I32(6);
     if (v206 === null) {
       g = null;
     } else {
@@ -192,7 +192,7 @@ function main() {
   var h = { $tag: 0, $p: 0 };
   log = log + 10 | 0;
   var v272 = { $tag: 1, $p: 4 };
-  var v253 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v272.$tag, $p: v272.$p });
+  var v253 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v272.$tag, $p: v272.$p });
   if (v253.$tag === 1) {
     h = { $tag: 0, $p: v253.$p };
   } else {
@@ -201,7 +201,7 @@ function main() {
   var i = { $tag: 0, $p: 0 };
   log = log + 10 | 0;
   var v345 = { $tag: 0, $p: 1 };
-  var v326 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v345.$tag, $p: v345.$p });
+  var v326 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v345.$tag, $p: v345.$p });
   if (v326.$tag === 1) {
     i = { $tag: 0, $p: v326.$p };
   } else {
@@ -210,7 +210,7 @@ function main() {
   var j = { $tag: 0, $p: null };
   log = log + 10 | 0;
   var v397 = { $tag: 0, $p: 2 };
-  var v378 = Try_Result_e_a_a_e_toOutcome_Int_Int({ $tag: v397.$tag, $p: v397.$p });
+  var v378 = Try_Result_e_a_a_e_toOutcome_I32_I32({ $tag: v397.$tag, $p: v397.$p });
   if (v378.$tag === 1) {
     j = { $tag: 0, $p: v378.$p };
   } else {
@@ -218,7 +218,7 @@ function main() {
   }
   var k = null;
   log = log + 1 | 0;
-  var v430 = Try_Maybe_a_a_toOutcome_Int(12);
+  var v430 = Try_Maybe_a_a_toOutcome_I32(12);
   if (v430 === null) {
     k = null;
   } else {
@@ -255,7 +255,7 @@ function Drop_Token_drop(value) {
 }
 
 function ResolveTest_continuation$21(env, value$) {
-  var v7 = Try_Maybe_a_a_toOutcome_Int(parse(value$ - 8 | 0));
+  var v7 = Try_Maybe_a_a_toOutcome_I32(parse(value$ - 8 | 0));
   if (v7 === null) {
     return null;
   } else {

@@ -1,39 +1,39 @@
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-wide<clobber>(%x: Long): Long {
+wide<clobber>(%x: I64): I64 {
   b_0 {
     ret %x
   }
 }
 
-foldedAdd<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+foldedAdd<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = add %r, %keep: Int
-    %t = add %s, %target: Int
+    %r = call_clobber sink, %arg: I32
+    %s = add %r, %keep: I32
+    %t = add %s, %target: I32
     ret %t
   }
 }
 
-foldedBitwise<complex>(%arg: Int, %keep: Int, %t1: Int, %t2: Int): Int {
+foldedBitwise<complex>(%arg: I32, %keep: I32, %t1: I32, %t2: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = and %r, %keep: Int
-    %t = or %s, %t1: Int
-    %u = xor %t, %t2: Int
+    %r = call_clobber sink, %arg: I32
+    %s = and %r, %keep: I32
+    %t = or %s, %t1: I32
+    %u = xor %t, %t2: I32
     ret %u
   }
 }
 
-foldedCompare<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+foldedCompare<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   start {
-    %r = call_clobber sink, %arg: Int
-    %v_0 = cmp_ilt %r, %target: Int
+    %r = call_clobber sink, %arg: I32
+    %v_0 = cmp_ilt %r, %target: I32
     je %v_0, less, more
   }
 
@@ -46,137 +46,137 @@ foldedCompare<complex>(%arg: Int, %keep: Int, %target: Int): Int {
   }
 }
 
-foldedDivisor<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+foldedDivisor<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %q = div %r, %target: Int
-    %t = add %q, %keep: Int
+    %r = call_clobber sink, %arg: I32
+    %q = div %r, %target: I32
+    %t = add %q, %keep: I32
     ret %t
   }
 }
 
-foldedSet<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+foldedSet<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = set %target: Int
-    %t = add %s, %keep: Int
-    %u = add %t, %r: Int
+    %r = call_clobber sink, %arg: I32
+    %s = set %target: I32
+    %t = add %s, %keep: I32
+    %u = add %t, %r: I32
     ret %u
   }
 }
 
-spilledFirstOperand<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+spilledFirstOperand<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = imul %target, %r: Int
-    %t = add %keep, %s: Int
-    %u = add %keep, %t: Int
+    %r = call_clobber sink, %arg: I32
+    %s = imul %target, %r: I32
+    %t = add %keep, %s: I32
+    %u = add %keep, %t: I32
     ret %u
   }
 }
 
-narrowOffset<complex>(%p: Ptr, %off: Int, %arg: Int): Ptr {
+narrowOffset<complex>(%p: Ptr, %off: I32, %arg: I32): Ptr {
   b_0 {
-    %r = call_clobber sink, %arg: Int
+    %r = call_clobber sink, %arg: I32
     %q = add %p, %off: Ptr
     ret %q
   }
 }
 
-wideOffset<complex>(%p: Long, %off: Long, %arg: Long): Long {
+wideOffset<complex>(%p: I64, %off: I64, %arg: I64): I64 {
   b_0 {
-    %r = call_clobber wide, %arg: Long
-    %q = add %p, %off: Long
+    %r = call_clobber wide, %arg: I64
+    %q = add %p, %off: I64
     ret %q
   }
 }
 
-shiftCount<complex>(%arg: Int, %keep: Int, %count: Int): Int {
+shiftCount<complex>(%arg: I32, %keep: I32, %count: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = shl %r, %count: Int
-    %t = add %s, %keep: Int
+    %r = call_clobber sink, %arg: I32
+    %s = shl %r, %count: I32
+    %t = add %s, %keep: I32
     ret %t
   }
 }
 
-spilledPointer<complex>(%arg: Int, %keep: Int, %p: Ptr): Int {
+spilledPointer<complex>(%arg: I32, %keep: I32, %p: Ptr): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %v = load %p, 4: Int
-    %s = add %keep, %v: Int
-    %t = add %keep, %s: Int
-    %u = add %t, %r: Int
+    %r = call_clobber sink, %arg: I32
+    %v = load %p, 4: I32
+    %s = add %keep, %v: I32
+    %t = add %keep, %s: I32
+    %u = add %t, %r: I32
     ret %u
   }
 }
 
-spilledCast<complex>(%arg: Int, %keep: Long, %target: Int): Long {
+spilledCast<complex>(%arg: I32, %keep: I64, %target: I32): I64 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %w = sext %target: Long
-    %s = add %keep, %w: Long
-    %t = add %keep, %s: Long
+    %r = call_clobber sink, %arg: I32
+    %w = sext %target: I64
+    %s = add %keep, %w: I64
+    %t = add %keep, %s: I64
     ret %t
   }
 }
 
-inPlaceAdd<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+inPlaceAdd<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = add %target, 7: Int
-    %q = call_clobber sink, %r: Int
-    %t = add %keep, %s: Int
-    %u = add %keep, %t: Int
-    %v = add %u, %q: Int
+    %r = call_clobber sink, %arg: I32
+    %s = add %target, 7: I32
+    %q = call_clobber sink, %r: I32
+    %t = add %keep, %s: I32
+    %u = add %keep, %t: I32
+    %v = add %u, %q: I32
     ret %v
   }
 }
 
-inPlaceIncrement<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+inPlaceIncrement<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = add %target, 1: Int
-    %q = call_clobber sink, %r: Int
-    %t = add %keep, %s: Int
-    %u = add %keep, %t: Int
-    %v = add %u, %q: Int
+    %r = call_clobber sink, %arg: I32
+    %s = add %target, 1: I32
+    %q = call_clobber sink, %r: I32
+    %t = add %keep, %s: I32
+    %u = add %keep, %t: I32
+    %v = add %u, %q: I32
     ret %v
   }
 }
 
-inPlaceNegate<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+inPlaceNegate<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = neg %target: Int
-    %q = call_clobber sink, %r: Int
-    %t = add %keep, %s: Int
-    %u = add %keep, %t: Int
-    %v = add %u, %q: Int
+    %r = call_clobber sink, %arg: I32
+    %s = neg %target: I32
+    %q = call_clobber sink, %r: I32
+    %t = add %keep, %s: I32
+    %u = add %keep, %t: I32
+    %v = add %u, %q: I32
     ret %v
   }
 }
 
-inPlaceShift<complex>(%arg: Int, %keep: Int, %target: Int): Int {
+inPlaceShift<complex>(%arg: I32, %keep: I32, %target: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = shl %target, 3: Int
-    %q = call_clobber sink, %r: Int
-    %t = add %keep, %s: Int
-    %u = add %keep, %t: Int
-    %v = add %u, %q: Int
+    %r = call_clobber sink, %arg: I32
+    %s = shl %target, 3: I32
+    %q = call_clobber sink, %r: I32
+    %t = add %keep, %s: I32
+    %u = add %keep, %t: I32
+    %v = add %u, %q: I32
     ret %v
   }
 }
 
-oneMemoryOperand<complex>(%arg: Int, %keep: Int, %target: Int, %b: Int): Int {
+oneMemoryOperand<complex>(%arg: I32, %keep: I32, %target: I32, %b: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
-    %s = add %target, %b: Int
-    %q = call_clobber sink, %r: Int
-    %t = add %keep, %s: Int
-    %u = add %keep, %t: Int
-    %v = add %u, %q: Int
+    %r = call_clobber sink, %arg: I32
+    %s = add %target, %b: I32
+    %q = call_clobber sink, %r: I32
+    %t = add %keep, %s: I32
+    %u = add %keep, %t: I32
+    %v = add %u, %q: I32
     ret %v
   }
 }

@@ -1,15 +1,15 @@
 @image$base = []
 
-guarded<complex>(%p: Ptr): Int {
+guarded<complex>(%p: Ptr): I32 {
   b_0 {
-    %v_1 = bitcast %p: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %p: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = loads %p, 4: Int
-    %v_6 = cmp_igt %v_5, 0: Int
+    %v_5 = loads %p, 4: I32
+    %v_6 = cmp_igt %v_5, 0: I32
     je %v_6, b_7, b_3
   }
 
@@ -22,21 +22,21 @@ guarded<complex>(%p: Ptr): Int {
   }
 
   b_8 {
-    %v_9 = phi [b_7, %v_5], [b_3, 0]: Int
+    %v_9 = phi [b_7, %v_5], [b_3, 0]: I32
     ret %v_9
   }
 }
 
-defaulted<complex>(%p: Ptr): Int {
+defaulted<complex>(%p: Ptr): I32 {
   b_0 {
-    %v_1 = bitcast %p: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %p: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = loads %p, 4: Int
-    %v_6 = cmp_eq %v_5, 0: Int
+    %v_5 = loads %p, 4: I32
+    %v_6 = cmp_eq %v_5, 0: I32
     je %v_6, b_3, b_7
   }
 
@@ -49,16 +49,16 @@ defaulted<complex>(%p: Ptr): Int {
   }
 
   b_8 {
-    %v_9 = phi [b_3, 18446744073709551615], [b_7, %v_5]: Int
+    %v_9 = phi [b_3, 18446744073709551615], [b_7, %v_5]: I32
     ret %v_9
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex guarded, %v_1: Int
-    %v_3 = cmp_eq %v_2, 0: Int
+    %v_2 = call_complex guarded, %v_1: I32
+    %v_3 = cmp_eq %v_2, 0: I32
     je %v_3, b_4, b_5
   }
 
@@ -71,15 +71,15 @@ main<complex>(): Int {
   }
 
   b_6 {
-    %v_7 = phi [b_4, 1], [b_5, 0]: Int
+    %v_7 = phi [b_4, 1], [b_5, 0]: I32
     %v_8 = bitcast 0: Ptr
-    %v_9 = call_complex defaulted, %v_8: Int
-    %v_10 = cmp_eq %v_9, 18446744073709551615: Int
+    %v_9 = call_complex defaulted, %v_8: I32
+    %v_10 = cmp_eq %v_9, 18446744073709551615: I32
     je %v_10, b_11, b_12
   }
 
   b_11 {
-    %v_13 = add %v_7, 2: Int
+    %v_13 = add %v_7, 2: I32
     jmp b_14
   }
 
@@ -88,16 +88,16 @@ main<complex>(): Int {
   }
 
   b_14 {
-    %v_15 = phi [b_11, %v_13], [b_12, %v_7]: Int
+    %v_15 = phi [b_11, %v_13], [b_12, %v_7]: I32
     %v_16 = alloca 4, 4: Ptr
     store %v_16, 42, 4
-    %v_17 = call_complex guarded, %v_16: Int
-    %v_18 = cmp_eq %v_17, 42: Int
+    %v_17 = call_complex guarded, %v_16: I32
+    %v_18 = cmp_eq %v_17, 42: I32
     je %v_18, b_19, b_20
   }
 
   b_19 {
-    %v_21 = add %v_15, 4: Int
+    %v_21 = add %v_15, 4: I32
     jmp b_22
   }
 
@@ -106,14 +106,14 @@ main<complex>(): Int {
   }
 
   b_22 {
-    %v_23 = phi [b_19, %v_21], [b_20, %v_15]: Int
-    %v_24 = call_complex defaulted, %v_16: Int
-    %v_25 = cmp_eq %v_24, 42: Int
+    %v_23 = phi [b_19, %v_21], [b_20, %v_15]: I32
+    %v_24 = call_complex defaulted, %v_16: I32
+    %v_25 = cmp_eq %v_24, 42: I32
     je %v_25, b_26, b_27
   }
 
   b_26 {
-    %v_28 = add %v_23, 8: Int
+    %v_28 = add %v_23, 8: I32
     jmp b_29
   }
 
@@ -122,7 +122,7 @@ main<complex>(): Int {
   }
 
   b_29 {
-    %v_30 = phi [b_26, %v_28], [b_27, %v_23]: Int
+    %v_30 = phi [b_26, %v_28], [b_27, %v_23]: I32
     ret %v_30
   }
 }

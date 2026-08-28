@@ -1,9 +1,9 @@
 @image$base = []
 
-scalars<complex>(): Int {
+scalars<complex>(): I32 {
   b_0 {
-    %v_1 = sqrt 16: Double
-    %v_2 = cmp_neq %v_1, 4: Int
+    %v_1 = sqrt 16: F64
+    %v_2 = cmp_neq %v_1, 4: I32
     je %v_2, b_3, b_4
   }
 
@@ -16,8 +16,8 @@ scalars<complex>(): Int {
   }
 
   b_5 {
-    %v_6 = sqrt 2.25: Double
-    %v_7 = cmp_neq %v_6, 1.5: Int
+    %v_6 = sqrt 2.25: F64
+    %v_7 = cmp_neq %v_6, 1.5: I32
     je %v_7, b_8, b_9
   }
 
@@ -30,8 +30,8 @@ scalars<complex>(): Int {
   }
 
   b_10 {
-    %v_11 = fma 2, 3, 4: Double
-    %v_12 = cmp_neq %v_11, 10: Int
+    %v_11 = fma 2, 3, 4: F64
+    %v_12 = cmp_neq %v_11, 10: I32
     je %v_12, b_13, b_14
   }
 
@@ -44,8 +44,8 @@ scalars<complex>(): Int {
   }
 
   b_15 {
-    %v_16 = sqrt 6.25: Float
-    %v_17 = cmp_neq %v_16, 2.5: Int
+    %v_16 = sqrt 6.25: F32
+    %v_17 = cmp_neq %v_16, 2.5: I32
     je %v_17, b_18, b_19
   }
 
@@ -58,10 +58,10 @@ scalars<complex>(): Int {
   }
 
   b_20 {
-    %v_21 = sqrt 0: Float
-    %v_22 = div 1, %v_21: Float
-    %v_23 = div 1, 0: Float
-    %v_24 = cmp_neq %v_22, %v_23: Int
+    %v_21 = sqrt 0: F32
+    %v_22 = div 1, %v_21: F32
+    %v_23 = div 1, 0: F32
+    %v_24 = cmp_neq %v_22, %v_23: I32
     je %v_24, b_25, b_26
   }
 
@@ -78,12 +78,12 @@ scalars<complex>(): Int {
   }
 }
 
-lanes<complex>(): Int {
+lanes<complex>(): I32 {
   b_0 {
     %squares = vsplat 6.25: f32x4
     %roots = sqrt %squares: f32x4
-    %v_1 = vlane %roots, 0: Float
-    %v_2 = cmp_neq %v_1, 2.5: Int
+    %v_1 = vlane %roots, 0: F32
+    %v_2 = cmp_neq %v_1, 2.5: I32
     je %v_2, b_3, b_4
   }
 
@@ -96,8 +96,8 @@ lanes<complex>(): Int {
   }
 
   b_5 {
-    %v_6 = vreduce_min %roots: Float
-    %v_7 = cmp_neq %v_6, 2.5: Int
+    %v_6 = vreduce_min %roots: F32
+    %v_7 = cmp_neq %v_6, 2.5: I32
     je %v_7, b_8, b_9
   }
 
@@ -117,8 +117,8 @@ lanes<complex>(): Int {
     %v_14 = vsplat 3: f32x4
     %v_15 = vsplat 1: f32x4
     %scaled = fma %counted, %v_14, %v_15: f32x4
-    %v_16 = vlane %scaled, 0: Float
-    %v_17 = cmp_neq %v_16, 1: Int
+    %v_16 = vlane %scaled, 0: F32
+    %v_17 = cmp_neq %v_16, 1: I32
     je %v_17, b_18, b_19
   }
 
@@ -131,8 +131,8 @@ lanes<complex>(): Int {
   }
 
   b_20 {
-    %v_21 = vlane %scaled, 1: Float
-    %v_22 = cmp_neq %v_21, 4: Int
+    %v_21 = vlane %scaled, 1: F32
+    %v_22 = cmp_neq %v_21, 4: I32
     je %v_22, b_23, b_24
   }
 
@@ -145,8 +145,8 @@ lanes<complex>(): Int {
   }
 
   b_25 {
-    %v_26 = vlane %scaled, 2: Float
-    %v_27 = cmp_neq %v_26, 7: Int
+    %v_26 = vlane %scaled, 2: F32
+    %v_27 = cmp_neq %v_26, 7: I32
     je %v_27, b_28, b_29
   }
 
@@ -159,8 +159,8 @@ lanes<complex>(): Int {
   }
 
   b_30 {
-    %v_31 = vreduce_add %scaled: Float
-    %v_32 = cmp_neq %v_31, 22: Int
+    %v_31 = vreduce_add %scaled: F32
+    %v_32 = cmp_neq %v_31, 22: I32
     je %v_32, b_33, b_34
   }
 
@@ -177,15 +177,15 @@ lanes<complex>(): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex scalars: Int
-    %v_2 = cmp_neq %v_1, 0: Int
+    %v_1 = call_complex scalars: I32
+    %v_2 = cmp_neq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_3 {
-    %v_5 = call_complex scalars: Int
+    %v_5 = call_complex scalars: I32
     ret %v_5
   }
 
@@ -194,14 +194,14 @@ main<complex>(): Int {
   }
 
   b_6 {
-    %v_7 = call_complex lanes: Int
-    %v_8 = cmp_neq %v_7, 0: Int
+    %v_7 = call_complex lanes: I32
+    %v_8 = cmp_neq %v_7, 0: I32
     je %v_8, b_9, b_10
   }
 
   b_9 {
-    %v_11 = call_complex lanes: Int
-    %v_12 = imul %v_11, 10: Int
+    %v_11 = call_complex lanes: I32
+    %v_12 = imul %v_11, 10: I32
     ret %v_12
   }
 

@@ -1,5 +1,5 @@
 
-countMasked<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+countMasked<complex>(%a: i32x8, %b: i32x8, %n: I32): I32 {
   b_0 {
     %z = vsplat 0: i32x8
     %i1 = vwithlane %z, 1, 1: i32x8
@@ -9,17 +9,17 @@ countMasked<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
     %i5 = vwithlane %i4, 5, 5: i32x8
     %i6 = vwithlane %i5, 6, 6: i32x8
     %iota = vwithlane %i6, 7, 7: i32x8
-    %k = and %n, 255: Int
+    %k = and %n, 255: I32
     %s = vsplat %k: i32x8
     %live = cmp_ilt %iota, %s: m32x8
     %m = cmp_eq %a, %b: m32x8
     %r = and %m, %live: m32x8
-    %c = vreduce_add %r: Int
+    %c = vreduce_add %r: I32
     ret %c
   }
 }
 
-countUnsigned<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+countUnsigned<complex>(%a: i32x8, %b: i32x8, %n: I32): I32 {
   b_0 {
     %z = vsplat 0: i32x8
     %i1 = vwithlane %z, 1, 1: i32x8
@@ -33,12 +33,12 @@ countUnsigned<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
     %live = cmp_lt %iota, %s: m32x8
     %m = cmp_eq %a, %b: m32x8
     %r = and %m, %live: m32x8
-    %c = vreduce_add %r: Int
+    %c = vreduce_add %r: I32
     ret %c
   }
 }
 
-countSigned<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+countSigned<complex>(%a: i32x8, %b: i32x8, %n: I32): I32 {
   b_0 {
     %z = vsplat 0: i32x8
     %i1 = vwithlane %z, 1, 1: i32x8
@@ -52,12 +52,12 @@ countSigned<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
     %live = cmp_ilt %iota, %s: m32x8
     %m = cmp_eq %a, %b: m32x8
     %r = and %m, %live: m32x8
-    %c = vreduce_add %r: Int
+    %c = vreduce_add %r: I32
     ret %c
   }
 }
 
-countFull<complex>(%a: i32x8, %b: i32x8): Int {
+countFull<complex>(%a: i32x8, %b: i32x8): I32 {
   b_0 {
     %z = vsplat 0: i32x8
     %i1 = vwithlane %z, 1, 1: i32x8
@@ -71,12 +71,12 @@ countFull<complex>(%a: i32x8, %b: i32x8): Int {
     %live = cmp_ilt %iota, %s: m32x8
     %m = cmp_eq %a, %b: m32x8
     %r = and %m, %live: m32x8
-    %c = vreduce_add %r: Int
+    %c = vreduce_add %r: I32
     ret %c
   }
 }
 
-firstLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+firstLive<complex>(%a: i32x8, %b: i32x8, %n: I32): I32 {
   b_0 {
     %z = vsplat 0: i32x8
     %i1 = vwithlane %z, 1, 1: i32x8
@@ -86,17 +86,17 @@ firstLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
     %i5 = vwithlane %i4, 5, 5: i32x8
     %i6 = vwithlane %i5, 6, 6: i32x8
     %iota = vwithlane %i6, 7, 7: i32x8
-    %k = and %n, 255: Int
+    %k = and %n, 255: I32
     %s = vsplat %k: i32x8
     %live = cmp_ilt %iota, %s: m32x8
     %m = cmp_eq %a, %b: m32x8
     %r = and %m, %live: m32x8
-    %f = vreduce_first %r: Int
+    %f = vreduce_first %r: I32
     ret %f
   }
 }
 
-searchLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+searchLive<complex>(%a: i32x8, %b: i32x8, %n: I32): I32 {
   entry {
     %z = vsplat 0: i32x8
     %i1 = vwithlane %z, 1, 1: i32x8
@@ -106,18 +106,18 @@ searchLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
     %i5 = vwithlane %i4, 5, 5: i32x8
     %i6 = vwithlane %i5, 6, 6: i32x8
     %iota = vwithlane %i6, 7, 7: i32x8
-    %k = and %n, 255: Int
+    %k = and %n, 255: I32
     %s = vsplat %k: i32x8
     %live = cmp_ilt %iota, %s: m32x8
     %m = cmp_eq %a, %b: m32x8
     %r = and %m, %live: m32x8
-    %any = vreduce_or %r: Int
-    %v_0 = cmp_neq %any, 0: Int
+    %any = vreduce_or %r: I32
+    %v_0 = cmp_neq %any, 0: I32
     je %v_0, found, missing
   }
 
   found {
-    %f = vreduce_first %r: Int
+    %f = vreduce_first %r: I32
     ret %f
   }
 
@@ -126,7 +126,7 @@ searchLive<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
   }
 }
 
-searchAll<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
+searchAll<complex>(%a: i32x8, %b: i32x8, %n: I32): I32 {
   entry {
     %z = vsplat 0: i32x8
     %i1 = vwithlane %z, 1, 1: i32x8
@@ -136,18 +136,18 @@ searchAll<complex>(%a: i32x8, %b: i32x8, %n: Int): Int {
     %i5 = vwithlane %i4, 5, 5: i32x8
     %i6 = vwithlane %i5, 6, 6: i32x8
     %iota = vwithlane %i6, 7, 7: i32x8
-    %k = and %n, 255: Int
+    %k = and %n, 255: I32
     %s = vsplat %k: i32x8
     %live = cmp_ilt %iota, %s: m32x8
     %m = cmp_eq %a, %b: m32x8
     %r = and %m, %live: m32x8
-    %all = vreduce_and %r: Int
-    %v_0 = cmp_neq %all, 0: Int
+    %all = vreduce_and %r: I32
+    %v_0 = cmp_neq %all, 0: I32
     je %v_0, every, some
   }
 
   every {
-    %f = vreduce_first %r: Int
+    %f = vreduce_first %r: I32
     ret %f
   }
 

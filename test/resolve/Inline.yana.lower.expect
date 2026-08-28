@@ -1,10 +1,10 @@
 @image$base = []
 
-countDown<complex>(%n: Int): Int {
+countDown<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = phi [b_2, %n], [b_3, %v_4]: Int
-    %v_5 = phi [b_2, 0], [b_3, %v_6]: Int
-    %v_7 = cmp_ile %v_1, 0: Int
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = phi [b_2, 0], [b_3, %v_6]: I32
+    %v_7 = cmp_ile %v_1, 0: I32
     je %v_7, b_8, b_9
   }
 
@@ -17,8 +17,8 @@ countDown<complex>(%n: Int): Int {
   }
 
   b_3 {
-    %v_4 = sub %v_1, 1: Int
-    %v_6 = add %v_5, %v_1: Int
+    %v_4 = sub %v_1, 1: I32
+    %v_6 = add %v_5, %v_1: I32
     jmp b_0
   }
 
@@ -27,21 +27,21 @@ countDown<complex>(%n: Int): Int {
   }
 }
 
-evenLength<complex>(%n: Int): Int {
+evenLength<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = phi [b_2, %n], [b_3, %v_4]: Int
-    %v_5 = cmp_ile %v_1, 0: Int
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = cmp_ile %v_1, 0: I32
     je %v_5, b_6, b_7
   }
 
   b_7 {
-    %v_8 = sub %v_1, 1: Int
-    %v_9 = cmp_ile %v_8, 0: Int
+    %v_8 = sub %v_1, 1: I32
+    %v_9 = cmp_ile %v_8, 0: I32
     je %v_9, b_10, b_3
   }
 
   b_3 {
-    %v_4 = sub %v_8, 1: Int
+    %v_4 = sub %v_8, 1: I32
     jmp b_0
   }
 
@@ -58,45 +58,45 @@ evenLength<complex>(%n: Int): Int {
   }
 }
 
-measured<complex>(%v: Int): Int {
+measured<complex>(%v: I32): I32 {
   b_0 {
-    %v_1 = add %v, 1: Int
+    %v_1 = add %v, 1: I32
     ret %v_1
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex countDown, 4: Int
-    %v_2 = add %v_1, 260: Int
-    %v_3 = call_complex measured, 1: Int
-    %v_4 = call_complex measured, 2: Int
-    %v_5 = add %v_3, %v_4: Int
-    %v_6 = add %v_2, %v_5: Int
-    %v_7 = add %v_6, 219: Int
+    %v_1 = call_complex countDown, 4: I32
+    %v_2 = add %v_1, 260: I32
+    %v_3 = call_complex measured, 1: I32
+    %v_4 = call_complex measured, 2: I32
+    %v_5 = add %v_3, %v_4: I32
+    %v_6 = add %v_2, %v_5: I32
+    %v_7 = add %v_6, 219: I32
     jmp b_8
   }
 
   b_9 {
-    %v_10 = cmp_ilt %v_11, 20: Int
+    %v_10 = cmp_ilt %v_11, 20: I32
     je %v_10, b_8, b_12
   }
 
   b_12 {
-    %v_13 = add %v_7, %v_14: Int
-    %v_15 = add %v_13, 18: Int
-    %v_16 = call_complex evenLength, 6: Int
-    %v_17 = call_complex evenLength, 3: Int
-    %v_18 = add %v_16, %v_17: Int
-    %v_19 = add %v_15, %v_18: Int
+    %v_13 = add %v_7, %v_14: I32
+    %v_15 = add %v_13, 18: I32
+    %v_16 = call_complex evenLength, 6: I32
+    %v_17 = call_complex evenLength, 3: I32
+    %v_18 = add %v_16, %v_17: I32
+    %v_19 = add %v_15, %v_18: I32
     ret %v_19
   }
 
   b_8 {
-    %v_20 = phi [b_9, %v_11], [b_0, 1]: Int
-    %v_21 = phi [b_9, %v_14], [b_0, 0]: Int
-    %v_11 = add %v_20, %v_20: Int
-    %v_14 = add %v_21, 1: Int
+    %v_20 = phi [b_9, %v_11], [b_0, 1]: I32
+    %v_21 = phi [b_9, %v_14], [b_0, 0]: I32
+    %v_11 = add %v_20, %v_20: I32
+    %v_14 = add %v_21, 1: I32
     jmp b_9
   }
 }

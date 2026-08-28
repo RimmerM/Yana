@@ -81,31 +81,31 @@ convert<complex>(%w: i32x4, %f: f32x4): f32x4 {
   }
 }
 
-roots<complex>(%f: f32x4, %d: f64x2, %s: Float, %q: Double): f32x4 {
+roots<complex>(%f: f32x4, %d: f64x2, %s: F32, %q: F64): f32x4 {
   b_0 {
     %rf = sqrt %f: f32x4
     %rd = sqrt %d: f64x2
-    %rs = sqrt %s: Float
-    %rq = sqrt %q: Double
+    %rs = sqrt %s: F32
+    %rq = sqrt %q: F64
     ret %rf
   }
 }
 
-multiplyAdd<complex>(%a: f32x4, %b: f32x4, %c: f32x4, %x: Double, %y: Double, %z: Double): f32x4 {
+multiplyAdd<complex>(%a: f32x4, %b: f32x4, %c: f32x4, %x: F64, %y: F64, %z: F64): f32x4 {
   b_0 {
     %v = fma %a, %b, %c: f32x4
-    %s = fma %x, %y, %z: Double
+    %s = fma %x, %y, %z: F64
     ret %v
   }
 }
 
-reduceSum<complex>(%v: f32x4): Float {
+reduceSum<complex>(%v: f32x4): F32 {
   b_0 {
     %p0 = vshuffle %v, %v, 1, 0, 3, 2: f32x4
     %s0 = add %v, %p0: f32x4
     %p1 = vshuffle %s0, %s0, 2, 3, 0, 1: f32x4
     %s1 = add %s0, %p1: f32x4
-    %r = vlane %s1, 0: Float
+    %r = vlane %s1, 0: F32
     ret %r
   }
 }

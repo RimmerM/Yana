@@ -1,25 +1,25 @@
 @image$base = []
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 1, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 5, 4
-    %v_3 = call_complex orElse(Int), %v_1, 0: Int
-    %v_4 = add %v_3, 39: Int
+    %v_3 = call_complex orElse(I32), %v_1, 0: I32
+    %v_4 = add %v_3, 39: I32
     %v_5 = alloca 8, 4: Ptr
     store %v_5, 0, 4
-    %v_6 = call_complex orElse(Int), %v_5, 7: Int
-    %v_7 = add %v_4, %v_6: Int
+    %v_6 = call_complex orElse(I32), %v_5, 7: I32
+    %v_7 = add %v_4, %v_6: I32
     ret %v_7
   }
 }
 
-orElse(Int)<complex>(%value: Ptr, %fallback: Int): Int {
+orElse(I32)<complex>(%value: Ptr, %fallback: I32): I32 {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %value, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
@@ -29,12 +29,12 @@ orElse(Int)<complex>(%value: Ptr, %fallback: Int): Int {
 
   b_3 {
     %v_6 = add %value, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
+    %v_7 = loads %v_6, 4: I32
     jmp b_5
   }
 
   b_5 {
-    %v_8 = phi [b_3, %v_7], [b_4, %fallback]: Int
+    %v_8 = phi [b_3, %v_7], [b_4, %fallback]: I32
     ret %v_8
   }
 }

@@ -1,16 +1,6 @@
 "use strict";
 // Core
-function push_Int(self, item) {
-  var count = self.length;
-  var v7 = count + 1;
-  if (v7 > self.items.length) {
-    growJsArray_Int(self, v7);
-  }
-  self.items[count] = item;
-  self.length = v7 & 1073741823;
-}
-
-function growJsArray_Int(self, wanted) {
+function growJsArray_I32(self, wanted) {
   var v3 = self.items;
   var room = v3.length;
   var v5 = room + room | 0;
@@ -23,6 +13,16 @@ function growJsArray_Int(self, wanted) {
   }
   var v25 = $grow(v3, wide);
   self.items = v25;
+}
+
+function push_I32(self, item) {
+  var count = self.length;
+  var v7 = count + 1;
+  if (v7 > self.items.length) {
+    growJsArray_I32(self, v7);
+  }
+  self.items[count] = item;
+  self.length = v7 & 1073741823;
 }
 
 // ResolveTest
@@ -53,8 +53,8 @@ function main() {
   var v4 = new Int32Array([1, 2, 3]);
   var v3 = { items: v4, length: 3 };
   v4[0] = 10;
-  push_Int(v3, 4);
-  push_Int(v3, 5);
+  push_I32(v3, 4);
+  push_I32(v3, 5);
   var count = v3.length;
   if (1 < count) {
     v3.items.copyWithin(1, 2, count);

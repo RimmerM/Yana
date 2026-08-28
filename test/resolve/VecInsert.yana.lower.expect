@@ -1,12 +1,12 @@
 @image$base = []
 
-floats<complex>(): Int {
+floats<complex>(): I32 {
   b_0 {
     %f = vsplat 1.5: f32x4
-    %v_1 = neg 0: Float
+    %v_1 = neg 0: F32
     %g = vwithlane %f, %v_1, 0: f32x4
-    %v_2 = vlane %g, 1: Float
-    %v_3 = cmp_neq %v_2, 1.5: Int
+    %v_2 = vlane %g, 1: F32
+    %v_3 = cmp_neq %v_2, 1.5: I32
     je %v_3, b_4, b_5
   }
 
@@ -19,9 +19,9 @@ floats<complex>(): Int {
   }
 
   b_6 {
-    %v_7 = vlane %g, 0: Float
-    %v_8 = div 1, %v_7: Float
-    %v_9 = cmp_gt %v_8, 0: Int
+    %v_7 = vlane %g, 0: F32
+    %v_8 = div 1, %v_7: F32
+    %v_9 = cmp_gt %v_8, 0: I32
     je %v_9, b_10, b_11
   }
 
@@ -36,8 +36,8 @@ floats<complex>(): Int {
   b_12 {
     %d = vsplat 1.5: f64x2
     %e = vwithlane %d, 4.25, 1: f64x2
-    %v_13 = vlane %e, 0: Double
-    %v_14 = cmp_neq %v_13, 1.5: Int
+    %v_13 = vlane %e, 0: F64
+    %v_14 = cmp_neq %v_13, 1.5: I32
     je %v_14, b_15, b_16
   }
 
@@ -50,8 +50,8 @@ floats<complex>(): Int {
   }
 
   b_17 {
-    %v_18 = vlane %e, 1: Double
-    %v_19 = cmp_neq %v_18, 4.25: Int
+    %v_18 = vlane %e, 1: F64
+    %v_19 = cmp_neq %v_18, 4.25: I32
     je %v_19, b_20, b_21
   }
 
@@ -68,14 +68,14 @@ floats<complex>(): Int {
   }
 }
 
-indices<complex>(): Int {
+indices<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = vwithlane %v_1, 1, 1: i32x4
     %v_3 = vwithlane %v_2, 2, 2: i32x4
     %v = vwithlane %v_3, 3, 3: i32x4
-    %v_4 = vlane %v, 0: Int
-    %v_5 = cmp_neq %v_4, 0: Int
+    %v_4 = vlane %v, 0: I32
+    %v_5 = cmp_neq %v_4, 0: I32
     je %v_5, b_6, b_7
   }
 
@@ -88,8 +88,8 @@ indices<complex>(): Int {
   }
 
   b_8 {
-    %v_9 = vlane %v, 1: Int
-    %v_10 = cmp_neq %v_9, 1: Int
+    %v_9 = vlane %v, 1: I32
+    %v_10 = cmp_neq %v_9, 1: I32
     je %v_10, b_11, b_12
   }
 
@@ -103,8 +103,8 @@ indices<complex>(): Int {
 
   b_13 {
     %r = vshuffle %v, %v, 3, 2, 1, 0: i32x4
-    %v_14 = vlane %r, 0: Int
-    %v_15 = cmp_neq %v_14, 3: Int
+    %v_14 = vlane %r, 0: I32
+    %v_15 = cmp_neq %v_14, 3: I32
     je %v_15, b_16, b_17
   }
 
@@ -121,16 +121,16 @@ indices<complex>(): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex floats: Int
-    %v_2 = cmp_neq %v_1, 0: Int
+    %v_1 = call_complex floats: I32
+    %v_2 = cmp_neq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_3 {
-    %v_5 = call_complex floats: Int
-    %v_6 = imul %v_5, 10: Int
+    %v_5 = call_complex floats: I32
+    %v_6 = imul %v_5, 10: I32
     ret %v_6
   }
 
@@ -139,14 +139,14 @@ main<complex>(): Int {
   }
 
   b_7 {
-    %v_8 = call_complex indices: Int
-    %v_9 = cmp_neq %v_8, 0: Int
+    %v_8 = call_complex indices: I32
+    %v_9 = cmp_neq %v_8, 0: I32
     je %v_9, b_10, b_11
   }
 
   b_10 {
-    %v_12 = call_complex indices: Int
-    %v_13 = imul %v_12, 100: Int
+    %v_12 = call_complex indices: I32
+    %v_13 = imul %v_12, 100: I32
     ret %v_13
   }
 
@@ -158,16 +158,16 @@ main<complex>(): Int {
     %v = vsplat 5: i32x4
     %a = vwithlane %v, 9, 1: i32x4
     %b = vwithlane %a, 7, 0: i32x4
-    %v_15 = vlane %b, 0: Int
-    %v_16 = imul %v_15, 1000: Int
-    %v_17 = vlane %b, 1: Int
-    %v_18 = imul %v_17, 100: Int
-    %v_19 = add %v_16, %v_18: Int
-    %v_20 = vlane %v, 0: Int
-    %v_21 = imul %v_20, 10: Int
-    %v_22 = add %v_19, %v_21: Int
-    %v_23 = vlane %v, 1: Int
-    %v_24 = add %v_22, %v_23: Int
+    %v_15 = vlane %b, 0: I32
+    %v_16 = imul %v_15, 1000: I32
+    %v_17 = vlane %b, 1: I32
+    %v_18 = imul %v_17, 100: I32
+    %v_19 = add %v_16, %v_18: I32
+    %v_20 = vlane %v, 0: I32
+    %v_21 = imul %v_20, 10: I32
+    %v_22 = add %v_19, %v_21: I32
+    %v_23 = vlane %v, 1: I32
+    %v_24 = add %v_22, %v_23: I32
     ret %v_24
   }
 }

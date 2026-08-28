@@ -8,9 +8,9 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-let &effects: Int = 0
+let &effects: I32 = 0
 
-let &released: Int = 0
+let &released: I32 = 0
 
 fn numberOf(%call: Syscall) -> USize {
   b0:
@@ -44,7 +44,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -95,7 +95,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -131,7 +131,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -217,14 +217,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -256,7 +256,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -314,7 +314,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -337,9 +337,9 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn makeBuffer(%count: Int) -> Buffer {
+fn makeBuffer(%count: I32) -> Buffer {
   b0:
-    %v3 = mul %count, 8 : Int
+    %v3 = mul %count, 8 : I32
     %v4 = cast %v3 : Size
     %v5 = call allocateHeap, %v4 : %U8
     %cells = bitcast %v5 : %I64
@@ -348,10 +348,10 @@ fn makeBuffer(%count: Int) -> Buffer {
     ret %v7
 }
 
-fn useSession(%s: Session) -> Int {
+fn useSession(%s: Session) -> I32 {
   b0:
     %v1 = load %s@Session.owner : Handle
-    %v2 = load %s@Session.owner@Handle.id : Int
+    %v2 = load %s@Session.owner@Handle.id : I32
     drop_derived %s via teardown$Session
     ret %v2
 }
@@ -371,7 +371,7 @@ fn useSession(%s: Session) -> Int {
     ret %v3
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Session
     %v2 = call makeBuffer, 4 : Buffer
@@ -382,21 +382,21 @@ fn main() -> Int {
     %session = alloc : Session
     init %local3, %v7
     %session = move %local3 : Session
-    %used = call useSession, %session : Int
-    %pair = call duplicate(Int), 35 : {left: Int, right: Int}
-    %v15 = load %local4.left : Int
-    %v16 = add %used, %v15 : Int
-    %v17 = load effects : Int
-    %v18 = add %v16, %v17 : Int
-    %v19 = load released : Int
-    %v20 = sub %v18, %v19 : Int
+    %used = call useSession, %session : I32
+    %pair = call duplicate(I32), 35 : {left: I32, right: I32}
+    %v15 = load %local4.left : I32
+    %v16 = add %used, %v15 : I32
+    %v17 = load effects : I32
+    %v18 = add %v16, %v17 : I32
+    %v19 = load released : I32
+    %v20 = sub %v18, %v19 : I32
     ret %v20
 }
 
 fn Reclaim(Buffer).reclaim(%value: Buffer) -> () {
   b0:
-    %v1 = load released : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load released : I32
+    %v4 = add %v1, 1 : I32
     assign released, %v4
     %v6 = load %value@Buffer.cells : %I64
     %v7 = bitcast %v6 : %U8
@@ -406,20 +406,20 @@ fn Reclaim(Buffer).reclaim(%value: Buffer) -> () {
 
 fn Drop(Handle).drop(%value: Handle) -> () {
   b0:
-    %v1 = load effects : Int
-    %v2 = load %value@Handle.id : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = load effects : I32
+    %v2 = load %value@Handle.id : I32
+    %v3 = add %v1, %v2 : I32
     assign effects, %v3
     ret
 }
 
-fn duplicate(Int)(%x: Int) -> {left: Int, right: Int} {
+fn duplicate(I32)(%x: I32) -> {left: I32, right: I32} {
   b0:
-    %x = alloc : Int
+    %x = alloc : I32
     init %x, %x
-    %x = load %x : Int
-    %x = load %x : Int
-    %v5 = alloc : {left: Int, right: Int}
+    %x = load %x : I32
+    %x = load %x : I32
+    %v5 = alloc : {left: I32, right: I32}
     aggregate %local3.left = %x, %local3.right = %x
     ret %v5
 }

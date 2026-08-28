@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn classify(%n: Int) -> Code {
+fn classify(%n: I32) -> Code {
   b0:
     %v3 = cmp_eq %n, 1 : Bool
     je %v3, b1, b2
@@ -30,21 +30,21 @@ fn classify(%n: Int) -> Code {
     ret %v21
 }
 
-fn weight(%c: Code) -> Int {
+fn weight(%c: Code) -> I32 {
   b0:
-    %v1 = cast %c : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = cast %c : I32
+    %v3 = add %v1, 1 : I32
     ret %v3
 }
 
-fn attempt(%n: Int) -> Outcome {
+fn attempt(%n: I32) -> Outcome {
   b0:
     %v3 = cmp_lt %n, 0 : Bool
     je %v3, b1, b2
 
   b1:
     %v5 = alloc : Outcome
-    %v9 = sub 0, %n : Int
+    %v9 = sub 0, %n : I32
     %v10 = call classify, %v9 : Code
     aggregate %local0.discriminant = 0, %local0@Failed = %v10
     ret %v5
@@ -58,10 +58,10 @@ fn attempt(%n: Int) -> Outcome {
     ret %v14
 }
 
-fn score(%n: Int) -> Int {
+fn score(%n: I32) -> I32 {
   b0:
     %v1 = call attempt, %n : Outcome
-    %v2 = load %local0.discriminant : Int
+    %v2 = load %local0.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -73,11 +73,11 @@ fn score(%n: Int) -> Int {
     jmp b3
 
   b3:
-    %v11 = phi [b2, 0], [b1, 1] : Int
+    %v11 = phi [b2, 0], [b1, 1] : I32
     ret %v11
 }
 
-fn triage(%n: Int) -> Outcome {
+fn triage(%n: I32) -> Outcome {
   b0:
     %v3 = cmp_gt %n, 10 : Bool
     je %v3, b1, b2
@@ -105,16 +105,16 @@ fn triage(%n: Int) -> Outcome {
 
   b6:
     %v20 = alloc : Outcome
-    %v24 = sub 0, %n : Int
+    %v24 = sub 0, %n : I32
     %v25 = call classify, %v24 : Code
     aggregate %local2.discriminant = 0, %local2@Failed = %v25
     ret %v20
 }
 
-fn ranked(%n: Int) -> Int {
+fn ranked(%n: I32) -> I32 {
   b0:
     %v1 = call triage, %n : Outcome
-    %v2 = load %local0.discriminant : Int
+    %v2 = load %local0.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -126,18 +126,18 @@ fn ranked(%n: Int) -> Int {
     jmp b3
 
   b3:
-    %v11 = phi [b2, 0], [b1, 1] : Int
+    %v11 = phi [b2, 0], [b1, 1] : I32
     ret %v11
 }
 
-fn removeIt(%n: Int) -> Result(Code, ()) {
+fn removeIt(%n: I32) -> Result(Code, ()) {
   b0:
     %v3 = cmp_lt %n, 0 : Bool
     je %v3, b1, b2
 
   b1:
     %v5 = alloc : Result(Code, ())
-    %v9 = sub 0, %n : Int
+    %v9 = sub 0, %n : I32
     %v10 = call classify, %v9 : Code
     aggregate %local0.discriminant = 0, %local0@Err = %v10
     ret %v5
@@ -151,10 +151,10 @@ fn removeIt(%n: Int) -> Result(Code, ()) {
     ret %v14
 }
 
-fn removed(%n: Int) -> Int {
+fn removed(%n: I32) -> I32 {
   b0:
     %v1 = call removeIt, %n : Result(Code, ())
-    %v2 = load %local0.discriminant : Int
+    %v2 = load %local0.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -166,63 +166,63 @@ fn removed(%n: Int) -> Int {
     jmp b3
 
   b3:
-    %v11 = phi [b2, 0], [b1, 1] : Int
+    %v11 = phi [b2, 0], [b1, 1] : I32
     ret %v11
 }
 
-fn scored(%n: Int) -> Int {
+fn scored(%n: I32) -> I32 {
   b0:
     %v1 = call attempt, %n : Outcome
-    %v2 = load %local0.discriminant : Int
+    %v2 = load %local0.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
   b1:
     %c = load %local0@Failed : Code
-    %v8 = call weight, %c : Int
+    %v8 = call weight, %c : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v11 = phi [b2, 0], [b1, %v8] : Int
+    %v11 = phi [b2, 0], [b1, %v8] : I32
     ret %v11
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call score, 1 : Int
-    %v6 = sub 0, 1 : Int
-    %v7 = call score, %v6 : Int
-    %v8 = add %v1, %v7 : Int
-    %v13 = sub 0, 2 : Int
-    %v14 = call score, %v13 : Int
-    %v15 = add %v8, %v14 : Int
-    %v20 = sub 0, 3 : Int
-    %v21 = call score, %v20 : Int
-    %v22 = add %v15, %v21 : Int
-    %v27 = sub 0, 4 : Int
-    %v28 = call score, %v27 : Int
-    %v29 = add %v22, %v28 : Int
-    %v31 = call ranked, 50 : Int
-    %v32 = add %v29, %v31 : Int
-    %v34 = call ranked, 2 : Int
-    %v35 = add %v32, %v34 : Int
-    %v40 = sub 0, 3 : Int
-    %v41 = call ranked, %v40 : Int
-    %v42 = add %v35, %v41 : Int
-    %v44 = call removed, 4 : Int
-    %v45 = add %v42, %v44 : Int
-    %v50 = sub 0, 1 : Int
-    %v51 = call removed, %v50 : Int
-    %v52 = add %v45, %v51 : Int
-    %v57 = sub 0, 3 : Int
-    %v58 = call scored, %v57 : Int
-    %v61 = mul %v58, 10 : Int
-    %v62 = add %v52, %v61 : Int
-    %v64 = call scored, 9 : Int
-    %v67 = mul %v64, 100 : Int
-    %v68 = add %v62, %v67 : Int
+    %v1 = call score, 1 : I32
+    %v6 = sub 0, 1 : I32
+    %v7 = call score, %v6 : I32
+    %v8 = add %v1, %v7 : I32
+    %v13 = sub 0, 2 : I32
+    %v14 = call score, %v13 : I32
+    %v15 = add %v8, %v14 : I32
+    %v20 = sub 0, 3 : I32
+    %v21 = call score, %v20 : I32
+    %v22 = add %v15, %v21 : I32
+    %v27 = sub 0, 4 : I32
+    %v28 = call score, %v27 : I32
+    %v29 = add %v22, %v28 : I32
+    %v31 = call ranked, 50 : I32
+    %v32 = add %v29, %v31 : I32
+    %v34 = call ranked, 2 : I32
+    %v35 = add %v32, %v34 : I32
+    %v40 = sub 0, 3 : I32
+    %v41 = call ranked, %v40 : I32
+    %v42 = add %v35, %v41 : I32
+    %v44 = call removed, 4 : I32
+    %v45 = add %v42, %v44 : I32
+    %v50 = sub 0, 1 : I32
+    %v51 = call removed, %v50 : I32
+    %v52 = add %v45, %v51 : I32
+    %v57 = sub 0, 3 : I32
+    %v58 = call scored, %v57 : I32
+    %v61 = mul %v58, 10 : I32
+    %v62 = add %v52, %v61 : I32
+    %v64 = call scored, 9 : I32
+    %v67 = mul %v64, 100 : I32
+    %v68 = add %v62, %v67 : I32
     ret %v68
 }

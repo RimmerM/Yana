@@ -196,12 +196,12 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v66 = cmp_ge %v64, %v65 : Bool
     call checkCondition, %v66
     %v68 = load [%v62]@Flat.items : %CodeUnit
-    %v69 = strideof CodeUnit : Long
-    %v70 = mul %v55, %v69 : Long
+    %v69 = strideof CodeUnit : I64
+    %v70 = mul %v55, %v69 : I64
     %v71 = add %v68, %v70 : %CodeUnit
     %v72 = borrow_mut [%v71] : &CodeUnit
     %v73 = load decimalPairs : String
-    %v74 = call String.unit, %v73, %pair : Int
+    %v74 = call String.unit, %v73, %pair : I32
     %v75 = cast %v74 : CodeUnit
     assign [%v72], %v75
     %v77 = load %buffer : [CodeUnit *20]
@@ -220,13 +220,13 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v92 = cmp_ge %v90, %v91 : Bool
     call checkCondition, %v92
     %v94 = load [%v88]@Flat.items : %CodeUnit
-    %v95 = strideof CodeUnit : Long
-    %v96 = mul %v81, %v95 : Long
+    %v95 = strideof CodeUnit : I64
+    %v96 = mul %v81, %v95 : I64
     %v97 = add %v94, %v96 : %CodeUnit
     %v98 = borrow_mut [%v97] : &CodeUnit
     %v99 = load decimalPairs : String
     %v102 = add %pair, 1 : Size
-    %v103 = call String.unit, %v99, %v102 : Int
+    %v103 = call String.unit, %v99, %v102 : I32
     %v104 = cast %v103 : CodeUnit
     assign [%v98], %v104
     assign %rest, %quotient
@@ -254,12 +254,12 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v135 = cmp_ge %v133, %v134 : Bool
     call checkCondition, %v135
     %v137 = load [%v131]@Flat.items : %CodeUnit
-    %v138 = strideof CodeUnit : Long
-    %v139 = mul %v124, %v138 : Long
+    %v138 = strideof CodeUnit : I64
+    %v139 = mul %v124, %v138 : I64
     %v140 = add %v137, %v139 : %CodeUnit
     %v141 = borrow_mut [%v140] : &CodeUnit
     %v142 = load decimalPairs : String
-    %v143 = call String.unit, %v142, %pair : Int
+    %v143 = call String.unit, %v142, %pair : I32
     %v144 = cast %v143 : CodeUnit
     assign [%v141], %v144
     %v146 = load %buffer : [CodeUnit *20]
@@ -278,13 +278,13 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v161 = cmp_ge %v159, %v160 : Bool
     call checkCondition, %v161
     %v163 = load [%v157]@Flat.items : %CodeUnit
-    %v164 = strideof CodeUnit : Long
-    %v165 = mul %v150, %v164 : Long
+    %v164 = strideof CodeUnit : I64
+    %v165 = mul %v150, %v164 : I64
     %v166 = add %v163, %v165 : %CodeUnit
     %v167 = borrow_mut [%v166] : &CodeUnit
     %v168 = load decimalPairs : String
     %v171 = add %pair, 1 : Size
-    %v172 = call String.unit, %v168, %v171 : Int
+    %v172 = call String.unit, %v168, %v171 : I32
     %v173 = cast %v172 : CodeUnit
     assign [%v167], %v173
     jmp b6
@@ -308,8 +308,8 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v192 = cmp_ge %v190, %v191 : Bool
     call checkCondition, %v192
     %v194 = load [%v188]@Flat.items : %CodeUnit
-    %v195 = strideof CodeUnit : Long
-    %v196 = mul %v181, %v195 : Long
+    %v195 = strideof CodeUnit : I64
+    %v196 = mul %v181, %v195 : I64
     %v197 = add %v194, %v196 : %CodeUnit
     %v198 = borrow_mut [%v197] : &CodeUnit
     %v200 = load %rest : U64
@@ -340,7 +340,7 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     ret
 }
 
-fn showSigned(%value: Long, %to: String) -> () {
+fn showSigned(%value: I64, %to: String) -> () {
   b0:
     %v4 = cmp_lt %value, 0 : Bool
     je %v4, b1, b2
@@ -367,15 +367,6 @@ fn showSigned(%value: Long, %to: String) -> () {
     ret
 }
 
-fn showSmall(%value: Int, %to: String) -> () {
-  b0:
-    %v2 = cast %value : Long
-    %v3 = load %to : String
-    %v4 = borrow_mut %to : &String
-    call showSigned, %v2, %v4
-    ret
-}
-
 fn checkFailed() -> () {
   b0:
     call abortProcess
@@ -399,7 +390,7 @@ fn checkCondition(%failed: Bool) -> () {
 
 fn formatBound(%bound: Maybe(Size)) -> Size {
   b0:
-    %v1 = load %bound.discriminant : Int
+    %v1 = load %bound.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -429,7 +420,7 @@ fn print(%text: String) -> () {
     ret
 }
 
-fn String.unit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> I32 {
   b0:
     %v2 = borrow %self : 'String
     %v3 = cast %v2 : 'StringData
@@ -440,7 +431,7 @@ fn String.unit(%self: String, %index: Size) -> Int {
     %v8 = mul %index, %v7 : Size
     %v9 = add %v6, %v8 : %CodeUnit
     %v10 = load [%v9] : CodeUnit
-    %v11 = cast %v10 : Int
+    %v11 = cast %v10 : I32
     ret %v11
 }
 
@@ -449,7 +440,7 @@ fn String.ofCapacity(%capacity: Size) -> String {
     %v1 = alloc : StringData
     %v2 = alloc : Array(CodeUnit)
     %v3 = alloc : Run(CodeUnit)
-    %v4 = cast %capacity : Long
+    %v4 = cast %capacity : I64
     %v5 = alloc *%v4 heap escaping : CodeUnit
     %v6 = addressof %local3 : %CodeUnit
     %v8 = cast %capacity : U32
@@ -483,7 +474,7 @@ fn String.reserve(%self: String, %wanted: Size) -> () {
     ret
 }
 
-fn String.pushUnit(%self: String, %unit: Int) -> () {
+fn String.pushUnit(%self: String, %unit: I32) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &String
@@ -592,15 +583,15 @@ fn Show(Bool).showBound(%value: Bool) -> Maybe(Size) {
     ret %v1
 }
 
-fn Show(Int).show(%value: Int, %to: String) -> () {
+fn Show(I32).show(%value: I32, %to: String) -> () {
   b0:
     %v2 = load %to : String
     %v3 = borrow_mut %to : &String
-    call showSmall, %value, %v3
+    call showFromSigned(I32), %value, %v3
     ret
 }
 
-fn Show(Int).showBound(%value: Int) -> Maybe(Size) {
+fn Show(I32).showBound(%value: I32) -> Maybe(Size) {
   b0:
     %v1 = alloc : Maybe(Size)
     aggregate %local0.discriminant = 1, %local0@Just = 11
@@ -629,7 +620,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -757,9 +748,18 @@ fn push(CodeUnit)(%self: Array(CodeUnit), %item: CodeUnit) -> () {
     ret
 }
 
-fn Show(Maybe(a)).showBound(Int)(%value: Maybe(Int)) -> Maybe(Size) {
+fn showFromSigned(I32)(%value: I32, %to: String) -> () {
   b0:
-    %v3 = load %value.discriminant : Int
+    %v2 = cast %value : I64
+    %v3 = load %to : String
+    %v4 = borrow_mut %to : &String
+    call showSigned, %v2, %v4
+    ret
+}
+
+fn Show(Maybe(a)).showBound(I32)(%value: Maybe(I32)) -> Maybe(Size) {
+  b0:
+    %v3 = load %value.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -769,9 +769,9 @@ fn Show(Maybe(a)).showBound(Int)(%value: Maybe(Int)) -> Maybe(Size) {
     jmp b6
 
   b2:
-    %inner = load %value@Just : Int
-    %v13 = call Show(Int).showBound, %inner : Maybe(Size)
-    %v14 = load %local1.discriminant : Int
+    %inner = load %value@Just : I32
+    %v13 = call Show(I32).showBound, %inner : Maybe(Size)
+    %v14 = load %local1.discriminant : I32
     %v16 = cmp_eq %v14, 1 : Bool
     je %v16, b4, b3
 
@@ -796,9 +796,9 @@ fn Show(Maybe(a)).showBound(Int)(%value: Maybe(Int)) -> Maybe(Size) {
     ret %v2
 }
 
-fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
+fn Show(Maybe(a)).show(I32)(%value: Maybe(I32), %to: String) -> () {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -811,9 +811,9 @@ fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
     jmp b3
 
   b2:
-    %inner = load %value@Just : Int
+    %inner = load %value@Just : I32
     %v12 = load %to : String
-    %v13 = call Show(Int).showBound, %inner : Maybe(Size)
+    %v13 = call Show(I32).showBound, %inner : Maybe(Size)
     %v14 = call formatBound, %v13 : Size
     %v16 = add 6, %v14 : Size
     %v17 = borrow_mut %to : &String
@@ -821,7 +821,7 @@ fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
     %v19 = copy Core.literal$24 : String
     call String.push, %v17, %v19
     drop %local3 via Reclaim(String).reclaim
-    call Show(Int).show, %inner, %v17
+    call Show(I32).show, %inner, %v17
     %v22 = copy Core.literal$26 : String
     call String.push, %v17, %v22
     drop %local4 via Reclaim(String).reclaim
@@ -892,7 +892,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -943,7 +943,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -979,7 +979,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -1065,14 +1065,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -1104,7 +1104,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -1162,7 +1162,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1731,7 +1731,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1821,18 +1821,18 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
     ret
 }
 
-fn plain() -> Int {
+fn plain() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$1 : String
     %v1 = call Length(String).length, %v0 : Size
     drop %local0 via Reclaim(String).reclaim
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     ret %v2
 }
 
-fn oneInt() -> Int {
+fn oneInt() -> I32 {
   b0:
-    %v3 = call Show(Int).showBound, 42 : Maybe(Size)
+    %v3 = call Show(I32).showBound, 42 : Maybe(Size)
     %v4 = call formatBound, %v3 : Size
     %v5 = add 4, %v4 : Size
     %v6 = call String.ofCapacity, %v5 : String
@@ -1843,17 +1843,17 @@ fn oneInt() -> Int {
     call String.push, %v10, %v9
     drop %local3 via Reclaim(String).reclaim
     %v12 = borrow_mut %local2 : &String
-    call Show(Int).show, 42, %v12
+    call Show(I32).show, 42, %v12
     %text = load %local2 : String
     %v15 = call Length(String).length, %text : Size
     drop %local2 via Reclaim(String).reclaim
-    %v16 = cast %v15 : Int
+    %v16 = cast %v15 : I32
     ret %v16
 }
 
-fn oneIntText() -> Int {
+fn oneIntText() -> I32 {
   b0:
-    %v3 = call Show(Int).showBound, 7 : Maybe(Size)
+    %v3 = call Show(I32).showBound, 7 : Maybe(Size)
     %v4 = call formatBound, %v3 : Size
     %v5 = add 3, %v4 : Size
     %v6 = call String.ofCapacity, %v5 : String
@@ -1864,16 +1864,16 @@ fn oneIntText() -> Int {
     call String.push, %v10, %v9
     drop %local3 via Reclaim(String).reclaim
     %v12 = borrow_mut %local2 : &String
-    call Show(Int).show, 7, %v12
+    call Show(I32).show, 7, %v12
     %v14 = copy ResolveTest.literal$7 : String
     %v15 = borrow_mut %local2 : &String
     call String.push, %v15, %v14
     drop %local4 via Reclaim(String).reclaim
     %text = load %local2 : String
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %v21 = call Length(String).length, %text : Size
-    %v22 = cast %v21 : Int
+    %v22 = cast %v21 : I32
     %v25 = cmp_ne %v22, 4 : Bool
     je %v25, b16, b2
 
@@ -1884,13 +1884,13 @@ fn oneIntText() -> Int {
     jmp b3
 
   b3:
-    %v31 = call String.unit, %text, 0 : Int
+    %v31 = call String.unit, %text, 0 : I32
     %v34 = cmp_eq %v31, 110 : Bool
     je %v34, b4, b5
 
   b4:
-    %v36 = load %total : Int
-    %v39 = add %v36, 1 : Int
+    %v36 = load %total : I32
+    %v39 = add %v36, 1 : I32
     assign %total, %v39
     jmp b6
 
@@ -1898,13 +1898,13 @@ fn oneIntText() -> Int {
     jmp b6
 
   b6:
-    %v44 = call String.unit, %text, 1 : Int
+    %v44 = call String.unit, %text, 1 : I32
     %v47 = cmp_eq %v44, 61 : Bool
     je %v47, b7, b8
 
   b7:
-    %v49 = load %total : Int
-    %v52 = add %v49, 1 : Int
+    %v49 = load %total : I32
+    %v52 = add %v49, 1 : I32
     assign %total, %v52
     jmp b9
 
@@ -1912,13 +1912,13 @@ fn oneIntText() -> Int {
     jmp b9
 
   b9:
-    %v57 = call String.unit, %text, 2 : Int
+    %v57 = call String.unit, %text, 2 : I32
     %v60 = cmp_eq %v57, 55 : Bool
     je %v60, b10, b11
 
   b10:
-    %v62 = load %total : Int
-    %v65 = add %v62, 1 : Int
+    %v62 = load %total : I32
+    %v65 = add %v62, 1 : I32
     assign %total, %v65
     jmp b12
 
@@ -1926,14 +1926,14 @@ fn oneIntText() -> Int {
     jmp b12
 
   b12:
-    %v70 = call String.unit, %text, 3 : Int
+    %v70 = call String.unit, %text, 3 : I32
     drop %local2 via Reclaim(String).reclaim
     %v73 = cmp_eq %v70, 33 : Bool
     je %v73, b13, b14
 
   b13:
-    %v75 = load %total : Int
-    %v78 = add %v75, 1 : Int
+    %v75 = load %total : I32
+    %v78 = add %v75, 1 : I32
     assign %total, %v78
     jmp b15
 
@@ -1941,7 +1941,7 @@ fn oneIntText() -> Int {
     jmp b15
 
   b15:
-    %v82 = load %total : Int
+    %v82 = load %total : I32
     ret %v82
 
   b16:
@@ -1949,7 +1949,7 @@ fn oneIntText() -> Int {
     jmp b1
 }
 
-fn oneString() -> Int {
+fn oneString() -> I32 {
   b0:
     %inner = copy ResolveTest.literal$9 : String
     %v2 = call Show(String).showBound, %inner : Maybe(Size)
@@ -1968,23 +1968,23 @@ fn oneString() -> Int {
     %text = load %local3 : String
     %v14 = call Length(String).length, %text : Size
     drop %local3 via Reclaim(String).reclaim
-    %v15 = cast %v14 : Int
+    %v15 = cast %v14 : I32
     ret %v15
 }
 
-fn mixed() -> Int {
+fn mixed() -> I32 {
   b0:
     %name = copy ResolveTest.literal$13 : String
     %v6 = call Show(String).showBound, %name : Maybe(Size)
     %v7 = call formatBound, %v6 : Size
     %v8 = add 3, %v7 : Size
-    %v9 = call Show(Int).showBound, 12 : Maybe(Size)
+    %v9 = call Show(I32).showBound, 12 : Maybe(Size)
     %v10 = call formatBound, %v9 : Size
     %v11 = add %v8, %v10 : Size
     %v12 = call Show(String).showBound, %name : Maybe(Size)
     %v13 = call formatBound, %v12 : Size
     %v14 = add %v11, %v13 : Size
-    %v15 = call Show(Int).showBound, 345 : Maybe(Size)
+    %v15 = call Show(I32).showBound, 345 : Maybe(Size)
     %v16 = call formatBound, %v15 : Size
     %v17 = add %v14, %v16 : Size
     %v18 = call String.ofCapacity, %v17 : String
@@ -1997,7 +1997,7 @@ fn mixed() -> Int {
     call String.push, %v24, %v23
     drop %local7 via Reclaim(String).reclaim
     %v26 = borrow_mut %local6 : &String
-    call Show(Int).show, 12, %v26
+    call Show(I32).show, 12, %v26
     %v28 = copy ResolveTest.literal$17 : String
     %v29 = borrow_mut %local6 : &String
     call String.push, %v29, %v28
@@ -2010,33 +2010,33 @@ fn mixed() -> Int {
     call String.push, %v34, %v33
     drop %local9 via Reclaim(String).reclaim
     %v36 = borrow_mut %local6 : &String
-    call Show(Int).show, 345, %v36
+    call Show(I32).show, 345, %v36
     %text = load %local6 : String
     %v39 = call Length(String).length, %text : Size
     drop %local6 via Reclaim(String).reclaim
-    %v40 = cast %v39 : Int
+    %v40 = cast %v39 : I32
     ret %v40
 }
 
-fn negative() -> Int {
+fn negative() -> I32 {
   b0:
-    %v2 = neg -2147483648 : Int
-    %v4 = call Show(Int).showBound, %v2 : Maybe(Size)
+    %v2 = neg -2147483648 : I32
+    %v4 = call Show(I32).showBound, %v2 : Maybe(Size)
     %v5 = call formatBound, %v4 : Size
     %v6 = add 0, %v5 : Size
     %v7 = call String.ofCapacity, %v6 : String
     %v8 = alloc : String
     init %local2, %v7
     %v10 = borrow_mut %local2 : &String
-    call Show(Int).show, %v2, %v10
+    call Show(I32).show, %v2, %v10
     %text = load %local2 : String
     %v13 = call Length(String).length, %text : Size
     drop %local2 via Reclaim(String).reclaim
-    %v14 = cast %v13 : Int
+    %v14 = cast %v13 : I32
     ret %v14
 }
 
-fn boolean() -> Int {
+fn boolean() -> I32 {
   b0:
     %v3 = call Show(Bool).showBound, True : Maybe(Size)
     %v4 = call formatBound, %v3 : Size
@@ -2058,30 +2058,30 @@ fn boolean() -> Int {
     %text = load %local3 : String
     %v20 = call Length(String).length, %text : Size
     drop %local3 via Reclaim(String).reclaim
-    %v21 = cast %v20 : Int
+    %v21 = cast %v20 : I32
     ret %v21
 }
 
-fn inLoop() -> Int {
+fn inLoop() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v10 = cmp_lt %v7, 100 : Bool
     je %v10, b3, b2
 
   b2:
-    %v37 = load %total : Int
+    %v37 = load %total : I32
     ret %v37
 
   b3:
-    %v12 = load %i : Int
-    %v14 = call Show(Int).showBound, %v12 : Maybe(Size)
+    %v12 = load %i : I32
+    %v14 = call Show(I32).showBound, %v12 : Maybe(Size)
     %v15 = call formatBound, %v14 : Size
     %v16 = add 10, %v15 : Size
     %v17 = call String.ofCapacity, %v16 : String
@@ -2092,16 +2092,16 @@ fn inLoop() -> Int {
     call String.push, %v21, %v20
     drop %local5 via Reclaim(String).reclaim
     %v23 = borrow_mut %local4 : &String
-    call Show(Int).show, %v12, %v23
+    call Show(I32).show, %v12, %v23
     %text = load %local4 : String
-    %v26 = load %total : Int
+    %v26 = load %total : I32
     %v27 = call Length(String).length, %text : Size
     drop %local4 via Reclaim(String).reclaim
-    %v28 = cast %v27 : Int
-    %v29 = add %v26, %v28 : Int
+    %v28 = cast %v27 : I32
+    %v29 = add %v26, %v28 : I32
     assign %total, %v29
-    %v31 = load %i : Int
-    %v34 = add %v31, 1 : Int
+    %v31 = load %i : I32
+    %v34 = add %v31, 1 : I32
     assign %i, %v34
     jmp b1
 }
@@ -2132,9 +2132,9 @@ fn inLoop() -> Int {
     ret %v17
 }
 
-fn generic() -> Int {
+fn generic() -> I32 {
   b0:
-    %number = call described(Int), 42 : String
+    %number = call described(I32), 42 : String
     %v3 = copy ResolveTest.literal$29 : String
     %text = call described(String), %v3 : String
     drop %local1 via Reclaim(String).reclaim
@@ -2143,7 +2143,7 @@ fn generic() -> Int {
     %v6 = call Length(String).length, %text : Size
     drop %local2 via Reclaim(String).reclaim
     %v7 = add %v5, %v6 : Size
-    %v8 = cast %v7 : Int
+    %v8 = cast %v7 : I32
     ret %v8
 }
 
@@ -2171,22 +2171,22 @@ fn generic() -> Int {
     ret %v14
 }
 
-fn nested() -> Int {
+fn nested() -> I32 {
   b0:
-    %text = call wrapped(Int), 7 : String
+    %text = call wrapped(I32), 7 : String
     %v3 = call Length(String).length, %text : Size
     drop %local0 via Reclaim(String).reclaim
-    %v4 = cast %v3 : Int
+    %v4 = cast %v3 : I32
     ret %v4
 }
 
-fn appended() -> Int {
+fn appended() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$31 : String
     %out = alloc : String
     init %out, %v0
     %v3 = load %out : String
-    %v7 = call Show(Int).showBound, 2 : Maybe(Size)
+    %v7 = call Show(I32).showBound, 2 : Maybe(Size)
     %v8 = call formatBound, %v7 : Size
     %v9 = add 2, %v8 : Size
     %v10 = borrow_mut %out : &String
@@ -2194,7 +2194,7 @@ fn appended() -> Int {
     %v12 = copy ResolveTest.literal$33 : String
     call String.push, %v10, %v12
     drop %local3 via Reclaim(String).reclaim
-    call Show(Int).show, 2, %v10
+    call Show(I32).show, 2, %v10
     %v15 = copy ResolveTest.literal$35 : String
     call String.push, %v10, %v15
     drop %local4 via Reclaim(String).reclaim
@@ -2205,29 +2205,29 @@ fn appended() -> Int {
     %v21 = move %local6 : String
     call ++=(String), %v20, %v21
     %v23 = load %out : String
-    %v27 = call Show(Int).showBound, 3 : Maybe(Size)
+    %v27 = call Show(I32).showBound, 3 : Maybe(Size)
     %v28 = call formatBound, %v27 : Size
     %v29 = add 0, %v28 : Size
     %v30 = borrow_mut %out : &String
     call String.reserve, %v30, %v29
-    call Show(Int).show, 3, %v30
+    call Show(I32).show, 3, %v30
     alloc
     %v34 = load %out : String
     %v35 = call Length(String).length, %v34 : Size
     drop %out via Reclaim(String).reclaim
-    %v36 = cast %v35 : Int
+    %v36 = cast %v35 : I32
     ret %v36
 }
 
-fn appendedText() -> Int {
+fn appendedText() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$39 : String
     %out = alloc : String
     init %out, %v0
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %v6 = load %out : String
-    %v10 = call Show(Int).showBound, 9 : Maybe(Size)
+    %v10 = call Show(I32).showBound, 9 : Maybe(Size)
     %v11 = call formatBound, %v10 : Size
     %v12 = add 1, %v11 : Size
     %v13 = borrow_mut %out : &String
@@ -2235,11 +2235,11 @@ fn appendedText() -> Int {
     %v15 = copy ResolveTest.literal$41 : String
     call String.push, %v13, %v15
     drop %local4 via Reclaim(String).reclaim
-    call Show(Int).show, 9, %v13
+    call Show(I32).show, 9, %v13
     alloc
     %v19 = load %out : String
     %v20 = call Length(String).length, %v19 : Size
-    %v21 = cast %v20 : Int
+    %v21 = cast %v20 : I32
     %v24 = cmp_ne %v21, 2 : Bool
     je %v24, b10, b2
 
@@ -2251,13 +2251,13 @@ fn appendedText() -> Int {
 
   b3:
     %v29 = load %out : String
-    %v31 = call String.unit, %v29, 0 : Int
+    %v31 = call String.unit, %v29, 0 : I32
     %v34 = cmp_eq %v31, 120 : Bool
     je %v34, b4, b5
 
   b4:
-    %v36 = load %total : Int
-    %v39 = add %v36, 1 : Int
+    %v36 = load %total : I32
+    %v39 = add %v36, 1 : I32
     assign %total, %v39
     jmp b6
 
@@ -2266,14 +2266,14 @@ fn appendedText() -> Int {
 
   b6:
     %v43 = load %out : String
-    %v45 = call String.unit, %v43, 1 : Int
+    %v45 = call String.unit, %v43, 1 : I32
     drop %out via Reclaim(String).reclaim
     %v48 = cmp_eq %v45, 57 : Bool
     je %v48, b7, b8
 
   b7:
-    %v50 = load %total : Int
-    %v53 = add %v50, 1 : Int
+    %v50 = load %total : I32
+    %v53 = add %v50, 1 : I32
     assign %total, %v53
     jmp b9
 
@@ -2281,7 +2281,7 @@ fn appendedText() -> Int {
     jmp b9
 
   b9:
-    %v57 = load %total : Int
+    %v57 = load %total : I32
     ret %v57
 
   b10:
@@ -2289,19 +2289,19 @@ fn appendedText() -> Int {
     jmp b1
 }
 
-fn appendedField() -> Int {
+fn appendedField() -> I32 {
   b0:
     %v0 = alloc : Buffer
     %v1 = copy ResolveTest.literal$43 : String
     aggregate %buffer@Buffer.text = %v1
     %v3 = load %buffer : Buffer
     %v4 = load %buffer@Buffer.text : String
-    %v8 = call Show(Int).showBound, 12 : Maybe(Size)
+    %v8 = call Show(I32).showBound, 12 : Maybe(Size)
     %v9 = call formatBound, %v8 : Size
     %v10 = add 1, %v9 : Size
     %v11 = borrow_mut %buffer@Buffer.text : &String
     call String.reserve, %v11, %v10
-    call Show(Int).show, 12, %v11
+    call Show(I32).show, 12, %v11
     %v14 = copy ResolveTest.literal$45 : String
     call String.push, %v11, %v14
     drop %local3 via Reclaim(String).reclaim
@@ -2310,24 +2310,24 @@ fn appendedField() -> Int {
     %v18 = load %buffer@Buffer.text : String
     %v19 = call Length(String).length, %v18 : Size
     drop_derived %buffer via reclaim$Buffer
-    %v20 = cast %v19 : Int
+    %v20 = cast %v19 : I32
     ret %v20
 }
 
-fn appendedJoin() -> Int {
+fn appendedJoin() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$47 : String
     %out = alloc : String
     init %out, %v0
     %v3 = load %out : String
-    %v7 = call Show(Int).showBound, 1 : Maybe(Size)
+    %v7 = call Show(I32).showBound, 1 : Maybe(Size)
     %v8 = call formatBound, %v7 : Size
     %v9 = add 0, %v8 : Size
     %v10 = call String.ofCapacity, %v9 : String
     %v11 = alloc : String
     init %local4, %v10
     %v13 = borrow_mut %local4 : &String
-    call Show(Int).show, 1, %v13
+    call Show(I32).show, 1, %v13
     %v15 = load %local4 : String
     %v16 = copy ResolveTest.literal$49 : String
     %v17 = move %local4 : String
@@ -2339,85 +2339,85 @@ fn appendedJoin() -> Int {
     %v23 = load %out : String
     %v24 = call Length(String).length, %v23 : Size
     drop %out via Reclaim(String).reclaim
-    %v25 = cast %v24 : Int
+    %v25 = cast %v24 : I32
     ret %v25
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v3 = load %total : Int
-    %v4 = call plain : Int
-    %v5 = add %v3, %v4 : Int
+    %v3 = load %total : I32
+    %v4 = call plain : I32
+    %v5 = add %v3, %v4 : I32
     assign %total, %v5
-    %v7 = load %total : Int
-    %v8 = call oneInt : Int
-    %v9 = add %v7, %v8 : Int
+    %v7 = load %total : I32
+    %v8 = call oneInt : I32
+    %v9 = add %v7, %v8 : I32
     assign %total, %v9
-    %v11 = load %total : Int
-    %v12 = call oneIntText : Int
-    %v13 = add %v11, %v12 : Int
+    %v11 = load %total : I32
+    %v12 = call oneIntText : I32
+    %v13 = add %v11, %v12 : I32
     assign %total, %v13
-    %v15 = load %total : Int
-    %v16 = call oneString : Int
-    %v17 = add %v15, %v16 : Int
+    %v15 = load %total : I32
+    %v16 = call oneString : I32
+    %v17 = add %v15, %v16 : I32
     assign %total, %v17
-    %v19 = load %total : Int
-    %v20 = call mixed : Int
-    %v21 = add %v19, %v20 : Int
+    %v19 = load %total : I32
+    %v20 = call mixed : I32
+    %v21 = add %v19, %v20 : I32
     assign %total, %v21
-    %v23 = load %total : Int
-    %v24 = call negative : Int
-    %v25 = add %v23, %v24 : Int
+    %v23 = load %total : I32
+    %v24 = call negative : I32
+    %v25 = add %v23, %v24 : I32
     assign %total, %v25
-    %v27 = load %total : Int
-    %v28 = call boolean : Int
-    %v29 = add %v27, %v28 : Int
+    %v27 = load %total : I32
+    %v28 = call boolean : I32
+    %v29 = add %v27, %v28 : I32
     assign %total, %v29
-    %v31 = load %total : Int
-    %v32 = call inLoop : Int
-    %v33 = add %v31, %v32 : Int
+    %v31 = load %total : I32
+    %v32 = call inLoop : I32
+    %v33 = add %v31, %v32 : I32
     assign %total, %v33
-    %v35 = load %total : Int
-    %v36 = call generic : Int
-    %v37 = add %v35, %v36 : Int
+    %v35 = load %total : I32
+    %v36 = call generic : I32
+    %v37 = add %v35, %v36 : I32
     assign %total, %v37
-    %v39 = load %total : Int
-    %v40 = call nested : Int
-    %v41 = add %v39, %v40 : Int
+    %v39 = load %total : I32
+    %v40 = call nested : I32
+    %v41 = add %v39, %v40 : I32
     assign %total, %v41
-    %v43 = load %total : Int
-    %v44 = call appended : Int
-    %v45 = add %v43, %v44 : Int
+    %v43 = load %total : I32
+    %v44 = call appended : I32
+    %v45 = add %v43, %v44 : I32
     assign %total, %v45
-    %v47 = load %total : Int
-    %v48 = call appendedText : Int
-    %v49 = add %v47, %v48 : Int
+    %v47 = load %total : I32
+    %v48 = call appendedText : I32
+    %v49 = add %v47, %v48 : I32
     assign %total, %v49
-    %v51 = load %total : Int
-    %v52 = call appendedField : Int
-    %v53 = add %v51, %v52 : Int
+    %v51 = load %total : I32
+    %v52 = call appendedField : I32
+    %v53 = add %v51, %v52 : I32
     assign %total, %v53
-    %v55 = load %total : Int
-    %v56 = call appendedJoin : Int
-    %v57 = add %v55, %v56 : Int
+    %v55 = load %total : I32
+    %v56 = call appendedJoin : I32
+    %v57 = add %v55, %v56 : I32
     assign %total, %v57
-    %v59 = load %total : Int
-    %v60 = call printed : Int
-    %v61 = add %v59, %v60 : Int
+    %v59 = load %total : I32
+    %v60 = call printed : I32
+    %v61 = add %v59, %v60 : I32
     assign %total, %v61
-    %v63 = load %total : Int
+    %v63 = load %total : I32
     ret %v63
 }
 
-fn printed() -> Int {
+fn printed() -> I32 {
   b0:
     %name = copy ResolveTest.literal$51 : String
     %v4 = call Show(String).showBound, %name : Maybe(Size)
     %v5 = call formatBound, %v4 : Size
     %v6 = add 14, %v5 : Size
-    %v7 = call Show(Int).showBound, 2 : Maybe(Size)
+    %v7 = call Show(I32).showBound, 2 : Maybe(Size)
     %v8 = call formatBound, %v7 : Size
     %v9 = add %v6, %v8 : Size
     %v10 = call String.ofCapacity, %v9 : String
@@ -2435,7 +2435,7 @@ fn printed() -> Int {
     call String.push, %v19, %v18
     drop %local6 via Reclaim(String).reclaim
     %v21 = borrow_mut %local4 : &String
-    call Show(Int).show, 2, %v21
+    call Show(I32).show, 2, %v21
     %v23 = copy ResolveTest.literal$57 : String
     %v24 = borrow_mut %local4 : &String
     call String.push, %v24, %v23
@@ -2446,9 +2446,9 @@ fn printed() -> Int {
     ret 0
 }
 
-fn described(Int)(%value: Int) -> String {
+fn described(I32)(%value: I32) -> String {
   b0:
-    %v1 = call Show(Int).showBound, %value : Maybe(Size)
+    %v1 = call Show(I32).showBound, %value : Maybe(Size)
     %v2 = call formatBound, %v1 : Size
     %v4 = add 2, %v2 : Size
     %v5 = call String.ofCapacity, %v4 : String
@@ -2459,7 +2459,7 @@ fn described(Int)(%value: Int) -> String {
     call String.push, %v9, %v8
     drop %local4 via Reclaim(String).reclaim
     %v11 = borrow_mut %local3 : &String
-    call Show(Int).show, %value, %v11
+    call Show(I32).show, %value, %v11
     %v13 = copy ResolveTest.literal$27 : String
     %v14 = borrow_mut %local3 : &String
     call String.push, %v14, %v13
@@ -2492,18 +2492,18 @@ fn described(String)(%value: String) -> String {
     ret %v17
 }
 
-fn wrapped(Int)(%value: Int) -> String {
+fn wrapped(I32)(%value: I32) -> String {
   b0:
-    %v1 = alloc : Maybe(Int)
+    %v1 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = %value
-    %v4 = call Show(Maybe(a)).showBound(Int), %v1 : Maybe(Size)
+    %v4 = call Show(Maybe(a)).showBound(I32), %v1 : Maybe(Size)
     %v5 = call formatBound, %v4 : Size
     %v7 = add 0, %v5 : Size
     %v8 = call String.ofCapacity, %v7 : String
     %v9 = alloc : String
     init %local4, %v8
     %v11 = borrow_mut %local4 : &String
-    call Show(Maybe(a)).show(Int), %v1, %v11
+    call Show(Maybe(a)).show(I32), %v1, %v11
     %v13 = load %local4 : String
     %v14 = move %local4 : String
     ret %v14

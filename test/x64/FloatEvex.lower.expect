@@ -1,62 +1,62 @@
 
-arith64<complex>(%a: Double, %b: Double): Double {
+arith64<complex>(%a: F64, %b: F64): F64 {
   b_0 {
-    %s = add %a, %b: Double
-    %d = sub %s, %b: Double
-    %m = mul %d, %a: Double
-    %q = div %m, %b: Double
+    %s = add %a, %b: F64
+    %d = sub %s, %b: F64
+    %m = mul %d, %a: F64
+    %q = div %m, %b: F64
     ret %q
   }
 }
 
-arith32<complex>(%a: Float, %b: Float): Float {
+arith32<complex>(%a: F32, %b: F32): F32 {
   b_0 {
-    %s = add %a, %b: Float
-    %d = sub %s, %b: Float
-    %m = mul %d, %a: Float
-    %q = div %m, %b: Float
+    %s = add %a, %b: F32
+    %d = sub %s, %b: F32
+    %m = mul %d, %a: F32
+    %q = div %m, %b: F32
     ret %q
   }
 }
 
-noReuse<complex>(%a: Double, %b: Double): Double {
+noReuse<complex>(%a: F64, %b: F64): F64 {
   b_0 {
-    %s = add %a, %b: Double
-    %d = sub %a, %b: Double
-    %m = mul %s, %d: Double
-    %q = div %m, %a: Double
+    %s = add %a, %b: F64
+    %d = sub %a, %b: F64
+    %m = mul %s, %d: F64
+    %q = div %m, %a: F64
     ret %q
   }
 }
 
-manyLive<complex>(%a: Double, %b: Double, %c: Double, %d: Double, %e: Double, %f: Double, %g: Double, %h: Double, %i: Double, %j: Double): Double {
+manyLive<complex>(%a: F64, %b: F64, %c: F64, %d: F64, %e: F64, %f: F64, %g: F64, %h: F64, %i: F64, %j: F64): F64 {
   b_0 {
-    %ab = add %a, %b: Double
-    %cd = add %c, %d: Double
-    %ef = add %e, %f: Double
-    %gh = add %g, %h: Double
-    %ij = add %i, %j: Double
-    %x = mul %ab, %cd: Double
-    %y = mul %ef, %gh: Double
-    %z = mul %x, %y: Double
-    %r = div %z, %ij: Double
+    %ab = add %a, %b: F64
+    %cd = add %c, %d: F64
+    %ef = add %e, %f: F64
+    %gh = add %g, %h: F64
+    %ij = add %i, %j: F64
+    %x = mul %ab, %cd: F64
+    %y = mul %ef, %gh: F64
+    %z = mul %x, %y: F64
+    %r = div %z, %ij: F64
     ret %r
   }
 }
 
-negate<complex>(%a: Double, %b: Float): Double {
+negate<complex>(%a: F64, %b: F32): F64 {
   b_0 {
-    %n = neg %a: Double
-    %m = neg %b: Float
-    %w = cast %m: Double
-    %r = add %n, %w: Double
+    %n = neg %a: F64
+    %m = neg %b: F32
+    %w = cast %m: F64
+    %r = add %n, %w: F64
     ret %r
   }
 }
 
-compare<complex>(%a: Double, %b: Double): Int {
+compare<complex>(%a: F64, %b: F64): I32 {
   b_0 {
-    %c = cmp_gt %a, %b: Int
+    %c = cmp_gt %a, %b: I32
     je %c, then, else
   }
 
@@ -69,27 +69,27 @@ compare<complex>(%a: Double, %b: Double): Int {
   }
 }
 
-compareValue<complex>(%a: Float, %b: Float): Int {
+compareValue<complex>(%a: F32, %b: F32): I32 {
   b_0 {
-    %c = cmp_lt %a, %b: Int
-    %d = add %c, %c: Int
+    %c = cmp_lt %a, %b: I32
+    %d = add %c, %c: I32
     ret %d
   }
 }
 
-loadFold<complex>(%p: Ptr, %a: Double): Double {
+loadFold<complex>(%p: Ptr, %a: F64): F64 {
   b_0 {
-    %v = load %p, 8: Double
-    %s = add %a, %v: Double
-    %w = load %p, 8: Double
-    %m = mul %s, %w: Double
+    %v = load %p, 8: F64
+    %s = add %a, %v: F64
+    %w = load %p, 8: F64
+    %m = mul %s, %w: F64
     ret %m
   }
 }
 
-transfer<complex>(%p: Ptr, %q: Ptr): Float {
+transfer<complex>(%p: Ptr, %q: Ptr): F32 {
   b_0 {
-    %v = load %p, 4: Float
+    %v = load %p, 4: F32
     store %q, %v, 4
     ret %v
   }

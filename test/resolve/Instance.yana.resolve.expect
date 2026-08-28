@@ -19,9 +19,9 @@ fn Ord(%a).compare(I64)(%lhs: %I64, %rhs: %I64) -> Ordering {
     ret LT
 }
 
-fn none() -> Opt(Int) {
+fn none() -> Opt(I32) {
   b0:
-    %v0 = alloc : Opt(Int)
+    %v0 = alloc : Opt(I32)
     init %local0.discriminant, 0
     ret %v0
 }
@@ -30,11 +30,11 @@ fn maybes() -> I64 {
   b0:
     %score = alloc : I64
     init %score, 0
-    %v5 = alloc : Opt(Int)
+    %v5 = alloc : Opt(I32)
     aggregate %local1.discriminant = 1, %local1@Some = 1
-    %v10 = alloc : Opt(Int)
+    %v10 = alloc : Opt(I32)
     aggregate %local2.discriminant = 1, %local2@Some = 1
-    %v13 = call Eq(Opt(a)).==(Int), %v5, %v10 : Bool
+    %v13 = call Eq(Opt(a)).==(I32), %v5, %v10 : Bool
     je %v13, b1, b2
 
   b1:
@@ -47,11 +47,11 @@ fn maybes() -> I64 {
     jmp b3
 
   b3:
-    %v24 = alloc : Opt(Int)
+    %v24 = alloc : Opt(I32)
     aggregate %local3.discriminant = 1, %local3@Some = 1
-    %v29 = alloc : Opt(Int)
+    %v29 = alloc : Opt(I32)
     aggregate %local4.discriminant = 1, %local4@Some = 2
-    %v32 = call Eq(Opt(a)).!=(Int), %v24, %v29 : Bool
+    %v32 = call Eq(Opt(a)).!=(I32), %v24, %v29 : Bool
     je %v32, b4, b5
 
   b4:
@@ -64,9 +64,9 @@ fn maybes() -> I64 {
     jmp b6
 
   b6:
-    %v41 = call none : Opt(Int)
-    %v42 = call none : Opt(Int)
-    %v43 = call Eq(Opt(a)).==(Int), %v41, %v42 : Bool
+    %v41 = call none : Opt(I32)
+    %v42 = call none : Opt(I32)
+    %v43 = call Eq(Opt(a)).==(I32), %v41, %v42 : Bool
     je %v43, b7, b8
 
   b7:
@@ -161,7 +161,7 @@ fn pointers() -> I64 {
 
   b6:
     %v32 = call Ord(%a).compare(I64), %a, %a : Ordering
-    %v33 = cast %v32 : Int
+    %v33 = cast %v32 : I32
     %v35 = cmp_eq %v33, 1 : Bool
     je %v35, b8, b7
 
@@ -201,14 +201,14 @@ fn nested() -> I64 {
     ret 0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = call maybes : I64
     %v1 = call pointers : I64
     %v2 = add %v0, %v1 : I64
     %v3 = call nested : I64
     %v4 = add %v2, %v3 : I64
-    %v5 = cast %v4 : Int
+    %v5 = cast %v4 : I32
     ret %v5
 }
 
@@ -220,18 +220,18 @@ fn main() -> Int {
   }
 
   b0:
-    %v2 = load %lhs.discriminant : Int
+    %v2 = load %lhs.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
   b1:
-    %v13 = load %lhs.discriminant : Int
+    %v13 = load %lhs.discriminant : I32
     %v15 = cmp_eq %v13, 0 : Bool
     je %v15, b5, b4
 
   b2:
     %x = load %lhs@Some : a
-    %v7 = load %rhs.discriminant : Int
+    %v7 = load %rhs.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b3, b1
 
@@ -244,7 +244,7 @@ fn main() -> Int {
     jmp b7
 
   b5:
-    %v17 = load %rhs.discriminant : Int
+    %v17 = load %rhs.discriminant : I32
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b6, b4
 
@@ -269,25 +269,25 @@ fn main() -> Int {
     ret %v4
 }
 
-fn Eq(Opt(a)).==(Int)(%lhs: Opt(Int), %rhs: Opt(Int)) -> Bool {
+fn Eq(Opt(a)).==(I32)(%lhs: Opt(I32), %rhs: Opt(I32)) -> Bool {
   b0:
-    %v3 = load %lhs.discriminant : Int
+    %v3 = load %lhs.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
   b1:
-    %v7 = load %lhs.discriminant : Int
+    %v7 = load %lhs.discriminant : I32
     %v9 = cmp_eq %v7, 0 : Bool
     je %v9, b5, b4
 
   b2:
-    %x = load %lhs@Some : Int
-    %v12 = load %rhs.discriminant : Int
+    %x = load %lhs@Some : I32
+    %v12 = load %rhs.discriminant : I32
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b1
 
   b3:
-    %y = load %rhs@Some : Int
+    %y = load %rhs@Some : I32
     %v17 = cmp_eq %x, %y : Bool
     jmp b7
 
@@ -295,7 +295,7 @@ fn Eq(Opt(a)).==(Int)(%lhs: Opt(Int), %rhs: Opt(Int)) -> Bool {
     jmp b7
 
   b5:
-    %v20 = load %rhs.discriminant : Int
+    %v20 = load %rhs.discriminant : I32
     %v22 = cmp_eq %v20, 0 : Bool
     je %v22, b6, b4
 
@@ -307,9 +307,9 @@ fn Eq(Opt(a)).==(Int)(%lhs: Opt(Int), %rhs: Opt(Int)) -> Bool {
     ret %v2
 }
 
-fn Eq(Opt(a)).!=(Int)(%lhs: Opt(Int), %rhs: Opt(Int)) -> Bool {
+fn Eq(Opt(a)).!=(I32)(%lhs: Opt(I32), %rhs: Opt(I32)) -> Bool {
   b0:
-    %v2 = call Eq(Opt(a)).==(Int), %lhs, %rhs : Bool
+    %v2 = call Eq(Opt(a)).==(I32), %lhs, %rhs : Bool
     %v4 = xor %v2, True : Bool
     ret %v4
 }
@@ -323,18 +323,18 @@ fn Eq(Opt(a)).!=(Bool)(%lhs: Opt(Bool), %rhs: Opt(Bool)) -> Bool {
 
 fn Eq(Opt(a)).==(Bool)(%lhs: Opt(Bool), %rhs: Opt(Bool)) -> Bool {
   b0:
-    %v3 = load %lhs.discriminant : Int
+    %v3 = load %lhs.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
   b1:
-    %v7 = load %lhs.discriminant : Int
+    %v7 = load %lhs.discriminant : I32
     %v9 = cmp_eq %v7, 0 : Bool
     je %v9, b5, b4
 
   b2:
     %x = load %lhs@Some : Bool
-    %v12 = load %rhs.discriminant : Int
+    %v12 = load %rhs.discriminant : I32
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b1
 
@@ -347,7 +347,7 @@ fn Eq(Opt(a)).==(Bool)(%lhs: Opt(Bool), %rhs: Opt(Bool)) -> Bool {
     jmp b7
 
   b5:
-    %v20 = load %rhs.discriminant : Int
+    %v20 = load %rhs.discriminant : I32
     %v22 = cmp_eq %v20, 0 : Bool
     je %v22, b6, b4
 
@@ -377,18 +377,18 @@ fn smaller(%I64)(%x: %I64, %y: %I64) -> %I64 {
 
 fn Eq(Opt(a)).==(%I64)(%lhs: Opt(%I64), %rhs: Opt(%I64)) -> Bool {
   b0:
-    %v3 = load %lhs.discriminant : Int
+    %v3 = load %lhs.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
   b1:
-    %v7 = load %lhs.discriminant : Int
+    %v7 = load %lhs.discriminant : I32
     %v9 = cmp_eq %v7, 0 : Bool
     je %v9, b5, b4
 
   b2:
     %x = load %lhs@Some : %I64
-    %v12 = load %rhs.discriminant : Int
+    %v12 = load %rhs.discriminant : I32
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b3, b1
 
@@ -401,7 +401,7 @@ fn Eq(Opt(a)).==(%I64)(%lhs: Opt(%I64), %rhs: Opt(%I64)) -> Bool {
     jmp b7
 
   b5:
-    %v20 = load %rhs.discriminant : Int
+    %v20 = load %rhs.discriminant : I32
     %v22 = cmp_eq %v20, 0 : Bool
     je %v22, b6, b4
 

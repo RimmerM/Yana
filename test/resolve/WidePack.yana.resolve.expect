@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn check(%actual: U32, %expected: U32, %weight: Int) -> Int {
+fn check(%actual: U32, %expected: U32, %weight: I32) -> I32 {
   b0:
     %v3 = cmp_eq %actual, %expected : Bool
     je %v3, b1, b2
@@ -12,11 +12,11 @@ fn check(%actual: U32, %expected: U32, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, %weight], [b2, 0] : Int
+    %v8 = phi [b1, %weight], [b2, 0] : I32
     ret %v8
 }
 
-fn checkI(%actual: I32, %expected: I32, %weight: Int) -> Int {
+fn checkI(%actual: I32, %expected: I32, %weight: I32) -> I32 {
   b0:
     %v3 = cmp_eq %actual, %expected : Bool
     je %v3, b1, b2
@@ -28,11 +28,11 @@ fn checkI(%actual: I32, %expected: I32, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, %weight], [b2, 0] : Int
+    %v8 = phi [b1, %weight], [b2, 0] : I32
     ret %v8
 }
 
-fn checkW(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
+fn checkW(%actual: WideInt, %expected: WideInt, %weight: I32) -> I32 {
   b0:
     %v3 = cmp_eq %actual, %expected : Bool
     je %v3, b1, b2
@@ -44,7 +44,7 @@ fn checkW(%actual: WideInt, %expected: WideInt, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v8 = phi [b1, %weight], [b2, 0] : Int
+    %v8 = phi [b1, %weight], [b2, 0] : I32
     ret %v8
 }
 
@@ -172,87 +172,87 @@ fn boxed() -> Boxed {
     ret %v11
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Pair
     init %local0@Pair.a, 1000
     init %local0@Pair.b, 999999
     %v5 = call readB, %v0 : @bits(20) U32
     %v6 = cast %v5 : U32
-    %v9 = call check, %v6, 999999, 1 : Int
+    %v9 = call check, %v6, 999999, 1 : I32
     %v10 = call writeHigh : Pair
     %v11 = load %local1@Pair.b : @bits(20) U32
     %v14 = cast %v11 : U32
-    %v15 = call check, %v14, 1048575, 2 : Int
-    %v16 = add %v9, %v15 : Int
+    %v15 = call check, %v14, 1048575, 2 : I32
+    %v16 = add %v9, %v15 : I32
     %v17 = call writeHigh : Pair
     %v18 = load %local2@Pair.a : @bits(20) U32
     %v21 = cast %v18 : U32
-    %v22 = call check, %v21, 1000, 4 : Int
-    %v23 = add %v16, %v22 : Int
+    %v22 = call check, %v21, 1000, 4 : I32
+    %v23 = add %v16, %v22 : I32
     %v24 = call writeLow : Pair
     %v25 = load %local3@Pair.b : @bits(20) U32
     %v28 = cast %v25 : U32
-    %v29 = call check, %v28, 999999, 8 : Int
-    %v30 = add %v23, %v29 : Int
+    %v29 = call check, %v28, 999999, 8 : I32
+    %v30 = add %v23, %v29 : I32
     %v31 = call bumpedHigh : Pair
     %v32 = load %local4@Pair.b : @bits(20) U32
     %v35 = cast %v32 : U32
-    %v36 = call check, %v35, 1000000, 16 : Int
-    %v37 = add %v30, %v36 : Int
+    %v36 = call check, %v35, 1000000, 16 : I32
+    %v37 = add %v30, %v36 : I32
     %v38 = call bumpedHigh : Pair
     %v39 = load %local5@Pair.a : @bits(20) U32
     %v42 = cast %v39 : U32
-    %v43 = call check, %v42, 1000, 32 : Int
-    %v44 = add %v37, %v43 : Int
+    %v43 = call check, %v42, 1000, 32 : I32
+    %v44 = add %v37, %v43 : I32
     %v45 = call marked : Marked
     %v46 = load %local6@Marked.m : @bits(20) I32
     %v50 = sub 0, 3 : I32
     %v52 = cast %v46 : I32
-    %v53 = call checkI, %v52, %v50, 64 : Int
-    %v54 = add %v44, %v53 : Int
+    %v53 = call checkI, %v52, %v50, 64 : I32
+    %v54 = add %v44, %v53 : I32
     %v55 = call marked : Marked
     %v56 = load %local7@Marked.a : @bits(20) U32
     %v59 = cast %v56 : U32
-    %v60 = call check, %v59, 5, 128 : Int
-    %v61 = add %v54, %v60 : Int
+    %v60 = call check, %v59, 5, 128 : I32
+    %v61 = add %v54, %v60 : I32
     %v62 = call tagged : Tagged
     %v63 = load %local8@Tagged.v : @bits(40) WideInt
     %v66 = cast %v63 : WideInt
-    %v67 = call checkW, %v66, 549755813887, 256 : Int
-    %v68 = add %v61, %v67 : Int
+    %v67 = call checkW, %v66, 549755813887, 256 : I32
+    %v68 = add %v61, %v67 : I32
     %v69 = call tagged : Tagged
     %v70 = load %local9@Tagged.t : @bits(4) U32
     %v73 = cast %v70 : U32
-    %v74 = call check, %v73, 9, 512 : Int
-    %v75 = add %v68, %v74 : Int
+    %v74 = call check, %v73, 9, 512 : I32
+    %v75 = add %v68, %v74 : I32
     %v76 = call retagged : Tagged
     %v77 = load %local10@Tagged.v : @bits(40) WideInt
     %v81 = sub 0, 2 : WideInt
     %v83 = cast %v77 : WideInt
-    %v84 = call checkW, %v83, %v81, 1024 : Int
-    %v85 = add %v75, %v84 : Int
+    %v84 = call checkW, %v83, %v81, 1024 : I32
+    %v85 = add %v75, %v84 : I32
     %v86 = call retagged : Tagged
     %v87 = load %local11@Tagged.t : @bits(4) U32
     %v90 = cast %v87 : U32
-    %v91 = call check, %v90, 9, 2048 : Int
-    %v92 = add %v85, %v91 : Int
+    %v91 = call check, %v90, 9, 2048 : I32
+    %v92 = add %v85, %v91 : I32
     %v93 = call boxed : Boxed
     %v94 = load %local12@Boxed.b : @bits(12) U32
     %v97 = cast %v94 : U32
-    %v98 = call check, %v97, 0, 4096 : Int
-    %v99 = add %v92, %v98 : Int
+    %v98 = call check, %v97, 0, 4096 : I32
+    %v99 = add %v92, %v98 : I32
     %v101 = call stored, 549755813887 : Tagged
     %v102 = load %local13@Tagged.v : @bits(40) WideInt
     %v105 = cast %v102 : WideInt
-    %v106 = call checkW, %v105, 549755813887, 8192 : Int
-    %v107 = add %v99, %v106 : Int
+    %v106 = call checkW, %v105, 549755813887, 8192 : I32
+    %v107 = add %v99, %v106 : I32
     %v111 = sub 0, 549755813888 : WideInt
     %v112 = call stored, %v111 : Tagged
     %v113 = load %local14@Tagged.v : @bits(40) WideInt
     %v117 = sub 0, 549755813888 : WideInt
     %v119 = cast %v113 : WideInt
-    %v120 = call checkW, %v119, %v117, 16384 : Int
-    %v121 = add %v107, %v120 : Int
+    %v120 = call checkW, %v119, %v117, 16384 : I32
+    %v121 = add %v107, %v120 : I32
     ret %v121
 }

@@ -1,40 +1,40 @@
 @image$base = []
 
-opaque<complex>(%x: Double): Double {
+opaque<complex>(%x: F64): F64 {
   b_0 {
     ret %x
   }
 }
 
-barrier<complex>(%x: Int): Int {
+barrier<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %first = call_complex opaque, -0.5: Double
-    %opened = call_complex barrier, 0: Int
-    %v_1 = cmp_eq %first, -0.5: Int
-    %a = call_complex opaque, 7.25: Double
-    %doubled = add %a, %a: Double
-    %raised = add %a, 1: Double
-    %v_2 = call_complex barrier, %opened: Int
-    %v_3 = call_complex barrier, %v_2: Int
-    %held = call_complex barrier, %v_3: Int
-    %v_4 = cmp_eq %doubled, 14.5: Int
-    %v_5 = select %v_4, 2, 0: Int
-    %v_6 = add %v_1, %v_5: Int
-    %v_7 = cmp_eq %raised, 8.25: Int
-    %v_8 = select %v_7, 4, 0: Int
-    %v_9 = add %v_6, %v_8: Int
-    %v_10 = cmp_eq %a, 7.25: Int
-    %v_11 = select %v_10, 8, 0: Int
-    %v_12 = add %v_9, %v_11: Int
-    %v_13 = cmp_eq %held, 0: Int
-    %v_14 = select %v_13, 16, 0: Int
-    %v_15 = add %v_12, %v_14: Int
+    %first = call_complex opaque, -0.5: F64
+    %opened = call_complex barrier, 0: I32
+    %v_1 = cmp_eq %first, -0.5: I32
+    %a = call_complex opaque, 7.25: F64
+    %doubled = add %a, %a: F64
+    %raised = add %a, 1: F64
+    %v_2 = call_complex barrier, %opened: I32
+    %v_3 = call_complex barrier, %v_2: I32
+    %held = call_complex barrier, %v_3: I32
+    %v_4 = cmp_eq %doubled, 14.5: I32
+    %v_5 = select %v_4, 2, 0: I32
+    %v_6 = add %v_1, %v_5: I32
+    %v_7 = cmp_eq %raised, 8.25: I32
+    %v_8 = select %v_7, 4, 0: I32
+    %v_9 = add %v_6, %v_8: I32
+    %v_10 = cmp_eq %a, 7.25: I32
+    %v_11 = select %v_10, 8, 0: I32
+    %v_12 = add %v_9, %v_11: I32
+    %v_13 = cmp_eq %held, 0: I32
+    %v_14 = select %v_13, 16, 0: I32
+    %v_15 = add %v_12, %v_14: I32
     ret %v_15
   }
 }

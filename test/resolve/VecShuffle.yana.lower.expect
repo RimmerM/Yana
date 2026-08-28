@@ -1,15 +1,15 @@
 @image$base = []
 mut @seed = [2, 0, 0, 0]
 
-oneSource<complex>(): Int {
+oneSource<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = vwithlane %v_1, 1, 1: i32x4
     %v_3 = vwithlane %v_2, 2, 2: i32x4
     %v = vwithlane %v_3, 3, 3: i32x4
     %backwards = vshuffle %v, %v, 3, 2, 1, 0: i32x4
-    %v_4 = vlane %backwards, 0: Int
-    %v_5 = cmp_neq %v_4, 3: Int
+    %v_4 = vlane %backwards, 0: I32
+    %v_5 = cmp_neq %v_4, 3: I32
     je %v_5, b_6, b_7
   }
 
@@ -19,8 +19,8 @@ oneSource<complex>(): Int {
 
   b_7 {
     %broadcast = vshuffle %v, %v, 2, 2, 2, 2: i32x4
-    %v_8 = vlane %broadcast, 0: Int
-    %v_9 = cmp_neq %v_8, 2: Int
+    %v_8 = vlane %broadcast, 0: I32
+    %v_9 = cmp_neq %v_8, 2: I32
     je %v_9, b_10, b_11
   }
 
@@ -29,8 +29,8 @@ oneSource<complex>(): Int {
   }
 
   b_11 {
-    %v_12 = vlane %broadcast, 3: Int
-    %v_13 = cmp_neq %v_12, 2: Int
+    %v_12 = vlane %broadcast, 3: I32
+    %v_13 = cmp_neq %v_12, 2: I32
     je %v_13, b_14, b_15
   }
 
@@ -40,8 +40,8 @@ oneSource<complex>(): Int {
 
   b_15 {
     %doubled = vshuffle %v, %v, 2, 3, 2, 3: i32x4
-    %v_16 = vlane %doubled, 0: Int
-    %v_17 = cmp_neq %v_16, 2: Int
+    %v_16 = vlane %doubled, 0: I32
+    %v_17 = cmp_neq %v_16, 2: I32
     je %v_17, b_18, b_19
   }
 
@@ -50,17 +50,17 @@ oneSource<complex>(): Int {
   }
 
   b_19 {
-    %v_20 = vlane %doubled, 2: Int
-    %v_21 = cmp_neq %v_20, 2: Int
-    %v_22 = vlane %doubled, 3: Int
-    %v_23 = cmp_neq %v_22, 3: Int
-    %v_24 = select %v_23, 18446744073709551608, 0: Int
-    %v_25 = select %v_21, 18446744073709551609, %v_24: Int
+    %v_20 = vlane %doubled, 2: I32
+    %v_21 = cmp_neq %v_20, 2: I32
+    %v_22 = vlane %doubled, 3: I32
+    %v_23 = cmp_neq %v_22, 3: I32
+    %v_24 = select %v_23, 18446744073709551608, 0: I32
+    %v_25 = select %v_21, 18446744073709551609, %v_24: I32
     ret %v_25
   }
 }
 
-twoSources<complex>(): Int {
+twoSources<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = vwithlane %v_1, 1, 1: i32x4
@@ -69,8 +69,8 @@ twoSources<complex>(): Int {
     %v_4 = vsplat 10: i32x4
     %high = add %v_4, %low: i32x4
     %mixed = vshuffle %low, %high, 1, 0, 7, 6: i32x4
-    %v_5 = vlane %mixed, 0: Int
-    %v_6 = cmp_neq %v_5, 1: Int
+    %v_5 = vlane %mixed, 0: I32
+    %v_6 = cmp_neq %v_5, 1: I32
     je %v_6, b_7, b_8
   }
 
@@ -79,8 +79,8 @@ twoSources<complex>(): Int {
   }
 
   b_8 {
-    %v_9 = vlane %mixed, 1: Int
-    %v_10 = cmp_neq %v_9, 0: Int
+    %v_9 = vlane %mixed, 1: I32
+    %v_10 = cmp_neq %v_9, 0: I32
     je %v_10, b_11, b_12
   }
 
@@ -89,8 +89,8 @@ twoSources<complex>(): Int {
   }
 
   b_12 {
-    %v_13 = vlane %mixed, 2: Int
-    %v_14 = cmp_neq %v_13, 13: Int
+    %v_13 = vlane %mixed, 2: I32
+    %v_14 = cmp_neq %v_13, 13: I32
     je %v_14, b_15, b_16
   }
 
@@ -99,18 +99,18 @@ twoSources<complex>(): Int {
   }
 
   b_16 {
-    %v_17 = vlane %mixed, 3: Int
-    %v_18 = cmp_neq %v_17, 12: Int
+    %v_17 = vlane %mixed, 3: I32
+    %v_18 = cmp_neq %v_17, 12: I32
     %window = vshuffle %high, %low, 5, 6, 7, 0: i32x4
-    %v_19 = vlane %window, 3: Int
-    %v_20 = cmp_neq %v_19, 10: Int
-    %v_21 = select %v_20, 18446744073709551609, 0: Int
-    %v_22 = select %v_18, 18446744073709551612, %v_21: Int
+    %v_19 = vlane %window, 3: I32
+    %v_20 = cmp_neq %v_19, 10: I32
+    %v_21 = select %v_20, 18446744073709551609, 0: I32
+    %v_22 = select %v_18, 18446744073709551612, %v_21: I32
     ret %v_22
   }
 }
 
-byteLane<complex>(): Int {
+byteLane<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i8x16
     %v_2 = vwithlane %v_1, 1, 1: i8x16
@@ -129,8 +129,8 @@ byteLane<complex>(): Int {
     %v_15 = vwithlane %v_14, 14, 14: i8x16
     %v = vwithlane %v_15, 15, 15: i8x16
     %swapped = vshuffle %v, %v, 3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12: i8x16
-    %v_16 = vlane %swapped, 0: Int
-    %v_17 = cmp_neq %v_16, 3: Int
+    %v_16 = vlane %swapped, 0: I32
+    %v_17 = cmp_neq %v_16, 3: I32
     je %v_17, b_18, b_19
   }
 
@@ -143,8 +143,8 @@ byteLane<complex>(): Int {
   }
 
   b_20 {
-    %v_21 = vlane %swapped, 3: Int
-    %v_22 = cmp_neq %v_21, 0: Int
+    %v_21 = vlane %swapped, 3: I32
+    %v_22 = cmp_neq %v_21, 0: I32
     je %v_22, b_23, b_24
   }
 
@@ -157,8 +157,8 @@ byteLane<complex>(): Int {
   }
 
   b_25 {
-    %v_26 = vlane %swapped, 4: Int
-    %v_27 = cmp_neq %v_26, 7: Int
+    %v_26 = vlane %swapped, 4: I32
+    %v_27 = cmp_neq %v_26, 7: I32
     je %v_27, b_28, b_29
   }
 
@@ -171,8 +171,8 @@ byteLane<complex>(): Int {
   }
 
   b_30 {
-    %v_31 = vlane %swapped, 15: Int
-    %v_32 = cmp_neq %v_31, 12: Int
+    %v_31 = vlane %swapped, 15: I32
+    %v_32 = cmp_neq %v_31, 12: I32
     je %v_32, b_33, b_34
   }
 
@@ -186,8 +186,8 @@ byteLane<complex>(): Int {
 
   b_35 {
     %backwards = vshuffle %v, %v, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0: i8x16
-    %v_36 = vlane %backwards, 0: Int
-    %v_37 = cmp_neq %v_36, 15: Int
+    %v_36 = vlane %backwards, 0: I32
+    %v_37 = cmp_neq %v_36, 15: I32
     je %v_37, b_38, b_39
   }
 
@@ -200,8 +200,8 @@ byteLane<complex>(): Int {
   }
 
   b_40 {
-    %v_41 = vlane %backwards, 15: Int
-    %v_42 = cmp_neq %v_41, 0: Int
+    %v_41 = vlane %backwards, 15: I32
+    %v_42 = cmp_neq %v_41, 0: I32
     je %v_42, b_43, b_44
   }
 
@@ -218,15 +218,15 @@ byteLane<complex>(): Int {
   }
 }
 
-floatLane<complex>(): Int {
+floatLane<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: f32x4
     %v_2 = vwithlane %v_1, 1, 1: f32x4
     %v_3 = vwithlane %v_2, 2, 2: f32x4
     %v_4 = vwithlane %v_3, 3, 3: f32x4
     %v = vshuffle %v_4, %v_4, 3, 2, 1, 0: f32x4
-    %v_5 = vlane %v, 0: Float
-    %v_6 = cmp_neq %v_5, 3: Int
+    %v_5 = vlane %v, 0: F32
+    %v_6 = cmp_neq %v_5, 3: I32
     je %v_6, b_7, b_8
   }
 
@@ -239,8 +239,8 @@ floatLane<complex>(): Int {
   }
 
   b_9 {
-    %v_10 = vlane %v, 3: Float
-    %v_11 = cmp_neq %v_10, 0: Int
+    %v_10 = vlane %v, 3: F32
+    %v_11 = cmp_neq %v_10, 0: I32
     je %v_11, b_12, b_13
   }
 
@@ -257,13 +257,13 @@ floatLane<complex>(): Int {
   }
 }
 
-runtime<complex>(%v: i32x4): Int {
+runtime<complex>(%v: i32x4): I32 {
   b_0 {
     %backwards = vshuffle %v, %v, 3, 2, 1, 0: i32x4
     %mixed = vshuffle %v, %backwards, 0, 1, 6, 7: i32x4
-    %v_1 = vlane %backwards, 0: Int
-    %v_2 = vlane %v, 3: Int
-    %v_3 = cmp_neq %v_1, %v_2: Int
+    %v_1 = vlane %backwards, 0: I32
+    %v_2 = vlane %v, 3: I32
+    %v_3 = cmp_neq %v_1, %v_2: I32
     je %v_3, b_4, b_5
   }
 
@@ -276,9 +276,9 @@ runtime<complex>(%v: i32x4): Int {
   }
 
   b_6 {
-    %v_7 = vlane %mixed, 0: Int
-    %v_8 = vlane %v, 0: Int
-    %v_9 = cmp_neq %v_7, %v_8: Int
+    %v_7 = vlane %mixed, 0: I32
+    %v_8 = vlane %v, 0: I32
+    %v_9 = cmp_neq %v_7, %v_8: I32
     je %v_9, b_10, b_11
   }
 
@@ -291,9 +291,9 @@ runtime<complex>(%v: i32x4): Int {
   }
 
   b_12 {
-    %v_13 = vlane %mixed, 2: Int
-    %v_14 = vlane %v, 1: Int
-    %v_15 = cmp_neq %v_13, %v_14: Int
+    %v_13 = vlane %mixed, 2: I32
+    %v_14 = vlane %v, 1: I32
+    %v_15 = cmp_neq %v_13, %v_14: I32
     je %v_15, b_16, b_17
   }
 
@@ -306,8 +306,8 @@ runtime<complex>(%v: i32x4): Int {
   }
 
   b_18 {
-    %v_19 = vlane %mixed, 3: Int
-    %v_20 = cmp_neq %v_19, %v_8: Int
+    %v_19 = vlane %mixed, 3: I32
+    %v_20 = cmp_neq %v_19, %v_8: I32
     je %v_20, b_21, b_22
   }
 
@@ -324,22 +324,22 @@ runtime<complex>(%v: i32x4): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x4
     %v_2 = vwithlane %v_1, 1, 1: i32x4
     %v_3 = vwithlane %v_2, 2, 2: i32x4
     %v_4 = vwithlane %v_3, 3, 3: i32x4
-    %v_5 = loads @seed, 4: Int
+    %v_5 = loads @seed, 4: I32
     %v_6 = vsplat %v_5: i32x4
     %v = add %v_4, %v_6: i32x4
-    %v_7 = call_complex oneSource: Int
-    %v_8 = cmp_neq %v_7, 0: Int
+    %v_7 = call_complex oneSource: I32
+    %v_8 = cmp_neq %v_7, 0: I32
     je %v_8, b_9, b_10
   }
 
   b_9 {
-    %v_11 = call_complex oneSource: Int
+    %v_11 = call_complex oneSource: I32
     ret %v_11
   }
 
@@ -348,14 +348,14 @@ main<complex>(): Int {
   }
 
   b_12 {
-    %v_13 = call_complex twoSources: Int
-    %v_14 = cmp_neq %v_13, 0: Int
+    %v_13 = call_complex twoSources: I32
+    %v_14 = cmp_neq %v_13, 0: I32
     je %v_14, b_15, b_16
   }
 
   b_15 {
-    %v_17 = call_complex twoSources: Int
-    %v_18 = imul %v_17, 10: Int
+    %v_17 = call_complex twoSources: I32
+    %v_18 = imul %v_17, 10: I32
     ret %v_18
   }
 
@@ -364,14 +364,14 @@ main<complex>(): Int {
   }
 
   b_19 {
-    %v_20 = call_complex byteLane: Int
-    %v_21 = cmp_neq %v_20, 0: Int
+    %v_20 = call_complex byteLane: I32
+    %v_21 = cmp_neq %v_20, 0: I32
     je %v_21, b_22, b_23
   }
 
   b_22 {
-    %v_24 = call_complex byteLane: Int
-    %v_25 = imul %v_24, 100: Int
+    %v_24 = call_complex byteLane: I32
+    %v_25 = imul %v_24, 100: I32
     ret %v_25
   }
 
@@ -380,14 +380,14 @@ main<complex>(): Int {
   }
 
   b_26 {
-    %v_27 = call_complex floatLane: Int
-    %v_28 = cmp_neq %v_27, 0: Int
+    %v_27 = call_complex floatLane: I32
+    %v_28 = cmp_neq %v_27, 0: I32
     je %v_28, b_29, b_30
   }
 
   b_29 {
-    %v_31 = call_complex floatLane: Int
-    %v_32 = imul %v_31, 1000: Int
+    %v_31 = call_complex floatLane: I32
+    %v_32 = imul %v_31, 1000: I32
     ret %v_32
   }
 
@@ -396,14 +396,14 @@ main<complex>(): Int {
   }
 
   b_33 {
-    %v_34 = call_complex runtime, %v: Int
-    %v_35 = cmp_neq %v_34, 0: Int
+    %v_34 = call_complex runtime, %v: I32
+    %v_35 = cmp_neq %v_34, 0: I32
     je %v_35, b_36, b_37
   }
 
   b_36 {
-    %v_38 = call_complex runtime, %v: Int
-    %v_39 = imul %v_38, 10000: Int
+    %v_38 = call_complex runtime, %v: I32
+    %v_39 = imul %v_38, 10000: I32
     ret %v_39
   }
 

@@ -39,18 +39,21 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
                 return;
             }
 
-            // Core's Int and Native's I32 have the same shape and different names, so an integer
-            // type says which one it is rather than describing its width.
+            // Every primitive integer is declared under a name and prints as it - which since
+            // Analysis-Spellings.md item 7 is one name per width, `Int` and `I32` having become the
+            // same type rather than two of the same shape.
             auto name = integer->name;
             if(name) {
                 target << context.findName(name);
                 return;
             }
 
+            // What is left without one is a type the compiler built: a `Bool`, and the register
+            // class an unnamed integer occupies.
             switch(((IntType*)base[type])->width) {
                 case IntType::Bool: target << "Bool"; return;
-                case IntType::Int: target << "Int"; return;
-                case IntType::Long: target << "Long"; return;
+                case IntType::Int: target << "I32"; return;
+                case IntType::Long: target << "I64"; return;
             }
             return;
         }
@@ -157,7 +160,7 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
             return;
         }
         case Type::Float:
-            target << (((FloatType*)base[type])->width == FloatType::Float ? "Float" : "Double");
+            target << (((FloatType*)base[type])->width == FloatType::Float ? "F32" : "F64");
             return;
         case Type::Gen:
             target << context.findName(((GenType*)base[type])->name);

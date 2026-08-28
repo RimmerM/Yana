@@ -1,8 +1,8 @@
 let image$base: () = <none>
 
-let &seed: Int = 2
+let &seed: I32 = 2
 
-fn oneSource() -> Int {
+fn oneSource() -> I32 {
   b0:
     %v1 = vsplat 0 : Vec(U32)
     %v3 = vwithlane %v1, 1, 1 : Vec(U32)
@@ -105,7 +105,7 @@ fn oneSource() -> Int {
     ret 0
 }
 
-fn twoSources() -> Int {
+fn twoSources() -> I32 {
   b0:
     %v1 = vsplat 0 : Vec(U32)
     %v3 = vwithlane %v1, 1, 1 : Vec(U32)
@@ -198,7 +198,7 @@ fn twoSources() -> Int {
     ret 0
 }
 
-fn byteLane() -> Int {
+fn byteLane() -> I32 {
   b0:
     %v1 = vsplat 0 : Vec(U8)
     %v3 = vwithlane %v1, 1, 1 : Vec(U8)
@@ -287,14 +287,14 @@ fn byteLane() -> Int {
     ret 0
 }
 
-fn floatLane() -> Int {
+fn floatLane() -> I32 {
   b0:
-    %v1 = vsplat 0 : Vec(Float)
-    %v3 = vwithlane %v1, 1, 1 : Vec(Float)
-    %v5 = vwithlane %v3, 2, 2 : Vec(Float)
-    %v7 = vwithlane %v5, 3, 3 : Vec(Float)
-    %v = vshuffle %v7, %v7, 3, 2, 1, 0 : Vec(Float)
-    %v21 = vlane %v, 0 : Float
+    %v1 = vsplat 0 : Vec(F32)
+    %v3 = vwithlane %v1, 1, 1 : Vec(F32)
+    %v5 = vwithlane %v3, 2, 2 : Vec(F32)
+    %v7 = vwithlane %v5, 3, 3 : Vec(F32)
+    %v = vshuffle %v7, %v7, 3, 2, 1, 0 : Vec(F32)
+    %v21 = vlane %v, 0 : F32
     %v24 = cmp_ne %v21, 3 : Bool
     je %v24, b1, b2
 
@@ -305,7 +305,7 @@ fn floatLane() -> Int {
     jmp b3
 
   b3:
-    %v31 = vlane %v, 3 : Float
+    %v31 = vlane %v, 3 : F32
     %v34 = cmp_ne %v31, 0 : Bool
     je %v34, b4, b5
 
@@ -319,7 +319,7 @@ fn floatLane() -> Int {
     ret 0
 }
 
-fn runtime(%v: Vec(U32)) -> Int {
+fn runtime(%v: Vec(U32)) -> I32 {
   b0:
     %backwards = vshuffle %v, %v, 3, 2, 1, 0 : Vec(U32)
     %mixed = vshuffle %v, %backwards, 0, 1, 6, 7 : Vec(U32)
@@ -374,74 +374,74 @@ fn runtime(%v: Vec(U32)) -> Int {
     ret 0
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = vsplat 0 : Vec(U32)
     %v3 = vwithlane %v1, 1, 1 : Vec(U32)
     %v5 = vwithlane %v3, 2, 2 : Vec(U32)
     %v7 = vwithlane %v5, 3, 3 : Vec(U32)
-    %v8 = load seed : Int
+    %v8 = load seed : I32
     %v9 = cast %v8 : U32
     %v10 = vsplat %v9 : Vec(U32)
     %v = add %v7, %v10 : Vec(U32)
-    %v12 = call oneSource : Int
+    %v12 = call oneSource : I32
     %v15 = cmp_ne %v12, 0 : Bool
     je %v15, b1, b2
 
   b1:
-    %v17 = call oneSource : Int
+    %v17 = call oneSource : I32
     ret %v17
 
   b2:
     jmp b3
 
   b3:
-    %v20 = call twoSources : Int
+    %v20 = call twoSources : I32
     %v23 = cmp_ne %v20, 0 : Bool
     je %v23, b4, b5
 
   b4:
-    %v25 = call twoSources : Int
-    %v28 = mul %v25, 10 : Int
+    %v25 = call twoSources : I32
+    %v28 = mul %v25, 10 : I32
     ret %v28
 
   b5:
     jmp b6
 
   b6:
-    %v31 = call byteLane : Int
+    %v31 = call byteLane : I32
     %v34 = cmp_ne %v31, 0 : Bool
     je %v34, b7, b8
 
   b7:
-    %v36 = call byteLane : Int
-    %v39 = mul %v36, 100 : Int
+    %v36 = call byteLane : I32
+    %v39 = mul %v36, 100 : I32
     ret %v39
 
   b8:
     jmp b9
 
   b9:
-    %v42 = call floatLane : Int
+    %v42 = call floatLane : I32
     %v45 = cmp_ne %v42, 0 : Bool
     je %v45, b10, b11
 
   b10:
-    %v47 = call floatLane : Int
-    %v50 = mul %v47, 1000 : Int
+    %v47 = call floatLane : I32
+    %v50 = mul %v47, 1000 : I32
     ret %v50
 
   b11:
     jmp b12
 
   b12:
-    %v53 = call runtime, %v : Int
+    %v53 = call runtime, %v : I32
     %v56 = cmp_ne %v53, 0 : Bool
     je %v56, b13, b14
 
   b13:
-    %v58 = call runtime, %v : Int
-    %v61 = mul %v58, 10000 : Int
+    %v58 = call runtime, %v : I32
+    %v61 = mul %v58, 10000 : I32
     ret %v61
 
   b14:

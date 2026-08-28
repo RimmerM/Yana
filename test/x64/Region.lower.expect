@@ -1,98 +1,98 @@
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-callee<complex>(%x: Int): Int {
+callee<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-regionUnderPressure<complex>(%n: Int, %p: Ptr): Long {
+regionUnderPressure<complex>(%n: I32, %p: Ptr): I64 {
   entry {
-    %zero = cast 0: Long
-    %a0 = load %p, 1: Long
-    %a1 = load %p, 8: Long
-    %a2 = load %p, 16: Long
-    %a3 = load %p, 8: Long
-    %a4 = load %p, 32: Long
-    %a5 = load %p, 8: Long
-    %a6 = load %p, 16: Long
-    %a7 = load %p, 8: Long
-    %a8 = load %p, 64: Long
-    %a9 = load %p, 8: Long
+    %zero = cast 0: I64
+    %a0 = load %p, 1: I64
+    %a1 = load %p, 8: I64
+    %a2 = load %p, 16: I64
+    %a3 = load %p, 8: I64
+    %a4 = load %p, 32: I64
+    %a5 = load %p, 8: I64
+    %a6 = load %p, 16: I64
+    %a7 = load %p, 8: I64
+    %a8 = load %p, 64: I64
+    %a9 = load %p, 8: I64
     %target = load %p, 8: Ptr
-    %r0 = call_complex callee, %n: Int
+    %r0 = call_complex callee, %n: I32
     jmp preloop
   }
 
   preloop {
-    %u0 = add %zero, %a0: Long
-    %u1 = add %u0, %a1: Long
-    %u2 = add %u1, %a2: Long
-    %u3 = add %u2, %a3: Long
-    %u4 = add %u3, %a4: Long
-    %u5 = add %u4, %a5: Long
-    %u6 = add %u5, %a6: Long
-    %u7 = add %u6, %a7: Long
-    %u8 = add %u7, %a8: Long
-    %u9 = add %u8, %a9: Long
+    %u0 = add %zero, %a0: I64
+    %u1 = add %u0, %a1: I64
+    %u2 = add %u1, %a2: I64
+    %u3 = add %u2, %a3: I64
+    %u4 = add %u3, %a4: I64
+    %u5 = add %u4, %a5: I64
+    %u6 = add %u5, %a6: I64
+    %u7 = add %u6, %a7: I64
+    %u8 = add %u7, %a8: I64
+    %u9 = add %u8, %a9: I64
     jmp head
   }
 
   head {
-    %i = phi [preloop, %zero], [body, %i2]: Long
-    %acc = phi [preloop, %u9], [body, %acc2]: Long
+    %i = phi [preloop, %zero], [body, %i2]: I64
+    %acc = phi [preloop, %u9], [body, %acc2]: I64
     je %n, tail, body
   }
 
   body {
-    %w = load %target, 1: Long
-    %r1 = call_complex callee, %n: Int
-    %acc2 = add %acc, %w: Long
-    %i2 = add %i, 1: Long
+    %w = load %target, 1: I64
+    %r1 = call_complex callee, %n: I32
+    %acc2 = add %acc, %w: I64
+    %i2 = add %i, 1: I64
     jmp head
   }
 
   tail {
-    %z = load %target, 8: Long
-    %f = add %acc, %z: Long
+    %z = load %target, 8: I64
+    %f = add %acc, %z: I64
     ret %f
   }
 }
 
-regionCached<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+regionCached<complex>(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
   entry {
-    %zero = cast 0: Long
-    %r = call_clobber sink, %n: Int
+    %zero = cast 0: I64
+    %r = call_clobber sink, %n: I32
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [latch, %i2]: Long
-    %acc = phi [entry, %zero], [latch, %acc3]: Long
+    %i = phi [entry, %zero], [latch, %i2]: I64
+    %acc = phi [entry, %zero], [latch, %acc3]: I64
     je %n, exit, first
   }
 
   first {
-    %a = load %p, 8: Long
-    %acc1 = add %acc, %a: Long
+    %a = load %p, 8: I64
+    %acc1 = add %acc, %a: I64
     jmp second
   }
 
   second {
-    %b = load %q, 8: Long
-    %acc2 = add %acc1, %b: Long
+    %b = load %q, 8: I64
+    %acc2 = add %acc1, %b: I64
     jmp latch
   }
 
   latch {
-    %c = load %t, 8: Long
-    %acc3 = add %acc2, %c: Long
-    %i2 = add %i, 1: Long
+    %c = load %t, 8: I64
+    %acc3 = add %acc2, %c: I64
+    %i2 = add %i, 1: I64
     jmp head
   }
 
@@ -101,87 +101,87 @@ regionCached<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
   }
 }
 
-regionMoved<complex>(%n: Int, %p: Ptr, %q: Ptr): Long {
+regionMoved<complex>(%n: I32, %p: Ptr, %q: Ptr): I64 {
   entry {
-    %zero = cast 0: Long
-    %r = call_clobber sink, %n: Int
+    %zero = cast 0: I64
+    %r = call_clobber sink, %n: I32
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Long
-    %acc = phi [entry, %zero], [body, %acc2]: Long
+    %i = phi [entry, %zero], [body, %i2]: I64
+    %acc = phi [entry, %zero], [body, %acc2]: I64
     je %n, exit, body
   }
 
   body {
-    %a = load %p, 8: Long
-    %b = load %q, 8: Long
-    %s = add %a, %b: Long
-    %acc2 = add %acc, %s: Long
-    %i2 = add %i, 1: Long
+    %a = load %p, 8: I64
+    %b = load %q, 8: I64
+    %s = add %a, %b: I64
+    %acc2 = add %acc, %s: I64
+    %i2 = add %i, 1: I64
     jmp head
   }
 
   exit {
-    %z = add %acc, 1: Long
+    %z = add %acc, 1: I64
     ret %z
   }
 }
 
-regionTooThin<complex>(%n: Int, %p: Ptr, %q: Ptr): Long {
+regionTooThin<complex>(%n: I32, %p: Ptr, %q: Ptr): I64 {
   entry {
-    %zero = cast 0: Long
-    %r = call_clobber sink, %n: Int
-    %g = load %q, 8: Long
+    %zero = cast 0: I64
+    %r = call_clobber sink, %n: I32
+    %g = load %q, 8: I64
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Long
-    %acc = phi [entry, %zero], [body, %acc2]: Long
+    %i = phi [entry, %zero], [body, %i2]: I64
+    %acc = phi [entry, %zero], [body, %acc2]: I64
     je %n, exit, body
   }
 
   body {
-    %a = load %p, 8: Long
-    %acc2 = add %acc, %a: Long
-    %i2 = add %i, 1: Long
+    %a = load %p, 8: I64
+    %acc2 = add %acc, %a: I64
+    %i2 = add %i, 1: I64
     jmp head
   }
 
   exit {
-    %z = add %acc, %g: Long
+    %z = add %acc, %g: I64
     ret %z
   }
 }
 
-regionLiveBlocksOnly<complex>(%n: Int, %p: Ptr, %t: Ptr): Long {
+regionLiveBlocksOnly<complex>(%n: I32, %p: Ptr, %t: Ptr): I64 {
   entry {
-    %zero = cast 0: Long
-    %r = call_clobber sink, %n: Int
-    %t1 = load %t, 8: Long
-    %t2 = load %t, 8: Long
-    %tv = add %t1, %t2: Long
+    %zero = cast 0: I64
+    %r = call_clobber sink, %n: I32
+    %t1 = load %t, 8: I64
+    %t2 = load %t, 8: I64
+    %tv = add %t1, %t2: I64
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [latch, %i2]: Long
-    %acc = phi [entry, %zero], [latch, %acc2]: Long
+    %i = phi [entry, %zero], [latch, %i2]: I64
+    %acc = phi [entry, %zero], [latch, %acc2]: I64
     je %n, exit, first
   }
 
   first {
-    %x1 = add %acc, %tv: Long
-    %x2 = add %x1, %tv: Long
+    %x1 = add %acc, %tv: I64
+    %x2 = add %x1, %tv: I64
     jmp latch
   }
 
   latch {
-    %a = load %p, 8: Long
-    %acc2 = add %x2, %a: Long
-    %i2 = add %i, 1: Long
+    %a = load %p, 8: I64
+    %acc2 = add %x2, %a: I64
+    %i2 = add %i, 1: I64
     jmp head
   }
 

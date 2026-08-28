@@ -1,31 +1,31 @@
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-scratchAddress<complex>(%arg: Int, %p: Ptr, %i: Long, %p2: Ptr, %i2: Long): Int {
+scratchAddress<complex>(%arg: I32, %p: Ptr, %i: I64, %p2: Ptr, %i2: I64): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
+    %r = call_clobber sink, %arg: I32
     %q = add %p, %i: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     %q2 = add %p2, %i2: Ptr
-    %v2 = load %q2, 4: Int
-    %s = call_clobber sink, %r: Int
-    %t = add %v, %v2: Int
-    %u = add %t, %s: Int
+    %v2 = load %q2, 4: I32
+    %s = call_clobber sink, %r: I32
+    %t = add %v, %v2: I32
+    %u = add %t, %s: I32
     ret %u
   }
 }
 
-scratchAddressStore<complex>(%arg: Int, %keep: Int, %p: Ptr, %i: Long, %tail: Int): Int {
+scratchAddressStore<complex>(%arg: I32, %keep: I32, %p: Ptr, %i: I64, %tail: I32): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
+    %r = call_clobber sink, %arg: I32
     %q = add %p, %i: Ptr
     store %q, %keep, 4
-    %s = add %tail, %r: Int
-    %u = add %s, %tail: Int
+    %s = add %tail, %r: I32
+    %u = add %s, %tail: I32
     ret %u
   }
 }

@@ -1,14 +1,14 @@
-fn natural(%v: Vec(Float)) -> Vec(Float) {
+fn natural(%v: Vec(F32)) -> Vec(F32) {
   b0:
     ret %v
 }
 
-fn explicit(%v: Vec(Float)) -> Vec(Float) {
+fn explicit(%v: Vec(F32)) -> Vec(F32) {
   b0:
     ret %v
 }
 
-fn half(%v: Vec(Float, 2)) -> Vec(Float, 2) {
+fn half(%v: Vec(F32, 2)) -> Vec(F32, 2) {
   b0:
     ret %v
 }
@@ -18,7 +18,7 @@ fn bytes(%v: Vec(U8)) -> Vec(U8) {
     ret %v
 }
 
-fn maskFloat(%m: Mask(Float)) -> Mask(Float) {
+fn maskFloat(%m: Mask(F32)) -> Mask(F32) {
   b0:
     ret %m
 }
@@ -33,19 +33,19 @@ fn refined(%v: Vec(@bits(30) U32)) -> Vec(@bits(30) U32) {
     ret %v
 }
 
-fn second(%a: Vec(Float), %b: Vec(Float)) -> Vec(Float) {
+fn second(%a: Vec(F32), %b: Vec(F32)) -> Vec(F32) {
   b0:
     ret %b
 }
 
-fn unwrap(%w: Wrapped) -> Vec(Float) {
+fn unwrap(%w: Wrapped) -> Vec(F32) {
   b0:
-    %v1 = load %w@Wrapped.lanes : Vec(Float)
+    %v1 = load %w@Wrapped.lanes : Vec(F32)
     ret %v1
 }
 
-fn tagOf(%w: Wrapped) -> Int {
+fn tagOf(%w: Wrapped) -> I32 {
   b0:
-    %v1 = load %w@Wrapped.tag : Int
+    %v1 = load %w@Wrapped.tag : I32
     ret %v1
 }

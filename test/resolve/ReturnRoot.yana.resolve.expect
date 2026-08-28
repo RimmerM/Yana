@@ -1,52 +1,52 @@
 let image$base: () = <none>
 
-fn xOf(%p: Point) -> 'Int {
+fn xOf(%p: Point) -> 'I32 {
   b0:
-    %v1 = load %p@Point.x : Int
-    %v2 = borrow %p@Point.x : 'Int
+    %v1 = load %p@Point.x : I32
+    %v2 = borrow %p@Point.x : 'I32
     ret %v2
 }
 
-fn larger(%a: Int, %b: Int) -> &Int {
+fn larger(%a: I32, %b: I32) -> &I32 {
   b0:
-    %v2 = load %a : Int
-    %v3 = load %b : Int
+    %v2 = load %a : I32
+    %v3 = load %b : I32
     %v4 = cmp_gt %v2, %v3 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = load %a : Int
-    %v7 = borrow_mut %a : &Int
+    %v6 = load %a : I32
+    %v7 = borrow_mut %a : &I32
     jmp b3
 
   b2:
-    %v8 = load %b : Int
-    %v9 = borrow_mut %b : &Int
+    %v8 = load %b : I32
+    %v9 = borrow_mut %b : &I32
     jmp b3
 
   b3:
-    %v12 = phi [b1, %v7], [b2, %v9] : &Int
+    %v12 = phi [b1, %v7], [b2, %v9] : &I32
     ret %v12
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %here = alloc : Point
     aggregate %local0@Point.x = 10, %local0@Point.y = 20
     %v4 = borrow %local0 : 'Point
-    %v5 = call xOf, %v4 : 'Int
-    %left = alloc : Int
+    %v5 = call xOf, %v4 : 'I32
+    %left = alloc : I32
     init %left, 1
-    %right = alloc : Int
+    %right = alloc : I32
     init %right, 2
-    %v12 = load %left : Int
-    %v13 = load %right : Int
-    %v14 = borrow_mut %left : &Int
-    %v15 = borrow_mut %right : &Int
-    %v16 = call larger, %v14, %v15 : &Int
+    %v12 = load %left : I32
+    %v13 = load %right : I32
+    %v14 = borrow_mut %left : &I32
+    %v15 = borrow_mut %right : &I32
+    %v16 = call larger, %v14, %v15 : &I32
     assign [%v16], 40
-    %v19 = load [%v5] : Int
-    %v20 = load [%v16] : Int
-    %v21 = add %v19, %v20 : Int
+    %v19 = load [%v5] : I32
+    %v20 = load [%v16] : I32
+    %v21 = add %v19, %v20 : I32
     ret %v21
 }

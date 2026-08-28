@@ -1,14 +1,14 @@
 @image$base = []
 mut @log = [0, 0, 0, 0]
 
-note<complex>(%n: Int): Int {
+note<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = phi [b_2, %n], [b_3, 0]: Int
-    %v_4 = loads @log, 4: Int
-    %v_5 = imul %v_4, 10: Int
-    %v_6 = add %v_5, %v_1: Int
+    %v_1 = phi [b_2, %n], [b_3, 0]: I32
+    %v_4 = loads @log, 4: I32
+    %v_5 = imul %v_4, 10: I32
+    %v_6 = add %v_5, %v_1: I32
     store @log, %v_6, 4
-    %v_7 = cmp_igt %v_6, 1000000000: Int
+    %v_7 = cmp_igt %v_6, 1000000000: I32
     je %v_7, b_3, b_8
   }
 
@@ -25,37 +25,37 @@ note<complex>(%n: Int): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %first = call_complex note, 1: Int
-    %v_1 = call_complex note, 2: Int
-    %v_2 = imul %v_1, 10: Int
-    %v_3 = add %v_2, 9: Int
-    %v_4 = add %v_3, %first: Int
-    %x = call_complex note, 3: Int
-    %v_5 = add %x, 1: Int
-    %v_6 = imul %v_5, 10: Int
-    %v_7 = add %v_6, 8: Int
-    %v_8 = add %v_4, %v_7: Int
+    %first = call_complex note, 1: I32
+    %v_1 = call_complex note, 2: I32
+    %v_2 = imul %v_1, 10: I32
+    %v_3 = add %v_2, 9: I32
+    %v_4 = add %v_3, %first: I32
+    %x = call_complex note, 3: I32
+    %v_5 = add %x, 1: I32
+    %v_6 = imul %v_5, 10: I32
+    %v_7 = add %v_6, 8: I32
+    %v_8 = add %v_4, %v_7: I32
     %v_9 = alloca 4, 8: Ptr
     %v_10 = alloca 8, 4: Ptr
-    %v_11 = load %v_9, 4: Int
+    %v_11 = load %v_9, 4: I32
     store %v_9, 2, 4
     store %v_10, 0, 4
     %v_12 = add %v_10, 4: Ptr
     store %v_12, 7, 4
-    %first = call_complex note, 4: Int
-    %v_13 = call_complex note, 5: Int
+    %first = call_complex note, 4: I32
+    %v_13 = call_complex note, 5: I32
     store %v_10, %v_13, 4
-    %v_14 = imul %v_13, 10: Int
+    %v_14 = imul %v_13, 10: I32
     %v_15 = add %v_10, 4: Ptr
-    %v_16 = loads %v_15, 4: Int
-    %v_17 = add %v_14, %v_16: Int
-    %v_18 = add %v_17, %first: Int
-    %v_19 = add %v_8, %v_18: Int
-    %v_20 = add %v_19, 56: Int
-    %v_21 = loads @log, 4: Int
-    %v_22 = add %v_20, %v_21: Int
+    %v_16 = loads %v_15, 4: I32
+    %v_17 = add %v_14, %v_16: I32
+    %v_18 = add %v_17, %first: I32
+    %v_19 = add %v_8, %v_18: I32
+    %v_20 = add %v_19, 56: I32
+    %v_21 = loads @log, 4: I32
+    %v_22 = add %v_20, %v_21: I32
     ret %v_22
   }
 }

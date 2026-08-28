@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-let &dropCalls: Int = 0
+let &dropCalls: I32 = 0
 
 table closure$ResolveTest.lambda$22 before ResolveTest.lambda$22 {
   .0 drop${g: Guard}
@@ -10,14 +10,14 @@ table closure$ResolveTest.lambda$23 before ResolveTest.lambda$23 {
   .0 drop${g: Guard}
 }
 
-fn consume(%f: (Int) -> Int) -> Int {
+fn consume(%f: (I32) -> I32) -> I32 {
   b0:
-    %v2 = calldyn %f, 1 : Int
-    drop_derived %f via teardown$(Int) -> Int
+    %v2 = calldyn %f, 1 : I32
+    drop_derived %f via teardown$(I32) -> I32
     ret %v2
 }
 
-fn inFrame(%id: Int) -> Int {
+fn inFrame(%id: I32) -> I32 {
   b0:
     %g = alloc : Guard
     aggregate %local0@Guard.id = %id
@@ -25,16 +25,16 @@ fn inFrame(%id: Int) -> Int {
     %g = move %local0 : Guard
     init %local1.g, %g
     %v6 = addressof %local1 : %()
-    %f = alloc : (Int) -> Int
+    %f = alloc : (I32) -> I32
     %v8 = symbol ResolveTest.lambda$22 : %()
     init %local2.code, %v8
     init %local2.env, %v6
-    %v12 = calldyn %f, 10 : Int
+    %v12 = calldyn %f, 10 : I32
     drop_derived %local1 via drop${g: Guard}
     ret %v12
 }
 
-fn handedOff(%id: Int) -> Int {
+fn handedOff(%id: I32) -> I32 {
   b0:
     %g = alloc : Guard
     aggregate %local0@Guard.id = %id
@@ -42,38 +42,38 @@ fn handedOff(%id: Int) -> Int {
     %g = move %local0 : Guard
     init %local1.g, %g
     %v6 = addressof %local1 : %()
-    %v7 = alloc : (Int) -> Int
+    %v7 = alloc : (I32) -> I32
     %v8 = symbol ResolveTest.lambda$23 : %()
     init %local2.code, %v8
     init %local2.env, %v6
-    %v11 = move %local2 : (Int) -> Int
-    %v12 = call consume, %v11 : Int
+    %v11 = move %local2 : (I32) -> I32
+    %v12 = call consume, %v11 : I32
     ret %v12
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %a = call inFrame, 3 : Int
-    %b = call handedOff, 5 : Int
-    %v4 = add %a, %b : Int
-    %v5 = load dropCalls : Int
-    %v6 = add %v4, %v5 : Int
+    %a = call inFrame, 3 : I32
+    %b = call handedOff, 5 : I32
+    %v4 = add %a, %b : I32
+    %v5 = load dropCalls : I32
+    %v6 = add %v4, %v5 : I32
     ret %v6
 }
 
 fn Drop(Guard).drop(%self: Guard) -> () {
   b0:
-    %v1 = load dropCalls : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load dropCalls : I32
+    %v4 = add %v1, 1 : I32
     assign dropCalls, %v4
     ret
 }
 
-fn ResolveTest.lambda$22(%env: %{g: Guard}, %x: Int) -> Int {
+fn ResolveTest.lambda$22(%env: %{g: Guard}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].g : Guard
-    %v3 = load [%env].g@Guard.id : Int
-    %v4 = add %x, %v3 : Int
+    %v3 = load [%env].g@Guard.id : I32
+    %v4 = add %x, %v3 : I32
     ret %v4
 }
 
@@ -83,11 +83,11 @@ fn drop${g: Guard}(%value: {g: Guard}) -> () {
     ret
 }
 
-fn ResolveTest.lambda$23(%env: %{g: Guard}, %x: Int) -> Int {
+fn ResolveTest.lambda$23(%env: %{g: Guard}, %x: I32) -> I32 {
   b0:
     %v2 = load [%env].g : Guard
-    %v3 = load [%env].g@Guard.id : Int
-    %v4 = add %x, %v3 : Int
+    %v3 = load [%env].g@Guard.id : I32
+    %v4 = add %x, %v3 : I32
     ret %v4
 }
 
@@ -97,7 +97,7 @@ fn drop${g: Guard}(%value: {g: Guard}) -> () {
     ret
 }
 
-fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(I32) -> I32(%value: (I32) -> I32) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -106,9 +106,9 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
   b1:
     %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
     calldyn %v11, %v1

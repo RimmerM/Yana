@@ -14,10 +14,10 @@ fn madePoint() -> Point {
     ret %v0
 }
 
-fn bump(%n: Int) -> () {
+fn bump(%n: I32) -> () {
   b0:
-    %v1 = load %n : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load %n : I32
+    %v4 = add %v1, 1 : I32
     assign %n, %v4
     ret
 }
@@ -25,72 +25,72 @@ fn bump(%n: Int) -> () {
 fn widen(%p: Point) -> () {
   b0:
     %v1 = load %p : Point
-    %v2 = load %p@Point.x : Int
-    %v5 = add %v2, 1 : Int
+    %v2 = load %p@Point.x : I32
+    %v5 = add %v2, 1 : I32
     assign %p@Point.x, %v5
     ret
 }
 
-fn straight(%count: Int) -> Int {
+fn straight(%count: I32) -> I32 {
   b0:
     %q = call origin : Point
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v9 = load %i : Int
+    %v9 = load %i : I32
     %v10 = cmp_lt %v9, %count : Bool
     je %v10, b3, b2
 
   b2:
-    %v24 = load %total : Int
+    %v24 = load %total : I32
     ret %v24
 
   b3:
-    %v12 = load %total : Int
-    %v13 = load %local0@Point.x : Int
-    %v14 = load %local0@Point.y : Int
-    %v15 = mul %v13, %v14 : Int
-    %v16 = add %v12, %v15 : Int
+    %v12 = load %total : I32
+    %v13 = load %local0@Point.x : I32
+    %v14 = load %local0@Point.y : I32
+    %v15 = mul %v13, %v14 : I32
+    %v16 = add %v12, %v15 : I32
     assign %total, %v16
-    %v18 = load %i : Int
-    %v21 = add %v18, 1 : Int
+    %v18 = load %i : I32
+    %v21 = add %v18, 1 : I32
     assign %i, %v21
     jmp b1
 }
 
-fn conditional(%count: Int) -> Int {
+fn conditional(%count: I32) -> I32 {
   b0:
     %q = call origin : Point
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v9 = load %i : Int
+    %v9 = load %i : I32
     %v10 = cmp_lt %v9, %count : Bool
     je %v10, b3, b2
 
   b2:
-    %v31 = load %total : Int
+    %v31 = load %total : I32
     ret %v31
 
   b3:
-    %v12 = load %i : Int
+    %v12 = load %i : I32
     %v15 = cmp_gt %v12, 1 : Bool
     je %v15, b4, b5
 
   b4:
-    %v17 = load %total : Int
-    %v18 = load %local0@Point.x : Int
-    %v19 = load %local0@Point.y : Int
-    %v20 = mul %v18, %v19 : Int
-    %v21 = add %v17, %v20 : Int
+    %v17 = load %total : I32
+    %v18 = load %local0@Point.x : I32
+    %v19 = load %local0@Point.y : I32
+    %v20 = mul %v18, %v19 : I32
+    %v21 = add %v17, %v20 : I32
     assign %total, %v21
     jmp b6
 
@@ -98,246 +98,246 @@ fn conditional(%count: Int) -> Int {
     jmp b6
 
   b6:
-    %v25 = load %i : Int
-    %v28 = add %v25, 1 : Int
+    %v25 = load %i : I32
+    %v28 = add %v25, 1 : I32
     assign %i, %v28
     jmp b1
 }
 
-fn nested(%rows: Int, %columns: Int) -> Int {
+fn nested(%rows: I32, %columns: I32) -> I32 {
   b0:
     %q = call origin : Point
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %row = alloc : Int
+    %row = alloc : I32
     init %row, 0
     jmp b1
 
   b1:
-    %v10 = load %row : Int
+    %v10 = load %row : I32
     %v11 = cmp_lt %v10, %rows : Bool
     je %v11, b3, b2
 
   b2:
-    %v38 = load %total : Int
+    %v38 = load %total : I32
     ret %v38
 
   b3:
-    %column = alloc : Int
+    %column = alloc : I32
     init %column, 0
     jmp b4
 
   b4:
-    %v17 = load %column : Int
+    %v17 = load %column : I32
     %v18 = cmp_lt %v17, %columns : Bool
     je %v18, b6, b5
 
   b5:
-    %v32 = load %row : Int
-    %v35 = add %v32, 1 : Int
+    %v32 = load %row : I32
+    %v35 = add %v32, 1 : I32
     assign %row, %v35
     jmp b1
 
   b6:
-    %v20 = load %total : Int
-    %v21 = load %local0@Point.x : Int
-    %v22 = load %local0@Point.y : Int
-    %v23 = add %v21, %v22 : Int
-    %v24 = add %v20, %v23 : Int
+    %v20 = load %total : I32
+    %v21 = load %local0@Point.x : I32
+    %v22 = load %local0@Point.y : I32
+    %v23 = add %v21, %v22 : I32
+    %v24 = add %v20, %v23 : I32
     assign %total, %v24
-    %v26 = load %column : Int
-    %v29 = add %v26, 1 : Int
+    %v26 = load %column : I32
+    %v29 = add %v26, 1 : I32
     assign %column, %v29
     jmp b4
 }
 
-fn written(%count: Int) -> Int {
+fn written(%count: I32) -> I32 {
   b0:
     %v1 = call origin : Point
     %acc = alloc : Point
     init %acc, %v1
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
+    %v8 = load %i : I32
     %v9 = cmp_lt %v8, %count : Bool
     je %v9, b3, b2
 
   b2:
     %v23 = load %acc : Point
-    %v24 = load %acc@Point.x : Int
+    %v24 = load %acc@Point.x : I32
     ret %v24
 
   b3:
     %v11 = load %acc : Point
-    %v12 = load %acc@Point.x : Int
+    %v12 = load %acc@Point.x : I32
     %v13 = load %acc : Point
-    %v14 = load %acc@Point.y : Int
-    %v15 = add %v12, %v14 : Int
+    %v14 = load %acc@Point.y : I32
+    %v15 = add %v12, %v14 : I32
     assign %acc@Point.x, %v15
-    %v17 = load %i : Int
-    %v20 = add %v17, 1 : Int
+    %v17 = load %i : I32
+    %v20 = add %v17, 1 : I32
     assign %i, %v20
     jmp b1
 }
 
-fn withCall(%seed: Int, %count: Int) -> Int {
+fn withCall(%seed: I32, %count: I32) -> I32 {
   b0:
     %q = alloc : Point
-    %v5 = add %seed, 1 : Int
+    %v5 = add %seed, 1 : I32
     aggregate %local0@Point.x = %seed, %local0@Point.y = %v5
-    %seen = alloc : Int
+    %seen = alloc : I32
     init %seen, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v14 = load %i : Int
+    %v14 = load %i : I32
     %v15 = cmp_lt %v14, %count : Bool
     je %v15, b3, b2
 
   b2:
-    %v32 = load %seen : Int
+    %v32 = load %seen : I32
     ret %v32
 
   b3:
-    %v17 = load %seen : Int
-    %v18 = borrow_mut %seen : &Int
+    %v17 = load %seen : I32
+    %v18 = borrow_mut %seen : &I32
     call bump, %v18
-    %v20 = load %seen : Int
-    %v21 = load %local0@Point.x : Int
-    %v22 = load %local0@Point.y : Int
-    %v23 = mul %v21, %v22 : Int
-    %v24 = add %v20, %v23 : Int
+    %v20 = load %seen : I32
+    %v21 = load %local0@Point.x : I32
+    %v22 = load %local0@Point.y : I32
+    %v23 = mul %v21, %v22 : I32
+    %v24 = add %v20, %v23 : I32
     assign %seen, %v24
-    %v26 = load %i : Int
-    %v29 = add %v26, 1 : Int
+    %v26 = load %i : I32
+    %v29 = add %v26, 1 : I32
     assign %i, %v29
     jmp b1
 }
 
-fn fromCall(%count: Int) -> Int {
+fn fromCall(%count: I32) -> I32 {
   b0:
     %q = call madePoint : Point
-    %seen = alloc : Int
+    %seen = alloc : I32
     init %seen, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v9 = load %i : Int
+    %v9 = load %i : I32
     %v10 = cmp_lt %v9, %count : Bool
     je %v10, b3, b2
 
   b2:
-    %v27 = load %seen : Int
+    %v27 = load %seen : I32
     ret %v27
 
   b3:
-    %v12 = load %seen : Int
-    %v13 = borrow_mut %seen : &Int
+    %v12 = load %seen : I32
+    %v13 = borrow_mut %seen : &I32
     call bump, %v13
-    %v15 = load %seen : Int
-    %v16 = load %local0@Point.x : Int
-    %v17 = load %local0@Point.y : Int
-    %v18 = mul %v16, %v17 : Int
-    %v19 = add %v15, %v18 : Int
+    %v15 = load %seen : I32
+    %v16 = load %local0@Point.x : I32
+    %v17 = load %local0@Point.y : I32
+    %v18 = mul %v16, %v17 : I32
+    %v19 = add %v15, %v18 : I32
     assign %seen, %v19
-    %v21 = load %i : Int
-    %v24 = add %v21, 1 : Int
+    %v21 = load %i : I32
+    %v24 = add %v21, 1 : I32
     assign %i, %v24
     jmp b1
 }
 
-fn escaping(%count: Int) -> Int {
+fn escaping(%count: I32) -> I32 {
   b0:
     %v1 = call origin : Point
     %r = alloc : Point
     init %r, %v1
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     jmp b1
 
   b1:
-    %v11 = load %i : Int
+    %v11 = load %i : I32
     %v12 = cmp_lt %v11, %count : Bool
     je %v12, b3, b2
 
   b2:
-    %v31 = load %total : Int
+    %v31 = load %total : I32
     ret %v31
 
   b3:
     %v14 = load %r : Point
     %v15 = borrow_mut %r : &Point
     call widen, %v15
-    %v17 = load %total : Int
+    %v17 = load %total : I32
     %v18 = load %r : Point
-    %v19 = load %r@Point.x : Int
+    %v19 = load %r@Point.x : I32
     %v20 = load %r : Point
-    %v21 = load %r@Point.y : Int
-    %v22 = mul %v19, %v21 : Int
-    %v23 = add %v17, %v22 : Int
+    %v21 = load %r@Point.y : I32
+    %v22 = mul %v19, %v21 : I32
+    %v23 = add %v17, %v22 : I32
     assign %total, %v23
-    %v25 = load %i : Int
-    %v28 = add %v25, 1 : Int
+    %v25 = load %i : I32
+    %v28 = add %v25, 1 : I32
     assign %i, %v28
     jmp b1
 }
 
-fn never() -> Int {
+fn never() -> I32 {
   b0:
     %q = call origin : Point
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 7
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v8 = load %i : Int
+    %v8 = load %i : I32
     %v11 = cmp_gt %v8, 0 : Bool
     je %v11, b3, b2
 
   b2:
-    %v25 = load %total : Int
+    %v25 = load %total : I32
     ret %v25
 
   b3:
-    %v13 = load %total : Int
-    %v14 = load %local0@Point.x : Int
-    %v15 = load %local0@Point.y : Int
-    %v16 = mul %v14, %v15 : Int
-    %v17 = add %v13, %v16 : Int
+    %v13 = load %total : I32
+    %v14 = load %local0@Point.x : I32
+    %v15 = load %local0@Point.y : I32
+    %v16 = mul %v14, %v15 : I32
+    %v17 = add %v13, %v16 : I32
     assign %total, %v17
-    %v19 = load %i : Int
-    %v22 = sub %v19, 1 : Int
+    %v19 = load %i : I32
+    %v22 = sub %v19, 1 : I32
     assign %i, %v22
     jmp b1
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call straight, 3 : Int
-    %v3 = call conditional, 4 : Int
-    %v4 = add %v1, %v3 : Int
-    %v7 = call nested, 2, 3 : Int
-    %v8 = add %v4, %v7 : Int
-    %v10 = call written, 3 : Int
-    %v11 = add %v8, %v10 : Int
-    %v14 = call withCall, 3, 2 : Int
-    %v15 = add %v11, %v14 : Int
-    %v17 = call fromCall, 2 : Int
-    %v18 = add %v15, %v17 : Int
-    %v20 = call escaping, 2 : Int
-    %v21 = add %v18, %v20 : Int
-    %v22 = call never : Int
-    %v23 = add %v21, %v22 : Int
+    %v1 = call straight, 3 : I32
+    %v3 = call conditional, 4 : I32
+    %v4 = add %v1, %v3 : I32
+    %v7 = call nested, 2, 3 : I32
+    %v8 = add %v4, %v7 : I32
+    %v10 = call written, 3 : I32
+    %v11 = add %v8, %v10 : I32
+    %v14 = call withCall, 3, 2 : I32
+    %v15 = add %v11, %v14 : I32
+    %v17 = call fromCall, 2 : I32
+    %v18 = add %v15, %v17 : I32
+    %v20 = call escaping, 2 : I32
+    %v21 = add %v18, %v20 : I32
+    %v22 = call never : I32
+    %v23 = add %v21, %v22 : I32
     ret %v23
 }

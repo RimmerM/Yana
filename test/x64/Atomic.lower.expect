@@ -1,17 +1,17 @@
 
-loads<complex>(%p: Ptr): Int {
+loads<complex>(%p: Ptr): I32 {
   b_0 {
-    %a = atomic_load %p, 4, relaxed: Int
-    %b = atomic_load %p, 4, acquire: Int
-    %c = atomic_load %p, 4, seq_cst: Int
-    %d = atomic_load %p, 8, acquire: Long
-    %e = atomic_loads %p, 1, relaxed: Int
-    %f = atomic_load %p, 2, acquire: Int
+    %a = atomic_load %p, 4, relaxed: I32
+    %b = atomic_load %p, 4, acquire: I32
+    %c = atomic_load %p, 4, seq_cst: I32
+    %d = atomic_load %p, 8, acquire: I64
+    %e = atomic_loads %p, 1, relaxed: I32
+    %f = atomic_load %p, 2, acquire: I32
     ret %a
   }
 }
 
-stores<complex>(%p: Ptr, %v: Int, %w: Long) {
+stores<complex>(%p: Ptr, %v: I32, %w: I64) {
   b_0 {
     atomic_store %p, %v, 4, relaxed
     atomic_store %p, %v, 4, release
@@ -23,7 +23,7 @@ stores<complex>(%p: Ptr, %v: Int, %w: Long) {
   }
 }
 
-sequentialStore<complex>(%p: Ptr, %v: Int, %w: Long) {
+sequentialStore<complex>(%p: Ptr, %v: I32, %w: I64) {
   b_0 {
     atomic_store %p, %v, 4, seq_cst
     atomic_store %p, %w, 8, seq_cst
@@ -31,41 +31,41 @@ sequentialStore<complex>(%p: Ptr, %v: Int, %w: Long) {
   }
 }
 
-exchange<complex>(%p: Ptr, %v: Int, %q: Ptr): Int {
+exchange<complex>(%p: Ptr, %v: I32, %q: Ptr): I32 {
   b_0 {
-    %old = atomic_xchg %p, %v, 4, acq_rel: Int
+    %old = atomic_xchg %p, %v, 4, acq_rel: I32
     %ptr = atomic_xchg %p, %q, 8, seq_cst: Ptr
-    %narrow = atomic_xchg %p, %v, 1, relaxed: Int
-    %half = atomic_xchg %p, %v, 2, relaxed: Int
+    %narrow = atomic_xchg %p, %v, 1, relaxed: I32
+    %half = atomic_xchg %p, %v, 2, relaxed: I32
     ret %old
   }
 }
 
-compare<complex>(%p: Ptr, %e: Int, %d: Int): Int {
+compare<complex>(%p: Ptr, %e: I32, %d: I32): I32 {
   b_0 {
-    %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+    %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: I32, I32
     ret %prev
   }
 }
 
-compareWeak<complex>(%p: Ptr, %e: Long, %d: Long): Long {
+compareWeak<complex>(%p: Ptr, %e: I64, %d: I64): I64 {
   b_0 {
-    %prev, %ok = atomic_cas_weak %p, %e, %d, 8, seq_cst, seq_cst: Long, Int
+    %prev, %ok = atomic_cas_weak %p, %e, %d, 8, seq_cst, seq_cst: I64, I32
     ret %prev
   }
 }
 
-compareNarrow<complex>(%p: Ptr, %e: Int, %d: Int): Int {
+compareNarrow<complex>(%p: Ptr, %e: I32, %d: I32): I32 {
   b_0 {
-    %p1, %o1 = atomic_cas %p, %e, %d, 1, relaxed, relaxed: Int, Int
-    %p2, %o2 = atomic_cas %p, %e, %d, 2, acquire, acquire: Int, Int
+    %p1, %o1 = atomic_cas %p, %e, %d, 1, relaxed, relaxed: I32, I32
+    %p2, %o2 = atomic_cas %p, %e, %d, 2, acquire, acquire: I32, I32
     ret %p1
   }
 }
 
-compareBranch<complex>(%p: Ptr, %e: Int, %d: Int): Int {
+compareBranch<complex>(%p: Ptr, %e: I32, %d: I32): I32 {
   b_0 {
-    %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: Int, Int
+    %prev, %ok = atomic_cas %p, %e, %d, 4, acq_rel, acquire: I32, I32
     je %ok, then, else
   }
 
@@ -78,61 +78,61 @@ compareBranch<complex>(%p: Ptr, %e: Int, %d: Int): Int {
   }
 }
 
-fetchDiscard<complex>(%p: Ptr, %v: Int, %w: Long) {
+fetchDiscard<complex>(%p: Ptr, %v: I32, %w: I64) {
   b_0 {
-    %a = atomic_add %p, %v, 4, relaxed: Int
-    %b = atomic_sub %p, %v, 4, seq_cst: Int
-    %c = atomic_and %p, %v, 4, acquire: Int
-    %d = atomic_or %p, %v, 4, release: Int
-    %e = atomic_xor %p, %w, 8, acq_rel: Long
+    %a = atomic_add %p, %v, 4, relaxed: I32
+    %b = atomic_sub %p, %v, 4, seq_cst: I32
+    %c = atomic_and %p, %v, 4, acquire: I32
+    %d = atomic_or %p, %v, 4, release: I32
+    %e = atomic_xor %p, %w, 8, acq_rel: I64
     ret 
   }
 }
 
-fetchDiscardNarrow<complex>(%p: Ptr, %v: Int) {
+fetchDiscardNarrow<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %a = atomic_add %p, %v, 1, relaxed: Int
-    %b = atomic_or %p, %v, 2, seq_cst: Int
+    %a = atomic_add %p, %v, 1, relaxed: I32
+    %b = atomic_or %p, %v, 2, seq_cst: I32
     ret 
   }
 }
 
-fetchAdd<complex>(%p: Ptr, %v: Int, %w: Long): Int {
+fetchAdd<complex>(%p: Ptr, %v: I32, %w: I64): I32 {
   b_0 {
-    %a = atomic_add %p, %v, 4, acq_rel: Int
-    %b = atomic_add %p, %w, 8, seq_cst: Long
-    %c = atomic_add %p, %v, 2, relaxed: Int
+    %a = atomic_add %p, %v, 4, acq_rel: I32
+    %b = atomic_add %p, %w, 8, seq_cst: I64
+    %c = atomic_add %p, %v, 2, relaxed: I32
     ret %a
   }
 }
 
-fetchSub<complex>(%p: Ptr, %v: Int): Int {
+fetchSub<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
-    %a = atomic_sub %p, %v, 4, acq_rel: Int
+    %a = atomic_sub %p, %v, 4, acq_rel: I32
     ret %a
   }
 }
 
-fetchOr<complex>(%p: Ptr, %v: Int): Int {
+fetchOr<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
-    %a = atomic_or %p, %v, 4, acq_rel: Int
+    %a = atomic_or %p, %v, 4, acq_rel: I32
     ret %a
   }
 }
 
-fetchAndTail<complex>(%p: Ptr, %v: Long, %q: Ptr): Long {
+fetchAndTail<complex>(%p: Ptr, %v: I64, %q: Ptr): I64 {
   b_0 {
-    %a = atomic_and %p, %v, 8, seq_cst: Long
-    %b = atomic_load %q, 8, acquire: Long
-    %c = add %a, %b: Long
+    %a = atomic_and %p, %v, 8, seq_cst: I64
+    %b = atomic_load %q, 8, acquire: I64
+    %c = add %a, %b: I64
     ret %c
   }
 }
 
-fetchTwice<complex>(%p: Ptr, %q: Ptr, %v: Int): Int {
+fetchTwice<complex>(%p: Ptr, %q: Ptr, %v: I32): I32 {
   b_0 {
-    %a = atomic_xor %p, %v, 4, relaxed: Int
-    %b = atomic_or %q, %a, 4, acquire: Int
+    %a = atomic_xor %p, %v, 4, relaxed: I32
+    %b = atomic_or %q, %a, 4, acquire: I32
     ret %b
   }
 }
@@ -155,10 +155,10 @@ spin<complex>() {
   }
 }
 
-fetchNarrow<complex>(%p: Ptr, %v: Int): Int {
+fetchNarrow<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
-    %a = atomic_and %p, %v, 1, acquire: Int
-    %b = atomic_xor %p, %v, 2, relaxed: Int
+    %a = atomic_and %p, %v, 1, acquire: I32
+    %b = atomic_xor %p, %v, 2, relaxed: I32
     ret %a
   }
 }

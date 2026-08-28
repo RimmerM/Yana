@@ -23,12 +23,12 @@ fn applyUnit(%f: () -> ()) -> () {
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v3 = alloc : {total: &Int}
-    %v4 = borrow_mut %total : &Int
+    %v3 = alloc : {total: &I32}
+    %v4 = borrow_mut %total : &I32
     init %local1.total, %v4
     %v6 = addressof %local1 : %()
     %v7 = alloc : () -> ()
@@ -36,8 +36,8 @@ fn main() -> Int {
     init %local2.code, %v8
     init %local2.env, %v6
     call applyUnit, %v7
-    %v12 = alloc : {total: &Int}
-    %v13 = borrow_mut %total : &Int
+    %v12 = alloc : {total: &I32}
+    %v13 = borrow_mut %total : &I32
     init %local3.total, %v13
     %v15 = addressof %local3 : %()
     %v16 = alloc : () -> ()
@@ -45,9 +45,9 @@ fn main() -> Int {
     init %local4.code, %v17
     init %local4.env, %v15
     call applyUnit, %v16
-    %seen = load %total : Int
-    %v22 = alloc : {total: &Int}
-    %v23 = borrow_mut %total : &Int
+    %seen = load %total : I32
+    %v22 = alloc : {total: &I32}
+    %v23 = borrow_mut %total : &I32
     init %local5.total, %v23
     %v25 = addressof %local5 : %()
     %v26 = alloc : () -> ()
@@ -55,37 +55,37 @@ fn main() -> Int {
     init %local6.code, %v27
     init %local6.env, %v25
     call applyUnit, %v26
-    %v31 = load %total : Int
-    %v32 = add %v31, %seen : Int
+    %v31 = load %total : I32
+    %v32 = add %v31, %seen : I32
     ret %v32
 }
 
-fn ResolveTest.lambda$22(%env: %{total: &Int}) -> () {
+fn ResolveTest.lambda$22(%env: %{total: &I32}) -> () {
   b0:
-    %v1 = load [%env].total : &Int
-    %v2 = load [%env].total : &Int
-    %v3 = load [%v2] : Int
-    %v6 = add %v3, 1 : Int
+    %v1 = load [%env].total : &I32
+    %v2 = load [%env].total : &I32
+    %v3 = load [%v2] : I32
+    %v6 = add %v3, 1 : I32
     assign [%v1], %v6
     ret
 }
 
-fn ResolveTest.lambda$23(%env: %{total: &Int}) -> () {
+fn ResolveTest.lambda$23(%env: %{total: &I32}) -> () {
   b0:
-    %v1 = load [%env].total : &Int
-    %v2 = load [%env].total : &Int
-    %v3 = load [%v2] : Int
-    %v6 = mul %v3, 10 : Int
+    %v1 = load [%env].total : &I32
+    %v2 = load [%env].total : &I32
+    %v3 = load [%v2] : I32
+    %v6 = mul %v3, 10 : I32
     assign [%v1], %v6
     ret
 }
 
-fn ResolveTest.lambda$24(%env: %{total: &Int}) -> () {
+fn ResolveTest.lambda$24(%env: %{total: &I32}) -> () {
   b0:
-    %v1 = load [%env].total : &Int
-    %v2 = load [%env].total : &Int
-    %v3 = load [%v2] : Int
-    %v6 = add %v3, 5 : Int
+    %v1 = load [%env].total : &I32
+    %v2 = load [%env].total : &I32
+    %v3 = load [%v2] : I32
+    %v6 = add %v3, 5 : I32
     assign [%v1], %v6
     ret
 }

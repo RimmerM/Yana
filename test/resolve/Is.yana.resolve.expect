@@ -1,8 +1,8 @@
 let image$base: () = <none>
 
-fn orZero(%m: Maybe(Int)) -> Int {
+fn orZero(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -10,17 +10,17 @@ fn orZero(%m: Maybe(Int)) -> Int {
     jmp b3
 
   b2:
-    %v = load %m@Just : Int
-    %v8 = add %v, 1 : Int
+    %v = load %m@Just : I32
+    %v8 = add %v, 1 : I32
     ret %v8
 
   b3:
     ret 0
 }
 
-fn either(%m: Maybe(Int)) -> Int {
+fn either(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -28,18 +28,18 @@ fn either(%m: Maybe(Int)) -> Int {
     jmp b3
 
   b2:
-    %v = load %m@Just : Int
-    %v8 = mul %v, 2 : Int
+    %v = load %m@Just : I32
+    %v8 = mul %v, 2 : I32
     jmp b3
 
   b3:
-    %v12 = phi [b2, %v8], [b1, 0] : Int
+    %v12 = phi [b2, %v8], [b1, 0] : I32
     ret %v12
 }
 
-fn isZero(%m: Maybe(Int)) -> Int {
+fn isZero(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -47,7 +47,7 @@ fn isZero(%m: Maybe(Int)) -> Int {
     jmp b4
 
   b2:
-    %v5 = load %m@Just : Int
+    %v5 = load %m@Just : I32
     %v7 = cmp_eq %v5, 0 : Bool
     je %v7, b3, b1
 
@@ -55,13 +55,13 @@ fn isZero(%m: Maybe(Int)) -> Int {
     jmp b4
 
   b4:
-    %v13 = phi [b3, 1], [b1, 0] : Int
+    %v13 = phi [b3, 1], [b1, 0] : I32
     ret %v13
 }
 
-fn deep(%m: Maybe(Maybe(Int))) -> Int {
+fn deep(%m: Maybe(Maybe(I32))) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -69,52 +69,52 @@ fn deep(%m: Maybe(Maybe(Int))) -> Int {
     jmp b4
 
   b2:
-    %v5 = load %m@Just : Maybe(Int)
-    %v6 = load %m@Just.discriminant : Int
+    %v5 = load %m@Just : Maybe(I32)
+    %v6 = load %m@Just.discriminant : I32
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b3, b1
 
   b3:
-    %v = load %m@Just@Just : Int
+    %v = load %m@Just@Just : I32
     jmp b4
 
   b4:
-    %v14 = phi [b3, %v], [b1, 0] : Int
+    %v14 = phi [b3, %v], [b1, 0] : I32
     ret %v14
 }
 
-fn area(%s: Shape) -> Int {
+fn area(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v7 = load %s.discriminant : Int
+    %v7 = load %s.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b4, b3
 
   b2:
-    %r = load %s@Circle : Int
-    %v6 = mul %r, %r : Int
+    %r = load %s@Circle : I32
+    %v6 = mul %r, %r : I32
     jmp b5
 
   b3:
     jmp b5
 
   b4:
-    %v11 = load %s@Square : {width: Int, height: Int}
-    %w = load %s@Square.width : Int
-    %h = load %s@Square.height : Int
-    %v14 = mul %w, %h : Int
+    %v11 = load %s@Square : {width: I32, height: I32}
+    %w = load %s@Square.width : I32
+    %h = load %s@Square.height : I32
+    %v14 = mul %w, %h : I32
     jmp b5
 
   b5:
-    %v19 = phi [b2, %v6], [b4, %v14], [b3, 0] : Int
+    %v19 = phi [b2, %v6], [b4, %v14], [b3, 0] : I32
     ret %v19
 }
 
-fn describe(%s: Shape, %flag: Bool) -> Int {
+fn describe(%s: Shape, %flag: Bool) -> I32 {
   b0:
     je %flag, b1, b2
 
@@ -122,7 +122,7 @@ fn describe(%s: Shape, %flag: Bool) -> Int {
     jmp b5
 
   b2:
-    %v4 = load %s.discriminant : Int
+    %v4 = load %s.discriminant : I32
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b4, b3
 
@@ -130,20 +130,20 @@ fn describe(%s: Shape, %flag: Bool) -> Int {
     jmp b5
 
   b4:
-    %r = load %s@Circle : Int
+    %r = load %s@Circle : I32
     jmp b5
 
   b5:
-    %v13 = phi [b1, 1], [b4, %r], [b3, 0] : Int
+    %v13 = phi [b1, 1], [b4, %r], [b3, 0] : I32
     ret %v13
 }
 
-fn firstOf(%m: Maybe(Int)) -> Int {
+fn firstOf(%m: Maybe(I32)) -> I32 {
   b0:
     jmp b1
 
   b1:
-    %v2 = load %m.discriminant : Int
+    %v2 = load %m.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b3, b2
 
@@ -151,14 +151,14 @@ fn firstOf(%m: Maybe(Int)) -> Int {
     ret 0
 
   b3:
-    %item = load %m@Just : Int
-    %v9 = add %item, 10 : Int
+    %item = load %m@Just : I32
+    %v9 = add %item, 10 : I32
     ret %v9
 }
 
-fn present(%m: Maybe(Int)) -> Int {
+fn present(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -166,7 +166,7 @@ fn present(%m: Maybe(Int)) -> Int {
     jmp b3
 
   b2:
-    %v5 = load %m@Just : Int
+    %v5 = load %m@Just : I32
     jmp b3
 
   b3:
@@ -180,14 +180,14 @@ fn present(%m: Maybe(Int)) -> Int {
     jmp b6
 
   b6:
-    %v16 = phi [b4, 2], [b5, 1] : Int
+    %v16 = phi [b4, 2], [b5, 1] : I32
     ret %v16
 }
 
-fn viaCall(%value: Int) -> Int {
+fn viaCall(%value: I32) -> I32 {
   b0:
-    %v1 = call wrap, %value : Maybe(Int)
-    %v2 = load %local0.discriminant : Int
+    %v1 = call wrap, %value : Maybe(I32)
+    %v2 = load %local0.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -195,120 +195,120 @@ fn viaCall(%value: Int) -> Int {
     jmp b3
 
   b2:
-    %v = load %local0@Just : Int
+    %v = load %local0@Just : I32
     jmp b3
 
   b3:
-    %v10 = phi [b2, %v], [b1, 0] : Int
+    %v10 = phi [b2, %v], [b1, 0] : I32
     ret %v10
 }
 
-fn wrap(%value: Int) -> Maybe(Int) {
+fn wrap(%value: I32) -> Maybe(I32) {
   b0:
     %v3 = cmp_gt %value, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = alloc : Maybe(Int)
+    %v5 = alloc : Maybe(I32)
     aggregate %local0.discriminant = 1, %local0@Just = %value
     jmp b3
 
   b2:
-    %v8 = alloc : Maybe(Int)
+    %v8 = alloc : Maybe(I32)
     init %local1.discriminant, 0
     jmp b3
 
   b3:
-    %v13 = phi [b1, %v5], [b2, %v8] : Maybe(Int)
+    %v13 = phi [b1, %v5], [b2, %v8] : Maybe(I32)
     ret %v13
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = alloc : Maybe(Int)
+    %v0 = alloc : Maybe(I32)
     aggregate %local0.discriminant = 1, %local0@Just = 1
-    %v4 = call orZero, %v0 : Int
-    %v5 = alloc : Maybe(Int)
+    %v4 = call orZero, %v0 : I32
+    %v5 = alloc : Maybe(I32)
     init %local1.discriminant, 0
-    %v8 = call orZero, %v5 : Int
-    %v11 = mul %v8, 100 : Int
-    %v12 = add %v4, %v11 : Int
-    %v13 = alloc : Maybe(Int)
+    %v8 = call orZero, %v5 : I32
+    %v11 = mul %v8, 100 : I32
+    %v12 = add %v4, %v11 : I32
+    %v13 = alloc : Maybe(I32)
     aggregate %local2.discriminant = 1, %local2@Just = 2
-    %v17 = call either, %v13 : Int
-    %v18 = add %v12, %v17 : Int
-    %v19 = alloc : Maybe(Int)
+    %v17 = call either, %v13 : I32
+    %v18 = add %v12, %v17 : I32
+    %v19 = alloc : Maybe(I32)
     init %local3.discriminant, 0
-    %v22 = call either, %v19 : Int
-    %v25 = mul %v22, 100 : Int
-    %v26 = add %v18, %v25 : Int
-    %v27 = alloc : Maybe(Int)
+    %v22 = call either, %v19 : I32
+    %v25 = mul %v22, 100 : I32
+    %v26 = add %v18, %v25 : I32
+    %v27 = alloc : Maybe(I32)
     aggregate %local4.discriminant = 1, %local4@Just = 0
-    %v31 = call isZero, %v27 : Int
-    %v34 = mul %v31, 8 : Int
-    %v35 = add %v26, %v34 : Int
-    %v36 = alloc : Maybe(Int)
+    %v31 = call isZero, %v27 : I32
+    %v34 = mul %v31, 8 : I32
+    %v35 = add %v26, %v34 : I32
+    %v36 = alloc : Maybe(I32)
     aggregate %local5.discriminant = 1, %local5@Just = 1
-    %v40 = call isZero, %v36 : Int
-    %v43 = mul %v40, 100 : Int
-    %v44 = add %v35, %v43 : Int
-    %v45 = alloc : Maybe(Maybe(Int))
-    %v47 = alloc : Maybe(Int)
+    %v40 = call isZero, %v36 : I32
+    %v43 = mul %v40, 100 : I32
+    %v44 = add %v35, %v43 : I32
+    %v45 = alloc : Maybe(Maybe(I32))
+    %v47 = alloc : Maybe(I32)
     aggregate %local7.discriminant = 1, %local7@Just = 16
     aggregate %local6.discriminant = 1, %local6@Just = %v47
-    %v52 = call deep, %v45 : Int
-    %v53 = add %v44, %v52 : Int
-    %v54 = alloc : Maybe(Maybe(Int))
-    %v56 = alloc : Maybe(Int)
+    %v52 = call deep, %v45 : I32
+    %v53 = add %v44, %v52 : I32
+    %v54 = alloc : Maybe(Maybe(I32))
+    %v56 = alloc : Maybe(I32)
     init %local9.discriminant, 0
     aggregate %local8.discriminant = 1, %local8@Just = %v56
-    %v60 = call deep, %v54 : Int
-    %v63 = mul %v60, 100 : Int
-    %v64 = add %v53, %v63 : Int
-    %v65 = alloc : Maybe(Maybe(Int))
+    %v60 = call deep, %v54 : I32
+    %v63 = mul %v60, 100 : I32
+    %v64 = add %v53, %v63 : I32
+    %v65 = alloc : Maybe(Maybe(I32))
     init %local10.discriminant, 0
-    %v68 = call deep, %v65 : Int
-    %v71 = mul %v68, 100 : Int
-    %v72 = add %v64, %v71 : Int
+    %v68 = call deep, %v65 : I32
+    %v71 = mul %v68, 100 : I32
+    %v72 = add %v64, %v71 : I32
     %v73 = alloc : Shape
     aggregate %local11.discriminant = 0, %local11@Circle = 5
-    %v77 = call area, %v73 : Int
-    %v78 = add %v72, %v77 : Int
+    %v77 = call area, %v73 : I32
+    %v78 = add %v72, %v77 : I32
     %v79 = alloc : Shape
     aggregate %local12.discriminant = 1, %local12@Square.width = 3, %local12@Square.height = 4
-    %v84 = call area, %v79 : Int
-    %v85 = add %v78, %v84 : Int
+    %v84 = call area, %v79 : I32
+    %v85 = add %v78, %v84 : I32
     %v86 = alloc : Shape
     aggregate %local13.discriminant = 0, %local13@Circle = 7
-    %v91 = call describe, %v86, True : Int
-    %v92 = add %v85, %v91 : Int
+    %v91 = call describe, %v86, True : I32
+    %v92 = add %v85, %v91 : I32
     %v93 = alloc : Shape
     aggregate %local14.discriminant = 0, %local14@Circle = 7
-    %v98 = call describe, %v93, False : Int
-    %v99 = add %v92, %v98 : Int
-    %v100 = alloc : Maybe(Int)
+    %v98 = call describe, %v93, False : I32
+    %v99 = add %v92, %v98 : I32
+    %v100 = alloc : Maybe(I32)
     aggregate %local15.discriminant = 1, %local15@Just = 32
-    %v104 = call firstOf, %v100 : Int
-    %v105 = add %v99, %v104 : Int
-    %v106 = alloc : Maybe(Int)
+    %v104 = call firstOf, %v100 : I32
+    %v105 = add %v99, %v104 : I32
+    %v106 = alloc : Maybe(I32)
     init %local16.discriminant, 0
-    %v109 = call firstOf, %v106 : Int
-    %v112 = mul %v109, 100 : Int
-    %v113 = add %v105, %v112 : Int
-    %v114 = alloc : Maybe(Int)
+    %v109 = call firstOf, %v106 : I32
+    %v112 = mul %v109, 100 : I32
+    %v113 = add %v105, %v112 : I32
+    %v114 = alloc : Maybe(I32)
     aggregate %local17.discriminant = 1, %local17@Just = 1
-    %v118 = call present, %v114 : Int
-    %v121 = mul %v118, 64 : Int
-    %v122 = add %v113, %v121 : Int
-    %v123 = alloc : Maybe(Int)
+    %v118 = call present, %v114 : I32
+    %v121 = mul %v118, 64 : I32
+    %v122 = add %v113, %v121 : I32
+    %v123 = alloc : Maybe(I32)
     init %local18.discriminant, 0
-    %v126 = call present, %v123 : Int
-    %v129 = mul %v126, 128 : Int
-    %v130 = add %v122, %v129 : Int
-    %v132 = call viaCall, 128 : Int
-    %v133 = add %v130, %v132 : Int
-    %v135 = call viaCall, 0 : Int
-    %v138 = mul %v135, 100 : Int
-    %v139 = add %v133, %v138 : Int
+    %v126 = call present, %v123 : I32
+    %v129 = mul %v126, 128 : I32
+    %v130 = add %v122, %v129 : I32
+    %v132 = call viaCall, 128 : I32
+    %v133 = add %v130, %v132 : I32
+    %v135 = call viaCall, 0 : I32
+    %v138 = mul %v135, 100 : I32
+    %v139 = add %v133, %v138 : I32
     ret %v139
 }

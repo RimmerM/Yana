@@ -519,16 +519,12 @@ static void defineIntegerInstances(Module& module, TypeList& types) {
         }
     }
 
-    // The conversion ladder, over these types and the two integer types they sit alongside. The
-    // `Int`/`Long` pair already has its rung from the numeric ladder below and is skipped rather
-    // than declared twice, which would leave instance selection with two answers to one question.
-    auto widthCount = types.size();
-    types.push(module.scalar.int_);
-    types.push(module.scalar.long_);
-
+    // The conversion ladder - one rung per ordered pair of distinct integer types, which is all of
+    // them since item 7 merged `Int` into `I32`: there is no second family sitting alongside this
+    // one any more, and so no pair to skip on the grounds that another ladder declared it.
     for(Size from = 0; from < types.size(); from++) {
         for(Size to = 0; to < types.size(); to++) {
-            if(from == to || (from >= widthCount && to >= widthCount)) continue;
+            if(from == to) continue;
 
             if(widens(global, types[from], types[to])) {
                 defineConversion(module, "Widen"_v, "widen"_v, types[from], types[to]);
@@ -547,10 +543,18 @@ void definePreludeTypes(Program& program, Module& core, TypeList& widthTypes) {
     program.scalar.unit = (Type*)new (program.types) Type(Type::Unit) - *program.types;
 
     addPrimitive(program, *module, "Unit"_v, (Type*)(*program.types)[program.scalar.unit]);
-    program.scalar.int_ = addPrimitive(program, *module, "Int"_v, new (program.types) IntType(32, IntType::Int, true));
-    program.scalar.long_ = addPrimitive(program, *module, "Long"_v, new (program.types) IntType(64, IntType::Long, true));
-    program.scalar.float_ = addPrimitive(program, *module, "Float"_v, new (program.types) FloatType(FloatType::Float));
-    program.scalar.double_ = addPrimitive(program, *module, "Double"_v, new (program.types) FloatType(FloatType::Double));
+
+    /*
+     * The two floating types, named by width - Analysis-Spellings.md items 5 and 7.
+     *
+     * `Float` and `Double` are `pub alias` declarations in Core's source and the compiler knows
+     * nothing about them, which is the whole of what the merge buys: one primitive per width, one
+     * name for it in every diagnostic, and no second set of instances to keep in step with the
+     * first. The integer half of the same rule is `defineIntegerTypes` below, which is why
+     * `scalar.int_` and `scalar.long_` are bound after it rather than declared here.
+     */
+    program.scalar.float_ = addPrimitive(program, *module, "F32"_v, new (program.types) FloatType(FloatType::Float));
+    program.scalar.double_ = addPrimitive(program, *module, "F64"_v, new (program.types) FloatType(FloatType::Double));
 
     /*
      * `String` - a primitive here rather than a `data` declaration in `Core/Array.yana`, for the reason
@@ -579,16 +583,18 @@ void definePreludeTypes(Program& program, Module& core, TypeList& widthTypes) {
     program.scalar.unsignedSize = coreType(*module, "USize"_v);
 
     /*
-     * `F32` and `F64` - Implementation-Vector.md §9 item 1.
+     * `Int` and `Long`, which are `I32` and `I64` and are recorded here for the reason `Size` is:
+     * the compiler emits code at both without any name in any program to resolve from - an integer
+     * literal defaults to one and a shift count is the other.
      *
-     * Names for `Float` and `Double` and nothing else, on exactly the terms `Size` is a name for
-     * `I64`: no type, no instances, no conversion to or from what they are. What they buy is that a
-     * signature which names widths can name all of them the same way - `Vec(F32)` beside `Vec(I32)`
-     * reads as one family where `Vec(Float)` beside `Vec(I32)` reads as two - and vector code is
-     * where that comes up, because a lane width is the thing being said.
+     * These are bindings to the rungs `defineIntegerTypes` just declared rather than primitives of
+     * their own. That is the whole of Analysis-Spellings.md item 7: `Int` was a second 32-bit signed
+     * primitive beside `I32`, indistinguishable in every way except which instances it had, and the
+     * gap that left was observable - `I32` could not reach a float, because the int/float ladder was
+     * built over the scalar four and the width ladder never crossed to a floating type.
      */
-    module->namedTypes.add(context.addQualifiedName("F32", 3, 1), program.scalar.float_);
-    module->namedTypes.add(context.addQualifiedName("F64", 3, 1), program.scalar.double_);
+    program.scalar.int_ = coreType(*module, "I32"_v);
+    program.scalar.long_ = coreType(*module, "I64"_v);
 
     /*
      * The vector constructors - Design-Vector §2, Implementation-Vector.md §1.4.
@@ -812,45 +818,27 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
     // simd.cpp's - Design-Vector §3.3.
     defineVectorIntrinsics(*module);
 
-    TypePtr numeric[] = {
-        program.scalar.int_,
-        program.scalar.long_,
-        program.scalar.float_,
-        program.scalar.double_,
-    };
+    /*
+     * The two floating types, which are all that is left of what used to be a `numeric[]` four -
+     * Analysis-Spellings.md item 7.
+     *
+     * `Int` and `Long` were here as well, and every instance below was generated a second time for
+     * them, on the stated grounds that they were "the scalar module's types rather than the
+     * fixed-width family's". They are the fixed-width family's now, so `defineIntegerInstances`
+     * covers them and this is the floating half alone.
+     */
+    TypePtr floats[] = { program.scalar.float_, program.scalar.double_ };
 
     // FromInt comes first because Num declares it as a superclass: `1` has to mean something for
     // a type before `+` on that type can be told what `x + 1` is.
-    for(auto type: numeric) defineFromInt(*module, type);
+    for(auto type: floats) defineFromInt(*module, type);
+    for(auto type: floats) defineFromDecimal(*module, type);
 
-    defineFromDecimal(*module, program.scalar.float_);
-    defineFromDecimal(*module, program.scalar.double_);
-
-    for(auto type: numeric) {
+    for(auto type: floats) {
         defineEq(*module, type);
         defineOrd(*module, type);
         defineNum(*module, type);
     }
-
-    // `Bitwise` before `Integral`, which declares it as a superclass - the same ordering `FromInt`
-    // before `Num` has above, and for the same reason: the obligation is checked where the instance
-    // is generated.
-    defineBitwise(*module, program.scalar.int_, emitUnary<Value::Not>);
-    defineBitwise(*module, program.scalar.long_, emitUnary<Value::Not>);
-    defineIntegral(*module, program.scalar.int_);
-    defineIntegral(*module, program.scalar.long_);
-
-    // And the byte reversal at the two canonical widths, which the loop above cannot reach: `Int`
-    // and `Long` are the scalar module's types rather than the fixed-width family's.
-    defineByteSwap(*module, program.scalar.int_);
-    defineByteSwap(*module, program.scalar.long_);
-
-    // The bit counts beside them, at exactly the two widths they are declared over, and the
-    // permutations at the same two.
-    defineBits(*module, program.scalar.int_);
-    defineBits(*module, program.scalar.long_);
-    defineBitPermute(*module, program.scalar.int_);
-    defineBitPermute(*module, program.scalar.long_);
 
     /*
      * The same instances over the vector of each are **not** here - simd.cpp generates them where
@@ -876,27 +864,40 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
     // truthy, which is worth knowing rather than surprising: the instance says "not zero", and no
     // amount of floating-point special-casing would make `if x` mean something better.
     defineTruth(*module, program.scalar.bool_, emitIdentity);
-    for(auto type: numeric) defineTruth(*module, type, emitTruthy);
+    for(auto type: floats) defineTruth(*module, type, emitTruthy);
 
-    // Widening and narrowing are ordinary class operations, so a user type can join either
-    // ladder later without the resolver learning anything new about conversion. The ladder is
-    // written out rather than searched: one step, never a chain.
-    for(Size from = 0; from < 4; from++) {
-        for(Size to = 0; to < 4; to++) {
-            if(from == to) continue;
+    // The integer family joins the same classes and gets the ladder over its own pairs. Order does
+    // not matter against the crossing ladder below any more - the two sets are disjoint now that
+    // `Int` is `I32`, where before they overlapped in exactly the `Int`/`Long` rung.
+    defineIntegerInstances(*module, widthTypes);
 
-            if(from < to) {
-                defineConversion(*module, "Widen"_v, "widen"_v, numeric[from], numeric[to]);
-            } else {
-                defineConversion(*module, "Narrow"_v, "truncate"_v, numeric[from], numeric[to]);
-            }
+    /*
+     * And the rungs that cross between the two families, which are the ones neither ladder above
+     * declares.
+     *
+     * Widening and narrowing are ordinary class operations, so a user type can join either ladder
+     * later without the resolver learning anything new about conversion. The ladder is written out
+     * rather than searched: one step, never a chain.
+     *
+     * **The crossing set is `I32` and `I64` and no other width**, which is exactly the set that
+     * crossed before the merge - the `numeric[]` four were `Int`, `Long` and the two floats. Item 7
+     * closes its gap without touching this: the complaint was that `I32` could not reach a float
+     * where `Int` could, and `I32` *is* `Int` now, so the two spellings agree. Whether the eight
+     * remaining widths should cross as well is a separate question with a real answer either way -
+     * a `U8` into a `F32` is exact and a `U64` into one is not - and nothing in the tree asks for it
+     * yet, so the set stays as it was rather than growing by forty rungs on the way past.
+     */
+    TypePtr crossing[] = { program.scalar.int_, program.scalar.long_ };
+
+    for(auto integer: crossing) {
+        for(auto real: floats) {
+            defineConversion(*module, "Widen"_v, "widen"_v, integer, real);
+            defineConversion(*module, "Narrow"_v, "truncate"_v, real, integer);
         }
     }
 
-    // The width types join the same classes, after the ladder above rather than before it: their
-    // own ladder reaches `Int` and `Long`, and skips that one pair on the grounds that it has just
-    // been declared here.
-    defineIntegerInstances(*module, widthTypes);
+    defineConversion(*module, "Widen"_v, "widen"_v, program.scalar.float_, program.scalar.double_);
+    defineConversion(*module, "Narrow"_v, "truncate"_v, program.scalar.double_, program.scalar.float_);
 
     /*
      * And the identity rung of the narrowing ladder, one per type, which exists so that `truncate`
@@ -917,9 +918,9 @@ void definePreludeCore(Program& program, Module& core, TypeList& widthTypes) {
 
     for(auto type: widthTypes) defineConversion(*module, "Narrow"_v, "truncate"_v, type, type);
 
-    // And the reinterpretation ladder over everything both ladders cover, which is why it runs last:
-    // `defineIntegerInstances` appended `Int` and `Long` to this list, and the two floating types
-    // have just joined it, so this is the whole of what `Bitcast` is generated over.
+    // And the reinterpretation ladder over everything the ladders above cover, which is why it runs
+    // last: the two floating types have just joined this list and the integers were always in it, so
+    // this is the whole of what `Bitcast` is generated over.
     defineBitcastLadder(*module, widthTypes);
 
 

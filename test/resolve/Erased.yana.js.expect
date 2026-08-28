@@ -1,22 +1,22 @@
 "use strict";
-const typeDesc$Int = [teardown$none, moveInit$Int, copyInit$Int];
+const typeDesc$I32 = [teardown$none, moveInit$I32, copyInit$I32];
 const typeDesc$ = [teardown$none, teardown$none, teardown$none];
-const genEnv$pick_Int = [typeDesc$Int, typeDesc$];
-const genEnv$identity_Int = [typeDesc$Int];
-const genEnv$firstOf_Int = [typeDesc$Int];
+const genEnv$pick_I32 = [typeDesc$I32, typeDesc$];
+const genEnv$identity_I32 = [typeDesc$I32];
+const genEnv$firstOf_I32 = [typeDesc$I32];
 const typeDesc$Bool = [teardown$none, moveInit$Bool, copyInit$Bool];
-const genEnv$pick_Int_Bool = [typeDesc$Int, typeDesc$Bool];
-const witness$Num_Int = [thunk$Num_Int_add_0, thunk$Num_Int_sub_1, thunk$Num_Int_mul_2, thunk$Num_Int_div_3, thunk$Num_Int_sub_4, null];
-const witness$FromInt_Int = [thunk$FromInt_Int_fromInt_0];
-const genEnv$twice_Int = [typeDesc$Int, witness$Num_Int];
-const witness$Ord_Int = [thunk$Ord_Int_lt_0, thunk$Ord_Int_lt_eq_1, thunk$Ord_Int_gt_2, thunk$Ord_Int_gt_eq_3, thunk$Ord_Int_compare_4, thunk$Ord_Int_min_5, thunk$Ord_Int_max_6, null];
-const witness$Eq_Int = [thunk$Eq_Int_eq_eq_0, thunk$Eq_Int_not_eq_1];
-const genEnv$smaller_Int = [typeDesc$Int, witness$Ord_Int];
-const genEnv$middle_Int = [typeDesc$Int, witness$Ord_Int];
-const genEnv$increment_Int = [typeDesc$Int, witness$Num_Int];
-const genEnv$nothingForwarded_Int = [typeDesc$Int];
-witness$Num_Int[5] = witness$FromInt_Int;
-witness$Ord_Int[7] = witness$Eq_Int;
+const genEnv$pick_I32_Bool = [typeDesc$I32, typeDesc$Bool];
+const witness$Num_I32 = [thunk$Num_I32_add_0, thunk$Num_I32_sub_1, thunk$Num_I32_mul_2, thunk$Num_I32_div_3, thunk$Num_I32_sub_4, null];
+const witness$FromInt_I32 = [thunk$FromInt_I32_fromInt_0];
+const genEnv$twice_I32 = [typeDesc$I32, witness$Num_I32];
+const witness$Ord_I32 = [thunk$Ord_I32_lt_0, thunk$Ord_I32_lt_eq_1, thunk$Ord_I32_gt_2, thunk$Ord_I32_gt_eq_3, thunk$Ord_I32_compare_4, thunk$Ord_I32_min_5, thunk$Ord_I32_max_6, null];
+const witness$Eq_I32 = [thunk$Eq_I32_eq_eq_0, thunk$Eq_I32_not_eq_1];
+const genEnv$smaller_I32 = [typeDesc$I32, witness$Ord_I32];
+const genEnv$middle_I32 = [typeDesc$I32, witness$Ord_I32];
+const genEnv$increment_I32 = [typeDesc$I32, witness$Num_I32];
+const genEnv$nothingForwarded_I32 = [typeDesc$I32];
+witness$Num_I32[5] = witness$FromInt_I32;
+witness$Ord_I32[7] = witness$Eq_I32;
 
 // Core
 function teardown$none(value) {
@@ -68,7 +68,7 @@ function increment(genEnv, x) {
 }
 
 function carriesNothing() {
-  return pick(genEnv$pick_Int, 1, { $v: null }, { $v: 3 }).$v;
+  return pick(genEnv$pick_I32, 1, { $v: null }, { $v: 3 }).$v;
 }
 
 function nothingForwarded(genEnv, z) {
@@ -76,14 +76,14 @@ function nothingForwarded(genEnv, z) {
 }
 
 function main() {
-  return (((((((identity(genEnv$identity_Int, { $v: 1 }).$v + firstOf(genEnv$firstOf_Int, { $v: 2 }, { $v: 99 }).$v | 0) + pick(genEnv$pick_Int_Bool, 1, { $v: 0 }, { $v: 3 }).$v | 0) + twice(genEnv$twice_Int, { $v: 5 }).$v | 0) + smaller(genEnv$smaller_Int, { $v: 30 }, { $v: 8 }).$v | 0) + middle(genEnv$middle_Int, { $v: 60 }, { $v: 12 }, { $v: 40 }).$v | 0) + increment(genEnv$increment_Int, { $v: 19 }).$v | 0) + carriesNothing() | 0) + nothingForwarded(genEnv$nothingForwarded_Int, { $v: 7 }).$v | 0;
+  return (((((((identity(genEnv$identity_I32, { $v: 1 }).$v + firstOf(genEnv$firstOf_I32, { $v: 2 }, { $v: 99 }).$v | 0) + pick(genEnv$pick_I32_Bool, 1, { $v: 0 }, { $v: 3 }).$v | 0) + twice(genEnv$twice_I32, { $v: 5 }).$v | 0) + smaller(genEnv$smaller_I32, { $v: 30 }, { $v: 8 }).$v | 0) + middle(genEnv$middle_I32, { $v: 60 }, { $v: 12 }, { $v: 40 }).$v | 0) + increment(genEnv$increment_I32, { $v: 19 }).$v | 0) + carriesNothing() | 0) + nothingForwarded(genEnv$nothingForwarded_I32, { $v: 7 }).$v | 0;
 }
 
-function moveInit$Int(to, from) {
+function moveInit$I32(to, from) {
   to.$v = from.$v;
 }
 
-function copyInit$Int(to, from) {
+function copyInit$I32(to, from) {
   to.$v = from.$v;
 }
 
@@ -95,19 +95,19 @@ function copyInit$Bool(to, from) {
   to.$v = from.$v;
 }
 
-function thunk$Num_Int_add_0(result, lhs, rhs) {
+function thunk$Num_I32_add_0(result, lhs, rhs) {
   result.$v = lhs.$v + rhs.$v | 0;
 }
 
-function thunk$Num_Int_sub_1(result, lhs, rhs) {
+function thunk$Num_I32_sub_1(result, lhs, rhs) {
   result.$v = lhs.$v - rhs.$v | 0;
 }
 
-function thunk$Num_Int_mul_2(result, lhs, rhs) {
+function thunk$Num_I32_mul_2(result, lhs, rhs) {
   result.$v = Math.imul(lhs.$v, rhs.$v);
 }
 
-function thunk$Num_Int_div_3(result, lhs, rhs) {
+function thunk$Num_I32_div_3(result, lhs, rhs) {
   var v3 = lhs.$v;
   var v4 = rhs.$v;
   if (v4 === 0) {
@@ -117,53 +117,53 @@ function thunk$Num_Int_div_3(result, lhs, rhs) {
   }
 }
 
-function thunk$Num_Int_sub_4(result, value) {
+function thunk$Num_I32_sub_4(result, value) {
   result.$v = -value.$v | 0;
 }
 
-function thunk$FromInt_Int_fromInt_0(result, value) {
+function thunk$FromInt_I32_fromInt_0(result, value) {
   result.$v = Number(BigInt.asIntN(32, value)) | 0;
 }
 
-function thunk$Ord_Int_lt_0(lhs, rhs) {
+function thunk$Ord_I32_lt_0(lhs, rhs) {
   return lhs.$v < rhs.$v ? 1 : 0;
 }
 
-function thunk$Ord_Int_lt_eq_1(lhs, rhs) {
+function thunk$Ord_I32_lt_eq_1(lhs, rhs) {
   return lhs.$v <= rhs.$v ? 1 : 0;
 }
 
-function thunk$Ord_Int_gt_2(lhs, rhs) {
+function thunk$Ord_I32_gt_2(lhs, rhs) {
   return lhs.$v > rhs.$v ? 1 : 0;
 }
 
-function thunk$Ord_Int_gt_eq_3(lhs, rhs) {
+function thunk$Ord_I32_gt_eq_3(lhs, rhs) {
   return lhs.$v >= rhs.$v ? 1 : 0;
 }
 
-function thunk$Ord_Int_compare_4(lhs, rhs) {
+function thunk$Ord_I32_compare_4(lhs, rhs) {
   var v2 = lhs.$v;
   var v3 = rhs.$v;
   return v2 === v3 ? 1 : v2 > v3 ? 2 : 0;
 }
 
-function thunk$Ord_Int_min_5(result, lhs, rhs) {
+function thunk$Ord_I32_min_5(result, lhs, rhs) {
   var v3 = lhs.$v;
   var v4 = rhs.$v;
   result.$v = v3 <= v4 ? v3 : v4;
 }
 
-function thunk$Ord_Int_max_6(result, lhs, rhs) {
+function thunk$Ord_I32_max_6(result, lhs, rhs) {
   var v3 = lhs.$v;
   var v4 = rhs.$v;
   result.$v = v4 >= v3 ? v4 : v3;
 }
 
-function thunk$Eq_Int_eq_eq_0(lhs, rhs) {
+function thunk$Eq_I32_eq_eq_0(lhs, rhs) {
   return lhs.$v === rhs.$v ? 1 : 0;
 }
 
-function thunk$Eq_Int_not_eq_1(lhs, rhs) {
+function thunk$Eq_I32_not_eq_1(lhs, rhs) {
   return lhs.$v !== rhs.$v ? 1 : 0;
 }
 main();

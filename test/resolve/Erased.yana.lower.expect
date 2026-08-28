@@ -1,20 +1,20 @@
+@typeDesc$I32 = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @image$base = []
-@typeDesc$Int = [4, 0, 0, 0, 4, 0, 0, 0, 131, 4, 0, 0, 0, 0, 0, 0]
 @typeDesc$() = [0, 0, 0, 0, 0, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0]
-@genEnv$pick(Int, ()) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$identity(Int) = [0, 0, 0, 0]
-@genEnv$firstOf(Int) = [0, 0, 0, 0]
+@genEnv$pick(I32, ()) = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$identity(I32) = [0, 0, 0, 0]
+@genEnv$firstOf(I32) = [0, 0, 0, 0]
 @typeDesc$Bool = [1, 0, 0, 0, 1, 0, 0, 0, 131, 1, 0, 0, 0, 0, 0, 0]
-@genEnv$pick(Int, Bool) = [0, 0, 0, 0, 0, 0, 0, 0]
-@witness$Num(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@witness$FromInt(Int) = [0, 0, 0, 0]
-@genEnv$twice(Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-@witness$Ord(Int) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-@witness$Eq(Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$smaller(Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$middle(Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$increment(Int) = [0, 0, 0, 0, 0, 0, 0, 0]
-@genEnv$nothingForwarded(Int) = [0, 0, 0, 0]
+@genEnv$pick(I32, Bool) = [0, 0, 0, 0, 0, 0, 0, 0]
+@witness$Num(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$FromInt(I32) = [0, 0, 0, 0]
+@genEnv$twice(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
+@witness$Ord(I32) = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+@witness$Eq(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$smaller(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$middle(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$increment(I32) = [0, 0, 0, 0, 0, 0, 0, 0]
+@genEnv$nothingForwarded(I32) = [0, 0, 0, 0]
 
 teardown$none<complex>(%value: Ptr) {
   b_0 {
@@ -24,11 +24,11 @@ teardown$none<complex>(%value: Ptr) {
 
 identity<complex>(%genEnv: Ptr, %v_0: Ptr, %value: Ptr) {
   b_1 {
-    %v_2 = loads %genEnv, 4: Int
-    %v_3 = sext %v_2: Long
+    %v_2 = loads %genEnv, 4: I32
+    %v_3 = sext %v_2: I64
     %v_4 = add %v_3, @image$base: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = cast %v_5: Long
+    %v_5 = load %v_4, 4: I32
+    %v_6 = cast %v_5: I64
     copy %v_0, %value, %v_6
     ret 
   }
@@ -36,23 +36,23 @@ identity<complex>(%genEnv: Ptr, %v_0: Ptr, %value: Ptr) {
 
 firstOf<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr) {
   b_1 {
-    %v_2 = loads %genEnv, 4: Int
-    %v_3 = sext %v_2: Long
+    %v_2 = loads %genEnv, 4: I32
+    %v_3 = sext %v_2: I64
     %v_4 = add %v_3, @image$base: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = cast %v_5: Long
+    %v_5 = load %v_4, 4: I32
+    %v_6 = cast %v_5: I64
     copy %v_0, %x, %v_6
     ret 
   }
 }
 
-pick<complex>(%genEnv: Ptr, %v_0: Ptr, %flag: Int, %x: Ptr, %y: Ptr) {
+pick<complex>(%genEnv: Ptr, %v_0: Ptr, %flag: I32, %x: Ptr, %y: Ptr) {
   b_1 {
-    %v_2 = loads %genEnv, 4: Int
-    %v_3 = sext %v_2: Long
+    %v_2 = loads %genEnv, 4: I32
+    %v_3 = sext %v_2: I64
     %v_4 = add %v_3, @image$base: Ptr
-    %v_5 = load %v_4, 4: Int
-    %v_6 = cast %v_5: Long
+    %v_5 = load %v_4, 4: I32
+    %v_6 = cast %v_5: I64
     copy %v_0, %y, %v_6
     ret 
   }
@@ -61,24 +61,24 @@ pick<complex>(%genEnv: Ptr, %v_0: Ptr, %flag: Int, %x: Ptr, %y: Ptr) {
 twice<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
   b_1 {
     %v_2 = add %genEnv, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = sext %v_3: Long
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
     %v_5 = add %v_4, @image$base: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = sext %v_6: Long
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
     %v_8 = add %v_7, @image$base: Ptr
-    %v_9 = loads %genEnv, 4: Int
-    %v_10 = sext %v_9: Long
+    %v_9 = loads %genEnv, 4: I32
+    %v_10 = sext %v_9: I64
     %v_11 = add %v_10, @image$base: Ptr
-    %v_12 = load %v_11, 4: Int
-    %v_13 = cast %v_12: Long
+    %v_12 = load %v_11, 4: I32
+    %v_13 = cast %v_12: I64
     %v_14 = alloca %v_13, 16: Ptr
     call_complex %v_8, %v_14, %x, %x
-    %v_15 = loads %genEnv, 4: Int
-    %v_16 = sext %v_15: Long
+    %v_15 = loads %genEnv, 4: I32
+    %v_16 = sext %v_15: I64
     %v_17 = add %v_16, @image$base: Ptr
-    %v_18 = load %v_17, 4: Int
-    %v_19 = cast %v_18: Long
+    %v_18 = load %v_17, 4: I32
+    %v_19 = cast %v_18: I64
     copy %v_0, %v_14, %v_19
     ret 
   }
@@ -87,13 +87,13 @@ twice<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
 smaller<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr) {
   b_1 {
     %v_2 = add %genEnv, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = sext %v_3: Long
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
     %v_5 = add %v_4, @image$base: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = sext %v_6: Long
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = sext %v_6: I64
     %v_8 = add %v_7, @image$base: Ptr
-    %v_9 = call_complex %v_8, %x, %y: Int
+    %v_9 = call_complex %v_8, %x, %y: I32
     je %v_9, b_10, b_11
   }
 
@@ -107,34 +107,34 @@ smaller<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr) {
 
   b_13 {
     %v_15 = phi [b_12, %x], [b_14, %y]: Ptr
-    %v_16 = loads %genEnv, 4: Int
-    %v_17 = sext %v_16: Long
+    %v_16 = loads %genEnv, 4: I32
+    %v_17 = sext %v_16: I64
     %v_18 = add %v_17, @image$base: Ptr
-    %v_19 = load %v_18, 4: Int
-    %v_20 = cast %v_19: Long
+    %v_19 = load %v_18, 4: I32
+    %v_20 = cast %v_19: I64
     copy %v_0, %v_15, %v_20
     ret 
   }
 
   b_10 {
-    %v_21 = loads %genEnv, 4: Int
-    %v_22 = sext %v_21: Long
+    %v_21 = loads %genEnv, 4: I32
+    %v_22 = sext %v_21: I64
     %v_23 = add %v_22, @image$base: Ptr
     %v_24 = add %v_23, 12: Ptr
-    %v_25 = loads %v_24, 4: Int
-    %v_26 = sext %v_25: Long
+    %v_25 = loads %v_24, 4: I32
+    %v_26 = sext %v_25: I64
     %v_27 = add %v_26, @image$base: Ptr
     call_complex %v_27, %y
     jmp b_12
   }
 
   b_11 {
-    %v_28 = loads %genEnv, 4: Int
-    %v_29 = sext %v_28: Long
+    %v_28 = loads %genEnv, 4: I32
+    %v_29 = sext %v_28: I64
     %v_30 = add %v_29, @image$base: Ptr
     %v_31 = add %v_30, 12: Ptr
-    %v_32 = loads %v_31, 4: Int
-    %v_33 = sext %v_32: Long
+    %v_32 = loads %v_31, 4: I32
+    %v_33 = sext %v_32: I64
     %v_34 = add %v_33, @image$base: Ptr
     call_complex %v_34, %x
     jmp b_14
@@ -144,50 +144,50 @@ smaller<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr) {
 middle<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr, %z: Ptr) {
   b_1 {
     %v_2 = alloca 8, 8: Ptr
-    %v_3 = loads %genEnv, 4: Int
-    %v_4 = sext %v_3: Long
+    %v_3 = loads %genEnv, 4: I32
+    %v_4 = sext %v_3: I64
     %v_5 = add %v_4, @image$base: Ptr
-    %v_6 = sub %v_5, @image$base: Long
+    %v_6 = sub %v_5, @image$base: I64
     store %v_2, %v_6, 4
     %v_7 = add %genEnv, 4: Ptr
-    %v_8 = loads %v_7, 4: Int
-    %v_9 = sext %v_8: Long
+    %v_8 = loads %v_7, 4: I32
+    %v_9 = sext %v_8: I64
     %v_10 = add %v_9, @image$base: Ptr
     %v_11 = add %v_2, 4: Ptr
-    %v_12 = sub %v_10, @image$base: Long
+    %v_12 = sub %v_10, @image$base: I64
     store %v_11, %v_12, 4
-    %v_13 = loads %genEnv, 4: Int
-    %v_14 = sext %v_13: Long
+    %v_13 = loads %genEnv, 4: I32
+    %v_14 = sext %v_13: I64
     %v_15 = add %v_14, @image$base: Ptr
-    %v_16 = load %v_15, 4: Int
-    %v_17 = cast %v_16: Long
+    %v_16 = load %v_15, 4: I32
+    %v_17 = cast %v_16: I64
     %v_18 = alloca %v_17, 16: Ptr
     call_complex smaller, %v_2, %v_18, %x, %y
     %v_19 = alloca 8, 8: Ptr
-    %v_20 = loads %genEnv, 4: Int
-    %v_21 = sext %v_20: Long
+    %v_20 = loads %genEnv, 4: I32
+    %v_21 = sext %v_20: I64
     %v_22 = add %v_21, @image$base: Ptr
-    %v_23 = sub %v_22, @image$base: Long
+    %v_23 = sub %v_22, @image$base: I64
     store %v_19, %v_23, 4
     %v_24 = add %genEnv, 4: Ptr
-    %v_25 = loads %v_24, 4: Int
-    %v_26 = sext %v_25: Long
+    %v_25 = loads %v_24, 4: I32
+    %v_26 = sext %v_25: I64
     %v_27 = add %v_26, @image$base: Ptr
     %v_28 = add %v_19, 4: Ptr
-    %v_29 = sub %v_27, @image$base: Long
+    %v_29 = sub %v_27, @image$base: I64
     store %v_28, %v_29, 4
-    %v_30 = loads %genEnv, 4: Int
-    %v_31 = sext %v_30: Long
+    %v_30 = loads %genEnv, 4: I32
+    %v_31 = sext %v_30: I64
     %v_32 = add %v_31, @image$base: Ptr
-    %v_33 = load %v_32, 4: Int
-    %v_34 = cast %v_33: Long
+    %v_33 = load %v_32, 4: I32
+    %v_34 = cast %v_33: I64
     %v_35 = alloca %v_34, 16: Ptr
     call_complex smaller, %v_19, %v_35, %v_18, %z
-    %v_36 = loads %genEnv, 4: Int
-    %v_37 = sext %v_36: Long
+    %v_36 = loads %genEnv, 4: I32
+    %v_37 = sext %v_36: I64
     %v_38 = add %v_37, @image$base: Ptr
-    %v_39 = load %v_38, 4: Int
-    %v_40 = cast %v_39: Long
+    %v_39 = load %v_38, 4: I32
+    %v_40 = cast %v_39: I64
     copy %v_0, %v_35, %v_40
     ret 
   }
@@ -196,64 +196,64 @@ middle<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr, %y: Ptr, %z: Ptr) {
 increment<complex>(%genEnv: Ptr, %v_0: Ptr, %x: Ptr) {
   b_1 {
     %v_2 = add %genEnv, 4: Ptr
-    %v_3 = loads %v_2, 4: Int
-    %v_4 = sext %v_3: Long
+    %v_3 = loads %v_2, 4: I32
+    %v_4 = sext %v_3: I64
     %v_5 = add %v_4, @image$base: Ptr
     %v_6 = add %v_5, 20: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = sext %v_7: Long
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = sext %v_7: I64
     %v_9 = add %v_8, @image$base: Ptr
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = sext %v_10: Long
+    %v_10 = loads %v_9, 4: I32
+    %v_11 = sext %v_10: I64
     %v_12 = add %v_11, @image$base: Ptr
-    %v_13 = loads %genEnv, 4: Int
-    %v_14 = sext %v_13: Long
+    %v_13 = loads %genEnv, 4: I32
+    %v_14 = sext %v_13: I64
     %v_15 = add %v_14, @image$base: Ptr
-    %v_16 = load %v_15, 4: Int
-    %v_17 = cast %v_16: Long
+    %v_16 = load %v_15, 4: I32
+    %v_17 = cast %v_16: I64
     %v_18 = alloca %v_17, 16: Ptr
     call_complex %v_12, %v_18, 1
     %v_19 = add %genEnv, 4: Ptr
-    %v_20 = loads %v_19, 4: Int
-    %v_21 = sext %v_20: Long
+    %v_20 = loads %v_19, 4: I32
+    %v_21 = sext %v_20: I64
     %v_22 = add %v_21, @image$base: Ptr
-    %v_23 = loads %v_22, 4: Int
-    %v_24 = sext %v_23: Long
+    %v_23 = loads %v_22, 4: I32
+    %v_24 = sext %v_23: I64
     %v_25 = add %v_24, @image$base: Ptr
-    %v_26 = loads %genEnv, 4: Int
-    %v_27 = sext %v_26: Long
+    %v_26 = loads %genEnv, 4: I32
+    %v_27 = sext %v_26: I64
     %v_28 = add %v_27, @image$base: Ptr
-    %v_29 = load %v_28, 4: Int
-    %v_30 = cast %v_29: Long
+    %v_29 = load %v_28, 4: I32
+    %v_30 = cast %v_29: I64
     %v_31 = alloca %v_30, 16: Ptr
     call_complex %v_25, %v_31, %x, %v_18
-    %v_32 = loads %genEnv, 4: Int
-    %v_33 = sext %v_32: Long
+    %v_32 = loads %genEnv, 4: I32
+    %v_33 = sext %v_32: I64
     %v_34 = add %v_33, @image$base: Ptr
     %v_35 = add %v_34, 12: Ptr
-    %v_36 = loads %v_35, 4: Int
-    %v_37 = sext %v_36: Long
+    %v_36 = loads %v_35, 4: I32
+    %v_37 = sext %v_36: I64
     %v_38 = add %v_37, @image$base: Ptr
     call_complex %v_38, %v_18
-    %v_39 = loads %genEnv, 4: Int
-    %v_40 = sext %v_39: Long
+    %v_39 = loads %genEnv, 4: I32
+    %v_40 = sext %v_39: I64
     %v_41 = add %v_40, @image$base: Ptr
-    %v_42 = load %v_41, 4: Int
-    %v_43 = cast %v_42: Long
+    %v_42 = load %v_41, 4: I32
+    %v_43 = cast %v_42: I64
     copy %v_0, %v_31, %v_43
     ret 
   }
 }
 
-carriesNothing<complex>(): Int {
+carriesNothing<complex>(): I32 {
   b_0 {
     %v_1 = alloca 1, 1: Ptr
     %v_2 = alloca 1, 8: Ptr
     %v_3 = alloca 4, 4: Ptr
     store %v_3, 3, 4
     %v_4 = alloca 4, 4: Ptr
-    call_complex pick, @genEnv$pick(Int, ()), %v_4, 1, %v_2, %v_3
-    %v_5 = loads %v_4, 4: Int
+    call_complex pick, @genEnv$pick(I32, ()), %v_4, 1, %v_2, %v_3
+    %v_5 = loads %v_4, 4: I32
     ret %v_5
   }
 }
@@ -262,69 +262,69 @@ nothingForwarded<complex>(%genEnv: Ptr, %v_0: Ptr, %z: Ptr) {
   b_1 {
     %v_2 = alloca 1, 1: Ptr
     %v_3 = alloca 8, 8: Ptr
-    %v_4 = loads %genEnv, 4: Int
-    %v_5 = sext %v_4: Long
+    %v_4 = loads %genEnv, 4: I32
+    %v_5 = sext %v_4: I64
     %v_6 = add %v_5, @image$base: Ptr
-    %v_7 = sub %v_6, @image$base: Long
+    %v_7 = sub %v_6, @image$base: I64
     store %v_3, %v_7, 4
     %v_8 = add %v_3, 4: Ptr
-    %v_9 = sub @typeDesc$(), @image$base: Long
+    %v_9 = sub @typeDesc$(), @image$base: I64
     store %v_8, %v_9, 4
     %v_10 = alloca 1, 8: Ptr
-    %v_11 = loads %genEnv, 4: Int
-    %v_12 = sext %v_11: Long
+    %v_11 = loads %genEnv, 4: I32
+    %v_12 = sext %v_11: I64
     %v_13 = add %v_12, @image$base: Ptr
-    %v_14 = load %v_13, 4: Int
-    %v_15 = cast %v_14: Long
+    %v_14 = load %v_13, 4: I32
+    %v_15 = cast %v_14: I64
     %v_16 = alloca %v_15, 16: Ptr
     call_complex pick, %v_3, %v_16, 0, %v_10, %z
-    %v_17 = loads %genEnv, 4: Int
-    %v_18 = sext %v_17: Long
+    %v_17 = loads %genEnv, 4: I32
+    %v_18 = sext %v_17: I64
     %v_19 = add %v_18, @image$base: Ptr
-    %v_20 = load %v_19, 4: Int
-    %v_21 = cast %v_20: Long
+    %v_20 = load %v_19, 4: I32
+    %v_21 = cast %v_20: I64
     copy %v_0, %v_16, %v_21
     ret 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 4: Ptr
     store %v_1, 1, 4
     %one = alloca 4, 4: Ptr
-    call_complex identity, @genEnv$identity(Int), %one, %v_1
-    %one = loads %one, 4: Int
+    call_complex identity, @genEnv$identity(I32), %one, %v_1
+    %one = loads %one, 4: I32
     %v_2 = alloca 4, 4: Ptr
     store %v_2, 2, 4
     %v_3 = alloca 4, 4: Ptr
     store %v_3, 99, 4
     %two = alloca 4, 4: Ptr
-    call_complex firstOf, @genEnv$firstOf(Int), %two, %v_2, %v_3
-    %two = loads %two, 4: Int
+    call_complex firstOf, @genEnv$firstOf(I32), %two, %v_2, %v_3
+    %two = loads %two, 4: I32
     %v_4 = alloca 1, 1: Ptr
     store %v_4, 0, 1
     %v_5 = alloca 4, 4: Ptr
     store %v_5, 3, 4
     %three = alloca 4, 4: Ptr
-    call_complex pick, @genEnv$pick(Int, Bool), %three, 1, %v_4, %v_5
-    %three = loads %three, 4: Int
-    %v_6 = add %one, %two: Int
-    %v_7 = add %v_6, %three: Int
+    call_complex pick, @genEnv$pick(I32, Bool), %three, 1, %v_4, %v_5
+    %three = loads %three, 4: I32
+    %v_6 = add %one, %two: I32
+    %v_7 = add %v_6, %three: I32
     %v_8 = alloca 4, 4: Ptr
     store %v_8, 5, 4
     %v_9 = alloca 4, 4: Ptr
-    call_complex twice, @genEnv$twice(Int), %v_9, %v_8
-    %v_10 = loads %v_9, 4: Int
-    %v_11 = add %v_7, %v_10: Int
+    call_complex twice, @genEnv$twice(I32), %v_9, %v_8
+    %v_10 = loads %v_9, 4: I32
+    %v_11 = add %v_7, %v_10: I32
     %v_12 = alloca 4, 4: Ptr
     store %v_12, 30, 4
     %v_13 = alloca 4, 4: Ptr
     store %v_13, 8, 4
     %v_14 = alloca 4, 4: Ptr
-    call_complex smaller, @genEnv$smaller(Int), %v_14, %v_12, %v_13
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = add %v_11, %v_15: Int
+    call_complex smaller, @genEnv$smaller(I32), %v_14, %v_12, %v_13
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = add %v_11, %v_15: I32
     %v_17 = alloca 4, 4: Ptr
     store %v_17, 60, 4
     %v_18 = alloca 4, 4: Ptr
@@ -332,182 +332,182 @@ main<complex>(): Int {
     %v_19 = alloca 4, 4: Ptr
     store %v_19, 40, 4
     %v_20 = alloca 4, 4: Ptr
-    call_complex middle, @genEnv$middle(Int), %v_20, %v_17, %v_18, %v_19
-    %v_21 = loads %v_20, 4: Int
-    %v_22 = add %v_16, %v_21: Int
+    call_complex middle, @genEnv$middle(I32), %v_20, %v_17, %v_18, %v_19
+    %v_21 = loads %v_20, 4: I32
+    %v_22 = add %v_16, %v_21: I32
     %v_23 = alloca 4, 4: Ptr
     store %v_23, 19, 4
     %v_24 = alloca 4, 4: Ptr
-    call_complex increment, @genEnv$increment(Int), %v_24, %v_23
-    %v_25 = loads %v_24, 4: Int
-    %v_26 = add %v_22, %v_25: Int
-    %v_27 = call_complex carriesNothing: Int
-    %v_28 = add %v_26, %v_27: Int
+    call_complex increment, @genEnv$increment(I32), %v_24, %v_23
+    %v_25 = loads %v_24, 4: I32
+    %v_26 = add %v_22, %v_25: I32
+    %v_27 = call_complex carriesNothing: I32
+    %v_28 = add %v_26, %v_27: I32
     %v_29 = alloca 4, 4: Ptr
     store %v_29, 7, 4
     %v_30 = alloca 4, 4: Ptr
-    call_complex nothingForwarded, @genEnv$nothingForwarded(Int), %v_30, %v_29
-    %v_31 = loads %v_30, 4: Int
-    %v_32 = add %v_28, %v_31: Int
+    call_complex nothingForwarded, @genEnv$nothingForwarded(I32), %v_30, %v_29
+    %v_31 = loads %v_30, 4: I32
+    %v_32 = add %v_28, %v_31: I32
     ret %v_32
   }
 }
 
-thunk$Num(Int).+#0<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+thunk$Num(I32).+#0<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = add %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = add %v_1, %v_2: I32
     store %result, %v_3, 4
     ret 
   }
 }
 
-thunk$Num(Int).-#1<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+thunk$Num(I32).-#1<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = sub %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = sub %v_1, %v_2: I32
     store %result, %v_3, 4
     ret 
   }
 }
 
-thunk$Num(Int).*#2<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+thunk$Num(I32).*#2<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = imul %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = imul %v_1, %v_2: I32
     store %result, %v_3, 4
     ret 
   }
 }
 
-thunk$Num(Int)./#3<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+thunk$Num(I32)./#3<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_2, 0: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_eq %v_2, 0: I32
     je %v_3, b_4, b_5
   }
 
   b_5 {
-    %v_6 = cmp_eq %v_2, 4294967295: Int
-    %v_7 = select %v_6, 1, %v_2: Int
-    %v_8 = idiv %v_1, %v_7: Int
-    %v_9 = neg %v_1: Int
-    %v_10 = select %v_6, %v_9, %v_8: Int
+    %v_6 = cmp_eq %v_2, 4294967295: I32
+    %v_7 = select %v_6, 1, %v_2: I32
+    %v_8 = idiv %v_1, %v_7: I32
+    %v_9 = neg %v_1: I32
+    %v_10 = select %v_6, %v_9, %v_8: I32
     store %result, %v_10, 4
     ret 
   }
 
   b_4 {
-    %v_11 = syscall 60, 134: Long
+    %v_11 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-thunk$Num(Int).-#4<complex>(%result: Ptr, %value: Ptr) {
+thunk$Num(I32).-#4<complex>(%result: Ptr, %value: Ptr) {
   b_0 {
-    %v_1 = loads %value, 4: Int
-    %v_2 = neg %v_1: Int
+    %v_1 = loads %value, 4: I32
+    %v_2 = neg %v_1: I32
     store %result, %v_2, 4
     ret 
   }
 }
 
-thunk$FromInt(Int).fromInt#0<complex>(%result: Ptr, %value: Long) {
+thunk$FromInt(I32).fromInt#0<complex>(%result: Ptr, %value: I64) {
   b_0 {
-    %v_1 = cast %value: Int
+    %v_1 = cast %value: I32
     store %result, %v_1, 4
     ret 
   }
 }
 
-thunk$Ord(Int).<#0<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+thunk$Ord(I32).<#0<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_ilt %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_ilt %v_1, %v_2: I32
     ret %v_3
   }
 }
 
-thunk$Ord(Int).<=#1<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+thunk$Ord(I32).<=#1<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_ile %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_ile %v_1, %v_2: I32
     ret %v_3
   }
 }
 
-thunk$Ord(Int).>#2<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+thunk$Ord(I32).>#2<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_igt %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_igt %v_1, %v_2: I32
     ret %v_3
   }
 }
 
-thunk$Ord(Int).>=#3<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+thunk$Ord(I32).>=#3<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_ige %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_ige %v_1, %v_2: I32
     ret %v_3
   }
 }
 
-thunk$Ord(Int).compare#4<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+thunk$Ord(I32).compare#4<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
-    %v_4 = cmp_igt %v_1, %v_2: Int
-    %v_5 = select %v_4, 2, 0: Int
-    %v_6 = select %v_3, 1, %v_5: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_eq %v_1, %v_2: I32
+    %v_4 = cmp_igt %v_1, %v_2: I32
+    %v_5 = select %v_4, 2, 0: I32
+    %v_6 = select %v_3, 1, %v_5: I32
     ret %v_6
   }
 }
 
-thunk$Ord(Int).min#5<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+thunk$Ord(I32).min#5<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_ile %v_1, %v_2: Int
-    %v_4 = select %v_3, %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_ile %v_1, %v_2: I32
+    %v_4 = select %v_3, %v_1, %v_2: I32
     store %result, %v_4, 4
     ret 
   }
 }
 
-thunk$Ord(Int).max#6<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
+thunk$Ord(I32).max#6<complex>(%result: Ptr, %lhs: Ptr, %rhs: Ptr) {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_ige %v_2, %v_1: Int
-    %v_4 = select %v_3, %v_2, %v_1: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_ige %v_2, %v_1: I32
+    %v_4 = select %v_3, %v_2, %v_1: I32
     store %result, %v_4, 4
     ret 
   }
 }
 
-thunk$Eq(Int).==#0<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+thunk$Eq(I32).==#0<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_eq %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_eq %v_1, %v_2: I32
     ret %v_3
   }
 }
 
-thunk$Eq(Int).!=#1<complex>(%lhs: Ptr, %rhs: Ptr): Int {
+thunk$Eq(I32).!=#1<complex>(%lhs: Ptr, %rhs: Ptr): I32 {
   b_0 {
-    %v_1 = loads %lhs, 4: Int
-    %v_2 = loads %rhs, 4: Int
-    %v_3 = cmp_neq %v_1, %v_2: Int
+    %v_1 = loads %lhs, 4: I32
+    %v_2 = loads %rhs, 4: I32
+    %v_3 = cmp_neq %v_1, %v_2: I32
     ret %v_3
   }
 }

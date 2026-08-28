@@ -1,29 +1,29 @@
 @image$base = []
 
-widenedUnsigned<complex>(%x: Int): Long {
+widenedUnsigned<complex>(%x: I32): I64 {
   b_0 {
-    %v_1 = sext %x: Long
+    %v_1 = sext %x: I64
     ret %v_1
   }
 }
 
-normalizedU8<complex>(%x: Int): Int {
+normalizedU8<complex>(%x: I32): I32 {
   b_0 {
-    %v_1 = and %x, 255: Int
+    %v_1 = and %x, 255: I32
     ret %v_1
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex widenedUnsigned, 18446744073709551615: Long
-    %v_2 = cmp_eq %v_1, 18446744073709551615: Int
-    %v_3 = select %v_2, 16384, 0: Int
-    %v_4 = add %v_3, 16383: Int
-    %v_5 = call_complex normalizedU8, 300: Int
-    %v_6 = cmp_eq %v_5, 44: Int
-    %v_7 = select %v_6, 32768, 0: Int
-    %v_8 = add %v_4, %v_7: Int
+    %v_1 = call_complex widenedUnsigned, 18446744073709551615: I64
+    %v_2 = cmp_eq %v_1, 18446744073709551615: I32
+    %v_3 = select %v_2, 16384, 0: I32
+    %v_4 = add %v_3, 16383: I32
+    %v_5 = call_complex normalizedU8, 300: I32
+    %v_6 = cmp_eq %v_5, 44: I32
+    %v_7 = select %v_6, 32768, 0: I32
+    %v_8 = add %v_4, %v_7: I32
     ret %v_8
   }
 }

@@ -1,28 +1,28 @@
 
-splatByte<complex>(%b: Int): i8x16 {
+splatByte<complex>(%b: I32): i8x16 {
   b_0 {
     %v = vsplat %b: i8x16
     ret %v
   }
 }
 
-splatWord<complex>(%w: Int): i16x8 {
+splatWord<complex>(%w: I32): i16x8 {
   b_0 {
     %v = vsplat %w: i16x8
     ret %v
   }
 }
 
-sumBytes<complex>(%v: i8x16): Int {
+sumBytes<complex>(%v: i8x16): I32 {
   b_0 {
-    %r = vreduce_add %v: Int
+    %r = vreduce_add %v: I32
     ret %r
   }
 }
 
-minBytes<complex>(%v: i8x16): Int {
+minBytes<complex>(%v: i8x16): I32 {
   b_0 {
-    %r = vreduce_min %v: Int
+    %r = vreduce_min %v: I32
     ret %r
   }
 }
@@ -34,16 +34,16 @@ belowByte<complex>(%a: i8x16, %b: i8x16): m8x16 {
   }
 }
 
-iminBytes<complex>(%v: i8x16): Int {
+iminBytes<complex>(%v: i8x16): I32 {
   b_0 {
-    %r = vreduce_imin %v: Int
+    %r = vreduce_imin %v: I32
     ret %r
   }
 }
 
-iminWords<complex>(%v: i16x8): Int {
+iminWords<complex>(%v: i16x8): I32 {
   b_0 {
-    %r = vreduce_imin %v: Int
+    %r = vreduce_imin %v: I32
     ret %r
   }
 }

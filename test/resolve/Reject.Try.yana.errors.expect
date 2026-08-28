@@ -1,8 +1,8 @@
 54:30: error: `?` returns from the enclosing function, so it needs that function's result type - and the `=` form infers its result from the body this is written in. Write the result type out, as in `-> Maybe(Int)`
-15:25: error: `?` needs Bag(Int) to say which of its cases means "carry on", and it has no `Try` instance
-21:13: error: `?` needs Int to say which of its cases means "carry on", and it has no `Try` instance
-27:20: error: `?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - Int has no `Try` instance
-34:20: error: `?` on Maybe(Int) exits carrying (), and this function exits carrying Bool - no `Widen` instance relates the two, so there is nothing to rebuild its result from. Write the failure out with `| else -> ...` instead
+15:25: error: `?` needs Bag(I32) to say which of its cases means "carry on", and it has no `Try` instance
+21:13: error: `?` needs I32 to say which of its cases means "carry on", and it has no `Try` instance
+27:20: error: `?` returns from the enclosing function when it exits, so that function's result type has to be one it can rebuild - I32 has no `Try` instance
+34:20: error: `?` on Maybe(I32) exits carrying (), and this function exits carrying Bool - no `Widen` instance relates the two, so there is nothing to rebuild its result from. Write the failure out with `| else -> ...` instead
 40:20: error: `?` cannot be written in a transparent `lens fn` - it returns *by* calling its continuation, so it has no return edge of its own for `?` to take. A lens that may skip declares the carrier it skips through, and `?` is accepted in one of those
 46:12: error: `?` leaves the enclosing function, and an `iter fn` ends by running out of values rather than by returning - what it produces is the loop's own signal, which is not a carrier `?` can rebuild
 58:32: error: this lambda's result type is decided by its body, so `?` cannot be written in it - `?` returns from the enclosing function, and that needs the type first. Write the lambda where a function type is expected

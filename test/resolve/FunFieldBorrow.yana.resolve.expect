@@ -1,107 +1,107 @@
 let image$base: () = <none>
 
-fn double(%x: Int) -> Int {
+fn double(%x: I32) -> I32 {
   b0:
-    %v3 = mul %x, 2 : Int
+    %v3 = mul %x, 2 : I32
     ret %v3
 }
 
-fn triple(%x: Int) -> Int {
+fn triple(%x: I32) -> I32 {
   b0:
-    %v3 = mul %x, 3 : Int
+    %v3 = mul %x, 3 : I32
     ret %v3
 }
 
-fn negate(%x: Int) -> Int {
+fn negate(%x: I32) -> I32 {
   b0:
-    %v3 = sub 0, %x : Int
+    %v3 = sub 0, %x : I32
     ret %v3
 }
 
-fn retarget(%slot: (Int) -> Int) -> () {
+fn retarget(%slot: (I32) -> I32) -> () {
   b0:
-    %v1 = alloc : (Int) -> Int
+    %v1 = alloc : (I32) -> I32
     %v2 = symbol funvalue$triple : %()
     init %local1.code, %v2
     %v5 = cast 0 : %()
     init %local1.env, %v5
-    drop_derived %slot via teardown$(Int) -> Int
+    drop_derived %slot via teardown$(I32) -> I32
     assign %slot, %v1
     ret
 }
 
-fn reweight(%step: Step, %weight: Int) -> () {
+fn reweight(%step: Step, %weight: I32) -> () {
   b0:
     assign %step@Step.weight, %weight
-    %v3 = alloc : (Int) -> Int
+    %v3 = alloc : (I32) -> I32
     %v4 = symbol funvalue$negate : %()
     init %local1.code, %v4
     %v7 = cast 0 : %()
     init %local1.env, %v7
-    drop_derived %step@Step.run via teardown$(Int) -> Int
+    drop_derived %step@Step.run via teardown$(I32) -> I32
     assign %step@Step.run, %v3
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = alloc : Step
-    %v2 = alloc : (Int) -> Int
+    %v2 = alloc : (I32) -> I32
     %v3 = symbol funvalue$double : %()
     init %local1.code, %v3
     %v6 = cast 0 : %()
     init %local1.env, %v6
     aggregate %s@Step.weight = 1, %s@Step.run = %v2
     %v9 = load %s : Step
-    %v10 = load %s@Step.run : (Int) -> Int
-    %v12 = calldyn %v10, 10 : Int
+    %v10 = load %s@Step.run : (I32) -> I32
+    %v12 = calldyn %v10, 10 : I32
     %v13 = load %s : Step
-    %v14 = load %s@Step.weight : Int
-    %before = mul %v12, %v14 : Int
+    %v14 = load %s@Step.weight : I32
+    %before = mul %v12, %v14 : I32
     %v16 = load %s : Step
-    %v17 = load %s@Step.run : (Int) -> Int
-    %v18 = borrow_mut %s@Step.run : &(Int) -> Int
+    %v17 = load %s@Step.run : (I32) -> I32
+    %v18 = borrow_mut %s@Step.run : &(I32) -> I32
     call retarget, %v18
     %v20 = load %s : Step
-    %v21 = load %s@Step.run : (Int) -> Int
-    %v23 = calldyn %v21, 10 : Int
+    %v21 = load %s@Step.run : (I32) -> I32
+    %v23 = calldyn %v21, 10 : I32
     %v24 = load %s : Step
-    %v25 = load %s@Step.weight : Int
-    %after = mul %v23, %v25 : Int
+    %v25 = load %s@Step.weight : I32
+    %after = mul %v23, %v25 : I32
     %v27 = load %s : Step
     %v29 = borrow_mut %s : &Step
     call reweight, %v29, 4
     %v31 = load %s : Step
-    %v32 = load %s@Step.run : (Int) -> Int
-    %v34 = calldyn %v32, 10 : Int
+    %v32 = load %s@Step.run : (I32) -> I32
+    %v34 = calldyn %v32, 10 : I32
     %v35 = load %s : Step
-    %v36 = load %s@Step.weight : Int
+    %v36 = load %s@Step.weight : I32
     drop_derived %s via teardown$Step
-    %last = mul %v34, %v36 : Int
-    %v38 = add %before, %after : Int
-    %v39 = add %v38, %last : Int
+    %last = mul %v34, %v36 : I32
+    %v38 = add %before, %after : I32
+    %v39 = add %v38, %last : I32
     ret %v39
 }
 
-fn funvalue$triple(%env: %(), %x: Int) -> Int {
+fn funvalue$triple(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call triple, %x : Int
+    %v2 = call triple, %x : I32
     ret %v2
 }
 
-fn funvalue$negate(%env: %(), %x: Int) -> Int {
+fn funvalue$negate(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call negate, %x : Int
+    %v2 = call negate, %x : I32
     ret %v2
 }
 
-fn funvalue$double(%env: %(), %x: Int) -> Int {
+fn funvalue$double(%env: %(), %x: I32) -> I32 {
   b0:
-    %v2 = call double, %x : Int
+    %v2 = call double, %x : I32
     ret %v2
 }
 
-fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
+fn teardown$(I32) -> I32(%value: (I32) -> I32) -> () {
   b0:
     %v1 = load %value.env : %()
     %v3 = cast 0 : %()
@@ -110,9 +110,9 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
   b1:
     %v6 = load %value.code : %()
-    %v7 = cast %v6 : Long
-    %v8 = sizeof {slot: Int} : Long
-    %v9 = sub %v7, %v8 : Long
+    %v7 = cast %v6 : I64
+    %v8 = sizeof {slot: I32} : I64
+    %v9 = sub %v7, %v8 : I64
     %v10 = cast %v9 : %()
     %v11 = tableslot : %()
     calldyn %v11, %v1
@@ -124,6 +124,6 @@ fn teardown$(Int) -> Int(%value: (Int) -> Int) -> () {
 
 fn teardown$Step(%value: Step) -> () {
   b0:
-    drop_derived %value@Step.run via teardown$(Int) -> Int
+    drop_derived %value@Step.run via teardown$(I32) -> I32
     ret
 }

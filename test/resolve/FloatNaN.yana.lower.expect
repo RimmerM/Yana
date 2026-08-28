@@ -2,12 +2,12 @@
 mut @zero = [0, 0, 0, 0]
 mut @one = [0, 0, 128, 63]
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = load @zero, 4: Float
-    %v_2 = div %v_1, %v_1: Float
-    %v = load @one, 4: Float
-    %v_3 = cmp_lt %v_2, %v: Int
+    %v_1 = load @zero, 4: F32
+    %v_2 = div %v_1, %v_1: F32
+    %v = load @one, 4: F32
+    %v_3 = cmp_lt %v_2, %v: I32
     je %v_3, b_4, b_5
   }
 
@@ -20,13 +20,13 @@ main<complex>(): Int {
   }
 
   b_6 {
-    %v_7 = phi [b_4, 1], [b_5, 0]: Int
-    %v_8 = cmp_le %v_2, %v: Int
+    %v_7 = phi [b_4, 1], [b_5, 0]: I32
+    %v_8 = cmp_le %v_2, %v: I32
     je %v_8, b_9, b_10
   }
 
   b_9 {
-    %v_11 = add %v_7, 2: Int
+    %v_11 = add %v_7, 2: I32
     jmp b_12
   }
 
@@ -35,13 +35,13 @@ main<complex>(): Int {
   }
 
   b_12 {
-    %v_13 = phi [b_9, %v_11], [b_10, %v_7]: Int
-    %v_14 = cmp_gt %v_2, %v: Int
+    %v_13 = phi [b_9, %v_11], [b_10, %v_7]: I32
+    %v_14 = cmp_gt %v_2, %v: I32
     je %v_14, b_15, b_16
   }
 
   b_15 {
-    %v_17 = add %v_13, 4: Int
+    %v_17 = add %v_13, 4: I32
     jmp b_18
   }
 
@@ -50,13 +50,13 @@ main<complex>(): Int {
   }
 
   b_18 {
-    %v_19 = phi [b_15, %v_17], [b_16, %v_13]: Int
-    %v_20 = cmp_ge %v_2, %v: Int
+    %v_19 = phi [b_15, %v_17], [b_16, %v_13]: I32
+    %v_20 = cmp_ge %v_2, %v: I32
     je %v_20, b_21, b_22
   }
 
   b_21 {
-    %v_23 = add %v_19, 8: Int
+    %v_23 = add %v_19, 8: I32
     jmp b_24
   }
 
@@ -65,13 +65,13 @@ main<complex>(): Int {
   }
 
   b_24 {
-    %v_25 = phi [b_21, %v_23], [b_22, %v_19]: Int
-    %v_26 = cmp_eq %v_2, %v: Int
+    %v_25 = phi [b_21, %v_23], [b_22, %v_19]: I32
+    %v_26 = cmp_eq %v_2, %v: I32
     je %v_26, b_27, b_28
   }
 
   b_27 {
-    %v_29 = add %v_25, 16: Int
+    %v_29 = add %v_25, 16: I32
     jmp b_30
   }
 
@@ -80,13 +80,13 @@ main<complex>(): Int {
   }
 
   b_30 {
-    %v_31 = phi [b_27, %v_29], [b_28, %v_25]: Int
-    %v_32 = cmp_neq %v_2, %v: Int
+    %v_31 = phi [b_27, %v_29], [b_28, %v_25]: I32
+    %v_32 = cmp_neq %v_2, %v: I32
     je %v_32, b_33, b_34
   }
 
   b_33 {
-    %v_35 = add %v_31, 32: Int
+    %v_35 = add %v_31, 32: I32
     jmp b_36
   }
 
@@ -95,13 +95,13 @@ main<complex>(): Int {
   }
 
   b_36 {
-    %v_37 = phi [b_33, %v_35], [b_34, %v_31]: Int
-    %v_38 = cmp_eq %v_2, %v_2: Int
+    %v_37 = phi [b_33, %v_35], [b_34, %v_31]: I32
+    %v_38 = cmp_eq %v_2, %v_2: I32
     je %v_38, b_39, b_40
   }
 
   b_39 {
-    %v_41 = add %v_37, 64: Int
+    %v_41 = add %v_37, 64: I32
     jmp b_42
   }
 
@@ -110,13 +110,13 @@ main<complex>(): Int {
   }
 
   b_42 {
-    %v_43 = phi [b_39, %v_41], [b_40, %v_37]: Int
-    %v_44 = cmp_neq %v_2, %v_2: Int
+    %v_43 = phi [b_39, %v_41], [b_40, %v_37]: I32
+    %v_44 = cmp_neq %v_2, %v_2: I32
     je %v_44, b_45, b_46
   }
 
   b_45 {
-    %v_47 = add %v_43, 128: Int
+    %v_47 = add %v_43, 128: I32
     jmp b_48
   }
 
@@ -125,13 +125,13 @@ main<complex>(): Int {
   }
 
   b_48 {
-    %v_49 = phi [b_45, %v_47], [b_46, %v_43]: Int
-    %v_50 = cmp_gt %v, %v_1: Int
+    %v_49 = phi [b_45, %v_47], [b_46, %v_43]: I32
+    %v_50 = cmp_gt %v, %v_1: I32
     je %v_50, b_51, b_52
   }
 
   b_51 {
-    %v_53 = add %v_49, 256: Int
+    %v_53 = add %v_49, 256: I32
     jmp b_54
   }
 
@@ -140,13 +140,13 @@ main<complex>(): Int {
   }
 
   b_54 {
-    %v_55 = phi [b_51, %v_53], [b_52, %v_49]: Int
-    %v_56 = cmp_lt %v_1, %v: Int
+    %v_55 = phi [b_51, %v_53], [b_52, %v_49]: I32
+    %v_56 = cmp_lt %v_1, %v: I32
     je %v_56, b_57, b_58
   }
 
   b_57 {
-    %v_59 = add %v_55, 512: Int
+    %v_59 = add %v_55, 512: I32
     jmp b_60
   }
 
@@ -155,13 +155,13 @@ main<complex>(): Int {
   }
 
   b_60 {
-    %v_61 = phi [b_57, %v_59], [b_58, %v_55]: Int
-    %v_62 = cmp_eq %v, %v: Int
+    %v_61 = phi [b_57, %v_59], [b_58, %v_55]: I32
+    %v_62 = cmp_eq %v, %v: I32
     je %v_62, b_63, b_64
   }
 
   b_63 {
-    %v_65 = add %v_61, 1024: Int
+    %v_65 = add %v_61, 1024: I32
     jmp b_66
   }
 
@@ -170,13 +170,13 @@ main<complex>(): Int {
   }
 
   b_66 {
-    %v_67 = phi [b_63, %v_65], [b_64, %v_61]: Int
-    %v_68 = cmp_neq %v, %v_1: Int
+    %v_67 = phi [b_63, %v_65], [b_64, %v_61]: I32
+    %v_68 = cmp_neq %v, %v_1: I32
     je %v_68, b_69, b_70
   }
 
   b_69 {
-    %v_71 = add %v_67, 2048: Int
+    %v_71 = add %v_67, 2048: I32
     jmp b_72
   }
 
@@ -185,7 +185,7 @@ main<complex>(): Int {
   }
 
   b_72 {
-    %v_73 = phi [b_69, %v_71], [b_70, %v_67]: Int
+    %v_73 = phi [b_69, %v_71], [b_70, %v_67]: I32
     ret %v_73
   }
 }

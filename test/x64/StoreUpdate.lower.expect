@@ -1,41 +1,41 @@
 
-sink<complex>(%p: Ptr): Int {
+sink<complex>(%p: Ptr): I32 {
   b_0 {
     ret 0
   }
 }
 
-update<complex>(%p: Ptr, %v: Int) {
+update<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %old = load %p, 4: Int
-    %new = add %old, %v: Int
+    %old = load %p, 4: I32
+    %new = add %old, %v: I32
     store %p, %new, 4
     ret 
   }
 }
 
-bitwise<complex>(%a: Ptr, %b: Ptr, %c: Ptr, %d: Ptr, %v: Int) {
+bitwise<complex>(%a: Ptr, %b: Ptr, %c: Ptr, %d: Ptr, %v: I32) {
   b_0 {
-    %x = load %a, 4: Int
-    %x2 = sub %x, %v: Int
+    %x = load %a, 4: I32
+    %x2 = sub %x, %v: I32
     store %a, %x2, 4
-    %y = load %b, 4: Int
-    %y2 = and %y, %v: Int
+    %y = load %b, 4: I32
+    %y2 = and %y, %v: I32
     store %b, %y2, 4
-    %z = load %c, 4: Int
-    %z2 = or %z, %v: Int
+    %z = load %c, 4: I32
+    %z2 = or %z, %v: I32
     store %c, %z2, 4
-    %w = load %d, 4: Int
-    %w2 = xor %w, %v: Int
+    %w = load %d, 4: I32
+    %w2 = xor %w, %v: I32
     store %d, %w2, 4
     ret 
   }
 }
 
-exchanged<complex>(%p: Ptr, %v: Int) {
+exchanged<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %old = load %p, 4: Int
-    %new = add %v, %old: Int
+    %old = load %p, 4: I32
+    %new = add %v, %old: I32
     store %p, %new, 4
     ret 
   }
@@ -43,68 +43,68 @@ exchanged<complex>(%p: Ptr, %v: Int) {
 
 constants<complex>(%p: Ptr, %q: Ptr) {
   b_0 {
-    %a = load %p, 4: Int
-    %a2 = add %a, 1: Int
+    %a = load %p, 4: I32
+    %a2 = add %a, 1: I32
     store %p, %a2, 4
-    %b = load %q, 4: Int
-    %b2 = add %b, 100000: Int
+    %b = load %q, 4: I32
+    %b2 = add %b, 100000: I32
     store %q, %b2, 4
     ret 
   }
 }
 
-wide<complex>(%p: Ptr, %v: Long) {
+wide<complex>(%p: Ptr, %v: I64) {
   b_0 {
-    %old = load %p, 8: Long
-    %new = or %old, %v: Long
+    %old = load %p, 8: I64
+    %new = or %old, %v: I64
     store %p, %new, 8
     ret 
   }
 }
 
-narrow<complex>(%p: Ptr, %q: Ptr, %v: Int) {
+narrow<complex>(%p: Ptr, %q: Ptr, %v: I32) {
   b_0 {
-    %a = load %p, 1: Int
-    %a2 = add %a, %v: Int
+    %a = load %p, 1: I32
+    %a2 = add %a, %v: I32
     store %p, %a2, 1
-    %b = load %q, 2: Int
-    %b2 = xor %b, %v: Int
+    %b = load %q, 2: I32
+    %b2 = xor %b, %v: I32
     store %q, %b2, 2
     ret 
   }
 }
 
-byteRegister<complex>(%p: Ptr, %v: Int) {
+byteRegister<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %old = load %p, 1: Int
-    %new = add %old, %v: Int
+    %old = load %p, 1: I32
+    %new = add %old, %v: I32
     store %p, %new, 1
     ret 
   }
 }
 
-element<complex>(%p: Ptr, %i: Long, %v: Int) {
+element<complex>(%p: Ptr, %i: I64, %v: I32) {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
-    %old = load %q, 4: Int
-    %new = add %old, %v: Int
+    %old = load %q, 4: I32
+    %new = add %old, %v: I32
     store %q, %new, 4
     ret 
   }
 }
 
-checked<complex>(%p: Ptr, %i: Long, %n: Long, %v: Int) {
+checked<complex>(%p: Ptr, %i: I64, %n: I64, %v: I32) {
   entry {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
-    %old = load %q, 4: Int
-    %v_0 = cmp_ge %i, %n: Int
+    %old = load %q, 4: I32
+    %v_0 = cmp_ge %i, %n: I32
     je %v_0, abort, body
   }
 
   body {
-    %new = add %old, %v: Int
+    %new = add %old, %v: I32
     store %q, %new, 4
     ret 
   }
@@ -114,74 +114,74 @@ checked<complex>(%p: Ptr, %i: Long, %n: Long, %v: Int) {
   }
 }
 
-across<complex>(%p: Ptr, %v: Int) {
+across<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %old = load %p, 4: Int
-    %r = call_complex sink, %p: Int
-    %new = add %old, %v: Int
+    %old = load %p, 4: I32
+    %r = call_complex sink, %p: I32
+    %new = add %old, %v: I32
     store %p, %new, 4
     ret 
   }
 }
 
-elsewhere<complex>(%p: Ptr, %q: Ptr, %v: Int) {
+elsewhere<complex>(%p: Ptr, %q: Ptr, %v: I32) {
   b_0 {
-    %old = load %p, 4: Int
-    %new = add %old, %v: Int
+    %old = load %p, 4: I32
+    %new = add %old, %v: I32
     store %q, %new, 4
     ret 
   }
 }
 
-shared<complex>(%p: Ptr, %v: Int): Int {
+shared<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
-    %old = load %p, 4: Int
-    %new = add %old, %v: Int
+    %old = load %p, 4: I32
+    %new = add %old, %v: I32
     store %p, %new, 4
     ret %new
   }
 }
 
-reread<complex>(%p: Ptr, %v: Int): Int {
+reread<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
-    %old = load %p, 4: Int
-    %new = add %old, %v: Int
+    %old = load %p, 4: I32
+    %new = add %old, %v: I32
     store %p, %new, 4
     ret %old
   }
 }
 
-reversed<complex>(%p: Ptr, %v: Int) {
+reversed<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %old = load %p, 4: Int
-    %new = sub %v, %old: Int
+    %old = load %p, 4: I32
+    %new = sub %v, %old: I32
     store %p, %new, 4
     ret 
   }
 }
 
-counted<complex>(%p: Ptr, %src: Ptr, %n: Long) {
+counted<complex>(%p: Ptr, %src: Ptr, %n: I64) {
   entry {
-    %zero = cast 0: Long
-    %one = cast 1: Long
+    %zero = cast 0: I64
+    %one = cast 1: I64
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Long
-    %v_0 = cmp_ge %i, %n: Int
+    %i = phi [entry, %zero], [body, %i2]: I64
+    %v_0 = cmp_ge %i, %n: I32
     je %v_0, exit, body
   }
 
   body {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
     %s = add %src, %o: Ptr
-    %v = load %s, 4: Int
-    %old = load %q, 4: Int
-    %new = add %old, %v: Int
+    %v = load %s, 4: I32
+    %old = load %q, 4: I32
+    %new = add %old, %v: I32
     store %q, %new, 4
-    %i2 = add %i, %one: Long
+    %i2 = add %i, %one: I64
     jmp head
   }
 

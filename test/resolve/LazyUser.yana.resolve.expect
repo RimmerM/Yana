@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-let &effects: Int = 0
+let &effects: I32 = 0
 
 table closure$ResolveTest.deferred$22 before ResolveTest.deferred$22 {
   .0 teardown$none
@@ -15,99 +15,99 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn ??(Int)(%value: Maybe(Int), %fallback: () -> Int) -> Int {
+fn ??(I32)(%value: Maybe(I32), %fallback: () -> I32) -> I32 {
   b0:
-    %v3 = load %value.discriminant : Int
+    %v3 = load %value.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
   b1:
-    %v7 = calldyn %fallback : Int
+    %v7 = calldyn %fallback : I32
     jmp b3
 
   b2:
-    %v9 = load %value@Just : Int
-    %v10 = move %value@Just : Int
-    %inner = alloc : Int
+    %v9 = load %value@Just : I32
+    %v10 = move %value@Just : I32
+    %inner = alloc : I32
     init %local1, %v10
-    %inner = load %local1 : Int
+    %inner = load %local1 : I32
     jmp b3
 
   b3:
-    %v2 = phi [b2, %inner], [b1, %v7] : Int
+    %v2 = phi [b2, %inner], [b1, %v7] : I32
     ret %v2
 }
 
-fn bump(%mark: Int) -> Int {
+fn bump(%mark: I32) -> I32 {
   b0:
-    %v1 = load effects : Int
-    %v2 = add %v1, %mark : Int
+    %v1 = load effects : I32
+    %v2 = add %v1, %mark : I32
     assign effects, %v2
     ret %mark
 }
 
-fn markPoint(%mark: Int) -> Point {
+fn markPoint(%mark: I32) -> Point {
   b0:
-    %v1 = load effects : Int
-    %v2 = add %v1, %mark : Int
+    %v1 = load effects : I32
+    %v2 = add %v1, %mark : I32
     assign effects, %v2
     %v4 = alloc : Point
     aggregate %local0@Point.x = 2, %local0@Point.y = 3
     ret %v4
 }
 
-fn bumpTrue(%mark: Int) -> Bool {
+fn bumpTrue(%mark: I32) -> Bool {
   b0:
-    %v1 = load effects : Int
-    %v2 = add %v1, %mark : Int
+    %v1 = load effects : I32
+    %v2 = add %v1, %mark : I32
     assign effects, %v2
     ret True
 }
 
-fn nothingInt() -> Maybe(Int) {
+fn nothingInt() -> Maybe(I32) {
   b0:
-    %v0 = alloc : Maybe(Int)
+    %v0 = alloc : Maybe(I32)
     init %local0.discriminant, 0
     ret %v0
 }
 
-fn inner(%flag: Bool, %v: () -> Int) -> Int {
+fn inner(%flag: Bool, %v: () -> I32) -> I32 {
   b0:
     je %flag, b1, b2
 
   b1:
-    %v3 = calldyn %v : Int
+    %v3 = calldyn %v : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v7 = phi [b1, %v3], [b2, 0] : Int
+    %v7 = phi [b1, %v3], [b2, 0] : I32
     ret %v7
 }
 
-fn outer(%flag: Bool, %v: () -> Int) -> Int {
+fn outer(%flag: Bool, %v: () -> I32) -> I32 {
   b0:
-    %v2 = call inner, %flag, %v : Int
+    %v2 = call inner, %flag, %v : I32
     ret %v2
 }
 
-fn pick(%which: Int, %a: () -> Int, %b: () -> Int) -> Int {
+fn pick(%which: I32, %a: () -> I32, %b: () -> I32) -> I32 {
   b0:
     %v5 = cmp_eq %which, 0 : Bool
     je %v5, b1, b2
 
   b1:
-    %v7 = calldyn %a : Int
+    %v7 = calldyn %a : I32
     jmp b3
 
   b2:
-    %v8 = calldyn %b : Int
+    %v8 = calldyn %b : I32
     jmp b3
 
   b3:
-    %v11 = phi [b1, %v7], [b2, %v8] : Int
+    %v11 = phi [b1, %v7], [b2, %v8] : I32
     ret %v11
 }
 
@@ -117,7 +117,7 @@ fn orDefault(%m: Maybe(a), %fallback: () -> a) -> a {
   }
 
   b0:
-    %v2 = load %m.discriminant : Int
+    %v2 = load %m.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -137,20 +137,20 @@ fn orDefault(%m: Maybe(a), %fallback: () -> a) -> a {
     ret %v13
 }
 
-fn pointOr(%flag: Bool, %p: () -> Point) -> Int {
+fn pointOr(%flag: Bool, %p: () -> Point) -> I32 {
   b0:
     je %flag, b1, b2
 
   b1:
     %v3 = calldyn %p : Point
-    %v4 = load %local0@Point.x : Int
+    %v4 = load %local0@Point.x : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v8 = phi [b1, %v4], [b2, 0] : Int
+    %v8 = phi [b1, %v4], [b2, 0] : I32
     ret %v8
 }
 
@@ -192,7 +192,7 @@ fn hasValue(%flag: Bool, %m: () -> Maybe(b)) -> Bool {
 
   b2:
     %v4 = calldyn %m : Maybe(b)
-    %v5 = load %local0.discriminant : Int
+    %v5 = load %local0.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
     je %v7, b4, b3
 
@@ -237,7 +237,7 @@ fn orRun(%flag: Bool, %v: () -> b) -> Maybe(b) {
     ret %v12
 }
 
-fn |?(%lhs: Int, %rhs: () -> Int) -> Int {
+fn |?(%lhs: I32, %rhs: () -> I32) -> I32 {
   b0:
     %v4 = cmp_ne %lhs, 0 : Bool
     je %v4, b1, b2
@@ -246,90 +246,90 @@ fn |?(%lhs: Int, %rhs: () -> Int) -> Int {
     jmp b3
 
   b2:
-    %v6 = calldyn %rhs : Int
+    %v6 = calldyn %rhs : I32
     jmp b3
 
   b3:
-    %v9 = phi [b1, %lhs], [b2, %v6] : Int
+    %v9 = phi [b1, %lhs], [b2, %v6] : I32
     ret %v9
 }
 
-fn beforeLoop(%count: Int, %v: () -> Int) -> Int {
+fn beforeLoop(%count: I32, %v: () -> I32) -> I32 {
   b0:
-    %v2 = calldyn %v : Int
-    %total = alloc : Int
+    %v2 = calldyn %v : I32
+    %total = alloc : I32
     init %total, %v2
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v10 = load %i : Int
+    %v10 = load %i : I32
     %v11 = cmp_lt %v10, %count : Bool
     je %v11, b3, b2
 
   b2:
-    %v24 = load %total : Int
+    %v24 = load %total : I32
     ret %v24
 
   b3:
-    %v13 = load %total : Int
-    %v16 = add %v13, 1 : Int
+    %v13 = load %total : I32
+    %v16 = add %v13, 1 : I32
     assign %total, %v16
-    %v18 = load %i : Int
-    %v21 = add %v18, 1 : Int
+    %v18 = load %i : I32
+    %v21 = add %v18, 1 : I32
     assign %i, %v21
     jmp b1
 }
 
-fn capturing() -> Int {
+fn capturing() -> I32 {
   b0:
-    %v3 = alloc : {n: Int}
+    %v3 = alloc : {n: I32}
     init %local0.n, %n
     %v5 = addressof %local0 : %()
-    %v6 = alloc : () -> Int
+    %v6 = alloc : () -> I32
     %v7 = symbol ResolveTest.deferred$22 : %()
     init %local1.code, %v7
     init %local1.env, %v5
-    %v10 = call inner, True, %v6 : Int
+    %v10 = call inner, True, %v6 : I32
     ret %v10
 }
 
-fn mutableCapture() -> Int {
+fn mutableCapture() -> I32 {
   b0:
-    %n = alloc : Int
+    %n = alloc : I32
     init %n, 1
-    %v4 = load %n : Int
-    %v7 = add %v4, 40 : Int
+    %v4 = load %n : I32
+    %v7 = add %v4, 40 : I32
     assign %n, %v7
-    %v10 = alloc : {n: &Int}
-    %v11 = borrow_mut %n : &Int
+    %v10 = alloc : {n: &I32}
+    %v11 = borrow_mut %n : &I32
     init %local1.n, %v11
     %v13 = addressof %local1 : %()
-    %v14 = alloc : () -> Int
+    %v14 = alloc : () -> I32
     %v15 = symbol ResolveTest.deferred$23 : %()
     init %local2.code, %v15
     init %local2.env, %v13
-    %v18 = call inner, True, %v14 : Int
+    %v18 = call inner, True, %v14 : I32
     ret %v18
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
-    %v5 = alloc : () -> Int
+    %v5 = alloc : () -> I32
     %v6 = symbol ResolveTest.deferred$24 : %()
     init %local1.code, %v6
     %v9 = cast 0 : %()
     init %local1.env, %v9
-    %v11 = call outer, False, %v5 : Int
+    %v11 = call outer, False, %v5 : I32
     %v14 = cmp_eq %v11, 0 : Bool
     je %v14, b1, b2
 
   b1:
-    %v16 = load %score : Int
-    %v19 = add %v16, 1 : Int
+    %v16 = load %score : I32
+    %v19 = add %v16, 1 : I32
     assign %score, %v19
     jmp b3
 
@@ -337,18 +337,18 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v24 = alloc : () -> Int
+    %v24 = alloc : () -> I32
     %v25 = symbol ResolveTest.deferred$25 : %()
     init %local2.code, %v25
     %v28 = cast 0 : %()
     init %local2.env, %v28
-    %v30 = call outer, True, %v24 : Int
+    %v30 = call outer, True, %v24 : I32
     %v33 = cmp_eq %v30, 2 : Bool
     je %v33, b4, b5
 
   b4:
-    %v35 = load %score : Int
-    %v38 = add %v35, 2 : Int
+    %v35 = load %score : I32
+    %v38 = add %v35, 2 : I32
     assign %score, %v38
     jmp b6
 
@@ -356,23 +356,23 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v43 = alloc : () -> Int
+    %v43 = alloc : () -> I32
     %v44 = symbol ResolveTest.deferred$26 : %()
     init %local3.code, %v44
     %v47 = cast 0 : %()
     init %local3.env, %v47
-    %v49 = alloc : () -> Int
+    %v49 = alloc : () -> I32
     %v50 = symbol ResolveTest.deferred$27 : %()
     init %local4.code, %v50
     %v53 = cast 0 : %()
     init %local4.env, %v53
-    %v55 = call pick, 0, %v43, %v49 : Int
+    %v55 = call pick, 0, %v43, %v49 : I32
     %v58 = cmp_eq %v55, 4 : Bool
     je %v58, b7, b8
 
   b7:
-    %v60 = load %score : Int
-    %v63 = add %v60, 4 : Int
+    %v60 = load %score : I32
+    %v63 = add %v60, 4 : I32
     assign %score, %v63
     jmp b9
 
@@ -380,21 +380,21 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v69 = alloc : Maybe(Int)
+    %v69 = alloc : Maybe(I32)
     aggregate %local5.discriminant = 1, %local5@Just = 1
-    %v72 = copy %local5 : Maybe(Int)
-    %v73 = alloc : () -> Int
+    %v72 = copy %local5 : Maybe(I32)
+    %v73 = alloc : () -> I32
     %v74 = symbol ResolveTest.deferred$28 : %()
     init %local7.code, %v74
     %v77 = cast 0 : %()
     init %local7.env, %v77
-    %v79 = call orDefault(Int), %v72, %v73 : Int
+    %v79 = call orDefault(I32), %v72, %v73 : I32
     %v82 = cmp_eq %v79, 1 : Bool
     je %v82, b10, b11
 
   b10:
-    %v84 = load %score : Int
-    %v87 = add %v84, 8 : Int
+    %v84 = load %score : I32
+    %v87 = add %v84, 8 : I32
     assign %score, %v87
     jmp b12
 
@@ -402,20 +402,20 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v91 = call nothingInt : Maybe(Int)
-    %v92 = copy %local8 : Maybe(Int)
-    %v93 = alloc : () -> Int
+    %v91 = call nothingInt : Maybe(I32)
+    %v92 = copy %local8 : Maybe(I32)
+    %v93 = alloc : () -> I32
     %v94 = symbol ResolveTest.deferred$29 : %()
     init %local10.code, %v94
     %v97 = cast 0 : %()
     init %local10.env, %v97
-    %v99 = call orDefault(Int), %v92, %v93 : Int
+    %v99 = call orDefault(I32), %v92, %v93 : I32
     %v102 = cmp_eq %v99, 32768 : Bool
     je %v102, b13, b14
 
   b13:
-    %v104 = load %score : Int
-    %v107 = add %v104, 16 : Int
+    %v104 = load %score : I32
+    %v107 = add %v104, 16 : I32
     assign %score, %v107
     jmp b15
 
@@ -436,8 +436,8 @@ fn main() -> Int {
     je %v124, b16, b17
 
   b16:
-    %v126 = load %score : Int
-    %v129 = add %v126, 32 : Int
+    %v126 = load %score : I32
+    %v129 = add %v126, 32 : I32
     assign %score, %v129
     jmp b18
 
@@ -445,13 +445,13 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v133 = call capturing : Int
+    %v133 = call capturing : I32
     %v136 = cmp_eq %v133, 37 : Bool
     je %v136, b19, b20
 
   b19:
-    %v138 = load %score : Int
-    %v141 = add %v138, 64 : Int
+    %v138 = load %score : I32
+    %v141 = add %v138, 64 : I32
     assign %score, %v141
     jmp b21
 
@@ -459,13 +459,13 @@ fn main() -> Int {
     jmp b21
 
   b21:
-    %v145 = call mutableCapture : Int
+    %v145 = call mutableCapture : I32
     %v148 = cmp_eq %v145, 82 : Bool
     je %v148, b22, b23
 
   b22:
-    %v150 = load %score : Int
-    %v153 = add %v150, 128 : Int
+    %v150 = load %score : I32
+    %v153 = add %v150, 128 : I32
     assign %score, %v153
     jmp b24
 
@@ -473,18 +473,18 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v159 = alloc : () -> Int
+    %v159 = alloc : () -> I32
     %v160 = symbol ResolveTest.deferred$31 : %()
     init %local14.code, %v160
     %v163 = cast 0 : %()
     init %local14.env, %v163
-    %v165 = call |?, 7, %v159 : Int
+    %v165 = call |?, 7, %v159 : I32
     %v168 = cmp_eq %v165, 7 : Bool
     je %v168, b25, b26
 
   b25:
-    %v170 = load %score : Int
-    %v173 = add %v170, 256 : Int
+    %v170 = load %score : I32
+    %v173 = add %v170, 256 : I32
     assign %score, %v173
     jmp b27
 
@@ -492,18 +492,18 @@ fn main() -> Int {
     jmp b27
 
   b27:
-    %v179 = alloc : () -> Int
+    %v179 = alloc : () -> I32
     %v180 = symbol ResolveTest.deferred$32 : %()
     init %local15.code, %v180
     %v183 = cast 0 : %()
     init %local15.env, %v183
-    %v185 = call |?, 0, %v179 : Int
+    %v185 = call |?, 0, %v179 : I32
     %v188 = cmp_eq %v185, 640 : Bool
     je %v188, b28, b29
 
   b28:
-    %v190 = load %score : Int
-    %v193 = add %v190, 512 : Int
+    %v190 = load %score : I32
+    %v193 = add %v190, 512 : I32
     assign %score, %v193
     jmp b30
 
@@ -516,13 +516,13 @@ fn main() -> Int {
     init %local16.code, %v199
     %v202 = cast 0 : %()
     init %local16.env, %v202
-    %v204 = call pointOr, False, %v198 : Int
+    %v204 = call pointOr, False, %v198 : I32
     %v207 = cmp_eq %v204, 0 : Bool
     je %v207, b31, b32
 
   b31:
-    %v209 = load %score : Int
-    %v212 = add %v209, 1024 : Int
+    %v209 = load %score : I32
+    %v212 = add %v209, 1024 : I32
     assign %score, %v212
     jmp b33
 
@@ -535,13 +535,13 @@ fn main() -> Int {
     init %local17.code, %v218
     %v221 = cast 0 : %()
     init %local17.env, %v221
-    %v223 = call pointOr, True, %v217 : Int
+    %v223 = call pointOr, True, %v217 : I32
     %v226 = cmp_eq %v223, 2 : Bool
     je %v226, b34, b35
 
   b34:
-    %v228 = load %score : Int
-    %v231 = add %v228, 2048 : Int
+    %v228 = load %score : I32
+    %v231 = add %v228, 2048 : I32
     assign %score, %v231
     jmp b36
 
@@ -549,18 +549,18 @@ fn main() -> Int {
     jmp b36
 
   b36:
-    %v236 = alloc : () -> Int
+    %v236 = alloc : () -> I32
     %v237 = symbol ResolveTest.deferred$35 : %()
     init %local18.code, %v237
     %v240 = cast 0 : %()
     init %local18.env, %v240
-    %v242 = call inner, False, %v236 : Int
+    %v242 = call inner, False, %v236 : I32
     %v245 = cmp_eq %v242, 0 : Bool
     je %v245, b37, b38
 
   b37:
-    %v247 = load %score : Int
-    %v250 = add %v247, 4096 : Int
+    %v247 = load %score : I32
+    %v250 = add %v247, 4096 : I32
     assign %score, %v250
     jmp b39
 
@@ -568,18 +568,18 @@ fn main() -> Int {
     jmp b39
 
   b39:
-    %v255 = alloc : () -> Int
+    %v255 = alloc : () -> I32
     %v256 = symbol ResolveTest.deferred$36 : %()
     init %local19.code, %v256
     %v259 = cast 0 : %()
     init %local19.env, %v259
-    %v261 = call inner, True, %v255 : Int
+    %v261 = call inner, True, %v255 : I32
     %v264 = cmp_eq %v261, 5 : Bool
     je %v264, b40, b41
 
   b40:
-    %v266 = load %score : Int
-    %v269 = add %v266, 8192 : Int
+    %v266 = load %score : I32
+    %v269 = add %v266, 8192 : I32
     assign %score, %v269
     jmp b42
 
@@ -587,18 +587,18 @@ fn main() -> Int {
     jmp b42
 
   b42:
-    %v274 = alloc : () -> Int
+    %v274 = alloc : () -> I32
     %v275 = symbol ResolveTest.deferred$38 : %()
     init %local20.code, %v275
     %v278 = cast 0 : %()
     init %local20.env, %v278
-    %v280 = call beforeLoop, 3, %v274 : Int
+    %v280 = call beforeLoop, 3, %v274 : I32
     %v283 = cmp_eq %v280, 16387 : Bool
     je %v283, b43, b44
 
   b43:
-    %v285 = load %score : Int
-    %v288 = add %v285, 16384 : Int
+    %v285 = load %score : I32
+    %v288 = add %v285, 16384 : I32
     assign %score, %v288
     jmp b45
 
@@ -606,18 +606,18 @@ fn main() -> Int {
     jmp b45
 
   b45:
-    %v293 = alloc : () -> Int
+    %v293 = alloc : () -> I32
     %v294 = symbol ResolveTest.deferred$39 : %()
     init %local21.code, %v294
     %v297 = cast 0 : %()
     init %local21.env, %v297
-    %v299 = call myAnd(Bool, Int), False, %v293 : Bool
+    %v299 = call myAnd(Bool, I32), False, %v293 : Bool
     %v301 = xor %v299, True : Bool
     je %v301, b46, b47
 
   b46:
-    %v303 = load %score : Int
-    %v306 = add %v303, 32768 : Int
+    %v303 = load %score : I32
+    %v306 = add %v303, 32768 : I32
     assign %score, %v306
     jmp b48
 
@@ -634,8 +634,8 @@ fn main() -> Int {
     je %v317, b49, b50
 
   b49:
-    %v319 = load %score : Int
-    %v322 = add %v319, 65536 : Int
+    %v319 = load %score : I32
+    %v322 = add %v319, 65536 : I32
     assign %score, %v322
     jmp b51
 
@@ -643,17 +643,17 @@ fn main() -> Int {
     jmp b51
 
   b51:
-    %v327 = alloc : () -> Int
+    %v327 = alloc : () -> I32
     %v328 = symbol ResolveTest.deferred$41 : %()
     init %local23.code, %v328
     %v331 = cast 0 : %()
     init %local23.env, %v331
-    %v333 = call myAnd(Bool, Int), True, %v327 : Bool
+    %v333 = call myAnd(Bool, I32), True, %v327 : Bool
     je %v333, b52, b53
 
   b52:
-    %v335 = load %score : Int
-    %v338 = add %v335, 131072 : Int
+    %v335 = load %score : I32
+    %v338 = add %v335, 131072 : I32
     assign %score, %v338
     jmp b54
 
@@ -661,18 +661,18 @@ fn main() -> Int {
     jmp b54
 
   b54:
-    %v343 = alloc : () -> Maybe(Int)
+    %v343 = alloc : () -> Maybe(I32)
     %v344 = symbol ResolveTest.deferred$42 : %()
     init %local24.code, %v344
     %v347 = cast 0 : %()
     init %local24.env, %v347
-    %v349 = call hasValue(Int), True, %v343 : Bool
+    %v349 = call hasValue(I32), True, %v343 : Bool
     %v351 = xor %v349, True : Bool
     je %v351, b55, b56
 
   b55:
-    %v353 = load %score : Int
-    %v356 = add %v353, 262144 : Int
+    %v353 = load %score : I32
+    %v356 = add %v353, 262144 : I32
     assign %score, %v356
     jmp b57
 
@@ -680,17 +680,17 @@ fn main() -> Int {
     jmp b57
 
   b57:
-    %v361 = alloc : () -> Maybe(Int)
+    %v361 = alloc : () -> Maybe(I32)
     %v362 = symbol ResolveTest.deferred$43 : %()
     init %local25.code, %v362
     %v365 = cast 0 : %()
     init %local25.env, %v365
-    %v367 = call hasValue(Int), False, %v361 : Bool
+    %v367 = call hasValue(I32), False, %v361 : Bool
     je %v367, b58, b59
 
   b58:
-    %v369 = load %score : Int
-    %v372 = add %v369, 524288 : Int
+    %v369 = load %score : I32
+    %v372 = add %v369, 524288 : I32
     assign %score, %v372
     jmp b60
 
@@ -698,13 +698,13 @@ fn main() -> Int {
     jmp b60
 
   b60:
-    %v377 = alloc : () -> Int
+    %v377 = alloc : () -> I32
     %v378 = symbol ResolveTest.deferred$44 : %()
     init %local26.code, %v378
     %v381 = cast 0 : %()
     init %local26.env, %v381
-    %v383 = call orRun(Int), True, %v377 : Maybe(Int)
-    %v384 = load %local27.discriminant : Int
+    %v383 = call orRun(I32), True, %v377 : Maybe(I32)
+    %v384 = load %local27.discriminant : I32
     %v386 = cmp_eq %v384, 0 : Bool
     je %v386, b62, b61
 
@@ -712,19 +712,19 @@ fn main() -> Int {
     jmp b63
 
   b62:
-    %v388 = load %score : Int
-    %v391 = add %v388, 1048576 : Int
+    %v388 = load %score : I32
+    %v391 = add %v388, 1048576 : I32
     assign %score, %v391
     jmp b63
 
   b63:
-    %v396 = alloc : () -> Int
+    %v396 = alloc : () -> I32
     %v397 = symbol ResolveTest.deferred$45 : %()
     init %local28.code, %v397
     %v400 = cast 0 : %()
     init %local28.env, %v400
-    %ran = call orRun(Int), False, %v396 : Maybe(Int)
-    %v403 = load %local29.discriminant : Int
+    %ran = call orRun(I32), False, %v396 : Maybe(I32)
+    %v403 = load %local29.discriminant : I32
     %v405 = cmp_eq %v403, 1 : Bool
     je %v405, b65, b64
 
@@ -732,13 +732,13 @@ fn main() -> Int {
     jmp b69
 
   b65:
-    %taken = load %local29@Just : Int
+    %taken = load %local29@Just : I32
     %v410 = cmp_eq %taken, 8388608 : Bool
     je %v410, b66, b67
 
   b66:
-    %v412 = load %score : Int
-    %v415 = add %v412, 2097152 : Int
+    %v412 = load %score : I32
+    %v415 = add %v412, 2097152 : I32
     assign %score, %v415
     jmp b68
 
@@ -749,13 +749,13 @@ fn main() -> Int {
     jmp b69
 
   b69:
-    %v421 = load effects : Int
+    %v421 = load effects : I32
     %v424 = cmp_eq %v421, 11323814 : Bool
     je %v424, b70, b71
 
   b70:
-    %v426 = load %score : Int
-    %v429 = add %v426, 4194304 : Int
+    %v426 = load %score : I32
+    %v429 = add %v426, 4194304 : I32
     assign %score, %v429
     jmp b72
 
@@ -763,88 +763,88 @@ fn main() -> Int {
     jmp b72
 
   b72:
-    %v433 = load %score : Int
+    %v433 = load %score : I32
     ret %v433
 }
 
-fn ResolveTest.deferred$22(%env: %{n: Int}) -> Int {
+fn ResolveTest.deferred$22(%env: %{n: I32}) -> I32 {
   b0:
-    %v1 = load [%env].n : Int
-    %v3 = call bump, 32 : Int
-    %v4 = add %v1, %v3 : Int
+    %v1 = load [%env].n : I32
+    %v3 = call bump, 32 : I32
+    %v4 = add %v1, %v3 : I32
     ret %v4
 }
 
-fn ResolveTest.deferred$23(%env: %{n: &Int}) -> Int {
+fn ResolveTest.deferred$23(%env: %{n: &I32}) -> I32 {
   b0:
-    %v1 = load [%env].n : &Int
-    %v2 = load [%v1] : Int
-    %v5 = mul %v2, 2 : Int
+    %v1 = load [%env].n : &I32
+    %v2 = load [%v1] : I32
+    %v5 = mul %v2, 2 : I32
     ret %v5
 }
 
-fn ResolveTest.deferred$24(%env: %{}) -> Int {
+fn ResolveTest.deferred$24(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 1 : Int
+    %v2 = call bump, 1 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$25(%env: %{}) -> Int {
+fn ResolveTest.deferred$25(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 2 : Int
+    %v2 = call bump, 2 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$26(%env: %{}) -> Int {
+fn ResolveTest.deferred$26(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 4 : Int
+    %v2 = call bump, 4 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$27(%env: %{}) -> Int {
+fn ResolveTest.deferred$27(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 8 : Int
+    %v2 = call bump, 8 : I32
     ret %v2
 }
 
-fn orDefault(Int)(%m: Maybe(Int), %fallback: () -> Int) -> Int {
+fn orDefault(I32)(%m: Maybe(I32), %fallback: () -> I32) -> I32 {
   b0:
-    %v3 = load %m.discriminant : Int
+    %v3 = load %m.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
   b1:
-    %v7 = calldyn %fallback : Int
+    %v7 = calldyn %fallback : I32
     jmp b3
 
   b2:
-    %v9 = load %m@Just : Int
-    %v10 = move %m@Just : Int
-    %v = alloc : Int
+    %v9 = load %m@Just : I32
+    %v10 = move %m@Just : I32
+    %v = alloc : I32
     init %local1, %v10
-    %v = load %local1 : Int
+    %v = load %local1 : I32
     jmp b3
 
   b3:
-    %v2 = phi [b2, %v], [b1, %v7] : Int
+    %v2 = phi [b2, %v], [b1, %v7] : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$28(%env: %{}) -> Int {
+fn ResolveTest.deferred$28(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 16 : Int
+    %v2 = call bump, 16 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$29(%env: %{}) -> Int {
+fn ResolveTest.deferred$29(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 32768 : Int
+    %v2 = call bump, 32768 : I32
     ret %v2
 }
 
 fn orDefault(Bool)(%m: Maybe(Bool), %fallback: () -> Bool) -> Bool {
   b0:
-    %v3 = load %m.discriminant : Int
+    %v3 = load %m.discriminant : I32
     %v5 = cmp_eq %v3, 1 : Bool
     je %v5, b2, b1
 
@@ -871,18 +871,18 @@ fn ResolveTest.deferred$30(%env: %{}) -> Bool {
     ret %v2
 }
 
-fn ResolveTest.deferred$31(%env: %{}) -> Int {
+fn ResolveTest.deferred$31(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 64 : Int
+    %v2 = call bump, 64 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$32(%env: %{}) -> Int {
+fn ResolveTest.deferred$32(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 128 : Int
-    %v4 = call bump, 256 : Int
-    %v7 = mul %v4, 2 : Int
-    %v8 = add %v2, %v7 : Int
+    %v2 = call bump, 128 : I32
+    %v4 = call bump, 256 : I32
+    %v7 = mul %v4, 2 : I32
+    %v8 = add %v2, %v7 : I32
     ret %v8
 }
 
@@ -898,9 +898,9 @@ fn ResolveTest.deferred$34(%env: %{}) -> Point {
     ret %v2
 }
 
-fn ResolveTest.deferred$35(%env: %{}) -> Int {
+fn ResolveTest.deferred$35(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 4096 : Int
+    %v2 = call bump, 4096 : I32
     %v5 = cmp_gt %v2, 0 : Bool
     je %v5, b1, b2
 
@@ -911,48 +911,48 @@ fn ResolveTest.deferred$35(%env: %{}) -> Int {
     jmp b3
 
   b3:
-    %v11 = phi [b1, 1], [b2, 2] : Int
+    %v11 = phi [b1, 1], [b2, 2] : I32
     ret %v11
 }
 
-fn ResolveTest.deferred$36(%env: %{}) -> Int {
+fn ResolveTest.deferred$36(%env: %{}) -> I32 {
   b0:
-    %v3 = alloc : Maybe(Int)
+    %v3 = alloc : Maybe(I32)
     aggregate %local0.discriminant = 1, %local0@Just = 5
-    %v6 = copy %local0 : Maybe(Int)
-    %v7 = alloc : () -> Int
+    %v6 = copy %local0 : Maybe(I32)
+    %v7 = alloc : () -> I32
     %v8 = symbol ResolveTest.deferred$37 : %()
     init %local2.code, %v8
     %v11 = cast 0 : %()
     init %local2.env, %v11
-    %v13 = call ??(Int), %v6, %v7 : Int
+    %v13 = call ??(I32), %v6, %v7 : I32
     ret %v13
 }
 
-fn ResolveTest.deferred$37(%env: %{}) -> Int {
+fn ResolveTest.deferred$37(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 8192 : Int
+    %v2 = call bump, 8192 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$38(%env: %{}) -> Int {
+fn ResolveTest.deferred$38(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 16384 : Int
+    %v2 = call bump, 16384 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$39(%env: %{}) -> Int {
+fn ResolveTest.deferred$39(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 131072 : Int
+    %v2 = call bump, 131072 : I32
     ret %v2
 }
 
-fn myAnd(Bool, Int)(%lhs: Bool, %rhs: () -> Int) -> Bool {
+fn myAnd(Bool, I32)(%lhs: Bool, %rhs: () -> I32) -> Bool {
   b0:
     je %lhs, b1, b2
 
   b1:
-    %v4 = calldyn %rhs : Int
+    %v4 = calldyn %rhs : I32
     %v6 = cmp_ne %v4, 0 : Bool
     jmp b3
 
@@ -986,21 +986,21 @@ fn myAnd(Bool, Bool)(%lhs: Bool, %rhs: () -> Bool) -> Bool {
     ret %v2
 }
 
-fn ResolveTest.deferred$41(%env: %{}) -> Int {
+fn ResolveTest.deferred$41(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 524288 : Int
+    %v2 = call bump, 524288 : I32
     ret %v2
 }
 
-fn ResolveTest.deferred$42(%env: %{}) -> Maybe(Int) {
+fn ResolveTest.deferred$42(%env: %{}) -> Maybe(I32) {
   b0:
-    %v2 = call bump, 1048576 : Int
-    %v3 = alloc : Maybe(Int)
+    %v2 = call bump, 1048576 : I32
+    %v3 = alloc : Maybe(I32)
     aggregate %local0.discriminant = 1, %local0@Just = %v2
     ret %v3
 }
 
-fn hasValue(Int)(%flag: Bool, %m: () -> Maybe(Int)) -> Bool {
+fn hasValue(I32)(%flag: Bool, %m: () -> Maybe(I32)) -> Bool {
   b0:
     je %flag, b1, b2
 
@@ -1008,8 +1008,8 @@ fn hasValue(Int)(%flag: Bool, %m: () -> Maybe(Int)) -> Bool {
     jmp b6
 
   b2:
-    %v6 = calldyn %m : Maybe(Int)
-    %v7 = load %local0.discriminant : Int
+    %v6 = calldyn %m : Maybe(I32)
+    %v7 = load %local0.discriminant : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b4, b3
 
@@ -1017,7 +1017,7 @@ fn hasValue(Int)(%flag: Bool, %m: () -> Maybe(Int)) -> Bool {
     jmp b5
 
   b4:
-    %v12 = load %local0@Just : Int
+    %v12 = load %local0@Just : I32
     jmp b5
 
   b5:
@@ -1029,42 +1029,42 @@ fn hasValue(Int)(%flag: Bool, %m: () -> Maybe(Int)) -> Bool {
     ret %v3
 }
 
-fn ResolveTest.deferred$43(%env: %{}) -> Maybe(Int) {
+fn ResolveTest.deferred$43(%env: %{}) -> Maybe(I32) {
   b0:
-    %v2 = call bump, 2097152 : Int
-    %v3 = alloc : Maybe(Int)
+    %v2 = call bump, 2097152 : I32
+    %v3 = alloc : Maybe(I32)
     aggregate %local0.discriminant = 1, %local0@Just = %v2
     ret %v3
 }
 
-fn ResolveTest.deferred$44(%env: %{}) -> Int {
+fn ResolveTest.deferred$44(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 4194304 : Int
+    %v2 = call bump, 4194304 : I32
     ret %v2
 }
 
-fn orRun(Int)(%flag: Bool, %v: () -> Int) -> Maybe(Int) {
+fn orRun(I32)(%flag: Bool, %v: () -> I32) -> Maybe(I32) {
   b0:
     je %flag, b1, b2
 
   b1:
-    %v4 = alloc : Maybe(Int)
+    %v4 = alloc : Maybe(I32)
     init %local0.discriminant, 0
     jmp b3
 
   b2:
-    %v8 = alloc : Maybe(Int)
-    %v9 = calldyn %v : Int
+    %v8 = alloc : Maybe(I32)
+    %v9 = calldyn %v : I32
     aggregate %local1.discriminant = 1, %local1@Just = %v9
     jmp b3
 
   b3:
-    %v2 = phi [b1, %v4], [b2, %v8] : Maybe(Int)
+    %v2 = phi [b1, %v4], [b2, %v8] : Maybe(I32)
     ret %v2
 }
 
-fn ResolveTest.deferred$45(%env: %{}) -> Int {
+fn ResolveTest.deferred$45(%env: %{}) -> I32 {
   b0:
-    %v2 = call bump, 8388608 : Int
+    %v2 = call bump, 8388608 : I32
     ret %v2
 }

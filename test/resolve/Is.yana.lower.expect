@@ -1,9 +1,9 @@
 @image$base = []
 
-orZero<complex>(%m: Ptr): Int {
+orZero<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %m, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
@@ -13,8 +13,8 @@ orZero<complex>(%m: Ptr): Int {
 
   b_3 {
     %v_6 = add %m, 4: Ptr
-    %v = loads %v_6, 4: Int
-    %v_7 = add %v, 1: Int
+    %v = loads %v_6, 4: I32
+    %v_7 = add %v, 1: I32
     ret %v_7
   }
 
@@ -23,10 +23,10 @@ orZero<complex>(%m: Ptr): Int {
   }
 }
 
-isZero<complex>(%m: Ptr): Int {
+isZero<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %m, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
@@ -36,8 +36,8 @@ isZero<complex>(%m: Ptr): Int {
 
   b_3 {
     %v_6 = add %m, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = cmp_eq %v_7, 0: Int
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = cmp_eq %v_7, 0: I32
     je %v_8, b_9, b_4
   }
 
@@ -46,15 +46,15 @@ isZero<complex>(%m: Ptr): Int {
   }
 
   b_5 {
-    %v_10 = phi [b_9, 1], [b_4, 0]: Int
+    %v_10 = phi [b_9, 1], [b_4, 0]: I32
     ret %v_10
   }
 }
 
-deep<complex>(%m: Ptr): Int {
+deep<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 1: Int
+    %v_1 = loads %m, 4: I32
+    %v_2 = cmp_eq %v_1, 1: I32
     je %v_2, b_3, b_4
   }
 
@@ -64,39 +64,39 @@ deep<complex>(%m: Ptr): Int {
 
   b_3 {
     %v_6 = add %m, 4: Ptr
-    %v_7 = loads %v_6, 4: Int
-    %v_8 = cmp_eq %v_7, 1: Int
+    %v_7 = loads %v_6, 4: I32
+    %v_8 = cmp_eq %v_7, 1: I32
     je %v_8, b_9, b_4
   }
 
   b_9 {
     %v_10 = add %m, 8: Ptr
-    %v = loads %v_10, 4: Int
+    %v = loads %v_10, 4: I32
     jmp b_5
   }
 
   b_5 {
-    %v_11 = phi [b_9, %v], [b_4, 0]: Int
+    %v_11 = phi [b_9, %v], [b_4, 0]: I32
     ret %v_11
   }
 }
 
-area<complex>(%s: Ptr): Int {
+area<complex>(%s: Ptr): I32 {
   b_0 {
-    %v_1 = loads %s, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %s, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
-    %v_5 = cmp_eq %v_1, 1: Int
+    %v_5 = cmp_eq %v_1, 1: I32
     je %v_5, b_6, b_7
   }
 
   b_3 {
     %v_8 = add %s, 4: Ptr
-    %r = loads %v_8, 4: Int
-    %v_9 = imul %r, %r: Int
+    %r = loads %v_8, 4: I32
+    %v_9 = imul %r, %r: I32
     jmp b_10
   }
 
@@ -106,81 +106,81 @@ area<complex>(%s: Ptr): Int {
 
   b_6 {
     %v_11 = add %s, 4: Ptr
-    %w = loads %v_11, 4: Int
+    %w = loads %v_11, 4: I32
     %v_12 = add %s, 8: Ptr
-    %h = loads %v_12, 4: Int
-    %v_13 = imul %w, %h: Int
+    %h = loads %v_12, 4: I32
+    %v_13 = imul %w, %h: I32
     jmp b_10
   }
 
   b_10 {
-    %v_14 = phi [b_3, %v_9], [b_6, %v_13], [b_7, 0]: Int
+    %v_14 = phi [b_3, %v_9], [b_6, %v_13], [b_7, 0]: I32
     ret %v_14
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 4: Ptr
     store %v_1, 1, 4
     %v_2 = add %v_1, 4: Ptr
     store %v_2, 1, 4
-    %v_3 = call_complex orZero, %v_1: Int
+    %v_3 = call_complex orZero, %v_1: I32
     %v_4 = alloca 8, 4: Ptr
     store %v_4, 0, 4
-    %v_5 = call_complex orZero, %v_4: Int
-    %v_6 = imul %v_5, 100: Int
-    %v_7 = add %v_3, %v_6: Int
-    %v_8 = add %v_7, 4: Int
+    %v_5 = call_complex orZero, %v_4: I32
+    %v_6 = imul %v_5, 100: I32
+    %v_7 = add %v_3, %v_6: I32
+    %v_8 = add %v_7, 4: I32
     %v_9 = alloca 8, 4: Ptr
     store %v_9, 1, 4
     %v_10 = add %v_9, 4: Ptr
     store %v_10, 0, 4
-    %v_11 = call_complex isZero, %v_9: Int
-    %v_12 = shl %v_11, 3: Int
-    %v_13 = add %v_8, %v_12: Int
+    %v_11 = call_complex isZero, %v_9: I32
+    %v_12 = shl %v_11, 3: I32
+    %v_13 = add %v_8, %v_12: I32
     %v_14 = alloca 8, 4: Ptr
     store %v_14, 1, 4
     %v_15 = add %v_14, 4: Ptr
     store %v_15, 1, 4
-    %v_16 = call_complex isZero, %v_14: Int
-    %v_17 = imul %v_16, 100: Int
-    %v_18 = add %v_13, %v_17: Int
+    %v_16 = call_complex isZero, %v_14: I32
+    %v_17 = imul %v_16, 100: I32
+    %v_18 = add %v_13, %v_17: I32
     %v_19 = alloca 12, 4: Ptr
     store %v_19, 1, 4
     %v_20 = add %v_19, 4: Ptr
     store %v_20, 1, 4
     %v_21 = add %v_19, 8: Ptr
     store %v_21, 16, 4
-    %v_22 = call_complex deep, %v_19: Int
-    %v_23 = add %v_18, %v_22: Int
+    %v_22 = call_complex deep, %v_19: I32
+    %v_23 = add %v_18, %v_22: I32
     %v_24 = alloca 12, 4: Ptr
     store %v_24, 1, 4
     %v_25 = add %v_24, 4: Ptr
     store %v_25, 0, 4
-    %v_26 = call_complex deep, %v_24: Int
-    %v_27 = imul %v_26, 100: Int
-    %v_28 = add %v_23, %v_27: Int
+    %v_26 = call_complex deep, %v_24: I32
+    %v_27 = imul %v_26, 100: I32
+    %v_28 = add %v_23, %v_27: I32
     %v_29 = alloca 12, 4: Ptr
     store %v_29, 0, 4
-    %v_30 = call_complex deep, %v_29: Int
-    %v_31 = imul %v_30, 100: Int
-    %v_32 = add %v_28, %v_31: Int
+    %v_30 = call_complex deep, %v_29: I32
+    %v_31 = imul %v_30, 100: I32
+    %v_32 = add %v_28, %v_31: I32
     %v_33 = alloca 12, 4: Ptr
     store %v_33, 0, 4
     %v_34 = add %v_33, 4: Ptr
     store %v_34, 5, 4
-    %v_35 = call_complex area, %v_33: Int
-    %v_36 = add %v_32, %v_35: Int
+    %v_35 = call_complex area, %v_33: I32
+    %v_36 = add %v_32, %v_35: I32
     %v_37 = alloca 12, 4: Ptr
     store %v_37, 1, 4
     %v_38 = add %v_37, 4: Ptr
     store %v_38, 3, 4
     %v_39 = add %v_37, 8: Ptr
     store %v_39, 4, 4
-    %v_40 = call_complex area, %v_37: Int
-    %v_41 = add %v_36, %v_40: Int
-    %v_42 = add %v_41, 434: Int
+    %v_40 = call_complex area, %v_37: I32
+    %v_41 = add %v_36, %v_40: I32
+    %v_42 = add %v_41, 434: I32
     ret %v_42
   }
 }

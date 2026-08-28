@@ -1,57 +1,57 @@
 @image$base = []
 mut @counter = [0, 0, 0, 0]
 
-+=(Int)<complex>(%target: Ptr, %amount: Int) {
++=(I32)<complex>(%target: Ptr, %amount: I32) {
   b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %v_1, %amount: Int
+    %v_1 = loads %target, 4: I32
+    %v_2 = add %v_1, %amount: I32
     store %target, %v_2, 4
     ret 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.deferred$24, %v_1: Int
+    %v_2 = call_complex ResolveTest.deferred$24, %v_1: I32
     %v_3 = bitcast 0: Ptr
-    %v_4 = call_complex ResolveTest.deferred$28, %v_3: Int
-    %v_5 = add %v_4, 1: Int
-    %v_6 = loads @counter, 4: Int
-    %effects = add %v_5, %v_6: Int
-    %v_7 = add %v_2, 219: Int
-    %v_8 = add %v_7, %effects: Int
-    %v_9 = add %v_8, 1: Int
+    %v_4 = call_complex ResolveTest.deferred$28, %v_3: I32
+    %v_5 = add %v_4, 1: I32
+    %v_6 = loads @counter, 4: I32
+    %effects = add %v_5, %v_6: I32
+    %v_7 = add %v_2, 219: I32
+    %v_8 = add %v_7, %effects: I32
+    %v_9 = add %v_8, 1: I32
     ret %v_9
   }
 }
 
-ResolveTest.deferred$24<complex>(%env: Ptr): Int {
+ResolveTest.deferred$24<complex>(%env: Ptr): I32 {
   b_0 {
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.deferred$25, %v_1: Int
+    %v_2 = call_complex ResolveTest.deferred$25, %v_1: I32
     ret %v_2
   }
 }
 
-ResolveTest.deferred$25<complex>(%env: Ptr): Int {
+ResolveTest.deferred$25<complex>(%env: Ptr): I32 {
   b_0 {
     ret 3
   }
 }
 
-ResolveTest.deferred$28<complex>(%env: Ptr): Int {
+ResolveTest.deferred$28<complex>(%env: Ptr): I32 {
   b_0 {
-    call_complex +=(Int), @counter, 1
+    call_complex +=(I32), @counter, 1
     %v_1 = bitcast 0: Ptr
-    %v_2 = call_complex ResolveTest.deferred$29, %v_1: Int
+    %v_2 = call_complex ResolveTest.deferred$29, %v_1: I32
     ret %v_2
   }
 }
 
-ResolveTest.deferred$29<complex>(%env: Ptr): Int {
+ResolveTest.deferred$29<complex>(%env: Ptr): I32 {
   b_0 {
-    call_complex +=(Int), @counter, 1
+    call_complex +=(I32), @counter, 1
     ret 20
   }
 }

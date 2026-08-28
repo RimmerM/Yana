@@ -1,10 +1,10 @@
 @image$base = []
 
-fact<complex>(%n: Int): Int {
+fact<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = phi [b_2, %n], [b_3, %v_4]: Int
-    %v_5 = phi [b_2, 1], [b_3, %v_6]: Int
-    %v_7 = cmp_ile %v_1, 1: Int
+    %v_1 = phi [b_2, %n], [b_3, %v_4]: I32
+    %v_5 = phi [b_2, 1], [b_3, %v_6]: I32
+    %v_7 = cmp_ile %v_1, 1: I32
     je %v_7, b_8, b_3
   }
 
@@ -13,8 +13,8 @@ fact<complex>(%n: Int): Int {
   }
 
   b_3 {
-    %v_4 = sub %v_1, 1: Int
-    %v_6 = imul %v_5, %v_1: Int
+    %v_4 = sub %v_1, 1: I32
+    %v_6 = imul %v_5, %v_1: I32
     jmp b_0
   }
 
@@ -27,10 +27,10 @@ fact<complex>(%n: Int): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex fact, 4: Int
-    %v_2 = add %v_1, 100: Int
+    %v_1 = call_complex fact, 4: I32
+    %v_2 = add %v_1, 100: I32
     ret %v_2
   }
 }

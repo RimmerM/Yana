@@ -1,55 +1,55 @@
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-clusterOfReads<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterOfReads<complex>(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
   b_0 {
-    %r = call_clobber sink, %n: Int
-    %a1 = load %p, 8: Long
-    %b1 = load %q, 8: Long
-    %c1 = load %t, 8: Long
-    %s1 = add %a1, %b1: Long
-    %s2 = add %s1, %c1: Long
-    %a2 = load %p, 8: Long
-    %b2 = load %q, 8: Long
-    %c2 = load %t, 8: Long
-    %s3 = add %s2, %a2: Long
-    %s4 = add %s3, %b2: Long
-    %s5 = add %s4, %c2: Long
+    %r = call_clobber sink, %n: I32
+    %a1 = load %p, 8: I64
+    %b1 = load %q, 8: I64
+    %c1 = load %t, 8: I64
+    %s1 = add %a1, %b1: I64
+    %s2 = add %s1, %c1: I64
+    %a2 = load %p, 8: I64
+    %b2 = load %q, 8: I64
+    %c2 = load %t, 8: I64
+    %s3 = add %s2, %a2: I64
+    %s4 = add %s3, %b2: I64
+    %s5 = add %s4, %c2: I64
     ret %s5
   }
 }
 
-clusterInLoop<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterInLoop<complex>(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
   entry {
-    %zero = cast 0: Long
+    %zero = cast 0: I64
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Long
-    %acc = phi [entry, %zero], [body, %acc2]: Long
+    %i = phi [entry, %zero], [body, %i2]: I64
+    %acc = phi [entry, %zero], [body, %acc2]: I64
     je %n, exit, body
   }
 
   body {
-    %r = call_clobber sink, %n: Int
-    %a1 = load %p, 8: Long
-    %b1 = load %q, 8: Long
-    %c1 = load %t, 8: Long
-    %s1 = add %a1, %b1: Long
-    %s2 = add %s1, %c1: Long
-    %a2 = load %p, 8: Long
-    %b2 = load %q, 8: Long
-    %c2 = load %t, 8: Long
-    %s3 = add %s2, %a2: Long
-    %s4 = add %s3, %b2: Long
-    %s5 = add %s4, %c2: Long
-    %acc2 = add %acc, %s5: Long
-    %i2 = add %i, 1: Long
+    %r = call_clobber sink, %n: I32
+    %a1 = load %p, 8: I64
+    %b1 = load %q, 8: I64
+    %c1 = load %t, 8: I64
+    %s1 = add %a1, %b1: I64
+    %s2 = add %s1, %c1: I64
+    %a2 = load %p, 8: I64
+    %b2 = load %q, 8: I64
+    %c2 = load %t, 8: I64
+    %s3 = add %s2, %a2: I64
+    %s4 = add %s3, %b2: I64
+    %s5 = add %s4, %c2: I64
+    %acc2 = add %acc, %s5: I64
+    %i2 = add %i, 1: I64
     jmp head
   }
 
@@ -58,67 +58,67 @@ clusterInLoop<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
   }
 }
 
-clusterAtBlockStart<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterAtBlockStart<complex>(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
   entry {
-    %r = call_clobber sink, %n: Int
-    %a1 = load %p, 8: Long
-    %b1 = load %q, 8: Long
-    %s1 = add %a1, %b1: Long
-    %a2 = load %p, 8: Long
-    %b2 = load %q, 8: Long
-    %s2 = add %s1, %a2: Long
-    %s3 = add %s2, %b2: Long
-    %a3 = load %p, 8: Long
-    %b3 = load %q, 8: Long
-    %s4 = add %s3, %a3: Long
-    %s5 = add %s4, %b3: Long
+    %r = call_clobber sink, %n: I32
+    %a1 = load %p, 8: I64
+    %b1 = load %q, 8: I64
+    %s1 = add %a1, %b1: I64
+    %a2 = load %p, 8: I64
+    %b2 = load %q, 8: I64
+    %s2 = add %s1, %a2: I64
+    %s3 = add %s2, %b2: I64
+    %a3 = load %p, 8: I64
+    %b3 = load %q, 8: I64
+    %s4 = add %s3, %a3: I64
+    %s5 = add %s4, %b3: I64
     jmp tail
   }
 
   tail {
-    %c1 = load %t, 8: Long
-    %c2 = load %t, 8: Long
-    %s6 = add %s5, %c1: Long
-    %s7 = add %s6, %c2: Long
+    %c1 = load %t, 8: I64
+    %c2 = load %t, 8: I64
+    %s6 = add %s5, %c1: I64
+    %s7 = add %s6, %c2: I64
     ret %s7
   }
 }
 
-clusterOneInstructionIn<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterOneInstructionIn<complex>(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
   entry {
-    %r = call_clobber sink, %n: Int
-    %a1 = load %p, 8: Long
-    %b1 = load %q, 8: Long
-    %s1 = add %a1, %b1: Long
-    %a2 = load %p, 8: Long
-    %b2 = load %q, 8: Long
-    %s2 = add %s1, %a2: Long
-    %s3 = add %s2, %b2: Long
-    %a3 = load %p, 8: Long
-    %b3 = load %q, 8: Long
-    %s4 = add %s3, %a3: Long
-    %s5 = add %s4, %b3: Long
+    %r = call_clobber sink, %n: I32
+    %a1 = load %p, 8: I64
+    %b1 = load %q, 8: I64
+    %s1 = add %a1, %b1: I64
+    %a2 = load %p, 8: I64
+    %b2 = load %q, 8: I64
+    %s2 = add %s1, %a2: I64
+    %s3 = add %s2, %b2: I64
+    %a3 = load %p, 8: I64
+    %b3 = load %q, 8: I64
+    %s4 = add %s3, %a3: I64
+    %s5 = add %s4, %b3: I64
     jmp tail
   }
 
   tail {
-    %z = add %s5, 1: Long
-    %c1 = load %t, 8: Long
-    %c2 = load %t, 8: Long
-    %s6 = add %z, %c1: Long
-    %s7 = add %s6, %c2: Long
+    %z = add %s5, 1: I64
+    %c1 = load %t, 8: I64
+    %c2 = load %t, 8: I64
+    %s6 = add %z, %c1: I64
+    %s7 = add %s6, %c2: I64
     ret %s7
   }
 }
 
-singleRead<complex>(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+singleRead<complex>(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
   b_0 {
-    %r = call_clobber sink, %n: Int
-    %a1 = load %p, 8: Long
-    %b1 = load %q, 8: Long
-    %c1 = load %t, 8: Long
-    %s1 = add %a1, %b1: Long
-    %s2 = add %s1, %c1: Long
+    %r = call_clobber sink, %n: I32
+    %a1 = load %p, 8: I64
+    %b1 = load %q, 8: I64
+    %c1 = load %t, 8: I64
+    %s1 = add %a1, %b1: I64
+    %s2 = add %s1, %c1: I64
     ret %s2
   }
 }

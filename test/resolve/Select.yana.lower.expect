@@ -1,49 +1,49 @@
 @image$base = []
 mut @calls = [0, 0, 0, 0]
 
-lowered<complex>(): Float {
+lowered<complex>(): F32 {
   b_0 {
     ret -3
   }
 }
 
-zero<complex>(): Int {
+zero<complex>(): I32 {
   b_0 {
     ret 0
   }
 }
 
-doubled<complex>(%value: Int): Int {
+doubled<complex>(%value: I32): I32 {
   b_0 {
-    %v_1 = shl %value, 1: Int
+    %v_1 = shl %value, 1: I32
     ret %v_1
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     store @calls, 1, 4
-    %v_1 = call_complex lowered: Float
-    %v_2 = cmp_gt %v_1, 0: Int
-    %v_3 = sub 0, %v_1: Float
-    %v_4 = select %v_2, %v_1, %v_3: Float
-    %v_5 = cmp_gt %v_4, 2.5: Int
-    %v_6 = select %v_5, 5, 0: Int
-    %v_7 = shl %v_6, 8: Int
-    %v_8 = add %v_7, 1310: Int
+    %v_1 = call_complex lowered: F32
+    %v_2 = cmp_gt %v_1, 0: I32
+    %v_3 = sub 0, %v_1: F32
+    %v_4 = select %v_2, %v_1, %v_3: F32
+    %v_5 = cmp_gt %v_4, 2.5: I32
+    %v_6 = select %v_5, 5, 0: I32
+    %v_7 = shl %v_6, 8: I32
+    %v_8 = add %v_7, 1310: I32
     jmp b_9
   }
 
   b_10 {
-    %v_11 = cmp_ilt %v_12, 5: Int
+    %v_11 = cmp_ilt %v_12, 5: I32
     je %v_11, b_9, b_13
   }
 
   b_13 {
-    %v_14 = shl %v_15, 9: Int
-    %v_16 = add %v_8, %v_14: Int
-    %v_17 = call_complex zero: Int
-    %v_18 = cmp_neq %v_17, 0: Int
+    %v_14 = shl %v_15, 9: I32
+    %v_16 = add %v_8, %v_14: I32
+    %v_17 = call_complex zero: I32
+    %v_18 = cmp_neq %v_17, 0: I32
     je %v_18, b_19, b_20
   }
 
@@ -52,32 +52,32 @@ main<complex>(): Int {
   }
 
   b_19 {
-    %v_22 = cmp_eq %v_17, 4294967295: Int
-    %v_23 = select %v_22, 1, %v_17: Int
-    %v_24 = idiv 10, %v_23: Int
-    %v_25 = select %v_22, 4294967286, %v_24: Int
+    %v_22 = cmp_eq %v_17, 4294967295: I32
+    %v_23 = select %v_22, 1, %v_17: I32
+    %v_24 = idiv 10, %v_23: I32
+    %v_25 = select %v_22, 4294967286, %v_24: I32
     jmp b_21
   }
 
   b_21 {
-    %v_26 = phi [b_19, %v_25], [b_20, 0]: Int
-    %v_27 = shl %v_26, 10: Int
-    %v_28 = add %v_16, %v_27: Int
-    %v_29 = add %v_28, 10240: Int
-    %v_30 = call_complex doubled, 3: Int
-    %v_31 = shl %v_30, 12: Int
-    %v_32 = add %v_29, %v_31: Int
+    %v_26 = phi [b_19, %v_25], [b_20, 0]: I32
+    %v_27 = shl %v_26, 10: I32
+    %v_28 = add %v_16, %v_27: I32
+    %v_29 = add %v_28, 10240: I32
+    %v_30 = call_complex doubled, 3: I32
+    %v_31 = shl %v_30, 12: I32
+    %v_32 = add %v_29, %v_31: I32
     ret %v_32
   }
 
   b_9 {
-    %v_33 = phi [b_10, %v_15], [b_0, 100]: Int
-    %v_34 = phi [b_10, %v_12], [b_0, 0]: Int
-    %v_35 = imul %v_34, 3: Int
-    %candidate = sub 40, %v_35: Int
-    %v_36 = cmp_ilt %candidate, %v_33: Int
-    %v_15 = select %v_36, %candidate, %v_33: Int
-    %v_12 = add %v_34, 1: Int
+    %v_33 = phi [b_10, %v_15], [b_0, 100]: I32
+    %v_34 = phi [b_10, %v_12], [b_0, 0]: I32
+    %v_35 = imul %v_34, 3: I32
+    %candidate = sub 40, %v_35: I32
+    %v_36 = cmp_ilt %candidate, %v_33: I32
+    %v_15 = select %v_36, %candidate, %v_33: I32
+    %v_12 = add %v_34, 1: I32
     jmp b_10
   }
 }

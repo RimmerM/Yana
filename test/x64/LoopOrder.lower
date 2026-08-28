@@ -12,19 +12,19 @@
 
 # The exit is the first-named successor, so the declaration order and the useful order disagree.
 # `head` is followed by `body`, and `out` comes after both.
-exitDeclaredFirst(%n: Int): Int {
+exitDeclaredFirst(%n: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [body, %i2]: Int
+        %i = phi [start, %z], [body, %i2]: I32
         je (cmp_ige %i, %n), out, body
     }
 
     body {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -36,19 +36,19 @@ exitDeclaredFirst(%n: Int): Int {
 # The same loop with the successors the other way round. Both orders have to produce the same
 # layout: the branch is inverted by the encoder either way, and the layout is decided by which
 # successor is deeper in the loop rather than by which one the branch names first.
-bodyDeclaredFirst(%n: Int): Int {
+bodyDeclaredFirst(%n: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [body, %i2]: Int
+        %i = phi [start, %z], [body, %i2]: I32
         je (cmp_ilt %i, %n), body, out
     }
 
     body {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         jmp head
     }
 
@@ -60,14 +60,14 @@ bodyDeclaredFirst(%n: Int): Int {
 # Two latches: the body branches, and both arms jump back to the header. The loop is the union of
 # what reaches either of them, so both arms count as inside it and neither may be laid out after the
 # exit.
-twoBackEdges(%n: Int, %c: Int): Int {
+twoBackEdges(%n: I32, %c: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [left, %l], [right, %r]: Int
+        %i = phi [start, %z], [left, %l], [right, %r]: I32
         je (cmp_ige %i, %n), out, split
     }
 
@@ -76,12 +76,12 @@ twoBackEdges(%n: Int, %c: Int): Int {
     }
 
     left {
-        %l = add %i, 1: Int
+        %l = add %i, 1: I32
         jmp head
     }
 
     right {
-        %r = add %i, 2: Int
+        %r = add %i, 2: I32
         jmp head
     }
 
@@ -93,33 +93,33 @@ twoBackEdges(%n: Int, %c: Int): Int {
 # An inner loop inside an outer one. The inner body is deeper than the inner exit, and the inner
 # exit is still deeper than the outer exit, so the two loops nest in the layout the way they nest in
 # the CFG rather than interleaving.
-nested(%n: Int, %m: Int): Int {
+nested(%n: I32, %m: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp outer
     }
 
     outer {
-        %i = phi [start, %z], [outerEnd, %i2]: Int
-        %acc = phi [start, %z], [outerEnd, %acc2]: Int
+        %i = phi [start, %z], [outerEnd, %i2]: I32
+        %acc = phi [start, %z], [outerEnd, %acc2]: I32
         je (cmp_ige %i, %n), done, innerHead
     }
 
     innerHead {
-        %j = phi [outer, %z], [innerBody, %j2]: Int
-        %a = phi [outer, %acc], [innerBody, %a2]: Int
+        %j = phi [outer, %z], [innerBody, %j2]: I32
+        %a = phi [outer, %acc], [innerBody, %a2]: I32
         je (cmp_ige %j, %m), outerEnd, innerBody
     }
 
     innerBody {
-        %a2 = add %a, %j: Int
-        %j2 = add %j, 1: Int
+        %a2 = add %a, %j: I32
+        %j2 = add %j, 1: I32
         jmp innerHead
     }
 
     outerEnd {
-        %acc2 = add %a, 1: Int
-        %i2 = add %i, 1: Int
+        %acc2 = add %a, 1: I32
+        %i2 = add %i, 1: I32
         jmp outer
     }
 
@@ -130,14 +130,14 @@ nested(%n: Int, %m: Int): Int {
 
 # The block that leaves the loop is declared before the body it leaves. Declaration order decides
 # nothing: the walk starts at the entry block and follows the CFG from there.
-declaredOutOfOrder(%n: Int): Int {
+declaredOutOfOrder(%n: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [body, %i2]: Int
+        %i = phi [start, %z], [body, %i2]: I32
         je (cmp_ige %i, %n), out, body
     }
 
@@ -146,21 +146,21 @@ declaredOutOfOrder(%n: Int): Int {
     }
 
     body {
-        %i2 = add %i, 1: Int
+        %i2 = add %i, 1: I32
         jmp head
     }
 }
 
 # A conditional inside the loop body. Both arms are part of the loop and both have to be laid out
 # before the exit, even though the exit is reachable from the header in fewer steps.
-branchInBody(%n: Int, %c: Int): Int {
+branchInBody(%n: I32, %c: I32): I32 {
     start {
-        %z = cast 0: Int
+        %z = cast 0: I32
         jmp head
     }
 
     head {
-        %i = phi [start, %z], [join, %i2]: Int
+        %i = phi [start, %z], [join, %i2]: I32
         je (cmp_ige %i, %n), out, test
     }
 
@@ -169,17 +169,17 @@ branchInBody(%n: Int, %c: Int): Int {
     }
 
     even {
-        %e = add %i, 2: Int
+        %e = add %i, 2: I32
         jmp join
     }
 
     odd {
-        %o = add %i, 1: Int
+        %o = add %i, 1: I32
         jmp join
     }
 
     join {
-        %i2 = phi [even, %e], [odd, %o]: Int
+        %i2 = phi [even, %e], [odd, %o]: I32
         jmp head
     }
 

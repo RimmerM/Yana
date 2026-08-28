@@ -1,5 +1,5 @@
 
-sink<complex>(%p: Ptr): Long {
+sink<complex>(%p: Ptr): I64 {
   b_0 {
     ret 0
   }
@@ -11,62 +11,62 @@ source<complex>(%p: Ptr): Ptr {
   }
 }
 
-foldedAdd<complex>(%p: Ptr, %i: Long, %acc: Long): Long {
+foldedAdd<complex>(%p: Ptr, %i: I64, %acc: I64): I64 {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %q = add %p, %o: Ptr
-    %v = load %q, 8: Long
-    %s = add %acc, %v: Long
+    %v = load %q, 8: I64
+    %s = add %acc, %v: I64
     ret %s
   }
 }
 
-exchangedOperands<complex>(%p: Ptr, %i: Long, %acc: Long): Long {
+exchangedOperands<complex>(%p: Ptr, %i: I64, %acc: I64): I64 {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %q = add %p, %o: Ptr
-    %v = load %q, 8: Long
-    %s = add %v, %acc: Long
+    %v = load %q, 8: I64
+    %s = add %v, %acc: I64
     ret %s
   }
 }
 
-subtractionKeepsOrder<complex>(%p: Ptr, %acc: Long): Long {
+subtractionKeepsOrder<complex>(%p: Ptr, %acc: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = sub %v, %acc: Long
+    %v = load %p, 8: I64
+    %s = sub %v, %acc: I64
     ret %s
   }
 }
 
-foldedSubtract<complex>(%p: Ptr, %acc: Long): Long {
+foldedSubtract<complex>(%p: Ptr, %acc: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = sub %acc, %v: Long
+    %v = load %p, 8: I64
+    %s = sub %acc, %v: I64
     ret %s
   }
 }
 
-barePointer<complex>(%p: Ptr, %acc: Long): Long {
+barePointer<complex>(%p: Ptr, %acc: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = and %acc, %v: Long
+    %v = load %p, 8: I64
+    %s = and %acc, %v: I64
     ret %s
   }
 }
 
-foldedMultiply<complex>(%p: Ptr, %acc: Long): Long {
+foldedMultiply<complex>(%p: Ptr, %acc: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = imul %acc, %v: Long
+    %v = load %p, 8: I64
+    %s = imul %acc, %v: I64
     ret %s
   }
 }
 
-foldedCompare<complex>(%p: Ptr, %x: Long): Long {
+foldedCompare<complex>(%p: Ptr, %x: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %v_1 = cmp_ilt %x, %v: Int
+    %v = load %p, 8: I64
+    %v_1 = cmp_ilt %x, %v: I32
     je %v_1, less, notLess
   }
 
@@ -79,97 +79,97 @@ foldedCompare<complex>(%p: Ptr, %x: Long): Long {
   }
 }
 
-foldedFloat<complex>(%p: Ptr, %acc: Double): Double {
+foldedFloat<complex>(%p: Ptr, %acc: F64): F64 {
   b_0 {
-    %v = load %p, 8: Double
-    %s = add %acc, %v: Double
+    %v = load %p, 8: F64
+    %s = add %acc, %v: F64
     ret %s
   }
 }
 
-narrowLoadStays<complex>(%p: Ptr, %acc: Int): Int {
+narrowLoadStays<complex>(%p: Ptr, %acc: I32): I32 {
   b_0 {
-    %v = load %p, 1: Int
-    %s = add %acc, %v: Int
+    %v = load %p, 1: I32
+    %s = add %acc, %v: I32
     ret %s
   }
 }
 
-twoReadersStay<complex>(%p: Ptr, %acc: Long): Long {
+twoReadersStay<complex>(%p: Ptr, %acc: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = add %acc, %v: Long
-    %t = add %s, %v: Long
+    %v = load %p, 8: I64
+    %s = add %acc, %v: I64
+    %t = add %s, %v: I64
     ret %t
   }
 }
 
-notAdjacentStays<complex>(%p: Ptr, %acc: Long, %x: Long): Long {
+notAdjacentStays<complex>(%p: Ptr, %acc: I64, %x: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %y = imul %x, %x: Long
-    %s = add %acc, %v: Long
-    %t = add %s, %y: Long
+    %v = load %p, 8: I64
+    %y = imul %x, %x: I64
+    %s = add %acc, %v: I64
+    %t = add %s, %y: I64
     ret %t
   }
 }
 
-divisionStays<complex>(%p: Ptr, %acc: Long): Long {
+divisionStays<complex>(%p: Ptr, %acc: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = div %acc, %v: Long
+    %v = load %p, 8: I64
+    %s = div %acc, %v: I64
     ret %s
   }
 }
 
-escapedPointerStillFolds<complex>(%p: Ptr, %acc: Long): Long {
+escapedPointerStillFolds<complex>(%p: Ptr, %acc: I64): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = add %acc, %v: Long
-    %r = call_complex sink, %p: Long
-    %t = add %s, %r: Long
+    %v = load %p, 8: I64
+    %s = add %acc, %v: I64
+    %r = call_complex sink, %p: I64
+    %t = add %s, %r: I64
     ret %t
   }
 }
 
-tiedResultAvoidsAddress<complex>(%q: Ptr, %acc: Long): Long {
+tiedResultAvoidsAddress<complex>(%q: Ptr, %acc: I64): I64 {
   b_0 {
     %p = call_complex source, %q: Ptr
-    %v = load %p, 8: Long
-    %s = add %acc, %v: Long
-    %t = add %s, %acc: Long
+    %v = load %p, 8: I64
+    %s = add %acc, %v: I64
+    %t = add %s, %acc: I64
     ret %t
   }
 }
 
-twoLoadsOneFolds<complex>(%p: Ptr, %r: Ptr): Long {
+twoLoadsOneFolds<complex>(%p: Ptr, %r: Ptr): I64 {
   b_0 {
-    %a = load %p, 8: Long
-    %b = load %r, 8: Long
-    %s = add %a, %b: Long
+    %a = load %p, 8: I64
+    %b = load %r, 8: I64
+    %s = add %a, %b: I64
     ret %s
   }
 }
 
-sumArray<sysv>(%p: Ptr, %n: Long): Long {
+sumArray<sysv>(%p: Ptr, %n: I64): I64 {
   entry {
-    %zero = cast 0: Long
+    %zero = cast 0: I64
     jmp head
   }
 
   head {
-    %i = phi [entry, %zero], [body, %i2]: Long
-    %acc = phi [entry, %zero], [body, %acc2]: Long
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [entry, %zero], [body, %i2]: I64
+    %acc = phi [entry, %zero], [body, %acc2]: I64
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, exit, body
   }
 
   body {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %q = add %p, %o: Ptr
-    %v = load %q, 8: Long
-    %acc2 = add %acc, %v: Long
-    %i2 = add %i, 1: Long
+    %v = load %q, 8: I64
+    %acc2 = add %acc, %v: I64
+    %i2 = add %i, 1: I64
     jmp head
   }
 

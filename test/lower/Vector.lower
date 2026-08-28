@@ -31,7 +31,7 @@ arith(%a: f32x8, %b: f32x8, %i: i32x4, %j: i32x4): f32x8 {
 # A comparison answers a mask, a select consumes one, and the four ways a mask becomes a scalar.
 #
 # `vreduce_first` is the one whose result type is not the lane's scalar form: it answers *which* lane
-# rather than one of them, so it states an `Int` at any lane width - the rule the validator holds it
+# rather than one of them, so it states an `I32` at any lane width - the rule the validator holds it
 # and `vreduce_bits` to, and the reason both are written out here.
 masks(%a: f32x8, %b: f32x8): f32x8 {
     {
@@ -40,22 +40,22 @@ masks(%a: f32x8, %b: f32x8): f32x8 {
         %both = and %lt, %gt: m32x8
         %inv = not %both: m32x8
         %sel = select %inv, %a, %b: f32x8
-        %any = vreduce_or %inv: Int
-        %all = vreduce_and %inv: Int
-        %count = vreduce_add %inv: Int
-        %first = vreduce_first %inv: Int
+        %any = vreduce_or %inv: I32
+        %all = vreduce_and %inv: I32
+        %count = vreduce_add %inv: I32
+        %first = vreduce_first %inv: I32
         ret %sel
     }
 }
 
 # The five that are not one of the instructions above.
-lanes(%x: Float, %v: f32x8, %w: f32x8): Float {
+lanes(%x: F32, %v: f32x8, %w: f32x8): F32 {
     {
         %splat = vsplat %x: f32x8
-        %lane = vlane %v, 3: Float
+        %lane = vlane %v, 3: F32
         %with = vwithlane %v, %x, 5: f32x8
-        %sum = vreduce_add %v: Float
-        %max = vreduce_max %v: Float
+        %sum = vreduce_add %v: F32
+        %max = vreduce_max %v: F32
 
         # A pattern entry names a lane of the two sources concatenated, so 8..15 is the second one.
         # This is the interleave of the two low halves.
@@ -64,7 +64,7 @@ lanes(%x: Float, %v: f32x8, %w: f32x8): Float {
         # A shuffle may change the lane count but not the lane type: this is the low four lanes of
         # one vector, which is what `packLanes` and the two `unpack`s are built out of.
         %low = vshuffle %v, %v, 0, 1, 2, 3: f32x4
-        %narrow = vreduce_add %low: Float
+        %narrow = vreduce_add %low: F32
         ret %sum
     }
 }

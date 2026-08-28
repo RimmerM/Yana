@@ -550,7 +550,7 @@ pub fn sharedModule(cases: [Case], selected: [Size]) -> String:
    glyphs are and is here rather than in `Terminal` because it is a unit rather than a mark.
 -}
 pub fn durationText(nanos: I64, unicode: Bool) -> String:
-    let value = bitcast(nanos) :: Long
+    let value = nanos
     -- Nothing rather than "0 ns" for a case that was never run, which is what a skipped row wants:
     -- an empty cell reads as "this did not happen" where a zero reads as "this was instant".
     if value <= 0 then return ""

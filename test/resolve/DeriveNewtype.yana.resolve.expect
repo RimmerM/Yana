@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-fn Ord(Int).compare(%lhs: Int, %rhs: Int) -> Ordering {
+fn Ord(I32).compare(%lhs: I32, %rhs: I32) -> Ordering {
   b0:
     %v2 = cmp_eq %lhs, %rhs : Bool
     je %v2, b1, b2
@@ -77,7 +77,7 @@ fn higher(%a: Priority, %b: Priority) -> Bool {
     ret %v2
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %flags = call combined : OpenFlags
     %v1 = call anySet, %flags : Bool
@@ -137,7 +137,7 @@ fn main() -> Int {
 
   b12:
     %bits = load %local0@OpenFlags : I64
-    %v48 = cast %bits : Int
+    %v48 = cast %bits : I32
     jmp b13
 
   b13:
@@ -216,8 +216,8 @@ fn Truth(OpenFlags).truthy(%value: OpenFlags) -> Bool {
 
 fn Eq(Handle).==(%lhs: Handle, %rhs: Handle) -> Bool {
   b0:
-    %lhs$ = load %lhs@Handle : Int
-    %rhs$ = load %rhs@Handle : Int
+    %lhs$ = load %lhs@Handle : I32
+    %rhs$ = load %rhs@Handle : I32
     %v4 = cmp_eq %lhs$, %rhs$ : Bool
     jmp b1
 
@@ -230,8 +230,8 @@ fn Eq(Handle).==(%lhs: Handle, %rhs: Handle) -> Bool {
 
 fn Eq(Priority).==(%lhs: Priority, %rhs: Priority) -> Bool {
   b0:
-    %lhs$ = load %lhs@Priority : Int
-    %rhs$ = load %rhs@Priority : Int
+    %lhs$ = load %lhs@Priority : I32
+    %rhs$ = load %rhs@Priority : I32
     %v4 = cmp_eq %lhs$, %rhs$ : Bool
     jmp b1
 
@@ -244,9 +244,9 @@ fn Eq(Priority).==(%lhs: Priority, %rhs: Priority) -> Bool {
 
 fn Ord(Priority).compare(%lhs: Priority, %rhs: Priority) -> Ordering {
   b0:
-    %lhs$ = load %lhs@Priority : Int
-    %rhs$ = load %rhs@Priority : Int
-    %v4 = call Ord(Int).compare, %lhs$, %rhs$ : Ordering
+    %lhs$ = load %lhs@Priority : I32
+    %rhs$ = load %rhs@Priority : I32
+    %v4 = call Ord(I32).compare, %lhs$, %rhs$ : Ordering
     jmp b1
 
   b1:

@@ -1,20 +1,20 @@
 @image$base = []
 mut @released = [0, 0, 0, 0]
 
-+=(Int)<complex>(%target: Ptr, %amount: Int) {
++=(I32)<complex>(%target: Ptr, %amount: I32) {
   b_0 {
-    %v_1 = loads %target, 4: Int
-    %v_2 = add %v_1, %amount: Int
+    %v_1 = loads %target, 4: I32
+    %v_2 = add %v_1, %amount: I32
     store %target, %v_2, 4
     ret 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    call_complex +=(Int), @released, 1
-    %v_1 = loads @released, 4: Int
-    %v_2 = add %v_1, 142: Int
+    call_complex +=(I32), @released, 1
+    %v_1 = loads @released, 4: I32
+    %v_2 = add %v_1, 142: I32
     ret %v_2
   }
 }

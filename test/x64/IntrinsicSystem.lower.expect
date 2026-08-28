@@ -9,9 +9,9 @@ fences<complex>() {
   }
 }
 
-interrupts<complex>(%x: Int, %y: Int): Int {
+interrupts<complex>(%x: I32, %y: I32): I32 {
   start {
-    %c = cmp_ilt %x, %y: Int
+    %c = cmp_ilt %x, %y: I32
     cli 
     swapgs 
     je %c, less, more
@@ -28,9 +28,9 @@ interrupts<complex>(%x: Int, %y: Int): Int {
   }
 }
 
-cacheOps<complex>(%p: Ptr, %i: Long) {
+cacheOps<complex>(%p: Ptr, %i: I64) {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %q = add %p, %o: Ptr
     prefetch %q
     %r = add %p, 64: Ptr
@@ -41,103 +41,103 @@ cacheOps<complex>(%p: Ptr, %i: Long) {
   }
 }
 
-prefetchAndLoad<complex>(%p: Ptr, %i: Long): Long {
+prefetchAndLoad<complex>(%p: Ptr, %i: I64): I64 {
   b_0 {
     %q = add %p, %i: Ptr
     prefetch %q
-    %v = load %q, 8: Long
+    %v = load %q, 8: I64
     ret %v
   }
 }
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-spilledAddress<complex>(%arg: Int, %keep: Int, %p: Ptr): Int {
+spilledAddress<complex>(%arg: I32, %keep: I32, %p: Ptr): I32 {
   b_0 {
-    %r = call_clobber sink, %arg: Int
+    %r = call_clobber sink, %arg: I32
     clflush %p
-    %s = add %keep, %r: Int
-    %t = add %keep, %s: Int
+    %s = add %keep, %r: I32
+    %t = add %keep, %s: I32
     ret %t
   }
 }
 
-copyMsr<complex>(%from: Int, %to: Int) {
+copyMsr<complex>(%from: I32, %to: I32) {
   b_0 {
-    %lo, %hi = rdmsr %from: Int, Int
+    %lo, %hi = rdmsr %from: I32, I32
     wrmsr %to, %lo, %hi
     ret 
   }
 }
 
-xcr0<complex>(): Int {
+xcr0<complex>(): I32 {
   b_0 {
-    %lo, %hi = xgetbv 0: Int, Int
-    %r = add %lo, %hi: Int
+    %lo, %hi = xgetbv 0: I32, I32
+    %r = add %lo, %hi: I32
     ret %r
   }
 }
 
-ports<complex>(%port: Int, %v: Int): Int {
+ports<complex>(%port: I32, %v: I32): I32 {
   b_0 {
     out8 %port, %v
     out32 %port, %v
-    %a = in8 %port: Int
-    %b = in32 %port: Int
-    %r = add %a, %b: Int
+    %a = in8 %port: I32
+    %b = in32 %port: I32
+    %r = add %a, %b: I32
     ret %r
   }
 }
 
-pageFault<complex>(): Long {
+pageFault<complex>(): I64 {
   b_0 {
-    %cr2 = readcr2 : Long
-    %cr3 = readcr3 : Long
+    %cr2 = readcr2 : I64
+    %cr3 = readcr3 : I64
     writecr3 %cr3
     ret %cr2
   }
 }
 
-controlBits<complex>(%a: Long, %b: Long): Long {
+controlBits<complex>(%a: I64, %b: I64): I64 {
   b_0 {
-    %cr0 = readcr0 : Long
+    %cr0 = readcr0 : I64
     writecr0 %a
-    %cr4 = readcr4 : Long
+    %cr4 = readcr4 : I64
     writecr4 %b
-    %r = add %cr0, %cr4: Long
+    %r = add %cr0, %cr4: I64
     ret %r
   }
 }
 
-timestamp<complex>(%a: Long, %b: Long, %keep: Long): Long {
+timestamp<complex>(%a: I64, %b: I64, %keep: I64): I64 {
   b_0 {
-    %t = rdtsc : Long
-    %r = add %keep, %t: Long
+    %t = rdtsc : I64
+    %r = add %keep, %t: I64
     ret %r
   }
 }
 
-spin<complex>(%limit: Long): Long {
+spin<complex>(%limit: I64): I64 {
   start {
-    %t0 = rdtsc : Long
+    %t0 = rdtsc : I64
     lfence 
     jmp test
   }
 
   test {
-    %t = phi [start, %t0], [body, %t1]: Long
-    %n = sub %t, %t0: Long
-    %v_0 = cmp_lt %n, %limit: Int
+    %t = phi [start, %t0], [body, %t1]: I64
+    %n = sub %t, %t0: I64
+    %v_0 = cmp_lt %n, %limit: I32
     je %v_0, body, done
   }
 
   body {
     pause 
-    %t1 = rdtsc : Long
+    %t1 = rdtsc : I64
     jmp test
   }
 

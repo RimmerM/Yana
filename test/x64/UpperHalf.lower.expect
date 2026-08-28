@@ -1,110 +1,110 @@
 
-skipRotateRight<complex>(%x: Int): Long {
+skipRotateRight<complex>(%x: I32): I64 {
   b_0 {
-    %r = ror %x, 7: Int
-    %w = cast %r: Long
-    %t = add %w, 1: Long
+    %r = ror %x, 7: I32
+    %w = cast %r: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipRotateLeft<complex>(%x: Int): Long {
+skipRotateLeft<complex>(%x: I32): I64 {
   b_0 {
-    %r = rol %x, 7: Int
-    %w = cast %r: Long
-    %t = add %w, 1: Long
+    %r = rol %x, 7: I32
+    %w = cast %r: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipByteSwap<complex>(%x: Int): Long {
+skipByteSwap<complex>(%x: I32): I64 {
   b_0 {
-    %r = bswap %x: Int
-    %w = cast %r: Long
-    %t = add %w, 1: Long
+    %r = bswap %x: I32
+    %w = cast %r: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipCrc32<complex>(%acc: Int, %chunk: Int): Long {
+skipCrc32<complex>(%acc: I32, %chunk: I32): I64 {
   b_0 {
-    %r = crc32 %acc, %chunk: Int
-    %w = cast %r: Long
-    %t = add %w, 1: Long
+    %r = crc32 %acc, %chunk: I32
+    %w = cast %r: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipSelect<complex>(%c: Int, %a: Int, %b: Int): Long {
+skipSelect<complex>(%c: I32, %a: I32, %b: I32): I64 {
   b_0 {
-    %cmp = cmp_igt %c, 0: Int
-    %s = select %cmp, %a, %b: Int
-    %w = cast %s: Long
-    %t = add %w, 1: Long
+    %cmp = cmp_igt %c, 0: I32
+    %s = select %cmp, %a, %b: I32
+    %w = cast %s: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipAtomicLoad<complex>(%p: Ptr): Long {
+skipAtomicLoad<complex>(%p: Ptr): I64 {
   b_0 {
-    %v = atomic_load %p, 4, acquire: Int
-    %w = cast %v: Long
-    %t = add %w, 1: Long
+    %v = atomic_load %p, 4, acquire: I32
+    %w = cast %v: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-keepAtomicLoadWide<complex>(%p: Ptr): Long {
+keepAtomicLoadWide<complex>(%p: Ptr): I64 {
   b_0 {
-    %v = atomic_load %p, 8, acquire: Long
-    %n = cast %v: Int
-    %w = cast %n: Long
-    %t = add %w, 1: Long
+    %v = atomic_load %p, 8, acquire: I64
+    %n = cast %v: I32
+    %w = cast %n: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipVectorLane<complex>(%v: i32x4): Long {
+skipVectorLane<complex>(%v: i32x4): I64 {
   b_0 {
-    %l = vlane %v, 2: Int
-    %w = cast %l: Long
-    %t = add %w, 1: Long
+    %l = vlane %v, 2: I32
+    %w = cast %l: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipPhi<complex>(%c: Int, %a: Int, %b: Int): Long {
+skipPhi<complex>(%c: I32, %a: I32, %b: I32): I64 {
   start {
-    %v_0 = cmp_igt %c, 0: Int
+    %v_0 = cmp_igt %c, 0: I32
     je %v_0, left, right
   }
 
   left {
-    %x = add %a, %b: Int
+    %x = add %a, %b: I32
     jmp end
   }
 
   right {
-    %y = mul %a, %b: Int
+    %y = mul %a, %b: I32
     jmp end
   }
 
   end {
-    %p = phi [left, %x], [right, %y]: Int
-    %w = cast %p: Long
-    %t = add %w, 1: Long
+    %p = phi [left, %x], [right, %y]: I32
+    %w = cast %p: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-keepPhiOfArgument<complex>(%c: Int, %a: Int, %b: Int): Long {
+keepPhiOfArgument<complex>(%c: I32, %a: I32, %b: I32): I64 {
   start {
-    %v_0 = cmp_igt %c, 0: Int
+    %v_0 = cmp_igt %c, 0: I32
     je %v_0, left, right
   }
 
   left {
-    %x = add %a, %b: Int
+    %x = add %a, %b: I32
     jmp end
   }
 
@@ -113,112 +113,112 @@ keepPhiOfArgument<complex>(%c: Int, %a: Int, %b: Int): Long {
   }
 
   end {
-    %p = phi [left, %x], [right, %b]: Int
-    %w = cast %p: Long
-    %t = add %w, 1: Long
+    %p = phi [left, %x], [right, %b]: I32
+    %w = cast %p: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-lowRotate<complex>(%x: Long): Int {
+lowRotate<complex>(%x: I64): I32 {
   b_0 {
-    %n = cast %x: Int
-    %r = ror %n, 7: Int
+    %n = cast %x: I32
+    %r = ror %n, 7: I32
     ret %r
   }
 }
 
-lowRotateLeft<complex>(%x: Long): Int {
+lowRotateLeft<complex>(%x: I64): I32 {
   b_0 {
-    %n = cast %x: Int
-    %r = rol %n, 7: Int
+    %n = cast %x: I32
+    %r = rol %n, 7: I32
     ret %r
   }
 }
 
-lowByteSwap<complex>(%x: Long): Int {
+lowByteSwap<complex>(%x: I64): I32 {
   b_0 {
-    %n = cast %x: Int
-    %r = bswap %n: Int
+    %n = cast %x: I32
+    %r = bswap %n: I32
     ret %r
   }
 }
 
-lowCrc32<complex>(%x: Long, %chunk: Int): Int {
+lowCrc32<complex>(%x: I64, %chunk: I32): I32 {
   b_0 {
-    %n = cast %x: Int
-    %r = crc32 %n, %chunk: Int
+    %n = cast %x: I32
+    %r = crc32 %n, %chunk: I32
     ret %r
   }
 }
 
-lowStoreUpdate<complex>(%p: Ptr, %x: Long) {
+lowStoreUpdate<complex>(%p: Ptr, %x: I64) {
   b_0 {
-    %n = cast %x: Int
-    %old = load %p, 4: Int
-    %new = add %old, %n: Int
+    %n = cast %x: I32
+    %old = load %p, 4: I32
+    %new = add %old, %n: I32
     store %p, %new, 4
     ret 
   }
 }
 
-lowSignExtend<complex>(%x: Long): Int {
+lowSignExtend<complex>(%x: I64): I32 {
   b_0 {
-    %n = cast %x: Int
-    %u = shl %n, 24: Int
-    %d = sar %u, 24: Int
+    %n = cast %x: I32
+    %u = shl %n, 24: I32
+    %d = sar %u, 24: I32
     ret %d
   }
 }
 
-keepArgumentWidened<complex>(%v: Int): Long {
+keepArgumentWidened<complex>(%v: I32): I64 {
   b_0 {
-    %w = cast %v: Long
-    %t = add %w, 1: Long
+    %w = cast %v: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-identity<complex>(%x: Int): Int {
+identity<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-keepCallResultWidened<complex>(%a: Int): Long {
+keepCallResultWidened<complex>(%a: I32): I64 {
   b_0 {
-    %r = call_complex identity, %a: Int
-    %w = cast %r: Long
-    %t = add %w, 1: Long
+    %r = call_complex identity, %a: I32
+    %w = cast %r: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-keepArithmeticShift<complex>(%x: Long): Long {
+keepArithmeticShift<complex>(%x: I64): I64 {
   b_0 {
-    %s = sar %x, 40: Long
-    %n = cast %s: Int
-    %w = cast %n: Long
+    %s = sar %x, 40: I64
+    %n = cast %s: I32
+    %w = cast %n: I64
     ret %w
   }
 }
 
-keepSetOfArgument<complex>(%v: Int): Long {
+keepSetOfArgument<complex>(%v: I32): I64 {
   b_0 {
-    %s = set %v: Int
-    %w = cast %s: Long
-    %t = add %w, 1: Long
+    %s = set %v: I32
+    %w = cast %s: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }
 
-skipThroughSet<complex>(%p: Ptr): Long {
+skipThroughSet<complex>(%p: Ptr): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %n = cast %v: Int
-    %s = set %n: Int
-    %w = cast %s: Long
-    %t = add %w, 1: Long
+    %v = load %p, 8: I64
+    %n = cast %v: I32
+    %s = set %n: I32
+    %w = cast %s: I64
+    %t = add %w, 1: I64
     ret %t
   }
 }

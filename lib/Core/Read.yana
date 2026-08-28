@@ -358,20 +358,11 @@ fn readUnsigned(text: String, &at: Size, radix: Int, limit: U64) -> Result(ReadE
 pub fn readRadix(from: String, &at: Size, radix: Int) -> Result(ReadError, Long) =
     readBounded(from, at, radix, minValue() :: Long, maxValue() :: Long)
 
-instance Read(Long):
-    fn read(from: String, &at: Size) -> Result(ReadError, Long) = readRadix(from, at, 10)
-
+-- The widest signed one needs no range check and no conversion: `readRadix` already answers at this
+-- type and already refused anything outside it. `Read(U64)` below is the same case on the other
+-- sign.
 instance Read(I64):
-    fn read(from: String, &at: Size) -> Result(ReadError, I64) =
-        match readBounded(from, at, 10, widen(minValue() :: I64) :: Long, widen(maxValue() :: I64) :: Long):
-            Ok(value) -> Ok(bitcast(value) :: I64)
-            Err(reason) -> Err(reason)
-
-instance Read(Int):
-    fn read(from: String, &at: Size) -> Result(ReadError, Int) =
-        match readBounded(from, at, 10, widen(minValue() :: Int) :: Long, widen(maxValue() :: Int) :: Long):
-            Ok(value) -> Ok(truncate(value) :: Int)
-            Err(reason) -> Err(reason)
+    fn read(from: String, &at: Size) -> Result(ReadError, I64) = readRadix(from, at, 10)
 
 instance Read(I32):
     fn read(from: String, &at: Size) -> Result(ReadError, I32) =

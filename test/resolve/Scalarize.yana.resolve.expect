@@ -1,57 +1,57 @@
 let image$base: () = <none>
 
-fn readOnly() -> Int {
+fn readOnly() -> I32 {
   b0:
     %p = alloc : Point
     aggregate %local0@Point.x = 3, %local0@Point.y = 4
-    %v4 = load %local0@Point.x : Int
-    %v5 = load %local0@Point.x : Int
-    %v6 = mul %v4, %v5 : Int
-    %v7 = load %local0@Point.y : Int
-    %v8 = load %local0@Point.y : Int
-    %v9 = mul %v7, %v8 : Int
-    %v10 = add %v6, %v9 : Int
+    %v4 = load %local0@Point.x : I32
+    %v5 = load %local0@Point.x : I32
+    %v6 = mul %v4, %v5 : I32
+    %v7 = load %local0@Point.y : I32
+    %v8 = load %local0@Point.y : I32
+    %v9 = mul %v7, %v8 : I32
+    %v10 = add %v6, %v9 : I32
     ret %v10
 }
 
-fn writable() -> Int {
+fn writable() -> I32 {
   b0:
     %v0 = alloc : Point
     aggregate %p@Point.x = 3, %p@Point.y = 4
     %v4 = load %p : Point
-    %v5 = load %p@Point.x : Int
-    %v8 = add %v5, 1 : Int
+    %v5 = load %p@Point.x : I32
+    %v8 = add %v5, 1 : I32
     assign %p@Point.x, %v8
     %v10 = load %p : Point
-    %v11 = load %p@Point.x : Int
+    %v11 = load %p@Point.x : I32
     %v12 = load %p : Point
-    %v13 = load %p@Point.y : Int
-    %v14 = add %v11, %v13 : Int
+    %v13 = load %p@Point.y : I32
+    %v14 = add %v11, %v13 : I32
     ret %v14
 }
 
-fn passedWhole() -> Int {
+fn passedWhole() -> I32 {
   b0:
     %p = alloc : Point
     aggregate %local0@Point.x = 3, %local0@Point.y = 4
-    %v4 = call distance, %p : Int
+    %v4 = call distance, %p : I32
     ret %v4
 }
 
-fn distance(%it: Point) -> Int {
+fn distance(%it: Point) -> I32 {
   b0:
-    %v1 = load %it@Point.x : Int
-    %v2 = load %it@Point.y : Int
-    %v3 = add %v1, %v2 : Int
+    %v1 = load %it@Point.x : I32
+    %v2 = load %it@Point.y : I32
+    %v3 = add %v1, %v2 : I32
     ret %v3
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call readOnly : Int
-    %v1 = call writable : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call passedWhole : Int
-    %v4 = add %v2, %v3 : Int
+    %v0 = call readOnly : I32
+    %v1 = call writable : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call passedWhole : I32
+    %v4 = add %v2, %v3 : I32
     ret %v4
 }

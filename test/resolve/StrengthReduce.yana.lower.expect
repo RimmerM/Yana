@@ -1,21 +1,21 @@
 @image$base = []
 
-okL<complex>(%x: Long, %d: Long, %q: Long, %r: Long): Int {
+okL<complex>(%x: I64, %d: I64, %q: I64, %r: I64): I32 {
   b_0 {
-    %v_1 = imul %q, %d: Long
-    %v_2 = add %v_1, %r: Long
-    %v_3 = cmp_eq %v_2, %x: Int
+    %v_1 = imul %q, %d: I64
+    %v_2 = add %v_1, %r: I64
+    %v_3 = cmp_eq %v_2, %x: I32
     je %v_3, b_4, b_5
   }
 
   b_4 {
-    %v_6 = cmp_ilt %r, 0: Int
-    %v_7 = sub 0, %r: Long
-    %v_8 = select %v_6, %v_7, %r: Long
-    %v_9 = cmp_ilt %d, 0: Int
-    %v_10 = sub 0, %d: Long
-    %v_11 = select %v_9, %v_10, %d: Long
-    %v_12 = cmp_ilt %v_8, %v_11: Int
+    %v_6 = cmp_ilt %r, 0: I32
+    %v_7 = sub 0, %r: I64
+    %v_8 = select %v_6, %v_7, %r: I64
+    %v_9 = cmp_ilt %d, 0: I32
+    %v_10 = sub 0, %d: I64
+    %v_11 = select %v_9, %v_10, %d: I64
+    %v_12 = cmp_ilt %v_8, %v_11: I32
     je %v_12, b_13, b_5
   }
 
@@ -24,38 +24,38 @@ okL<complex>(%x: Long, %d: Long, %q: Long, %r: Long): Int {
   }
 
   b_13 {
-    %v_15 = cmp_ile %r, 0: Int
-    %v_16 = cmp_ile %x, 0: Int
-    %v_17 = and %v_15, %v_16: Int
-    %v_18 = cmp_ige %r, 0: Int
-    %v_19 = cmp_ige %x, 0: Int
-    %v_20 = and %v_18, %v_19: Int
-    %v_21 = or %v_17, %v_20: Int
+    %v_15 = cmp_ile %r, 0: I32
+    %v_16 = cmp_ile %x, 0: I32
+    %v_17 = and %v_15, %v_16: I32
+    %v_18 = cmp_ige %r, 0: I32
+    %v_19 = cmp_ige %x, 0: I32
+    %v_20 = and %v_18, %v_19: I32
+    %v_21 = or %v_17, %v_20: I32
     jmp b_14
   }
 
   b_14 {
-    %v_22 = phi [b_13, %v_21], [b_5, 0]: Int
+    %v_22 = phi [b_13, %v_21], [b_5, 0]: I32
     ret %v_22
   }
 }
 
-okI<complex>(%x: Int, %d: Int, %q: Int, %r: Int): Int {
+okI<complex>(%x: I32, %d: I32, %q: I32, %r: I32): I32 {
   b_0 {
-    %v_1 = imul %q, %d: Int
-    %v_2 = add %v_1, %r: Int
-    %v_3 = cmp_eq %v_2, %x: Int
+    %v_1 = imul %q, %d: I32
+    %v_2 = add %v_1, %r: I32
+    %v_3 = cmp_eq %v_2, %x: I32
     je %v_3, b_4, b_5
   }
 
   b_4 {
-    %v_6 = cmp_ilt %r, 0: Int
-    %v_7 = sub 0, %r: Int
-    %v_8 = select %v_6, %v_7, %r: Int
-    %v_9 = cmp_ilt %d, 0: Int
-    %v_10 = sub 0, %d: Int
-    %v_11 = select %v_9, %v_10, %d: Int
-    %v_12 = cmp_ilt %v_8, %v_11: Int
+    %v_6 = cmp_ilt %r, 0: I32
+    %v_7 = sub 0, %r: I32
+    %v_8 = select %v_6, %v_7, %r: I32
+    %v_9 = cmp_ilt %d, 0: I32
+    %v_10 = sub 0, %d: I32
+    %v_11 = select %v_9, %v_10, %d: I32
+    %v_12 = cmp_ilt %v_8, %v_11: I32
     je %v_12, b_13, b_5
   }
 
@@ -64,23 +64,23 @@ okI<complex>(%x: Int, %d: Int, %q: Int, %r: Int): Int {
   }
 
   b_13 {
-    %v_15 = cmp_ile %r, 0: Int
-    %v_16 = cmp_ile %x, 0: Int
-    %v_17 = and %v_15, %v_16: Int
-    %v_18 = cmp_ige %r, 0: Int
-    %v_19 = cmp_ige %x, 0: Int
-    %v_20 = and %v_18, %v_19: Int
-    %v_21 = or %v_17, %v_20: Int
+    %v_15 = cmp_ile %r, 0: I32
+    %v_16 = cmp_ile %x, 0: I32
+    %v_17 = and %v_15, %v_16: I32
+    %v_18 = cmp_ige %r, 0: I32
+    %v_19 = cmp_ige %x, 0: I32
+    %v_20 = and %v_18, %v_19: I32
+    %v_21 = or %v_17, %v_20: I32
     jmp b_14
   }
 
   b_14 {
-    %v_22 = phi [b_13, %v_21], [b_5, 0]: Int
+    %v_22 = phi [b_13, %v_21], [b_5, 0]: I32
     ret %v_22
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %longs = alloca 96, 8: Ptr
     store %longs, 0, 8
@@ -156,7 +156,7 @@ main<complex>(): Int {
   }
 
   b_33 {
-    %v_34 = cmp_ilt %v_35, 12: Int
+    %v_34 = cmp_ilt %v_35, 12: I32
     je %v_34, b_32, b_36
   }
 
@@ -165,7 +165,7 @@ main<complex>(): Int {
   }
 
   b_38 {
-    %v_39 = cmp_ilt %v_40, 9: Int
+    %v_39 = cmp_ilt %v_40, 9: I32
     je %v_39, b_37, b_41
   }
 
@@ -174,7 +174,7 @@ main<complex>(): Int {
   }
 
   b_43 {
-    %v_44 = cmp_ilt %v_45, 8: Int
+    %v_44 = cmp_ilt %v_45, 8: I32
     je %v_44, b_42, b_46
   }
 
@@ -183,7 +183,7 @@ main<complex>(): Int {
   }
 
   b_48 {
-    %v_49 = cmp_ilt %v_50, 6: Int
+    %v_49 = cmp_ilt %v_50, 6: I32
     je %v_49, b_47, b_51
   }
 
@@ -192,342 +192,342 @@ main<complex>(): Int {
   }
 
   b_47 {
-    %v_53 = phi [b_48, %v_52], [b_46, %v_54]: Int
-    %v_55 = phi [b_48, %v_50], [b_46, 0]: Int
-    %v_56 = sext %v_55: Long
-    %v_57 = cmp_ge %v_56, 6: Int
+    %v_53 = phi [b_48, %v_52], [b_46, %v_54]: I32
+    %v_55 = phi [b_48, %v_50], [b_46, 0]: I32
+    %v_56 = sext %v_55: I64
+    %v_57 = cmp_ge %v_56, 6: I32
     je %v_57, b_58, b_59
   }
 
   b_59 {
-    %v_60 = shl %v_56, 2: Long
+    %v_60 = shl %v_56, 2: I64
     %v_61 = add %uints, %v_60: Ptr
-    %v_62 = load %v_61, 4: Int
-    %v_63 = shr %v_62, 2: Int
-    %v_64 = and %v_62, 3: Int
-    %v_65 = shl %v_63, 2: Int
-    %v_66 = add %v_65, %v_64: Int
-    %v_67 = cmp_eq %v_66, %v_62: Int
-    %v_68 = cmp_lt %v_64, 4: Int
-    %v_69 = and %v_67, %v_68: Int
-    %v_70 = mulhi %v_62, 3435973837: Int
-    %v_71 = shr %v_70, 2: Int
-    %v_72 = mul %v_71, 5: Int
-    %v_73 = sub %v_62, %v_72: Int
-    %v_74 = add %v_72, %v_73: Int
-    %v_75 = cmp_eq %v_74, %v_62: Int
-    %v_76 = cmp_lt %v_73, 5: Int
-    %v_77 = and %v_75, %v_76: Int
-    %v_78 = add %v_69, %v_77: Int
-    %v_79 = mulhi %v_62, 613566757: Int
-    %v_80 = sub %v_62, %v_79: Int
-    %v_81 = shr %v_80, 1: Int
-    %v_82 = add %v_81, %v_79: Int
-    %v_83 = shr %v_82, 2: Int
-    %v_84 = mul %v_83, 7: Int
-    %v_85 = sub %v_62, %v_84: Int
-    %v_86 = add %v_84, %v_85: Int
-    %v_87 = cmp_eq %v_86, %v_62: Int
-    %v_88 = cmp_lt %v_85, 7: Int
-    %v_89 = and %v_87, %v_88: Int
-    %v_90 = add %v_78, %v_89: Int
-    %v_91 = mulhi %v_62, 274877907: Int
-    %v_92 = shr %v_91, 6: Int
-    %v_93 = mul %v_92, 1000: Int
-    %v_94 = sub %v_62, %v_93: Int
-    %v_95 = add %v_93, %v_94: Int
-    %v_96 = cmp_eq %v_95, %v_62: Int
-    %v_97 = cmp_lt %v_94, 1000: Int
-    %v_98 = and %v_96, %v_97: Int
-    %v_99 = add %v_90, %v_98: Int
-    %v_52 = add %v_53, %v_99: Int
-    %v_50 = add %v_55, 1: Int
+    %v_62 = load %v_61, 4: I32
+    %v_63 = shr %v_62, 2: I32
+    %v_64 = and %v_62, 3: I32
+    %v_65 = shl %v_63, 2: I32
+    %v_66 = add %v_65, %v_64: I32
+    %v_67 = cmp_eq %v_66, %v_62: I32
+    %v_68 = cmp_lt %v_64, 4: I32
+    %v_69 = and %v_67, %v_68: I32
+    %v_70 = mulhi %v_62, 3435973837: I32
+    %v_71 = shr %v_70, 2: I32
+    %v_72 = mul %v_71, 5: I32
+    %v_73 = sub %v_62, %v_72: I32
+    %v_74 = add %v_72, %v_73: I32
+    %v_75 = cmp_eq %v_74, %v_62: I32
+    %v_76 = cmp_lt %v_73, 5: I32
+    %v_77 = and %v_75, %v_76: I32
+    %v_78 = add %v_69, %v_77: I32
+    %v_79 = mulhi %v_62, 613566757: I32
+    %v_80 = sub %v_62, %v_79: I32
+    %v_81 = shr %v_80, 1: I32
+    %v_82 = add %v_81, %v_79: I32
+    %v_83 = shr %v_82, 2: I32
+    %v_84 = mul %v_83, 7: I32
+    %v_85 = sub %v_62, %v_84: I32
+    %v_86 = add %v_84, %v_85: I32
+    %v_87 = cmp_eq %v_86, %v_62: I32
+    %v_88 = cmp_lt %v_85, 7: I32
+    %v_89 = and %v_87, %v_88: I32
+    %v_90 = add %v_78, %v_89: I32
+    %v_91 = mulhi %v_62, 274877907: I32
+    %v_92 = shr %v_91, 6: I32
+    %v_93 = mul %v_92, 1000: I32
+    %v_94 = sub %v_62, %v_93: I32
+    %v_95 = add %v_93, %v_94: I32
+    %v_96 = cmp_eq %v_95, %v_62: I32
+    %v_97 = cmp_lt %v_94, 1000: I32
+    %v_98 = and %v_96, %v_97: I32
+    %v_99 = add %v_90, %v_98: I32
+    %v_52 = add %v_53, %v_99: I32
+    %v_50 = add %v_55, 1: I32
     jmp b_48
   }
 
   b_58 {
-    %v_100 = syscall 60, 134: Long
+    %v_100 = syscall 60, 134: I64
     unreachable 
   }
 
   b_42 {
-    %v_101 = phi [b_43, %v_54], [b_41, %v_102]: Int
-    %v_103 = phi [b_43, %v_45], [b_41, 0]: Int
-    %v_104 = sext %v_103: Long
-    %v_105 = cmp_ge %v_104, 8: Int
+    %v_101 = phi [b_43, %v_54], [b_41, %v_102]: I32
+    %v_103 = phi [b_43, %v_45], [b_41, 0]: I32
+    %v_104 = sext %v_103: I64
+    %v_105 = cmp_ge %v_104, 8: I32
     je %v_105, b_58, b_106
   }
 
   b_106 {
-    %v_107 = shl %v_104, 3: Long
+    %v_107 = shl %v_104, 3: I64
     %v_108 = add %ulongs, %v_107: Ptr
-    %v_109 = load %v_108, 8: Long
-    %v_110 = shr %v_109, 1: Long
-    %v_111 = and %v_109, 1: Long
-    %v_112 = shl %v_110, 1: Long
-    %v_113 = add %v_112, %v_111: Long
-    %v_114 = cmp_eq %v_113, %v_109: Int
-    %v_115 = cmp_lt %v_111, 2: Int
-    %v_116 = and %v_114, %v_115: Int
-    %v_117 = shr %v_109, 6: Long
-    %v_118 = and %v_109, 63: Long
-    %v_119 = shl %v_117, 6: Long
-    %v_120 = add %v_119, %v_118: Long
-    %v_121 = cmp_eq %v_120, %v_109: Int
-    %v_122 = cmp_lt %v_118, 64: Int
-    %v_123 = and %v_121, %v_122: Int
-    %v_124 = add %v_116, %v_123: Int
-    %v_125 = mulhi %v_109, 12297829382473034411: Long
-    %v_126 = shr %v_125, 1: Long
-    %v_127 = mul %v_126, 3: Long
-    %v_128 = sub %v_109, %v_127: Long
-    %v_129 = add %v_127, %v_128: Long
-    %v_130 = cmp_eq %v_129, %v_109: Int
-    %v_131 = cmp_lt %v_128, 3: Int
-    %v_132 = and %v_130, %v_131: Int
-    %v_133 = add %v_124, %v_132: Int
-    %v_134 = mulhi %v_109, 14757395258967641293: Long
-    %v_135 = shr %v_134, 3: Long
-    %v_136 = mul %v_135, 10: Long
-    %v_137 = sub %v_109, %v_136: Long
-    %v_138 = add %v_136, %v_137: Long
-    %v_139 = cmp_eq %v_138, %v_109: Int
-    %v_140 = cmp_lt %v_137, 10: Int
-    %v_141 = and %v_139, %v_140: Int
-    %v_142 = add %v_133, %v_141: Int
-    %v_143 = mulhi %v_109, 2635249153387078803: Long
-    %v_144 = sub %v_109, %v_143: Long
-    %v_145 = shr %v_144, 1: Long
-    %v_146 = add %v_145, %v_143: Long
-    %v_147 = shr %v_146, 2: Long
-    %v_148 = mul %v_147, 7: Long
-    %v_149 = sub %v_109, %v_148: Long
-    %v_150 = add %v_148, %v_149: Long
-    %v_151 = cmp_eq %v_150, %v_109: Int
-    %v_152 = cmp_lt %v_149, 7: Int
-    %v_153 = and %v_151, %v_152: Int
-    %v_154 = add %v_142, %v_153: Int
-    %v_155 = mulhi %v_109, 14734372801465351681: Long
-    %v_156 = shr %v_155, 9: Long
-    %v_157 = mul %v_156, 641: Long
-    %v_158 = sub %v_109, %v_157: Long
-    %v_159 = add %v_157, %v_158: Long
-    %v_160 = cmp_eq %v_159, %v_109: Int
-    %v_161 = cmp_lt %v_158, 641: Int
-    %v_162 = and %v_160, %v_161: Int
-    %v_163 = add %v_154, %v_162: Int
-    %v_54 = add %v_101, %v_163: Int
-    %v_45 = add %v_103, 1: Int
+    %v_109 = load %v_108, 8: I64
+    %v_110 = shr %v_109, 1: I64
+    %v_111 = and %v_109, 1: I64
+    %v_112 = shl %v_110, 1: I64
+    %v_113 = add %v_112, %v_111: I64
+    %v_114 = cmp_eq %v_113, %v_109: I32
+    %v_115 = cmp_lt %v_111, 2: I32
+    %v_116 = and %v_114, %v_115: I32
+    %v_117 = shr %v_109, 6: I64
+    %v_118 = and %v_109, 63: I64
+    %v_119 = shl %v_117, 6: I64
+    %v_120 = add %v_119, %v_118: I64
+    %v_121 = cmp_eq %v_120, %v_109: I32
+    %v_122 = cmp_lt %v_118, 64: I32
+    %v_123 = and %v_121, %v_122: I32
+    %v_124 = add %v_116, %v_123: I32
+    %v_125 = mulhi %v_109, 12297829382473034411: I64
+    %v_126 = shr %v_125, 1: I64
+    %v_127 = mul %v_126, 3: I64
+    %v_128 = sub %v_109, %v_127: I64
+    %v_129 = add %v_127, %v_128: I64
+    %v_130 = cmp_eq %v_129, %v_109: I32
+    %v_131 = cmp_lt %v_128, 3: I32
+    %v_132 = and %v_130, %v_131: I32
+    %v_133 = add %v_124, %v_132: I32
+    %v_134 = mulhi %v_109, 14757395258967641293: I64
+    %v_135 = shr %v_134, 3: I64
+    %v_136 = mul %v_135, 10: I64
+    %v_137 = sub %v_109, %v_136: I64
+    %v_138 = add %v_136, %v_137: I64
+    %v_139 = cmp_eq %v_138, %v_109: I32
+    %v_140 = cmp_lt %v_137, 10: I32
+    %v_141 = and %v_139, %v_140: I32
+    %v_142 = add %v_133, %v_141: I32
+    %v_143 = mulhi %v_109, 2635249153387078803: I64
+    %v_144 = sub %v_109, %v_143: I64
+    %v_145 = shr %v_144, 1: I64
+    %v_146 = add %v_145, %v_143: I64
+    %v_147 = shr %v_146, 2: I64
+    %v_148 = mul %v_147, 7: I64
+    %v_149 = sub %v_109, %v_148: I64
+    %v_150 = add %v_148, %v_149: I64
+    %v_151 = cmp_eq %v_150, %v_109: I32
+    %v_152 = cmp_lt %v_149, 7: I32
+    %v_153 = and %v_151, %v_152: I32
+    %v_154 = add %v_142, %v_153: I32
+    %v_155 = mulhi %v_109, 14734372801465351681: I64
+    %v_156 = shr %v_155, 9: I64
+    %v_157 = mul %v_156, 641: I64
+    %v_158 = sub %v_109, %v_157: I64
+    %v_159 = add %v_157, %v_158: I64
+    %v_160 = cmp_eq %v_159, %v_109: I32
+    %v_161 = cmp_lt %v_158, 641: I32
+    %v_162 = and %v_160, %v_161: I32
+    %v_163 = add %v_154, %v_162: I32
+    %v_54 = add %v_101, %v_163: I32
+    %v_45 = add %v_103, 1: I32
     jmp b_43
   }
 
   b_37 {
-    %v_164 = phi [b_38, %v_102], [b_36, %v_165]: Int
-    %v_166 = phi [b_38, %v_40], [b_36, 0]: Int
-    %v_167 = sext %v_166: Long
-    %v_168 = cmp_ge %v_167, 9: Int
+    %v_164 = phi [b_38, %v_102], [b_36, %v_165]: I32
+    %v_166 = phi [b_38, %v_40], [b_36, 0]: I32
+    %v_167 = sext %v_166: I64
+    %v_168 = cmp_ge %v_167, 9: I32
     je %v_168, b_58, b_169
   }
 
   b_169 {
-    %v_170 = shl %v_167, 2: Long
+    %v_170 = shl %v_167, 2: I64
     %v_171 = add %ints, %v_170: Ptr
-    %v_172 = loads %v_171, 4: Int
-    %v_173 = sar %v_172, 31: Int
-    %v_174 = shr %v_173, 31: Int
-    %v_175 = add %v_172, %v_174: Int
-    %v_176 = sar %v_175, 1: Int
-    %v_177 = and %v_175, 4294967294: Int
-    %v_178 = sub %v_172, %v_177: Int
-    %v_179 = call_complex okI, %v_172, 2, %v_176, %v_178: Int
-    %v_180 = sar %v_172, 31: Int
-    %v_181 = shr %v_180, 28: Int
-    %v_182 = add %v_172, %v_181: Int
-    %v_183 = sar %v_182, 4: Int
-    %v_184 = and %v_182, 4294967280: Int
-    %v_185 = sub %v_172, %v_184: Int
-    %v_186 = call_complex okI, %v_172, 16, %v_183, %v_185: Int
-    %v_187 = add %v_179, %v_186: Int
-    %v_188 = sar %v_172, 31: Int
-    %v_189 = shr %v_188, 30: Int
-    %v_190 = add %v_172, %v_189: Int
-    %v_191 = sar %v_190, 2: Int
-    %v_192 = neg %v_191: Int
-    %v_193 = and %v_190, 4294967292: Int
-    %v_194 = sub %v_172, %v_193: Int
-    %v_195 = call_complex okI, %v_172, 18446744073709551612, %v_192, %v_194: Int
-    %v_196 = add %v_187, %v_195: Int
-    %v_197 = imulhi %v_172, 1431655766: Int
-    %v_198 = shr %v_197, 31: Int
-    %v_199 = add %v_197, %v_198: Int
-    %v_200 = imul %v_199, 3: Int
-    %v_201 = sub %v_172, %v_200: Int
-    %v_202 = call_complex okI, %v_172, 3, %v_199, %v_201: Int
-    %v_203 = add %v_196, %v_202: Int
-    %v_204 = imulhi %v_172, 1717986919: Int
-    %v_205 = sar %v_204, 2: Int
-    %v_206 = shr %v_205, 31: Int
-    %v_207 = add %v_205, %v_206: Int
-    %v_208 = imul %v_207, 10: Int
-    %v_209 = sub %v_172, %v_208: Int
-    %v_210 = call_complex okI, %v_172, 10, %v_207, %v_209: Int
-    %v_211 = add %v_203, %v_210: Int
-    %v_212 = imulhi %v_172, 2147975281: Int
-    %v_213 = add %v_212, %v_172: Int
-    %v_214 = sar %v_213, 15: Int
-    %v_215 = shr %v_214, 31: Int
-    %v_216 = add %v_214, %v_215: Int
-    %v_217 = imul %v_216, 65521: Int
-    %v_218 = sub %v_172, %v_217: Int
-    %v_219 = call_complex okI, %v_172, 65521, %v_216, %v_218: Int
-    %v_220 = add %v_211, %v_219: Int
-    %v_221 = imulhi %v_172, 1840700269: Int
-    %v_222 = sub %v_221, %v_172: Int
-    %v_223 = sar %v_222, 2: Int
-    %v_224 = shr %v_223, 31: Int
-    %v_225 = add %v_223, %v_224: Int
-    %v_226 = imul %v_225, 4294967289: Int
-    %v_227 = sub %v_172, %v_226: Int
-    %v_228 = call_complex okI, %v_172, 18446744073709551609, %v_225, %v_227: Int
-    %v_229 = add %v_220, %v_228: Int
-    %v_230 = neg %v_172: Int
-    %v_231 = call_complex okI, %v_172, 18446744073709551615, %v_230, 0: Int
-    %v_232 = add %v_229, %v_231: Int
-    %v_102 = add %v_164, %v_232: Int
-    %v_40 = add %v_166, 1: Int
+    %v_172 = loads %v_171, 4: I32
+    %v_173 = sar %v_172, 31: I32
+    %v_174 = shr %v_173, 31: I32
+    %v_175 = add %v_172, %v_174: I32
+    %v_176 = sar %v_175, 1: I32
+    %v_177 = and %v_175, 4294967294: I32
+    %v_178 = sub %v_172, %v_177: I32
+    %v_179 = call_complex okI, %v_172, 2, %v_176, %v_178: I32
+    %v_180 = sar %v_172, 31: I32
+    %v_181 = shr %v_180, 28: I32
+    %v_182 = add %v_172, %v_181: I32
+    %v_183 = sar %v_182, 4: I32
+    %v_184 = and %v_182, 4294967280: I32
+    %v_185 = sub %v_172, %v_184: I32
+    %v_186 = call_complex okI, %v_172, 16, %v_183, %v_185: I32
+    %v_187 = add %v_179, %v_186: I32
+    %v_188 = sar %v_172, 31: I32
+    %v_189 = shr %v_188, 30: I32
+    %v_190 = add %v_172, %v_189: I32
+    %v_191 = sar %v_190, 2: I32
+    %v_192 = neg %v_191: I32
+    %v_193 = and %v_190, 4294967292: I32
+    %v_194 = sub %v_172, %v_193: I32
+    %v_195 = call_complex okI, %v_172, 18446744073709551612, %v_192, %v_194: I32
+    %v_196 = add %v_187, %v_195: I32
+    %v_197 = imulhi %v_172, 1431655766: I32
+    %v_198 = shr %v_197, 31: I32
+    %v_199 = add %v_197, %v_198: I32
+    %v_200 = imul %v_199, 3: I32
+    %v_201 = sub %v_172, %v_200: I32
+    %v_202 = call_complex okI, %v_172, 3, %v_199, %v_201: I32
+    %v_203 = add %v_196, %v_202: I32
+    %v_204 = imulhi %v_172, 1717986919: I32
+    %v_205 = sar %v_204, 2: I32
+    %v_206 = shr %v_205, 31: I32
+    %v_207 = add %v_205, %v_206: I32
+    %v_208 = imul %v_207, 10: I32
+    %v_209 = sub %v_172, %v_208: I32
+    %v_210 = call_complex okI, %v_172, 10, %v_207, %v_209: I32
+    %v_211 = add %v_203, %v_210: I32
+    %v_212 = imulhi %v_172, 2147975281: I32
+    %v_213 = add %v_212, %v_172: I32
+    %v_214 = sar %v_213, 15: I32
+    %v_215 = shr %v_214, 31: I32
+    %v_216 = add %v_214, %v_215: I32
+    %v_217 = imul %v_216, 65521: I32
+    %v_218 = sub %v_172, %v_217: I32
+    %v_219 = call_complex okI, %v_172, 65521, %v_216, %v_218: I32
+    %v_220 = add %v_211, %v_219: I32
+    %v_221 = imulhi %v_172, 1840700269: I32
+    %v_222 = sub %v_221, %v_172: I32
+    %v_223 = sar %v_222, 2: I32
+    %v_224 = shr %v_223, 31: I32
+    %v_225 = add %v_223, %v_224: I32
+    %v_226 = imul %v_225, 4294967289: I32
+    %v_227 = sub %v_172, %v_226: I32
+    %v_228 = call_complex okI, %v_172, 18446744073709551609, %v_225, %v_227: I32
+    %v_229 = add %v_220, %v_228: I32
+    %v_230 = neg %v_172: I32
+    %v_231 = call_complex okI, %v_172, 18446744073709551615, %v_230, 0: I32
+    %v_232 = add %v_229, %v_231: I32
+    %v_102 = add %v_164, %v_232: I32
+    %v_40 = add %v_166, 1: I32
     jmp b_38
   }
 
   b_32 {
-    %v_233 = phi [b_33, %v_165], [b_0, 0]: Int
-    %v_234 = phi [b_33, %v_35], [b_0, 0]: Int
-    %v_235 = sext %v_234: Long
-    %v_236 = cmp_ge %v_235, 12: Int
+    %v_233 = phi [b_33, %v_165], [b_0, 0]: I32
+    %v_234 = phi [b_33, %v_35], [b_0, 0]: I32
+    %v_235 = sext %v_234: I64
+    %v_236 = cmp_ge %v_235, 12: I32
     je %v_236, b_58, b_237
   }
 
   b_237 {
-    %v_238 = shl %v_235, 3: Long
+    %v_238 = shl %v_235, 3: I64
     %v_239 = add %longs, %v_238: Ptr
-    %v_240 = loads %v_239, 8: Long
-    %v_241 = sar %v_240, 63: Long
-    %v_242 = shr %v_241, 63: Long
-    %v_243 = add %v_240, %v_242: Long
-    %v_244 = sar %v_243, 1: Long
-    %v_245 = and %v_243, 18446744073709551614: Long
-    %v_246 = sub %v_240, %v_245: Long
-    %v_247 = call_complex okL, %v_240, 2, %v_244, %v_246: Int
-    %v_248 = sar %v_240, 63: Long
-    %v_249 = shr %v_248, 61: Long
-    %v_250 = add %v_240, %v_249: Long
-    %v_251 = sar %v_250, 3: Long
-    %v_252 = and %v_250, 18446744073709551608: Long
-    %v_253 = sub %v_240, %v_252: Long
-    %v_254 = call_complex okL, %v_240, 8, %v_251, %v_253: Int
-    %v_255 = add %v_247, %v_254: Int
-    %v_256 = sar %v_240, 63: Long
-    %v_257 = shr %v_256, 52: Long
-    %v_258 = add %v_240, %v_257: Long
-    %v_259 = sar %v_258, 12: Long
-    %v_260 = and %v_258, 18446744073709547520: Long
-    %v_261 = sub %v_240, %v_260: Long
-    %v_262 = call_complex okL, %v_240, 4096, %v_259, %v_261: Int
-    %v_263 = add %v_255, %v_262: Int
-    %v_264 = sar %v_240, 63: Long
-    %v_265 = shr %v_264, 63: Long
-    %v_266 = add %v_240, %v_265: Long
-    %v_267 = sar %v_266, 1: Long
-    %v_268 = neg %v_267: Long
-    %v_269 = and %v_266, 18446744073709551614: Long
-    %v_270 = sub %v_240, %v_269: Long
-    %v_271 = call_complex okL, %v_240, 18446744073709551614, %v_268, %v_270: Int
-    %v_272 = add %v_263, %v_271: Int
-    %v_273 = sar %v_240, 63: Long
-    %v_274 = shr %v_273, 61: Long
-    %v_275 = add %v_240, %v_274: Long
-    %v_276 = sar %v_275, 3: Long
-    %v_277 = neg %v_276: Long
-    %v_278 = and %v_275, 18446744073709551608: Long
-    %v_279 = sub %v_240, %v_278: Long
-    %v_280 = call_complex okL, %v_240, 18446744073709551608, %v_277, %v_279: Int
-    %v_281 = add %v_272, %v_280: Int
-    %v_282 = imulhi %v_240, 6148914691236517206: Long
-    %v_283 = shr %v_282, 63: Long
-    %v_284 = add %v_282, %v_283: Long
-    %v_285 = imul %v_284, 3: Long
-    %v_286 = sub %v_240, %v_285: Long
-    %v_287 = call_complex okL, %v_240, 3, %v_284, %v_286: Int
-    %v_288 = add %v_281, %v_287: Int
-    %v_289 = imulhi %v_240, 5270498306774157605: Long
-    %v_290 = sar %v_289, 1: Long
-    %v_291 = shr %v_290, 63: Long
-    %v_292 = add %v_290, %v_291: Long
-    %v_293 = imul %v_292, 7: Long
-    %v_294 = sub %v_240, %v_293: Long
-    %v_295 = call_complex okL, %v_240, 7, %v_292, %v_294: Int
-    %v_296 = add %v_288, %v_295: Int
-    %v_297 = imulhi %v_240, 7378697629483820647: Long
-    %v_298 = sar %v_297, 2: Long
-    %v_299 = shr %v_298, 63: Long
-    %v_300 = add %v_298, %v_299: Long
-    %v_301 = imul %v_300, 10: Long
-    %v_302 = sub %v_240, %v_301: Long
-    %v_303 = call_complex okL, %v_240, 10, %v_300, %v_302: Int
-    %v_304 = add %v_296, %v_303: Int
-    %v_305 = imulhi %v_240, 11805916207174113035: Long
-    %v_306 = add %v_305, %v_240: Long
-    %v_307 = sar %v_306, 6: Long
-    %v_308 = shr %v_307, 63: Long
-    %v_309 = add %v_307, %v_308: Long
-    %v_310 = imul %v_309, 100: Long
-    %v_311 = sub %v_240, %v_310: Long
-    %v_312 = call_complex okL, %v_240, 100, %v_309, %v_311: Int
-    %v_313 = add %v_304, %v_312: Int
-    %v_314 = imulhi %v_240, 9903520244958400485: Long
-    %v_315 = add %v_314, %v_240: Long
-    %v_316 = sar %v_315, 29: Long
-    %v_317 = shr %v_316, 63: Long
-    %v_318 = add %v_316, %v_317: Long
-    %v_319 = imul %v_318, 1000000007: Long
-    %v_320 = sub %v_240, %v_319: Long
-    %v_321 = call_complex okL, %v_240, 1000000007, %v_318, %v_320: Int
-    %v_322 = add %v_313, %v_321: Int
-    %v_323 = imulhi %v_240, 6148914691236517205: Long
-    %v_324 = sub %v_323, %v_240: Long
-    %v_325 = sar %v_324, 1: Long
-    %v_326 = shr %v_325, 63: Long
-    %v_327 = add %v_325, %v_326: Long
-    %v_328 = imul %v_327, 18446744073709551613: Long
-    %v_329 = sub %v_240, %v_328: Long
-    %v_330 = call_complex okL, %v_240, 18446744073709551613, %v_327, %v_329: Int
-    %v_331 = add %v_322, %v_330: Int
-    %v_332 = imulhi %v_240, 11068046444225730969: Long
-    %v_333 = sar %v_332, 2: Long
-    %v_334 = shr %v_333, 63: Long
-    %v_335 = add %v_333, %v_334: Long
-    %v_336 = imul %v_335, 18446744073709551606: Long
-    %v_337 = sub %v_240, %v_336: Long
-    %v_338 = call_complex okL, %v_240, 18446744073709551606, %v_335, %v_337: Int
-    %v_339 = add %v_331, %v_338: Int
-    %v_340 = neg %v_240: Long
-    %v_341 = call_complex okL, %v_240, 18446744073709551615, %v_340, 0: Int
-    %v_342 = add %v_339, %v_341: Int
-    %v_343 = add %v_233, %v_342: Int
-    %v_344 = sext %v_234: Long
+    %v_240 = loads %v_239, 8: I64
+    %v_241 = sar %v_240, 63: I64
+    %v_242 = shr %v_241, 63: I64
+    %v_243 = add %v_240, %v_242: I64
+    %v_244 = sar %v_243, 1: I64
+    %v_245 = and %v_243, 18446744073709551614: I64
+    %v_246 = sub %v_240, %v_245: I64
+    %v_247 = call_complex okL, %v_240, 2, %v_244, %v_246: I32
+    %v_248 = sar %v_240, 63: I64
+    %v_249 = shr %v_248, 61: I64
+    %v_250 = add %v_240, %v_249: I64
+    %v_251 = sar %v_250, 3: I64
+    %v_252 = and %v_250, 18446744073709551608: I64
+    %v_253 = sub %v_240, %v_252: I64
+    %v_254 = call_complex okL, %v_240, 8, %v_251, %v_253: I32
+    %v_255 = add %v_247, %v_254: I32
+    %v_256 = sar %v_240, 63: I64
+    %v_257 = shr %v_256, 52: I64
+    %v_258 = add %v_240, %v_257: I64
+    %v_259 = sar %v_258, 12: I64
+    %v_260 = and %v_258, 18446744073709547520: I64
+    %v_261 = sub %v_240, %v_260: I64
+    %v_262 = call_complex okL, %v_240, 4096, %v_259, %v_261: I32
+    %v_263 = add %v_255, %v_262: I32
+    %v_264 = sar %v_240, 63: I64
+    %v_265 = shr %v_264, 63: I64
+    %v_266 = add %v_240, %v_265: I64
+    %v_267 = sar %v_266, 1: I64
+    %v_268 = neg %v_267: I64
+    %v_269 = and %v_266, 18446744073709551614: I64
+    %v_270 = sub %v_240, %v_269: I64
+    %v_271 = call_complex okL, %v_240, 18446744073709551614, %v_268, %v_270: I32
+    %v_272 = add %v_263, %v_271: I32
+    %v_273 = sar %v_240, 63: I64
+    %v_274 = shr %v_273, 61: I64
+    %v_275 = add %v_240, %v_274: I64
+    %v_276 = sar %v_275, 3: I64
+    %v_277 = neg %v_276: I64
+    %v_278 = and %v_275, 18446744073709551608: I64
+    %v_279 = sub %v_240, %v_278: I64
+    %v_280 = call_complex okL, %v_240, 18446744073709551608, %v_277, %v_279: I32
+    %v_281 = add %v_272, %v_280: I32
+    %v_282 = imulhi %v_240, 6148914691236517206: I64
+    %v_283 = shr %v_282, 63: I64
+    %v_284 = add %v_282, %v_283: I64
+    %v_285 = imul %v_284, 3: I64
+    %v_286 = sub %v_240, %v_285: I64
+    %v_287 = call_complex okL, %v_240, 3, %v_284, %v_286: I32
+    %v_288 = add %v_281, %v_287: I32
+    %v_289 = imulhi %v_240, 5270498306774157605: I64
+    %v_290 = sar %v_289, 1: I64
+    %v_291 = shr %v_290, 63: I64
+    %v_292 = add %v_290, %v_291: I64
+    %v_293 = imul %v_292, 7: I64
+    %v_294 = sub %v_240, %v_293: I64
+    %v_295 = call_complex okL, %v_240, 7, %v_292, %v_294: I32
+    %v_296 = add %v_288, %v_295: I32
+    %v_297 = imulhi %v_240, 7378697629483820647: I64
+    %v_298 = sar %v_297, 2: I64
+    %v_299 = shr %v_298, 63: I64
+    %v_300 = add %v_298, %v_299: I64
+    %v_301 = imul %v_300, 10: I64
+    %v_302 = sub %v_240, %v_301: I64
+    %v_303 = call_complex okL, %v_240, 10, %v_300, %v_302: I32
+    %v_304 = add %v_296, %v_303: I32
+    %v_305 = imulhi %v_240, 11805916207174113035: I64
+    %v_306 = add %v_305, %v_240: I64
+    %v_307 = sar %v_306, 6: I64
+    %v_308 = shr %v_307, 63: I64
+    %v_309 = add %v_307, %v_308: I64
+    %v_310 = imul %v_309, 100: I64
+    %v_311 = sub %v_240, %v_310: I64
+    %v_312 = call_complex okL, %v_240, 100, %v_309, %v_311: I32
+    %v_313 = add %v_304, %v_312: I32
+    %v_314 = imulhi %v_240, 9903520244958400485: I64
+    %v_315 = add %v_314, %v_240: I64
+    %v_316 = sar %v_315, 29: I64
+    %v_317 = shr %v_316, 63: I64
+    %v_318 = add %v_316, %v_317: I64
+    %v_319 = imul %v_318, 1000000007: I64
+    %v_320 = sub %v_240, %v_319: I64
+    %v_321 = call_complex okL, %v_240, 1000000007, %v_318, %v_320: I32
+    %v_322 = add %v_313, %v_321: I32
+    %v_323 = imulhi %v_240, 6148914691236517205: I64
+    %v_324 = sub %v_323, %v_240: I64
+    %v_325 = sar %v_324, 1: I64
+    %v_326 = shr %v_325, 63: I64
+    %v_327 = add %v_325, %v_326: I64
+    %v_328 = imul %v_327, 18446744073709551613: I64
+    %v_329 = sub %v_240, %v_328: I64
+    %v_330 = call_complex okL, %v_240, 18446744073709551613, %v_327, %v_329: I32
+    %v_331 = add %v_322, %v_330: I32
+    %v_332 = imulhi %v_240, 11068046444225730969: I64
+    %v_333 = sar %v_332, 2: I64
+    %v_334 = shr %v_333, 63: I64
+    %v_335 = add %v_333, %v_334: I64
+    %v_336 = imul %v_335, 18446744073709551606: I64
+    %v_337 = sub %v_240, %v_336: I64
+    %v_338 = call_complex okL, %v_240, 18446744073709551606, %v_335, %v_337: I32
+    %v_339 = add %v_331, %v_338: I32
+    %v_340 = neg %v_240: I64
+    %v_341 = call_complex okL, %v_240, 18446744073709551615, %v_340, 0: I32
+    %v_342 = add %v_339, %v_341: I32
+    %v_343 = add %v_233, %v_342: I32
+    %v_344 = sext %v_234: I64
     jmp b_345
   }
 
   b_345 {
-    %v_346 = shl %v_344, 3: Long
+    %v_346 = shl %v_344, 3: I64
     %v_347 = add %longs, %v_346: Ptr
-    %v_348 = loads %v_347, 8: Long
-    %v_349 = shl %v_348, 3: Long
-    %v_350 = cmp_eq %v_349, %v_349: Int
-    %v_351 = shl %v_348, 10: Long
-    %v_352 = cmp_eq %v_351, %v_351: Int
-    %v_353 = and %v_350, %v_352: Int
-    %v_165 = add %v_343, %v_353: Int
-    %v_35 = add %v_234, 1: Int
+    %v_348 = loads %v_347, 8: I64
+    %v_349 = shl %v_348, 3: I64
+    %v_350 = cmp_eq %v_349, %v_349: I32
+    %v_351 = shl %v_348, 10: I64
+    %v_352 = cmp_eq %v_351, %v_351: I32
+    %v_353 = and %v_350, %v_352: I32
+    %v_165 = add %v_343, %v_353: I32
+    %v_35 = add %v_234, 1: I32
     jmp b_33
   }
 }

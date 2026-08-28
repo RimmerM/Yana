@@ -1,6 +1,6 @@
 @image$base = []
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %a = vsplat 1: f32x4
     %b = vsplat 2: f32x4
@@ -16,15 +16,15 @@ main<complex>(): Int {
     %v_8 = vwithlane %v_7, 3, 3: i32x4
     %v_9 = cmp_ilt %v_8, %others: m32x4
     %kept = select %v_9, %v_8, %v_5: i32x4
-    %v_10 = vreduce_or %v_9: Int
+    %v_10 = vreduce_or %v_9: I32
     je %v_10, b_11, b_12
   }
 
   b_11 {
-    %v_13 = vreduce_add %kept: Int
-    %v_14 = imul %v_13, 10: Int
-    %v_15 = vreduce_add %v_9: Int
-    %v_16 = add %v_14, %v_15: Int
+    %v_13 = vreduce_add %kept: I32
+    %v_14 = imul %v_13, 10: I32
+    %v_15 = vreduce_add %v_9: I32
+    %v_16 = add %v_14, %v_15: I32
     jmp b_17
   }
 
@@ -33,14 +33,14 @@ main<complex>(): Int {
   }
 
   b_17 {
-    %counted = phi [b_11, %v_16], [b_12, 18446744073709551615]: Int
-    %v_18 = vlane %v_2, 0: Int
-    %v_19 = imul %v_18, 100000: Int
-    %v_20 = vlane %v_4, 0: Float
-    %v_21 = cmp_eq %v_20, 1: Int
-    %v_22 = imul %v_21, 10000: Int
-    %v_23 = add %v_19, %v_22: Int
-    %v_24 = add %v_23, %counted: Int
+    %counted = phi [b_11, %v_16], [b_12, 18446744073709551615]: I32
+    %v_18 = vlane %v_2, 0: I32
+    %v_19 = imul %v_18, 100000: I32
+    %v_20 = vlane %v_4, 0: F32
+    %v_21 = cmp_eq %v_20, 1: I32
+    %v_22 = imul %v_21, 10000: I32
+    %v_23 = add %v_19, %v_22: I32
+    %v_24 = add %v_23, %counted: I32
     ret %v_24
   }
 }

@@ -28,7 +28,7 @@
 # The count masked to a byte, which is what a narrow lane's own width does to it - and is what makes
 # the range free here: every bit above the low byte is known clear, so the machine's saturation at
 # the register width is already the right answer and no clamp is emitted.
-countMasked(%a: i32x8, %b: i32x8, %n: Int): Int {
+countMasked(%a: i32x8, %b: i32x8, %n: I32): I32 {
     {
         %z = vsplat 0: i32x8
         %i1 = vwithlane %z, 1, 1: i32x8
@@ -39,20 +39,20 @@ countMasked(%a: i32x8, %b: i32x8, %n: Int): Int {
         %i6 = vwithlane %i5, 6, 6: i32x8
         %iota = vwithlane %i6, 7, 7: i32x8
 
-        %k = and %n, 255: Int
+        %k = and %n, 255: I32
         %s = vsplat %k: i32x8
         %live = cmp_ilt %iota, %s: m32x8
 
         %m = cmp_eq %a, %b: m32x8
         %r = and %m, %live: m32x8
-        %c = vreduce_add %r: Int
+        %c = vreduce_add %r: I32
         ret %c
     }
 }
 
 # An unsigned count, which has no negative values to rule out and so needs no proof - but is not
 # bounded above either, so the index is `min(n, 8)` before it reaches the instruction.
-countUnsigned(%a: i32x8, %b: i32x8, %n: Int): Int {
+countUnsigned(%a: i32x8, %b: i32x8, %n: I32): I32 {
     {
         %z = vsplat 0: i32x8
         %i1 = vwithlane %z, 1, 1: i32x8
@@ -68,14 +68,14 @@ countUnsigned(%a: i32x8, %b: i32x8, %n: Int): Int {
 
         %m = cmp_eq %a, %b: m32x8
         %r = and %m, %live: m32x8
-        %c = vreduce_add %r: Int
+        %c = vreduce_add %r: I32
         ret %c
     }
 }
 
 # The same with a *signed* comparison and nothing saying the count is not negative, which is the one
 # shape this declines: the vector comparison and the `and` are still here.
-countSigned(%a: i32x8, %b: i32x8, %n: Int): Int {
+countSigned(%a: i32x8, %b: i32x8, %n: I32): I32 {
     {
         %z = vsplat 0: i32x8
         %i1 = vwithlane %z, 1, 1: i32x8
@@ -91,7 +91,7 @@ countSigned(%a: i32x8, %b: i32x8, %n: Int): Int {
 
         %m = cmp_eq %a, %b: m32x8
         %r = and %m, %live: m32x8
-        %c = vreduce_add %r: Int
+        %c = vreduce_add %r: I32
         ret %c
     }
 }
@@ -99,7 +99,7 @@ countSigned(%a: i32x8, %b: i32x8, %n: Int): Int {
 # And the full chunk, which goes through the identical line with the count equal to the lane count.
 # Both sides of the comparison are constants there, so the mask is all-ones and the `and` is its
 # other operand - `foldConstantMasks`, not the range.
-countFull(%a: i32x8, %b: i32x8): Int {
+countFull(%a: i32x8, %b: i32x8): I32 {
     {
         %z = vsplat 0: i32x8
         %i1 = vwithlane %z, 1, 1: i32x8
@@ -115,7 +115,7 @@ countFull(%a: i32x8, %b: i32x8): Int {
 
         %m = cmp_eq %a, %b: m32x8
         %r = and %m, %live: m32x8
-        %c = vreduce_add %r: Int
+        %c = vreduce_add %r: I32
         ret %c
     }
 }
@@ -123,7 +123,7 @@ countFull(%a: i32x8, %b: i32x8): Int {
 # The range in front of a *search* rather than a tally, which is the other consumer it serves: `bzhi`
 # clears the bits above the live lanes and the scan then answers the lane count for a mask with
 # nothing set in range, exactly as it does for an empty one.
-firstLive(%a: i32x8, %b: i32x8, %n: Int): Int {
+firstLive(%a: i32x8, %b: i32x8, %n: I32): I32 {
     {
         %z = vsplat 0: i32x8
         %i1 = vwithlane %z, 1, 1: i32x8
@@ -134,13 +134,13 @@ firstLive(%a: i32x8, %b: i32x8, %n: Int): Int {
         %i6 = vwithlane %i5, 6, 6: i32x8
         %iota = vwithlane %i6, 7, 7: i32x8
 
-        %k = and %n, 255: Int
+        %k = and %n, 255: I32
         %s = vsplat %k: i32x8
         %live = cmp_ilt %iota, %s: m32x8
 
         %m = cmp_eq %a, %b: m32x8
         %r = and %m, %live: m32x8
-        %f = vreduce_first %r: Int
+        %f = vreduce_first %r: I32
         ret %f
     }
 }
@@ -151,7 +151,7 @@ firstLive(%a: i32x8, %b: i32x8, %n: Int): Int {
 # two readers and the range used to be refused outright for it: the whole vector bank stayed so that
 # two reductions could read the vector it was written as. Neither of them reads the vector. One
 # movemask and one `bzhi` are placed below the `and` and both read the general register.
-searchLive(%a: i32x8, %b: i32x8, %n: Int): Int {
+searchLive(%a: i32x8, %b: i32x8, %n: I32): I32 {
     entry {
         %z = vsplat 0: i32x8
         %i1 = vwithlane %z, 1, 1: i32x8
@@ -162,18 +162,18 @@ searchLive(%a: i32x8, %b: i32x8, %n: Int): Int {
         %i6 = vwithlane %i5, 6, 6: i32x8
         %iota = vwithlane %i6, 7, 7: i32x8
 
-        %k = and %n, 255: Int
+        %k = and %n, 255: I32
         %s = vsplat %k: i32x8
         %live = cmp_ilt %iota, %s: m32x8
 
         %m = cmp_eq %a, %b: m32x8
         %r = and %m, %live: m32x8
-        %any = vreduce_or %r: Int
+        %any = vreduce_or %r: I32
         je (cmp_neq %any, 0), found, missing
     }
 
     found {
-        %f = vreduce_first %r: Int
+        %f = vreduce_first %r: I32
         ret %f
     }
 
@@ -186,7 +186,7 @@ searchLive(%a: i32x8, %b: i32x8, %n: Int): Int {
 # compares the movemask against the full pattern, and clearing the bits above the live lanes is
 # exactly what would make that pattern the range. One reader asking it keeps the vector form for
 # both, so `iota` and the `and` are still here.
-searchAll(%a: i32x8, %b: i32x8, %n: Int): Int {
+searchAll(%a: i32x8, %b: i32x8, %n: I32): I32 {
     entry {
         %z = vsplat 0: i32x8
         %i1 = vwithlane %z, 1, 1: i32x8
@@ -197,18 +197,18 @@ searchAll(%a: i32x8, %b: i32x8, %n: Int): Int {
         %i6 = vwithlane %i5, 6, 6: i32x8
         %iota = vwithlane %i6, 7, 7: i32x8
 
-        %k = and %n, 255: Int
+        %k = and %n, 255: I32
         %s = vsplat %k: i32x8
         %live = cmp_ilt %iota, %s: m32x8
 
         %m = cmp_eq %a, %b: m32x8
         %r = and %m, %live: m32x8
-        %all = vreduce_and %r: Int
+        %all = vreduce_and %r: I32
         je (cmp_neq %all, 0), every, some
     }
 
     every {
-        %f = vreduce_first %r: Int
+        %f = vreduce_first %r: I32
         ret %f
     }
 

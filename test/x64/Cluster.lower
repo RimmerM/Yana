@@ -22,7 +22,7 @@
 # The Clobber convention destroys every register but rbp, so exactly one value can cross one of its
 # calls in a register and everything else that outlives the call has to be bought with a window.
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
     { ret %x }
 }
 
@@ -34,21 +34,21 @@ sink<clobber>(%x: Int): Int {
 # The two windows overlap and hold different registers, which is the ordinary case rather than a
 # special one: a window is a claim on a register over a stretch, and two claims on two registers over
 # one stretch are no more related than two webs in two registers.
-clusterOfReads(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterOfReads(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
     {
-        %r = call_clobber sink, %n: Int
+        %r = call_clobber sink, %n: I32
 
-        %a1 = load %p, 8: Long
-        %b1 = load %q, 8: Long
-        %c1 = load %t, 8: Long
-        %s1 = add %a1, %b1: Long
-        %s2 = add %s1, %c1: Long
-        %a2 = load %p, 8: Long
-        %b2 = load %q, 8: Long
-        %c2 = load %t, 8: Long
-        %s3 = add %s2, %a2: Long
-        %s4 = add %s3, %b2: Long
-        %s5 = add %s4, %c2: Long
+        %a1 = load %p, 8: I64
+        %b1 = load %q, 8: I64
+        %c1 = load %t, 8: I64
+        %s1 = add %a1, %b1: I64
+        %s2 = add %s1, %c1: I64
+        %a2 = load %p, 8: I64
+        %b2 = load %q, 8: I64
+        %c2 = load %t, 8: I64
+        %s3 = add %s2, %a2: I64
+        %s4 = add %s3, %b2: I64
+        %s5 = add %s4, %c2: I64
 
         ret %s5
     }
@@ -59,35 +59,35 @@ clusterOfReads(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
 # straight-line one; what the loop adds is that the load runs once an iteration where the reloads ran
 # twice, and that the window lives entirely inside the body block - it begins after the call and ends
 # at the last read, so the back edge carries nothing.
-clusterInLoop(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterInLoop(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
     entry {
-        %zero = cast 0: Long
+        %zero = cast 0: I64
         jmp head
     }
 
     head {
-        %i = phi [entry, %zero], [body, %i2]: Long
-        %acc = phi [entry, %zero], [body, %acc2]: Long
+        %i = phi [entry, %zero], [body, %i2]: I64
+        %acc = phi [entry, %zero], [body, %acc2]: I64
         je %n, exit, body
     }
 
     body {
-        %r = call_clobber sink, %n: Int
+        %r = call_clobber sink, %n: I32
 
-        %a1 = load %p, 8: Long
-        %b1 = load %q, 8: Long
-        %c1 = load %t, 8: Long
-        %s1 = add %a1, %b1: Long
-        %s2 = add %s1, %c1: Long
-        %a2 = load %p, 8: Long
-        %b2 = load %q, 8: Long
-        %c2 = load %t, 8: Long
-        %s3 = add %s2, %a2: Long
-        %s4 = add %s3, %b2: Long
-        %s5 = add %s4, %c2: Long
+        %a1 = load %p, 8: I64
+        %b1 = load %q, 8: I64
+        %c1 = load %t, 8: I64
+        %s1 = add %a1, %b1: I64
+        %s2 = add %s1, %c1: I64
+        %a2 = load %p, 8: I64
+        %b2 = load %q, 8: I64
+        %c2 = load %t, 8: I64
+        %s3 = add %s2, %a2: I64
+        %s4 = add %s3, %b2: I64
+        %s5 = add %s4, %c2: I64
 
-        %acc2 = add %acc, %s5: Long
-        %i2 = add %i, 1L: Long
+        %acc2 = add %acc, %s5: I64
+        %i2 = add %i, 1L: I64
         jmp head
     }
 
@@ -104,74 +104,74 @@ clusterInLoop(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
 #
 # %t is read twice at the top of `tail` and takes no window at all: the run starting at the first of
 # them is refused, and what is left is a single read, which never pays for a load.
-clusterAtBlockStart(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterAtBlockStart(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
     entry {
-        %r = call_clobber sink, %n: Int
+        %r = call_clobber sink, %n: I32
 
-        %a1 = load %p, 8: Long
-        %b1 = load %q, 8: Long
-        %s1 = add %a1, %b1: Long
-        %a2 = load %p, 8: Long
-        %b2 = load %q, 8: Long
-        %s2 = add %s1, %a2: Long
-        %s3 = add %s2, %b2: Long
-        %a3 = load %p, 8: Long
-        %b3 = load %q, 8: Long
-        %s4 = add %s3, %a3: Long
-        %s5 = add %s4, %b3: Long
+        %a1 = load %p, 8: I64
+        %b1 = load %q, 8: I64
+        %s1 = add %a1, %b1: I64
+        %a2 = load %p, 8: I64
+        %b2 = load %q, 8: I64
+        %s2 = add %s1, %a2: I64
+        %s3 = add %s2, %b2: I64
+        %a3 = load %p, 8: I64
+        %b3 = load %q, 8: I64
+        %s4 = add %s3, %a3: I64
+        %s5 = add %s4, %b3: I64
         jmp tail
     }
 
     tail {
-        %c1 = load %t, 8: Long
-        %c2 = load %t, 8: Long
-        %s6 = add %s5, %c1: Long
-        %s7 = add %s6, %c2: Long
+        %c1 = load %t, 8: I64
+        %c2 = load %t, 8: I64
+        %s6 = add %s5, %c1: I64
+        %s7 = add %s6, %c2: I64
         ret %s7
     }
 }
 
 # The same function with one instruction in front of the pair, which is the whole of the difference:
 # there is now somewhere for the load to go, and %t takes the window.
-clusterOneInstructionIn(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+clusterOneInstructionIn(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
     entry {
-        %r = call_clobber sink, %n: Int
+        %r = call_clobber sink, %n: I32
 
-        %a1 = load %p, 8: Long
-        %b1 = load %q, 8: Long
-        %s1 = add %a1, %b1: Long
-        %a2 = load %p, 8: Long
-        %b2 = load %q, 8: Long
-        %s2 = add %s1, %a2: Long
-        %s3 = add %s2, %b2: Long
-        %a3 = load %p, 8: Long
-        %b3 = load %q, 8: Long
-        %s4 = add %s3, %a3: Long
-        %s5 = add %s4, %b3: Long
+        %a1 = load %p, 8: I64
+        %b1 = load %q, 8: I64
+        %s1 = add %a1, %b1: I64
+        %a2 = load %p, 8: I64
+        %b2 = load %q, 8: I64
+        %s2 = add %s1, %a2: I64
+        %s3 = add %s2, %b2: I64
+        %a3 = load %p, 8: I64
+        %b3 = load %q, 8: I64
+        %s4 = add %s3, %a3: I64
+        %s5 = add %s4, %b3: I64
         jmp tail
     }
 
     tail {
-        %z = add %s5, 1L: Long
-        %c1 = load %t, 8: Long
-        %c2 = load %t, 8: Long
-        %s6 = add %z, %c1: Long
-        %s7 = add %s6, %c2: Long
+        %z = add %s5, 1L: I64
+        %c1 = load %t, 8: I64
+        %c2 = load %t, 8: I64
+        %s6 = add %z, %c1: I64
+        %s7 = add %s6, %c2: I64
         ret %s7
     }
 }
 
 # One read is never a cluster, whatever it costs. There is nothing to amortize a load over: the read
 # out of the frame *is* the load, and putting a register in front of it adds an instruction.
-singleRead(%n: Int, %p: Ptr, %q: Ptr, %t: Ptr): Long {
+singleRead(%n: I32, %p: Ptr, %q: Ptr, %t: Ptr): I64 {
     {
-        %r = call_clobber sink, %n: Int
+        %r = call_clobber sink, %n: I32
 
-        %a1 = load %p, 8: Long
-        %b1 = load %q, 8: Long
-        %c1 = load %t, 8: Long
-        %s1 = add %a1, %b1: Long
-        %s2 = add %s1, %c1: Long
+        %a1 = load %p, 8: I64
+        %b1 = load %q, 8: I64
+        %c1 = load %t, 8: I64
+        %s1 = add %a1, %b1: I64
+        %s2 = add %s1, %c1: I64
 
         ret %s2
     }

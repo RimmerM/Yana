@@ -13,17 +13,17 @@ fn teardown$none(%value: %()) -> () {
     ret
 }
 
-fn stream(%b: Box, %times: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn stream(%b: Box, %times: I32, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
   }
 
   b0:
-    %v3 = load %b@Box.v : Int
-    %v4 = add %v3, %times : Int
+    %v3 = load %b@Box.v : I32
+    %v4 = add %v3, %times : I32
     %v5 = calldyn %body, %v4 : Outcome((), $r)
-    %v6 = load %local2.discriminant : Int
+    %v6 = load %local2.discriminant : I32
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b1, b2
 
@@ -36,47 +36,47 @@ fn stream(%b: Box, %times: Int, %body: (value$: Int) -> Outcome((), $r)) -> Outc
     ret %v11
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %v3 = alloc : Box
     aggregate %local1@Box.v = 1
-    %v8 = alloc : {total: &Int}
-    %v9 = borrow_mut %total : &Int
+    %v8 = alloc : {total: &I32}
+    %v9 = borrow_mut %total : &I32
     init %local2.total, %v9
     %v11 = addressof %local2 : %()
-    %v12 = alloc : (value$: Int) -> Outcome((), ())
+    %v12 = alloc : (value$: I32) -> Outcome((), ())
     %v13 = symbol ResolveTest.continuation$22 : %()
     init %local3.code, %v13
     init %local3.env, %v11
     %v16 = call stream(()), %v3, 2, %v12 : Outcome((), ())
     %v17 = alloc : Bag
     aggregate %local5@Bag.w = 40
-    %v22 = alloc : {total: &Int}
-    %v23 = borrow_mut %total : &Int
+    %v22 = alloc : {total: &I32}
+    %v23 = borrow_mut %total : &I32
     init %local6.total, %v23
     %v25 = addressof %local6 : %()
-    %v26 = alloc : (value$: Int) -> Outcome((), ())
+    %v26 = alloc : (value$: I32) -> Outcome((), ())
     %v27 = symbol ResolveTest.continuation$23 : %()
     init %local7.code, %v27
     init %local7.env, %v25
     %v30 = cast 5 : Size
     %v31 = call Streamed(Bag).stream(()), %v17, %v30, %v26 : Outcome((), ())
-    %v32 = load %total : Int
+    %v32 = load %total : I32
     ret %v32
 }
 
-fn Streamed(Bag).stream(%self: Bag, %times: Size, %body: (value$: Int) -> Outcome((), $r)) -> Outcome((), $r) {
+fn Streamed(Bag).stream(%self: Bag, %times: Size, %body: (value$: I32) -> Outcome((), $r)) -> Outcome((), $r) {
   schema {
     #0 type $r
     #1 type Outcome((), $r)
   }
 
   b0:
-    %v3 = load %self@Bag.w : Int
+    %v3 = load %self@Bag.w : I32
     %v4 = calldyn %body, %v3 : Outcome((), $r)
-    %v5 = load %local2.discriminant : Int
+    %v5 = load %local2.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
     je %v7, b1, b2
 
@@ -89,24 +89,24 @@ fn Streamed(Bag).stream(%self: Bag, %times: Size, %body: (value$: Int) -> Outcom
     ret %v10
 }
 
-fn ResolveTest.continuation$22(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$22(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn stream(())(%b: Box, %times: Int, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn stream(())(%b: Box, %times: I32, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v3 = load %b@Box.v : Int
-    %v4 = add %v3, %times : Int
+    %v3 = load %b@Box.v : I32
+    %v4 = add %v3, %times : I32
     %v5 = calldyn %body, %v4 : Outcome((), ())
-    %v6 = load %local2.discriminant : Int
+    %v6 = load %local2.discriminant : I32
     %v8 = cmp_eq %v6, 1 : Bool
     je %v8, b1, b2
 
@@ -119,23 +119,23 @@ fn stream(())(%b: Box, %times: Int, %body: (value$: Int) -> Outcome((), ())) -> 
     ret %v11
 }
 
-fn ResolveTest.continuation$23(%env: %{total: &Int}, %value$: Int) -> Outcome((), ()) {
+fn ResolveTest.continuation$23(%env: %{total: &I32}, %value$: I32) -> Outcome((), ()) {
   b0:
-    %v2 = load [%env].total : &Int
-    %v3 = load [%env].total : &Int
-    %v4 = load [%v3] : Int
-    %v5 = add %v4, %value$ : Int
+    %v2 = load [%env].total : &I32
+    %v3 = load [%env].total : &I32
+    %v4 = load [%v3] : I32
+    %v5 = add %v4, %value$ : I32
     assign [%v2], %v5
     %v7 = alloc : Outcome((), ())
     init %local0.discriminant, 0
     ret %v7
 }
 
-fn Streamed(Bag).stream(())(%self: Bag, %times: Size, %body: (value$: Int) -> Outcome((), ())) -> Outcome((), ()) {
+fn Streamed(Bag).stream(())(%self: Bag, %times: Size, %body: (value$: I32) -> Outcome((), ())) -> Outcome((), ()) {
   b0:
-    %v3 = load %self@Bag.w : Int
+    %v3 = load %self@Bag.w : I32
     %v4 = calldyn %body, %v3 : Outcome((), ())
-    %v5 = load %local2.discriminant : Int
+    %v5 = load %local2.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
     je %v7, b1, b2
 

@@ -1,5 +1,5 @@
 
-sink<simple>(%x: Int): Int {
+sink<simple>(%x: I32): I32 {
   b_0 {
     ret %x
   }
@@ -11,22 +11,22 @@ clobberSink<clobber>(%p: Ptr): Ptr {
   }
 }
 
-copyExtendedBase<complex>(%p: Ptr, %x: Int): Int {
+copyExtendedBase<complex>(%p: Ptr, %x: I32): I32 {
   b_0 {
-    %a = add %x, 1: Int
-    %b = add %x, 2: Int
-    %c = add %x, 3: Int
-    %d = add %x, 4: Int
-    %e = add %x, 5: Int
+    %a = add %x, 1: I32
+    %b = add %x, 2: I32
+    %c = add %x, 3: I32
+    %d = add %x, 4: I32
+    %e = add %x, 5: I32
     %dst = add %p, 16: Ptr
     %src = add %p, 64: Ptr
-    %r = call_simple sink, %x: Int
+    %r = call_simple sink, %x: I32
     copy %dst, %src, 12
-    %s0 = add %a, %b: Int
-    %s1 = add %s0, %c: Int
-    %s2 = add %s1, %d: Int
-    %s3 = add %s2, %e: Int
-    %s5 = add %s3, %r: Int
+    %s0 = add %a, %b: I32
+    %s1 = add %s0, %c: I32
+    %s2 = add %s1, %d: I32
+    %s3 = add %s2, %e: I32
+    %s5 = add %s3, %r: I32
     ret %s5
   }
 }
@@ -39,7 +39,7 @@ copyFramePointerBase<complex>(%p: Ptr, %q: Ptr): Ptr {
   }
 }
 
-patternByteRex<complex>(%d: Ptr, %pat: Int) {
+patternByteRex<complex>(%d: Ptr, %pat: I32) {
   b_0 {
     setpattern %d, 1, %pat
     setpattern %d, 11, %pat
@@ -47,63 +47,63 @@ patternByteRex<complex>(%d: Ptr, %pat: Int) {
   }
 }
 
-loadDisplacements<complex>(%p: Ptr): Long {
+loadDisplacements<complex>(%p: Ptr): I64 {
   b_0 {
     %qa = sub %p, 8: Ptr
-    %a = load %qa, 8: Long
+    %a = load %qa, 8: I64
     %qb = sub %p, 100000: Ptr
-    %b = load %qb, 8: Long
+    %b = load %qb, 8: I64
     %qc = add %p, 100000: Ptr
-    %c = load %qc, 8: Long
-    %s0 = add %a, %b: Long
-    %s1 = add %s0, %c: Long
+    %c = load %qc, 8: I64
+    %s0 = add %a, %b: I64
+    %s1 = add %s0, %c: I64
     ret %s1
   }
 }
 
-loadScaledIndex<complex>(%p: Ptr, %i: Long, %x: Int): Long {
+loadScaledIndex<complex>(%p: Ptr, %i: I64, %x: I32): I64 {
   b_0 {
-    %a = add %x, 1: Int
-    %b = add %x, 2: Int
-    %c = add %x, 3: Int
-    %d = add %x, 4: Int
-    %e = add %x, 5: Int
-    %f = add %x, 6: Int
+    %a = add %x, 1: I32
+    %b = add %x, 2: I32
+    %c = add %x, 3: I32
+    %d = add %x, 4: I32
+    %e = add %x, 5: I32
+    %f = add %x, 6: I32
     %base = add %p, 24: Ptr
-    %j = add %i, 1: Long
-    %r = call_simple sink, %x: Int
-    %o = mul %j, 8: Long
+    %j = add %i, 1: I64
+    %r = call_simple sink, %x: I32
+    %o = mul %j, 8: I64
     %q = add %base, %o: Ptr
-    %v = load %q, 8: Long
+    %v = load %q, 8: I64
     store %base, %v, 8
-    %s0 = add %a, %b: Int
-    %s1 = add %s0, %c: Int
-    %s2 = add %s1, %d: Int
-    %s3 = add %s2, %e: Int
-    %s4 = add %s3, %f: Int
-    %s5 = add %s4, %r: Int
-    %w = cast %s5: Long
-    %t = add %v, %w: Long
+    %s0 = add %a, %b: I32
+    %s1 = add %s0, %c: I32
+    %s2 = add %s1, %d: I32
+    %s3 = add %s2, %e: I32
+    %s4 = add %s3, %f: I32
+    %s5 = add %s4, %r: I32
+    %w = cast %s5: I64
+    %t = add %v, %w: I64
     ret %t
   }
 }
 
-stackArgsRspBase<sysv>(%x: Int): Int {
+stackArgsRspBase<sysv>(%x: I32): I32 {
   b_0 {
-    %a = call_win64 win64Sink, %x, %x, %x, %x, %x, %x: Int
-    %b = call_sysv sysvSink, %x, %x, %x, %x, %x, %x, %x, %x: Int
-    %s = add %a, %b: Int
+    %a = call_win64 win64Sink, %x, %x, %x, %x, %x, %x: I32
+    %b = call_sysv sysvSink, %x, %x, %x, %x, %x, %x, %x, %x: I32
+    %s = add %a, %b: I32
     ret %s
   }
 }
 
-win64Sink<win64>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int): Int {
+win64Sink<win64>(%a: I32, %b: I32, %c: I32, %d: I32, %e: I32, %f: I32): I32 {
   b_0 {
     ret %a
   }
 }
 
-sysvSink<sysv>(%a: Int, %b: Int, %c: Int, %d: Int, %e: Int, %f: Int, %g: Int, %h: Int): Int {
+sysvSink<sysv>(%a: I32, %b: I32, %c: I32, %d: I32, %e: I32, %f: I32, %g: I32, %h: I32): I32 {
   b_0 {
     ret %a
   }

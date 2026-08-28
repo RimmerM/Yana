@@ -1,50 +1,50 @@
 let image$base: () = <none>
 
-fn orZero(%m: Maybe(Int)) -> Int {
+fn orZero(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
-    %v = load %m@Just : Int
-    %v10 = add %v, 1 : Int
-    %v12 = select %v3 ? %v10 : 0 : Int
+    %v = load %m@Just : I32
+    %v10 = add %v, 1 : I32
+    %v12 = select %v3 ? %v10 : 0 : I32
     ret %v12
 }
 
-fn orZeroElse(%m: Maybe(Int)) -> Int {
+fn orZeroElse(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
-    %v = load %m@Just : Int
-    %v10 = add %v, 2 : Int
-    %v12 = select %v3 ? %v10 : 0 : Int
+    %v = load %m@Just : I32
+    %v10 = add %v, 2 : I32
+    %v12 = select %v3 ? %v10 : 0 : I32
     ret %v12
 }
 
-fn describe(%m: Maybe(Color)) -> Int {
+fn describe(%m: Maybe(Color)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     %c = load %m@Just : Color
-    %v8 = cast %c : Int
-    %v10 = add %v8, 1 : Int
-    %v12 = select %v3 ? %v10 : 0 : Int
+    %v8 = cast %c : I32
+    %v10 = add %v8, 1 : I32
+    %v12 = select %v3 ? %v10 : 0 : I32
     ret %v12
 }
 
-fn onlyRed(%m: Maybe(Color)) -> Int {
+fn onlyRed(%m: Maybe(Color)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
   b1:
-    %v10 = load %m.discriminant : Int
+    %v10 = load %m.discriminant : I32
     %v12 = cmp_eq %v10, 1 : Bool
     je %v12, b5, b4
 
   b2:
     %v5 = load %m@Just : Color
-    %v6 = cast %v5 : Int
+    %v6 = cast %v5 : I32
     %v8 = cmp_eq %v6, 0 : Bool
     je %v8, b3, b1
 
@@ -52,13 +52,13 @@ fn onlyRed(%m: Maybe(Color)) -> Int {
     ret 10
 
   b4:
-    %v21 = load %m.discriminant : Int
+    %v21 = load %m.discriminant : I32
     %v23 = cmp_eq %v21, 1 : Bool
     je %v23, b8, b7
 
   b5:
     %v14 = load %m@Just : Color
-    %v15 = cast %v14 : Int
+    %v15 = cast %v14 : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b6, b4
 
@@ -70,7 +70,7 @@ fn onlyRed(%m: Maybe(Color)) -> Int {
 
   b8:
     %v25 = load %m@Just : Color
-    %v26 = cast %v25 : Int
+    %v26 = cast %v25 : I32
     %v28 = cmp_eq %v26, 2 : Bool
     je %v28, b9, b7
 
@@ -78,39 +78,39 @@ fn onlyRed(%m: Maybe(Color)) -> Int {
     ret 30
 }
 
-fn scoped(%m: Maybe(Int)) -> Int {
+fn scoped(%m: Maybe(I32)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
-    %v = load %m@Just : Int
-    %v10 = mul %v, 3 : Int
-    %v12 = select %v3 ? %v10 : 0 : Int
+    %v = load %m@Just : I32
+    %v10 = mul %v, 3 : I32
+    %v12 = select %v3 ? %v10 : 0 : I32
     ret %v12
 }
 
-fn firstJust(%a: Maybe(Int), %b: Maybe(Int)) -> Int {
+fn firstJust(%a: Maybe(I32), %b: Maybe(I32)) -> I32 {
   b0:
-    %v5 = load %a.discriminant : Int
+    %v5 = load %a.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
     je %v7, b2, b1
 
   b1:
-    %v12 = load %b.discriminant : Int
+    %v12 = load %b.discriminant : I32
     %v14 = cmp_eq %v12, 1 : Bool
-    %second = load %b@Just : Int
-    %v21 = select %v14 ? %second : 0 : Int
+    %second = load %b@Just : I32
+    %v21 = select %v14 ? %second : 0 : I32
     ret %v21
 
   b2:
-    %first = load %a@Just : Int
+    %first = load %a@Just : I32
     ret %first
 }
 
-fn retry(%m: Maybe(Int), %c: Color) -> Int {
+fn retry(%m: Maybe(I32), %c: Color) -> I32 {
   b0:
-    %v5 = load %m.discriminant : Int
+    %v5 = load %m.discriminant : I32
     %v7 = cmp_eq %v5, 1 : Bool
-    %v10 = cast %c : Int
+    %v10 = cast %c : I32
     %v12 = cmp_eq %v10, 0 : Bool
     %v17 = cmp_eq %v10, 1 : Bool
     jmp b2
@@ -125,8 +125,8 @@ fn retry(%m: Maybe(Int), %c: Color) -> Int {
     je %v12, b1, b5
 
   b4:
-    %v = load %m@Just : Int
-    %v24 = add %v, 1 : Int
+    %v = load %m@Just : I32
+    %v24 = add %v, 1 : I32
     ret %v24
 
   b5:
@@ -136,59 +136,59 @@ fn retry(%m: Maybe(Int), %c: Color) -> Int {
     ret 100
 }
 
-fn scan(%c: Color) -> Int {
+fn scan(%c: Color) -> I32 {
   b0:
-    %v4 = cast %c : Int
+    %v4 = cast %c : I32
     %v6 = cmp_eq %v4, 0 : Bool
     %v11 = cmp_eq %v4, 1 : Bool
-    %v20 = select %v11 ? 7 : 8 : Int
-    %v22 = select %v6 ? 9 : %v20 : Int
+    %v20 = select %v11 ? 7 : 8 : I32
+    %v22 = select %v6 ? 9 : %v20 : I32
     ret %v22
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v44 = alloc : Maybe(Color)
     aggregate %local8.discriminant = 1, %local8@Just = Red
-    %v48 = call onlyRed, %v44 : Int
-    %v49 = add %v48, 11 : Int
+    %v48 = call onlyRed, %v44 : I32
+    %v49 = add %v48, 11 : I32
     %v50 = alloc : Maybe(Color)
     aggregate %local9.discriminant = 1, %local9@Just = Green
-    %v54 = call onlyRed, %v50 : Int
-    %v55 = add %v49, %v54 : Int
+    %v54 = call onlyRed, %v50 : I32
+    %v55 = add %v49, %v54 : I32
     %v56 = alloc : Maybe(Color)
     aggregate %local10.discriminant = 1, %local10@Just = Blue
-    %v60 = call onlyRed, %v56 : Int
-    %v61 = add %v55, %v60 : Int
+    %v60 = call onlyRed, %v56 : I32
+    %v61 = add %v55, %v60 : I32
     %v62 = alloc : Maybe(Color)
     init %local11.discriminant, 0
-    %v65 = call onlyRed, %v62 : Int
-    %v66 = add %v61, %v65 : Int
-    %v72 = add %v66, 12 : Int
-    %v78 = alloc : Maybe(Int)
+    %v65 = call onlyRed, %v62 : I32
+    %v66 = add %v61, %v65 : I32
+    %v72 = add %v66, 12 : I32
+    %v78 = alloc : Maybe(I32)
     init %local14.discriminant, 0
-    %v81 = alloc : Maybe(Int)
+    %v81 = alloc : Maybe(I32)
     aggregate %local15.discriminant = 1, %local15@Just = 7
-    %v85 = call firstJust, %v78, %v81 : Int
-    %v86 = add %v72, %v85 : Int
-    %v87 = alloc : Maybe(Int)
+    %v85 = call firstJust, %v78, %v81 : I32
+    %v86 = add %v72, %v85 : I32
+    %v87 = alloc : Maybe(I32)
     aggregate %local16.discriminant = 1, %local16@Just = 3
-    %v91 = alloc : Maybe(Int)
+    %v91 = alloc : Maybe(I32)
     init %local17.discriminant, 0
-    %v94 = call firstJust, %v87, %v91 : Int
-    %v95 = add %v86, %v94 : Int
-    %v96 = alloc : Maybe(Int)
+    %v94 = call firstJust, %v87, %v91 : I32
+    %v95 = add %v86, %v94 : I32
+    %v96 = alloc : Maybe(I32)
     aggregate %local18.discriminant = 1, %local18@Just = 5
-    %v101 = call retry, %v96, Red : Int
-    %v102 = add %v95, %v101 : Int
-    %v103 = alloc : Maybe(Int)
+    %v101 = call retry, %v96, Red : I32
+    %v102 = add %v95, %v101 : I32
+    %v103 = alloc : Maybe(I32)
     init %local19.discriminant, 0
-    %v107 = call retry, %v103, Red : Int
-    %v108 = add %v102, %v107 : Int
-    %v109 = alloc : Maybe(Int)
+    %v107 = call retry, %v103, Red : I32
+    %v108 = add %v102, %v107 : I32
+    %v109 = alloc : Maybe(I32)
     init %local20.discriminant, 0
-    %v113 = call retry, %v109, Green : Int
-    %v114 = add %v108, %v113 : Int
-    %v123 = add %v114, 24 : Int
+    %v113 = call retry, %v109, Green : I32
+    %v114 = add %v108, %v113 : I32
+    %v123 = add %v114, 24 : I32
     ret %v123
 }

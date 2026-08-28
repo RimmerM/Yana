@@ -1,24 +1,24 @@
 @image$base = []
 
-opaque<complex>(%x: Long): Long {
+opaque<complex>(%x: I64): I64 {
   b_0 {
     ret %x
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 4, 8: Ptr
     %v_2 = alloca 12, 4: Ptr
-    %v_3 = load %v_1, 4: Int
+    %v_3 = load %v_1, 4: I32
     store %v_1, 3, 4
     store %v_2, 10, 4
     %v_4 = add %v_2, 4: Ptr
     store %v_4, 20, 4
     %v_5 = add %v_2, 8: Ptr
     store %v_5, 30, 4
-    %v_6 = call_complex opaque, 7: Long
-    %v_7 = cmp_eq %v_6, 7: Int
+    %v_6 = call_complex opaque, 7: I64
+    %v_7 = cmp_eq %v_6, 7: I32
     je %v_7, b_8, b_9
   }
 
@@ -27,48 +27,48 @@ main<complex>(): Int {
   }
 
   b_9 {
-    %v_10 = phi [b_0, 1], [b_8, 3]: Int
-    %v_11 = add %v_10, 4: Int
-    %v_12 = call_complex opaque, 18446744073709551615: Long
-    %v_13 = call_complex opaque, 1000000: Long
-    %v_14 = cmp_gt %v_12, %v_13: Int
+    %v_10 = phi [b_0, 1], [b_8, 3]: I32
+    %v_11 = add %v_10, 4: I32
+    %v_12 = call_complex opaque, 18446744073709551615: I64
+    %v_13 = call_complex opaque, 1000000: I64
+    %v_14 = cmp_gt %v_12, %v_13: I32
     je %v_14, b_15, b_16
   }
 
   b_15 {
-    %v_17 = add %v_11, 8: Int
+    %v_17 = add %v_11, 8: I32
     jmp b_16
   }
 
   b_16 {
-    %v_18 = phi [b_9, %v_11], [b_15, %v_17]: Int
-    %v_19 = call_complex opaque, 1: Long
-    %v_20 = call_complex opaque, 2: Long
-    %v_21 = cmp_gt %v_19, %v_20: Int
+    %v_18 = phi [b_9, %v_11], [b_15, %v_17]: I32
+    %v_19 = call_complex opaque, 1: I64
+    %v_20 = call_complex opaque, 2: I64
+    %v_21 = cmp_gt %v_19, %v_20: I32
     je %v_21, b_22, b_23
   }
 
   b_23 {
-    %v_24 = add %v_18, 16: Int
+    %v_24 = add %v_18, 16: I32
     jmp b_22
   }
 
   b_22 {
-    %v_25 = phi [b_16, %v_18], [b_23, %v_24]: Int
-    %v_26 = call_complex opaque, 300: Long
-    %v_27 = cast %v_26: Int
-    %v_28 = cmp_eq %v_27, 300: Int
+    %v_25 = phi [b_16, %v_18], [b_23, %v_24]: I32
+    %v_26 = call_complex opaque, 300: I64
+    %v_27 = cast %v_26: I32
+    %v_28 = cmp_eq %v_27, 300: I32
     je %v_28, b_29, b_30
   }
 
   b_29 {
-    %v_31 = add %v_25, 32: Int
+    %v_31 = add %v_25, 32: I32
     jmp b_30
   }
 
   b_30 {
-    %v_32 = phi [b_22, %v_25], [b_29, %v_31]: Int
-    %v_33 = add %v_32, 64: Int
+    %v_32 = phi [b_22, %v_25], [b_29, %v_31]: I32
+    %v_33 = add %v_32, 64: I32
     ret %v_33
   }
 }

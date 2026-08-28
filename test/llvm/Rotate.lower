@@ -14,12 +14,12 @@
 # the reason a shared shift count is: this IR lets the count be a scalar and LLVM wants both operands
 # alike.
 
-rotate(%x: Int, %y: Long, %c: Int): Int {
+rotate(%x: I32, %y: I64, %c: I32): I32 {
     {
-        %a = rol %x, 7: Int
-        %b = ror %x, %c: Int
-        %d = rol %y, 9: Long
-        %r = add %a, %b: Int
+        %a = rol %x, 7: I32
+        %b = ror %x, %c: I32
+        %d = rol %y, 9: I64
+        %r = add %a, %b: I32
         ret %r
     }
 }
@@ -32,7 +32,7 @@ rotateVector(%v: i32x4, %c: i32x4): i32x4 {
 }
 
 # A shared count over a vector, which is the scalar this IR allows and the splat LLVM requires.
-rotateVectorShared(%v: i32x4, %n: Int): i32x4 {
+rotateVectorShared(%v: i32x4, %n: I32): i32x4 {
     {
         %a = ror %v, %n: i32x4
         ret %a

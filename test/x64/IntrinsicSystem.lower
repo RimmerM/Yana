@@ -22,9 +22,9 @@ fences() {
 # interrupt flag, which shares a register with the condition flags and is no part of them: the
 # comparison here is made before both of them and consumed after, and it still stays in the flags -
 # `cmp_ilt ... creates=[-]` with no setcc - which is the property under test rather than an accident.
-interrupts(%x: Int, %y: Int): Int {
+interrupts(%x: I32, %y: I32): I32 {
     start {
-        %c = cmp_ilt %x, %y: Int
+        %c = cmp_ilt %x, %y: I32
         cli
         swapgs
         je %c, less, more
@@ -45,9 +45,9 @@ interrupts(%x: Int, %y: Int): Int {
 # load's has, so the arithmetic in front of one is folded into its ModRM and SIB bytes rather than
 # emitted. `x86_addr ... creates=[-]` in front of an instruction with no result at all is what that
 # looks like; the scaled index is there to make the SIB byte real.
-cacheOps(%p: Ptr, %i: Long) {
+cacheOps(%p: Ptr, %i: I64) {
     {
-        %o = shl %i, 3: Long
+        %o = shl %i, 3: I64
         %q = add %p, %o: Ptr
         prefetch %q
         %r = add %p, 64: Ptr
@@ -61,16 +61,16 @@ cacheOps(%p: Ptr, %i: Long) {
 # The same address feeding a prefetch and the load it is prefetching for, which is the case the fold
 # has to get right for both: one x86_addr per user, and neither instruction left holding the
 # arithmetic.
-prefetchAndLoad(%p: Ptr, %i: Long): Long {
+prefetchAndLoad(%p: Ptr, %i: I64): I64 {
     {
         %q = add %p, %i: Ptr
         prefetch %q
-        %v = load %q, 8: Long
+        %v = load %q, 8: I64
         ret %v
     }
 }
 
-sink<clobber>(%x: Int): Int {
+sink<clobber>(%x: I32): I32 {
     { ret %x }
 }
 
@@ -78,12 +78,12 @@ sink<clobber>(%x: Int): Int {
 # a register from: the legalizer brings it into a scratch register first, exactly as it does for a
 # load's address. The Clobber convention destroys every register but rbp, so %keep takes that one and
 # %p has nowhere left to live across the call.
-spilledAddress(%arg: Int, %keep: Int, %p: Ptr): Int {
+spilledAddress(%arg: I32, %keep: I32, %p: Ptr): I32 {
     {
-        %r = call_clobber sink, %arg: Int
+        %r = call_clobber sink, %arg: I32
         clflush %p
-        %s = add %keep, %r: Int
-        %t = add %keep, %s: Int
+        %s = add %keep, %r: I32
+        %t = add %keep, %s: I32
         ret %t
     }
 }
@@ -91,7 +91,7 @@ spilledAddress(%arg: Int, %keep: Int, %p: Ptr): Int {
 # Model-specific registers: the number in ecx, the value in edx:eax, and every one of those a fixed
 # register the allocator copies into and out of. The read's two results feed the write, so the
 # copies have to survive between them.
-copyMsr(%from: Int, %to: Int) {
+copyMsr(%from: I32, %to: I32) {
     {
         %lo, %hi = rdmsr %from
         wrmsr %to, %lo, %hi
@@ -100,10 +100,10 @@ copyMsr(%from: Int, %to: Int) {
 }
 
 # The extended-state register read, which is the one intrinsic here needing a target feature.
-xcr0(): Int {
+xcr0(): I32 {
     {
         %lo, %hi = xgetbv 0
-        %r = add %lo, %hi: Int
+        %r = add %lo, %hi: I32
         ret %r
     }
 }
@@ -111,13 +111,13 @@ xcr0(): Int {
 # Port I/O. The port is a value in dx and the data is in eax or al, so a constant port costs the
 # `mov edx, imm` in front of it - see the registry for why the imm8-port encoding is not used here.
 # in8 is the pseudo of the four: it zero-extends the byte it read, since the machine writes only al.
-ports(%port: Int, %v: Int): Int {
+ports(%port: I32, %v: I32): I32 {
     {
         out8 %port, %v
         out32 %port, %v
         %a = in8 %port
         %b = in32 %port
-        %r = add %a, %b: Int
+        %r = add %a, %b: I32
         ret %r
     }
 }
@@ -125,10 +125,10 @@ ports(%port: Int, %v: Int): Int {
 # Control registers. The register number is the encoding's ModRM.reg field rather than an operand,
 # which is why each one is an intrinsic of its own; the value's register is whichever the allocator
 # picked, and the fault address is read out of cr2 the same way.
-pageFault(): Long {
+pageFault(): I64 {
     {
-        %cr2 = readcr2: Long
-        %cr3 = readcr3: Long
+        %cr2 = readcr2: I64
+        %cr3 = readcr3: I64
         writecr3 %cr3
         ret %cr2
     }
@@ -136,13 +136,13 @@ pageFault(): Long {
 
 # Reloading cr0 and cr4 around each other, so the two extensions appear in one function with two
 # different values in them.
-controlBits(%a: Long, %b: Long): Long {
+controlBits(%a: I64, %b: I64): I64 {
     {
-        %cr0 = readcr0: Long
+        %cr0 = readcr0: I64
         writecr0 %a
-        %cr4 = readcr4: Long
+        %cr4 = readcr4: I64
         writecr4 %b
-        %r = add %cr0, %cr4: Long
+        %r = add %cr0, %cr4: I64
         ret %r
     }
 }
@@ -153,32 +153,32 @@ controlBits(%a: Long, %b: Long): Long {
 #
 # %keep is live across it and arrives in rdx under this convention, which is what proves the clobber
 # is honoured: the entry copy moves it somewhere the expansion does not write.
-timestamp(%a: Long, %b: Long, %keep: Long): Long {
+timestamp(%a: I64, %b: I64, %keep: I64): I64 {
     {
-        %t = rdtsc: Long
-        %r = add %keep, %t: Long
+        %t = rdtsc: I64
+        %r = add %keep, %t: I64
         ret %r
     }
 }
 
 # A timestamp taken twice around a spin loop, which is the shape all of this exists for: the counter
 # read, the pause in the loop body, and a fence keeping the two apart.
-spin(%limit: Long): Long {
+spin(%limit: I64): I64 {
     start {
-        %t0 = rdtsc: Long
+        %t0 = rdtsc: I64
         lfence
         jmp test
     }
 
     test {
-        %t = phi [start, %t0], [body, %t1]: Long
-        %n = sub %t, %t0: Long
+        %t = phi [start, %t0], [body, %t1]: I64
+        %n = sub %t, %t0: I64
         je (cmp_lt %n, %limit), body, done
     }
 
     body {
         pause
-        %t1 = rdtsc: Long
+        %t1 = rdtsc: I64
         jmp test
     }
 

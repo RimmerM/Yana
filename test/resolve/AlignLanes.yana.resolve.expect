@@ -36,7 +36,7 @@ fn bytesByFive(%above: Vec(U8), %below: Vec(U8)) -> Vec(U8) {
     ret %v4
 }
 
-fn digits(%v: Vec(U32)) -> Int {
+fn digits(%v: Vec(U32)) -> I32 {
   b0:
     %v3 = vlane %v, 0 : U32
     %v6 = mul %v3, 1000 : U32
@@ -48,11 +48,11 @@ fn digits(%v: Vec(U32)) -> Int {
     %v20 = add %v13, %v19 : U32
     %v23 = vlane %v, 3 : U32
     %v24 = add %v20, %v23 : U32
-    %v25 = cast %v24 : Int
+    %v25 = cast %v24 : I32
     ret %v25
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = vsplat 0 : Vec(U32)
     %v3 = vwithlane %v1, 1, 1 : Vec(U32)
@@ -65,7 +65,7 @@ fn main() -> Int {
     %v17 = vsplat 10 : Vec(U32)
     %below = add %v15, %v17 : Vec(U32)
     %v19 = call atZero, %above, %below : Vec(U32)
-    %v20 = call digits, %v19 : Int
+    %v20 = call digits, %v19 : I32
     %v23 = cmp_ne %v20, 11233 : Bool
     je %v23, b1, b2
 
@@ -77,7 +77,7 @@ fn main() -> Int {
 
   b3:
     %v28 = call atCount, %above, %below : Vec(U32)
-    %v29 = call digits, %v28 : Int
+    %v29 = call digits, %v28 : I32
     %v32 = cmp_ne %v29, 123 : Bool
     je %v32, b4, b5
 
@@ -89,7 +89,7 @@ fn main() -> Int {
 
   b6:
     %v37 = call byOne, %above, %below : Vec(U32)
-    %v38 = call digits, %v37 : Int
+    %v38 = call digits, %v37 : I32
     %v41 = cmp_ne %v38, 12330 : Bool
     je %v41, b7, b8
 
@@ -101,7 +101,7 @@ fn main() -> Int {
 
   b9:
     %v46 = call byTwo, %above, %below : Vec(U32)
-    %v47 = call digits, %v46 : Int
+    %v47 = call digits, %v46 : I32
     %v50 = cmp_ne %v47, 13301 : Bool
     je %v50, b10, b11
 
@@ -113,7 +113,7 @@ fn main() -> Int {
 
   b12:
     %v55 = call byThree, %above, %below : Vec(U32)
-    %v56 = call digits, %v55 : Int
+    %v56 = call digits, %v55 : I32
     %v59 = cmp_ne %v56, 13012 : Bool
     je %v59, b13, b14
 
@@ -143,7 +143,7 @@ fn main() -> Int {
     %v97 = vwithlane %v95, 15, 15 : Vec(U8)
     %wide = call bytesByFive, %v65, %v97 : Vec(U8)
     %v101 = vlane %wide, 0 : U8
-    %v102 = cast %v101 : Int
+    %v102 = cast %v101 : I32
     %v105 = cmp_ne %v102, 5 : Bool
     je %v105, b16, b17
 
@@ -155,7 +155,7 @@ fn main() -> Int {
 
   b18:
     %v112 = vlane %wide, 10 : U8
-    %v113 = cast %v112 : Int
+    %v113 = cast %v112 : I32
     %v116 = cmp_ne %v113, 15 : Bool
     je %v116, b19, b20
 
@@ -167,7 +167,7 @@ fn main() -> Int {
 
   b21:
     %v123 = vlane %wide, 11 : U8
-    %v124 = cast %v123 : Int
+    %v124 = cast %v123 : I32
     %v127 = cmp_ne %v124, 7 : Bool
     je %v127, b22, b23
 
@@ -179,6 +179,6 @@ fn main() -> Int {
 
   b24:
     %v132 = call byOne, %above, %below : Vec(U32)
-    %v133 = call digits, %v132 : Int
+    %v133 = call digits, %v132 : I32
     ret %v133
 }

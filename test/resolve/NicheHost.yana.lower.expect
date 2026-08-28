@@ -1,19 +1,19 @@
 @image$base = []
 
-pointOr<complex>(%m: Ptr, %fallback: Int): Int {
+pointOr<complex>(%m: Ptr, %fallback: I32): I32 {
   b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %m, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
     %v_5 = add %m, 4: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = imul %v_6, 10: Int
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = imul %v_6, 10: I32
     %v_8 = add %m, 8: Ptr
-    %v_9 = loads %v_8, 4: Int
-    %v_10 = add %v_7, %v_9: Int
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = add %v_7, %v_9: I32
     jmp b_11
   }
 
@@ -22,32 +22,32 @@ pointOr<complex>(%m: Ptr, %fallback: Int): Int {
   }
 
   b_11 {
-    %v_12 = phi [b_3, %fallback], [b_4, %v_10]: Int
+    %v_12 = phi [b_3, %fallback], [b_4, %v_10]: I32
     ret %v_12
   }
 }
 
-depthOf<complex>(%m: Ptr): Int {
+depthOf<complex>(%m: Ptr): I32 {
   b_0 {
-    %v_1 = loads %m, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %m, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
     %v_5 = add %m, 4: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = cmp_eq %v_6, 0: Int
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = cmp_eq %v_6, 0: I32
     je %v_7, b_8, b_9
   }
 
   b_9 {
     %v_10 = add %m, 8: Ptr
-    %v_11 = loads %v_10, 4: Int
-    %v_12 = imul %v_11, 10: Int
+    %v_11 = loads %v_10, 4: I32
+    %v_12 = imul %v_11, 10: I32
     %v_13 = add %m, 12: Ptr
-    %v_14 = loads %v_13, 4: Int
-    %v_15 = add %v_12, %v_14: Int
+    %v_14 = loads %v_13, 4: I32
+    %v_15 = add %v_12, %v_14: I32
     jmp b_16
   }
 
@@ -56,8 +56,8 @@ depthOf<complex>(%m: Ptr): Int {
   }
 
   b_16 {
-    %v_17 = phi [b_8, 0], [b_9, %v_15]: Int
-    %v_18 = add %v_17, 2: Int
+    %v_17 = phi [b_8, 0], [b_9, %v_15]: I32
+    %v_18 = add %v_17, 2: I32
     jmp b_19
   }
 
@@ -66,25 +66,25 @@ depthOf<complex>(%m: Ptr): Int {
   }
 
   b_19 {
-    %v_20 = phi [b_3, 1], [b_16, %v_18]: Int
+    %v_20 = phi [b_3, 1], [b_16, %v_18]: I32
     ret %v_20
   }
 }
 
-pairValue<complex>(%p: Ptr): Int {
+pairValue<complex>(%p: Ptr): I32 {
   b_0 {
-    %v_1 = loads %p, 4: Int
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = loads %p, 4: I32
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_4 {
     %v_5 = add %p, 4: Ptr
-    %v_6 = loads %v_5, 4: Int
-    %v_7 = imul %v_6, 10: Int
+    %v_6 = loads %v_5, 4: I32
+    %v_7 = imul %v_6, 10: I32
     %v_8 = add %p, 8: Ptr
-    %v_9 = loads %v_8, 4: Int
-    %v_10 = add %v_7, %v_9: Int
+    %v_9 = loads %v_8, 4: I32
+    %v_10 = add %v_7, %v_9: I32
     jmp b_11
   }
 
@@ -93,20 +93,20 @@ pairValue<complex>(%p: Ptr): Int {
   }
 
   b_11 {
-    %v_12 = phi [b_3, 7], [b_4, %v_10]: Int
-    %v_13 = imul %v_12, 100: Int
+    %v_12 = phi [b_3, 7], [b_4, %v_10]: I32
+    %v_13 = imul %v_12, 100: I32
     %v_14 = add %p, 12: Ptr
-    %v_15 = loads %v_14, 4: Int
-    %v_16 = cmp_eq %v_15, 0: Int
+    %v_15 = loads %v_14, 4: I32
+    %v_16 = cmp_eq %v_15, 0: I32
     %v_17 = add %p, 16: Ptr
-    %n = loads %v_17, 4: Int
-    %v_18 = select %v_16, 7, %n: Int
-    %v_19 = add %v_13, %v_18: Int
+    %n = loads %v_17, 4: I32
+    %v_18 = select %v_16, 7, %n: I32
+    %v_19 = add %v_13, %v_18: I32
     ret %v_19
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 12, 4: Ptr
     store %v_1, 1, 4
@@ -114,21 +114,21 @@ main<complex>(): Int {
     store %v_2, 3, 4
     %v_3 = add %v_1, 8: Ptr
     store %v_3, 4, 4
-    %some = call_complex pointOr, %v_1, 9: Int
+    %some = call_complex pointOr, %v_1, 9: I32
     %v_4 = alloca 12, 4: Ptr
     store %v_4, 0, 4
-    %none = call_complex pointOr, %v_4, 9: Int
-    %v_5 = imul %none, 1000: Int
-    %v_6 = add %some, %v_5: Int
-    %v_7 = add %v_6, 750: Int
+    %none = call_complex pointOr, %v_4, 9: I32
+    %v_5 = imul %none, 1000: I32
+    %v_6 = add %some, %v_5: I32
+    %v_7 = add %v_6, 750: I32
     %v_8 = alloca 16, 4: Ptr
     store %v_8, 0, 4
-    %outer = call_complex depthOf, %v_8: Int
+    %outer = call_complex depthOf, %v_8: I32
     %v_9 = alloca 16, 4: Ptr
     store %v_9, 1, 4
     %v_10 = add %v_9, 4: Ptr
     store %v_10, 0, 4
-    %middle = call_complex depthOf, %v_9: Int
+    %middle = call_complex depthOf, %v_9: I32
     %v_11 = alloca 16, 4: Ptr
     store %v_11, 1, 4
     %v_12 = add %v_11, 4: Ptr
@@ -137,12 +137,12 @@ main<complex>(): Int {
     store %v_13, 1, 4
     %v_14 = add %v_11, 12: Ptr
     store %v_14, 2, 4
-    %inner = call_complex depthOf, %v_11: Int
-    %v_15 = imul %middle, 10: Int
-    %v_16 = add %outer, %v_15: Int
-    %v_17 = imul %inner, 100: Int
-    %v_18 = add %v_16, %v_17: Int
-    %v_19 = add %v_7, %v_18: Int
+    %inner = call_complex depthOf, %v_11: I32
+    %v_15 = imul %middle, 10: I32
+    %v_16 = add %outer, %v_15: I32
+    %v_17 = imul %inner, 100: I32
+    %v_18 = add %v_16, %v_17: I32
+    %v_19 = add %v_7, %v_18: I32
     %v_20 = alloca 20, 4: Ptr
     store %v_20, 1, 4
     %v_21 = add %v_20, 4: Ptr
@@ -151,17 +151,17 @@ main<complex>(): Int {
     store %v_22, 6, 4
     %v_23 = add %v_20, 12: Ptr
     store %v_23, 0, 4
-    %v_24 = call_complex pairValue, %v_20: Int
+    %v_24 = call_complex pairValue, %v_20: I32
     %v_25 = alloca 20, 4: Ptr
     store %v_25, 0, 4
     %v_26 = add %v_25, 12: Ptr
     store %v_26, 1, 4
     %v_27 = add %v_25, 16: Ptr
     store %v_27, 3, 4
-    %v_28 = call_complex pairValue, %v_25: Int
-    %v_29 = imul %v_28, 10000: Int
-    %v_30 = add %v_24, %v_29: Int
-    %v_31 = add %v_19, %v_30: Int
+    %v_28 = call_complex pairValue, %v_25: I32
+    %v_29 = imul %v_28, 10000: I32
+    %v_30 = add %v_24, %v_29: I32
+    %v_31 = add %v_19, %v_30: I32
     ret %v_31
   }
 }

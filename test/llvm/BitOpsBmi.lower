@@ -15,62 +15,62 @@
 # to LLVM, which selects `bzhi` for itself where the target has one. Naming an intrinsic for it would
 # have bought nothing and lost every target that is not x86.
 
-low(%v: Int, %n: Int): Int {
+low(%v: I32, %n: I32): I32 {
     {
-        %r = bitsupto %v, %n: Int
+        %r = bitsupto %v, %n: I32
         ret %r
     }
 }
 
-low64(%v: Long, %n: Long): Long {
+low64(%v: I64, %n: I64): I64 {
     {
-        %r = bitsupto %v, %n: Long
+        %r = bitsupto %v, %n: I64
         ret %r
     }
 }
 
 # A constant count, which every tier above this one has already folded into an `and` - so what this
 # asserts is only that the backend is not the thing that would have had to.
-lowConstant(%v: Int): Int {
+lowConstant(%v: I32): I32 {
     {
-        %r = bitsupto %v, 8: Int
+        %r = bitsupto %v, 8: I32
         ret %r
     }
 }
 
-gather(%v: Int, %m: Int): Int {
+gather(%v: I32, %m: I32): I32 {
     {
-        %r = gatherbits %v, %m: Int
+        %r = gatherbits %v, %m: I32
         ret %r
     }
 }
 
-scatter(%v: Int, %m: Int): Int {
+scatter(%v: I32, %m: I32): I32 {
     {
-        %r = scatterbits %v, %m: Int
+        %r = scatterbits %v, %m: I32
         ret %r
     }
 }
 
-gather64(%v: Long, %m: Long): Long {
+gather64(%v: I64, %m: I64): I64 {
     {
-        %r = gatherbits %v, %m: Long
+        %r = gatherbits %v, %m: I64
         ret %r
     }
 }
 
-scatter64(%v: Long, %m: Long): Long {
+scatter64(%v: I64, %m: I64): I64 {
     {
-        %r = scatterbits %v, %m: Long
+        %r = scatterbits %v, %m: I64
         ret %r
     }
 }
 
 # Two calls at one width, which take one helper between them.
-twice(%v: Int, %m: Int): Int {
+twice(%v: I32, %m: I32): I32 {
     {
-        %a = gatherbits %v, %m: Int
-        %b = gatherbits %a, %m: Int
+        %a = gatherbits %v, %m: I32
+        %b = gatherbits %a, %m: I32
         ret %b
     }
 }

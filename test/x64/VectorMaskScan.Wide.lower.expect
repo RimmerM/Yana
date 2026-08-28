@@ -1,13 +1,13 @@
 
-searchWide<complex>(%a: i8x32, %b: i8x32): Int {
+searchWide<complex>(%a: i8x32, %b: i8x32): I32 {
   start {
     %m = cmp_eq %a, %b: m8x32
-    %any = vreduce_or %m: Int
+    %any = vreduce_or %m: I32
     je %any, hit, miss
   }
 
   hit {
-    %f = vreduce_first %m: Int
+    %f = vreduce_first %m: I32
     ret %f
   }
 
@@ -16,15 +16,15 @@ searchWide<complex>(%a: i8x32, %b: i8x32): Int {
   }
 }
 
-searchWideLanes<complex>(%a: i32x8, %b: i32x8): Int {
+searchWideLanes<complex>(%a: i32x8, %b: i32x8): I32 {
   start {
     %m = cmp_eq %a, %b: m32x8
-    %any = vreduce_or %m: Int
+    %any = vreduce_or %m: I32
     je %any, hit, miss
   }
 
   hit {
-    %f = vreduce_first %m: Int
+    %f = vreduce_first %m: I32
     ret %f
   }
 

@@ -1,13 +1,13 @@
 @name = [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
 
-print<complex>(%string: Ptr, %length: Long) {
+print<complex>(%string: Ptr, %length: I64) {
   b_0 {
-    %0 = syscall 1, 1, %string, %length: Int
+    %0 = syscall 1, 1, %string, %length: I32
     ret 
   }
 }
 
-printInt<complex>(%number: Long) {
+printInt<complex>(%number: I64) {
   start {
     %buffer = alloca 32, 8: Ptr
     %string = alloca 32, 8: Ptr
@@ -15,20 +15,20 @@ printInt<complex>(%number: Long) {
   }
 
   loop {
-    %n = phi [start, %number], [loop, %2]: Long
+    %n = phi [start, %number], [loop, %2]: I64
     %p = phi [start, %buffer], [loop, %p2]: Ptr
-    %v_0 = cast 48: Long
-    %v_1 = rem %n, 10: Long
-    %1 = add %v_0, %v_1: Long
+    %v_0 = cast 48: I64
+    %v_1 = rem %n, 10: I64
+    %1 = add %v_0, %v_1: I64
     store %p, %1, 1
     %p2 = add %p, 1: Ptr
-    %2 = div %n, 10: Long
-    %v_2 = cmp_gt %2, 0: Int
+    %2 = div %n, 10: I64
+    %v_2 = cmp_gt %2, 0: I32
     je %v_2, loop, reverse
   }
 
   reverse {
-    %length = sub %p2, %buffer: Long
+    %length = sub %p2, %buffer: I64
     jmp reverse_loop
   }
 
@@ -36,10 +36,10 @@ printInt<complex>(%number: Long) {
     %p3 = phi [reverse, %p2], [reverse_loop, %p4]: Ptr
     %b = phi [reverse, %string], [reverse_loop, %b2]: Ptr
     %p4 = sub %p3, 1: Ptr
-    %v_3 = load %p4, 1: Int
+    %v_3 = load %p4, 1: I32
     store %b, %v_3, 1
     %b2 = add %b, 1: Ptr
-    %v_4 = cmp_gt %p4, %buffer: Int
+    %v_4 = cmp_gt %p4, %buffer: I32
     je %v_4, reverse_loop, print
   }
 
@@ -49,7 +49,7 @@ printInt<complex>(%number: Long) {
   }
 }
 
-getCount<complex>(): Int {
+getCount<complex>(): I32 {
   b_0 {
     ret 10
   }
@@ -59,18 +59,18 @@ main<complex>() {
   start {
     %space = alloca 1, 8: Ptr
     store %space, 32, 1
-    %v_0 = call_complex getCount: Int
-    %count = cast %v_0: Long
+    %v_0 = call_complex getCount: I32
+    %count = cast %v_0: I64
     jmp loop
   }
 
   loop {
-    %i = phi [start, 0], [loop, %i2]: Long
+    %i = phi [start, 0], [loop, %i2]: I64
     call_complex print, @name, 11
     call_complex print, %space, 1
     call_complex printInt, %i
-    %i2 = add %i, 1: Long
-    %v_1 = cmp_lt %i2, %count: Int
+    %i2 = add %i, 1: I64
+    %v_1 = cmp_lt %i2, %count: I32
     je %v_1, loop, end
   }
 

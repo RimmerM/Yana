@@ -1,29 +1,29 @@
 let image$base: () = <none>
 
-fn opaque(%x: Double) -> Double {
+fn opaque(%x: F64) -> F64 {
   b0:
     ret %x
 }
 
-fn opaqueF(%x: Float) -> Float {
+fn opaqueF(%x: F32) -> F32 {
   b0:
     ret %x
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
-    %v5 = call opaque, 2.5 : Double
-    %v6 = neg %v5 : Double
-    %v11 = sub 0, 2.5 : Float
-    %v12 = cast %v11 : Double
+    %v5 = call opaque, 2.5 : F64
+    %v6 = neg %v5 : F64
+    %v11 = sub 0, 2.5 : F32
+    %v12 = cast %v11 : F64
     %v13 = cmp_eq %v6, %v12 : Bool
     je %v13, b1, b2
 
   b1:
-    %v15 = load %score : Int
-    %v18 = add %v15, 1 : Int
+    %v15 = load %score : I32
+    %v18 = add %v15, 1 : I32
     assign %score, %v18
     jmp b3
 
@@ -31,15 +31,15 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v23 = call opaqueF, 1.5 : Float
-    %v24 = neg %v23 : Float
-    %v29 = sub 0, 1.5 : Float
+    %v23 = call opaqueF, 1.5 : F32
+    %v24 = neg %v23 : F32
+    %v29 = sub 0, 1.5 : F32
     %v30 = cmp_eq %v24, %v29 : Bool
     je %v30, b4, b5
 
   b4:
-    %v32 = load %score : Int
-    %v35 = add %v32, 2 : Int
+    %v32 = load %score : I32
+    %v35 = add %v32, 2 : I32
     assign %score, %v35
     jmp b6
 
@@ -47,15 +47,15 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v40 = call opaque, 3.25 : Double
-    %v41 = neg %v40 : Double
-    %v42 = neg %v41 : Double
+    %v40 = call opaque, 3.25 : F64
+    %v41 = neg %v40 : F64
+    %v42 = neg %v41 : F64
     %v45 = cmp_eq %v42, 3.25 : Bool
     je %v45, b7, b8
 
   b7:
-    %v47 = load %score : Int
-    %v50 = add %v47, 4 : Int
+    %v47 = load %score : I32
+    %v50 = add %v47, 4 : I32
     assign %score, %v50
     jmp b9
 
@@ -63,15 +63,15 @@ fn main() -> Int {
     jmp b9
 
   b9:
-    %v55 = call opaqueF, 7.5 : Float
-    %v56 = neg %v55 : Float
-    %v57 = neg %v56 : Float
+    %v55 = call opaqueF, 7.5 : F32
+    %v56 = neg %v55 : F32
+    %v57 = neg %v56 : F32
     %v60 = cmp_eq %v57, 7.5 : Bool
     je %v60, b10, b11
 
   b10:
-    %v62 = load %score : Int
-    %v65 = add %v62, 8 : Int
+    %v62 = load %score : I32
+    %v65 = add %v62, 8 : I32
     assign %score, %v65
     jmp b12
 
@@ -79,15 +79,15 @@ fn main() -> Int {
     jmp b12
 
   b12:
-    %v71 = call opaque, 0 : Double
-    %v72 = neg %v71 : Double
-    %v73 = div 1, %v72 : Double
+    %v71 = call opaque, 0 : F64
+    %v72 = neg %v71 : F64
+    %v73 = div 1, %v72 : F64
     %v76 = cmp_lt %v73, 0 : Bool
     je %v76, b13, b14
 
   b13:
-    %v78 = load %score : Int
-    %v81 = add %v78, 16 : Int
+    %v78 = load %score : I32
+    %v81 = add %v78, 16 : I32
     assign %score, %v81
     jmp b15
 
@@ -95,15 +95,15 @@ fn main() -> Int {
     jmp b15
 
   b15:
-    %v86 = neg 2.5 : Double
-    %v91 = sub 0, 2.5 : Float
-    %v92 = cast %v91 : Double
+    %v86 = neg 2.5 : F64
+    %v91 = sub 0, 2.5 : F32
+    %v92 = cast %v91 : F64
     %v93 = cmp_eq %v86, %v92 : Bool
     je %v93, b16, b17
 
   b16:
-    %v95 = load %score : Int
-    %v98 = add %v95, 32 : Int
+    %v95 = load %score : I32
+    %v98 = add %v95, 32 : I32
     assign %score, %v98
     jmp b18
 
@@ -111,6 +111,6 @@ fn main() -> Int {
     jmp b18
 
   b18:
-    %v102 = load %score : Int
+    %v102 = load %score : I32
     ret %v102
 }

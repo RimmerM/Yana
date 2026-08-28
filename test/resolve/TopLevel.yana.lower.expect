@@ -6,35 +6,35 @@ mut @recorded = [0, 0, 0, 0]
 mut @first = [0, 0, 0, 0]
 mut @second = [0, 0, 0, 0]
 
-main$<complex>(): Int {
+main$<complex>(): I32 {
   b_0 {
-    %v_1 = imm 20: Int
+    %v_1 = imm 20: I32
     store @seed, %v_1, 4
-    %v_2 = loads @counter, 4: Int
-    %v_3 = add %v_2, %v_1: Int
-    %v_4 = loads @shape, 4: Int
-    %v_5 = cmp_eq %v_4, 0: Int
+    %v_2 = loads @counter, 4: I32
+    %v_3 = add %v_2, %v_1: I32
+    %v_4 = loads @shape, 4: I32
+    %v_5 = cmp_eq %v_4, 0: I32
     %v_6 = add @shape, 4: Ptr
-    %r = loads %v_6, 4: Int
-    %v_7 = imul %r, %r: Int
+    %r = loads %v_6, 4: I32
+    %v_7 = imul %r, %r: I32
     %v_8 = add @shape, 4: Ptr
-    %n = loads %v_8, 4: Int
-    %v_9 = imul %n, %n: Int
-    %v_10 = select %v_5, %v_7, %v_9: Int
-    %v_11 = add %v_3, %v_10: Int
+    %n = loads %v_8, 4: I32
+    %v_9 = imul %n, %n: I32
+    %v_10 = select %v_5, %v_7, %v_9: I32
+    %v_11 = add %v_3, %v_10: I32
     store @counter, %v_11, 4
     store @recorded, %v_11, 4
-    %v_12 = add %v_11, 1: Int
+    %v_12 = add %v_11, 1: I32
     store @first, %v_12, 4
-    %v_13 = add %v_11, 2: Int
+    %v_13 = add %v_11, 2: I32
     store @second, %v_13, 4
-    %v_14 = add %v_11, 3: Int
-    %v_15 = imul %v_11, 100: Int
-    %v_16 = add %v_14, %v_15: Int
-    %v_17 = imul %v_12, 10000: Int
-    %v_18 = add %v_16, %v_17: Int
-    %v_19 = imul %v_13, 1000000: Int
-    %v_20 = add %v_18, %v_19: Int
+    %v_14 = add %v_11, 3: I32
+    %v_15 = imul %v_11, 100: I32
+    %v_16 = add %v_14, %v_15: I32
+    %v_17 = imul %v_12, 10000: I32
+    %v_18 = add %v_16, %v_17: I32
+    %v_19 = imul %v_13, 1000000: I32
+    %v_20 = add %v_18, %v_19: I32
     ret %v_20
   }
 }

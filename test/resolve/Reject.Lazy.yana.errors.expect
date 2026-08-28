@@ -1,7 +1,7 @@
 10:16: error: `@lazy` cannot be combined with `&` or `->` - the argument is an expression the callee may never run, so there is no caller storage to borrow or to consume
 12:11: error: `@lazy` cannot be combined with `&` or `->` - the argument is an expression the callee may never run, so there is no caller storage to borrow or to consume
 16:10: error: `@lazy` cannot be combined with `return` - an argument that may never be evaluated cannot be what a borrow in the result is rooted in
-16:10: error: `return` on Int has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root
+16:10: error: `return` on I32 has nothing to root a borrow in - it arrives in a register, so the body sees a copy of its own; write `return &` when the caller's storage must be the root
 104:23: error: argument rhs is `@lazy` in class Combine and has to say so here too - the call site left it unevaluated, so this body would be handed a thunk it never runs
 105:24: error: argument rhs is `@lazy` here but not in class Combine - which arguments are evaluated is fixed by the class signature, because a call site decides it before it knows which instance it reached
 21:44: error: value is a `@lazy` parameter and may be used at most once on any path, but this path uses it again - passing it to another `@lazy` parameter counts, since the callee may be the one that runs it. Read it into a `let` and use that instead

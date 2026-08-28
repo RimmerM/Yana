@@ -9,33 +9,33 @@
 # SysV hands out eight vector argument registers independently of the six integer ones, so an
 # argument list that alternates the two banks fills both counters at once rather than consuming
 # positions from a single sequence.
-sysvCallee<sysv>(%a: Double, %i: Int, %b: Double, %j: Int): Double {
+sysvCallee<sysv>(%a: F64, %i: I32, %b: F64, %j: I32): F64 {
     {
-        %s = add %a, %b: Double
+        %s = add %a, %b: F64
         ret %s
     }
 }
 
-sysvCaller<sysv>(%x: Double, %n: Int): Double {
+sysvCaller<sysv>(%x: F64, %n: I32): F64 {
     {
-        %r = call_sysv sysvCallee, %x, %n, %x, %n: Double
+        %r = call_sysv sysvCallee, %x, %n, %x, %n: F64
         ret %r
     }
 }
 
 # Win64 counts by position instead, so a float in argument position 2 takes xmm2 and leaves r8
 # unused - and the fifth argument goes on the stack even though only four registers were spent.
-win64Callee<win64>(%i: Int, %a: Double, %j: Int, %b: Double, %c: Double): Double {
+win64Callee<win64>(%i: I32, %a: F64, %j: I32, %b: F64, %c: F64): F64 {
     {
-        %s = add %a, %b: Double
-        %t = add %s, %c: Double
+        %s = add %a, %b: F64
+        %t = add %s, %c: F64
         ret %t
     }
 }
 
-win64Caller<win64>(%a: Double, %n: Int): Double {
+win64Caller<win64>(%a: F64, %n: I32): F64 {
     {
-        %r = call_win64 win64Callee, %n, %a, %n, %a, %a: Double
+        %r = call_win64 win64Callee, %n, %a, %n, %a, %a: F64
         ret %r
     }
 }
@@ -43,28 +43,28 @@ win64Caller<win64>(%a: Double, %n: Int): Double {
 # More float arguments than the convention has registers, so the rest are written into the outgoing
 # argument area - by the instruction that owns their bank, at their own width rather than at the
 # eight bytes the slot holds.
-manyArgs<simple>(%a: Float, %b: Float, %c: Float, %d: Float, %e: Double): Float {
+manyArgs<simple>(%a: F32, %b: F32, %c: F32, %d: F32, %e: F64): F32 {
     {
-        %s = add %a, %b: Float
-        %t = add %s, %c: Float
-        %u = add %t, %d: Float
+        %s = add %a, %b: F32
+        %t = add %s, %c: F32
+        %u = add %t, %d: F32
         ret %u
     }
 }
 
-manyArgsCaller<simple>(%a: Float, %e: Double): Float {
+manyArgsCaller<simple>(%a: F32, %e: F64): F32 {
     {
-        %r = call_simple manyArgs, %a, %a, %a, %a, %e: Float
+        %r = call_simple manyArgs, %a, %a, %a, %a, %e: F32
         ret %r
     }
 }
 
 # Every vector register is caller-saved under SysV, so a double that outlives a call has nowhere in
 # the bank to hide: it goes to the frame and comes back.
-acrossSysvCall<sysv>(%x: Double): Double {
+acrossSysvCall<sysv>(%x: F64): F64 {
     {
-        %r = call_sysv sysvCallee, %x, 0, %x, 0: Double
-        %s = add %r, %x: Double
+        %r = call_sysv sysvCallee, %x, 0, %x, 0: F64
+        %s = add %r, %x: F64
         ret %s
     }
 }
@@ -72,30 +72,30 @@ acrossSysvCall<sysv>(%x: Double): Double {
 # Simple preserves xmm3 upwards, so the same value crosses the same call in a register instead - and
 # the callee that takes one of those pays for it in the prologue. A vector register cannot be pushed,
 # so it is stored into a region of the frame and reloaded before the epilogue restores rsp.
-acrossSimpleCall<simple>(%x: Double, %y: Double): Double {
+acrossSimpleCall<simple>(%x: F64, %y: F64): F64 {
     {
-        %r = call_simple simpleFloatCallee, %x: Double
-        %s = add %r, %y: Double
+        %r = call_simple simpleFloatCallee, %x: F64
+        %s = add %r, %y: F64
         ret %s
     }
 }
 
 # The callee side of that: enough live doubles to reach past xmm2, which is where the Simple
 # convention's caller-saved vector registers stop and the ones it owes back begin.
-simpleFloatCallee<simple>(%a: Double): Double {
+simpleFloatCallee<simple>(%a: F64): F64 {
     {
-        %v0 = mul %a, %a: Double
-        %v1 = mul %a, %v0: Double
-        %v2 = mul %a, %v1: Double
-        %v3 = mul %a, %v2: Double
-        %v4 = mul %a, %v3: Double
-        %v5 = mul %a, %v4: Double
+        %v0 = mul %a, %a: F64
+        %v1 = mul %a, %v0: F64
+        %v2 = mul %a, %v1: F64
+        %v3 = mul %a, %v2: F64
+        %v4 = mul %a, %v3: F64
+        %v5 = mul %a, %v4: F64
 
-        %s5 = add %v5, %v4: Double
-        %s4 = add %s5, %v3: Double
-        %s3 = add %s4, %v2: Double
-        %s2 = add %s3, %v1: Double
-        %s1 = add %s2, %v0: Double
+        %s5 = add %v5, %v4: F64
+        %s4 = add %s5, %v3: F64
+        %s3 = add %s4, %v2: F64
+        %s2 = add %s3, %v1: F64
+        %s1 = add %s2, %v0: F64
         ret %s1
     }
 }

@@ -1,11 +1,11 @@
 "use strict";
 // Core
-function loadVector_Int(from$items, from$length, from$offset, at) {
+function loadVector_I32(from$items, from$length, from$offset, at) {
   var v4 = from$offset + at | 0;
   return [from$items[v4], from$items[v4 + 1 | 0], from$items[v4 + 2 | 0], from$items[v4 + 3 | 0]];
 }
 
-function loadVectorTail_Int(from$items, from$length, from$offset, at) {
+function loadVectorTail_I32(from$items, from$length, from$offset, at) {
   var v4 = from$offset + at | 0;
   var v9 = (from$offset + from$length | 0) - 1 | 0;
   var v12 = from$items[v4 > v9 ? v9 : v4];
@@ -17,12 +17,12 @@ function loadVectorTail_Int(from$items, from$length, from$offset, at) {
   return [v12, v18, v24, from$items[v27 > v9 ? v9 : v27]];
 }
 
-function loadVector_Float(from$items, from$length, from$offset, at) {
+function loadVector_F32(from$items, from$length, from$offset, at) {
   var v4 = from$offset + at | 0;
   return [from$items[v4], from$items[v4 + 1 | 0], from$items[v4 + 2 | 0], from$items[v4 + 3 | 0]];
 }
 
-function loadVectorTail_Float(from$items, from$length, from$offset, at) {
+function loadVectorTail_F32(from$items, from$length, from$offset, at) {
   var v4 = from$offset + at | 0;
   var v9 = (from$offset + from$length | 0) - 1 | 0;
   var v12 = from$items[v4 > v9 ? v9 : v4];
@@ -40,7 +40,7 @@ function sumInts(xs$items, xs$length, xs$offset) {
   var i = 0;
   L0: for (;;) {
     if ((i + 4 | 0) <= xs$length) {
-      var v19 = loadVector_Int(xs$items, xs$length, xs$offset, i);
+      var v19 = loadVector_I32(xs$items, xs$length, xs$offset, i);
       acc = [acc[0] + v19[0] | 0, acc[1] + v19[1] | 0, acc[2] + v19[2] | 0, acc[3] + v19[3] | 0];
       i = i + 4 | 0;
       continue L0;
@@ -53,7 +53,7 @@ function sumInts(xs$items, xs$length, xs$offset) {
     var live$1 = 1 < v30;
     var live$2 = 2 < v30;
     var live$3 = 3 < v30;
-    var v45 = loadVectorTail_Int(xs$items, xs$length, xs$offset, i);
+    var v45 = loadVectorTail_I32(xs$items, xs$length, xs$offset, i);
     acc = [acc[0] + (live$0 ? v45[0] : 0) | 0, acc[1] + (live$1 ? v45[1] : 0) | 0, acc[2] + (live$2 ? v45[2] : 0) | 0, acc[3] + (live$3 ? v45[3] : 0) | 0];
   }
   return (acc[0] + acc[1] | 0) + (acc[2] + acc[3] | 0) | 0;
@@ -68,8 +68,8 @@ function dot(xs$items, xs$length, xs$offset, ys$items, ys$length, ys$offset) {
   var i = 0;
   L0: for (;;) {
     if ((i + 4 | 0) <= xs$length) {
-      var v19 = loadVector_Float(xs$items, xs$length, xs$offset, i);
-      var v22 = loadVector_Float(ys$items, ys$length, ys$offset, i);
+      var v19 = loadVector_F32(xs$items, xs$length, xs$offset, i);
+      var v22 = loadVector_F32(ys$items, ys$length, ys$offset, i);
       acc = [Math.fround(Math.fround(v19[0] * v22[0]) + acc[0]), Math.fround(Math.fround(v19[1] * v22[1]) + acc[1]), Math.fround(Math.fround(v19[2] * v22[2]) + acc[2]), Math.fround(Math.fround(v19[3] * v22[3]) + acc[3])];
       i = i + 4 | 0;
       continue L0;
@@ -82,12 +82,12 @@ function dot(xs$items, xs$length, xs$offset, ys$items, ys$length, ys$offset) {
     var live$1 = 1 < v43;
     var live$2 = 2 < v43;
     var live$3 = 3 < v43;
-    var v48 = loadVectorTail_Float(xs$items, xs$length, xs$offset, i);
+    var v48 = loadVectorTail_F32(xs$items, xs$length, xs$offset, i);
     var x$0 = live$0 ? v48[0] : empty$0;
     var x$1 = live$1 ? v48[1] : empty$1;
     var x$2 = live$2 ? v48[2] : empty$2;
     var x$3 = live$3 ? v48[3] : empty$3;
-    var v52 = loadVectorTail_Float(ys$items, ys$length, ys$offset, i);
+    var v52 = loadVectorTail_F32(ys$items, ys$length, ys$offset, i);
     acc = [Math.fround(Math.fround(x$0 * (live$0 ? v52[0] : empty$0)) + acc[0]), Math.fround(Math.fround(x$1 * (live$1 ? v52[1] : empty$1)) + acc[1]), Math.fround(Math.fround(x$2 * (live$2 ? v52[2] : empty$2)) + acc[2]), Math.fround(Math.fround(x$3 * (live$3 ? v52[3] : empty$3)) + acc[3])];
   }
   return Math.fround(Math.fround(acc[0] + acc[1]) + Math.fround(acc[2] + acc[3]));
@@ -97,7 +97,7 @@ function indexOf(xs$items, xs$length, xs$offset, needle) {
   var i = 0;
   L0: for (;;) {
     if ((i + 4 | 0) <= xs$length) {
-      var v18 = loadVector_Int(xs$items, xs$length, xs$offset, i);
+      var v18 = loadVector_I32(xs$items, xs$length, xs$offset, i);
       var hits$0 = v18[0] === needle;
       var hits$1 = v18[1] === needle;
       var hits$2 = v18[2] === needle;
@@ -116,7 +116,7 @@ function indexOf(xs$items, xs$length, xs$offset, needle) {
           var live$1 = 1 < v35;
           var live$2 = 2 < v35;
           var live$3 = 3 < v35;
-          var v49 = loadVectorTail_Int(xs$items, xs$length, xs$offset, i);
+          var v49 = loadVectorTail_I32(xs$items, xs$length, xs$offset, i);
           var v50$0 = v49[0] === needle;
           var v50$1 = v49[1] === needle;
           var v50$2 = v49[2] === needle;

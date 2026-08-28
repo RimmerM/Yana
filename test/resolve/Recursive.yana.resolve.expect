@@ -8,20 +8,20 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-let &liveNodes: Int = 0
+let &liveNodes: I32 = 0
 
-fn +=(Int)(%target: Int, %amount: Int) -> () {
+fn +=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn -=(Int)(%target: Int, %amount: Int) -> () {
+fn -=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = sub %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = sub %v2, %amount : I32
     assign %target, %v3
     ret
 }
@@ -58,7 +58,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -109,7 +109,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -145,7 +145,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -231,14 +231,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -270,7 +270,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -328,7 +328,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -351,70 +351,70 @@ fn freeHeap(%allocation: %U8) -> () {
     ret
 }
 
-fn sum(%xs: List) -> Int {
+fn sum(%xs: List) -> I32 {
   b0:
-    %v1 = load %xs.discriminant : Int
+    %v1 = load %xs.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %c = load %xs@Cons : {head: Int, tail: @box List}
-    %v7 = load %xs@Cons.head : Int
+    %c = load %xs@Cons : {head: I32, tail: @box List}
+    %v7 = load %xs@Cons.head : I32
     %v8 = load %xs@Cons.tail.* : List
-    %v9 = call sum, %v8 : Int
-    %v10 = add %v7, %v9 : Int
+    %v9 = call sum, %v8 : I32
+    %v10 = add %v7, %v9 : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v13 = phi [b2, 0], [b1, %v10] : Int
+    %v13 = phi [b2, 0], [b1, %v10] : I32
     ret %v13
 }
 
-fn total(%t: Tree) -> Int {
+fn total(%t: Tree) -> I32 {
   b0:
-    %v1 = load %t.discriminant : Int
+    %v1 = load %t.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %b = load %t@Branch : {left: Maybe(Tree), right: Maybe(Tree), label: Int}
-    %v7 = load %t@Branch.label : Int
+    %b = load %t@Branch : {left: Maybe(Tree), right: Maybe(Tree), label: I32}
+    %v7 = load %t@Branch.label : I32
     %v8 = load %t@Branch.left : Maybe(Tree)
-    %v9 = call totalOf, %v8 : Int
-    %v10 = add %v7, %v9 : Int
+    %v9 = call totalOf, %v8 : I32
+    %v10 = add %v7, %v9 : I32
     %v11 = load %t@Branch.right : Maybe(Tree)
-    %v12 = call totalOf, %v11 : Int
-    %v13 = add %v10, %v12 : Int
+    %v12 = call totalOf, %v11 : I32
+    %v13 = add %v10, %v12 : I32
     jmp b3
 
   b2:
-    %v = load %t@Leaf : Int
+    %v = load %t@Leaf : I32
     jmp b3
 
   b3:
-    %v16 = phi [b2, %v], [b1, %v13] : Int
+    %v16 = phi [b2, %v], [b1, %v13] : I32
     ret %v16
 }
 
-fn totalOf(%m: Maybe(Tree)) -> Int {
+fn totalOf(%m: Maybe(Tree)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %t = load %m@Just.* : Tree
-    %v7 = call total, %t : Int
+    %v7 = call total, %t : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v10 = phi [b2, 0], [b1, %v7] : Int
+    %v10 = phi [b2, 0], [b1, %v7] : I32
     ret %v10
 }
 
@@ -424,7 +424,7 @@ fn unwrapOr(%m: Maybe(a), %fallback: a) -> 'a {
   }
 
   b0:
-    %v2 = load %m.discriminant : Int
+    %v2 = load %m.discriminant : I32
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b2, b1
 
@@ -442,31 +442,31 @@ fn unwrapOr(%m: Maybe(a), %fallback: a) -> 'a {
     ret %v11
 }
 
-fn leftOf(%t: Tree) -> Int {
+fn leftOf(%t: Tree) -> I32 {
   b0:
     %absent = alloc : Tree
     aggregate %local1.discriminant = 0, %local1@Leaf = 0
-    %v5 = load %t.discriminant : Int
+    %v5 = load %t.discriminant : I32
     %v7 = cmp_eq %v5, 0 : Bool
     je %v7, b4, b1
 
   b1:
-    %b = load %t@Branch : {left: Maybe(Tree), right: Maybe(Tree), label: Int}
+    %b = load %t@Branch : {left: Maybe(Tree), right: Maybe(Tree), label: I32}
     %v11 = load %t@Branch.left : Maybe(Tree)
     %v12 = borrow %t@Branch.left : 'Maybe(Tree)
     %v13 = borrow %local1 : 'Tree
     %v14 = call unwrapOr(Tree), %v12, %v13 : 'Tree
     %v15 = load [%v14] : Tree
-    %v16 = call total, %v15 : Int
+    %v16 = call total, %v15 : I32
     drop_derived %local1 via reclaim$Tree
     jmp b3
 
   b2:
-    %v = load %t@Leaf : Int
+    %v = load %t@Leaf : I32
     jmp b3
 
   b3:
-    %v19 = phi [b2, %v], [b1, %v16] : Int
+    %v19 = phi [b2, %v], [b1, %v16] : I32
     ret %v19
 
   b4:
@@ -474,7 +474,7 @@ fn leftOf(%t: Tree) -> Int {
     jmp b2
 }
 
-fn buildList() -> Int {
+fn buildList() -> I32 {
   b0:
     %xs = alloc : List
     %v3 = alloc : List
@@ -499,12 +499,12 @@ fn buildList() -> Int {
     %v27 = addressof %local6 : %List
     init %local0@Cons.tail, %v27
     init %local0@Cons.tail.*, %v3
-    %v30 = call sum, %xs : Int
+    %v30 = call sum, %xs : I32
     drop_derived %local0 via reclaim$List
     ret %v30
 }
 
-fn buildTree() -> Int {
+fn buildTree() -> I32 {
   b0:
     %deep = alloc : Tree
     %v2 = alloc : Maybe(Tree)
@@ -534,47 +534,47 @@ fn buildTree() -> Int {
     init %local9@Just, %v35
     init %local9@Just.*, %deep
     aggregate %local5.discriminant = 1, %local5@Branch.left = %v20, %local5@Branch.right = %v31, %local5@Branch.label = 7
-    %v40 = call total, %t : Int
-    %v41 = call leftOf, %t : Int
+    %v40 = call total, %t : I32
+    %v41 = call leftOf, %t : I32
     drop_derived %local5 via reclaim$Tree
-    %v42 = add %v40, %v41 : Int
+    %v42 = add %v40, %v41 : I32
     ret %v42
 }
 
-fn track(%id: Int) -> Tracked {
+fn track(%id: I32) -> Tracked {
   b0:
-    %v1 = load liveNodes : Int
-    %v4 = borrow_mut liveNodes : &Int
-    call +=(Int), %v4, 1
+    %v1 = load liveNodes : I32
+    %v4 = borrow_mut liveNodes : &I32
+    call +=(I32), %v4, 1
     %v6 = alloc : Tracked
     aggregate %local0@Tracked.id = %id
     ret %v6
 }
 
-fn idsOf(%c: Chain) -> Int {
+fn idsOf(%c: Chain) -> I32 {
   b0:
-    %v1 = load %c.discriminant : Int
+    %v1 = load %c.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
     %l = load %c@Link : {payload: Tracked, rest: @box Chain}
     %v7 = load %c@Link.payload : Tracked
-    %v8 = load %c@Link.payload@Tracked.id : Int
+    %v8 = load %c@Link.payload@Tracked.id : I32
     %v9 = load %c@Link.rest.* : Chain
-    %v10 = call idsOf, %v9 : Int
-    %v11 = add %v8, %v10 : Int
+    %v10 = call idsOf, %v9 : I32
+    %v11 = add %v8, %v10 : I32
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v14 = phi [b2, 0], [b1, %v11] : Int
+    %v14 = phi [b2, 0], [b1, %v11] : I32
     ret %v14
 }
 
-fn buildChain() -> Int {
+fn buildChain() -> I32 {
   b0:
     %c = alloc : Chain
     %v3 = call track, 4 : Tracked
@@ -594,18 +594,18 @@ fn buildChain() -> Int {
     %v20 = addressof %local6 : %Chain
     init %local0@Link.rest, %v20
     init %local0@Link.rest.*, %v4
-    %v23 = call idsOf, %c : Int
+    %v23 = call idsOf, %c : I32
     drop_derived %local0 via teardown$Chain
     ret %v23
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call buildList : Int
-    %v1 = call buildTree : Int
-    %values = add %v0, %v1 : Int
-    %chained = call buildChain : Int
-    %v4 = load liveNodes : Int
+    %v0 = call buildList : I32
+    %v1 = call buildTree : I32
+    %values = add %v0, %v1 : I32
+    %chained = call buildChain : I32
+    %v4 = load liveNodes : I32
     %v7 = cmp_ne %v4, 0 : Bool
     je %v7, b1, b2
 
@@ -616,21 +616,21 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v12 = add %values, %chained : Int
+    %v12 = add %values, %chained : I32
     ret %v12
 }
 
 fn Drop(Tracked).drop(%value: Tracked) -> () {
   b0:
-    %v1 = load liveNodes : Int
-    %v4 = borrow_mut liveNodes : &Int
-    call -=(Int), %v4, 1
+    %v1 = load liveNodes : I32
+    %v4 = borrow_mut liveNodes : &I32
+    call -=(I32), %v4, 1
     ret
 }
 
 fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> 'Tree {
   b0:
-    %v3 = load %m.discriminant : Int
+    %v3 = load %m.discriminant : I32
     %v5 = cmp_eq %v3, 0 : Bool
     je %v5, b2, b1
 
@@ -650,7 +650,7 @@ fn unwrapOr(Tree)(%m: Maybe(Tree), %fallback: Tree) -> 'Tree {
 
 fn reclaim$Tree(%value: Tree) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -668,7 +668,7 @@ fn reclaim$Tree(%value: Tree) -> () {
 
 fn reclaim$Maybe(Tree)(%value: Maybe(Tree)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -685,7 +685,7 @@ fn reclaim$Maybe(Tree)(%value: Maybe(Tree)) -> () {
 
 fn reclaim$List(%value: List) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 
@@ -702,7 +702,7 @@ fn reclaim$List(%value: List) -> () {
 
 fn teardown$Chain(%value: Chain) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 

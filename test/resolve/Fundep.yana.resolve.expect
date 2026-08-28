@@ -1,8 +1,8 @@
 let image$base: () = <none>
 
-fn fromInstance() -> Int {
+fn fromInstance() -> I32 {
   b0:
-    %x = call Elem(Int, Bool).head, 7 : Bool
+    %x = call Elem(I32, Bool).head, 7 : Bool
     je %x, b1, b2
 
   b1:
@@ -15,19 +15,19 @@ fn fromInstance() -> Int {
     ret 0
 }
 
-fn fromOtherInstance() -> Int {
+fn fromOtherInstance() -> I32 {
   b0:
-    %v1 = call Elem(Bool, Int).head, True : Int
+    %v1 = call Elem(Bool, I32).head, True : I32
     ret %v1
 }
 
-fn fromParametric() -> Int {
+fn fromParametric() -> I32 {
   b0:
-    %w = alloc : Wrap(Int)
+    %w = alloc : Wrap(I32)
     init %local0@Wrap, 5
-    %w = copy %local0 : Wrap(Int)
-    %inner = call Elem(Wrap(a), Wrap(a)).head(Int), %w : Wrap(Int)
-    %v6 = load %local2@Wrap.item : Int
+    %w = copy %local0 : Wrap(I32)
+    %inner = call Elem(Wrap(a), Wrap(a)).head(I32), %w : Wrap(I32)
+    %v6 = load %local2@Wrap.item : I32
     ret %v6
 }
 
@@ -43,7 +43,7 @@ fn fromParametric() -> Int {
     ret %v1
 }
 
-(Elem(c, a)) fn discards(%self: c) -> Int {
+(Elem(c, a)) fn discards(%self: c) -> I32 {
   schema {
     #0 type c
     #1 type a
@@ -55,9 +55,9 @@ fn fromParametric() -> Int {
     ret 0
 }
 
-fn viaConstraint() -> Int {
+fn viaConstraint() -> I32 {
   b0:
-    %x = call first(Int, Bool), 7 : Bool
+    %x = call first(I32, Bool), 7 : Bool
     je %x, b1, b2
 
   b1:
@@ -70,7 +70,7 @@ fn viaConstraint() -> Int {
     ret 0
 }
 
-(Deep(c, a)) fn throughSuper(%self: c) -> Int {
+(Deep(c, a)) fn throughSuper(%self: c) -> I32 {
   schema {
     #0 type c
     #1 type a
@@ -84,26 +84,26 @@ fn viaConstraint() -> Int {
 
 fn agreeingAscription() -> Bool {
   b0:
-    %v2 = call Elem(Int, Bool).head, 7 : Bool
+    %v2 = call Elem(I32, Bool).head, 7 : Bool
     ret %v2
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %a = call fromInstance : Int
-    %b = call fromOtherInstance : Int
-    %c = call viaConstraint : Int
-    %v3 = add %a, %b : Int
-    %v4 = add %v3, %c : Int
+    %a = call fromInstance : I32
+    %b = call fromOtherInstance : I32
+    %c = call viaConstraint : I32
+    %v3 = add %a, %b : I32
+    %v4 = add %v3, %c : I32
     ret %v4
 }
 
-fn Elem(Int, Bool).head(%self: Int) -> Bool {
+fn Elem(I32, Bool).head(%self: I32) -> Bool {
   b0:
     ret True
 }
 
-fn Elem(Bool, Int).head(%self: Bool) -> Int {
+fn Elem(Bool, I32).head(%self: Bool) -> I32 {
   b0:
     ret 7
 }
@@ -118,18 +118,18 @@ fn Elem(Wrap(a), Wrap(a)).head(%self: Wrap(a)) -> Wrap(a) {
     ret %self
 }
 
-fn Deep(Int, Bool).deep(%self: Int) -> Bool {
+fn Deep(I32, Bool).deep(%self: I32) -> Bool {
   b0:
     ret True
 }
 
-fn Elem(Wrap(a), Wrap(a)).head(Int)(%self: Wrap(Int)) -> Wrap(Int) {
+fn Elem(Wrap(a), Wrap(a)).head(I32)(%self: Wrap(I32)) -> Wrap(I32) {
   b0:
     ret %self
 }
 
-fn first(Int, Bool)(%self: Int) -> Bool {
+fn first(I32, Bool)(%self: I32) -> Bool {
   b0:
-    %v1 = call Elem(Int, Bool).head, %self : Bool
+    %v1 = call Elem(I32, Bool).head, %self : Bool
     ret %v1
 }

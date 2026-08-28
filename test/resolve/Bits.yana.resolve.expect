@@ -15,7 +15,7 @@ fn asPlain(%it: U64) -> U64 {
     ret %it
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %doubled = call double, %small : @bits(53) U64
     %doubled = cast %doubled : U64
@@ -24,12 +24,12 @@ fn main() -> Int {
     init %local0@Packed.version, 3
     init %local0@Packed.length, 4000
     %v9 = load %local0@Packed.version : @bits(4) U32
-    %v10 = cast %v9 : Int
-    %v13 = mul %v10, 10000 : Int
+    %v10 = cast %v9 : I32
+    %v13 = mul %v10, 10000 : I32
     %v14 = load %local0@Packed.length : @bits(13) U32
-    %v15 = cast %v14 : Int
-    %fields = add %v13, %v15 : Int
-    %v17 = cast %widened : Int
-    %v18 = add %v17, %fields : Int
+    %v15 = cast %v14 : I32
+    %fields = add %v13, %v15 : I32
+    %v17 = cast %widened : I32
+    %v18 = add %v17, %fields : I32
     ret %v18
 }

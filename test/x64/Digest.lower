@@ -24,36 +24,36 @@
 # The remainder and the chunk at the same width, which is what the class hands the instruction: the
 # accumulator a caller has is thirty-two bits and reaches the 64-bit form widened, which the machine
 # already does.
-crcWord(%acc: Int, %chunk: Int): Int {
+crcWord(%acc: I32, %chunk: I32): I32 {
     {
-        %r = crc32 %acc, %chunk: Int
+        %r = crc32 %acc, %chunk: I32
         ret %r
     }
 }
 
-crcWide(%acc: Long, %chunk: Long): Long {
+crcWide(%acc: I64, %chunk: I64): I64 {
     {
-        %r = crc32 %acc, %chunk: Long
+        %r = crc32 %acc, %chunk: I64
         ret %r
     }
 }
 
 # The chunk read straight out of memory, which is every use in the library: one instruction per eight
 # bytes and no register holding the word.
-crcFromMemory(%acc: Long, %p: Ptr): Long {
+crcFromMemory(%acc: I64, %p: Ptr): I64 {
     {
-        %chunk = load %p, 8: Long
-        %r = crc32 %acc, %chunk: Long
+        %chunk = load %p, 8: I64
+        %r = crc32 %acc, %chunk: I64
         ret %r
     }
 }
 
 # Two folds in a row over one accumulator - the loop body, with the dependency the instruction's
 # latency is paid on.
-crcChain(%acc: Long, %a: Long, %b: Long): Long {
+crcChain(%acc: I64, %a: I64, %b: I64): I64 {
     {
-        %x = crc32 %acc, %a: Long
-        %r = crc32 %x, %b: Long
+        %x = crc32 %acc, %a: I64
+        %r = crc32 %x, %b: I64
         ret %r
     }
 }

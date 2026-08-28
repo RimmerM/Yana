@@ -1,18 +1,18 @@
 let image$base: () = <none>
 
-let &released: Int = 0
+let &released: I32 = 0
 
-fn +=(Int)(%target: Int, %amount: Int) -> () {
+fn +=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn unwrapOr(%value: Maybe(Int), %fallback: Int) -> Int {
+fn unwrapOr(%value: Maybe(I32), %fallback: I32) -> I32 {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -20,98 +20,98 @@ fn unwrapOr(%value: Maybe(Int), %fallback: Int) -> Int {
     jmp b3
 
   b2:
-    %inner = load %value@Just : Int
+    %inner = load %value@Just : I32
     jmp b3
 
   b3:
-    %v9 = phi [b2, %inner], [b1, %fallback] : Int
+    %v9 = phi [b2, %inner], [b1, %fallback] : I32
     ret %v9
 }
 
-fn bump(%value: Maybe(Int)) -> Int {
+fn bump(%value: Maybe(I32)) -> I32 {
   b0:
-    %v2 = call unwrapOr, %value, 0 : Int
-    %v5 = add %v2, 1 : Int
+    %v2 = call unwrapOr, %value, 0 : I32
+    %v5 = add %v2, 1 : I32
     ret %v5
 }
 
-fn countOf(%value: Counter) -> Int {
+fn countOf(%value: Counter) -> I32 {
   b0:
-    %v1 = load %value@Counter.value : Int
+    %v1 = load %value@Counter.value : I32
     ret %v1
 }
 
-fn taken() -> Int {
+fn taken() -> I32 {
   b0:
     %b = alloc : Boxed
-    %v2 = alloc : Maybe(Int)
+    %v2 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = 35
     aggregate %local0@Boxed.tag = 7, %local0@Boxed.held = %v2
-    %v7 = load %local0@Boxed.held : Maybe(Int)
-    %v9 = call unwrapOr, %v7, 0 : Int
+    %v7 = load %local0@Boxed.held : Maybe(I32)
+    %v9 = call unwrapOr, %v7, 0 : I32
     ret %v9
 }
 
-fn replaced() -> Int {
+fn replaced() -> I32 {
   b0:
     %v0 = alloc : Boxed
-    %v2 = alloc : Maybe(Int)
+    %v2 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = 35
     aggregate %b@Boxed.tag = 7, %b@Boxed.held = %v2
-    %v7 = alloc : Maybe(Int)
+    %v7 = alloc : Maybe(I32)
     aggregate %local2.discriminant = 1, %local2@Just = 36
     assign %b@Boxed.held, %v7
     %v12 = load %b : Boxed
-    %v13 = load %b@Boxed.held : Maybe(Int)
-    %v15 = call unwrapOr, %v13, 0 : Int
+    %v13 = load %b@Boxed.held : Maybe(I32)
+    %v15 = call unwrapOr, %v13, 0 : I32
     ret %v15
 }
 
-fn sunk() -> Int {
+fn sunk() -> I32 {
   b0:
     %o = alloc : Owning
     %v2 = alloc : Counter
     aggregate %local1@Counter.value = 36
     aggregate %local0@Owning.tag = 1, %local0@Owning.held = %v2
     %v6 = load %local0@Owning.held : Counter
-    %v7 = call countOf, %v6 : Int
+    %v7 = call countOf, %v6 : I32
     drop_derived %local0 via drop$Owning
     ret %v7
 }
 
-fn guarded() -> Int {
+fn guarded() -> I32 {
   b0:
     %b = alloc : Boxed
-    %v2 = alloc : Maybe(Int)
+    %v2 = alloc : Maybe(I32)
     aggregate %local1.discriminant = 1, %local1@Just = 35
     aggregate %local0@Boxed.tag = 7, %local0@Boxed.held = %v2
-    %v7 = load %local0@Boxed.held : Maybe(Int)
-    %v8 = alloc : Maybe(Int)
+    %v7 = load %local0@Boxed.held : Maybe(I32)
+    %v8 = alloc : Maybe(I32)
     aggregate %local2.discriminant = 1, %local2@Just = 1
-    %v12 = call bump, %v8 : Int
-    %v13 = call unwrapOr, %v7, %v12 : Int
+    %v12 = call bump, %v8 : I32
+    %v13 = call unwrapOr, %v7, %v12 : I32
     ret %v13
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call taken : Int
-    %v1 = call replaced : Int
-    %v2 = add %v0, %v1 : Int
-    %v3 = call sunk : Int
-    %v4 = add %v2, %v3 : Int
-    %v5 = call guarded : Int
-    %v6 = add %v4, %v5 : Int
-    %v7 = load released : Int
-    %v8 = add %v6, %v7 : Int
+    %v0 = call taken : I32
+    %v1 = call replaced : I32
+    %v2 = add %v0, %v1 : I32
+    %v3 = call sunk : I32
+    %v4 = add %v2, %v3 : I32
+    %v5 = call guarded : I32
+    %v6 = add %v4, %v5 : I32
+    %v7 = load released : I32
+    %v8 = add %v6, %v7 : I32
     ret %v8
 }
 
 fn Drop(Counter).drop(%value: Counter) -> () {
   b0:
-    %v1 = load released : Int
-    %v4 = borrow_mut released : &Int
-    call +=(Int), %v4, 1
+    %v1 = load released : I32
+    %v4 = borrow_mut released : &I32
+    call +=(I32), %v4, 1
     ret
 }
 

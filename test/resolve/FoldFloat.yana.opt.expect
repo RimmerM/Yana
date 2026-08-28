@@ -1,82 +1,82 @@
 let image$base: () = <none>
 
-fn wideningInt() -> Double {
+fn wideningInt() -> F64 {
   b0:
     ret 7
 }
 
-fn narrowing() -> Float {
+fn narrowing() -> F32 {
   b0:
     ret 2.5
 }
 
-fn widening() -> Double {
+fn widening() -> F64 {
   b0:
     ret 2.5
 }
 
-fn truncating() -> Int {
+fn truncating() -> I32 {
   b0:
     ret 9
 }
 
-fn truncatingNegative() -> Int {
+fn truncatingNegative() -> I32 {
   b0:
     ret -9
 }
 
-fn arithmetic() -> Int {
+fn arithmetic() -> I32 {
   b0:
     ret 8
 }
 
-fn divided() -> Int {
+fn divided() -> I32 {
   b0:
     ret 11
 }
 
-fn compared() -> Int {
+fn compared() -> I32 {
   b0:
     ret 30
 }
 
-fn outOfRange() -> Int {
+fn outOfRange() -> I32 {
   b0:
     ret 2147483647
 }
 
-fn outOfRangeLow() -> Int {
+fn outOfRangeLow() -> I32 {
   b0:
     ret -2147483648
 }
 
-fn saturatedConstants() -> Int {
+fn saturatedConstants() -> I32 {
   b0:
     ret 40
 }
 
-fn notANumber() -> Double {
+fn notANumber() -> F64 {
   b0:
-    %v4 = div 0, 0 : Double
+    %v4 = div 0, 0 : F64
     ret %v4
 }
 
-fn infinite() -> Double {
+fn infinite() -> F64 {
   b0:
-    %v4 = div 1, 0 : Double
+    %v4 = div 1, 0 : F64
     ret %v4
 }
 
-fn saturatedAtRuntime() -> Int {
+fn saturatedAtRuntime() -> I32 {
   b0:
-    %v0 = call notANumber : Double
-    %v1 = cast %v0 : Int
+    %v0 = call notANumber : F64
+    %v1 = cast %v0 : I32
     %v4 = cmp_eq %v1, 0 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = call infinite : Double
-    %v7 = cast %v6 : Int
+    %v6 = call infinite : F64
+    %v7 = cast %v6 : I32
     %v10 = cmp_eq %v7, 2147483647 : Bool
     jmp b3
 
@@ -85,22 +85,22 @@ fn saturatedAtRuntime() -> Int {
 
   b3:
     %v14 = phi [b1, %v10], [b2, False] : Bool
-    %v22 = select %v14 ? 50 : 0 : Int
+    %v22 = select %v14 ? 50 : 0 : I32
     ret %v22
 }
 
-fn nonFinite() -> Int {
+fn nonFinite() -> I32 {
   b0:
-    %v3 = div 1, 0 : Double
+    %v3 = div 1, 0 : F64
     %v6 = cmp_gt %v3, 1000000 : Bool
-    %v14 = select %v6 ? 20 : 0 : Int
+    %v14 = select %v6 ? 20 : 0 : I32
     ret %v14
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v35 = call notANumber : Double
-    %v36 = cast %v35 : Int
+    %v35 = call notANumber : F64
+    %v36 = cast %v35 : I32
     %v38 = cmp_eq %v36, 0 : Bool
     je %v38, b2, b1
 
@@ -108,18 +108,18 @@ fn main() -> Int {
     jmp b3
 
   b2:
-    %v41 = call infinite : Double
-    %v42 = cast %v41 : Int
+    %v41 = call infinite : F64
+    %v42 = cast %v41 : I32
     %v44 = cmp_eq %v42, 2147483647 : Bool
     jmp b3
 
   b3:
     %v34 = phi [b2, %v44], [b1, False] : Bool
-    %v48 = select %v34 ? 50 : 0 : Int
-    %v21 = add %v48, 100 : Int
-    %v53 = div 1, 0 : Double
+    %v48 = select %v34 ? 50 : 0 : I32
+    %v21 = add %v48, 100 : I32
+    %v53 = div 1, 0 : F64
     %v55 = cmp_gt %v53, 1000000 : Bool
-    %v58 = select %v55 ? 20 : 0 : Int
-    %v23 = add %v21, %v58 : Int
+    %v58 = select %v55 ? 20 : 0 : I32
+    %v23 = add %v21, %v58 : I32
     ret %v23
 }

@@ -1,46 +1,46 @@
 
-allNotEqual<complex>(%a: i32x8, %b: i32x8): Int {
+allNotEqual<complex>(%a: i32x8, %b: i32x8): I32 {
   b_0 {
     %m = cmp_neq %a, %b: m32x8
-    %r = vreduce_and %m: Int
+    %r = vreduce_and %m: I32
     ret %r
   }
 }
 
-anyLessEqual<complex>(%a: i32x8, %b: i32x8): Int {
+anyLessEqual<complex>(%a: i32x8, %b: i32x8): I32 {
   b_0 {
     %m = cmp_ile %a, %b: m32x8
-    %r = vreduce_or %m: Int
+    %r = vreduce_or %m: I32
     ret %r
   }
 }
 
-countGreaterEqual<complex>(%a: i32x8, %b: i32x8): Int {
+countGreaterEqual<complex>(%a: i32x8, %b: i32x8): I32 {
   b_0 {
     %m = cmp_ige %a, %b: m32x8
-    %r = vreduce_add %m: Int
+    %r = vreduce_add %m: I32
     ret %r
   }
 }
 
-firstNotEqual<complex>(%a: i32x8, %b: i32x8): Int {
+firstNotEqual<complex>(%a: i32x8, %b: i32x8): I32 {
   b_0 {
     %m = cmp_neq %a, %b: m32x8
-    %r = vreduce_first %m: Int
+    %r = vreduce_first %m: I32
     ret %r
   }
 }
 
-bothFree<complex>(%a: i32x8, %b: i32x8): Int {
+bothFree<complex>(%a: i32x8, %b: i32x8): I32 {
   entry {
     %m = cmp_ile %a, %b: m32x8
-    %any = vreduce_or %m: Int
-    %v_0 = cmp_neq %any, 0: Int
+    %any = vreduce_or %m: I32
+    %v_0 = cmp_neq %any, 0: I32
     je %v_0, some, none
   }
 
   some {
-    %all = vreduce_and %m: Int
+    %all = vreduce_and %m: I32
     ret %all
   }
 
@@ -49,16 +49,16 @@ bothFree<complex>(%a: i32x8, %b: i32x8): Int {
   }
 }
 
-bothPay<complex>(%a: i32x8, %b: i32x8): Int {
+bothPay<complex>(%a: i32x8, %b: i32x8): I32 {
   entry {
     %m = cmp_neq %a, %b: m32x8
-    %c = vreduce_add %m: Int
-    %v_0 = cmp_neq %c, 0: Int
+    %c = vreduce_add %m: I32
+    %v_0 = cmp_neq %c, 0: I32
     je %v_0, some, none
   }
 
   some {
-    %f = vreduce_first %m: Int
+    %f = vreduce_first %m: I32
     ret %f
   }
 
@@ -67,21 +67,21 @@ bothPay<complex>(%a: i32x8, %b: i32x8): Int {
   }
 }
 
-selected<complex>(%a: i32x8, %b: i32x8): Int {
+selected<complex>(%a: i32x8, %b: i32x8): I32 {
   b_0 {
     %m = cmp_ile %a, %b: m32x8
     %v = select %m, %a, %b: i32x8
-    %r = vreduce_add %m: Int
-    %l = vlane %v, 0: Int
-    %s = add %r, %l: Int
+    %r = vreduce_add %m: I32
+    %l = vlane %v, 0: I32
+    %s = add %r, %l: I32
     ret %s
   }
 }
 
-floatNotEqual<complex>(%a: f32x8, %b: f32x8): Int {
+floatNotEqual<complex>(%a: f32x8, %b: f32x8): I32 {
   b_0 {
     %m = cmp_neq %a, %b: m32x8
-    %r = vreduce_and %m: Int
+    %r = vreduce_and %m: I32
     ret %r
   }
 }

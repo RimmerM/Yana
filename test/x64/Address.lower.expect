@@ -1,170 +1,170 @@
 
-sink<complex>(%p: Ptr): Int {
+sink<complex>(%p: Ptr): I32 {
   b_0 {
     ret 0
   }
 }
 
-displacement<complex>(%p: Ptr): Int {
+displacement<complex>(%p: Ptr): I32 {
   b_0 {
     %q = add %p, 16: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 }
 
-negativeDisplacement<complex>(%p: Ptr): Int {
+negativeDisplacement<complex>(%p: Ptr): I32 {
   b_0 {
     %q = sub %p, 8: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 }
 
-index<complex>(%p: Ptr, %i: Long): Int {
+index<complex>(%p: Ptr, %i: I64): I32 {
   b_0 {
     %q = add %p, %i: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 }
 
-scaledIndex<complex>(%p: Ptr, %i: Long): Int {
+scaledIndex<complex>(%p: Ptr, %i: I64): I32 {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 }
 
-multipliedIndex<complex>(%p: Ptr, %i: Long): Long {
+multipliedIndex<complex>(%p: Ptr, %i: I64): I64 {
   b_0 {
-    %o = mul %i, 8: Long
+    %o = mul %i, 8: I64
     %q = add %p, %o: Ptr
-    %v = load %q, 8: Long
+    %v = load %q, 8: I64
     ret %v
   }
 }
 
-full<complex>(%p: Ptr, %i: Long): Int {
+full<complex>(%p: Ptr, %i: I64): I32 {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %a = add %p, %o: Ptr
     %q = add %a, 24: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 }
 
-storeAddress<complex>(%p: Ptr, %i: Long, %v: Int) {
+storeAddress<complex>(%p: Ptr, %i: I64, %v: I32) {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
     store %q, %v, 4
     ret 
   }
 }
 
-readModifyWrite<complex>(%p: Ptr, %i: Long, %v: Int) {
+readModifyWrite<complex>(%p: Ptr, %i: I64, %v: I32) {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
-    %old = load %q, 4: Int
-    %new = add %old, %v: Int
+    %old = load %q, 4: I32
+    %new = add %old, %v: I32
     store %q, %new, 4
     ret 
   }
 }
 
-escapingAddress<complex>(%p: Ptr, %v: Int): Int {
+escapingAddress<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
     %q = add %p, 16: Ptr
     store %q, %v, 4
-    %r = call_complex sink, %q: Int
+    %r = call_complex sink, %q: I32
     ret %r
   }
 }
 
-sharedIndex<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
+sharedIndex<complex>(%p: Ptr, %r: Ptr, %i: I64): I32 {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %a = add %p, %o: Ptr
     %b = add %r, %o: Ptr
-    %x = load %a, 4: Int
-    %y = load %b, 4: Int
-    %s = add %x, %y: Int
+    %x = load %a, 4: I32
+    %y = load %b, 4: I32
+    %s = add %x, %y: I32
     ret %s
   }
 }
 
-sharedIndexManyUsers<complex>(%p: Ptr, %r: Ptr, %i: Long, %v: Long): Long {
+sharedIndexManyUsers<complex>(%p: Ptr, %r: Ptr, %i: I64, %v: I64): I64 {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %a = add %p, %o: Ptr
     %b = add %r, %o: Ptr
-    %x = load %a, 8: Long
+    %x = load %a, 8: I64
     store %b, %v, 8
-    %y = load %b, 8: Long
-    %s = add %x, %y: Long
+    %y = load %b, 8: I64
+    %s = add %x, %y: I64
     ret %s
   }
 }
 
-sharedIndexChained<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
+sharedIndexChained<complex>(%p: Ptr, %r: Ptr, %i: I64): I32 {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %a = add %p, %o: Ptr
     %b = add %r, %o: Ptr
     %c = add %b, 16: Ptr
-    %x = load %a, 4: Int
-    %y = load %c, 4: Int
-    %s = add %x, %y: Int
+    %x = load %a, 4: I32
+    %y = load %c, 4: I32
+    %s = add %x, %y: I32
     ret %s
   }
 }
 
-sharedIndexEscapes<complex>(%p: Ptr, %r: Ptr, %i: Long): Int {
+sharedIndexEscapes<complex>(%p: Ptr, %r: Ptr, %i: I64): I32 {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %a = add %p, %o: Ptr
     %b = add %r, %o: Ptr
-    %x = load %a, 4: Int
-    %y = call_complex sink, %b: Int
-    %s = add %x, %y: Int
+    %x = load %a, 4: I32
+    %y = call_complex sink, %b: I32
+    %s = add %x, %y: I32
     ret %s
   }
 }
 
-narrowScale<complex>(%p: Ptr, %i: Int): Int {
+narrowScale<complex>(%p: Ptr, %i: I32): I32 {
   b_0 {
-    %o = shl %i, 2: Int
+    %o = shl %i, 2: I32
     %q = add %p, %o: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 }
 
-localElement<complex>(%i: Long, %v: Int): Int {
+localElement<complex>(%i: I64, %v: I32): I32 {
   b_0 {
     %a = alloca 64, 8: Ptr
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %a, %o: Ptr
     store %q, %v, 4
-    %r = load %q, 4: Int
+    %r = load %q, 4: I32
     ret %r
   }
 }
 
-acrossBlocks<complex>(%p: Ptr, %i: Long, %c: Int): Int {
+acrossBlocks<complex>(%p: Ptr, %i: I64, %c: I32): I32 {
   start {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
     je %c, hit, miss
   }
 
   hit {
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 
@@ -181,30 +181,30 @@ storedPointer<complex>(%p: Ptr) {
   }
 }
 
-indexOnly<complex>(%i: Long): Long {
+indexOnly<complex>(%i: I64): I64 {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %p = bitcast %o: Ptr
     %q = add %p, 4096: Ptr
-    %v = load %q, 8: Long
+    %v = load %q, 8: I64
     ret %v
   }
 }
 
-unscaledIndexKeepsBase<complex>(%i: Long): Long {
+unscaledIndexKeepsBase<complex>(%i: I64): I64 {
   b_0 {
     %p = bitcast %i: Ptr
     %q = add %p, 4096: Ptr
-    %v = load %q, 8: Long
+    %v = load %q, 8: I64
     ret %v
   }
 }
 
-displacementOverflow<complex>(%p: Ptr): Int {
+displacementOverflow<complex>(%p: Ptr): I32 {
   b_0 {
     %a = add %p, 2147483647: Ptr
     %q = add %a, 2147483647: Ptr
-    %v = load %q, 4: Int
+    %v = load %q, 4: I32
     ret %v
   }
 }

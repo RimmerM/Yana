@@ -1,36 +1,36 @@
-callee(%x: Int, %y: Int): Int {
+callee(%x: I32, %y: I32): I32 {
     { ret %x }
 }
 
-many(%a0: Int, %a1: Int, %a2: Int, %a3: Int, %a4: Int, %a5: Int, %a6: Int, %a7: Int, %a8: Int): Int {
+many(%a0: I32, %a1: I32, %a2: I32, %a3: I32, %a4: I32, %a5: I32, %a6: I32, %a7: I32, %a8: I32): I32 {
     { ret %a0 }
 }
 
-simpleCall(%a: Int, %b: Int): Int {
+simpleCall(%a: I32, %b: I32): I32 {
     {
-        %r = call_complex callee, %a, %b: Int
+        %r = call_complex callee, %a, %b: I32
         ret %r
     }
 }
 
-liveAcrossCall(%a: Int, %b: Int): Int {
+liveAcrossCall(%a: I32, %b: I32): I32 {
     {
-        %r = call_complex callee, %a, %b: Int
-        %s = add %r, %a: Int
+        %r = call_complex callee, %a, %b: I32
+        %s = add %r, %a: I32
         ret %s
     }
 }
 
-pushCall(%a: Int, %b: Int): Int {
+pushCall(%a: I32, %b: I32): I32 {
     {
-        %r = call_complex many, %a, %a, %a, %a, %a, %a, %a, %a, %b: Int
+        %r = call_complex many, %a, %a, %a, %a, %a, %a, %a, %a, %b: I32
         ret %r
     }
 }
 
-sysCall(%n: Int, %fd: Int, %buf: Int, %len: Int): Int {
+sysCall(%n: I32, %fd: I32, %buf: I32, %len: I32): I32 {
     {
-        %r = syscall %n, %fd, %buf, %len: Int
+        %r = syscall %n, %fd, %buf, %len: I32
         ret %r
     }
 }

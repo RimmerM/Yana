@@ -1,20 +1,20 @@
-let image$base: () = <none>
-
-let &copyCalls: Int = 0
-
-table typeDesc$Int {
-  .0 sizeof Int
-  .1 strideof Int
-  .2 alignof Int | 131
+table typeDesc$I32 {
+  .0 sizeof I32
+  .1 strideof I32
+  .2 alignof I32 | 131
   .3 teardown$none
 }
 
-table witness$TrivialCopy(Int) {
+let image$base: () = <none>
+
+let &copyCalls: I32 = 0
+
+table witness$TrivialCopy(I32) {
 }
 
-table genEnv$copyInto(Int) {
-  .0 typeDesc$Int
-  .1 witness$TrivialCopy(Int)
+table genEnv$copyInto(I32) {
+  .0 typeDesc$I32
+  .1 witness$TrivialCopy(I32)
 }
 
 table typeDesc$Point {
@@ -106,13 +106,13 @@ fn abortProcess() -> () {
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %number = alloc : Int
+    %number = alloc : I32
     init %number, 0
-    %v3 = load %number : Int
-    %v6 = borrow_mut %number : &Int
-    gencall env genEnv$copyInto(Int) copyInto(Int), %v6, 7
+    %v3 = load %number : I32
+    %v6 = borrow_mut %number : &I32
+    gencall env genEnv$copyInto(I32) copyInto(I32), %v6, 7
     %pair = alloc : Point
     aggregate %local1@Point.x = 3, %local1@Point.y = 4
     %v12 = alloc : Point
@@ -120,7 +120,7 @@ fn main() -> Int {
     %v16 = load %target : Point
     %v17 = borrow_mut %target : &Point
     gencall env genEnv$copyInto(Point) copyInto(Point), %v17, %pair
-    %v19 = load %local1@Point.x : Int
+    %v19 = load %local1@Point.x : I32
     %v22 = cmp_ne %v19, 3 : Bool
     je %v22, b1, b2
 
@@ -132,7 +132,7 @@ fn main() -> Int {
 
   b3:
     %quad = alloc : Quad
-    %v32 = alloc : [Int *4]
+    %v32 = alloc : [I32 *4]
     aggregate %local4[0] = 10, %local4[1] = 20, %local4[2] = 30, %local4[3] = 40
     %v38 = alloc : Point
     aggregate %local5@Point.x = 1, %local5@Point.y = 2
@@ -142,7 +142,7 @@ fn main() -> Int {
     aggregate %local7[0] = %v38, %local7[1] = %v42
     aggregate %local3@Quad.values = %v32, %local3@Quad.places = %v46, %local3@Quad.tag = 5
     %v52 = alloc : Quad
-    %v57 = alloc : [Int *4]
+    %v57 = alloc : [I32 *4]
     aggregate %local9[0] = 0, %local9[1] = 0, %local9[2] = 0, %local9[3] = 0
     %v63 = alloc : Point
     aggregate %local10@Point.x = 0, %local10@Point.y = 0
@@ -155,25 +155,25 @@ fn main() -> Int {
     %v78 = borrow_mut %copied : &Quad
     gencall env genEnv$copyInto(Quad) copyInto(Quad), %v78, %quad
     %v80 = load %copied : Quad
-    %v81 = load %copied@Quad.values : [Int *4]
-    %v83 = borrow %copied@Quad.values : '[Int *4]
-    %v84 = alloc : Flat(Int)
-    %v85 = addressof [%v83] : %Int
+    %v81 = load %copied@Quad.values : [I32 *4]
+    %v83 = borrow %copied@Quad.values : '[I32 *4]
+    %v84 = alloc : Flat(I32)
+    %v85 = addressof [%v83] : %I32
     init %local13@Flat.items, %v85
     %v87 = countof 4 : Size
     init %local13@Flat.length, %v87
-    %v90 = borrow %local13 : 'Flat(Int)
+    %v90 = borrow %local13 : 'Flat(I32)
     %v91 = load [%v90]@Flat.length : Size
     %v92 = cast 0 : USize
     %v93 = cast %v91 : USize
     %v94 = cmp_ge %v92, %v93 : Bool
     call checkCondition, %v94
-    %v96 = load [%v90]@Flat.items : %Int
-    %v97 = strideof Int : Long
-    %v98 = mul 0, %v97 : Long
-    %v99 = add %v96, %v98 : %Int
-    %v100 = borrow [%v99] : 'Int
-    %v101 = load [%v100] : Int
+    %v96 = load [%v90]@Flat.items : %I32
+    %v97 = strideof I32 : I64
+    %v98 = mul 0, %v97 : I64
+    %v99 = add %v96, %v98 : %I32
+    %v100 = borrow [%v99] : 'I32
+    %v101 = load [%v100] : I32
     %v104 = cmp_ne %v101, 10 : Bool
     je %v104, b4, b5
 
@@ -185,25 +185,25 @@ fn main() -> Int {
 
   b6:
     %v109 = load %copied : Quad
-    %v110 = load %copied@Quad.values : [Int *4]
-    %v112 = borrow %copied@Quad.values : '[Int *4]
-    %v113 = alloc : Flat(Int)
-    %v114 = addressof [%v112] : %Int
+    %v110 = load %copied@Quad.values : [I32 *4]
+    %v112 = borrow %copied@Quad.values : '[I32 *4]
+    %v113 = alloc : Flat(I32)
+    %v114 = addressof [%v112] : %I32
     init %local14@Flat.items, %v114
     %v116 = countof 4 : Size
     init %local14@Flat.length, %v116
-    %v119 = borrow %local14 : 'Flat(Int)
+    %v119 = borrow %local14 : 'Flat(I32)
     %v120 = load [%v119]@Flat.length : Size
     %v121 = cast 3 : USize
     %v122 = cast %v120 : USize
     %v123 = cmp_ge %v121, %v122 : Bool
     call checkCondition, %v123
-    %v125 = load [%v119]@Flat.items : %Int
-    %v126 = strideof Int : Long
-    %v127 = mul 3, %v126 : Long
-    %v128 = add %v125, %v127 : %Int
-    %v129 = borrow [%v128] : 'Int
-    %v130 = load [%v129] : Int
+    %v125 = load [%v119]@Flat.items : %I32
+    %v126 = strideof I32 : I64
+    %v127 = mul 3, %v126 : I64
+    %v128 = add %v125, %v127 : %I32
+    %v129 = borrow [%v128] : 'I32
+    %v130 = load [%v129] : I32
     %v133 = cmp_ne %v130, 40 : Bool
     je %v133, b7, b8
 
@@ -229,12 +229,12 @@ fn main() -> Int {
     %v152 = cmp_ge %v150, %v151 : Bool
     call checkCondition, %v152
     %v154 = load [%v148]@Flat.items : %Point
-    %v155 = strideof Point : Long
-    %v156 = mul 1, %v155 : Long
+    %v155 = strideof Point : I64
+    %v156 = mul 1, %v155 : I64
     %v157 = add %v154, %v156 : %Point
     %v158 = borrow [%v157] : 'Point
     %v159 = load [%v158] : Point
-    %v160 = load [%v158]@Point.x : Int
+    %v160 = load [%v158]@Point.x : I32
     %v163 = cmp_ne %v160, 3 : Bool
     je %v163, b10, b11
 
@@ -246,7 +246,7 @@ fn main() -> Int {
 
   b12:
     %v168 = load %copied : Quad
-    %v169 = load %copied@Quad.tag : Int
+    %v169 = load %copied@Quad.tag : I32
     %v172 = cmp_ne %v169, 5 : Bool
     je %v172, b13, b14
 
@@ -258,24 +258,24 @@ fn main() -> Int {
 
   b15:
     %v177 = load %copied : Quad
-    %v178 = load %copied@Quad.values : [Int *4]
-    %v180 = borrow_mut %copied@Quad.values : &[Int *4]
-    %v181 = alloc : Flat(Int)
-    %v182 = addressof [%v180] : %Int
+    %v178 = load %copied@Quad.values : [I32 *4]
+    %v180 = borrow_mut %copied@Quad.values : &[I32 *4]
+    %v181 = alloc : Flat(I32)
+    %v182 = addressof [%v180] : %I32
     init %local16@Flat.items, %v182
     %v184 = countof 4 : Size
     init %local16@Flat.length, %v184
-    %v187 = borrow_mut %local16 : &Flat(Int)
+    %v187 = borrow_mut %local16 : &Flat(I32)
     %v188 = load [%v187]@Flat.length : Size
     %v189 = cast 0 : USize
     %v190 = cast %v188 : USize
     %v191 = cmp_ge %v189, %v190 : Bool
     call checkCondition, %v191
-    %v193 = load [%v187]@Flat.items : %Int
-    %v194 = strideof Int : Long
-    %v195 = mul 0, %v194 : Long
-    %v196 = add %v193, %v195 : %Int
-    %v197 = borrow_mut [%v196] : &Int
+    %v193 = load [%v187]@Flat.items : %I32
+    %v194 = strideof I32 : I64
+    %v195 = mul 0, %v194 : I64
+    %v196 = add %v193, %v195 : %I32
+    %v197 = borrow_mut [%v196] : &I32
     assign [%v197], 99
     %v200 = load %copied : Quad
     %v201 = load %copied@Quad.places : [Point *2]
@@ -292,30 +292,30 @@ fn main() -> Int {
     %v214 = cmp_ge %v212, %v213 : Bool
     call checkCondition, %v214
     %v216 = load [%v210]@Flat.items : %Point
-    %v217 = strideof Point : Long
-    %v218 = mul 1, %v217 : Long
+    %v217 = strideof Point : I64
+    %v218 = mul 1, %v217 : I64
     %v219 = add %v216, %v218 : %Point
     %v220 = borrow_mut [%v219] : &Point
     assign [%v220]@Point.x, 99
-    %v223 = load %local3@Quad.values : [Int *4]
-    %v225 = borrow %local3@Quad.values : '[Int *4]
-    %v226 = alloc : Flat(Int)
-    %v227 = addressof [%v225] : %Int
+    %v223 = load %local3@Quad.values : [I32 *4]
+    %v225 = borrow %local3@Quad.values : '[I32 *4]
+    %v226 = alloc : Flat(I32)
+    %v227 = addressof [%v225] : %I32
     init %local18@Flat.items, %v227
     %v229 = countof 4 : Size
     init %local18@Flat.length, %v229
-    %v232 = borrow %local18 : 'Flat(Int)
+    %v232 = borrow %local18 : 'Flat(I32)
     %v233 = load [%v232]@Flat.length : Size
     %v234 = cast 0 : USize
     %v235 = cast %v233 : USize
     %v236 = cmp_ge %v234, %v235 : Bool
     call checkCondition, %v236
-    %v238 = load [%v232]@Flat.items : %Int
-    %v239 = strideof Int : Long
-    %v240 = mul 0, %v239 : Long
-    %v241 = add %v238, %v240 : %Int
-    %v242 = borrow [%v241] : 'Int
-    %v243 = load [%v242] : Int
+    %v238 = load [%v232]@Flat.items : %I32
+    %v239 = strideof I32 : I64
+    %v240 = mul 0, %v239 : I64
+    %v241 = add %v238, %v240 : %I32
+    %v242 = borrow [%v241] : 'I32
+    %v243 = load [%v242] : I32
     %v246 = cmp_ne %v243, 10 : Bool
     je %v246, b16, b17
 
@@ -340,12 +340,12 @@ fn main() -> Int {
     %v264 = cmp_ge %v262, %v263 : Bool
     call checkCondition, %v264
     %v266 = load [%v260]@Flat.items : %Point
-    %v267 = strideof Point : Long
-    %v268 = mul 1, %v267 : Long
+    %v267 = strideof Point : I64
+    %v268 = mul 1, %v267 : I64
     %v269 = add %v266, %v268 : %Point
     %v270 = borrow [%v269] : 'Point
     %v271 = load [%v270] : Point
-    %v272 = load [%v270]@Point.x : Int
+    %v272 = load [%v270]@Point.x : I32
     %v275 = cmp_ne %v272, 3 : Bool
     je %v275, b19, b20
 
@@ -359,7 +359,7 @@ fn main() -> Int {
     %v280 = alloc : Tracked
     aggregate %local20@Tracked.value = 10
     %tracked = call Copy(Tracked).copy, %v280 : Tracked
-    %v284 = load copyCalls : Int
+    %v284 = load copyCalls : I32
     %v287 = cmp_ne %v284, 1 : Bool
     je %v287, b22, b23
 
@@ -370,27 +370,27 @@ fn main() -> Int {
     jmp b24
 
   b24:
-    %v292 = load %number : Int
+    %v292 = load %number : I32
     %v293 = load %target : Point
-    %v294 = load %target@Point.x : Int
-    %v295 = add %v292, %v294 : Int
+    %v294 = load %target@Point.x : I32
+    %v295 = add %v292, %v294 : I32
     %v296 = load %target : Point
-    %v297 = load %target@Point.y : Int
-    %v298 = add %v295, %v297 : Int
-    %v299 = load %local21@Tracked.value : Int
-    %v300 = add %v298, %v299 : Int
-    %v301 = load copyCalls : Int
-    %v302 = add %v300, %v301 : Int
+    %v297 = load %target@Point.y : I32
+    %v298 = add %v295, %v297 : I32
+    %v299 = load %local21@Tracked.value : I32
+    %v300 = add %v298, %v299 : I32
+    %v301 = load copyCalls : I32
+    %v302 = add %v300, %v301 : I32
     ret %v302
 }
 
 fn Copy(Tracked).copy(%from: Tracked) -> Tracked {
   b0:
-    %v1 = load copyCalls : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load copyCalls : I32
+    %v4 = add %v1, 1 : I32
     assign copyCalls, %v4
     %v6 = alloc : Tracked
-    %v7 = load %from@Tracked.value : Int
+    %v7 = load %from@Tracked.value : I32
     aggregate %local1@Tracked.value = %v7
     ret %v6
 }

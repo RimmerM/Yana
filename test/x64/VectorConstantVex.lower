@@ -11,13 +11,13 @@
 # three inserts are gone.
 iota(): i32x4 {
     {
-        %z = imm 0: Int
+        %z = imm 0: I32
         %v = vsplat %z: i32x4
-        %o = imm 1: Int
+        %o = imm 1: I32
         %a = vwithlane %v, %o, 1: i32x4
-        %t = imm 2: Int
+        %t = imm 2: I32
         %b = vwithlane %a, %t, 2: i32x4
-        %r = imm 3: Int
+        %r = imm 3: I32
         %c = vwithlane %b, %r, 3: i32x4
         ret %c
     }
@@ -27,7 +27,7 @@ iota(): i32x4 {
 # so the entry is the broadcast and the name is still the whole of it.
 splat(): i32x4 {
     {
-        %n = imm 7: Int
+        %n = imm 7: I32
         %v = vsplat %n: i32x4
         ret %v
     }
@@ -37,7 +37,7 @@ splat(): i32x4 {
 # as a memory operand and the load is gone.
 folded(%a: i32x4): i32x4 {
     {
-        %n = imm 3: Int
+        %n = imm 3: I32
         %v = vsplat %n: i32x4
         %s = add %a, %v: i32x4
         ret %s
@@ -48,9 +48,9 @@ folded(%a: i32x4): i32x4 {
 # its bits are taken - the same two lines the scalar pool already ran.
 floats(): f32x4 {
     {
-        %h = imm 0.5f: Float
+        %h = imm 0.5f: F32
         %v = vsplat %h: f32x4
-        %q = imm 0.25f: Float
+        %q = imm 0.25f: F32
         %a = vwithlane %v, %q, 2: f32x4
         ret %a
     }
@@ -60,7 +60,7 @@ floats(): f32x4 {
 # pass can fall back on and a vector has none, so `vsplat 0` is three instructions and a load is one.
 zero(): i64x2 {
     {
-        %z = imm 0L: Long
+        %z = imm 0L: I64
         %v = vsplat %z: i64x2
         ret %v
     }
@@ -72,7 +72,7 @@ zero(): i64x2 {
 # lane and a mask alike.
 ones(): i32x4 {
     {
-        %n = imm -1: Int
+        %n = imm -1: I32
         %v = vsplat %n: i32x4
         ret %v
     }

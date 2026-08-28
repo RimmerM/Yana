@@ -60,7 +60,7 @@ fn main {
   %local1: Buffer droppable readonly live [1, 5)
   %local2: Handle droppable readonly live [2, 5)
   %local3: Session droppable readonly live [6, 9)
-  %local4: {left: Int, right: Int} readonly live [10, 12)
+  %local4: {left: I32, right: I32} readonly live [10, 12)
 }
 
 fn Reclaim(Buffer).reclaim {
@@ -73,12 +73,12 @@ fn Drop(Handle).drop {
   %value: Handle borrowed droppable readonly live [0, 2)
 }
 
-fn duplicate(Int) {
+fn duplicate(I32) {
   arg x readonly
-  %x: Int readonly live [0, 4)
-  %x: Int readonly live [2, 6)
-  %x: Int readonly live [3, 6)
-  %local3: {left: Int, right: Int} readonly live [4, 7)
+  %x: I32 readonly live [0, 4)
+  %x: I32 readonly live [2, 6)
+  %x: I32 readonly live [3, 6)
+  %local3: {left: I32, right: I32} readonly live [4, 7)
 }
 
 fn teardown$Session {

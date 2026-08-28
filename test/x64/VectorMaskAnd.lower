@@ -45,7 +45,7 @@ dropInt(%a: i32x4, %b: i32x4, %v: i32x4): i32x4 {
 keepFloat(%a: f32x4, %b: f32x4, %v: f32x4): f32x4 {
     {
         %m = cmp_lt %a, %b: m32x4
-        %f = imm 0.0f: Float
+        %f = imm 0.0f: F32
         %z = vsplat %f: f32x4
         %r = select %m, %v, %z: f32x4
         ret %r
@@ -55,7 +55,7 @@ keepFloat(%a: f32x4, %b: f32x4, %v: f32x4): f32x4 {
 dropFloat(%a: f64x2, %b: f64x2, %v: f64x2): f64x2 {
     {
         %m = cmp_lt %a, %b: m64x2
-        %d = imm 0.0: Double
+        %d = imm 0.0: F64
         %z = vsplat %d: f64x2
         %r = select %m, %z, %v: f64x2
         ret %r

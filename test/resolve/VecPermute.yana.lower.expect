@@ -14,7 +14,7 @@ rotated<complex>(%v: i32x8): i32x8 {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = vsplat 0: i32x8
     %v_2 = vwithlane %v_1, 1, 1: i32x8
@@ -27,16 +27,16 @@ main<complex>(): Int {
     %v_9 = vsplat 1: i32x8
     %v_10 = add %v_8, %v_9: i32x8
     %v_11 = call_complex reversed, %v_10: i32x8
-    %a = vlane %v_11, 0: Int
+    %a = vlane %v_11, 0: I32
     %v_12 = call_complex reversed, %v_10: i32x8
-    %b = vlane %v_12, 5: Int
+    %b = vlane %v_12, 5: I32
     %v_13 = call_complex rotated, %v_10: i32x8
-    %c = vlane %v_13, 0: Int
+    %c = vlane %v_13, 0: I32
     %v_14 = call_complex rotated, %v_10: i32x8
-    %d = vlane %v_14, 6: Int
-    %v_15 = add %a, %b: Int
-    %v_16 = add %v_15, %c: Int
-    %v_17 = add %v_16, %d: Int
+    %d = vlane %v_14, 6: I32
+    %v_15 = add %a, %b: I32
+    %v_16 = add %v_15, %c: I32
+    %v_17 = add %v_16, %d: I32
     ret %v_17
   }
 }

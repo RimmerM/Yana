@@ -92,23 +92,23 @@ mulHiWord(%a: i16x8, %b: i16x8): i16x8 {
 #     instructions that would have been `and` against a mask of zeros and `sub` of the result is not
 #     built. The dividend keeps its correction, since it can be negative.
 
-quadByConstant(%p: Ptr, %count: Int): i64x2 {
+quadByConstant(%p: Ptr, %count: I32): i64x2 {
     start {
-        %z = imm 0L: Long
+        %z = imm 0L: I64
         %acc0 = vsplat %z: i64x2
-        %m = imm 6148914691236517206L: Long
+        %m = imm 6148914691236517206L: I64
         %mul = vsplat %m: i64x2
         jmp head
     }
 
     head {
         %acc = phi [start, %acc0], [body, %acc2]: i64x2
-        %n = phi [start, %count], [body, %n2]: Int
+        %n = phi [start, %count], [body, %n2]: I32
         je (cmp_le %n, 0), body, end
     }
 
     body {
-        %n2 = sub %n, 1: Int
+        %n2 = sub %n, 1: I32
         %v = load %p, 16: i64x2
         %q = imulhi %v, %mul: i64x2
         %acc2 = add %acc, %q: i64x2
@@ -120,23 +120,23 @@ quadByConstant(%p: Ptr, %count: Int): i64x2 {
     }
 }
 
-wordByConstant(%p: Ptr, %count: Int): i32x4 {
+wordByConstant(%p: Ptr, %count: I32): i32x4 {
     start {
-        %z = imm 0: Int
+        %z = imm 0: I32
         %acc0 = vsplat %z: i32x4
-        %m = imm 1431655766: Int
+        %m = imm 1431655766: I32
         %mul = vsplat %m: i32x4
         jmp head
     }
 
     head {
         %acc = phi [start, %acc0], [body, %acc2]: i32x4
-        %n = phi [start, %count], [body, %n2]: Int
+        %n = phi [start, %count], [body, %n2]: I32
         je (cmp_le %n, 0), body, end
     }
 
     body {
-        %n2 = sub %n, 1: Int
+        %n2 = sub %n, 1: I32
         %v = load %p, 16: i32x4
         %q = imulhi %v, %mul: i32x4
         %acc2 = add %acc, %q: i32x4

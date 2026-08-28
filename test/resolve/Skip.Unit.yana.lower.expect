@@ -10,8 +10,8 @@ teardown$none<complex>(%value: Ptr) {
 
 Try(Maybe(a), a, ()).toOutcome(())<complex>(%v_0: Ptr, %value: Ptr) {
   b_1 {
-    %v_2 = loads %value, 1: Int
-    %v_3 = cmp_eq %v_2, 1: Int
+    %v_2 = loads %value, 1: I32
+    %v_3 = cmp_eq %v_2, 1: I32
     je %v_3, b_4, b_5
   }
 
@@ -35,11 +35,11 @@ Try(Maybe(a), a, ()).toOutcome(())<complex>(%v_0: Ptr, %value: Ptr) {
   }
 }
 
-statementTail<complex>(%n: Int): Int {
+statementTail<complex>(%n: I32): I32 {
   b_0 {
     %seen = alloca 4, 4: Ptr
     store %seen, 0, 4
-    %v_1 = cmp_neq %n, 0: Int
+    %v_1 = cmp_neq %n, 0: I32
     je %v_1, b_2, b_3
   }
 
@@ -51,10 +51,10 @@ statementTail<complex>(%n: Int): Int {
     %v_5 = alloca 8, 8: Ptr
     store %v_5, %seen, 8
     %v_6 = alloca 1, 1: Ptr
-    %v_7 = loads @log, 4: Int
-    %v_8 = add %v_7, 1: Int
+    %v_7 = loads @log, 4: I32
+    %v_8 = add %v_7, 1: I32
     store @log, %v_8, 4
-    %v_9 = cmp_igt %n, 0: Int
+    %v_9 = cmp_igt %n, 0: I32
     je %v_9, b_10, b_11
   }
 
@@ -64,10 +64,10 @@ statementTail<complex>(%n: Int): Int {
   }
 
   b_10 {
-    %v_13 = shl %n, 1: Int
+    %v_13 = shl %n, 1: I32
     call_complex ResolveTest.continuation$23, %v_5, %v_13
-    %v_14 = loads @log, 4: Int
-    %v_15 = add %v_14, 100: Int
+    %v_14 = loads @log, 4: I32
+    %v_15 = add %v_14, 100: I32
     store @log, %v_15, 4
     store %v_6, 1, 1
     jmp b_12
@@ -78,8 +78,8 @@ statementTail<complex>(%n: Int): Int {
     copy %v_16, %v_6, 1
     %v_17 = alloca 1, 1: Ptr
     call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_17, %v_16
-    %v_18 = loads %v_17, 1: Int
-    %v_19 = cmp_eq %v_18, 1: Int
+    %v_18 = loads %v_17, 1: I32
+    %v_19 = cmp_eq %v_18, 1: I32
     je %v_19, b_20, b_21
   }
 
@@ -97,19 +97,19 @@ statementTail<complex>(%n: Int): Int {
   }
 
   b_4 {
-    %v_23 = loads %seen, 4: Int
+    %v_23 = loads %seen, 4: I32
     ret %v_23
   }
 }
 
-returningNothing<complex>(%n: Int) {
+returningNothing<complex>(%n: I32) {
   b_0 {
     %v_1 = bitcast 0: Ptr
     %v_2 = alloca 1, 1: Ptr
-    %v_3 = loads @log, 4: Int
-    %v_4 = add %v_3, 1: Int
+    %v_3 = loads @log, 4: I32
+    %v_4 = add %v_3, 1: I32
     store @log, %v_4, 4
-    %v_5 = cmp_igt %n, 0: Int
+    %v_5 = cmp_igt %n, 0: I32
     je %v_5, b_6, b_7
   }
 
@@ -119,10 +119,10 @@ returningNothing<complex>(%n: Int) {
   }
 
   b_6 {
-    %v_9 = shl %n, 1: Int
+    %v_9 = shl %n, 1: I32
     call_complex ResolveTest.continuation$24, %v_1, %v_9
-    %v_10 = loads @log, 4: Int
-    %v_11 = add %v_10, 100: Int
+    %v_10 = loads @log, 4: I32
+    %v_11 = add %v_10, 100: I32
     store @log, %v_11, 4
     store %v_2, 1, 1
     jmp b_8
@@ -137,14 +137,14 @@ returningNothing<complex>(%n: Int) {
   }
 }
 
-leavingWithNothing<complex>(%n: Int) {
+leavingWithNothing<complex>(%n: I32) {
   b_0 {
     %v_1 = bitcast 0: Ptr
     %v_2 = alloca 1, 1: Ptr
-    %v_3 = loads @log, 4: Int
-    %v_4 = add %v_3, 1: Int
+    %v_3 = loads @log, 4: I32
+    %v_4 = add %v_3, 1: I32
     store @log, %v_4, 4
-    %v_5 = cmp_igt %n, 0: Int
+    %v_5 = cmp_igt %n, 0: I32
     je %v_5, b_6, b_7
   }
 
@@ -154,10 +154,10 @@ leavingWithNothing<complex>(%n: Int) {
   }
 
   b_6 {
-    %v_9 = shl %n, 1: Int
+    %v_9 = shl %n, 1: I32
     call_complex ResolveTest.continuation$25, %v_1, %v_9
-    %v_10 = loads @log, 4: Int
-    %v_11 = add %v_10, 100: Int
+    %v_10 = loads @log, 4: I32
+    %v_11 = add %v_10, 100: I32
     store @log, %v_11, 4
     store %v_2, 1, 1
     jmp b_8
@@ -172,7 +172,7 @@ leavingWithNothing<complex>(%n: Int) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     store @log, 0, 4
     store @sideEffect, 0, 4
@@ -182,21 +182,21 @@ main<complex>(): Int {
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = cmp_ilt %v_2, 5: Int
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
+    %v_5 = cmp_ilt %v_2, 5: I32
     je %v_5, b_6, b_7
   }
 
   b_6 {
-    %v_4 = add %v_2, 1: Int
-    %v_8 = sub 3, %v_4: Int
+    %v_4 = add %v_2, 1: I32
+    %v_8 = sub 3, %v_4: I32
     %v_9 = alloca 8, 8: Ptr
     store %v_9, %seen, 8
     %v_10 = alloca 1, 1: Ptr
-    %v_11 = loads @log, 4: Int
-    %v_12 = add %v_11, 1: Int
+    %v_11 = loads @log, 4: I32
+    %v_12 = add %v_11, 1: I32
     store @log, %v_12, 4
-    %v_13 = cmp_igt %v_8, 0: Int
+    %v_13 = cmp_igt %v_8, 0: I32
     je %v_13, b_14, b_15
   }
 
@@ -206,10 +206,10 @@ main<complex>(): Int {
   }
 
   b_14 {
-    %v_17 = shl %v_8, 1: Int
+    %v_17 = shl %v_8, 1: I32
     call_complex ResolveTest.continuation$22, %v_9, %v_17
-    %v_18 = loads @log, 4: Int
-    %v_19 = add %v_18, 100: Int
+    %v_18 = loads @log, 4: I32
+    %v_19 = add %v_18, 100: I32
     store @log, %v_19, 4
     store %v_10, 1, 1
     jmp b_16
@@ -220,8 +220,8 @@ main<complex>(): Int {
     copy %v_20, %v_10, 1
     %v_21 = alloca 1, 1: Ptr
     call_complex Try(Maybe(a), a, ()).toOutcome(()), %v_21, %v_20
-    %v_22 = loads %v_21, 1: Int
-    %v_23 = cmp_eq %v_22, 1: Int
+    %v_22 = loads %v_21, 1: I32
+    %v_23 = cmp_eq %v_22, 1: I32
     je %v_23, b_24, b_3
   }
 
@@ -234,59 +234,59 @@ main<complex>(): Int {
   }
 
   b_7 {
-    %v_25 = loads %seen, 4: Int
-    %b = call_complex statementTail, 5: Int
-    %c = call_complex statementTail, 18446744073709551615: Int
+    %v_25 = loads %seen, 4: I32
+    %b = call_complex statementTail, 5: I32
+    %c = call_complex statementTail, 18446744073709551615: I32
     call_complex returningNothing, 7
     call_complex returningNothing, 18446744073709551615
     call_complex leavingWithNothing, 2
     call_complex leavingWithNothing, 18446744073709551615
-    %v_26 = add %v_25, %b: Int
-    %v_27 = add %v_26, %c: Int
-    %v_28 = loads @sideEffect, 4: Int
-    %v_29 = add %v_27, %v_28: Int
-    %v_30 = loads @log, 4: Int
-    %v_31 = add %v_29, %v_30: Int
+    %v_26 = add %v_25, %b: I32
+    %v_27 = add %v_26, %c: I32
+    %v_28 = loads @sideEffect, 4: I32
+    %v_29 = add %v_27, %v_28: I32
+    %v_30 = loads @log, 4: I32
+    %v_31 = add %v_29, %v_30: I32
     ret %v_31
   }
 }
 
 @closure$ResolveTest.continuation$22 = [0, 0, 0, 0]
-ResolveTest.continuation$22<complex>(%env: Ptr, %found: Int) {
+ResolveTest.continuation$22<complex>(%env: Ptr, %found: I32) {
   b_0 {
     %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = add %v_2, %found: Int
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = add %v_2, %found: I32
     store %v_1, %v_3, 4
     ret 
   }
 }
 
 @closure$ResolveTest.continuation$23 = [0, 0, 0, 0]
-ResolveTest.continuation$23<complex>(%env: Ptr, %found: Int) {
+ResolveTest.continuation$23<complex>(%env: Ptr, %found: I32) {
   b_0 {
     %v_1 = load %env, 8: Ptr
-    %v_2 = loads %v_1, 4: Int
-    %v_3 = add %v_2, %found: Int
+    %v_2 = loads %v_1, 4: I32
+    %v_3 = add %v_2, %found: I32
     store %v_1, %v_3, 4
     ret 
   }
 }
 
-ResolveTest.continuation$24<complex>(%env: Ptr, %found: Int) {
+ResolveTest.continuation$24<complex>(%env: Ptr, %found: I32) {
   b_0 {
-    %v_1 = loads @sideEffect, 4: Int
-    %v_2 = add %v_1, %found: Int
+    %v_1 = loads @sideEffect, 4: I32
+    %v_2 = add %v_1, %found: I32
     store @sideEffect, %v_2, 4
     ret 
   }
 }
 
-ResolveTest.continuation$25<complex>(%env: Ptr, %found: Int) {
+ResolveTest.continuation$25<complex>(%env: Ptr, %found: I32) {
   b_0 {
-    %v_1 = loads @sideEffect, 4: Int
-    %v_2 = imul %found, 10: Int
-    %v_3 = add %v_1, %v_2: Int
+    %v_1 = loads @sideEffect, 4: I32
+    %v_2 = imul %found, 10: I32
+    %v_3 = add %v_1, %v_2: I32
     store @sideEffect, %v_3, 4
     ret 
   }

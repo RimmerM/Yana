@@ -1,22 +1,22 @@
 @image$base = []
 
-opaque<complex>(%x: Double): Double {
+opaque<complex>(%x: F64): F64 {
   b_0 {
     ret %x
   }
 }
 
-opaqueF<complex>(%x: Float): Float {
+opaqueF<complex>(%x: F32): F32 {
   b_0 {
     ret %x
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex opaque, 2.5: Double
-    %v_2 = neg %v_1: Double
-    %v_3 = cmp_eq %v_2, -2.5: Int
+    %v_1 = call_complex opaque, 2.5: F64
+    %v_2 = neg %v_1: F64
+    %v_3 = cmp_eq %v_2, -2.5: I32
     je %v_3, b_4, b_5
   }
 
@@ -25,63 +25,63 @@ main<complex>(): Int {
   }
 
   b_5 {
-    %v_6 = phi [b_0, 0], [b_4, 1]: Int
-    %v_7 = call_complex opaqueF, 1.5: Float
-    %v_8 = neg %v_7: Float
-    %v_9 = cmp_eq %v_8, -1.5: Int
+    %v_6 = phi [b_0, 0], [b_4, 1]: I32
+    %v_7 = call_complex opaqueF, 1.5: F32
+    %v_8 = neg %v_7: F32
+    %v_9 = cmp_eq %v_8, -1.5: I32
     je %v_9, b_10, b_11
   }
 
   b_10 {
-    %v_12 = add %v_6, 2: Int
+    %v_12 = add %v_6, 2: I32
     jmp b_11
   }
 
   b_11 {
-    %v_13 = phi [b_5, %v_6], [b_10, %v_12]: Int
-    %v_14 = call_complex opaque, 3.25: Double
-    %v_15 = neg %v_14: Double
-    %v_16 = neg %v_15: Double
-    %v_17 = cmp_eq %v_16, 3.25: Int
+    %v_13 = phi [b_5, %v_6], [b_10, %v_12]: I32
+    %v_14 = call_complex opaque, 3.25: F64
+    %v_15 = neg %v_14: F64
+    %v_16 = neg %v_15: F64
+    %v_17 = cmp_eq %v_16, 3.25: I32
     je %v_17, b_18, b_19
   }
 
   b_18 {
-    %v_20 = add %v_13, 4: Int
+    %v_20 = add %v_13, 4: I32
     jmp b_19
   }
 
   b_19 {
-    %v_21 = phi [b_11, %v_13], [b_18, %v_20]: Int
-    %v_22 = call_complex opaqueF, 7.5: Float
-    %v_23 = neg %v_22: Float
-    %v_24 = neg %v_23: Float
-    %v_25 = cmp_eq %v_24, 7.5: Int
+    %v_21 = phi [b_11, %v_13], [b_18, %v_20]: I32
+    %v_22 = call_complex opaqueF, 7.5: F32
+    %v_23 = neg %v_22: F32
+    %v_24 = neg %v_23: F32
+    %v_25 = cmp_eq %v_24, 7.5: I32
     je %v_25, b_26, b_27
   }
 
   b_26 {
-    %v_28 = add %v_21, 8: Int
+    %v_28 = add %v_21, 8: I32
     jmp b_27
   }
 
   b_27 {
-    %v_29 = phi [b_19, %v_21], [b_26, %v_28]: Int
-    %v_30 = call_complex opaque, 0: Double
-    %v_31 = neg %v_30: Double
-    %v_32 = div 1, %v_31: Double
-    %v_33 = cmp_lt %v_32, 0: Int
+    %v_29 = phi [b_19, %v_21], [b_26, %v_28]: I32
+    %v_30 = call_complex opaque, 0: F64
+    %v_31 = neg %v_30: F64
+    %v_32 = div 1, %v_31: F64
+    %v_33 = cmp_lt %v_32, 0: I32
     je %v_33, b_34, b_35
   }
 
   b_34 {
-    %v_36 = add %v_29, 16: Int
+    %v_36 = add %v_29, 16: I32
     jmp b_35
   }
 
   b_35 {
-    %v_37 = phi [b_27, %v_29], [b_34, %v_36]: Int
-    %v_38 = add %v_37, 32: Int
+    %v_37 = phi [b_27, %v_29], [b_34, %v_36]: I32
+    %v_38 = add %v_37, 32: I32
     ret %v_38
   }
 }

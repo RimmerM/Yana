@@ -8,9 +8,9 @@ let &heapFree: %%U8 = 0
 
 let &heapRegionNext: Size = 0
 
-let &live: Int = 0
+let &live: I32 = 0
 
-let &closed: Int = 0
+let &closed: I32 = 0
 
 fn checkFailed() -> () {
   b0:
@@ -33,10 +33,10 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn +=(Int)(%target: Int, %amount: Int) -> () {
+fn +=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
@@ -134,7 +134,7 @@ fn growArray(Handle)(%self: Array(Handle), %wanted: Size) -> () {
     ret
 }
 
-fn remove(Handle)(%self: Array(Handle), %index: Int) -> Maybe(Handle) {
+fn remove(Handle)(%self: Array(Handle), %index: I32) -> Maybe(Handle) {
   b0:
     %v2 = bitcast %index : U32
     %v3 = load %self : Array(Handle)
@@ -205,8 +205,8 @@ fn remove(Handle)(%self: Array(Handle), %index: Int) -> Maybe(Handle) {
   b6:
     %v61 = load %self : Array(Handle)
     %v62 = load %self@Array.length : @bits(30) U32
-    %v63 = cast %v62 : Int
-    %v65 = sub %v63, 1 : Int
+    %v63 = cast %v62 : I32
+    %v65 = sub %v63, 1 : I32
     %v66 = cast %v65 : U32
     %v68 = and %v66, 1073741823 : U32
     %v69 = cast %v68 : @bits(30) U32
@@ -289,10 +289,10 @@ fn slice(Handle)(%self: Flat(Handle), %from: Size, %to: Size) -> Flat(Handle) {
     ret %v39
 }
 
-fn -=(Int)(%target: Int, %amount: Int) -> () {
+fn -=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = sub %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = sub %v2, %amount : I32
     assign %target, %v3
     ret
 }
@@ -300,13 +300,13 @@ fn -=(Int)(%target: Int, %amount: Int) -> () {
 fn Reclaim(Array(a)).reclaim(Handle)(%value: Array(Handle)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -318,7 +318,7 @@ fn Reclaim(Array(a)).reclaim(Handle)(%value: Array(Handle)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(Handle)
     %v14 = load %value@Array.run@Run.items : %Handle
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof Handle : Size
     %v18 = mul %v16, %v17 : Size
@@ -328,8 +328,8 @@ fn Reclaim(Array(a)).reclaim(Handle)(%value: Array(Handle)) -> () {
     %doomed = alloc : Handle
     init %local3, %v21
     drop %local3 via Drop(Handle).drop
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -374,7 +374,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -425,7 +425,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -461,7 +461,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -547,14 +547,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -586,7 +586,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -644,7 +644,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1439,7 +1439,7 @@ fn resize(Handle)(%self: Run(Handle), %wanted: Size) -> Bool {
     %v28 = call byteSpan(Handle), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %Handle
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1529,19 +1529,19 @@ fn releaseRun(Handle)(%self: Run(Handle)) -> () {
     ret
 }
 
-fn openHandle(%id: Int) -> Handle {
+fn openHandle(%id: I32) -> Handle {
   b0:
-    %v1 = load live : Int
-    %v4 = borrow_mut live : &Int
-    call +=(Int), %v4, 1
+    %v1 = load live : I32
+    %v4 = borrow_mut live : &I32
+    call +=(I32), %v4, 1
     %v6 = alloc : Handle
     aggregate %local0@Handle.id = %id
     ret %v6
 }
 
-fn idsOf(%xs: Flat(Handle)) -> Int {
+fn idsOf(%xs: Flat(Handle)) -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %i = alloc : Size
     init %i, 0
@@ -1554,12 +1554,12 @@ fn idsOf(%xs: Flat(Handle)) -> Int {
     je %v10, b3, b2
 
   b2:
-    %v38 = load %total : Int
+    %v38 = load %total : I32
     ret %v38
 
   b3:
-    %v12 = load %total : Int
-    %v15 = mul %v12, 10 : Int
+    %v12 = load %total : I32
+    %v15 = mul %v12, 10 : I32
     %v16 = load %i : Size
     %v17 = borrow %xs : 'Flat(Handle)
     %v18 = load [%v17]@Flat.length : Size
@@ -1568,13 +1568,13 @@ fn idsOf(%xs: Flat(Handle)) -> Int {
     %v21 = cmp_ge %v19, %v20 : Bool
     call checkCondition, %v21
     %v23 = load [%v17]@Flat.items : %Handle
-    %v24 = strideof Handle : Long
-    %v25 = mul %v16, %v24 : Long
+    %v24 = strideof Handle : I64
+    %v25 = mul %v16, %v24 : I64
     %v26 = add %v23, %v25 : %Handle
     %v27 = borrow [%v26] : 'Handle
     %v28 = load [%v27] : Handle
-    %v29 = load [%v27]@Handle.id : Int
-    %v30 = add %v15, %v29 : Int
+    %v29 = load [%v27]@Handle.id : I32
+    %v30 = add %v15, %v29 : I32
     assign %total, %v30
     %v32 = load %i : Size
     %v35 = add %v32, 1 : Size
@@ -1582,7 +1582,7 @@ fn idsOf(%xs: Flat(Handle)) -> Int {
     jmp b1
 }
 
-fn container() -> Int {
+fn container() -> I32 {
   b0:
     %v1 = call openHandle, 1 : Handle
     %v3 = call openHandle, 2 : Handle
@@ -1607,14 +1607,14 @@ fn container() -> Int {
     %v30 = cmp_ge %v28, %v29 : Bool
     call checkCondition, %v30
     %v32 = load [%v26]@Array.run@Run.items : %Handle
-    %v33 = strideof Handle : Long
-    %v34 = mul 0, %v33 : Long
+    %v33 = strideof Handle : I64
+    %v34 = mul 0, %v33 : I64
     %v35 = add %v32, %v34 : %Handle
     %v36 = borrow_mut [%v35] : &Handle
     %v38 = call openHandle, 4 : Handle
     drop [%v36] via Drop(Handle).drop
     assign [%v36], %v38
-    %v40 = load live : Int
+    %v40 = load live : I32
     %v43 = cmp_ne %v40, 3 : Bool
     je %v43, b13, b2
 
@@ -1625,7 +1625,7 @@ fn container() -> Int {
     jmp b3
 
   b3:
-    %v48 = load closed : Int
+    %v48 = load closed : I32
     %v51 = cmp_ne %v48, 1 : Bool
     je %v51, b14, b5
 
@@ -1636,12 +1636,12 @@ fn container() -> Int {
     jmp b6
 
   b6:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
     %v59 = load %xs : Array(Handle)
     %v62 = borrow_mut %xs : &Array(Handle)
     %v63 = call remove(Handle), %v62, 1 : Maybe(Handle)
-    %v64 = load %local7.discriminant : Int
+    %v64 = load %local7.discriminant : I32
     %v66 = cmp_eq %v64, 1 : Bool
     je %v66, b8, b15
 
@@ -1653,13 +1653,13 @@ fn container() -> Int {
     %v69 = move %local7@Just : Handle
     %taken = alloc : Handle
     init %local8, %v69
-    %v72 = load %local8@Handle.id : Int
+    %v72 = load %local8@Handle.id : I32
     drop %local8 via Drop(Handle).drop
     assign %score, %v72
     jmp b9
 
   b9:
-    %v77 = load live : Int
+    %v77 = load live : I32
     %v80 = cmp_ne %v77, 2 : Bool
     je %v80, b16, b11
 
@@ -1678,7 +1678,7 @@ fn container() -> Int {
     %v90 = load [%v86]@Array.length : @bits(30) U32
     %v91 = cast %v90 : Size
     init %local9@Flat.length, %v91
-    %whole = call idsOf, %v87 : Int
+    %whole = call idsOf, %v87 : I32
     %v94 = load %xs : Array(Handle)
     %v97 = borrow %xs : 'Array(Handle)
     %v98 = alloc : Flat(Handle)
@@ -1689,13 +1689,13 @@ fn container() -> Int {
     init %local10@Flat.length, %v102
     %v106 = borrow %local10 : 'Flat(Handle)
     %v107 = call slice(Handle), %v106, 1, 2 : Flat(Handle)
-    %tail = call idsOf, %v107 : Int
+    %tail = call idsOf, %v107 : I32
     drop %xs via Reclaim(Array(a)).reclaim(Handle)
-    %v109 = load %score : Int
-    %v112 = mul %v109, 1000 : Int
-    %v115 = mul %whole, 10 : Int
-    %v116 = add %v112, %v115 : Int
-    %v117 = add %v116, %tail : Int
+    %v109 = load %score : I32
+    %v112 = mul %v109, 1000 : I32
+    %v115 = mul %whole, 10 : I32
+    %v116 = add %v112, %v115 : I32
+    %v117 = add %v116, %tail : I32
     ret %v117
 
   b13:
@@ -1716,9 +1716,9 @@ fn container() -> Int {
     jmp b10
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %answer = call container : Int
+    %answer = call container : I32
     %v3 = cmp_lt %answer, 0 : Bool
     je %v3, b1, b2
 
@@ -1729,7 +1729,7 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v7 = load live : Int
+    %v7 = load live : I32
     %v10 = cmp_ne %v7, 0 : Bool
     je %v10, b4, b5
 
@@ -1740,7 +1740,7 @@ fn main() -> Int {
     jmp b6
 
   b6:
-    %v15 = load closed : Int
+    %v15 = load closed : I32
     %v18 = cmp_ne %v15, 10 : Bool
     je %v18, b7, b8
 
@@ -1756,19 +1756,19 @@ fn main() -> Int {
 
 fn Drop(Handle).drop(%value: Handle) -> () {
   b0:
-    %v1 = load live : Int
-    %v4 = borrow_mut live : &Int
-    call -=(Int), %v4, 1
-    %v6 = load closed : Int
-    %v7 = load %value@Handle.id : Int
-    %v8 = add %v6, %v7 : Int
+    %v1 = load live : I32
+    %v4 = borrow_mut live : &I32
+    call -=(I32), %v4, 1
+    %v6 = load closed : I32
+    %v7 = load %value@Handle.id : I32
+    %v8 = add %v6, %v7 : I32
     assign closed, %v8
     ret
 }
 
 fn drop$Maybe(Handle)(%value: Maybe(Handle)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 

@@ -6,7 +6,7 @@ module asm "\09.set \22image$base\22, 0"
 @"image$base" = external constant [0 x i8], align 8
 @heapFree = global [8 x i8] zeroinitializer, align 8
 
-define fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %value) {
+define fastcc void @"Reclaim(Array(a)).reclaim(F32)"(ptr %value) {
   br label %1
 
 1:                                                ; preds = %0
@@ -26,7 +26,7 @@ define fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %value) {
   ret void
 }
 
-define fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %value) {
+define fastcc void @"Reclaim(Array(a)).reclaim(I32)"(ptr %value) {
   br label %1
 
 1:                                                ; preds = %0
@@ -316,7 +316,7 @@ define fastcc i32 @main() {
   %60 = getelementptr i8, ptr %2, i64 12
   store i32 3, ptr %60, align 1
   %61 = call fastcc i32 @sumInts(ptr %1, i64 3)
-  call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %2)
+  call fastcc void @"Reclaim(Array(a)).reclaim(I32)"(ptr %2)
   %62 = mul i32 %61, 10000
   %63 = add i32 %55, %62
   %64 = load ptr, ptr %xs, align 1
@@ -367,8 +367,8 @@ define fastcc i32 @main() {
   %95 = shufflevector <2 x float> %93, <2 x float> poison, <1 x i32> <i32 1>
   %96 = fadd <1 x float> %94, %95
   %97 = extractelement <1 x float> %96, i64 0
-  call fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %xs)
-  call fastcc void @"Reclaim(Array(a)).reclaim(Float)"(ptr %ys)
+  call fastcc void @"Reclaim(Array(a)).reclaim(F32)"(ptr %xs)
+  call fastcc void @"Reclaim(Array(a)).reclaim(F32)"(ptr %ys)
   %98 = fcmp oeq float %97, 3.000000e+01
   %99 = zext i1 %98 to i32
   %100 = select i1 %98, i32 30, i32 0
@@ -379,7 +379,7 @@ define fastcc i32 @main() {
   %105 = load i32, ptr %104, align 1
   %106 = zext i32 %105 to i64
   %107 = call fastcc i32 @indexOf(ptr %103, i64 %106, i32 8)
-  call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %ints)
+  call fastcc void @"Reclaim(Array(a)).reclaim(I32)"(ptr %ints)
   %108 = mul i32 %107, 10
   %109 = add i32 %102, %108
   %110 = load ptr, ptr %4, align 1
@@ -387,7 +387,7 @@ define fastcc i32 @main() {
   %112 = load i32, ptr %111, align 1
   %113 = zext i32 %112 to i64
   %114 = call fastcc i32 @sumInts(ptr %110, i64 %113)
-  call fastcc void @"Reclaim(Array(a)).reclaim(Int)"(ptr %4)
+  call fastcc void @"Reclaim(Array(a)).reclaim(I32)"(ptr %4)
   %115 = add i32 %109, %114
   ret i32 %115
 

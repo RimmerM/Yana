@@ -1,8 +1,8 @@
 @image$base = []
 
-late<complex>(%value: Int, %n: Int): Int {
+late<complex>(%value: I32, %n: I32): I32 {
   b_0 {
-    %v_1 = cmp_igt %value, 0: Int
+    %v_1 = cmp_igt %value, 0: I32
     je %v_1, b_2, b_3
   }
 
@@ -22,10 +22,10 @@ late<complex>(%value: Int, %n: Int): Int {
 
   b_5 {
     %v_8 = phi [b_2, %v_6], [b_3, %v_4]: Ptr
-    %v_9 = load %v_8, 4: Int
+    %v_9 = load %v_8, 4: I32
     %v_10 = add %v_8, 4: Ptr
-    %v_11 = load %v_10, 4: Int
-    %v_12 = cmp_igt %n, 0: Int
+    %v_11 = load %v_10, 4: I32
+    %v_12 = cmp_igt %n, 0: I32
     je %v_12, b_13, b_14
   }
 
@@ -34,18 +34,18 @@ late<complex>(%value: Int, %n: Int): Int {
   }
 
   b_13 {
-    %v_15 = cmp_eq %v_9, 1: Int
-    %v_16 = select %v_15, %v_11, 0: Int
+    %v_15 = cmp_eq %v_9, 1: I32
+    %v_16 = select %v_15, %v_11, 0: I32
     ret %v_16
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex late, 7, 1: Int
-    %v_2 = add %v_1, 324: Int
-    %v_3 = call_complex late, 7, 18446744073709551615: Int
-    %v_4 = add %v_2, %v_3: Int
+    %v_1 = call_complex late, 7, 1: I32
+    %v_2 = add %v_1, 324: I32
+    %v_3 = call_complex late, 7, 18446744073709551615: I32
+    %v_4 = add %v_2, %v_3: I32
     ret %v_4
   }
 }

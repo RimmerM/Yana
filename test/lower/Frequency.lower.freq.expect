@@ -1,5 +1,5 @@
 
-neutral<complex>(%c: Int): Int {
+neutral<complex>(%c: I32): I32 {
   start {
     # frequency: 1.00
     je %c, left, right
@@ -7,24 +7,24 @@ neutral<complex>(%c: Int): Int {
 
   left {
     # frequency: 0.50
-    %a = cast 1: Int
+    %a = cast 1: I32
     jmp end
   }
 
   right {
     # frequency: 0.50
-    %b = cast 2: Int
+    %b = cast 2: I32
     jmp end
   }
 
   end {
     # frequency: 1.00
-    %v_0 = phi [left, %a], [right, %b]: Int
+    %v_0 = phi [left, %a], [right, %b]: I32
     ret %v_0
   }
 }
 
-hinted<complex>(%c: Int): Int {
+hinted<complex>(%c: I32): I32 {
   start {
     # frequency: 1.00
     je %c, [left, 99], [right, 1]
@@ -32,40 +32,40 @@ hinted<complex>(%c: Int): Int {
 
   left {
     # frequency: 0.98
-    %a = cast 1: Int
+    %a = cast 1: I32
     jmp end
   }
 
   right {
     # frequency: 0.00
-    %b = cast 2: Int
+    %b = cast 2: I32
     jmp end
   }
 
   end {
     # frequency: 0.99
-    %v_0 = phi [left, %a], [right, %b]: Int
+    %v_0 = phi [left, %a], [right, %b]: I32
     ret %v_0
   }
 }
 
-loop<complex>(%n: Int): Int {
+loop<complex>(%n: I32): I32 {
   start {
     # frequency: 1.00
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
     # frequency: 8.00
-    %i = phi [start, %z], [body, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [body, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, end, body
   }
 
   body {
     # frequency: 7.00
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     jmp head
   }
 
@@ -75,36 +75,36 @@ loop<complex>(%n: Int): Int {
   }
 }
 
-nested<complex>(%n: Int, %m: Int): Int {
+nested<complex>(%n: I32, %m: I32): I32 {
   start {
     # frequency: 1.00
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp outer
   }
 
   outer {
     # frequency: 8.00
-    %i = phi [start, %z], [outerEnd, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [outerEnd, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, done, innerHead
   }
 
   innerHead {
     # frequency: 56.00
-    %j = phi [outer, %z], [innerBody, %j2]: Int
-    %v_1 = cmp_ige %j, %m: Int
+    %j = phi [outer, %z], [innerBody, %j2]: I32
+    %v_1 = cmp_ige %j, %m: I32
     je %v_1, outerEnd, innerBody
   }
 
   innerBody {
     # frequency: 49.00
-    %j2 = add %j, 1: Int
+    %j2 = add %j, 1: I32
     jmp innerHead
   }
 
   outerEnd {
     # frequency: 7.00
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     jmp outer
   }
 
@@ -114,41 +114,41 @@ nested<complex>(%n: Int, %m: Int): Int {
   }
 }
 
-coldPathInLoop<complex>(%n: Int, %c: Int): Int {
+coldPathInLoop<complex>(%n: I32, %c: I32): I32 {
   start {
     # frequency: 1.00
-    %z = cast 0: Int
+    %z = cast 0: I32
     jmp head
   }
 
   head {
     # frequency: 8.00
-    %i = phi [start, %z], [next, %i2]: Int
-    %v_0 = cmp_ige %i, %n: Int
+    %i = phi [start, %z], [next, %i2]: I32
+    %v_0 = cmp_ige %i, %n: I32
     je %v_0, done, check
   }
 
   check {
     # frequency: 7.00
-    %v_1 = cmp_eq %c, 0: Int
+    %v_1 = cmp_eq %c, 0: I32
     je %v_1, [fail, 1], [next, 1000]
   }
 
   fail {
     # frequency: 0.00
-    %e = cast 0: Int
+    %e = cast 0: I32
     jmp done
   }
 
   next {
     # frequency: 6.99
-    %i2 = add %i, 1: Int
+    %i2 = add %i, 1: I32
     jmp head
   }
 
   done {
     # frequency: 1.00
-    %v_2 = phi [head, %i], [fail, %e]: Int
+    %v_2 = phi [head, %i], [fail, %e]: I32
     ret %v_2
   }
 }

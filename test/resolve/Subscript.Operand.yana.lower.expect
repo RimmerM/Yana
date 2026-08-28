@@ -1,9 +1,9 @@
 @image$base = []
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long, %to: Long) {
+slice(I32)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: I64, %from: I64, %to: I64) {
   b_1 {
-    %v_2 = cmp_ilt %from, 0: Int
+    %v_2 = cmp_ilt %from, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -16,8 +16,8 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
   }
 
   b_5 {
-    %v_6 = phi [b_3, 0], [b_4, %from]: Long
-    %v_7 = cmp_igt %v_6, %self$length: Int
+    %v_6 = phi [b_3, 0], [b_4, %from]: I64
+    %v_7 = cmp_igt %v_6, %self$length: I32
     je %v_7, b_8, b_9
   }
 
@@ -30,8 +30,8 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
   }
 
   b_10 {
-    %v_11 = phi [b_8, %self$length], [b_9, %v_6]: Long
-    %v_12 = cmp_ilt %to, %v_11: Int
+    %v_11 = phi [b_8, %self$length], [b_9, %v_6]: I64
+    %v_12 = cmp_ilt %to, %v_11: I32
     je %v_12, b_13, b_14
   }
 
@@ -44,8 +44,8 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
   }
 
   b_15 {
-    %v_16 = phi [b_13, %v_11], [b_14, %to]: Long
-    %v_17 = cmp_igt %v_16, %self$length: Int
+    %v_16 = phi [b_13, %v_11], [b_14, %to]: I64
+    %v_17 = cmp_igt %v_16, %self$length: I32
     je %v_17, b_18, b_19
   }
 
@@ -58,10 +58,10 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
   }
 
   b_20 {
-    %v_21 = phi [b_18, %self$length], [b_19, %v_16]: Long
-    %v_22 = shl %v_11, 2: Long
+    %v_21 = phi [b_18, %self$length], [b_19, %v_16]: I64
+    %v_22 = shl %v_11, 2: I64
     %v_23 = add %self$items, %v_22: Ptr
-    %v_24 = sub %v_21, %v_11: Long
+    %v_24 = sub %v_21, %v_11: I64
     store %v_0, %v_23, 8
     %v_25 = add %v_0, 8: Ptr
     store %v_25, %v_24, 8
@@ -69,12 +69,12 @@ slice(Int)<complex>(%v_0: Ptr, %self$items: Ptr, %self$length: Long, %from: Long
   }
 }
 
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+Reclaim(Array(a)).reclaim(I32)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
+    %v_2 = load %v_1, 4: I32
+    %v_3 = shr %v_2, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
@@ -91,8 +91,8 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -106,9 +106,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -119,16 +119,16 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+total<complex>(%xs$items: Ptr, %xs$length: I64): I32 {
   b_0 {
     jmp b_1
   }
 
   b_1 {
-    %v_2 = phi [b_0, 0], [b_3, %v_4]: Int
-    %v_5 = phi [b_0, 0], [b_3, %v_6]: Int
-    %v_7 = sext %v_5: Long
-    %v_8 = cmp_ilt %v_7, %xs$length: Int
+    %v_2 = phi [b_0, 0], [b_3, %v_4]: I32
+    %v_5 = phi [b_0, 0], [b_3, %v_6]: I32
+    %v_7 = sext %v_5: I64
+    %v_8 = cmp_ilt %v_7, %xs$length: I32
     je %v_8, b_9, b_10
   }
 
@@ -137,33 +137,33 @@ total<complex>(%xs$items: Ptr, %xs$length: Long): Int {
   }
 
   b_9 {
-    %v_11 = sext %v_5: Long
-    %v_12 = cmp_ge %v_11, %xs$length: Int
+    %v_11 = sext %v_5: I64
+    %v_12 = cmp_ge %v_11, %xs$length: I32
     je %v_12, b_13, b_3
   }
 
   b_3 {
-    %v_14 = shl %v_11, 2: Long
+    %v_14 = shl %v_11, 2: I64
     %v_15 = add %xs$items, %v_14: Ptr
-    %v_16 = loads %v_15, 4: Int
-    %v_4 = add %v_2, %v_16: Int
-    %v_6 = add %v_5, 1: Int
+    %v_16 = loads %v_15, 4: I32
+    %v_4 = add %v_2, %v_16: I32
+    %v_6 = add %v_5, 1: I32
     jmp b_1
   }
 
   b_13 {
-    %v_17 = syscall 60, 134: Long
+    %v_17 = syscall 60, 134: I64
     unreachable 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 20, 4: Ptr
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
+    %v_4 = load %v_3, 4: I32
     store %v_3, 5, 4
     store %v_2, 1, 4
     %v_5 = add %v_2, 4: Ptr
@@ -180,7 +180,7 @@ main<complex>(): Int {
     %v_11 = alloca 12, 4: Ptr
     store %v_10, %v_11, 8
     %v_12 = add %v_10, 8: Ptr
-    %v_13 = load %v_12, 4: Int
+    %v_13 = load %v_12, 4: I32
     store %v_12, 3, 4
     store %v_11, 2, 4
     %v_14 = add %v_11, 4: Ptr
@@ -189,66 +189,66 @@ main<complex>(): Int {
     store %v_15, 1, 4
     %v_16 = add %v_10, 12: Ptr
     store %v_16, 3, 4
-    %v_17 = loads %v_2, 4: Int
+    %v_17 = loads %v_2, 4: I32
     %v_18 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_18, %v_2, 5, 1, 3
+    call_complex slice(I32), %v_18, %v_2, 5, 1, 3
     %xs$items = load %v_18, 8: Ptr
     %v_19 = add %v_18, 8: Ptr
-    %xs$length = loads %v_19, 8: Long
-    %v_20 = call_complex total, %xs$items, %xs$length: Int
-    %v_21 = add %v_17, %v_20: Int
-    %v_22 = cmp_neq %v_21, 6: Int
-    %v_23 = imm 5: Long
+    %xs$length = loads %v_19, 8: I64
+    %v_20 = call_complex total, %xs$items, %xs$length: I32
+    %v_21 = add %v_17, %v_20: I32
+    %v_22 = cmp_neq %v_21, 6: I32
+    %v_23 = imm 5: I64
     je %v_22, b_24, b_25
   }
 
   b_25 {
     %v_26 = add %v_2, 8: Ptr
-    %v_27 = loads %v_26, 4: Int
-    %v_28 = add %v_27, %v_27: Int
-    %v_29 = cmp_neq %v_28, 6: Int
+    %v_27 = loads %v_26, 4: I32
+    %v_28 = add %v_27, %v_27: I32
+    %v_29 = cmp_neq %v_28, 6: I32
     je %v_29, b_24, b_30
   }
 
   b_30 {
     %v_31 = load %v_10, 8: Ptr
     %v_32 = add %v_10, 12: Ptr
-    %v_33 = load %v_32, 4: Int
-    %v_34 = cast %v_33: Long
-    %v_35 = cmp_eq %v_34, 0: Int
+    %v_33 = load %v_32, 4: I32
+    %v_34 = cast %v_33: I64
+    %v_35 = cmp_eq %v_34, 0: I32
     je %v_35, b_36, b_37
   }
 
   b_37 {
-    %v_38 = loads %v_31, 4: Int
-    %v_39 = sext %v_38: Long
-    %v_40 = cmp_ge %v_39, 5: Int
+    %v_38 = loads %v_31, 4: I32
+    %v_39 = sext %v_38: I64
+    %v_40 = cmp_ge %v_39, 5: I32
     je %v_40, b_36, b_41
   }
 
   b_41 {
-    %v_42 = shl %v_39, 2: Long
+    %v_42 = shl %v_39, 2: I64
     %v_43 = add %v_2, %v_42: Ptr
-    %v_44 = loads %v_43, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_10
-    %v_45 = cmp_neq %v_44, 3: Int
+    %v_44 = loads %v_43, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_10
+    %v_45 = cmp_neq %v_44, 3: I32
     je %v_45, b_46, b_47
   }
 
   b_47 {
-    %v_48 = call_complex total, %v_2, %v_23: Int
-    %v_49 = cmp_neq %v_48, 15: Int
+    %v_48 = call_complex total, %v_2, %v_23: I32
+    %v_49 = cmp_neq %v_48, 15: I32
     je %v_49, b_46, b_50
   }
 
   b_50 {
     %v_51 = alloca 16, 8: Ptr
-    call_complex slice(Int), %v_51, %v_2, %v_23, 0, 5
+    call_complex slice(I32), %v_51, %v_2, %v_23, 0, 5
     %xs$items = load %v_51, 8: Ptr
     %v_52 = add %v_51, 8: Ptr
-    %xs$length = loads %v_52, 8: Long
-    %v_53 = call_complex total, %xs$items, %xs$length: Int
-    %v_54 = cmp_neq %v_53, 15: Int
+    %xs$length = loads %v_52, 8: I64
+    %v_53 = call_complex total, %xs$items, %xs$length: I32
+    %v_54 = cmp_neq %v_53, 15: I32
     je %v_54, b_46, b_55
   }
 
@@ -256,28 +256,28 @@ main<complex>(): Int {
     store %v_2, 10, 4
     %v_56 = load %v_1, 8: Ptr
     %v_57 = add %v_1, 12: Ptr
-    %v_58 = load %v_57, 4: Int
-    %v_59 = cast %v_58: Long
-    %v_60 = call_complex total, %v_56, %v_59: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_58 = load %v_57, 4: I32
+    %v_59 = cast %v_58: I64
+    %v_60 = call_complex total, %v_56, %v_59: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_1
     ret %v_60
   }
 
   b_46 {
-    %v_61 = phi [b_50, 18446744073709551611], [b_47, 18446744073709551612], [b_41, 18446744073709551613]: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    %v_61 = phi [b_50, 18446744073709551611], [b_47, 18446744073709551612], [b_41, 18446744073709551613]: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_1
     ret %v_61
   }
 
   b_36 {
-    %v_62 = syscall 60, 134: Long
+    %v_62 = syscall 60, 134: I64
     unreachable 
   }
 
   b_24 {
-    %v_63 = phi [b_25, 18446744073709551614], [b_0, 18446744073709551615]: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_10
+    %v_63 = phi [b_25, 18446744073709551614], [b_0, 18446744073709551615]: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_1
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_10
     ret %v_63
   }
 }

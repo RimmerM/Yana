@@ -21,15 +21,15 @@
 # that answers is CF rather than ZF.
 
 # The whole rewrite. One predecessor, and it branches here on this mask being nonempty.
-search(%a: i8x16, %b: i8x16): Int {
+search(%a: i8x16, %b: i8x16): I32 {
     start {
         %m = cmp_eq %a, %b: m8x16
-        %any = vreduce_or %m: Int
+        %any = vreduce_or %m: I32
         je %any, hit, miss
     }
 
     hit {
-        %f = vreduce_first %m: Int
+        %f = vreduce_first %m: I32
         ret %f
     }
 
@@ -42,11 +42,11 @@ search(%a: i8x16, %b: i8x16): Int {
 # turns into the comparison inverted rather than into a second instruction. So the scan's block is
 # the branch's `otherwise` arm here, and the condition the branch carries is the one that means
 # *empty*: `bsf` sets ZF for a zero operand, so this is `je` where the one above is `jne`.
-searchInverted(%a: i8x16, %b: i8x16): Int {
+searchInverted(%a: i8x16, %b: i8x16): I32 {
     start {
         %m = cmp_eq %a, %b: m8x16
-        %any = vreduce_or %m: Int
-        %none = xor %any, 1: Int
+        %any = vreduce_or %m: I32
+        %none = xor %any, 1: I32
         je %none, miss, hit
     }
 
@@ -55,17 +55,17 @@ searchInverted(%a: i8x16, %b: i8x16): Int {
     }
 
     hit {
-        %f = vreduce_first %m: Int
+        %f = vreduce_first %m: I32
         ret %f
     }
 }
 
 # A scan whose block has two ways into it, which is the case the proof does not reach: the second
 # predecessor says nothing about the mask, so the sentinel stays and so does the test.
-guarded(%a: i8x16, %b: i8x16, %n: Int): Int {
+guarded(%a: i8x16, %b: i8x16, %n: I32): I32 {
     start {
         %m = cmp_eq %a, %b: m8x16
-        %any = vreduce_or %m: Int
+        %any = vreduce_or %m: I32
         je %any, hit, other
     }
 
@@ -74,7 +74,7 @@ guarded(%a: i8x16, %b: i8x16, %n: Int): Int {
     }
 
     hit {
-        %f = vreduce_first %m: Int
+        %f = vreduce_first %m: I32
         ret %f
     }
 
@@ -91,22 +91,22 @@ guarded(%a: i8x16, %b: i8x16, %n: Int): Int {
 # The sentinel goes with it, because here both proofs hold: every edge into `hit` is an arm branching
 # on its own alternative being nonzero. The two `test`s stay - a scan cannot stand in two blocks at
 # once, so the fusion above it is the one half a join does not get.
-joined(%a: i8x16, %b: i8x16, %c: i8x16): Int {
+joined(%a: i8x16, %b: i8x16, %c: i8x16): I32 {
     start {
         %m = cmp_eq %a, %b: m8x16
-        %any = vreduce_or %m: Int
+        %any = vreduce_or %m: I32
         je %any, hit, tail
     }
 
     tail {
         %t = cmp_eq %a, %c: m8x16
-        %anyTail = vreduce_or %t: Int
+        %anyTail = vreduce_or %t: I32
         je %anyTail, hit, miss
     }
 
     hit {
         %j = phi [start, %m], [tail, %t]: m8x16
-        %f = vreduce_first %j: Int
+        %f = vreduce_first %j: I32
         ret %f
     }
 

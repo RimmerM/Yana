@@ -1,12 +1,12 @@
 @image$base = []
 mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
 
-Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+Reclaim(Array(a)).reclaim(I32)<complex>(%value: Ptr) {
   b_0 {
     %v_1 = add %value, 8: Ptr
-    %v_2 = load %v_1, 4: Int
-    %v_3 = shr %v_2, 30: Int
-    %v_4 = cmp_eq %v_3, 1: Int
+    %v_2 = load %v_1, 4: I32
+    %v_3 = shr %v_2, 30: I32
+    %v_4 = cmp_eq %v_3, 1: I32
     je %v_4, b_5, b_6
   }
 
@@ -23,8 +23,8 @@ Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -38,9 +38,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -51,13 +51,13 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 16, 8: Ptr
     %v_2 = alloca 12, 4: Ptr
     store %v_1, %v_2, 8
     %v_3 = add %v_1, 8: Ptr
-    %v_4 = load %v_3, 4: Int
+    %v_4 = load %v_3, 4: I32
     store %v_3, 3, 4
     store %v_2, 10, 4
     %v_5 = add %v_2, 4: Ptr
@@ -71,7 +71,7 @@ main<complex>(): Int {
     %v_9 = add %v_8, 4: Ptr
     store %v_9, 2, 4
     %v_10 = alloca 4, 8: Ptr
-    %v_11 = load %v_10, 4: Int
+    %v_11 = load %v_10, 4: I32
     store %v_10, 2, 4
     %v_12 = add %v_8, 8: Ptr
     store %v_12, 3, 4
@@ -84,60 +84,60 @@ main<complex>(): Int {
     %v_15 = alloca 12, 4: Ptr
     store %v_14, %v_15, 8
     %v_16 = add %v_14, 8: Ptr
-    %v_17 = load %v_16, 4: Int
+    %v_17 = load %v_16, 4: I32
     store %v_16, 3, 4
     setpattern %v_15, 12, 0
     %v_18 = add %v_14, 12: Ptr
     store %v_18, 3, 4
-    %v_19 = loads %v_2, 4: Int
-    %v_20 = loads %v_6, 4: Int
-    %v_21 = add %v_19, %v_20: Int
-    %v_22 = loads %v_5, 4: Int
-    %v_23 = add %v_19, %v_22: Int
-    %v_24 = add %v_21, %v_23: Int
-    %v_25 = loads %v_8, 4: Int
-    %v_26 = loads %v_13, 4: Int
-    %v_27 = add %v_25, %v_26: Int
-    %v_28 = imm 5: Int
+    %v_19 = loads %v_2, 4: I32
+    %v_20 = loads %v_6, 4: I32
+    %v_21 = add %v_19, %v_20: I32
+    %v_22 = loads %v_5, 4: I32
+    %v_23 = add %v_19, %v_22: I32
+    %v_24 = add %v_21, %v_23: I32
+    %v_25 = loads %v_8, 4: I32
+    %v_26 = loads %v_13, 4: I32
+    %v_27 = add %v_25, %v_26: I32
+    %v_28 = imm 5: I32
     jmp b_29
   }
 
   b_30 {
-    %v_31 = cmp_ilt %v_32, 2: Int
+    %v_31 = cmp_ilt %v_32, 2: I32
     je %v_31, b_29, b_33
   }
 
   b_33 {
-    %v_34 = add %v_24, %v_27: Int
+    %v_34 = add %v_24, %v_27: I32
     %v_35 = load %v_14, 8: Ptr
     %v_36 = add %v_35, 8: Ptr
     store %v_36, %v_28, 4
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_14
-    %v_37 = add %v_34, %v_28: Int
-    %v_38 = add %v_37, 2: Int
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_14
+    %v_37 = add %v_34, %v_28: I32
+    %v_38 = add %v_37, 2: I32
     %v_39 = load %v_1, 8: Ptr
     %v_40 = add %v_1, 12: Ptr
-    %v_41 = load %v_40, 4: Int
-    %v_42 = cast %v_41: Long
-    %v_43 = cmp_eq %v_42, 0: Int
+    %v_41 = load %v_40, 4: I32
+    %v_42 = cast %v_41: I64
+    %v_43 = cmp_eq %v_42, 0: I32
     je %v_43, b_44, b_45
   }
 
   b_45 {
-    %v_46 = loads %v_39, 4: Int
-    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
-    %v_47 = add %v_38, %v_46: Int
+    %v_46 = loads %v_39, 4: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %v_1
+    %v_47 = add %v_38, %v_46: I32
     ret %v_47
   }
 
   b_44 {
-    %v_48 = syscall 60, 134: Long
+    %v_48 = syscall 60, 134: I64
     unreachable 
   }
 
   b_29 {
-    %v_49 = phi [b_30, %v_32], [b_0, 0]: Int
-    %v_32 = add %v_49, 1: Int
+    %v_49 = phi [b_30, %v_32], [b_0, 0]: I32
+    %v_32 = add %v_49, 1: I32
     jmp b_30
   }
 }

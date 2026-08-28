@@ -65,7 +65,7 @@ fn checkCondition(%failed: Bool) -> () {
     ret
 }
 
-fn String.unit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> I32 {
   b0:
     %v2 = borrow %self : 'String
     %v3 = cast %v2 : 'StringData
@@ -76,7 +76,7 @@ fn String.unit(%self: String, %index: Size) -> Int {
     %v8 = mul %index, %v7 : Size
     %v9 = add %v6, %v8 : %CodeUnit
     %v10 = load [%v9] : CodeUnit
-    %v11 = cast %v10 : Int
+    %v11 = cast %v10 : I32
     ret %v11
 }
 
@@ -188,7 +188,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -335,7 +335,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -386,7 +386,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -422,7 +422,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -508,14 +508,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -547,7 +547,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -605,7 +605,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1162,7 +1162,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1389,7 +1389,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b10:
     %v143 = load %at : Size
     %v144 = not %same : Mask(CodeUnit)
-    %v145 = vreduce_first %v144 : Int
+    %v145 = vreduce_first %v144 : I32
     %v146 = cast %v145 : Size
     %differs = add %v143, %v146 : Size
     %v148 = strideof CodeUnit : Size
@@ -1436,7 +1436,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b15:
     %v181 = load %at : Size
     %v182 = not %same : Mask(CodeUnit)
-    %v183 = vreduce_first %v182 : Int
+    %v183 = vreduce_first %v182 : I32
     %v184 = cast %v183 : Size
     %differs = add %v181, %v184 : Size
     %v186 = cmp_lt %differs, %count : Bool
@@ -1491,33 +1491,33 @@ fn releaseRun(CodeUnit)(%self: Run(CodeUnit)) -> () {
     ret
 }
 
-fn literalLength() -> Int {
+fn literalLength() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$1 : String
     %v1 = call Length(String).length, %v0 : Size
     drop %local0 via Reclaim(String).reclaim
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     ret %v2
 }
 
-fn firstUnit() -> Int {
+fn firstUnit() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$3 : String
-    %v2 = call String.unit, %v0, 0 : Int
+    %v2 = call String.unit, %v0, 0 : I32
     drop %local0 via Reclaim(String).reclaim
     ret %v2
 }
 
-fn emptyLength() -> Int {
+fn emptyLength() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$5 : String
     %v1 = call Length(String).length, %v0 : Size
     drop %local0 via Reclaim(String).reclaim
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     ret %v2
 }
 
-fn appendToLiteral() -> Int {
+fn appendToLiteral() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$7 : String
     %start = alloc : String
@@ -1530,11 +1530,11 @@ fn appendToLiteral() -> Int {
     %v7 = load %start : String
     %v8 = call Length(String).length, %v7 : Size
     drop %start via Reclaim(String).reclaim
-    %v9 = cast %v8 : Int
+    %v9 = cast %v8 : I32
     ret %v9
 }
 
-fn comparedAsValue() -> Int {
+fn comparedAsValue() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$11 : String
     %v1 = copy ResolveTest.literal$13 : String
@@ -1581,30 +1581,30 @@ fn comparedAsValue() -> Int {
     ret 9
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v3 = load %total : Int
-    %v4 = call literalLength : Int
-    %v5 = add %v3, %v4 : Int
+    %v3 = load %total : I32
+    %v4 = call literalLength : I32
+    %v5 = add %v3, %v4 : I32
     assign %total, %v5
-    %v7 = load %total : Int
-    %v8 = call firstUnit : Int
-    %v9 = add %v7, %v8 : Int
+    %v7 = load %total : I32
+    %v8 = call firstUnit : I32
+    %v9 = add %v7, %v8 : I32
     assign %total, %v9
-    %v11 = load %total : Int
-    %v12 = call emptyLength : Int
-    %v13 = add %v11, %v12 : Int
+    %v11 = load %total : I32
+    %v12 = call emptyLength : I32
+    %v13 = add %v11, %v12 : I32
     assign %total, %v13
-    %v15 = load %total : Int
-    %v16 = call appendToLiteral : Int
-    %v17 = add %v15, %v16 : Int
+    %v15 = load %total : I32
+    %v16 = call appendToLiteral : I32
+    %v17 = add %v15, %v16 : I32
     assign %total, %v17
-    %v19 = load %total : Int
-    %v20 = call comparedAsValue : Int
-    %v21 = add %v19, %v20 : Int
+    %v19 = load %total : I32
+    %v20 = call comparedAsValue : I32
+    %v21 = add %v19, %v20 : I32
     assign %total, %v21
-    %v23 = load %total : Int
+    %v23 = load %total : I32
     ret %v23
 }

@@ -42,7 +42,7 @@ fn abortProcess() -> () {
     ret
 }
 
-fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
+fn okL(%x: I64, %d: I64, %q: I64, %r: I64) -> I32 {
   b0:
     %v6 = cmp_eq %d, 0 : Bool
     je %v6, b1, b2
@@ -72,17 +72,17 @@ fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
     jmp b8
 
   b8:
-    %v22 = phi [b6, 1], [b7, 0] : Int
+    %v22 = phi [b6, 1], [b7, 0] : I32
     ret %v22
 
   b9:
-    %v27 = neg 1 : Int
-    %v28 = cast %v27 : Long
+    %v27 = neg 1 : I32
+    %v28 = cast %v27 : I64
     %v29 = cmp_eq %d, %v28 : Bool
     je %v29, b10, b11
 
   b10:
-    %v33 = sub 0, %x : Long
+    %v33 = sub 0, %x : I64
     %v34 = cmp_eq %q, %v33 : Bool
     je %v34, b12, b13
 
@@ -107,12 +107,12 @@ fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
     jmp b17
 
   b17:
-    %v48 = phi [b15, 1], [b16, 0] : Int
+    %v48 = phi [b15, 1], [b16, 0] : I32
     ret %v48
 
   b18:
-    %v51 = mul %q, %d : Long
-    %v52 = add %v51, %r : Long
+    %v51 = mul %q, %d : I64
+    %v52 = add %v51, %r : I64
     %v53 = cmp_eq %v52, %x : Bool
     je %v53, b19, b20
 
@@ -123,11 +123,11 @@ fn okL(%x: Long, %d: Long, %q: Long, %r: Long) -> Int {
     jmp b21
 
   b21:
-    %v59 = phi [b19, 1], [b20, 0] : Int
+    %v59 = phi [b19, 1], [b20, 0] : I32
     ret %v59
 }
 
-fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
+fn okI(%x: I32, %d: I32, %q: I32, %r: I32) -> I32 {
   b0:
     %v6 = cmp_eq %d, 0 : Bool
     je %v6, b1, b2
@@ -157,16 +157,16 @@ fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
     jmp b8
 
   b8:
-    %v22 = phi [b6, 1], [b7, 0] : Int
+    %v22 = phi [b6, 1], [b7, 0] : I32
     ret %v22
 
   b9:
-    %v27 = neg 1 : Int
+    %v27 = neg 1 : I32
     %v28 = cmp_eq %d, %v27 : Bool
     je %v28, b10, b11
 
   b10:
-    %v32 = sub 0, %x : Int
+    %v32 = sub 0, %x : I32
     %v33 = cmp_eq %q, %v32 : Bool
     je %v33, b12, b13
 
@@ -191,12 +191,12 @@ fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
     jmp b17
 
   b17:
-    %v47 = phi [b15, 1], [b16, 0] : Int
+    %v47 = phi [b15, 1], [b16, 0] : I32
     ret %v47
 
   b18:
-    %v50 = mul %q, %d : Int
-    %v51 = add %v50, %r : Int
+    %v50 = mul %q, %d : I32
+    %v51 = add %v50, %r : I32
     %v52 = cmp_eq %v51, %x : Bool
     je %v52, b19, b20
 
@@ -207,11 +207,11 @@ fn okI(%x: Int, %d: Int, %q: Int, %r: Int) -> Int {
     jmp b21
 
   b21:
-    %v58 = phi [b19, 1], [b20, 0] : Int
+    %v58 = phi [b19, 1], [b20, 0] : I32
     ret %v58
 }
 
-fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
+fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> I32 {
   b0:
     %v6 = cmp_eq %d, 0 : Bool
     je %v6, b1, b2
@@ -241,7 +241,7 @@ fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
     jmp b8
 
   b8:
-    %v22 = phi [b6, 1], [b7, 0] : Int
+    %v22 = phi [b6, 1], [b7, 0] : I32
     ret %v22
 
   b9:
@@ -268,11 +268,11 @@ fn okU(%x: U64, %d: U64, %q: U64, %r: U64) -> Int {
     jmp b15
 
   b15:
-    %v39 = phi [b13, 1], [b14, 0] : Int
+    %v39 = phi [b13, 1], [b14, 0] : I32
     ret %v39
 }
 
-fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
+fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> I32 {
   b0:
     %v6 = cmp_eq %d, 0 : Bool
     je %v6, b1, b2
@@ -302,7 +302,7 @@ fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
     jmp b8
 
   b8:
-    %v22 = phi [b6, 1], [b7, 0] : Int
+    %v22 = phi [b6, 1], [b7, 0] : I32
     ret %v22
 
   b9:
@@ -329,35 +329,35 @@ fn okW(%x: U32, %d: U32, %q: U32, %r: U32) -> Int {
     jmp b15
 
   b15:
-    %v39 = phi [b13, 1], [b14, 0] : Int
+    %v39 = phi [b13, 1], [b14, 0] : I32
     ret %v39
 }
 
-fn runtimeL(%x: Long, %d: Long) -> Int {
+fn runtimeL(%x: I64, %d: I64) -> I32 {
   b0:
     %v3 = cmp_eq %d, 0 : Bool
     call checkCondition, %v3
-    %v5 = div %x, %d : Long
+    %v5 = div %x, %d : I64
     %v7 = cmp_eq %d, 0 : Bool
     call checkCondition, %v7
-    %v9 = rem %x, %d : Long
-    %v10 = call okL, %x, %d, %v5, %v9 : Int
+    %v9 = rem %x, %d : I64
+    %v10 = call okL, %x, %d, %v5, %v9 : I32
     ret %v10
 }
 
-fn runtimeI(%x: Int, %d: Int) -> Int {
+fn runtimeI(%x: I32, %d: I32) -> I32 {
   b0:
     %v3 = cmp_eq %d, 0 : Bool
     call checkCondition, %v3
-    %v5 = div %x, %d : Int
+    %v5 = div %x, %d : I32
     %v7 = cmp_eq %d, 0 : Bool
     call checkCondition, %v7
-    %v9 = rem %x, %d : Int
-    %v10 = call okI, %x, %d, %v5, %v9 : Int
+    %v9 = rem %x, %d : I32
+    %v10 = call okI, %x, %d, %v5, %v9 : I32
     ret %v10
 }
 
-fn runtimeU(%x: U64, %d: U64) -> Int {
+fn runtimeU(%x: U64, %d: U64) -> I32 {
   b0:
     %v3 = cmp_eq %d, 0 : Bool
     call checkCondition, %v3
@@ -365,11 +365,11 @@ fn runtimeU(%x: U64, %d: U64) -> Int {
     %v7 = cmp_eq %d, 0 : Bool
     call checkCondition, %v7
     %v9 = rem %x, %d : U64
-    %v10 = call okU, %x, %d, %v5, %v9 : Int
+    %v10 = call okU, %x, %d, %v5, %v9 : I32
     ret %v10
 }
 
-fn runtimeW(%x: U32, %d: U32) -> Int {
+fn runtimeW(%x: U32, %d: U32) -> I32 {
   b0:
     %v3 = cmp_eq %d, 0 : Bool
     call checkCondition, %v3
@@ -377,27 +377,27 @@ fn runtimeW(%x: U32, %d: U32) -> Int {
     %v7 = cmp_eq %d, 0 : Bool
     call checkCondition, %v7
     %v9 = rem %x, %d : U32
-    %v10 = call okW, %x, %d, %v5, %v9 : Int
+    %v10 = call okW, %x, %d, %v5, %v9 : I32
     ret %v10
 }
 
-fn literalMinusOneL(%x: Long) -> Int {
+fn literalMinusOneL(%x: I64) -> I32 {
   b0:
-    %v3 = neg 1 : Int
-    %v4 = cast %v3 : Long
+    %v3 = neg 1 : I32
+    %v4 = cast %v3 : I64
     %v6 = cmp_eq %v4, 0 : Bool
     call checkCondition, %v6
-    %v8 = div %x, %v4 : Long
-    %v11 = sub 0, %x : Long
+    %v8 = div %x, %v4 : I64
+    %v11 = sub 0, %x : I64
     %v12 = cmp_eq %v8, %v11 : Bool
     je %v12, b1, b2
 
   b1:
-    %v16 = neg 1 : Int
-    %v17 = cast %v16 : Long
+    %v16 = neg 1 : I32
+    %v17 = cast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     call checkCondition, %v19
-    %v21 = rem %x, %v17 : Long
+    %v21 = rem %x, %v17 : I64
     %v24 = cmp_eq %v21, 0 : Bool
     jmp b3
 
@@ -415,25 +415,25 @@ fn literalMinusOneL(%x: Long) -> Int {
     jmp b6
 
   b6:
-    %v34 = phi [b4, 1], [b5, 0] : Int
+    %v34 = phi [b4, 1], [b5, 0] : I32
     ret %v34
 }
 
-fn literalMinusOneI(%x: Int) -> Int {
+fn literalMinusOneI(%x: I32) -> I32 {
   b0:
-    %v3 = neg 1 : Int
+    %v3 = neg 1 : I32
     %v5 = cmp_eq %v3, 0 : Bool
     call checkCondition, %v5
-    %v7 = div %x, %v3 : Int
-    %v10 = sub 0, %x : Int
+    %v7 = div %x, %v3 : I32
+    %v10 = sub 0, %x : I32
     %v11 = cmp_eq %v7, %v10 : Bool
     je %v11, b1, b2
 
   b1:
-    %v15 = neg 1 : Int
+    %v15 = neg 1 : I32
     %v17 = cmp_eq %v15, 0 : Bool
     call checkCondition, %v17
-    %v19 = rem %x, %v15 : Int
+    %v19 = rem %x, %v15 : I32
     %v22 = cmp_eq %v19, 0 : Bool
     jmp b3
 
@@ -451,18 +451,18 @@ fn literalMinusOneI(%x: Int) -> Int {
     jmp b6
 
   b6:
-    %v32 = phi [b4, 1], [b5, 0] : Int
+    %v32 = phi [b4, 1], [b5, 0] : I32
     ret %v32
 }
 
-fn byLiteral() -> Int {
+fn byLiteral() -> I32 {
   b0:
-    %n = alloc : Int
+    %n = alloc : I32
     init %n, 0
-    %v3 = load %n : Int
+    %v3 = load %n : I32
     %v9 = cmp_eq 0, 0 : Bool
     call checkCondition, %v9
-    %v11 = div 7, 0 : Int
+    %v11 = div 7, 0 : I32
     %v14 = cmp_eq %v11, 0 : Bool
     je %v14, b1, b2
 
@@ -473,13 +473,13 @@ fn byLiteral() -> Int {
     jmp b3
 
   b3:
-    %v22 = phi [b1, 1], [b2, 0] : Int
-    %v23 = add %v3, %v22 : Int
+    %v22 = phi [b1, 1], [b2, 0] : I32
+    %v23 = add %v3, %v22 : I32
     assign %n, %v23
-    %v25 = load %n : Int
+    %v25 = load %n : I32
     %v31 = cmp_eq 0, 0 : Bool
     call checkCondition, %v31
-    %v33 = rem 7, 0 : Int
+    %v33 = rem 7, 0 : I32
     %v36 = cmp_eq %v33, 7 : Bool
     je %v36, b4, b5
 
@@ -490,14 +490,14 @@ fn byLiteral() -> Int {
     jmp b6
 
   b6:
-    %v44 = phi [b4, 1], [b5, 0] : Int
-    %v45 = add %v25, %v44 : Int
+    %v44 = phi [b4, 1], [b5, 0] : I32
+    %v45 = add %v25, %v44 : I32
     assign %n, %v45
-    %v47 = load %n : Int
-    %v50 = neg 7 : Int
+    %v47 = load %n : I32
+    %v50 = neg 7 : I32
     %v54 = cmp_eq 0, 0 : Bool
     call checkCondition, %v54
-    %v56 = div %v50, 0 : Int
+    %v56 = div %v50, 0 : I32
     %v59 = cmp_eq %v56, 0 : Bool
     je %v59, b7, b8
 
@@ -508,13 +508,13 @@ fn byLiteral() -> Int {
     jmp b9
 
   b9:
-    %v67 = phi [b7, 1], [b8, 0] : Int
-    %v68 = add %v47, %v67 : Int
+    %v67 = phi [b7, 1], [b8, 0] : I32
+    %v68 = add %v47, %v67 : I32
     assign %n, %v68
-    %v70 = load %n : Int
+    %v70 = load %n : I32
     %v76 = cmp_eq 0, 0 : Bool
     call checkCondition, %v76
-    %v78 = div 0, 0 : Int
+    %v78 = div 0, 0 : I32
     %v81 = cmp_eq %v78, 0 : Bool
     je %v81, b10, b11
 
@@ -525,13 +525,13 @@ fn byLiteral() -> Int {
     jmp b12
 
   b12:
-    %v89 = phi [b10, 1], [b11, 0] : Int
-    %v90 = add %v70, %v89 : Int
+    %v89 = phi [b10, 1], [b11, 0] : I32
+    %v90 = add %v70, %v89 : I32
     assign %n, %v90
-    %v92 = load %n : Int
+    %v92 = load %n : I32
     %v98 = cmp_eq 0, 0 : Bool
     call checkCondition, %v98
-    %v100 = rem 0, 0 : Int
+    %v100 = rem 0, 0 : I32
     %v103 = cmp_eq %v100, 0 : Bool
     je %v103, b13, b14
 
@@ -542,15 +542,15 @@ fn byLiteral() -> Int {
     jmp b15
 
   b15:
-    %v111 = phi [b13, 1], [b14, 0] : Int
-    %v112 = add %v92, %v111 : Int
+    %v111 = phi [b13, 1], [b14, 0] : I32
+    %v112 = add %v92, %v111 : I32
     assign %n, %v112
-    %v114 = load %n : Int
-    %v118 = neg 1 : Int
+    %v114 = load %n : I32
+    %v118 = neg 1 : I32
     %v121 = cmp_eq %v118, 0 : Bool
     call checkCondition, %v121
-    %v123 = div 7, %v118 : Int
-    %v126 = neg 7 : Int
+    %v123 = div 7, %v118 : I32
+    %v126 = neg 7 : I32
     %v127 = cmp_eq %v123, %v126 : Bool
     je %v127, b16, b17
 
@@ -561,14 +561,14 @@ fn byLiteral() -> Int {
     jmp b18
 
   b18:
-    %v135 = phi [b16, 1], [b17, 0] : Int
-    %v136 = add %v114, %v135 : Int
+    %v135 = phi [b16, 1], [b17, 0] : I32
+    %v136 = add %v114, %v135 : I32
     assign %n, %v136
-    %v138 = load %n : Int
-    %v142 = neg 1 : Int
+    %v138 = load %n : I32
+    %v142 = neg 1 : I32
     %v145 = cmp_eq %v142, 0 : Bool
     call checkCondition, %v145
-    %v147 = rem 7, %v142 : Int
+    %v147 = rem 7, %v142 : I32
     %v150 = cmp_eq %v147, 0 : Bool
     je %v150, b19, b20
 
@@ -579,16 +579,16 @@ fn byLiteral() -> Int {
     jmp b21
 
   b21:
-    %v158 = phi [b19, 1], [b20, 0] : Int
-    %v159 = add %v138, %v158 : Int
+    %v158 = phi [b19, 1], [b20, 0] : I32
+    %v159 = add %v138, %v158 : I32
     assign %n, %v159
-    %v161 = load %n : Int
-    %v166 = div 100, 7 : Int
+    %v161 = load %n : I32
+    %v166 = div 100, 7 : I32
     %v169 = cmp_eq %v166, 14 : Bool
     je %v169, b22, b23
 
   b22:
-    %v175 = rem 100, 7 : Int
+    %v175 = rem 100, 7 : I32
     %v178 = cmp_eq %v175, 2 : Bool
     jmp b24
 
@@ -606,26 +606,26 @@ fn byLiteral() -> Int {
     jmp b27
 
   b27:
-    %v190 = phi [b25, 1], [b26, 0] : Int
-    %v191 = add %v161, %v190 : Int
+    %v190 = phi [b25, 1], [b26, 0] : I32
+    %v191 = add %v161, %v190 : I32
     assign %n, %v191
-    %v193 = load %n : Int
+    %v193 = load %n : I32
     ret %v193
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %minL = shl 1, 63 : Long
-    %minI = shl 1, 31 : Int
-    %v14 = add %minL, 1 : Long
-    %longs = alloc : [Long *7]
+    %minL = shl 1, 63 : I64
+    %minI = shl 1, 31 : I32
+    %v14 = add %minL, 1 : I64
+    %longs = alloc : [I64 *7]
     aggregate %local0[0] = 0, %local0[1] = 1, %local0[2] = 7, %local0[3] = -7, %local0[4] = %minL, %local0[5] = %v14, %local0[6] = 9223372036854775807
-    %dLongs = alloc : [Long *7]
+    %dLongs = alloc : [I64 *7]
     aggregate %local1[0] = 0, %local1[1] = -1, %local1[2] = 1, %local1[3] = 2, %local1[4] = -2, %local1[5] = 3, %local1[6] = 10
-    %v47 = add %minI, 1 : Int
-    %ints = alloc : [Int *7]
+    %v47 = add %minI, 1 : I32
+    %ints = alloc : [I32 *7]
     aggregate %local2[0] = 0, %local2[1] = 1, %local2[2] = 7, %local2[3] = -7, %local2[4] = %minI, %local2[5] = %v47, %local2[6] = 2147483647
-    %dInts = alloc : [Int *7]
+    %dInts = alloc : [I32 *7]
     aggregate %local3[0] = 0, %local3[1] = -1, %local3[2] = 1, %local3[3] = 2, %local3[4] = -2, %local3[5] = 3, %local3[6] = 10
     %ulongs = alloc : [U64 *5]
     aggregate %local4[0] = 0, %local4[1] = 1, %local4[2] = 7, %local4[3] = 18446744073709551615, %local4[4] = 9223372036854775808
@@ -635,16 +635,16 @@ fn main() -> Int {
     aggregate %local6[0] = 0, %local6[1] = 1, %local6[2] = 7, %local6[3] = 4294967295, %local6[4] = 2147483648
     %dUInts = alloc : [U32 *5]
     aggregate %local7[0] = 0, %local7[1] = 1, %local7[2] = 2, %local7[3] = 3, %local7[4] = 4294967295
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %i = alloc : Int
+    %i = alloc : I32
     init %i, 0
-    %j = alloc : Int
+    %j = alloc : I32
     init %j, 0
     jmp b1
 
   b1:
-    %v132 = load %i : Int
+    %v132 = load %i : I32
     %v135 = cmp_lt %v132, 7 : Bool
     je %v135, b3, b2
 
@@ -657,163 +657,163 @@ fn main() -> Int {
     jmp b4
 
   b4:
-    %v140 = load %j : Int
+    %v140 = load %j : I32
     %v143 = cmp_lt %v140, 7 : Bool
     je %v143, b6, b5
 
   b5:
-    %v237 = load %total : Int
-    %v238 = load %i : Int
-    %v239 = borrow %local0 : '[Long *7]
-    %longs = alloc : Flat(Long)
-    %v241 = addressof [%v239] : %Long
+    %v237 = load %total : I32
+    %v238 = load %i : I32
+    %v239 = borrow %local0 : '[I64 *7]
+    %longs = alloc : Flat(I64)
+    %v241 = addressof [%v239] : %I64
     init %longs@Flat.items, %v241
     %v243 = countof 7 : Size
     init %longs@Flat.length, %v243
     %v245 = cast %v238 : Size
-    %v246 = borrow %longs : 'Flat(Long)
+    %v246 = borrow %longs : 'Flat(I64)
     %v247 = load [%v246]@Flat.length : Size
     %v248 = cast %v245 : USize
     %v249 = cast %v247 : USize
     %v250 = cmp_ge %v248, %v249 : Bool
     call checkCondition, %v250
-    %v252 = load [%v246]@Flat.items : %Long
-    %v253 = strideof Long : Long
-    %v254 = mul %v245, %v253 : Long
-    %v255 = add %v252, %v254 : %Long
-    %v256 = borrow [%v255] : 'Long
-    %v257 = load [%v256] : Long
-    %v258 = call literalMinusOneL, %v257 : Int
-    %v259 = add %v237, %v258 : Int
-    %v260 = load %i : Int
-    %v261 = borrow %local2 : '[Int *7]
-    %ints = alloc : Flat(Int)
-    %v263 = addressof [%v261] : %Int
+    %v252 = load [%v246]@Flat.items : %I64
+    %v253 = strideof I64 : I64
+    %v254 = mul %v245, %v253 : I64
+    %v255 = add %v252, %v254 : %I64
+    %v256 = borrow [%v255] : 'I64
+    %v257 = load [%v256] : I64
+    %v258 = call literalMinusOneL, %v257 : I32
+    %v259 = add %v237, %v258 : I32
+    %v260 = load %i : I32
+    %v261 = borrow %local2 : '[I32 *7]
+    %ints = alloc : Flat(I32)
+    %v263 = addressof [%v261] : %I32
     init %ints@Flat.items, %v263
     %v265 = countof 7 : Size
     init %ints@Flat.length, %v265
     %v267 = cast %v260 : Size
-    %v268 = borrow %ints : 'Flat(Int)
+    %v268 = borrow %ints : 'Flat(I32)
     %v269 = load [%v268]@Flat.length : Size
     %v270 = cast %v267 : USize
     %v271 = cast %v269 : USize
     %v272 = cmp_ge %v270, %v271 : Bool
     call checkCondition, %v272
-    %v274 = load [%v268]@Flat.items : %Int
-    %v275 = strideof Int : Long
-    %v276 = mul %v267, %v275 : Long
-    %v277 = add %v274, %v276 : %Int
-    %v278 = borrow [%v277] : 'Int
-    %v279 = load [%v278] : Int
-    %v280 = call literalMinusOneI, %v279 : Int
-    %v281 = add %v259, %v280 : Int
+    %v274 = load [%v268]@Flat.items : %I32
+    %v275 = strideof I32 : I64
+    %v276 = mul %v267, %v275 : I64
+    %v277 = add %v274, %v276 : %I32
+    %v278 = borrow [%v277] : 'I32
+    %v279 = load [%v278] : I32
+    %v280 = call literalMinusOneI, %v279 : I32
+    %v281 = add %v259, %v280 : I32
     assign %total, %v281
-    %v283 = load %i : Int
-    %v286 = add %v283, 1 : Int
+    %v283 = load %i : I32
+    %v286 = add %v283, 1 : I32
     assign %i, %v286
     jmp b1
 
   b6:
-    %v145 = load %total : Int
-    %v146 = load %i : Int
-    %v147 = borrow %local0 : '[Long *7]
-    %longs = alloc : Flat(Long)
-    %v149 = addressof [%v147] : %Long
+    %v145 = load %total : I32
+    %v146 = load %i : I32
+    %v147 = borrow %local0 : '[I64 *7]
+    %longs = alloc : Flat(I64)
+    %v149 = addressof [%v147] : %I64
     init %longs@Flat.items, %v149
     %v151 = countof 7 : Size
     init %longs@Flat.length, %v151
     %v153 = cast %v146 : Size
-    %v154 = borrow %longs : 'Flat(Long)
+    %v154 = borrow %longs : 'Flat(I64)
     %v155 = load [%v154]@Flat.length : Size
     %v156 = cast %v153 : USize
     %v157 = cast %v155 : USize
     %v158 = cmp_ge %v156, %v157 : Bool
     call checkCondition, %v158
-    %v160 = load [%v154]@Flat.items : %Long
-    %v161 = strideof Long : Long
-    %v162 = mul %v153, %v161 : Long
-    %v163 = add %v160, %v162 : %Long
-    %v164 = borrow [%v163] : 'Long
-    %v165 = load [%v164] : Long
-    %v166 = load %j : Int
-    %v167 = borrow %local1 : '[Long *7]
-    %dLongs = alloc : Flat(Long)
-    %v169 = addressof [%v167] : %Long
+    %v160 = load [%v154]@Flat.items : %I64
+    %v161 = strideof I64 : I64
+    %v162 = mul %v153, %v161 : I64
+    %v163 = add %v160, %v162 : %I64
+    %v164 = borrow [%v163] : 'I64
+    %v165 = load [%v164] : I64
+    %v166 = load %j : I32
+    %v167 = borrow %local1 : '[I64 *7]
+    %dLongs = alloc : Flat(I64)
+    %v169 = addressof [%v167] : %I64
     init %dLongs@Flat.items, %v169
     %v171 = countof 7 : Size
     init %dLongs@Flat.length, %v171
     %v173 = cast %v166 : Size
-    %v174 = borrow %dLongs : 'Flat(Long)
+    %v174 = borrow %dLongs : 'Flat(I64)
     %v175 = load [%v174]@Flat.length : Size
     %v176 = cast %v173 : USize
     %v177 = cast %v175 : USize
     %v178 = cmp_ge %v176, %v177 : Bool
     call checkCondition, %v178
-    %v180 = load [%v174]@Flat.items : %Long
-    %v181 = strideof Long : Long
-    %v182 = mul %v173, %v181 : Long
-    %v183 = add %v180, %v182 : %Long
-    %v184 = borrow [%v183] : 'Long
-    %v185 = load [%v184] : Long
-    %v186 = call runtimeL, %v165, %v185 : Int
-    %v187 = add %v145, %v186 : Int
-    %v188 = load %i : Int
-    %v189 = borrow %local2 : '[Int *7]
-    %ints = alloc : Flat(Int)
-    %v191 = addressof [%v189] : %Int
+    %v180 = load [%v174]@Flat.items : %I64
+    %v181 = strideof I64 : I64
+    %v182 = mul %v173, %v181 : I64
+    %v183 = add %v180, %v182 : %I64
+    %v184 = borrow [%v183] : 'I64
+    %v185 = load [%v184] : I64
+    %v186 = call runtimeL, %v165, %v185 : I32
+    %v187 = add %v145, %v186 : I32
+    %v188 = load %i : I32
+    %v189 = borrow %local2 : '[I32 *7]
+    %ints = alloc : Flat(I32)
+    %v191 = addressof [%v189] : %I32
     init %ints@Flat.items, %v191
     %v193 = countof 7 : Size
     init %ints@Flat.length, %v193
     %v195 = cast %v188 : Size
-    %v196 = borrow %ints : 'Flat(Int)
+    %v196 = borrow %ints : 'Flat(I32)
     %v197 = load [%v196]@Flat.length : Size
     %v198 = cast %v195 : USize
     %v199 = cast %v197 : USize
     %v200 = cmp_ge %v198, %v199 : Bool
     call checkCondition, %v200
-    %v202 = load [%v196]@Flat.items : %Int
-    %v203 = strideof Int : Long
-    %v204 = mul %v195, %v203 : Long
-    %v205 = add %v202, %v204 : %Int
-    %v206 = borrow [%v205] : 'Int
-    %v207 = load [%v206] : Int
-    %v208 = load %j : Int
-    %v209 = borrow %local3 : '[Int *7]
-    %dInts = alloc : Flat(Int)
-    %v211 = addressof [%v209] : %Int
+    %v202 = load [%v196]@Flat.items : %I32
+    %v203 = strideof I32 : I64
+    %v204 = mul %v195, %v203 : I64
+    %v205 = add %v202, %v204 : %I32
+    %v206 = borrow [%v205] : 'I32
+    %v207 = load [%v206] : I32
+    %v208 = load %j : I32
+    %v209 = borrow %local3 : '[I32 *7]
+    %dInts = alloc : Flat(I32)
+    %v211 = addressof [%v209] : %I32
     init %dInts@Flat.items, %v211
     %v213 = countof 7 : Size
     init %dInts@Flat.length, %v213
     %v215 = cast %v208 : Size
-    %v216 = borrow %dInts : 'Flat(Int)
+    %v216 = borrow %dInts : 'Flat(I32)
     %v217 = load [%v216]@Flat.length : Size
     %v218 = cast %v215 : USize
     %v219 = cast %v217 : USize
     %v220 = cmp_ge %v218, %v219 : Bool
     call checkCondition, %v220
-    %v222 = load [%v216]@Flat.items : %Int
-    %v223 = strideof Int : Long
-    %v224 = mul %v215, %v223 : Long
-    %v225 = add %v222, %v224 : %Int
-    %v226 = borrow [%v225] : 'Int
-    %v227 = load [%v226] : Int
-    %v228 = call runtimeI, %v207, %v227 : Int
-    %v229 = add %v187, %v228 : Int
+    %v222 = load [%v216]@Flat.items : %I32
+    %v223 = strideof I32 : I64
+    %v224 = mul %v215, %v223 : I64
+    %v225 = add %v222, %v224 : %I32
+    %v226 = borrow [%v225] : 'I32
+    %v227 = load [%v226] : I32
+    %v228 = call runtimeI, %v207, %v227 : I32
+    %v229 = add %v187, %v228 : I32
     assign %total, %v229
-    %v231 = load %j : Int
-    %v234 = add %v231, 1 : Int
+    %v231 = load %j : I32
+    %v234 = add %v231, 1 : I32
     assign %j, %v234
     jmp b4
 
   b7:
-    %v292 = load %i : Int
+    %v292 = load %i : I32
     %v295 = cmp_lt %v292, 5 : Bool
     je %v295, b9, b8
 
   b8:
-    %v403 = load %total : Int
-    %v404 = call byLiteral : Int
-    %v405 = add %v403, %v404 : Int
+    %v403 = load %total : I32
+    %v404 = call byLiteral : I32
+    %v405 = add %v403, %v404 : I32
     ret %v405
 
   b9:
@@ -821,19 +821,19 @@ fn main() -> Int {
     jmp b10
 
   b10:
-    %v300 = load %j : Int
+    %v300 = load %j : I32
     %v303 = cmp_lt %v300, 5 : Bool
     je %v303, b12, b11
 
   b11:
-    %v397 = load %i : Int
-    %v400 = add %v397, 1 : Int
+    %v397 = load %i : I32
+    %v400 = add %v397, 1 : I32
     assign %i, %v400
     jmp b7
 
   b12:
-    %v305 = load %total : Int
-    %v306 = load %i : Int
+    %v305 = load %total : I32
+    %v306 = load %i : I32
     %v307 = borrow %local4 : '[U64 *5]
     %ulongs = alloc : Flat(U64)
     %v309 = addressof [%v307] : %U64
@@ -848,12 +848,12 @@ fn main() -> Int {
     %v318 = cmp_ge %v316, %v317 : Bool
     call checkCondition, %v318
     %v320 = load [%v314]@Flat.items : %U64
-    %v321 = strideof U64 : Long
-    %v322 = mul %v313, %v321 : Long
+    %v321 = strideof U64 : I64
+    %v322 = mul %v313, %v321 : I64
     %v323 = add %v320, %v322 : %U64
     %v324 = borrow [%v323] : 'U64
     %v325 = load [%v324] : U64
-    %v326 = load %j : Int
+    %v326 = load %j : I32
     %v327 = borrow %local5 : '[U64 *5]
     %dULongs = alloc : Flat(U64)
     %v329 = addressof [%v327] : %U64
@@ -868,14 +868,14 @@ fn main() -> Int {
     %v338 = cmp_ge %v336, %v337 : Bool
     call checkCondition, %v338
     %v340 = load [%v334]@Flat.items : %U64
-    %v341 = strideof U64 : Long
-    %v342 = mul %v333, %v341 : Long
+    %v341 = strideof U64 : I64
+    %v342 = mul %v333, %v341 : I64
     %v343 = add %v340, %v342 : %U64
     %v344 = borrow [%v343] : 'U64
     %v345 = load [%v344] : U64
-    %v346 = call runtimeU, %v325, %v345 : Int
-    %v347 = add %v305, %v346 : Int
-    %v348 = load %i : Int
+    %v346 = call runtimeU, %v325, %v345 : I32
+    %v347 = add %v305, %v346 : I32
+    %v348 = load %i : I32
     %v349 = borrow %local6 : '[U32 *5]
     %uints = alloc : Flat(U32)
     %v351 = addressof [%v349] : %U32
@@ -890,12 +890,12 @@ fn main() -> Int {
     %v360 = cmp_ge %v358, %v359 : Bool
     call checkCondition, %v360
     %v362 = load [%v356]@Flat.items : %U32
-    %v363 = strideof U32 : Long
-    %v364 = mul %v355, %v363 : Long
+    %v363 = strideof U32 : I64
+    %v364 = mul %v355, %v363 : I64
     %v365 = add %v362, %v364 : %U32
     %v366 = borrow [%v365] : 'U32
     %v367 = load [%v366] : U32
-    %v368 = load %j : Int
+    %v368 = load %j : I32
     %v369 = borrow %local7 : '[U32 *5]
     %dUInts = alloc : Flat(U32)
     %v371 = addressof [%v369] : %U32
@@ -910,16 +910,16 @@ fn main() -> Int {
     %v380 = cmp_ge %v378, %v379 : Bool
     call checkCondition, %v380
     %v382 = load [%v376]@Flat.items : %U32
-    %v383 = strideof U32 : Long
-    %v384 = mul %v375, %v383 : Long
+    %v383 = strideof U32 : I64
+    %v384 = mul %v375, %v383 : I64
     %v385 = add %v382, %v384 : %U32
     %v386 = borrow [%v385] : 'U32
     %v387 = load [%v386] : U32
-    %v388 = call runtimeW, %v367, %v387 : Int
-    %v389 = add %v347, %v388 : Int
+    %v388 = call runtimeW, %v367, %v387 : I32
+    %v389 = add %v347, %v388 : I32
     assign %total, %v389
-    %v391 = load %j : Int
-    %v394 = add %v391, 1 : Int
+    %v391 = load %j : I32
+    %v394 = add %v391, 1 : I32
     assign %j, %v394
     jmp b10
 }

@@ -179,7 +179,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -409,13 +409,13 @@ fn growArray(String)(%self: Array(String), %wanted: Size) -> () {
 fn Reclaim(Array(a)).reclaim(String)(%value: Array(String)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -427,7 +427,7 @@ fn Reclaim(Array(a)).reclaim(String)(%value: Array(String)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(String)
     %v14 = load %value@Array.run@Run.items : %String
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof String : Size
     %v18 = mul %v16, %v17 : Size
@@ -437,8 +437,8 @@ fn Reclaim(Array(a)).reclaim(String)(%value: Array(String)) -> () {
     %doomed = alloc : String
     init %local3, %v21
     drop %local3 via Reclaim(String).reclaim
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -483,7 +483,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -534,7 +534,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -570,7 +570,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -656,14 +656,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -695,7 +695,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -753,7 +753,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1310,7 +1310,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1537,7 +1537,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b10:
     %v143 = load %at : Size
     %v144 = not %same : Mask(CodeUnit)
-    %v145 = vreduce_first %v144 : Int
+    %v145 = vreduce_first %v144 : I32
     %v146 = cast %v145 : Size
     %differs = add %v143, %v146 : Size
     %v148 = strideof CodeUnit : Size
@@ -1584,7 +1584,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b15:
     %v181 = load %at : Size
     %v182 = not %same : Mask(CodeUnit)
-    %v183 = vreduce_first %v182 : Int
+    %v183 = vreduce_first %v182 : I32
     %v184 = cast %v183 : Size
     %differs = add %v181, %v184 : Size
     %v186 = cmp_lt %differs, %count : Bool
@@ -1683,7 +1683,7 @@ fn resize(String)(%self: Run(String), %wanted: Size) -> Bool {
     %v28 = call byteSpan(String), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %String
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1792,7 +1792,7 @@ fn threeParts(%a: String, %b: String, %c: String) -> String {
     ret %v8
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v0 = copy ResolveTest.literal$1 : String
     %v1 = copy ResolveTest.literal$3 : String
@@ -1866,8 +1866,8 @@ fn main() -> Int {
     %v61 = cmp_ge %v59, %v60 : Bool
     call checkCondition, %v61
     %v63 = load [%v57]@Array.run@Run.items : %String
-    %v64 = strideof String : Long
-    %v65 = mul 0, %v64 : Long
+    %v64 = strideof String : I64
+    %v65 = mul 0, %v64 : I64
     %v66 = add %v63, %v65 : %String
     %v67 = borrow [%v66] : 'String
     %v68 = load [%v67] : String
@@ -1891,8 +1891,8 @@ fn main() -> Int {
     %v82 = cmp_ge %v80, %v81 : Bool
     call checkCondition, %v82
     %v84 = load [%v78]@Array.run@Run.items : %String
-    %v85 = strideof String : Long
-    %v86 = mul 1, %v85 : Long
+    %v85 = strideof String : I64
+    %v86 = mul 1, %v85 : I64
     %v87 = add %v84, %v86 : %String
     %v88 = borrow [%v87] : 'String
     %v89 = load [%v88] : String
@@ -1910,7 +1910,7 @@ fn main() -> Int {
   b12:
     %v96 = call Length(String).length, %three : Size
     drop %local7 via Reclaim(String).reclaim
-    %v97 = cast %v96 : Int
+    %v97 = cast %v96 : I32
     %v98 = load %out : Array(String)
     %v101 = borrow %out : 'Array(String)
     %v102 = load [%v101]@Array.length : @bits(30) U32
@@ -1919,15 +1919,15 @@ fn main() -> Int {
     %v105 = cmp_ge %v103, %v104 : Bool
     call checkCondition, %v105
     %v107 = load [%v101]@Array.run@Run.items : %String
-    %v108 = strideof String : Long
-    %v109 = mul 1, %v108 : Long
+    %v108 = strideof String : I64
+    %v109 = mul 1, %v108 : I64
     %v110 = add %v107, %v109 : %String
     %v111 = borrow [%v110] : 'String
     %v112 = load [%v111] : String
     %v113 = call Length(String).length, %v112 : Size
     drop %out via Reclaim(Array(a)).reclaim(String)
-    %v114 = cast %v113 : Int
-    %v115 = add %v97, %v114 : Int
+    %v114 = cast %v113 : I32
+    %v115 = add %v97, %v114 : I32
     ret %v115
 
   b13:

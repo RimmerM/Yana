@@ -6,28 +6,28 @@ mut @heapRegionNext = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @liveBuffers = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @counter = [5, 0, 0, 0, 0, 0, 0, 0]
 
-+=(I64)<complex>(%target: Ptr, %amount: Long) {
++=(I64)<complex>(%target: Ptr, %amount: I64) {
   b_0 {
-    %v_1 = loads %target, 8: Long
-    %v_2 = add %v_1, %amount: Long
+    %v_1 = loads %target, 8: I64
+    %v_2 = add %v_1, %amount: I64
     store %target, %v_2, 8
     ret 
   }
 }
 
--=(I64)<complex>(%target: Ptr, %amount: Long) {
+-=(I64)<complex>(%target: Ptr, %amount: I64) {
   b_0 {
-    %v_1 = loads %target, 8: Long
-    %v_2 = sub %v_1, %amount: Long
+    %v_1 = loads %target, 8: I64
+    %v_2 = sub %v_1, %amount: I64
     store %target, %v_2, 8
     ret 
   }
 }
 
-mapMemory<complex>(%size: Long): Ptr {
+mapMemory<complex>(%size: I64): Ptr {
   b_0 {
-    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: Long
-    %v_1 = cmp_ilt %result, 0: Int
+    %result = syscall 9, 0, %size, 3, 34, 18446744073709551615, 0: I64
+    %v_1 = cmp_ilt %result, 0: I32
     je %v_1, b_2, b_3
   }
 
@@ -46,10 +46,10 @@ mapMemory<complex>(%size: Long): Ptr {
   }
 }
 
-growHeap<complex>(%needed: Long): Int {
+growHeap<complex>(%needed: I64): I32 {
   b_0 {
-    %v_1 = loads @heapRegionNext, 8: Long
-    %v_2 = cmp_ilt %v_1, %needed: Int
+    %v_1 = loads @heapRegionNext, 8: I64
+    %v_2 = cmp_ilt %v_1, %needed: I32
     je %v_2, b_3, b_4
   }
 
@@ -62,18 +62,18 @@ growHeap<complex>(%needed: Long): Int {
   }
 
   b_5 {
-    %v_6 = phi [b_3, %needed], [b_4, %v_1]: Long
-    %v_7 = add %v_6, 4096: Long
+    %v_6 = phi [b_3, %needed], [b_4, %v_1]: I64
+    %v_7 = add %v_6, 4096: I64
     %v_8 = call_complex mapMemory, %v_7: Ptr
-    %v_9 = bitcast %v_8: Long
-    %v_10 = cmp_eq %v_9, 0: Int
+    %v_9 = bitcast %v_8: I64
+    %v_10 = cmp_eq %v_9, 0: I32
     je %v_10, b_11, b_12
   }
 
   b_11 {
-    %v_13 = cmp_igt %needed, 4194304: Int
-    %least = select %v_13, %needed, 4194304: Long
-    %v_14 = cmp_ige %least, %v_6: Int
+    %v_13 = cmp_igt %needed, 4194304: I32
+    %least = select %v_13, %needed, 4194304: I64
+    %v_14 = cmp_ige %least, %v_6: I32
     je %v_14, b_15, b_16
   }
 
@@ -86,10 +86,10 @@ growHeap<complex>(%needed: Long): Int {
   }
 
   b_16 {
-    %v_18 = add %least, 4096: Long
+    %v_18 = add %least, 4096: I64
     %v_19 = call_complex mapMemory, %v_18: Ptr
-    %v_20 = bitcast %v_19: Long
-    %v_21 = cmp_eq %v_20, 0: Int
+    %v_20 = bitcast %v_19: I64
+    %v_21 = cmp_eq %v_20, 0: I32
     je %v_21, b_15, b_22
   }
 
@@ -98,22 +98,22 @@ growHeap<complex>(%needed: Long): Int {
   }
 
   b_17 {
-    %v_23 = phi [b_12, %v_6], [b_22, %least]: Long
+    %v_23 = phi [b_12, %v_6], [b_22, %least]: I64
     %v_24 = phi [b_12, %v_8], [b_22, %v_19]: Ptr
     store @heapNext, %v_24, 8
     %v_25 = add %v_24, %v_23: Ptr
     store @heapLimit, %v_25, 8
-    %v_26 = add %v_23, %v_23: Long
+    %v_26 = add %v_23, %v_23: I64
     store @heapRegionNext, %v_26, 8
     ret 1
   }
 }
 
-allocateHeap<complex>(%size: Long): Ptr {
+allocateHeap<complex>(%size: I64): Ptr {
   b_0 {
     %v_1 = load @heapFree, 8: Ptr
-    %v_2 = bitcast %v_1: Long
-    %v_3 = cmp_eq %v_2, 0: Int
+    %v_2 = bitcast %v_1: I64
+    %v_3 = cmp_eq %v_2, 0: I32
     je %v_3, b_4, b_5
   }
 
@@ -122,13 +122,13 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_4 {
-    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: Long
-    %v_7 = cmp_ilt %result, 0: Int
+    %result = syscall 9, 0, 4198400, 3, 34, 18446744073709551615, 0: I64
+    %v_7 = cmp_ilt %result, 0: I32
     %v_8 = bitcast 0: Ptr
     %v_9 = bitcast %result: Ptr
     %region = select %v_7, %v_8, %v_9: Ptr
-    %v_10 = bitcast %region: Long
-    %v_11 = cmp_eq %v_10, 0: Int
+    %v_10 = bitcast %region: I64
+    %v_11 = cmp_eq %v_10, 0: I32
     je %v_11, b_12, b_13
   }
 
@@ -149,8 +149,8 @@ allocateHeap<complex>(%size: Long): Ptr {
 
   b_16 {
     %v_17 = load @heapFree, 8: Ptr
-    %v_18 = bitcast %v_17: Long
-    %v_19 = cmp_eq %v_18, 0: Int
+    %v_18 = bitcast %v_17: I64
+    %v_19 = cmp_eq %v_18, 0: I32
     je %v_19, b_20, b_21
   }
 
@@ -159,38 +159,38 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_6 {
-    %v_22 = add %size, 8: Long
+    %v_22 = add %size, 8: I64
     jmp b_23
   }
 
   b_23 {
-    %v_24 = phi [b_6, 16], [b_25, %v_26]: Long
-    %v_27 = phi [b_6, 0], [b_25, %v_28]: Long
-    %v_29 = cmp_ilt %v_24, %v_22: Int
+    %v_24 = phi [b_6, 16], [b_25, %v_26]: I64
+    %v_27 = phi [b_6, 0], [b_25, %v_28]: I64
+    %v_29 = cmp_ilt %v_24, %v_22: I32
     je %v_29, b_25, b_30
   }
 
   b_30 {
-    %v_31 = cmp_ige %v_27, 32: Int
+    %v_31 = cmp_ige %v_27, 32: I32
     je %v_31, b_32, b_33
   }
 
   b_33 {
     %v_34 = load @heapFree, 8: Ptr
-    %v_35 = shl %v_27, 3: Long
+    %v_35 = shl %v_27, 3: I64
     %v_36 = add %v_34, %v_35: Ptr
     %v_37 = load %v_36, 8: Ptr
-    %v_38 = bitcast %v_37: Long
-    %v_39 = cmp_eq %v_38, 0: Int
+    %v_38 = bitcast %v_37: I64
+    %v_39 = cmp_eq %v_38, 0: I32
     je %v_39, b_40, b_41
   }
 
   b_40 {
-    %v_42 = shl 16, %v_27: Long
+    %v_42 = shl 16, %v_27: I64
     %v_43 = load @heapNext, 8: Ptr
     %v_44 = add %v_43, %v_42: Ptr
     %v_45 = load @heapLimit, 8: Ptr
-    %v_46 = cmp_gt %v_44, %v_45: Int
+    %v_46 = cmp_gt %v_44, %v_45: I32
     je %v_46, b_47, b_48
   }
 
@@ -199,7 +199,7 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_47 {
-    %v_50 = call_complex growHeap, %v_42: Int
+    %v_50 = call_complex growHeap, %v_42: I32
     je %v_50, b_51, b_32
   }
 
@@ -228,8 +228,8 @@ allocateHeap<complex>(%size: Long): Ptr {
   }
 
   b_25 {
-    %v_26 = add %v_24, %v_24: Long
-    %v_28 = add %v_27, 1: Long
+    %v_26 = add %v_24, %v_24: I64
+    %v_28 = add %v_27, 1: I64
     jmp b_23
   }
 
@@ -240,8 +240,8 @@ allocateHeap<complex>(%size: Long): Ptr {
 
 freeHeap<complex>(%allocation: Ptr) {
   b_0 {
-    %v_1 = bitcast %allocation: Long
-    %v_2 = cmp_eq %v_1, 0: Int
+    %v_1 = bitcast %allocation: I64
+    %v_2 = cmp_eq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
@@ -255,9 +255,9 @@ freeHeap<complex>(%allocation: Ptr) {
 
   b_5 {
     %v_6 = sub %allocation, 8: Ptr
-    %sizeClass = loads %v_6, 8: Long
+    %sizeClass = loads %v_6, 8: I64
     %v_7 = load @heapFree, 8: Ptr
-    %v_8 = shl %sizeClass, 3: Long
+    %v_8 = shl %sizeClass, 3: I64
     %v_9 = add %v_7, %v_8: Ptr
     %v_10 = load %v_9, 8: Ptr
     store %allocation, %v_10, 8
@@ -268,14 +268,14 @@ freeHeap<complex>(%allocation: Ptr) {
   }
 }
 
-main<complex>(): Long {
+main<complex>(): I64 {
   b_0 {
-    %v_1 = imm 16: Long
-    %v_2 = imm 32: Long
-    %v_3 = imm 16: Long
-    %v_4 = imm 32: Long
-    %v_5 = imm 16: Long
-    %v_6 = imm 32: Long
+    %v_1 = imm 16: I64
+    %v_2 = imm 32: I64
+    %v_3 = imm 16: I64
+    %v_4 = imm 32: I64
+    %v_5 = imm 16: I64
+    %v_6 = imm 32: I64
     jmp b_7
   }
 
@@ -293,12 +293,12 @@ main<complex>(): Long {
 
   b_10 {
     %counter = global @counter: Ptr
-    %old = loads %counter, 8: Long
+    %old = loads %counter, 8: I64
     store %counter, 7, 8
-    %v_11 = imul %old, 10: Long
-    %v_12 = loads @counter, 8: Long
-    %v_13 = add %v_11, %v_12: Long
-    %v_14 = cmp_neq %v_13, 57: Int
+    %v_11 = imul %old, 10: I64
+    %v_12 = loads @counter, 8: I64
+    %v_13 = add %v_11, %v_12: I64
+    %v_14 = cmp_neq %v_13, 57: I32
     je %v_14, b_15, b_16
   }
 
@@ -337,18 +337,18 @@ main<complex>(): Long {
     setpattern %v_24, %v_2, 0
     %v_25 = alloca 8, 8: Ptr
     store %v_25, %v_23, 8
-    %v_26 = loads @liveBuffers, 8: Long
-    %v_27 = load %v_24, 1: Int
-    %v_28 = cast %v_27: Long
+    %v_26 = loads @liveBuffers, 8: I64
+    %v_27 = load %v_24, 1: I32
+    %v_28 = cast %v_27: I64
     call_complex freeHeap, %v_24
     call_complex -=(I64), @liveBuffers, 1
-    %v_29 = add %v_26, %v_28: Long
-    %v_30 = load %v_23, 1: Int
-    %v_31 = cast %v_30: Long
+    %v_29 = add %v_26, %v_28: I64
+    %v_30 = load %v_23, 1: I32
+    %v_31 = cast %v_30: I64
     call_complex freeHeap, %v_23
     call_complex -=(I64), @liveBuffers, 1
-    %v_32 = add %v_29, %v_31: Long
-    %v_33 = cmp_neq %v_32, 2: Int
+    %v_32 = add %v_29, %v_31: I64
+    %v_33 = cmp_neq %v_32, 2: I32
     je %v_33, b_34, b_35
   }
 
@@ -361,8 +361,8 @@ main<complex>(): Long {
   }
 
   b_36 {
-    %v_37 = loads @liveBuffers, 8: Long
-    %v_38 = cmp_neq %v_37, 0: Int
+    %v_37 = loads @liveBuffers, 8: I64
+    %v_38 = cmp_neq %v_37, 0: I32
     je %v_38, b_39, b_40
   }
 
@@ -381,18 +381,18 @@ main<complex>(): Long {
     call_complex +=(I64), @liveBuffers, 1
     %v_43 = call_complex allocateHeap, %v_4: Ptr
     setpattern %v_43, %v_4, 0
-    %counted = loads @liveBuffers, 8: Long
-    %v_44 = load %v_42, 1: Int
-    %v_45 = cast %v_44: Long
+    %counted = loads @liveBuffers, 8: I64
+    %v_44 = load %v_42, 1: I32
+    %v_45 = cast %v_44: I64
     call_complex freeHeap, %v_42
     call_complex -=(I64), @liveBuffers, 1
-    %v_46 = add %counted, %v_45: Long
-    %v_47 = load %v_43, 1: Int
-    %v_48 = cast %v_47: Long
+    %v_46 = add %counted, %v_45: I64
+    %v_47 = load %v_43, 1: I32
+    %v_48 = cast %v_47: I64
     call_complex freeHeap, %v_43
     call_complex -=(I64), @liveBuffers, 1
-    %v_49 = add %v_46, %v_48: Long
-    %v_50 = cmp_neq %v_49, 2: Int
+    %v_49 = add %v_46, %v_48: I64
+    %v_50 = cmp_neq %v_49, 2: I32
     je %v_50, b_51, b_52
   }
 
@@ -405,8 +405,8 @@ main<complex>(): Long {
   }
 
   b_53 {
-    %v_54 = loads @liveBuffers, 8: Long
-    %v_55 = cmp_neq %v_54, 0: Int
+    %v_54 = loads @liveBuffers, 8: I64
+    %v_55 = cmp_neq %v_54, 0: I32
     je %v_55, b_56, b_57
   }
 
@@ -427,18 +427,18 @@ main<complex>(): Long {
     setpattern %v_60, %v_6, 0
     %v_61 = alloca 8, 8: Ptr
     store %v_61, %v_59, 8
-    %v_62 = loads @liveBuffers, 8: Long
-    %v_63 = load %v_60, 1: Int
-    %v_64 = cast %v_63: Long
+    %v_62 = loads @liveBuffers, 8: I64
+    %v_63 = load %v_60, 1: I32
+    %v_64 = cast %v_63: I64
     call_complex freeHeap, %v_60
     call_complex -=(I64), @liveBuffers, 1
-    %v_65 = add %v_62, %v_64: Long
-    %v_66 = load %v_59, 1: Int
-    %v_67 = cast %v_66: Long
+    %v_65 = add %v_62, %v_64: I64
+    %v_66 = load %v_59, 1: I32
+    %v_67 = cast %v_66: I64
     call_complex freeHeap, %v_59
     call_complex -=(I64), @liveBuffers, 1
-    %v_68 = add %v_65, %v_67: Long
-    %v_69 = cmp_neq %v_68, 2: Int
+    %v_68 = add %v_65, %v_67: I64
+    %v_69 = cmp_neq %v_68, 2: I32
     je %v_69, b_70, b_71
   }
 
@@ -451,8 +451,8 @@ main<complex>(): Long {
   }
 
   b_72 {
-    %v_73 = loads @liveBuffers, 8: Long
-    %v_74 = cmp_neq %v_73, 0: Int
+    %v_73 = loads @liveBuffers, 8: I64
+    %v_74 = cmp_neq %v_73, 0: I32
     je %v_74, b_75, b_76
   }
 

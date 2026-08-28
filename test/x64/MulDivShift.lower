@@ -1,15 +1,15 @@
-mulDivShift(%a: Int, %b: Int): Int {
+mulDivShift(%a: I32, %b: I32): I32 {
     {
-        %m1 = mul %a, %b: Int
-        %m2 = imul %a, %b: Int
-        %m3 = imul %a, 3: Int
-        %dv = div %a, %b: Int
-        %iq = idiv %a, %b: Int
-        %ir = irem %a, %b: Int
-        %sl = shl %a, %b: Int
-        %sr = shr %a, %b: Int
-        %sa = sar %a, %b: Int
-        %sl2 = shl %a, 2: Int
+        %m1 = mul %a, %b: I32
+        %m2 = imul %a, %b: I32
+        %m3 = imul %a, 3: I32
+        %dv = div %a, %b: I32
+        %iq = idiv %a, %b: I32
+        %ir = irem %a, %b: I32
+        %sl = shl %a, %b: I32
+        %sr = shr %a, %b: I32
+        %sa = sar %a, %b: I32
+        %sl2 = shl %a, 2: I32
         ret %m1
     }
 }
@@ -17,13 +17,13 @@ mulDivShift(%a: Int, %b: Int): Int {
 # The high halves, which are the same two group-3 multiplies read for the register they usually
 # throw away: the result is rdx and rax is the clobber, where `mul` and `imul` have it the other way
 # round. Both widths, since the 32-bit one is the same encoding without the REX.W.
-mulHigh(%a: Long, %b: Long, %c: Int, %d: Int): Long {
+mulHigh(%a: I64, %b: I64, %c: I32, %d: I32): I64 {
     {
-        %h1 = mulhi %a, %b: Long
-        %h2 = imulhi %a, %b: Long
-        %h3 = mulhi %c, %d: Int
-        %h4 = imulhi %c, 7: Int
-        %s = add %h1, %h2: Long
+        %h1 = mulhi %a, %b: I64
+        %h2 = imulhi %a, %b: I64
+        %h3 = mulhi %c, %d: I32
+        %h4 = imulhi %c, 7: I32
+        %s = add %h1, %h2: I64
         ret %s
     }
 }
@@ -31,10 +31,10 @@ mulHigh(%a: Long, %b: Long, %c: Int, %d: Int): Long {
 # `rem` produces its result in rdx while reading its dividend from rax, so both have to be clear of
 # anything still live - including a value that only passes through, like %c here (the third argument,
 # which arrives in rdx).
-remLiveResult(%a: Int, %b: Int, %c: Int): Int {
+remLiveResult(%a: I32, %b: I32, %c: I32): I32 {
     {
-        %r = rem %a, %b: Int
-        %s = add %r, %c: Int
+        %r = rem %a, %b: I32
+        %s = add %r, %c: I32
         ret %s
     }
 }

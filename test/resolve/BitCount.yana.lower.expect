@@ -1,216 +1,216 @@
 @image$base = []
 
-opaqueInt<complex>(%x: Int): Int {
+opaqueInt<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-opaqueLong<complex>(%x: Long): Long {
+opaqueLong<complex>(%x: I64): I64 {
   b_0 {
     ret %x
   }
 }
 
-opaqueU32<complex>(%x: Int): Int {
+opaqueU32<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-opaqueU64<complex>(%x: Long): Long {
+opaqueU64<complex>(%x: I64): I64 {
   b_0 {
     ret %x
   }
 }
 
-opaqueI32<complex>(%x: Int): Int {
+opaqueI32<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex opaqueInt, 305419896: Int
-    %v_2 = popcnt %v_1: Int
-    %v_3 = cmp_eq %v_2, 13: Int
-    %v_4 = call_complex opaqueInt, 305419896: Int
-    %v_5 = clz_width %v_4: Int
-    %v_6 = cmp_eq %v_5, 3: Int
-    %v_7 = select %v_6, 2, 0: Int
-    %v_8 = add %v_3, %v_7: Int
-    %v_9 = call_complex opaqueInt, 305419896: Int
-    %v_10 = cttz_width %v_9: Int
-    %v_11 = cmp_eq %v_10, 3: Int
-    %v_12 = select %v_11, 4, 0: Int
-    %v_13 = add %v_8, %v_12: Int
-    %v_14 = call_complex opaqueInt, 0: Int
-    %v_15 = popcnt %v_14: Int
-    %v_16 = cmp_eq %v_15, 0: Int
-    %v_17 = select %v_16, 8, 0: Int
-    %v_18 = call_complex opaqueInt, 0: Int
-    %v_19 = clz_width %v_18: Int
-    %v_20 = cmp_eq %v_19, 32: Int
-    %v_21 = select %v_20, 16, 0: Int
-    %v_22 = add %v_17, %v_21: Int
-    %v_23 = call_complex opaqueInt, 0: Int
-    %v_24 = cttz_width %v_23: Int
-    %v_25 = cmp_eq %v_24, 32: Int
-    %v_26 = select %v_25, 32, 0: Int
-    %v_27 = add %v_22, %v_26: Int
-    %v_28 = add %v_13, %v_27: Int
-    %v_29 = call_complex opaqueU32, 4294967295: Int
-    %v_30 = popcnt %v_29: Int
-    %v_31 = cmp_eq %v_30, 32: Int
-    %v_32 = select %v_31, 64, 0: Int
-    %v_33 = call_complex opaqueU32, 4294967295: Int
-    %v_34 = clz_width %v_33: Int
-    %v_35 = cmp_eq %v_34, 0: Int
-    %v_36 = select %v_35, 128, 0: Int
-    %v_37 = add %v_32, %v_36: Int
-    %v_38 = call_complex opaqueU32, 4294967295: Int
-    %v_39 = cttz_width %v_38: Int
-    %v_40 = cmp_eq %v_39, 0: Int
-    %v_41 = select %v_40, 256, 0: Int
-    %v_42 = add %v_37, %v_41: Int
-    %v_43 = add %v_28, %v_42: Int
-    %v_44 = call_complex opaqueLong, 72623859790382856: Long
-    %v_45 = popcnt %v_44: Long
-    %v_46 = cmp_eq %v_45, 13: Int
-    %v_47 = select %v_46, 512, 0: Int
-    %v_48 = call_complex opaqueLong, 72623859790382856: Long
-    %v_49 = clz_width %v_48: Long
-    %v_50 = cmp_eq %v_49, 7: Int
-    %v_51 = select %v_50, 1024, 0: Int
-    %v_52 = add %v_47, %v_51: Int
-    %v_53 = call_complex opaqueLong, 72623859790382856: Long
-    %v_54 = cttz_width %v_53: Long
-    %v_55 = cmp_eq %v_54, 3: Int
-    %v_56 = select %v_55, 2048, 0: Int
-    %v_57 = add %v_52, %v_56: Int
-    %v_58 = add %v_43, %v_57: Int
-    %v_59 = call_complex opaqueU64, 0: Long
-    %v_60 = popcnt %v_59: Long
-    %v_61 = cmp_eq %v_60, 0: Int
-    %v_62 = select %v_61, 4096, 0: Int
-    %v_63 = call_complex opaqueU64, 0: Long
-    %v_64 = clz_width %v_63: Long
-    %v_65 = cmp_eq %v_64, 64: Int
-    %v_66 = select %v_65, 8192, 0: Int
-    %v_67 = add %v_62, %v_66: Int
-    %v_68 = call_complex opaqueU64, 0: Long
-    %v_69 = cttz_width %v_68: Long
-    %v_70 = cmp_eq %v_69, 64: Int
-    %v_71 = select %v_70, 16384, 0: Int
-    %v_72 = add %v_67, %v_71: Int
-    %v_73 = add %v_58, %v_72: Int
-    %value = call_complex opaqueI32, 18446744073709551615: Int
-    %v_74 = popcnt %value: Int
-    %v_75 = cmp_eq %v_74, 32: Int
-    %v_76 = select %v_75, 32768, 0: Int
-    %v_77 = clz_width %value: Int
-    %v_78 = cmp_eq %v_77, 0: Int
-    %v_79 = select %v_78, 65536, 0: Int
-    %v_80 = add %v_76, %v_79: Int
-    %v_81 = cttz_width %value: Int
-    %v_82 = cmp_eq %v_81, 0: Int
-    %v_83 = select %v_82, 131072, 0: Int
-    %v_84 = add %v_80, %v_83: Int
-    %v_85 = add %v_73, %v_84: Int
-    %v_86 = call_complex opaqueInt, 305419896: Int
-    %v_87 = clz_width %v_86: Int
-    %v_88 = sub 32, %v_87: Int
-    %v_89 = cmp_eq %v_88, 29: Int
-    %v_90 = select %v_89, 262144, 0: Int
-    %v_91 = call_complex opaqueInt, 0: Int
-    %v_92 = clz_width %v_91: Int
-    %v_93 = sub 32, %v_92: Int
-    %v_94 = cmp_eq %v_93, 0: Int
-    %v_95 = select %v_94, 524288, 0: Int
-    %v_96 = add %v_90, %v_95: Int
-    %v_97 = call_complex opaqueInt, 1024: Int
-    %v_98 = cmp_neq %v_97, 0: Int
-    %v_99 = sub %v_97, 1: Int
-    %v_100 = and %v_97, %v_99: Int
-    %v_101 = cmp_eq %v_100, 0: Int
-    %v_102 = and %v_98, %v_101: Int
-    %v_103 = select %v_102, 1048576, 0: Int
-    %v_104 = add %v_96, %v_103: Int
-    %v_105 = call_complex opaqueInt, 1023: Int
-    %v_106 = cmp_neq %v_105, 0: Int
-    %v_107 = sub %v_105, 1: Int
-    %v_108 = and %v_105, %v_107: Int
-    %v_109 = cmp_eq %v_108, 0: Int
-    %v_110 = and %v_106, %v_109: Int
-    %v_111 = xor %v_110, 1: Int
-    %v_112 = select %v_111, 2097152, 0: Int
-    %v_113 = add %v_104, %v_112: Int
-    %v_114 = call_complex opaqueInt, 0: Int
-    %v_115 = cmp_neq %v_114, 0: Int
-    %v_116 = sub %v_114, 1: Int
-    %v_117 = and %v_114, %v_116: Int
-    %v_118 = cmp_eq %v_117, 0: Int
-    %v_119 = and %v_115, %v_118: Int
-    %v_120 = xor %v_119, 1: Int
-    %v_121 = select %v_120, 4194304, 0: Int
-    %v_122 = add %v_113, %v_121: Int
-    %v_123 = call_complex opaqueInt, 1000: Int
-    %v_124 = cmp_ile %v_123, 1: Int
-    %v_125 = sub %v_123, 1: Int
-    %v_126 = clz_width %v_125: Int
-    %v_127 = sub 32, %v_126: Int
-    %v_128 = shl 1, %v_127: Int
-    %v_129 = select %v_124, 1, %v_128: Int
-    %v_130 = cmp_eq %v_129, 1024: Int
-    %v_131 = select %v_130, 8388608, 0: Int
-    %v_132 = add %v_122, %v_131: Int
-    %v_133 = call_complex opaqueInt, 1024: Int
-    %v_134 = cmp_ile %v_133, 1: Int
-    %v_135 = sub %v_133, 1: Int
-    %v_136 = clz_width %v_135: Int
-    %v_137 = sub 32, %v_136: Int
-    %v_138 = shl 1, %v_137: Int
-    %v_139 = select %v_134, 1, %v_138: Int
-    %v_140 = cmp_eq %v_139, 1024: Int
-    %v_141 = select %v_140, 16777216, 0: Int
-    %v_142 = add %v_132, %v_141: Int
-    %v_143 = call_complex opaqueInt, 0: Int
-    %v_144 = cmp_ile %v_143, 1: Int
-    %v_145 = sub %v_143, 1: Int
-    %v_146 = clz_width %v_145: Int
-    %v_147 = sub 32, %v_146: Int
-    %v_148 = shl 1, %v_147: Int
-    %v_149 = select %v_144, 1, %v_148: Int
-    %v_150 = cmp_eq %v_149, 1: Int
-    %v_151 = select %v_150, 33554432, 0: Int
-    %v_152 = add %v_142, %v_151: Int
-    %v_153 = add %v_85, %v_152: Int
-    %v_154 = add %v_153, 469762048: Int
-    %v_155 = call_complex opaqueU32, 4294967295: Int
-    %v_156 = call_complex countVia(U32), %v_155: Int
-    %v_157 = cmp_eq %v_156, 32: Int
-    %v_158 = select %v_157, 536870912, 0: Int
-    %v_159 = call_complex opaqueU64, 1: Long
-    %v_160 = call_complex leadingVia(U64), %v_159: Long
-    %v_161 = cmp_eq %v_160, 63: Int
-    %v_162 = select %v_161, 1073741824, 0: Int
-    %v_163 = add %v_158, %v_162: Int
-    %v_164 = add %v_154, %v_163: Int
+    %v_1 = call_complex opaqueInt, 305419896: I32
+    %v_2 = popcnt %v_1: I32
+    %v_3 = cmp_eq %v_2, 13: I32
+    %v_4 = call_complex opaqueInt, 305419896: I32
+    %v_5 = clz_width %v_4: I32
+    %v_6 = cmp_eq %v_5, 3: I32
+    %v_7 = select %v_6, 2, 0: I32
+    %v_8 = add %v_3, %v_7: I32
+    %v_9 = call_complex opaqueInt, 305419896: I32
+    %v_10 = cttz_width %v_9: I32
+    %v_11 = cmp_eq %v_10, 3: I32
+    %v_12 = select %v_11, 4, 0: I32
+    %v_13 = add %v_8, %v_12: I32
+    %v_14 = call_complex opaqueInt, 0: I32
+    %v_15 = popcnt %v_14: I32
+    %v_16 = cmp_eq %v_15, 0: I32
+    %v_17 = select %v_16, 8, 0: I32
+    %v_18 = call_complex opaqueInt, 0: I32
+    %v_19 = clz_width %v_18: I32
+    %v_20 = cmp_eq %v_19, 32: I32
+    %v_21 = select %v_20, 16, 0: I32
+    %v_22 = add %v_17, %v_21: I32
+    %v_23 = call_complex opaqueInt, 0: I32
+    %v_24 = cttz_width %v_23: I32
+    %v_25 = cmp_eq %v_24, 32: I32
+    %v_26 = select %v_25, 32, 0: I32
+    %v_27 = add %v_22, %v_26: I32
+    %v_28 = add %v_13, %v_27: I32
+    %v_29 = call_complex opaqueU32, 4294967295: I32
+    %v_30 = popcnt %v_29: I32
+    %v_31 = cmp_eq %v_30, 32: I32
+    %v_32 = select %v_31, 64, 0: I32
+    %v_33 = call_complex opaqueU32, 4294967295: I32
+    %v_34 = clz_width %v_33: I32
+    %v_35 = cmp_eq %v_34, 0: I32
+    %v_36 = select %v_35, 128, 0: I32
+    %v_37 = add %v_32, %v_36: I32
+    %v_38 = call_complex opaqueU32, 4294967295: I32
+    %v_39 = cttz_width %v_38: I32
+    %v_40 = cmp_eq %v_39, 0: I32
+    %v_41 = select %v_40, 256, 0: I32
+    %v_42 = add %v_37, %v_41: I32
+    %v_43 = add %v_28, %v_42: I32
+    %v_44 = call_complex opaqueLong, 72623859790382856: I64
+    %v_45 = popcnt %v_44: I64
+    %v_46 = cmp_eq %v_45, 13: I32
+    %v_47 = select %v_46, 512, 0: I32
+    %v_48 = call_complex opaqueLong, 72623859790382856: I64
+    %v_49 = clz_width %v_48: I64
+    %v_50 = cmp_eq %v_49, 7: I32
+    %v_51 = select %v_50, 1024, 0: I32
+    %v_52 = add %v_47, %v_51: I32
+    %v_53 = call_complex opaqueLong, 72623859790382856: I64
+    %v_54 = cttz_width %v_53: I64
+    %v_55 = cmp_eq %v_54, 3: I32
+    %v_56 = select %v_55, 2048, 0: I32
+    %v_57 = add %v_52, %v_56: I32
+    %v_58 = add %v_43, %v_57: I32
+    %v_59 = call_complex opaqueU64, 0: I64
+    %v_60 = popcnt %v_59: I64
+    %v_61 = cmp_eq %v_60, 0: I32
+    %v_62 = select %v_61, 4096, 0: I32
+    %v_63 = call_complex opaqueU64, 0: I64
+    %v_64 = clz_width %v_63: I64
+    %v_65 = cmp_eq %v_64, 64: I32
+    %v_66 = select %v_65, 8192, 0: I32
+    %v_67 = add %v_62, %v_66: I32
+    %v_68 = call_complex opaqueU64, 0: I64
+    %v_69 = cttz_width %v_68: I64
+    %v_70 = cmp_eq %v_69, 64: I32
+    %v_71 = select %v_70, 16384, 0: I32
+    %v_72 = add %v_67, %v_71: I32
+    %v_73 = add %v_58, %v_72: I32
+    %value = call_complex opaqueI32, 18446744073709551615: I32
+    %v_74 = popcnt %value: I32
+    %v_75 = cmp_eq %v_74, 32: I32
+    %v_76 = select %v_75, 32768, 0: I32
+    %v_77 = clz_width %value: I32
+    %v_78 = cmp_eq %v_77, 0: I32
+    %v_79 = select %v_78, 65536, 0: I32
+    %v_80 = add %v_76, %v_79: I32
+    %v_81 = cttz_width %value: I32
+    %v_82 = cmp_eq %v_81, 0: I32
+    %v_83 = select %v_82, 131072, 0: I32
+    %v_84 = add %v_80, %v_83: I32
+    %v_85 = add %v_73, %v_84: I32
+    %v_86 = call_complex opaqueInt, 305419896: I32
+    %v_87 = clz_width %v_86: I32
+    %v_88 = sub 32, %v_87: I32
+    %v_89 = cmp_eq %v_88, 29: I32
+    %v_90 = select %v_89, 262144, 0: I32
+    %v_91 = call_complex opaqueInt, 0: I32
+    %v_92 = clz_width %v_91: I32
+    %v_93 = sub 32, %v_92: I32
+    %v_94 = cmp_eq %v_93, 0: I32
+    %v_95 = select %v_94, 524288, 0: I32
+    %v_96 = add %v_90, %v_95: I32
+    %v_97 = call_complex opaqueInt, 1024: I32
+    %v_98 = cmp_neq %v_97, 0: I32
+    %v_99 = sub %v_97, 1: I32
+    %v_100 = and %v_97, %v_99: I32
+    %v_101 = cmp_eq %v_100, 0: I32
+    %v_102 = and %v_98, %v_101: I32
+    %v_103 = select %v_102, 1048576, 0: I32
+    %v_104 = add %v_96, %v_103: I32
+    %v_105 = call_complex opaqueInt, 1023: I32
+    %v_106 = cmp_neq %v_105, 0: I32
+    %v_107 = sub %v_105, 1: I32
+    %v_108 = and %v_105, %v_107: I32
+    %v_109 = cmp_eq %v_108, 0: I32
+    %v_110 = and %v_106, %v_109: I32
+    %v_111 = xor %v_110, 1: I32
+    %v_112 = select %v_111, 2097152, 0: I32
+    %v_113 = add %v_104, %v_112: I32
+    %v_114 = call_complex opaqueInt, 0: I32
+    %v_115 = cmp_neq %v_114, 0: I32
+    %v_116 = sub %v_114, 1: I32
+    %v_117 = and %v_114, %v_116: I32
+    %v_118 = cmp_eq %v_117, 0: I32
+    %v_119 = and %v_115, %v_118: I32
+    %v_120 = xor %v_119, 1: I32
+    %v_121 = select %v_120, 4194304, 0: I32
+    %v_122 = add %v_113, %v_121: I32
+    %v_123 = call_complex opaqueInt, 1000: I32
+    %v_124 = cmp_ile %v_123, 1: I32
+    %v_125 = sub %v_123, 1: I32
+    %v_126 = clz_width %v_125: I32
+    %v_127 = sub 32, %v_126: I32
+    %v_128 = shl 1, %v_127: I32
+    %v_129 = select %v_124, 1, %v_128: I32
+    %v_130 = cmp_eq %v_129, 1024: I32
+    %v_131 = select %v_130, 8388608, 0: I32
+    %v_132 = add %v_122, %v_131: I32
+    %v_133 = call_complex opaqueInt, 1024: I32
+    %v_134 = cmp_ile %v_133, 1: I32
+    %v_135 = sub %v_133, 1: I32
+    %v_136 = clz_width %v_135: I32
+    %v_137 = sub 32, %v_136: I32
+    %v_138 = shl 1, %v_137: I32
+    %v_139 = select %v_134, 1, %v_138: I32
+    %v_140 = cmp_eq %v_139, 1024: I32
+    %v_141 = select %v_140, 16777216, 0: I32
+    %v_142 = add %v_132, %v_141: I32
+    %v_143 = call_complex opaqueInt, 0: I32
+    %v_144 = cmp_ile %v_143, 1: I32
+    %v_145 = sub %v_143, 1: I32
+    %v_146 = clz_width %v_145: I32
+    %v_147 = sub 32, %v_146: I32
+    %v_148 = shl 1, %v_147: I32
+    %v_149 = select %v_144, 1, %v_148: I32
+    %v_150 = cmp_eq %v_149, 1: I32
+    %v_151 = select %v_150, 33554432, 0: I32
+    %v_152 = add %v_142, %v_151: I32
+    %v_153 = add %v_85, %v_152: I32
+    %v_154 = add %v_153, 469762048: I32
+    %v_155 = call_complex opaqueU32, 4294967295: I32
+    %v_156 = call_complex countVia(U32), %v_155: I32
+    %v_157 = cmp_eq %v_156, 32: I32
+    %v_158 = select %v_157, 536870912, 0: I32
+    %v_159 = call_complex opaqueU64, 1: I64
+    %v_160 = call_complex leadingVia(U64), %v_159: I64
+    %v_161 = cmp_eq %v_160, 63: I32
+    %v_162 = select %v_161, 1073741824, 0: I32
+    %v_163 = add %v_158, %v_162: I32
+    %v_164 = add %v_154, %v_163: I32
     ret %v_164
   }
 }
 
-countVia(U32)<complex>(%value: Int): Int {
+countVia(U32)<complex>(%value: I32): I32 {
   b_0 {
-    %v_1 = popcnt %value: Int
+    %v_1 = popcnt %value: I32
     ret %v_1
   }
 }
 
-leadingVia(U64)<complex>(%value: Long): Long {
+leadingVia(U64)<complex>(%value: I64): I64 {
   b_0 {
-    %v_1 = clz_width %value: Long
+    %v_1 = clz_width %value: I64
     ret %v_1
   }
 }

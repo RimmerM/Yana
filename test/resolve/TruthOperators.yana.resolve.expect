@@ -6,7 +6,7 @@ let read: Flags = Flags(1)
 
 let write: Flags = Flags(2)
 
-let &effects: Int = 0
+let &effects: I32 = 0
 
 fn isEmpty(%f: Flags) -> Bool {
   b0:
@@ -21,7 +21,7 @@ fn complement(%f: Flags) -> Flags {
     ret %v1
 }
 
-fn noneLeft(%count: Int) -> Bool {
+fn noneLeft(%count: I32) -> Bool {
   b0:
     %v2 = cmp_ne %count, 0 : Bool
     %v4 = xor %v2, True : Bool
@@ -36,8 +36,8 @@ fn negate(%b: Bool) -> Bool {
 
 fn bump() -> Flags {
   b0:
-    %v0 = load effects : Int
-    %v3 = add %v0, 1 : Int
+    %v0 = load effects : I32
+    %v3 = add %v0, 1 : I32
     assign effects, %v3
     %v5 = load read : Flags
     ret %v5
@@ -62,7 +62,7 @@ fn shortCircuits() -> Bool {
     ret %v8
 }
 
-fn flagsAndCount(%f: Flags, %n: Int) -> Bool {
+fn flagsAndCount(%f: Flags, %n: I32) -> Bool {
   b0:
     %v2 = call Truth(Flags).truthy, %f : Bool
     je %v2, b1, b2
@@ -79,7 +79,7 @@ fn flagsAndCount(%f: Flags, %n: Int) -> Bool {
     ret %v9
 }
 
-fn flagsOrCount(%f: Flags, %n: Int) -> Bool {
+fn flagsOrCount(%f: Flags, %n: I32) -> Bool {
   b0:
     %v2 = call Truth(Flags).truthy, %f : Bool
     je %v2, b2, b1
@@ -177,9 +177,9 @@ fn truthDiffers(%f: Flags, %other: Flags) -> Bool {
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %score = alloc : Int
+    %score = alloc : I32
     init %score, 0
     %v4 = load empty : Flags
     %v5 = call Truth(Flags).truthy, %v4 : Bool
@@ -305,7 +305,7 @@ fn main() -> Int {
     jmp b33
 
   b33:
-    %v82 = load effects : Int
+    %v82 = load effects : I32
     %v85 = cmp_ne %v82, 1 : Bool
     je %v85, b34, b35
 
@@ -413,7 +413,7 @@ fn main() -> Int {
     jmp b60
 
   b60:
-    %v157 = call genericNot(Int), 0 : Bool
+    %v157 = call genericNot(I32), 0 : Bool
     %v159 = call noneLeft, 0 : Bool
     %v160 = cmp_ne %v157, %v159 : Bool
     je %v160, b61, b62
@@ -513,12 +513,12 @@ fn main() -> Int {
     jmp b84
 
   b84:
-    %v226 = load %score : Int
+    %v226 = load %score : I32
     %v227 = call bitsOf, %both : I64
-    %v228 = cast %v227 : Int
-    %v229 = add %v226, %v228 : Int
+    %v228 = cast %v227 : I32
+    %v229 = add %v226, %v228 : I32
     assign %score, %v229
-    %v231 = load %score : Int
+    %v231 = load %score : I32
     ret %v231
 }
 
@@ -622,7 +622,7 @@ fn genericNot(Flags)(%x: Flags) -> Bool {
     ret %v3
 }
 
-fn genericNot(Int)(%x: Int) -> Bool {
+fn genericNot(I32)(%x: I32) -> Bool {
   b0:
     %v2 = cmp_ne %x, 0 : Bool
     %v4 = xor %v2, True : Bool

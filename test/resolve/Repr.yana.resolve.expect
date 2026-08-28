@@ -20,12 +20,12 @@ fn useWrapped(%it: Wrapped) -> @bits(53) U64 {
 fn useRaw(%it: Raw) -> Bool {
   b0:
     %v1 = load %it@Raw.at : %U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %flags = alloc : Flags
     init %local0@Flags.optionA, True
@@ -44,8 +44,8 @@ fn main() -> Int {
     jmp b3
 
   b3:
-    %v18 = phi [b1, 1], [b2, 0] : Int
-    %v19 = cast %widened : Int
-    %v20 = add %v18, %v19 : Int
+    %v18 = phi [b1, 1], [b2, 0] : I32
+    %v19 = cast %widened : I32
+    %v20 = add %v18, %v19 : I32
     ret %v20
 }

@@ -20,12 +20,12 @@
 
 # All four forms: the scalar pair, whose W bit is the whole of the difference between them, and the
 # packed pair, whose opcode byte is one lower.
-fused(%a: f32x4, %b: f32x4, %c: f32x4, %d: f64x2, %x: Float, %y: Float, %z: Double): f32x4 {
+fused(%a: f32x4, %b: f32x4, %c: f32x4, %d: f64x2, %x: F32, %y: F32, %z: F64): f32x4 {
     {
         %vs = fma %a, %b, %c: f32x4
         %vd = fma %d, %d, %d: f64x2
-        %ss = fma %x, %y, %x: Float
-        %sd = fma %z, %z, %z: Double
+        %ss = fma %x, %y, %x: F32
+        %sd = fma %z, %z, %z: F64
         ret %vs
     }
 }
@@ -43,14 +43,14 @@ tied(%a: f32x4, %b: f32x4, %c: f32x4): f32x4 {
 # A dot product's inner step, which is the shape this instruction exists for: multiply lanewise into
 # a running accumulator with one rounding, then reduce. The reduction is written out as the butterfly
 # `lowerVectorReductions` expands it into - see VectorOps.lower.
-accumulate(%x: f32x4, %y: f32x4, %acc: f32x4): Float {
+accumulate(%x: f32x4, %y: f32x4, %acc: f32x4): F32 {
     {
         %a = fma %x, %y, %acc: f32x4
         %p0 = vshuffle %a, %a, 1, 0, 3, 2: f32x4
         %s0 = add %a, %p0: f32x4
         %p1 = vshuffle %s0, %s0, 2, 3, 0, 1: f32x4
         %s1 = add %s0, %p1: f32x4
-        %r = vlane %s1, 0: Float
+        %r = vlane %s1, 0: F32
         ret %r
     }
 }

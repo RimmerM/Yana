@@ -32,13 +32,13 @@ fn teardown$none(%value: %()) -> () {
 fn Reclaim(Array(a)).reclaim(U8)(%value: Array(U8)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -50,7 +50,7 @@ fn Reclaim(Array(a)).reclaim(U8)(%value: Array(U8)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(U8)
     %v14 = load %value@Array.run@Run.items : %U8
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof U8 : Size
     %v18 = mul %v16, %v17 : Size
@@ -58,8 +58,8 @@ fn Reclaim(Array(a)).reclaim(U8)(%value: Array(U8)) -> () {
     %v20 = load [%v19] : U8
     %doomed = alloc : U8
     init %local3, %v20
-    %v23 = load %i : Int
-    %v25 = add %v23, 1 : Int
+    %v23 = load %i : I32
+    %v25 = add %v23, 1 : I32
     assign %i, %v25
     jmp b1
 }
@@ -96,7 +96,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -147,7 +147,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -183,7 +183,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -269,14 +269,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -308,7 +308,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -366,7 +366,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -458,7 +458,7 @@ fn lent(%times: I64, %body: (value$: Held) -> Outcome((), $r)) -> Outcome((), $r
   b3:
     %v10 = call make : Held
     %v11 = calldyn %body, %v10 : Outcome((), $r)
-    %v12 = load %local3.discriminant : Int
+    %v12 = load %local3.discriminant : I32
     %v14 = cmp_eq %v12, 1 : Bool
     je %v14, b4, b5
 
@@ -497,7 +497,7 @@ fn handed(%times: I64, %body: (->value$: Held) -> Outcome((), $r)) -> Outcome(()
     %v10 = call make : Held
     %v11 = move %local2 : Held
     %v12 = calldyn %body, %v11 : Outcome((), $r)
-    %v13 = load %local3.discriminant : Int
+    %v13 = load %local3.discriminant : I32
     %v15 = cmp_eq %v13, 1 : Bool
     je %v15, b4, b5
 
@@ -532,7 +532,7 @@ fn results(%times: I64, %body: (->value$: Result(I64, Held)) -> Outcome((), $r))
     aggregate %local5.discriminant = 0, %local5@Err = 7
     %v31 = move %local5 : Result(I64, Held)
     %v32 = calldyn %body, %v31 : Outcome((), $r)
-    %v33 = load %local6.discriminant : Int
+    %v33 = load %local6.discriminant : I32
     %v35 = cmp_eq %v33, 1 : Bool
     je %v35, b6, b7
 
@@ -542,7 +542,7 @@ fn results(%times: I64, %body: (->value$: Result(I64, Held)) -> Outcome((), $r))
     aggregate %local2.discriminant = 1, %local2@Ok = %v12
     %v14 = move %local2 : Result(I64, Held)
     %v15 = calldyn %body, %v14 : Outcome((), $r)
-    %v16 = load %local4.discriminant : Int
+    %v16 = load %local4.discriminant : I32
     %v18 = cmp_eq %v16, 1 : Bool
     je %v18, b4, b5
 
@@ -611,7 +611,7 @@ fn viaTry(%times: I64) -> Result(I64, Size) {
     init %local2.code, %v9
     init %local2.env, %v7
     %v12 = call results(Result(I64, Size)), %times, %v8 : Outcome((), Result(I64, Size))
-    %v13 = load %local3.discriminant : Int
+    %v13 = load %local3.discriminant : I32
     %v15 = cmp_eq %v13, 1 : Bool
     je %v15, b1, b2
 
@@ -643,14 +643,14 @@ fn ignores(%times: I64) -> Size {
     ret %v13
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = call borrows, 2 : Size
     %v3 = call owns, 3 : Size
     %v4 = add %v1, %v3 : Size
     %v6 = call ignores, 2 : Size
     %v7 = add %v4, %v6 : Size
-    %v8 = cast %v7 : Int
+    %v8 = cast %v7 : I32
     ret %v8
 }
 
@@ -689,7 +689,7 @@ fn lent(())(%times: I64, %body: (value$: Held) -> Outcome((), ())) -> Outcome(()
     %v13 = call make : Held
     %v14 = calldyn %body, %v13 : Outcome((), ())
     drop_derived %local2 via reclaim$Held
-    %v15 = load %local3.discriminant : Int
+    %v15 = load %local3.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b4, b5
 
@@ -737,7 +737,7 @@ fn handed(())(%times: I64, %body: (->value$: Held) -> Outcome((), ())) -> Outcom
     %v13 = call make : Held
     %v14 = move %local2 : Held
     %v15 = calldyn %body, %v14 : Outcome((), ())
-    %v16 = load %local3.discriminant : Int
+    %v16 = load %local3.discriminant : I32
     %v18 = cmp_eq %v16, 1 : Bool
     je %v18, b4, b5
 
@@ -755,7 +755,7 @@ fn ResolveTest.continuation$24(%env: %{total: &Size}, %value$: Result(I64, Held)
   b0:
     %value$ = move %value$ : Result(I64, Held)
     %v3 = call Try(Result(e, a), a, e).toOutcome(I64, Held), %value$ : Outcome(Held, I64)
-    %v4 = load %local1.discriminant : Int
+    %v4 = load %local1.discriminant : I32
     %v6 = cmp_eq %v4, 1 : Bool
     je %v6, b1, b2
 
@@ -801,7 +801,7 @@ fn results(Result(I64, Size))(%times: I64, %body: (->value$: Result(I64, Held)) 
     aggregate %local5.discriminant = 0, %local5@Err = 7
     %v13 = move %local5 : Result(I64, Held)
     %v14 = calldyn %body, %v13 : Outcome((), Result(I64, Size))
-    %v15 = load %local6.discriminant : Int
+    %v15 = load %local6.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b6, b7
 
@@ -811,7 +811,7 @@ fn results(Result(I64, Size))(%times: I64, %body: (->value$: Result(I64, Held)) 
     aggregate %local2.discriminant = 1, %local2@Ok = %v20
     %v23 = move %local2 : Result(I64, Held)
     %v24 = calldyn %body, %v23 : Outcome((), Result(I64, Size))
-    %v25 = load %local4.discriminant : Int
+    %v25 = load %local4.discriminant : I32
     %v27 = cmp_eq %v25, 1 : Bool
     je %v27, b4, b5
 
@@ -862,7 +862,7 @@ fn results(())(%times: I64, %body: (->value$: Result(I64, Held)) -> Outcome((), 
     aggregate %local5.discriminant = 0, %local5@Err = 7
     %v13 = move %local5 : Result(I64, Held)
     %v14 = calldyn %body, %v13 : Outcome((), ())
-    %v15 = load %local6.discriminant : Int
+    %v15 = load %local6.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b6, b7
 
@@ -872,7 +872,7 @@ fn results(())(%times: I64, %body: (->value$: Result(I64, Held)) -> Outcome((), 
     aggregate %local2.discriminant = 1, %local2@Ok = %v20
     %v23 = move %local2 : Result(I64, Held)
     %v24 = calldyn %body, %v23 : Outcome((), ())
-    %v25 = load %local4.discriminant : Int
+    %v25 = load %local4.discriminant : I32
     %v27 = cmp_eq %v25, 1 : Bool
     je %v27, b4, b5
 
@@ -902,7 +902,7 @@ fn reclaim$Held(%value: Held) -> () {
 
 fn reclaim$Outcome(Held, I64)(%value: Outcome(Held, I64)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b3
 
@@ -919,7 +919,7 @@ fn reclaim$Outcome(Held, I64)(%value: Outcome(Held, I64)) -> () {
 
 fn reclaim$Result(I64, Held)(%value: Result(I64, Held)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 

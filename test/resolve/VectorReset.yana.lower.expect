@@ -1,41 +1,41 @@
 @image$base = []
 
-compressLike<clobber, x86_legacy_sse>(%state: i32x4, %message: i32x4): Int {
+compressLike<clobber, x86_legacy_sse>(%state: i32x4, %message: i32x4): I32 {
   b_0 {
     vzeroupper 
     %mixed = sha256msg1 %state, %message: i32x4
     %v_1 = add %mixed, %state: i32x4
-    %v_2 = vlane %v_1, 0: Int
+    %v_2 = vlane %v_1, 0: I32
     ret %v_2
   }
 }
 
-throughHelper<clobber, x86_legacy_sse>(%state: i32x4): Int {
+throughHelper<clobber, x86_legacy_sse>(%state: i32x4): I32 {
   b_0 {
     vzeroupper 
     %v_1 = sha256msg2 %state, %state: i32x4
-    %v_2 = vlane %v_1, 0: Int
+    %v_2 = vlane %v_1, 0: I32
     ret %v_2
   }
 }
 
-plainReset<complex>(%x: Int): Int {
+plainReset<complex>(%x: I32): I32 {
   b_0 {
     vzeroupper 
-    %v_1 = add %x, 1: Int
+    %v_1 = add %x, 1: I32
     ret %v_1
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %a = vsplat 1: i32x4
     %b = vsplat 2: i32x4
-    %v_1 = call_clobber compressLike, %a, %b: Int
-    %v_2 = call_clobber throughHelper, %a: Int
-    %v_3 = add %v_1, %v_2: Int
-    %v_4 = call_complex plainReset, 0: Int
-    %v_5 = add %v_3, %v_4: Int
+    %v_1 = call_clobber compressLike, %a, %b: I32
+    %v_2 = call_clobber throughHelper, %a: I32
+    %v_3 = add %v_1, %v_2: I32
+    %v_4 = call_complex plainReset, 0: I32
+    %v_5 = add %v_3, %v_4: I32
     ret %v_5
   }
 }

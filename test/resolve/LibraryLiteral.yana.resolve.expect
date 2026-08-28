@@ -178,12 +178,12 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v66 = cmp_ge %v64, %v65 : Bool
     call checkCondition, %v66
     %v68 = load [%v62]@Flat.items : %CodeUnit
-    %v69 = strideof CodeUnit : Long
-    %v70 = mul %v55, %v69 : Long
+    %v69 = strideof CodeUnit : I64
+    %v70 = mul %v55, %v69 : I64
     %v71 = add %v68, %v70 : %CodeUnit
     %v72 = borrow_mut [%v71] : &CodeUnit
     %v73 = load decimalPairs : String
-    %v74 = call String.unit, %v73, %pair : Int
+    %v74 = call String.unit, %v73, %pair : I32
     %v75 = cast %v74 : CodeUnit
     assign [%v72], %v75
     %v77 = load %buffer : [CodeUnit *20]
@@ -202,13 +202,13 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v92 = cmp_ge %v90, %v91 : Bool
     call checkCondition, %v92
     %v94 = load [%v88]@Flat.items : %CodeUnit
-    %v95 = strideof CodeUnit : Long
-    %v96 = mul %v81, %v95 : Long
+    %v95 = strideof CodeUnit : I64
+    %v96 = mul %v81, %v95 : I64
     %v97 = add %v94, %v96 : %CodeUnit
     %v98 = borrow_mut [%v97] : &CodeUnit
     %v99 = load decimalPairs : String
     %v102 = add %pair, 1 : Size
-    %v103 = call String.unit, %v99, %v102 : Int
+    %v103 = call String.unit, %v99, %v102 : I32
     %v104 = cast %v103 : CodeUnit
     assign [%v98], %v104
     assign %rest, %quotient
@@ -236,12 +236,12 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v135 = cmp_ge %v133, %v134 : Bool
     call checkCondition, %v135
     %v137 = load [%v131]@Flat.items : %CodeUnit
-    %v138 = strideof CodeUnit : Long
-    %v139 = mul %v124, %v138 : Long
+    %v138 = strideof CodeUnit : I64
+    %v139 = mul %v124, %v138 : I64
     %v140 = add %v137, %v139 : %CodeUnit
     %v141 = borrow_mut [%v140] : &CodeUnit
     %v142 = load decimalPairs : String
-    %v143 = call String.unit, %v142, %pair : Int
+    %v143 = call String.unit, %v142, %pair : I32
     %v144 = cast %v143 : CodeUnit
     assign [%v141], %v144
     %v146 = load %buffer : [CodeUnit *20]
@@ -260,13 +260,13 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v161 = cmp_ge %v159, %v160 : Bool
     call checkCondition, %v161
     %v163 = load [%v157]@Flat.items : %CodeUnit
-    %v164 = strideof CodeUnit : Long
-    %v165 = mul %v150, %v164 : Long
+    %v164 = strideof CodeUnit : I64
+    %v165 = mul %v150, %v164 : I64
     %v166 = add %v163, %v165 : %CodeUnit
     %v167 = borrow_mut [%v166] : &CodeUnit
     %v168 = load decimalPairs : String
     %v171 = add %pair, 1 : Size
-    %v172 = call String.unit, %v168, %v171 : Int
+    %v172 = call String.unit, %v168, %v171 : I32
     %v173 = cast %v172 : CodeUnit
     assign [%v167], %v173
     jmp b6
@@ -290,8 +290,8 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     %v192 = cmp_ge %v190, %v191 : Bool
     call checkCondition, %v192
     %v194 = load [%v188]@Flat.items : %CodeUnit
-    %v195 = strideof CodeUnit : Long
-    %v196 = mul %v181, %v195 : Long
+    %v195 = strideof CodeUnit : I64
+    %v196 = mul %v181, %v195 : I64
     %v197 = add %v194, %v196 : %CodeUnit
     %v198 = borrow_mut [%v197] : &CodeUnit
     %v200 = load %rest : U64
@@ -322,7 +322,7 @@ fn pushUnsigned(%value: U64, %to: String) -> () {
     ret
 }
 
-fn showSigned(%value: Long, %to: String) -> () {
+fn showSigned(%value: I64, %to: String) -> () {
   b0:
     %v4 = cmp_lt %value, 0 : Bool
     je %v4, b1, b2
@@ -349,15 +349,6 @@ fn showSigned(%value: Long, %to: String) -> () {
     ret
 }
 
-fn showSmall(%value: Int, %to: String) -> () {
-  b0:
-    %v2 = cast %value : Long
-    %v3 = load %to : String
-    %v4 = borrow_mut %to : &String
-    call showSigned, %v2, %v4
-    ret
-}
-
 fn checkFailed() -> () {
   b0:
     call abortProcess
@@ -381,7 +372,7 @@ fn checkCondition(%failed: Bool) -> () {
 
 fn formatBound(%bound: Maybe(Size)) -> Size {
   b0:
-    %v1 = load %bound.discriminant : Int
+    %v1 = load %bound.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
@@ -397,7 +388,7 @@ fn formatBound(%bound: Maybe(Size)) -> Size {
     ret %v9
 }
 
-fn String.unit(%self: String, %index: Size) -> Int {
+fn String.unit(%self: String, %index: Size) -> I32 {
   b0:
     %v2 = borrow %self : 'String
     %v3 = cast %v2 : 'StringData
@@ -408,7 +399,7 @@ fn String.unit(%self: String, %index: Size) -> Int {
     %v8 = mul %index, %v7 : Size
     %v9 = add %v6, %v8 : %CodeUnit
     %v10 = load [%v9] : CodeUnit
-    %v11 = cast %v10 : Int
+    %v11 = cast %v10 : I32
     ret %v11
 }
 
@@ -417,7 +408,7 @@ fn String.ofCapacity(%capacity: Size) -> String {
     %v1 = alloc : StringData
     %v2 = alloc : Array(CodeUnit)
     %v3 = alloc : Run(CodeUnit)
-    %v4 = cast %capacity : Long
+    %v4 = cast %capacity : I64
     %v5 = alloc *%v4 heap escaping : CodeUnit
     %v6 = addressof %local3 : %CodeUnit
     %v8 = cast %capacity : U32
@@ -451,7 +442,7 @@ fn String.reserve(%self: String, %wanted: Size) -> () {
     ret
 }
 
-fn String.pushUnit(%self: String, %unit: Int) -> () {
+fn String.pushUnit(%self: String, %unit: I32) -> () {
   b0:
     %v2 = load %self : String
     %v3 = borrow_mut %self : &String
@@ -529,7 +520,7 @@ fn String.appendUnits(%self: String, %from: %CodeUnit, %count: Size) -> () {
     ret
 }
 
-fn wideCount(%n: Int) -> U64 {
+fn wideCount(%n: I32) -> U64 {
   b0:
     %v1 = cast %n : I64
     %v2 = bitcast %v1 : U64
@@ -551,16 +542,16 @@ fn carryOf(%condition: Bool) -> U64 {
     ret %v6
 }
 
-fn decimalLength(%value: U64) -> Int {
+fn decimalLength(%value: U64) -> I32 {
   b0:
     %limit = alloc : U64
     init %limit, 10
-    %digits = alloc : Int
+    %digits = alloc : I32
     init %digits, 1
     jmp b1
 
   b1:
-    %v8 = load %digits : Int
+    %v8 = load %digits : I32
     %v11 = cmp_lt %v8, 17 : Bool
     je %v11, b3, b2
 
@@ -573,7 +564,7 @@ fn decimalLength(%value: U64) -> Int {
     je %v14, b4, b5
 
   b4:
-    %v16 = load %digits : Int
+    %v16 = load %digits : I32
     ret %v16
 
   b5:
@@ -583,13 +574,13 @@ fn decimalLength(%value: U64) -> Int {
     %v19 = load %limit : U64
     %v22 = mul %v19, 10 : U64
     assign %limit, %v22
-    %v24 = load %digits : Int
-    %v27 = add %v24, 1 : Int
+    %v24 = load %digits : I32
+    %v27 = add %v24, 1 : I32
     assign %digits, %v27
     jmp b1
 }
 
-fn pushDecimalDigits(%value: U64, %count: Int, %pointAt: Int, %to: String) -> () {
+fn pushDecimalDigits(%value: U64, %count: I32, %pointAt: I32, %to: String) -> () {
   b0:
     %v5 = alloc : [CodeUnit *20]
     aggregate %buffer[0] = 0, %buffer[1] = 0, %buffer[2] = 0, %buffer[3] = 0, %buffer[4] = 0, %buffer[5] = 0, %buffer[6] = 0, %buffer[7] = 0, %buffer[8] = 0, %buffer[9] = 0, %buffer[10] = 0, %buffer[11] = 0, %buffer[12] = 0, %buffer[13] = 0, %buffer[14] = 0, %buffer[15] = 0, %buffer[16] = 0, %buffer[17] = 0, %buffer[18] = 0, %buffer[19] = 0
@@ -597,17 +588,17 @@ fn pushDecimalDigits(%value: U64, %count: Int, %pointAt: Int, %to: String) -> ()
     init %at, 20
     %rest = alloc : U64
     init %rest, %value
-    %left = alloc : Int
+    %left = alloc : I32
     init %left, %count
     jmp b1
 
   b1:
-    %v35 = load %left : Int
+    %v35 = load %left : I32
     %v38 = cmp_ge %v35, 2 : Bool
     je %v38, b3, b2
 
   b2:
-    %v117 = load %left : Int
+    %v117 = load %left : I32
     %v120 = cmp_eq %v117, 1 : Bool
     je %v120, b4, b5
 
@@ -637,12 +628,12 @@ fn pushDecimalDigits(%value: U64, %count: Int, %pointAt: Int, %to: String) -> ()
     %v70 = cmp_ge %v68, %v69 : Bool
     call checkCondition, %v70
     %v72 = load [%v66]@Flat.items : %CodeUnit
-    %v73 = strideof CodeUnit : Long
-    %v74 = mul %v59, %v73 : Long
+    %v73 = strideof CodeUnit : I64
+    %v74 = mul %v59, %v73 : I64
     %v75 = add %v72, %v74 : %CodeUnit
     %v76 = borrow_mut [%v75] : &CodeUnit
     %v77 = load decimalPairs : String
-    %v78 = call String.unit, %v77, %pair : Int
+    %v78 = call String.unit, %v77, %pair : I32
     %v79 = cast %v78 : CodeUnit
     assign [%v76], %v79
     %v81 = load %buffer : [CodeUnit *20]
@@ -661,18 +652,18 @@ fn pushDecimalDigits(%value: U64, %count: Int, %pointAt: Int, %to: String) -> ()
     %v96 = cmp_ge %v94, %v95 : Bool
     call checkCondition, %v96
     %v98 = load [%v92]@Flat.items : %CodeUnit
-    %v99 = strideof CodeUnit : Long
-    %v100 = mul %v85, %v99 : Long
+    %v99 = strideof CodeUnit : I64
+    %v100 = mul %v85, %v99 : I64
     %v101 = add %v98, %v100 : %CodeUnit
     %v102 = borrow_mut [%v101] : &CodeUnit
     %v103 = load decimalPairs : String
     %v106 = add %pair, 1 : Size
-    %v107 = call String.unit, %v103, %v106 : Int
+    %v107 = call String.unit, %v103, %v106 : I32
     %v108 = cast %v107 : CodeUnit
     assign [%v102], %v108
     assign %rest, %quotient
-    %v111 = load %left : Int
-    %v114 = sub %v111, 2 : Int
+    %v111 = load %left : I32
+    %v114 = sub %v111, 2 : I32
     assign %left, %v114
     jmp b1
 
@@ -695,8 +686,8 @@ fn pushDecimalDigits(%value: U64, %count: Int, %pointAt: Int, %to: String) -> ()
     %v139 = cmp_ge %v137, %v138 : Bool
     call checkCondition, %v139
     %v141 = load [%v135]@Flat.items : %CodeUnit
-    %v142 = strideof CodeUnit : Long
-    %v143 = mul %v128, %v142 : Long
+    %v142 = strideof CodeUnit : I64
+    %v143 = mul %v128, %v142 : I64
     %v144 = add %v141, %v143 : %CodeUnit
     %v145 = borrow_mut [%v144] : &CodeUnit
     %v147 = load %rest : U64
@@ -771,7 +762,7 @@ fn pushDecimalDigits(%value: U64, %count: Int, %pointAt: Int, %to: String) -> ()
     %v209 = strideof CodeUnit : Size
     %v210 = mul %v208, %v209 : Size
     %v211 = add %v207, %v210 : %CodeUnit
-    %v212 = sub %count, %pointAt : Int
+    %v212 = sub %count, %pointAt : I32
     %v213 = cast %v212 : Size
     %v214 = borrow_mut %to : &String
     call String.appendUnits, %v214, %v211, %v213
@@ -781,26 +772,26 @@ fn pushDecimalDigits(%value: U64, %count: Int, %pointAt: Int, %to: String) -> ()
     ret
 }
 
-fn pushExponent(%value: Int, %to: String) -> () {
+fn pushExponent(%value: I32, %to: String) -> () {
   b0:
     %v4 = cmp_ge %value, 100 : Bool
     je %v4, b1, b2
 
   b1:
     %v6 = load %to : String
-    %v10 = div %value, 100 : Int
-    %v12 = add 48, %v10 : Int
+    %v10 = div %value, 100 : I32
+    %v12 = add 48, %v10 : I32
     %v13 = borrow_mut %to : &String
     call String.pushUnit, %v13, %v12
     %v15 = load %to : String
-    %v19 = div %value, 10 : Int
-    %v22 = rem %v19, 10 : Int
-    %v24 = add 48, %v22 : Int
+    %v19 = div %value, 10 : I32
+    %v22 = rem %v19, 10 : I32
+    %v24 = add 48, %v22 : I32
     %v25 = borrow_mut %to : &String
     call String.pushUnit, %v25, %v24
     %v27 = load %to : String
-    %v31 = rem %value, 10 : Int
-    %v33 = add 48, %v31 : Int
+    %v31 = rem %value, 10 : I32
+    %v33 = add 48, %v31 : I32
     %v34 = borrow_mut %to : &String
     call String.pushUnit, %v34, %v33
     jmp b6
@@ -811,20 +802,20 @@ fn pushExponent(%value: Int, %to: String) -> () {
 
   b3:
     %v40 = load %to : String
-    %v44 = div %value, 10 : Int
-    %v46 = add 48, %v44 : Int
+    %v44 = div %value, 10 : I32
+    %v46 = add 48, %v44 : I32
     %v47 = borrow_mut %to : &String
     call String.pushUnit, %v47, %v46
     %v49 = load %to : String
-    %v53 = rem %value, 10 : Int
-    %v55 = add 48, %v53 : Int
+    %v53 = rem %value, 10 : I32
+    %v55 = add 48, %v53 : I32
     %v56 = borrow_mut %to : &String
     call String.pushUnit, %v56, %v55
     jmp b5
 
   b4:
     %v58 = load %to : String
-    %v61 = add 48, %value : Int
+    %v61 = add 48, %value : I32
     %v62 = borrow_mut %to : &String
     call String.pushUnit, %v62, %v61
     jmp b5
@@ -839,15 +830,15 @@ fn pushExponent(%value: Int, %to: String) -> () {
 fn writeShortest(%value: Shortest, %to: String) -> () {
   b0:
     %v2 = load %value@Shortest.digits : U64
-    %count = call decimalLength, %v2 : Int
-    %v4 = load %value@Shortest.exponent : Int
-    %v5 = add %v4, %count : Int
-    %exp = sub %v5, 1 : Int
+    %count = call decimalLength, %v2 : I32
+    %v4 = load %value@Shortest.exponent : I32
+    %v5 = add %v4, %count : I32
+    %exp = sub %v5, 1 : I32
     %v11 = cmp_lt %exp, 0 : Bool
     je %v11, b1, b2
 
   b1:
-    %v13 = neg %exp : Int
+    %v13 = neg %exp : I32
     %v15 = cmp_le %v13, 7 : Bool
     jmp b3
 
@@ -865,9 +856,9 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     %v25 = load %to : String
     %v27 = borrow_mut %to : &String
     call String.pushUnit, %v27, 46
-    %v29 = neg %exp : Int
-    %v32 = sub %v29, 1 : Int
-    %zeros = alloc : Int
+    %v29 = neg %exp : I32
+    %v32 = sub %v29, 1 : I32
+    %zeros = alloc : I32
     init %zeros, %v32
     jmp b6
 
@@ -875,7 +866,7 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     jmp b9
 
   b6:
-    %v36 = load %zeros : Int
+    %v36 = load %zeros : I32
     %v39 = cmp_gt %v36, 0 : Bool
     je %v39, b8, b7
 
@@ -890,8 +881,8 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     %v41 = load %to : String
     %v43 = borrow_mut %to : &String
     call String.pushUnit, %v43, 48
-    %v45 = load %zeros : Int
-    %v48 = sub %v45, 1 : Int
+    %v45 = load %zeros : I32
+    %v48 = sub %v45, 1 : I32
     assign %zeros, %v48
     jmp b6
 
@@ -911,7 +902,7 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     je %v66, b13, b14
 
   b13:
-    %v68 = load %value@Shortest.exponent : Int
+    %v68 = load %value@Shortest.exponent : I32
     %v71 = cmp_ge %v68, 0 : Bool
     je %v71, b15, b16
 
@@ -923,22 +914,22 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     %v74 = load %to : String
     %v75 = borrow_mut %to : &String
     call pushDecimalDigits, %v73, %count, %count, %v75
-    %v77 = load %value@Shortest.exponent : Int
-    %zeros = alloc : Int
+    %v77 = load %value@Shortest.exponent : I32
+    %zeros = alloc : I32
     init %zeros, %v77
     jmp b17
 
   b16:
     %v96 = load %value@Shortest.digits : U64
-    %v97 = load %value@Shortest.exponent : Int
-    %v98 = add %count, %v97 : Int
+    %v97 = load %value@Shortest.exponent : I32
+    %v98 = add %count, %v97 : I32
     %v99 = load %to : String
     %v100 = borrow_mut %to : &String
     call pushDecimalDigits, %v96, %count, %v98, %v100
     jmp b20
 
   b17:
-    %v81 = load %zeros : Int
+    %v81 = load %zeros : I32
     %v84 = cmp_gt %v81, 0 : Bool
     je %v84, b19, b18
 
@@ -949,8 +940,8 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     %v86 = load %to : String
     %v88 = borrow_mut %to : &String
     call String.pushUnit, %v88, 48
-    %v90 = load %zeros : Int
-    %v93 = sub %v90, 1 : Int
+    %v90 = load %zeros : I32
+    %v93 = sub %v90, 1 : I32
     assign %zeros, %v93
     jmp b17
 
@@ -972,7 +963,7 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     %v119 = load %to : String
     %v121 = borrow_mut %to : &String
     call String.pushUnit, %v121, 45
-    %v123 = neg %exp : Int
+    %v123 = neg %exp : I32
     %v124 = load %to : String
     %v125 = borrow_mut %to : &String
     call pushExponent, %v123, %v125
@@ -988,7 +979,7 @@ fn writeShortest(%value: Shortest, %to: String) -> () {
     ret
 }
 
-fn writeSpecial(%value: Double, %to: String) -> Bool {
+fn writeSpecial(%value: F64, %to: String) -> Bool {
   b0:
     %v2 = cmp_ne %value, %value : Bool
     je %v2, b1, b2
@@ -1016,7 +1007,7 @@ fn writeSpecial(%value: Double, %to: String) -> Bool {
     jmp b9
 
   b6:
-    %v21 = div 1, %value : Double
+    %v21 = div 1, %value : F64
     %v24 = cmp_lt %v21, 0 : Bool
     jmp b8
 
@@ -1041,7 +1032,7 @@ fn writeSpecial(%value: Double, %to: String) -> Bool {
     jmp b12
 
   b12:
-    %v40 = sub %value, %value : Double
+    %v40 = sub %value, %value : F64
     %v43 = cmp_ne %v40, 0 : Bool
     je %v43, b13, b14
 
@@ -1060,52 +1051,52 @@ fn writeSpecial(%value: Double, %to: String) -> Bool {
     ret False
 }
 
-fn magnitudeOf(%value: Double) -> Double {
+fn magnitudeOf(%value: F64) -> F64 {
   b0:
     %v3 = cmp_lt %value, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = neg %value : Double
+    %v5 = neg %value : F64
     jmp b3
 
   b2:
     jmp b3
 
   b3:
-    %v8 = phi [b1, %v5], [b2, %value] : Double
+    %v8 = phi [b1, %v5], [b2, %value] : F64
     ret %v8
 }
 
-fn log10Pow2(%e: Int) -> Int {
+fn log10Pow2(%e: I32) -> I32 {
   b0:
-    %v3 = mul %e, 78913 : Int
-    %v6 = shr %v3, 18 : Int
+    %v3 = mul %e, 78913 : I32
+    %v6 = shr %v3, 18 : I32
     ret %v6
 }
 
-fn log10Pow5(%e: Int) -> Int {
+fn log10Pow5(%e: I32) -> I32 {
   b0:
-    %v3 = mul %e, 732923 : Int
-    %v6 = shr %v3, 20 : Int
+    %v3 = mul %e, 732923 : I32
+    %v6 = shr %v3, 20 : I32
     ret %v6
 }
 
-fn log2Pow5(%e: Int) -> Int {
+fn log2Pow5(%e: I32) -> I32 {
   b0:
-    %v3 = mul %e, 1217359 : Int
-    %v6 = shr %v3, 19 : Int
+    %v3 = mul %e, 1217359 : I32
+    %v6 = shr %v3, 19 : I32
     ret %v6
 }
 
-fn pow5Bits(%e: Int) -> Int {
+fn pow5Bits(%e: I32) -> I32 {
   b0:
-    %v1 = call log2Pow5, %e : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = call log2Pow5, %e : I32
+    %v4 = add %v1, 1 : I32
     ret %v4
 }
 
-fn mulShift(%m: U64, %low: U64, %high: U64, %shift: Int) -> U64 {
+fn mulShift(%m: U64, %low: U64, %high: U64, %shift: I32) -> U64 {
   b0:
     %carried = mulhi %m, %low : U64
     %productLow = mul %m, %high : U64
@@ -1114,7 +1105,7 @@ fn mulShift(%m: U64, %low: U64, %high: U64, %shift: Int) -> U64 {
     %v8 = cmp_lt %sumLow, %carried : Bool
     %v9 = call carryOf, %v8 : U64
     %sumHigh = add %productHigh, %v9 : U64
-    %distance = sub %shift, 64 : Int
+    %distance = sub %shift, 64 : I32
     %v16 = cmp_eq %distance, 0 : Bool
     je %v16, b1, b2
 
@@ -1127,17 +1118,17 @@ fn mulShift(%m: U64, %low: U64, %high: U64, %shift: Int) -> U64 {
   b3:
     %v20 = call wideCount, %distance : U64
     %v21 = shr %sumLow, %v20 : U64
-    %v24 = sub 64, %distance : Int
+    %v24 = sub 64, %distance : I32
     %v25 = call wideCount, %v24 : U64
     %v26 = shl %sumHigh, %v25 : U64
     %v27 = or %v21, %v26 : U64
     ret %v27
 }
 
-fn mulShiftInv(%m: U64, %index: Int, %shift: Int) -> U64 {
+fn mulShiftInv(%m: U64, %index: I32, %shift: I32) -> U64 {
   b0:
     %v3 = load pow5InvSplit : [I64 *684]
-    %v6 = mul %index, 2 : Int
+    %v6 = mul %index, 2 : I32
     %v7 = borrow pow5InvSplit : '[I64 *684]
     %v8 = alloc : Flat(I64)
     %v9 = addressof [%v7] : %I64
@@ -1152,15 +1143,15 @@ fn mulShiftInv(%m: U64, %index: Int, %shift: Int) -> U64 {
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %I64
-    %v21 = strideof I64 : Long
-    %v22 = mul %v13, %v21 : Long
+    %v21 = strideof I64 : I64
+    %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
     %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
     %v26 = bitcast %v25 : U64
     %v27 = load pow5InvSplit : [I64 *684]
-    %v30 = mul %index, 2 : Int
-    %v33 = add %v30, 1 : Int
+    %v30 = mul %index, 2 : I32
+    %v33 = add %v30, 1 : I32
     %v34 = borrow pow5InvSplit : '[I64 *684]
     %v35 = alloc : Flat(I64)
     %v36 = addressof [%v34] : %I64
@@ -1175,8 +1166,8 @@ fn mulShiftInv(%m: U64, %index: Int, %shift: Int) -> U64 {
     %v45 = cmp_ge %v43, %v44 : Bool
     call checkCondition, %v45
     %v47 = load [%v41]@Flat.items : %I64
-    %v48 = strideof I64 : Long
-    %v49 = mul %v40, %v48 : Long
+    %v48 = strideof I64 : I64
+    %v49 = mul %v40, %v48 : I64
     %v50 = add %v47, %v49 : %I64
     %v51 = borrow [%v50] : 'I64
     %v52 = load [%v51] : I64
@@ -1185,10 +1176,10 @@ fn mulShiftInv(%m: U64, %index: Int, %shift: Int) -> U64 {
     ret %v54
 }
 
-fn mulShiftPow5(%m: U64, %index: Int, %shift: Int) -> U64 {
+fn mulShiftPow5(%m: U64, %index: I32, %shift: I32) -> U64 {
   b0:
     %v3 = load pow5Split : [I64 *652]
-    %v6 = mul %index, 2 : Int
+    %v6 = mul %index, 2 : I32
     %v7 = borrow pow5Split : '[I64 *652]
     %v8 = alloc : Flat(I64)
     %v9 = addressof [%v7] : %I64
@@ -1203,15 +1194,15 @@ fn mulShiftPow5(%m: U64, %index: Int, %shift: Int) -> U64 {
     %v18 = cmp_ge %v16, %v17 : Bool
     call checkCondition, %v18
     %v20 = load [%v14]@Flat.items : %I64
-    %v21 = strideof I64 : Long
-    %v22 = mul %v13, %v21 : Long
+    %v21 = strideof I64 : I64
+    %v22 = mul %v13, %v21 : I64
     %v23 = add %v20, %v22 : %I64
     %v24 = borrow [%v23] : 'I64
     %v25 = load [%v24] : I64
     %v26 = bitcast %v25 : U64
     %v27 = load pow5Split : [I64 *652]
-    %v30 = mul %index, 2 : Int
-    %v33 = add %v30, 1 : Int
+    %v30 = mul %index, 2 : I32
+    %v33 = add %v30, 1 : I32
     %v34 = borrow pow5Split : '[I64 *652]
     %v35 = alloc : Flat(I64)
     %v36 = addressof [%v34] : %I64
@@ -1226,8 +1217,8 @@ fn mulShiftPow5(%m: U64, %index: Int, %shift: Int) -> U64 {
     %v45 = cmp_ge %v43, %v44 : Bool
     call checkCondition, %v45
     %v47 = load [%v41]@Flat.items : %I64
-    %v48 = strideof I64 : Long
-    %v49 = mul %v40, %v48 : Long
+    %v48 = strideof I64 : I64
+    %v49 = mul %v40, %v48 : I64
     %v50 = add %v47, %v49 : %I64
     %v51 = borrow [%v50] : 'I64
     %v52 = load [%v51] : I64
@@ -1236,12 +1227,12 @@ fn mulShiftPow5(%m: U64, %index: Int, %shift: Int) -> U64 {
     ret %v54
 }
 
-fn pow5Factor(%value: U64) -> Int {
+fn pow5Factor(%value: U64) -> I32 {
   b0:
     %inverse = sub 0, 3689348814741910323 : U64
     %current = alloc : U64
     init %current, %value
-    %count = alloc : Int
+    %count = alloc : I32
     init %count, 0
     jmp b1
 
@@ -1249,7 +1240,7 @@ fn pow5Factor(%value: U64) -> Int {
     je True, b3, b2
 
   b2:
-    %v28 = load %count : Int
+    %v28 = load %count : I32
     ret %v28
 
   b3:
@@ -1267,20 +1258,20 @@ fn pow5Factor(%value: U64) -> Int {
     jmp b6
 
   b6:
-    %v22 = load %count : Int
-    %v25 = add %v22, 1 : Int
+    %v22 = load %count : I32
+    %v25 = add %v22, 1 : I32
     assign %count, %v25
     jmp b1
 }
 
-fn multipleOfPowerOf5(%value: U64, %power: Int) -> Bool {
+fn multipleOfPowerOf5(%value: U64, %power: I32) -> Bool {
   b0:
-    %v2 = call pow5Factor, %value : Int
+    %v2 = call pow5Factor, %value : I32
     %v3 = cmp_ge %v2, %power : Bool
     ret %v3
 }
 
-fn multipleOfPowerOf2(%value: U64, %power: Int) -> Bool {
+fn multipleOfPowerOf2(%value: U64, %power: I32) -> Bool {
   b0:
     %v2 = call wideCount, %power : U64
     %v3 = bitsupto %value, %v2 : U64
@@ -1288,7 +1279,7 @@ fn multipleOfPowerOf2(%value: U64, %power: Int) -> Bool {
     ret %v6
 }
 
-fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
+fn shortestOf(%m2: U64, %e2: I32, %mmShift: U64) -> Shortest {
   b0:
     %v5 = and %m2, 1 : U64
     %acceptBounds = cmp_eq %v5, 0 : Bool
@@ -1299,7 +1290,7 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     init %vp, 0
     %vm = alloc : U64
     init %vm, 0
-    %e10 = alloc : Int
+    %e10 = alloc : I32
     init %e10, 0
     %lowerIsExact = alloc : Bool
     init %lowerIsExact, False
@@ -1309,14 +1300,14 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     je %v32, b1, b2
 
   b1:
-    %v34 = call log10Pow2, %e2 : Int
+    %v34 = call log10Pow2, %e2 : I32
     %v37 = cmp_gt %e2, 3 : Bool
     je %v37, b3, b4
 
   b2:
-    %v109 = neg %e2 : Int
-    %v110 = call log10Pow5, %v109 : Int
-    %v111 = neg %e2 : Int
+    %v109 = neg %e2 : I32
+    %v110 = call log10Pow5, %v109 : I32
+    %v111 = neg %e2 : I32
     %v114 = cmp_gt %v111, 1 : Bool
     je %v114, b18, b19
 
@@ -1327,14 +1318,14 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b5
 
   b5:
-    %v45 = phi [b3, 1], [b4, 0] : Int
-    %q = sub %v34, %v45 : Int
-    %v48 = call pow5Bits, %q : Int
-    %v50 = add 125, %v48 : Int
-    %k = sub %v50, 1 : Int
-    %v54 = neg %e2 : Int
-    %v55 = add %v54, %q : Int
-    %i = add %v55, %k : Int
+    %v45 = phi [b3, 1], [b4, 0] : I32
+    %q = sub %v34, %v45 : I32
+    %v48 = call pow5Bits, %q : I32
+    %v50 = add 125, %v48 : I32
+    %k = sub %v50, 1 : I32
+    %v54 = neg %e2 : I32
+    %v55 = add %v54, %q : I32
+    %i = add %v55, %k : I32
     assign %e10, %q
     %v58 = call mulShiftInv, %mv, %q, %i : U64
     assign %vr, %v58
@@ -1404,14 +1395,14 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b20
 
   b20:
-    %v122 = phi [b18, 1], [b19, 0] : Int
-    %q = sub %v110, %v122 : Int
-    %v124 = neg %e2 : Int
-    %i = sub %v124, %q : Int
-    %v126 = call pow5Bits, %i : Int
-    %k = sub %v126, 125 : Int
-    %j = sub %q, %k : Int
-    %v131 = add %q, %e2 : Int
+    %v122 = phi [b18, 1], [b19, 0] : I32
+    %q = sub %v110, %v122 : I32
+    %v124 = neg %e2 : I32
+    %i = sub %v124, %q : I32
+    %v126 = call pow5Bits, %i : I32
+    %k = sub %v126, 125 : I32
+    %j = sub %q, %k : I32
+    %v131 = add %q, %e2 : I32
     assign %e10, %v131
     %v133 = call mulShiftPow5, %mv, %i, %j : U64
     assign %vr, %v133
@@ -1462,9 +1453,9 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     jmp b30
 
   b30:
-    %removed = alloc : Int
+    %removed = alloc : I32
     init %removed, 0
-    %lastRemoved = alloc : Int
+    %lastRemoved = alloc : I32
     init %lastRemoved, 0
     %output = alloc : U64
     init %output, 0
@@ -1539,7 +1530,7 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     je %v227, b45, b46
 
   b45:
-    %v229 = load %lastRemoved : Int
+    %v229 = load %lastRemoved : I32
     %v232 = cmp_eq %v229, 0 : Bool
     jmp b47
 
@@ -1552,13 +1543,13 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     %v238 = load %vr : U64
     %v241 = mul %vrNext, 10 : U64
     %v242 = sub %v238, %v241 : U64
-    %v243 = cast %v242 : Int
+    %v243 = cast %v242 : I32
     assign %lastRemoved, %v243
     assign %vr, %vrNext
     assign %vp, %vpNext
     assign %vm, %vmNext
-    %v248 = load %removed : Int
-    %v251 = add %v248, 1 : Int
+    %v248 = load %removed : I32
+    %v251 = add %v248, 1 : I32
     assign %removed, %v251
     jmp b36
 
@@ -1598,7 +1589,7 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     je %v282, b56, b57
 
   b56:
-    %v284 = load %lastRemoved : Int
+    %v284 = load %lastRemoved : I32
     %v287 = cmp_eq %v284, 0 : Bool
     jmp b58
 
@@ -1611,13 +1602,13 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     %v293 = load %vr : U64
     %v296 = mul %vrNext, 10 : U64
     %v297 = sub %v293, %v296 : U64
-    %v298 = cast %v297 : Int
+    %v298 = cast %v297 : I32
     assign %lastRemoved, %v298
     assign %vr, %vrNext
     assign %vp, %vpNext
     assign %vm, %vmNext
-    %v303 = load %removed : Int
-    %v306 = add %v303, 1 : Int
+    %v303 = load %removed : I32
+    %v306 = add %v303, 1 : I32
     assign %removed, %v306
     jmp b50
 
@@ -1626,7 +1617,7 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     je %v311, b60, b61
 
   b60:
-    %v313 = load %lastRemoved : Int
+    %v313 = load %lastRemoved : I32
     %v316 = cmp_eq %v313, 5 : Bool
     jmp b62
 
@@ -1688,7 +1679,7 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     je %outside, b76, b75
 
   b75:
-    %v358 = load %lastRemoved : Int
+    %v358 = load %lastRemoved : I32
     %v361 = cmp_ge %v358, 5 : Bool
     jmp b77
 
@@ -1713,8 +1704,8 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     assign %vr, %vrHundred
     assign %vp, %vpHundred
     assign %vm, %vmHundred
-    %v398 = load %removed : Int
-    %v401 = add %v398, 2 : Int
+    %v398 = load %removed : I32
+    %v401 = add %v398, 2 : I32
     assign %removed, %v401
     jmp b80
 
@@ -1759,8 +1750,8 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
     assign %vr, %vrNext
     assign %vp, %vpNext
     assign %vm, %vmNext
-    %v436 = load %removed : Int
-    %v439 = add %v436, 1 : Int
+    %v436 = load %removed : I32
+    %v439 = add %v436, 1 : I32
     assign %removed, %v439
     jmp b81
 
@@ -1781,27 +1772,27 @@ fn shortestOf(%m2: U64, %e2: Int, %mmShift: U64) -> Shortest {
   b90:
     %v457 = alloc : Shortest
     %v458 = load %output : U64
-    %v459 = load %e10 : Int
-    %v460 = load %removed : Int
-    %v461 = add %v459, %v460 : Int
+    %v459 = load %e10 : I32
+    %v460 = load %removed : I32
+    %v461 = add %v459, %v460 : I32
     aggregate %local10@Shortest.digits = %v458, %local10@Shortest.exponent = %v461
     ret %v457
 }
 
-fn doubleShortest(%value: Double) -> Shortest {
+fn doubleShortest(%value: F64) -> Shortest {
   b0:
     %pattern = bitcast %value : U64
     %mantissa = bitsupto %pattern, 52 : U64
     %v7 = shr %pattern, 52 : U64
     %v10 = and %v7, 2047 : U64
-    %exponent = cast %v10 : Int
+    %exponent = cast %v10 : I32
     %v14 = cmp_eq %exponent, 0 : Bool
     je %v14, b1, b2
 
   b1:
-    %v20 = sub 1, 1023 : Int
-    %v23 = sub %v20, 52 : Int
-    %v26 = sub %v23, 2 : Int
+    %v20 = sub 1, 1023 : I32
+    %v23 = sub %v20, 52 : I32
+    %v26 = sub %v23, 2 : I32
     %v29 = cmp_ne %mantissa, 0 : Bool
     %v30 = call carryOf, %v29 : U64
     %v31 = call shortestOf, %mantissa, %v26, %v30 : Shortest
@@ -1812,9 +1803,9 @@ fn doubleShortest(%value: Double) -> Shortest {
 
   b3:
     %v35 = or %mantissa, 4503599627370496 : U64
-    %v38 = sub %exponent, 1023 : Int
-    %v41 = sub %v38, 52 : Int
-    %v44 = sub %v41, 2 : Int
+    %v38 = sub %exponent, 1023 : I32
+    %v41 = sub %v38, 52 : I32
+    %v44 = sub %v41, 2 : I32
     %v47 = cmp_ne %mantissa, 0 : Bool
     je %v47, b5, b4
 
@@ -1875,15 +1866,15 @@ fn Show(Bool).show(%value: Bool, %to: String) -> () {
     ret
 }
 
-fn Show(Int).show(%value: Int, %to: String) -> () {
+fn Show(I32).show(%value: I32, %to: String) -> () {
   b0:
     %v2 = load %to : String
     %v3 = borrow_mut %to : &String
-    call showSmall, %value, %v3
+    call showFromSigned(I32), %value, %v3
     ret
 }
 
-fn Show(Int).showBound(%value: Int) -> Maybe(Size) {
+fn Show(I32).showBound(%value: I32) -> Maybe(Size) {
   b0:
     %v1 = alloc : Maybe(Size)
     aggregate %local0.discriminant = 1, %local0@Just = 11
@@ -1896,7 +1887,7 @@ fn Length(String).length(%self: String) -> Size {
     %v2 = cast %v1 : 'StringData
     %v3 = load [%v2]@StringData.bytes : Array(CodeUnit)
     %v4 = load [%v2]@StringData.bytes@Array.length : @bits(30) U32
-    %units = cast %v4 : Int
+    %units = cast %v4 : I32
     %v6 = cast %units : Size
     ret %v6
 }
@@ -1940,7 +1931,7 @@ fn Reclaim(String).reclaim(%value: String) -> () {
     ret
 }
 
-fn Show(Double).show(%value: Double, %to: String) -> () {
+fn Show(F64).show(%value: F64, %to: String) -> () {
   b0:
     %v2 = load %to : String
     %v3 = borrow_mut %to : &String
@@ -1954,7 +1945,7 @@ fn Show(Double).show(%value: Double, %to: String) -> () {
     jmp b3
 
   b3:
-    %magnitude = call magnitudeOf, %value : Double
+    %magnitude = call magnitudeOf, %value : F64
     %v11 = cmp_eq %magnitude, 0 : Bool
     je %v11, b4, b5
 
@@ -2068,9 +2059,18 @@ fn push(CodeUnit)(%self: Array(CodeUnit), %item: CodeUnit) -> () {
     ret
 }
 
-fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
+fn showFromSigned(I32)(%value: I32, %to: String) -> () {
   b0:
-    %v2 = load %value.discriminant : Int
+    %v2 = cast %value : I64
+    %v3 = load %to : String
+    %v4 = borrow_mut %to : &String
+    call showSigned, %v2, %v4
+    ret
+}
+
+fn Show(Maybe(a)).show(I32)(%value: Maybe(I32), %to: String) -> () {
+  b0:
+    %v2 = load %value.discriminant : I32
     %v4 = cmp_eq %v2, 1 : Bool
     je %v4, b2, b1
 
@@ -2083,9 +2083,9 @@ fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
     jmp b3
 
   b2:
-    %inner = load %value@Just : Int
+    %inner = load %value@Just : I32
     %v12 = load %to : String
-    %v13 = call Show(Int).showBound, %inner : Maybe(Size)
+    %v13 = call Show(I32).showBound, %inner : Maybe(Size)
     %v14 = call formatBound, %v13 : Size
     %v16 = add 6, %v14 : Size
     %v17 = borrow_mut %to : &String
@@ -2093,7 +2093,7 @@ fn Show(Maybe(a)).show(Int)(%value: Maybe(Int), %to: String) -> () {
     %v19 = copy Core.literal$24 : String
     call String.push, %v17, %v19
     drop %local3 via Reclaim(String).reclaim
-    call Show(Int).show, %inner, %v17
+    call Show(I32).show, %inner, %v17
     %v22 = copy Core.literal$26 : String
     call String.push, %v17, %v22
     drop %local4 via Reclaim(String).reclaim
@@ -2144,7 +2144,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -2195,7 +2195,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -2231,7 +2231,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -2317,14 +2317,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -2356,7 +2356,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -2414,7 +2414,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -2977,7 +2977,7 @@ fn resize(CodeUnit)(%self: Run(CodeUnit), %wanted: Size) -> Bool {
     %v28 = call byteSpan(CodeUnit), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %CodeUnit
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -3204,7 +3204,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b10:
     %v143 = load %at : Size
     %v144 = not %same : Mask(CodeUnit)
-    %v145 = vreduce_first %v144 : Int
+    %v145 = vreduce_first %v144 : I32
     %v146 = cast %v145 : Size
     %differs = add %v143, %v146 : Size
     %v148 = strideof CodeUnit : Size
@@ -3251,7 +3251,7 @@ fn compareMemory(CodeUnit)(%left: %CodeUnit, %right: %CodeUnit, %count: Size) ->
   b15:
     %v181 = load %at : Size
     %v182 = not %same : Mask(CodeUnit)
-    %v183 = vreduce_first %v182 : Int
+    %v183 = vreduce_first %v182 : I32
     %v184 = cast %v183 : Size
     %differs = add %v181, %v184 : Size
     %v186 = cmp_lt %differs, %count : Bool
@@ -3354,9 +3354,9 @@ fn markerH() -> String {
     ret %v0
 }
 
-fn markers() -> Int {
+fn markers() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
     %v3 = call markerA : String
     %v4 = copy ResolveTest.literal$17 : String
@@ -3366,8 +3366,8 @@ fn markers() -> Int {
     je %v5, b1, b2
 
   b1:
-    %v7 = load %total : Int
-    %v10 = add %v7, 1 : Int
+    %v7 = load %total : I32
+    %v10 = add %v7, 1 : I32
     assign %total, %v10
     jmp b3
 
@@ -3383,8 +3383,8 @@ fn markers() -> Int {
     je %v16, b4, b5
 
   b4:
-    %v18 = load %total : Int
-    %v21 = add %v18, 1 : Int
+    %v18 = load %total : I32
+    %v21 = add %v18, 1 : I32
     assign %total, %v21
     jmp b6
 
@@ -3400,8 +3400,8 @@ fn markers() -> Int {
     je %v27, b7, b8
 
   b7:
-    %v29 = load %total : Int
-    %v32 = add %v29, 1 : Int
+    %v29 = load %total : I32
+    %v32 = add %v29, 1 : I32
     assign %total, %v32
     jmp b9
 
@@ -3417,8 +3417,8 @@ fn markers() -> Int {
     je %v38, b10, b11
 
   b10:
-    %v40 = load %total : Int
-    %v43 = add %v40, 1 : Int
+    %v40 = load %total : I32
+    %v43 = add %v40, 1 : I32
     assign %total, %v43
     jmp b12
 
@@ -3434,8 +3434,8 @@ fn markers() -> Int {
     je %v49, b13, b14
 
   b13:
-    %v51 = load %total : Int
-    %v54 = add %v51, 1 : Int
+    %v51 = load %total : I32
+    %v54 = add %v51, 1 : I32
     assign %total, %v54
     jmp b15
 
@@ -3451,8 +3451,8 @@ fn markers() -> Int {
     je %v60, b16, b17
 
   b16:
-    %v62 = load %total : Int
-    %v65 = add %v62, 1 : Int
+    %v62 = load %total : I32
+    %v65 = add %v62, 1 : I32
     assign %total, %v65
     jmp b18
 
@@ -3468,8 +3468,8 @@ fn markers() -> Int {
     je %v71, b19, b20
 
   b19:
-    %v73 = load %total : Int
-    %v76 = add %v73, 1 : Int
+    %v73 = load %total : I32
+    %v76 = add %v73, 1 : I32
     assign %total, %v76
     jmp b21
 
@@ -3485,8 +3485,8 @@ fn markers() -> Int {
     je %v82, b22, b23
 
   b22:
-    %v84 = load %total : Int
-    %v87 = add %v84, 1 : Int
+    %v84 = load %total : I32
+    %v87 = add %v84, 1 : I32
     assign %total, %v87
     jmp b24
 
@@ -3494,35 +3494,35 @@ fn markers() -> Int {
     jmp b24
 
   b24:
-    %v91 = load %total : Int
+    %v91 = load %total : I32
     ret %v91
 }
 
-fn shown(%value: Double) -> String {
+fn shown(%value: F64) -> String {
   b0:
     %v2 = call String.ofCapacity, 16 : String
     %sink = alloc : String
     init %sink, %v2
     %v5 = load %sink : String
     %v6 = borrow_mut %sink : &String
-    call Show(Double).show, %value, %v6
+    call Show(F64).show, %value, %v6
     %v8 = load %sink : String
     %v9 = move %sink : String
     ret %v9
 }
 
-fn library() -> Int {
+fn library() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %zero = alloc : Double
+    %zero = alloc : F64
     init %zero, 0
     %v7 = call String.ofCapacity, 16 : String
     %sink = alloc : String
     init %sink, %v7
-    %v10 = load %zero : Double
-    %v11 = load %zero : Double
-    %v12 = div %v10, %v11 : Double
+    %v10 = load %zero : F64
+    %v11 = load %zero : F64
+    %v12 = div %v10, %v11 : F64
     %v13 = call shown, %v12 : String
     %v14 = copy ResolveTest.literal$33 : String
     %v15 = call Eq(String).==, %v13, %v14 : Bool
@@ -3531,8 +3531,8 @@ fn library() -> Int {
     je %v15, b1, b2
 
   b1:
-    %v17 = load %total : Int
-    %v20 = add %v17, 1 : Int
+    %v17 = load %total : I32
+    %v20 = add %v17, 1 : I32
     assign %total, %v20
     jmp b3
 
@@ -3540,8 +3540,8 @@ fn library() -> Int {
     jmp b3
 
   b3:
-    %v25 = load %zero : Double
-    %v27 = div 1, %v25 : Double
+    %v25 = load %zero : F64
+    %v27 = div 1, %v25 : F64
     %v28 = call shown, %v27 : String
     %v29 = copy ResolveTest.literal$35 : String
     %v30 = call Eq(String).==, %v28, %v29 : Bool
@@ -3550,8 +3550,8 @@ fn library() -> Int {
     je %v30, b4, b5
 
   b4:
-    %v32 = load %total : Int
-    %v35 = add %v32, 1 : Int
+    %v32 = load %total : I32
+    %v35 = add %v32, 1 : I32
     assign %total, %v35
     jmp b6
 
@@ -3569,8 +3569,8 @@ fn library() -> Int {
     je %v45, b7, b8
 
   b7:
-    %v47 = load %total : Int
-    %v50 = add %v47, 1 : Int
+    %v47 = load %total : I32
+    %v50 = add %v47, 1 : I32
     assign %total, %v50
     jmp b9
 
@@ -3591,8 +3591,8 @@ fn library() -> Int {
     je %v63, b10, b11
 
   b10:
-    %v65 = load %total : Int
-    %v68 = add %v65, 1 : Int
+    %v65 = load %total : I32
+    %v68 = add %v65, 1 : I32
     assign %total, %v68
     jmp b12
 
@@ -3603,11 +3603,11 @@ fn library() -> Int {
     %v73 = call String.ofCapacity, 16 : String
     drop %sink via Reclaim(String).reclaim
     assign %sink, %v73
-    %v75 = alloc : Maybe(Int)
+    %v75 = alloc : Maybe(I32)
     init %local12.discriminant, 0
     %v78 = load %sink : String
     %v79 = borrow_mut %sink : &String
-    call Show(Maybe(a)).show(Int), %v75, %v79
+    call Show(Maybe(a)).show(I32), %v75, %v79
     %v81 = load %sink : String
     %v82 = copy ResolveTest.literal$41 : String
     %v83 = call Eq(String).==, %v81, %v82 : Bool
@@ -3615,8 +3615,8 @@ fn library() -> Int {
     je %v83, b13, b14
 
   b13:
-    %v85 = load %total : Int
-    %v88 = add %v85, 1 : Int
+    %v85 = load %total : I32
+    %v88 = add %v85, 1 : I32
     assign %total, %v88
     jmp b15
 
@@ -3627,11 +3627,11 @@ fn library() -> Int {
     %v93 = call String.ofCapacity, 16 : String
     drop %sink via Reclaim(String).reclaim
     assign %sink, %v93
-    %v97 = alloc : Maybe(Int)
+    %v97 = alloc : Maybe(I32)
     aggregate %local15.discriminant = 1, %local15@Just = 7
     %v100 = load %sink : String
     %v101 = borrow_mut %sink : &String
-    call Show(Maybe(a)).show(Int), %v97, %v101
+    call Show(Maybe(a)).show(I32), %v97, %v101
     %v103 = load %sink : String
     %v104 = copy ResolveTest.literal$43 : String
     %v105 = call Eq(String).==, %v103, %v104 : Bool
@@ -3640,8 +3640,8 @@ fn library() -> Int {
     je %v105, b16, b17
 
   b16:
-    %v107 = load %total : Int
-    %v110 = add %v107, 1 : Int
+    %v107 = load %total : I32
+    %v110 = add %v107, 1 : I32
     assign %total, %v110
     jmp b18
 
@@ -3649,14 +3649,14 @@ fn library() -> Int {
     jmp b18
 
   b18:
-    %v114 = load %total : Int
+    %v114 = load %total : I32
     ret %v114
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call markers : Int
-    %v1 = call library : Int
-    %v2 = add %v0, %v1 : Int
+    %v0 = call markers : I32
+    %v1 = call library : I32
+    %v2 = add %v0, %v1 : I32
     ret %v2
 }

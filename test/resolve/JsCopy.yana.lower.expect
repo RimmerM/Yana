@@ -1,26 +1,26 @@
 @image$base = []
 
-seed<complex>(): Int {
+seed<complex>(): I32 {
   b_0 {
     ret 5
   }
 }
 
-next<complex>(%n: Int): Int {
+next<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = add %n, 1: Int
+    %v_1 = add %n, 1: I32
     ret %v_1
   }
 }
 
-barrier<complex>(%flag: Int): Int {
+barrier<complex>(%flag: I32): I32 {
   b_0 {
-    %v_1 = call_complex seed: Int
+    %v_1 = call_complex seed: I32
     je %flag, b_2, b_3
   }
 
   b_2 {
-    %v_4 = call_complex next, %v_1: Int
+    %v_4 = call_complex next, %v_1: I32
     jmp b_5
   }
 
@@ -29,27 +29,27 @@ barrier<complex>(%flag: Int): Int {
   }
 
   b_5 {
-    %v_6 = phi [b_2, %v_4], [b_3, %v_1]: Int
-    %v_7 = call_complex next, %v_6: Int
-    %v_8 = imul %v_6, 100: Int
-    %v_9 = add %v_8, %v_7: Int
+    %v_6 = phi [b_2, %v_4], [b_3, %v_1]: I32
+    %v_7 = call_complex next, %v_6: I32
+    %v_8 = imul %v_6, 100: I32
+    %v_9 = add %v_8, %v_7: I32
     ret %v_9
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex barrier, 1: Int
-    %v_2 = call_complex barrier, 0: Int
-    %v_3 = imul %v_2, 1000: Int
-    %v_4 = add %v_1, %v_3: Int
-    %v_5 = call_complex seed: Int
-    %v_6 = call_complex next, %v_5: Int
-    %v_7 = imul %v_6, 100: Int
-    %v_8 = add %v_7, %v_6: Int
-    %v_9 = add %v_8, %v_6: Int
-    %v_10 = imul %v_9, 1000000: Int
-    %v_11 = add %v_4, %v_10: Int
+    %v_1 = call_complex barrier, 1: I32
+    %v_2 = call_complex barrier, 0: I32
+    %v_3 = imul %v_2, 1000: I32
+    %v_4 = add %v_1, %v_3: I32
+    %v_5 = call_complex seed: I32
+    %v_6 = call_complex next, %v_5: I32
+    %v_7 = imul %v_6, 100: I32
+    %v_8 = add %v_7, %v_6: I32
+    %v_9 = add %v_8, %v_6: I32
+    %v_10 = imul %v_9, 1000000: I32
+    %v_11 = add %v_4, %v_10: I32
     ret %v_11
   }
 }

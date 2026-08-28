@@ -1,17 +1,17 @@
 
-diverge<complex>(%n: Int, %d: Int, %c: Int): Int {
+diverge<complex>(%n: I32, %d: I32, %c: I32): I32 {
   start {
-    %x = add %n, 1: Int
+    %x = add %n, 1: I32
     je %c, a, b
   }
 
   a {
-    %q = div %d, %n: Int
+    %q = div %d, %n: I32
     jmp end
   }
 
   b {
-    %r = add %d, %n: Int
+    %r = add %d, %n: I32
     jmp end
   }
 
@@ -20,43 +20,43 @@ diverge<complex>(%n: Int, %d: Int, %c: Int): Int {
   }
 }
 
-critEdge<complex>(%n: Int, %m: Int, %c: Int): Int {
+critEdge<complex>(%n: I32, %m: I32, %c: I32): I32 {
   start {
     je %c, a, b
   }
 
   a {
-    %p = phi [start, %n]: Int
+    %p = phi [start, %n]: I32
     ret %p
   }
 
   b {
-    %q = phi [start, %m]: Int
+    %q = phi [start, %m]: I32
     ret %q
   }
 }
 
-outOfOrder<complex>(%n: Int): Int {
+outOfOrder<complex>(%n: I32): I32 {
   start {
-    %x = add %n, 1: Int
+    %x = add %n, 1: I32
     jmp b
   }
 
   a {
-    %y = add %x, 2: Int
+    %y = add %x, 2: I32
     ret %y
   }
 
   b {
-    %z = add %n, 3: Int
+    %z = add %n, 3: I32
     jmp a
   }
 }
 
-earlyExit<complex>(%a: Int, %b: Int, %c: Int): Int {
+earlyExit<complex>(%a: I32, %b: I32, %c: I32): I32 {
   start {
-    %keep = add %a, 7: Int
-    %v_0 = cmp_eq %c, 0: Int
+    %keep = add %a, 7: I32
+    %v_0 = cmp_eq %c, 0: I32
     je %v_0, quick, slow
   }
 
@@ -65,10 +65,10 @@ earlyExit<complex>(%a: Int, %b: Int, %c: Int): Int {
   }
 
   slow {
-    %d = idiv %a, %b: Int
-    %e = irem %a, %b: Int
-    %f = add %d, %e: Int
-    %g = add %f, %keep: Int
+    %d = idiv %a, %b: I32
+    %e = irem %a, %b: I32
+    %f = add %d, %e: I32
+    %g = add %f, %keep: I32
     ret %g
   }
 }

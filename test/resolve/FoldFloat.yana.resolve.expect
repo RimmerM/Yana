@@ -1,51 +1,51 @@
 let image$base: () = <none>
 
-fn wideningInt() -> Double {
+fn wideningInt() -> F64 {
   b0:
     ret 7
 }
 
-fn narrowing() -> Float {
+fn narrowing() -> F32 {
   b0:
-    %v1 = cast 2.5 : Float
+    %v1 = cast 2.5 : F32
     ret %v1
 }
 
-fn widening() -> Double {
+fn widening() -> F64 {
   b0:
-    %v1 = cast 2.5 : Double
+    %v1 = cast 2.5 : F64
     ret %v1
 }
 
-fn truncating() -> Int {
+fn truncating() -> I32 {
   b0:
-    %v1 = cast 9.75 : Int
+    %v1 = cast 9.75 : I32
     ret %v1
 }
 
-fn truncatingNegative() -> Int {
+fn truncatingNegative() -> I32 {
   b0:
-    %v1 = cast -9.75 : Int
+    %v1 = cast -9.75 : I32
     ret %v1
 }
 
-fn arithmetic() -> Int {
+fn arithmetic() -> I32 {
   b0:
-    %v3 = mul 1.5, 4 : Float
-    %v6 = add %v3, 3 : Float
-    %v9 = sub %v6, 1 : Float
-    %v10 = cast %v9 : Int
+    %v3 = mul 1.5, 4 : F32
+    %v6 = add %v3, 3 : F32
+    %v9 = sub %v6, 1 : F32
+    %v10 = cast %v9 : I32
     ret %v10
 }
 
-fn divided() -> Int {
+fn divided() -> I32 {
   b0:
-    %v3 = div 45, 4 : Double
-    %v4 = cast %v3 : Int
+    %v3 = div 45, 4 : F64
+    %v4 = cast %v3 : I32
     ret %v4
 }
 
-fn compared() -> Int {
+fn compared() -> I32 {
   b0:
     %v3 = cmp_gt 2.5, 2 : Bool
     je %v3, b1, b2
@@ -57,31 +57,31 @@ fn compared() -> Int {
     jmp b3
 
   b3:
-    %v9 = phi [b1, 30], [b2, 0] : Int
+    %v9 = phi [b1, 30], [b2, 0] : I32
     ret %v9
 }
 
-fn outOfRange() -> Int {
+fn outOfRange() -> I32 {
   b0:
-    %v1 = cast 1E30 : Int
+    %v1 = cast 1E30 : I32
     ret %v1
 }
 
-fn outOfRangeLow() -> Int {
+fn outOfRangeLow() -> I32 {
   b0:
-    %v1 = cast -1E30 : Int
+    %v1 = cast -1E30 : I32
     ret %v1
 }
 
-fn saturatedConstants() -> Int {
+fn saturatedConstants() -> I32 {
   b0:
-    %v0 = call outOfRange : Int
+    %v0 = call outOfRange : I32
     %v3 = cmp_eq %v0, 2147483647 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = call outOfRangeLow : Int
-    %v10 = sub 0, 2147483647 : Int
+    %v5 = call outOfRangeLow : I32
+    %v10 = sub 0, 2147483647 : I32
     %v11 = cmp_lt %v5, %v10 : Bool
     jmp b3
 
@@ -99,32 +99,32 @@ fn saturatedConstants() -> Int {
     jmp b6
 
   b6:
-    %v21 = phi [b4, 40], [b5, 0] : Int
+    %v21 = phi [b4, 40], [b5, 0] : I32
     ret %v21
 }
 
-fn notANumber() -> Double {
+fn notANumber() -> F64 {
   b0:
-    %v4 = div 0, 0 : Double
+    %v4 = div 0, 0 : F64
     ret %v4
 }
 
-fn infinite() -> Double {
+fn infinite() -> F64 {
   b0:
-    %v4 = div 1, 0 : Double
+    %v4 = div 1, 0 : F64
     ret %v4
 }
 
-fn saturatedAtRuntime() -> Int {
+fn saturatedAtRuntime() -> I32 {
   b0:
-    %v0 = call notANumber : Double
-    %v1 = cast %v0 : Int
+    %v0 = call notANumber : F64
+    %v1 = cast %v0 : I32
     %v4 = cmp_eq %v1, 0 : Bool
     je %v4, b1, b2
 
   b1:
-    %v6 = call infinite : Double
-    %v7 = cast %v6 : Int
+    %v6 = call infinite : F64
+    %v7 = cast %v6 : I32
     %v10 = cmp_eq %v7, 2147483647 : Bool
     jmp b3
 
@@ -142,13 +142,13 @@ fn saturatedAtRuntime() -> Int {
     jmp b6
 
   b6:
-    %v20 = phi [b4, 50], [b5, 0] : Int
+    %v20 = phi [b4, 50], [b5, 0] : I32
     ret %v20
 }
 
-fn nonFinite() -> Int {
+fn nonFinite() -> I32 {
   b0:
-    %v3 = div 1, 0 : Double
+    %v3 = div 1, 0 : F64
     %v6 = cmp_gt %v3, 1000000 : Bool
     je %v6, b1, b2
 
@@ -159,35 +159,35 @@ fn nonFinite() -> Int {
     jmp b3
 
   b3:
-    %v12 = phi [b1, 20], [b2, 0] : Int
+    %v12 = phi [b1, 20], [b2, 0] : I32
     ret %v12
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v0 = call wideningInt : Double
-    %v1 = cast %v0 : Int
-    %v2 = call narrowing : Float
-    %v3 = cast %v2 : Int
-    %v4 = add %v1, %v3 : Int
-    %v5 = call widening : Double
-    %v6 = cast %v5 : Int
-    %v7 = add %v4, %v6 : Int
-    %v8 = call truncating : Int
-    %v9 = add %v7, %v8 : Int
-    %v10 = call truncatingNegative : Int
-    %v11 = add %v9, %v10 : Int
-    %v12 = call arithmetic : Int
-    %v13 = add %v11, %v12 : Int
-    %v14 = call divided : Int
-    %v15 = add %v13, %v14 : Int
-    %v16 = call compared : Int
-    %v17 = add %v15, %v16 : Int
-    %v18 = call saturatedConstants : Int
-    %v19 = add %v17, %v18 : Int
-    %v20 = call saturatedAtRuntime : Int
-    %v21 = add %v19, %v20 : Int
-    %v22 = call nonFinite : Int
-    %v23 = add %v21, %v22 : Int
+    %v0 = call wideningInt : F64
+    %v1 = cast %v0 : I32
+    %v2 = call narrowing : F32
+    %v3 = cast %v2 : I32
+    %v4 = add %v1, %v3 : I32
+    %v5 = call widening : F64
+    %v6 = cast %v5 : I32
+    %v7 = add %v4, %v6 : I32
+    %v8 = call truncating : I32
+    %v9 = add %v7, %v8 : I32
+    %v10 = call truncatingNegative : I32
+    %v11 = add %v9, %v10 : I32
+    %v12 = call arithmetic : I32
+    %v13 = add %v11, %v12 : I32
+    %v14 = call divided : I32
+    %v15 = add %v13, %v14 : I32
+    %v16 = call compared : I32
+    %v17 = add %v15, %v16 : I32
+    %v18 = call saturatedConstants : I32
+    %v19 = add %v17, %v18 : I32
+    %v20 = call saturatedAtRuntime : I32
+    %v21 = add %v19, %v20 : I32
+    %v22 = call nonFinite : I32
+    %v23 = add %v21, %v22 : I32
     ret %v23
 }

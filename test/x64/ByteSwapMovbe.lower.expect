@@ -1,95 +1,95 @@
 
-swap32<complex>(%a: Int): Int {
+swap32<complex>(%a: I32): I32 {
   b_0 {
-    %s = bswap %a: Int
+    %s = bswap %a: I32
     ret %s
   }
 }
 
-swap64<complex>(%a: Long): Long {
+swap64<complex>(%a: I64): I64 {
   b_0 {
-    %s = bswap %a: Long
+    %s = bswap %a: I64
     ret %s
   }
 }
 
-swapLoad<complex>(%p: Ptr): Int {
+swapLoad<complex>(%p: Ptr): I32 {
   b_0 {
-    %v = load %p, 4: Int
-    %s = bswap %v: Int
+    %v = load %p, 4: I32
+    %s = bswap %v: I32
     ret %s
   }
 }
 
-swapLoad64<complex>(%p: Ptr): Long {
+swapLoad64<complex>(%p: Ptr): I64 {
   b_0 {
-    %v = load %p, 8: Long
-    %s = bswap %v: Long
+    %v = load %p, 8: I64
+    %s = bswap %v: I64
     ret %s
   }
 }
 
-swapLoadIndexed<complex>(%p: Ptr, %i: Long): Int {
+swapLoadIndexed<complex>(%p: Ptr, %i: I64): I32 {
   b_0 {
-    %o = shl %i, 2: Long
+    %o = shl %i, 2: I64
     %q = add %p, %o: Ptr
-    %v = load %q, 4: Int
-    %s = bswap %v: Int
+    %v = load %q, 4: I32
+    %s = bswap %v: I32
     ret %s
   }
 }
 
-swapStore<complex>(%p: Ptr, %v: Int) {
+swapStore<complex>(%p: Ptr, %v: I32) {
   b_0 {
-    %s = bswap %v: Int
+    %s = bswap %v: I32
     store %p, %s, 4
     ret 
   }
 }
 
-swapStore64<complex>(%p: Ptr, %v: Long) {
+swapStore64<complex>(%p: Ptr, %v: I64) {
   b_0 {
-    %s = bswap %v: Long
+    %s = bswap %v: I64
     store %p, %s, 8
     ret 
   }
 }
 
-swapLoadShared<complex>(%p: Ptr): Int {
+swapLoadShared<complex>(%p: Ptr): I32 {
   b_0 {
-    %v = load %p, 4: Int
-    %s = bswap %v: Int
-    %t = add %s, %v: Int
+    %v = load %p, 4: I32
+    %s = bswap %v: I32
+    %t = add %s, %v: I32
     ret %t
   }
 }
 
-swapStoreShared<complex>(%p: Ptr, %v: Int): Int {
+swapStoreShared<complex>(%p: Ptr, %v: I32): I32 {
   b_0 {
-    %s = bswap %v: Int
+    %s = bswap %v: I32
     store %p, %s, 4
     ret %s
   }
 }
 
-swapLoadApart<complex>(%p: Ptr, %i: Long, %j: Long): Long {
+swapLoadApart<complex>(%p: Ptr, %i: I64, %j: I64): I64 {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %q = add %p, %o: Ptr
-    %v = load %q, 8: Long
-    %k = mul %j, 3: Long
-    %m = add %k, 7: Long
-    %s = bswap %v: Long
-    %t = add %s, %m: Long
+    %v = load %q, 8: I64
+    %k = mul %j, 3: I64
+    %m = add %k, 7: I64
+    %s = bswap %v: I64
+    %t = add %s, %m: I64
     ret %t
   }
 }
 
-swapStoreIndexed<complex>(%p: Ptr, %i: Long, %v: Long) {
+swapStoreIndexed<complex>(%p: Ptr, %i: I64, %v: I64) {
   b_0 {
-    %o = shl %i, 3: Long
+    %o = shl %i, 3: I64
     %q = add %p, %o: Ptr
-    %s = bswap %v: Long
+    %s = bswap %v: I64
     store %q, %s, 8
     ret 
   }

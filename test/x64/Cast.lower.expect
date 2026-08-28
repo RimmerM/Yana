@@ -1,102 +1,102 @@
 
-widen<complex>(%v: Int): Long {
+widen<complex>(%v: I32): I64 {
   b_0 {
-    %z = cast %v: Long
-    %s = sext %v: Long
-    %t = add %z, %s: Long
+    %z = cast %v: I64
+    %s = sext %v: I64
+    %t = add %z, %s: I64
     ret %t
   }
 }
 
-narrowCast<complex>(%v: Long): Int {
+narrowCast<complex>(%v: I64): I32 {
   b_0 {
-    %n = cast %v: Int
+    %n = cast %v: I32
     ret %n
   }
 }
 
-bitcasts<complex>(%v: Long, %p: Ptr): Long {
+bitcasts<complex>(%v: I64, %p: Ptr): I64 {
   b_0 {
     %a = bitcast %v: Ptr
-    %b = bitcast %p: Long
-    %c = bitcast %b: Long
-    %d = add %b, %c: Long
+    %b = bitcast %p: I64
+    %c = bitcast %b: I64
+    %d = add %b, %c: I64
     ret %d
   }
 }
 
-immCast<complex>(): Long {
+immCast<complex>(): I64 {
   b_0 {
-    %big = cast 4294967296: Long
-    %neg = cast 18446744073709551615: Long
-    %t = add %big, %neg: Long
+    %big = cast 4294967296: I64
+    %neg = cast 18446744073709551615: I64
+    %t = add %big, %neg: I64
     ret %t
   }
 }
 
-skipComputed<complex>(%a: Int, %b: Int): Long {
+skipComputed<complex>(%a: I32, %b: I32): I64 {
   b_0 {
-    %s = add %a, %b: Int
-    %w = cast %s: Long
-    %c = cast %w: Int
-    %r = cast %c: Long
+    %s = add %a, %b: I32
+    %w = cast %s: I64
+    %c = cast %w: I32
+    %r = cast %c: I64
     ret %r
   }
 }
 
-keepArgument<complex>(%v: Int): Long {
+keepArgument<complex>(%v: I32): I64 {
   b_0 {
-    %w = cast %v: Long
+    %w = cast %v: I64
     ret %w
   }
 }
 
-identity<complex>(%x: Int): Int {
+identity<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-keepCallResult<complex>(%a: Int): Long {
+keepCallResult<complex>(%a: I32): I64 {
   b_0 {
-    %r = call_complex identity, %a: Int
-    %w = cast %r: Long
+    %r = call_complex identity, %a: I32
+    %w = cast %r: I64
     ret %w
   }
 }
 
-skipWide<complex>(%a: Long, %b: Long): Long {
+skipWide<complex>(%a: I64, %b: I64): I64 {
   b_0 {
-    %s = add %a, %b: Long
-    %c = cast %s: Long
-    %r = add %c, %b: Long
+    %s = add %a, %b: I64
+    %c = cast %s: I64
+    %r = add %c, %b: I64
     ret %r
   }
 }
 
-skipMasked<complex>(%p: Ptr): Int {
+skipMasked<complex>(%p: Ptr): I32 {
   b_0 {
-    %h = load %p, 8: Long
-    %m = and %h, 1073741823: Long
-    %mn = cast %m: Int
-    %s = shr %h, 40: Long
-    %sn = cast %s: Int
-    %a = sar %h, 40: Long
-    %an = cast %a: Int
-    %r = add %mn, %sn: Int
-    %r2 = add %r, %an: Int
+    %h = load %p, 8: I64
+    %m = and %h, 1073741823: I64
+    %mn = cast %m: I32
+    %s = shr %h, 40: I64
+    %sn = cast %s: I32
+    %a = sar %h, 40: I64
+    %an = cast %a: I32
+    %r = add %mn, %sn: I32
+    %r2 = add %r, %an: I32
     ret %r2
   }
 }
 
-loadWidths<complex>(%p: Ptr): Long {
+loadWidths<complex>(%p: Ptr): I64 {
   b_0 {
-    %b = load %p, 1: Int
-    %bw = cast %b: Long
-    %s = loads %p, 4: Long
-    %sn = cast %s: Int
-    %sw = cast %sn: Long
-    %r = add %bw, %sw: Long
+    %b = load %p, 1: I32
+    %bw = cast %b: I64
+    %s = loads %p, 4: I64
+    %sn = cast %s: I32
+    %sw = cast %sn: I64
+    %r = add %bw, %sw: I64
     ret %r
   }
 }

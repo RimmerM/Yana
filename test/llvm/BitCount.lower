@@ -14,31 +14,31 @@
 # and exists only so the x64 backend has a name for the instruction its baseline has. Nothing above
 # a backend writes one, so there is nothing here to lower.
 
-counts(%a: Int, %b: Long): Int {
+counts(%a: I32, %b: I64): I32 {
     {
-        %p = popcnt %a: Int
-        %q = popcnt %b: Long
-        %r = add %p, %a: Int
+        %p = popcnt %a: I32
+        %q = popcnt %b: I64
+        %r = add %p, %a: I32
         ret %r
     }
 }
 
 # The defined pair, which is what a source `trailingZeros` and `leadingZeros` become.
-defined(%a: Int, %b: Long): Int {
+defined(%a: I32, %b: I64): I32 {
     {
-        %t = cttz_width %a: Int
-        %l = clz_width %a: Int
-        %u = cttz_width %b: Long
-        %m = clz_width %b: Long
-        %r = add %t, %l: Int
+        %t = cttz_width %a: I32
+        %l = clz_width %a: I32
+        %u = cttz_width %b: I64
+        %m = clz_width %b: I64
+        %r = add %t, %l: I32
         ret %r
     }
 }
 
 # And the undefined one, which is the same operation with the other promise.
-scan(%a: Int): Int {
+scan(%a: I32): I32 {
     {
-        %t = cttz %a: Int
+        %t = cttz %a: I32
         ret %t
     }
 }

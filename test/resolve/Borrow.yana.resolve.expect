@@ -1,100 +1,100 @@
 let image$base: () = <none>
 
-fn +=(Int)(%target: Int, %amount: Int) -> () {
+fn +=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn *=(Int)(%target: Int, %amount: Int) -> () {
+fn *=(I32)(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = mul %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = mul %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn bump(%counter: Int, %by: Int) -> () {
+fn bump(%counter: I32, %by: I32) -> () {
   b0:
-    %v2 = load %counter : Int
-    %v3 = add %v2, %by : Int
+    %v2 = load %counter : I32
+    %v3 = add %v2, %by : I32
     assign %counter, %v3
     ret
 }
 
-fn swap(%a: Int, %b: Int) -> () {
+fn swap(%a: I32, %b: I32) -> () {
   b0:
-    %old = load %a : Int
-    %v3 = load %b : Int
+    %old = load %a : I32
+    %v3 = load %b : I32
     assign %a, %v3
     assign %b, %old
     ret
 }
 
-fn moveBy(%p: Point, %dx: Int, %dy: Int) -> () {
+fn moveBy(%p: Point, %dx: I32, %dy: I32) -> () {
   b0:
     %v3 = load %p : Point
-    %v4 = load %p@Point.x : Int
-    %v5 = borrow_mut %p@Point.x : &Int
-    call +=(Int), %v5, %dx
+    %v4 = load %p@Point.x : I32
+    %v5 = borrow_mut %p@Point.x : &I32
+    call +=(I32), %v5, %dx
     %v7 = load %p : Point
-    %v8 = load %p@Point.y : Int
-    %v9 = borrow_mut %p@Point.y : &Int
-    call +=(Int), %v9, %dy
+    %v8 = load %p@Point.y : I32
+    %v9 = borrow_mut %p@Point.y : &I32
+    call +=(I32), %v9, %dy
     ret
 }
 
-fn copyThroughBorrow(%target: Int, %amount: Int) -> () {
+fn copyThroughBorrow(%target: I32, %amount: I32) -> () {
   b0:
-    %v2 = load %target : Int
-    %v3 = add %v2, %amount : Int
+    %v2 = load %target : I32
+    %v3 = add %v2, %amount : I32
     assign %target, %v3
     ret
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %total = alloc : Int
+    %total = alloc : I32
     init %total, 0
-    %v3 = load %total : Int
-    %v5 = borrow_mut %total : &Int
+    %v3 = load %total : I32
+    %v5 = borrow_mut %total : &I32
     call bump, %v5, 5
-    %v7 = load %total : Int
-    %v10 = borrow_mut %total : &Int
-    call +=(Int), %v10, 3
-    %v12 = load %total : Int
-    %v15 = borrow_mut %total : &Int
-    call *=(Int), %v15, 2
-    %left = alloc : Int
+    %v7 = load %total : I32
+    %v10 = borrow_mut %total : &I32
+    call +=(I32), %v10, 3
+    %v12 = load %total : I32
+    %v15 = borrow_mut %total : &I32
+    call *=(I32), %v15, 2
+    %left = alloc : I32
     init %left, 1
-    %right = alloc : Int
+    %right = alloc : I32
     init %right, 2
-    %v23 = load %left : Int
-    %v24 = load %right : Int
-    %v25 = borrow_mut %left : &Int
-    %v26 = borrow_mut %right : &Int
+    %v23 = load %left : I32
+    %v24 = load %right : I32
+    %v25 = borrow_mut %left : &I32
+    %v26 = borrow_mut %right : &I32
     call swap, %v25, %v26
     %v28 = alloc : Point
     aggregate %here@Point.x = 10, %here@Point.y = 20
     %v32 = load %here : Point
     %v35 = borrow_mut %here : &Point
     call moveBy, %v35, 1, 2
-    %v37 = load %total : Int
-    %v38 = load %total : Int
-    %v39 = borrow_mut %total : &Int
+    %v37 = load %total : I32
+    %v38 = load %total : I32
+    %v39 = borrow_mut %total : &I32
     call copyThroughBorrow, %v39, %v38
-    %v41 = load %total : Int
-    %v42 = load %left : Int
-    %v43 = load %right : Int
-    %v44 = sub %v42, %v43 : Int
-    %v45 = add %v41, %v44 : Int
+    %v41 = load %total : I32
+    %v42 = load %left : I32
+    %v43 = load %right : I32
+    %v44 = sub %v42, %v43 : I32
+    %v45 = add %v41, %v44 : I32
     %v46 = load %here : Point
-    %v47 = load %here@Point.x : Int
-    %v48 = add %v45, %v47 : Int
+    %v47 = load %here@Point.x : I32
+    %v48 = add %v45, %v47 : I32
     %v49 = load %here : Point
-    %v50 = load %here@Point.y : Int
-    %v51 = add %v48, %v50 : Int
+    %v50 = load %here@Point.y : I32
+    %v51 = add %v48, %v50 : I32
     ret %v51
 }

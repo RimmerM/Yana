@@ -1,6 +1,6 @@
 let image$base: () = <none>
 
-let &log: Int = 0
+let &log: I32 = 0
 
 table closure$ResolveTest.continuation$22 before ResolveTest.continuation$22 {
   .0 teardown$none
@@ -33,74 +33,74 @@ fn scope(%body: () -> $r) -> $r {
   }
 
   b0:
-    %v1 = load log : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v4 = add %v1, 1 : I32
     assign log, %v4
     %v6 = calldyn %body : $r
-    %v7 = load log : Int
-    %v10 = add %v7, 100 : Int
+    %v7 = load log : I32
+    %v10 = add %v7, 100 : I32
     assign log, %v10
     ret %v6
 }
 
-fn handing(%x: Int, %body: (value$: Int) -> $r) -> $r {
+fn handing(%x: I32, %body: (value$: I32) -> $r) -> $r {
   schema {
     #0 type $r
   }
 
   b0:
-    %v2 = load log : Int
-    %v5 = add %v2, 1 : Int
+    %v2 = load log : I32
+    %v5 = add %v2, 1 : I32
     assign log, %v5
-    %v9 = mul %x, 2 : Int
+    %v9 = mul %x, 2 : I32
     %v10 = calldyn %body, %v9 : $r
-    %v11 = load log : Int
-    %v14 = add %v11, 100 : Int
+    %v11 = load log : I32
+    %v14 = add %v11, 100 : I32
     assign log, %v14
     ret %v10
 }
 
-fn alwaysLeaves(%x: Int) -> Int {
+fn alwaysLeaves(%x: I32) -> I32 {
   b0:
-    %v1 = alloc : {x: Int}
+    %v1 = alloc : {x: I32}
     init %local0.x, %x
     %v3 = addressof %local0 : %()
-    %v4 = alloc : () -> Int
+    %v4 = alloc : () -> I32
     %v5 = symbol ResolveTest.continuation$22 : %()
     init %local1.code, %v5
     init %local1.env, %v3
-    %v8 = call scope(Int), %v4 : Int
+    %v8 = call scope(I32), %v4 : I32
     ret %v8
 }
 
-fn sometimesLeaves(%x: Int) -> Int {
+fn sometimesLeaves(%x: I32) -> I32 {
   b0:
-    %v1 = alloc : {x: Int}
+    %v1 = alloc : {x: I32}
     init %local0.x, %x
     %v3 = addressof %local0 : %()
-    %v4 = alloc : () -> Int
+    %v4 = alloc : () -> I32
     %v5 = symbol ResolveTest.continuation$23 : %()
     init %local1.code, %v5
     init %local1.env, %v3
-    %v8 = call scope(Int), %v4 : Int
+    %v8 = call scope(I32), %v4 : I32
     ret %v8
 }
 
-fn insideArm(%x: Int) -> Int {
+fn insideArm(%x: I32) -> I32 {
   b0:
     %v3 = cmp_gt %x, 0 : Bool
     je %v3, b1, b2
 
   b1:
-    %v5 = alloc : {x: Int}
+    %v5 = alloc : {x: I32}
     init %local0.x, %x
     %v7 = addressof %local0 : %()
-    %v8 = alloc : () -> Outcome((), Int)
+    %v8 = alloc : () -> Outcome((), I32)
     %v9 = symbol ResolveTest.continuation$24 : %()
     init %local1.code, %v9
     init %local1.env, %v7
-    %v12 = call scope(Outcome((), Int)), %v8 : Outcome((), Int)
-    %v13 = load %local2.discriminant : Int
+    %v12 = call scope(Outcome((), I32)), %v8 : Outcome((), I32)
+    %v13 = load %local2.discriminant : I32
     %v15 = cmp_eq %v13, 1 : Bool
     je %v15, b3, b4
 
@@ -108,7 +108,7 @@ fn insideArm(%x: Int) -> Int {
     jmp b5
 
   b3:
-    %v17 = load %local2@Exit : Int
+    %v17 = load %local2@Exit : I32
     ret %v17
 
   b4:
@@ -118,75 +118,75 @@ fn insideArm(%x: Int) -> Int {
     ret 7
 }
 
-fn leavesWithValue(%x: Int) -> Int {
+fn leavesWithValue(%x: I32) -> I32 {
   b0:
-    %v1 = alloc : (value$: Int) -> Int
+    %v1 = alloc : (value$: I32) -> I32
     %v2 = symbol ResolveTest.continuation$25 : %()
     init %local0.code, %v2
     %v5 = cast 0 : %()
     init %local0.env, %v5
-    %v7 = call handing(Int), %x, %v1 : Int
+    %v7 = call handing(I32), %x, %v1 : I32
     ret %v7
 }
 
-fn twoDeep(%x: Int) -> Int {
+fn twoDeep(%x: I32) -> I32 {
   b0:
-    %v1 = alloc : {x: Int}
+    %v1 = alloc : {x: I32}
     init %local0.x, %x
     %v3 = addressof %local0 : %()
-    %v4 = alloc : () -> Int
+    %v4 = alloc : () -> I32
     %v5 = symbol ResolveTest.continuation$26 : %()
     init %local1.code, %v5
     init %local1.env, %v3
-    %v8 = call scope(Int), %v4 : Int
+    %v8 = call scope(I32), %v4 : I32
     ret %v8
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     assign log, 0
-    %a = call alwaysLeaves, 1 : Int
-    %b = call sometimesLeaves, 5 : Int
-    %c = call sometimesLeaves, 200 : Int
-    %d = call insideArm, 3 : Int
-    %e = call insideArm, -1 : Int
-    %f = call leavesWithValue, 9 : Int
-    %g = call leavesWithValue, 2 : Int
-    %h = call twoDeep, 4 : Int
-    %v18 = add %a, %b : Int
-    %v19 = add %v18, %c : Int
-    %v20 = add %v19, %d : Int
-    %v21 = add %v20, %e : Int
-    %v22 = add %v21, %f : Int
-    %v23 = add %v22, %g : Int
-    %v24 = add %v23, %h : Int
-    %v25 = load log : Int
-    %v26 = add %v24, %v25 : Int
+    %a = call alwaysLeaves, 1 : I32
+    %b = call sometimesLeaves, 5 : I32
+    %c = call sometimesLeaves, 200 : I32
+    %d = call insideArm, 3 : I32
+    %e = call insideArm, -1 : I32
+    %f = call leavesWithValue, 9 : I32
+    %g = call leavesWithValue, 2 : I32
+    %h = call twoDeep, 4 : I32
+    %v18 = add %a, %b : I32
+    %v19 = add %v18, %c : I32
+    %v20 = add %v19, %d : I32
+    %v21 = add %v20, %e : I32
+    %v22 = add %v21, %f : I32
+    %v23 = add %v22, %g : I32
+    %v24 = add %v23, %h : I32
+    %v25 = load log : I32
+    %v26 = add %v24, %v25 : I32
     ret %v26
 }
 
-fn ResolveTest.continuation$22(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$22(%env: %{x: I32}) -> I32 {
   b0:
-    %v1 = load [%env].x : Int
-    %v4 = add %v1, 1 : Int
+    %v1 = load [%env].x : I32
+    %v4 = add %v1, 1 : I32
     ret %v4
 }
 
-fn scope(Int)(%body: () -> Int) -> Int {
+fn scope(I32)(%body: () -> I32) -> I32 {
   b0:
-    %v1 = load log : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v3 = add %v1, 1 : I32
     assign log, %v3
-    %v5 = calldyn %body : Int
-    %v6 = load log : Int
-    %v8 = add %v6, 100 : Int
+    %v5 = calldyn %body : I32
+    %v6 = load log : I32
+    %v8 = add %v6, 100 : I32
     assign log, %v8
     ret %v5
 }
 
-fn ResolveTest.continuation$23(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$23(%env: %{x: I32}) -> I32 {
   b0:
-    %v1 = load [%env].x : Int
+    %v1 = load [%env].x : I32
     %v4 = cmp_gt %v1, 100 : Bool
     je %v4, b1, b2
 
@@ -197,19 +197,19 @@ fn ResolveTest.continuation$23(%env: %{x: Int}) -> Int {
     jmp b3
 
   b3:
-    %v8 = load [%env].x : Int
-    %v11 = add %v8, 2 : Int
+    %v8 = load [%env].x : I32
+    %v11 = add %v8, 2 : I32
     ret %v11
 }
 
-fn ResolveTest.continuation$24(%env: %{x: Int}) -> Outcome((), Int) {
+fn ResolveTest.continuation$24(%env: %{x: I32}) -> Outcome((), I32) {
   b0:
-    %v1 = load [%env].x : Int
+    %v1 = load [%env].x : I32
     %v4 = cmp_gt %v1, 100 : Bool
     je %v4, b1, b2
 
   b1:
-    %v17 = alloc : Outcome((), Int)
+    %v17 = alloc : Outcome((), I32)
     aggregate %local1.discriminant = 1, %local1@Exit = 0
     ret %v17
 
@@ -217,27 +217,27 @@ fn ResolveTest.continuation$24(%env: %{x: Int}) -> Outcome((), Int) {
     jmp b3
 
   b3:
-    %v8 = load log : Int
-    %v11 = add %v8, 1000 : Int
+    %v8 = load log : I32
+    %v11 = add %v8, 1000 : I32
     assign log, %v11
-    %v13 = alloc : Outcome((), Int)
+    %v13 = alloc : Outcome((), I32)
     init %local0.discriminant, 0
     ret %v13
 }
 
-fn scope(Outcome((), Int))(%body: () -> Outcome((), Int)) -> Outcome((), Int) {
+fn scope(Outcome((), I32))(%body: () -> Outcome((), I32)) -> Outcome((), I32) {
   b0:
-    %v1 = load log : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = load log : I32
+    %v3 = add %v1, 1 : I32
     assign log, %v3
-    %v5 = calldyn %body : Outcome((), Int)
-    %v6 = load log : Int
-    %v8 = add %v6, 100 : Int
+    %v5 = calldyn %body : Outcome((), I32)
+    %v6 = load log : I32
+    %v8 = add %v6, 100 : I32
     assign log, %v8
     ret %v5
 }
 
-fn ResolveTest.continuation$25(%env: %{}, %value$: Int) -> Int {
+fn ResolveTest.continuation$25(%env: %{}, %value$: I32) -> I32 {
   b0:
     %v4 = cmp_gt %value$, 10 : Bool
     je %v4, b1, b2
@@ -252,36 +252,36 @@ fn ResolveTest.continuation$25(%env: %{}, %value$: Int) -> Int {
     ret 0
 }
 
-fn handing(Int)(%x: Int, %body: (value$: Int) -> Int) -> Int {
+fn handing(I32)(%x: I32, %body: (value$: I32) -> I32) -> I32 {
   b0:
-    %v2 = load log : Int
-    %v4 = add %v2, 1 : Int
+    %v2 = load log : I32
+    %v4 = add %v2, 1 : I32
     assign log, %v4
-    %v7 = mul %x, 2 : Int
-    %v8 = calldyn %body, %v7 : Int
-    %v9 = load log : Int
-    %v11 = add %v9, 100 : Int
+    %v7 = mul %x, 2 : I32
+    %v8 = calldyn %body, %v7 : I32
+    %v9 = load log : I32
+    %v11 = add %v9, 100 : I32
     assign log, %v11
     ret %v8
 }
 
-fn ResolveTest.continuation$26(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$26(%env: %{x: I32}) -> I32 {
   b0:
-    %v1 = alloc : {x: Int}
-    %v2 = load [%env].x : Int
+    %v1 = alloc : {x: I32}
+    %v2 = load [%env].x : I32
     init %local0.x, %v2
     %v4 = addressof %local0 : %()
-    %v5 = alloc : () -> Int
+    %v5 = alloc : () -> I32
     %v6 = symbol ResolveTest.continuation$27 : %()
     init %local1.code, %v6
     init %local1.env, %v4
-    %v9 = call scope(Int), %v5 : Int
+    %v9 = call scope(I32), %v5 : I32
     ret %v9
 }
 
-fn ResolveTest.continuation$27(%env: %{x: Int}) -> Int {
+fn ResolveTest.continuation$27(%env: %{x: I32}) -> I32 {
   b0:
-    %v1 = load [%env].x : Int
-    %v4 = add %v1, 3 : Int
+    %v1 = load [%env].x : I32
+    %v4 = add %v1, 3 : I32
     ret %v4
 }

@@ -1,27 +1,27 @@
 let image$base: () = <none>
 
-fn resetThenAdd(%lhs: Vec(U32, 4), %rhs: Vec(U32, 4)) -> Int {
+fn resetThenAdd(%lhs: Vec(U32, 4), %rhs: Vec(U32, 4)) -> I32 {
   b0:
     vzeroupper
     %v3 = add %lhs, %rhs : Vec(U32, 4)
     %v6 = vlane %v3, 0 : U32
-    %v7 = bitcast %v6 : Int
+    %v7 = bitcast %v6 : I32
     ret %v7
 }
 
-fn plainReset(%x: Int) -> Int {
+fn plainReset(%x: I32) -> I32 {
   b0:
     vzeroupper
-    %v4 = add %x, 1 : Int
+    %v4 = add %x, 1 : I32
     ret %v4
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %a = vsplat 3 : Vec(U32, 4)
     %b = vsplat 4 : Vec(U32, 4)
-    %v4 = call resetThenAdd, %a, %b : Int
-    %v6 = call plainReset, 0 : Int
-    %v7 = add %v4, %v6 : Int
+    %v4 = call resetThenAdd, %a, %b : I32
+    %v6 = call plainReset, 0 : I32
+    %v7 = add %v4, %v6 : I32
     ret %v7
 }

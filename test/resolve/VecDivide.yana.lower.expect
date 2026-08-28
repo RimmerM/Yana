@@ -1,12 +1,12 @@
 @image$base = []
 mut @counter = [0, 0, 0, 0]
 
-opaque<complex>(%n: Int): Int {
+opaque<complex>(%n: I32): I32 {
   b_0 {
-    %v_1 = loads @counter, 4: Int
-    %v_2 = add %v_1, 1: Int
+    %v_1 = loads @counter, 4: I32
+    %v_2 = add %v_1, 1: I32
     store @counter, %v_2, 4
-    %v_3 = cmp_igt %v_2, 1000: Int
+    %v_3 = cmp_igt %v_2, 1000: I32
     je %v_3, b_4, b_5
   }
 
@@ -23,15 +23,15 @@ opaque<complex>(%n: Int): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %a = vsplat 100: i32x4
     %neg = vsplat 18446744073709551516: i32x4
-    %v_1 = call_complex opaque, 7: Int
+    %v_1 = call_complex opaque, 7: I32
     %seven = vsplat %v_1: i32x4
-    %v_2 = call_complex opaque, 0: Int
+    %v_2 = call_complex opaque, 0: I32
     %zero = vsplat %v_2: i32x4
-    %v_3 = call_complex opaque, 18446744073709551615: Int
+    %v_3 = call_complex opaque, 18446744073709551615: I32
     %minusOne = vsplat %v_3: i32x4
     %v_4 = vsplat 0: i32x4
     %v_5 = cmp_eq %seven, %v_4: m32x4
@@ -44,25 +44,25 @@ main<complex>(): Int {
     %v_12 = neg %a: i32x4
     %v_13 = select %v_7, %v_12, %v_11: i32x4
     %v_14 = select %v_5, %v_4, %v_13: i32x4
-    %v_15 = vlane %v_14, 0: Int
-    %v_16 = cmp_eq %v_15, 14: Int
+    %v_15 = vlane %v_14, 0: I32
+    %v_16 = cmp_eq %v_15, 14: I32
     %v_17 = irem %a, %v_10: i32x4
     %v_18 = select %v_5, %a, %v_17: i32x4
-    %v_19 = vlane %v_18, 1: Int
-    %v_20 = cmp_eq %v_19, 2: Int
-    %v_21 = add %v_16, %v_20: Int
+    %v_19 = vlane %v_18, 1: I32
+    %v_20 = cmp_eq %v_19, 2: I32
+    %v_21 = add %v_16, %v_20: I32
     %v_22 = idiv %neg, %v_10: i32x4
     %v_23 = neg %neg: i32x4
     %v_24 = select %v_7, %v_23, %v_22: i32x4
     %v_25 = select %v_5, %v_4, %v_24: i32x4
-    %v_26 = vlane %v_25, 2: Int
-    %v_27 = cmp_eq %v_26, 18446744073709551602: Int
-    %v_28 = add %v_21, %v_27: Int
+    %v_26 = vlane %v_25, 2: I32
+    %v_27 = cmp_eq %v_26, 18446744073709551602: I32
+    %v_28 = add %v_21, %v_27: I32
     %v_29 = irem %neg, %v_10: i32x4
     %v_30 = select %v_5, %neg, %v_29: i32x4
-    %v_31 = vlane %v_30, 3: Int
-    %v_32 = cmp_eq %v_31, 18446744073709551614: Int
-    %v_33 = add %v_28, %v_32: Int
+    %v_31 = vlane %v_30, 3: I32
+    %v_32 = cmp_eq %v_31, 18446744073709551614: I32
+    %v_33 = add %v_28, %v_32: I32
     %v_34 = cmp_eq %zero, %v_4: m32x4
     %v_35 = cmp_eq %zero, %v_6: m32x4
     %v_36 = or %v_34, %v_35: m32x4
@@ -70,15 +70,15 @@ main<complex>(): Int {
     %v_38 = idiv %a, %v_37: i32x4
     %v_39 = select %v_35, %v_12, %v_38: i32x4
     %v_40 = select %v_34, %v_4, %v_39: i32x4
-    %v_41 = vlane %v_40, 0: Int
-    %v_42 = cmp_eq %v_41, 0: Int
-    %v_43 = add %v_33, %v_42: Int
+    %v_41 = vlane %v_40, 0: I32
+    %v_42 = cmp_eq %v_41, 0: I32
+    %v_43 = add %v_33, %v_42: I32
     %v_44 = irem %a, %v_37: i32x4
     %v_45 = select %v_34, %a, %v_44: i32x4
-    %v_46 = vlane %v_45, 0: Int
-    %v_47 = cmp_eq %v_46, 100: Int
-    %v_48 = add %v_43, %v_47: Int
-    %v_49 = call_complex opaque, 18446744071562067968: Int
+    %v_46 = vlane %v_45, 0: I32
+    %v_47 = cmp_eq %v_46, 100: I32
+    %v_48 = add %v_43, %v_47: I32
+    %v_49 = call_complex opaque, 18446744071562067968: I32
     %least = vsplat %v_49: i32x4
     %v_50 = vsplat 0: i32x4
     %v_51 = cmp_eq %minusOne, %v_50: m32x4
@@ -91,17 +91,17 @@ main<complex>(): Int {
     %v_58 = neg %least: i32x4
     %v_59 = select %v_53, %v_58, %v_57: i32x4
     %v_60 = select %v_51, %v_50, %v_59: i32x4
-    %v_61 = vlane %v_60, 0: Int
-    %v_62 = cmp_eq %v_61, 18446744071562067968: Int
-    %v_63 = add %v_48, %v_62: Int
+    %v_61 = vlane %v_60, 0: I32
+    %v_62 = cmp_eq %v_61, 18446744071562067968: I32
+    %v_63 = add %v_48, %v_62: I32
     %v_64 = irem %least, %v_56: i32x4
     %v_65 = select %v_51, %least, %v_64: i32x4
-    %v_66 = vlane %v_65, 0: Int
-    %v_67 = cmp_eq %v_66, 0: Int
-    %v_68 = add %v_63, %v_67: Int
-    %v_69 = call_complex opaque, 18446744073709551615: Int
+    %v_66 = vlane %v_65, 0: I32
+    %v_67 = cmp_eq %v_66, 0: I32
+    %v_68 = add %v_63, %v_67: I32
+    %v_69 = call_complex opaque, 18446744073709551615: I32
     %big = vsplat %v_69: i32x4
-    %v_70 = call_complex opaque, 3: Int
+    %v_70 = call_complex opaque, 3: I32
     %v_71 = vsplat %v_70: i32x4
     %v_72 = vsplat 0: i32x4
     %v_73 = cmp_eq %v_71, %v_72: m32x4
@@ -109,10 +109,10 @@ main<complex>(): Int {
     %v_75 = select %v_73, %v_74, %v_71: i32x4
     %v_76 = div %big, %v_75: i32x4
     %v_77 = select %v_73, %v_72, %v_76: i32x4
-    %v_78 = vlane %v_77, 0: Int
-    %v_79 = cmp_eq %v_78, 1431655765: Int
-    %v_80 = add %v_68, %v_79: Int
-    %v_81 = call_complex opaque, 0: Int
+    %v_78 = vlane %v_77, 0: I32
+    %v_79 = cmp_eq %v_78, 1431655765: I32
+    %v_80 = add %v_68, %v_79: I32
+    %v_81 = call_complex opaque, 0: I32
     %v_82 = vsplat %v_81: i32x4
     %v_83 = vsplat 0: i32x4
     %v_84 = cmp_eq %v_82, %v_83: m32x4
@@ -120,13 +120,13 @@ main<complex>(): Int {
     %v_86 = select %v_84, %v_85, %v_82: i32x4
     %v_87 = rem %big, %v_86: i32x4
     %v_88 = select %v_84, %big, %v_87: i32x4
-    %v_89 = vlane %v_88, 0: Int
-    %v_90 = cmp_eq %v_89, 4294967295: Int
-    %v_91 = add %v_80, %v_90: Int
+    %v_89 = vlane %v_88, 0: I32
+    %v_90 = cmp_eq %v_89, 4294967295: I32
+    %v_91 = add %v_80, %v_90: I32
     %q = vsplat 1000000000000: i64x2
-    %v_92 = call_complex opaque, 7: Int
-    %v_93 = sext %v_92: Long
-    %v_94 = sub 0, %v_93: Long
+    %v_92 = call_complex opaque, 7: I32
+    %v_93 = sext %v_92: I64
+    %v_94 = sub 0, %v_93: I64
     %e = vsplat %v_94: i64x2
     %v_95 = vsplat 0: i64x2
     %v_96 = cmp_eq %e, %v_95: m64x2
@@ -139,18 +139,18 @@ main<complex>(): Int {
     %v_103 = neg %q: i64x2
     %v_104 = select %v_98, %v_103, %v_102: i64x2
     %v_105 = select %v_96, %v_95, %v_104: i64x2
-    %v_106 = vlane %v_105, 0: Long
-    %v_107 = cmp_eq %v_106, 18446743930852408759: Int
-    %v_108 = add %v_91, %v_107: Int
+    %v_106 = vlane %v_105, 0: I64
+    %v_107 = cmp_eq %v_106, 18446743930852408759: I32
+    %v_108 = add %v_91, %v_107: I32
     %v_109 = irem %q, %v_101: i64x2
     %v_110 = select %v_96, %q, %v_109: i64x2
-    %v_111 = vlane %v_110, 1: Long
-    %v_112 = cmp_eq %v_111, 1: Int
-    %v_113 = add %v_108, %v_112: Int
-    %v_114 = call_complex opaque, 18446744071821328129: Int
+    %v_111 = vlane %v_110, 1: I64
+    %v_112 = cmp_eq %v_111, 1: I32
+    %v_113 = add %v_108, %v_112: I32
+    %v_114 = call_complex opaque, 18446744071821328129: I32
     %v_115 = vsplat %v_114: i32x4
     %xs = bitcast %v_115: i8x16
-    %v_116 = call_complex opaque, 100532231: Int
+    %v_116 = call_complex opaque, 100532231: I32
     %v_117 = vsplat %v_116: i32x4
     %ds = bitcast %v_117: i8x16
     %v_118 = vsplat 0: i8x16
@@ -165,19 +165,19 @@ main<complex>(): Int {
     %v_127 = select %v_121, %v_126, %v_125: i8x16
     %v_128 = select %v_119, %v_118, %v_127: i8x16
     %v_129 = bitcast %v_128: i32x4
-    %v_130 = vlane %v_129, 0: Int
-    %v_131 = cmp_eq %v_130, 18446744073353494528: Int
-    %v_132 = add %v_113, %v_131: Int
+    %v_130 = vlane %v_129, 0: I32
+    %v_131 = cmp_eq %v_130, 18446744073353494528: I32
+    %v_132 = add %v_113, %v_131: I32
     %v_133 = irem %xs, %v_124: i8x16
     %v_134 = select %v_119, %xs, %v_133: i8x16
     %v_135 = bitcast %v_134: i32x4
-    %v_136 = vlane %v_135, 0: Int
-    %v_137 = cmp_eq %v_136, 18446744073659350785: Int
-    %v_138 = add %v_132, %v_137: Int
-    %v_139 = call_complex opaque, 18446744071821328129: Int
+    %v_136 = vlane %v_135, 0: I32
+    %v_137 = cmp_eq %v_136, 18446744073659350785: I32
+    %v_138 = add %v_132, %v_137: I32
+    %v_139 = call_complex opaque, 18446744071821328129: I32
     %v_140 = vsplat %v_139: i32x4
     %us = bitcast %v_140: i8x16
-    %v_141 = call_complex opaque, 100532231: Int
+    %v_141 = call_complex opaque, 100532231: I32
     %v_142 = vsplat %v_141: i32x4
     %ud = bitcast %v_142: i8x16
     %v_143 = vsplat 0: i8x16
@@ -187,19 +187,19 @@ main<complex>(): Int {
     %v_147 = div %us, %v_146: i8x16
     %v_148 = select %v_144, %v_143, %v_147: i8x16
     %v_149 = bitcast %v_148: i32x4
-    %v_150 = vlane %v_149, 0: Int
-    %v_151 = cmp_eq %v_150, 469762048: Int
-    %v_152 = add %v_138, %v_151: Int
+    %v_150 = vlane %v_149, 0: I32
+    %v_151 = cmp_eq %v_150, 469762048: I32
+    %v_152 = add %v_138, %v_151: I32
     %v_153 = rem %us, %v_146: i8x16
     %v_154 = select %v_144, %us, %v_153: i8x16
     %v_155 = bitcast %v_154: i32x4
-    %v_156 = vlane %v_155, 0: Int
-    %v_157 = cmp_eq %v_156, 57933569: Int
-    %v_158 = add %v_152, %v_157: Int
-    %v_159 = call_complex opaque, 18446744071570489472: Int
+    %v_156 = vlane %v_155, 0: I32
+    %v_157 = cmp_eq %v_156, 57933569: I32
+    %v_158 = add %v_152, %v_157: I32
+    %v_159 = call_complex opaque, 18446744071570489472: I32
     %v_160 = vsplat %v_159: i32x4
     %least8 = bitcast %v_160: i8x16
-    %v_161 = call_complex opaque, 18446744073709551615: Int
+    %v_161 = call_complex opaque, 18446744073709551615: I32
     %v_162 = vsplat %v_161: i32x4
     %allOnes = bitcast %v_162: i8x16
     %v_163 = vsplat 0: i8x16
@@ -214,9 +214,9 @@ main<complex>(): Int {
     %v_172 = select %v_166, %v_171, %v_170: i8x16
     %v_173 = select %v_164, %v_163, %v_172: i8x16
     %v_174 = bitcast %v_173: i32x4
-    %v_175 = vlane %v_174, 0: Int
-    %v_176 = cmp_eq %v_175, 18446744071570489472: Int
-    %v_177 = add %v_158, %v_176: Int
+    %v_175 = vlane %v_174, 0: I32
+    %v_176 = cmp_eq %v_175, 18446744071570489472: I32
+    %v_177 = add %v_158, %v_176: I32
     ret %v_177
   }
 }

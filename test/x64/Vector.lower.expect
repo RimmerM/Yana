@@ -90,7 +90,7 @@ shuffleWide<complex>(%q: i64x2): i64x2 {
   }
 }
 
-broadcast<complex>(%i: Int): i32x4 {
+broadcast<complex>(%i: I32): i32x4 {
   b_0 {
     %a = vsplat %i: i32x4
     %b = add %a, %a: i32x4
@@ -98,7 +98,7 @@ broadcast<complex>(%i: Int): i32x4 {
   }
 }
 
-broadcastWide<complex>(%l: Long): i64x2 {
+broadcastWide<complex>(%l: I64): i64x2 {
   b_0 {
     %a = vsplat %l: i64x2
     %b = add %a, %a: i64x2
@@ -106,7 +106,7 @@ broadcastWide<complex>(%l: Long): i64x2 {
   }
 }
 
-broadcastFloat<complex>(%f: Float): f32x4 {
+broadcastFloat<complex>(%f: F32): f32x4 {
   b_0 {
     %a = vsplat %f: f32x4
     %b = add %a, %a: f32x4
@@ -114,7 +114,7 @@ broadcastFloat<complex>(%f: Float): f32x4 {
   }
 }
 
-broadcastDouble<complex>(%g: Double): f64x2 {
+broadcastDouble<complex>(%g: F64): f64x2 {
   b_0 {
     %a = vsplat %g: f64x2
     %b = add %a, %a: f64x2
@@ -122,45 +122,45 @@ broadcastDouble<complex>(%g: Double): f64x2 {
   }
 }
 
-extract<complex>(%w: i32x4): Int {
+extract<complex>(%w: i32x4): I32 {
   b_0 {
-    %a = vlane %w, 0: Int
-    %b = add %a, %a: Int
+    %a = vlane %w, 0: I32
+    %b = add %a, %a: I32
     ret %b
   }
 }
 
-extractWide<complex>(%q: i64x2): Long {
+extractWide<complex>(%q: i64x2): I64 {
   b_0 {
-    %a = vlane %q, 0: Long
-    %b = add %a, %a: Long
+    %a = vlane %q, 0: I64
+    %b = add %a, %a: I64
     ret %b
   }
 }
 
-extractHigh<complex>(%w: i32x4, %q: i64x2): Int {
+extractHigh<complex>(%w: i32x4, %q: i64x2): I32 {
   b_0 {
-    %a = vlane %w, 3: Int
-    %b = vlane %q, 1: Long
-    %c = vlane %w, 1: Int
-    %d = add %a, %c: Int
+    %a = vlane %w, 3: I32
+    %b = vlane %q, 1: I64
+    %c = vlane %w, 1: I32
+    %d = add %a, %c: I32
     ret %d
   }
 }
 
-extractFloat<complex>(%f: f32x4): Float {
+extractFloat<complex>(%f: f32x4): F32 {
   b_0 {
-    %a = vlane %f, 2: Float
-    %b = vlane %f, 0: Float
-    %c = add %a, %b: Float
+    %a = vlane %f, 2: F32
+    %b = vlane %f, 0: F32
+    %c = add %a, %b: F32
     ret %c
   }
 }
 
-extractDouble<complex>(%d: f64x2): Double {
+extractDouble<complex>(%d: f64x2): F64 {
   b_0 {
-    %a = vlane %d, 1: Double
-    %b = add %a, %a: Double
+    %a = vlane %d, 1: F64
+    %b = add %a, %a: F64
     ret %b
   }
 }
@@ -216,7 +216,7 @@ spill<complex>(%p: Ptr): i32x4 {
   }
 }
 
-insert<complex>(%w: i32x4, %x: Int): i32x4 {
+insert<complex>(%w: i32x4, %x: I32): i32x4 {
   b_0 {
     %a = vwithlane %w, %x, 1: i32x4
     %b = add %a, %w: i32x4
@@ -224,7 +224,7 @@ insert<complex>(%w: i32x4, %x: Int): i32x4 {
   }
 }
 
-insertWide<complex>(%q: i64x2, %l: Long): i64x2 {
+insertWide<complex>(%q: i64x2, %l: I64): i64x2 {
   b_0 {
     %a = vwithlane %q, %l, 1: i64x2
     %b = vwithlane %a, %l, 0: i64x2
@@ -232,7 +232,7 @@ insertWide<complex>(%q: i64x2, %l: Long): i64x2 {
   }
 }
 
-insertFloat<complex>(%f: f32x4, %s: Float): f32x4 {
+insertFloat<complex>(%f: f32x4, %s: F32): f32x4 {
   b_0 {
     %a = vwithlane %f, %s, 0: f32x4
     %b = add %a, %f: f32x4
@@ -240,7 +240,7 @@ insertFloat<complex>(%f: f32x4, %s: Float): f32x4 {
   }
 }
 
-insertDouble<complex>(%d: f64x2, %g: Double): f64x2 {
+insertDouble<complex>(%d: f64x2, %g: F64): f64x2 {
   b_0 {
     %a = vwithlane %d, %g, 0: f64x2
     %b = vwithlane %a, %g, 1: f64x2

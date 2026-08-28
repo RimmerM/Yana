@@ -1,10 +1,10 @@
 @image$base = []
 
-reductions<complex>(): Int {
+reductions<complex>(): I32 {
   b_0 {
     %ones = vsplat 1: i32x4
-    %count = vreduce_add %ones: Int
-    %v_1 = cmp_ilt %count, 2: Int
+    %count = vreduce_add %ones: I32
+    %v_1 = cmp_ilt %count, 2: I32
     je %v_1, b_2, b_3
   }
 
@@ -17,8 +17,8 @@ reductions<complex>(): Int {
   }
 
   b_4 {
-    %v_5 = vreduce_mul %ones: Int
-    %v_6 = cmp_neq %v_5, 1: Int
+    %v_5 = vreduce_mul %ones: I32
+    %v_6 = cmp_neq %v_5, 1: I32
     je %v_6, b_7, b_8
   }
 
@@ -32,9 +32,9 @@ reductions<complex>(): Int {
 
   b_9 {
     %sevens = vsplat 7: i32x4
-    %v_10 = vreduce_add %sevens: Int
-    %v_11 = imul %count, 7: Int
-    %v_12 = cmp_neq %v_10, %v_11: Int
+    %v_10 = vreduce_add %sevens: I32
+    %v_11 = imul %count, 7: I32
+    %v_12 = cmp_neq %v_10, %v_11: I32
     je %v_12, b_13, b_14
   }
 
@@ -47,8 +47,8 @@ reductions<complex>(): Int {
   }
 
   b_15 {
-    %v_16 = vreduce_imin %sevens: Int
-    %v_17 = cmp_neq %v_16, 7: Int
+    %v_16 = vreduce_imin %sevens: I32
+    %v_17 = cmp_neq %v_16, 7: I32
     je %v_17, b_18, b_19
   }
 
@@ -62,8 +62,8 @@ reductions<complex>(): Int {
 
   b_20 {
     %v_21 = vwithlane %sevens, 9, 0: i32x4
-    %v_22 = vreduce_imax %v_21: Int
-    %v_23 = cmp_neq %v_22, 9: Int
+    %v_22 = vreduce_imax %v_21: I32
+    %v_23 = cmp_neq %v_22, 9: I32
     je %v_23, b_24, b_25
   }
 
@@ -77,8 +77,8 @@ reductions<complex>(): Int {
 
   b_26 {
     %v_27 = vwithlane %sevens, 2, 1: i32x4
-    %v_28 = vreduce_imin %v_27: Int
-    %v_29 = cmp_neq %v_28, 2: Int
+    %v_28 = vreduce_imin %v_27: I32
+    %v_29 = cmp_neq %v_28, 2: I32
     je %v_29, b_30, b_31
   }
 
@@ -95,13 +95,13 @@ reductions<complex>(): Int {
   }
 }
 
-floats<complex>(): Int {
+floats<complex>(): I32 {
   b_0 {
     %a = vsplat 1.5: f32x4
     %b = vsplat 2: f32x4
     %scaled = mul %a, %b: f32x4
-    %v_1 = vlane %scaled, 0: Float
-    %v_2 = cmp_neq %v_1, 3: Int
+    %v_1 = vlane %scaled, 0: F32
+    %v_2 = cmp_neq %v_1, 3: I32
     je %v_2, b_3, b_4
   }
 
@@ -115,8 +115,8 @@ floats<complex>(): Int {
 
   b_5 {
     %v_6 = add %a, %b: f32x4
-    %v_7 = vlane %v_6, 1: Float
-    %v_8 = cmp_neq %v_7, 3.5: Int
+    %v_7 = vlane %v_6, 1: F32
+    %v_8 = cmp_neq %v_7, 3.5: I32
     je %v_8, b_9, b_10
   }
 
@@ -130,8 +130,8 @@ floats<complex>(): Int {
 
   b_11 {
     %v_12 = neg %a: f32x4
-    %v_13 = vlane %v_12, 0: Float
-    %v_14 = cmp_neq %v_13, -1.5: Int
+    %v_13 = vlane %v_12, 0: F32
+    %v_14 = cmp_neq %v_13, -1.5: I32
     je %v_14, b_15, b_16
   }
 
@@ -148,15 +148,15 @@ floats<complex>(): Int {
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex reductions: Int
-    %v_2 = cmp_neq %v_1, 0: Int
+    %v_1 = call_complex reductions: I32
+    %v_2 = cmp_neq %v_1, 0: I32
     je %v_2, b_3, b_4
   }
 
   b_3 {
-    %v_5 = call_complex reductions: Int
+    %v_5 = call_complex reductions: I32
     ret %v_5
   }
 
@@ -165,14 +165,14 @@ main<complex>(): Int {
   }
 
   b_6 {
-    %v_7 = call_complex floats: Int
-    %v_8 = cmp_neq %v_7, 0: Int
+    %v_7 = call_complex floats: I32
+    %v_8 = cmp_neq %v_7, 0: I32
     je %v_8, b_9, b_10
   }
 
   b_9 {
-    %v_11 = call_complex floats: Int
-    %v_12 = imul %v_11, 10: Int
+    %v_11 = call_complex floats: I32
+    %v_12 = imul %v_11, 10: I32
     ret %v_12
   }
 
@@ -187,31 +187,31 @@ main<complex>(): Int {
     %v_14 = vsplat 2: i32x4
     %product = shl %a, %v_14: i32x4
     %difference = sub %b, %a: i32x4
-    %v_15 = vlane %sum, 0: Int
-    %v_16 = imul %v_15, 100: Int
-    %v_17 = vlane %product, 0: Int
-    %v_18 = add %v_16, %v_17: Int
-    %v_19 = vlane %difference, 1: Int
-    %v_20 = add %v_18, %v_19: Int
+    %v_15 = vlane %sum, 0: I32
+    %v_16 = imul %v_15, 100: I32
+    %v_17 = vlane %product, 0: I32
+    %v_18 = add %v_16, %v_17: I32
+    %v_19 = vlane %difference, 1: I32
+    %v_20 = add %v_18, %v_19: I32
     %a = vsplat 12: i32x4
     %b = vsplat 10: i32x4
     %v_21 = and %a, %b: i32x4
-    %v_22 = vlane %v_21, 0: Int
-    %v_23 = imul %v_22, 100: Int
+    %v_22 = vlane %v_21, 0: I32
+    %v_23 = imul %v_22, 100: I32
     %v_24 = or %a, %b: i32x4
-    %v_25 = vlane %v_24, 0: Int
-    %v_26 = add %v_23, %v_25: Int
+    %v_25 = vlane %v_24, 0: I32
+    %v_26 = add %v_23, %v_25: I32
     %v_27 = xor %a, %b: i32x4
-    %v_28 = vlane %v_27, 1: Int
-    %v_29 = add %v_26, %v_28: Int
-    %v_30 = add %v_20, %v_29: Int
+    %v_28 = vlane %v_27, 1: I32
+    %v_29 = add %v_26, %v_28: I32
+    %v_30 = add %v_20, %v_29: I32
     %v = vsplat 5: i32x4
     %changed = vwithlane %v, 9, 1: i32x4
-    %v_31 = vlane %changed, 0: Int
-    %v_32 = imul %v_31, 100: Int
-    %v_33 = vlane %changed, 1: Int
-    %v_34 = add %v_32, %v_33: Int
-    %v_35 = add %v_30, %v_34: Int
+    %v_31 = vlane %changed, 0: I32
+    %v_32 = imul %v_31, 100: I32
+    %v_33 = vlane %changed, 1: I32
+    %v_34 = add %v_32, %v_33: I32
+    %v_35 = add %v_30, %v_34: I32
     ret %v_35
   }
 }

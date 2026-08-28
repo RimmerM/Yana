@@ -1,40 +1,40 @@
 let image$base: () = <none>
 
-fn defaultAction(%s: Signal) -> Int {
+fn defaultAction(%s: Signal) -> I32 {
   b0:
-    %v1 = cast %s : Int
-    %v3 = sub %v1, 1 : Int
-    %v5 = shl %v3, 1 : Int
-    %v7 = shr 354650277, %v5 : Int
-    %v9 = and %v7, 3 : Int
+    %v1 = cast %s : I32
+    %v3 = sub %v1, 1 : I32
+    %v5 = shl %v3, 1 : I32
+    %v7 = shr 354650277, %v5 : I32
+    %v9 = and %v7, 3 : I32
     ret %v9
 }
 
 fn isLate(%s: Signal) -> Bool {
   b0:
-    %v1 = cast %s : Int
+    %v1 = cast %s : I32
     %v3 = cmp_ge %v1, 13 : Bool
     ret %v3
 }
 
 fn isEven(%s: Signal) -> Bool {
   b0:
-    %v1 = cast %s : Int
-    %v3 = sub %v1, 1 : Int
-    %v5 = shr 8362, %v3 : Int
-    %v7 = and %v5, 1 : Int
+    %v1 = cast %s : I32
+    %v3 = sub %v1, 1 : I32
+    %v5 = shr 8362, %v3 : I32
+    %v7 = and %v5, 1 : I32
     %v9 = cmp_ne %v7, 0 : Bool
     ret %v9
 }
 
-fn errorClass(%e: Errno) -> Int {
+fn errorClass(%e: Errno) -> I32 {
   b0:
-    %v1 = cast %e : Int
+    %v1 = cast %e : I32
     %v3 = cmp_eq %v1, 2 : Bool
     je %v3, b2, b1
 
   b1:
-    %v6 = cast %e : Int
+    %v6 = cast %e : I32
     %v8 = cmp_eq %v6, 13 : Bool
     je %v8, b4, b3
 
@@ -48,56 +48,56 @@ fn errorClass(%e: Errno) -> Int {
     jmp b5
 
   b5:
-    %v15 = phi [b2, 1], [b4, 2], [b3, 3] : Int
+    %v15 = phi [b2, 1], [b4, 2], [b3, 3] : I32
     ret %v15
 }
 
 fn isDenied(%e: Errno) -> Bool {
   b0:
-    %v1 = cast %e : Int
+    %v1 = cast %e : I32
     %v3 = cmp_ge %v1, 13 : Bool
     ret %v3
 }
 
-fn severity(%l: Level) -> Int {
+fn severity(%l: Level) -> I32 {
   b0:
-    %v1 = cast %l : Int
-    %v3 = mul %v1, 10 : Int
-    %v5 = add %v3, 30 : Int
+    %v1 = cast %l : I32
+    %v3 = mul %v1, 10 : I32
+    %v5 = add %v3, 30 : I32
     ret %v5
 }
 
 fn isProblem(%l: Level) -> Bool {
   b0:
-    %v1 = cast %l : Int
+    %v1 = cast %l : I32
     %v3 = cmp_ge %v1, 0 : Bool
     ret %v3
 }
 
-fn tagOf(%l: Level) -> Int {
+fn tagOf(%l: Level) -> I32 {
   b0:
-    %v1 = cast %l : Int
-    %v3 = sub %v1, -2 : Int
-    %v5 = shl %v3, 2 : Int
-    %v7 = shr 5139, %v5 : Int
-    %v9 = and %v7, 15 : Int
+    %v1 = cast %l : I32
+    %v3 = sub %v1, -2 : I32
+    %v5 = shl %v3, 2 : I32
+    %v7 = shr 5139, %v5 : I32
+    %v9 = and %v7, 15 : I32
     ret %v9
 }
 
-fn wideIndex(%w: Wide) -> Int {
+fn wideIndex(%w: Wide) -> I32 {
   b0:
-    %v1 = cast %w : Long
-    %v3 = sub %v1, 4294967296 : Long
-    %v4 = cast %v3 : Int
-    %v6 = shl %v4, 1 : Int
-    %v8 = shr 777, %v6 : Int
-    %v10 = and %v8, 3 : Int
+    %v1 = cast %w : I64
+    %v3 = sub %v1, 4294967296 : I64
+    %v4 = cast %v3 : I32
+    %v6 = shl %v4, 1 : I32
+    %v8 = shr 777, %v6 : I32
+    %v10 = and %v8, 3 : I32
     ret %v10
 }
 
 fn isFirst(%w: Wide) -> Bool {
   b0:
-    %v1 = cast %w : Long
+    %v1 = cast %w : I64
     %v3 = cmp_eq %v1, 4294967296 : Bool
     ret %v3
 }
@@ -122,7 +122,7 @@ fn opaqueWide(%w: Wide) -> Wide {
     ret %w
 }
 
-fn check(%condition: Bool, %weight: Int) -> Int {
+fn check(%condition: Bool, %weight: I32) -> I32 {
   b0:
     je %condition, b1, b2
 
@@ -133,20 +133,20 @@ fn check(%condition: Bool, %weight: Int) -> Int {
     jmp b3
 
   b3:
-    %v6 = phi [b1, %weight], [b2, 0] : Int
+    %v6 = phi [b1, %weight], [b2, 0] : I32
     ret %v6
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
     %v1 = call opaqueSignal, Interrupt : Signal
-    %v2 = call defaultAction, %v1 : Int
+    %v2 = call defaultAction, %v1 : I32
     %v5 = cmp_eq %v2, 1 : Bool
     je %v5, b1, b2
 
   b1:
     %v8 = call opaqueSignal, Alarm : Signal
-    %v9 = call defaultAction, %v8 : Int
+    %v9 = call defaultAction, %v8 : I32
     %v12 = cmp_eq %v9, 3 : Bool
     jmp b3
 
@@ -155,15 +155,15 @@ fn main() -> Int {
 
   b3:
     %v16 = phi [b1, %v12], [b2, False] : Bool
-    %v18 = call check, %v16, 1 : Int
+    %v18 = call check, %v16, 1 : I32
     %v20 = call opaqueSignal, Illegal : Signal
-    %v21 = call defaultAction, %v20 : Int
+    %v21 = call defaultAction, %v20 : I32
     %v24 = cmp_eq %v21, 2 : Bool
     je %v24, b4, b5
 
   b4:
     %v27 = call opaqueSignal, 15 : Signal
-    %v28 = call defaultAction, %v27 : Int
+    %v28 = call defaultAction, %v27 : I32
     %v31 = cmp_eq %v28, 1 : Bool
     jmp b6
 
@@ -172,16 +172,16 @@ fn main() -> Int {
 
   b6:
     %v35 = phi [b4, %v31], [b5, False] : Bool
-    %v37 = call check, %v35, 2 : Int
-    %v38 = add %v18, %v37 : Int
+    %v37 = call check, %v35, 2 : I32
+    %v38 = add %v18, %v37 : I32
     %v40 = call opaqueSignal, 11 : Signal
-    %v41 = call defaultAction, %v40 : Int
+    %v41 = call defaultAction, %v40 : I32
     %v44 = cmp_eq %v41, 2 : Bool
     je %v44, b7, b8
 
   b7:
     %v47 = call opaqueSignal, 14 : Signal
-    %v48 = call defaultAction, %v47 : Int
+    %v48 = call defaultAction, %v47 : I32
     %v51 = cmp_eq %v48, 1 : Bool
     jmp b9
 
@@ -190,8 +190,8 @@ fn main() -> Int {
 
   b9:
     %v55 = phi [b7, %v51], [b8, False] : Bool
-    %v57 = call check, %v55, 4 : Int
-    %v58 = add %v38, %v57 : Int
+    %v57 = call check, %v55, 4 : I32
+    %v58 = add %v38, %v57 : I32
     %v60 = call opaqueSignal, 13 : Signal
     %v61 = call isLate, %v60 : Bool
     je %v61, b10, b11
@@ -206,8 +206,8 @@ fn main() -> Int {
 
   b12:
     %v69 = phi [b10, %v65], [b11, False] : Bool
-    %v71 = call check, %v69, 8 : Int
-    %v72 = add %v58, %v71 : Int
+    %v71 = call check, %v69, 8 : I32
+    %v72 = add %v58, %v71 : I32
     %v74 = call opaqueSignal, Interrupt : Signal
     %v75 = call isLate, %v74 : Bool
     %v77 = xor %v75, True : Bool
@@ -224,8 +224,8 @@ fn main() -> Int {
 
   b15:
     %v87 = phi [b13, %v83], [b14, False] : Bool
-    %v89 = call check, %v87, 16 : Int
-    %v90 = add %v72, %v89 : Int
+    %v89 = call check, %v87, 16 : I32
+    %v90 = add %v72, %v89 : I32
     %v92 = call opaqueSignal, Quit : Signal
     %v93 = call isEven, %v92 : Bool
     je %v93, b16, b17
@@ -240,8 +240,8 @@ fn main() -> Int {
 
   b18:
     %v101 = phi [b16, %v97], [b17, False] : Bool
-    %v103 = call check, %v101, 32 : Int
-    %v104 = add %v90, %v103 : Int
+    %v103 = call check, %v101, 32 : I32
+    %v104 = add %v90, %v103 : I32
     %v106 = call opaqueSignal, Interrupt : Signal
     %v107 = call isEven, %v106 : Bool
     %v109 = xor %v107, True : Bool
@@ -271,16 +271,16 @@ fn main() -> Int {
 
   b24:
     %v129 = phi [b22, %v125], [b23, False] : Bool
-    %v131 = call check, %v129, 64 : Int
-    %v132 = add %v104, %v131 : Int
+    %v131 = call check, %v129, 64 : I32
+    %v132 = add %v104, %v131 : I32
     %v134 = call opaqueErrno, Quota : Errno
-    %v135 = call errorClass, %v134 : Int
+    %v135 = call errorClass, %v134 : I32
     %v138 = cmp_eq %v135, 1 : Bool
     je %v138, b25, b26
 
   b25:
     %v141 = call opaqueErrno, 122 : Errno
-    %v142 = call errorClass, %v141 : Int
+    %v142 = call errorClass, %v141 : I32
     %v145 = cmp_eq %v142, 3 : Bool
     jmp b27
 
@@ -289,8 +289,8 @@ fn main() -> Int {
 
   b27:
     %v149 = phi [b25, %v145], [b26, False] : Bool
-    %v151 = call check, %v149, 128 : Int
-    %v152 = add %v132, %v151 : Int
+    %v151 = call check, %v149, 128 : I32
+    %v152 = add %v132, %v151 : I32
     %v154 = call opaqueErrno, 13 : Errno
     %v155 = call isDenied, %v154 : Bool
     je %v155, b28, b29
@@ -318,16 +318,16 @@ fn main() -> Int {
 
   b33:
     %v173 = phi [b31, %v169], [b32, False] : Bool
-    %v175 = call check, %v173, 256 : Int
-    %v176 = add %v152, %v175 : Int
+    %v175 = call check, %v173, 256 : I32
+    %v176 = add %v152, %v175 : I32
     %v178 = call opaqueLevel, 18446744073709551614 : Level
-    %v179 = call severity, %v178 : Int
+    %v179 = call severity, %v178 : I32
     %v182 = cmp_eq %v179, 10 : Bool
     je %v182, b34, b35
 
   b34:
     %v185 = call opaqueLevel, Info : Level
-    %v186 = call severity, %v185 : Int
+    %v186 = call severity, %v185 : I32
     %v189 = cmp_eq %v186, 40 : Bool
     jmp b36
 
@@ -336,8 +336,8 @@ fn main() -> Int {
 
   b36:
     %v193 = phi [b34, %v189], [b35, False] : Bool
-    %v195 = call check, %v193, 512 : Int
-    %v196 = add %v176, %v195 : Int
+    %v195 = call check, %v193, 512 : I32
+    %v196 = add %v176, %v195 : I32
     %v198 = call opaqueLevel, Debug : Level
     %v199 = call isProblem, %v198 : Bool
     je %v199, b37, b38
@@ -353,16 +353,16 @@ fn main() -> Int {
 
   b39:
     %v209 = phi [b37, %v205], [b38, False] : Bool
-    %v211 = call check, %v209, 1024 : Int
-    %v212 = add %v196, %v211 : Int
+    %v211 = call check, %v209, 1024 : I32
+    %v212 = add %v196, %v211 : I32
     %v214 = call opaqueLevel, 18446744073709551614 : Level
-    %v215 = call tagOf, %v214 : Int
+    %v215 = call tagOf, %v214 : I32
     %v218 = cmp_eq %v215, 3 : Bool
     je %v218, b40, b41
 
   b40:
     %v221 = call opaqueLevel, Debug : Level
-    %v222 = call tagOf, %v221 : Int
+    %v222 = call tagOf, %v221 : I32
     %v225 = cmp_eq %v222, 4 : Bool
     jmp b42
 
@@ -375,7 +375,7 @@ fn main() -> Int {
 
   b43:
     %v232 = call opaqueLevel, Info : Level
-    %v233 = call tagOf, %v232 : Int
+    %v233 = call tagOf, %v232 : I32
     %v236 = cmp_eq %v233, 1 : Bool
     jmp b45
 
@@ -384,16 +384,16 @@ fn main() -> Int {
 
   b45:
     %v240 = phi [b43, %v236], [b44, False] : Bool
-    %v242 = call check, %v240, 2048 : Int
-    %v243 = add %v212, %v242 : Int
+    %v242 = call check, %v240, 2048 : I32
+    %v243 = add %v212, %v242 : I32
     %v245 = call opaqueWide, 4294967296 : Wide
-    %v246 = call wideIndex, %v245 : Int
+    %v246 = call wideIndex, %v245 : I32
     %v249 = cmp_eq %v246, 1 : Bool
     je %v249, b46, b47
 
   b46:
     %v252 = call opaqueWide, 4294967300 : Wide
-    %v253 = call wideIndex, %v252 : Int
+    %v253 = call wideIndex, %v252 : I32
     %v256 = cmp_eq %v253, 3 : Bool
     jmp b48
 
@@ -402,8 +402,8 @@ fn main() -> Int {
 
   b48:
     %v260 = phi [b46, %v256], [b47, False] : Bool
-    %v262 = call check, %v260, 4096 : Int
-    %v263 = add %v243, %v262 : Int
+    %v262 = call check, %v260, 4096 : I32
+    %v263 = add %v243, %v262 : I32
     %v265 = call opaqueWide, 4294967296 : Wide
     %v266 = call isFirst, %v265 : Bool
     je %v266, b49, b50
@@ -432,7 +432,7 @@ fn main() -> Int {
 
   b54:
     %v286 = phi [b52, %v282], [b53, False] : Bool
-    %v288 = call check, %v286, 8192 : Int
-    %v289 = add %v263, %v288 : Int
+    %v288 = call check, %v286, 8192 : I32
+    %v289 = add %v263, %v288 : I32
     ret %v289
 }

@@ -1,119 +1,119 @@
 
-loadStore<complex>(%p: Ptr, %v: Double): Double {
+loadStore<complex>(%p: Ptr, %v: F64): F64 {
   b_0 {
     store %p, %v, 8
-    %l = load %p, 8: Double
-    %s = add %l, %v: Double
+    %l = load %p, 8: F64
+    %s = add %l, %v: F64
     ret %s
   }
 }
 
-loadStore32<complex>(%p: Ptr, %v: Float): Float {
+loadStore32<complex>(%p: Ptr, %v: F32): F32 {
   b_0 {
     store %p, %v, 4
-    %l = load %p, 4: Float
-    %s = mul %l, %v: Float
+    %l = load %p, 4: F32
+    %s = mul %l, %v: F32
     ret %s
   }
 }
 
-indexed<complex>(%p: Ptr, %i: Long): Double {
+indexed<complex>(%p: Ptr, %i: I64): F64 {
   b_0 {
-    %o = mul %i, 8: Long
+    %o = mul %i, 8: I64
     %a = add %p, %o: Ptr
-    %l = load %a, 8: Double
+    %l = load %a, 8: F64
     ret %l
   }
 }
 
-convert<complex>(%i: Int, %l: Long): Double {
+convert<complex>(%i: I32, %l: I64): F64 {
   b_0 {
-    %a = itof %i: Double
-    %b = itof %l: Double
-    %c = add %a, %b: Double
+    %a = itof %i: F64
+    %b = itof %l: F64
+    %c = add %a, %b: F64
     ret %c
   }
 }
 
-convert32<complex>(%i: Int, %l: Long): Float {
+convert32<complex>(%i: I32, %l: I64): F32 {
   b_0 {
-    %a = itof %i: Float
-    %b = itof %l: Float
-    %c = sub %a, %b: Float
+    %a = itof %i: F32
+    %b = itof %l: F32
+    %c = sub %a, %b: F32
     ret %c
   }
 }
 
-truncate<complex>(%f: Float, %d: Double): Long {
+truncate<complex>(%f: F32, %d: F64): I64 {
   b_0 {
-    %a = ftoi %f: Int
-    %b = ftoi %d: Long
-    %w = sext %a: Long
-    %s = add %w, %b: Long
+    %a = ftoi %f: I32
+    %b = ftoi %d: I64
+    %w = sext %a: I64
+    %s = add %w, %b: I64
     ret %s
   }
 }
 
-unsigned32<complex>(%u: Int, %f: Double): Int {
+unsigned32<complex>(%u: I32, %f: F64): I32 {
   b_0 {
-    %a = cast %u: Double
-    %b = add %a, %f: Double
-    %r = cast %b: Int
+    %a = cast %u: F64
+    %b = add %a, %f: F64
+    %r = cast %b: I32
     ret %r
   }
 }
 
-unsigned64<complex>(%u: Long, %f: Double): Long {
+unsigned64<complex>(%u: I64, %f: F64): I64 {
   b_0 {
-    %a = cast %u: Double
-    %b = add %a, %f: Double
-    %r = cast %b: Long
+    %a = cast %u: F64
+    %b = add %a, %f: F64
+    %r = cast %b: I64
     ret %r
   }
 }
 
-unsigned64Float<complex>(%u: Long, %f: Float): Long {
+unsigned64Float<complex>(%u: I64, %f: F32): I64 {
   b_0 {
-    %a = cast %u: Float
-    %b = mul %a, %f: Float
-    %r = cast %b: Long
+    %a = cast %u: F32
+    %b = mul %a, %f: F32
+    %r = cast %b: I64
     ret %r
   }
 }
 
-unusedConversion<complex>(%u: Long, %v: Long): Long {
+unusedConversion<complex>(%u: I64, %v: I64): I64 {
   b_0 {
-    %dead = cast %u: Double
-    %r = add %u, %v: Long
+    %dead = cast %u: F64
+    %r = add %u, %v: I64
     ret %r
   }
 }
 
-widen<complex>(%f: Float, %d: Double): Float {
+widen<complex>(%f: F32, %d: F64): F32 {
   b_0 {
-    %a = cast %f: Double
-    %b = add %a, %d: Double
-    %c = cast %b: Float
+    %a = cast %f: F64
+    %b = add %a, %d: F64
+    %c = cast %b: F32
     ret %c
   }
 }
 
-bits<complex>(%d: Double, %l: Long): Long {
+bits<complex>(%d: F64, %l: I64): I64 {
   b_0 {
-    %a = bitcast %d: Long
-    %b = bitcast %l: Double
-    %c = bitcast %b: Long
-    %s = add %a, %c: Long
+    %a = bitcast %d: I64
+    %b = bitcast %l: F64
+    %c = bitcast %b: I64
+    %s = add %a, %c: I64
     ret %s
   }
 }
 
-bits32<complex>(%f: Float, %i: Int): Int {
+bits32<complex>(%f: F32, %i: I32): I32 {
   b_0 {
-    %a = bitcast %f: Int
-    %b = bitcast %i: Float
-    %c = bitcast %b: Int
-    %s = add %a, %c: Int
+    %a = bitcast %f: I32
+    %b = bitcast %i: F32
+    %c = bitcast %b: I32
+    %s = add %a, %c: I32
     ret %s
   }
 }

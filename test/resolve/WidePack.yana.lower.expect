@@ -2,22 +2,22 @@
 
 nudge<complex>(%x: Ptr) {
   b_0 {
-    %v_1 = bitcast %x: Long
-    %v_2 = and %v_1, 281474976710655: Long
+    %v_1 = bitcast %x: I64
+    %v_2 = and %v_1, 281474976710655: I64
     %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: Long
-    %v_5 = load %v_3, 4: Long
-    %v_6 = shr %v_5, %v_4: Long
-    %v_7 = and %v_6, 1048575: Long
-    %v_8 = cast %v_7: Int
-    %v_9 = add %v_8, 1: Int
-    %v_10 = and %v_9, 1048575: Int
-    %v_11 = cast %v_10: Long
-    %v_12 = shl %v_11, %v_4: Long
-    %v_13 = shl 1048575, %v_4: Long
-    %v_14 = not %v_13: Long
-    %v_15 = and %v_5, %v_14: Long
-    %v_16 = or %v_15, %v_12: Long
+    %v_4 = shr %v_1, 48: I64
+    %v_5 = load %v_3, 4: I64
+    %v_6 = shr %v_5, %v_4: I64
+    %v_7 = and %v_6, 1048575: I64
+    %v_8 = cast %v_7: I32
+    %v_9 = add %v_8, 1: I32
+    %v_10 = and %v_9, 1048575: I32
+    %v_11 = cast %v_10: I64
+    %v_12 = shl %v_11, %v_4: I64
+    %v_13 = shl 1048575, %v_4: I64
+    %v_14 = not %v_13: I64
+    %v_15 = and %v_5, %v_14: I64
+    %v_16 = or %v_15, %v_12: I64
     store %v_3, %v_16, 4
     ret 
   }
@@ -25,73 +25,73 @@ nudge<complex>(%x: Ptr) {
 
 nudge12<complex>(%x: Ptr) {
   b_0 {
-    %v_1 = bitcast %x: Long
-    %v_2 = and %v_1, 281474976710655: Long
+    %v_1 = bitcast %x: I64
+    %v_2 = and %v_1, 281474976710655: I64
     %v_3 = bitcast %v_2: Ptr
-    %v_4 = shr %v_1, 48: Long
-    %v_5 = load %v_3, 2: Long
-    %v_6 = shr %v_5, %v_4: Long
-    %v_7 = and %v_6, 4095: Long
-    %v_8 = cast %v_7: Int
-    %v_9 = add %v_8, 1: Int
-    %v_10 = and %v_9, 4095: Int
-    %v_11 = cast %v_10: Long
-    %v_12 = shl %v_11, %v_4: Long
-    %v_13 = shl 4095, %v_4: Long
-    %v_14 = not %v_13: Long
-    %v_15 = and %v_5, %v_14: Long
-    %v_16 = or %v_15, %v_12: Long
+    %v_4 = shr %v_1, 48: I64
+    %v_5 = load %v_3, 2: I64
+    %v_6 = shr %v_5, %v_4: I64
+    %v_7 = and %v_6, 4095: I64
+    %v_8 = cast %v_7: I32
+    %v_9 = add %v_8, 1: I32
+    %v_10 = and %v_9, 4095: I32
+    %v_11 = cast %v_10: I64
+    %v_12 = shl %v_11, %v_4: I64
+    %v_13 = shl 4095, %v_4: I64
+    %v_14 = not %v_13: I64
+    %v_15 = and %v_5, %v_14: I64
+    %v_16 = or %v_15, %v_12: I64
     store %v_3, %v_16, 2
     ret 
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     %v_1 = alloca 8, 8: Ptr
     store %v_1, 4294963001033704, 8
     %v_2 = add %v_1, 4: Ptr
     call_complex nudge, %v_2
-    %v_3 = load %v_1, 8: Long
-    %v_4 = shr %v_3, 32: Long
-    %v_5 = and %v_4, 1048575: Long
-    %v_6 = cast %v_5: Int
-    %v_7 = cmp_eq %v_6, 1000000: Int
-    %v_8 = select %v_7, 16, 0: Int
-    %v_9 = add 15, %v_8: Int
+    %v_3 = load %v_1, 8: I64
+    %v_4 = shr %v_3, 32: I64
+    %v_5 = and %v_4, 1048575: I64
+    %v_6 = cast %v_5: I32
+    %v_7 = cmp_eq %v_6, 1000000: I32
+    %v_8 = select %v_7, 16, 0: I32
+    %v_9 = add 15, %v_8: I32
     %v_10 = alloca 8, 8: Ptr
     store %v_10, 4294963001033704, 8
     %v_11 = add %v_10, 4: Ptr
     call_complex nudge, %v_11
-    %v_12 = load %v_10, 8: Long
-    %v_13 = and %v_12, 1048575: Long
-    %v_14 = cast %v_13: Int
-    %v_15 = cmp_eq %v_14, 1000: Int
-    %v_16 = select %v_15, 32, 0: Int
-    %v_17 = add %v_9, %v_16: Int
-    %v_18 = add %v_17, 64: Int
-    %v_19 = add %v_18, 128: Int
-    %v_20 = add %v_19, 768: Int
-    %v_21 = add %v_20, 1024: Int
-    %v_22 = add %v_21, 2048: Int
+    %v_12 = load %v_10, 8: I64
+    %v_13 = and %v_12, 1048575: I64
+    %v_14 = cast %v_13: I32
+    %v_15 = cmp_eq %v_14, 1000: I32
+    %v_16 = select %v_15, 32, 0: I32
+    %v_17 = add %v_9, %v_16: I32
+    %v_18 = add %v_17, 64: I32
+    %v_19 = add %v_18, 128: I32
+    %v_20 = add %v_19, 768: I32
+    %v_21 = add %v_20, 1024: I32
+    %v_22 = add %v_21, 2048: I32
     %v_23 = alloca 8, 4: Ptr
     store %v_23, 7, 4
     %v_24 = add %v_23, 4: Ptr
-    %v_25 = load %v_24, 4: Int
+    %v_25 = load %v_24, 4: I32
     store %v_24, 4293918721, 4
     %v_26 = add %v_23, 6: Ptr
-    %v_27 = bitcast %v_26: Long
-    %v_28 = or %v_27, 1125899906842624: Long
+    %v_27 = bitcast %v_26: I64
+    %v_28 = or %v_27, 1125899906842624: I64
     %v_29 = bitcast %v_28: Ptr
     call_complex nudge12, %v_29
     %v_30 = add %v_23, 4: Ptr
-    %v_31 = load %v_30, 4: Int
-    %v_32 = shr %v_31, 20: Int
-    %v_33 = cmp_eq %v_32, 0: Int
-    %v_34 = select %v_33, 4096, 0: Int
-    %v_35 = add %v_22, %v_34: Int
-    %v_36 = add %v_35, 8192: Int
-    %v_37 = add %v_36, 16384: Int
+    %v_31 = load %v_30, 4: I32
+    %v_32 = shr %v_31, 20: I32
+    %v_33 = cmp_eq %v_32, 0: I32
+    %v_34 = select %v_33, 4096, 0: I32
+    %v_35 = add %v_22, %v_34: I32
+    %v_36 = add %v_35, 8192: I32
+    %v_37 = add %v_36, 16384: I32
     ret %v_37
   }
 }

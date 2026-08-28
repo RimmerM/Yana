@@ -5,42 +5,42 @@ fn checkCondition {
   arg failed readonly
 }
 
-fn push(Int) {
+fn push(I32) {
   arg self writable resizable
   arg item readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 25)
-  %item: Int readonly live [0, 20)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 25)
+  %item: I32 readonly live [0, 20)
 }
 
-fn reserve(Int) {
+fn reserve(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 6) [7, 11)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 6) [7, 11)
 }
 
-fn growArray(Int) {
+fn growArray(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Array(Int) borrowed droppable writable resizable live [0, 24)
+  %self: Array(I32) borrowed droppable writable resizable live [0, 24)
   %wide: Size writable live [5, 22)
 }
 
-fn remove(Int) {
+fn remove(I32) {
   arg self writable
   arg index readonly
-  %self: Array(Int) borrowed droppable writable live [0, 6) [9, 62)
-  %local1: Maybe(Int) readonly live [6, 9)
-  %local2: Int readonly live [17, 20)
-  %local3: Int readonly live [18, 64)
-  %local4: Maybe(Int) readonly live [62, 63) [64, 66)
+  %self: Array(I32) borrowed droppable writable live [0, 6) [9, 62)
+  %local1: Maybe(I32) readonly live [6, 9)
+  %local2: I32 readonly live [17, 20)
+  %local3: I32 readonly live [18, 64)
+  %local4: Maybe(I32) readonly live [62, 63) [64, 66)
 }
 
-fn Reclaim(Array(a)).reclaim(Int) {
+fn Reclaim(Array(a)).reclaim(I32) {
   arg value readonly
-  %value: Array(Int) borrowed droppable readonly live [0, 10) [11, 25)
-  %i: Int writable live [2, 8) [11, 25)
-  %local2: Int readonly live [18, 21)
-  %local3: Int readonly live [19, 21)
+  %value: Array(I32) borrowed droppable readonly live [0, 10) [11, 25)
+  %i: I32 writable live [2, 8) [11, 25)
+  %local2: I32 readonly live [18, 21)
+  %local3: I32 readonly live [19, 21)
 }
 
 fn numberOf {
@@ -134,44 +134,44 @@ fn moveMemory {
 fn abortProcess {
 }
 
-fn resize(Int) {
+fn resize(I32) {
   arg self writable resizable
   arg wanted readonly
-  %self: Run(Int) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
+  %self: Run(I32) borrowed droppable writable resizable live [0, 5) [6, 13) [14, 17) [18, 27) [28, 59)
 }
 
-fn byteSpan(Int) {
+fn byteSpan(I32) {
   arg from readonly
   arg count readonly
 }
 
-fn releaseRun(Int) {
+fn releaseRun(I32) {
   arg self readonly
-  %self: Run(Int) borrowed droppable readonly live [0, 8)
+  %self: Run(I32) borrowed droppable readonly live [0, 8)
 }
 
 fn sum {
   arg xs readonly
-  %xs: Flat(Int) borrowed readonly live [0, 10) [12, 33)
-  %total: Int writable live [0, 11) [12, 33)
-  %i: Int writable live [2, 10) [12, 33)
+  %xs: Flat(I32) borrowed readonly live [0, 10) [12, 33)
+  %total: I32 writable live [0, 11) [12, 33)
+  %i: I32 writable live [2, 10) [12, 33)
 }
 
 fn make {
   result escapes
-  %local0: Array(Int) droppable readonly live [0, 9)
-  %local1: Int writable addressed escapes heap live [1, 9)
+  %local0: Array(I32) droppable readonly live [0, 9)
+  %local1: I32 writable addressed escapes heap live [1, 9)
 }
 
 fn escaping {
-  %local0: Array(Int) droppable readonly live [0, 38)
+  %local0: Array(I32) droppable readonly live [0, 38)
 }
 
 fn main {
-  %small: Array(Int) droppable writable resizable live [0, 48)
-  %local1: Int writable addressed live [1, 48)
-  %local2: Maybe(Int) readonly live [29, 30)
-  %local3: Maybe(Int) readonly live [32, 33)
-  %local4: Maybe(Int) readonly live [36, 37)
-  %local5: Flat(Int) readonly live [39, 46)
+  %small: Array(I32) droppable writable resizable live [0, 48)
+  %local1: I32 writable addressed live [1, 48)
+  %local2: Maybe(I32) readonly live [29, 30)
+  %local3: Maybe(I32) readonly live [32, 33)
+  %local4: Maybe(I32) readonly live [36, 37)
+  %local5: Flat(I32) readonly live [39, 46)
 }

@@ -140,7 +140,7 @@ fn growArray(Buffer)(%self: Array(Buffer), %wanted: Size) -> () {
     ret
 }
 
-fn remove(Buffer)(%self: Array(Buffer), %index: Int) -> Maybe(Buffer) {
+fn remove(Buffer)(%self: Array(Buffer), %index: I32) -> Maybe(Buffer) {
   b0:
     %v2 = bitcast %index : U32
     %v3 = load %self : Array(Buffer)
@@ -211,8 +211,8 @@ fn remove(Buffer)(%self: Array(Buffer), %index: Int) -> Maybe(Buffer) {
   b6:
     %v61 = load %self : Array(Buffer)
     %v62 = load %self@Array.length : @bits(30) U32
-    %v63 = cast %v62 : Int
-    %v65 = sub %v63, 1 : Int
+    %v63 = cast %v62 : I32
+    %v65 = sub %v63, 1 : I32
     %v66 = cast %v65 : U32
     %v68 = and %v66, 1073741823 : U32
     %v69 = cast %v68 : @bits(30) U32
@@ -233,13 +233,13 @@ fn -=(I64)(%target: I64, %amount: I64) -> () {
 fn Reclaim(Array(a)).reclaim(Buffer)(%value: Array(Buffer)) -> () {
   b0:
     %v1 = load %value@Array.length : @bits(30) U32
-    %count = cast %v1 : Int
-    %i = alloc : Int
+    %count = cast %v1 : I32
+    %i = alloc : I32
     init %i, 0
     jmp b1
 
   b1:
-    %v7 = load %i : Int
+    %v7 = load %i : I32
     %v8 = cmp_lt %v7, %count : Bool
     je %v8, b3, b2
 
@@ -251,7 +251,7 @@ fn Reclaim(Array(a)).reclaim(Buffer)(%value: Array(Buffer)) -> () {
   b3:
     %v13 = load %value@Array.run : Run(Buffer)
     %v14 = load %value@Array.run@Run.items : %Buffer
-    %v15 = load %i : Int
+    %v15 = load %i : I32
     %v16 = cast %v15 : Size
     %v17 = strideof Buffer : Size
     %v18 = mul %v16, %v17 : Size
@@ -261,8 +261,8 @@ fn Reclaim(Array(a)).reclaim(Buffer)(%value: Array(Buffer)) -> () {
     %doomed = alloc : Buffer
     init %local3, %v21
     drop %local3 via Drop(Buffer).drop
-    %v24 = load %i : Int
-    %v26 = add %v24, 1 : Int
+    %v24 = load %i : I32
+    %v26 = add %v24, 1 : I32
     assign %i, %v26
     jmp b1
 }
@@ -307,7 +307,7 @@ fn initHeap() -> () {
   b0:
     %v2 = add 4194304, 4096 : Size
     %region = call mapMemory, %v2 : %U8
-    %v4 = bitcast %region : Long
+    %v4 = bitcast %region : I64
     %v6 = cmp_eq %v4, 0 : Bool
     je %v6, b1, b2
 
@@ -358,7 +358,7 @@ fn growHeap(%needed: Size) -> Bool {
     %region = alloc : %U8
     init %region, %v13
     %v16 = load %region : %U8
-    %v17 = bitcast %v16 : Long
+    %v17 = bitcast %v16 : I64
     %v19 = cmp_eq %v17, 0 : Bool
     je %v19, b4, b5
 
@@ -394,7 +394,7 @@ fn growHeap(%needed: Size) -> Bool {
     %v38 = call mapMemory, %v37 : %U8
     assign %region, %v38
     %v40 = load %region : %U8
-    %v41 = bitcast %v40 : Long
+    %v41 = bitcast %v40 : I64
     %v43 = cmp_eq %v41, 0 : Bool
     je %v43, b12, b13
 
@@ -480,14 +480,14 @@ fn setFreeListHead(%sizeClass: Size, %block: %U8) -> () {
 fn allocateHeap(%size: Size) -> %U8 {
   b0:
     %v1 = load heapFree : %%U8
-    %v2 = bitcast %v1 : Long
+    %v2 = bitcast %v1 : I64
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b1, b2
 
   b1:
     call initHeap
     %v7 = load heapFree : %%U8
-    %v8 = bitcast %v7 : Long
+    %v8 = bitcast %v7 : I64
     %v10 = cmp_eq %v8, 0 : Bool
     je %v10, b3, b4
 
@@ -519,7 +519,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
   b9:
     %reused = call freeListHead, %sizeClass : %U8
-    %v30 = bitcast %reused : Long
+    %v30 = bitcast %reused : I64
     %v32 = cmp_eq %v30, 0 : Bool
     %v34 = xor %v32, True : Bool
     je %v34, b10, b11
@@ -577,7 +577,7 @@ fn allocateHeap(%size: Size) -> %U8 {
 
 fn freeHeap(%allocation: %U8) -> () {
   b0:
-    %v1 = bitcast %allocation : Long
+    %v1 = bitcast %allocation : I64
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b1, b2
 
@@ -1382,7 +1382,7 @@ fn resize(Buffer)(%self: Run(Buffer), %wanted: Size) -> Bool {
     %v28 = call byteSpan(Buffer), %v27, %wanted : Size
     %v29 = call allocateHeap, %v28 : %U8
     %fresh = bitcast %v29 : %Buffer
-    %v31 = bitcast %fresh : Long
+    %v31 = bitcast %fresh : I64
     %v33 = cmp_eq %v31, 0 : Bool
     je %v33, b10, b11
 
@@ -1565,8 +1565,8 @@ fn main() -> I64 {
     %v61 = cmp_ge %v59, %v60 : Bool
     call checkCondition, %v61
     %v63 = load [%v57]@Array.run@Run.items : %Buffer
-    %v64 = strideof Buffer : Long
-    %v65 = mul 0, %v64 : Long
+    %v64 = strideof Buffer : I64
+    %v65 = mul 0, %v64 : I64
     %v66 = add %v63, %v65 : %Buffer
     %v67 = borrow [%v66] : 'Buffer
     %v68 = load [%v67] : Buffer
@@ -1589,8 +1589,8 @@ fn main() -> I64 {
     %v84 = cmp_ge %v82, %v83 : Bool
     call checkCondition, %v84
     %v86 = load [%v80]@Array.run@Run.items : %Buffer
-    %v87 = strideof Buffer : Long
-    %v88 = mul 1, %v87 : Long
+    %v87 = strideof Buffer : I64
+    %v88 = mul 1, %v87 : I64
     %v89 = add %v86, %v88 : %Buffer
     %v90 = borrow [%v89] : 'Buffer
     %v91 = load [%v90] : Buffer
@@ -1621,7 +1621,7 @@ fn main() -> I64 {
     %v112 = call remove(Buffer), %v111, 5 : Maybe(Buffer)
     drop_derived %local6 via drop$Maybe(Buffer)
     %v113 = load %xs : Array(Buffer)
-    %v118 = sub 0, 1 : Int
+    %v118 = sub 0, 1 : I32
     %v119 = borrow_mut %xs : &Array(Buffer)
     %v120 = call remove(Buffer), %v119, %v118 : Maybe(Buffer)
     drop_derived %local7 via drop$Maybe(Buffer)
@@ -1663,8 +1663,8 @@ fn main() -> I64 {
     %v153 = cmp_ge %v151, %v152 : Bool
     call checkCondition, %v153
     %v155 = load [%v149]@Array.run@Run.items : %Buffer
-    %v156 = strideof Buffer : Long
-    %v157 = mul 0, %v156 : Long
+    %v156 = strideof Buffer : I64
+    %v157 = mul 0, %v156 : I64
     %v158 = add %v155, %v157 : %Buffer
     %v159 = borrow [%v158] : 'Buffer
     %v160 = load [%v159] : Buffer
@@ -1731,12 +1731,12 @@ fn main() -> I64 {
     %v212 = load %xs : Array(Buffer)
     %v215 = borrow_mut %xs : &Array(Buffer)
     %v216 = call remove(Buffer), %v215, 0 : Maybe(Buffer)
-    %v217 = load %local12.discriminant : Int
+    %v217 = load %local12.discriminant : I32
     %v219 = cmp_eq %v217, 1 : Bool
     je %v219, b38, b70
 
   b37:
-    %v235 = sub 0, 1 : Int
+    %v235 = sub 0, 1 : I32
     %v237 = cast %v235 : I64
     jmp b39
 
@@ -1791,7 +1791,7 @@ fn main() -> I64 {
     %v265 = load %xs : Array(Buffer)
     %v268 = borrow_mut %xs : &Array(Buffer)
     %v269 = call remove(Buffer), %v268, 9 : Maybe(Buffer)
-    %v270 = load %local14.discriminant : Int
+    %v270 = load %local14.discriminant : I32
     %v272 = cmp_eq %v270, 1 : Bool
     je %v272, b74, b75
 
@@ -1925,7 +1925,7 @@ fn Drop(Buffer).drop(%value: Buffer) -> () {
 
 fn drop$Maybe(Buffer)(%value: Maybe(Buffer)) -> () {
   b0:
-    %v1 = load %value.discriminant : Int
+    %v1 = load %value.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b3
 

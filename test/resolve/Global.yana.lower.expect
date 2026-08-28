@@ -2,16 +2,16 @@
 mut @counter = [0, 0, 0, 0, 0, 0, 0, 0]
 mut @slot = [0, 0, 0, 0, 0, 0, 0, 0]
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
     store @slot, 7, 8
-    %v_1 = loads @slot, 8: Long
-    %v_2 = add 262156, %v_1: Long
-    %v_3 = loads @counter, 8: Long
-    %v_4 = add %v_3, 5: Long
+    %v_1 = loads @slot, 8: I64
+    %v_2 = add 262156, %v_1: I64
+    %v_3 = loads @counter, 8: I64
+    %v_4 = add %v_3, 5: I64
     store @counter, %v_4, 8
-    %total = add %v_2, %v_4: Long
-    %v_5 = cast %total: Int
+    %total = add %v_2, %v_4: I64
+    %v_5 = cast %total: I32
     ret %v_5
   }
 }

@@ -1,28 +1,28 @@
 @image$base = []
 
-opaqueFloat<complex>(%x: Float): Float {
+opaqueFloat<complex>(%x: F32): F32 {
   b_0 {
     ret %x
   }
 }
 
-opaqueInt<complex>(%x: Int): Int {
+opaqueInt<complex>(%x: I32): I32 {
   b_0 {
     ret %x
   }
 }
 
-opaqueDouble<complex>(%x: Double): Double {
+opaqueDouble<complex>(%x: F64): F64 {
   b_0 {
     ret %x
   }
 }
 
-main<complex>(): Int {
+main<complex>(): I32 {
   b_0 {
-    %v_1 = call_complex opaqueFloat, 1: Float
-    %v_2 = bitcast %v_1: Int
-    %v_3 = cmp_eq %v_2, 1065353216: Int
+    %v_1 = call_complex opaqueFloat, 1: F32
+    %v_2 = bitcast %v_1: I32
+    %v_3 = cmp_eq %v_2, 1065353216: I32
     je %v_3, b_4, b_5
   }
 
@@ -31,70 +31,70 @@ main<complex>(): Int {
   }
 
   b_5 {
-    %v_6 = phi [b_0, 63], [b_4, 127]: Int
-    %v_7 = call_complex opaqueInt, 1065353216: Int
-    %v_8 = bitcast %v_7: Float
-    %v_9 = cmp_eq %v_8, 1: Int
+    %v_6 = phi [b_0, 63], [b_4, 127]: I32
+    %v_7 = call_complex opaqueInt, 1065353216: I32
+    %v_8 = bitcast %v_7: F32
+    %v_9 = cmp_eq %v_8, 1: I32
     je %v_9, b_10, b_11
   }
 
   b_10 {
-    %v_12 = add %v_6, 128: Int
+    %v_12 = add %v_6, 128: I32
     jmp b_11
   }
 
   b_11 {
-    %v_13 = phi [b_5, %v_6], [b_10, %v_12]: Int
-    %v_14 = call_complex opaqueFloat, -2.5: Float
-    %v_15 = cmp_eq %v_14, -2.5: Int
+    %v_13 = phi [b_5, %v_6], [b_10, %v_12]: I32
+    %v_14 = call_complex opaqueFloat, -2.5: F32
+    %v_15 = cmp_eq %v_14, -2.5: I32
     je %v_15, b_16, b_17
   }
 
   b_16 {
-    %v_18 = add %v_13, 256: Int
+    %v_18 = add %v_13, 256: I32
     jmp b_17
   }
 
   b_17 {
-    %v_19 = phi [b_11, %v_13], [b_16, %v_18]: Int
-    %v_20 = call_complex opaqueInt, 18446744073709551615: Int
-    %v_21 = call_complex opaqueInt, 2147483647: Int
-    %v_22 = cmp_gt %v_20, %v_21: Int
+    %v_19 = phi [b_11, %v_13], [b_16, %v_18]: I32
+    %v_20 = call_complex opaqueInt, 18446744073709551615: I32
+    %v_21 = call_complex opaqueInt, 2147483647: I32
+    %v_22 = cmp_gt %v_20, %v_21: I32
     je %v_22, b_23, b_24
   }
 
   b_23 {
-    %v_25 = add %v_19, 512: Int
+    %v_25 = add %v_19, 512: I32
     jmp b_24
   }
 
   b_24 {
-    %v_26 = phi [b_17, %v_19], [b_23, %v_25]: Int
-    %v_27 = call_complex opaqueInt, 1: Int
-    %v_28 = cmp_eq %v_27, 1: Int
+    %v_26 = phi [b_17, %v_19], [b_23, %v_25]: I32
+    %v_27 = call_complex opaqueInt, 1: I32
+    %v_28 = cmp_eq %v_27, 1: I32
     je %v_28, b_29, b_30
   }
 
   b_29 {
-    %v_31 = add %v_26, 1024: Int
+    %v_31 = add %v_26, 1024: I32
     jmp b_30
   }
 
   b_30 {
-    %v_32 = phi [b_24, %v_26], [b_29, %v_31]: Int
-    %v_33 = call_complex opaqueDouble, 1: Double
-    %v_34 = bitcast %v_33: Long
-    %v_35 = cmp_eq %v_34, 4607182418800017408: Int
+    %v_32 = phi [b_24, %v_26], [b_29, %v_31]: I32
+    %v_33 = call_complex opaqueDouble, 1: F64
+    %v_34 = bitcast %v_33: I64
+    %v_35 = cmp_eq %v_34, 4607182418800017408: I32
     je %v_35, b_36, b_37
   }
 
   b_36 {
-    %v_38 = add %v_32, 2048: Int
+    %v_38 = add %v_32, 2048: I32
     jmp b_37
   }
 
   b_37 {
-    %v_39 = phi [b_30, %v_32], [b_36, %v_38]: Int
+    %v_39 = phi [b_30, %v_32], [b_36, %v_38]: I32
     ret %v_39
   }
 }

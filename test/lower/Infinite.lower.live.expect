@@ -1,5 +1,5 @@
 
-infinite<complex>(%v: Int): Int {
+infinite<complex>(%v: I32): I32 {
   start {
     # live-in: %v
     jmp loop
@@ -8,8 +8,8 @@ infinite<complex>(%v: Int): Int {
 
   loop {
     # live-in: %v1
-    %v1 = phi [start, %v], [loop, %v2]: Int
-    %v2 = add %v1, 1: Int
+    %v1 = phi [start, %v], [loop, %v2]: I32
+    %v2 = add %v1, 1: I32
     jmp loop
     # live-out: %v2
   }

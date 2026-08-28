@@ -4,49 +4,49 @@ let &least: I64 = 9223372036854775808
 
 let &minusOne: I64 = 18446744073709551615
 
-fn colorValue(%c: Color) -> Int {
+fn colorValue(%c: Color) -> I32 {
   b0:
-    %v1 = cast %c : Int
-    %v3 = add %v1, 1 : Int
+    %v1 = cast %c : I32
+    %v3 = add %v1, 1 : I32
     ret %v3
 }
 
-fn shapeValue(%s: Shape) -> Int {
+fn shapeValue(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
   b1:
-    %r = load %s@Circle : Int
-    %v12 = add %r, 1 : Int
+    %r = load %s@Circle : I32
+    %v12 = add %r, 1 : I32
     jmp b3
 
   b2:
-    %v5 = load %s@Square : {width: Int, height: Int}
-    %width = load %s@Square.width : Int
-    %height = load %s@Square.height : Int
-    %v8 = mul %width, %height : Int
+    %v5 = load %s@Square : {width: I32, height: I32}
+    %width = load %s@Square.width : I32
+    %height = load %s@Square.height : I32
+    %v8 = mul %width, %height : I32
     jmp b3
 
   b3:
-    %v15 = phi [b2, %v8], [b1, %v12] : Int
+    %v15 = phi [b2, %v8], [b1, %v12] : I32
     ret %v15
 }
 
-fn area(%s: Shape) -> Int {
+fn area(%s: Shape) -> I32 {
   b0:
-    %v1 = load %s.discriminant : Int
+    %v1 = load %s.discriminant : I32
     %v3 = cmp_eq %v1, 0 : Bool
     je %v3, b2, b1
 
   b1:
-    %v10 = load %s.discriminant : Int
+    %v10 = load %s.discriminant : I32
     %v12 = cmp_eq %v10, 0 : Bool
     je %v12, b5, b4
 
   b2:
-    %v5 = load %s@Circle : Int
+    %v5 = load %s@Circle : I32
     %v7 = cmp_ge %v5, 11 : Bool
     je %v7, b3, b1
 
@@ -54,51 +54,51 @@ fn area(%s: Shape) -> Int {
     jmp b9
 
   b4:
-    %v15 = load %s.discriminant : Int
+    %v15 = load %s.discriminant : I32
     %v17 = cmp_eq %v15, 1 : Bool
     je %v17, b7, b6
 
   b5:
-    %r = load %s@Circle : Int
+    %r = load %s@Circle : I32
     jmp b9
 
   b6:
-    %v28 = load %s@Square : {width: Int, height: Int}
-    %w = load %s@Square.width : Int
-    %h = load %s@Square.height : Int
-    %v31 = mul %w, %h : Int
+    %v28 = load %s@Square : {width: I32, height: I32}
+    %w = load %s@Square.width : I32
+    %h = load %s@Square.height : I32
+    %v31 = mul %w, %h : I32
     jmp b9
 
   b7:
-    %v19 = load %s@Square : {width: Int, height: Int}
-    %v20 = load %s@Square.width : Int
+    %v19 = load %s@Square : {width: I32, height: I32}
+    %v20 = load %s@Square.width : I32
     %v22 = cmp_ge %v20, 11 : Bool
     je %v22, b8, b6
 
   b8:
-    %h = load %s@Square.height : Int
-    %v27 = mul %h, 10 : Int
+    %h = load %s@Square.height : I32
+    %v27 = mul %h, 10 : I32
     jmp b9
 
   b9:
-    %v36 = phi [b3, 100], [b5, %r], [b8, %v27], [b6, %v31] : Int
+    %v36 = phi [b3, 100], [b5, %r], [b8, %v27], [b6, %v31] : I32
     ret %v36
 }
 
-fn nested(%m: Maybe(Color)) -> Int {
+fn nested(%m: Maybe(Color)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
   b1:
-    %v11 = load %m.discriminant : Int
+    %v11 = load %m.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b5, b4
 
   b2:
     %v5 = load %m@Just : Color
-    %v6 = cast %v5 : Int
+    %v6 = cast %v5 : I32
     %v8 = cmp_eq %v6, 0 : Bool
     je %v8, b3, b1
 
@@ -106,13 +106,13 @@ fn nested(%m: Maybe(Color)) -> Int {
     jmp b10
 
   b4:
-    %v21 = load %m.discriminant : Int
+    %v21 = load %m.discriminant : I32
     %v23 = cmp_eq %v21, 1 : Bool
     je %v23, b8, b7
 
   b5:
     %v15 = load %m@Just : Color
-    %v16 = cast %v15 : Int
+    %v16 = cast %v15 : I32
     %v18 = cmp_eq %v16, 1 : Bool
     je %v18, b6, b4
 
@@ -124,7 +124,7 @@ fn nested(%m: Maybe(Color)) -> Int {
 
   b8:
     %v25 = load %m@Just : Color
-    %v26 = cast %v25 : Int
+    %v26 = cast %v25 : I32
     %v28 = cmp_eq %v26, 2 : Bool
     je %v28, b9, b7
 
@@ -132,26 +132,26 @@ fn nested(%m: Maybe(Color)) -> Int {
     jmp b10
 
   b10:
-    %v36 = phi [b3, 1], [b6, 2], [b9, 3], [b7, 0] : Int
+    %v36 = phi [b3, 1], [b6, 2], [b9, 3], [b7, 0] : I32
     ret %v36
 }
 
-fn pairValue(%p: {Color, Bool}) -> Int {
+fn pairValue(%p: {Color, Bool}) -> I32 {
   b0:
     %v1 = load %p.0 : Color
-    %v2 = cast %v1 : Int
+    %v2 = cast %v1 : I32
     %v4 = cmp_eq %v2, 0 : Bool
     je %v4, b2, b1
 
   b1:
     %v12 = load %p.0 : Color
-    %v13 = cast %v12 : Int
+    %v13 = cast %v12 : I32
     %v15 = cmp_eq %v13, 0 : Bool
     je %v15, b5, b4
 
   b2:
     %v6 = load %p.1 : Bool
-    %v7 = cast %v6 : Int
+    %v7 = cast %v6 : I32
     %v9 = cmp_eq %v7, 1 : Bool
     je %v9, b3, b1
 
@@ -160,13 +160,13 @@ fn pairValue(%p: {Color, Bool}) -> Int {
 
   b4:
     %v23 = load %p.0 : Color
-    %v24 = cast %v23 : Int
+    %v24 = cast %v23 : I32
     %v26 = cmp_eq %v24, 1 : Bool
     je %v26, b8, b7
 
   b5:
     %v17 = load %p.1 : Bool
-    %v18 = cast %v17 : Int
+    %v18 = cast %v17 : I32
     %v20 = cmp_eq %v18, 0 : Bool
     je %v20, b6, b4
 
@@ -189,28 +189,28 @@ fn pairValue(%p: {Color, Bool}) -> Int {
     jmp b11
 
   b11:
-    %v34 = phi [b9, 3], [b10, 4] : Int
+    %v34 = phi [b9, 3], [b10, 4] : I32
     jmp b12
 
   b12:
-    %v42 = phi [b3, 1], [b6, 2], [b11, %v34], [b7, 5] : Int
+    %v42 = phi [b3, 1], [b6, 2], [b11, %v34], [b7, 5] : I32
     ret %v42
 }
 
-fn firstOrRest(%m: Maybe(Color)) -> Int {
+fn firstOrRest(%m: Maybe(Color)) -> I32 {
   b0:
-    %v1 = load %m.discriminant : Int
+    %v1 = load %m.discriminant : I32
     %v3 = cmp_eq %v1, 1 : Bool
     je %v3, b2, b1
 
   b1:
-    %v11 = load %m.discriminant : Int
+    %v11 = load %m.discriminant : I32
     %v13 = cmp_eq %v11, 1 : Bool
     je %v13, b5, b4
 
   b2:
     %v5 = load %m@Just : Color
-    %v6 = cast %v5 : Int
+    %v6 = cast %v5 : I32
     %v8 = cmp_eq %v6, 0 : Bool
     je %v8, b3, b1
 
@@ -222,15 +222,15 @@ fn firstOrRest(%m: Maybe(Color)) -> Int {
 
   b5:
     %rest = load %m@Just : Color
-    %v16 = call colorValue, %rest : Int
+    %v16 = call colorValue, %rest : I32
     jmp b6
 
   b6:
-    %v21 = phi [b3, 10], [b5, %v16], [b4, 0] : Int
+    %v21 = phi [b3, 10], [b5, %v16], [b4, 0] : I32
     ret %v21
 }
 
-fn classify(%value: Int) -> Int {
+fn classify(%value: I32) -> I32 {
   b0:
     %v2 = cmp_eq %value, 0 : Bool
     je %v2, b2, b1
@@ -251,11 +251,11 @@ fn classify(%value: Int) -> Int {
     jmp b5
 
   b5:
-    %v16 = phi [b2, 0], [b4, 1], [b3, 2] : Int
+    %v16 = phi [b2, 0], [b4, 1], [b3, 2] : I32
     ret %v16
 }
 
-fn signed(%value: I64) -> Int {
+fn signed(%value: I64) -> I32 {
   b0:
     %v2 = cmp_eq %value, -9223372036854775808 : Bool
     je %v2, b2, b1
@@ -281,121 +281,121 @@ fn signed(%value: I64) -> Int {
     jmp b7
 
   b7:
-    %v18 = phi [b2, 1], [b4, 2], [b6, 3], [b5, 4] : Int
+    %v18 = phi [b2, 1], [b4, 2], [b6, 3], [b5, 4] : I32
     ret %v18
 }
 
-fn main() -> Int {
+fn main() -> I32 {
   b0:
-    %v1 = call colorValue, Red : Int
-    %v3 = call colorValue, Green : Int
-    %v4 = add %v1, %v3 : Int
-    %v6 = call colorValue, Blue : Int
-    %v7 = add %v4, %v6 : Int
+    %v1 = call colorValue, Red : I32
+    %v3 = call colorValue, Green : I32
+    %v4 = add %v1, %v3 : I32
+    %v6 = call colorValue, Blue : I32
+    %v7 = add %v4, %v6 : I32
     %v8 = alloc : Shape
     aggregate %local0.discriminant = 1, %local0@Square.width = 2, %local0@Square.height = 3
-    %v13 = call shapeValue, %v8 : Int
-    %v14 = add %v7, %v13 : Int
+    %v13 = call shapeValue, %v8 : I32
+    %v14 = add %v7, %v13 : I32
     %v15 = alloc : Shape
     aggregate %local1.discriminant = 0, %local1@Circle = 4
-    %v19 = call shapeValue, %v15 : Int
-    %v20 = add %v14, %v19 : Int
+    %v19 = call shapeValue, %v15 : I32
+    %v20 = add %v14, %v19 : I32
     %v21 = alloc : Shape
     aggregate %local2.discriminant = 0, %local2@Circle = 20
-    %v25 = call area, %v21 : Int
-    %v26 = add %v20, %v25 : Int
+    %v25 = call area, %v21 : I32
+    %v26 = add %v20, %v25 : I32
     %v27 = alloc : Shape
     aggregate %local3.discriminant = 0, %local3@Circle = 3
-    %v31 = call area, %v27 : Int
-    %v32 = add %v26, %v31 : Int
+    %v31 = call area, %v27 : I32
+    %v32 = add %v26, %v31 : I32
     %v33 = alloc : Shape
     aggregate %local4.discriminant = 1, %local4@Square.width = 20, %local4@Square.height = 2
-    %v38 = call area, %v33 : Int
-    %v39 = add %v32, %v38 : Int
+    %v38 = call area, %v33 : I32
+    %v39 = add %v32, %v38 : I32
     %v40 = alloc : Shape
     aggregate %local5.discriminant = 1, %local5@Square.width = 3, %local5@Square.height = 9
-    %v45 = call area, %v40 : Int
-    %v46 = add %v39, %v45 : Int
+    %v45 = call area, %v40 : I32
+    %v46 = add %v39, %v45 : I32
     %v47 = alloc : Maybe(Color)
     aggregate %local6.discriminant = 1, %local6@Just = Red
-    %v51 = call nested, %v47 : Int
-    %v52 = add %v46, %v51 : Int
+    %v51 = call nested, %v47 : I32
+    %v52 = add %v46, %v51 : I32
     %v53 = alloc : Maybe(Color)
     aggregate %local7.discriminant = 1, %local7@Just = Green
-    %v57 = call nested, %v53 : Int
-    %v58 = add %v52, %v57 : Int
+    %v57 = call nested, %v53 : I32
+    %v58 = add %v52, %v57 : I32
     %v59 = alloc : Maybe(Color)
     aggregate %local8.discriminant = 1, %local8@Just = Blue
-    %v63 = call nested, %v59 : Int
-    %v64 = add %v58, %v63 : Int
+    %v63 = call nested, %v59 : I32
+    %v64 = add %v58, %v63 : I32
     %v65 = alloc : Maybe(Color)
     init %local9.discriminant, 0
-    %v68 = call nested, %v65 : Int
-    %v69 = add %v64, %v68 : Int
+    %v68 = call nested, %v65 : I32
+    %v69 = add %v64, %v68 : I32
     %v70 = alloc : {Color, Bool}
     init %local10.0, Red
     init %local10.1, True
-    %v75 = call pairValue, %v70 : Int
-    %v76 = add %v69, %v75 : Int
+    %v75 = call pairValue, %v70 : I32
+    %v76 = add %v69, %v75 : I32
     %v77 = alloc : {Color, Bool}
     init %local11.0, Red
     init %local11.1, False
-    %v82 = call pairValue, %v77 : Int
-    %v83 = add %v76, %v82 : Int
+    %v82 = call pairValue, %v77 : I32
+    %v83 = add %v76, %v82 : I32
     %v84 = alloc : {Color, Bool}
     init %local12.0, Green
     init %local12.1, True
-    %v89 = call pairValue, %v84 : Int
-    %v90 = add %v83, %v89 : Int
+    %v89 = call pairValue, %v84 : I32
+    %v90 = add %v83, %v89 : I32
     %v91 = alloc : {Color, Bool}
     init %local13.0, Green
     init %local13.1, False
-    %v96 = call pairValue, %v91 : Int
-    %v97 = add %v90, %v96 : Int
+    %v96 = call pairValue, %v91 : I32
+    %v97 = add %v90, %v96 : I32
     %v98 = alloc : {Color, Bool}
     init %local14.0, Blue
     init %local14.1, True
-    %v103 = call pairValue, %v98 : Int
-    %v104 = add %v97, %v103 : Int
+    %v103 = call pairValue, %v98 : I32
+    %v104 = add %v97, %v103 : I32
     %v105 = alloc : {Color, Bool}
     init %local15.0, Blue
     init %local15.1, False
-    %v110 = call pairValue, %v105 : Int
-    %v111 = add %v104, %v110 : Int
+    %v110 = call pairValue, %v105 : I32
+    %v111 = add %v104, %v110 : I32
     %v112 = alloc : Maybe(Color)
     aggregate %local16.discriminant = 1, %local16@Just = Red
-    %v116 = call firstOrRest, %v112 : Int
-    %v117 = add %v111, %v116 : Int
+    %v116 = call firstOrRest, %v112 : I32
+    %v117 = add %v111, %v116 : I32
     %v118 = alloc : Maybe(Color)
     aggregate %local17.discriminant = 1, %local17@Just = Green
-    %v122 = call firstOrRest, %v118 : Int
-    %v123 = add %v117, %v122 : Int
+    %v122 = call firstOrRest, %v118 : I32
+    %v123 = add %v117, %v122 : I32
     %v124 = alloc : Maybe(Color)
     aggregate %local18.discriminant = 1, %local18@Just = Blue
-    %v128 = call firstOrRest, %v124 : Int
-    %v129 = add %v123, %v128 : Int
+    %v128 = call firstOrRest, %v124 : I32
+    %v129 = add %v123, %v128 : I32
     %v130 = alloc : Maybe(Color)
     init %local19.discriminant, 0
-    %v133 = call firstOrRest, %v130 : Int
-    %v134 = add %v129, %v133 : Int
-    %v136 = call classify, 0 : Int
-    %v137 = add %v134, %v136 : Int
-    %v139 = call classify, 7 : Int
-    %v140 = add %v137, %v139 : Int
-    %v142 = call classify, 50 : Int
-    %v143 = add %v140, %v142 : Int
+    %v133 = call firstOrRest, %v130 : I32
+    %v134 = add %v129, %v133 : I32
+    %v136 = call classify, 0 : I32
+    %v137 = add %v134, %v136 : I32
+    %v139 = call classify, 7 : I32
+    %v140 = add %v137, %v139 : I32
+    %v142 = call classify, 50 : I32
+    %v143 = add %v140, %v142 : I32
     %v144 = load least : I64
-    %v145 = call signed, %v144 : Int
-    %v148 = mul %v145, 1000 : Int
-    %v149 = add %v143, %v148 : Int
+    %v145 = call signed, %v144 : I32
+    %v148 = mul %v145, 1000 : I32
+    %v149 = add %v143, %v148 : I32
     %v150 = load minusOne : I64
-    %v151 = call signed, %v150 : Int
-    %v154 = mul %v151, 100 : Int
-    %v155 = add %v149, %v154 : Int
-    %v157 = call signed, 0 : Int
-    %v160 = mul %v157, 10 : Int
-    %v161 = add %v155, %v160 : Int
-    %v163 = call signed, 7 : Int
-    %v164 = add %v161, %v163 : Int
+    %v151 = call signed, %v150 : I32
+    %v154 = mul %v151, 100 : I32
+    %v155 = add %v149, %v154 : I32
+    %v157 = call signed, 0 : I32
+    %v160 = mul %v157, 10 : I32
+    %v161 = add %v155, %v160 : I32
+    %v163 = call signed, 7 : I32
+    %v164 = add %v161, %v163 : I32
     ret %v164
 }

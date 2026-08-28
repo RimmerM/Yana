@@ -3,10 +3,10 @@ fn either {
   arg id readonly
   %local0: Guard droppable readonly live [0, 6) [13, 15)
   %local1: {g: Guard} closure droppable writable addressed live [4, 13)
-  %local2: (x: Int) -> Int droppable readonly live [8, 13)
+  %local2: (x: I32) -> I32 droppable readonly live [8, 13)
   %local3: {g: Guard} closure droppable writable addressed live [13, 22)
-  %local4: (x: Int) -> Int droppable readonly live [17, 22)
-  %local5: (x: Int) -> Int droppable readonly live [22, 24)
+  %local4: (x: I32) -> I32 droppable readonly live [17, 22)
+  %local5: (x: I32) -> I32 droppable readonly live [22, 24)
 }
 
 fn main {
@@ -37,7 +37,7 @@ fn drop${g: Guard} {
   %value: {g: Guard} borrowed droppable readonly live [0, 1)
 }
 
-fn teardown$(x: Int) -> Int {
+fn teardown$(x: I32) -> I32 {
   arg value unknown retained
-  %value: (x: Int) -> Int borrowed droppable unknown escapes live [0, 11)
+  %value: (x: I32) -> I32 borrowed droppable unknown escapes live [0, 11)
 }
