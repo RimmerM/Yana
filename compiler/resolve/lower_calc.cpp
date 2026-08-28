@@ -328,18 +328,45 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         /*
          * `bitcast(x)` - the same bits under another type, and the one conversion that says so.
          *
-         * A direct translation with none of the reasoning below it, because there is nothing to
-         * decide: the resolver has already checked that the two types are the same width, so the
-         * only question a `Cast` has to answer - how the value changes on the way - has the answer
-         * "it does not". `truncateToWidth` is deliberately absent for the same reason: both sides
-         * fill the same register and a refinement is not a `Bitcast` target.
+         * The value's own bits do not change and there is nothing for a `Cast`'s question to answer.
+         * What *does* change is how a register narrower than itself is required to be filled, and
+         * that is not the same fact.
+         *
+         * **A narrow value is held extended, and which extension is a property of the type rather
+         * than of the bits.** `truncateToWidth` is what establishes it - a mask for an unsigned type,
+         * a shift up and arithmetically back down for a signed one - and a `Bitcast` between the two
+         * readings of one width is precisely a point where the required extension changes. This arm
+         * used to say `truncateToWidth` was "deliberately absent, because both sides fill the same
+         * register"; both sides do fill it, and they disagree about what is in the part above the
+         * value.
+         *
+         * What that cost was a silent wrong answer natively, on both directions of every sub-register
+         * width, against a JavaScript build that was right:
+         *
+         *     bitcast(207 :: U8) :: I8       -- 207 here, -49 there
+         *     bitcast(-49 :: I8) :: U8       -- 4294967247 here, 207 there
+         *
+         * `U32`/`I32` and `U64`/`I64` were correct throughout and are why this survived: they fill
+         * their register, so there is no part above the value to disagree about, and every bitcast in
+         * `lib/` was at one of those widths until `Random(I8)` reinterpreted a draw.
+         *
+         * The mask this adds where nothing needed it is the `Cast` arm's: known bits removes it when
+         * the source already fits, so a reinterpretation between two readings that are extended the
+         * same way still costs nothing.
          */
         case Value::Bitcast: {
             auto& bitcastInst = (InstUnary&)instruction;
+            auto bitcastLower = lowerType(lower, instruction.type);
 
             result = block.addInst(lower.lower, new (lower.to.arena) LowerInstUnary(
-                LowerInst::Bitcast, instruction.name, lowerType(lower, instruction.type),
+                LowerInst::Bitcast, instruction.name, bitcastLower,
                 mappedValue(lower, bitcastInst.from)));
+
+            if(narrowerThanRegister(lower, instruction.type)) {
+                result = truncateToWidth(lower, block, result, instruction.type, bitcastLower,
+                                         instruction.name);
+            }
+
             break;
         }
         case Value::Cast: {

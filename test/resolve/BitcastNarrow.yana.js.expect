@@ -1,0 +1,40 @@
+"use strict";
+var byte = 207;
+var short = 40000;
+var signedByte = -49;
+var signedShort = -25536;
+
+// ResolveTest
+function main() {
+  var score = 0;
+  var v9 = (byte & 255) << 24 >> 24;
+  if (v9 === -49) {
+    score = score + 1 | 0;
+  }
+  if (v9 === -49) {
+    score = score + 2 | 0;
+  }
+  var v38 = (short & 65535) << 16 >> 16;
+  if (v38 === -25536) {
+    score = score + 4 | 0;
+  }
+  if (v38 === -25536) {
+    score = score + 8 | 0;
+  }
+  var toUnsigned8 = signedByte << 24 >> 24 & 255;
+  if (toUnsigned8 === 207) {
+    score = score + 16 | 0;
+  }
+  if (toUnsigned8 === 207) {
+    score = score + 32 | 0;
+  }
+  var toUnsigned16 = signedShort << 16 >> 16 & 65535;
+  if (toUnsigned16 === 40000) {
+    score = score + 64 | 0;
+  }
+  if (toUnsigned16 === 40000) {
+    score = score + 128 | 0;
+  }
+  return score;
+}
+main();

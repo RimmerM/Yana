@@ -144,3 +144,48 @@ fn targetWidthReadUnit(text: String) -> Int:
     match find(units, 97 :: CodeUnit):
         Just(v) -> checkEqual(v, 2)
         Nothing -> check(False)
+
+@test fn targetWidthBits() -> {}:
+    {-
+       `wordBits` - the width itself, as a number a program may compute with.
+
+       Everything above this asserts an *identity* that holds at either width, deliberately, because
+       a literal out of one target's table is what a fixture about a target-width type must not
+       contain. This case is the one place the number is the subject, and it is still not written
+       down: what is asserted is that the compiler's answer and the two ways the language already had
+       of naming the same width agree.
+
+       **The first of those is what the builtin replaces.** `leadingZeros(0)` at a type *is* its
+       width - `bitWidth` is `width - leadingZeros(value)`, so a zero leaves the width behind - and
+       an ascription is what lets a body write it. It folds, so it was a working spelling; what it is
+       not is one a reader reaches for.
+
+       **The second is the trap.** `bitWidth(value)` is the value's significant bits, and at a small
+       value it is a small number - so a body wanting the word's width and reaching for the obvious
+       name gets 1 where it wanted 64, on a target where nothing else disagrees. That mistake sat
+       inside `Random(USize)` and left the top half of every 64-bit draw zero, through every bound
+       check in that module. The two claims below are one line each and say exactly which is which.
+    -}
+    let bits = wordBits
+    checkNotEqual(bits, (0 :: Size))
+
+    -- The word is one of the two the language admits, and a power of two either way.
+    checkAtLeast(bits, (32 :: Size))
+    checkAtMost(bits, (64 :: Size))
+    check(isPowerOf2(bits))
+
+    -- The source spelling it replaces, which is what pins its meaning: the width of `USize`, not of
+    -- anything held in one.
+    checkEqual(bits, bitcast(leadingZeros(0 :: USize)) :: Size)
+    checkEqual(bits, bitcast(bitWidth(maxValue() :: USize)) :: Size)
+
+    -- And the trap, stated as a claim rather than as a comment: `bitWidth` of a *value* is not this.
+    checkEqual(bitWidth(1 :: USize), (1 :: USize))
+    checkNotEqual(bitcast(bitWidth(1 :: USize)) :: Size, bits)
+
+    -- The top bit of a word, which is the arithmetic a body needing this number is doing: the shift
+    -- is in range at either width, and nothing below it is set.
+    let high = bitcast(bits - 1) :: USize
+    let top = (1 :: USize) `shl` high
+    checkEqual(top `shr` high, (1 :: USize))
+    checkEqual(top, (maxValue() :: USize) - ((maxValue() :: USize) `shr` 1))

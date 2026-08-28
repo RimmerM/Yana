@@ -49,9 +49,20 @@ import Native
    and one machine word on either, and the sequence it produces is identical on both - which is what
    lets a fixture assert the numbers rather than assert that they differ.
 
-   What it costs is stated once here: **there is no `Random(U64)` and no `Random(Long)`**. A caller
-   natively wanting sixty-four bits draws twice and assembles them, and pays a conversion this file
-   would otherwise have paid at every draw on the other target.
+   What it costs is stated once here: **the generator itself never computes at sixty-four bits.**
+   Every instance below is one 32-bit draw narrowed, or two of them assembled - `next` answers a
+   `U32` and nothing in the loop it is drawn in leaves the arithmetic path on either target.
+
+   **That is a statement about this file's own arithmetic and not about which types it instances.**
+   `Random(U64)` and `Random(Long)` are here, and asking for one is what makes a draw a `bigint` on
+   JavaScript: the assembly is two `number` draws, and only the caller's own type is wide. A class
+   member is specialized per use, so a program that never asks for one has no such body in it at all
+   - the emitted JavaScript of a program drawing a `Size` and a `U8` is byte-identical with these
+   declared and without, and holds no `BigInt`. The cost is where the source asks for it.
+
+   `Size` and `USize` are not even that, and the difference is not the width: a `U64` is a `bigint`
+   on JavaScript whatever the target's word is, while `USize` *is* the word, so it is a `number`
+   there and a register natively.
 
    Not cryptographic, and nothing here pretends otherwise: a few outputs determine the whole
    sequence in both directions. `secureRandom` below is the other question, and it is a different
@@ -186,8 +197,61 @@ fn below32(&rng: Rng, limit: U32) -> U32:
     return draw % limit
 
 {-
-   An index into something with `count` elements - the range variant a container wants, and the one
-   that cannot be a class member because `Size` is not a width.
+   The rejection loop at a width one draw does not fill - what `Between(USize)` and `Between(U64)`
+   below are written over, and what the section's "no portable body can" turned out to be wrong
+   about.
+
+   Generic rather than one copy per width, which is the opposite of what every instance below does
+   and is worth the difference: the narrow instances are each one expression, and this is a loop with
+   a threshold in it. Two copies of `below32` narrowed is two spellings of nothing; two copies of a
+   rejection loop is two places for a bias to hide.
+
+   **A limit that fits in thirty-two bits takes the thirty-two bit draw**, which is the first arm and
+   is not an optimization aimed at the common case. `bitWidth(maxValue())` is the type's own width -
+   every bit of an unsigned maximum is set, so the significant-bit count *is* the width - and at
+   `USize` on a 32-bit target that makes the whole condition a constant, so the loop below it is dead
+   code rather than a branch. At `U64` it is a real test, and the arm it guards is the one place this
+   module's arithmetic is a `bigint` on JavaScript.
+
+   **Unsigned only**, which is why `maxValue()` may be read as the width: at a signed type it is the
+   width minus one, and every caller below hands this an unsigned span.
+
+   The sequence a small limit consumes is therefore the same one `below32` always consumed - one
+   draw through the same rejection - which is what keeps `Random.test.yana`'s pinned numbers pinned.
+-}
+fn (Random(a), Integral(a), Ord(a), Bits(a), Bounded(a), Widen(U32, a), Narrow(a, U32))
+   belowWide(&rng: Rng, limit: a) -> a:
+    if limit == 0 then return 0
+
+    if bitWidth(maxValue() :: a) <= 32 || limit <= (widen(maxValue() :: U32) :: a) then
+        return widen(below32(rng, truncate(limit)))
+
+    let threshold = (0 - limit) % limit
+    let &draw = uniform(rng) :: a
+
+    while draw < threshold:
+        draw = uniform(rng)
+
+    return draw % limit
+
+{-
+   An index into something with `count` elements - the range variant a container wants, written over
+   the class rather than beside it.
+
+   > `Size` is the target's word rather than a fixed number of bits, so an instance of
+   > `Random(Size)` would have to know how many draws a word takes and no portable body can.
+   >
+   > **The draw is one 32-bit one, and a count above `Int`'s range is clamped rather than
+   > truncated.** So a container of more than 2^31 - 1 elements is sampled uniformly over its first
+   > 2^31 - 1 and never past them.
+
+   That was this comment, and both halves of it are gone. A portable body *can* know how many draws a
+   word takes, because `bitWidth` answers the width of a target-width type as a constant - see
+   `Random(USize)` below - and with the width answered the clamp has nothing to be about: a count
+   above `Int`'s range is now sampled over all of it rather than over its first 2^31 - 1 elements.
+
+   What is left is a name, which is worth keeping: `below(rng, length(xs))` says *index* where
+   `between(rng, 0, length(xs))` says range, and it is the one range a container asks for.
 
    `Size` is the target's word rather than a fixed number of bits (`compiler/resolve/core.cpp`), so
    an instance of `Random(Size)` would have to know how many draws a word takes and no portable body
@@ -203,11 +267,7 @@ fn below32(&rng: Rng, limit: U32) -> U32:
 
    The clamp compiles away on JavaScript, where `Size` *is* `Int` and the comparison is a constant.
 -}
-pub fn below(&rng: Rng, count: Size) -> Size:
-    if count <= 0 then return 0
-
-    let n = if count > 2147483647 then 2147483647 else truncate(count) :: Int
-    return widen(bitcast(below32(rng, bitcast(n) :: U32)) :: Int) :: Size
+pub fn below(&rng: Rng, count: Size) -> Size = between(rng, 0, count)
 
 {-
    ==========================================================================================
@@ -263,6 +323,93 @@ instance Between(Int):
       let span = bitcast(high - low) :: U32
       return low + (bitcast(below32(rng, span)) :: Int)
 
+{-
+   The target's word, in as many draws as it takes.
+
+   **`bitWidth` is what makes this writable**, and it is the thing the section at the top of this
+   file did not have when it wrote "no portable body can". `Size` is not a fixed number of bits, but
+   its width is not unknown either: `bitWidth` on a target-width type is the type's `sizeOf`
+   shifted, so it is a *constant* by the time any backend sees it. The second draw is therefore dead
+   code on a 32-bit target rather than a test taken at run time, and the shift it guards - which
+   would be a shift by the whole width there - is never reached on the target where it would mean
+   nothing.
+
+   **This is not the `U64` case the section above refuses, and the difference is not the width.** A
+   `U64` is a `bigint` on JavaScript whatever the target's word is; a `USize` *is* the target's word,
+   so it is a `number` on JavaScript and a register natively, and the loop that draws it pays no
+   conversion on either.
+
+   The signed word is the unsigned one reinterpreted, which is `Random(Int)`'s reason above written
+   at a second width: the full range is drawable, the two subtractions in `between` wrap and wrap
+   back, and no special case names the ends.
+-}
+instance Random(USize):
+  fn uniform(&rng: Rng) -> USize:
+      let &value = widen(next(rng)) :: USize
+      if wordBits > 32 then value = (value `shl` 32) `or` (widen(next(rng)) :: USize)
+
+      return value
+
+instance Between(USize):
+  fn between(&rng: Rng, low: USize, high: USize) -> USize:
+      if high <= low then return low
+      return low + belowWide(rng, high - low)
+
+instance Random(Size):
+  fn uniform(&rng: Rng) -> Size = bitcast(uniform(rng) :: USize) :: Size
+
+instance Between(Size):
+  fn between(&rng: Rng, low: Size, high: Size) -> Size:
+      if high <= low then return low
+
+      let span = bitcast(high - low) :: USize
+      return low + (bitcast(belowWide(rng, span)) :: Size)
+
+{-
+   Sixty-four bits, in the two draws it takes - and the one place in this module whose arithmetic is
+   a `bigint` on JavaScript.
+
+   The section at the top of this file refuses `Random(U64)` and the refusal was about a *cost*, not
+   about a possibility: a generator is drawn from in a loop, so a module whose every draw allocated a
+   heap integer on one target is a module that cannot be used there. That argument holds exactly
+   where it was made - `next` answers a `U32`, and every instance above is that draw narrowed or
+   assembled out of `number`s - and it says nothing about a caller who asks for sixty-four bits on
+   purpose.
+
+   **What makes these free to declare is that an unused instance is not emitted.** A class member is
+   specialized per use, so a program that never asks for a `U64` draw has no body here to pay for;
+   verified rather than assumed - `Pol.js` in a program drawing a `Size` and a `U8` is the same size
+   with these declared as without, and contains no `BigInt` at all. A caller that *does* ask gets the
+   `bigint` and gets it where the source said so.
+
+   The signed word is the unsigned one reinterpreted, on `Random(Int)`'s terms: the full range is
+   drawable, `between`'s two subtractions wrap and wrap back, and neither end is a special case.
+-}
+instance Random(U64):
+  fn uniform(&rng: Rng) -> U64:
+      -- Bound rather than written as one expression, because which draw is the high half is part of
+      -- the sequence: the first draw goes on top, which is what `Random(USize)` does above and is
+      -- what makes a `U64` and a 64-bit `USize` the same number from the same seed.
+      let high = widen(next(rng)) :: U64
+      let low = widen(next(rng)) :: U64
+
+      return (high `shl` 32) `or` low
+
+instance Between(U64):
+  fn between(&rng: Rng, low: U64, high: U64) -> U64:
+      if high <= low then return low
+      return low + belowWide(rng, high - low)
+
+instance Random(I64):
+  fn uniform(&rng: Rng) -> I64 = bitcast(uniform(rng) :: U64) :: I64
+
+instance Between(I64):
+  fn between(&rng: Rng, low: I64, high: I64) -> I64:
+      if high <= low then return low
+
+      let span = bitcast(high - low) :: U64
+      return low + (bitcast(belowWide(rng, span)) :: I64)
+
 -- The narrow widths, as the low bits of a draw. The *low* bits and not the high: xoshiro's
 -- scrambler leaves every bit of its output equidistributed, so there is no weak end to avoid here
 -- the way there is in a linear congruential generator.
@@ -281,6 +428,29 @@ instance Between(U16):
   fn between(&rng: Rng, low: U16, high: U16) -> U16:
       if high <= low then return low
       return low + (truncate(below32(rng, widen(high - low) :: U32)) :: U16)
+
+-- And signed, which is `Random(Int)`'s reinterpretation at the two narrow widths: the same draw read
+-- as a signed number, and the same pair of subtractions that wrap and wrap back, so the full range
+-- is drawable and neither end is a special case.
+instance Random(I8):
+  fn uniform(&rng: Rng) -> I8 = bitcast(uniform(rng) :: U8) :: I8
+
+instance Between(I8):
+  fn between(&rng: Rng, low: I8, high: I8) -> I8:
+      if high <= low then return low
+
+      let span = widen(bitcast(high - low) :: U8) :: U32
+      return low + (bitcast(truncate(below32(rng, span)) :: U8) :: I8)
+
+instance Random(I16):
+  fn uniform(&rng: Rng) -> I16 = bitcast(uniform(rng) :: U16) :: I16
+
+instance Between(I16):
+  fn between(&rng: Rng, low: I16, high: I16) -> I16:
+      if high <= low then return low
+
+      let span = widen(bitcast(high - low) :: U16) :: U32
+      return low + (bitcast(truncate(below32(rng, span)) :: U16) :: I16)
 
 -- One bit. Any bit of the draw would do - the scrambler leaves all thirty-two equidistributed - and
 -- the top one is taken because shifting it down is a shift and nothing else, where a bit out of the

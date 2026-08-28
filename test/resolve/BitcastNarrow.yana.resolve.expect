@@ -1,0 +1,143 @@
+let image$base: () = <none>
+
+let &byte: U32 = 207
+
+let &short: U32 = 40000
+
+let &signedByte: I32 = 18446744073709551567
+
+let &signedShort: I32 = 18446744073709526080
+
+fn main() -> I32 {
+  b0:
+    %score = alloc : I32
+    init %score, 0
+    %v3 = load byte : U32
+    %v4 = cast %v3 : U8
+    %toSigned8 = bitcast %v4 : I8
+    %v8 = neg 49 : I32
+    %v9 = cast %toSigned8 : I32
+    %v10 = cmp_eq %v9, %v8 : Bool
+    je %v10, b1, b2
+
+  b1:
+    %v12 = load %score : I32
+    %v15 = add %v12, 1 : I32
+    assign %score, %v15
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = cast %toSigned8 : I32
+    %v22 = neg 49 : I32
+    %v23 = cmp_eq %v19, %v22 : Bool
+    je %v23, b4, b5
+
+  b4:
+    %v25 = load %score : I32
+    %v28 = add %v25, 2 : I32
+    assign %score, %v28
+    jmp b6
+
+  b5:
+    jmp b6
+
+  b6:
+    %v32 = load short : U32
+    %v33 = cast %v32 : U16
+    %toSigned16 = bitcast %v33 : I16
+    %v37 = neg 25536 : I32
+    %v38 = cast %toSigned16 : I32
+    %v39 = cmp_eq %v38, %v37 : Bool
+    je %v39, b7, b8
+
+  b7:
+    %v41 = load %score : I32
+    %v44 = add %v41, 4 : I32
+    assign %score, %v44
+    jmp b9
+
+  b8:
+    jmp b9
+
+  b9:
+    %v48 = cast %toSigned16 : I32
+    %v51 = neg 25536 : I32
+    %v52 = cmp_eq %v48, %v51 : Bool
+    je %v52, b10, b11
+
+  b10:
+    %v54 = load %score : I32
+    %v57 = add %v54, 8 : I32
+    assign %score, %v57
+    jmp b12
+
+  b11:
+    jmp b12
+
+  b12:
+    %v61 = load signedByte : I32
+    %v62 = cast %v61 : I8
+    %toUnsigned8 = bitcast %v62 : U8
+    %v66 = cmp_eq %toUnsigned8, 207 : Bool
+    je %v66, b13, b14
+
+  b13:
+    %v68 = load %score : I32
+    %v71 = add %v68, 16 : I32
+    assign %score, %v71
+    jmp b15
+
+  b14:
+    jmp b15
+
+  b15:
+    %v75 = cast %toUnsigned8 : U32
+    %v78 = cmp_eq %v75, 207 : Bool
+    je %v78, b16, b17
+
+  b16:
+    %v80 = load %score : I32
+    %v83 = add %v80, 32 : I32
+    assign %score, %v83
+    jmp b18
+
+  b17:
+    jmp b18
+
+  b18:
+    %v87 = load signedShort : I32
+    %v88 = cast %v87 : I16
+    %toUnsigned16 = bitcast %v88 : U16
+    %v92 = cmp_eq %toUnsigned16, 40000 : Bool
+    je %v92, b19, b20
+
+  b19:
+    %v94 = load %score : I32
+    %v97 = add %v94, 64 : I32
+    assign %score, %v97
+    jmp b21
+
+  b20:
+    jmp b21
+
+  b21:
+    %v101 = cast %toUnsigned16 : U32
+    %v104 = cmp_eq %v101, 40000 : Bool
+    je %v104, b22, b23
+
+  b22:
+    %v106 = load %score : I32
+    %v109 = add %v106, 128 : I32
+    assign %score, %v109
+    jmp b24
+
+  b23:
+    jmp b24
+
+  b24:
+    %v113 = load %score : I32
+    ret %v113
+}

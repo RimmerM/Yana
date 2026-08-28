@@ -76,9 +76,32 @@ enum class Builtin: U8 {
      * way to say is the register's own width as a number a program may compute with.
      */
     vectorBytes,
+
+    /*
+     * How many bits the target's word has - `Core/Bits.yana`, and the width of `Size` and `USize`.
+     *
+     * Analysis-Modules.md's Move 2 made those two primitives whose width the *target* answers, which
+     * is what lets a 32-bit native target exist and is why nothing above `repr` may assume 64. The
+     * cost of that is a body which genuinely needs the number - one that assembles a word out of
+     * 32-bit pieces, or masks against its top - and until this role there was no way to say it.
+     *
+     * **There is a way to say it in source, and that is the reason for a role rather than an
+     * argument against one.** `leadingZeros(0 :: USize)` is the type's own width and folds to a
+     * constant; `Random/Random.yana` had it behind a `wordBits()` of its own. The near miss is what
+     * this replaces: the obvious spelling, `bitWidth(value)`, is the *value's* significant bits, so
+     * it compiles, runs, and quietly answers 32 about a 64-bit word. A role is a name with one
+     * meaning, and the alternative was that expression copied per file with a comment beside each
+     * saying which of the two it had to be.
+     *
+     * Bits and not bytes, where `vectorBytes` above is bytes. A vector's byte count is what a caller
+     * computes addresses with and `sizeOf` already answers for anything; a word's *bit* count is
+     * what a shift distance and a mask are written in, and dividing by eight at every use is how a
+     * reader stops trusting the name.
+     */
+    wordBits,
 };
 
-constexpr Size kBuiltinCount = 5;
+constexpr Size kBuiltinCount = 6;
 
 /*
  * How many of them are the command line's, which is the one thing about this order another stage

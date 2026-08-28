@@ -1,0 +1,54 @@
+{-
+   A bitcast between the two readings of a sub-register width, which is where the value's bits stay
+   put and the *register's* do not.
+
+   A narrow value is held extended - unsigned zero-extended, signed sign-extended - so which
+   extension a register carries is a property of the type rather than of the bits in it. A `Bitcast`
+   is the one conversion that changes the type without touching the value, which makes it exactly the
+   point where the required extension changes and the bits above the value do not.
+
+   Lowering said otherwise: *"`truncateToWidth` is deliberately absent, because both sides fill the
+   same register"*. Both sides do fill it, and they disagreed about what is in the part above the
+   value - so natively `bitcast(207 :: U8) :: I8` answered **207** and `bitcast(-49 :: I8) :: U8`
+   answered **4294967247**, against a JavaScript build that was right about both.
+
+   **`U32`/`I32` and `U64`/`I64` were correct throughout**, which is why this survived: they fill
+   their register, so there is no part above the value to disagree about. Every bitcast in `lib/` was
+   at one of those widths until `Random(I8)` reinterpreted a draw, and the whole 782-fixture corpus
+   moved not one golden when this was fixed.
+
+   The globals are what keep the constant folder out of it. Folding a bitcast has always been right -
+   it is the *runtime* value in a register that was wrong - so a fixture written with literals passes
+   either way and asserts nothing.
+
+   Each claim is a bit, so a wrong answer names its failing cases rather than being one number that
+   differs. The widening halves are not decoration: the bug reached daylight through `Show`, which
+   widens before it divides, and equality at the narrow width alone can be right while the register
+   above it is not.
+-}
+
+let &byte = 207 :: U32
+let &short = 40000 :: U32
+let &signedByte = -49 :: I32
+let &signedShort = -25536 :: I32
+
+fn main() -> Int:
+    let &score = 0 :: Int
+
+    let toSigned8 = bitcast(truncate(byte) :: U8) :: I8
+    if toSigned8 == -49 then score = score + 1
+    if (widen(toSigned8) :: I32) == -49 then score = score + 2
+
+    let toSigned16 = bitcast(truncate(short) :: U16) :: I16
+    if toSigned16 == -25536 then score = score + 4
+    if (widen(toSigned16) :: I32) == -25536 then score = score + 8
+
+    let toUnsigned8 = bitcast(truncate(signedByte) :: I8) :: U8
+    if toUnsigned8 == 207 then score = score + 16
+    if (widen(toUnsigned8) :: U32) == 207 then score = score + 32
+
+    let toUnsigned16 = bitcast(truncate(signedShort) :: I16) :: U16
+    if toUnsigned16 == 40000 then score = score + 64
+    if (widen(toUnsigned16) :: U32) == 40000 then score = score + 128
+
+    return score

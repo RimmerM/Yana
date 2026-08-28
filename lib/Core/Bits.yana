@@ -80,6 +80,36 @@ pub class Bounded(a):
   fn maxValue() -> a
 
 {-
+   How many bits the target's word has - the width of `Size` and of `USize`, as a constant.
+
+   **The compiler supplies it** - `@builtin(wordBits)`, and the zero below is what the declaration
+   is required to say: a number written here would be a line of source the compiler overwrites, so
+   the initializer states the shape and the target states the value. 64 natively and 32 on
+   JavaScript today, and whatever a 32-bit native target answers on the day there is one, which is
+   the property Analysis-Modules.md's Move 2 exists to keep.
+
+   **A body that needs this is one assembling a word out of narrower pieces**, and there are few of
+   them by design: nearly everything about a width is asked of the *type* instead - `bitWidth`,
+   `bitsUpTo`, `minValue` and `maxValue` above all name a width without a program ever writing the
+   number. `Random/Random.yana` is the caller this exists for, where a word is drawn as one 32-bit
+   value or two.
+
+   **There is a way to say it in source, and it is the reason for a builtin rather than an argument
+   against one.** `leadingZeros(0 :: USize)` is the type's own width - that is `bitWidth`'s comment
+   below read backwards - and it folds. What it is not is *obvious*: the spelling a reader reaches
+   for first is `bitWidth(value)`, which is the **value's** significant bits, so a 32-bit draw
+   answers at most 32 whatever the word is. That version compiled, ran, and passed every bound check
+   in the fixture beside it while the top half of every 64-bit draw stayed zero. One name with one
+   meaning is worth more here than one fewer declaration.
+
+   Bits and not bytes, where `Core/Vector.yana`'s `vectorBytes` beside it is bytes: a vector's byte
+   count is what addresses are computed with and `sizeOf` answers it for anything, while a word's bit
+   count is what a shift distance and a mask are written in.
+-}
+@builtin(wordBits)
+pub let wordBits = 0 :: Size
+
+{-
    A type whose values have a sign - `Base.h`'s `hasSign`, and the operation that fact is *for*.
 
    §2.5 of Analysis-Library.md asks for this as a marker class with `abs` beside it. It carries `abs`

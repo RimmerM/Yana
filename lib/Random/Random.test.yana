@@ -154,6 +154,190 @@ let pinnedSeed = 20260824
     checkGreater(tails, 20)
     checkEqual(heads + tails, 100)
 
+@test fn signedWidths() -> {}:
+    {-
+       The two narrow widths, signed - the pair that made the compiler say something.
+
+       `Random(I8)` is a `U8` draw reinterpreted, and reinterpreting between the two readings of a
+       sub-register width is where `bitcast` lowered to nothing natively: it left the register with
+       the wrong half above the value, so `bitcast(207 :: U8) :: I8` answered 207 rather than -49 on
+       a native build and -49 on a JavaScript one. Reaching both ends is what says the
+       reinterpretation happened - an instance that widened instead would never produce a negative
+       number at all.
+
+       **A case of its own rather than the tail of `widths`**, and the reason is worth stating: the
+       same claims written after that case's two tracking loops answer 127 for both ends on a native
+       build, at a shape a JavaScript build gets right. That is a *third* thing, not this one and not
+       the `bitcast` above - a narrow signed local losing its sign under enough pressure in one
+       function - and it reproduces with no `bitcast` in it at all. This case asserts what it says it
+       asserts; that one is written up rather than worked around here.
+    -}
+    let &rng = newRng(11)
+    let &lowSigned = 127 :: I8
+    let &highSigned = -128 :: I8
+    let &negatives = 0 :: Int
+    let &m = 0 :: Size
+
+    while m < 4000:
+        let signedByte = uniform(rng) :: I8
+        if signedByte < lowSigned then lowSigned = signedByte
+        if signedByte > highSigned then highSigned = signedByte
+        if signedByte < 0 then negatives = negatives + 1
+        m = m + 1
+
+    checkEqual(lowSigned, -128)
+    checkEqual(highSigned, 127)
+    checkGreater(negatives, 1800)
+    checkLess(negatives, 2200)
+
+    -- The wider of the two, at its own ends.
+    let &lowShort = 32767 :: I16
+    let &highShort = -32768 :: I16
+    let &n = 0 :: Size
+
+    while n < 4000:
+        let signedShort = uniform(rng) :: I16
+        if signedShort < lowShort then lowShort = signedShort
+        if signedShort > highShort then highShort = signedShort
+        n = n + 1
+
+    checkLess(lowShort, -32000)
+    checkGreater(highShort, 32000)
+
+    -- A range that straddles zero, which is the two subtractions wrapping and wrapping back.
+    let &k = 0 :: Size
+    while k < 400:
+        let byte = between(rng, -5 :: I8, 5)
+        checkAtLeast(byte, -5)
+        checkLess(byte, 5)
+
+        let short = between(rng, -1000 :: I16, 1000)
+        checkAtLeast(short, -1000)
+        checkLess(short, 1000)
+        k = k + 1
+
+@test fn words() -> {}:
+    {-
+       The word-width instances, and the one claim a fixture that does not know its own word width
+       has to make on its own terms: **every bit of the word is drawn.**
+
+       That is not a formality. `Random(USize)` assembles the word from as many 32-bit draws as it
+       takes, and the first version of it asked `bitWidth(value)` - the *value's* significant bits -
+       where it meant the type's width. It compiled, it ran, and it passed every bound check in this
+       file, because the top half of each draw was simply zero. The union of the draws is what
+       separates the two, at whatever width this target's word happens to be.
+    -}
+    let &rng = newRng(pinnedSeed)
+    let width = wordBits
+    let &seen = 0 :: USize
+    let &i = 0 :: Size
+
+    while i < 200:
+        seen = seen `or` (uniform(rng) :: USize)
+        i = i + 1
+
+    checkEqual(seen, maxValue() :: USize)
+    checkAtLeast(width, 32)
+
+    -- The signed word is the unsigned one reinterpreted, so half of it is negative. A body that
+    -- widened instead of reinterpreting would answer non-negative every time.
+    let &negatives = 0 :: Int
+    let &j = 0 :: Size
+
+    while j < 200:
+        if (uniform(rng) :: Size) < 0 then negatives = negatives + 1
+        j = j + 1
+
+    checkGreater(negatives, 60)
+    checkLess(negatives, 140)
+
+    -- Both ends of a range, the same way every other width is checked here.
+    let &k = 0 :: Size
+    while k < 400:
+        let n = between(rng, 10 :: Size, 20)
+        checkAtLeast(n, 10)
+        checkLess(n, 20)
+
+        let one = between(rng, 7 :: USize, 8)
+        checkEqual(one, 7)
+        k = k + 1
+
+    {-
+       A range over the whole word, which on a 64-bit target is the span no single 32-bit draw
+       covers - `belowWord`'s rejection loop rather than its first branch. Half the values are above
+       half the range at any width, so the assertion is the same sentence on both targets while the
+       code under it is not.
+
+       `maxValue()` is written rather than a literal for exactly that reason: a number above 2^32
+       spelled out here would not compile at all where the word is 32 bits, which is a fixture that
+       cannot run on the target it is asserting about.
+    -}
+    let half = (maxValue() :: USize) `shr` 1
+    let &above = 0 :: Int
+    let &m = 0 :: Size
+
+    while m < 200:
+        if between(rng, 0 :: USize, maxValue() :: USize) > half then above = above + 1
+        m = m + 1
+
+    checkGreater(above, 60)
+    checkLess(above, 140)
+
+@test fn wide() -> {}:
+    {-
+       Sixty-four bits, which is the one width in this module whose arithmetic is a `bigint` on
+       JavaScript - and the reason the file declares it anyway is that an unused instance is not
+       emitted, so the cost lands only where a caller asks for one. This case is the asking.
+
+       The claims are the word case's at a fixed width: every bit is drawn, the signed reading is the
+       unsigned one reinterpreted so half of it is negative, and a span wider than a single draw goes
+       through the rejection loop rather than through the 32-bit shortcut.
+    -}
+    let &rng = newRng(pinnedSeed)
+    let &seen = 0 :: U64
+    let &i = 0 :: Size
+
+    while i < 200:
+        seen = seen `or` (uniform(rng) :: U64)
+        i = i + 1
+
+    checkEqual(seen, maxValue() :: U64)
+
+    let &negatives = 0 :: Int
+    let &j = 0 :: Size
+
+    while j < 200:
+        if (uniform(rng) :: I64) < 0 then negatives = negatives + 1
+        j = j + 1
+
+    checkGreater(negatives, 60)
+    checkLess(negatives, 140)
+
+    {-
+       A span of 2^40, which no single 32-bit draw covers - so this is `belowWide`'s rejection arm
+       and not its shortcut. About 255 in 256 of the draws land above 2^32, which is what makes the
+       bound below an assertion about the arm rather than about the seed.
+    -}
+    let &above = 0 :: Int
+    let &k = 0 :: Size
+
+    while k < 200:
+        let v = between(rng, 0 :: U64, 1099511627776)
+        checkLess(v, 1099511627776)
+        if v >= 4294967296 then above = above + 1
+        k = k + 1
+
+    checkGreater(above, 150)
+
+    -- And the shortcut beside it: a small span at a wide type still takes one draw and still lands
+    -- in range, which is the arm every ordinary caller of a `U64` range reaches.
+    let &n = 0 :: Size
+    while n < 200:
+        let v = between(rng, 100 :: U64, 110)
+        checkAtLeast(v, 100)
+        checkLess(v, 110)
+        n = n + 1
+
 @test fn reals() -> {}:
     {-
        The unit interval, at both widths. `1.0` is not in it and cannot be - the assembled integer is
