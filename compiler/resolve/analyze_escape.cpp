@@ -220,20 +220,30 @@ static bool escapeRound(Analysis& analysis) {
                 transferredProvenance(analysis, value, *leaving);
 
                 /*
-                 * A slice's descriptor goes with it, and for the same reason it is reached through
-                 * Local::viewOf - Implementation-Containers.md §5's `elements`, whose whole body
-                 * builds a descriptor out of an argument and hands it back. The descriptor is a
-                 * local of this frame, so without this it is a root that is not a parameter's and
-                 * lands on the heap - two words allocated and never freed, per call, for storage
-                 * whose two words are copied out at the return anyway.
+                 * A slice's descriptor goes with the result rather than outliving the frame -
+                 * Implementation-Containers.md §5's `elements`, whose whole body builds a descriptor
+                 * out of an argument and hands it back. The descriptor is a local of this frame, so
+                 * read as a root it is one that is not a parameter's, and it lands on the heap - two
+                 * words allocated and never freed, per call, for storage whose two words are copied
+                 * out at the return anyway.
+                 *
+                 * resolveViewRoots is what replaces such a slot with what it refers to, and the
+                 * reason it is that rather than the `Local::viewOf` step this used to make is
+                 * written up there: a descriptor a *call* filled carries no `viewOf` link, so a
+                 * window reaching its root through two calls kept its descriptor on the heap *and*
+                 * marked the argument retained - which then makes the caller's own container outlive
+                 * its frame, and its caller's, for a slot that never needed to.
                  */
+                ScratchProvenance rooted(analysis);
+                resolveViewRoots(analysis, *leaving, *rooted);
+
                 for(Size l = 0; l < analysis.localCount; l++) {
                     if(!isParameterSlot(analysis, viewedRoot(analysis, U32(l)))) continue;
 
-                    leaving->locals.set(l, false);
+                    rooted->locals.set(l, false);
                 }
 
-                changed = markEscaped(analysis, *leaving, Escape::Owned, analysis.order[i]) || changed;
+                changed = markEscaped(analysis, *rooted, Escape::Owned, analysis.order[i]) || changed;
                 break;
             }
 

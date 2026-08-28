@@ -36,18 +36,22 @@ instance Chunked(String, CodeUnit):
 
    A `Flat(CodeUnit)` over the whole string, rooted in it by the `return` marker, with the vector
    transfers `Container.yana` declares over one. A scan that wants *part* of the string takes its
-   window out of this with `slice`, **at the call site rather than behind a second function**, and
-   that is a compiler limitation rather than a preference: a borrow that reaches a `return` position
-   through *two* calls - `elements` and then `slice` - loses its root on the way, and the checker
-   refuses the second function with "rooted in storage the caller does not own". One call reaches a
-   return position fine, and a chain of any length is fine in an expression whose result stays local,
-   which is what every use below is.
+   window out of this with `slice` at the call site, which is now a preference rather than the
+   compiler limitation it used to be: a borrow reaching a `return` position through *two* calls -
+   `elements` and then `slice` - lost its root on the way, and the checker refused the second
+   function with "rooted in storage the caller does not own". That is fixed (`resolveViewRoots` in
+   `analyze_provenance.cpp`, with `test/resolve/SliceRoot.yana` over both halves), so a windowing
+   helper may be written where one earns its place. None does here: the windows below each want
+   different bounds, and a helper would carry the same `@inline` this does, so the two spellings
+   would be the same code.
 
-   **A scan that wants the whole string takes no slice at all**, and four of them used to:
+   **A scan that wants the whole string takes no slice at all**, and six of them used to:
    `slice(allUnits(text), 0, length(text))` is the identity, and the loops it fed were bounded by
    their own `count` rather than by the container's length, so the slice was a call that computed
    what it was handed. `bench/text` prices it at about 1.2 ns per call on the short operations and at
-   28% of `spansOn`'s line walk, which is one `findAscii` per part.
+   28% of `spansOn`'s line walk, which is one `findAscii` per part. The last two were the ones whose
+   whole-string operand is named something else - `startsWith`'s *prefix* and `String.find`'s
+   *needle* - which is why they outlived the first four.
 
    **`@inline`, and it is worth the measurement rather than the reflex.** This is two loads and a
    descriptor; left to the inliner's own budget it was a `call` in every scan in this file, with the
@@ -302,7 +306,11 @@ pub fn String.find(haystack: String, needle: String, from: Size = 0) -> Maybe(Si
     if inner == (0 :: Size) then return Just(at)
     if at + inner > outer then return Nothing
 
-    let sought = slice(allUnits(needle), 0, inner)
+    -- The needle is not sliced and the haystack is, which is the asymmetry `startsWith` above states
+    -- and the same reason: `inner` *is* the needle's length, so a slice here computes what it was
+    -- handed. `unitsEqual` reads its count off the *left* operand, so even this one's length field
+    -- was never looked at - the call was the whole of the cost.
+    let sought = allUnits(needle)
     let firstUnit = truncate(String.unit(needle, 0)) :: CodeUnit
     let lastUnit = truncate(String.unit(needle, inner - 1)) :: CodeUnit
 

@@ -316,7 +316,7 @@ pub fn displayWidth(text: String) -> Size:
 pub fn repeatText(unit: String, count: Size) -> String:
     let &out = String.ofCapacity(length(unit) * count)
     for _ in 0 .. count:
-        out.push(copy(unit))
+        out.push(unit)
 
     return out
 
@@ -387,7 +387,7 @@ pub fn clipTo(text: String, width: Size, mark: String) -> String:
 
         out.push(String.slice(text, start, i))
 
-    out.push(copy(mark))
+    out.push(mark)
     if styled then out.push("\x1b[0m")
     return out
 
@@ -583,13 +583,13 @@ fn alignIn(text: String, width: Size, align: Align) -> String:
 -- the padding a boxed cell has.
 fn boxRule(g: Glyphs, widths: [Size], indent: Size, left: String, join: String, right: String) -> String:
     let &out = spaces(indent)
-    out.push(copy(left))
+    out.push(left)
 
     for c in 0 .. length(widths):
         out.push(repeatText(g.horizontal, widths[c] + 2))
-        if c + 1 < length(widths) then out.push(copy(join))
+        if c + 1 < length(widths) then out.push(join)
 
-    out.push(copy(right))
+    out.push(right)
     out.push("\n")
     return out
 
@@ -619,7 +619,7 @@ fn Table.renderRow(self: Table, widths: [Size], cells: [String], from: Size, g: 
         if at < length(cells) then shown = copy(cells[at])
 
         out.push(alignIn(shown, widths[c], self.columns[c].align))
-        if c + 1 < wide then out.push(copy(separator))
+        if c + 1 < wide then out.push(separator)
 
     if boxed:
         out.push(" {g.vertical}")

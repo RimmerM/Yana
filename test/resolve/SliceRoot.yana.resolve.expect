@@ -1658,6 +1658,43 @@ fn partial() -> I32 {
     ret %v19
 }
 
+fn window(%xs: Array(I32), %from: Size, %to: Size) -> Flat(I32) {
+  b0:
+    %v3 = borrow %xs : 'Array(I32)
+    %v4 = call Contiguous(Array(a), a).elements(I32), %v3 : Flat(I32)
+    %v5 = borrow %local1 : 'Flat(I32)
+    %v6 = call slice(I32), %v5, %from, %to : Flat(I32)
+    ret %v6
+}
+
+fn deeper(%xs: Array(I32)) -> Flat(I32) {
+  b0:
+    %v3 = borrow %xs : 'Array(I32)
+    %v4 = call window, %v3, 1, 7 : Flat(I32)
+    %v9 = borrow %local1 : 'Flat(I32)
+    %v10 = call slice(I32), %v9, 1, 5 : Flat(I32)
+    ret %v10
+}
+
+fn viaReturn() -> I32 {
+  b0:
+    %v1 = alloc : (i: Size) -> I32
+    %v2 = symbol ResolveTest.lambda$25 : %()
+    init %local0.code, %v2
+    %v5 = cast 0 : %()
+    init %local0.env, %v5
+    %xs = call newArray(I32), 8, %v1 : Array(I32)
+    %v11 = borrow %local1 : 'Array(I32)
+    %v12 = call window, %v11, 0, 4 : Flat(I32)
+    %v13 = call sumVectors(Flat(I32), I32), %v12 : I32
+    %v14 = borrow %local1 : 'Array(I32)
+    %v15 = call deeper, %v14 : Flat(I32)
+    %v16 = call sumVectors(Flat(I32), I32), %v15 : I32
+    drop %local1 via Reclaim(Array(a)).reclaim(I32)
+    %v17 = add %v13, %v16 : I32
+    ret %v17
+}
+
 fn main() -> I32 {
   b0:
     %v0 = call viaTwoCalls : I32
@@ -1665,7 +1702,9 @@ fn main() -> I32 {
     %v2 = add %v0, %v1 : I32
     %v3 = call partial : I32
     %v4 = add %v2, %v3 : I32
-    ret %v4
+    %v5 = call viaReturn : I32
+    %v6 = add %v4, %v5 : I32
+    ret %v6
 }
 
 fn ResolveTest.lambda$22(%env: %{}, %i: Size) -> I32 {
@@ -1683,6 +1722,13 @@ fn ResolveTest.lambda$23(%env: %{}, %i: Size) -> I32 {
 }
 
 fn ResolveTest.lambda$24(%env: %{}, %i: Size) -> I32 {
+  b0:
+    %v4 = add %i, 1 : Size
+    %v5 = cast %v4 : I32
+    ret %v5
+}
+
+fn ResolveTest.lambda$25(%env: %{}, %i: Size) -> I32 {
   b0:
     %v4 = add %i, 1 : Size
     %v5 = cast %v4 : I32

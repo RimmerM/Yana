@@ -1017,7 +1017,11 @@ void computeLastUseMoves(Analysis& analysis) {
         for(Size i = range.end; i > range.first; i--) {
             auto& instruction = *analysis.local[analysis.order[i - 1]];
 
-            eachTransferOperand(analysis.local, instruction, [&](ModulePtr<Value> operand, LocationId) {
+            // Whether this departure is a move is one question and where it happens is another, and
+            // for a phi input the two have different answers - see the loop below.
+            auto departure = i - 1;
+
+            auto mark = [&](ModulePtr<Value> operand) {
                 auto root = departingSlot(analysis, operand);
                 if(root == maxLimit<U32> || live[root]) return;
 
@@ -1030,8 +1034,50 @@ void computeLastUseMoves(Analysis& analysis) {
                 if(!transfersOwnership(analysis, type)) return;
 
                 analysis.lastUseMoves.set(analysis.local[operand]->id, true);
-                analysis.effects[i - 1].moves.push(root);
-            });
+                analysis.effects[departure].moves.push(root);
+            };
+
+            if(instruction.kind == Value::Phi) {
+                /*
+                 * A phi input departs on its *edge*, and recording the move at the phi instead was a
+                 * use-after-free.
+                 *
+                 * `fn f(m: Maybe(Int)) -> String = match m: Just(i) -> "{i}"` builds the string in
+                 * an arm and merges it: the arm's last instruction reads the whole slot for the phi,
+                 * and "dead afterwards" is true, so the read is a move. Written into the phi's own
+                 * effects that move lands in the *successor*, so the arm still owned the buffer at
+                 * its terminator and the drop placer released it there - between the arm building
+                 * the string and the merge reading it. The block-bodied spelling of the same
+                 * function returns out of the arm and has no phi, which is why one form worked and
+                 * the other handed back freed memory.
+                 *
+                 * The correction is attributePhiEdges' exactly, and for the same reason: the operand
+                 * list says the use is at the phi and the CFG says it is on the edge, and everything
+                 * the ownership lattice concludes is positional. **Only the position moves.** The
+                 * liveness question stays where it is - `live` here is the set after the phi, which
+                 * is "afterwards" for a value whose only reader is the merge, while the set after the
+                 * predecessor's terminator holds this very input and would answer that every merged
+                 * value is still live.
+                 *
+                 * Safe to write into a block this walk has not reached: `applyBackward` reads defs,
+                 * uses, overwrites and joins, and never `moves` - the lattice is the only reader, and
+                 * it runs after this.
+                 */
+                for(auto input: ((InstPhi&)instruction).inputs.contents(analysis.local)) {
+                    auto from = analysis.local[input.block];
+                    if(!from->terminator()) continue;
+
+                    auto index = analysis.indexOf.get(U32(from->terminator()));
+                    if(!index) continue;
+
+                    departure = index.unwrap();
+                    mark(input.value);
+                }
+            } else {
+                eachTransferOperand(analysis.local, instruction, [&](ModulePtr<Value> operand, LocationId) {
+                    mark(operand);
+                });
+            }
 
             applyBackward(analysis, i - 1, i, live);
         }

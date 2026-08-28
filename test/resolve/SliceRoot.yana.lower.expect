@@ -911,16 +911,51 @@ main<complex>(): I32 {
     %v_61 = vreduce_imax %v_60: I32
     call_complex Reclaim(Array(a)).reclaim(I32), %v_25
     %v_62 = add %v_21, %v_61: I32
-    ret %v_62
+    %v_63 = alloca 16, 8: Ptr
+    store %v_63, ResolveTest.lambda$25, 8
+    %v_64 = bitcast 0: Ptr
+    %v_65 = add %v_63, 8: Ptr
+    store %v_65, %v_64, 8
+    %xs = alloca 16, 8: Ptr
+    call_complex newArray(I32), %xs, 8, %v_63
+    %v_66 = add %xs, 12: Ptr
+    %v_67 = load %v_66, 4: I32
+    %v_68 = cast %v_67: I64
+    %v_69 = load %xs, 8: Ptr
+    %v_70 = alloca 16, 8: Ptr
+    call_complex slice(I32), %v_70, %v_69, %v_68, 0, 4
+    %xs$items = load %v_70, 8: Ptr
+    %v_71 = add %v_70, 8: Ptr
+    %xs$length = loads %v_71, 8: I64
+    %v_72 = call_complex sumVectors(Flat(I32), I32), %xs$items, %xs$length: I32
+    %v_73 = add %xs, 12: Ptr
+    %v_74 = load %v_73, 4: I32
+    %v_75 = cast %v_74: I64
+    %v_76 = load %xs, 8: Ptr
+    %v_77 = alloca 16, 8: Ptr
+    call_complex slice(I32), %v_77, %v_76, %v_75, 1, 7
+    %self$items = load %v_77, 8: Ptr
+    %v_78 = add %v_77, 8: Ptr
+    %self$length = loads %v_78, 8: I64
+    %v_79 = alloca 16, 8: Ptr
+    call_complex slice(I32), %v_79, %self$items, %self$length, 1, 5
+    %xs$items = load %v_79, 8: Ptr
+    %v_80 = add %v_79, 8: Ptr
+    %xs$length = loads %v_80, 8: I64
+    %v_81 = call_complex sumVectors(Flat(I32), I32), %xs$items, %xs$length: I32
+    call_complex Reclaim(Array(a)).reclaim(I32), %xs
+    %v_82 = add %v_72, %v_81: I32
+    %v_83 = add %v_62, %v_82: I32
+    ret %v_83
   }
 
   b_41 {
-    %v_63 = shl %v_43, 2: I64
-    %v_64 = add %xs$items, %v_63: Ptr
-    %v_65 = load %v_64, 16: i32x4
-    %v_66 = select %v_38, %v_65, %v_40: i32x4
-    %v_67 = cmp_igt %v_40, %v_66: m32x4
-    %v_42 = select %v_67, %v_40, %v_66: i32x4
+    %v_84 = shl %v_43, 2: I64
+    %v_85 = add %xs$items, %v_84: Ptr
+    %v_86 = load %v_85, 16: i32x4
+    %v_87 = select %v_38, %v_86, %v_40: i32x4
+    %v_88 = cmp_igt %v_40, %v_87: m32x4
+    %v_42 = select %v_88, %v_40, %v_87: i32x4
     %v_44 = add %v_43, %v_33: I64
     jmp b_39
   }
@@ -943,6 +978,14 @@ ResolveTest.lambda$23<complex>(%env: Ptr, %i: I64): I32 {
 }
 
 ResolveTest.lambda$24<complex>(%env: Ptr, %i: I64): I32 {
+  b_0 {
+    %v_1 = add %i, 1: I64
+    %v_2 = cast %v_1: I32
+    ret %v_2
+  }
+}
+
+ResolveTest.lambda$25<complex>(%env: Ptr, %i: I64): I32 {
   b_0 {
     %v_1 = add %i, 1: I64
     %v_2 = cast %v_1: I32

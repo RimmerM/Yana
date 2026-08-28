@@ -111,13 +111,22 @@ bool deriveSummary(Analysis& analysis) {
         joinProvenance(*returned, *leaving);
     }
 
+    /*
+     * The roots the result actually has, resolved through any frame slot that is only holding a
+     * view - see resolveViewRoots, which is where the reason a local can be a step rather than an
+     * answer is written up. Both passes that ask about a result need that resolution and they have
+     * to agree, so it is one function rather than a walk here and a loop in computeOutliving.
+     */
+    ScratchProvenance rooted(analysis);
+    resolveViewRoots(analysis, *returned, *rooted);
+
     // The roots that are arguments with no slot, which arrive already in the shape this mask wants -
     // see Provenance::args.
-    U64 actual = returned->args;
-    auto invalid = returned->global || returned->unknown;
+    U64 actual = rooted->args;
+    auto invalid = rooted->global || rooted->unknown;
 
     // Over the roots the return value has rather than over the frame - see IndexSet::forEach.
-    returned->locals.forEach([&](Size l) {
+    rooted->locals.forEach([&](Size l) {
         auto slot = analysis.function.localAt(analysis.local, viewedRoot(analysis, U32(l)));
         auto arg = slot.value && analysis.local[slot.value]->kind == Value::Arg
             ? (Arg*)analysis.local[slot.value] : nullptr;

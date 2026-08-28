@@ -26,4 +26,25 @@ fn viaLocal() -> Int:
 -- bounds rather than its root does not pass by accident.
 fn partial() -> Int = maximum(slice(elements(newArray(8, (i: Size) -> truncate(i + 1) :: Int)), 2, 5), 0)
 
-fn main() -> Int = viaTwoCalls() + viaLocal() + partial()
+{-
+   The same chain in a *return* position, which is the half the checker used to refuse.
+
+   `elements` hands back a descriptor rooted in `xs`, the descriptor lands in a slot of this frame,
+   and `slice` borrows that slot and hands back a window rooted in the same array - so the root that
+   reaches the signature is a *local*, and reading it as one said "rooted in storage the caller does
+   not own" about a function whose root is the argument it marked. Every view-returning function in
+   the library has this shape, which is why it is asserted here beside the liveness half rather than
+   left to the one place it was first noticed.
+-}
+fn window(return xs: Array(Int), from: Size, to: Size) -> '[Int] = slice(elements(xs), from, to)
+
+-- And one call deeper, because what closes the chain is a walk rather than one more step: `window`
+-- is itself a call whose result is rooted in its argument, so the descriptor this slices is two
+-- frames' worth of provenance away from the array.
+fn deeper(return xs: Array(Int)) -> '[Int] = slice(window(xs, 1, 7), 1, 5)
+
+fn viaReturn() -> Int:
+    let xs = newArray(8, (i: Size) -> truncate(i + 1) :: Int)
+    return sum(window(xs, 0, 4)) + sum(deeper(xs))
+
+fn main() -> Int = viaTwoCalls() + viaLocal() + partial() + viaReturn()

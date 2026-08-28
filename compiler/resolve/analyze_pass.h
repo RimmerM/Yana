@@ -768,6 +768,16 @@ void contentsOfPlace(Analysis& analysis, const Place& place, Provenance& into);
 // what lands in the destination is what the source contained rather than the source itself.
 void transferredProvenance(Analysis& analysis, ModulePtr<Value> value, Provenance& into);
 
+/*
+ * The same roots, with every frame slot that is only *holding* a view replaced by what it refers to.
+ *
+ * See the definition for why the two passes that ask about a *result* both need it and what the
+ * guard is. Callers that ask about anything else want the unresolved set: this is the question "what
+ * does the caller have to keep alive", and it is only at a return that the frame's own slots stop
+ * being an answer to it.
+ */
+void resolveViewRoots(Analysis& analysis, const Provenance& from, Provenance& into);
+
 // The summary of a called function, or nothing when the callee is not one this pass can see.
 FunctionSummary* summaryOf(Analysis& analysis, ModulePtr<Function> callee);
 

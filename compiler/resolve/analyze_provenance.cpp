@@ -114,6 +114,94 @@ void transferredProvenance(Analysis& analysis, ModulePtr<Value> value, Provenanc
     }
 }
 
+/*
+ * The roots a *result* has, with every frame slot that is only holding a view replaced by what that
+ * slot refers to.
+ *
+ * The fixpoint composes one step per call, and this closes the chain. `slice(elements(xs), a, b)`
+ * is the shape: `elements` hands back a descriptor rooted in `xs`, the descriptor lands in a slot of
+ * this frame, and `slice` borrows that slot and hands back a window rooted in the same array. What
+ * arrives at the return is therefore a root that is a **local**, and both passes that ask about a
+ * result read a local root as "this frame's storage" - so a window reaching its root through two
+ * calls was refused by checkReturnRoots and its descriptor was placed on the heap by
+ * computeOutliving, while either call alone was fine. Every view-returning function in the library
+ * has that shape.
+ *
+ * **Through `contents` rather than through `Local::viewOf`.** A descriptor built in this frame out
+ * of a local array carries the `viewOf` link, and `viewedRoot` is still the first step here for that
+ * case. One a *call* filled carries nothing, because what says where it points is the callee's
+ * declared group - which is exactly what `callResultProvenance` has already written into the slot's
+ * contents. Reading the contents is also the direction Analysis-Borrows.md §6.6 states: the
+ * correctness uses of `viewOf` are what a typed loan slot is meant to retire, so a second one added
+ * here would be a step away from it.
+ *
+ * **The guard is that the slot holds a view and owns nothing**, which is checkReturnRoots'
+ * `ownsNothing` asked of a slot instead of a result and for the same reason. A slot that owns its
+ * contents is where a root legitimately is - the storage goes with the result - and following one
+ * would make every result built out of an owned local look rooted in whatever filled that local. A
+ * view slot that nothing known was written into stays its own root rather than resolving to none at
+ * all: an empty answer would be silence where a local root gives a diagnostic.
+ */
+void resolveViewRoots(Analysis& analysis, const Provenance& from, Provenance& into) {
+    into.reset(analysis.localCount);
+    into.args = from.args;
+    into.global = from.global;
+    into.unknown = from.unknown;
+
+    // Deduplicated on the way in, which is what bounds the walk: a slot resolved once is never
+    // queued again, so the length of this is the frame's width however the views are chained.
+    SmallArray<U32, 8> pending;
+    auto reach = [&](Size l) {
+        if(l >= analysis.localCount) { into.unknown = true; return; }
+
+        for(auto seen: pending) { if(seen == U32(l)) return; }
+        pending.push(U32(l));
+    };
+
+    from.locals.forEach([&](Size l) { reach(l); });
+
+    for(Size i = 0; i < pending.size(); i++) {
+        auto local = pending[i];
+        auto slot = analysis.function.localAt(analysis.local, local);
+
+        /*
+         * A slot a *call* filled, which is the whole of what this resolves and is deliberately not
+         * "any slot holding a reference".
+         *
+         * Two other shapes hold one and are not steps along a chain. A closure environment holds a
+         * by-reference capture, so it contains a borrow and owns nothing - and it is nevertheless
+         * real storage that the function value returned beside it points *at*, rather than two words
+         * copied out at the return. And a descriptor `convertSlice` built out of a local array is
+         * the slot `checkEscapingViews` names in its diagnostic, reached through `Local::viewOf` by
+         * the consumers rather than here. Both are defined by something other than a call, so
+         * requiring one leaves each of them exactly where it was.
+         */
+        auto filled = slot.value ? analysis.local[slot.value] : nullptr;
+        auto fromCall = filled && (filled->kind == Value::Call || filled->kind == Value::GenCall ||
+                                   filled->kind == Value::CallDyn);
+
+        auto view = fromCall && slot.type && containsBorrowLike(analysis.module, slot.type) &&
+                    !needsTeardown(analysis.module, slot.type);
+
+        if(!view) {
+            into.locals.set(local, true);
+            continue;
+        }
+
+        auto& written = analysis.contents[local];
+        if(!written.args && !written.global && !written.unknown && !written.locals.popCount()) {
+            into.locals.set(local, true);
+            continue;
+        }
+
+        into.args |= written.args;
+        into.global = into.global || written.global;
+        into.unknown = into.unknown || written.unknown;
+
+        written.locals.forEach([&](Size l) { reach(l); });
+    }
+}
+
 // The summary of a called function, or nothing when the callee is not one this pass can see.
 FunctionSummary* summaryOf(Analysis& analysis, ModulePtr<Function> callee) {
     if(!callee) return nullptr;

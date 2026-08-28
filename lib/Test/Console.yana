@@ -578,12 +578,14 @@ fn fraction(value: Long, unit: Long) -> String:
 pub fn indented(text: String, margin: String) -> String:
     let &out = String.ofCapacity(length(text) + length(margin))
 
-    -- `margin` is copied and `line` is not: the first is a borrowed parameter written once per line,
-    -- and the second is what `lines` hands over - an `iter fn` whose yield type is `->String` gives
-    -- the part away, so copying it here was one allocation and one block copy per line for nothing.
+    -- Neither operand is copied, and `push` is why: `String.push(&self: String, other: String)`
+    -- takes its right operand *by loan* and block-copies the units out of it, so a `copy` in front
+    -- of one is a second allocation and a second block copy of what the first copy already made.
+    -- `line` is what `lines` hands over - an `iter fn` whose yield type is `->String` gives the part
+    -- away - and it is pushed on the same terms.
     for line in lines(text):
         if length(line) > (0 :: Size):
-            out.push(copy(margin))
+            out.push(margin)
             out.push(line)
             out.push("\n")
 

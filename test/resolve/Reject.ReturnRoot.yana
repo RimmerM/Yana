@@ -39,3 +39,18 @@ fn immutableBinding(return p: Point) -> Int:
     return field
 
 fn xOfPoint(return p: Point) -> 'Int = p.x
+
+{-
+   The two-call chain, rooted where the signature cannot hand it back.
+
+   A window that reaches its root through `elements` and then `slice` is accepted where the root is
+   a marked argument - `test/resolve/SliceRoot.yana` is that half - so what is left to reject is the
+   root itself. Both are named rather than reported as "storage the caller does not own", which is
+   the chain being resolved: the frame slot the descriptor landed in is a step along it and not the
+   answer.
+-}
+fn undeclaredWindow(xs: Array(Int)) -> '[Int] = slice(elements(xs), 0, 2)
+
+fn localWindow(return xs: Array(Int)) -> '[Int]:
+    let here = newArray(4, (i: Size) -> 1 :: Int)
+    return slice(elements(here), 0, 2)

@@ -1,0 +1,61 @@
+{-
+   An owned value handed to a phi departs on the *edge*, not at the merge.
+
+   `match m: Just(i) -> "x{i}y"` builds the string in an arm and merges the two arms into one value.
+   The arm's last instruction reads the whole slot for the phi, nothing reads it afterwards, so the
+   read is a last-use move - and recording that move at the *phi* puts it in the successor, which
+   leaves the arm still owning the buffer at its terminator. The drop placer then released it there,
+   between the arm building the string and the merge reading it, so what came back was whatever
+   `freeHeap` had written into the block.
+
+   The two spellings below are the same function and only one of them has a phi: `returned` leaves
+   through each arm, so its arm ends in a `ret` and its buffer is relocated into the result. That is
+   why the block-bodied form worked and the expression-bodied one handed back freed memory, and it is
+   why both are here - the pair is what says the answer is the same rather than only that this one
+   is stable.
+
+   The answer is a *checksum* rather than a length, because the descriptor the phi merges is loaded
+   before the release: the pointer and the count survive it intact and only the bytes they name do
+   not. A length would have agreed with the bug.
+-}
+
+fn checksum(text: String) -> Int:
+    let &total = 0 :: Int
+    let &i = 0 :: Size
+
+    while i < length(text):
+        total = total + String.unit(text, i)
+        i = i + 1
+
+    return total
+
+fn merged(m: Maybe(Int)) -> String = match m:
+    Just(i) -> "x{i}y"
+    Nothing -> "-"
+
+fn returned(m: Maybe(Int)) -> String:
+    match m:
+        Just(i): return "x{i}y"
+        Nothing: return "-"
+
+{-
+   Both rules at one merge, which is what says the position was corrected rather than the release
+   deleted.
+
+   `a` and `b` are read again below, so handing either to the merge is not a last use - and the
+   checker says so, which is why the `copy()`s are written rather than omitted. What the merge takes
+   is then the copies, and *those* are last uses that move on the edge; `a` and `b` are still this
+   frame's and are released at its end. A fix that moved the arm's own buffer whenever a merge read
+   one would leak the copies or free `a` twice, and this is the shape that would show it.
+-}
+fn kept(n: Int, flag: Bool) -> Int:
+    let a = "x{n}y"
+    let b = "z{n + 1}w"
+    let picked = if flag then copy(a) else copy(b)
+
+    return checksum(picked) + checksum(a) + checksum(b)
+
+fn main() -> Int =
+    checksum(merged(Just(6))) + checksum(returned(Just(6))) +
+    checksum(merged(Nothing)) + checksum(returned(Nothing)) +
+    kept(6, True) + kept(6, False)
