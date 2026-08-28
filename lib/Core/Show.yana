@@ -137,27 +137,112 @@ instance Show(Long):
     fn showBound(value: Long) -> Maybe(Size) = Just(20)
 
 {-
-   `Size` and `USize`, which are the two numbers a program that says nothing about widths still ends
-   up holding: `length` answers one and every byte count is the other.
+   And the sized integers, which is the rest of the ladder.
 
-   Their absence was a real gap rather than a decision - `print("{length(xs)}")` reported that `Size`
-   has no instance while `print("{length(xs) :: Int}")` two characters away compiled - and it is the
-   one an assertion runs into first, since `checkEqual(length(out), 6)` is the most ordinary claim a
-   test makes. Analysis-Modules.md's Move 2 made both of these *primitives* whose width the target
-   answers rather than names for `I64`/`U64`, which is what makes an instance of each possible at
-   all: before that they were the same type as `Long` and would have overlapped it.
+   `Int`, `Long`, `Size` and `USize` are the four a program that says nothing about widths ends up
+   holding. Everything below is a width a program *asked* for - a byte read out of a buffer, a `U32`
+   hash, an `I16` field of a packed record - and it needs an instance for the same reason they do:
+   `U8` and `Int` are one `::` apart, so the type a value already has would otherwise decide whether
+   it could be printed at all.
 
-   The bound is twenty either way. `Size` is at most `-9223372036854775808` and `USize` at most
-   `18446744073709551615`, both of which are twenty units, and a target whose words are narrower
-   spends a bound it did not need rather than a truncation it cannot detect.
+   **Two generic bodies rather than ten**, over the conversion that is already required to exist. The
+   ladder generates a `Widen` rung from every integer to the widest of its own sign, so `Widen(a,
+   Long)` and `Widen(a, U64)` are exactly the constraints "signed" and "unsigned" spell here, and the
+   instance below each one is a call. There is still one decimal-digit loop in this file.
+
+   **The `js` bodies are `showSmall`'s argument, not a repetition of it.** Everything narrower than
+   64 bits is a `number` on that target and `Long`/`U64` are `bigint`, so widening first would put a
+   real `BigInt()` in front of a call whose whole body is one `String()`. `hostToString` is generic,
+   so the host body is one line for all ten rather than one per width. The constraint is carried on
+   the `js` declaration too, unused, so that the two `@platform` bodies have the one signature.
+-}
+@platform(native) fn (Widen(a, Long)) showFromSigned(value: a, &to: String) -> {} =
+    showSigned(widen(value) :: Long, to)
+
+@platform(js) fn (Widen(a, Long)) showFromSigned(value: a, &to: String) -> {} =
+    String.push(to, hostToString(value))
+
+@platform(native) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String) -> {} =
+    pushUnsigned(widen(value) :: U64, to)
+
+@platform(js) fn (Widen(a, U64)) showFromUnsigned(value: a, &to: String) -> {} =
+    String.push(to, hostToString(value))
+
+{-
+   Every bound is the widest that type's decimal gets, counted rather than rounded up - the rule the
+   head of this file states, since the buffer is sized from it.
+
+   The signed ones spend a unit on the sign because their most negative value needs it, and it is
+   that value rather than the largest positive one that is widest: `-128` is four units where `127`
+   is three. `CodeUnit` is at most sixteen bits and unsigned (`IntType::kCodeUnitMaxBits`), so it
+   costs what a `U16` costs on every target, and a narrower one spends a bound it did not need rather
+   than a truncation it cannot detect - `Size`'s bargain exactly. `WideInt` is 53 bits signed, whose
+   magnitude is sixteen digits either way the last bit is read, so seventeen covers the sign.
+-}
+instance Show(I8):
+    fn show(value: I8, &to: String) -> {} = showFromSigned(value, to)
+    fn showBound(value: I8) -> Maybe(Size) = Just(4)
+
+instance Show(U8):
+    fn show(value: U8, &to: String) -> {} = showFromUnsigned(value, to)
+    fn showBound(value: U8) -> Maybe(Size) = Just(3)
+
+instance Show(I16):
+    fn show(value: I16, &to: String) -> {} = showFromSigned(value, to)
+    fn showBound(value: I16) -> Maybe(Size) = Just(6)
+
+instance Show(U16):
+    fn show(value: U16, &to: String) -> {} = showFromUnsigned(value, to)
+    fn showBound(value: U16) -> Maybe(Size) = Just(5)
+
+instance Show(I32):
+    fn show(value: I32, &to: String) -> {} = showFromSigned(value, to)
+    fn showBound(value: I32) -> Maybe(Size) = Just(11)
+
+instance Show(U32):
+    fn show(value: U32, &to: String) -> {} = showFromUnsigned(value, to)
+    fn showBound(value: U32) -> Maybe(Size) = Just(10)
+
+instance Show(I64):
+    fn show(value: I64, &to: String) -> {} = showFromSigned(value, to)
+    fn showBound(value: I64) -> Maybe(Size) = Just(20)
+
+-- `U64` is the one the digit loop already takes, so its body is the loop rather than a conversion
+-- into it: there is no `Widen(U64, U64)` rung and there is no reason to want one.
+instance Show(U64):
+    fn show(value: U64, &to: String) -> {} = pushUnsigned(value, to)
+    fn showBound(value: U64) -> Maybe(Size) = Just(20)
+
+{-
+   And the three whose width the target answers - Analysis-Modules.md Move 2.
+
+   They go through the generic body of their own sign like every fixed width above, which is what
+   makes the target's choice cost nothing: a `Size` is an `Int` on JS and reaches `hostToString` as
+   the `number` it already is, rather than being widened into the `bigint` a `Long` is there.
+
+   `Size` and `USize` are the two numbers a program that says nothing about widths still ends up
+   holding - `length` answers one and every byte count is the other - so an assertion runs into these
+   first, `checkEqual(length(out), 6)` being the most ordinary claim a test makes.
+
+   The bound is the widest end of the type's *bound* rather than the width this target landed on:
+   `Size` reaches `-9223372036854775808` and `USize` `18446744073709551615`, both twenty units. A
+   narrower target spends a bound it did not need, which is the trade the head of this block states.
 -}
 instance Show(Size):
-    fn show(value: Size, &to: String) -> {} = showSigned(widen(value) :: Long, to)
+    fn show(value: Size, &to: String) -> {} = showFromSigned(value, to)
     fn showBound(value: Size) -> Maybe(Size) = Just(20)
 
 instance Show(USize):
-    fn show(value: USize, &to: String) -> {} = pushUnsigned(widen(value) :: U64, to)
+    fn show(value: USize, &to: String) -> {} = showFromUnsigned(value, to)
     fn showBound(value: USize) -> Maybe(Size) = Just(20)
+
+instance Show(CodeUnit):
+    fn show(value: CodeUnit, &to: String) -> {} = showFromUnsigned(value, to)
+    fn showBound(value: CodeUnit) -> Maybe(Size) = Just(5)
+
+instance Show(WideInt):
+    fn show(value: WideInt, &to: String) -> {} = showFromSigned(value, to)
+    fn showBound(value: WideInt) -> Maybe(Size) = Just(17)
 
 {-
    A string shows as itself, and its bound is a *runtime* value - which is the row that makes the

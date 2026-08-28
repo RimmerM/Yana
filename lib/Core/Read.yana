@@ -411,3 +411,31 @@ instance Read(U8):
         match readUnsigned(from, at, 10, widen(maxValue() :: U8) :: U64):
             Ok(value) -> Ok(truncate(value) :: U8)
             Err(reason) -> Err(reason)
+
+{-
+   And the three whose width the target answers - Analysis-Modules.md Move 2.
+
+   Written exactly as the fixed widths above are, because the range check is the whole of what
+   differs between them and it is already asked as a value rather than as a constant: `Bounded`
+   answers at the target's own width, so `read` at a `Size` rejects `3000000000` on a target whose
+   words are thirty-two bits and accepts it on one whose words are sixty-four. That is the same
+   answer `let n: Size = 3000000000` gives, which is the property worth having - a text that parses
+   is a text the type could have held.
+-}
+instance Read(Size):
+    fn read(from: String, &at: Size) -> Result(ReadError, Size) =
+        match readBounded(from, at, 10, widen(minValue() :: Size) :: Long, widen(maxValue() :: Size) :: Long):
+            Ok(value) -> Ok(truncate(value) :: Size)
+            Err(reason) -> Err(reason)
+
+instance Read(USize):
+    fn read(from: String, &at: Size) -> Result(ReadError, USize) =
+        match readUnsigned(from, at, 10, widen(maxValue() :: USize) :: U64):
+            Ok(value) -> Ok(truncate(value) :: USize)
+            Err(reason) -> Err(reason)
+
+instance Read(CodeUnit):
+    fn read(from: String, &at: Size) -> Result(ReadError, CodeUnit) =
+        match readUnsigned(from, at, 10, widen(maxValue() :: CodeUnit) :: U64):
+            Ok(value) -> Ok(truncate(value) :: CodeUnit)
+            Err(reason) -> Err(reason)

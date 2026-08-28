@@ -384,6 +384,28 @@ instance Bounded(U64):
     fn minValue() -> U64 = 0
     fn maxValue() -> U64 = not(0)
 
+{-
+   The three whose width the target answers - Analysis-Modules.md Move 2 - which are the entries a
+   literal cannot write, since the number is not one this stage has.
+
+   Each is written as the bits instead. The unsigned two are the complement of zero, which is the
+   spelling `U64` above already needs and is every bit of the type set at whatever width the target
+   chose. `Size` is that complement shifted down by one - a *logical* shift, since it is taken at
+   `USize` - which is the largest positive value of a two's complement word of any width, and its
+   minimum is the negation of that less one, which is how every signed entry above is written.
+-}
+instance Bounded(Size):
+    fn minValue() -> Size = 0 - (maxValue() :: Size) - 1
+    fn maxValue() -> Size = bitcast(not(0 :: USize) `shr` 1) :: Size
+
+instance Bounded(USize):
+    fn minValue() -> USize = 0
+    fn maxValue() -> USize = not(0)
+
+instance Bounded(CodeUnit):
+    fn minValue() -> CodeUnit = 0
+    fn maxValue() -> CodeUnit = not(0)
+
 instance Bounded(Float):
     fn minValue() -> Float = 0.0 - 3.4028234663852886e38
     fn maxValue() -> Float = 3.4028234663852886e38
@@ -416,6 +438,12 @@ instance Signed(Long):
 
 instance Signed(WideInt):
     fn abs(value: WideInt) -> WideInt = if value <= 0 then 0 - value else value
+
+-- The target's word, whose signed reading is the one an index is carried at. `USize` and `CodeUnit`
+-- are absent by the rule above rather than by omission: neither has a negative to take an absolute
+-- value of.
+instance Signed(Size):
+    fn abs(value: Size) -> Size = if value <= 0 then 0 - value else value
 
 instance Signed(Float):
     fn abs(value: Float) -> Float = if value <= 0.0 then 0.0 - value else value

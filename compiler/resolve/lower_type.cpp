@@ -272,6 +272,14 @@ bool narrowerThanRegister(LowerContext& lower, TypePtr type) {
  * all map an in-range pair to an in-range result, and masking those would cost an instruction per
  * operation to compute a value that is already correct.
  *
+ * **`not` is the bitwise operation that does leave it**, which is what separates it from the three
+ * beside it: `and`, `or` and `xor` of two in-range operands cannot set a bit above the width, and a
+ * complement sets every one of them. An unsigned narrow value is held zero-extended, so `not` on a
+ * `U8` holding 0 gives a register of every bit set where the type's answer is 255 - it is the same
+ * escape `neg` and `sub` make, reached by the one operation whose whole business is the high bits. A
+ * *signed* narrow value is held sign-extended and its complement already is too, so the wrap does
+ * nothing there and the known-bits fold removes it.
+ *
  * `shr` is here for a different reason than the arithmetic five, and needs `zeroExtendsShiftOperand`
  * below as well - see its comment. On its own the wrap would be pointless, since a logical shift of
  * an already-masked operand is in range for every distance but zero.
@@ -279,7 +287,7 @@ bool narrowerThanRegister(LowerContext& lower, TypePtr type) {
 bool wrapsAtDeclaredWidth(LowerContext& lower, TypePtr type, Value::Kind kind) {
     switch(kind) {
         case Value::Add: case Value::Sub: case Value::Mul: case Value::Shl: case Value::Neg:
-        case Value::Shr:
+        case Value::Not: case Value::Shr:
             break;
         default:
             return false;

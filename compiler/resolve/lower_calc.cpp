@@ -427,18 +427,32 @@ LowerInst* lowerComputeInst(LowerContext& lower, LowerBlock& block, Inst& instru
         case Value::Not: {
             auto& unaryInst = (InstUnary&)instruction;
             auto from = mappedValue(lower, unaryInst.from);
+            auto type = lowerType(lower, instruction.type);
+
             if(instruction.kind == Value::Neg) {
                 result = unary<LowerInst::Neg>(
-                    lower.lower, lower.to, block, lower.lower[from],
-                    lowerType(lower, instruction.type),
-                    instruction.name
+                    lower.lower, lower.to, block, lower.lower[from], type, instruction.name
                 );
             } else {
                 result = unary<LowerInst::Not>(
-                    lower.lower, lower.to, block, lower.lower[from],
-                    lowerType(lower, instruction.type),
-                    instruction.name
+                    lower.lower, lower.to, block, lower.lower[from], type, instruction.name
                 );
+            }
+
+            /*
+             * And back into the declared width, exactly as the binary arithmetic below does it and
+             * through the same predicate - which already named `Neg` before this call site existed,
+             * so a negation of a narrow type was wrapped by a rule nothing consulted.
+             *
+             * `not(0 :: U8)` was a register of every bit set rather than 255, and the dirt then
+             * propagated silently: widening one afterwards is a `cast` that trusts a register the
+             * operation never narrowed. The invariant being kept is `narrowerThanRegister`'s - a
+             * value of a type that does not fill its register is held in normal form - which is what
+             * entitles `widen` and the known-bits folder to skip a mask of their own.
+             */
+            if(result && wrapsAtDeclaredWidth(lower, instruction.type, instruction.kind)) {
+                result = truncateToWidth(lower, block, result, instruction.type, type,
+                                         instruction.name);
             }
             break;
         }

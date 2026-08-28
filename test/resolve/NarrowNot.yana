@@ -1,0 +1,23 @@
+-- Complementing and negating a type narrower than the register that holds it.
+--
+-- `U8` and `U16` fill 8 and 16 bits of a 32-bit register, so a value of one is held zero-extended
+-- and every operation that can set a bit above the declared width has to put it back - which is
+-- `wrapsAtDeclaredWidth`'s list and `truncateToWidth` doing it. `not` is the bitwise operation on
+-- that list: `and`, `or` and `xor` of two in-range operands stay in range and a complement sets
+-- every bit there is, so `not(0 :: U8)` is 255 and not a register of ones.
+--
+-- A *signed* narrow value is held sign-extended and its complement already is, so `not(1 :: I8)` is
+-- -2 with or without the wrap. It is here as the row that says the wrap costs the signed side
+-- nothing rather than as the row that fails.
+--
+-- Every operand goes through a `let &`, which is what keeps the constant folder from answering the
+-- question at the type and hiding what the lowering does with it.
+fn main() -> Int:
+    let &byte = 0 :: U8
+    let &short = 0 :: U16
+    let &one = 1 :: U8
+    let &signed = 1 :: I8
+
+    -- 255 + 65535 + 255 - 2
+    return (widen(not(byte)) :: Int) + (widen(not(short)) :: Int)
+         + (widen(-one) :: Int) + (widen(not(signed)) :: Int)

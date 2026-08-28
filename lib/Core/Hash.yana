@@ -196,10 +196,10 @@ instance Hash(Long):
     fn hash(value: Long, state: U32) -> U32 = hashWide(state, truncate(value) :: U64)
 
 {-
-   `WideInt` is the one type whose instance is split by target, and it is split for the reason §3.1
-   gives about JS arithmetic rather than for anything about the type: it is a plain `number` there,
-   so converting it to a `U64` to reach `hashWide` would build the `bigint` that type exists to
-   avoid. Fifty-three bits, folded as two words that are each an ordinary small integer.
+   `WideInt` is split by target, and it is split for the reason §3.1 gives about JS arithmetic rather
+   than for anything about the type: it is a plain `number` there, so converting it to a `U64` to
+   reach `hashWide` would build the `bigint` that type exists to avoid. Fifty-three bits, folded as
+   two words that are each an ordinary small integer.
 -}
 @platform(native) instance Hash(WideInt):
     fn hash(value: WideInt, state: U32) -> U32 = hashWide(state, truncate(value) :: U64)
@@ -207,6 +207,53 @@ instance Hash(Long):
 @platform(js) instance Hash(WideInt):
     fn hash(value: WideInt, state: U32) -> U32 =
         hashWord(hashWord(state, truncate(value) :: U32), truncate(value `shr` 32) :: U32)
+
+{-
+   How many bits the target's word has, as a constant.
+
+   `not(0)` is every bit of a `USize` set, so its `bitWidth` is the width itself - and both halves of
+   that fold the moment there is a target to fold against, which is `Target.byteOrder`'s device at a
+   different question (Core/Bits.yana). The comparison in `hashSize` below is therefore a constant
+   and the arm it guards is gone before any machine sees it.
+
+   **Asked as a width rather than as `@platform`**, which is the distinction Analysis-Modules.md Move
+   2 exists to keep: `@platform(native)` is not a synonym for "the word is sixty-four bits", and a
+   thirty-two-bit native target would have taken a `@platform` split's wide arm and paid for the
+   64-bit helper routines that arm's arithmetic needs.
+-}
+fn wordBits() -> USize = bitWidth(not(0 :: USize))
+
+{-
+   The target's own word - Analysis-Modules.md Move 2 - which is a third fold rather than a third
+   pair of instances.
+
+   **The low word always, and the high word only where there is one.** `hashWide` would have
+   answered this in one call and would have been the wrong shape for `WideInt`'s reason exactly: it
+   takes a `U64`, so reaching it means widening a word that is *already* narrow enough on every
+   target whose word is thirty-two bits - a `bigint` per lookup in every `Map` a `Size` keys on JS,
+   and a 64-bit helper call on a thirty-two-bit machine. Nothing here names a `U64` at all.
+
+   The fold is the *bits*, which is what lets the signed reading delegate to the unsigned one: `Size`
+   and `USize` are one quantity read two ways and the `bitcast` between them is the rung
+   `reinterpretWidth` generates for exactly that pair, so two values `==` calls equal at `Size` are
+   the same bits at `USize` and fold to the same state.
+-}
+fn hashSize(state: U32, value: USize) -> U32:
+    let folded = hashWord(state, truncate(value) :: U32)
+    if wordBits() == 32 then return folded
+
+    return hashWord(folded, truncate(value `shr` 32) :: U32)
+
+instance Hash(Size):
+    fn hash(value: Size, state: U32) -> U32 = hashSize(state, bitcast(value) :: USize)
+
+instance Hash(USize):
+    fn hash(value: USize, state: U32) -> U32 = hashSize(state, value)
+
+-- One unit of the target's string encoding - eight bits or sixteen, and a whole draw of `hashWord`
+-- either way, since the widening in front of it is the same free conversion `U8` and `U16` make.
+instance Hash(CodeUnit):
+    fn hash(value: CodeUnit, state: U32) -> U32 = hashWord(state, value :: U32)
 
 {-
    `Bool` folds as the number it is. One instruction on both targets, and it exists so that a record
