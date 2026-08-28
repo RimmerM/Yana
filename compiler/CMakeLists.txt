@@ -88,6 +88,7 @@ set(RESOLVE_SOURCE_FILES
     resolve/host.cpp
     resolve/intrinsic.h
     resolve/intrinsic.cpp
+    resolve/type.def
     resolve/type.h
     resolve/type_internal.h
     resolve/type.cpp
@@ -195,7 +196,8 @@ set(RESOLVE_SOURCE_FILES
     opt/opt_select.cpp
     opt/opt_value.cpp
 )
-set_source_files_properties(resolve/inst.def PROPERTIES HEADER_FILE_ONLY TRUE)
+
+set_source_files_properties(resolve/inst.def resolve/type.def PROPERTIES HEADER_FILE_ONLY TRUE)
 
 add_library(YanaResolve ${RESOLVE_SOURCE_FILES})
 target_link_libraries(YanaResolve PUBLIC YanaCore YanaParse)

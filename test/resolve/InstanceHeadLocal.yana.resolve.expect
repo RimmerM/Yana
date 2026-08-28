@@ -1,0 +1,60 @@
+let image$base: () = <none>
+
+fn measure(%x: Local) -> I32 {
+  b0:
+    ret 3
+}
+
+fn main() -> I32 {
+  b0:
+    %v0 = alloc : (Local) -> I32
+    %v1 = symbol funvalue$measure : %()
+    init %local0.code, %v1
+    %v4 = cast 0 : %()
+    init %local0.env, %v4
+    %v6 = alloc : (Local) -> I32
+    %v7 = symbol funvalue$measure : %()
+    init %local1.code, %v7
+    %v10 = cast 0 : %()
+    init %local1.env, %v10
+    %v12 = call Eq((Local) -> I32).==, %v0, %v6 : Bool
+    je %v12, b1, b2
+
+  b1:
+    %v14 = alloc : Local
+    %v15 = call measure, %v14 : I32
+    jmp b3
+
+  b2:
+    jmp b3
+
+  b3:
+    %v19 = phi [b1, %v15], [b2, 0] : I32
+    ret %v19
+}
+
+fn Eq((Local) -> I32).==(%lhs: (Local) -> I32, %rhs: (Local) -> I32) -> Bool {
+  b0:
+    ret True
+}
+
+fn Eq((Local) -> I32).!=(%lhs: (Local) -> I32, %rhs: (Local) -> I32) -> Bool {
+  b0:
+    ret False
+}
+
+fn Eq(Atomic(%Local)).==(%lhs: Atomic(%Local), %rhs: Atomic(%Local)) -> Bool {
+  b0:
+    ret True
+}
+
+fn Eq(Atomic(%Local)).!=(%lhs: Atomic(%Local), %rhs: Atomic(%Local)) -> Bool {
+  b0:
+    ret False
+}
+
+fn funvalue$measure(%env: %(), %x: Local) -> I32 {
+  b0:
+    %v2 = call measure, %x : I32
+    ret %v2
+}

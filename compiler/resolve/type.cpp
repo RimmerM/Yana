@@ -14,6 +14,34 @@
 #include "name.h"
 #include "index.h"
 
+/*
+ * The kind table - type.def, read as data.
+ *
+ * The assertions below are what keeps a row honest, and each is a relation the columns would
+ * otherwise only agree on by inspection: what a type contains it also names, what it contains it
+ * cannot reach by a load, and a kind nothing builds claims nothing.
+ */
+const TypeTraits kTypeTraits[] = {
+#define YANA_TYPE(kind, name, flags, ownership) TypeTraits { name##_v, flags, OwnershipRule::ownership },
+#include "type.def"
+#undef YANA_TYPE
+};
+
+static_assert(sizeof(kTypeTraits) / sizeof(TypeTraits) == Type::kKindCount,
+              "every Type::Kind has exactly one row in type.def");
+
+#define YANA_TYPE(kind, name, flags, ownership) \
+    static_assert(!((flags) & kTypeMembers) || ((flags) & kTypeChildren), \
+                  "a member is a child - see kTypeChildren, which is the superset"); \
+    static_assert(!((flags) & kTypeMembers) || !((flags) & kTypeIndirection), \
+                  "what a type contains is not on the other side of a load"); \
+    static_assert(!((flags) & kTypeReserved) || (flags) == kTypeReserved, \
+                  "a kind nothing constructs answers nothing else"); \
+    static_assert(!((flags) & kTypeReserved) || OwnershipRule::ownership == OwnershipRule::Opaque, \
+                  "a kind nothing constructs owes everything - see the reserved rows in type.def");
+#include "type.def"
+#undef YANA_TYPE
+
 TypePtr errorType(Module& module, LocationId source, StringView message) {
     module.context.diagnostics.error(message, source);
     return module.scalar.error;
@@ -401,6 +429,22 @@ TypePtr substituteType(Module& module, TypePtr type, Buffer<TypePtr> args, Locat
                                   substituteType(module, function->result, args, source), function->kind);
         }
         default:
+            /*
+             * A generic type of a kind that holds none - which is a compiler bug rather than a
+             * substitution with nothing to do, and is reported as one.
+             *
+             * Getting here means the `generic` bit was set on a type that has no child a variable
+             * could be in, and the consequence is silent: the type comes back unchanged, so a body
+             * specialized at `Int` keeps a variable nothing will ever bind, and the failure surfaces
+             * a phase later as a type nobody can name. `kTypeChildren` is the column that decides
+             * it, and this is the one of the four walks over it that has a diagnostic to hand.
+             */
+            if(kindHoldsTypes(global[type]->kind)) {
+                module.context.diagnostics.error(
+                    "internal: a %@ holds types and has no arm in substituteType"_v, source,
+                    typeKindName(global[type]->kind));
+            }
+
             return type;
     }
 }
@@ -575,7 +619,11 @@ bool matchType(GlobalBase global, TypePtr pattern, TypePtr concrete, Buffer<Type
         }
         default:
             // A kind with no structure to walk into matches only itself, which is what the identity
-            // above already answered for everything except a generic type of such a kind.
+            // above already answered for everything except a generic type of such a kind. Checked
+            // against the table, because a kind with children arriving here does not fail to match -
+            // it matches *nothing*, and an instance that should have been selected simply is not.
+            assertTrue("a kind with children needs an arm here - see kTypeChildren in type.def"
+                       && !kindHoldsTypes(global[pattern]->kind));
             return pattern == concrete;
     }
 }

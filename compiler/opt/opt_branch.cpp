@@ -527,6 +527,55 @@ void collapseSinglePhis(OptContext& opt) {
                 // silent no-op rather than the assertion `replaceValue` is entitled to make.
                 if(only == (ModulePtr<Value>)pointer) continue;
 
+                /*
+                 * The storage first, where what is left occupies none.
+                 *
+                 * A phi of a memory type *is* a slot - each arm writes the value into it, and the
+                 * readers below name the slot rather than the phi. Collapsing it repoints that slot
+                 * at whatever is left, and that is a copy made by not making one: it is valid only
+                 * while the surviving value is itself in memory. A `String` constant is on one
+                 * target and is not on the other, so `if c then "b" else ""` folded against a known
+                 * `c` left `move %local1` reading a local that nothing on JS had written, and the
+                 * emitter answered `null`. See `valueOccupiesStorage`, and the same fix in
+                 * `spliceStraightLine` - this is the second pass to repoint a slot and the second
+                 * one to need it.
+                 *
+                 * So the storage is made here and written into, which is what the arms were doing
+                 * before the fold removed them. In front of the block rather than beside the value:
+                 * the phi is the first thing in its block, and what replaces it has to dominate
+                 * everything the phi did.
+                 */
+                auto slot = phi->slot;
+
+                /*
+                 * Only for a memory type, and the guard is the ruling rather than a precaution.
+                 *
+                 * A slot holding a *direct* value is a register value with a name, which is what
+                 * every promoted local in the IR is - repointing one at another register value is
+                 * exactly right, and materializing storage for it would hand the backend an address
+                 * where the type says there is a number. It did: `continuation$26` in Lens.yana
+                 * returned `alloca` instead of the `I32` it is declared to return, and the lowered
+                 * golden is the only thing that said so.
+                 */
+                if(slot < opt.function->localCount() && isMemoryType(opt.global, phi->type) &&
+                   !valueOccupiesStorage(opt.local, *opt.function, only)) {
+                    auto& module = *opt.module;
+                    auto& function = *opt.function;
+                    auto source = phi->source;
+                    auto type = phi->type;
+
+                    InstList written;
+                    auto storage = createInst<InstAlloc>(module, function, *block, source,
+                                                         StringId(), type, slot);
+                    written.push((Inst*)storage);
+                    written.push((Inst*)createInst<InstInit>(
+                        module, function, *block, source, StringId(), module.scalar.unit,
+                        Place::inLocal(slot), only, Value::Init));
+
+                    opt.ir().insert(*block, 0, written);
+                    only = (ModulePtr<Value>)((Value*)storage - opt.local);
+                }
+
                 opt.ir().replaceValue((ModulePtr<Value>)pointer, only);
 
                 // The slots this phi filled, which `replaceValue` does not reach: a slot names the

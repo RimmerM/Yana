@@ -82,8 +82,101 @@ fn paired() -> Int =
     pairValue(Both {left: Just(Point {x: 2, y: 6}), right: Nothing}) +
     pairValue(Both {left: Nothing, right: Just(3)}) * 10000
 
--- objectFold: 34 + 9 * 1000                                  = 9034
--- intFold:    0 + 5 * 10 + 7 * 100                           = 750
--- nested:     1 + 2 * 10 + 14 * 100                          = 1421
--- paired:     2600 + 7, then (700 + 3) * 10000               = 7032607
-fn main() -> Int = objectFold() + intFold() + nested() + paired()
+{-
+   ## The string half
+
+   `Maybe(String)` folds here for the same reason `Maybe(Point)` does and by the same search: a host
+   string is one value in a plain variable and is never `null`, so the absent pattern is free.
+   Natively it does not fold - a `String` is two words that reach every pattern of themselves - which
+   is the target split this fixture exists to assert, and it is why every function below has to
+   answer the same number on both.
+
+   **`Just("")` is this half's `Just(0)`, and it is the sharper of the two.** An empty string is
+   *falsy* in JavaScript, so a decode written as a truthiness test rather than as a comparison
+   against `null` reads `Just("")` as `Nothing` - a wrong answer out of a representation of exactly
+   the right shape, in the one case a reader is least likely to try.
+
+   The other thing this half has that the rest of the fixture does not is a payload that **owns
+   storage**. `Point` and `Int` are TrivialCopy with no teardown; a `String` is neither, so a folded
+   `Just` has a release to run and a folded `Nothing` is a `null` that must not have one run against
+   it. Which is why `ownedText` builds its payload with `++` rather than handing over a literal.
+-}
+
+@noinline fn opaqueText(->s: String) -> String = s
+
+-- Three answers from a string's content, and no arithmetic on its length: what is being asserted is
+-- which constructor the fold decoded, so the payload is identified rather than measured.
+fn codeOf(s: String) -> Int =
+    if s == "" then 1
+    else if s == "ab" then 2
+    else 3
+
+fn textOr(m: Maybe(String), fallback: Int) -> Int = match m:
+    Nothing -> fallback
+    Just(s) -> codeOf(s)
+
+fn textDepth(m: Maybe(Maybe(String))) -> Int = match m:
+    Nothing -> 1
+    Just(inner) -> 2 + textOr(inner, 0)
+
+-- An owned payload, built rather than named, so that the `Just` this returns holds storage the end
+-- of its lifetime has to release - through a tag that is the payload's own absence.
+fn ownedText(n: Int) -> Maybe(String):
+    if n <= 0: return Nothing
+    return Just(opaqueText("a") ++ "b")
+
+-- A folded optional beside a folded one of another kind: `Maybe(String)` takes `null` and
+-- `Maybe(Int)` takes it too, and each field has its own storage to take it from.
+data Named {text: Maybe(String), rank: Maybe(Int)}
+
+fn namedValue(p: Named) -> Int = textOr(p.text, 7) * 10 + intOr(p.rank, 7)
+
+-- A body that cannot see what it is holding, which is the erased path the driver compiles every
+-- fixture a second time for: a folded value crossing a generic boundary is relocated through its
+-- descriptor, by code that knows nothing about `null`.
+fn passThrough(->m: Maybe(a), ->fallback: a) -> a = match m:
+    Nothing -> fallback
+    Just(->v) -> v
+
+fn textFold() -> Int:
+    -- The constant form and the built one, because they are two different pieces of code: a `Just`
+    -- of a literal is a constant the emitter writes out (constantAggregate) and a `Just` of a value
+    -- is the encode.
+    let some = textOr(Just("ab"), 9)
+    let empty = textOr(Just(""), 9)
+    let opaque = textOr(Just(opaqueText("")), 9)
+    let none = textOr(Nothing, 9)
+    let owned = textOr(ownedText(1), 9)
+    let absent = textOr(ownedText(0), 9)
+
+    return some + empty * 10 + opaque * 100 + none * 1000 + owned * 10000 + absent * 100000
+
+fn nestedText() -> Int:
+    let outer = textDepth(Nothing)
+    let middle = textDepth(Just(Nothing))
+    let inner = textDepth(Just(Just("")))
+
+    return outer + middle * 10 + inner * 100
+
+fn namedFold() -> Int =
+    namedValue(Named {text: Just("ab"), rank: Nothing}) +
+    namedValue(Named {text: Nothing, rank: Just(3)}) * 1000
+
+fn genericFold() -> Int:
+    let some = codeOf(passThrough(Just("ab"), "z"))
+    let empty = codeOf(passThrough(Just(""), "z"))
+    let none = codeOf(passThrough(Nothing :: Maybe(String), "z"))
+
+    return some + empty * 10 + none * 100
+
+-- objectFold:  34 + 9 * 1000                                 = 9034
+-- intFold:     0 + 5 * 10 + 7 * 100                          = 750
+-- nested:      1 + 2 * 10 + 14 * 100                         = 1421
+-- paired:      2600 + 7, then (700 + 3) * 10000              = 7032607
+-- textFold:    2 + 10 + 100 + 9000 + 20000 + 900000          = 929112
+-- nestedText:  1 + 2 * 10 + 3 * 100                          = 321
+-- namedFold:   27 + 73 * 1000                                = 73027
+-- genericFold: 2 + 1 * 10 + 3 * 100                          = 312
+fn main() -> Int =
+    objectFold() + intFold() + nested() + paired() +
+    textFold() + nestedText() + namedFold() + genericFold()

@@ -1,5 +1,21 @@
 Bool: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 1 bits, niche at 0 width 1, valid 0..1, free 0 below / 254 above
 
+Ordering: size 1, align 1, stride 1, tag word at 0, payload at 0, scalar of 2 bits, niche at 0 width 1, valid 0..2, free 0 below / 253 above
+
+Syscall: size 2, align 2, stride 2, tag word at 0, payload at 0, scalar of 9 bits, niche at 0 width 2, valid 0..318, free 0 below / 65217 above
+
+StringData: size 16, align 8, stride 16, niche absent
+  .0 at 0: Array(CodeUnit)
+
+Array(CodeUnit): size 16, align 8, stride 16, niche absent
+  .0 at 0: Run(CodeUnit)
+  .1 at 12: @bits(30) U32
+
+Run(CodeUnit): size 12, align 8, stride 16, niche absent
+  .0 at 0: %CodeUnit
+  .1 at 8 bits 0..29 of 4 bytes: @bits(30) U32
+  .2 at 8 bits 30..31 of 4 bytes: @bits(2) U32
+
 Point: size 8, align 4, stride 8, niche absent
   .0 at 0: I32
   .1 at 4: I32
@@ -8,10 +24,18 @@ Both: size 12, align 4, stride 12, niche absent
   .0 at 0: Maybe(Point)
   .1 at 8: Maybe(I32)
 
+Named: size 20, align 8, stride 24, niche absent
+  .0 at 0: Maybe(String)
+  .1 at 16: Maybe(I32)
+
 Maybe(Point): size 8, align 4, stride 8, tag folded into constructor 1's absence, niche none
   .0 at 0: I32
   .1 at 4: I32
 
 Maybe(I32): size 4, align 4, stride 4, tag folded into constructor 1's absence, niche none
 
+Maybe(String): size 16, align 8, stride 16, tag folded into constructor 1's absence, niche none
+
 Maybe(Maybe(Point)): size 12, align 4, stride 12, tag word at 0, payload at 4, niche absent
+
+Maybe(Maybe(String)): size 24, align 8, stride 24, tag word at 0, payload at 8, niche absent

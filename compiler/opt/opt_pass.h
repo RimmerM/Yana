@@ -208,6 +208,40 @@ inline void eachHandedLocal(OptContext& opt, Value& instruction, F&& f) {
 }
 
 /*
+ * Whether a value is backed by memory - which is what a local slot may be repointed at, since a slot
+ * *is* storage and everything rooted in one is an address.
+ *
+ * Three shapes are, and they are the three ways a memory value comes to exist:
+ *
+ *  - it owns a slot, which is what `backingLocal` asks of an operand: an allocation, a copy, and a
+ *    call whose result the target returns through the caller's storage;
+ *  - it read a place, which for a memory type *is* that place rather than a copy of it;
+ *  - it relocated out of one, which is a `Move`: no slot of its own, but lowering names the source's
+ *    storage until an `init` writes the bytes somewhere else.
+ *
+ * Everything else is a value in a register and occupies nothing, **whatever `isMemoryType` says
+ * about its type**. That question is the target-independent one resolve asked, and a type can be
+ * memory for one target and not for another: a `String` is a record natively and a host primitive on
+ * JS, so a string constant occupies storage on one target and nothing at all on the other.
+ *
+ * Which is why this is a shared predicate rather than a rule each pass keeps. Two passes repoint a
+ * slot - the inliner's straight-line splice and the phi collapse - and each of them was written
+ * against a target where the question does not arise. The symptom both times was a JS program
+ * reading `null` out of a local nothing had written.
+ *
+ * `owner` is the function the value belongs to, which is not always `opt.function`: the inliner asks
+ * this of a value in the callee, whose local numbering is its own.
+ */
+inline bool valueOccupiesStorage(ModuleBase local, Function& owner, ModulePtr<Value> value) {
+    if(!value) return false;
+
+    auto kind = local[value]->kind;
+    if(kind == Value::LoadPlace || kind == Value::Move) return true;
+
+    return local[value]->slot < owner.localCount();
+}
+
+/*
  * The locals whose *address* an instruction is handed, which is the second way storage reaches a
  * callee - `push(out, 0)` passes a `borrow_mut` of a local rather than the record itself.
  *

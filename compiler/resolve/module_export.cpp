@@ -105,6 +105,12 @@ static TypePtr privateTypeIn(GlobalBase global, TypePtr type) {
             return privateTypeIn(global, function->result);
         }
         default:
+            // Everything that names no type - checked against the table rather than assumed, because
+            // this is the fourth walk over `kTypeChildren` and the one whose silent answer is the
+            // worst: a kind with children left out here reports no leak, and a private declaration
+            // reaches another module's signature with nothing said about it.
+            assertTrue("a kind with children needs an arm here - see kTypeChildren in type.def"
+                       && !kindHoldsTypes(global[type]->kind));
             return nullptr;
     }
 }

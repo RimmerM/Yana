@@ -95,6 +95,12 @@ void genVariablesIn(GlobalBase base, TypePtr type, U64& mask) {
             break;
         }
         default:
+            // Everything that holds no type, plus `Literal`, whose classes are not types. Checked
+            // against the table rather than trusted: a kind with children reaching here answers
+            // "mentions no variable" for a type that mentions one, which is a substitution that
+            // never happens and a generic body that keeps a variable nothing will bind.
+            assertTrue("a kind with children needs an arm here - see kTypeChildren in type.def"
+                       && !kindHoldsTypes(base[type]->kind));
             break;
     }
 }
@@ -337,11 +343,10 @@ static bool containsBorrowLikeAt(Module& module, TypePtr type, SmallArray<TypePt
     auto base = *module.types;
     auto value = base[type];
 
-    // Only the three kinds below are descended into, so only they can repeat - and asking before
-    // the walk rather than at the top keeps a scalar out of the set entirely.
-    if(value->kind != Type::Tup && value->kind != Type::Record && value->kind != Type::Array) {
-        return false;
-    }
+    // Only what this type *contains* is descended into, so only those kinds can repeat - and asking
+    // before the walk rather than at the top keeps a scalar out of the set entirely. `kTypeMembers`
+    // is the same three kinds checkAcyclic descends into, and is one statement rather than two.
+    if(!kindHoldsMembers(value->kind)) return false;
 
     for(auto entry: seen) {
         if(entry == type) return false;
@@ -436,21 +441,14 @@ bool isDirectType(GlobalBase base, TypePtr type) {
 
     auto value = base[type];
 
-    // A raw pointer is an address held in a register, not something held in memory: `%T` is
-    // direct however large `T` is. The memory it names is reached through a place instead, and a
-    // borrow is the same shape with checking attached.
-    //
-    // A vector is direct for the reason Design-Vector §2.5 gives, and the direction of that contract
-    // is the point: resolve *states* it and every target's calling convention is bound by it, so a
-    // backend that cannot pass one in a register has to fail loudly rather than quietly spill. It is
-    // also what makes a `return` marker on a vector parameter a diagnostic - the caller's storage did
-    // not travel, so a vector parameter roots no borrow. See checkAbiContract in repr.cpp.
-    if(value->kind == Type::Int || value->kind == Type::Float || value->kind == Type::Ptr ||
-       value->kind == Type::Borrow || value->kind == Type::Vector) {
-        return true;
-    }
+    // The five kinds that carry their value in a register - `kTypeDirect` in type.def, where each
+    // row says why it is one. A raw pointer and a borrow are on it however large what they name is;
+    // a vector is on it because Design-Vector §2.5 makes it a contract rather than an observation.
+    if(kindIsDirect(value->kind)) return true;
 
-
+    // And the one refinement no column can make, which is why isDirectType is a function rather than
+    // the flag read directly: an enum-layout record is a discriminant and nothing else, and that is
+    // a fact about the instance rather than about `Record`.
     return value->kind == Type::Record && ((RecordType*)value)->layout == RecordType::Enum;
 }
 

@@ -27,7 +27,58 @@ function pairValue(p) {
   return v6 + (v14 ? 7 : n) | 0;
 }
 
+function opaqueText(s) {
+  return s;
+}
+
+function codeOf(s) {
+  var v15;
+  if (s === "") {
+    v15 = 1;
+  } else {
+    v15 = s === "ab" ? 2 : 3;
+  }
+  return v15;
+}
+
+function textOr(m, fallback) {
+  var v10;
+  if (m === null) {
+    v10 = fallback;
+  } else {
+    v10 = codeOf(m);
+  }
+  return v10;
+}
+
+function textDepth(m) {
+  var v14;
+  if (m.$tag === 0) {
+    v14 = 1;
+  } else {
+    v14 = textOr(m.$p, 0) + 2 | 0;
+  }
+  return v14;
+}
+
+function namedValue(p) {
+  var v6 = Math.imul(textOr(p.text, 7), 10);
+  var v14 = p.rank === null ? 1 : 0;
+  var n = p.rank;
+  return v6 + (v14 ? 7 : n) | 0;
+}
+
 function main() {
-  return (((pointOr({ x: 3, y: 4 }, 9) + Math.imul(pointOr(null, 9), 1000) | 0) + 750 | 0) + ((depthOf({ $tag: 0, $p: null }) + Math.imul(depthOf({ $tag: 1, $p: null }), 10) | 0) + Math.imul(depthOf({ $tag: 1, $p: { x: 1, y: 2 } }), 100) | 0) | 0) + (pairValue({ left: { x: 2, y: 6 }, right: null }) + Math.imul(pairValue({ left: null, right: 3 }), 10000) | 0) | 0;
+  return (((((((pointOr({ x: 3, y: 4 }, 9) + Math.imul(pointOr(null, 9), 1000) | 0) + 750 | 0) + ((depthOf({ $tag: 0, $p: null }) + Math.imul(depthOf({ $tag: 1, $p: null }), 10) | 0) + Math.imul(depthOf({ $tag: 1, $p: { x: 1, y: 2 } }), 100) | 0) | 0) + (pairValue({ left: { x: 2, y: 6 }, right: null }) + Math.imul(pairValue({ left: null, right: 3 }), 10000) | 0) | 0) + (((((textOr("ab", 9) + Math.imul(textOr("", 9), 10) | 0) + Math.imul(textOr(opaqueText(""), 9), 100) | 0) + Math.imul(textOr(null, 9), 1000) | 0) + Math.imul(textOr(opaqueText("a") + "b", 9), 10000) | 0) + Math.imul(textOr(null, 9), 100000) | 0) | 0) + ((textDepth({ $tag: 0, $p: null }) + Math.imul(textDepth({ $tag: 1, $p: null }), 10) | 0) + Math.imul(textDepth({ $tag: 1, $p: "" }), 100) | 0) | 0) + (namedValue({ text: "ab", rank: null }) + Math.imul(namedValue({ text: null, rank: 3 }), 1000) | 0) | 0) + ((codeOf(passThrough_String("ab", "z")) + Math.imul(codeOf(passThrough_String("", "z")), 10) | 0) + Math.imul(codeOf(passThrough_String(null, "z")), 100) | 0) | 0;
+}
+
+function passThrough_String(m, fallback) {
+  var v2;
+  if (m === null) {
+    v2 = fallback;
+  } else {
+    v2 = m;
+  }
+  return v2;
 }
 main();

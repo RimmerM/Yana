@@ -252,7 +252,9 @@ static bool declaresType(Module& module, TypePtr type) {
  * is what a module declared.
  *
  * The structural types are descended into and are never themselves an answer: nobody declares
- * `[a]`, `%a` or `{x: Int}`, so an instance for one of those is placed by what is inside it.
+ * `[a]`, `%a` or `{x: Int}`, so an instance for one of those is placed by what is inside it. Which
+ * ones those are is `kTypeChildren` in type.def, and the arms below are checked against it - see the
+ * `default:`, where the two that were missing are named.
  */
 static bool headMentionsLocalType(Module& module, TypePtr type, U32 depth = 0) {
     if(!type || depth > 8) return false;
@@ -274,11 +276,18 @@ static bool headMentionsLocalType(Module& module, TypePtr type, U32 depth = 0) {
             return false;
         }
         case Type::Ptr:
-        case Type::Ref:
         case Type::Borrow:
             return headMentionsLocalType(module, ((PtrType*)value)->to, depth + 1);
         case Type::Array:
             return headMentionsLocalType(module, ((ArrayType*)value)->content, depth + 1);
+        case Type::Vector:
+            // A lane is an integer or a float by construction, so nothing a module declares can be
+            // inside one. Named rather than left to the arm below, because "this kind holds a type
+            // and the answer is still no" is a statement, and the alternative is a walk into a
+            // child that cannot answer.
+            return false;
+        case Type::Atomic:
+            return headMentionsLocalType(module, ((AtomicType*)value)->content, depth + 1);
         case Type::Tup: {
             for(auto field: ((TupType*)value)->fields.contents(global)) {
                 if(headMentionsLocalType(module, field.type, depth + 1)) return true;
@@ -286,7 +295,23 @@ static bool headMentionsLocalType(Module& module, TypePtr type, U32 depth = 0) {
 
             return false;
         }
+        case Type::Fun: {
+            auto function = (FunType*)value;
+            for(auto arg: function->args.contents(global)) {
+                if(headMentionsLocalType(module, arg.type, depth + 1)) return true;
+            }
+
+            return headMentionsLocalType(module, function->result, depth + 1);
+        }
         default:
+            // Everything that names no type - which this walk got wrong until `kTypeChildren` was a
+            // column to check it against. `Fun` and `Atomic` were missing, so
+            // `instance Eq((Local) -> Int)` and `instance Eq(Atomic(%Local))` written in `Local`'s
+            // own module were reported as orphans: the walk found nothing local in a head that is
+            // nothing but local, and the advice it then gave was to move the instance to the module
+            // it was already in.
+            assertTrue("a kind with children needs an arm here - see kTypeChildren in type.def"
+                       && !kindHoldsTypes(value->kind));
             return false;
     }
 }

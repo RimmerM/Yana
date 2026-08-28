@@ -227,10 +227,9 @@ static TypePtr breakCycles(Module& module, TypePtr type, LayoutWalk& walk, Locat
     auto value = base[type];
 
     // Reaching a value through one of these costs a load rather than containment, so the layout of
-    // what is on the other side cannot make this one infinite.
-    if(value->kind == Type::Ptr || value->kind == Type::Borrow || value->kind == Type::Fun) {
-        return type;
-    }
+    // what is on the other side cannot make this one infinite - `kTypeIndirection` in type.def, and
+    // the same definition of an edge checkAcyclic below reads.
+    if(kindIsIndirection(value->kind)) return type;
 
     if(value->kind == Type::Tup) return breakTupleCycles(module, *(TupType*)value, walk, source);
 
@@ -275,8 +274,9 @@ void breakLayoutCycles(Module& module, TypePtr type, LocationId source) {
  * Everything reachable is expected to have been broken by the walk above, so this reports what the
  * walk could not fix rather than what the programmer wrote. It is kept because the alternative to a
  * diagnostic here is an infinite recursion in whichever pass asks for a size next, and because the
- * two walks share the definition of what an edge is - the same three handle kinds, plus a boxed
- * field or constructor, which is a pointer the compiler or the programmer already inserted.
+ * two walks share the definition of what an edge is - `kTypeIndirection`, plus a boxed field or
+ * constructor, which is a pointer the compiler or the programmer already inserted. Shared as the
+ * column rather than as a comment saying "the same three kinds", which is what it was.
  */
 static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, LocationId source) {
     if(!type) return true;
@@ -284,15 +284,11 @@ static bool checkAcyclic(Module& module, TypePtr type, TypeList& stack, Location
     auto base = *module.types;
     auto value = base[type];
 
-    // Reaching a value through one of these costs a load rather than containment, so the layout of
-    // what is on the other side cannot make this one infinite.
-    if(value->kind == Type::Ptr || value->kind == Type::Borrow || value->kind == Type::Fun) {
-        return true;
-    }
-
-    if(value->kind != Type::Tup && value->kind != Type::Record && value->kind != Type::Array) {
-        return true;
-    }
+    // The same edge the walk above breaks, asked through the same column: what is on the other side
+    // of a load cannot make this type infinite, and what this type does not contain is not a cycle
+    // through it at all.
+    if(kindIsIndirection(value->kind)) return true;
+    if(!kindHoldsMembers(value->kind)) return true;
 
     for(auto entry: stack) {
         if(entry != type) continue;

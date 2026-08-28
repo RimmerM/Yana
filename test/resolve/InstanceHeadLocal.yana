@@ -1,0 +1,33 @@
+-- The orphan rule, on a head whose local type is behind a structural one - doc/spec/classes.md, and
+-- Analysis-Status.md §6's type.def.
+--
+-- `Eq` is Core's and `Local` is this module's, so both instances below are placed by the type: the
+-- module that declared `Local` is the one that may say what equality means for a thing made out of
+-- it. Reject.Orphan.yana is the other side of the same rule.
+--
+-- The reason this is a fixture is that the walk answering "does this head mention a type of mine"
+-- had arms for a record, a tuple, a pointer, a borrow and a fixed array, and none for a function, a
+-- vector or an atomic - so a head that reached its local type through one of the last three found
+-- nothing and was reported as an orphan, with advice to move the instance into the module it was
+-- already in. Both heads here were refused before the `kTypeChildren` column existed to check that
+-- walk against.
+
+import Native
+
+data Local = Local
+
+fn measure(x: Local) -> Int = 3
+
+-- Through a function type, which is what `Fun`'s missing arm cost.
+instance Eq((Local) -> Int):
+    fn ==(lhs: (Local) -> Int, rhs: (Local) -> Int) -> Bool = True
+    fn !=(lhs: (Local) -> Int, rhs: (Local) -> Int) -> Bool = False
+
+-- And through an atomic pointer, which is what `Atomic`'s cost. `Atomic(a)` admits an integer, a
+-- `Bool` or a pointer (Analysis-Atomics.md §3.2), so a local type reaches one only as `%Local` -
+-- which is a raw pointer holding a declared type, and is exactly the shape the walk descends.
+instance Eq(Atomic(%Local)):
+    fn ==(lhs: Atomic(%Local), rhs: Atomic(%Local)) -> Bool = True
+    fn !=(lhs: Atomic(%Local), rhs: Atomic(%Local)) -> Bool = False
+
+fn main() -> Int = if measure == measure then measure(Local) else 0

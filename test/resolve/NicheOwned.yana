@@ -1,0 +1,116 @@
+import Native
+
+{-
+   A folded optional whose payload *owns storage*.
+
+   `Niche.yana` folds over a bit pattern and `NicheHost.yana` over a host value's absence, and both
+   of them fold over payloads that are TrivialCopy with nothing to release - two `Int`s, an `Int`, a
+   host object. This fixture is the case neither has: a `String` is neither TrivialCopy nor free to
+   release, so a `Maybe(String)` whose tag *is* the payload's absence has to answer every ownership
+   question with a representation that has no tag word to look at.
+
+   Four of those questions, one per function below, and each is a way the fold could be wrong while
+   every layout dump still read correctly:
+
+   - **assignment through a mutable binding.** `m = Just(s)` and `m = Nothing` write the tag by
+     writing the payload, and the second write has to release what the first one put there - which
+     through a folded tag is a decision made by comparing the binding against the absent value;
+   - **a move out of a field**, which takes the payload and leaves the field absent. There is no tag
+     to clear afterwards, so what the source is left holding *is* the answer to "which constructor is
+     this now";
+   - **a container of them**, where the absent value sits in the run beside live strings and the
+     container's own teardown walks all of them;
+   - **volume**, which is the only way a release that runs twice or not at all shows up in a number:
+     a thousand owned payloads built and dropped through a folded tag, natively where the storage is
+     real. A double release corrupts the allocator and a leak grows the heap; neither is visible in a
+     layout, and both are visible from outside this program.
+
+   Every function answers the same number on both targets, which is the property being asserted:
+   natively there is no fold here at all, so each of these is checked against the tagged
+   representation as its own control.
+-}
+
+-- An allocation rather than a literal: `++` builds a string this frame owns, so every `Just` below
+-- holds storage rather than naming the image. `@noinline` is what keeps it from being constant
+-- folded back into one.
+@noinline fn opaque(->s: String) -> String = s
+
+fn built(n: Int) -> String = opaque("a") ++ (if n > 0 then "b" else "")
+
+fn codeOf(s: String) -> Int =
+    if s == "" then 1
+    else if s == "a" then 2
+    else if s == "ab" then 3
+    else 4
+
+fn codeIn(m: Maybe(String)) -> Int = match m:
+    Nothing -> 9
+    Just(s) -> codeOf(s)
+
+-- Written four times through one binding, in both directions and over both constructors.
+fn assigned() -> Int:
+    let &m = Nothing :: Maybe(String)
+    let empty = codeIn(m)
+
+    m = Just(built(1))
+    let filled = codeIn(m)
+
+    -- Over a `Just`, so this write is the one that has to release what it replaces.
+    m = Just(built(0))
+    let replaced = codeIn(m)
+
+    m = Nothing
+    let cleared = codeIn(m)
+
+    return empty + filled * 10 + replaced * 100 + cleared * 1000
+
+data Row {name: Maybe(String), id: Int}
+
+-- Taking the payload out of a field and leaving the field absent - through `exchange`, which is the
+-- operation whose whole point is that the old value comes back owned and the place stays valid. The
+-- place here is where the tag would have been if there were one.
+fn moved() -> Int:
+    let &row = Row {name: Just(built(1)), id: 2}
+    let ->taken = exchange(row.name, Nothing :: Maybe(String))
+
+    return codeIn(taken) + codeIn(row.name) * 10 + row.id * 100
+
+-- The absent value beside live strings in one run, and a teardown that walks the whole of it. Pushed
+-- rather than written as a literal so the run is grown and the elements are relocated at least once.
+fn stored() -> Int:
+    let &rows = [] :: [Maybe(String)]
+
+    push(rows, Just(built(1)))
+    push(rows, Nothing :: Maybe(String))
+    push(rows, Just(built(0)))
+    push(rows, Nothing :: Maybe(String))
+    push(rows, Just(opaque("zz")))
+
+    let &total = 0
+    let &i = 0
+
+    while i < 5:
+        total = total * 10 + codeIn(rows[i])
+        i = i + 1
+
+    return total
+
+-- A thousand owned payloads through a folded tag. Nothing here is interesting to read - the answer
+-- is a sum of codes - and everything here is interesting to run: a release that ran twice takes the
+-- allocator with it, and one that never ran grows the heap by a thousand strings.
+fn volume() -> Int:
+    let &kept = 0
+    let &i = 0
+
+    while i < 1000:
+        let m = if i % 3 == 0 then Nothing :: Maybe(String) else Just(built(i % 2))
+        kept = kept + codeIn(m)
+        i = i + 1
+
+    return kept
+
+-- assigned: 9 + 3 * 10 + 2 * 100 + 9 * 1000                         = 9239
+-- moved:    3 + 9 * 10 + 2 * 100                                    = 293
+-- stored:   the five codes as digits - 3, 9, 2, 9, 4                = 39294
+-- volume:   334 absent at 9, 333 of "ab" at 3, 333 of "a" at 2      = 4671
+fn main() -> Int = assigned() + moved() * 100000 + stored() + volume()

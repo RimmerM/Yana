@@ -89,116 +89,19 @@ static void includeMember(Module& module, TypePtr member, Ownership& target, boo
     }
 }
 
-// The fold itself: one type's classification from its members', with whatever answers the round in
-// progress has for them. Split out from ownershipOf so that the fixpoint can drive it round by round.
-static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
+/*
+ * The three kinds that hold members, folded - `kTypeMembers`, and the arms type.def deliberately
+ * does not carry.
+ *
+ * Their answer is per instance rather than per kind: `Tup(Int)` and `Tup(Buffer)` are one kind and
+ * two classifications, so a column stating one would be stating it for the other too. What the
+ * column does say is that these three are folded at all, which is what makes a fourth container kind
+ * a `-Wswitch` diagnostic here rather than a scalar answer nobody looked at.
+ */
+static void foldMembers(Module& module, Type* value, Ownership& result) {
     auto base = *module.types;
-    Ownership result;
 
     switch(value->kind) {
-        case Type::Error:
-        case Type::Unit:
-        case Type::Int:
-        case Type::Float:
-        case Type::Literal:
-            // The scalars, and the literal variable that becomes one. Nothing to release, and
-            // both duplication and relocation are the bytes themselves.
-            break;
-
-        case Type::Ptr:
-            // A raw pointer is an address, and an address is TrivialCopy by Design.md's own list.
-            // Whatever it points at is owned by something else - that is what makes `%T` unsafe
-            // and what keeps it out of this analysis entirely.
-            break;
-
-        case Type::Vector:
-            /*
-             * TrivialCopy and TrivialSink with no teardown of either half - Design-Vector §2.5.
-             *
-             * Structural over the element, and the fold is not written out because it cannot say
-             * anything else: a lane is an integer or a float by construction, so every member of the
-             * scalar arm above applies to every lane there is. That holds inside a generic body too,
-             * where the element is still a variable - `Vec(a)` is trivial whatever `a` turns out to
-             * be, because a lane that was not a primitive would have been rejected at the type.
-             */
-            break;
-
-        case Type::Atomic:
-            /*
-             * Analysis-Atomics.md §3.1's four properties, stated rather than folded - and stating
-             * them is the whole reason `Atomic(a)` is a kind and not a one-field record.
-             *
-             * **Never TrivialCopy**, where every content it admits is. That is the inversion no
-             * structural rule can produce: a member that duplicates freely gives its container the
-             * same freedom, and here the container is precisely the thing that must not duplicate.
-             * A copied atomic is a second location, and two threads synchronizing through two
-             * locations are not synchronizing.
-             *
-             * **TrivialSink**, so it may be relocated while exclusively owned. Owning it exclusively
-             * is a proof that no borrow is outstanding, and a borrow is what a sharer holds - so
-             * there is no concurrent accessor for the move to race with. This is also what makes an
-             * atomic a legal field of a record that is itself moved.
-             *
-             * **No teardown of either half.** Every admitted content is trivial, so there is nothing
-             * to release and nothing to run; region eligibility follows from `drop == None`.
-             *
-             * Not `@pinned`, deliberately: what prevents a move is the borrow that sharing creates,
-             * which the ownership rules already enforce, and pinning it would additionally forbid
-             * the moves that are safe.
-             */
-            result.trivialCopy = false;
-            break;
-
-        case Type::String:
-            /*
-             * Implementation-String.md part 2's table, as the two entries that are not the Repr.
-             *
-             * **Not TrivialCopy, on both targets**, which that part states and then spends a
-             * paragraph defending: a JS string really is free to duplicate - host strings are
-             * immutable and the collector owns them - and it stays out of the class anyway, because
-             * TrivialCopy is a resolve-stage fact that changes binding semantics and *"the same
-             * borrow/move/drop rules apply identically on the native and JS targets; only the
-             * codegen strategy differs"*. The JS backend is still free to notice that a move of one
-             * needs no invalidation, which is the same category of thing as a `Reclaim` compiling to
-             * nothing there.
-             *
-             * **TrivialSink**, because relocating a string is moving two words that do not refer to
-             * their own address - the bytes are somewhere else and do not care where the descriptor
-             * went. That is what lets a string be returned and stored without a call.
-             *
-             * The teardown is left at `None` here and supplied by the `instance Reclaim(String)`
-             * below this switch, which is the ordinary authored path rather than a case in the
-             * derived generator. That is deliberate: releasing a string is the *run's* placement
-             * switch and nothing else, so the one comparison already written as `releaseRun` is the
-             * whole of it, and a derived walk over a type with no members visible to resolve would
-             * have had to grow a special case to reach it.
-             */
-            result.trivialCopy = false;
-            break;
-
-        case Type::Borrow:
-            // A borrow owns nothing, so it releases nothing and relocates by copying its address.
-            // Only the exclusive one is kept out of TrivialCopy: duplicating a mutable borrow on
-            // read would hand out a second exclusive access to one place, which is the one thing
-            // exclusivity means. An immutable borrow may be duplicated freely, which is exactly
-            // Design.md's "any number of immutable borrows can be alive simultaneously".
-            result.trivialCopy = ((BorrowType*)value)->mut == false;
-            break;
-
-        case Type::Gen:
-            // Design.md: an unconstrained generic parameter is treated as non-TrivialCopy inside
-            // the body regardless of what a caller substitutes, so that a generic function's
-            // accepted programs are fixed by its own signature. The same argument applies to the
-            // teardown: the body must be written as though the type owns something.
-            //
-            // `trivialSink` is the one that is *not* a statement about this body. Since there is no
-            // authored relocation, every type a caller can substitute relocates by its bytes, and
-            // the erased path does exactly that through the descriptor. What a false here buys is
-            // that `TrivialSink(a)` remains a constraint a signature may state and a body may act
-            // on - which is what a future immovable type would be excluded by.
-            result = Ownership { false, false, false, TeardownKind::Derived, TeardownKind::Derived };
-            break;
-
         case Type::Tup: {
             auto tuple = (TupType*)value;
             for(auto field: tuple->fields.contents(base)) {
@@ -242,7 +145,47 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
             break;
         }
 
-        case Type::Fun:
+        default:
+            assertTrue("only a kTypeMembers kind is folded - see type.def" && false);
+            break;
+    }
+}
+
+// The fold itself: one type's classification from its members', with whatever answers the round in
+// progress has for them. Split out from ownershipOf so that the fixpoint can drive it round by round.
+static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
+    auto base = *module.types;
+    Ownership result;
+
+    /*
+     * The rule this kind is classified by - type.def's ownership column, where each row's answer is
+     * argued beside the kind it is about.
+     *
+     * The scalar answers are constants and are stated there rather than here, because they are the
+     * ones a *kind* really does decide: nothing about an `Atomic` being uncopyable or a `String`
+     * being an owner depends on what either of them was applied to. What is left below is the two
+     * rules that are not a constant - a borrow, refined by which capability it is, and the three
+     * kinds whose answer is folded out of what they hold, which is per instance and could not be a
+     * column without becoming a lie.
+     */
+    switch(kindOwnership(value->kind)) {
+        case OwnershipRule::Bytes:
+            break;
+
+        case OwnershipRule::NotCopied:
+            result.trivialCopy = false;
+            break;
+
+        case OwnershipRule::Referenced:
+            // A borrow owns nothing, so it releases nothing and relocates by copying its address.
+            // Only the exclusive one is kept out of TrivialCopy: duplicating a mutable borrow on
+            // read would hand out a second exclusive access to one place, which is the one thing
+            // exclusivity means. An immutable borrow may be duplicated freely, which is exactly
+            // Design.md's "any number of immutable borrows can be alive simultaneously".
+            result.trivialCopy = ((BorrowType*)value)->mut == false;
+            break;
+
+        case OwnershipRule::Captured:
             // A function value owns the environment its captures live in (Design-Memory §8), so a
             // bitwise duplicate would alias that environment and it is not TrivialCopy. It *is*
             // TrivialSink - relocating it moves three words and the environment keeps its address -
@@ -254,11 +197,16 @@ static Ownership foldOwnership(Module& module, TypePtr type, Type* value) {
             result = Ownership { false, true, false, TeardownKind::Derived, TeardownKind::Derived };
             break;
 
-        default:
-            // Ref, RegionPtr, Region, Array and Map. None of them are constructible yet;
-            // classifying them conservatively is what makes adding one a decision rather than a
-            // silently wrong default.
+        case OwnershipRule::Opaque:
+            // A type variable, and the kinds that are named but not constructible yet. Both owe
+            // everything: a generic body must be written as though its parameter owns something
+            // whatever a caller substitutes, and classifying a reserved kind conservatively is what
+            // makes building one a decision rather than a silently wrong default.
             result = Ownership { false, false, false, TeardownKind::Derived, TeardownKind::Derived };
+            break;
+
+        case OwnershipRule::Members:
+            foldMembers(module, value, result);
             break;
     }
 

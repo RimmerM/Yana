@@ -1,0 +1,217 @@
+/*
+ * The roster of resolve type kinds - one row per `Type::Kind`, and the only place a kind is written
+ * down.
+ *
+ * `Type::Kind` itself is generated from this file, on inst.def's terms and for inst.def's reason: a
+ * kind cannot be added without a row, and a row cannot be added without the columns below being
+ * decided for it. What used to be a hand-written list of case labels wherever a question about a
+ * kind was asked - is this held in a register, does this contain what it names, may this carry a
+ * type variable - is a column here instead.
+ *
+ * ## What belongs here, and what does not
+ *
+ * The division is the one inst.def draws, and it falls differently: a *kind* answers whether it is
+ * direct, whether it holds other types, whether reaching through it costs a load, and what a
+ * diagnostic calls it. A *type* answers whether it needs teardown, whether it is TrivialCopy and
+ * what its Repr is - and for `Record`, `Tup` and `Array` those are per-instance and stay where
+ * type_own.cpp and repr.cpp have them. So the ownership column carries the *scalar* answers, which
+ * are the ones a kind really does decide, and names the three aggregate arms as `Members` rather
+ * than restating them.
+ *
+ * **What is declined here is a shared child walk**, and that decline is Analysis-Status.md §6's:
+ * `substituteType` reconstructs through a different interning constructor per kind, `genVariablesIn`
+ * reads, `matchType` walks two types in lockstep and `privateTypeIn` searches. They are four
+ * operations over one set of kinds, not one operation with four callers, and a traversal factored
+ * out of them would serve none of them. What they share is the *set*, which is the `kTypeChildren`
+ * column - so each of the four states its own walk and each one's `default:` is checkable against
+ * the table rather than being the silent "no children" that a new kind would inherit.
+ *
+ * ## The columns
+ *
+ *  - `kind` is the `Type::Kind` enumerator, and the order of these rows is the order of that enum.
+ *  - `name` is what a diagnostic calls a type of this kind where it cannot print the type itself -
+ *    the reserved kinds, and the internal errors that name a kind. Not the printed *form* of a
+ *    type: that is structural and belongs in describeType, which is why this column is a noun and
+ *    not a syntax.
+ *  - `flags` is the answer to the questions a pass asks about a kind rather than about a type. See
+ *    the constants in type.h, each of which says which hand-written disjunction it replaced.
+ *  - `ownership` is the rule ownershipOf classifies a type of this kind by - see OwnershipRule. The
+ *    three rules that are not a constant answer (`Referenced`, `Members`) name the code that
+ *    computes one, exactly as inst.def leaves `mapOperandFields` beside the fields it is about.
+ */
+
+//        kind        name                flags                                       ownership
+
+/*
+ * A type that has already been reported - the resolver's own bottom, and not a kind a program can
+ * write.
+ *
+ * Everything about it is the trivial answer, because the point of it is that nothing downstream
+ * asks a second question about a value whose type is already a diagnostic.
+ */
+YANA_TYPE(Error,      "error",            0,                                          Bytes)
+YANA_TYPE(Unit,       "unit",             0,                                          Bytes)
+YANA_TYPE(Int,        "integer",          kTypeDirect,                                Bytes)
+YANA_TYPE(Float,      "float",            kTypeDirect,                                Bytes)
+
+/*
+ * A borrow - `'T` and `&T`, rung 2 of Design.md's reference ladder.
+ *
+ * Both `kTypeDirect` and `kTypeIndirection`, which is not a contradiction and is worth reading as
+ * two separate statements: the *value* is an address and travels in a register, and what that
+ * address names is somebody else's storage, so a record holding one does not contain what it points
+ * at and cannot be made infinite by it.
+ *
+ * `Referenced` rather than a constant, because only the exclusive one is kept out of TrivialCopy -
+ * see foldOwnership, which is where the `mut` is.
+ */
+YANA_TYPE(Borrow,     "borrow",           kTypeDirect | kTypeIndirection | kTypeChildren, Referenced)
+
+/*
+ * The three reserved reference kinds and the reserved map - Design.md's rungs 3 and 4, and
+ * Implementation-Map.md's built-in map type.
+ *
+ * `kTypeReserved` is the whole of what is said about them, and saying it is the point: nothing
+ * constructs one today, so every question below has no caller and any answer but the conservative
+ * one would be a claim nobody has checked. `Opaque` follows from that rather than being a second
+ * decision - a kind whose values do not exist owes everything until someone builds one.
+ *
+ * Verified rather than assumed: none of the four appears in substituteType, genVariablesIn,
+ * matchType or privateTypeIn, so nothing can be generic in one either.
+ */
+YANA_TYPE(Ref,        "reference",        kTypeReserved,                              Opaque)
+YANA_TYPE(RegionPtr,  "region pointer",   kTypeReserved,                              Opaque)
+
+/*
+ * A raw pointer - `%T`, rung 1, and the one reference the language does not check.
+ *
+ * `Bytes` for the same reason it is unsafe: an address is TrivialCopy by Design.md's own list, and
+ * whatever it points at is owned by something else - which is what keeps `%T` out of the ownership
+ * analysis entirely rather than making it a special case inside it.
+ */
+YANA_TYPE(Ptr,        "raw pointer",      kTypeDirect | kTypeIndirection | kTypeChildren, Bytes)
+YANA_TYPE(Region,     "region",           kTypeReserved,                              Opaque)
+
+/*
+ * A function value - `{code, env}`, and an owner of the environment its captures live in.
+ *
+ * `kTypeIndirection` because the environment is behind a pointer: `data T {f: () -> T}` is finite,
+ * and it is finite for the same reason a `%T` field makes one finite. `Captured` is the ownership
+ * that follows - not TrivialCopy, since a bitwise duplicate would alias the environment, and
+ * TrivialSink, since relocating the value moves the words and the environment keeps its address.
+ */
+YANA_TYPE(Fun,        "function",         kTypeIndirection | kTypeChildren,           Captured)
+
+/*
+ * `[T *n]` - a fixed array, whose elements are inline and whose count is a type.
+ *
+ * `kTypeMembers`: `n` of them, at a stride, in this type's own storage. Which is what makes it the
+ * one container kind that can be part of a layout cycle - `data T {kids: [T *4]}` has no finite
+ * size whatever the compiler does, and checkAcyclic reports it rather than inserting an
+ * indirection nobody wrote.
+ */
+YANA_TYPE(Array,      "fixed array",      kTypeMembers | kTypeChildren,               Members)
+YANA_TYPE(Map,        "map",              kTypeReserved,                              Opaque)
+YANA_TYPE(Tup,        "tuple",            kTypeMembers | kTypeChildren,               Members)
+
+/*
+ * A nominal type - the one kind interned by declaration rather than by structure, and the only one
+ * whose `kTypeDirect` answer is per instance.
+ *
+ * An enum-layout record is a discriminant and nothing else, so it is direct where every other
+ * record is memory. That refinement is in isDirectType rather than here for the reason `kInstPure`
+ * has an exception: a column states what is true of the kind, and a question the *instance*
+ * answers is one the table must not pretend to.
+ */
+YANA_TYPE(Record,     "record",           kTypeMembers | kTypeChildren,               Members)
+
+/*
+ * A type variable - the `a` of `Maybe(a)`, and what substitution replaces.
+ *
+ * No children: a variable holds nothing, and the walks that name it name it for the opposite reason
+ * - it is where a walk *stops* and answers. `Opaque` is Design.md's rule that an unconstrained
+ * parameter is treated as owning something inside the body, whatever a caller substitutes.
+ */
+YANA_TYPE(Gen,        "type variable",    0,                                          Opaque)
+
+/*
+ * A literal whose type nothing has decided yet, carrying the classes it is waiting to satisfy.
+ *
+ * `Bytes` because what it becomes is a scalar: every class a literal can be waiting on is satisfied
+ * by one, so the answer here is the answer it will have. Nothing owns anything in between.
+ */
+YANA_TYPE(Literal,    "literal",          0,                                          Bytes)
+
+/*
+ * `String` - Implementation-String.md, and a primitive rather than a record.
+ *
+ * The surface language has one `String`; the two targets do not agree on what one *is*, and that
+ * disagreement is the reason this is a kind of its own instead of the `@platform`-split `data`
+ * declaration `Array(a)` gets. On JS a string is the host string value, so it has to sit in a plain
+ * variable and be boxed only by the rule every non-object already follows - a wrapper record there
+ * would make every string an object allocation and would put it in a *record* place for the
+ * ownership passes, which is the shape Implementation-Containers.md §14.1 records building for
+ * `HostArray(a)` and removing. Natively it is the two words `stringContent` names, which is exactly
+ * `Array(U8)`'s layout.
+ *
+ * So the logical type is one thing and the Repr is asked per target, which is the split
+ * Implementation-Repr.md already draws everywhere else. What is *not* per target is ownership:
+ * `NotCopied` on both, per Implementation-String.md part 2, even though a JS string is free to
+ * duplicate at the codegen level - TrivialCopy is a resolve-stage fact that changes what a `let`
+ * means, and the same borrow, move and drop rules have to apply on both targets.
+ *
+ * The teardown is left off here and supplied by the `instance Reclaim(String)` in type_own.cpp,
+ * which is the ordinary authored path rather than a case in the derived generator.
+ */
+YANA_TYPE(String,     "string",           0,                                          NotCopied)
+
+/*
+ * `Vec(a, n)` and `Mask(a)` - Design-Vector §2, and one kind for both.
+ *
+ * `kTypeDirect` is a *contract* rather than an observation - Design-Vector §2.5. Resolve states
+ * that a vector is carried in a register and every target's calling convention is bound by it, so a
+ * backend that cannot pass one that way has to fail loudly rather than quietly spill; checkAbiContract
+ * in repr.cpp is where that is asserted. It is also what makes a loan marker on a vector parameter a
+ * diagnostic: the caller's storage did not travel, so nothing is rooted in it.
+ *
+ * `Bytes` is structural over the element and is not written as a fold because it cannot say anything
+ * else - a lane is an integer or a float by construction, so every lane there is falls in the row
+ * above. That holds inside a generic body too, where `Vec(a)` is trivial whatever `a` turns out to
+ * be, because a lane that was not a primitive would have been rejected at the type.
+ */
+YANA_TYPE(Vector,     "vector",           kTypeDirect | kTypeChildren,                Bytes)
+
+/*
+ * `Atomic(a)` - Analysis-Atomics.md §3.1, and a kind rather than a declaration.
+ *
+ * A one-field record is what it looks like and is the one thing it cannot be, and this column is
+ * why: structural classification would make `Atomic(Int)` TrivialCopy, since its member is - and a
+ * value two threads share that copies on every read is not an atomic at all. `NotCopied` is that
+ * inversion stated, which no structural rule can produce. The current module rules would also expose
+ * its constructor, so `Atomic(counter)` could be built from a value rather than only through
+ * `atomic`.
+ *
+ * TrivialSink all the same, so it may be relocated while exclusively owned: owning it exclusively is
+ * a proof that no borrow is outstanding, and a borrow is what a sharer holds. Not `@pinned`,
+ * deliberately - what prevents a move is the borrow that sharing creates, and pinning would
+ * additionally forbid the moves that are safe.
+ *
+ * What it holds is one of the family §3.2 admits - an integer, a `Bool`, or a pointer - and that is
+ * checked where the type is built. See AtomicType.
+ */
+YANA_TYPE(Atomic,     "atomic",           kTypeChildren,                              NotCopied)
+
+/*
+ * A number in a position a type is written - Implementation-Const-Generics.md §2.1.
+ *
+ * The `4` of `[Int *4]` and of `Vec(Float, 4)`. It is a Type so that a count and a *const variable*
+ * are the same kind of child: `[a *n]` holds a GenType where `[a *4]` holds one of these, and every
+ * substitution, matching and interning rule that already walks a type child therefore applies to a
+ * count with no case of its own.
+ *
+ * A value of one is not a thing that exists, which is what every column here says: no children of
+ * its own (the type in its interning key is there to keep two parameters apart and is not something
+ * it *holds*), not direct, and `Opaque` because nothing asks - a metric read through `ReprTable::of`
+ * instead of through `metric` is a compiler bug that assertion in repr.cpp reports.
+ */
+YANA_TYPE(Const,      "count",            0,                                          Opaque)

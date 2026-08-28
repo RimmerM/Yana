@@ -390,11 +390,22 @@ void ReprTable::compute(TypePtr type, Repr& into) {
              */
             assertTrue("a count is not a value and has no layout - read it with ReprTable::metric" == nullptr);
             break;
-        default:
-            // Unit, Error, and the kinds that are reserved but not constructible yet - Ref,
-            // RegionPtr, Region, Map. Reaching one of those with a value in hand is a compiler bug
-            // rather than a layout question, and zero is what the resolver's own computation
-            // answered for them too.
+        case Type::Unit:
+        case Type::Error:
+        case Type::Gen:
+        case Type::Literal:
+            // Nothing with a layout: a unit occupies nothing, an error is a diagnostic that already
+            // happened, and the two undecided kinds are answered above by the `generic` early-out or
+            // by having been defaulted to a scalar before anything asked. Zero for all four.
+            break;
+
+        case Type::Ref:
+        case Type::RegionPtr:
+        case Type::Region:
+        case Type::Map:
+            // The `kTypeReserved` kinds. Reaching one with a value in hand is a compiler bug rather
+            // than a layout question, and zero is what the resolver's own computation answered for
+            // them too.
             break;
     }
 
@@ -450,6 +461,30 @@ void ReprTable::hostNiche(TypePtr type, Repr& into) {
         case Type::Borrow:
             // A `number` with no spare patterns to speak of, a host function, and a reference. None
             // of them has a range to be outside of, and each of them has `null`.
+            break;
+
+        case Type::String:
+            /*
+             * A host string, which is one value in a plain variable and is never `null` - so
+             * `Maybe(String)` is `string | null` and costs nothing at all.
+             *
+             * This declined until it was measured, on the grounds that a niche over a *container*
+             * buys less than it costs. That argument is the fixed array's below and it does not
+             * carry over, because the two are not the same shape on this target: `[T *n]` is a host
+             * array whose elements are storage, and a borrow of one is a slice built out of that
+             * storage - so a folded `Maybe` would have to materialize the array before anything
+             * could take its address. A string has no elements to address here. It is boxed by the
+             * rule every non-object already follows, exactly as a `number` is, which is why
+             * `Maybe(Int)` folds and why this now folds beside it.
+             *
+             * What it buys is what the unfolded form cost: `Maybe(String)` was `{$tag, $p}`, one
+             * object allocation per `Just` *and* per `Nothing`, and is now the string itself.
+             *
+             * **`""` is the case that has to be got right**, and it is the same trap `Just(0)` is in
+             * NicheHost.yana: an empty string is falsy in JavaScript, so a decode written as a
+             * truthiness test would read `Just("")` as `Nothing`. The decode is `=== null`
+             * (decodeNicheTag), which is why it is not - and NicheHost.yana asserts it by running.
+             */
             break;
 
         case Type::Tup:
@@ -806,10 +841,12 @@ void ReprTable::computeVector(VectorType& vector, Repr& into) {
  * and there are no fields, so it lands in a plain variable and is boxed only by the rule every other
  * non-object already follows. `scalarBits` stays zero on purpose even though the value is a single
  * host slot - a string is not a *number*, so nothing may pack it into a word or compare it against a
- * range, which is exactly what leaving it zero says. `hostNiche` reads the same fact and declines to
- * publish `null` as a spare pattern for the same reason it declines for a fixed array: the niche
- * would be over a container, and folding one costs more than it buys until `Maybe(String)` is
- * measured.
+ * range, which is exactly what leaving it zero says.
+ *
+ * `hostNiche` reads the same fact and reaches the opposite conclusion about `null`: a value in a
+ * plain variable that is never null has one spare pattern, so `Maybe(String)` is `string | null`.
+ * That declined once, on the fixed array's grounds - a niche over a container - and those grounds
+ * turned out not to be about strings at all; the argument is beside the `String` arm there.
  */
 void ReprTable::computeString(TypePtr type, Repr& into) {
     auto content = ((StringType*)global[type])->content;

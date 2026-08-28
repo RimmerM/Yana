@@ -2495,30 +2495,18 @@ struct Inliner {
     }
 
     /*
-     * Whether a value in the callee is backed by memory there - which is what the caller's slot has
-     * to be repointed at, since a slot *is* storage and everything rooted in one is an address.
+     * Whether a value *in the callee* is backed by memory there - `valueOccupiesStorage` in
+     * opt_pass.h, which is where the three shapes and the target argument are.
      *
-     * Three shapes are, and they are the three ways a memory value comes to exist:
+     * Asked of the callee's numbering rather than the caller's, which is the whole reason this
+     * wrapper exists: a slot index means nothing outside the function that declared it, and the
+     * value being judged has not been cloned yet.
      *
-     *  - it owns a slot, which is what `backingLocal` asks of an operand: an allocation, a copy,
-     *    and a call whose result the target returns through the caller's storage;
-     *  - it read a place, which for a memory type *is* that place rather than a copy of it;
-     *  - it relocated out of one, which is a `Move`: no slot of its own, but lowering names the
-     *    source's storage until an `init` writes the bytes somewhere else, so a slot pointed at one
-     *    is pointed at real memory. This is the interpolation shape - `Text.yana` builds a string in
-     *    a callee and hands it back - and the copy below would be a second one of every such string.
-     *
-     * Everything else is a value in a register and occupies nothing, whatever `isMemoryType` says
-     * about its type. That question is the target-independent one resolve asked, and a type can be
-     * memory for one target and not for another.
+     * The `Move` shape is what keeps the interpolation case free - `Text.yana` builds a string in a
+     * callee and hands it back - since a copy made here would be a second one of every such string.
      */
     bool occupiesStorage(Candidate& candidate, ModulePtr<Value> value) {
-        if(!value) return false;
-
-        auto kind = opt.local[value]->kind;
-        if(kind == Value::LoadPlace || kind == Value::Move) return true;
-
-        return opt.local[value]->slot < candidate.callee->localCount();
+        return valueOccupiesStorage(opt.local, *candidate.callee, value);
     }
 
     /*

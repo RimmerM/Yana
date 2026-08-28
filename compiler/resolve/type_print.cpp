@@ -290,8 +290,23 @@ void describeType(Context& context, GlobalBase base, TypePtr type, StringBuilder
 
             return;
         }
-        default:
-            target << "<unsupported>";
+        case Type::Ref:
+        case Type::RegionPtr:
+        case Type::Region:
+        case Type::Map:
+            /*
+             * The kinds nothing constructs, named rather than lumped - `kTypeReserved` in type.def.
+             *
+             * A diagnostic that reaches here is reporting a compiler bug either way, and `<region>`
+             * says which one where `<unsupported>` said only that there was one. Angle brackets
+             * because it is not a spelling any program could have written, which is the same thing
+             * `<error>` above means by them.
+             *
+             * Written as four labels rather than a `default:` so that this switch is exhaustive: a
+             * kind added to type.def with no way to print itself is a `-Wswitch` diagnostic naming
+             * the arm, which is the enforcement half of the table.
+             */
+            target << '<' << typeKindName(base[type]->kind) << '>';
             return;
     }
 }

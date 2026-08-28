@@ -237,79 +237,130 @@ struct OwnershipSolve {
  * what makes arrivesAsCopy() below a sound rule rather than a coincidence, and ReprTable::of asserts
  * the half of it a target could break - see checkAbiContract in repr.cpp.
  */
+
+/*
+ * What a pass may ask about a *kind* rather than about a type - see type.def, where the answer for
+ * each kind is a column.
+ *
+ * Each of these was a disjunction written out by hand in two or more places, and the cost of that is
+ * not the lines: a kind added to the language is silently absent from every list it does not reach,
+ * and "absent" reads as `false` in all of them. For four of the five below that is the safe answer;
+ * for `kTypeChildren` it is a wrong one, which is why that column is the one with assertions behind
+ * it.
+ */
+
+/*
+ * A value of this kind is carried as a copy in a register rather than as an address of storage.
+ *
+ * The column behind isDirectType(), which is where the one refinement lives: an enum-layout record
+ * is direct and no other record is, and that is a question about the instance rather than about the
+ * kind. A column and an exception, on `kInstPure`'s terms.
+ */
+static constexpr U16 kTypeDirect = 1 << 0;
+
+/*
+ * The value refers to storage it does not contain, so reaching what is on the other side costs a
+ * load.
+ *
+ * Which is exactly what makes a layout cycle through one finite: `data T {next: %T}` and
+ * `data T {f: () -> T}` both have a size, and `data T {kids: [T *4]}` does not. Stated once here
+ * because breakLayoutCycles and checkAcyclic are two walks over one definition of what an edge is,
+ * and they each used to spell it out - the same three kinds, under the same comment, twice.
+ *
+ * Not the opposite of `kTypeDirect` and not related to it: a borrow is both, and the two say
+ * different things about it. The value is an address, so it travels in a register; the storage it
+ * names is somebody else's, so this type does not contain it.
+ */
+static constexpr U16 kTypeIndirection = 1 << 1;
+
+/*
+ * The type holds members, in its own storage, whose types are its business.
+ *
+ * `Tup`, `Record` and `Array` - the three kinds ownership folds through, layout contains, and a
+ * borrow search descends into. All three of those walks named the same three kinds by hand, and
+ * type_query.cpp and type_layout.cpp wrote the identical three-way test.
+ */
+static constexpr U16 kTypeMembers = 1 << 2;
+
+/*
+ * The type names other types as children, which a substitution has to rebuild and a search has to
+ * descend into.
+ *
+ * A superset of `kTypeMembers`: a `%T` names a `T` without containing one. This is the one flag
+ * whose absence is not the safe answer - a kind added with children and left off this column is a
+ * substitution that silently returns the type unchanged, a variable mask that silently says "no
+ * variables", and a private type that is silently exported. So the four walks that read it assert
+ * against it in their `default:` rather than falling through in silence.
+ */
+static constexpr U16 kTypeChildren = 1 << 3;
+
+/*
+ * Named by the language and not constructible yet - `Ref`, `RegionPtr`, `Region` and `Map`.
+ *
+ * A flag rather than four names repeated, because "the kinds that are reserved but not built" was
+ * the content of half a dozen `default:` comments and they had already drifted: one of them still
+ * listed `Array`, which has had an arm of its own since fixed arrays landed. What a reader needs
+ * from those arms is that reaching one is a compiler bug, and this is that claim in a form the
+ * compiler checks.
+ */
+static constexpr U16 kTypeReserved = 1 << 4;
+
+/*
+ * How ownershipOf classifies a type of one kind - type.def's ownership column.
+ *
+ * The scalar answers are constants and are the whole of what a *kind* decides; the two that are not
+ * name the code that decides them, which is the same division inst.def draws when it leaves
+ * `mapOperandFields` beside the fields rather than putting a field list in a column.
+ */
+enum class OwnershipRule: U8 {
+    // Duplicated, relocated and released by its bytes: there is nothing to release and both
+    // operations are the bytes themselves.
+    Bytes,
+
+    // The bytes are the value, except that duplicating them would be wrong - see `Atomic`, where
+    // that inversion is the reason the kind exists at all.
+    NotCopied,
+
+    // A borrow, whose answer is refined by whether it is the exclusive one.
+    Referenced,
+
+    // Folded from what the type holds, in type_own.cpp - the three `kTypeMembers` kinds, whose
+    // answer is per instance and not per kind.
+    Members,
+
+    // A function value: it owns the environment its captures live in, and relocates by its bytes.
+    Captured,
+
+    // Nothing may be assumed. A type variable, whose body must be written as though it owns
+    // something whatever a caller substitutes, and the kinds nothing builds yet.
+    Opaque,
+};
+
+struct TypeTraits {
+    StringView name;
+    U16 flags;
+    OwnershipRule ownership;
+};
+
+// Indexed by `Type::Kind`, in the order type.def lists them - which is the order the enum is
+// generated in, so the two cannot come apart. Defined in type.cpp, with the assertions.
+extern const TypeTraits kTypeTraits[];
+
 struct Type {
+    // Generated from type.def, so the rows and the enumerators are one list rather than two that
+    // agree - see that file for what each row has to decide.
     enum Kind: U8 {
-        Error,
-        Unit,
-        Int,
-        Float,
-        Borrow,
-        Ref,
-        RegionPtr,
-        Ptr,
-        Region,
-        Fun,
-        Array,
-        Map,
-        Tup,
-        Record,
-        Gen,
-        Literal,
-
-        /*
-         * `String` - Implementation-String.md part 1, and a primitive rather than a record.
-         *
-         * The surface language has one `String`; the two targets do not agree on what one *is*, and
-         * that disagreement is the reason this is a kind of its own instead of the
-         * `@platform`-split `data` declaration `Array(a)` gets. On JS a string is the host string
-         * value, so it has to sit in a plain variable and be boxed only by the rule every non-object
-         * already follows - a wrapper record there would make every string an object allocation and
-         * would put it in a *record* place for the ownership passes, which is the shape
-         * Implementation-Containers.md §14.1 records building for `HostArray(a)` and removing.
-         * Natively it is the two words `stringContent` names, which is exactly `Array(U8)`'s layout.
-         *
-         * So the logical type is one thing and the Repr is asked per target, which is the split
-         * Implementation-Repr.md already draws everywhere else. What is *not* per target is
-         * ownership: `String` is non-TrivialCopy on both, per Implementation-String.md part 2, even
-         * though a JS string is free to duplicate at the codegen level.
-         */
-        String,
-
-        // `Vec(a, n)` and `Mask(a)` - Design-Vector §2, and one kind for both. See VectorType.
-        Vector,
-
-        /*
-         * `Atomic(a)` - Analysis-Atomics.md §3.1, and a kind rather than a declaration.
-         *
-         * A one-field record is what it looks like and is the one thing it cannot be. Structural
-         * classification would make `Atomic(Int)` `TrivialCopy`, since its member is - and a value
-         * two threads share that copies on every read is not an atomic at all. The current module
-         * rules would also expose its constructor, so `Atomic(counter)` could be built from a value
-         * rather than only through `atomic`.
-         *
-         * Its ownership is therefore stated rather than computed (see `ownershipOfAtomic`), which is
-         * a compiler fact and stays one even after abstract types make the constructor half
-         * ordinary library machinery.
-         *
-         * What it holds is one of the family §3.2 admits - an integer, a `Bool`, or a pointer - and
-         * that is checked where the type is built, not here. See AtomicType.
-         */
-        Atomic,
-
-        /*
-         * A number in a position a type is written - Implementation-Const-Generics.md §2.1.
-         *
-         * The `4` of `[Int *4]` and of `Vec(Float, 4)`. It is a Type so that a count and a *const
-         * variable* are the same kind of child: `[a *n]` holds a GenType where `[a *4]` holds one
-         * of these, and every substitution, matching and interning rule that already walks a type
-         * child therefore applies to a count with no case of its own.
-         *
-         * A value of one is not a thing that exists. It never appears as the type of a local, an
-         * argument or a field, so nothing asks it for a layout, an ownership class or a Repr - see
-         * ConstType.
-         */
-        Const,
+#define YANA_TYPE(kind, name, flags, ownership) kind,
+#include "type.def"
+#undef YANA_TYPE
     };
+
+    // The number of kinds, which is what the traits table is checked against - see type.cpp.
+    static constexpr Size kKindCount =
+#define YANA_TYPE(kind, name, flags, ownership) + 1
+#include "type.def"
+#undef YANA_TYPE
+    ;
 
     explicit Type(Kind kind): kind(kind), generic(false), exported(false) {}
 
@@ -353,6 +404,51 @@ struct Type {
     // own map because it is asked of every member of every type and a Type has the byte.
     bool resolvingOwnership = false;
 };
+
+// What this kind is, as type.def states it.
+inline const TypeTraits& typeTraits(Type::Kind kind) {
+    return kTypeTraits[kind];
+}
+
+// What a diagnostic calls a type of this kind where it cannot print the type itself. A noun, not a
+// syntax - see the `name` column in type.def.
+inline StringView typeKindName(Type::Kind kind) {
+    return typeTraits(kind).name;
+}
+
+// Carried as a copy in a register rather than as an address - see `kTypeDirect`. isDirectType() is
+// this plus the one refinement a record instance makes, and is what callers outside this file ask.
+inline bool kindIsDirect(Type::Kind kind) {
+    return (typeTraits(kind).flags & kTypeDirect) != 0;
+}
+
+// Refers to storage it does not contain, so a layout cycle through it is finite and a walk that is
+// looking for containment stops here.
+inline bool kindIsIndirection(Type::Kind kind) {
+    return (typeTraits(kind).flags & kTypeIndirection) != 0;
+}
+
+// Holds members, in its own storage, whose types are its business: `Tup`, `Record` and `Array`.
+inline bool kindHoldsMembers(Type::Kind kind) {
+    return (typeTraits(kind).flags & kTypeMembers) != 0;
+}
+
+// Names other types as children, which a substitution rebuilds and a search descends into - see
+// `kTypeChildren`, which is the one flag whose absence is not the safe answer.
+inline bool kindHoldsTypes(Type::Kind kind) {
+    return (typeTraits(kind).flags & kTypeChildren) != 0;
+}
+
+// Named by the language and not constructible: reaching one with a value in hand is a compiler bug.
+inline bool kindIsReserved(Type::Kind kind) {
+    return (typeTraits(kind).flags & kTypeReserved) != 0;
+}
+
+// How ownershipOf classifies a type of this kind - see OwnershipRule, and foldOwnership, which is
+// the one caller.
+inline OwnershipRule kindOwnership(Type::Kind kind) {
+    return typeTraits(kind).ownership;
+}
 
 /*
  * An integer type.
