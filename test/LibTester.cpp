@@ -743,7 +743,7 @@ static bool runBuild(const String& path, StringView source, const BuildOptions& 
      * never comes up.
      */
     context.settings.test = true;
-    if(options.js) context.settings.mode = CompileMode::JsExecutable;
+    if(options.js) context.settings.platform = TargetPlatform::Js;
     provider.context = &context;
 
     /*
@@ -871,6 +871,7 @@ int main(int argc, const char** argv) {
         // an expectation this driver could rewrite into agreeing with itself is one it is not
         // asserting.
         if(arg == "generate") continue;
+        if(rejectFlagArgument(arg)) return 1;
         only = arg;
     }
 

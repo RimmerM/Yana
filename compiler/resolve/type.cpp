@@ -961,7 +961,7 @@ TypePtr resolveVectorType(Module& module, TypePtr content, TypePtr count, bool i
      * `laneBinary` would emit a plain `+` and a coercion, which is the wrong arithmetic rather than
      * slow arithmetic. `kMaxNumberBits` in codegen/js/build.h is the same 53 and the same split.
      */
-    if(isJsMode(context.settings.mode) && base[content]->kind == Type::Int && stride == 8) {
+    if(isJsMode(context.settings) && base[content]->kind == Type::Int && stride == 8) {
         auto canonical = (IntType*)base[canonicalType(base, content)];
 
         if(canonical->bits <= 53) {

@@ -1740,7 +1740,7 @@ void defineLength(Module& module, TypePtr head, GlobalPtr<GenEnv> env, Emit leng
 } // namespace
 
 void defineNativeIndexInstances(Module& native) {
-    auto js = isJsMode(native.context.settings.mode);
+    auto js = isJsMode(native.context.settings);
 
     auto pointerEnv = headEnvironment(native);
     auto pointee = headVariable(native, pointerEnv);
@@ -1759,7 +1759,7 @@ void defineNativeIndexInstances(Module& native) {
 }
 
 void defineContainerInstances(Module& collections) {
-    auto js = isJsMode(collections.context.settings.mode);
+    auto js = isJsMode(collections.context.settings);
 
     auto arrayEnv = headEnvironment(collections);
     auto element = headVariable(collections, arrayEnv);

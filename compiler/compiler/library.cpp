@@ -1,7 +1,6 @@
 #include "context.h"
 #include "project.h"
 #include <File.h>
-#include <stdlib.h>
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <unistd.h>
@@ -80,20 +79,20 @@ const String& LibrarySource::directory(Context& context) {
     if(searched) return root;
     searched = true;
 
-    // `-lib` first and unconditionally: a path that was named and is wrong is a mistake to see
-    // rather than one to fall through, so this one is taken whether or not it holds a Core - the
-    // "cannot find the standard library" report then names the directory the caller asked for.
+    /*
+     * `-lib`, or `library` in the project file, first and unconditionally: a path that was named and
+     * is wrong is a mistake to see rather than one to fall through, so this one is taken whether or
+     * not it holds a Core - the "cannot find the standard library" report then names the directory
+     * the caller asked for.
+     *
+     * A `YANA_LIB` environment variable used to sit between this and the candidates below. It is
+     * gone: a build whose standard library came from the shell said so nowhere a reader of the build
+     * could see, and the same fact belongs either to one invocation (`-lib`) or to the project
+     * (`library` in its `yana.toml`), both of which are written down.
+     */
     if(context.settings.libraryPath != "") {
         root = context.settings.libraryPath;
         return root;
-    }
-
-    if(auto fromEnvironment = getenv("YANA_LIB")) {
-        auto candidate = String(fromEnvironment);
-        if(holdsLibrary(candidate)) {
-            root = candidate;
-            return root;
-        }
     }
 
     auto binary = executableDirectory();

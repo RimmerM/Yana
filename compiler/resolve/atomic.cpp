@@ -401,7 +401,7 @@ void definePreludeAtomic(Program& program, Module& atomic) {
     // On a JS build the module's one file is not read - see lib/Atomic/Atomic.native.yana - so there
     // is nothing declared for any of this to attach to. Returning rather than reporting, because an
     // absent native-only module is what a JS build is supposed to have.
-    if(isJsMode(program.context.settings.mode)) return;
+    if(isJsMode(program.context.settings)) return;
 
     program.coreClasses.atomicValue = classNamed(atomic, "AtomicValue"_v);
     program.coreClasses.atomicInteger = classNamed(atomic, "AtomicInteger"_v);
@@ -441,6 +441,6 @@ void definePreludeAtomic(Program& program, Module& atomic) {
  * `Atomic(a)` cannot resolve without it.
  */
 void definePreludeNativeAtomic(Program& program, Module& native) {
-    if(isJsMode(program.context.settings.mode)) return;
+    if(isJsMode(program.context.settings)) return;
     attachIntrinsic(native, "atomicAt"_v, emitAtomicAt);
 }

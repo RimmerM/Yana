@@ -128,7 +128,7 @@ ast::ModuleGroup* parsePreludeGroup(Program& program, StringView name, bool requ
     // on some targets is a different thing: `Atomic` has a single `.native.yana` file, so on a JS
     // build the selector leaves it with none and the module simply does not exist there (§5.4).
     if(!group && required) {
-        context.diagnostics.error("cannot read the standard library module %@ - looked in %@. Pass -lib with the directory holding Core/Core.yana, or set YANA_LIB."_v,
+        context.diagnostics.error("cannot read the standard library module %@ - looked in %@. Pass -lib with the directory holding Core/Core.yana, or set `library` in the project file."_v,
                                   nullptr, toString(name), context.library.directory(context));
     }
 
@@ -473,7 +473,7 @@ static U16 reinterpretWidth(GlobalBase global, TypePtr type) {
  */
 static void defineBitcastLadder(Module& module, TypeList& types) {
     GlobalBase global = *module.types;
-    auto onJs = isJsMode(module.context.settings.mode);
+    auto onJs = isJsMode(module.context.settings);
 
     for(Size from = 0; from < types.size(); from++) {
         auto fromWidth = reinterpretWidth(global, types[from]);

@@ -104,8 +104,20 @@ Maybe<String> findProjectFile(const String& directory, U32 maxDepth) {
 Maybe<String> locateProjectFile(const CompileSettings& settings) {
     if(settings.noProject) return Nothing();
 
+    /*
+     * The working directory, and not one above it - see the header.
+     *
+     * This used to climb 24 levels, which made `yana` in any directory at all a compilation of
+     * whichever project happened to be an ancestor of it: a stray `yana.toml` in a home directory
+     * was a build nobody could explain from the command they typed. The habit it served - running
+     * the compiler from a subdirectory of a project - is now answered by `describeMissingProject`,
+     * which climbs to say where the project is and leaves the choice to run it there to the caller.
+     */
     if(settings.projectFile == "") {
-        return findProjectFile(String("."));
+        auto here = joinProjectPath(String("."), String("yana.toml"));
+        if(Tritium::File::exists(here)) return Just(::move(here));
+
+        return Nothing();
     }
 
     // A directory is the friendlier thing to have been given - it is what an editor knows about a
@@ -372,42 +384,87 @@ Result<ProjectFile, String> readProjectFile(const String& path) {
 
         if(table != Table::None) continue;
 
-        if(key == "root"_v) {
+        if(key == "main"_v) {
             if(values.size() != 1) {
-                reader.fail("root names one module"_v);
+                reader.fail("main names one module"_v);
                 break;
             }
-            project.root = ::move(values[0]);
+            project.main = ::move(values[0]);
+        } else if(key == "root"_v) {
+            // Renamed for the same reason `-root` was: it named a module and read as a directory,
+            // beside `sources`, which really is one. Refused rather than accepted quietly, so that a
+            // file and the flags that override it cannot use two words for one thing.
+            reader.fail("`root` is now `main` - it names the module the program starts in"_v);
+            break;
         } else if(key == "sources"_v) {
             for(auto& value: values) {
                 project.sources.push(joinProjectPath(project.directory, value));
             }
-        } else if(key == "output"_v) {
+        } else if(key == "to"_v) {
             if(values.size() != 1) {
-                reader.fail("output names one directory"_v);
+                reader.fail("to names one directory"_v);
                 break;
             }
-            project.output = joinProjectPath(project.directory, values[0]);
-        } else if(key == "target"_v) {
+            project.to = joinProjectPath(project.directory, values[0]);
+        } else if(key == "output"_v) {
             if(values.size() != 1) {
-                reader.fail("target names one output"_v);
+                reader.fail("output names one file"_v);
                 break;
             }
 
-            // `native` rather than `exe` because that is what a project file is about - which
-            // platform the code is for, and therefore which `@platform` declarations exist. The
-            // driver's own spellings are accepted too so the two documents do not disagree.
-            auto& value = values[0];
-            if(value == "native" || value == "exe") project.target = Just(CompileMode::NativeExecutable);
-            else if(value == "js") project.target = Just(CompileMode::JsExecutable);
-            else if(value == "jslib") project.target = Just(CompileMode::JsLibrary);
-            else if(value == "lib") project.target = Just(CompileMode::Library);
-            else if(value == "shared") project.target = Just(CompileMode::NativeShared);
-            else if(value == "llvm") project.target = Just(CompileMode::Llvm);
-            else {
-                reader.fail("unknown target: valid targets are native|js|jslib|lib|shared|llvm"_v);
+            // A name and not a path - `to` is where things go. Checked by `checkSettings` rather
+            // than here, so that a name from a file and a name from `-output` are refused by one
+            // sentence in one place.
+            project.output = ::move(values[0]);
+        } else if(key == "platform"_v) {
+            if(values.size() != 1) {
+                reader.fail("platform names one machine"_v);
                 break;
             }
+
+            auto& value = values[0];
+            if(value == "native") project.platform = Just(TargetPlatform::Native);
+            else if(value == "js") project.platform = Just(TargetPlatform::Js);
+            else {
+                reader.fail("unknown platform: valid platforms are native|js"_v);
+                break;
+            }
+        } else if(key == "mode"_v) {
+            if(values.size() != 1) {
+                reader.fail("mode names one output"_v);
+                break;
+            }
+
+            auto& value = values[0];
+            if(value == "exe") project.mode = Just(CompileMode::Executable);
+            else if(value == "shared") project.mode = Just(CompileMode::Shared);
+            else if(value == "lib") project.mode = Just(CompileMode::Library);
+            else if(value == "ast") project.mode = Just(CompileMode::Ast);
+            else if(value == "ir") project.mode = Just(CompileMode::Ir);
+            else if(value == "lower") project.mode = Just(CompileMode::Lower);
+            else if(value == "llvm") project.mode = Just(CompileMode::Llvm);
+            else {
+                reader.fail("unknown mode: valid modes are exe|shared|lib|ast|ir|lower|llvm"_v);
+                break;
+            }
+        } else if(key == "library"_v) {
+            if(values.size() != 1) {
+                reader.fail("library names one directory"_v);
+                break;
+            }
+            project.library = joinProjectPath(project.directory, values[0]);
+        } else if(key == "target"_v) {
+            /*
+             * The key that used to mean both halves, refused rather than guessed at.
+             *
+             * `target = "native"` set a `CompileMode` while its own comment said it was about the
+             * platform, and `target = "jslib"` set both at once. Now that they are two keys, reading
+             * an old file either way would silently change what half of these projects compile - so
+             * the file says which half it meant, once, and every later reader knows.
+             */
+            reader.fail("`target` is now two keys: `platform = \"native\"` or `\"js\"` for the machine, "
+                        "and `mode = \"exe\"` for what is produced"_v);
+            break;
         } else {
             reader.fail(stringView(formatError("unknown key \"%@\""_v, toString(key))));
             break;
@@ -436,17 +493,102 @@ void applyProjectFile(CompileSettings& settings, const ProjectFile& project) {
     // which import checks apply to it - see CompileSettings::package.
     if(settings.package == "" && project.name != "") settings.package = project.name;
 
-    if(settings.rootObjects.size() == 0 && project.root != "") {
-        settings.rootObjects.push(project.root);
+    if(settings.mainModules.size() == 0 && project.main != "") {
+        settings.mainModules.push(project.main);
     }
 
-    if(!settings.explicitOutput && project.output != "") {
-        settings.outputDir = project.output;
+    if(!settings.explicitOutput && project.to != "") {
+        settings.outputDir = project.to;
         settings.explicitOutput = true;
     }
 
-    if(!settings.explicitMode && project.target) {
-        settings.mode = project.target.unwrap();
+    if(settings.outputName == "" && project.output != "") {
+        settings.outputName = project.output;
+    }
+
+    if(!settings.explicitMode && project.mode) {
+        settings.mode = project.mode.unwrap();
         settings.explicitMode = true;
     }
+
+    if(!settings.explicitPlatform && project.platform) {
+        settings.platform = project.platform.unwrap();
+        settings.explicitPlatform = true;
+    }
+
+    // The standard library this project builds against - `-lib` still wins, as every flag does.
+    if(settings.libraryPath == "" && project.library != "") {
+        settings.libraryPath = project.library;
+    }
+}
+
+/*
+ * What the positional arguments were.
+ *
+ * The order of the two tests is the whole rule: a path is a project if it *is* a `yana.toml` or
+ * holds one, and a source otherwise. So `yana .` in a project compiles the project, `yana src`
+ * compiles a directory that has no project file of its own, and `yana -add .` says "a source root"
+ * about a directory that does have one.
+ */
+Result<void, String> resolveInputs(CompileSettings& settings) {
+    for(auto& input: settings.inputs) {
+        auto asProject = joinProjectPath(input, String("yana.toml"));
+        auto isProject = Tritium::File::exists(asProject);
+
+        if(!isProject) {
+            // A path naming the file itself. Tested by name rather than by asking whether it parses,
+            // so that a mistyped source path is reported as a missing source rather than as a
+            // project file that could not be read.
+            auto length = input.size();
+            auto name = "yana.toml"_v;
+            isProject = length >= name.length &&
+                        compareMem(input.text() + length - name.length, name.ptr, name.length) == 0 &&
+                        (length == name.length || isSeparator(input.text()[length - name.length - 1]));
+
+            if(isProject) asProject = input;
+        }
+
+        if(!isProject) {
+            settings.compileObjects.push(input);
+            continue;
+        }
+
+        // A project is the whole of what is compiled: its `sources` say what is in it, so a second
+        // input beside it would either be ignored or would quietly override them.
+        if(settings.inputs.size() > 1) {
+            return Err(formatError("%@ is a project, so it is the only input this build can take."_v,
+                                   input));
+        }
+
+        if(settings.projectFile != "") {
+            return Err(formatError("%@ is a project and -project named another one."_v, input));
+        }
+
+        settings.projectFile = ::move(asProject);
+    }
+
+    settings.inputs.clear();
+    return Ok();
+}
+
+/*
+ * Where a build looked for a project, and where one actually is.
+ *
+ * The upward walk lives here and only here. What it buys is that running `yana` inside `src/` says
+ * "the project is at ..", which is the question the walk used to answer by silently compiling it -
+ * and the difference between the two is that this one leaves the caller holding the decision.
+ */
+String describeMissingProject(const CompileSettings& settings) {
+    auto here = String(".");
+    if(auto above = findProjectFile(here)) {
+        auto holding = above.unwrap();
+        if(!directoryOf(holding)) holding = String(".");
+
+        return formatError("no yana.toml in the working directory. There is one at %@ - "
+                           "compile it with `yana %@`, or run yana from that directory."_v,
+                           above.unwrap(), holding);
+    }
+
+    return String("no yana.toml in the working directory, and nothing to compile was named. "
+                  "Name a source file or directory, or run `yana -help`.");
 }

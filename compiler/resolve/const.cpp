@@ -840,8 +840,8 @@ static ConstantPtr stringConstant(Module& module, const ast::Expr& expr, TypePtr
      * default argument is *built* wherever it is left out, through `resolveString`, so a static form
      * for one would be a blob global nothing ever emits.
      */
-    if(!staticForm || isJsMode(context.settings.mode) || !module.scalar.stringContent) {
-        if(staticForm && !isJsMode(context.settings.mode) && !module.scalar.stringContent) {
+    if(!staticForm || isJsMode(context.settings) || !module.scalar.stringContent) {
+        if(staticForm && !isJsMode(context.settings) && !module.scalar.stringContent) {
             context.diagnostics.error("internal: no string layout for this target"_v, expr.source);
             return nullptr;
         }

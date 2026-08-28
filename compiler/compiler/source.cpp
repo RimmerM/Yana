@@ -566,15 +566,36 @@ Result<void, String> buildModuleMap(ModuleMap& map, const CompileSettings& setti
  * `-root` is what names another, and is needed only where the compilation was pointed at several
  * roots and so has several candidates.
  */
+/*
+ * The modules a root could have named, for the message that says one was not found.
+ *
+ * A name and not a path, because `-root` takes a name: which module a file belongs to is a question
+ * the grouping rules answer (§2.1) and not one a reader can work out from a directory listing, so
+ * "cannot find root module Main" against a tree whose only module is `Src` was a dead end. The list
+ * is what turns it into an edit.
+ */
+static String describeGroups(ModuleMap& map) {
+    StringBuilder text;
+    text.append(map.groups.size() == 1 ? "one module: "_v : "these modules: "_v);
+
+    for(Size i = 0; i < map.groups.size(); i++) {
+        if(i) text.append(", "_v);
+        text.append(stringView(map.groups[i].text));
+    }
+
+    return text.string();
+}
+
 ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, String& error) {
-    if(settings.rootObjects.size() > 1) {
-        error = String("a program has one root module. Provide one with -root <module>.");
+    if(settings.mainModules.size() > 1) {
+        error = String("a program has one main module. Name one with -main <module>.");
         return nullptr;
     }
 
-    if(settings.rootObjects.size() == 1) {
-        auto root = map.findGroup(settings.rootObjects[0]);
-        if(!root) error = formatError("cannot find root module %@"_v, settings.rootObjects[0]);
+    if(settings.mainModules.size() == 1) {
+        auto root = map.findGroup(settings.mainModules[0]);
+        if(!root) error = formatError("cannot find main module %@. This compilation has %@"_v,
+                                      settings.mainModules[0], describeGroups(map));
         return root;
     }
 
@@ -586,8 +607,9 @@ ModuleGroup* findRootModule(ModuleMap& map, const CompileSettings& settings, Str
     // A single module needs no naming either: it is the program, whatever it is called.
     if(map.groups.size() == 1) return &map.groups[0];
 
-    error = formatError("%@ modules were found and none was named as the root. "
-                        "Provide one with -root <module>, or as `root` in a yana.toml."_v,
-                        map.groups.size());
+    error = formatError("%@ modules were found and none was named as the program's entry. "
+                        "Name one with -main <module>, or as `main` in a yana.toml - this "
+                        "compilation has %@"_v,
+                        map.groups.size(), describeGroups(map));
     return nullptr;
 }

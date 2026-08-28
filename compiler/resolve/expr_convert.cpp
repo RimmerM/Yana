@@ -625,7 +625,7 @@ ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from
 
     auto array = Place::inBorrow(borrowed);
 
-    if(isJsMode(context.settings.mode)) {
+    if(isJsMode(context.settings)) {
         return convertSliceJs(value, array, place.unwrap(), from, target, element, fixed, source, mut);
     }
 

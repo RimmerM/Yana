@@ -58,7 +58,7 @@ run_row() {
     # is what stands over them now, so the floor is here for reproducibility alone: what a run
     # asserts must not depend on the machine that ran it, which is test/directives.h's argument for
     # the goldens applied to a run.
-    if ! "$yana" -add base -root Base -package base -test -enable-inst v2 -to "$dir" "$@" > "$out/$name.build" 2>&1; then
+    if ! "$yana" -add base -main Base -package base -test -enable-inst v2 -to "$dir" "$@" > "$out/$name.build" 2>&1; then
         echo "== $name: the build failed"
         cat "$out/$name.build"
         return 1
@@ -98,7 +98,7 @@ status=0
 
 run_row amd64          -mode exe -backend local                    || status=1
 run_row generic        -mode exe -backend local -specialize never  || status=1
-run_row unoptimized    -mode exe -backend local -no-opt            || status=1
+run_row unoptimized    -mode exe -backend local -no-ir-opt            || status=1
 # **The rows above the floor.** Every boundary in `moveMemory`/`copyMemory` is stated in widths -
 # the ladder's rungs are `n` transfers of `w` bytes covering `[nw, 2nw)`, the four-register group is
 # `4w`, and the length above which the copy is handed to `blockCopy` is `48w`, so the sweeps cross a
@@ -128,6 +128,6 @@ else
 fi
 
 run_row js             -mode js                                    || status=1
-run_row js-unoptimized -mode js -no-opt                            || status=1
+run_row js-unoptimized -mode js -no-ir-opt                            || status=1
 
 exit $status

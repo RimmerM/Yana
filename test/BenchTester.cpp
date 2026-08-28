@@ -458,7 +458,7 @@ static void benchJs(const Fixture& fixture) {
     if(stringView(fixture.path).startsWith("lib/"_v)) provider.moduleRoot = String("lib/modules/");
     Diagnostics diagnostics(provider);
     Context context(diagnostics);
-    context.settings.mode = CompileMode::JsExecutable;
+    context.settings.platform = TargetPlatform::Js;
     context.settings.test = stringView(fixture.path).startsWith("lib/"_v);
     provider.context = &context;
 

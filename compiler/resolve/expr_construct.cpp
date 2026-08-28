@@ -2470,7 +2470,7 @@ ModulePtr<Value> ExprResolver::buildArrayLiteral(TypePtr element, Buffer<ModuleP
      * this leave the frame owning three values the array now held; that instruction is the one
      * exception, and `deriveEffects` gives its elements the same hand-over the writes gave.
      */
-    if(isJsMode(context.settings.mode)) {
+    if(isJsMode(context.settings)) {
         if(refined) {
             context.diagnostics.error("`@inline` and `@capacity` describe a layout, and this target has none - they are native-only"_v,
                                       source);

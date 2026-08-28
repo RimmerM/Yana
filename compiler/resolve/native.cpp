@@ -456,7 +456,7 @@ static void attachPointerIntrinsics(Module& module) {
     // The three vector transfers are `@platform(native)`, so on a JS build they were never declared
     // and there is nothing to attach - which `attachIntrinsic` reports as an internal error rather
     // than skipping, and rightly. Host's `hostVector` family is that target's answer.
-    if(!isJsMode(module.context.settings.mode)) {
+    if(!isJsMode(module.context.settings)) {
         attachIntrinsic(module, "vectorAt"_v, emitVectorAt);
         attachIntrinsic(module, "vectorPast"_v, emitVectorPast);
         attachIntrinsic(module, "setVectorAt"_v, emitSetVectorAt);
@@ -479,7 +479,7 @@ static void attachPointerIntrinsics(Module& module) {
     attachIntrinsic(module, "-"_v, emitPointerOffset<Value::Sub>);
     attachIntrinsic(module, "difference"_v, emitDifference);
 
-    if(!isJsMode(module.context.settings.mode)) attachIntrinsic(module, "mulHigh"_v, emitMulHigh);
+    if(!isJsMode(module.context.settings)) attachIntrinsic(module, "mulHigh"_v, emitMulHigh);
 
     attachIntrinsic(module, "newRun"_v, emitNewRun);
 
@@ -497,7 +497,7 @@ static void attachPointerIntrinsics(Module& module) {
      * cannot find as an internal error and rightly - each of the two declarations is `@platform`ed
      * to one target and does not exist on the other.
      */
-    attachIntrinsic(module, isJsMode(module.context.settings.mode) ? "copyMemory"_v : "blockCopy"_v,
+    attachIntrinsic(module, isJsMode(module.context.settings) ? "copyMemory"_v : "blockCopy"_v,
                     emitNativeOp<NativeOp::CopyMemory>);
 
     attachIntrinsic(module, "setMemory"_v, emitNativeOp<NativeOp::SetMemory>);
@@ -510,7 +510,7 @@ static void attachPointerIntrinsics(Module& module) {
      * seven names it cannot find. That the file is selected by its *name* now rather than by seven
      * `@platform` attributes changes nothing about this - what a target has is still what decides.
      */
-    if(!isJsMode(module.context.settings.mode)) {
+    if(!isJsMode(module.context.settings)) {
         static const StringView syscalls[] = {
             "syscall0"_v, "syscall1"_v, "syscall2"_v, "syscall3"_v,
             "syscall4"_v, "syscall5"_v, "syscall6"_v,

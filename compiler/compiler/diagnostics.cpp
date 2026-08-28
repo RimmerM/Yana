@@ -30,6 +30,15 @@ void CollectDiagnostics::message(Level level, StringView text, const Location* w
     });
 }
 
+/*
+ * Every diagnostic, to standard error.
+ *
+ * This whole function used to write to standard output, which is why `yana-lsp` has to take
+ * descriptor 1 away from it before the server starts - and why `2>/dev/null` silenced nothing and
+ * `yana explain f | less` mixed the answer with the reasons it might have failed. Errors go to the
+ * error stream; what a mode *produces* - the explain report, the module list - stays on the output
+ * stream, so a result can be piped without its failures going down the pipe with it.
+ */
 void PrintDiagnostics::message(Level level, StringView text, const Location* where) {
     Diagnostics::message(level, text, where);
 
@@ -47,8 +56,8 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
         default: type = "";
     }
 
-    print("%@:%@: %@: ", line + 1, column, type);
-    println(text);
+    printError("%@:%@: %@: ", line + 1, column, type);
+    printlnError(text);
 
     if(!where) return;
 
@@ -82,7 +91,7 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
 
     // Print the line the diagnostic occurred at.
     auto length = Size(lineEnd - lineStart);
-    println(StringView{lineStart, length});
+    printlnError(StringView{lineStart, length});
 
     // Print the location within the line. Everything here is clamped to what was printed above:
     // a location can be longer than the displayed line, or - if the node it belongs to was built
@@ -111,5 +120,5 @@ void PrintDiagnostics::message(Level level, StringView text, const Location* whe
         }
     }
 
-    println(StringView{buffer, markerStart + markerLength});
+    printlnError(StringView{buffer, markerStart + markerLength});
 }

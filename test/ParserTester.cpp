@@ -304,8 +304,9 @@ int main(int argc, const char** argv) {
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(arg == "generate") generateExpects = true;
-        if(arg == "sweep") sweep = true;
-        parseShard(arg, shard, shards);
+        else if(arg == "sweep") sweep = true;
+        else if(parseShard(arg, shard, shards)) continue;
+        else if(rejectFlagArgument(arg, "`sweep`")) return 1;
     }
 
     if(sweep) {

@@ -728,7 +728,7 @@ ModulePtr<Value> emitStringTable(ExprResolver& resolver, const ConstructorMap& m
     auto local = resolver.local;
     auto span = plan.span();
 
-    if(isJsMode(context.settings.mode)) {
+    if(isJsMode(context.settings)) {
         auto arrayType = resolveFixedArrayType(module, module.scalar.string_, U32(span), source);
         auto contents = new (module.arena) ConstValue(arrayType, ConstKind::Aggregate);
 

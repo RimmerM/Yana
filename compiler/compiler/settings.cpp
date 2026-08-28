@@ -13,7 +13,7 @@ struct Flag {
          */
 
         add,
-        root,
+        mainModule,
         enableInst,
 
         /*
@@ -21,7 +21,9 @@ struct Flag {
          */
 
         to,
+        outputName,
         mode,
+        platform,
         target,
         arch,
         format,
@@ -30,7 +32,6 @@ struct Flag {
         inlining,
         optimization,
         explain,
-        module,
         project,
         library,
         package,
@@ -40,10 +41,9 @@ struct Flag {
          * Boolean flags.
          */
 
+        help,
         printModules,
-        printAst,
-        printIr,
-        noOptimize,
+        noIrOptimize,
         noChecks,
         checkLocations,
         explainAll,
@@ -54,15 +54,28 @@ struct Flag {
     StringView name;
     U32 argCount;
     Type type;
+
+    /*
+     * Whether naming this flag twice adds a second value rather than replacing the first.
+     *
+     * The three that are lists are lists because a compilation genuinely has several of the thing -
+     * source roots, instruction-set extensions. Everything else answers a question that has one
+     * answer, and naming it twice with two answers used to be resolved by argument order: `-to` and
+     * `-output` each grew a check of their own and `-mode exe -mode ir` silently built IR. One rule
+     * in one place instead - see parseFlags.
+     */
+    bool repeatable = false;
 };
 
 Flag flagTable[] = {
-    { "add"_v, 1, Flag::add },
-    { "root"_v, 1, Flag::root },
-    { "enable-inst"_v, 1, Flag::enableInst },
+    { "add"_v, 1, Flag::add, true },
+    { "main"_v, 1, Flag::mainModule, true },
+    { "enable-inst"_v, 1, Flag::enableInst, true },
 
     { "to"_v, 1, Flag::to },
+    { "output"_v, 1, Flag::outputName },
     { "mode"_v, 1, Flag::mode },
+    { "platform"_v, 1, Flag::platform },
     { "target"_v, 1, Flag::target },
     { "arch"_v, 1, Flag::arch },
     { "format"_v, 1, Flag::format },
@@ -71,7 +84,6 @@ Flag flagTable[] = {
     { "opt"_v, 1, Flag::optimization },
     { "inline"_v, 1, Flag::inlining },
     { "explain"_v, 1, Flag::explain },
-    { "module"_v, 1, Flag::module },
     { "project"_v, 1, Flag::project },
     { "lib"_v, 1, Flag::library },
 
@@ -80,10 +92,10 @@ Flag flagTable[] = {
     { "package"_v, 1, Flag::package },
     { "specialize"_v, 1, Flag::specialize },
 
+    { "help"_v, 0, Flag::help },
+    { "h"_v, 0, Flag::help },
     { "print-modules"_v, 0, Flag::printModules },
-    { "print-ast"_v, 0, Flag::printAst },
-    { "print-ir"_v, 0, Flag::printIr },
-    { "no-opt"_v, 0, Flag::noOptimize },
+    { "no-ir-opt"_v, 0, Flag::noIrOptimize },
     { "no-checks"_v, 0, Flag::noChecks },
     { "check-locations"_v, 0, Flag::checkLocations },
     { "explain-all"_v, 0, Flag::explainAll },
@@ -99,13 +111,39 @@ StringView inlineTable[] = {
     "speed"_v,    // Speed
 };
 
+// CompileMode, in declaration order. What comes out; `platformTable` below says what it is for, and
+// the two used to be one table - see TargetPlatform.
 StringView modeTable[] = {
+    "exe"_v,       // Executable
+    "shared"_v,    // Shared
     "lib"_v,       // Library
-    "exe"_v,       // NativeExecutable
-    "shared"_v,    // NativeShared
-    "js"_v,        // JsExecutable
-    "jslib"_v,     // JsLibrary
+    "ast"_v,       // Ast
+    "ownership"_v, // Ownership
+    "ir"_v,        // Ir
+    "lower"_v,     // Lower
     "llvm"_v,      // Llvm
+};
+
+// TargetPlatform, in declaration order. The same two words `@platform` is written with and the same
+// two a file name selects on, because they are the same question asked in three places.
+StringView platformTable[] = {
+    "native"_v, // Native
+    "js"_v,     // Js
+};
+
+/*
+ * The two spellings that used to be modes and are now a mode and a platform together.
+ *
+ * Kept because every documented invocation and every script writes them, and because they are not
+ * ambiguous: `js` was only ever "an executable, for JavaScript". They set the platform as well as
+ * the mode, so `-mode js -platform native` is a contradiction rather than a silent winner - see
+ * where this table is read.
+ */
+struct ModeAlias { StringView name; CompileMode mode; TargetPlatform platform; };
+
+static const ModeAlias modeAliasTable[] = {
+    { "js"_v, CompileMode::Executable, TargetPlatform::Js },
+    { "jslib"_v, CompileMode::Library, TargetPlatform::Js },
 };
 
 StringView formatTable[] = {
@@ -184,7 +222,7 @@ static const LevelName levelTable[] = {
  * replacement for the attribute rather than a second mechanism beside it.
  */
 TargetSelector targetSelector(const CompileSettings& settings, StringView name, SelectorScope scope) {
-    auto isJs = isJsMode(settings.mode);
+    auto isJs = isJsMode(settings);
     auto answer = [](bool matched) { return matched ? TargetSelector::Matched : TargetSelector::Excluded; };
 
     if(name == "js"_v) return answer(isJs);
@@ -558,15 +596,44 @@ static void applyDefaults(CompileSettings& settings, bool hasArch, bool hasTarge
     }
 }
 
-template<class F>
-void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
+template<class F, class I>
+void parseFlags(const char** argv, Size argc, String& error, F&& onFlag, I&& onInput) {
+    // What each single-valued flag was given, for the duplicate check below. A list rather than a
+    // map: there are thirty flags and a command line names a handful of them.
+    struct Seen { Flag::Type type; String value; };
+    Array<Seen> seen;
+
+    auto seenValue = [&](Flag::Type type) -> String* {
+        for(auto& entry: seen) {
+            if(entry.type == type) return &entry.value;
+        }
+
+        return nullptr;
+    };
+
+    auto recordValue = [&](Flag::Type type, const String& value) {
+        seen.push(Seen { type, value });
+    };
+
     for(Size i = 0; i < argc; i++) {
         auto k = argv[i];
 
-        // One dash or two, and `--key=value` as well as `-key value`. Both forms are here because
-        // Analysis-Ambient.md §7.3 writes the query as `yana explain handle --module=Server` while
-        // every flag this driver already had is written the other way, and a documented invocation
-        // that the program rejects is worse than either convention.
+        /*
+         * A word that is not a flag is an input path - see CompileSettings::inputs.
+         *
+         * Before this every argument had to be a flag, so `yana hello.yana` was answered with
+         * `Unknown argument "hello.yana"` - the first thing anyone types, refused for a reason that
+         * is about this driver's history rather than about the program being compiled. A value
+         * belonging to a flag never reaches here: the flag consumed it below.
+         */
+        if(k[0] != '-') {
+            if(!onInput(String(k))) return;
+            continue;
+        }
+
+        // One dash or two, and `--key=value` as well as `-key value`. Both forms are accepted
+        // because both are written: this driver's own flags are `-key value`, and every other
+        // compiler a caller has used takes the other, so refusing either buys nothing.
         if(k[0] == '-') k++;
         if(k[0] == '-') k++;
 
@@ -594,7 +661,25 @@ void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
 
                 if(!joined && argc - i <= flag.argCount) {
                     char buffer[256];
-                    auto size = Tritium::format(toBuffer(buffer), "Not enough arguments to flag \"%@\"", key);
+                    auto size = Tritium::format(toBuffer(buffer), "-%@ needs a value after it", key);
+                    error = Tritium::ownedString(buffer, size);
+                    return;
+                }
+
+                /*
+                 * A value flag whose value is the next *flag* - `-mode -to out`, where `-to` was
+                 * swallowed as the mode and the real error arrived two steps later as "unrecognized
+                 * compilation mode", naming neither argument.
+                 *
+                 * Refused only in the separated form: `--to=-3` is a value that happens to start
+                 * with a dash and was written as one deliberately.
+                 */
+                if(!joined && flag.argCount && argv[i + 1][0] == '-') {
+                    char buffer[256];
+                    auto size = Tritium::format(toBuffer(buffer),
+                                                "-%@ needs a value, but the next argument is the flag \"%@\". "
+                                                "Write --%@=%@ if that was meant as the value.",
+                                                key, String(argv[i + 1]), key, String(argv[i + 1]));
                     error = Tritium::ownedString(buffer, size);
                     return;
                 }
@@ -607,6 +692,27 @@ void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
                     i += flag.argCount;
                 }
 
+                /*
+                 * The same flag twice - see Flag::repeatable.
+                 *
+                 * Twice with the same value is allowed, because a script that builds a command line
+                 * from two places and arrives at one answer has not contradicted itself. Twice with
+                 * two values is refused, naming both: silently taking the last was the behaviour
+                 * that made `-mode exe -mode ir` build IR.
+                 */
+                if(flag.argCount && !flag.repeatable) {
+                    auto seen = seenValue(flag.type);
+                    if(seen && *seen != arg) {
+                        char buffer[512];
+                        auto size = Tritium::format(toBuffer(buffer),
+                            "-%@ was given twice, as \"%@\" and \"%@\". Name it once.", key, *seen, arg);
+                        error = Tritium::ownedString(buffer, size);
+                        return;
+                    }
+
+                    if(!seen) recordValue(flag.type, arg);
+                }
+
                 if(!onFlag(flag.type, move(arg))) return;
                 found = true;
             }
@@ -614,10 +720,98 @@ void parseFlags(const char** argv, Size argc, String& error, F&& onFlag) {
 
         if(!found) {
             char buffer[256];
-            error = Tritium::ownedString(buffer, Tritium::format(toBuffer(buffer), "Unknown argument \"%@\"", key));
+            error = Tritium::ownedString(buffer, Tritium::format(toBuffer(buffer),
+                "Unknown flag \"-%@\". Run `yana -help` for the flags this compiler takes.", key));
             return;
         }
     }
+}
+
+/*
+ * `-help`.
+ *
+ * Written out here rather than generated from `flagTable`, because what a reader needs is the shape
+ * of an invocation and the four or five flags that answer an actual question - not thirty names in
+ * declaration order. The table is the parser's; this is the documentation, and the two are kept in
+ * step by the same rule as every other pair of that kind in this compiler: an edit to one is an edit
+ * to both.
+ *
+ * There was no help at all before, which is the reason the first invocation anyone wrote was wrong:
+ * with no positional inputs, no default mode and no usage text, the interface could only be learned
+ * by reading the parser.
+ */
+StringView helpText() {
+    return R"(yana - the Yana compiler
+
+  yana                       compile the project described by ./yana.toml
+  yana <directory>           compile the project there, or the directory as source
+  yana <file.yana>           compile one file as a program
+  yana explain <name>        report what a function does, and compile nothing
+  yana explain <M>.<name>    the one in module M, when several share the name
+
+Where the output goes:
+  -to <directory>       write the build here (default: the project's `to`, else `.`)
+  -output <name>        call the artifact this (default: the main module's name)
+
+What to build:
+  -mode <m>             exe (default), shared, lib, or the pipeline stopped early:
+                          ast        the parsed form of every source file
+                          ownership  where each local is live, and where it is dropped
+                          ir         the resolved, optimized program as IR text
+                          lower      the lowered program as IR text (native only)
+                          llvm       LLVM IR text (native only)
+  -platform <p>         native (default) or js. Decides which @platform declarations exist.
+  -main <module>        the module the program starts in, when the input holds several
+  -test                 build the @test declarations into a test program
+
+Which machine:
+  -target <os>          linux, mac or win32          -arch <a>       x64, x86, arm, arm64
+  -format <f>           elf, mach or pe              -backend <b>    llvm or local
+  -enable-inst <level>  v2, v3, v4, or sha / neon beside one
+
+How hard to try:
+  -opt <0-3>            the LLVM pipeline's level, on -backend llvm
+  -inline <level>       none, size, balanced or speed
+  -no-ir-opt            switch off the IR optimizer      -no-checks    emit no bounds checks
+  -check-locations      inserted checks report their source location
+
+Where things are:
+  -project <path>       the yana.toml to read, rather than looking in the working directory
+  -no-project           read no project file at all
+  -lib <directory>      the standard library, holding Core/Core.yana
+  -add <path>           a source root, named explicitly rather than as an input
+  -package <name>       the package this compilation is, when no yana.toml says
+
+  -print-modules        list the modules that were found, and the file each came from
+  -help                 this text
+)"_v;
+}
+
+/*
+ * `Server.handle` - the module and the function, from the one name the query was given.
+ *
+ * A qualified name rather than a `-module` flag beside an unqualified one. It is how this language
+ * writes a name that needs saying which one it is - `Core.Text`, `State.Idle` - so the query is
+ * asked in the same words as everything else, and a flag whose name promised something global
+ * (`-module`, next to `-main` and `-package`) but meant something only inside one subcommand is
+ * gone. Both spellings of the query read it, which is what makes them the same query.
+ *
+ * Split at the *last* dot, because everything before it is the module: `Core.Text.hexValue` is
+ * `hexValue` in `Core.Text`. A function name cannot contain one, so there is no ambiguity to
+ * resolve - and a name with no dot at all is every function of that name, whichever module.
+ */
+static void setExplainTarget(CompileSettings& settings, String&& name) {
+    auto text = name.text();
+    auto separator = name.size();
+    while(separator > 0 && text[separator - 1] != '.') separator--;
+
+    if(separator == 0 || separator == name.size()) {
+        settings.explainName = ::move(name);
+        return;
+    }
+
+    settings.explainModule = String(text, separator - 1);
+    settings.explainName = String(text + separator, name.size() - separator);
 }
 
 Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
@@ -639,25 +833,35 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
     Size firstFlag = 1;
     if(argc > 1 && String(argv[1]) == "explain") {
         if(argc < 3 || argv[2][0] == '-') {
-            return Err(String("The explain query needs a function name: yana explain <name> [--module=<M>]"));
+            return Err(String("The explain query needs a function name: yana explain <name>, "
+                              "or yana explain <Module>.<name> for one module's."));
         }
 
-        settings.explainName = String(argv[2]);
+        setExplainTarget(settings, String(argv[2]));
         firstFlag = 3;
     }
+
+    // Whether the platform came from a mode alias rather than from `-platform` - see modeAliasTable.
+    // Only a diagnostic reads it: what it decides is which of two contradicting flags to name.
+    bool platformFromMode = false;
 
     bool hasArch = false;
     bool hasTarget = false;
     bool hasFormat = false;
     bool hasExtensions = false;
 
+    auto onInput = [&](String&& path) -> bool {
+        settings.inputs.push(move(path));
+        return true;
+    };
+
     parseFlags(argv + firstFlag, argc - firstFlag, error, [&](Flag::Type type, String&& value) -> bool {
         switch(type) {
             case Flag::add:
                 settings.compileObjects.push(move(value));
                 return true;
-            case Flag::root:
-                settings.rootObjects.push(move(value));
+            case Flag::mainModule:
+                settings.mainModules.push(move(value));
                 return true;
             case Flag::enableInst:
                 hasExtensions = true;
@@ -682,14 +886,12 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     return false;
                 }
             case Flag::to:
-                if(settings.outputDir != "") {
-                    error = "Only one output directory can be provided";
-                    return false;
-                } else {
-                    settings.outputDir = move(value);
-                    settings.explicitOutput = true;
-                    return true;
-                }
+                settings.outputDir = move(value);
+                settings.explicitOutput = true;
+                return true;
+            case Flag::outputName:
+                settings.outputName = move(value);
+                return true;
             case Flag::project:
                 settings.projectFile = move(value);
                 return true;
@@ -711,12 +913,56 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 error = "Specialization is `always` or `never`.";
                 return false;
             case Flag::mode:
-                settings.explicitMode = true;
                 if(auto mode = matchString(modeTable, sizeof(modeTable) / sizeof(StringView), value)) {
+                    settings.explicitMode = true;
                     settings.mode = (CompileMode)mode.unwrap();
+
+                    // The one mode that needs something computed that a compilation does not
+                    // otherwise compute - see compileOwnership.
+                    if(settings.mode == CompileMode::Ownership) settings.ownershipRanges = true;
+                    return true;
+                }
+
+                // The two spellings that carry a platform with them - see modeAliasTable. The
+                // platform is recorded as if `-platform` had been written, so that naming both and
+                // contradicting yourself is caught below rather than resolved by argument order.
+                for(auto& alias: modeAliasTable) {
+                    if(Tritium::toString(alias.name) != value) continue;
+
+                    if(settings.explicitPlatform && settings.platform != alias.platform) {
+                        error = Tritium::format("-mode %@ is a JavaScript build, which contradicts -platform native.",
+                                                value);
+                        return false;
+                    }
+
+                    settings.explicitMode = true;
+                    settings.mode = alias.mode;
+                    settings.explicitPlatform = true;
+                    settings.platform = alias.platform;
+                    platformFromMode = true;
+                    return true;
+                }
+
+                error = Tritium::format("Unrecognized compilation mode \"%@\". Valid modes are: exe|shared|lib|ast|ownership|ir|lower|llvm.",
+                                        value);
+                return false;
+            case Flag::platform:
+                if(auto platform = matchString(platformTable, sizeof(platformTable) / sizeof(StringView), value)) {
+                    auto named = (TargetPlatform)platform.unwrap();
+                    if(settings.explicitPlatform && settings.platform != named) {
+                        // Which of the two wrote the platform down decides which sentence is useful:
+                        // one of them did not mention a platform at all - see modeAliasTable.
+                        error = platformFromMode
+                            ? Tritium::format("-platform %@ contradicts the -mode already named, which is a JavaScript build.", value)
+                            : String("The platform was named twice, as both native and js.");
+                        return false;
+                    }
+
+                    settings.explicitPlatform = true;
+                    settings.platform = named;
                     return true;
                 } else {
-                    error = "Unrecognized compilation mode. Valid modes are: lib|exe|shared|js|jslib|llvm.";
+                    error = Tritium::format("Unrecognized platform \"%@\". Valid platforms are: native|js.", value);
                     return false;
                 }
             case Flag::target:
@@ -725,7 +971,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.target = (TargetType)target.unwrap();
                     return true;
                 } else {
-                    error = "Unrecognized platform target. Valid targets are: linux|mac|win32.";
+                    error = Tritium::format("Unrecognized operating system \"%@\". Valid targets are: linux|mac|win32.", value);
                     return false;
                 }
             case Flag::arch:
@@ -734,7 +980,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.arch = (TargetArch)arch.unwrap();
                     return true;
                 } else {
-                    error = "Unrecognized target instruction set. Valid archs are: x64|x86|arm|arm64.";
+                    error = Tritium::format("Unrecognized instruction set \"%@\". Valid archs are: x64|x86|arm|arm64.", value);
                     return false;
                 }
             case Flag::format:
@@ -743,7 +989,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.format = (ExecutableFormat)format.unwrap();
                     return true;
                 } else {
-                    error = "Unrecognized executable format. Valid formats are: elf|mach|pe.";
+                    error = Tritium::format("Unrecognized executable format \"%@\". Valid formats are: elf|mach|pe.", value);
                     return false;
                 }
             case Flag::backend:
@@ -752,7 +998,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.backend = (NativeBackend)backend.unwrap();
                     return true;
                 } else {
-                    error = "Unrecognized native backend. Valid backends are: llvm|local.";
+                    error = Tritium::format("Unrecognized native backend \"%@\". Valid backends are: llvm|local.", value);
                     return false;
                 }
             case Flag::framePointer:
@@ -760,7 +1006,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.framePointer = (FramePointerMode)fp.unwrap();
                     return true;
                 } else {
-                    error = "Unrecognized frame pointer mode. Valid modes are: all|non-leaf|needed.";
+                    error = Tritium::format("Unrecognized frame pointer mode \"%@\". Valid modes are: all|non-leaf|needed.", value);
                     return false;
                 }
             case Flag::inlining:
@@ -768,30 +1014,28 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                     settings.inlining = (InlineLevel)level.unwrap();
                     return true;
                 } else {
-                    error = "Unrecognized inlining level. Valid levels are: none|size|balanced|speed.";
+                    error = Tritium::format("Unrecognized inlining level \"%@\". Valid levels are: none|size|balanced|speed.", value);
                     return false;
                 }
             case Flag::optimization: {
                 // 0 to 3, as every compiler spells it. What it selects is LLVM's own pipeline; the
                 // local amd64 backend has one setting and is it.
                 if(value.size() != 1 || value.text()[0] < '0' || value.text()[0] > '3') {
-                    error = "Unrecognized optimization level. Valid levels are 0-3.";
+                    error = Tritium::format("Unrecognized optimization level \"%@\". Valid levels are 0-3.", value);
                     return false;
                 }
 
                 settings.optimization = U32(value.text()[0] - '0');
+                settings.explicitOptimization = true;
                 return true;
             }
+            case Flag::help:
+                settings.help = true;
+                return true;
             case Flag::printModules:
                 settings.printModules = true;
                 return true;
-            case Flag::printAst:
-                settings.printAst = true;
-                return true;
-            case Flag::printIr:
-                settings.printIr = true;
-                return true;
-            case Flag::noOptimize:
+            case Flag::noIrOptimize:
                 settings.optimizeIr = false;
                 return true;
             case Flag::checkLocations:
@@ -801,10 +1045,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 settings.checks = false;
                 return true;
             case Flag::explain:
-                settings.explainName = move(value);
-                return true;
-            case Flag::module:
-                settings.explainModule = move(value);
+                setExplainTarget(settings, move(value));
                 return true;
             case Flag::explainAll:
                 settings.explainAll = true;
@@ -813,11 +1054,7 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
                 error = Tritium::format("Unhandled argument type %@. This is an internal error.", (Size)type);
                 return false;
         }
-    });
-
-    if(settings.outputDir == "") {
-        settings.outputDir = String(argv[0]);
-    }
+    }, onInput);
 
     if(error != "") {
         return Err(error);
@@ -830,16 +1067,42 @@ Result<CompileSettings, String> parseCommandLine(const char** argv, Size argc) {
 
 Result<void, String> checkSettings(const CompileSettings& settings) {
     if(settings.compileObjects.size() == 0) {
-        return Err(String("No input objects provided. Add inputs with -add <path>, "
-                          "or list them as `sources` in a yana.toml."));
+        return Err(String("Nothing to compile. Name a source file or directory, or list the sources "
+                          "in a yana.toml."));
     }
 
-    // The explain query emits nothing, so there is no output format to ask for. It still *has* a
-    // mode, because `@platform` selects which declarations exist and the answer is therefore the
-    // answer for one target; the default is simply the one every other flag already defaults to.
-    if(!settings.explicitMode && !settings.explaining()) {
-        return Err(String("No compilation mode provided. Set the mode with "
-                          "-mode <lib|exe|shared|js|jslib|ir|llvm>, or as `target` in a yana.toml."));
+    // `-o` names the artifact, and `-to` is the one thing that says where a build goes. A separator
+    // here would be a second answer to that question, and one that can point anywhere.
+    for(Size i = 0; i < settings.outputName.size(); i++) {
+        auto c = settings.outputName.text()[i];
+        if(c == '/' || c == '\\') {
+            return Err(Tritium::format("-o names the output file \"%@\", which cannot contain a path. "
+                                       "Use -to for the directory.", settings.outputName));
+        }
+    }
+
+    /*
+     * What the two axes can be at once.
+     *
+     * The mode used to answer both questions, so a combination that does not exist could not be
+     * written down and needed no check. Now that it can be written down, each one is refused where
+     * it would otherwise be silently reinterpreted: emitting LLVM text for a program with no machine
+     * code in it, or lowering one that never goes through `lowerProgram` at all.
+     */
+    if(isJsMode(settings)) {
+        if(settings.mode == CompileMode::Lower) {
+            return Err(String("-mode lower is native only: the JavaScript backend generates from the "
+                              "resolved program and never lowers. Use -mode ir for a JavaScript build."));
+        }
+
+        if(settings.mode == CompileMode::Llvm) {
+            return Err(String("-mode llvm is native only. Use -platform native, or -mode ir for the "
+                              "JavaScript program's IR."));
+        }
+
+        if(settings.mode == CompileMode::Shared) {
+            return Err(String("-mode shared is native only. A JavaScript library is -mode lib -platform js."));
+        }
     }
 
     /*
@@ -857,8 +1120,14 @@ Result<void, String> checkSettings(const CompileSettings& settings) {
      * architectures it can emit for - see createMachine - and says so at the same point in its own
      * pipeline; this is the same statement for a backend whose list is shorter.
      */
-    if(settings.explicitBackend && settings.backend == NativeBackend::Local) {
-        if(settings.mode != CompileMode::NativeExecutable) {
+    /*
+     * A named backend is checked only where a backend is what produces the output. The modes that
+     * write text about the program reach no code generator at all, so `-mode ir -backend local` is
+     * a flag that does not apply rather than a contradiction - and answering it with "the local
+     * backend only generates executables" would be refusing a sentence nobody wrote.
+     */
+    if(settings.explicitBackend && settings.backend == NativeBackend::Local && !isTextMode(settings.mode)) {
+        if(settings.mode != CompileMode::Executable) {
             return Err(String("The local backend only generates executables. "
                               "Use -mode exe, or -backend llvm."));
         }

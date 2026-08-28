@@ -18,27 +18,37 @@ import java.io.File
 class YanaProjectFile private constructor(val file: File) {
     val directory: File = file.parentFile ?: File(".")
 
-    /// `root = "Main"` - the module the program is entered through. Empty when unset, which is legal
+    /// `main = "App"` - the module the program is entered through. Empty when unset, which is legal
     /// for a project with exactly one module.
-    var root: String = ""
+    var main: String = ""
         private set
 
-    /// `output = "build"` - joined onto the project directory. Null when unset.
-    var output: File? = null
+    /// `to = "build"` - where the build goes, joined onto the project directory. Null when unset.
+    var to: File? = null
+        private set
+
+    /// `output = "app"` - what the artifact is called. Empty when unset, and then it is the main
+    /// module's name - which is why `executableName` below has to answer rather than read this.
+    var output: String = ""
         private set
 
     /// `sources = ["src"]` - joined onto the project directory.
     val sources: MutableList<File> = mutableListOf()
 
     /*
-     * The executable the driver writes, or null when the project does not say enough to know.
+     * What to call the executable, or null when the project does not say enough to know.
      *
-     * The driver names it after the *root module* and puts it in the output directory, so both
-     * halves come from here. A project with no `root` and exactly one module is legal - the module
-     * is the program - and that case is answered by looking, which is what `findRootModule` does.
+     * Passed to the compiler as `-output` rather than predicted from what it would have chosen: the
+     * driver's own default is the main *module's* name, and a source root's module is named after
+     * the directory, so `src/Main.yana` in a project with no `main` builds as `Src`. Naming it here
+     * makes the build and the run agree without this having to reimplement the grouping rules.
+     *
+     * A project with no `main` and exactly one source file is the template's own shape, and the file
+     * is the program - so its name is the useful one to give.
      */
     fun executableName(): String? {
-        if (root.isNotEmpty()) return root
+        if (output.isNotEmpty()) return output
+        if (main.isNotEmpty()) return main
 
         val modules = sources.flatMap { source ->
             source.walkTopDown().filter { it.isFile && it.extension == "yana" }.toList()
@@ -73,8 +83,9 @@ class YanaProjectFile private constructor(val file: File) {
                 if (values.isEmpty()) continue
 
                 when (match.groupValues[1]) {
-                    "root" -> project.root = values[0]
-                    "output" -> project.output = project.directory.resolve(values[0])
+                    "main" -> project.main = values[0]
+                    "to" -> project.to = project.directory.resolve(values[0])
+                    "output" -> project.output = values[0]
                     "sources" -> values.forEach { project.sources += project.directory.resolve(it) }
                 }
             }

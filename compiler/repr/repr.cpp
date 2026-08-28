@@ -81,7 +81,7 @@ ReprTarget jsReprTarget() {
     // A signed 32-bit index and a UTF-16 code unit - see IntWidths, whose one definition of each is
     // what keeps this and `targetIntWidths` from being two answers to one question.
     CompileSettings js;
-    js.mode = CompileMode::JsExecutable;
+    js.platform = TargetPlatform::Js;
     target.integers = targetIntWidths(js);
 
     /*

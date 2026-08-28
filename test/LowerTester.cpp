@@ -7,6 +7,7 @@
 // is split from the full compiler for the parser stage.
 #include <Core.h>
 #include <File.h>
+#include "shard.h"
 #include "../compiler/lower/lower_parser.h"
 #include "../compiler/lower/lower_print.h"
 #include "Net/Stream.h"
@@ -204,6 +205,7 @@ int main(int argc, const char** argv) {
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(arg == "generate") generateExpects = true;
+        else if(rejectFlagArgument(arg)) return 1;
     }
 
     return testLower(generateExpects) ? 0 : 1;

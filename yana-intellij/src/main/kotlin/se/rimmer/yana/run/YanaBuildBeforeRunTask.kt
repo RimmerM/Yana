@@ -92,6 +92,11 @@ class YanaBuildBeforeRunTaskProvider : BeforeRunTaskProvider<YanaBuildBeforeRunT
         command.withParameters("-project", configuration.resolveProjectFile().absolutePath)
         command.withParameters("-to", configuration.resolveOutputDirectory().absolutePath)
 
+        // What to call it, so that the file this writes is the file the run half looks for - see
+        // YanaRunConfiguration.resolveExecutableName. Left out when the project does not say enough
+        // to know, which `checkConfiguration` has already refused to launch.
+        configuration.resolveExecutableName()?.let { command.withParameters("-output", it) }
+
         // Left out when the configuration does not set one, so that the project file's `target`
         // decides - which matters for more than the output format: `@platform` selects which
         // declarations exist, so the mode is part of what the program *is*.

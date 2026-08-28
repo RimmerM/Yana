@@ -1590,7 +1590,7 @@ ModulePtr<Global> typeDescFor(Module& module, TypePtr type, LocationId source) {
      * per-type function that target does not emit. A native build contains no `moveInit$T` or
      * `copyInit$T` for any type; a managed build contains no reclaim glue and no measurements at all.
      */
-    if(isJsMode(module.context.settings.mode)) {
+    if(isJsMode(module.context.settings)) {
         TableBuilder table(module, *global_, ManagedTypeDesc::kCount);
 
         /*
@@ -1776,7 +1776,7 @@ void setClosureRelease(Module& module, ModulePtr<Global> header, ModulePtr<Funct
     // Nothing to patch on a managed target: the collector owns the environment's storage, so there
     // is no heap variant to move to and the slot already holds the drop half. See
     // ClosureHeaderFields.
-    if(isJsMode(module.context.settings.mode)) return;
+    if(isJsMode(module.context.settings)) return;
 
     local[reclaim]->used = true;
 
@@ -1804,7 +1804,7 @@ void setClosureRelease(Module& module, ModulePtr<Global> header, ModulePtr<Funct
  * there to measure and the symbol would be an export nobody reads.
  */
 void ensureImageAnchor(Program& program) {
-    if(program.imageAnchor || isJsMode(program.context.settings.mode)) return;
+    if(program.imageAnchor || isJsMode(program.context.settings)) return;
 
     auto& core = *program.core;
     auto global_ = addAnonymousGlobal(core, program.context.addQualifiedName("image$base", 10, 1),

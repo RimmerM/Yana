@@ -5,11 +5,14 @@
 #include "../resolve/explain.h"
 #include "../resolve/test.h"
 #include "../resolve/lower.h"
+#include "../resolve/analyze.h"
 #include "../lower/lower_print.h"
 #include "../lower/lower_validate.h"
 #include "../codegen/llvm/gen.h"
 #include "../codegen/js/gen.h"
 #include "../codegen/x64/emit.h"
+#include "../opt/opt.h"
+#include "../repr/repr.h"
 #include "settings.h"
 #include "source.h"
 #include "project.h"
@@ -36,23 +39,6 @@ static String joinPath(const String& directory, StringView name, StringView exte
     return path.string();
 }
 
-static String replaceExtension(const StringView& path, const String& extension) {
-    auto p = findLastChar(path, '.');
-    if(!p) return toString(path) + extension;
-
-    p++;
-    auto extensionLength = path.length - (p - path.ptr);
-    auto oldExtension = StringView { p, extensionLength };
-    if(findChar(oldExtension, '/')) return toString(path) + extension;
-
-    auto length = path.size() - extensionLength + extension.size();
-    auto buffer = (char*)hAlloc(length);
-    copy(path.ptr, buffer, path.size() - extensionLength);
-    copy(extension.text(), buffer + path.size() - extensionLength, extension.size());
-
-    return { buffer, length, true };
-}
-
 template<class Print>
 static bool writeText(Context& context, const String& path, Print&& printValue) {
     try {
@@ -69,20 +55,30 @@ static bool writeText(Context& context, const String& path, Print&& printValue) 
 }
 
 /*
- * The debug outputs.
+ * `-mode ast` - what the parser made of every file, and nothing after parsing.
  *
- * Written beside the source they came from, since there is one per module and the module is what
- * names them. The lowered form is the exception: lowering produces one module for the whole
- * program, so it goes to the output directory with everything else that is per-program.
+ * Into the output directory, named by each file's own dotted identifier. These used to be written
+ * beside the source they came from, under `-print-ast`, which made a dump of a source tree an edit
+ * to that tree - and pointing it at `lib/` scattered `.ast` files through the standard library. A
+ * mode writes what it produces where every other mode writes what it produces.
+ *
+ * One file per *source file* rather than per module, because that is what an AST is: grouping files
+ * into modules is the step after this one, and a dump of the parse should not have taken it.
  */
-static void printAsts(Context& context, ModuleMap& map) {
+static bool printAsts(Context& context, ModuleMap& map) {
+    auto written = true;
+
     for(auto& entry: map.entries) {
         if(!entry.ast) continue;
 
-        writeText(context, replaceExtension(entry.path, "ast"), [&](Net::Writer& writer) {
+        auto name = StringView { entry.id.text, entry.id.textLength };
+        written &= writeText(context, joinPath(context.settings.outputDir, name, ".ast"_v),
+                             [&](Net::Writer& writer) {
             printModule(writer, context, *context.parseRegion, *entry.ast);
         });
     }
+
+    return written;
 }
 
 /*
@@ -92,16 +88,6 @@ static void printAsts(Context& context, ModuleMap& map) {
 static bool compileJs(Context& context, Program& program, const String& outputDir, StringView name) {
     auto file = js::genProgram(context, program);
     if(context.diagnostics.errorCount()) return false;
-
-    // The same dump `lowerNative` writes, for the same reason and after the same step: `genProgram`
-    // runs the optimizer over `program` in place, so this is the resolve IR the emitter below read.
-    // The two targets resolve and optimize separately, so a question about a pass in `opt/` has a
-    // different answer on each and this is the only place the JS one can be read.
-    if(context.settings.printIr) {
-        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".opt.ir"_v), [&](Net::Writer& writer) {
-            printProgram(writer, context, program);
-        });
-    }
 
     return writeText(context, joinPath(outputDir, name, ".js"_v), [&](Net::Writer& writer) {
         js::formatFile(writer, context, *file, false);
@@ -126,19 +112,6 @@ static Ptr<LowerModule> lowerNative(Context& context, Program& program) {
         return nullptr;
     }
 
-    if(context.settings.printIr) {
-        // `lowerProgram` runs the optimizer over `program` in place, so this is the resolve IR the
-        // lowering below it actually read - which is a different program from the `.ir` written at
-        // the end of resolution, and the one to read when a question is about a pass in `opt/`.
-        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".opt.ir"_v), [&](Net::Writer& writer) {
-            printProgram(writer, context, program);
-        });
-
-        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".lower"_v), [&](Net::Writer& writer) {
-            printModule(writer, context, *lowered->arena, *lowered);
-        });
-    }
-
     // The program's start rather than `main` by name - Analysis-Initialization.md stage B. Where the
     // root module has top-level statements, `main` is what the synthesized entry calls last, and
     // starting at `main` itself would start the program after its own initialization had been
@@ -151,6 +124,68 @@ static Ptr<LowerModule> lowerNative(Context& context, Program& program) {
     }
 
     return lowered;
+}
+
+/*
+ * `-mode ownership` - what the ownership passes concluded.
+ *
+ * Where each local is live and where its drop went, which is the one thing the compiler works out
+ * that neither the resolve IR nor the lowered form shows on its face. It needs the live ranges,
+ * which a compilation does not otherwise build - see CompileSettings::ownershipRanges - so the mode
+ * is what turns them on, and `parseCommandLine` sets the flag when it reads this mode rather than
+ * leaving a switch that could be forgotten.
+ *
+ * Before the optimizer, deliberately: these are the conclusions the *ownership passes* reached, and
+ * running the optimizer first would show them after inlining had moved the code they are about.
+ */
+static bool compileOwnership(Context& context, Program& program, const String& outputDir, StringView name) {
+    return writeText(context, joinPath(outputDir, name, ".own"_v), [&](Net::Writer& writer) {
+        printOwnership(writer, context, program);
+    });
+}
+
+/*
+ * `-mode ir` - the resolved program, as the backends read it.
+ *
+ * Optimized, because that is the program that is actually compiled: the optimizer rewrites the
+ * resolve IR in place and both backends call it on the way in, so the unoptimized form is a program
+ * no backend ever sees. `-no-opt` is what asks for that one, and it is the same switch that makes
+ * every other stage skip the optimizer - so the two forms this used to write as two files are now
+ * one file and a flag that composes with everything else.
+ *
+ * The target matters even here: `optimizeProgram` takes a ReprTarget, and a JS build and a native
+ * build are two resolved programs optimized against two layouts. This is the only way to read the
+ * JavaScript one, which is why the mode is available on both platforms while `-mode lower` is not.
+ */
+static bool compileIr(Context& context, Program& program, const String& outputDir, StringView name) {
+    {
+        StageScope stage(CompileStage::Optimize);
+        optimizeProgram(context, program,
+                        isJsMode(context.settings) ? jsReprTarget() : nativeReprTarget());
+    }
+
+    if(context.diagnostics.errorCount()) return false;
+
+    return writeText(context, joinPath(outputDir, name, ".ir"_v), [&](Net::Writer& writer) {
+        printProgram(writer, context, program);
+    });
+}
+
+/*
+ * `-mode lower` - the form both native backends are generated from.
+ *
+ * Native only, and refused for a JavaScript build by `checkSettings` rather than here: the JS
+ * backend generates straight from the resolve IR, so there is no lowered form of a JS program to
+ * write. What comes out has been through `validateLowerModule` like every other native build, which
+ * makes this mode also the shortest way to ask whether lowering a program produces valid IR.
+ */
+static bool compileLower(Context& context, Program& program, const String& outputDir, StringView name) {
+    auto lowered = lowerNative(context, program);
+    if(!lowered) return false;
+
+    return writeText(context, joinPath(outputDir, name, ".lower"_v), [&](Net::Writer& writer) {
+        printModule(writer, context, *lowered->arena, *lowered);
+    });
 }
 
 // Everything the two LLVM modes share: the resolved program as an LLVM module, entry point and all.
@@ -205,6 +240,18 @@ static bool compileNativeLocal(Context& context, Program& program, const String&
     return genX64Executable(context, *lowered, joinPath(outputDir, name, ""_v));
 }
 
+// The output directory, made where it does not exist. Two callers now: every mode that writes a
+// program, and `-mode ast`, which stops before the rest of them and still has files to write.
+static bool ensureOutputDirectory(const String& outputDir) {
+    auto result = createDirectory(outputDir);
+    if(!result && result.unwrapErr() != FileError::Exists) {
+        printlnError("Cannot create output directory %@: error %@", outputDir, (U32)result.unwrapErr());
+        return false;
+    }
+
+    return true;
+}
+
 /*
  * The `explain` query - Analysis-Ambient.md §7.3.
  *
@@ -240,8 +287,8 @@ static bool explainProgram(Context& context, Program& program) {
 
     if(targets.isEmpty()) {
         if(settings.explainModule == "") {
-            println("Error: no function named %@ was found. Name the module with --module=<M> if it was not compiled.",
-                    settings.explainName);
+            println("Error: no function named %@ was found. Write it as <Module>.%@ if it is in a module this build did not compile.",
+                    settings.explainName, settings.explainName);
         } else {
             println("Error: module %@ declares no function named %@.",
                     settings.explainModule, settings.explainName);
@@ -275,49 +322,95 @@ int main(int argc, const char** argv) {
     // Parse the provided arguments into a settings structure.
     auto result = parseCommandLine(argv, argc);
     if(result.isErr()) {
-        print("Argument error: ");
-        println(stringView(result.unwrapErr()));
+        printError("Argument error: ");
+        printlnError(stringView(result.unwrapErr()));
         return 1;
     }
 
     auto settings = result.moveUnwrapOk();
 
+    if(settings.help) {
+        print(helpText());
+        return 0;
+    }
+
+    // What the positional arguments were - a project, or sources. Asked before the project file is
+    // looked for, because naming one is one of the two answers.
+    auto inputResult = resolveInputs(settings);
+    if(inputResult.isErr()) {
+        printError("Argument error: ");
+        printlnError(stringView(inputResult.unwrapErr()));
+        return 1;
+    }
+
     // The project file, if there is one, fills in what the flags did not say. It is read before
     // anything is looked for on disk because it is what says where to look - and it is the same
     // reader the language server uses, so an editor and a build cannot disagree about which files
     // are in the program. Implementation-Tooling.md §5.2.
+    auto named = settings.projectFile != "";
     if(auto projectPath = locateProjectFile(settings)) {
         auto project = readProjectFile(projectPath.unwrap());
         if(project.isErr()) {
-            print("Project error: ");
-            println(stringView(project.unwrapErr()));
+            printError("Project error: ");
+            printlnError(stringView(project.unwrapErr()));
             return 1;
         }
 
         applyProjectFile(settings, project.unwrapOk());
-    } else if(settings.projectFile != "" && !settings.noProject) {
-        println("Error: cannot find a project file at %@", settings.projectFile);
+    } else if(named && !settings.noProject) {
+        printlnError("Error: cannot find a project file at %@", settings.projectFile);
+        return 1;
+    } else if(settings.compileObjects.isEmpty() && !settings.noProject) {
+        // Nothing named and no project here. The walk upwards happens inside this sentence and
+        // nowhere else - see describeMissingProject.
+        printError("Error: ");
+        printlnError(stringView(describeMissingProject(settings)));
         return 1;
     }
 
+    /*
+     * Where the build goes, once everything that could have said has had its turn.
+     *
+     * The working directory, which is what every other compiler does with an unnamed output. This
+     * used to default to `argv[0]` - the compiler's own executable path - so a build that named no
+     * `-to` resolved, optimized, lowered and generated code before failing to write its result into
+     * a path that is a file rather than a directory.
+     */
+    if(settings.outputDir == "") settings.outputDir = String(".");
+
     auto settingsResult = checkSettings(settings);
     if(settingsResult.isErr()) {
-        print("Argument error: ");
-        println(stringView(settingsResult.unwrapErr()));
+        printError("Argument error: ");
+        printlnError(stringView(settingsResult.unwrapErr()));
         return 1;
+    }
+
+    /*
+     * A `-opt` nothing will read.
+     *
+     * Only the LLVM backend has levels, and the local one is the default wherever it exists - so
+     * `yana -opt 3` is a reasonable thing to write, does nothing, and said nothing about it. A note
+     * rather than an error, because the build it was passed to is still the build that was asked
+     * for: what is wrong is the belief about what was measured, and that is what this corrects.
+     */
+    if(settings.explicitOptimization &&
+       (isJsMode(settings) || isTextMode(settings.mode) || settings.backend != NativeBackend::Llvm)) {
+        printlnError("Note: -opt sets LLVM's optimization level, and this build does not run LLVM. "
+                     "Add -backend llvm for it to mean anything; -no-ir-opt is the switch on the IR "
+                     "optimizer, which runs either way.");
     }
 
     // Walk the input directory tree to create a map with each module we could compile.
     ModuleMap moduleMap;
     auto sourceResult = buildModuleMap(moduleMap, settings);
     if(sourceResult.isErr()) {
-        print("File error: ");
-        println(stringView(sourceResult.unwrapErr()));
+        printError("File error: ");
+        printlnError(stringView(sourceResult.unwrapErr()));
         return 1;
     }
 
     if(moduleMap.entries.size() == 0) {
-        println("Error: no modules to compile were found");
+        printlnError("Error: no modules to compile were found");
         return 1;
     }
 
@@ -338,14 +431,27 @@ int main(int argc, const char** argv) {
     String rootError;
     auto root = findRootModule(moduleMap, context.settings, rootError);
     if(!root) {
-        print("Error: ");
-        println(stringView(rootError));
+        printError("Error: ");
+        printlnError(stringView(rootError));
         return 1;
     }
 
     // Every file is parsed by `prepare`, which is what grouping them into modules needed - see
     // FileProvider::prepare. So a parse error anywhere in the tree stops the compile here.
     if(diagnostics.errorCount() > 0) return 1;
+
+    /*
+     * `-mode ast`, which is finished already: parsing is the stage it stops at.
+     *
+     * Before resolution rather than after it, because an AST is what the parser produced and nothing
+     * downstream changes it - and because stopping here is what makes the mode useful on a program
+     * that does not resolve. `-print-ast` ran after a successful resolve and so could not dump the
+     * parse of the file you were trying to understand.
+     */
+    if(context.settings.mode == CompileMode::Ast) {
+        if(!ensureOutputDirectory(context.settings.outputDir)) return 1;
+        return printAsts(context, moduleMap) && diagnostics.errorCount() == 0 ? 0 : 1;
+    }
 
     // Everything the root imports is parsed and resolved from here, through the provider. The
     // compilation mode is already in the settings, which matters: `@platform` selects which
@@ -374,14 +480,6 @@ int main(int argc, const char** argv) {
     auto program = resolveProgram(context, root->parsed, &provider, specialization,
                                   toBuffer(testRoots));
 
-    if(context.settings.printAst) printAsts(context, moduleMap);
-
-    if(program && context.settings.printIr) {
-        writeText(context, joinPath(context.settings.outputDir, "program"_v, ".ir"_v), [&](Net::Writer& writer) {
-            printProgram(writer, context, *program);
-        });
-    }
-
     if(!program || diagnostics.errorCount() > 0) return 1;
 
     // Before the output directory is created, deliberately: a query produces no output, so it has
@@ -389,43 +487,65 @@ int main(int argc, const char** argv) {
     if(context.settings.explaining()) return explainProgram(context, *program) ? 0 : 1;
 
     auto& outputDir = context.settings.outputDir;
-    auto directoryResult = createDirectory(outputDir);
-    if(!directoryResult && directoryResult.unwrapErr() != FileError::Exists) {
-        println("Cannot create output directory %@: error %@", outputDir, (U32)directoryResult.unwrapErr());
-        return 1;
-    }
+    if(!ensureOutputDirectory(outputDir)) return 1;
 
-    auto name = StringView { root->text.text(), root->text.size() };
+    // What the artifact is called - `-o`, or the root module's name. The mode adds the extension,
+    // which is why this is a bare name rather than a file name.
+    auto& given = context.settings.outputName;
+    auto name = given != "" ? StringView { given.text(), given.size() }
+                            : StringView { root->text.text(), root->text.size() };
     auto built = false;
 
+    /*
+     * The mode decides what is produced and the platform decides what it is produced for, so the
+     * dispatch reads both - see TargetPlatform. Only `Executable` genuinely branches on the
+     * platform: the two text modes below it either work on both (`ir`) or were refused for one by
+     * `checkSettings` (`lower`, `llvm`), which is where a combination that does not exist is
+     * reported, rather than here where there would be nothing useful to say about it.
+     */
     switch(context.settings.mode) {
-        // The one mode with two implementations - see NativeBackend. Which one this is came from the
-        // target unless a flag overrode it, and a flag that named a target with no code generator
-        // behind it was already refused by checkSettings, so what is left here is only the choice.
-        case CompileMode::NativeExecutable:
+        case CompileMode::Executable:
+            if(isJsMode(context.settings)) {
+                built = compileJs(context, *program, outputDir, name);
+                break;
+            }
+
+            // The one output with two implementations - see NativeBackend. Which one this is came
+            // from the target unless a flag overrode it, and a flag that named a target with no code
+            // generator behind it was already refused by checkSettings, so what is left here is only
+            // the choice.
             built = context.settings.backend == NativeBackend::Local
                 ? compileNativeLocal(context, *program, outputDir, name)
                 : compileNative(context, *program, outputDir, name);
             break;
+        case CompileMode::Ownership:
+            built = compileOwnership(context, *program, outputDir, name);
+            break;
+        case CompileMode::Ir:
+            built = compileIr(context, *program, outputDir, name);
+            break;
+        case CompileMode::Lower:
+            built = compileLower(context, *program, outputDir, name);
+            break;
         case CompileMode::Llvm:
             built = compileLlvm(context, *program, outputDir, name);
             break;
-        case CompileMode::JsExecutable:
-            built = compileJs(context, *program, outputDir, name);
+
+        // Handled above, before there was a program to switch on.
+        case CompileMode::Ast:
             break;
 
-        // The three that have no code behind them yet. Each is a different question the answer
-        // above does not contain: a library is what a program links *against*, which needs a
-        // format for the resolved declarations rather than for the code; a shared library is that
-        // plus an exported symbol table and position-independent placement.
+        // The two that have no code behind them yet. Each is a different question the answer above
+        // does not contain: a library is what a program links *against*, which needs a format for
+        // the resolved declarations rather than for the code; a shared library is that plus an
+        // exported symbol table and position-independent placement.
         case CompileMode::Library:
-            diagnostics.error("library generation is not implemented yet"_v, nullptr);
+            diagnostics.error(isJsMode(context.settings)
+                ? "JS library generation is not implemented yet"_v
+                : "library generation is not implemented yet"_v, nullptr);
             break;
-        case CompileMode::NativeShared:
+        case CompileMode::Shared:
             diagnostics.error("shared library generation is not implemented yet"_v, nullptr);
-            break;
-        case CompileMode::JsLibrary:
-            diagnostics.error("JS library generation is not implemented yet"_v, nullptr);
             break;
     }
 

@@ -467,7 +467,7 @@ static Ptr<llvm::TargetMachine> createMachine(Context& context, llvm::Module& mo
      * address resolved by the linker. A shared library has no such option and will need the tables
      * to be relative rather than absolute, which is a change to the lowering rather than to this.
      */
-    auto shared = context.settings.mode == CompileMode::NativeShared;
+    auto shared = context.settings.mode == CompileMode::Shared;
 
     llvm::TargetOptions options;
     Ptr<llvm::TargetMachine> machine {

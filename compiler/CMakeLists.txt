@@ -9,6 +9,8 @@ set(CORE_SOURCE_FILES
     compiler/builtin.cpp
     compiler/library.h
     compiler/library.cpp
+    compiler/project.h
+    compiler/project.cpp
     compiler/diagnostics.h
     compiler/diagnostics.cpp
     compiler/position.h
@@ -348,8 +350,6 @@ target_link_libraries(YanaX64 PUBLIC YanaCore YanaLower YanaElf)
 set(PROJECT_SOURCE_FILES
     compiler/source.h
     compiler/source.cpp
-    compiler/project.h
-    compiler/project.cpp
     compiler/overlay.h
     compiler/overlay.cpp
 )

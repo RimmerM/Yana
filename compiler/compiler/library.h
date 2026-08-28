@@ -22,8 +22,8 @@ struct CompileSettings;
  * of files is a module without any one of them being singled out, Analysis-Modules.md §2.1.2. A
  * *file* name is not a path in either direction any more, and `record` below says why.
  *
- * **Where the directory is** is answered once per compilation and cached, from four sources in
- * order: `-lib` on the command line, `YANA_LIB` in the environment, a path beside the running
+ * **Where the directory is** is answered once per compilation and cached, from three sources in
+ * order: `-lib` on the command line or `library` in the project file, a path beside the running
  * executable, and the tree this compiler was built from. Each candidate is accepted only if
  * `Core/Core.yana` is in it, so a stale entry falls through to the next rather than producing a
  * compilation with half a library.

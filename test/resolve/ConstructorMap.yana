@@ -6,7 +6,7 @@
 --
 -- Recognition happens beside `resolveMatch`, where the constructor patterns and their coverage are
 -- still explicit, and lowers immediately into comparisons, arithmetic, immutable globals and indexed
--- loads - so both targets get the same answer and the guarantee survives `-no-opt`. That last part
+-- loads - so both targets get the same answer and the guarantee survives `-no-ir-opt`. That last part
 -- is why the golden IR below is the point of this file: every function here is asserted to have no
 -- branch in it at all, which is a property of the *unoptimized* output.
 --
@@ -38,7 +38,7 @@ fn indexOf(op: Op) -> Int = match op:
 
 -- A stride and a bias, at the selector's own width rather than through `Long`: every product and
 -- every sum fits in an `Int`, and a widening round trip nothing needs is two real instructions at
--- `-no-opt`.
+-- `-no-ir-opt`.
 fn slotOf(op: Op) -> Int = match op:
     Add -> 100
     Sub -> 110

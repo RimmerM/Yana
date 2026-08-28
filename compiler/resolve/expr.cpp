@@ -44,7 +44,7 @@ void ExprResolver::emitCheck(ModulePtr<Value> failed, LocationId source) {
      * few sites take the unlocated form rather than reporting an internal error - which is what the
      * first version of this did, twice, before any program had been compiled at all.
      */
-    auto canName = isJsMode(context.settings.mode) || module.program.stringLiteral;
+    auto canName = isJsMode(context.settings) || module.program.stringLiteral;
 
     if(context.settings.checkLocations && module.program.checkConditionAt && canName) {
         auto node = context.diagnostics.sourceNode(source);
@@ -52,7 +52,7 @@ void ExprResolver::emitCheck(ModulePtr<Value> failed, LocationId source) {
         auto line = makeInt(source, module.scalar.int_, node ? node->sourceStart.line + 1 : 0);
         auto column = makeInt(source, module.scalar.int_, node ? node->sourceStart.column : 0);
 
-        if(isJsMode(context.settings.mode)) {
+        if(isJsMode(context.settings)) {
             // A host string is a value rather than a descriptor with an address, so the ordinary
             // literal is already the cheap form here.
             ResolvedArg located[] = { failed, resolveString(source, where), line, column };
@@ -627,7 +627,7 @@ ModulePtr<Value> ExprResolver::resolveDecimal(LocationId source, TypePtr target,
  * the emitter re-encodes it into a source literal and the host owns the UTF-16 from there.
  */
 ModulePtr<Value> ExprResolver::resolveString(LocationId source, StringId text) {
-    if(isJsMode(context.settings.mode)) {
+    if(isJsMode(context.settings)) {
         return constant<ConstString>(source, module.scalar.string_, text);
     }
 

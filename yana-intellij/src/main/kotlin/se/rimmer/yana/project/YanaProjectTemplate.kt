@@ -46,18 +46,32 @@ object YanaProjectTemplate {
         manager.selectedConfiguration = settings
     }
 
+    /*
+     * There is deliberately no `main` here.
+     *
+     * A directory is a module, so the one module this project has is `Src` - the source root - and
+     * `src/Main.yana` is a *file* of it rather than a module called `Main`. The template used to
+     * write `root = "Main"` - the key `main` is now spelled after what it names - which named
+     * nothing and made every generated project fail on its first build. A project with exactly one
+     * module needs no entry named at all: the module is the program.
+     *
+     * Add one when the project grows a second module, which is also when the compiler starts asking
+     * for it by name.
+     */
     private val PROJECT_FILE = """
-        # What this program is: the module it starts in, where its source lives, what it is built
-        # for, and where the build goes. The compiler and the language server both read this file,
-        # so the editor and the build agree about which files are in the program.
-        root = "Main"
+        # What this program is: where its source lives, what it is built for, and where the build
+        # goes. The compiler and the language server both read this file, so the editor and the
+        # build agree about which files are in the program.
+        #
+        # Add `main = "<module>"` when there is more than one module and one of them is the program.
         sources = ["src"]
-        target = "native"
-        output = "build"
+        platform = "native"
+        to = "build"
     """.trimIndent() + "\n"
 
     private val SAMPLE_MODULE = """
-        -- The program is entered through `main` in the module `yana.toml` names as the root.
+        -- The program is entered through `main`. This file is part of the module `Src`, which is
+        -- the source directory it sits in - a directory is a module.
 
         data Greeting {times: Int}
 
@@ -69,7 +83,7 @@ object YanaProjectTemplate {
     """.trimIndent() + "\n"
 
     private val GIT_IGNORE = """
-        # Where `output` in yana.toml sends the build.
+        # Where `to` in yana.toml sends the build.
         build/
     """.trimIndent() + "\n"
 }

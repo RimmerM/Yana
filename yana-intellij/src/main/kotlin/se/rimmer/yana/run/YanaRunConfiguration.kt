@@ -98,11 +98,11 @@ class YanaRunConfiguration(project: Project, factory: ConfigurationFactory, name
     /*
      * Where the build writes, and therefore where the executable is.
      *
-     * The driver's own default is beside its own binary, which is never what an IDE means - so the
-     * configuration always passes `-to`. What it passes is the project file's `output` when it has
-     * one, so naming the directory here does not override what the project already said; `build/`
-     * beside the project file is the fallback, and it is what the template creates a `.gitignore`
-     * entry for.
+     * The driver writes into the working directory when nothing says otherwise, which is not what an
+     * IDE means - so the configuration always passes `-to`. What it passes is the project file's
+     * `to` when it has one, so naming the directory here does not override what the project already
+     * said; `build/` beside the project file is the fallback, and it is what the template creates a
+     * `.gitignore` entry for.
      */
     fun resolveOutputDirectory(): File {
         val configured = outputDirectory.trim()
@@ -112,16 +112,28 @@ class YanaRunConfiguration(project: Project, factory: ConfigurationFactory, name
         }
 
         val project = readProjectFile()
-        project?.output?.let { return it }
+        project?.to?.let { return it }
 
         val directory = project?.directory ?: resolveProjectFile().parentFile ?: projectBase()
         return File(directory, "build")
     }
 
-    /// The executable the driver will have written, or null when the project file does not name a
-    /// root module and there is more than one module to choose between.
+    /*
+     * What the program is called, or null when the project file does not say and there is more than
+     * one module to choose between.
+     *
+     * The build passes this to the compiler as `-output` and the run half looks for exactly it, so the
+     * two agree by construction. They used to agree by coincidence: the driver named the artifact
+     * after the *module* it had resolved as the root, and this predicted that name from the file
+     * layout - which is a different rule, and a wrong one for the layout this plugin's own template
+     * generates. A project that names an `output` or a `main` still gets that name, since the
+     * compiler would resolve the same one.
+     */
+    fun resolveExecutableName(): String? = readProjectFile()?.executableName()
+
+    /// The executable the driver will have written, under the name above.
     fun resolveExecutable(): File? {
-        val name = readProjectFile()?.executableName() ?: return null
+        val name = resolveExecutableName() ?: return null
         return File(resolveOutputDirectory(), if (SystemInfo.isWindows) "$name.exe" else name)
     }
 
@@ -136,8 +148,8 @@ class YanaRunConfiguration(project: Project, factory: ConfigurationFactory, name
 
         if (resolveExecutable() == null) {
             throw RuntimeConfigurationError(
-                "${file.name} does not name a root module and the project has more than one, so " +
-                    "there is no way to tell what the program is called. Add `root = \"Main\"` to it."
+                "${file.name} does not name a main module and the project has more than one, so " +
+                    "there is no way to tell what the program is called. Add `main = \"App\"` to it."
             )
         }
 
@@ -178,8 +190,8 @@ private class YanaRunState(
     override fun startProcess(): ProcessHandler {
         val executable = configuration.resolveExecutable()
             ?: throw ExecutionException(
-                "The project file does not name a root module, so there is no way to tell which " +
-                    "executable to run. Add `root = \"Main\"` to ${configuration.resolveProjectFile().name}."
+                "The project file does not name a main module, so there is no way to tell which " +
+                    "executable to run. Add `main = \"App\"` to ${configuration.resolveProjectFile().name}."
             )
 
         if (!executable.isFile) {

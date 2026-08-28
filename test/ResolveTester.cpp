@@ -646,7 +646,7 @@ static bool runJsPass(const String& path, const String& jsPath, StringView sourc
     PrintDiagnostics diagnostics(provider);
     Context context(diagnostics);
     applyFixtureDirectives(context.settings, source);
-    context.settings.mode = CompileMode::JsExecutable;
+    context.settings.platform = TargetPlatform::Js;
     provider.context = &context;
 
     auto name = context.addUnqualifiedName("ResolveTest", 11);
@@ -790,7 +790,7 @@ static bool runUnoptimizedPass(const String& path, StringView source, bool force
         PrintDiagnostics diagnostics(provider);
         Context context(diagnostics);
         applyFixtureDirectives(context.settings, source);
-        context.settings.mode = CompileMode::JsExecutable;
+        context.settings.platform = TargetPlatform::Js;
         context.settings.optimizeIr = false;
         provider.context = &context;
 
@@ -1110,6 +1110,7 @@ int main(int argc, const char** argv) {
         }
 
         if(parseShard(arg, shard, shards)) continue;
+        if(rejectFlagArgument(arg)) return 1;
         only = arg;
     }
 

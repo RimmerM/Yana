@@ -44,3 +44,29 @@ inline bool parseShard(const Tritium::String& arg, U32& shard, U32& shards) {
     shards = U32(count);
     return true;
 }
+
+/*
+ * An argument shaped like a flag - `-v`, `--shard=0/4`, `-generate`.
+ *
+ * These drivers take bare words: `generate`, `shard:i/n`, and a fixture-name prefix. Anything else
+ * *became* the prefix, so a mistyped or borrowed flag selected no fixtures at all and the run
+ * reported "no tests found" - which reads as a broken checkout rather than as a bad argument. And
+ * `run-tests.sh` passes everything after the build directory to every driver, so one flag meant for
+ * one of them was silently swallowed by the rest.
+ *
+ * A leading dash is never a fixture name, so it is the one shape that can be refused with certainty.
+ * The message names what is accepted, since that is the thing a caller could not have guessed.
+ */
+inline bool rejectFlagArgument(const Tritium::String& arg, const char* extra = nullptr) {
+    if(arg.size() == 0 || arg.text()[0] != '-') return false;
+
+    if(extra) {
+        Tritium::println("unknown argument \"%@\" - this driver takes `generate`, `shard:i/n`, %@, or a fixture name prefix",
+                         arg, Tritium::String(extra));
+    } else {
+        Tritium::println("unknown argument \"%@\" - this driver takes `generate`, `shard:i/n`, or a fixture name prefix",
+                         arg);
+    }
+
+    return true;
+}

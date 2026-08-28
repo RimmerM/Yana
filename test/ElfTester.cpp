@@ -290,7 +290,7 @@ static bool runTest(const String& path, StringView source, const String& outputD
     // The same settings a `-mode exe -backend local` build runs under. Stated rather than left at
     // the defaults, because `@platform` reads the mode during resolution: a fixture resolved for
     // one target and emitted for another is a different program.
-    context.settings.mode = CompileMode::NativeExecutable;
+    context.settings.mode = CompileMode::Executable;
     context.settings.backend = NativeBackend::Local;
     context.settings.format = ExecutableFormat::ELF;
     context.settings.target = TargetType::Linux;
@@ -383,6 +383,7 @@ int main(int argc, const char** argv) {
         // arguments to every driver. There is nothing here to generate: the goldens this reads are
         // the resolve driver's.
         if(arg == "generate") continue;
+        if(rejectFlagArgument(arg)) return 1;
         only = arg;
     }
 

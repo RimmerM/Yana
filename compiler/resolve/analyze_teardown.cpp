@@ -257,7 +257,7 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
     if(!headerKnown) {
         ModulePtr<Value> tested = env;
 
-        if(isJsMode(module.context.settings.mode)) {
+        if(isJsMode(module.context.settings)) {
             tested = resolver.load(resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source);
         }
 
@@ -291,7 +291,7 @@ static void teardownFunValue(ExprResolver& resolver, Module& module, Place base,
     auto headerType = resolvePointerType(module, module.scalar.unit);
     ModulePtr<Value> header;
 
-    if(isJsMode(module.context.settings.mode)) {
+    if(isJsMode(module.context.settings)) {
         header = resolver.load(
             resolver.project(base, ProjectionKind::Field, FunValueLayout::kHeader), source);
     } else {
@@ -626,7 +626,7 @@ ModulePtr<Function> teardownEntry(Module& module, TypePtr type, Teardown half, L
      * its entry unconditionally - the case it exists for is a subject that is not a host object,
      * and which types those are is a Repr answer this pass deliberately cannot see.
      */
-    if(!isJsMode(module.context.settings.mode)) return implementation;
+    if(!isJsMode(module.context.settings)) return implementation;
 
     auto& program = module.program;
     // Two maps and not three, on the same terms as the glue above: a descriptor slot and a closure
@@ -766,7 +766,7 @@ ModulePtr<Function> teardownBothFor(Module& module, TypePtr type, LocationId sou
  * also what lets `dischargeDrop` expand a drop with no target test of its own.
  */
 Teardown siteTeardown(Module& module) {
-    return isJsMode(module.context.settings.mode) ? Teardown::Drop : Teardown::Both;
+    return isJsMode(module.context.settings) ? Teardown::Drop : Teardown::Both;
 }
 
 ModulePtr<Function> teardownAtSite(Module& module, TypePtr type, LocationId source) {

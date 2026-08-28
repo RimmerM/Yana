@@ -1308,7 +1308,7 @@ void genForwardCells(Gen& g) {
  * on import would be the import side effect this design says an import does not have.
  */
 void genEntryCall(Gen& g) {
-    if(g.context.settings.mode != CompileMode::JsExecutable) return;
+    if(g.context.settings.mode != CompileMode::Executable) return;
 
     auto entry = g.program.entry;
     if(!entry || g.excluded.contains(U32(entry))) return;

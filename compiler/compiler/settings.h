@@ -2,37 +2,71 @@
 
 #include <Core.h>
 
-/// The main available compilation modes that define the type of output generated.
-enum class CompileMode {
-    Library,          /// Compiles into a platform-independent Yana library that can be included in other programs.
-    NativeExecutable, /// Compiles into a native executable program.
-    NativeShared,     /// Compiles into a native shared library for dynamic linking (.dll, .so, .dylib).
-    JsExecutable,     /// Compiles into an executable javascript file, including all dependencies.
-    JsLibrary,        /// Compiles into a javascript file as a library that can be included in a larger project.
-    Llvm,             /// Compiles into a native program, but outputs LLVM IR files rather than object files.
+/*
+ * Which machine the generated program runs on - `-platform`, and `platform` in a `yana.toml`.
+ *
+ * **Its own axis rather than a reading of the mode**, which is the distinction the two used to share
+ * one enum for: `-mode js` said both "produce a program" and "produce it for JavaScript", so the
+ * modes that are neither - an IR dump, an AST dump - had no way to say which platform they were a
+ * dump *of*, and the JavaScript resolve IR was reachable only through a debug flag. A mode says what
+ * comes out; this says what it is for.
+ *
+ * This is what `@platform(js)` and `@platform(native)` select on, and the two are genuinely
+ * different programs rather than two encodings of one: the host-shaped implementations of `String`,
+ * `Array`, `Map` and `Storage` are separate declarations, so a JS build and a native build do not
+ * share a resolved program. See Analysis-JS.md §2.4.
+ */
+enum class TargetPlatform: U8 {
+    Native, /// Machine code for the operating system and architecture the other flags name.
+    Js,     /// JavaScript, which has one target and reads none of `-target`, `-arch` or `-format`.
 };
 
-/// Whether a compilation mode emits JavaScript rather than machine code.
-/// This is what `@platform(js)` and `@platform(native)` select on: the two targets differ in which
-/// declarations exist at all, because the host-shaped implementations of `String`, `Array`, `Map`
-/// and `Storage` are separate declarations rather than separate representations of one.
-/// See Analysis-JS.md §2.4.
-inline bool isJsMode(CompileMode mode) {
-    return mode == CompileMode::JsExecutable || mode == CompileMode::JsLibrary;
-}
+/*
+ * What the compilation produces - `-mode`, and `mode` in a `yana.toml`.
+ *
+ * The four that emit something a machine runs are the first four; the three after them are the
+ * pipeline stopped early, each one stage later than the last. `-mode ast` is what the parser made,
+ * `-mode ir` the resolved program the backends read, `-mode lower` the form both native backends
+ * are generated from, and `-mode llvm` LLVM's own text - so the ladder from source to executable can
+ * be halted anywhere and read. They replace the `-print-ast`/`-print-ir` debug flags, which wrote
+ * fixed file names beside the source they came from and had no way to say "and stop here".
+ */
+enum class CompileMode {
+    Executable, /// A program: a native executable, or a JavaScript file that runs standalone.
+    Shared,     /// A native shared library for dynamic linking (.dll, .so, .dylib).
+    Library,    /// A Yana library that can be included in other programs.
+    Ast,        /// The parsed form of every source file, and nothing after parsing.
+    Ownership,  /// What the ownership passes concluded: where each local is live, and where it is dropped.
+    Ir,         /// The resolved and optimized program, as resolve IR text.
+    Lower,      /// The lowered program, as lower IR text. Native only - the JS backend never lowers.
+    Llvm,       /// LLVM IR text for the program, rather than an object file built from it.
+};
+
+/// Whether this compilation emits JavaScript rather than machine code - see TargetPlatform. Takes
+/// the settings rather than one field of them because the answer used to be read off the mode, and
+/// a call that still passes a mode should stop compiling rather than silently mean something else.
+inline bool isJsMode(const struct CompileSettings& settings);
 
 /// Whether a compilation mode produces a whole program rather than something to be linked or
 /// imported into one. This is what decides where reachability starts: a program has exactly one
 /// root - where it starts - and everything else it can arrive at, it arrives at from there, while a
 /// library's declarations are the roots because whoever will call them is not in this compilation.
+/// `Ast` is not among them because it stops before there is a program to be reachable in.
 /// See markProgramReachable.
 inline bool isExecutableMode(CompileMode mode) {
-    return mode == CompileMode::NativeExecutable || mode == CompileMode::JsExecutable ||
-           mode == CompileMode::Llvm;
+    return mode == CompileMode::Executable || mode == CompileMode::Ownership ||
+           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm;
+}
+
+/// Whether a mode writes text about the program rather than something that runs. The three that do
+/// share every step up to the point they stop at, and none of them reads a backend or a format.
+inline bool isTextMode(CompileMode mode) {
+    return mode == CompileMode::Ast || mode == CompileMode::Ownership ||
+           mode == CompileMode::Ir || mode == CompileMode::Lower || mode == CompileMode::Llvm;
 }
 
 /// Native executable formats that can be generated.
-/// Only applicable to CompileMode::NativeExecutable and CompileMode::NativeShared.
+/// Only applicable on TargetPlatform::Native, and there only to the modes that emit machine code.
 enum class ExecutableFormat {
     ELF,   /// Compiles to ELF files (.so for shared libraries) compatible with operating systems such as Linux.
     MachO, /// Compiles to Mach-O files (.dylib for shared libraries) compatible with macOS.
@@ -42,7 +76,7 @@ enum class ExecutableFormat {
 /// Operating system that can be targeted.
 /// This defines what implementation of the runtime and standard library will be chosen,
 /// as well as the platform libraries to link to.
-/// Not applicable to JS compilation modes, as they only support one target.
+/// Not applicable on TargetPlatform::Js, which has one target and reads none of this.
 enum class TargetType {
     Linux,
     MacOS,
@@ -52,7 +86,7 @@ enum class TargetType {
 /// The instruction set to generate code for.
 /// This defines the base instruction set to use; extensions can be enabled separately if available.
 /// This may also have implications on what runtime functions are chosen.
-/// Only applicable to CompileMode::NativeExecutable and CompileMode::NativeShared.
+/// Only applicable on TargetPlatform::Native.
 enum class TargetArch {
     X64,   /// AMD64 64-bit instruction set. Implies enabling SSE2 extensions.
     X86,   /// Normal 32-bit instruction set, no extensions implied.
@@ -185,19 +219,64 @@ enum class InlineLevel: U8 {
 };
 
 struct CompileSettings {
+    /*
+     * The positional arguments, before anything has decided what they are.
+     *
+     * Separate from `compileObjects` because an input is not necessarily a source: a directory
+     * holding a `yana.toml` is a *project*, and which of the two a path is cannot be answered
+     * without asking the file system. `resolveInputs` in compiler/project.h is what asks, and it
+     * empties this into either `projectFile` or `compileObjects`. `-add` skips the question and
+     * says "a source root" outright, which is the only way to say that about a directory that has a
+     * project file in it.
+     */
+    Array<Tritium::String> inputs;
+
     Array<Tritium::String> compileObjects;
-    Array<Tritium::String> rootObjects;
+
+    /*
+     * `-main` - the module the program is entered through, or empty to work it out.
+     *
+     * Named `-main` rather than `-root`, and held apart from `ModuleMap::roots`, because those were
+     * two different things wearing one word: a *compile* root is a directory the sources were found
+     * under, and this is the one module of them that holds the program's entry. `-root Main` read as
+     * a path and was a module name, which is the mistake the spelling now prevents.
+     *
+     * A list because the flag can be repeated, and repeating it is an error rather than a choice -
+     * see findRootModule. Holding them lets that error say how many were named.
+     */
+    Array<Tritium::String> mainModules;
+
     Tritium::String outputDir;
+
+    /*
+     * `-output` - what the artifact is called, without any extension the mode adds. Empty for the default,
+     * which is the root module's name.
+     *
+     * A name and not a path: it is joined onto `outputDir` like every other artifact, so that where
+     * a build writes stays one question with one answer - `-to`. A name with a separator in it is
+     * refused rather than silently writing outside the output directory.
+     *
+     * The default is the root module because that is the one name a program certainly has. It is a
+     * poor name for a program whose root module is called `Src` after the directory its files sit
+     * in, which is what made this flag worth having: the alternative was renaming a directory to
+     * rename a binary.
+     */
+    Tritium::String outputName;
+
+    /// Whether `-opt` was named, so that a build can be told when nothing will read it - see
+    /// `CompileSettings::optimization`, which only the LLVM backend reads.
+    bool explicitOptimization = false;
 
     /*
      * What the command line said for itself.
      *
-     * A `yana.toml` fills in the rest - see compiler/project.h - and the two settings it can supply
-     * that have a usable default are the two that need this: a mode is always set to something, and
-     * an output directory is always some string, so "unset" is not visible in the value. Everything
-     * else the file can say is a list or a name that is empty when nothing said it.
+     * A `yana.toml` fills in the rest - see compiler/project.h - and the settings it can supply that
+     * have a usable default are the ones that need this: a mode and a platform are always set to
+     * something, and an output directory is always some string, so "unset" is not visible in the
+     * value. Everything else the file can say is a list or a name that is empty when nothing said it.
      */
     bool explicitMode = false;
+    bool explicitPlatform = false;
     bool explicitOutput = false;
 
     /// Whether `-backend` was named. Not for a project file's sake - one cannot set a backend - but
@@ -241,7 +320,8 @@ struct CompileSettings {
      * otherwise means: a 64-bit ELF executable. `applyDefaults` still replaces them with the host's
      * when a real compilation is being configured.
      */
-    CompileMode mode = CompileMode::NativeExecutable;
+    CompileMode mode = CompileMode::Executable;
+    TargetPlatform platform = TargetPlatform::Native;
     ExecutableFormat format = ExecutableFormat::ELF;
     TargetType target = TargetType::Linux;
     TargetArch arch = TargetArch::X64;
@@ -276,14 +356,16 @@ struct CompileSettings {
     /// How hard the optimizing native backend works, 0-3. Only the LLVM path reads it: the local
     /// amd64 backend is the fast one by construction and has no levels to choose between - so on the
     /// platform where that one is the default, `-opt` does nothing until `-backend llvm` is passed
-    /// with it. `optimizeIr` below is the switch that means something on both.
+    /// with it, and the driver says so rather than leaving it to be discovered. `optimizeIr` below
+    /// is the switch that means something on both, and is `-no-ir-opt` for exactly that reason.
     U32 optimization = 2;
 
-    /// Whether the IR optimizer (compiler/opt) runs at all.
+    /// Whether the IR optimizer (compiler/opt) runs at all - `-no-ir-opt`.
     ///
     /// Distinct from `optimization`, which is a level handed to LLVM: this one is a switch on our
     /// own passes over the resolve IR, and it is off only to answer the question "did the optimizer
-    /// change what this program does". The fixture runner compiles every runnable fixture both ways
+    /// change what this program does". The flag was `-no-opt`, one letter from `-opt 0` and a
+    /// different optimizer - the two are now named after the thing each switches. The fixture runner compiles every runnable fixture both ways
     /// and compares the results on both targets, which is the same equivalence check
     /// `Program::Specialization` gets and exists for the same reason - an optimization must not be
     /// where a semantic decision quietly moved to.
@@ -378,15 +460,21 @@ struct CompileSettings {
      */
     bool forceGeneric = false;
 
-    bool printModules = false; /// Debug flag: Print a list of modules found in the input.
-    bool printAst = false;     /// Debug flag: Create .ast files for each source file.
-    bool printIr = false;      /// Debug flag: Create .ir files for each source file.
+    /// `-help`: print what this compiler takes and stop. Not an error, and not a compilation - the
+    /// driver prints `helpText` and answers zero.
+    bool help = false;
+
+    /// Debug flag: print a list of the modules found in the input, and where each came from.
+    /// The one dump that is not a `-mode`: it is about how the files were grouped rather than about
+    /// the program they form, so it is a thing to ask *while* compiling rather than instead of it.
+    bool printModules = false;
 
     /*
      * Whether the ownership passes keep each local's live ranges - OwnershipResult::ranges.
      *
      * Off, because `printOwnership` is the only thing in the compiler that reads one and nothing on
-     * a compilation's path to an executable calls it. Building them is not free: the range builder
+     * a compilation's path to an executable calls it - `-mode ownership` is what turns both on, and
+     * is the only thing on a command line that does. Building them is not free: the range builder
      * replays the backward walk *per local per block* to recover liveness at each point inside a
      * block, which the fixpoint only kept at the two ends - so it is the single largest item in the
      * ownership stage, and on a small program it was 4% of the whole compile.
@@ -409,8 +497,11 @@ struct CompileSettings {
      * target the other flags name*. A JS build and a native build genuinely have different programs
      * to explain, and this reports whichever one was asked for.
      */
-    Tritium::String explainName;   /// The function to explain, or empty for no query.
-    Tritium::String explainModule; /// Restrict the query to one module, or empty for every module.
+    /// The function to explain, or empty for no query, and the module it was qualified with - see
+    /// `setExplainTarget`, which splits `Server.handle` into the two. Empty module means every
+    /// module, which is what an unqualified name asks for.
+    Tritium::String explainName;
+    Tritium::String explainModule;
 
     /// Explain every function in the program instead of one - the report Analysis-Ambient.md §7.5's
     /// capability audit is a filter over.
@@ -418,6 +509,10 @@ struct CompileSettings {
 
     bool explaining() const { return explainAll || explainName != ""; }
 };
+
+inline bool isJsMode(const CompileSettings& settings) {
+    return settings.platform == TargetPlatform::Js;
+}
 
 /*
  * How wide one vector is, in bytes - Design-Vector §2.3, and the one number the natural form
@@ -475,7 +570,7 @@ inline IntWidths targetIntWidths(const CompileSettings& settings) {
     // A signed 32-bit index, because a host array's length is a `uint32` by specification and
     // nothing wider can be described anyway; and a UTF-16 unit, because that is what a host string
     // is made of. Natively the word is the address width and a unit is a UTF-8 byte.
-    return isJsMode(settings.mode) ? IntWidths { 32, 16 } : IntWidths { 64, 8 };
+    return isJsMode(settings) ? IntWidths { 32, 16 } : IntWidths { 64, 8 };
 }
 
 constexpr U32 kMaxVectorBytes = 64;
@@ -484,7 +579,7 @@ constexpr U32 kMaxVectorLanes = kMaxVectorBytes;
 inline U32 targetVectorBytes(const CompileSettings& settings) {
     // JavaScript's 16 is a decision rather than an observation - Design-Vector §8. There is no
     // register to read it off, and four lanes is what the scalarized form stays cheap at.
-    if(isJsMode(settings.mode)) return 16;
+    if(isJsMode(settings)) return 16;
 
     /*
      * The level, always - where this used to ask `explicitExtensions` first, so that a lane count
@@ -529,7 +624,7 @@ inline U32 targetVectorBytes(const CompileSettings& settings) {
  */
 inline U32 targetPageBytes(const CompileSettings& settings) {
     // A JavaScript program maps nothing and has no answer to give.
-    if(isJsMode(settings.mode)) return 0;
+    if(isJsMode(settings)) return 0;
 
     // 16K on Apple silicon, which is the one target here whose page is fixed and is not 4096.
     if(settings.arch == TargetArch::ARM64 && settings.target == TargetType::MacOS) return 16384;
@@ -562,6 +657,9 @@ inline bool localBackendSupported(const CompileSettings& settings) {
 /// What is *missing* is not checked here, because a `yana.toml` may still supply it - see
 /// checkSettings, which the driver calls once the project file has been applied.
 Result<CompileSettings, Tritium::String> parseCommandLine(const char** argv, Size argc);
+
+/// The usage text `-help` prints. See its definition for why it is written rather than generated.
+StringView helpText();
 
 /// Checks that everything a compile needs was named by something - the command line, or the project
 /// file applied on top of it. Separate from parseCommandLine for that reason and no other.

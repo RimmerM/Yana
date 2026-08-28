@@ -627,7 +627,7 @@ static TypePtr laneIndexType(ExprResolver& resolver, TypePtr lane) {
     // On JS a mask is `lanes` host booleans and a lane comparison is a scalar `<` in either domain,
     // so there is nothing here to win - and a 64-bit integer lane is refused outright on that target
     // (a `bigint` is not a lane), so `Mask(Double)` would be a diagnostic rather than a saving.
-    if(isJsMode(resolver.context.settings.mode)) return lane;
+    if(isJsMode(resolver.context.settings)) return lane;
 
     // A float is four bytes or eight, so the two rungs below are the whole of the mapping. A missing
     // one is Core not having been built yet, which answers the lane itself and changes nothing.
@@ -890,7 +890,7 @@ static bool hasNaturalVector(Module& module, TypePtr element) {
     if(!stride) return false;
 
     // A `Long` on JS is a `bigint`, which is not a lane - Design-Vector §7.3.
-    if(isJsMode(settings.mode) && base[element]->kind == Type::Int && stride == 8) return false;
+    if(isJsMode(settings) && base[element]->kind == Type::Int && stride == 8) return false;
 
     /*
      * A lane narrower than four bytes used to be refused here, because the local backend had no

@@ -14,6 +14,7 @@
 #include <File.h>
 #include <cstdio>
 #include <cstring>
+#include "shard.h"
 #include "../compiler/lower/lower_parser.h"
 #include "../compiler/lower/lower_print.h"
 #include "../compiler/codegen/x64/gen.h"
@@ -461,6 +462,7 @@ int main(int argc, const char** argv) {
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(arg == "generate") generateExpects = true;
+        else if(rejectFlagArgument(arg)) return 1;
     }
 
     return testX64(generateExpects) ? 0 : 1;

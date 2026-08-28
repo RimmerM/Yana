@@ -350,7 +350,7 @@ void definePreludeHost(Program& program, Module& native) {
      * there is nothing to attach a hook to - which `attachIntrinsic` would report as an internal
      * error rather than skip, and rightly: a missing declaration is normally a typo.
      */
-    if(!isJsMode(context.settings.mode)) return;
+    if(!isJsMode(context.settings)) return;
 
     attachIntrinsic(*module, "hostArray"_v, emitHostArray);
     attachIntrinsic(*module, "hostLength"_v, emitHostMember<NativeOp::HostField, HostMember::Length>);

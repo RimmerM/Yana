@@ -17,6 +17,7 @@
 // module that verifies is most of what there is to check.
 #include <Core.h>
 #include <File.h>
+#include "shard.h"
 #include "../compiler/lower/lower_parser.h"
 #include "../compiler/lower/lower_print.h"
 #include "../compiler/codegen/llvm/gen.h"
@@ -187,6 +188,7 @@ int main(int argc, const char** argv) {
     for(int i = 1; i < argc; i++) {
         auto arg = String(argv[i]);
         if(arg == "generate") generateExpects = true;
+        else if(rejectFlagArgument(arg)) return 1;
     }
 
     return testLlvm(generateExpects) ? 0 : 1;

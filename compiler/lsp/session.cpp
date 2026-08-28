@@ -13,7 +13,7 @@ Result<void, String> Session::open(StringView rootPathText) {
 
     auto found = locateProjectFile(settings);
     if(!found) {
-        return Err(format("no yana.toml was found in %@ or above it. "
+        return Err(format("no yana.toml was found in %@. "
                                 "A project file is what says which files are in the program.",
                                 rootPath));
     }
@@ -24,11 +24,16 @@ Result<void, String> Session::open(StringView rootPathText) {
 
     applyProjectFile(settings, project.unwrapOk());
 
-    // A target the file did not name still has to be one, because `@platform` selects which
+    // A platform the file did not name still has to be one, because `@platform` selects which
     // declarations exist and there is no program that is both. Native is the default the driver
     // already has, and the status bar shows which one a session is - §5.4.
+    if(!settings.explicitPlatform) {
+        settings.platform = TargetPlatform::Native;
+        settings.explicitPlatform = true;
+    }
+
     if(!settings.explicitMode) {
-        settings.mode = CompileMode::NativeExecutable;
+        settings.mode = CompileMode::Executable;
         settings.explicitMode = true;
     }
 
