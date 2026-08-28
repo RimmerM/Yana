@@ -240,6 +240,31 @@ Folded foldUnaryValue(LowerBase base, LowerInst::Kind kind, LowerValue* arg, Low
         return Folded::forward(base[((LowerInstUnary*)arg->inst())->from]);
     }
 
+    /*
+     * The same identity for a reinterpretation: a value read as another type and back again is the
+     * value. `isNoOpReinterpretation` above is the one-step case and this is the two-step one, which
+     * is what an *address* written as a number looks like in this IR.
+     *
+     * `null()` is the site. Lower IR has no pointer literal - `LowerImm` carries an integer or a
+     * double, and `lowerConstantOf` and everything under it are written for the integer lanes - so a
+     * null pointer is the integer zero reinterpreted, and `Core/Text.yana`'s `Handle(null())` then
+     * reads it back as a `Size`. That round trip is free to encode and was not free to have: the
+     * folder could see a constant on neither side of it, so `handleAddress(nullHandle()) + 11`
+     * stayed as an add, a truncation and an add of a value it should have known was zero.
+     *
+     * The intermediate type has to be at least as wide as the two ends, and that is the whole of the
+     * condition. `validateBitcast` permits `Ptr` against an integer of *any* width, so a round trip
+     * through a narrower type is a truncation this must not undo; through a wider one the spare bits
+     * are unstated on the way in and discarded on the way out, so the low ones arrive unaltered.
+     */
+    if(kind == LowerInst::Bitcast && arg->inst()->kind == LowerInst::Bitcast) {
+        auto inner = base[((LowerInstUnary*)arg->inst())->from];
+
+        if(inner->type == type && arg->type.byteWidth() >= type.byteWidth()) {
+            return Folded::forward(inner);
+        }
+    }
+
     if(!isInt(type) || !isInt(arg->type)) return Folded::nothing();
 
     U64 value;
