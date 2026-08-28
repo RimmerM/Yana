@@ -86,7 +86,7 @@ pub class Length(c):
    names `Chunked` as what to ask for instead.
 -}
 pub class Chunked(c -> a):
-  iter fn chunks(self: c) -> '[a]
+  iter fn chunks(self: c) -> [a]
 
 pub class (Chunked(c, a)) Contiguous(c -> a):
   fn elements(return self: c) -> '[a]
@@ -147,7 +147,7 @@ pub class (Contiguous(c, a)) Writable(c -> a):
     fn elements(return self: Array(a)) -> '[a] = unclampedSlice(self, 0, self.length :: Size)
 
 instance Chunked(Array(a), a):
-    iter fn chunks(self: Array(a)) -> '[a] = yield elements(self)
+    iter fn chunks(self: Array(a)) -> [a] = yield elements(self)
 
 instance Contiguous('[a], a):
     fn elements(self: '[a]) -> '[a] = self
@@ -159,7 +159,7 @@ instance Writable('[a], a):
     fn elementsMut(&self: [a]) -> &[a] = self
 
 instance Chunked('[a], a):
-    iter fn chunks(self: [a]) -> '[a] = yield elements(self)
+    iter fn chunks(self: [a]) -> [a] = yield elements(self)
 
 {-
    ------------------------------------------------------------------------------------------
@@ -265,7 +265,7 @@ instance (n: Int) Contiguous([a *n], a):
     fn elements(return self: [a *n]) -> '[a] = unclampedSlice(self, 0, n :: Size)
 
 instance (n: Int) Chunked([a *n], a):
-    iter fn chunks(self: [a *n]) -> '[a] = yield elements(self)
+    iter fn chunks(self: [a *n]) -> [a] = yield elements(self)
 
 instance (n: Int) Writable([a *n], a):
     fn elementsMut(&self: [a *n]) -> &[a] = self

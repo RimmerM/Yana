@@ -215,6 +215,21 @@ struct Function {
     TypePtr returnType = nullptr;
 
     /*
+     * The convention what a `lens fn` or an `iter fn` hands over is received under.
+     *
+     * A hand-over is a binding, so it has a capability and a convention exactly as a parameter does,
+     * and both are written in result position: `-> ->T` is the transfer and `-> &T` the exclusive
+     * borrow. resolveSignature folds them the way `bindingType` folds `&x: T` and `x: &T` into one
+     * parameter, and this is where the folded answer waits for resolveLensSignature to put it on the
+     * continuation's `value$`.
+     *
+     * On a Function rather than read back off the declaration because an *instance* member need not
+     * repeat the result its class already fixed - it takes this from the class signature alongside
+     * `returnType`, which is the only way the two can agree when the instance wrote nothing.
+     */
+    ast::BindType handoverBind = ast::BindType::Borrow;
+
+    /*
      * Set for an `=` function that declared no result type, whose `returnType` the body decides.
      *
      * It starts null rather than unit because unit is an answer, and an answer here would be wrong

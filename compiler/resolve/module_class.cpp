@@ -486,6 +486,11 @@ void resolveInstance(Module& module, ast::Decl& decl) {
         function->gen = instance->gen;
         for(auto arg: args) function->instanceArgs.push(module.arena, arg);
         function->returnType = substituteType(module, signature->returnType, toBuffer(args), member.source);
+
+        // And the convention it hands that over under, for the same reason and from the same place:
+        // an instance need not restate the result at all, so the class is the only thing that knows.
+        // See Function::handoverBind.
+        function->handoverBind = signature->handoverBind;
         function->ast = nullptr;
 
         auto declaredArgs = member.fun.args.contents(module.parse);
@@ -592,6 +597,19 @@ void resolveInstance(Module& module, ast::Decl& decl) {
 
         if(member.fun.ret) {
             auto written = resolveType(module, *module.parse[member.fun.ret], gen);
+
+            /*
+             * Both readings of `[T]` again, and for the reason the argument loop above gives - but
+             * on a `lens fn` or an `iter fn` member the binding reading is the one the class itself
+             * took, since what it wrote as a result is the type it hands over and resolveSignature
+             * resolves that through bindingType. So an instance writing `-> [a]` against a class
+             * writing `-> '[a]` is the same declaration, and so is the pair the other way round.
+             */
+            if(!sameType(written, function->returnType) && signature->funKind != ast::FunKind::Plain) {
+                auto bind = member.fun.retBind;
+                auto bound = bindingType(module, *module.parse[member.fun.ret], bind, gen, nullptr);
+                if(sameType(bound, function->returnType)) written = bound;
+            }
 
             if(!sameType(written, function->returnType)) {
                 module.context.diagnostics.error("%@ returns %@ here but %@ in class %@"_v, member.source,

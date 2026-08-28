@@ -26,7 +26,7 @@ instance Contiguous(Bag(a), a):
     fn elements(return self: Bag(a)) -> '[a] = elements(self.items)
 
 instance Chunked(Bag(a), a):
-    iter fn chunks(self: Bag(a)) -> '[a] = yield elements(self)
+    iter fn chunks(self: Bag(a)) -> [a] = yield elements(self)
 
 -- One line: the conversion at the return position builds the exclusive descriptor over the
 -- exclusive borrow `&self` already is.

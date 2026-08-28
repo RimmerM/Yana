@@ -16,7 +16,7 @@ instance Contiguous(ReadOnly(a), a):
     fn elements(return self: ReadOnly(a)) -> '[a] = elements(self.items)
 
 instance Chunked(ReadOnly(a), a):
-    iter fn chunks(self: ReadOnly(a)) -> '[a] = yield elements(self)
+    iter fn chunks(self: ReadOnly(a)) -> [a] = yield elements(self)
 
 fn writesOne(&xs: [Int]) -> {}:
     xs[0] = 9

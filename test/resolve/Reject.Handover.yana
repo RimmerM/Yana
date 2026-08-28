@@ -1,0 +1,24 @@
+-- What a `lens fn` or an `iter fn` writes after `->` is the type it *hands over*, and a hand-over is
+-- a binding rather than a result: it becomes `value$`, the synthesized continuation's parameter. So
+-- it is resolved through `bindingType` like every other binding, and the two refusals below are the
+-- ones that fall out of saying so.
+
+-- A loan group on a hand-over. A group says a loan outlives the call; a hand-over *is* the call,
+-- because the continuation it is given to ends when the call does. Before the hand-over went through
+-- `bindingType` this built a capability sibling instead - a `2'Flat(Int)` that no `yield` could
+-- convert into - so the label was accepted and then made the declaration unusable.
+lens fn labelled(xs: [Int]) -> src'[Int]:
+    yield xs
+
+-- `-> ->` on a function with no continuation to receive it. An ordinary function's result is the
+-- caller's already, so there is no second binding site for a convention to describe.
+fn plainTransfer() -> ->[Int]:
+    return [1, 2, 3]
+
+-- And the unit hand-over, where there is a continuation but nothing to hand it: `-> ->{}` is a
+-- sentence somebody meant something by, so it is said rather than ignored.
+lens fn nothingToGive() -> ->{}:
+    yield {}
+
+fn main() -> Int:
+    return 0

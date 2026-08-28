@@ -1,0 +1,59 @@
+-- The capability and the convention on a hand-over - Analysis-Borrows.md §3.2 read in the one
+-- position where the sigil has nowhere else to go.
+--
+-- What a `lens fn` writes after `->` is the type it hands over, and that becomes `value$`, the
+-- synthesized continuation's parameter. So it is resolved as a *binding*: `&x: T` and `x: &T` are
+-- one parameter, and `-> &T` is that same declaration written in result position. It folds the same
+-- way, into a plain type with an exclusive convention rather than a reference type with a borrowing
+-- one - `(&value$: Flat(Int))` below, not `(value$: &Flat(Int))` - which is what makes `w[0] = 10` a
+-- write through the window rather than through a reference to it.
+--
+-- The other half is the array spelling. `[T]` in a binding is the slice and in a type position the
+-- growable owner, so before the hand-over went through `bindingType` these two declarations meant
+-- different things: `-> [Int]` handed over `Array(Int)` while the hand-written continuation
+-- `body: (v: [Int]) -> r` took `Flat(Int)`, and the `yield` form disagreed with the desugaring
+-- Design.md defines it as. `window` and `shared` now differ in capability and in nothing else.
+--
+-- `viaLocal` is the third thing here, and it is about the *argument* rather than the hand-over: a
+-- `let &` local reaching a lens that takes `&`. That was refused with "a `&` argument must name
+-- mutable storage" while the same local reached a plain `fn` of the same signature, because the
+-- pushdown guard a `&` parameter needs - do not push its type down, or the argument converts into a
+-- temporary and the borrow is taken of that - lived in the ordinary argument loop and not in the
+-- lens one. `subscriptArgument` is the other half of that guard: a subscript in a `&` position takes
+-- `getMut` rather than `get`.
+
+lens fn window(&xs: [Int]) -> &[Int]:
+    yield xs
+
+lens fn shared(xs: [Int]) -> [Int]:
+    yield xs
+
+lens fn bumpOne(&n: Int) -> Int:
+    n = n + 1
+    yield 0
+
+fn writeThrough(&xs: [Int]) -> Int:
+    let w = window(xs)
+    w[0] = 10
+    return sum(w)
+
+fn readOnly(xs: [Int]) -> Int:
+    let s = shared(xs)
+    return sum(s)
+
+-- The `&` argument the lens call used to refuse. The borrow ends when this returns, so the caller
+-- may read the buffer again and see what the lens wrote through it.
+fn viaLocal() -> Int:
+    let &buf = [1, 2, 3, 4] :: @inline(4) @capacity(4) [Int]
+    let written = writeThrough(buf)
+    return written + sum(buf)
+
+-- And the subscript, which reaches `getMut` because the parameter is `&`.
+fn subscriptArgument() -> Int:
+    let &xs = [1, 2, 3] :: [Int]
+    let z = bumpOne(xs[0])
+    return z + sum(xs)
+
+fn main() -> Int:
+    let xs = [1, 2, 3, 4] :: @inline(4) @capacity(4) [Int]
+    return readOnly(xs) + viaLocal() + subscriptArgument()

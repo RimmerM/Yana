@@ -47,7 +47,7 @@ fn chosen(fromFrame: Bool) -> Int:
    back and borrows *that* - `borrow [%v]` rather than `borrow %local` - so the chain from the slot
    to the merge runs through a reborrow, which has no root local of its own and used to end the walk.
 -}
-lens fn borrowed(fromFrame: Bool) -> '[Int]:
+lens fn borrowed(fromFrame: Bool) -> [Int]:
     let &frame = [10, 20, 30, 40] :: @inline(4) @capacity(4) [Int]
     let xs = owned()
 

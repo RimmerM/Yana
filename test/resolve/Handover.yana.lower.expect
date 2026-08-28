@@ -1,0 +1,351 @@
+@image$base = []
+mut @heapFree = [0, 0, 0, 0, 0, 0, 0, 0]
+
+teardown$none<complex>(%value: Ptr) {
+  b_0 {
+    ret 
+  }
+}
+
+sumVectors(Flat(Int), Int)<complex>(%xs$items: Ptr, %xs$length: Long): Int {
+  b_0 {
+    %v_1 = vsplat 0: i32x4
+    %v_2 = imm 4: Long
+    %last = sub %xs$length, %v_2: Long
+    jmp b_3
+  }
+
+  b_3 {
+    %v_4 = phi [b_0, %v_1], [b_5, %v_6]: i32x4
+    %v_7 = phi [b_0, 0], [b_5, %v_8]: Long
+    %v_9 = cmp_ile %v_7, %last: Int
+    je %v_9, b_5, b_10
+  }
+
+  b_10 {
+    %v_11 = cmp_ilt %v_7, %xs$length: Int
+    je %v_11, b_12, b_13
+  }
+
+  b_12 {
+    %v_14 = sub %xs$length, %v_7: Long
+    %v_15 = cast %v_14: Int
+    %v_16 = vwithlane %v_1, 1, 1: i32x4
+    %v_17 = vwithlane %v_16, 2, 2: i32x4
+    %v_18 = vwithlane %v_17, 3, 3: i32x4
+    %v_19 = vsplat %v_15: i32x4
+    %live = cmp_ilt %v_18, %v_19: m32x4
+    %v_20 = shl %v_7, 2: Long
+    %v_21 = add %xs$items, %v_20: Ptr
+    %v_22 = loadx %v_21, 16: i32x4
+    %v_23 = select %live, %v_22, %v_1: i32x4
+    %v_24 = add %v_4, %v_23: i32x4
+    jmp b_13
+  }
+
+  b_13 {
+    %v_25 = phi [b_10, %v_4], [b_12, %v_24]: i32x4
+    %v_26 = vreduce_add %v_25: Int
+    ret %v_26
+  }
+
+  b_5 {
+    %v_27 = shl %v_7, 2: Long
+    %v_28 = add %xs$items, %v_27: Ptr
+    %v_29 = load %v_28, 16: i32x4
+    %v_6 = add %v_4, %v_29: i32x4
+    %v_8 = add %v_7, %v_2: Long
+    jmp b_3
+  }
+}
+
+Reclaim(Array(a)).reclaim(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = add %value, 8: Ptr
+    %v_2 = load %v_1, 4: Int
+    %v_3 = shr %v_2, 30: Int
+    %v_4 = cmp_eq %v_3, 1: Int
+    je %v_4, b_5, b_6
+  }
+
+  b_5 {
+    %v_7 = load %value, 8: Ptr
+    call_complex freeHeap, %v_7
+    jmp b_6
+  }
+
+  b_6 {
+    ret 
+  }
+}
+
+freeHeap<complex>(%allocation: Ptr) {
+  b_0 {
+    %v_1 = bitcast %allocation: Long
+    %v_2 = cmp_eq %v_1, 0: Int
+    je %v_2, b_3, b_4
+  }
+
+  b_3 {
+    ret 
+  }
+
+  b_4 {
+    jmp b_5
+  }
+
+  b_5 {
+    %v_6 = sub %allocation, 8: Ptr
+    %sizeClass = loads %v_6, 8: Long
+    %v_7 = load @heapFree, 8: Ptr
+    %v_8 = shl %sizeClass, 3: Long
+    %v_9 = add %v_7, %v_8: Ptr
+    %v_10 = load %v_9, 8: Ptr
+    store %allocation, %v_10, 8
+    %v_11 = load @heapFree, 8: Ptr
+    %v_12 = add %v_11, %v_8: Ptr
+    store %v_12, %allocation, 8
+    ret 
+  }
+}
+
+main<complex>(): Int {
+  b_0 {
+    %xs = alloca 20, 4: Ptr
+    store %xs, 1, 4
+    %v_1 = add %xs, 4: Ptr
+    store %v_1, 2, 4
+    %v_2 = add %xs, 8: Ptr
+    store %v_2, 3, 4
+    %v_3 = add %xs, 12: Ptr
+    store %v_3, 4, 4
+    %v_4 = add %xs, 16: Ptr
+    store %v_4, 4, 4
+    %v_5 = bitcast 0: Ptr
+    %xs = alloca 16, 8: Ptr
+    store %xs, %xs, 8
+    %v_6 = add %xs, 8: Ptr
+    store %v_6, 4, 8
+    %v_7 = call_complex ResolveTest.continuation$23, %v_5, %xs: Int
+    call_complex teardown$@inline(4) @capacity(4) Array(Int), %xs
+    %v_8 = alloca 20, 4: Ptr
+    store %v_8, 1, 4
+    %v_9 = add %v_8, 4: Ptr
+    store %v_9, 2, 4
+    %v_10 = add %v_8, 8: Ptr
+    store %v_10, 3, 4
+    %v_11 = add %v_8, 12: Ptr
+    store %v_11, 4, 4
+    %v_12 = add %v_8, 16: Ptr
+    store %v_12, 4, 4
+    %v_13 = alloca 16, 8: Ptr
+    store %v_13, %v_8, 8
+    %v_14 = load %v_12, 4: Int
+    %v_15 = cast %v_14: Long
+    %v_16 = add %v_13, 8: Ptr
+    store %v_16, %v_15, 8
+    %v_17 = bitcast 0: Ptr
+    %v_18 = call_complex ResolveTest.continuation$22, %v_17, %v_13: Int
+    %v_19 = vsplat 0: i32x4
+    %v_20 = alloca 4, 8: Ptr
+    %v_21 = load %v_20, 4: Int
+    store %v_20, 2147483652, 4
+    %v_22 = add %v_8, 16: Ptr
+    %v_23 = load %v_22, 4: Int
+    %v_24 = cast %v_23: Long
+    %v_25 = imm 4: Long
+    %last = sub %v_24, %v_25: Long
+    jmp b_26
+  }
+
+  b_26 {
+    %v_27 = phi [b_0, %v_19], [b_28, %v_29]: i32x4
+    %v_30 = phi [b_0, 0], [b_28, %v_31]: Long
+    %v_32 = cmp_ile %v_30, %last: Int
+    je %v_32, b_28, b_33
+  }
+
+  b_33 {
+    %v_34 = cmp_ilt %v_30, %v_24: Int
+    je %v_34, b_35, b_36
+  }
+
+  b_35 {
+    %v_37 = sub %v_24, %v_30: Long
+    %v_38 = cast %v_37: Int
+    %v_39 = vwithlane %v_19, 1, 1: i32x4
+    %v_40 = vwithlane %v_39, 2, 2: i32x4
+    %v_41 = vwithlane %v_40, 3, 3: i32x4
+    %v_42 = vsplat %v_38: i32x4
+    %live = cmp_ilt %v_41, %v_42: m32x4
+    %v_43 = shl %v_30, 2: Long
+    %v_44 = add %v_8, %v_43: Ptr
+    %v_45 = loadx %v_44, 16: i32x4
+    %v_46 = select %live, %v_45, %v_19: i32x4
+    %v_47 = add %v_27, %v_46: i32x4
+    jmp b_36
+  }
+
+  b_36 {
+    %v_48 = phi [b_33, %v_27], [b_35, %v_47]: i32x4
+    %v_49 = vreduce_add %v_48: Int
+    call_complex teardown$@inline(4) @capacity(4) Array(Int), %v_8
+    %v_50 = add %v_18, %v_49: Int
+    %v_51 = add %v_7, %v_50: Int
+    %v_52 = alloca 16, 8: Ptr
+    %v_53 = alloca 12, 4: Ptr
+    store %v_52, %v_53, 8
+    %v_54 = add %v_52, 8: Ptr
+    %v_55 = load %v_54, 4: Int
+    store %v_54, 3, 4
+    store %v_53, 1, 4
+    %v_56 = add %v_53, 4: Ptr
+    store %v_56, 2, 4
+    %v_57 = add %v_53, 8: Ptr
+    store %v_57, 3, 4
+    %v_58 = add %v_52, 12: Ptr
+    store %v_58, 3, 4
+    %v_59 = load %v_52, 8: Ptr
+    %v_60 = alloca 8, 8: Ptr
+    store %v_60, %v_52, 8
+    %v_61 = alloca 16, 8: Ptr
+    store %v_61, ResolveTest.continuation$24, 8
+    %v_62 = add %v_61, 8: Ptr
+    store %v_62, %v_60, 8
+    %v_63 = call_complex bumpOne(Int), %v_59, %v_61: Int
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_52
+    %v_64 = add %v_51, %v_63: Int
+    ret %v_64
+  }
+
+  b_28 {
+    %v_65 = shl %v_30, 2: Long
+    %v_66 = add %v_8, %v_65: Ptr
+    %v_67 = load %v_66, 16: i32x4
+    %v_29 = add %v_27, %v_67: i32x4
+    %v_31 = add %v_30, %v_25: Long
+    jmp b_26
+  }
+}
+
+ResolveTest.continuation$22<complex>(%env: Ptr, %value$: Ptr): Int {
+  b_0 {
+    %v_1 = add %value$, 8: Ptr
+    %v_2 = loads %v_1, 8: Long
+    %v_3 = cmp_eq %v_2, 0: Int
+    je %v_3, b_4, b_5
+  }
+
+  b_5 {
+    %v_6 = load %value$, 8: Ptr
+    store %v_6, 10, 4
+    %xs$items = load %value$, 8: Ptr
+    %xs$length = loads %v_1, 8: Long
+    %v_7 = call_complex sumVectors(Flat(Int), Int), %xs$items, %xs$length: Int
+    ret %v_7
+  }
+
+  b_4 {
+    %v_8 = syscall 60, 134: Long
+    unreachable 
+  }
+}
+
+ResolveTest.continuation$23<complex>(%env: Ptr, %value$: Ptr): Int {
+  b_0 {
+    %xs$items = load %value$, 8: Ptr
+    %v_1 = add %value$, 8: Ptr
+    %xs$length = loads %v_1, 8: Long
+    %v_2 = call_complex sumVectors(Flat(Int), Int), %xs$items, %xs$length: Int
+    ret %v_2
+  }
+}
+
+@closure$ResolveTest.continuation$24 = [0, 0, 0, 0]
+ResolveTest.continuation$24<complex>(%env: Ptr, %value$: Int): Int {
+  b_0 {
+    %v_1 = load %env, 8: Ptr
+    %v_2 = vsplat 0: i32x4
+    %v_3 = add %v_1, 12: Ptr
+    %v_4 = load %v_3, 4: Int
+    %v_5 = cast %v_4: Long
+    %v_6 = load %v_1, 8: Ptr
+    %v_7 = imm 4: Long
+    %last = sub %v_5, %v_7: Long
+    jmp b_8
+  }
+
+  b_8 {
+    %v_9 = phi [b_0, %v_2], [b_10, %v_11]: i32x4
+    %v_12 = phi [b_0, 0], [b_10, %v_13]: Long
+    %v_14 = cmp_ile %v_12, %last: Int
+    je %v_14, b_10, b_15
+  }
+
+  b_15 {
+    %v_16 = cmp_ilt %v_12, %v_5: Int
+    je %v_16, b_17, b_18
+  }
+
+  b_17 {
+    %v_19 = sub %v_5, %v_12: Long
+    %v_20 = cast %v_19: Int
+    %v_21 = vwithlane %v_2, 1, 1: i32x4
+    %v_22 = vwithlane %v_21, 2, 2: i32x4
+    %v_23 = vwithlane %v_22, 3, 3: i32x4
+    %v_24 = vsplat %v_20: i32x4
+    %live = cmp_ilt %v_23, %v_24: m32x4
+    %v_25 = shl %v_12, 2: Long
+    %v_26 = add %v_6, %v_25: Ptr
+    %v_27 = loadx %v_26, 16: i32x4
+    %v_28 = select %live, %v_27, %v_2: i32x4
+    %v_29 = add %v_9, %v_28: i32x4
+    jmp b_18
+  }
+
+  b_18 {
+    %v_30 = phi [b_15, %v_9], [b_17, %v_29]: i32x4
+    %v_31 = vreduce_add %v_30: Int
+    %v_32 = add %value$, %v_31: Int
+    ret %v_32
+  }
+
+  b_10 {
+    %v_33 = shl %v_12, 2: Long
+    %v_34 = add %v_6, %v_33: Ptr
+    %v_35 = load %v_34, 16: i32x4
+    %v_11 = add %v_9, %v_35: i32x4
+    %v_13 = add %v_12, %v_7: Long
+    jmp b_8
+  }
+}
+
+bumpOne(Int)<complex>(%n: Ptr, %body: Ptr): Int {
+  b_0 {
+    %v_1 = loads %n, 4: Int
+    %v_2 = add %v_1, 1: Int
+    store %n, %v_2, 4
+    %v_3 = add %body, 8: Ptr
+    %v_4 = load %body, 8: Ptr
+    %v_5 = load %v_3, 8: Ptr
+    %v_6 = call_complex %v_4, %v_5, 0: Int
+    ret %v_6
+  }
+}
+
+teardown$@inline(4) @capacity(4) Array(Int)<complex>(%value: Ptr) {
+  b_0 {
+    %v_1 = alloca 16, 8: Ptr
+    store %v_1, %value, 8
+    %v_2 = add %v_1, 8: Ptr
+    %v_3 = load %v_2, 4: Long
+    store %v_2, 2147483652, 4
+    %v_4 = add %value, 16: Ptr
+    %v_5 = load %v_4, 4: Int
+    %v_6 = add %v_1, 12: Ptr
+    store %v_6, %v_5, 4
+    call_complex Reclaim(Array(a)).reclaim(Int), %v_1
+    ret 
+  }
+}
+

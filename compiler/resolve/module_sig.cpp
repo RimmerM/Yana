@@ -252,6 +252,54 @@ Function* resolveSignature(Module& module, ast::Decl& decl, GenEnv* env, StringI
     if(!decl.fun.ret && decl.fun.implicitReturn && decl.fun.kind == ast::FunKind::Plain) {
         function->inferReturn = true;
         function->returnType = nullptr;
+    } else if(decl.fun.ret && decl.fun.kind != ast::FunKind::Plain) {
+        /*
+         * What a `lens fn` or an `iter fn` writes as its result is not a result - it is the type it
+         * *hands over*, and the hand-over is a parameter of the continuation. So it is resolved the
+         * way a parameter is, through `bindingType`.
+         *
+         * `[T]` in a binding is a slice and in a type position it is the growable owner, and
+         * bindingType decides that on the *written* form rather than on the resolved type. Reaching
+         * this one through `resolveType` therefore made `[T]` mean two things in one declaration:
+         *
+         *     lens fn f(xs: [Int]) -> [Int]: yield xs    -- cannot convert Flat(Int) to Array(Int)
+         *
+         * and split the `yield` form from the desugaring it is defined as, since the hand-written
+         * `body: (v: [Int]) -> r` reached bindingType through resolveFunTypeAst and took `Flat(Int)`
+         * where `-> [Int]` handed over `Array(Int)`. Design.md and Analysis-Lens.md §5.2 both state
+         * those are one declaration written two ways, so they resolve their hand-over through one
+         * function. `'[T]`, `&[T]` and `[T *n]` all keep exactly what they meant.
+         *
+         * Done here rather than in resolveLensSignature so that a **class member** gets it too: that
+         * one is not desugared (see `classSignature`), and what it leaves in `returnType` is what
+         * classContinuationSignature hands to every call reaching the member generically. A class
+         * and its instances have to agree about a spelling, and this is the only point both pass
+         * through.
+         *
+         * The capability folds the same way, and that is the other half of "resolved as a binding".
+         * `&x: T` and `x: &T` are one parameter, and `-> &T` is that same declaration written in the
+         * one position where the sigil has nowhere else to go - so it folds too, into `handoverBind`,
+         * and `value$` gets the plain type with an exclusive convention rather than a reference type
+         * with a borrowing one. `'T` stays a reference for the reason it does on a parameter: there
+         * is no BindType for a shared borrow that is not also pass-by-value, and folding it would
+         * turn a reference to the caller's Int into this frame's copy.
+         *
+         * A *labelled* group is refused rather than folded away. bindingType strips it into `loan`,
+         * where a parameter's group has a contract to be part of; a hand-over has none, because its
+         * extent is the continuation and the continuation is the call. Reported, because the
+         * alternative is accepting a label that says something and silently doing nothing with it -
+         * and what it did before this was worse, since `-> src'[Int]` built a sibling type that
+         * nothing could `yield` into.
+         */
+        LoanGroup handedGroup = kNoLoan;
+        auto bind = decl.fun.retBind;
+        function->returnType = bindingType(module, *module.parse[decl.fun.ret], bind, env, &handedGroup);
+        function->handoverBind = bind;
+
+        if(handedGroup != kNoLoan && handedGroup != kCandidateLoan) {
+            module.context.diagnostics.error("what a `lens fn` or an `iter fn` hands over cannot name a loan group - a group says a loan outlives the call, and this one *is* the call: the continuation it is handed to ends when the call does"_v,
+                                             decl.source);
+        }
     } else {
         function->returnType = decl.fun.ret ? resolveType(module, *module.parse[decl.fun.ret], env)
                                             : module.scalar.unit;

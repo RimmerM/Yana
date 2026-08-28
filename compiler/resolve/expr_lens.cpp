@@ -36,37 +36,6 @@
 // The name the synthesized continuation parameter of a `yield`-form lens is printed under. A
 // call site may pass it explicitly - the desugared form is an ordinary signature - so it is an
 // ordinary name rather than one source cannot write.
-/*
- * Lenses - Design.md's Lens functions, and Analysis-Lens.md's V1 through V3.
- *
- * A lens is an ordinary function whose last parameter is a continuation and whose result is
- * whatever that continuation returns. Everything below is about the two ends of that sentence:
- *
- *  - a *declaration* may leave the parameter out (`lens fn withLock(m: &Mutex) -> {}`), in which
- *    case resolveLensSignature synthesizes it and `yield` is the call of it. The type it returns is
- *    a fresh variable, so every lens is generic in its continuation's result and specializes per
- *    call site - which is what makes the whole construct compile away once the callee is known;
- *  - a *call site* may leave the argument out, in which case the rest of the enclosing block is
- *    lifted into that continuation. That is resolveLensCall, and it is the one genuinely new piece
- *    of resolve logic here.
- *
- * The rest of the machinery is already in the file next door: a continuation is lifted exactly the
- * way expr_fun.cpp lifts a lambda, with the same environment, the same discovered captures and the
- * same conventions. A lens is not a second closure mechanism; it is a closure the caller did not
- * have to write.
- *
- * A lens comes in two kinds, and the whole of the difference is one comparison of declared types
- * (Analysis-Lens.md §7.1). A *transparent* lens returns what its continuation returns, so the call
- * site needs nothing written and the continuation runs exactly once. A *skipping* one returns
- * something else - a wrapper carrying a `Try` instance - so it may return without calling the
- * continuation at all, and the call site says where that goes with `| else ->`. **The ability to
- * skip is exactly the presence of a wrapper**: there is no form in which a call may fail to continue
- * into the block below it without that fact appearing in both signatures and in the caller's text.
- */
-
-// The name the synthesized continuation parameter of a `yield`-form lens is printed under. A
-// call site may pass it explicitly - the desugared form is an ordinary signature - so it is an
-// ordinary name rather than one source cannot write.
 static StringId continuationName(Context& context) {
     return context.addUnqualifiedName("body", 4);
 }
@@ -246,6 +215,10 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
      * A unit hand-over gives a nullary continuation rather than one taking `{}`: `withLock(m)` is
      * written as a bare statement and there is nothing at that call site to name, so a parameter
      * would be one the caller has to spell in the explicit form and no one wants in the sugar.
+     *
+     * What it wrote is already resolved as a *binding* rather than as a result - see
+     * resolveSignature, which is where a handover meets `bindingType`. It has to be: the type below
+     * is `value$`'s, and `value$` is a parameter.
      */
     auto handed = function.returnType;
 
@@ -290,13 +263,18 @@ void resolveLensSignature(Module& module, Function& function, GenEnv* env, ast::
      *
      * The `$` is what keeps this out of the loop body's namespace - see classContinuationSignature,
      * where the same name is invented for a class member and the same shadowing was silent.
+     *
+     * Taken from `handoverBind` rather than from the declaration, because by the time it reaches
+     * here it has been folded with the capability the result's type carried - `-> &T` is the
+     * exclusive borrow of a T, not a borrow of a `&T`. See Function::handoverBind, which is also
+     * what carries the convention from a class signature to an instance that did not restate it.
      */
     Array<FunArg> callbackArgs;
     if(!isUnit(global, handed)) {
         FunArg value { handed, context.addUnqualifiedName("value$", 6) };
-        value.convention = decl.fun.retBind;
+        value.convention = function.handoverBind;
         callbackArgs.push(value);
-    } else if(decl.fun.retBind != ast::BindType::Borrow) {
+    } else if(function.handoverBind != ast::BindType::Borrow) {
         // Nothing is handed over, so there is no binding for a convention to be about. Said here
         // rather than ignored, because `-> ->{}` is a sentence somebody meant something by.
         context.diagnostics.error("%@ that hands over nothing has no value for `->` to be about"_v,
@@ -676,12 +654,41 @@ void ExprResolver::resolveHandedArguments(ModulePtr<Function> callee, const ArgM
         auto filled = mapping && position < mapping->parameters.size() ? mapping->parameters[position]
                                                                        : U16(position);
 
+        auto parameter = target && filled < target->args.size()
+            ? local[target->args.get(local, filled)] : nullptr;
+
+        /*
+         * A `&` parameter, on exactly the terms an ordinary call gives one - see the same two steps
+         * in resolveCallArguments, whose comments are the reasoning.
+         *
+         * Its type is not pushed down, because what the argument has to produce is *storage to
+         * borrow* rather than a value of the parameter's type; pushing it down converts first, and
+         * borrowArgument is then handed a temporary this expression owns instead of what was
+         * written. That is what refused `let &buf = ...` at every lens taking a `&`, while the same
+         * local reached a plain `fn` with the same signature - the pushdown guard was in one of the
+         * two argument loops and not the other.
+         *
+         * And a subscript in that position takes `getMut` rather than `get`, which is the other
+         * half of the same sentence: the convention decides the accessor. Both are safe here for
+         * the reason the ordinary loop requires a *sole* candidate - a lens statement resolves a
+         * named lens, so the parameter is known before the argument is.
+         */
+        auto wantsPlace = parameter && parameter->isMutableBorrow();
+
+        if(wantsPlace && arg.value.kind == ast::Expr::Sub) {
+            auto borrowed = resolveSubscript(arg.value, *parse[arg.value.sub], true);
+            values.push(borrowed ? ResolvedArg(borrowed) : ResolvedArg::failed());
+            position++;
+            continue;
+        }
+
         // No signature to push down from is the same case as a generic position: what the argument
         // should be is what selecting a callee from it is about to decide.
-        auto expected = target && filled < target->args.size()
-            ? local[target->args.get(local, filled)]->declaredType() : TypePtr(nullptr);
+        auto expected = parameter && !wantsPlace ? parameter->declaredType() : TypePtr(nullptr);
 
-        auto erased = !expected || isGeneric(global, expected);
+        // A place to borrow is not a value to settle - settling one materializes exactly the
+        // temporary the arm above exists to avoid.
+        auto erased = !wantsPlace && (!expected || isGeneric(global, expected));
         auto value = resolveArgument(arg.value, erased ? nullptr : expected);
 
         if(erased && value.isValue()) value = settle(value.value, arg.value.source);

@@ -27,7 +27,7 @@ fn threeChunks(x: Int) -> Chunks =
    element teardown an array of arrays still waits on. The shape a caller sees is the same.
 -}
 instance Chunked(Chunks, Int):
-    iter fn chunks(self: Chunks) -> '[Int]:
+    iter fn chunks(self: Chunks) -> [Int]:
         yield self.a
         if self.used > 1:
             yield self.b
@@ -42,6 +42,10 @@ data Ring {items: [Int]}
 instance Contiguous(Ring, Int):
     fn elements(return self: Ring) -> '[Int] = elements(self.items)
 
+-- The one hand-over in the suite still written with a tick, and deliberately: what a `lens fn` or an
+-- `iter fn` writes after `->` is a *binding*, so `'[Int]` and `[Int]` are one type there and the
+-- `Chunks` instance above spells it the other way against the same class. Keeping both is the
+-- assertion - a fixture where every instance agreed would not notice the two drifting apart.
 instance Chunked(Ring, Int):
     iter fn chunks(self: Ring) -> '[Int] = yield elements(self)
 
