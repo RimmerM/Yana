@@ -40,8 +40,8 @@ import Native
    **Generated rather than written, on the same terms `Index`'s are - see the note in `Native`.**
    Written out they would read:
 
-       instance Length(Flat(a)):
-           fn length(self: Flat(a)) -> Size = self.length
+       instance Length('[a]):
+           fn length(self: [a]) -> Size = self.length
 
        @platform(native) instance Length(Array(a)):
            fn length(self: Array(a)) -> Size = self.length :: Size
@@ -72,10 +72,10 @@ pub class Length(c):
    read `a` back off the instance. `Widen`'s entry in classes.md says why that is declared rather
    than inferred.
 
-   `chunks` hands over a *view* - `&[a]` in any module that can write it, spelled `Flat(a)` here
-   because `Array` is this file's own declaration and `[a]` does not exist until it has been read.
-   What a chunk is is a window into the container's storage, so a mutable one writes through and
-   neither ever copies. The superclass is what stops a
+   `chunks` hands over a *view*, written `'[a]` because a class member has no binding to carry the
+   capability - the position rule's spelling for a shared window in a type position - and `&[a]`
+   where one is written through. What a chunk is is a window into the container's storage, so a
+   mutable one writes through and neither ever copies. The superclass is what stops a
    container from supplying half of this - a `Contiguous` instance with no `Chunked` one is rejected
    where it is declared, and its `Chunked` instance is the one line below.
 
@@ -86,10 +86,10 @@ pub class Length(c):
    names `Chunked` as what to ask for instead.
 -}
 pub class Chunked(c -> a):
-  iter fn chunks(self: c) -> Flat(a)
+  iter fn chunks(self: c) -> '[a]
 
 pub class (Chunked(c, a)) Contiguous(c -> a):
-  fn elements(return self: c) -> Flat(a)
+  fn elements(return self: c) -> '[a]
 
 {-
    And the writable half, which is a second promise rather than a second spelling of the first.
@@ -105,7 +105,7 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
    So the write is a member of its own, on a class of its own, and both halves of that matter:
 
    - **A member of its own** so that the exclusive window is the *instance's* promise. `elementsMut`
-     is declared `&self: 'c` and returns `&Flat(a)`, so the caller's container is exclusively
+     is declared `&self: 'c` and returns `&[a]`, so the caller's container is exclusively
      borrowed for as long as the window lives and the loan is rooted in it by the class's group.
      Nothing is promoted anywhere.
    - **A class of its own** so that a container may promise one and not the other, which §7.1 makes
@@ -114,14 +114,14 @@ pub class (Chunked(c, a)) Contiguous(c -> a):
      implements only `Contiguous` is passable where `[a]` is read and refused where one is written,
      with a diagnostic that names this class.
 
-   `&Flat(a)` in the result is what made this declarable at all, and it is new: until §4.5 gave the
-   slice descriptor's type somewhere to carry its capability, `-> &Flat(a)` *was* `-> Flat(a)` and
+   `&[a]` in the result is what made this declarable at all, and it is new: until §4.5 gave the
+   slice descriptor's type somewhere to carry its capability, `-> &[a]` *was* `-> '[a]` and
    the class could not say what it wanted. The `Array` and `[a *n]` instances are one word each -
    the conversion at the return position builds the exclusive descriptor over the exclusive borrow
    `&self` already is - and `Flat(a)`'s is the identity, since a window already is one.
 -}
 pub class (Contiguous(c, a)) Writable(c -> a):
-  fn elementsMut(&self: 'c) -> &Flat(a)
+  fn elementsMut(&self: 'c) -> &[a]
 
 {-
    The two instances the library itself supplies, which is §5's "the standard library adopts it in
@@ -141,25 +141,25 @@ pub class (Contiguous(c, a)) Writable(c -> a):
    On the slice itself `elements` is the identity, because a `Flat(a)` already is the descriptor.
 -}
 @platform(native) instance Contiguous(Array(a), a):
-    fn elements(return self: Array(a)) -> Flat(a) = unclampedSlice(self, 0, self.length :: Size)
+    fn elements(return self: Array(a)) -> '[a] = unclampedSlice(self, 0, self.length :: Size)
 
 @platform(js) instance Contiguous(Array(a), a):
-    fn elements(return self: Array(a)) -> Flat(a) = unclampedSlice(self, 0, self.length :: Size)
+    fn elements(return self: Array(a)) -> '[a] = unclampedSlice(self, 0, self.length :: Size)
 
 instance Chunked(Array(a), a):
-    iter fn chunks(self: Array(a)) -> Flat(a) = yield elements(self)
+    iter fn chunks(self: Array(a)) -> '[a] = yield elements(self)
 
-instance Contiguous(Flat(a), a):
-    fn elements(self: 'Flat(a)) -> Flat(a) = self
+instance Contiguous('[a], a):
+    fn elements(self: '[a]) -> '[a] = self
 
 instance Writable(Array(a), a):
-    fn elementsMut(&self: Array(a)) -> &Flat(a) = self
+    fn elementsMut(&self: Array(a)) -> &[a] = self
 
-instance Writable(Flat(a), a):
-    fn elementsMut(&self: Flat(a)) -> &Flat(a) = self
+instance Writable('[a], a):
+    fn elementsMut(&self: [a]) -> &[a] = self
 
-instance Chunked(Flat(a), a):
-    iter fn chunks(self: Flat(a)) -> Flat(a) = yield elements(self)
+instance Chunked('[a], a):
+    iter fn chunks(self: [a]) -> '[a] = yield elements(self)
 
 {-
    ------------------------------------------------------------------------------------------
@@ -192,8 +192,8 @@ instance (Eq(a)) Eq(Array(a)):
         if length(self) != length(other) then return False
         return itemsEqual(elements(self), elements(other))
 
-instance (Eq(a)) Eq(Flat(a)):
-    fn ==(self: Flat(a), other: Flat(a)) -> Bool:
+instance (Eq(a)) Eq('[a]):
+    fn ==(self: [a], other: [a]) -> Bool:
         if length(self) != length(other) then return False
         return itemsEqual(elements(self), elements(other))
 
@@ -262,13 +262,13 @@ instance (n: Int) Length([a *n]):
     fn length(self: [a *n]) -> Size = n :: Size
 
 instance (n: Int) Contiguous([a *n], a):
-    fn elements(return self: [a *n]) -> Flat(a) = unclampedSlice(self, 0, n :: Size)
+    fn elements(return self: [a *n]) -> '[a] = unclampedSlice(self, 0, n :: Size)
 
 instance (n: Int) Chunked([a *n], a):
-    iter fn chunks(self: [a *n]) -> Flat(a) = yield elements(self)
+    iter fn chunks(self: [a *n]) -> '[a] = yield elements(self)
 
 instance (n: Int) Writable([a *n], a):
-    fn elementsMut(&self: [a *n]) -> &Flat(a) = self
+    fn elementsMut(&self: [a *n]) -> &[a] = self
 
 {-
    Reading a whole vector out of a chunk, and writing one back - Implementation-Vector.md §12's "a
@@ -293,15 +293,15 @@ instance (n: Int) Writable([a *n], a):
    element instead. Both are values the caller is about to mask off; neither is a number that could
    poison an accumulator before it does.
 -}
-@platform(native) pub fn loadVector(from: Flat(a), at: Size) -> Vec(a) = vectorAt(from.items + at)
-@platform(js) pub fn loadVector(from: Flat(a), at: Size) -> Vec(a) = hostVector(from.items, from.offset + at)
+@platform(native) pub fn loadVector(from: [a], at: Size) -> Vec(a) = vectorAt(from.items + at)
+@platform(js) pub fn loadVector(from: [a], at: Size) -> Vec(a) = hostVector(from.items, from.offset + at)
 
-@platform(native) pub fn loadVectorTail(from: Flat(a), at: Size) -> Vec(a) = vectorPast(from.items + at)
-@platform(js) pub fn loadVectorTail(from: Flat(a), at: Size) -> Vec(a) =
+@platform(native) pub fn loadVectorTail(from: [a], at: Size) -> Vec(a) = vectorPast(from.items + at)
+@platform(js) pub fn loadVectorTail(from: [a], at: Size) -> Vec(a) =
     hostVectorUpTo(from.items, from.offset + at, from.offset + from.length - 1)
 
-@platform(native) pub fn storeVector(to: Flat(a), at: Size, value: Vec(a)) -> {} = setVectorAt(to.items + at, value)
-@platform(js) pub fn storeVector(to: Flat(a), at: Size, value: Vec(a)) -> {} =
+@platform(native) pub fn storeVector(to: [a], at: Size, value: Vec(a)) -> {} = setVectorAt(to.items + at, value)
+@platform(js) pub fn storeVector(to: [a], at: Size, value: Vec(a)) -> {} =
     hostSetVector(to.items, to.offset + at, value)
 
 {-
@@ -355,104 +355,104 @@ instance (n: Int) Writable([a *n], a):
    established. Where it is not provable it is one compare and a predicted-not-taken branch, which is
    what a subscript costs, and these exist to be used where a subscript would otherwise be.
 -}
-fn checkWordInBounds(from: Flat(U8), at: Size, width: Size) -> {}:
+fn checkWordInBounds(from: [U8], at: Size, width: Size) -> {}:
     let count = length(from)
     checkCondition(count < width || (bitcast(at) :: USize) > (bitcast(count - width) :: USize))
     return
 
-@platform(native) pub fn readBigU16(from: Flat(U8), at: Size) -> U16:
+@platform(native) pub fn readBigU16(from: [U8], at: Size) -> U16:
     checkWordInBounds(from, at, 2)
     return bigEndian(*(bitcast(from.items + at) :: %U16))
 
-@platform(js) pub fn readBigU16(from: Flat(U8), at: Size) -> U16:
+@platform(js) pub fn readBigU16(from: [U8], at: Size) -> U16:
     checkWordInBounds(from, at, 2)
     return hostReadU16(from.items, from.offset + at, False)
 
-@platform(native) pub fn readLittleU16(from: Flat(U8), at: Size) -> U16:
+@platform(native) pub fn readLittleU16(from: [U8], at: Size) -> U16:
     checkWordInBounds(from, at, 2)
     return littleEndian(*(bitcast(from.items + at) :: %U16))
 
-@platform(js) pub fn readLittleU16(from: Flat(U8), at: Size) -> U16:
+@platform(js) pub fn readLittleU16(from: [U8], at: Size) -> U16:
     checkWordInBounds(from, at, 2)
     return hostReadU16(from.items, from.offset + at, True)
 
-@platform(native) pub fn readBigU32(from: Flat(U8), at: Size) -> U32:
+@platform(native) pub fn readBigU32(from: [U8], at: Size) -> U32:
     checkWordInBounds(from, at, 4)
     return bigEndian(*(bitcast(from.items + at) :: %U32))
 
-@platform(js) pub fn readBigU32(from: Flat(U8), at: Size) -> U32:
+@platform(js) pub fn readBigU32(from: [U8], at: Size) -> U32:
     checkWordInBounds(from, at, 4)
     return hostReadU32(from.items, from.offset + at, False)
 
-@platform(native) pub fn readLittleU32(from: Flat(U8), at: Size) -> U32:
+@platform(native) pub fn readLittleU32(from: [U8], at: Size) -> U32:
     checkWordInBounds(from, at, 4)
     return littleEndian(*(bitcast(from.items + at) :: %U32))
 
-@platform(js) pub fn readLittleU32(from: Flat(U8), at: Size) -> U32:
+@platform(js) pub fn readLittleU32(from: [U8], at: Size) -> U32:
     checkWordInBounds(from, at, 4)
     return hostReadU32(from.items, from.offset + at, True)
 
-@platform(native) pub fn readBigU64(from: Flat(U8), at: Size) -> U64:
+@platform(native) pub fn readBigU64(from: [U8], at: Size) -> U64:
     checkWordInBounds(from, at, 8)
     return bigEndian(*(bitcast(from.items + at) :: %U64))
 
-@platform(js) pub fn readBigU64(from: Flat(U8), at: Size) -> U64:
+@platform(js) pub fn readBigU64(from: [U8], at: Size) -> U64:
     checkWordInBounds(from, at, 8)
     return hostReadU64(from.items, from.offset + at, False)
 
-@platform(native) pub fn readLittleU64(from: Flat(U8), at: Size) -> U64:
+@platform(native) pub fn readLittleU64(from: [U8], at: Size) -> U64:
     checkWordInBounds(from, at, 8)
     return littleEndian(*(bitcast(from.items + at) :: %U64))
 
-@platform(js) pub fn readLittleU64(from: Flat(U8), at: Size) -> U64:
+@platform(js) pub fn readLittleU64(from: [U8], at: Size) -> U64:
     checkWordInBounds(from, at, 8)
     return hostReadU64(from.items, from.offset + at, True)
 
-@platform(native) pub fn writeBigU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+@platform(native) pub fn writeBigU16(&to: [U8], at: Size, value: U16) -> {}:
     checkWordInBounds(to, at, 2)
     store(bitcast(to.items + at) :: %U16, bigEndian(value))
 
-@platform(js) pub fn writeBigU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+@platform(js) pub fn writeBigU16(&to: [U8], at: Size, value: U16) -> {}:
     checkWordInBounds(to, at, 2)
     hostWriteU16(to.items, to.offset + at, value, False)
 
-@platform(native) pub fn writeLittleU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+@platform(native) pub fn writeLittleU16(&to: [U8], at: Size, value: U16) -> {}:
     checkWordInBounds(to, at, 2)
     store(bitcast(to.items + at) :: %U16, littleEndian(value))
 
-@platform(js) pub fn writeLittleU16(&to: Flat(U8), at: Size, value: U16) -> {}:
+@platform(js) pub fn writeLittleU16(&to: [U8], at: Size, value: U16) -> {}:
     checkWordInBounds(to, at, 2)
     hostWriteU16(to.items, to.offset + at, value, True)
 
-@platform(native) pub fn writeBigU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+@platform(native) pub fn writeBigU32(&to: [U8], at: Size, value: U32) -> {}:
     checkWordInBounds(to, at, 4)
     store(bitcast(to.items + at) :: %U32, bigEndian(value))
 
-@platform(js) pub fn writeBigU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+@platform(js) pub fn writeBigU32(&to: [U8], at: Size, value: U32) -> {}:
     checkWordInBounds(to, at, 4)
     hostWriteU32(to.items, to.offset + at, value, False)
 
-@platform(native) pub fn writeLittleU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+@platform(native) pub fn writeLittleU32(&to: [U8], at: Size, value: U32) -> {}:
     checkWordInBounds(to, at, 4)
     store(bitcast(to.items + at) :: %U32, littleEndian(value))
 
-@platform(js) pub fn writeLittleU32(&to: Flat(U8), at: Size, value: U32) -> {}:
+@platform(js) pub fn writeLittleU32(&to: [U8], at: Size, value: U32) -> {}:
     checkWordInBounds(to, at, 4)
     hostWriteU32(to.items, to.offset + at, value, True)
 
-@platform(native) pub fn writeBigU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+@platform(native) pub fn writeBigU64(&to: [U8], at: Size, value: U64) -> {}:
     checkWordInBounds(to, at, 8)
     store(bitcast(to.items + at) :: %U64, bigEndian(value))
 
-@platform(js) pub fn writeBigU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+@platform(js) pub fn writeBigU64(&to: [U8], at: Size, value: U64) -> {}:
     checkWordInBounds(to, at, 8)
     hostWriteU64(to.items, to.offset + at, value, False)
 
-@platform(native) pub fn writeLittleU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+@platform(native) pub fn writeLittleU64(&to: [U8], at: Size, value: U64) -> {}:
     checkWordInBounds(to, at, 8)
     store(bitcast(to.items + at) :: %U64, littleEndian(value))
 
-@platform(js) pub fn writeLittleU64(&to: Flat(U8), at: Size, value: U64) -> {}:
+@platform(js) pub fn writeLittleU64(&to: [U8], at: Size, value: U64) -> {}:
     checkWordInBounds(to, at, 8)
     hostWriteU64(to.items, to.offset + at, value, True)
 

@@ -11,14 +11,14 @@ data Shape = Circle(Int) | Square {width: Int, height: Int}
 fn sign(x: Int) -> Int = match x:
     >0 -> 1
     <0 -> -1
-    else -> 0
+    _ -> 0
 
 -- The operand is read from the scope the match is in, which is the case a bare name used to serve.
 -- Here it is a parameter, and the pattern says which of the two it is comparing.
 fn clampedTo(x: Int, limit: Int) -> Int = match x:
     >limit -> limit
     ==limit -> 0
-    else -> x
+    _ -> x
 
 -- A bare name binds and shadows, in a `match` exactly as in a `let`. `limit` in the alternative is
 -- the matched value, and the alternative is irrefutable, so the match needs nothing after it.
@@ -51,7 +51,7 @@ fn near(a: Int, b: Int) -> Bool = a - b < 2 && b - a < 2
 
 fn isNearTen(x: Int) -> Int = match x:
     `near` 10 -> 1
-    else -> 0
+    _ -> 0
 
 -- A declaration takes the same patterns, and a section is one that can fail, so it needs the
 -- alternatives that say what happens when it does.

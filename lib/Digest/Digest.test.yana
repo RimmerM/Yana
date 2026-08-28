@@ -40,64 +40,64 @@ import Test
    passes are fixed.
 -}
 
-@noinline fn md5Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                        long: Flat(U8)) -> {}:
+@noinline fn md5Answers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                        long: [U8]) -> {}:
     checkEqual(hexOf(md5Of(empty)), "d41d8cd98f00b204e9800998ecf8427e")
     checkEqual(hexOf(md5Of(abc)), "900150983cd24fb0d6963f7d28e17f72")
     checkEqual(hexOf(md5Of(twoBlocks)), "8215ef0796a20bcaaae116d3876c664a")
     checkEqual(hexOf(md5Of(pangram)), "9e107d9d372bb6826bd81d3542a419d6")
     checkEqual(hexOf(md5Of(long)), "e6899eaaf06fd702f3ed3f988eb19362")
 
-@noinline fn sha1Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                         long: Flat(U8)) -> {}:
+@noinline fn sha1Answers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                         long: [U8]) -> {}:
     checkEqual(hexOf(sha1Of(empty)), "da39a3ee5e6b4b0d3255bfef95601890afd80709")
     checkEqual(hexOf(sha1Of(abc)), "a9993e364706816aba3e25717850c26c9cd0d89d")
     checkEqual(hexOf(sha1Of(twoBlocks)), "84983e441c3bd26ebaae4aa1f95129e5e54670f1")
     checkEqual(hexOf(sha1Of(pangram)), "2fd4e1c67a2d28fced849ee1bb76e7391b93eb12")
     checkEqual(hexOf(sha1Of(long)), "ac2a264c8ec1f4232a40854e8239bc3a697ab1d2")
 
-@noinline fn sha224Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                           long: Flat(U8)) -> {}:
+@noinline fn sha224Answers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                           long: [U8]) -> {}:
     checkEqual(hexOf(sha224Of(empty)), "d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f")
     checkEqual(hexOf(sha224Of(abc)), "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7")
     checkEqual(hexOf(sha224Of(twoBlocks)), "75388b16512776cc5dba5da1fd890150b0c6455cb4f58b1952522525")
     checkEqual(hexOf(sha224Of(pangram)), "730e109bd7a8a32b1cb9d9a09aa2325d2430587ddbc0c38bad911525")
     checkEqual(hexOf(sha224Of(long)), "591b51555cc8c83f6951d9ec73d834d6d17865fecdb543605471a562")
 
-@noinline fn sha256Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                           long: Flat(U8)) -> {}:
+@noinline fn sha256Answers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                           long: [U8]) -> {}:
     checkEqual(hexOf(sha256Of(empty)), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
     checkEqual(hexOf(sha256Of(abc)), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
     checkEqual(hexOf(sha256Of(twoBlocks)), "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1")
     checkEqual(hexOf(sha256Of(pangram)), "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592")
     checkEqual(hexOf(sha256Of(long)), "f3a25aa93aa2fbba28d79260535bbd6a5eb0fc1c24a8b0f04e12b484c1dfe363")
 
-@noinline fn crc32Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                          long: Flat(U8)) -> {}:
+@noinline fn crc32Answers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                          long: [U8]) -> {}:
     checkEqual(hexOf(crc32Of(empty)), "00000000")
     checkEqual(hexOf(crc32Of(abc)), "352441c2")
     checkEqual(hexOf(crc32Of(twoBlocks)), "171a3f5f")
     checkEqual(hexOf(crc32Of(pangram)), "414fa339")
     checkEqual(hexOf(crc32Of(long)), "b0c0df2a")
 
-@noinline fn crc32cAnswers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                           long: Flat(U8)) -> {}:
+@noinline fn crc32cAnswers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                           long: [U8]) -> {}:
     checkEqual(hexOf(crc32cOf(empty)), "00000000")
     checkEqual(hexOf(crc32cOf(abc)), "364b3fb7")
     checkEqual(hexOf(crc32cOf(twoBlocks)), "071325f5")
     checkEqual(hexOf(crc32cOf(pangram)), "22620404")
     checkEqual(hexOf(crc32cOf(long)), "9fa293b3")
 
-@noinline fn murmur3Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                            long: Flat(U8)) -> {}:
+@noinline fn murmur3Answers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                            long: [U8]) -> {}:
     checkEqual(hexOf(murmur3Of(empty)), "00000000")
     checkEqual(hexOf(murmur3Of(abc)), "b3dd93fa")
     checkEqual(hexOf(murmur3Of(twoBlocks)), "ee925b90")
     checkEqual(hexOf(murmur3Of(pangram)), "2e4ff723")
     checkEqual(hexOf(murmur3Of(long)), "30e195a1")
 
-@noinline fn xxHash32Answers(empty: Flat(U8), abc: Flat(U8), twoBlocks: Flat(U8), pangram: Flat(U8),
-                             long: Flat(U8)) -> {}:
+@noinline fn xxHash32Answers(empty: [U8], abc: [U8], twoBlocks: [U8], pangram: [U8],
+                             long: [U8]) -> {}:
     checkEqual(hexOf(xxHash32Of(empty)), "02cc5d05")
     checkEqual(hexOf(xxHash32Of(abc)), "32d153ff")
     checkEqual(hexOf(xxHash32Of(twoBlocks)), "89ea60c3")

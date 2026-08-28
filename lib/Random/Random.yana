@@ -155,14 +155,14 @@ pub fn next(&self: Rng) -> U32:
    A number below a bound, without a bias.
    ==========================================================================================
 
-   `rem(next(rng), limit)` is the obvious answer and is wrong wherever `limit` does not divide 2^32:
-   the low `2^32 rem limit` values come up once more often than the rest, which for a limit near
+   `next(rng) % limit` is the obvious answer and is wrong wherever `limit` does not divide 2^32:
+   the low `2^32 % limit` values come up once more often than the rest, which for a limit near
    2^31 is one value being twice as likely as another. That is invisible at a die roll and is exactly
    what a shuffle or a sampled benchmark measures.
 
    So the range is cut to a multiple of `limit` and everything below the cut is drawn again -
-   OpenBSD's `arc4random_uniform`, and the threshold is `2^32 rem limit` written as `rem(0 - limit,
-   limit)` because `0 - limit` at `U32` *is* `2^32 - limit`. The expected number of extra draws is
+   OpenBSD's `arc4random_uniform`, and the threshold is `2^32 % limit` written as `(0 - limit) %
+   limit` because `0 - limit` at `U32` *is* `2^32 - limit`. The expected number of extra draws is
    below one for every limit, and the loop is unbounded only in the sense that a coin is: each pass
    rejects with probability under a half.
 
@@ -177,13 +177,13 @@ pub fn next(&self: Rng) -> U32:
 fn below32(&rng: Rng, limit: U32) -> U32:
     if limit == 0 then return 0
 
-    let threshold = rem(0 - limit, limit)
+    let threshold = (0 - limit) % limit
     let &draw = next(rng)
 
     while draw < threshold:
         draw = next(rng)
 
-    return rem(draw, limit)
+    return draw % limit
 
 {-
    An index into something with `count` elements - the range variant a container wants, and the one

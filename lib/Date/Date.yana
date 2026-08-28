@@ -270,7 +270,7 @@ pub data Weekday
    `divisor` is positive at every call here, which is what lets both be a sign test on the remainder
    rather than on the pair.
 
-   **Both are written as a correction to `rem` rather than as arithmetic that avoids it, and that is
+   **Both are written as a correction to `%` rather than as arithmetic that avoids it, and that is
    about overflow rather than about brevity.** The obvious floored form is `-((divisor - 1 - value) /
    divisor)` for a negative value, and it adds `divisor` to a magnitude that is already the whole
    range: at the most negative `Timestamp` an `I64` holds, `divisor - 1 - value` wraps and the answer
@@ -281,12 +281,12 @@ pub data Weekday
 -}
 fn floorDiv(value: I64, divisor: I64) -> I64:
     let quotient = value / divisor
-    return if value `rem` divisor < 0 then quotient - 1 else quotient
+    return if value % divisor < 0 then quotient - 1 else quotient
 
--- The remainder that goes with it, and therefore never negative - which `rem` is not, since it takes
+-- The remainder that goes with it, and therefore never negative - which `%` is not, since it takes
 -- its sign from the dividend.
 fn floorRem(value: I64, divisor: I64) -> I64:
-    let remainder = value `rem` divisor
+    let remainder = value % divisor
     return if remainder < 0 then remainder + divisor else remainder
 
 let microsPerSecond = 1000000 :: I64
@@ -372,9 +372,9 @@ pub fn dateOf(time: Timestamp, zoneMinutes: I16 = 0) -> Date:
         month: truncate(month) :: U8,
         day: truncate(day) :: U8,
         hour: truncate(secondsOfDay / secondsPerHour) :: U8,
-        minute: truncate((secondsOfDay `rem` secondsPerHour) / 60) :: U8,
-        second: truncate(secondsOfDay `rem` 60) :: U8,
-        micros: truncate(inDay `rem` microsPerSecond) :: U32,
+        minute: truncate((secondsOfDay % secondsPerHour) / 60) :: U8,
+        second: truncate(secondsOfDay % 60) :: U8,
+        micros: truncate(inDay % microsPerSecond) :: U32,
         zoneMinutes: zoneMinutes
     }
 

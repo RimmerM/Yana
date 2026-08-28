@@ -53,7 +53,7 @@ fn firstOrRest(m: Maybe(Color)) -> Int = match m:
 fn classify(value: Int) -> Int = match value:
     0 -> 0
     1..=10 -> 1
-    else -> 2
+    _ -> 2
 
 -- A written negative number, which is a pattern the parser cannot finish on its own.
 --
@@ -72,7 +72,7 @@ fn signed(value: I64) -> Int = match value:
     -9223372036854775808 -> 1
     -1 -> 2
     0 -> 3
-    else -> 4
+    _ -> 4
 
 -- Every alternative of every match above is taken at least once, because an alternative that
 -- was emitted without a test is only shown to be right by the values that reach it.

@@ -1063,8 +1063,15 @@ ast::Expr Parser::parseIfExpr() {
         // Multi-way if.
         block([&] {
             sepBy1([&] {
-                if(token.type == Token::kw_ || token.type == Token::kwElse) {
+                // `else` is the fallback marker and `_` is the pattern wildcard, so an `if:` case
+                // takes the first and not the second: there is no pattern in this position for `_`
+                // to be one of. See parseLeftPattern for the other half of the split.
+                if(token.type == Token::kwElse || token.type == Token::kw_) {
                     auto source = currentNode();
+                    if(token.type == Token::kw_) {
+                        error("`_` is not a condition - an `if:` case is a fallback rather than a pattern. The fallback marker is `else`"_v);
+                    }
+
                     eat();
                     cond = Just(makeExpr(Lit + ast::Literal::Bool, lit, { .b = true }, source));
                 } else {
@@ -1407,11 +1414,25 @@ ast::VarDecl Parser::parseDeclExpr() {
                 } else {
                     parseAlt(alts);
                 }
-            } else if(token.type == Token::kw_ || token.type == Token::kwElse) {
-                // `| else -> expr` is the wildcard written out. It needs no lookahead to tell
-                // from the shorthand below, because neither `_` nor `else` can begin an
-                // expression; a fallback that tests something instead needs the `| match:` form.
-                parseAlt(alts);
+            } else if(token.type == Token::kw_) {
+                error("`_` is not a fallback marker - this position takes a fallback rather than a pattern. Write `| else -> ...`, or `| match:` for a fallback that matches"_v);
+                eat();
+                auto expr = parseBlock(false);
+                alts.push(arena, {
+                    .pat = { .source = context.addLocation(node.unwrap().node), .kind = ast::Pat::Any },
+                    .expr = expr,
+                });
+            } else if(auto elseNode = maybeNode(Token::kwElse)) {
+                // `| else -> expr` is the fallback written out, and `else` is read here rather
+                // than through parseAlt because it is not a pattern - the `| match:` form above is
+                // the one that takes patterns. It needs no lookahead to tell from the shorthand
+                // below, because `else` cannot begin an expression.
+                auto source = elseNode.unwrap().node;
+                auto expr = parseBlock(false);
+                alts.push(arena, {
+                    .pat = { .source = context.addLocation(source), .kind = ast::Pat::Any },
+                    .expr = expr,
+                });
             } else {
                 auto e = parseExpr();
                 alts.push(arena, { .pat = { .source = context.addLocation(node.unwrap().node), .kind = ast::Pat::Any }, .expr = e });
@@ -1931,7 +1952,11 @@ ast::Pat Parser::parseLeftPattern() {
             .source = lit.source,
             .kind = (ast::Pat::Kind)(ast::Pat::Lit + (lit.kind - ast::Expr::Lit)),
         };
-    } else if(token.type == Token::kw_ || token.type == Token::kwElse) {
+    } else if(token.type == Token::kw_) {
+        // `_` alone is a pattern; `else` is not, and never reaches here. The line goes around
+        // fallbacks rather than around any one construct: a `match` arm, a `| match:` alt, a guard
+        // and anything nested inside a pattern take `_`, while the two fallback positions - an
+        // `if:` case and a `let`'s `| else ->` - take `else` and read it themselves.
         eat();
         return ast::Pat { .source = context.addLocation(location), .kind = ast::Pat::Any };
     } else if(auto var = maybe(Token::VarID)) {
@@ -1975,6 +2000,13 @@ ast::Pat Parser::parseLeftPattern() {
     } else if(maybe(Token::opDotDot)) {
         auto name = expect(Token::VarID, "expected variable name"_v);
         return { .asVar = name ? name.unwrap().id : StringId(), .source = context.addLocation(location), .kind = ast::Pat::Rest };
+    } else if(token.type == Token::kwElse) {
+        // The one wrong token worth naming, since `else` was a second spelling of `_` here until
+        // the two were split by position. Eaten, so what follows it parses as the alternative it
+        // was meant to be and this is the only report.
+        error("`else` is not a pattern - it is the fallback marker of an `if:` case and of a `let`'s `| else ->`. The wildcard pattern is `_`"_v);
+        eat();
+        return { .source = context.addLocation(location), .kind = ast::Pat::Error };
     } else {
         error("expected pattern"_v);
         return { .source = context.addLocation(location), .kind = ast::Pat::Error };

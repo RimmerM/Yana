@@ -18,7 +18,7 @@ fn murmurMix(k: U32) -> U32 = ((k * 3432918353) `rol` 15) * 461845907
 fn murmurStep(h: U32, k: U32) -> U32 = ((h `xor` murmurMix(k)) `rol` 13) * 5 + 3864292196
 
 instance Block(Murmur3):
-  fn compressBlocks(&self: Murmur3, from: Flat(U8), at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: Murmur3, from: [U8], at: Size, blocks: Size) -> {}:
       let &h = self.h
       let &i = at
       let stop = at + blocks * 64
@@ -34,7 +34,7 @@ pub alias MurmurHash = Blocks(Murmur3)
 instance Digest(Blocks(Murmur3), 4):
   fn newDigest() -> Blocks(Murmur3) = newBlocks(newMurmur3())
 
-  fn update(&self: Blocks(Murmur3), from: Flat(U8)) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Murmur3), from: [U8]) -> {} = absorb(self, from)
 
   {-
      The tail, which is where Murmur3 differs from every block digest above it.
@@ -68,9 +68,9 @@ instance Digest(Blocks(Murmur3), 4):
 
       return bytesOfU32(mix32(h `xor` (truncate(running.total) :: U32)))
 
-pub fn murmur3Of(from: Flat(U8)) -> Fingerprint:
+pub fn murmur3Of(from: [U8]) -> Fingerprint:
     let &state = newDigest() :: MurmurHash
     update(state, from)
     return finish(state)
 
-pub fn murmur3ValueOf(from: Flat(U8)) -> U32 = valueOfBytes(murmur3Of(from))
+pub fn murmur3ValueOf(from: [U8]) -> U32 = valueOfBytes(murmur3Of(from))

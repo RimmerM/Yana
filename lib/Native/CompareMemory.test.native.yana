@@ -105,8 +105,8 @@ fn ordered(buffer: %U8, at: Size, to: Size, count: Size, differ: Size, by: Int) 
     let &count = 0 :: Size
 
     while count <= 200:
-        let left = 3 + (rem(count, 3))
-        let right = apartBytes + (rem(count, 5))
+        let left = 3 + (count % 3)
+        let right = apartBytes + (count % 5)
 
         if ordered(buffer, left, right, count, 0 - 1, 0) != 0 then bad = bad + 1
 

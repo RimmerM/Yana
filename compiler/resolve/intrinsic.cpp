@@ -531,7 +531,6 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
     auto remainder = isCheckedDivisionType(*module.types, type) ? emitDivision<Value::Rem>
                                                                 : emitBinary<Value::Rem>;
     IntrinsicMethod methods[] = {
-        { "rem"_v, 2, remainder },
         { "%"_v, 2, remainder },
         { "shl"_v, 2, emitBinary<Value::Shl> },
         { "shr"_v, 2, emitBinary<Value::Shr> },
@@ -543,7 +542,7 @@ ModulePtr<ClassInstance> defineIntegral(Module& module, TypePtr type) {
     // The four bitwise names are not here: they are `Bitwise`'s, which this class has as a
     // superclass, so there is one declaration of `and` in the language and no call has to say which
     // class it meant. defineNumeric supplies both instances for every width.
-    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 7 });
+    return generateInstance(module, classNamed(module, "Integral"_v), { &type, 1 }, { methods, 6 });
 }
 
 /*

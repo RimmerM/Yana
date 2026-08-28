@@ -44,17 +44,17 @@ fn f(a: Int):
 fn f(a: Int)
   | -1 -> 0
   | -2 -> 0
-  | else -> a
+  | _ -> a
 
 fn f(a: Int)
   | 0 -> Class.Zero
-  | else -> if a > 0 then Class.Positive else Class.Negative
+  | _ -> if a > 0 then Class.Positive else Class.Negative
 
 fn f(a: Int, b: Int, c: Bool)
   | { 0, 0, False } -> Class.Zero
   | { a, b, False }:
     return if a > 0 && b > 0 then Class.Positive else Class.Negative
-  | else -> Class.Positive
+  | _ -> Class.Positive
 
 -- Type constraints.
 fn (a) showTuple(it: {a, a}) = ""

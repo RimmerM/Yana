@@ -125,7 +125,7 @@ pub fn push(&self: Array(a), ->item: a) -> {}:
 
 
 -- The window `slice` makes, with the clamping taken out - `Array.yana` is where the reason is.
-fn unclampedSlice(self: 'Flat(a), from: Size, count: Size) -> Flat(a) =
+fn unclampedSlice(self: '[a], from: Size, count: Size) -> '[a] =
     Flat {items: self.items + from, length: count}
 
 {-
@@ -140,7 +140,7 @@ fn unclampedSlice(self: 'Flat(a), from: Size, count: Size) -> Flat(a) =
    is a borrow whose representation is a record, and the marker is what makes the checker treat it as
    one - without it this function is rejected for handing back a view of its own argument.
 -}
-pub fn slice(self: 'Flat(a), from: Size, to: Size) -> Flat(a):
+pub fn slice(self: '[a], from: Size, to: Size) -> '[a]:
     let &start = from :: Size
     if start < 0 then start = 0
     if start > self.length then start = self.length
@@ -157,7 +157,7 @@ pub fn slice(self: 'Flat(a), from: Size, to: Size) -> Flat(a):
 -- signature: a function is written at one capability, so the pair here is `get`/`getMut` again, for
 -- the same reason and with the same shape. `&self` is what makes it sound - the caller's window is
 -- exclusively borrowed for as long as this one lives, so no second view of the same elements exists.
-pub fn sliceMut(&self: 'Flat(a), from: Size, to: Size) -> &Flat(a):
+pub fn sliceMut(&self: '[a], from: Size, to: Size) -> &[a]:
     let &start = from :: Size
     if start < 0 then start = 0
     if start > self.length then start = self.length

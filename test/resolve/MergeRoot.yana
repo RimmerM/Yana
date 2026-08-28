@@ -26,10 +26,6 @@
      the two apart is the whole of what the fix has to get right.
 -}
 
--- `Flat(a)` is `Native`'s, and naming it is the only reason this import is here: the lens has to
--- write its own result type, where every other reference in this fixture is inferred.
-import Native
-
 -- Four elements on the heap, so the run is a block the allocator can hand back and write into.
 fn owned() -> [Int] = newArray(4, (i: Size) -> truncate(i + 1) :: Int)
 
@@ -51,7 +47,7 @@ fn chosen(fromFrame: Bool) -> Int:
    back and borrows *that* - `borrow [%v]` rather than `borrow %local` - so the chain from the slot
    to the merge runs through a reborrow, which has no root local of its own and used to end the walk.
 -}
-lens fn borrowed(fromFrame: Bool) -> Flat(Int):
+lens fn borrowed(fromFrame: Bool) -> '[Int]:
     let &frame = [10, 20, 30, 40] :: @inline(4) @capacity(4) [Int]
     let xs = owned()
 

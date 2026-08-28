@@ -23,15 +23,15 @@ instance Length(Bag(a)):
     fn length(self: Bag(a)) -> Size = length(self.items)
 
 instance Contiguous(Bag(a), a):
-    fn elements(return self: Bag(a)) -> Flat(a) = elements(self.items)
+    fn elements(return self: Bag(a)) -> '[a] = elements(self.items)
 
 instance Chunked(Bag(a), a):
-    iter fn chunks(self: Bag(a)) -> Flat(a) = yield elements(self)
+    iter fn chunks(self: Bag(a)) -> '[a] = yield elements(self)
 
 -- One line: the conversion at the return position builds the exclusive descriptor over the
 -- exclusive borrow `&self` already is.
 instance Writable(Bag(a), a):
-    fn elementsMut(&self: Bag(a)) -> &Flat(a) = self.items
+    fn elementsMut(&self: Bag(a)) -> &[a] = self.items
 
 fn readsOnly(xs: [Int]) -> Int = xs[0]
 

@@ -202,7 +202,7 @@ fn (Chunked(c, a), Eq(a)) indexOfElements(xs: c, wanted: a) -> Maybe(Size):
    first, and what is compared here is `left`'s length in both windows. A comparison of two windows
    of different lengths is a question this has no answer for and does not ask.
 -}
-pub fn (Eq(a)) itemsEqual(left: Flat(a), right: Flat(a)) -> Bool
+pub fn (Eq(a)) itemsEqual(left: [a], right: [a]) -> Bool
 
 {-
    Natively this is `Native.compareMemory`, which is the vector walk with the element type taken out
@@ -220,13 +220,13 @@ pub fn (Eq(a)) itemsEqual(left: Flat(a), right: Flat(a)) -> Bool
    it would replace, and it allocates to do it.
 -}
 @platform(native) fn (Eq(a), Ord(a), TrivialCopy(a), Lanewise(Vec(a), Mask(a)), Bitwise(Mask(a)))
-    itemsEqualVectors(left: Flat(a), right: Flat(a)) -> Bool =
+    itemsEqualVectors(left: [a], right: [a]) -> Bool =
     compareMemory(left.items, right.items, length(left)) == EQ
 
-@platform(js) fn (Eq(a)) itemsEqualVectors(left: Flat(a), right: Flat(a)) -> Bool =
+@platform(js) fn (Eq(a)) itemsEqualVectors(left: [a], right: [a]) -> Bool =
     itemsEqualElements(left, right)
 
-fn (Eq(a)) itemsEqualElements(left: Flat(a), right: Flat(a)) -> Bool:
+fn (Eq(a)) itemsEqualElements(left: [a], right: [a]) -> Bool:
     let count = length(left)
     let &at = 0 :: Size
 

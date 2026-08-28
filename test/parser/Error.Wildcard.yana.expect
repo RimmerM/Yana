@@ -1,0 +1,92 @@
+error 7:2 [285..289]: `else` is not a pattern - it is the fallback marker of an `if:` case and of a `let`'s `| else ->`. The wildcard pattern is `_`
+error 12:4 [403..407]: `else` is not a pattern - it is the fallback marker of an `if:` case and of a `let`'s `| else ->`. The wildcard pattern is `_`
+error 17:4 [534..538]: `else` is not a pattern - it is the fallback marker of an `if:` case and of a `let`'s `| else ->`. The wildcard pattern is `_`
+error 23:2 [675..676]: `_` is not a condition - an `if:` case is a fallback rather than a pattern. The fallback marker is `else`
+error 27:20 [789..790]: `_` is not a fallback marker - this position takes a fallback rather than a pattern. Write `| else -> ...`, or `| match:` for a fallback that matches
+
+Module 
+|-FunDecl matchElse <implicit return> 
+| |-Arg n
+| | `-ConType Int
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr n
+|     |-Alt
+|     | |-LitPat 0
+|     | `-LitExpr 1
+|     `-Alt
+|       |-<parse error>
+|       `-LitExpr 2
+|-FunDecl guardElse <implicit return> 
+| |-Arg n
+| | `-ConType Int
+| `-Body
+|   `-MatchExpr 
+|     |-VarExpr n
+|     |-Alt
+|     | |-LitPat 0
+|     | `-LitExpr 1
+|     `-Alt
+|       |-<parse error>
+|       `-LitExpr 2
+|-FunDecl altElse
+| |-Arg m
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl  <borrow> 
+|     |   |-ConPat Just
+|     |   | `-VarPat v
+|     |   |-VarExpr m
+|     |   `-Else
+|     |     `-Alt
+|     |       |-<parse error>
+|     |       `-RetExpr 
+|     |         `-LitExpr 0
+|     `-RetExpr 
+|       `-VarExpr v
+|-FunDecl ifWildcard <implicit return> 
+| |-Arg n
+| | `-ConType Int
+| `-Body
+|   `-MultiIfExpr 
+|     |-IfCase 
+|     | |-InfixExpr 
+|     | | |-VarExpr >
+|     | | |-VarExpr n
+|     | | `-LitExpr 0
+|     | `-LitExpr 1
+|     `-IfCase 
+|       |-LitExpr True
+|       `-LitExpr 2
+|-FunDecl letWildcard
+| |-Arg m
+| | `-AppType 
+| |   |-ConType Maybe
+| |   `-ConType Int
+| |-Result
+| | `-ConType Int
+| `-Body
+|   `-MultiExpr 
+|     |-DeclExpr 
+|     | `-VarDecl  <borrow> 
+|     |   |-ConPat Just
+|     |   | `-VarPat v
+|     |   |-VarExpr m
+|     |   `-Else
+|     |     `-Alt
+|     |       |-AnyPat
+|     |       `-RetExpr 
+|     |         `-LitExpr 0
+|     `-RetExpr 
+|       `-VarExpr v
+`-FunDecl after <implicit return> 
+  |-Arg a
+  | `-ConType Int
+  `-Body
+    `-VarExpr a

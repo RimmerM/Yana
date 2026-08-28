@@ -59,7 +59,7 @@ pub let heapClassCount = 32 :: Size
 
 pub let &heapNext = 0 :: %U8
 pub let &heapLimit = 0 :: %U8
-pub let &heapFree = 0 :: Ptr(Ptr(U8))
+pub let &heapFree = 0 :: %(%U8)
 
 -- How large the *next* region will be. Doubles as regions are taken, so a program that keeps growing
 -- pays a syscall per doubling rather than one per allocation, and a program that allocates a little
@@ -73,7 +73,7 @@ fn initHeap() -> {}:
     let table = heapClassCount * 8
     setMemory(region, 0, table)
 
-    heapFree = bitcast(region) :: Ptr(Ptr(U8))
+    heapFree = bitcast(region) :: %(%U8)
     heapNext = region + table
     heapLimit = region + heapRegionSize
     heapRegionNext = heapRegionSize + heapRegionSize
@@ -146,7 +146,7 @@ pub fn allocateHeap(size: Size) -> %U8:
     -- A reused block already has its header; only the free list changes.
     let reused = freeListHead(sizeClass)
     if !isNull(reused):
-        setFreeListHead(sizeClass, *(bitcast(reused) :: Ptr(%U8)))
+        setFreeListHead(sizeClass, *(bitcast(reused) :: %(%U8)))
         return reused
 
     let blockSize = heapBlockSize(sizeClass)
@@ -158,7 +158,7 @@ pub fn allocateHeap(size: Size) -> %U8:
 
     let block = heapNext
     heapNext = block + blockSize
-    store(bitcast(block) :: Ptr(Size), sizeClass)
+    store(bitcast(block) :: %Size, sizeClass)
 
     return block + 8
 
@@ -167,7 +167,7 @@ pub fn allocateHeap(size: Size) -> %U8:
 pub fn freeHeap(allocation: %U8) -> {}:
     if isNull(allocation) then return
 
-    let sizeClass = *(bitcast(allocation - 8) :: Ptr(Size))
+    let sizeClass = *(bitcast(allocation - 8) :: %Size)
 
-    store(bitcast(allocation) :: Ptr(%U8), freeListHead(sizeClass))
+    store(bitcast(allocation) :: %(%U8), freeListHead(sizeClass))
     setFreeListHead(sizeClass, allocation)

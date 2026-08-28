@@ -345,7 +345,7 @@ pub fn newCrc32C() -> Crc32C = Crc32C {value: 4294967295}
    The table is one flat array of 2048 rather than eight of 256, so a slice index is `k * 256 + byte`
    and the eight base offsets are constants. Nothing else about it differs.
 -}
-pub fn crc32Update(value: U32, from: Flat(U8), at: Size, count: Size) -> U32:
+pub fn crc32Update(value: U32, from: [U8], at: Size, count: Size) -> U32:
     let &crc = value
     let &i = at
     let stop = at + count
@@ -380,7 +380,7 @@ fn slot(word: U32) -> Size = truncate(word `and` 255) :: Size
 
 -- The byte-at-a-time Castagnoli fold, which is the JS path and the reference the native one is
 -- checked against.
-pub fn crc32cUpdateBytes(value: U32, from: Flat(U8), at: Size, count: Size) -> U32:
+pub fn crc32cUpdateBytes(value: U32, from: [U8], at: Size, count: Size) -> U32:
     let &crc = value
     let &i = at
     let stop = at + count
@@ -403,26 +403,26 @@ pub fn crc32cUpdateBytes(value: U32, from: Flat(U8), at: Size, count: Size) -> U
 -}
 instance Digest(Crc32, 4):
   fn newDigest() -> Crc32 = newCrc32()
-  fn update(&self: Crc32, from: Flat(U8)) -> {} = self.value = crc32Update(self.value, from, 0, length(from))
+  fn update(&self: Crc32, from: [U8]) -> {} = self.value = crc32Update(self.value, from, 0, length(from))
   fn finish(->self: Crc32) -> Fingerprint = bytesOfU32(not(self.value))
 
 instance Digest(Crc32C, 4):
   fn newDigest() -> Crc32C = newCrc32C()
-  fn update(&self: Crc32C, from: Flat(U8)) -> {} = self.value = crc32cUpdate(self.value, from, 0, length(from))
+  fn update(&self: Crc32C, from: [U8]) -> {} = self.value = crc32cUpdate(self.value, from, 0, length(from))
   fn finish(->self: Crc32C) -> Fingerprint = bytesOfU32(not(self.value))
 
-pub fn crc32Of(from: Flat(U8)) -> Fingerprint:
+pub fn crc32Of(from: [U8]) -> Fingerprint:
     let &state = newDigest() :: Crc32
     update(state, from)
     return finish(state)
-pub fn crc32cOf(from: Flat(U8)) -> Fingerprint:
+pub fn crc32cOf(from: [U8]) -> Fingerprint:
     let &state = newDigest() :: Crc32C
     update(state, from)
     return finish(state)
 
 -- The checksum as the number it is, for a caller writing a container field rather than a digest.
-pub fn crc32ValueOf(from: Flat(U8)) -> U32 = not(crc32Update(4294967295, from, 0, length(from)))
-pub fn crc32cValueOf(from: Flat(U8)) -> U32 = not(crc32cUpdate(4294967295, from, 0, length(from)))
+pub fn crc32ValueOf(from: [U8]) -> U32 = not(crc32Update(4294967295, from, 0, length(from)))
+pub fn crc32cValueOf(from: [U8]) -> U32 = not(crc32cUpdate(4294967295, from, 0, length(from)))
 
 -- A word laid out big-endian, which is what every digest here reports its result as. One store on a
 -- native target and one `DataView` call on JS - see `writeBigU32` in Core, which is where the four
@@ -440,5 +440,5 @@ pub fn bytesOfU32(value: U32) -> Fingerprint:
    is the JS answer, which is the table above. The split is a file rather than an attribute because
    what the native one is written in terms of is an instruction, and a JS build has none.
 -}
-@platform(js) pub fn crc32cUpdate(value: U32, from: Flat(U8), at: Size, count: Size) -> U32 =
+@platform(js) pub fn crc32cUpdate(value: U32, from: [U8], at: Size, count: Size) -> U32 =
     crc32cUpdateBytes(value, from, at, count)

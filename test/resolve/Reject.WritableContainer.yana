@@ -13,10 +13,10 @@ instance Length(ReadOnly(a)):
     fn length(self: ReadOnly(a)) -> Size = length(self.items)
 
 instance Contiguous(ReadOnly(a), a):
-    fn elements(return self: ReadOnly(a)) -> Flat(a) = elements(self.items)
+    fn elements(return self: ReadOnly(a)) -> '[a] = elements(self.items)
 
 instance Chunked(ReadOnly(a), a):
-    iter fn chunks(self: ReadOnly(a)) -> Flat(a) = yield elements(self)
+    iter fn chunks(self: ReadOnly(a)) -> '[a] = yield elements(self)
 
 fn writesOne(&xs: [Int]) -> {}:
     xs[0] = 9

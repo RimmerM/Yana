@@ -570,7 +570,7 @@ pub fn forkProcess() -> Size = syscall0(numberOf(SysFork))
    pointers into strings that have to outlive it is exactly the lifetime the caller is holding, and
    a helper here would take a `[String]` this file cannot name.
 -}
-pub fn execProcess(path: %U8, arguments: Ptr(Ptr(U8)), environment: Ptr(Ptr(U8))) -> Size =
+pub fn execProcess(path: %U8, arguments: %(%U8), environment: %(%U8)) -> Size =
     syscall3(numberOf(SysExec), bitcast(path) :: USize, bitcast(arguments) :: USize,
              bitcast(environment) :: USize)
 
@@ -635,10 +635,10 @@ pub fn signalProcess(process: Size, signal: Int) -> Size =
 pub let &commandLineCount = 0 :: Size
 
 @builtin(commandLineValues)
-pub let &commandLineValues = 0 :: Ptr(Ptr(U8))
+pub let &commandLineValues = 0 :: %(%U8)
 
 @builtin(commandLineEnvironment)
-pub let &commandLineEnvironment = 0 :: Ptr(Ptr(U8))
+pub let &commandLineEnvironment = 0 :: %(%U8)
 
 {-
    ==========================================================================================
@@ -690,7 +690,7 @@ pub fn auxiliaryValue(kind: USize) -> Maybe(USize):
     while (bitcast(*at) :: USize) != 0:
         at = at + 1
 
-    let &entry = bitcast(at + 1) :: Ptr(USize)
+    let &entry = bitcast(at + 1) :: %USize
 
     while *entry != atNull:
         if *entry == kind then return Just(*(entry + 1))

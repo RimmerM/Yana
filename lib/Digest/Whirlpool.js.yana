@@ -144,8 +144,8 @@ fn rorLo(hi: U32, lo: U32, d: U32) -> U32 = (lo `shr` d) `or` (hi `shl` (32 - d)
    The four terms rotated by 32 or more take `rorLo`/`rorHi` the other way round, which is the
    exchange composed into the funnel shift - see the note at the head of this file.
 -}
-fn whirlpoolLaneHalves(hi: Flat(U32), lo: Flat(U32), n: Size, keyHi: U32, keyLo: U32,
-                       &outHi: Flat(U32), &outLo: Flat(U32), at: Size) -> {}:
+fn whirlpoolLaneHalves(hi: [U32], lo: [U32], n: Size, keyHi: U32, keyLo: U32,
+                       &outHi: [U32], &outLo: [U32], at: Size) -> {}:
     let s0 = truncate(hi[n] `shr` 24) :: Size
     let &accHi = circulantHi[s0]
     let &accLo = circulantLo[s0]
@@ -188,7 +188,7 @@ fn whirlpoolLaneHalves(hi: Flat(U32), lo: Flat(U32), n: Size, keyHi: U32, keyLo:
    Line for line the other file's `whirlpoolCompress` with every lane doubled: the same ten rounds,
    the same key schedule advanced beside the state, and the same Miyaguchi-Preneel fold at the end.
 -}
-fn compressHalves(&stateHi: [U32 *8], &stateLo: [U32 *8], from: Flat(U8), at: Size) -> {}:
+fn compressHalves(&stateHi: [U32 *8], &stateLo: [U32 *8], from: [U8], at: Size) -> {}:
     let &blockHi = [0] :: [U32 *8]
     let &blockLo = [0] :: [U32 *8]
     let &keyHi = [0] :: [U32 *8]
@@ -253,7 +253,7 @@ fn compressHalves(&stateHi: [U32 *8], &stateLo: [U32 *8], from: Flat(U8), at: Si
    platform-selected and dragged the record, the padding and the result with it.
 -}
 instance Block(WhirlpoolState):
-  fn compressBlocks(&self: WhirlpoolState, from: Flat(U8), at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: WhirlpoolState, from: [U8], at: Size, blocks: Size) -> {}:
       let &stateHi = [0] :: [U32 *8]
       let &stateLo = [0] :: [U32 *8]
 

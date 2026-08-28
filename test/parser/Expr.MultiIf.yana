@@ -1,10 +1,11 @@
--- Multi-way if, with a wildcard fallback.
+-- Multi-way if, with an 'else' fallback. `_` is not accepted here: an `if:` case is a fallback
+-- marker rather than a pattern, so `else` is the only spelling of it.
 fn f(a: Int) = if:
   a > 0 -> 1
   a < 0 -> -1
-  _ -> 0
+  else -> 0
 
--- Multi-way if, with an 'else' fallback.
+-- The same, with a condition that binds nothing before it.
 fn g(a: Int) = if:
   a == 0 -> "zero"
   else -> "nonzero"

@@ -189,10 +189,10 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
                 setVectorAt(to, low)
                 setVectorAt(to + (count - 16), high)
             else:
-                let low = *(bitcast(from) :: Ptr(U64))
-                let high = *(bitcast(from + (count - 8)) :: Ptr(U64))
-                store(bitcast(to) :: Ptr(U64), low)
-                store(bitcast(to + (count - 8)) :: Ptr(U64), high)
+                let low = *(bitcast(from) :: %U64)
+                let high = *(bitcast(from + (count - 8)) :: %U64)
+                store(bitcast(to) :: %U64, low)
+                store(bitcast(to + (count - 8)) :: %U64, high)
         else if width > 16:
             -- The one rung v3 needs and v2 does not, by the same constant test.
             if count >= 16:
@@ -201,26 +201,26 @@ fn blockShort(to: %U8, from: %U8, count: Size) -> {}:
                 setVectorAt(to, low)
                 setVectorAt(to + (count - 16), high)
             else:
-                let low = *(bitcast(from) :: Ptr(U64))
-                let high = *(bitcast(from + (count - 8)) :: Ptr(U64))
-                store(bitcast(to) :: Ptr(U64), low)
-                store(bitcast(to + (count - 8)) :: Ptr(U64), high)
+                let low = *(bitcast(from) :: %U64)
+                let high = *(bitcast(from + (count - 8)) :: %U64)
+                store(bitcast(to) :: %U64, low)
+                store(bitcast(to + (count - 8)) :: %U64, high)
         else:
-            let low = *(bitcast(from) :: Ptr(U64))
-            let high = *(bitcast(from + (count - 8)) :: Ptr(U64))
-            store(bitcast(to) :: Ptr(U64), low)
-            store(bitcast(to + (count - 8)) :: Ptr(U64), high)
+            let low = *(bitcast(from) :: %U64)
+            let high = *(bitcast(from + (count - 8)) :: %U64)
+            store(bitcast(to) :: %U64, low)
+            store(bitcast(to + (count - 8)) :: %U64, high)
     else if count >= 2:
         if count >= 4:
-            let low = *(bitcast(from) :: Ptr(U32))
-            let high = *(bitcast(from + (count - 4)) :: Ptr(U32))
-            store(bitcast(to) :: Ptr(U32), low)
-            store(bitcast(to + (count - 4)) :: Ptr(U32), high)
+            let low = *(bitcast(from) :: %U32)
+            let high = *(bitcast(from + (count - 4)) :: %U32)
+            store(bitcast(to) :: %U32, low)
+            store(bitcast(to + (count - 4)) :: %U32, high)
         else:
-            let low = *(bitcast(from) :: Ptr(U16))
-            let high = *(bitcast(from + (count - 2)) :: Ptr(U16))
-            store(bitcast(to) :: Ptr(U16), low)
-            store(bitcast(to + (count - 2)) :: Ptr(U16), high)
+            let low = *(bitcast(from) :: %U16)
+            let high = *(bitcast(from + (count - 2)) :: %U16)
+            store(bitcast(to) :: %U16, low)
+            store(bitcast(to + (count - 2)) :: %U16, high)
     else if count >= 1:
         store(to, *from)
 

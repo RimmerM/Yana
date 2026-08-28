@@ -74,7 +74,7 @@ pub fn newWhirlpoolState() -> WhirlpoolState = WhirlpoolState {h: [0, 0, 0, 0, 0
 instance Padded(WhirlpoolState):
   fn lengthBytes(self: WhirlpoolState) -> Size = 32
 
-  fn writeMessageLength(self: WhirlpoolState, &to: Flat(U8), at: Size, bytes: Size) -> {}:
+  fn writeMessageLength(self: WhirlpoolState, &to: [U8], at: Size, bytes: Size) -> {}:
       zeroBytes(to, at, 24)
       writeBigLength(to, at + 24, bytes)
 
@@ -85,7 +85,7 @@ pub alias WhirlpoolDigest = [U8 *64]
 instance Digest(Blocks(WhirlpoolState), 64):
   fn newDigest() -> Blocks(WhirlpoolState) = newBlocks(newWhirlpoolState())
 
-  fn update(&self: Blocks(WhirlpoolState), from: Flat(U8)) -> {} = absorb(self, from)
+  fn update(&self: Blocks(WhirlpoolState), from: [U8]) -> {} = absorb(self, from)
 
   -- Eight 64-bit words rather than `bigU32Digest`'s thirty-two-bit ones, which is the whole of why
   -- this keeps its own loop.
@@ -103,7 +103,7 @@ instance Digest(Blocks(WhirlpoolState), 64):
 
       return out
 
-pub fn whirlpoolOf(from: Flat(U8)) -> WhirlpoolDigest:
+pub fn whirlpoolOf(from: [U8]) -> WhirlpoolDigest:
     let &state = newDigest() :: Whirlpool
     update(state, from)
     return finish(state)

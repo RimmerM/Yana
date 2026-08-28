@@ -101,7 +101,7 @@ fn tableSlot(index: U64) -> Size = truncate(index `and` 255) :: Size
    `8k` bits down, which is the diffusion: after one round every output byte depends on eight input
    bytes drawn from eight different lanes.
 -}
-fn whirlpoolLane(a: Flat(U64), n: Size, key: U64) -> U64 =
+fn whirlpoolLane(a: [U64], n: Size, key: U64) -> U64 =
     (((bitcast(circulant[tableSlot(a[n] `shr` 56)]) :: U64) `xor` ((bitcast(circulant[tableSlot(a[(n + 7) `and` 7] `shr` 48)]) :: U64) `ror` 8)) `xor`
      (((bitcast(circulant[tableSlot(a[(n + 6) `and` 7] `shr` 40)]) :: U64) `ror` 16) `xor`
       ((bitcast(circulant[tableSlot(a[(n + 5) `and` 7] `shr` 32)]) :: U64) `ror` 24))) `xor`
@@ -118,7 +118,7 @@ fn whirlpoolLane(a: Flat(U64), n: Size, key: U64) -> U64 =
    that key. What comes out is xor'd with both the state that went in and the message block, which is
    what makes the construction one-way rather than a cipher anybody can run backwards.
 -}
-pub fn whirlpoolCompress(&h: [I64 *8], from: Flat(U8), at: Size) -> {}:
+pub fn whirlpoolCompress(&h: [I64 *8], from: [U8], at: Size) -> {}:
     let &block = [0] :: [U64 *8]
     let &key = [0] :: [U64 *8]
     let &state = [0] :: [U64 *8]
@@ -164,7 +164,7 @@ pub fn whirlpoolCompress(&h: [I64 *8], from: Flat(U8), at: Size) -> {}:
 
 
 instance Block(WhirlpoolState):
-  fn compressBlocks(&self: WhirlpoolState, from: Flat(U8), at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: WhirlpoolState, from: [U8], at: Size, blocks: Size) -> {}:
       let &i = 0 :: Size
       while i < blocks:
           whirlpoolCompress(self.h, from, at + i * 64)

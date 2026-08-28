@@ -62,7 +62,7 @@ pub fn newSha224State() -> Sha224State = Sha224State {h: [
    mutable borrow because those are the two variables a round writes, which is the pair the
    permutation is built around.
 -}
-pub fn sha256Compress(&h: [U32 *8], from: Flat(U8), at: Size) -> {}:
+pub fn sha256Compress(&h: [U32 *8], from: [U8], at: Size) -> {}:
     let &w = [0] :: [U32 *64]
 
     let &i = 0 :: Size
@@ -145,20 +145,20 @@ fn sha2Majority(a: U32, b: U32, c: U32) -> U32 = (a `and` b) `or` (c `and` (a `o
 
 
 instance Block(Sha256State):
-  fn compressBlocks(&self: Sha256State, from: Flat(U8), at: Size, blocks: Size) -> {} =
+  fn compressBlocks(&self: Sha256State, from: [U8], at: Size, blocks: Size) -> {} =
       sha256CompressBlocks(self.h, from, at, blocks)
 
 instance Padded(Sha256State):
   fn lengthBytes(self: Sha256State) -> Size = 8
-  fn writeMessageLength(self: Sha256State, &to: Flat(U8), at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
+  fn writeMessageLength(self: Sha256State, &to: [U8], at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
 
 instance Block(Sha224State):
-  fn compressBlocks(&self: Sha224State, from: Flat(U8), at: Size, blocks: Size) -> {} =
+  fn compressBlocks(&self: Sha224State, from: [U8], at: Size, blocks: Size) -> {} =
       sha256CompressBlocks(self.h, from, at, blocks)
 
 instance Padded(Sha224State):
   fn lengthBytes(self: Sha224State) -> Size = 8
-  fn writeMessageLength(self: Sha224State, &to: Flat(U8), at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
+  fn writeMessageLength(self: Sha224State, &to: [U8], at: Size, bytes: Size) -> {} = writeBigLength(to, at, bytes)
 
 {-
    The two digests.
@@ -194,7 +194,7 @@ pub alias Sha224Digest = [U8 *28]
 instance Digest(Blocks(Sha256State), 32):
   fn newDigest() -> Blocks(Sha256State) = newBlocks(newSha256State())
 
-  fn update(&self: Blocks(Sha256State), from: Flat(U8)) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Sha256State), from: [U8]) -> {} = absorb(self, from)
 
   fn finish(->self: Blocks(Sha256State)) -> Sha256Digest:
       let &running = self
@@ -204,7 +204,7 @@ instance Digest(Blocks(Sha256State), 32):
 instance Digest(Blocks(Sha224State), 28):
   fn newDigest() -> Blocks(Sha224State) = newBlocks(newSha224State())
 
-  fn update(&self: Blocks(Sha224State), from: Flat(U8)) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Sha224State), from: [U8]) -> {} = absorb(self, from)
 
   -- Seven of the eight words the state carries, which `bigU32Digest` gets from the result width
   -- rather than from the state's - see the note there.
@@ -213,11 +213,11 @@ instance Digest(Blocks(Sha224State), 28):
       padFinal(running)
       return bigU32Digest(running.state.h)
 
-pub fn sha256Of(from: Flat(U8)) -> Sha256Digest:
+pub fn sha256Of(from: [U8]) -> Sha256Digest:
     let &state = newDigest() :: Sha256
     update(state, from)
     return finish(state)
-pub fn sha224Of(from: Flat(U8)) -> Sha224Digest:
+pub fn sha224Of(from: [U8]) -> Sha224Digest:
     let &state = newDigest() :: Sha224
     update(state, from)
     return finish(state)

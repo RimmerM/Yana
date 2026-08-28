@@ -132,9 +132,9 @@ let &n = 1
 -- Loop until n is above 100.
 while n <= 100:
   if:
-    n `rem` 15 == 0 -> println("fizzbuzz")
-    n `rem` 3 == 0  -> println("fizz")
-    n `rem` 5 == 0  -> println("buzz")
+    n % 15 == 0 -> println("fizzbuzz")
+    n % 3 == 0  -> println("fizz")
+    n % 5 == 0  -> println("buzz")
     else            -> println("{n}")
   n = n + 1
 ```

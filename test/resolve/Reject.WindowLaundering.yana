@@ -16,7 +16,7 @@ import Native
 
    A window is the one type where owning the value and being allowed to write through it are
    different questions, and §4.5's capability bit is what lets the difference be stated rather than
-   guessed: `elements` returns `Flat(a)` and `elementsMut` returns `&Flat(a)`, so the binding asks
+   guessed: `elements` returns `'[a]` and `elementsMut` returns `&[a]`, so the binding asks
    the value instead of concluding from the fact that it owns the descriptor.
 
    `lib/Core/Sort.yana` was doing exactly this - `let &window = elements(xs)` - which is why `sort`

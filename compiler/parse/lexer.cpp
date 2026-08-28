@@ -561,9 +561,6 @@ void Lexer::parseVariable(Token& token, const char** start, U32* length) {
             if(compareConstString(c, m, "atch")) token.type = Token::kwMatch;
             else if(compareConstString(c, m, "odule")) token.type = Token::kwModule;
             break;
-        case 'n':
-            if(compareConstString(c, m, "ewtype")) token.type = Token::kwNewType;
-            break;
         case 'p':
             if(compareConstString(c, m, "refixr")) token.type = Token::kwPrefixR;
             else if(m - c >= 2 && *c == 'u' && c[1] == 'b') {c += 2; token.type = Token::kwPub;}

@@ -33,7 +33,7 @@ pub fn newSha1State() -> Sha1State =
    rounds, so the loop that uses one uses it twenty times and a table read would be a load per round
    for a value the instruction stream can hold as an immediate.
 -}
-pub fn sha1Compress(&h: [U32 *5], from: Flat(U8), at: Size) -> {}:
+pub fn sha1Compress(&h: [U32 *5], from: [U8], at: Size) -> {}:
     let &w = [0] :: [U32 *16]
 
     let &i = 0 :: Size
@@ -115,7 +115,7 @@ fn sha1Step(a: U32, &b: U32, c: U32, d: U32, &e: U32, f: U32, k: U32, w: U32) ->
 
 -- The schedule, extended in place. `w[n and 15]` is both the word being replaced and one of the
 -- four inputs, which is what makes sixteen words enough.
-fn extend(&w: Flat(U32), n: Size) -> U32:
+fn extend(&w: [U32], n: Size) -> U32:
     let slot = n `and` 15
     let mixed = ((w[slot] `xor` w[(n + 2) `and` 15]) `xor` w[(n + 8) `and` 15]) `xor` w[(n + 13) `and` 15]
     let next = mixed `rol` 1
@@ -127,12 +127,12 @@ fn sha1Parity(x: U32, y: U32, z: U32) -> U32 = (x `xor` y) `xor` z
 fn sha1Majority(x: U32, y: U32, z: U32) -> U32 = (x `and` y) `or` (z `and` (x `or` y))
 
 instance Block(Sha1State):
-  fn compressBlocks(&self: Sha1State, from: Flat(U8), at: Size, blocks: Size) -> {} =
+  fn compressBlocks(&self: Sha1State, from: [U8], at: Size, blocks: Size) -> {} =
       sha1CompressBlocks(self.h, from, at, blocks)
 
 instance Padded(Sha1State):
   fn lengthBytes(self: Sha1State) -> Size = 8
-  fn writeMessageLength(self: Sha1State, &to: Flat(U8), at: Size, bytes: Size) -> {} =
+  fn writeMessageLength(self: Sha1State, &to: [U8], at: Size, bytes: Size) -> {} =
       writeBigLength(to, at, bytes)
 
 pub alias Sha1 = Blocks(Sha1State)
@@ -142,14 +142,14 @@ pub alias Sha1Digest = [U8 *20]
 instance Digest(Blocks(Sha1State), 20):
   fn newDigest() -> Blocks(Sha1State) = newBlocks(newSha1State())
 
-  fn update(&self: Blocks(Sha1State), from: Flat(U8)) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Sha1State), from: [U8]) -> {} = absorb(self, from)
 
   fn finish(->self: Blocks(Sha1State)) -> Sha1Digest:
       let &running = self
       padFinal(running)
       return bigU32Digest(running.state.h)
 
-pub fn sha1Of(from: Flat(U8)) -> Sha1Digest:
+pub fn sha1Of(from: [U8]) -> Sha1Digest:
     let &state = newDigest() :: Sha1
     update(state, from)
     return finish(state)

@@ -17,13 +17,13 @@ import Native
    where the pair of names is declared.
 -}
 
-pub fn sha256CompressBlocks(&h: [U32 *8], from: Flat(U8), at: Size, blocks: Size) -> {}:
+pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size) -> {}:
     let &i = 0 :: Size
     while i < blocks:
         sha256Compress(h, from, at + i * 64)
         i = i + 1
 
-pub fn sha1CompressBlocks(&h: [U32 *5], from: Flat(U8), at: Size, blocks: Size) -> {}:
+pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size) -> {}:
     let &i = 0 :: Size
     while i < blocks:
         sha1Compress(h, from, at + i * 64)

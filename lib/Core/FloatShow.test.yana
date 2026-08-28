@@ -224,7 +224,7 @@ fn roundTripsNarrow(value: Float) -> Bool:
         -- A value with a wide exponent range and a full mantissa, built out of the state by
         -- arithmetic: the low bits become a fraction and the next few choose a scale.
         let fraction = ((truncate(state `and` 2147483647) :: Int) :: Double) / 2147483648.0
-        let scale = truncate((state `shr` 32) `rem` 60) :: Int
+        let scale = truncate((state `shr` 32) % 60) :: Int
         value = (1.0 + fraction) * powerOfTen(scale - 30)
 
         if !roundTrips(value) then failures = failures + 1

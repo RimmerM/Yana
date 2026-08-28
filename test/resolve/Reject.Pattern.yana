@@ -15,17 +15,17 @@ data Color = Red | Green | Blue
 -- author did not write and, here, one the wildcard would have caught anyway.
 fn unsignedNegative(n: U8) -> Int = match n:
     -1 -> 1
-    else -> 0
+    _ -> 0
 
 -- The positive half of the same rule, which nothing asserted either until this file.
 fn unsignedTooBig(n: U8) -> Int = match n:
     300 -> 1
-    else -> 0
+    _ -> 0
 
 -- A pivot that a number is not a value of at all, which is a mistake rather than a truncation: there
 -- is no bit pattern to narrow to and nothing to warn about.
 fn notANumber(c: Color) -> Int = match c:
     -1 -> 1
-    else -> 0
+    _ -> 0
 
 fn main() -> Int = unsignedNegative(255) + unsignedTooBig(44) + notANumber(Red)

@@ -45,7 +45,7 @@ import Native
    what every message in this module is.
 -}
 @x86_legacy_sse
-fn loadBigWords(from: Flat(U8), at: Size) -> Vec(U32, 4) = swapWordBytes(loadWords(from, at))
+fn loadBigWords(from: [U8], at: Size) -> Vec(U32, 4) = swapWordBytes(loadWords(from, at))
 
 {-
    The same sixteen bytes byte-reversed *and* lane-reversed, which is what SHA-1 reads.
@@ -56,7 +56,7 @@ fn loadBigWords(from: Flat(U8), at: Size) -> Vec(U32, 4) = swapWordBytes(loadWor
    that reverses all sixteen bytes.
 -}
 @x86_legacy_sse
-fn loadReversedWords(from: Flat(U8), at: Size) -> Vec(U32, 4) =
+fn loadReversedWords(from: [U8], at: Size) -> Vec(U32, 4) =
     bitcast(shuffle(bitcast(loadWords(from, at)) :: Vec(U8, 16),
                     [15,14,13,12, 11,10,9,8, 7,6,5,4, 3,2,1,0])) :: Vec(U32, 4)
 
@@ -64,7 +64,7 @@ fn loadReversedWords(from: Flat(U8), at: Size) -> Vec(U32, 4) =
 -- words, so the pointer is reinterpreted rather than the vector: a `Vec(U8, 16)` and a
 -- `Vec(U32, 4)` are one register, but only one of them has the lanes the callers above want.
 @x86_legacy_sse
-fn loadWords(from: Flat(U8), at: Size) -> Vec(U32, 4) =
+fn loadWords(from: [U8], at: Size) -> Vec(U32, 4) =
     vectorAt(bitcast(from.items + at) :: %U32) :: Vec(U32, 4)
 
 {-
@@ -96,12 +96,12 @@ fn constantsAt(group: Size) -> Vec(U32, 4) = wordsAt(roundConstants, group * 4)
 -- `[U32 *64]` and only a *call* converts one to a slice - `Contiguous` has no instance for a fixed
 -- array, and the note beside `Length([a *n])` in `Core/Container.yana` is why.
 @x86_legacy_sse
-fn wordsAt(from: Flat(U32), at: Size) -> Vec(U32, 4) = vectorAt(from.items + at) :: Vec(U32, 4)
+fn wordsAt(from: [U32], at: Size) -> Vec(U32, 4) = vectorAt(from.items + at) :: Vec(U32, 4)
 
 -- And back. `setVectorAt` for `vectorAt`'s reason: the count is four and not the target's natural
 -- one, and only the raw-address form takes a written count.
 @x86_legacy_sse
-fn setWordsAt(to: Flat(U32), at: Size, value: Vec(U32, 4)) -> {} = setVectorAt(to.items + at, value)
+fn setWordsAt(to: [U32], at: Size, value: Vec(U32, 4)) -> {} = setVectorAt(to.items + at, value)
 
 -- Four zero words, which SHA-1's `E` and its carry are built out of by `withLane` - the state
 -- vectors that come whole out of memory are shuffles now, and this is what is left. A function
@@ -159,7 +159,7 @@ fn zeroWords() -> Vec(U32, 4) = zero() :: Vec(U32, 4)
 @noinline
 @convention(sysv)
 @x86_legacy_sse
-pub fn sha256CompressBlocks(&h: [U32 *8], from: Flat(U8), at: Size, blocks: Size) -> {}:
+pub fn sha256CompressBlocks(&h: [U32 *8], from: [U8], at: Size, blocks: Size) -> {}:
     -- Before anything else, and only here rather than in the helpers below: this function takes no
     -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
     -- one, which is why the state change is a call the author places and not something the attribute
@@ -335,7 +335,7 @@ fn scheduleGroup(&state0: Vec(U32, 4), &state1: Vec(U32, 4), constants: Vec(U32,
 @noinline
 @convention(sysv)
 @x86_legacy_sse
-pub fn sha1CompressBlocks(&h: [U32 *5], from: Flat(U8), at: Size, blocks: Size) -> {}:
+pub fn sha1CompressBlocks(&h: [U32 *5], from: [U8], at: Size, blocks: Size) -> {}:
     -- Before anything else, and only here rather than in the helpers below: this function takes no
     -- vector argument, so there is nothing arriving for the reset to destroy. A helper does take
     -- one, which is why the state change is a call the author places and not something the attribute

@@ -44,7 +44,7 @@ pub fn newMd5State() -> Md5State = Md5State {h: [1732584193, 4023233417, 2562383
    about it is unusual except what is *not* there: no shift table, no index table, and no shuffling
    of the four accumulators.
 -}
-pub fn md5Compress(&h: [U32 *4], from: Flat(U8), at: Size) -> {}:
+pub fn md5Compress(&h: [U32 *4], from: [U8], at: Size) -> {}:
     let &w = [0] :: [U32 *16]
 
     let &i = 0 :: Size
@@ -111,7 +111,7 @@ fn md5Parity(x: U32, y: U32, z: U32) -> U32 = (x `xor` y) `xor` z
 fn md5Notate(x: U32, y: U32, z: U32) -> U32 = y `xor` (x `or` not(z))
 
 instance Block(Md5State):
-  fn compressBlocks(&self: Md5State, from: Flat(U8), at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: Md5State, from: [U8], at: Size, blocks: Size) -> {}:
       let &i = 0 :: Size
       while i < blocks:
           md5Compress(self.h, from, at + i * 64)
@@ -122,7 +122,7 @@ instance Padded(Md5State):
 
   -- The one digest here whose length field is little-endian, which is the same order its message
   -- words are read in and is the whole of what makes MD5 different from the SHA family at this seam.
-  fn writeMessageLength(self: Md5State, &to: Flat(U8), at: Size, bytes: Size) -> {} =
+  fn writeMessageLength(self: Md5State, &to: [U8], at: Size, bytes: Size) -> {} =
       writeLittleLength(to, at, bytes)
 
 pub alias Md5 = Blocks(Md5State)
@@ -132,7 +132,7 @@ pub alias Md5Digest = [U8 *16]
 instance Digest(Blocks(Md5State), 16):
   fn newDigest() -> Blocks(Md5State) = newBlocks(newMd5State())
 
-  fn update(&self: Blocks(Md5State), from: Flat(U8)) -> {} = absorb(self, from)
+  fn update(&self: Blocks(Md5State), from: [U8]) -> {} = absorb(self, from)
 
   -- The loop `bigU32Digest` is, little-endian - MD5's one departure from the SHA family here, and
   -- the reason that helper is not written with an endianness argument.
@@ -148,7 +148,7 @@ instance Digest(Blocks(Md5State), 16):
 
       return out
 
-pub fn md5Of(from: Flat(U8)) -> Md5Digest:
+pub fn md5Of(from: [U8]) -> Md5Digest:
     let &state = newDigest() :: Md5
     update(state, from)
     return finish(state)

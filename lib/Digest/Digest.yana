@@ -46,7 +46,7 @@ import Native
 -}
 pub class Digest(d -> n: Int):
   fn newDigest() -> d
-  fn update(&self: d, from: Flat(U8)) -> {}
+  fn update(&self: d, from: [U8]) -> {}
   fn finish(->self: d) -> [U8 *n]
 
 {-
@@ -95,7 +95,7 @@ pub fn xorPad(&pad: [U8 *64], with: U8) -> {}:
 
 -- The key into the pad, leaving the rest of it zero - which is the zero extension the specification
 -- asks for, already there because `newPad` made it.
-pub fn copyIntoPad(&pad: [U8 *64], from: Flat(U8)) -> {}:
+pub fn copyIntoPad(&pad: [U8 *64], from: [U8]) -> {}:
     copyBytes(pad, 0, from, 0, length(from))
 
 {-
@@ -136,11 +136,11 @@ pub fn copyIntoPad(&pad: [U8 *64], from: Flat(U8)) -> {}:
    high word is always zero there - which is correct, since a JS host array cannot hold 512 MB of
    message in the first place.
 -}
-pub fn writeBigLength(&to: Flat(U8), at: Size, bytes: Size) -> {}:
+pub fn writeBigLength(&to: [U8], at: Size, bytes: Size) -> {}:
     writeBigU32(to, at, truncate(bytes `shr` 29) :: U32)
     writeBigU32(to, at + 4, truncate(bytes `shl` 3) :: U32)
 
-pub fn writeLittleLength(&to: Flat(U8), at: Size, bytes: Size) -> {}:
+pub fn writeLittleLength(&to: [U8], at: Size, bytes: Size) -> {}:
     writeLittleU32(to, at, truncate(bytes `shl` 3) :: U32)
     writeLittleU32(to, at + 4, truncate(bytes `shr` 29) :: U32)
 
@@ -174,7 +174,7 @@ pub class Block(c):
 
      A caller that has one block passes one, which is what `padFinal` does.
   -}
-  fn compressBlocks(&self: c, from: Flat(U8), at: Size, blocks: Size) -> {}
+  fn compressBlocks(&self: c, from: [U8], at: Size, blocks: Size) -> {}
 
 {-
    And the padding rule, which is a class of its own rather than two more members of `Block`.
@@ -203,7 +203,7 @@ pub class (Block(c)) Padded(c):
      `bytes shl 3` and `bytes shr 29` are those two halves in the `Size` domain, which is an ordinary
      integer on both targets.
   -}
-  fn writeMessageLength(self: c, &to: Flat(U8), at: Size, bytes: Size) -> {}
+  fn writeMessageLength(self: c, &to: [U8], at: Size, bytes: Size) -> {}
 
 pub data Blocks(c) {state: c, block: [U8 *64], used: Size, total: Size}
 
@@ -237,7 +237,7 @@ pub fn newBlocks(->state: c) -> Blocks(c) = Blocks {state: state, block: [0], us
    costs one copy per byte and one compression per sixty-four, which is the shape a streaming caller
    wants and is what the buffer exists for.
 -}
-pub fn (Block(c)) absorb(&self: Blocks(c), from: Flat(U8)) -> {}:
+pub fn (Block(c)) absorb(&self: Blocks(c), from: [U8]) -> {}:
     let n = length(from)
     let &at = 0 :: Size
 
@@ -331,13 +331,13 @@ pub fn (n: Int, w: Int) bigU32Digest(h: [U32 *w]) -> [U8 *n]:
    sixty-four bytes - so a call into the block ladder would cost more in dispatch than the loop
    costs outright. Written this way they are also the same source on both targets.
 -}
-pub fn copyBytes(&to: Flat(U8), toAt: Size, from: Flat(U8), fromAt: Size, count: Size) -> {}:
+pub fn copyBytes(&to: [U8], toAt: Size, from: [U8], fromAt: Size, count: Size) -> {}:
     let &i = 0 :: Size
     while i < count:
         to[toAt + i] = from[fromAt + i]
         i = i + 1
 
-pub fn zeroBytes(&to: Flat(U8), at: Size, count: Size) -> {}:
+pub fn zeroBytes(&to: [U8], at: Size, count: Size) -> {}:
     let &i = 0 :: Size
     while i < count:
         to[at + i] = 0
@@ -355,7 +355,7 @@ pub fn zeroBytes(&to: Flat(U8), at: Size, count: Size) -> {}:
    Lower case, because every protocol that compares digest text as a string - a `Content-MD5`
    header, a `.sha256` sidecar file, git - writes it that way.
 -}
-pub fn pushHex(bytes: Flat(U8), &to: String) -> {}:
+pub fn pushHex(bytes: [U8], &to: String) -> {}:
     let n = length(bytes)
     let &i = 0 :: Size
 
@@ -367,7 +367,7 @@ pub fn pushHex(bytes: Flat(U8), &to: String) -> {}:
         String.pushUnit(to, hexUnit(byte `and` 15))
         i = i + 1
 
-pub fn hexOf(bytes: Flat(U8)) -> String:
+pub fn hexOf(bytes: [U8]) -> String:
     let &text = String.ofCapacity(length(bytes) * 2)
     pushHex(bytes, text)
     return text
@@ -424,7 +424,7 @@ fn hexUnit(nibble: Int) -> Int = if nibble < 10 then 48 + nibble else 87 + nibbl
    `Hmac.whirlpool` is the widest of them and the one whose digest exactly fills the pad, which is
    the case `newPad`'s sixty-four was chosen for.
 -}
-pub fn (Digest(d, n)) Hmac.of(->state: d, key: Flat(U8), message: Flat(U8)) -> [U8 *n]:
+pub fn (Digest(d, n)) Hmac.of(->state: d, key: [U8], message: [U8]) -> [U8 *n]:
     let &pad = newPad()
     let width = n :: Size
 
@@ -448,17 +448,17 @@ pub fn (Digest(d, n)) Hmac.of(->state: d, key: Flat(U8), message: Flat(U8)) -> [
     update(outer, pad[0..truncate(width) :: Int])
     return finish(outer)
 
-pub fn Hmac.md5(key: Flat(U8), message: Flat(U8)) -> Md5Digest =
+pub fn Hmac.md5(key: [U8], message: [U8]) -> Md5Digest =
     Hmac.of(newDigest() :: Md5, key, message)
 
-pub fn Hmac.sha1(key: Flat(U8), message: Flat(U8)) -> Sha1Digest =
+pub fn Hmac.sha1(key: [U8], message: [U8]) -> Sha1Digest =
     Hmac.of(newDigest() :: Sha1, key, message)
 
-pub fn Hmac.sha224(key: Flat(U8), message: Flat(U8)) -> Sha224Digest =
+pub fn Hmac.sha224(key: [U8], message: [U8]) -> Sha224Digest =
     Hmac.of(newDigest() :: Sha224, key, message)
 
-pub fn Hmac.whirlpool(key: Flat(U8), message: Flat(U8)) -> WhirlpoolDigest =
+pub fn Hmac.whirlpool(key: [U8], message: [U8]) -> WhirlpoolDigest =
     Hmac.of(newDigest() :: Whirlpool, key, message)
 
-pub fn Hmac.sha256(key: Flat(U8), message: Flat(U8)) -> Sha256Digest =
+pub fn Hmac.sha256(key: [U8], message: [U8]) -> Sha256Digest =
     Hmac.of(newDigest() :: Sha256, key, message)

@@ -29,7 +29,7 @@ import Native
    tail one unit at a time.
 -}
 instance Chunked(String, CodeUnit):
-    iter fn chunks(self: String) -> Flat(CodeUnit) = yield elements(stringData(self).bytes)
+    iter fn chunks(self: String) -> '[CodeUnit] = yield elements(stringData(self).bytes)
 
 {-
    The string's units, as a container - the private primitive every scan below is written over.
@@ -54,7 +54,7 @@ instance Chunked(String, CodeUnit):
    `Flat` returned through the caller's stack slot. See `loweredUnits` below, which was the same
    story a second time and is where most of the difference was.
 -}
-@inline fn allUnits(return text: String) -> Flat(CodeUnit) = elements(stringData(text).bytes)
+@inline fn allUnits(return text: String) -> '[CodeUnit] = elements(stringData(text).bytes)
 
 {-
    ------------------------------------------------------------------------------------------
@@ -228,7 +228,7 @@ pub fn findAsciiNone(self: String, units: [CodeUnit], from: Size = 0) -> Maybe(S
    An `Ordering` where a `Bool` is wanted costs nothing: the equal answer is the path with no
    differing lane on it, and the arm that names one is taken at most once per call.
 -}
-fn unitsEqual(left: Flat(CodeUnit), right: Flat(CodeUnit)) -> Bool =
+fn unitsEqual(left: [CodeUnit], right: [CodeUnit]) -> Bool =
     compareMemory(left.items, right.items, length(left)) == EQ
 
 {-
@@ -485,14 +485,14 @@ pub fn toUpperAscii(text: String) -> String:
 
     return select(letters, block + (splat(32 :: I8) :: Vec(I8)), block)
 
-@inline fn signedUnits(from: Flat(CodeUnit), at: Size) -> Vec(I8) =
+@inline fn signedUnits(from: [CodeUnit], at: Size) -> Vec(I8) =
     bitcast(loadVector(from, at)) :: Vec(I8)
 
 -- And the same read past the end, for the block shorter than a register - `loadVectorTail`'s
 -- overread, which Design-Vector §5.2 covers for a string's run. What makes the lanes it reads past
 -- the end harmless is the caller's, and the two callers do it differently: `unitsEqual` masks them
 -- into agreement, `compareAsciiCase` lets them disagree and tests the position it finds.
-@inline fn signedUnitsTail(from: Flat(CodeUnit), at: Size) -> Vec(I8) =
+@inline fn signedUnitsTail(from: [CodeUnit], at: Size) -> Vec(I8) =
     bitcast(loadVectorTail(from, at)) :: Vec(I8)
 
 pub fn equalsAsciiCase(left: String, right: String) -> Bool:

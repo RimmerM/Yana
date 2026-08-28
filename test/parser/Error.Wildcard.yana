@@ -1,0 +1,31 @@
+-- `_` is the pattern wildcard and `else` is the fallback marker, and neither stands in for the
+-- other. Each declaration below writes one of them in the other's position.
+
+-- `else` is not a pattern, so a `match` alternative cannot be one.
+fn matchElse(n: Int) = match n:
+  0 -> 1
+  else -> 2
+
+-- Nor can a function guard, which takes patterns for the same reason.
+fn guardElse(n: Int)
+  | 0 -> 1
+  | else -> 2
+
+-- Nor can a `| match:` alternative, which is a match.
+fn altElse(m: Maybe(Int)) -> Int:
+  let Just(v) = m | match:
+    else -> return 0
+  return v
+
+-- And `_` is not a fallback marker, so an `if:` case cannot be one.
+fn ifWildcard(n: Int) = if:
+  n > 0 -> 1
+  _ -> 2
+
+-- Nor can the `| else ->` fallback of a `let`.
+fn letWildcard(m: Maybe(Int)) -> Int:
+  let Just(v) = m | _ -> return 0
+  return v
+
+-- The declaration after all of the above still parses.
+fn after(a: Int) = a

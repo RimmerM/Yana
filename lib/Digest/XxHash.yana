@@ -32,7 +32,7 @@ pub fn seededXxHash32(seed: U32) -> XxHash32 =
 fn xxRound(accumulator: U32, lane: U32) -> U32 = ((accumulator + lane * xxPrime2) `rol` 13) * xxPrime1
 
 instance Block(XxHash32):
-  fn compressBlocks(&self: XxHash32, from: Flat(U8), at: Size, blocks: Size) -> {}:
+  fn compressBlocks(&self: XxHash32, from: [U8], at: Size, blocks: Size) -> {}:
       let &v1 = self.v1
       let &v2 = self.v2
       let &v3 = self.v3
@@ -57,7 +57,7 @@ pub alias XxHash = Blocks(XxHash32)
 instance Digest(Blocks(XxHash32), 4):
   fn newDigest() -> Blocks(XxHash32) = newBlocks(newXxHash32())
 
-  fn update(&self: Blocks(XxHash32), from: Flat(U8)) -> {} = absorb(self, from)
+  fn update(&self: Blocks(XxHash32), from: [U8]) -> {} = absorb(self, from)
 
   fn finish(->self: Blocks(XxHash32)) -> Fingerprint:
       let &running = self
@@ -94,12 +94,12 @@ instance Digest(Blocks(XxHash32), 4):
       h = (h `xor` (h `shr` 13)) * xxPrime3
       return bytesOfU32(h `xor` (h `shr` 16))
 
-pub fn xxHash32Of(from: Flat(U8)) -> Fingerprint:
+pub fn xxHash32Of(from: [U8]) -> Fingerprint:
     let &state = newDigest() :: XxHash
     update(state, from)
     return finish(state)
 
-pub fn xxHash32ValueOf(from: Flat(U8)) -> U32 = valueOfBytes(xxHash32Of(from))
+pub fn xxHash32ValueOf(from: [U8]) -> U32 = valueOfBytes(xxHash32Of(from))
 
 -- The four bytes read back as the number they were, for the two hashes above whose callers want a
 -- number. Big-endian, which is what `bytesOfU32` wrote, and the exact inverse of it.
