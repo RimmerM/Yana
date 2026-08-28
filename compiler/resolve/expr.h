@@ -1005,6 +1005,11 @@ struct ExprResolver {
     // see the implementation in expr_convert.cpp, which is where the case and its reason live.
     void explainAbstractWidth(TypePtr from, TypePtr target, LocationId source);
 
+    // Why an owned container did not become the window a parameter asked for, where the only thing
+    // separating them is the element type. Reports and answers true where that is the case, so that
+    // both argument positions say it - see the implementation in expr_convert.cpp.
+    bool explainSliceElements(TypePtr from, TypePtr target, LocationId source);
+
     // A name for a borrow someone else's storage backs, rather than for a slot of this frame.
     void bindBorrow(const ast::VarDecl& declaration, ModulePtr<Value> value, bool mutable_);
 

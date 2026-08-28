@@ -571,26 +571,41 @@ ModulePtr<Value> ExprResolver::convertSliceCapability(ModulePtr<Value> value, Ty
 ModulePtr<Value> ExprResolver::convertSlice(ModulePtr<Value> value, TypePtr from, TypePtr target,
                                             LocationId source, bool mut) {
     auto element = sliceElement(module, target);
-    auto fixed = fixedElement(module, from);
-    if(!element || (!fixed && !arrayElement(module, from))) return nullptr;
+    auto owned = ownedElement(module, from);
+    if(!element || !owned) return nullptr;
 
     /*
-     * A third owner, and it borrows like the second - Implementation-Containers.md §7.
+     * Three owners, one descriptor, and one element type across all three -
+     * Implementation-Containers.md §6-§7.
      *
-     * An `@inline(n) @capacity(n)` array holds its slots the way a `[T *n]` does, so the base is an
-     * address computation rather than a load; what it does *not* share with the fixed array is the
-     * length, which is stored here because the array grows within its bound. So this arm is one half
-     * of each of the two below it, and no third descriptor shape exists - which is §1's whole point,
-     * that what varies is the owner and never the borrow.
+     * A growable `Array(T)`, a fixed `[T *n]` and an `@inline(n) @capacity(n)` array all borrow as
+     * the same `{base, length}` pair, and what separates them is only where the two halves come
+     * from: the growable one loads both out of fields, the fixed one *is* them, and the refined one
+     * is half of each - its slots are addressed the way a `[T *n]`'s are, while its length is stored,
+     * because it grows within its bound. No fourth descriptor shape exists, which is §1's whole
+     * point: what varies is the owner and never the borrow.
+     *
+     * So one question decides for all three, and it is the element type. A container whose elements
+     * are not the window's is not a borrow of it at all - `[Int *4]` and `Flat(Long)` are two
+     * unrelated types the ladder is walking, and so are `Array(Int)` and `Flat(I64)`.
+     *
+     * **This is the only place that asks.** A parameter written `xs: [I64]` folds to `Flat(I64)`,
+     * and a call to a non-generic function reaches convert() directly - a concrete signature never
+     * goes through `bindInto` - so nothing between the argument and this line compares anything. The
+     * growable owner used to be exempt here, on the grounds that `Array(T)` and `Flat(U)` are
+     * already different types; which is true, and is the *reason* a conversion is attempted rather
+     * than a reason one cannot be built. It was built: same base, same count, elements read at the
+     * wrong width, so `[7, 8] :: [Int]` at an `[I64]` parameter answered one 64-bit element and then
+     * a load past the end of the run. Under `&` it is the same descriptor with a store through it,
+     * since borrowArgument's mutable arm comes through here as well.
+     *
+     * `convertibleType` has compared them all along, which is what makes overload selection agree
+     * with this function; this is that same sentence said on the path that performs the conversion.
      */
-    auto inlineOwner = inlineRefinement(module, from);
-    if(inlineOwner && arrayElement(module, from) != element) return nullptr;
+    if(owned != element) return nullptr;
 
-    // Two containers, one descriptor. A `[T *n]` whose element type is not the slice's is not a
-    // borrow of it at all, which the growable side gets for free - `Array(T)` and `Flat(U)` never
-    // reach here because instantiateRecord already made them different types - and which this side
-    // has to say, since `[Int *4]` and `Flat(Long)` are two unrelated types the ladder is walking.
-    if(fixed && fixed != element) return nullptr;
+    auto fixed = fixedElement(module, from);
+    auto inlineOwner = inlineRefinement(module, from);
 
     auto place = findPlace(value);
     if(!place) {
@@ -763,6 +778,36 @@ void ExprResolver::explainAbstractWidth(TypePtr from, TypePtr target, LocationId
                                 describeType(context, global, target));
 }
 
+/*
+ * And why an array did not become the window a parameter asked for, where the elements are the only
+ * thing between them - see convertSlice, which is where the refusal is.
+ *
+ * Worth its own sentence for the same reason the one above is: the general message is true and
+ * answers a question nobody asked. What the author sees is `[Int]` and `[I64]`, two spellings that
+ * look like a width the compiler widens for free - and the difference is not a width at all. A
+ * window is the array's own buffer addressed at the window's element type, so there is nothing here
+ * to convert: making the two agree would mean building a second buffer at an argument position
+ * nobody wrote a call at, which is the same refusal §5 makes for a `Chunked` container.
+ *
+ * Both argument positions ask. A `&` one goes through borrowArgument, which commits to the slice
+ * conversion as soon as it sees an owner against a window and has nothing of its own to say when it
+ * does not happen - so without this the exclusive path reported an argument that was not there.
+ */
+bool ExprResolver::explainSliceElements(TypePtr from, TypePtr target, LocationId source) {
+    if(!from || !target) return false;
+
+    auto element = sliceElement(module, target);
+    auto owned = ownedElement(module, from);
+    if(!element || !owned || owned == element) return false;
+
+    context.diagnostics.error("cannot pass %@ where %@ is wanted: its elements are %@ and the window's are %@. A window is the array's own buffer read at the window's element type, so the two have to be the same type - a difference in width is not something a window can convert across, because it does not copy anything"_v,
+                              source, describeType(context, global, from),
+                              describeType(context, global, target),
+                              describeType(context, global, owned),
+                              describeType(context, global, element));
+    return true;
+}
+
 ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, LocationId source, bool implicit) {
     if(!value || !target) return value;
 
@@ -906,6 +951,10 @@ ModulePtr<Value> ExprResolver::convert(ModulePtr<Value> value, TypePtr target, L
         explainAbstractWidth(from, target, source);
         return value;
     }
+
+    // The neighbouring refusal, and the commoner one: a container that *is* contiguous and simply
+    // holds something else - see explainSliceElements, and convertSlice, which is what declined.
+    if(explainSliceElements(from, target, source)) return value;
 
     /*
      * The refusal §5 is built around: a container that is `Chunked` and not `Contiguous`, where a

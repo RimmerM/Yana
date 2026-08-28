@@ -883,6 +883,11 @@ ModulePtr<Value> ExprResolver::borrowArgument(ModulePtr<Value> value, TypePtr ex
      * length and run pointer over themselves.
      */
     if(sliceElement(module, expected) && ownedElement(module, held)) {
+        // Asked before the call rather than after it, because this arm has committed: a null from
+        // convertSlice reaches the caller as an argument that does not exist, and "incorrect number
+        // of arguments" is not what is wrong with an `Array(Int)` handed to a `&xs: [I64]`.
+        if(explainSliceElements(held, expected, source)) return nullptr;
+
         auto slice = convertSlice(value, held, expected, source, true);
         if(!slice) return nullptr;
 

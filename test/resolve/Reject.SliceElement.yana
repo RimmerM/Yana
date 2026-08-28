@@ -1,0 +1,61 @@
+{-
+   An owned container reaches a `[T]` parameter as a window over its own buffer, and the elements
+   have to be the window's - Implementation-Containers.md §6.
+
+   The conversion is a descriptor rather than a copy: `{base, length}` built over the array's own
+   run, so an `Array(Int)` at an `[I64]` parameter reads the same bytes at twice the width - two
+   elements as one, then a load past the end of the run. Under `&` it is that descriptor with a
+   store through it.
+
+   convertSlice is the only place that asks. A non-generic parameter written `[I64]` folds to
+   `Flat(I64)` and its call reaches convert() directly, since a concrete signature never goes
+   through the solver - so nothing between the argument and the descriptor compares anything, and
+   the growable owner was exempt here on the grounds that `Array(T)` and `Flat(U)` are already
+   different types. That is the reason a conversion is attempted, not a reason one cannot be built.
+-}
+
+fn narrow(xs: [Int]) -> Int = 0
+fn wide(xs: [I64]) -> Int = 0
+fn wideMut(&xs: [I64]) -> {} = {}
+fn bytes(xs: [U8]) -> Int = 0
+
+-- Refused: the array holds `Int` and the window says `I64`. The two spellings look like a width the
+-- compiler widens for free, and a window widens across nothing at all.
+fn valuePosition() -> Int:
+    let xs = [7, 8] :: [Int]
+    return wide(xs)
+
+-- The same refusal with the sigil on it, which is the half that used to write through the
+-- descriptor. borrowArgument commits to the conversion as soon as it sees an owner against a
+-- window, so the message has to come from there - without it this was reported as an argument that
+-- was not there at all.
+fn mutablePosition() -> {}:
+    let &xs = [7, 8] :: [Int]
+    wideMut(xs)
+
+-- Narrower rather than wider, which read one byte of the four and is refused in the same sentence:
+-- the question is whether the elements are the same type, not whether one fits the other.
+fn narrowerElement() -> Int:
+    let xs = [7, 8] :: [Int]
+    return bytes(xs)
+
+-- A `[T *n]`, whose elements were compared all along, and an `@inline(n) @capacity(n)` array, whose
+-- were too. Here so that one fixture asserts all three owners rather than whichever one happened to
+-- have a test of its own.
+fn fixedOwner() -> Int:
+    let xs = [7, 8] :: [Int *2]
+    return wide(xs)
+
+fn refinedOwner() -> Int:
+    let &xs = [7, 8] :: @inline(2) @capacity(2) [Int]
+    return wide(xs)
+
+-- Not this: the elements agree, so each of the three owners becomes a window and nothing here is
+-- reported.
+fn accepted() -> Int:
+    let &grow = [1, 2, 3] :: [Int]
+    let fixed = [4, 5] :: [Int *2]
+    let &refined = [6, 7] :: @inline(2) @capacity(2) [Int]
+    return narrow(grow) + narrow(fixed) + narrow(refined)
+
+fn main() -> Int = 0
